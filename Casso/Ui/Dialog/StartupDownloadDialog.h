@@ -4,7 +4,7 @@
 
 
 class    DxuiCheckbox;
-class    DialogPrimitive;
+class    DxuiDialog;
 class    DxuiLabel;
 struct   DialogInputEvent;
 struct   DialogPaintContext;
@@ -142,6 +142,6 @@ private:
                                                       StartupDownloadSet  & set,
                                                       DialogState         & state);
     static std::optional<int>  HandleBodyInput       (const DialogInputEvent & ev, DialogState & state);
-    static bool                HandleButtonActivated (size_t idx, DialogPrimitive & dlg, DialogState & state);
-    static void                HandleTick            (DialogPrimitive & dlg, DialogState & state);
+    static bool                HandleButtonActivated (size_t idx, DxuiDialog & dlg, DialogState & state);
+    static void                HandleTick            (DxuiDialog & dlg, DialogState & state);
 };

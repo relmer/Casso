@@ -2,11 +2,16 @@
 
 #include "StartupDownloadDialog.h"
 
-#include "DialogPrimitive.h"
-#include "StandaloneDialog.h"
+#include "DialogDefinition.h"
 #include "../Chrome/CassoTheme.h"
 #include "Widgets/DxuiCheckbox.h"
 #include "Widgets/DxuiLabel.h"
+#include "Core/DxuiPanel.h"
+#include "Core/DxuiEvents.h"
+#include "Render/DxuiPainter.h"
+#include "Render/DxuiTextRenderer.h"
+#include "Dialog/DxuiDialog.h"
+#include "Dialog/DxuiDialogManager.h"
 #include "../../UnicodeSymbols.h"
 
 
@@ -513,36 +518,35 @@ std::optional<int> StartupDownloadDialog::HandleBodyInput (const DialogInputEven
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool StartupDownloadDialog::HandleButtonActivated (size_t idx, DialogPrimitive & dlg, DialogState & state)
+bool StartupDownloadDialog::HandleButtonActivated (size_t idx, DxuiDialog & dlg, DialogState & state)
 {
+    bool  close = true;
+
+
     if (idx == state.downloadBtnIdx)
     {
-        if (state.downloading)
+        close = false;
+
+        if (!state.downloading)
         {
-            return false;
+            state.downloading = true;
+            state.showStatus  = true;
+            dlg.SetButtonLabel   (state.downloadBtnIdx, L"Downloading...");
+            dlg.SetButtonEnabled (state.downloadBtnIdx, false);
+
+            if (state.skipBtnIdx != SIZE_MAX)
+            {
+                dlg.SetButtonVisible (state.skipBtnIdx, false);
+            }
+
+            StartWorkers (state);
         }
-
-        state.downloading = true;
-        state.showStatus  = true;
-        dlg.SetButtonLabel   (state.downloadBtnIdx, L"Downloading...");
-        dlg.SetButtonEnabled (state.downloadBtnIdx, false);
-
-        if (state.skipBtnIdx != SIZE_MAX)
-        {
-            dlg.SetButtonVisible (state.skipBtnIdx, false);
-        }
-
-        StartWorkers (state);
-        return false;
     }
-
-    if (state.skipBtnIdx != SIZE_MAX && idx == state.skipBtnIdx)
+    else if (state.skipBtnIdx != SIZE_MAX && idx == state.skipBtnIdx)
     {
         state.result = StartupDownloadResult::Skipped;
-        return true;
     }
-
-    if (idx == state.exitBtnIdx)
+    else if (idx == state.exitBtnIdx)
     {
         if (state.downloading)
         {
@@ -552,10 +556,9 @@ bool StartupDownloadDialog::HandleButtonActivated (size_t idx, DialogPrimitive &
         }
 
         state.result = StartupDownloadResult::Exit;
-        return true;
     }
 
-    return true;
+    return close;
 }
 
 
@@ -571,10 +574,8 @@ bool StartupDownloadDialog::HandleButtonActivated (size_t idx, DialogPrimitive &
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void StartupDownloadDialog::HandleTick (DialogPrimitive & dlg, DialogState & state)
+void StartupDownloadDialog::HandleTick (DxuiDialog & dlg, DialogState & state)
 {
-    dlg.Repaint();
-
     if (state.downloading
         && !state.finished
         && state.workersInFlight.load (std::memory_order_acquire) == 0)
@@ -587,8 +588,131 @@ void StartupDownloadDialog::HandleTick (DialogPrimitive & dlg, DialogState & sta
                           ? StartupDownloadResult::PartialDone
                           : StartupDownloadResult::AllDone;
 
-        dlg.Close ((int) state.result);
+        dlg.CloseWithResult ((int) state.result);
     }
+}
+
+
+
+
+
+namespace
+{
+    //
+    //  DownloadBodyPanel -- paint/input bridge that renders the asset rows
+    //  via the existing PaintBody callback and forwards mouse events to the
+    //  per-row checkboxes via HandleBodyInput. It draws through the concrete
+    //  DxuiPainter / DxuiTextRenderer / CassoTheme (the modal host's actual
+    //  types) that the legacy DialogPaintContext expects.
+    //
+    class DownloadBodyPanel : public DxuiPanel
+    {
+    public:
+        void  SetPaintFn (std::function<void (DialogPaintContext &)>     fn) { m_paint = std::move (fn); }
+        void  SetInputFn (std::function<void (const DialogInputEvent &)> fn) { m_input = std::move (fn); }
+
+        void  Layout (const RECT & boundsPx, const DxuiDpiScaler & scaler) override
+        {
+            SetBounds  (boundsPx);
+            m_dpiScale = (float) scaler.Dpi() / (float) DxuiDpiScaler::kBaseDpi;
+        }
+
+        void  Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override
+        {
+            DialogPaintContext  ctx;
+
+            ctx.painter        = static_cast<DxuiPainter *> (&painter);
+            ctx.text           = static_cast<DxuiTextRenderer *> (&text);
+            ctx.theme          = static_cast<const CassoTheme *> (&theme);
+            ctx.customBodyRect = Bounds();
+            ctx.dpiScale       = m_dpiScale;
+
+            if (m_paint)
+            {
+                m_paint (ctx);
+            }
+        }
+
+        bool  OnMouse (const DxuiMouseEvent & ev) override
+        {
+            DialogInputEvent  die;
+            RECT              b        = Bounds();
+            bool              consumed = true;
+
+
+            die.xPx = ev.positionDip.x - b.left;
+            die.yPx = ev.positionDip.y - b.top;
+
+            switch (ev.kind)
+            {
+            case DxuiMouseEventKind::Down: die.kind = DialogInputEvent::Kind::LeftButtonDown; break;
+            case DxuiMouseEventKind::Up:   die.kind = DialogInputEvent::Kind::LeftButtonUp;   break;
+            case DxuiMouseEventKind::Move: die.kind = DialogInputEvent::Kind::MouseMove;      break;
+            default:                       consumed = false;                                  break;
+            }
+
+            if (consumed && m_input)
+            {
+                m_input (die);
+            }
+
+            return consumed;
+        }
+
+
+    private:
+        std::function<void (DialogPaintContext &)>      m_paint;
+        std::function<void (const DialogInputEvent &)>  m_input;
+        float                                           m_dpiScale = 1.0f;
+    };
+
+
+
+    //
+    //  DownloadContentPanel -- stacks the intro label above the asset-row
+    //  body, laid out in physical pixels.
+    //
+    class DownloadContentPanel : public DxuiPanel
+    {
+    public:
+        void  Init (DxuiLabel * intro, DownloadBodyPanel * body, int introHeightDip)
+        {
+            m_intro          = intro;
+            m_body           = body;
+            m_introHeightDip = introHeightDip;
+
+            Adopt (*intro);
+            Adopt (*body);
+        }
+
+        void  Layout (const RECT & boundsPx, const DxuiDpiScaler & scaler) override
+        {
+            int  ih = scaler.Px (m_introHeightDip);
+
+
+            SetBounds (boundsPx);
+
+            if (m_intro != nullptr)
+            {
+                RECT  r = { boundsPx.left, boundsPx.top, boundsPx.right, boundsPx.top + ih };
+
+                m_intro->Layout (r, scaler);
+            }
+
+            if (m_body != nullptr)
+            {
+                RECT  r = { boundsPx.left, boundsPx.top + ih, boundsPx.right, boundsPx.bottom };
+
+                m_body->Layout (r, scaler);
+            }
+        }
+
+
+    private:
+        DxuiLabel          *  m_intro          = nullptr;
+        DownloadBodyPanel  *  m_body           = nullptr;
+        int                   m_introHeightDip = 0;
+    };
 }
 
 
@@ -600,16 +724,12 @@ void StartupDownloadDialog::HandleTick (DialogPrimitive & dlg, DialogState & sta
 //  StartupDownloadDialog::Show
 //
 //  Constructs and modally displays the unified startup-asset download
-//  dialog. Builds checkbox widgets parallel to set.entries, wires the
-//  custom-body paint/input hooks, button activation, and tick handlers
-//  to free helpers (PaintBody / HandleBodyInput / HandleButtonActivated /
-//  HandleTick), and runs the standalone dialog loop. On exit, cancels
-//  and joins any still-running download workers, scrubs partial files,
-//  and returns the chosen StartupDownloadResult.
-//
-//  `themeName` is forwarded to ShowStandaloneDialog so the dialog
-//  honours the user's persisted CassoTheme choice; the caller passes
-//  GlobalUserPrefs::activeTheme.
+//  dialog through the Dxui host: an intro label above a per-asset checkbox
+//  list with live progress, plus Download / Skip / Exit buttons. Download
+//  starts the workers in place (the button stays open and relabels); a tick
+//  polls the workers and closes when done. On exit, cancels + joins any
+//  still-running workers, scrubs partial files, and returns the chosen
+//  StartupDownloadResult.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -619,20 +739,28 @@ StartupDownloadResult StartupDownloadDialog::Show (HINSTANCE                hIns
                                                    const std::wstring     & machineDisplayName,
                                                    StartupDownloadSet     & set)
 {
-    DialogDefinition        def           = {};
-    DialogState             state;
-    wstring                 title;
-    wstring                 intro;
-    int                     dialogResult  = 0;
-    UINT                    sysDpi        = (hwndOwner != nullptr) ? GetDpiForWindow (hwndOwner)
-                                                                   : GetDpiForSystem();
-    float                   dpiScale      = (sysDpi > 0) ? ((float) sysDpi / 96.0f) : 1.0f;
-    bool                    requiresRoms  = false;
-    int                     rowCount      = 0;
-    int                     headerCount   = 0;
-    int                     totalH        = 0;
-    wstring                 prevGroup;
+    constexpr int  s_kLineHeightDip = 20;
+    constexpr int  s_kIntroPadDip   = 8;
+    constexpr int  s_kChromeDip     = 120;   // caption + content pad*2 + button row
 
+    CassoTheme                             theme        = CassoTheme::ForName (std::string (themeName));
+    DialogState                            state;
+    std::unique_ptr<DxuiDialog>            dlg          = std::make_unique<DxuiDialog>();
+    std::unique_ptr<DownloadContentPanel>  content      = std::make_unique<DownloadContentPanel>();
+    DxuiLabel                              introLabel;
+    DownloadBodyPanel                      body;
+    DxuiDialogModalParams                  params;
+    DxuiDialog *                           dlgRaw       = dlg.get();
+    std::wstring                           title;
+    std::wstring                           intro;
+    std::wstring                           prevGroup;
+    UINT                                   sysDpi       = (hwndOwner != nullptr) ? GetDpiForWindow (hwndOwner)
+                                                                                 : GetDpiForSystem();
+    bool                                   requiresRoms = false;
+    int                                    rowCount     = 0;
+    int                                    headerCount  = 0;
+    int                                    introLines   = 1;
+    int                                    heightDip    = 0;
 
 
     if (set.Empty())
@@ -649,13 +777,13 @@ StartupDownloadResult StartupDownloadDialog::Show (HINSTANCE                hIns
 
     for (size_t i = 0; i < set.entries.size(); i++)
     {
-        DxuiCheckbox          & cb    = state.checkboxes[i];
-        StartupAssetEntry & entry = set.entries[i];
+        DxuiCheckbox       & cb    = state.checkboxes[i];
+        StartupAssetEntry  & entry = set.entries[i];
 
-        cb.SetDpi     (sysDpi);
-        cb.SetLabel   (entry.displayName);
-        cb.SetChecked (entry.selected);
-        cb.SetEnabled (entry.selectable);
+        cb.SetDpi      (sysDpi);
+        cb.SetLabel    (entry.displayName);
+        cb.SetChecked  (entry.selected);
+        cb.SetEnabled  (entry.selectable);
         cb.SetOnChange ([&entry] (bool checked) { entry.selected = checked; });
     }
 
@@ -674,7 +802,7 @@ StartupDownloadResult StartupDownloadDialog::Show (HINSTANCE                hIns
 
     if (requiresRoms)
     {
-        wstring machineStr = machineDisplayName.empty() ? L"" : machineDisplayName;
+        std::wstring  machineStr = machineDisplayName.empty() ? L"" : machineDisplayName;
 
         intro  = L"The ";
         intro += machineStr;
@@ -688,55 +816,52 @@ StartupDownloadResult StartupDownloadDialog::Show (HINSTANCE                hIns
                 L"Skip to continue without them, or Exit to quit.";
     }
 
-    totalH = (int) ((float) (headerCount * (s_kHeaderHeightDp + s_kRowGapDp + s_kHeaderGapAboveDp)
-                             + rowCount  * (s_kRowHeightDp    + s_kRowGapDp))
-                    * dpiScale);
-
-    def.title              = title;
-    def.icon               = DialogIcon::AppFlat;
-    def.iconSizeOverrideDp = 64.0f;
-    def.body.push_back ({ intro, false, L"" });
-
-    def.customBodyMinSizePx.cx = (int) ((float) s_kBodyWidthDp * dpiScale);
-    def.customBodyMinSizePx.cy = totalH;
-
-    def.tickIntervalMs = s_kTickIntervalMs;
-
-    def.onPaintCustomBody = [&set, &state] (DialogPaintContext & ctx)
+    for (wchar_t ch : intro)
     {
-        PaintBody (ctx, set, state);
-    };
+        if (ch == L'\n')
+        {
+            introLines++;
+        }
+    }
 
-    def.onInputCustomBody = [&state] (const DialogInputEvent & ev, DialogPrimitive &) -> std::optional<int>
-    {
-        return HandleBodyInput (ev, state);
-    };
+    introLabel.SetText      (intro);
+    introLabel.SetColorArgb (theme.dropdownItemText);
+    introLabel.SetVAlign    (DxuiTextVAlign::Top);
 
-    // Build buttons.
-    state.downloadBtnIdx = def.buttons.size();
-    def.buttons.push_back ({ L"Download", s_kIdDownload, true, false });
+    body.SetPaintFn ([&set, &state] (DialogPaintContext & ctx) { PaintBody (ctx, set, state); });
+    body.SetInputFn ([&state] (const DialogInputEvent & ev) { (void) HandleBodyInput (ev, state); });
+
+    content->Init (&introLabel, &body, introLines * s_kLineHeightDip + s_kIntroPadDip);
+
+    dlg->SetTitle   (title);
+    dlg->SetContent (std::move (content));
+
+    state.downloadBtnIdx = 0;
+    dlg->AddButton (L"Download", s_kIdDownload, true, false);
 
     if (!requiresRoms)
     {
-        state.skipBtnIdx = def.buttons.size();
-        def.buttons.push_back ({ L"Skip", s_kIdSkip, false, false });
+        state.skipBtnIdx = 1;
+        dlg->AddButton (L"Skip", s_kIdSkip, false, false);
     }
 
-    state.exitBtnIdx = def.buttons.size();
-    def.buttons.push_back ({ L"Exit", s_kIdExit, false, true });
+    state.exitBtnIdx = requiresRoms ? 1 : 2;
+    dlg->AddButton (L"Exit", s_kIdExit, false, true);
 
-    def.onButtonActivated = [&state] (size_t idx, DialogPrimitive & dlg) -> bool
-    {
-        return HandleButtonActivated (idx, dlg, state);
-    };
+    dlg->SetOnButtonActivated ([&state, dlgRaw] (size_t idx) { return HandleButtonActivated (idx, *dlgRaw, state); });
+    dlg->SetOnTick            ([&state, dlgRaw] () { HandleTick (*dlgRaw, state); }, s_kTickIntervalMs);
 
-    def.onTick = [&state] (DialogPrimitive & dlg)
-    {
-        HandleTick (dlg, state);
-    };
+    heightDip = s_kChromeDip + introLines * s_kLineHeightDip + s_kIntroPadDip
+              + headerCount * (s_kHeaderHeightDp + s_kRowGapDp + s_kHeaderGapAboveDp)
+              + rowCount    * (s_kRowHeightDp    + s_kRowGapDp);
 
-    dialogResult = ShowStandaloneDialog (hInstance, hwndOwner, themeName, def);
-    UNREFERENCED_PARAMETER (dialogResult);
+    params.hInstance     = hInstance;
+    params.ownerHwnd     = hwndOwner;
+    params.theme         = &theme;
+    params.clientSizeDip = { s_kBodyWidthDp, heightDip };
+    params.cancelResult  = s_kIdExit;
+
+    (void) DxuiDialogManager::ShowModal (std::move (dlg), params);
 
     if (!state.workers.empty())
     {
