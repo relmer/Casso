@@ -2,7 +2,7 @@
 #include "Theme/DxuiTheme.h"
 #include "DriveWidget.h"
 #include "../IDriveCommandSink.h"
-#include "../../UnicodeSymbols.h"
+#include "Core/UnicodeSymbols.h"
 
 
 

@@ -20,7 +20,7 @@
 #include "Dialog/DxuiDialogManager.h"
 #include "Widgets/DxuiListView.h"
 #include "Widgets/DxuiSearchBox.h"
-#include "UnicodeSymbols.h"
+#include "Core/UnicodeSymbols.h"
 
 #pragma comment(lib, "winhttp.lib")
 #pragma comment(lib, "comctl32.lib")

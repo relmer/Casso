@@ -2,7 +2,7 @@
 
 #include "ColorPickerOverlay.h"
 
-#include "../../UnicodeSymbols.h"
+#include "Core/UnicodeSymbols.h"
 
 
 

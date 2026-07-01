@@ -20,7 +20,7 @@
 #include "Core/Prng.h"
 
 #include "DiskSettings.h"
-#include "UnicodeSymbols.h"
+#include "Core/UnicodeSymbols.h"
 #include "Core/MachineConfig.h"
 #include "Core/JsonParser.h"
 #include "Video/AppleTextMode.h"

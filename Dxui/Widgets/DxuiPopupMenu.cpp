@@ -5,7 +5,7 @@
 #include "Window/DxuiHostWindow.h"
 #include "Window/DxuiPopupHost.h"
 
-#include "UnicodeSymbols.h"
+#include "Core/UnicodeSymbols.h"
 
 
 namespace

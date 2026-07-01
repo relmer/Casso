@@ -12,7 +12,7 @@
 #include "Render/DxuiTextRenderer.h"
 #include "Dialog/DxuiDialog.h"
 #include "Dialog/DxuiDialogManager.h"
-#include "../../UnicodeSymbols.h"
+#include "Core/UnicodeSymbols.h"
 
 
 namespace fs = std::filesystem;

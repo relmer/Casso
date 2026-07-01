@@ -2,7 +2,7 @@
 
 #include "DriveLabelTruncation.h"
 
-#include "../../UnicodeSymbols.h"
+#include "Core/UnicodeSymbols.h"
 
 
 
