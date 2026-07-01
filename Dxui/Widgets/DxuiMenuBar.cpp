@@ -797,7 +797,7 @@ void DxuiMenuBar::PaintStrip (
                                                   s_kFontFamily,
                                                   DxuiTextHAlign::Center,
                                                   DxuiTextVAlign::Center,
-                                                  DWRITE_FONT_WEIGHT_NORMAL,
+                                                  DxuiFontWeight::Normal,
                                                   false));
 
         if (showCues && mnIdx >= 0 && !stripped.empty())

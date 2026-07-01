@@ -412,7 +412,7 @@ void StartupDownloadDialog::PaintBody (
     hdrLabel.SetDpi         (state.dpi);
     hdrLabel.SetFontSizeDip (s_kHeaderFontDp);
     hdrLabel.SetColorArgb   (hdrFg);
-    hdrLabel.SetFontWeight  (DWRITE_FONT_WEIGHT_BOLD);
+    hdrLabel.SetFontWeight  (DxuiFontWeight::Bold);
 
     sourceLabel.SetDpi         (state.dpi);
     sourceLabel.SetFontSizeDip (s_kFontDp);

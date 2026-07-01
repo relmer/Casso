@@ -62,7 +62,7 @@ public:
                                const wchar_t * fontFamily,
                                DxuiTextHAlign  hAlign = DxuiTextHAlign::Left,
                                DxuiTextVAlign  vAlign = DxuiTextVAlign::Top,
-                               DWRITE_FONT_WEIGHT weight = DWRITE_FONT_WEIGHT_NORMAL,
+                               DxuiFontWeight  weight = DxuiFontWeight::Normal,
                                bool            wrap   = true) override;
 
     // Push an axis-aligned clip rect onto the d2d context. All
@@ -129,7 +129,7 @@ private:
     {
         std::wstring        family;
         float               sizeDip = 0.0f;
-        DWRITE_FONT_WEIGHT  weight  = DWRITE_FONT_WEIGHT_NORMAL;
+        DxuiFontWeight      weight  = DxuiFontWeight::Normal;
 
         bool operator < (const TextFormatKey & other) const
         {
@@ -142,13 +142,13 @@ private:
 
     HRESULT  EnsureTextFormat (const wchar_t                * family,
                                float                          fontSizeDip,
-                               DWRITE_FONT_WEIGHT             weight,
+                               DxuiFontWeight                 weight,
                                IDWriteTextFormat           ** outFormat);
 
 
     HRESULT  EnsureCapMidY    (const wchar_t                * family,
                                float                          fontSizeDip,
-                               DWRITE_FONT_WEIGHT             weight,
+                               DxuiFontWeight                 weight,
                                IDWriteTextFormat            * format,
                                float                        & outCapMidY);
 

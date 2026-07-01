@@ -7,6 +7,12 @@
 #pragma comment(lib, "dxgi.lib")
 
 
+// DxuiFontWeight mirrors the DirectWrite weight axis 1:1 so the concrete
+// renderer maps between them with a plain static_cast; enforce that here.
+static_assert ((int) DxuiFontWeight::Normal   == DWRITE_FONT_WEIGHT_NORMAL,    "DxuiFontWeight::Normal weight mismatch");
+static_assert ((int) DxuiFontWeight::SemiBold == DWRITE_FONT_WEIGHT_SEMI_BOLD, "DxuiFontWeight::SemiBold weight mismatch");
+static_assert ((int) DxuiFontWeight::Bold     == DWRITE_FONT_WEIGHT_BOLD,      "DxuiFontWeight::Bold weight mismatch");
+
 
 
 
@@ -430,7 +436,7 @@ Error:
 HRESULT DxuiTextRenderer::EnsureTextFormat (
     const wchar_t      *  family,
     float                 fontSizeDip,
-    DWRITE_FONT_WEIGHT    weight,
+    DxuiFontWeight        weight,
     IDWriteTextFormat  ** outFormat)
 {
     HRESULT             hr        = S_OK;
@@ -464,7 +470,7 @@ HRESULT DxuiTextRenderer::EnsureTextFormat (
 
         hr = m_dwriteFactory->CreateTextFormat (useFamily,
                                                 nullptr,
-                                                weight,
+                                                static_cast<DWRITE_FONT_WEIGHT> (weight),
                                                 DWRITE_FONT_STYLE_NORMAL,
                                                 DWRITE_FONT_STRETCH_NORMAL,
                                                 fontSizeDip,
@@ -494,7 +500,7 @@ Error:
 HRESULT DxuiTextRenderer::EnsureCapMidY (
     const wchar_t      *  family,
     float                 fontSizeDip,
-    DWRITE_FONT_WEIGHT    weight,
+    DxuiFontWeight        weight,
     IDWriteTextFormat  *  format,
     float              &  outCapMidY)
 {
@@ -601,7 +607,7 @@ HRESULT DxuiTextRenderer::DrawString (
     const wchar_t      * fontFamily,
     HAlign               hAlign,
     VAlign               vAlign,
-    DWRITE_FONT_WEIGHT   weight,
+    DxuiFontWeight       weight,
     bool                 wrap)
 {
     HRESULT                            hr      = S_OK;
@@ -1022,7 +1028,7 @@ HRESULT DxuiTextRenderer::MeasureString (
     // re-measures on the next Layout pass once Initialize is done.
     CBR (m_dwriteFactory);
 
-    hr = EnsureTextFormat (fontFamily, fontSizeDip, DWRITE_FONT_WEIGHT_NORMAL, &rawFmt);
+    hr = EnsureTextFormat (fontFamily, fontSizeDip, DxuiFontWeight::Normal, &rawFmt);
     CHRA (hr);
 
     format.Attach (rawFmt);

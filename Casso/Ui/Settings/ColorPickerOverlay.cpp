@@ -149,7 +149,7 @@ void ColorPickerOverlay::Layout (const RECT & panelRect, const DxuiDpiScaler & s
     m_title.SetRect (MakeRect (x, y, dialogW - pad * s_kDialogPadCount, rowH));
     m_title.SetText (L"Custom text color");
     m_title.SetFontSizeDip (s_kTitleFontDip);
-    m_title.SetFontWeight (DWRITE_FONT_WEIGHT_SEMI_BOLD);
+    m_title.SetFontWeight (DxuiFontWeight::SemiBold);
     y += rowH + rowGap;
 
     m_previewRect = MakeRect (controlsX + sliderW + scaler.Px (s_kPreviewGapDp), y, previewW, rowH * s_kSliderRowCount + rowGap * s_kSliderGapCount);
@@ -752,7 +752,7 @@ void ColorPickerOverlay::PaintCopyIcon (
                                               s_kpszMdl2Family,
                                               DxuiTextHAlign::Center,
                                               DxuiTextVAlign::Center,
-                                              DWRITE_FONT_WEIGHT_NORMAL,
+                                              DxuiFontWeight::Normal,
                                               false));
 }
 

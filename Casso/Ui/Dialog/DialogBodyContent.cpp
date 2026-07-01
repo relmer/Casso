@@ -263,7 +263,7 @@ void DialogBodyContent::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text,
                                                 s_kMdl2Family,
                                                 DxuiTextHAlign::Center,
                                                 DxuiTextVAlign::Center,
-                                                DWRITE_FONT_WEIGHT_NORMAL);
+                                                DxuiFontWeight::Normal);
 
         IGNORE_RETURN_VALUE (hr, S_OK);
     }
