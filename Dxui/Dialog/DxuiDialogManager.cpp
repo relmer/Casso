@@ -172,6 +172,41 @@ namespace
             return routed;
         }
 
+        DxuiMessageResult  OnMouseWheel (WPARAM wParam, LPARAM lParam, bool horizontal) override
+        {
+            DxuiMouseEvent  ev;
+            POINT           pt      = { GET_X_LPARAM (lParam), GET_Y_LPARAM (lParam) };
+            float           delta   = (float) GET_WHEEL_DELTA_WPARAM (wParam) / (float) WHEEL_DELTA;
+            bool            handled = false;
+
+
+            if (m_dialog == nullptr)
+            {
+                return DxuiMessageResult::NotHandled;
+            }
+
+            if (m_hwnd != nullptr)
+            {
+                ScreenToClient (m_hwnd, &pt);
+            }
+
+            // The list scrolls horizontally on Shift+wheel; a horizontal
+            // wheel / touchpad swipe maps to the same path with the sign
+            // flipped (Win32 +right vs the list's +delta = scroll-left).
+            ev.kind        = DxuiMouseEventKind::Wheel;
+            ev.positionDip = pt;
+            ev.wheelDelta  = horizontal ? -delta : delta;
+            ev.shift       = horizontal || ((GetKeyState (VK_SHIFT) & 0x8000) != 0);
+            handled        = m_dialog->OnMouse (ev);
+
+            if (handled && m_hwnd != nullptr)
+            {
+                InvalidateRect (m_hwnd, nullptr, FALSE);
+            }
+
+            return handled ? DxuiMessageResult::Handled : DxuiMessageResult::NotHandled;
+        }
+
         DxuiMessageResult  OnTimer (UINT_PTR timerId) override
         {
             UNREFERENCED_PARAMETER (timerId);
@@ -217,6 +252,15 @@ namespace
                 ev.button      = button;
                 ev.positionDip = { GET_X_LPARAM (lParam), GET_Y_LPARAM (lParam) };
                 handled        = m_dialog->OnMouse (ev);
+            }
+
+            // Interactive content (list selection / hover, column-resize +
+            // scrollbar drags, search-box caret) mutates on mouse input but
+            // the host only repaints after keyboard / timer -- invalidate
+            // here so those changes actually show.
+            if (handled && m_hwnd != nullptr)
+            {
+                InvalidateRect (m_hwnd, nullptr, FALSE);
             }
 
             return handled ? DxuiMessageResult::Handled : DxuiMessageResult::NotHandled;
@@ -335,6 +379,8 @@ std::future<int> DxuiDialogManager::Show (std::unique_ptr<DxuiDialog>  dialog,
 int DxuiDialogManager::ShowModal (std::unique_ptr<DxuiDialog>    dialog,
                                   const DxuiDialogModalParams  & params)
 {
+    constexpr UINT                 s_kCaretRepaintMs = 250;   // caret-blink repaint cadence
+
     HRESULT                        hr            = S_OK;
     DxuiHostWindow                 host;
     DxuiModalDialogClient          client;
@@ -383,9 +429,18 @@ int DxuiDialogManager::ShowModal (std::unique_ptr<DxuiDialog>    dialog,
     host.SetContentPanel (std::move (dialog));
     client.SetupFocus    (dialogRaw, params.theme);
 
-    if (dialogRaw->TickIntervalMs() > 0)
+    //
+    //  Always run a timer. When the dialog set an app tick (e.g. the
+    //  download poller) honour that interval; otherwise fall back to a
+    //  caret-blink cadence so a focused search box / text input in the
+    //  content actually blinks (its caret is clock-driven in Paint, so it
+    //  only animates while the host repaints).
+    //
     {
-        host.SetTimer (1, dialogRaw->TickIntervalMs());
+        UINT  appTickMs = dialogRaw->TickIntervalMs();
+        UINT  timerMs   = (appTickMs > 0) ? appTickMs : s_kCaretRepaintMs;
+
+        host.SetTimer (1, timerMs);
     }
 
     if (params.ownerHwnd != nullptr)
