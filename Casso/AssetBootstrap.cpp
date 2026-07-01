@@ -2042,11 +2042,13 @@ int DiskMruPickerSession::Run()
     }
     dlg->SetInitialFocus (&m_search);
 
-    params.hInstance     = m_hInstance;
-    params.ownerHwnd     = m_hwndParent;
-    params.theme         = &theme;
-    params.clientSizeDip = { s_kResizableDefWidthDip, s_kResizableDefHeightDip };
-    params.cancelResult  = m_closeBoxResult.value_or (-1);
+    params.hInstance        = m_hInstance;
+    params.ownerHwnd        = m_hwndParent;
+    params.theme            = &theme;
+    params.clientSizeDip    = { s_kResizableDefWidthDip, s_kResizableDefHeightDip };
+    params.cancelResult     = m_closeBoxResult.value_or (-1);
+    params.resizable        = true;
+    params.minClientSizeDip = { s_kResizableMinWidthDip, s_kResizableMinHeightDip };
 
     chosen = DxuiDialogManager::ShowModal (std::move (dlg), params);
 

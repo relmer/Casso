@@ -74,6 +74,12 @@ struct DxuiDialogModalParams
     const IDxuiTheme * theme          = nullptr;
     SIZE               clientSizeDip  = { 420, 200 };
     int                cancelResult   = -1;
+
+    // When true the modal window gets resize borders + maximize; the
+    // content re-docks on every WM_SIZE. minClientSizeDip clamps the
+    // minimum client area (DIP). Defaults keep dialogs fixed-size.
+    bool               resizable         = false;
+    SIZE               minClientSizeDip  = { 0, 0 };
 };
 
 
