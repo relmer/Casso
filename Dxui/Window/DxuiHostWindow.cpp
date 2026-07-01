@@ -1413,6 +1413,7 @@ LRESULT DxuiHostWindow::WndProc (UINT msg, WPARAM wp, LPARAM lp)
         case WM_CHAR:
             if (m_client != nullptr && m_client->OnChar (wp, lp) == DxuiMessageResult::Handled)
             {
+                InvalidateRect (m_hwnd, nullptr, FALSE);
                 return 0;
             }
             break;
@@ -1431,6 +1432,7 @@ LRESULT DxuiHostWindow::WndProc (UINT msg, WPARAM wp, LPARAM lp)
         case WM_SYSKEYDOWN:
             if (m_client != nullptr && m_client->OnKeyDown (wp, lp) == DxuiMessageResult::Handled)
             {
+                InvalidateRect (m_hwnd, nullptr, FALSE);
                 return 0;
             }
             break;

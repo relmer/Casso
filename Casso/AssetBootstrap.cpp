@@ -16,6 +16,9 @@
 #include "Ui/Dialog/StartupDownloadDialog.h"
 #include "Ui/Dialog/DialogPrimitive.h"
 #include "Core/DxuiEvents.h"
+#include "Core/DxuiPanel.h"
+#include "Dialog/DxuiDialog.h"
+#include "Dialog/DxuiDialogManager.h"
 #include "Widgets/DxuiListView.h"
 #include "Widgets/DxuiSearchBox.h"
 #include "UnicodeSymbols.h"
@@ -2619,91 +2622,118 @@ bool DiskMruPickerSession::WantsResizeCursor (int xPx, int yPx) const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace
+{
+    ////////////////////////////////////////////////////////////////////////////////
+    //
+    //  PickerBodyPanel
+    //
+    //  Dxui content panel for the boot-disk picker: a search box docked at
+    //  the top, a list filling the rest. Lays out in physical pixels (the
+    //  hosted dialog passes a px content rect) so the fixed search-strip
+    //  height scales with DPI.
+    //
+    ////////////////////////////////////////////////////////////////////////////////
+
+    class PickerBodyPanel : public DxuiPanel
+    {
+    public:
+        void  Init (DxuiSearchBox * search, DxuiListView * list, int searchHeightDip, int gapDip)
+        {
+            m_search          = search;
+            m_list            = list;
+            m_searchHeightDip = searchHeightDip;
+            m_gapDip          = gapDip;
+
+            Adopt (*search);
+            Adopt (*list);
+        }
+
+        void  Layout (const RECT & boundsPx, const DxuiDpiScaler & scaler) override
+        {
+            int  sh  = scaler.Px (m_searchHeightDip);
+            int  gap = scaler.Px (m_gapDip);
+
+
+            SetBounds (boundsPx);
+
+            if (m_search != nullptr)
+            {
+                RECT  r = { boundsPx.left, boundsPx.top, boundsPx.right, boundsPx.top + sh };
+
+                m_search->Layout (r, scaler);
+            }
+
+            if (m_list != nullptr)
+            {
+                RECT  r = { boundsPx.left, boundsPx.top + sh + gap, boundsPx.right, boundsPx.bottom };
+
+                m_list->Layout (r, scaler);
+            }
+        }
+
+
+    private:
+        DxuiSearchBox *  m_search          = nullptr;
+        DxuiListView  *  m_list            = nullptr;
+        int              m_searchHeightDip = 0;
+        int              m_gapDip          = 0;
+    };
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskMruPickerSession::Run
+//
+//  Builds a DxuiDialog whose content is a search box + list, wires row
+//  activation to close the dialog with the row's result, and shows it
+//  modally through the Dxui host. Returns the chosen result code (a model
+//  row's resultCode, a button's resultCode, or the close-box code).
+//
+////////////////////////////////////////////////////////////////////////////////
+
 int DiskMruPickerSession::Run()
 {
-    int               chosen   = -1;
-    int               workH    = 0;
-    int               reserve  = 0;
-    int               minBodyH = 0;
-    DialogDefinition  def      = {};
-    HMONITOR          monitor  = nullptr;
-    MONITORINFO       monInfo  = {};
+    CassoTheme                        theme   = CassoTheme::ForName (m_themeName);
+    std::unique_ptr<DxuiDialog>       dlg     = std::make_unique<DxuiDialog>();
+    std::unique_ptr<PickerBodyPanel>  content = std::make_unique<PickerBodyPanel>();
+    DxuiDialogModalParams             params;
+    DxuiDialog *                      dlgRaw  = dlg.get();
+    int                               chosen  = -1;
 
 
-
-    m_dpi            = (m_hwndParent != nullptr) ? GetDpiForWindow (m_hwndParent) : GetDpiForSystem();
-    m_searchHeightPx = MulDiv (s_kSearchHeightDip,  (int) m_dpi, s_kBaseDpi);
-    m_gapPx          = MulDiv (s_kSearchListGapDip, (int) m_dpi, s_kBaseDpi);
-
-    monInfo.cbSize = sizeof (monInfo);
-    monitor        = (m_hwndParent != nullptr) ? MonitorFromWindow (m_hwndParent, MONITOR_DEFAULTTONEAREST)
-                                               : MonitorFromPoint ({ 0, 0 }, MONITOR_DEFAULTTOPRIMARY);
-    if (GetMonitorInfo (monitor, &monInfo))
-    {
-        workH = monInfo.rcWork.bottom - monInfo.rcWork.top;
-    }
-
-    reserve           = MulDiv (s_kChromeReserveDip, (int) m_dpi, s_kBaseDpi);
-    minBodyH          = MulDiv (s_kMinBodyHeightDip, (int) m_dpi, s_kBaseDpi);
-    m_maxBodyHeightPx = (workH > 0) ? std::max (minBodyH, workH - reserve)
-                                    : s_kUnclampedBodyHeightPx;
+    m_dpi = (m_hwndParent != nullptr) ? GetDpiForWindow (m_hwndParent) : GetDpiForSystem();
 
     ConfigureWidgets();
+    m_search.SetTheme (&theme);
+    m_list.SetTheme   (&theme);
     RebuildView();
 
-    def.title                    = m_title;
-    def.icon                     = DialogIcon::AppFlat;
-    def.iconSizeOverrideDp       = s_kIconSizeDip;
-    def.customBodyFocusableCount = s_kFocusStopCount;
-    def.tickIntervalMs           = s_kTickIntervalMs;
-    def.customBodyMinSizePx.cx   = MulDiv (s_kBootMruBodyWidthDp, (int) m_dpi, s_kBaseDpi);
-    def.customBodyMinSizePx.cy   = m_searchHeightPx + m_gapPx + m_list.GetRequiredHeightPx();
-    def.body.push_back ({ m_intro, false, L"" });
+    //  Row activation (double-click / Enter on a row) closes the dialog
+    //  with that row's result code.
+    m_list.SetOnActivateRow ([dlgRaw, this] (int row) { dlgRaw->CloseWithResult (ChosenResultAt (row)); });
 
+    content->Init (&m_search, &m_list, s_kSearchHeightDip, s_kSearchListGapDip);
+
+    dlg->SetTitle   (m_title);
+    dlg->SetContent (std::move (content));
     for (const DialogButton & button : m_buttons)
     {
-        def.buttons.push_back (button);
+        dlg->AddButton (button.label, button.resultCode, button.isDefault, button.isCancel);
     }
+    dlg->SetInitialFocus (&m_search);
 
-    def.closeBoxResult = m_closeBoxResult;
+    params.hInstance     = m_hInstance;
+    params.ownerHwnd     = m_hwndParent;
+    params.theme         = &theme;
+    params.clientSizeDip = { s_kResizableDefWidthDip, s_kResizableDefHeightDip };
+    params.cancelResult  = m_closeBoxResult.value_or (-1);
 
-    def.resizable                  = true;
-    def.resizableMinSizeDip.cx     = s_kResizableMinWidthDip;
-    def.resizableMinSizeDip.cy     = s_kResizableMinHeightDip;
-    def.resizableDefaultSizeDip.cx = s_kResizableDefWidthDip;
-    def.resizableDefaultSizeDip.cy = s_kResizableDefHeightDip;
-
-    def.onMeasureCustomBody = [this] (DxuiTextRenderer & text, float) -> SIZE
-    {
-        return HandleMeasure (text);
-    };
-
-    def.onPaintCustomBody = [this] (DialogPaintContext & ctx)
-    {
-        HandlePaint (ctx);
-    };
-
-    def.onInputCustomBody = [this] (const DialogInputEvent & ev, DialogPrimitive & prim) -> std::optional<int>
-    {
-        return HandleInput (ev, prim);
-    };
-
-    def.onCustomBodyFocusChanged = [this] (int focusIndex)
-    {
-        HandleFocus (focusIndex);
-    };
-
-    def.onTick = [this] (DialogPrimitive & prim)
-    {
-        HandleTick (prim);
-    };
-
-    def.onCustomBodyWantsResizeCursor = [this] (int x, int y)
-    {
-        return WantsResizeCursor (x, y);
-    };
-
-    chosen = ShowStandaloneDialog (m_hInstance, m_hwndParent, m_themeName, def);
+    chosen = DxuiDialogManager::ShowModal (std::move (dlg), params);
 
     return chosen;
 }
