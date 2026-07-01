@@ -211,6 +211,19 @@ public:
         return DxuiMessageResult::NotHandled;
     }
 
+    // WM_MOUSEWHEEL (horizontal == false) / WM_MOUSEHWHEEL
+    // (horizontal == true). wParam packs the signed wheel delta in its
+    // high word plus modifier flags; lParam packs the (x, y) point in
+    // SCREEN coordinates. Return ``Handled`` if your override consumed
+    // the notch; ``NotHandled`` to let DxuiHostWindow call DefWindowProc.
+    virtual DxuiMessageResult  OnMouseWheel     (WPARAM wParam, LPARAM lParam, bool horizontal)
+    {
+        UNREFERENCED_PARAMETER (wParam);
+        UNREFERENCED_PARAMETER (lParam);
+        UNREFERENCED_PARAMETER (horizontal);
+        return DxuiMessageResult::NotHandled;
+    }
+
     // WM_LBUTTONDOWN. wParam = mouse-button / modifier flags;
     // lParam packs the (x, y) client-coordinate point. Return
     // ``Handled`` if your override fully processed the press;

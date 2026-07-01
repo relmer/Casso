@@ -1510,6 +1510,22 @@ LRESULT DxuiHostWindow::WndProc (UINT msg, WPARAM wp, LPARAM lp)
             }
             break;
 
+        case WM_MOUSEWHEEL:
+            if (m_client != nullptr && m_client->OnMouseWheel (wp, lp, false) == DxuiMessageResult::Handled)
+            {
+                InvalidateRect (m_hwnd, nullptr, FALSE);
+                return 0;
+            }
+            break;
+
+        case WM_MOUSEHWHEEL:
+            if (m_client != nullptr && m_client->OnMouseWheel (wp, lp, true) == DxuiMessageResult::Handled)
+            {
+                InvalidateRect (m_hwnd, nullptr, FALSE);
+                return 0;
+            }
+            break;
+
         case WM_ACTIVATEAPP:
             if (m_client != nullptr && m_client->OnActivateApp (wp != 0) == DxuiMessageResult::Handled)
             {
