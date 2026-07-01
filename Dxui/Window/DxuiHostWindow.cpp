@@ -13,96 +13,119 @@
 
 
 
-namespace
+static constexpr int    s_kMinResizeBorderPx     = 4;
+static constexpr UINT   s_kDefaultDpi            = 96;
+static constexpr LONG   s_kExtendFrameInsetPx    = 1;
+
+// Distinct per-instance window class names — every Create()
+// generates a fresh class so multiple host windows in one
+// process don't share registration state.
+static std::atomic<uint32_t>  s_classSerial { 0 };
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiHostWindow::NotifySystemButtonsMaximizedInTree
+//
+//  Recursively walks the control subtree and pushes the maximized
+//  state onto every DxuiSystemButton of kind Max.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiHostWindow::NotifySystemButtonsMaximizedInTree (IDxuiControl * control, bool maximized)
 {
-    constexpr int    s_kMinResizeBorderPx     = 4;
-    constexpr UINT   s_kDefaultDpi            = 96;
-    constexpr LONG   s_kExtendFrameInsetPx    = 1;
-
-    // Distinct per-instance window class names — every Create()
-    // generates a fresh class so multiple host windows in one
-    // process don't share registration state.
-    std::atomic<uint32_t>  s_classSerial { 0 };
+    HRESULT             hr     = S_OK;
+    size_t              n      = 0;
+    size_t              i      = 0;
+    IDxuiControl      * child  = nullptr;
+    DxuiSystemButton  * button = nullptr;
 
 
-    void NotifySystemButtonsMaximizedInTree (IDxuiControl * control, bool maximized)
+
+    BAIL_OUT_IF (control == nullptr, S_OK);
+
+    button = dynamic_cast<DxuiSystemButton *> (control);
+    if (button != nullptr && button->Kind() == DxuiSystemButtonKind::Max)
     {
-        size_t              n      = 0;
-        size_t              i      = 0;
-        IDxuiControl      * child  = nullptr;
-        DxuiSystemButton  * button = nullptr;
+        button->SetMaximized (maximized);
+    }
+
+    n = control->ChildCount();
+    for (i = 0; i < n; ++i)
+    {
+        child = control->Child (i);
+        NotifySystemButtonsMaximizedInTree (child, maximized);
+    }
+
+Error:
+    return;
+}
 
 
 
-        if (control == nullptr)
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiHostWindow::FindNcSystemControlInTree
+//
+//  Depth-first, top-most-child-first search for the deepest NC system
+//  button (min / max / close) whose bounds contain the point. Returns
+//  nullptr when the point hits no system button.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+IDxuiControl * DxuiHostWindow::FindNcSystemControlInTree (IDxuiControl * control, POINT clientDip)
+{
+    HRESULT          hr    = S_OK;
+    size_t           n     = 0;
+    size_t           i     = 0;
+    IDxuiControl   * child = nullptr;
+    IDxuiControl   * found = nullptr;
+    RECT             rc    = {};
+    DxuiHitTestKind  kind  = DxuiHitTestKind::None;
+
+
+
+    BAIL_OUT_IF (control == nullptr, S_OK);
+
+    n = control->ChildCount();
+    for (i = n; i > 0 && found == nullptr; --i)
+    {
+        child = control->Child (i - 1);
+        if (child == nullptr || !child->Visible())
         {
-            return;
+            continue;
         }
 
-        button = dynamic_cast<DxuiSystemButton *> (control);
-        if (button != nullptr && button->Kind() == DxuiSystemButtonKind::Max)
+        rc = child->Bounds();
+        if (clientDip.x < rc.left || clientDip.x >= rc.right ||
+            clientDip.y < rc.top  || clientDip.y >= rc.bottom)
         {
-            button->SetMaximized (maximized);
+            continue;
         }
 
-        n = control->ChildCount();
-        for (i = 0; i < n; ++i)
+        found = FindNcSystemControlInTree (child, clientDip);
+        if (found != nullptr)
         {
-            child = control->Child (i);
-            NotifySystemButtonsMaximizedInTree (child, maximized);
+            break;
+        }
+
+        kind = child->ClassifyHit (clientDip);
+        if (kind == DxuiHitTestKind::MinButton ||
+            kind == DxuiHitTestKind::MaxButton ||
+            kind == DxuiHitTestKind::CloseButton)
+        {
+            found = child;
+            break;
         }
     }
 
-
-    IDxuiControl *  FindNcSystemControlInTree (IDxuiControl * control, POINT clientDip)
-    {
-        size_t           n     = 0;
-        size_t           i     = 0;
-        IDxuiControl   * child = nullptr;
-        IDxuiControl   * found = nullptr;
-        RECT             rc    = {};
-        DxuiHitTestKind  kind  = DxuiHitTestKind::None;
-
-
-
-        if (control == nullptr)
-        {
-            return nullptr;
-        }
-
-        n = control->ChildCount();
-        for (i = n; i > 0; --i)
-        {
-            child = control->Child (i - 1);
-            if (child == nullptr || !child->Visible())
-            {
-                continue;
-            }
-
-            rc = child->Bounds();
-            if (clientDip.x < rc.left || clientDip.x >= rc.right ||
-                clientDip.y < rc.top  || clientDip.y >= rc.bottom)
-            {
-                continue;
-            }
-
-            found = FindNcSystemControlInTree (child, clientDip);
-            if (found != nullptr)
-            {
-                return found;
-            }
-
-            kind = child->ClassifyHit (clientDip);
-            if (kind == DxuiHitTestKind::MinButton ||
-                kind == DxuiHitTestKind::MaxButton ||
-                kind == DxuiHitTestKind::CloseButton)
-            {
-                return child;
-            }
-        }
-
-        return nullptr;
-    }
+Error:
+    return found;
 }
 
 
@@ -2758,10 +2781,7 @@ LRESULT DxuiHostWindow::KindToHt (DxuiHitTestKind kind)
 
 
 
-namespace
-{
-    constexpr size_t  s_kPopupPoolInitialSize = 3;
-}
+static constexpr size_t  s_kPopupPoolInitialSize = 3;
 
 
 
