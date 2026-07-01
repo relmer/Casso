@@ -305,43 +305,43 @@ int DxuiDialogManager::PushInternal (std::unique_ptr<DxuiDialog>          dialog
 
 bool DxuiDialogManager::PopInternal (int frameId, int result)
 {
-    size_t  idx = SIZE_MAX;
+    HRESULT                            hr         = S_OK;
+    bool                               foundFrame = false;
+    size_t                             idx        = 0;
+    HWND                               prevTop    = nullptr;
+    std::shared_ptr<std::promise<int>> promise    = nullptr;
 
 
 
-    for (size_t i = 0; i < m_stack.size(); i++)
+    for (idx = 0; idx < m_stack.size(); idx++)
     {
-        if (m_stack[i].id == frameId)
+        if (m_stack[idx].id == frameId)
         {
-            idx = i;
             break;
         }
     }
 
-    if (idx == SIZE_MAX)
-    {
-        return false;
-    }
+    BAIL_OUT_IF (idx == m_stack.size(), S_OK);
 
     //
     //  Capture the bits we need before erasing.
     //
+    prevTop  = m_stack[idx].prevTopHwnd;
+    promise  = m_stack[idx].promise;
+
+    if (promise)
     {
-        Frame &                             frame    = m_stack[idx];
-        HWND                                prevTop  = frame.prevTopHwnd;
-        std::shared_ptr<std::promise<int>>  promise  = frame.promise;
-
-        if (promise)
-        {
-            promise->set_value (result);
-        }
-
-        ApplyEnable (prevTop, true);
+        promise->set_value (result);
     }
+
+    ApplyEnable (prevTop, true);
 
     m_stack.erase (m_stack.begin() + (std::ptrdiff_t) idx);
 
-    return true;
+    foundFrame = true;
+
+Error:
+    return foundFrame;
 }
 
 
@@ -369,7 +369,7 @@ void DxuiDialogManager::ApplyEnable (HWND hwnd, bool enable)
 
     if (hwnd != nullptr)
     {
-        BOOL  prev = ::EnableWindow (hwnd, enable ? TRUE : FALSE);
+        BOOL  prev = ::EnableWindow (hwnd, enable);
 
         IGNORE_RETURN_VALUE (prev, FALSE);
     }
