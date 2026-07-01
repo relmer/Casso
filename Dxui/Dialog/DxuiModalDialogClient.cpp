@@ -205,31 +205,38 @@ DxuiMessageResult DxuiModalDialogClient::OnClose ()
 
 DxuiMessageResult DxuiModalDialogClient::OnGetMinMax (MINMAXINFO * info)
 {
-    RECT  rcClient = {};
-    RECT  rcWindow = {};
-    UINT  dpi      = (m_hwnd != nullptr) ? GetDpiForWindow (m_hwnd) : 96;
-    int   minCW    = MulDiv (m_minClientSizeDip.cx, (int) dpi, 96);
-    int   minCH    = MulDiv (m_minClientSizeDip.cy, (int) dpi, 96);
-    int   ncW      = 0;
-    int   ncH      = 0;
-    bool  handled  = false;
+    HRESULT            hr       = S_OK;
+    DxuiMessageResult  result   = DxuiMessageResult::NotHandled;
+    RECT               rcClient = {};
+    RECT               rcWindow = {};
+    UINT               dpi      = USER_DEFAULT_SCREEN_DPI;
+    int                minCW    = 0;
+    int                minCH    = 0;
+    int                ncW      = 0;
+    int                ncH      = 0;
 
 
-    if (info != nullptr && m_hwnd != nullptr &&
-        (m_minClientSizeDip.cx > 0 || m_minClientSizeDip.cy > 0))
+    BAIL_OUT_IF (info == nullptr || m_hwnd == nullptr, S_OK);
+    BAIL_OUT_IF (m_minClientSizeDip.cx <= 0 && m_minClientSizeDip.cy <= 0, S_OK);
+
+    dpi   = GetDpiForWindow (m_hwnd);
+    minCW = MulDiv (m_minClientSizeDip.cx, (int) dpi, USER_DEFAULT_SCREEN_DPI);
+    minCH = MulDiv (m_minClientSizeDip.cy, (int) dpi, USER_DEFAULT_SCREEN_DPI);
+
+    // Translate the client floor to a window floor via the live NC
+    // overhead (non-fatal if either query fails -- overhead stays 0).
+    if (GetClientRect (m_hwnd, &rcClient) && GetWindowRect (m_hwnd, &rcWindow))
     {
-        if (GetClientRect (m_hwnd, &rcClient) && GetWindowRect (m_hwnd, &rcWindow))
-        {
-            ncW = (rcWindow.right  - rcWindow.left) - (rcClient.right  - rcClient.left);
-            ncH = (rcWindow.bottom - rcWindow.top)  - (rcClient.bottom - rcClient.top);
-        }
-
-        info->ptMinTrackSize.x = minCW + ncW;
-        info->ptMinTrackSize.y = minCH + ncH;
-        handled                = true;
+        ncW = (rcWindow.right  - rcWindow.left) - (rcClient.right  - rcClient.left);
+        ncH = (rcWindow.bottom - rcWindow.top)  - (rcClient.bottom - rcClient.top);
     }
 
-    return handled ? DxuiMessageResult::Handled : DxuiMessageResult::NotHandled;
+    info->ptMinTrackSize.x = minCW + ncW;
+    info->ptMinTrackSize.y = minCH + ncH;
+    result                 = DxuiMessageResult::Handled;
+
+Error:
+    return result;
 }
 
 
@@ -321,16 +328,15 @@ DxuiMessageResult DxuiModalDialogClient::OnLButtonUp (WPARAM wParam, LPARAM lPar
 
 DxuiMessageResult DxuiModalDialogClient::OnMouseWheel (WPARAM wParam, LPARAM lParam, bool horizontal)
 {
-    DxuiMouseEvent  ev;
-    POINT           pt      = { GET_X_LPARAM (lParam), GET_Y_LPARAM (lParam) };
-    float           delta   = (float) GET_WHEEL_DELTA_WPARAM (wParam) / (float) WHEEL_DELTA;
-    bool            handled = false;
+    HRESULT            hr      = S_OK;
+    DxuiMessageResult  result  = DxuiMessageResult::NotHandled;
+    DxuiMouseEvent     ev;
+    POINT              pt      = { GET_X_LPARAM (lParam), GET_Y_LPARAM (lParam) };
+    float              delta   = (float) GET_WHEEL_DELTA_WPARAM (wParam) / (float) WHEEL_DELTA;
+    bool               handled = false;
 
 
-    if (m_dialog == nullptr)
-    {
-        return DxuiMessageResult::NotHandled;
-    }
+    BAIL_OUT_IF (m_dialog == nullptr, S_OK);
 
     if (m_hwnd != nullptr)
     {
@@ -348,7 +354,10 @@ DxuiMessageResult DxuiModalDialogClient::OnMouseWheel (WPARAM wParam, LPARAM lPa
         InvalidateRect (m_hwnd, nullptr, FALSE);
     }
 
-    return handled ? DxuiMessageResult::Handled : DxuiMessageResult::NotHandled;
+    result = handled ? DxuiMessageResult::Handled : DxuiMessageResult::NotHandled;
+
+Error:
+    return result;
 }
 
 
@@ -390,20 +399,21 @@ DxuiMessageResult DxuiModalDialogClient::OnTimer (UINT_PTR timerId)
 
 bool DxuiModalDialogClient::RouteKeyToFocused (WPARAM vk, bool shift)
 {
+    HRESULT         hr      = S_OK;
+    bool            result  = false;
     IDxuiControl *  focused = m_focus.Focused();
     DxuiKeyEvent    ke;
 
 
-    if (focused == nullptr)
-    {
-        return false;
-    }
+    BAIL_OUT_IF (focused == nullptr, S_OK);
 
     ke.kind  = DxuiKeyEventKind::Down;
     ke.vk    = vk;
     ke.shift = shift;
+    result   = focused->OnKey (ke);
 
-    return focused->OnKey (ke);
+Error:
+    return result;
 }
 
 
