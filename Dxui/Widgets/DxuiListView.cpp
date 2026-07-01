@@ -320,7 +320,7 @@ int DxuiListView::GetTotalMeasuredWidthPx () const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiListView::MeasureColumnsPx (IDxuiTextRenderer & text)
+void DxuiListView::MeasureColumnsPx (IDxuiTextRenderer & text) const
 {
     HRESULT  hr      = S_OK;
     float    fontDip = (float) m_scaler.Pxf (s_kFontDip);
@@ -342,12 +342,15 @@ void DxuiListView::MeasureColumnsPx (IDxuiTextRenderer & text)
 
         if (m_showHeader && !m_columns[c].title.empty())
         {
+            int  sortReservePx = m_scaler.Px (s_kSortGlyphWidthDip) + m_scaler.Px (s_kCellPadRightDip);
+
             hr = text.MeasureString (m_columns[c].title.c_str(), hdrDip, DxuiTheme::kBodyFace, w, h);
             IGNORE_RETURN_VALUE (hr, S_OK);
 
-            // MeasureString uses regular weight; the header paints bold,
-            // which is ~10% wider. Bump to avoid wrapping.
-            wpx = std::max (wpx, (int) std::ceil (w * 1.12f));
+            // MeasureString uses regular weight; the header paints bold
+            // (~10% wider) and reserves room on the right for the sort
+            // glyph, so widen to fit both and never clip the title.
+            wpx = std::max (wpx, (int) std::ceil (w * 1.12f) + sortReservePx);
         }
 
         for (const auto & row : m_rows)
@@ -1752,6 +1755,11 @@ void DxuiListView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) cons
     BAIL_OUT_IF (m_theme == nullptr || m_columns.empty(), S_OK);
 
     pal = MakePalette();
+
+    if (m_measuredWPx.size() != m_columns.size())
+    {
+        MeasureColumnsPx (text);
+    }
 
     ComputeColumnLayout (layoutW, colXPx, colWPx);
 

@@ -96,7 +96,7 @@ public:
     int   GetColumnOverrideWidthPx  (size_t idx) const;
     int   GetColumnEffectiveWidthPx (size_t idx) const;
     int   GetTotalMeasuredWidthPx   () const;
-    void  MeasureColumnsPx          (IDxuiTextRenderer & text);
+    void  MeasureColumnsPx          (IDxuiTextRenderer & text) const;
 
     //
     //  Monotonic content auto-fit for columns flagged auto (widthDip
@@ -339,7 +339,7 @@ private:
     // MeasureColumnsPx (DWrite). Monotonic and persists across SetRows so
     // filter/sort don't collapse content-fit columns; reset by SetColumns.
     // Preferred over m_autoMaxChars wherever a non-zero entry exists.
-    std::vector<int>                  m_measuredWPx;
+    mutable std::vector<int>          m_measuredWPx;
     std::vector<int>                  m_overrideWPx;
     // Monotonic max glyph count per auto column (header + widest cell);
     // the cheap fallback used when no DWrite measurement exists (e.g. the
