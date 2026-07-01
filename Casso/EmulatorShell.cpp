@@ -82,7 +82,7 @@ static constexpr int     s_kPaddleNoticeMs       = 8000;   // auto-dismiss for t
 // small pad past the last menu title, so the bottom drive bar can never be
 // driven up into the menu strip / title (NC) area and menu titles never
 // clip. The drive-bar and title / nav insets are added live by the
-// LayoutManager around this center.
+// chrome-band dock around this center.
 static constexpr int     s_kMinCenterWidthDp  = 420;
 static constexpr int     s_kMinCenterHeightDp = 160;
 static constexpr int     s_kMenuRightPadDp    = 12;
@@ -146,12 +146,12 @@ namespace
 {
     void LayoutDriveWidgetsInCommandBar (
         std::array<DriveWidget, 2>  & driveChrome,
-        const LayoutManagerResult    & layout,
+        int                           bottomInsetPx,
         int                           clientW,
         int                           clientH,
         UINT                          dpi)
     {
-        int            bottomInset   = layout.bottomInsetPx;
+        int            bottomInset   = bottomInsetPx;
         int            commandBarTop = std::max (0, clientH - bottomInset);
         int            gap           = MulDiv (s_kDriveWidgetGapDp, static_cast<int> (dpi), s_kBaseDpi);
         int            bottomGap     = 0;
@@ -530,13 +530,13 @@ HRESULT EmulatorShell::Initialize (
     m_config             = config;
     m_cyclesPerFrame     = config.cyclesPerFrame;
 
-    // Register chrome regions with the layout planner once -- their
-    // pointers stay registered for the lifetime of the shell. Theme
-    // changes that resize the drive bar mutate m_driveBarSlot in
-    // place; LayoutManager reads the live thickness on every Resolve.
-    m_layout.RegisterEdge (&m_titleBarSlot);
-    m_layout.RegisterEdge (&m_navStripSlot);
-    m_layout.RegisterEdge (&m_driveBarSlot);
+    // Register the chrome bands + center with the dock layout once --
+    // their thicknesses are refreshed from DPI + live drive-bar state
+    // on every ComputeViewportRect / ClientSizeForCenterPx call.
+    m_chromeDock.SetDock (m_titleBand,  DxuiDock::Top);
+    m_chromeDock.SetDock (m_navBand,    DxuiDock::Top);
+    m_chromeDock.SetDock (m_driveBand,  DxuiDock::Bottom);
+    m_chromeDock.SetDock (m_centerBand, DxuiDock::Fill);
 
     assetBaseDir = AssetBootstrap::GetAssetBaseDirectory();
     machinesDir  = assetBaseDir / fs::path ("Machines") / fs::path (m_currentMachineName);
@@ -1095,14 +1095,15 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
         dpi = GetDpiForSystem();
     }
 
-    // Seed our authoritative DPI so the LayoutManager (which queries
-    // it) returns coherent sizes during the pre-Create math.
+    // Seed our authoritative DPI so the chrome-band dock (which scales
+    // band thicknesses through it) returns coherent sizes during the
+    // pre-Create math.
     // WM_NCCREATE will overwrite this with GetDpiForWindow once the
     // HWND exists; that value wins if it disagrees.
     m_scaler.SetDpi (dpi);
 
     {
-        SIZE  client = m_layout.ClientSizeForFramebuffer (kFramebufferWidth, kFramebufferHeight);
+        SIZE  client = ClientSizeForFramebufferPx (kFramebufferWidth, kFramebufferHeight);
 
         clientW = (int) client.cx;
         clientH = (int) client.cy;
@@ -1337,18 +1338,20 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     m_driveChrome[0].Initialize (6, 0, this);
     m_driveChrome[1].Initialize (6, 1, this);
     {
-        LayoutManagerResult  layout = m_layout.Resolve (clientW, clientH);
+        RECT  vr           = ComputeViewportRect (clientW, clientH);
+        int   topInsetPx   = vr.top;
+        int   bottomInsetPx = clientH - vr.bottom;
 
-        LayoutDriveWidgetsInCommandBar (m_driveChrome, layout, clientW, clientH, dpi);
+        LayoutDriveWidgetsInCommandBar (m_driveChrome, bottomInsetPx, clientW, clientH, dpi);
         {
-            int  bandTop    = clientH - layout.bottomInsetPx;
+            int  bandTop    = clientH - bottomInsetPx;
             int  bandHeight = MulDiv (s_kJoystickButtonBandDp, static_cast<int> (dpi), s_kBaseDpi);
 
             m_driveBandSurface.SetBounds (RECT{ 0, bandTop, clientW, clientH });
             LayoutJoystickButton (clientW, bandTop, bandHeight, dpi);
         }
-        m_d3dRenderer.SetTopInsetPx    (layout.topInsetPx);
-        m_d3dRenderer.SetBottomInsetPx (layout.bottomInsetPx);
+        m_d3dRenderer.SetTopInsetPx    (topInsetPx);
+        m_d3dRenderer.SetBottomInsetPx (bottomInsetPx);
     }
 
     UpdateViewportLayout (clientW, clientH);
@@ -1370,8 +1373,8 @@ Error:
 //  UpdateViewportLayout
 //
 //  Computes the Apple ][ viewport rectangle from the current client
-//  width / height and the LayoutManager's top + bottom chrome insets,
-//  then invokes DxuiViewport::Layout on the host root panel's
+//  width / height via the chrome-band DxuiDockLayout (top + bottom
+//  insets), then invokes DxuiViewport::Layout on the host root panel's
 //  viewport child. The viewport's bounds-changed callback fires when
 //  the rectangle differs from the last value reported, forwarding
 //  the new rect to D3DRenderer::SetTargetBounds via
@@ -1384,8 +1387,7 @@ Error:
 
 void EmulatorShell::UpdateViewportLayout (int widthPx, int heightPx)
 {
-    LayoutManagerResult  layout       = {};
-    RECT                 viewportRect = {};
+    RECT  viewportRect = {};
 
 
     if (m_viewport == nullptr)
@@ -1393,13 +1395,97 @@ void EmulatorShell::UpdateViewportLayout (int widthPx, int heightPx)
         return;
     }
 
-    layout              = m_layout.Resolve (widthPx, heightPx);
-    viewportRect.left   = 0;
-    viewportRect.top    = layout.topInsetPx;
-    viewportRect.right  = widthPx;
-    viewportRect.bottom = heightPx - layout.bottomInsetPx;
+    viewportRect = ComputeViewportRect (widthPx, heightPx);
 
     m_viewport->Layout (viewportRect, m_scaler);
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::SyncChromeBands
+//
+//  Stamps each chrome band's Bounds() height with its current DPI-scaled
+//  pixel thickness so DxuiDockLayout reads the right slab extents. Only
+//  the docked axis (height, for the Top/Bottom bands) is meaningful; the
+//  bands are never painted.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::SyncChromeBands ()
+{
+    m_titleBand.SetBounds (RECT{ 0, 0, 0, m_scaler.Px (s_kTitleBarBandDp) });
+    m_navBand.SetBounds   (RECT{ 0, 0, 0, m_scaler.Px (s_kNavStripBandDp) });
+    m_driveBand.SetBounds (RECT{ 0, 0, 0, m_scaler.Px (m_driveBarThicknessDp) });
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::ComputeViewportRect
+//
+//  Docks the chrome bands (title + nav on top, drive on the bottom)
+//  around a Fill center over the client rect and returns the center
+//  (emulator viewport) rect the dock leaves in the middle.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+RECT EmulatorShell::ComputeViewportRect (int widthPx, int heightPx)
+{
+    IDxuiControl *  kids[] = { &m_titleBand, &m_navBand, &m_driveBand, &m_centerBand };
+
+
+    SyncChromeBands ();
+    m_chromeDock.Arrange (RECT{ 0, 0, widthPx, heightPx }, m_scaler, kids);
+
+    return m_centerBand.Bounds ();
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::ClientSizeForCenterPx
+//
+//  Inverse of ComputeViewportRect: given a desired center (emulator
+//  viewport) size in physical pixels, return the client size that hosts
+//  it with the current chrome-band thicknesses.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+SIZE EmulatorShell::ClientSizeForCenterPx (int centerWidthPx, int centerHeightPx)
+{
+    IDxuiControl *  bands[] = { &m_titleBand, &m_navBand, &m_driveBand };
+
+
+    SyncChromeBands ();
+
+    return m_chromeDock.ContainerSizeForFill (SIZE{ centerWidthPx, centerHeightPx }, bands);
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::ClientSizeForFramebufferPx
+//
+//  Framebuffer scale policy: linear DPI scaling. The Apple ][ pixel grid
+//  (given in DIPs) scales at the same rate as the chrome dp, so the
+//  framebuffer and chrome insets stay in proportion at every DPI. Both
+//  the initial window size and Ctrl+0 reset go through here.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+SIZE EmulatorShell::ClientSizeForFramebufferPx (int framebufferWidthDp, int framebufferHeightDp)
+{
+    return ClientSizeForCenterPx (m_scaler.Px (framebufferWidthDp),
+                                  m_scaler.Px (framebufferHeightDp));
 }
 
 
@@ -1434,8 +1520,8 @@ void EmulatorShell::OnViewportBoundsChanged (const RECT & boundsPx)
 //  ReconcileInitialClientSize
 //
 //  Run once after ShowWindow to size the window so its client area
-//  matches what LayoutManager wants for the framebuffer. Must run
-//  POST-ShowWindow because the NC frame (DefWindowProc border carve-
+//  matches what the chrome-band dock wants for the framebuffer. Must
+//  run POST-ShowWindow because the NC frame (DefWindowProc border carve-
 //  out + DWM rounded corners) doesn't materialize until the window
 //  is visible; measuring NC overhead before that returns 0 and the
 //  reconcile would shrink the window to match the (wrong) measurement.
@@ -1464,7 +1550,7 @@ void EmulatorShell::ReconcileInitialClientSize()
 
     m_initialSizeReconciled = true;
 
-    desired         = m_layout.ClientSizeForFramebuffer (kFramebufferWidth, kFramebufferHeight);
+    desired         = ClientSizeForFramebufferPx (kFramebufferWidth, kFramebufferHeight);
     desiredClientW  = (int) desired.cx;
     desiredClientH  = (int) desired.cy;
 
@@ -1978,7 +2064,7 @@ void EmulatorShell::ApplyThemeToChrome (const CassoTheme & theme)
     constexpr int  s_kCompactDriveBarDp = 105;
 
     int   desiredThicknessDp = theme.compactDrives ? s_kCompactDriveBarDp : s_kFullDriveBarDp;
-    int   priorThicknessDp   = m_driveBarSlot.DesiredThicknessDp();
+    int   priorThicknessDp   = m_driveBarThicknessDp;
     RECT  rcClient           = {};
     RECT  rcWindow           = {};
     int   centerW            = 0;
@@ -1996,7 +2082,7 @@ void EmulatorShell::ApplyThemeToChrome (const CassoTheme & theme)
 
     if (m_hwnd == nullptr || desiredThicknessDp == priorThicknessDp)
     {
-        m_driveBarSlot.SetThicknessDp (desiredThicknessDp);
+        m_driveBarThicknessDp = desiredThicknessDp;
         return;
     }
 
@@ -2007,33 +2093,33 @@ void EmulatorShell::ApplyThemeToChrome (const CassoTheme & theme)
     // so the next normal-state resize uses the right math.
     if (IsIconic (m_hwnd) || IsZoomed (m_hwnd) || m_d3dRenderer.IsFullscreen())
     {
-        m_driveBarSlot.SetThicknessDp (desiredThicknessDp);
+        m_driveBarThicknessDp = desiredThicknessDp;
         return;
     }
 
     if (!GetClientRect (m_hwnd, &rcClient) || !GetWindowRect (m_hwnd, &rcWindow))
     {
-        m_driveBarSlot.SetThicknessDp (desiredThicknessDp);
+        m_driveBarThicknessDp = desiredThicknessDp;
         return;
     }
 
     // Capture the current center (emulator viewport) size BEFORE
-    // mutating the contributor. The user may have resized the window
-    // manually since boot; preserving "the emu viewport stays the
+    // mutating the drive-bar thickness. The user may have resized the
+    // window manually since boot; preserving "the emu viewport stays the
     // same size, the drive bar grows/shrinks around it" is the
     // intuitive contract on a theme swap.
     {
-        LayoutManagerResult  before = m_layout.Resolve (rcClient.right  - rcClient.left,
-                                                        rcClient.bottom - rcClient.top);
+        RECT  before = ComputeViewportRect (rcClient.right  - rcClient.left,
+                                            rcClient.bottom - rcClient.top);
 
-        centerW = before.centerRect.right  - before.centerRect.left;
-        centerH = before.centerRect.bottom - before.centerRect.top;
+        centerW = before.right  - before.left;
+        centerH = before.bottom - before.top;
     }
 
-    m_driveBarSlot.SetThicknessDp (desiredThicknessDp);
+    m_driveBarThicknessDp = desiredThicknessDp;
 
     {
-        SIZE  newClient   = m_layout.ClientSizeForCenter (centerW, centerH);
+        SIZE  newClient   = ClientSizeForCenterPx (centerW, centerH);
         int   ncOverheadH = (rcWindow.bottom - rcWindow.top) - (rcClient.bottom - rcClient.top);
         int   ncOverheadW = (rcWindow.right  - rcWindow.left) - (rcClient.right  - rcClient.left);
         int   newWindowW  = (int) newClient.cx + ncOverheadW;
@@ -3553,9 +3639,9 @@ DxuiMessageResult EmulatorShell::OnCancelMode ()
 //
 //  Clamps the window's minimum track size so the bottom drive bar can
 //  never be dragged up into the menu strip / NC area. The floor is the
-//  client size for a minimum emulator viewport (the LayoutManager adds
-//  the live title / nav / drive-bar insets), widened so no menu title
-//  clips, then translated to a window size by the live NC overhead.
+//  client size for a minimum emulator viewport (the chrome-band dock
+//  adds the live title / nav / drive-bar insets), widened so no menu
+//  title clips, then translated to a window size by the live NC overhead.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -3574,14 +3660,14 @@ DxuiMessageResult EmulatorShell::OnGetMinMax (MINMAXINFO * info)
 
     BAIL_OUT_IF (info == nullptr || m_hwnd == nullptr, S_OK);
 
-    // Client size for the minimum center: the LayoutManager adds the live
-    // title / nav / drive-bar insets around the requested viewport.
-    minClient = m_layout.ClientSizeForCenter (m_layout.ScaleForDpi (s_kMinCenterWidthDp),
-                                              m_layout.ScaleForDpi (s_kMinCenterHeightDp));
+    // Client size for the minimum center: the chrome-band dock adds the
+    // live title / nav / drive-bar insets around the requested viewport.
+    minClient = ClientSizeForCenterPx (m_scaler.Px (s_kMinCenterWidthDp),
+                                       m_scaler.Px (s_kMinCenterHeightDp));
 
     // Never narrower than the menu strip's content so every title stays
     // on-strip. The width is physical client px, the same space as minClient.
-    menuWidthPx = m_mainMenu.MenuStripContentWidthPx() + m_layout.ScaleForDpi (s_kMenuRightPadDp);
+    menuWidthPx = m_mainMenu.MenuStripContentWidthPx() + m_scaler.Px (s_kMenuRightPadDp);
 
     if (minClient.cx < menuWidthPx)
     {
@@ -4558,12 +4644,14 @@ DxuiMessageResult EmulatorShell::OnSize (UINT widthPx, UINT heightPx)
         m_mainMenu.Layout (menuBarBounds, m_scaler);
 
         {
-            LayoutManagerResult  layout = m_layout.Resolve (static_cast<int> (width), renderH);
-            bool                fHasDisk = (m_diskManager != nullptr) && m_diskManager->HasSlot6Controller();
+            RECT  vr            = ComputeViewportRect (static_cast<int> (width), renderH);
+            int   topInsetPx    = vr.top;
+            int   bottomInsetPx = renderH - vr.bottom;
+            bool  fHasDisk      = (m_diskManager != nullptr) && m_diskManager->HasSlot6Controller();
 
             if (fHasDisk)
             {
-                LayoutDriveWidgetsInCommandBar (m_driveChrome, layout, static_cast<int> (width), renderH, dpi);
+                LayoutDriveWidgetsInCommandBar (m_driveChrome, bottomInsetPx, static_cast<int> (width), renderH, dpi);
             }
             else
             {
@@ -4578,7 +4666,7 @@ DxuiMessageResult EmulatorShell::OnSize (UINT widthPx, UINT heightPx)
             }
 
             {
-                int  bandTop    = renderH - layout.bottomInsetPx;
+                int  bandTop    = renderH - bottomInsetPx;
                 int  bandHeight = MulDiv (s_kJoystickButtonBandDp, static_cast<int> (dpi), s_kBaseDpi);
 
                 m_driveBandSurface.SetBounds (RECT{ 0, bandTop, static_cast<int> (width), renderH });
@@ -4591,8 +4679,8 @@ DxuiMessageResult EmulatorShell::OnSize (UINT widthPx, UINT heightPx)
                 m_uiShell.HitTest().Register (DxuiHitRect { m_driveChrome[0].BodyRect(), DxuiHitSlot::Custom, 0 });
                 m_uiShell.HitTest().Register (DxuiHitRect { m_driveChrome[1].BodyRect(), DxuiHitSlot::Custom, 1 });
             }
-            m_d3dRenderer.SetTopInsetPx    (layout.topInsetPx);
-            m_d3dRenderer.SetBottomInsetPx (layout.bottomInsetPx);
+            m_d3dRenderer.SetTopInsetPx    (topInsetPx);
+            m_d3dRenderer.SetBottomInsetPx (bottomInsetPx);
         }
     }
 
@@ -5302,9 +5390,9 @@ DxuiMessageResult EmulatorShell::OnInitMenuPopup (HMENU hMenu, UINT itemIndex, b
 //
 //  OnDpiChanged
 //
-//  Mirror the host's new DPI into our local DxuiDpiScaler so
-//  LayoutManager (which holds a const ref to m_scaler) returns
-//  coherent sizes for any post-DPI-change relayout. The host has
+//  Mirror the host's new DPI into our local DxuiDpiScaler so the
+//  chrome-band dock (which scales band thicknesses through m_scaler)
+//  returns coherent sizes for any post-DPI-change relayout. The host has
 //  already applied the OS-suggested rect via SetWindowPos before
 //  this fires; subsequent WM_SIZE will drive the visible relayout.
 //
