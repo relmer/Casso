@@ -219,6 +219,32 @@ public:
     }
 
 
+    TEST_METHOD (OnKey_EnterPrefersFocusedControlOverDefaultButton)
+    {
+        DxuiDialog                   dlg;
+        std::unique_ptr<DxuiPanel>   content      = std::make_unique<DxuiPanel>();
+        DxuiButton                 & inner        = content->Add<DxuiButton>();
+        int                          closedWith   = -1;
+        bool                         innerClicked = false;
+
+        inner.SetClick   ([&innerClicked] () { innerClicked = true; });
+        inner.SetFocused (true);
+
+        dlg.SetTitle   (L"T");
+        dlg.SetContent (std::move (content));
+        dlg.AddButton  (L"OK", 5, true);
+        dlg.Build();
+        dlg.SetCloseHandler ([&closedWith] (int rc) { closedWith = rc; });
+
+
+        bool  consumed = dlg.OnKey (MakeKeyDown (VK_RETURN));
+
+        Assert::IsTrue   (consumed);          // key was handled
+        Assert::IsTrue   (innerClicked);      // the focused control got Enter first
+        Assert::AreEqual (-1, closedWith);    // the default button did NOT fire
+    }
+
+
     TEST_METHOD (CloseHandler_FiresOnceWithChosenReturnCode)
     {
         DxuiDialog  dlg;
