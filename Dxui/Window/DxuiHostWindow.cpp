@@ -669,17 +669,13 @@ void DxuiHostWindow::SetTrackMouseEventForTest (std::function<BOOL (TRACKMOUSEEV
 
 void DxuiHostWindow::SetContentPanel (std::unique_ptr<DxuiPanel> panel)
 {
-    RECT  bounds        = {};
-    bool  liveLayout    = false;
+    HRESULT  hr         = S_OK;
+    RECT     bounds     = {};
+    bool     liveLayout = false;
 
 
     DXUI_ASSERT_UI_THREAD();
-    assert (panel != nullptr && "DxuiHostWindow::SetContentPanel requires a non-null panel");
-
-    if (panel == nullptr)
-    {
-        return;
-    }
+    CBRAEx (panel != nullptr, E_INVALIDARG);
 
     //
     //  Capture the prior root's bounds (synthetic mode) or compute
@@ -728,6 +724,9 @@ void DxuiHostWindow::SetContentPanel (std::unique_ptr<DxuiPanel> panel)
             NotifySystemButtonsMaximized (IsZoomed (m_hwnd) != FALSE);
         }
     }
+
+Error:
+    return;
 }
 
 
@@ -748,19 +747,16 @@ void DxuiHostWindow::SetContentPanel (std::unique_ptr<DxuiPanel> panel)
 
 bool DxuiHostWindow::SetTimer (UINT_PTR timerId, UINT intervalMs)
 {
+    HRESULT   hr     = S_OK;
     UINT_PTR  result = 0;
 
 
     DXUI_ASSERT_UI_THREAD();
-    assert (m_hwnd != nullptr && "DxuiHostWindow::SetTimer requires an HWND");
-
-    if (m_hwnd == nullptr)
-    {
-        return false;
-    }
+    CBRA (m_hwnd != nullptr);
 
     result = ::SetTimer (m_hwnd, timerId, intervalMs, nullptr);
 
+Error:
     return (result != 0);
 }
 
@@ -780,19 +776,16 @@ bool DxuiHostWindow::SetTimer (UINT_PTR timerId, UINT intervalMs)
 
 bool DxuiHostWindow::KillTimer (UINT_PTR timerId)
 {
-    BOOL  result = FALSE;
+    HRESULT  hr     = S_OK;
+    BOOL     result = FALSE;
 
 
     DXUI_ASSERT_UI_THREAD();
-    assert (m_hwnd != nullptr && "DxuiHostWindow::KillTimer requires an HWND");
-
-    if (m_hwnd == nullptr)
-    {
-        return false;
-    }
+    CBRA (m_hwnd != nullptr);
 
     result = ::KillTimer (m_hwnd, timerId);
 
+Error:
     return (result != FALSE);
 }
 
