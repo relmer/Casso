@@ -232,7 +232,6 @@
     <ClCompile Include="Config\GlobalUserPrefs.cpp" />
     <ClCompile Include="Ui\Chrome\ChromedPanelWindow.cpp" />
     <ClCompile Include="Ui\Chrome\MainMenu.cpp" />
-    <ClCompile Include="Ui\Chrome\LayoutManager.cpp" />
     <ClCompile Include="Ui\ThemeLoader.cpp" />
     <ClCompile Include="Ui\ThemeManager.cpp" />
     <ClCompile Include="Ui\Chrome\DriveWidget.cpp" />
@@ -297,7 +296,6 @@
     <ClInclude Include="Ui\Dialog\DialogBodyContent.h" />
     <ClInclude Include="Ui\Dialog\StartupDownloadDialog.h" />
     <ClInclude Include="Shell\DiskMru.h" />
-    <ClInclude Include="Ui\Chrome\LayoutManager.h" />
     <ClInclude Include="Ui\Chrome\ChromedPanelWindow.h" />
     <ClInclude Include="Ui\Chrome\IChromedPanelContent.h" />
     <ClInclude Include="Ui\Chrome\MainMenu.h" />

@@ -9,9 +9,9 @@
 //  ChromeMetrics
 //
 //  Pure constants for the emulator framebuffer and base DPI.
-//  Chrome inset math now lives in `LayoutManager`; this header only
-//  carries dimensions that are intrinsic to the Apple II framebuffer
-//  and the chrome's authoring DPI.
+//  Chrome inset math now lives in EmulatorShell's DxuiDockLayout chrome
+//  bands; this header only carries dimensions that are intrinsic to the
+//  Apple II framebuffer and the chrome's authoring DPI.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

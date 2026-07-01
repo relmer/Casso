@@ -7,7 +7,6 @@
 #include "../resource.h"
 #include "../Shell/DiskMru.h"
 #include "Version.h"
-#include "Ui/Chrome/LayoutManager.h"
 #include "Ui/Chrome/ChromeMetrics.h"
 #include "Ui/Chrome/DriveWidget.h"
 #include "Shell/CpuManager.h"
@@ -320,13 +319,13 @@ void WindowCommandManager::OnViewCommand (int id)
 
 
                 // Target client area: framebuffer at the current DPI
-                // (linear scale), with every chrome contributor's
-                // inset summed by the single source of truth. The
-                // LayoutManager owns the framebuffer scale policy --
-                // see ClientSizeForFramebuffer for the one-line
-                // toggle to switch to integer-only scaling.
+                // (linear scale), with the chrome band insets summed by
+                // the single source of truth. EmulatorShell::
+                // ClientSizeForFramebufferPx owns the framebuffer scale
+                // policy -- see it for the one-line toggle to switch to
+                // integer-only scaling.
                 {
-                    SIZE  desired = m_shell.m_layout.ClientSizeForFramebuffer (
+                    SIZE  desired = m_shell.ClientSizeForFramebufferPx (
                                         kFramebufferWidthPx,
                                         kFramebufferHeightPx);
                     desiredClientW = (int) desired.cx;

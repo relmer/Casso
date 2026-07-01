@@ -23,7 +23,6 @@
 #include "Ui/Chrome/CassoTheme.h"
 #include "Ui/Chrome/DriveWidget.h"
 #include "Ui/Chrome/JoystickToggleButton.h"
-#include "Ui/Chrome/LayoutManager.h"
 #include "Ui/Chrome/MainMenu.h"
 #include "Ui/ColorUtil.h"
 #include "Ui/Dialog/DialogDefinition.h"
@@ -45,12 +44,45 @@
 #include "Window/DxuiHostWindow.h"
 #include "Window/IDxuiHostClient.h"
 #include "Core/DxuiAbsoluteLayout.h"
+#include "Core/DxuiDockLayout.h"
 #include "Core/DxuiViewport.h"
 
 
 
 class DxuiHostWindow;
 
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ChromeBand
+//
+//  Zero-render IDxuiControl whose only job is to carry a docked chrome
+//  band's pixel thickness in its Bounds() so DxuiDockLayout can arrange
+//  the emulator viewport around the title bar, nav strip, and drive bar.
+//  Never painted -- EmulatorShell / the host own chrome rendering; these
+//  bands exist purely to feed the dock's inset math (replacing the old
+//  LayoutManager edge-contributor model).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+class ChromeBand : public IDxuiControl
+{
+public:
+    void  Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler) override
+    {
+        UNREFERENCED_PARAMETER (scaler);
+        SetBounds (boundsDip);
+    }
+
+    void  Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override
+    {
+        UNREFERENCED_PARAMETER (painter);
+        UNREFERENCED_PARAMETER (text);
+        UNREFERENCED_PARAMETER (theme);
+    }
+};
 
 
 
@@ -232,10 +264,22 @@ private:
 
     // Drives the host's root panel layout for the Apple ][ viewport
     // child. Computes the framebuffer rectangle (client minus chrome
-    // bands) from the current LayoutManager result and invokes
-    // m_viewport->Layout, which fires OnViewportBoundsChanged when
-    // the rectangle differs from the last value reported.
+    // bands) via the DxuiDockLayout and invokes m_viewport->Layout,
+    // which fires OnViewportBoundsChanged when the rectangle differs
+    // from the last value reported.
     void    UpdateViewportLayout         (int widthPx, int heightPx);
+
+    // Chrome-band sizing via DxuiDockLayout (replaces LayoutManager).
+    // SyncChromeBands stamps each band's Bounds() with its DPI-scaled
+    // pixel thickness. ComputeViewportRect docks the bands + center and
+    // returns the middle (emulator viewport) rect. ClientSizeForCenterPx
+    // is the inverse: given a desired center size in px, the client size
+    // that hosts it. ClientSizeForFramebufferPx DPI-scales a DIP
+    // framebuffer grid first, then adds the chrome insets.
+    void    SyncChromeBands              ();
+    RECT    ComputeViewportRect          (int widthPx, int heightPx);
+    SIZE    ClientSizeForCenterPx        (int centerWidthPx, int centerHeightPx);
+    SIZE    ClientSizeForFramebufferPx   (int framebufferWidthDp, int framebufferHeightDp);
 
     // Bounds-changed callback wired onto m_viewport. Stores the new
     // pixel rectangle and forwards it to m_d3dRenderer.SetTargetBounds
@@ -430,8 +474,8 @@ private:
 
     // Authoritative per-window DPI scaler. Mirrors the one inside
     // DxuiHostWindow; updated from OnDpiChanged and seeded after
-    // m_host->Create() returns. LayoutManager holds a const ref to
-    // this member.
+    // m_host->Create() returns. The chrome-band dock scales its band
+    // thicknesses through this member.
     DxuiDpiScaler       m_scaler;
 
     MemoryBus           m_memoryBus;
@@ -512,15 +556,21 @@ private:
     int   m_joyBtnBandHeight = 0;
     UINT  m_joyBtnDpi        = 96;
 
-    // Chrome layout planner. Owns the canonical inset math for the
-    // title bar, nav strip, and drive bar; replaces the historical
-    // ChromeMetrics constants that drifted between EmulatorShell and
-    // WindowCommandManager. Edge contributors below are pointer-tied
-    // to this layout and report their desired thickness on demand.
-    LayoutManager            m_layout { m_scaler };
-    SimpleEdgeContributor   m_titleBarSlot { ChromeEdge::Top,    32 };
-    SimpleEdgeContributor   m_navStripSlot { ChromeEdge::Top,    32 };
-    SimpleEdgeContributor   m_driveBarSlot { ChromeEdge::Bottom, 256 };
+    // Chrome layout via DxuiDockLayout. The three bands carry the title
+    // bar, nav strip, and drive bar pixel thicknesses in their Bounds();
+    // m_centerBand (Fill) captures the emulator viewport rect the dock
+    // leaves in the middle. m_driveBarThicknessDp is the live drive-bar
+    // thickness the theme mutates (compact vs full).
+    static constexpr int  s_kTitleBarBandDp     = 32;
+    static constexpr int  s_kNavStripBandDp     = 32;
+    static constexpr int  s_kInitialDriveBandDp = 256;
+
+    DxuiDockLayout           m_chromeDock;
+    ChromeBand               m_titleBand;
+    ChromeBand               m_navBand;
+    ChromeBand               m_driveBand;
+    ChromeBand               m_centerBand;
+    int                      m_driveBarThicknessDp = s_kInitialDriveBandDp;
 
     // Drive widget state pump. The controller channel publishes
     // per-drive door/spin sync events the chrome painter will consume
