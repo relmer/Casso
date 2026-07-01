@@ -1,7 +1,7 @@
 #include "Pch.h"
 
 #include "../Casso/Ui/Chrome/DriveLabelTruncation.h"
-#include "../Casso/UnicodeSymbols.h"
+#include "Core/UnicodeSymbols.h"
 
 
 

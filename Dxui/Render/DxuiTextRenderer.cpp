@@ -270,7 +270,7 @@ HRESULT DxuiTextRenderer::EndDraw ()
         // Device-lost path: drop the target so the next BindBackBuffer
         // rebuilds. The target is now unbound; callers detect this via
         // IsTargetBound() and skip presenting the half-painted frame.
-        DEBUGMSG (L"[Casso] DxuiTextRenderer::EndDraw target lost (D2DERR_RECREATE_TARGET); frame dropped\n");
+        DEBUGMSG (L"[Dxui] DxuiTextRenderer::EndDraw target lost (D2DERR_RECREATE_TARGET); frame dropped\n");
         UnbindBackBuffer();
         return S_OK;
     }

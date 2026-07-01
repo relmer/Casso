@@ -3,7 +3,7 @@
 #include "MainMenu.h"
 
 #include "resource.h"
-#include "../../UnicodeSymbols.h"
+#include "Core/UnicodeSymbols.h"
 
 
 

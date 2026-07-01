@@ -339,7 +339,6 @@
     <ClInclude Include="Ui\Disk2DebugPanelLayout.h" />
     <ClInclude Include="Ui\InputDebugPanelLayout.h" />
     <ClInclude Include="RichEditSquiggle.h" />
-    <ClInclude Include="UnicodeSymbols.h" />
     <ClInclude Include="WasapiAudio.h" />
     <ClInclude Include="resource.h" />
     <ClInclude Include="Shaders\ShaderResourceIds.h" />
