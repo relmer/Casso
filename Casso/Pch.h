@@ -63,6 +63,10 @@
 
 #include "../CassoCore/Ehm.h"
 
+// Opt in to the Dxui umbrella. Dxui.h hard-errors unless this is defined,
+// which enforces that its heavy header surface is only ever parsed here
+// (during PCH creation) and never cold in a per-TU compile.
+#define DXUI_UMBRELLA_VIA_PCH
 #include "Dxui.h"
 
 using namespace std;

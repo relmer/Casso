@@ -1,5 +1,20 @@
 #pragma once
 
+//
+//  Dxui.h is the public umbrella and is expensive to parse: it re-exports
+//  the entire framework surface. It is meant to be pulled in exactly once,
+//  from a consuming project's precompiled header (Pch.h), so this cost is
+//  paid during PCH creation rather than per translation unit. A consumer
+//  opts in by defining DXUI_UMBRELLA_VIA_PCH before the include; a cold or
+//  non-PCH inclusion trips the #error below instead of silently recompiling
+//  the whole surface.
+//
+#if !defined(DXUI_UMBRELLA_VIA_PCH)
+    #error "Dxui.h must be included via a precompiled header (Pch.h) that #defines DXUI_UMBRELLA_VIA_PCH first; direct / non-PCH inclusion is not supported."
+#endif
+
+
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  Dxui — public umbrella header.
