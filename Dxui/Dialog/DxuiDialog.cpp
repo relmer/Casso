@@ -450,33 +450,39 @@ int DxuiDialog::CancelIndex() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DxuiDialog::ActivateDefault
+//  DxuiDialog::TriggerDefault
+//
+//  Fires the button flagged isDefault (the Enter target), if one exists,
+//  via the normal click path. Returns true iff a default button exists
+//  and was therefore fired; false means no default is defined. The fired
+//  button's returnCode reaches the caller through the close handler, not
+//  this return value.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::optional<int> DxuiDialog::ActivateDefault()
+bool DxuiDialog::TriggerDefault()
 {
-    int  idx = DefaultIndex();
-    int  rc  = 0;
+    HRESULT  hr        = S_OK;
+    bool     isHandled = false;
+    int      idx       = DefaultIndex();
 
 
 
     DXUI_ASSERT_UI_THREAD();
 
-    if (idx < 0)
-    {
-        return std::nullopt;
-    }
+    BAIL_OUT_IF (idx < 0, S_OK);
 
     //
-    //  Capture the return code BEFORE invoking the click handler:
-    //  HandleButtonClicked routes through the close handler which the
-    //  manager uses to pop (and destroy) this dialog. Touching
-    //  `this->m_buttons` after the call would be a use-after-free.
+    //  HandleButtonClicked routes through the close handler, which the
+    //  manager uses to pop (and destroy) this dialog -- so touching any
+    //  member after the call would be a use-after-free. isHandled is a
+    //  local, set before the call, and is the only thing read at Error.
     //
-    rc = m_buttons[(size_t) idx].returnCode;
+    isHandled = true;
     HandleButtonClicked ((size_t) idx);
-    return rc;
+
+Error:
+    return isHandled;
 }
 
 
@@ -485,31 +491,36 @@ std::optional<int> DxuiDialog::ActivateDefault()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DxuiDialog::ActivateCancel
+//  DxuiDialog::TriggerCancel
+//
+//  Fires the button flagged isCancel (the Escape / close-gesture target),
+//  if one exists, via the normal click path. Returns true iff a cancel
+//  button exists and was therefore fired; false means no cancel button is
+//  defined and the caller must handle the close itself. The fired button's
+//  returnCode reaches the caller through the close handler, not this
+//  return value.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::optional<int> DxuiDialog::ActivateCancel()
+bool DxuiDialog::TriggerCancel()
 {
-    int  idx = CancelIndex();
-    int  rc  = 0;
+    HRESULT  hr        = S_OK;
+    bool     isHandled = false;
+    int      idx       = CancelIndex();
 
 
 
     DXUI_ASSERT_UI_THREAD();
 
-    if (idx < 0)
-    {
-        return std::nullopt;
-    }
+    BAIL_OUT_IF (idx < 0, S_OK);
 
-    //
-    //  Capture the return code BEFORE invoking the click handler --
-    //  same use-after-free hazard as ActivateDefault.
-    //
-    rc = m_buttons[(size_t) idx].returnCode;
+    //  Same use-after-free hazard as TriggerDefault: isHandled is a local
+    //  set before the click routes through the close handler.
+    isHandled = true;
     HandleButtonClicked ((size_t) idx);
-    return rc;
+
+Error:
+    return isHandled;
 }
 
 
@@ -520,7 +531,7 @@ std::optional<int> DxuiDialog::ActivateCancel()
 //
 //  DxuiDialog::OnKey
 //
-//  Enter → ActivateDefault; Escape → ActivateCancel. Either consumes
+//  Enter → TriggerDefault; Escape → TriggerCancel. Either consumes
 //  the event when a matching button exists; otherwise the base panel
 //  fan-out runs so embedded text inputs / lists keep their keys.
 //
@@ -534,18 +545,14 @@ bool DxuiDialog::OnKey (const DxuiKeyEvent & ev)
     {
         if (ev.vk == VK_RETURN)
         {
-            std::optional<int>  rc = ActivateDefault();
-
-            if (rc.has_value())
+            if (TriggerDefault())
             {
                 return true;
             }
         }
         else if (ev.vk == VK_ESCAPE)
         {
-            std::optional<int>  rc = ActivateCancel();
-
-            if (rc.has_value())
+            if (TriggerCancel())
             {
                 return true;
             }
