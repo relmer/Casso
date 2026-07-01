@@ -30,6 +30,8 @@ namespace
             m_result       = cancelResult;
         }
 
+        void  SetHwnd (HWND hwnd) { m_hwnd = hwnd; }
+
         //  Attach the focus manager to the (built, hosted) dialog and put
         //  initial focus on the first tab stop so typing / Tab work.
         void  SetupFocus (DxuiDialog * dialog, const IDxuiTheme * theme)
@@ -132,6 +134,44 @@ namespace
             return DxuiMessageResult::Handled;
         }
 
+        DxuiMessageResult  OnMouseMove (WPARAM wParam, LPARAM lParam) override
+        {
+            DxuiMouseButton  button = ((wParam & MK_LBUTTON) != 0) ? DxuiMouseButton::Left
+                                                                   : DxuiMouseButton::None;
+
+            return RouteMouse (DxuiMouseEventKind::Move, button, lParam);
+        }
+
+        DxuiMessageResult  OnLButtonDown (WPARAM wParam, LPARAM lParam) override
+        {
+            DxuiMessageResult  routed = RouteMouse (DxuiMouseEventKind::Down, DxuiMouseButton::Left, lParam);
+
+
+            UNREFERENCED_PARAMETER (wParam);
+
+            if (routed == DxuiMessageResult::Handled && m_hwnd != nullptr)
+            {
+                SetCapture (m_hwnd);
+            }
+
+            return routed;
+        }
+
+        DxuiMessageResult  OnLButtonUp (WPARAM wParam, LPARAM lParam) override
+        {
+            DxuiMessageResult  routed = RouteMouse (DxuiMouseEventKind::Up, DxuiMouseButton::Left, lParam);
+
+
+            UNREFERENCED_PARAMETER (wParam);
+
+            if (m_hwnd != nullptr && GetCapture() == m_hwnd)
+            {
+                ReleaseCapture();
+            }
+
+            return routed;
+        }
+
         DxuiMessageResult  OnTimer (UINT_PTR timerId) override
         {
             UNREFERENCED_PARAMETER (timerId);
@@ -165,8 +205,27 @@ namespace
         }
 
 
+        DxuiMessageResult  RouteMouse (DxuiMouseEventKind kind, DxuiMouseButton button, LPARAM lParam)
+        {
+            DxuiMouseEvent  ev;
+            bool            handled = false;
+
+
+            if (m_dialog != nullptr)
+            {
+                ev.kind        = kind;
+                ev.button      = button;
+                ev.positionDip = { GET_X_LPARAM (lParam), GET_Y_LPARAM (lParam) };
+                handled        = m_dialog->OnMouse (ev);
+            }
+
+            return handled ? DxuiMessageResult::Handled : DxuiMessageResult::NotHandled;
+        }
+
+
         DxuiFocusManager  m_focus;
         DxuiDialog *      m_dialog       = nullptr;
+        HWND              m_hwnd         = nullptr;
         int               m_result       = -1;
         int               m_cancelResult = -1;
         bool              m_done         = false;
@@ -319,6 +378,7 @@ int DxuiDialogManager::ShowModal (std::unique_ptr<DxuiDialog>    dialog,
     hr = host.Create (hostParams);
     CHRA (hr);
 
+    client.SetHwnd (host.Hwnd());
     host.SetTheme        (params.theme);
     host.SetContentPanel (std::move (dialog));
     client.SetupFocus    (dialogRaw, params.theme);
