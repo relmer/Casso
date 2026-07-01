@@ -1955,6 +1955,38 @@ namespace
             }
         }
 
+        //
+        //  DxuiListView::OnMouse expects widget-LOCAL (0-based) coordinates,
+        //  but the panel fan-out delivers absolute client-px, so a plain
+        //  DxuiPanel::OnMouse would hand the list mis-offset points (wrong
+        //  row selected, column-resize divider never hit). Translate to
+        //  list-local and dispatch to the list first (it owns scroll / drag
+        //  / resize / select + consumes any press inside itself); anything
+        //  the list declines falls through to the search box, which hit-
+        //  tests against its own absolute bounds.
+        //
+        bool  OnMouse (const DxuiMouseEvent & ev) override
+        {
+            DxuiMouseEvent  listEv  = ev;
+            bool            handled = false;
+
+
+            if (m_list != nullptr)
+            {
+                RECT  lb = m_list->Bounds();
+
+                listEv.positionDip = { ev.positionDip.x - lb.left, ev.positionDip.y - lb.top };
+                handled            = m_list->OnMouse (listEv);
+            }
+
+            if (!handled && m_search != nullptr)
+            {
+                handled = m_search->OnMouse (ev);
+            }
+
+            return handled;
+        }
+
 
     private:
         DxuiSearchBox *  m_search          = nullptr;
