@@ -388,6 +388,76 @@ void DxuiSearchBox::Tick (int64_t nowMs)
 
 
 
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiSearchBox::OnMouse  (IDxuiControl override)
+//
+//  Bridges the panel-tree mouse channel to the bespoke host-driven entry
+//  points so the search box works inside a DxuiPanel dialog / tree.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiSearchBox::OnMouse (const DxuiMouseEvent & ev)
+{
+    bool  consumed = false;
+
+
+    switch (ev.kind)
+    {
+    case DxuiMouseEventKind::Down:
+        if (ev.button == DxuiMouseButton::Left)
+        {
+            consumed = OnLButtonDown (ev.positionDip.x, ev.positionDip.y);
+        }
+        break;
+
+    case DxuiMouseEventKind::Up:
+        if (ev.button == DxuiMouseButton::Left)
+        {
+            consumed = OnLButtonUp (ev.positionDip.x, ev.positionDip.y);
+        }
+        break;
+
+    case DxuiMouseEventKind::Move:
+        OnMouseMove (ev.positionDip.x, ev.positionDip.y);
+        break;
+
+    default:
+        break;
+    }
+
+    return consumed;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiSearchBox::OnKey  (IDxuiControl override)
+//
+//  Bridges the panel-tree key channel to the bespoke OnKey(WPARAM).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiSearchBox::OnKey (const DxuiKeyEvent & ev)
+{
+    bool  consumed = false;
+
+
+    if (ev.kind == DxuiKeyEventKind::Down)
+    {
+        consumed = OnKey (static_cast<WPARAM> (ev.vk));
+    }
+
+    return consumed;
+}
+
+
+
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  RelayoutInput
