@@ -90,44 +90,48 @@ void DxuiModalDialogClient::Resolve (int returnCode)
 
 DxuiMessageResult DxuiModalDialogClient::OnKeyDown (WPARAM vk, LPARAM lParam)
 {
-    bool  shift   = (GetKeyState (VK_SHIFT) & 0x8000) != 0;
-    bool  handled = false;
+    HRESULT            hr      = S_OK;
+    DxuiMessageResult  result  = DxuiMessageResult::NotHandled;
+    bool               shift   = (GetKeyState (VK_SHIFT) & 0x8000) != 0;
+    bool               handled = false;
 
 
     UNREFERENCED_PARAMETER (lParam);
 
-    if (m_dialog != nullptr)
+    BAIL_OUT_IF (m_dialog == nullptr, S_OK);
+
+    if (vk == VK_TAB)
     {
-        if (vk == VK_TAB)
+        handled = m_focus.HandleKey (shift ? DxuiFocusKey::ShiftTab : DxuiFocusKey::Tab);
+    }
+    else if (vk == VK_ESCAPE)
+    {
+        std::optional<int>  rc = m_dialog->ActivateCancel();
+
+        handled = rc.has_value();
+
+        if (!handled)
         {
-            handled = m_focus.HandleKey (shift ? DxuiFocusKey::ShiftTab : DxuiFocusKey::Tab);
+            Resolve (m_cancelResult);
+            handled = true;
         }
-        else if (vk == VK_ESCAPE)
+    }
+    else
+    {
+        handled = RouteKeyToFocused (vk, shift);
+
+        if (!handled && vk == VK_RETURN)
         {
-            std::optional<int>  rc = m_dialog->ActivateCancel();
+            std::optional<int>  rc = m_dialog->ActivateDefault();
 
             handled = rc.has_value();
-
-            if (!handled)
-            {
-                Resolve (m_cancelResult);
-                handled = true;
-            }
-        }
-        else
-        {
-            handled = RouteKeyToFocused (vk, shift);
-
-            if (!handled && vk == VK_RETURN)
-            {
-                std::optional<int>  rc = m_dialog->ActivateDefault();
-
-                handled = rc.has_value();
-            }
         }
     }
 
-    return handled ? DxuiMessageResult::Handled : DxuiMessageResult::NotHandled;
+    result = handled ? DxuiMessageResult::Handled : DxuiMessageResult::NotHandled;
+
+Error:
+    return result;
 }
 
 
@@ -144,18 +148,21 @@ DxuiMessageResult DxuiModalDialogClient::OnKeyDown (WPARAM vk, LPARAM lParam)
 
 DxuiMessageResult DxuiModalDialogClient::OnChar (WPARAM ch, LPARAM lParam)
 {
-    IDxuiControl *  focused = m_focus.Focused();
-    bool            handled = false;
+    HRESULT            hr      = S_OK;
+    DxuiMessageResult  result  = DxuiMessageResult::NotHandled;
+    IDxuiControl *     focused = m_focus.Focused();
+    bool               handled = false;
 
 
     UNREFERENCED_PARAMETER (lParam);
 
-    if (focused != nullptr)
-    {
-        handled = focused->OnChar ((wchar_t) ch);
-    }
+    BAIL_OUT_IF (focused == nullptr, S_OK);
 
-    return handled ? DxuiMessageResult::Handled : DxuiMessageResult::NotHandled;
+    handled = focused->OnChar ((wchar_t) ch);
+    result  = handled ? DxuiMessageResult::Handled : DxuiMessageResult::NotHandled;
+
+Error:
+    return result;
 }
 
 
