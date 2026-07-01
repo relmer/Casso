@@ -531,35 +531,37 @@ Error:
 //
 //  DxuiDialog::OnKey
 //
-//  Enter → TriggerDefault; Escape → TriggerCancel. Either consumes
-//  the event when a matching button exists; otherwise the base panel
-//  fan-out runs so embedded text inputs / lists keep their keys.
+//  Standard dialog key routing. The focused control (reached through the
+//  panel-tree fan-out) gets first crack at every key -- a focused button
+//  activates on Enter, an open dropdown closes on Escape, a text field
+//  keeps its editing keys. Only when nothing consumes the key do Enter /
+//  Escape fall back to the default / cancel button. Returns true iff the
+//  key was handled (by a control or by the default/cancel fallback).
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool DxuiDialog::OnKey (const DxuiKeyEvent & ev)
 {
+    bool  isHandled = false;
+
+
     DXUI_ASSERT_UI_THREAD();
 
-    if (ev.kind == DxuiKeyEventKind::Down)
+    isHandled = DxuiPanel::OnKey (ev);
+
+    if (!isHandled && ev.kind == DxuiKeyEventKind::Down)
     {
         if (ev.vk == VK_RETURN)
         {
-            if (TriggerDefault())
-            {
-                return true;
-            }
+            isHandled = TriggerDefault();
         }
         else if (ev.vk == VK_ESCAPE)
         {
-            if (TriggerCancel())
-            {
-                return true;
-            }
+            isHandled = TriggerCancel();
         }
     }
 
-    return DxuiPanel::OnKey (ev);
+    return isHandled;
 }
 
 
