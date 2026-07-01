@@ -437,6 +437,9 @@ private:
                                                 RECT  clientBoundsDip,
                                                 int   resizeBorderPx);
 
+    static void            NotifySystemButtonsMaximizedInTree (IDxuiControl * control, bool maximized);
+    static IDxuiControl *  FindNcSystemControlInTree          (IDxuiControl * control, POINT clientDip);
+
 
     HWND                              m_hwnd               = nullptr;
     HINSTANCE                         m_hInstance          = nullptr;
