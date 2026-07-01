@@ -32,6 +32,37 @@ namespace
 
         void  SetHwnd (HWND hwnd) { m_hwnd = hwnd; }
 
+        void  SetMinClientSizeDip (SIZE sizeDip) { m_minClientSizeDip = sizeDip; }
+
+        DxuiMessageResult  OnGetMinMax (MINMAXINFO * info) override
+        {
+            RECT  rcClient = {};
+            RECT  rcWindow = {};
+            UINT  dpi      = (m_hwnd != nullptr) ? GetDpiForWindow (m_hwnd) : 96;
+            int   minCW    = MulDiv (m_minClientSizeDip.cx, (int) dpi, 96);
+            int   minCH    = MulDiv (m_minClientSizeDip.cy, (int) dpi, 96);
+            int   ncW      = 0;
+            int   ncH      = 0;
+            bool  handled  = false;
+
+
+            if (info != nullptr && m_hwnd != nullptr &&
+                (m_minClientSizeDip.cx > 0 || m_minClientSizeDip.cy > 0))
+            {
+                if (GetClientRect (m_hwnd, &rcClient) && GetWindowRect (m_hwnd, &rcWindow))
+                {
+                    ncW = (rcWindow.right  - rcWindow.left) - (rcClient.right  - rcClient.left);
+                    ncH = (rcWindow.bottom - rcWindow.top)  - (rcClient.bottom - rcClient.top);
+                }
+
+                info->ptMinTrackSize.x = minCW + ncW;
+                info->ptMinTrackSize.y = minCH + ncH;
+                handled                = true;
+            }
+
+            return handled ? DxuiMessageResult::Handled : DxuiMessageResult::NotHandled;
+        }
+
         //  Attach the focus manager to the (built, hosted) dialog and put
         //  initial focus on the first tab stop so typing / Tab work.
         void  SetupFocus (DxuiDialog * dialog, const IDxuiTheme * theme)
@@ -270,6 +301,7 @@ namespace
         DxuiFocusManager  m_focus;
         DxuiDialog *      m_dialog       = nullptr;
         HWND              m_hwnd         = nullptr;
+        SIZE              m_minClientSizeDip = { 0, 0 };
         int               m_result       = -1;
         int               m_cancelResult = -1;
         bool              m_done         = false;
@@ -411,7 +443,7 @@ int DxuiDialogManager::ShowModal (std::unique_ptr<DxuiDialog>    dialog,
     hostParams.hInstance            = params.hInstance;
     hostParams.ownerHwnd            = params.ownerHwnd;
     hostParams.borderless           = true;
-    hostParams.resizable            = false;
+    hostParams.resizable            = params.resizable;
     hostParams.roundedCorners       = true;
     hostParams.backdrop             = DxuiHostWindowBackdrop::None;
     hostParams.captionStyle         = DxuiCaptionStyle::CloseOnly;
@@ -425,6 +457,7 @@ int DxuiDialogManager::ShowModal (std::unique_ptr<DxuiDialog>    dialog,
     CHRA (hr);
 
     client.SetHwnd (host.Hwnd());
+    client.SetMinClientSizeDip (params.minClientSizeDip);
     host.SetTheme        (params.theme);
     host.SetContentPanel (std::move (dialog));
     client.SetupFocus    (dialogRaw, params.theme);
