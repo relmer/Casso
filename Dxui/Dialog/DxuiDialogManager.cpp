@@ -4,6 +4,9 @@
 #include "Dialog/DxuiDialog.h"
 #include "Window/DxuiHostWindow.h"
 #include "Window/IDxuiHostClient.h"
+#include "Core/DxuiFocusManager.h"
+#include "Core/DxuiEvents.h"
+#include "Core/IDxuiControl.h"
 
 
 
@@ -12,10 +15,10 @@
 namespace
 {
     //
-    //  Internal IDxuiHostClient for the blocking ShowModal pump. Routes
-    //  Enter / Escape to the dialog's default / cancel buttons and a
-    //  window-close gesture to the cancel result, recording the chosen
-    //  return code so the pump can exit.
+    //  Internal IDxuiHostClient for the blocking ShowModal pump. Owns a
+    //  focus manager over the dialog so Tab / typing / Enter reach the
+    //  content controls; routes Escape and a window-close gesture to the
+    //  cancel result, recording the chosen return code so the pump exits.
     //
     class DxuiModalDialogClient : public IDxuiHostClient
     {
@@ -25,6 +28,20 @@ namespace
             m_dialog       = dialog;
             m_cancelResult = cancelResult;
             m_result       = cancelResult;
+        }
+
+        //  Attach the focus manager to the (built, hosted) dialog and put
+        //  initial focus on the first tab stop so typing / Tab work.
+        void  SetupFocus (DxuiDialog * dialog, const IDxuiTheme * theme)
+        {
+            m_focus.SetTheme (theme);
+            m_focus.Attach   (dialog);
+            m_focus.Rebuild  ();
+
+            if (dialog != nullptr && dialog->InitialFocus() != nullptr)
+            {
+                m_focus.SetFocused (dialog->InitialFocus());
+            }
         }
 
         void  Resolve (int returnCode)
@@ -41,34 +58,65 @@ namespace
 
         DxuiMessageResult  OnKeyDown (WPARAM vk, LPARAM lParam) override
         {
-            std::optional<int>  rc     = std::nullopt;
-            DxuiMessageResult   result = DxuiMessageResult::NotHandled;
-
+            bool  shift   = (GetKeyState (VK_SHIFT) & 0x8000) != 0;
+            bool  handled = false;
 
 
             UNREFERENCED_PARAMETER (lParam);
 
-            if (m_dialog != nullptr && vk == VK_RETURN)
+            if (m_dialog != nullptr)
             {
-                rc = m_dialog->ActivateDefault();
-            }
-            else if (m_dialog != nullptr && vk == VK_ESCAPE)
-            {
-                rc = m_dialog->ActivateCancel();
+                if (vk == VK_TAB)
+                {
+                    handled = m_focus.HandleKey (shift ? DxuiFocusKey::ShiftTab : DxuiFocusKey::Tab);
+                }
+                else if (vk == VK_ESCAPE)
+                {
+                    std::optional<int>  rc = m_dialog->ActivateCancel();
+
+                    handled = rc.has_value();
+
+                    if (!handled)
+                    {
+                        Resolve (m_cancelResult);
+                        handled = true;
+                    }
+                }
+                else
+                {
+                    handled = RouteKeyToFocused (vk, shift);
+
+                    if (!handled && vk == VK_RETURN)
+                    {
+                        std::optional<int>  rc = m_dialog->ActivateDefault();
+
+                        handled = rc.has_value();
+                    }
+                }
             }
 
-            if (rc.has_value())
+            return handled ? DxuiMessageResult::Handled : DxuiMessageResult::NotHandled;
+        }
+
+        DxuiMessageResult  OnChar (WPARAM ch, LPARAM lParam) override
+        {
+            IDxuiControl *  focused = m_focus.Focused();
+            bool            handled = false;
+
+
+            UNREFERENCED_PARAMETER (lParam);
+
+            if (focused != nullptr)
             {
-                result = DxuiMessageResult::Handled;
+                handled = focused->OnChar ((wchar_t) ch);
             }
 
-            return result;
+            return handled ? DxuiMessageResult::Handled : DxuiMessageResult::NotHandled;
         }
 
         DxuiMessageResult  OnClose () override
         {
             std::optional<int>  rc = std::nullopt;
-
 
 
             if (m_dialog != nullptr)
@@ -86,10 +134,30 @@ namespace
 
 
     private:
-        DxuiDialog *  m_dialog       = nullptr;
-        int           m_result       = -1;
-        int           m_cancelResult = -1;
-        bool          m_done         = false;
+        bool  RouteKeyToFocused (WPARAM vk, bool shift)
+        {
+            IDxuiControl *  focused = m_focus.Focused();
+            DxuiKeyEvent    ke;
+
+
+            if (focused == nullptr)
+            {
+                return false;
+            }
+
+            ke.kind  = DxuiKeyEventKind::Down;
+            ke.vk    = vk;
+            ke.shift = shift;
+
+            return focused->OnKey (ke);
+        }
+
+
+        DxuiFocusManager  m_focus;
+        DxuiDialog *      m_dialog       = nullptr;
+        int               m_result       = -1;
+        int               m_cancelResult = -1;
+        bool              m_done         = false;
     };
 }
 
@@ -241,6 +309,7 @@ int DxuiDialogManager::ShowModal (std::unique_ptr<DxuiDialog>    dialog,
 
     host.SetTheme        (params.theme);
     host.SetContentPanel (std::move (dialog));
+    client.SetupFocus    (dialogRaw, params.theme);
 
     if (params.ownerHwnd != nullptr)
     {

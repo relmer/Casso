@@ -107,6 +107,21 @@ public:
     bool  HasCloseHandler  () const { return (bool) m_onClose; }
 
     //
+    //  Close the dialog with an arbitrary return code, from content (e.g.
+    //  a list row activation) rather than a button. Routes through the
+    //  same close handler the buttons use.
+    //
+    void  CloseWithResult  (int returnCode);
+
+    //
+    //  Optional control to focus when the dialog is first shown (e.g. a
+    //  picker's search box). Default null = focus nothing, so Enter
+    //  activates the default button.
+    //
+    void            SetInitialFocus (IDxuiControl * ctl) { m_initialFocus = ctl; }
+    IDxuiControl *  InitialFocus    () const             { return m_initialFocus; }
+
+    //
     //  Keyboard activation. Returns the chosen returnCode iff a
     //  matching button exists. The close handler (when set) is also
     //  invoked.
@@ -151,6 +166,7 @@ private:
     DxuiSystemButton *             m_closeBtn    = nullptr;
     std::vector<DxuiButton *>      m_buttonWidgets;
     CloseHandler                   m_onClose;
+    IDxuiControl *                 m_initialFocus = nullptr;
     bool                           m_built       = false;
     bool                           m_ownCaption  = true;
 

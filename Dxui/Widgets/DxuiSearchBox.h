@@ -57,7 +57,7 @@ public:
     bool  OnLButtonUp    (int x, int y);
     void  OnMouseMove    (int x, int y);
     bool  OnKey          (WPARAM vk);
-    bool  OnChar         (wchar_t ch);
+    bool  OnChar         (wchar_t ch) override;
 
     void  Paint          (IDxuiPainter & painter, IDxuiTextRenderer & text) const;
 
@@ -68,6 +68,8 @@ public:
     //
     void                Layout         (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
     void                Paint          (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
+    bool                OnMouse        (const DxuiMouseEvent & ev) override;
+    bool                OnKey          (const DxuiKeyEvent   & ev) override;
     void                Tick           (int64_t nowMs) override;
     void                OnFocusChanged (bool focused) override { SetFocused (focused); }
     std::wstring        AccessibleName () const override { return m_input.Text(); }

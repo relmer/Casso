@@ -93,6 +93,7 @@ public:
 
     virtual bool  OnMouse         (const DxuiMouseEvent & ev)                   { (void) ev; return false; }
     virtual bool  OnKey           (const DxuiKeyEvent   & ev)                   { (void) ev; return false; }
+    virtual bool  OnChar          (wchar_t ch)                                 { (void) ch; return false; }
 
     virtual void  OnFocusChanged  (bool focused)                                { (void) focused; }
     virtual void  OnThemeChanged  ()                                            {}
