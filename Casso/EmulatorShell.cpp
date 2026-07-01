@@ -1338,8 +1338,8 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     m_driveChrome[0].Initialize (6, 0, this);
     m_driveChrome[1].Initialize (6, 1, this);
     {
-        RECT  vr           = ComputeViewportRect (clientW, clientH);
-        int   topInsetPx   = vr.top;
+        RECT  vr            = ComputeViewportRect (clientW, clientH);
+        int   topInsetPx    = vr.top;
         int   bottomInsetPx = clientH - vr.bottom;
 
         LayoutDriveWidgetsInCommandBar (m_driveChrome, bottomInsetPx, clientW, clientH, dpi);
@@ -1387,18 +1387,19 @@ Error:
 
 void EmulatorShell::UpdateViewportLayout (int widthPx, int heightPx)
 {
-    RECT  viewportRect = {};
+    HRESULT  hr           = S_OK;
+    RECT     viewportRect = {};
 
 
-    if (m_viewport == nullptr)
-    {
-        return;
-    }
+    BAIL_OUT_IF (m_viewport == nullptr, S_OK);
 
     viewportRect = ComputeViewportRect (widthPx, heightPx);
-
     m_viewport->Layout (viewportRect, m_scaler);
+
+Error:
+    return;
 }
+
 
 
 
@@ -1424,6 +1425,7 @@ void EmulatorShell::SyncChromeBands ()
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  EmulatorShell::ComputeViewportRect
@@ -1439,11 +1441,13 @@ RECT EmulatorShell::ComputeViewportRect (int widthPx, int heightPx)
     IDxuiControl *  kids[] = { &m_titleBand, &m_navBand, &m_driveBand, &m_centerBand };
 
 
-    SyncChromeBands ();
+
+    SyncChromeBands();
     m_chromeDock.Arrange (RECT{ 0, 0, widthPx, heightPx }, m_scaler, kids);
 
-    return m_centerBand.Bounds ();
+    return m_centerBand.Bounds();
 }
+
 
 
 
@@ -1463,10 +1467,12 @@ SIZE EmulatorShell::ClientSizeForCenterPx (int centerWidthPx, int centerHeightPx
     IDxuiControl *  bands[] = { &m_titleBand, &m_navBand, &m_driveBand };
 
 
-    SyncChromeBands ();
+
+    SyncChromeBands();
 
     return m_chromeDock.ContainerSizeForFill (SIZE{ centerWidthPx, centerHeightPx }, bands);
 }
+
 
 
 

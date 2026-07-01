@@ -54,6 +54,7 @@ class DxuiHostWindow;
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  ChromeBand
@@ -83,6 +84,7 @@ public:
         UNREFERENCED_PARAMETER (theme);
     }
 };
+
 
 
 
