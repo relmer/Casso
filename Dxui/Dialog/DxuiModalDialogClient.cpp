@@ -43,7 +43,7 @@ void DxuiModalDialogClient::SetupFocus (DxuiDialog * dialog, const IDxuiTheme * 
 {
     m_focus.SetTheme (theme);
     m_focus.Attach   (dialog);
-    m_focus.Rebuild  ();
+    m_focus.Rebuild();
 
     if (dialog != nullptr && dialog->InitialFocus() != nullptr)
     {
@@ -90,45 +90,44 @@ void DxuiModalDialogClient::Resolve (int returnCode)
 
 DxuiMessageResult DxuiModalDialogClient::OnKeyDown (WPARAM vk, LPARAM lParam)
 {
-    HRESULT            hr      = S_OK;
-    DxuiMessageResult  result  = DxuiMessageResult::NotHandled;
-    bool               shift   = (GetKeyState (VK_SHIFT) & 0x8000) != 0;
-    bool               handled = false;
+    HRESULT            hr        = S_OK;
+    DxuiMessageResult  result    = DxuiMessageResult::NotHandled;
+    bool               shift     = (GetKeyState (VK_SHIFT) & 0x8000) != 0;
+    bool               isHandled = false;
 
 
     UNREFERENCED_PARAMETER (lParam);
 
     BAIL_OUT_IF (m_dialog == nullptr, S_OK);
 
-    if (vk == VK_TAB)
+    switch (vk)
     {
-        handled = m_focus.HandleKey (shift ? DxuiFocusKey::ShiftTab : DxuiFocusKey::Tab);
+        case VK_TAB:
+            isHandled = m_focus.HandleKey (shift ? DxuiFocusKey::ShiftTab : DxuiFocusKey::Tab);
+            break;
+
+        case VK_ESCAPE:
+            //  Escape is always consumed: fire the cancel button if one
+            //  exists, else resolve the window-level cancel result directly.
+            if (!m_dialog->TriggerCancel())
+            {
+                Resolve (m_cancelResult);
+            }
+            isHandled = true;
+            break;
+
+        case VK_RETURN:
+            //  Let the focused control claim Enter first (e.g. a text field);
+            //  only fire the default button when it declines.
+            isHandled = RouteKeyToFocused (vk, shift) || m_dialog->TriggerDefault();
+            break;
+
+        default:
+            isHandled = RouteKeyToFocused (vk, shift);
+            break;
     }
-    else if (vk == VK_ESCAPE)
-    {
-        std::optional<int>  rc = m_dialog->ActivateCancel();
 
-        handled = rc.has_value();
-
-        if (!handled)
-        {
-            Resolve (m_cancelResult);
-            handled = true;
-        }
-    }
-    else
-    {
-        handled = RouteKeyToFocused (vk, shift);
-
-        if (!handled && vk == VK_RETURN)
-        {
-            std::optional<int>  rc = m_dialog->ActivateDefault();
-
-            handled = rc.has_value();
-        }
-    }
-
-    result = handled ? DxuiMessageResult::Handled : DxuiMessageResult::NotHandled;
+    result = isHandled ? DxuiMessageResult::Handled : DxuiMessageResult::NotHandled;
 
 Error:
     return result;
@@ -148,18 +147,18 @@ Error:
 
 DxuiMessageResult DxuiModalDialogClient::OnChar (WPARAM ch, LPARAM lParam)
 {
-    HRESULT            hr      = S_OK;
-    DxuiMessageResult  result  = DxuiMessageResult::NotHandled;
-    IDxuiControl *     focused = m_focus.Focused();
-    bool               handled = false;
+    HRESULT            hr        = S_OK;
+    DxuiMessageResult  result    = DxuiMessageResult::NotHandled;
+    IDxuiControl *     focused   = m_focus.Focused();
+    bool               isHandled = false;
 
 
     UNREFERENCED_PARAMETER (lParam);
 
     BAIL_OUT_IF (focused == nullptr, S_OK);
 
-    handled = focused->OnChar ((wchar_t) ch);
-    result  = handled ? DxuiMessageResult::Handled : DxuiMessageResult::NotHandled;
+    isHandled = focused->OnChar ((wchar_t) ch);
+    result    = isHandled ? DxuiMessageResult::Handled : DxuiMessageResult::NotHandled;
 
 Error:
     return result;
@@ -180,15 +179,16 @@ Error:
 
 DxuiMessageResult DxuiModalDialogClient::OnClose ()
 {
-    std::optional<int>  rc = std::nullopt;
+    bool  isHandled = false;
+
 
 
     if (m_dialog != nullptr)
     {
-        rc = m_dialog->ActivateCancel();
+        isHandled = m_dialog->TriggerCancel();
     }
 
-    if (!rc.has_value())
+    if (!isHandled)
     {
         Resolve (m_cancelResult);
     }
@@ -221,6 +221,7 @@ DxuiMessageResult DxuiModalDialogClient::OnGetMinMax (MINMAXINFO * info)
     int                minCH    = 0;
     int                ncW      = 0;
     int                ncH      = 0;
+
 
 
     BAIL_OUT_IF (info == nullptr || m_hwnd == nullptr, S_OK);
@@ -335,12 +336,13 @@ DxuiMessageResult DxuiModalDialogClient::OnLButtonUp (WPARAM wParam, LPARAM lPar
 
 DxuiMessageResult DxuiModalDialogClient::OnMouseWheel (WPARAM wParam, LPARAM lParam, bool horizontal)
 {
-    HRESULT            hr      = S_OK;
-    DxuiMessageResult  result  = DxuiMessageResult::NotHandled;
+    HRESULT            hr        = S_OK;
+    DxuiMessageResult  result    = DxuiMessageResult::NotHandled;
     DxuiMouseEvent     ev;
-    POINT              pt      = { GET_X_LPARAM (lParam), GET_Y_LPARAM (lParam) };
-    float              delta   = (float) GET_WHEEL_DELTA_WPARAM (wParam) / (float) WHEEL_DELTA;
-    bool               handled = false;
+    POINT              pt        = { GET_X_LPARAM (lParam), GET_Y_LPARAM (lParam) };
+    float              delta     = (float) GET_WHEEL_DELTA_WPARAM (wParam) / (float) WHEEL_DELTA;
+    bool               isHandled = false;
+
 
 
     BAIL_OUT_IF (m_dialog == nullptr, S_OK);
@@ -354,14 +356,14 @@ DxuiMessageResult DxuiModalDialogClient::OnMouseWheel (WPARAM wParam, LPARAM lPa
     ev.positionDip = pt;
     ev.wheelDelta  = horizontal ? -delta : delta;
     ev.shift       = horizontal || ((GetKeyState (VK_SHIFT) & 0x8000) != 0);
-    handled        = m_dialog->OnMouse (ev);
+    isHandled      = m_dialog->OnMouse (ev);
 
-    if (handled && m_hwnd != nullptr)
+    if (isHandled && m_hwnd != nullptr)
     {
         InvalidateRect (m_hwnd, nullptr, FALSE);
     }
 
-    result = handled ? DxuiMessageResult::Handled : DxuiMessageResult::NotHandled;
+    result = isHandled ? DxuiMessageResult::Handled : DxuiMessageResult::NotHandled;
 
 Error:
     return result;
@@ -400,16 +402,19 @@ DxuiMessageResult DxuiModalDialogClient::OnTimer (UINT_PTR timerId)
 //
 //  DxuiModalDialogClient::RouteKeyToFocused
 //
-//  Forwards a key-down to the focused control as a DxuiKeyEvent.
+//  Forwards a key-down to the focused control as a DxuiKeyEvent. Returns
+//  true iff a control has focus and consumed the key; false when nothing
+//  is focused or the focused control declined it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool DxuiModalDialogClient::RouteKeyToFocused (WPARAM vk, bool shift)
 {
-    HRESULT         hr      = S_OK;
-    bool            result  = false;
-    IDxuiControl *  focused = m_focus.Focused();
+    HRESULT         hr        = S_OK;
+    bool            isHandled = false;
+    IDxuiControl *  focused   = m_focus.Focused();
     DxuiKeyEvent    ke;
+
 
 
     BAIL_OUT_IF (focused == nullptr, S_OK);
@@ -417,10 +422,11 @@ bool DxuiModalDialogClient::RouteKeyToFocused (WPARAM vk, bool shift)
     ke.kind  = DxuiKeyEventKind::Down;
     ke.vk    = vk;
     ke.shift = shift;
-    result   = focused->OnKey (ke);
+
+    isHandled = focused->OnKey (ke);
 
 Error:
-    return result;
+    return isHandled;
 }
 
 
@@ -442,7 +448,8 @@ Error:
 DxuiMessageResult DxuiModalDialogClient::RouteMouse (DxuiMouseEventKind kind, DxuiMouseButton button, LPARAM lParam)
 {
     DxuiMouseEvent  ev;
-    bool            handled = false;
+    bool            isHandled = false;
+
 
 
     if (m_dialog != nullptr)
@@ -450,13 +457,13 @@ DxuiMessageResult DxuiModalDialogClient::RouteMouse (DxuiMouseEventKind kind, Dx
         ev.kind        = kind;
         ev.button      = button;
         ev.positionDip = { GET_X_LPARAM (lParam), GET_Y_LPARAM (lParam) };
-        handled        = m_dialog->OnMouse (ev);
+        isHandled      = m_dialog->OnMouse (ev);
     }
 
-    if (handled && m_hwnd != nullptr)
+    if (isHandled && m_hwnd != nullptr)
     {
         InvalidateRect (m_hwnd, nullptr, FALSE);
     }
 
-    return handled ? DxuiMessageResult::Handled : DxuiMessageResult::NotHandled;
+    return isHandled ? DxuiMessageResult::Handled : DxuiMessageResult::NotHandled;
 }

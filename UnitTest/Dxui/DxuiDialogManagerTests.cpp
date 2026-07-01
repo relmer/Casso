@@ -235,9 +235,9 @@ public:
 
         Assert::AreEqual ((size_t) 1, mgr.StackSize());
 
-        std::optional<int>  activated = dlgRaw->ActivateDefault();
+        bool  activated = dlgRaw->TriggerDefault();
 
-        IGNORE_RETURN_VALUE (activated, std::optional<int>());
+        IGNORE_RETURN_VALUE (activated, false);
 
         Assert::IsTrue (fut.wait_for (std::chrono::seconds (0)) == std::future_status::ready);
         Assert::AreEqual (7,            fut.get());

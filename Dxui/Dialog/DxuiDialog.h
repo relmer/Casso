@@ -98,10 +98,10 @@ public:
     bool  IsBuilt     () const { return m_built; }
 
     //
-    //  Close-handler hook -- invoked by ActivateDefault / Activate-
-    //  Cancel / button clicks with the chosen button's returnCode.
-    //  The manager installs this when it owns a dialog so the close
-    //  semantics route into the stack pop.
+    //  Close-handler hook -- invoked by TriggerDefault / TriggerCancel /
+    //  button clicks with the chosen button's returnCode. The manager
+    //  installs this when it owns a dialog so the close semantics route
+    //  into the stack pop.
     //
     void  SetCloseHandler  (CloseHandler handler);
     bool  HasCloseHandler  () const { return (bool) m_onClose; }
@@ -147,12 +147,16 @@ public:
     void  SetButtonVisible (size_t index, bool visible);
 
     //
-    //  Keyboard activation. Returns the chosen returnCode iff a
-    //  matching button exists. The close handler (when set) is also
-    //  invoked.
+    //  Keyboard-activation entry points. TriggerDefault fires the button
+    //  flagged isDefault (Enter); TriggerCancel fires the button flagged
+    //  isCancel (Escape / close gesture). Firing routes through the normal
+    //  button-click path -- and thus the close handler, which delivers the
+    //  button's returnCode to the manager. Each returns true iff such a
+    //  button exists (and was therefore fired); false means none is defined
+    //  and the caller must handle the key / close itself.
     //
-    std::optional<int>  ActivateDefault();
-    std::optional<int>  ActivateCancel  ();
+    bool  TriggerDefault();
+    bool  TriggerCancel  ();
 
     //
     //  Inspection accessors (used by tests + the manager).
@@ -167,8 +171,8 @@ public:
     const DxuiPanel             *  ButtonRow      () const { return m_buttonRow; }
 
     //
-    //  IDxuiControl override -- Enter / Escape map to Activate-
-    //  Default / ActivateCancel before forwarding to children.
+    //  IDxuiControl override -- Enter / Escape map to TriggerDefault /
+    //  TriggerCancel before forwarding to children.
     //
     bool                OnKey          (const DxuiKeyEvent & ev) override;
     void                Layout         (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;

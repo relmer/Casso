@@ -102,41 +102,45 @@ public:
     }
 
 
-    TEST_METHOD (ActivateDefault_ReturnsDefaultButtonReturnCode)
+    TEST_METHOD (TriggerDefault_FiresDefaultButtonThroughCloseHandler)
     {
         DxuiDialog  dlg;
+        int         closedWith = -1;
 
         dlg.SetTitle (L"T");
         dlg.AddButton (L"OK",     7, true);
         dlg.AddButton (L"Cancel", 8, false, true);
         dlg.Build();
+        dlg.SetCloseHandler ([&closedWith] (int rc) { closedWith = rc; });
 
 
-        std::optional<int>  rc = dlg.ActivateDefault();
+        bool  isHandled = dlg.TriggerDefault();
 
-        Assert::IsTrue (rc.has_value());
-        Assert::AreEqual (7, rc.value());
+        Assert::IsTrue   (isHandled);
+        Assert::AreEqual (7, closedWith);
     }
 
 
-    TEST_METHOD (ActivateCancel_ReturnsCancelButtonReturnCode)
+    TEST_METHOD (TriggerCancel_FiresCancelButtonThroughCloseHandler)
     {
         DxuiDialog  dlg;
+        int         closedWith = -1;
 
         dlg.SetTitle (L"T");
         dlg.AddButton (L"OK",     7, true);
         dlg.AddButton (L"Cancel", 8, false, true);
         dlg.Build();
+        dlg.SetCloseHandler ([&closedWith] (int rc) { closedWith = rc; });
 
 
-        std::optional<int>  rc = dlg.ActivateCancel();
+        bool  isHandled = dlg.TriggerCancel();
 
-        Assert::IsTrue (rc.has_value());
-        Assert::AreEqual (8, rc.value());
+        Assert::IsTrue   (isHandled);
+        Assert::AreEqual (8, closedWith);
     }
 
 
-    TEST_METHOD (ActivateDefault_NoDefaultButton_ReturnsNullopt)
+    TEST_METHOD (TriggerDefault_NoDefaultButton_ReturnsFalse)
     {
         DxuiDialog  dlg;
 
@@ -145,13 +149,13 @@ public:
         dlg.Build();
 
 
-        std::optional<int>  rc = dlg.ActivateDefault();
+        bool  isHandled = dlg.TriggerDefault();
 
-        Assert::IsFalse (rc.has_value());
+        Assert::IsFalse (isHandled);
     }
 
 
-    TEST_METHOD (ActivateCancel_NoCancelButton_ReturnsNullopt)
+    TEST_METHOD (TriggerCancel_NoCancelButton_ReturnsFalse)
     {
         DxuiDialog  dlg;
 
@@ -159,9 +163,9 @@ public:
         dlg.Build();
 
 
-        std::optional<int>  rc = dlg.ActivateCancel();
+        bool  isHandled = dlg.TriggerCancel();
 
-        Assert::IsFalse (rc.has_value());
+        Assert::IsFalse (isHandled);
     }
 
 
@@ -230,10 +234,9 @@ public:
                              });
 
 
-        std::optional<int>  rc = dlg.ActivateDefault();
+        bool  isHandled = dlg.TriggerDefault();
 
-        Assert::IsTrue   (rc.has_value());
-        Assert::AreEqual (11, rc.value());
+        Assert::IsTrue   (isHandled);
         Assert::AreEqual (1,  fireCount);
         Assert::AreEqual (11, captured);
     }

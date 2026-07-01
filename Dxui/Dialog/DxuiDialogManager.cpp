@@ -6,6 +6,9 @@
 #include "Window/DxuiHostWindow.h"
 
 
+static constexpr UINT  s_kCaretRepaintMs = 250;   // caret-blink repaint cadence when no app tick
+
+
 
 
 
@@ -108,8 +111,6 @@ std::future<int> DxuiDialogManager::Show (std::unique_ptr<DxuiDialog>  dialog,
 int DxuiDialogManager::ShowModal (std::unique_ptr<DxuiDialog>    dialog,
                                   const DxuiDialogModalParams  & params)
 {
-    constexpr UINT                 s_kCaretRepaintMs = 250;   // caret-blink repaint cadence
-
     HRESULT                        hr            = S_OK;
     DxuiHostWindow                 host;
     DxuiModalDialogClient          client;
