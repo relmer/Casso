@@ -132,6 +132,18 @@ namespace
             return DxuiMessageResult::Handled;
         }
 
+        DxuiMessageResult  OnTimer (UINT_PTR timerId) override
+        {
+            UNREFERENCED_PARAMETER (timerId);
+
+            if (m_dialog != nullptr)
+            {
+                m_dialog->Tick();
+            }
+
+            return DxuiMessageResult::Handled;
+        }
+
 
     private:
         bool  RouteKeyToFocused (WPARAM vk, bool shift)
@@ -310,6 +322,11 @@ int DxuiDialogManager::ShowModal (std::unique_ptr<DxuiDialog>    dialog,
     host.SetTheme        (params.theme);
     host.SetContentPanel (std::move (dialog));
     client.SetupFocus    (dialogRaw, params.theme);
+
+    if (dialogRaw->TickIntervalMs() > 0)
+    {
+        host.SetTimer (1, dialogRaw->TickIntervalMs());
+    }
 
     if (params.ownerHwnd != nullptr)
     {

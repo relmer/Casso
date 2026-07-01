@@ -1543,6 +1543,7 @@ LRESULT DxuiHostWindow::WndProc (UINT msg, WPARAM wp, LPARAM lp)
         case WM_TIMER:
             if (m_client != nullptr && m_client->OnTimer (static_cast<UINT_PTR> (wp)) == DxuiMessageResult::Handled)
             {
+                InvalidateRect (m_hwnd, nullptr, FALSE);
                 return 0;
             }
             break;

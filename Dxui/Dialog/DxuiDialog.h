@@ -122,6 +122,31 @@ public:
     IDxuiControl *  InitialFocus    () const             { return m_initialFocus; }
 
     //
+    //  Per-click hook. When set, a button click calls it with the button
+    //  index; returning true closes the dialog with that button's return
+    //  code, false keeps the dialog open (e.g. to start an in-place
+    //  download). When unset, every click closes.
+    //
+    using ButtonActivatedFn = std::function<bool (size_t index)>;
+    void  SetOnButtonActivated (ButtonActivatedFn fn) { m_onButtonActivated = std::move (fn); }
+
+    //
+    //  Periodic tick hook. When intervalMs > 0 the hosting ShowModal drives
+    //  a Win32 timer that calls Tick() (which invokes the hook) every
+    //  interval; the host repaints afterwards.
+    //
+    void      SetOnTick        (std::function<void()> fn, unsigned intervalMs);
+    unsigned  TickIntervalMs   () const { return m_tickIntervalMs; }
+    void      Tick             ();
+
+    //
+    //  Button mutation (post-Build). Out-of-range indices are ignored.
+    //
+    void  SetButtonLabel   (size_t index, const std::wstring & label);
+    void  SetButtonEnabled (size_t index, bool enabled);
+    void  SetButtonVisible (size_t index, bool visible);
+
+    //
     //  Keyboard activation. Returns the chosen returnCode iff a
     //  matching button exists. The close handler (when set) is also
     //  invoked.
@@ -166,6 +191,9 @@ private:
     DxuiSystemButton *             m_closeBtn    = nullptr;
     std::vector<DxuiButton *>      m_buttonWidgets;
     CloseHandler                   m_onClose;
+    ButtonActivatedFn              m_onButtonActivated;
+    std::function<void()>          m_onTick;
+    unsigned                       m_tickIntervalMs = 0;
     IDxuiControl *                 m_initialFocus = nullptr;
     bool                           m_built       = false;
     bool                           m_ownCaption  = true;
