@@ -6,10 +6,7 @@
 
 
 
-namespace
-{
-    std::atomic<DWORD>  s_uiThreadId { 0 };
-}
+static std::atomic<DWORD>  s_uiThreadId { 0 };
 
 
 
@@ -28,8 +25,9 @@ namespace
 
 void DxuiAssertUiThread()
 {
-    DWORD  captured = 0;
-    DWORD  current  = 0;
+    HRESULT  hr       = S_OK;
+    DWORD    captured = 0;
+    DWORD    current  = 0;
 
 
     current  = GetCurrentThreadId();
@@ -41,10 +39,14 @@ void DxuiAssertUiThread()
                                               current,
                                               std::memory_order_acq_rel,
                                               std::memory_order_acquire);
-        return;
+    }
+    else
+    {
+        CBRA (captured == current);
     }
 
-    assert (captured == current && "Dxui API called off the UI thread");
+Error:
+    return;
 }
 
 

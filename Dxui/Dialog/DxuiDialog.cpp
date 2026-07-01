@@ -58,15 +58,17 @@ DxuiDialog::~DxuiDialog()
 
 void DxuiDialog::SetTitle (const std::wstring & title)
 {
-    DXUI_ASSERT_UI_THREAD();
-    assert (!m_built && "SetTitle called after Build");
+    HRESULT  hr = S_OK;
 
-    if (m_built)
-    {
-        return;
-    }
+
+
+    DXUI_ASSERT_UI_THREAD();
+    CBRA (!m_built);
 
     m_title = title;
+
+Error:
+    return;
 }
 
 
@@ -81,15 +83,17 @@ void DxuiDialog::SetTitle (const std::wstring & title)
 
 void DxuiDialog::SetContent (std::unique_ptr<DxuiPanel> content)
 {
-    DXUI_ASSERT_UI_THREAD();
-    assert (!m_built && "SetContent called after Build");
+    HRESULT  hr = S_OK;
 
-    if (m_built)
-    {
-        return;
-    }
+
+
+    DXUI_ASSERT_UI_THREAD();
+    CBRA (!m_built);
 
     m_contentOwned = std::move (content);
+
+Error:
+    return;
 }
 
 
@@ -107,17 +111,13 @@ void DxuiDialog::AddButton (const std::wstring & label,
                             bool                 isDefault,
                             bool                 isCancel)
 {
+    HRESULT           hr = S_OK;
     DxuiDialogButton  btn;
 
 
 
     DXUI_ASSERT_UI_THREAD();
-    assert (!m_built && "AddButton called after Build");
-
-    if (m_built)
-    {
-        return;
-    }
+    CBRA (!m_built);
 
     btn.label      = label;
     btn.returnCode = returnCode;
@@ -125,6 +125,9 @@ void DxuiDialog::AddButton (const std::wstring & label,
     btn.isCancel   = isCancel;
 
     m_buttons.push_back (std::move (btn));
+
+Error:
+    return;
 }
 
 
@@ -164,12 +167,7 @@ void DxuiDialog::Build()
 
 
     DXUI_ASSERT_UI_THREAD();
-    assert (!m_built && "Build called twice");
-
-    if (m_built)
-    {
-        return;
-    }
+    CBRA (!m_built);
 
     //
     //  Synthesize an empty content panel when the consumer did not
@@ -267,7 +265,8 @@ void DxuiDialog::Build()
 
     m_built = true;
 
-    IGNORE_RETURN_VALUE (hr, S_OK);
+Error:
+    return;
 }
 
 
@@ -387,15 +386,17 @@ void DxuiDialog::CloseWithResult (int returnCode)
 
 void DxuiDialog::SetOwnCaption (bool ownCaption)
 {
-    DXUI_ASSERT_UI_THREAD();
-    assert (!m_built && "SetOwnCaption called after Build");
+    HRESULT  hr = S_OK;
 
-    if (m_built)
-    {
-        return;
-    }
+
+
+    DXUI_ASSERT_UI_THREAD();
+    CBRA (!m_built);
 
     m_ownCaption = ownCaption;
+
+Error:
+    return;
 }
 
 
@@ -576,25 +577,24 @@ bool DxuiDialog::OnKey (const DxuiKeyEvent & ev)
 
 void DxuiDialog::HandleButtonClicked (size_t index)
 {
-    bool  shouldClose = true;
+    HRESULT  hr          = S_OK;
+    bool     shouldClose = true;
 
 
-    if (index < m_buttons.size())
+    CBRA (index < m_buttons.size());
+
+    if (m_onButtonActivated)
     {
-        if (m_onButtonActivated)
-        {
-            shouldClose = m_onButtonActivated (index);
-        }
+        shouldClose = m_onButtonActivated (index);
+    }
 
-        if (shouldClose)
-        {
-            InvokeClose (m_buttons[index].returnCode);
-        }
-    }
-    else
+    if (shouldClose)
     {
-        assert (false && "Button index out of range");
+        InvokeClose (m_buttons[index].returnCode);
     }
+
+Error:
+    return;
 }
 
 

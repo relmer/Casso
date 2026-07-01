@@ -57,6 +57,7 @@ DxuiDialogManager::~DxuiDialogManager()
 std::future<int> DxuiDialogManager::Show (std::unique_ptr<DxuiDialog>  dialog,
                                           DxuiDialogShowParams         params)
 {
+    HRESULT                             hr        = S_OK;
     std::shared_ptr<std::promise<int>>  promise   = std::make_shared<std::promise<int>>();
     std::future<int>                    future    = promise->get_future();
     DxuiDialog *                        dialogRaw = dialog.get();
@@ -65,14 +66,8 @@ std::future<int> DxuiDialogManager::Show (std::unique_ptr<DxuiDialog>  dialog,
 
 
     DXUI_ASSERT_UI_THREAD();
-    assert (dialogRaw != nullptr && "DxuiDialogManager::Show requires a dialog");
-    assert (dialogRaw->IsBuilt() && "DxuiDialog must be Build()-ed before Show");
-
-    if (dialogRaw == nullptr)
-    {
-        promise->set_value (-1);
-        return future;
-    }
+    CBRAF (dialogRaw != nullptr, promise->set_value (-1));
+    CBRAF (dialogRaw->IsBuilt(), promise->set_value (-1));
 
     frameId = PushInternal (std::move (dialog), dialogRaw, params, promise);
 
@@ -87,6 +82,7 @@ std::future<int> DxuiDialogManager::Show (std::unique_ptr<DxuiDialog>  dialog,
                                     this->PopInternal (frameId, returnCode);
                                 });
 
+Error:
     return future;
 }
 
@@ -137,28 +133,28 @@ int DxuiDialogManager::ShowModal (std::unique_ptr<DxuiDialog>    dialog,
     client.Bind (dialogRaw, params.cancelResult);
     dialogRaw->SetCloseHandler ([&client] (int returnCode) { client.Resolve (returnCode); });
 
-    hostParams.title                = dialogRaw->Title();
-    hostParams.hInstance            = params.hInstance;
-    hostParams.ownerHwnd            = params.ownerHwnd;
-    hostParams.borderless           = true;
-    hostParams.resizable            = params.resizable;
-    hostParams.roundedCorners       = true;
-    hostParams.backdrop             = DxuiHostWindowBackdrop::None;
-    hostParams.captionStyle         = DxuiCaptionStyle::CloseOnly;
+    hostParams.title                 = dialogRaw->Title();
+    hostParams.hInstance             = params.hInstance;
+    hostParams.ownerHwnd             = params.ownerHwnd;
+    hostParams.borderless            = true;
+    hostParams.resizable             = params.resizable;
+    hostParams.roundedCorners        = true;
+    hostParams.backdrop              = DxuiHostWindowBackdrop::None;
+    hostParams.captionStyle          = DxuiCaptionStyle::CloseOnly;
     hostParams.insetRootBelowCaption = true;
-    hostParams.initialSizeDip       = params.clientSizeDip;
-    hostParams.createSwapChain      = true;
+    hostParams.initialSizeDip        = params.clientSizeDip;
+    hostParams.createSwapChain       = true;
 
     host.SetClient (&client);
 
     hr = host.Create (hostParams);
     CHRA (hr);
 
-    client.SetHwnd (host.Hwnd());
+    client.SetHwnd             (host.Hwnd());
     client.SetMinClientSizeDip (params.minClientSizeDip);
-    host.SetTheme        (params.theme);
-    host.SetContentPanel (std::move (dialog));
-    client.SetupFocus    (dialogRaw, params.theme);
+    host.SetTheme              (params.theme);
+    host.SetContentPanel       (std::move (dialog));
+    client.SetupFocus          (dialogRaw, params.theme);
 
     //
     //  Always run a timer. When the dialog set an app tick (e.g. the
