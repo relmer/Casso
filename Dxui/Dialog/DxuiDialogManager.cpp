@@ -189,10 +189,7 @@ int DxuiDialogManager::ShowModal (std::unique_ptr<DxuiDialog>    dialog,
             break;
         }
 
-        if (gotMessage == -1)
-        {
-            break;
-        }
+        CWRA (gotMessage != -1);
 
         TranslateMessage (&msg);
         DispatchMessageW (&msg);
