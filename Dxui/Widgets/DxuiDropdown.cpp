@@ -668,7 +668,7 @@ void DxuiDropdown::PaintBase (IDxuiPainter & painter, IDxuiTextRenderer & text) 
                                               fontDip,
                                               s_kFontFamily,
                                               DxuiTextHAlign::Left,
-                                              DxuiTextVAlign::Center, DWRITE_FONT_WEIGHT_NORMAL, false));
+                                              DxuiTextVAlign::Center, DxuiFontWeight::Normal, false));
 
     // Chevron: stack of horizontal rects forming a downward triangle.
     for (int row = 0; row < chevronH; row++)
@@ -752,7 +752,7 @@ void DxuiDropdown::PaintMenu (IDxuiPainter & painter, IDxuiTextRenderer & text) 
                                                   fontDip,
                                                   s_kFontFamily,
                                                   DxuiTextHAlign::Left,
-                                                  DxuiTextVAlign::Center, DWRITE_FONT_WEIGHT_NORMAL, false));
+                                                  DxuiTextVAlign::Center, DxuiFontWeight::Normal, false));
     }
 }
 
@@ -804,7 +804,7 @@ void DxuiDropdown::RenderPopupMenu (IDxuiPainter & painter, IDxuiTextRenderer & 
                                                   fontPx,
                                                   s_kFontFamily,
                                                   DxuiTextHAlign::Left,
-                                                  DxuiTextVAlign::Center, DWRITE_FONT_WEIGHT_NORMAL, false));
+                                                  DxuiTextVAlign::Center, DxuiFontWeight::Normal, false));
     }
 }
 

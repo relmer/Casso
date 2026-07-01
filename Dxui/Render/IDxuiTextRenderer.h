@@ -57,7 +57,7 @@ public:
                                     const wchar_t      * fontFamily,
                                     DxuiTextHAlign       hAlign = DxuiTextHAlign::Left,
                                     DxuiTextVAlign       vAlign = DxuiTextVAlign::Top,
-                                    DWRITE_FONT_WEIGHT   weight = DWRITE_FONT_WEIGHT_NORMAL,
+                                    DxuiFontWeight       weight = DxuiFontWeight::Normal,
                                     bool                 wrap   = true)         = 0;
 
     virtual HRESULT  PushClipRect  (float xDip, float yDip, float widthDip, float heightDip) = 0;

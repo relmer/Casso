@@ -32,7 +32,7 @@ public:
     void  SetFontFace    (const std::wstring & face) { m_fontFace = face; }
     void  SetHAlign      (DxuiTextHAlign a) { m_hAlign = a; }
     void  SetVAlign      (DxuiTextVAlign a) { m_vAlign = a; }
-    void  SetFontWeight  (DWRITE_FONT_WEIGHT w) { m_weight = w; }
+    void  SetFontWeight  (DxuiFontWeight w) { m_weight = w; }
     void  SetDpi         (UINT dpi) { m_scaler.SetDpi (dpi); }
 
     const RECT         & Rect      () const { return m_boundsDip; }
@@ -86,6 +86,6 @@ private:
     float                         m_fontDip  = 13.0f;
     DxuiTextHAlign    m_hAlign   = DxuiTextHAlign::Left;
     DxuiTextVAlign    m_vAlign   = DxuiTextVAlign::Center;
-    DWRITE_FONT_WEIGHT            m_weight   = DWRITE_FONT_WEIGHT_NORMAL;
+    DxuiFontWeight                m_weight   = DxuiFontWeight::Normal;
     DxuiDpiScaler                     m_scaler;
 };

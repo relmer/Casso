@@ -109,11 +109,11 @@ struct DxuiTheme : public IDxuiTheme
     static constexpr float         kCaptionSizeDip = 12.0f;
     static constexpr float         kHeadingSizeDip = 14.0f;
 
-    DxuiFontHandle  BodyFont      () const override { return { kBodyFace, kBodySizeDip,    DWRITE_FONT_WEIGHT_NORMAL    }; }
-    DxuiFontHandle  BodyBoldFont  () const override { return { kBodyFace, kBodySizeDip,    DWRITE_FONT_WEIGHT_SEMI_BOLD }; }
-    DxuiFontHandle  CaptionFont   () const override { return { kBodyFace, kCaptionSizeDip, DWRITE_FONT_WEIGHT_NORMAL    }; }
-    DxuiFontHandle  HeadingFont   () const override { return { kBodyFace, kHeadingSizeDip, DWRITE_FONT_WEIGHT_NORMAL    }; }
-    DxuiFontHandle  MonospaceFont () const override { return { kMonoFace, kBodySizeDip,    DWRITE_FONT_WEIGHT_NORMAL    }; }
+    DxuiFontHandle  BodyFont      () const override { return { kBodyFace, kBodySizeDip,    DxuiFontWeight::Normal   }; }
+    DxuiFontHandle  BodyBoldFont  () const override { return { kBodyFace, kBodySizeDip,    DxuiFontWeight::SemiBold }; }
+    DxuiFontHandle  CaptionFont   () const override { return { kBodyFace, kCaptionSizeDip, DxuiFontWeight::Normal   }; }
+    DxuiFontHandle  HeadingFont   () const override { return { kBodyFace, kHeadingSizeDip, DxuiFontWeight::Normal   }; }
+    DxuiFontHandle  MonospaceFont () const override { return { kMonoFace, kBodySizeDip,    DxuiFontWeight::Normal   }; }
 
     float  BodyLineHeightDip () const override { return 18.0f; }
     float  CornerRadiusDip   () const override { return 4.0f;  }

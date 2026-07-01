@@ -402,7 +402,7 @@ void DxuiTextInput::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) con
                                               DxuiTheme::kBodyFace,
                                               DxuiTextHAlign::Left,
                                               DxuiTextVAlign::Center,
-                                              DWRITE_FONT_WEIGHT_NORMAL,
+                                              DxuiFontWeight::Normal,
                                               false));
 
     if (m_text.empty() && !m_placeholder.empty())
@@ -419,7 +419,7 @@ void DxuiTextInput::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) con
                               DxuiTheme::kBodyFace,
                               DxuiTextHAlign::Left,
                               DxuiTextVAlign::Center,
-                              DWRITE_FONT_WEIGHT_NORMAL,
+                              DxuiFontWeight::Normal,
                               false);
         IGNORE_RETURN_VALUE (hr, S_OK);
     }

@@ -74,7 +74,7 @@ public:
                             const wchar_t      * fontFamily,
                             DxuiTextHAlign       hAlign,
                             DxuiTextVAlign       vAlign,
-                            DWRITE_FONT_WEIGHT   weight,
+                            DxuiFontWeight       weight,
                             bool                 wrap) override;
 
     HRESULT  PushClipRect  (float xDip, float yDip, float widthDip, float heightDip) override;

@@ -27,6 +27,20 @@
 
 
 //
+//  Font weight on the standard OpenType weight axis. Widgets and themes
+//  speak this native enum so the public API never exposes DirectWrite;
+//  DxuiTextRenderer maps it to DWRITE_FONT_WEIGHT internally.
+//
+enum class DxuiFontWeight : int
+{
+    Normal   = 400,
+    SemiBold = 600,
+    Bold     = 700,
+};
+
+
+
+//
 //  Font descriptor: a face name, DIP size, and weight. Concrete themes
 //  return these from the typography accessors; widgets pass them to the
 //  text renderer's handle overloads instead of repeating literal face
@@ -37,7 +51,7 @@ struct DxuiFontHandle
 {
     const wchar_t     * face    = nullptr;
     float               sizeDip = 13.0f;
-    DWRITE_FONT_WEIGHT  weight  = DWRITE_FONT_WEIGHT_NORMAL;
+    DxuiFontWeight      weight  = DxuiFontWeight::Normal;
 };
 
 

@@ -1880,7 +1880,7 @@ void DxuiListView::PaintHeader (
                               pal.hdrFg, hdrFontPx, DxuiTheme::kBodyFace,
                               m_columns[c].align,
                               DxuiTextVAlign::Center,
-                              DWRITE_FONT_WEIGHT_BOLD,
+                              DxuiFontWeight::Bold,
                               false);
         IGNORE_RETURN_VALUE (hr, S_OK);
 
@@ -1897,7 +1897,7 @@ void DxuiListView::PaintHeader (
                                   pal.hdrFg, hdrFontPx, DxuiTheme::kBodyFace,
                                   DxuiTextHAlign::Right,
                                   DxuiTextVAlign::Center,
-                                  DWRITE_FONT_WEIGHT_BOLD);
+                                  DxuiFontWeight::Bold);
             IGNORE_RETURN_VALUE (hr, S_OK);
         }
     }
@@ -2082,7 +2082,7 @@ void DxuiListView::PaintDataRows (
                                   DxuiTheme::kBodyFace,
                                   m_columns[c].align,
                                   DxuiTextVAlign::CenterOnCapHeight,
-                                  DWRITE_FONT_WEIGHT_NORMAL,
+                                  DxuiFontWeight::Normal,
                                   false);
             IGNORE_RETURN_VALUE (hr, S_OK);
         }
