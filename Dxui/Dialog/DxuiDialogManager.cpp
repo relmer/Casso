@@ -125,7 +125,7 @@ int DxuiDialogManager::ShowModal (std::unique_ptr<DxuiDialog>    dialog,
 
     DXUI_ASSERT_UI_THREAD();
     CBRA (dialogRaw);
-    assert (!dialogRaw->IsBuilt() && "ShowModal builds the dialog itself; pass it configured but not Build()-ed");
+    CBRA (!dialogRaw->IsBuilt());   // ShowModal builds the dialog itself; pass it configured but not Build()-ed
 
     //
     //  The host supplies the standard caption (title + close), so the
