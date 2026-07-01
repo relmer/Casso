@@ -6,11 +6,13 @@
 #include "Widgets/DxuiButton.h"
 
 
-static constexpr int     s_kLineHeightDip = 20;
-static constexpr int     s_kItemGapDip    = 6;
-static constexpr int     s_kIconGapDip    = 12;
-static constexpr size_t  s_kWrapColumns   = 52;
-static constexpr int     s_kShellExecOk   = 0;     // ignored ShellExecute result reset value
+static constexpr int      s_kLineHeightDip = 20;
+static constexpr int      s_kItemGapDip    = 6;
+static constexpr int      s_kIconGapDip    = 12;
+static constexpr int      s_kGlyphGapDip   = 12;
+static constexpr size_t   s_kWrapColumns   = 52;
+static constexpr int      s_kShellExecOk   = 0;     // ignored ShellExecute result reset value
+static constexpr wchar_t  s_kMdl2Family[]  = L"Segoe MDL2 Assets";
 
 
 
@@ -109,6 +111,22 @@ void DialogBodyContent::SetIcon (std::vector<uint32_t> bgraPremul, int srcW, int
 
 
 
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DialogBodyContent::SetGlyphIcon
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DialogBodyContent::SetGlyphIcon (wchar_t glyph, uint32_t argb, int sizeDip)
+{
+    m_glyph        = glyph;
+    m_glyphArgb    = argb;
+    m_glyphSizeDip = sizeDip;
+}
+
+
+
+
 
 ////////////////////////////////////////////////////////////////////////////////
 //
@@ -118,20 +136,26 @@ void DialogBodyContent::SetIcon (std::vector<uint32_t> bgraPremul, int srcW, int
 
 int DialogBodyContent::PreferredHeightDip () const
 {
-    int  total = 0;
+    int  iconTop = 0;
+    int  runs    = 0;
 
 
     if (!m_iconPixels.empty() && m_iconSizeDip > 0)
     {
-        total += m_iconSizeDip + s_kIconGapDip;
+        iconTop = m_iconSizeDip + s_kIconGapDip;
     }
 
     for (const Item & item : m_items)
     {
-        total += item.lines * s_kLineHeightDip + s_kItemGapDip;
+        runs += item.lines * s_kLineHeightDip + s_kItemGapDip;
     }
 
-    return total;
+    if (m_glyph != 0 && m_glyphSizeDip > runs)
+    {
+        runs = m_glyphSizeDip;
+    }
+
+    return iconTop + runs;
 }
 
 
@@ -149,14 +173,16 @@ int DialogBodyContent::PreferredHeightDip () const
 
 void DialogBodyContent::Layout (const RECT & boundsPx, const DxuiDpiScaler & scaler)
 {
-    int  linePx = scaler.Px (s_kLineHeightDip);
-    int  gapPx  = scaler.Px (s_kItemGapDip);
-    int  y      = boundsPx.top;
+    int  linePx   = scaler.Px (s_kLineHeightDip);
+    int  gapPx    = scaler.Px (s_kItemGapDip);
+    int  y        = boundsPx.top;
+    int  runsLeft = boundsPx.left;
 
 
     SetBounds (boundsPx);
 
-    m_iconRectPx = {};
+    m_iconRectPx  = {};
+    m_glyphRectPx = {};
 
     if (!m_iconPixels.empty() && m_iconSizeDip > 0)
     {
@@ -170,10 +196,21 @@ void DialogBodyContent::Layout (const RECT & boundsPx, const DxuiDpiScaler & sca
         y += iconPx + scaler.Px (s_kIconGapDip);
     }
 
+    if (m_glyph != 0 && m_glyphSizeDip > 0)
+    {
+        int  glyphPx = scaler.Px (m_glyphSizeDip);
+
+        m_glyphRectPx.left   = boundsPx.left;
+        m_glyphRectPx.top    = y;
+        m_glyphRectPx.right  = boundsPx.left + glyphPx;
+        m_glyphRectPx.bottom = y + glyphPx;
+        runsLeft = boundsPx.left + glyphPx + scaler.Px (s_kGlyphGapDip);
+    }
+
     for (Item & item : m_items)
     {
         int   hPx = item.lines * linePx;
-        RECT  b   = { boundsPx.left, y, boundsPx.right, y + hPx };
+        RECT  b   = { runsLeft, y, boundsPx.right, y + hPx };
 
         if (item.widget != nullptr)
         {
@@ -208,6 +245,25 @@ void DialogBodyContent::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text,
                                            (float) m_iconRectPx.top,
                                            (float) (m_iconRectPx.right  - m_iconRectPx.left),
                                            (float) (m_iconRectPx.bottom - m_iconRectPx.top));
+
+        IGNORE_RETURN_VALUE (hr, S_OK);
+    }
+
+    if (m_glyph != 0 && m_glyphRectPx.right > m_glyphRectPx.left)
+    {
+        wchar_t  glyphStr[2] = { m_glyph, L'\0' };
+        float    sizePx      = (float) (m_glyphRectPx.bottom - m_glyphRectPx.top);
+        HRESULT  hr          = text.DrawString (glyphStr,
+                                                (float) m_glyphRectPx.left,
+                                                (float) m_glyphRectPx.top,
+                                                (float) (m_glyphRectPx.right  - m_glyphRectPx.left),
+                                                (float) (m_glyphRectPx.bottom - m_glyphRectPx.top),
+                                                m_glyphArgb,
+                                                sizePx,
+                                                s_kMdl2Family,
+                                                DxuiTextHAlign::Center,
+                                                DxuiTextVAlign::Center,
+                                                DWRITE_FONT_WEIGHT_NORMAL);
 
         IGNORE_RETURN_VALUE (hr, S_OK);
     }

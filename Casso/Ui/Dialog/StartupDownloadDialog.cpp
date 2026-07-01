@@ -825,7 +825,7 @@ StartupDownloadResult StartupDownloadDialog::Show (HINSTANCE                hIns
     }
 
     introLabel.SetText      (intro);
-    introLabel.SetColorArgb (theme.dropdownItemText);
+    introLabel.SetColorArgb (theme.bodyText);
     introLabel.SetVAlign    (DxuiTextVAlign::Top);
 
     body.SetPaintFn ([&set, &state] (DialogPaintContext & ctx) { PaintBody (ctx, set, state); });

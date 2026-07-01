@@ -30,6 +30,7 @@ struct DxuiTheme : public IDxuiTheme
     uint32_t  titleBarTop              = 0;
     uint32_t  titleBarBottom           = 0;
     uint32_t  titleText                = 0;
+    uint32_t  bodyText                 = 0;
     uint32_t  sysButtonIdle            = 0;
     uint32_t  sysButtonHover           = 0;
     uint32_t  sysButtonPressed         = 0;
@@ -64,13 +65,13 @@ struct DxuiTheme : public IDxuiTheme
     uint32_t  PressedBackground   () const override { return buttonPressed;      }
     uint32_t  SelectionBackground () const override { return navHover;           }
 
-    uint32_t  Foreground          () const override { return dropdownItemText;   }
+    uint32_t  Foreground          () const override { return bodyText;           }
     uint32_t  ForegroundMuted     () const override { return dropdownAccel;      }
     uint32_t  ForegroundDisabled  () const override
     {
         // Half-alpha primary foreground -- no dedicated disabled-text knob;
         // keeps visual parity with the prior in-widget disable mask.
-        return (dropdownItemText & 0x00FFFFFFu) | 0x80000000u;
+        return (bodyText & 0x00FFFFFFu) | 0x80000000u;
     }
     uint32_t  HeadingForeground   () const override { return titleText;          }
     uint32_t  ErrorForeground     () const override { return errorText;          }
@@ -127,6 +128,7 @@ struct DxuiTheme : public IDxuiTheme
         theme.titleBarTop               = 0xFF202225;
         theme.titleBarBottom            = 0xFF17181B;
         theme.titleText                 = 0xFFF0F0F0;
+        theme.bodyText                  = 0xFFF0F0F0;
         theme.sysButtonIdle             = 0x00000000;
         theme.sysButtonHover            = 0x0FFFFFFF;
         theme.sysButtonPressed          = 0x0AFFFFFF;
@@ -165,6 +167,7 @@ struct DxuiTheme : public IDxuiTheme
         theme.titleBarTop               = 0xFFF3F3F3;
         theme.titleBarBottom            = 0xFFE6E6E6;
         theme.titleText                 = 0xFF1A1A1A;
+        theme.bodyText                  = 0xFF1A1A1A;
         theme.sysButtonIdle             = 0x00000000;
         theme.sysButtonHover            = 0x14000000;
         theme.sysButtonPressed          = 0x0A000000;

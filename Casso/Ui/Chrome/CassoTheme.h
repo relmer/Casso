@@ -53,6 +53,7 @@ struct CassoTheme : public DxuiTheme
         theme.titleBarTop         = 0xFF102A44;
         theme.titleBarBottom      = 0xFF071827;
         theme.titleText           = 0xFFE8EEF4;
+        theme.bodyText            = 0xFFF3EAD7;
         // Caption-button overlays match the authoritative Fluent
         // dark-mode spec from microsoft/microsoft-ui-xaml
         // (Common_themeresources_any.xaml -> SubtleFillColor*) and
@@ -115,6 +116,7 @@ struct CassoTheme : public DxuiTheme
         theme.titleBarTop               = 0xFF202225;
         theme.titleBarBottom            = 0xFF17181B;
         theme.titleText                 = 0xFFF0F0F0;
+        theme.bodyText                  = 0xFFF0F0F0;
         theme.sysButtonIdle             = 0x00000000;
         theme.sysButtonHover            = 0x0FFFFFFF;
         theme.sysButtonPressed          = 0x0AFFFFFF;
@@ -163,6 +165,7 @@ struct CassoTheme : public DxuiTheme
         theme.titleBarTop               = 0xFF16381E;
         theme.titleBarBottom            = 0xFF0A1F0E;
         theme.titleText                 = 0xFFB7FCB9;
+        theme.bodyText                  = 0xFFB7FCB9;
         theme.sysButtonIdle             = 0x00000000;
         theme.sysButtonHover            = 0x14B7FCB9;
         theme.sysButtonPressed          = 0x0AB7FCB9;
