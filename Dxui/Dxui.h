@@ -18,20 +18,9 @@
 #define WIN32_LEAN_AND_MEAN
 #define NOMINMAX
 #include <windows.h>
-#include <windowsx.h>
 
-#include <d3d11.h>
-#include <d3dcompiler.h>
-#include <d2d1_3.h>
-#include <d2d1helper.h>
-#include <dwrite_3.h>
-#include <dxgi1_3.h>
-#include <dcomp.h>
-#include <wincodec.h>
-#include <dwmapi.h>
 #include <ole2.h>
 #include <oleidl.h>
-#include <shellapi.h>
 
 #include <wrl/client.h>
 
@@ -50,6 +39,46 @@
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DirectX / COM forward declarations.
+//
+//  These interfaces appear in the public Dxui headers ONLY as pointers
+//  (raw or `ComPtr<T>`, which stores a `T*`), never by value, as a base
+//  class, or with inline method calls. Forward declarations therefore
+//  satisfy the public surface, so consumers never parse the full
+//  d3d11 / d2d1 / dwrite / dxgi / dcomp header tree. Dxui's own
+//  translation units get the complete definitions via `Pch.h`.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+struct ID3D11Device;
+struct ID3D11DeviceContext;
+struct ID3D11RenderTargetView;
+struct ID3D11VertexShader;
+struct ID3D11PixelShader;
+struct ID3D11InputLayout;
+struct ID3D11Buffer;
+struct ID3D11BlendState;
+struct ID3D11RasterizerState;
+struct ID3D11DepthStencilState;
+struct ID2D1Factory1;
+struct ID2D1Device;
+struct ID2D1DeviceContext;
+struct ID2D1Bitmap;
+struct ID2D1Bitmap1;
+struct IDWriteFactory;
+struct IDWriteTextFormat;
+struct IDXGISurface;
+struct IDXGISwapChain1;
+struct IDCompositionDevice;
+struct IDCompositionTarget;
+struct IDCompositionVisual;
+
+
 
 #if defined(_DEBUG)
     #ifndef DXUI_ASSERT_UI_THREAD
