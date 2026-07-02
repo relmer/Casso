@@ -219,7 +219,7 @@ void DxuiDialog::Build()
         btn.SetLabel    (m_buttons[i].label);
         btn.SetEnabled  (true);
         btn.SetEmphasis (m_buttons[i].isDefault);
-        btn.SetClick    ([this, i] () { this->HandleButtonClicked (i); });
+        btn.SetOnClick    ([this, i] () { this->HandleButtonClicked (i); });
 
         m_buttonWidgets.push_back (&btn);
     }

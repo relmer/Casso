@@ -227,32 +227,32 @@ Error:
 
 void Disk2DebugPanel::OnCreate()
 {
-    m_trackFilterLabel   = DxuiPanel::Create<DxuiLabel> ();
-    m_sectorFilterLabel  = DxuiPanel::Create<DxuiLabel> ();
-    m_driveFilterLabel   = DxuiPanel::Create<DxuiLabel> ();
-    m_diskEventsLabel    = DxuiPanel::Create<DxuiLabel> ();
-    m_audioEventsLabel   = DxuiPanel::Create<DxuiLabel> ();
-    m_trackInvalidLabel  = DxuiPanel::Create<DxuiLabel> ();
-    m_sectorInvalidLabel = DxuiPanel::Create<DxuiLabel> ();
+    m_trackFilterLabel   = CreateChild<DxuiLabel> ();
+    m_sectorFilterLabel  = CreateChild<DxuiLabel> ();
+    m_driveFilterLabel   = CreateChild<DxuiLabel> ();
+    m_diskEventsLabel    = CreateChild<DxuiLabel> ();
+    m_audioEventsLabel   = CreateChild<DxuiLabel> ();
+    m_trackInvalidLabel  = CreateChild<DxuiLabel> ();
+    m_sectorInvalidLabel = CreateChild<DxuiLabel> ();
 
     for (int i = 0; i < kEventTypeCheckCount; i++)
     {
-        m_eventChecks[i] = DxuiPanel::Create<DxuiCheckbox> (s_kpszEventCheckLabels[i]);
+        m_eventChecks[i] = CreateChild<DxuiCheckbox> (s_kpszEventCheckLabels[i]);
     }
 
-    m_audioMasterCheck = DxuiPanel::Create<DxuiCheckbox> (s_kpszAudioLabel);
+    m_audioMasterCheck = CreateChild<DxuiCheckbox> (s_kpszAudioLabel);
     for (int i = 0; i < kAudioSubCheckCount; i++)
     {
-        m_audioSubChecks[i] = DxuiPanel::Create<DxuiCheckbox> (s_kpszAudioSubLabels[i]);
+        m_audioSubChecks[i] = CreateChild<DxuiCheckbox> (s_kpszAudioSubLabels[i]);
     }
 
-    m_rawQtCheck  = DxuiPanel::Create<DxuiCheckbox>   (s_kpszRawQtLabel);
-    m_driveRadio  = DxuiPanel::Create<DxuiRadioGroup> ();
-    m_trackEdit   = DxuiPanel::Create<DxuiTextInput>  ();
-    m_sectorEdit  = DxuiPanel::Create<DxuiTextInput>  ();
-    m_pauseButton = DxuiPanel::Create<DxuiButton>     (s_kpszPauseLabel);
-    m_clearButton = DxuiPanel::Create<DxuiButton>     (s_kpszClearLabel);
-    m_eventList   = DxuiPanel::Create<DxuiListView>   ();
+    m_rawQtCheck  = CreateChild<DxuiCheckbox>   (s_kpszRawQtLabel);
+    m_driveRadio  = CreateChild<DxuiRadioGroup> ();
+    m_trackEdit   = CreateChild<DxuiTextInput>  ();
+    m_sectorEdit  = CreateChild<DxuiTextInput>  ();
+    m_pauseButton = CreateChild<DxuiButton>     (s_kpszPauseLabel);
+    m_clearButton = CreateChild<DxuiButton>     (s_kpszClearLabel);
+    m_eventList   = CreateChild<DxuiListView>   ();
 
     ConfigureWidgets();
 
@@ -811,6 +811,7 @@ void Disk2DebugPanel::Layout (
     m_widthPx  = std::max (1, (int) (boundsDip.right  - boundsDip.left));
     m_heightPx = std::max (1, (int) (boundsDip.bottom - boundsDip.top));
     m_dpi      = scaler.Dpi();
+    m_scaler   = scaler;
 
     RecomputeLayout();
 }
@@ -868,32 +869,28 @@ void Disk2DebugPanel::LayoutWidgets()
     }
 
     m_trackFilterLabel->SetText        (m_filter.trackFilterRawQt ? s_kpszTrackQtFilterLabel : s_kpszTrackFilterLabel);
-    m_trackFilterLabel->SetRect        (m_layout.trackFilterLabel);
-    m_trackFilterLabel->SetDpi         (m_dpi);
+    m_trackFilterLabel->Layout         (m_layout.trackFilterLabel, m_scaler);
     m_trackFilterLabel->SetFontSizeDip (s_kLabelFontDip);
     m_trackFilterLabel->SetColorArgb   (textArgb);
     m_trackFilterLabel->SetHAlign      (DxuiTextRenderer::HAlign::Right);
     m_trackFilterLabel->SetVAlign      (DxuiTextRenderer::VAlign::Center);
 
     m_sectorFilterLabel->SetText        (s_kpszSectorFilterLabel);
-    m_sectorFilterLabel->SetRect        (m_layout.sectorFilterLabel);
-    m_sectorFilterLabel->SetDpi         (m_dpi);
+    m_sectorFilterLabel->Layout         (m_layout.sectorFilterLabel, m_scaler);
     m_sectorFilterLabel->SetFontSizeDip (s_kLabelFontDip);
     m_sectorFilterLabel->SetColorArgb   (textArgb);
     m_sectorFilterLabel->SetHAlign      (DxuiTextRenderer::HAlign::Right);
     m_sectorFilterLabel->SetVAlign      (DxuiTextRenderer::VAlign::Center);
 
     m_trackInvalidLabel->SetText        (BuildInvalidLabel (s_kpszTrackInvalidPrefix, m_trackEdit->Text(), m_filter.trackFilter.RejectedSpans()).c_str());
-    m_trackInvalidLabel->SetRect        (m_layout.trackInvalidLabel);
-    m_trackInvalidLabel->SetDpi         (m_dpi);
+    m_trackInvalidLabel->Layout         (m_layout.trackInvalidLabel, m_scaler);
     m_trackInvalidLabel->SetFontSizeDip (s_kLabelFontDip);
     m_trackInvalidLabel->SetColorArgb   (invalidArgb);
     m_trackInvalidLabel->SetHAlign      (DxuiTextRenderer::HAlign::Left);
     m_trackInvalidLabel->SetVAlign      (DxuiTextRenderer::VAlign::Center);
 
     m_sectorInvalidLabel->SetText        (BuildInvalidLabel (s_kpszSectorInvalidPrefix, m_sectorEdit->Text(), m_filter.sectorFilter.RejectedSpans()).c_str());
-    m_sectorInvalidLabel->SetRect        (m_layout.sectorInvalidLabel);
-    m_sectorInvalidLabel->SetDpi         (m_dpi);
+    m_sectorInvalidLabel->Layout         (m_layout.sectorInvalidLabel, m_scaler);
     m_sectorInvalidLabel->SetFontSizeDip (s_kLabelFontDip);
     m_sectorInvalidLabel->SetColorArgb   (invalidArgb);
     m_sectorInvalidLabel->SetHAlign      (DxuiTextRenderer::HAlign::Left);
@@ -901,41 +898,34 @@ void Disk2DebugPanel::LayoutWidgets()
 
     for (int i = 0; i < kEventTypeCheckCount; i++)
     {
-        m_eventChecks[i]->SetRect (m_layout.eventTypeChecks[i]);
-        m_eventChecks[i]->SetDpi  (m_dpi);
+        m_eventChecks[i]->Layout (m_layout.eventTypeChecks[i], m_scaler);
     }
 
-    m_audioMasterCheck->SetRect (m_layout.audioMasterCheck);
-    m_audioMasterCheck->SetDpi  (m_dpi);
+    m_audioMasterCheck->Layout (m_layout.audioMasterCheck, m_scaler);
 
     for (int i = 0; i < kAudioSubCheckCount; i++)
     {
-        m_audioSubChecks[i]->SetRect (m_layout.audioSubChecks[i]);
-        m_audioSubChecks[i]->SetDpi  (m_dpi);
+        m_audioSubChecks[i]->Layout (m_layout.audioSubChecks[i], m_scaler);
     }
 
-    m_rawQtCheck->SetRect (m_layout.rawQtCheck);
-    m_rawQtCheck->SetDpi  (m_dpi);
+    m_rawQtCheck->Layout (m_layout.rawQtCheck, m_scaler);
 
     m_driveFilterLabel->SetText        (s_kpszDriveFilterLabel);
-    m_driveFilterLabel->SetRect        (m_layout.driveFilterLabel);
-    m_driveFilterLabel->SetDpi         (m_dpi);
+    m_driveFilterLabel->Layout         (m_layout.driveFilterLabel, m_scaler);
     m_driveFilterLabel->SetFontSizeDip (s_kLabelFontDip);
     m_driveFilterLabel->SetColorArgb   (textArgb);
     m_driveFilterLabel->SetHAlign      (DxuiTextRenderer::HAlign::Left);
     m_driveFilterLabel->SetVAlign      (DxuiTextRenderer::VAlign::Center);
 
     m_diskEventsLabel->SetText        (s_kpszDiskEventsLabel);
-    m_diskEventsLabel->SetRect        (m_layout.diskEventsLabel);
-    m_diskEventsLabel->SetDpi         (m_dpi);
+    m_diskEventsLabel->Layout         (m_layout.diskEventsLabel, m_scaler);
     m_diskEventsLabel->SetFontSizeDip (s_kLabelFontDip);
     m_diskEventsLabel->SetColorArgb   (textArgb);
     m_diskEventsLabel->SetHAlign      (DxuiTextRenderer::HAlign::Left);
     m_diskEventsLabel->SetVAlign      (DxuiTextRenderer::VAlign::Center);
 
     m_audioEventsLabel->SetText        (s_kpszAudioEventsLabel);
-    m_audioEventsLabel->SetRect        (m_layout.audioEventsLabel);
-    m_audioEventsLabel->SetDpi         (m_dpi);
+    m_audioEventsLabel->Layout         (m_layout.audioEventsLabel, m_scaler);
     m_audioEventsLabel->SetFontSizeDip (s_kLabelFontDip);
     m_audioEventsLabel->SetColorArgb   (textArgb);
     m_audioEventsLabel->SetHAlign      (DxuiTextRenderer::HAlign::Left);
@@ -957,23 +947,18 @@ void Disk2DebugPanel::LayoutWidgets()
     // makes the initial SetSelected a no-op (out-of-range clamps to -1).
     m_driveRadio->SetSelected (m_filter.driveFilter);
 
-    m_trackEdit->SetRect  (m_layout.trackEdit);
-    m_trackEdit->SetDpi   (m_dpi);
+    m_trackEdit->Layout   (m_layout.trackEdit, m_scaler);
     m_trackEdit->SetTheme (m_theme);
     m_trackEdit->SetHwnd  (Hwnd());
 
-    m_sectorEdit->SetRect  (m_layout.sectorEdit);
-    m_sectorEdit->SetDpi   (m_dpi);
+    m_sectorEdit->Layout   (m_layout.sectorEdit, m_scaler);
     m_sectorEdit->SetTheme (m_theme);
     m_sectorEdit->SetHwnd  (Hwnd());
 
-    m_pauseButton->Layout (m_layout.pauseButton);
-    m_pauseButton->SetDpi (m_dpi);
-    m_clearButton->Layout (m_layout.clearButton);
-    m_clearButton->SetDpi (m_dpi);
+    m_pauseButton->Layout (m_layout.pauseButton, m_scaler);
+    m_clearButton->Layout (m_layout.clearButton, m_scaler);
 
-    m_eventList->SetRect  (m_layout.listView);
-    m_eventList->SetDpi   (m_dpi);
+    m_eventList->Layout   (m_layout.listView, m_scaler);
     m_eventList->SetTheme (m_theme);
 
     m_columnMenu.SetDpi   (m_dpi);
@@ -1065,13 +1050,13 @@ void Disk2DebugPanel::ConfigureWidgets()
     m_sectorEdit->SetMaxLength (32);
     m_sectorEdit->SetOnChange  ([this] (const std::wstring &) { OnSectorEditChanged(); OnFilterChanged(); });
 
-    m_pauseButton->SetClick ([this] ()
+    m_pauseButton->SetOnClick ([this] ()
     {
         m_paused = !m_paused;
         UpdatePauseLabel();
     });
 
-    m_clearButton->SetClick ([this] () { ClearEvents(); });
+    m_clearButton->SetOnClick ([this] () { ClearEvents(); });
 
     std::vector<DxuiListView::Column>  cols;
     cols.push_back ({ L"Time",   0, false, DxuiTextRenderer::HAlign::Left  });

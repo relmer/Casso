@@ -1315,9 +1315,9 @@ void InputDebugPanel::ConfigureWidgets()
     // back into the panel model -- the buttons fire their action on a
     // click-release, the checkboxes re-apply the filter (or the
     // all-toggle) whenever their checked state changes.
-    m_pauseButton.SetClick          ([this] () { m_paused = !m_paused; UpdatePauseLabel(); });
-    m_clearButton.SetClick          ([this] () { ClearEvents(); });
-    m_copyButton.SetClick           ([this] () { CopyEventsToClipboard(); });
+    m_pauseButton.SetOnClick          ([this] () { m_paused = !m_paused; UpdatePauseLabel(); });
+    m_clearButton.SetOnClick          ([this] () { ClearEvents(); });
+    m_copyButton.SetOnClick           ([this] () { CopyEventsToClipboard(); });
     m_allCheck.SetOnChange          ([this] (bool) { ApplyAllToggle(); });
     m_emuKeyboardCheck.SetOnChange  ([this] (bool) { OnFilterChanged(); });
     m_joystickCheck.SetOnChange     ([this] (bool) { OnFilterChanged(); });

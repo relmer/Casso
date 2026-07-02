@@ -147,6 +147,7 @@ private:
     int                                  m_widthPx  = 0;
     int                                  m_heightPx = 0;
     UINT                                 m_dpi      = 96;
+    DxuiDpiScaler                        m_scaler;
 
     DxuiLabel                                      * m_trackFilterLabel   = nullptr;
     DxuiLabel                                      * m_sectorFilterLabel  = nullptr;

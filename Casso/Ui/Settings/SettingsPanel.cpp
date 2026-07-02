@@ -290,11 +290,11 @@ HRESULT SettingsPanel::Initialize (
     }
 
     m_applyButton.SetLabel   (L"OK");
-    m_applyButton.SetClick   ([this] { OnApplyClicked();  });
+    m_applyButton.SetOnClick   ([this] { OnApplyClicked();  });
     m_applyButton.SetVariant (DxuiButton::Variant::Primary);
 
     m_cancelButton.SetLabel  (L"Cancel");
-    m_cancelButton.SetClick  ([this] { OnCancelClicked(); });
+    m_cancelButton.SetOnClick  ([this] { OnCancelClicked(); });
 
     hInstance = (HINSTANCE) GetWindowLongPtrW (m_emuShell->GetHwnd(), GWLP_HINSTANCE);
     hr = m_window.RegisterClass (hInstance);

@@ -357,12 +357,12 @@ void MachinePage::Rebuild ()
 
     // Volume previews play balanced at the midpoint (centered); the pan
     // buttons play at each drive's dialed position.
-    m_motorPlay.SetClick  ([this] { if (m_onTestSound) { m_onTestSound (0, 0, true);  } });
-    m_headPlay.SetClick   ([this] { if (m_onTestSound) { m_onTestSound (0, 1, true);  } });
-    m_doorPlay.SetClick   ([this] { if (m_onTestSound) { m_onTestSound (0, 2, true);  } });
-    m_panOnePlay.SetClick ([this] { if (m_onTestSound) { m_onTestSound (0, 1, false); } });
-    m_panTwoPlay.SetClick ([this] { if (m_onTestSound) { m_onTestSound (1, 1, false); } });
-    m_reset.SetClick      ([this] { ResetDriveAudioToDefaults(); });
+    m_motorPlay.SetOnClick  ([this] { if (m_onTestSound) { m_onTestSound (0, 0, true);  } });
+    m_headPlay.SetOnClick   ([this] { if (m_onTestSound) { m_onTestSound (0, 1, true);  } });
+    m_doorPlay.SetOnClick   ([this] { if (m_onTestSound) { m_onTestSound (0, 2, true);  } });
+    m_panOnePlay.SetOnClick ([this] { if (m_onTestSound) { m_onTestSound (0, 1, false); } });
+    m_panTwoPlay.SetOnClick ([this] { if (m_onTestSound) { m_onTestSound (1, 1, false); } });
+    m_reset.SetOnClick      ([this] { ResetDriveAudioToDefaults(); });
 }
 
 

@@ -480,7 +480,7 @@ void DisplayPage::Rebuild ()
     m_persistence.SetOnDragEnd        ([this] { if (m_onPreview) { m_onPreview (kControlPersistence, false, false); } });
     m_persistence.SetOnKeyboardChange ([this] { if (m_onPreview) { m_onPreview (kControlPersistence, true,  true);  } });
 
-    m_restore.SetClick ([this] { if (m_onRestore) { m_onRestore(); } });
+    m_restore.SetOnClick ([this] { if (m_onRestore) { m_onRestore(); } });
 
     // --- Effect toggles ---------------------------------------------------
     m_scanlinesEn.SetOnChange ([this] (bool on)

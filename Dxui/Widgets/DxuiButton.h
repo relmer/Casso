@@ -19,14 +19,14 @@ public:
     void  Layout          (const RECT & rect) { SetBounds (rect); }
     void  SetLabel        (const std::wstring & label);
     wchar_t  Accelerator  () const { return m_accelerator; }
-    void  SetClick        (ClickFn click) { m_click = std::move (click); }
+    void  SetOnClick        (ClickFn click) { m_click = std::move (click); }
     void  SetDpi          (UINT dpi) { m_scaler.SetDpi (dpi); }
 
     // Visual variant. Default uses the theme's neutral button tokens;
     // Primary fills with the theme accent (darkened to a WCAG 4.5:1
     // contrast against its white label). Link renders as accent-colored
     // text with no fill/border (a clickable hyperlink); the consumer wires
-    // SetClick to open the URL. A button cannot be given an arbitrary,
+    // SetOnClick to open the URL. A button cannot be given an arbitrary,
     // non-theme color -- every fill/text derives from IDxuiTheme.
     enum class Variant { Default, Primary, Link };
     void  SetVariant      (Variant variant) { m_variant = variant; }

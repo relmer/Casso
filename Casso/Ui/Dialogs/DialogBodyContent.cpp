@@ -67,7 +67,7 @@ void DialogBodyContent::SetRuns (const std::vector<DialogTextRun> & runs, uint32
 
             link.SetLabel   (run.text);
             link.SetVariant (DxuiButton::Variant::Link);
-            link.SetClick   ([url] ()
+            link.SetOnClick   ([url] ()
                              {
                                  INT_PTR  rc = (INT_PTR) ShellExecuteW (nullptr, L"open", url.c_str(),
                                                                         nullptr, nullptr, SW_SHOWNORMAL);

@@ -32,7 +32,7 @@
 //      void MyWindow::OnCreate () override
 //      {
 //          m_ok = Create<DxuiButton> (L"OK");     // parented to *this
-//          m_ok->SetClick ([this]{ ... });
+//          m_ok->SetOnClick ([this]{ ... });
 //      }
 //
 //  All public methods are called on the UI thread (FR-083).

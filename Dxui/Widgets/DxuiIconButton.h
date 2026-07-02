@@ -26,7 +26,7 @@ public:
     ~DxuiIconButton() override = default;
 
     void  SetGlyph          (const wchar_t * glyph)     { m_glyph = glyph; }
-    void  SetClick          (ClickFn click)             { m_click = std::move (click); }
+    void  SetOnClick          (ClickFn click)             { m_click = std::move (click); }
     void  SetDpi            (UINT dpi)                  { m_scaler.SetDpi (dpi); }
     void  SetAccessibleName (const std::wstring & name) { m_a11yName = name; }
     void  SetEnabled        (bool enabled)              { IDxuiControl::SetEnabled (enabled); m_enabled = enabled; if (!enabled) { m_hover = false; m_pressed = false; } }

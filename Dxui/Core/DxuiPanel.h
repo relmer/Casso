@@ -43,16 +43,18 @@ public:
     }
 
     //
-    //  Create — MFC/CreateWindow-style factory. Constructs a child of
-    //  type T (forwarding any common-property constructor arguments,
+    //  CreateChild — MFC/CreateWindow-style factory. Constructs a child
+    //  of type T (forwarding any common-property constructor arguments,
     //  e.g. a label / text), parents it into this panel's child list
     //  (owning), and returns a raw observer pointer. The `<T>` is the
     //  type-safe analog of CreateWindow's class argument. Callers keep
     //  the returned pointer only for controls they touch later; pure-
     //  display children (static labels) can ignore the return value.
+    //  Geometry is NOT passed here -- child bounds come from the layout
+    //  pass (Layout() / an IDxuiLayout), which reflows on resize / DPI.
     //
     template <class T, class... Args>
-    T *  Create  (Args &&... args)
+    T *  CreateChild  (Args &&... args)
     {
         std::unique_ptr<T>  child = std::make_unique<T> (std::forward<Args> (args)...);
         T *                 raw   = child.get();

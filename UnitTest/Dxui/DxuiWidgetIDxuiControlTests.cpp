@@ -243,7 +243,7 @@ public:
 
 
         scaler.SetDpi (96);
-        btn.SetClick ([&clicked]() { clicked = true; });
+        btn.SetOnClick ([&clicked]() { clicked = true; });
         // Panel children get their bounds via the panel's layout walk.
         // Here we drive the child layout directly so the test does not
         // need a layout policy installed on the panel.

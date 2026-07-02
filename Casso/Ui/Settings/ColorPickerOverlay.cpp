@@ -209,8 +209,8 @@ void ColorPickerOverlay::Layout (const RECT & panelRect, const DxuiDpiScaler & s
     m_sat.SetOnChange ([this] (float v) { m_s = v / s_kPercentMax; SyncFromHsv(); });
     m_val.SetOnChange ([this] (float v) { m_v = v / s_kPercentMax; SyncFromHsv(); });
     m_hex.SetOnChange ([this] (const std::wstring &) { SyncFromHex(); });
-    m_ok.SetClick     ([this] { Accept(); });
-    m_cancel.SetClick ([this] { Cancel(); });
+    m_ok.SetOnClick     ([this] { Accept(); });
+    m_cancel.SetOnClick ([this] { Cancel(); });
 }
 
 

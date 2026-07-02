@@ -142,7 +142,7 @@ void DxuiButton::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const 
 
     //
     //  Link variant: accent-colored text, no fill / border, left-aligned
-    //  (a clickable hyperlink). The consumer wires SetClick to open the URL.
+    //  (a clickable hyperlink). The consumer wires SetOnClick to open the URL.
     //
     if (m_variant == Variant::Link)
     {

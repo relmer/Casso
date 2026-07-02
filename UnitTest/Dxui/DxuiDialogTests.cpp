@@ -227,7 +227,7 @@ public:
         int                          closedWith   = -1;
         bool                         innerClicked = false;
 
-        inner.SetClick   ([&innerClicked] () { innerClicked = true; });
+        inner.SetOnClick   ([&innerClicked] () { innerClicked = true; });
         inner.SetFocused (true);
 
         dlg.SetTitle   (L"T");
