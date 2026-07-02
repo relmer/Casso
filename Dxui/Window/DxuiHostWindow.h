@@ -136,15 +136,6 @@ public:
         // rendering pipeline.
         bool                     createSwapChain          = true;
 
-        // Opaque-ARGB clear color for the back buffer each frame. This is
-        // the backdrop the consumer's before-present hook composites over
-        // (e.g. the black letterbox behind a fixed-aspect emulator
-        // viewport). 0 (the default) means "use the theme's Background()".
-        // Only visible where the hook does not cover the full buffer --
-        // transiently during the OS resize loop or the first frame -- so
-        // an emulator host sets it to opaque black to match the letterbox.
-        uint32_t                 backgroundArgb           = 0;
-
         // Host-owned caption (the SetWindowText model). When not None,
         // Create() builds an internal DxuiCaptionBar at the top of the
         // client area; the consumer drives it only via SetTitle /
