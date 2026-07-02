@@ -92,6 +92,14 @@ public:
         m_backBufferH         = std::max (0, heightPx);
         m_physicalBackBufferW = std::max (m_physicalBackBufferW, m_backBufferW);
         m_physicalBackBufferH = std::max (m_physicalBackBufferH, m_backBufferH);
+
+        // A size change (called from EmulatorShell::OnSize) invalidates the
+        // just-resized back buffer, so the idle-present short-circuit in
+        // NeedsPresent must not suppress this frame -- otherwise a resize
+        // that doesn't also dirty the framebuffer or CRT params leaves the
+        // discarded buffer on screen (a visible theme-background flash on
+        // non-dark themes) until the next real change.
+        m_redrawForced = true;
     }
 
     // Returns true if the next frame would produce a visually
