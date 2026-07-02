@@ -1188,6 +1188,7 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     params.appIconBig             = hIconBig;
     params.appIconSmall           = hIconSm;
     params.createSwapChain        = true;
+    params.backgroundArgb         = 0xFF000000u;   // black letterbox backdrop behind the viewport
     params.captionStyle           = DxuiCaptionStyle::Standard;
 
     m_host = std::make_unique<DxuiHostWindow>();
