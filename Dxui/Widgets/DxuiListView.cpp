@@ -1572,14 +1572,13 @@ int DxuiListView::GetRequiredHeightPx () const
 
 int DxuiListView::HitTestColumnResize (int xPx, int yPx, int tolerancePx) const
 {
-    HRESULT  hr          = S_OK;
-    int      result      = -1;
-    int      headerH     = m_showHeader ? m_scaler.Px (s_kHeaderHeightDip) : 0;
-    int      cap         = GetVisibleRowCapacity();
-    bool     needBar     = ((int) m_rows.size() > cap) && (cap > 0);
-    int      fullW       = (m_boundsDip.right - m_boundsDip.left) - (needBar ? GetScrollbarWidthPx() : 0);
-    int      xAdj        = m_hScrollEnabled ? (xPx + m_leftPx) : xPx;
-    int      lastVisible = -1;
+    HRESULT  hr      = S_OK;
+    int      result  = -1;
+    int      headerH = m_showHeader ? m_scaler.Px (s_kHeaderHeightDip) : 0;
+    int      cap     = GetVisibleRowCapacity();
+    bool     needBar = ((int) m_rows.size() > cap) && (cap > 0);
+    int      fullW   = (m_boundsDip.right - m_boundsDip.left) - (needBar ? GetScrollbarWidthPx() : 0);
+    int      xAdj    = m_hScrollEnabled ? (xPx + m_leftPx) : xPx;
     std::vector<int>  colXPx;
     std::vector<int>  colWPx;
 
@@ -1593,25 +1592,23 @@ int DxuiListView::HitTestColumnResize (int xPx, int yPx, int tolerancePx) const
 
     for (size_t c = 0; c < m_columns.size(); ++c)
     {
-        if (m_columns[c].visible && colWPx[c] > 0)
-        {
-            lastVisible = (int) c;
-        }
-    }
+        int  rightEdge = 0;
 
-    for (size_t c = 0; c < m_columns.size(); ++c)
-    {
         if (!m_columns[c].visible || colWPx[c] <= 0)
         {
             continue;
         }
 
-        if ((int) c == lastVisible)
+        // A stretch column's right edge is fill-derived, not user-set; every
+        // other column -- including the last content-fit one -- has a real,
+        // draggable right edge, so only stretch columns are excluded.
+        if (m_columns[c].stretch)
         {
             continue;
         }
 
-        int  rightEdge = colXPx[c] + colWPx[c];
+        rightEdge = colXPx[c] + colWPx[c];
+
         if (xAdj >= rightEdge - tolerancePx && xAdj <= rightEdge + tolerancePx)
         {
             result = (int) c;
