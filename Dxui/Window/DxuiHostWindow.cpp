@@ -1096,15 +1096,8 @@ void DxuiHostWindow::PaintPump ()
 
     // Theme background clear. Without a theme, the host still clears
     // to opaque black so a partially-themed startup frame doesn't
-    // present garbage from the back buffer. A non-zero
-    // CreateParams::backgroundArgb overrides the theme (e.g. an
-    // emulator host forces black so the letterbox backdrop matches
-    // where the before-present hook does not cover the full buffer).
-    if (m_params.backgroundArgb != 0)
-    {
-        bgArgb = m_params.backgroundArgb;
-    }
-    else if (m_theme != nullptr)
+    // present garbage from the back buffer.
+    if (m_theme != nullptr)
     {
         bgArgb = m_theme->Background();
     }
