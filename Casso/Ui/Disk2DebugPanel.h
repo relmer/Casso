@@ -123,7 +123,6 @@ protected:
 private:
     void    RecomputeLayout      ();
     void    LayoutWidgets        ();
-    void    InitLabelStyles      ();
     void    UpdateDynamicLabels  ();
     void    ApplyTheme           ();
     void    ConfigureWidgets     ();

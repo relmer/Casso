@@ -19,8 +19,6 @@ namespace
     constexpr LPCWSTR  s_kpszSectorFilterLabel = L"Sector:";
     constexpr LPCWSTR  s_kpszTrackQtFilterLabel = L"Quarter-track:";
 
-    constexpr float    s_kLabelFontDip = 13.0f;
-
     constexpr LPCWSTR  s_kpszEventCheckLabels[kEventTypeCheckCount] =
     {
         L"Motor", L"HeadStep", L"HeadBump", L"AddrMark",
@@ -227,13 +225,13 @@ Error:
 
 void Disk2DebugPanel::OnCreate()
 {
-    m_trackFilterLabel   = CreateChild<DxuiLabel> ();
-    m_sectorFilterLabel  = CreateChild<DxuiLabel> (s_kpszSectorFilterLabel);
-    m_driveFilterLabel   = CreateChild<DxuiLabel> (s_kpszDriveFilterLabel);
-    m_diskEventsLabel    = CreateChild<DxuiLabel> (s_kpszDiskEventsLabel);
-    m_audioEventsLabel   = CreateChild<DxuiLabel> (s_kpszAudioEventsLabel);
-    m_trackInvalidLabel  = CreateChild<DxuiLabel> ();
-    m_sectorInvalidLabel = CreateChild<DxuiLabel> ();
+    m_trackFilterLabel   = CreateChild<DxuiLabel> (L"",                       DxuiTextRole::Body,  DxuiTextHAlign::Right);
+    m_sectorFilterLabel  = CreateChild<DxuiLabel> (s_kpszSectorFilterLabel,   DxuiTextRole::Body,  DxuiTextHAlign::Right);
+    m_driveFilterLabel   = CreateChild<DxuiLabel> (s_kpszDriveFilterLabel,    DxuiTextRole::Body,  DxuiTextHAlign::Left);
+    m_diskEventsLabel    = CreateChild<DxuiLabel> (s_kpszDiskEventsLabel,     DxuiTextRole::Body,  DxuiTextHAlign::Left);
+    m_audioEventsLabel   = CreateChild<DxuiLabel> (s_kpszAudioEventsLabel,    DxuiTextRole::Body,  DxuiTextHAlign::Left);
+    m_trackInvalidLabel  = CreateChild<DxuiLabel> (L"",                       DxuiTextRole::Error, DxuiTextHAlign::Left);
+    m_sectorInvalidLabel = CreateChild<DxuiLabel> (L"",                       DxuiTextRole::Error, DxuiTextHAlign::Left);
 
     for (int i = 0; i < kEventTypeCheckCount; i++)
     {
@@ -254,7 +252,6 @@ void Disk2DebugPanel::OnCreate()
     m_clearButton = CreateChild<DxuiButton>     (s_kpszClearLabel);
     m_eventList   = CreateChild<DxuiListView>   ();
 
-    InitLabelStyles();
     ConfigureWidgets();
     UpdateDynamicLabels();
 
@@ -850,44 +847,6 @@ void Disk2DebugPanel::RecomputeLayout()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  InitLabelStyles
-//
-//  Applies the static text style (font size + text alignment) to every
-//  label once at creation. These never change, so they belong here
-//  rather than in the per-resize layout pass. Static label text is set
-//  via the CreateChild<DxuiLabel> constructor; dynamic text is applied
-//  in UpdateDynamicLabels; colors in ApplyTheme.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void Disk2DebugPanel::InitLabelStyles()
-{
-    DxuiLabel * const  filterLabels[] = { m_trackFilterLabel, m_sectorFilterLabel };
-    DxuiLabel * const  leftLabels[]   = { m_trackInvalidLabel, m_sectorInvalidLabel,
-                                          m_driveFilterLabel,  m_diskEventsLabel,
-                                          m_audioEventsLabel };
-
-
-
-    for (DxuiLabel * label : filterLabels)
-    {
-        label->SetFontSizeDip (s_kLabelFontDip);
-        label->SetTextAlign   (DxuiTextRenderer::HAlign::Right, DxuiTextRenderer::VAlign::Center);
-    }
-
-    for (DxuiLabel * label : leftLabels)
-    {
-        label->SetFontSizeDip (s_kLabelFontDip);
-        label->SetTextAlign   (DxuiTextRenderer::HAlign::Left, DxuiTextRenderer::VAlign::Center);
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  UpdateDynamicLabels
 //
 //  Refreshes the label text that depends on live filter state: the
@@ -918,40 +877,19 @@ void Disk2DebugPanel::UpdateDynamicLabels()
 //
 //  ApplyTheme
 //
-//  Pushes theme-derived colors onto the labels and forwards the theme
-//  to the child controls that snapshot it (edits, list, column menu,
-//  focus ring). Called from SetTheme -- NOT from the layout pass.
+//  Forwards the theme to the child controls that still snapshot it
+//  (edits, list, column menu, focus ring). Labels resolve their color
+//  from their semantic DxuiTextRole at paint, so they need nothing here.
+//  Called from SetTheme -- NOT from the layout pass.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void Disk2DebugPanel::ApplyTheme()
 {
-    uint32_t           textArgb    = 0xFFE8EEF4;
-    uint32_t           invalidArgb = 0xFFFF6666;
-    DxuiLabel * const  textLabels[] = { m_trackFilterLabel, m_sectorFilterLabel,
-                                        m_driveFilterLabel,  m_diskEventsLabel,
-                                        m_audioEventsLabel };
-
-
-
     if (m_eventList == nullptr)
     {
         return;
     }
-
-    if (m_theme != nullptr)
-    {
-        textArgb    = m_theme->Foreground();
-        invalidArgb = m_theme->ErrorForeground();
-    }
-
-    for (DxuiLabel * label : textLabels)
-    {
-        label->SetColorArgb (textArgb);
-    }
-
-    m_trackInvalidLabel->SetColorArgb  (invalidArgb);
-    m_sectorInvalidLabel->SetColorArgb (invalidArgb);
 
     m_trackEdit->SetTheme  (m_theme);
     m_sectorEdit->SetTheme (m_theme);
@@ -970,8 +908,8 @@ void Disk2DebugPanel::ApplyTheme()
 //
 //  Positions every child at its computed slot in the current DPI. Pure
 //  geometry: each child's Layout(rect, scaler) call carries both bounds
-//  and DPI, so no widget needs an explicit SetDpi. Text lives in
-//  InitLabelStyles / UpdateDynamicLabels; colors in ApplyTheme.
+//  and DPI, so no widget needs an explicit SetDpi. Text lives in the
+//  label constructors / UpdateDynamicLabels; colors resolve at paint.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

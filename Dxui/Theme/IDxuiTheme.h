@@ -41,6 +41,38 @@ enum class DxuiFontWeight : int
 
 
 //
+//  Semantic text-color role. A text-bearing widget stores WHICH kind of
+//  text it is -- not a resolved color -- and the theme maps the role to a
+//  packed-ARGB value at paint time via TextColor(). This keeps color out
+//  of widget state: a theme change (or a preview theme) simply repaints
+//  and every widget re-resolves, so nothing caches a stale color or a
+//  dangling theme pointer. (Foreground/background is a fill dichotomy that
+//  does not describe text, so text roles are named by their SEMANTICS --
+//  Body, Heading, Error, ... -- not by "foreground".)
+//
+enum class DxuiTextRole
+{
+    Body,       // primary body text   -> Foreground()
+    Heading,    // title / column head -> HeadingForeground()
+    Muted,      // secondary / accel   -> ForegroundMuted()
+    Disabled,   // disabled-state text -> ForegroundDisabled()
+    Error,      // invalid-input text  -> ErrorForeground()
+    Link,       // hyperlink text      -> Accent()
+};
+
+
+
+//
+//  Sentinel font size (DIP) meaning "resolve the default at paint time"
+//  -- a text-bearing widget left at this size draws with the theme's body
+//  font size (IDxuiTheme::BodyFont().sizeDip) rather than a hard-coded
+//  value, so default typography lives in one place (the theme).
+//
+constexpr float kDxuiDefaultFontSizeDip = -1.0f;
+
+
+
+//
 //  Font descriptor: a face name, DIP size, and weight. Concrete themes
 //  return these from the typography accessors; widgets pass them to the
 //  text renderer's handle overloads instead of repeating literal face
@@ -74,6 +106,27 @@ public:
     virtual uint32_t  ForegroundDisabled  () const = 0;  // disabled-state text
     virtual uint32_t  ErrorForeground     () const = 0;  // invalid-input / error text
     virtual uint32_t  HeadingForeground   () const = 0;  // column header / title text
+
+    //
+    //  Resolve a semantic text role to a packed-ARGB color. Default maps
+    //  each role onto the accessors above; a theme may override for a
+    //  bespoke mapping. Text-bearing widgets call this at paint time so
+    //  color never lives in widget state.
+    //
+    virtual uint32_t  TextColor (DxuiTextRole role) const
+    {
+        switch (role)
+        {
+            case DxuiTextRole::Heading:  return HeadingForeground();
+            case DxuiTextRole::Muted:    return ForegroundMuted();
+            case DxuiTextRole::Disabled: return ForegroundDisabled();
+            case DxuiTextRole::Error:    return ErrorForeground();
+            case DxuiTextRole::Link:     return Accent();
+            case DxuiTextRole::Body:     return Foreground();
+        }
+
+        return Foreground();
+    }
 
     // Accent / focus / borders.
     virtual uint32_t  Accent              () const = 0;
