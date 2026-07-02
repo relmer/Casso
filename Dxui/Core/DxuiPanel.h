@@ -43,6 +43,24 @@ public:
     }
 
     //
+    //  Create — MFC/CreateWindow-style factory. Constructs a child of
+    //  type T (forwarding any common-property constructor arguments,
+    //  e.g. a label / text), parents it into this panel's child list
+    //  (owning), and returns a raw observer pointer. The `<T>` is the
+    //  type-safe analog of CreateWindow's class argument. Callers keep
+    //  the returned pointer only for controls they touch later; pure-
+    //  display children (static labels) can ignore the return value.
+    //
+    template <class T, class... Args>
+    T *  Create  (Args &&... args)
+    {
+        std::unique_ptr<T>  child = std::make_unique<T> (std::forward<Args> (args)...);
+        T *                 raw   = child.get();
+        AppendChild (std::move (child));
+        return raw;
+    }
+
+    //
     //  Adopt — non-owning child registration. The panel includes the
     //  adopted control in the unified child list so it participates in
     //  paint, input, focus, theme, tick, and DPI walks alongside Add'd

@@ -331,7 +331,7 @@ HRESULT DxuiHostWindow::Create (const CreateParams & params)
 
     ApplyDwmConfiguration();
 
-    m_focusManager.Attach (m_root.get());
+    m_focusManager.Attach (RootPanel());
     NotifySystemButtonsMaximized (IsZoomed (m_hwnd) != FALSE);
 
     // Host-owned caption (SetWindowText model). Built last so the HWND,
@@ -597,9 +597,9 @@ void DxuiHostWindow::SetTheme (const IDxuiTheme * theme)
 
     m_theme = theme;
     m_focusManager.SetTheme (theme);
-    if (m_root != nullptr)
+    if (RootPanel() != nullptr)
     {
-        m_root->OnThemeChanged();
+        RootPanel()->OnThemeChanged();
     }
 }
 
@@ -739,6 +739,48 @@ void DxuiHostWindow::SetContentPanel (std::unique_ptr<DxuiPanel> panel)
 
 Error:
     return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetContentRootRef
+//
+//  Point the host's paint / layout / focus / hit-test pump at an
+//  externally-owned root panel (DxuiWindow, which IS its own content
+//  root). The owned m_root is left intact but shadowed. When an HWND
+//  exists the ref is laid out from the current client rect and the
+//  focus manager is re-attached to it so keyboard focus + rendering
+//  target the live content immediately.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiHostWindow::SetContentRootRef (DxuiPanel * root)
+{
+    RECT  clientRectPx = {};
+
+
+
+    DXUI_ASSERT_UI_THREAD();
+
+    m_rootRef = root;
+    m_focusManager.Attach (RootPanel());
+
+    if (m_rootRef != nullptr && m_hwnd != nullptr && GetClientRect (m_hwnd, &clientRectPx))
+    {
+        RECT  rootBounds = clientRectPx;
+
+        if (m_params.insetRootBelowCaption && m_caption)
+        {
+            rootBounds.top += m_caption->PreferredHeightPx (m_scaler);
+        }
+
+        m_rootRef->Layout (rootBounds, m_scaler);
+        NotifySystemButtonsMaximized (IsZoomed (m_hwnd) != FALSE);
+    }
 }
 
 
@@ -1125,7 +1167,7 @@ void DxuiHostWindow::PaintPump ()
     // End; the text renderer composites Direct2D over the same back
     // buffer between BeginDraw / EndDraw. The D2D bitmap is bound
     // once per back-buffer lifetime by CreateBackBufferRtv.
-    if (m_root != nullptr && m_theme != nullptr)
+    if (RootPanel() != nullptr && m_theme != nullptr)
     {
         hr = m_painter->Begin ((int) scd.Width, (int) scd.Height);
         CHRA (hr);
@@ -1135,7 +1177,7 @@ void DxuiHostWindow::PaintPump ()
         CHRA (hr);
         textBegun = true;
 
-        m_root->Paint (*m_painter, *m_textRenderer, *m_theme);
+        RootPanel()->Paint (*m_painter, *m_textRenderer, *m_theme);
 
         // Host-owned caption paints last so it overlays the top strip
         // (the before-present hook fills the whole back buffer, the
@@ -2107,9 +2149,9 @@ void DxuiHostWindow::HandleThemeChange ()
 {
     ApplyDwmConfiguration();
 
-    if (m_root != nullptr)
+    if (RootPanel() != nullptr)
     {
-        m_root->OnThemeChanged();
+        RootPanel()->OnThemeChanged();
     }
 }
 
@@ -2138,7 +2180,7 @@ void DxuiHostWindow::MaybeRelayoutRoot (const RECT & clientPx)
 
 
 
-    if (!m_ownsPaintPump || m_root == nullptr)
+    if (!m_ownsPaintPump || RootPanel() == nullptr)
     {
         return;
     }
@@ -2157,7 +2199,7 @@ void DxuiHostWindow::MaybeRelayoutRoot (const RECT & clientPx)
             rootPx.top += m_caption->PreferredHeightPx (m_scaler);
         }
 
-        m_root->Layout (rootPx, m_scaler);
+        RootPanel()->Layout (rootPx, m_scaler);
     }
 
     boundsDip.right  = MulDiv (clientPx.right,  (int) s_kDefaultDpi, (int) m_scaler.Dpi());
@@ -2553,15 +2595,15 @@ IDxuiControl * DxuiHostWindow::FindNcSystemControlAt (POINT clientDip) const
         }
     }
 
-    if (m_root == nullptr)
+    if (RootPanel() == nullptr)
     {
         return nullptr;
     }
 
-    n = m_root->ChildCount();
+    n = RootPanel()->ChildCount();
     for (i = n; i > 0; --i)
     {
-        child = m_root->Child (i - 1);
+        child = RootPanel()->Child (i - 1);
         if (child == nullptr || !child->Visible())
         {
             continue;
@@ -2603,7 +2645,7 @@ IDxuiControl * DxuiHostWindow::FindNcSystemControlAt (POINT clientDip) const
 
 void DxuiHostWindow::NotifySystemButtonsMaximized (bool maximized)
 {
-    NotifySystemButtonsMaximizedInTree (m_root.get(), maximized);
+    NotifySystemButtonsMaximizedInTree (RootPanel(), maximized);
     if (m_caption)
     {
         m_caption->SetMaximized (maximized);
@@ -2667,16 +2709,16 @@ DxuiHitTestKind DxuiHostWindow::ClassifyHitInternal (POINT clientDip, RECT clien
         }
     }
 
-    if (m_root == nullptr)
+    if (RootPanel() == nullptr)
     {
         return DxuiHitTestKind::Client;
     }
 
     // Reverse z-order so visually-topmost children win.
-    n = m_root->ChildCount();
+    n = RootPanel()->ChildCount();
     for (i = n; i > 0; --i)
     {
-        child = m_root->Child (i - 1);
+        child = RootPanel()->Child (i - 1);
         if (child == nullptr || !child->Visible())
         {
             continue;

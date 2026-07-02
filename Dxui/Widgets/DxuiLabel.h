@@ -23,6 +23,8 @@
 class DxuiLabel : public IDxuiControl
 {
 public:
+    DxuiLabel  () = default;
+    explicit DxuiLabel  (std::wstring text) : m_text (std::move (text)) {}
     ~DxuiLabel() override = default;
 
     void  SetRect        (const RECT & rect) { SetBounds (rect); }

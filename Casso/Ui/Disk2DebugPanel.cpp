@@ -3,8 +3,6 @@
 #include "Disk2DebugPanel.h"
 
 #include "Chrome/CassoTheme.h"
-#include "Core/DxuiAbsoluteLayout.h"
-#include "Window/DxuiHostWindow.h"
 
 #include "../DebugDialogProjection.h"
 
@@ -134,10 +132,10 @@ namespace
 
 Disk2DebugPanel::Disk2DebugPanel()
 {
-    // The content widgets are adopted into the host window's root panel
-    // (not into this panel) in Create() once the host exists, so the
-    // host paint pump walks and paints them. The constructor only seeds
-    // the Uptime anchor; every other member default-initializes.
+    // Content widgets are created as children of this panel in OnCreate
+    // (which fires inside DxuiWindow::Create once the backend exists) so
+    // the base paint pump walks and paints them. The constructor only
+    // seeds the Uptime anchor; every other member default-initializes.
     m_uptimeAnchor = std::chrono::steady_clock::now();
 }
 
@@ -164,11 +162,11 @@ Disk2DebugPanel::~Disk2DebugPanel()
 //
 //  Create
 //
-//  Stands up a full-ownership DxuiHostWindow (borderless chrome, close-
-//  only caption, host-owned swap chain / paint pump), installs this
-//  panel as its IDxuiHostClient, and adopts every content widget into
-//  the host root so the host paint pump paints them. Idempotent -- a
-//  second call while already open is a no-op.
+//  Stands up the DxuiWindow backend (close-only caption, host-owned swap
+//  chain / paint pump) sized to the panel's preferred client size. The
+//  OnCreate hook fires inside DxuiWindow::Create to populate the child
+//  widgets before the first layout. Idempotent -- a second call while
+//  already open is a no-op.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -179,91 +177,33 @@ HRESULT Disk2DebugPanel::Create (
     ID3D11DeviceContext  * context,
     const CassoTheme    * theme)
 {
-    HRESULT                       hr        = S_OK;
-    DxuiHostWindow::CreateParams  params;
-    RECT                          clientRc  = {};
+    HRESULT                    hr     = S_OK;
+    DxuiWindow::CreateParams   params;
 
 
 
-    BAIL_OUT_IF (m_host != nullptr, S_OK);
+    UNREFERENCED_PARAMETER (device);
+    UNREFERENCED_PARAMETER (context);
 
-    CBRAEx (hInstance, E_INVALIDARG);
-    CBRAEx (device,    E_INVALIDARG);
-    CBRAEx (context,   E_INVALIDARG);
+    BAIL_OUT_IF (IsCreated(), S_OK);
 
-    m_device  = device;
-    m_context = context;
-    m_theme   = theme;
+    m_theme = theme;
 
     params.title             = s_kpszWindowTitle;
     params.hInstance         = hInstance;
     params.ownerHwnd         = hwndOwner;
-    params.borderless        = true;
+    params.initialSizeDip    = { s_kPreferredWidthDip, s_kPreferredHeightDip };
+    params.minSizeDip        = { s_kPreferredWidthDip, s_kPreferredHeightDip };
     params.resizable         = true;
-    params.roundedCorners    = true;
-    params.darkMode          = true;
-    params.createSwapChain   = true;
+    params.insetContentBelowCaption = false;
     params.captionStyle      = DxuiCaptionStyle::CloseOnly;
     params.classNameOverride = s_kpszClassName;
-    params.initialSizeDip    = { s_kPreferredWidthDip, s_kPreferredHeightDip };
 
-    m_host = std::make_unique<DxuiHostWindow>();
-    m_host->SetClient (this);
+    hr = DxuiWindow::Create (params);
+    CHR (hr);
 
-    hr = m_host->Create (params);
-    CHRF (hr, m_host.reset());
-
-    m_hwnd = m_host->Hwnd();
-    m_dpi  = m_host->Scaler().Dpi();
-
-    // Adopt every content widget into the host root so the host paint
-    // pump walks and paints them. The tooltip and column menu are NOT
-    // adopted -- they render through the host popup pool so they can
-    // escape the client rect.
-    m_host->Root().SetLayout (std::make_unique<DxuiAbsoluteLayout>());
-    m_host->Root().Adopt (m_trackFilterLabel);
-    m_host->Root().Adopt (m_sectorFilterLabel);
-    m_host->Root().Adopt (m_driveFilterLabel);
-    m_host->Root().Adopt (m_diskEventsLabel);
-    m_host->Root().Adopt (m_audioEventsLabel);
-    m_host->Root().Adopt (m_trackInvalidLabel);
-    m_host->Root().Adopt (m_sectorInvalidLabel);
-    for (DxuiCheckbox & check : m_eventChecks)
-    {
-        m_host->Root().Adopt (check);
-    }
-
-    m_host->Root().Adopt (m_audioMasterCheck);
-    for (DxuiCheckbox & check : m_audioSubChecks)
-    {
-        m_host->Root().Adopt (check);
-    }
-
-    m_host->Root().Adopt (m_rawQtCheck);
-    m_host->Root().Adopt (m_driveRadio);
-    m_host->Root().Adopt (m_trackEdit);
-    m_host->Root().Adopt (m_sectorEdit);
-    m_host->Root().Adopt (m_pauseButton);
-    m_host->Root().Adopt (m_clearButton);
-    m_host->Root().Adopt (m_eventList);
-
-    m_host->SetTheme (m_theme);
-
-    m_columnMenu.SetPopupHost (m_host.get());
-    m_tooltip.SetPopupHost (m_host.get());
-
-    ConfigureWidgets();
-
-    if (GetClientRect (m_hwnd, &clientRc))
-    {
-        m_widthPx  = std::max (1, (int) (clientRc.right  - clientRc.left));
-        m_heightPx = std::max (1, (int) (clientRc.bottom - clientRc.top));
-    }
-
-    RecomputeLayout();
-
-    ShowWindow (m_hwnd, SW_SHOWNORMAL);
-    SetForegroundWindow (m_hwnd);
+    SetTheme (m_theme);
+    Show();
 
 Error:
     return hr;
@@ -275,48 +215,49 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  Show
+//  OnCreate
 //
-//  Brings the host window to the front. Lifecycle assumes Create has
-//  already succeeded; ShowWindow on a null HWND is a no-op anyway.
+//  DxuiWindow hook fired from Create() once the backend + HWND exist.
+//  Builds every content widget as a child of this panel via the
+//  inherited Create<T> factory (so the base paint pump walks and paints
+//  them), then wires initial state / callbacks and the popup + focus
+//  helpers.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void Disk2DebugPanel::Show()
+void Disk2DebugPanel::OnCreate()
 {
-    HWND  hwnd = (m_host != nullptr) ? m_host->Hwnd() : nullptr;
+    m_trackFilterLabel   = DxuiPanel::Create<DxuiLabel> ();
+    m_sectorFilterLabel  = DxuiPanel::Create<DxuiLabel> ();
+    m_driveFilterLabel   = DxuiPanel::Create<DxuiLabel> ();
+    m_diskEventsLabel    = DxuiPanel::Create<DxuiLabel> ();
+    m_audioEventsLabel   = DxuiPanel::Create<DxuiLabel> ();
+    m_trackInvalidLabel  = DxuiPanel::Create<DxuiLabel> ();
+    m_sectorInvalidLabel = DxuiPanel::Create<DxuiLabel> ();
 
-
-
-    if (hwnd == nullptr)
+    for (int i = 0; i < kEventTypeCheckCount; i++)
     {
-        return;
+        m_eventChecks[i] = DxuiPanel::Create<DxuiCheckbox> (s_kpszEventCheckLabels[i]);
     }
 
-    ShowWindow (hwnd, IsIconic (hwnd) ? SW_RESTORE : SW_SHOW);
-    SetForegroundWindow (hwnd);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  Hide
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void Disk2DebugPanel::Hide()
-{
-    HWND  hwnd = (m_host != nullptr) ? m_host->Hwnd() : nullptr;
-
-
-
-    if (hwnd != nullptr)
+    m_audioMasterCheck = DxuiPanel::Create<DxuiCheckbox> (s_kpszAudioLabel);
+    for (int i = 0; i < kAudioSubCheckCount; i++)
     {
-        ShowWindow (hwnd, SW_HIDE);
+        m_audioSubChecks[i] = DxuiPanel::Create<DxuiCheckbox> (s_kpszAudioSubLabels[i]);
     }
+
+    m_rawQtCheck  = DxuiPanel::Create<DxuiCheckbox>   (s_kpszRawQtLabel);
+    m_driveRadio  = DxuiPanel::Create<DxuiRadioGroup> ();
+    m_trackEdit   = DxuiPanel::Create<DxuiTextInput>  ();
+    m_sectorEdit  = DxuiPanel::Create<DxuiTextInput>  ();
+    m_pauseButton = DxuiPanel::Create<DxuiButton>     (s_kpszPauseLabel);
+    m_clearButton = DxuiPanel::Create<DxuiButton>     (s_kpszClearLabel);
+    m_eventList   = DxuiPanel::Create<DxuiListView>   ();
+
+    ConfigureWidgets();
+
+    m_columnMenu.SetPopupHost (PopupHost());
+    m_tooltip.SetPopupHost    (PopupHost());
 }
 
 
@@ -327,11 +268,15 @@ void Disk2DebugPanel::Hide()
 //
 //  Destroy
 //
+//  Tears down the DxuiWindow backend (HWND + swap chain). EmulatorShell
+//  drops its unique_ptr right after, but keeping this explicit entry
+//  point preserves the existing shutdown call site.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void Disk2DebugPanel::Destroy()
 {
-    m_host.reset();
+    DestroyBackend();
 }
 
 
@@ -344,8 +289,8 @@ void Disk2DebugPanel::Destroy()
 //
 //  Public per-frame entry point invoked by the EmulatorShell render
 //  loop. Drains the event ring into the display rows, advances the
-//  list / tooltip timers, then invalidates the host window so its
-//  WM_PAINT pump repaints the adopted widget tree.
+//  list / tooltip timers, then invalidates the window so its WM_PAINT
+//  pump repaints the child widget tree.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -356,17 +301,16 @@ HRESULT Disk2DebugPanel::RenderFrame()
 
 
 
-    BAIL_OUT_IF (m_host == nullptr, S_OK);
+    BAIL_OUT_IF (!IsCreated(), S_OK);
 
     DrainAndProject();
 
     // Drive scrollbar auto-repeat for any held arrow / track press and
     // the tooltip open / close dwell timers.
-    m_eventList.Tick (now);
-    m_tooltip.Tick   (now);
+    m_eventList->Tick (now);
+    m_tooltip.Tick    (now);
 
-    InvalidateRect (m_host->Hwnd(), nullptr, FALSE);
-    UpdateWindow   (m_host->Hwnd());
+    Invalidate();
 
 Error:
     return hr;
@@ -385,414 +329,9 @@ Error:
 void Disk2DebugPanel::SetTheme (const CassoTheme * theme)
 {
     m_theme = theme;
-    if (m_host != nullptr)
-    {
-        m_host->SetTheme (m_theme);
-    }
+    DxuiWindow::SetTheme (theme);
 
     m_focusMgr.SetTheme (theme);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  OnLButtonDown
-//
-//  Captures the mouse and takes focus so a drag that begins on a
-//  scrollbar thumb or a column-resize handle keeps receiving moves once
-//  the cursor leaves the client, then routes the press to OnMouse. The
-//  host does no capture / focus bookkeeping of its own, so the panel
-//  owns it here.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-DxuiMessageResult Disk2DebugPanel::OnLButtonDown (WPARAM wParam, LPARAM lParam)
-{
-    int  x = (int) (short) LOWORD (lParam);
-    int  y = (int) (short) HIWORD (lParam);
-
-
-
-    UNREFERENCED_PARAMETER (wParam);
-
-    if (m_host != nullptr)
-    {
-        SetCapture (m_host->Hwnd());
-        SetFocus   (m_host->Hwnd());
-    }
-
-    return DispatchClientMouse (DxuiMouseEventKind::Down, DxuiMouseButton::Left, x, y, 0.0f);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  OnLButtonUp
-//
-//  Releases the drag capture taken on button-down and routes the
-//  release to OnMouse.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-DxuiMessageResult Disk2DebugPanel::OnLButtonUp (WPARAM wParam, LPARAM lParam)
-{
-    int  x = (int) (short) LOWORD (lParam);
-    int  y = (int) (short) HIWORD (lParam);
-
-
-
-    UNREFERENCED_PARAMETER (wParam);
-
-    ReleaseCapture();
-
-    return DispatchClientMouse (DxuiMouseEventKind::Up, DxuiMouseButton::Left, x, y, 0.0f);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  OnRButtonDown
-//
-//  Takes focus and routes the secondary press to OnMouse, which raises
-//  the column-header context menu.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-DxuiMessageResult Disk2DebugPanel::OnRButtonDown (WPARAM wParam, LPARAM lParam)
-{
-    int  x = (int) (short) LOWORD (lParam);
-    int  y = (int) (short) HIWORD (lParam);
-
-
-
-    UNREFERENCED_PARAMETER (wParam);
-
-    if (m_host != nullptr)
-    {
-        SetFocus (m_host->Hwnd());
-    }
-
-    return DispatchClientMouse (DxuiMouseEventKind::Down, DxuiMouseButton::Right, x, y, 0.0f);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  OnMouseMove
-//
-////////////////////////////////////////////////////////////////////////////////
-
-DxuiMessageResult Disk2DebugPanel::OnMouseMove (WPARAM wParam, LPARAM lParam)
-{
-    int  x = (int) (short) LOWORD (lParam);
-    int  y = (int) (short) HIWORD (lParam);
-
-
-
-    UNREFERENCED_PARAMETER (wParam);
-
-    return DispatchClientMouse (DxuiMouseEventKind::Move, DxuiMouseButton::None, x, y, 0.0f);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  OnMouseWheel
-//
-//  WM_MOUSEWHEEL reports the point in SCREEN coordinates, so map it back
-//  to client px before dispatch. The signed notch count is normalized to
-//  wheel notches (+1 per notch up) to match the DxuiMouseEvent contract.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-DxuiMessageResult Disk2DebugPanel::OnMouseWheel (WPARAM wParam, LPARAM lParam, bool horizontal)
-{
-    POINT  pt         = { (int) (short) LOWORD (lParam), (int) (short) HIWORD (lParam) };
-    float  wheelDelta = (float) GET_WHEEL_DELTA_WPARAM (wParam) / (float) WHEEL_DELTA;
-
-
-
-    UNREFERENCED_PARAMETER (horizontal);
-
-    if (m_host != nullptr)
-    {
-        ScreenToClient (m_host->Hwnd(), &pt);
-    }
-
-    return DispatchClientMouse (DxuiMouseEventKind::Wheel, DxuiMouseButton::None, pt.x, pt.y, wheelDelta);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  OnKeyDown
-//
-////////////////////////////////////////////////////////////////////////////////
-
-DxuiMessageResult Disk2DebugPanel::OnKeyDown (WPARAM vk, LPARAM lParam)
-{
-    UNREFERENCED_PARAMETER (lParam);
-
-    return DispatchClientKey (DxuiKeyEventKind::Down, vk);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  OnChar
-//
-////////////////////////////////////////////////////////////////////////////////
-
-DxuiMessageResult Disk2DebugPanel::OnChar (WPARAM ch, LPARAM lParam)
-{
-    UNREFERENCED_PARAMETER (lParam);
-
-    return DispatchClientKey (DxuiKeyEventKind::Char, ch);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  OnSetCursor
-//
-//  Shows the horizontal-resize cursor while a column drag is live or the
-//  cursor is parked on a header-edge resize handle; otherwise defers to
-//  the host. Only plain client area is reclassified -- NC areas (resize
-//  edges, caption) keep the host's own cursor handling.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-DxuiMessageResult Disk2DebugPanel::OnSetCursor (WORD hitTest)
-{
-    POINT  cursor = {};
-    int    relX   = 0;
-    int    relY   = 0;
-    int    tolPx  = MulDiv (4, (int) m_dpi, 96);
-
-
-
-    if (hitTest != HTCLIENT) { return DxuiMessageResult::NotHandled; }
-
-    if (m_host == nullptr || GetCursorPos (&cursor) == FALSE)
-    {
-        return DxuiMessageResult::NotHandled;
-    }
-
-    ScreenToClient (m_host->Hwnd(), &cursor);
-    relX = cursor.x - m_layout.listView.left;
-    relY = cursor.y - m_layout.listView.top;
-
-    if (m_eventList.IsResizingColumn() ||
-        m_eventList.HitTestColumnResize (relX, relY, tolPx) >= 0)
-    {
-        SetCursor (LoadCursorW (nullptr, IDC_SIZEWE));
-        return DxuiMessageResult::Handled;
-    }
-
-    return DxuiMessageResult::NotHandled;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  OnSize
-//
-//  Fires after the host has finished its own layout response; caches the
-//  final client size and DPI, then re-runs the panel's layout so the
-//  adopted widgets track the new bounds.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-DxuiMessageResult Disk2DebugPanel::OnSize (UINT widthPx, UINT heightPx)
-{
-    m_widthPx  = std::max (1, (int) widthPx);
-    m_heightPx = std::max (1, (int) heightPx);
-    if (m_host != nullptr)
-    {
-        m_dpi = m_host->Scaler().Dpi();
-    }
-
-    RecomputeLayout();
-
-    return DxuiMessageResult::Handled;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  OnGetMinMax
-//
-//  Clamps the OS minimum track size to the panel's preferred client size
-//  scaled to the current DPI. The window is borderless, so client size
-//  and window size coincide.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-DxuiMessageResult Disk2DebugPanel::OnGetMinMax (MINMAXINFO * info)
-{
-    if (info == nullptr) { return DxuiMessageResult::NotHandled; }
-
-    info->ptMinTrackSize.x = MulDiv (s_kPreferredWidthDip,  (int) m_dpi, 96);
-    info->ptMinTrackSize.y = MulDiv (s_kPreferredHeightDip, (int) m_dpi, 96);
-
-    return DxuiMessageResult::Handled;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  OnClose
-//
-//  Non-modal: the close box hides the window and keeps the HWND (and the
-//  filter / event-ring state) alive so EmulatorShell can re-Show it.
-//  Consumes the close so DefWindowProc never destroys the window.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-DxuiMessageResult Disk2DebugPanel::OnClose()
-{
-    Hide();
-
-    return DxuiMessageResult::Handled;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  OnDestroy
-//
-//  Releases any live popup back to the pool and drops host-derived
-//  pointers before the host (and its popup pool) tear down. Does NOT
-//  call PostQuitMessage -- this is a secondary window.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void Disk2DebugPanel::OnDestroy()
-{
-    m_columnMenu.Hide();
-    m_columnMenu.SetPopupHost (nullptr);
-
-    m_tooltip.HideImmediate();
-    m_tooltip.SetPopupHost (nullptr);
-
-    m_hwnd = nullptr;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  OnDpiChanged
-//
-//  Fires after the host has applied the OS-suggested rect; refreshes the
-//  cached DPI and re-runs layout so the DPI-scaled slots track the new
-//  scale.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void Disk2DebugPanel::OnDpiChanged (UINT newDpi)
-{
-    m_dpi = newDpi;
-    RecomputeLayout();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DispatchClientMouse
-//
-//  Builds a DxuiMouseEvent from client-px coordinates plus the live
-//  modifier-key state and routes it through the panel's OnMouse, mapping
-//  the bool result onto the host client Handled / NotHandled contract.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-DxuiMessageResult Disk2DebugPanel::DispatchClientMouse (DxuiMouseEventKind kind, DxuiMouseButton button, int x, int y, float wheelDelta)
-{
-    DxuiMouseEvent  ev;
-
-
-
-    ev.kind        = kind;
-    ev.button      = button;
-    ev.positionDip = { x, y };
-    ev.wheelDelta  = wheelDelta;
-    ev.shift       = (GetKeyState (VK_SHIFT)   & 0x8000) != 0;
-    ev.ctrl        = (GetKeyState (VK_CONTROL) & 0x8000) != 0;
-    ev.alt         = (GetKeyState (VK_MENU)    & 0x8000) != 0;
-
-    return this->OnMouse (ev) ? DxuiMessageResult::Handled : DxuiMessageResult::NotHandled;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DispatchClientKey
-//
-//  Builds a DxuiKeyEvent from a virtual-key / character code plus the
-//  live modifier-key state and routes it through the panel's OnKey,
-//  mapping the bool result onto the host client Handled / NotHandled
-//  contract.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-DxuiMessageResult Disk2DebugPanel::DispatchClientKey (DxuiKeyEventKind kind, WPARAM code)
-{
-    DxuiKeyEvent  ev;
-
-
-
-    ev.kind  = kind;
-    ev.vk    = code;
-    ev.shift = (GetKeyState (VK_SHIFT)   & 0x8000) != 0;
-    ev.ctrl  = (GetKeyState (VK_CONTROL) & 0x8000) != 0;
-    ev.alt   = (GetKeyState (VK_MENU)    & 0x8000) != 0;
-
-    return this->OnKey (ev) ? DxuiMessageResult::Handled : DxuiMessageResult::NotHandled;
 }
 
 
@@ -821,7 +360,7 @@ bool Disk2DebugPanel::ForwardMouseToList (DxuiMouseEventKind kind, DxuiMouseButt
     ev.positionDip = { x - m_layout.listView.left, y - m_layout.listView.top };
     ev.wheelDelta  = wheelDelta;
 
-    return m_eventList.OnMouse (ev);
+    return m_eventList->OnMouse (ev);
 }
 
 
@@ -843,25 +382,25 @@ bool Disk2DebugPanel::ForwardMouseToList (DxuiMouseEventKind kind, DxuiMouseButt
 void Disk2DebugPanel::ShowColumnMenu (int anchorX, int anchorY)
 {
     std::vector<DxuiPopupMenu::Item>  items;
-    IDxuiTextRenderer              *  textRenderer = (m_host != nullptr) ? m_host->GetTextRenderer() : nullptr;
+    IDxuiTextRenderer              *  textRenderer = TextRenderer();
     RECT                              host         = { 0, 0, m_widthPx, m_heightPx };
 
 
-    // The host owns no paint pump in adopt / synthetic mode, so it exposes
-    // no text renderer to measure / lay the menu out with -- bail rather
-    // than dereference a null renderer.
+    // Bail rather than dereference a null renderer -- the shared text
+    // renderer used to measure / lay the menu out is only available once
+    // the backend exists.
     if (textRenderer == nullptr)
     {
         return;
     }
 
-    items.reserve (m_eventList.GetColumnCount());
+    items.reserve (m_eventList->GetColumnCount());
 
-    for (size_t i = 0; i < m_eventList.GetColumnCount(); ++i)
+    for (size_t i = 0; i < m_eventList->GetColumnCount(); ++i)
     {
         DxuiPopupMenu::Item  item;
-        item.label   = m_eventList.GetColumnAt (i).title;
-        item.checked = m_eventList.IsColumnVisible (i);
+        item.label   = m_eventList->GetColumnAt (i).title;
+        item.checked = m_eventList->IsColumnVisible (i);
         items.push_back (std::move (item));
     }
 
@@ -890,7 +429,7 @@ void Disk2DebugPanel::ApplyListSelection()
     if (m_listSelectedEventIndex < 0 || m_filteredIndices.empty())
     {
         m_listSelectedEventIndex = -1;
-        m_eventList.SetSelectedRow (-1);
+        m_eventList->SetSelectedRow (-1);
         return;
     }
 
@@ -901,7 +440,7 @@ void Disk2DebugPanel::ApplyListSelection()
 
     if (it != m_filteredIndices.end() && *it == target)
     {
-        m_eventList.SetSelectedRow ((int) (it - m_filteredIndices.begin()));
+        m_eventList->SetSelectedRow ((int) (it - m_filteredIndices.begin()));
         return;
     }
 
@@ -909,19 +448,19 @@ void Disk2DebugPanel::ApplyListSelection()
     {
         auto prev = it - 1;
         m_listSelectedEventIndex = (int) *prev;
-        m_eventList.SetSelectedRow ((int) (prev - m_filteredIndices.begin()));
+        m_eventList->SetSelectedRow ((int) (prev - m_filteredIndices.begin()));
         return;
     }
 
     if (it != m_filteredIndices.end())
     {
         m_listSelectedEventIndex = (int) *it;
-        m_eventList.SetSelectedRow ((int) (it - m_filteredIndices.begin()));
+        m_eventList->SetSelectedRow ((int) (it - m_filteredIndices.begin()));
         return;
     }
 
     m_listSelectedEventIndex = -1;
-    m_eventList.SetSelectedRow (-1);
+    m_eventList->SetSelectedRow (-1);
 }
 
 
@@ -940,7 +479,7 @@ void Disk2DebugPanel::ApplyListSelection()
 
 void Disk2DebugPanel::OnListSelectionMoved()
 {
-    int  row = m_eventList.GetSelectedRow();
+    int  row = m_eventList->GetSelectedRow();
 
 
     if (row < 0 || (size_t) row >= m_filteredIndices.size())
@@ -976,7 +515,7 @@ void Disk2DebugPanel::SortByColumn (int absCol)
         m_sortColumn     = absCol;
         m_sortDescending = false;
     }
-    m_eventList.SetSortIndicator (m_sortColumn, m_sortDescending);
+    m_eventList->SetSortIndicator (m_sortColumn, m_sortDescending);
     RebuildFilteredIndices();
     PushListViewRows();
     ApplyListSelection();
@@ -1006,7 +545,7 @@ bool Disk2DebugPanel::OnMouse (const DxuiMouseEvent & ev)
             // route moves to it. DxuiListView::OnMouse treats a non-Left
             // move while interacting as a release (its missed-button-up
             // safety net), so pass Left explicitly.
-            if (m_eventList.IsInteracting())
+            if (m_eventList->IsInteracting())
             {
                 (void) ForwardMouseToList (DxuiMouseEventKind::Move, DxuiMouseButton::Left, x, y, 0.0f);
                 return true;
@@ -1019,16 +558,16 @@ bool Disk2DebugPanel::OnMouse (const DxuiMouseEvent & ev)
                 return true;
             }
 
-            for (auto & cb : m_eventChecks)        { cb.SetMouseHover (x, y); }
-            m_audioMasterCheck.SetMouseHover (x, y);
-            for (auto & cb : m_audioSubChecks)     { cb.SetMouseHover (x, y); }
-            m_rawQtCheck.SetMouseHover (x, y);
-            m_driveRadio.SetMouseHover (x, y);
-            m_trackEdit.SetMouseHover  (x, y);
-            m_sectorEdit.SetMouseHover (x, y);
+            for (auto & cb : m_eventChecks)        { cb->SetMouseHover (x, y); }
+            m_audioMasterCheck->SetMouseHover (x, y);
+            for (auto & cb : m_audioSubChecks)     { cb->SetMouseHover (x, y); }
+            m_rawQtCheck->SetMouseHover (x, y);
+            m_driveRadio->SetMouseHover (x, y);
+            m_trackEdit->SetMouseHover  (x, y);
+            m_sectorEdit->SetMouseHover (x, y);
 
-            m_pauseButton.SetMouse (x, y, m_pauseButton.HitTest (x, y) && (GetKeyState (VK_LBUTTON) & 0x8000));
-            m_clearButton.SetMouse (x, y, m_clearButton.HitTest (x, y) && (GetKeyState (VK_LBUTTON) & 0x8000));
+            m_pauseButton->SetMouse (x, y, m_pauseButton->HitTest (x, y) && (GetKeyState (VK_LBUTTON) & 0x8000));
+            m_clearButton->SetMouse (x, y, m_clearButton->HitTest (x, y) && (GetKeyState (VK_LBUTTON) & 0x8000));
 
             // Row-hover highlight: the list owns the hit-test + hovered state.
             (void) ForwardMouseToList (DxuiMouseEventKind::Move, DxuiMouseButton::None, x, y, 0.0f);
@@ -1055,59 +594,59 @@ bool Disk2DebugPanel::OnMouse (const DxuiMouseEvent & ev)
                 // from the last-clicked control.
                 for (size_t i = 0; i < m_eventChecks.size(); ++i)
                 {
-                    if (m_eventChecks[i].OnMouse (ev))
+                    if (m_eventChecks[i]->OnMouse (ev))
                     {
-                        m_focusMgr.SetFocused (&m_eventChecks[i]);
+                        m_focusMgr.SetFocused (m_eventChecks[i]);
                         handled = true;
                         break;
                     }
                 }
-                if (!handled && m_audioMasterCheck.OnMouse (ev))
+                if (!handled && m_audioMasterCheck->OnMouse (ev))
                 {
-                    m_focusMgr.SetFocused (&m_audioMasterCheck);
+                    m_focusMgr.SetFocused (m_audioMasterCheck);
                     handled = true;
                 }
                 if (!handled)
                 {
                     for (size_t i = 0; i < m_audioSubChecks.size(); ++i)
                     {
-                        if (m_audioSubChecks[i].OnMouse (ev))
+                        if (m_audioSubChecks[i]->OnMouse (ev))
                         {
-                            m_focusMgr.SetFocused (&m_audioSubChecks[i]);
+                            m_focusMgr.SetFocused (m_audioSubChecks[i]);
                             handled = true;
                             break;
                         }
                     }
                 }
-                if (!handled && m_rawQtCheck.OnMouse (ev))
+                if (!handled && m_rawQtCheck->OnMouse (ev))
                 {
-                    m_focusMgr.SetFocused (&m_rawQtCheck);
+                    m_focusMgr.SetFocused (m_rawQtCheck);
                     handled = true;
                 }
-                if (!handled && m_driveRadio.OnMouse (ev))
+                if (!handled && m_driveRadio->OnMouse (ev))
                 {
-                    m_focusMgr.SetFocused (&m_driveRadio);
+                    m_focusMgr.SetFocused (m_driveRadio);
                     handled = true;
                 }
-                if (!handled && m_trackEdit.OnMouse (ev))
+                if (!handled && m_trackEdit->OnMouse (ev))
                 {
-                    m_focusMgr.SetFocused (&m_trackEdit);
+                    m_focusMgr.SetFocused (m_trackEdit);
                     handled = true;
                 }
-                if (!handled && m_sectorEdit.OnMouse (ev))
+                if (!handled && m_sectorEdit->OnMouse (ev))
                 {
-                    m_focusMgr.SetFocused (&m_sectorEdit);
+                    m_focusMgr.SetFocused (m_sectorEdit);
                     handled = true;
                 }
 
-                if (m_pauseButton.OnMouse (ev))
+                if (m_pauseButton->OnMouse (ev))
                 {
-                    m_focusMgr.SetFocused (&m_pauseButton);
+                    m_focusMgr.SetFocused (m_pauseButton);
                     handled = true;
                 }
-                if (!handled && m_clearButton.OnMouse (ev))
+                if (!handled && m_clearButton->OnMouse (ev))
                 {
-                    m_focusMgr.SetFocused (&m_clearButton);
+                    m_focusMgr.SetFocused (m_clearButton);
                     handled = true;
                 }
 
@@ -1116,13 +655,13 @@ bool Disk2DebugPanel::OnMouse (const DxuiMouseEvent & ev)
                     // The list owns all in-list routing (scrollbar arrows /
                     // thumb / track, column resize, header-click sort, row
                     // select) via OnMouse and reports outcomes through the
-                    // callbacks wired at setup. OnLButtonDown holds the
+                    // callbacks wired at setup. DxuiWindow holds the
                     // Win32 capture for the full press, so any drag the list
                     // starts keeps receiving moves after the cursor leaves the
                     // client. OnMouse consumes only in-bounds presses; when it
                     // does, focus moves to the list.
                     handled = ForwardMouseToList (DxuiMouseEventKind::Down, DxuiMouseButton::Left, x, y, 0.0f);
-                    if (handled) { m_focusMgr.SetFocused (&m_eventList); }
+                    if (handled) { m_focusMgr.SetFocused (m_eventList); }
                 }
 
                 return true;
@@ -1135,11 +674,11 @@ bool Disk2DebugPanel::OnMouse (const DxuiMouseEvent & ev)
                 // else, right-click is currently a no-op.
                 int  relX        = x - m_layout.listView.left;
                 int  relY        = y - m_layout.listView.top;
-                int  headerH     = m_eventList.GetHeaderHeightPx();
+                int  headerH     = m_eventList->GetHeaderHeightPx();
                 int  listWidthPx = m_layout.listView.right - m_layout.listView.left;
 
 
-                if (!m_eventList.IsHeaderShown())          { return true; }
+                if (!m_eventList->IsHeaderShown())          { return true; }
                 if (relX < 0 || relX >= listWidthPx)       { return true; }
                 if (relY < 0 || relY >= headerH)           { return true; }
 
@@ -1155,9 +694,9 @@ bool Disk2DebugPanel::OnMouse (const DxuiMouseEvent & ev)
                 // Finish any list drag (scrollbar thumb / column resize) the
                 // list started on button-down. The pointer may have left the
                 // list bounds mid-drag, so forward the release
-                // unconditionally. OnLButtonUp releases the Win32 capture
+                // unconditionally. DxuiWindow releases the Win32 capture
                 // before routing this release.
-                if (m_eventList.IsInteracting())
+                if (m_eventList->IsInteracting())
                 {
                     (void) ForwardMouseToList (DxuiMouseEventKind::Up, DxuiMouseButton::Left, x, y, 0.0f);
                     return true;
@@ -1172,16 +711,16 @@ bool Disk2DebugPanel::OnMouse (const DxuiMouseEvent & ev)
                 // visual and, on a click-release over itself, fires the
                 // callback wired at setup (checkbox change / button click),
                 // which folds the outcome back into the panel model.
-                for (auto & cb : m_eventChecks)        { cb.OnMouse (ev); }
-                m_audioMasterCheck.OnMouse (ev);
-                for (auto & cb : m_audioSubChecks)     { cb.OnMouse (ev); }
-                m_rawQtCheck.OnMouse   (ev);
-                m_driveRadio.OnMouse   (ev);
-                m_trackEdit.OnMouse    (ev);
-                m_sectorEdit.OnMouse   (ev);
+                for (auto & cb : m_eventChecks)        { cb->OnMouse (ev); }
+                m_audioMasterCheck->OnMouse (ev);
+                for (auto & cb : m_audioSubChecks)     { cb->OnMouse (ev); }
+                m_rawQtCheck->OnMouse   (ev);
+                m_driveRadio->OnMouse   (ev);
+                m_trackEdit->OnMouse    (ev);
+                m_sectorEdit->OnMouse   (ev);
 
-                m_pauseButton.OnMouse (ev);
-                m_clearButton.OnMouse (ev);
+                m_pauseButton->OnMouse (ev);
+                m_clearButton->OnMouse (ev);
 
                 return true;
             }
@@ -1219,8 +758,8 @@ bool Disk2DebugPanel::OnKey (const DxuiKeyEvent & ev)
     // character when it owns focus and reports whether it consumed it.
     if (ev.kind == DxuiKeyEventKind::Char)
     {
-        if (m_trackEdit.OnKey  (ev)) { return true; }
-        if (m_sectorEdit.OnKey (ev)) { return true; }
+        if (m_trackEdit->OnKey  (ev)) { return true; }
+        if (m_sectorEdit->OnKey (ev)) { return true; }
         return false;
     }
 
@@ -1257,6 +796,31 @@ bool Disk2DebugPanel::OnKey (const DxuiKeyEvent & ev)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  Layout
+//
+//  DxuiWindow drives this after the OS window sizes / resizes: cache the
+//  client size and DPI, then re-run the panel's absolute layout so the
+//  child widgets track the new bounds.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Disk2DebugPanel::Layout (
+    const RECT          & boundsDip,
+    const DxuiDpiScaler & scaler)
+{
+    m_widthPx  = std::max (1, (int) (boundsDip.right  - boundsDip.left));
+    m_heightPx = std::max (1, (int) (boundsDip.bottom - boundsDip.top));
+    m_dpi      = scaler.Dpi();
+
+    RecomputeLayout();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  RecomputeLayout
 //
 //  Recomputes the cached PanelLayoutSlots whenever the panel's client
@@ -1268,13 +832,9 @@ bool Disk2DebugPanel::OnKey (const DxuiKeyEvent & ev)
 
 void Disk2DebugPanel::RecomputeLayout()
 {
-    int  titleHeight = 0;
+    int  titleHeight = CaptionHeightPx();
 
 
-    if (m_host != nullptr)
-    {
-        titleHeight = m_host->CaptionHeightPx();
-    }
 
     m_layout = ComputeDisk2DebugPanelLayout (m_widthPx, m_heightPx, titleHeight, m_dpi);
 
@@ -1307,79 +867,79 @@ void Disk2DebugPanel::LayoutWidgets()
         invalidArgb = m_theme->ErrorForeground();
     }
 
-    m_trackFilterLabel.SetText        (m_filter.trackFilterRawQt ? s_kpszTrackQtFilterLabel : s_kpszTrackFilterLabel);
-    m_trackFilterLabel.SetRect        (m_layout.trackFilterLabel);
-    m_trackFilterLabel.SetDpi         (m_dpi);
-    m_trackFilterLabel.SetFontSizeDip (s_kLabelFontDip);
-    m_trackFilterLabel.SetColorArgb   (textArgb);
-    m_trackFilterLabel.SetHAlign      (DxuiTextRenderer::HAlign::Right);
-    m_trackFilterLabel.SetVAlign      (DxuiTextRenderer::VAlign::Center);
+    m_trackFilterLabel->SetText        (m_filter.trackFilterRawQt ? s_kpszTrackQtFilterLabel : s_kpszTrackFilterLabel);
+    m_trackFilterLabel->SetRect        (m_layout.trackFilterLabel);
+    m_trackFilterLabel->SetDpi         (m_dpi);
+    m_trackFilterLabel->SetFontSizeDip (s_kLabelFontDip);
+    m_trackFilterLabel->SetColorArgb   (textArgb);
+    m_trackFilterLabel->SetHAlign      (DxuiTextRenderer::HAlign::Right);
+    m_trackFilterLabel->SetVAlign      (DxuiTextRenderer::VAlign::Center);
 
-    m_sectorFilterLabel.SetText        (s_kpszSectorFilterLabel);
-    m_sectorFilterLabel.SetRect        (m_layout.sectorFilterLabel);
-    m_sectorFilterLabel.SetDpi         (m_dpi);
-    m_sectorFilterLabel.SetFontSizeDip (s_kLabelFontDip);
-    m_sectorFilterLabel.SetColorArgb   (textArgb);
-    m_sectorFilterLabel.SetHAlign      (DxuiTextRenderer::HAlign::Right);
-    m_sectorFilterLabel.SetVAlign      (DxuiTextRenderer::VAlign::Center);
+    m_sectorFilterLabel->SetText        (s_kpszSectorFilterLabel);
+    m_sectorFilterLabel->SetRect        (m_layout.sectorFilterLabel);
+    m_sectorFilterLabel->SetDpi         (m_dpi);
+    m_sectorFilterLabel->SetFontSizeDip (s_kLabelFontDip);
+    m_sectorFilterLabel->SetColorArgb   (textArgb);
+    m_sectorFilterLabel->SetHAlign      (DxuiTextRenderer::HAlign::Right);
+    m_sectorFilterLabel->SetVAlign      (DxuiTextRenderer::VAlign::Center);
 
-    m_trackInvalidLabel.SetText        (BuildInvalidLabel (s_kpszTrackInvalidPrefix, m_trackEdit.Text(), m_filter.trackFilter.RejectedSpans()).c_str());
-    m_trackInvalidLabel.SetRect        (m_layout.trackInvalidLabel);
-    m_trackInvalidLabel.SetDpi         (m_dpi);
-    m_trackInvalidLabel.SetFontSizeDip (s_kLabelFontDip);
-    m_trackInvalidLabel.SetColorArgb   (invalidArgb);
-    m_trackInvalidLabel.SetHAlign      (DxuiTextRenderer::HAlign::Left);
-    m_trackInvalidLabel.SetVAlign      (DxuiTextRenderer::VAlign::Center);
+    m_trackInvalidLabel->SetText        (BuildInvalidLabel (s_kpszTrackInvalidPrefix, m_trackEdit->Text(), m_filter.trackFilter.RejectedSpans()).c_str());
+    m_trackInvalidLabel->SetRect        (m_layout.trackInvalidLabel);
+    m_trackInvalidLabel->SetDpi         (m_dpi);
+    m_trackInvalidLabel->SetFontSizeDip (s_kLabelFontDip);
+    m_trackInvalidLabel->SetColorArgb   (invalidArgb);
+    m_trackInvalidLabel->SetHAlign      (DxuiTextRenderer::HAlign::Left);
+    m_trackInvalidLabel->SetVAlign      (DxuiTextRenderer::VAlign::Center);
 
-    m_sectorInvalidLabel.SetText        (BuildInvalidLabel (s_kpszSectorInvalidPrefix, m_sectorEdit.Text(), m_filter.sectorFilter.RejectedSpans()).c_str());
-    m_sectorInvalidLabel.SetRect        (m_layout.sectorInvalidLabel);
-    m_sectorInvalidLabel.SetDpi         (m_dpi);
-    m_sectorInvalidLabel.SetFontSizeDip (s_kLabelFontDip);
-    m_sectorInvalidLabel.SetColorArgb   (invalidArgb);
-    m_sectorInvalidLabel.SetHAlign      (DxuiTextRenderer::HAlign::Left);
-    m_sectorInvalidLabel.SetVAlign      (DxuiTextRenderer::VAlign::Center);
+    m_sectorInvalidLabel->SetText        (BuildInvalidLabel (s_kpszSectorInvalidPrefix, m_sectorEdit->Text(), m_filter.sectorFilter.RejectedSpans()).c_str());
+    m_sectorInvalidLabel->SetRect        (m_layout.sectorInvalidLabel);
+    m_sectorInvalidLabel->SetDpi         (m_dpi);
+    m_sectorInvalidLabel->SetFontSizeDip (s_kLabelFontDip);
+    m_sectorInvalidLabel->SetColorArgb   (invalidArgb);
+    m_sectorInvalidLabel->SetHAlign      (DxuiTextRenderer::HAlign::Left);
+    m_sectorInvalidLabel->SetVAlign      (DxuiTextRenderer::VAlign::Center);
 
     for (int i = 0; i < kEventTypeCheckCount; i++)
     {
-        m_eventChecks[i].SetRect (m_layout.eventTypeChecks[i]);
-        m_eventChecks[i].SetDpi  (m_dpi);
+        m_eventChecks[i]->SetRect (m_layout.eventTypeChecks[i]);
+        m_eventChecks[i]->SetDpi  (m_dpi);
     }
 
-    m_audioMasterCheck.SetRect (m_layout.audioMasterCheck);
-    m_audioMasterCheck.SetDpi  (m_dpi);
+    m_audioMasterCheck->SetRect (m_layout.audioMasterCheck);
+    m_audioMasterCheck->SetDpi  (m_dpi);
 
     for (int i = 0; i < kAudioSubCheckCount; i++)
     {
-        m_audioSubChecks[i].SetRect (m_layout.audioSubChecks[i]);
-        m_audioSubChecks[i].SetDpi  (m_dpi);
+        m_audioSubChecks[i]->SetRect (m_layout.audioSubChecks[i]);
+        m_audioSubChecks[i]->SetDpi  (m_dpi);
     }
 
-    m_rawQtCheck.SetRect (m_layout.rawQtCheck);
-    m_rawQtCheck.SetDpi  (m_dpi);
+    m_rawQtCheck->SetRect (m_layout.rawQtCheck);
+    m_rawQtCheck->SetDpi  (m_dpi);
 
-    m_driveFilterLabel.SetText        (s_kpszDriveFilterLabel);
-    m_driveFilterLabel.SetRect        (m_layout.driveFilterLabel);
-    m_driveFilterLabel.SetDpi         (m_dpi);
-    m_driveFilterLabel.SetFontSizeDip (s_kLabelFontDip);
-    m_driveFilterLabel.SetColorArgb   (textArgb);
-    m_driveFilterLabel.SetHAlign      (DxuiTextRenderer::HAlign::Left);
-    m_driveFilterLabel.SetVAlign      (DxuiTextRenderer::VAlign::Center);
+    m_driveFilterLabel->SetText        (s_kpszDriveFilterLabel);
+    m_driveFilterLabel->SetRect        (m_layout.driveFilterLabel);
+    m_driveFilterLabel->SetDpi         (m_dpi);
+    m_driveFilterLabel->SetFontSizeDip (s_kLabelFontDip);
+    m_driveFilterLabel->SetColorArgb   (textArgb);
+    m_driveFilterLabel->SetHAlign      (DxuiTextRenderer::HAlign::Left);
+    m_driveFilterLabel->SetVAlign      (DxuiTextRenderer::VAlign::Center);
 
-    m_diskEventsLabel.SetText        (s_kpszDiskEventsLabel);
-    m_diskEventsLabel.SetRect        (m_layout.diskEventsLabel);
-    m_diskEventsLabel.SetDpi         (m_dpi);
-    m_diskEventsLabel.SetFontSizeDip (s_kLabelFontDip);
-    m_diskEventsLabel.SetColorArgb   (textArgb);
-    m_diskEventsLabel.SetHAlign      (DxuiTextRenderer::HAlign::Left);
-    m_diskEventsLabel.SetVAlign      (DxuiTextRenderer::VAlign::Center);
+    m_diskEventsLabel->SetText        (s_kpszDiskEventsLabel);
+    m_diskEventsLabel->SetRect        (m_layout.diskEventsLabel);
+    m_diskEventsLabel->SetDpi         (m_dpi);
+    m_diskEventsLabel->SetFontSizeDip (s_kLabelFontDip);
+    m_diskEventsLabel->SetColorArgb   (textArgb);
+    m_diskEventsLabel->SetHAlign      (DxuiTextRenderer::HAlign::Left);
+    m_diskEventsLabel->SetVAlign      (DxuiTextRenderer::VAlign::Center);
 
-    m_audioEventsLabel.SetText        (s_kpszAudioEventsLabel);
-    m_audioEventsLabel.SetRect        (m_layout.audioEventsLabel);
-    m_audioEventsLabel.SetDpi         (m_dpi);
-    m_audioEventsLabel.SetFontSizeDip (s_kLabelFontDip);
-    m_audioEventsLabel.SetColorArgb   (textArgb);
-    m_audioEventsLabel.SetHAlign      (DxuiTextRenderer::HAlign::Left);
-    m_audioEventsLabel.SetVAlign      (DxuiTextRenderer::VAlign::Center);
+    m_audioEventsLabel->SetText        (s_kpszAudioEventsLabel);
+    m_audioEventsLabel->SetRect        (m_layout.audioEventsLabel);
+    m_audioEventsLabel->SetDpi         (m_dpi);
+    m_audioEventsLabel->SetFontSizeDip (s_kLabelFontDip);
+    m_audioEventsLabel->SetColorArgb   (textArgb);
+    m_audioEventsLabel->SetHAlign      (DxuiTextRenderer::HAlign::Left);
+    m_audioEventsLabel->SetVAlign      (DxuiTextRenderer::VAlign::Center);
 
     // DxuiRadioGroup expects rects in its option records.
     std::vector<DxuiRadioOption>  driveOpts;
@@ -1390,31 +950,31 @@ void Disk2DebugPanel::LayoutWidgets()
         opt.label = s_kpszDriveOptionLabels[i];
         driveOpts.push_back (std::move (opt));
     }
-    m_driveRadio.SetOptions  (std::move (driveOpts));
-    m_driveRadio.SetDpi      (m_dpi);
+    m_driveRadio->SetOptions  (std::move (driveOpts));
+    m_driveRadio->SetDpi      (m_dpi);
     // Re-apply selection after SetOptions: ConfigureWidgets calls
     // SetSelected before LayoutWidgets has supplied any options, which
     // makes the initial SetSelected a no-op (out-of-range clamps to -1).
-    m_driveRadio.SetSelected (m_filter.driveFilter);
+    m_driveRadio->SetSelected (m_filter.driveFilter);
 
-    m_trackEdit.SetRect  (m_layout.trackEdit);
-    m_trackEdit.SetDpi   (m_dpi);
-    m_trackEdit.SetTheme (m_theme);
-    m_trackEdit.SetHwnd  (m_hwnd);
+    m_trackEdit->SetRect  (m_layout.trackEdit);
+    m_trackEdit->SetDpi   (m_dpi);
+    m_trackEdit->SetTheme (m_theme);
+    m_trackEdit->SetHwnd  (Hwnd());
 
-    m_sectorEdit.SetRect  (m_layout.sectorEdit);
-    m_sectorEdit.SetDpi   (m_dpi);
-    m_sectorEdit.SetTheme (m_theme);
-    m_sectorEdit.SetHwnd  (m_hwnd);
+    m_sectorEdit->SetRect  (m_layout.sectorEdit);
+    m_sectorEdit->SetDpi   (m_dpi);
+    m_sectorEdit->SetTheme (m_theme);
+    m_sectorEdit->SetHwnd  (Hwnd());
 
-    m_pauseButton.Layout (m_layout.pauseButton);
-    m_pauseButton.SetDpi (m_dpi);
-    m_clearButton.Layout (m_layout.clearButton);
-    m_clearButton.SetDpi (m_dpi);
+    m_pauseButton->Layout (m_layout.pauseButton);
+    m_pauseButton->SetDpi (m_dpi);
+    m_clearButton->Layout (m_layout.clearButton);
+    m_clearButton->SetDpi (m_dpi);
 
-    m_eventList.SetRect  (m_layout.listView);
-    m_eventList.SetDpi   (m_dpi);
-    m_eventList.SetTheme (m_theme);
+    m_eventList->SetRect  (m_layout.listView);
+    m_eventList->SetDpi   (m_dpi);
+    m_eventList->SetTheme (m_theme);
 
     m_columnMenu.SetDpi   (m_dpi);
     m_columnMenu.SetTheme (m_theme);
@@ -1447,10 +1007,9 @@ void Disk2DebugPanel::ConfigureWidgets()
 
     for (int i = 0; i < kEventTypeCheckCount; i++)
     {
-        m_eventChecks[i].SetLabel    (s_kpszEventCheckLabels[i]);
-        m_eventChecks[i].SetChecked  ((m_filter.eventTypeMask & s_kCheckBits[i]) != 0);
+        m_eventChecks[i]->SetChecked  ((m_filter.eventTypeMask & s_kCheckBits[i]) != 0);
         uint32_t  bit = s_kCheckBits[i];
-        m_eventChecks[i].SetOnChange ([this, bit] (bool checked)
+        m_eventChecks[i]->SetOnChange ([this, bit] (bool checked)
         {
             if (checked) { m_filter.eventTypeMask |=  bit; }
             else         { m_filter.eventTypeMask &= ~bit; }
@@ -1458,12 +1017,11 @@ void Disk2DebugPanel::ConfigureWidgets()
         });
     }
 
-    m_audioMasterCheck.SetLabel    (s_kpszAudioLabel);
-    m_audioMasterCheck.SetChecked  (m_filter.audioMaster);
-    m_audioMasterCheck.SetOnChange ([this] (bool checked)
+    m_audioMasterCheck->SetChecked  (m_filter.audioMaster);
+    m_audioMasterCheck->SetOnChange ([this] (bool checked)
     {
         m_filter.audioMaster = checked;
-        for (auto & cb : m_audioSubChecks) { cb.SetEnabled (checked); }
+        for (auto & cb : m_audioSubChecks) { cb->SetEnabled (checked); }
         OnFilterChanged();
     });
 
@@ -1475,20 +1033,18 @@ void Disk2DebugPanel::ConfigureWidgets()
 
     for (int i = 0; i < kAudioSubCheckCount; i++)
     {
-        m_audioSubChecks[i].SetLabel    (s_kpszAudioSubLabels[i]);
-        m_audioSubChecks[i].SetChecked  (*s_kAudioSubBackers[i]);
-        m_audioSubChecks[i].SetEnabled  (m_filter.audioMaster);
+        m_audioSubChecks[i]->SetChecked  (*s_kAudioSubBackers[i]);
+        m_audioSubChecks[i]->SetEnabled  (m_filter.audioMaster);
         bool * backer = s_kAudioSubBackers[i];
-        m_audioSubChecks[i].SetOnChange ([this, backer] (bool checked)
+        m_audioSubChecks[i]->SetOnChange ([this, backer] (bool checked)
         {
             *backer = checked;
             OnFilterChanged();
         });
     }
 
-    m_rawQtCheck.SetLabel    (s_kpszRawQtLabel);
-    m_rawQtCheck.SetChecked  (m_filter.trackFilterRawQt);
-    m_rawQtCheck.SetOnChange ([this] (bool checked)
+    m_rawQtCheck->SetChecked  (m_filter.trackFilterRawQt);
+    m_rawQtCheck->SetOnChange ([this] (bool checked)
     {
         m_filter.trackFilterRawQt = checked;
         OnTrackEditChanged();
@@ -1496,28 +1052,26 @@ void Disk2DebugPanel::ConfigureWidgets()
         LayoutWidgets();
     });
 
-    m_driveRadio.SetSelected (m_filter.driveFilter);
-    m_driveRadio.SetOnChange ([this] (int newIndex)
+    m_driveRadio->SetSelected (m_filter.driveFilter);
+    m_driveRadio->SetOnChange ([this] (int newIndex)
     {
         m_filter.driveFilter = newIndex;
         OnFilterChanged();
     });
 
-    m_trackEdit.SetMaxLength  (32);
-    m_trackEdit.SetOnChange   ([this] (const std::wstring &) { OnTrackEditChanged(); OnFilterChanged(); });
+    m_trackEdit->SetMaxLength  (32);
+    m_trackEdit->SetOnChange   ([this] (const std::wstring &) { OnTrackEditChanged(); OnFilterChanged(); });
 
-    m_sectorEdit.SetMaxLength (32);
-    m_sectorEdit.SetOnChange  ([this] (const std::wstring &) { OnSectorEditChanged(); OnFilterChanged(); });
+    m_sectorEdit->SetMaxLength (32);
+    m_sectorEdit->SetOnChange  ([this] (const std::wstring &) { OnSectorEditChanged(); OnFilterChanged(); });
 
-    m_pauseButton.SetLabel (s_kpszPauseLabel);
-    m_pauseButton.SetClick ([this] ()
+    m_pauseButton->SetClick ([this] ()
     {
         m_paused = !m_paused;
         UpdatePauseLabel();
     });
 
-    m_clearButton.SetLabel (s_kpszClearLabel);
-    m_clearButton.SetClick ([this] () { ClearEvents(); });
+    m_clearButton->SetClick ([this] () { ClearEvents(); });
 
     std::vector<DxuiListView::Column>  cols;
     cols.push_back ({ L"Time",   0, false, DxuiTextRenderer::HAlign::Left  });
@@ -1526,18 +1080,18 @@ void Disk2DebugPanel::ConfigureWidgets()
     cols.push_back ({ L"Drive",  0, false, DxuiTextRenderer::HAlign::Right });
     cols.push_back ({ L"Event",  0, false, DxuiTextRenderer::HAlign::Left  });
     cols.push_back ({ L"Detail", 0, true,  DxuiTextRenderer::HAlign::Left  });
-    m_eventList.SetColumns    (std::move (cols));
-    m_eventList.SetShowHeader (true);
+    m_eventList->SetColumns    (std::move (cols));
+    m_eventList->SetShowHeader (true);
 
     // The list owns keyboard column navigation: when it holds focus, its
     // own OnKey cycles the header / divider / body sub-stops on Tab and
     // fires the sort / resize / selection callbacks below.
-    m_eventList.SetKeyboardColumnNav (true);
+    m_eventList->SetKeyboardColumnNav (true);
 
     // The list owns its own scroll / thumb / column-resize / row-select
     // routing via OnMouse; these callbacks fold the semantic outcomes
     // back into the panel (selected event, sort).
-    m_eventList.SetOnSelectionChanged ([this] (int row)
+    m_eventList->SetOnSelectionChanged ([this] (int row)
     {
         if (row >= 0 && row < (int) m_filteredIndices.size())
         {
@@ -1545,21 +1099,21 @@ void Disk2DebugPanel::ConfigureWidgets()
         }
         ApplyListSelection();
     });
-    m_eventList.SetOnSortColumn ([this] (int col)
+    m_eventList->SetOnSortColumn ([this] (int col)
     {
         SortByColumn (col);
     });
-    m_eventList.SetOnColumnResized ([] (int, int) {});
+    m_eventList->SetOnColumnResized ([] (int, int) {});
 
     m_columnMenu.SetOnSelect ([this] (int index)
     {
-        if (index < 0 || index >= (int) m_eventList.GetColumnCount()) { return; }
-        m_eventList.SetColumnVisible ((size_t) index, !m_eventList.IsColumnVisible ((size_t) index));
+        if (index < 0 || index >= (int) m_eventList->GetColumnCount()) { return; }
+        m_eventList->SetColumnVisible ((size_t) index, !m_eventList->IsColumnVisible ((size_t) index));
         LayoutWidgets();
         m_focusMgr.Rebuild();
     });
 
-    m_focusMgr.Attach  (&m_host->Root());
+    m_focusMgr.Attach  (this);
     m_focusMgr.SetTheme (m_theme);
     m_focusMgr.Rebuild();
 }
@@ -1746,8 +1300,8 @@ void Disk2DebugPanel::PushListViewRows()
         rows.push_back (std::move (row));
     }
 
-    m_eventList.SetRows (std::move (rows));
-    m_eventList.UpdateAutoFitFromRows();
+    m_eventList->SetRows (std::move (rows));
+    m_eventList->UpdateAutoFitFromRows();
 }
 
 
@@ -1825,11 +1379,11 @@ void Disk2DebugPanel::OnFilterChanged()
 
 void Disk2DebugPanel::OnTrackEditChanged()
 {
-    m_filter.trackFilter = TrackSectorPredicate::Parse (m_trackEdit.Text(),
+    m_filter.trackFilter = TrackSectorPredicate::Parse (m_trackEdit->Text(),
                                                         TrackSectorPredicate::Mode::Track,
                                                         m_filter.trackFilterRawQt);
     m_trackEditValid = m_filter.trackFilter.RejectedSpans().empty();
-    m_trackInvalidLabel.SetText (BuildInvalidLabel (s_kpszTrackInvalidPrefix, m_trackEdit.Text(), m_filter.trackFilter.RejectedSpans()).c_str());
+    m_trackInvalidLabel->SetText (BuildInvalidLabel (s_kpszTrackInvalidPrefix, m_trackEdit->Text(), m_filter.trackFilter.RejectedSpans()).c_str());
 }
 
 
@@ -1844,10 +1398,10 @@ void Disk2DebugPanel::OnTrackEditChanged()
 
 void Disk2DebugPanel::OnSectorEditChanged()
 {
-    m_filter.sectorFilter = TrackSectorPredicate::Parse (m_sectorEdit.Text(),
+    m_filter.sectorFilter = TrackSectorPredicate::Parse (m_sectorEdit->Text(),
                                                          TrackSectorPredicate::Mode::Sector);
     m_sectorEditValid = m_filter.sectorFilter.RejectedSpans().empty();
-    m_sectorInvalidLabel.SetText (BuildInvalidLabel (s_kpszSectorInvalidPrefix, m_sectorEdit.Text(), m_filter.sectorFilter.RejectedSpans()).c_str());
+    m_sectorInvalidLabel->SetText (BuildInvalidLabel (s_kpszSectorInvalidPrefix, m_sectorEdit->Text(), m_filter.sectorFilter.RejectedSpans()).c_str());
 }
 
 
@@ -1862,7 +1416,7 @@ void Disk2DebugPanel::OnSectorEditChanged()
 
 void Disk2DebugPanel::UpdatePauseLabel()
 {
-    m_pauseButton.SetLabel (m_paused ? s_kpszResumeLabel : s_kpszPauseLabel);
+    m_pauseButton->SetLabel (m_paused ? s_kpszResumeLabel : s_kpszPauseLabel);
 }
 
 
@@ -1893,7 +1447,7 @@ void Disk2DebugPanel::ClearEvents()
     m_filteredIndices.clear();
     m_currentDrive = 0;
     m_listSelectedEventIndex = -1;
-    m_eventList.ResetAutoFit();
+    m_eventList->ResetAutoFit();
     PushListViewRows();
     ApplyListSelection();
 }
@@ -2129,52 +1683,52 @@ void Disk2DebugPanel::UpdateTooltip (int x, int y)
 
     for (size_t i = 0; i < m_eventChecks.size(); ++i)
     {
-        if (m_eventChecks[i].HitTest (x, y))
+        if (m_eventChecks[i]->HitTest (x, y))
         {
-            m_tooltip.RequestShow (m_eventChecks[i].Rect(), s_kpszEventCheckTips[i], now);
+            m_tooltip.RequestShow (m_eventChecks[i]->Rect(), s_kpszEventCheckTips[i], now);
             return;
         }
     }
 
-    if (m_audioMasterCheck.HitTest (x, y))
+    if (m_audioMasterCheck->HitTest (x, y))
     {
-        m_tooltip.RequestShow (m_audioMasterCheck.Rect(), s_kpszAudioMasterTip, now);
+        m_tooltip.RequestShow (m_audioMasterCheck->Rect(), s_kpszAudioMasterTip, now);
         return;
     }
 
     for (size_t i = 0; i < m_audioSubChecks.size(); ++i)
     {
-        if (m_audioSubChecks[i].HitTest (x, y))
+        if (m_audioSubChecks[i]->HitTest (x, y))
         {
-            m_tooltip.RequestShow (m_audioSubChecks[i].Rect(), s_kpszAudioSubTips[i], now);
+            m_tooltip.RequestShow (m_audioSubChecks[i]->Rect(), s_kpszAudioSubTips[i], now);
             return;
         }
     }
 
-    if (m_rawQtCheck.HitTest (x, y))
+    if (m_rawQtCheck->HitTest (x, y))
     {
-        m_tooltip.RequestShow (m_rawQtCheck.Rect(), s_kpszRawQtTip, now);
+        m_tooltip.RequestShow (m_rawQtCheck->Rect(), s_kpszRawQtTip, now);
         return;
     }
 
-    int  driveHit = m_driveRadio.HitTest (x, y);
-    if (driveHit >= 0 && driveHit < (int) m_driveRadio.Options().size())
+    int  driveHit = m_driveRadio->HitTest (x, y);
+    if (driveHit >= 0 && driveHit < (int) m_driveRadio->Options().size())
     {
-        m_tooltip.RequestShow (m_driveRadio.Options()[driveHit].rect,
+        m_tooltip.RequestShow (m_driveRadio->Options()[driveHit].rect,
                                s_kpszDriveRadioTips[driveHit],
                                now);
         return;
     }
 
-    if (m_trackEdit.HitTest (x, y))
+    if (m_trackEdit->HitTest (x, y))
     {
-        m_tooltip.RequestShow (m_trackEdit.Rect(), s_kpszTrackEditTip, now);
+        m_tooltip.RequestShow (m_trackEdit->Rect(), s_kpszTrackEditTip, now);
         return;
     }
 
-    if (m_sectorEdit.HitTest (x, y))
+    if (m_sectorEdit->HitTest (x, y))
     {
-        m_tooltip.RequestShow (m_sectorEdit.Rect(), s_kpszSectorEditTip, now);
+        m_tooltip.RequestShow (m_sectorEdit->Rect(), s_kpszSectorEditTip, now);
         return;
     }
 

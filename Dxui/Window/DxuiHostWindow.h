@@ -199,7 +199,7 @@ public:
     bool  HandleMessage  (UINT msg, WPARAM wp, LPARAM lp, LRESULT & outResult);
 
     HWND          Hwnd          () const { return m_hwnd; }
-    DxuiPanel  &  Root          ()       { return *m_root; }
+    DxuiPanel  &  Root          ()       { return *RootPanel(); }
     const DxuiDpiScaler &  Scaler  () const { return m_scaler; }
     void          SetTheme      (const IDxuiTheme * theme);
 
@@ -247,6 +247,19 @@ public:
     //  drop the call. (The host always has a root panel.)
     //
     void          SetContentPanel (std::unique_ptr<DxuiPanel> panel);
+
+    //
+    //  Install a NON-owning content root. Unlike SetContentPanel (which
+    //  takes ownership), this points the host's paint / layout / focus /
+    //  hit-test / accessibility pump at an externally-owned DxuiPanel --
+    //  used by DxuiWindow, which IS its own content root (it derives from
+    //  DxuiPanel) while owning this host as its backend. When set, the ref
+    //  shadows the owned root everywhere the pump consumes the root; the
+    //  owned root is left intact but unused. Passing nullptr reverts to the
+    //  owned root. When `m_hwnd` exists the ref is laid out + focus-attached
+    //  immediately from the current client rect.
+    //
+    void          SetContentRootRef (DxuiPanel * root);
 
     //
     //  Convenience wrappers around `::SetTimer` / `::KillTimer` for
@@ -426,6 +439,7 @@ private:
     void     HandleSize                (WPARAM wp, LPARAM lp);
     void     HandleThemeChange         ();
     void     MaybeRelayoutRoot         (const RECT & clientPx);
+    DxuiPanel *  RootPanel             () const { return m_rootRef != nullptr ? m_rootRef : m_root.get(); }
     void     LayoutCaption             (const RECT & clientDip);
     void     BuildCaption              ();
     bool     RouteCaptionNcMouse       (UINT msg, WPARAM wp, LPARAM lp);
@@ -468,6 +482,7 @@ private:
     std::unique_ptr<DxuiPainter>      m_painter;
     std::unique_ptr<DxuiTextRenderer> m_textRenderer;
     std::unique_ptr<DxuiPanel>        m_root;
+    DxuiPanel *                       m_rootRef            = nullptr;
     std::unique_ptr<DxuiCaptionBar>   m_caption;
     DxuiFocusManager                  m_focusManager;
     const IDxuiTheme *                m_theme              = nullptr;

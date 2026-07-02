@@ -1,7 +1,6 @@
 #pragma once
 
-#include "Window/DxuiHostWindow.h"
-#include "Window/IDxuiHostClient.h"
+#include "Window/DxuiWindow.h"
 #include "Disk2DebugPanelLayout.h"
 #include "Core/DxuiFocusManager.h"
 #include "Core/DxuiPanel.h"
@@ -31,25 +30,24 @@ struct CassoTheme;
 //
 //  Disk2DebugPanel
 //
-//  Spec-011 / US7. Themed DX replacement for the legacy Win32
-//  Disk2DebugDialog. Owns a full-ownership DxuiHostWindow (borderless
-//  chrome + close-only caption + host-owned swap chain / paint pump)
-//  and installs itself as the window's IDxuiHostClient, translating the
-//  host's Win32 message hooks into the panel's existing DxuiMouseEvent /
-//  DxuiKeyEvent routing. It still implements the same two event-sink
+//  Themed DX replacement for the legacy Win32 Disk2DebugDialog. Derives
+//  from DxuiWindow, so it IS its own content-root panel AND owns the OS
+//  window (HWND + swap chain + caption + paint pump) through the base
+//  class -- the subclass never touches an HWND, a WPARAM, or a host
+//  client interface. It still implements the same two event-sink
 //  interfaces (IDisk2EventSink and IDriveAudioEventSink) so it slots
 //  into the existing EmulatorShell event wiring with no contract
 //  changes.
 //
-//  The content widgets are adopted into the host's root panel so the
-//  host paint pump walks and paints them; the panel keeps its own
-//  focus manager, tooltip, and column menu (the latter two escape the
-//  client via the host popup pool).
+//  Content widgets are created as children of this panel in OnCreate
+//  (via the inherited Create<T> factory) so the base paint pump walks
+//  and paints them; the panel keeps its own focus manager, tooltip, and
+//  column menu (the latter two escape the client via the host popup
+//  pool exposed through PopupHost()).
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-class Disk2DebugPanel : public DxuiPanel,
-                         public IDxuiHostClient,
+class Disk2DebugPanel : public DxuiWindow,
                          public IDisk2EventSink,
                          public IDriveAudioEventSink
 {
@@ -62,12 +60,9 @@ public:
                      ID3D11Device         * device,
                      ID3D11DeviceContext  * context,
                      const CassoTheme    * theme);
-    void    Show    ();
-    void    Hide    ();
     void    Destroy ();
 
-    bool    IsOpen () const { return m_host != nullptr; }
-    HWND    Hwnd   () const { return m_host != nullptr ? m_host->Hwnd() : nullptr; }
+    bool    IsOpen () const { return IsCreated(); }
 
     HRESULT RenderFrame ();
     void    SetTheme    (const CassoTheme * theme);
@@ -82,30 +77,19 @@ public:
     // DxuiListView rows are only ever mutated on one thread.
     void    RequestResetAnchor (std::chrono::steady_clock::time_point anchor) noexcept;
 
-    // IDxuiHostClient. The host window forwards the Win32 messages it
-    // does not own end-to-end; each hook translates into the panel's
-    // existing DxuiMouseEvent / DxuiKeyEvent routing (OnMouse / OnKey)
-    // or the layout / lifecycle helpers below.
-    DxuiMessageResult  OnLButtonDown (WPARAM wParam, LPARAM lParam) override;
-    DxuiMessageResult  OnLButtonUp   (WPARAM wParam, LPARAM lParam) override;
-    DxuiMessageResult  OnRButtonDown (WPARAM wParam, LPARAM lParam) override;
-    DxuiMessageResult  OnMouseMove   (WPARAM wParam, LPARAM lParam) override;
-    DxuiMessageResult  OnMouseWheel  (WPARAM wParam, LPARAM lParam, bool horizontal) override;
-    DxuiMessageResult  OnKeyDown     (WPARAM vk, LPARAM lParam) override;
-    DxuiMessageResult  OnChar        (WPARAM ch, LPARAM lParam) override;
-    DxuiMessageResult  OnSetCursor   (WORD hitTest) override;
-    DxuiMessageResult  OnSize        (UINT widthPx, UINT heightPx) override;
-    DxuiMessageResult  OnGetMinMax   (MINMAXINFO * info) override;
-    DxuiMessageResult  OnClose       () override;
-    void               OnDestroy     () override;
-    void               OnDpiChanged  (UINT newDpi) override;
-
     // Framework input entry points. These DxuiPanel overrides own the
     // panel's mouse / key routing directly, dispatching each
     // DxuiMouseEvent / DxuiKeyEvent to the child widgets and the event
-    // list so the host drives the panel through the framework.
+    // list; DxuiWindow translates the Win32 messages into these.
     bool    OnMouse (const DxuiMouseEvent & ev)                     override;
     bool    OnKey   (const DxuiKeyEvent   & ev)                     override;
+
+    // DxuiPanel layout hook. DxuiWindow calls this with the client
+    // bounds / DPI scaler after the OS window resizes; caches the size
+    // and re-runs the panel's absolute layout so the child widgets track
+    // the new bounds.
+    void    Layout  (const RECT          & boundsDip,
+                     const DxuiDpiScaler & scaler)                  override;
 
     // IDisk2EventSink. Producer thread -- push into the lock-free ring;
     // the render thread drains and projects to display rows per frame.
@@ -130,9 +114,13 @@ public:
     void OnAudioLoopStarted (SoundKind kind, int drive)                    override;
     void OnAudioLoopStopped (SoundKind kind, int drive)                    override;
 
+protected:
+    // DxuiWindow hook. Fires inside Create() once the backend + HWND
+    // exist; populates the child widgets via the inherited Create<T>
+    // factory and wires their state / callbacks.
+    void    OnCreate ()                                             override;
+
 private:
-    DxuiMessageResult  DispatchClientMouse (DxuiMouseEventKind kind, DxuiMouseButton button, int x, int y, float wheelDelta);
-    DxuiMessageResult  DispatchClientKey   (DxuiKeyEventKind kind, WPARAM code);
     void    RecomputeLayout      ();
     void    LayoutWidgets        ();
     void    ConfigureWidgets     ();
@@ -153,38 +141,34 @@ private:
     void    SortByColumn         (int absCol);
     int64_t NowMs                () const;
 
-    std::unique_ptr<DxuiHostWindow>      m_host;
     PanelLayoutSlots                     m_layout = {};
 
-    ID3D11Device                       * m_device  = nullptr;
-    ID3D11DeviceContext                * m_context = nullptr;
-    const CassoTheme                  * m_theme   = nullptr;
-    HWND                                 m_hwnd    = nullptr;
+    const CassoTheme                   * m_theme    = nullptr;
     int                                  m_widthPx  = 0;
     int                                  m_heightPx = 0;
     UINT                                 m_dpi      = 96;
 
-    DxuiLabel                                m_trackFilterLabel;
-    DxuiLabel                                m_sectorFilterLabel;
-    DxuiLabel                                m_driveFilterLabel;
-    DxuiLabel                                m_diskEventsLabel;
-    DxuiLabel                                m_audioEventsLabel;
-    DxuiLabel                                m_trackInvalidLabel;
-    DxuiLabel                                m_sectorInvalidLabel;
+    DxuiLabel                                      * m_trackFilterLabel   = nullptr;
+    DxuiLabel                                      * m_sectorFilterLabel  = nullptr;
+    DxuiLabel                                      * m_driveFilterLabel   = nullptr;
+    DxuiLabel                                      * m_diskEventsLabel    = nullptr;
+    DxuiLabel                                      * m_audioEventsLabel   = nullptr;
+    DxuiLabel                                      * m_trackInvalidLabel  = nullptr;
+    DxuiLabel                                      * m_sectorInvalidLabel = nullptr;
 
-    std::array<DxuiCheckbox, kEventTypeCheckCount>  m_eventChecks;
-    DxuiCheckbox                                    m_audioMasterCheck;
-    std::array<DxuiCheckbox, kAudioSubCheckCount>   m_audioSubChecks;
-    DxuiCheckbox                                    m_rawQtCheck;
-    DxuiRadioGroup                                  m_driveRadio;
-    DxuiTextInput                                   m_trackEdit;
-    DxuiTextInput                                   m_sectorEdit;
-    DxuiButton                                      m_pauseButton;
-    DxuiButton                                      m_clearButton;
-    DxuiListView                                    m_eventList;
-    DxuiTooltip                                     m_tooltip;
-    DxuiPopupMenu                                   m_columnMenu;
-    DxuiFocusManager                                m_focusMgr;
+    std::array<DxuiCheckbox*, kEventTypeCheckCount>  m_eventChecks        = {};
+    DxuiCheckbox                                   * m_audioMasterCheck   = nullptr;
+    std::array<DxuiCheckbox*, kAudioSubCheckCount>   m_audioSubChecks     = {};
+    DxuiCheckbox                                   * m_rawQtCheck         = nullptr;
+    DxuiRadioGroup                                 * m_driveRadio         = nullptr;
+    DxuiTextInput                                  * m_trackEdit          = nullptr;
+    DxuiTextInput                                  * m_sectorEdit         = nullptr;
+    DxuiButton                                     * m_pauseButton        = nullptr;
+    DxuiButton                                     * m_clearButton        = nullptr;
+    DxuiListView                                   * m_eventList          = nullptr;
+    DxuiTooltip                                      m_tooltip;
+    DxuiPopupMenu                                    m_columnMenu;
+    DxuiFocusManager                                 m_focusMgr;
 
     FilterState                           m_filter;
     Disk2EventRing                       m_ring;

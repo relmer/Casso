@@ -13,6 +13,7 @@ public:
     using ClickFn = std::function<void()>;
 
     DxuiButton() { m_focusable = true; }
+    explicit DxuiButton  (const std::wstring & label) { m_focusable = true; SetLabel (label); }
     ~DxuiButton() override = default;
 
     void  Layout          (const RECT & rect) { SetBounds (rect); }

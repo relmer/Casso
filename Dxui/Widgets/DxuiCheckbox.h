@@ -37,6 +37,7 @@ public:
     using ChangeFn = std::function<void (bool checked)>;
 
     DxuiCheckbox() { m_focusable = true; }
+    explicit DxuiCheckbox  (std::wstring label, bool checked = false) { m_focusable = true; m_label = std::move (label); m_checked = checked; }
     ~DxuiCheckbox() override = default;
 
     void  SetRect    (const RECT & rect)  { SetBounds (rect); }
