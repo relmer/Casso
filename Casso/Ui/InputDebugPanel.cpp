@@ -3,6 +3,7 @@
 #include "InputDebugPanel.h"
 
 #include "Chrome/CassoTheme.h"
+#include "Core/DxuiAbsoluteLayout.h"
 #include "Window/DxuiHostWindow.h"
 
 
@@ -14,7 +15,6 @@ constexpr LPCWSTR  s_kpszWindowTitle = L"Casso - Input events";
 
 constexpr int      s_kPreferredWidthDip  = 960;
 constexpr int      s_kPreferredHeightDip = 600;
-constexpr UINT     s_kSwapBufferCount    = 2;
 constexpr float    s_kLabelFontDip       = 13.0f;
 
 // Minimum width (DIP) a column can be drag-resized to, and the DPI
@@ -579,36 +579,10 @@ void InputDebugPanel::ProjectOne (
 
 InputDebugPanel::InputDebugPanel()
 {
-    // Register each owned widget into the panel's child list via Adopt
-    // so they participate in the IDxuiControl tree (Bounds, Visible,
-    // focus, parent pointers). The widgets remain InputDebugPanel-owned
-    // members; Adopt is non-owning. The chrome shell still drives
-    // input/paint through the bespoke IChromedPanelContent shims;
-    // collapsing the duality is deferred to a follow-up session that
-    // also threads a popup host through to the pair-view dropdowns
-    // and column menu.
-    Adopt (m_emuLabel);
-    Adopt (m_hostLabel);
-    for (DxuiLabel & label : m_pairLabel)
-    {
-        Adopt (label);
-    }
-    Adopt (m_allCheck);
-    Adopt (m_emuKeyboardCheck);
-    Adopt (m_joystickCheck);
-    Adopt (m_paddleCheck);
-    Adopt (m_hostKeyboardCheck);
-    for (DxuiDropdown & dropdown : m_pairView)
-    {
-        Adopt (dropdown);
-    }
-    Adopt (m_pauseButton);
-    Adopt (m_clearButton);
-    Adopt (m_copyButton);
-    Adopt (m_eventList);
-    Adopt (m_tooltip);
-    Adopt (m_columnMenu);
-
+    // The content widgets are adopted into the host window's root panel
+    // (not into this panel) in Create() once the host exists, so the
+    // host paint pump walks and paints them. The constructor only seeds
+    // the Uptime anchor; every other member default-initializes.
     m_uptimeAnchor = std::chrono::steady_clock::now();
 }
 
@@ -635,6 +609,12 @@ InputDebugPanel::~InputDebugPanel()
 //
 //  Create
 //
+//  Stands up a full-ownership DxuiHostWindow (borderless chrome, close-
+//  only caption, host-owned swap chain / paint pump), installs this
+//  panel as its IDxuiHostClient, and adopts every content widget into
+//  the host root so the host paint pump paints them. Idempotent -- a
+//  second call while already open is a no-op.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT InputDebugPanel::Create (
@@ -644,10 +624,12 @@ HRESULT InputDebugPanel::Create (
     ID3D11DeviceContext  * context,
     const CassoTheme    * theme)
 {
-    HRESULT  hr = S_OK;
+    HRESULT                       hr        = S_OK;
+    DxuiHostWindow::CreateParams  params;
+    RECT                          clientRc  = {};
 
 
-    BAIL_OUT_IF (m_window.IsOpen(), S_OK);
+    BAIL_OUT_IF (m_host != nullptr, S_OK);
 
     CBRAEx (hInstance, E_INVALIDARG);
     CBRAEx (device,    E_INVALIDARG);
@@ -657,11 +639,71 @@ HRESULT InputDebugPanel::Create (
     m_context = context;
     m_theme   = theme;
 
-    hr = m_window.RegisterClass (hInstance, s_kpszClassName);
-    CHRA (hr);
+    params.title             = s_kpszWindowTitle;
+    params.hInstance         = hInstance;
+    params.ownerHwnd         = hwndOwner;
+    params.borderless        = true;
+    params.resizable         = true;
+    params.roundedCorners    = true;
+    params.darkMode          = true;
+    params.createSwapChain   = true;
+    params.captionStyle      = DxuiCaptionStyle::CloseOnly;
+    params.classNameOverride = s_kpszClassName;
+    params.initialSizeDip    = { s_kPreferredWidthDip, s_kPreferredHeightDip };
 
-    hr = m_window.Create (hwndOwner, this, device, context, theme);
-    CHRA (hr);
+    m_host = std::make_unique<DxuiHostWindow>();
+    m_host->SetClient (this);
+
+    hr = m_host->Create (params);
+    CHRF (hr, m_host.reset());
+
+    m_hwnd = m_host->Hwnd();
+    m_dpi  = m_host->Scaler().Dpi();
+
+    // Adopt every content widget into the host root so the host paint
+    // pump walks and paints them. The tooltip and column menu are NOT
+    // adopted -- they render through the host popup pool so they can
+    // escape the client rect.
+    m_host->Root().SetLayout (std::make_unique<DxuiAbsoluteLayout>());
+    m_host->Root().Adopt (m_emuLabel);
+    m_host->Root().Adopt (m_hostLabel);
+    for (DxuiLabel & label : m_pairLabel)
+    {
+        m_host->Root().Adopt (label);
+    }
+
+    m_host->Root().Adopt (m_allCheck);
+    m_host->Root().Adopt (m_emuKeyboardCheck);
+    m_host->Root().Adopt (m_joystickCheck);
+    m_host->Root().Adopt (m_paddleCheck);
+    m_host->Root().Adopt (m_hostKeyboardCheck);
+    for (DxuiDropdown & dropdown : m_pairView)
+    {
+        m_host->Root().Adopt (dropdown);
+    }
+
+    m_host->Root().Adopt (m_pauseButton);
+    m_host->Root().Adopt (m_clearButton);
+    m_host->Root().Adopt (m_copyButton);
+    m_host->Root().Adopt (m_eventList);
+
+    m_host->SetTheme (m_theme);
+
+    m_columnMenu.SetPopupHost (m_host.get());
+    m_tooltip.SetPopupHost (m_host.get());
+
+    ConfigureWidgets();
+
+    if (GetClientRect (m_hwnd, &clientRc))
+    {
+        m_widthPx  = std::max (1, (int) (clientRc.right  - clientRc.left));
+        m_heightPx = std::max (1, (int) (clientRc.bottom - clientRc.top));
+    }
+
+    RecomputeLayout();
+
+    ShowWindow (m_hwnd, SW_SHOWNORMAL);
+    SetForegroundWindow (m_hwnd);
 
 Error:
     return hr;
@@ -679,7 +721,17 @@ Error:
 
 void InputDebugPanel::Show()
 {
-    m_window.Activate();
+    HWND  hwnd = (m_host != nullptr) ? m_host->Hwnd() : nullptr;
+
+
+
+    if (hwnd == nullptr)
+    {
+        return;
+    }
+
+    ShowWindow (hwnd, IsIconic (hwnd) ? SW_RESTORE : SW_SHOW);
+    SetForegroundWindow (hwnd);
 }
 
 
@@ -694,7 +746,8 @@ void InputDebugPanel::Show()
 
 void InputDebugPanel::Hide()
 {
-    HWND  hwnd = m_window.Hwnd();
+    HWND  hwnd = (m_host != nullptr) ? m_host->Hwnd() : nullptr;
+
 
 
     if (hwnd != nullptr)
@@ -715,7 +768,7 @@ void InputDebugPanel::Hide()
 
 void InputDebugPanel::Destroy()
 {
-    m_window.Destroy();
+    m_host.reset();
 }
 
 
@@ -726,14 +779,34 @@ void InputDebugPanel::Destroy()
 //
 //  RenderFrame
 //
+//  Public per-frame entry point invoked by the EmulatorShell render
+//  loop. Drains the event ring into the display rows, advances the
+//  list / tooltip timers, then invalidates the host window so its
+//  WM_PAINT pump repaints the adopted widget tree.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT InputDebugPanel::RenderFrame()
 {
-    // Drive scrollbar auto-repeat for any held arrow / track press.
-    m_eventList.Tick (NowMs());
+    HRESULT  hr  = S_OK;
+    int64_t  now = NowMs();
 
-    return m_window.Render();
+
+
+    BAIL_OUT_IF (m_host == nullptr, S_OK);
+
+    DrainAndProject();
+
+    // Drive scrollbar auto-repeat for any held arrow / track press and
+    // the tooltip open / close dwell timers.
+    m_eventList.Tick (now);
+    m_tooltip.Tick   (now);
+
+    InvalidateRect (m_host->Hwnd(), nullptr, FALSE);
+    UpdateWindow   (m_host->Hwnd());
+
+Error:
+    return hr;
 }
 
 
@@ -748,7 +821,12 @@ HRESULT InputDebugPanel::RenderFrame()
 
 void InputDebugPanel::SetTheme (const CassoTheme * theme)
 {
-    m_window.SetTheme (theme);
+    m_theme = theme;
+    if (m_host != nullptr)
+    {
+        m_host->SetTheme (m_theme);
+    }
+
     m_focusMgr.SetTheme (theme);
 }
 
@@ -758,13 +836,32 @@ void InputDebugPanel::SetTheme (const CassoTheme * theme)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  GetWindowClassName
+//  OnLButtonDown
+//
+//  Captures the mouse and takes focus so a drag that begins on a
+//  scrollbar thumb or a column-resize handle keeps receiving moves once
+//  the cursor leaves the client, then routes the press to OnMouse. The
+//  host does no capture / focus bookkeeping of its own, so the panel
+//  owns it here.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-LPCWSTR InputDebugPanel::GetWindowClassName() const
+DxuiMessageResult InputDebugPanel::OnLButtonDown (WPARAM wParam, LPARAM lParam)
 {
-    return s_kpszClassName;
+    int  x = (int) (short) LOWORD (lParam);
+    int  y = (int) (short) HIWORD (lParam);
+
+
+
+    UNREFERENCED_PARAMETER (wParam);
+
+    if (m_host != nullptr)
+    {
+        SetCapture (m_host->Hwnd());
+        SetFocus   (m_host->Hwnd());
+    }
+
+    return DispatchClientMouse (DxuiMouseEventKind::Down, DxuiMouseButton::Left, x, y, 0.0f);
 }
 
 
@@ -773,13 +870,25 @@ LPCWSTR InputDebugPanel::GetWindowClassName() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  GetWindowTitle
+//  OnLButtonUp
+//
+//  Releases the drag capture taken on button-down and routes the
+//  release to OnMouse.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-LPCWSTR InputDebugPanel::GetWindowTitle() const
+DxuiMessageResult InputDebugPanel::OnLButtonUp (WPARAM wParam, LPARAM lParam)
 {
-    return s_kpszWindowTitle;
+    int  x = (int) (short) LOWORD (lParam);
+    int  y = (int) (short) HIWORD (lParam);
+
+
+
+    UNREFERENCED_PARAMETER (wParam);
+
+    ReleaseCapture();
+
+    return DispatchClientMouse (DxuiMouseEventKind::Up, DxuiMouseButton::Left, x, y, 0.0f);
 }
 
 
@@ -788,58 +897,186 @@ LPCWSTR InputDebugPanel::GetWindowTitle() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  OnHostCreated
+//  OnRButtonDown
+//
+//  Takes focus and routes the secondary press to OnMouse, which raises
+//  the column-header context menu.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT InputDebugPanel::OnHostCreated (
-    HWND                   hwnd,
-    ID3D11Device         * device,
-    ID3D11DeviceContext  * context,
-    int                    widthPx,
-    int                    heightPx,
-    UINT                   dpi,
-    DxuiHostWindow       * captionHost,
-    const CassoTheme    * theme)
+DxuiMessageResult InputDebugPanel::OnRButtonDown (WPARAM wParam, LPARAM lParam)
 {
-    HRESULT  hr = S_OK;
+    int  x = (int) (short) LOWORD (lParam);
+    int  y = (int) (short) HIWORD (lParam);
 
 
-    CBRAEx (hwnd,    E_INVALIDARG);
-    CBRAEx (device,  E_INVALIDARG);
-    CBRAEx (context, E_INVALIDARG);
 
-    m_hwnd     = hwnd;
-    m_device   = device;
-    m_context  = context;
-    m_widthPx  = std::max (1, widthPx);
-    m_heightPx = std::max (1, heightPx);
-    m_dpi      = dpi;
-    m_captionHost = captionHost;
-    m_theme    = theme;
+    UNREFERENCED_PARAMETER (wParam);
 
-    hr = EnsureSwapChain();
-    CHRA (hr);
+    if (m_host != nullptr)
+    {
+        SetFocus (m_host->Hwnd());
+    }
 
-    hr = m_painter.Initialize (device, context);
-    CHRA (hr);
+    return DispatchClientMouse (DxuiMouseEventKind::Down, DxuiMouseButton::Right, x, y, 0.0f);
+}
 
-    hr = m_text.Initialize (device);
-    CHRA (hr);
 
-    ConfigureWidgets();
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnMouseMove
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiMessageResult InputDebugPanel::OnMouseMove (WPARAM wParam, LPARAM lParam)
+{
+    int  x = (int) (short) LOWORD (lParam);
+    int  y = (int) (short) HIWORD (lParam);
+
+
+
+    UNREFERENCED_PARAMETER (wParam);
+
+    return DispatchClientMouse (DxuiMouseEventKind::Move, DxuiMouseButton::None, x, y, 0.0f);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnMouseWheel
+//
+//  WM_MOUSEWHEEL reports the point in SCREEN coordinates, so map it back
+//  to client px before dispatch. The signed notch count is normalized to
+//  wheel notches (+1 per notch up) to match the DxuiMouseEvent contract.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiMessageResult InputDebugPanel::OnMouseWheel (WPARAM wParam, LPARAM lParam, bool horizontal)
+{
+    POINT  pt         = { (int) (short) LOWORD (lParam), (int) (short) HIWORD (lParam) };
+    float  wheelDelta = (float) GET_WHEEL_DELTA_WPARAM (wParam) / (float) WHEEL_DELTA;
+
+
+
+    UNREFERENCED_PARAMETER (horizontal);
+
+    if (m_host != nullptr)
+    {
+        ScreenToClient (m_host->Hwnd(), &pt);
+    }
+
+    return DispatchClientMouse (DxuiMouseEventKind::Wheel, DxuiMouseButton::None, pt.x, pt.y, wheelDelta);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnKeyDown
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiMessageResult InputDebugPanel::OnKeyDown (WPARAM vk, LPARAM lParam)
+{
+    UNREFERENCED_PARAMETER (lParam);
+
+    return DispatchClientKey (DxuiKeyEventKind::Down, vk);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnChar
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiMessageResult InputDebugPanel::OnChar (WPARAM ch, LPARAM lParam)
+{
+    UNREFERENCED_PARAMETER (lParam);
+
+    return DispatchClientKey (DxuiKeyEventKind::Char, ch);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnSetCursor
+//
+//  Shows the horizontal-resize cursor while a column drag is live or the
+//  cursor is parked on a header-edge resize handle; otherwise defers to
+//  the host. Only plain client area is reclassified -- NC areas (resize
+//  edges, caption) keep the host's own cursor handling.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiMessageResult InputDebugPanel::OnSetCursor (WORD hitTest)
+{
+    POINT  cursor = {};
+    int    relX   = 0;
+    int    relY   = 0;
+
+
+    if (hitTest != HTCLIENT) { return DxuiMessageResult::NotHandled; }
+
+    if (m_host == nullptr || GetCursorPos (&cursor) == FALSE)
+    {
+        return DxuiMessageResult::NotHandled;
+    }
+
+    ScreenToClient (m_host->Hwnd(), &cursor);
+    relX = cursor.x - m_layout.listView.left;
+    relY = cursor.y - m_layout.listView.top;
+
+    if (m_eventList.IsResizingColumn() ||
+        m_eventList.HitTestColumnResize (relX, relY, 4) >= 0)
+    {
+        SetCursor (LoadCursorW (nullptr, IDC_SIZEWE));
+        return DxuiMessageResult::Handled;
+    }
+
+    return DxuiMessageResult::NotHandled;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnSize
+//
+//  Fires after the host has finished its own layout response; caches the
+//  final client size and DPI, then re-runs the panel's layout so the
+//  adopted widgets track the new bounds.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiMessageResult InputDebugPanel::OnSize (UINT widthPx, UINT heightPx)
+{
+    m_widthPx  = std::max (1, (int) widthPx);
+    m_heightPx = std::max (1, (int) heightPx);
+    if (m_host != nullptr)
+    {
+        m_dpi = m_host->Scaler().Dpi();
+    }
+
     RecomputeLayout();
 
-    // Route the column right-click menu through the host popup pool so
-    // it renders as a real top-level popup (not clipped to the panel).
-    m_columnMenu.SetPopupHost (m_window.PopupHost());
-
-    // Same for hover tooltips so the balloon can escape the panel edge
-    // and occlude whatever is behind it.
-    m_tooltip.SetPopupHost (m_window.PopupHost());
-
-Error:
-    return hr;
+    return DxuiMessageResult::Handled;
 }
 
 
@@ -848,27 +1085,68 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  OnHostDestroyed
+//  OnGetMinMax
+//
+//  Clamps the OS minimum track size to the panel's preferred client size
+//  scaled to the current DPI. The window is borderless, so client size
+//  and window size coincide.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void InputDebugPanel::OnHostDestroyed()
+DxuiMessageResult InputDebugPanel::OnGetMinMax (MINMAXINFO * info)
 {
-    // Release any live popup back to the pool and drop the host pointer
-    // before the host (and its pool) are destroyed in OnDestroy.
+    if (info == nullptr) { return DxuiMessageResult::NotHandled; }
+
+    info->ptMinTrackSize.x = MulDiv (s_kPreferredWidthDip,  (int) m_dpi, 96);
+    info->ptMinTrackSize.y = MulDiv (s_kPreferredHeightDip, (int) m_dpi, 96);
+
+    return DxuiMessageResult::Handled;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnClose
+//
+//  Non-modal: the close box hides the window and keeps the HWND (and the
+//  filter / event-ring state) alive so EmulatorShell can re-Show it.
+//  Consumes the close so DefWindowProc never destroys the window.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiMessageResult InputDebugPanel::OnClose()
+{
+    Hide();
+
+    return DxuiMessageResult::Handled;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnDestroy
+//
+//  Releases any live popup back to the pool and drops host-derived
+//  pointers before the host (and its popup pool) tear down. Does NOT
+//  call PostQuitMessage -- this is a secondary window.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void InputDebugPanel::OnDestroy()
+{
     m_columnMenu.Hide();
     m_columnMenu.SetPopupHost (nullptr);
 
     m_tooltip.HideImmediate();
     m_tooltip.SetPopupHost (nullptr);
 
-    m_text.UnbindBackBuffer();
-    m_text.Shutdown();
-    m_painter.Shutdown();
-    ReleaseRenderTargets();
-    m_swapChain.Reset();
-    m_hwnd     = nullptr;
-    m_captionHost = nullptr;
+    m_hwnd = nullptr;
 }
 
 
@@ -877,54 +1155,17 @@ void InputDebugPanel::OnHostDestroyed()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  OnHostResize
+//  OnDpiChanged
+//
+//  Fires after the host has applied the OS-suggested rect; refreshes the
+//  cached DPI and re-runs layout so the DPI-scaled slots track the new
+//  scale.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT InputDebugPanel::OnHostResize (int widthPx, int heightPx, UINT dpi)
+void InputDebugPanel::OnDpiChanged (UINT newDpi)
 {
-    HRESULT  hr = S_OK;
-
-
-    m_widthPx  = std::max (1, widthPx);
-    m_heightPx = std::max (1, heightPx);
-    m_dpi      = dpi;
-
-    BAIL_OUT_IF (m_swapChain == nullptr, S_OK);
-
-    m_text.UnbindBackBuffer();
-    ReleaseRenderTargets();
-
-    hr = m_swapChain->ResizeBuffers (s_kSwapBufferCount,
-                                     (UINT) m_widthPx,
-                                     (UINT) m_heightPx,
-                                     DXGI_FORMAT_B8G8R8A8_UNORM,
-                                     0);
-    CHRA (hr);
-
-    hr = CreateBackBufferRtv();
-    CHRA (hr);
-
-    RecomputeLayout();
-
-Error:
-    return hr;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  SetChromeTheme
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void InputDebugPanel::SetChromeTheme (DxuiHostWindow * captionHost, const CassoTheme * theme)
-{
-    m_captionHost = captionHost;
-    m_theme    = theme;
+    m_dpi = newDpi;
     RecomputeLayout();
 }
 
@@ -934,18 +1175,29 @@ void InputDebugPanel::SetChromeTheme (DxuiHostWindow * captionHost, const CassoT
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  PreferredClientSize
+//  DispatchClientMouse
+//
+//  Builds a DxuiMouseEvent from client-px coordinates plus the live
+//  modifier-key state and routes it through the panel's OnMouse, mapping
+//  the bool result onto the host client Handled / NotHandled contract.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-SIZE InputDebugPanel::PreferredClientSize (UINT dpi) const
+DxuiMessageResult InputDebugPanel::DispatchClientMouse (DxuiMouseEventKind kind, DxuiMouseButton button, int x, int y, float wheelDelta)
 {
-    SIZE  size = {};
+    DxuiMouseEvent  ev;
 
 
-    size.cx = MulDiv (s_kPreferredWidthDip,  (int) dpi, 96);
-    size.cy = MulDiv (s_kPreferredHeightDip, (int) dpi, 96);
-    return size;
+
+    ev.kind        = kind;
+    ev.button      = button;
+    ev.positionDip = { x, y };
+    ev.wheelDelta  = wheelDelta;
+    ev.shift       = (GetKeyState (VK_SHIFT)   & 0x8000) != 0;
+    ev.ctrl        = (GetKeyState (VK_CONTROL) & 0x8000) != 0;
+    ev.alt         = (GetKeyState (VK_MENU)    & 0x8000) != 0;
+
+    return this->OnMouse (ev) ? DxuiMessageResult::Handled : DxuiMessageResult::NotHandled;
 }
 
 
@@ -954,92 +1206,28 @@ SIZE InputDebugPanel::PreferredClientSize (UINT dpi) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  EnsureSwapChain
+//  DispatchClientKey
+//
+//  Builds a DxuiKeyEvent from a virtual-key / character code plus the
+//  live modifier-key state and routes it through the panel's OnKey,
+//  mapping the bool result onto the host client Handled / NotHandled
+//  contract.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT InputDebugPanel::EnsureSwapChain()
+DxuiMessageResult InputDebugPanel::DispatchClientKey (DxuiKeyEventKind kind, WPARAM code)
 {
-    HRESULT                                  hr      = S_OK;
-    Microsoft::WRL::ComPtr<IDXGIDevice>     dxgiDev;
-    Microsoft::WRL::ComPtr<IDXGIAdapter>    adapter;
-    Microsoft::WRL::ComPtr<IDXGIFactory2>   factory;
-    DXGI_SWAP_CHAIN_DESC1                   desc    = {};
-
-
-    CBRA (m_device);
-    CBRA (m_hwnd);
-    BAIL_OUT_IF (m_swapChain != nullptr, S_OK);
-
-    hr = m_device->QueryInterface (IID_PPV_ARGS (&dxgiDev));
-    CHRA (hr);
-    hr = dxgiDev->GetAdapter (&adapter);
-    CHRA (hr);
-    hr = adapter->GetParent (IID_PPV_ARGS (&factory));
-    CHRA (hr);
-
-    desc.Width       = (UINT) std::max (1, m_widthPx);
-    desc.Height      = (UINT) std::max (1, m_heightPx);
-    desc.Format      = DXGI_FORMAT_B8G8R8A8_UNORM;
-    desc.SampleDesc.Count = 1;
-    desc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
-    desc.BufferCount = s_kSwapBufferCount;
-    desc.Scaling     = DXGI_SCALING_STRETCH;
-    desc.SwapEffect  = DXGI_SWAP_EFFECT_FLIP_SEQUENTIAL;
-    desc.AlphaMode   = DXGI_ALPHA_MODE_IGNORE;
-
-    hr = factory->CreateSwapChainForHwnd (m_device, m_hwnd, &desc, nullptr, nullptr, &m_swapChain);
-    CHRA (hr);
-
-    hr = CreateBackBufferRtv();
-    CHRA (hr);
-
-Error:
-    return hr;
-}
+    DxuiKeyEvent  ev;
 
 
 
+    ev.kind  = kind;
+    ev.vk    = code;
+    ev.shift = (GetKeyState (VK_SHIFT)   & 0x8000) != 0;
+    ev.ctrl  = (GetKeyState (VK_CONTROL) & 0x8000) != 0;
+    ev.alt   = (GetKeyState (VK_MENU)    & 0x8000) != 0;
 
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  CreateBackBufferRtv
-//
-////////////////////////////////////////////////////////////////////////////////
-
-HRESULT InputDebugPanel::CreateBackBufferRtv()
-{
-    HRESULT                                      hr     = S_OK;
-    Microsoft::WRL::ComPtr<ID3D11Texture2D>     buffer;
-
-
-    CBRA (m_device);
-    CBRA (m_swapChain);
-
-    hr = m_swapChain->GetBuffer (0, IID_PPV_ARGS (&buffer));
-    CHRA (hr);
-
-    hr = m_device->CreateRenderTargetView (buffer.Get(), nullptr, &m_rtv);
-    CHRA (hr);
-
-Error:
-    return hr;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ReleaseRenderTargets
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void InputDebugPanel::ReleaseRenderTargets()
-{
-    m_rtv.Reset();
+    return this->OnKey (ev) ? DxuiMessageResult::Handled : DxuiMessageResult::NotHandled;
 }
 
 
@@ -1153,7 +1341,7 @@ void InputDebugPanel::ConfigureWidgets()
 
     UpdatePairVisibility();
     SyncAllCheck();
-    m_focusMgr.Attach  (this);
+    m_focusMgr.Attach  (&m_host->Root());
     m_focusMgr.SetTheme (m_theme);
     m_focusMgr.Rebuild();
 }
@@ -1174,9 +1362,9 @@ void InputDebugPanel::RecomputeLayout()
     int  p         = 0;
 
 
-    if (m_captionHost != nullptr)
+    if (m_host != nullptr)
     {
-        topOffset = m_captionHost->CaptionHeightPx();
+        topOffset = m_host->CaptionHeightPx();
     }
 
     m_emuLabel.SetDpi          (m_dpi);
@@ -1246,149 +1434,6 @@ void InputDebugPanel::LayoutWidgets()
     m_copyButton.Layout    (m_layout.copyButton);
     m_eventList.SetRect    (m_layout.listView);
     m_eventList.SetColumns (PlanVisibleColumns (m_columnsModel));
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  Render
-//
-////////////////////////////////////////////////////////////////////////////////
-
-HRESULT InputDebugPanel::Render()
-{
-    HRESULT                                  hr            = S_OK;
-    float                                    clearColor[4] = { 0.08f, 0.08f, 0.08f, 1.0f };
-    Microsoft::WRL::ComPtr<ID3D11Texture2D> backBuffer;
-    Microsoft::WRL::ComPtr<IDXGISurface>    surface;
-    ChromeVisualState                       visual        = {};
-    D3D11_VIEWPORT                          vp            = {};
-
-
-
-    BAIL_OUT_IF (m_context == nullptr || m_rtv == nullptr || m_swapChain == nullptr, S_OK);
-
-    DrainAndProject();
-
-    if (!m_text.IsTargetBound())
-    {
-        hr = m_swapChain->GetBuffer (0, IID_PPV_ARGS (&backBuffer));
-        CHRA (hr);
-
-        hr = backBuffer.As (&surface);
-        CHRA (hr);
-
-        hr = m_text.BindBackBuffer (surface.Get(), m_dpi, m_dpi);
-        CHRA (hr);
-    }
-
-    if (m_theme != nullptr)
-    {
-        ArgbToFloat4 (m_theme->titleBarBottom, clearColor);
-        clearColor[3] = 1.0f;
-    }
-
-    vp.TopLeftX = 0.0f;
-    vp.TopLeftY = 0.0f;
-    vp.Width    = (float) m_widthPx;
-    vp.Height   = (float) m_heightPx;
-    vp.MinDepth = 0.0f;
-    vp.MaxDepth = 1.0f;
-
-    m_context->RSSetViewports        (1, &vp);
-    m_context->OMSetRenderTargets    (1, m_rtv.GetAddressOf(), nullptr);
-    m_context->ClearRenderTargetView (m_rtv.Get(), clearColor);
-
-    hr = m_painter.Begin (m_widthPx, m_heightPx);
-    CHRA (hr);
-
-    hr = m_text.BeginDrawOffscreen();
-    CHRA (hr);
-
-    visual.dpi = m_dpi;
-    if (m_captionHost != nullptr && m_theme != nullptr)
-    {
-        m_captionHost->RenderCaption (m_painter, m_text, *m_theme);
-    }
-
-    if (m_theme != nullptr)
-    {
-        uint32_t  labelArgb = m_theme->ForegroundMuted();
-
-        m_emuLabel.SetColorArgb     (labelArgb);
-        m_hostLabel.SetColorArgb    (labelArgb);
-        m_pairLabel[0].SetColorArgb (labelArgb);
-        m_pairLabel[1].SetColorArgb (labelArgb);
-        m_pairView[0].SetTheme (m_theme);
-        m_pairView[1].SetTheme (m_theme);
-        m_tooltip.SetTheme (*m_theme);
-    }
-
-    m_emuLabel.Paint  (m_painter, m_text);
-    m_hostLabel.Paint (m_painter, m_text);
-    if (m_theme != nullptr)
-    {
-        m_allCheck.Paint          (m_painter, m_text, *m_theme);
-        m_emuKeyboardCheck.Paint  (m_painter, m_text, *m_theme);
-        if (m_joystickVisible) { m_joystickCheck.Paint (m_painter, m_text, *m_theme); }
-        if (m_paddleVisible)   { m_paddleCheck.Paint   (m_painter, m_text, *m_theme); }
-        m_hostKeyboardCheck.Paint (m_painter, m_text, *m_theme);
-    }
-    m_pairLabel[0].Paint (m_painter, m_text);
-    m_pairLabel[1].Paint (m_painter, m_text);
-    m_pairView[0].PaintBase (m_painter, m_text);
-    m_pairView[1].PaintBase (m_painter, m_text);
-    if (m_theme != nullptr)
-    {
-        m_pauseButton.Paint (m_painter, m_text, *m_theme);
-        m_clearButton.Paint (m_painter, m_text, *m_theme);
-        m_copyButton.Paint  (m_painter, m_text, *m_theme);
-    }
-    m_eventList.Paint (m_painter, m_text);
-    m_pairView[0].PaintMenu (m_painter, m_text);
-    m_pairView[1].PaintMenu (m_painter, m_text);
-    m_tooltip.Tick (NowMs());
-
-    if (m_tooltip.IsVisible() || m_columnMenu.IsVisible())
-    {
-        hr = m_painter.End (m_rtv.Get());
-        CHRA (hr);
-        hr = m_text.EndDrawComposite();
-        CHRA (hr);
-        hr = m_painter.Begin (m_widthPx, m_heightPx);
-        CHRA (hr);
-        hr = m_text.BeginDrawOffscreen();
-        CHRA (hr);
-    }
-
-    m_tooltip.Paint (m_painter, m_text);
-    m_columnMenu.Paint (m_painter, m_text);
-
-    hr = m_painter.End (m_rtv.Get());
-    CHRA (hr);
-
-    hr = m_text.EndDrawComposite();
-    CHRA (hr);
-
-    // If the D2D target was lost partway through this frame (the
-    // swap-chain buffers were invalidated by a live resize), EndDraw
-    // unbinds the target and the frame we just built is incomplete --
-    // some text was flushed before the loss, the rest was dropped.
-    // Presenting it would flash partially-painted content (blank rows,
-    // missing buttons). Skip Present so the last good frame stays on
-    // screen; the next Render rebinds (via the !IsTargetBound() path
-    // above) and repaints cleanly.
-    if (m_text.IsTargetBound())
-    {
-        hr = m_swapChain->Present (1, 0);
-        CHRA (hr);
-    }
-
-Error:
-    return hr;
 }
 
 
@@ -2121,10 +2166,10 @@ bool InputDebugPanel::OnMouse (const DxuiMouseEvent & ev)
                     // The list owns all in-list routing (scrollbar arrows /
                     // thumb / track, column resize, header-click sort, row
                     // select) via OnMouse and reports outcomes through the
-                    // callbacks wired at setup. ChromedPanelWindow already
-                    // holds the Win32 capture for the full press, so any
-                    // drag the list starts keeps receiving moves without the
-                    // panel managing capture itself.
+                    // callbacks wired at setup. OnLButtonDown holds the
+                    // Win32 capture for the full press, so any drag the
+                    // list starts keeps receiving moves after the cursor
+                    // leaves the client.
                     (void) ForwardMouseToList (DxuiMouseEventKind::Down, DxuiMouseButton::Left, x, y, 0.0f);
                     m_focusMgr.SetFocused (&m_eventList);
                 }
@@ -2153,8 +2198,8 @@ bool InputDebugPanel::OnMouse (const DxuiMouseEvent & ev)
                 // Finish any list drag (scrollbar thumb / column resize) the
                 // list started on button-down. The pointer may have left the
                 // list bounds mid-drag, so forward the release
-                // unconditionally. ChromedPanelWindow owns the Win32 capture
-                // and releases it after this returns.
+                // unconditionally. OnLButtonUp releases the Win32 capture
+                // before routing this release.
                 if (wasInteracting)
                 {
                     (void) ForwardMouseToList (DxuiMouseEventKind::Up, DxuiMouseButton::Left, x, y, 0.0f);
@@ -2276,74 +2321,6 @@ bool InputDebugPanel::OnKey (const DxuiKeyEvent & ev)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  Accept
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void InputDebugPanel::Accept()
-{
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  Cancel
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void InputDebugPanel::Cancel()
-{
-    Hide();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  IsContentActive
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool InputDebugPanel::IsContentActive() const
-{
-    return true;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  OnSetCursor
-//
-////////////////////////////////////////////////////////////////////////////////
-
-HCURSOR InputDebugPanel::OnSetCursor (int x, int y)
-{
-    int  lx = x - m_layout.listView.left;
-    int  ly = y - m_layout.listView.top;
-
-
-    if (m_eventList.IsResizingColumn() || m_eventList.HitTestColumnResize (lx, ly, 4) >= 0)
-    {
-        return LoadCursor (nullptr, IDC_SIZEWE);
-    }
-
-    return nullptr;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  UpdateTooltip
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -2400,9 +2377,18 @@ void InputDebugPanel::ShowColumnMenu (int anchorX, int anchorY)
 {
     auto &                       columns  = m_columnsModel;
     std::vector<DxuiPopupMenu::Item> items;
+    IDxuiTextRenderer          *  textRenderer = (m_host != nullptr) ? m_host->GetTextRenderer() : nullptr;
     RECT                         hostRect = { 0, 0, m_widthPx, m_heightPx };
     int                          i        = 0;
 
+
+    // The host owns no paint pump in adopt / synthetic mode, so it exposes
+    // no text renderer to measure / lay the menu out with -- bail rather
+    // than dereference a null renderer.
+    if (textRenderer == nullptr)
+    {
+        return;
+    }
 
     items.reserve (kInputColumnCount);
     for (i = 0; i < kInputColumnCount; i++)
@@ -2414,7 +2400,7 @@ void InputDebugPanel::ShowColumnMenu (int anchorX, int anchorY)
         items.push_back (std::move (item));
     }
 
-    m_columnMenu.Show (anchorX, anchorY, std::move (items), m_text, hostRect);
+    m_columnMenu.Show (anchorX, anchorY, std::move (items), *textRenderer, hostRect);
 }
 
 
@@ -2681,52 +2667,6 @@ void InputDebugPanel::OnHostButton (int index, bool down)
     m_pendingHostEvents.push_back (e);
 }
 
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  Layout (IDxuiControl adapter)
-//
-//  Bridges DxuiPanel's pure-virtual Layout(RECT, scaler) for the
-//  IDxuiControl tree. The chrome shell drives this panel's bespoke
-//  RecomputeLayout / LayoutWidgets pipeline directly via
-//  OnHostResize, so the adapter is intentionally a no-op. It exists
-//  so an IDxuiControl-tree walk targeting the panel does not abort
-//  on the pure virtual.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void InputDebugPanel::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
-{
-    UNREFERENCED_PARAMETER (boundsDip);
-    UNREFERENCED_PARAMETER (scaler);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  Paint (IDxuiControl adapter)
-//
-//  Bridges DxuiPanel's pure-virtual Paint(IDxuiPainter, ...). The
-//  chrome shell drives this panel's bespoke Render via the
-//  IChromedPanelContent path, which composes against its own owned
-//  m_painter / m_text. The adapter is a no-op for the same reason
-//  Layout above is: the unified Dxui dispatch path does not yet
-//  reach the chrome-hosted panel, so this hook stays inert.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void InputDebugPanel::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
-{
-    UNREFERENCED_PARAMETER (painter);
-    UNREFERENCED_PARAMETER (text);
-    UNREFERENCED_PARAMETER (theme);
-}
 
 
 
