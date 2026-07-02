@@ -142,6 +142,15 @@ private:
         Display  = 3,
     };
 
+    // Canonical tab-page count (TabIndex enumerators). Used by the page
+    // dispatch table and the Ctrl+Tab cycle wrap math.
+    static constexpr int  s_kTabCount = 4;
+
+
+    // Active page for polymorphic input / paint dispatch. m_activeTab is
+    // always a valid TabIndex (0..s_kTabCount-1), so no bounds guard.
+    IDxuiControl * ActivePage() const { return m_pages[m_activeTab]; }
+
 
     void  OnMachineSelected           (const std::string & machineName);
     void  OnThemeSelected             (const std::string & themeName);
@@ -209,6 +218,12 @@ private:
     DxuiModalScrim          m_scrim;
     DxuiButton              m_applyButton;
     DxuiButton              m_cancelButton;
+
+    // Polymorphic page dispatch table in TabIndex order
+    // [Machine, Hardware, Theme, Display]. Populated once in the ctor
+    // after the page members are constructed; ActivePage() indexes it by
+    // m_activeTab to replace the former per-tab switch dispatch.
+    IDxuiControl      * m_pages[s_kTabCount] = {};
 
     // Drive-audio audition state. A play button posts the dialed
     // volumes / pan / mechanism to the engine for preview; if the user

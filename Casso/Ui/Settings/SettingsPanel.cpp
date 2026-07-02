@@ -113,6 +113,14 @@ SettingsPanel::SettingsPanel ()
     Adopt (m_applyButton);
     Adopt (m_cancelButton);
 
+    // Page dispatch table in TabIndex order for polymorphic input /
+    // paint routing (see ActivePage / OnMouse* / Paint). The page
+    // members are fully constructed by the time the ctor body runs.
+    m_pages[(int) TabIndex::Machine]  = &m_machinePage;
+    m_pages[(int) TabIndex::Hardware] = &m_hardwarePage;
+    m_pages[(int) TabIndex::Theme]    = &m_themePage;
+    m_pages[(int) TabIndex::Display]  = &m_displayPage;
+
     // Automatic Tab order: the focus manager tree-walks this panel and
     // collects every visible, enabled, focusable control (tab strip +
     // the active page's widgets + Cancel / Apply) in reading order. No
@@ -946,20 +954,21 @@ void SettingsPanel::Paint (DxuiPainter & painter, DxuiTextRenderer & text)
 
     m_tabs.Paint  (painter, text, theme);
 
-    switch ((TabIndex) m_activeTab)
+    if ((TabIndex) m_activeTab == TabIndex::Display)
     {
-        case TabIndex::Machine:  m_machinePage.Paint  (painter, text, theme); break;
-        case TabIndex::Hardware: m_hardwarePage.Paint (painter, text, theme); break;
-        case TabIndex::Theme:    m_themePage.Paint    (painter, text, theme); break;
-        case TabIndex::Display:
-            // DisplayPage paints its own controls at per-control alpha.
-            // It restores global alpha to 1.0 on exit; re-clamp so the
-            // buttons inherit the panel alpha consistently.
-            m_displayPage.SetFadeState (focusedControlId, focusedA, panelA);
-            m_displayPage.Paint  (painter, text, theme);
-            painter.SetGlobalAlpha (panelA);
-            text.SetGlobalAlpha    (panelA);
-            break;
+        // DisplayPage paints its own controls at per-control alpha; seed
+        // the fade state before the polymorphic paint call below.
+        m_displayPage.SetFadeState (focusedControlId, focusedA, panelA);
+    }
+
+    ActivePage()->Paint (painter, text, theme);
+
+    if ((TabIndex) m_activeTab == TabIndex::Display)
+    {
+        // DisplayPage restores global alpha to 1.0 on exit; re-clamp so
+        // the buttons inherit the panel alpha consistently.
+        painter.SetGlobalAlpha (panelA);
+        text.SetGlobalAlpha    (panelA);
     }
 
     m_applyButton.Paint  (painter, text, theme);
@@ -1028,19 +1037,11 @@ void SettingsPanel::OnMouseMove (int x, int y)
     m_applyButton.SetMouse  (x, y, false);
     m_cancelButton.SetMouse (x, y, false);
 
-    switch ((TabIndex) m_activeTab)
-    {
-        case TabIndex::Machine:  (void) m_machinePage.OnMouse (MakeMouseMove (x, y)); break;
-        case TabIndex::Hardware: (void) m_hardwarePage.OnMouse (MakeMouseMove (x, y)); break;
-        case TabIndex::Theme:    (void) m_themePage.OnMouse (MakeMouseMove (x, y)); break;
-        case TabIndex::Display:
-            // IDxuiControl::OnMouse with kind=Move handles both
-            // hover updates and active slider drag tracking — the
-            // slider only follows the cursor while its m_dragging
-            // latch is set, so siblings just refresh their hover.
-            (void) m_displayPage.OnMouse (MakeMouseMove (x, y));
-            break;
-    }
+    // IDxuiControl::OnMouse with kind=Move handles both hover updates and
+    // active slider drag tracking (DisplayPage) -- the slider only follows
+    // the cursor while its m_dragging latch is set, so siblings just
+    // refresh their hover.
+    (void) ActivePage()->OnMouse (MakeMouseMove (x, y));
 }
 
 
@@ -1079,13 +1080,7 @@ void SettingsPanel::OnLButtonDown (int x, int y)
     m_applyButton.SetMouse  (x, y, true);
     m_cancelButton.SetMouse (x, y, true);
 
-    switch ((TabIndex) m_activeTab)
-    {
-        case TabIndex::Machine:  (void) m_machinePage.OnMouse (MakeMouseButton (DxuiMouseEventKind::Down, x, y)); break;
-        case TabIndex::Hardware: (void) m_hardwarePage.OnMouse (MakeMouseButton (DxuiMouseEventKind::Down, x, y)); break;
-        case TabIndex::Theme:    (void) m_themePage.OnMouse (MakeMouseButton (DxuiMouseEventKind::Down, x, y)); break;
-        case TabIndex::Display:  (void) m_displayPage.OnMouse (MakeMouseButton (DxuiMouseEventKind::Down, x, y)); break;
-    }
+    (void) ActivePage()->OnMouse (MakeMouseButton (DxuiMouseEventKind::Down, x, y));
 }
 
 
@@ -1128,13 +1123,7 @@ void SettingsPanel::OnLButtonUp (int x, int y)
     }
     else
     {
-        switch ((TabIndex) m_activeTab)
-        {
-            case TabIndex::Machine:  (void) m_machinePage.OnMouse (MakeMouseButton (DxuiMouseEventKind::Up, x, y)); break;
-            case TabIndex::Hardware: (void) m_hardwarePage.OnMouse (MakeMouseButton (DxuiMouseEventKind::Up, x, y)); break;
-            case TabIndex::Theme:    (void) m_themePage.OnMouse (MakeMouseButton (DxuiMouseEventKind::Up, x, y)); break;
-            case TabIndex::Display:  (void) m_displayPage.OnMouse (MakeMouseButton (DxuiMouseEventKind::Up, x, y)); break;
-        }
+        (void) ActivePage()->OnMouse (MakeMouseButton (DxuiMouseEventKind::Up, x, y));
     }
 
     m_applyButton.SetMouse  (x, y, false);
@@ -1181,8 +1170,7 @@ bool SettingsPanel::OnKey (WPARAM vk)
     // widget owns focus. Matches the browser / VS document-tab convention.
     if (vk == VK_TAB && ctrlHeld)
     {
-        constexpr int  s_kTabCount = 4;
-        int            next        = m_activeTab + (shiftHeld ? -1 : 1);
+        int  next = m_activeTab + (shiftHeld ? -1 : 1);
 
         if (next < 0)
         {
