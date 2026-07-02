@@ -4,6 +4,7 @@
 
 
 class DxuiHostWindow;
+class IDxuiControl;
 struct CassoTheme;
 
 
@@ -69,6 +70,11 @@ public:
     virtual void     OnMouseWheel  (int x, int y, int delta) { (void) x; (void) y; (void) delta; }
     virtual bool     OnKey         (WPARAM vk) = 0;
     virtual bool     OnChar        (wchar_t ch) { (void) ch; return false; }
+
+    // Access the content as its IDxuiControl root so the chrome can
+    // dispatch DxuiMouseEvent / DxuiKeyEvent through the framework
+    // (DxuiPanel::OnMouse / OnKey) instead of the per-WM methods below.
+    virtual IDxuiControl *  AsControl () = 0;
 
     // Action semantics. Accept = VK_RETURN, Cancel = VK_ESCAPE /
     // WM_CLOSE / window-close. After either, the shell calls

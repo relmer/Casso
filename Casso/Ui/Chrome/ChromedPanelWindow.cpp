@@ -26,6 +26,7 @@ static constexpr int    s_kCenterDivisor        = 2;
 static constexpr int    s_kMinResizeBorderPx    = 8;
 static constexpr int    s_kIconSizePx           = 32;
 static constexpr WORD   s_kBgraBitCount         = 32;
+static constexpr int    s_kKeyDownMask          = 0x8000;
 
 
 
@@ -517,7 +518,11 @@ LRESULT ChromedPanelWindow::WndProc (HWND hwnd, UINT message, WPARAM wParam, LPA
         case WM_CHAR:
             if (m_content != nullptr)
             {
-                m_content->OnChar ((wchar_t) wParam);
+                DxuiKeyEvent  ev = {};
+
+                ev.kind = DxuiKeyEventKind::Char;
+                ev.vk   = (WPARAM) wParam;
+                m_content->AsControl()->OnKey (ev);
             }
             result = 0;
             break;
@@ -803,11 +808,12 @@ void ChromedPanelWindow::OnGetMinMax (MINMAXINFO * minMaxInfo)
 
 void ChromedPanelWindow::OnMouse (UINT message, WPARAM wParam, LPARAM lParam)
 {
-    HRESULT  hr     = S_OK;
-    int      x      = (int) (short) LOWORD (lParam);
-    int      y      = (int) (short) HIWORD (lParam);
-    int      delta  = 0;
-    POINT    pt     = {};
+    HRESULT         hr    = S_OK;
+    int             x     = (int) (short) LOWORD (lParam);
+    int             y     = (int) (short) HIWORD (lParam);
+    int             delta = 0;
+    POINT           pt    = {};
+    DxuiMouseEvent  ev    = {};
 
 
 
@@ -823,30 +829,43 @@ void ChromedPanelWindow::OnMouse (UINT message, WPARAM wParam, LPARAM lParam)
         delta = GET_WHEEL_DELTA_WPARAM (wParam);
     }
 
+    ev.positionDip = { x, y };
+    ev.shift       = (GetKeyState (VK_SHIFT)   & s_kKeyDownMask) != 0;
+    ev.ctrl        = (GetKeyState (VK_CONTROL) & s_kKeyDownMask) != 0;
+    ev.alt         = (GetKeyState (VK_MENU)    & s_kKeyDownMask) != 0;
+
     if (message == WM_LBUTTONDOWN || message == WM_LBUTTONDBLCLK)
     {
         SetCapture (m_hwnd);
         SetFocus (m_hwnd);
-        m_content->OnLButtonDown (x, y);
+        ev.kind   = DxuiMouseEventKind::Down;
+        ev.button = DxuiMouseButton::Left;
     }
     else if (message == WM_LBUTTONUP)
     {
         ReleaseCapture();
-        m_content->OnLButtonUp (x, y);
+        ev.kind   = DxuiMouseEventKind::Up;
+        ev.button = DxuiMouseButton::Left;
     }
     else if (message == WM_RBUTTONDOWN)
     {
         SetFocus (m_hwnd);
-        m_content->OnRButtonDown (x, y);
+        ev.kind   = DxuiMouseEventKind::Down;
+        ev.button = DxuiMouseButton::Right;
     }
     else if (message == WM_MOUSEWHEEL)
     {
-        m_content->OnMouseWheel (x, y, delta);
+        ev.kind       = DxuiMouseEventKind::Wheel;
+        ev.button     = DxuiMouseButton::None;
+        ev.wheelDelta = (float) delta / (float) WHEEL_DELTA;
     }
     else
     {
-        m_content->OnMouseMove (x, y);
+        ev.kind   = DxuiMouseEventKind::Move;
+        ev.button = DxuiMouseButton::None;
     }
+
+    m_content->AsControl()->OnMouse (ev);
 
     DestroyIfContentInactive();
     (void) wParam;
@@ -867,14 +886,21 @@ Error:
 
 void ChromedPanelWindow::OnKeyDown (WPARAM vk)
 {
-    HRESULT  hr       = S_OK;
-    bool     consumed = false;
+    HRESULT       hr       = S_OK;
+    bool          consumed = false;
+    DxuiKeyEvent  ev       = {};
 
 
 
     BAIL_OUT_IF (m_content == nullptr, S_OK);
 
-    consumed = m_content->OnKey (vk);
+    ev.kind  = DxuiKeyEventKind::Down;
+    ev.vk    = vk;
+    ev.shift = (GetKeyState (VK_SHIFT)   & s_kKeyDownMask) != 0;
+    ev.ctrl  = (GetKeyState (VK_CONTROL) & s_kKeyDownMask) != 0;
+    ev.alt   = (GetKeyState (VK_MENU)    & s_kKeyDownMask) != 0;
+
+    consumed = m_content->AsControl()->OnKey (ev);
     if (!consumed && vk == VK_RETURN)
     {
         m_content->Accept();

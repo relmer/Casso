@@ -1477,6 +1477,87 @@ bool Disk2DebugPanel::OnChar (wchar_t ch)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  OnMouse
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool Disk2DebugPanel::OnMouse (const DxuiMouseEvent & ev)
+{
+    int  x = ev.positionDip.x;
+    int  y = ev.positionDip.y;
+
+
+
+    switch (ev.kind)
+    {
+        case DxuiMouseEventKind::Move:
+            OnMouseMove (x, y);
+            return true;
+
+        case DxuiMouseEventKind::Down:
+            if (ev.button == DxuiMouseButton::Left)
+            {
+                OnLButtonDown (x, y);
+                return true;
+            }
+
+            if (ev.button == DxuiMouseButton::Right)
+            {
+                OnRButtonDown (x, y);
+                return true;
+            }
+
+            return false;
+
+        case DxuiMouseEventKind::Up:
+            if (ev.button == DxuiMouseButton::Left)
+            {
+                OnLButtonUp (x, y);
+                return true;
+            }
+
+            return false;
+
+        case DxuiMouseEventKind::Wheel:
+            OnMouseWheel (x, y, (int) (ev.wheelDelta * WHEEL_DELTA));
+            return true;
+
+        default:
+            return false;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnKey
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool Disk2DebugPanel::OnKey (const DxuiKeyEvent & ev)
+{
+    switch (ev.kind)
+    {
+        case DxuiKeyEventKind::Char:
+            return OnChar ((wchar_t) ev.vk);
+
+        case DxuiKeyEventKind::Down:
+            return OnKey ((WPARAM) ev.vk);
+
+        default:
+            return false;
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  Accept
 //
 //  The panel is non-modal and has no commit semantics, so Enter is a

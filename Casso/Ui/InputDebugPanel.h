@@ -108,6 +108,7 @@ public:
     bool     IsContentActive    () const                            override;
     bool     IsNonModal         () const                            override { return true; }
     HCURSOR  OnSetCursor        (int x, int y)                      override;
+    IDxuiControl *  AsControl   ()                                  override { return this; }
 
     // IDxuiControl pure-virtual overrides supplied by inheriting
     // DxuiPanel. The chrome shell drives this panel directly through
@@ -119,12 +120,18 @@ public:
     void    Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
     void    Paint  (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
 
+    // Framework input entry points. These DxuiPanel overrides translate
+    // the DxuiMouseEvent / DxuiKeyEvent to the bespoke integer handlers
+    // above so the chrome can dispatch through the framework with zero
+    // behavior change.
+    bool    OnMouse (const DxuiMouseEvent & ev)                     override;
+    bool    OnKey   (const DxuiKeyEvent   & ev)                     override;
+
     // Surface the base overloads so virtual dispatch through
     // IDxuiControl* still resolves and direct callers can reach the
     // base overload without name-hiding ambiguity.
     using DxuiPanel::Layout;
     using DxuiPanel::Paint;
-    using DxuiPanel::OnKey;
 
     void OnKbdDataRead    (Word address, Byte value, bool strobeSet)    override;
     void OnKbdStrobe      (Word address, Byte value, bool clearedStrobe) override;
