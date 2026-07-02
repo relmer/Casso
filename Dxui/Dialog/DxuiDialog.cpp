@@ -14,7 +14,7 @@ static constexpr LONG  s_kButtonRowHeightDip   = 44;
 static constexpr int   s_kButtonWidthDip       = 96;
 static constexpr int   s_kButtonHeightDip      = 28;
 static constexpr int   s_kButtonGapDip         = 8;
-static constexpr int   s_kButtonRowEdgePadDip  = 12;
+static constexpr int   s_kButtonRowEdgePadDip  = 16;
 static constexpr int   s_kContentPadDip        = 16;
 
 
@@ -321,15 +321,16 @@ void DxuiDialog::Layout (const RECT & boundsPx, const DxuiDpiScaler & scaler)
     //
     if (m_buttonRow != nullptr && !m_buttonWidgets.empty())
     {
-        RECT  row    = m_buttonRow->Bounds();
-        int   wPx    = scaler.Px (s_kButtonWidthDip);
-        int   hPx    = scaler.Px (s_kButtonHeightDip);
-        int   gapPx  = scaler.Px (s_kButtonGapDip);
-        int   edgePx = scaler.Px (s_kButtonRowEdgePadDip);
-        int   count  = (int) m_buttonWidgets.size();
-        int   total  = count * wPx + (count - 1) * gapPx;
-        int   x      = row.right - edgePx - total;
-        int   y      = row.top + ((row.bottom - row.top) - hPx) / 2;
+        RECT  row     = m_buttonRow->Bounds();
+        int   wPx     = scaler.Px (s_kButtonWidthDip);
+        int   hPx     = scaler.Px (s_kButtonHeightDip);
+        int   gapPx   = scaler.Px (s_kButtonGapDip);
+        int   edgePx  = scaler.Px (s_kButtonRowEdgePadDip);
+        int   botPad  = scaler.Px (s_kContentPadDip);
+        int   count   = (int) m_buttonWidgets.size();
+        int   total   = count * wPx + (count - 1) * gapPx;
+        int   x       = row.right - edgePx - total;
+        int   y       = row.bottom - botPad - hPx;
 
         for (int i = 0; i < count; i++)
         {
