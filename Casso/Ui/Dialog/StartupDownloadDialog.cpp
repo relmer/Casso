@@ -22,7 +22,7 @@ static constexpr int    s_kRowHeightDp        = 28;
 static constexpr int    s_kRowGapDp           = 2;
 static constexpr int    s_kBodyWidthDp        = 560;
 static constexpr int    s_kHeaderHeightDp     = 26;
-static constexpr int    s_kHeaderGapAboveDp   = 6;
+static constexpr int    s_kHeaderGapAboveDp   = 12;
 static constexpr float  s_kFontDp             = 13.0f;
 static constexpr float  s_kHeaderFontDp       = 13.0f;
 static constexpr float  s_kSourceColumnDp     = 170.0f;
@@ -433,10 +433,12 @@ void StartupDownloadDialog::PaintBody (
 
         if (entry.groupLabel != curGroup)
         {
-            if (!curGroup.empty())
-            {
-                y += m.headerGap;
-            }
+            // Margin above every group header -- including the first, so
+            // the header clears the intro paragraph above the body. The
+            // height reservation counts this gap for all headers, so
+            // applying it uniformly keeps paint and reserved height in
+            // step (no dead space at the bottom).
+            y += m.headerGap;
 
             curGroup = entry.groupLabel;
             PaintGroupHeader (ctx, hdrLabel, curGroup, m, y);
@@ -812,7 +814,7 @@ StartupDownloadResult StartupDownloadDialog::Show (HINSTANCE                hIns
     else
     {
         intro = L"The following optional files are missing. "
-                L"Choose what to download, then click Download, "
+                L"Choose what to download, then click Download,\n"
                 L"Skip to continue without them, or Exit to quit.";
     }
 
