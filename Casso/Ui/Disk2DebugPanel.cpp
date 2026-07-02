@@ -474,6 +474,7 @@ Error:
 void Disk2DebugPanel::SetTheme (const CassoTheme * theme)
 {
     m_window.SetTheme (theme);
+    m_focusMgr.SetTheme (theme);
 }
 
 
@@ -780,187 +781,6 @@ void Disk2DebugPanel::ShowColumnMenu (int anchorX, int anchorY)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  OnKey
-//
-////////////////////////////////////////////////////////////////////////////////
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ClearAllWidgetFocus
-//
-//  Drops focus on every focusable widget. SetFocusIndex calls this
-//  before re-applying focus to the new owner.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void Disk2DebugPanel::ClearAllWidgetFocus()
-{
-    m_pauseButton.SetFocused      (false);
-    m_clearButton.SetFocused      (false);
-    for (auto & cb : m_eventChecks)     { cb.SetFocused (false); }
-    m_audioMasterCheck.SetFocused (false);
-    for (auto & cb : m_audioSubChecks)  { cb.SetFocused (false); }
-    m_rawQtCheck.SetFocused       (false);
-    m_driveRadio.SetFocused       (false);
-    m_trackEdit.SetFocused        (false);
-    m_sectorEdit.SetFocused       (false);
-    m_eventList.SetListFocused          (false);
-    m_eventList.SetFocusedHeaderColumn  (-1);
-    m_eventList.SetFocusedDividerColumn (-1);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DynamicStopCount / TotalStopCount
-//
-//  The dynamic-stop count is 2 * VisibleColumnCount (one header stop +
-//  one right-divider stop per visible column), where the last divider
-//  slot is repurposed as the list-body stop (i.e. the last visible
-//  column has no divider; the very last dynamic stop is the list).
-//  So total dynamic stops = 2N for N visible columns (N headers,
-//  N-1 dividers, 1 list).
-//
-////////////////////////////////////////////////////////////////////////////////
-
-int Disk2DebugPanel::DynamicStopCount () const
-{
-    return 2 * m_eventList.GetVisibleColumnCount();
-}
-
-int Disk2DebugPanel::TotalStopCount () const
-{
-    return 19 + DynamicStopCount();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  SetFocusIndex
-//
-//  Single source of truth for which widget owns the keyboard. The
-//  index space (Z-pattern, top-to-bottom / left-to-right):
-//
-//      0..7       m_eventChecks[0..7]
-//      8          m_audioMasterCheck
-//      9..12      m_audioSubChecks[0..3]
-//      13         m_driveRadio
-//      14         m_trackEdit
-//      15         m_sectorEdit
-//      16         m_rawQtCheck
-//      17         m_pauseButton
-//      18         m_clearButton
-//      19..       per-visible-column header / divider stops, then list
-//
-//  Out-of-range values (including -1) clear all focus.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void Disk2DebugPanel::SetFocusIndex (int index)
-{
-    int  total = TotalStopCount();
-
-
-    ClearAllWidgetFocus();
-
-    if (index < 0 || index >= total)
-    {
-        m_focusIndex = -1;
-        return;
-    }
-
-    m_focusIndex = index;
-
-    if (index <= 7)
-    {
-        m_eventChecks[(size_t) index].SetFocused (true);
-        return;
-    }
-    if (index == 8)  { m_audioMasterCheck.SetFocused (true); return; }
-    if (index <= 12) { m_audioSubChecks[(size_t) (index - 9)].SetFocused (true); return; }
-    if (index == 13) { m_driveRadio.SetFocused  (true); return; }
-    if (index == 14) { m_trackEdit.SetFocused   (true); return; }
-    if (index == 15) { m_sectorEdit.SetFocused  (true); return; }
-    if (index == 16) { m_rawQtCheck.SetFocused  (true); return; }
-    if (index == 17) { m_pauseButton.SetFocused (true); return; }
-    if (index == 18) { m_clearButton.SetFocused (true); return; }
-
-    // Dynamic per-column stop.
-    int  d = index - 19;
-    int  N = m_eventList.GetVisibleColumnCount();
-    if (N <= 0 || d < 0 || d >= 2 * N)
-    {
-        m_focusIndex = -1;
-        return;
-    }
-
-    if (d == 2 * N - 1)
-    {
-        m_eventList.SetListFocused (true);
-        ApplyListSelection();
-        return;
-    }
-
-    if ((d & 1) == 0)
-    {
-        int  absCol = m_eventList.GetNthVisibleColumnIndex (d / 2);
-        if (absCol >= 0) { m_eventList.SetFocusedHeaderColumn (absCol); }
-    }
-    else
-    {
-        int  absCol = m_eventList.GetNthVisibleColumnIndex ((d - 1) / 2);
-        if (absCol >= 0) { m_eventList.SetFocusedDividerColumn (absCol); }
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  FocusCycle
-//
-//  Tab (+1) / Shift+Tab (-1) advance the focus index with wrap-around
-//  over the full 0..TotalStopCount()-1 range. From the unfocused
-//  state, Tab lands on 0 and Shift+Tab lands on the last stop.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void Disk2DebugPanel::FocusCycle (int direction)
-{
-    int  total = TotalStopCount();
-    int  next  = 0;
-
-
-    if (total <= 0) { return; }
-
-    if (m_focusIndex < 0)
-    {
-        next = (direction >= 0) ? 0 : (total - 1);
-    }
-    else
-    {
-        next = m_focusIndex + direction;
-        while (next < 0)        { next += total; }
-        while (next >= total)   { next -= total; }
-    }
-
-    SetFocusIndex (next);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  ApplyListSelection
 //
 //  Resolves m_listSelectedEventIndex (an absolute index into m_events)
@@ -1075,50 +895,6 @@ void Disk2DebugPanel::SortByColumn (int absCol)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  OnHeaderSortKey
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void Disk2DebugPanel::OnHeaderSortKey()
-{
-    if (m_focusIndex < 19) { return; }
-    int  d      = m_focusIndex - 19;
-    int  absCol = m_eventList.GetNthVisibleColumnIndex (d / 2);
-    if (absCol < 0) { return; }
-    SortByColumn (absCol);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  OnDividerResizeKey
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void Disk2DebugPanel::OnDividerResizeKey (int direction)
-{
-    if (m_focusIndex < 19) { return; }
-    int  d      = m_focusIndex - 19;
-    int  absCol = m_eventList.GetNthVisibleColumnIndex ((d - 1) / 2);
-    int  stepPx = MulDiv (8,  (int) m_dpi, 96);
-    int  minPx  = MulDiv (24, (int) m_dpi, 96);
-    if (absCol < 0) { return; }
-
-    int  curPx  = m_eventList.GetColumnEffectiveWidthPx ((size_t) absCol);
-    int  newPx  = curPx + direction * stepPx;
-    if (newPx < minPx) { newPx = minPx; }
-    m_eventList.SetColumnOverrideWidthPx ((size_t) absCol, newPx);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  OnMouse
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -1170,8 +946,7 @@ bool Disk2DebugPanel::OnMouse (const DxuiMouseEvent & ev)
         case DxuiMouseEventKind::Down:
             if (ev.button == DxuiMouseButton::Left)
             {
-                bool  handled  = false;
-                int   newFocus = -1;
+                bool  handled = false;
 
 
                 if (m_columnMenu.IsVisible())
@@ -1182,20 +957,22 @@ bool Disk2DebugPanel::OnMouse (const DxuiMouseEvent & ev)
                 // The client-px widgets share the panel's coordinate space
                 // (ev.positionDip == client px), so route the press straight
                 // to each widget's OnMouse; the widget hit-tests itself and
-                // reports whether it consumed the press.
+                // reports whether it consumed the press. The focus manager
+                // records the consuming widget so keyboard traversal resumes
+                // from the last-clicked control.
                 for (size_t i = 0; i < m_eventChecks.size(); ++i)
                 {
                     if (m_eventChecks[i].OnMouse (ev))
                     {
-                        handled  = true;
-                        newFocus = (int) i;
+                        m_focusMgr.SetFocused (&m_eventChecks[i]);
+                        handled = true;
                         break;
                     }
                 }
                 if (!handled && m_audioMasterCheck.OnMouse (ev))
                 {
-                    handled  = true;
-                    newFocus = 8;
+                    m_focusMgr.SetFocused (&m_audioMasterCheck);
+                    handled = true;
                 }
                 if (!handled)
                 {
@@ -1203,47 +980,42 @@ bool Disk2DebugPanel::OnMouse (const DxuiMouseEvent & ev)
                     {
                         if (m_audioSubChecks[i].OnMouse (ev))
                         {
-                            handled  = true;
-                            newFocus = 9 + (int) i;
+                            m_focusMgr.SetFocused (&m_audioSubChecks[i]);
+                            handled = true;
                             break;
                         }
                     }
                 }
                 if (!handled && m_rawQtCheck.OnMouse (ev))
                 {
-                    handled  = true;
-                    newFocus = 16;
+                    m_focusMgr.SetFocused (&m_rawQtCheck);
+                    handled = true;
                 }
                 if (!handled && m_driveRadio.OnMouse (ev))
                 {
-                    handled  = true;
-                    newFocus = 13;
+                    m_focusMgr.SetFocused (&m_driveRadio);
+                    handled = true;
                 }
                 if (!handled && m_trackEdit.OnMouse (ev))
                 {
-                    handled  = true;
-                    newFocus = 14;
+                    m_focusMgr.SetFocused (&m_trackEdit);
+                    handled = true;
                 }
                 if (!handled && m_sectorEdit.OnMouse (ev))
                 {
-                    handled  = true;
-                    newFocus = 15;
+                    m_focusMgr.SetFocused (&m_sectorEdit);
+                    handled = true;
                 }
 
                 if (m_pauseButton.OnMouse (ev))
                 {
-                    handled  = true;
-                    newFocus = 17;
+                    m_focusMgr.SetFocused (&m_pauseButton);
+                    handled = true;
                 }
                 if (!handled && m_clearButton.OnMouse (ev))
                 {
-                    handled  = true;
-                    newFocus = 18;
-                }
-
-                if (handled)
-                {
-                    SetFocusIndex (newFocus);
+                    m_focusMgr.SetFocused (&m_clearButton);
+                    handled = true;
                 }
 
                 if (!handled)
@@ -1251,12 +1023,13 @@ bool Disk2DebugPanel::OnMouse (const DxuiMouseEvent & ev)
                     // The list owns all in-list routing (scrollbar arrows /
                     // thumb / track, column resize, header-click sort, row
                     // select) via OnMouse and reports outcomes through the
-                    // callbacks wired at setup (which also drive the focus
-                    // stops). ChromedPanelWindow holds the Win32 capture for
-                    // the full press, so any drag the list starts keeps
-                    // receiving moves without the panel managing capture
-                    // itself. OnMouse consumes only in-bounds presses.
+                    // callbacks wired at setup. ChromedPanelWindow holds the
+                    // Win32 capture for the full press, so any drag the list
+                    // starts keeps receiving moves without the panel managing
+                    // capture itself. OnMouse consumes only in-bounds presses;
+                    // when it does, focus moves to the list.
                     handled = ForwardMouseToList (DxuiMouseEventKind::Down, DxuiMouseButton::Left, x, y, 0.0f);
+                    if (handled) { m_focusMgr.SetFocused (&m_eventList); }
                 }
 
                 return true;
@@ -1346,8 +1119,7 @@ bool Disk2DebugPanel::OnMouse (const DxuiMouseEvent & ev)
 
 bool Disk2DebugPanel::OnKey (const DxuiKeyEvent & ev)
 {
-    WPARAM  vk        = (WPARAM) ev.vk;
-    bool    shiftDown = (GetKeyState (VK_SHIFT) & 0x8000) != 0;
+    IDxuiControl *  focused = nullptr;
 
 
     // Char events route to the text inputs only; each edit inserts the
@@ -1361,80 +1133,28 @@ bool Disk2DebugPanel::OnKey (const DxuiKeyEvent & ev)
 
     if (ev.kind != DxuiKeyEventKind::Down) { return false; }
 
-    // Key-down routes to the currently-focused widget only. The Tab key
-    // always cycles focus; the column popup, when visible, captures
-    // everything else.
-    if (m_columnMenu.IsVisible())  { return m_columnMenu.OnKey (vk); }
+    // The column popup, when visible, captures every key-down.
+    if (m_columnMenu.IsVisible()) { return m_columnMenu.OnKey (ev); }
 
-    if (vk == VK_TAB)
+    // Focused-first: the focused control sees the key before the panel's
+    // Tab traversal. A focused list owns Tab, cycling its header /
+    // divider / body sub-stops (column sort / resize / row navigation)
+    // and returning false only when Tab steps past either end; focused
+    // checkboxes / buttons self-activate on Space / Enter.
+    focused = m_focusMgr.Focused();
+    if (focused != nullptr && focused->OnKey (ev))
     {
-        FocusCycle (shiftDown ? -1 : 1);
         return true;
     }
 
-    if (m_focusIndex < 0) { return false; }
-
-    if (m_focusIndex >= 19)
+    // Tab advances the panel's control focus once the focused control
+    // (e.g. the list at a sub-stop boundary) declines the key.
+    if ((WPARAM) ev.vk == VK_TAB)
     {
-        int  d = m_focusIndex - 19;
-        int  N = m_eventList.GetVisibleColumnCount();
-        if (N <= 0 || d < 0 || d >= 2 * N) { return false; }
-
-        if (d == 2 * N - 1)
-        {
-            int  rowCount = m_eventList.GetRowCount();
-            int  cur      = m_eventList.GetSelectedRow();
-            int  cap      = m_eventList.GetVisibleRowCapacity();
-            int  next     = cur;
-
-            if (rowCount <= 0) { return false; }
-
-            switch (vk)
-            {
-                case VK_UP:    next = (cur <= 0) ? 0 : (cur - 1); break;
-                case VK_DOWN:  next = (cur < 0) ? 0 : ((cur + 1 >= rowCount) ? (rowCount - 1) : (cur + 1)); break;
-                case VK_HOME:  next = 0;                          break;
-                case VK_END:   next = rowCount - 1;               break;
-                case VK_PRIOR: next = (cur < 0) ? 0 : std::max (0, cur - std::max (1, cap)); break;
-                case VK_NEXT:  next = (cur < 0) ? 0 : std::min (rowCount - 1, cur + std::max (1, cap)); break;
-                default:       return false;
-            }
-            m_eventList.SetSelectedRow (next);
-            OnListSelectionMoved();
-            return true;
-        }
-
-        if ((d & 1) == 0)
-        {
-            if (vk == VK_SPACE || vk == VK_RETURN)
-            {
-                OnHeaderSortKey();
-                return true;
-            }
-            return false;
-        }
-
-        if (vk == VK_LEFT)  { OnDividerResizeKey (-1); return true; }
-        if (vk == VK_RIGHT) { OnDividerResizeKey (+1); return true; }
-        return false;
+        m_focusMgr.HandleKey ((GetKeyState (VK_SHIFT) & 0x8000) ? DxuiFocusKey::ShiftTab : DxuiFocusKey::Tab);
+        return true;
     }
 
-    if (m_focusIndex <= 7) { return m_eventChecks[(size_t) m_focusIndex].OnKey (vk); }
-    switch (m_focusIndex)
-    {
-        case 8:  return m_audioMasterCheck.OnKey (vk);
-        case 13: return m_driveRadio.OnKey       (vk);
-        case 14: return m_trackEdit.OnKey        (vk);
-        case 15: return m_sectorEdit.OnKey       (vk);
-        case 16: return m_rawQtCheck.OnKey       (vk);
-        case 17: return m_pauseButton.OnKey      (vk);
-        case 18: return m_clearButton.OnKey      (vk);
-        default: break;
-    }
-    if (m_focusIndex >= 9 && m_focusIndex <= 12)
-    {
-        return m_audioSubChecks[(size_t) (m_focusIndex - 9)].OnKey (vk);
-    }
     return false;
 }
 
@@ -1890,50 +1610,39 @@ void Disk2DebugPanel::ConfigureWidgets()
     m_eventList.SetColumns    (std::move (cols));
     m_eventList.SetShowHeader (true);
 
+    // The list owns keyboard column navigation: when it holds focus, its
+    // own OnKey cycles the header / divider / body sub-stops on Tab and
+    // fires the sort / resize / selection callbacks below.
+    m_eventList.SetKeyboardColumnNav (true);
+
     // The list owns its own scroll / thumb / column-resize / row-select
     // routing via OnMouse; these callbacks fold the semantic outcomes
-    // back into the panel (selected event, sort, column-resize) and keep
-    // the keyboard focus stops in sync with mouse interaction.
+    // back into the panel (selected event, sort).
     m_eventList.SetOnSelectionChanged ([this] (int row)
     {
-        int  visColCount = m_eventList.GetVisibleColumnCount();
-
         if (row >= 0 && row < (int) m_filteredIndices.size())
         {
             m_listSelectedEventIndex = (int) m_filteredIndices[(size_t) row];
-        }
-        if (visColCount > 0)
-        {
-            SetFocusIndex (19 + 2 * visColCount - 1);
         }
         ApplyListSelection();
     });
     m_eventList.SetOnSortColumn ([this] (int col)
     {
-        int  visIdx = m_eventList.GetVisibleIndexOfColumn ((size_t) col);
-
         SortByColumn (col);
-        if (visIdx >= 0)
-        {
-            SetFocusIndex (19 + 2 * visIdx);
-        }
     });
-    m_eventList.SetOnColumnResized ([this] (int col, int)
-    {
-        int  visIdx = m_eventList.GetVisibleIndexOfColumn ((size_t) col);
-
-        if (visIdx >= 0)
-        {
-            SetFocusIndex (19 + 2 * visIdx + 1);
-        }
-    });
+    m_eventList.SetOnColumnResized ([] (int, int) {});
 
     m_columnMenu.SetOnSelect ([this] (int index)
     {
         if (index < 0 || index >= (int) m_eventList.GetColumnCount()) { return; }
         m_eventList.SetColumnVisible ((size_t) index, !m_eventList.IsColumnVisible ((size_t) index));
         LayoutWidgets();
+        m_focusMgr.Rebuild();
     });
+
+    m_focusMgr.Attach  (this);
+    m_focusMgr.SetTheme (m_theme);
+    m_focusMgr.Rebuild();
 }
 
 

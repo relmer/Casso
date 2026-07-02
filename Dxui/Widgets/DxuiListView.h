@@ -137,6 +137,13 @@ public:
     void  SetFocusedDividerColumn (int c)                  { m_focusedDividerCol = (c < 0) ? -1 : c; }
     void  SetSelectedRow          (int r);
 
+    // Opt-in keyboard column navigation. When enabled, OnKey walks the
+    // header / divider sub-stops and the list body via Tab and acts on
+    // them (sort on a header, resize on a divider, row moves in the body)
+    // so a consumer no longer has to reimplement that routing. Default
+    // off: OnKey is inert for every existing consumer.
+    void  SetKeyboardColumnNav    (bool enabled)           { m_kbColNavEnabled = enabled; }
+
     // Vertical scroll. The widget keeps a top-row index into m_rows;
     // Paint clips to [m_topRow, m_topRow + capacity). "Sticky tail"
     // auto-pins the view to the bottom when new rows arrive while the
@@ -237,8 +244,9 @@ public:
     //  IDxuiControl overrides. OnMouse makes the list self-contained:
     //  the host forwards widget-relative mouse events and the list runs
     //  its own hit-test / scroll / drag / selection routing, raising the
-    //  callbacks above for the semantic outcomes. OnKey stays a shim
-    //  (key handling remains host-driven via the focus accessors above).
+    //  callbacks above for the semantic outcomes. OnKey drives the opt-in
+    //  keyboard column navigation (see SetKeyboardColumnNav); it is inert
+    //  unless that flag is set, so existing consumers are unaffected.
     //
     DxuiListView() { m_focusable = true; }
     ~DxuiListView () override = default;
@@ -247,8 +255,8 @@ public:
     void                Paint          (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
     bool                OnMouse        (const DxuiMouseEvent & ev) override;
     LPCWSTR             CursorForPoint (POINT clientPx) const       override;
-    bool                OnKey          (const DxuiKeyEvent   & ev) override { (void) ev; return false; }
-    void                OnFocusChanged (bool focused) override { SetListFocused (focused); }
+    bool                OnKey          (const DxuiKeyEvent   & ev) override;
+    void                OnFocusChanged (bool focused) override;
     DxuiAccessibleRole  AccessibleRole () const override { return DxuiAccessibleRole::ListView; }
 
 private:
@@ -262,6 +270,7 @@ private:
     static constexpr int    s_kMinColWidthDip    = 48;
     static constexpr int    s_kResizeGrabDip     = 4;
     static constexpr int    s_kHScrollStepDip    = 32;
+    static constexpr int    s_kKbResizeStepDip   = 8;
     static constexpr int    s_kMinThumbPx       = 16;
     static constexpr float  s_kFontDip           = 13.0f;
     static constexpr float  s_kHeaderFontDip     = 13.0f;
@@ -363,6 +372,9 @@ private:
                                      float           y) const;
     void    SyncVertScroll          () const;
     void    SyncHorzScroll          () const;
+    void    ApplyKeyboardColumnFocus ();
+    bool    HandleKeyboardColumnKey  (WPARAM vk);
+    bool    HandleKeyboardBodyRowNav (WPARAM vk);
     const IDxuiTheme                * m_theme      = nullptr;
     std::vector<Column>               m_columns;
     std::vector<std::vector<Cell>>    m_rows;
@@ -388,6 +400,8 @@ private:
     bool                              m_listFocused       = false;
     int                               m_focusedHeaderCol  = -1;
     int                               m_focusedDividerCol = -1;
+    bool                              m_kbColNavEnabled   = false;
+    int                               m_kbColFocus        = -1;
     bool                              m_vertDragging          = false;
     float                             m_vertDragGrab        = 0.0f;
     bool                              m_hScrollEnabled    = false;

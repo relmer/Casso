@@ -3,6 +3,7 @@
 #include "Chrome/ChromedPanelWindow.h"
 #include "Chrome/IChromedPanelContent.h"
 #include "Disk2DebugPanelLayout.h"
+#include "Core/DxuiFocusManager.h"
 #include "Core/DxuiPanel.h"
 #include "Widgets/DxuiButton.h"
 #include "Widgets/DxuiCheckbox.h"
@@ -165,16 +166,9 @@ private:
     void    UpdatePauseLabel     ();
     void    UpdateTooltip        (int x, int y);
     void    ShowColumnMenu       (int anchorX, int anchorY);
-    void    FocusCycle           (int direction);
-    void    SetFocusIndex        (int index);
-    void    ClearAllWidgetFocus  ();
-    int     DynamicStopCount     () const;
-    int     TotalStopCount       () const;
     void    ApplyListSelection   ();
     void    OnListSelectionMoved ();
     bool    ForwardMouseToList   (DxuiMouseEventKind kind, DxuiMouseButton button, int x, int y, float wheelDelta);
-    void    OnHeaderSortKey      ();
-    void    OnDividerResizeKey   (int direction);
     void    SortByColumn         (int absCol);
     int64_t NowMs                () const;
 
@@ -216,6 +210,7 @@ private:
     DxuiListView                                    m_eventList;
     DxuiTooltip                                     m_tooltip;
     DxuiPopupMenu                                   m_columnMenu;
+    DxuiFocusManager                                m_focusMgr;
 
     FilterState                           m_filter;
     Disk2EventRing                       m_ring;
@@ -234,13 +229,5 @@ private:
     bool                                  m_trackEditValid  = true;
     bool                                  m_sectorEditValid = true;
 
-    // Tab-order focus state. m_focusIndex selects which widget owns
-    // the keyboard; -1 means no widget is focused. SetFocusIndex
-    // mirrors the state to per-widget SetFocused(); FocusCycle wraps
-    // forward (+1) or backward (-1) with Tab / Shift+Tab. Indices
-    // 0..18 cover the named widget stops in Z-order; 19+ are dynamic
-    // per-column stops (header, divider, ..., list) computed from the
-    // currently visible columns.
-    int                                   m_focusIndex             = -1;
     int                                   m_listSelectedEventIndex = -1;
 };

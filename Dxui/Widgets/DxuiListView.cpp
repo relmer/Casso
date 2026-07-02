@@ -2673,3 +2673,284 @@ void DxuiListView::Tick (int64_t nowMs)
 
     m_scrollRepeatNextMs = nowMs + s_kScrollRepeatIntervalMs;
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiListView::OnFocusChanged
+//
+//  Mirrors the list-focused flag the widget renders with. Losing focus
+//  also drops any keyboard column sub-focus so the header / divider
+//  markers don't linger after Tab moves on to another control.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiListView::OnFocusChanged (bool focused)
+{
+    SetListFocused (focused);
+
+    if (!focused)
+    {
+        m_kbColFocus = -1;
+        SetFocusedHeaderColumn (-1);
+        SetFocusedDividerColumn (-1);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiListView::ApplyKeyboardColumnFocus
+//
+//  Reflects the current keyboard sub-stop (m_kbColFocus) into the header /
+//  divider focus markers the widget paints. Even sub-stops select a
+//  header column, odd sub-stops select the divider trailing a column, and
+//  the final sub-stop is the list body (no header / divider marker).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiListView::ApplyKeyboardColumnFocus ()
+{
+    int  n    = GetVisibleColumnCount();
+    int  body = (2 * n) - 1;
+    int  col  = -1;
+
+
+
+    if (m_kbColFocus < 0 || m_kbColFocus == body)
+    {
+        SetFocusedHeaderColumn (-1);
+        SetFocusedDividerColumn (-1);
+        return;
+    }
+
+    if ((m_kbColFocus % 2) == 0)
+    {
+        col = GetNthVisibleColumnIndex (m_kbColFocus / 2);
+        SetFocusedHeaderColumn (col);
+        SetFocusedDividerColumn (-1);
+        return;
+    }
+
+    col = GetNthVisibleColumnIndex ((m_kbColFocus - 1) / 2);
+    SetFocusedDividerColumn (col);
+    SetFocusedHeaderColumn (-1);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiListView::HandleKeyboardColumnKey
+//
+//  Acts on a header or divider keyboard sub-stop. A header sub-stop sorts
+//  its column on Enter / Space; a divider sub-stop nudges the width of the
+//  column it trails left / right by a fixed step, clamped to the minimum
+//  column width, and reports the new width through m_onColumnResized.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiListView::HandleKeyboardColumnKey (WPARAM vk)
+{
+    int  col    = -1;
+    int  stepPx = 0;
+    int  minPx  = 0;
+    int  cur    = 0;
+    int  next   = 0;
+
+
+
+    if ((m_kbColFocus % 2) == 0)
+    {
+        if (vk != VK_RETURN && vk != VK_SPACE)
+        {
+            return false;
+        }
+
+        col = GetNthVisibleColumnIndex (m_kbColFocus / 2);
+        if (col >= 0 && m_onSortColumn)
+        {
+            m_onSortColumn (col);
+        }
+
+        return true;
+    }
+
+    if (vk != VK_LEFT && vk != VK_RIGHT)
+    {
+        return false;
+    }
+
+    col = GetNthVisibleColumnIndex ((m_kbColFocus - 1) / 2);
+    if (col < 0)
+    {
+        return false;
+    }
+
+    stepPx = m_scaler.Px (s_kKbResizeStepDip);
+    minPx  = m_scaler.Px (s_kMinColWidthDip);
+    cur    = GetColumnEffectiveWidthPx ((size_t) col);
+    next   = cur + ((vk == VK_LEFT) ? -stepPx : stepPx);
+    if (next < minPx)
+    {
+        next = minPx;
+    }
+
+    SetColumnOverrideWidthPx ((size_t) col, next);
+    if (m_onColumnResized)
+    {
+        m_onColumnResized (col, next);
+    }
+
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiListView::HandleKeyboardBodyRowNav
+//
+//  Moves the selected row from the list-body keyboard sub-stop. Arrows
+//  step one row, Home / End jump to the ends, and PageUp / PageDown move
+//  by the visible row capacity. The target is clamped to a valid row.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiListView::HandleKeyboardBodyRowNav (WPARAM vk)
+{
+    int  rows = GetRowCount();
+    int  cap  = GetVisibleRowCapacity();
+    int  page = (cap > 1) ? cap : 1;
+    int  cur  = GetSelectedRow();
+    int  next = cur;
+
+
+
+    if (rows <= 0)
+    {
+        return false;
+    }
+
+    switch (vk)
+    {
+        case VK_UP:    next = cur - 1;    break;
+        case VK_DOWN:  next = cur + 1;    break;
+        case VK_HOME:  next = 0;          break;
+        case VK_END:   next = rows - 1;   break;
+        case VK_PRIOR: next = cur - page; break;
+        case VK_NEXT:  next = cur + page; break;
+        default:       return false;
+    }
+
+    if (next < 0)
+    {
+        next = 0;
+    }
+
+    if (next > rows - 1)
+    {
+        next = rows - 1;
+    }
+
+    SetSelectedRow (next);
+    return true;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiListView::OnKey
+//
+//  Opt-in keyboard column navigation. When SetKeyboardColumnNav is off the
+//  list is inert (existing consumers are unaffected). When on, Tab walks a
+//  sequence of 2N sub-stops for N visible columns -- header0, divider0,
+//  header1, divider1, ..., header(N-1), body -- and Shift+Tab walks back.
+//  Tabbing past either end releases the sub-focus and returns false so the
+//  host focus manager advances to the neighbouring control. At a sub-stop,
+//  keys act on it: sort a header, resize a divider, or move rows in the
+//  body.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiListView::OnKey (const DxuiKeyEvent & ev)
+{
+    int  n     = 0;
+    int  stops = 0;
+    int  body  = 0;
+
+
+
+    if (!m_kbColNavEnabled)
+    {
+        return false;
+    }
+
+    if (ev.kind != DxuiKeyEventKind::Down)
+    {
+        return false;
+    }
+
+    n = GetVisibleColumnCount();
+    if (n <= 0)
+    {
+        return false;
+    }
+
+    stops = 2 * n;
+    body  = stops - 1;
+
+    if (ev.vk == VK_TAB)
+    {
+        if (ev.shift)
+        {
+            m_kbColFocus = (m_kbColFocus == -1) ? body : (m_kbColFocus - 1);
+            if (m_kbColFocus < 0)
+            {
+                m_kbColFocus = -1;
+                SetFocusedHeaderColumn (-1);
+                SetFocusedDividerColumn (-1);
+                return false;
+            }
+        }
+        else
+        {
+            m_kbColFocus = (m_kbColFocus == -1) ? 0 : (m_kbColFocus + 1);
+            if (m_kbColFocus >= stops)
+            {
+                m_kbColFocus = -1;
+                SetFocusedHeaderColumn (-1);
+                SetFocusedDividerColumn (-1);
+                return false;
+            }
+        }
+
+        ApplyKeyboardColumnFocus();
+        return true;
+    }
+
+    if (m_kbColFocus == -1)
+    {
+        return false;
+    }
+
+    if (m_kbColFocus == body)
+    {
+        return HandleKeyboardBodyRowNav (ev.vk);
+    }
+
+    return HandleKeyboardColumnKey (ev.vk);
+}
