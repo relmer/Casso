@@ -194,9 +194,8 @@ void DxuiDialog::Build()
         titleRaw   = titleOwn.get();
         closeRaw   = closeOwn.get();
 
-        titleRaw->SetText   (m_title);
-        titleRaw->SetVAlign (DxuiTextVAlign::Center);
-        titleRaw->SetHAlign (DxuiTextHAlign::Left);
+        titleRaw->SetText      (m_title);
+        titleRaw->SetTextAlign (DxuiTextHAlign::Left, DxuiTextVAlign::Center);
 
         captionRaw->SetBounds (captionRect);
         captionRaw->Adopt     (*titleRaw);

@@ -228,10 +228,10 @@ Error:
 void Disk2DebugPanel::OnCreate()
 {
     m_trackFilterLabel   = CreateChild<DxuiLabel> ();
-    m_sectorFilterLabel  = CreateChild<DxuiLabel> ();
-    m_driveFilterLabel   = CreateChild<DxuiLabel> ();
-    m_diskEventsLabel    = CreateChild<DxuiLabel> ();
-    m_audioEventsLabel   = CreateChild<DxuiLabel> ();
+    m_sectorFilterLabel  = CreateChild<DxuiLabel> (s_kpszSectorFilterLabel);
+    m_driveFilterLabel   = CreateChild<DxuiLabel> (s_kpszDriveFilterLabel);
+    m_diskEventsLabel    = CreateChild<DxuiLabel> (s_kpszDiskEventsLabel);
+    m_audioEventsLabel   = CreateChild<DxuiLabel> (s_kpszAudioEventsLabel);
     m_trackInvalidLabel  = CreateChild<DxuiLabel> ();
     m_sectorInvalidLabel = CreateChild<DxuiLabel> ();
 
@@ -254,7 +254,9 @@ void Disk2DebugPanel::OnCreate()
     m_clearButton = CreateChild<DxuiButton>     (s_kpszClearLabel);
     m_eventList   = CreateChild<DxuiListView>   ();
 
+    InitLabelStyles();
     ConfigureWidgets();
+    UpdateDynamicLabels();
 
     m_columnMenu.SetPopupHost (PopupHost());
     m_tooltip.SetPopupHost    (PopupHost());
@@ -331,7 +333,7 @@ void Disk2DebugPanel::SetTheme (const CassoTheme * theme)
     m_theme = theme;
     DxuiWindow::SetTheme (theme);
 
-    m_focusMgr.SetTheme (theme);
+    ApplyTheme();
 }
 
 
@@ -848,19 +850,94 @@ void Disk2DebugPanel::RecomputeLayout()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  LayoutWidgets
+//  InitLabelStyles
 //
-//  Reapplies rect / DPI / theme color to every widget owned by the
-//  panel. Called whenever the layout slots or theme change.
+//  Applies the static text style (font size + text alignment) to every
+//  label once at creation. These never change, so they belong here
+//  rather than in the per-resize layout pass. Static label text is set
+//  via the CreateChild<DxuiLabel> constructor; dynamic text is applied
+//  in UpdateDynamicLabels; colors in ApplyTheme.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void Disk2DebugPanel::LayoutWidgets()
+void Disk2DebugPanel::InitLabelStyles()
 {
-    uint32_t  textArgb     = 0xFFE8EEF4;
-    uint32_t  invalidArgb  = 0xFFFF6666;
+    DxuiLabel * const  filterLabels[] = { m_trackFilterLabel, m_sectorFilterLabel };
+    DxuiLabel * const  leftLabels[]   = { m_trackInvalidLabel, m_sectorInvalidLabel,
+                                          m_driveFilterLabel,  m_diskEventsLabel,
+                                          m_audioEventsLabel };
 
 
+
+    for (DxuiLabel * label : filterLabels)
+    {
+        label->SetFontSizeDip (s_kLabelFontDip);
+        label->SetTextAlign   (DxuiTextRenderer::HAlign::Right, DxuiTextRenderer::VAlign::Center);
+    }
+
+    for (DxuiLabel * label : leftLabels)
+    {
+        label->SetFontSizeDip (s_kLabelFontDip);
+        label->SetTextAlign   (DxuiTextRenderer::HAlign::Left, DxuiTextRenderer::VAlign::Center);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  UpdateDynamicLabels
+//
+//  Refreshes the label text that depends on live filter state: the
+//  track-filter caption (Track vs Quarter-track) and the two invalid-
+//  span detail labels. Called at creation and whenever the filter /
+//  edit state changes -- NOT from the layout pass (text is content, not
+//  geometry).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Disk2DebugPanel::UpdateDynamicLabels()
+{
+    if (m_trackFilterLabel == nullptr)
+    {
+        return;
+    }
+
+    m_trackFilterLabel->SetText   (m_filter.trackFilterRawQt ? s_kpszTrackQtFilterLabel : s_kpszTrackFilterLabel);
+    m_trackInvalidLabel->SetText  (BuildInvalidLabel (s_kpszTrackInvalidPrefix,  m_trackEdit->Text(),  m_filter.trackFilter.RejectedSpans()).c_str());
+    m_sectorInvalidLabel->SetText (BuildInvalidLabel (s_kpszSectorInvalidPrefix, m_sectorEdit->Text(), m_filter.sectorFilter.RejectedSpans()).c_str());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ApplyTheme
+//
+//  Pushes theme-derived colors onto the labels and forwards the theme
+//  to the child controls that snapshot it (edits, list, column menu,
+//  focus ring). Called from SetTheme -- NOT from the layout pass.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Disk2DebugPanel::ApplyTheme()
+{
+    uint32_t           textArgb    = 0xFFE8EEF4;
+    uint32_t           invalidArgb = 0xFFFF6666;
+    DxuiLabel * const  textLabels[] = { m_trackFilterLabel, m_sectorFilterLabel,
+                                        m_driveFilterLabel,  m_diskEventsLabel,
+                                        m_audioEventsLabel };
+
+
+
+    if (m_eventList == nullptr)
+    {
+        return;
+    }
 
     if (m_theme != nullptr)
     {
@@ -868,33 +945,45 @@ void Disk2DebugPanel::LayoutWidgets()
         invalidArgb = m_theme->ErrorForeground();
     }
 
-    m_trackFilterLabel->SetText        (m_filter.trackFilterRawQt ? s_kpszTrackQtFilterLabel : s_kpszTrackFilterLabel);
-    m_trackFilterLabel->Layout         (m_layout.trackFilterLabel, m_scaler);
-    m_trackFilterLabel->SetFontSizeDip (s_kLabelFontDip);
-    m_trackFilterLabel->SetColorArgb   (textArgb);
-    m_trackFilterLabel->SetHAlign      (DxuiTextRenderer::HAlign::Right);
-    m_trackFilterLabel->SetVAlign      (DxuiTextRenderer::VAlign::Center);
+    for (DxuiLabel * label : textLabels)
+    {
+        label->SetColorArgb (textArgb);
+    }
 
-    m_sectorFilterLabel->SetText        (s_kpszSectorFilterLabel);
-    m_sectorFilterLabel->Layout         (m_layout.sectorFilterLabel, m_scaler);
-    m_sectorFilterLabel->SetFontSizeDip (s_kLabelFontDip);
-    m_sectorFilterLabel->SetColorArgb   (textArgb);
-    m_sectorFilterLabel->SetHAlign      (DxuiTextRenderer::HAlign::Right);
-    m_sectorFilterLabel->SetVAlign      (DxuiTextRenderer::VAlign::Center);
+    m_trackInvalidLabel->SetColorArgb  (invalidArgb);
+    m_sectorInvalidLabel->SetColorArgb (invalidArgb);
 
-    m_trackInvalidLabel->SetText        (BuildInvalidLabel (s_kpszTrackInvalidPrefix, m_trackEdit->Text(), m_filter.trackFilter.RejectedSpans()).c_str());
-    m_trackInvalidLabel->Layout         (m_layout.trackInvalidLabel, m_scaler);
-    m_trackInvalidLabel->SetFontSizeDip (s_kLabelFontDip);
-    m_trackInvalidLabel->SetColorArgb   (invalidArgb);
-    m_trackInvalidLabel->SetHAlign      (DxuiTextRenderer::HAlign::Left);
-    m_trackInvalidLabel->SetVAlign      (DxuiTextRenderer::VAlign::Center);
+    m_trackEdit->SetTheme  (m_theme);
+    m_sectorEdit->SetTheme (m_theme);
+    m_eventList->SetTheme  (m_theme);
+    m_columnMenu.SetTheme  (m_theme);
+    m_focusMgr.SetTheme    (m_theme);
+}
 
-    m_sectorInvalidLabel->SetText        (BuildInvalidLabel (s_kpszSectorInvalidPrefix, m_sectorEdit->Text(), m_filter.sectorFilter.RejectedSpans()).c_str());
-    m_sectorInvalidLabel->Layout         (m_layout.sectorInvalidLabel, m_scaler);
-    m_sectorInvalidLabel->SetFontSizeDip (s_kLabelFontDip);
-    m_sectorInvalidLabel->SetColorArgb   (invalidArgb);
-    m_sectorInvalidLabel->SetHAlign      (DxuiTextRenderer::HAlign::Left);
-    m_sectorInvalidLabel->SetVAlign      (DxuiTextRenderer::VAlign::Center);
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  LayoutWidgets
+//
+//  Positions every child at its computed slot in the current DPI. Pure
+//  geometry: each child's Layout(rect, scaler) call carries both bounds
+//  and DPI, so no widget needs an explicit SetDpi. Text lives in
+//  InitLabelStyles / UpdateDynamicLabels; colors in ApplyTheme.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Disk2DebugPanel::LayoutWidgets()
+{
+    m_trackFilterLabel->Layout   (m_layout.trackFilterLabel,  m_scaler);
+    m_sectorFilterLabel->Layout  (m_layout.sectorFilterLabel, m_scaler);
+    m_trackInvalidLabel->Layout  (m_layout.trackInvalidLabel, m_scaler);
+    m_sectorInvalidLabel->Layout (m_layout.sectorInvalidLabel, m_scaler);
+    m_driveFilterLabel->Layout   (m_layout.driveFilterLabel,  m_scaler);
+    m_diskEventsLabel->Layout    (m_layout.diskEventsLabel,   m_scaler);
+    m_audioEventsLabel->Layout   (m_layout.audioEventsLabel,  m_scaler);
 
     for (int i = 0; i < kEventTypeCheckCount; i++)
     {
@@ -910,28 +999,9 @@ void Disk2DebugPanel::LayoutWidgets()
 
     m_rawQtCheck->Layout (m_layout.rawQtCheck, m_scaler);
 
-    m_driveFilterLabel->SetText        (s_kpszDriveFilterLabel);
-    m_driveFilterLabel->Layout         (m_layout.driveFilterLabel, m_scaler);
-    m_driveFilterLabel->SetFontSizeDip (s_kLabelFontDip);
-    m_driveFilterLabel->SetColorArgb   (textArgb);
-    m_driveFilterLabel->SetHAlign      (DxuiTextRenderer::HAlign::Left);
-    m_driveFilterLabel->SetVAlign      (DxuiTextRenderer::VAlign::Center);
-
-    m_diskEventsLabel->SetText        (s_kpszDiskEventsLabel);
-    m_diskEventsLabel->Layout         (m_layout.diskEventsLabel, m_scaler);
-    m_diskEventsLabel->SetFontSizeDip (s_kLabelFontDip);
-    m_diskEventsLabel->SetColorArgb   (textArgb);
-    m_diskEventsLabel->SetHAlign      (DxuiTextRenderer::HAlign::Left);
-    m_diskEventsLabel->SetVAlign      (DxuiTextRenderer::VAlign::Center);
-
-    m_audioEventsLabel->SetText        (s_kpszAudioEventsLabel);
-    m_audioEventsLabel->Layout         (m_layout.audioEventsLabel, m_scaler);
-    m_audioEventsLabel->SetFontSizeDip (s_kLabelFontDip);
-    m_audioEventsLabel->SetColorArgb   (textArgb);
-    m_audioEventsLabel->SetHAlign      (DxuiTextRenderer::HAlign::Left);
-    m_audioEventsLabel->SetVAlign      (DxuiTextRenderer::VAlign::Center);
-
-    // DxuiRadioGroup expects rects in its option records.
+    // DxuiRadioGroup positions its buttons from rects carried in its
+    // option records, so the layout pass rebuilds them. The option
+    // labels are static; only the rects change per resize.
     std::vector<DxuiRadioOption>  driveOpts;
     for (int i = 0; i < kDriveRadioCount; i++)
     {
@@ -940,31 +1010,21 @@ void Disk2DebugPanel::LayoutWidgets()
         opt.label = s_kpszDriveOptionLabels[i];
         driveOpts.push_back (std::move (opt));
     }
+
     m_driveRadio->SetOptions  (std::move (driveOpts));
     m_driveRadio->SetDpi      (m_dpi);
-    // Re-apply selection after SetOptions: ConfigureWidgets calls
-    // SetSelected before LayoutWidgets has supplied any options, which
-    // makes the initial SetSelected a no-op (out-of-range clamps to -1).
     m_driveRadio->SetSelected (m_filter.driveFilter);
 
-    m_trackEdit->Layout   (m_layout.trackEdit, m_scaler);
-    m_trackEdit->SetTheme (m_theme);
-    m_trackEdit->SetHwnd  (Hwnd());
-
-    m_sectorEdit->Layout   (m_layout.sectorEdit, m_scaler);
-    m_sectorEdit->SetTheme (m_theme);
-    m_sectorEdit->SetHwnd  (Hwnd());
+    m_trackEdit->Layout  (m_layout.trackEdit,  m_scaler);
+    m_sectorEdit->Layout (m_layout.sectorEdit, m_scaler);
 
     m_pauseButton->Layout (m_layout.pauseButton, m_scaler);
     m_clearButton->Layout (m_layout.clearButton, m_scaler);
 
-    m_eventList->Layout   (m_layout.listView, m_scaler);
-    m_eventList->SetTheme (m_theme);
+    m_eventList->Layout (m_layout.listView, m_scaler);
 
-    m_columnMenu.SetDpi   (m_dpi);
-    m_columnMenu.SetTheme (m_theme);
-
-    m_tooltip.SetDpi      (m_dpi);
+    m_columnMenu.SetDpi       (m_dpi);
+    m_tooltip.SetDpi          (m_dpi);
     m_tooltip.SetViewportSize (m_widthPx, m_heightPx);
 }
 
@@ -1034,7 +1094,6 @@ void Disk2DebugPanel::ConfigureWidgets()
         m_filter.trackFilterRawQt = checked;
         OnTrackEditChanged();
         OnFilterChanged();
-        LayoutWidgets();
     });
 
     m_driveRadio->SetSelected (m_filter.driveFilter);
@@ -1045,9 +1104,11 @@ void Disk2DebugPanel::ConfigureWidgets()
     });
 
     m_trackEdit->SetMaxLength  (32);
+    m_trackEdit->SetHwnd       (Hwnd());
     m_trackEdit->SetOnChange   ([this] (const std::wstring &) { OnTrackEditChanged(); OnFilterChanged(); });
 
     m_sectorEdit->SetMaxLength (32);
+    m_sectorEdit->SetHwnd      (Hwnd());
     m_sectorEdit->SetOnChange  ([this] (const std::wstring &) { OnSectorEditChanged(); OnFilterChanged(); });
 
     m_pauseButton->SetOnClick ([this] ()
@@ -1368,7 +1429,7 @@ void Disk2DebugPanel::OnTrackEditChanged()
                                                         TrackSectorPredicate::Mode::Track,
                                                         m_filter.trackFilterRawQt);
     m_trackEditValid = m_filter.trackFilter.RejectedSpans().empty();
-    m_trackInvalidLabel->SetText (BuildInvalidLabel (s_kpszTrackInvalidPrefix, m_trackEdit->Text(), m_filter.trackFilter.RejectedSpans()).c_str());
+    UpdateDynamicLabels();
 }
 
 
@@ -1386,7 +1447,7 @@ void Disk2DebugPanel::OnSectorEditChanged()
     m_filter.sectorFilter = TrackSectorPredicate::Parse (m_sectorEdit->Text(),
                                                          TrackSectorPredicate::Mode::Sector);
     m_sectorEditValid = m_filter.sectorFilter.RejectedSpans().empty();
-    m_sectorInvalidLabel->SetText (BuildInvalidLabel (s_kpszSectorInvalidPrefix, m_sectorEdit->Text(), m_filter.sectorFilter.RejectedSpans()).c_str());
+    UpdateDynamicLabels();
 }
 
 

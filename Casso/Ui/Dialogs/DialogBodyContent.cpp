@@ -82,7 +82,7 @@ void DialogBodyContent::SetRuns (const std::vector<DialogTextRun> & runs, uint32
 
             label.SetText      (run.text);
             label.SetColorArgb (textArgb);
-            label.SetVAlign    (DxuiTextVAlign::Top);
+            label.SetTextAlign (DxuiTextHAlign::Left, DxuiTextVAlign::Top);
             item.widget = &label;
         }
 

@@ -421,7 +421,7 @@ void StartupDownloadDialog::PaintBody (
     statusLabel.SetDpi         (state.dpi);
     statusLabel.SetFontSizeDip (s_kFontDp);
     statusLabel.SetColorArgb   (fg);
-    statusLabel.SetHAlign      (DxuiTextRenderer::HAlign::Right);
+    statusLabel.SetTextAlign   (DxuiTextRenderer::HAlign::Right, DxuiTextRenderer::VAlign::Center);
 
     for (size_t i = 0; i < set.entries.size(); i++)
     {
@@ -828,7 +828,7 @@ StartupDownloadResult StartupDownloadDialog::Show (HINSTANCE                hIns
 
     introLabel.SetText      (intro);
     introLabel.SetColorArgb (theme.bodyText);
-    introLabel.SetVAlign    (DxuiTextVAlign::Top);
+    introLabel.SetTextAlign (DxuiTextHAlign::Left, DxuiTextVAlign::Top);
 
     body.SetPaintFn ([&set, &state] (DialogPaintContext & ctx) { PaintBody (ctx, set, state); });
     body.SetInputFn ([&state] (const DialogInputEvent & ev) { (void) HandleBodyInput (ev, state); });

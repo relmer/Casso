@@ -32,8 +32,7 @@ public:
     void  SetColorArgb   (uint32_t argb) { m_argb = argb; }
     void  SetFontSizeDip (float dip) { m_fontDip = dip; }
     void  SetFontFace    (const std::wstring & face) { m_fontFace = face; }
-    void  SetHAlign      (DxuiTextHAlign a) { m_hAlign = a; }
-    void  SetVAlign      (DxuiTextVAlign a) { m_vAlign = a; }
+    void  SetTextAlign   (DxuiTextHAlign h, DxuiTextVAlign v) { m_hAlign = h; m_vAlign = v; }
     void  SetFontWeight  (DxuiFontWeight w) { m_weight = w; }
     void  SetDpi         (UINT dpi) { m_scaler.SetDpi (dpi); }
 
