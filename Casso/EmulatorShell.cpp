@@ -36,7 +36,7 @@
 #include "Window/DxuiHostWindow.h"
 #include "Dialog/DxuiDialog.h"
 #include "Dialog/DxuiDialogManager.h"
-#include "Ui/Dialog/DialogBodyContent.h"
+#include "Ui/Dialogs/DialogBodyContent.h"
 
 #pragma comment(lib, "ole32.lib")
 #pragma comment(lib, "comctl32.lib")

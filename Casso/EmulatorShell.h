@@ -25,7 +25,7 @@
 #include "Ui/Chrome/JoystickToggleButton.h"
 #include "Ui/Chrome/MainMenu.h"
 #include "Ui/ColorUtil.h"
-#include "Ui/Dialog/DialogDefinition.h"
+#include "Ui/Dialogs/DialogDefinition.h"
 #include "Ui/Disk2DebugPanel.h"
 #include "Ui/DriveWidgetController.h"
 #include "Ui/DriveWidgetState.h"
