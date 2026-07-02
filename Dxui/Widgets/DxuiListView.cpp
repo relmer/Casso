@@ -1629,6 +1629,35 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CursorForPoint  (IDxuiControl override)
+//
+//  Advertises the horizontal resize cursor when the point (in list-local
+//  px, as the hosting panel translates for OnMouse) is over a column
+//  divider; otherwise no preference. Uses the same grab tolerance as the
+//  resize-drag hit test so the cursor and the drag agree.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+LPCWSTR DxuiListView::CursorForPoint (POINT localPx) const
+{
+    LPCWSTR  cursor  = nullptr;
+    int      grabTol = m_scaler.Px (s_kResizeGrabDip);
+
+
+    if (HitTestColumnResize (localPx.x, localPx.y, grabTol) >= 0)
+    {
+        cursor = IDC_SIZEWE;
+    }
+
+    return cursor;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  HitTestHeaderColumn
 //
 //  xPx/yPx are relative to the list's rect.left/top. Returns the column

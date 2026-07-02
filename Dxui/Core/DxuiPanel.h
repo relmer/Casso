@@ -80,6 +80,7 @@ public:
                                     IDxuiTextRenderer   & text,
                                     const IDxuiTheme    & theme) override;
     bool              OnMouse      (const DxuiMouseEvent & ev) override;
+    LPCWSTR           CursorForPoint (POINT clientPx) const     override;
     bool              OnKey        (const DxuiKeyEvent   & ev) override;
     void              OnThemeChanged()                       override;
     void              Tick         (int64_t nowMs)            override;

@@ -233,6 +233,7 @@ public:
     void                Layout         (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
     void                Paint          (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
     bool                OnMouse        (const DxuiMouseEvent & ev) override;
+    LPCWSTR             CursorForPoint (POINT clientPx) const       override;
     bool                OnKey          (const DxuiKeyEvent   & ev) override { (void) ev; return false; }
     void                OnFocusChanged (bool focused) override { SetListFocused (focused); }
     DxuiAccessibleRole  AccessibleRole () const override { return DxuiAccessibleRole::ListView; }

@@ -188,6 +188,18 @@ public:
         return DxuiMessageResult::NotHandled;
     }
 
+    // WM_SETCURSOR. hitTest = LOWORD(lParam) (the HT* code under the
+    // cursor). For HTCLIENT a client may set a content-specific cursor
+    // (e.g. a column-resize double-arrow) via SetCursor and return
+    // ``Handled`` to suppress DefWindowProc's default arrow. Return
+    // ``NotHandled`` to let the host fall through to DefWindowProc.
+    // Default returns NotHandled.
+    virtual DxuiMessageResult  OnSetCursor      (WORD hitTest)
+    {
+        UNREFERENCED_PARAMETER (hitTest);
+        return DxuiMessageResult::NotHandled;
+    }
+
     // WM_MOUSEMOVE. wParam = mouse-button / modifier flags
     // (MK_LBUTTON, MK_SHIFT, ...); lParam packs the (x, y)
     // client-coordinate point (use GET_X_LPARAM / GET_Y_LPARAM

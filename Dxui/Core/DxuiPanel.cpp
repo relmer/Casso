@@ -438,6 +438,45 @@ bool DxuiPanel::OnMouse (const DxuiMouseEvent & ev)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CursorForPoint
+//
+//  Fans the cursor query front-to-back (last-added child first), mirroring
+//  OnMouse. The first child that advertises a cursor wins; children that
+//  have no preference return nullptr and the walk continues.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+LPCWSTR DxuiPanel::CursorForPoint (POINT clientPx) const
+{
+    LPCWSTR  cursor = nullptr;
+
+
+    DXUI_ASSERT_UI_THREAD();
+
+    for (auto it = m_children.rbegin(); it != m_children.rend(); ++it)
+    {
+        const IDxuiControl *  child = it->raw;
+
+        if (child->Visible())
+        {
+            cursor = child->CursorForPoint (clientPx);
+
+            if (cursor != nullptr)
+            {
+                break;
+            }
+        }
+    }
+
+    return cursor;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  OnKey
 //
 ////////////////////////////////////////////////////////////////////////////////

@@ -377,6 +377,47 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DxuiModalDialogClient::OnSetCursor
+//
+//  WM_SETCURSOR. For a client-area hit, asks the dialog's control tree for
+//  a content-specific cursor at the current point (WM_SETCURSOR carries no
+//  coordinates, so query GetCursorPos + ScreenToClient) and applies it,
+//  e.g. the horizontal resize arrow over a list column divider.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiMessageResult DxuiModalDialogClient::OnSetCursor (WORD hitTest)
+{
+    HRESULT            hr     = S_OK;
+    DxuiMessageResult  result = DxuiMessageResult::NotHandled;
+    POINT              pt     = {};
+    LPCWSTR            cursor = nullptr;
+    BOOL               gotPos = FALSE;
+
+
+    BAIL_OUT_IF (hitTest != HTCLIENT || m_dialog == nullptr || m_hwnd == nullptr, S_OK);
+
+    gotPos = GetCursorPos (&pt);
+    BAIL_OUT_IF (!gotPos, S_OK);
+
+    ScreenToClient (m_hwnd, &pt);
+
+    cursor = m_dialog->CursorForPoint (pt);
+    BAIL_OUT_IF (cursor == nullptr, S_OK);
+
+    SetCursor (LoadCursorW (nullptr, cursor));
+    result = DxuiMessageResult::Handled;
+
+Error:
+    return result;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DxuiModalDialogClient::OnTimer
 //
 //  Drives the dialog's periodic tick (download poller, caret-blink

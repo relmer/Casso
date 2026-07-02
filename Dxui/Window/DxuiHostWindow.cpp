@@ -1450,6 +1450,13 @@ LRESULT DxuiHostWindow::WndProc (UINT msg, WPARAM wp, LPARAM lp)
             }
             break;
 
+        case WM_SETCURSOR:
+            if (m_client != nullptr && m_client->OnSetCursor (LOWORD (lp)) == DxuiMessageResult::Handled)
+            {
+                return TRUE;
+            }
+            break;
+
         case WM_MOUSEMOVE:
             TrackClientMouseLeave();
             if (m_client != nullptr && m_client->OnMouseMove (wp, lp) == DxuiMessageResult::Handled)
