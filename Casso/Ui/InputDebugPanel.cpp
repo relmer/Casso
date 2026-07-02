@@ -749,6 +749,7 @@ HRESULT InputDebugPanel::RenderFrame()
 void InputDebugPanel::SetTheme (const CassoTheme * theme)
 {
     m_window.SetTheme (theme);
+    m_focusMgr.SetTheme (theme);
 }
 
 
@@ -1152,7 +1153,9 @@ void InputDebugPanel::ConfigureWidgets()
 
     UpdatePairVisibility();
     SyncAllCheck();
-    RebuildFocusOrder();
+    m_focusMgr.Attach  (this);
+    m_focusMgr.SetTheme (m_theme);
+    m_focusMgr.Rebuild();
 }
 
 
@@ -1733,7 +1736,7 @@ void InputDebugPanel::OnPairViewChanged (int pair, int index)
 
     UpdatePairVisibility();
     SyncAllCheck();
-    RebuildFocusOrder();
+    m_focusMgr.Rebuild();
     RecomputeLayout();
     RebuildFilteredIndices();
     PushListViewRows();
@@ -2056,60 +2059,60 @@ bool InputDebugPanel::OnMouse (const DxuiMouseEvent & ev)
                 // reports whether it consumed the press.
                 if (m_pairView[0].OnMouse (ev))
                 {
-                    if (!m_pairView[0].IsOpen()) { SetFocusToStop (InputFocusStop::Pair0Dropdown); }
+                    if (!m_pairView[0].IsOpen()) { m_focusMgr.SetFocused (&m_pairView[0]); }
                     return true;
                 }
                 if (m_pairView[1].OnMouse (ev))
                 {
-                    if (!m_pairView[1].IsOpen()) { SetFocusToStop (InputFocusStop::Pair1Dropdown); }
+                    if (!m_pairView[1].IsOpen()) { m_focusMgr.SetFocused (&m_pairView[1]); }
                     return true;
                 }
 
                 if (m_pauseButton.OnMouse (ev))
                 {
-                    SetFocusToStop (InputFocusStop::PauseButton);
+                    m_focusMgr.SetFocused (&m_pauseButton);
                     return true;
                 }
 
                 if (m_clearButton.OnMouse (ev))
                 {
-                    SetFocusToStop (InputFocusStop::ClearButton);
+                    m_focusMgr.SetFocused (&m_clearButton);
                     return true;
                 }
 
                 if (m_copyButton.OnMouse (ev))
                 {
-                    SetFocusToStop (InputFocusStop::CopyButton);
+                    m_focusMgr.SetFocused (&m_copyButton);
                     return true;
                 }
 
                 if (m_allCheck.OnMouse (ev))
                 {
-                    SetFocusToStop (InputFocusStop::AllCheck);
+                    m_focusMgr.SetFocused (&m_allCheck);
                     return true;
                 }
 
                 if (m_emuKeyboardCheck.OnMouse (ev))
                 {
-                    SetFocusToStop (InputFocusStop::EmuKeyboardCheck);
+                    m_focusMgr.SetFocused (&m_emuKeyboardCheck);
                     return true;
                 }
 
                 if (m_joystickVisible && m_joystickCheck.OnMouse (ev))
                 {
-                    SetFocusToStop (InputFocusStop::JoystickCheck);
+                    m_focusMgr.SetFocused (&m_joystickCheck);
                     return true;
                 }
 
                 if (m_paddleVisible && m_paddleCheck.OnMouse (ev))
                 {
-                    SetFocusToStop (InputFocusStop::PaddleCheck);
+                    m_focusMgr.SetFocused (&m_paddleCheck);
                     return true;
                 }
 
                 if (m_hostKeyboardCheck.OnMouse (ev))
                 {
-                    SetFocusToStop (InputFocusStop::HostKeyboardCheck);
+                    m_focusMgr.SetFocused (&m_hostKeyboardCheck);
                     return true;
                 }
 
@@ -2123,7 +2126,7 @@ bool InputDebugPanel::OnMouse (const DxuiMouseEvent & ev)
                     // drag the list starts keeps receiving moves without the
                     // panel managing capture itself.
                     (void) ForwardMouseToList (DxuiMouseEventKind::Down, DxuiMouseButton::Left, x, y, 0.0f);
-                    SetFocusToStop (InputFocusStop::EventList);
+                    m_focusMgr.SetFocused (&m_eventList);
                 }
 
                 return true;
@@ -2215,81 +2218,35 @@ bool InputDebugPanel::OnKey (const DxuiKeyEvent & ev)
 {
     WPARAM          vk       = (WPARAM) ev.vk;
     bool            handled  = true;
-    InputFocusStop  focused  = InputFocusStop::EventList;
-    bool            hasFocus = (m_focusIndex >= 0 && m_focusIndex < (int) m_focusStops.size());
+    IDxuiControl *  focused  = nullptr;
 
 
     // Char events carry no panel semantics (no text entry surface); only
-    // key-down drives focus cycling, space activation and list navigation.
+    // key-down drives focus traversal, activation and list navigation.
     if (ev.kind != DxuiKeyEventKind::Down)
     {
         return false;
     }
 
-    if (hasFocus)
+    // Tab / Shift+Tab: automatic focus traversal over the panel's visible
+    // focusables (the framework tree walk) -- no bespoke per-stop list.
+    if (vk == VK_TAB)
     {
-        focused = m_focusStops[(size_t) m_focusIndex];
+        m_focusMgr.HandleKey ((GetKeyState (VK_SHIFT) & 0x8000) ? DxuiFocusKey::ShiftTab : DxuiFocusKey::Tab);
+        return true;
+    }
 
-        if (focused == InputFocusStop::Pair0Dropdown && m_pairView[0].HandleKey (vk)) { return true; }
-        if (focused == InputFocusStop::Pair1Dropdown && m_pairView[1].HandleKey (vk)) { return true; }
+    // Activation / value keys go to the focused control first: a focused
+    // checkbox / button self-activates on Space / Enter (firing its wired
+    // callback) and a focused dropdown steers its open popup.
+    focused = m_focusMgr.Focused();
+    if (focused != nullptr && focused->OnKey (ev))
+    {
+        return true;
     }
 
     switch (vk)
     {
-        case VK_TAB:
-            FocusCycle ((GetKeyState (VK_SHIFT) & 0x8000) ? -1 : 1);
-            break;
-
-        case VK_SPACE:
-            if (!hasFocus)
-            {
-                break;
-            }
-            switch (focused)
-            {
-                case InputFocusStop::AllCheck:
-                    m_allCheck.SetChecked (!m_allCheck.Checked());
-                    ApplyAllToggle();
-                    break;
-
-                case InputFocusStop::EmuKeyboardCheck:
-                    m_emuKeyboardCheck.SetChecked (!m_emuKeyboardCheck.Checked());
-                    OnFilterChanged();
-                    break;
-
-                case InputFocusStop::JoystickCheck:
-                    m_joystickCheck.SetChecked (!m_joystickCheck.Checked());
-                    OnFilterChanged();
-                    break;
-
-                case InputFocusStop::PaddleCheck:
-                    m_paddleCheck.SetChecked (!m_paddleCheck.Checked());
-                    OnFilterChanged();
-                    break;
-
-                case InputFocusStop::HostKeyboardCheck:
-                    m_hostKeyboardCheck.SetChecked (!m_hostKeyboardCheck.Checked());
-                    OnFilterChanged();
-                    break;
-
-                case InputFocusStop::PauseButton:
-                    m_paused = !m_paused;
-                    UpdatePauseLabel();
-                    break;
-
-                case InputFocusStop::ClearButton:
-                    ClearEvents();
-                    break;
-
-                case InputFocusStop::CopyButton:
-                    CopyEventsToClipboard();
-                    break;
-
-                default:
-                    break;
-            }
-            break;
-
         case VK_UP:
         case VK_DOWN:
         case VK_PRIOR:
@@ -2458,178 +2415,6 @@ void InputDebugPanel::ShowColumnMenu (int anchorX, int anchorY)
     }
 
     m_columnMenu.Show (anchorX, anchorY, std::move (items), m_text, hostRect);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ClearAllWidgetFocus
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void InputDebugPanel::ClearAllWidgetFocus()
-{
-    m_allCheck.SetFocused          (false);
-    m_emuKeyboardCheck.SetFocused  (false);
-    m_joystickCheck.SetFocused     (false);
-    m_paddleCheck.SetFocused       (false);
-    m_hostKeyboardCheck.SetFocused (false);
-    m_pairView[0].SetFocused       (false);
-    m_pairView[1].SetFocused       (false);
-    m_pauseButton.SetFocused       (false);
-    m_clearButton.SetFocused       (false);
-    m_copyButton.SetFocused        (false);
-    m_eventList.SetListFocused     (false);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  RebuildFocusOrder
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void InputDebugPanel::RebuildFocusOrder()
-{
-    InputFocusStop  prev     = InputFocusStop::EventList;
-    bool            hadFocus = (m_focusIndex >= 0 && m_focusIndex < (int) m_focusStops.size());
-    size_t          i        = 0;
-
-
-    if (hadFocus)
-    {
-        prev = m_focusStops[(size_t) m_focusIndex];
-    }
-
-    m_focusStops.clear();
-    m_focusStops.push_back (InputFocusStop::AllCheck);
-    m_focusStops.push_back (InputFocusStop::EmuKeyboardCheck);
-    if (m_joystickVisible) { m_focusStops.push_back (InputFocusStop::JoystickCheck); }
-    if (m_paddleVisible)   { m_focusStops.push_back (InputFocusStop::PaddleCheck); }
-    m_focusStops.push_back (InputFocusStop::HostKeyboardCheck);
-    m_focusStops.push_back (InputFocusStop::Pair0Dropdown);
-    m_focusStops.push_back (InputFocusStop::Pair1Dropdown);
-    m_focusStops.push_back (InputFocusStop::PauseButton);
-    m_focusStops.push_back (InputFocusStop::ClearButton);
-    m_focusStops.push_back (InputFocusStop::CopyButton);
-    m_focusStops.push_back (InputFocusStop::EventList);
-
-    m_focusIndex = -1;
-    if (hadFocus)
-    {
-        for (i = 0; i < m_focusStops.size(); i++)
-        {
-            if (m_focusStops[i] == prev)
-            {
-                m_focusIndex = (int) i;
-                break;
-            }
-        }
-    }
-
-    ApplyFocus();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ApplyFocus
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void InputDebugPanel::ApplyFocus()
-{
-    ClearAllWidgetFocus();
-
-    if (m_focusIndex < 0 || m_focusIndex >= (int) m_focusStops.size())
-    {
-        return;
-    }
-
-    switch (m_focusStops[(size_t) m_focusIndex])
-    {
-        case InputFocusStop::AllCheck:          m_allCheck.SetFocused (true);          break;
-        case InputFocusStop::EmuKeyboardCheck:  m_emuKeyboardCheck.SetFocused (true);  break;
-        case InputFocusStop::JoystickCheck:     m_joystickCheck.SetFocused (true);     break;
-        case InputFocusStop::PaddleCheck:       m_paddleCheck.SetFocused (true);       break;
-        case InputFocusStop::HostKeyboardCheck: m_hostKeyboardCheck.SetFocused (true); break;
-        case InputFocusStop::Pair0Dropdown:     m_pairView[0].SetFocused (true);       break;
-        case InputFocusStop::Pair1Dropdown:     m_pairView[1].SetFocused (true);       break;
-        case InputFocusStop::PauseButton:       m_pauseButton.SetFocused (true);       break;
-        case InputFocusStop::ClearButton:       m_clearButton.SetFocused (true);       break;
-        case InputFocusStop::CopyButton:        m_copyButton.SetFocused (true);        break;
-        case InputFocusStop::EventList:         m_eventList.SetListFocused (true);     break;
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  FocusCycle
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void InputDebugPanel::FocusCycle (int direction)
-{
-    int  total = (int) m_focusStops.size();
-    int  next  = 0;
-
-
-    if (total <= 0)
-    {
-        return;
-    }
-
-    next = m_focusIndex;
-    if (next < 0)
-    {
-        next = (direction > 0) ? 0 : total - 1;
-    }
-    else
-    {
-        next = (next + direction + total) % total;
-    }
-
-    m_focusIndex = next;
-    ApplyFocus();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  SetFocusToStop
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void InputDebugPanel::SetFocusToStop (InputFocusStop stop)
-{
-    size_t  i = 0;
-
-
-    for (i = 0; i < m_focusStops.size(); i++)
-    {
-        if (m_focusStops[i] == stop)
-        {
-            m_focusIndex = (int) i;
-            ApplyFocus();
-            return;
-        }
-    }
 }
 
 

@@ -3,6 +3,7 @@
 #include "Chrome/ChromedPanelWindow.h"
 #include "Chrome/IChromedPanelContent.h"
 #include "InputDebugPanelLayout.h"
+#include "Core/DxuiFocusManager.h"
 #include "Core/DxuiPanel.h"
 #include "Widgets/DxuiButton.h"
 #include "Widgets/DxuiCheckbox.h"
@@ -20,24 +21,6 @@
 
 struct CassoTheme;
 class DxuiHostWindow;
-
-
-
-
-enum class InputFocusStop
-{
-    AllCheck,
-    EmuKeyboardCheck,
-    JoystickCheck,
-    PaddleCheck,
-    HostKeyboardCheck,
-    Pair0Dropdown,
-    Pair1Dropdown,
-    PauseButton,
-    ClearButton,
-    CopyButton,
-    EventList,
-};
 
 
 
@@ -160,11 +143,6 @@ private:
     void    CopyEventsToClipboard ();
     void    UpdateTooltip        (int x, int y);
     void    ShowColumnMenu       (int anchorX, int anchorY);
-    void    FocusCycle           (int direction);
-    void    RebuildFocusOrder    ();
-    void    SetFocusToStop       (InputFocusStop stop);
-    void    ApplyFocus           ();
-    void    ClearAllWidgetFocus  ();
     void    ApplyListSelection   ();
     void    OnListSelectionMoved ();
     bool    ForwardMouseToList   (DxuiMouseEventKind kind, DxuiMouseButton button, int x, int y, float wheelDelta);
@@ -227,6 +205,7 @@ private:
     DxuiListView                              m_eventList;
     DxuiTooltip                               m_tooltip;
     DxuiPopupMenu                             m_columnMenu;
+    DxuiFocusManager                          m_focusMgr;
 
     InputFilterState                      m_filter;
     std::array<InputLogicalColumn, kInputColumnCount>  m_columnsModel = {};
@@ -243,8 +222,6 @@ private:
     int                                   m_sortColumn     = -1;
     bool                                  m_sortDescending = false;
 
-    std::vector<InputFocusStop>           m_focusStops;
-    int                                   m_focusIndex         = -1;
     bool                                  m_joystickVisible    = true;
     bool                                  m_paddleVisible      = false;
     int                                   m_listSelectedEventIndex = -1;
