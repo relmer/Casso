@@ -1120,6 +1120,21 @@ void InputDebugPanel::ConfigureWidgets()
             m_eventList.SetColumns (PlanVisibleColumns (m_columnsModel));
         }
     });
+
+    // The buttons and checkboxes own their own press / hover / toggle
+    // state through OnMouse; these callbacks fold each widget's outcome
+    // back into the panel model -- the buttons fire their action on a
+    // click-release, the checkboxes re-apply the filter (or the
+    // all-toggle) whenever their checked state changes.
+    m_pauseButton.SetClick          ([this] () { m_paused = !m_paused; UpdatePauseLabel(); });
+    m_clearButton.SetClick          ([this] () { ClearEvents(); });
+    m_copyButton.SetClick           ([this] () { CopyEventsToClipboard(); });
+    m_allCheck.SetOnChange          ([this] (bool) { ApplyAllToggle(); });
+    m_emuKeyboardCheck.SetOnChange  ([this] (bool) { OnFilterChanged(); });
+    m_joystickCheck.SetOnChange     ([this] (bool) { OnFilterChanged(); });
+    m_paddleCheck.SetOnChange       ([this] (bool) { OnFilterChanged(); });
+    m_hostKeyboardCheck.SetOnChange ([this] (bool) { OnFilterChanged(); });
+
     m_columnMenu.SetDpi          (m_dpi);
     m_columnMenu.SetTheme        (m_theme);
     m_columnMenu.SetOnSelect     ([this] (int id)
@@ -2003,217 +2018,187 @@ bool InputDebugPanel::ForwardMouseToList (DxuiMouseEventKind kind, DxuiMouseButt
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  OnLButtonDown
+//  OnMouse
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void InputDebugPanel::OnLButtonDown (int x, int y)
+bool InputDebugPanel::OnMouse (const DxuiMouseEvent & ev)
 {
-    if (m_pairView[0].OnLButtonDown (x, y))
+    int  x = ev.positionDip.x;
+    int  y = ev.positionDip.y;
+
+
+
+    switch (ev.kind)
     {
-        if (!m_pairView[0].IsOpen()) { SetFocusToStop (InputFocusStop::Pair0Dropdown); }
-        return;
+        case DxuiMouseEventKind::Move:
+            // While the list owns a drag (scrollbar thumb / column resize),
+            // route moves to it. DxuiListView::OnMouse treats a non-Left
+            // move while interacting as a release (its missed-button-up
+            // safety net), so pass Left explicitly.
+            if (m_eventList.IsInteracting())
+            {
+                (void) ForwardMouseToList (DxuiMouseEventKind::Move, DxuiMouseButton::Left, x, y, 0.0f);
+                return true;
+            }
+
+            m_pairView[0].SetMouseHover (x, y);
+            m_pairView[1].SetMouseHover (x, y);
+            UpdateTooltip (x, y);
+            return true;
+
+        case DxuiMouseEventKind::Down:
+            if (ev.button == DxuiMouseButton::Left)
+            {
+                // The client-px widgets share the panel's coordinate space
+                // (ev.positionDip == client px), so route the event straight
+                // to each widget's OnMouse; the widget hit-tests itself and
+                // reports whether it consumed the press.
+                if (m_pairView[0].OnMouse (ev))
+                {
+                    if (!m_pairView[0].IsOpen()) { SetFocusToStop (InputFocusStop::Pair0Dropdown); }
+                    return true;
+                }
+                if (m_pairView[1].OnMouse (ev))
+                {
+                    if (!m_pairView[1].IsOpen()) { SetFocusToStop (InputFocusStop::Pair1Dropdown); }
+                    return true;
+                }
+
+                if (m_pauseButton.OnMouse (ev))
+                {
+                    SetFocusToStop (InputFocusStop::PauseButton);
+                    return true;
+                }
+
+                if (m_clearButton.OnMouse (ev))
+                {
+                    SetFocusToStop (InputFocusStop::ClearButton);
+                    return true;
+                }
+
+                if (m_copyButton.OnMouse (ev))
+                {
+                    SetFocusToStop (InputFocusStop::CopyButton);
+                    return true;
+                }
+
+                if (m_allCheck.OnMouse (ev))
+                {
+                    SetFocusToStop (InputFocusStop::AllCheck);
+                    return true;
+                }
+
+                if (m_emuKeyboardCheck.OnMouse (ev))
+                {
+                    SetFocusToStop (InputFocusStop::EmuKeyboardCheck);
+                    return true;
+                }
+
+                if (m_joystickVisible && m_joystickCheck.OnMouse (ev))
+                {
+                    SetFocusToStop (InputFocusStop::JoystickCheck);
+                    return true;
+                }
+
+                if (m_paddleVisible && m_paddleCheck.OnMouse (ev))
+                {
+                    SetFocusToStop (InputFocusStop::PaddleCheck);
+                    return true;
+                }
+
+                if (m_hostKeyboardCheck.OnMouse (ev))
+                {
+                    SetFocusToStop (InputFocusStop::HostKeyboardCheck);
+                    return true;
+                }
+
+                if ((x >= m_layout.listView.left && x < m_layout.listView.right && y >= m_layout.listView.top && y < m_layout.listView.bottom))
+                {
+                    // The list owns all in-list routing (scrollbar arrows /
+                    // thumb / track, column resize, header-click sort, row
+                    // select) via OnMouse and reports outcomes through the
+                    // callbacks wired at setup. ChromedPanelWindow already
+                    // holds the Win32 capture for the full press, so any
+                    // drag the list starts keeps receiving moves without the
+                    // panel managing capture itself.
+                    (void) ForwardMouseToList (DxuiMouseEventKind::Down, DxuiMouseButton::Left, x, y, 0.0f);
+                    SetFocusToStop (InputFocusStop::EventList);
+                }
+
+                return true;
+            }
+
+            if (ev.button == DxuiMouseButton::Right)
+            {
+                if (m_eventList.HitTestHeaderColumn (x - m_layout.listView.left, y - m_layout.listView.top) >= 0)
+                {
+                    ShowColumnMenu (x, y);
+                }
+                return true;
+            }
+
+            return false;
+
+        case DxuiMouseEventKind::Up:
+            if (ev.button == DxuiMouseButton::Left)
+            {
+                bool  wasInteracting = m_eventList.IsInteracting();
+
+
+
+                // Finish any list drag (scrollbar thumb / column resize) the
+                // list started on button-down. The pointer may have left the
+                // list bounds mid-drag, so forward the release
+                // unconditionally. ChromedPanelWindow owns the Win32 capture
+                // and releases it after this returns.
+                if (wasInteracting)
+                {
+                    (void) ForwardMouseToList (DxuiMouseEventKind::Up, DxuiMouseButton::Left, x, y, 0.0f);
+                    return true;
+                }
+
+                if (m_pairView[0].OnMouse (ev)) { return true; }
+                if (m_pairView[1].OnMouse (ev)) { return true; }
+
+                // Route the release to each button / checkbox: the widget
+                // clears its own press visual and, on a click-release over
+                // itself, fires the callback wired at setup (button click /
+                // checkbox change), which folds the outcome back into the
+                // panel model.
+                m_pauseButton.OnMouse (ev);
+                m_clearButton.OnMouse (ev);
+                m_copyButton.OnMouse (ev);
+
+                m_allCheck.OnMouse (ev);
+                m_emuKeyboardCheck.OnMouse (ev);
+                if (m_joystickVisible) { m_joystickCheck.OnMouse (ev); }
+                if (m_paddleVisible)   { m_paddleCheck.OnMouse (ev); }
+                m_hostKeyboardCheck.OnMouse (ev);
+
+                // A plain release inside the list finalizes the row activate;
+                // the list already selected on button-down (raising
+                // onSelectionChanged).
+                if ((x >= m_layout.listView.left && x < m_layout.listView.right && y >= m_layout.listView.top && y < m_layout.listView.bottom))
+                {
+                    (void) ForwardMouseToList (DxuiMouseEventKind::Up, DxuiMouseButton::Left, x, y, 0.0f);
+                }
+
+                return true;
+            }
+
+            return false;
+
+        case DxuiMouseEventKind::Wheel:
+            // Forward to the list, which scrolls only when the pointer is
+            // over it (standard control behavior) and converts notches back
+            // to raw WHEEL_DELTA units internally.
+            (void) ForwardMouseToList (DxuiMouseEventKind::Wheel, DxuiMouseButton::None, x, y, ev.wheelDelta);
+            return true;
+
+        default:
+            return false;
     }
-    if (m_pairView[1].OnLButtonDown (x, y))
-    {
-        if (!m_pairView[1].IsOpen()) { SetFocusToStop (InputFocusStop::Pair1Dropdown); }
-        return;
-    }
-
-    if (m_pauseButton.HitTest (x, y))
-    {
-        m_pauseButton.SetMouse (x, y, true);
-        SetFocusToStop (InputFocusStop::PauseButton);
-        return;
-    }
-
-    if (m_clearButton.HitTest (x, y))
-    {
-        m_clearButton.SetMouse (x, y, true);
-        SetFocusToStop (InputFocusStop::ClearButton);
-        return;
-    }
-
-    if (m_copyButton.HitTest (x, y))
-    {
-        m_copyButton.SetMouse (x, y, true);
-        SetFocusToStop (InputFocusStop::CopyButton);
-        return;
-    }
-
-    if (m_allCheck.HitTest (x, y))
-    {
-        m_allCheck.OnLButtonDown (x, y);
-        SetFocusToStop (InputFocusStop::AllCheck);
-        return;
-    }
-
-    if (m_emuKeyboardCheck.HitTest (x, y))
-    {
-        m_emuKeyboardCheck.OnLButtonDown (x, y);
-        SetFocusToStop (InputFocusStop::EmuKeyboardCheck);
-        return;
-    }
-
-    if (m_joystickVisible && m_joystickCheck.HitTest (x, y))
-    {
-        m_joystickCheck.OnLButtonDown (x, y);
-        SetFocusToStop (InputFocusStop::JoystickCheck);
-        return;
-    }
-
-    if (m_paddleVisible && m_paddleCheck.HitTest (x, y))
-    {
-        m_paddleCheck.OnLButtonDown (x, y);
-        SetFocusToStop (InputFocusStop::PaddleCheck);
-        return;
-    }
-
-    if (m_hostKeyboardCheck.HitTest (x, y))
-    {
-        m_hostKeyboardCheck.OnLButtonDown (x, y);
-        SetFocusToStop (InputFocusStop::HostKeyboardCheck);
-        return;
-    }
-
-    if ((x >= m_layout.listView.left && x < m_layout.listView.right && y >= m_layout.listView.top && y < m_layout.listView.bottom))
-    {
-        // The list owns all in-list routing (scrollbar arrows / thumb /
-        // track, column resize, header-click sort, row select) via
-        // OnMouse and reports outcomes through the callbacks wired at
-        // setup. ChromedPanelWindow already holds the Win32 capture for
-        // the full press, so any drag the list starts keeps receiving
-        // moves without the panel managing capture itself.
-        (void) ForwardMouseToList (DxuiMouseEventKind::Down, DxuiMouseButton::Left, x, y, 0.0f);
-        SetFocusToStop (InputFocusStop::EventList);
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  OnLButtonUp
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void InputDebugPanel::OnLButtonUp (int x, int y)
-{
-    bool  wasInteracting = m_eventList.IsInteracting();
-
-
-
-    // Finish any list drag (scrollbar thumb / column resize) the list
-    // started on button-down. The pointer may have left the list bounds
-    // mid-drag, so forward the release unconditionally. ChromedPanelWindow
-    // owns the Win32 capture and releases it after this returns.
-    if (wasInteracting)
-    {
-        (void) ForwardMouseToList (DxuiMouseEventKind::Up, DxuiMouseButton::Left, x, y, 0.0f);
-        return;
-    }
-
-    if (m_pairView[0].OnLButtonUp (x, y)) { return; }
-    if (m_pairView[1].OnLButtonUp (x, y)) { return; }
-
-    if (m_pauseButton.HitTest (x, y))
-    {
-        m_paused = !m_paused;
-        UpdatePauseLabel();
-    }
-    m_pauseButton.SetMouse (x, y, false);
-
-    if (m_clearButton.HitTest (x, y))
-    {
-        ClearEvents();
-    }
-    m_clearButton.SetMouse (x, y, false);
-
-    if (m_copyButton.HitTest (x, y))
-    {
-        CopyEventsToClipboard();
-    }
-    m_copyButton.SetMouse (x, y, false);
-
-    if (m_allCheck.OnLButtonUp (x, y))          { ApplyAllToggle(); }
-    if (m_emuKeyboardCheck.OnLButtonUp (x, y))  { OnFilterChanged(); }
-    if (m_joystickVisible && m_joystickCheck.OnLButtonUp (x, y)) { OnFilterChanged(); }
-    if (m_paddleVisible   && m_paddleCheck.OnLButtonUp (x, y))   { OnFilterChanged(); }
-    if (m_hostKeyboardCheck.OnLButtonUp (x, y)) { OnFilterChanged(); }
-
-    // A plain release inside the list finalizes the row activate; the
-    // list already selected on button-down (raising onSelectionChanged).
-    if ((x >= m_layout.listView.left && x < m_layout.listView.right && y >= m_layout.listView.top && y < m_layout.listView.bottom))
-    {
-        (void) ForwardMouseToList (DxuiMouseEventKind::Up, DxuiMouseButton::Left, x, y, 0.0f);
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  OnRButtonDown
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void InputDebugPanel::OnRButtonDown (int x, int y)
-{
-    if (m_eventList.HitTestHeaderColumn (x - m_layout.listView.left, y - m_layout.listView.top) >= 0)
-    {
-        ShowColumnMenu (x, y);
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  OnMouseMove
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void InputDebugPanel::OnMouseMove (int x, int y)
-{
-    // While the list owns a drag (scrollbar thumb / column resize),
-    // route moves to it. IChromedPanelContent gives no button state, so
-    // pass Left explicitly: DxuiListView::OnMouse treats a non-Left move
-    // while interacting as a release (its missed-button-up safety net).
-    if (m_eventList.IsInteracting())
-    {
-        (void) ForwardMouseToList (DxuiMouseEventKind::Move, DxuiMouseButton::Left, x, y, 0.0f);
-        return;
-    }
-
-    m_pairView[0].SetMouseHover (x, y);
-    m_pairView[1].SetMouseHover (x, y);
-
-    UpdateTooltip (x, y);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  OnMouseWheel
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void InputDebugPanel::OnMouseWheel (int x, int y, int delta)
-{
-    // Forward to the list, which scrolls only when the pointer is over it
-    // (standard control behavior) and converts notches back to raw
-    // WHEEL_DELTA units internally.
-    (void) ForwardMouseToList (DxuiMouseEventKind::Wheel, DxuiMouseButton::None, x, y,
-                               (float) delta / (float) WHEEL_DELTA);
 }
 
 
@@ -2226,12 +2211,20 @@ void InputDebugPanel::OnMouseWheel (int x, int y, int delta)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool InputDebugPanel::OnKey (WPARAM vk)
+bool InputDebugPanel::OnKey (const DxuiKeyEvent & ev)
 {
-    bool            handled = true;
-    InputFocusStop  focused = InputFocusStop::EventList;
+    WPARAM          vk       = (WPARAM) ev.vk;
+    bool            handled  = true;
+    InputFocusStop  focused  = InputFocusStop::EventList;
     bool            hasFocus = (m_focusIndex >= 0 && m_focusIndex < (int) m_focusStops.size());
 
+
+    // Char events carry no panel semantics (no text entry surface); only
+    // key-down drives focus cycling, space activation and list navigation.
+    if (ev.kind != DxuiKeyEventKind::Down)
+    {
+        return false;
+    }
 
     if (hasFocus)
     {
@@ -2318,103 +2311,6 @@ bool InputDebugPanel::OnKey (WPARAM vk)
     }
 
     return handled;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  OnChar
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool InputDebugPanel::OnChar (wchar_t ch)
-{
-    UNREFERENCED_PARAMETER (ch);
-    return false;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  OnMouse
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool InputDebugPanel::OnMouse (const DxuiMouseEvent & ev)
-{
-    int  x = ev.positionDip.x;
-    int  y = ev.positionDip.y;
-
-
-
-    switch (ev.kind)
-    {
-        case DxuiMouseEventKind::Move:
-            OnMouseMove (x, y);
-            return true;
-
-        case DxuiMouseEventKind::Down:
-            if (ev.button == DxuiMouseButton::Left)
-            {
-                OnLButtonDown (x, y);
-                return true;
-            }
-
-            if (ev.button == DxuiMouseButton::Right)
-            {
-                OnRButtonDown (x, y);
-                return true;
-            }
-
-            return false;
-
-        case DxuiMouseEventKind::Up:
-            if (ev.button == DxuiMouseButton::Left)
-            {
-                OnLButtonUp (x, y);
-                return true;
-            }
-
-            return false;
-
-        case DxuiMouseEventKind::Wheel:
-            OnMouseWheel (x, y, (int) (ev.wheelDelta * WHEEL_DELTA));
-            return true;
-
-        default:
-            return false;
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  OnKey
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool InputDebugPanel::OnKey (const DxuiKeyEvent & ev)
-{
-    switch (ev.kind)
-    {
-        case DxuiKeyEventKind::Char:
-            return OnChar ((wchar_t) ev.vk);
-
-        case DxuiKeyEventKind::Down:
-            return OnKey ((WPARAM) ev.vk);
-
-        default:
-            return false;
-    }
 }
 
 

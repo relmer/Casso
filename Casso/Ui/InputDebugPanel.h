@@ -96,13 +96,6 @@ public:
     void     SetChromeTheme     (DxuiHostWindow * captionHost, const CassoTheme * theme) override;
     SIZE     PreferredClientSize (UINT dpi) const                   override;
     HRESULT  Render             ()                                  override;
-    void     OnLButtonDown      (int x, int y)                      override;
-    void     OnLButtonUp        (int x, int y)                      override;
-    void     OnRButtonDown      (int x, int y)                      override;
-    void     OnMouseMove        (int x, int y)                      override;
-    void     OnMouseWheel       (int x, int y, int delta)           override;
-    bool     OnKey              (WPARAM vk)                         override;
-    bool     OnChar             (wchar_t ch)                        override;
     void     Accept             ()                                  override;
     void     Cancel             ()                                  override;
     bool     IsContentActive    () const                            override;
@@ -112,18 +105,19 @@ public:
 
     // IDxuiControl pure-virtual overrides supplied by inheriting
     // DxuiPanel. The chrome shell drives this panel directly through
-    // OnHostResize / Render and the bespoke IChromedPanelContent input
-    // shims above; these adapters exist so an IDxuiControl-tree walk
-    // can reach the panel without an explicit downcast. They are
-    // intentionally no-ops -- the bespoke pipeline owns layout and
-    // paint until the unified Dxui dispatch path absorbs the chrome.
+    // OnHostResize / Render and the framework OnMouse / OnKey handlers
+    // below; these adapters exist so an IDxuiControl-tree walk can reach
+    // the panel without an explicit downcast. They are intentionally
+    // no-ops -- the bespoke pipeline owns layout and paint until the
+    // unified Dxui dispatch path absorbs the chrome.
     void    Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
     void    Paint  (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
 
-    // Framework input entry points. These DxuiPanel overrides translate
-    // the DxuiMouseEvent / DxuiKeyEvent to the bespoke integer handlers
-    // above so the chrome can dispatch through the framework with zero
-    // behavior change.
+    // Framework input entry points. These DxuiPanel overrides own all
+    // mouse / keyboard routing for the panel: they hit-test and dispatch
+    // the DxuiMouseEvent / DxuiKeyEvent straight to the child widgets and
+    // the event list, so the chrome drives the panel purely through the
+    // framework.
     bool    OnMouse (const DxuiMouseEvent & ev)                     override;
     bool    OnKey   (const DxuiKeyEvent   & ev)                     override;
 

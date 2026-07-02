@@ -61,14 +61,17 @@ public:
     // to honour WM_GETMINMAXINFO under each DPI.
     virtual SIZE     PreferredClientSize (UINT dpi) const = 0;
 
-    // Input routing. Coordinates are client-relative. Mouse-wheel default
-    // is a no-op since most panels don't scroll.
-    virtual void     OnLButtonDown (int x, int y) = 0;
-    virtual void     OnLButtonUp   (int x, int y) = 0;
+    // Input routing. Coordinates are client-relative. These carry empty
+    // default bodies so a content type that drives all of its input
+    // through the framework AsControl()->OnMouse / OnKey path (e.g.
+    // InputDebugPanel) need not override them; content still on the
+    // bespoke WM_ shims (Disk2DebugPanel) overrides the ones it needs.
+    virtual void     OnLButtonDown (int x, int y) { (void) x; (void) y; }
+    virtual void     OnLButtonUp   (int x, int y) { (void) x; (void) y; }
     virtual void     OnRButtonDown (int x, int y) { (void) x; (void) y; }
-    virtual void     OnMouseMove   (int x, int y) = 0;
+    virtual void     OnMouseMove   (int x, int y) { (void) x; (void) y; }
     virtual void     OnMouseWheel  (int x, int y, int delta) { (void) x; (void) y; (void) delta; }
-    virtual bool     OnKey         (WPARAM vk) = 0;
+    virtual bool     OnKey         (WPARAM vk) { (void) vk; return false; }
     virtual bool     OnChar        (wchar_t ch) { (void) ch; return false; }
 
     // Access the content as its IDxuiControl root so the chrome can
