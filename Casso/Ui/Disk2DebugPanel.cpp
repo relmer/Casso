@@ -3,6 +3,7 @@
 #include "Disk2DebugPanel.h"
 
 #include "Chrome/CassoTheme.h"
+#include "Core/DxuiAbsoluteLayout.h"
 #include "Window/DxuiHostWindow.h"
 
 #include "../DebugDialogProjection.h"
@@ -15,7 +16,6 @@ namespace
 
     constexpr int      s_kPreferredWidthDip  = 960;
     constexpr int      s_kPreferredHeightDip = 600;
-    constexpr UINT     s_kSwapBufferCount     = 2;
 
     constexpr LPCWSTR  s_kpszTrackFilterLabel  = L"Track:";
     constexpr LPCWSTR  s_kpszSectorFilterLabel = L"Sector:";
@@ -134,39 +134,10 @@ namespace
 
 Disk2DebugPanel::Disk2DebugPanel()
 {
-    // Register each owned widget into the panel's child list via Adopt
-    // so they participate in the IDxuiControl tree (Bounds, Visible,
-    // focus, parent pointers). The widgets remain Disk2DebugPanel-owned
-    // members; Adopt is non-owning. The chrome shell still drives
-    // input/paint through the bespoke IChromedPanelContent shims;
-    // collapsing the duality is deferred to a follow-up session that
-    // also threads a popup host through to the column-menu / tooltip.
-    Adopt (m_trackFilterLabel);
-    Adopt (m_sectorFilterLabel);
-    Adopt (m_driveFilterLabel);
-    Adopt (m_diskEventsLabel);
-    Adopt (m_audioEventsLabel);
-    Adopt (m_trackInvalidLabel);
-    Adopt (m_sectorInvalidLabel);
-    for (DxuiCheckbox & check : m_eventChecks)
-    {
-        Adopt (check);
-    }
-    Adopt (m_audioMasterCheck);
-    for (DxuiCheckbox & check : m_audioSubChecks)
-    {
-        Adopt (check);
-    }
-    Adopt (m_rawQtCheck);
-    Adopt (m_driveRadio);
-    Adopt (m_trackEdit);
-    Adopt (m_sectorEdit);
-    Adopt (m_pauseButton);
-    Adopt (m_clearButton);
-    Adopt (m_eventList);
-    Adopt (m_tooltip);
-    Adopt (m_columnMenu);
-
+    // The content widgets are adopted into the host window's root panel
+    // (not into this panel) in Create() once the host exists, so the
+    // host paint pump walks and paints them. The constructor only seeds
+    // the Uptime anchor; every other member default-initializes.
     m_uptimeAnchor = std::chrono::steady_clock::now();
 }
 
@@ -193,9 +164,11 @@ Disk2DebugPanel::~Disk2DebugPanel()
 //
 //  Create
 //
-//  Registers the window class for this panel content type, then asks
-//  the chrome shell to stand up the host HWND bound to this content.
-//  Idempotent -- a second call while already open is a no-op.
+//  Stands up a full-ownership DxuiHostWindow (borderless chrome, close-
+//  only caption, host-owned swap chain / paint pump), installs this
+//  panel as its IDxuiHostClient, and adopts every content widget into
+//  the host root so the host paint pump paints them. Idempotent -- a
+//  second call while already open is a no-op.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -206,11 +179,13 @@ HRESULT Disk2DebugPanel::Create (
     ID3D11DeviceContext  * context,
     const CassoTheme    * theme)
 {
-    HRESULT  hr = S_OK;
+    HRESULT                       hr        = S_OK;
+    DxuiHostWindow::CreateParams  params;
+    RECT                          clientRc  = {};
 
 
 
-    BAIL_OUT_IF (m_window.IsOpen(), S_OK);
+    BAIL_OUT_IF (m_host != nullptr, S_OK);
 
     CBRAEx (hInstance, E_INVALIDARG);
     CBRAEx (device,    E_INVALIDARG);
@@ -220,11 +195,75 @@ HRESULT Disk2DebugPanel::Create (
     m_context = context;
     m_theme   = theme;
 
-    hr = m_window.RegisterClass (hInstance, s_kpszClassName);
-    CHRA (hr);
+    params.title             = s_kpszWindowTitle;
+    params.hInstance         = hInstance;
+    params.ownerHwnd         = hwndOwner;
+    params.borderless        = true;
+    params.resizable         = true;
+    params.roundedCorners    = true;
+    params.darkMode          = true;
+    params.createSwapChain   = true;
+    params.captionStyle      = DxuiCaptionStyle::CloseOnly;
+    params.classNameOverride = s_kpszClassName;
+    params.initialSizeDip    = { s_kPreferredWidthDip, s_kPreferredHeightDip };
 
-    hr = m_window.Create (hwndOwner, this, device, context, theme);
-    CHRA (hr);
+    m_host = std::make_unique<DxuiHostWindow>();
+    m_host->SetClient (this);
+
+    hr = m_host->Create (params);
+    CHRF (hr, m_host.reset());
+
+    m_hwnd = m_host->Hwnd();
+    m_dpi  = m_host->Scaler().Dpi();
+
+    // Adopt every content widget into the host root so the host paint
+    // pump walks and paints them. The tooltip and column menu are NOT
+    // adopted -- they render through the host popup pool so they can
+    // escape the client rect.
+    m_host->Root().SetLayout (std::make_unique<DxuiAbsoluteLayout>());
+    m_host->Root().Adopt (m_trackFilterLabel);
+    m_host->Root().Adopt (m_sectorFilterLabel);
+    m_host->Root().Adopt (m_driveFilterLabel);
+    m_host->Root().Adopt (m_diskEventsLabel);
+    m_host->Root().Adopt (m_audioEventsLabel);
+    m_host->Root().Adopt (m_trackInvalidLabel);
+    m_host->Root().Adopt (m_sectorInvalidLabel);
+    for (DxuiCheckbox & check : m_eventChecks)
+    {
+        m_host->Root().Adopt (check);
+    }
+
+    m_host->Root().Adopt (m_audioMasterCheck);
+    for (DxuiCheckbox & check : m_audioSubChecks)
+    {
+        m_host->Root().Adopt (check);
+    }
+
+    m_host->Root().Adopt (m_rawQtCheck);
+    m_host->Root().Adopt (m_driveRadio);
+    m_host->Root().Adopt (m_trackEdit);
+    m_host->Root().Adopt (m_sectorEdit);
+    m_host->Root().Adopt (m_pauseButton);
+    m_host->Root().Adopt (m_clearButton);
+    m_host->Root().Adopt (m_eventList);
+
+    m_host->SetTheme (m_theme);
+
+    m_columnMenu.SetPopupHost (m_host.get());
+    m_tooltip.SetPopupHost (m_host.get());
+
+    ConfigureWidgets();
+
+    if (GetClientRect (m_hwnd, &clientRc))
+    {
+        m_widthPx  = std::max (1, (int) (clientRc.right  - clientRc.left));
+        m_heightPx = std::max (1, (int) (clientRc.bottom - clientRc.top));
+    }
+
+    RecomputeLayout();
+
+    ShowWindow (m_hwnd, SW_SHOWNORMAL);
+    SetForegroundWindow (m_hwnd);
 
 Error:
     return hr;
@@ -245,7 +284,17 @@ Error:
 
 void Disk2DebugPanel::Show()
 {
-    m_window.Activate();
+    HWND  hwnd = (m_host != nullptr) ? m_host->Hwnd() : nullptr;
+
+
+
+    if (hwnd == nullptr)
+    {
+        return;
+    }
+
+    ShowWindow (hwnd, IsIconic (hwnd) ? SW_RESTORE : SW_SHOW);
+    SetForegroundWindow (hwnd);
 }
 
 
@@ -260,7 +309,8 @@ void Disk2DebugPanel::Show()
 
 void Disk2DebugPanel::Hide()
 {
-    HWND  hwnd = m_window.Hwnd();
+    HWND  hwnd = (m_host != nullptr) ? m_host->Hwnd() : nullptr;
+
 
 
     if (hwnd != nullptr)
@@ -281,7 +331,7 @@ void Disk2DebugPanel::Hide()
 
 void Disk2DebugPanel::Destroy()
 {
-    m_window.Destroy();
+    m_host.reset();
 }
 
 
@@ -292,170 +342,31 @@ void Disk2DebugPanel::Destroy()
 //
 //  RenderFrame
 //
-//  Public render entry point invoked by the host frame loop. Delegates
-//  to the chrome shell which composites our content (currently just a
-//  themed background clear) under its title bar.
+//  Public per-frame entry point invoked by the EmulatorShell render
+//  loop. Drains the event ring into the display rows, advances the
+//  list / tooltip timers, then invalidates the host window so its
+//  WM_PAINT pump repaints the adopted widget tree.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT Disk2DebugPanel::RenderFrame()
 {
-    // Drive scrollbar auto-repeat for any held arrow / track press.
-    m_eventList.Tick (NowMs());
-
-    return m_window.Render();
-}
+    HRESULT  hr  = S_OK;
+    int64_t  now = NowMs();
 
 
 
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  Render
-//
-//  IChromedPanelContent override -- invoked by the chrome shell during
-//  its own Render. T044 lands the panel body as a flat themed clear;
-//  T046+ layers in widget rendering atop this.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-HRESULT Disk2DebugPanel::Render()
-{
-    HRESULT                  hr            = S_OK;
-    float                    clearColor[4] = { 0.08f, 0.08f, 0.08f, 1.0f };
-    ComPtr<ID3D11Texture2D>  backBuffer;
-    ComPtr<IDXGISurface>     surface;
-    ChromeVisualState        visual        = {};
-    D3D11_VIEWPORT           vp            = {};
-
-
-    BAIL_OUT_IF (m_swapChain == nullptr || m_rtv == nullptr || m_context == nullptr, S_OK);
+    BAIL_OUT_IF (m_host == nullptr, S_OK);
 
     DrainAndProject();
 
-    if (!m_text.IsTargetBound())
-    {
-        hr = m_swapChain->GetBuffer (0, IID_PPV_ARGS (&backBuffer));
-        CHRA (hr);
+    // Drive scrollbar auto-repeat for any held arrow / track press and
+    // the tooltip open / close dwell timers.
+    m_eventList.Tick (now);
+    m_tooltip.Tick   (now);
 
-        hr = backBuffer.As (&surface);
-        CHRA (hr);
-
-        hr = m_text.BindBackBuffer (surface.Get(), m_dpi, m_dpi);
-        CHRA (hr);
-    }
-
-    if (m_theme != nullptr)
-    {
-        ArgbToFloat4 (m_theme->titleBarBottom, clearColor);
-        clearColor[3] = 1.0f;
-    }
-
-    vp.TopLeftX = 0.0f;
-    vp.TopLeftY = 0.0f;
-    vp.Width    = (float) m_widthPx;
-    vp.Height   = (float) m_heightPx;
-    vp.MinDepth = 0.0f;
-    vp.MaxDepth = 1.0f;
-
-    m_context->RSSetViewports (1, &vp);
-    m_context->OMSetRenderTargets (1, m_rtv.GetAddressOf(), nullptr);
-    m_context->ClearRenderTargetView (m_rtv.Get(), clearColor);
-
-    hr = m_painter.Begin (m_widthPx, m_heightPx);
-    CHRA (hr);
-
-    hr = m_text.BeginDrawOffscreen();
-    CHRA (hr);
-
-    visual.dpi = m_dpi;
-    if (m_captionHost != nullptr && m_theme != nullptr)
-    {
-        m_captionHost->RenderCaption (m_painter, m_text, *m_theme);
-    }
-
-    if (m_theme != nullptr)
-    {
-        m_trackEdit.SetTheme  (m_theme);
-        m_sectorEdit.SetTheme (m_theme);
-        m_tooltip.SetTheme    (*m_theme);
-
-        for (auto & cb : m_eventChecks)
-        {
-            cb.Paint (m_painter, m_text, *m_theme);
-        }
-        m_audioMasterCheck.Paint (m_painter, m_text, *m_theme);
-        for (auto & cb : m_audioSubChecks)
-        {
-            cb.Paint (m_painter, m_text, *m_theme);
-        }
-        m_driveRadio.Paint   (m_painter, m_text, *m_theme);
-        m_rawQtCheck.Paint   (m_painter, m_text, *m_theme);
-    }
-
-    m_trackFilterLabel.Paint  (m_painter, m_text);
-    m_sectorFilterLabel.Paint (m_painter, m_text);
-    m_driveFilterLabel.Paint  (m_painter, m_text);
-    m_diskEventsLabel.Paint   (m_painter, m_text);
-    m_audioEventsLabel.Paint  (m_painter, m_text);
-    m_trackInvalidLabel.Paint (m_painter, m_text);
-    m_sectorInvalidLabel.Paint(m_painter, m_text);
-
-    m_trackEdit.Paint  (m_painter, m_text);
-    m_sectorEdit.Paint (m_painter, m_text);
-
-    if (m_theme != nullptr)
-    {
-        m_pauseButton.Paint (m_painter, m_text, *m_theme);
-        m_clearButton.Paint (m_painter, m_text, *m_theme);
-    }
-
-    m_eventList.Paint (m_painter, m_text);
-
-    m_tooltip.Tick  (NowMs());
-
-    // Overlays (tooltip + column menu) must composite ABOVE every
-    // underlying widget. Both the geometry painter (DxuiPainter) and
-    // the text renderer (DxuiTextRenderer) batch their draws, so
-    // without an explicit flush all text would composite on top of
-    // all geometry — including the tooltip's opaque background. Flush
-    // both pipelines now so the next Begin/Paint cycle lands cleanly
-    // on top of everything painted so far.
-    if (m_tooltip.IsVisible() || m_columnMenu.IsVisible())
-    {
-        hr = m_painter.End (m_rtv.Get());
-        CHRA (hr);
-        hr = m_text.EndDrawComposite();
-        CHRA (hr);
-        hr = m_painter.Begin (m_widthPx, m_heightPx);
-        CHRA (hr);
-        hr = m_text.BeginDrawOffscreen();
-        CHRA (hr);
-    }
-
-    m_tooltip.Paint (m_painter, m_text);
-
-    m_columnMenu.Paint (m_painter, m_text);
-
-    hr = m_painter.End (m_rtv.Get());
-    CHRA (hr);
-
-    hr = m_text.EndDrawComposite();
-    CHRA (hr);
-
-    // If the D2D target was lost partway through this frame (the
-    // swap-chain buffers were invalidated by a live resize), EndDraw
-    // unbinds the target and the frame we just built is incomplete --
-    // some text was flushed before the loss, the rest was dropped.
-    // Presenting it would flash partially-painted content (blank rows,
-    // missing buttons). Skip Present so the last good frame stays on
-    // screen; the next Render rebinds and repaints cleanly.
-    if (m_text.IsTargetBound())
-    {
-        hr = m_swapChain->Present (1, 0);
-        CHRA (hr);
-    }
+    InvalidateRect (m_host->Hwnd(), nullptr, FALSE);
+    UpdateWindow   (m_host->Hwnd());
 
 Error:
     return hr;
@@ -473,7 +384,12 @@ Error:
 
 void Disk2DebugPanel::SetTheme (const CassoTheme * theme)
 {
-    m_window.SetTheme (theme);
+    m_theme = theme;
+    if (m_host != nullptr)
+    {
+        m_host->SetTheme (m_theme);
+    }
+
     m_focusMgr.SetTheme (theme);
 }
 
@@ -483,13 +399,32 @@ void Disk2DebugPanel::SetTheme (const CassoTheme * theme)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  GetWindowClassName
+//  OnLButtonDown
+//
+//  Captures the mouse and takes focus so a drag that begins on a
+//  scrollbar thumb or a column-resize handle keeps receiving moves once
+//  the cursor leaves the client, then routes the press to OnMouse. The
+//  host does no capture / focus bookkeeping of its own, so the panel
+//  owns it here.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-LPCWSTR Disk2DebugPanel::GetWindowClassName() const
+DxuiMessageResult Disk2DebugPanel::OnLButtonDown (WPARAM wParam, LPARAM lParam)
 {
-    return s_kpszClassName;
+    int  x = (int) (short) LOWORD (lParam);
+    int  y = (int) (short) HIWORD (lParam);
+
+
+
+    UNREFERENCED_PARAMETER (wParam);
+
+    if (m_host != nullptr)
+    {
+        SetCapture (m_host->Hwnd());
+        SetFocus   (m_host->Hwnd());
+    }
+
+    return DispatchClientMouse (DxuiMouseEventKind::Down, DxuiMouseButton::Left, x, y, 0.0f);
 }
 
 
@@ -498,13 +433,25 @@ LPCWSTR Disk2DebugPanel::GetWindowClassName() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  GetWindowTitle
+//  OnLButtonUp
+//
+//  Releases the drag capture taken on button-down and routes the
+//  release to OnMouse.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-LPCWSTR Disk2DebugPanel::GetWindowTitle() const
+DxuiMessageResult Disk2DebugPanel::OnLButtonUp (WPARAM wParam, LPARAM lParam)
 {
-    return s_kpszWindowTitle;
+    int  x = (int) (short) LOWORD (lParam);
+    int  y = (int) (short) HIWORD (lParam);
+
+
+
+    UNREFERENCED_PARAMETER (wParam);
+
+    ReleaseCapture();
+
+    return DispatchClientMouse (DxuiMouseEventKind::Up, DxuiMouseButton::Left, x, y, 0.0f);
 }
 
 
@@ -513,62 +460,188 @@ LPCWSTR Disk2DebugPanel::GetWindowTitle() const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  OnHostCreated
+//  OnRButtonDown
 //
-//  Stands up the swap chain bound to the host HWND. Title-bar pointer
-//  and theme are remembered so SetChromeTheme calls land on the same
-//  TitleBar instance the shell painted into.
+//  Takes focus and routes the secondary press to OnMouse, which raises
+//  the column-header context menu.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT Disk2DebugPanel::OnHostCreated (
-    HWND                   hwnd,
-    ID3D11Device         * device,
-    ID3D11DeviceContext  * context,
-    int                    widthPx,
-    int                    heightPx,
-    UINT                   dpi,
-    DxuiHostWindow       * captionHost,
-    const CassoTheme    * theme)
+DxuiMessageResult Disk2DebugPanel::OnRButtonDown (WPARAM wParam, LPARAM lParam)
 {
-    HRESULT  hr = S_OK;
+    int  x = (int) (short) LOWORD (lParam);
+    int  y = (int) (short) HIWORD (lParam);
 
 
-    CBRAEx (hwnd,    E_INVALIDARG);
-    CBRAEx (device,  E_INVALIDARG);
-    CBRAEx (context, E_INVALIDARG);
 
-    m_hwnd     = hwnd;
-    m_device   = device;
-    m_context  = context;
-    m_widthPx  = std::max (1, widthPx);
-    m_heightPx = std::max (1, heightPx);
-    m_dpi      = dpi;
-    m_captionHost = captionHost;
-    m_theme    = theme;
+    UNREFERENCED_PARAMETER (wParam);
 
-    hr = EnsureSwapChain();
-    CHRA (hr);
+    if (m_host != nullptr)
+    {
+        SetFocus (m_host->Hwnd());
+    }
 
-    hr = m_painter.Initialize (device, context);
-    CHRA (hr);
+    return DispatchClientMouse (DxuiMouseEventKind::Down, DxuiMouseButton::Right, x, y, 0.0f);
+}
 
-    hr = m_text.Initialize (device);
-    CHRA (hr);
 
-    ConfigureWidgets();
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnMouseMove
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiMessageResult Disk2DebugPanel::OnMouseMove (WPARAM wParam, LPARAM lParam)
+{
+    int  x = (int) (short) LOWORD (lParam);
+    int  y = (int) (short) HIWORD (lParam);
+
+
+
+    UNREFERENCED_PARAMETER (wParam);
+
+    return DispatchClientMouse (DxuiMouseEventKind::Move, DxuiMouseButton::None, x, y, 0.0f);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnMouseWheel
+//
+//  WM_MOUSEWHEEL reports the point in SCREEN coordinates, so map it back
+//  to client px before dispatch. The signed notch count is normalized to
+//  wheel notches (+1 per notch up) to match the DxuiMouseEvent contract.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiMessageResult Disk2DebugPanel::OnMouseWheel (WPARAM wParam, LPARAM lParam, bool horizontal)
+{
+    POINT  pt         = { (int) (short) LOWORD (lParam), (int) (short) HIWORD (lParam) };
+    float  wheelDelta = (float) GET_WHEEL_DELTA_WPARAM (wParam) / (float) WHEEL_DELTA;
+
+
+
+    UNREFERENCED_PARAMETER (horizontal);
+
+    if (m_host != nullptr)
+    {
+        ScreenToClient (m_host->Hwnd(), &pt);
+    }
+
+    return DispatchClientMouse (DxuiMouseEventKind::Wheel, DxuiMouseButton::None, pt.x, pt.y, wheelDelta);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnKeyDown
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiMessageResult Disk2DebugPanel::OnKeyDown (WPARAM vk, LPARAM lParam)
+{
+    UNREFERENCED_PARAMETER (lParam);
+
+    return DispatchClientKey (DxuiKeyEventKind::Down, vk);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnChar
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiMessageResult Disk2DebugPanel::OnChar (WPARAM ch, LPARAM lParam)
+{
+    UNREFERENCED_PARAMETER (lParam);
+
+    return DispatchClientKey (DxuiKeyEventKind::Char, ch);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnSetCursor
+//
+//  Shows the horizontal-resize cursor while a column drag is live or the
+//  cursor is parked on a header-edge resize handle; otherwise defers to
+//  the host. Only plain client area is reclassified -- NC areas (resize
+//  edges, caption) keep the host's own cursor handling.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiMessageResult Disk2DebugPanel::OnSetCursor (WORD hitTest)
+{
+    POINT  cursor = {};
+    int    relX   = 0;
+    int    relY   = 0;
+    int    tolPx  = MulDiv (4, (int) m_dpi, 96);
+
+
+
+    if (hitTest != HTCLIENT) { return DxuiMessageResult::NotHandled; }
+
+    if (m_host == nullptr || GetCursorPos (&cursor) == FALSE)
+    {
+        return DxuiMessageResult::NotHandled;
+    }
+
+    ScreenToClient (m_host->Hwnd(), &cursor);
+    relX = cursor.x - m_layout.listView.left;
+    relY = cursor.y - m_layout.listView.top;
+
+    if (m_eventList.IsResizingColumn() ||
+        m_eventList.HitTestColumnResize (relX, relY, tolPx) >= 0)
+    {
+        SetCursor (LoadCursorW (nullptr, IDC_SIZEWE));
+        return DxuiMessageResult::Handled;
+    }
+
+    return DxuiMessageResult::NotHandled;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnSize
+//
+//  Fires after the host has finished its own layout response; caches the
+//  final client size and DPI, then re-runs the panel's layout so the
+//  adopted widgets track the new bounds.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiMessageResult Disk2DebugPanel::OnSize (UINT widthPx, UINT heightPx)
+{
+    m_widthPx  = std::max (1, (int) widthPx);
+    m_heightPx = std::max (1, (int) heightPx);
+    if (m_host != nullptr)
+    {
+        m_dpi = m_host->Scaler().Dpi();
+    }
+
     RecomputeLayout();
 
-    // Route the column right-click menu through the host popup pool so
-    // it renders as a real top-level popup (not clipped to the panel).
-    m_columnMenu.SetPopupHost (m_window.PopupHost());
-
-    // Same for hover tooltips so the balloon can escape the panel edge
-    // and occlude whatever is behind it.
-    m_tooltip.SetPopupHost (m_window.PopupHost());
-
-Error:
-    return hr;
+    return DxuiMessageResult::Handled;
 }
 
 
@@ -577,27 +650,68 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  OnHostDestroyed
+//  OnGetMinMax
+//
+//  Clamps the OS minimum track size to the panel's preferred client size
+//  scaled to the current DPI. The window is borderless, so client size
+//  and window size coincide.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void Disk2DebugPanel::OnHostDestroyed()
+DxuiMessageResult Disk2DebugPanel::OnGetMinMax (MINMAXINFO * info)
 {
-    // Release any live popup back to the pool and drop the host pointer
-    // before the host (and its pool) are destroyed in OnDestroy.
+    if (info == nullptr) { return DxuiMessageResult::NotHandled; }
+
+    info->ptMinTrackSize.x = MulDiv (s_kPreferredWidthDip,  (int) m_dpi, 96);
+    info->ptMinTrackSize.y = MulDiv (s_kPreferredHeightDip, (int) m_dpi, 96);
+
+    return DxuiMessageResult::Handled;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnClose
+//
+//  Non-modal: the close box hides the window and keeps the HWND (and the
+//  filter / event-ring state) alive so EmulatorShell can re-Show it.
+//  Consumes the close so DefWindowProc never destroys the window.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiMessageResult Disk2DebugPanel::OnClose()
+{
+    Hide();
+
+    return DxuiMessageResult::Handled;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnDestroy
+//
+//  Releases any live popup back to the pool and drops host-derived
+//  pointers before the host (and its popup pool) tear down. Does NOT
+//  call PostQuitMessage -- this is a secondary window.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Disk2DebugPanel::OnDestroy()
+{
     m_columnMenu.Hide();
     m_columnMenu.SetPopupHost (nullptr);
 
     m_tooltip.HideImmediate();
     m_tooltip.SetPopupHost (nullptr);
 
-    m_text.UnbindBackBuffer();
-    m_text.Shutdown();
-    m_painter.Shutdown();
-    ReleaseRenderTargets();
-    m_swapChain.Reset();
-    m_hwnd     = nullptr;
-    m_captionHost = nullptr;
+    m_hwnd = nullptr;
 }
 
 
@@ -606,54 +720,17 @@ void Disk2DebugPanel::OnHostDestroyed()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  OnHostResize
+//  OnDpiChanged
+//
+//  Fires after the host has applied the OS-suggested rect; refreshes the
+//  cached DPI and re-runs layout so the DPI-scaled slots track the new
+//  scale.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT Disk2DebugPanel::OnHostResize (int widthPx, int heightPx, UINT dpi)
+void Disk2DebugPanel::OnDpiChanged (UINT newDpi)
 {
-    HRESULT  hr = S_OK;
-
-
-    m_widthPx  = std::max (1, widthPx);
-    m_heightPx = std::max (1, heightPx);
-    m_dpi      = dpi;
-
-    BAIL_OUT_IF (m_swapChain == nullptr, S_OK);
-
-    m_text.UnbindBackBuffer();
-    ReleaseRenderTargets();
-
-    hr = m_swapChain->ResizeBuffers (s_kSwapBufferCount,
-                                     (UINT) m_widthPx,
-                                     (UINT) m_heightPx,
-                                     DXGI_FORMAT_B8G8R8A8_UNORM,
-                                     0);
-    CHRA (hr);
-
-    hr = CreateBackBufferRtv();
-    CHRA (hr);
-
-    RecomputeLayout();
-
-Error:
-    return hr;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  SetChromeTheme
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void Disk2DebugPanel::SetChromeTheme (DxuiHostWindow * captionHost, const CassoTheme * theme)
-{
-    m_captionHost = captionHost;
-    m_theme    = theme;
+    m_dpi = newDpi;
     RecomputeLayout();
 }
 
@@ -663,21 +740,59 @@ void Disk2DebugPanel::SetChromeTheme (DxuiHostWindow * captionHost, const CassoT
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  PreferredClientSize
+//  DispatchClientMouse
 //
-//  T044 lands a fixed default size; T046 will replace this with a
-//  layout-driven calculation once control families exist.
+//  Builds a DxuiMouseEvent from client-px coordinates plus the live
+//  modifier-key state and routes it through the panel's OnMouse, mapping
+//  the bool result onto the host client Handled / NotHandled contract.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-SIZE Disk2DebugPanel::PreferredClientSize (UINT dpi) const
+DxuiMessageResult Disk2DebugPanel::DispatchClientMouse (DxuiMouseEventKind kind, DxuiMouseButton button, int x, int y, float wheelDelta)
 {
-    SIZE  size = {};
+    DxuiMouseEvent  ev;
 
 
-    size.cx = MulDiv (s_kPreferredWidthDip,  (int) dpi, 96);
-    size.cy = MulDiv (s_kPreferredHeightDip, (int) dpi, 96);
-    return size;
+
+    ev.kind        = kind;
+    ev.button      = button;
+    ev.positionDip = { x, y };
+    ev.wheelDelta  = wheelDelta;
+    ev.shift       = (GetKeyState (VK_SHIFT)   & 0x8000) != 0;
+    ev.ctrl        = (GetKeyState (VK_CONTROL) & 0x8000) != 0;
+    ev.alt         = (GetKeyState (VK_MENU)    & 0x8000) != 0;
+
+    return this->OnMouse (ev) ? DxuiMessageResult::Handled : DxuiMessageResult::NotHandled;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DispatchClientKey
+//
+//  Builds a DxuiKeyEvent from a virtual-key / character code plus the
+//  live modifier-key state and routes it through the panel's OnKey,
+//  mapping the bool result onto the host client Handled / NotHandled
+//  contract.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiMessageResult Disk2DebugPanel::DispatchClientKey (DxuiKeyEventKind kind, WPARAM code)
+{
+    DxuiKeyEvent  ev;
+
+
+
+    ev.kind  = kind;
+    ev.vk    = code;
+    ev.shift = (GetKeyState (VK_SHIFT)   & 0x8000) != 0;
+    ev.ctrl  = (GetKeyState (VK_CONTROL) & 0x8000) != 0;
+    ev.alt   = (GetKeyState (VK_MENU)    & 0x8000) != 0;
+
+    return this->OnKey (ev) ? DxuiMessageResult::Handled : DxuiMessageResult::NotHandled;
 }
 
 
@@ -715,37 +830,6 @@ bool Disk2DebugPanel::ForwardMouseToList (DxuiMouseEventKind kind, DxuiMouseButt
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  OnSetCursor
-//
-//  Cursor override for the panel. Returns IDC_SIZEWE while a column
-//  resize is active or when the cursor is parked on a header-edge
-//  resize handle; returns nullptr (default arrow) otherwise.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-HCURSOR Disk2DebugPanel::OnSetCursor (int x, int y)
-{
-    int  relX  = x - m_layout.listView.left;
-    int  relY  = y - m_layout.listView.top;
-    int  tolPx = MulDiv (4, (int) m_dpi, 96);
-
-    if (m_eventList.IsResizingColumn())
-    {
-        return LoadCursorW (nullptr, IDC_SIZEWE);
-    }
-    if (m_eventList.HitTestColumnResize (relX, relY, tolPx) >= 0)
-    {
-        return LoadCursorW (nullptr, IDC_SIZEWE);
-    }
-    return nullptr;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  ShowColumnMenu
 //
 //  Builds a popup menu item for each column with the current
@@ -759,8 +843,17 @@ HCURSOR Disk2DebugPanel::OnSetCursor (int x, int y)
 void Disk2DebugPanel::ShowColumnMenu (int anchorX, int anchorY)
 {
     std::vector<DxuiPopupMenu::Item>  items;
-    RECT                          host = { 0, 0, m_widthPx, m_heightPx };
+    IDxuiTextRenderer              *  textRenderer = (m_host != nullptr) ? m_host->GetTextRenderer() : nullptr;
+    RECT                              host         = { 0, 0, m_widthPx, m_heightPx };
 
+
+    // The host owns no paint pump in adopt / synthetic mode, so it exposes
+    // no text renderer to measure / lay the menu out with -- bail rather
+    // than dereference a null renderer.
+    if (textRenderer == nullptr)
+    {
+        return;
+    }
 
     items.reserve (m_eventList.GetColumnCount());
 
@@ -772,7 +865,7 @@ void Disk2DebugPanel::ShowColumnMenu (int anchorX, int anchorY)
         items.push_back (std::move (item));
     }
 
-    m_columnMenu.Show (anchorX, anchorY, std::move (items), m_text, host);
+    m_columnMenu.Show (anchorX, anchorY, std::move (items), *textRenderer, host);
 }
 
 
@@ -1023,11 +1116,11 @@ bool Disk2DebugPanel::OnMouse (const DxuiMouseEvent & ev)
                     // The list owns all in-list routing (scrollbar arrows /
                     // thumb / track, column resize, header-click sort, row
                     // select) via OnMouse and reports outcomes through the
-                    // callbacks wired at setup. ChromedPanelWindow holds the
+                    // callbacks wired at setup. OnLButtonDown holds the
                     // Win32 capture for the full press, so any drag the list
-                    // starts keeps receiving moves without the panel managing
-                    // capture itself. OnMouse consumes only in-bounds presses;
-                    // when it does, focus moves to the list.
+                    // starts keeps receiving moves after the cursor leaves the
+                    // client. OnMouse consumes only in-bounds presses; when it
+                    // does, focus moves to the list.
                     handled = ForwardMouseToList (DxuiMouseEventKind::Down, DxuiMouseButton::Left, x, y, 0.0f);
                     if (handled) { m_focusMgr.SetFocused (&m_eventList); }
                 }
@@ -1062,8 +1155,8 @@ bool Disk2DebugPanel::OnMouse (const DxuiMouseEvent & ev)
                 // Finish any list drag (scrollbar thumb / column resize) the
                 // list started on button-down. The pointer may have left the
                 // list bounds mid-drag, so forward the release
-                // unconditionally. ChromedPanelWindow owns the Win32 capture
-                // and releases it after this returns.
+                // unconditionally. OnLButtonUp releases the Win32 capture
+                // before routing this release.
                 if (m_eventList.IsInteracting())
                 {
                     (void) ForwardMouseToList (DxuiMouseEventKind::Up, DxuiMouseButton::Left, x, y, 0.0f);
@@ -1164,180 +1257,6 @@ bool Disk2DebugPanel::OnKey (const DxuiKeyEvent & ev)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  Accept
-//
-//  The panel is non-modal and has no commit semantics, so Enter is a
-//  no-op (matches legacy Disk2DebugDialog behaviour).
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void Disk2DebugPanel::Accept()
-{
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  Cancel
-//
-//  Esc / WM_CLOSE / titlebar close all hide the panel rather than
-//  destroying it, matching the legacy dialog: re-opening keeps the
-//  filter state and the event ring populated.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void Disk2DebugPanel::Cancel()
-{
-    Hide();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  IsContentActive
-//
-//  Always true while the host is up -- Cancel hides the window without
-//  asking the shell to destroy it, so the chrome shell must not tear
-//  down the HWND on Cancel.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool Disk2DebugPanel::IsContentActive() const
-{
-    return true;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  EnsureSwapChain
-//
-//  Creates a flip-sequential swap chain on the host HWND if one is
-//  not already attached. Uses straight-HWND swap chain (no DComp) --
-//  the panel has no transparency / overlap requirements that would
-//  need composition.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-HRESULT Disk2DebugPanel::EnsureSwapChain()
-{
-    HRESULT                hr           = S_OK;
-    ComPtr<IDXGIDevice>    dxgiDevice;
-    ComPtr<IDXGIAdapter>   dxgiAdapter;
-    ComPtr<IDXGIFactory2>  dxgiFactory;
-    DXGI_SWAP_CHAIN_DESC1  desc         = {};
-
-
-
-    BAIL_OUT_IF (m_swapChain != nullptr, S_OK);
-
-    CBRA (m_device);
-    CBRA (m_hwnd);
-
-    hr = m_device->QueryInterface (IID_PPV_ARGS (&dxgiDevice));
-    CHRA (hr);
-
-    hr = dxgiDevice->GetAdapter (&dxgiAdapter);
-    CHRA (hr);
-
-    hr = dxgiAdapter->GetParent (IID_PPV_ARGS (&dxgiFactory));
-    CHRA (hr);
-
-    desc.Width            = (UINT) m_widthPx;
-    desc.Height           = (UINT) m_heightPx;
-    desc.Format           = DXGI_FORMAT_B8G8R8A8_UNORM;
-    desc.Stereo           = FALSE;
-    desc.SampleDesc.Count = 1;
-    desc.BufferUsage      = DXGI_USAGE_RENDER_TARGET_OUTPUT;
-    desc.BufferCount      = s_kSwapBufferCount;
-    desc.Scaling          = DXGI_SCALING_STRETCH;
-    desc.SwapEffect       = DXGI_SWAP_EFFECT_FLIP_SEQUENTIAL;
-    desc.AlphaMode        = DXGI_ALPHA_MODE_IGNORE;
-    desc.Flags            = 0;
-
-    hr = dxgiFactory->CreateSwapChainForHwnd (m_device,
-                                              m_hwnd,
-                                              &desc,
-                                              nullptr,
-                                              nullptr,
-                                              &m_swapChain);
-    CHRA (hr);
-
-    hr = dxgiFactory->MakeWindowAssociation (m_hwnd, DXGI_MWA_NO_ALT_ENTER);
-    CHRA (hr);
-
-    hr = CreateBackBufferRtv();
-    CHRA (hr);
-
-Error:
-    return hr;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  CreateBackBufferRtv
-//
-////////////////////////////////////////////////////////////////////////////////
-
-HRESULT Disk2DebugPanel::CreateBackBufferRtv()
-{
-    HRESULT                       hr         = S_OK;
-    ComPtr<ID3D11Texture2D>       backBuffer;
-
-
-
-    CBRA (m_swapChain);
-    CBRA (m_device);
-
-    hr = m_swapChain->GetBuffer (0, IID_PPV_ARGS (&backBuffer));
-    CHRA (hr);
-
-    hr = m_device->CreateRenderTargetView (backBuffer.Get(), nullptr, &m_rtv);
-    CHRA (hr);
-
-Error:
-    return hr;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ReleaseRenderTargets
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void Disk2DebugPanel::ReleaseRenderTargets()
-{
-    if (m_context != nullptr)
-    {
-        ID3D11RenderTargetView *  nullRtv = nullptr;
-        m_context->OMSetRenderTargets (1, &nullRtv, nullptr);
-    }
-    m_rtv.Reset();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  RecomputeLayout
 //
 //  Recomputes the cached PanelLayoutSlots whenever the panel's client
@@ -1352,9 +1271,9 @@ void Disk2DebugPanel::RecomputeLayout()
     int  titleHeight = 0;
 
 
-    if (m_captionHost != nullptr)
+    if (m_host != nullptr)
     {
-        titleHeight = m_captionHost->CaptionHeightPx();
+        titleHeight = m_host->CaptionHeightPx();
     }
 
     m_layout = ComputeDisk2DebugPanelLayout (m_widthPx, m_heightPx, titleHeight, m_dpi);
@@ -1640,7 +1559,7 @@ void Disk2DebugPanel::ConfigureWidgets()
         m_focusMgr.Rebuild();
     });
 
-    m_focusMgr.Attach  (this);
+    m_focusMgr.Attach  (&m_host->Root());
     m_focusMgr.SetTheme (m_theme);
     m_focusMgr.Rebuild();
 }
@@ -2260,51 +2179,4 @@ void Disk2DebugPanel::UpdateTooltip (int x, int y)
     }
 
     m_tooltip.RequestHide (now);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  Layout (IDxuiControl adapter)
-//
-//  Bridges DxuiPanel's pure-virtual Layout(RECT, scaler) for the
-//  IDxuiControl tree. The chrome shell drives this panel's bespoke
-//  RecomputeLayout / LayoutWidgets pipeline directly via
-//  OnHostResize, so the adapter is intentionally a no-op. It exists
-//  so an IDxuiControl-tree walk targeting the panel does not abort
-//  on the pure virtual.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void Disk2DebugPanel::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
-{
-    UNREFERENCED_PARAMETER (boundsDip);
-    UNREFERENCED_PARAMETER (scaler);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  Paint (IDxuiControl adapter)
-//
-//  Bridges DxuiPanel's pure-virtual Paint(IDxuiPainter, ...). The
-//  chrome shell drives this panel's bespoke Render via the
-//  IChromedPanelContent path, which composes against its own owned
-//  m_painter / m_text. The adapter is a no-op for the same reason
-//  Layout above is: the unified Dxui dispatch path does not yet
-//  reach the chrome-hosted panel, so this hook stays inert.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void Disk2DebugPanel::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
-{
-    UNREFERENCED_PARAMETER (painter);
-    UNREFERENCED_PARAMETER (text);
-    UNREFERENCED_PARAMETER (theme);
 }

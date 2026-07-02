@@ -306,6 +306,8 @@ public:
     ID3D11DeviceContext  *  GetContext         () const { return m_context.Get();   }
     IDXGISwapChain1      *  GetSwapChain       () const { return m_swapChain.Get(); }
     ID3D11RenderTargetView * GetBackBufferRtv  () const { return m_rtv.Get();       }
+    // Host-owned text renderer; null in adopt / synthetic mode (host owns no paint pump).
+    IDxuiTextRenderer    *  GetTextRenderer    () const { return m_textRenderer.get(); }
 
     //
     //  Optional before-present hook. Installed by a consumer (e.g.

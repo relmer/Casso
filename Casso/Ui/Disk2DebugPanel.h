@@ -1,7 +1,7 @@
 #pragma once
 
-#include "Chrome/ChromedPanelWindow.h"
-#include "Chrome/IChromedPanelContent.h"
+#include "Window/DxuiHostWindow.h"
+#include "Window/IDxuiHostClient.h"
 #include "Disk2DebugPanelLayout.h"
 #include "Core/DxuiFocusManager.h"
 #include "Core/DxuiPanel.h"
@@ -22,7 +22,6 @@
 
 
 struct CassoTheme;
-class DxuiHostWindow;
 
 
 
@@ -33,20 +32,24 @@ class DxuiHostWindow;
 //  Disk2DebugPanel
 //
 //  Spec-011 / US7. Themed DX replacement for the legacy Win32
-//  Disk2DebugDialog. Hosts itself inside a ChromedPanelWindow and
-//  implements the same two event-sink interfaces (IDisk2EventSink
-//  and IDriveAudioEventSink) so it slots into the existing
-//  EmulatorShell event wiring with no contract changes.
+//  Disk2DebugDialog. Owns a full-ownership DxuiHostWindow (borderless
+//  chrome + close-only caption + host-owned swap chain / paint pump)
+//  and installs itself as the window's IDxuiHostClient, translating the
+//  host's Win32 message hooks into the panel's existing DxuiMouseEvent /
+//  DxuiKeyEvent routing. It still implements the same two event-sink
+//  interfaces (IDisk2EventSink and IDriveAudioEventSink) so it slots
+//  into the existing EmulatorShell event wiring with no contract
+//  changes.
 //
-//  T044 lands this empty -- chrome + state binding only, no controls.
-//  T046 brings the layout, T047-T057 the individual control families.
-//  Until T046, every sink callback is a no-op so the panel never
-//  drops events but also never re-renders.
+//  The content widgets are adopted into the host's root panel so the
+//  host paint pump walks and paints them; the panel keeps its own
+//  focus manager, tooltip, and column menu (the latter two escape the
+//  client via the host popup pool).
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 class Disk2DebugPanel : public DxuiPanel,
-                         public IChromedPanelContent,
+                         public IDxuiHostClient,
                          public IDisk2EventSink,
                          public IDriveAudioEventSink
 {
@@ -63,8 +66,8 @@ public:
     void    Hide    ();
     void    Destroy ();
 
-    bool    IsOpen () const { return m_window.IsOpen(); }
-    HWND    Hwnd   () const { return m_window.Hwnd(); }
+    bool    IsOpen () const { return m_host != nullptr; }
+    HWND    Hwnd   () const { return m_host != nullptr ? m_host->Hwnd() : nullptr; }
 
     HRESULT RenderFrame ();
     void    SetTheme    (const CassoTheme * theme);
@@ -79,51 +82,30 @@ public:
     // DxuiListView rows are only ever mutated on one thread.
     void    RequestResetAnchor (std::chrono::steady_clock::time_point anchor) noexcept;
 
-    // IChromedPanelContent.
-    LPCWSTR  GetWindowClassName () const override;
-    LPCWSTR  GetWindowTitle     () const override;
-    HRESULT  OnHostCreated      (HWND                   hwnd,
-                                 ID3D11Device         * device,
-                                 ID3D11DeviceContext  * context,
-                                 int                    widthPx,
-                                 int                    heightPx,
-                                 UINT                   dpi,
-                                 DxuiHostWindow       * captionHost,
-                                 const CassoTheme    * theme) override;
-    void     OnHostDestroyed    ()                                  override;
-    HRESULT  OnHostResize       (int widthPx, int heightPx, UINT dpi) override;
-    void     SetChromeTheme     (DxuiHostWindow * captionHost, const CassoTheme * theme) override;
-    SIZE     PreferredClientSize (UINT dpi) const                   override;
-    HRESULT  Render             ()                                  override;
-    void     Accept             ()                                  override;
-    void     Cancel             ()                                  override;
-    bool     IsContentActive    () const                            override;
-    bool     IsNonModal         () const                            override { return true; }
-    HCURSOR  OnSetCursor        (int x, int y)                      override;
-    IDxuiControl *  AsControl   ()                                  override { return this; }
-
-    // IDxuiControl pure-virtual overrides supplied by inheriting
-    // DxuiPanel. The chrome shell drives this panel directly through
-    // OnHostResize / Render and the bespoke IChromedPanelContent input
-    // shims above; these adapters exist so an IDxuiControl-tree walk
-    // can reach the panel without an explicit downcast. They are
-    // intentionally no-ops -- the bespoke pipeline owns layout and
-    // paint until the unified Dxui dispatch path absorbs the chrome.
-    void    Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
-    void    Paint  (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
+    // IDxuiHostClient. The host window forwards the Win32 messages it
+    // does not own end-to-end; each hook translates into the panel's
+    // existing DxuiMouseEvent / DxuiKeyEvent routing (OnMouse / OnKey)
+    // or the layout / lifecycle helpers below.
+    DxuiMessageResult  OnLButtonDown (WPARAM wParam, LPARAM lParam) override;
+    DxuiMessageResult  OnLButtonUp   (WPARAM wParam, LPARAM lParam) override;
+    DxuiMessageResult  OnRButtonDown (WPARAM wParam, LPARAM lParam) override;
+    DxuiMessageResult  OnMouseMove   (WPARAM wParam, LPARAM lParam) override;
+    DxuiMessageResult  OnMouseWheel  (WPARAM wParam, LPARAM lParam, bool horizontal) override;
+    DxuiMessageResult  OnKeyDown     (WPARAM vk, LPARAM lParam) override;
+    DxuiMessageResult  OnChar        (WPARAM ch, LPARAM lParam) override;
+    DxuiMessageResult  OnSetCursor   (WORD hitTest) override;
+    DxuiMessageResult  OnSize        (UINT widthPx, UINT heightPx) override;
+    DxuiMessageResult  OnGetMinMax   (MINMAXINFO * info) override;
+    DxuiMessageResult  OnClose       () override;
+    void               OnDestroy     () override;
+    void               OnDpiChanged  (UINT newDpi) override;
 
     // Framework input entry points. These DxuiPanel overrides own the
     // panel's mouse / key routing directly, dispatching each
     // DxuiMouseEvent / DxuiKeyEvent to the child widgets and the event
-    // list so the chrome drives the panel through the framework.
+    // list so the host drives the panel through the framework.
     bool    OnMouse (const DxuiMouseEvent & ev)                     override;
     bool    OnKey   (const DxuiKeyEvent   & ev)                     override;
-
-    // Surface the base overloads so virtual dispatch through
-    // IDxuiControl* still resolves and direct callers can reach the
-    // base overload without name-hiding ambiguity.
-    using DxuiPanel::Layout;
-    using DxuiPanel::Paint;
 
     // IDisk2EventSink. Producer thread -- push into the lock-free ring;
     // the render thread drains and projects to display rows per frame.
@@ -149,9 +131,8 @@ public:
     void OnAudioLoopStopped (SoundKind kind, int drive)                    override;
 
 private:
-    HRESULT EnsureSwapChain      ();
-    HRESULT CreateBackBufferRtv  ();
-    void    ReleaseRenderTargets ();
+    DxuiMessageResult  DispatchClientMouse (DxuiMouseEventKind kind, DxuiMouseButton button, int x, int y, float wheelDelta);
+    DxuiMessageResult  DispatchClientKey   (DxuiKeyEventKind kind, WPARAM code);
     void    RecomputeLayout      ();
     void    LayoutWidgets        ();
     void    ConfigureWidgets     ();
@@ -172,23 +153,16 @@ private:
     void    SortByColumn         (int absCol);
     int64_t NowMs                () const;
 
-    ChromedPanelWindow                   m_window;
+    std::unique_ptr<DxuiHostWindow>      m_host;
     PanelLayoutSlots                     m_layout = {};
 
     ID3D11Device                       * m_device  = nullptr;
     ID3D11DeviceContext                * m_context = nullptr;
     const CassoTheme                  * m_theme   = nullptr;
-    DxuiHostWindow                     * m_captionHost = nullptr;
     HWND                                 m_hwnd    = nullptr;
     int                                  m_widthPx  = 0;
     int                                  m_heightPx = 0;
     UINT                                 m_dpi      = 96;
-
-    Microsoft::WRL::ComPtr<IDXGISwapChain1>           m_swapChain;
-    Microsoft::WRL::ComPtr<ID3D11RenderTargetView>    m_rtv;
-
-    DxuiPainter                          m_painter;
-    DxuiTextRenderer                   m_text;
 
     DxuiLabel                                m_trackFilterLabel;
     DxuiLabel                                m_sectorFilterLabel;
