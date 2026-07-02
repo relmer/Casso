@@ -47,6 +47,7 @@ public:
     DxuiMessageResult  OnLButtonDown (WPARAM wParam, LPARAM lParam)         override;
     DxuiMessageResult  OnLButtonUp   (WPARAM wParam, LPARAM lParam)         override;
     DxuiMessageResult  OnMouseWheel  (WPARAM wParam, LPARAM lParam, bool horizontal) override;
+    DxuiMessageResult  OnSetCursor   (WORD hitTest)                         override;
     DxuiMessageResult  OnTimer       (UINT_PTR timerId)                     override;
 
 

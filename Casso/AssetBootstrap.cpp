@@ -1987,6 +1987,22 @@ namespace
             return handled;
         }
 
+        LPCWSTR  CursorForPoint (POINT clientPx) const override
+        {
+            LPCWSTR  cursor = nullptr;
+
+
+            if (m_list != nullptr)
+            {
+                RECT   lb    = m_list->Bounds();
+                POINT  local = { clientPx.x - lb.left, clientPx.y - lb.top };
+
+                cursor = m_list->CursorForPoint (local);
+            }
+
+            return cursor;
+        }
+
 
     private:
         DxuiSearchBox *  m_search          = nullptr;

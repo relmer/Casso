@@ -95,6 +95,12 @@ public:
     virtual bool  OnKey           (const DxuiKeyEvent   & ev)                   { (void) ev; return false; }
     virtual bool  OnChar          (wchar_t ch)                                 { (void) ch; return false; }
 
+    // Win32 system-cursor id (IDC_*, e.g. IDC_SIZEWE over a column-resize
+    // divider) for a client-space point, or nullptr for "no preference"
+    // (host uses the default arrow). Panels fan this to children like
+    // OnMouse; the host queries the tree on WM_SETCURSOR.
+    virtual LPCWSTR  CursorForPoint  (POINT clientPx) const                       { (void) clientPx; return nullptr; }
+
     virtual void  OnFocusChanged  (bool focused)                                { (void) focused; }
     virtual void  OnThemeChanged  ()                                            {}
     virtual void  Tick            (int64_t nowMs)                               { (void) nowMs; }
