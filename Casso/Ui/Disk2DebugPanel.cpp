@@ -714,254 +714,6 @@ bool Disk2DebugPanel::ForwardMouseToList (DxuiMouseEventKind kind, DxuiMouseButt
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  OnLButtonDown
-//
-//  Routes mouse-down to whichever widget owns the hit point. First-hit
-//  wins; widgets earlier in the dispatch order get priority.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void Disk2DebugPanel::OnLButtonDown (int x, int y)
-{
-    bool  handled    = false;
-    int   newFocus   = -1;
-
-
-    if (m_columnMenu.IsVisible())
-    {
-        if (m_columnMenu.OnLButtonDown (x, y)) { return; }
-    }
-
-    for (size_t i = 0; i < m_eventChecks.size(); ++i)
-    {
-        if (m_eventChecks[i].OnLButtonDown (x, y))
-        {
-            handled  = true;
-            newFocus = (int) i;
-            break;
-        }
-    }
-    if (!handled && m_audioMasterCheck.OnLButtonDown (x, y))
-    {
-        handled  = true;
-        newFocus = 8;
-    }
-    if (!handled)
-    {
-        for (size_t i = 0; i < m_audioSubChecks.size(); ++i)
-        {
-            if (m_audioSubChecks[i].OnLButtonDown (x, y))
-            {
-                handled  = true;
-                newFocus = 9 + (int) i;
-                break;
-            }
-        }
-    }
-    if (!handled && m_rawQtCheck.OnLButtonDown (x, y))
-    {
-        handled  = true;
-        newFocus = 16;
-    }
-    if (!handled && m_driveRadio.OnLButtonDown (x, y))
-    {
-        handled  = true;
-        newFocus = 13;
-    }
-    if (!handled && m_trackEdit.OnLButtonDown (x, y))
-    {
-        handled  = true;
-        newFocus = 14;
-    }
-    if (!handled && m_sectorEdit.OnLButtonDown (x, y))
-    {
-        handled  = true;
-        newFocus = 15;
-    }
-
-    if (m_pauseButton.HitTest (x, y))
-    {
-        m_pauseButton.SetMouse (x, y, true);
-        handled  = true;
-        newFocus = 17;
-    }
-    if (!handled && m_clearButton.HitTest (x, y))
-    {
-        m_clearButton.SetMouse (x, y, true);
-        handled  = true;
-        newFocus = 18;
-    }
-
-    if (handled)
-    {
-        SetFocusIndex (newFocus);
-    }
-
-    if (!handled)
-    {
-        // The list owns all in-list routing (scrollbar arrows / thumb /
-        // track, column resize, header-click sort, row select) via
-        // OnMouse and reports outcomes through the callbacks wired at
-        // setup (which also drive the focus stops). ChromedPanelWindow
-        // holds the Win32 capture for the full press, so any drag the
-        // list starts keeps receiving moves without the panel managing
-        // capture itself. OnMouse consumes only in-bounds presses.
-        handled = ForwardMouseToList (DxuiMouseEventKind::Down, DxuiMouseButton::Left, x, y, 0.0f);
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  OnLButtonUp
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void Disk2DebugPanel::OnLButtonUp (int x, int y)
-{
-    // Finish any list drag (scrollbar thumb / column resize) the list
-    // started on button-down. The pointer may have left the list bounds
-    // mid-drag, so forward the release unconditionally. ChromedPanelWindow
-    // owns the Win32 capture and releases it after this returns.
-    if (m_eventList.IsInteracting())
-    {
-        (void) ForwardMouseToList (DxuiMouseEventKind::Up, DxuiMouseButton::Left, x, y, 0.0f);
-        return;
-    }
-
-    if (m_columnMenu.IsVisible())
-    {
-        if (m_columnMenu.OnLButtonUp (x, y)) { return; }
-    }
-
-    for (auto & cb : m_eventChecks)        { cb.OnLButtonUp (x, y); }
-    m_audioMasterCheck.OnLButtonUp (x, y);
-    for (auto & cb : m_audioSubChecks)     { cb.OnLButtonUp (x, y); }
-    m_rawQtCheck.OnLButtonUp   (x, y);
-    m_driveRadio.OnLButtonUp   (x, y);
-    m_trackEdit.OnLButtonUp    (x, y);
-    m_sectorEdit.OnLButtonUp   (x, y);
-
-    bool  pauseDown = m_pauseButton.HitTest (x, y);
-    bool  clearDown = m_clearButton.HitTest (x, y);
-
-    m_pauseButton.SetMouse (x, y, false);
-    m_clearButton.SetMouse (x, y, false);
-
-    if (pauseDown)
-    {
-        m_pauseButton.Click();
-    }
-    if (clearDown)
-    {
-        m_clearButton.Click();
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  OnMouseMove
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void Disk2DebugPanel::OnMouseMove (int x, int y)
-{
-    // While the list owns a drag (scrollbar thumb / column resize),
-    // route moves to it. IChromedPanelContent gives no button state, so
-    // pass Left explicitly: DxuiListView::OnMouse treats a non-Left move
-    // while interacting as a release (its missed-button-up safety net).
-    if (m_eventList.IsInteracting())
-    {
-        (void) ForwardMouseToList (DxuiMouseEventKind::Move, DxuiMouseButton::Left, x, y, 0.0f);
-        return;
-    }
-
-    if (m_columnMenu.IsVisible())
-    {
-        m_columnMenu.OnMouseMove (x, y);
-        m_tooltip.RequestHide (NowMs());
-        return;
-    }
-
-    for (auto & cb : m_eventChecks)        { cb.SetMouseHover (x, y); }
-    m_audioMasterCheck.SetMouseHover (x, y);
-    for (auto & cb : m_audioSubChecks)     { cb.SetMouseHover (x, y); }
-    m_rawQtCheck.SetMouseHover (x, y);
-    m_driveRadio.SetMouseHover (x, y);
-    m_trackEdit.SetMouseHover  (x, y);
-    m_sectorEdit.SetMouseHover (x, y);
-
-    m_pauseButton.SetMouse (x, y, m_pauseButton.HitTest (x, y) && (GetKeyState (VK_LBUTTON) & 0x8000));
-    m_clearButton.SetMouse (x, y, m_clearButton.HitTest (x, y) && (GetKeyState (VK_LBUTTON) & 0x8000));
-
-    // Row-hover highlight: the list owns the hit-test + hovered state.
-    (void) ForwardMouseToList (DxuiMouseEventKind::Move, DxuiMouseButton::None, x, y, 0.0f);
-
-    UpdateTooltip (x, y);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  OnMouseWheel
-//
-//  Wheel up scrolls back in history (older events); wheel down scrolls
-//  toward the tail. Forwarded to the list, which scrolls only when the
-//  pointer is over it (standard control behavior).
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void Disk2DebugPanel::OnMouseWheel (int x, int y, int delta)
-{
-    (void) ForwardMouseToList (DxuiMouseEventKind::Wheel, DxuiMouseButton::None, x, y,
-                               (float) delta / (float) WHEEL_DELTA);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  OnRButtonDown
-//
-//  Right-click inside the list-view header strip surfaces a themed
-//  popup menu of column-visibility toggles. Anywhere else, right-click
-//  is currently a no-op.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void Disk2DebugPanel::OnRButtonDown (int x, int y)
-{
-    int  relX        = x - m_layout.listView.left;
-    int  relY        = y - m_layout.listView.top;
-    int  headerH     = m_eventList.GetHeaderHeightPx();
-    int  listWidthPx = m_layout.listView.right - m_layout.listView.left;
-
-
-    if (!m_eventList.IsHeaderShown())                                { return; }
-    if (relX < 0 || relX >= listWidthPx)                          { return; }
-    if (relY < 0 || relY >= headerH)                              { return; }
-
-    ShowColumnMenu (x, y);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  OnSetCursor
 //
 //  Cursor override for the panel. Returns IDC_SIZEWE while a column
@@ -1209,99 +961,6 @@ void Disk2DebugPanel::FocusCycle (int direction)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  OnKey
-//
-//  Routes the key to the currently-focused widget only. The Tab key
-//  always cycles focus; the column popup, when visible, captures
-//  everything else.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool Disk2DebugPanel::OnKey (WPARAM vk)
-{
-    bool  shiftDown = (GetKeyState (VK_SHIFT) & 0x8000) != 0;
-
-
-    if (m_columnMenu.IsVisible())  { return m_columnMenu.OnKey (vk); }
-
-    if (vk == VK_TAB)
-    {
-        FocusCycle (shiftDown ? -1 : 1);
-        return true;
-    }
-
-    if (m_focusIndex < 0) { return false; }
-
-    if (m_focusIndex >= 19)
-    {
-        int  d = m_focusIndex - 19;
-        int  N = m_eventList.GetVisibleColumnCount();
-        if (N <= 0 || d < 0 || d >= 2 * N) { return false; }
-
-        if (d == 2 * N - 1)
-        {
-            int  rowCount = m_eventList.GetRowCount();
-            int  cur      = m_eventList.GetSelectedRow();
-            int  cap      = m_eventList.GetVisibleRowCapacity();
-            int  next     = cur;
-
-            if (rowCount <= 0) { return false; }
-
-            switch (vk)
-            {
-                case VK_UP:    next = (cur <= 0) ? 0 : (cur - 1); break;
-                case VK_DOWN:  next = (cur < 0) ? 0 : ((cur + 1 >= rowCount) ? (rowCount - 1) : (cur + 1)); break;
-                case VK_HOME:  next = 0;                          break;
-                case VK_END:   next = rowCount - 1;               break;
-                case VK_PRIOR: next = (cur < 0) ? 0 : std::max (0, cur - std::max (1, cap)); break;
-                case VK_NEXT:  next = (cur < 0) ? 0 : std::min (rowCount - 1, cur + std::max (1, cap)); break;
-                default:       return false;
-            }
-            m_eventList.SetSelectedRow (next);
-            OnListSelectionMoved();
-            return true;
-        }
-
-        if ((d & 1) == 0)
-        {
-            if (vk == VK_SPACE || vk == VK_RETURN)
-            {
-                OnHeaderSortKey();
-                return true;
-            }
-            return false;
-        }
-
-        if (vk == VK_LEFT)  { OnDividerResizeKey (-1); return true; }
-        if (vk == VK_RIGHT) { OnDividerResizeKey (+1); return true; }
-        return false;
-    }
-
-    if (m_focusIndex <= 7) { return m_eventChecks[(size_t) m_focusIndex].OnKey (vk); }
-    switch (m_focusIndex)
-    {
-        case 8:  return m_audioMasterCheck.OnKey (vk);
-        case 13: return m_driveRadio.OnKey       (vk);
-        case 14: return m_trackEdit.OnKey        (vk);
-        case 15: return m_sectorEdit.OnKey       (vk);
-        case 16: return m_rawQtCheck.OnKey       (vk);
-        case 17: return m_pauseButton.OnKey      (vk);
-        case 18: return m_clearButton.OnKey      (vk);
-        default: break;
-    }
-    if (m_focusIndex >= 9 && m_focusIndex <= 12)
-    {
-        return m_audioSubChecks[(size_t) (m_focusIndex - 9)].OnKey (vk);
-    }
-    return false;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  ApplyListSelection
 //
 //  Resolves m_listSelectedEventIndex (an absolute index into m_events)
@@ -1460,23 +1119,6 @@ void Disk2DebugPanel::OnDividerResizeKey (int direction)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  OnChar
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool Disk2DebugPanel::OnChar (wchar_t ch)
-{
-    if (m_trackEdit.OnChar  (ch)) { return true; }
-    if (m_sectorEdit.OnChar (ch)) { return true; }
-    return false;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  OnMouse
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -1491,19 +1133,151 @@ bool Disk2DebugPanel::OnMouse (const DxuiMouseEvent & ev)
     switch (ev.kind)
     {
         case DxuiMouseEventKind::Move:
-            OnMouseMove (x, y);
+            // While the list owns a drag (scrollbar thumb / column resize),
+            // route moves to it. DxuiListView::OnMouse treats a non-Left
+            // move while interacting as a release (its missed-button-up
+            // safety net), so pass Left explicitly.
+            if (m_eventList.IsInteracting())
+            {
+                (void) ForwardMouseToList (DxuiMouseEventKind::Move, DxuiMouseButton::Left, x, y, 0.0f);
+                return true;
+            }
+
+            if (m_columnMenu.IsVisible())
+            {
+                m_columnMenu.OnMouse (ev);
+                m_tooltip.RequestHide (NowMs());
+                return true;
+            }
+
+            for (auto & cb : m_eventChecks)        { cb.SetMouseHover (x, y); }
+            m_audioMasterCheck.SetMouseHover (x, y);
+            for (auto & cb : m_audioSubChecks)     { cb.SetMouseHover (x, y); }
+            m_rawQtCheck.SetMouseHover (x, y);
+            m_driveRadio.SetMouseHover (x, y);
+            m_trackEdit.SetMouseHover  (x, y);
+            m_sectorEdit.SetMouseHover (x, y);
+
+            m_pauseButton.SetMouse (x, y, m_pauseButton.HitTest (x, y) && (GetKeyState (VK_LBUTTON) & 0x8000));
+            m_clearButton.SetMouse (x, y, m_clearButton.HitTest (x, y) && (GetKeyState (VK_LBUTTON) & 0x8000));
+
+            // Row-hover highlight: the list owns the hit-test + hovered state.
+            (void) ForwardMouseToList (DxuiMouseEventKind::Move, DxuiMouseButton::None, x, y, 0.0f);
+
+            UpdateTooltip (x, y);
             return true;
 
         case DxuiMouseEventKind::Down:
             if (ev.button == DxuiMouseButton::Left)
             {
-                OnLButtonDown (x, y);
+                bool  handled  = false;
+                int   newFocus = -1;
+
+
+                if (m_columnMenu.IsVisible())
+                {
+                    if (m_columnMenu.OnMouse (ev)) { return true; }
+                }
+
+                // The client-px widgets share the panel's coordinate space
+                // (ev.positionDip == client px), so route the press straight
+                // to each widget's OnMouse; the widget hit-tests itself and
+                // reports whether it consumed the press.
+                for (size_t i = 0; i < m_eventChecks.size(); ++i)
+                {
+                    if (m_eventChecks[i].OnMouse (ev))
+                    {
+                        handled  = true;
+                        newFocus = (int) i;
+                        break;
+                    }
+                }
+                if (!handled && m_audioMasterCheck.OnMouse (ev))
+                {
+                    handled  = true;
+                    newFocus = 8;
+                }
+                if (!handled)
+                {
+                    for (size_t i = 0; i < m_audioSubChecks.size(); ++i)
+                    {
+                        if (m_audioSubChecks[i].OnMouse (ev))
+                        {
+                            handled  = true;
+                            newFocus = 9 + (int) i;
+                            break;
+                        }
+                    }
+                }
+                if (!handled && m_rawQtCheck.OnMouse (ev))
+                {
+                    handled  = true;
+                    newFocus = 16;
+                }
+                if (!handled && m_driveRadio.OnMouse (ev))
+                {
+                    handled  = true;
+                    newFocus = 13;
+                }
+                if (!handled && m_trackEdit.OnMouse (ev))
+                {
+                    handled  = true;
+                    newFocus = 14;
+                }
+                if (!handled && m_sectorEdit.OnMouse (ev))
+                {
+                    handled  = true;
+                    newFocus = 15;
+                }
+
+                if (m_pauseButton.OnMouse (ev))
+                {
+                    handled  = true;
+                    newFocus = 17;
+                }
+                if (!handled && m_clearButton.OnMouse (ev))
+                {
+                    handled  = true;
+                    newFocus = 18;
+                }
+
+                if (handled)
+                {
+                    SetFocusIndex (newFocus);
+                }
+
+                if (!handled)
+                {
+                    // The list owns all in-list routing (scrollbar arrows /
+                    // thumb / track, column resize, header-click sort, row
+                    // select) via OnMouse and reports outcomes through the
+                    // callbacks wired at setup (which also drive the focus
+                    // stops). ChromedPanelWindow holds the Win32 capture for
+                    // the full press, so any drag the list starts keeps
+                    // receiving moves without the panel managing capture
+                    // itself. OnMouse consumes only in-bounds presses.
+                    handled = ForwardMouseToList (DxuiMouseEventKind::Down, DxuiMouseButton::Left, x, y, 0.0f);
+                }
+
                 return true;
             }
 
             if (ev.button == DxuiMouseButton::Right)
             {
-                OnRButtonDown (x, y);
+                // Right-click inside the list-view header strip surfaces a
+                // themed popup menu of column-visibility toggles. Anywhere
+                // else, right-click is currently a no-op.
+                int  relX        = x - m_layout.listView.left;
+                int  relY        = y - m_layout.listView.top;
+                int  headerH     = m_eventList.GetHeaderHeightPx();
+                int  listWidthPx = m_layout.listView.right - m_layout.listView.left;
+
+
+                if (!m_eventList.IsHeaderShown())          { return true; }
+                if (relX < 0 || relX >= listWidthPx)       { return true; }
+                if (relY < 0 || relY >= headerH)           { return true; }
+
+                ShowColumnMenu (x, y);
                 return true;
             }
 
@@ -1512,14 +1286,47 @@ bool Disk2DebugPanel::OnMouse (const DxuiMouseEvent & ev)
         case DxuiMouseEventKind::Up:
             if (ev.button == DxuiMouseButton::Left)
             {
-                OnLButtonUp (x, y);
+                // Finish any list drag (scrollbar thumb / column resize) the
+                // list started on button-down. The pointer may have left the
+                // list bounds mid-drag, so forward the release
+                // unconditionally. ChromedPanelWindow owns the Win32 capture
+                // and releases it after this returns.
+                if (m_eventList.IsInteracting())
+                {
+                    (void) ForwardMouseToList (DxuiMouseEventKind::Up, DxuiMouseButton::Left, x, y, 0.0f);
+                    return true;
+                }
+
+                if (m_columnMenu.IsVisible())
+                {
+                    if (m_columnMenu.OnMouse (ev)) { return true; }
+                }
+
+                // Route the release to each widget: it clears its own press
+                // visual and, on a click-release over itself, fires the
+                // callback wired at setup (checkbox change / button click),
+                // which folds the outcome back into the panel model.
+                for (auto & cb : m_eventChecks)        { cb.OnMouse (ev); }
+                m_audioMasterCheck.OnMouse (ev);
+                for (auto & cb : m_audioSubChecks)     { cb.OnMouse (ev); }
+                m_rawQtCheck.OnMouse   (ev);
+                m_driveRadio.OnMouse   (ev);
+                m_trackEdit.OnMouse    (ev);
+                m_sectorEdit.OnMouse   (ev);
+
+                m_pauseButton.OnMouse (ev);
+                m_clearButton.OnMouse (ev);
+
                 return true;
             }
 
             return false;
 
         case DxuiMouseEventKind::Wheel:
-            OnMouseWheel (x, y, (int) (ev.wheelDelta * WHEEL_DELTA));
+            // Wheel up scrolls back in history (older events); wheel down
+            // scrolls toward the tail. Forwarded to the list, which scrolls
+            // only when the pointer is over it (standard control behavior).
+            (void) ForwardMouseToList (DxuiMouseEventKind::Wheel, DxuiMouseButton::None, x, y, ev.wheelDelta);
             return true;
 
         default:
@@ -1539,17 +1346,96 @@ bool Disk2DebugPanel::OnMouse (const DxuiMouseEvent & ev)
 
 bool Disk2DebugPanel::OnKey (const DxuiKeyEvent & ev)
 {
-    switch (ev.kind)
+    WPARAM  vk        = (WPARAM) ev.vk;
+    bool    shiftDown = (GetKeyState (VK_SHIFT) & 0x8000) != 0;
+
+
+    // Char events route to the text inputs only; each edit inserts the
+    // character when it owns focus and reports whether it consumed it.
+    if (ev.kind == DxuiKeyEventKind::Char)
     {
-        case DxuiKeyEventKind::Char:
-            return OnChar ((wchar_t) ev.vk);
-
-        case DxuiKeyEventKind::Down:
-            return OnKey ((WPARAM) ev.vk);
-
-        default:
-            return false;
+        if (m_trackEdit.OnKey  (ev)) { return true; }
+        if (m_sectorEdit.OnKey (ev)) { return true; }
+        return false;
     }
+
+    if (ev.kind != DxuiKeyEventKind::Down) { return false; }
+
+    // Key-down routes to the currently-focused widget only. The Tab key
+    // always cycles focus; the column popup, when visible, captures
+    // everything else.
+    if (m_columnMenu.IsVisible())  { return m_columnMenu.OnKey (vk); }
+
+    if (vk == VK_TAB)
+    {
+        FocusCycle (shiftDown ? -1 : 1);
+        return true;
+    }
+
+    if (m_focusIndex < 0) { return false; }
+
+    if (m_focusIndex >= 19)
+    {
+        int  d = m_focusIndex - 19;
+        int  N = m_eventList.GetVisibleColumnCount();
+        if (N <= 0 || d < 0 || d >= 2 * N) { return false; }
+
+        if (d == 2 * N - 1)
+        {
+            int  rowCount = m_eventList.GetRowCount();
+            int  cur      = m_eventList.GetSelectedRow();
+            int  cap      = m_eventList.GetVisibleRowCapacity();
+            int  next     = cur;
+
+            if (rowCount <= 0) { return false; }
+
+            switch (vk)
+            {
+                case VK_UP:    next = (cur <= 0) ? 0 : (cur - 1); break;
+                case VK_DOWN:  next = (cur < 0) ? 0 : ((cur + 1 >= rowCount) ? (rowCount - 1) : (cur + 1)); break;
+                case VK_HOME:  next = 0;                          break;
+                case VK_END:   next = rowCount - 1;               break;
+                case VK_PRIOR: next = (cur < 0) ? 0 : std::max (0, cur - std::max (1, cap)); break;
+                case VK_NEXT:  next = (cur < 0) ? 0 : std::min (rowCount - 1, cur + std::max (1, cap)); break;
+                default:       return false;
+            }
+            m_eventList.SetSelectedRow (next);
+            OnListSelectionMoved();
+            return true;
+        }
+
+        if ((d & 1) == 0)
+        {
+            if (vk == VK_SPACE || vk == VK_RETURN)
+            {
+                OnHeaderSortKey();
+                return true;
+            }
+            return false;
+        }
+
+        if (vk == VK_LEFT)  { OnDividerResizeKey (-1); return true; }
+        if (vk == VK_RIGHT) { OnDividerResizeKey (+1); return true; }
+        return false;
+    }
+
+    if (m_focusIndex <= 7) { return m_eventChecks[(size_t) m_focusIndex].OnKey (vk); }
+    switch (m_focusIndex)
+    {
+        case 8:  return m_audioMasterCheck.OnKey (vk);
+        case 13: return m_driveRadio.OnKey       (vk);
+        case 14: return m_trackEdit.OnKey        (vk);
+        case 15: return m_sectorEdit.OnKey       (vk);
+        case 16: return m_rawQtCheck.OnKey       (vk);
+        case 17: return m_pauseButton.OnKey      (vk);
+        case 18: return m_clearButton.OnKey      (vk);
+        default: break;
+    }
+    if (m_focusIndex >= 9 && m_focusIndex <= 12)
+    {
+        return m_audioSubChecks[(size_t) (m_focusIndex - 9)].OnKey (vk);
+    }
+    return false;
 }
 
 
