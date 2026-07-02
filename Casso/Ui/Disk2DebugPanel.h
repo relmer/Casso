@@ -172,6 +172,7 @@ private:
     int     TotalStopCount       () const;
     void    ApplyListSelection   ();
     void    OnListSelectionMoved ();
+    bool    ForwardMouseToList   (DxuiMouseEventKind kind, DxuiMouseButton button, int x, int y, float wheelDelta);
     void    OnHeaderSortKey      ();
     void    OnDividerResizeKey   (int direction);
     void    SortByColumn         (int absCol);
@@ -232,14 +233,6 @@ private:
     bool                                  m_sortDescending  = false;
     bool                                  m_trackEditValid  = true;
     bool                                  m_sectorEditValid = true;
-
-    // Column-resize drag state. When m_resizeColumn >= 0 a drag is
-    // in progress: m_resizeStartXPx captures the client-X at drag
-    // start and m_resizeStartWidthPx captures the column width at
-    // drag start. Delta-applied per mouse-move.
-    int                                   m_resizeColumn        = -1;
-    int                                   m_resizeStartXPx      = 0;
-    int                                   m_resizeStartWidthPx  = 0;
 
     // Tab-order focus state. m_focusIndex selects which widget owns
     // the keyboard; -1 means no widget is focused. SetFocusIndex

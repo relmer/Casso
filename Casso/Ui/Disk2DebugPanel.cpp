@@ -300,6 +300,9 @@ void Disk2DebugPanel::Destroy()
 
 HRESULT Disk2DebugPanel::RenderFrame()
 {
+    // Drive scrollbar auto-repeat for any held arrow / track press.
+    m_eventList.Tick (NowMs());
+
     return m_window.Render();
 }
 
@@ -682,6 +685,35 @@ SIZE Disk2DebugPanel::PreferredClientSize (UINT dpi) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ForwardMouseToList
+//
+//  Translates a client-px mouse event into the event list's widget-local
+//  space and dispatches it through DxuiListView::OnMouse, which owns all
+//  scroll / thumb / column-resize / row-select routing and raises the
+//  panel's selection / sort / column-resize callbacks. Returns true when
+//  the list consumed the event.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool Disk2DebugPanel::ForwardMouseToList (DxuiMouseEventKind kind, DxuiMouseButton button, int x, int y, float wheelDelta)
+{
+    DxuiMouseEvent  ev;
+
+
+    ev.kind        = kind;
+    ev.button      = button;
+    ev.positionDip = { x - m_layout.listView.left, y - m_layout.listView.top };
+    ev.wheelDelta  = wheelDelta;
+
+    return m_eventList.OnMouse (ev);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  OnLButtonDown
 //
 //  Routes mouse-down to whichever widget owns the hit point. First-hit
@@ -767,95 +799,14 @@ void Disk2DebugPanel::OnLButtonDown (int x, int y)
 
     if (!handled)
     {
-        // Scrollbar thumb drag has priority over column-resize and
-        // row-hit, so the user can grab the thumb without accidentally
-        // clicking the row beneath it. Clicks on the track (not the
-        // thumb) page-scroll toward the click; the end arrows nudge by
-        // one row.
-        int  relX = x - m_layout.listView.left;
-        int  relY = y - m_layout.listView.top;
-        if (m_eventList.HitTestScrollbarArrowUp (relX, relY))
-        {
-            m_eventList.ScrollByRows (-1);
-            handled = true;
-        }
-        else if (m_eventList.HitTestScrollbarArrowDown (relX, relY))
-        {
-            m_eventList.ScrollByRows (1);
-            handled = true;
-        }
-        else if (m_eventList.HitTestScrollbarThumb (relX, relY))
-        {
-            m_eventList.BeginThumbDrag (relY);
-            SetCapture (m_hwnd);
-            handled = true;
-        }
-        else if (m_eventList.HitTestScrollbarTrack (relX, relY))
-        {
-            m_eventList.PageFromTrackClick (relY);
-            handled = true;
-        }
-    }
-
-    if (!handled)
-    {
-        // Column-resize drag has priority over header-sort: if the
-        // user grabbed a resize handle on a header right-edge, we
-        // start the drag here and the sort hit-test below is skipped.
-        int  relX       = x - m_layout.listView.left;
-        int  relY       = y - m_layout.listView.top;
-        int  tolPx      = MulDiv (4, (int) m_dpi, 96);
-        int  resizeCol  = m_eventList.HitTestColumnResize (relX, relY, tolPx);
-        if (resizeCol >= 0)
-        {
-            m_resizeColumn       = resizeCol;
-            m_resizeStartXPx     = x;
-            m_resizeStartWidthPx = m_eventList.GetColumnEffectiveWidthPx ((size_t) resizeCol);
-            SetCapture (m_hwnd);
-            handled              = true;
-
-            int  visIdx = m_eventList.GetVisibleIndexOfColumn ((size_t) resizeCol);
-            if (visIdx >= 0)
-            {
-                SetFocusIndex (19 + 2 * visIdx + 1);
-            }
-        }
-    }
-
-    if (!handled)
-    {
-        // Click on listview body selects a row; click on the header
-        // sorts that column (first click ascending, subsequent click
-        // on the same column flips direction).
-        int  relX = x - m_layout.listView.left;
-        int  relY = y - m_layout.listView.top;
-        int  hit  = m_eventList.HitTestRow (relX, relY);
-        if (hit >= 0)
-        {
-            int  N = m_eventList.GetVisibleColumnCount();
-            if (hit < (int) m_filteredIndices.size())
-            {
-                m_listSelectedEventIndex = (int) m_filteredIndices[(size_t) hit];
-            }
-            if (N > 0)
-            {
-                SetFocusIndex (19 + 2 * N - 1);
-            }
-            ApplyListSelection();
-        }
-        else
-        {
-            int  col = m_eventList.HitTestHeaderColumn (relX, relY);
-            if (col >= 0)
-            {
-                SortByColumn (col);
-                int  visIdx = m_eventList.GetVisibleIndexOfColumn ((size_t) col);
-                if (visIdx >= 0)
-                {
-                    SetFocusIndex (19 + 2 * visIdx);
-                }
-            }
-        }
+        // The list owns all in-list routing (scrollbar arrows / thumb /
+        // track, column resize, header-click sort, row select) via
+        // OnMouse and reports outcomes through the callbacks wired at
+        // setup (which also drive the focus stops). ChromedPanelWindow
+        // holds the Win32 capture for the full press, so any drag the
+        // list starts keeps receiving moves without the panel managing
+        // capture itself. OnMouse consumes only in-bounds presses.
+        handled = ForwardMouseToList (DxuiMouseEventKind::Down, DxuiMouseButton::Left, x, y, 0.0f);
     }
 }
 
@@ -871,17 +822,14 @@ void Disk2DebugPanel::OnLButtonDown (int x, int y)
 
 void Disk2DebugPanel::OnLButtonUp (int x, int y)
 {
-    if (m_eventList.IsThumbDragging())
+    // Finish any list drag (scrollbar thumb / column resize) the list
+    // started on button-down. The pointer may have left the list bounds
+    // mid-drag, so forward the release unconditionally. ChromedPanelWindow
+    // owns the Win32 capture and releases it after this returns.
+    if (m_eventList.IsInteracting())
     {
-        m_eventList.EndThumbDrag();
-        ReleaseCapture();
+        (void) ForwardMouseToList (DxuiMouseEventKind::Up, DxuiMouseButton::Left, x, y, 0.0f);
         return;
-    }
-
-    if (m_resizeColumn >= 0)
-    {
-        m_resizeColumn = -1;
-        ReleaseCapture();
     }
 
     if (m_columnMenu.IsVisible())
@@ -925,20 +873,13 @@ void Disk2DebugPanel::OnLButtonUp (int x, int y)
 
 void Disk2DebugPanel::OnMouseMove (int x, int y)
 {
-    if (m_eventList.IsThumbDragging())
+    // While the list owns a drag (scrollbar thumb / column resize),
+    // route moves to it. IChromedPanelContent gives no button state, so
+    // pass Left explicitly: DxuiListView::OnMouse treats a non-Left move
+    // while interacting as a release (its missed-button-up safety net).
+    if (m_eventList.IsInteracting())
     {
-        int  relY = y - m_layout.listView.top;
-        m_eventList.UpdateThumbDrag (relY);
-        return;
-    }
-
-    if (m_resizeColumn >= 0)
-    {
-        int  deltaPx  = x - m_resizeStartXPx;
-        int  newWidth = m_resizeStartWidthPx + deltaPx;
-        int  minPx    = MulDiv (24, (int) m_dpi, 96);
-        if (newWidth < minPx) { newWidth = minPx; }
-        m_eventList.SetColumnOverrideWidthPx ((size_t) m_resizeColumn, newWidth);
+        (void) ForwardMouseToList (DxuiMouseEventKind::Move, DxuiMouseButton::Left, x, y, 0.0f);
         return;
     }
 
@@ -960,10 +901,8 @@ void Disk2DebugPanel::OnMouseMove (int x, int y)
     m_pauseButton.SetMouse (x, y, m_pauseButton.HitTest (x, y) && (GetKeyState (VK_LBUTTON) & 0x8000));
     m_clearButton.SetMouse (x, y, m_clearButton.HitTest (x, y) && (GetKeyState (VK_LBUTTON) & 0x8000));
 
-    int  relX = x - m_layout.listView.left;
-    int  relY = y - m_layout.listView.top;
-    int  hit  = m_eventList.HitTestRow (relX, relY);
-    m_eventList.SetHoveredRow (hit);
+    // Row-hover highlight: the list owns the hit-test + hovered state.
+    (void) ForwardMouseToList (DxuiMouseEventKind::Move, DxuiMouseButton::None, x, y, 0.0f);
 
     UpdateTooltip (x, y);
 }
@@ -977,18 +916,15 @@ void Disk2DebugPanel::OnMouseMove (int x, int y)
 //  OnMouseWheel
 //
 //  Wheel up scrolls back in history (older events); wheel down scrolls
-//  toward the tail. Mouse position is panel-relative; we forward to
-//  the list unconditionally because the trackpad / wheel input from
-//  the whole panel should drive the only scrollable widget.
+//  toward the tail. Forwarded to the list, which scrolls only when the
+//  pointer is over it (standard control behavior).
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void Disk2DebugPanel::OnMouseWheel (int x, int y, int delta)
 {
-    (void) x;
-    (void) y;
-
-    m_eventList.ScrollByWheelDelta (delta, 3);
+    (void) ForwardMouseToList (DxuiMouseEventKind::Wheel, DxuiMouseButton::None, x, y,
+                               (float) delta / (float) WHEEL_DELTA);
 }
 
 
@@ -1040,7 +976,7 @@ HCURSOR Disk2DebugPanel::OnSetCursor (int x, int y)
     int  relY  = y - m_layout.listView.top;
     int  tolPx = MulDiv (4, (int) m_dpi, 96);
 
-    if (m_resizeColumn >= 0)
+    if (m_eventList.IsResizingColumn())
     {
         return LoadCursorW (nullptr, IDC_SIZEWE);
     }
@@ -1986,6 +1922,44 @@ void Disk2DebugPanel::ConfigureWidgets()
     cols.push_back ({ L"Detail", 0, true,  DxuiTextRenderer::HAlign::Left  });
     m_eventList.SetColumns    (std::move (cols));
     m_eventList.SetShowHeader (true);
+
+    // The list owns its own scroll / thumb / column-resize / row-select
+    // routing via OnMouse; these callbacks fold the semantic outcomes
+    // back into the panel (selected event, sort, column-resize) and keep
+    // the keyboard focus stops in sync with mouse interaction.
+    m_eventList.SetOnSelectionChanged ([this] (int row)
+    {
+        int  visColCount = m_eventList.GetVisibleColumnCount();
+
+        if (row >= 0 && row < (int) m_filteredIndices.size())
+        {
+            m_listSelectedEventIndex = (int) m_filteredIndices[(size_t) row];
+        }
+        if (visColCount > 0)
+        {
+            SetFocusIndex (19 + 2 * visColCount - 1);
+        }
+        ApplyListSelection();
+    });
+    m_eventList.SetOnSortColumn ([this] (int col)
+    {
+        int  visIdx = m_eventList.GetVisibleIndexOfColumn ((size_t) col);
+
+        SortByColumn (col);
+        if (visIdx >= 0)
+        {
+            SetFocusIndex (19 + 2 * visIdx);
+        }
+    });
+    m_eventList.SetOnColumnResized ([this] (int col, int)
+    {
+        int  visIdx = m_eventList.GetVisibleIndexOfColumn ((size_t) col);
+
+        if (visIdx >= 0)
+        {
+            SetFocusIndex (19 + 2 * visIdx + 1);
+        }
+    });
 
     m_columnMenu.SetOnSelect ([this] (int index)
     {

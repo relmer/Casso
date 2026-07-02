@@ -2430,15 +2430,22 @@ bool DxuiListView::DispatchScrollbarPress (int lx, int ly)
     int   hStep   = m_scaler.Px (s_kHScrollStepDip);
 
 
+    // A press on an arrow or the track does its one-shot scroll now and
+    // arms auto-repeat (Tick fires the rest while the button is held);
+    // grabbing the thumb starts a drag and does not repeat.
+    m_scrollRepeat       = ScrollRepeat::None;
+    m_scrollRepeatXPx    = lx;
+    m_scrollRepeatYPx    = ly;
+    m_scrollRepeatNextMs = 0;
 
-    if      (HitTestHorzScrollbarArrowLeft  (lx, ly)) { SetLeftPx (m_leftPx - hStep); }
-    else if (HitTestHorzScrollbarArrowRight (lx, ly)) { SetLeftPx (m_leftPx + hStep); }
+    if      (HitTestHorzScrollbarArrowLeft  (lx, ly)) { SetLeftPx (m_leftPx - hStep);       m_scrollRepeat = ScrollRepeat::HorzArrowLeft;  }
+    else if (HitTestHorzScrollbarArrowRight (lx, ly)) { SetLeftPx (m_leftPx + hStep);       m_scrollRepeat = ScrollRepeat::HorzArrowRight; }
     else if (HitTestHorzScrollbarThumb      (lx, ly)) { BeginHorzThumbDrag (lx); }
-    else if (HitTestHorzScrollbarTrack      (lx, ly)) { PageFromHorzTrackClick (lx); }
-    else if (HitTestScrollbarArrowUp     (lx, ly)) { ScrollByRows (-1); }
-    else if (HitTestScrollbarArrowDown   (lx, ly)) { ScrollByRows (1); }
+    else if (HitTestHorzScrollbarTrack      (lx, ly)) { PageFromHorzTrackClick (lx);        m_scrollRepeat = ScrollRepeat::HorzTrack;      }
+    else if (HitTestScrollbarArrowUp     (lx, ly)) { ScrollByRows (-1);                     m_scrollRepeat = ScrollRepeat::VertArrowUp;    }
+    else if (HitTestScrollbarArrowDown   (lx, ly)) { ScrollByRows (1);                      m_scrollRepeat = ScrollRepeat::VertArrowDown;  }
     else if (HitTestScrollbarThumb       (lx, ly)) { BeginThumbDrag (ly); }
-    else if (HitTestScrollbarTrack       (lx, ly)) { PageFromTrackClick (ly); }
+    else if (HitTestScrollbarTrack       (lx, ly)) { PageFromTrackClick (ly);               m_scrollRepeat = ScrollRepeat::VertTrack;      }
     else                                           { handled = false; }
 
     return handled;
@@ -2513,9 +2520,21 @@ bool DxuiListView::DispatchMouseUp (int lx, int ly, bool inside)
 
 
 
-    if (m_resizeColumn >= 0)
+    if (m_scrollRepeat != ScrollRepeat::None)
     {
+        m_scrollRepeat = ScrollRepeat::None;
+    }
+    else if (m_resizeColumn >= 0)
+    {
+        int  resizedCol   = m_resizeColumn;
+        int  resizedWidth = GetColumnEffectiveWidthPx ((size_t) resizedCol);
+
         m_resizeColumn = -1;
+
+        if (m_onColumnResized)
+        {
+            m_onColumnResized (resizedCol, resizedWidth);
+        }
     }
     else if (m_vertDragging)
     {
@@ -2580,4 +2599,77 @@ bool DxuiListView::DispatchMouseWheel (const DxuiMouseEvent & ev, bool inside)
 
 Error:
     return handled;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiListView::Tick
+//
+//  Drives scrollbar auto-repeat for a held arrow / track press. The host
+//  calls this once per frame with a monotonic millisecond clock: after
+//  the initial delay the pressed action fires at the repeat interval
+//  until DispatchMouseUp clears the press. Track paging stops when the
+//  thumb reaches the held point (matching the OS scrollbar).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiListView::Tick (int64_t nowMs)
+{
+    int  hStep = 0;
+
+
+
+    if (m_scrollRepeat == ScrollRepeat::None)
+    {
+        return;
+    }
+
+    // Arm the initial delay on the first tick after the press.
+    if (m_scrollRepeatNextMs == 0)
+    {
+        m_scrollRepeatNextMs = nowMs + s_kScrollRepeatDelayMs;
+        return;
+    }
+
+    if (nowMs < m_scrollRepeatNextMs)
+    {
+        return;
+    }
+
+    hStep = m_scaler.Px (s_kHScrollStepDip);
+
+    switch (m_scrollRepeat)
+    {
+        case ScrollRepeat::VertArrowUp:    ScrollByRows (-1);            break;
+        case ScrollRepeat::VertArrowDown:  ScrollByRows (1);             break;
+        case ScrollRepeat::HorzArrowLeft:  SetLeftPx (m_leftPx - hStep); break;
+        case ScrollRepeat::HorzArrowRight: SetLeftPx (m_leftPx + hStep); break;
+
+        case ScrollRepeat::VertTrack:
+            if (HitTestScrollbarThumb (m_scrollRepeatXPx, m_scrollRepeatYPx))
+            {
+                m_scrollRepeat = ScrollRepeat::None;
+                return;
+            }
+            PageFromTrackClick (m_scrollRepeatYPx);
+            break;
+
+        case ScrollRepeat::HorzTrack:
+            if (HitTestHorzScrollbarThumb (m_scrollRepeatXPx, m_scrollRepeatYPx))
+            {
+                m_scrollRepeat = ScrollRepeat::None;
+                return;
+            }
+            PageFromHorzTrackClick (m_scrollRepeatXPx);
+            break;
+
+        default:
+            break;
+    }
+
+    m_scrollRepeatNextMs = nowMs + s_kScrollRepeatIntervalMs;
 }

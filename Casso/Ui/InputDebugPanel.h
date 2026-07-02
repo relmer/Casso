@@ -166,6 +166,7 @@ private:
     void    ClearAllWidgetFocus  ();
     void    ApplyListSelection   ();
     void    OnListSelectionMoved ();
+    bool    ForwardMouseToList   (DxuiMouseEventKind kind, DxuiMouseButton button, int x, int y, float wheelDelta);
     void    OnHeaderSortKey      ();
     void    OnDividerResizeKey   (int direction);
     void    SortByColumn         (int absCol);
@@ -241,9 +242,6 @@ private:
     int                                   m_sortColumn     = -1;
     bool                                  m_sortDescending = false;
 
-    int                                   m_resizeColumn       = -1;
-    int                                   m_resizeStartXPx     = 0;
-    int                                   m_resizeStartWidthPx = 0;
     std::vector<InputFocusStop>           m_focusStops;
     int                                   m_focusIndex         = -1;
     bool                                  m_joystickVisible    = true;

@@ -214,8 +214,21 @@ public:
     void  SetOnSelectionChanged (std::function<void (int)>  cb)  { m_onSelectionChanged = std::move (cb); }
     void  SetOnActivateRow      (std::function<void (int)>  cb)  { m_onActivateRow      = std::move (cb); }
     void  SetOnSortColumn       (std::function<void (int)>  cb)  { m_onSortColumn       = std::move (cb); }
-    bool  IsInteracting         () const  { return m_vertDragging || m_horzDragging || m_resizeColumn >= 0; }
+
+    // Raised once when an interactive column-resize drag completes, with
+    // the column index and its new effective width in physical pixels.
+    // Lets a host that owns a persisted column model (e.g. the debug
+    // panels) record the user's width without re-implementing the drag.
+    void  SetOnColumnResized    (std::function<void (int, int)>  cb)  { m_onColumnResized = std::move (cb); }
+    bool  IsInteracting         () const  { return m_vertDragging || m_horzDragging || m_resizeColumn >= 0 || m_scrollRepeat != ScrollRepeat::None; }
     bool  IsResizingColumn      () const  { return m_resizeColumn >= 0; }
+
+    // Auto-repeat for a held scrollbar arrow / track press (like key
+    // repeat). The host drives this once per frame with a monotonic
+    // millisecond clock; after the initial delay the pressed arrow / page
+    // action fires at the repeat interval until the button is released.
+    // No-op when no arrow / track press is active.
+    void  Tick (int64_t nowMs);
 
     // Rendering.
     void  Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) const;
@@ -252,6 +265,23 @@ private:
     static constexpr int    s_kMinThumbPx       = 16;
     static constexpr float  s_kFontDip           = 13.0f;
     static constexpr float  s_kHeaderFontDip     = 13.0f;
+
+    // Scrollbar auto-repeat cadence (ms), mirroring typical key-repeat:
+    // a longer delay before the first repeat, then a steady interval.
+    static constexpr int64_t  s_kScrollRepeatDelayMs    = 400;
+    static constexpr int64_t  s_kScrollRepeatIntervalMs = 60;
+
+    // Which held scrollbar element is auto-repeating (None when idle).
+    enum class ScrollRepeat
+    {
+        None,
+        VertArrowUp,
+        VertArrowDown,
+        VertTrack,
+        HorzArrowLeft,
+        HorzArrowRight,
+        HorzTrack,
+    };
 
     // Per-character width estimate for content auto-fit, as a fraction
     // of the font em. Segoe UI averages well under this for the digit /
@@ -367,9 +397,14 @@ private:
     int                               m_resizeColumn      = -1;
     int                               m_resizeStartXPx    = 0;
     int                               m_resizeStartWPx    = 0;
+    ScrollRepeat                      m_scrollRepeat      = ScrollRepeat::None;
+    int                               m_scrollRepeatXPx   = 0;
+    int                               m_scrollRepeatYPx   = 0;
+    int64_t                           m_scrollRepeatNextMs = 0;
     mutable DxuiScrollbar             m_vertScroll;
     mutable DxuiScrollbar             m_horzScroll;
     std::function<void (int)>         m_onSelectionChanged;
     std::function<void (int)>         m_onActivateRow;
     std::function<void (int)>         m_onSortColumn;
+    std::function<void (int, int)>    m_onColumnResized;
 };
