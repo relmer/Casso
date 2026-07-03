@@ -4,16 +4,29 @@ Dxui has no persistent storage. The "data model" here is the runtime object grap
 
 ## Ownership graph
 
+> **Renamed / reshaped 2026-07**: the top-level owner sketched here as
+> `DxuiHostWindow` is now **`DxuiHwndSource`** (WPF `HwndSource` — the HWND /
+> swap-chain / pump backend). Consumers no longer instantiate it directly; they
+> derive from **`DxuiWindow : DxuiPanel`** (WPF `Window : ContentControl`), which
+> owns a `DxuiHwndSource` privately and installs *itself* as the source's
+> non-owning content root and `IDxuiHostClient`. See `plan.md` §Architecture.
+
 ```text
-DxuiHostWindow                                  (owns the world)
+DxuiWindow : DxuiPanel                          (consumer-facing top-level element)
+├── (IS its own content root — children Add<T>'d / Create<T>'d directly onto it)
+├── implements IDxuiHostClient (private)         (translates unowned WM_* → Dxui events)
+└── unique_ptr<DxuiHwndSource> m_source          (the OS-window backend, below)
+
+DxuiHwndSource                                  (owns the OS window)
 ├── HWND m_hwnd                                 (Win32-owned; destroyed via DestroyWindow)
 ├── ComPtr<ID3D11Device> m_device               (canonical device, shared with popups)
 ├── ComPtr<IDXGISwapChain1> m_swapChain
 ├── unique_ptr<DxuiPainter> m_painter           (implements IDxuiPainter)
 ├── unique_ptr<DxuiTextRenderer> m_textRenderer (implements IDxuiTextRenderer)
-├── unique_ptr<DxuiPanel> m_root                (root of the control tree)
-├── DxuiFocusManager m_focusManager             (attached to m_root)
-├── unique_ptr<DxuiDialogManager> m_dialogs     (stack of modal dialogs)
+├── unique_ptr<DxuiPanel> m_root                (owned root; shadowed by SetContentRootRef)
+├── DxuiPanel * m_contentRootRef                (non-owning; the DxuiWindow itself)
+├── DxuiFocusManager m_focusManager             (attached to the active root)
+├── IDxuiHostClient * m_client                  (non-owning; the DxuiWindow itself)
 └── vector<unique_ptr<DxuiPopupHost>> m_popupPool   (pool of 3, grow on demand)
 
 DxuiPanel (and every IDxuiControl)              (tree node)
@@ -34,18 +47,25 @@ DxuiPopupHost                                   (separate HWND, shared device)
 ├── DxuiPopupHost * m_parentPopup               (nullable; cascading submenus)
 └── promise<int> m_closeResult                  (satisfied on UI thread)
 
-DxuiDialogManager
+DxuiDialogManager                               (PENDING deletion — see note below)
 └── vector<unique_ptr<DxuiDialog>> m_stack      (modal stack; topmost is active)
 
-DxuiDialog : DxuiPanel
+DxuiDialog : DxuiPanel                          (PENDING: to become DxuiDialog : DxuiWindow)
 ├── DxuiCaptionBar m_caption                    (Add<T>'d child)
 ├── DxuiPanel m_content                         (Add<T>'d child)
 └── optional DxuiPanel m_buttonRow              (Add<T>'d child if buttons present)
 ```
 
+> **Dialog model — PENDING (2026-07):** the target is a **no-`DxuiDialogManager`**
+> design where a dialog is just a `DxuiWindow` shown via a new `ShowDialog()`
+> (modal message loop). `DxuiDialog` + `DxuiDialogManager` are slated for deletion
+> and all dialog consumers (StartupDownloadDialog, ROM picker, simple dialogs)
+> migrate onto the `DxuiWindow` path. Not yet implemented — the entries above
+> describe the still-live legacy shape.
+
 ## Lifetimes
 
-- **`DxuiHostWindow`**: created at app startup, destroyed at shutdown. Everything below it shares its lifetime unless explicitly removed.
+- **`DxuiWindow` / its `DxuiHwndSource` backend**: created at app startup (or on-demand for secondary windows), destroyed at shutdown / close. Everything below the window shares its lifetime unless explicitly removed.
 - **`IDxuiControl` instances**: owned by their parent `DxuiPanel` via `unique_ptr`. Lifetime = from `Add<T>` to `Remove` / `Clear` / parent destruction. **No detach-and-reuse in v1** (FR-011 clarification Q3).
 - **`DxuiPopupHost`**: long-lived (pooled). Pool entries are constructed lazily, persist for the host window's lifetime, and recycle their `m_content`, `m_swapChain`, and `m_hwnd` per `Show` call. Initial pool size 3; grows on demand (FR-055).
 - **`DxuiDialog`**: owned by `DxuiDialogManager::m_stack`; destroyed when popped (close result delivered, owner re-enabled, focus restored).
@@ -56,6 +76,7 @@ DxuiDialog : DxuiPanel
 | Operation | Method | Returns | Side effects |
 |-----------|--------|---------|--------------|
 | Add child | `DxuiPanel::Add<T>(args…)` | `T &` to the constructed child | Sets `m_parent`; triggers layout recalc on next pump; broadcasts theme + DPI to the new child. |
+| Create child (observer) | `DxuiPanel::CreateChild<T>(args…)` | `T *` observer pointer (owning stays with the panel) | MFC/`CreateWindow`-style factory: constructs `T`, parents it, returns a raw pointer. `<T>` is the type-safe analog of `CreateWindow`'s class arg; ctor args are the widget's defining property (e.g. label text). **Geometry is NOT passed** — bounds come from the layout pass; DPI rides the scaler. Callers keep the pointer only for controls they mutate later. |
 | Remove child | `DxuiPanel::Remove(IDxuiControl *)` | `bool` (true if found and removed) | Destroys child (`unique_ptr` drop); recalc layout. |
 | Clear all children | `DxuiPanel::Clear()` | `void` | Destroys all children; recalc layout. |
 | Toggle visibility | `IDxuiControl::SetVisible(bool)` | `void` | Parent recalcs layout (Collapsed mode — hidden = 0 space, FR-011); skipped in paint, input, focus walks. |
@@ -72,7 +93,7 @@ DxuiDialog : DxuiPanel
 - **FR-034**: When `DxuiViewport::SetConsumesInput(true)` and viewport has focus, `OnKey` returns `true` (consumed) for everything except exactly the unmodified reserved chords Tab / Shift+Tab / Esc / Alt-alone / F10; modifier combinations such as Ctrl+Tab and Apple ][ CTRL-C/CTRL-G forward to the sink.
 - **FR-072**: Dialog stack invariant — exactly one HWND in the stack is enabled at a time (the topmost); on close the previous top is re-enabled.
 - **FR-080**: All public string parameters use `std::wstring` (typically `const std::wstring &` inputs; by-value only for ownership transfer).
-- **FR-083**: `DXUI_ASSERT_UI_THREAD()` is invoked at every public-method entry on `DxuiPanel`, `DxuiFocusManager`, concrete `DxuiPainter`, concrete `DxuiTextRenderer`, `DxuiPopupHost`, `DxuiDialogManager`, and `DxuiHostWindow`; debug builds assert the thread ID on entry.
+- **FR-083**: `DXUI_ASSERT_UI_THREAD()` is invoked at every public-method entry on `DxuiPanel`, `DxuiFocusManager`, concrete `DxuiPainter`, concrete `DxuiTextRenderer`, `DxuiPopupHost`, `DxuiDialogManager`, `DxuiWindow`, and its `DxuiHwndSource` backend; debug builds assert the thread ID on entry.
 
 ## State transitions
 

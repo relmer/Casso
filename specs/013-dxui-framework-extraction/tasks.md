@@ -11,7 +11,7 @@ description: "Task list for Dxui framework extraction (spec 013)"
 ## Format: `[ID] [P?] [Phase] Description`
 
 - **[P]**: Can run in parallel within its phase (different files, no intra-phase dependencies).
-- **[Phase]**: `[PH1]`, `[PH2]`, `[PH3]`, `[PH4]`, `[PH5]`, `[PH6]`, `[PH7]`, `[PH8]`, `[PH9]`, `[PH10]`, `[PH11]`, `[PH12]`, `[PH13]`, `[PH14]`, `[PH15]`, `[PH16]`.
+- **[Phase]**: `[PH1]`, `[PH2]`, `[PH3]`, `[PH4]`, `[PH5]`, `[PH6]`, `[PH7]`, `[PH8]`, `[PH9]`, `[PH10]`, `[PH11]`, `[PH12]`, `[PH13]`, `[PH14]`, `[PH15]`, `[PH16]`, `[PH17]`.
 - Every task lists files affected, FR references, and a per-task exit criterion.
 - **Phase exit gate (every phase)**: `scripts\Build.ps1 -Configuration Debug -Platform x64`, `scripts\Build.ps1 -Configuration Release -Platform ARM64`, `scripts\RunTests.ps1`, and `scripts\Build.ps1 -RunCodeAnalysis` all green. Commit message follows Conventional Commits with scope `dxui` (or `casso/ui` for consumer-side migration phases). Merge with `--no-ff` (never squash).
 
@@ -196,7 +196,7 @@ The 13 widget files are independent moves and parallel-safe within this phase. E
 
 **Goal (plan.md §Phase 7 — reduced scope)**: Land the `DxuiHostWindow` framework primitives (host window class, caption bar, system buttons, drag region, DWM helpers, test seams) **without** migrating any existing top-level window onto them. The four NC duplicates remain in place; consumption by main window / chrome panels / settings / dialogs happens in Phases 8 / 11 / 14. **Satisfies**: FR-050, FR-051, FR-052, FR-053, and the framework half of FR-095. Snap-layouts behaviour (US4) becomes visible only once main-window adoption lands in Phase 8.
 
-- [x] T064 [PH7] Create `Dxui/Win32/DxuiHostWindow.{h,cpp}` per `contracts/DxuiHostWindow.h.md`. Owns HWND, DXGI swap chain, root `DxuiPanel`. `CreateParams` covers `borderless`, `resizable`, `rounded`, `dark`, `backdrop`, `resizeBorderDip`. Create the D3D11 device with `D3D11_CREATE_DEVICE_BGRA_SUPPORT`. WndProc handles `WM_NCCALCSIZE` (claim NC as client when borderless), `WM_NCHITTEST` (8 resize edges + tree walk via `ClassifyHit`), `WM_NCLBUTTONDOWN/UP`, `WM_NCMOUSEMOVE`, `WM_NCMOUSELEAVE`, `WM_DPICHANGED` (re-DPI tree + relayout + repaint), `WM_DPICHANGED_BEFOREPARENT` (forward to every active pooled `DxuiPopupHost`), `WM_SETTINGCHANGE`, `WM_THEMECHANGED`, `WM_DWMCOLORIZATIONCOLORCHANGED`. Snap-layouts: return `HTMAXBUTTON` when hit lands on a `DxuiSystemButton` classified `DxuiHitTestKind::MaxButton`. Invoke `DXUI_ASSERT_UI_THREAD()` at every public method entry. **Depends on**: T047. **Exit**: framework primitive ready; consumption verified later by T070 (Phase 8 main-window adoption). **FR**: FR-050, FR-051, FR-052, FR-083.
+- [x] T064 [PH7] Create `Dxui/Win32/DxuiHostWindow.{h,cpp}` per `contracts/DxuiHwndSource.h.md` (renamed 2026-07; then `DxuiHostWindow` → `DxuiHwndSource` per T149). Owns HWND, DXGI swap chain, root `DxuiPanel`. `CreateParams` covers `borderless`, `resizable`, `rounded`, `dark`, `backdrop`, `resizeBorderDip`. Create the D3D11 device with `D3D11_CREATE_DEVICE_BGRA_SUPPORT`. WndProc handles `WM_NCCALCSIZE` (claim NC as client when borderless), `WM_NCHITTEST` (8 resize edges + tree walk via `ClassifyHit`), `WM_NCLBUTTONDOWN/UP`, `WM_NCMOUSEMOVE`, `WM_NCMOUSELEAVE`, `WM_DPICHANGED` (re-DPI tree + relayout + repaint), `WM_DPICHANGED_BEFOREPARENT` (forward to every active pooled `DxuiPopupHost`), `WM_SETTINGCHANGE`, `WM_THEMECHANGED`, `WM_DWMCOLORIZATIONCOLORCHANGED`. Snap-layouts: return `HTMAXBUTTON` when hit lands on a `DxuiSystemButton` classified `DxuiHitTestKind::MaxButton`. Invoke `DXUI_ASSERT_UI_THREAD()` at every public method entry. **Depends on**: T047. **Exit**: framework primitive ready; consumption verified later by T070 (Phase 8 main-window adoption). **FR**: FR-050, FR-051, FR-052, FR-083.
 
 - [x] T065 [PH7] Expose `DxuiHostWindow::ClassifyHitForTest(POINT clientPx) -> DxuiHitTestKind` test seam (public, no real HWND required, accepts a synthetic root panel via a constructor overload). **Depends on**: T064. **FR**: FR-050; **SC**: SC-006.
 
@@ -567,13 +567,13 @@ Phase 11 is split into two independently mergeable parts: **Phase 11 — Part A*
 
 *Sequence: T141 (chrome input-model collapse) unblocks T142 → T143 → T144. T145 (SettingsPanel C-5) and T146 (dialog relocation) are independent. T147 is the gate.*
 
-- [ ] T141 [PH16] **Chrome input-model collapse (unblocks the rest).** Change `Casso/Ui/Chrome/ChromedPanelWindow.{h,cpp}` (and `IChromedPanelContent.h`) so the chrome translates raw Win32 `WM_*` **exactly once** into `DxuiMouseEvent` / `DxuiKeyEvent` — reusing the `MakeMouseMove` / `MakeMouseButton` / `MakeKeyDown` boundary helpers `SettingsPanel` already uses — and dispatches through `DxuiPanel::OnMouse` / `OnKey`. Retire the per-`WM` `IChromedPanelContent` contract (`OnLButtonDown` / `OnLButtonUp` / `OnMouseMove` / `OnMouseWheel` / `OnRButtonDown` / `OnKey(WPARAM)` / `OnChar` / `OnMouseHover`) at the dispatch boundary. **Depends on**: T127, T101, T102. **FR**: FR-118. **Exit**: `rg -n 'OnLButtonDown|OnLButtonUp|OnMouseMove|OnMouseWheel|OnRButtonDown|OnChar|OnMouseHover|OnKey\s*\(\s*WPARAM' Casso/Ui/Chrome/ChromedPanelWindow.cpp` → 0 hits (chrome no longer calls the `IChromedPanelContent` `WM_*` methods; it constructs Dxui events and calls `OnMouse`/`OnKey`).
+- [x] T141 [PH16] **Chrome input-model collapse (unblocks the rest).** Change `Casso/Ui/Chrome/ChromedPanelWindow.{h,cpp}` (and `IChromedPanelContent.h`) so the chrome translates raw Win32 `WM_*` **exactly once** into `DxuiMouseEvent` / `DxuiKeyEvent` — reusing the `MakeMouseMove` / `MakeMouseButton` / `MakeKeyDown` boundary helpers `SettingsPanel` already uses — and dispatches through `DxuiPanel::OnMouse` / `OnKey`. Retire the per-`WM` `IChromedPanelContent` contract (`OnLButtonDown` / `OnLButtonUp` / `OnMouseMove` / `OnMouseWheel` / `OnRButtonDown` / `OnKey(WPARAM)` / `OnChar` / `OnMouseHover`) at the dispatch boundary. **Depends on**: T127, T101, T102. **FR**: FR-118. **Exit**: `rg -n 'OnLButtonDown|OnLButtonUp|OnMouseMove|OnMouseWheel|OnRButtonDown|OnChar|OnMouseHover|OnKey\s*\(\s*WPARAM' Casso/Ui/Chrome/ChromedPanelWindow.cpp` → 0 hits (chrome no longer calls the `IChromedPanelContent` `WM_*` methods; it constructs Dxui events and calls `OnMouse`/`OnKey`). — **DONE / SUPERSEDED (2026-07 reshape, commits `24f5a61`→`a0fbfe8`)**: rather than *collapse* `ChromedPanelWindow`'s input model, the debug panels moved onto the new `DxuiWindow` base (T148/T151) and `ChromedPanelWindow` + `IChromedPanelContent` were **deleted outright** (T150). The `DxuiWindow` → private `DxuiHwndSource` → `IDxuiHostClient` path translates unowned `WM_*` into `DxuiMouseEvent`/`DxuiKeyEvent` once and dispatches through the panel tree, so the per-`WM_` contract this task targeted no longer exists. Exit satisfied (the file is gone). See FR-124.
 
-- [ ] T142 [PH16] **Delete debug-panel input fan-out overrides.** Remove the bespoke `OnLButtonDown` / `OnLButtonUp` / `OnMouseMove` / `OnMouseWheel` / `OnRButtonDown` / `OnKey(WPARAM)` / `OnChar` / `OnMouseHover` overrides from **both** `Casso/Ui/InputDebugPanel.{h,cpp}` and `Casso/Ui/Disk2DebugPanel.{h,cpp}`; rely on inherited `DxuiPanel::OnMouse` / `OnKey` fan-out to the adopted child tree. This is the closure T101/T102 deferred (they delivered structural adoption only). **Depends on**: T141. **FR**: FR-119, FR-097; **SC**: SC-004, SC-023. **Exit**: `rg -n 'OnLButtonDown|OnLButtonUp|OnMouseMove|OnMouseWheel|OnRButtonDown|OnChar|OnMouseHover' Casso/Ui/InputDebugPanel.cpp Casso/Ui/InputDebugPanel.h Casso/Ui/Disk2DebugPanel.cpp Casso/Ui/Disk2DebugPanel.h` → **0** hits (SC-023).
+- [x] T142 [PH16] **Delete debug-panel input fan-out overrides.** Remove the bespoke `OnLButtonDown` / `OnLButtonUp` / `OnMouseMove` / `OnMouseWheel` / `OnRButtonDown` / `OnKey(WPARAM)` / `OnChar` / `OnMouseHover` overrides from **both** `Casso/Ui/InputDebugPanel.{h,cpp}` and `Casso/Ui/Disk2DebugPanel.{h,cpp}`; rely on inherited `DxuiPanel::OnMouse` / `OnKey` fan-out to the adopted child tree. This is the closure T101/T102 deferred (they delivered structural adoption only). **Depends on**: T141. **FR**: FR-119, FR-097; **SC**: SC-004, SC-023. **Exit**: `rg -n 'OnLButtonDown|OnLButtonUp|OnMouseMove|OnMouseWheel|OnRButtonDown|OnChar|OnMouseHover' Casso/Ui/InputDebugPanel.cpp Casso/Ui/InputDebugPanel.h Casso/Ui/Disk2DebugPanel.cpp Casso/Ui/Disk2DebugPanel.h` → **0** hits (SC-023). — **DONE (2026-07 reshape)**: closed by the `DxuiWindow` migration (T148/T151) — both panels now inherit `DxuiWindow` → `DxuiPanel::OnMouse`/`OnKey` dispatch and carry no fan-out overrides. Exit grep verified 0 hits. See FR-125.
 
-- [ ] T143 [PH16] **Remove debug-panel integer focus model.** Delete the bespoke integer focus model (`SetFocusIndex` / `m_focusStops` / `FocusStop`, ~71 references) from both `Casso/Ui/InputDebugPanel.{h,cpp}` and `Casso/Ui/Disk2DebugPanel.{h,cpp}`; rely on `DxuiFocusManager` geometry-ordered focus over the adopted child tree. **Depends on**: T142. **FR**: FR-119; **SC**: SC-024. **Exit**: `rg -n 'SetFocusIndex|m_focusStops|FocusStop' Casso/Ui/InputDebugPanel.cpp Casso/Ui/InputDebugPanel.h Casso/Ui/Disk2DebugPanel.cpp Casso/Ui/Disk2DebugPanel.h` → **0** hits (SC-024).
+- [x] T143 [PH16] **Remove debug-panel integer focus model.** Delete the bespoke integer focus model (`SetFocusIndex` / `m_focusStops` / `FocusStop`, ~71 references) from both `Casso/Ui/InputDebugPanel.{h,cpp}` and `Casso/Ui/Disk2DebugPanel.{h,cpp}`; rely on `DxuiFocusManager` geometry-ordered focus over the adopted child tree. **Depends on**: T142. **FR**: FR-119; **SC**: SC-024. **Exit**: `rg -n 'SetFocusIndex|m_focusStops|FocusStop' Casso/Ui/InputDebugPanel.cpp Casso/Ui/InputDebugPanel.h Casso/Ui/Disk2DebugPanel.cpp Casso/Ui/Disk2DebugPanel.h` → **0** hits (SC-024). — **DONE (2026-07 reshape)**: closed by the `DxuiWindow` migration (T148/T151); focus is delegated to `DxuiFocusManager` geometry ordering. Exit grep verified 0 hits. See FR-125.
 
-- [ ] T144 [PH16] **Retire `ChromedPanelWindow` chrome + delete `IChromedPanelContent`.** With debug panels on `DxuiPanel` dispatch (T142/T143), reduce `Casso/Ui/Chrome/ChromedPanelWindow.{h,cpp}` to a thin `DxuiHostWindow`-based shell (or delete it if `DxuiHostWindow` covers the surface directly) and delete `Casso/Ui/Chrome/IChromedPanelContent.h`; update the debug-panel consumers to host on the reduced shell. Drop vcxproj + filters entries for any deleted file. **Depends on**: T141, T142, T143. **FR**: FR-092 (amended); **SC**: SC-022. **Exit**: `rg -n 'IChromedPanelContent' Casso/` → **0** hits (SC-022).
+- [x] T144 [PH16] **Retire `ChromedPanelWindow` chrome + delete `IChromedPanelContent`.** With debug panels on `DxuiPanel` dispatch (T142/T143), reduce `Casso/Ui/Chrome/ChromedPanelWindow.{h,cpp}` to a thin `DxuiHostWindow`-based shell (or delete it if `DxuiHostWindow` covers the surface directly) and delete `Casso/Ui/Chrome/IChromedPanelContent.h`; update the debug-panel consumers to host on the reduced shell. Drop vcxproj + filters entries for any deleted file. **Depends on**: T141, T142, T143. **FR**: FR-092 (amended); **SC**: SC-022. **Exit**: `rg -n 'IChromedPanelContent' Casso/` → **0** hits (SC-022). — **DONE (2026-07 reshape, commit `a0fbfe8`)**: `DxuiWindow` covers the surface directly, so `ChromedPanelWindow.{h,cpp}` and `IChromedPanelContent.h` were **deleted** (1075+97+103 lines) and vcxproj entries dropped; debug-panel consumers host via `DxuiWindow`. Exit grep verified 0 hits. See FR-124.
 
 - [ ] T145 [PH16] **SettingsPanel Sub-step C-5 (finishes T100 focus/fan-out).** Replace the per-tab `switch(m_activeTab)` dispatch + the integer `RebuildFocusOrder` / `FocusManager` in `Casso/Ui/Settings/SettingsPanel.{h,cpp}` with `DxuiPanel` auto fan-out: integrate the tab strip + Apply/Cancel buttons into the fan-out, toggle per-tab child visibility on tab change, and migrate to `DxuiFocusManager` tree-ordered focus. May be folded into the still-open T100 or tracked here as the split-out closure of its deferred Sub-step C-5. **Depends on**: T100. **FR**: FR-097. **Exit**: `rg -n 'switch\s*\(\s*m_activeTab' Casso/Ui/Settings/SettingsPanel.cpp` → 0 hits; focus rebuild no longer references an integer `FocusManager` / `RebuildFocusOrder` id model.
 
@@ -598,12 +598,36 @@ Phase 11 is split into two independently mergeable parts: **Phase 11 — Part A*
 
 ---
 
+## Phase 17 — Window element + framework ergonomics (2026-07 reshape)
+
+*A major architectural evolution landed after Phase 16 (commits `24f5a61` → `5c9ac3f`): a WPF-shaped element hierarchy replaced the "consumer configures a host window + implements a per-`WM_` client contract" model. **Satisfies**: FR-120..FR-128, SC-025..SC-028, and re-satisfies SC-022/SC-023/SC-024 via a different (deletion + `DxuiWindow`) route. The IMPLEMENTED tasks below are already on this branch; the PENDING tasks track the remaining planned work.*
+
+- [x] T148 [PH17] **Introduce `DxuiWindow : DxuiPanel`.** Add `Dxui/Window/DxuiWindow.{h,cpp}` — a top-level window element (WPF `Window : ContentControl`) that IS its own content root and owns the single OS window (HWND + swap chain + caption + paint pump) internally through a private `DxuiHwndSource` backend (installed via `SetContentRootRef` + `SetClient`). Consumers derive from it, override `OnCreate()` to build children, and never touch an HWND / `WPARAM` / `IDxuiHostClient`; it privately implements `IDxuiHostClient` and translates the unowned Win32 messages into `DxuiMouseEvent` / `DxuiKeyEvent` dispatch, managing capture / focus / cursor / min-max / close. Re-host `Disk2DebugPanel` on it as the proof. **FR**: FR-120; **SC**: SC-025. **Commit**: `feat(dxui): add DxuiWindow base class; re-host Disk2DebugPanel on it (WIP proof)` (`24f5a61`).
+
+- [x] T149 [PH17] **Rename `DxuiHostWindow` → `DxuiHwndSource`.** Rename the HWND/swap-chain/pump backend to mirror WPF `HwndSource`; move to `Dxui/Window/DxuiHwndSource.{h,cpp}` and rename all Dxui / Casso / UnitTest references and the `DxuiHostWindow*Tests` files. Add `SetContentRootRef` (non-owning content-root install used by `DxuiWindow`). **FR**: FR-121; **SC**: SC-026. **Exit**: `rg -n 'DxuiHostWindow' Dxui/ Casso/ UnitTest/` → 0 hits. **Commit**: `refactor(dxui): rename DxuiHostWindow -> DxuiHwndSource (WPF HwndSource model)` (`5c9ac3f`).
+
+- [x] T150 [PH17] **Delete `ChromedPanelWindow` + `IChromedPanelContent`.** Remove `Casso/Ui/Chrome/ChromedPanelWindow.{h,cpp}` and `Casso/Ui/Chrome/IChromedPanelContent.h` (superseded by `DxuiWindow` + `IDxuiHostClient`); drop the vcxproj / filters entries. This is the actual mechanism that closes T141/T144 / SC-022. **Depends on**: T148, T151. **FR**: FR-124; **SC**: SC-022. **Exit**: `rg -n 'IChromedPanelContent|ChromedPanelWindow' Casso/` → 0 hits. **Commit**: `refactor(chrome): delete ChromedPanelWindow + IChromedPanelContent (T144)` (`a0fbfe8`).
+
+- [x] T151 [PH17] **Migrate `InputDebugPanel` onto `DxuiWindow`** (mirrors T148 for the second debug panel); separate content / layout / theme concerns (static text in the `CreateChild` ctor, dynamic text in state-change handlers, geometry-only `Layout()`, colour via role resolution at paint). Closes the debug-panel fan-out + integer-focus deletion (T142/T143) as a side effect of no longer deriving from `DxuiPanel` + `IChromedPanelContent`. **Depends on**: T148. **FR**: FR-125; **SC**: SC-023, SC-024. **Commit**: `refactor(chrome): migrate InputDebugPanel onto DxuiWindow` (`e45e64c`).
+
+- [x] T152 [PH17] **`DxuiPanel::CreateChild<T>` + widget-ctor ergonomics.** Add `CreateChild<T>(args…) -> T*` (MFC/`CreateWindow`-style factory: constructs `T`, parents it, returns an observer pointer; `<T>` is the type-safe class arg). Widget constructors take the defining property (`DxuiLabel(text, role, hAlign, vAlign, fontDip)`, `DxuiCheckbox(label, checked)`, `DxuiButton(label)`); geometry is NOT passed at construction (it comes from `Layout(rect, scaler)`); DPI rides the scaler (drop per-widget `SetDpi` in the common path). Rename `DxuiButton`/`DxuiIconButton` `SetClick` → `SetOnClick`. **FR**: FR-122; **SC**: SC-027. **Commit**: `refactor(dxui): CreateChild<T>, SetOnClick, automatic DPI (review cleanups)` (`68daa5e`); `refactor(dxui): separate content from layout in Disk2; SetTextAlign(h,v)` (`d7daeb9`).
+
+- [x] T153 [PH17] **Role-based theming.** Add `DxuiTextRole { Body, Heading, Muted, Disabled, Error, Link }` + `IDxuiTheme::TextColor(role)` + `kDxuiDefaultFontSizeDip` sentinel; text-bearing widgets store a semantic role (not a resolved ARGB) and resolve colour + default font size from the theme handed to `Paint` each frame. `DxuiLabel` fully converted (`SetTextAlign(h,v)` replaces `SetHAlign`/`SetVAlign`; `SetColorArgb` kept only as a legacy opt-out). Eliminate the `ApplyTheme` push path so `DxuiTextInput`/`DxuiListView`/`DxuiDropdown` adopt the passed theme every paint. **FR**: FR-123; **SC**: SC-028. **Commit**: `feat(dxui): role-based label theming (semantic color roles, no per-control theme push)` (`aeb9932`); `feat(dxui): eliminate ApplyTheme (paint-time theme resolution) ...` (`950574f`).
+
+- [ ] T154 [PH17] **PENDING — No-`DxuiDialog` model.** Add `DxuiWindow::ShowDialog()` (modal message loop); delete `DxuiDialog` + `DxuiDialogManager`; migrate all dialog consumers (`StartupDownloadDialog`, ROM picker, simple dialogs) onto the `DxuiWindow` path. **FR**: FR-126. **Exit**: `rg -n 'DxuiDialog|DxuiDialogManager' Dxui/ Casso/` → 0 hits (or only the renamed `DxuiWindow`-based dialogs); `ShowDialog` exists.
+
+- [ ] T155 [PH17] **PENDING — Full themed-propagation + `DxuiArgb`.** Convert the remaining themed consumers (settings pages, dialogs, colour picker) from `SetColorArgb` / `SetTheme` pushes to role-based paint-time resolution; introduce a `DxuiArgb` colour type and make the theme colour accessors return it (rename `SetColorArgb` → `SetColor(DxuiArgb)`). **Depends on**: T153. **FR**: FR-127. **Exit**: `rg -n 'SetColorArgb' Casso/ Dxui/` → 0 hits (all migrated to `SetColor(DxuiArgb)` / role resolution).
+
+- [ ] T156 [PH17] **PENDING — Fold radio/popup DPI into `Layout(rect, scaler)`.** Move `DxuiRadioGroup` and the tooltip / column-menu popup DPI off explicit `SetDpi` and onto the automatic `Layout(rect, scaler)` path. **Depends on**: T152. **FR**: FR-128. **Exit**: `rg -n 'SetDpi' Dxui/Widgets/DxuiRadio* Dxui/Widgets/DxuiTooltip* Dxui/Widgets/DxuiPopupMenu*` → 0 hits (DPI rides the scaler).
+
+- [ ] T157 [PH17] **PENDING — Phase-17 exit / verification** (mirrors T147). 4-config build + tests (no regression vs `baseline-tests.txt`) + code-analysis clean; SC-025..SC-028 greps pass; the PENDING items (T154–T156) closed; manual visual parity sign-off (debug panels + themed consumers) at 100 % / 150 % / 200 % DPI. **Depends on**: T148–T156.
+
 ## Dependencies & Execution Order
 
 ### Phase Dependencies
 
 ```
-PH1 → PH2 → PH3 → PH4 → PH5 → PH6 → PH7 → PH8 → PH9 → PH10 → PH11 → PH12 → PH13 → PH14 → PH15 → PH16
+PH1 → PH2 → PH3 → PH4 → PH5 → PH6 → PH7 → PH8 → PH9 → PH10 → PH11 → PH12 → PH13 → PH14 → PH15 → PH16 → PH17
 ```
 
 Phases are **strictly sequential** — every phase ends green and is independently mergeable. The user-story timeline is:
@@ -633,7 +657,8 @@ Phases are **strictly sequential** — every phase ends green and is independent
 - **Phase 13**: T093 → T094 → T095 → T096.
 - **Phase 14**: T097/T098/T099/T101/T102 parallel after T096. T100 after T097–T099. T103 → T104 → T105 → T106. T107 after T103+T104. T107A after T146. T108 done/re-scoped. T109 after T097–T108. T110A after T100+T127. T111 after everything else.
 - **Phase 15**: T131 unblocks T132/T134/T135/T139; T135 → T136; T137 independent; T138 after T131; T140 is the gate.
-- **Phase 16**: T141 (chrome input-model collapse) → T142 → T143 → T144. T145 (SettingsPanel C-5) after T100; T146 (dialog relocation) after T107; both independent of the T141 chain. T147 is the gate.
+- **Phase 16**: T141 (chrome input-model collapse) → T142 → T143 → T144. T145 (SettingsPanel C-5) after T100; T146 (dialog relocation) after T107; both independent of the T141 chain. T147 is the gate. *(Note: T141–T144 were ultimately closed by the Phase 17 `DxuiWindow` reshape — see below.)*
+- **Phase 17** (window element + ergonomics): T148 → T151 (both debug panels onto `DxuiWindow`) and T148 → T150 (delete `ChromedPanelWindow`/`IChromedPanelContent`). T149 (`DxuiHostWindow`→`DxuiHwndSource` rename) supports T148. T152/T153 (CreateChild + role theming) parallel-safe. PENDING T154 (no-`DxuiDialog`), T155 (`DxuiArgb`, after T153), T156 (radio/popup DPI, after T152). T157 is the gate.
 
 ### Parallel Opportunities
 
@@ -725,13 +750,13 @@ Phases land in order Phase 1 → Phase 14. Each phase produces a single PR; each
 | FR-083 | T003,T047,T050,T056,T064,T075,T104 |
 | FR-090 | T010-T017 |
 | FR-091 | T019-T022 |
-| FR-092 | T107,T107A,T144 |
+| FR-092 | T107,T107A,T144,T150 |
 | FR-093 | T085-T088 |
 | FR-094 | T090 |
 | FR-095 | T070,T108,T110A,T111,T127 |
 | FR-096 | T107,T108,T146 |
 | FR-097 | T093-T102,T109,T142,T143,T145 |
-| FR-098 | T070,T112,T115,T116 |
+| FR-098 | T070,T112,T115,T116,T149 |
 | FR-099 | T070,T113,T114,T115,T116 |
 | FR-100 | T070,T116 |
 | FR-101 | T117,T118,T122 |
@@ -739,11 +764,20 @@ Phases land in order Phase 1 → Phase 14. Each phase produces a single PR; each
 | FR-103 | T119,T121,T122 |
 | FR-104 | T123,T124,T125,T126,T130 |
 | FR-105 | T129,T130 |
-| FR-106 | T127,T130 |
+| FR-106 | T127,T130,T150 |
 | FR-107 | T128,T129,T130 |
 | FR-108 | T129,T130 |
-| FR-118 | T141,T147 |
-| FR-119 | T142,T143,T147 |
+| FR-118 | T141,T147,T150 |
+| FR-119 | T142,T143,T147,T151 |
+| FR-120 | T148 |
+| FR-121 | T149 |
+| FR-122 | T152 |
+| FR-123 | T153 |
+| FR-124 | T150 |
+| FR-125 | T148,T151 |
+| FR-126 | T154 |
+| FR-127 | T155 |
+| FR-128 | T156 |
 | SC-001 | T001,T004,T009 |
 | SC-002 | T005-T009 |
 | SC-003 | T095,T100,T111 |
@@ -764,10 +798,14 @@ Phases land in order Phase 1 → Phase 14. Each phase produces a single PR; each
 | SC-018 | T130,T111 |
 | SC-019 | T129,T130,T111 |
 | SC-020 | T108,T110A,T111,T146,T147 |
-| SC-021 | T147 |
-| SC-022 | T144,T147 |
-| SC-023 | T142,T147 |
-| SC-024 | T143,T147 |
+| SC-021 | T147,T157 |
+| SC-022 | T144,T147,T150 |
+| SC-023 | T142,T147,T151 |
+| SC-024 | T143,T147,T151 |
+| SC-025 | T148 |
+| SC-026 | T149 |
+| SC-027 | T152 |
+| SC-028 | T153 |
 | US1 | T001-T009 |
 | US2 | T093-T130 |
 | US3 | T075-T082 |
