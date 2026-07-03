@@ -60,6 +60,7 @@ Error:
     {
         Shutdown();
     }
+
     return hr;
 }
 

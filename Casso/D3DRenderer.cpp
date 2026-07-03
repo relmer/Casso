@@ -92,15 +92,14 @@ static BOOL CALLBACK MaxMonitorEnumProc (HMONITOR hMonitor, HDC, LPRECT, LPARAM 
 
 
     fSuccess = GetMonitorInfoW (hMonitor, &mi);
-    CBRA
-    if (fSuccess)
-    {
-        monW = mi.rcMonitor.right  - mi.rcMonitor.left;
-        monH = mi.rcMonitor.bottom - mi.rcMonitor.top;
-        pMax->cx = std::max<LONG> (pMax->cx, monW);
-        pMax->cy = std::max<LONG> (pMax->cy, monH);
-    }
+    CBRA (fSuccess);
 
+    monW = mi.rcMonitor.right  - mi.rcMonitor.left;
+    monH = mi.rcMonitor.bottom - mi.rcMonitor.top;
+    pMax->cx = std::max<LONG> (pMax->cx, monW);
+    pMax->cy = std::max<LONG> (pMax->cy, monH);
+
+Error:
     return TRUE;
 }
 
@@ -211,6 +210,7 @@ Error:
     {
         context->Unmap (staging.Get(), 0);
     }
+
     return hr;
 }
 
@@ -533,7 +533,7 @@ bool D3DRenderer::NeedsPresent (bool framebufferDirty) const
     {
         return true;
     }
-    
+
     // Any other slider / toggle change touches CrtParams.
     if (memcmp (&m_crtParams, &m_lastPresentedParams, sizeof (CrtParams)) != 0)
     {
@@ -639,6 +639,7 @@ HRESULT D3DRenderer::UploadAndComposite (ID3D11RenderTargetView * dstRtv, const 
 
     m_redrawForced        = false;
     m_lastPresentedParams = m_crtParams;
+
     if (framebuffer != nullptr)
     {
         m_idleFramesSinceFbChange = 0;
@@ -728,7 +729,7 @@ HRESULT D3DRenderer::ToggleFullscreen (HWND hwnd)
         CWRA (fSuccess);
 
         SetWindowLong (hwnd, GWL_STYLE, WS_POPUP | WS_VISIBLE);
-        fSuccess = SetWindowPos (hwnd, 
+        fSuccess = SetWindowPos (hwnd,
                                   HWND_TOP,
                                   mi.rcMonitor.left, mi.rcMonitor.top,
                                   mi.rcMonitor.right - mi.rcMonitor.left,
@@ -742,7 +743,7 @@ HRESULT D3DRenderer::ToggleFullscreen (HWND hwnd)
     {
         // Restore windowed
         SetWindowLong (hwnd, GWL_STYLE, m_windowedStyle);
-        fSuccess = SetWindowPos (hwnd, 
+        fSuccess = SetWindowPos (hwnd,
                                   HWND_NOTOPMOST,
                                   m_windowedRect.left, m_windowedRect.top,
                                   m_windowedRect.right - m_windowedRect.left,
