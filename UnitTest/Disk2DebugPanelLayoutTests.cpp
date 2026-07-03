@@ -120,14 +120,19 @@ namespace UnitTest_011
             Assert::IsTrue (s.listView.bottom > s.listView.top);
         }
 
-        TEST_METHOD (DriveRadiosContiguousLeftToRight)
+        TEST_METHOD (DriveRadiosAlignUnderCheckboxColumns)
         {
             PanelLayoutSlots s = ComputeDisk2DebugPanelLayout (900, 600, 0, 96);
 
-            for (int i = 1; i < kDriveRadioCount; i++)
+
+
+            // The drive radios (All / Drive 1 / Drive 2) share the checkbox
+            // rows' column pitch and first-column origin, so each sits
+            // directly under the checkbox column above it.
+            for (int i = 0; i < kDriveRadioCount; i++)
             {
-                Assert::AreEqual (s.driveRadios[i - 1].right, s.driveRadios[i].left);
-                Assert::AreEqual (s.driveRadios[i - 1].top,   s.driveRadios[i].top);
+                Assert::AreEqual (s.eventTypeChecks[i].left, s.driveRadios[i].left);
+                Assert::AreEqual (s.driveRadios[0].top,      s.driveRadios[i].top);
             }
         }
 
