@@ -265,6 +265,15 @@ HRESULT DxuiHwndSource::Create (const CreateParams & params)
     }
     exStyle = WS_EX_APPWINDOW;
 
+    // Composited-transparent mode: the window blends per-pixel over
+    // whatever is behind it via the desktop compositor, so it must opt
+    // out of the redirection bitmap (there is no opaque surface to
+    // redirect) and drive its swap chain through DirectComposition.
+    if (params.composited)
+    {
+        exStyle |= WS_EX_NOREDIRECTIONBITMAP;
+    }
+
     // Initial DPI seed. WM_DPICHANGED will rescale later if the
     // window straddles or moves between monitors.
     dpiAtCreate = GetDpiForSystem();
@@ -378,6 +387,9 @@ void DxuiHwndSource::Destroy ()
 
     m_rtv.Reset();
     m_swapChain.Reset();
+    m_compVisual.Reset();
+    m_compTarget.Reset();
+    m_compDevice.Reset();
     m_context.Reset();
     m_device.Reset();
 
@@ -514,6 +526,30 @@ void DxuiHwndSource::SetBeforePresentHook (std::function<void()> hook)
     DXUI_ASSERT_UI_THREAD();
 
     m_beforePresentHook = std::move (hook);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetAfterPaintHook
+//
+//  Stores a callback that the host's WM_PAINT pump invokes once per
+//  frame after the panel-tree Paint walk and before swap-chain
+//  Present, passing the back-buffer RTV and its pixel dimensions. Lets
+//  a consumer run full-screen shader passes on the painted back buffer
+//  (e.g. a settings live-preview blur / compose). Passing a null
+//  function clears any previously-installed hook.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiHwndSource::SetAfterPaintHook (std::function<void(ID3D11RenderTargetView *, int, int)> hook)
+{
+    DXUI_ASSERT_UI_THREAD();
+
+    m_afterPaintHook = std::move (hook);
 }
 
 
@@ -877,6 +913,7 @@ HRESULT DxuiHwndSource::CreateDeviceAndSwapChain ()
     ComPtr<IDXGIAdapter>   dxgiAdapter;
     ComPtr<IDXGIFactory2>  dxgiFactory;
     DXGI_SWAP_CHAIN_DESC1  scd           = {};
+    RECT                   clientRect    = {};
 
 
 
@@ -982,15 +1019,57 @@ HRESULT DxuiHwndSource::CreateDeviceAndSwapChain ()
     scd.BufferCount      = 2;
     scd.Scaling          = DXGI_SCALING_STRETCH;
     scd.SwapEffect       = DXGI_SWAP_EFFECT_FLIP_DISCARD;
-    scd.AlphaMode        = DXGI_ALPHA_MODE_IGNORE;
 
-    hr = dxgiFactory->CreateSwapChainForHwnd (m_device.Get(),
-                                              m_hwnd,
-                                              &scd,
-                                              nullptr,
-                                              nullptr,
-                                              m_swapChain.GetAddressOf());
-    CHRA (hr);
+    if (m_params.composited)
+    {
+        // Composition swap chains require explicit non-zero dimensions
+        // (unlike CreateSwapChainForHwnd, which auto-sizes from the HWND
+        // when passed 0). Seed from the current client area; HandleSize
+        // resizes it thereafter. Premultiplied alpha lets the desktop
+        // compositor blend the frame over the windows behind it.
+        GetClientRect (m_hwnd, &clientRect);
+        scd.Width      = (UINT) std::max<LONG> (1, clientRect.right  - clientRect.left);
+        scd.Height     = (UINT) std::max<LONG> (1, clientRect.bottom - clientRect.top);
+        scd.Scaling    = DXGI_SCALING_STRETCH;
+        scd.AlphaMode  = DXGI_ALPHA_MODE_PREMULTIPLIED;
+
+        hr = dxgiFactory->CreateSwapChainForComposition (m_device.Get(),
+                                                         &scd,
+                                                         nullptr,
+                                                         m_swapChain.GetAddressOf());
+        CHRA (hr);
+
+        hr = DCompositionCreateDevice (dxgiDevice.Get(),
+                                       IID_PPV_ARGS (m_compDevice.GetAddressOf()));
+        CHRA (hr);
+
+        hr = m_compDevice->CreateTargetForHwnd (m_hwnd, TRUE, m_compTarget.GetAddressOf());
+        CHRA (hr);
+
+        hr = m_compDevice->CreateVisual (m_compVisual.GetAddressOf());
+        CHRA (hr);
+
+        hr = m_compVisual->SetContent (m_swapChain.Get());
+        CHRA (hr);
+
+        hr = m_compTarget->SetRoot (m_compVisual.Get());
+        CHRA (hr);
+
+        hr = m_compDevice->Commit();
+        CHRA (hr);
+    }
+    else
+    {
+        scd.AlphaMode  = DXGI_ALPHA_MODE_IGNORE;
+
+        hr = dxgiFactory->CreateSwapChainForHwnd (m_device.Get(),
+                                                  m_hwnd,
+                                                  &scd,
+                                                  nullptr,
+                                                  nullptr,
+                                                  m_swapChain.GetAddressOf());
+        CHRA (hr);
+    }
 
 Error:
 
@@ -1256,8 +1335,25 @@ void DxuiHwndSource::PaintPump ()
         CHRA (hr);
     }
 
+    // After-paint compositor hook: runs full-screen shader passes on the
+    // back buffer after the panel tree has painted, before Present (e.g.
+    // a settings live-preview blur/compose pass).
+    if (m_afterPaintHook)
+    {
+        m_afterPaintHook (m_rtv.Get(), (int) scd.Width, (int) scd.Height);
+    }
+
     hr = m_swapChain->Present (1, 0);
     CHRA (hr);
+
+    // Composited-transparent mode drives the swap chain through a DComp
+    // visual; commit the composition after every Present so the desktop
+    // compositor picks up the new frame.
+    if (m_compDevice)
+    {
+        hr = m_compDevice->Commit();
+        CHRA (hr);
+    }
 
 Error:
 

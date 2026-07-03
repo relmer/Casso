@@ -152,6 +152,17 @@ public:
         // behavior the main window relies on (it composites the emulator
         // viewport under an overlay caption).
         bool                     insetRootBelowCaption    = false;
+
+        // When true, the host creates a composited-transparent window
+        // instead of an opaque one: WS_EX_NOREDIRECTIONBITMAP on the
+        // HWND, a composition swap chain (CreateSwapChainForComposition)
+        // with DXGI_ALPHA_MODE_PREMULTIPLIED, and an IDCompositionDevice
+        // /Target/Visual tree bound to the HWND. This lets the window
+        // blend per-pixel over whatever is behind it (e.g. a see-through
+        // settings overlay floating over the emulator). Requires
+        // createSwapChain == true. Default false = the opaque
+        // flip-discard CreateSwapChainForHwnd path.
+        bool                     composited               = false;
     };
 
 
@@ -337,6 +348,19 @@ public:
     void  SetBeforePresentHook  (std::function<void()> hook);
     const std::function<void()> &  BeforePresentHook  () const { return m_beforePresentHook; }
 
+    //
+    //  Optional after-paint hook. Installed by a consumer that wants to
+    //  run full-screen shader passes on the back buffer AFTER the root
+    //  panel tree has painted but BEFORE Present -- e.g. a settings
+    //  live-preview compositor that reads the painted panel, blurs it,
+    //  and composes it over a see-through region. The hook receives the
+    //  back-buffer RTV and its pixel dimensions. The host stores the
+    //  callback; it is invoked once per frame from the WM_PAINT pump.
+    //  Passing a null function clears any previously-installed hook.
+    //
+    void  SetAfterPaintHook  (std::function<void(ID3D11RenderTargetView *, int, int)> hook);
+    const std::function<void(ID3D11RenderTargetView *, int, int)> &  AfterPaintHook  () const { return m_afterPaintHook; }
+
     LRESULT  WndProc           (UINT msg, WPARAM wp, LPARAM lp);
 
     //
@@ -479,6 +503,14 @@ private:
     ComPtr<IDXGISwapChain1>           m_swapChain;
     ComPtr<ID3D11RenderTargetView>    m_rtv;
 
+    // Composited-transparent mode (CreateParams::composited): the HWND
+    // carries WS_EX_NOREDIRECTIONBITMAP and the swap chain is bound to
+    // the desktop compositor through this DComp visual tree. Null in the
+    // default opaque (CreateSwapChainForHwnd) mode.
+    ComPtr<IDCompositionDevice>       m_compDevice;
+    ComPtr<IDCompositionTarget>       m_compTarget;
+    ComPtr<IDCompositionVisual>       m_compVisual;
+
     std::unique_ptr<DxuiPainter>      m_painter;
     std::unique_ptr<DxuiTextRenderer> m_textRenderer;
     std::unique_ptr<DxuiPanel>        m_root;
@@ -497,6 +529,7 @@ private:
 
     std::function<LRESULT (POINT)>                         m_hitTestDelegate;
     std::function<void()>                                  m_beforePresentHook;
+    std::function<void(ID3D11RenderTargetView *, int, int)> m_afterPaintHook;
     std::function<LRESULT (HWND, UINT, WPARAM, LPARAM)>    m_defaultProcForTest;
     std::function<BOOL (TRACKMOUSEEVENT *)>                m_trackMouseEventForTest;
     IDxuiControl *                                         m_lastHoveredNcControl = nullptr;
