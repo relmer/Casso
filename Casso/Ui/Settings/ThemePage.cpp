@@ -539,9 +539,15 @@ void ThemePage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ThemePage::Paint (DxuiPainter & painter, DxuiTextRenderer & text, const IDxuiTheme & theme) const
+void ThemePage::Paint (IDxuiPainter & painterIf, IDxuiTextRenderer & textIf, const IDxuiTheme & theme)
 {
     static NullDriveSink  s_kNullSink;
+
+    // The host always paints through the concrete Dxui renderers; the
+    // theme-preview window (mock chrome + framebuffer blit) needs their
+    // concrete surface, so recover them from the interface references.
+    DxuiPainter       & painter = static_cast<DxuiPainter &> (painterIf);
+    DxuiTextRenderer  & text    = static_cast<DxuiTextRenderer &> (textIf);
 
 
     m_themeDropdown.SetTheme    (&theme);

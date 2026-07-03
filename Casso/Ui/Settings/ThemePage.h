@@ -50,11 +50,14 @@ public:
 
     void  Layout                (const RECT & rect, const DxuiDpiScaler & scaler) override;
 
-    // The Paint(painter, text, theme) overload below is still bespoke
-    // because the theme preview window between the dropdown's box and
-    // its popup menu is custom rendering that the inherited DxuiPanel
-    // auto-fan-out walk cannot supply on its own.
-    void  Paint                 (DxuiPainter & painter, DxuiTextRenderer & text, const IDxuiTheme & theme) const;
+    // Virtual paint override. Beyond the fanned-out label + dropdown, this
+    // page draws a bespoke theme-preview window (mock chrome + framebuffer)
+    // between the dropdown box and its popup menu, which the inherited
+    // DxuiPanel auto-fan-out walk cannot supply -- so ThemePage overrides
+    // Paint (like DisplayPage) rather than relying on the base fan-out.
+    // The host paints via the concrete DxuiPainter / DxuiTextRenderer,
+    // recovered by a downcast inside the definition.
+    void  Paint                 (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
 
     DxuiDropdown                       & ThemeDropdown    ()       { return m_themeDropdown; }
     const DxuiDropdown                 & ThemeDropdown    () const { return m_themeDropdown; }
