@@ -207,6 +207,11 @@ int DxuiWindow::ShowDialog (int defaultButtonId)
     m_focus.Attach   (this);
     m_focus.Rebuild();
 
+    if (m_initialFocus != nullptr)
+    {
+        m_focus.SetFocused (m_initialFocus);
+    }
+
     m_source->SetTimer (s_kModalTimerId, s_kModalRepaintMs);
 
     if (m_ownerHwnd != nullptr)

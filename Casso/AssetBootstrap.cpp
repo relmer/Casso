@@ -16,8 +16,7 @@
 #include "Ui/Dialogs/DialogDefinition.h"
 #include "Core/DxuiEvents.h"
 #include "Core/DxuiPanel.h"
-#include "Dialog/DxuiDialog.h"
-#include "Dialog/DxuiDialogManager.h"
+#include "Window/DxuiDialogWindow.h"
 #include "Widgets/DxuiListView.h"
 #include "Widgets/DxuiSearchBox.h"
 #include "Core/UnicodeSymbols.h"
@@ -2010,6 +2009,108 @@ namespace
         int              m_searchHeightDip = 0;
         int              m_gapDip          = 0;
     };
+
+
+
+
+    ////////////////////////////////////////////////////////////////////////////////
+    //
+    //  PickerDialog
+    //
+    //  DxuiDialogWindow hosting a pre-built picker body (search + list) and
+    //  its action buttons. Non-cancel buttons carry their real (negative)
+    //  result codes as command ids (so a click ends the modal with that
+    //  code directly); the cancel button maps to IDCANCEL so Escape / the
+    //  close-box fire it. Row activation ends the modal with the row result
+    //  offset past s_kRowResultBase; MapResult un-offsets it and translates
+    //  IDCANCEL back to the cancel button's real code (or the close-box
+    //  result when no cancel button exists).
+    //
+    ////////////////////////////////////////////////////////////////////////////////
+
+    class PickerDialog : public DxuiDialogWindow
+    {
+    public:
+        static constexpr int  s_kRowResultBase = 100000;   // row results offset past button / IDCANCEL codes
+
+
+        void  ConfigurePicker (std::unique_ptr<DxuiPanel>          content,
+                               IDxuiControl *                     initialFocus,
+                               const std::vector<DialogButton> &  buttons,
+                               int                                closeBoxResult)
+        {
+            m_pendingContent = std::move (content);
+            m_pendingFocus   = initialFocus;
+            m_buttons        = buttons;
+            m_closeBoxResult = closeBoxResult;
+        }
+
+        int  DefaultCommandId () const { return m_defaultCommandId; }
+
+        int  MapResult (int dialogResult) const
+        {
+            int     result = m_closeBoxResult;
+            size_t  idx    = 0;
+
+
+            if (dialogResult >= s_kRowResultBase)
+            {
+                result = dialogResult - s_kRowResultBase;
+            }
+            else if (dialogResult == IDCANCEL)
+            {
+                for (idx = 0; idx < m_buttons.size(); ++idx)
+                {
+                    if (m_buttons[idx].isCancel)
+                    {
+                        result = m_buttons[idx].resultCode;
+                        break;
+                    }
+                }
+            }
+            else
+            {
+                result = dialogResult;
+            }
+
+            return result;
+        }
+
+
+    protected:
+        void  OnCreate () override
+        {
+            size_t  i = 0;
+
+
+            if (m_pendingContent != nullptr)
+            {
+                SetDialogContentOwned (std::move (m_pendingContent));
+            }
+
+            for (i = 0; i < m_buttons.size(); ++i)
+            {
+                int  commandId = m_buttons[i].isCancel ? IDCANCEL : m_buttons[i].resultCode;
+
+                AddDialogButton (m_buttons[i].label, commandId);
+
+                if (m_buttons[i].isDefault)
+                {
+                    m_defaultCommandId = commandId;
+                }
+            }
+
+            SetInitialFocus (m_pendingFocus);
+        }
+
+
+    private:
+        std::unique_ptr<DxuiPanel>  m_pendingContent;
+        IDxuiControl *              m_pendingFocus     = nullptr;
+        std::vector<DialogButton>   m_buttons;
+        int                         m_closeBoxResult   = -1;
+        int                         m_defaultCommandId = 0;
+    };
 }
 
 
@@ -2029,12 +2130,13 @@ namespace
 
 int DiskMruPickerSession::Run()
 {
+    HRESULT                           hr      = S_OK;
     CassoTheme                        theme   = CassoTheme::ForName (m_themeName);
-    std::unique_ptr<DxuiDialog>       dlg     = std::make_unique<DxuiDialog>();
     std::unique_ptr<PickerBodyPanel>  content = std::make_unique<PickerBodyPanel>();
-    DxuiDialogModalParams             params;
-    DxuiDialog *                      dlgRaw  = dlg.get();
+    PickerDialog                      dlg;
+    DxuiWindow::CreateParams          params;
     int                               chosen  = -1;
+    int                               raw     = 0;
 
 
     m_dpi = (m_hwndParent != nullptr) ? GetDpiForWindow (m_hwndParent) : GetDpiForSystem();
@@ -2044,30 +2146,41 @@ int DiskMruPickerSession::Run()
     m_list.SetTheme   (&theme);
     RebuildView();
 
-    //  Row activation (double-click / Enter on a row) closes the dialog
-    //  with that row's result code.
-    m_list.SetOnActivateRow ([dlgRaw, this] (int row) { dlgRaw->CloseWithResult (ChosenResultAt (row)); });
+    //  Row activation (double-click / Enter on a row) ends the modal with
+    //  that row's result code, offset past the button / close range so it
+    //  never collides; PickerDialog::MapResult un-offsets it.
+    m_list.SetOnActivateRow ([&dlg, this] (int row)
+    {
+        int  code = ChosenResultAt (row);
+
+        if (code >= 0)
+        {
+            dlg.EndDialog (PickerDialog::s_kRowResultBase + code);
+        }
+    });
 
     content->Init (&m_search, &m_list, s_kSearchHeightDip, s_kSearchListGapDip);
 
-    dlg->SetTitle   (m_title);
-    dlg->SetContent (std::move (content));
-    for (const DialogButton & button : m_buttons)
-    {
-        dlg->AddButton (button.label, button.resultCode, button.isDefault, button.isCancel);
-    }
-    dlg->SetInitialFocus (&m_search);
+    dlg.ConfigurePicker (std::move (content), &m_search, m_buttons, m_closeBoxResult.value_or (-1));
 
-    params.hInstance        = m_hInstance;
-    params.ownerHwnd        = m_hwndParent;
-    params.theme            = &theme;
-    params.clientSizeDip    = { s_kResizableDefWidthDip, s_kResizableDefHeightDip };
-    params.cancelResult     = m_closeBoxResult.value_or (-1);
-    params.resizable        = true;
-    params.minClientSizeDip = { s_kResizableMinWidthDip, s_kResizableMinHeightDip };
+    params.title                    = m_title;
+    params.hInstance                = m_hInstance;
+    params.ownerHwnd                = m_hwndParent;
+    params.initialSizeDip           = { s_kResizableDefWidthDip, s_kResizableDefHeightDip };
+    params.minSizeDip               = { s_kResizableMinWidthDip, s_kResizableMinHeightDip };
+    params.resizable                = true;
+    params.insetContentBelowCaption = true;
+    params.captionStyle             = DxuiCaptionStyle::CloseOnly;
 
-    chosen = DxuiDialogManager::ShowModal (std::move (dlg), params);
+    hr = dlg.Create (params);
+    CHRA (hr);
 
+    dlg.SetTheme (&theme);
+
+    raw    = dlg.ShowDialog (dlg.DefaultCommandId());
+    chosen = dlg.MapResult (raw);
+
+Error:
     return chosen;
 }
 

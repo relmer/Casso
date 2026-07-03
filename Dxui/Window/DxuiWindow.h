@@ -92,6 +92,13 @@ public:
     int      ShowDialog  (int defaultButtonId);
     void     EndDialog   (int result);
 
+    //
+    //  Control to focus when the modal is first shown (e.g. a picker's
+    //  search box), so typing / Tab work immediately. Null = focus
+    //  nothing, so Enter hits the default button. Call before ShowDialog.
+    //
+    void     SetInitialFocus (IDxuiControl * ctl) { m_initialFocus = ctl; }
+
     bool     IsCreated   () const { return m_source != nullptr; }
     HWND     Hwnd        () const { return m_source != nullptr ? m_source->Hwnd() : nullptr; }
 
@@ -184,6 +191,7 @@ private:
     SIZE                             m_minSizeDip = { 0, 0 };
     HWND                             m_ownerHwnd  = nullptr;
     const IDxuiTheme *               m_theme      = nullptr;
+    IDxuiControl *                   m_initialFocus = nullptr;
     DxuiFocusManager                 m_focus;
     bool                             m_modalActive    = false;
     bool                             m_modalDone      = false;
