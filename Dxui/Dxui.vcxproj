@@ -186,6 +186,8 @@
     <ClCompile Include="Window\DxuiSystemButton.cpp" />
     <ClCompile Include="Window\DxuiHwndSource.cpp" />
     <ClCompile Include="Window\DxuiDialogWindow.cpp" />
+    <ClCompile Include="Window\DxuiPropertyPage.cpp" />
+    <ClCompile Include="Window\DxuiPropertySheet.cpp" />
     <ClCompile Include="Window\DxuiWindow.cpp" />
     <ClCompile Include="Window\DxuiPopupHost.cpp" />
   </ItemGroup>
@@ -245,6 +247,8 @@
     <ClInclude Include="Window\DxuiSystemButton.h" />
     <ClInclude Include="Window\DxuiHwndSource.h" />
     <ClInclude Include="Window\DxuiDialogWindow.h" />
+    <ClInclude Include="Window\DxuiPropertyPage.h" />
+    <ClInclude Include="Window\DxuiPropertySheet.h" />
     <ClInclude Include="Window\DxuiWindow.h" />
     <ClInclude Include="Window\IDxuiHostClient.h" />
     <ClInclude Include="Window\DxuiPopupHost.h" />

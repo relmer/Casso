@@ -161,3 +161,5 @@ using ComPtr = Microsoft::WRL::ComPtr<T>;
 #include "Window/DxuiPopupHost.h"
 #include "Window/DxuiWindow.h"
 #include "Window/DxuiDialogWindow.h"
+#include "Window/DxuiPropertyPage.h"
+#include "Window/DxuiPropertySheet.h"
