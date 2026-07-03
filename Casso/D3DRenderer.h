@@ -20,35 +20,30 @@ public:
     D3DRenderer();
     ~D3DRenderer();
 
-    // Adopt-mode constructor for the host-owned swap chain. Skips
-    // device + swap-chain creation; uses the externally-provided
-    // ID3D11Device / ID3D11DeviceContext / IDXGISwapChain1 directly.
-    // The renderer still creates its own back-buffer RTV (a second
-    // view onto the same buffer is fine in D3D11), texture, sampler,
-    // shaders, vertex / index buffers, and CRT post-process chain.
-    // Call UploadAndComposite once per frame from this mode; the host
-    // owns Present.
+    // Adopts an externally-owned device / context / swap chain (the
+    // host's, typically DxuiHwndSource's) rather than creating its
+    // own. Builds this renderer's upload texture, sampler, shaders,
+    // and vertex / index buffers plus the CRT post-process chain, but
+    // holds NO back-buffer RTV of its own -- it composites into the
+    // host's RTV passed to UploadAndComposite, which the caller invokes
+    // once per frame; the host owns Present.
     //
     // `initialTargetRect` is the pixel-space rectangle inside the
     // back buffer where the Apple ][ framebuffer should composite;
     // EmulatorShell drives this from the DxuiViewport bounds.
-    HRESULT Initialize2 (ID3D11Device          * pDevice,
-                         ID3D11DeviceContext   * pContext,
-                         IDXGISwapChain1       * pSwapChain,
-                         int                     texWidth,
-                         int                     texHeight,
-                         const RECT            & initialTargetRect);
+    HRESULT Initialize (ID3D11Device          * pDevice,
+                        ID3D11DeviceContext   * pContext,
+                        IDXGISwapChain1       * pSwapChain,
+                        int                     texWidth,
+                        int                     texHeight,
+                        const RECT            & initialTargetRect);
 
-    // Host-owned (Initialize2) upload + CRT post-process pass. Writes
-    // into the caller-supplied `dstRtv` (the host's back-buffer RTV)
-    // and skips the swap-chain
-    // Present -- the host's paint pump owns the Present call. The
-    // renderer holds NO back-buffer RTV of its own in this mode, so
-    // the host's ResizeBuffers never contends with a stale reference.
-    // Does NOT clear the full back buffer (the host cleared it and the
-    // CRT final pass overwrites it) and skips the after-blit chrome
-    // hook (chrome paints via the host's panel-tree walk after this
-    // hook returns).
+    // Uploads the framebuffer and runs the CRT post-process pass,
+    // writing into the caller-supplied `dstRtv` (the host's back-buffer
+    // RTV). Skips the swap-chain Present -- the host's paint pump owns
+    // it. Does NOT clear the full back buffer (the host cleared it and
+    // the CRT final pass overwrites it) and skips any after-blit chrome
+    // hook (chrome paints via the host's panel-tree walk afterward).
     HRESULT UploadAndComposite (ID3D11RenderTargetView * dstRtv, const uint32_t * framebuffer);
 
     HRESULT ToggleFullscreen (HWND hwnd);
@@ -71,12 +66,11 @@ public:
     void SetTargetBounds  (const RECT & boundsPx)   { m_targetBoundsPx = boundsPx; }
     RECT GetTargetBounds  () const                  { return m_targetBoundsPx; }
 
-    // External (Initialize2 / host-owned swap chain) mode only: push
-    // the host's current back-buffer pixel dimensions so the CRT
+    // Push the host's current back-buffer pixel dimensions so the CRT
     // post-process sizes its intermediate render targets and the
     // aspect-fit math correctly. The host owns ResizeBuffers; the
-    // renderer never resizes the swap chain in external mode, so it
-    // learns the new size through this setter from EmulatorShell::OnSize.
+    // renderer never resizes the swap chain, so it learns the new size
+    // through this setter from EmulatorShell::OnSize.
     void SetBackBufferSize (int widthPx, int heightPx)
     {
         m_backBufferW         = std::max (0, widthPx);
@@ -117,7 +111,7 @@ public:
 
     // Accessors for the underlying device. Both
     // return non-owning pointers whose lifetime is bounded by
-    // Initialize2 -> Shutdown on this renderer.
+    // Initialize -> Shutdown on this renderer.
     ID3D11Device        * GetDevice  () const { return m_device.Get  (); }
     ID3D11DeviceContext * GetContext() const { return m_context.Get(); }
 
@@ -125,11 +119,16 @@ private:
     HRESULT InitializeShaders();
     void    CacheEmulatorContentScreenRect (const RECT & fittedRect);
 
-    // Post-device-adoption pipeline setup for Initialize2: dynamic
+    // Post-device-adoption pipeline setup for Initialize: dynamic
     // upload texture, sampler, shader programs, vertex / index
     // buffers, CRT post-process chain. Assumes m_device, m_context,
     // m_swapChain are populated.
     HRESULT CreateRenderResources (int texWidth, int texHeight);
+
+    // Aspect-fits the emulator content into `contentRect`, caches the
+    // resulting on-screen rect, and runs the CRT post-process pass into
+    // `dstRtv`. Timed as "D3DRenderer.CrtPostProcess".
+    HRESULT RenderCrtFrame (ID3D11RenderTargetView * dstRtv, const RECT & contentRect);
 
     ComPtr<ID3D11Device>             m_device;
     ComPtr<ID3D11DeviceContext>      m_context;
@@ -150,9 +149,9 @@ private:
     ComPtr<ID3D11InputLayout>        m_inputLayout;
 
     // CRT post-process pass. Owns the intermediate ping-pong RTs +
-    // the per-effect HLSL pixel shaders. Initialized in Initialize2 once
+    // the per-effect HLSL pixel shaders. Initialized in Initialize once
     // the device is up; torn down in Shutdown. `Process` is invoked
-    // unconditionally from UploadAndComposite -- a disabled effect maps
+    // unconditionally from RenderCrtFrame -- a disabled effect maps
     // to a zero magnitude in CrtParams, which the shaders treat as a
     // pass-through (see CrtPostProcess.cpp). The intermediate RTs are
     // resized lazily inside Process() when the back buffer size changes.

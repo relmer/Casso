@@ -622,12 +622,12 @@ HRESULT EmulatorShell::Initialize (
     // host back buffer from the before-present hook wired below. The
     // initial target rect is the DxuiViewport bounds computed during
     // CreateEmulatorWindow.
-    hr = m_d3dRenderer.Initialize2 (m_host->GetDevice(),
-                                    m_host->GetContext(),
-                                    m_host->GetSwapChain(),
-                                    kFramebufferWidth,
-                                    kFramebufferHeight,
-                                    m_viewportBoundsPx);
+    hr = m_d3dRenderer.Initialize (m_host->GetDevice(),
+                                   m_host->GetContext(),
+                                   m_host->GetSwapChain(),
+                                   kFramebufferWidth,
+                                   kFramebufferHeight,
+                                   m_viewportBoundsPx);
     CHR (hr);
 
     // Composite the Apple ][ framebuffer into the host's back buffer

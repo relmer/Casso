@@ -33,186 +33,14 @@ struct Vertex
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  Smoke-test back-buffer dump helpers
+//  File-scope constants
 //
 ////////////////////////////////////////////////////////////////////////////////
-
-static constexpr wchar_t  s_kpszSmokeDumpEnv[]   = L"CASSO_SMOKE_DUMP_DIR";
-static constexpr UINT64   s_kSmokeFrameStartup   = 60;
-static constexpr UINT64   s_kSmokeFrameSettings  = 240;
 
 // Frames to keep re-rendering after the emulator framebuffer goes
 // idle, so the persistence trail finishes decaying. At 60 fps,
 // 90 frames = 1.5s; 0.8^90 is < UNORM precision even before the bias.
-static constexpr int      s_kPersistenceSettleFrames = 90;
-static constexpr DWORD    s_kBmpHeaderSize       = sizeof (BITMAPFILEHEADER) + sizeof (BITMAPINFOHEADER);
-static constexpr WORD     s_kBmpMagic            = 0x4D42;
-static constexpr WORD     s_kBmpPlanes           = 1;
-static constexpr WORD     s_kBmpBitsPerPixel     = 32;
-static constexpr UINT     s_kMaxBoundPsSrvSlots  = 2;
-
-// Floor for the flip-model back buffer's allocated size. Picked so the
-// back buffer is large enough for typical monitor configurations on a
-// fresh launch -- this lets SetSourceSize handle every reasonable
-// resize without ever invoking ResizeBuffers on the hot drag path.
-// Memory cost: 4096 * 4096 * 4 bytes * 2 buffers ~= 134 MB. Acceptable
-// for the modern GPUs Casso targets, and the cost of NOT paying it is
-// the driver-side crash that prompted the flip-model migration.
-static constexpr int      s_kMinPhysicalBackBuffer = 4096;
-
-// BufferCount for the flip-model swap chain. Flip-discard requires at
-// least 2; we don't need triple-buffering.
-static constexpr UINT     s_kFlipModelBufferCount  = 2;
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ChooseInitialPhysicalBackBufferSize
-//
-//  Walks every attached display and returns the max pixel dimensions
-//  observed (clamped to at least s_kMinPhysicalBackBuffer). The flip-
-//  model swap chain is allocated at this size and SetSourceSize then
-//  hands DWM the (logical) sub-rect we actually want presented, so a
-//  drag-stress resize loop touches no GPU allocations at all.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-static BOOL CALLBACK MaxMonitorEnumProc (HMONITOR hMonitor, HDC, LPRECT, LPARAM lParam)
-{
-    HRESULT       hr       = S_OK;
-    SIZE        * pMax     = reinterpret_cast<SIZE *> (lParam);
-    MONITORINFO   mi       = { sizeof (mi) };
-    BOOL          fSuccess = FALSE;
-    LONG          monW     = 0;
-    LONG          monH     = 0;
-
-
-
-    fSuccess = GetMonitorInfoW (hMonitor, &mi);
-    CBRA (fSuccess);
-
-    monW = mi.rcMonitor.right  - mi.rcMonitor.left;
-    monH = mi.rcMonitor.bottom - mi.rcMonitor.top;
-    pMax->cx = std::max<LONG> (pMax->cx, monW);
-    pMax->cy = std::max<LONG> (pMax->cy, monH);
-
-Error:
-    return TRUE;
-}
-
-
-
-
-
-static SIZE ChooseInitialPhysicalBackBufferSize (int initialClientW, int initialClientH)
-{
-    SIZE  monMax = { 0, 0 };
-    SIZE  result = { s_kMinPhysicalBackBuffer, s_kMinPhysicalBackBuffer };
-
-    EnumDisplayMonitors (nullptr, nullptr, MaxMonitorEnumProc, reinterpret_cast<LPARAM> (&monMax));
-
-    result.cx = std::max<LONG> (result.cx, monMax.cx);
-    result.cy = std::max<LONG> (result.cy, monMax.cy);
-    result.cx = std::max<LONG> (result.cx, initialClientW);
-    result.cy = std::max<LONG> (result.cy, initialClientH);
-    return result;
-}
-
-
-
-
-
-static HRESULT DumpBackBufferBmp (
-    ID3D11Device        * device,
-    ID3D11DeviceContext * context,
-    IDXGISwapChain      * swapChain,
-    UINT64                frameIndex,
-    UINT                  logicalW,
-    UINT                  logicalH)
-{
-    HRESULT                   hr                = S_OK;
-    wchar_t                   dumpDir[MAX_PATH] = {};
-    DWORD                     chars             = 0;
-    ComPtr<ID3D11Texture2D>   backBuffer;
-    ComPtr<ID3D11Texture2D>   staging;
-    D3D11_TEXTURE2D_DESC      desc              = {};
-    D3D11_MAPPED_SUBRESOURCE  mapped            = {};
-    std::filesystem::path     outPath;
-    std::ofstream             out;
-    BITMAPFILEHEADER          fileHeader        = {};
-    BITMAPINFOHEADER          infoHeader        = {};
-    LONG                      y                 = 0;
-    UINT                      dumpW             = 0;
-    UINT                      dumpH             = 0;
-
-
-
-    chars = GetEnvironmentVariableW (s_kpszSmokeDumpEnv, dumpDir, ARRAYSIZE (dumpDir));
-    BAIL_OUT_IF (chars == 0, S_OK);
-    CBRA (device);
-    CBRA (context);
-    CBRA (swapChain);
-
-    hr = swapChain->GetBuffer (0, IID_PPV_ARGS (&backBuffer));
-    CHRA (hr);
-
-    backBuffer->GetDesc (&desc);
-    desc.Usage          = D3D11_USAGE_STAGING;
-    desc.BindFlags      = 0;
-    desc.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
-    desc.MiscFlags      = 0;
-
-    hr = device->CreateTexture2D (&desc, nullptr, &staging);
-    CHRA (hr);
-
-    context->CopyResource (staging.Get(), backBuffer.Get());
-
-    hr = context->Map (staging.Get(), 0, D3D11_MAP_READ, 0, &mapped);
-    CHRA (hr);
-
-    outPath = std::filesystem::path (dumpDir) / (frameIndex == s_kSmokeFrameSettings ? L"p3_1_frame240_backbuffer.bmp" : L"p3_1_frame60_backbuffer.bmp");
-    out.open (outPath, std::ios::binary | std::ios::trunc);
-    CBR (out.good());
-
-    // Under the flip-model swap chain the back buffer is sized to the
-    // physical max (often much larger than the visible area). Only the
-    // top-left logicalW x logicalH region holds meaningful pixels; the
-    // rest is undefined. Dump only the logical sub-rect so the smoke
-    // image matches what the user actually sees on screen.
-    dumpW = (logicalW > 0 && logicalW <= desc.Width)  ? logicalW : desc.Width;
-    dumpH = (logicalH > 0 && logicalH <= desc.Height) ? logicalH : desc.Height;
-
-    fileHeader.bfType    = s_kBmpMagic;
-    fileHeader.bfOffBits = s_kBmpHeaderSize;
-    fileHeader.bfSize    = s_kBmpHeaderSize + dumpW * dumpH * sizeof (uint32_t);
-
-    infoHeader.biSize        = sizeof (BITMAPINFOHEADER);
-    infoHeader.biWidth       = static_cast<LONG> (dumpW);
-    infoHeader.biHeight      = -static_cast<LONG> (dumpH);
-    infoHeader.biPlanes      = s_kBmpPlanes;
-    infoHeader.biBitCount    = s_kBmpBitsPerPixel;
-    infoHeader.biCompression = BI_RGB;
-    infoHeader.biSizeImage   = dumpW * dumpH * sizeof (uint32_t);
-
-    out.write (reinterpret_cast<const char *> (&fileHeader), sizeof (fileHeader));
-    out.write (reinterpret_cast<const char *> (&infoHeader), sizeof (infoHeader));
-    for (y = 0; y < static_cast<LONG> (dumpH); y++)
-    {
-        const char * row = reinterpret_cast<const char *> (static_cast<const Byte *> (mapped.pData) + mapped.RowPitch * y);
-        out.write (row, dumpW * sizeof (uint32_t));
-    }
-
-Error:
-    if (mapped.pData != nullptr)
-    {
-        context->Unmap (staging.Get(), 0);
-    }
-
-    return hr;
-}
+static constexpr int  s_kPersistenceSettleFrames = 90;
 
 
 
@@ -249,18 +77,18 @@ D3DRenderer::~D3DRenderer()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  Initialize2
+//  Initialize
 //
-//  Adopt-mode: skip device + swap-chain creation and reuse the
-//  externally-owned device, context, and swap chain (typically
-//  DxuiHwndSource's). Still creates this renderer's own back-buffer
-//  RTV, dynamic upload texture, sampler, shaders, vertex / index
-//  buffers, and CRT post-process chain. Callers in this mode invoke
-//  UploadAndComposite once per frame; the host owns Present.
+//  Adopts the externally-owned device, context, and swap chain
+//  (typically DxuiHwndSource's) rather than creating its own. Builds
+//  the upload texture, sampler, shaders, vertex / index buffers, and
+//  CRT post-process chain, but holds no back-buffer RTV of its own.
+//  Callers invoke UploadAndComposite once per frame; the host owns
+//  Present.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT D3DRenderer::Initialize2 (
+HRESULT D3DRenderer::Initialize (
     ID3D11Device          * pDevice,
     ID3D11DeviceContext   * pContext,
     IDXGISwapChain1       * pSwapChain,
@@ -285,9 +113,9 @@ HRESULT D3DRenderer::Initialize2 (
     m_texHeight         = texHeight;
     m_targetBoundsPx    = initialTargetRect;
 
-    // SetSourceSize lives on IDXGISwapChain2; QI up so we can share
-    // the same hot-path resize trick the standalone Initialize uses.
-    // Every Windows 8.1+ system Casso targets exposes IDXGISwapChain2.
+    // SetSourceSize lives on IDXGISwapChain2; QI up so the CRT
+    // post-process can drive DWM's presented sub-rect. Every
+    // Windows 8.1+ system Casso targets exposes IDXGISwapChain2.
     hr = pSwapChain->QueryInterface (IID_PPV_ARGS (m_swapChain.GetAddressOf()));
     CHRA (hr);
 
@@ -320,13 +148,12 @@ Error:
 //
 //  CreateRenderResources
 //
-//  Shared post-device-creation pipeline setup invoked by Initialize
-//  (after the device + swap chain are stood up) and by Initialize2
-//  (after the externally-owned device + swap chain are adopted).
-//  Builds the back-buffer RTV, dynamic upload texture, sampler,
-//  shader programs, vertex / index buffers, and CRT post-process
-//  chain. Does NOT call SetSourceSize -- callers handle DWM
-//  sub-rect negotiation themselves.
+//  Post-device-adoption pipeline setup invoked by Initialize after the
+//  externally-owned device + swap chain are adopted. Builds the dynamic
+//  upload texture, sampler, shader programs, vertex / index buffers, and
+//  CRT post-process chain. The renderer holds no back-buffer RTV of its
+//  own -- it composites into the host's RTV (passed to
+//  UploadAndComposite) -- and does NOT call SetSourceSize.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -350,12 +177,6 @@ HRESULT D3DRenderer::CreateRenderResources (int texWidth, int texHeight)
 
 
 
-    // Host-owned (Initialize2 / adopt) mode is the only mode: the host
-    // owns the swap chain and the only back-buffer RTV plus its resize
-    // lifecycle. The renderer composites into the host's RTV (passed to
-    // UploadAndComposite) and never holds a back-buffer reference of its
-    // own, so the host's ResizeBuffers never contends with a stale
-    // renderer reference.
     td.Width            = static_cast<UINT> (texWidth);
     td.Height           = static_cast<UINT> (texHeight);
     td.MipLevels        = 1;
@@ -551,11 +372,10 @@ bool D3DRenderer::NeedsPresent (bool framebufferDirty) const
 //
 //  UploadAndComposite
 //
-//  Adopt-mode entry point (Initialize2). Uploads the framebuffer and
-//  runs the CRT post-process pass, then skips the swap-chain Present
-//  -- the host owns the Present call -- and the
-//  after-blit chrome hook, since chrome paints via the host's panel-
-//  tree Paint pump rather than this renderer's hook.
+//  Uploads the framebuffer and runs the CRT post-process pass, then
+//  skips the swap-chain Present -- the host owns the Present call --
+//  and the after-blit chrome hook, since chrome paints via the host's
+//  panel-tree Paint pump rather than this renderer's hook.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -566,7 +386,6 @@ HRESULT D3DRenderer::UploadAndComposite (ID3D11RenderTargetView * dstRtv, const 
     const uint32_t           * src           = nullptr;
     Byte                     * dst           = nullptr;
     RECT                       contentRect   = {};
-    RECT                       fittedRect    = {};
 
 
 
@@ -600,10 +419,10 @@ HRESULT D3DRenderer::UploadAndComposite (ID3D11RenderTargetView * dstRtv, const 
     // hook, and the CRT final pass writes the full back buffer
     // (emulator frame plus black letterbox bars) into dstRtv.
 
-    // In Initialize2 mode the target rectangle comes from the
-    // DxuiViewport bounds (pushed in by EmulatorShell), not from
-    // the chrome inset side-channel. Fall back to the full back
-    // buffer if no viewport bounds have been reported yet.
+    // The target rectangle comes from the DxuiViewport bounds (pushed
+    // in by EmulatorShell), not from the chrome inset side-channel.
+    // Fall back to the full back buffer if no viewport bounds have
+    // been reported yet.
     if (m_targetBoundsPx.right > m_targetBoundsPx.left &&
         m_targetBoundsPx.bottom > m_targetBoundsPx.top)
     {
@@ -617,25 +436,8 @@ HRESULT D3DRenderer::UploadAndComposite (ID3D11RenderTargetView * dstRtv, const 
         contentRect.bottom = m_backBufferH;
     }
 
-    {
-        ScopedPerfTimer  timer ("D3DRenderer.CrtPostProcess");
-
-
-        if (m_texWidth > 0 && m_texHeight > 0 && m_backBufferW > 0 && m_backBufferH > 0)
-        {
-            fittedRect = ComputeAspectFitRectInRect (contentRect, m_texWidth, m_texHeight);
-        }
-
-        CacheEmulatorContentScreenRect (fittedRect);
-
-        hr = m_crtPost.Process (m_srv.Get(),
-                                dstRtv,
-                                m_crtParams,
-                                fittedRect,
-                                m_backBufferW,
-                                m_backBufferH);
-        CHRA (hr);
-    }
+    hr = RenderCrtFrame (dstRtv, contentRect);
+    CHRA (hr);
 
     m_redrawForced        = false;
     m_lastPresentedParams = m_crtParams;
@@ -648,6 +450,48 @@ HRESULT D3DRenderer::UploadAndComposite (ID3D11RenderTargetView * dstRtv, const 
     {
         m_idleFramesSinceFbChange++;
     }
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RenderCrtFrame
+//
+//  Aspect-fits the emulator content into `contentRect`, caches the
+//  resulting on-screen rect (for hit-testing / preview overlap), and
+//  runs the CRT post-process pass into `dstRtv`. Scoped so the perf
+//  timer measures the post-process pass alone.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT D3DRenderer::RenderCrtFrame (ID3D11RenderTargetView * dstRtv, const RECT & contentRect)
+{
+    HRESULT          hr         = S_OK;
+    RECT             fittedRect = {};
+    ScopedPerfTimer  timer ("D3DRenderer.CrtPostProcess");
+
+
+
+    if (m_texWidth > 0 && m_texHeight > 0 && m_backBufferW > 0 && m_backBufferH > 0)
+    {
+        fittedRect = ComputeAspectFitRectInRect (contentRect, m_texWidth, m_texHeight);
+    }
+
+    CacheEmulatorContentScreenRect (fittedRect);
+
+    hr = m_crtPost.Process (m_srv.Get(),
+                            dstRtv,
+                            m_crtParams,
+                            fittedRect,
+                            m_backBufferW,
+                            m_backBufferH);
+    CHRA (hr);
 
 Error:
     return hr;
@@ -676,9 +520,9 @@ void D3DRenderer::CacheEmulatorContentScreenRect (const RECT & fittedRect)
     m_emulatorContentScreenRect = {};
     BAIL_OUT_IF (!m_swapChain || IsRectEmpty (&fittedRect), S_OK);
 
-    // The HWND is the swap chain's OutputWindow -- both the standalone and
-    // host-owned swap chains are HWND-based (CreateSwapChainForHwnd), so we
-    // query it on demand rather than caching a copy that could go stale.
+    // The HWND is the swap chain's OutputWindow -- the host-owned swap
+    // chain is HWND-based (CreateSwapChainForHwnd), so we query it on
+    // demand rather than caching a copy that could go stale.
     hr = m_swapChain->GetDesc (&scd);
     CHRA (hr);
 
