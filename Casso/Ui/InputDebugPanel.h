@@ -1,7 +1,6 @@
 #pragma once
 
-#include "Window/DxuiHostWindow.h"
-#include "Window/IDxuiHostClient.h"
+#include "Window/DxuiWindow.h"
 #include "InputDebugPanelLayout.h"
 #include "Core/DxuiFocusManager.h"
 #include "Core/DxuiPanel.h"
@@ -29,10 +28,23 @@ struct CassoTheme;
 //
 //  InputDebugPanel
 //
+//  Themed DX replacement for the legacy Win32 InputDebugDialog. Derives
+//  from DxuiWindow, so it IS its own content-root panel AND owns the OS
+//  window (HWND + swap chain + caption + paint pump) through the base
+//  class -- the subclass never touches an HWND, a WPARAM, or a host
+//  client interface. It still implements the same event-sink interface
+//  (IInputEventSink) so it slots into the existing EmulatorShell event
+//  wiring with no contract changes.
+//
+//  Content widgets are created as children of this panel in OnCreate
+//  (via the inherited CreateChild<T> factory) so the base paint pump
+//  walks and paints them; the panel keeps its own focus manager,
+//  tooltip, and column menu (the latter two escape the client via the
+//  host popup pool exposed through PopupHost()).
+//
 ////////////////////////////////////////////////////////////////////////////////
 
-class InputDebugPanel : public DxuiPanel,
-                        public IDxuiHostClient,
+class InputDebugPanel : public DxuiWindow,
                         public IInputEventSink
 {
 public:
@@ -44,12 +56,9 @@ public:
                      ID3D11Device         * device,
                      ID3D11DeviceContext  * context,
                      const CassoTheme    * theme);
-    void    Show    ();
-    void    Hide    ();
     void    Destroy ();
 
-    bool    IsOpen () const { return m_host != nullptr; }
-    HWND    Hwnd   () const { return m_host != nullptr ? m_host->Hwnd() : nullptr; }
+    bool    IsOpen () const { return IsCreated(); }
 
     HRESULT RenderFrame ();
     void    SetTheme    (const CassoTheme * theme);
@@ -63,24 +72,6 @@ public:
     // DxuiListView rows are only ever mutated on one thread.
     void    RequestResetAnchor (std::chrono::steady_clock::time_point anchor) noexcept;
 
-    // IDxuiHostClient. The host window forwards the Win32 messages it
-    // does not own end-to-end; each hook translates into the panel's
-    // existing DxuiMouseEvent / DxuiKeyEvent routing (OnMouse / OnKey)
-    // or the layout / lifecycle helpers below.
-    DxuiMessageResult  OnLButtonDown (WPARAM wParam, LPARAM lParam) override;
-    DxuiMessageResult  OnLButtonUp   (WPARAM wParam, LPARAM lParam) override;
-    DxuiMessageResult  OnRButtonDown (WPARAM wParam, LPARAM lParam) override;
-    DxuiMessageResult  OnMouseMove   (WPARAM wParam, LPARAM lParam) override;
-    DxuiMessageResult  OnMouseWheel  (WPARAM wParam, LPARAM lParam, bool horizontal) override;
-    DxuiMessageResult  OnKeyDown     (WPARAM vk, LPARAM lParam) override;
-    DxuiMessageResult  OnChar        (WPARAM ch, LPARAM lParam) override;
-    DxuiMessageResult  OnSetCursor   (WORD hitTest) override;
-    DxuiMessageResult  OnSize        (UINT widthPx, UINT heightPx) override;
-    DxuiMessageResult  OnGetMinMax   (MINMAXINFO * info) override;
-    DxuiMessageResult  OnClose       () override;
-    void               OnDestroy     () override;
-    void               OnDpiChanged  (UINT newDpi) override;
-
     // Framework input entry points. These DxuiPanel overrides own all
     // mouse / keyboard routing for the panel: they hit-test and dispatch
     // the DxuiMouseEvent / DxuiKeyEvent straight to the child widgets and
@@ -88,6 +79,20 @@ public:
     // framework.
     bool    OnMouse (const DxuiMouseEvent & ev)                     override;
     bool    OnKey   (const DxuiKeyEvent   & ev)                     override;
+
+    // DxuiPanel cursor hook. The generic panel fan-out hands children
+    // client-px, but DxuiListView::CursorForPoint expects list-local
+    // coords, so translate before delegating (and hold the resize cursor
+    // through an active column drag even if the pointer drifts off the
+    // header strip).
+    LPCWSTR CursorForPoint (POINT clientPx) const                   override;
+
+    // DxuiPanel layout hook. DxuiWindow calls this with the client
+    // bounds / DPI scaler after the OS window resizes; caches the size
+    // and re-runs the panel's absolute layout so the child widgets track
+    // the new bounds.
+    void    Layout  (const RECT          & boundsDip,
+                     const DxuiDpiScaler & scaler)                  override;
 
     void OnKbdDataRead    (Word address, Byte value, bool strobeSet)    override;
     void OnKbdStrobe      (Word address, Byte value, bool clearedStrobe) override;
@@ -100,9 +105,13 @@ public:
     void OnHostPaddle     (int axis, Byte value)                        override;
     void OnHostButton     (int index, bool down)                        override;
 
+protected:
+    // DxuiWindow hook. Fires inside Create() once the backend + HWND
+    // exist; populates the child widgets via the inherited CreateChild<T>
+    // factory and wires their state / callbacks.
+    void    OnCreate ()                                             override;
+
 private:
-    DxuiMessageResult  DispatchClientMouse (DxuiMouseEventKind kind, DxuiMouseButton button, int x, int y, float wheelDelta);
-    DxuiMessageResult  DispatchClientKey   (DxuiKeyEventKind kind, WPARAM code);
     void    RecomputeLayout      ();
     void    LayoutWidgets        ();
     void    ConfigureWidgets     ();
@@ -150,30 +159,27 @@ private:
                                                          std::chrono::steady_clock::time_point uptimeAnchor,
                                                          const InputFilterState & filter);
 
-    std::unique_ptr<DxuiHostWindow>       m_host;
     InputPanelLayoutSlots                 m_layout = {};
 
-    ID3D11Device                        * m_device   = nullptr;
-    ID3D11DeviceContext                 * m_context  = nullptr;
     const CassoTheme                   * m_theme    = nullptr;
-    HWND                                  m_hwnd     = nullptr;
     int                                   m_widthPx  = 0;
     int                                   m_heightPx = 0;
     UINT                                  m_dpi      = 96;
+    DxuiDpiScaler                             m_scaler;
 
-    DxuiLabel                                 m_emuLabel;
-    DxuiLabel                                 m_hostLabel;
-    std::array<DxuiLabel, 2>                  m_pairLabel;
-    DxuiCheckbox                              m_allCheck;
-    DxuiCheckbox                              m_emuKeyboardCheck;
-    DxuiCheckbox                              m_joystickCheck;
-    DxuiCheckbox                              m_paddleCheck;
-    DxuiCheckbox                              m_hostKeyboardCheck;
-    std::array<DxuiDropdown, 2>               m_pairView;
-    DxuiButton                                m_pauseButton;
-    DxuiButton                                m_clearButton;
-    DxuiButton                                m_copyButton;
-    DxuiListView                              m_eventList;
+    DxuiLabel                               * m_emuLabel          = nullptr;
+    DxuiLabel                               * m_hostLabel         = nullptr;
+    std::array<DxuiLabel*, 2>                 m_pairLabel         = {};
+    DxuiCheckbox                            * m_allCheck          = nullptr;
+    DxuiCheckbox                            * m_emuKeyboardCheck  = nullptr;
+    DxuiCheckbox                            * m_joystickCheck     = nullptr;
+    DxuiCheckbox                            * m_paddleCheck       = nullptr;
+    DxuiCheckbox                            * m_hostKeyboardCheck = nullptr;
+    std::array<DxuiDropdown*, 2>              m_pairView          = {};
+    DxuiButton                              * m_pauseButton       = nullptr;
+    DxuiButton                              * m_clearButton       = nullptr;
+    DxuiButton                              * m_copyButton        = nullptr;
+    DxuiListView                            * m_eventList         = nullptr;
     DxuiTooltip                               m_tooltip;
     DxuiPopupMenu                             m_columnMenu;
     DxuiFocusManager                          m_focusMgr;
