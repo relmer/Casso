@@ -37,6 +37,7 @@ public:
     HRESULT Initialize2 (ID3D11Device          * pDevice,
                          ID3D11DeviceContext   * pContext,
                          IDXGISwapChain1       * pSwapChain,
+                         HWND                    hostHwnd,
                          int                     texWidth,
                          int                     texHeight,
                          const RECT            & initialTargetRect);

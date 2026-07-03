@@ -626,6 +626,7 @@ HRESULT EmulatorShell::Initialize (
     hr = m_d3dRenderer.Initialize2 (m_host->GetDevice(),
                                     m_host->GetContext(),
                                     m_host->GetSwapChain(),
+                                    m_host->Hwnd(),
                                     kFramebufferWidth,
                                     kFramebufferHeight,
                                     m_viewportBoundsPx);

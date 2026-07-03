@@ -535,6 +535,7 @@ HRESULT D3DRenderer::Initialize2 (
     ID3D11Device          * pDevice,
     ID3D11DeviceContext   * pContext,
     IDXGISwapChain1       * pSwapChain,
+    HWND                    hostHwnd,
     int                     texWidth,
     int                     texHeight,
     const RECT            & initialTargetRect)
@@ -551,7 +552,11 @@ HRESULT D3DRenderer::Initialize2 (
 
     m_device            = pDevice;
     m_context           = pContext;
-    m_hwnd              = nullptr;
+    // Host-owned mode: the host owns the HWND + swap chain. We keep the
+    // host HWND only to map the fitted emulator content rect from client
+    // to screen space (CacheEmulatorContentScreenRect), which the settings
+    // live-preview overlap test needs.
+    m_hwnd              = hostHwnd;
     m_externalSwapChain = true;
     m_texWidth          = texWidth;
     m_texHeight         = texHeight;
