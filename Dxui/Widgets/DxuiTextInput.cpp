@@ -751,10 +751,11 @@ void DxuiTextInput::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler
 
 void DxuiTextInput::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
 {
-    if (m_theme == nullptr)
-    {
-        m_theme = &theme;
-    }
+    // Adopt the theme handed down by the paint pump every frame so a
+    // theme change / preview takes effect on the next repaint without a
+    // separate push. m_theme is read only within the synchronous const
+    // Paint below, so pointing it at the passed theme is safe.
+    m_theme = &theme;
 
     static_cast<const DxuiTextInput *> (this)->Paint (painter, text);
 }

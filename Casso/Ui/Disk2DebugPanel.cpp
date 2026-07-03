@@ -327,10 +327,14 @@ Error:
 
 void Disk2DebugPanel::SetTheme (const CassoTheme * theme)
 {
+    // Set the one window theme; the paint pump hands it to the child
+    // widget tree (edits, list, labels) each frame, so they need no
+    // per-control push. The focus manager keeps a copy only for its
+    // row-height metric; the column-menu popup is themed at show time.
     m_theme = theme;
     DxuiWindow::SetTheme (theme);
 
-    ApplyTheme();
+    m_focusMgr.SetTheme (theme);
 }
 
 
@@ -402,6 +406,12 @@ void Disk2DebugPanel::ShowColumnMenu (int anchorX, int anchorY)
         item.checked = m_eventList->IsColumnVisible (i);
         items.push_back (std::move (item));
     }
+
+    // Hand the popup the current window theme at show time. The menu
+    // renders deferred in a pooled popup host (not the widget tree), so
+    // it can't pick the theme up from a paint-pump pass; the window theme
+    // is stable (owned by the shell), so this pointer never dangles.
+    m_columnMenu.SetTheme (m_theme);
 
     m_columnMenu.Show (anchorX, anchorY, std::move (items), *textRenderer, host);
 }
@@ -821,6 +831,49 @@ void Disk2DebugPanel::Layout (
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CursorForPoint
+//
+//  DxuiWindow resolves the client cursor by fanning a client-px point
+//  through the panel tree. DxuiListView::CursorForPoint expects list-
+//  local coords, so translate by the list's bounds before delegating.
+//  During an active column-resize drag the pointer may leave the header
+//  strip (where the edge hit-test lives), so hold the resize cursor for
+//  the duration of the drag.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+LPCWSTR Disk2DebugPanel::CursorForPoint (POINT clientPx) const
+{
+    LPCWSTR  cursor = nullptr;
+    RECT     bounds = {};
+    POINT    local  = {};
+
+
+
+    if (m_eventList == nullptr)
+    {
+        return nullptr;
+    }
+
+    bounds  = m_eventList->Bounds();
+    local.x = clientPx.x - bounds.left;
+    local.y = clientPx.y - bounds.top;
+
+    cursor = m_eventList->CursorForPoint (local);
+    if (cursor == nullptr && m_eventList->IsResizingColumn())
+    {
+        cursor = IDC_SIZEWE;
+    }
+
+    return cursor;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  RecomputeLayout
 //
 //  Recomputes the cached PanelLayoutSlots whenever the panel's client
@@ -867,35 +920,6 @@ void Disk2DebugPanel::UpdateDynamicLabels()
     m_trackFilterLabel->SetText   (m_filter.trackFilterRawQt ? s_kpszTrackQtFilterLabel : s_kpszTrackFilterLabel);
     m_trackInvalidLabel->SetText  (BuildInvalidLabel (s_kpszTrackInvalidPrefix,  m_trackEdit->Text(),  m_filter.trackFilter.RejectedSpans()).c_str());
     m_sectorInvalidLabel->SetText (BuildInvalidLabel (s_kpszSectorInvalidPrefix, m_sectorEdit->Text(), m_filter.sectorFilter.RejectedSpans()).c_str());
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ApplyTheme
-//
-//  Forwards the theme to the child controls that still snapshot it
-//  (edits, list, column menu, focus ring). Labels resolve their color
-//  from their semantic DxuiTextRole at paint, so they need nothing here.
-//  Called from SetTheme -- NOT from the layout pass.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void Disk2DebugPanel::ApplyTheme()
-{
-    if (m_eventList == nullptr)
-    {
-        return;
-    }
-
-    m_trackEdit->SetTheme  (m_theme);
-    m_sectorEdit->SetTheme (m_theme);
-    m_eventList->SetTheme  (m_theme);
-    m_columnMenu.SetTheme  (m_theme);
-    m_focusMgr.SetTheme    (m_theme);
 }
 
 

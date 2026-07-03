@@ -2289,10 +2289,12 @@ void DxuiListView::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
 
 void DxuiListView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
 {
-    if (m_theme == nullptr)
-    {
-        m_theme = &theme;
-    }
+    // Adopt the theme handed down by the paint pump every frame so a
+    // theme change / preview takes effect on the next repaint without a
+    // separate push. m_theme is read only within the synchronous const
+    // Paint below (the per-paint palette), so this is safe.
+    m_theme = &theme;
+
     static_cast<const DxuiListView *> (this)->Paint (painter, text);
 }
 

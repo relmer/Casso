@@ -84,6 +84,13 @@ public:
     bool    OnMouse (const DxuiMouseEvent & ev)                     override;
     bool    OnKey   (const DxuiKeyEvent   & ev)                     override;
 
+    // DxuiPanel cursor hook. The generic panel fan-out hands children
+    // client-px, but DxuiListView::CursorForPoint expects list-local
+    // coords, so translate before delegating (and hold the resize cursor
+    // through an active column drag even if the pointer drifts off the
+    // header strip).
+    LPCWSTR CursorForPoint (POINT clientPx) const                   override;
+
     // DxuiPanel layout hook. DxuiWindow calls this with the client
     // bounds / DPI scaler after the OS window resizes; caches the size
     // and re-runs the panel's absolute layout so the child widgets track
@@ -124,7 +131,6 @@ private:
     void    RecomputeLayout      ();
     void    LayoutWidgets        ();
     void    UpdateDynamicLabels  ();
-    void    ApplyTheme           ();
     void    ConfigureWidgets     ();
     void    DrainAndProject      ();
     void    RebuildFilteredIndices ();
