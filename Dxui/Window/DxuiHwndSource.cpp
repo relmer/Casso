@@ -669,8 +669,8 @@ void DxuiHwndSource::SetTrackMouseEventForTest (std::function<BOOL (TRACKMOUSEEV
 //  SetContentPanel
 //
 //  Replace the root panel with a caller-supplied tree. Lets a
-//  consumer install a fully-assembled content panel (DxuiDialog,
-//  SettingsWindow content, ...) as the host's paint / hit-test /
+//  consumer install a fully-assembled content panel (a SettingsWindow
+//  content tree, ...) as the host's paint / hit-test /
 //  focus / accessibility root in one shot. The previous root is
 //  destroyed. When the host already owns a real HWND, the new
 //  panel's bounds are set from the current client rect so it lays

@@ -188,9 +188,6 @@
     <ClCompile Include="Window\DxuiDialogWindow.cpp" />
     <ClCompile Include="Window\DxuiWindow.cpp" />
     <ClCompile Include="Window\DxuiPopupHost.cpp" />
-    <ClCompile Include="Dialog\DxuiDialog.cpp" />
-    <ClCompile Include="Dialog\DxuiDialogManager.cpp" />
-    <ClCompile Include="Dialog\DxuiModalDialogClient.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Dxui.h" />
@@ -251,9 +248,6 @@
     <ClInclude Include="Window\DxuiWindow.h" />
     <ClInclude Include="Window\IDxuiHostClient.h" />
     <ClInclude Include="Window\DxuiPopupHost.h" />
-    <ClInclude Include="Dialog\DxuiDialog.h" />
-    <ClInclude Include="Dialog\DxuiDialogManager.h" />
-    <ClInclude Include="Dialog\DxuiModalDialogClient.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

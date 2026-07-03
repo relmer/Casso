@@ -2121,10 +2121,10 @@ namespace
 //
 //  DiskMruPickerSession::Run
 //
-//  Builds a DxuiDialog whose content is a search box + list, wires row
+//  Builds a PickerDialog whose content is a search box + list, wires row
 //  activation to close the dialog with the row's result, and shows it
-//  modally through the Dxui host. Returns the chosen result code (a model
-//  row's resultCode, a button's resultCode, or the close-box code).
+//  modally via ShowDialog. Returns the chosen result code (a model row's
+//  resultCode, a button's resultCode, or the close-box code).
 //
 ////////////////////////////////////////////////////////////////////////////////
 

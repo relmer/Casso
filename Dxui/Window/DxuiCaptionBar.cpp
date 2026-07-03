@@ -259,7 +259,7 @@ void DxuiCaptionBar::Layout (const RECT & boundsDip, const DxuiDpiScaler & scale
 //  Host-owned mode: gradient fill + app icon + title text, then the
 //  base panel walk paints the system-button children on top. Plain-
 //  container mode (m_renderCaption == false) paints only the children
-//  so existing DxuiDialog usage is unchanged.
+//  so a plain-container caller's layout is unchanged.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

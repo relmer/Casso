@@ -7,7 +7,6 @@
 
 
 static constexpr UINT_PTR  s_kModalTimerId    = 1;      // modal caret-blink / poll timer id
-static constexpr UINT      s_kModalRepaintMs  = 250;    // modal repaint cadence (caret blink)
 
 
 
@@ -212,7 +211,7 @@ int DxuiWindow::ShowDialog (int defaultButtonId)
         m_focus.SetFocused (m_initialFocus);
     }
 
-    m_source->SetTimer (s_kModalTimerId, s_kModalRepaintMs);
+    m_source->SetTimer (s_kModalTimerId, m_modalTickMs);
 
     if (m_ownerHwnd != nullptr)
     {

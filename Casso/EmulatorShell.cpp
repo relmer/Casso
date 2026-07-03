@@ -1955,11 +1955,11 @@ int EmulatorShell::ShowModalDialog (const DialogDefinition & def)
 //
 //  EmulatorShell::ShowSimpleDialogViaDxui
 //
-//  Translates a renderable DialogDefinition into a DxuiDialog whose content
-//  is a DialogBodyContent (wrapped body labels + hyperlink links) plus the
-//  action buttons, and shows it modally through the Dxui host. The dialog
-//  height is derived from the content's preferred (line-count) height so
-//  short messages stay compact and long ones grow (clamped).
+//  Translates a renderable DialogDefinition into a MessageDialog whose
+//  content is a DialogBodyContent (wrapped body labels + hyperlink links)
+//  plus the action buttons, and shows it modally via ShowDialog. The
+//  dialog height is derived from the content's preferred (line-count)
+//  height so short messages stay compact and long ones grow (clamped).
 //
 ////////////////////////////////////////////////////////////////////////////////
 

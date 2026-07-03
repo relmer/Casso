@@ -10,8 +10,8 @@
 #include "Core/DxuiEvents.h"
 #include "Render/DxuiPainter.h"
 #include "Render/DxuiTextRenderer.h"
-#include "Dialog/DxuiDialog.h"
-#include "Dialog/DxuiDialogManager.h"
+#include "Window/DxuiDialogWindow.h"
+#include "Widgets/DxuiButton.h"
 #include "Core/UnicodeSymbols.h"
 
 
@@ -32,7 +32,6 @@ static constexpr unsigned int  s_kTickIntervalMs = 100;
 
 static constexpr int    s_kIdDownload = 100;
 static constexpr int    s_kIdSkip     = 101;
-static constexpr int    s_kIdExit     = 102;
 
 
 
@@ -75,9 +74,6 @@ struct StartupDownloadDialog::DialogState
     std::atomic<bool>            cancelFlag{false};
     std::atomic<int>             workersInFlight{0};
     std::atomic<bool>            anyFailed  {false};
-    size_t                       downloadBtnIdx = SIZE_MAX;
-    size_t                       skipBtnIdx     = SIZE_MAX;
-    size_t                       exitBtnIdx     = SIZE_MAX;
     bool                         downloading    = false;
     bool                         finished       = false;
     bool                         showStatus     = false;  // gates per-row status text
@@ -509,95 +505,6 @@ std::optional<int> StartupDownloadDialog::HandleBodyInput (const DialogInputEven
 
 
 
-////////////////////////////////////////////////////////////////////////////////
-//
-//  HandleButtonActivated
-//
-//  Returns true to close the dialog, false to keep it open. Download
-//  swaps the dialog into "downloading" mode and spins up workers; Skip /
-//  Exit set the result and signal close (cancelling and joining workers
-//  first on Exit).
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool StartupDownloadDialog::HandleButtonActivated (size_t idx, DxuiDialog & dlg, DialogState & state)
-{
-    bool  close = true;
-
-
-    if (idx == state.downloadBtnIdx)
-    {
-        close = false;
-
-        if (!state.downloading)
-        {
-            state.downloading = true;
-            state.showStatus  = true;
-            dlg.SetButtonLabel   (state.downloadBtnIdx, L"Downloading...");
-            dlg.SetButtonEnabled (state.downloadBtnIdx, false);
-
-            if (state.skipBtnIdx != SIZE_MAX)
-            {
-                dlg.SetButtonVisible (state.skipBtnIdx, false);
-            }
-
-            StartWorkers (state);
-        }
-    }
-    else if (state.skipBtnIdx != SIZE_MAX && idx == state.skipBtnIdx)
-    {
-        state.result = StartupDownloadResult::Skipped;
-    }
-    else if (idx == state.exitBtnIdx)
-    {
-        if (state.downloading)
-        {
-            state.cancelFlag.store (true, std::memory_order_release);
-            JoinAllWorkers (state);
-            RemovePartialFiles (state);
-        }
-
-        state.result = StartupDownloadResult::Exit;
-    }
-
-    return close;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  HandleTick
-//
-//  Periodic repaint plus completion detection. When workers are all
-//  done, finalizes result and closes the dialog.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void StartupDownloadDialog::HandleTick (DxuiDialog & dlg, DialogState & state)
-{
-    if (state.downloading
-        && !state.finished
-        && state.workersInFlight.load (std::memory_order_acquire) == 0)
-    {
-        state.finished = true;
-        JoinAllWorkers (state);
-        RemovePartialFiles (state);
-
-        state.result = state.anyFailed.load (std::memory_order_relaxed)
-                          ? StartupDownloadResult::PartialDone
-                          : StartupDownloadResult::AllDone;
-
-        dlg.CloseWithResult ((int) state.result);
-    }
-}
-
-
-
-
-
 namespace
 {
     //
@@ -715,6 +622,81 @@ namespace
         DownloadBodyPanel  *  m_body           = nullptr;
         int                   m_introHeightDip = 0;
     };
+
+
+
+
+    ////////////////////////////////////////////////////////////////////////////////
+    //
+    //  DownloadDialog
+    //
+    //  DxuiDialogWindow hosting the intro + asset-row content and the
+    //  Download / Skip / Exit buttons. Download carries a custom click
+    //  handler (start workers, relabel -- it must NOT close); Skip auto-
+    //  closes (leaving the default Skipped result); Exit is the IDCANCEL
+    //  button (Escape / close-box) with a custom handler that records the
+    //  Exit result. A fast tick polls the workers via the OnPoll hook.
+    //
+    ////////////////////////////////////////////////////////////////////////////////
+
+    class DownloadDialog : public DxuiDialogWindow
+    {
+    public:
+        void  ConfigureDownload (std::unique_ptr<DxuiPanel> content, bool requiresRoms, unsigned tickMs)
+        {
+            m_pendingContent = std::move (content);
+            m_requiresRoms   = requiresRoms;
+            m_tickMs         = tickMs;
+        }
+
+        void  SetOnDownloadClick (std::function<void()> fn) { m_onDownloadClick = std::move (fn); }
+        void  SetOnPoll          (std::function<void()> fn) { m_onPoll          = std::move (fn); }
+
+        DxuiButton *  DownloadButton () const { return m_downloadBtn; }
+        DxuiButton *  SkipButton     () const { return m_skipBtn; }
+        DxuiButton *  ExitButton     () const { return m_exitBtn; }
+
+
+    protected:
+        void  OnCreate () override
+        {
+            if (m_pendingContent != nullptr)
+            {
+                SetDialogContentOwned (std::move (m_pendingContent));
+            }
+
+            m_downloadBtn = AddDialogButton (L"Download", s_kIdDownload);
+            m_downloadBtn->SetOnClick ([this] () { if (m_onDownloadClick) { m_onDownloadClick(); } });
+
+            if (!m_requiresRoms)
+            {
+                m_skipBtn = AddDialogButton (L"Skip", s_kIdSkip);
+            }
+
+            m_exitBtn = AddDialogButton (L"Exit", IDCANCEL);
+
+            SetModalTickIntervalMs (m_tickMs);
+        }
+
+        void  OnDialogTick () override
+        {
+            if (m_onPoll)
+            {
+                m_onPoll();
+            }
+        }
+
+
+    private:
+        std::unique_ptr<DxuiPanel>  m_pendingContent;
+        bool                        m_requiresRoms    = false;
+        unsigned                    m_tickMs          = 100;
+        std::function<void()>       m_onDownloadClick;
+        std::function<void()>       m_onPoll;
+        DxuiButton  *               m_downloadBtn     = nullptr;
+        DxuiButton  *               m_skipBtn         = nullptr;
+        DxuiButton  *               m_exitBtn         = nullptr;
+    };
 }
 
 
@@ -747,12 +729,11 @@ StartupDownloadResult StartupDownloadDialog::Show (HINSTANCE                hIns
 
     CassoTheme                             theme        = CassoTheme::ForName (std::string (themeName));
     DialogState                            state;
-    std::unique_ptr<DxuiDialog>            dlg          = std::make_unique<DxuiDialog>();
+    DownloadDialog                         dlg;
     std::unique_ptr<DownloadContentPanel>  content      = std::make_unique<DownloadContentPanel>();
     DxuiLabel                              introLabel;
     DownloadBodyPanel                      body;
-    DxuiDialogModalParams                  params;
-    DxuiDialog *                           dlgRaw       = dlg.get();
+    DxuiWindow::CreateParams               params;
     std::wstring                           title;
     std::wstring                           intro;
     std::wstring                           prevGroup;
@@ -835,35 +816,78 @@ StartupDownloadResult StartupDownloadDialog::Show (HINSTANCE                hIns
 
     content->Init (&introLabel, &body, introLines * s_kLineHeightDip + s_kIntroPadDip);
 
-    dlg->SetTitle   (title);
-    dlg->SetContent (std::move (content));
-
-    state.downloadBtnIdx = 0;
-    dlg->AddButton (L"Download", s_kIdDownload, true, false);
-
-    if (!requiresRoms)
-    {
-        state.skipBtnIdx = 1;
-        dlg->AddButton (L"Skip", s_kIdSkip, false, false);
-    }
-
-    state.exitBtnIdx = requiresRoms ? 1 : 2;
-    dlg->AddButton (L"Exit", s_kIdExit, false, true);
-
-    dlg->SetOnButtonActivated ([&state, dlgRaw] (size_t idx) { return HandleButtonActivated (idx, *dlgRaw, state); });
-    dlg->SetOnTick            ([&state, dlgRaw] () { HandleTick (*dlgRaw, state); }, s_kTickIntervalMs);
-
     heightDip = s_kChromeDip + introLines * s_kLineHeightDip + s_kIntroPadDip
               + headerCount * (s_kHeaderHeightDp + s_kRowGapDp + s_kHeaderGapAboveDp)
               + rowCount    * (s_kRowHeightDp    + s_kRowGapDp);
 
-    params.hInstance     = hInstance;
-    params.ownerHwnd     = hwndOwner;
-    params.theme         = &theme;
-    params.clientSizeDip = { s_kBodyWidthDp, heightDip };
-    params.cancelResult  = s_kIdExit;
+    dlg.ConfigureDownload (std::move (content), requiresRoms, s_kTickIntervalMs);
 
-    (void) DxuiDialogManager::ShowModal (std::move (dlg), params);
+    params.title                    = title;
+    params.hInstance                = hInstance;
+    params.ownerHwnd                = hwndOwner;
+    params.initialSizeDip           = { s_kBodyWidthDp, heightDip };
+    params.resizable                = false;
+    params.insetContentBelowCaption = true;
+    params.captionStyle             = DxuiCaptionStyle::CloseOnly;
+
+    if (FAILED (dlg.Create (params)))
+    {
+        return StartupDownloadResult::Exit;
+    }
+
+    dlg.SetTheme (&theme);
+
+    //  Download starts the workers in place (the button stays open and
+    //  relabels); Skip auto-closes with the default Skipped result; Exit
+    //  (the IDCANCEL / close-box button) records the Exit result. A fast
+    //  poll closes the dialog once every worker has finished.
+    dlg.SetOnDownloadClick ([&state, &dlg] ()
+    {
+        if (!state.downloading)
+        {
+            state.downloading = true;
+            state.showStatus  = true;
+            dlg.DownloadButton()->SetLabel   (L"Downloading...");
+            dlg.DownloadButton()->SetEnabled (false);
+
+            if (dlg.SkipButton() != nullptr)
+            {
+                dlg.SkipButton()->SetVisible (false);
+            }
+
+            StartWorkers (state);
+            dlg.Invalidate();
+        }
+    });
+
+    dlg.SetOnPoll ([&state, &dlg] ()
+    {
+        if (state.downloading
+            && !state.finished
+            && state.workersInFlight.load (std::memory_order_acquire) == 0)
+        {
+            state.finished = true;
+            JoinAllWorkers (state);
+            RemovePartialFiles (state);
+
+            state.result = state.anyFailed.load (std::memory_order_relaxed)
+                              ? StartupDownloadResult::PartialDone
+                              : StartupDownloadResult::AllDone;
+
+            dlg.EndDialog ((int) state.result);
+        }
+    });
+
+    if (dlg.ExitButton() != nullptr)
+    {
+        dlg.ExitButton()->SetOnClick ([&state, &dlg] ()
+        {
+            state.result = StartupDownloadResult::Exit;
+            dlg.EndDialog (IDCANCEL);
+        });
+    }
+
+    (void) dlg.ShowDialog (s_kIdDownload);
 
     if (!state.workers.empty())
     {

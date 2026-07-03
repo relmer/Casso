@@ -19,9 +19,9 @@
 //
 //  Two usage modes:
 //
-//    1. Plain container (DxuiDialog): the caller Adopts its own title
-//       label + Close DxuiSystemButton and positions them via a layout.
-//       The bar paints nothing of its own (flat panel).
+//    1. Plain container: the caller Adopts its own title label + Close
+//       DxuiSystemButton and positions them via a layout. The bar paints
+//       nothing of its own (flat panel).
 //
 //    2. Host-owned caption (DxuiHwndSource, the SetWindowText model):
 //       ConfigureButtons() builds the owned min/max/close

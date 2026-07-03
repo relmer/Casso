@@ -159,5 +159,5 @@ using ComPtr = Microsoft::WRL::ComPtr<T>;
 #include "Window/IDxuiHostClient.h"
 #include "Window/DxuiHwndSource.h"
 #include "Window/DxuiPopupHost.h"
-#include "Dialog/DxuiDialog.h"
-#include "Dialog/DxuiDialogManager.h"
+#include "Window/DxuiWindow.h"
+#include "Window/DxuiDialogWindow.h"

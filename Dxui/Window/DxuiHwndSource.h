@@ -232,7 +232,7 @@ public:
     //
     //  Replace the host's root panel with a caller-supplied panel.
     //  Lets a consumer install a fully-assembled content tree (e.g.
-    //  a DxuiDialog or a SettingsWindow content panel) as the host's
+    //  a SettingsWindow content panel) as the host's
     //  paint / hit-test / focus / accessibility root without going
     //  through `Root().Add<...>()` piece-by-piece. The previous root
     //  (and everything under it) is destroyed.

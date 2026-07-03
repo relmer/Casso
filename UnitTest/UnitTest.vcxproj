@@ -445,8 +445,6 @@
     <ClCompile Include="Dxui\DxuiHwndSourceAdoptModeTests.cpp" />
     <ClCompile Include="Dxui\DxuiHwndSourceClientTests.cpp" />
     <ClCompile Include="Dxui\DxuiHwndSourceTests.cpp" />
-    <ClCompile Include="Dxui\DxuiDialogTests.cpp" />
-    <ClCompile Include="Dxui\DxuiDialogManagerTests.cpp" />
     <ClCompile Include="Dxui\DxuiDockLayoutTests.cpp" />
     <ClCompile Include="Dxui\DxuiLayoutTests.cpp" />
     <ClCompile Include="Dxui\DxuiMenuBarTests.cpp" />

@@ -144,6 +144,13 @@ protected:
     virtual void  OnDialogTick    () {}
 
     //
+    //  Tune the modal repaint / tick cadence (ms) before ShowDialog. The
+    //  default suits caret blink; a poller (e.g. download progress) sets a
+    //  faster interval.
+    //
+    void  SetModalTickIntervalMs (UINT ms) { m_modalTickMs = ms; }
+
+    //
     //  Tear down the backend (HWND + swap chain). Safe to call from a
     //  subclass destructor when the subclass owns members that the
     //  backend teardown could otherwise reach; the base destructor
@@ -197,4 +204,5 @@ private:
     bool                             m_modalDone      = false;
     int                              m_modalResult    = 0;
     int                              m_defaultButtonId = 0;
+    UINT                             m_modalTickMs    = 250;   // modal repaint / tick cadence (caret-blink default)
 };
