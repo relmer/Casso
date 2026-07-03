@@ -11,6 +11,7 @@
 #include <d2d1helper.h>
 #include <dwrite_3.h>
 #include <dxgi1_3.h>
+#include <dxgidebug.h>
 #include <dcomp.h>
 #include <wincodec.h>
 #include <dwmapi.h>

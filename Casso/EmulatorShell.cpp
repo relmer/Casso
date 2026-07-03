@@ -472,7 +472,6 @@ EmulatorShell::~EmulatorShell()
     IGNORE_RETURN_VALUE (hrFlush, S_OK);
 
     // Native-only ownership teardown.
-    m_d3dRenderer.SetAfterBlitHook (nullptr);
     m_uiShell.Shutdown();
     m_dragDropTarget.Shutdown();
     m_driveWidgets.UnloadDocument();

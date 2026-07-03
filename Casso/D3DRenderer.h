@@ -20,16 +20,14 @@ public:
     D3DRenderer();
     ~D3DRenderer();
 
-    HRESULT Initialize (HWND hwnd, int texWidth, int texHeight);
-
     // Adopt-mode constructor for the host-owned swap chain. Skips
     // device + swap-chain creation; uses the externally-provided
     // ID3D11Device / ID3D11DeviceContext / IDXGISwapChain1 directly.
     // The renderer still creates its own back-buffer RTV (a second
     // view onto the same buffer is fine in D3D11), texture, sampler,
     // shaders, vertex / index buffers, and CRT post-process chain.
-    // Call UploadAndComposite (not UploadAndPresent) from this mode --
-    // the host owns Present.
+    // Call UploadAndComposite once per frame from this mode; the host
+    // owns Present.
     //
     // `initialTargetRect` is the pixel-space rectangle inside the
     // back buffer where the Apple ][ framebuffer should composite;
@@ -41,12 +39,9 @@ public:
                          int                     texHeight,
                          const RECT            & initialTargetRect);
 
-    HRESULT UploadAndPresent (const uint32_t * framebuffer);
-
-    // Composite variant used by Initialize2 (host-owned swap chain)
-    // mode. Performs the same framebuffer upload + CRT post-process
-    // pass as UploadAndPresent but writes into the caller-supplied
-    // `dstRtv` (the host's back-buffer RTV) and skips the swap-chain
+    // Host-owned (Initialize2) upload + CRT post-process pass. Writes
+    // into the caller-supplied `dstRtv` (the host's back-buffer RTV)
+    // and skips the swap-chain
     // Present -- the host's paint pump owns the Present call. The
     // renderer holds NO back-buffer RTV of its own in this mode, so
     // the host's ResizeBuffers never contends with a stale reference.
@@ -57,11 +52,10 @@ public:
     HRESULT UploadAndComposite (ID3D11RenderTargetView * dstRtv, const uint32_t * framebuffer);
 
     HRESULT ToggleFullscreen (HWND hwnd);
-    HRESULT Resize (int width, int height);
 
     // Live-wire path for CRT params (brightness, scanlines, bloom,
     // color-bleed). EmulatorShell pushes a fresh `CrtParams` once per UI
-    // frame (right before UploadAndPresent) so slider edits from the
+    // frame (right before UploadAndComposite) so slider edits from the
     // Settings panel land on the next-rendered frame without ever
     // pausing the emulator (FR-041). Outside the live emulator path
     // (e.g., tests, headless boot) the field stays at its in-struct
@@ -74,9 +68,8 @@ public:
     // where the Apple ][ framebuffer should composite. EmulatorShell
     // pushes a fresh rect from OnViewportBoundsChanged whenever the
     // DxuiViewport child of the host's root panel reports new bounds.
-    // The renderer stores the rect for consumption by the upcoming
-    // host-swap-chain composite path; today it has no effect on the
-    // existing CassoRenderSurface render pipeline.
+    // The renderer consumes the rect in the host-swap-chain composite
+    // path (UploadAndComposite) to position the emulator content.
     void SetTargetBounds  (const RECT & boundsPx)   { m_targetBoundsPx = boundsPx; }
     RECT GetTargetBounds  () const                  { return m_targetBoundsPx; }
 
@@ -127,7 +120,7 @@ public:
 
     // Accessors for the underlying device. Both
     // return non-owning pointers whose lifetime is bounded by
-    // Initialize -> Shutdown on this renderer.
+    // Initialize2 -> Shutdown on this renderer.
     ID3D11Device        * GetDevice  () const { return m_device.Get  (); }
     ID3D11DeviceContext * GetContext() const { return m_context.Get(); }
 
@@ -140,22 +133,14 @@ public:
     ID3D11RenderTargetView * GetBackBufferRtv         () const { return m_rtv.Get(); }
     HRESULT                  GetBackBufferDxgiSurface (IDXGISurface ** ppOutSurface) const;
 
-    // Hook point invoked by UploadAndPresent between the emulator
-    // blit DrawIndexed and swapChain->Present. The native UI painter
-    // installs its Render() bound to this hook so chrome content
-    // composites on top of the framebuffer every frame. A null
-    // hook (the default) skips the call entirely. Set once at
-    // shell-init time; safe to clear back to nullptr at shutdown.
-    void SetAfterBlitHook (std::function<void()> hook) { m_afterBlitHook = std::move (hook); }
-
 private:
     HRESULT InitializeShaders();
     void    CacheEmulatorContentScreenRect (const RECT & fittedRect);
 
-    // Post-device-creation pipeline setup shared by Initialize and
-    // Initialize2: back-buffer RTV, dynamic upload texture, sampler,
-    // shader programs, vertex / index buffers, CRT post-process
-    // chain. Assumes m_device, m_context, m_swapChain are populated.
+    // Post-device-adoption pipeline setup for Initialize2: dynamic
+    // upload texture, sampler, shader programs, vertex / index
+    // buffers, CRT post-process chain. Assumes m_device, m_context,
+    // m_swapChain are populated.
     HRESULT CreateRenderResources (int texWidth, int texHeight);
 
     ComPtr<ID3D11Device>             m_device;
@@ -178,9 +163,9 @@ private:
     ComPtr<ID3D11InputLayout>        m_inputLayout;
 
     // CRT post-process pass. Owns the intermediate ping-pong RTs +
-    // the per-effect HLSL pixel shaders. Initialized in Initialize once
+    // the per-effect HLSL pixel shaders. Initialized in Initialize2 once
     // the device is up; torn down in Shutdown. `Process` is invoked
-    // unconditionally from UploadAndPresent -- a disabled effect maps
+    // unconditionally from UploadAndComposite -- a disabled effect maps
     // to a zero magnitude in CrtParams, which the shaders treat as a
     // pass-through (see CrtPostProcess.cpp). The intermediate RTs are
     // resized lazily inside Process() when the back buffer size changes.
@@ -212,9 +197,9 @@ private:
     // Pixel-space rectangle inside the host swap-chain back buffer
     // where the Apple ][ framebuffer should composite. Pushed in by
     // EmulatorShell whenever the DxuiViewport child of the host's
-    // root panel reports new bounds. Consumed by the upcoming
-    // host-swap-chain composite path; today the existing
-    // CassoRenderSurface render pipeline ignores this field.
+    // root panel reports new bounds. Consumed by the host-swap-chain
+    // composite path (UploadAndComposite) to position the emulator
+    // content within the back buffer.
     RECT                             m_targetBoundsPx      = {};
 
     int     m_texWidth         = 0;
@@ -222,22 +207,9 @@ private:
     bool    m_fullscreen       = false;
     bool    m_deviceRemoved    = false;
 
-    // True after a successful Initialize2 call. Signals that the
-    // device + context + swap chain are externally owned (host root
-    // window), so Resize / Shutdown leave swap-chain lifecycle to
-    // the caller and UploadAndComposite is the present-less entry
-    // point.
-    bool    m_externalSwapChain = false;
-
     RECT    m_windowedRect                = {};
     RECT    m_emulatorContentScreenRect   = {};
     LONG    m_windowedStyle               = 0;
-
-    // Hook point. Invoked from UploadAndPresent after the
-    // emulator blit DrawIndexed and before swapChain->Present so
-    // the native chrome painter (or any other overlay) can draw
-    // onto the back buffer.
-    std::function<void()>  m_afterBlitHook;
 };
 
 
