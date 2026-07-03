@@ -1988,7 +1988,7 @@ int EmulatorShell::ShowSimpleDialogViaDxui (const DialogDefinition & def)
     int                                 result    = -1;
 
 
-    content->SetRuns (def.body, m_chromeTheme.bodyText);
+    content->SetRuns (def.body);
 
     if (def.icon == DialogIcon::AppPhotoreal || def.icon == DialogIcon::AppFlat)
     {

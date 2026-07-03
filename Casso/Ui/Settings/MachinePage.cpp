@@ -402,10 +402,7 @@ void MachinePage::SetPopupHost (DxuiHwndSource * host)
 
 void MachinePage::ApplyDriveAudioChildEnabled (bool enabled)
 {
-    constexpr uint32_t  s_kLabelEnabledArgb  = 0xFFE8EEF4;
-    constexpr uint32_t  s_kLabelDisabledArgb = 0xFF6A7585;
-
-    uint32_t  labelArgb = enabled ? s_kLabelEnabledArgb : s_kLabelDisabledArgb;
+    DxuiTextRole  labelRole = enabled ? DxuiTextRole::Body : DxuiTextRole::Disabled;
 
 
 
@@ -421,12 +418,12 @@ void MachinePage::ApplyDriveAudioChildEnabled (bool enabled)
     m_panOnePlay.SetEnabled (enabled);
     m_panTwoPlay.SetEnabled (enabled);
     m_reset.SetEnabled     (enabled);
-    m_mechLabel.SetColorArgb  (labelArgb);
-    m_motorLabel.SetColorArgb (labelArgb);
-    m_headLabel.SetColorArgb  (labelArgb);
-    m_doorLabel.SetColorArgb  (labelArgb);
-    m_panOneLabel.SetColorArgb (labelArgb);
-    m_panTwoLabel.SetColorArgb (labelArgb);
+    m_mechLabel.SetTextRole   (labelRole);
+    m_motorLabel.SetTextRole  (labelRole);
+    m_headLabel.SetTextRole   (labelRole);
+    m_doorLabel.SetTextRole   (labelRole);
+    m_panOneLabel.SetTextRole (labelRole);
+    m_panTwoLabel.SetTextRole (labelRole);
 }
 
 

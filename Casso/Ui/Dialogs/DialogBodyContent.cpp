@@ -27,7 +27,7 @@ static constexpr wchar_t  s_kMdl2Family[]  = L"Segoe MDL2 Assets";
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DialogBodyContent::SetRuns (const std::vector<DialogTextRun> & runs, uint32_t textArgb)
+void DialogBodyContent::SetRuns (const std::vector<DialogTextRun> & runs)
 {
     m_items.clear();
     m_items.reserve (runs.size());
@@ -81,7 +81,7 @@ void DialogBodyContent::SetRuns (const std::vector<DialogTextRun> & runs, uint32
             DxuiLabel  &  label = Add<DxuiLabel>();
 
             label.SetText      (run.text);
-            label.SetColorArgb (textArgb);
+            label.SetTextRole  (DxuiTextRole::Body);
             label.SetTextAlign (DxuiTextHAlign::Left, DxuiTextVAlign::Top);
             item.widget = &label;
         }

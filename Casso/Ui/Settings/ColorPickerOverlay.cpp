@@ -150,12 +150,14 @@ void ColorPickerOverlay::Layout (const RECT & panelRect, const DxuiDpiScaler & s
     m_title.SetText (L"Custom text color");
     m_title.SetFontSizeDip (s_kTitleFontDip);
     m_title.SetFontWeight (DxuiFontWeight::SemiBold);
+    m_title.SetTextRole (DxuiTextRole::Heading);
     y += rowH + rowGap;
 
     m_previewRect = MakeRect (controlsX + sliderW + scaler.Px (s_kPreviewGapDp), y, previewW, rowH * s_kSliderRowCount + rowGap * s_kSliderGapCount);
 
     m_hueLabel.SetRect (MakeRect (x, y, labelW, rowH));
     m_hueLabel.SetText (L"Hue");
+    m_hueLabel.SetTextRole (DxuiTextRole::Body);
     m_hue.SetRect      (MakeRect (controlsX, y, sliderW, rowH));
     m_hue.SetRange     (0.0f, s_kHueMax);
     m_hue.SetStep      (1.0f);
@@ -165,6 +167,7 @@ void ColorPickerOverlay::Layout (const RECT & panelRect, const DxuiDpiScaler & s
 
     m_satLabel.SetRect (MakeRect (x, y, labelW, rowH));
     m_satLabel.SetText (L"Sat");
+    m_satLabel.SetTextRole (DxuiTextRole::Body);
     m_sat.SetRect      (MakeRect (controlsX, y, sliderW, rowH));
     m_sat.SetRange     (0.0f, s_kPercentMax);
     m_sat.SetStep      (1.0f);
@@ -174,6 +177,7 @@ void ColorPickerOverlay::Layout (const RECT & panelRect, const DxuiDpiScaler & s
 
     m_valLabel.SetRect (MakeRect (x, y, labelW, rowH));
     m_valLabel.SetText (L"Val");
+    m_valLabel.SetTextRole (DxuiTextRole::Body);
     m_val.SetRect      (MakeRect (controlsX, y, sliderW, rowH));
     m_val.SetRange     (0.0f, s_kPercentMax);
     m_val.SetStep      (1.0f);
@@ -183,6 +187,7 @@ void ColorPickerOverlay::Layout (const RECT & panelRect, const DxuiDpiScaler & s
 
     m_hexLabel.SetRect (MakeRect (x, y, labelW, rowH));
     m_hexLabel.SetText (L"Hex");
+    m_hexLabel.SetTextRole (DxuiTextRole::Body);
     m_hex.SetRect      (MakeRect (controlsX, y, hexW, rowH));
     m_hex.SetMaxLength (s_kHexMaxLength);
     m_copyRect = MakeRect (controlsX + hexW + copyGap, y, rowH, rowH);
@@ -671,17 +676,11 @@ void ColorPickerOverlay::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text
     painter.FillRect    (dl, dt, dw, dh, theme.BackgroundElevated());
     painter.OutlineRect (dl, dt, dw, dh, borderPx, theme.ButtonBorder());
 
-    m_title.SetColorArgb    (theme.HeadingForeground());
-    m_hueLabel.SetColorArgb (theme.Foreground());
-    m_satLabel.SetColorArgb (theme.Foreground());
-    m_valLabel.SetColorArgb (theme.Foreground());
-    m_hexLabel.SetColorArgb (theme.Foreground());
-
-    m_title.Paint    (painter, text);
-    m_hueLabel.Paint (painter, text);
-    m_satLabel.Paint (painter, text);
-    m_valLabel.Paint (painter, text);
-    m_hexLabel.Paint (painter, text);
+    m_title.Paint    (painter, text, theme);
+    m_hueLabel.Paint (painter, text, theme);
+    m_satLabel.Paint (painter, text, theme);
+    m_valLabel.Paint (painter, text, theme);
+    m_hexLabel.Paint (painter, text, theme);
 
     m_hue.Paint (painter, text, theme);
     m_sat.Paint (painter, text, theme);

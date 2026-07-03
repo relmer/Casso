@@ -27,9 +27,10 @@ class IDxuiControl;
 class DialogBodyContent : public DxuiPanel
 {
 public:
-    // Build one child widget per body run. `textArgb` is the color used
-    // for normal (non-hyperlink) runs.
-    void  SetRuns  (const std::vector<DialogTextRun> & runs, uint32_t textArgb);
+    // Build one child widget per body run. Normal runs render with the
+    // theme's Body text role (resolved at paint); hyperlink runs become
+    // DxuiButton(Link) controls whose click opens the URL.
+    void  SetRuns  (const std::vector<DialogTextRun> & runs);
 
     // Optional centered top icon (premultiplied BGRA), drawn above the
     // run stack at `displaySizeDip` square. Pass empty pixels for none.

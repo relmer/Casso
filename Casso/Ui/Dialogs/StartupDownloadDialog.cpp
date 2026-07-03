@@ -808,7 +808,7 @@ StartupDownloadResult StartupDownloadDialog::Show (HINSTANCE                hIns
     }
 
     introLabel.SetText      (intro);
-    introLabel.SetColorArgb (theme.bodyText);
+    introLabel.SetTextRole  (DxuiTextRole::Body);
     introLabel.SetTextAlign (DxuiTextHAlign::Left, DxuiTextVAlign::Top);
 
     body.SetPaintFn ([&set, &state] (DialogPaintContext & ctx) { PaintBody (ctx, set, state); });
