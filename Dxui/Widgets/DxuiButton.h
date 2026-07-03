@@ -20,6 +20,14 @@ public:
     void  SetLabel        (const std::wstring & label);
     wchar_t  Accelerator  () const { return m_accelerator; }
     void  SetOnClick        (ClickFn click) { m_click = std::move (click); }
+    bool  HasClickHandler   () const { return (bool) m_click; }
+
+    // Win32 command id (IDOK / IDCANCEL / IDYES / ...). A modal DxuiWindow
+    // discovers its buttons by id: the default (Enter) button, the IDCANCEL
+    // (Escape / close-box) button, and -- for any command button without a
+    // custom click handler -- an auto-wired click that calls EndDialog(id).
+    void  SetCommandId      (int id) { m_commandId = id; }
+    int   CommandId         () const { return m_commandId; }
     void  SetDpi          (UINT dpi) { m_scaler.SetDpi (dpi); }
 
     // Visual variant. Default uses the theme's neutral button tokens;
@@ -69,4 +77,5 @@ private:
     DxuiDpiScaler     m_scaler;
     Variant       m_variant         = Variant::Default;
     bool          m_emphasis        = false;
+    int           m_commandId       = 0;
 };

@@ -2,8 +2,13 @@
 
 #include "Pch.h"
 #include "Core/DxuiPanel.h"
+#include "Core/DxuiFocusManager.h"
 #include "Window/DxuiHwndSource.h"
 #include "Window/IDxuiHostClient.h"
+
+
+class DxuiButton;
+
 
 
 
@@ -72,6 +77,21 @@ public:
     void     Hide        ();
     void     Close        ();
 
+    //
+    //  Modal show. Displays the window, disables its owner, and runs a
+    //  private message loop until EndDialog() is called (by a command
+    //  button, Enter on the default button, or Escape / close-box on
+    //  IDCANCEL), then re-enables the owner and returns the result code.
+    //  Mirrors Win32 DialogBox / EndDialog.
+    //
+    //  defaultButtonId is the command id of the button Enter activates
+    //  (the window emphasizes it); pass IDOK, IDYES, etc. Every command
+    //  button without a custom SetOnClick auto-closes via EndDialog(its
+    //  command id), so plain OK / Cancel / Yes / No need no wiring.
+    //
+    int      ShowDialog  (int defaultButtonId);
+    void     EndDialog   (int result);
+
     bool     IsCreated   () const { return m_source != nullptr; }
     HWND     Hwnd        () const { return m_source != nullptr ? m_source->Hwnd() : nullptr; }
 
@@ -109,6 +129,14 @@ protected:
     virtual void  OnWindowDestroy () {}
 
     //
+    //  Modal periodic hook. While ShowDialog() is running, the window
+    //  drives a timer that repaints (so a focused caret blinks) and calls
+    //  this each tick -- override for a poller (e.g. a download progress
+    //  dialog). Default no-op.
+    //
+    virtual void  OnDialogTick    () {}
+
+    //
     //  Tear down the backend (HWND + swap chain). Safe to call from a
     //  subclass destructor when the subclass owns members that the
     //  backend teardown could otherwise reach; the base destructor
@@ -127,6 +155,7 @@ private:
     DxuiMessageResult  OnChar        (WPARAM ch, LPARAM lParam) override;
     DxuiMessageResult  OnSetCursor   (WORD hitTest) override;
     DxuiMessageResult  OnGetMinMax   (MINMAXINFO * info) override;
+    DxuiMessageResult  OnTimer       (UINT_PTR timerId) override;
     DxuiMessageResult  OnClose       () override;
     void               OnDestroy     () override;
 
@@ -136,8 +165,28 @@ private:
                                       int                y,
                                       float              wheelDelta);
     DxuiMessageResult  DispatchKey   (DxuiKeyEventKind kind, WPARAM code);
+    DxuiMessageResult  DispatchModalKey (WPARAM vk);
+
+    //
+    //  Modal support: wire the command buttons (emphasis on the default,
+    //  auto-EndDialog on click), route a key to the focused control, and
+    //  find / fire a button by command id. The button walks are recursive
+    //  over the panel tree so buttons may live in a nested button-row panel.
+    //
+    void          WireDialogButtons ();
+    bool          RouteKeyToFocused (WPARAM vk, bool shift);
+    bool          TriggerButtonById (int commandId);
+    static DxuiButton *  FindButtonById   (IDxuiControl * node, int commandId);
+    static void          ForEachButton    (IDxuiControl * node, const std::function<void (DxuiButton *)> & fn);
 
 
     std::unique_ptr<DxuiHwndSource>  m_source;
     SIZE                             m_minSizeDip = { 0, 0 };
+    HWND                             m_ownerHwnd  = nullptr;
+    const IDxuiTheme *               m_theme      = nullptr;
+    DxuiFocusManager                 m_focus;
+    bool                             m_modalActive    = false;
+    bool                             m_modalDone      = false;
+    int                              m_modalResult    = 0;
+    int                              m_defaultButtonId = 0;
 };
