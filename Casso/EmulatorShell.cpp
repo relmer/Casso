@@ -655,10 +655,11 @@ HRESULT EmulatorShell::Initialize (
 
 
         IGNORE_RETURN_VALUE (hrUi, S_OK);
-        // The caption is host-owned now; UiShell no longer takes a
-        // TitleBar (its legacy Render path is dead).
-        m_uiShell.SetChrome (&m_mainMenu, &m_driveChrome, &m_chromeTheme);
-        m_uiShell.SetJoystickButton (&m_joystickButton, &m_joystickTooltip);
+        // The caption is host-owned now, and chrome paints through the
+        // host panel tree; UiShell only routes input, hit-tests, and
+        // supplies the theme / viewport metrics the settings panel reads.
+        m_uiShell.SetMainMenu (&m_mainMenu);
+        m_uiShell.SetTheme    (&m_chromeTheme);
 
         // Inject the shared text renderer into chrome controls that
         // need to measure label strings during Layout. Mirrors the
@@ -805,7 +806,6 @@ HRESULT EmulatorShell::Initialize (
                                                  m_uiFs);
         IGNORE_RETURN_VALUE (hrSettings, S_OK);
         m_uiShell.SetSettingsPanel (nullptr);
-        m_uiShell.SetDragSource    (&m_dragDropTarget);
 
         if (SUCCEEDED (hrUi))
         {
@@ -1337,7 +1337,6 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     m_driveChrome[1].Initialize (6, 1, this);
     {
         RECT  vr            = ComputeViewportRect (clientW, clientH);
-        int   topInsetPx    = vr.top;
         int   bottomInsetPx = clientH - vr.bottom;
 
         LayoutDriveWidgetsInCommandBar (m_driveChrome, bottomInsetPx, clientW, clientH, dpi);
@@ -1348,8 +1347,6 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
             m_driveBandSurface.SetBounds (RECT{ 0, bandTop, clientW, clientH });
             LayoutJoystickButton (clientW, bandTop, bandHeight, dpi);
         }
-        m_d3dRenderer.SetTopInsetPx    (topInsetPx);
-        m_d3dRenderer.SetBottomInsetPx (bottomInsetPx);
     }
 
     UpdateViewportLayout (clientW, clientH);
@@ -4663,7 +4660,6 @@ DxuiMessageResult EmulatorShell::OnSize (UINT widthPx, UINT heightPx)
 
         {
             RECT  vr            = ComputeViewportRect (static_cast<int> (width), renderH);
-            int   topInsetPx    = vr.top;
             int   bottomInsetPx = renderH - vr.bottom;
             bool  fHasDisk      = (m_diskManager != nullptr) && m_diskManager->HasSlot6Controller();
 
@@ -4697,8 +4693,6 @@ DxuiMessageResult EmulatorShell::OnSize (UINT widthPx, UINT heightPx)
                 m_uiShell.HitTest().Register (DxuiHitRect { m_driveChrome[0].BodyRect(), DxuiHitSlot::Custom, 0 });
                 m_uiShell.HitTest().Register (DxuiHitRect { m_driveChrome[1].BodyRect(), DxuiHitSlot::Custom, 1 });
             }
-            m_d3dRenderer.SetTopInsetPx    (topInsetPx);
-            m_d3dRenderer.SetBottomInsetPx (bottomInsetPx);
         }
     }
 

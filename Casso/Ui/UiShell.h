@@ -3,14 +3,11 @@
 #include "Pch.h"
 
 #include "Chrome/CassoTheme.h"
-#include "Chrome/DriveWidget.h"
-#include "Chrome/JoystickToggleButton.h"
-#include "Chrome/MainMenu.h"
-#include "Widgets/DxuiTooltip.h"
 
 
 class D3DRenderer;
 class SettingsPanel;
+class MainMenu;
 
 
 
@@ -18,6 +15,12 @@ class SettingsPanel;
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  UiShell
+//
+//  Input router and hit-tester for the native window chrome. Owns the
+//  DWrite text renderer used for chrome text measurement, plus the theme
+//  and viewport metrics the settings panel consults during layout /
+//  paint. The chrome itself paints through the host panel tree, so
+//  UiShell renders nothing.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -37,21 +40,10 @@ public:
     HRESULT  OnDeviceLost       ();
     HRESULT  OnDeviceRestored   ();
 
-    void     Render             ();
+    void     SetMainMenu        (MainMenu * mainMenu)           { m_mainMenu      = mainMenu; }
+    void     SetSettingsPanel   (SettingsPanel * settingsPanel) { m_settingsPanel = settingsPanel; }
+    void     SetTheme           (const CassoTheme * theme)      { m_theme         = theme; }
 
-    void     SetDebugBannerText (const std::wstring & text) { m_debugBanner = text; }
-    void     SetShowDebugBanner (bool showBanner)           { m_showBanner  = showBanner; }
-    void     SetChrome          (MainMenu                        * mainMenu,
-                                  std::array<DriveWidget, 2>      * driveWidgets,
-                                  const CassoTheme               * theme);
-    void     SetSettingsPanel   (SettingsPanel                   * settingsPanel);
-    void     SetJoystickButton  (JoystickToggleButton            * button,
-                                  DxuiTooltip                         * tooltip)
-    {
-        m_joystickButton  = button;
-        m_joystickTooltip = tooltip;
-    }
-    void     SetDragSource      (const DxuiDragDropTarget            * dragSource) { m_dragSource = dragSource; }
     bool     OnMouseMove        (int x, int y, bool leftDown);
     void     OnMouseLeave       ();
     bool     OnLButtonDown      (int x, int y);
@@ -60,14 +52,13 @@ public:
     bool     IsCapturingInput   () const;
     bool     IsSettingsCapturing () const;
 
-    DxuiPainter         & Painter   ()       { return m_painter; }
-    DxuiTextRenderer  & Text      ()       { return m_text; }
-    DxuiInput             & Input     ()       { return m_input; }
-    DxuiHitTester           & HitTest   ()       { return m_hitTest; }
-    DxuiAnimation           & Tweens    ()       { return m_anim; }
+    DxuiTextRenderer  & Text    ()       { return m_text; }
+    DxuiHitTester     & HitTest ()       { return m_hitTest; }
 
     int    ViewportWidth  () const { return m_viewportWidthPx; }
     int    ViewportHeight () const { return m_viewportHeightPx; }
+
+    const DxuiDpiScaler  & Scaler () const { return m_scaler; }
 
     const CassoTheme & Theme () const
     {
@@ -75,40 +66,19 @@ public:
         return (m_theme != nullptr) ? *m_theme : s_kFallback;
     }
 
-    const DxuiDpiScaler  & Scaler () const { return m_scaler; }
-
 private:
-    HRESULT  RefreshTextTarget ();
-    void     PaintDragDropOverlay (const ChromeVisualState & visual,
-                                    const CassoTheme       & theme,
-                                    int                       bottomInset,
-                                    int                       barTop);
+    D3DRenderer                 * m_renderer      = nullptr;
 
-    D3DRenderer                 * m_renderer     = nullptr;
-
-    DxuiPainter                   m_painter;
-    DxuiTextRenderer            m_text;
-    DxuiInput                       m_input;
-    DxuiHitTester                     m_hitTest;
-    DxuiAnimation                     m_anim;
+    DxuiTextRenderer              m_text;
+    DxuiHitTester                 m_hitTest;
 
     MainMenu                    * m_mainMenu      = nullptr;
-    std::array<DriveWidget, 2>  * m_driveWidgets  = nullptr;
-    JoystickToggleButton        * m_joystickButton  = nullptr;
-    DxuiTooltip                     * m_joystickTooltip = nullptr;
-    const CassoTheme           * m_theme         = nullptr;
     SettingsPanel               * m_settingsPanel = nullptr;
-    const DxuiDragDropTarget        * m_dragSource    = nullptr;
+    const CassoTheme            * m_theme         = nullptr;
 
     int                           m_viewportWidthPx  = 0;
     int                           m_viewportHeightPx = 0;
     UINT                          m_dpi              = 96;
-    DxuiDpiScaler                     m_scaler;
-    bool                          m_initialized      = false;
-    bool                          m_targetDirty      = true;
+    DxuiDpiScaler                 m_scaler;
     bool                          m_leftDown         = false;
-    int                           m_frameIndex       = 0;
-
-    std::wstring                  m_debugBanner;
-    bool                          m_showBanner       = false;
 };

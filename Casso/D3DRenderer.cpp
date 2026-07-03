@@ -40,6 +40,7 @@ struct Vertex
 static constexpr wchar_t  s_kpszSmokeDumpEnv[]   = L"CASSO_SMOKE_DUMP_DIR";
 static constexpr UINT64   s_kSmokeFrameStartup   = 60;
 static constexpr UINT64   s_kSmokeFrameSettings  = 240;
+
 // Frames to keep re-rendering after the emulator framebuffer goes
 // idle, so the persistence trail finishes decaying. At 60 fps,
 // 90 frames = 1.5s; 0.8^90 is < UNORM precision even before the bias.
@@ -49,6 +50,7 @@ static constexpr WORD     s_kBmpMagic            = 0x4D42;
 static constexpr WORD     s_kBmpPlanes           = 1;
 static constexpr WORD     s_kBmpBitsPerPixel     = 32;
 static constexpr UINT     s_kMaxBoundPsSrvSlots  = 2;
+
 // Floor for the flip-model back buffer's allocated size. Picked so the
 // back buffer is large enough for typical monitor configurations on a
 // fresh launch -- this lets SetSourceSize handle every reasonable
@@ -57,6 +59,7 @@ static constexpr UINT     s_kMaxBoundPsSrvSlots  = 2;
 // for the modern GPUs Casso targets, and the cost of NOT paying it is
 // the driver-side crash that prompted the flip-model migration.
 static constexpr int      s_kMinPhysicalBackBuffer = 4096;
+
 // BufferCount for the flip-model swap chain. Flip-discard requires at
 // least 2; we don't need triple-buffering.
 static constexpr UINT     s_kFlipModelBufferCount  = 2;
@@ -79,20 +82,25 @@ static constexpr UINT     s_kFlipModelBufferCount  = 2;
 
 static BOOL CALLBACK MaxMonitorEnumProc (HMONITOR hMonitor, HDC, LPRECT, LPARAM lParam)
 {
-    SIZE        * pMax  = reinterpret_cast<SIZE *> (lParam);
-    MONITORINFO   mi    = { sizeof (mi) };
-    BOOL          ok    = FALSE;
-    LONG          monW  = 0;
-    LONG          monH  = 0;
+    HRESULT       hr       = S_OK;
+    SIZE        * pMax     = reinterpret_cast<SIZE *> (lParam);
+    MONITORINFO   mi       = { sizeof (mi) };
+    BOOL          fSuccess = FALSE;
+    LONG          monW     = 0;
+    LONG          monH     = 0;
 
-    ok = GetMonitorInfoW (hMonitor, &mi);
-    if (ok)
+
+
+    fSuccess = GetMonitorInfoW (hMonitor, &mi);
+    CBRA
+    if (fSuccess)
     {
         monW = mi.rcMonitor.right  - mi.rcMonitor.left;
         monH = mi.rcMonitor.bottom - mi.rcMonitor.top;
         pMax->cx = std::max<LONG> (pMax->cx, monW);
         pMax->cy = std::max<LONG> (pMax->cy, monH);
     }
+
     return TRUE;
 }
 
@@ -266,9 +274,10 @@ HRESULT D3DRenderer::Initialize2 (
     int                    initialH       = 0;
 
 
-    CBRA (pDevice);
-    CBRA (pContext);
-    CBRA (pSwapChain);
+
+    CBRAEx (pDevice,    E_INVALIDARG);
+    CBRAEx (pContext,   E_INVALIDARG);
+    CBRAEx (pSwapChain, E_INVALIDARG);
 
     m_device            = pDevice;
     m_context           = pContext;
@@ -515,6 +524,7 @@ bool D3DRenderer::NeedsPresent (bool framebufferDirty) const
     {
         return true;
     }
+
     // Persistence shader animates a fading trail every frame even
     // when the emulator framebuffer hasn't changed. Keep re-rendering
     // until the trail is fully decayed -- ~1.5s at the highest decay
@@ -523,11 +533,13 @@ bool D3DRenderer::NeedsPresent (bool framebufferDirty) const
     {
         return true;
     }
+    
     // Any other slider / toggle change touches CrtParams.
     if (memcmp (&m_crtParams, &m_lastPresentedParams, sizeof (CrtParams)) != 0)
     {
         return true;
     }
+
     return false;
 }
 
@@ -555,6 +567,7 @@ HRESULT D3DRenderer::UploadAndComposite (ID3D11RenderTargetView * dstRtv, const 
     Byte                     * dst           = nullptr;
     RECT                       contentRect   = {};
     RECT                       fittedRect    = {};
+
 
 
     BAIL_OUT_IF (m_context == nullptr || dstRtv == nullptr, S_OK);
@@ -689,42 +702,6 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  GetBackBufferDxgiSurface
-//
-//  Re-acquires the swap chain back buffer and surfaces it as an
-//  IDXGISurface for D2D-bitmap binding. Resolved on every call so a
-//  stale handle never survives a `ResizeBuffers`.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-HRESULT D3DRenderer::GetBackBufferDxgiSurface (IDXGISurface ** ppOutSurface) const
-{
-    HRESULT                  hr      = S_OK;
-    ComPtr<ID3D11Texture2D>  backBuffer;
-
-
-
-    CBRAEx (ppOutSurface, E_INVALIDARG);
-    *ppOutSurface = nullptr;
-    CBRA (m_swapChain);
-
-    hr = m_swapChain->GetBuffer (0, IID_PPV_ARGS (&backBuffer));
-    CHRA (hr);
-
-    hr = backBuffer->QueryInterface (__uuidof (IDXGISurface),
-                                     reinterpret_cast<void **> (ppOutSurface));
-    CHRA (hr);
-
-Error:
-    return hr;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  ToggleFullscreen
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -802,7 +779,6 @@ void D3DRenderer::Shutdown()
     m_sampler.Reset();
     m_srv.Reset();
     m_texture.Reset();
-    m_rtv.Reset();
     m_swapChain.Reset();
     m_context.Reset();
     m_device.Reset();

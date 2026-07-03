@@ -61,8 +61,6 @@ public:
     // (e.g., tests, headless boot) the field stays at its in-struct
     // defaults so the renderer behaves like a passthrough.
     void SetCrtParams    (const CrtParams & params) { m_crtParams     = params; }
-    void SetTopInsetPx    (int insetPx)             { m_topInsetPx    = std::max (0, insetPx); }
-    void SetBottomInsetPx (int insetPx)             { m_bottomInsetPx = std::max (0, insetPx); }
 
     // Pixel-space rectangle inside the host swap-chain back buffer
     // where the Apple ][ framebuffer should composite. EmulatorShell
@@ -113,7 +111,6 @@ public:
     // channel.
     int  GetBackBufferWidth  () const { return m_backBufferW; }
     int  GetBackBufferHeight () const { return m_backBufferH; }
-    int  GetBottomInsetPx    () const { return m_bottomInsetPx; }
     RECT GetEmulatorContentScreenRect() const { return m_emulatorContentScreenRect; }
 
     void Shutdown();
@@ -123,15 +120,6 @@ public:
     // Initialize2 -> Shutdown on this renderer.
     ID3D11Device        * GetDevice  () const { return m_device.Get  (); }
     ID3D11DeviceContext * GetContext() const { return m_context.Get(); }
-
-    // Back-buffer accessors used by the native UI overlay. The RTV is
-    // the same one the renderer composites the emulator frame into,
-    // shared so the UI painter can stack on top without juggling its
-    // own render target. The DXGI surface accessor calls
-    // IDXGISwapChain::GetBuffer + QueryInterface every call so the
-    // caller never holds a stale reference across a Resize.
-    ID3D11RenderTargetView * GetBackBufferRtv         () const { return m_rtv.Get(); }
-    HRESULT                  GetBackBufferDxgiSurface (IDXGISurface ** ppOutSurface) const;
 
 private:
     HRESULT InitializeShaders();
@@ -152,7 +140,6 @@ private:
     // path; ResizeBuffers under driver stress was the source of the
     // DXGI_ERROR_DRIVER_INTERNAL_ERROR device-removed crashes.
     ComPtr<IDXGISwapChain2>          m_swapChain;
-    ComPtr<ID3D11RenderTargetView>   m_rtv;
     ComPtr<ID3D11Texture2D>          m_texture;
     ComPtr<ID3D11ShaderResourceView> m_srv;
     ComPtr<ID3D11SamplerState>       m_sampler;
@@ -191,8 +178,6 @@ private:
     // window onto a larger monitor than we initially sized for).
     int                              m_physicalBackBufferW = 0;
     int                              m_physicalBackBufferH = 0;
-    int                              m_topInsetPx          = 0;
-    int                              m_bottomInsetPx       = 0;
 
     // Pixel-space rectangle inside the host swap-chain back buffer
     // where the Apple ][ framebuffer should composite. Pushed in by
