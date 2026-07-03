@@ -9,13 +9,16 @@ namespace
     constexpr int  kRowHeight96          = 22;
     constexpr int  kRowGap96             = 4;
     constexpr int  kRowVGap96            = 14;
-    constexpr int  kCheckWidth96         = 110;
+    constexpr int  kCheckWidth96         = 104;
     constexpr int  kRadioWidth96         = 78;
     constexpr int  kEditWidth96          = 140;
     constexpr int  kFilterLabelWidth96   = 110;
     constexpr int  kRawQtCheckWidth96    = 170;
     constexpr int  kIgnoredLabelHeight96 = 18;
-    constexpr int  kDriveLabelWidth96    = 44;
+    // Matches kRowLabelWidth96 so the first drive radio aligns under the
+    // first checkbox column on the two rows above (both start at
+    // margin + label width + gap).
+    constexpr int  kDriveLabelWidth96    = 92;
     constexpr int  kRowLabelWidth96      = 92;
     constexpr int  kButtonWidth96        = 90;
     constexpr int  kButtonHeight96       = 26;

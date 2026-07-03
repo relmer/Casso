@@ -612,13 +612,21 @@ int DxuiListView::ColumnNaturalWidthPx (size_t c) const
         {
             wpx = m_scaler.Px (m_columns[c].widthDip);
         }
-        else if (c < m_measuredWPx.size() && m_measuredWPx[c] > 0)
+        else
         {
-            wpx = m_measuredWPx[c];
-        }
-        else if (c < m_autoMaxChars.size() && m_autoMaxChars[c] > 0)
-        {
-            wpx = m_autoMaxChars[c] * perCharPx + padPx;
+            int  measuredPx = (c < m_measuredWPx.size()) ? m_measuredWPx[c] : 0;
+            int  autoFitPx  = (c < m_autoMaxChars.size() && m_autoMaxChars[c] > 0)
+                              ? (m_autoMaxChars[c] * perCharPx + padPx)
+                              : 0;
+
+            // Prefer the WIDER of the one-time DWrite measurement (accurate:
+            // includes bold-header + sort-glyph reserve, captured once) and
+            // the per-frame glyph-count auto-fit (grows as longer cells
+            // stream in). The measurement never re-runs, so a header-dominated
+            // column keeps its arrow reserve via measuredPx, while a content-
+            // dominated column that gained wider rows later grows via
+            // autoFitPx instead of clipping.
+            wpx = std::max (measuredPx, autoFitPx);
         }
     }
 
