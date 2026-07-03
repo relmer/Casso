@@ -261,6 +261,7 @@
     <ClCompile Include="Ui\ColorUtil.cpp" />
     <ClCompile Include="Ui\Chrome\DriveLabelTruncation.cpp" />
     <ClCompile Include="Ui\Dialogs\DialogBodyContent.cpp" />
+    <ClCompile Include="Ui\Dialogs\MessageDialog.cpp" />
     <ClCompile Include="Ui\Dialogs\StartupDownloadDialog.cpp" />
     <ClCompile Include="Shell\DiskMru.cpp" />
     <ClCompile Include="TrackSectorPredicate.cpp" />
@@ -293,6 +294,7 @@
     <ClInclude Include="Ui\Chrome\DriveLabelTruncation.h" />
     <ClInclude Include="Ui\Dialogs\DialogDefinition.h" />
     <ClInclude Include="Ui\Dialogs\DialogBodyContent.h" />
+    <ClInclude Include="Ui\Dialogs\MessageDialog.h" />
     <ClInclude Include="Ui\Dialogs\StartupDownloadDialog.h" />
     <ClInclude Include="Shell\DiskMru.h" />
     <ClInclude Include="Ui\Chrome\MainMenu.h" />

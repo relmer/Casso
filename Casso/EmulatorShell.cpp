@@ -34,9 +34,8 @@
 #include "Ui/DriveWidgetController.h"
 #include "Shell/DiskMru.h"
 #include "Window/DxuiHwndSource.h"
-#include "Dialog/DxuiDialog.h"
-#include "Dialog/DxuiDialogManager.h"
 #include "Ui/Dialogs/DialogBodyContent.h"
+#include "Ui/Dialogs/MessageDialog.h"
 
 #pragma comment(lib, "ole32.lib")
 #pragma comment(lib, "comctl32.lib")
@@ -1980,10 +1979,13 @@ int EmulatorShell::ShowSimpleDialogViaDxui (const DialogDefinition & def)
     constexpr uint32_t s_kGlyphArgbWarning = 0xFFF5A623;
     constexpr uint32_t s_kGlyphArgbError  = 0xFFE5424D;
 
-    std::unique_ptr<DxuiDialog>         dlg       = std::make_unique<DxuiDialog>();
     std::unique_ptr<DialogBodyContent>  content   = std::make_unique<DialogBodyContent>();
-    DxuiDialogModalParams               params;
+    MessageDialog                       dlg;
+    DxuiWindow::CreateParams            params;
+    std::vector<MessageDialog::Button>  buttons;
+    HRESULT                             hr        = S_OK;
     int                                 heightDip = 0;
+    int                                 result    = -1;
 
 
     content->SetRuns (def.body, m_chromeTheme.bodyText);
@@ -2019,20 +2021,30 @@ int EmulatorShell::ShowSimpleDialogViaDxui (const DialogDefinition & def)
                             s_kMinHeightDip,
                             s_kMaxHeightDip);
 
-    dlg->SetTitle   (def.title);
-    dlg->SetContent (std::move (content));
     for (const DialogButton & button : def.buttons)
     {
-        dlg->AddButton (button.label, button.resultCode, button.isDefault, button.isCancel);
+        buttons.push_back ({ button.label, button.resultCode, button.isDefault, button.isCancel });
     }
 
-    params.hInstance     = m_hInstance;
-    params.ownerHwnd     = m_hwnd;
-    params.theme         = &m_chromeTheme;
-    params.clientSizeDip = { s_kDialogWidthDip, heightDip };
-    params.cancelResult  = def.closeBoxResult.value_or (-1);
+    dlg.Configure (std::move (content), std::move (buttons), def.closeBoxResult.value_or (-1));
 
-    return DxuiDialogManager::ShowModal (std::move (dlg), params);
+    params.title                    = def.title;
+    params.hInstance                = m_hInstance;
+    params.ownerHwnd                = m_hwnd;
+    params.initialSizeDip           = { s_kDialogWidthDip, heightDip };
+    params.resizable                = false;
+    params.insetContentBelowCaption = true;
+    params.captionStyle             = DxuiCaptionStyle::CloseOnly;
+
+    hr = dlg.Create (params);
+    CHRA (hr);
+
+    dlg.SetTheme (&m_chromeTheme);
+
+    result = dlg.TranslateResult (dlg.ShowDialog (dlg.DefaultCommandId()));
+
+Error:
+    return result;
 }
 
 
