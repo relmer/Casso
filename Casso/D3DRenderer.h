@@ -37,7 +37,6 @@ public:
     HRESULT Initialize2 (ID3D11Device          * pDevice,
                          ID3D11DeviceContext   * pContext,
                          IDXGISwapChain1       * pSwapChain,
-                         HWND                    hostHwnd,
                          int                     texWidth,
                          int                     texHeight,
                          const RECT            & initialTargetRect);
@@ -159,7 +158,6 @@ private:
     // chain. Assumes m_device, m_context, m_swapChain are populated.
     HRESULT CreateRenderResources (int texWidth, int texHeight);
 
-    HWND                             m_hwnd = nullptr;
     ComPtr<ID3D11Device>             m_device;
     ComPtr<ID3D11DeviceContext>      m_context;
     // IDXGISwapChain2 (rather than the base IDXGISwapChain) gives us

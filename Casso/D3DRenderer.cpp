@@ -277,7 +277,6 @@ HRESULT D3DRenderer::Initialize (HWND hwnd, int texWidth, int texHeight)
 
 
 
-    m_hwnd      = hwnd;
     m_texWidth  = texWidth;
     m_texHeight = texHeight;
 
@@ -535,7 +534,6 @@ HRESULT D3DRenderer::Initialize2 (
     ID3D11Device          * pDevice,
     ID3D11DeviceContext   * pContext,
     IDXGISwapChain1       * pSwapChain,
-    HWND                    hostHwnd,
     int                     texWidth,
     int                     texHeight,
     const RECT            & initialTargetRect)
@@ -552,11 +550,6 @@ HRESULT D3DRenderer::Initialize2 (
 
     m_device            = pDevice;
     m_context           = pContext;
-    // Host-owned mode: the host owns the HWND + swap chain. We keep the
-    // host HWND only to map the fitted emulator content rect from client
-    // to screen space (CacheEmulatorContentScreenRect), which the settings
-    // live-preview overlap test needs.
-    m_hwnd              = hostHwnd;
     m_externalSwapChain = true;
     m_texWidth          = texWidth;
     m_texHeight         = texHeight;
@@ -1098,16 +1091,27 @@ Error:
 
 void D3DRenderer::CacheEmulatorContentScreenRect (const RECT & fittedRect)
 {
-    HRESULT  hr     = S_OK;
-    POINT    origin = {};
-    BOOL     ok     = FALSE;
+    HRESULT                hr     = S_OK;
+    POINT                  origin = {};
+    BOOL                   ok     = FALSE;
+    DXGI_SWAP_CHAIN_DESC   scd    = {};
+    HWND                   hwnd   = nullptr;
 
 
 
     m_emulatorContentScreenRect = {};
-    BAIL_OUT_IF (m_hwnd == nullptr || IsRectEmpty (&fittedRect), S_OK);
+    BAIL_OUT_IF (!m_swapChain || IsRectEmpty (&fittedRect), S_OK);
 
-    ok = ClientToScreen (m_hwnd, &origin);
+    // The HWND is the swap chain's OutputWindow -- both the standalone and
+    // host-owned swap chains are HWND-based (CreateSwapChainForHwnd), so we
+    // query it on demand rather than caching a copy that could go stale.
+    hr = m_swapChain->GetDesc (&scd);
+    CHRA (hr);
+
+    hwnd = scd.OutputWindow;
+    BAIL_OUT_IF (hwnd == nullptr, S_OK);
+
+    ok = ClientToScreen (hwnd, &origin);
     CWRA (ok);
 
     m_emulatorContentScreenRect.left   = fittedRect.left   + origin.x;
@@ -1381,7 +1385,6 @@ void D3DRenderer::Shutdown()
     m_context.Reset();
     m_device.Reset();
 
-    m_hwnd                       = nullptr;
     m_emulatorContentScreenRect  = {};
 }
 
