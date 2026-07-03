@@ -11,9 +11,9 @@ namespace
     constexpr LONG  s_kFakeHwndValue   = 0x12345678;
 
 
-    DxuiHostWindow::CreateParams  MakeAdoptParams ()
+    DxuiHwndSource::CreateParams  MakeAdoptParams ()
     {
-        DxuiHostWindow::CreateParams  cp;
+        DxuiHwndSource::CreateParams  cp;
 
         cp.title           = L"AdoptModeTest";
         cp.hInstance       = nullptr;
@@ -22,7 +22,7 @@ namespace
         cp.resizable       = true;
         cp.roundedCorners  = true;
         cp.darkMode        = true;
-        cp.backdrop        = DxuiHostWindowBackdrop::None;
+        cp.backdrop        = DxuiHwndSourceBackdrop::None;
         cp.resizeBorderDip = 6.0f;
         cp.initialSizeDip  = { 1024, 768 };
         return cp;
@@ -33,7 +33,7 @@ namespace
 
 
 
-TEST_CLASS (DxuiHostWindowAdoptModeTests)
+TEST_CLASS (DxuiHwndSourceAdoptModeTests)
 {
 public:
 
@@ -52,13 +52,13 @@ public:
 
     TEST_METHOD (CreateInAdoptMode_NullHwnd_Succeeds)
     {
-        std::unique_ptr<DxuiHostWindow>  host;
+        std::unique_ptr<DxuiHwndSource>  host;
         HRESULT                          hr   = S_OK;
-        DxuiHostWindow::CreateParams     cp   = MakeAdoptParams();
+        DxuiHwndSource::CreateParams     cp   = MakeAdoptParams();
 
 
 
-        hr = DxuiHostWindow::CreateInAdoptMode (nullptr, cp, host);
+        hr = DxuiHwndSource::CreateInAdoptMode (nullptr, cp, host);
 
         Assert::AreEqual (S_OK, hr);
         Assert::IsNotNull (host.get());
@@ -75,7 +75,7 @@ public:
 
     TEST_METHOD (HandleMessage_NcHitTest_RoutesThroughDelegate)
     {
-        std::unique_ptr<DxuiHostWindow>  host;
+        std::unique_ptr<DxuiHwndSource>  host;
         HRESULT                          hr            = S_OK;
         LRESULT                          outResult     = 0;
         bool                             handled       = false;
@@ -83,7 +83,7 @@ public:
 
 
 
-        hr = DxuiHostWindow::CreateInAdoptMode (nullptr, MakeAdoptParams(), host);
+        hr = DxuiHwndSource::CreateInAdoptMode (nullptr, MakeAdoptParams(), host);
         Assert::AreEqual (S_OK, hr);
 
         host->SetHitTestDelegate ([&seenPoint] (POINT pt) -> LRESULT
@@ -116,14 +116,14 @@ public:
 
     TEST_METHOD (HandleMessage_NcHitTest_NoDelegate_FallsThroughToFramework)
     {
-        std::unique_ptr<DxuiHostWindow>  host;
+        std::unique_ptr<DxuiHwndSource>  host;
         HRESULT                          hr        = S_OK;
         LRESULT                          outResult = 0;
         bool                             handled   = false;
 
 
 
-        hr = DxuiHostWindow::CreateInAdoptMode (nullptr, MakeAdoptParams(), host);
+        hr = DxuiHwndSource::CreateInAdoptMode (nullptr, MakeAdoptParams(), host);
         Assert::AreEqual (S_OK, hr);
 
         handled = host->HandleMessage (WM_NCHITTEST,
@@ -145,14 +145,14 @@ public:
 
     TEST_METHOD (HandleMessage_DpiChanged_UpdatesScalerAndDoesNotClaim)
     {
-        std::unique_ptr<DxuiHostWindow>  host;
+        std::unique_ptr<DxuiHwndSource>  host;
         HRESULT                          hr        = S_OK;
         LRESULT                          outResult = 0;
         bool                             handled   = false;
 
 
 
-        hr = DxuiHostWindow::CreateInAdoptMode (nullptr, MakeAdoptParams(), host);
+        hr = DxuiHwndSource::CreateInAdoptMode (nullptr, MakeAdoptParams(), host);
         Assert::AreEqual (S_OK, hr);
 
         handled = host->HandleMessage (WM_DPICHANGED,
@@ -175,14 +175,14 @@ public:
 
     TEST_METHOD (HandleMessage_UnhandledMessage_ReturnsFalse)
     {
-        std::unique_ptr<DxuiHostWindow>  host;
+        std::unique_ptr<DxuiHwndSource>  host;
         HRESULT                          hr        = S_OK;
         LRESULT                          outResult = 0;
         bool                             handled   = false;
 
 
 
-        hr = DxuiHostWindow::CreateInAdoptMode (nullptr, MakeAdoptParams(), host);
+        hr = DxuiHwndSource::CreateInAdoptMode (nullptr, MakeAdoptParams(), host);
         Assert::AreEqual (S_OK, hr);
 
         handled = host->HandleMessage (WM_LBUTTONDOWN, 0, 0, outResult);
@@ -200,14 +200,14 @@ public:
 
     TEST_METHOD (HandleMessage_ThemeChanged_DoesNotClaim)
     {
-        std::unique_ptr<DxuiHostWindow>  host;
+        std::unique_ptr<DxuiHwndSource>  host;
         HRESULT                          hr        = S_OK;
         LRESULT                          outResult = 0;
         bool                             handled   = false;
 
 
 
-        hr = DxuiHostWindow::CreateInAdoptMode (nullptr, MakeAdoptParams(), host);
+        hr = DxuiHwndSource::CreateInAdoptMode (nullptr, MakeAdoptParams(), host);
         Assert::AreEqual (S_OK, hr);
 
         handled = host->HandleMessage (WM_THEMECHANGED, 0, 0, outResult);
@@ -228,13 +228,13 @@ public:
 
     TEST_METHOD (AdoptMode_DestructorDoesNotDestroyHwnd)
     {
-        std::unique_ptr<DxuiHostWindow>  host;
+        std::unique_ptr<DxuiHwndSource>  host;
         HRESULT                          hr            = S_OK;
         HWND                             fakeHwnd      = (HWND) (intptr_t) s_kFakeHwndValue;
 
 
 
-        hr = DxuiHostWindow::CreateInAdoptMode (fakeHwnd, MakeAdoptParams(), host);
+        hr = DxuiHwndSource::CreateInAdoptMode (fakeHwnd, MakeAdoptParams(), host);
         Assert::AreEqual (S_OK, hr);
         Assert::AreEqual ((intptr_t) s_kFakeHwndValue, (intptr_t) host->Hwnd());
 
@@ -252,12 +252,12 @@ public:
 
     TEST_METHOD (AdoptMode_DefaultDpiIs96WhenNoHwnd)
     {
-        std::unique_ptr<DxuiHostWindow>  host;
+        std::unique_ptr<DxuiHwndSource>  host;
         HRESULT                          hr   = S_OK;
 
 
 
-        hr = DxuiHostWindow::CreateInAdoptMode (nullptr, MakeAdoptParams(), host);
+        hr = DxuiHwndSource::CreateInAdoptMode (nullptr, MakeAdoptParams(), host);
         Assert::AreEqual (S_OK, hr);
         Assert::AreEqual ((unsigned int) s_kDefaultDpi, (unsigned int) host->Scaler().Dpi());
     }

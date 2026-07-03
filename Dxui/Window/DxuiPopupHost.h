@@ -14,7 +14,7 @@
 //  Owns a top-level WS_POPUP HWND with its own small DXGI composition
 //  swap chain (CreateSwapChainForComposition + DirectComposition visual,
 //  not CreateSwapChainForHwnd — popup HWNDs need DComp for proper
-//  z-order, transparency, and shadow). Shares the parent DxuiHostWindow's
+//  z-order, transparency, and shadow). Shares the parent DxuiHwndSource's
 //  ID3D11Device (the device is non-owning).
 //
 //  Use cases (one popup host per active popup):
@@ -49,7 +49,7 @@
 ////////////////////////////////////////////////////////////////////////////////
 
 
-class DxuiHostWindow;
+class DxuiHwndSource;
 class IDxuiTheme;
 
 
@@ -250,7 +250,7 @@ public:
     const RECT  &  PlacedRectScreenPx () const { return m_placedRectScreenPx; }
 
     //
-    //  Forwarded by DxuiHostWindow's WM_DPICHANGED_BEFOREPARENT
+    //  Forwarded by DxuiHwndSource's WM_DPICHANGED_BEFOREPARENT
     //  handler so cross-monitor popups re-DPI before the owner does.
     //
     void  HandleDpiChanged  (UINT newDpi);

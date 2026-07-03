@@ -442,9 +442,9 @@
     <ClCompile Include="UiTests\AnimationSyncTests.cpp" />
     <ClCompile Include="UiTests\DxuiPainterTests.cpp" />
     <ClCompile Include="Dxui\DxuiFocusManagerTests.cpp" />
-    <ClCompile Include="Dxui\DxuiHostWindowAdoptModeTests.cpp" />
-    <ClCompile Include="Dxui\DxuiHostWindowClientTests.cpp" />
-    <ClCompile Include="Dxui\DxuiHostWindowTests.cpp" />
+    <ClCompile Include="Dxui\DxuiHwndSourceAdoptModeTests.cpp" />
+    <ClCompile Include="Dxui\DxuiHwndSourceClientTests.cpp" />
+    <ClCompile Include="Dxui\DxuiHwndSourceTests.cpp" />
     <ClCompile Include="Dxui\DxuiDialogTests.cpp" />
     <ClCompile Include="Dxui\DxuiDialogManagerTests.cpp" />
     <ClCompile Include="Dxui\DxuiDockLayoutTests.cpp" />

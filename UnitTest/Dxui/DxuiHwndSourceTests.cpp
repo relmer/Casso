@@ -35,14 +35,14 @@ namespace
 
 
     //
-    //  Builds a synthetic DxuiHostWindow with a caption bar wired up
+    //  Builds a synthetic DxuiHwndSource with a caption bar wired up
     //  with three system buttons (min/max/close) anchored to the
     //  right edge. Returns the host plus the per-button bounds so the
     //  test can hit-test their centers.
     //
     struct SyntheticHost
     {
-        std::unique_ptr<DxuiHostWindow>  host;
+        std::unique_ptr<DxuiHwndSource>  host;
         RECT                             minRectDip   = {};
         RECT                             maxRectDip   = {};
         RECT                             closeRectDip = {};
@@ -80,7 +80,7 @@ namespace
         maxBtn.SetBounds   (result.maxRectDip);
         closeBtn.SetBounds (result.closeRectDip);
 
-        result.host = std::make_unique<DxuiHostWindow> (
+        result.host = std::make_unique<DxuiHwndSource> (
             MakeRect (0, 0, s_kClientWidthDip, s_kClientHeightDip),
             s_kResizeBorderDip,
             std::move (root));
@@ -93,7 +93,7 @@ namespace
 
 
 
-TEST_CLASS (DxuiHostWindowTests)
+TEST_CLASS (DxuiHwndSourceTests)
 {
 public:
 
@@ -116,7 +116,7 @@ public:
         SyntheticHost  sh   = BuildSyntheticHost();
         DxuiHitTestKind kind = sh.host->ClassifyHitForTest (MakePoint (1, 1));
 
-        Assert::AreEqual ((int) HTTOPLEFT, (int) DxuiHostWindow::KindToHt (kind));
+        Assert::AreEqual ((int) HTTOPLEFT, (int) DxuiHwndSource::KindToHt (kind));
     }
 
 
@@ -125,7 +125,7 @@ public:
         SyntheticHost  sh   = BuildSyntheticHost();
         DxuiHitTestKind kind = sh.host->ClassifyHitForTest (MakePoint (s_kClientWidthDip - 1, 1));
 
-        Assert::AreEqual ((int) HTTOPRIGHT, (int) DxuiHostWindow::KindToHt (kind));
+        Assert::AreEqual ((int) HTTOPRIGHT, (int) DxuiHwndSource::KindToHt (kind));
     }
 
 
@@ -134,7 +134,7 @@ public:
         SyntheticHost  sh   = BuildSyntheticHost();
         DxuiHitTestKind kind = sh.host->ClassifyHitForTest (MakePoint (1, s_kClientHeightDip - 1));
 
-        Assert::AreEqual ((int) HTBOTTOMLEFT, (int) DxuiHostWindow::KindToHt (kind));
+        Assert::AreEqual ((int) HTBOTTOMLEFT, (int) DxuiHwndSource::KindToHt (kind));
     }
 
 
@@ -144,7 +144,7 @@ public:
         DxuiHitTestKind kind = sh.host->ClassifyHitForTest (MakePoint (s_kClientWidthDip - 1,
                                                                       s_kClientHeightDip - 1));
 
-        Assert::AreEqual ((int) HTBOTTOMRIGHT, (int) DxuiHostWindow::KindToHt (kind));
+        Assert::AreEqual ((int) HTBOTTOMRIGHT, (int) DxuiHwndSource::KindToHt (kind));
     }
 
 
@@ -153,7 +153,7 @@ public:
         SyntheticHost  sh   = BuildSyntheticHost();
         DxuiHitTestKind kind = sh.host->ClassifyHitForTest (MakePoint (1, s_kClientHeightDip / 2));
 
-        Assert::AreEqual ((int) HTLEFT, (int) DxuiHostWindow::KindToHt (kind));
+        Assert::AreEqual ((int) HTLEFT, (int) DxuiHwndSource::KindToHt (kind));
     }
 
 
@@ -163,7 +163,7 @@ public:
         DxuiHitTestKind kind = sh.host->ClassifyHitForTest (MakePoint (s_kClientWidthDip - 1,
                                                                       s_kClientHeightDip / 2));
 
-        Assert::AreEqual ((int) HTRIGHT, (int) DxuiHostWindow::KindToHt (kind));
+        Assert::AreEqual ((int) HTRIGHT, (int) DxuiHwndSource::KindToHt (kind));
     }
 
 
@@ -172,7 +172,7 @@ public:
         SyntheticHost  sh   = BuildSyntheticHost();
         DxuiHitTestKind kind = sh.host->ClassifyHitForTest (MakePoint (s_kClientWidthDip / 2, 1));
 
-        Assert::AreEqual ((int) HTTOP, (int) DxuiHostWindow::KindToHt (kind));
+        Assert::AreEqual ((int) HTTOP, (int) DxuiHwndSource::KindToHt (kind));
     }
 
 
@@ -182,7 +182,7 @@ public:
         DxuiHitTestKind kind = sh.host->ClassifyHitForTest (MakePoint (s_kClientWidthDip / 2,
                                                                       s_kClientHeightDip - 1));
 
-        Assert::AreEqual ((int) HTBOTTOM, (int) DxuiHostWindow::KindToHt (kind));
+        Assert::AreEqual ((int) HTBOTTOM, (int) DxuiHwndSource::KindToHt (kind));
     }
 
 
@@ -197,7 +197,7 @@ public:
         // Mid-caption, well inside resize-border inset, away from any button.
         DxuiHitTestKind kind = sh.host->ClassifyHitForTest (MakePoint (200, s_kCaptionHeightDip / 2));
 
-        Assert::AreEqual ((int) HTCAPTION, (int) DxuiHostWindow::KindToHt (kind));
+        Assert::AreEqual ((int) HTCAPTION, (int) DxuiHwndSource::KindToHt (kind));
     }
 
 
@@ -208,7 +208,7 @@ public:
                                        (sh.minRectDip.top  + sh.minRectDip.bottom) / 2);
         DxuiHitTestKind kind = sh.host->ClassifyHitForTest (pt);
 
-        Assert::AreEqual ((int) HTMINBUTTON, (int) DxuiHostWindow::KindToHt (kind));
+        Assert::AreEqual ((int) HTMINBUTTON, (int) DxuiHwndSource::KindToHt (kind));
     }
 
 
@@ -219,7 +219,7 @@ public:
                                        (sh.closeRectDip.top  + sh.closeRectDip.bottom) / 2);
         DxuiHitTestKind kind = sh.host->ClassifyHitForTest (pt);
 
-        Assert::AreEqual ((int) HTCLOSE, (int) DxuiHostWindow::KindToHt (kind));
+        Assert::AreEqual ((int) HTCLOSE, (int) DxuiHwndSource::KindToHt (kind));
     }
 
 
@@ -231,7 +231,7 @@ public:
         DxuiHitTestKind kind = sh.host->ClassifyHitForTest (MakePoint (s_kClientWidthDip / 2,
                                                                       s_kClientHeightDip / 2));
 
-        Assert::AreEqual ((int) HTCLIENT, (int) DxuiHostWindow::KindToHt (kind));
+        Assert::AreEqual ((int) HTCLIENT, (int) DxuiHwndSource::KindToHt (kind));
     }
 
 
@@ -249,7 +249,7 @@ public:
         DxuiHitTestKind kind = sh.host->ClassifyHitForTest (pt);
 
         Assert::AreEqual ((int) DxuiHitTestKind::MaxButton, (int) kind);
-        Assert::AreEqual ((int) HTMAXBUTTON, (int) DxuiHostWindow::KindToHt (kind));
+        Assert::AreEqual ((int) HTMAXBUTTON, (int) DxuiHwndSource::KindToHt (kind));
     }
 
 
@@ -266,7 +266,7 @@ public:
                                        sh.maxRectDip.bottom - 2);
         DxuiHitTestKind kind = sh.host->ClassifyHitForTest (pt);
 
-        Assert::AreEqual ((int) HTMAXBUTTON, (int) DxuiHostWindow::KindToHt (kind));
+        Assert::AreEqual ((int) HTMAXBUTTON, (int) DxuiHwndSource::KindToHt (kind));
     }
 
 
@@ -277,20 +277,20 @@ public:
 
     TEST_METHOD (KindToHt_MapsEveryEnumValueToExpectedHtCode)
     {
-        Assert::AreEqual ((int) HTNOWHERE,    (int) DxuiHostWindow::KindToHt (DxuiHitTestKind::None));
-        Assert::AreEqual ((int) HTCLIENT,     (int) DxuiHostWindow::KindToHt (DxuiHitTestKind::Client));
-        Assert::AreEqual ((int) HTCAPTION,    (int) DxuiHostWindow::KindToHt (DxuiHitTestKind::Caption));
-        Assert::AreEqual ((int) HTMINBUTTON,  (int) DxuiHostWindow::KindToHt (DxuiHitTestKind::MinButton));
-        Assert::AreEqual ((int) HTMAXBUTTON,  (int) DxuiHostWindow::KindToHt (DxuiHitTestKind::MaxButton));
-        Assert::AreEqual ((int) HTCLOSE,      (int) DxuiHostWindow::KindToHt (DxuiHitTestKind::CloseButton));
-        Assert::AreEqual ((int) HTLEFT,       (int) DxuiHostWindow::KindToHt (DxuiHitTestKind::ResizeEdgeLeft));
-        Assert::AreEqual ((int) HTRIGHT,      (int) DxuiHostWindow::KindToHt (DxuiHitTestKind::ResizeEdgeRight));
-        Assert::AreEqual ((int) HTTOP,        (int) DxuiHostWindow::KindToHt (DxuiHitTestKind::ResizeEdgeTop));
-        Assert::AreEqual ((int) HTBOTTOM,     (int) DxuiHostWindow::KindToHt (DxuiHitTestKind::ResizeEdgeBottom));
-        Assert::AreEqual ((int) HTTOPLEFT,    (int) DxuiHostWindow::KindToHt (DxuiHitTestKind::ResizeCornerTL));
-        Assert::AreEqual ((int) HTTOPRIGHT,   (int) DxuiHostWindow::KindToHt (DxuiHitTestKind::ResizeCornerTR));
-        Assert::AreEqual ((int) HTBOTTOMLEFT, (int) DxuiHostWindow::KindToHt (DxuiHitTestKind::ResizeCornerBL));
-        Assert::AreEqual ((int) HTBOTTOMRIGHT,(int) DxuiHostWindow::KindToHt (DxuiHitTestKind::ResizeCornerBR));
+        Assert::AreEqual ((int) HTNOWHERE,    (int) DxuiHwndSource::KindToHt (DxuiHitTestKind::None));
+        Assert::AreEqual ((int) HTCLIENT,     (int) DxuiHwndSource::KindToHt (DxuiHitTestKind::Client));
+        Assert::AreEqual ((int) HTCAPTION,    (int) DxuiHwndSource::KindToHt (DxuiHitTestKind::Caption));
+        Assert::AreEqual ((int) HTMINBUTTON,  (int) DxuiHwndSource::KindToHt (DxuiHitTestKind::MinButton));
+        Assert::AreEqual ((int) HTMAXBUTTON,  (int) DxuiHwndSource::KindToHt (DxuiHitTestKind::MaxButton));
+        Assert::AreEqual ((int) HTCLOSE,      (int) DxuiHwndSource::KindToHt (DxuiHitTestKind::CloseButton));
+        Assert::AreEqual ((int) HTLEFT,       (int) DxuiHwndSource::KindToHt (DxuiHitTestKind::ResizeEdgeLeft));
+        Assert::AreEqual ((int) HTRIGHT,      (int) DxuiHwndSource::KindToHt (DxuiHitTestKind::ResizeEdgeRight));
+        Assert::AreEqual ((int) HTTOP,        (int) DxuiHwndSource::KindToHt (DxuiHitTestKind::ResizeEdgeTop));
+        Assert::AreEqual ((int) HTBOTTOM,     (int) DxuiHwndSource::KindToHt (DxuiHitTestKind::ResizeEdgeBottom));
+        Assert::AreEqual ((int) HTTOPLEFT,    (int) DxuiHwndSource::KindToHt (DxuiHitTestKind::ResizeCornerTL));
+        Assert::AreEqual ((int) HTTOPRIGHT,   (int) DxuiHwndSource::KindToHt (DxuiHitTestKind::ResizeCornerTR));
+        Assert::AreEqual ((int) HTBOTTOMLEFT, (int) DxuiHwndSource::KindToHt (DxuiHitTestKind::ResizeCornerBL));
+        Assert::AreEqual ((int) HTBOTTOMRIGHT,(int) DxuiHwndSource::KindToHt (DxuiHitTestKind::ResizeCornerBR));
     }
 
 
@@ -417,7 +417,7 @@ public:
 
     TEST_METHOD (BeforePresentHook_StartsNull)
     {
-        DxuiHostWindow  host;
+        DxuiHwndSource  host;
 
         Assert::IsFalse ((bool) host.BeforePresentHook());
     }
@@ -425,7 +425,7 @@ public:
 
     TEST_METHOD (BeforePresentHook_StoresCallback)
     {
-        DxuiHostWindow  host;
+        DxuiHwndSource  host;
         int             callCount = 0;
 
 
@@ -439,7 +439,7 @@ public:
 
     TEST_METHOD (BeforePresentHook_NullClearsCallback)
     {
-        DxuiHostWindow  host;
+        DxuiHwndSource  host;
 
 
         host.SetBeforePresentHook ([] () {});
@@ -472,7 +472,7 @@ public:
 
         std::unique_ptr<DxuiPanel>  root     = std::make_unique<DxuiPanel>();
         ThemeListener &             listener = root->Add<ThemeListener>();
-        DxuiHostWindow              host (MakeRect (0, 0, s_kClientWidthDip, s_kClientHeightDip),
+        DxuiHwndSource              host (MakeRect (0, 0, s_kClientWidthDip, s_kClientHeightDip),
                                           s_kResizeBorderDip,
                                           std::move (root));
         MockDxuiTheme               theme;
@@ -486,7 +486,7 @@ public:
 
     TEST_METHOD (SetTheme_NullClearsThemeWithoutCrash)
     {
-        DxuiHostWindow  host;
+        DxuiHwndSource  host;
         MockDxuiTheme   theme;
 
 
@@ -507,7 +507,7 @@ public:
     TEST_METHOD (SetContentPanel_ReplacesRootAndInheritsBounds)
     {
         std::unique_ptr<DxuiPanel>     originalRoot = std::make_unique<DxuiPanel>();
-        DxuiHostWindow                 host (MakeRect (0, 0, s_kClientWidthDip, s_kClientHeightDip),
+        DxuiHwndSource                 host (MakeRect (0, 0, s_kClientWidthDip, s_kClientHeightDip),
                                              s_kResizeBorderDip,
                                              std::move (originalRoot));
         std::unique_ptr<DxuiPanel>     replacement  = std::make_unique<DxuiPanel>();
@@ -531,7 +531,7 @@ public:
     TEST_METHOD (SetContentPanel_NewPanelReceivesChildrenViaAdd)
     {
         std::unique_ptr<DxuiPanel>     originalRoot = std::make_unique<DxuiPanel>();
-        DxuiHostWindow                 host (MakeRect (0, 0, s_kClientWidthDip, s_kClientHeightDip),
+        DxuiHwndSource                 host (MakeRect (0, 0, s_kClientWidthDip, s_kClientHeightDip),
                                              s_kResizeBorderDip,
                                              std::move (originalRoot));
         std::unique_ptr<DxuiPanel>     replacement  = std::make_unique<DxuiPanel>();

@@ -4,7 +4,7 @@
 #include "Core/IDxuiControl.h"
 
 
-class DxuiHostWindow;
+class DxuiHwndSource;
 class DxuiPopupHost;
 
 
@@ -52,8 +52,8 @@ public:
     //  Cascading submenus link through DxuiPopupHost::SetParentPopup
     //  so click-outside dismiss walks the chain.
     //
-    void  SetPopupHost  (DxuiHostWindow * host) { m_popupHost = host; }
-    DxuiHostWindow *  PopupHost   () const { return m_popupHost;   }
+    void  SetPopupHost  (DxuiHwndSource * host) { m_popupHost = host; }
+    DxuiHwndSource *  PopupHost   () const { return m_popupHost;   }
     DxuiPopupHost  *  ActivePopup () const { return m_activePopup; }
 
     bool                       IsVisible () const { return m_visible; }
@@ -101,6 +101,6 @@ private:
     int                   m_pressed  = -1;
     bool                  m_visible  = false;
     DxuiDpiScaler             m_scaler;
-    DxuiHostWindow      * m_popupHost     = nullptr;
+    DxuiHwndSource      * m_popupHost     = nullptr;
     DxuiPopupHost       * m_activePopup   = nullptr;
 };

@@ -10,7 +10,7 @@
 #include "Widgets/DxuiLabel.h"
 
 
-class DxuiHostWindow;
+class DxuiHwndSource;
 
 
 
@@ -46,7 +46,7 @@ public:
     // Routes the owned theme dropdown's popup menu through the host's
     // popup-host pool so the menu HWND escapes the page's clipping
     // bounds. Pass nullptr to revert to the in-panel PaintMenu path.
-    void  SetPopupHost          (DxuiHostWindow * host) { m_themeDropdown.SetPopupHost (host); }
+    void  SetPopupHost          (DxuiHwndSource * host) { m_themeDropdown.SetPopupHost (host); }
 
     void  Layout                (const RECT & rect, const DxuiDpiScaler & scaler) override;
 

@@ -378,7 +378,7 @@ void MachinePage::Rebuild ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void MachinePage::SetPopupHost (DxuiHostWindow * host)
+void MachinePage::SetPopupHost (DxuiHwndSource * host)
 {
     m_machineDropdown.SetPopupHost (host);
     m_speed.SetPopupHost           (host);

@@ -6,9 +6,9 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DxuiHostWindowClientTests
+//  DxuiHwndSourceClientTests
 //
-//  Verifies the IDxuiHostClient dispatch wiring on DxuiHostWindow.
+//  Verifies the IDxuiHostClient dispatch wiring on DxuiHwndSource.
 //  Uses adopt-mode hosts (which carry a null HWND) plus direct
 //  WndProc invocation; the tests only exercise paths where the
 //  client claims the message (returns DxuiMessageResult::Handled,
@@ -21,12 +21,12 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
 namespace
 {
-    DxuiHostWindow::CreateParams  MakeAdoptParams()
+    DxuiHwndSource::CreateParams  MakeAdoptParams()
     {
-        DxuiHostWindow::CreateParams  cp;
+        DxuiHwndSource::CreateParams  cp;
 
         cp.title           = L"ClientDispatchTest";
-        cp.backdrop        = DxuiHostWindowBackdrop::None;
+        cp.backdrop        = DxuiHwndSourceBackdrop::None;
         return cp;
     }
 
@@ -125,12 +125,12 @@ namespace
     //  hosts skip CreateDeviceAndSwapChain entirely, so they're
     //  the cheapest seam for dispatch testing.
     //
-    std::unique_ptr<DxuiHostWindow>  BuildSyntheticHost()
+    std::unique_ptr<DxuiHwndSource>  BuildSyntheticHost()
     {
         RECT                            bounds = { 0, 0, 800, 600 };
         std::unique_ptr<DxuiPanel>      root   = std::make_unique<DxuiPanel>();
 
-        return std::make_unique<DxuiHostWindow> (bounds, 6.0f, std::move (root));
+        return std::make_unique<DxuiHwndSource> (bounds, 6.0f, std::move (root));
     }
 
 
@@ -158,7 +158,7 @@ namespace
 
 
 
-TEST_CLASS (DxuiHostWindowClientTests)
+TEST_CLASS (DxuiHwndSourceClientTests)
 {
 public:
 
@@ -177,7 +177,7 @@ public:
     //
     TEST_METHOD (NoClient_WndProc_DoesNotCrash)
     {
-        std::unique_ptr<DxuiHostWindow>  host = BuildSyntheticHost();
+        std::unique_ptr<DxuiHwndSource>  host = BuildSyntheticHost();
 
         (void) host->WndProc (WM_TIMER, 0, 0);
     }
@@ -191,7 +191,7 @@ public:
     //
     TEST_METHOD (Client_WmCommand_DispatchesAndClaims)
     {
-        std::unique_ptr<DxuiHostWindow>  host    = BuildSyntheticHost();
+        std::unique_ptr<DxuiHwndSource>  host    = BuildSyntheticHost();
         RecordingClient                  client;
         LRESULT                          result  = 0;
 
@@ -214,7 +214,7 @@ public:
     //
     TEST_METHOD (Client_WmKeyDown_DispatchesForBothKeyAndSysKey)
     {
-        std::unique_ptr<DxuiHostWindow>  host    = BuildSyntheticHost();
+        std::unique_ptr<DxuiHwndSource>  host    = BuildSyntheticHost();
         RecordingClient                  client;
 
         host->SetClient (&client);
@@ -234,7 +234,7 @@ public:
     //
     TEST_METHOD (Client_WmSize_DispatchesUnpackedDimensions)
     {
-        std::unique_ptr<DxuiHostWindow>  host    = BuildSyntheticHost();
+        std::unique_ptr<DxuiHwndSource>  host    = BuildSyntheticHost();
         RecordingClient                  client;
 
         host->SetClient (&client);
@@ -261,7 +261,7 @@ public:
         RECT                            bounds  = { 0, 0, 800, 600 };
         std::unique_ptr<LayoutSpyPanel> spyOwned = std::make_unique<LayoutSpyPanel>();
         LayoutSpyPanel                * spy      = spyOwned.get();
-        DxuiHostWindow                  host (bounds, 6.0f, std::move (spyOwned));
+        DxuiHwndSource                  host (bounds, 6.0f, std::move (spyOwned));
         RECT                            clientPx = { 0, 0, 800, 600 };
 
         // Dormant pump (the production Casso case): host must NOT lay
@@ -285,7 +285,7 @@ public:
     //
     TEST_METHOD (Client_WmDestroy_NotifiesClient)
     {
-        std::unique_ptr<DxuiHostWindow>  host    = BuildSyntheticHost();
+        std::unique_ptr<DxuiHwndSource>  host    = BuildSyntheticHost();
         RecordingClient                  client;
 
         host->SetClient (&client);
@@ -304,7 +304,7 @@ public:
     //
     TEST_METHOD (Client_WmClose_ClientCanSuppressDefault)
     {
-        std::unique_ptr<DxuiHostWindow>  host    = BuildSyntheticHost();
+        std::unique_ptr<DxuiHwndSource>  host    = BuildSyntheticHost();
         RecordingClient                  client;
         LRESULT                          result  = 0;
 
@@ -326,7 +326,7 @@ public:
     //
     TEST_METHOD (Client_WmNcLButtonUp_ForwardsHitTestCode)
     {
-        std::unique_ptr<DxuiHostWindow>  host    = BuildSyntheticHost();
+        std::unique_ptr<DxuiHwndSource>  host    = BuildSyntheticHost();
         RecordingClient                  client;
         LRESULT                          result  = 0;
 
@@ -343,7 +343,7 @@ public:
 
     TEST_METHOD (Client_WmNcLButtonUp_SystemButtonsDispatchClientOnceWithoutDefaultProc)
     {
-        std::unique_ptr<DxuiHostWindow>  host             = BuildSyntheticHost();
+        std::unique_ptr<DxuiHwndSource>  host             = BuildSyntheticHost();
         RecordingClient                  client;
         int                              defaultProcCount = 0;
         LRESULT                          result           = 0;
@@ -373,7 +373,7 @@ public:
 
     TEST_METHOD (Client_WmNcLButtonUp_UnhandledCaptionFallsThroughToDefaultProc)
     {
-        std::unique_ptr<DxuiHostWindow>  host             = BuildSyntheticHost();
+        std::unique_ptr<DxuiHwndSource>  host             = BuildSyntheticHost();
         RecordingClient                  client;
         int                              defaultProcCount = 0;
         LRESULT                          result           = 0;
@@ -399,7 +399,7 @@ public:
 
     TEST_METHOD (Client_WmNcMouseMessages_DispatchToClientHooks)
     {
-        std::unique_ptr<DxuiHostWindow>  host    = BuildSyntheticHost();
+        std::unique_ptr<DxuiHwndSource>  host    = BuildSyntheticHost();
         RecordingClient                  client;
 
 
@@ -420,7 +420,7 @@ public:
 
     TEST_METHOD (Client_WmMouseMove_ArmsClientMouseLeaveTracking)
     {
-        std::unique_ptr<DxuiHostWindow>  host       = BuildSyntheticHost();
+        std::unique_ptr<DxuiHwndSource>  host       = BuildSyntheticHost();
         RecordingClient                  client;
         int                              trackCount = 0;
         DWORD                            lastFlags  = 0;
@@ -450,7 +450,7 @@ public:
     //
     TEST_METHOD (Client_NullSetClient_DetachesPriorClient)
     {
-        std::unique_ptr<DxuiHostWindow>  host    = BuildSyntheticHost();
+        std::unique_ptr<DxuiHwndSource>  host    = BuildSyntheticHost();
         RecordingClient                  client;
 
         host->SetClient (&client);
@@ -474,7 +474,7 @@ public:
     //
     TEST_METHOD (Client_WmCreate_PropagatesNegativeOneToAbort)
     {
-        std::unique_ptr<DxuiHostWindow>  host    = BuildSyntheticHost();
+        std::unique_ptr<DxuiHwndSource>  host    = BuildSyntheticHost();
         RecordingClient                  client;
         LRESULT                          result  = 0;
 
@@ -498,7 +498,7 @@ public:
     //
     TEST_METHOD (Client_WmNcHitTest_FallsThroughOnHostClientArea)
     {
-        std::unique_ptr<DxuiHostWindow>  host    = BuildSyntheticHost();
+        std::unique_ptr<DxuiHwndSource>  host    = BuildSyntheticHost();
         RecordingClient                  client;
         LRESULT                          result  = 0;
 
@@ -526,7 +526,7 @@ public:
             }
         };
 
-        std::unique_ptr<DxuiHostWindow>  host    = BuildSyntheticHost();
+        std::unique_ptr<DxuiHwndSource>  host    = BuildSyntheticHost();
         DefaultNcHitClient               client;
         LRESULT                          result  = 0;
 
@@ -553,7 +553,7 @@ public:
     //
     TEST_METHOD (Client_WmCtlColorStatic_ForwardsHdcAndHwnd)
     {
-        std::unique_ptr<DxuiHostWindow>  host    = BuildSyntheticHost();
+        std::unique_ptr<DxuiHwndSource>  host    = BuildSyntheticHost();
         RecordingClient                  client;
         LRESULT                          result  = 0;
         HDC                              fakeHdc = (HDC) 0x1234;
@@ -580,7 +580,7 @@ public:
     //
     TEST_METHOD (Client_WmDrawItem_ForwardsFullWndProcPayload)
     {
-        std::unique_ptr<DxuiHostWindow>  host    = BuildSyntheticHost();
+        std::unique_ptr<DxuiHwndSource>  host    = BuildSyntheticHost();
         RecordingClient                  client;
         LRESULT                          result  = 0;
 

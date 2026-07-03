@@ -4,7 +4,7 @@
 #include "Core/IDxuiControl.h"
 
 
-class DxuiHostWindow;
+class DxuiHwndSource;
 class DxuiPopupHost;
 
 
@@ -43,8 +43,8 @@ public:
     //  WS_EX_TRANSPARENT | WS_EX_LAYERED so pointer events pass
     //  through to whatever is underneath; dismiss is OnPointerLeave.
     //
-    void  SetPopupHost    (DxuiHostWindow * host) { m_popupHost = host; }
-    DxuiHostWindow *  PopupHost   () const { return m_popupHost;   }
+    void  SetPopupHost    (DxuiHwndSource * host) { m_popupHost = host; }
+    DxuiHwndSource *  PopupHost   () const { return m_popupHost;   }
     DxuiPopupHost  *  ActivePopup () const { return m_activePopup; }
 
     void  RequestShow     (const RECT & anchor, const std::wstring & text, int64_t nowMs);
@@ -119,6 +119,6 @@ private:
     int           m_viewportHPx  = 0;
     bool          m_visible      = false;
     bool          m_pending      = false;
-    DxuiHostWindow  *  m_popupHost     = nullptr;
+    DxuiHwndSource  *  m_popupHost     = nullptr;
     DxuiPopupHost   *  m_activePopup   = nullptr;
 };

@@ -16,7 +16,7 @@ class DxuiCaptionBar;
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DxuiHostWindow
+//  DxuiHwndSource
 //
 //  Top-level Win32 host window that owns the HWND, the D3D11 device,
 //  the DXGI swap chain, the painter / text renderer pair, and the
@@ -55,7 +55,7 @@ class DxuiCaptionBar;
 
 
 
-enum class DxuiHostWindowBackdrop
+enum class DxuiHwndSourceBackdrop
 {
     None,
     Mica,
@@ -64,7 +64,7 @@ enum class DxuiHostWindowBackdrop
 
 
 //
-//  Host-owned caption style. When not None, DxuiHostWindow builds and
+//  Host-owned caption style. When not None, DxuiHwndSource builds and
 //  owns an internal DxuiCaptionBar (gradient + app icon + title text +
 //  system buttons) at the top of the client area, classifies / paints /
 //  routes it itself, and exposes it to the consumer only through a
@@ -81,7 +81,7 @@ enum class DxuiCaptionStyle
 
 
 
-class DxuiHostWindow
+class DxuiHwndSource
 {
 public:
     struct CreateParams
@@ -93,13 +93,13 @@ public:
         bool                     resizable        = true;
         bool                     roundedCorners   = true;
         bool                     darkMode         = true;
-        DxuiHostWindowBackdrop   backdrop         = DxuiHostWindowBackdrop::Mica;
+        DxuiHwndSourceBackdrop   backdrop         = DxuiHwndSourceBackdrop::Mica;
         float                    resizeBorderDip  = 6.0f;
         SIZE                     initialSizeDip   = { 1024, 768 };
 
         // Optional class-name override. When non-null, the host
         // registers its WNDCLASS under this name instead of the
-        // auto-generated per-instance "DxuiHostWindow_<serial>_<ptr>"
+        // auto-generated per-instance "DxuiHwndSource_<serial>_<ptr>"
         // string. Lets a consumer keep a stable, identifiable class
         // name (e.g. "CassoWindow") for tooling / Spy++ / window
         // enumeration / regression-tracking purposes.
@@ -155,8 +155,8 @@ public:
     };
 
 
-    DxuiHostWindow  ();
-    ~DxuiHostWindow ();
+    DxuiHwndSource  ();
+    ~DxuiHwndSource ();
 
     HRESULT  Create            (const CreateParams & params);
     void     Destroy           ();
@@ -174,7 +174,7 @@ public:
     //
     static HRESULT  CreateInAdoptMode  (HWND                              existingHwnd,
                                         const CreateParams              & params,
-                                        std::unique_ptr<DxuiHostWindow> & outHost);
+                                        std::unique_ptr<DxuiHwndSource> & outHost);
 
     //
     //  Adopt-mode hit-test plug-in. The delegate is invoked from
@@ -381,7 +381,7 @@ public:
         bool                    micaBackdropApplied   = false;
         bool                    darkModeApplied       = false;
         bool                    extendFrameApplied    = false;
-        DxuiHostWindowBackdrop  backdropRequested     = DxuiHostWindowBackdrop::None;
+        DxuiHwndSourceBackdrop  backdropRequested     = DxuiHwndSourceBackdrop::None;
         bool                    roundedRequested      = false;
         bool                    darkRequested         = false;
     };
@@ -396,7 +396,7 @@ public:
     //  children with hand-set bounds) and tests drive ClassifyHitForTest
     //  to assert the NC classification falls out correctly.
     //
-    DxuiHostWindow (RECT                         clientBoundsDip,
+    DxuiHwndSource (RECT                         clientBoundsDip,
                     float                        resizeBorderDip,
                     std::unique_ptr<DxuiPanel>   root);
 

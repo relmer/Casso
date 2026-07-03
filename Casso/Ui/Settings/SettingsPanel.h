@@ -83,9 +83,9 @@ public:
     bool    IsPreviewTransparencyActive() const;
     RECT    GetFocusedControlClientRect() const;
 
-    // Closes any open page dropdown and unwires the DxuiHostWindow
+    // Closes any open page dropdown and unwires the DxuiHwndSource
     // pointer from every page dropdown. Called before the owning
-    // SettingsWindow tears its DxuiHostWindow down so the dropdowns
+    // SettingsWindow tears its DxuiHwndSource down so the dropdowns
     // can't hold a dangling host (or popup-host) pointer past the
     // host's lifetime.
     void    DetachPopupHosts();

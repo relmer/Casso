@@ -463,7 +463,7 @@ void DxuiPopupHost::SetParentPopup (DxuiPopupHost * parent)
 //
 //  HandleDpiChanged
 //
-//  Called by DxuiHostWindow's WM_DPICHANGED_BEFOREPARENT handler so
+//  Called by DxuiHwndSource's WM_DPICHANGED_BEFOREPARENT handler so
 //  cross-monitor popups re-DPI before the owner repaints.
 //
 ////////////////////////////////////////////////////////////////////////////////

@@ -29,7 +29,7 @@ class IDxuiTheme;
 //        resolves with the dialog's chosen return code. A consumer-
 //        driven test pump can fire button clicks / Enter / Escape to
 //        drive the dialog to completion.
-//      * `DxuiHostWindow` hosting (real HWND creation + modal scrim
+//      * `DxuiHwndSource` hosting (real HWND creation + modal scrim
 //        rendering) is wired in a follow-up step; the framework is
 //        complete enough for stack-management tests to ride against
 //        the test seams below.
@@ -62,7 +62,7 @@ struct DxuiDialogShowParams
 
 //
 //  Blocking-modal show parameters. Unlike the future-based Show, these
-//  drive ShowModal, which stands up its own DxuiHostWindow, runs a
+//  drive ShowModal, which stands up its own DxuiHwndSource, runs a
 //  private modal message pump, and returns the chosen return code
 //  synchronously -- the production replacement for the legacy
 //  DialogPrimitive::Show contract.
@@ -105,7 +105,7 @@ public:
 
     //
     //  Blocking production entry point. Stands up a full-ownership
-    //  DxuiHostWindow with the standard host-owned caption (title +
+    //  DxuiHwndSource with the standard host-owned caption (title +
     //  close), installs an internal modal host-client, disables the
     //  owner, runs a private message pump until the dialog closes, then
     //  tears the host down and returns the chosen return code. The
@@ -119,7 +119,7 @@ public:
 
     //
     //  Test seams -- drive the stack without a real DxuiDialog /
-    //  DxuiHostWindow. The `fakeHwndStandIn` pointer is recorded
+    //  DxuiHwndSource. The `fakeHwndStandIn` pointer is recorded
     //  verbatim in the frame and is what `TopStandIn()` returns when
     //  the frame is on top. Returns the frame ID used to pop.
     //

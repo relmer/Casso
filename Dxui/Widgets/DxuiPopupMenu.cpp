@@ -2,7 +2,7 @@
 #include "Theme/DxuiTheme.h"
 
 #include "DxuiPopupMenu.h"
-#include "Window/DxuiHostWindow.h"
+#include "Window/DxuiHwndSource.h"
 #include "Window/DxuiPopupHost.h"
 
 #include "Core/UnicodeSymbols.h"

@@ -2,7 +2,7 @@
 
 #include "Pch.h"
 #include "Core/DxuiPanel.h"
-#include "Window/DxuiHostWindow.h"
+#include "Window/DxuiHwndSource.h"
 #include "Window/IDxuiHostClient.h"
 
 
@@ -16,7 +16,7 @@
 //  a DxuiWindow IS a DxuiPanel (so it is its own content root -- child
 //  controls are added to it directly via Create<T> / Add<T>) AND it
 //  owns the single OS window (HWND + swap chain + caption + paint pump)
-//  through an internal DxuiHostWindow backend, which stays entirely
+//  through an internal DxuiHwndSource backend, which stays entirely
 //  hidden from the consumer.
 //
 //  The backend paints and lays out this panel automatically (it is
@@ -93,7 +93,7 @@ public:
     //  surfaces) plus the shared text renderer used to size popups.
     //  Null before Create() / after Close().
     //
-    DxuiHostWindow    *  PopupHost    () const { return m_source.get(); }
+    DxuiHwndSource    *  PopupHost    () const { return m_source.get(); }
     IDxuiTextRenderer *  TextRenderer () const { return m_source != nullptr ? m_source->GetTextRenderer() : nullptr; }
 
 
@@ -138,6 +138,6 @@ private:
     DxuiMessageResult  DispatchKey   (DxuiKeyEventKind kind, WPARAM code);
 
 
-    std::unique_ptr<DxuiHostWindow>  m_source;
+    std::unique_ptr<DxuiHwndSource>  m_source;
     SIZE                             m_minSizeDip = { 0, 0 };
 };

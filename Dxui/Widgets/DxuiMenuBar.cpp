@@ -7,7 +7,7 @@
 #include "Render/IDxuiTextRenderer.h"
 #include "Theme/IDxuiTheme.h"
 #include "Theme/DxuiTheme.h"
-#include "Window/DxuiHostWindow.h"
+#include "Window/DxuiHwndSource.h"
 #include "Window/DxuiPopupHost.h"
 
 
@@ -132,14 +132,14 @@ void DxuiMenuBar::SetItems (std::vector<DxuiMenuBarItem> items)
 //
 //  DxuiMenuBar::SetPopupHost
 //
-//  Wires the menu bar to a popup-hosting `DxuiHostWindow`. When set,
+//  Wires the menu bar to a popup-hosting `DxuiHwndSource`. When set,
 //  an open submenu renders into a top-level popup (so it can escape the
 //  window and occlude); with no host it falls back to the in-window
 //  inline dropdown.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiMenuBar::SetPopupHost (DxuiHostWindow * host)
+void DxuiMenuBar::SetPopupHost (DxuiHwndSource * host)
 {
     DXUI_ASSERT_UI_THREAD();
 

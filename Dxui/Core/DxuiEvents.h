@@ -10,7 +10,7 @@
 //  DxuiEvents
 //
 //  Pure value types describing UI input events delivered by
-//  DxuiHostWindow to the control tree. All coordinates are in DIPs
+//  DxuiHwndSource to the control tree. All coordinates are in DIPs
 //  (FR-022, FR-082).
 //
 //  DxuiMouseButton is shared with the legacy DxuiInput translator and

@@ -33,7 +33,7 @@
 #include "Ui/Chrome/ChromeMetrics.h"
 #include "Ui/DriveWidgetController.h"
 #include "Shell/DiskMru.h"
-#include "Window/DxuiHostWindow.h"
+#include "Window/DxuiHwndSource.h"
 #include "Dialog/DxuiDialog.h"
 #include "Dialog/DxuiDialogManager.h"
 #include "Ui/Dialogs/DialogBodyContent.h"
@@ -633,7 +633,7 @@ HRESULT EmulatorShell::Initialize (
     CHR (hr);
 
     // Composite the Apple ][ framebuffer into the host's back buffer
-    // before the host paints chrome on top (DxuiHostWindow::PaintPump).
+    // before the host paints chrome on top (DxuiHwndSource::PaintPump).
     // m_pendingFramebuffer is staged each UI frame by RunMessageLoop;
     // nullptr means "no new emulator frame" (re-composite last upload).
     m_host->SetBeforePresentHook ([this] ()
@@ -1064,7 +1064,7 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     int                           iconSmallSize     = 0;
     HICON                         hIconBig          = nullptr;
     HICON                         hIconSm           = nullptr;
-    DxuiHostWindow::CreateParams  params;
+    DxuiHwndSource::CreateParams  params;
 
 
 
@@ -1121,7 +1121,7 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     // button rects and HTCAPTION for the drag region, so the OS
     // dispatches the right system action and our OnNcLButtonUp
     // dispatches the action for the captioned buttons. The style
-    // mirrors what DxuiHostWindow::Create uses internally for
+    // mirrors what DxuiHwndSource::Create uses internally for
     // borderless + resizable windows so the AdjustWindowRectExForDpi
     // math below produces the right window-pixel rect for the same
     // NC layout the host will create.
@@ -1152,7 +1152,7 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
 
     hadSavedPlacement = m_windowManager.TryLoadSavedWindowPlacement (activeMon, windowX, windowY, windowW, windowH);
 
-    // Preload the app icons so DxuiHostWindow::Create can attach them
+    // Preload the app icons so DxuiHwndSource::Create can attach them
     // via WM_SETICON before the window is shown. The taskbar and
     // Win32 MessageBox dialogs pick the icon up from WM_GETICON, not
     // WNDCLASS::hIcon, so the explicit handoff is required.
@@ -1166,7 +1166,7 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
                                         LR_DEFAULTCOLOR | LR_SHARED);
 
     // Hand the pre-computed window-pixel placement and chrome flags
-    // to DxuiHostWindow. createSwapChain = true so the host owns the
+    // to DxuiHwndSource. createSwapChain = true so the host owns the
     // D3D11 device + DXGI flip-discard swap chain and runs the panel-
     // tree paint pump; the Apple ][ framebuffer renderer composites
     // into that same back buffer via the before-present hook (wired in
@@ -1180,7 +1180,7 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     params.resizable              = true;
     params.roundedCorners         = true;
     params.darkMode               = true;
-    params.backdrop               = DxuiHostWindowBackdrop::None;
+    params.backdrop               = DxuiHwndSourceBackdrop::None;
     params.resizeBorderDip        = 6.0f;
     params.classNameOverride      = kWindowClass;
     params.useInitialWindowRectPx = true;
@@ -1190,7 +1190,7 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     params.createSwapChain        = true;
     params.captionStyle           = DxuiCaptionStyle::Standard;
 
-    m_host = std::make_unique<DxuiHostWindow>();
+    m_host = std::make_unique<DxuiHwndSource>();
 
     // Install ourselves as the IDxuiHostClient BEFORE Create so the
     // WM_NCCREATE / WM_CREATE / WM_SIZE / WM_MOVE sequence that fires
@@ -4633,7 +4633,7 @@ DxuiMessageResult EmulatorShell::OnSize (UINT widthPx, UINT heightPx)
         m_mainMenu.Hide();
     }
 
-    // The host (DxuiHostWindow::HandleSize) already resized its swap
+    // The host (DxuiHwndSource::HandleSize) already resized its swap
     // chain and recreated the back-buffer RTV + D2D target before this
     // OnSize fired. The renderer no longer owns the swap chain; it just
     // needs the new back-buffer dimensions for the CRT post-process.

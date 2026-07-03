@@ -15,7 +15,7 @@
 
 
 class IDxuiTheme;
-class DxuiHostWindow;
+class DxuiHwndSource;
 
 
 
@@ -63,10 +63,10 @@ public:
     void  SetOnTestSound        (TestSoundFn fn) { m_onTestSound = std::move (fn); }
 
     // Routes every owned dropdown's popup menu through the supplied
-    // DxuiHostWindow's popup-host pool so the menu HWND escapes the
+    // DxuiHwndSource's popup-host pool so the menu HWND escapes the
     // page's clipping bounds. Pass nullptr to revert to the legacy
     // in-panel PaintMenu path.
-    void  SetPopupHost          (DxuiHostWindow * host);
+    void  SetPopupHost          (DxuiHwndSource * host);
 
     void  Layout                (const RECT & rect, const DxuiDpiScaler & scaler) override;
     void  Rebuild               ();

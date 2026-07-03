@@ -4,7 +4,7 @@
 #include "SettingsPanel.h"
 
 #include "Window/DxuiCaptionBar.h"
-#include "Window/DxuiHostWindow.h"
+#include "Window/DxuiHwndSource.h"
 
 #include "../../resource.h"
 
@@ -509,7 +509,7 @@ HRESULT SettingsWindow::OnCreate (HWND hwnd)
     std::vector<uint32_t>         iconPixels;
     int                           iconW      = 0;
     int                           iconH      = 0;
-    DxuiHostWindow::CreateParams  hostParams;
+    DxuiHwndSource::CreateParams  hostParams;
 
 
 
@@ -519,7 +519,7 @@ HRESULT SettingsWindow::OnCreate (HWND hwnd)
 
     dpi = GetDpiForWindow (m_hwnd);
 
-    // Stand up the DxuiHostWindow in adopt mode. The HWND, swap chain,
+    // Stand up the DxuiHwndSource in adopt mode. The HWND, swap chain,
     // and rendering pipeline stay owned by SettingsWindow and its
     // SettingsWindowRenderer (DComp visual + transparency compositor);
     // the host takes over WM_NCCALCSIZE / WM_NCHITTEST classification
@@ -532,11 +532,11 @@ HRESULT SettingsWindow::OnCreate (HWND hwnd)
     hostParams.resizable       = true;
     hostParams.roundedCorners  = true;
     hostParams.darkMode        = true;
-    hostParams.backdrop        = DxuiHostWindowBackdrop::None;
+    hostParams.backdrop        = DxuiHwndSourceBackdrop::None;
     hostParams.resizeBorderDip = 6.0f;
     hostParams.captionStyle    = DxuiCaptionStyle::CloseOnly;
 
-    hr = DxuiHostWindow::CreateInAdoptMode (m_hwnd, hostParams, m_hostWindow);
+    hr = DxuiHwndSource::CreateInAdoptMode (m_hwnd, hostParams, m_hostWindow);
     CHRA (hr);
 
     m_renderer.SetChrome (m_hostWindow.get(), m_theme);
@@ -595,7 +595,7 @@ void SettingsWindow::OnDestroy()
 
     // Notify the panel so its page-owned dropdowns release any
     // pooled popup hosts AND clear their host pointer before we
-    // tear the DxuiHostWindow down. Skipping this would leave the
+    // tear the DxuiHwndSource down. Skipping this would leave the
     // dropdowns with a dangling host pointer (and a leaked popup
     // entry, if one was open at close time) that the next Show()
     // can't recover from.

@@ -11,7 +11,7 @@
 //  DxuiViewport
 //
 //  Leaf `IDxuiControl` describing an externally-rendered region inside
-//  a `DxuiHostWindow`'s control tree. Used to give the Apple ][
+//  a `DxuiHwndSource`'s control tree. Used to give the Apple ][
 //  emulator (or any other client of an externally-managed framebuffer)
 //  a known rectangle inside the Dxui control tree without requiring
 //  the host to know anything about the renderer.

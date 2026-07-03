@@ -11,7 +11,7 @@
 //
 //  Create
 //
-//  Conjures the OS window (hidden) via the internal DxuiHostWindow
+//  Conjures the OS window (hidden) via the internal DxuiHwndSource
 //  backend, installs this panel as the backend's non-owning content
 //  root, then invokes OnCreate() so the subclass can populate its
 //  children before the first layout / paint pass. The consumer calls
@@ -22,7 +22,7 @@
 HRESULT DxuiWindow::Create (const CreateParams & params)
 {
     HRESULT                       hr         = S_OK;
-    DxuiHostWindow::CreateParams  hostParams;
+    DxuiHwndSource::CreateParams  hostParams;
 
 
 
@@ -38,7 +38,7 @@ HRESULT DxuiWindow::Create (const CreateParams & params)
     hostParams.resizable             = params.resizable;
     hostParams.roundedCorners        = true;
     hostParams.darkMode              = true;
-    hostParams.backdrop              = DxuiHostWindowBackdrop::None;
+    hostParams.backdrop              = DxuiHwndSourceBackdrop::None;
     hostParams.createSwapChain       = true;
     hostParams.captionStyle          = params.captionStyle;
     hostParams.classNameOverride     = params.classNameOverride;
@@ -47,7 +47,7 @@ HRESULT DxuiWindow::Create (const CreateParams & params)
     hostParams.appIconBig            = params.appIconBig;
     hostParams.appIconSmall          = params.appIconSmall;
 
-    m_source = std::make_unique<DxuiHostWindow>();
+    m_source = std::make_unique<DxuiHwndSource>();
     m_source->SetClient (this);
 
     hr = m_source->Create (hostParams);

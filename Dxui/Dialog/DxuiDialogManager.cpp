@@ -3,7 +3,7 @@
 #include "Dialog/DxuiDialogManager.h"
 #include "Dialog/DxuiDialog.h"
 #include "Dialog/DxuiModalDialogClient.h"
-#include "Window/DxuiHostWindow.h"
+#include "Window/DxuiHwndSource.h"
 
 
 static constexpr UINT  s_kCaretRepaintMs = 250;   // caret-blink repaint cadence when no app tick
@@ -95,7 +95,7 @@ Error:
 //  DxuiDialogManager::ShowModal
 //
 //  Blocking production show. Stands up a borderless full-ownership
-//  DxuiHostWindow with the standard host-owned caption (title + close),
+//  DxuiHwndSource with the standard host-owned caption (title + close),
 //  disables the owner, and runs a private message pump until the dialog
 //  resolves a return code (button click, Enter on the default button,
 //  Escape or caption-close on cancel). The dialog is built caption-less
@@ -108,9 +108,9 @@ int DxuiDialogManager::ShowModal (std::unique_ptr<DxuiDialog>    dialog,
                                   const DxuiDialogModalParams  & params)
 {
     HRESULT                        hr            = S_OK;
-    DxuiHostWindow                 host;
+    DxuiHwndSource                 host;
     DxuiModalDialogClient          client;
-    DxuiHostWindow::CreateParams   hostParams;
+    DxuiHwndSource::CreateParams   hostParams;
     DxuiDialog                   * dialogRaw     = dialog.get();
     MSG                            msg           = {};
     int                            result        = params.cancelResult;
@@ -141,7 +141,7 @@ int DxuiDialogManager::ShowModal (std::unique_ptr<DxuiDialog>    dialog,
     hostParams.borderless            = true;
     hostParams.resizable             = params.resizable;
     hostParams.roundedCorners        = true;
-    hostParams.backdrop              = DxuiHostWindowBackdrop::None;
+    hostParams.backdrop              = DxuiHwndSourceBackdrop::None;
     hostParams.captionStyle          = DxuiCaptionStyle::CloseOnly;
     hostParams.insetRootBelowCaption = true;
     hostParams.initialSizeDip        = params.clientSizeDip;

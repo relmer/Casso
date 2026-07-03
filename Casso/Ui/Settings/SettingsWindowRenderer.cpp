@@ -2,7 +2,7 @@
 
 #include "SettingsWindowRenderer.h"
 #include "SettingsPanel.h"
-#include "Window/DxuiHostWindow.h"
+#include "Window/DxuiHwndSource.h"
 #include "../../Shaders/ShaderResourceIds.h"
 
 #pragma comment(lib, "dcomp.lib")
@@ -276,7 +276,7 @@ void SettingsWindowRenderer::Shutdown()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void SettingsWindowRenderer::SetChrome (DxuiHostWindow * captionHost, const CassoTheme * theme)
+void SettingsWindowRenderer::SetChrome (DxuiHwndSource * captionHost, const CassoTheme * theme)
 {
     m_captionHost = captionHost;
     m_theme       = theme;

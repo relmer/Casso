@@ -394,13 +394,13 @@ HRESULT SettingsPanel::Show ()
         CHRA (hr);
 
         // Now that the settings popup HWND (and its adopted
-        // DxuiHostWindow) exist, thread the host into every page's
+        // DxuiHwndSource) exist, thread the host into every page's
         // owned dropdowns so their menus render through the popup-
         // host pool. This escapes the SettingsWindow client clip so
         // a dropdown near the bottom of the panel can flip its menu
         // upward (or extend past the lower edge) without being cut
         // off (FR-054 / FR-061; SC-008).
-        DxuiHostWindow *  host = m_window.Host();
+        DxuiHwndSource *  host = m_window.Host();
 
         m_machinePage.SetPopupHost (host);
         m_themePage.SetPopupHost   (host);
@@ -444,7 +444,7 @@ void SettingsPanel::Hide ()
 //  Close any open dropdown menu (which releases its pooled
 //  DxuiPopupHost back to the host) and clear each page dropdown's
 //  popup-host pointer. Must run before the owning SettingsWindow
-//  tears its DxuiHostWindow down so we don't leave the dropdowns
+//  tears its DxuiHwndSource down so we don't leave the dropdowns
 //  with a dangling host.
 //
 ////////////////////////////////////////////////////////////////////////////////

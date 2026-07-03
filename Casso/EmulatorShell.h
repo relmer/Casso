@@ -41,7 +41,7 @@
 #include "Video/VideoOutput.h"
 #include "Video/VideoTiming.h"
 #include "WasapiAudio.h"
-#include "Window/DxuiHostWindow.h"
+#include "Window/DxuiHwndSource.h"
 #include "Window/IDxuiHostClient.h"
 #include "Core/DxuiAbsoluteLayout.h"
 #include "Core/DxuiDockLayout.h"
@@ -49,7 +49,7 @@
 
 
 
-class DxuiHostWindow;
+class DxuiHwndSource;
 
 
 
@@ -119,7 +119,7 @@ public:
     // Access bus for test wiring
     MemoryBus & GetBus() { return m_memoryBus; }
 
-    // Main window HWND. Owned by m_host (DxuiHostWindow in full-
+    // Main window HWND. Owned by m_host (DxuiHwndSource in full-
     // ownership mode); EmulatorShell caches it after Create for
     // hot-path callers like the dialog primitive owner-window
     // handoff and the settings panel.
@@ -475,7 +475,7 @@ private:
     bool                m_initialSizeReconciled = false;
 
     // Authoritative per-window DPI scaler. Mirrors the one inside
-    // DxuiHostWindow; updated from OnDpiChanged and seeded after
+    // DxuiHwndSource; updated from OnDpiChanged and seeded after
     // m_host->Create() returns. The chrome-band dock scales its band
     // thicknesses through this member.
     DxuiDpiScaler       m_scaler;
@@ -500,12 +500,12 @@ private:
     // Chrome surfaces. MainMenu owns the parity table for legacy IDM_*
     // commands and runs alongside the existing Win32 menu bar until the
     // painter retires the latter. The caption (title + icon + min/max/
-    // close) is owned and rendered by the DxuiHostWindow, not here.
+    // close) is owned and rendered by the DxuiHwndSource, not here.
     MainMenu            m_mainMenu;
     CassoTheme         m_chromeTheme    = CassoTheme::Skeuomorphic();
     std::array<DriveWidget, 2> m_driveChrome;
 
-    // DxuiHostWindow running in full-ownership mode. Owns the main
+    // DxuiHwndSource running in full-ownership mode. Owns the main
     // HWND (registers WNDCLASS "CassoWindow", calls CreateWindowExW,
     // and applies DwM rounded-corners / immersive-dark / extended
     // frame). Created with `createSwapChain = true` so the host owns
@@ -518,7 +518,7 @@ private:
     // EmulatorShell is the IDxuiHostClient so all consumer-side Win32
     // messages (WM_KEYDOWN, WM_COMMAND, WM_SIZE, ...) dispatch through the
     // OnXxx overrides above.
-    std::unique_ptr<DxuiHostWindow>  m_host;
+    std::unique_ptr<DxuiHwndSource>  m_host;
 
     // Apple ][ framebuffer viewport inside the host's root panel.
     // Sized by EmulatorShell whenever chrome layout changes; the
@@ -531,7 +531,7 @@ private:
     RECT                             m_viewportBoundsPx  = {};
 
     // Per-frame framebuffer pointer staged by RunMessageLoop and read
-    // by the host's before-present hook (DxuiHostWindow::PaintPump ->
+    // by the host's before-present hook (DxuiHwndSource::PaintPump ->
     // D3DRenderer::UploadAndComposite). Points into m_uiFramebuffer
     // when the emulator produced a new frame this iteration, or nullptr
     // to re-composite the last upload (chrome-only repaints). Touched

@@ -5,7 +5,7 @@
 
 
 
-class DxuiHostWindow;
+class DxuiHwndSource;
 class DxuiPopupHost;
 
 
@@ -85,7 +85,7 @@ public:
     ~DxuiMenuBar () override;
 
     void  SetItems          (std::vector<DxuiMenuBarItem> items);
-    void  SetPopupHost      (DxuiHostWindow * host);
+    void  SetPopupHost      (DxuiHwndSource * host);
     void  SetStripColors    (uint32_t stripArgb, uint32_t hoverArgb, uint32_t textArgb);
     void  SetDropdownColors (uint32_t bgArgb,
                              uint32_t hoverArgb,
@@ -215,7 +215,7 @@ private:
 
 
     std::vector<DxuiMenuBarItem>  m_items;
-    DxuiHostWindow              * m_popupHost        = nullptr;
+    DxuiHwndSource              * m_popupHost        = nullptr;
     DxuiPopupHost               * m_activePopup      = nullptr;
     DropdownPalette               m_cachedPalette;
     bool                          m_haveLastMousePos = false;

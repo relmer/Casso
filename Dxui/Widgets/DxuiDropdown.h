@@ -4,7 +4,7 @@
 #include "Core/IDxuiControl.h"
 
 
-class DxuiHostWindow;
+class DxuiHwndSource;
 class DxuiPopupHost;
 class IDxuiTheme;
 
@@ -79,7 +79,7 @@ public:
     //  the popup AND keep a dangling m_activePopup pointer that
     //  blocks the next Open() from acquiring a fresh popup.
     //
-    void  SetPopupHost   (DxuiHostWindow * host)
+    void  SetPopupHost   (DxuiHwndSource * host)
     {
         if (host != m_popupHost && m_open)
         {
@@ -87,7 +87,7 @@ public:
         }
         m_popupHost = host;
     }
-    DxuiHostWindow *  PopupHost () const { return m_popupHost; }
+    DxuiHwndSource *  PopupHost () const { return m_popupHost; }
     DxuiPopupHost  *  ActivePopup () const { return m_activePopup; }
 
     //
@@ -132,7 +132,7 @@ private:
     DxuiDpiScaler                 m_scaler;
     bool                      m_enabled   = true;
     bool                      m_focused   = false;
-    DxuiHostWindow          * m_popupHost   = nullptr;
+    DxuiHwndSource          * m_popupHost   = nullptr;
     DxuiPopupHost           * m_activePopup = nullptr;
     mutable bool               m_hasThemeColors = false;
     mutable ResolvedColors     m_themeColors    = {};

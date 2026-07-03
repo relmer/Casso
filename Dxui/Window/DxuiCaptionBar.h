@@ -11,7 +11,7 @@
 //  DxuiCaptionBar
 //
 //  Container panel covering the custom-chrome title-bar strip at the
-//  top of a `DxuiHostWindow`. Inherits all `DxuiPanel` semantics
+//  top of a `DxuiHwndSource`. Inherits all `DxuiPanel` semantics
 //  (children, layout, paint fan-out) and adds caption-specific hit-
 //  test defaults: any point not consumed by a child resolves to
 //  `DxuiHitTestKind::Caption`, giving Win32 free drag / double-click-
@@ -23,7 +23,7 @@
 //       label + Close DxuiSystemButton and positions them via a layout.
 //       The bar paints nothing of its own (flat panel).
 //
-//    2. Host-owned caption (DxuiHostWindow, the SetWindowText model):
+//    2. Host-owned caption (DxuiHwndSource, the SetWindowText model):
 //       ConfigureButtons() builds the owned min/max/close
 //       DxuiSystemButton children and turns on self-rendering of the
 //       gradient + app icon + title text. The consuming app never

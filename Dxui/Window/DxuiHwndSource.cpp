@@ -1,6 +1,6 @@
 #include "Pch.h"
 
-#include "DxuiHostWindow.h"
+#include "DxuiHwndSource.h"
 #include "DxuiCaptionBar.h"
 #include "DxuiPopupHost.h"
 #include "DxuiSystemButton.h"
@@ -17,14 +17,14 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DxuiHostWindow::NotifySystemButtonsMaximizedInTree
+//  DxuiHwndSource::NotifySystemButtonsMaximizedInTree
 //
 //  Recursively walks the control subtree and pushes the maximized
 //  state onto every DxuiSystemButton of kind Max.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiHostWindow::NotifySystemButtonsMaximizedInTree (IDxuiControl * control, bool maximized)
+void DxuiHwndSource::NotifySystemButtonsMaximizedInTree (IDxuiControl * control, bool maximized)
 {
     HRESULT             hr     = S_OK;
     size_t              n      = 0;
@@ -59,7 +59,7 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DxuiHostWindow::FindNcSystemControlInTree
+//  DxuiHwndSource::FindNcSystemControlInTree
 //
 //  Depth-first, top-most-child-first search for the deepest NC system
 //  button (min / max / close) whose bounds contain the point. Returns
@@ -67,7 +67,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-IDxuiControl * DxuiHostWindow::FindNcSystemControlInTree (IDxuiControl * control, POINT clientDip)
+IDxuiControl * DxuiHwndSource::FindNcSystemControlInTree (IDxuiControl * control, POINT clientDip)
 {
     HRESULT          hr    = S_OK;
     size_t           n     = 0;
@@ -123,14 +123,14 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DxuiHostWindow
+//  DxuiHwndSource
 //
 //  Default constructor — full-ownership mode. Caller must drive
 //  Create() before the host is usable.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-DxuiHostWindow::DxuiHostWindow()
+DxuiHwndSource::DxuiHwndSource()
 {
     m_root = std::make_unique<DxuiPanel>();
 }
@@ -141,7 +141,7 @@ DxuiHostWindow::DxuiHostWindow()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DxuiHostWindow (synthetic-root ctor)
+//  DxuiHwndSource (synthetic-root ctor)
 //
 //  Test-only mode. No HWND, no device, no swap chain. The caller
 //  supplies a pre-built root panel; tests then drive
@@ -149,7 +149,7 @@ DxuiHostWindow::DxuiHostWindow()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-DxuiHostWindow::DxuiHostWindow (RECT                       clientBoundsDip,
+DxuiHwndSource::DxuiHwndSource (RECT                       clientBoundsDip,
                                 float                      resizeBorderDip,
                                 std::unique_ptr<DxuiPanel> root)
 {
@@ -171,13 +171,13 @@ DxuiHostWindow::DxuiHostWindow (RECT                       clientBoundsDip,
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ~DxuiHostWindow
+//  ~DxuiHwndSource
 //
 //  Idempotent teardown. Safe to call when the host was never Created.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-DxuiHostWindow::~DxuiHostWindow()
+DxuiHwndSource::~DxuiHwndSource()
 {
     Destroy();
 }
@@ -199,7 +199,7 @@ DxuiHostWindow::~DxuiHostWindow()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT DxuiHostWindow::Create (const CreateParams & params)
+HRESULT DxuiHwndSource::Create (const CreateParams & params)
 {
     HRESULT      hr             = S_OK;
     WNDCLASSEXW  wc             = { sizeof (wc) };
@@ -237,12 +237,12 @@ HRESULT DxuiHostWindow::Create (const CreateParams & params)
     else
     {
         serial = s_classSerial.fetch_add (1);
-        (void) swprintf_s (classNameBuf, L"DxuiHostWindow_%u_%p", serial, (void *) this);
+        (void) swprintf_s (classNameBuf, L"DxuiHwndSource_%u_%p", serial, (void *) this);
         m_className = classNameBuf;
     }
 
     wc.style         = CS_HREDRAW | CS_VREDRAW;
-    wc.lpfnWndProc   = &DxuiHostWindow::s_WndProcThunk;
+    wc.lpfnWndProc   = &DxuiHwndSource::s_WndProcThunk;
     wc.hInstance     = hInstance;
     wc.hCursor       = LoadCursor (nullptr, IDC_ARROW);
     wc.hbrBackground = nullptr;
@@ -364,7 +364,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiHostWindow::Destroy ()
+void DxuiHwndSource::Destroy ()
 {
     DXUI_ASSERT_UI_THREAD();
 
@@ -413,20 +413,20 @@ void DxuiHostWindow::Destroy ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT DxuiHostWindow::CreateInAdoptMode (
+HRESULT DxuiHwndSource::CreateInAdoptMode (
     HWND                              existingHwnd,
     const CreateParams              & params,
-    std::unique_ptr<DxuiHostWindow> & outHost)
+    std::unique_ptr<DxuiHwndSource> & outHost)
 {
     HRESULT                          hr   = S_OK;
-    std::unique_ptr<DxuiHostWindow>  host;
+    std::unique_ptr<DxuiHwndSource>  host;
     UINT                             dpi  = 0;
 
 
 
     DXUI_ASSERT_UI_THREAD();
 
-    host = std::unique_ptr<DxuiHostWindow> (new DxuiHostWindow());
+    host = std::unique_ptr<DxuiHwndSource> (new DxuiHwndSource());
     CPRA (host.get());
 
     host->m_params      = params;
@@ -479,7 +479,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiHostWindow::SetHitTestDelegate (std::function<LRESULT (POINT)> delegate)
+void DxuiHwndSource::SetHitTestDelegate (std::function<LRESULT (POINT)> delegate)
 {
     DXUI_ASSERT_UI_THREAD();
 
@@ -503,7 +503,7 @@ void DxuiHostWindow::SetHitTestDelegate (std::function<LRESULT (POINT)> delegate
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiHostWindow::SetBeforePresentHook (std::function<void()> hook)
+void DxuiHwndSource::SetBeforePresentHook (std::function<void()> hook)
 {
     DXUI_ASSERT_UI_THREAD();
 
@@ -532,7 +532,7 @@ void DxuiHostWindow::SetBeforePresentHook (std::function<void()> hook)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool DxuiHostWindow::HandleMessage (UINT msg, WPARAM wp, LPARAM lp, LRESULT & outResult)
+bool DxuiHwndSource::HandleMessage (UINT msg, WPARAM wp, LPARAM lp, LRESULT & outResult)
 {
     DXUI_ASSERT_UI_THREAD();
 
@@ -591,7 +591,7 @@ bool DxuiHostWindow::HandleMessage (UINT msg, WPARAM wp, LPARAM lp, LRESULT & ou
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiHostWindow::SetTheme (const IDxuiTheme * theme)
+void DxuiHwndSource::SetTheme (const IDxuiTheme * theme)
 {
     DXUI_ASSERT_UI_THREAD();
 
@@ -619,7 +619,7 @@ void DxuiHostWindow::SetTheme (const IDxuiTheme * theme)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiHostWindow::SetClient (IDxuiHostClient * client)
+void DxuiHwndSource::SetClient (IDxuiHostClient * client)
 {
     DXUI_ASSERT_UI_THREAD();
 
@@ -636,7 +636,7 @@ void DxuiHostWindow::SetClient (IDxuiHostClient * client)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiHostWindow::SetDefaultProcForTest (std::function<LRESULT (HWND, UINT, WPARAM, LPARAM)> defaultProc)
+void DxuiHwndSource::SetDefaultProcForTest (std::function<LRESULT (HWND, UINT, WPARAM, LPARAM)> defaultProc)
 {
     DXUI_ASSERT_UI_THREAD();
 
@@ -653,7 +653,7 @@ void DxuiHostWindow::SetDefaultProcForTest (std::function<LRESULT (HWND, UINT, W
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiHostWindow::SetTrackMouseEventForTest (std::function<BOOL (TRACKMOUSEEVENT *)> trackMouseEvent)
+void DxuiHwndSource::SetTrackMouseEventForTest (std::function<BOOL (TRACKMOUSEEVENT *)> trackMouseEvent)
 {
     DXUI_ASSERT_UI_THREAD();
 
@@ -679,7 +679,7 @@ void DxuiHostWindow::SetTrackMouseEventForTest (std::function<BOOL (TRACKMOUSEEV
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiHostWindow::SetContentPanel (std::unique_ptr<DxuiPanel> panel)
+void DxuiHwndSource::SetContentPanel (std::unique_ptr<DxuiPanel> panel)
 {
     HRESULT  hr         = S_OK;
     RECT     bounds     = {};
@@ -758,7 +758,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiHostWindow::SetContentRootRef (DxuiPanel * root)
+void DxuiHwndSource::SetContentRootRef (DxuiPanel * root)
 {
     RECT  clientRectPx = {};
 
@@ -793,13 +793,13 @@ void DxuiHostWindow::SetContentRootRef (DxuiPanel * root)
 //
 //  Thin convenience wrapper around `::SetTimer` so consumers don't
 //  have to reach for the global symbol. WM_TIMER dispatches to
-//  `IDxuiHostClient::OnTimer` (DxuiHostWindow's WndProc already
+//  `IDxuiHostClient::OnTimer` (DxuiHwndSource's WndProc already
 //  forwards the message). Returns true iff the timer was scheduled;
 //  no-ops in release when the host has no HWND.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool DxuiHostWindow::SetTimer (UINT_PTR timerId, UINT intervalMs)
+bool DxuiHwndSource::SetTimer (UINT_PTR timerId, UINT intervalMs)
 {
     HRESULT   hr     = S_OK;
     UINT_PTR  result = 0;
@@ -828,7 +828,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool DxuiHostWindow::KillTimer (UINT_PTR timerId)
+bool DxuiHwndSource::KillTimer (UINT_PTR timerId)
 {
     HRESULT  hr     = S_OK;
     BOOL     result = FALSE;
@@ -856,7 +856,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT DxuiHostWindow::CreateDeviceAndSwapChain ()
+HRESULT DxuiHwndSource::CreateDeviceAndSwapChain ()
 {
     HRESULT                hr            = S_OK;
     UINT                   createFlags   = D3D11_CREATE_DEVICE_BGRA_SUPPORT;
@@ -952,7 +952,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT DxuiHostWindow::CreateRenderResources ()
+HRESULT DxuiHwndSource::CreateRenderResources ()
 {
     HRESULT  hr  = S_OK;
 
@@ -985,7 +985,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiHostWindow::ReleaseRenderResources ()
+void DxuiHwndSource::ReleaseRenderResources ()
 {
     ReleaseBackBufferRtv();
 
@@ -1016,7 +1016,7 @@ void DxuiHostWindow::ReleaseRenderResources ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT DxuiHostWindow::CreateBackBufferRtv ()
+HRESULT DxuiHwndSource::CreateBackBufferRtv ()
 {
     HRESULT                   hr           = S_OK;
     DXGI_SWAP_CHAIN_DESC1     scd          = {};
@@ -1079,7 +1079,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiHostWindow::ReleaseBackBufferRtv ()
+void DxuiHwndSource::ReleaseBackBufferRtv ()
 {
     if (m_textRenderer != nullptr)
     {
@@ -1115,7 +1115,7 @@ void DxuiHostWindow::ReleaseBackBufferRtv ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiHostWindow::PaintPump ()
+void DxuiHwndSource::PaintPump ()
 {
     HRESULT                hr             = S_OK;
     DXGI_SWAP_CHAIN_DESC1  scd            = {};
@@ -1234,7 +1234,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiHostWindow::ApplyDwmConfiguration ()
+void DxuiHwndSource::ApplyDwmConfiguration ()
 {
     bool  wantMica = false;
 
@@ -1245,7 +1245,7 @@ void DxuiHostWindow::ApplyDwmConfiguration ()
         return;
     }
 
-    wantMica = (m_params.backdrop == DxuiHostWindowBackdrop::Mica);
+    wantMica = (m_params.backdrop == DxuiHwndSourceBackdrop::Mica);
 
     // Extend the frame first — Mica is invisible without it, and the
     // OS drop-shadow also depends on this even when backdrop is None.
@@ -1279,9 +1279,9 @@ void DxuiHostWindow::ApplyDwmConfiguration ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-LRESULT CALLBACK DxuiHostWindow::s_WndProcThunk (HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
+LRESULT CALLBACK DxuiHwndSource::s_WndProcThunk (HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
 {
-    DxuiHostWindow *  pThis = nullptr;
+    DxuiHwndSource *  pThis = nullptr;
     CREATESTRUCTW  *  pcs   = nullptr;
 
 
@@ -1289,7 +1289,7 @@ LRESULT CALLBACK DxuiHostWindow::s_WndProcThunk (HWND hwnd, UINT msg, WPARAM wp,
     if (msg == WM_NCCREATE)
     {
         pcs   = reinterpret_cast<CREATESTRUCTW *> (lp);
-        pThis = static_cast<DxuiHostWindow *> (pcs->lpCreateParams);
+        pThis = static_cast<DxuiHwndSource *> (pcs->lpCreateParams);
         SetWindowLongPtr (hwnd, GWLP_USERDATA, reinterpret_cast<LONG_PTR> (pThis));
         if (pThis != nullptr)
         {
@@ -1298,7 +1298,7 @@ LRESULT CALLBACK DxuiHostWindow::s_WndProcThunk (HWND hwnd, UINT msg, WPARAM wp,
     }
     else
     {
-        pThis = reinterpret_cast<DxuiHostWindow *> (GetWindowLongPtr (hwnd, GWLP_USERDATA));
+        pThis = reinterpret_cast<DxuiHwndSource *> (GetWindowLongPtr (hwnd, GWLP_USERDATA));
     }
 
     if (pThis == nullptr)
@@ -1324,7 +1324,7 @@ LRESULT CALLBACK DxuiHostWindow::s_WndProcThunk (HWND hwnd, UINT msg, WPARAM wp,
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-LRESULT DxuiHostWindow::WndProc (UINT msg, WPARAM wp, LPARAM lp)
+LRESULT DxuiHwndSource::WndProc (UINT msg, WPARAM wp, LPARAM lp)
 {
     DXUI_ASSERT_UI_THREAD();
 
@@ -1441,7 +1441,7 @@ LRESULT DxuiHostWindow::WndProc (UINT msg, WPARAM wp, LPARAM lp)
 
         case WM_DESTROY:
             // Bookkeeping only; the actual teardown happens in
-            // Destroy()/~DxuiHostWindow(). Notify the client so it
+            // Destroy()/~DxuiHwndSource(). Notify the client so it
             // can persist state (window placement, etc.) before
             // the HWND goes away.
             if (m_client != nullptr)
@@ -1693,7 +1693,7 @@ LRESULT DxuiHostWindow::WndProc (UINT msg, WPARAM wp, LPARAM lp)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-LRESULT DxuiHostWindow::DefaultProc (UINT msg, WPARAM wp, LPARAM lp)
+LRESULT DxuiHwndSource::DefaultProc (UINT msg, WPARAM wp, LPARAM lp)
 {
     if (m_defaultProcForTest)
     {
@@ -1713,7 +1713,7 @@ LRESULT DxuiHostWindow::DefaultProc (UINT msg, WPARAM wp, LPARAM lp)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-BOOL DxuiHostWindow::TrackMouseEventHost (TRACKMOUSEEVENT * pEvent)
+BOOL DxuiHwndSource::TrackMouseEventHost (TRACKMOUSEEVENT * pEvent)
 {
     if (m_trackMouseEventForTest)
     {
@@ -1733,7 +1733,7 @@ BOOL DxuiHostWindow::TrackMouseEventHost (TRACKMOUSEEVENT * pEvent)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiHostWindow::TrackClientMouseLeave()
+void DxuiHwndSource::TrackClientMouseLeave()
 {
     TRACKMOUSEEVENT  tme = { sizeof (tme) };
 
@@ -1768,7 +1768,7 @@ void DxuiHostWindow::TrackClientMouseLeave()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-LRESULT DxuiHostWindow::HandleNcCalcSize (WPARAM wp, LPARAM lp)
+LRESULT DxuiHwndSource::HandleNcCalcSize (WPARAM wp, LPARAM lp)
 {
     NCCALCSIZE_PARAMS *  pParams      = nullptr;
     LRESULT              defResult    = 0;
@@ -1817,7 +1817,7 @@ LRESULT DxuiHostWindow::HandleNcCalcSize (WPARAM wp, LPARAM lp)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-LRESULT DxuiHostWindow::HandleNcHitTest (LPARAM lp)
+LRESULT DxuiHwndSource::HandleNcHitTest (LPARAM lp)
 {
     POINT            ptScreen     = {};
     POINT            ptClient     = {};
@@ -1884,7 +1884,7 @@ LRESULT DxuiHostWindow::HandleNcHitTest (LPARAM lp)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-LRESULT DxuiHostWindow::HandleNcMouse (UINT msg, WPARAM wp, LPARAM lp)
+LRESULT DxuiHwndSource::HandleNcMouse (UINT msg, WPARAM wp, LPARAM lp)
 {
     POINT                ptScreen = {};
     POINT                ptClient = {};
@@ -2007,7 +2007,7 @@ LRESULT DxuiHostWindow::HandleNcMouse (UINT msg, WPARAM wp, LPARAM lp)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiHostWindow::DispatchNcUpToTrackedButton (LPARAM lp)
+void DxuiHwndSource::DispatchNcUpToTrackedButton (LPARAM lp)
 {
     POINT           ptScreen = {};
     POINT           ptClient = {};
@@ -2054,7 +2054,7 @@ void DxuiHostWindow::DispatchNcUpToTrackedButton (LPARAM lp)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiHostWindow::HandleDpiChanged (WPARAM wp, LPARAM lp)
+void DxuiHwndSource::HandleDpiChanged (WPARAM wp, LPARAM lp)
 {
     UINT          newDpi      = HIWORD (wp);
     const RECT *  suggested   = reinterpret_cast<const RECT *> (lp);
@@ -2095,7 +2095,7 @@ void DxuiHostWindow::HandleDpiChanged (WPARAM wp, LPARAM lp)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiHostWindow::HandleSize (WPARAM wp, LPARAM lp)
+void DxuiHwndSource::HandleSize (WPARAM wp, LPARAM lp)
 {
     HRESULT  hr        = S_OK;
     RECT     rcClient  = {};
@@ -2145,7 +2145,7 @@ void DxuiHostWindow::HandleSize (WPARAM wp, LPARAM lp)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiHostWindow::HandleThemeChange ()
+void DxuiHwndSource::HandleThemeChange ()
 {
     ApplyDwmConfiguration();
 
@@ -2174,7 +2174,7 @@ void DxuiHostWindow::HandleThemeChange ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiHostWindow::MaybeRelayoutRoot (const RECT & clientPx)
+void DxuiHwndSource::MaybeRelayoutRoot (const RECT & clientPx)
 {
     RECT  boundsDip = clientPx;
 
@@ -2223,7 +2223,7 @@ void DxuiHostWindow::MaybeRelayoutRoot (const RECT & clientPx)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiHostWindow::BuildCaption ()
+void DxuiHwndSource::BuildCaption ()
 {
     RECT  clientPx  = {};
     RECT  clientDip = {};
@@ -2263,7 +2263,7 @@ void DxuiHostWindow::BuildCaption ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiHostWindow::LayoutCaption (const RECT & clientDip)
+void DxuiHwndSource::LayoutCaption (const RECT & clientDip)
 {
     RECT  rc = {};
 
@@ -2298,7 +2298,7 @@ void DxuiHostWindow::LayoutCaption (const RECT & clientDip)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiHostWindow::SetTitle (const std::wstring & title)
+void DxuiHwndSource::SetTitle (const std::wstring & title)
 {
     DXUI_ASSERT_UI_THREAD();
 
@@ -2328,7 +2328,7 @@ void DxuiHostWindow::SetTitle (const std::wstring & title)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiHostWindow::SetCaptionIcon (std::vector<uint32_t> bgraPremul, int widthPx, int heightPx)
+void DxuiHwndSource::SetCaptionIcon (std::vector<uint32_t> bgraPremul, int widthPx, int heightPx)
 {
     DXUI_ASSERT_UI_THREAD();
 
@@ -2352,7 +2352,7 @@ void DxuiHostWindow::SetCaptionIcon (std::vector<uint32_t> bgraPremul, int width
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-int DxuiHostWindow::CaptionHeightPx () const
+int DxuiHwndSource::CaptionHeightPx () const
 {
     if (!m_caption)
     {
@@ -2375,7 +2375,7 @@ int DxuiHostWindow::CaptionHeightPx () const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiHostWindow::RenderCaption (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
+void DxuiHwndSource::RenderCaption (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
 {
     DXUI_ASSERT_UI_THREAD();
 
@@ -2398,7 +2398,7 @@ void DxuiHostWindow::RenderCaption (IDxuiPainter & painter, IDxuiTextRenderer & 
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiHostWindow::LayoutCaptionForClient (const RECT & clientPx)
+void DxuiHwndSource::LayoutCaptionForClient (const RECT & clientPx)
 {
     RECT  clientDip = clientPx;
 
@@ -2432,7 +2432,7 @@ void DxuiHostWindow::LayoutCaptionForClient (const RECT & clientPx)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool DxuiHostWindow::RouteCaptionNcMouse (UINT msg, WPARAM wp, LPARAM lp)
+bool DxuiHwndSource::RouteCaptionNcMouse (UINT msg, WPARAM wp, LPARAM lp)
 {
     POINT           ptScreen = {};
     POINT           ptClient = {};
@@ -2533,7 +2533,7 @@ bool DxuiHostWindow::RouteCaptionNcMouse (UINT msg, WPARAM wp, LPARAM lp)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-DxuiHitTestKind DxuiHostWindow::ClassifyHitForTest (POINT clientDip) const
+DxuiHitTestKind DxuiHwndSource::ClassifyHitForTest (POINT clientDip) const
 {
     RECT  rcClient  = {};
 
@@ -2568,7 +2568,7 @@ DxuiHitTestKind DxuiHostWindow::ClassifyHitForTest (POINT clientDip) const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-IDxuiControl * DxuiHostWindow::FindNcSystemControlAt (POINT clientDip) const
+IDxuiControl * DxuiHwndSource::FindNcSystemControlAt (POINT clientDip) const
 {
     size_t           n       = 0;
     size_t           i       = 0;
@@ -2643,7 +2643,7 @@ IDxuiControl * DxuiHostWindow::FindNcSystemControlAt (POINT clientDip) const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiHostWindow::NotifySystemButtonsMaximized (bool maximized)
+void DxuiHwndSource::NotifySystemButtonsMaximized (bool maximized)
 {
     NotifySystemButtonsMaximizedInTree (RootPanel(), maximized);
     if (m_caption)
@@ -2664,7 +2664,7 @@ void DxuiHostWindow::NotifySystemButtonsMaximized (bool maximized)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-DxuiHitTestKind DxuiHostWindow::ClassifyHitInternal (POINT clientDip, RECT clientBoundsDip) const
+DxuiHitTestKind DxuiHwndSource::ClassifyHitInternal (POINT clientDip, RECT clientBoundsDip) const
 {
     DxuiHitTestKind  edge       = DxuiHitTestKind::None;
     int              borderPx   = 0;
@@ -2755,7 +2755,7 @@ DxuiHitTestKind DxuiHostWindow::ClassifyHitInternal (POINT clientDip, RECT clien
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-DxuiHitTestKind DxuiHostWindow::ClassifyResizeEdge (POINT clientDip,
+DxuiHitTestKind DxuiHwndSource::ClassifyResizeEdge (POINT clientDip,
                                                     RECT  clientBoundsDip,
                                                     int   resizeBorderPx)
 {
@@ -2792,7 +2792,7 @@ DxuiHitTestKind DxuiHostWindow::ClassifyResizeEdge (POINT clientDip,
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-LRESULT DxuiHostWindow::KindToHt (DxuiHitTestKind kind)
+LRESULT DxuiHwndSource::KindToHt (DxuiHitTestKind kind)
 {
     switch (kind)
     {
@@ -2838,7 +2838,7 @@ LRESULT DxuiHostWindow::KindToHt (DxuiHitTestKind kind)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-DxuiPopupHost * DxuiHostWindow::AcquirePopup ()
+DxuiPopupHost * DxuiHwndSource::AcquirePopup ()
 {
     DxuiPopupHost  *  popup  = nullptr;
 
@@ -2907,7 +2907,7 @@ DxuiPopupHost * DxuiHostWindow::AcquirePopup ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiHostWindow::ReleasePopup (DxuiPopupHost * popup)
+void DxuiHwndSource::ReleasePopup (DxuiPopupHost * popup)
 {
     DXUI_ASSERT_UI_THREAD();
 
@@ -2944,7 +2944,7 @@ void DxuiHostWindow::ReleasePopup (DxuiPopupHost * popup)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiHostWindow::SetPopupRenderDevice (ID3D11Device         * device,
+void DxuiHwndSource::SetPopupRenderDevice (ID3D11Device         * device,
                                            ID3D11DeviceContext  * context)
 {
     DXUI_ASSERT_UI_THREAD();
@@ -2968,7 +2968,7 @@ void DxuiHostWindow::SetPopupRenderDevice (ID3D11Device         * device,
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiHostWindow::InitializePooledPopup (DxuiPopupHost * popup)
+void DxuiHwndSource::InitializePooledPopup (DxuiPopupHost * popup)
 {
     ID3D11Device         *  device   = m_device  ? m_device.Get()  : m_popupDevice.Get();
     ID3D11DeviceContext  *  context  = m_context ? m_context.Get() : m_popupContext.Get();

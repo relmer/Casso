@@ -26,7 +26,7 @@ class DxuiButton;
 //      [ button row (DxuiPanel of DxuiButton, right-aligned) ]  (Bottom)
 //
 //  The dialog itself owns no Win32 surface. `DxuiDialogManager` is
-//  responsible for hosting it in a `DxuiHostWindow`, painting the
+//  responsible for hosting it in a `DxuiHwndSource`, painting the
 //  optional modal scrim, and resolving the dialog's return code on
 //  close.
 //
@@ -83,7 +83,7 @@ public:
     //
     //  When false (pre-Build), the dialog does NOT build its own caption
     //  bar -- the hosting window supplies the standard caption (title +
-    //  close) via DxuiHostWindow::captionStyle, and the dialog is just a
+    //  close) via DxuiHwndSource::captionStyle, and the dialog is just a
     //  content + button-row panel. Default true keeps the dialog a self-
     //  contained three-region control for unhosted / standalone use.
     //

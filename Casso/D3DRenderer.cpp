@@ -524,7 +524,7 @@ Error:
 //
 //  Adopt-mode: skip device + swap-chain creation and reuse the
 //  externally-owned device, context, and swap chain (typically
-//  DxuiHostWindow's). Still creates this renderer's own back-buffer
+//  DxuiHwndSource's). Still creates this renderer's own back-buffer
 //  RTV, dynamic upload texture, sampler, shaders, vertex / index
 //  buffers, and CRT post-process chain. Callers in this mode invoke
 //  UploadAndComposite once per frame; the host owns Present.

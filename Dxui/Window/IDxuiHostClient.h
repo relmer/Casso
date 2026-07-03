@@ -40,7 +40,7 @@ enum class DxuiMessageResult
 //  IDxuiHostClient
 //
 //  Optional client interface installed on a full-ownership
-//  DxuiHostWindow via DxuiHostWindow::SetClient. Lets a consumer
+//  DxuiHwndSource via DxuiHwndSource::SetClient. Lets a consumer
 //  receive the Win32 messages that the host does not own end-to-end
 //  (commands, keyboard input, painting, timers, ...) without
 //  inheriting from the host or from the legacy ``Window`` base
@@ -81,7 +81,7 @@ public:
 
     // WM_NCHITTEST. Return an HT* code (HTCLIENT, HTCAPTION,
     // HTMAXBUTTON, HTLEFT, HTTOPLEFT, ...) to claim the hit-test
-    // result. DxuiHostWindow handles NC hit-testing for borderless
+    // result. DxuiHwndSource handles NC hit-testing for borderless
     // windows internally (resize edges + panel-tree walk + the
     // optional hit-test delegate set via SetHitTestDelegate);
     // this hook only fires as a fallback when the host's own
@@ -124,7 +124,7 @@ public:
     // from TranslateMessage in the consumer's message pump);
     // lParam carries the key-repeat / scan-code bits. Return
     // ``Handled`` if your override fully processed the character;
-    // ``NotHandled`` to let DxuiHostWindow call DefWindowProc.
+    // ``NotHandled`` to let DxuiHwndSource call DefWindowProc.
     // Default returns NotHandled.
     virtual DxuiMessageResult  OnChar           (WPARAM ch, LPARAM lParam)
     {
@@ -138,7 +138,7 @@ public:
     // menu and accelerator commands where the notification code
     // and source HWND do not matter. Return ``Handled`` if your
     // override fully processed the command; ``NotHandled`` to
-    // let DxuiHostWindow call DefWindowProc. Default returns
+    // let DxuiHwndSource call DefWindowProc. Default returns
     // NotHandled.
     virtual DxuiMessageResult  OnCommand        (WORD commandId)
     {
@@ -153,7 +153,7 @@ public:
     // form. Override OnCommandEx when the notify code or control
     // HWND matters (e.g. button click vs. dropdown change).
     // Return ``Handled`` if your override fully processed the
-    // command; ``NotHandled`` to let DxuiHostWindow call
+    // command; ``NotHandled`` to let DxuiHwndSource call
     // DefWindowProc.
     virtual DxuiMessageResult  OnCommandEx      (WORD commandId, WORD notifyCode, HWND hCtl)
     {
@@ -166,7 +166,7 @@ public:
     // lParam carries repeat count / scan code / context bits per
     // the Win32 keystroke message contract. Return ``Handled`` if
     // your override fully processed the key; ``NotHandled`` to
-    // let DxuiHostWindow call DefWindowProc (which, for SYSKEY*,
+    // let DxuiHwndSource call DefWindowProc (which, for SYSKEY*,
     // does the menu-mnemonic / Alt-key bookkeeping). Default
     // returns NotHandled.
     virtual DxuiMessageResult  OnKeyDown        (WPARAM vk, LPARAM lParam)
@@ -179,7 +179,7 @@ public:
     // WM_KEYUP / WM_SYSKEYUP. wParam = virtual key code (VK_*);
     // lParam carries scan code / context bits. Return ``Handled``
     // if your override fully processed the key release;
-    // ``NotHandled`` to let DxuiHostWindow call DefWindowProc.
+    // ``NotHandled`` to let DxuiHwndSource call DefWindowProc.
     // Default returns NotHandled.
     virtual DxuiMessageResult  OnKeyUp          (WPARAM vk, LPARAM lParam)
     {
@@ -204,7 +204,7 @@ public:
     // (MK_LBUTTON, MK_SHIFT, ...); lParam packs the (x, y)
     // client-coordinate point (use GET_X_LPARAM / GET_Y_LPARAM
     // to extract). Return ``Handled`` if your override fully
-    // processed the move; ``NotHandled`` to let DxuiHostWindow
+    // processed the move; ``NotHandled`` to let DxuiHwndSource
     // call DefWindowProc. Default returns NotHandled.
     virtual DxuiMessageResult  OnMouseMove      (WPARAM wParam, LPARAM lParam)
     {
@@ -216,7 +216,7 @@ public:
     // WM_MOUSELEAVE. Fires once after TrackMouseEvent (TME_LEAVE)
     // when the cursor exits the client area. Return ``Handled``
     // if your override fully processed the leave; ``NotHandled``
-    // to let DxuiHostWindow call DefWindowProc. Default returns
+    // to let DxuiHwndSource call DefWindowProc. Default returns
     // NotHandled.
     virtual DxuiMessageResult  OnMouseLeave     ()
     {
@@ -227,7 +227,7 @@ public:
     // (horizontal == true). wParam packs the signed wheel delta in its
     // high word plus modifier flags; lParam packs the (x, y) point in
     // SCREEN coordinates. Return ``Handled`` if your override consumed
-    // the notch; ``NotHandled`` to let DxuiHostWindow call DefWindowProc.
+    // the notch; ``NotHandled`` to let DxuiHwndSource call DefWindowProc.
     virtual DxuiMessageResult  OnMouseWheel     (WPARAM wParam, LPARAM lParam, bool horizontal)
     {
         UNREFERENCED_PARAMETER (wParam);
@@ -239,7 +239,7 @@ public:
     // WM_LBUTTONDOWN. wParam = mouse-button / modifier flags;
     // lParam packs the (x, y) client-coordinate point. Return
     // ``Handled`` if your override fully processed the press;
-    // ``NotHandled`` to let DxuiHostWindow call DefWindowProc.
+    // ``NotHandled`` to let DxuiHwndSource call DefWindowProc.
     // Default returns NotHandled.
     virtual DxuiMessageResult  OnLButtonDown    (WPARAM wParam, LPARAM lParam)
     {
@@ -251,7 +251,7 @@ public:
     // WM_LBUTTONUP. wParam = mouse-button / modifier flags;
     // lParam packs the (x, y) client-coordinate point. Return
     // ``Handled`` if your override fully processed the release;
-    // ``NotHandled`` to let DxuiHostWindow call DefWindowProc.
+    // ``NotHandled`` to let DxuiHwndSource call DefWindowProc.
     // Default returns NotHandled.
     virtual DxuiMessageResult  OnLButtonUp      (WPARAM wParam, LPARAM lParam)
     {
@@ -263,7 +263,7 @@ public:
     // WM_RBUTTONDOWN / WM_RBUTTONUP. wParam = mouse-button / modifier
     // flags; lParam packs the (x, y) client-coordinate point. Used by
     // paddle-input mode for the secondary fire button. Default returns
-    // NotHandled (DxuiHostWindow calls DefWindowProc).
+    // NotHandled (DxuiHwndSource calls DefWindowProc).
     virtual DxuiMessageResult  OnRButtonDown    (WPARAM wParam, LPARAM lParam)
     {
         UNREFERENCED_PARAMETER (wParam);
@@ -282,7 +282,7 @@ public:
     // WM_CANCELMODE. Surfaced so a consumer can release a live mouse
     // capture (e.g. paddle-input mode) when the app loses the
     // foreground / focus, or the OS cancels capture (secure desktop,
-    // lock). Default returns NotHandled (DxuiHostWindow calls
+    // lock). Default returns NotHandled (DxuiHwndSource calls
     // DefWindowProc).
     virtual DxuiMessageResult  OnActivateApp    (bool active)
     {
@@ -305,7 +305,7 @@ public:
     // window size -- e.g. so a borderless window's custom chrome and
     // bottom strip can never be shrunk up into the title / menu area.
     // Set info->ptMinTrackSize and return ``Handled``. Default returns
-    // NotHandled (DxuiHostWindow calls DefWindowProc).
+    // NotHandled (DxuiHwndSource calls DefWindowProc).
     virtual DxuiMessageResult  OnGetMinMax      (MINMAXINFO * info)
     {
         UNREFERENCED_PARAMETER (info);
@@ -315,7 +315,7 @@ public:
     // WM_MOVE. (x, y) are the new client-area top-left in screen
     // coordinates per the WM_MOVE LPARAM packing. Return
     // ``Handled`` if your override fully processed the move;
-    // ``NotHandled`` to let DxuiHostWindow call DefWindowProc.
+    // ``NotHandled`` to let DxuiHwndSource call DefWindowProc.
     // Default returns NotHandled.
     virtual DxuiMessageResult  OnMove           (int x, int y)
     {
@@ -328,7 +328,7 @@ public:
     // response; OnSize fires AFTER that work so the client sees
     // the final widthPx / heightPx (LOWORD/HIWORD of lParam
     // unpacked). Return ``Handled`` if your override fully
-    // processed the resize; ``NotHandled`` to let DxuiHostWindow
+    // processed the resize; ``NotHandled`` to let DxuiHwndSource
     // call DefWindowProc. Default returns NotHandled.
     virtual DxuiMessageResult  OnSize           (UINT widthPx, UINT heightPx)
     {
@@ -340,7 +340,7 @@ public:
     // WM_TIMER. timerId is the UINT_PTR identifier the client
     // passed to SetTimer. Return ``Handled`` if your override
     // fully processed the tick; ``NotHandled`` to let
-    // DxuiHostWindow call DefWindowProc. Default returns
+    // DxuiHwndSource call DefWindowProc. Default returns
     // NotHandled.
     virtual DxuiMessageResult  OnTimer          (UINT_PTR timerId)
     {
@@ -350,7 +350,7 @@ public:
 
     // WM_NOTIFY. wParam = control id; lParam = NMHDR *. Return
     // ``Handled`` if your override fully processed the
-    // notification; ``NotHandled`` to let DxuiHostWindow call
+    // notification; ``NotHandled`` to let DxuiHwndSource call
     // DefWindowProc. Default returns NotHandled.
     virtual DxuiMessageResult  OnNotify         (WPARAM wParam, LPARAM lParam)
     {
@@ -364,7 +364,7 @@ public:
     // isWindowMenu = HIWORD(lParam) != 0 indicates whether the
     // popup is the window (system) menu. Return ``Handled`` if
     // your override fully populated / updated the popup;
-    // ``NotHandled`` to let DxuiHostWindow call DefWindowProc.
+    // ``NotHandled`` to let DxuiHwndSource call DefWindowProc.
     // Default returns NotHandled.
     virtual DxuiMessageResult  OnInitMenuPopup  (HMENU hMenu, UINT itemIndex, bool isWindowMenu)
     {
@@ -378,7 +378,7 @@ public:
     // override is responsible for the BeginPaint / EndPaint pair
     // when claiming the message). Return ``Handled`` if your
     // override fully painted; ``NotHandled`` to let
-    // DxuiHostWindow call DefWindowProc (which validates the
+    // DxuiHwndSource call DefWindowProc (which validates the
     // update region with an empty BeginPaint / EndPaint).
     // Default returns NotHandled.
     virtual DxuiMessageResult  OnPaint          ()
@@ -389,7 +389,7 @@ public:
     // WM_CLOSE. Return ``Handled`` to consume the close and
     // prevent DefWindowProc from calling DestroyWindow (e.g. for
     // "really close?" prompts that may cancel). Return
-    // ``NotHandled`` to let DxuiHostWindow call DefWindowProc,
+    // ``NotHandled`` to let DxuiHwndSource call DefWindowProc,
     // which destroys the window. Default returns NotHandled.
     virtual DxuiMessageResult  OnClose          ()
     {

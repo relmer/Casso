@@ -498,7 +498,7 @@ public:
 //  DxuiPopupHostPoolTests
 //
 //  Pool reuse + hit/miss counter verification. Drives AcquirePopup
-//  on a synthetic DxuiHostWindow (no D3D device, no HWND) so popups
+//  on a synthetic DxuiHwndSource (no D3D device, no HWND) so popups
 //  are seeded via InitializeForTest. Asserts T082's "PopupHits >= 4"
 //  guarantee after multi-popup churn.
 //
@@ -508,12 +508,12 @@ public:
 
 namespace
 {
-    std::unique_ptr<DxuiHostWindow>  BuildSyntheticHostForPool ()
+    std::unique_ptr<DxuiHwndSource>  BuildSyntheticHostForPool ()
     {
         RECT  bounds = MakeRect (0, 0, 1024, 768);
 
 
-        return std::make_unique<DxuiHostWindow> (bounds,
+        return std::make_unique<DxuiHwndSource> (bounds,
                                                  6.0f,
                                                  std::make_unique<DxuiPanel>());
     }
@@ -532,7 +532,7 @@ public:
 
     TEST_METHOD (FirstAcquire_SeedsPoolToInitialSize3)
     {
-        std::unique_ptr<DxuiHostWindow>  host  = BuildSyntheticHostForPool();
+        std::unique_ptr<DxuiHwndSource>  host  = BuildSyntheticHostForPool();
         DxuiPopupHost                  * popup = host->AcquirePopup();
 
         Assert::IsNotNull (popup);
@@ -545,7 +545,7 @@ public:
 
     TEST_METHOD (RepeatedAcquireRelease_ReusesPooledInstance)
     {
-        std::unique_ptr<DxuiHostWindow>  host = BuildSyntheticHostForPool();
+        std::unique_ptr<DxuiHwndSource>  host = BuildSyntheticHostForPool();
         DxuiPopupHost                  * a    = nullptr;
         DxuiPopupHost                  * b    = nullptr;
 
@@ -562,7 +562,7 @@ public:
 
     TEST_METHOD (OverAcquire_GrowsPoolOnDemandAndCountsMiss)
     {
-        std::unique_ptr<DxuiHostWindow>  host  = BuildSyntheticHostForPool();
+        std::unique_ptr<DxuiHwndSource>  host  = BuildSyntheticHostForPool();
         DxuiPopupHost                  * p[4]  = {};
 
         for (int i = 0; i < 4; ++i)
@@ -585,7 +585,7 @@ public:
     //
     TEST_METHOD (FiveOpenCloseCycles_ProduceFourOrMorePoolHits)
     {
-        std::unique_ptr<DxuiHostWindow>  host = BuildSyntheticHostForPool();
+        std::unique_ptr<DxuiHwndSource>  host = BuildSyntheticHostForPool();
 
         for (int i = 0; i < 5; ++i)
         {
