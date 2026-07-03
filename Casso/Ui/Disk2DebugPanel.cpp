@@ -1087,9 +1087,10 @@ void Disk2DebugPanel::ConfigureWidgets()
     cols.push_back ({ L"Cycle",  0, false, DxuiTextRenderer::HAlign::Right });
     cols.push_back ({ L"Drive",  0, false, DxuiTextRenderer::HAlign::Right });
     cols.push_back ({ L"Event",  0, false, DxuiTextRenderer::HAlign::Left  });
-    cols.push_back ({ L"Detail", 0, true,  DxuiTextRenderer::HAlign::Left  });
-    m_eventList->SetColumns    (std::move (cols));
-    m_eventList->SetShowHeader (true);
+    cols.push_back ({ L"Detail", 0, false, DxuiTextRenderer::HAlign::Left  });
+    m_eventList->SetColumns                 (std::move (cols));
+    m_eventList->SetShowHeader              (true);
+    m_eventList->SetHorizontalScrollEnabled (true);
 
     // The list owns keyboard column navigation: when it holds focus, its
     // own OnKey cycles the header / divider / body sub-stops on Tab and
