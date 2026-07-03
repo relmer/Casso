@@ -200,6 +200,10 @@ void DxuiTooltip::ShowPopup ()
         return;
     }
 
+    // The tooltip's DPI follows its host window, folding what used to be
+    // an explicit SetDpi push from the consumer into the show path.
+    m_scaler.SetDpi (m_popupHost->Scaler().Dpi());
+
     owner         = m_popupHost->Hwnd();
     m_activePopup = m_popupHost->AcquirePopup();
     if (m_activePopup == nullptr)

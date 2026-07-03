@@ -992,8 +992,8 @@ void InputDebugPanel::LayoutWidgets()
     m_eventList->Layout     (m_layout.listView, m_scaler);
     m_eventList->SetColumns (PlanVisibleColumns (m_columnsModel));
 
-    m_columnMenu.SetDpi       (m_dpi);
-    m_tooltip.SetDpi          (m_dpi);
+    // The column menu + tooltip are deferred popups that derive their DPI
+    // from their popup host at show time, so no explicit SetDpi here.
     m_tooltip.SetViewportSize (m_widthPx, m_heightPx);
 }
 

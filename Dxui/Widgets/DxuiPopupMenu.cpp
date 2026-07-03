@@ -41,12 +41,12 @@ void DxuiPopupMenu::Show (
     const RECT          & hostClient)
 {
     HRESULT  hr        = S_OK;
-    float    fontDip   = (float) m_scaler.Pxf (s_kFontDip);
-    int      itemH     = m_scaler.Px (s_kItemHeightDip);
-    int      padL      = m_scaler.Px (s_kItemPadLeftDip);
-    int      padR      = m_scaler.Px (s_kItemPadRightDip);
-    int      border    = m_scaler.Px (s_kBorderDip);
-    int      minW      = m_scaler.Px (s_kMinWidthDip);
+    float    fontDip   = 0.0f;
+    int      itemH     = 0;
+    int      padL      = 0;
+    int      padR      = 0;
+    int      border    = 0;
+    int      minW      = 0;
     int      widestPx  = 0;
     int      width     = 0;
     int      height    = 0;
@@ -58,6 +58,20 @@ void DxuiPopupMenu::Show (
     m_hover   = -1;
     m_pressed = -1;
     m_visible = true;
+
+    // Popup DPI follows its host window, folding what used to be an
+    // explicit SetDpi push from the consumer into the show path.
+    if (m_popupHost != nullptr)
+    {
+        m_scaler.SetDpi (m_popupHost->Scaler().Dpi());
+    }
+
+    fontDip = (float) m_scaler.Pxf (s_kFontDip);
+    itemH   = m_scaler.Px (s_kItemHeightDip);
+    padL    = m_scaler.Px (s_kItemPadLeftDip);
+    padR    = m_scaler.Px (s_kItemPadRightDip);
+    border  = m_scaler.Px (s_kBorderDip);
+    minW    = m_scaler.Px (s_kMinWidthDip);
 
     for (const auto & it : m_items)
     {

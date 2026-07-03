@@ -963,18 +963,27 @@ void Disk2DebugPanel::LayoutWidgets()
 
     // DxuiRadioGroup positions its buttons from rects carried in its
     // option records, so the layout pass rebuilds them. The option
-    // labels are static; only the rects change per resize.
+    // labels are static; only the rects change per resize. Laying the
+    // group out (bounds = union of the option rects) folds in the DPI via
+    // the scaler -- no separate SetDpi needed.
     std::vector<DxuiRadioOption>  driveOpts;
+    RECT                          driveGroupBounds = m_layout.driveRadios[0];
+
     for (int i = 0; i < kDriveRadioCount; i++)
     {
         DxuiRadioOption  opt;
         opt.rect  = m_layout.driveRadios[i];
         opt.label = s_kpszDriveOptionLabels[i];
         driveOpts.push_back (std::move (opt));
+
+        driveGroupBounds.left   = std::min (driveGroupBounds.left,   m_layout.driveRadios[i].left);
+        driveGroupBounds.top    = std::min (driveGroupBounds.top,    m_layout.driveRadios[i].top);
+        driveGroupBounds.right  = std::max (driveGroupBounds.right,  m_layout.driveRadios[i].right);
+        driveGroupBounds.bottom = std::max (driveGroupBounds.bottom, m_layout.driveRadios[i].bottom);
     }
 
     m_driveRadio->SetOptions  (std::move (driveOpts));
-    m_driveRadio->SetDpi      (m_dpi);
+    m_driveRadio->Layout      (driveGroupBounds, m_scaler);
     m_driveRadio->SetSelected (m_filter.driveFilter);
 
     m_trackEdit->Layout  (m_layout.trackEdit,  m_scaler);
@@ -985,8 +994,9 @@ void Disk2DebugPanel::LayoutWidgets()
 
     m_eventList->Layout (m_layout.listView, m_scaler);
 
-    m_columnMenu.SetDpi       (m_dpi);
-    m_tooltip.SetDpi          (m_dpi);
+    // The column menu + tooltip are deferred popups that derive their DPI
+    // from their popup host at show time (see DxuiPopupMenu/DxuiTooltip),
+    // so no explicit SetDpi here.
     m_tooltip.SetViewportSize (m_widthPx, m_heightPx);
 }
 

@@ -2177,7 +2177,8 @@ void EmulatorShell::LayoutJoystickButton (int clientW,
     scaler.SetDpi (dpi);
     m_joystickButton.SetMode (m_inputMode);
     m_joystickButton.Layout (anchor, scaler);
-    m_joystickTooltip.SetDpi (dpi);
+    // m_joystickTooltip is a deferred popup: it derives its DPI from its
+    // popup host (set via SetPopupHost) at show time, so no SetDpi here.
 }
 
 
