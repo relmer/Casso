@@ -57,6 +57,11 @@ public:
     // theme captured at panel open.
     void  ApplyThemeLive      (const std::string & name);
 
+    // FR-131: true iff a machine switch is staged that differs from the
+    // running machine (so OK would restart into a different machine).
+    bool  WillMachineChange   () const;
+    const std::string & PendingMachine () const { return m_pendingMachine; }
+
     bool  IsResetRequired     () const;
     void  CommitApply         ();
     void  Cancel              (SettingsPreviewController & preview);

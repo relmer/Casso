@@ -258,6 +258,42 @@ void SettingsApplyController::ApplyThemeLive (const std::string & name)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  WillMachineChange  (FR-131)
+//
+//  True when a machine is staged that differs from the running machine,
+//  so clicking OK (CommitApply -> DoMachineSelect) would power-cycle into
+//  a different machine. Mirrors the guard CommitApply uses before it
+//  triggers the switch.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool SettingsApplyController::WillMachineChange () const
+{
+    std::wstring  current;
+    std::string   currentNarrow;
+
+
+    if (m_pendingMachine.empty() || m_emuShell == nullptr)
+    {
+        return false;
+    }
+
+    current = m_emuShell->CurrentMachineName();
+    currentNarrow.reserve (current.size());
+    for (wchar_t c : current)
+    {
+        currentNarrow.push_back ((char) (unsigned char) c);
+    }
+
+    return m_pendingMachine != currentNarrow;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  IsResetRequired
 //
 ////////////////////////////////////////////////////////////////////////////////

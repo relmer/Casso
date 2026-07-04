@@ -923,6 +923,17 @@ void SettingsPanel::Layout (int viewportWidthPx, int viewportHeightPx, const Dxu
     m_applyButton.SetDpi  (dpi);
     m_cancelButton.SetDpi (dpi);
 
+    // FR-131: the restart notice fills the bottom-bar space to the left of
+    // the Cancel button; the text is set per-paint based on the active tab.
+    {
+        int  noticeLeft  = m_panelRect.left + pad;
+        int  noticeWidth = std::max (0, cancelX - buttonGap - noticeLeft);
+
+        m_restartNotice.SetRect (MakeRect (noticeLeft, bottomRow.top, noticeWidth, bottomBar));
+        m_restartNotice.SetDpi (dpi);
+        m_restartNotice.SetTextAlign (DxuiTextHAlign::Left, DxuiTextVAlign::Center);
+    }
+
     m_scrim.SetViewportRect (m_viewport);
 
     // Mirror the panel footprint into the IDxuiControl tree so future
@@ -993,6 +1004,40 @@ void SettingsPanel::Paint (DxuiPainter & painter, DxuiTextRenderer & text)
 
     m_applyButton.Paint  (painter, text, theme);
     m_cancelButton.Paint (painter, text, theme);
+
+    // FR-131: restart notice, left of the buttons. Shown when the active
+    // tab has a staged change that OK will power-cycle the machine to
+    // apply: a machine switch (Machine tab) or a hardware enable change
+    // (Hardware tab). Names the pending change and warns that OK restarts.
+    {
+        std::wstring  noticeText;
+        TabIndex      tab = (TabIndex) m_activeTab;
+
+        if (tab == TabIndex::Machine && m_apply.WillMachineChange())
+        {
+            std::wstring  name = m_machinePage.SelectedMachineDisplayName();
+
+            if (name.empty())
+            {
+                const std::string & id = m_apply.PendingMachine();
+                name.assign (id.begin(), id.end());
+            }
+            noticeText  = L"Machine change pending (";
+            noticeText += name;
+            noticeText += L"). Takes effect when you click OK, which restarts the machine.";
+        }
+        else if (tab == TabIndex::Hardware && m_state.RequiresReset())
+        {
+            noticeText = L"Hardware change pending. Takes effect when you click OK, which restarts the machine.";
+        }
+
+        if (!noticeText.empty())
+        {
+            m_restartNotice.SetText      (noticeText);
+            m_restartNotice.SetColorArgb (0xFFF0A030);   // amber caution
+            m_restartNotice.Paint        (painter, text);
+        }
+    }
 
     // Modal scrim (reset-required confirmation) always paints fully
     // opaque; it stops the panel from being interactable beneath it.

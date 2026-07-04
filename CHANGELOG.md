@@ -15,6 +15,11 @@ render as real top-level windows, so they paint over everything and can
 spill past the window's edges instead of being clipped to it.
 
 ### Added
+- **feat(settings): restart-required notice for machine/hardware changes.**
+  Staging a machine switch (Machine tab) or toggling hardware on the
+  Hardware tab now shows an amber notice next to the OK button — it names
+  the pending change, says it takes effect after OK, and warns that OK
+  restarts the machine. The notice clears if you revert the change.
 - **feat(settings): "Apply now" button on the Theme page.** A theme pick
   used to take effect only when you clicked OK. There is now an "Apply
   now" button beside the theme dropdown that reskins the running chrome

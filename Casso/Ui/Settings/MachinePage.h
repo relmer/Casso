@@ -90,6 +90,15 @@ public:
     int               ActiveMachineIndex     () const { return m_activeMachineIndex; }
     const DxuiDropdown  & MachineDropdown    () const { return m_machineDropdown; }
 
+    // Friendly display name of the machine the dropdown currently shows
+    // (e.g. "Apple ][") for the FR-131 restart notice. Empty if none.
+    std::wstring SelectedMachineDisplayName () const
+    {
+        int  idx = m_machineDropdown.SelectedIndex();
+        const std::vector<std::wstring> & items = m_machineDropdown.Items();
+        return (idx >= 0 && idx < (int) items.size()) ? items[(size_t) idx] : std::wstring();
+    }
+
 private:
     void  ApplyDriveAudioChildEnabled (bool enabled);
     void  ConfigureVolumeSlider       (DxuiSlider & slider, const RECT & rect);

@@ -220,6 +220,12 @@ private:
     DxuiButton              m_applyButton;
     DxuiButton              m_cancelButton;
 
+    // FR-131: inline "this change restarts the machine after OK" notice,
+    // painted in the bottom bar left of the buttons when the active tab
+    // has a staged machine (Machine tab) or hardware (Hardware tab)
+    // change pending. Not Adopt'd -- laid out + painted directly.
+    DxuiLabel               m_restartNotice;
+
     // Polymorphic page dispatch table in TabIndex order
     // [Machine, Hardware, Theme, Display]. Populated once in the ctor
     // after the page members are constructed; ActivePage() indexes it by
