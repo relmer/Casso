@@ -409,6 +409,28 @@ ThemePage::ThemePage()
 {
     Adopt (m_themeLabel);
     Adopt (m_themeDropdown);
+    Adopt (m_applyNowButton);
+
+    m_applyNowButton.SetLabel   (L"Apply now");
+    m_applyNowButton.SetOnClick ([this] { if (m_onApplyThemeNow) { m_onApplyThemeNow (); } });
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ThemePage::SelectedThemeId
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string ThemePage::SelectedThemeId () const
+{
+    if (m_activeIndex < 0 || m_activeIndex >= (int) m_themeIds.size())
+    {
+        return std::string();
+    }
+    return m_themeIds[(size_t) m_activeIndex];
 }
 
 
@@ -506,6 +528,22 @@ void ThemePage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
     m_themeLabel.SetDpi    (dpi);
     m_themeDropdown.SetDpi (dpi);
 
+    // FR-132: the form policy stretches the theme dropdown to fill the
+    // row, leaving no room for a button. Re-fix the dropdown to its
+    // intended width and dock the "Apply now" button immediately to its
+    // right, so both stay near the left of the row (visible regardless of
+    // how wide the settings window is).
+    int   applyGap   = scaler.Px (8);
+    int   applyWidth = scaler.Px (88);
+    RECT  dropB      = m_themeDropdown.Bounds();
+
+    dropB.right = dropB.left + dropWidth;
+    m_themeDropdown.SetBounds (dropB);
+
+    m_applyNowButton.Layout (MakeRect ((int) dropB.right + applyGap, (int) dropB.top,
+                                       applyWidth, (int) (dropB.bottom - dropB.top)));
+    m_applyNowButton.SetDpi (dpi);
+
     m_previewRect.left   = x;
     m_previewRect.top    = previewTop;
     m_previewRect.right  = std::max ((LONG) x, (LONG) (rect.right  - pad));
@@ -554,6 +592,7 @@ void ThemePage::Paint (IDxuiPainter & painterIf, IDxuiTextRenderer & textIf, con
 
     m_themeLabel.Paint          (painter, text);
     m_themeDropdown.PaintBase   (painter, text);
+    m_applyNowButton.Paint      (painter, text, theme);
 
     // Live preview tracks the dropdown's effective hovered/highlighted
     // item while open (so mouse hover and arrow-key nav both update

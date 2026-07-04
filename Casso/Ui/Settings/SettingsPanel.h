@@ -154,6 +154,7 @@ private:
 
     void  OnMachineSelected           (const std::string & machineName);
     void  OnThemeSelected             (const std::string & themeName);
+    void  OnApplyThemeNow             ();
     void  OnApplyClicked              ();
     void  OnCancelClicked             ();
     void  SetActiveTab                (int tab);

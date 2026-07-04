@@ -267,6 +267,7 @@ HRESULT SettingsPanel::Initialize (
     });
 
     m_themePage.SetOnThemeSelected ([this] (const std::string & themeName) { OnThemeSelected (themeName); });
+    m_themePage.SetOnApplyThemeNow ([this] { OnApplyThemeNow (); });
 
     // Live framebuffer source for the Settings → Theme preview. The
     // ThemePage paints inside chrome composition, AFTER D3DRenderer
@@ -824,6 +825,25 @@ void SettingsPanel::OnThemeSelected (const std::string & themeName)
         return;
     }
     m_apply.StagePendingTheme (themeName);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnApplyThemeNow
+//
+//  FR-132: live-apply the currently-selected theme to the real chrome
+//  without closing the panel. Cancel still reverts to the theme active
+//  at open; OK persists.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SettingsPanel::OnApplyThemeNow ()
+{
+    m_apply.ApplyThemeLive (m_themePage.SelectedThemeId());
 }
 
 

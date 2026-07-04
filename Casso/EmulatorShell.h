@@ -401,6 +401,14 @@ private:
     // No-op if the name is empty; falls back to Skeuomorphic if unknown.
     HRESULT ApplyAndPersistTheme (const std::string & themeName);
 
+    // Activates the named theme LIVE (reskins the chrome via the
+    // ThemeManager listener) WITHOUT persisting it to GlobalUserPrefs.
+    // Used by the Settings Theme page's "Apply now" affordance so the
+    // user can preview a theme on the real chrome; a subsequent Cancel
+    // re-activates the baseline theme, and OK persists via
+    // ApplyAndPersistTheme. No-op if empty; falls back to Skeuomorphic.
+    HRESULT ApplyThemeLive       (const std::string & themeName);
+
     // Pushes a freshly-activated CassoTheme into the layout-affecting
     // chrome state: drive bar thickness, per-drive compact flag, and
     // (if the bottom inset changed) a window resize that preserves the

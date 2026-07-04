@@ -6,6 +6,7 @@
 #include "../Chrome/DriveWidget.h"
 #include "../Chrome/JoystickToggleButton.h"
 #include "Core/DxuiPanel.h"
+#include "Widgets/DxuiButton.h"
 #include "Widgets/DxuiDropdown.h"
 #include "Widgets/DxuiLabel.h"
 
@@ -43,6 +44,17 @@ public:
     void  SetFramebufferSource  (FramebufferSourceFn fn) { m_framebufferSource = std::move (fn); }
     void  SetMountedPathSource  (MountedPathFn       fn) { m_mountedPathSource = std::move (fn); }
 
+    // FR-132: fired when the user clicks the "Apply now" button next to
+    // the theme dropdown. The panel host wires this to live-apply the
+    // currently-selected theme without closing the dialog.
+    using ApplyThemeNowFn = std::function<void ()>;
+    void  SetOnApplyThemeNow    (ApplyThemeNowFn     fn) { m_onApplyThemeNow   = std::move (fn); }
+
+    // The theme id the dropdown currently shows (may differ from the id
+    // active at open once the user has changed the selection). Empty if
+    // no themes are loaded.
+    std::string  SelectedThemeId () const;
+
     // Routes the owned theme dropdown's popup menu through the host's
     // popup-host pool so the menu HWND escapes the page's clipping
     // bounds. Pass nullptr to revert to the in-panel PaintMenu path.
@@ -70,9 +82,11 @@ private:
     ThemeSelectFn                 m_onThemeSelected;
     FramebufferSourceFn           m_framebufferSource;
     MountedPathFn                 m_mountedPathSource;
+    ApplyThemeNowFn               m_onApplyThemeNow;
 
     DxuiLabel                         m_themeLabel;
     DxuiDropdown                      m_themeDropdown;
+    DxuiButton                        m_applyNowButton;
     RECT                          m_previewRect = {};
     DxuiDpiScaler                     m_scaler;
 

@@ -1899,6 +1899,43 @@ Error:
 
 
 
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::ApplyThemeLive
+//
+//  Activates the named theme via ThemeManager (which fires our chrome
+//  cache listener and reskins the live chrome) but does NOT write the
+//  choice into GlobalUserPrefs -- so a Settings Cancel can revert to the
+//  baseline theme without a persisted trace. Mirrors ApplyAndPersistTheme
+//  minus the save. Unknown names fall back to Skeuomorphic.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT EmulatorShell::ApplyThemeLive (const std::string & themeName)
+{
+    HRESULT  hr         = S_OK;
+    HRESULT  hrActivate = S_OK;
+
+
+    if (themeName.empty() || m_themeManager == nullptr)
+    {
+        return S_FALSE;
+    }
+
+    hrActivate = m_themeManager->Activate (themeName);
+    if (hrActivate != S_OK)
+    {
+        hrActivate = m_themeManager->Activate ("Skeuomorphic");
+    }
+    CHR (hrActivate);
+
+Error:
+    return hr;
+}
+
+
+
+
 
 ////////////////////////////////////////////////////////////////////////////////
 //

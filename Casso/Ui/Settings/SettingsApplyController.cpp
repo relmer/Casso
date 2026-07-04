@@ -165,6 +165,12 @@ void SettingsApplyController::SnapshotBaselines ()
     {
         m_baselineColorMode = -1;
     }
+
+    // FR-132: remember the persisted active theme so a Cancel after an
+    // "Apply now" live-apply can restore it. No theme has been live-
+    // applied yet at Show time.
+    m_baselineTheme    = (m_prefs != nullptr) ? m_prefs->activeTheme : std::string();
+    m_themeAppliedLive = false;
 }
 
 
@@ -211,6 +217,39 @@ void SettingsApplyController::StagePendingMachine (const std::string & name)
 void SettingsApplyController::StagePendingTheme (const std::string & name)
 {
     m_pendingTheme = name;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ApplyThemeLive  (FR-132 -- "Apply now")
+//
+//  Reskins the real chrome to the given theme immediately without
+//  persisting, and keeps the pick staged so a subsequent OK persists it.
+//  Records that a live apply happened so Cancel restores the baseline
+//  theme captured at Show.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SettingsApplyController::ApplyThemeLive (const std::string & name)
+{
+    if (m_emuShell == nullptr || name.empty())
+    {
+        return;
+    }
+
+    HRESULT  hr = m_emuShell->ApplyThemeLive (name);
+
+    IGNORE_RETURN_VALUE (hr, S_OK);
+    if (m_window != nullptr)
+    {
+        m_window->SetTheme (&m_emuShell->m_chromeTheme);
+    }
+    m_pendingTheme     = name;   // OK still persists the chosen theme
+    m_themeAppliedLive = true;
 }
 
 
@@ -354,6 +393,12 @@ void SettingsApplyController::CommitApply ()
         m_pendingTheme.clear();
     }
 
+    // FR-132: the committed theme becomes the new baseline so a later
+    // Cancel (after another "Apply now") reverts to THIS state, and the
+    // live-apply flag is cleared now that the pick is persisted.
+    m_baselineTheme    = (m_prefs != nullptr) ? m_prefs->activeTheme : m_baselineTheme;
+    m_themeAppliedLive = false;
+
     currentMachine = m_emuShell->CurrentMachineName();
     currentMachineNarrow.reserve (currentMachine.size());
     for (wchar_t c : currentMachine)
@@ -413,6 +458,21 @@ void SettingsApplyController::Cancel (SettingsPreviewController & preview)
     {
         m_emuShell->SetColorModeLive (m_baselineColorMode);
     }
+
+    // FR-132: undo an "Apply now" live theme apply by re-activating the
+    // theme that was active at panel open. No persist happened, so this
+    // just reskins the chrome back.
+    if (m_themeAppliedLive && m_emuShell != nullptr)
+    {
+        HRESULT  hrTheme = m_emuShell->ApplyThemeLive (m_baselineTheme);
+
+        IGNORE_RETURN_VALUE (hrTheme, S_OK);
+        if (m_window != nullptr)
+        {
+            m_window->SetTheme (&m_emuShell->m_chromeTheme);
+        }
+    }
+    m_themeAppliedLive = false;
 
     preview.Reset();
 

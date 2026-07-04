@@ -15,6 +15,12 @@ render as real top-level windows, so they paint over everything and can
 spill past the window's edges instead of being clipped to it.
 
 ### Added
+- **feat(settings): "Apply now" button on the Theme page.** A theme pick
+  used to take effect only when you clicked OK. There is now an "Apply
+  now" button beside the theme dropdown that reskins the running chrome
+  immediately without closing Settings, so you can try a theme live.
+  Clicking Cancel afterward reverts to the theme you started with; OK
+  keeps it.
 - **feat(ui): searchable, sortable disk picker with a last-loaded date
   column.** The boot and Insert-Disk pickers gain a search box — type to
   filter recent disks (case-insensitive substring across name, location,

@@ -51,6 +51,12 @@ public:
     void  StagePendingMachine (const std::string & name);
     void  StagePendingTheme   (const std::string & name);
 
+    // FR-132: apply the given theme LIVE to the real chrome now, without
+    // closing the panel and without persisting. Keeps the pick staged so
+    // OK still persists it; a follow-up Cancel re-activates the baseline
+    // theme captured at panel open.
+    void  ApplyThemeLive      (const std::string & name);
+
     bool  IsResetRequired     () const;
     void  CommitApply         ();
     void  Cancel              (SettingsPreviewController & preview);
@@ -69,6 +75,12 @@ private:
     // clears these without touching the running machine / theme.
     std::string  m_pendingMachine;
     std::string  m_pendingTheme;
+
+    // FR-132: theme baseline captured at Show (the persisted active
+    // theme id) plus a flag tracking whether "Apply now" live-applied a
+    // theme, so Cancel knows to re-activate the baseline.
+    std::string  m_baselineTheme;
+    bool         m_themeAppliedLive = false;
 
     // Baseline captures the value at Show time so Cancel can revert.
     // The per-monitor schema means we keep a snapshot of ALL 4 mode
