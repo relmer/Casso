@@ -2473,6 +2473,12 @@ void EmulatorShell::SetColorMonitorTextArgbLive (uint32_t argb)
 
 
 
+// Posted (not sent) to the shell HWND to marshal a window-title refresh
+// onto the UI thread when UpdateWindowTitle is called from the CPU thread
+// (SwitchMachine). Drained by RunMessageLoop before DispatchMessage.
+static constexpr UINT  kWmAppUpdateTitle = WM_APP + 0x21;
+
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  RunMessageLoop
@@ -2509,6 +2515,14 @@ int EmulatorShell::RunMessageLoop()
             {
                 m_cpuManager.Stop();
                 return static_cast<int> (msg.wParam);
+            }
+
+            // Title refresh marshaled from a non-UI thread (SwitchMachine
+            // runs on the CPU thread; DxuiHwndSource::SetTitle is UI-only).
+            if (msg.message == kWmAppUpdateTitle)
+            {
+                UpdateWindowTitle();
+                continue;
             }
 
             if (m_accelTable == nullptr ||
@@ -4838,6 +4852,15 @@ void EmulatorShell::UpdateWindowTitle()
 
     if (m_hwnd == nullptr)
     {
+        return;
+    }
+
+    // SwitchMachine calls this on the CPU thread; DxuiHwndSource::SetTitle
+    // mutates the caption bar and asserts the UI thread. Bounce off-thread
+    // callers through the message loop (kWmAppUpdateTitle handler above).
+    if (GetWindowThreadProcessId (m_hwnd, nullptr) != GetCurrentThreadId())
+    {
+        PostMessageW (m_hwnd, kWmAppUpdateTitle, 0, 0);
         return;
     }
 

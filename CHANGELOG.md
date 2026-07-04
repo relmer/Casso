@@ -104,6 +104,12 @@ spill past the window's edges instead of being clipped to it.
   already give.
 
 ### Fixed
+- **fix(shell): machine switch no longer trips the UI-thread guard.**
+  `SwitchMachine` runs on the CPU thread and refreshed the window title
+  there, but `DxuiHwndSource::SetTitle` mutates the caption bar and is
+  UI-thread-only — so a machine switch / hardware-reset reboot asserted in
+  debug (and raced the caption in release). `UpdateWindowTitle` now
+  marshals the refresh onto the UI message loop when called off-thread.
 - **fix(input): show host joystick and paddle movement in the Input Debug
   panel.** Arrow-key / X / Z joystick updates and trackpad paddle movement
   now log immediately, even before the guest program reads the game port.
