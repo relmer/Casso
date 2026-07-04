@@ -393,12 +393,6 @@ the pre-merge gate.
 - **ALL** terminal windows use PowerShell, not CMD
 - **ALWAYS** format commands for PowerShell syntax
 
-<!-- SPECKIT START -->
-For additional context about technologies to be used, project structure,
-shell commands, and other important information, read the current plan
-at specs/013-dxui-framework-extraction/plan.md
-<!-- SPECKIT END -->
-
 ## Security Rules
 
 - **NEVER** download or execute external binaries — no `.exe`, `.dll`, `.com`, or other executables from any source
