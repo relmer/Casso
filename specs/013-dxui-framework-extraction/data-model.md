@@ -27,7 +27,9 @@ DxuiHwndSource                                  (owns the OS window)
 ├── DxuiPanel * m_contentRootRef                (non-owning; the DxuiWindow itself)
 ├── DxuiFocusManager m_focusManager             (attached to the active root)
 ├── IDxuiHostClient * m_client                  (non-owning; the DxuiWindow itself)
-└── vector<unique_ptr<DxuiPopupHost>> m_popupPool   (pool of 3, grow on demand)
+├── vector<unique_ptr<DxuiPopupHost>> m_popupPool   (pool of 3, grow on demand)
+├── bool m_composited                             (FR-130: composited-transparent per-pixel-alpha surface)
+└── function<void(ID3D11RenderTargetView*,int,int)> m_afterPaintHook  (FR-130: consumer composites after tree paint, before Present)
 
 DxuiPanel (and every IDxuiControl)              (tree node)
 ├── IDxuiControl * m_parent                     (raw back-pointer; non-owning)
@@ -123,6 +125,33 @@ Focused ──blur trigger──▶ Unfocused (OnFocusChanged(false))
 ```
 
 Focus *scopes* layer on top: opening a popup pushes the current focused control + scope root; closing pops and restores. Nested popups nest scopes.
+
+## Dialog model (reshaped 2026-07 — FR-126 / FR-129)
+
+> `DxuiDialog` / `DxuiDialogManager` and the modal-dialog **stack** sketched above are **removed**.
+> Nesting / owner-chain behaviour now lives inside the `DxuiWindow` modal message loop.
+
+```text
+DxuiWindow (as a dialog)                         (a dialog IS a window)
+├── ShowModalDialog(defaultId) -> int            (pumps its own loop until EndDialog(id))
+├── ShowModelessDialog(defaultId)                (non-blocking; live-preview dialogs)
+└── EndDialog(id)
+
+DxuiDialogWindow : DxuiWindow                     (shared content + button-row shape)
+
+DxuiPropertySheet : DxuiDialogWindow              (FR-129 — generic paged sheet)
+├── tab strip over pages + [OK][Cancel][Apply] row
+├── AddPage(DxuiPropertyPage*, tabLabel)
+├── ApplyAllDirtyPages()                          (OK/Apply; false if an OnApply blocked)
+└── RefreshApplyEnabled()                         (Apply enabled iff >= 1 page dirty)
+
+DxuiPropertyPage : DxuiPanel
+├── bool m_dirty                                  (MarkDirty(bool) fires on-dirty-changed)
+├── OnApply() -> bool                             (false blocks OK/Apply, re-selects this page)
+└── (page snapshots its own baseline for Cancel — no built-in undo)
+```
+
+*Casso `SettingsPanel` has NOT adopted `DxuiPropertySheet` (still a hand-rolled `[OK][Cancel]` sheet, no Apply). FR-131 adds a staged machine/ROM restart notice on the Machine + ROM/Hardware pages; FR-132 adds a Theme "Apply now" button.*
 
 ## Cross-references to contracts
 

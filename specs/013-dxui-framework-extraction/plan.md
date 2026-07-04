@@ -218,7 +218,7 @@ Dxui now models its top-level surface directly on WPF:
 | `Window : ContentControl` | **`DxuiWindow : DxuiPanel`** | Top-level element that IS its own content root **and** owns one OS window. |
 | `HwndSource` | **`DxuiHwndSource`** (was `DxuiHostWindow`) | The HWND + swap-chain + caption + message-pump backend. |
 | `DynamicResource` / semantic brushes | **`DxuiTextRole` + `IDxuiTheme::TextColor(role)`** | Widgets hold a *role*, not a resolved colour; the theme resolves at paint. |
-| `Window.ShowDialog()` (planned) | **`DxuiWindow::ShowDialog()`** (PENDING) | A dialog is just a `DxuiWindow` run in a modal loop. |
+| `Window.ShowDialog()` | **`DxuiWindow::ShowModalDialog()` / `ShowModelessDialog()`** (IMPLEMENTED) | A dialog is just a `DxuiWindow` run in a modal (or modeless live-preview) loop. |
 
 ### `DxuiWindow : DxuiPanel` — the consumer-facing top-level element
 
@@ -259,12 +259,15 @@ Text-bearing widgets now store a **semantic colour role** (`DxuiTextRole { Body,
 
 - **`Casso/Ui/Chrome/ChromedPanelWindow.{h,cpp}` and `IChromedPanelContent.h` are DELETED** (commit `a0fbfe8`) — the Casso-specific own-HWND + adopt-mode chrome shell with its per-`WM_` content contract is fully superseded by `DxuiWindow` + `IDxuiHostClient`. This *completes the original T144* (the plan's "reduce `ChromedPanelWindow` to a thin shell" is realised as outright deletion).
 - **Both debug panels migrated onto `DxuiWindow`** (commits `24f5a61`, `e45e64c`): `Disk2DebugPanel` and `InputDebugPanel` now derive from `DxuiWindow` (were `DxuiPanel` + `IChromedPanelContent` + a `DxuiHwndSource`/`DxuiHostWindow` member). Content / layout / theme concerns are cleanly separated — static text in the `CreateChild` ctor, dynamic text in state-change handlers, geometry-only `Layout()`, colour via role resolution at paint. Their bespoke input fan-out overrides and integer focus model are gone, which is what actually satisfies SC-022 / SC-023 / SC-024 (see spec §Window element for the reconciliation).
+- **Dialog model reshaped — no `DxuiDialog`** (commits `944ce5b`→`a439d66`, `2be1e39`, `25df9a6`): `DxuiDialog` + `DxuiDialogManager` DELETED; a dialog is a `DxuiWindow` shown via **`ShowModalDialog(defaultId)` / `ShowModelessDialog(defaultId)`** (the modeless path drives live-preview sheets). `DxuiDialogWindow` factors the shared content + button-row shape. Supersedes FR-070/071/072. (spec FR-126.)
+- **`DxuiPropertySheet` / `DxuiPropertyPage`** (commit `0896657`): a generic paged dialog — tab strip + OK/Cancel/Apply row + per-page dirty flag + `OnApply` / `ApplyAllDirtyPages`, shown modeless for live preview. The framework generalization of Casso's hand-rolled `SettingsPanel`; not yet adopted by Casso. (spec FR-129.)
+- **Composited-transparent window mode + after-paint hook** (commit `68ae80c`): `DxuiHwndSource::CreateParams::composited` + `SetAfterPaintHook` let the emulator viewport composite through the host-owned swap chain — the realisation of the deferred T129 swap-chain flip (`CassoRenderSurface` deleted). (spec FR-130.)
+- **Radio / tooltip / popup DPI folded into `Layout(rect, scaler)`** (commit `c303c4a`): consumers no longer push an explicit `SetDpi` to these widgets. (spec FR-128.)
 
 ### Still PENDING (planned, not yet implemented)
 
-1. **No-`DxuiDialog` model**: a dialog becomes a `DxuiWindow` shown via a new `ShowDialog()` (modal loop); `DxuiDialog` + `DxuiDialogManager` are deleted and all dialog consumers (StartupDownloadDialog, ROM picker, simple dialogs) migrate.
-2. **Full themed-propagation for the remaining consumers** (settings pages, dialogs, colour picker): convert their `SetColorArgb` / `SetTheme` usage to role-based paint-time resolution; introduce a `DxuiArgb` colour type and make theme colour accessors return it (rename `SetColorArgb` → `SetColor(DxuiArgb)`).
-3. **Fold `DxuiRadioGroup` + tooltip / column-menu popup DPI into the automatic `Layout(rect, scaler)` path** (these still use an explicit `SetDpi`).
+1. **Full themed-propagation for the remaining consumers** (settings pages, dialogs, colour picker): convert their `SetColorArgb` / `SetTheme` usage to role-based paint-time resolution; introduce a `DxuiArgb` colour type and make theme colour accessors return it (rename `SetColorArgb` → `SetColor(DxuiArgb)`). (spec FR-127 / T155.)
+2. **Settings-dialog UX (Phase 18)**: a staged machine/ROM change notice on the Machine + ROM/Hardware pages stating the change takes effect after OK and that OK restarts the machine (spec FR-131 / T160); a Theme "Apply now" button that live-applies the theme without closing, revertible by Cancel (spec FR-132 / T161). Natural end-state: migrate `SettingsPanel` onto `DxuiPropertySheet` (T162).
 
 
 ## /speckit.plan Phase 0 — Outline & Research

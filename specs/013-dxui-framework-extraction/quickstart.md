@@ -204,6 +204,27 @@ std::thread ([&]()
 }).detach();
 ```
 
+## Showing a dialog (2026-07 API)
+
+```cpp
+// Modal message box / picker: pumps its own loop until a button ends the dialog.
+auto dlg = std::make_unique<MyDialogWindow> (/* ... */);   // derives DxuiDialogWindow
+int result = dlg->ShowModalDialog (IDOK);                  // returns the chosen command id
+if (result == IDOK) { /* commit */ }
+
+// Modeless live-preview sheet: does NOT block; input still reaches the owner window,
+// so a settings sheet can preview changes on the emulator behind it.
+auto sheet = std::make_unique<MySettingsSheet> (/* ... */);  // derives DxuiPropertySheet
+sheet->AddPage (&displayPage, L"Display");
+sheet->AddPage (&machinePage, L"Machine");
+sheet->ShowModelessDialog (IDOK);                          // OK / Cancel / Apply drive commit + dirty tracking
+```
+
+> The old `DxuiDialogManager::Show (std::move (dialog), ShowParams {})` returning a
+> `std::future<int>` is **gone** (FR-126). The "Wrong: block and touch Dxui from the worker"
+> example above is retained only to illustrate the thread-marshalling rule — the `dialogs.Show`
+> API it shows no longer exists.
+
 ## Common pitfalls
 
 - **Forgot `#include "Dxui.h"` in `Casso/Pch.h`**: every Casso `.cpp` will fail to find `IDxuiControl` etc. Fix once in `Pch.h`; do not add to individual `.cpp` files.

@@ -33,6 +33,15 @@
 - [x] Feature meets measurable outcomes defined in Success Criteria
 - [x] No implementation details leak into specification beyond what the framework's surface intrinsically requires
 
+## 2026-07 reshape additions (FR-126 / FR-129..132)
+
+- [x] FR-070 / FR-071 / FR-072 annotated as SUPERSEDED by FR-126 (the `DxuiDialog` / `DxuiDialogManager` model was deleted)
+- [x] FR-126 flipped PENDING → IMPLEMENTED; shipped as the `ShowModalDialog` / `ShowModelessDialog` split
+- [x] FR-129 `DxuiPropertySheet` / `DxuiPropertyPage` acceptance is grep-verifiable (SC-029)
+- [x] FR-130 composited mode + after-paint hook acceptance is grep-verifiable (SC-030)
+- [ ] FR-131 (staged machine / ROM restart notice) — PENDING; acceptance defined, not yet built
+- [ ] FR-132 (Theme "Apply now") — PENDING; acceptance defined, not yet built
+
 ## Notes
 
 - Spec was generated from an unusually detailed user input that already contained design, naming, and migration phasing. The spec preserves all of that fidelity rather than inventing alternatives.

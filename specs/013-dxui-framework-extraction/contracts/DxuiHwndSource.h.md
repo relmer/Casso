@@ -143,6 +143,7 @@ public:
         HICON                    appIconBig               = nullptr;
         HICON                    appIconSmall             = nullptr;
         bool                     createSwapChain          = true;      // false: consumer owns its own pipeline
+        bool                     composited               = false;     // FR-130: composited-transparent window (per-pixel alpha surface)
         DxuiCaptionStyle         captionStyle             = DxuiCaptionStyle::None;   // host-owned caption
         bool                     insetRootBelowCaption    = false;
     };
@@ -183,6 +184,12 @@ public:
     // Optional client that receives the Win32 messages the host does not own
     // end-to-end. DxuiWindow installs ITSELF (via private IDxuiHostClient).
     void          SetClient       (IDxuiHostClient * client);
+
+    // FR-130: hook invoked after the panel tree paints into the host RTV and
+    // BEFORE Present, so a consumer (e.g. the emulator viewport) can composite
+    // its own content into the composited-transparent surface.
+    void          SetAfterPaintHook (std::function<void(ID3D11RenderTargetView *, int, int)> hook);
+    const std::function<void(ID3D11RenderTargetView *, int, int)> &  AfterPaintHook () const;
 
     bool          SetTimer  (UINT_PTR timerId, UINT intervalMs);
     bool          KillTimer (UINT_PTR timerId);
