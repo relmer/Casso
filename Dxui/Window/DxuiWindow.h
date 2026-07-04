@@ -97,9 +97,9 @@ public:
     //  emphasis, auto-EndDialog button wiring, and the periodic tick --
     //  but does NOT disable the owner and does NOT run a private loop:
     //  it shows the window and returns immediately. The host's own
-    //  message loop drives it (dialog-key nav flows through this
-    //  window's WndProc, since all controls live in this one HWND -- no
-    //  Win32 IsDialogMessage pump is needed). Mirrors Win32 CreateDialog.
+    //  message loop drives it; call ProcessDialogMessage() before
+    //  TranslateMessage / DispatchMessage to mirror Win32
+    //  CreateDialog + IsDialogMessage.
     //
     //  EndDialog() on a modeless window hides it and fires the callback
     //  installed via SetOnDialogEnd (there is no return value, since the
@@ -108,6 +108,15 @@ public:
     //
     void     ShowModelessDialog (int defaultButtonId);
     void     EndDialog   (int result);
+
+    //
+    //  Dxui's IsDialogMessage equivalent for a modeless dialog. The host's
+    //  shared message loop calls this BEFORE TranslateMessage /
+    //  DispatchMessage; it consumes only the dialog-navigation keys
+    //  (Tab/Shift+Tab, Enter, Escape) for this window, leaving normal text
+    //  input and all other messages to the standard dispatch path.
+    //
+    bool     ProcessDialogMessage (const MSG & msg);
 
     //
     //  Modeless close callback: invoked by EndDialog() with the result
@@ -208,11 +217,13 @@ private:
     DxuiMessageResult  DispatchDialogKey (WPARAM vk);
 
     //
-    //  Modal support: wire the command buttons (emphasis on the default,
-    //  auto-EndDialog on click), route a key to the focused control, and
-    //  find / fire a button by command id. The button walks are recursive
-    //  over the panel tree so buttons may live in a nested button-row panel.
+    //  Dialog support: enter dialog mode (wire buttons, attach/rebuild
+    //  focus, seed initial focus), route a key to the focused control,
+    //  and find / fire a button by command id. The button walks are
+    //  recursive over the panel tree so buttons may live in a nested
+    //  button-row panel.
     //
+    void          BeginDialogMode  (int defaultButtonId, bool modal);
     void          WireDialogButtons ();
     bool          RouteKeyToFocused (WPARAM vk, bool shift);
     bool          TriggerButtonById (int commandId);

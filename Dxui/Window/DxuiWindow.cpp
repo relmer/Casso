@@ -195,22 +195,7 @@ int DxuiWindow::ShowModalDialog (int defaultButtonId)
 
     CBRA (m_source != nullptr);
 
-    m_defaultButtonId = defaultButtonId;
-    m_modalResult     = IDCANCEL;
-    m_modalDone       = false;
-    m_modal           = true;
-    m_dialogActive    = true;
-
-    WireDialogButtons();
-
-    m_focus.SetTheme (m_theme);
-    m_focus.Attach   (this);
-    m_focus.Rebuild();
-
-    if (m_initialFocus != nullptr)
-    {
-        m_focus.SetFocused (m_initialFocus);
-    }
+    BeginDialogMode (defaultButtonId, true);
 
     m_source->SetTimer (s_kDialogTimerId, m_dialogTickMs);
 
@@ -234,8 +219,11 @@ int DxuiWindow::ShowModalDialog (int defaultButtonId)
 
         CWRA (gotMessage != -1);
 
-        TranslateMessage (&msg);
-        DispatchMessageW  (&msg);
+        if (!ProcessDialogMessage (msg))
+        {
+            TranslateMessage (&msg);
+            DispatchMessageW  (&msg);
+        }
     }
 
     result = m_modalResult;
@@ -282,25 +270,54 @@ void DxuiWindow::ShowModelessDialog (int defaultButtonId)
 {
     if (m_source != nullptr)
     {
-        m_defaultButtonId = defaultButtonId;
-        m_modal           = false;
-        m_dialogActive    = true;
-
-        WireDialogButtons();
-
-        m_focus.SetTheme (m_theme);
-        m_focus.Attach   (this);
-        m_focus.Rebuild();
-
-        if (m_initialFocus != nullptr)
-        {
-            m_focus.SetFocused (m_initialFocus);
-        }
+        BeginDialogMode (defaultButtonId, false);
 
         m_source->SetTimer (s_kDialogTimerId, m_dialogTickMs);
 
         Show();
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ProcessDialogMessage
+//
+//  Dxui's IsDialogMessage analog for modeless dialogs. Intercepts only
+//  the dialog-navigation keys for this window (Tab/Shift+Tab, Enter,
+//  Escape) before TranslateMessage can manufacture a WM_CHAR or the
+//  normal dispatch path can bypass the focus manager. Everything else
+//  falls through to the host's standard Translate/Dispatch path.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiWindow::ProcessDialogMessage (const MSG & msg)
+{
+    HRESULT  hr        = S_OK;
+    bool     isHandled = false;
+    HWND     hwnd      = Hwnd();
+
+
+
+    BAIL_OUT_IF (!m_dialogActive || hwnd == nullptr, false);
+    BAIL_OUT_IF (msg.hwnd != hwnd, false);
+
+    switch (msg.message)
+    {
+        case WM_KEYDOWN:
+        case WM_SYSKEYDOWN:
+            if (msg.wParam == VK_TAB || msg.wParam == VK_RETURN || msg.wParam == VK_ESCAPE)
+            {
+                isHandled = (DispatchDialogKey (msg.wParam) == DxuiMessageResult::Handled);
+            }
+            break;
+    }
+
+Error:
+    return isHandled;
 }
 
 
@@ -877,6 +894,41 @@ DxuiMessageResult DxuiWindow::DispatchDialogKey (WPARAM vk)
     result = isHandled ? DxuiMessageResult::Handled : DxuiMessageResult::NotHandled;
 
     return result;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BeginDialogMode
+//
+//  Shared setup for modal and modeless dialogs: remember the default
+//  button, clear any stale modal result, wire the buttons, and attach /
+//  rebuild the focus manager so Tab traversal, Enter, and Escape all
+//  run through the dialog contract.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiWindow::BeginDialogMode (int defaultButtonId, bool modal)
+{
+    m_defaultButtonId = defaultButtonId;
+    m_modalResult     = IDCANCEL;
+    m_modalDone       = false;
+    m_modal           = modal;
+    m_dialogActive    = true;
+
+    WireDialogButtons();
+
+    m_focus.SetTheme (m_theme);
+    m_focus.Attach   (this);
+    m_focus.Rebuild();
+
+    if (m_initialFocus != nullptr)
+    {
+        m_focus.SetFocused (m_initialFocus);
+    }
 }
 
 
