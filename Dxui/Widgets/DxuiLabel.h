@@ -62,7 +62,7 @@ public:
     //  label OUT of theme-role resolution. Retained for consumers not yet
     //  migrated to roles; new code passes a DxuiTextRole instead.
     //
-    void  SetColorArgb   (uint32_t argb) { m_argb = argb; m_useThemeRole = false; }
+    void  SetColor       (DxuiArgb color) { m_argb = color; m_useThemeRole = false; }
 
     const RECT         & Rect      () const { return m_boundsDip; }
     const std::wstring & Text      () const { return m_text; }
@@ -70,7 +70,7 @@ public:
 
     //
     //  Legacy theme-less paint. Draws with the pinned explicit color
-    //  (SetColorArgb) -- role resolution needs a theme, so consumers that
+    //  (SetColor) -- role resolution needs a theme, so consumers that
     //  use this overload must set an explicit color. Kept for pre-role
     //  call sites; the tree paints through the theme overload below.
     //
@@ -98,7 +98,7 @@ public:
     //
     void  Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override
     {
-        uint32_t  argb = m_useThemeRole ? theme.TextColor (m_role) : m_argb;
+        uint32_t  argb = m_useThemeRole ? (uint32_t) theme.TextColor (m_role) : m_argb;
         float     dip  = (m_fontDip > 0.0f) ? m_fontDip : theme.BodyFont().sizeDip;
 
         DrawResolved (painter, text, argb, dip);

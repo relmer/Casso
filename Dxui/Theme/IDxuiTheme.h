@@ -41,6 +41,23 @@ enum class DxuiFontWeight : int
 
 
 //
+//  Packed 32-bit ARGB colour (FR-127). A thin, implicitly-convertible
+//  wrapper over the uint32_t the render facades speak: colour-typed APIs
+//  read as `DxuiArgb`, yet the value still flows into Direct2D-friendly
+//  packed uint32_t with no per-call-site churn.
+//
+struct DxuiArgb
+{
+    uint32_t  argb = 0;
+
+    constexpr DxuiArgb () = default;
+    constexpr DxuiArgb (uint32_t packed) : argb (packed) {}   // implicit: DxuiArgb c = 0xFF204060;
+    constexpr operator uint32_t () const { return argb; }     // implicit: painter.FillRect(..., color);
+};
+
+
+
+//
 //  Semantic text-color role. A text-bearing widget stores WHICH kind of
 //  text it is -- not a resolved color -- and the theme maps the role to a
 //  packed-ARGB value at paint time via TextColor(). This keeps color out
@@ -113,7 +130,7 @@ public:
     //  bespoke mapping. Text-bearing widgets call this at paint time so
     //  color never lives in widget state.
     //
-    virtual uint32_t  TextColor (DxuiTextRole role) const
+    virtual DxuiArgb  TextColor (DxuiTextRole role) const
     {
         switch (role)
         {

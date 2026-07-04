@@ -407,16 +407,16 @@ void StartupDownloadDialog::PaintBody (
 
     hdrLabel.SetDpi         (state.dpi);
     hdrLabel.SetFontSizeDip (s_kHeaderFontDp);
-    hdrLabel.SetColorArgb   (hdrFg);
+    hdrLabel.SetColor       (hdrFg);
     hdrLabel.SetFontWeight  (DxuiFontWeight::Bold);
 
     sourceLabel.SetDpi         (state.dpi);
     sourceLabel.SetFontSizeDip (s_kFontDp);
-    sourceLabel.SetColorArgb   (fgDim);
+    sourceLabel.SetColor       (fgDim);
 
     statusLabel.SetDpi         (state.dpi);
     statusLabel.SetFontSizeDip (s_kFontDp);
-    statusLabel.SetColorArgb   (fg);
+    statusLabel.SetColor       (fg);
     statusLabel.SetTextAlign   (DxuiTextRenderer::HAlign::Right, DxuiTextRenderer::VAlign::Center);
 
     for (size_t i = 0; i < set.entries.size(); i++)

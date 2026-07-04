@@ -1039,7 +1039,7 @@ void SettingsPanel::Paint (DxuiPainter & painter, DxuiTextRenderer & text)
         if (!noticeText.empty())
         {
             m_restartNotice.SetText      (noticeText);
-            m_restartNotice.SetColorArgb (0xFFF0A030);   // amber caution
+            m_restartNotice.SetColor (0xFFF0A030);   // amber caution
             m_restartNotice.Paint        (painter, text);
         }
     }
