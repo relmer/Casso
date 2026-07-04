@@ -109,7 +109,6 @@ SettingsPanel::SettingsPanel ()
     Adopt (m_hardwarePage);
     Adopt (m_themePage);
     Adopt (m_displayPage);
-    Adopt (m_scrim);
     Adopt (m_applyButton);
     Adopt (m_cancelButton);
 
@@ -429,7 +428,6 @@ Error:
 void SettingsPanel::Hide ()
 {
     m_panelVisible = false;
-    m_scrim.Hide();
     DetachPopupHosts();
     m_window.Destroy();
 }
@@ -914,11 +912,20 @@ void SettingsPanel::Layout (int viewportWidthPx, int viewportHeightPx, const Dxu
     bottomRow.right  = m_panelRect.right;
     bottomRow.bottom = m_panelRect.bottom;
 
-    applyX  = m_panelRect.right - pad - buttonWidth;
+    // FR-131: when OK would power-cycle the machine (a staged machine
+    // switch or a hardware enable change requiring a reset), relabel it
+    // "OK (reboot)" and widen it to fit. Layout runs every frame, so the
+    // label tracks the staged state live.
+    bool  willReboot = m_apply.WillMachineChange() || m_apply.IsResetRequired();
+    int   okWidth    = scaler.Px (willReboot ? 132 : s_kButtonWidthDp);
+
+    m_applyButton.SetLabel (willReboot ? L"OK (reboot)" : L"OK");
+
+    applyX  = m_panelRect.right - pad - okWidth;
     cancelX = applyX            - buttonGap - buttonWidth;
     buttonY = bottomRow.top     + (bottomBar - buttonHeight) / 2;
 
-    m_applyButton.Layout  (MakeRect (applyX,  buttonY, buttonWidth, buttonHeight));
+    m_applyButton.Layout  (MakeRect (applyX,  buttonY, okWidth,     buttonHeight));
     m_cancelButton.Layout (MakeRect (cancelX, buttonY, buttonWidth, buttonHeight));
     m_applyButton.SetDpi  (dpi);
     m_cancelButton.SetDpi (dpi);
@@ -933,8 +940,6 @@ void SettingsPanel::Layout (int viewportWidthPx, int viewportHeightPx, const Dxu
         m_restartNotice.SetDpi (dpi);
         m_restartNotice.SetTextAlign (DxuiTextHAlign::Left, DxuiTextVAlign::Center);
     }
-
-    m_scrim.SetViewportRect (m_viewport);
 
     // Mirror the panel footprint into the IDxuiControl tree so future
     // centralized walks see SettingsPanel as a panel covering its
@@ -1022,13 +1027,13 @@ void SettingsPanel::Paint (DxuiPainter & painter, DxuiTextRenderer & text)
                 const std::string & id = m_apply.PendingMachine();
                 name.assign (id.begin(), id.end());
             }
-            noticeText  = L"Machine change pending (";
+            noticeText  = L"Pending. Press OK to boot ";
             noticeText += name;
-            noticeText += L"). Takes effect when you click OK, which restarts the machine.";
+            noticeText += L".";
         }
         else if (tab == TabIndex::Hardware && m_state.RequiresReset())
         {
-            noticeText = L"Hardware change pending. Takes effect when you click OK, which restarts the machine.";
+            noticeText = L"Pending. Press OK to reboot the machine.";
         }
 
         if (!noticeText.empty())
@@ -1039,11 +1044,9 @@ void SettingsPanel::Paint (DxuiPainter & painter, DxuiTextRenderer & text)
         }
     }
 
-    // Modal scrim (reset-required confirmation) always paints fully
-    // opaque; it stops the panel from being interactable beneath it.
+    // Leave the painter in a clean state for the next pass.
     painter.SetGlobalAlpha (1.0f);
     text.SetGlobalAlpha    (1.0f);
-    m_scrim.Paint (painter);
 }
 
 
@@ -1126,11 +1129,6 @@ void SettingsPanel::OnLButtonDown (int x, int y)
         return;
     }
 
-    if (m_scrim.IsVisible())
-    {
-        return;
-    }
-
     if (m_colorPicker.IsOpen())
     {
         m_colorPicker.OnLButtonDown (x, y);
@@ -1161,11 +1159,6 @@ void SettingsPanel::OnLButtonDown (int x, int y)
 void SettingsPanel::OnLButtonUp (int x, int y)
 {
     if (!m_panelVisible)
-    {
-        return;
-    }
-
-    if (m_scrim.IsVisible())
     {
         return;
     }
@@ -1218,11 +1211,6 @@ bool SettingsPanel::OnKey (WPARAM vk)
     if (!m_panelVisible)
     {
         return false;
-    }
-
-    if (m_scrim.IsVisible())
-    {
-        return m_scrim.OnKey (vk);
     }
 
     // The modal color picker swallows all keys while open.
@@ -1378,13 +1366,10 @@ bool SettingsPanel::OnChar (wchar_t ch)
 
 void SettingsPanel::OnApplyClicked ()
 {
-    if (m_apply.IsResetRequired())
-    {
-        m_scrim.Show ([this] { m_apply.CommitApply(); m_panelVisible = false; },
-                      [this] { /* cancel — keep panel open, no commit */ });
-        return;
-    }
-
+    // A staged machine switch or hardware-reset change power-cycles the
+    // machine on commit. The OK button is relabelled "OK (reboot)" in
+    // Layout when that is the case, so no separate confirm step is needed
+    // -- committing here applies everything and closes the panel.
     m_apply.CommitApply();
     m_panelVisible = false;
 }

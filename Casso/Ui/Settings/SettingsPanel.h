@@ -17,7 +17,6 @@
 #include "Core/DxuiPanel.h"
 #include "Core/DxuiFocusManager.h"
 #include "Widgets/DxuiButton.h"
-#include "Widgets/DxuiModalScrim.h"
 #include "Widgets/DxuiTabStrip.h"
 
 #include "../../Config/GlobalUserPrefs.h"
@@ -42,8 +41,8 @@ class IFileSystem;
 //
 //  Owner of the consolidated settings surface. Composes the four
 //  setting pages (Machine / Hardware / Theme stub / Display stub)
-//  behind a DxuiTabStrip plus Apply / Cancel buttons and a `DxuiModalScrim`
-//  the apply path lights for reset-required confirmation.
+//  behind a DxuiTabStrip plus OK / Cancel buttons. When a staged change
+//  would power-cycle the machine, OK relabels to "OK (reboot)".
 //
 //  The panel is render- and input-active only while `IsVisible()`
 //  returns true. While visible, the host shell routes mouse + key
@@ -216,7 +215,6 @@ private:
     ThemePage           m_themePage;
     DisplayPage         m_displayPage;
     ColorPickerOverlay  m_colorPicker;
-    DxuiModalScrim          m_scrim;
     DxuiButton              m_applyButton;
     DxuiButton              m_cancelButton;
 
