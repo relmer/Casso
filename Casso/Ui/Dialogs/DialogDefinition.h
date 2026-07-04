@@ -13,7 +13,7 @@
 //  Pure value type describing a modal dialog: title, optional icon,
 //  wrapped body runs (plain + hyperlink), action buttons, and the
 //  window-close result code. Consumed by EmulatorShell::ShowModalDialog,
-//  which hosts it as a MessageDialog (a DxuiWindow shown via ShowDialog).
+//  which hosts it as a MessageDialog (a DxuiWindow shown via ShowModalDialog).
 //  All types are intentionally Win32-light so the value can be built
 //  headlessly.
 //

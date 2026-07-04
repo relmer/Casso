@@ -89,13 +89,39 @@ public:
     //  button without a custom SetOnClick auto-closes via EndDialog(its
     //  command id), so plain OK / Cancel / Yes / No need no wiring.
     //
-    int      ShowDialog  (int defaultButtonId);
+    int      ShowModalDialog  (int defaultButtonId);
+
+    //
+    //  Modeless show. Applies the same dialog behaviors as
+    //  ShowModalDialog -- focus-manager Tab traversal, default-button
+    //  emphasis, auto-EndDialog button wiring, and the periodic tick --
+    //  but does NOT disable the owner and does NOT run a private loop:
+    //  it shows the window and returns immediately. The host's own
+    //  message loop drives it (dialog-key nav flows through this
+    //  window's WndProc, since all controls live in this one HWND -- no
+    //  Win32 IsDialogMessage pump is needed). Mirrors Win32 CreateDialog.
+    //
+    //  EndDialog() on a modeless window hides it and fires the callback
+    //  installed via SetOnDialogEnd (there is no return value, since the
+    //  call did not block). Use for a live overlay whose backdrop must
+    //  keep animating (e.g. Settings over the running emulator).
+    //
+    void     ShowModelessDialog (int defaultButtonId);
     void     EndDialog   (int result);
 
     //
-    //  Control to focus when the modal is first shown (e.g. a picker's
+    //  Modeless close callback: invoked by EndDialog() with the result
+    //  code when a modeless window closes (a command button, Escape, or
+    //  content code). The modal path returns the code from
+    //  ShowModalDialog instead, so this fires only in the modeless case.
+    //
+    void     SetOnDialogEnd (std::function<void (int)> fn) { m_onDialogEnd = std::move (fn); }
+
+    //
+    //  Control to focus when the dialog is first shown (e.g. a picker's
     //  search box), so typing / Tab work immediately. Null = focus
-    //  nothing, so Enter hits the default button. Call before ShowDialog.
+    //  nothing, so Enter hits the default button. Call before
+    //  ShowModalDialog / ShowModelessDialog.
     //
     void     SetInitialFocus (IDxuiControl * ctl) { m_initialFocus = ctl; }
 
@@ -136,19 +162,19 @@ protected:
     virtual void  OnWindowDestroy () {}
 
     //
-    //  Modal periodic hook. While ShowDialog() is running, the window
-    //  drives a timer that repaints (so a focused caret blinks) and calls
-    //  this each tick -- override for a poller (e.g. a download progress
-    //  dialog). Default no-op.
+    //  Dialog periodic hook. While a dialog (modal or modeless) is
+    //  showing, the window drives a timer that repaints (so a focused
+    //  caret blinks) and calls this each tick -- override for a poller
+    //  (e.g. a download progress dialog). Default no-op.
     //
     virtual void  OnDialogTick    () {}
 
     //
-    //  Tune the modal repaint / tick cadence (ms) before ShowDialog. The
-    //  default suits caret blink; a poller (e.g. download progress) sets a
-    //  faster interval.
+    //  Tune the dialog repaint / tick cadence (ms) before
+    //  ShowModalDialog / ShowModelessDialog. The default suits caret
+    //  blink; a poller (e.g. download progress) sets a faster interval.
     //
-    void  SetModalTickIntervalMs (UINT ms) { m_modalTickMs = ms; }
+    void  SetDialogTickIntervalMs (UINT ms) { m_dialogTickMs = ms; }
 
     //
     //  Tear down the backend (HWND + swap chain). Safe to call from a
@@ -179,7 +205,7 @@ private:
                                       int                y,
                                       float              wheelDelta);
     DxuiMessageResult  DispatchKey   (DxuiKeyEventKind kind, WPARAM code);
-    DxuiMessageResult  DispatchModalKey (WPARAM vk);
+    DxuiMessageResult  DispatchDialogKey (WPARAM vk);
 
     //
     //  Modal support: wire the command buttons (emphasis on the default,
@@ -200,9 +226,11 @@ private:
     const IDxuiTheme *               m_theme      = nullptr;
     IDxuiControl *                   m_initialFocus = nullptr;
     DxuiFocusManager                 m_focus;
-    bool                             m_modalActive    = false;
+    bool                             m_dialogActive   = false;   // dialog behaviors on (modal or modeless)
+    bool                             m_modal          = false;   // blocking-modal (owner disabled + private loop)
     bool                             m_modalDone      = false;
     int                              m_modalResult    = 0;
     int                              m_defaultButtonId = 0;
-    UINT                             m_modalTickMs    = 250;   // modal repaint / tick cadence (caret-blink default)
+    UINT                             m_dialogTickMs   = 250;   // dialog repaint / tick cadence (caret-blink default)
+    std::function<void (int)>        m_onDialogEnd;            // modeless close callback
 };

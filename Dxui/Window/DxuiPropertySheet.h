@@ -28,7 +28,8 @@ class DxuiDpiScaler;
 //
 //  Subclasses override OnBuildPages() to add pages via CreatePage<T>();
 //  the base then builds the tab strip + button row. Consumers show it
-//  with ShowDialog(IDOK).
+//  with ShowModalDialog(IDOK) (or ShowModelessDialog(IDOK) for a live
+//  overlay whose backdrop must keep animating).
 //
 ////////////////////////////////////////////////////////////////////////////////
 

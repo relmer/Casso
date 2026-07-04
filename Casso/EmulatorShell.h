@@ -442,14 +442,14 @@ private:
     void    SaveGlobalPrefs      ();
 
     // Shows the supplied dialog modally as a MessageDialog (a DxuiWindow
-    // shown via ShowDialog). Returns the resultCode of the chosen button,
+    // shown via ShowModalDialog). Returns the resultCode of the chosen button,
     // or -1 on close-gesture.
     int     ShowModalDialog      (const DialogDefinition & def);
 
     // Render a "simple" dialog (text + buttons + an optional Info /
     // Warning / Error glyph icon -- no custom body, tick, hyperlinks,
     // app-bitmap icon, or resizable mode) as a MessageDialog (DxuiWindow
-    // shown via ShowDialog). Returns the chosen button's resultCode (or
+    // shown via ShowModalDialog). Returns the chosen button's resultCode (or
     // def.closeBoxResult / -1 on a close gesture).
     int          ShowSimpleDialogViaDxui (const DialogDefinition & def);
 

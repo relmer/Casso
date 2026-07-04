@@ -6,7 +6,7 @@
 #include "Widgets/DxuiButton.h"
 
 
-static constexpr UINT_PTR  s_kModalTimerId    = 1;      // modal caret-blink / poll timer id
+static constexpr UINT_PTR  s_kDialogTimerId   = 1;      // dialog caret-blink / poll timer id
 
 
 
@@ -173,7 +173,7 @@ void DxuiWindow::Close ()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ShowDialog
+//  ShowModalDialog
 //
 //  Modal show: emphasize + auto-wire the command buttons, attach the
 //  focus manager, disable the owner, and run a private message pump
@@ -183,7 +183,7 @@ void DxuiWindow::Close ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-int DxuiWindow::ShowDialog (int defaultButtonId)
+int DxuiWindow::ShowModalDialog (int defaultButtonId)
 {
     HRESULT  hr            = S_OK;
     MSG      msg           = {};
@@ -198,7 +198,8 @@ int DxuiWindow::ShowDialog (int defaultButtonId)
     m_defaultButtonId = defaultButtonId;
     m_modalResult     = IDCANCEL;
     m_modalDone       = false;
-    m_modalActive     = true;
+    m_modal           = true;
+    m_dialogActive    = true;
 
     WireDialogButtons();
 
@@ -211,7 +212,7 @@ int DxuiWindow::ShowDialog (int defaultButtonId)
         m_focus.SetFocused (m_initialFocus);
     }
 
-    m_source->SetTimer (s_kModalTimerId, m_modalTickMs);
+    m_source->SetTimer (s_kDialogTimerId, m_dialogTickMs);
 
     if (m_ownerHwnd != nullptr)
     {
@@ -247,10 +248,11 @@ Error:
 
     if (m_source != nullptr)
     {
-        m_source->KillTimer (s_kModalTimerId);
+        m_source->KillTimer (s_kDialogTimerId);
     }
 
-    m_modalActive = false;
+    m_dialogActive = false;
+    m_modal        = false;
     Hide();
 
     return result;
@@ -262,10 +264,58 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  ShowModelessDialog
+//
+//  Modeless show: applies the same dialog behaviors as ShowModalDialog
+//  (button wiring, focus-manager Tab traversal, default-button emphasis,
+//  periodic tick) but does NOT disable the owner and does NOT run a
+//  private loop -- it shows the window and returns immediately. The
+//  host's own message loop drives it; dialog-key nav flows through this
+//  window's WndProc (all controls live in this one HWND, so no
+//  IsDialogMessage pump is needed). Close via EndDialog(), which hides
+//  the window and fires the SetOnDialogEnd callback. Mirrors Win32
+//  CreateDialog.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiWindow::ShowModelessDialog (int defaultButtonId)
+{
+    if (m_source != nullptr)
+    {
+        m_defaultButtonId = defaultButtonId;
+        m_modal           = false;
+        m_dialogActive    = true;
+
+        WireDialogButtons();
+
+        m_focus.SetTheme (m_theme);
+        m_focus.Attach   (this);
+        m_focus.Rebuild();
+
+        if (m_initialFocus != nullptr)
+        {
+            m_focus.SetFocused (m_initialFocus);
+        }
+
+        m_source->SetTimer (s_kDialogTimerId, m_dialogTickMs);
+
+        Show();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  EndDialog
 //
-//  Records the modal result once and flags the pump to exit; posts a
-//  no-op message so a blocked GetMessage re-checks the done flag. A
+//  Resolves an open dialog. Modal: records the result once and flags the
+//  private pump to exit (posts a no-op so a blocked GetMessage re-checks
+//  the done flag) -- ShowModalDialog returns the result. Modeless: no
+//  loop to break, so it deactivates the dialog behaviors, hides the
+//  window, and fires the SetOnDialogEnd callback with the result. A
 //  command button, Enter / Escape, or content code calls this. Mirrors
 //  Win32 EndDialog.
 //
@@ -277,14 +327,36 @@ void DxuiWindow::EndDialog (int result)
 
 
 
-    if (m_modalActive && !m_modalDone)
+    if (m_dialogActive)
     {
-        m_modalResult = result;
-        m_modalDone   = true;
-
-        if (hwnd != nullptr)
+        if (m_modal)
         {
-            PostMessageW (hwnd, WM_NULL, 0, 0);
+            if (!m_modalDone)
+            {
+                m_modalResult = result;
+                m_modalDone   = true;
+
+                if (hwnd != nullptr)
+                {
+                    PostMessageW (hwnd, WM_NULL, 0, 0);
+                }
+            }
+        }
+        else
+        {
+            m_dialogActive = false;
+
+            if (m_source != nullptr)
+            {
+                m_source->KillTimer (s_kDialogTimerId);
+            }
+
+            Hide();
+
+            if (m_onDialogEnd)
+            {
+                m_onDialogEnd (result);
+            }
         }
     }
 }
@@ -511,8 +583,8 @@ DxuiMessageResult DxuiWindow::OnKeyDown (WPARAM vk, LPARAM lParam)
 
     UNREFERENCED_PARAMETER (lParam);
 
-    result = m_modalActive ? DispatchModalKey (vk)
-                           : DispatchKey (DxuiKeyEventKind::Down, vk);
+    result = m_dialogActive ? DispatchDialogKey (vk)
+                            : DispatchKey (DxuiKeyEventKind::Down, vk);
 
     return result;
 }
@@ -536,7 +608,7 @@ DxuiMessageResult DxuiWindow::OnChar (WPARAM ch, LPARAM lParam)
 
     UNREFERENCED_PARAMETER (lParam);
 
-    if (m_modalActive)
+    if (m_dialogActive)
     {
         focused = m_focus.Focused();
 
@@ -633,7 +705,7 @@ DxuiMessageResult DxuiWindow::OnGetMinMax (MINMAXINFO * info)
 //
 //  Modal caret-blink / poll tick: drives the subclass poller and repaints
 //  so a focused caret blinks and any per-tick progress shows. Only active
-//  during ShowDialog().
+//  during ShowModalDialog().
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -642,7 +714,7 @@ DxuiMessageResult DxuiWindow::OnTimer (UINT_PTR timerId)
     DxuiMessageResult  result = DxuiMessageResult::NotHandled;
 
 
-    if (m_modalActive && timerId == s_kModalTimerId)
+    if (m_dialogActive && timerId == s_kDialogTimerId)
     {
         OnDialogTick();
         Invalidate();
@@ -664,7 +736,7 @@ DxuiMessageResult DxuiWindow::OnTimer (UINT_PTR timerId)
 
 DxuiMessageResult DxuiWindow::OnClose ()
 {
-    if (m_modalActive)
+    if (m_dialogActive)
     {
         if (!TriggerButtonById (IDCANCEL))
         {
@@ -760,16 +832,16 @@ DxuiMessageResult DxuiWindow::DispatchKey (DxuiKeyEventKind kind, WPARAM code)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DispatchModalKey
+//  DispatchDialogKey
 //
-//  Modal key routing: Tab / Shift+Tab move focus; Escape fires the
-//  IDCANCEL button (or resolves IDCANCEL directly); Enter lets the
-//  focused control claim it first, else fires the default button; any
-//  other key routes to the focused control. Mirrors the old modal client.
+//  Dialog key routing (modal or modeless): Tab / Shift+Tab move focus;
+//  Escape fires the IDCANCEL button (or resolves IDCANCEL directly);
+//  Enter lets the focused control claim it first, else fires the default
+//  button; any other key routes to the focused control.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-DxuiMessageResult DxuiWindow::DispatchModalKey (WPARAM vk)
+DxuiMessageResult DxuiWindow::DispatchDialogKey (WPARAM vk)
 {
     DxuiMessageResult  result    = DxuiMessageResult::NotHandled;
     bool               shift     = (GetKeyState (VK_SHIFT) & 0x8000) != 0;

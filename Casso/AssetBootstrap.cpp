@@ -2123,7 +2123,7 @@ namespace
 //
 //  Builds a PickerDialog whose content is a search box + list, wires row
 //  activation to close the dialog with the row's result, and shows it
-//  modally via ShowDialog. Returns the chosen result code (a model row's
+//  modally via ShowModalDialog. Returns the chosen result code (a model row's
 //  resultCode, a button's resultCode, or the close-box code).
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -2177,7 +2177,7 @@ int DiskMruPickerSession::Run()
 
     dlg.SetTheme (&theme);
 
-    raw    = dlg.ShowDialog (dlg.DefaultCommandId());
+    raw    = dlg.ShowModalDialog (dlg.DefaultCommandId());
     chosen = dlg.MapResult (raw);
 
 Error:

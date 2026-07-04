@@ -15,7 +15,7 @@ class DxuiPanel;
 //
 //  Simple message / task dialog: a pre-built content panel (wrapped body
 //  runs + optional icon, via DialogBodyContent) above a right-aligned row
-//  of action buttons, shown modally through DxuiWindow::ShowDialog. This
+//  of action buttons, shown modally through DxuiWindow::ShowModalDialog. This
 //  is the DxuiWindow-based replacement for the DxuiDialog + DxuiDialog-
 //  Manager path that EmulatorShell::ShowModalDialog used.
 //
@@ -23,7 +23,7 @@ class DxuiPanel;
 //  window is driven by Win32 command ids under the hood -- command buttons
 //  get synthetic ids offset from IDOK / IDCANCEL, the isCancel button (if
 //  any) gets IDCANCEL so Escape / the close-box fire it -- and
-//  TranslateResult() maps a ShowDialog() return back to the resultCode (or
+//  TranslateResult() maps a ShowModalDialog() return back to the resultCode (or
 //  the closeBoxResult for a bare close).
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -50,12 +50,12 @@ public:
                      int                         closeBoxResult);
 
     //
-    //  Command id for ShowDialog(): the default button's, or 0 (no default).
+    //  Command id for ShowModalDialog(): the default button's, or 0 (no default).
     //
     int   DefaultCommandId () const { return m_defaultCommandId; }
 
     //
-    //  Translate a ShowDialog() return code into the configured button's
+    //  Translate a ShowModalDialog() return code into the configured button's
     //  resultCode (or the closeBoxResult / cancel button's resultCode).
     //
     int   TranslateResult (int dialogResult) const;

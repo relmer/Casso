@@ -19,7 +19,8 @@ class DxuiDpiScaler;
 //  panel above a bottom, right-aligned row of action buttons, hosted in a
 //  DxuiWindow whose caption the host owns. Subclasses build their content
 //  (a message body, a picker list, a progress panel, ...) plus their
-//  buttons in OnCreate(), then the consumer calls ShowDialog(defaultId).
+//  buttons in OnCreate(), then the consumer calls ShowModalDialog(defaultId)
+//  (or ShowModelessDialog(defaultId)).
 //
 //  This is the "message / task dialog" helper -- it is NOT a DxuiDialog
 //  revival: a dialog IS a DxuiWindow, and this base only factors out the
@@ -61,11 +62,12 @@ protected:
 
     //
     //  Append a right-aligned action button carrying a Win32 command id
-    //  (IDOK / IDCANCEL / IDYES / ...). In a modal ShowDialog the base
-    //  auto-closes via EndDialog(commandId) unless the caller sets a
-    //  custom SetOnClick (a button that must keep the dialog open, e.g.
-    //  Download). Buttons are laid left-to-right in registration order,
-    //  right-aligned as a group. Returns the live button.
+    //  (IDOK / IDCANCEL / IDYES / ...). Under ShowModalDialog /
+    //  ShowModelessDialog the base auto-closes via EndDialog(commandId)
+    //  unless the caller sets a custom SetOnClick (a button that must
+    //  keep the dialog open, e.g. Download). Buttons are laid
+    //  left-to-right in registration order, right-aligned as a group.
+    //  Returns the live button.
     //
     DxuiButton *  AddDialogButton (const std::wstring & label, int commandId);
 

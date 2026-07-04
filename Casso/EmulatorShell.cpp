@@ -1953,7 +1953,7 @@ int EmulatorShell::ShowModalDialog (const DialogDefinition & def)
 //
 //  Translates a renderable DialogDefinition into a MessageDialog whose
 //  content is a DialogBodyContent (wrapped body labels + hyperlink links)
-//  plus the action buttons, and shows it modally via ShowDialog. The
+//  plus the action buttons, and shows it modally via ShowModalDialog. The
 //  dialog height is derived from the content's preferred (line-count)
 //  height so short messages stay compact and long ones grow (clamped).
 //
@@ -2037,7 +2037,7 @@ int EmulatorShell::ShowSimpleDialogViaDxui (const DialogDefinition & def)
 
     dlg.SetTheme (&m_chromeTheme);
 
-    result = dlg.TranslateResult (dlg.ShowDialog (dlg.DefaultCommandId()));
+    result = dlg.TranslateResult (dlg.ShowModalDialog (dlg.DefaultCommandId()));
 
 Error:
     return result;

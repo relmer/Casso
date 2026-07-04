@@ -675,7 +675,7 @@ namespace
 
             m_exitBtn = AddDialogButton (L"Exit", IDCANCEL);
 
-            SetModalTickIntervalMs (m_tickMs);
+            SetDialogTickIntervalMs (m_tickMs);
         }
 
         void  OnDialogTick () override
@@ -887,7 +887,7 @@ StartupDownloadResult StartupDownloadDialog::Show (HINSTANCE                hIns
         });
     }
 
-    (void) dlg.ShowDialog (s_kIdDownload);
+    (void) dlg.ShowModalDialog (s_kIdDownload);
 
     if (!state.workers.empty())
     {
