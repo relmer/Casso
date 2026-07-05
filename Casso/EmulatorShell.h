@@ -481,6 +481,7 @@ private:
     friend class MachineManager;
     friend class WindowCommandManager;
     friend class SettingsPanel;
+    friend class SettingsSheet;
     friend class SettingsApplyController;
     friend class SettingsDisplayCrtBridge;
     friend class SettingsMachineCatalog;

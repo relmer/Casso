@@ -405,8 +405,8 @@ namespace
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-ThemePage::ThemePage()
-    : DxuiPropertyPage (L"Theme")
+ThemePage::ThemePage(std::wstring title)
+    : DxuiPropertyPage (std::move (title))
 {
     Adopt (m_themeLabel);
     Adopt (m_themeDropdown);

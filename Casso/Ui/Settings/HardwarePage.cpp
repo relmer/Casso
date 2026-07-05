@@ -77,8 +77,8 @@ namespace
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HardwarePage::HardwarePage()
-    : DxuiPropertyPage (L"Hardware")
+HardwarePage::HardwarePage(std::wstring title)
+    : DxuiPropertyPage (std::move (title))
 {
     size_t  i = 0;
 

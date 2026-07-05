@@ -42,7 +42,7 @@ class IDxuiTheme;
 class HardwarePage : public DxuiPropertyPage
 {
 public:
-    HardwarePage ();
+    explicit HardwarePage (std::wstring title = L"Hardware");
 
     void  SetRect    (const RECT & rect, const DxuiDpiScaler & scaler);
     void  SetState   (SettingsPanelState * state);

@@ -31,7 +31,7 @@ class DxuiHwndSource;
 class ThemePage : public DxuiPropertyPage
 {
 public:
-    ThemePage();
+    explicit ThemePage (std::wstring title = L"Theme");
 
     using ThemeSelectFn      = std::function<void (const std::string & themeName)>;
     using FramebufferSourceFn = std::function<const uint32_t * (int & outWidthPx, int & outHeightPx)>;

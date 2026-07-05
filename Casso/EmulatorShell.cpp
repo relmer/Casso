@@ -36,6 +36,7 @@
 #include "Window/DxuiHwndSource.h"
 #include "Ui/Dialogs/DialogBodyContent.h"
 #include "Ui/Dialogs/MessageDialog.h"
+#include "Ui/Settings/SettingsSheet.h"   // TEMP (T162 3a dev trigger)
 
 #pragma comment(lib, "ole32.lib")
 #pragma comment(lib, "comctl32.lib")
@@ -3792,6 +3793,21 @@ Error:
 
 bool EmulatorShell::HandleHostMetaShortcut (WPARAM vk, bool ctrlHeld, bool altHeld)
 {
+    // TEMP dev trigger (T162 slice 3a): Ctrl+Shift+, opens the new
+    // DxuiPropertySheet-based settings alongside the legacy panel to verify
+    // the pages render. Shown modally for now; removed in slice 3d when it
+    // replaces IDM_VIEW_SETTINGS.
+    if (vk == VK_OEM_COMMA && ctrlHeld && (GetKeyState (VK_SHIFT) & 0x8000))
+    {
+        SettingsSheet  sheet;
+        HINSTANCE      hInst = (HINSTANCE) GetWindowLongPtrW (m_hwnd, GWLP_HINSTANCE);
+
+        (void) sheet.OpenModal (hInst, m_hwnd,
+                                *m_userConfigStore, m_globalPrefs, *m_themeManager,
+                                *this, m_uiFs);
+        return true;
+    }
+
     if (altHeld && vk >= 0x20 && vk <= 0x7E && m_mainMenu.HandleAltKey ((wchar_t) vk))
     {
         return true;

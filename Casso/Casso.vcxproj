@@ -246,6 +246,7 @@
     <ClCompile Include="Ui\Settings\SettingsDisplayCrtBridge.cpp" />
     <ClCompile Include="Ui\Settings\SettingsMachineCatalog.cpp" />
     <ClCompile Include="Ui\Settings\SettingsPanel.cpp" />
+    <ClCompile Include="Ui\Settings\SettingsSheet.cpp" />
     <ClCompile Include="Ui\Settings\SettingsPanelState.cpp" />
     <ClCompile Include="Ui\Settings\SettingsPreviewController.cpp" />
     <ClCompile Include="Ui\Settings\SettingsWindow.cpp" />
@@ -316,6 +317,7 @@
     <ClInclude Include="Ui\Settings\SettingsDisplayCrtBridge.h" />
     <ClInclude Include="Ui\Settings\SettingsMachineCatalog.h" />
     <ClInclude Include="Ui\Settings\SettingsPanel.h" />
+    <ClInclude Include="Ui\Settings\SettingsSheet.h" />
     <ClInclude Include="Ui\Settings\SettingsPanelState.h" />
     <ClInclude Include="Ui\Settings\SettingsPreviewController.h" />
     <ClInclude Include="Ui\Settings\SettingsWindow.h" />

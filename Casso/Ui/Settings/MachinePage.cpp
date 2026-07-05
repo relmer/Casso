@@ -54,8 +54,8 @@ namespace
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-MachinePage::MachinePage()
-    : DxuiPropertyPage (L"Machine")
+MachinePage::MachinePage(std::wstring title)
+    : DxuiPropertyPage (std::move (title))
 {
     size_t  i = 0;
 

@@ -56,8 +56,8 @@ namespace
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-DisplayPage::DisplayPage()
-    : DxuiPropertyPage (L"Display")
+DisplayPage::DisplayPage(std::wstring title)
+    : DxuiPropertyPage (std::move (title))
 {
     Adopt (m_monitorLabel);
     Adopt (m_textColorLabel);

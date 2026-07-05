@@ -72,7 +72,7 @@ struct DisplayDefaultsHint
 class DisplayPage : public DxuiPropertyPage
 {
 public:
-    DisplayPage ();
+    explicit DisplayPage (std::wstring title = L"Display");
 
     using BrightnessFn    = std::function<void (float value)>;
     using ContrastFn      = std::function<void (float value)>;

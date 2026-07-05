@@ -46,7 +46,7 @@ class DxuiHwndSource;
 class MachinePage : public DxuiPropertyPage
 {
 public:
-    MachinePage ();
+    explicit MachinePage (std::wstring title = L"Machine");
 
     using MachineSelectFn = std::function<void (const std::string & machineName)>;
 
