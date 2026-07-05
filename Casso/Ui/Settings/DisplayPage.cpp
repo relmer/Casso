@@ -57,6 +57,7 @@ namespace
 ////////////////////////////////////////////////////////////////////////////////
 
 DisplayPage::DisplayPage()
+    : DxuiPropertyPage (L"Display")
 {
     Adopt (m_monitorLabel);
     Adopt (m_textColorLabel);

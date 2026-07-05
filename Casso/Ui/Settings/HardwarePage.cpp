@@ -78,6 +78,7 @@ namespace
 ////////////////////////////////////////////////////////////////////////////////
 
 HardwarePage::HardwarePage()
+    : DxuiPropertyPage (L"Hardware")
 {
     size_t  i = 0;
 

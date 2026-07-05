@@ -4,7 +4,7 @@
 
 #include "SettingsPanelState.h"
 
-#include "Core/DxuiPanel.h"
+#include "Window/DxuiPropertyPage.h"
 #include "Widgets/DxuiLabel.h"
 #include "Widgets/DxuiTreeView.h"
 
@@ -39,7 +39,7 @@ class IDxuiTheme;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-class HardwarePage : public DxuiPanel
+class HardwarePage : public DxuiPropertyPage
 {
 public:
     HardwarePage ();

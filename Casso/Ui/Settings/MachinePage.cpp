@@ -55,6 +55,7 @@ namespace
 ////////////////////////////////////////////////////////////////////////////////
 
 MachinePage::MachinePage()
+    : DxuiPropertyPage (L"Machine")
 {
     size_t  i = 0;
 

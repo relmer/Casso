@@ -4,7 +4,7 @@
 
 #include "SettingsPanelState.h"
 
-#include "Core/DxuiPanel.h"
+#include "Window/DxuiPropertyPage.h"
 #include "Widgets/DxuiDropdown.h"
 #include "Widgets/DxuiCheckbox.h"
 #include "Widgets/DxuiLabel.h"
@@ -43,7 +43,7 @@ class DxuiHwndSource;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-class MachinePage : public DxuiPanel
+class MachinePage : public DxuiPropertyPage
 {
 public:
     MachinePage ();

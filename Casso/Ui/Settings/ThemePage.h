@@ -5,7 +5,7 @@
 #include "../Chrome/CassoTheme.h"
 #include "../Chrome/DriveWidget.h"
 #include "../Chrome/JoystickToggleButton.h"
-#include "Core/DxuiPanel.h"
+#include "Window/DxuiPropertyPage.h"
 #include "Widgets/DxuiButton.h"
 #include "Widgets/DxuiDropdown.h"
 #include "Widgets/DxuiLabel.h"
@@ -28,7 +28,7 @@ class DxuiHwndSource;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-class ThemePage : public DxuiPanel
+class ThemePage : public DxuiPropertyPage
 {
 public:
     ThemePage();

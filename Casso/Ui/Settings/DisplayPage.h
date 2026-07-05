@@ -5,7 +5,7 @@
 #include "SettingsPanelState.h"
 #include "../ColorUtil.h"
 
-#include "Core/DxuiPanel.h"
+#include "Window/DxuiPropertyPage.h"
 #include "Widgets/DxuiButton.h"
 #include "Widgets/DxuiDropdown.h"
 #include "Widgets/DxuiLabel.h"
@@ -69,7 +69,7 @@ struct DisplayDefaultsHint
 };
 
 
-class DisplayPage : public DxuiPanel
+class DisplayPage : public DxuiPropertyPage
 {
 public:
     DisplayPage ();

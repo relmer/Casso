@@ -406,6 +406,7 @@ namespace
 ////////////////////////////////////////////////////////////////////////////////
 
 ThemePage::ThemePage()
+    : DxuiPropertyPage (L"Theme")
 {
     Adopt (m_themeLabel);
     Adopt (m_themeDropdown);
