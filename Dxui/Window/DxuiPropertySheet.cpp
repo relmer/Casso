@@ -50,13 +50,16 @@ void DxuiPropertySheet::OnCreate ()
     m_tabs->SetSelected (0);
     m_tabs->SetOnChange ([this] (int index) { SetActivePage (index); });
 
-    m_ok     = CreateChild<DxuiButton> (L"OK");
+    m_ok     = CreateChild<DxuiButton> (m_okText);
     m_cancel = CreateChild<DxuiButton> (L"Cancel");
     m_apply  = CreateChild<DxuiButton> (L"Apply");
 
     m_ok->SetCommandId     (IDOK);
     m_cancel->SetCommandId (IDCANCEL);
     m_apply->SetCommandId  (s_kApplyCommandId);
+
+    // Honor a pre-Create SetApplyVisible(false): a plain [OK][Cancel] sheet.
+    m_apply->SetVisible (m_applyVisible);
 
     m_ok->SetOnClick    ([this] () { if (ApplyAllDirtyPages()) { EndDialog (IDOK); } });
     m_apply->SetOnClick ([this] () { ApplyAllDirtyPages(); RefreshApplyEnabled(); });
@@ -230,16 +233,7 @@ void DxuiPropertySheet::Layout (const RECT & boundsPx, const DxuiDpiScaler & sca
     int   pad     = scaler.Px (s_kContentPadDip);
     int   tabH    = scaler.Px (s_kTabStripHeightDip);
     int   rowH    = scaler.Px (s_kButtonRowHeightDip);
-    int   btnW    = scaler.Px (s_kButtonWidthDip);
-    int   btnH    = scaler.Px (s_kButtonHeightDip);
-    int   gapPx   = scaler.Px (s_kButtonGapDip);
-    int   edgePx  = scaler.Px (s_kButtonRowEdgePadDip);
     RECT  page    = boundsPx;
-    int   count   = 3;
-    int   total   = (count * btnW) + ((count - 1) * gapPx);
-    int   x       = boundsPx.right  - edgePx - total;
-    int   y       = boundsPx.bottom - pad - btnH;
-    DxuiButton *  buttons[3] = { m_ok, m_cancel, m_apply };
     int   i       = 0;
 
 
@@ -266,16 +260,138 @@ void DxuiPropertySheet::Layout (const RECT & boundsPx, const DxuiDpiScaler & sca
         m_pages[(size_t) m_active]->Layout (page, scaler);
     }
 
-    for (i = 0; i < count; ++i)
+    // Button row, right-aligned along the bottom. Registration order is
+    // OK, Cancel, Apply (Apply omitted when hidden). OK may carry a custom
+    // width so a longer label ("OK (reboot)") fits without clipping.
     {
-        RECT  b = { x, y, x + btnW, y + btnH };
+        int           okW      = (m_okWidthDip > 0) ? m_okWidthDip : s_kButtonWidthDip;
+        DxuiButton *  order[3] = { m_ok, m_cancel, m_apply };
+        int           allW[3]  = { okW, s_kButtonWidthDip, s_kButtonWidthDip };
+        DxuiButton *  vis[3]   = {};
+        int           visW[3]  = {};
+        RECT          rects[3] = {};
+        int           n        = 0;
 
-        if (buttons[i] != nullptr)
+        for (i = 0; i < 3; ++i)
         {
-            buttons[i]->Layout (b);
-            buttons[i]->SetDpi  (scaler.Dpi());
+            if (order[i] == nullptr)                    { continue; }
+            if (order[i] == m_apply && !m_applyVisible) { continue; }
+
+            vis[n]  = order[i];
+            visW[n] = allW[i];
+            ++n;
         }
 
-        x += btnW + gapPx;
+        LayoutButtonRow (boundsPx, scaler,
+                         std::span<const int> (visW,  (size_t) n),
+                         std::span<RECT>      (rects, (size_t) n));
+
+        for (i = 0; i < n; ++i)
+        {
+            vis[i]->Layout (rects[i]);
+            vis[i]->SetDpi  (scaler.Dpi());
+        }
+    }
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetApplyVisible / SetOkText / SetOkWidthDip
+//
+//  Button-row customization. The button-property updates take effect
+//  immediately; the row's positions reflow on the next Layout (i.e. the
+//  next resize), so callers set visibility / OK width before Show and use
+//  the OK relabel only within a pre-sized button.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiPropertySheet::SetApplyVisible (bool visible)
+{
+    m_applyVisible = visible;
+    if (m_apply != nullptr)
+    {
+        m_apply->SetVisible (visible);
+    }
+    if (IsCreated())
+    {
+        Invalidate();
+    }
+}
+
+
+void DxuiPropertySheet::SetOkText (std::wstring text)
+{
+    m_okText = std::move (text);
+    if (m_ok != nullptr)
+    {
+        m_ok->SetLabel (m_okText);
+    }
+    if (IsCreated())
+    {
+        Invalidate();
+    }
+}
+
+
+void DxuiPropertySheet::SetOkWidthDip (int widthDip)
+{
+    m_okWidthDip = widthDip;
+    if (IsCreated())
+    {
+        Invalidate();
+    }
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  LayoutButtonRow
+//
+//  Pure helper: right-aligns a row of `widthsDip.size()` buttons (registration
+//  order, left to right) along the bottom edge of boundsPx and writes each
+//  button's pixel rect into outRects. All spacing is resolved from the shared
+//  DIP constants through the scaler, so hidden-Apply / custom-width reflow is
+//  identical whether it runs from Layout or a unit test.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiPropertySheet::LayoutButtonRow (
+    const RECT           & boundsPx,
+    const DxuiDpiScaler  & scaler,
+    std::span<const int>   widthsDip,
+    std::span<RECT>        outRects)
+{
+    int     pad   = scaler.Px (s_kContentPadDip);
+    int     btnH  = scaler.Px (s_kButtonHeightDip);
+    int     gapPx = scaler.Px (s_kButtonGapDip);
+    int     edge  = scaler.Px (s_kButtonRowEdgePadDip);
+    int     y     = boundsPx.bottom - pad - btnH;
+    int     total = 0;
+    int     x     = 0;
+    size_t  i     = 0;
+
+
+    for (i = 0; i < widthsDip.size(); ++i)
+    {
+        total += scaler.Px (widthsDip[i]);
+    }
+    if (!widthsDip.empty())
+    {
+        total += (int) (widthsDip.size() - 1) * gapPx;
+    }
+
+    x = boundsPx.right - edge - total;
+
+    for (i = 0; i < widthsDip.size() && i < outRects.size(); ++i)
+    {
+        int  w = scaler.Px (widthsDip[i]);
+
+        outRects[i] = { x, y, x + w, y + btnH };
+        x += w + gapPx;
     }
 }
