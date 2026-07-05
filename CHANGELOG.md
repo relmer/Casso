@@ -102,6 +102,15 @@ spill past the window's edges instead of being clipped to it.
   settings tab now darkens while the mouse button is held on it, matching
   the press feedback the page's buttons, dropdowns, sliders, and toggles
   already give.
+- **perf(shell): the disk picker opens promptly instead of after a
+  visible pause.** Clicking a drive door no longer blocks on the
+  drive-door open animation before showing the picker when the door is
+  already open (an empty drive rests open), removing a ~350 ms dead wait
+  on the common case. The picker's pre-dialog work is also trimmed: the
+  bundled-demo directory is located once per process (its contents are
+  still enumerated each open so newly added demos appear), and the
+  stock-master dedup compares disk images a block at a time and stops at
+  the first difference instead of reading each image in full.
 
 ### Fixed
 - **fix(shell): machine switch no longer trips the UI-thread guard.**

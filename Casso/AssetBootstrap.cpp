@@ -875,46 +875,60 @@ fs::path AssetBootstrap::GetDiskDirectory()
 
 void AssetBootstrap::AppendBundledDemoDisks (std::vector<DiskMru::Entry> & mountable)
 {
-    std::vector<fs::path>  roots;
     std::vector<fs::path>  demos;
-    fs::path               exeDir = PathResolver::GetExecutableDirectory();
-    fs::path               cwd    = PathResolver::GetWorkingDirectory();
-    fs::path               cursor = exeDir;
     error_code             ec;
 
-
-
-    // Apple2/Demos ships in the source tree, not in an installed layout.
-    // The exe runs from <repo>/<platform>/<config>/Casso.exe, so walk a few
-    // levels up from the exe (and also try the working directory) for the
-    // directory. No match means this is not a repo build -- no demos are
-    // offered.
-    for (int i = 0; i < 4 && !cursor.empty(); ++i)
+    // Locate Apple2/Demos ONCE per process. It ships in the source tree, not
+    // an installed layout, so its location is purely a function of the exe
+    // path + repo layout -- neither changes while we run. A miss means this
+    // is not a repo build, and that can't change at runtime either, so we
+    // record the absence and never re-attempt the walk-up. `std::nullopt`
+    // means "no demos dir"; a value is the resolved directory.
+    static const std::optional<fs::path>  demosDir = [] () -> std::optional<fs::path>
     {
-        roots.push_back (cursor / L"Apple2" / L"Demos");
-        cursor = cursor.parent_path();
-    }
-    roots.push_back (cwd / L"Apple2" / L"Demos");
+        fs::path     cursor = PathResolver::GetExecutableDirectory();
+        error_code   ecDir;
 
-    for (const fs::path & dir : roots)
-    {
-        if (!fs::is_directory (dir, ec))
+        // The exe runs from <repo>/<platform>/<config>/Casso.exe, so walk a
+        // few levels up from the exe (and also try the working directory).
+        for (int i = 0; i < 4 && !cursor.empty(); ++i)
         {
-            continue;
-        }
+            fs::path  candidate = cursor / L"Apple2" / L"Demos";
 
-        for (const fs::directory_entry & entry : fs::directory_iterator (dir, ec))
-        {
-            error_code  ecFile;
-
-            if (entry.is_regular_file (ecFile) &&
-                IsSupportedDiskImageExtension (entry.path().wstring()))
+            if (fs::is_directory (candidate, ecDir))
             {
-                demos.push_back (entry.path().lexically_normal());
+                return candidate;
             }
+            cursor = cursor.parent_path();
         }
 
-        break;          // first matching demos directory wins
+        fs::path  cwdCandidate = PathResolver::GetWorkingDirectory() / L"Apple2" / L"Demos";
+        if (fs::is_directory (cwdCandidate, ecDir))
+        {
+            return cwdCandidate;
+        }
+
+        return std::nullopt;
+    } ();
+
+    // Not a repo build -- nothing to offer, and that will never change.
+    if (!demosDir.has_value())
+    {
+        return;
+    }
+
+    // Enumerate the directory fresh on every open: in a repo build the user
+    // can drop a new disk image into Apple2/Demos while Casso is running, and
+    // the picker should pick it up. Listing this small directory is cheap.
+    for (const fs::directory_entry & entry : fs::directory_iterator (*demosDir, ec))
+    {
+        error_code  ecFile;
+
+        if (entry.is_regular_file (ecFile) &&
+            IsSupportedDiskImageExtension (entry.path().wstring()))
+        {
+            demos.push_back (entry.path().lexically_normal());
+        }
     }
 
     std::sort (demos.begin(), demos.end());
@@ -1461,17 +1475,27 @@ Error:
 //  MRU pickers. Bails on size mismatch before reading any bytes, so
 //  the common "not the same file" case costs one stat per side.
 //
+//  When the sizes DO match (common: 140 KB DOS 3.3 / ProDOS masters
+//  share a size with many recent disks), the files are compared a
+//  chunk at a time and the scan bails on the first differing block.
+//  Distinct same-size disk images almost always diverge in the boot
+//  sector / catalog near the front, so this avoids reading both images
+//  in full on every picker open -- only a genuine match (rare, <= the
+//  couple of stock rows) reads to the end.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 static bool FilesHaveSameContent (const fs::path & a, const fs::path & b)
 {
+    constexpr std::streamsize  kChunk = 64 * 1024;
+
     std::error_code  ec;
     uintmax_t        sizeA   = fs::file_size (a, ec);
     uintmax_t        sizeB   = 0;
     std::ifstream    fa;
     std::ifstream    fb;
-    std::vector<char> bufA;
-    std::vector<char> bufB;
+    std::vector<char> bufA ((size_t) kChunk);
+    std::vector<char> bufB ((size_t) kChunk);
 
 
     if (ec)
@@ -1492,16 +1516,26 @@ static bool FilesHaveSameContent (const fs::path & a, const fs::path & b)
         return false;
     }
 
-    bufA.resize ((size_t) sizeA);
-    bufB.resize ((size_t) sizeB);
-    fa.read (bufA.data(), (std::streamsize) sizeA);
-    fb.read (bufB.data(), (std::streamsize) sizeB);
-    if (!fa || !fb)
+    for (uintmax_t remaining = sizeA; remaining > 0; )
     {
-        return false;
+        std::streamsize  want = (remaining < (uintmax_t) kChunk) ? (std::streamsize) remaining : kChunk;
+
+        fa.read (bufA.data(), want);
+        fb.read (bufB.data(), want);
+        if (fa.gcount() != want || fb.gcount() != want)
+        {
+            return false;       // short read on either side -> treat as mismatch
+        }
+
+        if (std::memcmp (bufA.data(), bufB.data(), (size_t) want) != 0)
+        {
+            return false;       // first differing block -> done, no full read
+        }
+
+        remaining -= (uintmax_t) want;
     }
 
-    return std::memcmp (bufA.data(), bufB.data(), (size_t) sizeA) == 0;
+    return true;
 }
 
 

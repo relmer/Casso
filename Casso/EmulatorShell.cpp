@@ -1788,40 +1788,50 @@ void EmulatorShell::BrowseForDisk (int drive)
     pSt = &m_driveWidgetState[drive];
     now = nowMs();
 
+    // Only the closed / closing door will visibly animate open. An empty
+    // drive rests with its door already Open (Door::Open is the default),
+    // so StartDoorTransition is a no-op there and blocking for the
+    // animation would just be dead time before the picker appears. Gate
+    // the wait on whether an animation will actually play.
+    const bool  doorWillAnimate =
+        (pSt->doorState == DriveWidgetState::Door::Closed ||
+         pSt->doorState == DriveWidgetState::Door::Closing);
+
     pSt->StartDoorTransition (DriveWidgetState::Door::Opening, now);
     m_d3dRenderer.MarkRedrawNeeded();
 
-    // Let the door animation finish and linger briefly so the user
-    // actually sees it open before the modal file-open dialog covers
-    // the drive. The host paint pump runs on the UI thread (driven by
-    // WM_PAINT), so we both pump Windows messages AND request a frame
-    // here -- the CPU emulation thread is separate, and the chrome /
-    // framebuffer composite only happens from the host pump on the UI
-    // thread we're currently blocking. The time base MUST match
-    // DiskManager::NowMs (steady_clock ms) because TickDoorAnimation
-    // diffs the current frame time against animationStartTimeMs.
+    // Let the door animation finish so the user actually sees it open
+    // before the modal picker covers the drive. The host paint pump runs
+    // on the UI thread (driven by WM_PAINT), so we both pump Windows
+    // messages AND request a frame here -- the CPU emulation thread is
+    // separate, and the chrome / framebuffer composite only happens from
+    // the host pump on the UI thread we're currently blocking. The time
+    // base MUST match DiskManager::NowMs (steady_clock ms) because
+    // TickDoorAnimation diffs the current frame time against
+    // animationStartTimeMs. Skipped entirely when the door is already
+    // open (nothing to animate) so the picker opens immediately.
+    if (doorWillAnimate)
     {
-        constexpr int64_t  s_kPostOpenLingerMs = 0;
+        deadline = now + DriveWidgetState::kDoorAnimationMs;
 
-        deadline = now + DriveWidgetState::kDoorAnimationMs + s_kPostOpenLingerMs;
-    }
-    while (nowMs() < deadline)
-    {
-        while (PeekMessageW (&msg, nullptr, 0, 0, PM_REMOVE))
+        while (nowMs() < deadline)
         {
-            TranslateMessage (&msg);
-            DispatchMessageW (&msg);
-        }
+            while (PeekMessageW (&msg, nullptr, 0, 0, PM_REMOVE))
+            {
+                TranslateMessage (&msg);
+                DispatchMessageW (&msg);
+            }
 
-        // Tick the door animation and repaint through the host pump
-        // (the after-blit hook that used to do this is gone). A nullptr
-        // framebuffer re-composites the last emulator upload with the
-        // chrome (animating door) painted on top.
-        m_diskManager->UpdateDriveWidgets();
-        m_pendingFramebuffer = nullptr;
-        InvalidateRect (m_hwnd, nullptr, FALSE);
-        UpdateWindow   (m_hwnd);
-        Sleep (8);
+            // Tick the door animation and repaint through the host pump
+            // (the after-blit hook that used to do this is gone). A nullptr
+            // framebuffer re-composites the last emulator upload with the
+            // chrome (animating door) painted on top.
+            m_diskManager->UpdateDriveWidgets();
+            m_pendingFramebuffer = nullptr;
+            InvalidateRect (m_hwnd, nullptr, FALSE);
+            UpdateWindow   (m_hwnd);
+            Sleep (8);
+        }
     }
 
     hrBrowse = m_windowCommandManager->PromptInsertDiskMru (drive + 1);
