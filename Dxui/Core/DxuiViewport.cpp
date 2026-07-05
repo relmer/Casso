@@ -98,7 +98,30 @@ void DxuiViewport::SetInputSink (IDxuiViewportInputSink * sink)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DxuiViewport::IsReservedChord
+//  DxuiViewport::SetWantsAllKeys
+//
+//  Enables "greedy" mode: OnKey forwards even the framework-reserved
+//  navigation keystrokes to the sink. The `DLGC_WANTALLKEYS` analog for an
+//  emulator / terminal / game viewport that needs raw Tab / Esc / etc. The
+//  sink returns false from OnViewportKey for any keystroke it wants handed
+//  back to the framework, so the app keeps a keyboard escape route.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiViewport::SetWantsAllKeys (bool wantsAllKeys)
+{
+    DXUI_ASSERT_UI_THREAD();
+
+    m_wantsAllKeys = wantsAllKeys;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiViewport::IsReservedKeystroke
 //
 //  Returns true for the keystrokes that Dxui reserves for itself even
 //  when a viewport is in `consumesInput` mode. The framework needs
@@ -111,9 +134,9 @@ void DxuiViewport::SetInputSink (IDxuiViewportInputSink * sink)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool DxuiViewport::IsReservedChord (const DxuiKeyEvent & ev)
+bool DxuiViewport::IsReservedKeystroke (const DxuiKeyEvent & ev)
 {
-    // Char events never count as reserved chords; only key transitions do.
+    // Char events never count as reserved keystrokes; only key transitions do.
     if (ev.kind == DxuiKeyEventKind::Char)
     {
         return false;
@@ -251,9 +274,11 @@ bool DxuiViewport::OnMouse (const DxuiMouseEvent & ev)
 //  DxuiViewport::OnKey
 //
 //  Forwards non-reserved keys to the sink when `consumesInput` is set
-//  and a sink is registered. Reserved chords (Tab / Shift+Tab / Esc /
+//  and a sink is registered. Reserved keystrokes (Tab / Shift+Tab / Esc /
 //  Alt-alone / F10) return `false` so the framework's focus manager,
-//  menu bar, and modal surfaces can act on them.
+//  menu bar, and modal surfaces can act on them -- unless `wantsAllKeys`
+//  is set, in which case even those forward to the sink (which returns
+//  false for any it wants to hand back).
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -266,7 +291,7 @@ bool DxuiViewport::OnKey (const DxuiKeyEvent & ev)
         return false;
     }
 
-    if (IsReservedChord (ev))
+    if (!m_wantsAllKeys && IsReservedKeystroke (ev))
     {
         return false;
     }

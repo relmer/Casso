@@ -25,9 +25,11 @@
 //        rectangle changes so the external renderer can resize its
 //        render target.
 //      - Optionally consumes mouse / key input and forwards it to an
-//        `IDxuiViewportInputSink`. Reserved Dxui chords (Tab,
+//        `IDxuiViewportInputSink`. Reserved Dxui keystrokes (Tab,
 //        Shift+Tab, Esc, Alt-alone, F10) bypass the sink so focus
-//        traversal and menu activation continue to work.
+//        traversal and menu activation continue to work -- unless
+//        `SetWantsAllKeys(true)` makes the viewport forward everything
+//        (the `DLGC_WANTALLKEYS` analog for greedy input surfaces).
 //
 //  Painting is always a no-op: the external renderer draws into the
 //  same swap chain at the rectangle reported by `Bounds()`. Chrome
@@ -59,14 +61,24 @@ public:
     void  SetPreferredSizeDip    (SIZE       sizeDip);
     void  SetConsumesInput       (bool       consumesInput);
     void  SetInputSink           (IDxuiViewportInputSink * sink);
+
+    // DLGC_WANTALLKEYS analog: when set, a consuming viewport forwards
+    // EVERY keystroke to the sink -- including the framework-reserved
+    // navigation keystrokes (Tab / Shift+Tab / Esc / Alt-alone / F10) --
+    // so a greedy surface (emulator / terminal / game) can receive them.
+    // The sink then owns the reserve/release policy: return false from
+    // OnViewportKey for any keystroke it wants to hand back to the
+    // framework (focus traversal, menu activation, ...). Off by default.
+    void  SetWantsAllKeys        (bool       wantsAllKeys);
     void  SetOnBoundsChanged     (BoundsChangedFn callback) { m_onBoundsChanged = std::move (callback); }
 
     SizePolicy                Policy             () const { return m_policy;            }
     SIZE                      PreferredSizeDip   () const { return m_preferredSizeDip;  }
     bool                      ConsumesInput      () const { return m_consumesInput;     }
+    bool                      WantsAllKeys       () const { return m_wantsAllKeys;      }
     IDxuiViewportInputSink *  InputSink          () const { return m_sink;              }
 
-    static bool  IsReservedChord (const DxuiKeyEvent & ev);
+    static bool  IsReservedKeystroke (const DxuiKeyEvent & ev);
 
     void              Layout       (const RECT          & boundsDip,
                                     const DxuiDpiScaler & scaler) override;
@@ -88,5 +100,6 @@ private:
     SizePolicy                m_policy                = SizePolicy::Fill;
     SIZE                      m_preferredSizeDip      = { 0, 0 };
     bool                      m_consumesInput         = false;
+    bool                      m_wantsAllKeys          = false;
     IDxuiViewportInputSink *  m_sink                  = nullptr;
 };

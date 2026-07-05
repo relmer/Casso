@@ -337,6 +337,45 @@ public:
     }
 
 
+    TEST_METHOD (OnKey_WantsAllKeys_ForwardsReservedEscapeToSink)
+    {
+        DxuiViewport    vp;
+        RecordingSink   sink;
+        DxuiKeyEvent    ev;
+
+        ev.kind = DxuiKeyEventKind::Down;
+        ev.vk   = VK_ESCAPE;
+
+        vp.SetInputSink     (&sink);
+        vp.SetConsumesInput (true);
+        vp.SetWantsAllKeys  (true);   // greedy: even reserved Esc reaches the sink
+
+        Assert::IsTrue   (vp.OnKey (ev));   // sink consumes (consumeKey defaults true)
+        Assert::AreEqual (1, sink.keyCount);
+    }
+
+
+    TEST_METHOD (OnKey_WantsAllKeys_SinkReturnFalseBubblesReserved)
+    {
+        DxuiViewport    vp;
+        RecordingSink   sink;
+        DxuiKeyEvent    ev;
+
+        ev.kind = DxuiKeyEventKind::Down;
+        ev.vk   = VK_TAB;
+
+        sink.consumeKey = false;      // sink hands this keystroke back to the framework
+        vp.SetInputSink     (&sink);
+        vp.SetConsumesInput (true);
+        vp.SetWantsAllKeys  (true);
+
+        // Reserved Tab reaches the sink (keyCount=1) but the sink declines
+        // (returns false), so OnKey bubbles -> the framework's release path.
+        Assert::IsFalse  (vp.OnKey (ev));
+        Assert::AreEqual (1, sink.keyCount);
+    }
+
+
     TEST_METHOD (OnKey_ReservedAltAlone_DoesNotForward)
     {
         DxuiViewport    vp;
