@@ -1222,6 +1222,15 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
         this->OnViewportBoundsChanged (boundsPx);
     });
 
+    // Route the guest's raw keyboard through the viewport's input sink
+    // (FR-034). SetWantsAllKeys makes it a greedy surface so even the
+    // Dxui-reserved navigation keystrokes (Esc / Tab / arrows) reach the
+    // //e -- the chrome's own keyboard escape routes are enforced by the
+    // pre-checks in OnKeyDown / OnChar, upstream of this forward.
+    m_viewport->SetInputSink (this);
+    m_viewport->SetConsumesInput (true);
+    m_viewport->SetWantsAllKeys (true);
+
     // Adopt the chrome controls (menu bar / drive widgets / joystick
     // toggle) into the host's root panel so they participate in the
     // host-owned paint, input, focus, theme, tick, and DPI walks.
@@ -3939,10 +3948,6 @@ DxuiMessageResult EmulatorShell::OnKeyDown (WPARAM vk, LPARAM lParam)
     bool     ctrlHeld      = false;
     bool     altHeld       = false;
     bool     isRepeat      = (lParam & s_kPreviousKeyDownLParamBit) != 0;
-    bool     driveJoystick = m_inputMode == InputMappingMode::Joystick &&
-                             (dynamic_cast<Apple2eSoftSwitchBank *> (m_refs.softSwitches) != nullptr ||
-                              m_refs.gamePort != nullptr);
-    Byte     appleCode     = 0;
 
 
 
@@ -3979,60 +3984,25 @@ DxuiMessageResult EmulatorShell::OnKeyDown (WPARAM vk, LPARAM lParam)
     consumed = HandleHostMetaShortcut (vk, ctrlHeld, altHeld);
     BAIL_OUT_IF (consumed, S_OK);
 
-    m_refs.keyboard->SetKeyDown (true);
-    ApplyAppleModifierKeys (vk, true);
-
-    // Arrow / Escape / Delete map to //e control codes. Gated on the
-    // auto-repeat bit so the host OS repeat never reaches the latch; a
-    // fresh press arms the $C000 strobe once and registers the key for the
-    // emulator's own authentic //e auto-repeat cadence (Tick). With "Map
-    // Arrows to Joystick" on (and a game-port paddle bank present), arrow
-    // keys are withheld from the keyboard latch so a held direction cannot
-    // flood $C000 and starve a joystick-mode game's paddle reads.
-    if (!isRepeat)
+    // The chrome / settings / meta pre-checks above already skimmed off
+    // every keystroke that belongs to the shell. Everything left is the
+    // guest's: build a Down event and hand it to the viewport, which (with
+    // SetConsumesInput + SetWantsAllKeys) forwards it to OnViewportKey for
+    // the //e keyboard + game port. Routing through the viewport keeps a
+    // single Dxui input path (FR-034) rather than the shell reaching into
+    // m_refs.keyboard directly.
+    if (m_viewport != nullptr)
     {
-        appleCode = MapVkToAppleControlCode (vk);
+        DxuiKeyEvent  ev;
 
-        if (driveJoystick && IsArrowVk (vk))
-        {
-            appleCode = 0;
-        }
+        ev.kind   = DxuiKeyEventKind::Down;
+        ev.vk     = vk;
+        ev.repeat = isRepeat;
+        ev.ctrl   = ctrlHeld;
+        ev.alt    = altHeld;
+        ev.shift  = (GetKeyState (VK_SHIFT) & 0x8000) != 0;
 
-        if (appleCode != 0)
-        {
-            m_refs.keyboard->KeyPress (appleCode);
-            m_refs.keyboard->BeginKeyRepeat (appleCode);
-        }
-    }
-
-    // Arrow keys double as the emulated joystick axes for joystick-mode
-    // games (e.g. Choplifter, Lode Runner) when the feature is enabled.
-    // Record the last-pressed direction per axis so opposing keys resolve
-    // last-pressed-wins, then re-resolve both axes from the current key
-    // state.
-    if (driveJoystick && IsArrowVk (vk))
-    {
-        if (vk == VK_LEFT || vk == VK_RIGHT)
-        {
-            m_lastHorizontalArrowVk = vk;
-        }
-        else
-        {
-            m_lastVerticalArrowVk = vk;
-        }
-
-        UpdateJoystickAxesFromKeys();
-    }
-
-    // Re-resolve the joystick fire buttons on every key event in joystick
-    // mode (not just on X / Z) so that an Alt press/release re-applies its
-    // Open/Closed-Apple mapping without clobbering a still-held X / Z, and a
-    // released X / Z can't leave a button stuck while Alt is down. The
-    // matching X / Z WM_CHAR is suppressed in OnChar so the letters don't
-    // also type into the //e keyboard latch.
-    if (driveJoystick)
-    {
-        UpdateJoystickButtonsFromKeys();
+        (void) m_viewport->OnKey (ev);
     }
 
 Error:
@@ -4051,38 +4021,177 @@ Error:
 
 DxuiMessageResult EmulatorShell::OnKeyUp (WPARAM vk, LPARAM lParam)
 {
-    HRESULT  hr = S_OK;
-
-
-
     UNREFERENCED_PARAMETER (lParam);
 
-    CBR (m_refs.keyboard != nullptr);
-
-    m_refs.keyboard->SetKeyDown (false);
-
-    // Disarm auto-repeat on release. The //e latch holds a single key, so a
-    // key-up always ends the current repeat; this also clears any stale
-    // armed key so a later non-character press (e.g. a bare modifier) can
-    // never resurrect the previous character's repeat.
-    m_refs.keyboard->BeginKeyRepeat (0);
-
-    // Release the //e Open/Closed-Apple and Shift modifiers as the host
-    // releases the physical keys.
-    ApplyAppleModifierKeys (vk, false);
-
-    if (m_inputMode == InputMappingMode::Joystick && IsArrowVk (vk))
+    // Key-up is deliberately unconditional (no chrome / settings gate): a
+    // release must always reach the //e so a modifier or repeat can never
+    // stick when focus moved to the chrome mid-press. The viewport forwards
+    // it to OnViewportKey, which performs the release.
+    if (m_viewport != nullptr)
     {
-        UpdateJoystickAxesFromKeys();
+        DxuiKeyEvent  ev;
+
+        ev.kind = DxuiKeyEventKind::Up;
+        ev.vk   = vk;
+
+        (void) m_viewport->OnKey (ev);
     }
 
-    if (m_inputMode == InputMappingMode::Joystick)
-    {
-        UpdateJoystickButtonsFromKeys();
-    }
-
-Error:
     return DxuiMessageResult::Handled;
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnViewportKey
+//
+//  IDxuiViewportInputSink. Applies a viewport-forwarded keystroke to the
+//  Apple ][ keyboard latch and game port. The chrome / settings / meta
+//  pre-checks already ran in OnKeyDown / OnChar, and the viewport is set
+//  to SetWantsAllKeys(true), so every remaining keystroke -- Esc / Tab /
+//  arrows included -- lands here and belongs to the guest. Always returns
+//  true: nothing here bubbles back to the framework (the shell's own
+//  chrome escape routes live in the pre-checks, not the sink).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool EmulatorShell::OnViewportKey (const DxuiKeyEvent & ev)
+{
+    // Arrow keys double as the emulated joystick axes / the X / Z keys as
+    // fire buttons when "Map Arrows to Joystick" is on AND a game-port
+    // paddle bank is present. Recomputed per event so a mode change between
+    // press and release is always honored.
+    bool  driveJoystick = m_inputMode == InputMappingMode::Joystick &&
+                          (dynamic_cast<Apple2eSoftSwitchBank *> (m_refs.softSwitches) != nullptr ||
+                           m_refs.gamePort != nullptr);
+
+    if (m_refs.keyboard == nullptr)
+    {
+        return true;
+    }
+
+    if (ev.kind == DxuiKeyEventKind::Down)
+    {
+        WPARAM  vk        = ev.vk;
+        Byte    appleCode = 0;
+
+        m_refs.keyboard->SetKeyDown (true);
+        ApplyAppleModifierKeys (vk, true);
+
+        // Arrow / Escape / Delete map to //e control codes. Gated on the
+        // auto-repeat bit so the host OS repeat never reaches the latch; a
+        // fresh press arms the $C000 strobe once and registers the key for
+        // the emulator's own authentic //e auto-repeat cadence (Tick). With
+        // "Map Arrows to Joystick" on (and a game-port paddle bank present),
+        // arrow keys are withheld from the keyboard latch so a held
+        // direction cannot flood $C000 and starve a joystick game's reads.
+        if (!ev.repeat)
+        {
+            appleCode = MapVkToAppleControlCode (vk);
+
+            if (driveJoystick && IsArrowVk (vk))
+            {
+                appleCode = 0;
+            }
+
+            if (appleCode != 0)
+            {
+                m_refs.keyboard->KeyPress (appleCode);
+                m_refs.keyboard->BeginKeyRepeat (appleCode);
+            }
+        }
+
+        // Record the last-pressed direction per axis so opposing keys
+        // resolve last-pressed-wins, then re-resolve both axes from the
+        // current key state.
+        if (driveJoystick && IsArrowVk (vk))
+        {
+            if (vk == VK_LEFT || vk == VK_RIGHT)
+            {
+                m_lastHorizontalArrowVk = vk;
+            }
+            else
+            {
+                m_lastVerticalArrowVk = vk;
+            }
+
+            UpdateJoystickAxesFromKeys();
+        }
+
+        // Re-resolve the joystick fire buttons on every key event in
+        // joystick mode (not just on X / Z) so that an Alt press/release
+        // re-applies its Open/Closed-Apple mapping without clobbering a
+        // still-held X / Z, and a released X / Z can't leave a button stuck
+        // while Alt is down. The matching X / Z WM_CHAR is suppressed in
+        // OnChar so the letters don't also type into the //e keyboard latch.
+        if (driveJoystick)
+        {
+            UpdateJoystickButtonsFromKeys();
+        }
+    }
+    else if (ev.kind == DxuiKeyEventKind::Up)
+    {
+        WPARAM  vk = ev.vk;
+
+        m_refs.keyboard->SetKeyDown (false);
+
+        // Disarm auto-repeat on release. The //e latch holds a single key,
+        // so a key-up always ends the current repeat; this also clears any
+        // stale armed key so a later non-character press (e.g. a bare
+        // modifier) can never resurrect the previous character's repeat.
+        m_refs.keyboard->BeginKeyRepeat (0);
+
+        // Release the //e Open/Closed-Apple and Shift modifiers as the host
+        // releases the physical keys.
+        ApplyAppleModifierKeys (vk, false);
+
+        if (m_inputMode == InputMappingMode::Joystick && IsArrowVk (vk))
+        {
+            UpdateJoystickAxesFromKeys();
+        }
+
+        if (m_inputMode == InputMappingMode::Joystick)
+        {
+            UpdateJoystickButtonsFromKeys();
+        }
+    }
+    else // DxuiKeyEventKind::Char
+    {
+        WPARAM  ch = ev.vk;
+
+        if (ch >= 1 && ch <= 127)
+        {
+            m_refs.keyboard->KeyPress (static_cast<Byte> (ch));
+            m_refs.keyboard->BeginKeyRepeat (static_cast<Byte> (ch));
+        }
+    }
+
+    return true;
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnViewportMouse
+//
+//  IDxuiViewportInputSink. The Apple ][ has no viewport-rect mouse mapping
+//  in the current build: paddle input is a captured relative-motion mode
+//  driven directly from OnMouseMove (SetCapture snaps the cursor to
+//  centre), and the joystick maps to arrow keys -- neither fits the
+//  viewport's absolute-rect forwarding. Returns false so any future
+//  in-viewport click continues to bubble to the chrome hit-testing that
+//  owns it today.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool EmulatorShell::OnViewportMouse (const DxuiMouseEvent & ev)
+{
+    UNREFERENCED_PARAMETER (ev);
+    return false;
 }
 
 
@@ -4666,10 +4775,18 @@ DxuiMessageResult EmulatorShell::OnChar (WPARAM ch, LPARAM lParam)
         return DxuiMessageResult::Handled;
     }
 
-    if (ch >= 1 && ch <= 127)
+    // The pre-checks above owned every WM_CHAR the shell should eat; a
+    // surviving printable character is the guest's. Route it through the
+    // viewport so the //e keyboard latch is fed on the same Dxui path as
+    // the key transitions (FR-034).
+    if (m_viewport != nullptr)
     {
-        m_refs.keyboard->KeyPress (static_cast<Byte> (ch));
-        m_refs.keyboard->BeginKeyRepeat (static_cast<Byte> (ch));
+        DxuiKeyEvent  ev;
+
+        ev.kind = DxuiKeyEventKind::Char;
+        ev.vk   = ch;
+
+        (void) m_viewport->OnKey (ev);
     }
 
     return DxuiMessageResult::Handled;

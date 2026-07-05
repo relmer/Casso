@@ -95,7 +95,7 @@ public:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-class EmulatorShell : public IDxuiHostClient, public IDriveCommandSink
+class EmulatorShell : public IDxuiHostClient, public IDriveCommandSink, public IDxuiViewportInputSink
 {
 public:
     EmulatorShell();
@@ -209,6 +209,14 @@ private:
     DxuiMessageResult  OnCommand       (WORD commandId) override;
     DxuiMessageResult  OnKeyDown       (WPARAM vk, LPARAM lParam) override;
     DxuiMessageResult  OnKeyUp         (WPARAM vk, LPARAM lParam) override;
+
+    // IDxuiViewportInputSink -- the emulator viewport routes its raw
+    // keyboard input here (SetWantsAllKeys(true) so even Esc/Tab/arrows
+    // arrive). The chrome / settings / meta pre-checks run in OnKeyDown /
+    // OnChar before the event reaches the viewport, so these apply the
+    // keystroke straight to the Apple ][ keyboard + game port.
+    bool  OnViewportKey   (const DxuiKeyEvent   & ev) override;
+    bool  OnViewportMouse (const DxuiMouseEvent & ev) override;
     DxuiMessageResult  OnMouseMove     (WPARAM wParam, LPARAM lParam) override;
     DxuiMessageResult  OnMouseLeave    () override;
     DxuiMessageResult  OnLButtonDown   (WPARAM wParam, LPARAM lParam) override;
