@@ -44,6 +44,11 @@ class HardwarePage : public DxuiPropertyPage
 public:
     explicit HardwarePage (std::wstring title = L"Hardware");
 
+    // DxuiPropertyPage/DxuiPanel layout hook. Forwards to SetRect so the
+    // page positions correctly whether driven by DxuiPropertySheet (which
+    // calls Layout) or the legacy SettingsPanel (which calls SetRect).
+    void  Layout     (const RECT & rect, const DxuiDpiScaler & scaler) override;
+
     void  SetRect    (const RECT & rect, const DxuiDpiScaler & scaler);
     void  SetState   (SettingsPanelState * state);
     void  Rebuild    ();

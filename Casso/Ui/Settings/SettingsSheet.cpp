@@ -7,7 +7,6 @@
 
 static constexpr int  s_kSheetWidthDip     = 724;
 static constexpr int  s_kSheetHeightDip    = 760;
-static constexpr int  s_kOkRebootWidthDip  = 132;   // room for "OK (reboot)"
 
 
 
@@ -58,10 +57,9 @@ HRESULT SettingsSheet::OpenModal (
     m_emuShell = &emuShell;
     m_fs       = &fs;
 
-    // No Apply button; OK widened for the "OK (reboot)" relabel. Set BEFORE
-    // Create so OnCreate honors the hidden Apply.
+    // No Apply button. Set BEFORE Create so OnCreate honors the hidden Apply.
+    // (The "OK (reboot)" relabel + its widened width land together in 3b.)
     SetApplyVisible (false);
-    SetOkWidthDip   (s_kOkRebootWidthDip);
 
     params.title                    = L"Settings";
     params.hInstance                = hInstance;
@@ -69,7 +67,7 @@ HRESULT SettingsSheet::OpenModal (
     params.initialSizeDip           = { s_kSheetWidthDip, s_kSheetHeightDip };
     params.minSizeDip               = { s_kSheetWidthDip, s_kSheetHeightDip };
     params.resizable                = true;
-    params.insetContentBelowCaption = false;
+    params.insetContentBelowCaption = true;   // tab strip sits below the caption
     params.captionStyle             = DxuiCaptionStyle::CloseOnly;
 
     hr = DxuiWindow::Create (params);   // fires OnBuildPages + base OnCreate
@@ -91,11 +89,18 @@ HRESULT SettingsSheet::OpenModal (
     m_themePage->SetPopupHost   (PopupHost());
     m_displayPage->SetPopupHost (PopupHost());
 
-    // Pull the running machine + discovered themes into the pages, then
-    // rebuild widget selections.
+    // Pull the running machine + discovered themes into the pages.
     m_catalog.LoadCurrentMachineIntoState();
     m_catalog.PopulateMachineList();
     m_catalog.PopulateThemeList();
+
+    // Show the window BEFORE the final Rebuild: the first valid layout only
+    // happens once the window is shown (WM_SIZE against the real client size),
+    // and HardwarePage's tree view (plus any content that flows its rows at
+    // Rebuild time) needs real bounds to flow into, else it collapses to the
+    // top-left. This mirrors the legacy SettingsPanel::Show order (Layout,
+    // then Rebuild). ShowModalDialog re-shows harmlessly below.
+    Show();
     m_machinePage->Rebuild();
     m_hardwarePage->Rebuild();
     m_displayPage->Rebuild();

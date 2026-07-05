@@ -7,6 +7,7 @@
 
 
 static constexpr int  s_kTabStripHeightDip   = 36;
+static constexpr int  s_kTabWidthDip         = 100;
 static constexpr int  s_kButtonRowHeightDip  = 44;
 static constexpr int  s_kButtonWidthDip      = 96;
 static constexpr int  s_kButtonHeightDip     = 28;
@@ -243,9 +244,29 @@ void DxuiPropertySheet::Layout (const RECT & boundsPx, const DxuiDpiScaler & sca
     if (m_tabs != nullptr)
     {
         RECT  strip = { boundsPx.left, boundsPx.top, boundsPx.right, boundsPx.top + tabH };
+        int   tabW  = scaler.Px (s_kTabWidthDip);
+        int   tx    = strip.left + pad;
 
-        m_tabs->Layout (strip, scaler);
-        m_tabs->SetDpi  (scaler.Dpi());
+        // DxuiTabStrip does not lay out its own tabs -- the caller owns each
+        // tab's rect. Assign uniform fixed-width tabs left-to-right (no text
+        // renderer is available here to content-size them).
+        std::vector<DxuiTabStrip::Tab>  tabs;
+
+        tabs.reserve (m_pages.size());
+        for (i = 0; i < (int) m_pages.size(); ++i)
+        {
+            DxuiTabStrip::Tab  tab;
+
+            tab.label = m_pages[(size_t) i]->Title();
+            tab.rect  = { tx, strip.top, tx + tabW, strip.bottom };
+            tabs.push_back (std::move (tab));
+            tx += tabW;
+        }
+
+        m_tabs->SetTabs     (std::move (tabs));
+        m_tabs->SetSelected (m_active);
+        m_tabs->Layout      (strip, scaler);
+        m_tabs->SetDpi      (scaler.Dpi());
     }
 
     page.top     = boundsPx.top + tabH;
@@ -255,9 +276,13 @@ void DxuiPropertySheet::Layout (const RECT & boundsPx, const DxuiDpiScaler & sca
     page.right  -= pad;
     page.bottom -= pad;
 
-    if (m_active >= 0 && m_active < (int) m_pages.size())
+    // Lay out every page, not just the active one: SetActivePage only toggles
+    // visibility (no relayout), so a page that has never been the active page
+    // at Layout time would otherwise keep default {0,0} bounds and render
+    // clipped at the top-left when first shown.
+    for (i = 0; i < (int) m_pages.size(); ++i)
     {
-        m_pages[(size_t) m_active]->Layout (page, scaler);
+        m_pages[(size_t) i]->Layout (page, scaler);
     }
 
     // Button row, right-aligned along the bottom. Registration order is
