@@ -1307,76 +1307,100 @@ void DxuiHwndSource::ReleaseBackBufferRtv ()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  PaintPump
+//  BackBufferSizePx
 //
-//  WM_PAINT body for full-ownership mode. Binds the back-buffer RTV,
-//  clears to the theme background, lets the registered before-present
-//  hook composite its full-buffer content first (e.g. the Apple ][
-//  framebuffer via D3DRenderer::UploadAndComposite), then walks the
-//  root panel tree invoking IDxuiControl::Paint on every visible child
-//  so the chrome composites on top, then presents the swap chain.
-//
-//  Bails cleanly if the painter / text renderer / RTV / swap chain
-//  are missing — partially-initialized states still get a Present
-//  attempt so DWM doesn't latch a stale frame.
+//  DxuiRenderTarget surface contract: the back buffer's pixel size, read
+//  from the swap-chain description. Returns {0,0} before the swap chain
+//  exists so RenderFrame no-ops.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiHwndSource::PaintPump ()
+SIZE DxuiHwndSource::BackBufferSizePx () const
 {
-    HRESULT                hr             = S_OK;
-    DXGI_SWAP_CHAIN_DESC1  scd            = {};
-    float                  clearColor[4]  = { 0.0f, 0.0f, 0.0f, 1.0f };
-    uint32_t               bgArgb         = 0xFF000000u;
-    bool                   painterBegun   = false;
-    bool                   textBegun      = false;
+    DXGI_SWAP_CHAIN_DESC1  scd = {};
 
+
+    if (m_swapChain == nullptr || FAILED (m_swapChain->GetDesc1 (&scd)))
+    {
+        return SIZE{ 0, 0 };
+    }
+    return SIZE{ (LONG) scd.Width, (LONG) scd.Height };
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PaintContent
+//
+//  DxuiRenderTarget surface contract: walk the root panel tree, the
+//  host-owned caption, and any client modal overlay onto `target`. The base
+//  RenderFrame has already cleared the target and run the before-present hook
+//  (e.g. the Apple ][ framebuffer via D3DRenderer::UploadAndComposite); it
+//  runs the after-paint hook and Presents afterwards. Split out of the old
+//  PaintPump so the clear/present orchestration lives in DxuiRenderTarget.
+//
+//  Bails cleanly if the painter / text renderer / root are missing, and never
+//  leaves the painter / text renderer mid-frame after an early CHRA bail.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiHwndSource::PaintContent (ID3D11RenderTargetView * target, int widthPx, int heightPx, const IDxuiTheme & theme)
+{
+    HRESULT  hr           = S_OK;
+    bool     painterBegun = false;
+    bool     textBegun    = false;
 
 
     DXUI_ASSERT_UI_THREAD();
 
-    if (!m_swapChain || !m_rtv || m_painter == nullptr || m_textRenderer == nullptr)
+    if (RootPanel() == nullptr || m_painter == nullptr || m_textRenderer == nullptr)
     {
         return;
     }
 
-    hr = m_swapChain->GetDesc1 (&scd);
+    // Walk the panel tree. Painter buffers geometry between Begin / End; the
+    // text renderer composites Direct2D over the same target between
+    // BeginDraw / EndDraw. The D2D bitmap is bound once per back-buffer
+    // lifetime by CreateBackBufferRtv.
+    hr = m_painter->Begin (widthPx, heightPx);
+    CHRA (hr);
+    painterBegun = true;
+
+    hr = m_textRenderer->BeginDraw();
+    CHRA (hr);
+    textBegun = true;
+
+    RootPanel()->Paint (*m_painter, *m_textRenderer, theme);
+
+    // Host-owned caption paints last so it overlays the top strip (the
+    // before-present hook fills the whole back buffer, the chrome bands paint
+    // over it, and the caption sits on top).
+    if (m_caption)
+    {
+        m_caption->Paint (*m_painter, *m_textRenderer, theme);
+    }
+
+    // Flush the page: painter (D3D control fills) FIRST, then the text (D2D
+    // glyphs / labels) so the foreground composites on top of the fills --
+    // matching the proven UiShell::Render order.
+    hr = m_painter->End (target);
+    painterBegun = false;
     CHRA (hr);
 
-    // Theme background clear. Without a theme, the host still clears
-    // to opaque black so a partially-themed startup frame doesn't
-    // present garbage from the back buffer.
-    if (m_theme != nullptr)
-    {
-        bgArgb = m_theme->Background();
-    }
-    clearColor[0] = (float) ((bgArgb >> 16) & 0xFFu) / 255.0f;
-    clearColor[1] = (float) ((bgArgb >>  8) & 0xFFu) / 255.0f;
-    clearColor[2] = (float) ((bgArgb      ) & 0xFFu) / 255.0f;
-    clearColor[3] = (float) ((bgArgb >> 24) & 0xFFu) / 255.0f;
+    hr = m_textRenderer->EndDraw();
+    textBegun = false;
+    CHRA (hr);
 
-    m_context->OMSetRenderTargets    (1, m_rtv.GetAddressOf(), nullptr);
-    m_context->ClearRenderTargetView (m_rtv.Get(), clearColor);
-
-    // Composite the consumer's content (e.g. the Apple ][ framebuffer
-    // via D3DRenderer::UploadAndComposite) into the back buffer FIRST.
-    // The hook owns a full-buffer write (emulator frame plus black
-    // letterbox bars); the panel-tree painter / text passes below are
-    // purely additive (neither clears the RTV), so the chrome composites
-    // on top of the hook's result -- matching the legacy emulator-frame
-    // plus chrome-overlay order.
-    if (m_beforePresentHook)
+    // A client modal overlay (e.g. the Settings color picker) paints as a
+    // SEPARATE top layer with its OWN fill+text flush, so its dialog fill
+    // covers the page's already-committed text and its own labels sit on top
+    // of that. (Painting it into the page's batch would leave page text --
+    // flushed last of all -- bleeding through the dialog.)
+    if (m_overlayActiveHook && m_overlayActiveHook() && m_overlayPaintHook)
     {
-        m_beforePresentHook();
-    }
-
-    // Walk the panel tree. Painter buffers geometry between Begin /
-    // End; the text renderer composites Direct2D over the same back
-    // buffer between BeginDraw / EndDraw. The D2D bitmap is bound
-    // once per back-buffer lifetime by CreateBackBufferRtv.
-    if (RootPanel() != nullptr && m_theme != nullptr)
-    {
-        hr = m_painter->Begin ((int) scd.Width, (int) scd.Height);
+        hr = m_painter->Begin (widthPx, heightPx);
         CHRA (hr);
         painterBegun = true;
 
@@ -1384,70 +1408,59 @@ void DxuiHwndSource::PaintPump ()
         CHRA (hr);
         textBegun = true;
 
-        RootPanel()->Paint (*m_painter, *m_textRenderer, *m_theme);
+        m_overlayPaintHook (*m_painter, *m_textRenderer, theme);
 
-        // Host-owned caption paints last so it overlays the top strip
-        // (the before-present hook fills the whole back buffer, the
-        // chrome bands paint over it, and the caption sits on top).
-        if (m_caption)
-        {
-            m_caption->Paint (*m_painter, *m_textRenderer, *m_theme);
-        }
-
-        // Flush the page: painter (D3D control fills) FIRST, then the text
-        // (D2D glyphs / labels) so the foreground composites on top of the
-        // fills -- matching the proven UiShell::Render order. Flushing text
-        // first lets the opaque fills paint over it, which makes menu labels
-        // and min/max/close glyphs vanish.
-        hr = m_painter->End (m_rtv.Get());
+        hr = m_painter->End (target);
         painterBegun = false;
         CHRA (hr);
 
         hr = m_textRenderer->EndDraw();
         textBegun = false;
         CHRA (hr);
-
-        // A client modal overlay (e.g. the Settings color picker) paints as a
-        // SEPARATE top layer with its OWN fill+text flush, so its dialog fill
-        // covers the page's already-committed text and its own labels sit on
-        // top of that. (Painting it into the page's batch would leave page text
-        // -- flushed last of all -- bleeding through the dialog.)
-        if (m_overlayActiveHook && m_overlayActiveHook() && m_overlayPaintHook)
-        {
-            hr = m_painter->Begin ((int) scd.Width, (int) scd.Height);
-            CHRA (hr);
-            painterBegun = true;
-
-            hr = m_textRenderer->BeginDraw();
-            CHRA (hr);
-            textBegun = true;
-
-            m_overlayPaintHook (*m_painter, *m_textRenderer, *m_theme);
-
-            hr = m_painter->End (m_rtv.Get());
-            painterBegun = false;
-            CHRA (hr);
-
-            hr = m_textRenderer->EndDraw();
-            textBegun = false;
-            CHRA (hr);
-        }
     }
 
-    // After-paint compositor hook: runs full-screen shader passes on the
-    // back buffer after the panel tree has painted, before Present (e.g.
-    // a settings live-preview blur/compose pass).
-    if (m_afterPaintHook)
+Error:
+    // Make sure the painter / text renderer don't stay mid-frame after an
+    // early CHRA bail-out; the next paint pass would otherwise see them in an
+    // inconsistent state.
+    if (textBegun)
     {
-        m_afterPaintHook (m_rtv.Get(), (int) scd.Width, (int) scd.Height);
+        (void) m_textRenderer->EndDraw();
+    }
+    if (painterBegun)
+    {
+        (void) m_painter->End (target);
+    }
+    return;
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PresentFrame
+//
+//  DxuiRenderTarget surface contract: present the swap chain, then commit the
+//  DirectComposition device (composited-transparent mode drives the swap chain
+//  through a DComp visual, so the desktop compositor only picks up the new
+//  frame after a Commit).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiHwndSource::PresentFrame ()
+{
+    HRESULT  hr = S_OK;
+
+
+    if (m_swapChain == nullptr)
+    {
+        return;
     }
 
     hr = m_swapChain->Present (1, 0);
     CHRA (hr);
 
-    // Composited-transparent mode drives the swap chain through a DComp
-    // visual; commit the composition after every Present so the desktop
-    // compositor picks up the new frame.
     if (m_compDevice)
     {
         hr = m_compDevice->Commit();
@@ -1455,19 +1468,27 @@ void DxuiHwndSource::PaintPump ()
     }
 
 Error:
-
-    // Make sure the painter / text renderer don't stay mid-frame
-    // after an early CHRA bail-out; the next paint pass would
-    // otherwise see them in an inconsistent state.
-    if (textBegun)
-    {
-        (void) m_textRenderer->EndDraw();
-    }
-    if (painterBegun)
-    {
-        (void) m_painter->End (m_rtv.Get());
-    }
     return;
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PaintPump
+//
+//  WM_PAINT body for full-ownership mode. Delegates the frame orchestration to
+//  DxuiRenderTarget::RenderFrame (clear -> before-present hook -> PaintContent
+//  -> after-paint / compose -> PresentFrame), which bails cleanly if the
+//  painter / text renderer / RTV / swap chain are missing.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiHwndSource::PaintPump ()
+{
+    DXUI_ASSERT_UI_THREAD();
+    RenderFrame (m_theme);
 }
 
 

@@ -184,6 +184,7 @@
     <ClCompile Include="Window\DxuiDragRegion.cpp" />
     <ClCompile Include="Window\DxuiCaptionBar.cpp" />
     <ClCompile Include="Window\DxuiSystemButton.cpp" />
+    <ClCompile Include="Window\DxuiRenderTarget.cpp" />
     <ClCompile Include="Window\DxuiHwndSource.cpp" />
     <ClCompile Include="Window\DxuiDialogWindow.cpp" />
     <ClCompile Include="Window\DxuiPropertyPage.cpp" />
@@ -245,6 +246,7 @@
     <ClInclude Include="Window\DxuiDragRegion.h" />
     <ClInclude Include="Window\DxuiCaptionBar.h" />
     <ClInclude Include="Window\DxuiSystemButton.h" />
+    <ClInclude Include="Window\DxuiRenderTarget.h" />
     <ClInclude Include="Window\DxuiHwndSource.h" />
     <ClInclude Include="Window\DxuiDialogWindow.h" />
     <ClInclude Include="Window\DxuiPropertyPage.h" />

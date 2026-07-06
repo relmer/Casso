@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Pch.h"
+#include "DxuiRenderTarget.h"
 #include "Core/DxuiPanel.h"
 #include "Core/DxuiFocusManager.h"
 #include "Core/DxuiDpiScaler.h"
@@ -81,7 +82,7 @@ enum class DxuiCaptionStyle
 
 
 
-class DxuiHwndSource
+class DxuiHwndSource : public DxuiRenderTarget
 {
 public:
     struct CreateParams
@@ -346,7 +347,7 @@ public:
     //  previously-installed hook.
     //
     void  SetBeforePresentHook  (std::function<void()> hook);
-    const std::function<void()> &  BeforePresentHook  () const { return m_beforePresentHook; }
+    const std::function<void()> &  BeforePresentHook  () const override { return m_beforePresentHook; }
 
     //
     //  Optional after-paint hook. Installed by a consumer that wants to
@@ -359,7 +360,7 @@ public:
     //  Passing a null function clears any previously-installed hook.
     //
     void  SetAfterPaintHook  (std::function<void(ID3D11RenderTargetView *, int, int)> hook);
-    const std::function<void(ID3D11RenderTargetView *, int, int)> &  AfterPaintHook  () const { return m_afterPaintHook; }
+    const std::function<void(ID3D11RenderTargetView *, int, int)> &  AfterPaintHook  () const override { return m_afterPaintHook; }
 
     //  Set the composited-visual opacity (0..1). No-op unless the window was
     //  created composited (CreateParams::composited). Drives a window-level
@@ -467,6 +468,14 @@ private:
     void     PaintPump                 ();
     void     ApplyDwmConfiguration     ();
 
+    //  DxuiRenderTarget surface contract. The base's RenderFrame (driven from
+    //  PaintPump) clears + presents through these; PaintContent walks the panel
+    //  tree + caption + modal overlay onto `target`.
+    ID3D11RenderTargetView *  BackBufferRtv    () const override { return m_rtv.Get(); }
+    SIZE                      BackBufferSizePx () const override;
+    void  PaintContent  (ID3D11RenderTargetView * target, int widthPx, int heightPx, const IDxuiTheme & theme) override;
+    void  PresentFrame  () override;
+
     LRESULT  HandleNcCalcSize          (WPARAM wp, LPARAM lp);
     LRESULT  HandleNcHitTest           (LPARAM lp);
     LRESULT  HandleNcMouse             (UINT msg, WPARAM wp, LPARAM lp);
@@ -513,8 +522,9 @@ private:
     CreateParams                      m_params;
     DxuiDpiScaler                     m_scaler;
 
-    ComPtr<ID3D11Device>              m_device;
-    ComPtr<ID3D11DeviceContext>       m_context;
+    // m_device / m_context now live in the DxuiRenderTarget base (protected);
+    // this subclass still creates + tears them down in CreateDeviceAndSwapChain
+    // / Destroy, and owns the HWND-bound swap chain + back-buffer RTV below.
     ComPtr<IDXGISwapChain1>           m_swapChain;
     ComPtr<ID3D11RenderTargetView>    m_rtv;
 
@@ -526,8 +536,8 @@ private:
     ComPtr<IDCompositionTarget>       m_compTarget;
     ComPtr<IDCompositionVisual>       m_compVisual;
 
-    std::unique_ptr<DxuiPainter>      m_painter;
-    std::unique_ptr<DxuiTextRenderer> m_textRenderer;
+    // m_painter / m_textRenderer now live in the DxuiRenderTarget base
+    // (protected); CreateRenderResources still builds them.
     std::unique_ptr<DxuiPanel>        m_root;
     DxuiPanel *                       m_rootRef            = nullptr;
     std::unique_ptr<DxuiCaptionBar>   m_caption;
