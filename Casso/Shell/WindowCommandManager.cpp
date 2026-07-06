@@ -378,8 +378,7 @@ void WindowCommandManager::OnViewCommand (int id)
 
         case IDM_VIEW_SETTINGS:
         {
-            HRESULT  hrShow = m_shell.m_settingsPanel.Show();
-            IGNORE_RETURN_VALUE (hrShow, S_OK);
+            m_shell.OpenSettings();
             break;
         }
     }

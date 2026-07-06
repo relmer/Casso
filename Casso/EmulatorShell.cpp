@@ -649,7 +649,6 @@ HRESULT EmulatorShell::Initialize (
     // top of the emulator frame without ever pausing the render loop.
     {
         HRESULT  hrUi       = m_uiShell.Initialize (&m_d3dRenderer);
-        HRESULT  hrSettings = S_OK;
         HRESULT  hrTheme    = S_OK;
         HRESULT  hrPrefs    = S_OK;
 
@@ -717,7 +716,6 @@ HRESULT EmulatorShell::Initialize (
         {
             m_chromeTheme = CassoTheme::ForName (t.name);
             ApplyThemeToChrome (m_chromeTheme);
-            m_settingsPanel.SetTheme (&m_chromeTheme);
         });
 
         // Tell the theme manager which machine is active BEFORE the
@@ -798,15 +796,6 @@ HRESULT EmulatorShell::Initialize (
                 }
             }
         }
-
-        hrSettings = m_settingsPanel.Initialize (m_uiShell,
-                                                 *m_userConfigStore,
-                                                 m_globalPrefs,
-                                                 *m_themeManager,
-                                                 *this,
-                                                 m_uiFs);
-        IGNORE_RETURN_VALUE (hrSettings, S_OK);
-        m_uiShell.SetSettingsPanel (nullptr);
 
         if (SUCCEEDED (hrUi))
         {
@@ -2624,8 +2613,6 @@ int EmulatorShell::RunMessageLoop()
             }
         }
 
-        m_settingsPanel.UpdatePreviewOverlap (m_d3dRenderer.GetEmulatorContentScreenRect());
-        IGNORE_RETURN_VALUE (hr, m_settingsPanel.RenderPopup());
         if (m_disk2DebugPanel != nullptr)
         {
             IGNORE_RETURN_VALUE (hr, m_disk2DebugPanel->RenderFrame());
@@ -3792,6 +3779,30 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  OpenSettings
+//
+//  Opens the Settings dialog (View > Settings / Ctrl+,). The bespoke
+//  SettingsPanel + SettingsWindow were retired in T162 slice 3d; this shows
+//  the DxuiPropertySheet-based SettingsSheet instead.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::OpenSettings ()
+{
+    SettingsSheet  sheet;
+    HINSTANCE      hInst = (HINSTANCE) GetWindowLongPtrW (m_hwnd, GWLP_HINSTANCE);
+
+
+    (void) sheet.OpenModal (hInst, m_hwnd,
+                            *m_userConfigStore, m_globalPrefs, *m_themeManager,
+                            *this, m_uiFs);
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  HandleHostMetaShortcut
 //
 //  Consume host-meta keys that never reach the emulated //e keyboard: menu
@@ -3803,21 +3814,6 @@ Error:
 
 bool EmulatorShell::HandleHostMetaShortcut (WPARAM vk, bool ctrlHeld, bool altHeld)
 {
-    // TEMP dev trigger (T162 slice 3a): Ctrl+Shift+, opens the new
-    // DxuiPropertySheet-based settings alongside the legacy panel to verify
-    // the pages render. Shown modally for now; removed in slice 3d when it
-    // replaces IDM_VIEW_SETTINGS.
-    if (vk == VK_OEM_COMMA && ctrlHeld && (GetKeyState (VK_SHIFT) & 0x8000))
-    {
-        SettingsSheet  sheet;
-        HINSTANCE      hInst = (HINSTANCE) GetWindowLongPtrW (m_hwnd, GWLP_HINSTANCE);
-
-        (void) sheet.OpenModal (hInst, m_hwnd,
-                                *m_userConfigStore, m_globalPrefs, *m_themeManager,
-                                *this, m_uiFs);
-        return true;
-    }
-
     if (altHeld && vk >= 0x20 && vk <= 0x7E && m_mainMenu.HandleAltKey ((wchar_t) vk))
     {
         return true;
@@ -3986,14 +3982,7 @@ DxuiMessageResult EmulatorShell::OnKeyDown (WPARAM vk, LPARAM lParam)
         BAIL_OUT_IF (true, S_OK);
     }
 
-    // 1. Modal settings panel wins keystrokes outright.
-    if (m_uiShell.IsSettingsCapturing())
-    {
-        consumed = m_uiShell.HandleKey (vk);
-        BAIL_OUT_IF (consumed, S_OK);
-    }
-
-    // 2. Chrome keyboard-focus ring. While a menu title / button / drive
+    // Chrome keyboard-focus ring. While a menu title / button / drive
     //    has keyboard focus (or a dropdown is open from any source), the
     //    ring owns every keydown so letters never leak through to the //e.
     if (m_chromeFocusIndex != s_kChromeFocusNone || m_mainMenu.IsOpen())

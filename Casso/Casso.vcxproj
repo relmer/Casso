@@ -245,12 +245,9 @@
     <ClCompile Include="Ui\Settings\SettingsApplyController.cpp" />
     <ClCompile Include="Ui\Settings\SettingsDisplayCrtBridge.cpp" />
     <ClCompile Include="Ui\Settings\SettingsMachineCatalog.cpp" />
-    <ClCompile Include="Ui\Settings\SettingsPanel.cpp" />
     <ClCompile Include="Ui\Settings\SettingsSheet.cpp" />
     <ClCompile Include="Ui\Settings\SettingsPanelState.cpp" />
     <ClCompile Include="Ui\Settings\SettingsPreviewController.cpp" />
-    <ClCompile Include="Ui\Settings\SettingsWindow.cpp" />
-    <ClCompile Include="Ui\Settings\SettingsWindowRenderer.cpp" />
     <ClCompile Include="Ui\Settings\ThemePage.cpp" />
     <ClCompile Include="Shell\ClipboardManager.cpp" />
     <ClCompile Include="Shell\CpuManager.cpp" />
@@ -316,12 +313,9 @@
     <ClInclude Include="Ui\Settings\SettingsApplyController.h" />
     <ClInclude Include="Ui\Settings\SettingsDisplayCrtBridge.h" />
     <ClInclude Include="Ui\Settings\SettingsMachineCatalog.h" />
-    <ClInclude Include="Ui\Settings\SettingsPanel.h" />
     <ClInclude Include="Ui\Settings\SettingsSheet.h" />
     <ClInclude Include="Ui\Settings\SettingsPanelState.h" />
     <ClInclude Include="Ui\Settings\SettingsPreviewController.h" />
-    <ClInclude Include="Ui\Settings\SettingsWindow.h" />
-    <ClInclude Include="Ui\Settings\SettingsWindowRenderer.h" />
     <ClInclude Include="Ui\Settings\ThemePage.h" />
     <ClInclude Include="Shell\ClipboardManager.h" />
     <ClInclude Include="Shell\CpuManager.h" />

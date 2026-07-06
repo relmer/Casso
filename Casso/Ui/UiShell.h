@@ -6,7 +6,6 @@
 
 
 class D3DRenderer;
-class SettingsPanel;
 class MainMenu;
 
 
@@ -41,7 +40,6 @@ public:
     HRESULT  OnDeviceRestored   ();
 
     void     SetMainMenu        (MainMenu * mainMenu)           { m_mainMenu      = mainMenu; }
-    void     SetSettingsPanel   (SettingsPanel * settingsPanel) { m_settingsPanel = settingsPanel; }
     void     SetTheme           (const CassoTheme * theme)      { m_theme         = theme; }
 
     bool     OnMouseMove        (int x, int y, bool leftDown);
@@ -50,7 +48,6 @@ public:
     bool     OnLButtonUp        (int x, int y);
     bool     HandleKey          (WPARAM vk);
     bool     IsCapturingInput   () const;
-    bool     IsSettingsCapturing () const;
 
     DxuiTextRenderer  & Text    ()       { return m_text; }
     DxuiHitTester     & HitTest ()       { return m_hitTest; }
@@ -73,7 +70,6 @@ private:
     DxuiHitTester                 m_hitTest;
 
     MainMenu                    * m_mainMenu      = nullptr;
-    SettingsPanel               * m_settingsPanel = nullptr;
     const CassoTheme            * m_theme         = nullptr;
 
     int                           m_viewportWidthPx  = 0;

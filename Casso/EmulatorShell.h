@@ -31,7 +31,6 @@
 #include "Ui/DriveWidgetState.h"
 #include "Ui/IDriveCommandSink.h"
 #include "Ui/InputDebugPanel.h"
-#include "Ui/Settings/SettingsPanel.h"
 #include "Ui/ThemeManager.h"
 #include "Ui/UiShell.h"
 #include "Widgets/DxuiTooltip.h"
@@ -150,6 +149,7 @@ public:
     // Disk2AudioSource. On subsequent calls: show + bring to front.
     void OpenDisk2DebugDialog();
     void OpenInputDebugDialog();
+    void OpenSettings();
 
     // Spec-006 bug 15. SwitchMachine destroys and recreates the
     // controller + audio source while the modeless debug dialog
@@ -480,7 +480,6 @@ private:
     // introduced.
     friend class MachineManager;
     friend class WindowCommandManager;
-    friend class SettingsPanel;
     friend class SettingsSheet;
     friend class SettingsApplyController;
     friend class SettingsDisplayCrtBridge;
@@ -607,14 +606,12 @@ private:
     // frame between the emulator blit and Present.
     UiShell                    m_uiShell;
 
-    // Consolidated settings panel. Lazily constructed pieces so we
-    // can defer their I/O until first Show() on the panel.
-    // ThemeManager + UserConfigStore + GlobalUserPrefs are owned
-    // here so SettingsPanel can be a pure view layer.
+    // Settings-dialog dependencies. ThemeManager + UserConfigStore +
+    // GlobalUserPrefs are owned here and handed to the SettingsSheet each
+    // time it opens (OpenSettings).
     std::unique_ptr<ThemeManager>        m_themeManager;
     std::unique_ptr<UserConfigStore>     m_userConfigStore;
     GlobalUserPrefs                      m_globalPrefs;
-    SettingsPanel                        m_settingsPanel;
 
     std::array<DriveWidgetState, 2>      m_driveWidgetState;
 

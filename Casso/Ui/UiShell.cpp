@@ -3,7 +3,6 @@
 #include "UiShell.h"
 #include "D3DRenderer.h"
 #include "Chrome/MainMenu.h"
-#include "Settings/SettingsPanel.h"
 
 
 
@@ -98,11 +97,6 @@ HRESULT UiShell::OnResize (int viewportWidthPx, int viewportHeightPx, UINT dpi)
     m_dpi              = (dpi == 0) ? 96 : dpi;
     m_scaler.SetDpi    (m_dpi);
 
-    if (m_settingsPanel != nullptr && m_settingsPanel->IsVisible())
-    {
-        m_settingsPanel->Layout (m_viewportWidthPx, m_viewportHeightPx, m_scaler);
-    }
-
     return S_OK;
 }
 
@@ -166,12 +160,6 @@ bool UiShell::OnMouseMove (int x, int y, bool leftDown)
 
 
 
-    if (m_settingsPanel != nullptr && m_settingsPanel->IsVisible())
-    {
-        m_settingsPanel->OnMouseMove (x, y);
-        return true;
-    }
-
     if (m_mainMenu != nullptr)
     {
         m_mainMenu->HandleMouseMove (x, y);
@@ -221,12 +209,6 @@ bool UiShell::OnLButtonDown (int x, int y)
 
 
 
-    if (m_settingsPanel != nullptr && m_settingsPanel->IsVisible())
-    {
-        m_settingsPanel->OnLButtonDown (x, y);
-        return true;
-    }
-
     OnMouseMove (x, y, true);
 
     if (m_mainMenu != nullptr)
@@ -253,12 +235,6 @@ bool UiShell::OnLButtonUp (int x, int y)
 
 
 
-    if (m_settingsPanel != nullptr && m_settingsPanel->IsVisible())
-    {
-        m_settingsPanel->OnLButtonUp (x, y);
-        return true;
-    }
-
     OnMouseMove (x, y, false);
 
     if (m_mainMenu != nullptr)
@@ -281,12 +257,6 @@ bool UiShell::OnLButtonUp (int x, int y)
 
 bool UiShell::HandleKey (WPARAM vk)
 {
-    if (m_settingsPanel != nullptr && m_settingsPanel->IsVisible())
-    {
-        (void) m_settingsPanel->OnKey (vk);
-        return true;
-    }
-
     if (m_mainMenu != nullptr && m_mainMenu->IsOpen())
     {
         (void) m_mainMenu->HandleKey (vk);
@@ -314,11 +284,6 @@ bool UiShell::HandleKey (WPARAM vk)
 
 bool UiShell::IsCapturingInput () const
 {
-    if (m_settingsPanel != nullptr && m_settingsPanel->IsVisible())
-    {
-        return true;
-    }
-
     if (m_mainMenu != nullptr && m_mainMenu->IsOpen())
     {
         return true;
@@ -331,19 +296,3 @@ bool UiShell::IsCapturingInput () const
 
 
 
-////////////////////////////////////////////////////////////////////////////////
-//
-//  IsSettingsCapturing
-//
-//  True only when the modal settings panel is visible. The chrome
-//  keyboard-focus ring (menu titles / buttons / drives) lets the settings
-//  panel win keystrokes outright while still owning every other key, so it
-//  needs to test the settings panel in isolation from the open-menu state
-//  that IsCapturingInput also folds in.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool UiShell::IsSettingsCapturing () const
-{
-    return m_settingsPanel != nullptr && m_settingsPanel->IsVisible();
-}
