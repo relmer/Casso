@@ -63,8 +63,12 @@ HRESULT SettingsSheet::OpenModal (
     m_fs       = &fs;
 
     // No Apply button. Set BEFORE Create so OnCreate honors the hidden Apply.
-    // (The "OK (reboot)" relabel + its widened width land together in 3b.)
     SetApplyVisible (false);
+
+    // Widen OK up front to fit the longest label ("OK (reboot)"); the row is
+    // sized once at layout and does not reflow, so RefreshOkLabel only swaps
+    // the text (repaint) between "OK" and "OK (reboot)" (FR-131).
+    SetOkWidthDip (132);
 
     params.title                    = L"Settings";
     params.hInstance                = hInstance;
@@ -102,6 +106,7 @@ HRESULT SettingsSheet::OpenModal (
     m_machinePage->SetOnMachineSelected ([this] (const std::string & name)
     {
         if (!name.empty()) { m_apply.StagePendingMachine (name); }
+        RefreshOkLabel();
     });
     m_themePage->SetOnThemeSelected ([this] (const std::string & name)
     {
@@ -193,6 +198,37 @@ HRESULT SettingsSheet::OnOk ()
 void SettingsSheet::OnCancel ()
 {
     m_apply.Cancel (m_preview);
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnDialogTick / RefreshOkLabel
+//
+//  The reboot state can change from either the Machine dropdown or a Hardware
+//  edit; re-evaluating each dialog tick keeps the OK label current without
+//  wiring every hardware control. SetOkText is a cheap no-op repaint when the
+//  label is unchanged.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SettingsSheet::OnDialogTick ()
+{
+    RefreshOkLabel();
+}
+
+
+void SettingsSheet::RefreshOkLabel ()
+{
+    bool          reboot = m_apply.WillMachineChange() || m_apply.IsResetRequired();
+    std::wstring  want   = reboot ? L"OK (reboot)" : L"OK";
+
+    if (OkText() != want)   // only repaint on an actual change, not every tick
+    {
+        SetOkText (std::move (want));
+    }
 }
 
 

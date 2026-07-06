@@ -72,7 +72,15 @@ protected:
     HRESULT  OnOk     () override;
     void     OnCancel () override;
 
+    //  Re-evaluate the "OK" / "OK (reboot)" label each dialog tick so it
+    //  tracks machine-dropdown + hardware edits (FR-131).
+    void     OnDialogTick () override;
+
 private:
+    //  Set OK to "OK (reboot)" when committing would power-cycle the machine
+    //  (staged machine change or a reset-requiring hardware edit), else "OK".
+    void  RefreshOkLabel ();
+
     // Drive-sound audition for the Machine page's play (>) buttons. Ported
     // verbatim from SettingsPanel: push the current volumes / pan / mechanism
     // to the engine and post the one-shot test command. Self-contained (needs
