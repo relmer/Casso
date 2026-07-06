@@ -84,6 +84,9 @@ HRESULT SettingsSheet::OpenModal (
     // catalog (the same objects the legacy SettingsPanel owns).
     m_catalog.Bind (&emuShell, &ucs, &prefs, &fs, &themes, &m_state,
                     m_machinePage, m_themePage);
+    m_apply.Bind (&m_state, &ucs, &prefs, &fs, &emuShell,
+                  [this] () { SetTheme (&m_emuShell->m_chromeTheme); },
+                  &m_catalog);
     m_machinePage->SetState  (&m_state);
     m_hardwarePage->SetState (&m_state);
     m_displayPage->SetState  (&m_state);
@@ -92,6 +95,23 @@ HRESULT SettingsSheet::OpenModal (
     m_machinePage->SetOnTestSound ([this] (int drive, int kind, bool centered)
     {
         AuditionDriveSound (drive, kind, centered);
+    });
+
+    // Staged picks: the machine + theme selectors defer their real apply to
+    // OK (CommitApply) so Cancel leaves the running machine / chrome as found.
+    m_machinePage->SetOnMachineSelected ([this] (const std::string & name)
+    {
+        if (!name.empty()) { m_apply.StagePendingMachine (name); }
+    });
+    m_themePage->SetOnThemeSelected ([this] (const std::string & name)
+    {
+        if (!name.empty()) { m_apply.StagePendingTheme (name); }
+    });
+    // FR-132: "Apply now" reskins the real chrome immediately (still staged
+    // for OK; a later Cancel reverts to the theme active at open).
+    m_themePage->SetOnApplyThemeNow ([this] ()
+    {
+        m_apply.ApplyThemeLive (m_themePage->SelectedThemeId());
     });
 
     // Per-monitor CRT plumbing for the Display page. Bind funnels the slider /
@@ -139,10 +159,40 @@ HRESULT SettingsSheet::OpenModal (
     m_displayPage->Rebuild();
     m_crt.ReseedFromActiveMode();   // seed Display sliders from the active mode
 
+    // Capture the CRT / color / theme baseline so OnCancel can revert any
+    // live-preview edits (mirrors SettingsPanel::Show).
+    m_apply.SnapshotBaselines();
+
     (void) ShowModalDialog (IDOK);
 
 Error:
     return hr;
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnOk / OnCancel
+//
+//  Commit hooks from DxuiPropertySheet's button row. OnOk runs the apply
+//  controller's full commit pipeline then closes (return S_OK); OnCancel
+//  rolls back live-preview CRT edits + an "Apply now" theme, then the base
+//  closes with IDCANCEL.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT SettingsSheet::OnOk ()
+{
+    m_apply.CommitApply();
+    return S_OK;
+}
+
+
+void SettingsSheet::OnCancel ()
+{
+    m_apply.Cancel (m_preview);
 }
 
 

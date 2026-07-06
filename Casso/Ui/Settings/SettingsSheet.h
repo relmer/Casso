@@ -7,6 +7,8 @@
 #include "SettingsPanelState.h"
 #include "SettingsMachineCatalog.h"
 #include "SettingsDisplayCrtBridge.h"
+#include "SettingsApplyController.h"
+#include "SettingsPreviewController.h"
 #include "MachinePage.h"
 #include "HardwarePage.h"
 #include "ThemePage.h"
@@ -61,7 +63,14 @@ public:
                        IFileSystem     & fs);
 
 protected:
-    void  OnBuildPages () override;
+    void     OnBuildPages () override;
+
+    //  Commit / revert hooks. OnOk runs the apply controller's full commit
+    //  pipeline (save deltas, persist CRT, activate staged theme, machine
+    //  switch) and closes; OnCancel rolls back live-preview edits + an
+    //  "Apply now" theme. Ordering is load-bearing -- see SettingsApplyController.
+    HRESULT  OnOk     () override;
+    void     OnCancel () override;
 
 private:
     // Drive-sound audition for the Machine page's play (>) buttons. Ported
@@ -83,6 +92,8 @@ private:
     SettingsPanelState        m_state;
     SettingsMachineCatalog    m_catalog;
     SettingsDisplayCrtBridge  m_crt;
+    SettingsApplyController   m_apply;
+    SettingsPreviewController m_preview;
 
     // Last mechanism pushed to the engine, so PushDriveAudioToEngine skips a
     // redundant WAV reload when it hasn't changed.
