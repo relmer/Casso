@@ -98,6 +98,7 @@ protected:
 
     void  Layout (const RECT & boundsPx, const DxuiDpiScaler & scaler) override;
     void  OnCreate () override;
+    bool  OnDialogTabSwitch (bool backward) override;
 
 
 private:

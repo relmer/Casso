@@ -135,6 +135,34 @@ Error:
 
 
 
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnDialogTabSwitch
+//
+//  Ctrl+Tab / Ctrl+Shift+Tab: cycle to the next / previous page, wrapping.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiPropertySheet::OnDialogTabSwitch (bool backward)
+{
+    int  count = (int) m_pages.size();
+    int  next  = 0;
+
+
+    if (count <= 1)
+    {
+        return false;
+    }
+
+    next = backward ? (m_active - 1 + count) % count
+                    : (m_active + 1) % count;
+    SetActivePage (next);
+    return true;
+}
+
+
+
+
 
 ////////////////////////////////////////////////////////////////////////////////
 //

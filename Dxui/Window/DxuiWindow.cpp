@@ -869,6 +869,13 @@ DxuiMessageResult DxuiWindow::DispatchDialogKey (WPARAM vk)
     switch (vk)
     {
         case VK_TAB:
+            // Ctrl(+Shift)+Tab cycles a tabbed window's pages (e.g.
+            // DxuiPropertySheet); plain Tab traverses focus within the page.
+            if ((GetKeyState (VK_CONTROL) & 0x8000) != 0 && OnDialogTabSwitch (shift))
+            {
+                isHandled = true;
+                break;
+            }
             isHandled = m_focus.HandleKey (shift ? DxuiFocusKey::ShiftTab : DxuiFocusKey::Tab);
             Invalidate();
             break;

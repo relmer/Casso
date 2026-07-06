@@ -179,6 +179,15 @@ protected:
     virtual void  OnDialogTick    () {}
 
     //
+    //  Ctrl+Tab / Ctrl+Shift+Tab while a dialog is showing. The dialog
+    //  message pump detects the Ctrl chord and calls this (backward=true for
+    //  Shift) so a tabbed window (e.g. DxuiPropertySheet) can cycle its pages;
+    //  plain Tab still does focus traversal. Return true if consumed. Default
+    //  no-op (a plain dialog has no page tabs).
+    //
+    virtual bool  OnDialogTabSwitch (bool backward) { UNREFERENCED_PARAMETER (backward); return false; }
+
+    //
     //  Tune the dialog repaint / tick cadence (ms) before
     //  ShowModalDialog / ShowModelessDialog. The default suits caret
     //  blink; a poller (e.g. download progress) sets a faster interval.
