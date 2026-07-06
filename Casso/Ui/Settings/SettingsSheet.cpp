@@ -19,7 +19,7 @@ static constexpr int    s_kSheetHeightDip    = 760;
 // Window opacity while a Display control is being dragged / keyboard-edited, so
 // the live emulator behind the sheet shows through (list #7). The CRT edit is
 // already applied live by SettingsDisplayCrtBridge; this just reveals it.
-static constexpr float  s_kPreviewOpacity    = 0.4f;
+static constexpr float  s_kPreviewOpacity    = 0.30f;
 
 
 

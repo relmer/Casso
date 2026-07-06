@@ -589,9 +589,7 @@ void DxuiHwndSource::SetOverlayHooks (std::function<bool()> isActive,
 
 void DxuiHwndSource::SetComposedOpacity (float opacity)
 {
-    ComPtr<IDCompositionDevice3>      device3;
-    ComPtr<IDCompositionVisual2>      visual2;
-    ComPtr<IDCompositionEffectGroup>  effect;
+    ComPtr<IDCompositionVisual3>  visual3;
 
 
     DXUI_ASSERT_UI_THREAD();
@@ -600,22 +598,13 @@ void DxuiHwndSource::SetComposedOpacity (float opacity)
     {
         return;
     }
-    if (FAILED (m_compDevice.As (&device3)) || FAILED (m_compVisual.As (&visual2)))
-    {
-        return;
-    }
 
-    // Opacity on a composited visual goes through an effect group (the plain
-    // IDCompositionVisual has no SetOpacity). A null effect at full opacity
-    // keeps the fast opaque path.
-    if (opacity >= 1.0f)
+    // The visual is created from a v2 (desktop) device, so it exposes
+    // IDCompositionVisual3::SetOpacity -- the canonical per-visual opacity that
+    // blends the whole composited window over whatever is behind it.
+    if (SUCCEEDED (m_compVisual.As (&visual3)))
     {
-        (void) visual2->SetEffect (nullptr);
-    }
-    else if (SUCCEEDED (device3->CreateEffectGroup (effect.GetAddressOf())))
-    {
-        (void) effect->SetOpacity (opacity);
-        (void) visual2->SetEffect (effect.Get());
+        (void) visual3->SetOpacity (opacity);
     }
     (void) m_compDevice->Commit();
 }
@@ -1107,14 +1096,30 @@ HRESULT DxuiHwndSource::CreateDeviceAndSwapChain ()
                                                          m_swapChain.GetAddressOf());
         CHRA (hr);
 
-        hr = DCompositionCreateDevice (dxgiDevice.Get(),
-                                       IID_PPV_ARGS (m_compDevice.GetAddressOf()));
+        // Create a v2 (desktop) DirectComposition device rather than the v1
+        // DCompositionCreateDevice: only a v2+ device produces IDCompositionVisual2
+        // visuals, and SetComposedOpacity's per-visual opacity effect (an
+        // IDCompositionEffectGroup fed through IDCompositionVisual2::SetEffect)
+        // needs one. A v1 visual has no SetEffect, so the live-preview fade would
+        // silently no-op. The concrete object still exposes the v1 IDCompositionDevice
+        // interface (Commit + CreateTargetForHwnd) and QIs to IDCompositionDevice3.
+        ComPtr<IDCompositionDesktopDevice>  desktopDevice;
+        ComPtr<IDCompositionVisual2>        compVisual2;
+
+        hr = DCompositionCreateDevice2 (dxgiDevice.Get(),
+                                        IID_PPV_ARGS (desktopDevice.GetAddressOf()));
         CHRA (hr);
 
-        hr = m_compDevice->CreateTargetForHwnd (m_hwnd, TRUE, m_compTarget.GetAddressOf());
+        hr = desktopDevice.As (&m_compDevice);
         CHRA (hr);
 
-        hr = m_compDevice->CreateVisual (m_compVisual.GetAddressOf());
+        hr = desktopDevice->CreateTargetForHwnd (m_hwnd, TRUE, m_compTarget.GetAddressOf());
+        CHRA (hr);
+
+        hr = desktopDevice->CreateVisual (compVisual2.GetAddressOf());
+        CHRA (hr);
+
+        hr = compVisual2.As (&m_compVisual);
         CHRA (hr);
 
         hr = m_compVisual->SetContent (m_swapChain.Get());
