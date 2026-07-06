@@ -2534,6 +2534,15 @@ int EmulatorShell::RunMessageLoop()
     // UI thread loop: process messages, present latest framebuffer with vsync
     while (m_cpuManager.IsRunning())
     {
+        // Destroy a closed modeless settings sheet at a safe point: its
+        // EndDialog callback ran deep inside DispatchMessage, so deferring the
+        // reset here avoids tearing the window down from its own message handler.
+        if (m_settingsSheetClosePending)
+        {
+            m_settingsSheet.reset();
+            m_settingsSheetClosePending = false;
+        }
+
         // Process all pending messages
         while (PeekMessage (&msg, nullptr, 0, 0, PM_REMOVE))
         {
@@ -2551,7 +2560,21 @@ int EmulatorShell::RunMessageLoop()
                 continue;
             }
 
-            if (m_accelTable == nullptr ||
+            // Modeless Settings: let the sheet claim its dialog-navigation keys
+            // (Tab / Enter / Escape) first (Dxui's IsDialogMessage equivalent).
+            if (m_settingsSheet != nullptr && m_settingsSheet->ProcessDialogMessage (msg))
+            {
+                continue;
+            }
+
+            // Suppress the emulator's accelerators while the settings sheet is
+            // the active window, so keystrokes meant for it (the colour-picker
+            // hex field, Ctrl chords) never leak into emulator menu commands.
+            bool  settingsActive = (m_settingsSheet != nullptr &&
+                                    m_settingsSheet->Hwnd() == GetActiveWindow());
+
+            if (settingsActive ||
+                m_accelTable == nullptr ||
                 !TranslateAccelerator (m_hwnd, m_accelTable, &msg))
             {
                 TranslateMessage (&msg);
@@ -3792,19 +3815,34 @@ Error:
 //
 //  Opens the Settings dialog (View > Settings / Ctrl+,). The bespoke
 //  SettingsPanel + SettingsWindow were retired in T162 slice 3d; this shows
-//  the DxuiPropertySheet-based SettingsSheet instead.
+//  the DxuiPropertySheet-based SettingsSheet MODELESS (FR-041) so the emulator
+//  keeps running behind it. The sheet is heap-owned; its close callback flags
+//  a deferred destroy handled by RunMessageLoop. A second invocation while it
+//  is already open just re-focuses the existing sheet.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void EmulatorShell::OpenSettings ()
 {
-    SettingsSheet  sheet;
-    HINSTANCE      hInst = (HINSTANCE) GetWindowLongPtrW (m_hwnd, GWLP_HINSTANCE);
+    HINSTANCE  hInst = (HINSTANCE) GetWindowLongPtrW (m_hwnd, GWLP_HINSTANCE);
 
 
-    (void) sheet.OpenModal (hInst, m_hwnd,
-                            *m_userConfigStore, m_globalPrefs, *m_themeManager,
-                            *this, m_uiFs);
+    if (m_settingsSheet != nullptr)
+    {
+        HWND  existing = m_settingsSheet->Hwnd();
+        if (existing != nullptr)
+        {
+            SetForegroundWindow (existing);
+        }
+        return;
+    }
+
+    m_settingsSheet = std::make_unique<SettingsSheet>();
+    m_settingsSheet->SetOnDialogEnd ([this] (int) { m_settingsSheetClosePending = true; });
+
+    (void) m_settingsSheet->OpenModeless (hInst, m_hwnd,
+                                          *m_userConfigStore, m_globalPrefs, *m_themeManager,
+                                          *this, m_uiFs);
 }
 
 

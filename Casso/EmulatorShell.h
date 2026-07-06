@@ -49,6 +49,7 @@
 
 
 class DxuiHwndSource;
+class SettingsSheet;
 
 
 
@@ -612,6 +613,13 @@ private:
     std::unique_ptr<ThemeManager>        m_themeManager;
     std::unique_ptr<UserConfigStore>     m_userConfigStore;
     GlobalUserPrefs                      m_globalPrefs;
+
+    // The Settings dialog, shown modeless so the emulator keeps running behind
+    // it (FR-041). Heap-owned + null when closed; OpenSettings creates it and
+    // the close callback flags m_settingsSheetClosePending so RunMessageLoop
+    // destroys it at a safe point (not from inside its own EndDialog handler).
+    std::unique_ptr<SettingsSheet>       m_settingsSheet;
+    bool                                 m_settingsSheetClosePending = false;
 
     std::array<DriveWidgetState, 2>      m_driveWidgetState;
 

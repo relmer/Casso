@@ -55,11 +55,11 @@ void SettingsSheet::OnBuildPages ()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  OpenModal
+//  OpenModeless
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT SettingsSheet::OpenModal (
+HRESULT SettingsSheet::OpenModeless (
     HINSTANCE         hInstance,
     HWND              ownerHwnd,
     UserConfigStore & ucs,
@@ -274,8 +274,7 @@ HRESULT SettingsSheet::OpenModal (
     // happens once the window is shown (WM_SIZE against the real client size),
     // and HardwarePage's tree view (plus any content that flows its rows at
     // Rebuild time) needs real bounds to flow into, else it collapses to the
-    // top-left. This mirrors the legacy SettingsPanel::Show order (Layout,
-    // then Rebuild). ShowModalDialog re-shows harmlessly below.
+    // top-left. ShowModelessDialog re-shows harmlessly below.
     Show();
     m_hardwarePage->Rebuild();
     m_diskPage->Rebuild();
@@ -283,10 +282,13 @@ HRESULT SettingsSheet::OpenModal (
     m_crt.ReseedFromActiveMode();   // seed Display sliders from the active mode
 
     // Capture the CRT / color / theme baseline so OnCancel can revert any
-    // live-preview edits (mirrors SettingsPanel::Show).
+    // live-preview edits.
     m_apply.SnapshotBaselines();
 
-    (void) ShowModalDialog (IDOK);
+    // Modeless: show + return immediately. The emulator keeps running behind
+    // the sheet; the host loop pumps ProcessDialogMessage and destroys us via
+    // the SetOnDialogEnd callback the caller installed.
+    ShowModelessDialog (IDOK);
 
 Error:
     return hr;

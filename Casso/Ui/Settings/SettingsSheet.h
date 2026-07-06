@@ -52,17 +52,19 @@ public:
 
     //
     //  Wire dependencies, create the window (which builds + populates the
-    //  pages), and show it modally. Returns when the dialog closes.
-    //  (Slice 3a is modal for verification; 3d makes it modeless per
-    //  FR-041 so the emulator keeps running.)
+    //  pages), and show it MODELESS (FR-041): the emulator keeps running and
+    //  interactive behind the sheet. Returns as soon as the window is shown,
+    //  NOT when it closes -- the caller owns the SettingsSheet (heap) and
+    //  destroys it from the close callback (SetOnDialogEnd). The host message
+    //  loop must call ProcessDialogMessage each iteration to drive it.
     //
-    HRESULT OpenModal (HINSTANCE         hInstance,
-                       HWND              ownerHwnd,
-                       UserConfigStore & ucs,
-                       GlobalUserPrefs & prefs,
-                       ThemeManager    & themes,
-                       EmulatorShell   & emuShell,
-                       IFileSystem     & fs);
+    HRESULT OpenModeless (HINSTANCE         hInstance,
+                          HWND              ownerHwnd,
+                          UserConfigStore & ucs,
+                          GlobalUserPrefs & prefs,
+                          ThemeManager    & themes,
+                          EmulatorShell   & emuShell,
+                          IFileSystem     & fs);
 
 protected:
     void     OnBuildPages () override;
