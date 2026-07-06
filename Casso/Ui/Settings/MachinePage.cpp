@@ -450,7 +450,7 @@ void MachinePage::ConfigureVolumeSlider (DxuiSlider & slider, const RECT & rect)
     slider.SetStep      (1.0f);
     slider.SetSuffix    (L"%");
     slider.SetDecimalPlaces (0);
-    slider.SetShowTicks (false);
+    slider.SetShowTicks (true);
 }
 
 
@@ -477,7 +477,7 @@ void MachinePage::ConfigurePanSlider (DxuiSlider & slider, const RECT & rect)
     slider.SetRect      (rect);
     slider.SetRange     (-s_kPanMax, s_kPanMax);
     slider.SetStep      (5.0f);
-    slider.SetShowTicks (false);
+    slider.SetShowTicks (true);
     slider.SetCenterOriginFill (true);
     slider.SetValueFormatter ([] (float v) -> std::wstring
     {
