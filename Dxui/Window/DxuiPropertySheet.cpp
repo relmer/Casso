@@ -30,24 +30,22 @@ static constexpr int  s_kContentPadDip     = DxuiButtonRow::kEdgePadDip;   // pa
 void DxuiPropertySheet::OnCreate ()
 {
     std::vector<DxuiTabStrip::Tab>  tabs;
-    size_t                          i = 0;
 
 
     OnBuildPages();
 
     m_tabs = CreateChild<DxuiTabStrip>();
-    tabs.reserve (m_pages.size());
-    for (i = 0; i < m_pages.size(); ++i)
-    {
-        DxuiTabStrip::Tab  tab;
-
-        tab.label = m_pages[i]->Title();
-        tabs.push_back (std::move (tab));
-    }
+    BuildTabList (tabs);
 
     m_tabs->SetTabs    (std::move (tabs));
     m_tabs->SetSelected (0);
-    m_tabs->SetOnChange ([this] (int index) { SetActivePage (index); });
+    // The tab strip reports a tab position; map it back to a page index since a
+    // hidden page has no tab (tab position != page index once anything hides).
+    m_tabs->SetOnChange ([this] (int tabIndex)
+    {
+        int  page = PageIndexOfTab (tabIndex);
+        if (page >= 0) { SetActivePage (page); }
+    });
 
     m_ok     = CreateChild<DxuiButton> (m_okText);
     m_cancel = CreateChild<DxuiButton> (L"Cancel");
@@ -124,6 +122,7 @@ void DxuiPropertySheet::RegisterPage (DxuiPropertyPage * page)
     page->SetVisible        (m_pages.empty());
     page->SetOnDirtyChanged ([this] () { RefreshApplyEnabled(); });
     m_pages.push_back (page);
+    m_present.push_back (true);
 
 Error:
     return;
@@ -156,7 +155,7 @@ void DxuiPropertySheet::SetActivePage (int index)
 
     if (m_tabs != nullptr)
     {
-        m_tabs->SetSelected (index);
+        m_tabs->SetSelected (TabIndexOfPage (index));
     }
 
     m_pages[(size_t) index]->OnActivated();
@@ -164,6 +163,143 @@ void DxuiPropertySheet::SetActivePage (int index)
 
 Error:
     return;
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetPageVisible / IsPageVisible
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiPropertySheet::SetPageVisible (int pageIndex, bool visible)
+{
+    if (pageIndex < 0 || pageIndex >= (int) m_present.size())
+    {
+        return;
+    }
+    if (m_present[(size_t) pageIndex] == visible)
+    {
+        return;
+    }
+
+    m_present[(size_t) pageIndex] = visible;
+
+    // A hidden page can neither hold a tab nor be shown.
+    if (!visible)
+    {
+        m_pages[(size_t) pageIndex]->SetVisible (false);
+        if (m_active == pageIndex)
+        {
+            int  first = FirstPresentPage();
+            m_active = (first >= 0) ? first : 0;
+        }
+    }
+
+    // Relayout so the strip drops / regrows the tab and the active page fills
+    // the content area. Before the first Layout there is nothing to reflow;
+    // the pending change is honored when Layout first runs.
+    if (m_haveLayout)
+    {
+        Layout (m_lastBoundsPx, m_lastScaler);
+    }
+    SetActivePage (m_active);
+    Invalidate();
+}
+
+
+bool DxuiPropertySheet::IsPageVisible (int pageIndex) const
+{
+    if (pageIndex < 0 || pageIndex >= (int) m_present.size())
+    {
+        return false;
+    }
+    return m_present[(size_t) pageIndex];
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FirstPresentPage / TabIndexOfPage / PageIndexOfTab / BuildTabList
+//
+//  A page is "present" when it has a tab. Because hidden pages are skipped, a
+//  page index (registration order) differs from its tab position once any page
+//  is hidden -- these map between the two spaces.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiPropertySheet::IndexOfPage (const DxuiPropertyPage * page) const
+{
+    int  i = 0;
+
+    for (i = 0; i < (int) m_pages.size(); ++i)
+    {
+        if (m_pages[(size_t) i] == page) { return i; }
+    }
+    return -1;
+}
+
+
+int DxuiPropertySheet::FirstPresentPage () const
+{
+    int  i = 0;
+
+    for (i = 0; i < (int) m_pages.size(); ++i)
+    {
+        if (m_present[(size_t) i]) { return i; }
+    }
+    return -1;
+}
+
+
+int DxuiPropertySheet::TabIndexOfPage (int pageIndex) const
+{
+    int  tab = 0;
+    int  i   = 0;
+
+    for (i = 0; i < (int) m_pages.size(); ++i)
+    {
+        if (!m_present[(size_t) i]) { continue; }
+        if (i == pageIndex)         { return tab; }
+        ++tab;
+    }
+    return -1;
+}
+
+
+int DxuiPropertySheet::PageIndexOfTab (int tabIndex) const
+{
+    int  tab = 0;
+    int  i   = 0;
+
+    for (i = 0; i < (int) m_pages.size(); ++i)
+    {
+        if (!m_present[(size_t) i]) { continue; }
+        if (tab == tabIndex)        { return i; }
+        ++tab;
+    }
+    return -1;
+}
+
+
+void DxuiPropertySheet::BuildTabList (std::vector<DxuiTabStrip::Tab> & out) const
+{
+    int  i = 0;
+
+    out.clear();
+    out.reserve (m_pages.size());
+    for (i = 0; i < (int) m_pages.size(); ++i)
+    {
+        if (!m_present[(size_t) i]) { continue; }
+
+        DxuiTabStrip::Tab  tab;
+        tab.label = m_pages[(size_t) i]->Title();
+        out.push_back (std::move (tab));
+    }
 }
 
 
@@ -179,18 +315,32 @@ Error:
 
 bool DxuiPropertySheet::OnDialogTabSwitch (bool backward)
 {
-    int  count = (int) m_pages.size();
-    int  next  = 0;
+    std::vector<int>  present;
+    int               i     = 0;
+    int               pos   = 0;
+    int               count = 0;
 
 
+    for (i = 0; i < (int) m_pages.size(); ++i)
+    {
+        if (m_present[(size_t) i]) { present.push_back (i); }
+    }
+
+    count = (int) present.size();
     if (count <= 1)
     {
         return false;
     }
 
-    next = backward ? (m_active - 1 + count) % count
-                    : (m_active + 1) % count;
-    SetActivePage (next);
+    // Cycle among present pages only (a hidden page has no tab to land on).
+    for (i = 0; i < count; ++i)
+    {
+        if (present[(size_t) i] == m_active) { pos = i; break; }
+    }
+
+    pos = backward ? (pos - 1 + count) % count
+                   : (pos + 1) % count;
+    SetActivePage (present[(size_t) pos]);
     return true;
 }
 
@@ -301,6 +451,12 @@ void DxuiPropertySheet::Layout (const RECT & boundsPx, const DxuiDpiScaler & sca
 
     SetBounds (boundsPx);
 
+    // Remember the last Layout inputs so SetPageVisible can reflow the strip
+    // live (drop / regrow a tab) without waiting for the next window resize.
+    m_lastBoundsPx = boundsPx;
+    m_lastScaler   = scaler;
+    m_haveLayout   = true;
+
     if (m_tabs != nullptr)
     {
         RECT  strip = { boundsPx.left, boundsPx.top, boundsPx.right, boundsPx.top + tabH };
@@ -308,23 +464,20 @@ void DxuiPropertySheet::Layout (const RECT & boundsPx, const DxuiDpiScaler & sca
         int   tx    = strip.left + pad;
 
         // DxuiTabStrip does not lay out its own tabs -- the caller owns each
-        // tab's rect. Assign uniform fixed-width tabs left-to-right (no text
-        // renderer is available here to content-size them).
+        // tab's rect. Assign uniform fixed-width tabs left-to-right (only
+        // present pages contribute a tab; no text renderer is available here
+        // to content-size them).
         std::vector<DxuiTabStrip::Tab>  tabs;
 
-        tabs.reserve (m_pages.size());
-        for (i = 0; i < (int) m_pages.size(); ++i)
+        BuildTabList (tabs);
+        for (i = 0; i < (int) tabs.size(); ++i)
         {
-            DxuiTabStrip::Tab  tab;
-
-            tab.label = m_pages[(size_t) i]->Title();
-            tab.rect  = { tx, strip.top, tx + tabW, strip.bottom };
-            tabs.push_back (std::move (tab));
+            tabs[(size_t) i].rect = { tx, strip.top, tx + tabW, strip.bottom };
             tx += tabW;
         }
 
         m_tabs->SetTabs     (std::move (tabs));
-        m_tabs->SetSelected (m_active);
+        m_tabs->SetSelected (TabIndexOfPage (m_active));
         m_tabs->Layout      (strip, scaler);
         m_tabs->SetDpi      (scaler.Dpi());
     }

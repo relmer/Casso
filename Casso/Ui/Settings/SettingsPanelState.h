@@ -194,6 +194,18 @@ public:
     const std::vector<HardwareEntry> & Hardware    () const { return m_current.hardware; }
     const JsonValue                  & DefaultJson () const { return m_defaultJson; }
 
+    // True when the (staged) hardware config includes an enabled Disk ][
+    // controller (a slot whose device is "disk-ii"). Drives the settings
+    // sheet's dynamic Disk tab (#84): no enabled controller -> no Disk tab.
+    bool HasDiskIIController () const
+    {
+        for (const HardwareEntry & e : m_current.hardware)
+        {
+            if (e.type == "disk-ii" && e.enabled) { return true; }
+        }
+        return false;
+    }
+
     void    SetSpeedMode       (SettingsSpeedMode mode);
     void    SetColorMode       (SettingsColorMode mode);
     void    SetWriteMode       (SettingsWriteMode mode);

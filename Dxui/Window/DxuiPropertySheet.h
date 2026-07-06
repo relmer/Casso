@@ -3,11 +3,11 @@
 #include "Pch.h"
 #include "Window/DxuiWindow.h"
 #include "Widgets/DxuiTabStrip.h"
+#include "Core/DxuiDpiScaler.h"
 
 
 class DxuiPropertyPage;
 class DxuiButton;
-class DxuiDpiScaler;
 
 
 
@@ -41,6 +41,17 @@ public:
 
     int  ActiveIndex () const { return m_active; }
     void SetActivePage (int index);
+
+    //
+    //  Page (tab) visibility. A hidden page contributes no tab, is skipped by
+    //  tab cycling, and cannot be the active page; showing it restores its tab.
+    //  Toggling relays the sheet out immediately once it has been laid out
+    //  (so the strip reflows live), else the change is honored at first Layout.
+    //  Hiding the active page moves the selection to the first visible page.
+    //  Index is a page index (registration order), stable across hide/show.
+    //
+    void SetPageVisible (int pageIndex, bool visible);
+    bool IsPageVisible  (int pageIndex) const;
 
     //
     //  Button-row customization. Call before Create (config), or before
@@ -96,6 +107,10 @@ protected:
     //
     virtual void  OnBuildPages () {}
 
+    //  Registration index of a page (as returned by CreatePage), or -1.
+    //  Subclasses pass this index to SetPageVisible.
+    int   IndexOfPage (const DxuiPropertyPage * page) const;
+
     void  Layout (const RECT & boundsPx, const DxuiDpiScaler & scaler) override;
     void  OnCreate () override;
     bool  OnDialogTabSwitch (bool backward) override;
@@ -118,12 +133,26 @@ private:
     void  RefreshApplyEnabled ();
     bool  ApplyAllDirtyPages  ();
 
+    // Present-page <-> tab-position mapping. A page is "present" when its
+    // m_present flag is set; only present pages get a tab, so a page index is
+    // NOT the same as its tab position once any page is hidden.
+    int   FirstPresentPage    () const;
+    int   TabIndexOfPage      (int pageIndex) const;
+    int   PageIndexOfTab      (int tabIndex) const;
+    void  BuildTabList        (std::vector<DxuiTabStrip::Tab> & out) const;
+
     DxuiTabStrip *                   m_tabs   = nullptr;
     DxuiButton   *                   m_ok     = nullptr;
     DxuiButton   *                   m_cancel = nullptr;
     DxuiButton   *                   m_apply  = nullptr;
     std::vector<DxuiPropertyPage *>  m_pages;
+    std::vector<bool>                m_present;     // per-page: has a tab / can be active
     int                              m_active = 0;
+
+    // Last Layout inputs, so SetPageVisible can relayout the strip live.
+    RECT                             m_lastBoundsPx = {};
+    DxuiDpiScaler                    m_lastScaler;
+    bool                             m_haveLayout   = false;
 
     // Button-row customization (see SetApplyVisible / SetOkText /
     // SetOkWidthDip). Honored at OnCreate and by Layout's reflow.

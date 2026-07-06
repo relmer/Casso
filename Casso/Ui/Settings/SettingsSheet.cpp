@@ -118,6 +118,10 @@ HRESULT SettingsSheet::OpenModal (
 
     SetTheme (&emuShell.m_chromeTheme);
 
+    // The Disk tab is dynamic (#84): it exists only while the staged config has
+    // an enabled Disk ][ controller. Remember its page index for the toggle.
+    m_diskPageIndex = IndexOfPage (m_diskPage);
+
     // Wire the pages against a fresh SettingsPanelState + machine/theme
     // catalog (the same objects the legacy SettingsPanel owns).
     m_catalog.Bind (&emuShell, &ucs, &prefs, &fs, &themes, &m_state,
@@ -262,6 +266,10 @@ HRESULT SettingsSheet::OpenModal (
     m_catalog.PopulateMachineList();
     m_catalog.PopulateThemeList();
 
+    // Seed the Disk tab's presence from the loaded config before the first
+    // Layout so the tab strip is correct on the very first paint.
+    UpdateDiskTabVisibility();
+
     // Show the window BEFORE the final Rebuild: the first valid layout only
     // happens once the window is shown (WM_SIZE against the real client size),
     // and HardwarePage's tree view (plus any content that flows its rows at
@@ -328,6 +336,7 @@ void SettingsSheet::OnDialogTick ()
 {
     RefreshOkLabel();
     UpdateRestartNotice();
+    UpdateDiskTabVisibility();
 
     // Advance the preview state machine so a keyboard-driven preview idles out;
     // restore full opacity when it does (mouse drags restore in OnPreview end).
@@ -427,6 +436,35 @@ void SettingsSheet::UpdateRestartNotice ()
         m_restartNotice->SetText    (notice);
         m_restartNotice->SetVisible (!notice.empty());
     }
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  UpdateDiskTabVisibility
+//
+//  The Disk tab is present only while the staged hardware config has an enabled
+//  Disk ][ controller (#84 Phase B). Toggling the slot-6 checkbox in the
+//  Machine tab's tree flips m_state.HasDiskIIController(); reflecting it here
+//  (each dialog tick, cheap because SetPageVisible no-ops when unchanged) adds
+//  or removes the tab live without wiring the tree toggle directly.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SettingsSheet::UpdateDiskTabVisibility ()
+{
+    bool  want = m_state.HasDiskIIController();
+
+
+    if (m_diskPageIndex < 0 || want == m_diskTabVisible)
+    {
+        return;
+    }
+
+    m_diskTabVisible = want;
+    SetPageVisible (m_diskPageIndex, want);
 }
 
 

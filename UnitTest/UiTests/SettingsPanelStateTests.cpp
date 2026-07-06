@@ -474,6 +474,41 @@ public:
     }
 
 
+    TEST_METHOD (HasDiskIIController_TracksSlot6EnabledState)
+    {
+        SettingsPanelState  st;
+        JsonValue           v = ParseOrFail (kFixtureJson);
+
+
+        st.LoadFromMachine ("X", v, v);
+
+        // The fixture wires an enabled disk-ii controller into slot 6.
+        Assert::IsTrue (st.HasDiskIIController(),
+            L"A machine with an enabled disk-ii slot must report a controller.");
+
+        // Locate the disk-ii entry and disable it; the controller must vanish
+        // (this is exactly what hides the settings sheet's Disk tab, #84 B).
+        const std::vector<HardwareEntry> & hw = st.Hardware();
+        size_t  diskIdx = hw.size();
+        for (size_t i = 0; i < hw.size(); ++i)
+        {
+            if (hw[i].type == "disk-ii") { diskIdx = i; break; }
+        }
+        Assert::IsTrue (diskIdx < hw.size(), L"Fixture must expose a disk-ii entry.");
+
+        HRESULT  hr = st.SetHardwareEnabled (diskIdx, false);
+        Assert::IsTrue  (SUCCEEDED (hr));
+        Assert::IsFalse (st.HasDiskIIController(),
+            L"Disabling the disk-ii slot must clear the controller.");
+
+        // Re-enabling restores it.
+        hr = st.SetHardwareEnabled (diskIdx, true);
+        Assert::IsTrue (SUCCEEDED (hr));
+        Assert::IsTrue (st.HasDiskIIController(),
+            L"Re-enabling the disk-ii slot must restore the controller.");
+    }
+
+
     TEST_METHOD (BuildJson_PreservesUnrelatedKeys)
     {
         // Build a JSON with a custom unknown field; ensure it survives.

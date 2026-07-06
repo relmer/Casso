@@ -139,4 +139,16 @@ private:
     DiskPage     * m_diskPage     = nullptr;
     ThemePage    * m_themePage    = nullptr;
     DisplayPage  * m_displayPage  = nullptr;
+
+    // Registration index of the Disk page, so OnDialogTick can show / hide its
+    // tab as the staged Disk ][ controller is toggled (#84 Phase B). -1 until
+    // the pages are built.
+    int            m_diskPageIndex = -1;
+
+    // Whether the Disk tab last relayouted as visible, so we only recompute the
+    // dynamic tab when the controller-present state actually flips.
+    bool           m_diskTabVisible = true;
+
+    // Refresh the Disk tab's presence from the staged hardware config.
+    void  UpdateDiskTabVisibility ();
 };
