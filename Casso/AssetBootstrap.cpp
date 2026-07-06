@@ -2,6 +2,8 @@
 
 #include "AssetBootstrap.h"
 #include "Config/GlobalUserPrefs.h"
+#include "Config/UserConfigStore.h"
+#include "Config/Win32FileSystem.h"
 #include "Core/JsonParser.h"
 #include "Core/JsonValue.h"
 #include "Core/MachineConfig.h"
@@ -1294,10 +1296,13 @@ Error:
 //
 //  HasDiskController
 //
-//  True iff the embedded config for `machineName` declares any slot
-//  with `device == "disk-ii"`. Used to decide whether to offer the
-//  user a boot-disk download — there's no point doing so for a
-//  machine that has no controller wired up.
+//  True iff the machine `machineName`, as the user currently has it
+//  configured, has an ENABLED Disk ][ controller slot. Starts from the
+//  embedded default config and folds in the user's per-machine delta so a
+//  slot the user disabled in Settings > Machine ("enabled": false) is
+//  reported as absent -- otherwise we'd offer a boot-disk download / pop the
+//  boot-disk picker for a machine the user deliberately stripped of its
+//  controller. Used to gate the boot-disk flow.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1311,11 +1316,14 @@ HRESULT AssetBootstrap::HasDiskController (
     string              jsonText;
     string              narrowName;
     JsonValue           root;
+    JsonValue           merged;
     JsonParseError      parseError;
     const JsonValue   * pSlots       = nullptr;
     HRESULT             hrOpt        = S_OK;
     size_t              idx          = 0;
     string              device;
+    Win32FileSystem     fsMerge;
+    UserConfigStore     store        (GetAssetBaseDirectory().wstring());
 
 
 
@@ -1329,20 +1337,45 @@ HRESULT AssetBootstrap::HasDiskController (
           outError = format ("Embedded config for '{}' is malformed: {} at line {}",
                              narrowName, parseError.message, parseError.line));
 
+    // Fold the user's saved per-machine delta over the embedded default so a
+    // Settings-disabled slot ("enabled": false) is honored here exactly as it
+    // is when the machine is built (MachineConfig::Parse). Fall back to the
+    // base config if the merge fails.
+    {
+        JsonValue  mergedTmp;
+        HRESULT    hrMerge = store.Load (narrowName, root, fsMerge, mergedTmp);
+
+        if (SUCCEEDED (hrMerge) && mergedTmp.GetType() == JsonType::Object)
+        {
+            merged = std::move (mergedTmp);
+        }
+        else
+        {
+            merged = root;
+        }
+    }
+
     // `slots` is optional (][/][+ omit it); a missing slots array
     // simply means there is no Disk ][ controller for this machine.
-    hrOpt = root.GetArray ("slots", pSlots);
+    hrOpt = merged.GetArray ("slots", pSlots);
     BAIL_OUT_IF (FAILED (hrOpt), S_OK);
 
     for (idx = 0; idx < pSlots->ArraySize(); idx++)
     {
-        const JsonValue &  entry  = pSlots->ArrayAt (idx);
-        HRESULT            hrDev  = entry.GetString ("device", device);
+        const JsonValue &  entry   = pSlots->ArrayAt (idx);
+        HRESULT            hrDev   = entry.GetString ("device", device);
+        bool               enabled = true;   // optional key; defaults enabled
 
         if (SUCCEEDED (hrDev) && device == "disk-ii")
         {
-            outHasDiskController = true;
-            break;
+            HRESULT  hrEnabled = entry.GetBool ("enabled", enabled);
+
+            IGNORE_RETURN_VALUE (hrEnabled, S_OK);
+            if (enabled)
+            {
+                outHasDiskController = true;
+                break;
+            }
         }
     }
 

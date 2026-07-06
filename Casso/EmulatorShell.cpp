@@ -1454,6 +1454,41 @@ RECT EmulatorShell::ComputeViewportRect (int widthPx, int heightPx)
 
 
 
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::ReflowChromeForMachineChange
+//
+//  Runs the full OnSize relayout at the current client size. A machine switch
+//  may have added or removed the Disk ][ controller, which changes the drive
+//  band thickness (Phase D), the drive-widget visibility, and the hit-test
+//  map -- all gated on HasSlot6Controller() inside OnSize -- but the window
+//  size is unchanged across the switch, so the OS never sends a WM_SIZE to
+//  re-drive it. OnSize is idempotent at a fixed size (the back-buffer dims
+//  don't change), so re-invoking it just re-evaluates the disk-dependent chrome.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::ReflowChromeForMachineChange ()
+{
+    RECT  rc = {};
+
+    if (m_hwnd == nullptr || !GetClientRect (m_hwnd, &rc))
+    {
+        return;
+    }
+
+    int  w = rc.right  - rc.left;
+    int  h = rc.bottom - rc.top;
+
+    if (w > 0 && h > 0)
+    {
+        (void) OnSize (static_cast<UINT> (w), static_cast<UINT> (h));
+    }
+}
+
+
+
+
 
 ////////////////////////////////////////////////////////////////////////////////
 //
@@ -2554,9 +2589,14 @@ int EmulatorShell::RunMessageLoop()
 
             // Title refresh marshaled from a non-UI thread (SwitchMachine
             // runs on the CPU thread; DxuiHwndSource::SetTitle is UI-only).
+            // This message is posted only by a completed machine switch, so
+            // it doubles as the signal to reflow the chrome for a possible
+            // Disk ][ controller add/remove (the window size is unchanged, so
+            // no WM_SIZE / OnSize would otherwise re-evaluate it).
             if (msg.message == WM_APP_DXUI_UPDATE_TITLE)
             {
                 UpdateWindowTitle();
+                ReflowChromeForMachineChange();
                 continue;
             }
 

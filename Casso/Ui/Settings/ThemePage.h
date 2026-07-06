@@ -36,6 +36,7 @@ public:
     using ThemeSelectFn      = std::function<void (const std::string & themeName)>;
     using FramebufferSourceFn = std::function<const uint32_t * (int & outWidthPx, int & outHeightPx)>;
     using MountedPathFn      = std::function<std::wstring (int driveIndex)>;
+    using HasDiskSourceFn    = std::function<bool ()>;
 
     void  SetThemes             (std::vector<std::string>  themeIds,
                                  std::vector<std::wstring> displayNames,
@@ -43,6 +44,13 @@ public:
     void  SetOnThemeSelected    (ThemeSelectFn       fn) { m_onThemeSelected   = std::move (fn); }
     void  SetFramebufferSource  (FramebufferSourceFn fn) { m_framebufferSource = std::move (fn); }
     void  SetMountedPathSource  (MountedPathFn       fn) { m_mountedPathSource = std::move (fn); }
+
+    // Reports whether the staged machine config has an ENABLED Disk ][
+    // controller. When it returns false the preview drops the drive widgets
+    // and collapses the drive bar to the joystick band, mirroring the live
+    // chrome (Phase D). Live-tracks the staged toggle (#84 Phase C). Absent =>
+    // assume present (back-compat).
+    void  SetHasDiskSource      (HasDiskSourceFn     fn) { m_hasDiskSource     = std::move (fn); }
 
     // FR-132: fired when the user clicks the "Apply now" button next to
     // the theme dropdown. The panel host wires this to live-apply the
@@ -82,6 +90,7 @@ private:
     ThemeSelectFn                 m_onThemeSelected;
     FramebufferSourceFn           m_framebufferSource;
     MountedPathFn                 m_mountedPathSource;
+    HasDiskSourceFn               m_hasDiskSource;
     ApplyThemeNowFn               m_onApplyThemeNow;
 
     DxuiLabel                         m_themeLabel;

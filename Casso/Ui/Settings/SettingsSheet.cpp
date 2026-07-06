@@ -253,6 +253,14 @@ HRESULT SettingsSheet::OpenModeless (
     {
         return m_emuShell->MountedImagePath (driveIndex);
     });
+    // Drive the preview's disk presence off the STAGED config so toggling the
+    // Disk ][ controller on the Machine tab updates the preview immediately --
+    // dropping the drive widgets + collapsing the drive bar (#84 Phase C/D),
+    // matching what OK will realise into the live chrome.
+    m_themePage->SetHasDiskSource ([this] () -> bool
+    {
+        return m_state.HasDiskIIController();
+    });
 
     // Route each page's dropdown menus through the host popup pool so they
     // escape the client clip (FR-054 / FR-061).

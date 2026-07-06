@@ -86,18 +86,17 @@ namespace
 
 
     // Computes the actual preview rect inside availRect that matches
-    // the 100%-zoom window's aspect ratio (which depends on whether
-    // the staged theme uses compact drives, since that changes the
-    // bottom inset). Returns the scale factor used so the caller can
-    // size sub-regions consistently.
+    // the 100%-zoom window's aspect ratio (which depends on the bottom
+    // inset -- full/compact drive bar when a controller is present, or the
+    // thin joystick band alone when it isn't). Returns the scale factor used
+    // so the caller can size sub-regions consistently.
     void ComputePreviewGeometry (const RECT  & availRect,
-                                 bool          compactDrives,
+                                 int           driveBandDp,
                                  RECT        & outPrevRect,
                                  float       & outScale)
     {
-        int    driveDp      = compactDrives ? s_kPrevDriveBarCmptDp : s_kPrevDriveBarFullDp;
         int    targetWdp    = s_kPrevFbWidthDp;
-        int    targetHdp    = s_kPrevTitleBarDp + s_kPrevNavStripDp + s_kPrevFbHeightDp + driveDp;
+        int    targetHdp    = s_kPrevTitleBarDp + s_kPrevNavStripDp + s_kPrevFbHeightDp + driveBandDp;
         int    availW       = std::max (0, (int) (availRect.right  - availRect.left));
         int    availH       = std::max (0, (int) (availRect.bottom - availRect.top));
         float  targetAspect = (float) targetWdp / (float) targetHdp;
@@ -137,6 +136,7 @@ namespace
                              DxuiTextRenderer                   & text,
                              const RECT                           & availRect,
                              const CassoTheme                    & theme,
+                             bool                                   hasDisk,
                              const std::function<const uint32_t * (int &, int &)> & framebufferSource,
                              const std::function<std::wstring (int)>              & mountedPathSource,
                              std::array<DriveWidget, 2>           & previewDrives,
@@ -147,9 +147,16 @@ namespace
         HRESULT   hr       = S_OK;
         auto      ScalePx  = [&scale] (int dp) -> int { return (int) ((float) dp * scale); };
 
+        // Bottom inset: a full/compact drive bar when the machine has a Disk ][
+        // controller, else just the joystick band (mirrors the live chrome's
+        // Phase D reclaim). Drives both the aspect ratio and the painted band.
+        int  driveBandDp = hasDisk
+            ? (theme.compactDrives ? s_kPrevDriveBarCmptDp : s_kPrevDriveBarFullDp)
+            : s_kPrevJoystickBandDp;
 
 
-        ComputePreviewGeometry (availRect, theme.compactDrives, prevRect, scale);
+
+        ComputePreviewGeometry (availRect, driveBandDp, prevRect, scale);
         if (scale <= 0.0f)
         {
             return;
@@ -159,7 +166,7 @@ namespace
         int  prevH       = prevRect.bottom - prevRect.top;
         int  titleH      = ScalePx (s_kPrevTitleBarDp);
         int  navH        = ScalePx (s_kPrevNavStripDp);
-        int  driveBarH   = ScalePx (theme.compactDrives ? s_kPrevDriveBarCmptDp : s_kPrevDriveBarFullDp);
+        int  driveBarH   = ScalePx (driveBandDp);
         int  screenH     = std::max (0, prevH - titleH - navH - driveBarH);
         UINT effectiveDpi = (UINT) std::max (24, (int) (96.0f * scale));
 
@@ -370,8 +377,17 @@ namespace
             visual.dpi        = effectiveDpi;
             visual.nowMs      = 0;
             visual.frameIndex = 0;
-            previewDrives[0].Paint (painter, text, theme);
-            previewDrives[1].Paint (painter, text, theme);
+
+            // Only paint the drive widgets when the machine has a Disk ][
+            // controller. With none, driveBandDp has already collapsed the
+            // bar to the joystick band, so the preview shows just the band
+            // fill + joystick button -- matching the live chrome's Phase D
+            // reclaim. (The widgets were laid out above but go undrawn.)
+            if (hasDisk)
+            {
+                previewDrives[0].Paint (painter, text, theme);
+                previewDrives[1].Paint (painter, text, theme);
+            }
 
             // Joystick-mode toggle button -- preview as "on" so the lit
             // blue LED reads in the band above the drives, matching the
@@ -631,7 +647,9 @@ void ThemePage::Paint (IDxuiPainter & painterIf, IDxuiTextRenderer & textIf, con
             m_previewDrivesInitialized = true;
         }
 
-        PaintPreviewWindow (painter, text, m_previewRect, preview, m_framebufferSource, m_mountedPathSource, m_previewDrives, m_previewJoystickButton);
+        bool  hasDisk = m_hasDiskSource ? m_hasDiskSource () : true;
+
+        PaintPreviewWindow (painter, text, m_previewRect, preview, hasDisk, m_framebufferSource, m_mountedPathSource, m_previewDrives, m_previewJoystickButton);
     }
 
     m_themeDropdown.PaintMenu   (painter, text);

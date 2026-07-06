@@ -289,6 +289,13 @@ private:
     // framebuffer grid first, then adds the chrome insets.
     void    SyncChromeBands              ();
     RECT    ComputeViewportRect          (int widthPx, int heightPx);
+
+    // Re-run the chrome layout at the current client size after a machine
+    // switch: adding/removing the Disk ][ controller changes the drive band +
+    // widgets + hit-test map, but no WM_SIZE fires when the window size itself
+    // is unchanged, so OnSize would never re-evaluate it. See the
+    // WM_APP_DXUI_UPDATE_TITLE handler (the switch-completion signal).
+    void    ReflowChromeForMachineChange ();
     SIZE    ClientSizeForCenterPx        (int centerWidthPx, int centerHeightPx);
     SIZE    ClientSizeForFramebufferPx   (int framebufferWidthDp, int framebufferHeightDp);
 
