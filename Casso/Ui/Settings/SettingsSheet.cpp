@@ -38,6 +38,7 @@ void SettingsSheet::OnBuildPages ()
 {
     m_machinePage  = CreatePage<MachinePage>  (L"Machine");
     m_hardwarePage = CreatePage<HardwarePage> (L"Hardware");
+    m_diskPage     = CreatePage<DiskPage>     (L"Disk");
     m_themePage    = CreatePage<ThemePage>    (L"Theme");
     m_displayPage  = CreatePage<DisplayPage>  (L"Display");
 
@@ -127,10 +128,11 @@ HRESULT SettingsSheet::OpenModal (
                   &m_catalog);
     m_machinePage->SetState  (&m_state);
     m_hardwarePage->SetState (&m_state);
+    m_diskPage->SetState     (&m_state);
     m_displayPage->SetState  (&m_state);
 
-    // Machine page play (>) buttons audition the drive sounds live.
-    m_machinePage->SetOnTestSound ([this] (int drive, int kind, bool centered)
+    // Disk page play (>) buttons audition the drive sounds live.
+    m_diskPage->SetOnTestSound ([this] (int drive, int kind, bool centered)
     {
         AuditionDriveSound (drive, kind, centered);
     });
@@ -253,6 +255,7 @@ HRESULT SettingsSheet::OpenModal (
     // Route each page's dropdown menus through the host popup pool so they
     // escape the client clip (FR-054 / FR-061).
     m_machinePage->SetPopupHost (PopupHost());
+    m_diskPage->SetPopupHost    (PopupHost());
     m_themePage->SetPopupHost   (PopupHost());
     m_displayPage->SetPopupHost (PopupHost());
 
@@ -270,6 +273,7 @@ HRESULT SettingsSheet::OpenModal (
     Show();
     m_machinePage->Rebuild();
     m_hardwarePage->Rebuild();
+    m_diskPage->Rebuild();
     m_displayPage->Rebuild();
     m_crt.ReseedFromActiveMode();   // seed Display sliders from the active mode
 
@@ -495,7 +499,7 @@ bool SettingsSheet::OnOverlayKey (WPARAM vk)
 //
 //  AuditionDriveSound
 //
-//  Machine page play (>) button handler. Pushes the current drive-audio
+//  Disk page play (>) button handler. Pushes the current drive-audio
 //  settings to the engine and fires a one-shot test of the given sound.
 //  Ported from SettingsPanel; the m_driveAuditionDirty cancel-revert flag
 //  moves in with the commit controller in a later slice.

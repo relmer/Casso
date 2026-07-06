@@ -12,6 +12,7 @@
 #include "ColorPickerOverlay.h"
 #include "MachinePage.h"
 #include "HardwarePage.h"
+#include "DiskPage.h"
 #include "ThemePage.h"
 #include "DisplayPage.h"
 
@@ -136,6 +137,7 @@ private:
     // for wiring only.
     MachinePage  * m_machinePage  = nullptr;
     HardwarePage * m_hardwarePage = nullptr;
+    DiskPage     * m_diskPage     = nullptr;
     ThemePage    * m_themePage    = nullptr;
     DisplayPage  * m_displayPage  = nullptr;
 };
