@@ -64,6 +64,16 @@ protected:
     void  OnBuildPages () override;
 
 private:
+    // Drive-sound audition for the Machine page's play (>) buttons. Ported
+    // verbatim from SettingsPanel: push the current volumes / pan / mechanism
+    // to the engine and post the one-shot test command. Self-contained (needs
+    // only the emulator shell + staged prefs); the cancel-revert bookkeeping
+    // lands with the commit controller in a later slice.
+    void  AuditionDriveSound    (int drive, int kind, bool centered);
+    void  PushDriveAudioToEngine (float motor, float head, float door,
+                                  float pan0, float pan1,
+                                  const std::string & mechanism);
+
     UserConfigStore * m_ucs      = nullptr;
     GlobalUserPrefs * m_prefs    = nullptr;
     ThemeManager    * m_themes   = nullptr;
@@ -73,6 +83,10 @@ private:
     SettingsPanelState        m_state;
     SettingsMachineCatalog    m_catalog;
     SettingsDisplayCrtBridge  m_crt;
+
+    // Last mechanism pushed to the engine, so PushDriveAudioToEngine skips a
+    // redundant WAV reload when it hasn't changed.
+    std::string               m_lastAuditionMechanism;
 
     // Owned by the DxuiPropertySheet child list (CreatePage); raw pointers
     // for wiring only.

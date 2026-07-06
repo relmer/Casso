@@ -4,6 +4,10 @@
 
 #include "../../EmulatorShell.h"
 #include "Ui/Chrome/ChromeMetrics.h"
+#include "resource.h"
+
+#include <cmath>
+#include <cstdio>
 
 
 static constexpr int  s_kSheetWidthDip     = 724;
@@ -84,6 +88,12 @@ HRESULT SettingsSheet::OpenModal (
     m_hardwarePage->SetState (&m_state);
     m_displayPage->SetState  (&m_state);
 
+    // Machine page play (>) buttons audition the drive sounds live.
+    m_machinePage->SetOnTestSound ([this] (int drive, int kind, bool centered)
+    {
+        AuditionDriveSound (drive, kind, centered);
+    });
+
     // Per-monitor CRT plumbing for the Display page. Bind funnels the slider /
     // toggle / monitor / restore-defaults edits through the crtByMode block so
     // the shader picks them up next frame; ReseedFromActiveMode (after the
@@ -133,4 +143,99 @@ HRESULT SettingsSheet::OpenModal (
 
 Error:
     return hr;
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AuditionDriveSound
+//
+//  Machine page play (>) button handler. Pushes the current drive-audio
+//  settings to the engine and fires a one-shot test of the given sound.
+//  Ported from SettingsPanel; the m_driveAuditionDirty cancel-revert flag
+//  moves in with the commit controller in a later slice.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SettingsSheet::AuditionDriveSound (int drive, int kind, bool centered)
+{
+    char   test[16] = {};
+    float  pan0     = 0.0f;
+    float  pan1     = 0.0f;
+
+
+    if (m_emuShell == nullptr)
+    {
+        return;
+    }
+
+    const SettingsUiPrefs &  prefs = m_state.Prefs();
+
+    pan0 = prefs.driveOnePan;
+    pan1 = prefs.driveTwoPan;
+    if (centered)
+    {
+        if (drive == 0) { pan0 = 0.0f; }
+        else            { pan1 = 0.0f; }
+    }
+
+    PushDriveAudioToEngine (prefs.driveMotorVolume,
+                            prefs.driveHeadVolume,
+                            prefs.driveDoorVolume,
+                            pan0,
+                            pan1,
+                            prefs.floppyMechanism);
+
+    sprintf_s (test, "%d,%d", drive, kind);
+    m_emuShell->PostCommand (IDM_AUDIO_DRIVE_TEST, test);
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PushDriveAudioToEngine
+//
+//  Posts volumes + pan + mechanism to the engine command queue. The
+//  mechanism is reloaded only when it differs from what the engine last
+//  loaded, avoiding a redundant WAV reload.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SettingsSheet::PushDriveAudioToEngine (
+    float                motor,
+    float                head,
+    float                door,
+    float                pan0,
+    float                pan1,
+    const std::string  & mechanism)
+{
+    char  vol[32] = {};
+    char  pan[32] = {};
+
+
+    if (m_emuShell == nullptr)
+    {
+        return;
+    }
+
+    sprintf_s (vol, "%d,%d,%d",
+               (int) std::lround (motor * 100.0f),
+               (int) std::lround (head  * 100.0f),
+               (int) std::lround (door  * 100.0f));
+    m_emuShell->PostCommand (IDM_AUDIO_DRIVE_VOLUMES, vol);
+
+    if (mechanism != m_lastAuditionMechanism)
+    {
+        m_emuShell->PostCommand (IDM_AUDIO_DRIVE_MECHANISM, mechanism);
+        m_lastAuditionMechanism = mechanism;
+    }
+
+    sprintf_s (pan, "%d,%d",
+               (int) std::lround (pan0 * 100.0f),
+               (int) std::lround (pan1 * 100.0f));
+    m_emuShell->PostCommand (IDM_AUDIO_DRIVE_PAN, pan);
 }
