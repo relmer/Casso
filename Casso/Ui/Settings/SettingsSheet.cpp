@@ -94,7 +94,12 @@ HRESULT SettingsSheet::OpenModal (
     params.resizable                = true;
     params.insetContentBelowCaption = true;   // tab strip sits below the caption
     params.captionStyle             = DxuiCaptionStyle::CloseOnly;
-    params.composited               = true;   // enables the live-preview fade (#7)
+    // Opaque for now. A flat window-opacity fade reveals the raw desktop behind
+    // the sheet (other windows), not the emulator, and cannot blur -- so it reads
+    // as broken. The real live-preview reveal (blur the panel + reveal ONLY the
+    // emulator in a focus region) is the slice-3c compositor; until then the sheet
+    // stays opaque. SetComposedOpacity is a no-op while composited is false.
+    params.composited               = false;
 
     hr = DxuiWindow::Create (params);   // fires OnBuildPages + base OnCreate
     CHRA (hr);
