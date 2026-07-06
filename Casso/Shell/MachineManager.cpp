@@ -372,12 +372,18 @@ HRESULT MachineManager::CreateMemoryDevices (const MachineConfig & config)
     }
 
     // Drive-audio wiring (spec 005-disk-ii-audio FR-008 / FR-012 /
-    // FR-015 / FR-016). Allocate one Disk2AudioSource per drive on
-    // the discovered controller (if any), register each with the
-    // mixer, and route the controller's audio-sink events into
-    // drive 0's source (single sink covers both drives; the head /
-    // motor events themselves are not currently drive-tagged in
-    // Disk2Controller -- a follow-up could split per-drive sinks).
+    // FR-015 / FR-016). Allocate one Disk2AudioSource per drive, register
+    // each with the mixer, and route the controller's audio-sink events into
+    // drive 0's source (single sink covers both drives; the head / motor
+    // events themselves are not currently drive-tagged in Disk2Controller --
+    // a follow-up could split per-drive sinks).
+    //
+    // The sources are created UNCONDITIONALLY -- even for a machine with no
+    // (realized) Disk ][ controller -- so the settings drive-sound preview
+    // (#84 Phase C) still auditions when the user has toggled slot 6 on in
+    // settings but not yet committed the controller into the running machine.
+    // Without a controller the sources simply receive no real head / motor
+    // events; the mixer mixes them as silence until a test sound is fired.
     //
     // Pan policy: each drive's stereo position comes from the shell's
     // stored per-drive pan (user-adjustable). Defaults place Drive 1
@@ -386,7 +392,6 @@ HRESULT MachineManager::CreateMemoryDevices (const MachineConfig & config)
     m_shell.m_diskAudioSources.clear();
     m_shell.m_driveAudioMixer.UnregisterAllSources();
 
-    if (m_shell.m_refs.diskController != nullptr)
     {
         int  driveCount = Disk2Controller::kDriveCount;
         int  drive      = 0;
@@ -411,11 +416,13 @@ HRESULT MachineManager::CreateMemoryDevices (const MachineConfig & config)
                              m_shell.m_driveDoorVolume);
             m_shell.m_diskAudioSources.push_back (std::move (src));
         }
+    }
 
-        if (!m_shell.m_diskAudioSources.empty())
-        {
-            m_shell.m_refs.diskController->SetAudioSink (m_shell.m_diskAudioSources[0].get());
-        }
+    // Feed real disk head / motor / door events to drive 0's source only when
+    // the machine actually has the Disk ][ controller realized.
+    if (m_shell.m_refs.diskController != nullptr && !m_shell.m_diskAudioSources.empty())
+    {
+        m_shell.m_refs.diskController->SetAudioSink (m_shell.m_diskAudioSources[0].get());
     }
 
 Error:
