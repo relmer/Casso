@@ -237,6 +237,7 @@ void DisplayPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
     m_brightness.SetRect      (MakeRect (controlsX, y, sliderWidth, rowHeight));
     m_brightness.SetRange     (0.0f, 200.0f);
     m_brightness.SetStep      (10.0f);
+    m_brightness.SetDragStep  (1.0f);
     m_brightness.SetSuffix    (L"%");
     m_brightness.SetShowTicks (true);
     m_brightnessRowRect = MakeRect (x, y, (controlsX + sliderWidth) - x, rowHeight);
@@ -247,6 +248,7 @@ void DisplayPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
     m_contrast.SetRect      (MakeRect (controlsX, y, sliderWidth, rowHeight));
     m_contrast.SetRange     (0.0f, 200.0f);
     m_contrast.SetStep      (10.0f);
+    m_contrast.SetDragStep  (1.0f);
     m_contrast.SetSuffix    (L"%");
     m_contrast.SetShowTicks (true);
     m_contrastRowRect = MakeRect (x, y, (controlsX + sliderWidth) - x, rowHeight);
@@ -257,6 +259,7 @@ void DisplayPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
     m_gamma.SetRect           (MakeRect (controlsX, y, sliderWidth, rowHeight));
     m_gamma.SetRange          (0.5f, 2.5f);
     m_gamma.SetStep           (0.1f);
+    m_gamma.SetDragStep       (0.01f);
     m_gamma.SetSuffix         (L"");
     m_gamma.SetShowValue      (true);     // dimensionless; opt in to readout
     m_gamma.SetDecimalPlaces  (1);
@@ -279,6 +282,7 @@ void DisplayPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
     m_scanlinesInt.SetRect      (MakeRect (controlsX, y, sliderWidth, rowHeight));
     m_scanlinesInt.SetRange     (10.0f, 100.0f);
     m_scanlinesInt.SetStep      (10.0f);
+    m_scanlinesInt.SetDragStep  (1.0f);
     m_scanlinesInt.SetSuffix    (L"%");
     m_scanlinesInt.SetShowTicks (true);
     m_scanlinesIntRowRect = MakeRect (x, y, (controlsX + sliderWidth) - x, rowHeight);
@@ -307,6 +311,7 @@ void DisplayPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
     m_bloomStrength.SetRect      (MakeRect (controlsX, y, sliderWidth, rowHeight));
     m_bloomStrength.SetRange     (10.0f, 100.0f);
     m_bloomStrength.SetStep      (10.0f);
+    m_bloomStrength.SetDragStep  (1.0f);
     m_bloomStrength.SetSuffix    (L"%");
     m_bloomStrength.SetShowTicks (true);
     m_bloomStrengthRowRect = MakeRect (x, y, (controlsX + sliderWidth) - x, rowHeight);
@@ -336,6 +341,7 @@ void DisplayPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
     m_persistence.SetRect      (MakeRect (controlsX, y, sliderWidth, rowHeight));
     m_persistence.SetRange     (0.0f, 99.0f);
     m_persistence.SetStep      (5.0f);
+    m_persistence.SetDragStep  (1.0f);
     m_persistence.SetSuffix    (L"%");
     m_persistence.SetShowTicks (true);
     m_persistenceRowRect = MakeRect (x, y, (controlsX + sliderWidth) - x, rowHeight);

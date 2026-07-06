@@ -71,10 +71,10 @@ HRESULT SettingsSheet::OpenModal (
     // No Apply button. Set BEFORE Create so OnCreate honors the hidden Apply.
     SetApplyVisible (false);
 
-    // Widen OK up front to fit the longest label ("OK (reboot)"); the row is
-    // sized once at layout and does not reflow, so RefreshOkLabel only swaps
-    // the text (repaint) between "OK" and "OK (reboot)" (FR-131).
-    SetOkWidthDip (132);
+    // OK stays the standard command-button width (matching Cancel) until a
+    // pending reboot relabels it "OK (reboot)"; RefreshOkLabel widens it then
+    // and narrows it back on revert (FR-131), so it is never wider than Cancel
+    // while it just reads "OK".
 
     params.title                    = L"Settings";
     params.hInstance                = hInstance;
@@ -316,9 +316,10 @@ void SettingsSheet::RefreshOkLabel ()
     bool          reboot = m_apply.WillMachineChange() || m_apply.IsResetRequired();
     std::wstring  want   = reboot ? L"OK (reboot)" : L"OK";
 
-    if (OkText() != want)   // only repaint on an actual change, not every tick
+    if (OkText() != want)   // only reflow on an actual change, not every tick
     {
         SetOkText (std::move (want));
+        SetOkWidthDip (reboot ? 132 : 0);   // 0 => standard width, == Cancel
     }
 }
 

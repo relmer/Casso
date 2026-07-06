@@ -81,7 +81,10 @@ void DxuiSlider::SetRange (float minValue, float maxValue)
 
 void DxuiSlider::SetValue (float value)
 {
-    float  v = QuantizeToStep (value, m_min, m_step);
+    // Quantize to the drag granularity (== the keyboard step unless a finer
+    // drag step is set) so a value dialed in by dragging survives a reseed
+    // instead of snapping back to the coarse keyboard step.
+    float  v = QuantizeToStep (value, m_min, DragStep());
 
 
 
@@ -181,7 +184,13 @@ float DxuiSlider::ValueFromX (int x) const
 
 void DxuiSlider::ApplyValue (float v)
 {
-    float  q       = QuantizeToStep (v, m_min, m_step);
+    ApplyValueWithStep (v, m_step);
+}
+
+
+void DxuiSlider::ApplyValueWithStep (float v, float step)
+{
+    float  q       = QuantizeToStep (v, m_min, step);
     float  clamped = Clamp (q, m_min, m_max);
     bool   changed = std::fabs (clamped - m_value) > s_kEpsilon;
 
@@ -217,7 +226,7 @@ bool DxuiSlider::OnLButtonDown (int x, int y)
 
     startedDrag = !m_dragging;
     m_dragging  = true;
-    ApplyValue (ValueFromX (x));
+    ApplyValueWithStep (ValueFromX (x), DragStep());
 
     if (startedDrag && m_onDragStart)
     {
@@ -272,7 +281,7 @@ bool DxuiSlider::OnMouseMove (int x, int y)
     }
 
     UNREFERENCED_PARAMETER (y);
-    ApplyValue (ValueFromX (x));
+    ApplyValueWithStep (ValueFromX (x), DragStep());
     return true;
 }
 

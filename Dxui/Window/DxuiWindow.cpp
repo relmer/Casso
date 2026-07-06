@@ -865,7 +865,16 @@ DxuiMessageResult DxuiWindow::DispatchMouse (DxuiMouseEventKind kind,
         return DxuiMessageResult::Handled;
     }
 
-    return OnMouse (ev) ? DxuiMessageResult::Handled : DxuiMessageResult::NotHandled;
+    // Repaint immediately when a control consumes the event so drags (slider
+    // thumbs, scrubbing) and hover states track the cursor every frame instead
+    // of only on the ~half-second dialog tick. InvalidateRect coalesces, so at
+    // most one paint lands per frame regardless of mouse-move rate.
+    if (OnMouse (ev))
+    {
+        Invalidate();
+        return DxuiMessageResult::Handled;
+    }
+    return DxuiMessageResult::NotHandled;
 }
 
 
@@ -927,7 +936,6 @@ DxuiMessageResult DxuiWindow::DispatchDialogKey (WPARAM vk)
                 break;
             }
             isHandled = m_focus.HandleKey (shift ? DxuiFocusKey::ShiftTab : DxuiFocusKey::Tab);
-            Invalidate();
             break;
 
         case VK_ESCAPE:
@@ -946,6 +954,13 @@ DxuiMessageResult DxuiWindow::DispatchDialogKey (WPARAM vk)
         default:
             isHandled = RouteKeyToFocused (vk, shift);
             break;
+    }
+
+    // Any consumed dialog key (Tab focus move, arrow-key slider nudge, etc.)
+    // repaints so the change shows at once rather than on the next tick.
+    if (isHandled)
+    {
+        Invalidate();
     }
 
     result = isHandled ? DxuiMessageResult::Handled : DxuiMessageResult::NotHandled;

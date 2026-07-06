@@ -45,6 +45,11 @@ public:
     void   SetRect    (const RECT & rect) { SetBounds (rect); }
     void   SetRange   (float minValue, float maxValue);
     void   SetStep    (float step) { m_step = step; }
+    //  Granularity a mouse drag snaps to. 0 (default) reuses the keyboard step;
+    //  set a finer value so dragging feels smooth on a slider whose keyboard
+    //  step is deliberately coarse (e.g. a 0-200 step-10 brightness slider that
+    //  should nudge by 10 on arrow keys but glide by 1 under the cursor).
+    void   SetDragStep (float step) { m_dragStep = step; }
     void   SetValue   (float value);
     void   SetSuffix  (const std::wstring & suffix) { m_suffix = suffix; m_explicitShowValue = true; m_showValue = true; }
     void   SetShowValue (bool show) { m_explicitShowValue = true; m_showValue = show; }
@@ -93,7 +98,9 @@ public:
 
 private:
     void   PaintInternal  (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) const;
-    void   ApplyValue     (float v);
+    void   ApplyValue         (float v);
+    void   ApplyValueWithStep (float v, float step);
+    float  DragStep       () const { return m_dragStep > 0.0f ? m_dragStep : m_step; }
     float  ValueFromX     (int x) const;
     ChangeFn       m_change;
     InteractionFn  m_onDragStart;
@@ -105,6 +112,7 @@ private:
     float          m_min      = 0.0f;
     float          m_max      = 1.0f;
     float          m_step     = 0.01f;
+    float          m_dragStep = 0.0f;    // 0 => drag snaps to m_step
     float          m_value    = 0.0f;
     bool           m_enabled  = true;
     bool           m_focused  = false;
