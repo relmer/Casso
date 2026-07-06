@@ -1411,9 +1411,18 @@ Error:
 
 void EmulatorShell::SyncChromeBands ()
 {
+    // When the machine has no Disk ][ controller, remove the drive-widget area
+    // entirely (#84 Phase D): the drive band collapses to just the joystick-mode
+    // button band (joystick input is independent of disk presence), reclaiming
+    // the ~180 dp the drive widgets + their in-use indicators would occupy so
+    // the emulator viewport grows into it. The widgets are already hidden and
+    // un-hit-tested by the resize path when there is no controller.
+    bool  hasDisk     = (m_diskManager != nullptr) && m_diskManager->HasSlot6Controller();
+    int   driveBandDp = hasDisk ? m_driveBarThicknessDp : s_kJoystickButtonBandDp;
+
     m_titleBand.SetBounds (RECT{ 0, 0, 0, m_scaler.Px (s_kTitleBarBandDp) });
     m_navBand.SetBounds   (RECT{ 0, 0, 0, m_scaler.Px (s_kNavStripBandDp) });
-    m_driveBand.SetBounds (RECT{ 0, 0, 0, m_scaler.Px (m_driveBarThicknessDp) });
+    m_driveBand.SetBounds (RECT{ 0, 0, 0, m_scaler.Px (driveBandDp) });
 }
 
 
