@@ -243,6 +243,9 @@ void DxuiTabStrip::PaintInternal (IDxuiPainter & painter, IDxuiTextRenderer & te
     constexpr float     s_kPadYDp        = 4.0f;
     constexpr float     s_kPressedScale  = 0.82f;   // armed-tab tint, a touch darker than hover
 
+    constexpr float     s_kUnderlineDip  = 3.0f;   // thick active-tab underline
+    constexpr float     s_kMutedTextScale = 0.62f; // dim inactive labels
+
     HRESULT  hr          = S_OK;
     int      i           = 0;
     size_t   n           = m_tabs.size();
@@ -251,25 +254,43 @@ void DxuiTabStrip::PaintInternal (IDxuiPainter & painter, IDxuiTextRenderer & te
     float    padX        = m_scaler.Pxf (s_kPadXDp);
     float    padY        = m_scaler.Pxf (s_kPadYDp);
     float    fontDip     = m_scaler.Pxf (s_kFontDip);
-    uint32_t pressedArgb = DxuiColor::Darken (hoverArgb, s_kPressedScale);
+    float    underline   = m_scaler.Pxf (s_kUnderlineDip);
+    uint32_t mutedText   = DxuiColor::Scale (textArgb, s_kMutedTextScale);
+
+    UNREFERENCED_PARAMETER (idleArgb);   // idle + selected tabs blend with the page
 
 
 
+    // Modern connected-tab look: the active tab shares the page background (no
+    // chip fill) and is marked by a thick accent underline flush with the page
+    // edge; inactive tabs are unfilled with dimmed labels, and a hovered /
+    // armed inactive tab gets a subtle fill hint.
     for (i = 0; i < (int) n; ++i)
     {
-        const Tab & t        = m_tabs[(size_t) i];
-        uint32_t    fillArgb = (i == m_selected)               ? selectedArgb
-                                : (i == m_pressed && i == m_hover) ? pressedArgb
-                                : (i == m_hover)                ? hoverArgb
-                                :                                  idleArgb;
+        const Tab & t       = m_tabs[(size_t) i];
+        bool        isSel    = (i == m_selected);
+        bool        isHover  = (i == m_hover);
+        bool        isArmed  = (i == m_pressed && i == m_hover);
 
-        painter.FillRect ((float) t.rect.left,
-                          (float) t.rect.top,
-                          (float) (t.rect.right  - t.rect.left),
-                          (float) (t.rect.bottom - t.rect.top),
-                          fillArgb);
+        if (!isSel && (isHover || isArmed))
+        {
+            painter.FillRect ((float) t.rect.left,
+                              (float) t.rect.top,
+                              (float) (t.rect.right  - t.rect.left),
+                              (float) (t.rect.bottom - t.rect.top),
+                              isArmed ? DxuiColor::Darken (hoverArgb, s_kPressedScale) : hoverArgb);
+        }
 
-        if (m_focused && i == m_selected)
+        if (isSel)
+        {
+            painter.FillRect ((float) t.rect.left,
+                              (float) t.rect.bottom - underline,
+                              (float) (t.rect.right - t.rect.left),
+                              underline,
+                              selectedArgb);
+        }
+
+        if (m_focused && isSel)
         {
             painter.OutlineRect ((float) t.rect.left + focusInset,
                                  (float) t.rect.top  + focusInset,
@@ -283,7 +304,7 @@ void DxuiTabStrip::PaintInternal (IDxuiPainter & painter, IDxuiTextRenderer & te
                                                   (float) t.rect.top  + padY,
                                                   (float) (t.rect.right  - t.rect.left) - padX * 2.0f,
                                                   (float) (t.rect.bottom - t.rect.top)  - padY * 2.0f,
-                                                  textArgb,
+                                                  isSel ? textArgb : mutedText,
                                                   fontDip,
                                                   DxuiTheme::kBodyFace,
                                                   DxuiTextHAlign::Center,
@@ -321,19 +342,19 @@ void DxuiTabStrip::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
 
 void DxuiTabStrip::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
 {
-    constexpr float  s_kIdleScale     = 0.6f;
-    constexpr float  s_kSelectedScale = 1.45f;
+    constexpr float  s_kIdleScale = 0.6f;
 
     uint32_t  hover = theme.HoverBackground();
 
 
 
-    // Selected tab is the lightest (brightened hover); idle is a darker
-    // tint of the same hue, so the strip tracks the theme accent.
+    // Underline-style strip: the "selected" slot carries the accent used for
+    // the active-tab underline (the theme selection colour), hover is a subtle
+    // fill hint, idle is unused (idle tabs blend with the page).
     PaintInternal (painter, text,
                    DxuiColor::Scale (hover, s_kIdleScale),
                    hover,
-                   DxuiColor::Scale (hover, s_kSelectedScale),
+                   theme.SelectionBackground(),
                    theme.Foreground(),
                    theme.FocusRing());
 }
