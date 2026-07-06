@@ -438,9 +438,11 @@ void DxuiSlider::PaintInternal (IDxuiPainter & painter, IDxuiTextRenderer & text
                       fillWidth, trackHeight, accentArgb);
 
     // ----- Tick marks below the track. -----
-    if (m_showTicks && m_step > s_kEpsilon && trackAvailW > 0.0f)
+    float  tickStep = (m_tickInterval > s_kEpsilon) ? m_tickInterval : m_step;
+
+    if (m_showTicks && tickStep > s_kEpsilon && trackAvailW > 0.0f)
     {
-        int    tickCount = (int) std::round ((m_max - m_min) / m_step) + 1;
+        int    tickCount = (int) std::round ((m_max - m_min) / tickStep) + 1;
         int    i         = 0;
         float  tickTop   = centerY + trackHeight * 0.5f + tickGap;
 

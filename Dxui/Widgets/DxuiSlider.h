@@ -52,6 +52,10 @@ public:
     void   SetValueFormatter (FormatFn fn) { m_formatter = std::move (fn); m_explicitShowValue = true; m_showValue = true; }
     void   SetCenterOriginFill (bool centered) { m_centerOriginFill = centered; }
     void   SetShowTicks (bool show) { m_showTicks = show; }
+    //  Spacing between tick marks in value units. 0 (default) draws one tick
+    //  per drag step; set a coarser interval when the step is fine (e.g. a
+    //  0-100 step-1 volume slider) so the ticks don't become a solid picket.
+    void   SetTickInterval (float interval) { m_tickInterval = interval; }
     void   SetDpi     (UINT dpi) { m_scaler.SetDpi (dpi); }
     void   SetEnabled (bool enabled) { IDxuiControl::SetEnabled (enabled); m_enabled = enabled; if (!enabled) { m_dragging = false; m_hover = false; } }
     void   SetFocused (bool focused) { m_focused = focused; }
@@ -107,6 +111,7 @@ private:
     bool           m_hover    = false;
     bool           m_dragging = false;
     bool           m_showTicks = true;
+    float          m_tickInterval = 0.0f;   // 0 => one tick per step
     bool           m_showValue = false;
     bool           m_explicitShowValue = false;
     bool           m_centerOriginFill = false;
