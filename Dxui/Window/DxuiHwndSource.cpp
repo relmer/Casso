@@ -557,6 +557,25 @@ void DxuiHwndSource::SetAfterPaintHook (std::function<void(ID3D11RenderTargetVie
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  SetOverlayPaintHook
+//
+//  Stores the callback the paint pump invokes after the panel tree + caption
+//  are drawn, letting a client paint a modal overlay on top of the page.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiHwndSource::SetOverlayPaintHook (std::function<void(IDxuiPainter &, IDxuiTextRenderer &, const IDxuiTheme &)> hook)
+{
+    DXUI_ASSERT_UI_THREAD();
+
+    m_overlayPaintHook = std::move (hook);
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  SetComposedOpacity
 //
 //  Fades the whole composited visual via IDCompositionVisual3::SetOpacity so
@@ -1366,6 +1385,13 @@ void DxuiHwndSource::PaintPump ()
         if (m_caption)
         {
             m_caption->Paint (*m_painter, *m_textRenderer, *m_theme);
+        }
+
+        // A client modal overlay (e.g. the Settings color picker) paints last
+        // of all so it reads as a dialog floating above the whole page.
+        if (m_overlayPaintHook)
+        {
+            m_overlayPaintHook (*m_painter, *m_textRenderer, *m_theme);
         }
 
         // Flush the painter (D3D control fills) FIRST, then the text

@@ -198,6 +198,24 @@ protected:
     virtual bool  OnDialogTabSwitch (bool backward) { UNREFERENCED_PARAMETER (backward); return false; }
 
     //
+    //  Modal in-content overlay (e.g. the Settings color picker). While
+    //  HasModalOverlay() returns true the window paints PaintModalOverlay on
+    //  top of the whole page every frame and routes ALL mouse / char / key
+    //  input to the OnOverlay* hooks first -- so the overlay reads and behaves
+    //  as a modal dialog floating above the page without a separate HWND
+    //  (FR-129 preserves the bespoke Settings look). OnOverlayMouse returns
+    //  true when it consumed the event; OnOverlayKey / OnOverlayChar likewise,
+    //  though keys are swallowed either way so they never reach the page while
+    //  the overlay is up. Defaults leave a plain window overlay-free.
+    //
+    virtual bool  HasModalOverlay   () const { return false; }
+    virtual void  PaintModalOverlay (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
+                  { UNREFERENCED_PARAMETER (painter); UNREFERENCED_PARAMETER (text); UNREFERENCED_PARAMETER (theme); }
+    virtual bool  OnOverlayMouse    (const DxuiMouseEvent & ev) { UNREFERENCED_PARAMETER (ev); return false; }
+    virtual bool  OnOverlayChar     (wchar_t ch)                { UNREFERENCED_PARAMETER (ch); return false; }
+    virtual bool  OnOverlayKey      (WPARAM vk)                 { UNREFERENCED_PARAMETER (vk); return false; }
+
+    //
     //  Tune the dialog repaint / tick cadence (ms) before
     //  ShowModalDialog / ShowModelessDialog. The default suits caret
     //  blink; a poller (e.g. download progress) sets a faster interval.

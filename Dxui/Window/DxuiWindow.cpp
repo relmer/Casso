@@ -59,6 +59,16 @@ HRESULT DxuiWindow::Create (const CreateParams & params)
     hr = m_source->Create (hostParams);
     CHRF (hr, m_source.reset());
 
+    // Paint a subclass modal overlay (e.g. the Settings color picker) on top
+    // of the page each frame while it is up.
+    m_source->SetOverlayPaintHook ([this] (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
+    {
+        if (HasModalOverlay())
+        {
+            PaintModalOverlay (painter, text, theme);
+        }
+    });
+
     // Populate children BEFORE installing the root so the first layout
     // pass (driven by SetContentRootRef) sees the fully-built tree.
     OnCreate();
@@ -618,6 +628,14 @@ DxuiMessageResult DxuiWindow::OnKeyDown (WPARAM vk, LPARAM lParam)
 
     UNREFERENCED_PARAMETER (lParam);
 
+    // A modal overlay swallows every key (routing the ones it wants to its own
+    // handler) so dialog navigation can't leak to the page behind it.
+    if (HasModalOverlay())
+    {
+        (void) OnOverlayKey (vk);
+        return DxuiMessageResult::Handled;
+    }
+
     result = m_dialogActive ? DispatchDialogKey (vk)
                             : DispatchKey (DxuiKeyEventKind::Down, vk);
 
@@ -642,6 +660,13 @@ DxuiMessageResult DxuiWindow::OnChar (WPARAM ch, LPARAM lParam)
 
 
     UNREFERENCED_PARAMETER (lParam);
+
+    // A modal overlay owns text entry (e.g. the color picker's hex field).
+    if (HasModalOverlay())
+    {
+        (void) OnOverlayChar ((wchar_t) ch);
+        return DxuiMessageResult::Handled;
+    }
 
     if (m_dialogActive)
     {
@@ -832,6 +857,14 @@ DxuiMessageResult DxuiWindow::DispatchMouse (DxuiMouseEventKind kind,
     ev.shift       = (GetKeyState (VK_SHIFT)   & 0x8000) != 0;
     ev.ctrl        = (GetKeyState (VK_CONTROL) & 0x8000) != 0;
     ev.alt         = (GetKeyState (VK_MENU)    & 0x8000) != 0;
+
+    // A modal overlay captures all mouse input so the page beneath it stays
+    // inert (clicks outside the overlay dialog are simply ignored).
+    if (HasModalOverlay())
+    {
+        (void) OnOverlayMouse (ev);
+        return DxuiMessageResult::Handled;
+    }
 
     return OnMouse (ev) ? DxuiMessageResult::Handled : DxuiMessageResult::NotHandled;
 }
