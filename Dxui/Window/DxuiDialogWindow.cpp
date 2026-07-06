@@ -4,14 +4,10 @@
 
 #include "Core/DxuiPanel.h"
 #include "Widgets/DxuiButton.h"
+#include "Window/DxuiButtonRow.h"
 
-
-static constexpr int  s_kButtonRowHeightDip  = 44;
-static constexpr int  s_kButtonWidthDip      = 96;
-static constexpr int  s_kButtonHeightDip     = 28;
-static constexpr int  s_kButtonGapDip        = 8;
-static constexpr int  s_kButtonRowEdgePadDip = 16;
-static constexpr int  s_kContentPadDip       = 16;
+#include <algorithm>
+#include <vector>
 
 
 
@@ -47,13 +43,15 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-DxuiButton * DxuiDialogWindow::AddDialogButton (const std::wstring & label, int commandId)
+DxuiButton * DxuiDialogWindow::AddDialogButton (const std::wstring &  label,
+                                                int                   commandId,
+                                                DxuiButtonRow::Anchor anchor)
 {
     DxuiButton *  button = CreateChild<DxuiButton> (label);
 
 
     button->SetCommandId (commandId);
-    m_dialogButtons.push_back (button);
+    m_dialogButtons.push_back ({ button, commandId, anchor });
 
     return button;
 }
@@ -68,27 +66,23 @@ DxuiButton * DxuiDialogWindow::AddDialogButton (const std::wstring & label, int 
 //
 //  The host lays this window (content root) out in physical pixels, below
 //  its own caption. Reserve a fixed-height bottom strip for the buttons,
-//  inset and fill the remainder with the content, then size + right-align
-//  the fixed-width buttons in registration order (first leftmost).
+//  inset and fill the remainder with the content, then place the buttons:
+//  the primary group is right-aligned in the canonical Win32 order (OK,
+//  Cancel, Apply, ...), while Anchor::Left buttons (e.g. "Browse...") pin
+//  to the bottom-left. All share the standard DxuiButtonRow metrics.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void DxuiDialogWindow::Layout (const RECT & boundsPx, const DxuiDpiScaler & scaler)
 {
-    int   pad      = scaler.Px (s_kContentPadDip);
-    int   rowH     = scaler.Px (s_kButtonRowHeightDip);
-    int   btnW     = scaler.Px (s_kButtonWidthDip);
-    int   btnH     = scaler.Px (s_kButtonHeightDip);
-    int   gapPx    = scaler.Px (s_kButtonGapDip);
-    int   edgePx   = scaler.Px (s_kButtonRowEdgePadDip);
-    bool  hasRow   = !m_dialogButtons.empty();
-    int   count    = (int) m_dialogButtons.size();
-    int   total    = (count * btnW) + ((count - 1) * gapPx);
-    int   x        = boundsPx.right - edgePx - total;
-    int   y        = boundsPx.bottom - pad - btnH;
-    RECT  content  = boundsPx;
-    int   i        = 0;
+    int   pad     = scaler.Px (DxuiButtonRow::kEdgePadDip);
+    int   rowH    = scaler.Px (DxuiButtonRow::kRowHeightDip);
+    bool  hasRow  = !m_dialogButtons.empty();
+    RECT  content = boundsPx;
 
+    std::vector<ButtonEntry *>  right;
+    std::vector<ButtonEntry *>  left;
+    size_t                      i = 0;
 
 
     SetBounds (boundsPx);
@@ -104,12 +98,37 @@ void DxuiDialogWindow::Layout (const RECT & boundsPx, const DxuiDpiScaler & scal
         m_content->Layout (content, scaler);
     }
 
-    for (i = 0; i < count; ++i)
+    // Split by anchor; order the right group into the canonical button order
+    // (stable, so like-ranked / synthetic ids keep registration order).
+    for (ButtonEntry & e : m_dialogButtons)
     {
-        RECT  b = { x, y, x + btnW, y + btnH };
+        (e.anchor == DxuiButtonRow::Anchor::Left ? left : right).push_back (&e);
+    }
+    std::stable_sort (right.begin(), right.end(),
+                      [] (const ButtonEntry * a, const ButtonEntry * b)
+                      {
+                          return DxuiButtonRow::StandardRank (a->commandId) <
+                                 DxuiButtonRow::StandardRank (b->commandId);
+                      });
 
-        m_dialogButtons[(size_t) i]->Layout (b);
-        m_dialogButtons[(size_t) i]->SetDpi  (scaler.Dpi());
-        x += btnW + gapPx;
+    {
+        std::vector<int>   rWidths (right.size(), DxuiButtonRow::kButtonWidthDip);
+        std::vector<int>   lWidths (left.size(),  DxuiButtonRow::kButtonWidthDip);
+        std::vector<RECT>  rRects  (right.size());
+        std::vector<RECT>  lRects  (left.size());
+
+        DxuiButtonRow::LayoutRightGroup (boundsPx, scaler, rWidths, rRects);
+        DxuiButtonRow::LayoutLeftGroup  (boundsPx, scaler, lWidths, lRects);
+
+        for (i = 0; i < right.size(); ++i)
+        {
+            right[i]->button->Layout (rRects[i]);
+            right[i]->button->SetDpi  (scaler.Dpi());
+        }
+        for (i = 0; i < left.size(); ++i)
+        {
+            left[i]->button->Layout (lRects[i]);
+            left[i]->button->SetDpi  (scaler.Dpi());
+        }
     }
 }

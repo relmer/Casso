@@ -54,6 +54,9 @@ struct DialogButton
     int           resultCode = 0;
     bool          isDefault  = false;
     bool          isCancel   = false;
+    // Pins the button bottom-left as a secondary / navigation action (e.g.
+    // "Browse...") instead of joining the right-aligned OK/Cancel group.
+    bool          anchorLeft = false;
 };
 
 

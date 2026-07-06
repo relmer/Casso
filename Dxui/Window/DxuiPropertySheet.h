@@ -105,8 +105,6 @@ private:
     void  RefreshApplyEnabled ();
     bool  ApplyAllDirtyPages  ();
 
-    static constexpr int  s_kApplyCommandId = 0x2000;   // private (not IDOK/IDCANCEL)
-
     DxuiTabStrip *                   m_tabs   = nullptr;
     DxuiButton   *                   m_ok     = nullptr;
     DxuiButton   *                   m_cancel = nullptr;

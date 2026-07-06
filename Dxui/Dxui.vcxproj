@@ -248,6 +248,7 @@
     <ClInclude Include="Window\DxuiHwndSource.h" />
     <ClInclude Include="Window\DxuiDialogWindow.h" />
     <ClInclude Include="Window\DxuiPropertyPage.h" />
+    <ClInclude Include="Window\DxuiButtonRow.h" />
     <ClInclude Include="Window\DxuiPropertySheet.h" />
     <ClInclude Include="Window\DxuiWindow.h" />
     <ClInclude Include="Window\IDxuiHostClient.h" />

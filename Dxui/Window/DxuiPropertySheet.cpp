@@ -4,16 +4,14 @@
 #include "DxuiPropertyPage.h"
 
 #include "Widgets/DxuiButton.h"
+#include "Window/DxuiButtonRow.h"
+
+#include <algorithm>
 
 
-static constexpr int  s_kTabStripHeightDip   = 36;
-static constexpr int  s_kTabWidthDip         = 100;
-static constexpr int  s_kButtonRowHeightDip  = 44;
-static constexpr int  s_kButtonWidthDip      = 96;
-static constexpr int  s_kButtonHeightDip     = 28;
-static constexpr int  s_kButtonGapDip        = 8;
-static constexpr int  s_kButtonRowEdgePadDip = 16;
-static constexpr int  s_kContentPadDip       = 16;
+static constexpr int  s_kTabStripHeightDip = 36;
+static constexpr int  s_kTabWidthDip       = 100;
+static constexpr int  s_kContentPadDip     = DxuiButtonRow::kEdgePadDip;   // page inset
 
 
 
@@ -57,7 +55,7 @@ void DxuiPropertySheet::OnCreate ()
 
     m_ok->SetCommandId     (IDOK);
     m_cancel->SetCommandId (IDCANCEL);
-    m_apply->SetCommandId  (s_kApplyCommandId);
+    m_apply->SetCommandId  (DxuiButtonRow::kApplyCommandId);
 
     // Honor a pre-Create SetApplyVisible(false): a plain [OK][Cancel] sheet.
     m_apply->SetVisible (m_applyVisible);
@@ -233,7 +231,7 @@ void DxuiPropertySheet::Layout (const RECT & boundsPx, const DxuiDpiScaler & sca
 {
     int   pad     = scaler.Px (s_kContentPadDip);
     int   tabH    = scaler.Px (s_kTabStripHeightDip);
-    int   rowH    = scaler.Px (s_kButtonRowHeightDip);
+    int   rowH    = scaler.Px (DxuiButtonRow::kRowHeightDip);
     RECT  page    = boundsPx;
     int   i       = 0;
 
@@ -285,36 +283,50 @@ void DxuiPropertySheet::Layout (const RECT & boundsPx, const DxuiDpiScaler & sca
         m_pages[(size_t) i]->Layout (page, scaler);
     }
 
-    // Button row, right-aligned along the bottom. Registration order is
-    // OK, Cancel, Apply (Apply omitted when hidden). OK may carry a custom
-    // width so a longer label ("OK (reboot)") fits without clipping.
+    // Button row, right-aligned along the bottom in the canonical order
+    // (OK, Cancel, Apply; Apply omitted when hidden). OK may carry a custom
+    // width so a longer label ("OK (reboot)") fits without clipping. The
+    // stable sort by StandardRank enforces the standard order regardless of
+    // how the buttons happen to be registered.
     {
-        int           okW      = (m_okWidthDip > 0) ? m_okWidthDip : s_kButtonWidthDip;
-        DxuiButton *  order[3] = { m_ok, m_cancel, m_apply };
-        int           allW[3]  = { okW, s_kButtonWidthDip, s_kButtonWidthDip };
-        DxuiButton *  vis[3]   = {};
-        int           visW[3]  = {};
-        RECT          rects[3] = {};
-        int           n        = 0;
+        struct Slot { DxuiButton * btn; int widthDip; int commandId; };
+
+        int   okW    = (m_okWidthDip > 0) ? m_okWidthDip : DxuiButtonRow::kButtonWidthDip;
+        Slot  all[3] = { { m_ok,     okW,                            IDOK },
+                         { m_cancel, DxuiButtonRow::kButtonWidthDip,  IDCANCEL },
+                         { m_apply,  DxuiButtonRow::kButtonWidthDip,  DxuiButtonRow::kApplyCommandId } };
+        Slot  vis[3]   = {};
+        int   visW[3]  = {};
+        RECT  rects[3] = {};
+        int   n        = 0;
 
         for (i = 0; i < 3; ++i)
         {
-            if (order[i] == nullptr)                    { continue; }
-            if (order[i] == m_apply && !m_applyVisible) { continue; }
+            if (all[i].btn == nullptr)                    { continue; }
+            if (all[i].btn == m_apply && !m_applyVisible) { continue; }
 
-            vis[n]  = order[i];
-            visW[n] = allW[i];
-            ++n;
+            vis[n++] = all[i];
         }
 
-        LayoutButtonRow (boundsPx, scaler,
-                         std::span<const int> (visW,  (size_t) n),
-                         std::span<RECT>      (rects, (size_t) n));
+        std::stable_sort (vis, vis + n, [] (const Slot & a, const Slot & b)
+                          {
+                              return DxuiButtonRow::StandardRank (a.commandId) <
+                                     DxuiButtonRow::StandardRank (b.commandId);
+                          });
 
         for (i = 0; i < n; ++i)
         {
-            vis[i]->Layout (rects[i]);
-            vis[i]->SetDpi  (scaler.Dpi());
+            visW[i] = vis[i].widthDip;
+        }
+
+        DxuiButtonRow::LayoutRightGroup (boundsPx, scaler,
+                                         std::span<const int> (visW,  (size_t) n),
+                                         std::span<RECT>      (rects, (size_t) n));
+
+        for (i = 0; i < n; ++i)
+        {
+            vis[i].btn->Layout (rects[i]);
+            vis[i].btn->SetDpi  (scaler.Dpi());
         }
     }
 }
@@ -391,32 +403,5 @@ void DxuiPropertySheet::LayoutButtonRow (
     std::span<const int>   widthsDip,
     std::span<RECT>        outRects)
 {
-    int     pad   = scaler.Px (s_kContentPadDip);
-    int     btnH  = scaler.Px (s_kButtonHeightDip);
-    int     gapPx = scaler.Px (s_kButtonGapDip);
-    int     edge  = scaler.Px (s_kButtonRowEdgePadDip);
-    int     y     = boundsPx.bottom - pad - btnH;
-    int     total = 0;
-    int     x     = 0;
-    size_t  i     = 0;
-
-
-    for (i = 0; i < widthsDip.size(); ++i)
-    {
-        total += scaler.Px (widthsDip[i]);
-    }
-    if (!widthsDip.empty())
-    {
-        total += (int) (widthsDip.size() - 1) * gapPx;
-    }
-
-    x = boundsPx.right - edge - total;
-
-    for (i = 0; i < widthsDip.size() && i < outRects.size(); ++i)
-    {
-        int  w = scaler.Px (widthsDip[i]);
-
-        outRects[i] = { x, y, x + w, y + btnH };
-        x += w + gapPx;
-    }
+    DxuiButtonRow::LayoutRightGroup (boundsPx, scaler, widthsDip, outRects);
 }

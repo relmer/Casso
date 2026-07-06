@@ -2,6 +2,7 @@
 
 #include "Pch.h"
 #include "Window/DxuiWindow.h"
+#include "Window/DxuiButtonRow.h"
 
 
 class DxuiButton;
@@ -61,15 +62,18 @@ protected:
     void  SetDialogContentOwned (std::unique_ptr<DxuiPanel> content);
 
     //
-    //  Append a right-aligned action button carrying a Win32 command id
-    //  (IDOK / IDCANCEL / IDYES / ...). Under ShowModalDialog /
-    //  ShowModelessDialog the base auto-closes via EndDialog(commandId)
-    //  unless the caller sets a custom SetOnClick (a button that must
-    //  keep the dialog open, e.g. Download). Buttons are laid
-    //  left-to-right in registration order, right-aligned as a group.
+    //  Append an action button carrying a Win32 command id (IDOK / IDCANCEL /
+    //  IDYES / ...). Under ShowModalDialog / ShowModelessDialog the base
+    //  auto-closes via EndDialog(commandId) unless the caller sets a custom
+    //  SetOnClick (a button that must keep the dialog open, e.g. Download).
+    //  By default the button joins the right-aligned primary group, ordered
+    //  canonically (OK, Cancel, Apply, ...); pass Anchor::Left for a
+    //  secondary / navigation button (e.g. "Browse...") pinned bottom-left.
     //  Returns the live button.
     //
-    DxuiButton *  AddDialogButton (const std::wstring & label, int commandId);
+    DxuiButton *  AddDialogButton (const std::wstring &     label,
+                                   int                      commandId,
+                                   DxuiButtonRow::Anchor    anchor = DxuiButtonRow::Anchor::Right);
 
     DxuiPanel  *  DialogContent   () const { return m_content; }
 
@@ -81,7 +85,14 @@ protected:
 
 
 private:
+    struct ButtonEntry
+    {
+        DxuiButton *           button    = nullptr;
+        int                    commandId = 0;
+        DxuiButtonRow::Anchor  anchor    = DxuiButtonRow::Anchor::Right;
+    };
+
     DxuiPanel *                m_content = nullptr;
     std::unique_ptr<DxuiPanel> m_contentOwned;
-    std::vector<DxuiButton *>  m_dialogButtons;
+    std::vector<ButtonEntry>   m_dialogButtons;
 };

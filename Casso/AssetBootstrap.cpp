@@ -2124,9 +2124,11 @@ namespace
 
             for (i = 0; i < m_buttons.size(); ++i)
             {
-                int  commandId = m_buttons[i].isCancel ? IDCANCEL : m_buttons[i].resultCode;
+                int                    commandId = m_buttons[i].isCancel ? IDCANCEL : m_buttons[i].resultCode;
+                DxuiButtonRow::Anchor  anchor    = m_buttons[i].anchorLeft ? DxuiButtonRow::Anchor::Left
+                                                                           : DxuiButtonRow::Anchor::Right;
 
-                AddDialogButton (m_buttons[i].label, commandId);
+                AddDialogButton (m_buttons[i].label, commandId, anchor);
 
                 if (m_buttons[i].isDefault)
                 {
@@ -2538,7 +2540,7 @@ HRESULT AssetBootstrap::PromptInsertDiskMru (
 
     session.SetText          (title, intro);
     session.SetModelRows     (std::move (models));
-    session.AddButton        ({ L"&Browse...", s_kBrowseResult, false, false });
+    session.AddButton        ({ L"&Browse...", s_kBrowseResult, false, false, true });   // bottom-left
     session.AddButton        ({ L"Cancel",     s_kCancelResult, true,  true  });
     session.SetCloseBoxResult (s_kCloseBoxResult);
 
