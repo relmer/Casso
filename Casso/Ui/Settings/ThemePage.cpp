@@ -203,18 +203,20 @@ namespace
                                                       DxuiTextRenderer::HAlign::Left,
                                                       DxuiTextRenderer::VAlign::Center));
 
-            // Close (rightmost) -- always red. Glyph is an "x" (multiplication
-            // sign) drawn as text: the painter is axis-aligned only, so the
-            // two crossing FillRects it replaces read as a "+", not a close.
+            // Close (rightmost) -- drawn in its IDLE state (like min/max), NOT
+            // the red hover fill, so the mockup matches a fresh app caption
+            // rather than looking permanently hovered. Glyph is a real "x"
+            // (multiplication sign) drawn as text since the painter is
+            // axis-aligned only (two crossing FillRects read as a "+").
             painter.FillRect ((float) (btnRight - sysBtnW), (float) btnTop,
                               (float) sysBtnW, (float) btnH,
-                              theme.sysButtonCloseHover);
+                              theme.sysButtonIdle);
             IGNORE_RETURN_VALUE (hr, text.DrawString (s_kpszMultiplyX,
                                                       (float) (btnRight - sysBtnW),
                                                       (float) btnTop,
                                                       (float) sysBtnW,
                                                       (float) btnH,
-                                                      theme.sysButtonCloseHoverGlyph,
+                                                      theme.titleText,
                                                       captionDip,
                                                       DxuiTheme::kBodyFace,
                                                       DxuiTextRenderer::HAlign::Center,
@@ -246,7 +248,7 @@ namespace
             painter.FillRect ((float) prevRect.left, (float) navTop,
                               (float) prevW, (float) navH,
                               theme.navStrip);
-            IGNORE_RETURN_VALUE (hr, text.DrawString (L"File   Machine   View   Help",
+            IGNORE_RETURN_VALUE (hr, text.DrawString (L"File   Edit   Machine   Disk   View   Help",
                                                       (float) (prevRect.left + ScalePx (12)),
                                                       (float) navTop,
                                                       (float) (prevW - ScalePx (24)),
