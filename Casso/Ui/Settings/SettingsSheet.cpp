@@ -94,6 +94,18 @@ HRESULT SettingsSheet::OpenModal (
     params.resizable                = true;
     params.insetContentBelowCaption = true;   // tab strip sits below the caption
     params.captionStyle             = DxuiCaptionStyle::CloseOnly;
+
+    // Casso app icon so the dialog isn't generic in alt-tab / the taskbar.
+    // LR_SHARED hands back a process-cached handle -- no DestroyIcon needed.
+    params.appIconBig   = (HICON) LoadImageW (hInstance, MAKEINTRESOURCEW (IDI_CASSO),
+                                              IMAGE_ICON, GetSystemMetrics (SM_CXICON),
+                                              GetSystemMetrics (SM_CYICON),
+                                              LR_DEFAULTCOLOR | LR_SHARED);
+    params.appIconSmall = (HICON) LoadImageW (hInstance, MAKEINTRESOURCEW (IDI_CASSO),
+                                              IMAGE_ICON, GetSystemMetrics (SM_CXSMICON),
+                                              GetSystemMetrics (SM_CYSMICON),
+                                              LR_DEFAULTCOLOR | LR_SHARED);
+
     // Opaque for now. A flat window-opacity fade reveals the raw desktop behind
     // the sheet (other windows), not the emulator, and cannot blur -- so it reads
     // as broken. The real live-preview reveal (blur the panel + reveal ONLY the
