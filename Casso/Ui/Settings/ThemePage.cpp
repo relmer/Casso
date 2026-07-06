@@ -6,6 +6,7 @@
 #include "../Chrome/ChromeMetrics.h"
 #include "../IDriveCommandSink.h"
 #include "Core/DxuiFormLayout.h"
+#include "Core/UnicodeSymbols.h"
 
 
 
@@ -202,18 +203,22 @@ namespace
                                                       DxuiTextRenderer::HAlign::Left,
                                                       DxuiTextRenderer::VAlign::Center));
 
-            // Close (rightmost) -- always red.
+            // Close (rightmost) -- always red. Glyph is an "x" (multiplication
+            // sign) drawn as text: the painter is axis-aligned only, so the
+            // two crossing FillRects it replaces read as a "+", not a close.
             painter.FillRect ((float) (btnRight - sysBtnW), (float) btnTop,
                               (float) sysBtnW, (float) btnH,
                               theme.sysButtonCloseHover);
-            {
-                float  cx = (float) (btnRight - sysBtnW / 2);
-                float  cy = (float) (btnTop + btnH / 2);
-                float  r  = (float) ScalePx (5);
-
-                painter.FillRect (cx - r, cy - 0.5f, r * 2.0f, 1.0f, theme.sysButtonCloseHoverGlyph);
-                painter.FillRect (cx - 0.5f, cy - r, 1.0f, r * 2.0f, theme.sysButtonCloseHoverGlyph);
-            }
+            IGNORE_RETURN_VALUE (hr, text.DrawString (s_kpszMultiplyX,
+                                                      (float) (btnRight - sysBtnW),
+                                                      (float) btnTop,
+                                                      (float) sysBtnW,
+                                                      (float) btnH,
+                                                      theme.sysButtonCloseHoverGlyph,
+                                                      captionDip,
+                                                      DxuiTheme::kBodyFace,
+                                                      DxuiTextRenderer::HAlign::Center,
+                                                      DxuiTextRenderer::VAlign::Center));
 
             int  btnMaxRight = btnRight - sysBtnW - sysBtnGap;
             painter.FillRect ((float) (btnMaxRight - sysBtnW), (float) btnTop,
