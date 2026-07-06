@@ -4,7 +4,6 @@
 
 #include "SettingsMachineCatalog.h"
 #include "SettingsPreviewController.h"
-#include "SettingsWindow.h"
 
 #include "../../EmulatorShell.h"
 #include "../../Config/UserConfigStore.h"
@@ -121,16 +120,16 @@ void SettingsApplyController::Bind (
     GlobalUserPrefs        * prefs,
     IFileSystem            * fs,
     EmulatorShell          * emuShell,
-    SettingsWindow         * window,
+    std::function<void()>    onChromeThemeChanged,
     SettingsMachineCatalog * catalog)
 {
-    m_state    = state;
-    m_ucs      = ucs;
-    m_prefs    = prefs;
-    m_fs       = fs;
-    m_emuShell = emuShell;
-    m_window   = window;
-    m_catalog  = catalog;
+    m_state                = state;
+    m_ucs                  = ucs;
+    m_prefs                = prefs;
+    m_fs                   = fs;
+    m_emuShell             = emuShell;
+    m_onChromeThemeChanged = std::move (onChromeThemeChanged);
+    m_catalog              = catalog;
 }
 
 
@@ -244,9 +243,9 @@ void SettingsApplyController::ApplyThemeLive (const std::string & name)
     HRESULT  hr = m_emuShell->ApplyThemeLive (name);
 
     IGNORE_RETURN_VALUE (hr, S_OK);
-    if (m_window != nullptr)
+    if (m_onChromeThemeChanged)
     {
-        m_window->SetTheme (&m_emuShell->m_chromeTheme);
+        m_onChromeThemeChanged();
     }
     m_pendingTheme     = name;   // OK still persists the chosen theme
     m_themeAppliedLive = true;
@@ -422,9 +421,9 @@ void SettingsApplyController::CommitApply ()
         HRESULT  hrTheme = m_emuShell->ApplyAndPersistTheme (m_pendingTheme);
 
         IGNORE_RETURN_VALUE (hrTheme, S_OK);
-        if (m_window != nullptr)
+        if (m_onChromeThemeChanged)
         {
-            m_window->SetTheme (&m_emuShell->m_chromeTheme);
+            m_onChromeThemeChanged();
         }
         m_pendingTheme.clear();
     }
@@ -503,9 +502,9 @@ void SettingsApplyController::Cancel (SettingsPreviewController & preview)
         HRESULT  hrTheme = m_emuShell->ApplyThemeLive (m_baselineTheme);
 
         IGNORE_RETURN_VALUE (hrTheme, S_OK);
-        if (m_window != nullptr)
+        if (m_onChromeThemeChanged)
         {
-            m_window->SetTheme (&m_emuShell->m_chromeTheme);
+            m_onChromeThemeChanged();
         }
     }
     m_themeAppliedLive = false;

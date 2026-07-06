@@ -6,11 +6,12 @@
 
 #include "../../Config/GlobalUserPrefs.h"
 
+#include <functional>
+
 
 class UserConfigStore;
 class IFileSystem;
 class EmulatorShell;
-class SettingsWindow;
 class SettingsMachineCatalog;
 class SettingsPreviewController;
 
@@ -38,12 +39,16 @@ class SettingsPreviewController;
 class SettingsApplyController
 {
 public:
+    //  onChromeThemeChanged fires after a live / persisted theme apply so the
+    //  host window can re-skin its own chrome. Decoupled from the concrete
+    //  window type (SettingsWindow vs DxuiPropertySheet) so both hosts share
+    //  this controller.
     void  Bind (SettingsPanelState     * state,
                 UserConfigStore        * ucs,
                 GlobalUserPrefs        * prefs,
                 IFileSystem            * fs,
                 EmulatorShell          * emuShell,
-                SettingsWindow         * window,
+                std::function<void()>    onChromeThemeChanged,
                 SettingsMachineCatalog * catalog);
 
     void  SnapshotBaselines   ();
@@ -73,7 +78,7 @@ private:
     GlobalUserPrefs        * m_prefs    = nullptr;
     IFileSystem            * m_fs       = nullptr;
     EmulatorShell          * m_emuShell = nullptr;
-    SettingsWindow         * m_window   = nullptr;
+    std::function<void()>    m_onChromeThemeChanged;
     SettingsMachineCatalog * m_catalog  = nullptr;
 
     // Staged user picks. Live writes occur on commit; cancel just

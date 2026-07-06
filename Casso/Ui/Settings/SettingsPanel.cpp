@@ -180,7 +180,9 @@ HRESULT SettingsPanel::Initialize (
     m_crt.Bind (&prefs, &themes, &m_state, &m_displayPage, &emuShell);
     m_catalog.Bind (&emuShell, &ucs, &prefs, &fs, &themes, &m_state,
                     &m_machinePage, &m_themePage);
-    m_apply.Bind (&m_state, &ucs, &prefs, &fs, &emuShell, &m_window, &m_catalog);
+    m_apply.Bind (&m_state, &ucs, &prefs, &fs, &emuShell,
+                  [this] () { m_window.SetTheme (&m_emuShell->m_chromeTheme); },
+                  &m_catalog);
 
     m_machinePage.SetState  (&m_state);
     m_machinePage.SetOnMachineSelected ([this] (const std::string & machineName) { OnMachineSelected (machineName); });
