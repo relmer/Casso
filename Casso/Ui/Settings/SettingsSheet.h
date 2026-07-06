@@ -6,6 +6,7 @@
 
 #include "SettingsPanelState.h"
 #include "SettingsMachineCatalog.h"
+#include "SettingsDisplayCrtBridge.h"
 #include "MachinePage.h"
 #include "HardwarePage.h"
 #include "ThemePage.h"
@@ -69,8 +70,9 @@ private:
     EmulatorShell   * m_emuShell = nullptr;
     IFileSystem     * m_fs       = nullptr;
 
-    SettingsPanelState      m_state;
-    SettingsMachineCatalog  m_catalog;
+    SettingsPanelState        m_state;
+    SettingsMachineCatalog    m_catalog;
+    SettingsDisplayCrtBridge  m_crt;
 
     // Owned by the DxuiPropertySheet child list (CreatePage); raw pointers
     // for wiring only.
