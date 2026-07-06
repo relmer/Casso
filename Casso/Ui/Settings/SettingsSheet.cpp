@@ -5,6 +5,8 @@
 #include "../../EmulatorShell.h"
 #include "../../Config/GlobalUserPrefs.h"
 #include "Ui/Chrome/ChromeMetrics.h"
+#include "Widgets/DxuiLabel.h"
+#include "Window/DxuiButtonRow.h"
 #include "resource.h"
 
 #include <cmath>
@@ -38,6 +40,14 @@ void SettingsSheet::OnBuildPages ()
     m_hardwarePage = CreatePage<HardwarePage> (L"Hardware");
     m_themePage    = CreatePage<ThemePage>    (L"Theme");
     m_displayPage  = CreatePage<DisplayPage>  (L"Display");
+
+    // Amber "press OK to reboot" notice that fills the bottom-bar space left of
+    // the OK / Cancel buttons whenever committing would power-cycle the machine
+    // (FR-131). Hidden until UpdateRestartNotice (each dialog tick) turns it on.
+    m_restartNotice = CreateChild<DxuiLabel> ();
+    m_restartNotice->SetColor     (0xFFF0A030);   // amber caution
+    m_restartNotice->SetTextAlign (DxuiTextHAlign::Left, DxuiTextVAlign::Center);
+    m_restartNotice->SetVisible   (false);
 }
 
 
@@ -299,6 +309,7 @@ void SettingsSheet::OnCancel ()
 void SettingsSheet::OnDialogTick ()
 {
     RefreshOkLabel();
+    UpdateRestartNotice();
 
     // Advance the preview state machine so a keyboard-driven preview idles out;
     // restore full opacity when it does (mouse drags restore in OnPreview end).
@@ -341,6 +352,63 @@ void SettingsSheet::Layout (const RECT & boundsPx, const DxuiDpiScaler & scaler)
 {
     DxuiPropertySheet::Layout (boundsPx, scaler);
     m_colorPicker.Layout (boundsPx, scaler);
+
+    // Restart notice fills the bottom bar from the left edge to just short of
+    // the OK / Cancel group (reserve the widest OK, "OK (reboot)").
+    if (m_restartNotice != nullptr)
+    {
+        int   rowH    = scaler.Px (DxuiButtonRow::kRowHeightDip);
+        int   edge    = scaler.Px (DxuiButtonRow::kEdgePadDip);
+        int   reserve = scaler.Px (DxuiButtonRow::kEdgePadDip + DxuiButtonRow::kButtonWidthDip
+                                   + DxuiButtonRow::kGapDip + 132);   // cancel + gap + OK(reboot)
+        RECT  r;
+
+        r.left   = boundsPx.left   + edge;
+        r.top    = boundsPx.bottom - rowH;
+        r.right  = boundsPx.right  - reserve;
+        r.bottom = boundsPx.bottom;
+        if (r.right < r.left) { r.right = r.left; }
+
+        m_restartNotice->SetRect (r);
+        m_restartNotice->SetDpi  (scaler.Dpi());
+    }
+}
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  UpdateRestartNotice
+//
+//  Shows an amber "Press OK to reboot" caption whenever committing would
+//  power-cycle the machine -- a staged machine switch names the target, a
+//  reset-requiring hardware edit warns generically (FR-131). Hidden otherwise.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SettingsSheet::UpdateRestartNotice ()
+{
+    std::wstring  notice;
+
+
+    if (m_apply.WillMachineChange())
+    {
+        std::wstring  name = (m_machinePage != nullptr) ? m_machinePage->SelectedMachineDisplayName()
+                                                        : std::wstring();
+
+        notice  = L"Pending. Press OK to boot ";
+        notice += name.empty() ? L"the selected machine" : name;
+        notice += L".";
+    }
+    else if (m_apply.IsResetRequired())
+    {
+        notice = L"Pending. Press OK to reboot the machine.";
+    }
+
+    if (m_restartNotice != nullptr)
+    {
+        m_restartNotice->SetText    (notice);
+        m_restartNotice->SetVisible (!notice.empty());
+    }
 }
 
 

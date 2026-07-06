@@ -21,6 +21,7 @@ struct GlobalUserPrefs;
 class ThemeManager;
 class EmulatorShell;
 class IFileSystem;
+class DxuiLabel;
 
 
 
@@ -93,6 +94,9 @@ private:
     //  (staged machine change or a reset-requiring hardware edit), else "OK".
     void  RefreshOkLabel ();
 
+    //  Show/hide + fill the amber restart-notice caption (list #3 / FR-131).
+    void  UpdateRestartNotice ();
+
     // Drive-sound audition for the Machine page's play (>) buttons. Ported
     // verbatim from SettingsPanel: push the current volumes / pan / mechanism
     // to the engine and post the one-shot test command. Self-contained (needs
@@ -123,6 +127,10 @@ private:
     // True while a Display control is driving the live-preview fade, so
     // OnDialogTick can restore opacity once a keyboard preview idles out.
     bool                      m_previewActive = false;
+
+    // Amber "press OK to reboot" caption in the bottom bar; owned by the child
+    // list (CreateChild), raw pointer for layout / text updates. Null pre-Create.
+    DxuiLabel               * m_restartNotice = nullptr;
 
     // Owned by the DxuiPropertySheet child list (CreatePage); raw pointers
     // for wiring only.
