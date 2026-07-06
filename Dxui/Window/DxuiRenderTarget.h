@@ -99,6 +99,18 @@ protected:
     //  Present the composed frame (swap-chain Present + any DComp commit).
     virtual void  PresentFrame  () = 0;
 
+    //  The back buffer as an IDXGISurface (for the Direct2D text target) and the
+    //  target DPI. Used to (re)bind the text renderer's D2D target between the
+    //  back buffer and the offscreen content texture on the compose path.
+    virtual ComPtr<IDXGISurface>  BackBufferSurface () const = 0;
+    virtual UINT                  TargetDpi         () const = 0;
+
+    //  Rebind the text renderer's Direct2D target to the offscreen content
+    //  texture (offscreen == true, compose path) or the swap-chain back buffer
+    //  (offscreen == false, direct path). The subclass calls this from
+    //  CreateBackBufferRtv so a resize rebinds to whichever target is live.
+    HRESULT  BindTextTarget (bool offscreen);
+
     //  Legacy full-frame hooks the subclass exposes to consumers. The base
     //  reads them each RenderFrame: the before-present hook fills the back
     //  buffer before content paints (emulator composite); the after-paint hook
@@ -115,7 +127,7 @@ protected:
     std::unique_ptr<DxuiTextRenderer> m_textRenderer;
 
 private:
-    HRESULT  EnsureComposeTarget (int widthPx, int heightPx);
+    HRESULT  EnsureComposeTarget (int widthPx, int heightPx, bool & recreated);
 
     //  Offscreen compose target (opt-in). Allocated lazily by EnsureComposeTarget
     //  the first frame a compose hook is installed, sized to the back buffer;
@@ -125,6 +137,11 @@ private:
     ComPtr<ID3D11ShaderResourceView>  m_contentSrv;
     int                               m_contentWidthPx  = 0;
     int                               m_contentHeightPx = 0;
+
+    //  Tracks whether the text renderer's D2D target is currently bound to the
+    //  offscreen content texture (true) or the back buffer (false), so
+    //  RenderFrame only rebinds when the target actually needs to change.
+    bool                              m_textBoundToOffscreen = false;
 
     ComposeHook                       m_composeHook;
 };

@@ -1229,7 +1229,6 @@ HRESULT DxuiHwndSource::CreateBackBufferRtv ()
     DXGI_SWAP_CHAIN_DESC1     scd          = {};
     D3D11_VIEWPORT            vp           = {};
     ComPtr<ID3D11Texture2D>   backBuffer;
-    ComPtr<IDXGISurface>      backSurface;
 
 
 
@@ -1255,21 +1254,52 @@ HRESULT DxuiHwndSource::CreateBackBufferRtv ()
     vp.MaxDepth = 1.0f;
     m_context->RSSetViewports (1, &vp);
 
-    // Rebind the Direct2D target bitmap (used by DxuiTextRenderer)
-    // to the new back-buffer surface. Skipped when the text
-    // renderer hasn't been Initialized yet (e.g. mid-tear-down).
-    if (m_textRenderer != nullptr)
-    {
-        hr = backBuffer.As (&backSurface);
-        CHRA (hr);
-
-        hr = m_textRenderer->BindBackBuffer (backSurface.Get(), m_scaler.Dpi(), m_scaler.Dpi());
-        CHRA (hr);
-    }
+    // Rebind the Direct2D target bitmap (used by DxuiTextRenderer) to whichever
+    // surface is live: the offscreen content texture when this window is on the
+    // compose path, or the new back-buffer surface otherwise. Routed through the
+    // base's BindTextTarget so the text-target binding state stays tracked
+    // across resizes. No-op if the text renderer hasn't been Initialized yet
+    // (e.g. mid-tear-down).
+    hr = BindTextTarget (HasComposeHook());
+    CHRA (hr);
 
 Error:
 
     return hr;
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BackBufferSurface
+//
+//  DxuiRenderTarget surface contract: the swap-chain back buffer as an
+//  IDXGISurface, so the base can bind the Direct2D text target to it. Returns
+//  null before the swap chain exists.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+ComPtr<IDXGISurface> DxuiHwndSource::BackBufferSurface () const
+{
+    ComPtr<ID3D11Texture2D>  backBuffer;
+    ComPtr<IDXGISurface>     surface;
+
+
+    if (m_swapChain == nullptr)
+    {
+        return nullptr;
+    }
+    if (FAILED (m_swapChain->GetBuffer (0, IID_PPV_ARGS (backBuffer.GetAddressOf()))))
+    {
+        return nullptr;
+    }
+    if (FAILED (backBuffer.As (&surface)))
+    {
+        return nullptr;
+    }
+    return surface;
 }
 
 

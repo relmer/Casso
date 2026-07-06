@@ -471,8 +471,10 @@ private:
     //  DxuiRenderTarget surface contract. The base's RenderFrame (driven from
     //  PaintPump) clears + presents through these; PaintContent walks the panel
     //  tree + caption + modal overlay onto `target`.
-    ID3D11RenderTargetView *  BackBufferRtv    () const override { return m_rtv.Get(); }
-    SIZE                      BackBufferSizePx () const override;
+    ID3D11RenderTargetView *  BackBufferRtv     () const override { return m_rtv.Get(); }
+    SIZE                      BackBufferSizePx  () const override;
+    ComPtr<IDXGISurface>      BackBufferSurface () const override;
+    UINT                      TargetDpi         () const override { return m_scaler.Dpi(); }
     void  PaintContent  (ID3D11RenderTargetView * target, int widthPx, int heightPx, const IDxuiTheme & theme) override;
     void  PresentFrame  () override;
 

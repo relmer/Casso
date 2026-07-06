@@ -35,14 +35,83 @@ DxuiRenderTarget::~DxuiRenderTarget ()
 
 void DxuiRenderTarget::SetComposeHook (ComposeHook hook)
 {
+    bool  wasComposing = static_cast<bool> (m_composeHook);
+
+
     m_composeHook = std::move (hook);
 
-    // Releasing the hook drops the offscreen target so a window that stops
-    // composing doesn't keep a back-buffer-sized texture alive.
-    if (!m_composeHook)
+    // Leaving the compose path: restore the text renderer's D2D target to the
+    // back buffer (it was pointed at the offscreen texture) BEFORE dropping the
+    // offscreen target, so a window that stops composing paints straight to the
+    // back buffer again instead of a released surface.
+    if (wasComposing && !m_composeHook)
     {
+        (void) BindTextTarget (false);
         ReleaseComposeTarget();
     }
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiRenderTarget::BindTextTarget
+//
+//  Point the text renderer's Direct2D target at either the offscreen content
+//  texture (compose path) or the swap-chain back buffer (direct path). Called
+//  by the subclass's CreateBackBufferRtv on resize and by RenderFrame when the
+//  compose path first needs the offscreen target. Binding to the offscreen
+//  ensures the texture exists (same size as the back buffer).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DxuiRenderTarget::BindTextTarget (bool offscreen)
+{
+    HRESULT               hr  = S_OK;
+    UINT                  dpi = 0;
+    ComPtr<IDXGISurface>  surface;
+
+
+    if (m_textRenderer == nullptr)
+    {
+        return S_OK;
+    }
+
+    dpi = TargetDpi();
+
+    if (offscreen)
+    {
+        SIZE  sz        = BackBufferSizePx();
+        bool  recreated = false;
+
+        hr = EnsureComposeTarget ((int) sz.cx, (int) sz.cy, recreated);
+        CHRA (hr);
+
+        hr = m_contentTex.As (&surface);
+        CHRA (hr);
+
+        hr = m_textRenderer->BindBackBuffer (surface.Get(), dpi, dpi);
+        CHRA (hr);
+
+        m_textBoundToOffscreen = true;
+    }
+    else
+    {
+        surface = BackBufferSurface();
+        if (surface == nullptr)
+        {
+            return S_OK;
+        }
+
+        hr = m_textRenderer->BindBackBuffer (surface.Get(), dpi, dpi);
+        CHRA (hr);
+
+        m_textBoundToOffscreen = false;
+    }
+
+Error:
+    return hr;
 }
 
 
@@ -77,11 +146,13 @@ void DxuiRenderTarget::ReleaseComposeTarget ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT DxuiRenderTarget::EnsureComposeTarget (int widthPx, int heightPx)
+HRESULT DxuiRenderTarget::EnsureComposeTarget (int widthPx, int heightPx, bool & recreated)
 {
     HRESULT               hr   = S_OK;
     D3D11_TEXTURE2D_DESC  td   = {};
 
+
+    recreated = false;
 
     if (m_device == nullptr || widthPx <= 0 || heightPx <= 0)
     {
@@ -95,6 +166,7 @@ HRESULT DxuiRenderTarget::EnsureComposeTarget (int widthPx, int heightPx)
     }
 
     ReleaseComposeTarget();
+    recreated = true;
 
     td.Width          = (UINT) widthPx;
     td.Height         = (UINT) heightPx;
@@ -170,6 +242,41 @@ void DxuiRenderTarget::RenderFrame (const IDxuiTheme * theme)
     clearColor[1] = (float) ((bgArgb >>  8) & 0xFFu) / 255.0f;
     clearColor[2] = (float) ((bgArgb      ) & 0xFFu) / 255.0f;
     clearColor[3] = (float) ((bgArgb >> 24) & 0xFFu) / 255.0f;
+
+    // Opt-in offscreen compose path: paint the content tree into the offscreen
+    // texture, then hand the compose hook that texture's SRV + the back-buffer
+    // RTV so it produces the final frame (blur / see-through reveal). The hook
+    // owns the back buffer (binds + fills it), so there is no back-buffer clear
+    // or before/after-paint hook here -- those belong to the direct path.
+    if (m_composeHook)
+    {
+        bool     recreated = false;
+        HRESULT  hrEnsure  = EnsureComposeTarget ((int) sz.cx, (int) sz.cy, recreated);
+
+        if (SUCCEEDED (hrEnsure) && m_contentRtv != nullptr && m_contentSrv != nullptr)
+        {
+            // Point the text renderer's D2D target at the offscreen texture so
+            // glyphs land there too (only when it actually changed).
+            if (recreated || !m_textBoundToOffscreen)
+            {
+                (void) BindTextTarget (true);
+            }
+
+            m_context->OMSetRenderTargets    (1, m_contentRtv.GetAddressOf(), nullptr);
+            m_context->ClearRenderTargetView (m_contentRtv.Get(), clearColor);
+
+            if (theme != nullptr)
+            {
+                PaintContent (m_contentRtv.Get(), (int) sz.cx, (int) sz.cy, *theme);
+            }
+
+            m_composeHook (m_contentSrv.Get(), backRtv, (int) sz.cx, (int) sz.cy);
+
+            PresentFrame();
+            return;
+        }
+        // EnsureComposeTarget failed -> fall through to the direct path.
+    }
 
     m_context->OMSetRenderTargets    (1, &backRtv, nullptr);
     m_context->ClearRenderTargetView (backRtv, clearColor);
