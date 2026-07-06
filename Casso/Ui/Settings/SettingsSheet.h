@@ -107,6 +107,10 @@ private:
     // redundant WAV reload when it hasn't changed.
     std::string               m_lastAuditionMechanism;
 
+    // True while a Display control is driving the live-preview fade, so
+    // OnDialogTick can restore opacity once a keyboard preview idles out.
+    bool                      m_previewActive = false;
+
     // Owned by the DxuiPropertySheet child list (CreatePage); raw pointers
     // for wiring only.
     MachinePage  * m_machinePage  = nullptr;

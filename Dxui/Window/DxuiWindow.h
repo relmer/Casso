@@ -58,6 +58,7 @@ public:
         bool                resizable         = true;
         bool                insetContentBelowCaption = false;
         DxuiCaptionStyle    captionStyle      = DxuiCaptionStyle::Standard;
+        bool                composited        = false;   // composited-transparent window (enables SetComposedOpacity)
         LPCWSTR             classNameOverride = nullptr;
         HICON               appIconBig        = nullptr;
         HICON               appIconSmall      = nullptr;
@@ -108,6 +109,15 @@ public:
     //
     void     ShowModelessDialog (int defaultButtonId);
     void     EndDialog   (int result);
+
+    //
+    //  Window-level translucency for a composited window (CreateParams::
+    //  composited). Fades the whole window (0 = invisible .. 1 = opaque) so
+    //  desktop content behind it shows through -- e.g. the Settings sheet
+    //  revealing the live emulator while a Display control is dragged. No-op
+    //  when not composited.
+    //
+    void     SetComposedOpacity (float opacity);
 
     //
     //  Dxui's IsDialogMessage equivalent for a modeless dialog. The host's

@@ -361,6 +361,12 @@ public:
     void  SetAfterPaintHook  (std::function<void(ID3D11RenderTargetView *, int, int)> hook);
     const std::function<void(ID3D11RenderTargetView *, int, int)> &  AfterPaintHook  () const { return m_afterPaintHook; }
 
+    //  Set the composited-visual opacity (0..1). No-op unless the window was
+    //  created composited (CreateParams::composited). Drives a window-level
+    //  translucency effect -- e.g. the Settings sheet fading so the live
+    //  emulator shows through while a Display control is being dragged.
+    void  SetComposedOpacity (float opacity);
+
     LRESULT  WndProc           (UINT msg, WPARAM wp, LPARAM lp);
 
     //

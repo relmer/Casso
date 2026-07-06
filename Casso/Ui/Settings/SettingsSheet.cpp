@@ -10,8 +10,13 @@
 #include <cstdio>
 
 
-static constexpr int  s_kSheetWidthDip     = 724;
-static constexpr int  s_kSheetHeightDip    = 760;
+static constexpr int    s_kSheetWidthDip     = 724;
+static constexpr int    s_kSheetHeightDip    = 760;
+
+// Window opacity while a Display control is being dragged / keyboard-edited, so
+// the live emulator behind the sheet shows through (list #7). The CRT edit is
+// already applied live by SettingsDisplayCrtBridge; this just reveals it.
+static constexpr float  s_kPreviewOpacity    = 0.4f;
 
 
 
@@ -78,6 +83,7 @@ HRESULT SettingsSheet::OpenModal (
     params.resizable                = true;
     params.insetContentBelowCaption = true;   // tab strip sits below the caption
     params.captionStyle             = DxuiCaptionStyle::CloseOnly;
+    params.composited               = true;   // enables the live-preview fade (#7)
 
     hr = DxuiWindow::Create (params);   // fires OnBuildPages + base OnCreate
     CHRA (hr);
@@ -117,6 +123,28 @@ HRESULT SettingsSheet::OpenModal (
     m_themePage->SetOnApplyThemeNow ([this] ()
     {
         m_apply.ApplyThemeLive (m_themePage->SelectedThemeId());
+    });
+
+    // Live preview (#7): dragging / keyboard-editing a Display control fades
+    // the composited sheet so the running emulator shows through and the CRT
+    // edit is visible. Mouse gives a clean start/end; keyboard fires start
+    // only, so the preview controller's idle timeout (advanced from
+    // OnDialogTick) restores opacity a moment after the last keystroke.
+    m_displayPage->SetOnPreview ([this] (int controlId, bool start, bool keyboardMode)
+    {
+        (void) controlId;   // window-level fade is global; only active-state matters
+        if (start)
+        {
+            m_preview.StartPreview (SettingsPreviewController::Focus::BrightnessSlider, keyboardMode);
+            SetComposedOpacity (s_kPreviewOpacity);
+            m_previewActive = true;
+        }
+        else
+        {
+            m_preview.EndPreview();
+            SetComposedOpacity (1.0f);
+            m_previewActive = false;
+        }
     });
 
     // Per-monitor CRT plumbing for the Display page. Bind funnels the slider /
@@ -217,6 +245,15 @@ void SettingsSheet::OnCancel ()
 void SettingsSheet::OnDialogTick ()
 {
     RefreshOkLabel();
+
+    // Advance the preview state machine so a keyboard-driven preview idles out;
+    // restore full opacity when it does (mouse drags restore in OnPreview end).
+    m_preview.Tick ((int64_t) GetTickCount64());
+    if (m_previewActive && !m_preview.IsActive())
+    {
+        SetComposedOpacity (1.0f);
+        m_previewActive = false;
+    }
 }
 
 

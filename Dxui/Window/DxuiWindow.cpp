@@ -46,6 +46,7 @@ HRESULT DxuiWindow::Create (const CreateParams & params)
     hostParams.backdrop              = DxuiHwndSourceBackdrop::None;
     hostParams.createSwapChain       = true;
     hostParams.captionStyle          = params.captionStyle;
+    hostParams.composited            = params.composited;
     hostParams.classNameOverride     = params.classNameOverride;
     hostParams.initialSizeDip        = params.initialSizeDip;
     hostParams.insetRootBelowCaption = params.insetContentBelowCaption;
@@ -375,6 +376,23 @@ void DxuiWindow::EndDialog (int result)
                 m_onDialogEnd (result);
             }
         }
+    }
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetComposedOpacity
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiWindow::SetComposedOpacity (float opacity)
+{
+    if (m_source != nullptr)
+    {
+        m_source->SetComposedOpacity (opacity);
     }
 }
 

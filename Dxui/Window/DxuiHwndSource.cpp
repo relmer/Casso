@@ -555,6 +555,53 @@ void DxuiHwndSource::SetAfterPaintHook (std::function<void(ID3D11RenderTargetVie
 
 
 
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetComposedOpacity
+//
+//  Fades the whole composited visual via IDCompositionVisual3::SetOpacity so
+//  what is behind the window on the desktop (e.g. the live emulator) shows
+//  through. No-op for a non-composited window. Committed immediately so the
+//  change lands even between paint-pump frames.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiHwndSource::SetComposedOpacity (float opacity)
+{
+    ComPtr<IDCompositionDevice3>      device3;
+    ComPtr<IDCompositionVisual2>      visual2;
+    ComPtr<IDCompositionEffectGroup>  effect;
+
+
+    DXUI_ASSERT_UI_THREAD();
+
+    if (!m_compVisual || !m_compDevice)
+    {
+        return;
+    }
+    if (FAILED (m_compDevice.As (&device3)) || FAILED (m_compVisual.As (&visual2)))
+    {
+        return;
+    }
+
+    // Opacity on a composited visual goes through an effect group (the plain
+    // IDCompositionVisual has no SetOpacity). A null effect at full opacity
+    // keeps the fast opaque path.
+    if (opacity >= 1.0f)
+    {
+        (void) visual2->SetEffect (nullptr);
+    }
+    else if (SUCCEEDED (device3->CreateEffectGroup (effect.GetAddressOf())))
+    {
+        (void) effect->SetOpacity (opacity);
+        (void) visual2->SetEffect (effect.Get());
+    }
+    (void) m_compDevice->Commit();
+}
+
+
+
+
 
 ////////////////////////////////////////////////////////////////////////////////
 //
