@@ -25,7 +25,7 @@ The project includes:
 - **CLI tool** — runs as an AS65-style assembler by default, or with the `run` subcommand to load and execute a binary or assembly source.
 - **First-run asset bootstrap** — Casso fetches the ROMs, sample disks, and Disk II audio samples it needs on first launch (with user consent), so a fresh `Casso.exe` boots to a usable //e BASIC prompt with no manual setup.
 - **Headless test harness** — `HeadlessHost` drives the emulator with no Win32 window, enabling deterministic integration tests for cold boot, disk boot, video framebuffer hashing, and reset semantics.
-- **Comprehensive unit tests** — coverage of CPU instruction encoding, addressing modes, arithmetic, branching, assembler features, audio pipeline (speaker + drive), //e MMU + Language Card, video timing, Disk II nibble engine, WOZ + nibblized image formats, 80-col + DHGR video, reset semantics, perf budget, and backwards-compat for ][ / ][ plus machines.
+- **Comprehensive unit tests** — coverage of CPU instruction encoding, addressing modes, arithmetic, branching, assembler features, audio pipeline (speaker + drive), //e MMU + Language Card, video timing, Disk II nibble engine, WOZ + nibblized image formats, 80-col + DHGR video, reset semantics, perf budget, and backwards-compat for ][ and ][ plus machines.
 
 ## What's New
 
@@ -52,9 +52,9 @@ every settings widget — sliders, toggles, dropdowns, tabs, buttons — now
 drawn in the active theme's palette (green under Retro Terminal rather than
 a fixed blue), with slider and toggle contrast tuned for legibility.
 
-### Apple ][ / ][ plus game port (v1.5.1555)
+### Apple ][ and ][ plus game port (v1.5.1555)
 
-The original Apple ][ / ][ plus now emulate the game-I/O strip — analog paddles
+The original Apple ][ and ][ plus now emulate the game-I/O strip — analog paddles
 (`$C064`–`$C067`), pushbuttons (`$C061`–`$C063`), and the PTRIG strobe
 (`$C070`) — so paddle and joystick games like *Space Quarks* (Brøderbund,
 1981) are playable on those machines, not just the //e. The same **Map
@@ -63,7 +63,7 @@ Arrows to Joystick** mode drives it from the keyboard (arrows → paddle,
 paddle timer.
 
 Alongside it, two correctness fixes surfaced while getting *Space Quarks*
-running: inverse text on the ][ / ][ plus (e.g. highlighted menu items) was
+running: inverse text on the ][ and ][ plus (e.g. highlighted menu items) was
 rendering identically to normal text — a 2 KB character-ROM decode bug — and
 non-ASCII disk filenames (the *ø* in "Brøderbund") were corrupted through the
 path pipeline, dropping the disk from the boot picker and showing a tofu box
@@ -300,7 +300,7 @@ All 56 standard 6502 mnemonics are implemented. Validated against [Klaus Dormann
 - [x] Disk II copy-protection fidelity — motor spin-up delay, MC3470 weak-bit emulation, real 16-state LSS, quarter-track read pipeline, and bit-level write path ([#67](https://github.com/relmer/Casso/issues/67))
 - [x] Boot *Karateka* from its WOZ image (RWTS18 copy protection) ([#68](https://github.com/relmer/Casso/issues/68))
 - [x] Boot *Lode Runner* from its WOZ image (copy protection) ([#70](https://github.com/relmer/Casso/issues/70))
-- [x] Play *Space Quarks* on the Apple ][ / ][ plus — required Apple ][ / ][ plus game-port emulation (paddles, buttons, PTRIG) plus an inverse-text character-ROM fix
+- [x] Play *Space Quarks* on the Apple ][ and ][ plus — required Apple ][ and ][ plus game-port emulation (paddles, buttons, PTRIG) plus an inverse-text character-ROM fix
 
 ### Medium Priority
 
