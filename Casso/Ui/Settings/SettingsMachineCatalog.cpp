@@ -2,7 +2,7 @@
 
 #include "SettingsMachineCatalog.h"
 
-#include "MachinePage.h"
+#include "HardwarePage.h"
 #include "ThemePage.h"
 
 #include "../ThemeManager.h"
@@ -55,7 +55,7 @@ void SettingsMachineCatalog::Bind (
     IFileSystem        * fs,
     ThemeManager       * themes,
     SettingsPanelState * state,
-    MachinePage        * machinePage,
+    HardwarePage       * machinePage,
     ThemePage          * themePage)
 {
     m_emuShell    = emuShell;

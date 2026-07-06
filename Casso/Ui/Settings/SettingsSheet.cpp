@@ -36,8 +36,7 @@ static constexpr float  s_kPreviewOpacity    = 0.30f;
 
 void SettingsSheet::OnBuildPages ()
 {
-    m_machinePage  = CreatePage<MachinePage>  (L"Machine");
-    m_hardwarePage = CreatePage<HardwarePage> (L"Hardware");
+    m_hardwarePage = CreatePage<HardwarePage> (L"Machine");   // machine + CPU + hardware
     m_diskPage     = CreatePage<DiskPage>     (L"Disk");
     m_themePage    = CreatePage<ThemePage>    (L"Theme");
     m_displayPage  = CreatePage<DisplayPage>  (L"Display");
@@ -122,11 +121,10 @@ HRESULT SettingsSheet::OpenModal (
     // Wire the pages against a fresh SettingsPanelState + machine/theme
     // catalog (the same objects the legacy SettingsPanel owns).
     m_catalog.Bind (&emuShell, &ucs, &prefs, &fs, &themes, &m_state,
-                    m_machinePage, m_themePage);
+                    m_hardwarePage, m_themePage);
     m_apply.Bind (&m_state, &ucs, &prefs, &fs, &emuShell,
                   [this] () { SetTheme (&m_emuShell->m_chromeTheme); },
                   &m_catalog);
-    m_machinePage->SetState  (&m_state);
     m_hardwarePage->SetState (&m_state);
     m_diskPage->SetState     (&m_state);
     m_displayPage->SetState  (&m_state);
@@ -139,7 +137,7 @@ HRESULT SettingsSheet::OpenModal (
 
     // Staged picks: the machine + theme selectors defer their real apply to
     // OK (CommitApply) so Cancel leaves the running machine / chrome as found.
-    m_machinePage->SetOnMachineSelected ([this] (const std::string & name)
+    m_hardwarePage->SetOnMachineSelected ([this] (const std::string & name)
     {
         if (!name.empty()) { m_apply.StagePendingMachine (name); }
         RefreshOkLabel();
@@ -254,10 +252,10 @@ HRESULT SettingsSheet::OpenModal (
 
     // Route each page's dropdown menus through the host popup pool so they
     // escape the client clip (FR-054 / FR-061).
-    m_machinePage->SetPopupHost (PopupHost());
-    m_diskPage->SetPopupHost    (PopupHost());
-    m_themePage->SetPopupHost   (PopupHost());
-    m_displayPage->SetPopupHost (PopupHost());
+    m_hardwarePage->SetPopupHost (PopupHost());
+    m_diskPage->SetPopupHost     (PopupHost());
+    m_themePage->SetPopupHost    (PopupHost());
+    m_displayPage->SetPopupHost  (PopupHost());
 
     // Pull the running machine + discovered themes into the pages.
     m_catalog.LoadCurrentMachineIntoState();
@@ -271,7 +269,6 @@ HRESULT SettingsSheet::OpenModal (
     // top-left. This mirrors the legacy SettingsPanel::Show order (Layout,
     // then Rebuild). ShowModalDialog re-shows harmlessly below.
     Show();
-    m_machinePage->Rebuild();
     m_hardwarePage->Rebuild();
     m_diskPage->Rebuild();
     m_displayPage->Rebuild();
@@ -413,8 +410,8 @@ void SettingsSheet::UpdateRestartNotice ()
 
     if (m_apply.WillMachineChange())
     {
-        std::wstring  name = (m_machinePage != nullptr) ? m_machinePage->SelectedMachineDisplayName()
-                                                        : std::wstring();
+        std::wstring  name = (m_hardwarePage != nullptr) ? m_hardwarePage->SelectedMachineDisplayName()
+                                                         : std::wstring();
 
         notice  = L"Pending. Press OK to boot ";
         notice += name.empty() ? L"the selected machine" : name;

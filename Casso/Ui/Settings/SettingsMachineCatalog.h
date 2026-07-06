@@ -9,7 +9,7 @@ class EmulatorShell;
 class UserConfigStore;
 class IFileSystem;
 class ThemeManager;
-class MachinePage;
+class HardwarePage;
 class ThemePage;
 struct GlobalUserPrefs;
 
@@ -44,7 +44,7 @@ public:
                 IFileSystem        * fs,
                 ThemeManager       * themes,
                 SettingsPanelState * state,
-                MachinePage        * machinePage,
+                HardwarePage       * machinePage,
                 ThemePage          * themePage);
 
     void  LoadCurrentMachineIntoState ();
@@ -64,6 +64,6 @@ private:
     IFileSystem        * m_fs          = nullptr;
     ThemeManager       * m_themes      = nullptr;
     SettingsPanelState * m_state       = nullptr;
-    MachinePage        * m_machinePage = nullptr;
+    HardwarePage       * m_machinePage = nullptr;
     ThemePage          * m_themePage   = nullptr;
 };

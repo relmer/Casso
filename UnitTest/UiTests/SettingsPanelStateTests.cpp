@@ -1,7 +1,7 @@
 #include "Pch.h"
 
 #include "Ui/Settings/SettingsPanelState.h"
-#include "Ui/Settings/MachinePage.h"
+#include "Ui/Settings/HardwarePage.h"
 
 #include "Core/JsonParser.h"
 #include "Core/JsonWriter.h"
@@ -431,10 +431,10 @@ public:
     }
 
 
-    TEST_METHOD (MachinePage_List_Selection_Rebuilds_Downstream_State)
+    TEST_METHOD (MachineTab_List_Selection_Rebuilds_Downstream_State)
     {
         SettingsPanelState       st;
-        MachinePage              page;
+        HardwarePage             page;
         JsonValue                machineA = ParseOrFail (kFixtureJson);
         JsonValue                machineB = ParseOrFail (kFixtureJsonWithFlags);
         RECT                     rect     = { 0, 0, 640, 480 };

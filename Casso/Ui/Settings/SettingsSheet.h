@@ -10,7 +10,6 @@
 #include "SettingsApplyController.h"
 #include "SettingsPreviewController.h"
 #include "ColorPickerOverlay.h"
-#include "MachinePage.h"
 #include "HardwarePage.h"
 #include "DiskPage.h"
 #include "ThemePage.h"
@@ -134,8 +133,8 @@ private:
     DxuiLabel               * m_restartNotice = nullptr;
 
     // Owned by the DxuiPropertySheet child list (CreatePage); raw pointers
-    // for wiring only.
-    MachinePage  * m_machinePage  = nullptr;
+    // for wiring only. m_hardwarePage hosts the merged "Machine" tab (machine
+    // selector + CPU speed + hardware spec + device tree, GH #84).
     HardwarePage * m_hardwarePage = nullptr;
     DiskPage     * m_diskPage     = nullptr;
     ThemePage    * m_themePage    = nullptr;
