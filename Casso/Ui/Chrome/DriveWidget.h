@@ -36,6 +36,13 @@ public:
     ~DriveWidget () override = default;
 
     void               Initialize      (int slot, int drive, IDriveCommandSink * pSink);
+
+    // Hide the whole widget: a machine with no Disk ][ controller must show
+    // NO disk UI at all. Zeroing the rects alone is not enough -- Paint has no
+    // bounds guard and would still stamp the "IN USE" label + LED at stale /
+    // origin positions -- so also latch m_hidden, which makes Paint early-out.
+    // Layout (positioning the widget for a machine that HAS a controller)
+    // clears the latch.
     void               Hide            ()
     {
         m_bodyRect  = {};
@@ -43,6 +50,7 @@ public:
         m_slotRect  = {};
         m_ejectRect = {};
         m_labelRect = {};
+        m_hidden    = true;
     }
     void               SetPerspectiveSkewPx (int skewPx) { m_perspectiveSkewPx = skewPx; }
     void               SetCompact      (bool compact)    { m_compact = compact; }
@@ -113,6 +121,10 @@ private:
     int                 m_perspectiveSkewPx = 0;
     bool                m_compact           = false;
     bool                m_focused           = false;
+
+    // Latched by Hide(), cleared by Layout(). When set, Paint draws nothing so
+    // a controller-less machine shows no drive body, LED, or "IN USE" text.
+    bool                m_hidden            = false;
 
     // Marquee state for the mounted-disk basename label. m_marqueeStartMs
     // is when scroll motion begins (in the future during a mount's lead-in

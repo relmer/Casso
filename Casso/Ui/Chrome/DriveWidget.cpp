@@ -272,6 +272,10 @@ DriveWidget::DriveWidget ()
 
 void DriveWidget::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
 {
+    // Positioning the widget means the machine has a controller and it is on
+    // screen again; clear any prior Hide() latch so Paint resumes.
+    m_hidden = false;
+
     int   x           = boundsDip.left;
     int   y           = boundsDip.top;
     UINT  dpi         = scaler.Dpi();
@@ -392,6 +396,14 @@ void DriveWidget::Paint (
     IDxuiTextRenderer & text,
     const IDxuiTheme  & dxuiTheme)
 {
+    // No Disk ][ controller -> Hide() latched: draw nothing at all (no body,
+    // LED, or "IN USE" label). The rects are already zeroed, but Paint has no
+    // bounds guard of its own, so this latch is what actually suppresses it.
+    if (m_hidden)
+    {
+        return;
+    }
+
     _ASSERTE (dynamic_cast<const CassoTheme *> (&dxuiTheme) != nullptr);
     const CassoTheme & theme = static_cast<const CassoTheme &> (dxuiTheme);
 
