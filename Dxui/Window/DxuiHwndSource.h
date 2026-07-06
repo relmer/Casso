@@ -367,11 +367,14 @@ public:
     //  emulator shows through while a Display control is being dragged.
     void  SetComposedOpacity (float opacity);
 
-    //  Set a hook that paints on top of the content root + caption every
-    //  frame (a modal overlay -- e.g. the Settings color picker -- that must
-    //  read as a dialog above the page). The hook is handed the same painter /
-    //  text renderer / theme the panel tree uses. Null clears it.
-    void  SetOverlayPaintHook  (std::function<void(IDxuiPainter &, IDxuiTextRenderer &, const IDxuiTheme &)> hook);
+    //  Install a modal-overlay layer -- e.g. the Settings color picker -- that
+    //  reads as a dialog above the page. When isActive() returns true the pump
+    //  gives paint() its OWN fill+text flush after the page's, so the overlay
+    //  composites entirely on top (a plain last-in-batch paint would let page
+    //  text bleed through). paint() is handed the same painter / text renderer
+    //  / theme the panel tree uses. Null predicates leave the window overlay-free.
+    void  SetOverlayHooks  (std::function<bool()> isActive,
+                            std::function<void(IDxuiPainter &, IDxuiTextRenderer &, const IDxuiTheme &)> paint);
 
     LRESULT  WndProc           (UINT msg, WPARAM wp, LPARAM lp);
 
@@ -542,6 +545,7 @@ private:
     std::function<LRESULT (POINT)>                         m_hitTestDelegate;
     std::function<void()>                                  m_beforePresentHook;
     std::function<void(ID3D11RenderTargetView *, int, int)> m_afterPaintHook;
+    std::function<bool()>                                                       m_overlayActiveHook;
     std::function<void(IDxuiPainter &, IDxuiTextRenderer &, const IDxuiTheme &)> m_overlayPaintHook;
     std::function<LRESULT (HWND, UINT, WPARAM, LPARAM)>    m_defaultProcForTest;
     std::function<BOOL (TRACKMOUSEEVENT *)>                m_trackMouseEventForTest;

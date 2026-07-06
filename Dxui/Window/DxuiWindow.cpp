@@ -59,15 +59,14 @@ HRESULT DxuiWindow::Create (const CreateParams & params)
     hr = m_source->Create (hostParams);
     CHRF (hr, m_source.reset());
 
-    // Paint a subclass modal overlay (e.g. the Settings color picker) on top
-    // of the page each frame while it is up.
-    m_source->SetOverlayPaintHook ([this] (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
-    {
-        if (HasModalOverlay())
+    // Paint a subclass modal overlay (e.g. the Settings color picker) as a top
+    // layer while it is up. The predicate keeps idle dialogs off the extra flush.
+    m_source->SetOverlayHooks (
+        [this] () { return HasModalOverlay(); },
+        [this] (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
         {
             PaintModalOverlay (painter, text, theme);
-        }
-    });
+        });
 
     // Populate children BEFORE installing the root so the first layout
     // pass (driven by SetContentRootRef) sees the fully-built tree.

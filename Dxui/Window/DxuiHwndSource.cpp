@@ -557,18 +557,20 @@ void DxuiHwndSource::SetAfterPaintHook (std::function<void(ID3D11RenderTargetVie
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  SetOverlayPaintHook
+//  SetOverlayHooks
 //
-//  Stores the callback the paint pump invokes after the panel tree + caption
-//  are drawn, letting a client paint a modal overlay on top of the page.
+//  Stores the predicate + paint callback the pump uses to composite a client
+//  modal overlay as its own top layer after the page has flushed.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiHwndSource::SetOverlayPaintHook (std::function<void(IDxuiPainter &, IDxuiTextRenderer &, const IDxuiTheme &)> hook)
+void DxuiHwndSource::SetOverlayHooks (std::function<bool()> isActive,
+                                      std::function<void(IDxuiPainter &, IDxuiTextRenderer &, const IDxuiTheme &)> paint)
 {
     DXUI_ASSERT_UI_THREAD();
 
-    m_overlayPaintHook = std::move (hook);
+    m_overlayActiveHook = std::move (isActive);
+    m_overlayPaintHook  = std::move (paint);
 }
 
 
@@ -1387,18 +1389,11 @@ void DxuiHwndSource::PaintPump ()
             m_caption->Paint (*m_painter, *m_textRenderer, *m_theme);
         }
 
-        // A client modal overlay (e.g. the Settings color picker) paints last
-        // of all so it reads as a dialog floating above the whole page.
-        if (m_overlayPaintHook)
-        {
-            m_overlayPaintHook (*m_painter, *m_textRenderer, *m_theme);
-        }
-
-        // Flush the painter (D3D control fills) FIRST, then the text
-        // (D2D glyphs / labels) so the foreground composites on top of
-        // the fills -- matching the proven UiShell::Render order.
-        // Flushing text first lets the opaque fills paint over it, which
-        // makes menu labels and min/max/close glyphs vanish.
+        // Flush the page: painter (D3D control fills) FIRST, then the text
+        // (D2D glyphs / labels) so the foreground composites on top of the
+        // fills -- matching the proven UiShell::Render order. Flushing text
+        // first lets the opaque fills paint over it, which makes menu labels
+        // and min/max/close glyphs vanish.
         hr = m_painter->End (m_rtv.Get());
         painterBegun = false;
         CHRA (hr);
@@ -1406,6 +1401,32 @@ void DxuiHwndSource::PaintPump ()
         hr = m_textRenderer->EndDraw();
         textBegun = false;
         CHRA (hr);
+
+        // A client modal overlay (e.g. the Settings color picker) paints as a
+        // SEPARATE top layer with its OWN fill+text flush, so its dialog fill
+        // covers the page's already-committed text and its own labels sit on
+        // top of that. (Painting it into the page's batch would leave page text
+        // -- flushed last of all -- bleeding through the dialog.)
+        if (m_overlayActiveHook && m_overlayActiveHook() && m_overlayPaintHook)
+        {
+            hr = m_painter->Begin ((int) scd.Width, (int) scd.Height);
+            CHRA (hr);
+            painterBegun = true;
+
+            hr = m_textRenderer->BeginDraw();
+            CHRA (hr);
+            textBegun = true;
+
+            m_overlayPaintHook (*m_painter, *m_textRenderer, *m_theme);
+
+            hr = m_painter->End (m_rtv.Get());
+            painterBegun = false;
+            CHRA (hr);
+
+            hr = m_textRenderer->EndDraw();
+            textBegun = false;
+            CHRA (hr);
+        }
     }
 
     // After-paint compositor hook: runs full-screen shader passes on the

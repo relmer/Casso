@@ -3,6 +3,7 @@
 #include "SettingsSheet.h"
 
 #include "../../EmulatorShell.h"
+#include "../../Config/GlobalUserPrefs.h"
 #include "Ui/Chrome/ChromeMetrics.h"
 #include "resource.h"
 
@@ -155,6 +156,59 @@ HRESULT SettingsSheet::OpenModal (
     m_crt.Bind (&prefs, &themes, &m_state, m_displayPage, &emuShell);
     m_crt.WireDisplayPageCallbacks();
 
+    // Text color (#8): a mode change (White / Green / Amber / Custom) applies
+    // live and stages the pref; committing to Custom opens the HSV picker,
+    // hosted as this window's modal overlay. Cancel of the whole sheet still
+    // reverts the text-color choice to baseline via the apply controller.
+    m_displayPage->SetOnTextColorChange ([this] (int idx)
+    {
+        if (m_prefs != nullptr)
+        {
+            m_prefs->colorMonitorTextMode = (ColorMonitorTextMode) idx;
+            if (m_emuShell != nullptr)
+            {
+                m_emuShell->SetColorMonitorTextArgbLive (
+                    ColorUtil::ResolveColorMonitorTextArgb (m_prefs->colorMonitorTextMode,
+                                                            m_prefs->colorMonitorTextCustomArgb));
+            }
+        }
+    });
+    m_displayPage->SetOnTextColorCommit ([this] (int idx)
+    {
+        if (m_prefs != nullptr && (ColorMonitorTextMode) idx == ColorMonitorTextMode::Custom)
+        {
+            m_colorPicker.SetHwnd (Hwnd());
+            m_colorPicker.Open (m_prefs->colorMonitorTextCustomArgb);
+            Invalidate();
+        }
+    });
+    m_colorPicker.SetOnChange ([this] (uint32_t argb)
+    {
+        if (m_prefs != nullptr)
+        {
+            m_prefs->colorMonitorTextCustomArgb = argb;
+            m_prefs->colorMonitorTextMode       = ColorMonitorTextMode::Custom;
+            m_displayPage->SetTextColor (ColorMonitorTextMode::Custom, argb);
+            if (m_emuShell != nullptr)
+            {
+                m_emuShell->SetColorMonitorTextArgbLive (argb);
+            }
+        }
+    });
+    m_colorPicker.SetOnClose ([this] (bool /*accepted*/, uint32_t argb)
+    {
+        if (m_prefs != nullptr)
+        {
+            m_prefs->colorMonitorTextCustomArgb = argb;
+            m_displayPage->SetTextColor (ColorMonitorTextMode::Custom, argb);
+            if (m_emuShell != nullptr)
+            {
+                m_emuShell->SetColorMonitorTextArgbLive (argb);
+            }
+        }
+        Invalidate();
+    });
+
     // Live framebuffer + mounted-path sources for the Theme preview. The page
     // paints inside chrome composition after the current frame is uploaded, so
     // the CPU-side buffer is always one frame fresh.
@@ -266,6 +320,86 @@ void SettingsSheet::RefreshOkLabel ()
     {
         SetOkText (std::move (want));
     }
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Layout / modal-overlay overrides (custom text-color picker, list #8)
+//
+//  The picker is centred in the same sheet bounds the pages use, painted last
+//  of all, and -- while open -- grabs every mouse / key / char event so the
+//  page beneath stays inert. Each routed event invalidates so the picker's
+//  sliders / hex field / copy flash animate.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SettingsSheet::Layout (const RECT & boundsPx, const DxuiDpiScaler & scaler)
+{
+    DxuiPropertySheet::Layout (boundsPx, scaler);
+    m_colorPicker.Layout (boundsPx, scaler);
+}
+
+
+bool SettingsSheet::HasModalOverlay () const
+{
+    return m_colorPicker.IsOpen();
+}
+
+
+void SettingsSheet::PaintModalOverlay (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
+{
+    if (m_colorPicker.IsOpen())
+    {
+        m_colorPicker.Paint (painter, text, theme);
+    }
+}
+
+
+bool SettingsSheet::OnOverlayMouse (const DxuiMouseEvent & ev)
+{
+    if (!m_colorPicker.IsOpen())
+    {
+        return false;
+    }
+
+    switch (ev.kind)
+    {
+    case DxuiMouseEventKind::Down:  m_colorPicker.OnLButtonDown (ev.positionDip.x, ev.positionDip.y); break;
+    case DxuiMouseEventKind::Up:    m_colorPicker.OnLButtonUp   (ev.positionDip.x, ev.positionDip.y); break;
+    case DxuiMouseEventKind::Move:  m_colorPicker.OnMouseHover  (ev.positionDip.x, ev.positionDip.y);
+                                    m_colorPicker.OnMouseMove   (ev.positionDip.x, ev.positionDip.y); break;
+    default:                        break;
+    }
+
+    Invalidate();
+    return true;
+}
+
+
+bool SettingsSheet::OnOverlayChar (wchar_t ch)
+{
+    bool  handled = m_colorPicker.IsOpen() && m_colorPicker.OnChar (ch);
+
+    if (m_colorPicker.IsOpen())
+    {
+        Invalidate();
+    }
+    return handled;
+}
+
+
+bool SettingsSheet::OnOverlayKey (WPARAM vk)
+{
+    bool  handled = m_colorPicker.IsOpen() && m_colorPicker.OnKey (vk);
+
+    if (m_colorPicker.IsOpen())
+    {
+        Invalidate();
+    }
+    return handled;
 }
 
 

@@ -9,6 +9,7 @@
 #include "SettingsDisplayCrtBridge.h"
 #include "SettingsApplyController.h"
 #include "SettingsPreviewController.h"
+#include "ColorPickerOverlay.h"
 #include "MachinePage.h"
 #include "HardwarePage.h"
 #include "ThemePage.h"
@@ -76,6 +77,17 @@ protected:
     //  tracks machine-dropdown + hardware edits (FR-131).
     void     OnDialogTick () override;
 
+    //  Custom text-color picker (list #8). Hosted as the framework's modal
+    //  in-content overlay so it floats above the page and grabs all input while
+    //  open, preserving the bespoke look (no separate popup HWND). Layout keeps
+    //  it centred in the current sheet bounds.
+    void     Layout            (const RECT & boundsPx, const DxuiDpiScaler & scaler) override;
+    bool     HasModalOverlay   () const override;
+    void     PaintModalOverlay (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
+    bool     OnOverlayMouse    (const DxuiMouseEvent & ev) override;
+    bool     OnOverlayChar     (wchar_t ch) override;
+    bool     OnOverlayKey      (WPARAM vk) override;
+
 private:
     //  Set OK to "OK (reboot)" when committing would power-cycle the machine
     //  (staged machine change or a reset-requiring hardware edit), else "OK".
@@ -102,6 +114,7 @@ private:
     SettingsDisplayCrtBridge  m_crt;
     SettingsApplyController   m_apply;
     SettingsPreviewController m_preview;
+    ColorPickerOverlay        m_colorPicker;
 
     // Last mechanism pushed to the engine, so PushDriveAudioToEngine skips a
     // redundant WAV reload when it hasn't changed.
