@@ -150,6 +150,7 @@ struct SlotConfig
     size_t          romSize         = 0;
     CapabilityFlag  capabilityFlag  = CapabilityFlag::Optional;
     string          lockReason;              // Optional: shown as tooltip when PlatformLocked.
+    bool            enabled         = true;   // false => user disabled this slot (Settings > Hardware); skip install.
 };
 
 

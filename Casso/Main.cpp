@@ -5,6 +5,8 @@
 #include "Config/UserConfigStore.h"
 #include "Config/Win32FileSystem.h"
 #include "Core/MachineConfig.h"
+#include "Core/JsonParser.h"
+#include "Core/JsonWriter.h"
 #include "Core/PathResolver.h"
 #include "DiskSettings.h"
 #include "EmulatorShell.h"
@@ -296,6 +298,25 @@ static HRESULT LoadMachineConfig (
 
     ss << configFile.rdbuf();
     jsonText = ss.str();
+
+    // Apply the user's per-machine delta (e.g. a slot disabled in Settings >
+    // Hardware) to the base config before building, so machine-level edits
+    // persist across launches -- matching MachineManager::SwitchMachine for an
+    // in-session reboot. Falls back to the base text on any merge failure.
+    {
+        Win32FileSystem  fsMerge;
+        UserConfigStore  storeMerge (AssetBootstrap::GetAssetBaseDirectory().wstring());
+        JsonValue        defaultJson;
+        JsonValue        mergedJson;
+        JsonParseError   parseErr;
+
+        if (SUCCEEDED (JsonParser::Parse (jsonText, defaultJson, parseErr)) &&
+            SUCCEEDED (storeMerge.Load (fs::path (machineName).string (), defaultJson, fsMerge, mergedJson)) &&
+            mergedJson.GetType () == JsonType::Object)
+        {
+            jsonText = JsonWriter::Write (mergedJson);
+        }
+    }
 
     hr = MachineConfigLoader::Load (jsonText,
                                     fs::path (machineName).string (),

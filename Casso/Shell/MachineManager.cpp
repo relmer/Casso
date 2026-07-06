@@ -9,6 +9,7 @@
 #include "Core/PathResolver.h"
 #include "Core/MachineConfig.h"
 #include "Core/JsonParser.h"
+#include "Core/JsonWriter.h"
 #include "Core/Prng.h"
 #include "Devices/RamDevice.h"
 #include "Devices/RomDevice.h"
@@ -286,6 +287,14 @@ HRESULT MachineManager::CreateMemoryDevices (const MachineConfig & config)
     // Slot devices and slot ROMs
     for (const auto & slot : config.slots)
     {
+        // A slot the user disabled in Settings > Hardware installs neither its
+        // device nor its slot ROM -- e.g. removing the slot-6 Disk II
+        // controller actually stops the machine from booting off floppy.
+        if (!slot.enabled)
+        {
+            continue;
+        }
+
         // Slot device (e.g., disk-ii)
         if (!slot.device.empty())
         {
@@ -764,7 +773,7 @@ HRESULT MachineManager::CreateCpu (const MachineConfig & config)
         // Slot ROMs
         for (const auto & slot : config.slots)
         {
-            if (slot.rom.empty() || slot.resolvedRomPath.empty())
+            if (!slot.enabled || slot.rom.empty() || slot.resolvedRomPath.empty())
             {
                 continue;
             }
@@ -958,6 +967,17 @@ HRESULT MachineManager::SwitchMachine (const std::wstring & machineName)
         {
             romSearchPaths.push_back (p);
         }
+    }
+
+    // Build the machine from the user-delta-merged config, not the base config
+    // text, so machine-level edits -- e.g. a slot the user disabled in
+    // Settings > Hardware (slots[].enabled=false) -- actually take effect on a
+    // switch/reboot instead of only the live-applied speed/color. Falls back to
+    // the base text when there is no merged result (no user delta). The extra
+    // $cassoUiPrefs / version keys the merge carries are ignored by the loader.
+    if (mergedJson.GetType() == JsonType::Object)
+    {
+        jsonText = JsonWriter::Write (mergedJson);
     }
 
     hr = MachineConfigLoader::Load (jsonText,

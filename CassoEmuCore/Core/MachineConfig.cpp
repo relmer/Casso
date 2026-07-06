@@ -550,6 +550,14 @@ HRESULT MachineConfigLoader::LoadSlots (
             IGNORE_RETURN_VALUE (hrLock, S_OK);
         }
 
+        // Optional: enabled (default true). A user disabling the slot in
+        // Settings > Hardware writes "enabled": false; the machine builder
+        // then skips installing this slot's device + ROM.
+        {
+            HRESULT hrEnabled = entry.GetBool ("enabled", slot.enabled);
+            IGNORE_RETURN_VALUE (hrEnabled, S_OK);
+        }
+
         outConfig.slots.push_back (slot);
     }
 
