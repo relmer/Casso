@@ -1458,31 +1458,64 @@ RECT EmulatorShell::ComputeViewportRect (int widthPx, int heightPx)
 //
 //  EmulatorShell::ReflowChromeForMachineChange
 //
-//  Runs the full OnSize relayout at the current client size. A machine switch
-//  may have added or removed the Disk ][ controller, which changes the drive
-//  band thickness (Phase D), the drive-widget visibility, and the hit-test
-//  map -- all gated on HasSlot6Controller() inside OnSize -- but the window
-//  size is unchanged across the switch, so the OS never sends a WM_SIZE to
-//  re-drive it. OnSize is idempotent at a fixed size (the back-buffer dims
-//  don't change), so re-invoking it just re-evaluates the disk-dependent chrome.
+//  A machine switch may add or remove the Disk ][ controller, which changes the
+//  drive-band thickness (Phase D), the drive-widget visibility, and the hit-test
+//  map. When disk presence changes, grow/shrink the WINDOW by the band delta so
+//  the emulator viewport keeps its size and the top-left corner stays put -- NOT
+//  hold the window size and re-centre the viewport. The resulting WM_SIZE drives
+//  OnSize, which re-lays the bands / widgets / hit rects. When presence is
+//  unchanged (e.g. a swap between two controller-equipped machines) there is no
+//  band delta, so just re-run OnSize at the current size to refresh the widgets.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void EmulatorShell::ReflowChromeForMachineChange ()
 {
-    RECT  rc = {};
+    RECT  rcWindow = {};
 
-    if (m_hwnd == nullptr || !GetClientRect (m_hwnd, &rc))
+    if (m_hwnd == nullptr || !GetWindowRect (m_hwnd, &rcWindow))
     {
         return;
     }
 
-    int  w = rc.right  - rc.left;
-    int  h = rc.bottom - rc.top;
+    bool  newHasDisk      = (m_diskManager != nullptr) && m_diskManager->HasSlot6Controller();
+    bool  presenceChanged = (newHasDisk != m_chromeSizedForHasDisk);
 
-    if (w > 0 && h > 0)
+    // Resize the window by the band delta -- but not for min/max/fullscreen
+    // windows, where the user explicitly chose the size (mirrors
+    // ApplyThemeToChrome). Those just relayout inside the fixed frame.
+    if (presenceChanged &&
+        !IsIconic (m_hwnd) && !IsZoomed (m_hwnd) && !m_d3dRenderer.IsFullscreen())
     {
-        (void) OnSize (static_cast<UINT> (w), static_cast<UINT> (h));
+        int  oldBandDp = m_chromeSizedForHasDisk ? m_driveBarThicknessDp : s_kJoystickButtonBandDp;
+        int  newBandDp = newHasDisk              ? m_driveBarThicknessDp : s_kJoystickButtonBandDp;
+        int  deltaPx   = m_scaler.Px (newBandDp) - m_scaler.Px (oldBandDp);
+
+        m_chromeSizedForHasDisk = newHasDisk;
+
+        // The drive band is bottom-docked full-width, so only the height moves.
+        // SWP_NOMOVE pins the top-left corner; the WM_SIZE it generates drives
+        // OnSize to re-lay the bands, widgets, and hit-test map.
+        SetWindowPos (m_hwnd, nullptr, 0, 0,
+                      rcWindow.right  - rcWindow.left,
+                      (rcWindow.bottom - rcWindow.top) + deltaPx,
+                      SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE);
+        return;
+    }
+
+    m_chromeSizedForHasDisk = newHasDisk;
+
+    // No band delta (unchanged presence, or a fixed-state window): relayout at
+    // the current client size so widget visibility + hit rects still refresh.
+    {
+        RECT  rcClient = {};
+
+        if (GetClientRect (m_hwnd, &rcClient) &&
+            rcClient.right > rcClient.left && rcClient.bottom > rcClient.top)
+        {
+            (void) OnSize (static_cast<UINT> (rcClient.right  - rcClient.left),
+                           static_cast<UINT> (rcClient.bottom - rcClient.top));
+        }
     }
 }
 
@@ -4956,6 +4989,12 @@ DxuiMessageResult EmulatorShell::OnSize (UINT widthPx, UINT heightPx)
                 m_driveChrome[0].Hide();
                 m_driveChrome[1].Hide();
             }
+
+            // OnSize is the authoritative layout (only fires on a real WM_SIZE,
+            // never per-frame), so record the disk-presence this window size now
+            // accounts for. ReflowChromeForMachineChange reads this pre-switch
+            // value to grow/shrink the window by the band delta.
+            m_chromeSizedForHasDisk = fHasDisk;
 
             {
                 int  bandTop    = renderH - bottomInsetPx;

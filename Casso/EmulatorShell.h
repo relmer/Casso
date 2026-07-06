@@ -598,6 +598,14 @@ private:
     ChromeBand               m_centerBand;
     int                      m_driveBarThicknessDp = s_kInitialDriveBandDp;
 
+    // Whether the current WINDOW height was sized for a Disk ][ controller
+    // being present. Written by OnSize (the authoritative layout, WM_SIZE-only)
+    // to the disk-presence it just laid out; ReflowChromeForMachineChange reads
+    // this pre-switch value to grow/shrink the window by the drive-band delta
+    // (so the viewport keeps its size + the top-left stays put) rather than
+    // re-centring inside a fixed window.
+    bool                     m_chromeSizedForHasDisk = true;
+
     // Drive widget state pump. The controller channel publishes
     // per-drive door/spin sync events the chrome painter will consume
     // once reintroduced. The drag-drop target registers a single
