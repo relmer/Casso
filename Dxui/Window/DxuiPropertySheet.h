@@ -100,6 +100,18 @@ protected:
     void  OnCreate () override;
     bool  OnDialogTabSwitch (bool backward) override;
 
+    //
+    //  Commit hooks (Template Method). The button row calls these so a
+    //  subclass can run a cross-cutting commit instead of / in addition to
+    //  per-page apply. The close rule is hr == S_OK: OnOk() returning S_OK
+    //  closes with IDOK; S_FALSE vetoes (keep open, no error); FAILED keeps
+    //  open on an error. Defaults: OnApply applies every dirty page (S_FALSE
+    //  if a page blocks), OnOk = OnApply, OnCancel is a no-op.
+    //
+    virtual HRESULT  OnApply  ();
+    virtual HRESULT  OnOk     ();
+    virtual void     OnCancel ();
+
 
 private:
     void  RegisterPage        (DxuiPropertyPage * page);

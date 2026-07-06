@@ -60,11 +60,45 @@ void DxuiPropertySheet::OnCreate ()
     // Honor a pre-Create SetApplyVisible(false): a plain [OK][Cancel] sheet.
     m_apply->SetVisible (m_applyVisible);
 
-    m_ok->SetOnClick    ([this] () { if (ApplyAllDirtyPages()) { EndDialog (IDOK); } });
-    m_apply->SetOnClick ([this] () { ApplyAllDirtyPages(); RefreshApplyEnabled(); });
+    // Route the row through the commit hooks. OK closes only on hr == S_OK;
+    // Apply commits without closing; Cancel runs OnCancel then closes. Cancel
+    // is wired explicitly (not left to the dialog auto-wire) so OnCancel fires
+    // on both the button and Escape (which triggers the IDCANCEL button).
+    m_ok->SetOnClick     ([this] () { if (OnOk() == S_OK) { EndDialog (IDOK); } });
+    m_apply->SetOnClick  ([this] () { (void) OnApply(); RefreshApplyEnabled(); });
+    m_cancel->SetOnClick ([this] () { OnCancel(); EndDialog (IDCANCEL); });
 
     SetActivePage      (0);
     RefreshApplyEnabled();
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnApply / OnOk / OnCancel
+//
+//  Default commit hooks. OnApply applies every dirty page and reports S_FALSE
+//  (veto -> keep open) if a page blocks; OnOk defers to OnApply; OnCancel is a
+//  no-op. Subclasses override to run a cross-cutting commit / revert.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DxuiPropertySheet::OnApply ()
+{
+    return ApplyAllDirtyPages() ? S_OK : S_FALSE;
+}
+
+
+HRESULT DxuiPropertySheet::OnOk ()
+{
+    return OnApply();
+}
+
+
+void DxuiPropertySheet::OnCancel ()
+{
 }
 
 
