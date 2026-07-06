@@ -70,12 +70,12 @@ public:
         scaler.SetDpi (96);
         DxuiPropertySheet::LayoutButtonRow (bounds, scaler, widths, rects);
 
-        AssertRect (MakeRect (89,  266, 185, 289), rects[0], L"ok");
-        AssertRect (MakeRect (191, 266, 287, 289), rects[1], L"cancel");
-        AssertRect (MakeRect (293, 266, 389, 289), rects[2], L"apply");
+        AssertRect (MakeRect (80,  256, 176, 284), rects[0], L"ok");
+        AssertRect (MakeRect (184, 256, 280, 284), rects[1], L"cancel");
+        AssertRect (MakeRect (288, 256, 384, 284), rects[2], L"apply");
 
-        // Rightmost button hugs the edge pad (11 DIP @ 96 dpi).
-        Assert::AreEqual (bounds.right - 11, rects[2].right);
+        // Rightmost button hugs the edge pad (16 DIP @ 96 dpi).
+        Assert::AreEqual (bounds.right - 16, rects[2].right);
     }
 
 
@@ -89,11 +89,11 @@ public:
         scaler.SetDpi (96);
         DxuiPropertySheet::LayoutButtonRow (bounds, scaler, widths, rects);
 
-        AssertRect (MakeRect (191, 266, 287, 289), rects[0], L"ok");
-        AssertRect (MakeRect (293, 266, 389, 289), rects[1], L"cancel");
+        AssertRect (MakeRect (184, 256, 280, 284), rects[0], L"ok");
+        AssertRect (MakeRect (288, 256, 384, 284), rects[1], L"cancel");
 
         // Cancel is now the rightmost button and still hugs the edge pad.
-        Assert::AreEqual (bounds.right - 11, rects[1].right);
+        Assert::AreEqual (bounds.right - 16, rects[1].right);
     }
 
 
@@ -107,12 +107,12 @@ public:
         scaler.SetDpi (96);
         DxuiPropertySheet::LayoutButtonRow (bounds, scaler, widths, rects);
 
-        AssertRect (MakeRect (45,  266, 185, 289), rects[0], L"ok");
-        AssertRect (MakeRect (191, 266, 287, 289), rects[1], L"cancel");
-        AssertRect (MakeRect (293, 266, 389, 289), rects[2], L"apply");
+        AssertRect (MakeRect (36,  256, 176, 284), rects[0], L"ok");
+        AssertRect (MakeRect (184, 256, 280, 284), rects[1], L"cancel");
+        AssertRect (MakeRect (288, 256, 384, 284), rects[2], L"apply");
 
         Assert::AreEqual (140, (int) (rects[0].right - rects[0].left));
-        Assert::AreEqual ((int) (bounds.right - 11), (int) rects[2].right);
+        Assert::AreEqual ((int) (bounds.right - 16), (int) rects[2].right);
     }
 
 
@@ -126,11 +126,11 @@ public:
         scaler.SetDpi (192);
         DxuiPropertySheet::LayoutButtonRow (bounds, scaler, widths, rects);
 
-        AssertRect (MakeRect (178, 532, 370, 578), rects[0], L"ok");
-        AssertRect (MakeRect (382, 532, 574, 578), rects[1], L"cancel");
-        AssertRect (MakeRect (586, 532, 778, 578), rects[2], L"apply");
+        AssertRect (MakeRect (160, 512, 352, 568), rects[0], L"ok");
+        AssertRect (MakeRect (368, 512, 560, 568), rects[1], L"cancel");
+        AssertRect (MakeRect (576, 512, 768, 568), rects[2], L"apply");
 
-        Assert::AreEqual (bounds.right - 22, rects[2].right);
+        Assert::AreEqual (bounds.right - 32, rects[2].right);
     }
 };
 
@@ -179,8 +179,8 @@ public:
         scaler.SetDpi (96);
         DxuiButtonRow::LayoutLeftGroup (bounds, scaler, widths, rects);
 
-        // Edge pad 11, button 75x23, bottom margin 11 -> y = 300-11-23 = 266.
-        AssertRect (MakeRect (11, 266, 86, 289), rects[0], L"browse");
-        Assert::AreEqual (bounds.left + 11, rects[0].left);
+        // Edge pad 16, button 75x28, bottom margin 16 -> y = 300-16-28 = 256.
+        AssertRect (MakeRect (16, 256, 91, 284), rects[0], L"browse");
+        Assert::AreEqual (bounds.left + 16, rects[0].left);
     }
 };

@@ -18,19 +18,20 @@
 //  right-aligned group in the canonical Win32 left-to-right order, while
 //  secondary / navigation actions (e.g. "Browse...") anchor bottom-left.
 //
-//  Metrics are the Win32 dialog-unit values expressed in DIPs at 96 DPI
-//  (50x14 DLU button, 4-DLU gap, 7-DLU margins), rounded to whole pixels.
-//  They live in one place so the whole app can be re-tuned at a stroke.
+//  Metrics are the app's standard command-button sizes in DIPs (kept a touch
+//  larger than the native Win32 50x14 DLU so they line up with the in-content
+//  buttons like "Restore defaults"). They live in one place so the whole app
+//  can be re-tuned at a stroke.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace DxuiButtonRow
 {
-    inline constexpr int  kButtonWidthDip  = 75;      // 50 DLU
-    inline constexpr int  kButtonHeightDip = 23;      // 14 DLU
-    inline constexpr int  kGapDip          =  6;      //  4 DLU (between buttons)
-    inline constexpr int  kEdgePadDip      = 11;      //  7 DLU (edge margins)
-    inline constexpr int  kRowHeightDip    = 40;      // reserved bottom strip
+    inline constexpr int  kButtonWidthDip  = 96;
+    inline constexpr int  kButtonHeightDip = 28;
+    inline constexpr int  kGapDip          =  8;      // between buttons
+    inline constexpr int  kEdgePadDip      = 16;      // edge margins
+    inline constexpr int  kRowHeightDip    = 44;      // reserved bottom strip
 
     //  Apply's command id (property sheets). Not an OS IDOK / IDCANCEL, but
     //  shared here so StandardRank can order it after Cancel.
