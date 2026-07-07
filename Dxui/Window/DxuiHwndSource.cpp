@@ -1135,6 +1135,16 @@ HRESULT DxuiHwndSource::CreateDeviceAndSwapChain ()
     {
         scd.AlphaMode  = DXGI_ALPHA_MODE_IGNORE;
 
+        // DXGI_SCALING_NONE (top-left anchored, no stretch) rather than the
+        // STRETCH default: with the flip model, STRETCH makes DXGI scale the
+        // one-frame-stale back buffer to the new window size on every WM_SIZE
+        // step of a live edge-drag, which reads as the client area jittering.
+        // NONE keeps the content pinned to the origin; paired with the
+        // synchronous redraw in HandleSize the freshly exposed edge is filled
+        // the same frame, so the resize stays steady. (Composition swap chains
+        // only accept STRETCH, so this is the HWND path only.)
+        scd.Scaling    = DXGI_SCALING_NONE;
+
         hr = dxgiFactory->CreateSwapChainForHwnd (m_device.Get(),
                                                   m_hwnd,
                                                   &scd,
@@ -2433,6 +2443,16 @@ void DxuiHwndSource::HandleSize (WPARAM wp, LPARAM lp)
     if (m_root != nullptr && m_hwnd != nullptr && GetClientRect (m_hwnd, &rcClient))
     {
         MaybeRelayoutRoot (rcClient);
+    }
+
+    // Re-render synchronously at the new size. ResizeBuffers discarded the back
+    // buffer, so without an immediate frame DWM composites the blank / stale
+    // swap chain during a live edge-drag -- which reads as the content subtly
+    // shifting as the window resizes. Full-ownership mode only; adopt mode's
+    // client repaints through its own OnSize.
+    if (m_ownsPaintPump)
+    {
+        RenderFrame (m_theme);
     }
 }
 
