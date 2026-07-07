@@ -31,19 +31,22 @@ The project includes:
 
 See [CHANGELOG.md](CHANGELOG.md) for the granular history.
 
-### Occluding popups + Dxui chrome framework (v1.6.0)
+### Disk picker, settings, and a reusable UI library (v1.6.0)
 
-Casso's window chrome was lifted out of the emulator shell into a
-standalone, reusable **Dxui** library (Direct2D / DirectWrite), and the
-window host now owns the Direct3D swap chain directly. The visible payoff:
-the main menu's submenus, the Settings dropdowns, the debug-panel column
-menus, and the hover tooltips now open as real top-level windows, so they
-paint over the emulator and spill past the window's edges instead of being
-clipped to it — flipping upward when there isn't room below. The menu bar
-keeps click-to-open, hover-to-switch, and full keyboard navigation
-(Alt-letter, arrows, Esc). The Disk II / Input debug panels now also
-auto-fit their list columns to content, so large cycle counts no longer
-wrap.
+The boot / Insert-Disk picker gained a search box and click-to-sort columns,
+and — when Casso runs from a source checkout — it's preloaded with the disk
+images in the repo's `Apple2/Demos/` folder as one-click mounts. The list
+scrolls horizontally and the dialog resizes cleanly.
+
+Settings picked up an "Apply now" button to try a theme without closing the
+dialog, a "restart required" notice with an "OK (reboot)" button when a
+change needs a power-cycle, and support for a machine with no Disk ][
+controller — the Disk tab, the drive band, and boot all adjust when there
+isn't one.
+
+Under the hood, Casso's window chrome was pulled out into a standalone,
+reusable **Dxui** library (Direct2D / DirectWrite) that other projects can
+build on, with the window host owning the Direct3D swap chain directly.
 
 ### Game-input revamp (v1.5.1523)
 

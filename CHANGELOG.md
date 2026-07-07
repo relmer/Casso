@@ -6,13 +6,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 Versioned entries use `MAJOR.MINOR.PATCH` from [Version.h](CassoCore/Version.h).
 Entries before versioning was introduced use dates only.
 
-## [1.6.0] — Occluding popups + Dxui chrome framework (spec 013)
+## [1.6.0] — Disk picker, optional Disk ][, and the reusable Dxui library (spec 013)
 
-The window chrome was extracted into a standalone, reusable **Dxui**
-library, and the window host now owns the Direct3D swap chain directly.
-The headline user-visible payoff: menus, dropdowns, and tooltips finally
-render as real top-level windows, so they paint over everything and can
-spill past the window's edges instead of being clipped to it.
+The boot / Insert-Disk picker gained search and sort and is preloaded with
+the repo's demo disks; Settings added an "Apply now" theme, a
+restart-required notice, and support for a machine with no Disk ][
+controller. Under all of it, the window chrome was extracted into a
+standalone, reusable **Dxui** library, with the window host owning the
+Direct3D swap chain directly.
 
 ### Added
 - **feat(settings): restart-required notice + "OK (reboot)" button.**
@@ -27,35 +28,28 @@ spill past the window's edges instead of being clipped to it.
   immediately without closing Settings, so you can try a theme live.
   Clicking Cancel afterward reverts to the theme you started with; OK
   keeps it.
-- **feat(ui): searchable, sortable disk picker with a last-loaded date
-  column.** The boot and Insert-Disk pickers gain a search box — type to
-  filter recent disks (case-insensitive substring across name, location,
-  and date); the magnifier glyph slides away on focus and an X button
-  clears the field. The leading "Last loaded" column shows each disk's
-  load time in the user's regional date/time format and is the default
-  sort (newest on top). Columns size to fit their widest value (header
-  included), are resizable (drag a header divider), and clickable to sort
-  (re-click to reverse; strings A–Z, dates newest-first) with an up/down
-  indicator on the active column. The dialog is resizable (drag any edge;
-  it opens at a sensible size clamped to your monitor) and the list shows
-  horizontal and vertical scrollbars as needed — Shift+wheel or the bottom
-  scrollbar reaches a long location path.
-- **feat(ui): Windows 11 snap-layouts on every top-level window.** Hovering
-  the maximize button now offers the Win11 snap-layout flyout on the main
-  emulator window, the chromed debug panels, and the Settings window — not
-  just the system-chromed dialogs — because the custom chrome reports the
-  caption/maximize regions to the OS.
-- **feat(ui): occluding top-level popups for menus, dropdowns, and
-  tooltips.** The application menu bar's submenus, the Settings-page
-  dropdowns, the Disk II / Input debug-panel column menus, and the
-  debug-panel hover tooltips now render into their own pooled top-level
-  windows (one DirectComposition swap chain per popup) instead of being
-  clipped to the parent's client area. A popup occludes the emulator and
-  other chrome and can extend past the window edges — flipping upward
-  when anchored near the bottom. The menu bar keeps its Windows-style
-  behaviour: click a title to open, hover an adjacent title to switch,
-  and full keyboard navigation (Alt-letter, arrows, Enter, Esc). It is
-  deliberately non-modal — moving the window closes the open menu.
+- **feat(ui): searchable, sortable, keyboard-navigable disk picker with a
+  last-loaded date column.** The boot and Insert-Disk pickers gain a search
+  box — type to filter recent disks (case-insensitive; space-separated
+  terms must all match, across name, location, and date), with the matched
+  text highlighted in each row; the magnifier glyph slides away on focus
+  and an X button clears the field. The leading "Last loaded" column shows
+  each disk's load time in the user's regional date/time format and is the
+  default sort (newest on top). Columns auto-fit to their widest value (the
+  header and its sort arrow included), are resizable (drag a header
+  divider), and clickable to sort (re-click to reverse; strings A–Z, dates
+  newest-first) with an up/down indicator on the active column. The picker
+  is fully keyboard-navigable: Tab walks the search box → list body (arrows
+  move the highlight, Enter/Space mounts) → column header (arrows move
+  between columns, Enter/Space sorts or reverses) → the dialog buttons. The
+  dialog is resizable (drag any edge; it opens at a sensible size clamped to
+  your monitor) and the list shows horizontal and vertical scrollbars as
+  needed — Shift+wheel or the bottom scrollbar reaches a long location path.
+- **feat(settings): optional Disk ][ controller.** A machine can now run
+  with no Disk ][ controller. Settings shows the **Disk** tab only when a
+  controller is present (the old Hardware tab folds into the Machine tab),
+  and when there is none the bottom drive band is hidden and its space
+  reclaimed, boot skips the disk step, and drive-sound preview still works.
 - **feat(ui): auto-fit debug-panel list columns.** The Disk II and Input
   debug panels size each event-list column to the widest value seen, so
   large cycle counts no longer wrap; dragging a column divider still
@@ -65,13 +59,6 @@ spill past the window's edges instead of being clipped to it.
   the disk images under `Apple2/Demos/` (Choplifter, Karateka, Lode
   Runner, …) as directly-mountable rows alongside recent disks and stock
   downloads. No-op in an installed build.
-- **feat(settings): per-sound drive-audio volume, stereo pan, and
-  audition.** The Machine settings page gains Motor / Head / Door volume
-  sliders, Drive 1 / Drive 2 stereo-pan sliders (Left / Center / Right),
-  and a play button beside each that auditions the sound at the
-  dialed-in level, plus a Restore-defaults button. Levels and pan persist
-  per machine and apply on OK; an un-applied audition is reverted on
-  Cancel.
 - **feat(dxui): automatic tab order for interactive widgets.** Buttons,
   checkboxes, radios, sliders, toggles, dropdowns, tabs, text inputs,
   search boxes, tree views, list views, and icon buttons now opt into the
@@ -85,8 +72,8 @@ spill past the window's edges instead of being clipped to it.
   on Direct2D / DirectWrite, decoupled from the emulator shell.
 - **refactor(render): host-owned swap chain.** The window host now owns
   the Direct3D swap chain and presents directly; the separate child
-  render-surface window is gone. This single-window-procedure
-  architecture is what lets the chrome host the new top-level popups.
+  render-surface window is gone, so a single window procedure owns all
+  painting and input.
 - **feat(ui): scroll long disk-image names on hover.** A mounted disk's
   basename that overflows the drive label used to truncate with an
   ellipsis; the label now scrolls the full name once when the drive is
