@@ -2731,6 +2731,19 @@ int EmulatorShell::RunMessageLoop()
             m_d3dRenderer.MarkRedrawNeeded();
         }
 
+        // While the modeless Settings sheet is open, force a present every UI
+        // frame so live Display edits (brightness / contrast / scanlines / text
+        // color) reflect in the emulator instantly. The retired SettingsWindow
+        // was rendered inline in this loop each frame, which coupled the
+        // emulator's present cadence to the settings edits; the standalone
+        // sheet decoupled it, so between framebuffer changes (e.g. a cursor
+        // blink) a CRT-param edit would otherwise wait for the next
+        // NeedsPresent trigger and appear laggy.
+        if (m_settingsSheet != nullptr)
+        {
+            m_d3dRenderer.MarkRedrawNeeded();
+        }
+
         // Drive the joystick-button tooltip dwell timer; it shows / hides
         // its popup once the open / close delay elapses after a hover.
         {
