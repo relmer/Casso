@@ -206,7 +206,7 @@ Casso.sln
 
 ## Architecture — Window / Panel Hierarchy (2026-07 framework reshape)
 
-*A major architectural evolution landed on this branch (commits `24f5a61` → `5c9ac3f`) after the original phased plan was drafted. It replaces the "consumer configures a `DxuiHostWindow` and implements `IDxuiHostClient`" model with a WPF-shaped element hierarchy. The rest of this plan still describes the phase-by-phase migration; this section is the current source of truth for the window / theming surface.*
+*A major architectural evolution landed on this branch (commits `5dd58cf` → `d5ef7bc`) after the original phased plan was drafted. It replaces the "consumer configures a `DxuiHostWindow` and implements `IDxuiHostClient`" model with a WPF-shaped element hierarchy. The rest of this plan still describes the phase-by-phase migration; this section is the current source of truth for the window / theming surface.*
 
 ### The WPF analogy
 
@@ -233,7 +233,7 @@ Contract sketch: [contracts/DxuiHwndSource.h.md](./contracts/DxuiHwndSource.h.md
 
 ### `DxuiHwndSource` — the HWND/swap-chain/pump backend (renamed from `DxuiHostWindow`)
 
-The type the earlier phases call `DxuiHostWindow` was **renamed `DxuiHwndSource`** (commit `5c9ac3f`) to make its WPF `HwndSource` role explicit: it is now framework-internal plumbing owned privately by `DxuiWindow`, not a type consumers stand up and populate. It keeps the full-ownership path (register class + `CreateWindowEx` + own device/swap-chain/pump), the adopt-mode path (`CreateInAdoptMode` + `HandleMessage` + `SetHitTestDelegate` — Phase 8), the host-owned caption (`captionStyle` / `SetTitle` / `SetCaptionIcon`), the popup pool, and all the NC/DPI/theme message handling described in Phase 7/8. New this reshape: `SetContentRootRef` (install a non-owning content root, used by `DxuiWindow`).
+The type the earlier phases call `DxuiHostWindow` was **renamed `DxuiHwndSource`** (commit `d5ef7bc`) to make its WPF `HwndSource` role explicit: it is now framework-internal plumbing owned privately by `DxuiWindow`, not a type consumers stand up and populate. It keeps the full-ownership path (register class + `CreateWindowEx` + own device/swap-chain/pump), the adopt-mode path (`CreateInAdoptMode` + `HandleMessage` + `SetHitTestDelegate` — Phase 8), the host-owned caption (`captionStyle` / `SetTitle` / `SetCaptionIcon`), the popup pool, and all the NC/DPI/theme message handling described in Phase 7/8. New this reshape: `SetContentRootRef` (install a non-owning content root, used by `DxuiWindow`).
 
 ### `DxuiPanel::CreateChild<T>(args…) -> T*` — the MFC/`CreateWindow`-style child factory
 
@@ -251,18 +251,18 @@ Text-bearing widgets now store a **semantic colour role** (`DxuiTextRole { Body,
 
 - Nothing caches a colour or a theme pointer, so a theme change / theme preview is *just a repaint* — every widget re-resolves.
 - `kDxuiDefaultFontSizeDip` is a sentinel meaning "resolve the theme's body font size at paint", so default typography lives only in the theme.
-- `DxuiTextInput` / `DxuiListView` / `DxuiDropdown` adopt the passed theme every paint (this eliminated the old `ApplyTheme` push path — commit `950574f`).
+- `DxuiTextInput` / `DxuiListView` / `DxuiDropdown` adopt the passed theme every paint (this eliminated the old `ApplyTheme` push path — commit `0fe6f94`).
 - Naming cleanups rode along: `DxuiButton` / `DxuiIconButton` `SetClick` → **`SetOnClick`**; `DxuiLabel` `SetHAlign` / `SetVAlign` → a single **`SetTextAlign(h, v)`**.
 - `DxuiLabel` is fully converted; `SetColorArgb` is retained **only** as a legacy opt-out (it pins an explicit colour and opts the label out of role resolution) for not-yet-migrated consumers.
 
 ### What this replaced / superseded
 
-- **`Casso/Ui/Chrome/ChromedPanelWindow.{h,cpp}` and `IChromedPanelContent.h` are DELETED** (commit `a0fbfe8`) — the Casso-specific own-HWND + adopt-mode chrome shell with its per-`WM_` content contract is fully superseded by `DxuiWindow` + `IDxuiHostClient`. This *completes the original T144* (the plan's "reduce `ChromedPanelWindow` to a thin shell" is realised as outright deletion).
-- **Both debug panels migrated onto `DxuiWindow`** (commits `24f5a61`, `e45e64c`): `Disk2DebugPanel` and `InputDebugPanel` now derive from `DxuiWindow` (were `DxuiPanel` + `IChromedPanelContent` + a `DxuiHwndSource`/`DxuiHostWindow` member). Content / layout / theme concerns are cleanly separated — static text in the `CreateChild` ctor, dynamic text in state-change handlers, geometry-only `Layout()`, colour via role resolution at paint. Their bespoke input fan-out overrides and integer focus model are gone, which is what actually satisfies SC-022 / SC-023 / SC-024 (see spec §Window element for the reconciliation).
-- **Dialog model reshaped — no `DxuiDialog`** (commits `944ce5b`→`a439d66`, `2be1e39`, `25df9a6`): `DxuiDialog` + `DxuiDialogManager` DELETED; a dialog is a `DxuiWindow` shown via **`ShowModalDialog(defaultId)` / `ShowModelessDialog(defaultId)`** (the modeless path drives live-preview sheets). `DxuiDialogWindow` factors the shared content + button-row shape. Supersedes FR-070/071/072. (spec FR-126.)
-- **`DxuiPropertySheet` / `DxuiPropertyPage`** (commit `0896657`): a generic paged dialog — tab strip + OK/Cancel/Apply row + per-page dirty flag + `OnApply` / `ApplyAllDirtyPages`, shown modeless for live preview. The framework generalization of Casso's hand-rolled `SettingsPanel`; not yet adopted by Casso. (spec FR-129.)
-- **Composited-transparent window mode + after-paint hook** (commit `68ae80c`): `DxuiHwndSource::CreateParams::composited` + `SetAfterPaintHook` let the emulator viewport composite through the host-owned swap chain — the realisation of the deferred T129 swap-chain flip (`CassoRenderSurface` deleted). (spec FR-130.)
-- **Radio / tooltip / popup DPI folded into `Layout(rect, scaler)`** (commit `c303c4a`): consumers no longer push an explicit `SetDpi` to these widgets. (spec FR-128.)
+- **`Casso/Ui/Chrome/ChromedPanelWindow.{h,cpp}` and `IChromedPanelContent.h` are DELETED** (commit `8782f05`) — the Casso-specific own-HWND + adopt-mode chrome shell with its per-`WM_` content contract is fully superseded by `DxuiWindow` + `IDxuiHostClient`. This *completes the original T144* (the plan's "reduce `ChromedPanelWindow` to a thin shell" is realised as outright deletion).
+- **Both debug panels migrated onto `DxuiWindow`** (commits `5dd58cf`, `2d834c4`): `Disk2DebugPanel` and `InputDebugPanel` now derive from `DxuiWindow` (were `DxuiPanel` + `IChromedPanelContent` + a `DxuiHwndSource`/`DxuiHostWindow` member). Content / layout / theme concerns are cleanly separated — static text in the `CreateChild` ctor, dynamic text in state-change handlers, geometry-only `Layout()`, colour via role resolution at paint. Their bespoke input fan-out overrides and integer focus model are gone, which is what actually satisfies SC-022 / SC-023 / SC-024 (see spec §Window element for the reconciliation).
+- **Dialog model reshaped — no `DxuiDialog`** (commits `8f24ad2`→`4cc444c`, `2d6f5be`, `f91c794`): `DxuiDialog` + `DxuiDialogManager` DELETED; a dialog is a `DxuiWindow` shown via **`ShowModalDialog(defaultId)` / `ShowModelessDialog(defaultId)`** (the modeless path drives live-preview sheets). `DxuiDialogWindow` factors the shared content + button-row shape. Supersedes FR-070/071/072. (spec FR-126.)
+- **`DxuiPropertySheet` / `DxuiPropertyPage`** (commit `d7f1032`): a generic paged dialog — tab strip + OK/Cancel/Apply row + per-page dirty flag + `OnApply` / `ApplyAllDirtyPages`, shown modeless for live preview. The framework generalization of Casso's hand-rolled `SettingsPanel`; not yet adopted by Casso. (spec FR-129.)
+- **Composited-transparent window mode + after-paint hook** (commit `a7ac0ac`): `DxuiHwndSource::CreateParams::composited` + `SetAfterPaintHook` let the emulator viewport composite through the host-owned swap chain — the realisation of the deferred T129 swap-chain flip (`CassoRenderSurface` deleted). (spec FR-130.)
+- **Radio / tooltip / popup DPI folded into `Layout(rect, scaler)`** (commit `90267cb`): consumers no longer push an explicit `SetDpi` to these widgets. (spec FR-128.)
 
 ### Still PENDING (planned, not yet implemented)
 
@@ -298,7 +298,7 @@ In /speckit.plan Phase 1 of this command, update `.github/copilot-instructions.m
 
 **Status legend**: ✅ complete · 🚧 in progress · ⏳ not started.
 
-> **Naming note (2026-07):** the phase bodies below were written before the framework reshape and refer to the host type as **`DxuiHostWindow`** (and to `Dxui/Win32/`). As of commit `5c9ac3f` that type is **`DxuiHwndSource`** and lives under `Dxui/Window/`; the consumer-facing top-level element is the new **`DxuiWindow : DxuiPanel`**. Read `DxuiHostWindow` → `DxuiHwndSource` (backend) throughout the historical phase text. See the Architecture section above.
+> **Naming note (2026-07):** the phase bodies below were written before the framework reshape and refer to the host type as **`DxuiHostWindow`** (and to `Dxui/Win32/`). As of commit `d5ef7bc` that type is **`DxuiHwndSource`** and lives under `Dxui/Window/`; the consumer-facing top-level element is the new **`DxuiWindow : DxuiPanel`**. Read `DxuiHostWindow` → `DxuiHwndSource` (backend) throughout the historical phase text. See the Architecture section above.
 
 Each phase ends with a green build (`scripts\Build.ps1` on x64+ARM64, Debug+Release), a passing test suite (`scripts\RunTests.ps1`), and a clean code-analysis run (`scripts\Build.ps1 -RunCodeAnalysis`). Phases are independently mergeable (Conventional Commits, scope `dxui`).
 

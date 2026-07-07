@@ -2,7 +2,7 @@
 
 > **SUPERSEDED / RENAMED (2026-07).** The original `DxuiDialog` + `DxuiDialogManager`
 > (`std::future<int> Show(...)`, `ShowParams{ modalScrim }`) documented by FR-070/071/072
-> were **deleted** (FR-126, commits `944ce5b`→`a439d66`). `Dxui/Dialog/` no longer exists.
+> were **deleted** (FR-126, commits `8f24ad2`→`4cc444c`). `Dxui/Dialog/` no longer exists.
 > A dialog is now a **`DxuiWindow`** shown via a modal (or modeless) message loop. This
 > file documents the surviving API; the historical struct is kept at the bottom for reference.
 

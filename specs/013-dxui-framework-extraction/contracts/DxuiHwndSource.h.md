@@ -1,6 +1,6 @@
 # Contract: `DxuiHwndSource` (+ `DxuiWindow`)
 
-> **Renamed 2026-07 (commit `5c9ac3f`)**: the type originally sketched here as
+> **Renamed 2026-07 (commit `d5ef7bc`)**: the type originally sketched here as
 > `DxuiHostWindow` is now **`DxuiHwndSource`**, mirroring WPF's `HwndSource` — the
 > HWND / swap-chain / message-pump backend. It is no longer the consumer-facing
 > top-level type. Consumers derive from the new **`DxuiWindow : DxuiPanel`**

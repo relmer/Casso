@@ -174,7 +174,7 @@ guessed at.
 - DlgProc support explicitly NOT shipping in Dxui — see specs/013
   Clarifications. MatrixRain dialogs become DxuiPropertySheet / DxuiDialog
   (WndProc-based), not Win32 dialogs.
-- IDxuiHostClient interface stabilized in specs/013 (commit 411db4f):
+- IDxuiHostClient interface stabilized in specs/013 (commit ab5b70f):
   DxuiMessageResult enum for trivial returns; LRESULT for rich-return
   messages (OnCreate, OnNcHitTest, OnCtlColorStatic, OnDrawItem). Polarity
   matches Win32/WPF/MFC (Handled = consumer took it; NotHandled = host
