@@ -45,6 +45,7 @@ static const std::set<std::string>  s_kKnownTopLevel = {
     "colorMonitorTextMode",
     "colorMonitorTextCustom",
     "recentDisks",
+    "recentDiskLoadedAt",
     "crt",
     "window"
 };
@@ -492,6 +493,35 @@ JsonValue GlobalUserPrefs::RecentDisksToJson (const std::vector<std::string> & r
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  GlobalUserPrefs::RecentDiskTimesToJson
+//
+//  Serialize the parallel recent-disk load-time list as a JSON array of
+//  Unix-second numbers. Stored as JSON numbers (double-backed, exact for
+//  any realistic Unix second count).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+JsonValue GlobalUserPrefs::RecentDiskTimesToJson (const std::vector<std::int64_t> & loadedAtUnix)
+{
+    std::vector<JsonValue>  timesArr;
+
+
+
+    timesArr.reserve (loadedAtUnix.size());
+    for (std::int64_t when : loadedAtUnix)
+    {
+        timesArr.emplace_back (JsonValue ((double) when));
+    }
+
+    return JsonValue (std::move (timesArr));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  GlobalUserPrefs::CrtModeFromJson
 //
 //  Parse one monitor's CRT block, table-driven and clamping each numeric
@@ -629,6 +659,43 @@ void GlobalUserPrefs::RecentDisksFromJson (
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  GlobalUserPrefs::RecentDiskTimesFromJson
+//
+//  Parse the parallel recent-disk load-time array, keeping numeric
+//  entries as Unix seconds and substituting 0 (unknown) for any
+//  non-numeric element so the array stays index-aligned with recentDisks.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void GlobalUserPrefs::RecentDiskTimesFromJson (
+    const JsonValue           & loadedArr,
+    std::vector<std::int64_t> & loadedAtUnix)
+{
+    size_t  ti = 0;
+
+
+
+    loadedAtUnix.reserve (loadedArr.ArraySize());
+    for (ti = 0; ti < loadedArr.ArraySize(); ti++)
+    {
+        const JsonValue &  entry = loadedArr.ArrayAt (ti);
+        std::int64_t       when  = 0;
+
+        if (entry.GetType() == JsonType::Number)
+        {
+            when = (std::int64_t) entry.GetNumber();
+        }
+
+        loadedAtUnix.push_back (when);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  GlobalUserPrefs::FilePath
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -648,6 +715,23 @@ std::wstring GlobalUserPrefs::FilePath (const std::wstring & baseDir)
     result += L"UserPrefs.json";
 
     return result;
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GlobalUserPrefs::ResetColorMonitorTextToDefault
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void GlobalUserPrefs::ResetColorMonitorTextToDefault ()
+{
+    // White is the shipped default (matches the field initialiser). Leave
+    // colorMonitorTextCustomArgb untouched so re-picking "Custom" restores
+    // the user's last colour.
+    colorMonitorTextMode = ColorMonitorTextMode::White;
 }
 
 
@@ -831,6 +915,7 @@ JsonValue GlobalUserPrefs::ToJson() const
     // recentDisks: most-recent-first absolute paths, cap enforced by
     // DiskMru itself before we get here.
     root.emplace_back ("recentDisks", RecentDisksToJson (recentDisks));
+    root.emplace_back ("recentDiskLoadedAt", RecentDiskTimesToJson (recentDiskLoadedAt));
 
     // Round-trip unknown keys verbatim.
     for (const auto & kv : unknownPassthrough)
@@ -858,6 +943,7 @@ HRESULT GlobalUserPrefs::FromJson (const JsonValue & v)
     const JsonValue *   windowSub     = nullptr;
     const JsonValue *   placementsObj = nullptr;
     const JsonValue *   recentArr     = nullptr;
+    const JsonValue *   loadedArr     = nullptr;
     std::string         inputModeStr;
     std::string         textModeStr;
     bool                legacyArrows  = false;
@@ -927,6 +1013,14 @@ HRESULT GlobalUserPrefs::FromJson (const JsonValue & v)
     if (SUCCEEDED (v.GetArray ("recentDisks", recentArr)) && recentArr != nullptr)
     {
         RecentDisksFromJson (*recentArr, recentDisks);
+    }
+
+    // recentDiskLoadedAt: parallel Unix-second load times. Absent in a
+    // legacy prefs file, leaving every recent disk with an unknown time.
+    recentDiskLoadedAt.clear();
+    if (SUCCEEDED (v.GetArray ("recentDiskLoadedAt", loadedArr)) && loadedArr != nullptr)
+    {
+        RecentDiskTimesFromJson (*loadedArr, recentDiskLoadedAt);
     }
 
     // Capture unknown top-level keys for round-tripping.

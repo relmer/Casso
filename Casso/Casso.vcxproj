@@ -110,11 +110,11 @@
       <LanguageStandard>stdcpplatest</LanguageStandard>
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderFile>Pch.h</PrecompiledHeaderFile>
-      <AdditionalIncludeDirectories>.;..\CassoEmuCore;..\CassoCore;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>.;.\Ui\Chrome;..\CassoEmuCore;..\CassoCore;..\Dxui;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
-      <AdditionalDependencies>d3d11.lib;dxgi.lib;ole32.lib;winhttp.lib;comctl32.lib;uxtheme.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>ole32.lib;winhttp.lib;comctl32.lib;uxtheme.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
@@ -128,13 +128,13 @@
       <LanguageStandard>stdcpplatest</LanguageStandard>
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderFile>Pch.h</PrecompiledHeaderFile>
-      <AdditionalIncludeDirectories>.;..\CassoEmuCore;..\CassoCore;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>.;.\Ui\Chrome;..\CassoEmuCore;..\CassoCore;..\Dxui;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
-      <AdditionalDependencies>d3d11.lib;dxgi.lib;ole32.lib;winhttp.lib;comctl32.lib;uxtheme.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>ole32.lib;winhttp.lib;comctl32.lib;uxtheme.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
@@ -146,11 +146,11 @@
       <LanguageStandard>stdcpplatest</LanguageStandard>
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderFile>Pch.h</PrecompiledHeaderFile>
-      <AdditionalIncludeDirectories>.;..\CassoEmuCore;..\CassoCore;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>.;.\Ui\Chrome;..\CassoEmuCore;..\CassoCore;..\Dxui;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
-      <AdditionalDependencies>d3d11.lib;dxgi.lib;ole32.lib;winhttp.lib;comctl32.lib;uxtheme.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>ole32.lib;winhttp.lib;comctl32.lib;uxtheme.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -164,13 +164,13 @@
       <LanguageStandard>stdcpplatest</LanguageStandard>
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderFile>Pch.h</PrecompiledHeaderFile>
-      <AdditionalIncludeDirectories>.;..\CassoEmuCore;..\CassoCore;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>.;.\Ui\Chrome;..\CassoEmuCore;..\CassoCore;..\Dxui;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
-      <AdditionalDependencies>d3d11.lib;dxgi.lib;ole32.lib;winhttp.lib;comctl32.lib;uxtheme.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>ole32.lib;winhttp.lib;comctl32.lib;uxtheme.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|ARM64'">
@@ -182,11 +182,11 @@
       <LanguageStandard>stdcpplatest</LanguageStandard>
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderFile>Pch.h</PrecompiledHeaderFile>
-      <AdditionalIncludeDirectories>.;..\CassoEmuCore;..\CassoCore;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>.;.\Ui\Chrome;..\CassoEmuCore;..\CassoCore;..\Dxui;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
-      <AdditionalDependencies>d3d11.lib;dxgi.lib;ole32.lib;winhttp.lib;comctl32.lib;uxtheme.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>ole32.lib;winhttp.lib;comctl32.lib;uxtheme.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|ARM64'">
@@ -200,19 +200,14 @@
       <LanguageStandard>stdcpplatest</LanguageStandard>
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderFile>Pch.h</PrecompiledHeaderFile>
-      <AdditionalIncludeDirectories>.;..\CassoEmuCore;..\CassoCore;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>.;.\Ui\Chrome;..\CassoEmuCore;..\CassoCore;..\Dxui;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
-      <AdditionalDependencies>d3d11.lib;dxgi.lib;ole32.lib;winhttp.lib;comctl32.lib;uxtheme.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>ole32.lib;winhttp.lib;comctl32.lib;uxtheme.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
-  </ItemDefinitionGroup>
-  <ItemDefinitionGroup>
-    <PreBuildEvent>
-      <Command>powershell -ExecutionPolicy Bypass -File "$(SolutionDir)scripts\IncrementVersion.ps1"</Command>
-    </PreBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="Pch.cpp">
@@ -228,7 +223,6 @@
     <ClCompile Include="D3DRenderer.cpp" />
     <ClCompile Include="CrtPostProcess.cpp" />
     <ClCompile Include="PerfStats.cpp" />
-    <ClCompile Include="Window.cpp" />
     <ClCompile Include="EmulatorShell.cpp" />
     <ClCompile Include="DiskSettings.cpp" />
     <ClCompile Include="AssetBootstrap.cpp" />
@@ -236,43 +230,25 @@
     <ClCompile Include="Config\WindowPlacementProfile.cpp" />
     <ClCompile Include="Config\UserConfigStore.cpp" />
     <ClCompile Include="Config\GlobalUserPrefs.cpp" />
-    <ClCompile Include="Ui\TitleBarHitTest.cpp" />
-    <ClCompile Include="Ui\Chrome\TitleBar.cpp" />
-    <ClCompile Include="Ui\Chrome\ChromedPanelWindow.cpp" />
-    <ClCompile Include="Ui\Chrome\NavLayer.cpp" />
-    <ClCompile Include="Ui\Chrome\LayoutManager.cpp" />
-    <ClCompile Include="Ui\Win11DwmHelpers.cpp" />
-    <ClCompile Include="Ui\WindowsThemeColors.cpp" />
+    <ClCompile Include="Ui\Chrome\MainMenu.cpp" />
     <ClCompile Include="Ui\ThemeLoader.cpp" />
     <ClCompile Include="Ui\ThemeManager.cpp" />
     <ClCompile Include="Ui\Chrome\DriveWidget.cpp" />
     <ClCompile Include="Ui\Chrome\JoystickToggleButton.cpp" />
     <ClCompile Include="Ui\Chrome\LedIndicator.cpp" />
     <ClCompile Include="Ui\DriveWidgetController.cpp" />
-    <ClCompile Include="Ui\DragDropTarget.cpp" />
-    <ClCompile Include="Ui\Widgets\Button.cpp" />
-    <ClCompile Include="Ui\Widgets\Checkbox.cpp" />
-    <ClCompile Include="Ui\Widgets\Toggle.cpp" />
-    <ClCompile Include="Ui\Widgets\Dropdown.cpp" />
-    <ClCompile Include="Ui\Widgets\ListView.cpp" />
-    <ClCompile Include="Ui\Widgets\ModalScrim.cpp" />
-    <ClCompile Include="Ui\Widgets\Radio.cpp" />
-    <ClCompile Include="Ui\Widgets\Slider.cpp" />
-    <ClCompile Include="Ui\Widgets\IconButton.cpp" />
-    <ClCompile Include="Ui\Widgets\TabStrip.cpp" />
-    <ClCompile Include="Ui\Widgets\TextInput.cpp" />
-    <ClCompile Include="Ui\Widgets\Tooltip.cpp" />
-    <ClCompile Include="Ui\Widgets\PopupMenu.cpp" />
-    <ClCompile Include="Ui\Widgets\TreeView.cpp" />
     <ClCompile Include="Ui\AutoMountResolver.cpp" />
     <ClCompile Include="Ui\Settings\ColorPickerOverlay.cpp" />
     <ClCompile Include="Ui\Settings\DisplayPage.cpp" />
     <ClCompile Include="Ui\Settings\HardwarePage.cpp" />
-    <ClCompile Include="Ui\Settings\MachinePage.cpp" />
-    <ClCompile Include="Ui\Settings\SettingsPanel.cpp" />
+    <ClCompile Include="Ui\Settings\DiskPage.cpp" />
+    <ClCompile Include="Ui\Settings\SettingsApplyController.cpp" />
+    <ClCompile Include="Ui\Settings\SettingsDisplayCrtBridge.cpp" />
+    <ClCompile Include="Ui\Settings\SettingsCompositor.cpp" />
+    <ClCompile Include="Ui\Settings\SettingsMachineCatalog.cpp" />
+    <ClCompile Include="Ui\Settings\SettingsSheet.cpp" />
     <ClCompile Include="Ui\Settings\SettingsPanelState.cpp" />
-    <ClCompile Include="Ui\Settings\SettingsWindow.cpp" />
-    <ClCompile Include="Ui\Settings\SettingsWindowRenderer.cpp" />
+    <ClCompile Include="Ui\Settings\SettingsPreviewController.cpp" />
     <ClCompile Include="Ui\Settings\ThemePage.cpp" />
     <ClCompile Include="Shell\ClipboardManager.cpp" />
     <ClCompile Include="Shell\CpuManager.cpp" />
@@ -281,20 +257,11 @@
     <ClCompile Include="Shell\WindowCommandManager.cpp" />
     <ClCompile Include="Shell\WindowManager.cpp" />
     <ClCompile Include="Ui\UiShell.cpp" />
-    <ClCompile Include="Ui\DxUiPainter.cpp" />
     <ClCompile Include="Ui\ColorUtil.cpp" />
-    <ClCompile Include="Ui\DwriteTextRenderer.cpp" />
-    <ClCompile Include="Ui\UiInput.cpp" />
-    <ClCompile Include="Ui\HitTester.cpp" />
-    <ClCompile Include="Ui\FocusManager.cpp" />
-    <ClCompile Include="Ui\Layout.cpp" />
-    <ClCompile Include="Ui\Animation.cpp" />
     <ClCompile Include="Ui\Chrome\DriveLabelTruncation.cpp" />
-    <ClCompile Include="Ui\Dialog\DialogLayout.cpp" />
-    <ClCompile Include="Ui\Dialog\DialogPrimitive.cpp" />
-    <ClCompile Include="Ui\Dialog\DialogPrimitiveRenderer.cpp" />
-    <ClCompile Include="Ui\Dialog\StandaloneDialog.cpp" />
-    <ClCompile Include="Ui\Dialog\StartupDownloadDialog.cpp" />
+    <ClCompile Include="Ui\Dialogs\DialogBodyContent.cpp" />
+    <ClCompile Include="Ui\Dialogs\MessageDialog.cpp" />
+    <ClCompile Include="Ui\Dialogs\StartupDownloadDialog.cpp" />
     <ClCompile Include="Shell\DiskMru.cpp" />
     <ClCompile Include="TrackSectorPredicate.cpp" />
     <ClCompile Include="DebugDialogProjection.cpp" />
@@ -312,7 +279,6 @@
     <ClInclude Include="CrtPostProcess.h" />
     <ClInclude Include="PerfStats.h" />
     <ClInclude Include="UiCommandTypes.h" />
-    <ClInclude Include="Window.h" />
     <ClInclude Include="EmulatorShell.h" />
     <ClInclude Include="Disk2EventDisplay.h" />
     <ClInclude Include="InputEventDisplay.h" />
@@ -323,57 +289,35 @@
     <ClInclude Include="Config\WindowPlacementProfile.h" />
     <ClInclude Include="Config\UserConfigStore.h" />
     <ClInclude Include="Config\GlobalUserPrefs.h" />
-    <ClInclude Include="Ui\TitleBarHitTest.h" />
     <ClInclude Include="Ui\Chrome\ChromeMetrics.h" />
     <ClInclude Include="Ui\Chrome\DriveLabelTruncation.h" />
-    <ClInclude Include="Ui\Dialog\DialogDefinition.h" />
-    <ClInclude Include="Ui\Dialog\DialogLayout.h" />
-    <ClInclude Include="Ui\Dialog\DialogPrimitive.h" />
-    <ClInclude Include="Ui\Dialog\DialogPrimitiveRenderer.h" />
-    <ClInclude Include="Ui\Dialog\StandaloneDialog.h" />
-    <ClInclude Include="Ui\Dialog\StartupDownloadDialog.h" />
+    <ClInclude Include="Ui\Dialogs\DialogDefinition.h" />
+    <ClInclude Include="Ui\Dialogs\DialogBodyContent.h" />
+    <ClInclude Include="Ui\Dialogs\MessageDialog.h" />
+    <ClInclude Include="Ui\Dialogs\StartupDownloadDialog.h" />
     <ClInclude Include="Shell\DiskMru.h" />
-    <ClInclude Include="Ui\Chrome\LayoutManager.h" />
-    <ClInclude Include="Ui\Chrome\TitleBar.h" />
-    <ClInclude Include="Ui\Chrome\ChromedPanelWindow.h" />
-    <ClInclude Include="Ui\Chrome\IChromedPanelContent.h" />
-    <ClInclude Include="Ui\Chrome\NavLayer.h" />
-    <ClInclude Include="Ui\Win11DwmHelpers.h" />
-    <ClInclude Include="Ui\WindowsThemeColors.h" />
+    <ClInclude Include="Ui\Chrome\MainMenu.h" />
     <ClInclude Include="Ui\ThemeLoader.h" />
     <ClInclude Include="Ui\ThemeManager.h" />
-    <ClInclude Include="Ui\Chrome\ChromeTheme.h" />
+    <ClInclude Include="Ui\Chrome\CassoTheme.h" />
     <ClInclude Include="Ui\Chrome\DriveWidget.h" />
     <ClInclude Include="Ui\Chrome\JoystickToggleButton.h" />
     <ClInclude Include="Ui\Chrome\LedIndicator.h" />
     <ClInclude Include="Ui\DriveWidgetState.h" />
     <ClInclude Include="Ui\DriveWidgetController.h" />
-    <ClInclude Include="Ui\DragDropTarget.h" />
-    <ClInclude Include="Ui\Widgets\Button.h" />
-    <ClInclude Include="Ui\Widgets\Checkbox.h" />
-    <ClInclude Include="Ui\Widgets\Toggle.h" />
-    <ClInclude Include="Ui\Widgets\Dropdown.h" />
-    <ClInclude Include="Ui\Widgets\Label.h" />
-    <ClInclude Include="Ui\Widgets\ListView.h" />
-    <ClInclude Include="Ui\Widgets\ModalScrim.h" />
-    <ClInclude Include="Ui\Widgets\Radio.h" />
-    <ClInclude Include="Ui\Widgets\Slider.h" />
-    <ClInclude Include="Ui\Widgets\IconButton.h" />
-    <ClInclude Include="Ui\Widgets\TabStrip.h" />
-    <ClInclude Include="Ui\Widgets\TextInput.h" />
-    <ClInclude Include="Ui\Widgets\Tooltip.h" />
-    <ClInclude Include="Ui\Widgets\PopupMenu.h" />
-    <ClInclude Include="Ui\Widgets\TreeView.h" />
     <ClInclude Include="Ui\IDriveCommandSink.h" />
     <ClInclude Include="Ui\AutoMountResolver.h" />
     <ClInclude Include="Ui\Settings\ColorPickerOverlay.h" />
     <ClInclude Include="Ui\Settings\DisplayPage.h" />
     <ClInclude Include="Ui\Settings\HardwarePage.h" />
-    <ClInclude Include="Ui\Settings\MachinePage.h" />
-    <ClInclude Include="Ui\Settings\SettingsPanel.h" />
+    <ClInclude Include="Ui\Settings\DiskPage.h" />
+    <ClInclude Include="Ui\Settings\SettingsApplyController.h" />
+    <ClInclude Include="Ui\Settings\SettingsDisplayCrtBridge.h" />
+    <ClInclude Include="Ui\Settings\SettingsMachineCatalog.h" />
+    <ClInclude Include="Ui\Settings\SettingsCompositor.h" />
+    <ClInclude Include="Ui\Settings\SettingsSheet.h" />
     <ClInclude Include="Ui\Settings\SettingsPanelState.h" />
-    <ClInclude Include="Ui\Settings\SettingsWindow.h" />
-    <ClInclude Include="Ui\Settings\SettingsWindowRenderer.h" />
+    <ClInclude Include="Ui\Settings\SettingsPreviewController.h" />
     <ClInclude Include="Ui\Settings\ThemePage.h" />
     <ClInclude Include="Shell\ClipboardManager.h" />
     <ClInclude Include="Shell\CpuManager.h" />
@@ -382,15 +326,7 @@
     <ClInclude Include="Shell\WindowCommandManager.h" />
     <ClInclude Include="Shell\WindowManager.h" />
     <ClInclude Include="Ui\UiShell.h" />
-    <ClInclude Include="Ui\DxUiPainter.h" />
     <ClInclude Include="Ui\ColorUtil.h" />
-    <ClInclude Include="Ui\DwriteTextRenderer.h" />
-    <ClInclude Include="Ui\UiInput.h" />
-    <ClInclude Include="Ui\HitTester.h" />
-    <ClInclude Include="Ui\FocusManager.h" />
-    <ClInclude Include="Ui\Layout.h" />
-    <ClInclude Include="Ui\DpiScaler.h" />
-    <ClInclude Include="Ui\Animation.h" />
     <ClInclude Include="TrackSectorPredicate.h" />
     <ClInclude Include="DebugDialogProjection.h" />
     <ClInclude Include="Disk2DebugDialogState.h" />
@@ -400,7 +336,6 @@
     <ClInclude Include="Ui\Disk2DebugPanelLayout.h" />
     <ClInclude Include="Ui\InputDebugPanelLayout.h" />
     <ClInclude Include="RichEditSquiggle.h" />
-    <ClInclude Include="UnicodeSymbols.h" />
     <ClInclude Include="WasapiAudio.h" />
     <ClInclude Include="resource.h" />
     <ClInclude Include="Shaders\ShaderResourceIds.h" />
@@ -433,6 +368,9 @@
     </ProjectReference>
     <ProjectReference Include="..\CassoEmuCore\CassoEmuCore.vcxproj">
       <Project>{A1B2C3D4-E5F6-4A7B-8C9D-0E1F2A3B4C5D}</Project>
+    </ProjectReference>
+    <ProjectReference Include="..\Dxui\Dxui.vcxproj">
+      <Project>{C981717F-FA2A-4AEA-9AE6-FA36152C38E5}</Project>
     </ProjectReference>
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

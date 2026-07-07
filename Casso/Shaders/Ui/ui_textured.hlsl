@@ -6,7 +6,7 @@
 // per-draw color tint (set to white for an untinted blit).
 //
 // Source of truth for the build; the production renderer compiles the
-// equivalent inline string in DxUiPainter.cpp.
+// equivalent inline string in DxuiPainter.cpp.
 
 Texture2D    g_tex : register(t0);
 SamplerState g_sam : register(s0);

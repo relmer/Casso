@@ -8,9 +8,9 @@
 
 ## About
 
-Casso is a retro / classic-machine platform emulator and from-scratch AS65-compatible 6502 assembler, written in C++. Today the platform emulator targets the Apple II family (][, ][ plus, //e); the abstractions are generic enough to host other 6502-based machines later.
+Casso is a retro / classic-machine platform emulator and from-scratch AS65-compatible 6502 assembler, written in C++. Today the platform emulator targets the Apple II family (][, ][+, //e); the abstractions are generic enough to host other 6502-based machines later.
 
-Two of the three built-in themes — Skeuomorphic and Dark Modern — booting the [casso-rocks demo disk](Apple2/Demos); same Apple //e core, different chrome:
+Two of the three built-in themes booting the [casso-rocks demo disk](Apple2/Demos) — same Apple //e core, different chrome:
 
 <table align="center" width="100%"><tr>
   <td valign="top" width="50%"><img src="Assets/theme-skeuomorphic-dhgr.png" alt="Casso Skeuomorphic theme booting the casso-rocks DHGR demo" width="100%" /></td>
@@ -19,57 +19,31 @@ Two of the three built-in themes — Skeuomorphic and Dark Modern — booting th
 
 The project includes:
 
-- **Apple II platform emulator** — GUI-based Apple ][, ][ plus, and //e emulator with D3D11 rendering, WASAPI audio, Disk II controller with realistic mechanical sounds, analog game I/O (joystick/paddle via the PREAD timer), data-driven machine configs, 80-column text + Double Hi-Res, auxiliary RAM, audit-correct Language Card state machine, and cycle-accurate IRQ/NMI infrastructure.
+- **Apple II platform emulator** — GUI-based Apple II, II+, and //e emulator with D3D11 rendering, WASAPI audio, Disk II controller with realistic mechanical sounds, analog game I/O (joystick/paddle via the PREAD timer), data-driven machine configs, 80-column text + Double Hi-Res, auxiliary RAM, audit-correct Language Card state machine, and cycle-accurate IRQ/NMI infrastructure.
 - **6502 CPU emulator** — passes [Klaus Dormann's functional test suite](https://github.com/Klaus2m5/6502_65C02_functional_tests) and all 151 legal-opcode sets from [Tom Harte's SingleStepTests](https://github.com/SingleStepTests/ProcessorTests) (10,000 vectors each).
 - **AS65-compatible assembler** — a from-scratch reimplementation of Frank A. Kingswood's AS65, intended as a drop-in replacement. Supports the complete AS65 syntax: macros, conditional assembly (`if`/`ifdef`/`ifndef`/`else`/`endif`), the full expression evaluator (arithmetic, bitwise, logical, shift, `<`/`>` byte selectors, current-PC `*`), `equ`/`=` constants, `include`, three-segment model (`code`/`data`/`bss`), AS65-style listing output, and AS65 command-line flags (`-l`, `-t`, `-s`, `-s2`, `-z`, `-c`, `-w`, `-d`, `-g`, ...) including flag concatenation (`-tlfile`).
 - **CLI tool** — runs as an AS65-style assembler by default, or with the `run` subcommand to load and execute a binary or assembly source.
 - **First-run asset bootstrap** — Casso fetches the ROMs, sample disks, and Disk II audio samples it needs on first launch (with user consent), so a fresh `Casso.exe` boots to a usable //e BASIC prompt with no manual setup.
 - **Headless test harness** — `HeadlessHost` drives the emulator with no Win32 window, enabling deterministic integration tests for cold boot, disk boot, video framebuffer hashing, and reset semantics.
-- **Comprehensive unit tests** — coverage of CPU instruction encoding, addressing modes, arithmetic, branching, assembler features, audio pipeline (speaker + drive), //e MMU + Language Card, video timing, Disk II nibble engine, WOZ + nibblized image formats, 80-col + DHGR video, reset semantics, perf budget, and backwards-compat for ][ and ][ plus machines.
+- **1900+ unit tests** — comprehensive coverage of CPU instruction encoding, addressing modes, arithmetic, branching, assembler features, audio pipeline (speaker + drive), //e MMU + Language Card, video timing, Disk II nibble engine, WOZ + nibblized image formats, 80-col + DHGR video, reset semantics, perf budget, and backwards-compat for ][ and ][ plus machines.
 
 ## What's New
 
 See [CHANGELOG.md](CHANGELOG.md) for the granular history.
 
-### Drive-audio mixer controls (v1.5.1566)
+### Occluding popups + Dxui chrome framework (v1.6.0)
 
-The disk-drive sounds are now a small mixer in **Settings → Machine**:
-per-sound volume sliders (Motor / Head / Door) plus an independent
-Left…Center…Right pan slider for each drive, so Drive 1 and Drive 2 can sit
-anywhere across the stereo field. A play button beside every control
-auditions that sound live at the dialed level, and **Reset** restores the
-defaults. The Alps mechanism — which ships no door recording — now falls
-back to the Shugart door sound instead of going silent, and a machine set
-to Alps finally boots playing Alps (a case-mismatch had it silently
-reverting to the Shugart default until you re-applied the setting).
-
-Rounding out the release: a **custom Color-monitor text color** picked from
-an in-panel HSV picker (live swatch + copy-to-clipboard hex field); the
-settings text fields rebuilt as proper Windows-style edit controls
-(blinking caret, arrow / Ctrl+arrow / Home / End movement, shift-selection,
-mouse drag and double-click word select, clipboard cut / copy / paste); and
-every settings widget — sliders, toggles, dropdowns, tabs, buttons — now
-drawn in the active theme's palette (green under Retro Terminal rather than
-a fixed blue), with slider and toggle contrast tuned for legibility.
-
-### Apple ][ and ][ plus game port (v1.5.1555)
-
-The original Apple ][ and ][ plus now emulate the game-I/O strip — analog paddles
-(`$C064`–`$C067`), pushbuttons (`$C061`–`$C063`), and the PTRIG strobe
-(`$C070`) — so paddle and joystick games like *Space Quarks* (Brøderbund,
-1981) are playable on those machines, not just the //e. The same **Map
-Arrows to Joystick** mode drives it from the keyboard (arrows → paddle,
-**X** / **Z** → fire buttons), using the hardware-faithful 558 one-shot
-paddle timer.
-
-Alongside it, two correctness fixes surfaced while getting *Space Quarks*
-running: inverse text on the ][ and ][ plus (e.g. highlighted menu items) was
-rendering identically to normal text — a 2 KB character-ROM decode bug — and
-non-ASCII disk filenames (the *ø* in "Brøderbund") were corrupted through the
-path pipeline, dropping the disk from the boot picker and showing a tofu box
-in the drive label. Both are fixed. A new `--trace` switch records the last N
-executed instructions (default 20M) and dumps a full PC/opcode/register trace
-to a file on exit or crash for debugging stubborn boots.
+Casso's window chrome was lifted out of the emulator shell into a
+standalone, reusable **Dxui** library (Direct2D / DirectWrite), and the
+window host now owns the Direct3D swap chain directly. The visible payoff:
+the main menu's submenus, the Settings dropdowns, the debug-panel column
+menus, and the hover tooltips now open as real top-level windows, so they
+paint over the emulator and spill past the window's edges instead of being
+clipped to it — flipping upward when there isn't room below. The menu bar
+keeps click-to-open, hover-to-switch, and full keyboard navigation
+(Alt-letter, arrows, Esc). The Disk II / Input debug panels now also
+auto-fit their list columns to content, so large cycle counts no longer
+wrap.
 
 ### Game-input revamp (v1.5.1523)
 
@@ -124,7 +98,7 @@ Casso's entire chrome moved from the legacy Win32 menu bar / Win32 dialogs to a 
 
 <p align="center"><img src="Assets/feat-drive-widgets.png" alt="Skeuomorphic drive widgets: Drive 1 active with red IN USE LED, Drive 2 idle" width="540" /></p>
 
-**Consolidated Settings panel** replaces the old `OptionsDialog` and `MachinePickerDialog`. Machine selection, machine info, emulation speed, video color mode, disk write mode, floppy sound + mechanism, write-protect, theme picker, the new CRT controls, and a custom Color-monitor text-color picker (a themed HSV picker with a copy-to-clipboard hex field) live in one non-modal in-window panel with full keyboard navigation.
+**Consolidated Settings panel** replaces the old `OptionsDialog` and `MachinePickerDialog`. Machine selection, machine info, emulation speed, video color mode, disk write mode, floppy sound + mechanism (with per-sound Motor / Head / Door volume, per-drive stereo pan, and play-button audition), write-protect, theme picker, and the new CRT controls live in one non-modal in-window panel with full keyboard navigation.
 
 <p align="center"><img src="Assets/feat-settings.png" alt="Settings panel — Machine tab with machine, CPU speed, write protect, write mode, and drive audio controls" width="540" /></p>
 
@@ -141,10 +115,9 @@ Casso's entire chrome moved from the legacy Win32 menu bar / Win32 dialogs to a 
 Realistic mechanical sounds during disk activity, mixed into the WASAPI pipeline alongside the //e speaker:
 
 - Stereo motor hum, head-step clicks, track-0 / max-track bumps, and disk insert / eject sounds.
-- Per-drive equal-power stereo panning, adjustable per drive from a Left…Center…Right slider (defaults: Drive 1 leans left, Drive 2 leans right), so the two drives sit on opposite sides of the stereo image.
-- Per-sound volume sliders (Motor / Head / Door, defaulting to 90 / 100 / 100 %), with a play button beside each volume and pan control to audition that sound live at the dialed level, plus a Reset button that restores the audio defaults.
+- Per-drive equal-power stereo panning: single-drive profiles play centered; in two-drive profiles Drive 1 leans left, Drive 2 leans right.
 - Step-vs-seek discrimination: contiguous step bursts during DOS RWTS recalibration fuse into a continuous seek buzz instead of N overlapping clicks.
-- The **Settings → Machine** tab carries the Drive Audio toggle (default on), the Disk II mechanism choice (Shugart SA400 by default, or Alps 2124A), and the volume / pan / audition controls; all persist per-machine in `UserPrefs.json`. The Alps mechanism ships no door sample, so its door sound falls back to the Shugart recording.
+- *View → Options...* dialog with a Drive Audio toggle (default on) and a Disk II mechanism dropdown (Shugart SA400 by default, or Alps 2124A). Both persist per-machine via the registry.
 - First-run consent dialog downloads the actual recordings from the [OpenEmulator](https://github.com/openemulator/libemulation) project; OGGs are decoded in memory via vendored `stb_vorbis` and written as WAV (no `.ogg` retained on disk). Asked once per machine, persisted thereafter.
 - Generic `IDriveAudioSink` / `IDriveAudioSource` / `DriveAudioMixer` abstraction so future drive types (//c internal 5.25, DuoDisk, Apple 5.25 Drive, ProFile, ...) plug in without touching the mixer.
 
@@ -154,9 +127,10 @@ Realistic mechanical sounds during disk activity, mixed into the WASAPI pipeline
 Casso.sln
 ├── CassoCore/     Static library — CPU emulator, assembler, parser, opcode table
 ├── CassoEmuCore/  Static library — Apple II devices, video modes, audio generator + drive-audio mixer
+├── Dxui/          Static library — reusable Direct2D/DirectWrite UI framework (host window, panels, layouts, widgets, menu bar, popup host, dialogs)
 ├── Casso/         Win32 application — Apple II platform emulator (D3D11, WASAPI, Disk II audio)
 ├── CassoCli/      Console application — AS65-compatible assembler CLI with `run` subcommand
-└── UnitTest/      Test DLL — Microsoft Native CppUnitTest
+└── UnitTest/      Test DLL — Microsoft Native CppUnitTest (1900+ tests)
 ```
 
 ## Requirements
@@ -232,18 +206,11 @@ distributed with this project. A script is included to download them from the
 # Download ROM images into the per-machine Machines/<Name>/ folders
 .\scripts\FetchRoms.ps1
 
-# Run the emulator (defaults to Apple ][ plus)
+# Run the emulator (defaults to Apple II+)
 Casso
 
 # Run with a specific machine config
 Casso --machine Apple2e
-
-# Boot straight into a disk image (.woz / .dsk / .do / .po)
-Casso --machine Apple2Plus --disk1 "Apple2\Demos\Karateka.woz"
-
-# Capture an execution trace (default 20M instructions; accepts 20M / 2G)
-# Dumped to casso-trace-<timestamp>.txt in the working dir on exit or crash
-Casso --trace --disk1 game.woz
 ```
 
 ROM images live under `Machines/<MachineName>/` (e.g.,

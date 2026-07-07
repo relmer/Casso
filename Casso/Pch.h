@@ -63,15 +63,14 @@
 
 #include "../CassoCore/Ehm.h"
 
+#include "Dxui.h"
+
 using namespace std;
 namespace fs = std::filesystem;
 
 typedef unsigned char   Byte;
 typedef signed   char   SByte;
 typedef unsigned short  Word;
-
-template <typename T>
-using ComPtr = Microsoft::WRL::ComPtr<T>;
 
 
 

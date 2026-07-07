@@ -20,21 +20,72 @@ public:
     D3DRenderer();
     ~D3DRenderer();
 
-    HRESULT Initialize (HWND hwnd, int texWidth, int texHeight);
-    HRESULT UploadAndPresent (const uint32_t * framebuffer);
+    // Adopts an externally-owned device / context / swap chain (the
+    // host's, typically DxuiHwndSource's) rather than creating its
+    // own. Builds this renderer's upload texture, sampler, shaders,
+    // and vertex / index buffers plus the CRT post-process chain, but
+    // holds NO back-buffer RTV of its own -- it composites into the
+    // host's RTV passed to UploadAndComposite, which the caller invokes
+    // once per frame; the host owns Present.
+    //
+    // `initialTargetRect` is the pixel-space rectangle inside the
+    // back buffer where the Apple ][ framebuffer should composite;
+    // EmulatorShell drives this from the DxuiViewport bounds.
+    HRESULT Initialize (ID3D11Device          * pDevice,
+                        ID3D11DeviceContext   * pContext,
+                        IDXGISwapChain1       * pSwapChain,
+                        int                     texWidth,
+                        int                     texHeight,
+                        const RECT            & initialTargetRect);
+
+    // Uploads the framebuffer and runs the CRT post-process pass,
+    // writing into the caller-supplied `dstRtv` (the host's back-buffer
+    // RTV). Skips the swap-chain Present -- the host's paint pump owns
+    // it. Does NOT clear the full back buffer (the host cleared it and
+    // the CRT final pass overwrites it) and skips any after-blit chrome
+    // hook (chrome paints via the host's panel-tree walk afterward).
+    HRESULT UploadAndComposite (ID3D11RenderTargetView * dstRtv, const uint32_t * framebuffer);
+
     HRESULT ToggleFullscreen (HWND hwnd);
-    HRESULT Resize (int width, int height);
 
     // Live-wire path for CRT params (brightness, scanlines, bloom,
     // color-bleed). EmulatorShell pushes a fresh `CrtParams` once per UI
-    // frame (right before UploadAndPresent) so slider edits from the
+    // frame (right before UploadAndComposite) so slider edits from the
     // Settings panel land on the next-rendered frame without ever
     // pausing the emulator (FR-041). Outside the live emulator path
     // (e.g., tests, headless boot) the field stays at its in-struct
     // defaults so the renderer behaves like a passthrough.
     void SetCrtParams    (const CrtParams & params) { m_crtParams     = params; }
-    void SetTopInsetPx    (int insetPx)             { m_topInsetPx    = std::max (0, insetPx); }
-    void SetBottomInsetPx (int insetPx)             { m_bottomInsetPx = std::max (0, insetPx); }
+
+    // Pixel-space rectangle inside the host swap-chain back buffer
+    // where the Apple ][ framebuffer should composite. EmulatorShell
+    // pushes a fresh rect from OnViewportBoundsChanged whenever the
+    // DxuiViewport child of the host's root panel reports new bounds.
+    // The renderer consumes the rect in the host-swap-chain composite
+    // path (UploadAndComposite) to position the emulator content.
+    void SetTargetBounds  (const RECT & boundsPx)   { m_targetBoundsPx = boundsPx; }
+    RECT GetTargetBounds  () const                  { return m_targetBoundsPx; }
+
+    // Push the host's current back-buffer pixel dimensions so the CRT
+    // post-process sizes its intermediate render targets and the
+    // aspect-fit math correctly. The host owns ResizeBuffers; the
+    // renderer never resizes the swap chain, so it learns the new size
+    // through this setter from EmulatorShell::OnSize.
+    void SetBackBufferSize (int widthPx, int heightPx)
+    {
+        m_backBufferW         = std::max (0, widthPx);
+        m_backBufferH         = std::max (0, heightPx);
+        m_physicalBackBufferW = std::max (m_physicalBackBufferW, m_backBufferW);
+        m_physicalBackBufferH = std::max (m_physicalBackBufferH, m_backBufferH);
+
+        // A size change (called from EmulatorShell::OnSize) invalidates the
+        // just-resized back buffer, so the idle-present short-circuit in
+        // NeedsPresent must not suppress this frame -- otherwise a resize
+        // that doesn't also dirty the framebuffer or CRT params leaves the
+        // discarded buffer on screen (a visible theme-background flash on
+        // non-dark themes) until the next real change.
+        m_redrawForced = true;
+    }
 
     // Returns true if the next frame would produce a visually
     // different result than the last one we presented. The shell uses
@@ -54,7 +105,6 @@ public:
     // channel.
     int  GetBackBufferWidth  () const { return m_backBufferW; }
     int  GetBackBufferHeight () const { return m_backBufferH; }
-    int  GetBottomInsetPx    () const { return m_bottomInsetPx; }
     RECT GetEmulatorContentScreenRect() const { return m_emulatorContentScreenRect; }
 
     void Shutdown();
@@ -65,28 +115,21 @@ public:
     ID3D11Device        * GetDevice  () const { return m_device.Get  (); }
     ID3D11DeviceContext * GetContext() const { return m_context.Get(); }
 
-    // Back-buffer accessors used by the native UI overlay. The RTV is
-    // the same one the renderer composites the emulator frame into,
-    // shared so the UI painter can stack on top without juggling its
-    // own render target. The DXGI surface accessor calls
-    // IDXGISwapChain::GetBuffer + QueryInterface every call so the
-    // caller never holds a stale reference across a Resize.
-    ID3D11RenderTargetView * GetBackBufferRtv         () const { return m_rtv.Get(); }
-    HRESULT                  GetBackBufferDxgiSurface (IDXGISurface ** ppOutSurface) const;
-
-    // Hook point invoked by UploadAndPresent between the emulator
-    // blit DrawIndexed and swapChain->Present. The native UI painter
-    // installs its Render() bound to this hook so chrome content
-    // composites on top of the framebuffer every frame. A null
-    // hook (the default) skips the call entirely. Set once at
-    // shell-init time; safe to clear back to nullptr at shutdown.
-    void SetAfterBlitHook (std::function<void()> hook) { m_afterBlitHook = std::move (hook); }
-
 private:
     HRESULT InitializeShaders();
     void    CacheEmulatorContentScreenRect (const RECT & fittedRect);
 
-    HWND                             m_hwnd = nullptr;
+    // Post-device-adoption pipeline setup for Initialize: dynamic
+    // upload texture, sampler, shader programs, vertex / index
+    // buffers, CRT post-process chain. Assumes m_device, m_context,
+    // m_swapChain are populated.
+    HRESULT CreateRenderResources (int texWidth, int texHeight);
+
+    // Aspect-fits the emulator content into `contentRect`, caches the
+    // resulting on-screen rect, and runs the CRT post-process pass into
+    // `dstRtv`. Timed as "D3DRenderer.CrtPostProcess".
+    HRESULT RenderCrtFrame (ID3D11RenderTargetView * dstRtv, const RECT & contentRect);
+
     ComPtr<ID3D11Device>             m_device;
     ComPtr<ID3D11DeviceContext>      m_context;
     // IDXGISwapChain2 (rather than the base IDXGISwapChain) gives us
@@ -96,7 +139,6 @@ private:
     // path; ResizeBuffers under driver stress was the source of the
     // DXGI_ERROR_DRIVER_INTERNAL_ERROR device-removed crashes.
     ComPtr<IDXGISwapChain2>          m_swapChain;
-    ComPtr<ID3D11RenderTargetView>   m_rtv;
     ComPtr<ID3D11Texture2D>          m_texture;
     ComPtr<ID3D11ShaderResourceView> m_srv;
     ComPtr<ID3D11SamplerState>       m_sampler;
@@ -109,7 +151,7 @@ private:
     // CRT post-process pass. Owns the intermediate ping-pong RTs +
     // the per-effect HLSL pixel shaders. Initialized in Initialize once
     // the device is up; torn down in Shutdown. `Process` is invoked
-    // unconditionally from UploadAndPresent -- a disabled effect maps
+    // unconditionally from RenderCrtFrame -- a disabled effect maps
     // to a zero magnitude in CrtParams, which the shaders treat as a
     // pass-through (see CrtPostProcess.cpp). The intermediate RTs are
     // resized lazily inside Process() when the back buffer size changes.
@@ -135,8 +177,14 @@ private:
     // window onto a larger monitor than we initially sized for).
     int                              m_physicalBackBufferW = 0;
     int                              m_physicalBackBufferH = 0;
-    int                              m_topInsetPx          = 0;
-    int                              m_bottomInsetPx       = 0;
+
+    // Pixel-space rectangle inside the host swap-chain back buffer
+    // where the Apple ][ framebuffer should composite. Pushed in by
+    // EmulatorShell whenever the DxuiViewport child of the host's
+    // root panel reports new bounds. Consumed by the host-swap-chain
+    // composite path (UploadAndComposite) to position the emulator
+    // content within the back buffer.
+    RECT                             m_targetBoundsPx      = {};
 
     int     m_texWidth         = 0;
     int     m_texHeight        = 0;
@@ -146,12 +194,6 @@ private:
     RECT    m_windowedRect                = {};
     RECT    m_emulatorContentScreenRect   = {};
     LONG    m_windowedStyle               = 0;
-
-    // Hook point. Invoked from UploadAndPresent after the
-    // emulator blit DrawIndexed and before swapChain->Present so
-    // the native chrome painter (or any other overlay) can draw
-    // onto the back buffer.
-    std::function<void()>  m_afterBlitHook;
 };
 
 

@@ -2,8 +2,6 @@
 
 #include "CppUnitTest.h"
 
-#include "../Casso/Ui/Animation.h"
-
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -20,12 +18,12 @@ public:
 
     TEST_METHOD (Tween_LinearMidpoint)
     {
-        Animation    anim;
-        TweenHandle  h;
+        DxuiAnimation    anim;
+        DxuiTweenHandle  h;
         float        v = 0.0f;
 
         anim.AdvanceTime (0.0f);
-        h = anim.StartTween (0.0f, 100.0f, 2.0f, TweenEase::Linear);
+        h = anim.StartTween (0.0f, 100.0f, 2.0f, DxuiTweenEase::Linear);
 
         Assert::IsTrue   (anim.SampleTween (h, 1.0f, v));
         Assert::AreEqual (50.0f, v, 0.001f);
@@ -34,11 +32,11 @@ public:
 
     TEST_METHOD (Tween_ClampsAtEnd)
     {
-        Animation    anim;
-        TweenHandle  h;
+        DxuiAnimation    anim;
+        DxuiTweenHandle  h;
         float        v = 0.0f;
 
-        h = anim.StartTween (0.0f, 10.0f, 1.0f, TweenEase::Linear);
+        h = anim.StartTween (0.0f, 10.0f, 1.0f, DxuiTweenEase::Linear);
 
         Assert::IsTrue   (anim.SampleTween (h, 5.0f, v));
         Assert::AreEqual (10.0f, v, 0.001f);
@@ -47,9 +45,9 @@ public:
 
     TEST_METHOD (DriveSyncBroker_PublishAndConsumeWithinFrame)
     {
-        Animation             anim;
-        DriveSyncBrokerEvent  visual;
-        DriveSyncBrokerEvent  audio;
+        DxuiAnimation             anim;
+        DxuiDriveSyncBrokerEvent  visual;
+        DxuiDriveSyncBrokerEvent  audio;
 
         visual.driveIndex  = 0;
         visual.tag         = 1;
@@ -61,7 +59,7 @@ public:
         anim.PublishSyncEvent (visual);
         anim.PublishSyncEvent (audio);
 
-        std::vector<DriveSyncBrokerEvent>  events = anim.ConsumePendingEvents();
+        std::vector<DxuiDriveSyncBrokerEvent>  events = anim.ConsumePendingEvents();
 
         Assert::AreEqual ((size_t) 2, events.size());
         Assert::AreEqual (visual.frameTimeMs, events[0].frameTimeMs);
@@ -72,11 +70,11 @@ public:
 
     TEST_METHOD (ApplyEase_BoundaryValues)
     {
-        Assert::AreEqual (0.0f, Animation::ApplyEase (TweenEase::Linear,    0.0f), 0.0001f);
-        Assert::AreEqual (1.0f, Animation::ApplyEase (TweenEase::Linear,    1.0f), 0.0001f);
-        Assert::AreEqual (1.0f, Animation::ApplyEase (TweenEase::EaseOut,   1.0f), 0.0001f);
-        Assert::AreEqual (0.0f, Animation::ApplyEase (TweenEase::EaseInOut, 0.0f), 0.0001f);
-        Assert::AreEqual (1.0f, Animation::ApplyEase (TweenEase::EaseInOut, 1.0f), 0.0001f);
+        Assert::AreEqual (0.0f, DxuiAnimation::ApplyEase (DxuiTweenEase::Linear,    0.0f), 0.0001f);
+        Assert::AreEqual (1.0f, DxuiAnimation::ApplyEase (DxuiTweenEase::Linear,    1.0f), 0.0001f);
+        Assert::AreEqual (1.0f, DxuiAnimation::ApplyEase (DxuiTweenEase::EaseOut,   1.0f), 0.0001f);
+        Assert::AreEqual (0.0f, DxuiAnimation::ApplyEase (DxuiTweenEase::EaseInOut, 0.0f), 0.0001f);
+        Assert::AreEqual (1.0f, DxuiAnimation::ApplyEase (DxuiTweenEase::EaseInOut, 1.0f), 0.0001f);
     }
 };
 

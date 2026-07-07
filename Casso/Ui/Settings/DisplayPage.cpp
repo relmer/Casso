@@ -2,7 +2,7 @@
 
 #include "DisplayPage.h"
 
-#include "../Chrome/ChromeTheme.h"
+#include "../Chrome/CassoTheme.h"
 
 
 
@@ -32,6 +32,61 @@ namespace
         RECT  rc = { l, t, l + w, t + h };
         return rc;
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DisplayPage::DisplayPage
+//
+//  Registers each member widget into the panel's child list via
+//  Adopt so they participate in the IDxuiControl tree (Bounds,
+//  Visible, focus, parent pointers). The widgets remain DisplayPage-
+//  owned members; Adopt is non-owning. Layout positioning stays in
+//  Layout() via legacy SetRect calls because the existing layout
+//  code does things DxuiFormLayout cannot model (sub-row indents for
+//  scanline / bloom / color-bleed children, a button sharing the
+//  monitor row, indicator-column alignment past every slider).
+//  SettingsPanel still drives input/paint through the bespoke shims
+//  and the extended Paint() signature; collapsing the duality is
+//  deferred to the SettingsPanel atomic conversion.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DisplayPage::DisplayPage(std::wstring title)
+    : DxuiPropertyPage (std::move (title))
+{
+    Adopt (m_monitorLabel);
+    Adopt (m_textColorLabel);
+    Adopt (m_brightnessLabel);
+    Adopt (m_contrastLabel);
+    Adopt (m_gammaLabel);
+    Adopt (m_persistenceLabel);
+    Adopt (m_scanlinesLabel);
+    Adopt (m_bloomLabel);
+    Adopt (m_colorBleedLabel);
+    Adopt (m_scanlinesIntLabel);
+    Adopt (m_bloomRadiusLabel);
+    Adopt (m_bloomStrengthLabel);
+    Adopt (m_colorBleedWLabel);
+
+    Adopt (m_monitor);
+    Adopt (m_textColor);
+    Adopt (m_brightness);
+    Adopt (m_contrast);
+    Adopt (m_gamma);
+    Adopt (m_persistence);
+    Adopt (m_scanlinesEn);
+    Adopt (m_scanlinesInt);
+    Adopt (m_bloomEn);
+    Adopt (m_bloomRadius);
+    Adopt (m_bloomStrength);
+    Adopt (m_colorBleedEn);
+    Adopt (m_colorBleedW);
+    Adopt (m_restore);
 }
 
 
@@ -121,7 +176,7 @@ void DisplayPage::SetDefaultsHint (const DisplayDefaultsHint & hint)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DisplayPage::Layout (const RECT & rect, const DpiScaler & scaler)
+void DisplayPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
 {
     UINT  dpi          = scaler.Dpi();
     int   pad          = scaler.Px (s_kPagePadDp);
@@ -132,7 +187,7 @@ void DisplayPage::Layout (const RECT & rect, const DpiScaler & scaler)
     int   togglePillW  = scaler.Px (70);            // wide enough for "Off" / "On" text
     int   sectionGap   = scaler.Px (s_kSectionGapDp);
     int   bigGap       = scaler.Px (s_kBigSectionGapDp);
-    int   childIndent  = scaler.Px (18);            // matches TreeView indent
+    int   childIndent  = scaler.Px (18);            // matches DxuiTreeView indent
     int   x            = rect.left + pad;
     int   y            = rect.top  + pad;
     int   controlsX    = x + labelWidth;        // every control starts here
@@ -158,14 +213,15 @@ void DisplayPage::Layout (const RECT & rect, const DpiScaler & scaler)
     }
     y += rowHeight + sectionGap;
 
-    // Text color (Color monitor only): a dropdown plus a swatch showing the
-    // resolved color. Disabled for the monochrome monitors, whose text color
-    // is fixed by the phosphor.
+    // Text color (Color monitor only): a dropdown plus a swatch showing
+    // the resolved color. Disabled for the monochrome monitors, whose
+    // text color is fixed by the phosphor.
     m_textColorLabel.SetRect (MakeRect (x, y, labelWidth, rowHeight));
     m_textColorLabel.SetText (L"Text color:");
     m_textColor.SetRect  (MakeRect (controlsX, y, dropWidth, rowHeight));
     m_textColor.SetItems ({ L"White", L"Green", L"Amber", L"Custom" });
     m_textColorRowRect = MakeRect (x, y, (controlsX + dropWidth) - x, rowHeight);
+
     {
         int  swatchSize = rowHeight - scaler.Px (8);
         int  swatchX    = controlsX + dropWidth + scaler.Px (12);
@@ -181,6 +237,7 @@ void DisplayPage::Layout (const RECT & rect, const DpiScaler & scaler)
     m_brightness.SetRect      (MakeRect (controlsX, y, sliderWidth, rowHeight));
     m_brightness.SetRange     (0.0f, 200.0f);
     m_brightness.SetStep      (10.0f);
+    m_brightness.SetDragStep  (1.0f);
     m_brightness.SetSuffix    (L"%");
     m_brightness.SetShowTicks (true);
     m_brightnessRowRect = MakeRect (x, y, (controlsX + sliderWidth) - x, rowHeight);
@@ -191,6 +248,7 @@ void DisplayPage::Layout (const RECT & rect, const DpiScaler & scaler)
     m_contrast.SetRect      (MakeRect (controlsX, y, sliderWidth, rowHeight));
     m_contrast.SetRange     (0.0f, 200.0f);
     m_contrast.SetStep      (10.0f);
+    m_contrast.SetDragStep  (1.0f);
     m_contrast.SetSuffix    (L"%");
     m_contrast.SetShowTicks (true);
     m_contrastRowRect = MakeRect (x, y, (controlsX + sliderWidth) - x, rowHeight);
@@ -201,6 +259,7 @@ void DisplayPage::Layout (const RECT & rect, const DpiScaler & scaler)
     m_gamma.SetRect           (MakeRect (controlsX, y, sliderWidth, rowHeight));
     m_gamma.SetRange          (0.5f, 2.5f);
     m_gamma.SetStep           (0.1f);
+    m_gamma.SetDragStep       (0.01f);
     m_gamma.SetSuffix         (L"");
     m_gamma.SetShowValue      (true);     // dimensionless; opt in to readout
     m_gamma.SetDecimalPlaces  (1);
@@ -223,6 +282,7 @@ void DisplayPage::Layout (const RECT & rect, const DpiScaler & scaler)
     m_scanlinesInt.SetRect      (MakeRect (controlsX, y, sliderWidth, rowHeight));
     m_scanlinesInt.SetRange     (10.0f, 100.0f);
     m_scanlinesInt.SetStep      (10.0f);
+    m_scanlinesInt.SetDragStep  (1.0f);
     m_scanlinesInt.SetSuffix    (L"%");
     m_scanlinesInt.SetShowTicks (true);
     m_scanlinesIntRowRect = MakeRect (x, y, (controlsX + sliderWidth) - x, rowHeight);
@@ -251,6 +311,7 @@ void DisplayPage::Layout (const RECT & rect, const DpiScaler & scaler)
     m_bloomStrength.SetRect      (MakeRect (controlsX, y, sliderWidth, rowHeight));
     m_bloomStrength.SetRange     (10.0f, 100.0f);
     m_bloomStrength.SetStep      (10.0f);
+    m_bloomStrength.SetDragStep  (1.0f);
     m_bloomStrength.SetSuffix    (L"%");
     m_bloomStrength.SetShowTicks (true);
     m_bloomStrengthRowRect = MakeRect (x, y, (controlsX + sliderWidth) - x, rowHeight);
@@ -280,6 +341,7 @@ void DisplayPage::Layout (const RECT & rect, const DpiScaler & scaler)
     m_persistence.SetRect      (MakeRect (controlsX, y, sliderWidth, rowHeight));
     m_persistence.SetRange     (0.0f, 99.0f);
     m_persistence.SetStep      (5.0f);
+    m_persistence.SetDragStep  (1.0f);
     m_persistence.SetSuffix    (L"%");
     m_persistence.SetShowTicks (true);
     m_persistenceRowRect = MakeRect (x, y, (controlsX + sliderWidth) - x, rowHeight);
@@ -317,6 +379,12 @@ void DisplayPage::Layout (const RECT & rect, const DpiScaler & scaler)
     m_colorBleedEn.SetDpi        (dpi);
     m_colorBleedW.SetDpi         (dpi);
     m_restore.SetDpi             (dpi);
+
+    // Mirror the page's footprint into the IDxuiControl tree so future
+    // centralized walks see this page as a panel covering `rect`.
+    // Adopted children already have their bounds written via the
+    // SetRect calls above.
+    DxuiPanel::SetBounds (rect);
 }
 
 
@@ -351,6 +419,7 @@ void DisplayPage::Rebuild ()
         {
             m_onMonitor (idx);
         }
+        RefreshTextColorEnabled();
     });
     // Highlight changes (mouse hover + keyboard arrows while open) feed
     // the same live channel so the user sees the colour treatment as
@@ -418,7 +487,7 @@ void DisplayPage::Rebuild ()
     m_persistence.SetOnDragEnd        ([this] { if (m_onPreview) { m_onPreview (kControlPersistence, false, false); } });
     m_persistence.SetOnKeyboardChange ([this] { if (m_onPreview) { m_onPreview (kControlPersistence, true,  true);  } });
 
-    m_restore.SetClick ([this] { if (m_onRestore) { m_onRestore(); } });
+    m_restore.SetOnClick ([this] { if (m_onRestore) { m_onRestore(); } });
 
     // --- Effect toggles ---------------------------------------------------
     m_scanlinesEn.SetOnChange ([this] (bool on)
@@ -467,10 +536,67 @@ void DisplayPage::Rebuild ()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  Bespoke input + focus shims (OnLButtonDown / OnLButtonUp /
+//  OnMouseMove / OnMouseHover / OnKey / CollectFocusables /
+//  AnyDropdownOpen) used to live here. SettingsPanel now dispatches
+//  via IDxuiControl::OnMouse / OnKey through DxuiPanel auto fan-out
+//  and queries m_monitor.IsOpen() directly. The extended Paint
+//  overload below is still bespoke pending DisplayPage paint collapse.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DisplayPage::FocusedControlRect
+//
+////////////////////////////////////////////////////////////////////////////////
+
+RECT DisplayPage::FocusedControlRect (int controlId) const
+{
+    RECT  rect      = {};
+    RECT  menuRect  = {};
+    int   rowHeight = m_scaler.Px (s_kRowHeightDp);
+
+
+
+    switch (controlId)
+    {
+        case kControlBrightness:    rect = m_brightnessRowRect;    break;
+        case kControlContrast:      rect = m_contrastRowRect;      break;
+        case kControlMonitor:       rect = m_monitorRowRect;       break;
+        case kControlScanlinesInt:  rect = m_scanlinesIntRowRect;  break;
+        case kControlBloomRadius:   rect = m_bloomRadiusRowRect;   break;
+        case kControlBloomStrength: rect = m_bloomStrengthRowRect; break;
+        case kControlColorBleedW:   rect = m_colorBleedWRowRect;   break;
+        case kControlGamma:         rect = m_gammaRowRect;         break;
+        case kControlPersistence:   rect = m_persistenceRowRect;   break;
+        default:                    rect = {};                     break;
+    }
+
+    if (controlId == kControlMonitor && m_monitor.IsOpen())
+    {
+        menuRect        = m_monitor.Rect();
+        menuRect.top    = menuRect.bottom;
+        menuRect.bottom = menuRect.top + (int) m_monitor.Items().size() * rowHeight;
+        UnionRect (&rect, &rect, &menuRect);
+    }
+
+    return rect;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DisplayPage::SetTextColor
 //
-//  Seeds the Text color dropdown + swatch from the global prefs and
-//  refreshes its enabled state against the active monitor.
+//  Seeds the Text-color dropdown + swatch state from the global prefs.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -490,8 +616,8 @@ void DisplayPage::SetTextColor (ColorMonitorTextMode mode, uint32_t customArgb)
 //
 //  DisplayPage::TextColorActive
 //
-//  True iff the active monitor is Color -- the only mode where a text
-//  color override is meaningful.
+//  True iff the active monitor is Color -- the only mode where a custom
+//  //e text color has any visible effect.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -521,24 +647,25 @@ void DisplayPage::RefreshTextColorEnabled ()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DisplayPage::OnLButtonDown
+//  DisplayPage::OnMouse
+//
+//  Adds a swatch hit-test on top of the panel's child fan-out: clicking
+//  the Text-color swatch while Custom is active re-opens the picker via
+//  the commit callback.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DisplayPage::OnLButtonDown (int x, int y)
+bool DisplayPage::OnMouse (const DxuiMouseEvent & ev)
 {
     bool  handled = false;
+    int   x       = ev.positionDip.x;
+    int   y       = ev.positionDip.y;
 
 
 
-    RefreshTextColorEnabled();
-
-    handled = m_monitor.OnLButtonDown   (x, y)
-           || m_textColor.OnLButtonDown (x, y);
-
-    // Clicking the swatch while Custom is active re-opens the picker.
-    if (!handled &&
-        TextColorActive() && m_textColorMode == ColorMonitorTextMode::Custom &&
+    if (ev.kind == DxuiMouseEventKind::Down &&
+        TextColorActive() &&
+        m_textColorMode == ColorMonitorTextMode::Custom &&
         x >= m_textColorSwatchRect.left && x < m_textColorSwatchRect.right &&
         y >= m_textColorSwatchRect.top  && y < m_textColorSwatchRect.bottom)
     {
@@ -549,145 +676,10 @@ void DisplayPage::OnLButtonDown (int x, int y)
         handled = true;
     }
 
-    handled = handled
-           || m_brightness.OnLButtonDown     (x, y)
-           || m_contrast.OnLButtonDown       (x, y)
-           || m_scanlinesEn.OnLButtonDown    (x, y)
-           || m_scanlinesInt.OnLButtonDown   (x, y)
-           || m_bloomEn.OnLButtonDown        (x, y)
-           || m_bloomRadius.OnLButtonDown    (x, y)
-           || m_bloomStrength.OnLButtonDown  (x, y)
-           || m_colorBleedEn.OnLButtonDown   (x, y)
-           || m_colorBleedW.OnLButtonDown    (x, y)
-           || m_gamma.OnLButtonDown          (x, y)
-           || m_persistence.OnLButtonDown    (x, y);
-
-    if (!handled && m_restore.HitTest (x, y))
+    if (!handled)
     {
-        m_restore.SetMouse (x, y, true);
+        handled = DxuiPanel::OnMouse (ev);
     }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DisplayPage::OnLButtonUp
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DisplayPage::OnLButtonUp (int x, int y)
-{
-    (void) m_monitor.OnLButtonUp         (x, y);
-    (void) m_textColor.OnLButtonUp       (x, y);
-    (void) m_brightness.OnLButtonUp      (x, y);
-    (void) m_contrast.OnLButtonUp        (x, y);
-    (void) m_gamma.OnLButtonUp           (x, y);
-    (void) m_persistence.OnLButtonUp     (x, y);
-    (void) m_scanlinesEn.OnLButtonUp     (x, y);
-    (void) m_scanlinesInt.OnLButtonUp    (x, y);
-    (void) m_bloomEn.OnLButtonUp         (x, y);
-    (void) m_bloomRadius.OnLButtonUp     (x, y);
-    (void) m_bloomStrength.OnLButtonUp   (x, y);
-    (void) m_colorBleedEn.OnLButtonUp    (x, y);
-    (void) m_colorBleedW.OnLButtonUp     (x, y);
-    if (m_restore.HitTest (x, y))
-    {
-        m_restore.SetMouse (x, y, false);
-        m_restore.Click();
-    }
-    else
-    {
-        m_restore.SetMouse (x, y, false);
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DisplayPage::OnMouseMove
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DisplayPage::OnMouseMove (int x, int y)
-{
-    (void) m_brightness.OnMouseMove     (x, y);
-    (void) m_contrast.OnMouseMove       (x, y);
-    (void) m_gamma.OnMouseMove          (x, y);
-    (void) m_persistence.OnMouseMove    (x, y);
-    (void) m_scanlinesInt.OnMouseMove   (x, y);
-    (void) m_bloomRadius.OnMouseMove    (x, y);
-    (void) m_bloomStrength.OnMouseMove  (x, y);
-    (void) m_colorBleedW.OnMouseMove    (x, y);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DisplayPage::OnMouseHover
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void DisplayPage::OnMouseHover (int x, int y)
-{
-    RefreshTextColorEnabled();
-
-    m_monitor.SetMouseHover         (x, y);
-    m_textColor.SetMouseHover       (x, y);
-    m_brightness.SetMouseHover      (x, y);
-    m_contrast.SetMouseHover        (x, y);
-    m_scanlinesEn.SetMouseHover     (x, y);
-    m_scanlinesInt.SetMouseHover    (x, y);
-    m_bloomEn.SetMouseHover         (x, y);
-    m_bloomRadius.SetMouseHover     (x, y);
-    m_bloomStrength.SetMouseHover   (x, y);
-    m_colorBleedEn.SetMouseHover    (x, y);
-    m_colorBleedW.SetMouseHover     (x, y);
-    m_gamma.SetMouseHover           (x, y);
-    m_persistence.SetMouseHover     (x, y);
-    m_restore.SetMouse              (x, y, false);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DisplayPage::OnKey
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool DisplayPage::OnKey (WPARAM vk)
-{
-    bool  handled = false;
-
-
-
-    RefreshTextColorEnabled();
-
-    handled = m_monitor.HandleKey        (vk)
-           || m_textColor.HandleKey      (vk)
-           || m_brightness.OnKey         (vk)
-           || m_contrast.OnKey           (vk)
-           || m_gamma.OnKey              (vk)
-           || m_persistence.OnKey        (vk)
-           || m_scanlinesEn.OnKey        (vk)
-           || m_scanlinesInt.OnKey       (vk)
-           || m_bloomEn.OnKey            (vk)
-           || m_bloomRadius.OnKey        (vk)
-           || m_bloomStrength.OnKey      (vk)
-           || m_colorBleedEn.OnKey       (vk)
-           || m_colorBleedW.OnKey        (vk)
-           || m_restore.OnKey            (vk);
 
     return handled;
 }
@@ -698,78 +690,17 @@ bool DisplayPage::OnKey (WPARAM vk)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DisplayPage::CollectFocusables
+//  DisplayPage::SetFadeState
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DisplayPage::CollectFocusables (std::vector<std::function<void (bool)>> & out)
+void DisplayPage::SetFadeState (int   focusedControlId,
+                                float focusedAlpha,
+                                float nonFocusedAlpha)
 {
-    out.push_back ([this] (bool f) { m_monitor.SetFocused         (f); });
-    out.push_back ([this] (bool f) { m_textColor.SetFocused       (f); });
-    out.push_back ([this] (bool f) { m_brightness.SetFocused      (f); });
-    out.push_back ([this] (bool f) { m_contrast.SetFocused        (f); });
-    out.push_back ([this] (bool f) { m_gamma.SetFocused           (f); });
-    out.push_back ([this] (bool f) { m_scanlinesEn.SetFocused     (f); });
-    out.push_back ([this] (bool f) { m_scanlinesInt.SetFocused    (f); });
-    out.push_back ([this] (bool f) { m_bloomEn.SetFocused         (f); });
-    out.push_back ([this] (bool f) { m_bloomRadius.SetFocused     (f); });
-    out.push_back ([this] (bool f) { m_bloomStrength.SetFocused   (f); });
-    out.push_back ([this] (bool f) { m_colorBleedEn.SetFocused    (f); });
-    out.push_back ([this] (bool f) { m_colorBleedW.SetFocused     (f); });
-    out.push_back ([this] (bool f) { m_persistence.SetFocused     (f); });
-    out.push_back ([this] (bool f) { m_restore.SetFocused         (f); });
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DisplayPage::FocusedControlRect
-//
-////////////////////////////////////////////////////////////////////////////////
-
-RECT DisplayPage::FocusedControlRect (int controlId) const
-{
-    RECT  rect      = {};
-    RECT  menuRect  = {};
-    int   rowHeight = m_scaler.Px (s_kRowHeightDp);
-
-
-
-    switch (controlId)
-    {
-        case kControlBrightness:    rect = m_brightnessRowRect;    break;
-        case kControlContrast:      rect = m_contrastRowRect;      break;
-        case kControlMonitor:       rect = m_monitorRowRect;       break;
-        case kControlTextColor:     rect = m_textColorRowRect;     break;
-        case kControlScanlinesInt:  rect = m_scanlinesIntRowRect;  break;
-        case kControlBloomRadius:   rect = m_bloomRadiusRowRect;   break;
-        case kControlBloomStrength: rect = m_bloomStrengthRowRect; break;
-        case kControlColorBleedW:   rect = m_colorBleedWRowRect;   break;
-        case kControlGamma:         rect = m_gammaRowRect;         break;
-        case kControlPersistence:   rect = m_persistenceRowRect;   break;
-        default:                    rect = {};                     break;
-    }
-
-    if (controlId == kControlMonitor && m_monitor.IsOpen())
-    {
-        menuRect        = m_monitor.Rect();
-        menuRect.top    = menuRect.bottom;
-        menuRect.bottom = menuRect.top + (int) m_monitor.Items().size() * rowHeight;
-        UnionRect (&rect, &rect, &menuRect);
-    }
-
-    if (controlId == kControlTextColor && m_textColor.IsOpen())
-    {
-        menuRect        = m_textColor.Rect();
-        menuRect.top    = menuRect.bottom;
-        menuRect.bottom = menuRect.top + (int) m_textColor.Items().size() * rowHeight;
-        UnionRect (&rect, &rect, &menuRect);
-    }
-
-    return rect;
+    m_fadeFocusedId       = focusedControlId;
+    m_fadeFocusedAlpha    = focusedAlpha;
+    m_fadeNonFocusedAlpha = nonFocusedAlpha;
 }
 
 
@@ -782,24 +713,21 @@ RECT DisplayPage::FocusedControlRect (int controlId) const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DisplayPage::Paint (DxUiPainter & painter, DwriteTextRenderer & text,
-                         const ChromeTheme & theme,
-                         int          focusedControlId,
-                         float        nonFocusedAlpha,
-                         float        focusedAlpha) const
+void DisplayPage::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text,
+                         const IDxuiTheme & theme)
 {
     constexpr uint32_t  s_kFocusedBackingArgb = 0xFF202830;   // dark grey, near-opaque
     constexpr int       s_kIndicatorFontDp    = 12;
     constexpr int       s_kIndicatorWidthDp   = 140;
-    constexpr wchar_t   s_kFont[]             = L"Segoe UI";
+    constexpr const wchar_t * s_kFont             = DxuiTheme::kBodyFace;
     constexpr float     s_kFloatEpsilon       = 0.001f;
 
-    // Muted secondary-text token so the "(theme default)" hints tint with
-    // the active theme (e.g. muted green under the retro terminal theme).
-    uint32_t  indicatorArgb   = theme.dropdownAccelArgb;
-
+    int    focusedControlId = m_fadeFocusedId;
+    float  focusedAlpha     = m_fadeFocusedAlpha;
+    float  nonFocusedAlpha  = m_fadeNonFocusedAlpha;
     float  indicatorFontPx  = m_scaler.Pxf (s_kIndicatorFontDp);
     float  indicatorWidthPx = m_scaler.Pxf (s_kIndicatorWidthDp);
+
 
     auto  SetAlphaForRow = [&] (int control, const RECT & rowRect)
     {
@@ -840,11 +768,11 @@ void DisplayPage::Paint (DxUiPainter & painter, DwriteTextRenderer & text,
                                               (float) rowRect.top,
                                               indicatorWidthPx,
                                               (float) (rowRect.bottom - rowRect.top),
-                                              indicatorArgb,
+                                              theme.ForegroundMuted(),
                                               indicatorFontPx,
                                               s_kFont,
-                                              DwriteTextRenderer::HAlign::Left,
-                                              DwriteTextRenderer::VAlign::Center));
+                                              DxuiTextRenderer::HAlign::Left,
+                                              DxuiTextRenderer::VAlign::Center));
     };
 
     auto  FloatMatches = [&] (float a, float b)
@@ -860,20 +788,20 @@ void DisplayPage::Paint (DxUiPainter & painter, DwriteTextRenderer & text,
     m_monitor.SetTheme      (&theme);
     m_monitor.PaintBase     (painter, text);
 
-    SetAlphaForRow (kControlTextColor, m_textColorRowRect);
-    PaintBackingIfFocused (kControlTextColor, m_textColorRowRect);
+    // Text-color row: label, dropdown base, and a swatch of the resolved
+    // color. The dropdown menu paints last (with the monitor menu).
+    SetAlphaForRow (-1, m_textColorRowRect);
     m_textColorLabel.Paint  (painter, text);
     m_textColor.SetTheme    (&theme);
     m_textColor.PaintBase   (painter, text);
     {
-        uint32_t  swatch = ColorUtil::ResolveColorMonitorTextArgb (m_textColorMode, m_textColorCustomArgb);
-        float     sl     = (float) m_textColorSwatchRect.left;
-        float     st     = (float) m_textColorSwatchRect.top;
-        float     sw     = (float) (m_textColorSwatchRect.right  - m_textColorSwatchRect.left);
-        float     sh     = (float) (m_textColorSwatchRect.bottom - m_textColorSwatchRect.top);
+        uint32_t  swatchArgb = ColorUtil::ResolveColorMonitorTextArgb (m_textColorMode, m_textColorCustomArgb);
+        float     sl         = (float) m_textColorSwatchRect.left;
+        float     st         = (float) m_textColorSwatchRect.top;
+        float     sw         = (float) (m_textColorSwatchRect.right  - m_textColorSwatchRect.left);
+        float     sh         = (float) (m_textColorSwatchRect.bottom - m_textColorSwatchRect.top);
 
-        painter.FillRect    (sl, st, sw, sh, swatch);
-        painter.OutlineRect (sl, st, sw, sh, 1.0f, 0xFF808080);
+        painter.FillRect (sl, st, sw, sh, swatchArgb);
     }
 
     SetAlphaForRow (kControlBrightness, m_brightnessRowRect);
@@ -961,16 +889,14 @@ void DisplayPage::Paint (DxUiPainter & painter, DwriteTextRenderer & text,
                    false);  // persistence is never theme-owned
 
     SetAlphaForRow (-1, m_restoreRowRect);
-    const_cast<Button &> (m_restore).Paint (painter, text, theme);
+    m_restore.Paint (painter, text, theme);
 
-    // Dropdown menu floats above the page; paint last so it overlays.
+    // DxuiDropdown menu floats above the page; paint last so it overlays.
     SetAlphaForRow (kControlMonitor, m_monitorRowRect);
     m_monitor.PaintMenu     (painter, text);
-
-    SetAlphaForRow (kControlTextColor, m_textColorRowRect);
-    m_textColor.PaintMenu   (painter, text);
 
     // Restore default so the rest of the panel paints opaque.
     painter.SetGlobalAlpha (1.0f);
     text.SetGlobalAlpha    (1.0f);
+    m_textColor.PaintMenu   (painter, text);
 }

@@ -7,7 +7,6 @@
 #include "../resource.h"
 #include "../Shell/DiskMru.h"
 #include "Version.h"
-#include "Ui/Chrome/LayoutManager.h"
 #include "Ui/Chrome/ChromeMetrics.h"
 #include "Ui/Chrome/DriveWidget.h"
 #include "Shell/CpuManager.h"
@@ -52,7 +51,7 @@ WindowCommandManager::WindowCommandManager (EmulatorShell & shell)
 //
 //  HandleCommand
 //
-//  Public command-pump entry point. Used by the NavLayer so click
+//  Public command-pump entry point. Used by the MainMenu so click
 //  routing from the chrome funnels through the same dispatch path as
 //  a Win32 menu pick. Intentionally a thin wrapper -- OnCommand owns
 //  the real id-range demux.
@@ -80,7 +79,7 @@ bool WindowCommandManager::OnCommand (HWND hwnd, int id)
 
     if      (id >= IDM_EDIT_COPY_TEXT && id <= IDM_EDIT_PASTE)              { OnEditCommand (id); }
     else if (id >= IDM_FILE_OPEN      && id <= IDM_FILE_EXIT)               { OnFileCommand (id); }
-    else if (id >= IDM_MACHINE_RESET  && id <= IDM_MACHINE_ARROWS_JOYSTICK) { OnMachineCommand (id); }
+    else if (id >= IDM_MACHINE_RESET  && id <= IDM_MACHINE_ARROWS_PADDLE)   { OnMachineCommand (id); }
     else if (id >= IDM_DISK_INSERT1   && id <= IDM_DISK_WRITEPROTECT2)      { OnDiskCommand (id); }
     else if (id >= IDM_VIEW_COLOR     && id <= IDM_VIEW_SETTINGS)           { OnViewCommand (id); }
     else if (id >= IDM_HELP_KEYMAP    && id <= IDM_HELP_ABOUT)              { OnHelpCommand (id); }
@@ -242,7 +241,13 @@ void WindowCommandManager::OnMachineCommand (int id)
 
         case IDM_MACHINE_ARROWS_JOYSTICK:
         {
-            m_shell.CycleInputMappingMode();
+            m_shell.ToggleInputMappingMode (InputMappingMode::Joystick);
+            break;
+        }
+
+        case IDM_MACHINE_ARROWS_PADDLE:
+        {
+            m_shell.ToggleInputMappingMode (InputMappingMode::Paddle);
             break;
         }
     }
@@ -314,13 +319,13 @@ void WindowCommandManager::OnViewCommand (int id)
 
 
                 // Target client area: framebuffer at the current DPI
-                // (linear scale), with every chrome contributor's
-                // inset summed by the single source of truth. The
-                // LayoutManager owns the framebuffer scale policy --
-                // see ClientSizeForFramebuffer for the one-line
-                // toggle to switch to integer-only scaling.
+                // (linear scale), with the chrome band insets summed by
+                // the single source of truth. EmulatorShell::
+                // ClientSizeForFramebufferPx owns the framebuffer scale
+                // policy -- see it for the one-line toggle to switch to
+                // integer-only scaling.
                 {
-                    SIZE  desired = m_shell.m_layout.ClientSizeForFramebuffer (
+                    SIZE  desired = m_shell.ClientSizeForFramebufferPx (
                                         kFramebufferWidthPx,
                                         kFramebufferHeightPx);
                     desiredClientW = (int) desired.cx;
@@ -373,8 +378,7 @@ void WindowCommandManager::OnViewCommand (int id)
 
         case IDM_VIEW_SETTINGS:
         {
-            HRESULT  hrShow = m_shell.m_settingsPanel.Show();
-            IGNORE_RETURN_VALUE (hrShow, S_OK);
+            m_shell.OpenSettings();
             break;
         }
     }
@@ -452,26 +456,29 @@ Error:
 
 HRESULT WindowCommandManager::PromptInsertDiskMru (int drive)
 {
-    HRESULT                          hr          = S_OK;
-    DiskMru                          mru;
-    std::vector<std::filesystem::path>  mruExisting;
-    std::filesystem::path            diskDir;
-    std::wstring                     chosenPath;
-    std::string                      error;
-    bool                             userBrowsed = false;
+    HRESULT                      hr          = S_OK;
+    DiskMru                      mru;
+    std::vector<DiskMru::Entry>  mruPruned;
+    std::filesystem::path        diskDir;
+    std::wstring                 chosenPath;
+    std::string                  error;
+    bool                         userBrowsed = false;
 
 
-    diskDir     = AssetBootstrap::GetDiskDirectory();
-    mru         = DiskMru::FromUtf8 (m_shell.m_globalPrefs.recentDisks);
-    mruExisting = mru.Prune ([] (const std::filesystem::path & p)
-                             {
-                                 return std::filesystem::exists (p);
-                             });
+    diskDir   = AssetBootstrap::GetDiskDirectory();
+    mru       = DiskMru::FromUtf8 (m_shell.m_globalPrefs.recentDisks,
+                                   m_shell.m_globalPrefs.recentDiskLoadedAt);
+    mruPruned = mru.Prune ([] (const std::filesystem::path & p)
+                           {
+                               return std::filesystem::exists (p);
+                           });
+
+    AssetBootstrap::AppendBundledDemoDisks (mruPruned);
 
     hr = AssetBootstrap::PromptInsertDiskMru (GetModuleHandle (nullptr),
                                               m_shell.m_hwnd,
                                               drive,
-                                              mruExisting,
+                                              mruPruned,
                                               diskDir,
                                               m_shell.m_globalPrefs.activeTheme,
                                               chosenPath,
@@ -579,6 +586,7 @@ void WindowCommandManager::OnHelpCommand (int id)
             DialogDefinition def = {};
             def.title = L"About Casso";
             def.icon  = DialogIcon::AppPhotoreal;
+            def.iconSizeOverrideDp = 128.0f;
             def.body.push_back ({ L"Casso Emulator\n\nVersion " _CRT_WIDE (VERSION_STRING)
                                   L"\nBuilt " _CRT_WIDE (VERSION_BUILD_TIMESTAMP)
                                   L"\n\nAn Apple ][, Apple ][ plus, and Apple //e platform emulator "

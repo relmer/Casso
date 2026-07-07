@@ -1,17 +1,16 @@
 #pragma once
 
-#include "Chrome/ChromedPanelWindow.h"
-#include "Chrome/IChromedPanelContent.h"
+#include "Window/DxuiWindow.h"
 #include "InputDebugPanelLayout.h"
-#include "DxUiPainter.h"
-#include "DwriteTextRenderer.h"
-#include "Widgets/Button.h"
-#include "Widgets/Checkbox.h"
-#include "Widgets/Dropdown.h"
-#include "Widgets/Label.h"
-#include "Widgets/ListView.h"
-#include "Widgets/PopupMenu.h"
-#include "Widgets/Tooltip.h"
+#include "Core/DxuiFocusManager.h"
+#include "Core/DxuiPanel.h"
+#include "Widgets/DxuiButton.h"
+#include "Widgets/DxuiCheckbox.h"
+#include "Widgets/DxuiDropdown.h"
+#include "Widgets/DxuiLabel.h"
+#include "Widgets/DxuiListView.h"
+#include "Widgets/DxuiPopupMenu.h"
+#include "Widgets/DxuiTooltip.h"
 
 #include "../InputDebugDialogState.h"
 #include "../InputEventDisplay.h"
@@ -19,26 +18,7 @@
 #include "../../CassoEmuCore/Devices/InputEventRing.h"
 
 
-struct ChromeTheme;
-class TitleBar;
-
-
-
-
-enum class InputFocusStop
-{
-    AllCheck,
-    EmuKeyboardCheck,
-    JoystickCheck,
-    PaddleCheck,
-    HostKeyboardCheck,
-    Pair0Dropdown,
-    Pair1Dropdown,
-    PauseButton,
-    ClearButton,
-    CopyButton,
-    EventList,
-};
+struct CassoTheme;
 
 
 
@@ -48,9 +28,23 @@ enum class InputFocusStop
 //
 //  InputDebugPanel
 //
+//  Themed DX replacement for the legacy Win32 InputDebugDialog. Derives
+//  from DxuiWindow, so it IS its own content-root panel AND owns the OS
+//  window (HWND + swap chain + caption + paint pump) through the base
+//  class -- the subclass never touches an HWND, a WPARAM, or a host
+//  client interface. It still implements the same event-sink interface
+//  (IInputEventSink) so it slots into the existing EmulatorShell event
+//  wiring with no contract changes.
+//
+//  Content widgets are created as children of this panel in OnCreate
+//  (via the inherited CreateChild<T> factory) so the base paint pump
+//  walks and paints them; the panel keeps its own focus manager,
+//  tooltip, and column menu (the latter two escape the client via the
+//  host popup pool exposed through PopupHost()).
+//
 ////////////////////////////////////////////////////////////////////////////////
 
-class InputDebugPanel : public IChromedPanelContent,
+class InputDebugPanel : public DxuiWindow,
                         public IInputEventSink
 {
 public:
@@ -61,16 +55,13 @@ public:
                      HWND                   hwndOwner,
                      ID3D11Device         * device,
                      ID3D11DeviceContext  * context,
-                     const ChromeTheme    * theme);
-    void    Show    ();
-    void    Hide    ();
+                     const CassoTheme    * theme);
     void    Destroy ();
 
-    bool    IsOpen () const { return m_window.IsOpen(); }
-    HWND    Hwnd   () const { return m_window.Hwnd(); }
+    bool    IsOpen () const { return IsCreated(); }
 
     HRESULT RenderFrame ();
-    void    SetTheme    (const ChromeTheme * theme);
+    void    SetTheme    (const CassoTheme * theme);
     void    SetCycleCounter (const uint64_t * cycleCounter) { m_cycleCounter = cycleCounter; }
     void    SetUptimeAnchor (std::chrono::steady_clock::time_point anchor) { m_uptimeAnchor = anchor; }
     void    ClearEvents     ();
@@ -78,36 +69,30 @@ public:
     // Thread-safe reset hook. The CPU/reset thread calls this to stage a
     // new Uptime anchor and request an event-list clear; the render
     // thread applies both inside DrainAndProject so the event deque and
-    // ListView rows are only ever mutated on one thread.
+    // DxuiListView rows are only ever mutated on one thread.
     void    RequestResetAnchor (std::chrono::steady_clock::time_point anchor) noexcept;
 
-    LPCWSTR  GetWindowClassName () const override;
-    LPCWSTR  GetWindowTitle     () const override;
-    HRESULT  OnHostCreated      (HWND                   hwnd,
-                                 ID3D11Device         * device,
-                                 ID3D11DeviceContext  * context,
-                                 int                    widthPx,
-                                 int                    heightPx,
-                                 UINT                   dpi,
-                                 TitleBar             * titleBar,
-                                 const ChromeTheme    * theme) override;
-    void     OnHostDestroyed    ()                                  override;
-    HRESULT  OnHostResize       (int widthPx, int heightPx, UINT dpi) override;
-    void     SetChromeTheme     (TitleBar * titleBar, const ChromeTheme * theme) override;
-    SIZE     PreferredClientSize (UINT dpi) const                   override;
-    HRESULT  Render             ()                                  override;
-    void     OnLButtonDown      (int x, int y)                      override;
-    void     OnLButtonUp        (int x, int y)                      override;
-    void     OnRButtonDown      (int x, int y)                      override;
-    void     OnMouseMove        (int x, int y)                      override;
-    void     OnMouseWheel       (int x, int y, int delta)           override;
-    bool     OnKey              (WPARAM vk)                         override;
-    bool     OnChar             (wchar_t ch)                        override;
-    void     Accept             ()                                  override;
-    void     Cancel             ()                                  override;
-    bool     IsContentActive    () const                            override;
-    bool     IsNonModal         () const                            override { return true; }
-    HCURSOR  OnSetCursor        (int x, int y)                      override;
+    // Framework input entry points. These DxuiPanel overrides own all
+    // mouse / keyboard routing for the panel: they hit-test and dispatch
+    // the DxuiMouseEvent / DxuiKeyEvent straight to the child widgets and
+    // the event list, so the host drives the panel purely through the
+    // framework.
+    bool    OnMouse (const DxuiMouseEvent & ev)                     override;
+    bool    OnKey   (const DxuiKeyEvent   & ev)                     override;
+
+    // DxuiPanel cursor hook. The generic panel fan-out hands children
+    // client-px, but DxuiListView::CursorForPoint expects list-local
+    // coords, so translate before delegating (and hold the resize cursor
+    // through an active column drag even if the pointer drifts off the
+    // header strip).
+    LPCWSTR CursorForPoint (POINT clientPx) const                   override;
+
+    // DxuiPanel layout hook. DxuiWindow calls this with the client
+    // bounds / DPI scaler after the OS window resizes; caches the size
+    // and re-runs the panel's absolute layout so the child widgets track
+    // the new bounds.
+    void    Layout  (const RECT          & boundsDip,
+                     const DxuiDpiScaler & scaler)                  override;
 
     void OnKbdDataRead    (Word address, Byte value, bool strobeSet)    override;
     void OnKbdStrobe      (Word address, Byte value, bool clearedStrobe) override;
@@ -117,11 +102,16 @@ public:
     void OnHostAutoRepeat (Byte asciiChar)                              override;
     void OnHostKeyDown    (Byte asciiChar)                              override;
     void OnHostKeyUp      (Byte asciiChar)                              override;
+    void OnHostPaddle     (int axis, Byte value)                        override;
+    void OnHostButton     (int index, bool down)                        override;
+
+protected:
+    // DxuiWindow hook. Fires inside Create() once the backend + HWND
+    // exist; populates the child widgets via the inherited CreateChild<T>
+    // factory and wires their state / callbacks.
+    void    OnCreate ()                                             override;
 
 private:
-    HRESULT EnsureSwapChain      ();
-    HRESULT CreateBackBufferRtv  ();
-    void    ReleaseRenderTargets ();
     void    RecomputeLayout      ();
     void    LayoutWidgets        ();
     void    ConfigureWidgets     ();
@@ -140,13 +130,9 @@ private:
     void    CopyEventsToClipboard ();
     void    UpdateTooltip        (int x, int y);
     void    ShowColumnMenu       (int anchorX, int anchorY);
-    void    FocusCycle           (int direction);
-    void    RebuildFocusOrder    ();
-    void    SetFocusToStop       (InputFocusStop stop);
-    void    ApplyFocus           ();
-    void    ClearAllWidgetFocus  ();
     void    ApplyListSelection   ();
     void    OnListSelectionMoved ();
+    bool    ForwardMouseToList   (DxuiMouseEventKind kind, DxuiMouseButton button, int x, int y, float wheelDelta);
     void    OnHeaderSortKey      ();
     void    OnDividerResizeKey   (int direction);
     void    SortByColumn         (int absCol);
@@ -166,44 +152,37 @@ private:
     static InputGamePortClass ClassifyGamePort          (InputEventType type, Word address) noexcept;
     static void               FormatInputEvent          (const InputEvent & src,
                                                          std::chrono::steady_clock::time_point uptimeAnchor,
+                                                         const InputFilterState & filter,
                                                          InputEventDisplay & out);
     static void               ProjectOne                (const InputEvent & src,
                                                          std::deque<InputEventDisplay> & deque,
-                                                         std::chrono::steady_clock::time_point uptimeAnchor);
+                                                         std::chrono::steady_clock::time_point uptimeAnchor,
+                                                         const InputFilterState & filter);
 
-    ChromedPanelWindow                    m_window;
     InputPanelLayoutSlots                 m_layout = {};
 
-    ID3D11Device                        * m_device   = nullptr;
-    ID3D11DeviceContext                 * m_context  = nullptr;
-    const ChromeTheme                   * m_theme    = nullptr;
-    TitleBar                            * m_titleBar = nullptr;
-    HWND                                  m_hwnd     = nullptr;
+    const CassoTheme                   * m_theme    = nullptr;
     int                                   m_widthPx  = 0;
     int                                   m_heightPx = 0;
     UINT                                  m_dpi      = 96;
+    DxuiDpiScaler                             m_scaler;
 
-    Microsoft::WRL::ComPtr<IDXGISwapChain1>         m_swapChain;
-    Microsoft::WRL::ComPtr<ID3D11RenderTargetView>  m_rtv;
-
-    DxUiPainter                           m_painter;
-    DwriteTextRenderer                    m_text;
-
-    Label                                 m_emuLabel;
-    Label                                 m_hostLabel;
-    std::array<Label, 2>                  m_pairLabel;
-    Checkbox                              m_allCheck;
-    Checkbox                              m_emuKeyboardCheck;
-    Checkbox                              m_joystickCheck;
-    Checkbox                              m_paddleCheck;
-    Checkbox                              m_hostKeyboardCheck;
-    std::array<Dropdown, 2>               m_pairView;
-    Button                                m_pauseButton;
-    Button                                m_clearButton;
-    Button                                m_copyButton;
-    ListView                              m_eventList;
-    Tooltip                               m_tooltip;
-    PopupMenu                             m_columnMenu;
+    DxuiLabel                               * m_emuLabel          = nullptr;
+    DxuiLabel                               * m_hostLabel         = nullptr;
+    std::array<DxuiLabel*, 2>                 m_pairLabel         = {};
+    DxuiCheckbox                            * m_allCheck          = nullptr;
+    DxuiCheckbox                            * m_emuKeyboardCheck  = nullptr;
+    DxuiCheckbox                            * m_joystickCheck     = nullptr;
+    DxuiCheckbox                            * m_paddleCheck       = nullptr;
+    DxuiCheckbox                            * m_hostKeyboardCheck = nullptr;
+    std::array<DxuiDropdown*, 2>              m_pairView          = {};
+    DxuiButton                              * m_pauseButton       = nullptr;
+    DxuiButton                              * m_clearButton       = nullptr;
+    DxuiButton                              * m_copyButton        = nullptr;
+    DxuiListView                            * m_eventList         = nullptr;
+    DxuiTooltip                               m_tooltip;
+    DxuiPopupMenu                             m_columnMenu;
+    DxuiFocusManager                          m_focusMgr;
 
     InputFilterState                      m_filter;
     std::array<InputLogicalColumn, kInputColumnCount>  m_columnsModel = {};
@@ -220,11 +199,6 @@ private:
     int                                   m_sortColumn     = -1;
     bool                                  m_sortDescending = false;
 
-    int                                   m_resizeColumn       = -1;
-    int                                   m_resizeStartXPx     = 0;
-    int                                   m_resizeStartWidthPx = 0;
-    std::vector<InputFocusStop>           m_focusStops;
-    int                                   m_focusIndex         = -1;
     bool                                  m_joystickVisible    = true;
     bool                                  m_paddleVisible      = false;
     int                                   m_listSelectedEventIndex = -1;

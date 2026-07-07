@@ -3,8 +3,142 @@
 All notable changes to Casso are documented in this file.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/).
-Versioned entries use `MAJOR.MINOR.BUILD` from [Version.h](CassoCore/Version.h).
+Versioned entries use `MAJOR.MINOR.PATCH` from [Version.h](CassoCore/Version.h).
 Entries before versioning was introduced use dates only.
+
+## [1.6.0] — Occluding popups + Dxui chrome framework (spec 013)
+
+The window chrome was extracted into a standalone, reusable **Dxui**
+library, and the window host now owns the Direct3D swap chain directly.
+The headline user-visible payoff: menus, dropdowns, and tooltips finally
+render as real top-level windows, so they paint over everything and can
+spill past the window's edges instead of being clipped to it.
+
+### Added
+- **feat(settings): restart-required notice + "OK (reboot)" button.**
+  Staging a machine switch (Machine tab) or toggling hardware on the
+  Hardware tab now shows an amber notice next to the OK button naming the
+  pending change, and the OK button itself relabels to "OK (reboot)" so
+  it's clear that committing will power-cycle the machine. The notice
+  clears if you revert the change.
+- **feat(settings): "Apply now" button on the Theme page.** A theme pick
+  used to take effect only when you clicked OK. There is now an "Apply
+  now" button beside the theme dropdown that reskins the running chrome
+  immediately without closing Settings, so you can try a theme live.
+  Clicking Cancel afterward reverts to the theme you started with; OK
+  keeps it.
+- **feat(ui): searchable, sortable disk picker with a last-loaded date
+  column.** The boot and Insert-Disk pickers gain a search box — type to
+  filter recent disks (case-insensitive substring across name, location,
+  and date); the magnifier glyph slides away on focus and an X button
+  clears the field. The leading "Last loaded" column shows each disk's
+  load time in the user's regional date/time format and is the default
+  sort (newest on top). Columns size to fit their widest value (header
+  included), are resizable (drag a header divider), and clickable to sort
+  (re-click to reverse; strings A–Z, dates newest-first) with an up/down
+  indicator on the active column. The dialog is resizable (drag any edge;
+  it opens at a sensible size clamped to your monitor) and the list shows
+  horizontal and vertical scrollbars as needed — Shift+wheel or the bottom
+  scrollbar reaches a long location path.
+- **feat(ui): Windows 11 snap-layouts on every top-level window.** Hovering
+  the maximize button now offers the Win11 snap-layout flyout on the main
+  emulator window, the chromed debug panels, and the Settings window — not
+  just the system-chromed dialogs — because the custom chrome reports the
+  caption/maximize regions to the OS.
+- **feat(ui): occluding top-level popups for menus, dropdowns, and
+  tooltips.** The application menu bar's submenus, the Settings-page
+  dropdowns, the Disk II / Input debug-panel column menus, and the
+  debug-panel hover tooltips now render into their own pooled top-level
+  windows (one DirectComposition swap chain per popup) instead of being
+  clipped to the parent's client area. A popup occludes the emulator and
+  other chrome and can extend past the window edges — flipping upward
+  when anchored near the bottom. The menu bar keeps its Windows-style
+  behaviour: click a title to open, hover an adjacent title to switch,
+  and full keyboard navigation (Alt-letter, arrows, Enter, Esc). It is
+  deliberately non-modal — moving the window closes the open menu.
+- **feat(ui): auto-fit debug-panel list columns.** The Disk II and Input
+  debug panels size each event-list column to the widest value seen, so
+  large cycle counts no longer wrap; dragging a column divider still
+  pins that column to the user's width.
+- **feat(ui): list in-repo demo disks in the disk picker.** When Casso
+  runs from a source checkout, the boot and Insert-Disk pickers now list
+  the disk images under `Apple2/Demos/` (Choplifter, Karateka, Lode
+  Runner, …) as directly-mountable rows alongside recent disks and stock
+  downloads. No-op in an installed build.
+- **feat(settings): per-sound drive-audio volume, stereo pan, and
+  audition.** The Machine settings page gains Motor / Head / Door volume
+  sliders, Drive 1 / Drive 2 stereo-pan sliders (Left / Center / Right),
+  and a play button beside each that auditions the sound at the
+  dialed-in level, plus a Restore-defaults button. Levels and pan persist
+  per machine and apply on OK; an un-applied audition is reverted on
+  Cancel.
+- **feat(dxui): automatic tab order for interactive widgets.** Buttons,
+  checkboxes, radios, sliders, toggles, dropdowns, tabs, text inputs,
+  search boxes, tree views, list views, and icon buttons now opt into the
+  Dxui focus tree walk; icon buttons also draw a themed focus ring and
+  activate from Space / Enter.
+
+### Changed
+- **refactor(dxui): extract the window chrome into a reusable Dxui
+  library.** Casso's panels, layouts, widgets, menu bar, popup host, and
+  dialog primitives moved into a standalone `Dxui` static library built
+  on Direct2D / DirectWrite, decoupled from the emulator shell.
+- **refactor(render): host-owned swap chain.** The window host now owns
+  the Direct3D swap chain and presents directly; the separate child
+  render-surface window is gone. This single-window-procedure
+  architecture is what lets the chrome host the new top-level popups.
+- **feat(ui): scroll long disk-image names on hover.** A mounted disk's
+  basename that overflows the drive label used to truncate with an
+  ellipsis; the label now scrolls the full name once when the drive is
+  hovered (clipped to the drive bounds), then rests at the head, so long
+  filenames can be read on demand.
+- **refactor(theme): unified theme contract across every Dxui-rendered
+  control.** Checkboxes, radio buttons, dropdowns, tooltips, sliders, and
+  toggles all paint from the active theme, so the Skeuomorphic, Dark, and
+  Retro Terminal presets apply consistently throughout the chrome, the
+  Settings window, and both debug panels (no more off-theme blue-grey
+  controls in the green Retro Terminal preset).
+- **feat(settings): pressed-state feedback on the settings tabs.** A
+  settings tab now darkens while the mouse button is held on it, matching
+  the press feedback the page's buttons, dropdowns, sliders, and toggles
+  already give.
+- **perf(shell): the disk picker opens promptly instead of after a
+  visible pause.** Clicking a drive door no longer blocks on the
+  drive-door open animation before showing the picker when the door is
+  already open (an empty drive rests open), removing a ~350 ms dead wait
+  on the common case. The picker's pre-dialog work is also trimmed: the
+  bundled-demo directory is located once per process (its contents are
+  still enumerated each open so newly added demos appear), and the
+  stock-master dedup compares disk images a block at a time and stops at
+  the first difference instead of reading each image in full.
+
+### Fixed
+- **fix(shell): machine switch no longer trips the UI-thread guard.**
+  `SwitchMachine` runs on the CPU thread and refreshed the window title
+  there, but `DxuiHwndSource::SetTitle` mutates the caption bar and is
+  UI-thread-only — so a machine switch / hardware-reset reboot asserted in
+  debug (and raced the caption in release). `UpdateWindowTitle` now
+  marshals the refresh onto the UI message loop when called off-thread.
+- **fix(input): show host joystick and paddle movement in the Input Debug
+  panel.** Arrow-key / X / Z joystick updates and trackpad paddle movement
+  now log immediately, even before the guest program reads the game port.
+- **fix(ui): debug-panel window-management polish.** The maximize glyph
+  toggles to the restore glyph when a panel is maximized, re-pressing a
+  panel's hotkey restores and foregrounds it when minimized, and the
+  panels show the Casso icon in Alt-Tab.
+- **fix(ui): enlarge the About dialog app picture.** The photoreal app
+  image now renders at a prominent size instead of a small thumbnail.
+- **fix(disk): suppress reset-time drive-door audio.** Warm reset and
+  programmatic remounts no longer play the Disk II door-close sound for
+  already-mounted disks.
+- **fix(ui): remember startup-mounted disks.** A disk mounted at startup
+  (the boot-disk picker result or `--disk1` / `--disk2`) is now recorded
+  in the recent-disks MRU, so it appears under recent disks on the next
+  launch instead of the picker reporting "no recent disks".
+- **fix(ui): label already-downloaded stock disks "Installed".** A stock
+  master already present on disk now shows "Installed" in the picker
+  rather than "Asimov archive (Download)"; selecting it mounts the local
+  copy without re-downloading.
 
 ## [1.5.1566] — Drive-audio mixer controls; text-color picker; themed settings widgets
 

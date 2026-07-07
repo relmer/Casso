@@ -54,6 +54,23 @@ LEGAL_6502_OPCODES = [
     0xF0, 0xF1, 0xF5, 0xF6, 0xF8, 0xF9, 0xFD, 0xFE,
 ]
 
+# Undocumented NMOS 6502 opcodes that Casso actually implements (in
+# CassoCore Cpu::InitializeUndocumented()). Harte's upstream data covers
+# all 256 opcode bytes, but exercising an illegal opcode the CPU does not
+# model would correctly fail — so this is the deliberately-small mirror of
+# what Casso supports, and it grows as the CPU gains illegal opcodes.
+#
+# Keep in sync with BOTH:
+#   - CassoCore/Cpu.cpp             Cpu::InitializeUndocumented()  (the impl)
+#   - UnitTest/HarteTestRunner.cpp  the "Undocumented opcodes" TEST_METHODs
+#
+#   0x04  DOP zp   — double-NOP: read a zero-page byte and discard. 2B, 3c.
+#   0xCF  DCP abs  — DEC memory then CMP A with the result.         3B, 6c.
+IMPLEMENTED_ILLEGAL_6502_OPCODES = [
+    0x04,
+    0xCF,
+]
+
 BASE_URL = "https://raw.githubusercontent.com/SingleStepTests/65x02/main"
 
 
@@ -157,6 +174,9 @@ def main():
                         help="CPU type folder name (default: 6502)")
     parser.add_argument("--opcode", type=str, default=None,
                         help="Single opcode to generate (hex, e.g. A9)")
+    parser.add_argument("--legal-only", action="store_true",
+                        help="Generate only the 151 legal opcodes, "
+                             "excluding implemented undocumented opcodes")
     parser.add_argument("--max-vectors", type=int, default=None,
                         help="Max vectors per opcode (default: all)")
     parser.add_argument("--output-dir", type=str, default=None,
@@ -174,15 +194,25 @@ def main():
 
     os.makedirs(output_dir, exist_ok=True)
 
-    # Determine which opcodes to process
+    # Determine which opcodes to process. The default set is every opcode
+    # Casso implements: the 151 legal opcodes plus the undocumented ones
+    # wired into Cpu::InitializeUndocumented(). --legal-only drops the
+    # illegals for a documented-only regression run; --opcode targets a
+    # single byte (legal or not) for focused debugging.
     if args.opcode:
         opcodes = [int(args.opcode, 16)]
+    elif args.legal_only:
+        opcodes = list(LEGAL_6502_OPCODES)
     else:
-        opcodes = LEGAL_6502_OPCODES
+        opcodes = sorted(LEGAL_6502_OPCODES + IMPLEMENTED_ILLEGAL_6502_OPCODES)
 
     print(f"CPU type:    {args.cpu}")
     print(f"Output dir:  {output_dir}")
-    print(f"Opcodes:     {len(opcodes)}")
+    illegal_count = sum(
+        1 for op in opcodes if op in IMPLEMENTED_ILLEGAL_6502_OPCODES)
+    print(f"Opcodes:     {len(opcodes)} "
+          f"({len(opcodes) - illegal_count} legal, "
+          f"{illegal_count} undocumented)")
 
     if args.max_vectors:
         print(f"Max vectors: {args.max_vectors}")

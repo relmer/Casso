@@ -20,7 +20,7 @@
 #include "Core/Prng.h"
 
 #include "DiskSettings.h"
-#include "UnicodeSymbols.h"
+#include "Core/UnicodeSymbols.h"
 #include "Core/MachineConfig.h"
 #include "Core/JsonParser.h"
 #include "Video/AppleTextMode.h"
@@ -30,11 +30,13 @@
 #include "Video/AppleDoubleHiResMode.h"
 #include "Video/PixelFormat.h"
 #include "Video/MonochromeTint.h"
-#include "Ui/Win11DwmHelpers.h"
-#include "Ui/TitleBarHitTest.h"
 #include "Ui/Chrome/ChromeMetrics.h"
 #include "Ui/DriveWidgetController.h"
 #include "Shell/DiskMru.h"
+#include "Window/DxuiHwndSource.h"
+#include "Ui/Dialogs/DialogBodyContent.h"
+#include "Ui/Dialogs/MessageDialog.h"
+#include "Ui/Settings/SettingsSheet.h"   // TEMP (T162 3a dev trigger)
 
 #pragma comment(lib, "ole32.lib")
 #pragma comment(lib, "comctl32.lib")
@@ -74,25 +76,16 @@ static constexpr int     s_kLabelBottomGapDp    = 2;
 // + ~8 dp bottom gap. Bumping the button's font / padding requires
 // updating this and s_kFullDriveBarDp / s_kCompactDriveBarDp to match.
 static constexpr int     s_kJoystickButtonBandDp = 43;
-
-// Max width (dp) of the input-mode button's hover tooltip; the long
-// mode-explanation text wraps to this width instead of running off the
-// window edge (further capped to the viewport by Tooltip).
-static constexpr float   s_kJoystickTooltipMaxWidthDip = 300.0f;
+static constexpr int     s_kPaddleNoticeMs       = 8000;   // auto-dismiss for the paddle-mode tooltip
 
 // Minimum emulator-viewport (center) the window must always host, plus a
 // small pad past the last menu title, so the bottom drive bar can never be
 // driven up into the menu strip / title (NC) area and menu titles never
 // clip. The drive-bar and title / nav insets are added live by the
-// LayoutManager around this center.
+// chrome-band dock around this center.
 static constexpr int     s_kMinCenterWidthDp  = 420;
 static constexpr int     s_kMinCenterHeightDp = 160;
 static constexpr int     s_kMenuRightPadDp    = 12;
-
-// When paddle-mode capture begins, a tooltip left visible over the button
-// won't get another mouse event to dismiss it (the pointer is captured /
-// hidden), so schedule it to self-dismiss after this delay.
-static constexpr int     s_kPaddleTooltipDismissMs = 3000;
 
 // WM_KEYDOWN / WM_CHAR lParam bit 30: "previous key state" — set when the
 // key was already down, i.e. this event is a Windows OS auto-repeat. We
@@ -153,26 +146,30 @@ namespace
 {
     void LayoutDriveWidgetsInCommandBar (
         std::array<DriveWidget, 2>  & driveChrome,
-        const LayoutManagerResult    & layout,
+        int                           bottomInsetPx,
         int                           clientW,
         int                           clientH,
         UINT                          dpi)
     {
-        int     bottomInset   = layout.bottomInsetPx;
-        int     commandBarTop = std::max (0, clientH - bottomInset);
-        int     gap           = MulDiv (s_kDriveWidgetGapDp, static_cast<int> (dpi), s_kBaseDpi);
-        int     bottomGap     = 0;
-        RECT    probe         = {};
-        int     widgetW       = 0;
-        int     widgetH       = 0;
-        int     totalW        = 0;
-        int     x             = 0;
-        int     y             = 0;
-        size_t  i             = 0;
+        int            bottomInset   = bottomInsetPx;
+        int            commandBarTop = std::max (0, clientH - bottomInset);
+        int            gap           = MulDiv (s_kDriveWidgetGapDp, static_cast<int> (dpi), s_kBaseDpi);
+        int            bottomGap     = 0;
+        RECT           probe         = {};
+        int            widgetW       = 0;
+        int            widgetH       = 0;
+        int            totalW        = 0;
+        int            x             = 0;
+        int            y             = 0;
+        size_t         i             = 0;
+        DxuiDpiScaler  scaler;
+        RECT           anchor        = {};
 
 
 
-        driveChrome[0].Layout (0, 0, dpi);
+        scaler.SetDpi (dpi);
+        anchor = { 0, 0, 0, 0 };
+        driveChrome[0].Layout (anchor, scaler);
         probe   = driveChrome[0].OuterRect();
         widgetW = probe.right  - probe.left;
         widgetH = probe.bottom - probe.top;
@@ -186,46 +183,20 @@ namespace
 
         for (i = 0; i < driveChrome.size(); i++)
         {
-            int  widgetX       = x + static_cast<int> (i) * (widgetW + gap);
-            int  widgetCenterX = widgetX + widgetW / 2;
-            int  vanishingX    = clientW / 2;
+            int   widgetX       = x + static_cast<int> (i) * (widgetW + gap);
+            int   widgetCenterX = widgetX + widgetW / 2;
+            int   vanishingX    = clientW / 2;
             // Shrink factor matches the case-top depth ratio (back
             // edge is ~20% narrower than the front, so back center
             // shifts ~20% of the way toward the shared vanishing
             // point). Numerator chosen to match s_kCaseBackInsetPx
             // ratio in DriveWidget.cpp.
-            int  skewPx        = MulDiv (vanishingX - widgetCenterX, 27, 100);
+            int   skewPx        = MulDiv (vanishingX - widgetCenterX, 27, 100);
+            RECT  widgetAnchor  = { widgetX, y, widgetX, y };
 
             driveChrome[i].SetPerspectiveSkewPx (skewPx);
-            driveChrome[i].Layout (widgetX, y, dpi);
+            driveChrome[i].Layout (widgetAnchor, scaler);
         }
-    }
-
-
-    BOOL RegisterRenderSurfaceClass (HINSTANCE hInstance)
-    {
-        WNDCLASSEXW wcex = { sizeof (wcex) };
-
-
-
-        if (GetClassInfoExW (hInstance, L"CassoRenderSurface", &wcex))
-        {
-            return TRUE;
-        }
-
-        wcex.style         = 0;
-        wcex.lpfnWndProc   = EmulatorShell::s_RenderSurfaceWndProc;
-        wcex.cbClsExtra    = 0;
-        wcex.cbWndExtra    = 0;
-        wcex.hInstance     = hInstance;
-        wcex.hIcon         = nullptr;
-        wcex.hCursor       = nullptr;
-        wcex.hbrBackground = nullptr;
-        wcex.lpszMenuName  = nullptr;
-        wcex.lpszClassName = L"CassoRenderSurface";
-        wcex.hIconSm       = nullptr;
-
-        return RegisterClassExW (&wcex) != 0;
     }
 
 
@@ -273,7 +244,7 @@ namespace
 
 
     // Loads an HICON resource into a CPU-side premultiplied BGRA8
-    // pixel buffer suitable for the DwriteTextRenderer::DrawIconBitmap
+    // pixel buffer suitable for the DxuiTextRenderer::DrawIconBitmap
     // path. Uses a GDI memory DC + 32-bit DIB section to capture the
     // icon's alpha-channelled pixels (LoadImageW preserves alpha when
     // LR_DEFAULTCOLOR is set on a Vista+ icon). Premultiplies the
@@ -502,12 +473,23 @@ EmulatorShell::~EmulatorShell()
     IGNORE_RETURN_VALUE (hrFlush, S_OK);
 
     // Native-only ownership teardown.
-    m_d3dRenderer.SetAfterBlitHook (nullptr);
     m_uiShell.Shutdown();
     m_dragDropTarget.Shutdown();
     m_driveWidgets.UnloadDocument();
-    m_navLayer.Hide();
-    m_titleBar.Hide();
+    m_mainMenu.Hide();
+    m_mainMenu.SetPopupHost (nullptr);
+
+    // Drop the host's adopted-chrome references before the chrome
+    // members or m_host itself go out of scope. The chrome controls
+    // (m_mainMenu, m_driveChrome, m_joystickButton) are raw-pointer-
+    // registered into m_host->Root() via DxuiPanel::Adopt; releasing
+    // the adoption here keeps the panel from ever holding a dangling
+    // pointer during the field-by-field destruction below. (The caption
+    // is host-owned, not adopted, so it is not in this set.)
+    if (m_host)
+    {
+        m_host->Root().ClearAdopted();
+    }
 
     m_d3dRenderer.Shutdown();
 
@@ -547,13 +529,13 @@ HRESULT EmulatorShell::Initialize (
     m_config             = config;
     m_cyclesPerFrame     = config.cyclesPerFrame;
 
-    // Register chrome regions with the layout planner once -- their
-    // pointers stay registered for the lifetime of the shell. Theme
-    // changes that resize the drive bar mutate m_driveBarSlot in
-    // place; LayoutManager reads the live thickness on every Resolve.
-    m_layout.RegisterEdge (&m_titleBarSlot);
-    m_layout.RegisterEdge (&m_navStripSlot);
-    m_layout.RegisterEdge (&m_driveBarSlot);
+    // Register the chrome bands + center with the dock layout once --
+    // their thicknesses are refreshed from DPI + live drive-bar state
+    // on every ComputeViewportRect / ClientSizeForCenterPx call.
+    m_chromeDock.SetDock (m_titleBand,  DxuiDock::Top);
+    m_chromeDock.SetDock (m_navBand,    DxuiDock::Top);
+    m_chromeDock.SetDock (m_driveBand,  DxuiDock::Bottom);
+    m_chromeDock.SetDock (m_centerBand, DxuiDock::Fill);
 
     assetBaseDir = AssetBootstrap::GetAssetBaseDirectory();
     machinesDir  = assetBaseDir / fs::path ("Machines") / fs::path (m_currentMachineName);
@@ -613,7 +595,7 @@ HRESULT EmulatorShell::Initialize (
         HRESULT  hrPrefsEarly = m_userConfigStore->LoadAll (m_globalPrefs, m_uiFs);
 
         IGNORE_RETURN_VALUE (hrPrefsEarly, S_OK);
-        m_chromeTheme = ChromeTheme::ForName (m_globalPrefs.activeTheme);
+        m_chromeTheme = CassoTheme::ForName (m_globalPrefs.activeTheme);
         ApplyThemeToChrome (m_chromeTheme);
     }
 
@@ -635,12 +617,31 @@ HRESULT EmulatorShell::Initialize (
 
     m_machineManager->WirePageTable();
 
-    hr = CreateRenderSurface();
+    // Initialize the Apple ][ framebuffer renderer against the host's
+    // D3D11 device + DXGI swap chain (full host ownership). The host
+    // owns Present; the renderer composites the framebuffer into the
+    // host back buffer from the before-present hook wired below. The
+    // initial target rect is the DxuiViewport bounds computed during
+    // CreateEmulatorWindow.
+    hr = m_d3dRenderer.Initialize (m_host->GetDevice(),
+                                   m_host->GetContext(),
+                                   m_host->GetSwapChain(),
+                                   kFramebufferWidth,
+                                   kFramebufferHeight,
+                                   m_viewportBoundsPx);
     CHR (hr);
 
-    // Initialize D3D11
-    hr = m_d3dRenderer.Initialize (m_renderHwnd, kFramebufferWidth, kFramebufferHeight);
-    CHR (hr);
+    // Composite the Apple ][ framebuffer into the host's back buffer
+    // before the host paints chrome on top (DxuiHwndSource::PaintPump).
+    // m_pendingFramebuffer is staged each UI frame by RunMessageLoop;
+    // nullptr means "no new emulator frame" (re-composite last upload).
+    m_host->SetBeforePresentHook ([this] ()
+    {
+        HRESULT  hrComposite = m_d3dRenderer.UploadAndComposite (m_host->GetBackBufferRtv(),
+                                                                 m_pendingFramebuffer);
+
+        IGNORE_RETURN_VALUE (hrComposite, S_OK);
+    });
 
     // Native UI runtime bootstrap. UiShell owns the painter, text
     // renderer, hit-tester, focus manager, and input translator;
@@ -648,15 +649,26 @@ HRESULT EmulatorShell::Initialize (
     // top of the emulator frame without ever pausing the render loop.
     {
         HRESULT  hrUi       = m_uiShell.Initialize (&m_d3dRenderer);
-        HRESULT  hrSettings = S_OK;
         HRESULT  hrTheme    = S_OK;
         HRESULT  hrPrefs    = S_OK;
 
 
 
         IGNORE_RETURN_VALUE (hrUi, S_OK);
-        m_uiShell.SetChrome (&m_titleBar, &m_navLayer, &m_driveChrome, &m_chromeTheme);
-        m_uiShell.SetJoystickButton (&m_joystickButton, &m_joystickTooltip);
+        // The caption is host-owned now, and chrome paints through the
+        // host panel tree; UiShell only routes input, hit-tests, and
+        // supplies the theme / viewport metrics the settings panel reads.
+        m_uiShell.SetMainMenu (&m_mainMenu);
+        m_uiShell.SetTheme    (&m_chromeTheme);
+
+        // Inject the shared text renderer into chrome controls that
+        // need to measure label strings during Layout. Mirrors the
+        // UiShell-owned painter / text renderer pair so the chrome
+        // controls participate in the standard IDxuiControl::Layout
+        // contract without needing the renderer passed as a Layout
+        // parameter on every call.
+        m_mainMenu.SetTextRendererForMeasure (&m_uiShell.Text());
+        m_joystickButton.SetTextRenderer     (&m_uiShell.Text());
 
         m_themeManager    = std::make_unique<ThemeManager> (m_uiFs, themesDir.wstring());
         hrTheme           = m_themeManager->Discover();
@@ -664,7 +676,14 @@ HRESULT EmulatorShell::Initialize (
         hrPrefs = m_userConfigStore->LoadAll (m_globalPrefs, m_uiFs);
         IGNORE_RETURN_VALUE (hrPrefs, S_OK);
 
-        m_inputMode = m_globalPrefs.inputMappingMode;
+        // Paddle is an active mouse-capture mode, not a passive remap; never
+        // restore it on launch (it would light the LED / widen the widget
+        // while the mouse is NOT actually captured). Fall back to Off; the
+        // passive Joystick remap is safe to restore.
+        m_inputMode = (m_globalPrefs.inputMappingMode == InputMappingMode::Paddle)
+                          ? InputMappingMode::Off
+                          : m_globalPrefs.inputMappingMode;
+        m_globalPrefs.inputMappingMode = m_inputMode;
         m_joystickButton.SetMode (m_inputMode);
 
         SetColorMonitorTextArgbLive (
@@ -695,9 +714,8 @@ HRESULT EmulatorShell::Initialize (
         // user re-picked the theme in Settings.
         m_themeManager->AddChangeListener ([this] (const LoadedTheme & t)
         {
-            m_chromeTheme = ChromeTheme::ForName (t.name);
+            m_chromeTheme = CassoTheme::ForName (t.name);
             ApplyThemeToChrome (m_chromeTheme);
-            m_settingsPanel.SetTheme (&m_chromeTheme);
         });
 
         // Tell the theme manager which machine is active BEFORE the
@@ -779,16 +797,6 @@ HRESULT EmulatorShell::Initialize (
             }
         }
 
-        hrSettings = m_settingsPanel.Initialize (m_uiShell,
-                                                 *m_userConfigStore,
-                                                 m_globalPrefs,
-                                                 *m_themeManager,
-                                                 *this,
-                                                 m_uiFs);
-        IGNORE_RETURN_VALUE (hrSettings, S_OK);
-        m_uiShell.SetSettingsPanel (nullptr);
-        m_uiShell.SetDragSource    (&m_dragDropTarget);
-
         if (SUCCEEDED (hrUi))
         {
             UINT  initialDpi = GetDpiForWindow (m_hwnd);
@@ -803,26 +811,11 @@ HRESULT EmulatorShell::Initialize (
                                                      initialDpi);
             IGNORE_RETURN_VALUE (hrUiResize, S_OK);
 
-            m_d3dRenderer.SetAfterBlitHook ([this]()
-            {
-                m_diskManager->UpdateDriveWidgets();
-                m_uiShell.Render();
-
-                // Keep the present pump alive while any drive door is
-                // mid-animation. Without this, the door state advances
-                // (TickDoorAnimation in UpdateDriveWidgets ran above)
-                // but the chrome won't repaint next frame unless the
-                // emulator framebuffer happens to also be dirty.
-                for (const DriveWidgetState & st : m_driveWidgetState)
-                {
-                    if (st.doorState == DriveWidgetState::Door::Opening ||
-                        st.doorState == DriveWidgetState::Door::Closing)
-                    {
-                        m_d3dRenderer.MarkRedrawNeeded();
-                        break;
-                    }
-                }
-            });
+            // Chrome no longer composites via an after-blit hook: it
+            // paints through the host's panel-tree pump (the adopted
+            // chrome controls) on top of the Apple ][ framebuffer. The
+            // per-frame drive-widget tick + door-animation redraw that
+            // used to live in that hook now run in RunMessageLoop.
 
             {
                 bool  fHasDisk = (m_diskManager != nullptr) && m_diskManager->HasSlot6Controller();
@@ -841,27 +834,15 @@ HRESULT EmulatorShell::Initialize (
                 m_uiShell.HitTest().Clear();
                 if (fHasDisk)
                 {
-                    m_uiShell.HitTest().Register (HitRect { m_driveChrome[0].BodyRect(), HitSlot::Custom, 0 });
-                    m_uiShell.HitTest().Register (HitRect { m_driveChrome[1].BodyRect(), HitSlot::Custom, 1 });
+                    m_uiShell.HitTest().Register (DxuiHitRect { m_driveChrome[0].BodyRect(), DxuiHitSlot::Custom, 0 });
+                    m_uiShell.HitTest().Register (DxuiHitRect { m_driveChrome[1].BodyRect(), DxuiHitSlot::Custom, 1 });
                 }
             }
 
             if (m_fOleInitialized)
             {
-                HRESULT hrDrop = m_dragDropTarget.Initialize (m_hwnd, &m_uiShell.HitTest(), [this] (int tag, const std::wstring & path) { Mount (6, tag, path); });
+                HRESULT hrDrop = m_dragDropTarget.Initialize (m_hwnd, &m_uiShell.HitTest(), [this] (int tag, const std::wstring & path) { Mount (6, tag, path); }, IsSupportedDiskImageExtension);
                 IGNORE_RETURN_VALUE (hrDrop, S_OK);
-
-                // CassoRenderSurface is a child HWND that occludes the
-                // parent's client area for the emulator framebuffer. OLE
-                // hit-tests the topmost window under the cursor, so the
-                // child needs its own RegisterDragDrop pointing at the
-                // same IDropTarget -- otherwise the user sees the
-                // not-allowed cursor anywhere over the emulator content.
-                if (m_renderHwnd != nullptr)
-                {
-                    HRESULT hrDropChild = m_dragDropTarget.AttachAdditionalWindow (m_renderHwnd);
-                    IGNORE_RETURN_VALUE (hrDropChild, S_OK);
-                }
 
                 // UIPI whitelist. When Casso runs at a higher integrity
                 // level than the source (e.g. user launched Casso
@@ -873,25 +854,16 @@ HRESULT EmulatorShell::Initialize (
                 //   WM_DROPFILES       (0x0233)
                 //   WM_COPYDATA        (0x004A)
                 //   WM_COPYGLOBALDATA  (0x0049, undocumented but real)
-                // Allowing these on both registered HWNDs lets Explorer
-                // -> elevated-Casso drag work without lowering Casso's
-                // IL.
+                // Allowing these lets Explorer -> elevated-Casso drag
+                // work without lowering Casso's IL. The window is now a
+                // single top-level HWND (the legacy CassoRenderSurface
+                // child is gone), so only m_hwnd needs the filter.
                 {
                     const UINT  s_kWmCopyGlobalData = 0x0049;
-                    HWND        hwnds[2] = { m_hwnd, m_renderHwnd };
-                    size_t      i        = 0;
 
-                    for (i = 0; i < sizeof (hwnds) / sizeof (hwnds[0]); i++)
-                    {
-                        if (hwnds[i] == nullptr)
-                        {
-                            continue;
-                        }
-
-                        (void) ChangeWindowMessageFilterEx (hwnds[i], WM_DROPFILES,       MSGFLT_ALLOW, nullptr);
-                        (void) ChangeWindowMessageFilterEx (hwnds[i], WM_COPYDATA,        MSGFLT_ALLOW, nullptr);
-                        (void) ChangeWindowMessageFilterEx (hwnds[i], s_kWmCopyGlobalData, MSGFLT_ALLOW, nullptr);
-                    }
+                    (void) ChangeWindowMessageFilterEx (m_hwnd, WM_DROPFILES,        MSGFLT_ALLOW, nullptr);
+                    (void) ChangeWindowMessageFilterEx (m_hwnd, WM_COPYDATA,         MSGFLT_ALLOW, nullptr);
+                    (void) ChangeWindowMessageFilterEx (m_hwnd, s_kWmCopyGlobalData, MSGFLT_ALLOW, nullptr);
                 }
             }
         }
@@ -928,6 +900,14 @@ HRESULT EmulatorShell::Initialize (
     PowerCycle();
 
     m_diskManager->MountCommandLineDisks (disk1Path, disk2Path);
+
+    // A disk mounted at startup (boot-disk picker result or --disk1 /
+    // --disk2) belongs in the recent-disks MRU just like one mounted via
+    // the chrome, so it surfaces in the disk picker on the next launch.
+    // Record disk 2 first so the primary boot disk (drive 1) ends up the
+    // most-recent entry.
+    RecordRecentDisk (std::filesystem::path (disk2Path).wstring());
+    RecordRecentDisk (std::filesystem::path (disk1Path).wstring());
 
     // Seed the mixer state from the per-machine $cassoUiPrefs JSON
     // before the audio thread first calls SetEnabled / SetMechanism.
@@ -1053,32 +1033,30 @@ Error:
 
 HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
 {
-    HRESULT   hr                = S_OK;
-    UINT      dpi               = 0;
-    int       clientW           = 0;
-    int       clientH           = 0;
-    RECT      rc                = {};
-    DWORD     style             = 0;
-    DWORD     adjustStyle       = 0;
-    BOOL      fSuccess          = FALSE;
-    RECT      work              = {};
-    HMONITOR  activeMon         = nullptr;
-    LONG      windowX           = CW_USEDEFAULT;
-    LONG      windowY           = CW_USEDEFAULT;
-    int       windowW           = 0;
-    int       windowH           = 0;
-    bool      hadSavedPlacement = false;
+    HRESULT                       hr                = S_OK;
+    UINT                          dpi               = 0;
+    int                           clientW           = 0;
+    int                           clientH           = 0;
+    RECT                          rc                = {};
+    DWORD                         style             = 0;
+    DWORD                         adjustStyle       = 0;
+    BOOL                          fSuccess          = FALSE;
+    RECT                          work              = {};
+    HMONITOR                      activeMon         = nullptr;
+    LONG                          windowX           = CW_USEDEFAULT;
+    LONG                          windowY           = CW_USEDEFAULT;
+    int                           windowW           = 0;
+    int                           windowH           = 0;
+    bool                          hadSavedPlacement = false;
+    int                           iconBigSize       = 0;
+    int                           iconSmallSize     = 0;
+    HICON                         hIconBig          = nullptr;
+    HICON                         hIconSm           = nullptr;
+    DxuiHwndSource::CreateParams  params;
 
 
 
-    // Register and create the window via the base class
-    m_kpszWndClass  = kWindowClass;
-    m_hbrBackground = reinterpret_cast<HBRUSH> (GetStockObject (BLACK_BRUSH));
-    m_idIcon        = IDI_CASSO;
-    m_idIconSmall   = IDI_CASSO;
-
-    hr = Window::Initialize (hInstance);
-    CHR (hr);
+    m_hInstance = hInstance;
 
     // Calculate window size for desired client area, scaled for the
     // monitor we will actually open on. With per-monitor DPI v2,
@@ -1105,14 +1083,15 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
         dpi = GetDpiForSystem();
     }
 
-    // Seed the Window's authoritative DPI so the LayoutManager (which
-    // queries it) returns coherent sizes during the pre-Create math.
+    // Seed our authoritative DPI so the chrome-band dock (which scales
+    // band thicknesses through it) returns coherent sizes during the
+    // pre-Create math.
     // WM_NCCREATE will overwrite this with GetDpiForWindow once the
     // HWND exists; that value wins if it disagrees.
-    SetInitialDpi (dpi);
+    m_scaler.SetDpi (dpi);
 
     {
-        SIZE  client = m_layout.ClientSizeForFramebuffer (kFramebufferWidth, kFramebufferHeight);
+        SIZE  client = ClientSizeForFramebufferPx (kFramebufferWidth, kFramebufferHeight);
 
         clientW = (int) client.cx;
         clientH = (int) client.cy;
@@ -1129,9 +1108,13 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     // WM_NCHITTEST returns HTMINBUTTON/HTMAXBUTTON/HTCLOSE for the
     // button rects and HTCAPTION for the drag region, so the OS
     // dispatches the right system action and our OnNcLButtonUp
-    // dispatches the action for the captioned buttons.
+    // dispatches the action for the captioned buttons. The style
+    // mirrors what DxuiHwndSource::Create uses internally for
+    // borderless + resizable windows so the AdjustWindowRectExForDpi
+    // math below produces the right window-pixel rect for the same
+    // NC layout the host will create.
     style    = WS_OVERLAPPEDWINDOW | WS_CLIPCHILDREN;
-    // Strip WS_CAPTION for the rect-adjust math because our
+    // Strip WS_CAPTION for the rect-adjust math because the
     // WM_NCCALCSIZE handler restores the original top edge -- it does
     // *not* carve a caption out of the client area. If we passed the
     // full WS_OVERLAPPEDWINDOW style here, AdjustWindowRectExForDpi
@@ -1156,46 +1139,120 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     }
 
     hadSavedPlacement = m_windowManager.TryLoadSavedWindowPlacement (activeMon, windowX, windowY, windowW, windowH);
-    hr = Window::Create (0,
-                         L"Casso",
-                         style,
-                         windowX, windowY,
-                         windowW, windowH,
-                         nullptr);
+
+    // Preload the app icons so DxuiHwndSource::Create can attach them
+    // via WM_SETICON before the window is shown. The taskbar and
+    // Win32 MessageBox dialogs pick the icon up from WM_GETICON, not
+    // WNDCLASS::hIcon, so the explicit handoff is required.
+    iconBigSize   = GetSystemMetrics (SM_CXICON);
+    iconSmallSize = GetSystemMetrics (SM_CXSMICON);
+    hIconBig      = (HICON) LoadImageW (hInstance, MAKEINTRESOURCEW (IDI_CASSO),
+                                        IMAGE_ICON, iconBigSize, iconBigSize,
+                                        LR_DEFAULTCOLOR | LR_SHARED);
+    hIconSm       = (HICON) LoadImageW (hInstance, MAKEINTRESOURCEW (IDI_CASSO),
+                                        IMAGE_ICON, iconSmallSize, iconSmallSize,
+                                        LR_DEFAULTCOLOR | LR_SHARED);
+
+    // Hand the pre-computed window-pixel placement and chrome flags
+    // to DxuiHwndSource. createSwapChain = true so the host owns the
+    // D3D11 device + DXGI flip-discard swap chain and runs the panel-
+    // tree paint pump; the Apple ][ framebuffer renderer composites
+    // into that same back buffer via the before-present hook (wired in
+    // Initialize), and chrome paints on top via the adopted controls.
+    // The legacy CassoRenderSurface child HWND is gone -- a single
+    // window proc now owns all mouse / NC / cursor handling.
+    params.title                  = L"Casso";
+    params.hInstance              = hInstance;
+    params.ownerHwnd              = nullptr;
+    params.borderless             = true;
+    params.resizable              = true;
+    params.roundedCorners         = true;
+    params.darkMode               = true;
+    params.backdrop               = DxuiHwndSourceBackdrop::None;
+    params.resizeBorderDip        = 6.0f;
+    params.classNameOverride      = kWindowClass;
+    params.useInitialWindowRectPx = true;
+    params.initialWindowRectPx    = { windowX, windowY, windowX + windowW, windowY + windowH };
+    params.appIconBig             = hIconBig;
+    params.appIconSmall           = hIconSm;
+    params.createSwapChain        = true;
+    params.captionStyle           = DxuiCaptionStyle::Standard;
+
+    m_host = std::make_unique<DxuiHwndSource>();
+
+    // Install ourselves as the IDxuiHostClient BEFORE Create so the
+    // WM_NCCREATE / WM_CREATE / WM_SIZE / WM_MOVE sequence that fires
+    // synchronously inside CreateWindowExW dispatches through our
+    // OnXxx handlers (matches the legacy Window::Create behavior).
+    m_host->SetClient (this);
+
+    hr = m_host->Create (params);
     CHR (hr);
 
-    // Force the app icon onto the window itself (not just the class).
-    // Win32 MessageBox-style dialogs and the task bar pick the icon up
-    // via WM_GETICON on the parent HWND, NOT WNDCLASS::hIcon; without
-    // explicit WM_SETICON the dialog title bar shows no icon and the
-    // taskbar falls back to the generic Windows logo.
+    m_hwnd = m_host->Hwnd();
+    m_scaler.SetDpi (GetDpiForWindow (m_hwnd));
+
+    // The caption (title + icon + min/max/close) is owned and rendered
+    // by the host (CreateParams::captionStyle == Standard), which also
+    // classifies the caption / system-button / resize-edge NC hits --
+    // so no SetHitTestDelegate is installed. The host's DxuiSystemButton
+    // children dispatch min/max/close themselves.
+
+    // Stand up the host root panel as a DxuiAbsoluteLayout container
+    // and add a single DxuiViewport child representing the Apple ][
+    // framebuffer region. EmulatorShell hand-computes the viewport
+    // rectangle (client minus chrome bands) every time chrome layout
+    // changes; the viewport's OnBoundsChanged callback forwards the
+    // new rect to D3DRenderer::SetTargetBounds. Full DxuiDockLayout
+    // wiring lands in Phase 12.
+    m_host->Root().SetLayout (std::make_unique<DxuiAbsoluteLayout>());
+    m_viewport = &m_host->Root().Add<DxuiViewport>();
+    m_viewport->SetOnBoundsChanged ([this] (const RECT & boundsPx)
     {
-        int    iconBigSize   = GetSystemMetrics (SM_CXICON);
-        int    iconSmallSize = GetSystemMetrics (SM_CXSMICON);
-        HICON  hIconBig      = (HICON) LoadImageW (hInstance, MAKEINTRESOURCEW (IDI_CASSO),
-                                                   IMAGE_ICON, iconBigSize, iconBigSize,
-                                                   LR_DEFAULTCOLOR | LR_SHARED);
-        HICON  hIconSm       = (HICON) LoadImageW (hInstance, MAKEINTRESOURCEW (IDI_CASSO),
-                                                   IMAGE_ICON, iconSmallSize, iconSmallSize,
-                                                   LR_DEFAULTCOLOR | LR_SHARED);
+        this->OnViewportBoundsChanged (boundsPx);
+    });
 
-        if (hIconBig != nullptr)
-        {
-            SendMessageW (m_hwnd, WM_SETICON, ICON_BIG,   (LPARAM) hIconBig);
-        }
-        if (hIconSm != nullptr)
-        {
-            SendMessageW (m_hwnd, WM_SETICON, ICON_SMALL, (LPARAM) hIconSm);
-        }
-    }
+    // Route the guest's raw keyboard through the viewport's input sink
+    // (FR-034). SetWantsAllKeys makes it a greedy surface so even the
+    // Dxui-reserved navigation keystrokes (Esc / Tab / arrows) reach the
+    // //e -- the chrome's own keyboard escape routes are enforced by the
+    // pre-checks in OnKeyDown / OnChar, upstream of this forward.
+    m_viewport->SetInputSink (this);
+    m_viewport->SetConsumesInput (true);
+    m_viewport->SetWantsAllKeys (true);
 
-    // DWM gating. Rounded corners + dark immersive caption
-    // are best-effort and runtime-gated to the right Win10/11 build.
-    // Mica stays opt-in: it'll be toggled per-theme in P5 via
-    // theme.json `useMicaBackdrop`.
-    Win11DwmHelpers::ExtendFrameIntoClientArea (m_hwnd, 1);
-    Win11DwmHelpers::ApplyRoundedCorners       (m_hwnd, true);
-    Win11DwmHelpers::ApplyImmersiveDarkMode    (m_hwnd, true);
+    // Adopt the chrome controls (menu bar / drive widgets / joystick
+    // toggle) into the host's root panel so they participate in the
+    // host-owned paint, input, focus, theme, tick, and DPI walks.
+    // Lifetime stays with EmulatorShell (chrome controls are members);
+    // the panel just registers raw pointers. The host's WM_PAINT pump
+    // (createSwapChain = true) now paints these adopted controls on top
+    // of the Apple ][ framebuffer each frame. The title bar is NOT here:
+    // the host owns the caption strip itself.
+    m_host->Root().Adopt (m_mainMenu);
+    m_host->Root().Adopt (m_driveBandSurface);
+    m_host->Root().Adopt (m_driveChrome[0]);
+    m_host->Root().Adopt (m_driveChrome[1]);
+    m_host->Root().Adopt (m_joystickButton);
+
+    // Give the host the chrome theme so its paint pump renders the
+    // adopted chrome -- PaintPump no-ops when no theme is set.
+    // m_chromeTheme is reassigned in place on theme switches, so this
+    // pointer stays valid and the host reads the updated palette on the
+    // next paint.
+    m_host->SetTheme (&m_chromeTheme);
+
+    // Route the menu bar's open submenu through the host popup pool so
+    // the dropdown renders as a real top-level window (escapes the
+    // client area + occludes). The strip stays in-window. The
+    // full-ownership host owns the device, so its pool makes real popups.
+    m_mainMenu.SetPopupHost (m_host.get());
+
+    // The joystick-button hover tooltip renders through the host popup
+    // pool too; its dwell timer is driven from the main frame loop's
+    // Tick. SetTheme seeds the tooltip surface colours.
+    m_joystickTooltip.SetPopupHost (m_host.get());
+    m_joystickTooltip.SetTheme     (m_chromeTheme);
 
     // Defer the size reconcile until after ShowWindow. The NC frame
     // (border carve-out from DefWindowProc + DWM rounded corners +
@@ -1207,7 +1264,7 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     m_initialSizeReconciled = hadSavedPlacement;
 
     // Legacy Win32 menu bar is retired (FR-026). All menu
-    // commands now route through `NavLayer` + the native nav strip;
+    // commands now route through `MainMenu` + the native nav strip;
     // keyboard accelerators (loaded below) keep working independently
     // of the menu bar. `m_menuSystem` is intentionally left in place
     // to cache `SpeedMode` / `ColorMode` for any downstream reader,
@@ -1241,21 +1298,30 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
         if (windowDpi != 0)
         {
             dpi = windowDpi;
+            m_scaler.SetDpi (dpi);
         }
     }
-    m_titleBar.UpdateGeometry (clientW, dpi);
-    m_navLayer.Layout (0, m_titleBar.GetTitleHeight(), clientW, dpi, &m_uiShell.Text());
-    m_navLayer.SetDispatch ([this] (WORD commandId) { HandleCommand (commandId); });
-    m_navLayer.SetCheckQuery ([this] (WORD commandId) -> bool
     {
-        return (commandId == IDM_MACHINE_ARROWS_JOYSTICK) ? (m_inputMode != InputMappingMode::Off) : false;
+        RECT  menuBarBounds = { 0, m_host->CaptionHeightPx(), clientW, m_host->CaptionHeightPx() };
+
+        m_mainMenu.Layout (menuBarBounds, m_scaler);
+    }
+    m_mainMenu.SetDispatch ([this] (WORD commandId) { HandleCommand (commandId); });
+    m_mainMenu.SetCheckQuery ([this] (WORD commandId) -> bool
+    {
+        switch (commandId)
+        {
+            case IDM_MACHINE_ARROWS_JOYSTICK: return m_inputMode == InputMappingMode::Joystick;
+            case IDM_MACHINE_ARROWS_PADDLE:   return m_inputMode == InputMappingMode::Paddle;
+            default:                          return false;
+        }
     });
 
     // Load the app icon (IDI_CASSO) into a premultiplied BGRA8 pixel
-    // buffer so the title bar can blit it left of the caption text.
-    // Loaded at 32x32 (high enough to look crisp at typical title-bar
-    // sizes when D2D linearly downscales it); failure is non-fatal --
-    // the title bar simply omits the icon if the load misses.
+    // buffer and hand it to the host caption (like WM_SETICON for the
+    // window glyph). Loaded at 32x32 (high enough to look crisp at
+    // typical caption sizes when D2D linearly downscales it); failure
+    // is non-fatal -- the caption simply omits the icon if it misses.
     {
         std::vector<uint32_t>  iconPixels;
         int                    iconW = 0;
@@ -1263,24 +1329,26 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
 
         if (LoadIconAsPremulBgra (hInstance, IDI_CASSO, 32, iconPixels, iconW, iconH))
         {
-            m_titleBar.SetAppIcon (std::move (iconPixels), iconW, iconH);
+            m_host->SetCaptionIcon (std::move (iconPixels), iconW, iconH);
         }
     }
     m_driveChrome[0].Initialize (6, 0, this);
     m_driveChrome[1].Initialize (6, 1, this);
     {
-        LayoutManagerResult  layout = m_layout.Resolve (clientW, clientH);
+        RECT  vr            = ComputeViewportRect (clientW, clientH);
+        int   bottomInsetPx = clientH - vr.bottom;
 
-        LayoutDriveWidgetsInCommandBar (m_driveChrome, layout, clientW, clientH, dpi);
+        LayoutDriveWidgetsInCommandBar (m_driveChrome, bottomInsetPx, clientW, clientH, dpi);
         {
-            int  bandTop    = clientH - layout.bottomInsetPx;
+            int  bandTop    = clientH - bottomInsetPx;
             int  bandHeight = MulDiv (s_kJoystickButtonBandDp, static_cast<int> (dpi), s_kBaseDpi);
 
+            m_driveBandSurface.SetBounds (RECT{ 0, bandTop, clientW, clientH });
             LayoutJoystickButton (clientW, bandTop, bandHeight, dpi);
         }
-        m_d3dRenderer.SetTopInsetPx    (layout.topInsetPx);
-        m_d3dRenderer.SetBottomInsetPx (layout.bottomInsetPx);
     }
+
+    UpdateViewportLayout (clientW, clientH);
 
     // Load accelerator table
     m_accelTable = LoadAccelerators (hInstance, MAKEINTRESOURCE (IDR_ACCELERATOR));
@@ -1296,38 +1364,271 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  CreateRenderSurface
+//  UpdateViewportLayout
+//
+//  Computes the Apple ][ viewport rectangle from the current client
+//  width / height via the chrome-band DxuiDockLayout (top + bottom
+//  insets), then invokes DxuiViewport::Layout on the host root panel's
+//  viewport child. The viewport's bounds-changed callback fires when
+//  the rectangle differs from the last value reported, forwarding
+//  the new rect to D3DRenderer::SetTargetBounds via
+//  OnViewportBoundsChanged.
+//
+//  Skipped silently when the viewport has not yet been wired (early
+//  init paths, or when the host root panel was torn down).
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT EmulatorShell::CreateRenderSurface()
+void EmulatorShell::UpdateViewportLayout (int widthPx, int heightPx)
 {
-    HRESULT  hr       = S_OK;
-    BOOL     fSuccess = FALSE;
-    RECT     rcClient = {};
+    HRESULT  hr           = S_OK;
+    RECT     viewportRect = {};
 
 
+    BAIL_OUT_IF (m_viewport == nullptr, S_OK);
 
-    fSuccess = GetClientRect (m_hwnd, &rcClient);
-    CWRA (fSuccess);
-
-    fSuccess = RegisterRenderSurfaceClass (m_hInstance);
-    CWRA (fSuccess);
-
-    m_renderHwnd = CreateWindowExW (0,
-                                    L"CassoRenderSurface",
-                                    nullptr,
-                                    WS_CHILD | WS_VISIBLE | WS_CLIPSIBLINGS,
-                                    0, 0,
-                                    rcClient.right, rcClient.bottom,
-                                    m_hwnd,
-                                    nullptr,
-                                    m_hInstance,
-                                    nullptr);
-    CWRA (m_renderHwnd);
+    viewportRect = ComputeViewportRect (widthPx, heightPx);
+    m_viewport->Layout (viewportRect, m_scaler);
 
 Error:
-    return hr;
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::SyncChromeBands
+//
+//  Stamps each chrome band's Bounds() height with its current DPI-scaled
+//  pixel thickness so DxuiDockLayout reads the right slab extents. Only
+//  the docked axis (height, for the Top/Bottom bands) is meaningful; the
+//  bands are never painted.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::SyncChromeBands ()
+{
+    // When the machine has no Disk ][ controller, remove the drive-widget area
+    // entirely (#84 Phase D): the drive band collapses to just the joystick-mode
+    // button band (joystick input is independent of disk presence), reclaiming
+    // the ~180 dp the drive widgets + their in-use indicators would occupy so
+    // the emulator viewport grows into it. The widgets are already hidden and
+    // un-hit-tested by the resize path when there is no controller.
+    bool  hasDisk     = (m_diskManager != nullptr) && m_diskManager->HasSlot6Controller();
+    int   driveBandDp = hasDisk ? m_driveBarThicknessDp : s_kJoystickButtonBandDp;
+
+    m_titleBand.SetBounds (RECT{ 0, 0, 0, m_scaler.Px (s_kTitleBarBandDp) });
+    m_navBand.SetBounds   (RECT{ 0, 0, 0, m_scaler.Px (s_kNavStripBandDp) });
+    m_driveBand.SetBounds (RECT{ 0, 0, 0, m_scaler.Px (driveBandDp) });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::ComputeViewportRect
+//
+//  Docks the chrome bands (title + nav on top, drive on the bottom)
+//  around a Fill center over the client rect and returns the center
+//  (emulator viewport) rect the dock leaves in the middle.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+RECT EmulatorShell::ComputeViewportRect (int widthPx, int heightPx)
+{
+    IDxuiControl *  kids[] = { &m_titleBand, &m_navBand, &m_driveBand, &m_centerBand };
+
+
+
+    SyncChromeBands();
+    m_chromeDock.Arrange (RECT{ 0, 0, widthPx, heightPx }, m_scaler, kids);
+
+    return m_centerBand.Bounds();
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::EmulatorContentScreenRect
+//
+//  The emulator viewport in screen pixels, for the Settings live-preview
+//  compositor's see-through reveal (#8). Recompute the viewport at the live
+//  back-buffer size (client == device pixels; per-monitor-DPI aware) and map
+//  the two corners through the main window's client origin into screen space.
+//  Empty until the window + swap chain exist.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+RECT EmulatorShell::EmulatorContentScreenRect ()
+{
+    RECT   result = {};
+    POINT  tl     = {};
+    POINT  br     = {};
+
+    if (m_hwnd == nullptr)
+    {
+        return result;
+    }
+
+    int  widthPx  = (int) m_d3dRenderer.GetBackBufferWidth();
+    int  heightPx = (int) m_d3dRenderer.GetBackBufferHeight();
+    if (widthPx <= 0 || heightPx <= 0)
+    {
+        return result;
+    }
+
+    RECT  vr = ComputeViewportRect (widthPx, heightPx);   // main-window client px
+    tl = POINT{ vr.left,  vr.top    };
+    br = POINT{ vr.right, vr.bottom };
+    ClientToScreen (m_hwnd, &tl);
+    ClientToScreen (m_hwnd, &br);
+
+    result = RECT{ tl.x, tl.y, br.x, br.y };
+    return result;
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::ReflowChromeForMachineChange
+//
+//  A machine switch may add or remove the Disk ][ controller, which changes the
+//  drive-band thickness (Phase D), the drive-widget visibility, and the hit-test
+//  map. When disk presence changes, grow/shrink the WINDOW by the band delta so
+//  the emulator viewport keeps its size and the top-left corner stays put -- NOT
+//  hold the window size and re-centre the viewport. The resulting WM_SIZE drives
+//  OnSize, which re-lays the bands / widgets / hit rects. When presence is
+//  unchanged (e.g. a swap between two controller-equipped machines) there is no
+//  band delta, so just re-run OnSize at the current size to refresh the widgets.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::ReflowChromeForMachineChange ()
+{
+    RECT  rcWindow = {};
+
+    if (m_hwnd == nullptr || !GetWindowRect (m_hwnd, &rcWindow))
+    {
+        return;
+    }
+
+    bool  newHasDisk      = (m_diskManager != nullptr) && m_diskManager->HasSlot6Controller();
+    bool  presenceChanged = (newHasDisk != m_chromeSizedForHasDisk);
+
+    // Resize the window by the band delta -- but not for min/max/fullscreen
+    // windows, where the user explicitly chose the size (mirrors
+    // ApplyThemeToChrome). Those just relayout inside the fixed frame.
+    if (presenceChanged &&
+        !IsIconic (m_hwnd) && !IsZoomed (m_hwnd) && !m_d3dRenderer.IsFullscreen())
+    {
+        int  oldBandDp = m_chromeSizedForHasDisk ? m_driveBarThicknessDp : s_kJoystickButtonBandDp;
+        int  newBandDp = newHasDisk              ? m_driveBarThicknessDp : s_kJoystickButtonBandDp;
+        int  deltaPx   = m_scaler.Px (newBandDp) - m_scaler.Px (oldBandDp);
+
+        m_chromeSizedForHasDisk = newHasDisk;
+
+        // The drive band is bottom-docked full-width, so only the height moves.
+        // SWP_NOMOVE pins the top-left corner; the WM_SIZE it generates drives
+        // OnSize to re-lay the bands, widgets, and hit-test map.
+        SetWindowPos (m_hwnd, nullptr, 0, 0,
+                      rcWindow.right  - rcWindow.left,
+                      (rcWindow.bottom - rcWindow.top) + deltaPx,
+                      SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE);
+        return;
+    }
+
+    m_chromeSizedForHasDisk = newHasDisk;
+
+    // No band delta (unchanged presence, or a fixed-state window): relayout at
+    // the current client size so widget visibility + hit rects still refresh.
+    {
+        RECT  rcClient = {};
+
+        if (GetClientRect (m_hwnd, &rcClient) &&
+            rcClient.right > rcClient.left && rcClient.bottom > rcClient.top)
+        {
+            (void) OnSize (static_cast<UINT> (rcClient.right  - rcClient.left),
+                           static_cast<UINT> (rcClient.bottom - rcClient.top));
+        }
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::ClientSizeForCenterPx
+//
+//  Inverse of ComputeViewportRect: given a desired center (emulator
+//  viewport) size in physical pixels, return the client size that hosts
+//  it with the current chrome-band thicknesses.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+SIZE EmulatorShell::ClientSizeForCenterPx (int centerWidthPx, int centerHeightPx)
+{
+    IDxuiControl *  bands[] = { &m_titleBand, &m_navBand, &m_driveBand };
+
+
+
+    SyncChromeBands();
+
+    return m_chromeDock.ContainerSizeForFill (SIZE{ centerWidthPx, centerHeightPx }, bands);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::ClientSizeForFramebufferPx
+//
+//  Framebuffer scale policy: linear DPI scaling. The Apple ][ pixel grid
+//  (given in DIPs) scales at the same rate as the chrome dp, so the
+//  framebuffer and chrome insets stay in proportion at every DPI. Both
+//  the initial window size and Ctrl+0 reset go through here.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+SIZE EmulatorShell::ClientSizeForFramebufferPx (int framebufferWidthDp, int framebufferHeightDp)
+{
+    return ClientSizeForCenterPx (m_scaler.Px (framebufferWidthDp),
+                                  m_scaler.Px (framebufferHeightDp));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnViewportBoundsChanged
+//
+//  Bounds-changed callback for the DxuiViewport child of the host's
+//  root panel. Stores the new pixel rectangle and forwards it to
+//  D3DRenderer::SetTargetBounds. Today the rect is parked on the
+//  renderer (no behavior change); the renderer consumes it once the
+//  swap-chain restructure completes later in Phase 11d.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::OnViewportBoundsChanged (const RECT & boundsPx)
+{
+    m_viewportBoundsPx = boundsPx;
+    m_d3dRenderer.SetTargetBounds (boundsPx);
+    m_d3dRenderer.MarkRedrawNeeded();
 }
 
 
@@ -1339,8 +1640,8 @@ Error:
 //  ReconcileInitialClientSize
 //
 //  Run once after ShowWindow to size the window so its client area
-//  matches what LayoutManager wants for the framebuffer. Must run
-//  POST-ShowWindow because the NC frame (DefWindowProc border carve-
+//  matches what the chrome-band dock wants for the framebuffer. Must
+//  run POST-ShowWindow because the NC frame (DefWindowProc border carve-
 //  out + DWM rounded corners) doesn't materialize until the window
 //  is visible; measuring NC overhead before that returns 0 and the
 //  reconcile would shrink the window to match the (wrong) measurement.
@@ -1369,7 +1670,7 @@ void EmulatorShell::ReconcileInitialClientSize()
 
     m_initialSizeReconciled = true;
 
-    desired         = m_layout.ClientSizeForFramebuffer (kFramebufferWidth, kFramebufferHeight);
+    desired         = ClientSizeForFramebufferPx (kFramebufferWidth, kFramebufferHeight);
     desiredClientW  = (int) desired.cx;
     desiredClientH  = (int) desired.cy;
 
@@ -1429,142 +1730,22 @@ void EmulatorShell::ReconcileInitialClientSize()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  s_RenderSurfaceWndProc
-//
-//  Window proc for the custom render surface child window class. Suppresses
-//  background erase and paint paths at the class level to prevent white
-//  flash during resize. Chains all other messages to DefWindowProc to
-//  preserve normal child window behavior and parent message routing.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-LRESULT CALLBACK EmulatorShell::s_RenderSurfaceWndProc (
-    HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
-{
-    HWND        parent = nullptr;
-    PAINTSTRUCT ps     = {};
-
-
-
-    switch (uMsg)
-    {
-        case WM_ERASEBKGND:
-            return 1;
-
-        case WM_PAINT:
-            BeginPaint (hwnd, &ps);
-            EndPaint (hwnd, &ps);
-            return 0;
-
-        case WM_PRINTCLIENT:
-            return 0;
-
-        case WM_MOUSEMOVE:
-        case WM_LBUTTONDOWN:
-        case WM_LBUTTONUP:
-            parent = GetParent (hwnd);
-            if (parent != nullptr)
-            {
-                return SendMessage (parent, uMsg, wParam, lParam);
-            }
-            return DefWindowProc (hwnd, uMsg, wParam, lParam);
-
-        // Keep resize cursors in sync with the parent NC hit-test math.
-        case WM_SETCURSOR:
-            parent = GetParent (hwnd);
-            if (parent != nullptr)
-            {
-                POINT    pt     = {};
-                LRESULT  hit    = HTCLIENT;
-                LPCWSTR  cursor = IDC_ARROW;
-
-
-
-                if (GetCursorPos (&pt))
-                {
-                    hit = SendMessage (parent, WM_NCHITTEST, 0, MAKELPARAM (pt.x, pt.y));
-
-                    switch (hit)
-                    {
-                        case HTTOPLEFT:
-                        case HTBOTTOMRIGHT:
-                            cursor = IDC_SIZENWSE;
-                            break;
-
-                        case HTTOPRIGHT:
-                        case HTBOTTOMLEFT:
-                            cursor = IDC_SIZENESW;
-                            break;
-
-                        case HTTOP:
-                        case HTBOTTOM:
-                            cursor = IDC_SIZENS;
-                            break;
-
-                        case HTLEFT:
-                        case HTRIGHT:
-                            cursor = IDC_SIZEWE;
-                            break;
-                    }
-                }
-
-                SetCursor (LoadCursorW (nullptr, cursor));
-                return TRUE;
-            }
-
-            SetCursor (LoadCursorW (nullptr, IDC_ARROW));
-            return TRUE;
-
-        // For NC regions returned by the parent hit-test, return HTTRANSPARENT
-        // so the parent receives the follow-up NC mouse messages.
-        case WM_NCHITTEST:
-            parent = GetParent (hwnd);
-            if (parent != nullptr)
-            {
-                LRESULT  hit = SendMessage (parent, uMsg, wParam, lParam);
-
-                if (hit != HTCLIENT && hit != HTNOWHERE)
-                {
-                    return HTTRANSPARENT;
-                }
-
-                return hit;
-            }
-            return DefWindowProc (hwnd, uMsg, wParam, lParam);
-
-        case WM_NCLBUTTONDOWN:
-        case WM_NCLBUTTONUP:
-        case WM_NCDESTROY:
-        case WM_NCMOUSEMOVE:
-            parent = GetParent (hwnd);
-            if (parent != nullptr)
-            {
-                return SendMessage (parent, uMsg, wParam, lParam);
-            }
-            return DefWindowProc (hwnd, uMsg, wParam, lParam);
-
-        default:
-            return DefWindowProc (hwnd, uMsg, wParam, lParam);
-    }
-}
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  OnMove
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool EmulatorShell::OnMove (HWND hwnd, int x, int y)
+DxuiMessageResult EmulatorShell::OnMove (int x, int y)
 {
-    UNREFERENCED_PARAMETER (hwnd);
     UNREFERENCED_PARAMETER (x);
     UNREFERENCED_PARAMETER (y);
 
+    if (m_mainMenu.IsOpen())
+    {
+        m_mainMenu.Hide();
+    }
+
     m_windowManager.SaveWindowPlacement (m_hwnd, m_d3dRenderer.IsFullscreen());
-    return false;
+    return DxuiMessageResult::NotHandled;
 }
 
 
@@ -1577,13 +1758,12 @@ bool EmulatorShell::OnMove (HWND hwnd, int x, int y)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool EmulatorShell::OnNotify (HWND hwnd, WPARAM wParam, LPARAM lParam)
+DxuiMessageResult EmulatorShell::OnNotify (WPARAM wParam, LPARAM lParam)
 {
-    UNREFERENCED_PARAMETER (hwnd);
     UNREFERENCED_PARAMETER (wParam);
     UNREFERENCED_PARAMETER (lParam);
 
-    return true;
+    return DxuiMessageResult::NotHandled;
 }
 
 
@@ -1630,24 +1810,31 @@ Error:
 
 void EmulatorShell::RecordRecentDisk (const std::wstring & path)
 {
-    DiskMru                   mru;
-    std::filesystem::path     fsPath;
-    std::vector<std::string>  serialized;
+    HRESULT                    hr     = S_OK;
+    DiskMru                    mru;
+    std::filesystem::path      fsPath;
+    std::vector<std::string>   serialized;
+    std::vector<std::int64_t>  loadedAt;
+    std::int64_t               nowUnix = 0;
 
 
 
-    if (path.empty())
-    {
-        return;
-    }
+    BAIL_OUT_IF (path.empty(), S_OK);
+
+    nowUnix = (std::int64_t) std::chrono::duration_cast<std::chrono::seconds> (
+                  std::chrono::system_clock::now().time_since_epoch()).count();
 
     fsPath = std::filesystem::path (path);
-    mru    = DiskMru::FromUtf8 (m_globalPrefs.recentDisks);
-    mru.RecordMount (fsPath);
-    mru.ToUtf8 (serialized);
-    m_globalPrefs.recentDisks = std::move (serialized);
+    mru    = DiskMru::FromUtf8 (m_globalPrefs.recentDisks, m_globalPrefs.recentDiskLoadedAt);
+    mru.RecordMount (fsPath, nowUnix);
+    mru.ToUtf8 (serialized, loadedAt);
+    m_globalPrefs.recentDisks        = std::move (serialized);
+    m_globalPrefs.recentDiskLoadedAt = std::move (loadedAt);
 
     SaveGlobalPrefs();
+
+Error:
+    return;
 }
 
 
@@ -1710,34 +1897,50 @@ void EmulatorShell::BrowseForDisk (int drive)
     pSt = &m_driveWidgetState[drive];
     now = nowMs();
 
+    // Only the closed / closing door will visibly animate open. An empty
+    // drive rests with its door already Open (Door::Open is the default),
+    // so StartDoorTransition is a no-op there and blocking for the
+    // animation would just be dead time before the picker appears. Gate
+    // the wait on whether an animation will actually play.
+    const bool  doorWillAnimate =
+        (pSt->doorState == DriveWidgetState::Door::Closed ||
+         pSt->doorState == DriveWidgetState::Door::Closing);
+
     pSt->StartDoorTransition (DriveWidgetState::Door::Opening, now);
     m_d3dRenderer.MarkRedrawNeeded();
 
-    // Let the door animation finish and linger briefly so the user
-    // actually sees it open before the modal file-open dialog covers
-    // the drive. UploadAndPresent runs on the UI thread (see
-    // RunMessageLoop), so we have to drive presents AND pump Windows
-    // messages here -- the CPU emulation thread is separate but the
-    // chrome composite hook only fires from UploadAndPresent which
-    // is on the UI thread we're currently blocking. The time base
-    // MUST match DiskManager::NowMs (steady_clock ms) because
+    // Let the door animation finish so the user actually sees it open
+    // before the modal picker covers the drive. The host paint pump runs
+    // on the UI thread (driven by WM_PAINT), so we both pump Windows
+    // messages AND request a frame here -- the CPU emulation thread is
+    // separate, and the chrome / framebuffer composite only happens from
+    // the host pump on the UI thread we're currently blocking. The time
+    // base MUST match DiskManager::NowMs (steady_clock ms) because
     // TickDoorAnimation diffs the current frame time against
-    // animationStartTimeMs.
+    // animationStartTimeMs. Skipped entirely when the door is already
+    // open (nothing to animate) so the picker opens immediately.
+    if (doorWillAnimate)
     {
-        constexpr int64_t  s_kPostOpenLingerMs = 0;
+        deadline = now + DriveWidgetState::kDoorAnimationMs;
 
-        deadline = now + DriveWidgetState::kDoorAnimationMs + s_kPostOpenLingerMs;
-    }
-    while (nowMs() < deadline)
-    {
-        while (PeekMessageW (&msg, nullptr, 0, 0, PM_REMOVE))
+        while (nowMs() < deadline)
         {
-            TranslateMessage (&msg);
-            DispatchMessageW (&msg);
+            while (PeekMessageW (&msg, nullptr, 0, 0, PM_REMOVE))
+            {
+                TranslateMessage (&msg);
+                DispatchMessageW (&msg);
+            }
+
+            // Tick the door animation and repaint through the host pump
+            // (the after-blit hook that used to do this is gone). A nullptr
+            // framebuffer re-composites the last emulator upload with the
+            // chrome (animating door) painted on top.
+            m_diskManager->UpdateDriveWidgets();
+            m_pendingFramebuffer = nullptr;
+            InvalidateRect (m_hwnd, nullptr, FALSE);
+            UpdateWindow   (m_hwnd);
+            Sleep (8);
         }
-        m_d3dRenderer.MarkRedrawNeeded();
-        m_d3dRenderer.UploadAndPresent (nullptr);
-        Sleep (8);
     }
 
     hrBrowse = m_windowCommandManager->PromptInsertDiskMru (drive + 1);
@@ -1825,6 +2028,43 @@ Error:
 
 
 
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::ApplyThemeLive
+//
+//  Activates the named theme via ThemeManager (which fires our chrome
+//  cache listener and reskins the live chrome) but does NOT write the
+//  choice into GlobalUserPrefs -- so a Settings Cancel can revert to the
+//  baseline theme without a persisted trace. Mirrors ApplyAndPersistTheme
+//  minus the save. Unknown names fall back to Skeuomorphic.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT EmulatorShell::ApplyThemeLive (const std::string & themeName)
+{
+    HRESULT  hr         = S_OK;
+    HRESULT  hrActivate = S_OK;
+
+
+    if (themeName.empty() || m_themeManager == nullptr)
+    {
+        return S_FALSE;
+    }
+
+    hrActivate = m_themeManager->Activate (themeName);
+    if (hrActivate != S_OK)
+    {
+        hrActivate = m_themeManager->Activate ("Skeuomorphic");
+    }
+    CHR (hrActivate);
+
+Error:
+    return hr;
+}
+
+
+
+
 
 ////////////////////////////////////////////////////////////////////////////////
 //
@@ -1858,25 +2098,115 @@ void EmulatorShell::SaveGlobalPrefs()
 //
 //  EmulatorShell::ShowModalDialog
 //
-//  Lazy-registers the DialogPrimitive window class on first use and
-//  blocks until the user dismisses the dialog. Returns the chosen
+//  Shows the supplied dialog modally through the Dxui ShowModal host
+//  path and blocks until the user dismisses it. Returns the chosen
 //  button's resultCode, or -1 when the user closes via window gesture.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 int EmulatorShell::ShowModalDialog (const DialogDefinition & def)
 {
-    HRESULT  hr = S_OK;
+    return ShowSimpleDialogViaDxui (def);
+}
 
 
-    hr = m_dialogPrimitive.RegisterClass (m_hInstance);
-    IGNORE_RETURN_VALUE (hr, S_OK);
 
-    return m_dialogPrimitive.Show (m_hwnd,
-                                   m_d3dRenderer.GetDevice(),
-                                   m_d3dRenderer.GetContext(),
-                                   &m_chromeTheme,
-                                   def);
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::ShowSimpleDialogViaDxui
+//
+//  Translates a renderable DialogDefinition into a MessageDialog whose
+//  content is a DialogBodyContent (wrapped body labels + hyperlink links)
+//  plus the action buttons, and shows it modally via ShowModalDialog. The
+//  dialog height is derived from the content's preferred (line-count)
+//  height so short messages stay compact and long ones grow (clamped).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int EmulatorShell::ShowSimpleDialogViaDxui (const DialogDefinition & def)
+{
+    constexpr int      s_kDialogWidthDip  = 440;
+    constexpr int      s_kChromeHeightDip = 108;   // caption + content pad*2 + button row
+    constexpr int      s_kMinHeightDip    = 120;
+    constexpr int      s_kMaxHeightDip    = 620;
+    constexpr int      s_kIconSrcPx       = 256;
+    constexpr int      s_kDefaultIconDip  = 48;
+    constexpr int      s_kGlyphSizeDip    = 32;
+    constexpr wchar_t  s_kchGlyphInfo     = L'\uE946';   // MDL2 Info
+    constexpr wchar_t  s_kchGlyphWarning  = L'\uE7BA';   // MDL2 Warning
+    constexpr wchar_t  s_kchGlyphError    = L'\uEA39';   // MDL2 ErrorBadge
+    constexpr uint32_t s_kGlyphArgbInfo   = 0xFF4A9EDB;
+    constexpr uint32_t s_kGlyphArgbWarning = 0xFFF5A623;
+    constexpr uint32_t s_kGlyphArgbError  = 0xFFE5424D;
+
+    std::unique_ptr<DialogBodyContent>  content   = std::make_unique<DialogBodyContent>();
+    MessageDialog                       dlg;
+    DxuiWindow::CreateParams            params;
+    std::vector<MessageDialog::Button>  buttons;
+    HRESULT                             hr        = S_OK;
+    int                                 heightDip = 0;
+    int                                 result    = -1;
+
+
+    content->SetRuns (def.body);
+
+    if (def.icon == DialogIcon::AppPhotoreal || def.icon == DialogIcon::AppFlat)
+    {
+        std::vector<uint32_t>  iconPixels;
+        int                    iconW   = 0;
+        int                    iconH   = 0;
+        int                    iconRes = (def.icon == DialogIcon::AppPhotoreal) ? IDI_CASSO_PHOTOREAL : IDI_CASSO_FLAT_COLOR_HEAD;
+        int                    iconDip = (def.iconSizeOverrideDp > 0.0f) ? (int) def.iconSizeOverrideDp : s_kDefaultIconDip;
+
+
+        if (LoadIconAsPremulBgra (m_hInstance, iconRes, s_kIconSrcPx, iconPixels, iconW, iconH))
+        {
+            content->SetIcon (std::move (iconPixels), iconW, iconH, iconDip);
+        }
+    }
+    else if (def.icon == DialogIcon::Info)
+    {
+        content->SetGlyphIcon (s_kchGlyphInfo, s_kGlyphArgbInfo, s_kGlyphSizeDip);
+    }
+    else if (def.icon == DialogIcon::Warning)
+    {
+        content->SetGlyphIcon (s_kchGlyphWarning, s_kGlyphArgbWarning, s_kGlyphSizeDip);
+    }
+    else if (def.icon == DialogIcon::Error)
+    {
+        content->SetGlyphIcon (s_kchGlyphError, s_kGlyphArgbError, s_kGlyphSizeDip);
+    }
+
+    heightDip = std::clamp (s_kChromeHeightDip + content->PreferredHeightDip(),
+                            s_kMinHeightDip,
+                            s_kMaxHeightDip);
+
+    for (const DialogButton & button : def.buttons)
+    {
+        buttons.push_back ({ button.label, button.resultCode, button.isDefault, button.isCancel });
+    }
+
+    dlg.Configure (std::move (content), std::move (buttons), def.closeBoxResult.value_or (-1));
+
+    params.title                    = def.title;
+    params.hInstance                = m_hInstance;
+    params.ownerHwnd                = m_hwnd;
+    params.initialSizeDip           = { s_kDialogWidthDip, heightDip };
+    params.resizable                = false;
+    params.insetContentBelowCaption = true;
+    params.captionStyle             = DxuiCaptionStyle::CloseOnly;
+
+    hr = dlg.Create (params);
+    CHRA (hr);
+
+    dlg.SetTheme (&m_chromeTheme);
+
+    result = dlg.TranslateResult (dlg.ShowModalDialog (dlg.DefaultCommandId()));
+
+Error:
+    return result;
 }
 
 
@@ -1901,7 +2231,7 @@ int EmulatorShell::ShowModalDialog (const DialogDefinition & def)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::ApplyThemeToChrome (const ChromeTheme & theme)
+void EmulatorShell::ApplyThemeToChrome (const CassoTheme & theme)
 {
     // Drive-bar slot thickness. Skeuomorphic shows the full 3D drive
     // body (160 px) plus ~30 px of vertical slack and the basename
@@ -1914,7 +2244,7 @@ void EmulatorShell::ApplyThemeToChrome (const ChromeTheme & theme)
     constexpr int  s_kCompactDriveBarDp = 105;
 
     int   desiredThicknessDp = theme.compactDrives ? s_kCompactDriveBarDp : s_kFullDriveBarDp;
-    int   priorThicknessDp   = m_driveBarSlot.DesiredThicknessDp();
+    int   priorThicknessDp   = m_driveBarThicknessDp;
     RECT  rcClient           = {};
     RECT  rcWindow           = {};
     int   centerW            = 0;
@@ -1925,9 +2255,14 @@ void EmulatorShell::ApplyThemeToChrome (const ChromeTheme & theme)
     m_driveChrome[0].SetCompact (theme.compactDrives);
     m_driveChrome[1].SetCompact (theme.compactDrives);
 
+    // Push the nav/dropdown palette onto the menu bar so both the
+    // in-window strip and the popup-backed dropdown render with chrome
+    // colours (the old per-frame apply path is dead post-T129).
+    m_mainMenu.ApplyChromeColors (theme);
+
     if (m_hwnd == nullptr || desiredThicknessDp == priorThicknessDp)
     {
-        m_driveBarSlot.SetThicknessDp (desiredThicknessDp);
+        m_driveBarThicknessDp = desiredThicknessDp;
         return;
     }
 
@@ -1938,33 +2273,33 @@ void EmulatorShell::ApplyThemeToChrome (const ChromeTheme & theme)
     // so the next normal-state resize uses the right math.
     if (IsIconic (m_hwnd) || IsZoomed (m_hwnd) || m_d3dRenderer.IsFullscreen())
     {
-        m_driveBarSlot.SetThicknessDp (desiredThicknessDp);
+        m_driveBarThicknessDp = desiredThicknessDp;
         return;
     }
 
     if (!GetClientRect (m_hwnd, &rcClient) || !GetWindowRect (m_hwnd, &rcWindow))
     {
-        m_driveBarSlot.SetThicknessDp (desiredThicknessDp);
+        m_driveBarThicknessDp = desiredThicknessDp;
         return;
     }
 
     // Capture the current center (emulator viewport) size BEFORE
-    // mutating the contributor. The user may have resized the window
-    // manually since boot; preserving "the emu viewport stays the
+    // mutating the drive-bar thickness. The user may have resized the
+    // window manually since boot; preserving "the emu viewport stays the
     // same size, the drive bar grows/shrinks around it" is the
     // intuitive contract on a theme swap.
     {
-        LayoutManagerResult  before = m_layout.Resolve (rcClient.right  - rcClient.left,
-                                                        rcClient.bottom - rcClient.top);
+        RECT  before = ComputeViewportRect (rcClient.right  - rcClient.left,
+                                            rcClient.bottom - rcClient.top);
 
-        centerW = before.centerRect.right  - before.centerRect.left;
-        centerH = before.centerRect.bottom - before.centerRect.top;
+        centerW = before.right  - before.left;
+        centerH = before.bottom - before.top;
     }
 
-    m_driveBarSlot.SetThicknessDp (desiredThicknessDp);
+    m_driveBarThicknessDp = desiredThicknessDp;
 
     {
-        SIZE  newClient   = m_layout.ClientSizeForCenter (centerW, centerH);
+        SIZE  newClient   = ClientSizeForCenterPx (centerW, centerH);
         int   ncOverheadH = (rcWindow.bottom - rcWindow.top) - (rcClient.bottom - rcClient.top);
         int   ncOverheadW = (rcWindow.right  - rcWindow.left) - (rcClient.right  - rcClient.left);
         int   newWindowW  = (int) newClient.cx + ncOverheadW;
@@ -1989,8 +2324,10 @@ void EmulatorShell::LayoutJoystickButton (int clientW,
                                           int bandHeightPx,
                                           UINT dpi)
 {
-    int  centerX = clientW / 2;
-    int  centerY = bandTopPx + bandHeightPx / 2;
+    int            centerX = clientW / 2;
+    int            centerY = bandTopPx + bandHeightPx / 2;
+    DxuiDpiScaler  scaler;
+    RECT           anchor  = { centerX, centerY, centerX, centerY };
 
 
 
@@ -1999,10 +2336,11 @@ void EmulatorShell::LayoutJoystickButton (int clientW,
     m_joyBtnBandHeight = bandHeightPx;
     m_joyBtnDpi        = dpi;
 
+    scaler.SetDpi (dpi);
     m_joystickButton.SetMode (m_inputMode);
-    m_joystickButton.Layout (centerX, centerY, dpi, &m_uiShell.Text());
-    m_joystickTooltip.SetDpi (dpi);
-    m_joystickTooltip.SetMaxWidthDip (s_kJoystickTooltipMaxWidthDip);
+    m_joystickButton.Layout (anchor, scaler);
+    // m_joystickTooltip is a deferred popup: it derives its DPI from its
+    // popup host (set via SetPopupHost) at show time, so no SetDpi here.
 }
 
 
@@ -2051,7 +2389,7 @@ void EmulatorShell::SetChromeFocusIndex (int index)
 //
 //  EmulatorShell::UpdateChromeFocusVisuals
 //
-//  Push the current ring index into the NavLayer (focused-closed menu title),
+//  Push the current ring index into the MainMenu (focused-closed menu title),
 //  the joystick-mode button, and the two drive widgets so exactly one of them
 //  paints a focus ring.
 //
@@ -2064,11 +2402,11 @@ void EmulatorShell::UpdateChromeFocusVisuals()
 
     if (index >= s_kChromeFocusMenuFirst && index <= s_kChromeFocusMenuLast)
     {
-        m_navLayer.SetFocusedMenu ((NavMenu) index);
+        m_mainMenu.SetFocusedMenu ((MainMenuId) index);
     }
     else
     {
-        m_navLayer.ClearFocus();
+        m_mainMenu.ClearFocus ();
     }
 
     m_joystickButton.SetFocused (index == s_kChromeFocusButton);
@@ -2088,7 +2426,7 @@ void EmulatorShell::UpdateChromeFocusVisuals()
 //  Shift+Tab traverse the whole ring (menu titles -> button -> drives,
 //  wrapping); Left/Right move among the menu titles; Enter/Space/Down open a
 //  dropdown or activate the focused button/drive; Esc/F10 leave the ring. When
-//  a dropdown is open, keys delegate to NavLayer and the index is reconciled
+//  a dropdown is open, keys delegate to MainMenu and the index is reconciled
 //  with whatever the menu did. Always consumes the key.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -2102,14 +2440,14 @@ bool EmulatorShell::HandleChromeFocusKey (WPARAM vk)
 
 
     // An open dropdown owns navigation; delegate and reconcile the ring.
-    if (m_navLayer.IsOpen())
+    if (m_mainMenu.IsOpen())
     {
         bool  ringOwned = (m_chromeFocusIndex != s_kChromeFocusNone);
-        int   openIdx   = (int) m_navLayer.OpenMenu();
+        int   openIdx   = (int) m_mainMenu.OpenMenu();
 
-        m_navLayer.HandleKey (vk);
+        m_mainMenu.HandleKey (vk);
 
-        if (m_navLayer.IsOpen())
+        if (m_mainMenu.IsOpen())
         {
             // Still open: a ring-owned menu tracks the (possibly switched)
             // title. A menu opened outside the ring (Alt mnemonic / mouse)
@@ -2117,7 +2455,7 @@ bool EmulatorShell::HandleChromeFocusKey (WPARAM vk)
             // stranding focus on a title the user never Tab'd to.
             if (ringOwned)
             {
-                SetChromeFocusIndex ((int) m_navLayer.OpenMenu());
+                SetChromeFocusIndex ((int) m_mainMenu.OpenMenu());
             }
         }
         else if (exitVk && ringOwned)
@@ -2160,7 +2498,7 @@ bool EmulatorShell::HandleChromeFocusKey (WPARAM vk)
         }
         else if (vk == VK_DOWN || vk == VK_RETURN || vk == VK_SPACE)
         {
-            m_navLayer.Open ((NavMenu) index, true);
+            m_mainMenu.Open ((MainMenuId) index, true);
         }
 
         return true;
@@ -2266,6 +2604,20 @@ void EmulatorShell::SetColorMonitorTextArgbLive (uint32_t argb)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+// Posted (not sent) to the shell HWND to marshal a window-title refresh
+// onto the UI thread when UpdateWindowTitle is called from the CPU thread
+// (SwitchMachine). Drained by RunMessageLoop before DispatchMessage.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+#define WM_APP_DXUI_UPDATE_TITLE (WM_APP + 0x21)
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  RunMessageLoop
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -2293,6 +2645,15 @@ int EmulatorShell::RunMessageLoop()
     // UI thread loop: process messages, present latest framebuffer with vsync
     while (m_cpuManager.IsRunning())
     {
+        // Destroy a closed modeless settings sheet at a safe point: its
+        // EndDialog callback ran deep inside DispatchMessage, so deferring the
+        // reset here avoids tearing the window down from its own message handler.
+        if (m_settingsSheetClosePending)
+        {
+            m_settingsSheet.reset();
+            m_settingsSheetClosePending = false;
+        }
+
         // Process all pending messages
         while (PeekMessage (&msg, nullptr, 0, 0, PM_REMOVE))
         {
@@ -2302,7 +2663,34 @@ int EmulatorShell::RunMessageLoop()
                 return static_cast<int> (msg.wParam);
             }
 
-            if (m_accelTable == nullptr ||
+            // Title refresh marshaled from a non-UI thread (SwitchMachine
+            // runs on the CPU thread; DxuiHwndSource::SetTitle is UI-only).
+            // This message is posted only by a completed machine switch, so
+            // it doubles as the signal to reflow the chrome for a possible
+            // Disk ][ controller add/remove (the window size is unchanged, so
+            // no WM_SIZE / OnSize would otherwise re-evaluate it).
+            if (msg.message == WM_APP_DXUI_UPDATE_TITLE)
+            {
+                UpdateWindowTitle();
+                ReflowChromeForMachineChange();
+                continue;
+            }
+
+            // Modeless Settings: let the sheet claim its dialog-navigation keys
+            // (Tab / Enter / Escape) first (Dxui's IsDialogMessage equivalent).
+            if (m_settingsSheet != nullptr && m_settingsSheet->ProcessDialogMessage (msg))
+            {
+                continue;
+            }
+
+            // Suppress the emulator's accelerators while the settings sheet is
+            // the active window, so keystrokes meant for it (the colour-picker
+            // hex field, Ctrl chords) never leak into emulator menu commands.
+            bool  settingsActive = (m_settingsSheet != nullptr &&
+                                    m_settingsSheet->Hwnd() == GetActiveWindow());
+
+            if (settingsActive ||
+                m_accelTable == nullptr ||
                 !TranslateAccelerator (m_hwnd, m_accelTable, &msg))
             {
                 TranslateMessage (&msg);
@@ -2355,8 +2743,24 @@ int EmulatorShell::RunMessageLoop()
         // hover / open / close transitions paint. Without this, a
         // paused machine produces no fb changes -> no Present -> menus
         // open in state-only and never repaint, looking dead.
-        m_settingsPanel.UpdatePreviewOverlap (m_d3dRenderer.GetEmulatorContentScreenRect());
-        IGNORE_RETURN_VALUE (hr, m_settingsPanel.RenderPopup());
+        // Per-UI-frame chrome upkeep that used to live in the after-blit
+        // hook: advance drive-door animations and force a present while a
+        // door is mid-transition so the chrome keeps repainting even when
+        // the emulator framebuffer is static.
+        if (m_diskManager != nullptr)
+        {
+            m_diskManager->UpdateDriveWidgets();
+        }
+        for (const DriveWidgetState & st : m_driveWidgetState)
+        {
+            if (st.doorState == DriveWidgetState::Door::Opening ||
+                st.doorState == DriveWidgetState::Door::Closing)
+            {
+                m_d3dRenderer.MarkRedrawNeeded();
+                break;
+            }
+        }
+
         if (m_disk2DebugPanel != nullptr)
         {
             IGNORE_RETURN_VALUE (hr, m_disk2DebugPanel->RenderFrame());
@@ -2365,9 +2769,31 @@ int EmulatorShell::RunMessageLoop()
         {
             IGNORE_RETURN_VALUE (hr, m_inputDebugPanel->RenderFrame());
         }
-        if (m_navLayer.IsOpen())
+        if (m_mainMenu.IsOpen())
         {
             m_d3dRenderer.MarkRedrawNeeded();
+        }
+
+        // While the modeless Settings sheet is open, force a present every UI
+        // frame so live Display edits (brightness / contrast / scanlines / text
+        // color) reflect in the emulator instantly. The retired SettingsWindow
+        // was rendered inline in this loop each frame, which coupled the
+        // emulator's present cadence to the settings edits; the standalone
+        // sheet decoupled it, so between framebuffer changes (e.g. a cursor
+        // blink) a CRT-param edit would otherwise wait for the next
+        // NeedsPresent trigger and appear laggy.
+        if (m_settingsSheet != nullptr)
+        {
+            m_d3dRenderer.MarkRedrawNeeded();
+        }
+
+        // Drive the joystick-button tooltip dwell timer; it shows / hides
+        // its popup once the open / close delay elapses after a hover.
+        {
+            int64_t  nowMs = (int64_t) std::chrono::duration_cast<std::chrono::milliseconds> (
+                                 std::chrono::steady_clock::now().time_since_epoch()).count();
+
+            m_joystickTooltip.Tick (nowMs);
         }
         if (!m_d3dRenderer.NeedsPresent (fbDirtyThisFrame))
         {
@@ -2375,7 +2801,13 @@ int EmulatorShell::RunMessageLoop()
             continue;
         }
 
-        m_d3dRenderer.UploadAndPresent (fbDirtyThisFrame ? m_uiFramebuffer.data() : nullptr);
+        // Drive the host paint pump for this frame. Stage the emulator
+        // framebuffer for the before-present hook, then request a
+        // synchronous WM_PAINT: the host clears, the hook composites the
+        // framebuffer, the chrome paints on top, and the host presents.
+        m_pendingFramebuffer = fbDirtyThisFrame ? m_uiFramebuffer.data() : nullptr;
+        InvalidateRect (m_hwnd, nullptr, FALSE);
+        UpdateWindow   (m_hwnd);
     }
 
     m_cpuManager.Stop();
@@ -3058,33 +3490,22 @@ void EmulatorShell::HandleCommand (WORD commandId)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool EmulatorShell::OnCommand (HWND hwnd, int id)
-{
-    return m_windowCommandManager->OnCommand (hwnd, id);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-
-
-
-
-
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  OnCreate
+//  OnCommand  (IDxuiHostClient)
+//
+//  Forwards the command id to the existing WindowCommandManager.
+//  WindowCommandManager::OnCommand returns the legacy Window-base
+//  polarity (`true` = call DefWindowProc, `false` = consumed); we
+//  translate to the typed DxuiMessageResult at the return site.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-LRESULT EmulatorShell::OnCreate (HWND hwnd, CREATESTRUCT * pcs)
+DxuiMessageResult EmulatorShell::OnCommand (WORD commandId)
 {
-    UNREFERENCED_PARAMETER (hwnd);
-    UNREFERENCED_PARAMETER (pcs);
+    bool  callDefWndProc = m_windowCommandManager->OnCommand (m_hwnd, (int) commandId);
 
-    return 0;
+    return callDefWndProc ? DxuiMessageResult::NotHandled : DxuiMessageResult::Handled;
 }
 
 
@@ -3097,12 +3518,8 @@ LRESULT EmulatorShell::OnCreate (HWND hwnd, CREATESTRUCT * pcs)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool EmulatorShell::OnDestroy (HWND hwnd)
+void EmulatorShell::OnDestroy ()
 {
-    UNREFERENCED_PARAMETER (hwnd);
-
-
-
     m_windowManager.SaveWindowPlacement (m_hwnd, m_d3dRenderer.IsFullscreen());
 
     // P6 -- revoke the IDropTarget before the HWND is destroyed.
@@ -3110,9 +3527,11 @@ bool EmulatorShell::OnDestroy (HWND hwnd)
     m_dragDropTarget.Shutdown();
 
     m_cpuManager.Stop();
+
+    // IDxuiHostClient::OnDestroy is notification-only — the host
+    // does NOT call PostQuitMessage. EmulatorShell is the
+    // application's main window, so it owns that call.
     PostQuitMessage (0);
-    
-    return false;
 }
 
 
@@ -3125,7 +3544,7 @@ bool EmulatorShell::OnDestroy (HWND hwnd)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool EmulatorShell::OnMouseMove (WPARAM wParam, LPARAM lParam)
+DxuiMessageResult EmulatorShell::OnMouseMove (WPARAM wParam, LPARAM lParam)
 {
     int      x        = ((int) (short) LOWORD (lParam));
     int      y        = ((int) (short) HIWORD (lParam));
@@ -3142,24 +3561,7 @@ bool EmulatorShell::OnMouseMove (WPARAM wParam, LPARAM lParam)
     if (m_paddleCaptured)
     {
         UpdatePaddleFromMouse (x, y);
-        return false;
-    }
-
-    if (m_uiShell.OnMouseMove (x, y, leftDown))
-    {
-        return false;
-    }
-
-    overBtn = m_joystickButton.HitTest (x, y);
-    m_joystickButton.SetHovered (overBtn);
-
-    if (overBtn)
-    {
-        m_joystickTooltip.RequestShow (m_joystickButton.Bounds(), JoystickToggleButton::TooltipText(), nowMs);
-    }
-    else
-    {
-        m_joystickTooltip.RequestHide (nowMs);
+        return DxuiMessageResult::Handled;
     }
 
     // A fresh hover over a drive widget replays its basename marquee, so
@@ -3173,8 +3575,26 @@ bool EmulatorShell::OnMouseMove (WPARAM wParam, LPARAM lParam)
         drive.UpdateMarqueeHover (inside, nowMs);
     }
 
-    return false;
+    if (m_uiShell.OnMouseMove (x, y, leftDown))
+    {
+        return DxuiMessageResult::Handled;
+    }
+
+    overBtn = m_joystickButton.HitTest (x, y);
+    m_joystickButton.SetHovered (overBtn);
+
+    if (overBtn)
+    {
+        m_joystickTooltip.RequestShow (m_joystickButton.Bounds(), m_joystickButton.TooltipText(), nowMs);
+    }
+    else
+    {
+        m_joystickTooltip.RequestHide (nowMs);
+    }
+
+    return DxuiMessageResult::NotHandled;
 }
+
 
 
 
@@ -3189,15 +3609,12 @@ bool EmulatorShell::OnMouseMove (WPARAM wParam, LPARAM lParam)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool EmulatorShell::OnMouseLeave()
+DxuiMessageResult EmulatorShell::OnMouseLeave ()
 {
     int64_t  nowMs = (int64_t) std::chrono::duration_cast<std::chrono::milliseconds> (
                          std::chrono::steady_clock::now().time_since_epoch()).count();
 
     m_uiShell.OnMouseLeave();
-    m_joystickButton.SetHovered (false);
-    m_joystickButton.SetPressed (false);
-    m_joystickTooltip.RequestHide (nowMs);
 
     // Drop drive marquee-hover state so re-entering the window re-triggers
     // the basename scroll.
@@ -3206,7 +3623,10 @@ bool EmulatorShell::OnMouseLeave()
         drive.UpdateMarqueeHover (false, nowMs);
     }
 
-    return false;
+    m_joystickButton.SetHovered (false);
+    m_joystickButton.SetPressed (false);
+    m_joystickTooltip.RequestHide (nowMs);
+    return DxuiMessageResult::NotHandled;
 }
 
 
@@ -3218,7 +3638,7 @@ bool EmulatorShell::OnMouseLeave()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool EmulatorShell::OnLButtonDown (WPARAM wParam, LPARAM lParam)
+DxuiMessageResult EmulatorShell::OnLButtonDown (WPARAM wParam, LPARAM lParam)
 {
     int   x        = ((int) (short) LOWORD (lParam));
     int   y        = ((int) (short) HIWORD (lParam));
@@ -3233,7 +3653,7 @@ bool EmulatorShell::OnLButtonDown (WPARAM wParam, LPARAM lParam)
     if (m_paddleCaptured)
     {
         PushPaddleButton (0, true);
-        return false;
+        return DxuiMessageResult::Handled;
     }
 
     SetCapture (m_hwnd);
@@ -3246,6 +3666,20 @@ bool EmulatorShell::OnLButtonDown (WPARAM wParam, LPARAM lParam)
         SetChromeFocusIndex (s_kChromeFocusNone);
     }
 
+    // A press outside the menu strip dismisses any open menu. The strip
+    // itself toggles / hover-switches via the menu bar's own mouse
+    // handling, and the popup-backed dropdown receives row clicks
+    // directly; the popup takes no capture, so the owner drives this.
+    if (m_mainMenu.IsOpen())
+    {
+        RECT  strip = m_mainMenu.Bounds();
+
+        if (x < strip.left || x >= strip.right || y < strip.top || y >= strip.bottom)
+        {
+            m_mainMenu.Hide();
+        }
+    }
+
     m_joystickButton.SetPressed (m_joystickButton.HitTest (x, y));
 
     // The UI shell (debug panels, on-screen buttons) gets first crack at
@@ -3255,7 +3689,7 @@ bool EmulatorShell::OnLButtonDown (WPARAM wParam, LPARAM lParam)
     consumed = m_uiShell.OnLButtonDown (x, y);
     IGNORE_RETURN_VALUE (consumed, false);
 
-    return false;
+    return DxuiMessageResult::NotHandled;
 }
 
 
@@ -3267,7 +3701,7 @@ bool EmulatorShell::OnLButtonDown (WPARAM wParam, LPARAM lParam)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool EmulatorShell::OnLButtonUp (WPARAM wParam, LPARAM lParam)
+DxuiMessageResult EmulatorShell::OnLButtonUp (WPARAM wParam, LPARAM lParam)
 {
     int                x      = ((int) (short) LOWORD (lParam));
     int                y      = ((int) (short) HIWORD (lParam));
@@ -3282,14 +3716,14 @@ bool EmulatorShell::OnLButtonUp (WPARAM wParam, LPARAM lParam)
     if (m_paddleCaptured)
     {
         PushPaddleButton (0, false);
-        return false;
+        return DxuiMessageResult::Handled;
     }
 
     ReleaseCapture();
     m_joystickButton.SetPressed (false);
     if (m_uiShell.OnLButtonUp (x, y))
     {
-        return false;
+        return DxuiMessageResult::NotHandled;
     }
 
     // Cycling the input-mode button routes through the same path as the
@@ -3298,7 +3732,7 @@ bool EmulatorShell::OnLButtonUp (WPARAM wParam, LPARAM lParam)
     if (m_joystickButton.HitTest (x, y))
     {
         CycleInputMappingMode();
-        return false;
+        return DxuiMessageResult::NotHandled;
     }
 
     // If we just finished an OLE drop on a drive widget, the OS posts
@@ -3307,7 +3741,7 @@ bool EmulatorShell::OnLButtonUp (WPARAM wParam, LPARAM lParam)
     // after the dropped image mounts.
     if (m_dragDropTarget.ConsumeSuppressedClick())
     {
-        return false;
+        return DxuiMessageResult::NotHandled;
     }
 
     for (DriveWidget & drive : m_driveChrome)
@@ -3316,14 +3750,14 @@ bool EmulatorShell::OnLButtonUp (WPARAM wParam, LPARAM lParam)
         if (region == DriveWidgetRegion::Body)
         {
             BrowseForDisk (drive.Drive());
-            return false;
+            return DxuiMessageResult::NotHandled;
         }
 
         if (region == DriveWidgetRegion::Eject)
         {
             Eject (6, drive.Drive());
             BrowseForDisk (drive.Drive());
-            return false;
+            return DxuiMessageResult::NotHandled;
         }
     }
 
@@ -3332,10 +3766,10 @@ bool EmulatorShell::OnLButtonUp (WPARAM wParam, LPARAM lParam)
     if (m_inputMode == InputMappingMode::Paddle && !m_paddleCaptured)
     {
         StartPaddleCapture();
-        return false;
+        return DxuiMessageResult::Handled;
     }
 
-    return false;
+    return DxuiMessageResult::NotHandled;
 }
 
 
@@ -3351,36 +3785,42 @@ bool EmulatorShell::OnLButtonUp (WPARAM wParam, LPARAM lParam)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool EmulatorShell::OnRButtonDown (WPARAM wParam, LPARAM lParam)
+DxuiMessageResult EmulatorShell::OnRButtonDown (WPARAM wParam, LPARAM lParam)
 {
+    DxuiMessageResult  result = DxuiMessageResult::NotHandled;
+
+
     UNREFERENCED_PARAMETER (wParam);
     UNREFERENCED_PARAMETER (lParam);
 
     if (m_paddleCaptured)
     {
         PushPaddleButton (1, true);
-        return false;
+        result = DxuiMessageResult::Handled;
     }
 
-    return true;
+    return result;
 }
 
 
 
 
 
-bool EmulatorShell::OnRButtonUp (WPARAM wParam, LPARAM lParam)
+DxuiMessageResult EmulatorShell::OnRButtonUp (WPARAM wParam, LPARAM lParam)
 {
+    DxuiMessageResult  result = DxuiMessageResult::NotHandled;
+
+
     UNREFERENCED_PARAMETER (wParam);
     UNREFERENCED_PARAMETER (lParam);
 
     if (m_paddleCaptured)
     {
         PushPaddleButton (1, false);
-        return false;
+        result = DxuiMessageResult::Handled;
     }
 
-    return true;
+    return result;
 }
 
 
@@ -3401,34 +3841,34 @@ bool EmulatorShell::OnRButtonUp (WPARAM wParam, LPARAM lParam)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool EmulatorShell::OnActivateApp (bool active)
+DxuiMessageResult EmulatorShell::OnActivateApp (bool active)
 {
     if (!active)
     {
         StopPaddleCapture();
     }
 
-    return true;
+    return DxuiMessageResult::NotHandled;
 }
 
 
 
 
 
-bool EmulatorShell::OnKillFocus ()
+DxuiMessageResult EmulatorShell::OnKillFocus ()
 {
     StopPaddleCapture();
-    return true;
+    return DxuiMessageResult::NotHandled;
 }
 
 
 
 
 
-bool EmulatorShell::OnCancelMode ()
+DxuiMessageResult EmulatorShell::OnCancelMode ()
 {
     StopPaddleCapture();
-    return true;
+    return DxuiMessageResult::NotHandled;
 }
 
 
@@ -3437,50 +3877,48 @@ bool EmulatorShell::OnCancelMode ()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  OnGetMinMaxInfo
+//  EmulatorShell::OnGetMinMax
 //
-//  Enforces a minimum window size so the bottom drive bar can never be
-//  shrunk up into the menu strip / title (NC) area. The floor is the
-//  client size needed to host a minimum emulator viewport plus the live
-//  chrome insets (title + nav on top, drive bar on bottom), widened if
-//  needed so no menu title clips, then converted to a window extent via
-//  the current non-client overhead.
+//  Clamps the window's minimum track size so the bottom drive bar can
+//  never be dragged up into the menu strip / NC area. The floor is the
+//  client size for a minimum emulator viewport (the chrome-band dock
+//  adds the live title / nav / drive-bar insets), widened so no menu
+//  title clips, then translated to a window size by the live NC overhead.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool EmulatorShell::OnGetMinMaxInfo (MINMAXINFO * info)
+DxuiMessageResult EmulatorShell::OnGetMinMax (MINMAXINFO * info)
 {
-    RECT  rcClient    = {};
-    RECT  rcWindow    = {};
-    SIZE  minClient   = {};
-    int   menuWidthPx = 0;
-    int   ncOverheadW = 0;
-    int   ncOverheadH = 0;
+    HRESULT            hr          = S_OK;
+    DxuiMessageResult  result      = DxuiMessageResult::NotHandled;
+    RECT               rcClient    = {};
+    RECT               rcWindow    = {};
+    SIZE               minClient   = {};
+    int                menuWidthPx = 0;
+    int                ncOverheadW = 0;
+    int                ncOverheadH = 0;
 
 
 
-    if (info == nullptr || m_hwnd == nullptr)
-    {
-        return false;
-    }
+    BAIL_OUT_IF (info == nullptr || m_hwnd == nullptr, S_OK);
 
-    // Client size for the minimum center: the LayoutManager adds the live
-    // title / nav / drive-bar insets around the requested viewport.
-    minClient = m_layout.ClientSizeForCenter (m_layout.ScaleForDpi (s_kMinCenterWidthDp),
-                                              m_layout.ScaleForDpi (s_kMinCenterHeightDp));
+    // Client size for the minimum center: the chrome-band dock adds the
+    // live title / nav / drive-bar insets around the requested viewport.
+    minClient = ClientSizeForCenterPx (m_scaler.Px (s_kMinCenterWidthDp),
+                                       m_scaler.Px (s_kMinCenterHeightDp));
 
-    // Never narrower than the menu strip's content, so every title stays
-    // on-strip.
-    menuWidthPx = m_navLayer.MenuStripContentWidthPx() + m_layout.ScaleForDpi (s_kMenuRightPadDp);
+    // Never narrower than the menu strip's content so every title stays
+    // on-strip. The width is physical client px, the same space as minClient.
+    menuWidthPx = m_mainMenu.MenuStripContentWidthPx() + m_scaler.Px (s_kMenuRightPadDp);
 
     if (minClient.cx < menuWidthPx)
     {
         minClient.cx = menuWidthPx;
     }
 
-    // Translate the client floor to a window floor using the live NC
-    // overhead (the custom chrome keeps this small -- just the resize
-    // borders -- but it is non-zero).
+    // Translate the client floor to a window floor via the live NC overhead
+    // (the custom chrome keeps this small -- just the resize borders -- but
+    // it is non-zero).
     if (GetClientRect (m_hwnd, &rcClient) && GetWindowRect (m_hwnd, &rcWindow))
     {
         ncOverheadW = (rcWindow.right  - rcWindow.left) - (rcClient.right  - rcClient.left);
@@ -3490,9 +3928,51 @@ bool EmulatorShell::OnGetMinMaxInfo (MINMAXINFO * info)
     info->ptMinTrackSize.x = minClient.cx + ncOverheadW;
     info->ptMinTrackSize.y = minClient.cy + ncOverheadH;
 
-    return false;
+    result = DxuiMessageResult::Handled;
+
+Error:
+    return result;
 }
 
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OpenSettings
+//
+//  Opens the Settings dialog (View > Settings / Ctrl+,). The bespoke
+//  SettingsPanel + SettingsWindow were retired in T162 slice 3d; this shows
+//  the DxuiPropertySheet-based SettingsSheet MODELESS (FR-041) so the emulator
+//  keeps running behind it. The sheet is heap-owned; its close callback flags
+//  a deferred destroy handled by RunMessageLoop. A second invocation while it
+//  is already open just re-focuses the existing sheet.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::OpenSettings ()
+{
+    HINSTANCE  hInst = (HINSTANCE) GetWindowLongPtrW (m_hwnd, GWLP_HINSTANCE);
+
+
+    if (m_settingsSheet != nullptr)
+    {
+        HWND  existing = m_settingsSheet->Hwnd();
+        if (existing != nullptr)
+        {
+            SetForegroundWindow (existing);
+        }
+        return;
+    }
+
+    m_settingsSheet = std::make_unique<SettingsSheet>();
+    m_settingsSheet->SetOnDialogEnd ([this] (int) { m_settingsSheetClosePending = true; });
+
+    (void) m_settingsSheet->OpenModeless (hInst, m_hwnd,
+                                          *m_userConfigStore, m_globalPrefs, *m_themeManager,
+                                          *this, m_uiFs);
+}
 
 
 
@@ -3510,7 +3990,7 @@ bool EmulatorShell::OnGetMinMaxInfo (MINMAXINFO * info)
 
 bool EmulatorShell::HandleHostMetaShortcut (WPARAM vk, bool ctrlHeld, bool altHeld)
 {
-    if (altHeld && vk >= 0x20 && vk <= 0x7E && m_navLayer.HandleAltKey ((wchar_t) vk))
+    if (altHeld && vk >= 0x20 && vk <= 0x7E && m_mainMenu.HandleAltKey ((wchar_t) vk))
     {
         return true;
     }
@@ -3659,40 +4139,29 @@ bool EmulatorShell::IsArrowVk (WPARAM vk)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool EmulatorShell::OnKeyDown (WPARAM vk, LPARAM lParam)
+DxuiMessageResult EmulatorShell::OnKeyDown (WPARAM vk, LPARAM lParam)
 {
     HRESULT  hr            = S_OK;
     bool     consumed      = false;
     bool     ctrlHeld      = false;
     bool     altHeld       = false;
     bool     isRepeat      = (lParam & s_kPreviousKeyDownLParamBit) != 0;
-    bool     driveJoystick = m_inputMode == InputMappingMode::Joystick &&
-                             (dynamic_cast<Apple2eSoftSwitchBank *> (m_refs.softSwitches) != nullptr ||
-                              m_refs.gamePort != nullptr);
-    Byte     appleCode     = 0;
 
 
 
-    // 0. Esc releases a live paddle-mode mouse capture (the cursor
-    //    reappears) without changing the input mode, so the chrome is
-    //    reachable again; click the emulator screen to re-grab.
-    if (m_paddleCaptured && vk == VK_ESCAPE)
+    // 0. Esc exits paddle mode: releases the mouse capture (cursor
+    //    reappears) and returns the input mapping to Off, matching the
+    //    "Esc to exit" hint on the widget.
+    if (m_inputMode == InputMappingMode::Paddle && vk == VK_ESCAPE)
     {
-        StopPaddleCapture();
+        SetInputMappingMode (InputMappingMode::Off);
         BAIL_OUT_IF (true, S_OK);
     }
 
-    // 1. Modal settings panel wins keystrokes outright.
-    if (m_uiShell.IsSettingsCapturing())
-    {
-        consumed = m_uiShell.HandleKey (vk);
-        BAIL_OUT_IF (consumed, S_OK);
-    }
-
-    // 2. Chrome keyboard-focus ring. While a menu title / button / drive
+    // Chrome keyboard-focus ring. While a menu title / button / drive
     //    has keyboard focus (or a dropdown is open from any source), the
     //    ring owns every keydown so letters never leak through to the //e.
-    if (m_chromeFocusIndex != s_kChromeFocusNone || m_navLayer.IsOpen())
+    if (m_chromeFocusIndex != s_kChromeFocusNone || m_mainMenu.IsOpen())
     {
         HandleChromeFocusKey (vk);
         BAIL_OUT_IF (true, S_OK);
@@ -3706,64 +4175,29 @@ bool EmulatorShell::OnKeyDown (WPARAM vk, LPARAM lParam)
     consumed = HandleHostMetaShortcut (vk, ctrlHeld, altHeld);
     BAIL_OUT_IF (consumed, S_OK);
 
-    m_refs.keyboard->SetKeyDown (true);
-    ApplyAppleModifierKeys (vk, true);
-
-    // Arrow / Escape / Delete map to //e control codes. Gated on the
-    // auto-repeat bit so the host OS repeat never reaches the latch; a
-    // fresh press arms the $C000 strobe once and registers the key for the
-    // emulator's own authentic //e auto-repeat cadence (Tick). With "Map
-    // Arrows to Joystick" on (and a game-port paddle bank present), arrow
-    // keys are withheld from the keyboard latch so a held direction cannot
-    // flood $C000 and starve a joystick-mode game's paddle reads.
-    if (!isRepeat)
+    // The chrome / settings / meta pre-checks above already skimmed off
+    // every keystroke that belongs to the shell. Everything left is the
+    // guest's: build a Down event and hand it to the viewport, which (with
+    // SetConsumesInput + SetWantsAllKeys) forwards it to OnViewportKey for
+    // the //e keyboard + game port. Routing through the viewport keeps a
+    // single Dxui input path (FR-034) rather than the shell reaching into
+    // m_refs.keyboard directly.
+    if (m_viewport != nullptr)
     {
-        appleCode = MapVkToAppleControlCode (vk);
+        DxuiKeyEvent  ev;
 
-        if (driveJoystick && IsArrowVk (vk))
-        {
-            appleCode = 0;
-        }
+        ev.kind   = DxuiKeyEventKind::Down;
+        ev.vk     = vk;
+        ev.repeat = isRepeat;
+        ev.ctrl   = ctrlHeld;
+        ev.alt    = altHeld;
+        ev.shift  = (GetKeyState (VK_SHIFT) & 0x8000) != 0;
 
-        if (appleCode != 0)
-        {
-            m_refs.keyboard->KeyPress (appleCode);
-            m_refs.keyboard->BeginKeyRepeat (appleCode);
-        }
-    }
-
-    // Arrow keys double as the emulated joystick axes for joystick-mode
-    // games (e.g. Choplifter, Lode Runner) when the feature is enabled.
-    // Record the last-pressed direction per axis so opposing keys resolve
-    // last-pressed-wins, then re-resolve both axes from the current key
-    // state.
-    if (driveJoystick && IsArrowVk (vk))
-    {
-        if (vk == VK_LEFT || vk == VK_RIGHT)
-        {
-            m_lastHorizontalArrowVk = vk;
-        }
-        else
-        {
-            m_lastVerticalArrowVk = vk;
-        }
-
-        UpdateJoystickAxesFromKeys();
-    }
-
-    // Re-resolve the joystick fire buttons on every key event in joystick
-    // mode (not just on X / Z) so that an Alt press/release re-applies its
-    // Open/Closed-Apple mapping without clobbering a still-held X / Z, and a
-    // released X / Z can't leave a button stuck while Alt is down. The
-    // matching X / Z WM_CHAR is suppressed in OnChar so the letters don't
-    // also type into the //e keyboard latch.
-    if (driveJoystick)
-    {
-        UpdateJoystickButtonsFromKeys();
+        (void) m_viewport->OnKey (ev);
     }
 
 Error:
-    return false;
+    return DxuiMessageResult::Handled;
 }
 
 
@@ -3776,39 +4210,178 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool EmulatorShell::OnKeyUp (WPARAM vk, LPARAM lParam)
+DxuiMessageResult EmulatorShell::OnKeyUp (WPARAM vk, LPARAM lParam)
 {
-    HRESULT  hr = S_OK;
-
-
-
     UNREFERENCED_PARAMETER (lParam);
 
-    CBR (m_refs.keyboard != nullptr);
-
-    m_refs.keyboard->SetKeyDown (false);
-
-    // Disarm auto-repeat on release. The //e latch holds a single key, so a
-    // key-up always ends the current repeat; this also clears any stale
-    // armed key so a later non-character press (e.g. a bare modifier) can
-    // never resurrect the previous character's repeat.
-    m_refs.keyboard->BeginKeyRepeat (0);
-
-    // Release the //e Open/Closed-Apple and Shift modifiers as the host
-    // releases the physical keys.
-    ApplyAppleModifierKeys (vk, false);
-
-    if (m_inputMode == InputMappingMode::Joystick && IsArrowVk (vk))
+    // Key-up is deliberately unconditional (no chrome / settings gate): a
+    // release must always reach the //e so a modifier or repeat can never
+    // stick when focus moved to the chrome mid-press. The viewport forwards
+    // it to OnViewportKey, which performs the release.
+    if (m_viewport != nullptr)
     {
-        UpdateJoystickAxesFromKeys();
+        DxuiKeyEvent  ev;
+
+        ev.kind = DxuiKeyEventKind::Up;
+        ev.vk   = vk;
+
+        (void) m_viewport->OnKey (ev);
     }
 
-    if (m_inputMode == InputMappingMode::Joystick)
+    return DxuiMessageResult::Handled;
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnViewportKey
+//
+//  IDxuiViewportInputSink. Applies a viewport-forwarded keystroke to the
+//  Apple ][ keyboard latch and game port. The chrome / settings / meta
+//  pre-checks already ran in OnKeyDown / OnChar, and the viewport is set
+//  to SetWantsAllKeys(true), so every remaining keystroke -- Esc / Tab /
+//  arrows included -- lands here and belongs to the guest. Always returns
+//  true: nothing here bubbles back to the framework (the shell's own
+//  chrome escape routes live in the pre-checks, not the sink).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool EmulatorShell::OnViewportKey (const DxuiKeyEvent & ev)
+{
+    // Arrow keys double as the emulated joystick axes / the X / Z keys as
+    // fire buttons when "Map Arrows to Joystick" is on AND a game-port
+    // paddle bank is present. Recomputed per event so a mode change between
+    // press and release is always honored.
+    bool  driveJoystick = m_inputMode == InputMappingMode::Joystick &&
+                          (dynamic_cast<Apple2eSoftSwitchBank *> (m_refs.softSwitches) != nullptr ||
+                           m_refs.gamePort != nullptr);
+
+    if (m_refs.keyboard == nullptr)
     {
-        UpdateJoystickButtonsFromKeys();
+        return true;
     }
 
-Error:
+    if (ev.kind == DxuiKeyEventKind::Down)
+    {
+        WPARAM  vk        = ev.vk;
+        Byte    appleCode = 0;
+
+        m_refs.keyboard->SetKeyDown (true);
+        ApplyAppleModifierKeys (vk, true);
+
+        // Arrow / Escape / Delete map to //e control codes. Gated on the
+        // auto-repeat bit so the host OS repeat never reaches the latch; a
+        // fresh press arms the $C000 strobe once and registers the key for
+        // the emulator's own authentic //e auto-repeat cadence (Tick). With
+        // "Map Arrows to Joystick" on (and a game-port paddle bank present),
+        // arrow keys are withheld from the keyboard latch so a held
+        // direction cannot flood $C000 and starve a joystick game's reads.
+        if (!ev.repeat)
+        {
+            appleCode = MapVkToAppleControlCode (vk);
+
+            if (driveJoystick && IsArrowVk (vk))
+            {
+                appleCode = 0;
+            }
+
+            if (appleCode != 0)
+            {
+                m_refs.keyboard->KeyPress (appleCode);
+                m_refs.keyboard->BeginKeyRepeat (appleCode);
+            }
+        }
+
+        // Record the last-pressed direction per axis so opposing keys
+        // resolve last-pressed-wins, then re-resolve both axes from the
+        // current key state.
+        if (driveJoystick && IsArrowVk (vk))
+        {
+            if (vk == VK_LEFT || vk == VK_RIGHT)
+            {
+                m_lastHorizontalArrowVk = vk;
+            }
+            else
+            {
+                m_lastVerticalArrowVk = vk;
+            }
+
+            UpdateJoystickAxesFromKeys();
+        }
+
+        // Re-resolve the joystick fire buttons on every key event in
+        // joystick mode (not just on X / Z) so that an Alt press/release
+        // re-applies its Open/Closed-Apple mapping without clobbering a
+        // still-held X / Z, and a released X / Z can't leave a button stuck
+        // while Alt is down. The matching X / Z WM_CHAR is suppressed in
+        // OnChar so the letters don't also type into the //e keyboard latch.
+        if (driveJoystick)
+        {
+            UpdateJoystickButtonsFromKeys();
+        }
+    }
+    else if (ev.kind == DxuiKeyEventKind::Up)
+    {
+        WPARAM  vk = ev.vk;
+
+        m_refs.keyboard->SetKeyDown (false);
+
+        // Disarm auto-repeat on release. The //e latch holds a single key,
+        // so a key-up always ends the current repeat; this also clears any
+        // stale armed key so a later non-character press (e.g. a bare
+        // modifier) can never resurrect the previous character's repeat.
+        m_refs.keyboard->BeginKeyRepeat (0);
+
+        // Release the //e Open/Closed-Apple and Shift modifiers as the host
+        // releases the physical keys.
+        ApplyAppleModifierKeys (vk, false);
+
+        if (m_inputMode == InputMappingMode::Joystick && IsArrowVk (vk))
+        {
+            UpdateJoystickAxesFromKeys();
+        }
+
+        if (m_inputMode == InputMappingMode::Joystick)
+        {
+            UpdateJoystickButtonsFromKeys();
+        }
+    }
+    else // DxuiKeyEventKind::Char
+    {
+        WPARAM  ch = ev.vk;
+
+        if (ch >= 1 && ch <= 127)
+        {
+            m_refs.keyboard->KeyPress (static_cast<Byte> (ch));
+            m_refs.keyboard->BeginKeyRepeat (static_cast<Byte> (ch));
+        }
+    }
+
+    return true;
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnViewportMouse
+//
+//  IDxuiViewportInputSink. The Apple ][ has no viewport-rect mouse mapping
+//  in the current build: paddle input is a captured relative-motion mode
+//  driven directly from OnMouseMove (SetCapture snaps the cursor to
+//  centre), and the joystick maps to arrow keys -- neither fits the
+//  viewport's absolute-rect forwarding. Returns false so any future
+//  in-viewport click continues to bubble to the chrome hit-testing that
+//  owns it today.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool EmulatorShell::OnViewportMouse (const DxuiMouseEvent & ev)
+{
+    UNREFERENCED_PARAMETER (ev);
     return false;
 }
 
@@ -4024,8 +4597,20 @@ void EmulatorShell::SetInputMappingMode (InputMappingMode mode)
 
     if (mode == InputMappingMode::Paddle)
     {
+        int64_t  nowMs = (int64_t) std::chrono::duration_cast<std::chrono::milliseconds> (
+                             std::chrono::steady_clock::now().time_since_epoch()).count();
+
         m_paddleAxisX = (float) s_kPaddleCenterByte;
         m_paddleAxisY = (float) s_kPaddleCenterByte;
+
+        // Entering paddle mode captures the mouse, so the hover that would
+        // normally dismiss the tooltip never fires. Show the paddle notice
+        // and let it auto-dismiss after a few seconds.
+        m_joystickTooltip.ShowTimed (m_joystickButton.Bounds(),
+                                     m_joystickButton.TooltipText(),
+                                     nowMs,
+                                     s_kPaddleNoticeMs);
+
         StartPaddleCapture();
     }
 }
@@ -4065,6 +4650,25 @@ void EmulatorShell::CycleInputMappingMode ()
     }
 
     SetInputMappingMode (next);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ToggleInputMappingMode
+//
+//  Radio-group selection for the Machine-menu Joystick / Paddle items:
+//  picks `target`, or turns mapping Off when `target` is already active so
+//  re-selecting the current mode clears it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::ToggleInputMappingMode (InputMappingMode target)
+{
+    SetInputMappingMode (m_inputMode == target ? InputMappingMode::Off : target);
 }
 
 
@@ -4129,13 +4733,6 @@ void EmulatorShell::StartPaddleCapture ()
     SetCursorPos (center.x, center.y);
 
     PushPaddlePosition();
-
-    // A tooltip left up over the button can't be dismissed by mouse motion
-    // once the pointer is captured and hidden, so give it a self-dismiss.
-    m_joystickTooltip.DismissAfter (
-        (int64_t) std::chrono::duration_cast<std::chrono::milliseconds> (
-            std::chrono::steady_clock::now().time_since_epoch()).count(),
-        s_kPaddleTooltipDismissMs);
 
 Error:
     return;
@@ -4330,13 +4927,13 @@ void EmulatorShell::PushPaddleButton (int index, bool pressed)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool EmulatorShell::OnChar (WPARAM ch, LPARAM lParam)
+DxuiMessageResult EmulatorShell::OnChar (WPARAM ch, LPARAM lParam)
 {
     bool isRepeat = (lParam & s_kPreviousKeyDownLParamBit) != 0;
 
     if (m_refs.keyboard == nullptr)
     {
-        return false;
+        return DxuiMessageResult::Handled;
     }
 
     // Suppress the WM_CHAR that Windows synthesizes from a WM_KEYDOWN
@@ -4345,7 +4942,7 @@ bool EmulatorShell::OnChar (WPARAM ch, LPARAM lParam)
     // title / button / drive is focused would also drop into the //e latch.
     if (m_uiShell.IsCapturingInput() || m_chromeFocusIndex != s_kChromeFocusNone)
     {
-        return false;
+        return DxuiMessageResult::Handled;
     }
 
     // Drop Windows OS auto-repeat: the host repeat rate would flood
@@ -4354,7 +4951,7 @@ bool EmulatorShell::OnChar (WPARAM ch, LPARAM lParam)
     // auto-repeat cadence (driven in CPU time by AppleKeyboard::Tick).
     if (isRepeat)
     {
-        return false;
+        return DxuiMessageResult::Handled;
     }
 
     // In joystick mode the X / Z keys are fire buttons (handled in OnKeyDown
@@ -4366,16 +4963,24 @@ bool EmulatorShell::OnChar (WPARAM ch, LPARAM lParam)
          m_refs.gamePort != nullptr) &&
         (ch == L'x' || ch == L'X' || ch == L'z' || ch == L'Z'))
     {
-        return false;
+        return DxuiMessageResult::Handled;
     }
 
-    if (ch >= 1 && ch <= 127)
+    // The pre-checks above owned every WM_CHAR the shell should eat; a
+    // surviving printable character is the guest's. Route it through the
+    // viewport so the //e keyboard latch is fed on the same Dxui path as
+    // the key transitions (FR-034).
+    if (m_viewport != nullptr)
     {
-        m_refs.keyboard->KeyPress (static_cast<Byte> (ch));
-        m_refs.keyboard->BeginKeyRepeat (static_cast<Byte> (ch));
+        DxuiKeyEvent  ev;
+
+        ev.kind = DxuiKeyEventKind::Char;
+        ev.vk   = ch;
+
+        (void) m_viewport->OnKey (ev);
     }
 
-    return false;
+    return DxuiMessageResult::Handled;
 }
 
 
@@ -4388,46 +4993,46 @@ bool EmulatorShell::OnChar (WPARAM ch, LPARAM lParam)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool EmulatorShell::OnSize (HWND hwnd, UINT width, UINT height)
+DxuiMessageResult EmulatorShell::OnSize (UINT widthPx, UINT heightPx)
 {
-    int       renderH   = static_cast<int> (height);
-    HRESULT   hrPresent = S_OK;
+    int       width     = static_cast<int> (widthPx);
+    int       renderH   = static_cast<int> (heightPx);
 
 
 
-    UNREFERENCED_PARAMETER (hwnd);
+    UNREFERENCED_PARAMETER (widthPx);
 
-    if (m_renderHwnd != nullptr)
+    // A resize restretches the window; drop any open menu so its
+    // window-anchored popup is not left stranded.
+    if (m_mainMenu.IsOpen())
     {
-        MoveWindow (m_renderHwnd, 0, 0,
-                    static_cast<int> (width), renderH, FALSE);
+        m_mainMenu.Hide();
     }
 
-    // Release the D2D target bitmap before resizing the swap chain.
-    // ResizeBuffers fails with DXGI_ERROR_INVALID_CALL (0x887a0001) while
-    // any outside reference (D2D bitmap, IDXGISurface, RTV) still holds
-    // the back buffer. UiShell rebinds on the next Render() because
-    // OnResize below marks the text target dirty.
-    m_uiShell.Text().UnbindBackBuffer();
-
-    m_d3dRenderer.Resize (static_cast<int> (width), renderH);
+    // The host (DxuiHwndSource::HandleSize) already resized its swap
+    // chain and recreated the back-buffer RTV + D2D target before this
+    // OnSize fired. The renderer no longer owns the swap chain; it just
+    // needs the new back-buffer dimensions for the CRT post-process.
+    m_d3dRenderer.SetBackBufferSize (static_cast<int> (width), renderH);
 
     {
-        UINT     dpi   = GetDpiForWindow (m_hwnd);
-        HRESULT  hrUiR = m_uiShell.OnResize (m_d3dRenderer.GetBackBufferWidth(),
-                                             m_d3dRenderer.GetBackBufferHeight(),
-                                             dpi);
+        UINT     dpi             = GetDpiForWindow (m_hwnd);
+        HRESULT  hrUiR           = m_uiShell.OnResize (m_d3dRenderer.GetBackBufferWidth(),
+                                                       m_d3dRenderer.GetBackBufferHeight(),
+                                                       dpi);
+        RECT     menuBarBounds   = { 0, m_host->CaptionHeightPx(), static_cast<int> (width), m_host->CaptionHeightPx() };
+
         IGNORE_RETURN_VALUE (hrUiR, S_OK);
-        m_titleBar.UpdateGeometry (static_cast<int> (width), dpi);
-        m_navLayer.Layout (0, m_titleBar.GetTitleHeight(), static_cast<int> (width), dpi, &m_uiShell.Text());
+        m_mainMenu.Layout (menuBarBounds, m_scaler);
 
         {
-            LayoutManagerResult  layout = m_layout.Resolve (static_cast<int> (width), renderH);
-            bool                fHasDisk = (m_diskManager != nullptr) && m_diskManager->HasSlot6Controller();
+            RECT  vr            = ComputeViewportRect (static_cast<int> (width), renderH);
+            int   bottomInsetPx = renderH - vr.bottom;
+            bool  fHasDisk      = (m_diskManager != nullptr) && m_diskManager->HasSlot6Controller();
 
             if (fHasDisk)
             {
-                LayoutDriveWidgetsInCommandBar (m_driveChrome, layout, static_cast<int> (width), renderH, dpi);
+                LayoutDriveWidgetsInCommandBar (m_driveChrome, bottomInsetPx, static_cast<int> (width), renderH, dpi);
             }
             else
             {
@@ -4441,23 +5046,30 @@ bool EmulatorShell::OnSize (HWND hwnd, UINT width, UINT height)
                 m_driveChrome[1].Hide();
             }
 
+            // OnSize is the authoritative layout (only fires on a real WM_SIZE,
+            // never per-frame), so record the disk-presence this window size now
+            // accounts for. ReflowChromeForMachineChange reads this pre-switch
+            // value to grow/shrink the window by the band delta.
+            m_chromeSizedForHasDisk = fHasDisk;
+
             {
-                int  bandTop    = renderH - layout.bottomInsetPx;
+                int  bandTop    = renderH - bottomInsetPx;
                 int  bandHeight = MulDiv (s_kJoystickButtonBandDp, static_cast<int> (dpi), s_kBaseDpi);
 
+                m_driveBandSurface.SetBounds (RECT{ 0, bandTop, static_cast<int> (width), renderH });
                 LayoutJoystickButton (static_cast<int> (width), bandTop, bandHeight, dpi);
             }
 
             m_uiShell.HitTest().Clear();
             if (fHasDisk)
             {
-                m_uiShell.HitTest().Register (HitRect { m_driveChrome[0].BodyRect(), HitSlot::Custom, 0 });
-                m_uiShell.HitTest().Register (HitRect { m_driveChrome[1].BodyRect(), HitSlot::Custom, 1 });
+                m_uiShell.HitTest().Register (DxuiHitRect { m_driveChrome[0].BodyRect(), DxuiHitSlot::Custom, 0 });
+                m_uiShell.HitTest().Register (DxuiHitRect { m_driveChrome[1].BodyRect(), DxuiHitSlot::Custom, 1 });
             }
-            m_d3dRenderer.SetTopInsetPx    (layout.topInsetPx);
-            m_d3dRenderer.SetBottomInsetPx (layout.bottomInsetPx);
         }
     }
+
+    UpdateViewportLayout (static_cast<int> (width), renderH);
 
     {
         lock_guard<mutex> lock (m_fbMutex);
@@ -4484,12 +5096,20 @@ bool EmulatorShell::OnSize (HWND hwnd, UINT width, UINT height)
                                     (float) m_d3dRenderer.GetBackBufferHeight());
             m_d3dRenderer.SetCrtParams (params);
 
-            IGNORE_RETURN_VALUE (hrPresent, m_d3dRenderer.UploadAndPresent (m_uiFramebuffer.data()));
+            m_pendingFramebuffer = m_uiFramebuffer.data();
         }
     }
 
+    // Repaint immediately at the new size through the host pump. The
+    // host already resized its swap chain in HandleSize; driving a
+    // synchronous WM_PAINT here avoids a stale / black frame during an
+    // interactive drag-resize (when RunMessageLoop is blocked in the OS
+    // modal resize loop).
+    InvalidateRect (m_hwnd, nullptr, FALSE);
+    UpdateWindow   (m_hwnd);
+
     m_windowManager.SaveWindowPlacement (m_hwnd, m_d3dRenderer.IsFullscreen());
-    return false;
+    return DxuiMessageResult::NotHandled;
 }
 
 
@@ -4505,13 +5125,13 @@ bool EmulatorShell::OnSize (HWND hwnd, UINT width, UINT height)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool EmulatorShell::OnDrawItem (HWND hwnd, int idCtl, DRAWITEMSTRUCT * pdis)
+LRESULT EmulatorShell::OnDrawItem (HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
-    UNREFERENCED_PARAMETER (hwnd);
-    UNREFERENCED_PARAMETER (idCtl);
-    UNREFERENCED_PARAMETER (pdis);
-
-    return true;
+    // Legacy stub: no owner-drawn items active in the current chrome.
+    // Defer to DefWindowProc for any unexpected WM_DRAWITEM so behavior
+    // matches the legacy Window-base path (which returned `true` =
+    // call DefWndProc).
+    return DefWindowProc (hwnd, msg, wParam, lParam);
 }
 
 
@@ -4528,15 +5148,12 @@ bool EmulatorShell::OnDrawItem (HWND hwnd, int idCtl, DRAWITEMSTRUCT * pdis)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool EmulatorShell::OnTimer (HWND hwnd, UINT_PTR timerId)
+DxuiMessageResult EmulatorShell::OnTimer (UINT_PTR timerId)
 {
-    UNREFERENCED_PARAMETER (hwnd);
     UNREFERENCED_PARAMETER (timerId);
 
-    return true;
-}//  OnFileCommand
-//
-////////////////////////////////////////////////////////////////////////////////
+    return DxuiMessageResult::NotHandled;
+}
 
 
 
@@ -4557,6 +5174,15 @@ void EmulatorShell::UpdateWindowTitle()
 
     if (m_hwnd == nullptr)
     {
+        return;
+    }
+
+    // SwitchMachine calls this on the CPU thread; DxuiHwndSource::SetTitle
+    // mutates the caption bar and asserts the UI thread. Bounce off-thread
+    // callers through the message loop (WM_APP_DXUI_UPDATE_TITLE handler above).
+    if (GetWindowThreadProcessId (m_hwnd, nullptr) != GetCurrentThreadId())
+    {
+        PostMessageW (m_hwnd, WM_APP_DXUI_UPDATE_TITLE, 0, 0);
         return;
     }
 
@@ -4582,8 +5208,7 @@ void EmulatorShell::UpdateWindowTitle()
         title += L" [Stopped]";
     }
 
-    m_titleBar.SetTitle (title);
-    SetWindowText (m_hwnd, title.c_str());
+    m_host->SetTitle (title);
 }
 
 
@@ -5144,9 +5769,11 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool EmulatorShell::OnInitMenuPopup (HWND hwnd, HMENU hMenu, UINT itemIndex, bool isWindowMenu)
+DxuiMessageResult EmulatorShell::OnInitMenuPopup (HMENU hMenu, UINT itemIndex, bool isWindowMenu)
 {
-    return m_windowCommandManager->OnInitMenuPopup (hwnd, hMenu, itemIndex, isWindowMenu);
+    bool  callDefWndProc = m_windowCommandManager->OnInitMenuPopup (m_hwnd, hMenu, itemIndex, isWindowMenu);
+
+    return callDefWndProc ? DxuiMessageResult::NotHandled : DxuiMessageResult::Handled;
 }
 
 
@@ -5155,54 +5782,19 @@ bool EmulatorShell::OnInitMenuPopup (HWND hwnd, HMENU hMenu, UINT itemIndex, boo
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  OnNcCalcSize
+//  OnDpiChanged
 //
-//  Collapse the entire non-client area into the client rect so
-//  the chrome we draw owns every pixel. When wParam is TRUE we return
-//  0 with NCCALCSIZE_PARAMS.rgrc[0] untouched, telling Windows that
-//  the proposed window rect IS the new client rect.
+//  Mirror the host's new DPI into our local DxuiDpiScaler so the
+//  chrome-band dock (which scales band thicknesses through m_scaler)
+//  returns coherent sizes for any post-DPI-change relayout. The host has
+//  already applied the OS-suggested rect via SetWindowPos before
+//  this fires; subsequent WM_SIZE will drive the visible relayout.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool EmulatorShell::OnNcCalcSize (HWND hwnd, WPARAM wParam, LPARAM lParam, LRESULT & outResult)
+void EmulatorShell::OnDpiChanged (UINT newDpi)
 {
-    NCCALCSIZE_PARAMS *  pParams      = nullptr;
-    LRESULT              defResult    = 0;
-    LONG                 originalTop  = 0;
-
-
-
-    if (wParam == FALSE)
-    {
-        outResult = 0;
-        return false;
-    }
-
-    pParams = reinterpret_cast<NCCALCSIZE_PARAMS *> (lParam);
-    if (pParams == nullptr)
-    {
-        outResult = 0;
-        return false;
-    }
-
-    // Mirror microsoft/terminal NonClientIslandWindow::_OnNcCalcSize:
-    // let DefWindowProc compute the default frame (gives Windows the
-    // correct resize-border math at the left/right/bottom edges, plus
-    // Aero Snap awareness) then re-apply the original top edge so the
-    // visual title-bar area collapses into our client rect for the
-    // custom-painted chrome. Drag and edge resize keep working because
-    // the OS still sees a captioned window with thick frames.
-    originalTop = pParams->rgrc[0].top;
-    defResult   = DefWindowProc (hwnd, WM_NCCALCSIZE, wParam, lParam);
-    if (defResult != 0)
-    {
-        outResult = defResult;
-        return false;
-    }
-
-    pParams->rgrc[0].top = originalTop;
-    outResult            = 0;
-    return false;
+    m_scaler.SetDpi (newDpi);
 }
 
 
@@ -5211,78 +5803,66 @@ bool EmulatorShell::OnNcCalcSize (HWND hwnd, WPARAM wParam, LPARAM lParam, LRESU
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  OnNcHitTest
-//
-//  Routes through the unit-tested pure-logic helper. Pull the current
-//  title-bar geometry from the cached layout (kept in sync by
-//  TitleBar::UpdateGeometry in OnSize).
+//  OnNcMouseMove
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-LRESULT EmulatorShell::OnNcHitTest (HWND hwnd, int xScreen, int yScreen)
+DxuiMessageResult EmulatorShell::OnNcMouseMove (LRESULT hitTest, int xScreen, int yScreen)
 {
-    static constexpr int  s_kMinResizeBorderPx = 8;
+    (void) hitTest;
+    (void) xScreen;
+    (void) yScreen;
 
-    POINT                 pt   = { xScreen, yScreen };
-    RECT                  rcClient = {};
-    RECT                  rcTitle  = {};
-    RECT                  rcMin    = {};
-    RECT                  rcMax    = {};
-    RECT                  rcClose  = {};
-    TitleBarHitTestInput  in       = {};
-    LRESULT               result   = HTNOWHERE;
-    UINT                  dpi      = 0;
-    int                   framePx  = 0;
-    int                   padPx    = 0;
-    int                   borderPx = 0;
-
-
-
-    if (!ScreenToClient (hwnd, &pt))
-    {
-        return HTNOWHERE;
-    }
-
-    if (!GetClientRect (hwnd, &rcClient))
-    {
-        return HTNOWHERE;
-    }
-
-    rcTitle = m_titleBar.GetTitleBarRect();
-    rcMin   = m_titleBar.GetButtonRect (SystemButton::Minimize);
-    rcMax   = m_titleBar.GetButtonRect (SystemButton::Maximize);
-    rcClose = m_titleBar.GetButtonRect (SystemButton::Close);
-
-    dpi      = GetDpiForWindow (hwnd);
-    framePx  = GetSystemMetricsForDpi (SM_CXSIZEFRAME, dpi);
-    padPx    = GetSystemMetricsForDpi (SM_CXPADDEDBORDER, dpi);
-    borderPx = framePx + padPx;
-    if (borderPx < s_kMinResizeBorderPx)
-    {
-        borderPx = s_kMinResizeBorderPx;
-    }
-
-    in.clientWidth   = rcClient.right - rcClient.left;
-    in.clientHeight  = rcClient.bottom - rcClient.top;
-    in.mouseX        = pt.x;
-    in.mouseY        = pt.y;
-    in.titleLeft     = rcTitle.left;
-    in.titleTop      = rcTitle.top;
-    in.titleRight    = rcTitle.right;
-    in.titleBottom   = rcTitle.bottom;
-    in.minLeft       = rcMin.left;     in.minTop    = rcMin.top;
-    in.minRight      = rcMin.right;    in.minBottom = rcMin.bottom;
-    in.maxLeft       = rcMax.left;     in.maxTop    = rcMax.top;
-    in.maxRight      = rcMax.right;    in.maxBottom = rcMax.bottom;
-    in.closeLeft     = rcClose.left;   in.closeTop  = rcClose.top;
-    in.closeRight    = rcClose.right;  in.closeBottom = rcClose.bottom;
-    in.resizeBorderPx = borderPx;
-
-    result = TitleBarHitTest::Test (in);
-
-    return result;
+    // The host owns caption / system-button hover now. Our only stake in
+    // a non-client move is dropping a latched menu hover: when the
+    // pointer leaves the menu upward into the caption the client
+    // mouse-move stream stops, so this is the one signal that clears it.
+    m_mainMenu.ClearHover();
+    InvalidateRect (m_hwnd, nullptr, FALSE);
+    return DxuiMessageResult::NotHandled;
 }
 
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnNcMouseLeave
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiMessageResult EmulatorShell::OnNcMouseLeave()
+{
+    // Caption-button hover teardown is the host's job; nothing to do here.
+    return DxuiMessageResult::NotHandled;
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnNcLButtonDown
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiMessageResult EmulatorShell::OnNcLButtonDown (LRESULT hitTest, int xScreen, int yScreen)
+{
+    (void) hitTest;
+    (void) xScreen;
+    (void) yScreen;
+
+    // Any non-client press (caption drag, system button, system menu,
+    // snap) dismisses an open menu -- its popup is anchored to the window
+    // and a move / system action would strand it. The host then routes
+    // the press to its own DxuiSystemButton (press state) or to
+    // DefWindowProc (caption drag), so we never claim the message.
+    if (m_mainMenu.IsOpen())
+    {
+        m_mainMenu.Hide();
+    }
+    return DxuiMessageResult::NotHandled;
+}
 
 
 
@@ -5291,43 +5871,19 @@ LRESULT EmulatorShell::OnNcHitTest (HWND hwnd, int xScreen, int yScreen)
 //
 //  OnNcLButtonUp
 //
-//  Dispatch system-button clicks. HTCLOSE → WM_CLOSE,
-//  HTMINBUTTON → minimize, HTMAXBUTTON → toggle maximize. Everything
-//  else falls through to DefWindowProc so caption double-clicks,
-//  system-menu, snap layouts, etc. all keep working.
+//  System-button clicks (min / max / close) dispatch through the host's
+//  DxuiSystemButton children; caption double-clicks, the system menu,
+//  and snap layouts fall through to DefWindowProc. Nothing to claim here.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool EmulatorShell::OnNcLButtonUp (HWND hwnd, LRESULT hitTest, int xScreen, int yScreen)
+DxuiMessageResult EmulatorShell::OnNcLButtonUp (LRESULT hitTest, int xScreen, int yScreen)
 {
-    UNREFERENCED_PARAMETER (xScreen);
-    UNREFERENCED_PARAMETER (yScreen);
-
-    WINDOWPLACEMENT  wp = { sizeof (wp) };
-
-
-    switch (hitTest)
-    {
-        case HTCLOSE:
-            PostMessage (hwnd, WM_CLOSE, 0, 0);
-            return true;
-
-        case HTMINBUTTON:
-            ShowWindow (hwnd, SW_MINIMIZE);
-            return true;
-
-        case HTMAXBUTTON:
-            if (GetWindowPlacement (hwnd, &wp))
-            {
-                ShowWindow (hwnd,
-                            (wp.showCmd == SW_MAXIMIZE) ? SW_RESTORE : SW_MAXIMIZE);
-            }
-            return true;
-    }
-
-    return false;
+    (void) hitTest;
+    (void) xScreen;
+    (void) yScreen;
+    return DxuiMessageResult::NotHandled;
 }
-
 
 
 

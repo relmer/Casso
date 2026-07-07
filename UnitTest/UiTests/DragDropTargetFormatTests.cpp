@@ -2,7 +2,7 @@
 
 #include "CppUnitTest.h"
 
-#include "Ui/DragDropTarget.h"
+#include "../Casso/Ui/DriveWidgetState.h"
 
 #include <atomic>
 #include <cstring>
@@ -20,7 +20,7 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 //  DragDropTargetFormatTests
 //
-//  Verifies the testable subset of T141: that DragDropTarget::
+//  Verifies the testable subset of T141: that DxuiDragDropTarget::
 //  ExtractFirstHDropPath round-trips each of the four supported disk
 //  image extensions (.dsk, .nib, .woz, .po) through a CF_HDROP /
 //  HGLOBAL pipe identical to what Explorer hands us.
@@ -138,7 +138,7 @@ namespace
     {
         MockHDropDataObject  obj (input);
         std::wstring         got;
-        HRESULT              hr = DragDropTarget::ExtractFirstHDropPath (&obj, got);
+        HRESULT              hr = DxuiDragDropTarget::ExtractFirstHDropPath (&obj, got);
 
         Assert::AreEqual (S_OK, hr, L"ExtractFirstHDropPath should return S_OK");
         Assert::AreEqual (input.c_str(), got.c_str(),
@@ -184,7 +184,7 @@ public:
     TEST_METHOD (ExtractFirstHDropPath_NullDataObject_ReturnsFalse)
     {
         std::wstring  got = L"sentinel";
-        HRESULT       hr  = DragDropTarget::ExtractFirstHDropPath (nullptr, got);
+        HRESULT       hr  = DxuiDragDropTarget::ExtractFirstHDropPath (nullptr, got);
 
         Assert::AreEqual (S_FALSE, hr);
         Assert::IsTrue   (got.empty(), L"outPath must be cleared on failure");
@@ -212,7 +212,7 @@ public:
 
     TEST_METHOD (FreshTarget_IsNotInProgress)
     {
-        DragDropTarget  t;
+        DxuiDragDropTarget  t;
 
         Assert::IsFalse  (t.IsDragInProgress());
         Assert::IsFalse  (t.IsDragAcceptedType());
@@ -221,11 +221,14 @@ public:
 
     TEST_METHOD (DragEnter_SupportedFile_SetsInProgressAndAccepted)
     {
-        DragDropTarget       t;
+        DxuiDragDropTarget       t;
         MockHDropDataObject  obj (L"C:\\Disks\\demo.dsk");
         POINTL               pt     = { 100, 100 };
         DWORD                effect = DROPEFFECT_COPY;
-        HRESULT              hr     = t.DragEnter (&obj, 0, pt, &effect);
+        HRESULT              hr     = S_OK;
+
+        t.SetFilter (IsSupportedDiskImageExtension);
+        hr = t.DragEnter (&obj, 0, pt, &effect);
 
         Assert::AreEqual (S_OK,  hr);
         Assert::IsTrue   (t.IsDragInProgress(),    L"Drag must be in progress after DragEnter");
@@ -239,11 +242,14 @@ public:
 
     TEST_METHOD (DragEnter_UnsupportedFile_InProgressButNotAccepted)
     {
-        DragDropTarget       t;
+        DxuiDragDropTarget       t;
         MockHDropDataObject  obj (L"C:\\Disks\\readme.txt");
         POINTL               pt     = { 100, 100 };
         DWORD                effect = DROPEFFECT_COPY;
-        HRESULT              hr     = t.DragEnter (&obj, 0, pt, &effect);
+        HRESULT              hr     = S_OK;
+
+        t.SetFilter (IsSupportedDiskImageExtension);
+        hr = t.DragEnter (&obj, 0, pt, &effect);
 
         Assert::AreEqual (S_OK, hr);
         Assert::IsTrue   (t.IsDragInProgress(),
@@ -255,7 +261,7 @@ public:
 
     TEST_METHOD (DragLeave_ResetsAllState)
     {
-        DragDropTarget       t;
+        DxuiDragDropTarget       t;
         MockHDropDataObject  obj (L"C:\\Disks\\demo.woz");
         POINTL               pt     = { 100, 100 };
         DWORD                effect = DROPEFFECT_COPY;
@@ -271,7 +277,7 @@ public:
 
     TEST_METHOD (Drop_ResetsState)
     {
-        DragDropTarget       t;
+        DxuiDragDropTarget       t;
         MockHDropDataObject  obj (L"C:\\Disks\\demo.nib");
         POINTL               pt     = { 100, 100 };
         DWORD                effect = DROPEFFECT_COPY;
@@ -288,7 +294,7 @@ public:
 
     TEST_METHOD (DragEnter_NullDataObject_InProgressButNotAccepted)
     {
-        DragDropTarget  t;
+        DxuiDragDropTarget  t;
         POINTL          pt     = { 100, 100 };
         DWORD           effect = DROPEFFECT_COPY;
         HRESULT         hr     = t.DragEnter (nullptr, 0, pt, &effect);
@@ -302,7 +308,7 @@ public:
 
     TEST_METHOD (DragOver_NullPdwEffect_ReturnsPointerError)
     {
-        DragDropTarget  t;
+        DxuiDragDropTarget  t;
         POINTL          pt = { 0, 0 };
 
         Assert::AreEqual (E_POINTER, t.DragOver (0, pt, nullptr));
@@ -316,7 +322,7 @@ public:
 
         for (size_t i = 0; i < sizeof (exts) / sizeof (exts[0]); i++)
         {
-            DragDropTarget       t;
+            DxuiDragDropTarget       t;
             MockHDropDataObject  obj (exts[i]);
             POINTL               pt     = { 0, 0 };
             DWORD                effect = DROPEFFECT_COPY;

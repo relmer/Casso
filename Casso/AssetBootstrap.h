@@ -2,6 +2,8 @@
 
 #include "Pch.h"
 
+#include "Shell/DiskMru.h"
+
 
 
 
@@ -46,6 +48,11 @@ public:
 
     static fs::path GetDiskDirectory();
 
+    // Append disk images bundled in the source tree's Apple2/Demos
+    // directory (present only in a repo build) to `mountable`, sorted and
+    // de-duplicated against existing entries. No-op in an installed layout.
+    static void     AppendBundledDemoDisks (std::vector<DiskMru::Entry> & mountable);
+
     static HRESULT  GetRequiredRoms       (HINSTANCE                hInstance,
                                            const wstring          & machineName,
                                            vector<string>         & outRomFiles,
@@ -55,37 +62,6 @@ public:
                                            const wstring          & machineName,
                                            bool                   & outHasDiskController,
                                            string                 & outError);
-
-    static HRESULT  CheckAndFetchRoms     (HINSTANCE                hInstance,
-                                           const wstring          & machineName,
-                                           HWND                     hwndParent,
-                                           const vector<fs::path> & searchPaths,
-                                           const fs::path         & assetBaseDir,
-                                           std::string_view         themeName,
-                                           string                 & outError);
-
-    // Audio / FR-017 / FR-018. Inspects
-    // `devicesDir`'s per-mechanism subdirectories (Alps/, Shugart/);
-    // if either is missing any WAVs the user gets a GPL-3 disclosure
-    // consent dialog. On accept, fetches the matching OGGs from
-    // OpenEmulator's GitHub mirror, decodes them in memory with
-    // stb_vorbis, and writes resampled 16-bit PCM WAVs to the
-    // per-mechanism subdirs. Returns S_OK when at least one mechanism
-    // is populated (or already was), S_FALSE if the user declined,
-    // and an error HRESULT with `outError` set on hard failure.
-    // Errors do not block startup (FR-009).
-    //
-    // `prefs.audioDownloadConsent` carries the persisted user choice
-    // across launches ("ask" / "allow" / "decline"); the function
-    // reads it to decide whether to prompt, and writes the user's new
-    // choice back. The caller is responsible for flushing prefs to
-    // disk after this returns.
-    static HRESULT  CheckAndFetchDiskAudio (HINSTANCE                hInstance,
-                                            const wstring          & machineName,
-                                            HWND                     hwndParent,
-                                            const fs::path         & devicesDir,
-                                            struct GlobalUserPrefs & prefs,
-                                            string                 & outError);
 
     // In-memory OGG Vorbis fetch + decode + resample to mono float32
     // at `targetSampleRate`. Stereo input is downmixed to mono via
@@ -128,7 +104,7 @@ public:
     static HRESULT  PromptBootDiskMru     (HINSTANCE                hInstance,
                                            HWND                     hwndParent,
                                            const wstring          & machineName,
-                                           const vector<fs::path> & mruEntries,
+                                           const vector<DiskMru::Entry> & mruEntries,
                                            const fs::path         & diskDir,
                                            std::string_view         themeName,
                                            wstring                & outDiskPath,
@@ -138,12 +114,11 @@ public:
     // Themed runtime disk-insert picker. Mirrors PromptBootDiskMru
     // but is used when the user clicks a drive widget (or invokes
     // Disk -> Insert in drive N) on a running machine. Lists the
-    // user's recent disk images, mountable rows for any stock DOS 3.3
-    // / ProDOS master already present on disk, and "Download" rows for
-    // the stock masters that are absent, so the picker is never empty
-    // even on a fresh install. The "Browse..." footer button falls
-    // through to the Win32 IFileOpenDialog for ad-hoc images. Cancel /
-    // close box leaves the slot untouched.
+    // user's recent disk images plus "Download" rows for the DOS 3.3
+    // and ProDOS stock masters so the picker is never empty even on
+    // a fresh install. The "Browse..." footer button falls through to
+    // the Win32 IFileOpenDialog for ad-hoc images. Cancel / close box
+    // leaves the slot untouched.
     //
     // On return:
     //   outDiskPath  = path to mount, or empty if the user cancelled
@@ -153,7 +128,7 @@ public:
     static HRESULT  PromptInsertDiskMru   (HINSTANCE                hInstance,
                                            HWND                     hwndParent,
                                            int                      drive,
-                                           const vector<fs::path> & mruEntries,
+                                           const vector<DiskMru::Entry> & mruEntries,
                                            const fs::path         & diskDir,
                                            std::string_view         themeName,
                                            wstring                & outDiskPath,
@@ -176,9 +151,8 @@ public:
     //
     // `prefs.audioDownloadConsent` is read AND updated to reflect the
     // user's choice (allow / decline). The caller is responsible for
-    // flushing prefs to disk after this returns. Boot disks are NOT
-    // handled here -- the boot-disk picker (PromptBootDiskMru) owns that
-    // flow.
+    // flushing prefs to disk after this returns. Boot-disk selection is
+    // not handled here -- it is owned solely by PromptBootDiskMru.
     static HRESULT  RunStartupDownloader  (HINSTANCE                hInstance,
                                            const wstring          & machineName,
                                            HWND                     hwndParent,

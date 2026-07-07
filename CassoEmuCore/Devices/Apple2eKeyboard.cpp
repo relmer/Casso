@@ -144,6 +144,72 @@ void Apple2eKeyboard::EmitButtonRead (Word address, Byte value)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  SetOpenApple
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Apple2eKeyboard::SetOpenApple (bool pressed)
+{
+    m_openApple.store (pressed, memory_order_release);
+    EmitHostButton (0, pressed);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetClosedApple
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Apple2eKeyboard::SetClosedApple (bool pressed)
+{
+    m_closedApple.store (pressed, memory_order_release);
+    EmitHostButton (1, pressed);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmitHostButton
+//
+//  Host UI thread. Coalesced emit for a host-set joystick button: fires
+//  only when the staged button state changed since the last host-input emit.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Apple2eKeyboard::EmitHostButton (int index, bool pressed)
+{
+    IInputEventSink * sink  = InputSink ();
+    int               value = pressed ? 1 : 0;
+
+
+
+    if (sink == nullptr)
+    {
+        return;
+    }
+
+    if (m_lastEmittedHostButton[index] == value)
+    {
+        return;
+    }
+
+    m_lastEmittedHostButton[index] = value;
+    sink->OnHostButton (index, pressed);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  KeyPressRaw
 //
 //  IIe keyboard supports lowercase — don't force uppercase.
@@ -224,6 +290,9 @@ void Apple2eKeyboard::Reset ()
     m_lastEmittedButton[0] = -1;
     m_lastEmittedButton[1] = -1;
     m_lastEmittedButton[2] = -1;
+
+    m_lastEmittedHostButton[0] = -1;
+    m_lastEmittedHostButton[1] = -1;
 }
 
 

@@ -431,6 +431,7 @@ void SettingsPanelState::SetMechanism (const std::string & mechanism)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  SetDriveMotorVolume / SetDriveHeadVolume / SetDriveDoorVolume
@@ -445,6 +446,7 @@ void SettingsPanelState::SetDriveMotorVolume (float gain)
 
 
 
+
 void SettingsPanelState::SetDriveHeadVolume (float gain)
 {
     m_current.prefs.driveHeadVolume = gain;
@@ -453,10 +455,12 @@ void SettingsPanelState::SetDriveHeadVolume (float gain)
 
 
 
+
 void SettingsPanelState::SetDriveDoorVolume (float gain)
 {
     m_current.prefs.driveDoorVolume = gain;
 }
+
 
 
 
@@ -471,6 +475,7 @@ void SettingsPanelState::SetDriveOnePan (float pan)
 {
     m_current.prefs.driveOnePan = pan;
 }
+
 
 
 
@@ -631,8 +636,8 @@ HRESULT SettingsPanelState::ExtractUiPrefs (
     outPrefs.driveMotorVolume = (float) GetNumberOpt (*uiObj, "driveMotorVolume", SettingsUiPrefs::kDefaultDriveMotorVolume);
     outPrefs.driveHeadVolume  = (float) GetNumberOpt (*uiObj, "driveHeadVolume",  SettingsUiPrefs::kDefaultDriveHeadVolume);
     outPrefs.driveDoorVolume  = (float) GetNumberOpt (*uiObj, "driveDoorVolume",  SettingsUiPrefs::kDefaultDriveDoorVolume);
-    outPrefs.driveOnePan      = (float) GetNumberOpt (*uiObj, "driveOnePan",       SettingsUiPrefs::kDefaultDriveOnePan);
-    outPrefs.driveTwoPan      = (float) GetNumberOpt (*uiObj, "driveTwoPan",       SettingsUiPrefs::kDefaultDriveTwoPan);
+    outPrefs.driveOnePan      = (float) GetNumberOpt (*uiObj, "driveOnePan",      SettingsUiPrefs::kDefaultDriveOnePan);
+    outPrefs.driveTwoPan      = (float) GetNumberOpt (*uiObj, "driveTwoPan",      SettingsUiPrefs::kDefaultDriveTwoPan);
 
     outPrefs.diskPath[0] = GetStringOpt (*uiObj, "disk1Path", "");
     outPrefs.diskPath[1] = GetStringOpt (*uiObj, "disk2Path", "");
@@ -1165,11 +1170,11 @@ bool SettingsPanelState::PrefsEqual (
     if (a.writeMode             != b.writeMode)             return false;
     if (a.floppySoundEnabled    != b.floppySoundEnabled)    return false;
     if (a.floppyMechanism       != b.floppyMechanism)       return false;
-    if (a.driveMotorVolume      != b.driveMotorVolume)      return false;
-    if (a.driveHeadVolume       != b.driveHeadVolume)       return false;
-    if (a.driveDoorVolume       != b.driveDoorVolume)       return false;
-    if (a.driveOnePan           != b.driveOnePan)          return false;
-    if (a.driveTwoPan           != b.driveTwoPan)          return false;
+    if (a.driveMotorVolume      != b.driveMotorVolume)       return false;
+    if (a.driveHeadVolume       != b.driveHeadVolume)        return false;
+    if (a.driveDoorVolume       != b.driveDoorVolume)        return false;
+    if (a.driveOnePan           != b.driveOnePan)            return false;
+    if (a.driveTwoPan           != b.driveTwoPan)            return false;
     if (a.diskPath[0]           != b.diskPath[0])           return false;
     if (a.diskPath[1]           != b.diskPath[1])           return false;
     if (a.writeProtect[0]       != b.writeProtect[0])       return false;

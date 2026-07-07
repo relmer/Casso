@@ -1,10 +1,6 @@
 #include "Pch.h"
 
 #include "CppUnitTest.h"
-
-#include "../Casso/Ui/DpiScaler.h"
-
-
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
 
@@ -20,7 +16,7 @@ public:
 
     TEST_METHOD (DefaultIsBaseDpi)
     {
-        DpiScaler  scaler;
+        DxuiDpiScaler  scaler;
 
         Assert::AreEqual ((UINT) 96, scaler.Dpi());
         Assert::AreEqual (16,        scaler.Px (16));
@@ -30,7 +26,7 @@ public:
 
     TEST_METHOD (SetDpi_100Percent_IsIdentity)
     {
-        DpiScaler  scaler;
+        DxuiDpiScaler  scaler;
 
         scaler.SetDpi (96);
         Assert::AreEqual (16,    scaler.Px (16));
@@ -41,7 +37,7 @@ public:
 
     TEST_METHOD (SetDpi_150Percent_ScalesUp)
     {
-        DpiScaler  scaler;
+        DxuiDpiScaler  scaler;
 
         scaler.SetDpi (144);
         Assert::AreEqual (24,                  scaler.Px (16));
@@ -52,7 +48,7 @@ public:
 
     TEST_METHOD (SetDpi_200Percent_DoublesValues)
     {
-        DpiScaler  scaler;
+        DxuiDpiScaler  scaler;
 
         scaler.SetDpi (192);
         Assert::AreEqual (32,    scaler.Px (16));
@@ -62,7 +58,7 @@ public:
 
     TEST_METHOD (SetDpi_Zero_FallsBackToBaseDpi)
     {
-        DpiScaler  scaler;
+        DxuiDpiScaler  scaler;
 
         scaler.SetDpi (240);
         scaler.SetDpi (0);

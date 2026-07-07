@@ -110,6 +110,12 @@ struct GlobalUserPrefs
     // entries (non-string or empty) are dropped silently on load.
     std::vector<std::string>  recentDisks;
 
+    // Parallel to recentDisks: the wall-clock time each disk was last
+    // loaded (Unix seconds; 0 == unknown). Same order and length as
+    // recentDisks. A legacy prefs file without this key loads as empty,
+    // so every recent disk starts with an unknown (0) load time.
+    std::vector<std::int64_t>  recentDiskLoadedAt;
+
     // Unknown JSON keys round-trip back to disk untouched.
     std::vector<std::pair<std::string, JsonValue>>  unknownPassthrough;
 
@@ -121,6 +127,13 @@ struct GlobalUserPrefs
 
     JsonValue   ToJson   () const;
     HRESULT     FromJson (const JsonValue & v);
+
+    // Revert the Color-monitor text colour to its default (White). The
+    // custom ARGB is intentionally left intact so re-selecting "Custom"
+    // restores the user's last-picked colour. Used by the Display page's
+    // Restore-defaults action; keeping it here makes the durable behaviour
+    // unit-testable without the (D3D-bound) Settings UI.
+    void        ResetColorMonitorTextToDefault ();
 
     static std::wstring  FilePath (const std::wstring & baseDir);
 
@@ -142,6 +155,7 @@ private:
     static JsonValue    CrtToJson         (const Crt & c);
     static JsonValue    PlacementsToJson  (const std::map<std::string, WindowBounds> & placements);
     static JsonValue    RecentDisksToJson (const std::vector<std::string> & recentDisks);
+    static JsonValue    RecentDiskTimesToJson (const std::vector<std::int64_t> & loadedAtUnix);
 
     static const char *      InputMappingModeToString   (InputMappingMode mode);
     static InputMappingMode  InputMappingModeFromString (const std::string & s, InputMappingMode fallback);
@@ -154,4 +168,6 @@ private:
                                              std::map<std::string, WindowBounds> & placements);
     static void         RecentDisksFromJson (const JsonValue          & recentArr,
                                              std::vector<std::string> & recentDisks);
+    static void         RecentDiskTimesFromJson (const JsonValue           & loadedArr,
+                                                 std::vector<std::int64_t> & loadedAtUnix);
 };

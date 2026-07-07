@@ -70,7 +70,20 @@ bool MatchesFilter (const InputEventDisplay & e, const InputFilterState & f) noe
     switch (e.category)
     {
         case InputEventCategory::Host:
-            return f.showHostKeyboard;
+            switch (e.gamePort)
+            {
+                case InputGamePortClass::None:
+                    return f.showHostKeyboard;
+
+                case InputGamePortClass::Global:
+                    return f.showJoystick || f.showPaddle;
+
+                case InputGamePortClass::Pair0:
+                case InputGamePortClass::Pair1:
+                    pairIsJoystick = f.pairIsJoystick[(e.gamePort == InputGamePortClass::Pair0) ? 0 : 1];
+                    return pairIsJoystick ? f.showJoystick : f.showPaddle;
+            }
+            return true;
 
         case InputEventCategory::System:
             return true;
@@ -183,10 +196,10 @@ std::wstring BuildClipboardText (
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<ListView::Column> PlanVisibleColumns (
+std::vector<DxuiListView::Column> PlanVisibleColumns (
     const std::array<InputLogicalColumn, kInputColumnCount> & model) noexcept
 {
-    std::vector<ListView::Column>  out;
+    std::vector<DxuiListView::Column>  out;
     int                            i = 0;
 
 
@@ -194,10 +207,13 @@ std::vector<ListView::Column> PlanVisibleColumns (
 
     for (i = 0; i < kInputColumnCount; i++)
     {
-        ListView::Column  spec = {};
+        DxuiListView::Column  spec = {};
 
         spec.title   = model[i].headerText;
-        spec.widthDp = model[i].savedWidth;
+        // Auto-fit a column to its content until the user drag-resizes
+        // it; once resized, the user's width wins and auto-fit stops
+        // touching it (widthDip > 0 overrides the auto path).
+        spec.widthDip = model[i].userResized ? model[i].savedWidth : 0;
         spec.visible = model[i].visible;
         spec.stretch = (model[i].id == kInputMeaningColumnId);
 

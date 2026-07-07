@@ -3,16 +3,18 @@
 #include "Pch.h"
 
 #include "SettingsPanelState.h"
-
 #include "../ColorUtil.h"
-#include "../DpiScaler.h"
-#include "../DwriteTextRenderer.h"
-#include "../DxUiPainter.h"
-#include "../Widgets/Button.h"
-#include "../Widgets/Dropdown.h"
-#include "../Widgets/Label.h"
-#include "../Widgets/Slider.h"
-#include "../Widgets/Toggle.h"
+
+#include "Window/DxuiPropertyPage.h"
+#include "Widgets/DxuiButton.h"
+#include "Widgets/DxuiDropdown.h"
+#include "Widgets/DxuiLabel.h"
+#include "Widgets/DxuiSlider.h"
+#include "Widgets/DxuiToggle.h"
+
+
+class IDxuiTheme;
+class DxuiHwndSource;
 
 
 
@@ -67,16 +69,16 @@ struct DisplayDefaultsHint
 };
 
 
-class DisplayPage
+class DisplayPage : public DxuiPropertyPage
 {
 public:
+    explicit DisplayPage (std::wstring title = L"Display");
+
     using BrightnessFn    = std::function<void (float value)>;
     using ContrastFn      = std::function<void (float value)>;
     using GammaFn         = std::function<void (float value)>;
     using PersistenceFn   = std::function<void (float value)>;
     using MonitorFn       = std::function<void (int colorModeIndex)>;
-    using TextColorFn     = std::function<void (int textColorModeIndex)>;
-    using TextColorCommitFn = std::function<void (int textColorModeIndex)>;
     using ScanlinesEnFn   = std::function<void (bool enabled)>;
     using ScanlinesIntFn  = std::function<void (float intensity)>;
     using BloomEnFn       = std::function<void (bool enabled)>;
@@ -86,9 +88,11 @@ public:
     using ColorBleedWFn   = std::function<void (float width)>;
     using PreviewFn       = std::function<void (int controlId, bool start, bool keyboardMode)>;
     using RestoreFn       = std::function<void ()>;
+    using TextColorFn       = std::function<void (int textColorModeIndex)>;
+    using TextColorCommitFn = std::function<void (int textColorModeIndex)>;
 
     // Control ids used by SetOnPreview to identify which control is
-    // being interacted with. Match the SettingsPanel::PreviewFocus
+    // being interacted with. Match the SettingsPreviewController::Focus
     // enum offsets so the panel can cast directly.
     static constexpr int  kControlBrightness     = 1;
     static constexpr int  kControlContrast       = 2;
@@ -99,23 +103,25 @@ public:
     static constexpr int  kControlColorBleedW    = 7;
     static constexpr int  kControlGamma          = 8;
     static constexpr int  kControlPersistence    = 9;
-    static constexpr int  kControlTextColor      = 10;
 
     void  SetState              (SettingsPanelState * state);
     void  SetInitialCrt         (const struct GlobalUserPrefsCrtSnapshot & snap);
     void  SetDefaultsHint       (const struct DisplayDefaultsHint        & hint);
+
+    // Seeds the Text-color dropdown + swatch from the global prefs
+    // (mode + custom ARGB). Only meaningful when the active monitor is
+    // Color; the swatch shows the resolved color.
+    void  SetTextColor          (ColorMonitorTextMode mode, uint32_t customArgb);
+
+    // Routes the owned dropdown's popup menu through the host's
+    // popup-host pool so the menu HWND escapes the page's clipping
+    // bounds. Pass nullptr to revert to the in-panel PaintMenu path.
+    void  SetPopupHost          (DxuiHwndSource * host) { m_monitor.SetPopupHost (host); m_textColor.SetPopupHost (host); }
     void  SetOnBrightnessChange     (BrightnessFn    fn) { m_onBrightness    = std::move (fn); }
     void  SetOnContrastChange       (ContrastFn      fn) { m_onContrast      = std::move (fn); }
     void  SetOnGammaChange          (GammaFn         fn) { m_onGamma         = std::move (fn); }
     void  SetOnPersistenceChange    (PersistenceFn   fn) { m_onPersistence   = std::move (fn); }
     void  SetOnMonitorChange        (MonitorFn       fn) { m_onMonitor       = std::move (fn); }
-    void  SetOnTextColorChange      (TextColorFn     fn) { m_onTextColor     = std::move (fn); }
-    void  SetOnTextColorCommit      (TextColorCommitFn fn) { m_onTextColorCommit = std::move (fn); }
-
-    // Seeds the Text color control from the global prefs (mode + custom
-    // RGB). The Color-monitor-only control is enabled iff the active
-    // monitor is Color; the swatch shows the resolved color.
-    void  SetTextColor              (ColorMonitorTextMode mode, uint32_t customArgb);
     void  SetOnScanlinesEnChange    (ScanlinesEnFn   fn) { m_onScanlinesEn   = std::move (fn); }
     void  SetOnScanlinesIntChange   (ScanlinesIntFn  fn) { m_onScanlinesInt  = std::move (fn); }
     void  SetOnBloomEnChange        (BloomEnFn       fn) { m_onBloomEn       = std::move (fn); }
@@ -125,59 +131,75 @@ public:
     void  SetOnColorBleedWChange    (ColorBleedWFn   fn) { m_onColorBleedW   = std::move (fn); }
     void  SetOnPreview              (PreviewFn       fn) { m_onPreview       = std::move (fn); }
     void  SetOnRestoreDefaults      (RestoreFn       fn) { m_onRestore       = std::move (fn); }
+    void  SetOnTextColorChange      (TextColorFn       fn) { m_onTextColor       = std::move (fn); }
+    void  SetOnTextColorCommit      (TextColorCommitFn fn) { m_onTextColorCommit = std::move (fn); }
 
-    void  Layout    (const RECT & rect, const DpiScaler & scaler);
+    void  Layout    (const RECT & rect, const DxuiDpiScaler & scaler) override;
     void  Rebuild   ();
 
-    void  OnLButtonDown (int x, int y);
-    void  OnLButtonUp   (int x, int y);
-    void  OnMouseMove   (int x, int y);
-    void  OnMouseHover  (int x, int y);
-    bool  OnKey         (WPARAM vk);
+    // Configures the live-preview fade applied by the next Paint. When
+    // focusedControlId is < 0 (the default), every control paints at
+    // 1.0 alpha. Otherwise the control whose id matches paints at
+    // focusedAlpha and every other control paints at nonFocusedAlpha;
+    // SettingsPanel uses this to dim the rest of the page while the
+    // user drags a slider or operates a dropdown.
+    void  SetFadeState (int   focusedControlId,
+                        float focusedAlpha,
+                        float nonFocusedAlpha);
 
-    // Render. When focusedControlId is -1 every control paints at
-    // `nonFocusedAlpha`; otherwise the matching control paints at
-    // `focusedAlpha` (used by the panel's live-preview fade so the
-    // user can see the slider / dropdown they're interacting with
-    // while the rest of the UI fades out).
-    //
-    void  Paint (DxUiPainter & painter, DwriteTextRenderer & text,
-                 const ChromeTheme & theme,
-                 int          focusedControlId = -1,
-                 float        nonFocusedAlpha  = 1.0f,
-                 float        focusedAlpha     = 1.0f) const;
+    void  Paint (IDxuiPainter & painter, IDxuiTextRenderer & text,
+                 const IDxuiTheme & theme) override;
+    bool  OnMouse (const DxuiMouseEvent & ev) override;
 
-    void  CollectFocusables (std::vector<std::function<void (bool)>> & out);
-    bool  AnyDropdownOpen   () const { return m_monitor.IsOpen() || m_textColor.IsOpen(); }
     RECT  FocusedControlRect (int controlId) const;
 
     // Test accessors.
-    const Dropdown & MonitorDropdown    () const { return m_monitor;          }
-    const Dropdown & TextColorDropdown  () const { return m_textColor;        }
-    const Slider   & BrightnessSlider   () const { return m_brightness;       }
-    const Slider   & ContrastSlider     () const { return m_contrast;         }
-    const Slider   & GammaSlider        () const { return m_gamma;            }
-    const Slider   & PersistenceSlider  () const { return m_persistence;      }
-    const Toggle   & ScanlinesToggle    () const { return m_scanlinesEn;      }
-    const Slider   & ScanlinesSlider    () const { return m_scanlinesInt;     }
-    const Toggle   & BloomToggle        () const { return m_bloomEn;          }
-    const Slider   & BloomRadiusSlider  () const { return m_bloomRadius;      }
-    const Slider   & BloomStrengthSlider() const { return m_bloomStrength;    }
-    const Toggle   & ColorBleedToggle   () const { return m_colorBleedEn;     }
-    const Slider   & ColorBleedSlider   () const { return m_colorBleedW;      }
-    const Button   & RestoreButton      () const { return m_restore;          }
+    const DxuiDropdown & MonitorDropdown    () const { return m_monitor;          }
+    const DxuiDropdown & TextColorDropdown  () const { return m_textColor;        }
+    const DxuiSlider   & BrightnessSlider   () const { return m_brightness;       }
+    const DxuiSlider   & ContrastSlider     () const { return m_contrast;         }
+    const DxuiSlider   & GammaSlider        () const { return m_gamma;            }
+    const DxuiSlider   & PersistenceSlider  () const { return m_persistence;      }
+    const DxuiToggle   & ScanlinesToggle    () const { return m_scanlinesEn;      }
+    const DxuiSlider   & ScanlinesSlider    () const { return m_scanlinesInt;     }
+    const DxuiToggle   & BloomToggle        () const { return m_bloomEn;          }
+    const DxuiSlider   & BloomRadiusSlider  () const { return m_bloomRadius;      }
+    const DxuiSlider   & BloomStrengthSlider() const { return m_bloomStrength;    }
+    const DxuiToggle   & ColorBleedToggle   () const { return m_colorBleedEn;     }
+    const DxuiSlider   & ColorBleedSlider   () const { return m_colorBleedW;      }
+    const DxuiButton   & RestoreButton      () const { return m_restore;          }
+
+    // Mutable accessors so SettingsPanel can inline focus-setter
+    // lambdas that previously lived in the bespoke CollectFocusables
+    // shim, and so it can query open-popup state without going through
+    // a page-level AnyDropdownOpen() helper.
+    DxuiDropdown & MonitorDropdown    () { return m_monitor;          }
+    DxuiDropdown & TextColorDropdown  () { return m_textColor;        }
+    DxuiSlider   & BrightnessSlider   () { return m_brightness;       }
+    DxuiSlider   & ContrastSlider     () { return m_contrast;         }
+    DxuiSlider   & GammaSlider        () { return m_gamma;            }
+    DxuiSlider   & PersistenceSlider  () { return m_persistence;      }
+    DxuiToggle   & ScanlinesToggle    () { return m_scanlinesEn;      }
+    DxuiSlider   & ScanlinesSlider    () { return m_scanlinesInt;     }
+    DxuiToggle   & BloomToggle        () { return m_bloomEn;          }
+    DxuiSlider   & BloomRadiusSlider  () { return m_bloomRadius;      }
+    DxuiSlider   & BloomStrengthSlider() { return m_bloomStrength;    }
+    DxuiToggle   & ColorBleedToggle   () { return m_colorBleedEn;     }
+    DxuiSlider   & ColorBleedSlider   () { return m_colorBleedW;      }
+    DxuiButton   & RestoreButton      () { return m_restore;          }
 
 private:
+    void  RefreshTextColorEnabled ();
+    bool  TextColorActive () const;
+
     SettingsPanelState  * m_state = nullptr;
     DisplayDefaultsHint   m_hint  = {};
-    DpiScaler             m_scaler;
+    DxuiDpiScaler             m_scaler;
     BrightnessFn          m_onBrightness;
     ContrastFn            m_onContrast;
     GammaFn               m_onGamma;
     PersistenceFn         m_onPersistence;
     MonitorFn             m_onMonitor;
-    TextColorFn           m_onTextColor;
-    TextColorCommitFn     m_onTextColorCommit;
     ScanlinesEnFn         m_onScanlinesEn;
     ScanlinesIntFn        m_onScanlinesInt;
     BloomEnFn             m_onBloomEn;
@@ -187,37 +209,39 @@ private:
     ColorBleedWFn         m_onColorBleedW;
     PreviewFn             m_onPreview;
     RestoreFn             m_onRestore;
+    TextColorFn           m_onTextColor;
+    TextColorCommitFn     m_onTextColorCommit;
 
-    Label                 m_monitorLabel;
-    Label                 m_textColorLabel;
-    Label                 m_brightnessLabel;
-    Label                 m_contrastLabel;
-    Label                 m_gammaLabel;
-    Label                 m_persistenceLabel;
+    DxuiLabel                 m_monitorLabel;
+    DxuiLabel                 m_textColorLabel;
+    DxuiLabel                 m_brightnessLabel;
+    DxuiLabel                 m_contrastLabel;
+    DxuiLabel                 m_gammaLabel;
+    DxuiLabel                 m_persistenceLabel;
     // Left-column labels for the toggle rows -- the toggle widget itself
     // paints just the On/Off state indicator in the value column.
-    Label                 m_scanlinesLabel;
-    Label                 m_bloomLabel;
-    Label                 m_colorBleedLabel;
-    Label                 m_scanlinesIntLabel;
-    Label                 m_bloomRadiusLabel;
-    Label                 m_bloomStrengthLabel;
-    Label                 m_colorBleedWLabel;
+    DxuiLabel                 m_scanlinesLabel;
+    DxuiLabel                 m_bloomLabel;
+    DxuiLabel                 m_colorBleedLabel;
+    DxuiLabel                 m_scanlinesIntLabel;
+    DxuiLabel                 m_bloomRadiusLabel;
+    DxuiLabel                 m_bloomStrengthLabel;
+    DxuiLabel                 m_colorBleedWLabel;
 
-    Dropdown              m_monitor;
-    Dropdown              m_textColor;
-    Slider                m_brightness;
-    Slider                m_contrast;
-    Slider                m_gamma;
-    Slider                m_persistence;
-    Toggle                m_scanlinesEn;
-    Slider                m_scanlinesInt;
-    Toggle                m_bloomEn;
-    Slider                m_bloomRadius;
-    Slider                m_bloomStrength;
-    Toggle                m_colorBleedEn;
-    Slider                m_colorBleedW;
-    Button                m_restore;
+    DxuiDropdown              m_monitor;
+    DxuiDropdown              m_textColor;
+    DxuiSlider                m_brightness;
+    DxuiSlider                m_contrast;
+    DxuiSlider                m_gamma;
+    DxuiSlider                m_persistence;
+    DxuiToggle                m_scanlinesEn;
+    DxuiSlider                m_scanlinesInt;
+    DxuiToggle                m_bloomEn;
+    DxuiSlider                m_bloomRadius;
+    DxuiSlider                m_bloomStrength;
+    DxuiToggle                m_colorBleedEn;
+    DxuiSlider                m_colorBleedW;
+    DxuiButton                m_restore;
 
     RECT                  m_monitorRowRect       = {};
     RECT                  m_textColorRowRect     = {};
@@ -236,12 +260,14 @@ private:
     RECT                  m_restoreRowRect       = {};
     int                   m_indicatorX           = 0;
 
-    // Seeded Text color state (global pref) the swatch + dropdown reflect.
+    // Seeded Text-color state (global pref) the dropdown + swatch reflect.
     ColorMonitorTextMode  m_textColorMode        = ColorMonitorTextMode::White;
     uint32_t              m_textColorCustomArgb  = ColorUtil::kWhiteArgb;
 
-    // True iff the active monitor is Color (the only mode where a text
-    // color override applies); gates the Text color control's enabled state.
-    bool  TextColorActive () const;
-    void  RefreshTextColorEnabled ();
+    // Live-preview fade state plumbed in by SettingsPanel::SetFadeState
+    // ahead of each Paint. m_fadeFocusedId == -1 disables the fade and
+    // every row paints at 1.0 alpha.
+    int                   m_fadeFocusedId        = -1;
+    float                 m_fadeFocusedAlpha     = 1.0f;
+    float                 m_fadeNonFocusedAlpha  = 1.0f;
 };

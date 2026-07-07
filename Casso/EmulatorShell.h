@@ -20,31 +20,70 @@
 #include "Shell/MachineManager.h"
 #include "Shell/WindowCommandManager.h"
 #include "Shell/WindowManager.h"
-#include "Ui/Chrome/ChromeTheme.h"
+#include "Ui/Chrome/CassoTheme.h"
 #include "Ui/Chrome/DriveWidget.h"
 #include "Ui/Chrome/JoystickToggleButton.h"
-#include "Ui/Chrome/LayoutManager.h"
-#include "Ui/Chrome/NavLayer.h"
-#include "Ui/Chrome/TitleBar.h"
+#include "Ui/Chrome/MainMenu.h"
 #include "Ui/ColorUtil.h"
-#include "Ui/Dialog/DialogDefinition.h"
-#include "Ui/Dialog/DialogPrimitive.h"
+#include "Ui/Dialogs/DialogDefinition.h"
 #include "Ui/Disk2DebugPanel.h"
-#include "Ui/DragDropTarget.h"
 #include "Ui/DriveWidgetController.h"
 #include "Ui/DriveWidgetState.h"
 #include "Ui/IDriveCommandSink.h"
 #include "Ui/InputDebugPanel.h"
-#include "Ui/Settings/SettingsPanel.h"
 #include "Ui/ThemeManager.h"
 #include "Ui/UiShell.h"
-#include "Ui/Widgets/Tooltip.h"
+#include "Widgets/DxuiTooltip.h"
+#include "Widgets/DxuiSurface.h"
 #include "UiCommandTypes.h"
 #include "Video/CharacterRomData.h"
 #include "Video/VideoOutput.h"
 #include "Video/VideoTiming.h"
 #include "WasapiAudio.h"
-#include "Window.h"
+#include "Window/DxuiHwndSource.h"
+#include "Window/IDxuiHostClient.h"
+#include "Core/DxuiAbsoluteLayout.h"
+#include "Core/DxuiDockLayout.h"
+#include "Core/DxuiViewport.h"
+
+
+
+class DxuiHwndSource;
+class SettingsSheet;
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ChromeBand
+//
+//  Zero-render IDxuiControl whose only job is to carry a docked chrome
+//  band's pixel thickness in its Bounds() so DxuiDockLayout can arrange
+//  the emulator viewport around the title bar, nav strip, and drive bar.
+//  Never painted -- EmulatorShell / the host own chrome rendering; these
+//  bands exist purely to feed the dock's inset math (replacing the old
+//  LayoutManager edge-contributor model).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+class ChromeBand : public IDxuiControl
+{
+public:
+    void  Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler) override
+    {
+        UNREFERENCED_PARAMETER (scaler);
+        SetBounds (boundsDip);
+    }
+
+    void  Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override
+    {
+        UNREFERENCED_PARAMETER (painter);
+        UNREFERENCED_PARAMETER (text);
+        UNREFERENCED_PARAMETER (theme);
+    }
+};
 
 
 
@@ -56,7 +95,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-class EmulatorShell : public Window, public IDriveCommandSink
+class EmulatorShell : public IDxuiHostClient, public IDriveCommandSink, public IDxuiViewportInputSink
 {
 public:
     EmulatorShell();
@@ -79,6 +118,12 @@ public:
 
     // Access bus for test wiring
     MemoryBus & GetBus() { return m_memoryBus; }
+
+    // Main window HWND. Owned by m_host (DxuiHwndSource in full-
+    // ownership mode); EmulatorShell caches it after Create for
+    // hot-path callers like the dialog primitive owner-window
+    // handoff and the settings panel.
+    HWND  GetHwnd () const { return m_hwnd; }
 
     // Execution trace (--trace switch). SetTraceCapacity must be called
     // before Initialize so the CPU's ring is allocated when the machine
@@ -105,6 +150,7 @@ public:
     // Disk2AudioSource. On subsequent calls: show + bring to front.
     void OpenDisk2DebugDialog();
     void OpenInputDebugDialog();
+    void OpenSettings();
 
     // Spec-006 bug 15. SwitchMachine destroys and recreates the
     // controller + audio source while the modeless debug dialog
@@ -126,7 +172,7 @@ public:
         if (m_disk2DebugPanel != nullptr)
         {
             // ResetUptimeAnchor runs on the CPU thread. Touching the
-            // panel's event deque / ListView rows here would race the
+            // panel's event deque / DxuiListView rows here would race the
             // render thread's per-frame drain and corrupt the row Cells,
             // so marshal the re-anchor + clear onto the render thread.
             m_disk2DebugPanel->RequestResetAnchor (m_uptimeAnchor);
@@ -159,42 +205,41 @@ public:
     // method just owns the door visual.
     void    BrowseForDisk (int drive);
 
-    // Static window procs for child windows
-    static LRESULT CALLBACK s_RenderSurfaceWndProc (
-        HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
-
 private:
-    // Window message handler overrides
-    bool    OnChar          (WPARAM ch, LPARAM lParam) override;
-    bool    OnCommand       (HWND hwnd, int id) override;
-    LRESULT OnCreate        (HWND hwnd, CREATESTRUCT * pcs) override;
-    bool    OnDestroy       (HWND hwnd) override;
-    bool    OnDrawItem      (HWND hwnd, int idCtl, DRAWITEMSTRUCT * pdis) override;
-    bool    OnKeyDown       (WPARAM vk, LPARAM lParam) override;
-    bool    OnKeyUp         (WPARAM vk, LPARAM lParam) override;
-    bool    OnMouseMove     (WPARAM wParam, LPARAM lParam) override;
-    bool    OnMouseLeave    () override;
-    bool    OnLButtonDown   (WPARAM wParam, LPARAM lParam) override;
-    bool    OnLButtonUp     (WPARAM wParam, LPARAM lParam) override;
-    bool    OnRButtonDown   (WPARAM wParam, LPARAM lParam) override;
-    bool    OnRButtonUp     (WPARAM wParam, LPARAM lParam) override;
-    bool    OnActivateApp   (bool active) override;
-    bool    OnKillFocus     () override;
-    bool    OnCancelMode    () override;
-    bool    OnGetMinMaxInfo (MINMAXINFO * info) override;
-    bool    OnMove          (HWND hwnd, int x, int y) override;
-    bool    OnNotify        (HWND hwnd, WPARAM wParam, LPARAM lParam) override;
-    bool    OnSize          (HWND hwnd, UINT width, UINT height) override;
-    bool    OnTimer         (HWND hwnd, UINT_PTR timerId) override;
-    bool    OnInitMenuPopup (HWND hwnd, HMENU hMenu, UINT itemIndex, bool isWindowMenu) override;
+    DxuiMessageResult  OnChar          (WPARAM ch, LPARAM lParam) override;
+    DxuiMessageResult  OnCommand       (WORD commandId) override;
+    DxuiMessageResult  OnKeyDown       (WPARAM vk, LPARAM lParam) override;
+    DxuiMessageResult  OnKeyUp         (WPARAM vk, LPARAM lParam) override;
 
-    // P4 custom-chrome overrides — borderless window + WM_NCHITTEST
-    // delegated to TitleBarHitTest, system-button click routing on
-    // WM_NCLBUTTONUP.
-    bool    OnNcCalcSize              (HWND hwnd, WPARAM wParam, LPARAM lParam, LRESULT & outResult) override;
-    LRESULT OnNcHitTest               (HWND hwnd, int xScreen, int yScreen) override;
-    bool    OnNcLButtonUp             (HWND hwnd, LRESULT hitTest, int xScreen, int yScreen) override;
-    bool    WantsCustomCaptionButtons () const override { return true; }
+    // IDxuiViewportInputSink -- the emulator viewport routes its raw
+    // keyboard input here (SetWantsAllKeys(true) so even Esc/Tab/arrows
+    // arrive). The chrome / settings / meta pre-checks run in OnKeyDown /
+    // OnChar before the event reaches the viewport, so these apply the
+    // keystroke straight to the Apple ][ keyboard + game port.
+    bool  OnViewportKey   (const DxuiKeyEvent   & ev) override;
+    bool  OnViewportMouse (const DxuiMouseEvent & ev) override;
+    DxuiMessageResult  OnMouseMove     (WPARAM wParam, LPARAM lParam) override;
+    DxuiMessageResult  OnMouseLeave    () override;
+    DxuiMessageResult  OnLButtonDown   (WPARAM wParam, LPARAM lParam) override;
+    DxuiMessageResult  OnLButtonUp     (WPARAM wParam, LPARAM lParam) override;
+    DxuiMessageResult  OnRButtonDown   (WPARAM wParam, LPARAM lParam) override;
+    DxuiMessageResult  OnRButtonUp     (WPARAM wParam, LPARAM lParam) override;
+    DxuiMessageResult  OnActivateApp   (bool active) override;
+    DxuiMessageResult  OnKillFocus     () override;
+    DxuiMessageResult  OnCancelMode    () override;
+    DxuiMessageResult  OnMove          (int x, int y) override;
+    DxuiMessageResult  OnNotify        (WPARAM wParam, LPARAM lParam) override;
+    DxuiMessageResult  OnSize          (UINT widthPx, UINT heightPx) override;
+    DxuiMessageResult  OnGetMinMax     (MINMAXINFO * info) override;
+    DxuiMessageResult  OnTimer         (UINT_PTR timerId) override;
+    DxuiMessageResult  OnInitMenuPopup (HMENU hMenu, UINT itemIndex, bool isWindowMenu) override;
+    DxuiMessageResult  OnNcMouseMove   (LRESULT hitTest, int xScreen, int yScreen) override;
+    DxuiMessageResult  OnNcMouseLeave() override;
+    DxuiMessageResult  OnNcLButtonDown (LRESULT hitTest, int xScreen, int yScreen) override;
+    DxuiMessageResult  OnNcLButtonUp   (LRESULT hitTest, int xScreen, int yScreen) override;
+    LRESULT            OnDrawItem      (HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) override;
+    void               OnDestroy       () override;
+    void               OnDpiChanged    (UINT newDpi) override;
 
     // CPU thread entry point and helpers
     void RunOneFrame();
@@ -228,7 +273,44 @@ private:
     HRESULT CreateEmulatorWindow (HINSTANCE hInstance);
     void    ReconcileInitialClientSize ();
 
-    HRESULT CreateRenderSurface ();
+    // Drives the host's root panel layout for the Apple ][ viewport
+    // child. Computes the framebuffer rectangle (client minus chrome
+    // bands) via the DxuiDockLayout and invokes m_viewport->Layout,
+    // which fires OnViewportBoundsChanged when the rectangle differs
+    // from the last value reported.
+    void    UpdateViewportLayout         (int widthPx, int heightPx);
+
+    // Chrome-band sizing via DxuiDockLayout (replaces LayoutManager).
+    // SyncChromeBands stamps each band's Bounds() with its DPI-scaled
+    // pixel thickness. ComputeViewportRect docks the bands + center and
+    // returns the middle (emulator viewport) rect. ClientSizeForCenterPx
+    // is the inverse: given a desired center size in px, the client size
+    // that hosts it. ClientSizeForFramebufferPx DPI-scales a DIP
+    // framebuffer grid first, then adds the chrome insets.
+    void    SyncChromeBands              ();
+    RECT    ComputeViewportRect          (int widthPx, int heightPx);
+
+    // The emulator viewport (CRT output area) in *screen* pixels: the middle
+    // rect from ComputeViewportRect at the current back-buffer size, mapped
+    // through the main window's client origin. The Settings live-preview
+    // compositor (#8) intersects this with the (composited) sheet window to
+    // punch a see-through hole revealing the running emulator behind the sheet.
+    RECT    EmulatorContentScreenRect    ();
+
+    // Re-run the chrome layout at the current client size after a machine
+    // switch: adding/removing the Disk ][ controller changes the drive band +
+    // widgets + hit-test map, but no WM_SIZE fires when the window size itself
+    // is unchanged, so OnSize would never re-evaluate it. See the
+    // WM_APP_DXUI_UPDATE_TITLE handler (the switch-completion signal).
+    void    ReflowChromeForMachineChange ();
+    SIZE    ClientSizeForCenterPx        (int centerWidthPx, int centerHeightPx);
+    SIZE    ClientSizeForFramebufferPx   (int framebufferWidthDp, int framebufferHeightDp);
+
+    // Bounds-changed callback wired onto m_viewport. Stores the new
+    // pixel rectangle and forwards it to m_d3dRenderer.SetTargetBounds
+    // so the framebuffer compositor can track where to draw once the
+    // swap-chain restructure completes later in Phase 11d.
+    void    OnViewportBoundsChanged      (const RECT & boundsPx);
 
     // WM_KEYDOWN/WM_KEYUP helpers. HandleHostMetaShortcut consumes host-meta
     // keys (menu navigation, paste, reset); ApplyAppleModifierKeys mirrors
@@ -250,6 +332,10 @@ private:
     // current keys, centering on leave), and starts or stops mouse capture
     // for Paddle mode.
     void    SetInputMappingMode (InputMappingMode mode);
+
+    // Radio-group toggle for the Machine-menu items: selects `target`, or
+    // turns mapping Off if `target` is already the active mode.
+    void    ToggleInputMappingMode (InputMappingMode target);
 
     // Advance the input mapping mode Off -> Joystick -> Paddle -> Off,
     // routed from the drive-bar widget, the Machine menu, and Ctrl+J.
@@ -338,11 +424,19 @@ private:
     // No-op if the name is empty; falls back to Skeuomorphic if unknown.
     HRESULT ApplyAndPersistTheme (const std::string & themeName);
 
-    // Pushes a freshly-activated ChromeTheme into the layout-affecting
+    // Activates the named theme LIVE (reskins the chrome via the
+    // ThemeManager listener) WITHOUT persisting it to GlobalUserPrefs.
+    // Used by the Settings Theme page's "Apply now" affordance so the
+    // user can preview a theme on the real chrome; a subsequent Cancel
+    // re-activates the baseline theme, and OK persists via
+    // ApplyAndPersistTheme. No-op if empty; falls back to Skeuomorphic.
+    HRESULT ApplyThemeLive       (const std::string & themeName);
+
+    // Pushes a freshly-activated CassoTheme into the layout-affecting
     // chrome state: drive bar thickness, per-drive compact flag, and
     // (if the bottom inset changed) a window resize that preserves the
     // emulator pixel grid. Called from the ThemeManager listener.
-    void    ApplyThemeToChrome   (const ChromeTheme & theme);
+    void    ApplyThemeToChrome   (const CassoTheme & theme);
 
     // Positions the joystick-mode toggle button vertically centered in the
     // empty band above the drive widgets (the top portion of the bottom
@@ -365,7 +459,7 @@ private:
     // updates the index and refreshes which widget paints its focus visual;
     // HandleChromeFocusKey owns all keydown handling while the ring is active
     // (returns true when the key was consumed); UpdateChromeFocusVisuals
-    // pushes the current index into the NavLayer / button / drive widgets.
+    // pushes the current index into the MainMenu / button / drive widgets.
     void    SetChromeFocusIndex   (int index);
     void    UpdateChromeFocusVisuals ();
     bool    HandleChromeFocusKey  (WPARAM vk);
@@ -378,10 +472,17 @@ private:
     // shell's Initialize sequence.
     void    SaveGlobalPrefs      ();
 
-    // Lazily registers the DialogPrimitive window class on first call
-    // and shows the supplied dialog modally. Returns the resultCode
-    // of the chosen button, or -1 on close-gesture.
+    // Shows the supplied dialog modally as a MessageDialog (a DxuiWindow
+    // shown via ShowModalDialog). Returns the resultCode of the chosen button,
+    // or -1 on close-gesture.
     int     ShowModalDialog      (const DialogDefinition & def);
+
+    // Render a "simple" dialog (text + buttons + an optional Info /
+    // Warning / Error glyph icon -- no custom body, tick, hyperlinks,
+    // app-bitmap icon, or resizable mode) as a MessageDialog (DxuiWindow
+    // shown via ShowModalDialog). Returns the chosen button's resultCode (or
+    // def.closeBoxResult / -1 on a close gesture).
+    int          ShowSimpleDialogViaDxui (const DialogDefinition & def);
 
     // Push a freshly mounted disk image onto the recent-disks MRU
     // and persist user prefs. Best-effort; never propagates failures
@@ -394,23 +495,32 @@ private:
     // introduced.
     friend class MachineManager;
     friend class WindowCommandManager;
-    friend class SettingsPanel;
+    friend class SettingsSheet;
+    friend class SettingsApplyController;
+    friend class SettingsDisplayCrtBridge;
+    friend class SettingsMachineCatalog;
 
-    HACCEL                 m_accelTable      = nullptr;
-    HWND                   m_renderHwnd      = nullptr;
-    bool                   m_initialSizeReconciled = false;
-   
-    MemoryBus              m_memoryBus;
-    ComponentRegistry      m_registry;
-    InterruptController    m_interruptController;
-    unique_ptr<EmuCpu>     m_cpu;
+    HACCEL              m_accelTable      = nullptr;
+    HINSTANCE           m_hInstance       = nullptr;
+    HWND                m_hwnd            = nullptr;
+    bool                m_initialSizeReconciled = false;
+
+    // Authoritative per-window DPI scaler. Mirrors the one inside
+    // DxuiHwndSource; updated from OnDpiChanged and seeded after
+    // m_host->Create() returns. The chrome-band dock scales its band
+    // thicknesses through this member.
+    DxuiDpiScaler       m_scaler;
+
+    MemoryBus           m_memoryBus;
+    ComponentRegistry   m_registry;
+    InterruptController m_interruptController;
+    unique_ptr<EmuCpu> m_cpu;
     unique_ptr<class Prng> m_prng;
     size_t                 m_traceCapacity = 0;       // --trace ring size (entries); 0 = off
     std::atomic<bool>      m_traceDumped { false };   // one-shot guard for DumpTrace
    
     D3DRenderer            m_d3dRenderer;
     WasapiAudio            m_wasapiAudio;
-    DialogPrimitive        m_dialogPrimitive;
 
     // UI-thread filesystem and chrome ownership. The painter pass
     // and shell composition is reintroduced in a later phase; for now
@@ -418,38 +528,90 @@ private:
     // and config store can resolve paths on the UI thread.
     Win32FileSystem        m_uiFs;
 
-    // Chrome surfaces. TitleBar owns the per-button rect cache that
-    // the WM_NCHITTEST helper queries. NavLayer owns the parity
-    // table for legacy IDM_* commands. Both run alongside the
-    // existing Win32 menu bar until the painter retires the latter.
-    TitleBar                   m_titleBar;
-    NavLayer                   m_navLayer;
-    ChromeTheme                m_chromeTheme    = ChromeTheme::Skeuomorphic();
+    // Chrome surfaces. MainMenu owns the parity table for legacy IDM_*
+    // commands and runs alongside the existing Win32 menu bar until the
+    // painter retires the latter. The caption (title + icon + min/max/
+    // close) is owned and rendered by the DxuiHwndSource, not here.
+    MainMenu            m_mainMenu;
+    CassoTheme         m_chromeTheme    = CassoTheme::Skeuomorphic();
     std::array<DriveWidget, 2> m_driveChrome;
+
+    // DxuiHwndSource running in full-ownership mode. Owns the main
+    // HWND (registers WNDCLASS "CassoWindow", calls CreateWindowExW,
+    // and applies DwM rounded-corners / immersive-dark / extended
+    // frame). Created with `createSwapChain = true` so the host owns
+    // the D3D11 device + DXGI swap chain and runs the panel-tree paint
+    // pump; the Apple ][ framebuffer renderer composites into that back
+    // buffer via the host's before-present hook, and chrome paints on
+    // top via the adopted controls. The host owns the caption (title +
+    // icon + min/max/close) itself and classifies caption / system-button
+    // / resize-edge NC hits, so no SetHitTestDelegate is installed.
+    // EmulatorShell is the IDxuiHostClient so all consumer-side Win32
+    // messages (WM_KEYDOWN, WM_COMMAND, WM_SIZE, ...) dispatch through the
+    // OnXxx overrides above.
+    std::unique_ptr<DxuiHwndSource>  m_host;
+
+    // Apple ][ framebuffer viewport inside the host's root panel.
+    // Sized by EmulatorShell whenever chrome layout changes; the
+    // bounds-changed callback forwards the new rectangle to
+    // m_d3dRenderer.SetTargetBounds so the renderer knows where to
+    // composite the framebuffer once the swap-chain restructure
+    // completes later in Phase 11d. Non-owning pointer; the panel
+    // tree owns the DxuiViewport instance.
+    DxuiViewport *                   m_viewport          = nullptr;
+    RECT                             m_viewportBoundsPx  = {};
+
+    // Per-frame framebuffer pointer staged by RunMessageLoop and read
+    // by the host's before-present hook (DxuiHwndSource::PaintPump ->
+    // D3DRenderer::UploadAndComposite). Points into m_uiFramebuffer
+    // when the emulator produced a new frame this iteration, or nullptr
+    // to re-composite the last upload (chrome-only repaints). Touched
+    // only on the UI thread.
+    const uint32_t *                 m_pendingFramebuffer = nullptr;
 
     // Joystick-mode toggle button (mirrors IDM_MACHINE_ARROWS_JOYSTICK),
     // centered in the drive bar above the drive widgets, with its own
     // hover tooltip.
-    JoystickToggleButton       m_joystickButton;
-    Tooltip                    m_joystickTooltip;
+    JoystickToggleButton  m_joystickButton;
+    DxuiTooltip               m_joystickTooltip;
 
-    // Last geometry passed to LayoutJoystickButton, cached so a mode
-    // change can relayout the button (its width tracks the current label)
-    // without waiting for the next resize. Width 0 = not yet laid out.
-    int                        m_joyBtnClientW    = 0;
-    int                        m_joyBtnBandTop    = 0;
-    int                        m_joyBtnBandHeight = 0;
-    UINT                       m_joyBtnDpi        = 96;
+    // Solid background for the bottom drive-bar band. The CRT composite
+    // writes the whole back buffer (emulator frame + black), so the chrome
+    // bands need an opaque surface painted on top; the title and menu bars
+    // cover their own bands, this covers the drive bar.
+    DxuiSurface           m_driveBandSurface;
 
-    // Chrome layout planner. Owns the canonical inset math for the
-    // title bar, nav strip, and drive bar; replaces the historical
-    // ChromeMetrics constants that drifted between EmulatorShell and
-    // WindowCommandManager. Edge contributors below are pointer-tied
-    // to this layout and report their desired thickness on demand.
-    LayoutManager              m_layout { Scaler() };
-    SimpleEdgeContributor      m_titleBarSlot { ChromeEdge::Top,    32 };
-    SimpleEdgeContributor      m_navStripSlot { ChromeEdge::Top,    32 };
-    SimpleEdgeContributor      m_driveBarSlot { ChromeEdge::Bottom, 256 };
+    // Last geometry passed to LayoutJoystickButton, cached so
+    // RelayoutJoystickButton can resize the button in place when the
+    // input mode (and thus the label width) changes between layout passes.
+    int   m_joyBtnClientW    = 0;
+    int   m_joyBtnBandTop    = 0;
+    int   m_joyBtnBandHeight = 0;
+    UINT  m_joyBtnDpi        = 96;
+
+    // Chrome layout via DxuiDockLayout. The three bands carry the title
+    // bar, nav strip, and drive bar pixel thicknesses in their Bounds();
+    // m_centerBand (Fill) captures the emulator viewport rect the dock
+    // leaves in the middle. m_driveBarThicknessDp is the live drive-bar
+    // thickness the theme mutates (compact vs full).
+    static constexpr int  s_kTitleBarBandDp     = 32;
+    static constexpr int  s_kNavStripBandDp     = 32;
+    static constexpr int  s_kInitialDriveBandDp = 256;
+
+    DxuiDockLayout           m_chromeDock;
+    ChromeBand               m_titleBand;
+    ChromeBand               m_navBand;
+    ChromeBand               m_driveBand;
+    ChromeBand               m_centerBand;
+    int                      m_driveBarThicknessDp = s_kInitialDriveBandDp;
+
+    // Whether the current WINDOW height was sized for a Disk ][ controller
+    // being present. Written by OnSize (the authoritative layout, WM_SIZE-only)
+    // to the disk-presence it just laid out; ReflowChromeForMachineChange reads
+    // this pre-switch value to grow/shrink the window by the drive-band delta
+    // (so the viewport keeps its size + the top-left stays put) rather than
+    // re-centring inside a fixed window.
+    bool                     m_chromeSizedForHasDisk = true;
 
     // Drive widget state pump. The controller channel publishes
     // per-drive door/spin sync events the chrome painter will consume
@@ -458,8 +620,8 @@ private:
     // lives in m_driveWidgetState; the CPU thread's motor + nibble
     // counters are sampled once per UI frame and pushed through the
     // controller.
-    DriveWidgetController      m_driveWidgets;
-    DragDropTarget             m_dragDropTarget;
+    DriveWidgetController                m_driveWidgets;
+    DxuiDragDropTarget                       m_dragDropTarget;
 
     // Native UI shell. Owns the painter, text renderer, hit-tester,
     // focus manager, animation broker, and input translator. Wired
@@ -467,14 +629,19 @@ private:
     // frame between the emulator blit and Present.
     UiShell                    m_uiShell;
 
-    // Consolidated settings panel. Lazily constructed pieces so we
-    // can defer their I/O until first Show() on the panel.
-    // ThemeManager + UserConfigStore + GlobalUserPrefs are owned
-    // here so SettingsPanel can be a pure view layer.
+    // Settings-dialog dependencies. ThemeManager + UserConfigStore +
+    // GlobalUserPrefs are owned here and handed to the SettingsSheet each
+    // time it opens (OpenSettings).
     std::unique_ptr<ThemeManager>        m_themeManager;
     std::unique_ptr<UserConfigStore>     m_userConfigStore;
     GlobalUserPrefs                      m_globalPrefs;
-    SettingsPanel                        m_settingsPanel;
+
+    // The Settings dialog, shown modeless so the emulator keeps running behind
+    // it (FR-041). Heap-owned + null when closed; OpenSettings creates it and
+    // the close callback flags m_settingsSheetClosePending so RunMessageLoop
+    // destroys it at a safe point (not from inside its own EndDialog handler).
+    std::unique_ptr<SettingsSheet>       m_settingsSheet;
+    bool                                 m_settingsSheetClosePending = false;
 
     std::array<DriveWidgetState, 2>      m_driveWidgetState;
 
@@ -634,7 +801,6 @@ private:
     std::unique_ptr<MachineManager>           m_machineManager;
     std::unique_ptr<WindowCommandManager>     m_windowCommandManager;
 };
-
 
 
 

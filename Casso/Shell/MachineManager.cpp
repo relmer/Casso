@@ -9,6 +9,7 @@
 #include "Core/PathResolver.h"
 #include "Core/MachineConfig.h"
 #include "Core/JsonParser.h"
+#include "Core/JsonWriter.h"
 #include "Core/Prng.h"
 #include "Devices/RamDevice.h"
 #include "Devices/RomDevice.h"
@@ -286,6 +287,14 @@ HRESULT MachineManager::CreateMemoryDevices (const MachineConfig & config)
     // Slot devices and slot ROMs
     for (const auto & slot : config.slots)
     {
+        // A slot the user disabled in Settings > Hardware installs neither its
+        // device nor its slot ROM -- e.g. removing the slot-6 Disk II
+        // controller actually stops the machine from booting off floppy.
+        if (!slot.enabled)
+        {
+            continue;
+        }
+
         // Slot device (e.g., disk-ii)
         if (!slot.device.empty())
         {
@@ -363,12 +372,18 @@ HRESULT MachineManager::CreateMemoryDevices (const MachineConfig & config)
     }
 
     // Drive-audio wiring (spec 005-disk-ii-audio FR-008 / FR-012 /
-    // FR-015 / FR-016). Allocate one Disk2AudioSource per drive on
-    // the discovered controller (if any), register each with the
-    // mixer, and route the controller's audio-sink events into
-    // drive 0's source (single sink covers both drives; the head /
-    // motor events themselves are not currently drive-tagged in
-    // Disk2Controller -- a follow-up could split per-drive sinks).
+    // FR-015 / FR-016). Allocate one Disk2AudioSource per drive, register
+    // each with the mixer, and route the controller's audio-sink events into
+    // drive 0's source (single sink covers both drives; the head / motor
+    // events themselves are not currently drive-tagged in Disk2Controller --
+    // a follow-up could split per-drive sinks).
+    //
+    // The sources are created UNCONDITIONALLY -- even for a machine with no
+    // (realized) Disk ][ controller -- so the settings drive-sound preview
+    // (#84 Phase C) still auditions when the user has toggled slot 6 on in
+    // settings but not yet committed the controller into the running machine.
+    // Without a controller the sources simply receive no real head / motor
+    // events; the mixer mixes them as silence until a test sound is fired.
     //
     // Pan policy: each drive's stereo position comes from the shell's
     // stored per-drive pan (user-adjustable). Defaults place Drive 1
@@ -377,7 +392,6 @@ HRESULT MachineManager::CreateMemoryDevices (const MachineConfig & config)
     m_shell.m_diskAudioSources.clear();
     m_shell.m_driveAudioMixer.UnregisterAllSources();
 
-    if (m_shell.m_refs.diskController != nullptr)
     {
         int  driveCount = Disk2Controller::kDriveCount;
         int  drive      = 0;
@@ -402,11 +416,13 @@ HRESULT MachineManager::CreateMemoryDevices (const MachineConfig & config)
                              m_shell.m_driveDoorVolume);
             m_shell.m_diskAudioSources.push_back (std::move (src));
         }
+    }
 
-        if (!m_shell.m_diskAudioSources.empty())
-        {
-            m_shell.m_refs.diskController->SetAudioSink (m_shell.m_diskAudioSources[0].get());
-        }
+    // Feed real disk head / motor / door events to drive 0's source only when
+    // the machine actually has the Disk ][ controller realized.
+    if (m_shell.m_refs.diskController != nullptr && !m_shell.m_diskAudioSources.empty())
+    {
+        m_shell.m_refs.diskController->SetAudioSink (m_shell.m_diskAudioSources[0].get());
     }
 
 Error:
@@ -764,7 +780,7 @@ HRESULT MachineManager::CreateCpu (const MachineConfig & config)
         // Slot ROMs
         for (const auto & slot : config.slots)
         {
-            if (slot.rom.empty() || slot.resolvedRomPath.empty())
+            if (!slot.enabled || slot.rom.empty() || slot.resolvedRomPath.empty())
             {
                 continue;
             }
@@ -958,6 +974,17 @@ HRESULT MachineManager::SwitchMachine (const std::wstring & machineName)
         {
             romSearchPaths.push_back (p);
         }
+    }
+
+    // Build the machine from the user-delta-merged config, not the base config
+    // text, so machine-level edits -- e.g. a slot the user disabled in
+    // Settings > Hardware (slots[].enabled=false) -- actually take effect on a
+    // switch/reboot instead of only the live-applied speed/color. Falls back to
+    // the base text when there is no merged result (no user delta). The extra
+    // $cassoUiPrefs / version keys the merge carries are ignored by the loader.
+    if (mergedJson.GetType() == JsonType::Object)
+    {
+        jsonText = JsonWriter::Write (mergedJson);
     }
 
     hr = MachineConfigLoader::Load (jsonText,

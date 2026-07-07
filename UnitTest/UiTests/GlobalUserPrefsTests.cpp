@@ -3,6 +3,7 @@
 #include "InMemoryFileSystem.h"
 
 #include "Config/GlobalUserPrefs.h"
+#include "Ui/ColorUtil.h"
 
 #include "Core/JsonParser.h"
 
@@ -90,6 +91,55 @@ public:
         Assert::AreEqual (720, loaded.window.placements["topology-A"].h);
         Assert::AreEqual (1920, loaded.window.placements["topology-B"].w);
         Assert::AreEqual (orig.window.fullscreen,       loaded.window.fullscreen);
+    }
+
+
+    TEST_METHOD (ResetColorMonitorText_RevertsModeToWhite_KeepsCustomArgb)
+    {
+        // Regression (013 #8): "Restore defaults" left a previously-picked
+        // custom text colour active -- the control read White but the
+        // emulator kept the old colour. The reset must revert the mode to
+        // White (so the resolved colour is white) while remembering the
+        // custom ARGB for the next time the user re-selects "Custom".
+        GlobalUserPrefs  prefs;
+        prefs.colorMonitorTextMode       = ColorMonitorTextMode::Custom;
+        prefs.colorMonitorTextCustomArgb = 0xFFFF00FFu;   // magenta
+
+        prefs.ResetColorMonitorTextToDefault();
+
+        Assert::IsTrue   (ColorMonitorTextMode::White == prefs.colorMonitorTextMode);
+        Assert::AreEqual (0xFFFF00FFu, prefs.colorMonitorTextCustomArgb);   // remembered
+        Assert::AreEqual (ColorUtil::kWhiteArgb,
+                          ColorUtil::ResolveColorMonitorTextArgb (prefs.colorMonitorTextMode,
+                                                                  prefs.colorMonitorTextCustomArgb));
+    }
+
+
+    TEST_METHOD (ColorMonitorText_PersistsAcrossSaveLoad_AndRestoreClearsIt)
+    {
+        // The reported bug booted magenta because a custom text colour
+        // round-tripped through UserPrefs.json and survived a Restore. Pin
+        // both halves: (1) a custom colour persists, and (2) after a reset +
+        // save the next load is White (not the stale custom colour).
+        InMemoryFileSystem  fs;
+        GlobalUserPrefs     orig;
+
+        orig.colorMonitorTextMode       = ColorMonitorTextMode::Custom;
+        orig.colorMonitorTextCustomArgb = 0xFF3399CCu;   // alpha forced FF on save
+
+        Assert::IsTrue (SUCCEEDED (orig.Save (L"C:\\Casso", fs)));
+
+        GlobalUserPrefs  loaded;
+        Assert::IsTrue (SUCCEEDED (loaded.Load (L"C:\\Casso", fs)));
+        Assert::IsTrue   (ColorMonitorTextMode::Custom == loaded.colorMonitorTextMode);
+        Assert::AreEqual (0xFF3399CCu, loaded.colorMonitorTextCustomArgb);
+
+        loaded.ResetColorMonitorTextToDefault();
+        Assert::IsTrue (SUCCEEDED (loaded.Save (L"C:\\Casso", fs)));
+
+        GlobalUserPrefs  reloaded;
+        Assert::IsTrue (SUCCEEDED (reloaded.Load (L"C:\\Casso", fs)));
+        Assert::IsTrue (ColorMonitorTextMode::White == reloaded.colorMonitorTextMode);
     }
 
 
@@ -232,5 +282,49 @@ public:
         Assert::AreEqual ((size_t) 2, prefs.recentDisks.size());
         Assert::AreEqual (std::string ("C:\\good.dsk"),  prefs.recentDisks[0]);
         Assert::AreEqual (std::string ("C:\\good2.dsk"), prefs.recentDisks[1]);
+    }
+
+
+    TEST_METHOD (RecentDiskLoadedAt_RoundTrip)
+    {
+        GlobalUserPrefs  orig;
+        GlobalUserPrefs  loaded;
+        JsonValue        v;
+        HRESULT          hr;
+
+        orig.recentDisks.push_back ("C:\\Disks\\A.dsk");
+        orig.recentDisks.push_back ("C:\\Disks\\B.dsk");
+        orig.recentDiskLoadedAt.push_back (1700000001);
+        orig.recentDiskLoadedAt.push_back (1700000002);
+
+        v  = orig.ToJson();
+        hr = loaded.FromJson (v);
+
+        Assert::IsTrue (SUCCEEDED (hr));
+        Assert::AreEqual ((size_t) 2, loaded.recentDiskLoadedAt.size());
+        Assert::AreEqual ((std::int64_t) 1700000001, loaded.recentDiskLoadedAt[0]);
+        Assert::AreEqual ((std::int64_t) 1700000002, loaded.recentDiskLoadedAt[1]);
+    }
+
+
+    TEST_METHOD (RecentDiskLoadedAt_LegacyMissingKey_LoadsEmpty)
+    {
+        // A prefs file written before load-time tracking has recentDisks
+        // but no recentDiskLoadedAt; the times array must load empty so
+        // DiskMru treats every entry's load time as unknown (0).
+        GlobalUserPrefs                                 prefs;
+        std::vector<std::pair<std::string, JsonValue>>  root;
+        std::vector<JsonValue>                          arr;
+        JsonValue                                       v;
+        HRESULT                                         hr;
+
+        arr.emplace_back (JsonValue (std::string ("C:\\good.dsk")));
+        root.emplace_back ("recentDisks", JsonValue (std::move (arr)));
+        v = JsonValue (std::move (root));
+
+        hr = prefs.FromJson (v);
+        Assert::IsTrue (SUCCEEDED (hr));
+        Assert::AreEqual ((size_t) 1, prefs.recentDisks.size());
+        Assert::AreEqual ((size_t) 0, prefs.recentDiskLoadedAt.size());
     }
 };

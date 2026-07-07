@@ -1,18 +1,17 @@
 #pragma once
 
-#include "Chrome/ChromedPanelWindow.h"
-#include "Chrome/IChromedPanelContent.h"
+#include "Window/DxuiWindow.h"
 #include "Disk2DebugPanelLayout.h"
-#include "DxUiPainter.h"
-#include "DwriteTextRenderer.h"
-#include "Widgets/Button.h"
-#include "Widgets/Checkbox.h"
-#include "Widgets/Label.h"
-#include "Widgets/ListView.h"
-#include "Widgets/PopupMenu.h"
-#include "Widgets/Radio.h"
-#include "Widgets/TextInput.h"
-#include "Widgets/Tooltip.h"
+#include "Core/DxuiFocusManager.h"
+#include "Core/DxuiPanel.h"
+#include "Widgets/DxuiButton.h"
+#include "Widgets/DxuiCheckbox.h"
+#include "Widgets/DxuiLabel.h"
+#include "Widgets/DxuiListView.h"
+#include "Widgets/DxuiPopupMenu.h"
+#include "Widgets/DxuiRadio.h"
+#include "Widgets/DxuiTextInput.h"
+#include "Widgets/DxuiTooltip.h"
 
 #include "../Disk2DebugDialogState.h"
 #include "../Disk2EventDisplay.h"
@@ -21,8 +20,7 @@
 #include "../../CassoEmuCore/Audio/IDriveAudioEventSink.h"
 
 
-struct ChromeTheme;
-class TitleBar;
+struct CassoTheme;
 
 
 
@@ -32,20 +30,24 @@ class TitleBar;
 //
 //  Disk2DebugPanel
 //
-//  Spec-011 / US7. Themed DX replacement for the legacy Win32
-//  Disk2DebugDialog. Hosts itself inside a ChromedPanelWindow and
-//  implements the same two event-sink interfaces (IDisk2EventSink
-//  and IDriveAudioEventSink) so it slots into the existing
-//  EmulatorShell event wiring with no contract changes.
+//  Themed DX replacement for the legacy Win32 Disk2DebugDialog. Derives
+//  from DxuiWindow, so it IS its own content-root panel AND owns the OS
+//  window (HWND + swap chain + caption + paint pump) through the base
+//  class -- the subclass never touches an HWND, a WPARAM, or a host
+//  client interface. It still implements the same two event-sink
+//  interfaces (IDisk2EventSink and IDriveAudioEventSink) so it slots
+//  into the existing EmulatorShell event wiring with no contract
+//  changes.
 //
-//  T044 lands this empty -- chrome + state binding only, no controls.
-//  T046 brings the layout, T047-T057 the individual control families.
-//  Until T046, every sink callback is a no-op so the panel never
-//  drops events but also never re-renders.
+//  Content widgets are created as children of this panel in OnCreate
+//  (via the inherited Create<T> factory) so the base paint pump walks
+//  and paints them; the panel keeps its own focus manager, tooltip, and
+//  column menu (the latter two escape the client via the host popup
+//  pool exposed through PopupHost()).
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-class Disk2DebugPanel : public IChromedPanelContent,
+class Disk2DebugPanel : public DxuiWindow,
                          public IDisk2EventSink,
                          public IDriveAudioEventSink
 {
@@ -57,16 +59,13 @@ public:
                      HWND                   hwndOwner,
                      ID3D11Device         * device,
                      ID3D11DeviceContext  * context,
-                     const ChromeTheme    * theme);
-    void    Show    ();
-    void    Hide    ();
+                     const CassoTheme    * theme);
     void    Destroy ();
 
-    bool    IsOpen () const { return m_window.IsOpen(); }
-    HWND    Hwnd   () const { return m_window.Hwnd(); }
+    bool    IsOpen () const { return IsCreated(); }
 
     HRESULT RenderFrame ();
-    void    SetTheme    (const ChromeTheme * theme);
+    void    SetTheme    (const CassoTheme * theme);
     void    SetCycleCounter (const uint64_t * cycleCounter) { m_cycleCounter = cycleCounter; }
     void    SetUptimeAnchor (std::chrono::steady_clock::time_point anchor) { m_uptimeAnchor = anchor; }
     void    SetMultiControllerHint (bool multi)            { m_multiController = multi; }
@@ -75,37 +74,29 @@ public:
     // Thread-safe reset hook. The CPU/reset thread calls this to stage a
     // new Uptime anchor and request an event-list clear; the render
     // thread applies both inside DrainAndProject so the event deque and
-    // ListView rows are only ever mutated on one thread.
+    // DxuiListView rows are only ever mutated on one thread.
     void    RequestResetAnchor (std::chrono::steady_clock::time_point anchor) noexcept;
 
-    // IChromedPanelContent.
-    LPCWSTR  GetWindowClassName () const override;
-    LPCWSTR  GetWindowTitle     () const override;
-    HRESULT  OnHostCreated      (HWND                   hwnd,
-                                 ID3D11Device         * device,
-                                 ID3D11DeviceContext  * context,
-                                 int                    widthPx,
-                                 int                    heightPx,
-                                 UINT                   dpi,
-                                 TitleBar             * titleBar,
-                                 const ChromeTheme    * theme) override;
-    void     OnHostDestroyed    ()                                  override;
-    HRESULT  OnHostResize       (int widthPx, int heightPx, UINT dpi) override;
-    void     SetChromeTheme     (TitleBar * titleBar, const ChromeTheme * theme) override;
-    SIZE     PreferredClientSize (UINT dpi) const                   override;
-    HRESULT  Render             ()                                  override;
-    void     OnLButtonDown      (int x, int y)                      override;
-    void     OnLButtonUp        (int x, int y)                      override;
-    void     OnRButtonDown      (int x, int y)                      override;
-    void     OnMouseMove        (int x, int y)                      override;
-    void     OnMouseWheel       (int x, int y, int delta)           override;
-    bool     OnKey              (WPARAM vk)                         override;
-    bool     OnChar             (wchar_t ch)                        override;
-    void     Accept             ()                                  override;
-    void     Cancel             ()                                  override;
-    bool     IsContentActive    () const                            override;
-    bool     IsNonModal         () const                            override { return true; }
-    HCURSOR  OnSetCursor        (int x, int y)                      override;
+    // Framework input entry points. These DxuiPanel overrides own the
+    // panel's mouse / key routing directly, dispatching each
+    // DxuiMouseEvent / DxuiKeyEvent to the child widgets and the event
+    // list; DxuiWindow translates the Win32 messages into these.
+    bool    OnMouse (const DxuiMouseEvent & ev)                     override;
+    bool    OnKey   (const DxuiKeyEvent   & ev)                     override;
+
+    // DxuiPanel cursor hook. The generic panel fan-out hands children
+    // client-px, but DxuiListView::CursorForPoint expects list-local
+    // coords, so translate before delegating (and hold the resize cursor
+    // through an active column drag even if the pointer drifts off the
+    // header strip).
+    LPCWSTR CursorForPoint (POINT clientPx) const                   override;
+
+    // DxuiPanel layout hook. DxuiWindow calls this with the client
+    // bounds / DPI scaler after the OS window resizes; caches the size
+    // and re-runs the panel's absolute layout so the child widgets track
+    // the new bounds.
+    void    Layout  (const RECT          & boundsDip,
+                     const DxuiDpiScaler & scaler)                  override;
 
     // IDisk2EventSink. Producer thread -- push into the lock-free ring;
     // the render thread drains and projects to display rows per frame.
@@ -130,12 +121,16 @@ public:
     void OnAudioLoopStarted (SoundKind kind, int drive)                    override;
     void OnAudioLoopStopped (SoundKind kind, int drive)                    override;
 
+protected:
+    // DxuiWindow hook. Fires inside Create() once the backend + HWND
+    // exist; populates the child widgets via the inherited Create<T>
+    // factory and wires their state / callbacks.
+    void    OnCreate ()                                             override;
+
 private:
-    HRESULT EnsureSwapChain      ();
-    HRESULT CreateBackBufferRtv  ();
-    void    ReleaseRenderTargets ();
     void    RecomputeLayout      ();
     void    LayoutWidgets        ();
+    void    UpdateDynamicLabels  ();
     void    ConfigureWidgets     ();
     void    DrainAndProject      ();
     void    RebuildFilteredIndices ();
@@ -148,56 +143,41 @@ private:
     void    UpdatePauseLabel     ();
     void    UpdateTooltip        (int x, int y);
     void    ShowColumnMenu       (int anchorX, int anchorY);
-    void    FocusCycle           (int direction);
-    void    SetFocusIndex        (int index);
-    void    ClearAllWidgetFocus  ();
-    int     DynamicStopCount     () const;
-    int     TotalStopCount       () const;
     void    ApplyListSelection   ();
     void    OnListSelectionMoved ();
-    void    OnHeaderSortKey      ();
-    void    OnDividerResizeKey   (int direction);
+    bool    ForwardMouseToList   (DxuiMouseEventKind kind, DxuiMouseButton button, int x, int y, float wheelDelta);
     void    SortByColumn         (int absCol);
     int64_t NowMs                () const;
 
-    ChromedPanelWindow                   m_window;
     PanelLayoutSlots                     m_layout = {};
 
-    ID3D11Device                       * m_device  = nullptr;
-    ID3D11DeviceContext                * m_context = nullptr;
-    const ChromeTheme                  * m_theme   = nullptr;
-    TitleBar                           * m_titleBar = nullptr;
-    HWND                                 m_hwnd    = nullptr;
+    const CassoTheme                   * m_theme    = nullptr;
     int                                  m_widthPx  = 0;
     int                                  m_heightPx = 0;
     UINT                                 m_dpi      = 96;
+    DxuiDpiScaler                        m_scaler;
 
-    Microsoft::WRL::ComPtr<IDXGISwapChain1>           m_swapChain;
-    Microsoft::WRL::ComPtr<ID3D11RenderTargetView>    m_rtv;
+    DxuiLabel                                      * m_trackFilterLabel   = nullptr;
+    DxuiLabel                                      * m_sectorFilterLabel  = nullptr;
+    DxuiLabel                                      * m_driveFilterLabel   = nullptr;
+    DxuiLabel                                      * m_diskEventsLabel    = nullptr;
+    DxuiLabel                                      * m_audioEventsLabel   = nullptr;
+    DxuiLabel                                      * m_trackInvalidLabel  = nullptr;
+    DxuiLabel                                      * m_sectorInvalidLabel = nullptr;
 
-    DxUiPainter                          m_painter;
-    DwriteTextRenderer                   m_text;
-
-    Label                                m_trackFilterLabel;
-    Label                                m_sectorFilterLabel;
-    Label                                m_driveFilterLabel;
-    Label                                m_diskEventsLabel;
-    Label                                m_audioEventsLabel;
-    Label                                m_trackInvalidLabel;
-    Label                                m_sectorInvalidLabel;
-
-    std::array<Checkbox, kEventTypeCheckCount>  m_eventChecks;
-    Checkbox                                    m_audioMasterCheck;
-    std::array<Checkbox, kAudioSubCheckCount>   m_audioSubChecks;
-    Checkbox                                    m_rawQtCheck;
-    RadioGroup                                  m_driveRadio;
-    TextInput                                   m_trackEdit;
-    TextInput                                   m_sectorEdit;
-    Button                                      m_pauseButton;
-    Button                                      m_clearButton;
-    ListView                                    m_eventList;
-    Tooltip                                     m_tooltip;
-    PopupMenu                                   m_columnMenu;
+    std::array<DxuiCheckbox*, kEventTypeCheckCount>  m_eventChecks        = {};
+    DxuiCheckbox                                   * m_audioMasterCheck   = nullptr;
+    std::array<DxuiCheckbox*, kAudioSubCheckCount>   m_audioSubChecks     = {};
+    DxuiCheckbox                                   * m_rawQtCheck         = nullptr;
+    DxuiRadioGroup                                 * m_driveRadio         = nullptr;
+    DxuiTextInput                                  * m_trackEdit          = nullptr;
+    DxuiTextInput                                  * m_sectorEdit         = nullptr;
+    DxuiButton                                     * m_pauseButton        = nullptr;
+    DxuiButton                                     * m_clearButton        = nullptr;
+    DxuiListView                                   * m_eventList          = nullptr;
+    DxuiTooltip                                      m_tooltip;
+    DxuiPopupMenu                                    m_columnMenu;
+    DxuiFocusManager                                 m_focusMgr;
 
     FilterState                           m_filter;
     Disk2EventRing                       m_ring;
@@ -216,21 +196,5 @@ private:
     bool                                  m_trackEditValid  = true;
     bool                                  m_sectorEditValid = true;
 
-    // Column-resize drag state. When m_resizeColumn >= 0 a drag is
-    // in progress: m_resizeStartXPx captures the client-X at drag
-    // start and m_resizeStartWidthPx captures the column width at
-    // drag start. Delta-applied per mouse-move.
-    int                                   m_resizeColumn        = -1;
-    int                                   m_resizeStartXPx      = 0;
-    int                                   m_resizeStartWidthPx  = 0;
-
-    // Tab-order focus state. m_focusIndex selects which widget owns
-    // the keyboard; -1 means no widget is focused. SetFocusIndex
-    // mirrors the state to per-widget SetFocused(); FocusCycle wraps
-    // forward (+1) or backward (-1) with Tab / Shift+Tab. Indices
-    // 0..18 cover the named widget stops in Z-order; 19+ are dynamic
-    // per-column stops (header, divider, ..., list) computed from the
-    // currently visible columns.
-    int                                   m_focusIndex             = -1;
     int                                   m_listSelectedEventIndex = -1;
 };

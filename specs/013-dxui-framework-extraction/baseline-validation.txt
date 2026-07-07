@@ -1,0 +1,33 @@
+Phase 1 baseline validation snapshot
+====================================
+
+Captured on the 013-dxui-framework-extraction branch immediately after
+T001-T008 wiring, prior to declaring T009 complete. Establishes the CPU
+and emulator validation baseline that later phase gates compare against.
+
+scripts\RunDormannTest.ps1
+--------------------------
+Result:        SUCCESS
+Output size:   65536 bytes (flat binary)
+Assembly:      8 expected warnings (unused labels)
+Reference:     52893 byte(s) differ vs reference binary
+               (informational — reference binary is from an older
+               source version (pre-Jan 2020) missing the 'zps db $80,1'
+               directive which shifts all zero-page addresses)
+Exit code:     0
+
+scripts\RunHarteTests.ps1 -SkipGenerate
+---------------------------------------
+Result:        SUCCESS
+Total tests:   1684
+Passed:        1684
+Failed:        0
+Total time:    4.7 minutes (Debug|x64, ARM64 host running x64 binaries)
+Exit code:     0
+
+Notes
+-----
+RunHarteTests builds Debug|x64 then runs the full UnitTest.dll suite via
+vstest.console, so the per-test totals match the standalone RunTests.ps1
+snapshot in baseline-tests.txt (1684 passed, 0 failed). The Harte vectors
+are exercised inside HarteTestRunner test methods rolled into that 1684.

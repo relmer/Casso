@@ -2,24 +2,11 @@
 
 #include "Pch.h"
 
-#include "Animation.h"
-#include "DpiScaler.h"
-#include "DragDropTarget.h"
-#include "DwriteTextRenderer.h"
-#include "DxUiPainter.h"
-#include "FocusManager.h"
-#include "HitTester.h"
-#include "UiInput.h"
-#include "Chrome/ChromeTheme.h"
-#include "Chrome/DriveWidget.h"
-#include "Chrome/JoystickToggleButton.h"
-#include "Chrome/NavLayer.h"
-#include "Chrome/TitleBar.h"
-#include "Widgets/Tooltip.h"
+#include "Chrome/CassoTheme.h"
 
 
 class D3DRenderer;
-class SettingsPanel;
+class MainMenu;
 
 
 
@@ -27,6 +14,12 @@ class SettingsPanel;
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  UiShell
+//
+//  Input router and hit-tester for the native window chrome. Owns the
+//  DWrite text renderer used for chrome text measurement, plus the theme
+//  and viewport metrics the settings panel consults during layout /
+//  paint. The chrome itself paints through the host panel tree, so
+//  UiShell renders nothing.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -46,82 +39,42 @@ public:
     HRESULT  OnDeviceLost       ();
     HRESULT  OnDeviceRestored   ();
 
-    void     Render             ();
+    void     SetMainMenu        (MainMenu * mainMenu)           { m_mainMenu      = mainMenu; }
+    void     SetTheme           (const CassoTheme * theme)      { m_theme         = theme; }
 
-    void     SetDebugBannerText (const std::wstring & text) { m_debugBanner = text; }
-    void     SetShowDebugBanner (bool showBanner)           { m_showBanner  = showBanner; }
-    void     SetChrome          (TitleBar                        * titleBar,
-                                  NavLayer                        * navLayer,
-                                  std::array<DriveWidget, 2>      * driveWidgets,
-                                  const ChromeTheme               * theme);
-    void     SetSettingsPanel   (SettingsPanel                   * settingsPanel);
-    void     SetJoystickButton  (JoystickToggleButton            * button,
-                                  Tooltip                         * tooltip)
-    {
-        m_joystickButton  = button;
-        m_joystickTooltip = tooltip;
-    }
-    void     SetDragSource      (const DragDropTarget            * dragSource) { m_dragSource = dragSource; }
     bool     OnMouseMove        (int x, int y, bool leftDown);
     void     OnMouseLeave       ();
     bool     OnLButtonDown      (int x, int y);
     bool     OnLButtonUp        (int x, int y);
     bool     HandleKey          (WPARAM vk);
     bool     IsCapturingInput   () const;
-    bool     IsSettingsCapturing () const;
 
-    DxUiPainter         & Painter   ()       { return m_painter; }
-    DwriteTextRenderer  & Text      ()       { return m_text; }
-    UiInput             & Input     ()       { return m_input; }
-    HitTester           & HitTest   ()       { return m_hitTest; }
-    FocusManager        & Focus     ()       { return m_focus; }
-    Animation           & Tweens    ()       { return m_anim; }
+    DxuiTextRenderer  & Text    ()       { return m_text; }
+    DxuiHitTester     & HitTest ()       { return m_hitTest; }
 
     int    ViewportWidth  () const { return m_viewportWidthPx; }
     int    ViewportHeight () const { return m_viewportHeightPx; }
 
-    const ChromeTheme & Theme () const
+    const DxuiDpiScaler  & Scaler () const { return m_scaler; }
+
+    const CassoTheme & Theme () const
     {
-        static const ChromeTheme s_kFallback = ChromeTheme::Skeuomorphic();
+        static const CassoTheme s_kFallback = CassoTheme::Skeuomorphic();
         return (m_theme != nullptr) ? *m_theme : s_kFallback;
     }
 
-    const DpiScaler  & Scaler () const { return m_scaler; }
-
 private:
-    HRESULT  RefreshTextTarget ();
-    void     PaintDragDropOverlay (const ChromeVisualState & visual,
-                                    const ChromeTheme       & theme,
-                                    int                       bottomInset,
-                                    int                       barTop);
+    D3DRenderer                 * m_renderer      = nullptr;
 
-    D3DRenderer                 * m_renderer     = nullptr;
+    DxuiTextRenderer              m_text;
+    DxuiHitTester                 m_hitTest;
 
-    DxUiPainter                   m_painter;
-    DwriteTextRenderer            m_text;
-    UiInput                       m_input;
-    HitTester                     m_hitTest;
-    FocusManager                  m_focus;
-    Animation                     m_anim;
-
-    TitleBar                    * m_titleBar      = nullptr;
-    NavLayer                    * m_navLayer      = nullptr;
-    std::array<DriveWidget, 2>  * m_driveWidgets  = nullptr;
-    JoystickToggleButton        * m_joystickButton  = nullptr;
-    Tooltip                     * m_joystickTooltip = nullptr;
-    const ChromeTheme           * m_theme         = nullptr;
-    SettingsPanel               * m_settingsPanel = nullptr;
-    const DragDropTarget        * m_dragSource    = nullptr;
+    MainMenu                    * m_mainMenu      = nullptr;
+    const CassoTheme            * m_theme         = nullptr;
 
     int                           m_viewportWidthPx  = 0;
     int                           m_viewportHeightPx = 0;
     UINT                          m_dpi              = 96;
-    DpiScaler                     m_scaler;
-    bool                          m_initialized      = false;
-    bool                          m_targetDirty      = true;
+    DxuiDpiScaler                 m_scaler;
     bool                          m_leftDown         = false;
-    int                           m_frameIndex       = 0;
-
-    std::wstring                  m_debugBanner;
-    bool                          m_showBanner       = false;
 };

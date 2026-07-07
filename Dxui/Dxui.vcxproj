@@ -1,0 +1,262 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|x64">
+      <Configuration>Debug</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64">
+      <Configuration>Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Debug|ARM64">
+      <Configuration>Debug</Configuration>
+      <Platform>ARM64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|ARM64">
+      <Configuration>Release</Configuration>
+      <Platform>ARM64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <VCProjectVersion>17.0</VCProjectVersion>
+    <Keyword>Win32Proj</Keyword>
+    <ProjectGuid>{C981717F-FA2A-4AEA-9AE6-FA36152C38E5}</ProjectGuid>
+    <RootNamespace>Dxui</RootNamespace>
+    <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
+    <ConfigurationType>StaticLibrary</ConfigurationType>
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <PlatformToolset>v145</PlatformToolset>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
+    <ConfigurationType>StaticLibrary</ConfigurationType>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <PlatformToolset>v145</PlatformToolset>
+    <WholeProgramOptimization>true</WholeProgramOptimization>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|ARM64'" Label="Configuration">
+    <ConfigurationType>StaticLibrary</ConfigurationType>
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <PlatformToolset>v145</PlatformToolset>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|ARM64'" Label="Configuration">
+    <ConfigurationType>StaticLibrary</ConfigurationType>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <PlatformToolset>v145</PlatformToolset>
+    <WholeProgramOptimization>true</WholeProgramOptimization>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ImportGroup Label="ExtensionSettings">
+  </ImportGroup>
+  <ImportGroup Label="Shared">
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|ARM64'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|ARM64'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <PropertyGroup Label="UserMacros" />
+  <PropertyGroup>
+    <OutDir>$(SolutionDir)$(Platform)\$(Configuration)\</OutDir>
+    <IntDir>$(Platform)\$(Configuration)\</IntDir>
+  </PropertyGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <SDLCheck>true</SDLCheck>
+      <PreprocessorDefinitions>_DEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <ConformanceMode>true</ConformanceMode>
+      <LanguageStandard>stdcpplatest</LanguageStandard>
+      <PrecompiledHeader>Use</PrecompiledHeader>
+      <PrecompiledHeaderFile>Pch.h</PrecompiledHeaderFile>
+      <AdditionalIncludeDirectories>.;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <Link>
+      <AdditionalDependencies>d3d11.lib;d3dcompiler.lib;d2d1.lib;dwrite.lib;dxgi.lib;dcomp.lib;windowscodecs.lib;%(AdditionalDependencies)</AdditionalDependencies>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <FunctionLevelLinking>true</FunctionLevelLinking>
+      <IntrinsicFunctions>true</IntrinsicFunctions>
+      <SDLCheck>true</SDLCheck>
+      <PreprocessorDefinitions>NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <ConformanceMode>true</ConformanceMode>
+      <LanguageStandard>stdcpplatest</LanguageStandard>
+      <PrecompiledHeader>Use</PrecompiledHeader>
+      <PrecompiledHeaderFile>Pch.h</PrecompiledHeaderFile>
+      <AdditionalIncludeDirectories>.;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <Link>
+      <AdditionalDependencies>d3d11.lib;d3dcompiler.lib;d2d1.lib;dwrite.lib;dxgi.lib;dcomp.lib;windowscodecs.lib;%(AdditionalDependencies)</AdditionalDependencies>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|ARM64'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <SDLCheck>true</SDLCheck>
+      <PreprocessorDefinitions>_DEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <ConformanceMode>true</ConformanceMode>
+      <LanguageStandard>stdcpplatest</LanguageStandard>
+      <PrecompiledHeader>Use</PrecompiledHeader>
+      <PrecompiledHeaderFile>Pch.h</PrecompiledHeaderFile>
+      <AdditionalIncludeDirectories>.;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <Link>
+      <AdditionalDependencies>d3d11.lib;d3dcompiler.lib;d2d1.lib;dwrite.lib;dxgi.lib;dcomp.lib;windowscodecs.lib;%(AdditionalDependencies)</AdditionalDependencies>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|ARM64'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <FunctionLevelLinking>true</FunctionLevelLinking>
+      <IntrinsicFunctions>true</IntrinsicFunctions>
+      <SDLCheck>true</SDLCheck>
+      <PreprocessorDefinitions>NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <ConformanceMode>true</ConformanceMode>
+      <LanguageStandard>stdcpplatest</LanguageStandard>
+      <PrecompiledHeader>Use</PrecompiledHeader>
+      <PrecompiledHeaderFile>Pch.h</PrecompiledHeaderFile>
+      <AdditionalIncludeDirectories>.;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <Link>
+      <AdditionalDependencies>d3d11.lib;d3dcompiler.lib;d2d1.lib;dwrite.lib;dxgi.lib;dcomp.lib;windowscodecs.lib;%(AdditionalDependencies)</AdditionalDependencies>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <ClCompile Include="Pch.cpp">
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Create</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Create</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|ARM64'">Create</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|ARM64'">Create</PrecompiledHeader>
+    </ClCompile>
+    <ClCompile Include="Core\DxuiAbsoluteLayout.cpp" />
+    <ClCompile Include="Core\DxuiAnimation.cpp" />
+    <ClCompile Include="Core\DxuiDockLayout.cpp" />
+    <ClCompile Include="Core\DxuiFocusManager.cpp" />
+    <ClCompile Include="Core\DxuiFormLayout.cpp" />
+    <ClCompile Include="Core\DxuiGridLayout.cpp" />
+    <ClCompile Include="Core\DxuiHitTester.cpp" />
+    <ClCompile Include="Core\DxuiInput.cpp" />
+    <ClCompile Include="Core\DxuiPanel.cpp" />
+    <ClCompile Include="Core\DxuiStackLayout.cpp" />
+    <ClCompile Include="Core\DxuiThread.cpp" />
+    <ClCompile Include="Core\DxuiViewport.cpp" />
+    <ClCompile Include="Core\DxuiTitleBarHitTest.cpp" />
+    <ClCompile Include="Core\IDxuiControl.cpp" />
+    <ClCompile Include="Render\DxuiPainter.cpp" />
+    <ClCompile Include="Render\DxuiTextRenderer.cpp" />
+    <ClCompile Include="Theme\DxuiDwm.cpp" />
+    <ClCompile Include="Theme\DxuiWindowsThemeColors.cpp" />
+    <ClCompile Include="Widgets\DxuiButton.cpp" />
+    <ClCompile Include="Widgets\DxuiCheckbox.cpp" />
+    <ClCompile Include="Widgets\DxuiDropdown.cpp" />
+    <ClCompile Include="Widgets\DxuiIconButton.cpp" />
+    <ClCompile Include="Widgets\DxuiListView.cpp" />
+    <ClCompile Include="Widgets\DxuiMenuBar.cpp" />
+    <ClCompile Include="Widgets\DxuiModalScrim.cpp" />
+    <ClCompile Include="Widgets\DxuiPopupMenu.cpp" />
+    <ClCompile Include="Widgets\DxuiRadio.cpp" />
+    <ClCompile Include="Widgets\DxuiScrollbar.cpp" />
+    <ClCompile Include="Widgets\DxuiSearchBox.cpp" />
+    <ClCompile Include="Widgets\DxuiSlider.cpp" />
+    <ClCompile Include="Widgets\DxuiTabStrip.cpp" />
+    <ClCompile Include="Widgets\DxuiTextInput.cpp" />
+    <ClCompile Include="Widgets\DxuiToggle.cpp" />
+    <ClCompile Include="Widgets\DxuiTooltip.cpp" />
+    <ClCompile Include="Widgets\DxuiTreeView.cpp" />
+    <ClCompile Include="Window\DxuiDragDropTarget.cpp" />
+    <ClCompile Include="Window\DxuiDragRegion.cpp" />
+    <ClCompile Include="Window\DxuiCaptionBar.cpp" />
+    <ClCompile Include="Window\DxuiSystemButton.cpp" />
+    <ClCompile Include="Window\DxuiRenderTarget.cpp" />
+    <ClCompile Include="Window\DxuiHwndSource.cpp" />
+    <ClCompile Include="Window\DxuiDialogWindow.cpp" />
+    <ClCompile Include="Window\DxuiPropertyPage.cpp" />
+    <ClCompile Include="Window\DxuiPropertySheet.cpp" />
+    <ClCompile Include="Window\DxuiWindow.cpp" />
+    <ClCompile Include="Window\DxuiPopupHost.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="Dxui.h" />
+    <ClInclude Include="Pch.h" />
+    <ClInclude Include="Core\DxuiAbsoluteLayout.h" />
+    <ClInclude Include="Core\DxuiAnimation.h" />
+    <ClInclude Include="Core\DxuiDockLayout.h" />
+    <ClInclude Include="Core\DxuiDpiScaler.h" />
+    <ClInclude Include="Core\DxuiEvents.h" />
+    <ClInclude Include="Core\DxuiFocusManager.h" />
+    <ClInclude Include="Core\DxuiFormLayout.h" />
+    <ClInclude Include="Core\DxuiGridLayout.h" />
+    <ClInclude Include="Core\DxuiHitTester.h" />
+    <ClInclude Include="Core\DxuiInput.h" />
+    <ClInclude Include="Core\DxuiPanel.h" />
+    <ClInclude Include="Core\DxuiStackLayout.h" />
+    <ClInclude Include="Core\DxuiThread.h" />
+    <ClInclude Include="Core\UnicodeSymbols.h" />
+    <ClInclude Include="Core\DxuiViewport.h" />
+    <ClInclude Include="Core\DxuiTitleBarHitTest.h" />
+    <ClInclude Include="Core\IDxuiControl.h" />
+    <ClInclude Include="Core\IDxuiLayout.h" />
+    <ClInclude Include="Core\IDxuiViewportInputSink.h" />
+    <ClInclude Include="Render\DxuiPainter.h" />
+    <ClInclude Include="Render\DxuiTextRenderer.h" />
+    <ClInclude Include="Render\IDxuiPainter.h" />
+    <ClInclude Include="Render\IDxuiTextRenderer.h" />
+    <ClInclude Include="Theme\DxuiDwm.h" />
+    <ClInclude Include="Theme\DxuiWindowsThemeColors.h" />
+    <ClInclude Include="Theme\DxuiColor.h" />
+    <ClInclude Include="Theme\DxuiTheme.h" />
+    <ClInclude Include="Theme\IDxuiTheme.h" />
+    <ClInclude Include="Widgets\DxuiButton.h" />
+    <ClInclude Include="Widgets\DxuiCheckbox.h" />
+    <ClInclude Include="Widgets\DxuiDropdown.h" />
+    <ClInclude Include="Widgets\DxuiLabel.h" />
+    <ClInclude Include="Widgets\DxuiIconButton.h" />
+    <ClInclude Include="Widgets\DxuiListView.h" />
+    <ClInclude Include="Widgets\DxuiMenuBar.h" />
+    <ClInclude Include="Widgets\DxuiModalScrim.h" />
+    <ClInclude Include="Widgets\DxuiPopupMenu.h" />
+    <ClInclude Include="Widgets\DxuiRadio.h" />
+    <ClInclude Include="Widgets\DxuiScrollbar.h" />
+    <ClInclude Include="Widgets\DxuiSearchBox.h" />
+    <ClInclude Include="Widgets\DxuiSlider.h" />
+    <ClInclude Include="Widgets\DxuiSurface.h" />
+    <ClInclude Include="Widgets\DxuiTabStrip.h" />
+    <ClInclude Include="Widgets\DxuiTextInput.h" />
+    <ClInclude Include="Widgets\DxuiToggle.h" />
+    <ClInclude Include="Widgets\DxuiTooltip.h" />
+    <ClInclude Include="Widgets\DxuiTreeView.h" />
+    <ClInclude Include="Window\DxuiDragDropTarget.h" />
+    <ClInclude Include="Window\DxuiDragRegion.h" />
+    <ClInclude Include="Window\DxuiCaptionBar.h" />
+    <ClInclude Include="Window\DxuiSystemButton.h" />
+    <ClInclude Include="Window\DxuiRenderTarget.h" />
+    <ClInclude Include="Window\DxuiHwndSource.h" />
+    <ClInclude Include="Window\DxuiDialogWindow.h" />
+    <ClInclude Include="Window\DxuiPropertyPage.h" />
+    <ClInclude Include="Window\DxuiButtonRow.h" />
+    <ClInclude Include="Window\DxuiPropertySheet.h" />
+    <ClInclude Include="Window\DxuiWindow.h" />
+    <ClInclude Include="Window\IDxuiHostClient.h" />
+    <ClInclude Include="Window\DxuiPopupHost.h" />
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <ImportGroup Label="ExtensionTargets">
+  </ImportGroup>
+</Project>

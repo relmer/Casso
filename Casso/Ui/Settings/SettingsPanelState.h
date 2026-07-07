@@ -72,29 +72,27 @@ enum class SettingsWriteMode
 
 struct SettingsUiPrefs
 {
-    // Drive-audio component gains (0..1). Defaults mirror the
-    // Disk2AudioSource per-sound playback constants.
-    static constexpr float kDefaultDriveMotorVolume = 0.90f;
-    static constexpr float kDefaultDriveHeadVolume  = 1.00f;
-    static constexpr float kDefaultDriveDoorVolume  = 1.00f;
-
-    // Per-drive stereo pan in [-1, +1] (-1 = hard left, +1 = hard right).
-    // Defaults place Drive 1 left-of-center and Drive 2 right-of-center,
-    // mirroring DriveAudioMixer::kDefaultDriveOnePan / ...TwoPan.
-    static constexpr float kDefaultDriveOnePan      = -0.5f;
-    static constexpr float kDefaultDriveTwoPan      = +0.5f;
-
     SettingsSpeedMode  speedMode             = SettingsSpeedMode::Authentic;
     SettingsColorMode  colorMode             = SettingsColorMode::Color;
     SettingsWriteMode  writeMode             = SettingsWriteMode::BufferAndFlush;
     bool               floppySoundEnabled    = true;
     std::string        floppyMechanism       = "shugart";   // "shugart" | "alps"
+    bool               writeProtect[2]       = { false, false };
+    // Drive-audio component gains (0..1). Defaults mirror the
+    // DriveAudioMixer / Disk2AudioSource sound-mix defaults.
+    static constexpr float kDefaultDriveMotorVolume = 0.90f;
+    static constexpr float kDefaultDriveHeadVolume  = 1.00f;
+    static constexpr float kDefaultDriveDoorVolume  = 1.00f;
+    // Per-drive stereo pan in [-1, +1] (-1 = hard left, +1 = hard
+    // right). Drive 1 sits left-of-center, Drive 2 right-of-center,
+    // mirroring DriveAudioMixer::kDefaultDriveOnePan / ...TwoPan.
+    static constexpr float kDefaultDriveOnePan      = -0.5f;
+    static constexpr float kDefaultDriveTwoPan      = +0.5f;
     float              driveMotorVolume      = kDefaultDriveMotorVolume;
     float              driveHeadVolume       = kDefaultDriveHeadVolume;
     float              driveDoorVolume       = kDefaultDriveDoorVolume;
     float              driveOnePan           = kDefaultDriveOnePan;
     float              driveTwoPan           = kDefaultDriveTwoPan;
-    bool               writeProtect[2]       = { false, false };
     // Last-mounted disk paths per drive, stored as exe-relative when
     // possible (PathResolver::MakeExeRelativePath). Empty = no
     // remembered disk. Replaces the per-machine HKCU\...\Disk{1,2}
@@ -195,6 +193,18 @@ public:
     const SettingsUiPrefs            & Prefs       () const { return m_current.prefs; }
     const std::vector<HardwareEntry> & Hardware    () const { return m_current.hardware; }
     const JsonValue                  & DefaultJson () const { return m_defaultJson; }
+
+    // True when the (staged) hardware config includes an enabled Disk ][
+    // controller (a slot whose device is "disk-ii"). Drives the settings
+    // sheet's dynamic Disk tab (#84): no enabled controller -> no Disk tab.
+    bool HasDiskIIController () const
+    {
+        for (const HardwareEntry & e : m_current.hardware)
+        {
+            if (e.type == "disk-ii" && e.enabled) { return true; }
+        }
+        return false;
+    }
 
     void    SetSpeedMode       (SettingsSpeedMode mode);
     void    SetColorMode       (SettingsColorMode mode);

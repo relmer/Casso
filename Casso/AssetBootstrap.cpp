@@ -2,6 +2,8 @@
 
 #include "AssetBootstrap.h"
 #include "Config/GlobalUserPrefs.h"
+#include "Config/UserConfigStore.h"
+#include "Config/Win32FileSystem.h"
 #include "Core/JsonParser.h"
 #include "Core/JsonValue.h"
 #include "Core/MachineConfig.h"
@@ -10,13 +12,16 @@
 #include "External/StbVorbisWrapper.h"
 #include "resource.h"
 #include "Ui/ThemeManager.h"
-#include "Ui/Chrome/ChromeTheme.h"
-#include "Ui/DxUiPainter.h"
-#include "Ui/DwriteTextRenderer.h"
-#include "Ui/Dialog/StandaloneDialog.h"
-#include "Ui/Dialog/StartupDownloadDialog.h"
-#include "Ui/Widgets/ListView.h"
-#include "UnicodeSymbols.h"
+#include "Ui/Chrome/CassoTheme.h"
+#include "Ui/DriveWidgetState.h"
+#include "Ui/Dialogs/StartupDownloadDialog.h"
+#include "Ui/Dialogs/DialogDefinition.h"
+#include "Core/DxuiEvents.h"
+#include "Core/DxuiPanel.h"
+#include "Window/DxuiDialogWindow.h"
+#include "Widgets/DxuiListView.h"
+#include "Widgets/DxuiSearchBox.h"
+#include "Core/UnicodeSymbols.h"
 
 #pragma comment(lib, "winhttp.lib")
 #pragma comment(lib, "comctl32.lib")
@@ -28,6 +33,8 @@ static constexpr LPCWSTR       s_kpszUserAgent    = L"Casso/1.0";
 static constexpr LPCWSTR       s_kpszUrlPrefix    = L"/AppleWin/AppleWin/master/resource/";
 
 static constexpr LPCWSTR       s_kpszAsimovHost   = L"www.apple.asimov.net";
+
+static constexpr int           s_kBootMruBodyWidthDp = 520;
 
 
 
@@ -168,8 +175,8 @@ struct EmbeddedConfig
 
 static constexpr EmbeddedConfig s_kEmbeddedConfigs[] =
 {
-    { IDR_MACHINE_APPLE2,     "Apple2",     "Apple2.json",     7 },
-    { IDR_MACHINE_APPLE2PLUS, "Apple2Plus", "Apple2Plus.json", 7 },
+    { IDR_MACHINE_APPLE2,     "Apple2",     "Apple2.json",     6 },
+    { IDR_MACHINE_APPLE2PLUS, "Apple2Plus", "Apple2Plus.json", 6 },
     { IDR_MACHINE_APPLE2E,    "Apple2e",    "Apple2e.json",    6 },
 };
 
@@ -862,6 +869,96 @@ fs::path AssetBootstrap::GetDiskDirectory()
 
 
 
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AppendBundledDemoDisks
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void AssetBootstrap::AppendBundledDemoDisks (std::vector<DiskMru::Entry> & mountable)
+{
+    std::vector<fs::path>  demos;
+    error_code             ec;
+
+    // Locate Apple2/Demos ONCE per process. It ships in the source tree, not
+    // an installed layout, so its location is purely a function of the exe
+    // path + repo layout -- neither changes while we run. A miss means this
+    // is not a repo build, and that can't change at runtime either, so we
+    // record the absence and never re-attempt the walk-up. `std::nullopt`
+    // means "no demos dir"; a value is the resolved directory.
+    static const std::optional<fs::path>  demosDir = [] () -> std::optional<fs::path>
+    {
+        fs::path     cursor = PathResolver::GetExecutableDirectory();
+        error_code   ecDir;
+
+        // The exe runs from <repo>/<platform>/<config>/Casso.exe, so walk a
+        // few levels up from the exe (and also try the working directory).
+        for (int i = 0; i < 4 && !cursor.empty(); ++i)
+        {
+            fs::path  candidate = cursor / L"Apple2" / L"Demos";
+
+            if (fs::is_directory (candidate, ecDir))
+            {
+                return candidate;
+            }
+            cursor = cursor.parent_path();
+        }
+
+        fs::path  cwdCandidate = PathResolver::GetWorkingDirectory() / L"Apple2" / L"Demos";
+        if (fs::is_directory (cwdCandidate, ecDir))
+        {
+            return cwdCandidate;
+        }
+
+        return std::nullopt;
+    } ();
+
+    // Not a repo build -- nothing to offer, and that will never change.
+    if (!demosDir.has_value())
+    {
+        return;
+    }
+
+    // Enumerate the directory fresh on every open: in a repo build the user
+    // can drop a new disk image into Apple2/Demos while Casso is running, and
+    // the picker should pick it up. Listing this small directory is cheap.
+    for (const fs::directory_entry & entry : fs::directory_iterator (*demosDir, ec))
+    {
+        error_code  ecFile;
+
+        if (entry.is_regular_file (ecFile) &&
+            IsSupportedDiskImageExtension (entry.path().wstring()))
+        {
+            demos.push_back (entry.path().lexically_normal());
+        }
+    }
+
+    std::sort (demos.begin(), demos.end());
+
+    for (const fs::path & demo : demos)
+    {
+        bool        already = false;
+        error_code  ecDup;
+
+        for (const DiskMru::Entry & existing : mountable)
+        {
+            if (fs::equivalent (existing.path, demo, ecDup))
+            {
+                already = true;
+                break;
+            }
+        }
+
+        if (!already)
+        {
+            mountable.push_back (DiskMru::Entry { demo, 0 });
+        }
+    }
+}
+
+
+
+
 
 ////////////////////////////////////////////////////////////////////////////////
 //
@@ -1068,198 +1165,6 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DownloadOne
-//
-//  Downloads a single ROM from raw.githubusercontent.com into `outBytes`.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-static HRESULT DownloadOne (
-    HINTERNET        hSession,
-    const RomSpec  & spec,
-    vector<Byte>   & outBytes,
-    string         & outError)
-{
-    wstring  wPath = wstring (s_kpszUrlPrefix) + AsciiToWide (spec.appleWinName);
-
-
-
-    return DownloadHttp (hSession,
-                         s_kpszAppleWinHost,
-                         wPath.c_str(),
-                         spec.expectedSize,
-                         spec.cassoName,
-                         outBytes,
-                         outError);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  PromptUser
-//
-////////////////////////////////////////////////////////////////////////////////
-
-static constexpr int    s_kRomRowHeightDp   = 26;
-static constexpr int    s_kRomRowGapDp      = 2;
-static constexpr int    s_kRomBodyWidthDp   = 520;
-static constexpr int    s_kRomNameColumnDp  = 180;
-static constexpr int    s_kRomColumnGapDp   = 16;
-static constexpr float  s_kRomFontDp        = 13.0f;
-static constexpr float  s_kRomTextPaddingDp = 6.0f;
-
-static bool PromptUser (HINSTANCE hInstance, HWND hwndParent, std::string_view themeName, const vector<const RomSpec *> & missing)
-{
-    struct RomRow
-    {
-        wstring  name;
-        wstring  description;
-    };
-
-    DialogDefinition  def         = {};
-    wstring           title;
-    wstring           intro;
-    vector<RomRow>    rows;
-    int               response    = 0;
-    int               rowCount    = (int) missing.size();
-    UINT              sysDpi      = (hwndParent != nullptr) ? GetDpiForWindow (hwndParent)
-                                                            : GetDpiForSystem();
-    float             dpiScale    = (sysDpi > 0) ? ((float) sysDpi / 96.0f) : 1.0f;
-    int               totalH      = 0;
-
-
-
-    rows.reserve (missing.size());
-    for (const RomSpec * spec : missing)
-    {
-        RomRow  row;
-
-        row.name        = AsciiToWide (spec->cassoName);
-        row.description = AsciiToWide (spec->description);
-        rows.push_back (std::move (row));
-    }
-
-    intro  = L"Casso needs the Apple //e ROMs listed below to boot. ";
-    intro += L"They're not bundled but can be downloaded from AppleWin at ";
-
-    title  = L"Casso ";
-    title += s_kchEmDash;
-    title += L" Download ROM Images";
-
-    totalH = (int) ((float) ((rowCount + 1) * s_kRomRowHeightDp
-                            + rowCount * s_kRomRowGapDp)
-                    * dpiScale);
-
-    def.title              = title;
-    def.icon               = DialogIcon::AppFlat;
-    def.iconSizeOverrideDp = 64.0f;
-    def.body.push_back ({ intro, false, L"" });
-    def.body.push_back ({ L"https://github.com/AppleWin/AppleWin",
-                          true, L"https://github.com/AppleWin/AppleWin" });
-
-    def.customBodyMinSizePx.cx = (int) ((float) s_kRomBodyWidthDp * dpiScale);
-    def.customBodyMinSizePx.cy = totalH;
-
-    def.onPaintCustomBody = [rows] (DialogPaintContext & ctx)
-    {
-        HRESULT  hr     = S_OK;
-        float    x      = 0.0f;
-        float    y      = 0.0f;
-        float    rowH   = (float) s_kRomRowHeightDp  * ctx.dpiScale;
-        float    gap    = (float) s_kRomRowGapDp     * ctx.dpiScale;
-        float    fontPx = s_kRomFontDp               * ctx.dpiScale;
-        float    nameW  = (float) s_kRomNameColumnDp * ctx.dpiScale;
-        float    pad    = s_kRomTextPaddingDp        * ctx.dpiScale;
-        float    colGap = (float) s_kRomColumnGapDp  * ctx.dpiScale;
-        float    descX  = 0.0f;
-        float    descW  = 0.0f;
-        uint32_t bg     = 0;
-        uint32_t fg     = 0;
-        uint32_t band   = 0;
-        size_t   i      = 0;
-
-
-
-        if (ctx.painter == nullptr || ctx.text == nullptr || ctx.theme == nullptr)
-        {
-            return;
-        }
-
-        x     = (float) ctx.customBodyRect.left;
-        y     = (float) ctx.customBodyRect.top;
-        bg    = ctx.theme->dropdownBgArgb;
-        fg    = ctx.theme->dropdownItemTextArgb;
-        band  = ctx.theme->navStripArgb;
-        descX = x + nameW + colGap;
-        descW = (float) (ctx.customBodyRect.right - (LONG) descX);
-
-        {
-            float     fullW    = (float) (ctx.customBodyRect.right - ctx.customBodyRect.left);
-            uint32_t  headerBg = ctx.theme->navHoverArgb;
-            uint32_t  headerFg = ctx.theme->titleTextArgb;
-
-            ctx.painter->FillRect (x, y, fullW, rowH, headerBg);
-
-            IGNORE_RETURN_VALUE (hr, ctx.text->DrawString (L"ROM file",
-                                                           x + pad, y,
-                                                           nameW, rowH,
-                                                           headerFg, fontPx, L"Segoe UI",
-                                                           DwriteTextRenderer::HAlign::Left,
-                                                           DwriteTextRenderer::VAlign::Center,
-                                                           DWRITE_FONT_WEIGHT_BOLD));
-
-            IGNORE_RETURN_VALUE (hr, ctx.text->DrawString (L"Description",
-                                                           descX, y,
-                                                           descW, rowH,
-                                                           headerFg, fontPx, L"Segoe UI",
-                                                           DwriteTextRenderer::HAlign::Left,
-                                                           DwriteTextRenderer::VAlign::Center,
-                                                           DWRITE_FONT_WEIGHT_BOLD));
-
-            y += rowH + gap;
-        }
-
-        for (i = 0; i < rows.size(); i++)
-        {
-            float    ry     = y + (float) i * (rowH + gap);
-            uint32_t rowBg  = ((i & 1u) == 0u) ? band : bg;
-            float    fullW  = (float) (ctx.customBodyRect.right - ctx.customBodyRect.left);
-
-            ctx.painter->FillRect (x, ry, fullW, rowH, rowBg);
-
-            IGNORE_RETURN_VALUE (hr, ctx.text->DrawString (rows[i].name.c_str(),
-                                                           x + pad, ry,
-                                                           nameW, rowH,
-                                                           fg, fontPx, L"Segoe UI",
-                                                           DwriteTextRenderer::HAlign::Left,
-                                                           DwriteTextRenderer::VAlign::Center));
-
-            IGNORE_RETURN_VALUE (hr, ctx.text->DrawString (rows[i].description.c_str(),
-                                                           descX, ry,
-                                                           descW, rowH,
-                                                           fg, fontPx, L"Segoe UI",
-                                                           DwriteTextRenderer::HAlign::Left,
-                                                           DwriteTextRenderer::VAlign::Center));
-        }
-    };
-
-    def.buttons.push_back ({ L"Download", IDYES, true,  false });
-    def.buttons.push_back ({ L"Cancel",   IDNO,  false, true  });
-
-    response = ShowStandaloneDialog (hInstance, hwndParent, themeName, def);
-
-    return response == IDYES;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  FindEmbeddedConfig
 //
 //  Case-insensitive match: the machine name can arrive from the
@@ -1391,10 +1296,13 @@ Error:
 //
 //  HasDiskController
 //
-//  True iff the embedded config for `machineName` declares any slot
-//  with `device == "disk-ii"`. Used to decide whether to offer the
-//  user a boot-disk download — there's no point doing so for a
-//  machine that has no controller wired up.
+//  True iff the machine `machineName`, as the user currently has it
+//  configured, has an ENABLED Disk ][ controller slot. Starts from the
+//  embedded default config and folds in the user's per-machine delta so a
+//  slot the user disabled in Settings > Machine ("enabled": false) is
+//  reported as absent -- otherwise we'd offer a boot-disk download / pop the
+//  boot-disk picker for a machine the user deliberately stripped of its
+//  controller. Used to gate the boot-disk flow.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1408,11 +1316,14 @@ HRESULT AssetBootstrap::HasDiskController (
     string              jsonText;
     string              narrowName;
     JsonValue           root;
+    JsonValue           merged;
     JsonParseError      parseError;
     const JsonValue   * pSlots       = nullptr;
     HRESULT             hrOpt        = S_OK;
     size_t              idx          = 0;
     string              device;
+    Win32FileSystem     fsMerge;
+    UserConfigStore     store        (GetAssetBaseDirectory().wstring());
 
 
 
@@ -1426,132 +1337,49 @@ HRESULT AssetBootstrap::HasDiskController (
           outError = format ("Embedded config for '{}' is malformed: {} at line {}",
                              narrowName, parseError.message, parseError.line));
 
+    // Fold the user's saved per-machine delta over the embedded default so a
+    // Settings-disabled slot ("enabled": false) is honored here exactly as it
+    // is when the machine is built (MachineConfig::Parse). Fall back to the
+    // base config if the merge fails.
+    {
+        JsonValue  mergedTmp;
+        HRESULT    hrMerge = store.Load (narrowName, root, fsMerge, mergedTmp);
+
+        if (SUCCEEDED (hrMerge) && mergedTmp.GetType() == JsonType::Object)
+        {
+            merged = std::move (mergedTmp);
+        }
+        else
+        {
+            merged = root;
+        }
+    }
+
     // `slots` is optional (][/][+ omit it); a missing slots array
     // simply means there is no Disk ][ controller for this machine.
-    hrOpt = root.GetArray ("slots", pSlots);
+    hrOpt = merged.GetArray ("slots", pSlots);
     BAIL_OUT_IF (FAILED (hrOpt), S_OK);
 
     for (idx = 0; idx < pSlots->ArraySize(); idx++)
     {
-        const JsonValue &  entry  = pSlots->ArrayAt (idx);
-        HRESULT            hrDev  = entry.GetString ("device", device);
+        const JsonValue &  entry   = pSlots->ArrayAt (idx);
+        HRESULT            hrDev   = entry.GetString ("device", device);
+        bool               enabled = true;   // optional key; defaults enabled
 
         if (SUCCEEDED (hrDev) && device == "disk-ii")
         {
-            outHasDiskController = true;
-            break;
+            HRESULT  hrEnabled = entry.GetBool ("enabled", enabled);
+
+            IGNORE_RETURN_VALUE (hrEnabled, S_OK);
+            if (enabled)
+            {
+                outHasDiskController = true;
+                break;
+            }
         }
     }
 
 Error:
-    return hr;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  CheckAndFetchRoms
-//
-//  If any ROM files required by the embedded config for `machineName`
-//  are missing from `searchPaths`, prompt the user and download them
-//  from the AppleWin project. Returns S_OK if all ROMs are present
-//  (or were just downloaded), S_FALSE if the user declined the
-//  download (caller should bail out cleanly), or an error HRESULT
-//  with `outError` set on hard failure.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-HRESULT AssetBootstrap::CheckAndFetchRoms (
-    HINSTANCE                hInstance,
-    const wstring          & machineName,
-    HWND                     hwndParent,
-    const vector<fs::path> & searchPaths,
-    const fs::path         & assetBaseDir,
-    std::string_view         themeName,
-    string                 & outError)
-{
-    HRESULT                  hr             = S_OK;
-    vector<string>           romFiles;
-    vector<const RomSpec *>  missing;
-    HINTERNET                hSession       = nullptr;
-    error_code               ec;
-    bool                     userOk         = false;
-    string                   narrowMachine;
-
-
-
-    narrowMachine.reserve (machineName.size ());
-
-    for (wchar_t wch : machineName)
-    {
-        narrowMachine.push_back (static_cast<char> (wch & 0x7F));
-    }
-
-    hr = GetRequiredRoms (hInstance, machineName, romFiles, outError);
-    CHR (hr);
-
-    for (const string & romFile : romFiles)
-    {
-        const RomSpec * spec    = FindRomSpec (narrowMachine, romFile);
-        fs::path        relPath;
-        fs::path        found;
-
-        CBRF (spec != nullptr,
-              outError = format ("ROM '{}' is missing and Casso has no download "
-                                 "URL for it. Place the file under {} and try again.",
-                                 romFile, assetBaseDir.string ()));
-
-        relPath = fs::path (string (spec->localRelDir)) / spec->cassoName;
-        found   = PathResolver::FindFile (searchPaths, relPath);
-
-        if (!found.empty ())
-        {
-            continue;
-        }
-
-        missing.push_back (spec);
-    }
-
-    BAIL_OUT_IF (missing.empty(), S_OK);
-
-    userOk = PromptUser (hInstance, hwndParent, themeName, missing);
-    BAIL_OUT_IF (!userOk, S_FALSE);
-
-    hSession = WinHttpOpen (s_kpszUserAgent,
-                            WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY,
-                            WINHTTP_NO_PROXY_NAME,
-                            WINHTTP_NO_PROXY_BYPASS,
-                            0);
-    CBRF (hSession != nullptr,
-          outError = "Cannot initialize WinHTTP session");
-
-    for (const RomSpec * spec : missing)
-    {
-        fs::path      destDir  = assetBaseDir / string (spec->localRelDir);
-        fs::path      destPath = destDir / spec->cassoName;
-        vector<Byte>  payload;
-
-        fs::create_directories (destDir, ec);
-
-        hr = DownloadOne (hSession, *spec, payload, outError);
-        CHR (hr);
-
-        hr = WriteFileBytes (destPath, payload);
-        CHRF (hr,
-              outError = format ("Cannot write {}", destPath.string()));
-    }
-
-
-
-Error:
-    if (hSession != nullptr)
-    {
-        WinHttpCloseHandle (hSession);
-    }
-
     return hr;
 }
 
@@ -1674,44 +1502,33 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  PromptBootDiskMru
-//
-//  Themed dialog that lists the user's recent disk images plus stock
-//  "Download" rows for DOS 3.3 / ProDOS. Always shown when the machine
-//  has a Disk ][ controller and no boot disk has been resolved yet,
-//  even when the MRU is empty (the download rows give a fresh install
-//  somewhere to go). Picking a row mounts that image (downloading on
-//  demand for the stock rows); the Skip button leaves the slot empty.
-//
-//  On return:
-//    outDiskPath = path to mount, or empty if the user skipped / the
-//                  machine has no Disk ][ controller.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-static constexpr int  s_kBootMruBodyWidthDp  = 520;
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  FilesHaveSameContent
 //
 //  Cheap byte-equality check for disk-image dedup heuristics in the
 //  MRU pickers. Bails on size mismatch before reading any bytes, so
 //  the common "not the same file" case costs one stat per side.
 //
+//  When the sizes DO match (common: 140 KB DOS 3.3 / ProDOS masters
+//  share a size with many recent disks), the files are compared a
+//  chunk at a time and the scan bails on the first differing block.
+//  Distinct same-size disk images almost always diverge in the boot
+//  sector / catalog near the front, so this avoids reading both images
+//  in full on every picker open -- only a genuine match (rare, <= the
+//  couple of stock rows) reads to the end.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 static bool FilesHaveSameContent (const fs::path & a, const fs::path & b)
 {
+    constexpr std::streamsize  kChunk = 64 * 1024;
+
     std::error_code  ec;
     uintmax_t        sizeA   = fs::file_size (a, ec);
     uintmax_t        sizeB   = 0;
     std::ifstream    fa;
     std::ifstream    fb;
-    std::vector<char> bufA;
-    std::vector<char> bufB;
+    std::vector<char> bufA ((size_t) kChunk);
+    std::vector<char> bufB ((size_t) kChunk);
 
 
     if (ec)
@@ -1732,40 +1549,749 @@ static bool FilesHaveSameContent (const fs::path & a, const fs::path & b)
         return false;
     }
 
-    bufA.resize ((size_t) sizeA);
-    bufB.resize ((size_t) sizeB);
-    fa.read (bufA.data(), (std::streamsize) sizeA);
-    fb.read (bufB.data(), (std::streamsize) sizeB);
-    if (!fa || !fb)
+    for (uintmax_t remaining = sizeA; remaining > 0; )
     {
-        return false;
+        std::streamsize  want = (remaining < (uintmax_t) kChunk) ? (std::streamsize) remaining : kChunk;
+
+        fa.read (bufA.data(), want);
+        fb.read (bufB.data(), want);
+        if (fa.gcount() != want || fb.gcount() != want)
+        {
+            return false;       // short read on either side -> treat as mismatch
+        }
+
+        if (std::memcmp (bufA.data(), bufB.data(), (size_t) want) != 0)
+        {
+            return false;       // first differing block -> done, no full read
+        }
+
+        remaining -= (uintmax_t) want;
     }
 
-    return std::memcmp (bufA.data(), bufB.data(), (size_t) sizeA) == 0;
+    return true;
 }
 
 
 
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskMruPickerSession
+//
+//  Owns the live UI state for the boot / insert disk pickers: the model
+//  rows, the themed search box, the multi-column list (with clickable
+//  header sort and a scrollbar), the filtered + sorted view mapping, and
+//  the dialog hooks that drive paint / input / focus / tick. A single
+//  instance is captured by the dialog lambdas so all state lives in one
+//  place. The list is focus stop 0 (auto-focused on open) and the search
+//  box is stop 1, so the magnifier affordance shows until the user tabs
+//  or clicks into the field. Result codes flow straight from the chosen
+//  row back to the caller, which maps them to a path or download.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+class DiskMruPickerSession
+{
+public:
+    struct ModelRow
+    {
+        std::wstring  name;                 // col 0 "Disk image"
+        std::wstring  location;             // col 1 "Location"
+        std::int64_t  loadedUnix  = 0;      // col 2 "Last loaded" source; 0 = none/unknown
+        int           resultCode  = 0;      // value returned to the caller when this row is chosen
+        bool          dimLocation = false;
+    };
+
+    DiskMruPickerSession (HINSTANCE hInstance, HWND hwndParent, std::string_view themeName)
+        : m_hInstance (hInstance), m_hwndParent (hwndParent), m_themeName (themeName) {}
+
+    void  SetText           (const std::wstring & title, const std::wstring & intro) { m_title = title; m_intro = intro; }
+    void  SetModelRows      (std::vector<ModelRow> rows)                             { m_model = std::move (rows); }
+    void  AddButton         (const DialogButton & button)                           { m_buttons.push_back (button); }
+    void  SetCloseBoxResult (int code)                                              { m_closeBoxResult = code; }
+    int   Run               ();
+
+    static std::int64_t  FileMtimeUnix (const fs::path & path);
+
+private:
+    void                ConfigureWidgets   ();
+    void                RebuildView        ();
+    void                ApplySort          (int column);
+    int                 ChosenResultAt     (int visibleRow) const;
+    static std::wstring FormatLastLoaded   (std::int64_t loadedUnix);
+
+    static constexpr int    s_kColLastLoaded        = 0;
+    static constexpr int    s_kColDiskImage         = 1;
+    static constexpr int    s_kColLocation          = 2;
+    static constexpr int    s_kColumnCount          = 3;
+    static constexpr int    s_kListStop             = 0;
+    static constexpr int    s_kSearchStop           = 1;
+    static constexpr int    s_kFocusStopCount       = 2;
+    static constexpr int    s_kSearchHeightDip      = 30;
+    static constexpr int    s_kSearchListGapDip     = 8;
+    static constexpr int    s_kChromeReserveDip     = 240;
+    static constexpr int    s_kMinBodyHeightDip     = 160;
+    static constexpr int    s_kResizeGrabDip        = 4;
+    static constexpr int    s_kResizableMinWidthDip  = 480;
+    static constexpr int    s_kResizableMinHeightDip = 320;
+    static constexpr int    s_kResizableDefWidthDip  = 720;
+    static constexpr int    s_kResizableDefHeightDip = 520;
+    static constexpr int    s_kUnclampedBodyHeightPx = 100000;
+    static constexpr int    s_kDateTimeBufChars     = 64;
+    static constexpr int    s_kBaseDpi              = 96;
+    static constexpr UINT   s_kTickIntervalMs       = 30;
+    static constexpr float  s_kIconSizeDip          = 64.0f;
+
+    static constexpr std::uint64_t  s_kFiletimeTicksPerSec = 10000000ULL;
+    static constexpr std::uint64_t  s_kUnixEpochFiletime   = 116444736000000000ULL;
+
+    HINSTANCE                  m_hInstance       = nullptr;
+    HWND                       m_hwndParent      = nullptr;
+    std::string                m_themeName;
+    std::wstring               m_title;
+    std::wstring               m_intro;
+    std::vector<ModelRow>      m_model;
+    std::vector<DialogButton>  m_buttons;
+    std::optional<int>         m_closeBoxResult;
+    DxuiListView               m_list;
+    DxuiSearchBox              m_search;
+    std::vector<int>           m_view;
+    std::wstring               m_filter;
+    int                        m_sortColumn      = s_kColLastLoaded;
+    bool                       m_sortDescending  = true;
+    int                        m_focusStop       = -1;
+    UINT                       m_dpi             = s_kBaseDpi;
+    RECT                       m_searchRectPx    = {};
+    RECT                       m_listRectPx      = {};
+    int                        m_searchHeightPx  = 0;
+    int                        m_gapPx           = 0;
+    int                        m_maxBodyHeightPx = 0;
+    std::optional<int>         m_pendingChoice;
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskMruPickerSession::FileMtimeUnix
+//
+//  Returns the file's last-write time as Unix seconds, or 0 when the
+//  file is missing / unreadable. Used to backfill a "Last loaded" date
+//  for MRU entries recorded before the list tracked load times.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::int64_t DiskMruPickerSession::FileMtimeUnix (const fs::path & path)
+{
+    HRESULT                                hr      = S_OK;
+    std::int64_t                           result  = 0;
+    std::error_code                        ec;
+    fs::file_time_type                     ftime;
+    std::chrono::system_clock::time_point  sysTime;
+
+
+
+    ftime = fs::last_write_time (path, ec);
+    BAIL_OUT_IF (static_cast<bool> (ec), S_OK);
+
+    sysTime = std::chrono::clock_cast<std::chrono::system_clock> (ftime);
+    result  = (std::int64_t) std::chrono::system_clock::to_time_t (sysTime);
+
+Error:
+    return result;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskMruPickerSession::FormatLastLoaded
+//
+//  Formats a Unix-second timestamp as a localized "short-date hh:mm"
+//  string. Returns empty for unknown (<= 0) times.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring DiskMruPickerSession::FormatLastLoaded (std::int64_t loadedUnix)
+{
+    HRESULT         hr      = S_OK;
+    std::wstring    result;
+    ULARGE_INTEGER  uli     = {};
+    FILETIME        ftUtc   = {};
+    FILETIME        ftLocal = {};
+    SYSTEMTIME      st      = {};
+    BOOL            ok      = FALSE;
+    int             dateLen = 0;
+    int             timeLen = 0;
+    wchar_t         dateBuf[s_kDateTimeBufChars] = {};
+    wchar_t         timeBuf[s_kDateTimeBufChars] = {};
+
+
+
+    BAIL_OUT_IF (loadedUnix <= 0, S_OK);
+
+    uli.QuadPart         = (ULONGLONG) loadedUnix * s_kFiletimeTicksPerSec + s_kUnixEpochFiletime;
+    ftUtc.dwLowDateTime  = uli.LowPart;
+    ftUtc.dwHighDateTime = uli.HighPart;
+
+    ok = FileTimeToLocalFileTime (&ftUtc, &ftLocal);
+    CWRA (ok);
+    ok = FileTimeToSystemTime (&ftLocal, &st);
+    CWRA (ok);
+
+    dateLen = GetDateFormatEx (LOCALE_NAME_USER_DEFAULT, DATE_SHORTDATE, &st, nullptr, dateBuf, s_kDateTimeBufChars, nullptr);
+    CWRA (dateLen > 0);
+
+    timeLen = GetTimeFormatEx (LOCALE_NAME_USER_DEFAULT, TIME_NOSECONDS, &st, nullptr, timeBuf, s_kDateTimeBufChars);
+    CWRA (timeLen > 0);
+
+    result  = dateBuf;
+    result += L' ';
+    result += timeBuf;
+
+Error:
+    return result;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskMruPickerSession::ConfigureWidgets
+//
+//  One-time configuration of the search box and list view (DPI, columns,
+//  header, live-filter callback). Run calls this before the first
+//  RebuildView.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskMruPickerSession::ConfigureWidgets()
+{
+    std::vector<DxuiListView::Column>  cols;
+
+
+
+    m_search.SetDpi         (m_dpi);
+    m_search.SetPlaceholder (L"Search");
+    m_search.SetOnChange    ([this] (const std::wstring & value) { m_filter = value; RebuildView(); });
+
+    cols.push_back ({ L"Last loaded", 0, false, DxuiTextRenderer::HAlign::Left });
+    cols.push_back ({ L"Disk image",  0, false, DxuiTextRenderer::HAlign::Left });
+    cols.push_back ({ L"Location",    0, false, DxuiTextRenderer::HAlign::Left });
+
+    m_list.SetDpi                    (m_dpi);
+    m_list.SetShowHeader             (true);
+    m_list.SetColumns                (std::move (cols));
+    m_list.SetSortIndicator          (m_sortColumn, m_sortDescending);
+    m_list.EnableStickyTail          (false);
+    m_list.SetHorizontalScrollEnabled (true);
+    m_list.SetOnSortColumn           ([this] (int col) { ApplySort (col); });
+    m_list.SetOnActivateRow          ([this] (int row) { m_pendingChoice = ChosenResultAt (row); });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskMruPickerSession::RebuildView
+//
+//  Rebuilds the filtered + sorted view of the model and pushes the
+//  resulting cells into the list. Clamps the selection if the visible
+//  row count shrank.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskMruPickerSession::RebuildView()
+{
+    std::vector<std::vector<DxuiListView::Cell>>  rows;
+    std::wstring                                  needle   = m_filter;
+    int                                           selected = -1;
+
+    auto  passesFilter = [this] (const ModelRow & row, const std::wstring & lowered) -> bool
+    {
+        std::wstring  hay;
+
+        if (lowered.empty())
+        {
+            return true;
+        }
+
+        hay  = row.name;
+        hay += L'\n';
+        hay += row.location;
+        hay += L'\n';
+        hay += FormatLastLoaded (row.loadedUnix);
+        for (wchar_t & c : hay)
+        {
+            c = (wchar_t) towlower (c);
+        }
+
+        return hay.find (lowered) != std::wstring::npos;
+    };
+
+    auto  sortLess = [this] (int lhs, int rhs) -> bool
+    {
+        const ModelRow &  a   = m_model[(size_t) lhs];
+        const ModelRow &  b   = m_model[(size_t) rhs];
+        int               cmp = 0;
+
+        if (m_sortColumn == s_kColLastLoaded)
+        {
+            cmp = (a.loadedUnix < b.loadedUnix) ? -1 : (a.loadedUnix > b.loadedUnix) ? 1 : 0;
+        }
+        else if (m_sortColumn == s_kColLocation)
+        {
+            cmp = _wcsicmp (a.location.c_str(), b.location.c_str());
+        }
+        else
+        {
+            cmp = _wcsicmp (a.name.c_str(), b.name.c_str());
+        }
+
+        return m_sortDescending ? (cmp > 0) : (cmp < 0);
+    };
+
+
+
+    for (wchar_t & c : needle)
+    {
+        c = (wchar_t) towlower (c);
+    }
+
+    m_view.clear();
+    m_view.reserve (m_model.size());
+
+    for (int i = 0; i < (int) m_model.size(); ++i)
+    {
+        if (passesFilter (m_model[(size_t) i], needle))
+        {
+            m_view.push_back (i);
+        }
+    }
+
+    std::stable_sort (m_view.begin(), m_view.end(), sortLess);
+    m_list.SetSortIndicator (m_sortColumn, m_sortDescending);
+
+    rows.reserve (m_view.size());
+    for (int idx : m_view)
+    {
+        const ModelRow &  row = m_model[(size_t) idx];
+
+        rows.push_back ({ { FormatLastLoaded (row.loadedUnix), true },
+                          { row.name,                          false },
+                          { row.location,                      row.dimLocation } });
+    }
+
+    m_list.SetRows (std::move (rows));
+    m_list.UpdateAutoFitFromRows();
+
+    selected = m_list.GetSelectedRow();
+    if (selected >= (int) m_view.size())
+    {
+        m_list.SetSelectedRow ((int) m_view.size() - 1);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskMruPickerSession::ApplySort
+//
+//  Header-click handler. Toggles direction when the active column is
+//  re-clicked, otherwise switches to the new column with its default
+//  direction (newest-first for the date column, A-Z for the text
+//  columns), then rebuilds the view.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskMruPickerSession::ApplySort (int column)
+{
+    HRESULT  hr = S_OK;
+
+
+
+    BAIL_OUT_IF (column < 0 || column >= s_kColumnCount, S_OK);
+
+    if (m_sortColumn == column)
+    {
+        m_sortDescending = !m_sortDescending;
+    }
+    else
+    {
+        m_sortColumn     = column;
+        m_sortDescending = (column == s_kColLastLoaded);
+    }
+
+    RebuildView();
+
+Error:
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskMruPickerSession::ChosenResultAt
+//
+//  Maps a visible-row index to its model row's result code, or -1 when
+//  the index is out of range.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DiskMruPickerSession::ChosenResultAt (int visibleRow) const
+{
+    int  result = -1;
+
+
+
+    if (visibleRow >= 0 && visibleRow < (int) m_view.size())
+    {
+        result = m_model[(size_t) m_view[(size_t) visibleRow]].resultCode;
+    }
+
+    return result;
+}
+
+
+
+
+
+namespace
+{
+    ////////////////////////////////////////////////////////////////////////////////
+    //
+    //  PickerBodyPanel
+    //
+    //  Dxui content panel for the boot-disk picker: a search box docked at
+    //  the top, a list filling the rest. Lays out in physical pixels (the
+    //  hosted dialog passes a px content rect) so the fixed search-strip
+    //  height scales with DPI.
+    //
+    ////////////////////////////////////////////////////////////////////////////////
+
+    class PickerBodyPanel : public DxuiPanel
+    {
+    public:
+        void  Init (DxuiSearchBox * search, DxuiListView * list, int searchHeightDip, int gapDip)
+        {
+            m_search          = search;
+            m_list            = list;
+            m_searchHeightDip = searchHeightDip;
+            m_gapDip          = gapDip;
+
+            Adopt (*search);
+            Adopt (*list);
+        }
+
+        void  Layout (const RECT & boundsPx, const DxuiDpiScaler & scaler) override
+        {
+            int  sh  = scaler.Px (m_searchHeightDip);
+            int  gap = scaler.Px (m_gapDip);
+
+
+            SetBounds (boundsPx);
+
+            if (m_search != nullptr)
+            {
+                RECT  r = { boundsPx.left, boundsPx.top, boundsPx.right, boundsPx.top + sh };
+
+                m_search->Layout (r, scaler);
+            }
+
+            if (m_list != nullptr)
+            {
+                RECT  r = { boundsPx.left, boundsPx.top + sh + gap, boundsPx.right, boundsPx.bottom };
+
+                m_list->Layout (r, scaler);
+            }
+        }
+
+        //
+        //  DxuiListView::OnMouse expects widget-LOCAL (0-based) coordinates,
+        //  but the panel fan-out delivers absolute client-px, so a plain
+        //  DxuiPanel::OnMouse would hand the list mis-offset points (wrong
+        //  row selected, column-resize divider never hit). Translate to
+        //  list-local and dispatch to the list first (it owns scroll / drag
+        //  / resize / select + consumes any press inside itself); anything
+        //  the list declines falls through to the search box, which hit-
+        //  tests against its own absolute bounds.
+        //
+        bool  OnMouse (const DxuiMouseEvent & ev) override
+        {
+            DxuiMouseEvent  listEv  = ev;
+            bool            handled = false;
+
+
+            if (m_list != nullptr)
+            {
+                RECT  lb = m_list->Bounds();
+
+                listEv.positionDip = { ev.positionDip.x - lb.left, ev.positionDip.y - lb.top };
+                handled            = m_list->OnMouse (listEv);
+            }
+
+            if (!handled && m_search != nullptr)
+            {
+                handled = m_search->OnMouse (ev);
+            }
+
+            return handled;
+        }
+
+        LPCWSTR  CursorForPoint (POINT clientPx) const override
+        {
+            LPCWSTR  cursor = nullptr;
+
+
+            if (m_list != nullptr)
+            {
+                RECT   lb    = m_list->Bounds();
+                POINT  local = { clientPx.x - lb.left, clientPx.y - lb.top };
+
+                cursor = m_list->CursorForPoint (local);
+            }
+
+            return cursor;
+        }
+
+
+    private:
+        DxuiSearchBox *  m_search          = nullptr;
+        DxuiListView  *  m_list            = nullptr;
+        int              m_searchHeightDip = 0;
+        int              m_gapDip          = 0;
+    };
+
+
+
+
+    ////////////////////////////////////////////////////////////////////////////////
+    //
+    //  PickerDialog
+    //
+    //  DxuiDialogWindow hosting a pre-built picker body (search + list) and
+    //  its action buttons. Non-cancel buttons carry their real (negative)
+    //  result codes as command ids (so a click ends the modal with that
+    //  code directly); the cancel button maps to IDCANCEL so Escape / the
+    //  close-box fire it. Row activation ends the modal with the row result
+    //  offset past s_kRowResultBase; MapResult un-offsets it and translates
+    //  IDCANCEL back to the cancel button's real code (or the close-box
+    //  result when no cancel button exists).
+    //
+    ////////////////////////////////////////////////////////////////////////////////
+
+    class PickerDialog : public DxuiDialogWindow
+    {
+    public:
+        static constexpr int  s_kRowResultBase = 100000;   // row results offset past button / IDCANCEL codes
+
+
+        void  ConfigurePicker (std::unique_ptr<DxuiPanel>          content,
+                               IDxuiControl *                     initialFocus,
+                               const std::vector<DialogButton> &  buttons,
+                               int                                closeBoxResult)
+        {
+            m_pendingContent = std::move (content);
+            m_pendingFocus   = initialFocus;
+            m_buttons        = buttons;
+            m_closeBoxResult = closeBoxResult;
+        }
+
+        int  DefaultCommandId () const { return m_defaultCommandId; }
+
+        int  MapResult (int dialogResult) const
+        {
+            int     result = m_closeBoxResult;
+            size_t  idx    = 0;
+
+
+            if (dialogResult >= s_kRowResultBase)
+            {
+                result = dialogResult - s_kRowResultBase;
+            }
+            else if (dialogResult == IDCANCEL)
+            {
+                for (idx = 0; idx < m_buttons.size(); ++idx)
+                {
+                    if (m_buttons[idx].isCancel)
+                    {
+                        result = m_buttons[idx].resultCode;
+                        break;
+                    }
+                }
+            }
+            else
+            {
+                result = dialogResult;
+            }
+
+            return result;
+        }
+
+
+    protected:
+        void  OnCreate () override
+        {
+            size_t  i = 0;
+
+
+            if (m_pendingContent != nullptr)
+            {
+                SetDialogContentOwned (std::move (m_pendingContent));
+            }
+
+            for (i = 0; i < m_buttons.size(); ++i)
+            {
+                int                    commandId = m_buttons[i].isCancel ? IDCANCEL : m_buttons[i].resultCode;
+                DxuiButtonRow::Anchor  anchor    = m_buttons[i].anchorLeft ? DxuiButtonRow::Anchor::Left
+                                                                           : DxuiButtonRow::Anchor::Right;
+
+                AddDialogButton (m_buttons[i].label, commandId, anchor);
+
+                if (m_buttons[i].isDefault)
+                {
+                    m_defaultCommandId = commandId;
+                }
+            }
+
+            SetInitialFocus (m_pendingFocus);
+        }
+
+
+    private:
+        std::unique_ptr<DxuiPanel>  m_pendingContent;
+        IDxuiControl *              m_pendingFocus     = nullptr;
+        std::vector<DialogButton>   m_buttons;
+        int                         m_closeBoxResult   = -1;
+        int                         m_defaultCommandId = 0;
+    };
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskMruPickerSession::Run
+//
+//  Builds a PickerDialog whose content is a search box + list, wires row
+//  activation to close the dialog with the row's result, and shows it
+//  modally via ShowModalDialog. Returns the chosen result code (a model row's
+//  resultCode, a button's resultCode, or the close-box code).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DiskMruPickerSession::Run()
+{
+    HRESULT                           hr      = S_OK;
+    CassoTheme                        theme   = CassoTheme::ForName (m_themeName);
+    std::unique_ptr<PickerBodyPanel>  content = std::make_unique<PickerBodyPanel>();
+    PickerDialog                      dlg;
+    DxuiWindow::CreateParams          params;
+    int                               chosen  = -1;
+    int                               raw     = 0;
+
+
+    m_dpi = (m_hwndParent != nullptr) ? GetDpiForWindow (m_hwndParent) : GetDpiForSystem();
+
+    ConfigureWidgets();
+    m_search.SetTheme (&theme);
+    m_list.SetTheme   (&theme);
+    RebuildView();
+
+    //  Row activation (double-click / Enter on a row) ends the modal with
+    //  that row's result code, offset past the button / close range so it
+    //  never collides; PickerDialog::MapResult un-offsets it.
+    m_list.SetOnActivateRow ([&dlg, this] (int row)
+    {
+        int  code = ChosenResultAt (row);
+
+        if (code >= 0)
+        {
+            dlg.EndDialog (PickerDialog::s_kRowResultBase + code);
+        }
+    });
+
+    content->Init (&m_search, &m_list, s_kSearchHeightDip, s_kSearchListGapDip);
+
+    dlg.ConfigurePicker (std::move (content), &m_search, m_buttons, m_closeBoxResult.value_or (-1));
+
+    params.title                    = m_title;
+    params.hInstance                = m_hInstance;
+    params.ownerHwnd                = m_hwndParent;
+    params.initialSizeDip           = { s_kResizableDefWidthDip, s_kResizableDefHeightDip };
+    params.minSizeDip               = { s_kResizableMinWidthDip, s_kResizableMinHeightDip };
+    params.resizable                = true;
+    params.insetContentBelowCaption = true;
+    params.captionStyle             = DxuiCaptionStyle::CloseOnly;
+
+    hr = dlg.Create (params);
+    CHRA (hr);
+
+    dlg.SetTheme (&theme);
+
+    raw    = dlg.ShowModalDialog (dlg.DefaultCommandId());
+    chosen = dlg.MapResult (raw);
+
+Error:
+    return chosen;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PromptBootDiskMru
+//
+//  Themed dialog that lists the user's recent disk images plus stock
+//  "Download" rows for DOS 3.3 / ProDOS. Always shown when the machine
+//  has a Disk ][ controller and no boot disk has been resolved yet,
+//  even when the MRU is empty (the download rows give a fresh install
+//  somewhere to go). Picking a row mounts that image (downloading on
+//  demand for the stock rows); the Skip button leaves the slot empty.
+//
+//  On return:
+//    outDiskPath = path to mount, or empty if the user skipped / the
+//                  machine has no Disk ][ controller.
+//
+////////////////////////////////////////////////////////////////////////////////
+
 HRESULT AssetBootstrap::PromptBootDiskMru (
-    HINSTANCE                  hInstance,
-    HWND                       hwndParent,
-    const wstring            & machineName,
-    const vector<fs::path>   & mruEntries,
-    const fs::path           & diskDir,
-    std::string_view           themeName,
-    wstring                  & outDiskPath,
-    bool                     & outUserClosed,
-    string                   & outError)
+    HINSTANCE                      hInstance,
+    HWND                           hwndParent,
+    const wstring                & machineName,
+    const vector<DiskMru::Entry> & mruEntries,
+    const fs::path               & diskDir,
+    std::string_view               themeName,
+    wstring                      & outDiskPath,
+    bool                         & outUserClosed,
+    string                       & outError)
 {
     struct DownloadRow { const BootDiskSpec * spec; wstring label; };
-    struct PresentRow  { const DownloadRow * row; fs::path path; };
 
     static constexpr int s_kSkipResult     = -2002;
     static constexpr int s_kCloseBoxResult = -1000;
 
     HRESULT             hr            = S_OK;
     bool                hasDisk       = false;
-    DialogDefinition    def           = {};
     wstring             title;
     wstring             intro;
     wstring             displayName;
@@ -1774,18 +2300,16 @@ HRESULT AssetBootstrap::PromptBootDiskMru (
         { &s_kDos33Disk,  L"DOS 3.3"  },
         { &s_kProDOSDisk, L"ProDOS"   }
     };
-    std::vector<const DownloadRow *> shownDownloads;
-    std::vector<const DownloadRow *> mruLabels;
-    std::vector<PresentRow>          presentMasters;
-    int                 chosen        = s_kSkipResult;
-    int                 mruCount      = (int) mruEntries.size();
-    int                 presentCount  = 0;
-    int                 downloadCount = 0;
-    int                 rowCount      = 0;
-    UINT                sysDpi        = (hwndParent != nullptr) ? GetDpiForWindow (hwndParent)
-                                                                : GetDpiForSystem();
-    ListView            list;
-    error_code          ec;
+    std::vector<const DownloadRow *>            shownDownloads;
+    std::vector<const DownloadRow *>            mruLabels;
+    std::vector<DiskMruPickerSession::ModelRow> models;
+    DiskMruPickerSession  session       (hInstance, hwndParent, themeName);
+    int                   chosen        = s_kSkipResult;
+    int                   mruCount      = (int) mruEntries.size();
+    int                   downloadCount = 0;
+    int                   rowCount      = 0;
+    error_code            ec;
+
 
 
     outDiskPath.clear();
@@ -1807,11 +2331,11 @@ HRESULT AssetBootstrap::PromptBootDiskMru (
 
         for (int i = 0; i < mruCount; ++i)
         {
-            bool match = fs::equivalent (mruEntries[(size_t) i], wantPath, ecCmp);
+            bool match = fs::equivalent (mruEntries[(size_t) i].path, wantPath, ecCmp);
 
             if (!match)
             {
-                match = FilesHaveSameContent (mruEntries[(size_t) i], wantPath);
+                match = FilesHaveSameContent (mruEntries[(size_t) i].path, wantPath);
             }
 
             if (match)
@@ -1821,35 +2345,22 @@ HRESULT AssetBootstrap::PromptBootDiskMru (
             }
         }
 
-        if (foundAny)
-        {
-            continue;
-        }
-
-        // Not in the MRU. If the stock master is already present in the
-        // disk folder, offer it as a mountable row; otherwise offer a
-        // download row.
-        if (fs::exists (wantPath, ec))
-        {
-            presentMasters.push_back ({ &dr, wantPath });
-        }
-        else
+        if (!foundAny)
         {
             shownDownloads.push_back (&dr);
         }
     }
 
-    presentCount  = (int) presentMasters.size();
     downloadCount = (int) shownDownloads.size();
-    rowCount      = mruCount + presentCount + downloadCount;
+    rowCount      = mruCount + downloadCount;
 
     title  = L"Casso ";
     title += s_kchEmDash;
     title += L" Boot Disk";
 
-    if (mruCount > 0 || presentCount > 0)
+    if (mruCount > 0)
     {
-        intro  = L"Choose a boot disk for ";
+        intro  = L"Choose a recent disk for ";
         intro += displayName;
         intro += L", or download a stock master from the Asimov archive.";
     }
@@ -1860,101 +2371,44 @@ HRESULT AssetBootstrap::PromptBootDiskMru (
                  L"stock master from the Asimov archive to get started.";
     }
 
-    // Populate the list. Mru rows show "<basename> | <parent dir>";
-    // present-master rows show "<name> | Installed"; download rows show
-    // "<name> | Asimov archive (Download)". Order: MRU, then present
-    // masters, then downloads -- matching the result-index ranges below.
+    models.reserve ((size_t) rowCount);
+
+    for (int i = 0; i < mruCount; ++i)
     {
-        std::vector<ListView::Column>            cols;
-        std::vector<std::vector<ListView::Cell>> rows;
+        const DiskMru::Entry &       entry = mruEntries[(size_t) i];
+        DiskMruPickerSession::ModelRow  row;
 
-        cols.push_back ({ L"Disk image", 0, false, DwriteTextRenderer::HAlign::Left });
-        cols.push_back ({ L"Location",   0, false, DwriteTextRenderer::HAlign::Left });
-
-        rows.reserve ((size_t) rowCount);
-
-        for (int i = 0; i < mruCount; ++i)
-        {
-            const auto &  p           = mruEntries[(size_t) i];
-            std::wstring  displayLbl  = (mruLabels[(size_t) i] != nullptr)
-                                            ? std::wstring (mruLabels[(size_t) i]->label)
-                                            : p.filename().wstring();
-            ListView::Cell name { std::move (displayLbl), false };
-            ListView::Cell loc  { p.parent_path().wstring(), true };
-            rows.push_back ({ std::move (name), std::move (loc) });
-        }
-
-        for (const PresentRow & pr : presentMasters)
-        {
-            ListView::Cell  name { pr.row->label, false };
-            ListView::Cell  loc  { L"Installed", true };
-            rows.push_back ({ std::move (name), std::move (loc) });
-        }
-
-        for (const DownloadRow * dr : shownDownloads)
-        {
-            ListView::Cell  name { dr->label, false };
-            ListView::Cell  loc  { L"Asimov archive (Download)", true };
-            rows.push_back ({ std::move (name), std::move (loc) });
-        }
-
-        list.SetDpi        (sysDpi);
-        list.SetShowHeader (true);
-        list.SetColumns    (std::move (cols));
-        list.SetRows       (std::move (rows));
+        row.name        = (mruLabels[(size_t) i] != nullptr) ? std::wstring (mruLabels[(size_t) i]->label)
+                                                             : entry.path.filename().wstring();
+        row.location    = entry.path.parent_path().wstring();
+        row.loadedUnix  = (entry.lastLoadedUnix != 0) ? entry.lastLoadedUnix
+                                                      : DiskMruPickerSession::FileMtimeUnix (entry.path);
+        row.resultCode  = i;
+        row.dimLocation = true;
+        models.push_back (std::move (row));
     }
 
-    def.title              = title;
-    def.icon               = DialogIcon::AppFlat;
-    def.iconSizeOverrideDp = 64.0f;
-    def.body.push_back ({ intro, false, L"" });
-    def.customBodyMinSizePx.cx = MulDiv (s_kBootMruBodyWidthDp, (int) sysDpi, 96);
-    def.customBodyMinSizePx.cy = list.GetRequiredHeightPx();
-
-    def.onMeasureCustomBody = [&list, sysDpi] (DwriteTextRenderer & text, float /*dpiScale*/) -> SIZE
+    for (int j = 0; j < downloadCount; ++j)
     {
-        list.SetDpi (sysDpi);
-        list.MeasureColumnsPx (text);
-        SIZE  sz {};
-        sz.cx = list.GetTotalMeasuredWidthPx();
-        sz.cy = list.GetRequiredHeightPx();
-        return sz;
-    };
+        const DownloadRow *          dr       = shownDownloads[(size_t) j];
+        fs::path                     wantPath = diskDir / string (dr->spec->cassoName);
+        bool                         present  = fs::exists (wantPath, ec);
+        DiskMruPickerSession::ModelRow  row;
 
-    def.onPaintCustomBody = [&list] (DialogPaintContext & ctx)
-    {
-        if (ctx.painter == nullptr || ctx.text == nullptr)
-        {
-            return;
-        }
+        row.name        = dr->label;
+        row.location    = present ? L"Installed" : L"Asimov archive (Download)";
+        row.loadedUnix  = 0;
+        row.resultCode  = mruCount + j;
+        row.dimLocation = true;
+        models.push_back (std::move (row));
+    }
 
-        list.SetTheme (ctx.theme);
-        list.SetRect  (ctx.customBodyRect);
-        list.Paint    (*ctx.painter, *ctx.text);
-    };
+    session.SetText          (title, intro);
+    session.SetModelRows     (std::move (models));
+    session.AddButton        ({ L"Skip", s_kSkipResult, true, true });
+    session.SetCloseBoxResult (s_kCloseBoxResult);
 
-    def.onInputCustomBody = [&list] (const DialogInputEvent & ev) -> std::optional<int>
-    {
-        int  idx = list.HitTestRow (ev.xPx, ev.yPx);
-
-        if (ev.kind == DialogInputEvent::Kind::MouseMove)
-        {
-            list.SetHoveredRow (idx);
-            return std::nullopt;
-        }
-
-        if (ev.kind == DialogInputEvent::Kind::LeftButtonUp && idx >= 0)
-        {
-            return idx;
-        }
-
-        return std::nullopt;
-    };
-
-    def.buttons.push_back ({ L"Skip", s_kSkipResult, true, true });
-    def.closeBoxResult = s_kCloseBoxResult;
-
-    chosen = ShowStandaloneDialog (hInstance, hwndParent, themeName, def);
+    chosen = session.Run();
 
     if (chosen == s_kCloseBoxResult)
     {
@@ -1966,17 +2420,11 @@ HRESULT AssetBootstrap::PromptBootDiskMru (
     }
     else if (chosen >= 0 && chosen < mruCount)
     {
-        outDiskPath = mruEntries[(size_t) chosen].wstring();
+        outDiskPath = mruEntries[(size_t) chosen].path.wstring();
     }
-    else if (chosen >= mruCount && chosen < mruCount + presentCount)
+    else if (chosen >= mruCount && chosen < rowCount)
     {
-        // Already-installed stock master: mount it directly, no download.
-        outDiskPath = presentMasters[(size_t) (chosen - mruCount)].path.wstring();
-    }
-    else if (chosen >= mruCount + presentCount && chosen < rowCount)
-    {
-        int                  dlIdx = chosen - mruCount - presentCount;
-        const BootDiskSpec & spec  = *shownDownloads[(size_t) dlIdx]->spec;
+        const BootDiskSpec & spec = *shownDownloads[(size_t) (chosen - mruCount)]->spec;
         hr = DownloadStockBootDisk (spec, diskDir, outDiskPath, outError);
         CHR (hr);
     }
@@ -1993,35 +2441,32 @@ Error:
 //
 //  PromptInsertDiskMru
 //
-//  Runtime-insert sibling of PromptBootDiskMru. Same MRU rows, plus
-//  mountable "Installed" rows for stock DOS 3.3 / ProDOS masters already
-//  present on disk and "Download" rows for the ones that are absent, but
-//  the dialog footer offers Browse... / Cancel instead of Skip. Browse
-//  pops back to the caller which then fires the existing IFileOpenDialog
-//  path. Cancel / close box leaves the drive untouched.
+//  Runtime-insert sibling of PromptBootDiskMru. Same MRU + DOS 3.3 /
+//  ProDOS "Download" rows, but the dialog footer offers Browse... /
+//  Cancel instead of Skip. Browse pops back to the caller which then
+//  fires the existing IFileOpenDialog path. Cancel / close box leaves
+//  the drive untouched.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT AssetBootstrap::PromptInsertDiskMru (
-    HINSTANCE                  hInstance,
-    HWND                       hwndParent,
-    int                        drive,
-    const vector<fs::path>   & mruEntries,
-    const fs::path           & diskDir,
-    std::string_view           themeName,
-    wstring                  & outDiskPath,
-    bool                     & outBrowse,
-    string                   & outError)
+    HINSTANCE                      hInstance,
+    HWND                           hwndParent,
+    int                            drive,
+    const vector<DiskMru::Entry> & mruEntries,
+    const fs::path               & diskDir,
+    std::string_view               themeName,
+    wstring                      & outDiskPath,
+    bool                         & outBrowse,
+    string                       & outError)
 {
     struct DownloadRow { const BootDiskSpec * spec; wstring label; };
-    struct PresentRow  { const DownloadRow * row; fs::path path; };
 
     static constexpr int  s_kBrowseResult   = -2000;
     static constexpr int  s_kCancelResult   = -2001;
     static constexpr int  s_kCloseBoxResult = -1000;
 
     HRESULT             hr            = S_OK;
-    DialogDefinition    def           = {};
     wstring             title;
     wstring             intro;
     DownloadRow         downloads[]   =
@@ -2029,18 +2474,16 @@ HRESULT AssetBootstrap::PromptInsertDiskMru (
         { &s_kDos33Disk,  L"DOS 3.3"  },
         { &s_kProDOSDisk, L"ProDOS"   }
     };
-    std::vector<const DownloadRow *> shownDownloads;
-    std::vector<const DownloadRow *> mruLabels;
-    std::vector<PresentRow>          presentMasters;
-    int                 chosen        = s_kCancelResult;
-    int                 mruCount      = (int) mruEntries.size();
-    int                 presentCount  = 0;
-    int                 downloadCount = 0;
-    int                 rowCount      = 0;
-    UINT                sysDpi        = (hwndParent != nullptr) ? GetDpiForWindow (hwndParent)
-                                                                : GetDpiForSystem();
-    ListView            list;
-    error_code          ec;
+    std::vector<const DownloadRow *>            shownDownloads;
+    std::vector<const DownloadRow *>            mruLabels;
+    std::vector<DiskMruPickerSession::ModelRow> models;
+    DiskMruPickerSession  session       (hInstance, hwndParent, themeName);
+    int                   chosen        = s_kCancelResult;
+    int                   mruCount      = (int) mruEntries.size();
+    int                   downloadCount = 0;
+    int                   rowCount      = 0;
+    error_code            ec;
+
 
 
     outDiskPath.clear();
@@ -2056,11 +2499,11 @@ HRESULT AssetBootstrap::PromptInsertDiskMru (
 
         for (int i = 0; i < mruCount; ++i)
         {
-            bool match = fs::equivalent (mruEntries[(size_t) i], wantPath, ecCmp);
+            bool match = fs::equivalent (mruEntries[(size_t) i].path, wantPath, ecCmp);
 
             if (!match)
             {
-                match = FilesHaveSameContent (mruEntries[(size_t) i], wantPath);
+                match = FilesHaveSameContent (mruEntries[(size_t) i].path, wantPath);
             }
 
             if (match)
@@ -2070,33 +2513,20 @@ HRESULT AssetBootstrap::PromptInsertDiskMru (
             }
         }
 
-        if (foundAny)
-        {
-            continue;
-        }
-
-        // Not in the MRU. If the stock master is already present in the
-        // disk folder, offer it as a mountable row; otherwise offer a
-        // download row.
-        if (fs::exists (wantPath, ec))
-        {
-            presentMasters.push_back ({ &dr, wantPath });
-        }
-        else
+        if (!foundAny)
         {
             shownDownloads.push_back (&dr);
         }
     }
 
-    presentCount  = (int) presentMasters.size();
     downloadCount = (int) shownDownloads.size();
-    rowCount      = mruCount + presentCount + downloadCount;
+    rowCount      = mruCount + downloadCount;
 
     title  = L"Casso ";
     title += s_kchEmDash;
     title += format (L" Insert Disk in Drive {}", drive);
 
-    if (mruCount > 0 || presentCount > 0)
+    if (mruCount > 0)
     {
         intro  = format (L"Choose a disk image for Drive {}, browse for "
                          L"another, or download a stock master from the "
@@ -2109,98 +2539,45 @@ HRESULT AssetBootstrap::PromptInsertDiskMru (
                          L"Asimov archive.", drive);
     }
 
+    models.reserve ((size_t) rowCount);
+
+    for (int i = 0; i < mruCount; ++i)
     {
-        std::vector<ListView::Column>            cols;
-        std::vector<std::vector<ListView::Cell>> rows;
+        const DiskMru::Entry &       entry = mruEntries[(size_t) i];
+        DiskMruPickerSession::ModelRow  row;
 
-        cols.push_back ({ L"Disk image", 0, false, DwriteTextRenderer::HAlign::Left });
-        cols.push_back ({ L"Location",   0, false, DwriteTextRenderer::HAlign::Left });
-
-        rows.reserve ((size_t) rowCount);
-
-        for (int i = 0; i < mruCount; ++i)
-        {
-            const auto &  p           = mruEntries[(size_t) i];
-            std::wstring  displayName = (mruLabels[(size_t) i] != nullptr)
-                                            ? std::wstring (mruLabels[(size_t) i]->label)
-                                            : p.filename().wstring();
-            ListView::Cell name { std::move (displayName), false };
-            ListView::Cell loc  { p.parent_path().wstring(), true };
-            rows.push_back ({ std::move (name), std::move (loc) });
-        }
-
-        for (const PresentRow & pr : presentMasters)
-        {
-            ListView::Cell  name { pr.row->label, false };
-            ListView::Cell  loc  { L"Installed", true };
-            rows.push_back ({ std::move (name), std::move (loc) });
-        }
-
-        for (const DownloadRow * dr : shownDownloads)
-        {
-            ListView::Cell  name { dr->label, false };
-            ListView::Cell  loc  { L"Asimov archive (Download)", true };
-            rows.push_back ({ std::move (name), std::move (loc) });
-        }
-
-        list.SetDpi        (sysDpi);
-        list.SetShowHeader (true);
-        list.SetColumns    (std::move (cols));
-        list.SetRows       (std::move (rows));
+        row.name        = (mruLabels[(size_t) i] != nullptr) ? std::wstring (mruLabels[(size_t) i]->label)
+                                                             : entry.path.filename().wstring();
+        row.location    = entry.path.parent_path().wstring();
+        row.loadedUnix  = (entry.lastLoadedUnix != 0) ? entry.lastLoadedUnix
+                                                      : DiskMruPickerSession::FileMtimeUnix (entry.path);
+        row.resultCode  = i;
+        row.dimLocation = true;
+        models.push_back (std::move (row));
     }
 
-    def.title              = title;
-    def.icon               = DialogIcon::AppFlat;
-    def.iconSizeOverrideDp = 64.0f;
-    def.body.push_back ({ intro, false, L"" });
-    def.customBodyMinSizePx.cx = MulDiv (s_kBootMruBodyWidthDp, (int) sysDpi, 96);
-    def.customBodyMinSizePx.cy = list.GetRequiredHeightPx();
-
-    def.onMeasureCustomBody = [&list, sysDpi] (DwriteTextRenderer & text, float /*dpiScale*/) -> SIZE
+    for (int j = 0; j < downloadCount; ++j)
     {
-        list.SetDpi (sysDpi);
-        list.MeasureColumnsPx (text);
-        SIZE  sz {};
-        sz.cx = list.GetTotalMeasuredWidthPx();
-        sz.cy = list.GetRequiredHeightPx();
-        return sz;
-    };
+        const DownloadRow *          dr       = shownDownloads[(size_t) j];
+        fs::path                     wantPath = diskDir / string (dr->spec->cassoName);
+        bool                         present  = fs::exists (wantPath, ec);
+        DiskMruPickerSession::ModelRow  row;
 
-    def.onPaintCustomBody = [&list] (DialogPaintContext & ctx)
-    {
-        if (ctx.painter == nullptr || ctx.text == nullptr)
-        {
-            return;
-        }
+        row.name        = dr->label;
+        row.location    = present ? L"Installed" : L"Asimov archive (Download)";
+        row.loadedUnix  = 0;
+        row.resultCode  = mruCount + j;
+        row.dimLocation = true;
+        models.push_back (std::move (row));
+    }
 
-        list.SetTheme (ctx.theme);
-        list.SetRect  (ctx.customBodyRect);
-        list.Paint    (*ctx.painter, *ctx.text);
-    };
+    session.SetText          (title, intro);
+    session.SetModelRows     (std::move (models));
+    session.AddButton        ({ L"&Browse...", s_kBrowseResult, false, false, true });   // bottom-left
+    session.AddButton        ({ L"Cancel",     s_kCancelResult, true,  true  });
+    session.SetCloseBoxResult (s_kCloseBoxResult);
 
-    def.onInputCustomBody = [&list] (const DialogInputEvent & ev) -> std::optional<int>
-    {
-        int  idx = list.HitTestRow (ev.xPx, ev.yPx);
-
-        if (ev.kind == DialogInputEvent::Kind::MouseMove)
-        {
-            list.SetHoveredRow (idx);
-            return std::nullopt;
-        }
-
-        if (ev.kind == DialogInputEvent::Kind::LeftButtonUp && idx >= 0)
-        {
-            return idx;
-        }
-
-        return std::nullopt;
-    };
-
-    def.buttons.push_back ({ L"&Browse...", s_kBrowseResult, false, false });
-    def.buttons.push_back ({ L"Cancel",     s_kCancelResult, true,  true  });
-    def.closeBoxResult = s_kCloseBoxResult;
-
-    chosen = ShowStandaloneDialog (hInstance, hwndParent, themeName, def);
+    chosen = session.Run();
 
     if (chosen == s_kBrowseResult)
     {
@@ -2212,17 +2589,11 @@ HRESULT AssetBootstrap::PromptInsertDiskMru (
     }
     else if (chosen >= 0 && chosen < mruCount)
     {
-        outDiskPath = mruEntries[(size_t) chosen].wstring();
+        outDiskPath = mruEntries[(size_t) chosen].path.wstring();
     }
-    else if (chosen >= mruCount && chosen < mruCount + presentCount)
+    else if (chosen >= mruCount && chosen < rowCount)
     {
-        // Already-installed stock master: mount it directly, no download.
-        outDiskPath = presentMasters[(size_t) (chosen - mruCount)].path.wstring();
-    }
-    else if (chosen >= mruCount + presentCount && chosen < rowCount)
-    {
-        int                  dlIdx = chosen - mruCount - presentCount;
-        const BootDiskSpec & spec  = *shownDownloads[(size_t) dlIdx]->spec;
+        const BootDiskSpec & spec = *shownDownloads[(size_t) (chosen - mruCount)]->spec;
         hr = DownloadStockBootDisk (spec, diskDir, outDiskPath, outError);
         CHR (hr);
     }
@@ -2477,255 +2848,6 @@ Error:
 
 
 
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  PromptDiskAudioConsent
-//
-//  Three-button TaskDialog: Download / Skip / Don't ask again this
-//  session. Discloses the GPL-3 license of the OpenEmulator source
-//  samples and the recipient obligation that entails. Mirrors
-//  PromptBootDisk's runtime-template approach so we don't accrete a
-//  second resource-script-based dialog.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-static constexpr int       s_kIdDiskAudioDownload       = 2001;
-static constexpr int       s_kIdDiskAudioSkip           = IDCANCEL;
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  PromptDiskAudioConsent
-//
-//  Two-button TaskDialog: Download or Skip. Caller persists the
-//  user's choice via the per-machine PromptForAudioDownload registry
-//  DWORD so the prompt does not reappear on subsequent launches.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-static int PromptDiskAudioConsent (HINSTANCE hInstance, HWND hwndParent, std::string_view themeName)
-{
-    int               chosen  = s_kIdDiskAudioSkip;
-    DialogDefinition  def     = {};
-    wstring           title;
-    wstring           content;
-
-
-
-    content  = L"Casso can download a small set of Disk II drive-noise samples (";
-    content += s_kchAlmostEqual;
-    content += L" 100 KB) from the OpenEmulator project to power the in-emulator "
-               L"drive-audio feature. The samples will be cached on this machine.\n\n"
-               L"The samples are licensed under GPL-3; please review their license "
-               L"before redistributing them.";
-
-    title  = L"Casso ";
-    title += s_kchEmDash;
-    title += L" Drive audio samples";
-
-    def.title = title;
-    def.icon  = DialogIcon::Info;
-    def.body.push_back ({ content, false, L"" });
-    def.buttons.push_back ({ L"Download", s_kIdDiskAudioDownload, true,  false });
-    def.buttons.push_back ({ L"Skip",     s_kIdDiskAudioSkip,     false, true  });
-
-    chosen = ShowStandaloneDialog (hInstance, hwndParent, themeName, def);
-    if (chosen != s_kIdDiskAudioDownload && chosen != s_kIdDiskAudioSkip)
-    {
-        chosen = s_kIdDiskAudioSkip;
-    }
-
-    return chosen;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DirectoryHasAnyWav
-//
-////////////////////////////////////////////////////////////////////////////////
-
-static bool DirectoryHasAnyWav (const fs::path & dir)
-{
-    error_code  ec;
-    bool        any = false;
-
-
-
-    if (!fs::is_directory (dir, ec))
-    {
-        return false;
-    }
-
-    for (const auto & entry : fs::directory_iterator (dir, ec))
-    {
-        if (!entry.is_regular_file (ec))
-        {
-            continue;
-        }
-
-        if (entry.path ().extension () == L".wav")
-        {
-            any = true;
-            break;
-        }
-    }
-
-    return any;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  CheckAndFetchDiskAudio
-//
-////////////////////////////////////////////////////////////////////////////////
-
-HRESULT AssetBootstrap::CheckAndFetchDiskAudio (
-    HINSTANCE                hInstance,
-    const wstring          & machineName,
-    HWND                     hwndParent,
-    const fs::path         & devicesDir,
-    struct GlobalUserPrefs & prefs,
-    string                 & outError)
-{
-    HRESULT      hr             = S_OK;
-    HINTERNET    hSession       = nullptr;
-    bool         anyMissing     = false;
-    int          consent        = 0;
-    error_code   ec;
-
-
-
-    UNREFERENCED_PARAMETER (hInstance);
-    UNREFERENCED_PARAMETER (machineName);
-
-    // Self-healing semantics: always check what's missing on disk
-    // before consulting the saved consent state. If everything is
-    // already present we have nothing to do regardless of prior
-    // answer. If anything is missing and the user previously
-    // accepted, silently re-fetch (the consent stands); if they
-    // previously declined, respect that with no prompt; if they
-    // have never been asked, prompt now.
-    for (string_view mech : s_kDiskAudioMechanisms)
-    {
-        fs::path  mechDir = devicesDir / string (mech);
-
-        if (!DirectoryHasAnyWav (mechDir))
-        {
-            anyMissing = true;
-            break;
-        }
-    }
-
-    BAIL_OUT_IF (!anyMissing, S_OK);
-
-    if (prefs.audioDownloadConsent == "decline")
-    {
-        return S_FALSE;
-    }
-
-    if (prefs.audioDownloadConsent == "allow")
-    {
-        consent = s_kIdDiskAudioDownload;
-    }
-    else
-    {
-        // "ask" or any unknown value -- prompt now.
-        consent = PromptDiskAudioConsent (hInstance, hwndParent, prefs.activeTheme);
-        prefs.audioDownloadConsent = (consent == s_kIdDiskAudioDownload)
-                                       ? std::string ("allow")
-                                       : std::string ("decline");
-    }
-
-    if (consent != s_kIdDiskAudioDownload)
-    {
-        return S_FALSE;
-    }
-
-    hSession = WinHttpOpen (s_kpszUserAgent,
-                            WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY,
-                            WINHTTP_NO_PROXY_NAME,
-                            WINHTTP_NO_PROXY_BYPASS,
-                            0);
-    CBRF (hSession != nullptr,
-          outError = "Cannot initialize WinHTTP session");
-
-    for (const DiskAudioSpec & spec : s_kDiskAudioCatalog)
-    {
-        fs::path        mechDir   = devicesDir / string (spec.mechanism);
-        fs::path        wavPath   = mechDir / string (spec.wavBasename);
-        wstring         urlPath;
-        vector<float>   pcm;
-        HRESULT         hrItem    = S_OK;
-
-        if (fs::exists (wavPath, ec))
-        {
-            continue;
-        }
-
-        fs::create_directories (mechDir, ec);
-
-        // Build the URL path: prefix + mechanism + "/" + URL-escaped basename.
-        urlPath  = s_kpszOpenEmulatorPathFmt;
-        urlPath += wstring (spec.mechanism.begin (), spec.mechanism.end ());
-        urlPath += L"/";
-
-        for (char ch : spec.oggBasename)
-        {
-            if (ch == ' ')
-            {
-                urlPath += L"%20";
-            }
-            else
-            {
-                urlPath += static_cast<wchar_t> (static_cast<unsigned char> (ch));
-            }
-        }
-
-        // Decode at the typical 44.1 kHz fallback; downstream
-        // Disk2AudioSource::LoadSamples re-resamples to the WASAPI
-        // device rate via IMFSourceReader when it reads the WAV back
-        // in. Per A-001, broadband drive noise tolerates the double
-        // resample.
-        hrItem = FetchAndDecodeOgg (hSession, urlPath.c_str (), 44100, pcm, outError);
-
-        if (FAILED (hrItem) || pcm.empty ())
-        {
-            // FR-009: don't block startup on individual asset failure.
-            DEBUGMSG (L"CheckAndFetchDiskAudio: %s\n",
-                      wstring (outError.begin (), outError.end ()).c_str ());
-            outError.clear ();
-            continue;
-        }
-
-        hrItem = WritePcmAsWav (wavPath, pcm, 44100, outError);
-
-        if (FAILED (hrItem))
-        {
-            DEBUGMSG (L"CheckAndFetchDiskAudio: write failed: %s\n",
-                      wstring (outError.begin (), outError.end ()).c_str ());
-            outError.clear ();
-            continue;
-        }
-    }
-
-Error:
-    if (hSession != nullptr)
-    {
-        WinHttpCloseHandle (hSession);
-    }
-
-    return hr;
-}
 
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -2,6 +2,7 @@
 
 #include "HardwarePage.h"
 
+#include "Core/UnicodeSymbols.h"
 
 
 
@@ -14,14 +15,15 @@
 
 namespace
 {
+    constexpr int     s_kPagePadDp        = 16;        // matches Disk / Display / Theme pages
     constexpr int     s_kInfoLabelWidthDp = 140;
-    constexpr int     s_kInfoRowHeightDp  = 28;        // matches Machine / Display / Theme pages
+    constexpr int     s_kInfoRowHeightDp  = 28;
     constexpr int     s_kInfoValueGapDp   = 8;
-    constexpr int     s_kBigSectionGapDp  = 14;        // matches other pages' sectionGap
-    constexpr size_t  s_kMachineRow       = 0;
-    constexpr size_t  s_kCpuRow           = 1;
-    constexpr size_t  s_kClockRow         = 2;
-    constexpr size_t  s_kMemoryRow        = 3;
+    constexpr int     s_kBigSectionGapDp  = 14;
+    constexpr int     s_kDropdownWidthDp  = 200;
+    constexpr size_t  s_kCpuRow           = 0;
+    constexpr size_t  s_kClockRow         = 1;
+    constexpr size_t  s_kMemoryRow        = 2;
 
 
     RECT MakeRect (int l, int t, int w, int h)
@@ -31,15 +33,15 @@ namespace
     }
 
 
-    TreeCapabilityFlag MapFlag (CapabilityFlag flag)
+    DxuiTreeCapabilityFlag MapFlag (CapabilityFlag flag)
     {
         switch (flag)
         {
-            case CapabilityFlag::Optional:        return TreeCapabilityFlag::Optional;
-            case CapabilityFlag::Required:        return TreeCapabilityFlag::Required;
-            case CapabilityFlag::PlatformLocked:  return TreeCapabilityFlag::PlatformLocked;
+            case CapabilityFlag::Optional:        return DxuiTreeCapabilityFlag::Optional;
+            case CapabilityFlag::Required:        return DxuiTreeCapabilityFlag::Required;
+            case CapabilityFlag::PlatformLocked:  return DxuiTreeCapabilityFlag::PlatformLocked;
         }
-        return TreeCapabilityFlag::Required;
+        return DxuiTreeCapabilityFlag::Required;
     }
 
 
@@ -59,6 +61,85 @@ namespace
 
 
 
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HardwarePage::HardwarePage
+//
+//  Registers each member widget into the page's child list via Adopt so
+//  they participate in the IDxuiControl tree (Bounds, Visible, focus, parent
+//  pointers). The widgets remain HardwarePage-owned members; Adopt is
+//  non-owning. Layout positioning stays in SetRect() below because the
+//  layout does things DxuiFormLayout cannot model (memory rows packed
+//  three-wide across one row, sub-row layout under the Memory: header).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HardwarePage::HardwarePage(std::wstring title)
+    : DxuiPropertyPage (std::move (title))
+{
+    size_t  i = 0;
+
+
+    Adopt (m_machineLabel);
+    Adopt (m_speedLabel);
+    Adopt (m_machineDropdown);
+    Adopt (m_speed);
+
+    for (i = 0; i < kInfoRowCount; ++i)
+    {
+        Adopt (m_infoLabels[i]);
+        Adopt (m_infoValues[i]);
+        Adopt (m_infoExtras[i]);
+    }
+    Adopt (m_tree);
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HardwarePage::SetMachineList
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void HardwarePage::SetMachineList (std::vector<std::string>  machineIds,
+                                   std::vector<std::wstring> displayNames,
+                                   int                       activeIndex)
+{
+    m_machines           = std::move (machineIds);
+    m_activeMachineIndex = activeIndex;
+
+    if (displayNames.size() != m_machines.size())
+    {
+        // Caller mismatch — fall back to ids as labels.
+        displayNames.clear();
+        for (const std::string & id : m_machines)
+        {
+            displayNames.emplace_back (id.begin(), id.end());
+        }
+    }
+
+    m_machineDropdown.SetItems    (displayNames);
+    m_machineDropdown.SetSelected (m_activeMachineIndex);
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HardwarePage::Layout
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void HardwarePage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
+{
+    SetRect (rect, scaler);
+}
+
+
+
 
 ////////////////////////////////////////////////////////////////////////////////
 //
@@ -66,15 +147,19 @@ namespace
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void HardwarePage::SetRect (const RECT & rect, const DpiScaler & scaler)
+void HardwarePage::SetRect (const RECT & rect, const DxuiDpiScaler & scaler)
 {
     UINT dpi         = scaler.Dpi();
+    int  pad         = scaler.Px (s_kPagePadDp);
     int  labelWidth  = scaler.Px (s_kInfoLabelWidthDp);
     int  rowHeight   = scaler.Px (s_kInfoRowHeightDp);
     int  valueGap    = scaler.Px (s_kInfoValueGapDp);
     int  sectionGap  = scaler.Px (s_kBigSectionGapDp);
-    int  valueX      = rect.left + labelWidth + valueGap;
-    int  y           = rect.top;
+    int  dropWidth   = scaler.Px (s_kDropdownWidthDp);
+    int  x           = rect.left + pad;
+    int  controlsX   = x + labelWidth;
+    int  valueX      = x + labelWidth + valueGap;
+    int  y           = rect.top + pad;
     size_t i         = 0;
     RECT treeRect    = rect;
 
@@ -85,24 +170,39 @@ void HardwarePage::SetRect (const RECT & rect, const DpiScaler & scaler)
     m_sectionGap = sectionGap;
     m_scaler     = scaler;
 
-    m_infoLabels[s_kMachineRow].SetText (L"Machine:");
-    m_infoLabels[s_kCpuRow].SetText     (L"CPU:");
-    m_infoLabels[s_kClockRow].SetText   (L"Clock speed:");
-    m_infoLabels[s_kMemoryRow].SetText  (L"Memory:");
+    // Machine + CPU-speed selectors above the read-only spec block.
+    m_machineLabel.SetRect (MakeRect (x, y, labelWidth, rowHeight));
+    m_machineLabel.SetText (L"Machine:");
+    m_machineDropdown.SetRect (MakeRect (controlsX, y, dropWidth, rowHeight));
+    y += rowHeight + sectionGap;
+
+    m_speedLabel.SetRect (MakeRect (x, y, labelWidth, rowHeight));
+    m_speedLabel.SetText (L"CPU speed:");
+    m_speed.SetRect  (MakeRect (controlsX, y, dropWidth, rowHeight));
+    m_speed.SetItems ({ L"Authentic (1.023 MHz)",
+                        L"2x (2.046 MHz)",
+                        std::wstring (L"Maximum (full afterburner ") + s_kpszRocket + L")" });
+    y += rowHeight + sectionGap;
+
+    // Hardware spec block starts below the selectors.
+    m_infoTop = y;
+
+    m_infoLabels[s_kCpuRow].SetText    (L"CPU:");
+    m_infoLabels[s_kClockRow].SetText  (L"Clock speed:");
+    m_infoLabels[s_kMemoryRow].SetText (L"Memory:");
 
     for (i = 0; i < kInfoRowCount; ++i)
     {
         if (i >= kFixedInfoRowCount)
         {
-            // Memory sub-row N sits at the same y as the "Memory:"
-            // header for N=0, and stacks below for N>=1. Row 0 thus
-            // shares a line with the Memory: header label; the
-            // header itself contributes no extra row.
+            // Memory sub-row N sits at the same y as the "Memory:" header for
+            // N=0, and stacks below for N>=1. Row 0 thus shares a line with
+            // the Memory: header label; the header itself adds no extra row.
             int  nameW    = scaler.Px (110);
             int  sizeW    = scaler.Px (55);
             int  addrW    = scaler.Px (130);
             int  subIndex = (int) (i - kFixedInfoRowCount);
-            int  rowY     = rect.top + ((int) s_kMemoryRow + subIndex) * rowHeight;
+            int  rowY     = m_infoTop + ((int) s_kMemoryRow + subIndex) * rowHeight;
 
             m_infoLabels[i].SetRect (MakeRect (valueX,                 rowY, nameW, rowHeight));
             m_infoValues[i].SetRect (MakeRect (valueX + nameW,         rowY, sizeW, rowHeight));
@@ -110,7 +210,7 @@ void HardwarePage::SetRect (const RECT & rect, const DpiScaler & scaler)
         }
         else
         {
-            m_infoLabels[i].SetRect (MakeRect (rect.left, y, labelWidth, rowHeight));
+            m_infoLabels[i].SetRect (MakeRect (x, y, labelWidth, rowHeight));
             m_infoValues[i].SetRect (MakeRect (valueX, y, rect.right - valueX, rowHeight));
             m_infoExtras[i].SetRect (MakeRect (rect.right, y, 0, rowHeight));
             y += rowHeight;
@@ -120,19 +220,27 @@ void HardwarePage::SetRect (const RECT & rect, const DpiScaler & scaler)
         m_infoExtras[i].SetDpi (dpi);
     }
 
-    // y now sits one row PAST the Memory header. Bump down by the
-    // remaining memory rows (rowsInUse - 1, since row 0 shares a
-    // line with the header).
+    // y now sits one row PAST the Memory header. Bump down by the remaining
+    // memory rows (rowsInUse - 1, since row 0 shares a line with the header).
     if (m_memoryRowsInUse > 1)
     {
         y += (int) (m_memoryRowsInUse - 1) * rowHeight;
     }
 
-    treeRect.top = y + sectionGap;
+    treeRect.left = x;
+    treeRect.top  = y + sectionGap;
     m_tree.SetRect (treeRect);
     m_tree.SetDpi  (dpi);
-}
 
+    m_machineLabel.SetDpi    (dpi);
+    m_speedLabel.SetDpi      (dpi);
+    m_machineDropdown.SetDpi (dpi);
+    m_speed.SetDpi           (dpi);
+
+    // Mirror the page's footprint into the IDxuiControl tree so future
+    // centralized walks see this page as a panel covering `rect`.
+    DxuiPanel::SetBounds (rect);
+}
 
 
 
@@ -152,22 +260,36 @@ void HardwarePage::SetState (SettingsPanelState * state)
 
 
 
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HardwarePage::SetPopupHost
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void HardwarePage::SetPopupHost (DxuiHwndSource * host)
+{
+    m_machineDropdown.SetPopupHost (host);
+    m_speed.SetPopupHost           (host);
+}
+
+
+
 
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  HardwarePage::Rebuild
 //
-//  Walk the state's hardware list and rebuild the tree-view nodes.
-//  Hook the tree's toggle callback through to
-//  `SettingsPanelState::SetHardwareEnabled` so user toggles route
-//  back into the canonical state-machine.
+//  Sync the machine + speed selectors to the state, then walk the state's
+//  hardware list and rebuild the tree-view nodes. Hook the tree's toggle
+//  callback through to `SettingsPanelState::SetHardwareEnabled` so user
+//  toggles route back into the canonical state-machine.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void HardwarePage::Rebuild ()
 {
     std::vector<HardwareEntry>   entries;
-    std::vector<TreeNode>        nodes;
+    std::vector<DxuiTreeNode>        nodes;
     SettingsPanelState         * state = m_state;
     const SettingsMachineInfo  * info  = nullptr;
 
@@ -175,12 +297,29 @@ void HardwarePage::Rebuild ()
 
     if (state != nullptr)
     {
+        // Machine + CPU-speed selectors.
+        m_speed.SetSelected           ((int) state->Prefs().speedMode);
+        m_machineDropdown.SetSelected (m_activeMachineIndex);
+
+        m_machineDropdown.SetSelect ([this] (int idx)
+        {
+            if (idx >= 0 && idx < (int) m_machines.size())
+            {
+                m_activeMachineIndex = idx;
+                if (m_onMachineSelected)
+                {
+                    m_onMachineSelected (m_machines[(size_t) idx]);
+                }
+            }
+        });
+        m_speed.SetSelect ([state] (int idx) { state->SetSpeedMode ((SettingsSpeedMode) idx); });
+
         info    = &state->MachineInfo();
         entries = state->Hardware();
 
-        // Comma-grouped clock speed (e.g. "1,022,727 Hz"). std::format
-        // with the "L" locale-aware flag requires a locale; build the
-        // grouped string by hand for predictable output.
+        // Comma-grouped clock speed (e.g. "1,022,727 Hz"). std::format with
+        // the "L" locale-aware flag requires a locale; build the grouped
+        // string by hand for predictable output.
         auto FormatGrouped = [] (uint32_t n)
         {
             std::wstring  s = std::to_wstring (n);
@@ -199,10 +338,9 @@ void HardwarePage::Rebuild ()
             cpuDisplay = Widen (info->cpuManufacturer) + L" " + cpuDisplay;
         }
 
-        m_infoValues[s_kMachineRow].SetText (Widen (info->name));
-        m_infoValues[s_kCpuRow].SetText     (cpuDisplay);
-        m_infoValues[s_kClockRow].SetText   (FormatGrouped (info->clockSpeed) + L" Hz");
-        m_infoValues[s_kMemoryRow].SetText  (L"");        // header row, value column blank
+        m_infoValues[s_kCpuRow].SetText    (cpuDisplay);
+        m_infoValues[s_kClockRow].SetText  (FormatGrouped (info->clockSpeed) + L" Hz");
+        m_infoValues[s_kMemoryRow].SetText (L"");        // header row, value column blank
 
         size_t  rowsInUse = std::min<size_t> (info->memoryRegions.size(), kMaxMemoryRows);
         size_t  i         = 0;
@@ -227,8 +365,8 @@ void HardwarePage::Rebuild ()
         if (rowsInUse != m_memoryRowsInUse)
         {
             m_memoryRowsInUse = rowsInUse;
-            // Re-run layout with the new row count so the tree shifts
-            // down to make space. Only fires when the count changes.
+            // Re-run layout with the new row count so the tree shifts down to
+            // make space. Only fires when the count changes.
             SetRect (m_baseRect, m_scaler);
         }
     }
@@ -262,44 +400,17 @@ void HardwarePage::Rebuild ()
 
 
 
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  HardwarePage::Paint
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void HardwarePage::Paint (DxUiPainter & painter, DwriteTextRenderer & text) const
-{
-    int  i = 0;
-
-
-
-    for (i = 0; i < (int) kInfoRowCount; ++i)
-    {
-        m_infoLabels[(size_t) i].Paint (painter, text);
-        m_infoValues[(size_t) i].Paint (painter, text);
-        m_infoExtras[(size_t) i].Paint (painter, text);
-    }
-
-    m_tree.Paint (painter, text);
-}
-
-
-
-
-
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  HardwarePage::BuildNodes
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<TreeNode> HardwarePage::BuildNodes (const std::vector<HardwareEntry> & entries)
+std::vector<DxuiTreeNode> HardwarePage::BuildNodes (const std::vector<HardwareEntry> & entries)
 {
-    std::vector<TreeNode>  out;
-    TreeNode               internalGroup;
-    TreeNode               slotsGroup;
+    std::vector<DxuiTreeNode>  out;
+    DxuiTreeNode               internalGroup;
+    DxuiTreeNode               slotsGroup;
     size_t                 i        = 0;
     bool                   anyInternal = false;
     bool                   anySlot     = false;
@@ -307,19 +418,19 @@ std::vector<TreeNode> HardwarePage::BuildNodes (const std::vector<HardwareEntry>
 
 
     internalGroup.label          = L"Internal devices";
-    internalGroup.capabilityFlag = TreeCapabilityFlag::Required;
+    internalGroup.capabilityFlag = DxuiTreeCapabilityFlag::Required;
     internalGroup.checked        = true;
     internalGroup.expanded       = true;
 
     slotsGroup.label             = L"Slots";
-    slotsGroup.capabilityFlag    = TreeCapabilityFlag::Required;
+    slotsGroup.capabilityFlag    = DxuiTreeCapabilityFlag::Required;
     slotsGroup.checked           = true;
     slotsGroup.expanded          = true;
 
     for (i = 0; i < entries.size(); ++i)
     {
         const HardwareEntry & e = entries[i];
-        TreeNode              row;
+        DxuiTreeNode              row;
 
         row.label          = Widen (e.displayName);
         row.lockReason     = Widen (e.lockReason);

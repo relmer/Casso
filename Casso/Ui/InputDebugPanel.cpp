@@ -2,8 +2,7 @@
 
 #include "InputDebugPanel.h"
 
-#include "Chrome/ChromeTheme.h"
-#include "Chrome/TitleBar.h"
+#include "Chrome/CassoTheme.h"
 
 
 
@@ -14,8 +13,12 @@ constexpr LPCWSTR  s_kpszWindowTitle = L"Casso - Input events";
 
 constexpr int      s_kPreferredWidthDip  = 960;
 constexpr int      s_kPreferredHeightDip = 600;
-constexpr UINT     s_kSwapBufferCount    = 2;
 constexpr float    s_kLabelFontDip       = 13.0f;
+
+// Minimum width (DIP) a column can be drag-resized to, and the DPI
+// the DIP column widths are authored at.
+constexpr int      s_kMinColWidthDip     = 24;
+constexpr int      s_kColWidthBaseDpi    = 96;
 
 constexpr uint32_t s_kDisplayDequeHighWater = 100000;
 constexpr uint32_t s_kDisplayDequeLowWater  =  90000;
@@ -35,6 +38,11 @@ constexpr Word     s_kPaddle2Address       = 0xC066;
 constexpr Word     s_kPaddle3Address       = 0xC067;
 constexpr Word     s_kPaddleTriggerAddress = 0xC070;
 constexpr Byte     s_kPaddleCountingBit    = 0x80;
+constexpr Word     s_kHostPair0FirstAxis   = 0;
+constexpr Word     s_kHostPair1FirstAxis   = 2;
+constexpr Word     s_kHostAxisCount        = 4;
+constexpr Word     s_kHostButton0Index     = 0;
+constexpr Word     s_kHostButton1Index     = 1;
 
 constexpr LPCWSTR  s_kpszEmuLabel    = L"Emulator input:";
 constexpr LPCWSTR  s_kpszHostLabel   = L"Host input:";
@@ -53,13 +61,11 @@ constexpr LPCWSTR  s_kpszPair1Label  = L"View PADDL2-PADDL3 as";
 constexpr LPCWSTR  s_kpszPair0Items[2] = { L"Joystick 0", L"Paddles 0, 1" };
 constexpr LPCWSTR  s_kpszPair1Items[2] = { L"Joystick 1", L"Paddles 2, 3" };
 
-constexpr LPCWSTR  s_kpszAllTip      = L"Toggle every emulator-input lane at once";
+constexpr LPCWSTR  s_kpszAllTip      = L"DxuiToggle every emulator-input lane at once";
 constexpr LPCWSTR  s_kpszEmuKbdTip   = L"Show guest keyboard soft-switch reads ($C000/$C010)";
 constexpr LPCWSTR  s_kpszJoystickTip = L"Show game-port reads for pairs viewed as a joystick";
 constexpr LPCWSTR  s_kpszPaddleTip   = L"Show game-port reads for pairs viewed as paddles";
 constexpr LPCWSTR  s_kpszHostKbdTip  = L"Show host keyboard events from Windows and auto-repeat";
-
-constexpr uint32_t s_kLabelArgb      = 0xFFB8C0CC;
 
 
 
@@ -317,6 +323,25 @@ InputGamePortClass InputDebugPanel::ClassifyGamePort (InputEventType type, Word 
 {
     switch (type)
     {
+        case InputEventType::HostPaddle:
+            if (address >= s_kHostPair0FirstAxis && address < s_kHostPair1FirstAxis)
+            {
+                return InputGamePortClass::Pair0;
+            }
+            if (address >= s_kHostPair1FirstAxis && address < s_kHostAxisCount)
+            {
+                return InputGamePortClass::Pair1;
+            }
+            return InputGamePortClass::None;
+
+        case InputEventType::HostButton:
+            switch (address)
+            {
+                case s_kHostButton0Index:
+                case s_kHostButton1Index: return InputGamePortClass::Pair0;
+                default:                  return InputGamePortClass::None;
+            }
+
         case InputEventType::ButtonRead:
             switch (address)
             {
@@ -357,6 +382,7 @@ InputGamePortClass InputDebugPanel::ClassifyGamePort (InputEventType type, Word 
 void InputDebugPanel::FormatInputEvent (
     const InputEvent &                         src,
     std::chrono::steady_clock::time_point      uptimeAnchor,
+    const InputFilterState &                   filter,
     InputEventDisplay &                        out)
 {
     Word     address = 0;
@@ -381,7 +407,10 @@ void InputDebugPanel::FormatInputEvent (
     FormatWallNow (out.wallStr.data(), out.wallStr.size());
     FormatUptime  (uptimeAnchor, out.uptimeStr.data(), out.uptimeStr.size());
     out.cycleStr[0] = L'\0';
-    if (src.type != InputEventType::HostKeyDown && src.type != InputEventType::HostKeyUp)
+    if (src.type != InputEventType::HostKeyDown &&
+        src.type != InputEventType::HostKeyUp   &&
+        src.type != InputEventType::HostPaddle  &&
+        src.type != InputEventType::HostButton)
     {
         FormatCycleWithSeparators (src.cycle, out.cycleStr.data(), out.cycleStr.size());
     }
@@ -404,6 +433,40 @@ void InputDebugPanel::FormatInputEvent (
             value = src.payload.key.ascii;
             out.value   = FormatByteChar (value);
             out.meaning = std::format (L"Auto-repeat: {}", out.value);
+            break;
+
+        case InputEventType::HostPaddle:
+            axis  = (int) src.payload.io.address;
+            value = src.payload.io.value;
+            {
+                int  pair = axis / 2;
+
+                // Decode per the user's "View PADDL<n>-PADDL<m> as" choice:
+                // a pair viewed as a joystick reads axis 0/2 as X and 1/3
+                // as Y; viewed as paddles it stays PADDL<n>.
+                if (pair >= 0 && pair < 2 && filter.pairIsJoystick[pair])
+                {
+                    LPCWSTR  xy = (axis % 2 == 0) ? L"X" : L"Y";
+
+                    out.address = std::format (L"JOY{} {}", pair, xy);
+                    out.value   = std::format (L"{}", value);
+                    out.meaning = std::format (L"HOST JOY{} {} = {}", pair, xy, value);
+                }
+                else
+                {
+                    out.address = std::format (L"PDL{}", axis);
+                    out.value   = std::format (L"{}", value);
+                    out.meaning = std::format (L"HOST PDL{} = {}", axis, value);
+                }
+            }
+            break;
+
+        case InputEventType::HostButton:
+            axis    = (int) src.payload.io.address;
+            pressed = src.payload.io.value != 0;
+            out.address = std::format (L"BTN{}", axis);
+            out.value   = pressed ? L"DOWN" : L"UP";
+            out.meaning = std::format (L"HOST BTN{} {}", axis, pressed ? L"DOWN" : L"UP");
             break;
 
         case InputEventType::KbdDataRead:
@@ -441,7 +504,7 @@ void InputDebugPanel::FormatInputEvent (
             button  = ButtonAnnotation (address);
             out.address = std::format (L"${:04X}", address);
             out.value   = std::format (L"${:02X}", value);
-            out.meaning = std::format (L"Button read {} -> {}  pressed={}",
+            out.meaning = std::format (L"DxuiButton read {} -> {}  pressed={}",
                                        out.address,
                                        out.value,
                                        pressed ? 1 : 0);
@@ -491,11 +554,12 @@ void InputDebugPanel::FormatInputEvent (
 void InputDebugPanel::ProjectOne (
     const InputEvent &                         src,
     std::deque<InputEventDisplay> &            deque,
-    std::chrono::steady_clock::time_point      uptimeAnchor)
+    std::chrono::steady_clock::time_point      uptimeAnchor,
+    const InputFilterState &                   filter)
 {
     InputEventDisplay  entry;
 
-    FormatInputEvent (src, uptimeAnchor, entry);
+    FormatInputEvent (src, uptimeAnchor, filter, entry);
     deque.push_back (std::move (entry));
 }
 
@@ -511,6 +575,10 @@ void InputDebugPanel::ProjectOne (
 
 InputDebugPanel::InputDebugPanel()
 {
+    // Content widgets are created as children of this panel in OnCreate
+    // (which fires inside DxuiWindow::Create once the backend exists) so
+    // the base paint pump walks and paints them. The constructor only
+    // seeds the Uptime anchor; every other member default-initializes.
     m_uptimeAnchor = std::chrono::steady_clock::now();
 }
 
@@ -537,6 +605,12 @@ InputDebugPanel::~InputDebugPanel()
 //
 //  Create
 //
+//  Stands up the DxuiWindow backend (close-only caption, host-owned swap
+//  chain / paint pump) sized to the panel's preferred client size. The
+//  OnCreate hook fires inside DxuiWindow::Create to populate the child
+//  widgets before the first layout. Idempotent -- a second call while
+//  already open is a no-op.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT InputDebugPanel::Create (
@@ -544,26 +618,35 @@ HRESULT InputDebugPanel::Create (
     HWND                   hwndOwner,
     ID3D11Device         * device,
     ID3D11DeviceContext  * context,
-    const ChromeTheme    * theme)
+    const CassoTheme    * theme)
 {
-    HRESULT  hr = S_OK;
+    HRESULT                    hr     = S_OK;
+    DxuiWindow::CreateParams   params;
 
 
-    BAIL_OUT_IF (m_window.IsOpen(), S_OK);
 
-    CBRAEx (hInstance, E_INVALIDARG);
-    CBRAEx (device,    E_INVALIDARG);
-    CBRAEx (context,   E_INVALIDARG);
+    UNREFERENCED_PARAMETER (device);
+    UNREFERENCED_PARAMETER (context);
 
-    m_device  = device;
-    m_context = context;
-    m_theme   = theme;
+    BAIL_OUT_IF (IsCreated(), S_OK);
 
-    hr = m_window.RegisterClass (hInstance, s_kpszClassName);
-    CHRA (hr);
+    m_theme = theme;
 
-    hr = m_window.Create (hwndOwner, this, device, context, theme);
-    CHRA (hr);
+    params.title             = s_kpszWindowTitle;
+    params.hInstance         = hInstance;
+    params.ownerHwnd         = hwndOwner;
+    params.initialSizeDip    = { s_kPreferredWidthDip, s_kPreferredHeightDip };
+    params.minSizeDip        = { s_kPreferredWidthDip, s_kPreferredHeightDip };
+    params.resizable         = true;
+    params.insetContentBelowCaption = false;
+    params.captionStyle      = DxuiCaptionStyle::CloseOnly;
+    params.classNameOverride = s_kpszClassName;
+
+    hr = DxuiWindow::Create (params);
+    CHR (hr);
+
+    SetTheme (m_theme);
+    Show();
 
 Error:
     return hr;
@@ -575,41 +658,40 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  Show
+//  OnCreate
+//
+//  DxuiWindow hook fired from Create() once the backend + HWND exist.
+//  Builds every content widget as a child of this panel via the
+//  inherited CreateChild<T> factory (so the base paint pump walks and
+//  paints them), then wires initial state / callbacks and the popup +
+//  focus helpers.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void InputDebugPanel::Show()
+void InputDebugPanel::OnCreate()
 {
-    HWND  hwnd = m_window.Hwnd();
+    m_emuLabel     = CreateChild<DxuiLabel> (s_kpszEmuLabel,   DxuiTextRole::Body);
+    m_hostLabel    = CreateChild<DxuiLabel> (s_kpszHostLabel,  DxuiTextRole::Body);
+    m_pairLabel[0] = CreateChild<DxuiLabel> (s_kpszPair0Label, DxuiTextRole::Body);
+    m_pairLabel[1] = CreateChild<DxuiLabel> (s_kpszPair1Label, DxuiTextRole::Body);
 
+    m_allCheck          = CreateChild<DxuiCheckbox> (s_kpszAllLabel);
+    m_emuKeyboardCheck  = CreateChild<DxuiCheckbox> (s_kpszKeyboardLabel);
+    m_joystickCheck     = CreateChild<DxuiCheckbox> (s_kpszJoystickLabel);
+    m_paddleCheck       = CreateChild<DxuiCheckbox> (s_kpszPaddleLabel);
+    m_hostKeyboardCheck = CreateChild<DxuiCheckbox> (s_kpszKeyboardLabel);
 
-    if (hwnd != nullptr)
-    {
-        ShowWindow (hwnd, SW_SHOW);
-        SetForegroundWindow (hwnd);
-    }
-}
+    m_pairView[0] = CreateChild<DxuiDropdown> ();
+    m_pairView[1] = CreateChild<DxuiDropdown> ();
+    m_pauseButton = CreateChild<DxuiButton>   (s_kpszPauseLabel);
+    m_clearButton = CreateChild<DxuiButton>   (s_kpszClearLabel);
+    m_copyButton  = CreateChild<DxuiButton>   (s_kpszCopyLabel);
+    m_eventList   = CreateChild<DxuiListView> ();
 
+    ConfigureWidgets();
 
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  Hide
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void InputDebugPanel::Hide()
-{
-    HWND  hwnd = m_window.Hwnd();
-
-
-    if (hwnd != nullptr)
-    {
-        ShowWindow (hwnd, SW_HIDE);
-    }
+    m_columnMenu.SetPopupHost (PopupHost());
+    m_tooltip.SetPopupHost    (PopupHost());
 }
 
 
@@ -620,11 +702,15 @@ void InputDebugPanel::Hide()
 //
 //  Destroy
 //
+//  Tears down the DxuiWindow backend (HWND + swap chain). EmulatorShell
+//  drops its unique_ptr right after, but keeping this explicit entry
+//  point preserves the existing shutdown call site.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void InputDebugPanel::Destroy()
 {
-    m_window.Destroy();
+    DestroyBackend();
 }
 
 
@@ -635,11 +721,33 @@ void InputDebugPanel::Destroy()
 //
 //  RenderFrame
 //
+//  Public per-frame entry point invoked by the EmulatorShell render
+//  loop. Drains the event ring into the display rows, advances the
+//  list / tooltip timers, then invalidates the window so its WM_PAINT
+//  pump repaints the child widget tree.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT InputDebugPanel::RenderFrame()
 {
-    return m_window.Render();
+    HRESULT  hr  = S_OK;
+    int64_t  now = NowMs();
+
+
+
+    BAIL_OUT_IF (!IsCreated(), S_OK);
+
+    DrainAndProject();
+
+    // Drive scrollbar auto-repeat for any held arrow / track press and
+    // the tooltip open / close dwell timers.
+    m_eventList->Tick (now);
+    m_tooltip.Tick    (now);
+
+    Invalidate();
+
+Error:
+    return hr;
 }
 
 
@@ -652,9 +760,16 @@ HRESULT InputDebugPanel::RenderFrame()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void InputDebugPanel::SetTheme (const ChromeTheme * theme)
+void InputDebugPanel::SetTheme (const CassoTheme * theme)
 {
-    m_window.SetTheme (theme);
+    // Set the one window theme; the paint pump hands it to the child
+    // widget tree (edits, list, labels) each frame, so they need no
+    // per-control push. The focus manager keeps a copy only for its
+    // row-height metric; the column-menu popup is themed at show time.
+    m_theme = theme;
+    DxuiWindow::SetTheme (theme);
+
+    m_focusMgr.SetTheme (theme);
 }
 
 
@@ -663,157 +778,23 @@ void InputDebugPanel::SetTheme (const ChromeTheme * theme)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  GetWindowClassName
+//  Layout
+//
+//  DxuiWindow drives this after the OS window sizes / resizes: cache the
+//  client size and DPI, then re-run the panel's absolute layout so the
+//  child widgets track the new bounds.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-LPCWSTR InputDebugPanel::GetWindowClassName() const
+void InputDebugPanel::Layout (
+    const RECT          & boundsDip,
+    const DxuiDpiScaler & scaler)
 {
-    return s_kpszClassName;
-}
+    m_widthPx  = std::max (1, (int) (boundsDip.right  - boundsDip.left));
+    m_heightPx = std::max (1, (int) (boundsDip.bottom - boundsDip.top));
+    m_dpi      = scaler.Dpi();
+    m_scaler   = scaler;
 
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  GetWindowTitle
-//
-////////////////////////////////////////////////////////////////////////////////
-
-LPCWSTR InputDebugPanel::GetWindowTitle() const
-{
-    return s_kpszWindowTitle;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  OnHostCreated
-//
-////////////////////////////////////////////////////////////////////////////////
-
-HRESULT InputDebugPanel::OnHostCreated (
-    HWND                   hwnd,
-    ID3D11Device         * device,
-    ID3D11DeviceContext  * context,
-    int                    widthPx,
-    int                    heightPx,
-    UINT                   dpi,
-    TitleBar             * titleBar,
-    const ChromeTheme    * theme)
-{
-    HRESULT  hr = S_OK;
-
-
-    CBRAEx (hwnd,    E_INVALIDARG);
-    CBRAEx (device,  E_INVALIDARG);
-    CBRAEx (context, E_INVALIDARG);
-
-    m_hwnd     = hwnd;
-    m_device   = device;
-    m_context  = context;
-    m_widthPx  = std::max (1, widthPx);
-    m_heightPx = std::max (1, heightPx);
-    m_dpi      = dpi;
-    m_titleBar = titleBar;
-    m_theme    = theme;
-
-    hr = EnsureSwapChain();
-    CHRA (hr);
-
-    hr = m_painter.Initialize (device, context);
-    CHRA (hr);
-
-    hr = m_text.Initialize (device);
-    CHRA (hr);
-
-    ConfigureWidgets();
-    RecomputeLayout();
-
-Error:
-    return hr;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  OnHostDestroyed
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void InputDebugPanel::OnHostDestroyed()
-{
-    m_text.UnbindBackBuffer();
-    m_text.Shutdown();
-    m_painter.Shutdown();
-    ReleaseRenderTargets();
-    m_swapChain.Reset();
-    m_hwnd     = nullptr;
-    m_titleBar = nullptr;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  OnHostResize
-//
-////////////////////////////////////////////////////////////////////////////////
-
-HRESULT InputDebugPanel::OnHostResize (int widthPx, int heightPx, UINT dpi)
-{
-    HRESULT  hr = S_OK;
-
-
-    m_widthPx  = std::max (1, widthPx);
-    m_heightPx = std::max (1, heightPx);
-    m_dpi      = dpi;
-
-    BAIL_OUT_IF (m_swapChain == nullptr, S_OK);
-
-    m_text.UnbindBackBuffer();
-    ReleaseRenderTargets();
-
-    hr = m_swapChain->ResizeBuffers (s_kSwapBufferCount,
-                                     (UINT) m_widthPx,
-                                     (UINT) m_heightPx,
-                                     DXGI_FORMAT_B8G8R8A8_UNORM,
-                                     0);
-    CHRA (hr);
-
-    hr = CreateBackBufferRtv();
-    CHRA (hr);
-
-    RecomputeLayout();
-
-Error:
-    return hr;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  SetChromeTheme
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void InputDebugPanel::SetChromeTheme (TitleBar * titleBar, const ChromeTheme * theme)
-{
-    m_titleBar = titleBar;
-    m_theme    = theme;
     RecomputeLayout();
 }
 
@@ -823,112 +804,41 @@ void InputDebugPanel::SetChromeTheme (TitleBar * titleBar, const ChromeTheme * t
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  PreferredClientSize
+//  CursorForPoint
+//
+//  DxuiWindow resolves the client cursor by fanning a client-px point
+//  through the panel tree. DxuiListView::CursorForPoint expects list-
+//  local coords, so translate by the list's bounds before delegating.
+//  During an active column-resize drag the pointer may leave the header
+//  strip (where the edge hit-test lives), so hold the resize cursor for
+//  the duration of the drag.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-SIZE InputDebugPanel::PreferredClientSize (UINT dpi) const
+LPCWSTR InputDebugPanel::CursorForPoint (POINT clientPx) const
 {
-    SIZE  size = {};
-
-
-    size.cx = MulDiv (s_kPreferredWidthDip,  (int) dpi, 96);
-    size.cy = MulDiv (s_kPreferredHeightDip, (int) dpi, 96);
-    return size;
-}
+    LPCWSTR  cursor = nullptr;
+    RECT     bounds = {};
+    POINT    local  = {};
 
 
 
+    if (m_eventList == nullptr)
+    {
+        return nullptr;
+    }
 
+    bounds  = m_eventList->Bounds();
+    local.x = clientPx.x - bounds.left;
+    local.y = clientPx.y - bounds.top;
 
-////////////////////////////////////////////////////////////////////////////////
-//
-//  EnsureSwapChain
-//
-////////////////////////////////////////////////////////////////////////////////
+    cursor = m_eventList->CursorForPoint (local);
+    if (cursor == nullptr && m_eventList->IsResizingColumn())
+    {
+        cursor = IDC_SIZEWE;
+    }
 
-HRESULT InputDebugPanel::EnsureSwapChain()
-{
-    HRESULT                                  hr      = S_OK;
-    Microsoft::WRL::ComPtr<IDXGIDevice>     dxgiDev;
-    Microsoft::WRL::ComPtr<IDXGIAdapter>    adapter;
-    Microsoft::WRL::ComPtr<IDXGIFactory2>   factory;
-    DXGI_SWAP_CHAIN_DESC1                   desc    = {};
-
-
-    CBRA (m_device);
-    CBRA (m_hwnd);
-    BAIL_OUT_IF (m_swapChain != nullptr, S_OK);
-
-    hr = m_device->QueryInterface (IID_PPV_ARGS (&dxgiDev));
-    CHRA (hr);
-    hr = dxgiDev->GetAdapter (&adapter);
-    CHRA (hr);
-    hr = adapter->GetParent (IID_PPV_ARGS (&factory));
-    CHRA (hr);
-
-    desc.Width       = (UINT) std::max (1, m_widthPx);
-    desc.Height      = (UINT) std::max (1, m_heightPx);
-    desc.Format      = DXGI_FORMAT_B8G8R8A8_UNORM;
-    desc.SampleDesc.Count = 1;
-    desc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
-    desc.BufferCount = s_kSwapBufferCount;
-    desc.Scaling     = DXGI_SCALING_STRETCH;
-    desc.SwapEffect  = DXGI_SWAP_EFFECT_FLIP_SEQUENTIAL;
-    desc.AlphaMode   = DXGI_ALPHA_MODE_IGNORE;
-
-    hr = factory->CreateSwapChainForHwnd (m_device, m_hwnd, &desc, nullptr, nullptr, &m_swapChain);
-    CHRA (hr);
-
-    hr = CreateBackBufferRtv();
-    CHRA (hr);
-
-Error:
-    return hr;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  CreateBackBufferRtv
-//
-////////////////////////////////////////////////////////////////////////////////
-
-HRESULT InputDebugPanel::CreateBackBufferRtv()
-{
-    HRESULT                                      hr     = S_OK;
-    Microsoft::WRL::ComPtr<ID3D11Texture2D>     buffer;
-
-
-    CBRA (m_device);
-    CBRA (m_swapChain);
-
-    hr = m_swapChain->GetBuffer (0, IID_PPV_ARGS (&buffer));
-    CHRA (hr);
-
-    hr = m_device->CreateRenderTargetView (buffer.Get(), nullptr, &m_rtv);
-    CHRA (hr);
-
-Error:
-    return hr;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ReleaseRenderTargets
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void InputDebugPanel::ReleaseRenderTargets()
-{
-    m_rtv.Reset();
+    return cursor;
 }
 
 
@@ -948,64 +858,77 @@ void InputDebugPanel::ConfigureWidgets()
 
     SeedDefaultColumns (m_columnsModel);
 
-    m_emuLabel.SetText      (s_kpszEmuLabel);
-    m_hostLabel.SetText     (s_kpszHostLabel);
-    m_emuLabel.SetColorArgb (s_kLabelArgb);
-    m_hostLabel.SetColorArgb(s_kLabelArgb);
+    m_allCheck->SetChecked          (true);
+    m_emuKeyboardCheck->SetChecked  (true);
+    m_joystickCheck->SetChecked     (true);
+    m_paddleCheck->SetChecked       (true);
+    m_hostKeyboardCheck->SetChecked (true);
 
-    m_allCheck.SetLabel          (s_kpszAllLabel);
-    m_emuKeyboardCheck.SetLabel  (s_kpszKeyboardLabel);
-    m_joystickCheck.SetLabel     (s_kpszJoystickLabel);
-    m_paddleCheck.SetLabel       (s_kpszPaddleLabel);
-    m_hostKeyboardCheck.SetLabel (s_kpszKeyboardLabel);
-
-    m_allCheck.SetChecked          (true);
-    m_emuKeyboardCheck.SetChecked  (true);
-    m_joystickCheck.SetChecked     (true);
-    m_paddleCheck.SetChecked       (true);
-    m_hostKeyboardCheck.SetChecked (true);
-
-    m_pairLabel[0].SetText      (s_kpszPair0Label);
-    m_pairLabel[1].SetText      (s_kpszPair1Label);
-    m_pairLabel[0].SetColorArgb (s_kLabelArgb);
-    m_pairLabel[1].SetColorArgb (s_kLabelArgb);
-
-    m_pairView[0].SetItems ({ s_kpszPair0Items[0], s_kpszPair0Items[1] });
-    m_pairView[1].SetItems ({ s_kpszPair1Items[0], s_kpszPair1Items[1] });
+    m_pairView[0]->SetItems ({ s_kpszPair0Items[0], s_kpszPair0Items[1] });
+    m_pairView[1]->SetItems ({ s_kpszPair1Items[0], s_kpszPair1Items[1] });
     for (p = 0; p < 2; p++)
     {
-        m_pairView[(size_t) p].SetSelected (m_filter.pairIsJoystick[p] ? 0 : 1);
+        m_pairView[(size_t) p]->SetSelected (m_filter.pairIsJoystick[p] ? 0 : 1);
     }
 
-    m_pairView[0].SetSelect ([this] (int idx) { OnPairViewChanged (0, idx); });
-    m_pairView[1].SetSelect ([this] (int idx) { OnPairViewChanged (1, idx); });
+    m_pairView[0]->SetSelect ([this] (int idx) { OnPairViewChanged (0, idx); });
+    m_pairView[1]->SetSelect ([this] (int idx) { OnPairViewChanged (1, idx); });
 
-    m_pauseButton.SetLabel (s_kpszPauseLabel);
-    m_clearButton.SetLabel (s_kpszClearLabel);
-    m_copyButton.SetLabel  (s_kpszCopyLabel);
+    m_eventList->SetShowHeader    (true);
+    m_eventList->EnableStickyTail (true);
 
-    m_eventList.SetShowHeader    (true);
-    m_eventList.EnableStickyTail (true);
-    m_eventList.SetDpi           (m_dpi);
-    m_eventList.SetTheme         (m_theme);
-    m_columnMenu.SetDpi          (m_dpi);
-    m_columnMenu.SetTheme        (m_theme);
-    m_columnMenu.SetOnSelect     ([this] (int id)
+    // The list owns its own scroll / thumb / column-resize / row-select
+    // routing via OnMouse; these callbacks fold the semantic outcomes
+    // back into the panel's model (selection -> detail pane, header
+    // click -> sort, resize-drag end -> persisted column width).
+    m_eventList->SetOnSelectionChanged ([this] (int) { ApplyListSelection(); });
+    m_eventList->SetOnSortColumn       ([this] (int col) { SortByColumn (col); });
+    m_eventList->SetOnColumnResized    ([this] (int col, int widthPx)
+    {
+        int  widthDip = 0;
+
+        if (col >= 0 && col < kInputColumnCount)
+        {
+            // The drag width is physical px; savedWidth feeds widthDip,
+            // which ComputeColumnLayout re-scales by the DPI -- convert
+            // back so a 1px drag is a 1px resize (not 2px at 200%).
+            widthDip = std::max (s_kMinColWidthDip, MulDiv (widthPx, s_kColWidthBaseDpi, (int) m_dpi));
+            m_columnsModel[(size_t) col].savedWidth  = widthDip;
+            m_columnsModel[(size_t) col].userResized = true;
+            m_eventList->SetColumns (PlanVisibleColumns (m_columnsModel));
+        }
+    });
+
+    // The buttons and checkboxes own their own press / hover / toggle
+    // state through OnMouse; these callbacks fold each widget's outcome
+    // back into the panel model -- the buttons fire their action on a
+    // click-release, the checkboxes re-apply the filter (or the
+    // all-toggle) whenever their checked state changes.
+    m_pauseButton->SetOnClick           ([this] () { m_paused = !m_paused; UpdatePauseLabel(); });
+    m_clearButton->SetOnClick           ([this] () { ClearEvents(); });
+    m_copyButton->SetOnClick            ([this] () { CopyEventsToClipboard(); });
+    m_allCheck->SetOnChange             ([this] (bool) { ApplyAllToggle(); });
+    m_emuKeyboardCheck->SetOnChange     ([this] (bool) { OnFilterChanged(); });
+    m_joystickCheck->SetOnChange        ([this] (bool) { OnFilterChanged(); });
+    m_paddleCheck->SetOnChange          ([this] (bool) { OnFilterChanged(); });
+    m_hostKeyboardCheck->SetOnChange    ([this] (bool) { OnFilterChanged(); });
+
+    m_columnMenu.SetOnSelect ([this] (int id)
     {
         auto & columns = m_columnsModel;
         if (id >= 0 && id < kInputColumnCount)
         {
             columns[id].visible = !columns[id].visible;
-            m_eventList.SetColumns (PlanVisibleColumns (columns));
+            m_eventList->SetColumns (PlanVisibleColumns (columns));
             PushListViewRows();
         }
     });
 
-    m_tooltip.SetDpi (m_dpi);
-
     UpdatePairVisibility();
     SyncAllCheck();
-    RebuildFocusOrder();
+    m_focusMgr.Attach  (this);
+    m_focusMgr.SetTheme (m_theme);
+    m_focusMgr.Rebuild();
 }
 
 
@@ -1020,42 +943,13 @@ void InputDebugPanel::ConfigureWidgets()
 
 void InputDebugPanel::RecomputeLayout()
 {
-    int  topOffset = 0;
-    int  p         = 0;
+    int  titleHeight = CaptionHeightPx();
 
 
-    if (m_titleBar != nullptr)
-    {
-        topOffset = m_titleBar->GetTitleHeight();
-    }
-
-    m_emuLabel.SetDpi          (m_dpi);
-    m_hostLabel.SetDpi         (m_dpi);
-    m_allCheck.SetDpi          (m_dpi);
-    m_emuKeyboardCheck.SetDpi  (m_dpi);
-    m_joystickCheck.SetDpi     (m_dpi);
-    m_paddleCheck.SetDpi       (m_dpi);
-    m_hostKeyboardCheck.SetDpi (m_dpi);
-
-    for (p = 0; p < 2; p++)
-    {
-        m_pairLabel[(size_t) p].SetDpi (m_dpi);
-        m_pairView[(size_t) p].SetDpi  (m_dpi);
-    }
-
-    m_pauseButton.SetDpi      (m_dpi);
-    m_clearButton.SetDpi      (m_dpi);
-    m_copyButton.SetDpi       (m_dpi);
-    m_eventList.SetDpi        (m_dpi);
-    m_eventList.SetTheme      (m_theme);
-    m_columnMenu.SetDpi       (m_dpi);
-    m_columnMenu.SetTheme     (m_theme);
-    m_tooltip.SetDpi          (m_dpi);
-    m_tooltip.SetViewportSize (m_widthPx, m_heightPx);
 
     m_layout = ComputeInputDebugPanelLayout (m_widthPx,
                                              m_heightPx,
-                                             topOffset,
+                                             titleHeight,
                                              m_joystickVisible,
                                              m_paddleVisible,
                                              m_dpi);
@@ -1077,152 +971,30 @@ void InputDebugPanel::LayoutWidgets()
     int  p = 0;
 
 
-    m_emuLabel.SetRect          (m_layout.emuLabel);
-    m_hostLabel.SetRect         (m_layout.hostLabel);
-    m_allCheck.SetRect          (m_layout.allCheck);
-    m_emuKeyboardCheck.SetRect  (m_layout.emuKeyboardCheck);
-    m_joystickCheck.SetRect     (m_layout.joystickCheck);
-    m_paddleCheck.SetRect       (m_layout.paddleCheck);
-    m_hostKeyboardCheck.SetRect (m_layout.hostKeyboardCheck);
+    m_emuLabel->Layout          (m_layout.emuLabel,          m_scaler);
+    m_hostLabel->Layout         (m_layout.hostLabel,         m_scaler);
+    m_allCheck->Layout          (m_layout.allCheck,          m_scaler);
+    m_emuKeyboardCheck->Layout  (m_layout.emuKeyboardCheck,  m_scaler);
+    m_joystickCheck->Layout     (m_layout.joystickCheck,     m_scaler);
+    m_paddleCheck->Layout       (m_layout.paddleCheck,       m_scaler);
+    m_hostKeyboardCheck->Layout (m_layout.hostKeyboardCheck, m_scaler);
 
     for (p = 0; p < 2; p++)
     {
-        m_pairLabel[(size_t) p].SetRect (m_layout.pairLabel[p]);
-        m_pairView[(size_t) p].SetRect  (m_layout.pairDropdown[p]);
+        m_pairLabel[(size_t) p]->Layout (m_layout.pairLabel[p],    m_scaler);
+        m_pairView[(size_t) p]->Layout  (m_layout.pairDropdown[p], m_scaler);
     }
 
-    m_pauseButton.Layout   (m_layout.pauseButton);
-    m_clearButton.Layout   (m_layout.clearButton);
-    m_copyButton.Layout    (m_layout.copyButton);
-    m_eventList.SetRect    (m_layout.listView);
-    m_eventList.SetColumns (PlanVisibleColumns (m_columnsModel));
-}
+    m_pauseButton->Layout (m_layout.pauseButton, m_scaler);
+    m_clearButton->Layout (m_layout.clearButton, m_scaler);
+    m_copyButton->Layout  (m_layout.copyButton,  m_scaler);
 
+    m_eventList->Layout     (m_layout.listView, m_scaler);
+    m_eventList->SetColumns (PlanVisibleColumns (m_columnsModel));
 
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  Render
-//
-////////////////////////////////////////////////////////////////////////////////
-
-HRESULT InputDebugPanel::Render()
-{
-    HRESULT                                  hr            = S_OK;
-    float                                    clearColor[4] = { 0.08f, 0.08f, 0.08f, 1.0f };
-    Microsoft::WRL::ComPtr<ID3D11Texture2D> backBuffer;
-    Microsoft::WRL::ComPtr<IDXGISurface>    surface;
-    ChromeVisualState                       visual        = {};
-    D3D11_VIEWPORT                          vp            = {};
-
-
-
-    BAIL_OUT_IF (m_context == nullptr || m_rtv == nullptr || m_swapChain == nullptr, S_OK);
-
-    DrainAndProject();
-
-    if (!m_text.IsTargetBound())
-    {
-        hr = m_swapChain->GetBuffer (0, IID_PPV_ARGS (&backBuffer));
-        CHRA (hr);
-
-        hr = backBuffer.As (&surface);
-        CHRA (hr);
-
-        hr = m_text.BindBackBuffer (surface.Get(), m_dpi, m_dpi);
-        CHRA (hr);
-    }
-
-    if (m_theme != nullptr)
-    {
-        ArgbToFloat4 (m_theme->titleBarBottomArgb, clearColor);
-        clearColor[3] = 1.0f;
-    }
-
-    vp.TopLeftX = 0.0f;
-    vp.TopLeftY = 0.0f;
-    vp.Width    = (float) m_widthPx;
-    vp.Height   = (float) m_heightPx;
-    vp.MinDepth = 0.0f;
-    vp.MaxDepth = 1.0f;
-
-    m_context->RSSetViewports        (1, &vp);
-    m_context->OMSetRenderTargets    (1, m_rtv.GetAddressOf(), nullptr);
-    m_context->ClearRenderTargetView (m_rtv.Get(), clearColor);
-
-    hr = m_painter.Begin (m_widthPx, m_heightPx);
-    CHRA (hr);
-
-    hr = m_text.BeginDrawOffscreen();
-    CHRA (hr);
-
-    visual.dpi = m_dpi;
-    if (m_titleBar != nullptr && m_theme != nullptr)
-    {
-        m_titleBar->Paint (m_painter, m_text, visual, *m_theme);
-    }
-
-    m_emuLabel.Paint  (m_painter, m_text);
-    m_hostLabel.Paint (m_painter, m_text);
-    m_allCheck.Paint          (m_painter, m_text);
-    m_emuKeyboardCheck.Paint  (m_painter, m_text);
-    if (m_joystickVisible) { m_joystickCheck.Paint (m_painter, m_text); }
-    if (m_paddleVisible)   { m_paddleCheck.Paint   (m_painter, m_text); }
-    m_hostKeyboardCheck.Paint (m_painter, m_text);
-    m_pairLabel[0].Paint (m_painter, m_text);
-    m_pairLabel[1].Paint (m_painter, m_text);
-    m_pairView[0].PaintBase (m_painter, m_text);
-    m_pairView[1].PaintBase (m_painter, m_text);
-    if (m_theme != nullptr)
-    {
-        m_pauseButton.Paint (m_painter, m_text, *m_theme);
-        m_clearButton.Paint (m_painter, m_text, *m_theme);
-        m_copyButton.Paint  (m_painter, m_text, *m_theme);
-    }
-    m_eventList.Paint (m_painter, m_text);
-    m_pairView[0].PaintMenu (m_painter, m_text);
-    m_pairView[1].PaintMenu (m_painter, m_text);
-    m_tooltip.Tick (NowMs());
-
-    if (m_tooltip.IsVisible() || m_columnMenu.IsVisible())
-    {
-        hr = m_painter.End (m_rtv.Get());
-        CHRA (hr);
-        hr = m_text.EndDrawComposite();
-        CHRA (hr);
-        hr = m_painter.Begin (m_widthPx, m_heightPx);
-        CHRA (hr);
-        hr = m_text.BeginDrawOffscreen();
-        CHRA (hr);
-    }
-
-    m_tooltip.Paint (m_painter, m_text);
-    m_columnMenu.Paint (m_painter, m_text);
-
-    hr = m_painter.End (m_rtv.Get());
-    CHRA (hr);
-
-    hr = m_text.EndDrawComposite();
-    CHRA (hr);
-
-    // If the D2D target was lost partway through this frame (the
-    // swap-chain buffers were invalidated by a live resize), EndDraw
-    // unbinds the target and the frame we just built is incomplete --
-    // some text was flushed before the loss, the rest was dropped.
-    // Presenting it would flash partially-painted content (blank rows,
-    // missing buttons). Skip Present so the last good frame stays on
-    // screen; the next Render rebinds (via the !IsTargetBound() path
-    // above) and repaints cleanly.
-    if (m_text.IsTargetBound())
-    {
-        hr = m_swapChain->Present (1, 0);
-        CHRA (hr);
-    }
-
-Error:
-    return hr;
+    // The column menu + tooltip are deferred popups that derive their DPI
+    // from their popup host at show time, so no explicit SetDpi here.
+    m_tooltip.SetViewportSize (m_widthPx, m_heightPx);
 }
 
 
@@ -1295,7 +1067,7 @@ void InputDebugPanel::DrainAndProject()
         // A reset (Ctrl+R / power-cycle) was requested from the CPU
         // thread. Apply the staged Uptime anchor and clear the event
         // list HERE, on the render thread, so m_events, m_filteredIndices
-        // and the ListView rows are only ever touched by one thread.
+        // and the DxuiListView rows are only ever touched by one thread.
         ticks = m_pendingAnchorTicks.load (std::memory_order_acquire);
 
         m_uptimeAnchor = std::chrono::steady_clock::time_point (std::chrono::steady_clock::duration (ticks));
@@ -1313,7 +1085,7 @@ void InputDebugPanel::DrainAndProject()
     {
         for (const InputEvent & e : m_pendingHostEvents)
         {
-            ProjectOne (e, m_events, m_uptimeAnchor);
+            ProjectOne (e, m_events, m_uptimeAnchor, m_filter);
         }
         m_pendingHostEvents.clear();
     }
@@ -1323,7 +1095,7 @@ void InputDebugPanel::DrainAndProject()
     {
         lostEvent = MakeStampedEvent (InputEventCategory::System, InputEventType::EventsLost);
         lostEvent.payload.lost.count = lost;
-        ProjectOne (lostEvent, m_events, m_uptimeAnchor);
+        ProjectOne (lostEvent, m_events, m_uptimeAnchor, m_filter);
     }
 
     do
@@ -1331,7 +1103,7 @@ void InputDebugPanel::DrainAndProject()
         n = m_ring.Drain (batch.data(), (uint32_t) batch.size());
         for (size_t i = 0; i < n; i++)
         {
-            ProjectOne (batch[i], m_events, m_uptimeAnchor);
+            ProjectOne (batch[i], m_events, m_uptimeAnchor, m_filter);
         }
     }
     while (n == batch.size());
@@ -1340,7 +1112,7 @@ void InputDebugPanel::DrainAndProject()
 
     // Evict in batches at a high-water mark rather than trimming a single
     // row every frame. A per-frame pop_front would shift every deque index
-    // and force an O(n) rebuild of the filtered view and ListView rows on
+    // and force an O(n) rebuild of the filtered view and DxuiListView rows on
     // each frame; batching keeps the steady-state streaming path append-only.
     if (m_events.size() > s_kDisplayDequeHighWater)
     {
@@ -1415,17 +1187,17 @@ void InputDebugPanel::RebuildFilteredIndices()
 
 void InputDebugPanel::AppendNewEventRows (size_t startIndex)
 {
-    std::vector<std::vector<ListView::Cell>>  rows;
+    std::vector<std::vector<DxuiListView::Cell>>  rows;
     size_t                                    i = 0;
 
 
     // Caller guarantees no eviction happened this frame, so deque indices in
     // [startIndex, size) are stable and can be appended to m_filteredIndices
-    // and the ListView without disturbing the existing rows.
+    // and the DxuiListView without disturbing the existing rows.
     rows.reserve (m_events.size() - startIndex);
     for (i = startIndex; i < m_events.size(); i++)
     {
-        std::vector<ListView::Cell>  row;
+        std::vector<DxuiListView::Cell>  row;
 
         if (!MatchesFilter (m_events[i], m_filter))
         {
@@ -1443,7 +1215,8 @@ void InputDebugPanel::AppendNewEventRows (size_t startIndex)
 
     if (!rows.empty())
     {
-        m_eventList.AppendRows (std::move (rows));
+        m_eventList->AppendRows (std::move (rows));
+        m_eventList->UpdateAutoFitFromRows();
     }
 }
 
@@ -1459,14 +1232,14 @@ void InputDebugPanel::AppendNewEventRows (size_t startIndex)
 
 void InputDebugPanel::PushListViewRows()
 {
-    std::vector<std::vector<ListView::Cell>>  rows;
-    int                                       oldSelected = m_eventList.GetSelectedRow();
+    std::vector<std::vector<DxuiListView::Cell>>  rows;
+    int                                       oldSelected = m_eventList->GetSelectedRow();
 
 
     rows.reserve (m_filteredIndices.size());
     for (size_t eventIndex : m_filteredIndices)
     {
-        std::vector<ListView::Cell>  row;
+        std::vector<DxuiListView::Cell>  row;
 
         row.resize (kInputColumnCount);
         for (int col = 0; col < kInputColumnCount; col++)
@@ -1476,10 +1249,11 @@ void InputDebugPanel::PushListViewRows()
         rows.push_back (std::move (row));
     }
 
-    m_eventList.SetRows (std::move (rows));
-    if (oldSelected >= 0 && m_eventList.GetRowCount() > 0)
+    m_eventList->SetRows (std::move (rows));
+    m_eventList->UpdateAutoFitFromRows();
+    if (oldSelected >= 0 && m_eventList->GetRowCount() > 0)
     {
-        m_eventList.SetSelectedRow (oldSelected);
+        m_eventList->SetSelectedRow (oldSelected);
     }
 }
 
@@ -1505,6 +1279,7 @@ void InputDebugPanel::ClearEvents()
     {
     }
     m_droppedSinceLastDrain.store (0, std::memory_order_relaxed);
+    m_eventList->ResetAutoFit();
     PushListViewRows();
 }
 
@@ -1536,10 +1311,10 @@ void InputDebugPanel::RequestResetAnchor (std::chrono::steady_clock::time_point 
 
 void InputDebugPanel::OnFilterChanged()
 {
-    m_filter.showEmuKeyboard  = m_emuKeyboardCheck.Checked();
-    m_filter.showJoystick     = m_joystickCheck.Checked();
-    m_filter.showPaddle       = m_paddleCheck.Checked();
-    m_filter.showHostKeyboard = m_hostKeyboardCheck.Checked();
+    m_filter.showEmuKeyboard  = m_emuKeyboardCheck->Checked();
+    m_filter.showJoystick     = m_joystickCheck->Checked();
+    m_filter.showPaddle       = m_paddleCheck->Checked();
+    m_filter.showHostKeyboard = m_hostKeyboardCheck->Checked();
 
     SyncAllCheck();
     RebuildFilteredIndices();
@@ -1567,7 +1342,7 @@ void InputDebugPanel::OnPairViewChanged (int pair, int index)
 
     UpdatePairVisibility();
     SyncAllCheck();
-    RebuildFocusOrder();
+    m_focusMgr.Rebuild();
     RecomputeLayout();
     RebuildFilteredIndices();
     PushListViewRows();
@@ -1601,13 +1376,13 @@ void InputDebugPanel::UpdatePairVisibility()
 
 void InputDebugPanel::SyncAllCheck()
 {
-    bool  all = m_emuKeyboardCheck.Checked();
+    bool  all = m_emuKeyboardCheck->Checked();
 
 
-    if (m_joystickVisible) { all = all && m_joystickCheck.Checked(); }
-    if (m_paddleVisible)   { all = all && m_paddleCheck.Checked(); }
+    if (m_joystickVisible) { all = all && m_joystickCheck->Checked(); }
+    if (m_paddleVisible)   { all = all && m_paddleCheck->Checked(); }
 
-    m_allCheck.SetChecked (all);
+    m_allCheck->SetChecked (all);
 }
 
 
@@ -1622,12 +1397,12 @@ void InputDebugPanel::SyncAllCheck()
 
 void InputDebugPanel::ApplyAllToggle()
 {
-    bool  newState = m_allCheck.Checked();
+    bool  newState = m_allCheck->Checked();
 
 
-    m_emuKeyboardCheck.SetChecked (newState);
-    if (m_joystickVisible) { m_joystickCheck.SetChecked (newState); }
-    if (m_paddleVisible)   { m_paddleCheck.SetChecked (newState); }
+    m_emuKeyboardCheck->SetChecked (newState);
+    if (m_joystickVisible) { m_joystickCheck->SetChecked (newState); }
+    if (m_paddleVisible)   { m_paddleCheck->SetChecked (newState); }
 
     OnFilterChanged();
 }
@@ -1644,7 +1419,7 @@ void InputDebugPanel::ApplyAllToggle()
 
 void InputDebugPanel::UpdatePauseLabel()
 {
-    m_pauseButton.SetLabel (m_paused ? s_kpszResumeLabel : s_kpszPauseLabel);
+    m_pauseButton->SetLabel (m_paused ? s_kpszResumeLabel : s_kpszPauseLabel);
 }
 
 
@@ -1677,7 +1452,7 @@ void InputDebugPanel::CopyEventsToClipboard()
         return;
     }
 
-    if (!OpenClipboard (m_hwnd))
+    if (!OpenClipboard (Hwnd()))
     {
         return;
     }
@@ -1778,7 +1553,7 @@ void InputDebugPanel::ApplySort()
     }
 
     std::stable_sort (m_filteredIndices.begin(), m_filteredIndices.end(), compareText);
-    m_eventList.SetSortIndicator (m_sortColumn, m_sortDescending);
+    m_eventList->SetSortIndicator (m_sortColumn, m_sortDescending);
 }
 
 
@@ -1793,7 +1568,7 @@ void InputDebugPanel::ApplySort()
 
 void InputDebugPanel::ApplyListSelection()
 {
-    int  selected = m_eventList.GetSelectedRow();
+    int  selected = m_eventList->GetSelectedRow();
 
 
     if (selected >= 0 && selected < (int) m_filteredIndices.size())
@@ -1823,139 +1598,27 @@ void InputDebugPanel::OnListSelectionMoved()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  OnLButtonDown
+//  ForwardMouseToList
+//
+//  Translates a client-px mouse event into the event list's widget-local
+//  space and dispatches it through DxuiListView::OnMouse, which owns all
+//  scroll / thumb / column-resize / row-select routing and raises the
+//  panel's selection / sort / column-resize callbacks. Returns true when
+//  the list consumed the event.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void InputDebugPanel::OnLButtonDown (int x, int y)
+bool InputDebugPanel::ForwardMouseToList (DxuiMouseEventKind kind, DxuiMouseButton button, int x, int y, float wheelDelta)
 {
-    if (m_pairView[0].OnLButtonDown (x, y))
-    {
-        if (!m_pairView[0].IsOpen()) { SetFocusToStop (InputFocusStop::Pair0Dropdown); }
-        return;
-    }
-    if (m_pairView[1].OnLButtonDown (x, y))
-    {
-        if (!m_pairView[1].IsOpen()) { SetFocusToStop (InputFocusStop::Pair1Dropdown); }
-        return;
-    }
+    DxuiMouseEvent  ev;
 
-    if (m_pauseButton.HitTest (x, y))
-    {
-        m_pauseButton.SetMouse (x, y, true);
-        SetFocusToStop (InputFocusStop::PauseButton);
-        return;
-    }
 
-    if (m_clearButton.HitTest (x, y))
-    {
-        m_clearButton.SetMouse (x, y, true);
-        SetFocusToStop (InputFocusStop::ClearButton);
-        return;
-    }
+    ev.kind        = kind;
+    ev.button      = button;
+    ev.positionDip = { x - m_layout.listView.left, y - m_layout.listView.top };
+    ev.wheelDelta  = wheelDelta;
 
-    if (m_copyButton.HitTest (x, y))
-    {
-        m_copyButton.SetMouse (x, y, true);
-        SetFocusToStop (InputFocusStop::CopyButton);
-        return;
-    }
-
-    if (m_allCheck.HitTest (x, y))
-    {
-        m_allCheck.OnLButtonDown (x, y);
-        SetFocusToStop (InputFocusStop::AllCheck);
-        return;
-    }
-
-    if (m_emuKeyboardCheck.HitTest (x, y))
-    {
-        m_emuKeyboardCheck.OnLButtonDown (x, y);
-        SetFocusToStop (InputFocusStop::EmuKeyboardCheck);
-        return;
-    }
-
-    if (m_joystickVisible && m_joystickCheck.HitTest (x, y))
-    {
-        m_joystickCheck.OnLButtonDown (x, y);
-        SetFocusToStop (InputFocusStop::JoystickCheck);
-        return;
-    }
-
-    if (m_paddleVisible && m_paddleCheck.HitTest (x, y))
-    {
-        m_paddleCheck.OnLButtonDown (x, y);
-        SetFocusToStop (InputFocusStop::PaddleCheck);
-        return;
-    }
-
-    if (m_hostKeyboardCheck.HitTest (x, y))
-    {
-        m_hostKeyboardCheck.OnLButtonDown (x, y);
-        SetFocusToStop (InputFocusStop::HostKeyboardCheck);
-        return;
-    }
-
-    if ((x >= m_layout.listView.left && x < m_layout.listView.right && y >= m_layout.listView.top && y < m_layout.listView.bottom))
-    {
-        int  lx        = x - m_layout.listView.left;
-        int  ly        = y - m_layout.listView.top;
-        int  resizeCol = m_eventList.HitTestColumnResize (lx, ly, 4);
-        int  headerCol = m_eventList.HitTestHeaderColumn (lx, ly);
-        int  row       = -1;
-
-        if (m_eventList.HitTestScrollbarArrowUp (lx, ly))
-        {
-            m_eventList.ScrollByRows (-1);
-            SetFocusToStop (InputFocusStop::EventList);
-            return;
-        }
-
-        if (m_eventList.HitTestScrollbarArrowDown (lx, ly))
-        {
-            m_eventList.ScrollByRows (1);
-            SetFocusToStop (InputFocusStop::EventList);
-            return;
-        }
-
-        if (m_eventList.HitTestScrollbarThumb (lx, ly))
-        {
-            m_eventList.BeginThumbDrag (ly);
-            SetCapture (m_hwnd);
-            SetFocusToStop (InputFocusStop::EventList);
-            return;
-        }
-
-        if (m_eventList.HitTestScrollbarTrack (lx, ly))
-        {
-            m_eventList.PageFromTrackClick (ly);
-            SetFocusToStop (InputFocusStop::EventList);
-            return;
-        }
-
-        if (resizeCol >= 0)
-        {
-            m_resizeColumn       = resizeCol;
-            m_resizeStartXPx     = x;
-            m_resizeStartWidthPx = m_eventList.GetColumnEffectiveWidthPx ((size_t) resizeCol);
-            SetFocusToStop (InputFocusStop::EventList);
-            return;
-        }
-
-        if (headerCol >= 0)
-        {
-            SortByColumn (headerCol);
-            SetFocusToStop (InputFocusStop::EventList);
-            return;
-        }
-
-        row = m_eventList.HitTestRow (lx, ly);
-        if (row >= 0)
-        {
-            m_eventList.SetSelectedRow (row);
-        }
-        SetFocusToStop (InputFocusStop::EventList);
-    }
+    return m_eventList->OnMouse (ev);
 }
 
 
@@ -1964,130 +1627,187 @@ void InputDebugPanel::OnLButtonDown (int x, int y)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  OnLButtonUp
+//  OnMouse
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void InputDebugPanel::OnLButtonUp (int x, int y)
+bool InputDebugPanel::OnMouse (const DxuiMouseEvent & ev)
 {
-    m_resizeColumn = -1;
+    int  x = ev.positionDip.x;
+    int  y = ev.positionDip.y;
 
-    if (m_eventList.IsThumbDragging())
+
+
+    switch (ev.kind)
     {
-        m_eventList.EndThumbDrag();
-        ReleaseCapture();
-        return;
+        case DxuiMouseEventKind::Move:
+            // While the list owns a drag (scrollbar thumb / column resize),
+            // route moves to it. DxuiListView::OnMouse treats a non-Left
+            // move while interacting as a release (its missed-button-up
+            // safety net), so pass Left explicitly.
+            if (m_eventList->IsInteracting())
+            {
+                (void) ForwardMouseToList (DxuiMouseEventKind::Move, DxuiMouseButton::Left, x, y, 0.0f);
+                return true;
+            }
+
+            m_pairView[0]->SetMouseHover (x, y);
+            m_pairView[1]->SetMouseHover (x, y);
+            UpdateTooltip (x, y);
+            return true;
+
+        case DxuiMouseEventKind::Down:
+            if (ev.button == DxuiMouseButton::Left)
+            {
+                // The client-px widgets share the panel's coordinate space
+                // (ev.positionDip == client px), so route the event straight
+                // to each widget's OnMouse; the widget hit-tests itself and
+                // reports whether it consumed the press.
+                if (m_pairView[0]->OnMouse (ev))
+                {
+                    if (!m_pairView[0]->IsOpen()) { m_focusMgr.SetFocused (m_pairView[0]); }
+                    return true;
+                }
+                if (m_pairView[1]->OnMouse (ev))
+                {
+                    if (!m_pairView[1]->IsOpen()) { m_focusMgr.SetFocused (m_pairView[1]); }
+                    return true;
+                }
+
+                if (m_pauseButton->OnMouse (ev))
+                {
+                    m_focusMgr.SetFocused (m_pauseButton);
+                    return true;
+                }
+
+                if (m_clearButton->OnMouse (ev))
+                {
+                    m_focusMgr.SetFocused (m_clearButton);
+                    return true;
+                }
+
+                if (m_copyButton->OnMouse (ev))
+                {
+                    m_focusMgr.SetFocused (m_copyButton);
+                    return true;
+                }
+
+                if (m_allCheck->OnMouse (ev))
+                {
+                    m_focusMgr.SetFocused (m_allCheck);
+                    return true;
+                }
+
+                if (m_emuKeyboardCheck->OnMouse (ev))
+                {
+                    m_focusMgr.SetFocused (m_emuKeyboardCheck);
+                    return true;
+                }
+
+                if (m_joystickVisible && m_joystickCheck->OnMouse (ev))
+                {
+                    m_focusMgr.SetFocused (m_joystickCheck);
+                    return true;
+                }
+
+                if (m_paddleVisible && m_paddleCheck->OnMouse (ev))
+                {
+                    m_focusMgr.SetFocused (m_paddleCheck);
+                    return true;
+                }
+
+                if (m_hostKeyboardCheck->OnMouse (ev))
+                {
+                    m_focusMgr.SetFocused (m_hostKeyboardCheck);
+                    return true;
+                }
+
+                if ((x >= m_layout.listView.left && x < m_layout.listView.right && y >= m_layout.listView.top && y < m_layout.listView.bottom))
+                {
+                    // The list owns all in-list routing (scrollbar arrows /
+                    // thumb / track, column resize, header-click sort, row
+                    // select) via OnMouse and reports outcomes through the
+                    // callbacks wired at setup. OnLButtonDown holds the
+                    // Win32 capture for the full press, so any drag the
+                    // list starts keeps receiving moves after the cursor
+                    // leaves the client.
+                    (void) ForwardMouseToList (DxuiMouseEventKind::Down, DxuiMouseButton::Left, x, y, 0.0f);
+                    m_focusMgr.SetFocused (m_eventList);
+                }
+
+                return true;
+            }
+
+            if (ev.button == DxuiMouseButton::Right)
+            {
+                if (m_eventList->HitTestHeaderColumn (x - m_layout.listView.left, y - m_layout.listView.top) >= 0)
+                {
+                    ShowColumnMenu (x, y);
+                }
+                return true;
+            }
+
+            return false;
+
+        case DxuiMouseEventKind::Up:
+            if (ev.button == DxuiMouseButton::Left)
+            {
+                bool  wasInteracting = m_eventList->IsInteracting();
+
+
+
+                // Finish any list drag (scrollbar thumb / column resize) the
+                // list started on button-down. The pointer may have left the
+                // list bounds mid-drag, so forward the release
+                // unconditionally. OnLButtonUp releases the Win32 capture
+                // before routing this release.
+                if (wasInteracting)
+                {
+                    (void) ForwardMouseToList (DxuiMouseEventKind::Up, DxuiMouseButton::Left, x, y, 0.0f);
+                    return true;
+                }
+
+                if (m_pairView[0]->OnMouse (ev)) { return true; }
+                if (m_pairView[1]->OnMouse (ev)) { return true; }
+
+                // Route the release to each button / checkbox: the widget
+                // clears its own press visual and, on a click-release over
+                // itself, fires the callback wired at setup (button click /
+                // checkbox change), which folds the outcome back into the
+                // panel model.
+                m_pauseButton->OnMouse (ev);
+                m_clearButton->OnMouse (ev);
+                m_copyButton->OnMouse (ev);
+
+                m_allCheck->OnMouse (ev);
+                m_emuKeyboardCheck->OnMouse (ev);
+                if (m_joystickVisible) { m_joystickCheck->OnMouse (ev); }
+                if (m_paddleVisible)   { m_paddleCheck->OnMouse (ev); }
+                m_hostKeyboardCheck->OnMouse (ev);
+
+                // A plain release inside the list finalizes the row activate;
+                // the list already selected on button-down (raising
+                // onSelectionChanged).
+                if ((x >= m_layout.listView.left && x < m_layout.listView.right && y >= m_layout.listView.top && y < m_layout.listView.bottom))
+                {
+                    (void) ForwardMouseToList (DxuiMouseEventKind::Up, DxuiMouseButton::Left, x, y, 0.0f);
+                }
+
+                return true;
+            }
+
+            return false;
+
+        case DxuiMouseEventKind::Wheel:
+            // Forward to the list, which scrolls only when the pointer is
+            // over it (standard control behavior) and converts notches back
+            // to raw WHEEL_DELTA units internally.
+            (void) ForwardMouseToList (DxuiMouseEventKind::Wheel, DxuiMouseButton::None, x, y, ev.wheelDelta);
+            return true;
+
+        default:
+            return false;
     }
-
-    if (m_pairView[0].OnLButtonUp (x, y)) { return; }
-    if (m_pairView[1].OnLButtonUp (x, y)) { return; }
-
-    if (m_pauseButton.HitTest (x, y))
-    {
-        m_paused = !m_paused;
-        UpdatePauseLabel();
-    }
-    m_pauseButton.SetMouse (x, y, false);
-
-    if (m_clearButton.HitTest (x, y))
-    {
-        ClearEvents();
-    }
-    m_clearButton.SetMouse (x, y, false);
-
-    if (m_copyButton.HitTest (x, y))
-    {
-        CopyEventsToClipboard();
-    }
-    m_copyButton.SetMouse (x, y, false);
-
-    if (m_allCheck.OnLButtonUp (x, y))          { ApplyAllToggle(); }
-    if (m_emuKeyboardCheck.OnLButtonUp (x, y))  { OnFilterChanged(); }
-    if (m_joystickVisible && m_joystickCheck.OnLButtonUp (x, y)) { OnFilterChanged(); }
-    if (m_paddleVisible   && m_paddleCheck.OnLButtonUp (x, y))   { OnFilterChanged(); }
-    if (m_hostKeyboardCheck.OnLButtonUp (x, y)) { OnFilterChanged(); }
-
-    if ((x >= m_layout.listView.left && x < m_layout.listView.right && y >= m_layout.listView.top && y < m_layout.listView.bottom))
-    {
-        int  row = m_eventList.HitTestRow (x - m_layout.listView.left, y - m_layout.listView.top);
-        if (row >= 0)
-        {
-            m_eventList.SetSelectedRow (row);
-            OnListSelectionMoved();
-        }
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  OnRButtonDown
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void InputDebugPanel::OnRButtonDown (int x, int y)
-{
-    if (m_eventList.HitTestHeaderColumn (x - m_layout.listView.left, y - m_layout.listView.top) >= 0)
-    {
-        ShowColumnMenu (x, y);
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  OnMouseMove
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void InputDebugPanel::OnMouseMove (int x, int y)
-{
-    int  newWidth = 0;
-
-
-    if (m_eventList.IsThumbDragging())
-    {
-        m_eventList.UpdateThumbDrag (y - m_layout.listView.top);
-        return;
-    }
-
-    if (m_resizeColumn >= 0)
-    {
-        newWidth = std::max (24, m_resizeStartWidthPx + (x - m_resizeStartXPx));
-        m_columnsModel[(size_t) m_resizeColumn].savedWidth  = newWidth;
-        m_columnsModel[(size_t) m_resizeColumn].userResized = true;
-        m_eventList.SetColumns (PlanVisibleColumns (m_columnsModel));
-        return;
-    }
-
-    m_pairView[0].SetMouseHover (x, y);
-    m_pairView[1].SetMouseHover (x, y);
-
-    UpdateTooltip (x, y);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  OnMouseWheel
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void InputDebugPanel::OnMouseWheel (int x, int y, int delta)
-{
-    UNREFERENCED_PARAMETER (x);
-    UNREFERENCED_PARAMETER (y);
-
-    m_eventList.ScrollByWheelDelta (delta);
 }
 
 
@@ -2100,89 +1820,51 @@ void InputDebugPanel::OnMouseWheel (int x, int y, int delta)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool InputDebugPanel::OnKey (WPARAM vk)
+bool InputDebugPanel::OnKey (const DxuiKeyEvent & ev)
 {
-    bool            handled = true;
-    InputFocusStop  focused = InputFocusStop::EventList;
-    bool            hasFocus = (m_focusIndex >= 0 && m_focusIndex < (int) m_focusStops.size());
+    WPARAM          vk       = (WPARAM) ev.vk;
+    bool            handled  = true;
+    IDxuiControl *  focused  = nullptr;
 
 
-    if (hasFocus)
+    // Char events carry no panel semantics (no text entry surface); only
+    // key-down drives focus traversal, activation and list navigation.
+    if (ev.kind != DxuiKeyEventKind::Down)
     {
-        focused = m_focusStops[(size_t) m_focusIndex];
+        return false;
+    }
 
-        if (focused == InputFocusStop::Pair0Dropdown && m_pairView[0].HandleKey (vk)) { return true; }
-        if (focused == InputFocusStop::Pair1Dropdown && m_pairView[1].HandleKey (vk)) { return true; }
+    // Tab / Shift+Tab: automatic focus traversal over the panel's visible
+    // focusables (the framework tree walk) -- no bespoke per-stop list.
+    if (vk == VK_TAB)
+    {
+        m_focusMgr.HandleKey ((GetKeyState (VK_SHIFT) & 0x8000) ? DxuiFocusKey::ShiftTab : DxuiFocusKey::Tab);
+        return true;
+    }
+
+    // Activation / value keys go to the focused control first: a focused
+    // checkbox / button self-activates on Space / Enter (firing its wired
+    // callback) and a focused dropdown steers its open popup.
+    focused = m_focusMgr.Focused();
+    if (focused != nullptr && focused->OnKey (ev))
+    {
+        return true;
     }
 
     switch (vk)
     {
-        case VK_TAB:
-            FocusCycle ((GetKeyState (VK_SHIFT) & 0x8000) ? -1 : 1);
-            break;
-
-        case VK_SPACE:
-            if (!hasFocus)
-            {
-                break;
-            }
-            switch (focused)
-            {
-                case InputFocusStop::AllCheck:
-                    m_allCheck.SetChecked (!m_allCheck.Checked());
-                    ApplyAllToggle();
-                    break;
-
-                case InputFocusStop::EmuKeyboardCheck:
-                    m_emuKeyboardCheck.SetChecked (!m_emuKeyboardCheck.Checked());
-                    OnFilterChanged();
-                    break;
-
-                case InputFocusStop::JoystickCheck:
-                    m_joystickCheck.SetChecked (!m_joystickCheck.Checked());
-                    OnFilterChanged();
-                    break;
-
-                case InputFocusStop::PaddleCheck:
-                    m_paddleCheck.SetChecked (!m_paddleCheck.Checked());
-                    OnFilterChanged();
-                    break;
-
-                case InputFocusStop::HostKeyboardCheck:
-                    m_hostKeyboardCheck.SetChecked (!m_hostKeyboardCheck.Checked());
-                    OnFilterChanged();
-                    break;
-
-                case InputFocusStop::PauseButton:
-                    m_paused = !m_paused;
-                    UpdatePauseLabel();
-                    break;
-
-                case InputFocusStop::ClearButton:
-                    ClearEvents();
-                    break;
-
-                case InputFocusStop::CopyButton:
-                    CopyEventsToClipboard();
-                    break;
-
-                default:
-                    break;
-            }
-            break;
-
         case VK_UP:
         case VK_DOWN:
         case VK_PRIOR:
         case VK_NEXT:
         case VK_HOME:
         case VK_END:
-            if (vk == VK_UP) { m_eventList.SetSelectedRow (m_eventList.GetSelectedRow() - 1); }
-            else if (vk == VK_DOWN) { m_eventList.SetSelectedRow (m_eventList.GetSelectedRow() + 1); }
-            else if (vk == VK_PRIOR) { m_eventList.ScrollByRows (-m_eventList.GetVisibleRowCapacity()); }
-            else if (vk == VK_NEXT) { m_eventList.ScrollByRows (m_eventList.GetVisibleRowCapacity()); }
-            else if (vk == VK_HOME) { m_eventList.SetSelectedRow (0); }
-            else if (vk == VK_END) { m_eventList.SetSelectedRow (m_eventList.GetRowCount() - 1); }
+            if (vk == VK_UP) { m_eventList->SetSelectedRow (m_eventList->GetSelectedRow() - 1); }
+            else if (vk == VK_DOWN) { m_eventList->SetSelectedRow (m_eventList->GetSelectedRow() + 1); }
+            else if (vk == VK_PRIOR) { m_eventList->ScrollByRows (-m_eventList->GetVisibleRowCapacity()); }
+            else if (vk == VK_NEXT) { m_eventList->ScrollByRows (m_eventList->GetVisibleRowCapacity()); }
+            else if (vk == VK_HOME) { m_eventList->SetSelectedRow (0); }
+            else if (vk == VK_END) { m_eventList->SetSelectedRow (m_eventList->GetRowCount() - 1); }
             OnListSelectionMoved();
             break;
 
@@ -2200,121 +1882,40 @@ bool InputDebugPanel::OnKey (WPARAM vk)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  OnChar
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool InputDebugPanel::OnChar (wchar_t ch)
-{
-    UNREFERENCED_PARAMETER (ch);
-    return false;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  Accept
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void InputDebugPanel::Accept()
-{
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  Cancel
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void InputDebugPanel::Cancel()
-{
-    Hide();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  IsContentActive
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool InputDebugPanel::IsContentActive() const
-{
-    return true;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  OnSetCursor
-//
-////////////////////////////////////////////////////////////////////////////////
-
-HCURSOR InputDebugPanel::OnSetCursor (int x, int y)
-{
-    int  lx = x - m_layout.listView.left;
-    int  ly = y - m_layout.listView.top;
-
-
-    if (m_resizeColumn >= 0 || m_eventList.HitTestColumnResize (lx, ly, 4) >= 0)
-    {
-        return LoadCursor (nullptr, IDC_SIZEWE);
-    }
-
-    return nullptr;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  UpdateTooltip
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void InputDebugPanel::UpdateTooltip (int x, int y)
 {
-    LPCWSTR  text = nullptr;
+    LPCWSTR  text   = nullptr;
+    RECT     anchor = {};
 
 
-    if (m_allCheck.HitTest (x, y))                          { text = s_kpszAllTip; }
-    else if (m_emuKeyboardCheck.HitTest (x, y))             { text = s_kpszEmuKbdTip; }
-    else if (m_joystickVisible && m_joystickCheck.HitTest (x, y)) { text = s_kpszJoystickTip; }
-    else if (m_paddleVisible && m_paddleCheck.HitTest (x, y))     { text = s_kpszPaddleTip; }
-    else if (m_hostKeyboardCheck.HitTest (x, y))            { text = s_kpszHostKbdTip; }
+    if (m_allCheck->HitTest (x, y))                               { text = s_kpszAllTip;      anchor = m_allCheck->Bounds();         }
+    else if (m_emuKeyboardCheck->HitTest (x, y))                  { text = s_kpszEmuKbdTip;   anchor = m_emuKeyboardCheck->Bounds(); }
+    else if (m_joystickVisible && m_joystickCheck->HitTest (x, y)) { text = s_kpszJoystickTip; anchor = m_joystickCheck->Bounds();    }
+    else if (m_paddleVisible && m_paddleCheck->HitTest (x, y))     { text = s_kpszPaddleTip;   anchor = m_paddleCheck->Bounds();      }
+    else if (m_hostKeyboardCheck->HitTest (x, y))                 { text = s_kpszHostKbdTip;  anchor = m_hostKeyboardCheck->Bounds(); }
 
-    if (text == nullptr && m_pauseButton.HitTest (x, y))
+    if (text == nullptr && m_pauseButton->HitTest (x, y))
     {
-        text = L"Pause or resume live input logging";
+        text   = L"Pause or resume live input logging";
+        anchor = m_pauseButton->Bounds();
     }
-    if (text == nullptr && m_clearButton.HitTest (x, y))
+    if (text == nullptr && m_clearButton->HitTest (x, y))
     {
-        text = L"Clear the input debug log";
+        text   = L"Clear the input debug log";
+        anchor = m_clearButton->Bounds();
     }
-    if (text == nullptr && m_copyButton.HitTest (x, y))
+    if (text == nullptr && m_copyButton->HitTest (x, y))
     {
-        text = L"Copy the visible input debug log to the clipboard";
+        text   = L"Copy the visible input debug log to the clipboard";
+        anchor = m_copyButton->Bounds();
     }
 
     if (text != nullptr)
     {
-        RECT  anchor = { x, y, x + 1, y + 1 };
         m_tooltip.RequestShow (anchor, text, NowMs());
     }
     else
@@ -2336,194 +1937,37 @@ void InputDebugPanel::UpdateTooltip (int x, int y)
 void InputDebugPanel::ShowColumnMenu (int anchorX, int anchorY)
 {
     auto &                       columns  = m_columnsModel;
-    std::vector<PopupMenu::Item> items;
+    std::vector<DxuiPopupMenu::Item> items;
+    IDxuiTextRenderer          *  textRenderer = TextRenderer();
     RECT                         hostRect = { 0, 0, m_widthPx, m_heightPx };
     int                          i        = 0;
 
 
+    // Bail rather than dereference a null renderer -- the shared text
+    // renderer used to measure / lay the menu out is only available once
+    // the backend exists.
+    if (textRenderer == nullptr)
+    {
+        return;
+    }
+
     items.reserve (kInputColumnCount);
     for (i = 0; i < kInputColumnCount; i++)
     {
-        PopupMenu::Item  item;
+        DxuiPopupMenu::Item  item;
 
         item.label   = columns[i].headerText;
         item.checked = columns[i].visible;
         items.push_back (std::move (item));
     }
 
-    m_columnMenu.Show (anchorX, anchorY, std::move (items), m_text, hostRect);
-}
+    // Hand the popup the current window theme at show time. The menu
+    // renders deferred in a pooled popup host (not the widget tree), so
+    // it can't pick the theme up from a paint-pump pass; the window theme
+    // is stable (owned by the shell), so this pointer never dangles.
+    m_columnMenu.SetTheme (m_theme);
 
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ClearAllWidgetFocus
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void InputDebugPanel::ClearAllWidgetFocus()
-{
-    m_allCheck.SetFocused          (false);
-    m_emuKeyboardCheck.SetFocused  (false);
-    m_joystickCheck.SetFocused     (false);
-    m_paddleCheck.SetFocused       (false);
-    m_hostKeyboardCheck.SetFocused (false);
-    m_pairView[0].SetFocused       (false);
-    m_pairView[1].SetFocused       (false);
-    m_pauseButton.SetFocused       (false);
-    m_clearButton.SetFocused       (false);
-    m_copyButton.SetFocused        (false);
-    m_eventList.SetListFocused     (false);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  RebuildFocusOrder
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void InputDebugPanel::RebuildFocusOrder()
-{
-    InputFocusStop  prev     = InputFocusStop::EventList;
-    bool            hadFocus = (m_focusIndex >= 0 && m_focusIndex < (int) m_focusStops.size());
-    size_t          i        = 0;
-
-
-    if (hadFocus)
-    {
-        prev = m_focusStops[(size_t) m_focusIndex];
-    }
-
-    m_focusStops.clear();
-    m_focusStops.push_back (InputFocusStop::AllCheck);
-    m_focusStops.push_back (InputFocusStop::EmuKeyboardCheck);
-    if (m_joystickVisible) { m_focusStops.push_back (InputFocusStop::JoystickCheck); }
-    if (m_paddleVisible)   { m_focusStops.push_back (InputFocusStop::PaddleCheck); }
-    m_focusStops.push_back (InputFocusStop::HostKeyboardCheck);
-    m_focusStops.push_back (InputFocusStop::Pair0Dropdown);
-    m_focusStops.push_back (InputFocusStop::Pair1Dropdown);
-    m_focusStops.push_back (InputFocusStop::PauseButton);
-    m_focusStops.push_back (InputFocusStop::ClearButton);
-    m_focusStops.push_back (InputFocusStop::CopyButton);
-    m_focusStops.push_back (InputFocusStop::EventList);
-
-    m_focusIndex = -1;
-    if (hadFocus)
-    {
-        for (i = 0; i < m_focusStops.size(); i++)
-        {
-            if (m_focusStops[i] == prev)
-            {
-                m_focusIndex = (int) i;
-                break;
-            }
-        }
-    }
-
-    ApplyFocus();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ApplyFocus
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void InputDebugPanel::ApplyFocus()
-{
-    ClearAllWidgetFocus();
-
-    if (m_focusIndex < 0 || m_focusIndex >= (int) m_focusStops.size())
-    {
-        return;
-    }
-
-    switch (m_focusStops[(size_t) m_focusIndex])
-    {
-        case InputFocusStop::AllCheck:          m_allCheck.SetFocused (true);          break;
-        case InputFocusStop::EmuKeyboardCheck:  m_emuKeyboardCheck.SetFocused (true);  break;
-        case InputFocusStop::JoystickCheck:     m_joystickCheck.SetFocused (true);     break;
-        case InputFocusStop::PaddleCheck:       m_paddleCheck.SetFocused (true);       break;
-        case InputFocusStop::HostKeyboardCheck: m_hostKeyboardCheck.SetFocused (true); break;
-        case InputFocusStop::Pair0Dropdown:     m_pairView[0].SetFocused (true);       break;
-        case InputFocusStop::Pair1Dropdown:     m_pairView[1].SetFocused (true);       break;
-        case InputFocusStop::PauseButton:       m_pauseButton.SetFocused (true);       break;
-        case InputFocusStop::ClearButton:       m_clearButton.SetFocused (true);       break;
-        case InputFocusStop::CopyButton:        m_copyButton.SetFocused (true);        break;
-        case InputFocusStop::EventList:         m_eventList.SetListFocused (true);     break;
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  FocusCycle
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void InputDebugPanel::FocusCycle (int direction)
-{
-    int  total = (int) m_focusStops.size();
-    int  next  = 0;
-
-
-    if (total <= 0)
-    {
-        return;
-    }
-
-    next = m_focusIndex;
-    if (next < 0)
-    {
-        next = (direction > 0) ? 0 : total - 1;
-    }
-    else
-    {
-        next = (next + direction + total) % total;
-    }
-
-    m_focusIndex = next;
-    ApplyFocus();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  SetFocusToStop
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void InputDebugPanel::SetFocusToStop (InputFocusStop stop)
-{
-    size_t  i = 0;
-
-
-    for (i = 0; i < m_focusStops.size(); i++)
-    {
-        if (m_focusStops[i] == stop)
-        {
-            m_focusIndex = (int) i;
-            ApplyFocus();
-            return;
-        }
-    }
+    m_columnMenu.Show (anchorX, anchorY, std::move (items), *textRenderer, hostRect);
 }
 
 
@@ -2741,6 +2185,52 @@ void InputDebugPanel::OnHostKeyUp (Byte asciiChar)
 
     e.cycle = 0;
     e.payload.key.ascii = asciiChar;
+    m_pendingHostEvents.push_back (e);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnHostPaddle
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void InputDebugPanel::OnHostPaddle (int axis, Byte value)
+{
+    InputEvent  e = MakeStampedEvent (InputEventCategory::Host, InputEventType::HostPaddle);
+
+
+
+    e.cycle = 0;
+    e.payload.io.address = static_cast<Word> (axis);
+    e.payload.io.value   = value;
+    e.payload.io.flags   = 0;
+    m_pendingHostEvents.push_back (e);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnHostButton
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void InputDebugPanel::OnHostButton (int index, bool down)
+{
+    InputEvent  e = MakeStampedEvent (InputEventCategory::Host, InputEventType::HostButton);
+
+
+
+    e.cycle = 0;
+    e.payload.io.address = static_cast<Word> (index);
+    e.payload.io.value   = down ? 1 : 0;
+    e.payload.io.flags   = 0;
     m_pendingHostEvents.push_back (e);
 }
 

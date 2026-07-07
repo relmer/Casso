@@ -1,10 +1,6 @@
 #include "Pch.h"
 
 #include "CppUnitTest.h"
-
-#include "../Casso/Ui/HitTester.h"
-
-
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
 
@@ -20,45 +16,45 @@ public:
 
     TEST_METHOD (Classify_DefaultsToClient)
     {
-        NcHitTestInput  in;
+        DxuiNcHitTestInput  in;
 
         in.windowRectScreen = { 100, 100, 900, 700 };
         in.mouseXScreen     = 500;
         in.mouseYScreen     = 400;
 
-        Assert::AreEqual ((LRESULT) HTCLIENT, HitTester::ClassifyNcHit (in));
+        Assert::AreEqual ((LRESULT) HTCLIENT, DxuiHitTester::ClassifyNcHit (in));
     }
 
 
     TEST_METHOD (Classify_TopLeftResizeEdge)
     {
-        NcHitTestInput  in;
+        DxuiNcHitTestInput  in;
 
         in.windowRectScreen = { 100, 100, 900, 700 };
         in.resizeBorderPx   = 6;
         in.mouseXScreen     = 102;
         in.mouseYScreen     = 102;
 
-        Assert::AreEqual ((LRESULT) HTTOPLEFT, HitTester::ClassifyNcHit (in));
+        Assert::AreEqual ((LRESULT) HTTOPLEFT, DxuiHitTester::ClassifyNcHit (in));
     }
 
 
     TEST_METHOD (Classify_BottomRightResizeEdge)
     {
-        NcHitTestInput  in;
+        DxuiNcHitTestInput  in;
 
         in.windowRectScreen = { 100, 100, 900, 700 };
         in.resizeBorderPx   = 6;
         in.mouseXScreen     = 897;
         in.mouseYScreen     = 697;
 
-        Assert::AreEqual ((LRESULT) HTBOTTOMRIGHT, HitTester::ClassifyNcHit (in));
+        Assert::AreEqual ((LRESULT) HTBOTTOMRIGHT, DxuiHitTester::ClassifyNcHit (in));
     }
 
 
     TEST_METHOD (Classify_ButtonRectBeatsCaption)
     {
-        NcHitTestInput  in;
+        DxuiNcHitTestInput  in;
 
         in.windowRectScreen = { 0, 0, 800, 600 };
         in.resizeBorderPx   = 6;
@@ -67,13 +63,13 @@ public:
         in.mouseXScreen     = 770;
         in.mouseYScreen     = 16;
 
-        Assert::AreEqual ((LRESULT) HTCLOSE, HitTester::ClassifyNcHit (in));
+        Assert::AreEqual ((LRESULT) HTCLOSE, DxuiHitTester::ClassifyNcHit (in));
     }
 
 
     TEST_METHOD (Classify_CaptionInsideTitleStripAwayFromButtons)
     {
-        NcHitTestInput  in;
+        DxuiNcHitTestInput  in;
 
         in.windowRectScreen = { 0, 0, 800, 600 };
         in.resizeBorderPx   = 6;
@@ -81,7 +77,7 @@ public:
         in.mouseXScreen     = 300;
         in.mouseYScreen     = 16;
 
-        Assert::AreEqual ((LRESULT) HTCAPTION, HitTester::ClassifyNcHit (in));
+        Assert::AreEqual ((LRESULT) HTCAPTION, DxuiHitTester::ClassifyNcHit (in));
     }
 };
 

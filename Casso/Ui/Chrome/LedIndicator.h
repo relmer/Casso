@@ -2,8 +2,8 @@
 
 #include "Pch.h"
 
-#include "ChromeTheme.h"
-#include "../DxUiPainter.h"
+#include "CassoTheme.h"
+#include "Core/IDxuiControl.h"
 
 
 
@@ -24,17 +24,40 @@ struct LedIndicatorLayout
 };
 
 
-class LedIndicator
+//
+//  LedIndicator is Casso-specific (Apple ][ disk LED + joystick-mode
+//  indicator); its theme-driven paint path assumes the IDxuiTheme
+//  reference it receives is actually a CassoTheme and `static_cast`s
+//  to read drive-LED palette fields. A debug `dynamic_cast` guard in
+//  Paint pins the contract.
+//
+class LedIndicator : public IDxuiControl
 {
 public:
-    void               Layout       (int x, int y, UINT dpi);
+    LedIndicator  ();
+    ~LedIndicator () override = default;
+
+    //
+    //  Position the indicator at (x, y) in pixels, with halo + core
+    //  rects sized off the supplied DPI. Used by parent widgets
+    //  (DriveWidget, JoystickToggleButton) that compute LED placement
+    //  inline with their own geometry. The IDxuiControl::Layout
+    //  override below derives the same placement from the bounds rect
+    //  origin.
+    //
+    void               PositionAt   (int x, int y, UINT dpi);
     void               SetState     (LedState state) { m_state = state; }
     LedState           GetState     () const { return m_state; }
     LedIndicatorLayout GetLayout    () const { return m_layout; }
-    uint32_t           CoreArgb     (const ChromeTheme & theme) const;
-    uint32_t           HaloArgb     (const ChromeTheme & theme) const;
-    void               Paint        (DxUiPainter & painter, const ChromeTheme & theme) const;
-    void               Paint        (DxUiPainter & painter, uint32_t coreArgb, uint32_t haloArgb) const;
+    uint32_t           CoreArgb     (const CassoTheme & theme) const;
+    uint32_t           HaloArgb     (const CassoTheme & theme) const;
+    void               Paint        (IDxuiPainter        & painter,
+                                     IDxuiTextRenderer   & text,
+                                     const IDxuiTheme    & theme) override;
+    void               Paint        (IDxuiPainter & painter, uint32_t coreArgb, uint32_t haloArgb) const;
+
+    void               Layout       (const RECT          & boundsDip,
+                                     const DxuiDpiScaler & scaler) override;
 
 private:
     LedState            m_state  = LedState::Idle;

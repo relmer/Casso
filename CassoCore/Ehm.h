@@ -215,15 +215,18 @@ void EhmBreakpoint         (void);
 // CHR variants — check HRESULT
 //
 // Suffix key:  A = assert, Ex = replace hr, F = failure action, N = notify user
+// Suffixes compose, e.g. FEx = run failure action AND replace hr.
 //
 
-#define CHR(__hrTest)                   __CHR (__hrTest, __EHM_NO_ASSERT, false, 0, __EHM_NO_ACTION)
-#define CHRA(__hrTest)                  __CHR (__hrTest, __EHM_ASSERT,    false, 0, __EHM_NO_ACTION)
-#define CHREx(__hrTest, __hrReplace)    __CHR (__hrTest, __EHM_NO_ASSERT, true,  __hrReplace, __EHM_NO_ACTION)
-#define CHRAEx(__hrTest, __hrReplace)   __CHR (__hrTest, __EHM_ASSERT,    true,  __hrReplace, __EHM_NO_ACTION)
-#define CHRF(__hrTest, __onFailure)     __CHR (__hrTest, __EHM_NO_ASSERT, false, 0, __onFailure)
-#define CHRAF(__hrTest, __onFailure)    __CHR (__hrTest, __EHM_ASSERT,    false, 0, __onFailure)
-#define CHRN(__hrTest, __msg)           __CHR (__hrTest, __EHM_NO_ASSERT, false, 0, EhmNotifyUser (__msg))
+#define CHR(__hrTest)                               __CHR (__hrTest, __EHM_NO_ASSERT, false, 0, __EHM_NO_ACTION)
+#define CHRA(__hrTest)                              __CHR (__hrTest, __EHM_ASSERT,    false, 0, __EHM_NO_ACTION)
+#define CHREx(__hrTest, __hrReplace)                __CHR (__hrTest, __EHM_NO_ASSERT, true,  __hrReplace, __EHM_NO_ACTION)
+#define CHRAEx(__hrTest, __hrReplace)               __CHR (__hrTest, __EHM_ASSERT,    true,  __hrReplace, __EHM_NO_ACTION)
+#define CHRF(__hrTest, __onFailure)                 __CHR (__hrTest, __EHM_NO_ASSERT, false, 0, __onFailure)
+#define CHRAF(__hrTest, __onFailure)                __CHR (__hrTest, __EHM_ASSERT,    false, 0, __onFailure)
+#define CHRFEx(__hrTest, __hrReplace, __onFailure)  __CHR (__hrTest, __EHM_NO_ASSERT, true, __hrReplace, __onFailure)
+#define CHRAFEx(__hrTest, __hrReplace, __onFailure) __CHR (__hrTest, __EHM_ASSERT,    true, __hrReplace, __onFailure)
+#define CHRN(__hrTest, __msg)                       __CHR (__hrTest, __EHM_NO_ASSERT, false, 0, EhmNotifyUser (__msg))
 
 
 
@@ -231,12 +234,14 @@ void EhmBreakpoint         (void);
 // CWR variants — check Win32 BOOL (SetLastError-based)
 //
 
-#define CWR(__fSuccess)                 __CWR (__fSuccess, __EHM_NO_ASSERT, false, 0, __EHM_NO_ACTION)
-#define CWRA(__fSuccess)                __CWR (__fSuccess, __EHM_ASSERT,    false, 0, __EHM_NO_ACTION)
-#define CWREx(__fSuccess, __hrReplace)  __CWR (__fSuccess, __EHM_NO_ASSERT, true,  __hrReplace, __EHM_NO_ACTION)
-#define CWRAEx(__fSuccess, __hrReplace) __CWR (__fSuccess, __EHM_ASSERT,    true,  __hrReplace, __EHM_NO_ACTION)
-#define CWRF(__fSuccess, __onFailure)   __CWR (__fSuccess, __EHM_NO_ASSERT, false, 0, __onFailure)
-#define CWRAF(__fSuccess, __onFailure)  __CWR (__fSuccess, __EHM_ASSERT,    false, 0, __onFailure)
+#define CWR(__fSuccess)                               __CWR (__fSuccess, __EHM_NO_ASSERT, false, 0, __EHM_NO_ACTION)
+#define CWRA(__fSuccess)                              __CWR (__fSuccess, __EHM_ASSERT,    false, 0, __EHM_NO_ACTION)
+#define CWREx(__fSuccess, __hrReplace)                __CWR (__fSuccess, __EHM_NO_ASSERT, true,  __hrReplace, __EHM_NO_ACTION)
+#define CWRAEx(__fSuccess, __hrReplace)               __CWR (__fSuccess, __EHM_ASSERT,    true,  __hrReplace, __EHM_NO_ACTION)
+#define CWRF(__fSuccess, __onFailure)                 __CWR (__fSuccess, __EHM_NO_ASSERT, false, 0, __onFailure)
+#define CWRAF(__fSuccess, __onFailure)                __CWR (__fSuccess, __EHM_ASSERT,    false, 0, __onFailure)
+#define CWRFEx(__fSuccess, __hrReplace, __onFailure)  __CWR (__fSuccess, __EHM_NO_ASSERT, true, __hrReplace, __onFailure)
+#define CWRAFEx(__fSuccess, __hrReplace, __onFailure) __CWR (__fSuccess, __EHM_ASSERT,    true, __hrReplace, __onFailure)
 
 
 
@@ -247,13 +252,15 @@ void EhmBreakpoint         (void);
 // error conditions — CBREx/CBRAEx supply a specific failure HRESULT.
 //
 
-#define CBR(__brTest)                   __CBR (__brTest, __EHM_NO_ASSERT, false, 0, __EHM_NO_ACTION)
-#define CBRA(__brTest)                  __CBR (__brTest, __EHM_ASSERT,    false, 0, __EHM_NO_ACTION)
-#define CBREx(__brTest, __hrReplace)    __CBR (__brTest, __EHM_NO_ASSERT, true,  __hrReplace, __EHM_NO_ACTION)
-#define CBRAEx(__brTest, __hrReplace)   __CBR (__brTest, __EHM_ASSERT,    true,  __hrReplace, __EHM_NO_ACTION)
-#define CBRF(__brTest, __onFailure)     __CBR (__brTest, __EHM_NO_ASSERT, false, 0, __onFailure)
-#define CBRAF(__brTest, __onFailure)    __CBR (__brTest, __EHM_ASSERT,    false, 0, __onFailure)
-#define CBRN(__brTest, __msg)           __CBR (__brTest, __EHM_NO_ASSERT, false, 0, EhmNotifyUser (__msg))
+#define CBR(__brTest)                               __CBR (__brTest, __EHM_NO_ASSERT, false, 0, __EHM_NO_ACTION)
+#define CBRA(__brTest)                              __CBR (__brTest, __EHM_ASSERT,    false, 0, __EHM_NO_ACTION)
+#define CBREx(__brTest, __hrReplace)                __CBR (__brTest, __EHM_NO_ASSERT, true,  __hrReplace, __EHM_NO_ACTION)
+#define CBRAEx(__brTest, __hrReplace)               __CBR (__brTest, __EHM_ASSERT,    true,  __hrReplace, __EHM_NO_ACTION)
+#define CBRF(__brTest, __onFailure)                 __CBR (__brTest, __EHM_NO_ASSERT, false, 0, __onFailure)
+#define CBRAF(__brTest, __onFailure)                __CBR (__brTest, __EHM_ASSERT,    false, 0, __onFailure)
+#define CBRFEx(__brTest, __hrReplace, __onFailure)  __CBR (__brTest, __EHM_NO_ASSERT, true, __hrReplace, __onFailure)
+#define CBRAFEx(__brTest, __hrReplace, __onFailure) __CBR (__brTest, __EHM_ASSERT,    true, __hrReplace, __onFailure)
+#define CBRN(__brTest, __msg)                       __CBR (__brTest, __EHM_NO_ASSERT, false, 0, EhmNotifyUser (__msg))
 
 // BAIL_OUT_IF — early-out guard, NOT an error check. Pass a TRUE-to-exit
 // condition (opposite polarity to CBR). Reserve this for legitimate
@@ -267,12 +274,14 @@ void EhmBreakpoint         (void);
 // CPR variants — check pointer for null
 //
 
-#define CPR(__prTest)                   __CPR (__prTest, __EHM_NO_ASSERT, false, 0, __EHM_NO_ACTION)
-#define CPRA(__prTest)                  __CPR (__prTest, __EHM_ASSERT,    false, 0, __EHM_NO_ACTION)
-#define CPREx(__prTest, __hrReplace)    __CPR (__prTest, __EHM_NO_ASSERT, true,  __hrReplace, __EHM_NO_ACTION)
-#define CPRAEx(__prTest, __hrReplace)   __CPR (__prTest, __EHM_ASSERT,    true,  __hrReplace, __EHM_NO_ACTION)
-#define CPRF(__prTest, __onFailure)     __CPR (__prTest, __EHM_NO_ASSERT, false, 0, __onFailure)
-#define CPRAF(__prTest, __onFailure)    __CPR (__prTest, __EHM_ASSERT,    false, 0, __onFailure)
+#define CPR(__prTest)                               __CPR (__prTest, __EHM_NO_ASSERT, false, 0, __EHM_NO_ACTION)
+#define CPRA(__prTest)                              __CPR (__prTest, __EHM_ASSERT,    false, 0, __EHM_NO_ACTION)
+#define CPREx(__prTest, __hrReplace)                __CPR (__prTest, __EHM_NO_ASSERT, true,  __hrReplace, __EHM_NO_ACTION)
+#define CPRAEx(__prTest, __hrReplace)               __CPR (__prTest, __EHM_ASSERT,    true,  __hrReplace, __EHM_NO_ACTION)
+#define CPRF(__prTest, __onFailure)                 __CPR (__prTest, __EHM_NO_ASSERT, false, 0, __onFailure)
+#define CPRAF(__prTest, __onFailure)                __CPR (__prTest, __EHM_ASSERT,    false, 0, __onFailure)
+#define CPRFEx(__prTest, __hrReplace, __onFailure)  __CPR (__prTest, __EHM_NO_ASSERT, true, __hrReplace, __onFailure)
+#define CPRAFEx(__prTest, __hrReplace, __onFailure) __CPR (__prTest, __EHM_ASSERT,    true, __hrReplace, __onFailure)
 
 
 

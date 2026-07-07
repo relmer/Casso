@@ -1,0 +1,258 @@
+#pragma once
+
+#include "Pch.h"
+#include "Core/IDxuiControl.h"
+
+
+
+class DxuiHwndSource;
+class DxuiPopupHost;
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiMenuBar
+//
+//  Generic Win11-style application menu bar. A horizontal strip of
+//  top-level menu titles (File / Edit / View / ...) each owning a
+//  vertical submenu of clickable items. Items support labels,
+//  optional accelerator hint text, dispatch callbacks, check-state
+//  query callbacks, enabled flags, checkable flags, and separator
+//  rows.
+//
+//  Behaviour mirrors the Windows desktop convention plus modern Win11
+//  hover semantics:
+//      * Click a top-level title to toggle its submenu open / closed.
+//      * Once any submenu is open, hovering an adjacent title swaps
+//        to it without requiring another click.
+//      * Alt+letter routes to the menu whose `&X` mnemonic matches.
+//      * Left / Right swap the active submenu while one is open.
+//      * Up / Down move the highlight inside the open submenu.
+//      * Escape dismisses the submenu and returns focus to the bar.
+//      * Clicking outside the open submenu dismisses it; clicking the
+//        same title that opened it dismisses it.
+//
+//  The widget paints via `IDxuiPainter` + `IDxuiTextRenderer` and
+//  theme-colours through `IDxuiTheme`. The host application can
+//  override the strip / dropdown palette via `SetStripColors` /
+//  `SetDropdownColors` when the default `IDxuiTheme` mapping is too
+//  generic (Casso's chrome supplies legacy nav-specific colours so
+//  the menu surface keeps visual parity with the rest of the shell).
+//
+//  Derives from `IDxuiControl` so it slots into `DxuiPanel` trees.
+//  `Paint()` paints both the strip and (if open) the submenu so
+//  consumers that hand the bar to a panel get the whole thing for
+//  free; chrome consumers that need fine z-order control use the
+//  explicit `PaintStrip` / `PaintDropdown` helpers and call them at
+//  different points in their composite render order.
+//
+//  Every public method asserts `DXUI_ASSERT_UI_THREAD()`.
+//
+//  Win32 mnemonic syntax: `&X` marks X as the menu accelerator; `&&`
+//  is a literal `&`. `altLetter` on a `DxuiMenuBarItem` overrides the
+//  auto-derived mnemonic when non-zero.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+
+
+struct DxuiMenuBarSubitem
+{
+    std::wstring             label;
+    std::wstring             hotkey;
+    std::function<void()>    dispatch;
+    std::function<bool()>    isChecked;
+    bool                     enabled     = true;
+    bool                     checkable   = false;
+    bool                     isSeparator = false;
+};
+
+
+struct DxuiMenuBarItem
+{
+    std::wstring                     label;
+    wchar_t                          altLetter = 0;
+    std::vector<DxuiMenuBarSubitem>  submenu;
+};
+
+
+
+class DxuiMenuBar : public IDxuiControl
+{
+public:
+    DxuiMenuBar  ();
+    ~DxuiMenuBar () override;
+
+    void  SetItems          (std::vector<DxuiMenuBarItem> items);
+    void  SetPopupHost      (DxuiHwndSource * host);
+    void  SetStripColors    (uint32_t stripArgb, uint32_t hoverArgb, uint32_t textArgb);
+    void  SetDropdownColors (uint32_t bgArgb,
+                             uint32_t hoverArgb,
+                             uint32_t textArgb,
+                             uint32_t accelArgb,
+                             uint32_t borderArgb,
+                             uint32_t dividerArgb);
+
+    //
+    //  Install the text renderer used by the IDxuiControl::Layout
+    //  override to measure menu-title strings. The renderer must
+    //  outlive any subsequent Layout call. Passing nullptr (the
+    //  default) makes Layout fall back to a fixed-pitch estimate so
+    //  unit tests can drive layout without standing up a real
+    //  IDxuiTextRenderer.
+    //
+    void  SetTextRendererForMeasure (IDxuiTextRenderer * pText) { m_textRendererForMeasure = pText; }
+
+    void  Layout            (int x, int y, int width, UINT dpi, IDxuiTextRenderer * pTextForMeasure = nullptr);
+    void  Hide              ();
+    void  Open              (int menuIndex, bool keyboardActivated);
+    void  Close             ();
+    void  CloseAll          ();
+
+    int   OpenIndex         () const { return m_isOpen ? m_openIndex    : -1;       }
+    int   OpenMenuIndex     () const { return m_openIndex;                          }
+    bool  IsOpen            () const { return m_isOpen;                             }
+    bool  IsOpenByKeyboard  () const { return m_isOpen && m_openedByKeyboard;       }
+    int   HighlightIndex    () const { return m_highlightIndex;                     }
+    int   HoverIndex        () const { return m_hoverIndex;                         }
+    int   MenuCount         () const { return (int) m_items.size();                 }
+    void  SetFocusedMenu    (int menuIndex);
+    void  ClearFocus        ();
+    bool  HasFocus          () const { return m_hasFocus;                           }
+    int   FocusedMenu       () const { return m_focusedIndex;                       }
+
+    bool  HandleAltKey      (wchar_t ch);
+    bool  HandleKey         (WPARAM vk);
+    bool  HandleMouseMove   (int x, int y);
+    void  ClearHover        ();
+    bool  HandleMouseDown   (int x, int y);
+    bool  HandleMouseUp     (int x, int y);
+
+    void  PaintStrip        (IDxuiPainter      & painter,
+                             IDxuiTextRenderer & text,
+                             const IDxuiTheme  & theme,
+                             UINT                dpi);
+    void  PaintDropdown     (IDxuiPainter      & painter,
+                             IDxuiTextRenderer & text,
+                             const IDxuiTheme  & theme,
+                             UINT                dpi);
+
+    // IDxuiControl overrides.
+    void  Layout            (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
+    void  Paint             (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
+    bool  OnKey             (const DxuiKeyEvent   & ev) override;
+    bool  OnMouse           (const DxuiMouseEvent & ev) override;
+
+    // Test seam: returns the per-menu strip rect computed by the last
+    // Layout. Tests do not need to drive a real text renderer.
+    RECT  MenuRect          (int menuIndex) const;
+    RECT  DropdownRect      () const;
+
+    // Minimum client width (physical px) that keeps every menu title on
+    // the strip: the right edge of the last title after the most recent
+    // Layout (the strip is anchored at the client left). Zero before the
+    // first Layout. Lets the host clamp the window's minimum width so the
+    // titles never clip.
+    int   MenuStripContentWidthPx () const;
+
+    // Public reusable helper. Parses a Win32-style label ("E&xit") into
+    // a stripped string ("Exit"), the index of the mnemonic in the
+    // stripped string, and its lower-cased character. "&&" collapses
+    // to a literal "&" and never marks a mnemonic.
+    static void  ParseMnemonic  (const std::wstring & label,
+                                 std::wstring       & outStripped,
+                                 int                & outIndex,
+                                 wchar_t            & outLower);
+
+private:
+    //
+    //  Resolved dropdown colours. The in-window paint resolves these
+    //  from the theme (or the SetDropdownColors overrides) every frame;
+    //  the popup render path reuses the cached copy because its render
+    //  hook gets no theme.
+    //
+    struct DropdownPalette
+    {
+        uint32_t  bg       = 0xFF202A35;
+        uint32_t  hover    = 0xFF34475F;
+        uint32_t  text     = 0xFFE8EEF4;
+        uint32_t  accel    = 0xFFAAB4C0;
+        uint32_t  border   = 0xFF5C7088;
+        uint32_t  divider  = 0xFF3A4453;
+        uint32_t  disabled = 0xFF6A7585;
+    };
+
+    int   HitTitleIndex     (int x, int y) const;
+    int   HitEntryIndex     (int x, int y) const;
+    int   EntryHeightPx     (const DxuiMenuBarSubitem & sub) const;
+    int   DropdownHeightPx  (int menuIndex) const;
+    int   NextEnabledRow    (int menuIndex, int startRow, int direction) const;
+    int   FirstEnabledRow   (int menuIndex) const;
+    int   VisibleRowCount   (int menuIndex) const;
+    const DxuiMenuBarSubitem *  EntryAt  (int menuIndex, int rowIndex) const;
+
+    static bool  ShouldShowMnemonicCues (bool openedByKeyboard);
+
+    //
+    //  Popup-backed dropdown (opt-in via SetPopupHost). The strip stays
+    //  in-window; the open submenu renders into a top-level popup so it
+    //  can escape the window and occlude. No mouse capture (grabsCapture
+    //  = false) so the owner keeps hover-switch between titles.
+    //
+    DropdownPalette  ResolveDropdownPalette  (const IDxuiTheme & theme) const;
+    void             PaintDropdownRows       (IDxuiPainter           & painter,
+                                              IDxuiTextRenderer      & text,
+                                              const RECT             & rect,
+                                              const DropdownPalette  & pal,
+                                              UINT                     dpi) const;
+    void             ShowDropdownPopup       ();
+    void             ReleaseActivePopup      ();
+    void             RenderDropdownPopup     (IDxuiPainter & painter, IDxuiTextRenderer & text) const;
+    int              PopupRowAtLocalY        (int localYPx) const;
+    void             OnPopupMove             (POINT localPx);
+    void             OnPopupClick            (POINT localPx);
+
+
+    std::vector<DxuiMenuBarItem>  m_items;
+    DxuiHwndSource              * m_popupHost        = nullptr;
+    DxuiPopupHost               * m_activePopup      = nullptr;
+    DropdownPalette               m_cachedPalette;
+    bool                          m_haveLastMousePos = false;
+    int                           m_lastMouseX       = 0;
+    int                           m_lastMouseY       = 0;
+
+    RECT                          m_stripRect        = {};
+    std::vector<RECT>             m_titleRects;
+    // Cached per-item text widths (device pixels) and the DPI they
+    // were measured at. Menu-item text never changes on resize, only
+    // the strip position, so a successful measurement is cached and
+    // reused -- avoiding a per-resize re-measure that can transiently
+    // return zero width and collapse item spacing.
+    std::vector<int>              m_measuredItemWidthPx;
+    UINT                          m_measuredAtDpi    = 0;
+    int                           m_openIndex        = 0;
+    int                           m_hoverIndex       = -1;
+    int                           m_focusedIndex     = 0;
+    bool                          m_isOpen           = false;
+    bool                          m_openedByKeyboard = false;
+    bool                          m_hasFocus         = false;
+    int                           m_highlightIndex   = -1;
+    int                           m_rowHeightPx      = 26;
+    UINT                          m_dpi              = 96;
+
+    bool                          m_stripColorsSet      = false;
+    uint32_t                      m_stripBgOverride     = 0;
+    uint32_t                      m_stripHoverOverride  = 0;
+    uint32_t                      m_stripTextOverride   = 0;
+
+    bool                          m_dropdownColorsSet   = false;
+    uint32_t                      m_dropBgOverride      = 0;
+    uint32_t                      m_dropHoverOverride   = 0;
+    uint32_t                      m_dropTextOverride    = 0;
+    uint32_t                      m_dropAccelOverride   = 0;
+    uint32_t                      m_dropBorderOverride  = 0;
+    uint32_t                      m_dropDividerOverride = 0;
+
+    IDxuiTextRenderer           * m_textRendererForMeasure = nullptr;
+};

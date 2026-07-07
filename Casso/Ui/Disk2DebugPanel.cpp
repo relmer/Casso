@@ -2,8 +2,7 @@
 
 #include "Disk2DebugPanel.h"
 
-#include "Chrome/ChromeTheme.h"
-#include "Chrome/TitleBar.h"
+#include "Chrome/CassoTheme.h"
 
 #include "../DebugDialogProjection.h"
 
@@ -15,13 +14,10 @@ namespace
 
     constexpr int      s_kPreferredWidthDip  = 960;
     constexpr int      s_kPreferredHeightDip = 600;
-    constexpr UINT     s_kSwapBufferCount     = 2;
 
     constexpr LPCWSTR  s_kpszTrackFilterLabel  = L"Track:";
     constexpr LPCWSTR  s_kpszSectorFilterLabel = L"Sector:";
     constexpr LPCWSTR  s_kpszTrackQtFilterLabel = L"Quarter-track:";
-
-    constexpr float    s_kLabelFontDip = 13.0f;
 
     constexpr LPCWSTR  s_kpszEventCheckLabels[kEventTypeCheckCount] =
     {
@@ -134,6 +130,10 @@ namespace
 
 Disk2DebugPanel::Disk2DebugPanel()
 {
+    // Content widgets are created as children of this panel in OnCreate
+    // (which fires inside DxuiWindow::Create once the backend exists) so
+    // the base paint pump walks and paints them. The constructor only
+    // seeds the Uptime anchor; every other member default-initializes.
     m_uptimeAnchor = std::chrono::steady_clock::now();
 }
 
@@ -160,9 +160,11 @@ Disk2DebugPanel::~Disk2DebugPanel()
 //
 //  Create
 //
-//  Registers the window class for this panel content type, then asks
-//  the chrome shell to stand up the host HWND bound to this content.
-//  Idempotent -- a second call while already open is a no-op.
+//  Stands up the DxuiWindow backend (close-only caption, host-owned swap
+//  chain / paint pump) sized to the panel's preferred client size. The
+//  OnCreate hook fires inside DxuiWindow::Create to populate the child
+//  widgets before the first layout. Idempotent -- a second call while
+//  already open is a no-op.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -171,27 +173,35 @@ HRESULT Disk2DebugPanel::Create (
     HWND                   hwndOwner,
     ID3D11Device         * device,
     ID3D11DeviceContext  * context,
-    const ChromeTheme    * theme)
+    const CassoTheme    * theme)
 {
-    HRESULT  hr = S_OK;
+    HRESULT                    hr     = S_OK;
+    DxuiWindow::CreateParams   params;
 
 
 
-    BAIL_OUT_IF (m_window.IsOpen(), S_OK);
+    UNREFERENCED_PARAMETER (device);
+    UNREFERENCED_PARAMETER (context);
 
-    CBRAEx (hInstance, E_INVALIDARG);
-    CBRAEx (device,    E_INVALIDARG);
-    CBRAEx (context,   E_INVALIDARG);
+    BAIL_OUT_IF (IsCreated(), S_OK);
 
-    m_device  = device;
-    m_context = context;
-    m_theme   = theme;
+    m_theme = theme;
 
-    hr = m_window.RegisterClass (hInstance, s_kpszClassName);
-    CHRA (hr);
+    params.title             = s_kpszWindowTitle;
+    params.hInstance         = hInstance;
+    params.ownerHwnd         = hwndOwner;
+    params.initialSizeDip    = { s_kPreferredWidthDip, s_kPreferredHeightDip };
+    params.minSizeDip        = { s_kPreferredWidthDip, s_kPreferredHeightDip };
+    params.resizable         = true;
+    params.insetContentBelowCaption = false;
+    params.captionStyle      = DxuiCaptionStyle::CloseOnly;
+    params.classNameOverride = s_kpszClassName;
 
-    hr = m_window.Create (hwndOwner, this, device, context, theme);
-    CHRA (hr);
+    hr = DxuiWindow::Create (params);
+    CHR (hr);
+
+    SetTheme (m_theme);
+    Show();
 
 Error:
     return hr;
@@ -203,44 +213,50 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  Show
+//  OnCreate
 //
-//  Brings the host window to the front. Lifecycle assumes Create has
-//  already succeeded; ShowWindow on a null HWND is a no-op anyway.
+//  DxuiWindow hook fired from Create() once the backend + HWND exist.
+//  Builds every content widget as a child of this panel via the
+//  inherited Create<T> factory (so the base paint pump walks and paints
+//  them), then wires initial state / callbacks and the popup + focus
+//  helpers.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void Disk2DebugPanel::Show()
+void Disk2DebugPanel::OnCreate()
 {
-    HWND  hwnd = m_window.Hwnd();
+    m_trackFilterLabel   = CreateChild<DxuiLabel> (L"",                       DxuiTextRole::Body,  DxuiTextHAlign::Right);
+    m_sectorFilterLabel  = CreateChild<DxuiLabel> (s_kpszSectorFilterLabel,   DxuiTextRole::Body,  DxuiTextHAlign::Right);
+    m_driveFilterLabel   = CreateChild<DxuiLabel> (s_kpszDriveFilterLabel,    DxuiTextRole::Body,  DxuiTextHAlign::Left);
+    m_diskEventsLabel    = CreateChild<DxuiLabel> (s_kpszDiskEventsLabel,     DxuiTextRole::Body,  DxuiTextHAlign::Left);
+    m_audioEventsLabel   = CreateChild<DxuiLabel> (s_kpszAudioEventsLabel,    DxuiTextRole::Body,  DxuiTextHAlign::Left);
+    m_trackInvalidLabel  = CreateChild<DxuiLabel> (L"",                       DxuiTextRole::Error, DxuiTextHAlign::Left);
+    m_sectorInvalidLabel = CreateChild<DxuiLabel> (L"",                       DxuiTextRole::Error, DxuiTextHAlign::Left);
 
-
-    if (hwnd != nullptr)
+    for (int i = 0; i < kEventTypeCheckCount; i++)
     {
-        ShowWindow (hwnd, SW_SHOW);
-        SetForegroundWindow (hwnd);
+        m_eventChecks[i] = CreateChild<DxuiCheckbox> (s_kpszEventCheckLabels[i]);
     }
-}
 
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  Hide
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void Disk2DebugPanel::Hide()
-{
-    HWND  hwnd = m_window.Hwnd();
-
-
-    if (hwnd != nullptr)
+    m_audioMasterCheck = CreateChild<DxuiCheckbox> (s_kpszAudioLabel);
+    for (int i = 0; i < kAudioSubCheckCount; i++)
     {
-        ShowWindow (hwnd, SW_HIDE);
+        m_audioSubChecks[i] = CreateChild<DxuiCheckbox> (s_kpszAudioSubLabels[i]);
     }
+
+    m_rawQtCheck  = CreateChild<DxuiCheckbox>   (s_kpszRawQtLabel);
+    m_driveRadio  = CreateChild<DxuiRadioGroup> ();
+    m_trackEdit   = CreateChild<DxuiTextInput>  ();
+    m_sectorEdit  = CreateChild<DxuiTextInput>  ();
+    m_pauseButton = CreateChild<DxuiButton>     (s_kpszPauseLabel);
+    m_clearButton = CreateChild<DxuiButton>     (s_kpszClearLabel);
+    m_eventList   = CreateChild<DxuiListView>   ();
+
+    ConfigureWidgets();
+    UpdateDynamicLabels();
+
+    m_columnMenu.SetPopupHost (PopupHost());
+    m_tooltip.SetPopupHost    (PopupHost());
 }
 
 
@@ -251,11 +267,15 @@ void Disk2DebugPanel::Hide()
 //
 //  Destroy
 //
+//  Tears down the DxuiWindow backend (HWND + swap chain). EmulatorShell
+//  drops its unique_ptr right after, but keeping this explicit entry
+//  point preserves the existing shutdown call site.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void Disk2DebugPanel::Destroy()
 {
-    m_window.Destroy();
+    DestroyBackend();
 }
 
 
@@ -266,160 +286,30 @@ void Disk2DebugPanel::Destroy()
 //
 //  RenderFrame
 //
-//  Public render entry point invoked by the host frame loop. Delegates
-//  to the chrome shell which composites our content (currently just a
-//  themed background clear) under its title bar.
+//  Public per-frame entry point invoked by the EmulatorShell render
+//  loop. Drains the event ring into the display rows, advances the
+//  list / tooltip timers, then invalidates the window so its WM_PAINT
+//  pump repaints the child widget tree.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT Disk2DebugPanel::RenderFrame()
 {
-    return m_window.Render();
-}
+    HRESULT  hr  = S_OK;
+    int64_t  now = NowMs();
 
 
 
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  Render
-//
-//  IChromedPanelContent override -- invoked by the chrome shell during
-//  its own Render. T044 lands the panel body as a flat themed clear;
-//  T046+ layers in widget rendering atop this.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-HRESULT Disk2DebugPanel::Render()
-{
-    HRESULT                  hr            = S_OK;
-    float                    clearColor[4] = { 0.08f, 0.08f, 0.08f, 1.0f };
-    ComPtr<ID3D11Texture2D>  backBuffer;
-    ComPtr<IDXGISurface>     surface;
-    ChromeVisualState        visual        = {};
-    D3D11_VIEWPORT           vp            = {};
-
-
-    BAIL_OUT_IF (m_swapChain == nullptr || m_rtv == nullptr || m_context == nullptr, S_OK);
+    BAIL_OUT_IF (!IsCreated(), S_OK);
 
     DrainAndProject();
 
-    if (!m_text.IsTargetBound())
-    {
-        hr = m_swapChain->GetBuffer (0, IID_PPV_ARGS (&backBuffer));
-        CHRA (hr);
+    // Drive scrollbar auto-repeat for any held arrow / track press and
+    // the tooltip open / close dwell timers.
+    m_eventList->Tick (now);
+    m_tooltip.Tick    (now);
 
-        hr = backBuffer.As (&surface);
-        CHRA (hr);
-
-        hr = m_text.BindBackBuffer (surface.Get(), m_dpi, m_dpi);
-        CHRA (hr);
-    }
-
-    if (m_theme != nullptr)
-    {
-        ArgbToFloat4 (m_theme->titleBarBottomArgb, clearColor);
-        clearColor[3] = 1.0f;
-    }
-
-    vp.TopLeftX = 0.0f;
-    vp.TopLeftY = 0.0f;
-    vp.Width    = (float) m_widthPx;
-    vp.Height   = (float) m_heightPx;
-    vp.MinDepth = 0.0f;
-    vp.MaxDepth = 1.0f;
-
-    m_context->RSSetViewports (1, &vp);
-    m_context->OMSetRenderTargets (1, m_rtv.GetAddressOf(), nullptr);
-    m_context->ClearRenderTargetView (m_rtv.Get(), clearColor);
-
-    hr = m_painter.Begin (m_widthPx, m_heightPx);
-    CHRA (hr);
-
-    hr = m_text.BeginDrawOffscreen();
-    CHRA (hr);
-
-    visual.dpi = m_dpi;
-    if (m_titleBar != nullptr && m_theme != nullptr)
-    {
-        m_titleBar->Paint (m_painter, m_text, visual, *m_theme);
-    }
-
-    for (auto & cb : m_eventChecks)
-    {
-        cb.Paint (m_painter, m_text);
-    }
-    m_audioMasterCheck.Paint (m_painter, m_text);
-    for (auto & cb : m_audioSubChecks)
-    {
-        cb.Paint (m_painter, m_text);
-    }
-    m_driveRadio.Paint   (m_painter, m_text);
-    m_rawQtCheck.Paint   (m_painter, m_text);
-
-    m_trackFilterLabel.Paint  (m_painter, m_text);
-    m_sectorFilterLabel.Paint (m_painter, m_text);
-    m_driveFilterLabel.Paint  (m_painter, m_text);
-    m_diskEventsLabel.Paint   (m_painter, m_text);
-    m_audioEventsLabel.Paint  (m_painter, m_text);
-    m_trackInvalidLabel.Paint (m_painter, m_text);
-    m_sectorInvalidLabel.Paint(m_painter, m_text);
-
-    m_trackEdit.Paint  (m_painter, m_text);
-    m_sectorEdit.Paint (m_painter, m_text);
-
-    if (m_theme != nullptr)
-    {
-        m_pauseButton.Paint (m_painter, m_text, *m_theme);
-        m_clearButton.Paint (m_painter, m_text, *m_theme);
-    }
-
-    m_eventList.Paint (m_painter, m_text);
-
-    m_tooltip.Tick  (NowMs());
-
-    // Overlays (tooltip + column menu) must composite ABOVE every
-    // underlying widget. Both the geometry painter (DxUiPainter) and
-    // the text renderer (DwriteTextRenderer) batch their draws, so
-    // without an explicit flush all text would composite on top of
-    // all geometry — including the tooltip's opaque background. Flush
-    // both pipelines now so the next Begin/Paint cycle lands cleanly
-    // on top of everything painted so far.
-    if (m_tooltip.IsVisible() || m_columnMenu.IsVisible())
-    {
-        hr = m_painter.End (m_rtv.Get());
-        CHRA (hr);
-        hr = m_text.EndDrawComposite();
-        CHRA (hr);
-        hr = m_painter.Begin (m_widthPx, m_heightPx);
-        CHRA (hr);
-        hr = m_text.BeginDrawOffscreen();
-        CHRA (hr);
-    }
-
-    m_tooltip.Paint (m_painter, m_text);
-
-    m_columnMenu.Paint (m_painter, m_text);
-
-    hr = m_painter.End (m_rtv.Get());
-    CHRA (hr);
-
-    hr = m_text.EndDrawComposite();
-    CHRA (hr);
-
-    // If the D2D target was lost partway through this frame (the
-    // swap-chain buffers were invalidated by a live resize), EndDraw
-    // unbinds the target and the frame we just built is incomplete --
-    // some text was flushed before the loss, the rest was dropped.
-    // Presenting it would flash partially-painted content (blank rows,
-    // missing buttons). Skip Present so the last good frame stays on
-    // screen; the next Render rebinds and repaints cleanly.
-    if (m_text.IsTargetBound())
-    {
-        hr = m_swapChain->Present (1, 0);
-        CHRA (hr);
-    }
+    Invalidate();
 
 Error:
     return hr;
@@ -435,9 +325,16 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void Disk2DebugPanel::SetTheme (const ChromeTheme * theme)
+void Disk2DebugPanel::SetTheme (const CassoTheme * theme)
 {
-    m_window.SetTheme (theme);
+    // Set the one window theme; the paint pump hands it to the child
+    // widget tree (edits, list, labels) each frame, so they need no
+    // per-control push. The focus manager keeps a copy only for its
+    // row-height metric; the column-menu popup is themed at show time.
+    m_theme = theme;
+    DxuiWindow::SetTheme (theme);
+
+    m_focusMgr.SetTheme (theme);
 }
 
 
@@ -446,560 +343,27 @@ void Disk2DebugPanel::SetTheme (const ChromeTheme * theme)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  GetWindowClassName
+//  ForwardMouseToList
+//
+//  Translates a client-px mouse event into the event list's widget-local
+//  space and dispatches it through DxuiListView::OnMouse, which owns all
+//  scroll / thumb / column-resize / row-select routing and raises the
+//  panel's selection / sort / column-resize callbacks. Returns true when
+//  the list consumed the event.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-LPCWSTR Disk2DebugPanel::GetWindowClassName() const
+bool Disk2DebugPanel::ForwardMouseToList (DxuiMouseEventKind kind, DxuiMouseButton button, int x, int y, float wheelDelta)
 {
-    return s_kpszClassName;
-}
+    DxuiMouseEvent  ev;
 
 
+    ev.kind        = kind;
+    ev.button      = button;
+    ev.positionDip = { x - m_layout.listView.left, y - m_layout.listView.top };
+    ev.wheelDelta  = wheelDelta;
 
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  GetWindowTitle
-//
-////////////////////////////////////////////////////////////////////////////////
-
-LPCWSTR Disk2DebugPanel::GetWindowTitle() const
-{
-    return s_kpszWindowTitle;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  OnHostCreated
-//
-//  Stands up the swap chain bound to the host HWND. Title-bar pointer
-//  and theme are remembered so SetChromeTheme calls land on the same
-//  TitleBar instance the shell painted into.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-HRESULT Disk2DebugPanel::OnHostCreated (
-    HWND                   hwnd,
-    ID3D11Device         * device,
-    ID3D11DeviceContext  * context,
-    int                    widthPx,
-    int                    heightPx,
-    UINT                   dpi,
-    TitleBar             * titleBar,
-    const ChromeTheme    * theme)
-{
-    HRESULT  hr = S_OK;
-
-
-    CBRAEx (hwnd,    E_INVALIDARG);
-    CBRAEx (device,  E_INVALIDARG);
-    CBRAEx (context, E_INVALIDARG);
-
-    m_hwnd     = hwnd;
-    m_device   = device;
-    m_context  = context;
-    m_widthPx  = std::max (1, widthPx);
-    m_heightPx = std::max (1, heightPx);
-    m_dpi      = dpi;
-    m_titleBar = titleBar;
-    m_theme    = theme;
-
-    hr = EnsureSwapChain();
-    CHRA (hr);
-
-    hr = m_painter.Initialize (device, context);
-    CHRA (hr);
-
-    hr = m_text.Initialize (device);
-    CHRA (hr);
-
-    ConfigureWidgets();
-    RecomputeLayout();
-
-Error:
-    return hr;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  OnHostDestroyed
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void Disk2DebugPanel::OnHostDestroyed()
-{
-    m_text.UnbindBackBuffer();
-    m_text.Shutdown();
-    m_painter.Shutdown();
-    ReleaseRenderTargets();
-    m_swapChain.Reset();
-    m_hwnd     = nullptr;
-    m_titleBar = nullptr;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  OnHostResize
-//
-////////////////////////////////////////////////////////////////////////////////
-
-HRESULT Disk2DebugPanel::OnHostResize (int widthPx, int heightPx, UINT dpi)
-{
-    HRESULT  hr = S_OK;
-
-
-    m_widthPx  = std::max (1, widthPx);
-    m_heightPx = std::max (1, heightPx);
-    m_dpi      = dpi;
-
-    BAIL_OUT_IF (m_swapChain == nullptr, S_OK);
-
-    m_text.UnbindBackBuffer();
-    ReleaseRenderTargets();
-
-    hr = m_swapChain->ResizeBuffers (s_kSwapBufferCount,
-                                     (UINT) m_widthPx,
-                                     (UINT) m_heightPx,
-                                     DXGI_FORMAT_B8G8R8A8_UNORM,
-                                     0);
-    CHRA (hr);
-
-    hr = CreateBackBufferRtv();
-    CHRA (hr);
-
-    RecomputeLayout();
-
-Error:
-    return hr;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  SetChromeTheme
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void Disk2DebugPanel::SetChromeTheme (TitleBar * titleBar, const ChromeTheme * theme)
-{
-    m_titleBar = titleBar;
-    m_theme    = theme;
-    RecomputeLayout();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  PreferredClientSize
-//
-//  T044 lands a fixed default size; T046 will replace this with a
-//  layout-driven calculation once control families exist.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-SIZE Disk2DebugPanel::PreferredClientSize (UINT dpi) const
-{
-    SIZE  size = {};
-
-
-    size.cx = MulDiv (s_kPreferredWidthDip,  (int) dpi, 96);
-    size.cy = MulDiv (s_kPreferredHeightDip, (int) dpi, 96);
-    return size;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  OnLButtonDown
-//
-//  Routes mouse-down to whichever widget owns the hit point. First-hit
-//  wins; widgets earlier in the dispatch order get priority.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void Disk2DebugPanel::OnLButtonDown (int x, int y)
-{
-    bool  handled    = false;
-    int   newFocus   = -1;
-
-
-    if (m_columnMenu.IsVisible())
-    {
-        if (m_columnMenu.OnLButtonDown (x, y)) { return; }
-    }
-
-    for (size_t i = 0; i < m_eventChecks.size(); ++i)
-    {
-        if (m_eventChecks[i].OnLButtonDown (x, y))
-        {
-            handled  = true;
-            newFocus = (int) i;
-            break;
-        }
-    }
-    if (!handled && m_audioMasterCheck.OnLButtonDown (x, y))
-    {
-        handled  = true;
-        newFocus = 8;
-    }
-    if (!handled)
-    {
-        for (size_t i = 0; i < m_audioSubChecks.size(); ++i)
-        {
-            if (m_audioSubChecks[i].OnLButtonDown (x, y))
-            {
-                handled  = true;
-                newFocus = 9 + (int) i;
-                break;
-            }
-        }
-    }
-    if (!handled && m_rawQtCheck.OnLButtonDown (x, y))
-    {
-        handled  = true;
-        newFocus = 16;
-    }
-    if (!handled && m_driveRadio.OnLButtonDown (x, y))
-    {
-        handled  = true;
-        newFocus = 13;
-    }
-    if (!handled && m_trackEdit.OnLButtonDown (x, y))
-    {
-        handled  = true;
-        newFocus = 14;
-    }
-    if (!handled && m_sectorEdit.OnLButtonDown (x, y))
-    {
-        handled  = true;
-        newFocus = 15;
-    }
-
-    if (m_pauseButton.HitTest (x, y))
-    {
-        m_pauseButton.SetMouse (x, y, true);
-        handled  = true;
-        newFocus = 17;
-    }
-    if (!handled && m_clearButton.HitTest (x, y))
-    {
-        m_clearButton.SetMouse (x, y, true);
-        handled  = true;
-        newFocus = 18;
-    }
-
-    if (handled)
-    {
-        SetFocusIndex (newFocus);
-    }
-
-    if (!handled)
-    {
-        // Scrollbar thumb drag has priority over column-resize and
-        // row-hit, so the user can grab the thumb without accidentally
-        // clicking the row beneath it. Clicks on the track (not the
-        // thumb) page-scroll toward the click; the end arrows nudge by
-        // one row.
-        int  relX = x - m_layout.listView.left;
-        int  relY = y - m_layout.listView.top;
-        if (m_eventList.HitTestScrollbarArrowUp (relX, relY))
-        {
-            m_eventList.ScrollByRows (-1);
-            handled = true;
-        }
-        else if (m_eventList.HitTestScrollbarArrowDown (relX, relY))
-        {
-            m_eventList.ScrollByRows (1);
-            handled = true;
-        }
-        else if (m_eventList.HitTestScrollbarThumb (relX, relY))
-        {
-            m_eventList.BeginThumbDrag (relY);
-            SetCapture (m_hwnd);
-            handled = true;
-        }
-        else if (m_eventList.HitTestScrollbarTrack (relX, relY))
-        {
-            m_eventList.PageFromTrackClick (relY);
-            handled = true;
-        }
-    }
-
-    if (!handled)
-    {
-        // Column-resize drag has priority over header-sort: if the
-        // user grabbed a resize handle on a header right-edge, we
-        // start the drag here and the sort hit-test below is skipped.
-        int  relX       = x - m_layout.listView.left;
-        int  relY       = y - m_layout.listView.top;
-        int  tolPx      = MulDiv (4, (int) m_dpi, 96);
-        int  resizeCol  = m_eventList.HitTestColumnResize (relX, relY, tolPx);
-        if (resizeCol >= 0)
-        {
-            m_resizeColumn       = resizeCol;
-            m_resizeStartXPx     = x;
-            m_resizeStartWidthPx = m_eventList.GetColumnEffectiveWidthPx ((size_t) resizeCol);
-            SetCapture (m_hwnd);
-            handled              = true;
-
-            int  visIdx = m_eventList.GetVisibleIndexOfColumn ((size_t) resizeCol);
-            if (visIdx >= 0)
-            {
-                SetFocusIndex (19 + 2 * visIdx + 1);
-            }
-        }
-    }
-
-    if (!handled)
-    {
-        // Click on listview body selects a row; click on the header
-        // sorts that column (first click ascending, subsequent click
-        // on the same column flips direction).
-        int  relX = x - m_layout.listView.left;
-        int  relY = y - m_layout.listView.top;
-        int  hit  = m_eventList.HitTestRow (relX, relY);
-        if (hit >= 0)
-        {
-            int  N = m_eventList.GetVisibleColumnCount();
-            if (hit < (int) m_filteredIndices.size())
-            {
-                m_listSelectedEventIndex = (int) m_filteredIndices[(size_t) hit];
-            }
-            if (N > 0)
-            {
-                SetFocusIndex (19 + 2 * N - 1);
-            }
-            ApplyListSelection();
-        }
-        else
-        {
-            int  col = m_eventList.HitTestHeaderColumn (relX, relY);
-            if (col >= 0)
-            {
-                SortByColumn (col);
-                int  visIdx = m_eventList.GetVisibleIndexOfColumn ((size_t) col);
-                if (visIdx >= 0)
-                {
-                    SetFocusIndex (19 + 2 * visIdx);
-                }
-            }
-        }
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  OnLButtonUp
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void Disk2DebugPanel::OnLButtonUp (int x, int y)
-{
-    if (m_eventList.IsThumbDragging())
-    {
-        m_eventList.EndThumbDrag();
-        ReleaseCapture();
-        return;
-    }
-
-    if (m_resizeColumn >= 0)
-    {
-        m_resizeColumn = -1;
-        ReleaseCapture();
-    }
-
-    if (m_columnMenu.IsVisible())
-    {
-        if (m_columnMenu.OnLButtonUp (x, y)) { return; }
-    }
-
-    for (auto & cb : m_eventChecks)        { cb.OnLButtonUp (x, y); }
-    m_audioMasterCheck.OnLButtonUp (x, y);
-    for (auto & cb : m_audioSubChecks)     { cb.OnLButtonUp (x, y); }
-    m_rawQtCheck.OnLButtonUp   (x, y);
-    m_driveRadio.OnLButtonUp   (x, y);
-    m_trackEdit.OnLButtonUp    (x, y);
-    m_sectorEdit.OnLButtonUp   (x, y);
-
-    bool  pauseDown = m_pauseButton.HitTest (x, y);
-    bool  clearDown = m_clearButton.HitTest (x, y);
-
-    m_pauseButton.SetMouse (x, y, false);
-    m_clearButton.SetMouse (x, y, false);
-
-    if (pauseDown)
-    {
-        m_pauseButton.Click();
-    }
-    if (clearDown)
-    {
-        m_clearButton.Click();
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  OnMouseMove
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void Disk2DebugPanel::OnMouseMove (int x, int y)
-{
-    if (m_eventList.IsThumbDragging())
-    {
-        int  relY = y - m_layout.listView.top;
-        m_eventList.UpdateThumbDrag (relY);
-        return;
-    }
-
-    if (m_resizeColumn >= 0)
-    {
-        int  deltaPx  = x - m_resizeStartXPx;
-        int  newWidth = m_resizeStartWidthPx + deltaPx;
-        int  minPx    = MulDiv (24, (int) m_dpi, 96);
-        if (newWidth < minPx) { newWidth = minPx; }
-        m_eventList.SetColumnOverrideWidthPx ((size_t) m_resizeColumn, newWidth);
-        return;
-    }
-
-    if (m_columnMenu.IsVisible())
-    {
-        m_columnMenu.OnMouseMove (x, y);
-        m_tooltip.RequestHide (NowMs());
-        return;
-    }
-
-    for (auto & cb : m_eventChecks)        { cb.SetMouseHover (x, y); }
-    m_audioMasterCheck.SetMouseHover (x, y);
-    for (auto & cb : m_audioSubChecks)     { cb.SetMouseHover (x, y); }
-    m_rawQtCheck.SetMouseHover (x, y);
-    m_driveRadio.SetMouseHover (x, y);
-    m_trackEdit.SetMouseHover  (x, y);
-    m_sectorEdit.SetMouseHover (x, y);
-
-    m_pauseButton.SetMouse (x, y, m_pauseButton.HitTest (x, y) && (GetKeyState (VK_LBUTTON) & 0x8000));
-    m_clearButton.SetMouse (x, y, m_clearButton.HitTest (x, y) && (GetKeyState (VK_LBUTTON) & 0x8000));
-
-    int  relX = x - m_layout.listView.left;
-    int  relY = y - m_layout.listView.top;
-    int  hit  = m_eventList.HitTestRow (relX, relY);
-    m_eventList.SetHoveredRow (hit);
-
-    UpdateTooltip (x, y);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  OnMouseWheel
-//
-//  Wheel up scrolls back in history (older events); wheel down scrolls
-//  toward the tail. Mouse position is panel-relative; we forward to
-//  the list unconditionally because the trackpad / wheel input from
-//  the whole panel should drive the only scrollable widget.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void Disk2DebugPanel::OnMouseWheel (int x, int y, int delta)
-{
-    (void) x;
-    (void) y;
-
-    m_eventList.ScrollByWheelDelta (delta, 3);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  OnRButtonDown
-//
-//  Right-click inside the list-view header strip surfaces a themed
-//  popup menu of column-visibility toggles. Anywhere else, right-click
-//  is currently a no-op.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void Disk2DebugPanel::OnRButtonDown (int x, int y)
-{
-    int  relX        = x - m_layout.listView.left;
-    int  relY        = y - m_layout.listView.top;
-    int  headerH     = m_eventList.GetHeaderHeightPx();
-    int  listWidthPx = m_layout.listView.right - m_layout.listView.left;
-
-
-    if (!m_eventList.IsHeaderShown())                                { return; }
-    if (relX < 0 || relX >= listWidthPx)                          { return; }
-    if (relY < 0 || relY >= headerH)                              { return; }
-
-    ShowColumnMenu (x, y);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  OnSetCursor
-//
-//  Cursor override for the panel. Returns IDC_SIZEWE while a column
-//  resize is active or when the cursor is parked on a header-edge
-//  resize handle; returns nullptr (default arrow) otherwise.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-HCURSOR Disk2DebugPanel::OnSetCursor (int x, int y)
-{
-    int  relX  = x - m_layout.listView.left;
-    int  relY  = y - m_layout.listView.top;
-    int  tolPx = MulDiv (4, (int) m_dpi, 96);
-
-    if (m_resizeColumn >= 0)
-    {
-        return LoadCursorW (nullptr, IDC_SIZEWE);
-    }
-    if (m_eventList.HitTestColumnResize (relX, relY, tolPx) >= 0)
-    {
-        return LoadCursorW (nullptr, IDC_SIZEWE);
-    }
-    return nullptr;
+    return m_eventList->OnMouse (ev);
 }
 
 
@@ -1020,295 +384,36 @@ HCURSOR Disk2DebugPanel::OnSetCursor (int x, int y)
 
 void Disk2DebugPanel::ShowColumnMenu (int anchorX, int anchorY)
 {
-    std::vector<PopupMenu::Item>  items;
-    RECT                          host = { 0, 0, m_widthPx, m_heightPx };
+    std::vector<DxuiPopupMenu::Item>  items;
+    IDxuiTextRenderer              *  textRenderer = TextRenderer();
+    RECT                              host         = { 0, 0, m_widthPx, m_heightPx };
 
 
-    items.reserve (m_eventList.GetColumnCount());
-
-    for (size_t i = 0; i < m_eventList.GetColumnCount(); ++i)
+    // Bail rather than dereference a null renderer -- the shared text
+    // renderer used to measure / lay the menu out is only available once
+    // the backend exists.
+    if (textRenderer == nullptr)
     {
-        PopupMenu::Item  item;
-        item.label   = m_eventList.GetColumnAt (i).title;
-        item.checked = m_eventList.IsColumnVisible (i);
+        return;
+    }
+
+    items.reserve (m_eventList->GetColumnCount());
+
+    for (size_t i = 0; i < m_eventList->GetColumnCount(); ++i)
+    {
+        DxuiPopupMenu::Item  item;
+        item.label   = m_eventList->GetColumnAt (i).title;
+        item.checked = m_eventList->IsColumnVisible (i);
         items.push_back (std::move (item));
     }
 
-    m_columnMenu.Show (anchorX, anchorY, std::move (items), m_text, host);
-}
+    // Hand the popup the current window theme at show time. The menu
+    // renders deferred in a pooled popup host (not the widget tree), so
+    // it can't pick the theme up from a paint-pump pass; the window theme
+    // is stable (owned by the shell), so this pointer never dangles.
+    m_columnMenu.SetTheme (m_theme);
 
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  OnKey
-//
-////////////////////////////////////////////////////////////////////////////////
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ClearAllWidgetFocus
-//
-//  Drops focus on every focusable widget. SetFocusIndex calls this
-//  before re-applying focus to the new owner.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void Disk2DebugPanel::ClearAllWidgetFocus()
-{
-    m_pauseButton.SetFocused      (false);
-    m_clearButton.SetFocused      (false);
-    for (auto & cb : m_eventChecks)     { cb.SetFocused (false); }
-    m_audioMasterCheck.SetFocused (false);
-    for (auto & cb : m_audioSubChecks)  { cb.SetFocused (false); }
-    m_rawQtCheck.SetFocused       (false);
-    m_driveRadio.SetFocused       (false);
-    m_trackEdit.SetFocused        (false);
-    m_sectorEdit.SetFocused       (false);
-    m_eventList.SetListFocused          (false);
-    m_eventList.SetFocusedHeaderColumn  (-1);
-    m_eventList.SetFocusedDividerColumn (-1);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DynamicStopCount / TotalStopCount
-//
-//  The dynamic-stop count is 2 * VisibleColumnCount (one header stop +
-//  one right-divider stop per visible column), where the last divider
-//  slot is repurposed as the list-body stop (i.e. the last visible
-//  column has no divider; the very last dynamic stop is the list).
-//  So total dynamic stops = 2N for N visible columns (N headers,
-//  N-1 dividers, 1 list).
-//
-////////////////////////////////////////////////////////////////////////////////
-
-int Disk2DebugPanel::DynamicStopCount () const
-{
-    return 2 * m_eventList.GetVisibleColumnCount();
-}
-
-int Disk2DebugPanel::TotalStopCount () const
-{
-    return 19 + DynamicStopCount();
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  SetFocusIndex
-//
-//  Single source of truth for which widget owns the keyboard. The
-//  index space (Z-pattern, top-to-bottom / left-to-right):
-//
-//      0..7       m_eventChecks[0..7]
-//      8          m_audioMasterCheck
-//      9..12      m_audioSubChecks[0..3]
-//      13         m_driveRadio
-//      14         m_trackEdit
-//      15         m_sectorEdit
-//      16         m_rawQtCheck
-//      17         m_pauseButton
-//      18         m_clearButton
-//      19..       per-visible-column header / divider stops, then list
-//
-//  Out-of-range values (including -1) clear all focus.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void Disk2DebugPanel::SetFocusIndex (int index)
-{
-    int  total = TotalStopCount();
-
-
-    ClearAllWidgetFocus();
-
-    if (index < 0 || index >= total)
-    {
-        m_focusIndex = -1;
-        return;
-    }
-
-    m_focusIndex = index;
-
-    if (index <= 7)
-    {
-        m_eventChecks[(size_t) index].SetFocused (true);
-        return;
-    }
-    if (index == 8)  { m_audioMasterCheck.SetFocused (true); return; }
-    if (index <= 12) { m_audioSubChecks[(size_t) (index - 9)].SetFocused (true); return; }
-    if (index == 13) { m_driveRadio.SetFocused  (true); return; }
-    if (index == 14) { m_trackEdit.SetFocused   (true); return; }
-    if (index == 15) { m_sectorEdit.SetFocused  (true); return; }
-    if (index == 16) { m_rawQtCheck.SetFocused  (true); return; }
-    if (index == 17) { m_pauseButton.SetFocused (true); return; }
-    if (index == 18) { m_clearButton.SetFocused (true); return; }
-
-    // Dynamic per-column stop.
-    int  d = index - 19;
-    int  N = m_eventList.GetVisibleColumnCount();
-    if (N <= 0 || d < 0 || d >= 2 * N)
-    {
-        m_focusIndex = -1;
-        return;
-    }
-
-    if (d == 2 * N - 1)
-    {
-        m_eventList.SetListFocused (true);
-        ApplyListSelection();
-        return;
-    }
-
-    if ((d & 1) == 0)
-    {
-        int  absCol = m_eventList.GetNthVisibleColumnIndex (d / 2);
-        if (absCol >= 0) { m_eventList.SetFocusedHeaderColumn (absCol); }
-    }
-    else
-    {
-        int  absCol = m_eventList.GetNthVisibleColumnIndex ((d - 1) / 2);
-        if (absCol >= 0) { m_eventList.SetFocusedDividerColumn (absCol); }
-    }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  FocusCycle
-//
-//  Tab (+1) / Shift+Tab (-1) advance the focus index with wrap-around
-//  over the full 0..TotalStopCount()-1 range. From the unfocused
-//  state, Tab lands on 0 and Shift+Tab lands on the last stop.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void Disk2DebugPanel::FocusCycle (int direction)
-{
-    int  total = TotalStopCount();
-    int  next  = 0;
-
-
-    if (total <= 0) { return; }
-
-    if (m_focusIndex < 0)
-    {
-        next = (direction >= 0) ? 0 : (total - 1);
-    }
-    else
-    {
-        next = m_focusIndex + direction;
-        while (next < 0)        { next += total; }
-        while (next >= total)   { next -= total; }
-    }
-
-    SetFocusIndex (next);
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  OnKey
-//
-//  Routes the key to the currently-focused widget only. The Tab key
-//  always cycles focus; the column popup, when visible, captures
-//  everything else.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool Disk2DebugPanel::OnKey (WPARAM vk)
-{
-    bool  shiftDown = (GetKeyState (VK_SHIFT) & 0x8000) != 0;
-
-
-    if (m_columnMenu.IsVisible())  { return m_columnMenu.OnKey (vk); }
-
-    if (vk == VK_TAB)
-    {
-        FocusCycle (shiftDown ? -1 : 1);
-        return true;
-    }
-
-    if (m_focusIndex < 0) { return false; }
-
-    if (m_focusIndex >= 19)
-    {
-        int  d = m_focusIndex - 19;
-        int  N = m_eventList.GetVisibleColumnCount();
-        if (N <= 0 || d < 0 || d >= 2 * N) { return false; }
-
-        if (d == 2 * N - 1)
-        {
-            int  rowCount = m_eventList.GetRowCount();
-            int  cur      = m_eventList.GetSelectedRow();
-            int  cap      = m_eventList.GetVisibleRowCapacity();
-            int  next     = cur;
-
-            if (rowCount <= 0) { return false; }
-
-            switch (vk)
-            {
-                case VK_UP:    next = (cur <= 0) ? 0 : (cur - 1); break;
-                case VK_DOWN:  next = (cur < 0) ? 0 : ((cur + 1 >= rowCount) ? (rowCount - 1) : (cur + 1)); break;
-                case VK_HOME:  next = 0;                          break;
-                case VK_END:   next = rowCount - 1;               break;
-                case VK_PRIOR: next = (cur < 0) ? 0 : std::max (0, cur - std::max (1, cap)); break;
-                case VK_NEXT:  next = (cur < 0) ? 0 : std::min (rowCount - 1, cur + std::max (1, cap)); break;
-                default:       return false;
-            }
-            m_eventList.SetSelectedRow (next);
-            OnListSelectionMoved();
-            return true;
-        }
-
-        if ((d & 1) == 0)
-        {
-            if (vk == VK_SPACE || vk == VK_RETURN)
-            {
-                OnHeaderSortKey();
-                return true;
-            }
-            return false;
-        }
-
-        if (vk == VK_LEFT)  { OnDividerResizeKey (-1); return true; }
-        if (vk == VK_RIGHT) { OnDividerResizeKey (+1); return true; }
-        return false;
-    }
-
-    if (m_focusIndex <= 7) { return m_eventChecks[(size_t) m_focusIndex].OnKey (vk); }
-    switch (m_focusIndex)
-    {
-        case 8:  return m_audioMasterCheck.OnKey (vk);
-        case 13: return m_driveRadio.OnKey       (vk);
-        case 14: return m_trackEdit.OnKey        (vk);
-        case 15: return m_sectorEdit.OnKey       (vk);
-        case 16: return m_rawQtCheck.OnKey       (vk);
-        case 17: return m_pauseButton.OnKey      (vk);
-        case 18: return m_clearButton.OnKey      (vk);
-        default: break;
-    }
-    if (m_focusIndex >= 9 && m_focusIndex <= 12)
-    {
-        return m_audioSubChecks[(size_t) (m_focusIndex - 9)].OnKey (vk);
-    }
-    return false;
+    m_columnMenu.Show (anchorX, anchorY, std::move (items), *textRenderer, host);
 }
 
 
@@ -1321,7 +426,7 @@ bool Disk2DebugPanel::OnKey (WPARAM vk)
 //
 //  Resolves m_listSelectedEventIndex (an absolute index into m_events)
 //  against the current m_filteredIndices and pushes the corresponding
-//  visible-row index into the ListView. If the previously-selected
+//  visible-row index into the DxuiListView. If the previously-selected
 //  event is no longer visible under the current filter, snap to the
 //  previous still-visible row (or the next one if there is no
 //  previous). If neither exists, clear the selection.
@@ -1333,7 +438,7 @@ void Disk2DebugPanel::ApplyListSelection()
     if (m_listSelectedEventIndex < 0 || m_filteredIndices.empty())
     {
         m_listSelectedEventIndex = -1;
-        m_eventList.SetSelectedRow (-1);
+        m_eventList->SetSelectedRow (-1);
         return;
     }
 
@@ -1344,7 +449,7 @@ void Disk2DebugPanel::ApplyListSelection()
 
     if (it != m_filteredIndices.end() && *it == target)
     {
-        m_eventList.SetSelectedRow ((int) (it - m_filteredIndices.begin()));
+        m_eventList->SetSelectedRow ((int) (it - m_filteredIndices.begin()));
         return;
     }
 
@@ -1352,19 +457,19 @@ void Disk2DebugPanel::ApplyListSelection()
     {
         auto prev = it - 1;
         m_listSelectedEventIndex = (int) *prev;
-        m_eventList.SetSelectedRow ((int) (prev - m_filteredIndices.begin()));
+        m_eventList->SetSelectedRow ((int) (prev - m_filteredIndices.begin()));
         return;
     }
 
     if (it != m_filteredIndices.end())
     {
         m_listSelectedEventIndex = (int) *it;
-        m_eventList.SetSelectedRow ((int) (it - m_filteredIndices.begin()));
+        m_eventList->SetSelectedRow ((int) (it - m_filteredIndices.begin()));
         return;
     }
 
     m_listSelectedEventIndex = -1;
-    m_eventList.SetSelectedRow (-1);
+    m_eventList->SetSelectedRow (-1);
 }
 
 
@@ -1375,7 +480,7 @@ void Disk2DebugPanel::ApplyListSelection()
 //
 //  OnListSelectionMoved
 //
-//  Mirrors the ListView's new selected-row index back into our
+//  Mirrors the DxuiListView's new selected-row index back into our
 //  persistent event-index identity so it survives filter/sort
 //  rebuilds.
 //
@@ -1383,7 +488,7 @@ void Disk2DebugPanel::ApplyListSelection()
 
 void Disk2DebugPanel::OnListSelectionMoved()
 {
-    int  row = m_eventList.GetSelectedRow();
+    int  row = m_eventList->GetSelectedRow();
 
 
     if (row < 0 || (size_t) row >= m_filteredIndices.size())
@@ -1419,7 +524,7 @@ void Disk2DebugPanel::SortByColumn (int absCol)
         m_sortColumn     = absCol;
         m_sortDescending = false;
     }
-    m_eventList.SetSortIndicator (m_sortColumn, m_sortDescending);
+    m_eventList->SetSortIndicator (m_sortColumn, m_sortDescending);
     RebuildFilteredIndices();
     PushListViewRows();
     ApplyListSelection();
@@ -1431,17 +536,216 @@ void Disk2DebugPanel::SortByColumn (int absCol)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  OnHeaderSortKey
+//  OnMouse
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void Disk2DebugPanel::OnHeaderSortKey()
+bool Disk2DebugPanel::OnMouse (const DxuiMouseEvent & ev)
 {
-    if (m_focusIndex < 19) { return; }
-    int  d      = m_focusIndex - 19;
-    int  absCol = m_eventList.GetNthVisibleColumnIndex (d / 2);
-    if (absCol < 0) { return; }
-    SortByColumn (absCol);
+    int  x = ev.positionDip.x;
+    int  y = ev.positionDip.y;
+
+
+
+    switch (ev.kind)
+    {
+        case DxuiMouseEventKind::Move:
+            // While the list owns a drag (scrollbar thumb / column resize),
+            // route moves to it. DxuiListView::OnMouse treats a non-Left
+            // move while interacting as a release (its missed-button-up
+            // safety net), so pass Left explicitly.
+            if (m_eventList->IsInteracting())
+            {
+                (void) ForwardMouseToList (DxuiMouseEventKind::Move, DxuiMouseButton::Left, x, y, 0.0f);
+                return true;
+            }
+
+            if (m_columnMenu.IsVisible())
+            {
+                m_columnMenu.OnMouse (ev);
+                m_tooltip.RequestHide (NowMs());
+                return true;
+            }
+
+            for (auto & cb : m_eventChecks)        { cb->SetMouseHover (x, y); }
+            m_audioMasterCheck->SetMouseHover (x, y);
+            for (auto & cb : m_audioSubChecks)     { cb->SetMouseHover (x, y); }
+            m_rawQtCheck->SetMouseHover (x, y);
+            m_driveRadio->SetMouseHover (x, y);
+            m_trackEdit->SetMouseHover  (x, y);
+            m_sectorEdit->SetMouseHover (x, y);
+
+            m_pauseButton->SetMouse (x, y, m_pauseButton->HitTest (x, y) && (GetKeyState (VK_LBUTTON) & 0x8000));
+            m_clearButton->SetMouse (x, y, m_clearButton->HitTest (x, y) && (GetKeyState (VK_LBUTTON) & 0x8000));
+
+            // Row-hover highlight: the list owns the hit-test + hovered state.
+            (void) ForwardMouseToList (DxuiMouseEventKind::Move, DxuiMouseButton::None, x, y, 0.0f);
+
+            UpdateTooltip (x, y);
+            return true;
+
+        case DxuiMouseEventKind::Down:
+            if (ev.button == DxuiMouseButton::Left)
+            {
+                bool  handled = false;
+
+
+                if (m_columnMenu.IsVisible())
+                {
+                    if (m_columnMenu.OnMouse (ev)) { return true; }
+                }
+
+                // The client-px widgets share the panel's coordinate space
+                // (ev.positionDip == client px), so route the press straight
+                // to each widget's OnMouse; the widget hit-tests itself and
+                // reports whether it consumed the press. The focus manager
+                // records the consuming widget so keyboard traversal resumes
+                // from the last-clicked control.
+                for (size_t i = 0; i < m_eventChecks.size(); ++i)
+                {
+                    if (m_eventChecks[i]->OnMouse (ev))
+                    {
+                        m_focusMgr.SetFocused (m_eventChecks[i]);
+                        handled = true;
+                        break;
+                    }
+                }
+                if (!handled && m_audioMasterCheck->OnMouse (ev))
+                {
+                    m_focusMgr.SetFocused (m_audioMasterCheck);
+                    handled = true;
+                }
+                if (!handled)
+                {
+                    for (size_t i = 0; i < m_audioSubChecks.size(); ++i)
+                    {
+                        if (m_audioSubChecks[i]->OnMouse (ev))
+                        {
+                            m_focusMgr.SetFocused (m_audioSubChecks[i]);
+                            handled = true;
+                            break;
+                        }
+                    }
+                }
+                if (!handled && m_rawQtCheck->OnMouse (ev))
+                {
+                    m_focusMgr.SetFocused (m_rawQtCheck);
+                    handled = true;
+                }
+                if (!handled && m_driveRadio->OnMouse (ev))
+                {
+                    m_focusMgr.SetFocused (m_driveRadio);
+                    handled = true;
+                }
+                if (!handled && m_trackEdit->OnMouse (ev))
+                {
+                    m_focusMgr.SetFocused (m_trackEdit);
+                    handled = true;
+                }
+                if (!handled && m_sectorEdit->OnMouse (ev))
+                {
+                    m_focusMgr.SetFocused (m_sectorEdit);
+                    handled = true;
+                }
+
+                if (m_pauseButton->OnMouse (ev))
+                {
+                    m_focusMgr.SetFocused (m_pauseButton);
+                    handled = true;
+                }
+                if (!handled && m_clearButton->OnMouse (ev))
+                {
+                    m_focusMgr.SetFocused (m_clearButton);
+                    handled = true;
+                }
+
+                if (!handled)
+                {
+                    // The list owns all in-list routing (scrollbar arrows /
+                    // thumb / track, column resize, header-click sort, row
+                    // select) via OnMouse and reports outcomes through the
+                    // callbacks wired at setup. DxuiWindow holds the
+                    // Win32 capture for the full press, so any drag the list
+                    // starts keeps receiving moves after the cursor leaves the
+                    // client. OnMouse consumes only in-bounds presses; when it
+                    // does, focus moves to the list.
+                    handled = ForwardMouseToList (DxuiMouseEventKind::Down, DxuiMouseButton::Left, x, y, 0.0f);
+                    if (handled) { m_focusMgr.SetFocused (m_eventList); }
+                }
+
+                return true;
+            }
+
+            if (ev.button == DxuiMouseButton::Right)
+            {
+                // Right-click inside the list-view header strip surfaces a
+                // themed popup menu of column-visibility toggles. Anywhere
+                // else, right-click is currently a no-op.
+                int  relX        = x - m_layout.listView.left;
+                int  relY        = y - m_layout.listView.top;
+                int  headerH     = m_eventList->GetHeaderHeightPx();
+                int  listWidthPx = m_layout.listView.right - m_layout.listView.left;
+
+
+                if (!m_eventList->IsHeaderShown())          { return true; }
+                if (relX < 0 || relX >= listWidthPx)       { return true; }
+                if (relY < 0 || relY >= headerH)           { return true; }
+
+                ShowColumnMenu (x, y);
+                return true;
+            }
+
+            return false;
+
+        case DxuiMouseEventKind::Up:
+            if (ev.button == DxuiMouseButton::Left)
+            {
+                // Finish any list drag (scrollbar thumb / column resize) the
+                // list started on button-down. The pointer may have left the
+                // list bounds mid-drag, so forward the release
+                // unconditionally. DxuiWindow releases the Win32 capture
+                // before routing this release.
+                if (m_eventList->IsInteracting())
+                {
+                    (void) ForwardMouseToList (DxuiMouseEventKind::Up, DxuiMouseButton::Left, x, y, 0.0f);
+                    return true;
+                }
+
+                if (m_columnMenu.IsVisible())
+                {
+                    if (m_columnMenu.OnMouse (ev)) { return true; }
+                }
+
+                // Route the release to each widget: it clears its own press
+                // visual and, on a click-release over itself, fires the
+                // callback wired at setup (checkbox change / button click),
+                // which folds the outcome back into the panel model.
+                for (auto & cb : m_eventChecks)        { cb->OnMouse (ev); }
+                m_audioMasterCheck->OnMouse (ev);
+                for (auto & cb : m_audioSubChecks)     { cb->OnMouse (ev); }
+                m_rawQtCheck->OnMouse   (ev);
+                m_driveRadio->OnMouse   (ev);
+                m_trackEdit->OnMouse    (ev);
+                m_sectorEdit->OnMouse   (ev);
+
+                m_pauseButton->OnMouse (ev);
+                m_clearButton->OnMouse (ev);
+
+                return true;
+            }
+
+            return false;
+
+        case DxuiMouseEventKind::Wheel:
+            // Wheel up scrolls back in history (older events); wheel down
+            // scrolls toward the tail. Forwarded to the list, which scrolls
+            // only when the pointer is over it (standard control behavior).
+            (void) ForwardMouseToList (DxuiMouseEventKind::Wheel, DxuiMouseButton::None, x, y, ev.wheelDelta);
+            return true;
+
+        default:
+            return false;
+    }
 }
 
 
@@ -1450,39 +754,48 @@ void Disk2DebugPanel::OnHeaderSortKey()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  OnDividerResizeKey
+//  OnKey
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void Disk2DebugPanel::OnDividerResizeKey (int direction)
+bool Disk2DebugPanel::OnKey (const DxuiKeyEvent & ev)
 {
-    if (m_focusIndex < 19) { return; }
-    int  d      = m_focusIndex - 19;
-    int  absCol = m_eventList.GetNthVisibleColumnIndex ((d - 1) / 2);
-    int  stepPx = MulDiv (8,  (int) m_dpi, 96);
-    int  minPx  = MulDiv (24, (int) m_dpi, 96);
-    if (absCol < 0) { return; }
-
-    int  curPx  = m_eventList.GetColumnEffectiveWidthPx ((size_t) absCol);
-    int  newPx  = curPx + direction * stepPx;
-    if (newPx < minPx) { newPx = minPx; }
-    m_eventList.SetColumnOverrideWidthPx ((size_t) absCol, newPx);
-}
+    IDxuiControl *  focused = nullptr;
 
 
+    // Char events route to the text inputs only; each edit inserts the
+    // character when it owns focus and reports whether it consumed it.
+    if (ev.kind == DxuiKeyEventKind::Char)
+    {
+        if (m_trackEdit->OnKey  (ev)) { return true; }
+        if (m_sectorEdit->OnKey (ev)) { return true; }
+        return false;
+    }
 
+    if (ev.kind != DxuiKeyEventKind::Down) { return false; }
 
+    // The column popup, when visible, captures every key-down.
+    if (m_columnMenu.IsVisible()) { return m_columnMenu.OnKey (ev); }
 
-////////////////////////////////////////////////////////////////////////////////
-//
-//  OnChar
-//
-////////////////////////////////////////////////////////////////////////////////
+    // Focused-first: the focused control sees the key before the panel's
+    // Tab traversal. A focused list owns Tab, cycling its header /
+    // divider / body sub-stops (column sort / resize / row navigation)
+    // and returning false only when Tab steps past either end; focused
+    // checkboxes / buttons self-activate on Space / Enter.
+    focused = m_focusMgr.Focused();
+    if (focused != nullptr && focused->OnKey (ev))
+    {
+        return true;
+    }
 
-bool Disk2DebugPanel::OnChar (wchar_t ch)
-{
-    if (m_trackEdit.OnChar  (ch)) { return true; }
-    if (m_sectorEdit.OnChar (ch)) { return true; }
+    // Tab advances the panel's control focus once the focused control
+    // (e.g. the list at a sub-stop boundary) declines the key.
+    if ((WPARAM) ev.vk == VK_TAB)
+    {
+        m_focusMgr.HandleKey ((GetKeyState (VK_SHIFT) & 0x8000) ? DxuiFocusKey::ShiftTab : DxuiFocusKey::Tab);
+        return true;
+    }
+
     return false;
 }
 
@@ -1492,15 +805,24 @@ bool Disk2DebugPanel::OnChar (wchar_t ch)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  Accept
+//  Layout
 //
-//  The panel is non-modal and has no commit semantics, so Enter is a
-//  no-op (matches legacy Disk2DebugDialog behaviour).
+//  DxuiWindow drives this after the OS window sizes / resizes: cache the
+//  client size and DPI, then re-run the panel's absolute layout so the
+//  child widgets track the new bounds.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void Disk2DebugPanel::Accept()
+void Disk2DebugPanel::Layout (
+    const RECT          & boundsDip,
+    const DxuiDpiScaler & scaler)
 {
+    m_widthPx  = std::max (1, (int) (boundsDip.right  - boundsDip.left));
+    m_heightPx = std::max (1, (int) (boundsDip.bottom - boundsDip.top));
+    m_dpi      = scaler.Dpi();
+    m_scaler   = scaler;
+
+    RecomputeLayout();
 }
 
 
@@ -1509,155 +831,41 @@ void Disk2DebugPanel::Accept()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  Cancel
+//  CursorForPoint
 //
-//  Esc / WM_CLOSE / titlebar close all hide the panel rather than
-//  destroying it, matching the legacy dialog: re-opening keeps the
-//  filter state and the event ring populated.
+//  DxuiWindow resolves the client cursor by fanning a client-px point
+//  through the panel tree. DxuiListView::CursorForPoint expects list-
+//  local coords, so translate by the list's bounds before delegating.
+//  During an active column-resize drag the pointer may leave the header
+//  strip (where the edge hit-test lives), so hold the resize cursor for
+//  the duration of the drag.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void Disk2DebugPanel::Cancel()
+LPCWSTR Disk2DebugPanel::CursorForPoint (POINT clientPx) const
 {
-    Hide();
-}
+    LPCWSTR  cursor = nullptr;
+    RECT     bounds = {};
+    POINT    local  = {};
 
 
 
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  IsContentActive
-//
-//  Always true while the host is up -- Cancel hides the window without
-//  asking the shell to destroy it, so the chrome shell must not tear
-//  down the HWND on Cancel.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool Disk2DebugPanel::IsContentActive() const
-{
-    return true;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  EnsureSwapChain
-//
-//  Creates a flip-sequential swap chain on the host HWND if one is
-//  not already attached. Uses straight-HWND swap chain (no DComp) --
-//  the panel has no transparency / overlap requirements that would
-//  need composition.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-HRESULT Disk2DebugPanel::EnsureSwapChain()
-{
-    HRESULT                hr           = S_OK;
-    ComPtr<IDXGIDevice>    dxgiDevice;
-    ComPtr<IDXGIAdapter>   dxgiAdapter;
-    ComPtr<IDXGIFactory2>  dxgiFactory;
-    DXGI_SWAP_CHAIN_DESC1  desc         = {};
-
-
-
-    BAIL_OUT_IF (m_swapChain != nullptr, S_OK);
-
-    CBRA (m_device);
-    CBRA (m_hwnd);
-
-    hr = m_device->QueryInterface (IID_PPV_ARGS (&dxgiDevice));
-    CHRA (hr);
-
-    hr = dxgiDevice->GetAdapter (&dxgiAdapter);
-    CHRA (hr);
-
-    hr = dxgiAdapter->GetParent (IID_PPV_ARGS (&dxgiFactory));
-    CHRA (hr);
-
-    desc.Width            = (UINT) m_widthPx;
-    desc.Height           = (UINT) m_heightPx;
-    desc.Format           = DXGI_FORMAT_B8G8R8A8_UNORM;
-    desc.Stereo           = FALSE;
-    desc.SampleDesc.Count = 1;
-    desc.BufferUsage      = DXGI_USAGE_RENDER_TARGET_OUTPUT;
-    desc.BufferCount      = s_kSwapBufferCount;
-    desc.Scaling          = DXGI_SCALING_STRETCH;
-    desc.SwapEffect       = DXGI_SWAP_EFFECT_FLIP_SEQUENTIAL;
-    desc.AlphaMode        = DXGI_ALPHA_MODE_IGNORE;
-    desc.Flags            = 0;
-
-    hr = dxgiFactory->CreateSwapChainForHwnd (m_device,
-                                              m_hwnd,
-                                              &desc,
-                                              nullptr,
-                                              nullptr,
-                                              &m_swapChain);
-    CHRA (hr);
-
-    hr = dxgiFactory->MakeWindowAssociation (m_hwnd, DXGI_MWA_NO_ALT_ENTER);
-    CHRA (hr);
-
-    hr = CreateBackBufferRtv();
-    CHRA (hr);
-
-Error:
-    return hr;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  CreateBackBufferRtv
-//
-////////////////////////////////////////////////////////////////////////////////
-
-HRESULT Disk2DebugPanel::CreateBackBufferRtv()
-{
-    HRESULT                       hr         = S_OK;
-    ComPtr<ID3D11Texture2D>       backBuffer;
-
-
-
-    CBRA (m_swapChain);
-    CBRA (m_device);
-
-    hr = m_swapChain->GetBuffer (0, IID_PPV_ARGS (&backBuffer));
-    CHRA (hr);
-
-    hr = m_device->CreateRenderTargetView (backBuffer.Get(), nullptr, &m_rtv);
-    CHRA (hr);
-
-Error:
-    return hr;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ReleaseRenderTargets
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void Disk2DebugPanel::ReleaseRenderTargets()
-{
-    if (m_context != nullptr)
+    if (m_eventList == nullptr)
     {
-        ID3D11RenderTargetView *  nullRtv = nullptr;
-        m_context->OMSetRenderTargets (1, &nullRtv, nullptr);
+        return nullptr;
     }
-    m_rtv.Reset();
+
+    bounds  = m_eventList->Bounds();
+    local.x = clientPx.x - bounds.left;
+    local.y = clientPx.y - bounds.top;
+
+    cursor = m_eventList->CursorForPoint (local);
+    if (cursor == nullptr && m_eventList->IsResizingColumn())
+    {
+        cursor = IDC_SIZEWE;
+    }
+
+    return cursor;
 }
 
 
@@ -1677,13 +885,9 @@ void Disk2DebugPanel::ReleaseRenderTargets()
 
 void Disk2DebugPanel::RecomputeLayout()
 {
-    int  titleHeight = 0;
+    int  titleHeight = CaptionHeightPx();
 
 
-    if (m_titleBar != nullptr)
-    {
-        titleHeight = m_titleBar->GetTitleHeight();
-    }
 
     m_layout = ComputeDisk2DebugPanelLayout (m_widthPx, m_heightPx, titleHeight, m_dpi);
 
@@ -1696,137 +900,103 @@ void Disk2DebugPanel::RecomputeLayout()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  UpdateDynamicLabels
+//
+//  Refreshes the label text that depends on live filter state: the
+//  track-filter caption (Track vs Quarter-track) and the two invalid-
+//  span detail labels. Called at creation and whenever the filter /
+//  edit state changes -- NOT from the layout pass (text is content, not
+//  geometry).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Disk2DebugPanel::UpdateDynamicLabels()
+{
+    if (m_trackFilterLabel == nullptr)
+    {
+        return;
+    }
+
+    m_trackFilterLabel->SetText   (m_filter.trackFilterRawQt ? s_kpszTrackQtFilterLabel : s_kpszTrackFilterLabel);
+    m_trackInvalidLabel->SetText  (BuildInvalidLabel (s_kpszTrackInvalidPrefix,  m_trackEdit->Text(),  m_filter.trackFilter.RejectedSpans()).c_str());
+    m_sectorInvalidLabel->SetText (BuildInvalidLabel (s_kpszSectorInvalidPrefix, m_sectorEdit->Text(), m_filter.sectorFilter.RejectedSpans()).c_str());
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  LayoutWidgets
 //
-//  Reapplies rect / DPI / theme color to every widget owned by the
-//  panel. Called whenever the layout slots or theme change.
+//  Positions every child at its computed slot in the current DPI. Pure
+//  geometry: each child's Layout(rect, scaler) call carries both bounds
+//  and DPI, so no widget needs an explicit SetDpi. Text lives in the
+//  label constructors / UpdateDynamicLabels; colors resolve at paint.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void Disk2DebugPanel::LayoutWidgets()
 {
-    uint32_t  textArgb     = 0xFFE8EEF4;
-    uint32_t  invalidArgb  = 0xFFFF6666;
-
-
-    if (m_theme != nullptr)
-    {
-        textArgb = m_theme->navItemTextArgb;
-    }
-
-    m_trackFilterLabel.SetText        (m_filter.trackFilterRawQt ? s_kpszTrackQtFilterLabel : s_kpszTrackFilterLabel);
-    m_trackFilterLabel.SetRect        (m_layout.trackFilterLabel);
-    m_trackFilterLabel.SetDpi         (m_dpi);
-    m_trackFilterLabel.SetFontSizeDip (s_kLabelFontDip);
-    m_trackFilterLabel.SetColorArgb   (textArgb);
-    m_trackFilterLabel.SetHAlign      (DwriteTextRenderer::HAlign::Right);
-    m_trackFilterLabel.SetVAlign      (DwriteTextRenderer::VAlign::Center);
-
-    m_sectorFilterLabel.SetText        (s_kpszSectorFilterLabel);
-    m_sectorFilterLabel.SetRect        (m_layout.sectorFilterLabel);
-    m_sectorFilterLabel.SetDpi         (m_dpi);
-    m_sectorFilterLabel.SetFontSizeDip (s_kLabelFontDip);
-    m_sectorFilterLabel.SetColorArgb   (textArgb);
-    m_sectorFilterLabel.SetHAlign      (DwriteTextRenderer::HAlign::Right);
-    m_sectorFilterLabel.SetVAlign      (DwriteTextRenderer::VAlign::Center);
-
-    m_trackInvalidLabel.SetText        (BuildInvalidLabel (s_kpszTrackInvalidPrefix, m_trackEdit.Text(), m_filter.trackFilter.RejectedSpans()).c_str());
-    m_trackInvalidLabel.SetRect        (m_layout.trackInvalidLabel);
-    m_trackInvalidLabel.SetDpi         (m_dpi);
-    m_trackInvalidLabel.SetFontSizeDip (s_kLabelFontDip);
-    m_trackInvalidLabel.SetColorArgb   (invalidArgb);
-    m_trackInvalidLabel.SetHAlign      (DwriteTextRenderer::HAlign::Left);
-    m_trackInvalidLabel.SetVAlign      (DwriteTextRenderer::VAlign::Center);
-
-    m_sectorInvalidLabel.SetText        (BuildInvalidLabel (s_kpszSectorInvalidPrefix, m_sectorEdit.Text(), m_filter.sectorFilter.RejectedSpans()).c_str());
-    m_sectorInvalidLabel.SetRect        (m_layout.sectorInvalidLabel);
-    m_sectorInvalidLabel.SetDpi         (m_dpi);
-    m_sectorInvalidLabel.SetFontSizeDip (s_kLabelFontDip);
-    m_sectorInvalidLabel.SetColorArgb   (invalidArgb);
-    m_sectorInvalidLabel.SetHAlign      (DwriteTextRenderer::HAlign::Left);
-    m_sectorInvalidLabel.SetVAlign      (DwriteTextRenderer::VAlign::Center);
+    m_trackFilterLabel->Layout   (m_layout.trackFilterLabel,  m_scaler);
+    m_sectorFilterLabel->Layout  (m_layout.sectorFilterLabel, m_scaler);
+    m_trackInvalidLabel->Layout  (m_layout.trackInvalidLabel, m_scaler);
+    m_sectorInvalidLabel->Layout (m_layout.sectorInvalidLabel, m_scaler);
+    m_driveFilterLabel->Layout   (m_layout.driveFilterLabel,  m_scaler);
+    m_diskEventsLabel->Layout    (m_layout.diskEventsLabel,   m_scaler);
+    m_audioEventsLabel->Layout   (m_layout.audioEventsLabel,  m_scaler);
 
     for (int i = 0; i < kEventTypeCheckCount; i++)
     {
-        m_eventChecks[i].SetRect (m_layout.eventTypeChecks[i]);
-        m_eventChecks[i].SetDpi  (m_dpi);
+        m_eventChecks[i]->Layout (m_layout.eventTypeChecks[i], m_scaler);
     }
 
-    m_audioMasterCheck.SetRect (m_layout.audioMasterCheck);
-    m_audioMasterCheck.SetDpi  (m_dpi);
+    m_audioMasterCheck->Layout (m_layout.audioMasterCheck, m_scaler);
 
     for (int i = 0; i < kAudioSubCheckCount; i++)
     {
-        m_audioSubChecks[i].SetRect (m_layout.audioSubChecks[i]);
-        m_audioSubChecks[i].SetDpi  (m_dpi);
+        m_audioSubChecks[i]->Layout (m_layout.audioSubChecks[i], m_scaler);
     }
 
-    m_rawQtCheck.SetRect (m_layout.rawQtCheck);
-    m_rawQtCheck.SetDpi  (m_dpi);
+    m_rawQtCheck->Layout (m_layout.rawQtCheck, m_scaler);
 
-    m_driveFilterLabel.SetText        (s_kpszDriveFilterLabel);
-    m_driveFilterLabel.SetRect        (m_layout.driveFilterLabel);
-    m_driveFilterLabel.SetDpi         (m_dpi);
-    m_driveFilterLabel.SetFontSizeDip (s_kLabelFontDip);
-    m_driveFilterLabel.SetColorArgb   (textArgb);
-    m_driveFilterLabel.SetHAlign      (DwriteTextRenderer::HAlign::Left);
-    m_driveFilterLabel.SetVAlign      (DwriteTextRenderer::VAlign::Center);
+    // DxuiRadioGroup positions its buttons from rects carried in its
+    // option records, so the layout pass rebuilds them. The option
+    // labels are static; only the rects change per resize. Laying the
+    // group out (bounds = union of the option rects) folds in the DPI via
+    // the scaler -- no separate SetDpi needed.
+    std::vector<DxuiRadioOption>  driveOpts;
+    RECT                          driveGroupBounds = m_layout.driveRadios[0];
 
-    m_diskEventsLabel.SetText        (s_kpszDiskEventsLabel);
-    m_diskEventsLabel.SetRect        (m_layout.diskEventsLabel);
-    m_diskEventsLabel.SetDpi         (m_dpi);
-    m_diskEventsLabel.SetFontSizeDip (s_kLabelFontDip);
-    m_diskEventsLabel.SetColorArgb   (textArgb);
-    m_diskEventsLabel.SetHAlign      (DwriteTextRenderer::HAlign::Left);
-    m_diskEventsLabel.SetVAlign      (DwriteTextRenderer::VAlign::Center);
-
-    m_audioEventsLabel.SetText        (s_kpszAudioEventsLabel);
-    m_audioEventsLabel.SetRect        (m_layout.audioEventsLabel);
-    m_audioEventsLabel.SetDpi         (m_dpi);
-    m_audioEventsLabel.SetFontSizeDip (s_kLabelFontDip);
-    m_audioEventsLabel.SetColorArgb   (textArgb);
-    m_audioEventsLabel.SetHAlign      (DwriteTextRenderer::HAlign::Left);
-    m_audioEventsLabel.SetVAlign      (DwriteTextRenderer::VAlign::Center);
-
-    // RadioGroup expects rects in its option records.
-    std::vector<RadioOption>  driveOpts;
     for (int i = 0; i < kDriveRadioCount; i++)
     {
-        RadioOption  opt;
+        DxuiRadioOption  opt;
         opt.rect  = m_layout.driveRadios[i];
         opt.label = s_kpszDriveOptionLabels[i];
         driveOpts.push_back (std::move (opt));
+
+        driveGroupBounds.left   = std::min (driveGroupBounds.left,   m_layout.driveRadios[i].left);
+        driveGroupBounds.top    = std::min (driveGroupBounds.top,    m_layout.driveRadios[i].top);
+        driveGroupBounds.right  = std::max (driveGroupBounds.right,  m_layout.driveRadios[i].right);
+        driveGroupBounds.bottom = std::max (driveGroupBounds.bottom, m_layout.driveRadios[i].bottom);
     }
-    m_driveRadio.SetOptions  (std::move (driveOpts));
-    m_driveRadio.SetDpi      (m_dpi);
-    // Re-apply selection after SetOptions: ConfigureWidgets calls
-    // SetSelected before LayoutWidgets has supplied any options, which
-    // makes the initial SetSelected a no-op (out-of-range clamps to -1).
-    m_driveRadio.SetSelected (m_filter.driveFilter);
 
-    m_trackEdit.SetRect  (m_layout.trackEdit);
-    m_trackEdit.SetDpi   (m_dpi);
-    m_trackEdit.SetTheme (m_theme);
-    m_trackEdit.SetHwnd  (m_hwnd);
+    m_driveRadio->SetOptions  (std::move (driveOpts));
+    m_driveRadio->Layout      (driveGroupBounds, m_scaler);
+    m_driveRadio->SetSelected (m_filter.driveFilter);
 
-    m_sectorEdit.SetRect  (m_layout.sectorEdit);
-    m_sectorEdit.SetDpi   (m_dpi);
-    m_sectorEdit.SetTheme (m_theme);
-    m_sectorEdit.SetHwnd  (m_hwnd);
+    m_trackEdit->Layout  (m_layout.trackEdit,  m_scaler);
+    m_sectorEdit->Layout (m_layout.sectorEdit, m_scaler);
 
-    m_pauseButton.Layout (m_layout.pauseButton);
-    m_pauseButton.SetDpi (m_dpi);
-    m_clearButton.Layout (m_layout.clearButton);
-    m_clearButton.SetDpi (m_dpi);
+    m_pauseButton->Layout (m_layout.pauseButton, m_scaler);
+    m_clearButton->Layout (m_layout.clearButton, m_scaler);
 
-    m_eventList.SetRect  (m_layout.listView);
-    m_eventList.SetDpi   (m_dpi);
-    m_eventList.SetTheme (m_theme);
+    m_eventList->Layout (m_layout.listView, m_scaler);
 
-    m_columnMenu.SetDpi   (m_dpi);
-    m_columnMenu.SetTheme (m_theme);
-
-    m_tooltip.SetDpi      (m_dpi);
+    // The column menu + tooltip are deferred popups that derive their DPI
+    // from their popup host at show time (see DxuiPopupMenu/DxuiTooltip),
+    // so no explicit SetDpi here.
     m_tooltip.SetViewportSize (m_widthPx, m_heightPx);
 }
 
@@ -1854,10 +1024,9 @@ void Disk2DebugPanel::ConfigureWidgets()
 
     for (int i = 0; i < kEventTypeCheckCount; i++)
     {
-        m_eventChecks[i].SetLabel    (s_kpszEventCheckLabels[i]);
-        m_eventChecks[i].SetChecked  ((m_filter.eventTypeMask & s_kCheckBits[i]) != 0);
+        m_eventChecks[i]->SetChecked  ((m_filter.eventTypeMask & s_kCheckBits[i]) != 0);
         uint32_t  bit = s_kCheckBits[i];
-        m_eventChecks[i].SetOnChange ([this, bit] (bool checked)
+        m_eventChecks[i]->SetOnChange ([this, bit] (bool checked)
         {
             if (checked) { m_filter.eventTypeMask |=  bit; }
             else         { m_filter.eventTypeMask &= ~bit; }
@@ -1865,12 +1034,11 @@ void Disk2DebugPanel::ConfigureWidgets()
         });
     }
 
-    m_audioMasterCheck.SetLabel    (s_kpszAudioLabel);
-    m_audioMasterCheck.SetChecked  (m_filter.audioMaster);
-    m_audioMasterCheck.SetOnChange ([this] (bool checked)
+    m_audioMasterCheck->SetChecked  (m_filter.audioMaster);
+    m_audioMasterCheck->SetOnChange ([this] (bool checked)
     {
         m_filter.audioMaster = checked;
-        for (auto & cb : m_audioSubChecks) { cb.SetEnabled (checked); }
+        for (auto & cb : m_audioSubChecks) { cb->SetEnabled (checked); }
         OnFilterChanged();
     });
 
@@ -1882,66 +1050,91 @@ void Disk2DebugPanel::ConfigureWidgets()
 
     for (int i = 0; i < kAudioSubCheckCount; i++)
     {
-        m_audioSubChecks[i].SetLabel    (s_kpszAudioSubLabels[i]);
-        m_audioSubChecks[i].SetChecked  (*s_kAudioSubBackers[i]);
-        m_audioSubChecks[i].SetEnabled  (m_filter.audioMaster);
+        m_audioSubChecks[i]->SetChecked  (*s_kAudioSubBackers[i]);
+        m_audioSubChecks[i]->SetEnabled  (m_filter.audioMaster);
         bool * backer = s_kAudioSubBackers[i];
-        m_audioSubChecks[i].SetOnChange ([this, backer] (bool checked)
+        m_audioSubChecks[i]->SetOnChange ([this, backer] (bool checked)
         {
             *backer = checked;
             OnFilterChanged();
         });
     }
 
-    m_rawQtCheck.SetLabel    (s_kpszRawQtLabel);
-    m_rawQtCheck.SetChecked  (m_filter.trackFilterRawQt);
-    m_rawQtCheck.SetOnChange ([this] (bool checked)
+    m_rawQtCheck->SetChecked  (m_filter.trackFilterRawQt);
+    m_rawQtCheck->SetOnChange ([this] (bool checked)
     {
         m_filter.trackFilterRawQt = checked;
         OnTrackEditChanged();
         OnFilterChanged();
-        LayoutWidgets();
     });
 
-    m_driveRadio.SetSelected (m_filter.driveFilter);
-    m_driveRadio.SetOnChange ([this] (int newIndex)
+    m_driveRadio->SetSelected (m_filter.driveFilter);
+    m_driveRadio->SetOnChange ([this] (int newIndex)
     {
         m_filter.driveFilter = newIndex;
         OnFilterChanged();
     });
 
-    m_trackEdit.SetMaxLength  (32);
-    m_trackEdit.SetOnChange   ([this] (const std::wstring &) { OnTrackEditChanged(); OnFilterChanged(); });
+    m_trackEdit->SetMaxLength  (32);
+    m_trackEdit->SetHwnd       (Hwnd());
+    m_trackEdit->SetOnChange   ([this] (const std::wstring &) { OnTrackEditChanged(); OnFilterChanged(); });
 
-    m_sectorEdit.SetMaxLength (32);
-    m_sectorEdit.SetOnChange  ([this] (const std::wstring &) { OnSectorEditChanged(); OnFilterChanged(); });
+    m_sectorEdit->SetMaxLength (32);
+    m_sectorEdit->SetHwnd      (Hwnd());
+    m_sectorEdit->SetOnChange  ([this] (const std::wstring &) { OnSectorEditChanged(); OnFilterChanged(); });
 
-    m_pauseButton.SetLabel (s_kpszPauseLabel);
-    m_pauseButton.SetClick ([this] ()
+    m_pauseButton->SetOnClick ([this] ()
     {
         m_paused = !m_paused;
         UpdatePauseLabel();
     });
 
-    m_clearButton.SetLabel (s_kpszClearLabel);
-    m_clearButton.SetClick ([this] () { ClearEvents(); });
+    m_clearButton->SetOnClick ([this] () { ClearEvents(); });
 
-    std::vector<ListView::Column>  cols;
-    cols.push_back ({ L"Time",   kColWallWidth,   false, DwriteTextRenderer::HAlign::Left  });
-    cols.push_back ({ L"Uptime", kColUptimeWidth, false, DwriteTextRenderer::HAlign::Left  });
-    cols.push_back ({ L"Cycle",  kColCycleWidth,  false, DwriteTextRenderer::HAlign::Right });
-    cols.push_back ({ L"Drive",  kColDriveWidth,  false, DwriteTextRenderer::HAlign::Right });
-    cols.push_back ({ L"Event",  kColEventWidth,  false, DwriteTextRenderer::HAlign::Left  });
-    cols.push_back ({ L"Detail", 0,               true,  DwriteTextRenderer::HAlign::Left  });
-    m_eventList.SetColumns    (std::move (cols));
-    m_eventList.SetShowHeader (true);
+    std::vector<DxuiListView::Column>  cols;
+    cols.push_back ({ L"Time",   0, false, DxuiTextRenderer::HAlign::Left  });
+    cols.push_back ({ L"Uptime", 0, false, DxuiTextRenderer::HAlign::Left  });
+    cols.push_back ({ L"Cycle",  0, false, DxuiTextRenderer::HAlign::Right });
+    cols.push_back ({ L"Drive",  0, false, DxuiTextRenderer::HAlign::Right });
+    cols.push_back ({ L"Event",  0, false, DxuiTextRenderer::HAlign::Left  });
+    cols.push_back ({ L"Detail", 0, false, DxuiTextRenderer::HAlign::Left  });
+    m_eventList->SetColumns                 (std::move (cols));
+    m_eventList->SetShowHeader              (true);
+    m_eventList->SetHorizontalScrollEnabled (true);
+
+    // The list owns keyboard column navigation: when it holds focus, its
+    // own OnKey cycles the header / divider / body sub-stops on Tab and
+    // fires the sort / resize / selection callbacks below.
+    m_eventList->SetKeyboardColumnNav (true);
+
+    // The list owns its own scroll / thumb / column-resize / row-select
+    // routing via OnMouse; these callbacks fold the semantic outcomes
+    // back into the panel (selected event, sort).
+    m_eventList->SetOnSelectionChanged ([this] (int row)
+    {
+        if (row >= 0 && row < (int) m_filteredIndices.size())
+        {
+            m_listSelectedEventIndex = (int) m_filteredIndices[(size_t) row];
+        }
+        ApplyListSelection();
+    });
+    m_eventList->SetOnSortColumn ([this] (int col)
+    {
+        SortByColumn (col);
+    });
+    m_eventList->SetOnColumnResized ([] (int, int) {});
 
     m_columnMenu.SetOnSelect ([this] (int index)
     {
-        if (index < 0 || index >= (int) m_eventList.GetColumnCount()) { return; }
-        m_eventList.SetColumnVisible ((size_t) index, !m_eventList.IsColumnVisible ((size_t) index));
+        if (index < 0 || index >= (int) m_eventList->GetColumnCount()) { return; }
+        m_eventList->SetColumnVisible ((size_t) index, !m_eventList->IsColumnVisible ((size_t) index));
         LayoutWidgets();
+        m_focusMgr.Rebuild();
     });
+
+    m_focusMgr.Attach  (this);
+    m_focusMgr.SetTheme (m_theme);
+    m_focusMgr.Rebuild();
 }
 
 
@@ -1970,7 +1163,7 @@ void Disk2DebugPanel::DrainAndProject()
         // A reset (Ctrl+R / power-cycle) was requested from the CPU
         // thread. Apply the staged Uptime anchor and clear the event
         // list HERE, on the render thread, so m_events, m_filteredIndices
-        // and the ListView rows are only ever touched by one thread.
+        // and the DxuiListView rows are only ever touched by one thread.
         ticks = m_pendingAnchorTicks.load (std::memory_order_acquire);
 
         m_uptimeAnchor = std::chrono::steady_clock::time_point (std::chrono::steady_clock::duration (ticks));
@@ -2083,7 +1276,7 @@ void Disk2DebugPanel::RebuildFilteredIndices()
 //  PushListViewRows
 //
 //  Manual virtualization: only push the rows that fit visibly within
-//  the ListView slot. Walking from the tail keeps the most recent
+//  the DxuiListView slot. Walking from the tail keeps the most recent
 //  events visible, matching the legacy auto-tail behavior.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -2092,7 +1285,7 @@ void Disk2DebugPanel::PushListViewRows()
 {
     size_t  total = m_filteredIndices.size();
     size_t  cap   = m_events.size();
-    std::vector<std::vector<ListView::Cell>>  rows;
+    std::vector<std::vector<DxuiListView::Cell>>  rows;
 
 
     rows.reserve (total);
@@ -2103,7 +1296,7 @@ void Disk2DebugPanel::PushListViewRows()
         if (idx >= cap) { continue; }
         const Disk2EventDisplay & e = m_events[idx];
 
-        std::vector<ListView::Cell>  row;
+        std::vector<DxuiListView::Cell>  row;
         row.push_back ({ std::wstring (e.wallStr.data()),   false });
         row.push_back ({ std::wstring (e.uptimeStr.data()), false });
         row.push_back ({ std::wstring (e.cycleStr.data()),  false });
@@ -2126,7 +1319,8 @@ void Disk2DebugPanel::PushListViewRows()
         rows.push_back (std::move (row));
     }
 
-    m_eventList.SetRows (std::move (rows));
+    m_eventList->SetRows (std::move (rows));
+    m_eventList->UpdateAutoFitFromRows();
 }
 
 
@@ -2204,11 +1398,11 @@ void Disk2DebugPanel::OnFilterChanged()
 
 void Disk2DebugPanel::OnTrackEditChanged()
 {
-    m_filter.trackFilter = TrackSectorPredicate::Parse (m_trackEdit.Text(),
+    m_filter.trackFilter = TrackSectorPredicate::Parse (m_trackEdit->Text(),
                                                         TrackSectorPredicate::Mode::Track,
                                                         m_filter.trackFilterRawQt);
     m_trackEditValid = m_filter.trackFilter.RejectedSpans().empty();
-    m_trackInvalidLabel.SetText (BuildInvalidLabel (s_kpszTrackInvalidPrefix, m_trackEdit.Text(), m_filter.trackFilter.RejectedSpans()).c_str());
+    UpdateDynamicLabels();
 }
 
 
@@ -2223,10 +1417,10 @@ void Disk2DebugPanel::OnTrackEditChanged()
 
 void Disk2DebugPanel::OnSectorEditChanged()
 {
-    m_filter.sectorFilter = TrackSectorPredicate::Parse (m_sectorEdit.Text(),
+    m_filter.sectorFilter = TrackSectorPredicate::Parse (m_sectorEdit->Text(),
                                                          TrackSectorPredicate::Mode::Sector);
     m_sectorEditValid = m_filter.sectorFilter.RejectedSpans().empty();
-    m_sectorInvalidLabel.SetText (BuildInvalidLabel (s_kpszSectorInvalidPrefix, m_sectorEdit.Text(), m_filter.sectorFilter.RejectedSpans()).c_str());
+    UpdateDynamicLabels();
 }
 
 
@@ -2241,7 +1435,7 @@ void Disk2DebugPanel::OnSectorEditChanged()
 
 void Disk2DebugPanel::UpdatePauseLabel()
 {
-    m_pauseButton.SetLabel (m_paused ? s_kpszResumeLabel : s_kpszPauseLabel);
+    m_pauseButton->SetLabel (m_paused ? s_kpszResumeLabel : s_kpszPauseLabel);
 }
 
 
@@ -2272,6 +1466,7 @@ void Disk2DebugPanel::ClearEvents()
     m_filteredIndices.clear();
     m_currentDrive = 0;
     m_listSelectedEventIndex = -1;
+    m_eventList->ResetAutoFit();
     PushListViewRows();
     ApplyListSelection();
 }
@@ -2287,7 +1482,7 @@ void Disk2DebugPanel::ClearEvents()
 //  Thread-safe reset entry point for the CPU/reset thread. Stages the
 //  new Uptime anchor and raises a pending-reset flag; DrainAndProject
 //  applies the anchor and clears the event list on the render thread,
-//  keeping the event deque and ListView rows single-threaded.
+//  keeping the event deque and DxuiListView rows single-threaded.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -2496,7 +1691,7 @@ int64_t Disk2DebugPanel::NowMs() const
 //
 //  Walks the filter / drive / edit widgets and shows the appropriate
 //  tooltip for whichever the cursor is over. Tooltips dwell-open after
-//  ~500ms of stable hover (Tooltip widget enforces it) and hide as soon
+//  ~500ms of stable hover (DxuiTooltip widget enforces it) and hide as soon
 //  as the cursor leaves all known targets.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -2507,52 +1702,52 @@ void Disk2DebugPanel::UpdateTooltip (int x, int y)
 
     for (size_t i = 0; i < m_eventChecks.size(); ++i)
     {
-        if (m_eventChecks[i].HitTest (x, y))
+        if (m_eventChecks[i]->HitTest (x, y))
         {
-            m_tooltip.RequestShow (m_eventChecks[i].Rect(), s_kpszEventCheckTips[i], now);
+            m_tooltip.RequestShow (m_eventChecks[i]->Rect(), s_kpszEventCheckTips[i], now);
             return;
         }
     }
 
-    if (m_audioMasterCheck.HitTest (x, y))
+    if (m_audioMasterCheck->HitTest (x, y))
     {
-        m_tooltip.RequestShow (m_audioMasterCheck.Rect(), s_kpszAudioMasterTip, now);
+        m_tooltip.RequestShow (m_audioMasterCheck->Rect(), s_kpszAudioMasterTip, now);
         return;
     }
 
     for (size_t i = 0; i < m_audioSubChecks.size(); ++i)
     {
-        if (m_audioSubChecks[i].HitTest (x, y))
+        if (m_audioSubChecks[i]->HitTest (x, y))
         {
-            m_tooltip.RequestShow (m_audioSubChecks[i].Rect(), s_kpszAudioSubTips[i], now);
+            m_tooltip.RequestShow (m_audioSubChecks[i]->Rect(), s_kpszAudioSubTips[i], now);
             return;
         }
     }
 
-    if (m_rawQtCheck.HitTest (x, y))
+    if (m_rawQtCheck->HitTest (x, y))
     {
-        m_tooltip.RequestShow (m_rawQtCheck.Rect(), s_kpszRawQtTip, now);
+        m_tooltip.RequestShow (m_rawQtCheck->Rect(), s_kpszRawQtTip, now);
         return;
     }
 
-    int  driveHit = m_driveRadio.HitTest (x, y);
-    if (driveHit >= 0 && driveHit < (int) m_driveRadio.Options().size())
+    int  driveHit = m_driveRadio->HitTest (x, y);
+    if (driveHit >= 0 && driveHit < (int) m_driveRadio->Options().size())
     {
-        m_tooltip.RequestShow (m_driveRadio.Options()[driveHit].rect,
+        m_tooltip.RequestShow (m_driveRadio->Options()[driveHit].rect,
                                s_kpszDriveRadioTips[driveHit],
                                now);
         return;
     }
 
-    if (m_trackEdit.HitTest (x, y))
+    if (m_trackEdit->HitTest (x, y))
     {
-        m_tooltip.RequestShow (m_trackEdit.Rect(), s_kpszTrackEditTip, now);
+        m_tooltip.RequestShow (m_trackEdit->Rect(), s_kpszTrackEditTip, now);
         return;
     }
 
-    if (m_sectorEdit.HitTest (x, y))
+    if (m_sectorEdit->HitTest (x, y))
     {
-        m_tooltip.RequestShow (m_sectorEdit.Rect(), s_kpszSectorEditTip, now);
+        m_tooltip.RequestShow (m_sectorEdit->Rect(), s_kpszSectorEditTip, now);
         return;
     }
 

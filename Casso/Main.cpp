@@ -5,6 +5,8 @@
 #include "Config/UserConfigStore.h"
 #include "Config/Win32FileSystem.h"
 #include "Core/MachineConfig.h"
+#include "Core/JsonParser.h"
+#include "Core/JsonWriter.h"
 #include "Core/PathResolver.h"
 #include "DiskSettings.h"
 #include "EmulatorShell.h"
@@ -206,6 +208,9 @@ static HRESULT LoadMachineConfig (
         hrLoad = prefs.Load (assetBase, fs_io);
         IGNORE_RETURN_VALUE (hrLoad, S_OK);
 
+        // Download any missing required ROMs (and, with consent, Disk ][
+        // drive audio) up front in one themed dialog. Boot-disk selection
+        // is owned solely by the boot-disk picker below.
         hr = AssetBootstrap::RunStartupDownloader (hInstance, machineName, hwndParent,
                                                    romSearchPaths, romDir, hasDisk,
                                                    prefs, error);
@@ -221,11 +226,9 @@ static HRESULT LoadMachineConfig (
     // Boot-disk pre-flight: if the user didn't pass --disk1 and there's
     // no remembered disk for this machine in UserPrefs (or the
     // remembered path no longer points at a real file), and the
-    // machine has a Disk ][ controller, show the boot-disk picker. It
-    // lists recent disks plus any stock masters already present on
-    // disk to mount, and offers to download DOS 3.3 / ProDOS if they
-    // are absent. Without this the user just stares at a spinning
-    // drive forever after first launch.
+    // machine has a Disk ][ controller, offer to download a stock
+    // Apple system master disk. Without this the user just stares at
+    // a spinning drive forever after first launch.
     if (inoutDisk1Path.empty())
     {
         Win32FileSystem  fs_io;
@@ -251,7 +254,7 @@ static HRESULT LoadMachineConfig (
             GlobalUserPrefs        prefs;
             Win32FileSystem        fs_prefs;
             DiskMru                mru;
-            vector<fs::path>       mruExisting;
+            vector<DiskMru::Entry> mruPruned;
             HRESULT                hrPrefs    = S_OK;
             bool                   userClosed = false;
 
@@ -260,11 +263,13 @@ static HRESULT LoadMachineConfig (
             hrPrefs = prefs.Load (AssetBootstrap::GetAssetBaseDirectory().wstring(), fs_prefs);
             IGNORE_RETURN_VALUE (hrPrefs, S_OK);
 
-            mru         = DiskMru::FromUtf8 (prefs.recentDisks);
-            mruExisting = mru.Prune ([] (const fs::path & p) { return fs::exists (p); });
+            mru       = DiskMru::FromUtf8 (prefs.recentDisks, prefs.recentDiskLoadedAt);
+            mruPruned = mru.Prune ([] (const fs::path & p) { return fs::exists (p); });
+
+            AssetBootstrap::AppendBundledDemoDisks (mruPruned);
 
             hr = AssetBootstrap::PromptBootDiskMru (
-                hInstance, hwndParent, machineName, mruExisting, diskDir, prefs.activeTheme, downloaded, userClosed, error);
+                hInstance, hwndParent, machineName, mruPruned, diskDir, prefs.activeTheme, downloaded, userClosed, error);
 
             CHRN (hr, format (L"Boot disk download failed:\n{}",
                               wstring (error.begin(), error.end())).c_str());
@@ -293,6 +298,25 @@ static HRESULT LoadMachineConfig (
 
     ss << configFile.rdbuf();
     jsonText = ss.str();
+
+    // Apply the user's per-machine delta (e.g. a slot disabled in Settings >
+    // Hardware) to the base config before building, so machine-level edits
+    // persist across launches -- matching MachineManager::SwitchMachine for an
+    // in-session reboot. Falls back to the base text on any merge failure.
+    {
+        Win32FileSystem  fsMerge;
+        UserConfigStore  storeMerge (AssetBootstrap::GetAssetBaseDirectory().wstring());
+        JsonValue        defaultJson;
+        JsonValue        mergedJson;
+        JsonParseError   parseErr;
+
+        if (SUCCEEDED (JsonParser::Parse (jsonText, defaultJson, parseErr)) &&
+            SUCCEEDED (storeMerge.Load (fs::path (machineName).string (), defaultJson, fsMerge, mergedJson)) &&
+            mergedJson.GetType () == JsonType::Object)
+        {
+            jsonText = JsonWriter::Write (mergedJson);
+        }
+    }
 
     hr = MachineConfigLoader::Load (jsonText,
                                     fs::path (machineName).string (),

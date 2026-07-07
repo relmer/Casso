@@ -59,7 +59,7 @@ public:
     // Wire the CPU bus-cycle accumulator that drives the PREAD paddle timer.
     void SetCpuCycleSource (const uint64_t * src) { m_cpuCycleSource = src; }
 
-    // Attach the input-debug notification sink (CPU thread, lock-free ring).
+    // Attach the input-debug notification sink.
     void SetInputEventSink (IInputEventSink * sink) noexcept { m_inputSink = sink; }
 
     // Stage an analog axis position (0-255, s_knPaddleCenter = neutral).
@@ -82,6 +82,7 @@ private:
 
     Byte ReadStatusRegister (Word address);
     Byte ReadPaddle         (Word address) const;
+    void EmitHostPaddle     (int axis, Byte value);
     void EmitPaddleTrigger  ();
     void EmitPaddleRead     (Word address, Byte value);
 
@@ -97,5 +98,6 @@ private:
     bool                 m_doubleHiRes        = false;
     bool                 m_altCharSet         = false;
     atomic<Byte>         m_paddlePosition[s_knPaddleAxisCount];
-    int                  m_lastEmittedPaddle[s_knPaddleAxisCount] = { -1, -1, -1, -1 };
+    int                  m_lastEmittedPaddle[s_knPaddleAxisCount]     = { -1, -1, -1, -1 };
+    int                  m_lastEmittedHostPaddle[s_knPaddleAxisCount] = { -1, -1, -1, -1 };
 };

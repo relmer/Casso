@@ -2,6 +2,27 @@
 ================================================================================
 SYNC IMPACT REPORT
 ================================================================================
+Version change: 1.6.0 -> 1.7.0 (MINOR -- materially expanded Code Quality
+  formatting/structure guidance with two new normative rules)
+Modified principles: I. Code Quality (NON-NEGOTIABLE) -- added two bullets
+Modified sections:
+  - Core Principles / I. Code Quality: added "No Anonymous Namespaces"
+    (file-local constants are file-scope `static constexpr`; helpers are
+    class `static` members, not free functions) and "Blank Line After
+    Closing Brace" (a `}` is followed by a blank line except a do-while
+    tail, a following `else`, or another `}`).
+Added sections: N/A
+Removed sections: N/A
+Templates requiring updates:
+  ✅ plan-template.md - Constitution Check still aligned
+  ✅ spec-template.md - No template change required
+  ✅ tasks-template.md - No template change required
+Follow-up TODOs: None
+================================================================================
+
+================================================================================
+SYNC IMPACT REPORT (PRIOR)
+================================================================================
 Version change: 1.5.0 -> 1.6.0 (MINOR -- materially changed Tech Constraints
   by removing an approved third-party dependency)
 Modified principles: N/A
@@ -65,6 +86,8 @@ All code MUST adhere to established formatting and structural standards:
 - **Function Spacing**: NEVER insert a space between a function name and an empty argument list — write `func()`, not `func ()`. ALWAYS insert a space (or more, for column alignment) between a function name and a non-empty argument list, and between any keyword that takes parens (`if`, `for`, `while`, `switch`, `return`, `sizeof`, etc.) and the opening paren — write `func (a, b)`, `if (x)`, `return (value)`.
 - **Cast Spacing**: ALWAYS insert a space between a C-style cast and its operand — write `(float) std::numbers::pi`, `(int) value`, `(Word) addr`; NEVER write `(float)value`.
 - **Smart Pointers**: Prefer `unique_ptr` for exclusive ownership, `shared_ptr` when shared ownership is required
+- **No Anonymous Namespaces**: NEVER use `namespace {}`. Declare file-local constants as file-scope `static constexpr` (`s_k` Hungarian naming); put file-local helpers as class `static` members. Strongly prefer class members over free/global functions in general — a free function requires a very convincing justification.
+- **Blank Line After Closing Brace**: A closing `}` MUST be followed by a blank line, EXCEPT when it ends a do-while (`} while (...)`), is followed by `else`, or is immediately followed by another closing `}`. Guard clauses and `switch`/`case` blocks are NOT exceptions.
 
 **Rationale**: Consistent formatting enables efficient code review and reduces merge conflicts. EHM patterns ensure predictable error handling, resource cleanup, and flat readable code.
 
@@ -196,4 +219,4 @@ This constitution supersedes all ad-hoc practices. All code changes MUST verify 
 
 **Guidance Reference**: See `.github/copilot-instructions.md` for detailed runtime development guidance and code style rules.
 
-**Version**: 1.6.0 | **Ratified**: 2026-01-24 | **Last Amended**: 2026-05-23
+**Version**: 1.7.0 | **Ratified**: 2026-01-24 | **Last Amended**: 2026-06-27

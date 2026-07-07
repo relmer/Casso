@@ -1,13 +1,12 @@
 #include "Pch.h"
 
 #include "Ui/Settings/SettingsPanelState.h"
-#include "Ui/Settings/MachinePage.h"
+#include "Ui/Settings/HardwarePage.h"
 
 #include "Core/JsonParser.h"
 #include "Core/JsonWriter.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
-
 
 
 
@@ -23,7 +22,6 @@ namespace
     constexpr uint32_t  s_kFixtureClockSpeedHz    = 1023000;
     constexpr size_t    s_kFixtureDevices         = 4;
 
-
     class RecordingSink : public ISettingsApplySink
     {
     public:
@@ -31,12 +29,12 @@ namespace
         SettingsColorMode  lastColor             = SettingsColorMode::Color;
         bool               lastFloppySound       = true;
         std::string        lastMechanism;
-        float              lastMotorVolume       = 0.0f;
-        float              lastHeadVolume        = 0.0f;
-        float              lastDoorVolume        = 0.0f;
+        bool               lastWriteProtect[2]   = { false, false };
+        float              lastDriveMotor        = -1.0f;
+        float              lastDriveHead         = -1.0f;
+        float              lastDriveDoor         = -1.0f;
         float              lastDriveOnePan       = 0.0f;
         float              lastDriveTwoPan       = 0.0f;
-        bool               lastWriteProtect[2]   = { false, false };
         int                queuedResetCount      = 0;
         int                applyCount            = 0;
 
@@ -46,12 +44,12 @@ namespace
         void ApplyMechanism    (const std::string & m) override    { lastMechanism = m; ++applyCount; }
         void ApplyDriveVolumes (float motor, float head, float door) override
         {
-            lastMotorVolume = motor;
-            lastHeadVolume  = head;
-            lastDoorVolume  = door;
+            lastDriveMotor = motor;
+            lastDriveHead  = head;
+            lastDriveDoor  = door;
             ++applyCount;
         }
-        void ApplyDrivePan (float driveOnePan, float driveTwoPan) override
+        void ApplyDrivePan     (float driveOnePan, float driveTwoPan) override
         {
             lastDriveOnePan = driveOnePan;
             lastDriveTwoPan = driveTwoPan;
@@ -433,10 +431,10 @@ public:
     }
 
 
-    TEST_METHOD (MachinePage_List_Selection_Rebuilds_Downstream_State)
+    TEST_METHOD (MachineTab_List_Selection_Rebuilds_Downstream_State)
     {
         SettingsPanelState       st;
-        MachinePage              page;
+        HardwarePage             page;
         JsonValue                machineA = ParseOrFail (kFixtureJson);
         JsonValue                machineB = ParseOrFail (kFixtureJsonWithFlags);
         RECT                     rect     = { 0, 0, 640, 480 };
@@ -444,7 +442,7 @@ public:
 
 
 
-        DpiScaler                scaler;
+        DxuiDpiScaler                scaler;
 
         st.LoadFromMachine ("machineA", machineA, machineA);
         page.SetState (&st);
@@ -460,14 +458,54 @@ public:
         Assert::AreEqual (0, page.ActiveMachineIndex());
         Assert::AreEqual (0, page.MachineDropdown().SelectedIndex());
 
-        page.OnLButtonDown (180, 20);
-        page.OnLButtonUp   (180, 20);
-        page.OnLButtonDown (180, 80);
-        page.OnLButtonUp   (180, 80);
+        // Drive the dropdown directly: production routes the popup
+        // through DxuiPopupHost (out-of-panel HWND), so the panel's
+        // auto fan-out never sees clicks on an open menu. This test
+        // exercises the dropdown's selection wiring, not the dispatch
+        // path, so we hit the dropdown's legacy entry points directly.
+        page.MachineDropdown().OnLButtonDown (180, 20);
+        page.MachineDropdown().OnLButtonUp   (180, 20);
+        page.MachineDropdown().OnLButtonDown (180, 80);
+        page.MachineDropdown().OnLButtonUp   (180, 80);
 
         Assert::AreEqual (std::string ("machineB"), st.MachineName());
         Assert::AreEqual (1, page.ActiveMachineIndex());
         Assert::IsTrue   (st.Prefs().speedMode == SettingsSpeedMode::Double);
+    }
+
+
+    TEST_METHOD (HasDiskIIController_TracksSlot6EnabledState)
+    {
+        SettingsPanelState  st;
+        JsonValue           v = ParseOrFail (kFixtureJson);
+
+
+        st.LoadFromMachine ("X", v, v);
+
+        // The fixture wires an enabled disk-ii controller into slot 6.
+        Assert::IsTrue (st.HasDiskIIController(),
+            L"A machine with an enabled disk-ii slot must report a controller.");
+
+        // Locate the disk-ii entry and disable it; the controller must vanish
+        // (this is exactly what hides the settings sheet's Disk tab, #84 B).
+        const std::vector<HardwareEntry> & hw = st.Hardware();
+        size_t  diskIdx = hw.size();
+        for (size_t i = 0; i < hw.size(); ++i)
+        {
+            if (hw[i].type == "disk-ii") { diskIdx = i; break; }
+        }
+        Assert::IsTrue (diskIdx < hw.size(), L"Fixture must expose a disk-ii entry.");
+
+        HRESULT  hr = st.SetHardwareEnabled (diskIdx, false);
+        Assert::IsTrue  (SUCCEEDED (hr));
+        Assert::IsFalse (st.HasDiskIIController(),
+            L"Disabling the disk-ii slot must clear the controller.");
+
+        // Re-enabling restores it.
+        hr = st.SetHardwareEnabled (diskIdx, true);
+        Assert::IsTrue (SUCCEEDED (hr));
+        Assert::IsTrue (st.HasDiskIIController(),
+            L"Re-enabling the disk-ii slot must restore the controller.");
     }
 
 

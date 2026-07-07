@@ -2,27 +2,53 @@
 
 #include "ColorPickerOverlay.h"
 
-#include "../../UnicodeSymbols.h"
+#include "Core/UnicodeSymbols.h"
 
 
 
 
-static constexpr int    s_kDialogWidthDp  = 380;
-static constexpr int    s_kDialogHeightDp = 286;
-static constexpr int    s_kPadDp          = 18;
-static constexpr int    s_kRowHeightDp    = 28;
-static constexpr int    s_kRowGapDp       = 12;
-static constexpr int    s_kLabelWidthDp   = 64;
-static constexpr int    s_kSliderWidthDp  = 200;
-static constexpr int    s_kPreviewWidthDp = 56;
-static constexpr int    s_kHexWidthDp     = 110;
-static constexpr int    s_kButtonWidthDp  = 96;
-static constexpr int    s_kButtonGapDp    = 12;
-static constexpr int    s_kCopyGapDp      = 8;
-static constexpr int    s_kFocusCount     = 6;
+static constexpr int      s_kDialogWidthDp        = 380;
+static constexpr int      s_kDialogHeightDp       = 286;
+static constexpr int      s_kPadDp                = 18;
+static constexpr int      s_kRowHeightDp          = 28;
+static constexpr int      s_kRowGapDp             = 12;
+static constexpr int      s_kLabelWidthDp         = 64;
+static constexpr int      s_kSliderWidthDp        = 200;
+static constexpr int      s_kPreviewWidthDp       = 56;
+static constexpr int      s_kHexWidthDp           = 110;
+static constexpr int      s_kButtonWidthDp        = 96;
+static constexpr int      s_kButtonGapDp          = 12;
+static constexpr int      s_kCopyGapDp            = 8;
+static constexpr int      s_kPreviewGapDp         = 14;
+static constexpr int      s_kHexMaxLength         = 7;
+static constexpr int      s_kHalfDivisor          = 2;
+static constexpr int      s_kDialogPadCount       = 2;
+static constexpr int      s_kSliderRowCount       = 3;
+static constexpr int      s_kSliderGapCount       = 2;
+static constexpr int      s_kFocusHue             = 0;
+static constexpr int      s_kFocusSat             = 1;
+static constexpr int      s_kFocusVal             = 2;
+static constexpr int      s_kFocusHex             = 3;
+static constexpr int      s_kFocusOk              = 4;
+static constexpr int      s_kFocusCancel          = 5;
+static constexpr int      s_kFocusCount           = 6;
+static constexpr int      s_kFocusNone            = -1;
+static constexpr int      s_kKeyDownMask          = 0x8000;
+static constexpr wchar_t  s_kDeleteChar           = 0x7F;
+static constexpr wchar_t  s_kFirstPrintableChar   = 0x20;
 
-static constexpr float  s_kHueMax         = 360.0f;
-static constexpr float  s_kPercentMax     = 100.0f;
+static constexpr float    s_kHueMax               = 360.0f;
+static constexpr float    s_kPercentMax           = 100.0f;
+static constexpr float    s_kTitleFontDip         = 15.0f;
+static constexpr float    s_kBorderDip            = 1.0f;
+static constexpr float    s_kCopyGlyphDip         = 14.0f;
+
+static constexpr int64_t  s_kCopyFlashMs          = 1100;
+static constexpr uint32_t s_kOpaqueAlphaMask      = 0xFF000000u;
+static constexpr uint32_t s_kRgbMask              = 0x00FFFFFFu;
+static constexpr UINT     s_kClipboardFormat      = CF_UNICODETEXT;
+static constexpr UINT     s_kClipboardAllocFlags  = GMEM_MOVEABLE;
+static constexpr wchar_t  s_kpszMdl2Family[]      = L"Segoe MDL2 Assets";
 
 
 
@@ -36,6 +62,8 @@ static constexpr float  s_kPercentMax     = 100.0f;
 RECT ColorPickerOverlay::MakeRect (int l, int t, int w, int h)
 {
     RECT  rc = { l, t, l + w, t + h };
+
+
 
     return rc;
 }
@@ -55,13 +83,16 @@ RECT ColorPickerOverlay::MakeRect (int l, int t, int w, int h)
 
 void ColorPickerOverlay::Open (uint32_t initialArgb)
 {
-    m_originalArgb = 0xFF000000u | (initialArgb & 0x00FFFFFFu);
-    m_argb         = m_originalArgb;
-    m_focusIndex   = -1;             // nothing focused at rest (no enlarged puck)
-    m_prevFocusIndex = -1;
-    m_open         = true;
-    m_copyHover    = false;
-    m_copyFlashMs  = 0;
+    m_originalArgb     = s_kOpaqueAlphaMask | (initialArgb & s_kRgbMask);
+    m_argb             = m_originalArgb;
+    m_focusIndex       = s_kFocusNone;
+    m_prevFocusIndex   = s_kFocusNone;
+    m_open             = true;
+    m_copyHover        = false;
+    m_copyFlashMs      = 0;
+    m_hexReplaceOnChar = false;
+
+
 
     ColorUtil::ArgbToHsv (m_argb, m_h, m_s, m_v);
 
@@ -86,24 +117,28 @@ void ColorPickerOverlay::Open (uint32_t initialArgb)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ColorPickerOverlay::Layout (const RECT & panelRect, const DpiScaler & scaler)
+void ColorPickerOverlay::Layout (const RECT & panelRect, const DxuiDpiScaler & scaler)
 {
-    int  dialogW   = scaler.Px (s_kDialogWidthDp);
-    int  dialogH   = scaler.Px (s_kDialogHeightDp);
-    int  pad       = scaler.Px (s_kPadDp);
-    int  rowH      = scaler.Px (s_kRowHeightDp);
-    int  rowGap    = scaler.Px (s_kRowGapDp);
-    int  labelW    = scaler.Px (s_kLabelWidthDp);
-    int  sliderW   = scaler.Px (s_kSliderWidthDp);
-    int  hexW      = scaler.Px (s_kHexWidthDp);
-    int  previewW  = scaler.Px (s_kPreviewWidthDp);
-    int  btnW      = scaler.Px (s_kButtonWidthDp);
-    int  btnGap    = scaler.Px (s_kButtonGapDp);
-    int  left      = panelRect.left + (panelRect.right  - panelRect.left - dialogW) / 2;
-    int  top       = panelRect.top  + (panelRect.bottom - panelRect.top  - dialogH) / 2;
-    int  x         = left + pad;
-    int  y         = top  + pad;
-    int  controlsX = x + labelW;
+    int   dialogW   = scaler.Px (s_kDialogWidthDp);
+    int   dialogH   = scaler.Px (s_kDialogHeightDp);
+    int   pad       = scaler.Px (s_kPadDp);
+    int   rowH      = scaler.Px (s_kRowHeightDp);
+    int   rowGap    = scaler.Px (s_kRowGapDp);
+    int   labelW    = scaler.Px (s_kLabelWidthDp);
+    int   sliderW   = scaler.Px (s_kSliderWidthDp);
+    int   hexW      = scaler.Px (s_kHexWidthDp);
+    int   previewW  = scaler.Px (s_kPreviewWidthDp);
+    int   btnW      = scaler.Px (s_kButtonWidthDp);
+    int   btnGap    = scaler.Px (s_kButtonGapDp);
+    int   copyGap   = scaler.Px (s_kCopyGapDp);
+    int   left      = panelRect.left + (panelRect.right  - panelRect.left - dialogW) / s_kHalfDivisor;
+    int   top       = panelRect.top  + (panelRect.bottom - panelRect.top  - dialogH) / s_kHalfDivisor;
+    int   x         = left + pad;
+    int   y         = top  + pad;
+    int   controlsX = x + labelW;
+    int   by        = top + dialogH - pad - rowH;
+    int   bx        = left + dialogW - pad - btnW;
+    UINT  dpi       = scaler.Dpi();
 
 
 
@@ -111,88 +146,76 @@ void ColorPickerOverlay::Layout (const RECT & panelRect, const DpiScaler & scale
     m_panelRect  = panelRect;
     m_dialogRect = MakeRect (left, top, dialogW, dialogH);
 
-    m_title.SetRect (MakeRect (x, y, dialogW - pad * 2, rowH));
+    m_title.SetRect (MakeRect (x, y, dialogW - pad * s_kDialogPadCount, rowH));
     m_title.SetText (L"Custom text color");
-    m_title.SetFontSizeDip (15.0f);
-    m_title.SetFontWeight (DWRITE_FONT_WEIGHT_SEMI_BOLD);
+    m_title.SetFontSizeDip (s_kTitleFontDip);
+    m_title.SetFontWeight (DxuiFontWeight::SemiBold);
+    m_title.SetTextRole (DxuiTextRole::Heading);
     y += rowH + rowGap;
 
-    // The preview swatch spans the three slider rows on the right.
-    m_previewRect = MakeRect (controlsX + sliderW + scaler.Px (14), y, previewW, rowH * 3 + rowGap * 2);
+    m_previewRect = MakeRect (controlsX + sliderW + scaler.Px (s_kPreviewGapDp), y, previewW, rowH * s_kSliderRowCount + rowGap * s_kSliderGapCount);
 
     m_hueLabel.SetRect (MakeRect (x, y, labelW, rowH));
     m_hueLabel.SetText (L"Hue");
-    m_hue.SetRect  (MakeRect (controlsX, y, sliderW, rowH));
-    m_hue.SetRange (0.0f, s_kHueMax);
-    m_hue.SetStep  (1.0f);
-    m_hue.SetSuffix (s_kpszDegree);
+    m_hueLabel.SetTextRole (DxuiTextRole::Body);
+    m_hue.SetRect      (MakeRect (controlsX, y, sliderW, rowH));
+    m_hue.SetRange     (0.0f, s_kHueMax);
+    m_hue.SetStep      (1.0f);
+    m_hue.SetSuffix    (s_kpszDegree);
     m_hue.SetShowTicks (false);
     y += rowH + rowGap;
 
     m_satLabel.SetRect (MakeRect (x, y, labelW, rowH));
     m_satLabel.SetText (L"Sat");
-    m_sat.SetRect  (MakeRect (controlsX, y, sliderW, rowH));
-    m_sat.SetRange (0.0f, s_kPercentMax);
-    m_sat.SetStep  (1.0f);
-    m_sat.SetSuffix (L"%");
+    m_satLabel.SetTextRole (DxuiTextRole::Body);
+    m_sat.SetRect      (MakeRect (controlsX, y, sliderW, rowH));
+    m_sat.SetRange     (0.0f, s_kPercentMax);
+    m_sat.SetStep      (1.0f);
+    m_sat.SetSuffix    (L"%");
     m_sat.SetShowTicks (false);
     y += rowH + rowGap;
 
     m_valLabel.SetRect (MakeRect (x, y, labelW, rowH));
     m_valLabel.SetText (L"Val");
-    m_val.SetRect  (MakeRect (controlsX, y, sliderW, rowH));
-    m_val.SetRange (0.0f, s_kPercentMax);
-    m_val.SetStep  (1.0f);
-    m_val.SetSuffix (L"%");
+    m_valLabel.SetTextRole (DxuiTextRole::Body);
+    m_val.SetRect      (MakeRect (controlsX, y, sliderW, rowH));
+    m_val.SetRange     (0.0f, s_kPercentMax);
+    m_val.SetStep      (1.0f);
+    m_val.SetSuffix    (L"%");
     m_val.SetShowTicks (false);
     y += rowH + rowGap;
 
     m_hexLabel.SetRect (MakeRect (x, y, labelW, rowH));
     m_hexLabel.SetText (L"Hex");
+    m_hexLabel.SetTextRole (DxuiTextRole::Body);
     m_hex.SetRect      (MakeRect (controlsX, y, hexW, rowH));
-    m_hex.SetTheme     (m_theme);
-    m_hex.SetMaxLength (7);
+    m_hex.SetMaxLength (s_kHexMaxLength);
+    m_copyRect = MakeRect (controlsX + hexW + copyGap, y, rowH, rowH);
 
-    // Copy-to-clipboard icon button, immediately right of the hex box.
-    {
-        int  copyGap = scaler.Px (s_kCopyGapDp);
+    m_cancel.Layout   (MakeRect (bx, by, btnW, rowH));
+    m_cancel.SetLabel (L"Cancel");
+    m_ok.Layout       (MakeRect (bx - btnGap - btnW, by, btnW, rowH));
+    m_ok.SetLabel     (L"OK");
+    m_ok.SetVariant   (DxuiButton::Variant::Primary);
 
-        m_copyRect = MakeRect (controlsX + hexW + copyGap, y, rowH, rowH);
-    }
-
-    // Buttons pinned to the bottom-right of the dialog.
-    {
-        int  by = top + dialogH - pad - rowH;
-        int  bx = left + dialogW - pad - btnW;
-
-        m_cancel.Layout   (MakeRect (bx, by, btnW, rowH));
-        m_cancel.SetLabel (L"Cancel");
-        m_ok.Layout       (MakeRect (bx - btnGap - btnW, by, btnW, rowH));
-        m_ok.SetLabel     (L"OK");
-    }
-
-    {
-        UINT  dpi = scaler.Dpi();
-
-        m_title.SetDpi    (dpi);
-        m_hueLabel.SetDpi (dpi);
-        m_satLabel.SetDpi (dpi);
-        m_valLabel.SetDpi (dpi);
-        m_hexLabel.SetDpi (dpi);
-        m_hue.SetDpi      (dpi);
-        m_sat.SetDpi      (dpi);
-        m_val.SetDpi      (dpi);
-        m_hex.SetDpi      (dpi);
-        m_ok.SetDpi       (dpi);
-        m_cancel.SetDpi   (dpi);
-    }
+    m_title.SetDpi    (dpi);
+    m_hueLabel.SetDpi (dpi);
+    m_satLabel.SetDpi (dpi);
+    m_valLabel.SetDpi (dpi);
+    m_hexLabel.SetDpi (dpi);
+    m_hue.SetDpi      (dpi);
+    m_sat.SetDpi      (dpi);
+    m_val.SetDpi      (dpi);
+    m_hex.SetDpi      (dpi);
+    m_ok.SetDpi       (dpi);
+    m_cancel.SetDpi   (dpi);
 
     m_hue.SetOnChange ([this] (float v) { m_h = v;                 SyncFromHsv(); });
     m_sat.SetOnChange ([this] (float v) { m_s = v / s_kPercentMax; SyncFromHsv(); });
     m_val.SetOnChange ([this] (float v) { m_v = v / s_kPercentMax; SyncFromHsv(); });
     m_hex.SetOnChange ([this] (const std::wstring &) { SyncFromHex(); });
-    m_ok.SetClick     ([this] { Accept(); });
-    m_cancel.SetClick ([this] { Cancel(); });
+    m_ok.SetOnClick     ([this] { Accept(); });
+    m_cancel.SetOnClick ([this] { Cancel(); });
 }
 
 
@@ -205,7 +228,7 @@ void ColorPickerOverlay::Layout (const RECT & panelRect, const DpiScaler & scale
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ColorPickerOverlay::SyncFromHsv ()
+void ColorPickerOverlay::SyncFromHsv()
 {
     HRESULT  hr = S_OK;
 
@@ -237,7 +260,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ColorPickerOverlay::SyncFromHex ()
+void ColorPickerOverlay::SyncFromHex()
 {
     HRESULT   hr     = S_OK;
     uint32_t  parsed = 0;
@@ -273,11 +296,11 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ColorPickerOverlay::Accept / Cancel
+//  ColorPickerOverlay::Accept
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ColorPickerOverlay::Accept ()
+void ColorPickerOverlay::Accept()
 {
     m_open = false;
 
@@ -291,7 +314,13 @@ void ColorPickerOverlay::Accept ()
 
 
 
-void ColorPickerOverlay::Cancel ()
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ColorPickerOverlay::Cancel
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ColorPickerOverlay::Cancel()
 {
     m_open = false;
 
@@ -307,7 +336,7 @@ void ColorPickerOverlay::Cancel ()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ColorPickerOverlay::MoveFocus / ApplyFocus
+//  ColorPickerOverlay::MoveFocus
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -321,28 +350,98 @@ void ColorPickerOverlay::MoveFocus (int delta)
 
 
 
-void ColorPickerOverlay::ApplyFocus ()
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ColorPickerOverlay::ApplyFocus
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ColorPickerOverlay::ApplyFocus()
 {
-    bool  hexGainingFocus = (m_focusIndex == 3) && (m_prevFocusIndex != 3);
+    bool  hexGainingFocus = (m_focusIndex == s_kFocusHex) && (m_prevFocusIndex != s_kFocusHex);
 
 
 
-    m_hue.SetFocused    (m_focusIndex == 0);
-    m_sat.SetFocused    (m_focusIndex == 1);
-    m_val.SetFocused    (m_focusIndex == 2);
-    m_hex.SetFocused    (m_focusIndex == 3);
-    m_ok.SetFocused     (m_focusIndex == 4);
-    m_cancel.SetFocused (m_focusIndex == 5);
+    m_hue.SetFocused    (m_focusIndex == s_kFocusHue);
+    m_sat.SetFocused    (m_focusIndex == s_kFocusSat);
+    m_val.SetFocused    (m_focusIndex == s_kFocusVal);
+    m_hex.SetFocused    (m_focusIndex == s_kFocusHex);
+    m_ok.SetFocused     (m_focusIndex == s_kFocusOk);
+    m_cancel.SetFocused (m_focusIndex == s_kFocusCancel);
 
-    // Select the whole hex string when the field gains focus so the first
-    // keystroke replaces it (it starts full at "#RRGGBB", so appending
-    // would otherwise be a no-op).
-    if (hexGainingFocus)
+    m_hexReplaceOnChar = hexGainingFocus;
+    if (m_focusIndex != s_kFocusHex)
     {
-        m_hex.SelectAll();
+        m_hexReplaceOnChar = false;
     }
 
     m_prevFocusIndex = m_focusIndex;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ColorPickerOverlay::CopyTextToClipboard
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ColorPickerOverlay::CopyTextToClipboard (const std::wstring & text)
+{
+    HRESULT  hr                   = S_OK;
+    HGLOBAL  hGlobal              = nullptr;
+    HANDLE   hClipboardData       = nullptr;
+    void   * pBuffer              = nullptr;
+    size_t   byteCount            = (text.size() + 1) * sizeof (wchar_t);
+    BOOL     clipboardOpened      = FALSE;
+    BOOL     clipboardEmptied     = FALSE;
+    BOOL     clipboardClosed      = FALSE;
+    BOOL     allocationSucceeded  = FALSE;
+    BOOL     bufferLocked         = FALSE;
+    BOOL     clipboardTransferred = FALSE;
+    BOOL     bufferUnlocked       = FALSE;
+
+
+
+    clipboardOpened = OpenClipboard (m_hwnd);
+    CWR (clipboardOpened);
+
+    clipboardEmptied = EmptyClipboard();
+    CWR (clipboardEmptied);
+
+    hGlobal = GlobalAlloc (s_kClipboardAllocFlags, byteCount);
+    allocationSucceeded = (hGlobal != nullptr);
+    CWR (allocationSucceeded);
+
+    pBuffer = GlobalLock (hGlobal);
+    bufferLocked = (pBuffer != nullptr);
+    CWR (bufferLocked);
+
+    CopyMemory (pBuffer, text.c_str(), byteCount);
+    bufferUnlocked = GlobalUnlock (hGlobal);
+    IGNORE_RETURN_VALUE (bufferUnlocked, TRUE);
+
+    hClipboardData = SetClipboardData (s_kClipboardFormat, hGlobal);
+    clipboardTransferred = (hClipboardData != nullptr);
+    CWR (clipboardTransferred);
+
+    hGlobal = nullptr;
+
+Error:
+    if (hGlobal != nullptr)
+    {
+        GlobalFree (hGlobal);
+    }
+
+    if (clipboardOpened)
+    {
+        clipboardClosed = CloseClipboard();
+        IGNORE_RETURN_VALUE (clipboardClosed, TRUE);
+    }
+
+    return;
 }
 
 
@@ -359,43 +458,41 @@ void ColorPickerOverlay::OnLButtonDown (int x, int y)
 {
     if (m_hue.OnLButtonDown (x, y))
     {
-        m_focusIndex = 0;
+        m_focusIndex = s_kFocusHue;
         ApplyFocus();
     }
     else if (m_sat.OnLButtonDown (x, y))
     {
-        m_focusIndex = 1;
+        m_focusIndex = s_kFocusSat;
         ApplyFocus();
     }
     else if (m_val.OnLButtonDown (x, y))
     {
-        m_focusIndex = 2;
+        m_focusIndex = s_kFocusVal;
         ApplyFocus();
     }
     else if (m_hex.OnLButtonDown (x, y))
     {
-        // A click on the hex field places its own caret (handled inside
-        // TextInput); suppress the focus-gain select-all so the click point
-        // is preserved (Tab-in still selects all).
-        m_focusIndex     = 3;
-        m_prevFocusIndex = 3;
+        m_focusIndex       = s_kFocusHex;
+        m_prevFocusIndex   = s_kFocusHex;
+        m_hexReplaceOnChar = false;
         ApplyFocus();
     }
     else if (m_ok.HitTest (x, y))
     {
-        m_focusIndex = 4;
+        m_focusIndex = s_kFocusOk;
         ApplyFocus();
         m_ok.SetMouse (x, y, true);
     }
     else if (m_cancel.HitTest (x, y))
     {
-        m_focusIndex = 5;
+        m_focusIndex = s_kFocusCancel;
         ApplyFocus();
         m_cancel.SetMouse (x, y, true);
     }
     else if (CopyHit (x, y))
     {
-        m_hex.CopyAllToClipboard();
+        CopyTextToClipboard (m_hex.Text());
         m_copyFlashMs = (int64_t) GetTickCount64();
     }
 }
@@ -433,7 +530,7 @@ void ColorPickerOverlay::OnLButtonUp (int x, int y)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ColorPickerOverlay::OnMouseMove / OnMouseHover
+//  ColorPickerOverlay::OnMouseMove
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -449,6 +546,12 @@ void ColorPickerOverlay::OnMouseMove (int x, int y)
 
 
 
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ColorPickerOverlay::OnMouseHover
+//
+////////////////////////////////////////////////////////////////////////////////
 
 void ColorPickerOverlay::OnMouseHover (int x, int y)
 {
@@ -470,13 +573,16 @@ void ColorPickerOverlay::OnMouseHover (int x, int y)
 //  ColorPickerOverlay::OnKey
 //
 //  Enter accepts, Esc cancels, Tab / Shift+Tab cycles focus; otherwise the
-//  key routes to the focused control. Always returns true: while open the
-//  picker is modal and swallows every key.
+//  key routes to the focused control. The picker is modal and swallows keys.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool ColorPickerOverlay::OnKey (WPARAM vk)
 {
+    bool  ctrlDown = (GetKeyState (VK_CONTROL) & s_kKeyDownMask) != 0;
+
+
+
     if (vk == VK_ESCAPE)
     {
         Cancel();
@@ -487,19 +593,26 @@ bool ColorPickerOverlay::OnKey (WPARAM vk)
     }
     else if (vk == VK_TAB)
     {
-        MoveFocus ((GetKeyState (VK_SHIFT) & 0x8000) ? -1 : 1);
+        MoveFocus ((GetKeyState (VK_SHIFT) & s_kKeyDownMask) ? -1 : 1);
     }
     else
     {
+        if (m_focusIndex == s_kFocusHex && m_hexReplaceOnChar &&
+            (vk == VK_BACK || vk == VK_DELETE || (ctrlDown && vk == L'V')))
+        {
+            m_hex.SetText (L"");
+            m_hexReplaceOnChar = false;
+        }
+
         switch (m_focusIndex)
         {
-            case 0:  (void) m_hue.OnKey (vk);    break;
-            case 1:  (void) m_sat.OnKey (vk);    break;
-            case 2:  (void) m_val.OnKey (vk);    break;
-            case 3:  (void) m_hex.OnKey (vk);    break;
-            case 4:  (void) m_ok.OnKey (vk);     break;
-            case 5:  (void) m_cancel.OnKey (vk); break;
-            default: break;
+            case s_kFocusHue:    (void) m_hue.OnKey (vk);    break;
+            case s_kFocusSat:    (void) m_sat.OnKey (vk);    break;
+            case s_kFocusVal:    (void) m_val.OnKey (vk);    break;
+            case s_kFocusHex:    (void) m_hex.OnKey (vk);    break;
+            case s_kFocusOk:     (void) m_ok.OnKey (vk);     break;
+            case s_kFocusCancel: (void) m_cancel.OnKey (vk); break;
+            default:             break;
         }
     }
 
@@ -518,8 +631,13 @@ bool ColorPickerOverlay::OnKey (WPARAM vk)
 
 bool ColorPickerOverlay::OnChar (wchar_t ch)
 {
-    if (m_focusIndex == 3)
+    if (m_focusIndex == s_kFocusHex)
     {
+        if (m_hexReplaceOnChar && ch >= s_kFirstPrintableChar && ch != s_kDeleteChar)
+        {
+            m_hex.SetText (L"");
+            m_hexReplaceOnChar = false;
+        }
         (void) m_hex.OnChar (ch);
     }
 
@@ -534,55 +652,46 @@ bool ColorPickerOverlay::OnChar (wchar_t ch)
 //
 //  ColorPickerOverlay::Paint
 //
-//  Dims the panel, draws the themed dialog, then the controls + preview.
+//  Draws the themed dialog, then the controls and preview swatch.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ColorPickerOverlay::Paint (DxUiPainter & painter, DwriteTextRenderer & text)
+void ColorPickerOverlay::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
 {
-    HRESULT      hr       = S_OK;
-    ChromeTheme  theme    = (m_theme != nullptr) ? *m_theme : ChromeTheme::Skeuomorphic();
-    float        borderPx = m_scaler.Pxf (1.0f);
-    float        dl       = (float) m_dialogRect.left;
-    float        dt       = (float) m_dialogRect.top;
-    float        dw       = (float) (m_dialogRect.right  - m_dialogRect.left);
-    float        dh       = (float) (m_dialogRect.bottom - m_dialogRect.top);
-    float        pl       = (float) m_previewRect.left;
-    float        pt       = (float) m_previewRect.top;
-    float        pw       = (float) (m_previewRect.right  - m_previewRect.left);
-    float        ph       = (float) (m_previewRect.bottom - m_previewRect.top);
+    HRESULT  hr       = S_OK;
+    float    borderPx = m_scaler.Pxf (s_kBorderDip);
+    float    dl       = (float) m_dialogRect.left;
+    float    dt       = (float) m_dialogRect.top;
+    float    dw       = (float) (m_dialogRect.right  - m_dialogRect.left);
+    float    dh       = (float) (m_dialogRect.bottom - m_dialogRect.top);
+    float    pl       = (float) m_previewRect.left;
+    float    pt       = (float) m_previewRect.top;
+    float    pw       = (float) (m_previewRect.right  - m_previewRect.left);
+    float    ph       = (float) (m_previewRect.bottom - m_previewRect.top);
 
 
 
     BAIL_OUT_IF (!m_open, S_OK);
 
-    // The backdrop is already blurred + dimmed by the settings compose
-    // pass; draw only the opaque dialog body + border here.
-    painter.FillRect    (dl, dt, dw, dh, theme.navStripArgb);
-    painter.OutlineRect (dl, dt, dw, dh, borderPx, theme.buttonBorderArgb);
+    painter.FillRect    (dl, dt, dw, dh, theme.BackgroundElevated());
+    painter.OutlineRect (dl, dt, dw, dh, borderPx, theme.ButtonBorder());
 
-    m_title.SetColorArgb (theme.navItemTextArgb);
-    m_hueLabel.SetColorArgb (theme.navItemTextArgb);
-    m_satLabel.SetColorArgb (theme.navItemTextArgb);
-    m_valLabel.SetColorArgb (theme.navItemTextArgb);
-    m_hexLabel.SetColorArgb (theme.navItemTextArgb);
-
-    m_title.Paint    (painter, text);
-    m_hueLabel.Paint (painter, text);
-    m_satLabel.Paint (painter, text);
-    m_valLabel.Paint (painter, text);
-    m_hexLabel.Paint (painter, text);
+    m_title.Paint    (painter, text, theme);
+    m_hueLabel.Paint (painter, text, theme);
+    m_satLabel.Paint (painter, text, theme);
+    m_valLabel.Paint (painter, text, theme);
+    m_hexLabel.Paint (painter, text, theme);
 
     m_hue.Paint (painter, text, theme);
     m_sat.Paint (painter, text, theme);
     m_val.Paint (painter, text, theme);
+    m_hex.SetTheme (&theme);
     m_hex.Paint (painter, text);
 
     PaintCopyIcon (painter, text, theme);
 
-    // Preview swatch of the current color.
     painter.FillRect    (pl, pt, pw, ph, m_argb);
-    painter.OutlineRect (pl, pt, pw, ph, borderPx, theme.buttonBorderArgb);
+    painter.OutlineRect (pl, pt, pw, ph, borderPx, theme.ButtonBorder());
 
     m_ok.Paint     (painter, text, theme);
     m_cancel.Paint (painter, text, theme);
@@ -600,41 +709,36 @@ Error:
 //  ColorPickerOverlay::PaintCopyIcon
 //
 //  Draws the copy-to-clipboard glyph next to the hex box. The glyph swaps
-//  to a checkmark for a short window after a successful copy so the click
-//  has visible confirmation; the picker repaints continuously so the flash
-//  clears on its own.
+//  to a checkmark for a short window after a copy attempt.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void ColorPickerOverlay::PaintCopyIcon (
-    DxUiPainter         & painter,
-    DwriteTextRenderer  & text,
-    const ChromeTheme   & theme)
+    IDxuiPainter       & painter,
+    IDxuiTextRenderer  & text,
+    const IDxuiTheme   & theme)
 {
-    constexpr wchar_t  s_kpszMdl2Family[] = L"Segoe MDL2 Assets";
-    constexpr int64_t  s_kFlashMs         = 1100;
-
     HRESULT          hr        = S_OK;
     float            cl        = (float) m_copyRect.left;
     float            ct        = (float) m_copyRect.top;
     float            cw        = (float) (m_copyRect.right  - m_copyRect.left);
     float            ch        = (float) (m_copyRect.bottom - m_copyRect.top);
-    float            glyphDip  = m_scaler.Pxf (14.0f);
+    float            glyphDip  = m_scaler.Pxf (s_kCopyGlyphDip);
     bool             flashing  = (m_copyFlashMs != 0) &&
-                                 ((int64_t) GetTickCount64() - m_copyFlashMs < s_kFlashMs);
+                                 ((int64_t) GetTickCount64() - m_copyFlashMs < s_kCopyFlashMs);
     const wchar_t  * glyph     = flashing ? s_kpszMdl2Accept : s_kpszMdl2Copy;
-    uint32_t         glyphArgb = theme.navItemTextArgb;
+    uint32_t         glyphArgb = theme.Foreground();
 
 
 
     if (flashing || m_copyHover)
     {
-        glyphArgb = theme.linkArgb;
+        glyphArgb = theme.Accent();
     }
 
     if (m_copyHover)
     {
-        painter.FillRect (cl, ct, cw, ch, theme.navHoverArgb);
+        painter.FillRect (cl, ct, cw, ch, theme.HoverBackground());
     }
 
     IGNORE_RETURN_VALUE (hr, text.DrawString (glyph,
@@ -645,9 +749,9 @@ void ColorPickerOverlay::PaintCopyIcon (
                                               glyphArgb,
                                               glyphDip,
                                               s_kpszMdl2Family,
-                                              DwriteTextRenderer::HAlign::Center,
-                                              DwriteTextRenderer::VAlign::Center,
-                                              DWRITE_FONT_WEIGHT_NORMAL,
+                                              DxuiTextHAlign::Center,
+                                              DxuiTextVAlign::Center,
+                                              DxuiFontWeight::Normal,
                                               false));
 }
 
@@ -663,6 +767,15 @@ void ColorPickerOverlay::PaintCopyIcon (
 
 bool ColorPickerOverlay::CopyHit (int x, int y) const
 {
-    return x >= m_copyRect.left && x < m_copyRect.right &&
-           y >= m_copyRect.top  && y < m_copyRect.bottom;
+    bool  hit = false;
+
+
+
+    hit = x >= m_copyRect.left && x < m_copyRect.right &&
+          y >= m_copyRect.top  && y < m_copyRect.bottom;
+
+    return hit;
 }
+
+
+

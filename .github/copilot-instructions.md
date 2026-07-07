@@ -15,7 +15,7 @@ The solution has five projects:
 
 ### Precompiled Headers
 - Every `.cpp` file MUST include `"Pch.h"` as its **first** `#include`
-- **NEVER** use angle-bracket includes (`<header>`) anywhere except `Pch.h`
+- **NEVER** use angle-bracket includes (`<header>`) anywhere except `Pch.h` or a library project's umbrella header (currently only `Dxui.h`)
 - All system headers and STL headers belong in `Pch.h`
 - Individual `.cpp` and `.h` files use only quoted includes (`"header.h"`) for project headers
 
@@ -43,6 +43,11 @@ The solution has five projects:
   `ch` = char (narrow OR wide), no special wide marker. E.g.
   `s_kpszHost` (LPCWSTR), `s_kchBullet` (wchar_t),
   `s_kRomCatalog` (constant array).
+- **No anonymous namespaces.** NEVER use `namespace {}`. Declare file-local
+  constants as file-scope `static constexpr` (with the `s_k` Hungarian naming
+  above); put file-local helpers as class `static` members, not free functions.
+  More broadly, strongly prefer class members over free/global functions — a
+  free function needs a very convincing justification.
 - **No magic numbers** — all numeric literals must be named constants with clear intent.
   Exceptions: 0, 1, -1, nullptr, and sizeof expressions.
 
@@ -208,6 +213,7 @@ HRESULT EmulatorShell::Initialize (
 #### Function/Block Internal Spacing
 - **EXACTLY 3 blank lines** between variable definitions at the top of a function/block and the first real statement
 - **1 blank line** for standard code separation within functions
+- **Blank line after a closing brace.** A closing `}` MUST be followed by a blank line, EXCEPT when it ends a do-while (`} while (...)`), is followed by `else`, or is immediately followed by another closing `}`. Guard clauses and `switch`/`case` blocks are **not** exceptions.
 
 #### Correct Spacing Example:
 ```cpp
@@ -328,13 +334,23 @@ void Function2()
 - Supported platforms: x64, ARM64
 - Toolset: v145 (VS 2026)
 
-### Pre-Commit Gates
-- **ALL** tests MUST pass before committing
-- Build MUST succeed with no errors before committing
-- Each commit must leave the codebase in a compilable, tests-passing state
-- **Code analysis MUST pass** before committing: run `scripts\Build.ps1 -RunCodeAnalysis` to verify
+### Merge-to-Master Gates
+These gates apply to **`master`** — i.e. every commit that lands on `master`
+(directly or via merge/PR) MUST satisfy them. They do **NOT** apply to every
+intermediate commit on a feature branch: feature branches routinely carry many
+work-in-progress commits, and running the full build/test/analysis suite on each
+one wastes time. Validate the full gates **once, just before merging/PRing the
+branch to `master`** (and re-run after resolving merge conflicts).
+- **ALL** tests MUST pass before merging to master
+- Build MUST succeed with no errors before merging to master
+- Every commit that lands on `master` must leave the codebase compilable and tests-passing
+- **Code analysis MUST pass** before merging to master: run `scripts\Build.ps1 -RunCodeAnalysis` to verify
 - **ALWAYS** update `CHANGELOG.md` for user-visible changes (`feat`, `fix`, `perf`)
 - **ALWAYS** update `README.md` when features, test counts, or roadmap items change
+
+On a feature branch, prefer cheap, targeted validation per commit (compile the
+touched project, run the narrowest relevant tests) and defer the full suite to
+the pre-merge gate.
 
 ### Validation Suites for Significant Changes
 - Any significant changes to the **assembler** or **CPU emulator** implementation
@@ -376,12 +392,6 @@ void Function2()
 
 - **ALL** terminal windows use PowerShell, not CMD
 - **ALWAYS** format commands for PowerShell syntax
-
-<!-- SPECKIT START -->
-For additional context about technologies to be used, project structure,
-shell commands, and other important information, read the current plan
-at specs/011-native-dialogs-completion/plan.md
-<!-- SPECKIT END -->
 
 ## Security Rules
 
