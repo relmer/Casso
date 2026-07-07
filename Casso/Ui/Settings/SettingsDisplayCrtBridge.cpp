@@ -3,6 +3,7 @@
 #include "SettingsDisplayCrtBridge.h"
 
 #include "DisplayPage.h"
+#include "../ColorUtil.h"
 #include "../ThemeManager.h"
 #include "../../EmulatorShell.h"
 #include "../../Config/CrtPresets.h"
@@ -487,5 +488,26 @@ void SettingsDisplayCrtBridge::WireDisplayPageCallbacks ()
     {
         ResetActiveToDefaults();
         ReseedFromActiveMode();
+
+        // The CRT block above doesn't know about the Color-monitor text
+        // colour, so also revert it to its White default across all three
+        // views -- staged pref, the dropdown control, and the live emulator
+        // -- otherwise a previously-picked colour survives the reset and the
+        // controls and the emulator disagree (#8 follow-up).
+        uint32_t  custom = (m_prefs != nullptr) ? m_prefs->colorMonitorTextCustomArgb
+                                                : 0xFFFFFFFFu;
+        if (m_prefs != nullptr)
+        {
+            m_prefs->colorMonitorTextMode = ColorMonitorTextMode::White;
+        }
+        if (m_displayPage != nullptr)
+        {
+            m_displayPage->SetTextColor (ColorMonitorTextMode::White, custom);
+        }
+        if (m_emuShell != nullptr)
+        {
+            m_emuShell->SetColorMonitorTextArgbLive (
+                ColorUtil::ResolveColorMonitorTextArgb (ColorMonitorTextMode::White, custom));
+        }
     });
 }

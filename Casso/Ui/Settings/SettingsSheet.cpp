@@ -187,31 +187,10 @@ HRESULT SettingsSheet::OpenModeless (
     m_crt.Bind (&prefs, &themes, &m_state, m_displayPage, &emuShell);
     m_crt.WireDisplayPageCallbacks();
 
-    // "Restore defaults" resets the CRT block (the bridge's own handler) AND
-    // the Color-monitor text color, which the bridge doesn't know about. The
-    // bridge already re-selected the control to White, but the staged pref +
-    // the live emulator kept the previously-picked custom colour, so the
-    // controls and the emulator disagreed. Re-wire the button here to also
-    // revert the text color to its default (White) and push it live so the
-    // emulator follows the control. (Runs after WireDisplayPageCallbacks so
-    // this combined handler replaces the CRT-only one.)
-    m_displayPage->SetOnRestoreDefaults ([this] ()
-    {
-        m_crt.ResetActiveToDefaults();
-        m_crt.ReseedFromActiveMode();
-
-        if (m_prefs != nullptr)
-        {
-            m_prefs->colorMonitorTextMode = ColorMonitorTextMode::White;
-            m_displayPage->SetTextColor (ColorMonitorTextMode::White, m_prefs->colorMonitorTextCustomArgb);
-            if (m_emuShell != nullptr)
-            {
-                m_emuShell->SetColorMonitorTextArgbLive (
-                    ColorUtil::ResolveColorMonitorTextArgb (ColorMonitorTextMode::White,
-                                                            m_prefs->colorMonitorTextCustomArgb));
-            }
-        }
-    });
+    // "Restore defaults" reverts the CRT block AND the Color-monitor text
+    // colour; both live in the bridge's own restore handler (installed by
+    // WireDisplayPageCallbacks above) so the single handler stays authoritative
+    // -- an earlier attempt to re-wire it here was silently superseded.
 
     // Text color (#8): a mode change (White / Green / Amber / Custom) applies
     // live and stages the pref; committing to Custom opens the HSV picker,
