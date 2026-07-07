@@ -9,6 +9,7 @@
 #include "SettingsDisplayCrtBridge.h"
 #include "SettingsApplyController.h"
 #include "SettingsPreviewController.h"
+#include "SettingsCompositor.h"
 #include "ColorPickerOverlay.h"
 #include "HardwarePage.h"
 #include "DiskPage.h"
@@ -48,7 +49,7 @@ class SettingsSheet : public DxuiPropertySheet
 {
 public:
     SettingsSheet  () = default;
-    ~SettingsSheet () override = default;
+    ~SettingsSheet () override;   // detaches the compose hook before teardown
 
     //
     //  Wire dependencies, create the window (which builds + populates the
@@ -122,13 +123,30 @@ private:
     SettingsPreviewController m_preview;
     ColorPickerOverlay        m_colorPicker;
 
+    // Live-preview post-process (#8): installed as the window's compose hook.
+    // The window is composited (per-pixel alpha) so the inactive path draws
+    // the panel sharp + opaque, and an active Display drag blurs + dims the
+    // panel and reveals the emulator through the overlap region. Declared
+    // before the DxuiWindow base's swap chain via member order is irrelevant
+    // (base tears down last); its D3D resources are released in its dtor while
+    // the borrowed device is still alive.
+    SettingsCompositor        m_compositor;
+
+    // Drive the compositor's per-frame transparency state (active flag +
+    // emulator-overlap rect + focused-control rect) and invalidate while a
+    // Display preview is live so each drag frame recomposes.
+    void  UpdatePreviewCompose ();
+
     // Last mechanism pushed to the engine, so PushDriveAudioToEngine skips a
     // redundant WAV reload when it hasn't changed.
     std::string               m_lastAuditionMechanism;
 
-    // True while a Display control is driving the live-preview fade, so
-    // OnDialogTick can restore opacity once a keyboard preview idles out.
-    bool                      m_previewActive = false;
+    // True while a Display control is driving the live-preview blur/reveal, so
+    // OnDialogTick keeps recomposing (and stops once a keyboard preview idles
+    // out). m_previewFocusId is the kControl* id of the control being edited,
+    // so UpdatePreviewCompose can keep it sharp (feathered) over the blur.
+    bool                      m_previewActive  = false;
+    int                       m_previewFocusId = -1;
 
     // Amber "press OK to reboot" caption in the bottom bar; owned by the child
     // list (CreateChild), raw pointer for layout / text updates. Null pre-Create.

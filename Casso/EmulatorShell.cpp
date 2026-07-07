@@ -1456,6 +1456,49 @@ RECT EmulatorShell::ComputeViewportRect (int widthPx, int heightPx)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  EmulatorShell::EmulatorContentScreenRect
+//
+//  The emulator viewport in screen pixels, for the Settings live-preview
+//  compositor's see-through reveal (#8). Recompute the viewport at the live
+//  back-buffer size (client == device pixels; per-monitor-DPI aware) and map
+//  the two corners through the main window's client origin into screen space.
+//  Empty until the window + swap chain exist.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+RECT EmulatorShell::EmulatorContentScreenRect ()
+{
+    RECT   result = {};
+    POINT  tl     = {};
+    POINT  br     = {};
+
+    if (m_hwnd == nullptr)
+    {
+        return result;
+    }
+
+    int  widthPx  = (int) m_d3dRenderer.GetBackBufferWidth();
+    int  heightPx = (int) m_d3dRenderer.GetBackBufferHeight();
+    if (widthPx <= 0 || heightPx <= 0)
+    {
+        return result;
+    }
+
+    RECT  vr = ComputeViewportRect (widthPx, heightPx);   // main-window client px
+    tl = POINT{ vr.left,  vr.top    };
+    br = POINT{ vr.right, vr.bottom };
+    ClientToScreen (m_hwnd, &tl);
+    ClientToScreen (m_hwnd, &br);
+
+    result = RECT{ tl.x, tl.y, br.x, br.y };
+    return result;
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  EmulatorShell::ReflowChromeForMachineChange
 //
 //  A machine switch may add or remove the Disk ][ controller, which changes the

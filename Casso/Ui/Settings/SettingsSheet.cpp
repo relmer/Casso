@@ -16,10 +16,28 @@
 static constexpr int    s_kSheetWidthDip     = 724;
 static constexpr int    s_kSheetHeightDip    = 760;
 
-// Window opacity while a Display control is being dragged / keyboard-edited, so
-// the live emulator behind the sheet shows through (list #7). The CRT edit is
-// already applied live by SettingsDisplayCrtBridge; this just reveals it.
-static constexpr float  s_kPreviewOpacity    = 0.30f;
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ~SettingsSheet
+//
+//  Detach the compose hook (it captures `this`) and release the compositor's
+//  D3D resources while the borrowed device is still alive -- the DxuiWindow
+//  base (which owns the device + swap chain) tears down after this body runs
+//  and after the member subobjects, so clearing the hook here guarantees no
+//  late RenderFrame calls a half-destructed compositor.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+SettingsSheet::~SettingsSheet ()
+{
+    if (PopupHost() != nullptr)
+    {
+        PopupHost()->SetComposeHook (nullptr);
+    }
+    m_compositor.Shutdown();
+}
 
 
 
@@ -106,17 +124,36 @@ HRESULT SettingsSheet::OpenModeless (
                                               GetSystemMetrics (SM_CYSMICON),
                                               LR_DEFAULTCOLOR | LR_SHARED);
 
-    // Opaque for now. A flat window-opacity fade reveals the raw desktop behind
-    // the sheet (other windows), not the emulator, and cannot blur -- so it reads
-    // as broken. The real live-preview reveal (blur the panel + reveal ONLY the
-    // emulator in a focus region) is the slice-3c compositor; until then the sheet
-    // stays opaque. SetComposedOpacity is a no-op while composited is false.
-    params.composited               = false;
+    // Composited (per-pixel alpha) so the live-preview compositor can punch a
+    // see-through hole to the running emulator behind the sheet (#8). The
+    // compose hook below drives it: inactive -> panel drawn sharp + opaque
+    // (indistinguishable from a plain window); an active Display drag -> blur +
+    // dim the panel and reveal the emulator through the overlap region.
+    params.composited               = true;
 
     hr = DxuiWindow::Create (params);   // fires OnBuildPages + base OnCreate
     CHRA (hr);
 
     SetTheme (&emuShell.m_chromeTheme);
+
+    // Stand up the live-preview post-process and install it as the window's
+    // compose hook. The base renders the content tree (panel + caption +
+    // color-picker overlay) to an offscreen texture and hands it here; the
+    // compositor blurs / reveals / composes onto the back buffer. The device is
+    // borrowed from the window's DxuiHwndSource (non-owning); m_compositor
+    // releases its own D3D resources in the sheet dtor while it is still alive.
+    if (PopupHost() != nullptr)
+    {
+        hr = m_compositor.Initialize (PopupHost()->GetDevice(), PopupHost()->GetContext());
+        CHRA (hr);
+        PopupHost()->SetComposeHook (
+            [this] (ID3D11ShaderResourceView * contentSrv,
+                    ID3D11RenderTargetView   * backBufferRtv,
+                    int widthPx, int heightPx)
+            {
+                m_compositor.Compose (contentSrv, backBufferRtv, widthPx, heightPx);
+            });
+    }
 
     // The Disk tab is dynamic (#84): it exists only while the staged config has
     // an enabled Disk ][ controller. Remember its page index for the toggle.
@@ -157,26 +194,27 @@ HRESULT SettingsSheet::OpenModeless (
         m_apply.ApplyThemeLive (m_themePage->SelectedThemeId());
     });
 
-    // Live preview (#7): dragging / keyboard-editing a Display control fades
-    // the composited sheet so the running emulator shows through and the CRT
-    // edit is visible. Mouse gives a clean start/end; keyboard fires start
-    // only, so the preview controller's idle timeout (advanced from
-    // OnDialogTick) restores opacity a moment after the last keystroke.
+    // Live preview (#8): dragging / keyboard-editing a Display control blurs +
+    // dims the sheet and reveals the running emulator through the overlap
+    // region so the CRT edit is visible. Mouse gives a clean start/end; a
+    // keyboard edit fires start only, so the preview controller's idle timeout
+    // (advanced from OnDialogTick) ends it a moment after the last keystroke.
+    // controlId (a kControl* id) drives the sharp focus region over the blur.
     m_displayPage->SetOnPreview ([this] (int controlId, bool start, bool keyboardMode)
     {
-        (void) controlId;   // window-level fade is global; only active-state matters
         if (start)
         {
+            m_previewFocusId = controlId;
             m_preview.StartPreview (SettingsPreviewController::Focus::BrightnessSlider, keyboardMode);
-            SetComposedOpacity (s_kPreviewOpacity);
-            m_previewActive = true;
+            m_previewActive  = true;
         }
         else
         {
             m_preview.EndPreview();
-            SetComposedOpacity (1.0f);
-            m_previewActive = false;
+            m_previewActive  = false;
+            m_previewFocusId = -1;
         }
+        UpdatePreviewCompose();   // reflect the new state on the next composed frame
     });
 
     // Per-monitor CRT plumbing for the Display page. Bind funnels the slider /
@@ -354,12 +392,71 @@ void SettingsSheet::OnDialogTick ()
     UpdateDiskTabVisibility();
 
     // Advance the preview state machine so a keyboard-driven preview idles out;
-    // restore full opacity when it does (mouse drags restore in OnPreview end).
+    // a mouse drag ends explicitly in OnPreview. Either way UpdatePreviewCompose
+    // re-drives the compositor each tick so a live drag keeps recomposing (the
+    // emulator behind the reveal is animating) and the panel snaps back to sharp
+    // the moment the preview ends.
     m_preview.Tick ((int64_t) GetTickCount64());
     if (m_previewActive && !m_preview.IsActive())
     {
-        SetComposedOpacity (1.0f);
-        m_previewActive = false;
+        m_previewActive  = false;
+        m_previewFocusId = -1;
+    }
+    UpdatePreviewCompose();
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  UpdatePreviewCompose
+//
+//  Push this frame's transparency state into the compositor: whether a Display
+//  preview is live, the emulator-overlap rect (see-through hole), and the
+//  focused-control rect (kept sharp over the blur). While active, invalidate so
+//  the window recomposes every tick and the revealed, running emulator animates.
+//  All rects are in the sheet's client pixels, matching the compose viewport.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SettingsSheet::UpdatePreviewCompose ()
+{
+    if (!m_compositor.IsInitialized())
+    {
+        return;
+    }
+
+    RECT  emuOverlapClient = {};
+    RECT  focusClient      = {};
+    HWND  hwnd             = Hwnd();
+
+    if (m_previewActive && hwnd != nullptr)
+    {
+        // Emulator content (screen) intersect this window (screen), expressed in
+        // client pixels. No overlap => empty rect => blur + dim only (still
+        // focuses attention on the control), no see-through zone.
+        RECT  winRect   = {};
+        RECT  emuScreen = (m_emuShell != nullptr) ? m_emuShell->EmulatorContentScreenRect() : RECT{};
+        RECT  inter     = {};
+        if (GetWindowRect (hwnd, &winRect) && IntersectRect (&inter, &winRect, &emuScreen))
+        {
+            POINT  origin = { 0, 0 };
+            ClientToScreen (hwnd, &origin);
+            emuOverlapClient = RECT{ inter.left  - origin.x, inter.top    - origin.y,
+                                     inter.right - origin.x, inter.bottom - origin.y };
+        }
+
+        if (m_displayPage != nullptr)
+        {
+            focusClient = m_displayPage->FocusedControlRect (m_previewFocusId);
+        }
+    }
+
+    m_compositor.SetTransparencyState (m_previewActive, emuOverlapClient, focusClient);
+    if (m_previewActive)
+    {
+        Invalidate();
     }
 }
 

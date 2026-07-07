@@ -290,6 +290,13 @@ private:
     void    SyncChromeBands              ();
     RECT    ComputeViewportRect          (int widthPx, int heightPx);
 
+    // The emulator viewport (CRT output area) in *screen* pixels: the middle
+    // rect from ComputeViewportRect at the current back-buffer size, mapped
+    // through the main window's client origin. The Settings live-preview
+    // compositor (#8) intersects this with the (composited) sheet window to
+    // punch a see-through hole revealing the running emulator behind the sheet.
+    RECT    EmulatorContentScreenRect    ();
+
     // Re-run the chrome layout at the current client size after a machine
     // switch: adding/removing the Disk ][ controller changes the drive band +
     // widgets + hit-test map, but no WM_SIZE fires when the window size itself
