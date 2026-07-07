@@ -333,8 +333,10 @@ HRESULT SettingsSheet::OpenModeless (
     m_crt.ReseedFromActiveMode();   // seed Display sliders from the active mode
 
     // Capture the CRT / color / theme baseline so OnCancel can revert any
-    // live-preview edits.
+    // live-preview edits, plus the drive-audio baseline so OnCancel can undo a
+    // play-button audition that pushed dialed values live to the engine.
     m_apply.SnapshotBaselines();
+    SnapshotDriveAudioBaseline();
 
     // Modeless: show + return immediately. The emulator keeps running behind
     // the sheet; the host loop pumps ProcessDialogMessage and destroys us via
@@ -369,6 +371,7 @@ HRESULT SettingsSheet::OnOk ()
 void SettingsSheet::OnCancel ()
 {
     m_apply.Cancel (m_preview);
+    RevertDriveAuditionIfDirty();
 }
 
 
@@ -648,8 +651,8 @@ bool SettingsSheet::OnOverlayKey (WPARAM vk)
 //
 //  Disk page play (>) button handler. Pushes the current drive-audio
 //  settings to the engine and fires a one-shot test of the given sound.
-//  Ported from SettingsPanel; the m_driveAuditionDirty cancel-revert flag
-//  moves in with the commit controller in a later slice.
+//  Flags the audition dirty so OnCancel restores the mixer to the
+//  dialog-open baseline (RevertDriveAuditionIfDirty).
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -682,8 +685,57 @@ void SettingsSheet::AuditionDriveSound (int drive, int kind, bool centered)
                             pan1,
                             prefs.floppyMechanism);
 
+    // The push above changed the live engine mixer; remember to undo it if the
+    // dialog is cancelled without persisting.
+    m_driveAuditionDirty = true;
+
     sprintf_s (test, "%d,%d", drive, kind);
     m_emuShell->PostCommand (IDM_AUDIO_DRIVE_TEST, test);
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SnapshotDriveAudioBaseline / RevertDriveAuditionIfDirty
+//
+//  A play (>) audition pushes the staged drive-audio (volumes / pan /
+//  mechanism) straight to the engine mixer for preview. Snapshot the as-opened
+//  values at Show; on Cancel, re-push them so an audition that was never
+//  committed does not leave the mixer on the dialed values. OK persists the
+//  staged config through the normal apply path, so no revert is needed there.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SettingsSheet::SnapshotDriveAudioBaseline ()
+{
+    const SettingsUiPrefs &  prefs = m_state.Prefs();
+
+    m_baselineDriveMotorVol = prefs.driveMotorVolume;
+    m_baselineDriveHeadVol  = prefs.driveHeadVolume;
+    m_baselineDriveDoorVol  = prefs.driveDoorVolume;
+    m_baselineDriveOnePan   = prefs.driveOnePan;
+    m_baselineDriveTwoPan   = prefs.driveTwoPan;
+    m_baselineMechanism     = prefs.floppyMechanism;
+    m_driveAuditionDirty    = false;
+}
+
+
+void SettingsSheet::RevertDriveAuditionIfDirty ()
+{
+    if (!m_driveAuditionDirty)
+    {
+        return;
+    }
+
+    PushDriveAudioToEngine (m_baselineDriveMotorVol,
+                            m_baselineDriveHeadVol,
+                            m_baselineDriveDoorVol,
+                            m_baselineDriveOnePan,
+                            m_baselineDriveTwoPan,
+                            m_baselineMechanism);
+    m_driveAuditionDirty = false;
 }
 
 

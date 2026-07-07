@@ -31,17 +31,18 @@ class DxuiLabel;
 //
 //  SettingsSheet
 //
-//  T162 slice 3: the DxuiPropertySheet-based replacement for the bespoke
-//  SettingsPanel + SettingsWindow pair. Hosts the four DxuiPropertyPage
-//  setting pages behind the framework's tab strip + (Apply-hidden)
-//  OK / Cancel row.
+//  T162: the DxuiPropertySheet-based Settings dialog that replaced the retired
+//  bespoke SettingsPanel + SettingsWindow pair. Hosts the four DxuiPropertyPage
+//  setting pages (Machine / Disk / Theme / Display) behind the framework's tab
+//  strip + (Apply-hidden) OK / Cancel row, shown modeless from IDM_VIEW_SETTINGS
+//  (Ctrl+,) so the emulator keeps running and interactive behind it.
 //
-//  Built in parallel with the legacy path: slice 3a stands up the pages
-//  and shows the sheet modally from a temporary dev trigger to prove the
-//  structure. The cross-cutting commit (OnOk / OnCancel), the modeless
-//  presentation, and the blur / live-preview compositor land in later
-//  slices; the swap onto IDM_VIEW_SETTINGS and deletion of the legacy
-//  types happens in 3d.
+//  The window is composited: SettingsCompositor is installed as its compose
+//  hook (SetComposeHook) to blur + dim the panel and reveal the running
+//  emulator through a see-through region while a Display control is being
+//  adjusted (#8); when idle the same hook draws the panel sharp + opaque.
+//  The cross-cutting commit / revert lives in OnOk / OnCancel (delegating to
+//  SettingsApplyController, whose ordering is load-bearing).
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -110,6 +111,14 @@ private:
                                   float pan0, float pan1,
                                   const std::string & mechanism);
 
+    // Snapshot the as-opened drive-audio values (call at Show) and, on Cancel,
+    // undo a play-button audition that pushed dialed values live to the engine.
+    // A play (>) audition pushes staged volumes / pan / mechanism straight to
+    // the engine mixer for preview; without this the mixer would keep those
+    // auditioned values after Cancel even though nothing was persisted.
+    void  SnapshotDriveAudioBaseline ();
+    void  RevertDriveAuditionIfDirty ();
+
     UserConfigStore * m_ucs      = nullptr;
     GlobalUserPrefs * m_prefs    = nullptr;
     ThemeManager    * m_themes   = nullptr;
@@ -140,6 +149,17 @@ private:
     // Last mechanism pushed to the engine, so PushDriveAudioToEngine skips a
     // redundant WAV reload when it hasn't changed.
     std::string               m_lastAuditionMechanism;
+
+    // Drive-audio engine state as the dialog opened + whether a play-button
+    // audition has since pushed dialed values live, so OnCancel can restore the
+    // mixer to the baseline (SnapshotDriveAudioBaseline / RevertDriveAuditionIfDirty).
+    bool                      m_driveAuditionDirty    = false;
+    float                     m_baselineDriveMotorVol = 0.0f;
+    float                     m_baselineDriveHeadVol  = 0.0f;
+    float                     m_baselineDriveDoorVol  = 0.0f;
+    float                     m_baselineDriveOnePan   = 0.0f;
+    float                     m_baselineDriveTwoPan   = 0.0f;
+    std::string               m_baselineMechanism;
 
     // True while a Display control is driving the live-preview blur/reveal, so
     // OnDialogTick keeps recomposing (and stops once a keyboard preview idles
