@@ -13,7 +13,11 @@
 #include <cstdio>
 
 
-static constexpr int    s_kSheetWidthDip     = 724;
+// Width is sized to the Display page, the widest page: its right-hand
+// "(monitor default)" annotation column ends ~568 DIP in, so 600 DIP leaves the
+// same ~32 DIP margin on the right as on the left. Every other page's controls
+// are narrower and fit inside this.
+static constexpr int    s_kSheetWidthDip     = 600;
 static constexpr int    s_kSheetHeightDip    = 760;
 
 
