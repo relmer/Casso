@@ -264,7 +264,11 @@ static HRESULT LoadMachineConfig (
             IGNORE_RETURN_VALUE (hrPrefs, S_OK);
 
             mru       = DiskMru::FromUtf8 (prefs.recentDisks, prefs.recentDiskLoadedAt);
-            mruPruned = mru.Prune ([] (const fs::path & p) { return fs::exists (p); });
+            mruPruned = mru.Prune ([] (const fs::path & p)
+                                   {
+                                       return fs::exists (p)
+                                              && !AssetBootstrap::IsForeignWorktreeDisk (p);
+                                   });
 
             AssetBootstrap::AppendBundledDemoDisks (mruPruned);
 

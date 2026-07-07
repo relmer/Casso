@@ -53,6 +53,13 @@ public:
     // de-duplicated against existing entries. No-op in an installed layout.
     static void     AppendBundledDemoDisks (std::vector<DiskMru::Entry> & mountable);
 
+    // True if `p` is a disk under a git worktree checkout OTHER than the one
+    // this build runs from. Used to keep the shared %LOCALAPPDATA% recent-disks
+    // MRU from listing the same disk once per sibling worktree copy of the repo
+    // -- an MRU entry under a worktree is shown only when the running exe lives
+    // in that same worktree; entries outside any worktree always pass.
+    static bool     IsForeignWorktreeDisk (const fs::path & p);
+
     static HRESULT  GetRequiredRoms       (HINSTANCE                hInstance,
                                            const wstring          & machineName,
                                            vector<string>         & outRomFiles,

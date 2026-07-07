@@ -871,6 +871,64 @@ fs::path AssetBootstrap::GetDiskDirectory()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  WorktreeKeyOf  (file-local)
+//
+//  A Claude worktree checkout lives at <repo>/.claude/worktrees/<name>/...
+//  Returns the ".../.claude/worktrees/<name>" prefix identifying that
+//  worktree, or an empty string if `p` is not inside one.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+static std::wstring WorktreeKeyOf (const fs::path & p)
+{
+    std::vector<fs::path>  comps (p.begin(), p.end());
+
+    for (size_t i = 0; i + 2 < comps.size(); ++i)
+    {
+        if (_wcsicmp (comps[i].c_str(),     L".claude")   == 0 &&
+            _wcsicmp (comps[i + 1].c_str(), L"worktrees") == 0)
+        {
+            fs::path  key;
+
+            for (size_t j = 0; j <= i + 2; ++j)
+                key /= comps[j];
+
+            return key.wstring();
+        }
+    }
+
+    return std::wstring();
+}
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  IsForeignWorktreeDisk
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool AssetBootstrap::IsForeignWorktreeDisk (const fs::path & p)
+{
+    // The %LOCALAPPDATA% recent-disks MRU is shared across every checkout of
+    // the repo (the main tree plus each .claude/worktrees/<name> copy), so it
+    // accumulates absolute paths from all of them -- the same demo then shows
+    // once per checkout. Hide any MRU disk that lives under a worktree OTHER
+    // than the one this build runs from; disks outside any worktree (the main
+    // tree, or the user's own folders) always pass.
+    static const std::wstring  runningKey = WorktreeKeyOf (PathResolver::GetExecutableDirectory());
+    const std::wstring         entryKey   = WorktreeKeyOf (p);
+
+    if (entryKey.empty())
+        return false;                                        // not under a worktree
+
+    return _wcsicmp (entryKey.c_str(), runningKey.c_str()) != 0;
+}
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  AppendBundledDemoDisks
 //
 ////////////////////////////////////////////////////////////////////////////////
