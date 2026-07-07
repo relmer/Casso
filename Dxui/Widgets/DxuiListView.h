@@ -406,6 +406,13 @@ private:
     float                             m_vertDragGrab        = 0.0f;
     bool                              m_hScrollEnabled    = false;
     int                               m_leftPx            = 0;
+    // High-resolution wheel accumulators. Touchpads emit many sub-notch
+    // deltas; we bank them and act only when a whole unit is due, so fine
+    // scrolls move proportionally instead of snapping a full line/step per
+    // event. m_wheelAccumV is in raw WHEEL_DELTA units (acted per notch);
+    // m_wheelAccumH is in pixels (acted per whole pixel, for smooth H-scroll).
+    int                               m_wheelAccumV       = 0;
+    float                             m_wheelAccumH       = 0.0f;
     bool                              m_horzDragging         = false;
     float                             m_horzDragGrab       = 0.0f;
     int                               m_resizeColumn      = -1;

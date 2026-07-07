@@ -33,13 +33,14 @@ enum class DxuiMouseEventKind
 
 struct DxuiMouseEvent
 {
-    DxuiMouseEventKind  kind        = DxuiMouseEventKind::Move;
-    DxuiMouseButton     button      = DxuiMouseButton::None;
-    POINT               positionDip = {};
-    float               wheelDelta  = 0.0f;     // signed notches; +1 per wheel notch up
-    bool                shift       = false;
-    bool                ctrl        = false;
-    bool                alt         = false;
+    DxuiMouseEventKind  kind            = DxuiMouseEventKind::Move;
+    DxuiMouseButton     button          = DxuiMouseButton::None;
+    POINT               positionDip     = {};
+    float               wheelDelta      = 0.0f;     // signed notches; +1 per wheel notch up
+    bool                wheelHorizontal = false;    // Wheel: true = horizontal (WM_MOUSEHWHEEL / trackpad)
+    bool                shift           = false;
+    bool                ctrl            = false;
+    bool                alt             = false;
 };
 
 

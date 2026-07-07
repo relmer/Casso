@@ -249,7 +249,8 @@ private:
                                       DxuiMouseButton    button,
                                       int                x,
                                       int                y,
-                                      float              wheelDelta);
+                                      float              wheelDelta,
+                                      bool               wheelHorizontal = false);
     DxuiMessageResult  DispatchKey   (DxuiKeyEventKind kind, WPARAM code);
     DxuiMessageResult  DispatchDialogKey (WPARAM vk);
 

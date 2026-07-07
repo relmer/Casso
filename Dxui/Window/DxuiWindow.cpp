@@ -565,10 +565,16 @@ DxuiMessageResult DxuiWindow::OnRButtonDown (WPARAM wParam, LPARAM lParam)
 
 DxuiMessageResult DxuiWindow::OnMouseMove (WPARAM wParam, LPARAM lParam)
 {
-    UNREFERENCED_PARAMETER (wParam);
+    // WM_MOUSEMOVE carries the held-button state in wParam (MK_LBUTTON).
+    // Forward it so controls can distinguish a drag (button held) from a
+    // hover: a scrollbar-thumb / selection drag relies on Move events still
+    // reporting Left, otherwise the control reads the first drag-move as a
+    // button release and aborts the drag.
+    DxuiMouseButton  button = (wParam & MK_LBUTTON) ? DxuiMouseButton::Left
+                                                    : DxuiMouseButton::None;
 
     return DispatchMouse (DxuiMouseEventKind::Move,
-                          DxuiMouseButton::None,
+                          button,
                           (int) (short) LOWORD (lParam),
                           (int) (short) HIWORD (lParam),
                           0.0f);
@@ -595,8 +601,6 @@ DxuiMessageResult DxuiWindow::OnMouseWheel (WPARAM wParam, LPARAM lParam, bool h
 
 
 
-    UNREFERENCED_PARAMETER (horizontal);
-
     if (hwnd != nullptr)
     {
         ScreenToClient (hwnd, &point);
@@ -606,7 +610,8 @@ DxuiMessageResult DxuiWindow::OnMouseWheel (WPARAM wParam, LPARAM lParam, bool h
                           DxuiMouseButton::None,
                           point.x,
                           point.y,
-                          notch);
+                          notch,
+                          horizontal);
 }
 
 
@@ -842,16 +847,18 @@ DxuiMessageResult DxuiWindow::DispatchMouse (DxuiMouseEventKind kind,
                                              DxuiMouseButton    button,
                                              int                x,
                                              int                y,
-                                             float              wheelDelta)
+                                             float              wheelDelta,
+                                             bool               wheelHorizontal)
 {
     DxuiMouseEvent  ev;
 
 
 
-    ev.kind        = kind;
-    ev.button      = button;
-    ev.positionDip = { x, y };
-    ev.wheelDelta  = wheelDelta;
+    ev.kind            = kind;
+    ev.button          = button;
+    ev.positionDip     = { x, y };
+    ev.wheelDelta      = wheelDelta;
+    ev.wheelHorizontal = wheelHorizontal;
     ev.shift       = (GetKeyState (VK_SHIFT)   & 0x8000) != 0;
     ev.ctrl        = (GetKeyState (VK_CONTROL) & 0x8000) != 0;
     ev.alt         = (GetKeyState (VK_MENU)    & 0x8000) != 0;

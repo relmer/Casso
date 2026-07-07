@@ -7,8 +7,6 @@
 
 
 
-
-
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  SetRect
@@ -793,20 +791,25 @@ void DxuiListView::SetLeftPx (int leftPx)
 
 void DxuiListView::ScrollByWheelDeltaHorizontal (int wheelDelta, int pxPerNotch)
 {
-    HRESULT  hr      = S_OK;
-    int      notches = 0;
+    HRESULT  hr        = S_OK;
+    float    pixels    = 0.0f;
+    int      wholePx   = 0;
 
 
 
     BAIL_OUT_IF (wheelDelta == 0, S_OK);
 
-    notches = wheelDelta / WHEEL_DELTA;
-    if (notches == 0)
-    {
-        notches = (wheelDelta > 0) ? 1 : -1;
-    }
+    // Horizontal scroll is pixel-granular, so scroll pixels in direct
+    // proportion to the delta (one full notch == pxPerNotch) and bank the
+    // fractional remainder. This makes a touchpad's stream of small deltas
+    // glide smoothly instead of snapping a whole pxPerNotch step per event.
+    pixels          = (float) wheelDelta * (float) pxPerNotch / (float) WHEEL_DELTA;
+    m_wheelAccumH  += pixels;
+    wholePx         = (int) m_wheelAccumH;      // truncates toward zero
+    BAIL_OUT_IF (wholePx == 0, S_OK);
 
-    SetLeftPx (m_leftPx - notches * pxPerNotch);
+    m_wheelAccumH  -= (float) wholePx;
+    SetLeftPx (m_leftPx - wholePx);
 
 Error:
     return;
@@ -881,13 +884,27 @@ void DxuiListView::ScrollByWheelDelta (int wheelDelta, int linesPerNotch)
 
     BAIL_OUT_IF (wheelDelta == 0, S_OK);
 
-    notches = wheelDelta / WHEEL_DELTA;
-    if (notches == 0)
+    // Bank the raw delta and scroll ONE row per accumulated step, carrying
+    // the remainder. A full mouse notch (WHEEL_DELTA) still advances
+    // linesPerNotch rows -- unchanged feel -- because a notch banks
+    // linesPerNotch steps at once; but a touchpad's sub-notch deltas now
+    // advance a single row at a time as they accumulate, instead of snapping
+    // a whole linesPerNotch block per event (which read as a chunky jump).
     {
-        notches = (wheelDelta > 0) ? 1 : -1;
-    }
+        int  unitPerRow = (linesPerNotch > 0) ? (WHEEL_DELTA / linesPerNotch) : WHEEL_DELTA;
 
-    ScrollByRows (-notches * linesPerNotch);
+        if (unitPerRow < 1)
+        {
+            unitPerRow = 1;
+        }
+
+        m_wheelAccumV += wheelDelta;
+        notches        = m_wheelAccumV / unitPerRow;      // whole rows to move
+        BAIL_OUT_IF (notches == 0, S_OK);
+
+        m_wheelAccumV -= notches * unitPerRow;
+        ScrollByRows (-notches);
+    }
 
 Error:
     return;
@@ -2596,7 +2613,14 @@ bool DxuiListView::DispatchMouseWheel (const DxuiMouseEvent & ev, bool inside)
 
     BAIL_OUT_IF (!inside, S_OK);
 
-    if (ev.shift)
+    if (ev.wheelHorizontal)
+    {
+        // Trackpad / tilt-wheel horizontal (WM_MOUSEHWHEEL): a positive
+        // delta means "scroll right", the opposite of the Shift+wheel
+        // convention below (positive = toward the start), so negate.
+        ScrollByWheelDeltaHorizontal (-rawDelta, hStep);
+    }
+    else if (ev.shift)
     {
         ScrollByWheelDeltaHorizontal (rawDelta, hStep);
     }
