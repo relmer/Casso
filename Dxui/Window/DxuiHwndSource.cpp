@@ -2405,9 +2405,6 @@ void DxuiHwndSource::HandleSize (WPARAM wp, LPARAM lp)
 
 
 
-    (void) widthPx;
-    (void) heightPx;
-
     if (wp == SIZE_MAXIMIZED)
     {
         NotifySystemButtonsMaximized (true);
@@ -2417,10 +2414,17 @@ void DxuiHwndSource::HandleSize (WPARAM wp, LPARAM lp)
         NotifySystemButtonsMaximized (false);
     }
 
-    if (m_swapChain)
+    // Resize the swap chain to the new client extent. Composition swap chains
+    // (full-ownership DxuiWindows such as the Settings sheet) have no window to
+    // inherit dimensions from, so ResizeBuffers(0, 0, ...) fails with "a
+    // non-zero Width and Height must be specified for Composition SwapChains";
+    // pass the explicit WM_SIZE client size instead -- which also works for the
+    // hwnd swap chain. A zero extent (e.g. SIZE_MINIMIZED) is skipped so the
+    // buffers keep their last valid size.
+    if (m_swapChain && widthPx > 0 && heightPx > 0)
     {
         ReleaseBackBufferRtv();
-        (void) m_swapChain->ResizeBuffers (0, 0, 0, DXGI_FORMAT_UNKNOWN, 0);
+        (void) m_swapChain->ResizeBuffers (0, widthPx, heightPx, DXGI_FORMAT_UNKNOWN, 0);
 
         hr = CreateBackBufferRtv();
         IGNORE_RETURN_VALUE (hr, S_OK);
