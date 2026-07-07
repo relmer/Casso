@@ -1871,29 +1871,87 @@ void DiskMruPickerSession::ConfigureWidgets()
 void DiskMruPickerSession::RebuildView()
 {
     std::vector<std::vector<DxuiListView::Cell>>  rows;
-    std::wstring                                  needle   = m_filter;
     int                                           selected = -1;
 
-    auto  passesFilter = [this] (const ModelRow & row, const std::wstring & lowered) -> bool
+    // Tokenize the filter: whitespace-separated, lowercased. A row passes
+    // when EVERY token appears in some field (name / location / last-loaded);
+    // each occurrence is highlighted in its field.
+    std::vector<std::wstring>  tokens;
     {
-        std::wstring  hay;
+        std::wstring  cur;
 
-        if (lowered.empty())
+        for (wchar_t ch : m_filter)
         {
-            return true;
+            if (iswspace (ch))
+            {
+                if (!cur.empty()) { tokens.push_back (cur); cur.clear(); }
+            }
+            else
+            {
+                cur += (wchar_t) towlower (ch);
+            }
         }
 
-        hay  = row.name;
-        hay += L'\n';
-        hay += row.location;
-        hay += L'\n';
-        hay += FormatLastLoaded (row.loadedUnix);
-        for (wchar_t & c : hay)
+        if (!cur.empty()) { tokens.push_back (cur); }
+    }
+
+    auto  lower = [] (std::wstring s) -> std::wstring
+    {
+        for (wchar_t & c : s) { c = (wchar_t) towlower (c); }
+        return s;
+    };
+
+    // Merged, sorted char ranges of every token occurrence in `text`.
+    auto  matchesIn = [&tokens, &lower] (const std::wstring & text) -> std::vector<std::pair<int, int>>
+    {
+        std::vector<std::pair<int, int>>  out;
+
+        if (tokens.empty() || text.empty()) { return out; }
+
+        std::wstring  hay = lower (text);
+
+        for (const std::wstring & tok : tokens)
         {
-            c = (wchar_t) towlower (c);
+            for (size_t at = hay.find (tok); at != std::wstring::npos; at = hay.find (tok, at + 1))
+            {
+                out.emplace_back ((int) at, (int) (at + tok.size()));
+            }
         }
 
-        return hay.find (lowered) != std::wstring::npos;
+        std::sort (out.begin(), out.end());
+
+        std::vector<std::pair<int, int>>  merged;
+        for (const std::pair<int, int> & r : out)
+        {
+            if (!merged.empty() && r.first <= merged.back().second)
+            {
+                merged.back().second = std::max (merged.back().second, r.second);
+            }
+            else
+            {
+                merged.push_back (r);
+            }
+        }
+
+        return merged;
+    };
+
+    auto  rowPasses = [&tokens, &lower] (const ModelRow & row) -> bool
+    {
+        if (tokens.empty()) { return true; }
+
+        std::wstring  hay = lower (row.name);
+        hay += L'\n';
+        hay += lower (row.location);
+        hay += L'\n';
+        hay += lower (DiskMruPickerSession::FormatLastLoaded (row.loadedUnix));
+
+        for (const std::wstring & tok : tokens)
+        {
+            if (hay.find (tok) == std::wstring::npos) { return false; }
+        }
+
+        return true;
     };
 
     auto  sortLess = [this] (int lhs, int rhs) -> bool
@@ -1920,17 +1978,12 @@ void DiskMruPickerSession::RebuildView()
 
 
 
-    for (wchar_t & c : needle)
-    {
-        c = (wchar_t) towlower (c);
-    }
-
     m_view.clear();
     m_view.reserve (m_model.size());
 
     for (int i = 0; i < (int) m_model.size(); ++i)
     {
-        if (passesFilter (m_model[(size_t) i], needle))
+        if (rowPasses (m_model[(size_t) i]))
         {
             m_view.push_back (i);
         }
@@ -1942,11 +1995,12 @@ void DiskMruPickerSession::RebuildView()
     rows.reserve (m_view.size());
     for (int idx : m_view)
     {
-        const ModelRow &  row = m_model[(size_t) idx];
+        const ModelRow &  row  = m_model[(size_t) idx];
+        std::wstring      date = FormatLastLoaded (row.loadedUnix);
 
-        rows.push_back ({ { FormatLastLoaded (row.loadedUnix), true },
-                          { row.name,                          false },
-                          { row.location,                      row.dimLocation } });
+        rows.push_back ({ { date,         true,            matchesIn (date) },
+                          { row.name,     false,           matchesIn (row.name) },
+                          { row.location, row.dimLocation, matchesIn (row.location) } });
     }
 
     m_list.SetRows (std::move (rows));

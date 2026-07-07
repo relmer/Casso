@@ -1876,6 +1876,7 @@ DxuiListView::Palette DxuiListView::MakePalette () const
     pal.bgHover  = m_theme->HoverBackground();
     pal.bgHeader = (pal.bgRow & 0x00FFFFFFu) | 0xFF000000u;
     pal.border   = (pal.fg    & 0x00FFFFFFu) | 0x30000000u;
+    pal.matchBg  = (m_theme->Accent() & 0x00FFFFFFu) | 0x80000000u;
 
     return pal;
 }
@@ -2129,6 +2130,49 @@ void DxuiListView::PaintDataRows (
             if (!m_columns[c].visible || colWPx[c] <= 0)
             {
                 continue;
+            }
+
+            // Search-match highlight: an accent band behind each matched
+            // character range, painted before the text. Left-aligned columns
+            // only -- the offset math measures prefixes from the cell's left.
+            if (!cells[c].matches.empty() && m_columns[c].align == DxuiTextHAlign::Left)
+            {
+                const std::wstring &  cellText  = cells[c].text;
+                float                 cellX     = x + colOff + (float) colXPx[c] + cellPadL;
+                float                 cellMaxW  = (float) colWPx[c] - cellPadL - cellPadR;
+                float                 bandInset = rowH * 0.14f;
+
+                for (const std::pair<int, int> & mr : cells[c].matches)
+                {
+                    int      s       = std::clamp (mr.first,  0, (int) cellText.size());
+                    int      e       = std::clamp (mr.second, s, (int) cellText.size());
+                    float    wS      = 0.0f;
+                    float    wE      = 0.0f;
+                    float    hIgnore = 0.0f;
+                    HRESULT  hrM     = S_OK;
+
+                    if (s > 0)
+                    {
+                        hrM = text.MeasureString (cellText.substr (0, (size_t) s).c_str(),
+                                                  fontPx, DxuiTheme::kBodyFace, wS, hIgnore);
+                        IGNORE_RETURN_VALUE (hrM, S_OK);
+                    }
+
+                    hrM = text.MeasureString (cellText.substr (0, (size_t) e).c_str(),
+                                              fontPx, DxuiTheme::kBodyFace, wE, hIgnore);
+                    IGNORE_RETURN_VALUE (hrM, S_OK);
+
+                    float  hx = cellX + wS;
+                    float  hw = wE - wS;
+
+                    if (hx < cellX)                 { hw -= (cellX - hx); hx = cellX; }
+                    if (hx + hw > cellX + cellMaxW) { hw  = cellX + cellMaxW - hx;    }
+
+                    if (hw > 0.0f)
+                    {
+                        painter.FillRect (hx, ry + bandInset, hw, rowH - 2.0f * bandInset, pal.matchBg);
+                    }
+                }
             }
 
             hr = text.DrawString (cells[c].text.c_str(),

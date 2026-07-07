@@ -42,6 +42,11 @@ public:
     {
         std::wstring  text;
         bool          dim = false;     // muted color (e.g. "(Download)" hint)
+
+        // Half-open character ranges [first, second) within `text` to paint
+        // as search-match highlights. Empty = none. Supplied sorted and
+        // non-overlapping; honored only for left-aligned columns.
+        std::vector<std::pair<int, int>>  matches;
     };
 
     // Geometry of every interactive scrollbar region, in coordinates
@@ -309,6 +314,7 @@ private:
         uint32_t  bgHover  = 0;
         uint32_t  bgHeader = 0;
         uint32_t  border   = 0;
+        uint32_t  matchBg  = 0;
     };
 
     // Resolved scrollbar state for the current rect, columns, and rows.
