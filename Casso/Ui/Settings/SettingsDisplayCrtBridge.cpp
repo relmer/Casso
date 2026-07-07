@@ -498,7 +498,7 @@ void SettingsDisplayCrtBridge::WireDisplayPageCallbacks ()
                                                 : 0xFFFFFFFFu;
         if (m_prefs != nullptr)
         {
-            m_prefs->colorMonitorTextMode = ColorMonitorTextMode::White;
+            m_prefs->ResetColorMonitorTextToDefault();
         }
         if (m_displayPage != nullptr)
         {
