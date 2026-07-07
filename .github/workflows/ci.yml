@@ -76,9 +76,9 @@ jobs:
           $major = $matches[1]
           if ($content -notmatch '#define VERSION_MINOR (\d+)') { throw 'VERSION_MINOR missing' }
           $minor = $matches[1]
-          if ($content -notmatch '#define VERSION_BUILD (\d+)') { throw 'VERSION_BUILD missing' }
-          $build = $matches[1]
-          $version = "$major.$minor.$build"
+          if ($content -notmatch '#define VERSION_PATCH (\d+)') { throw 'VERSION_PATCH missing' }
+          $patch = $matches[1]
+          $version = "$major.$minor.$patch"
           $tag     = "v$version"
           "version=$version" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
           "tag=$tag"         | Out-File -FilePath $env:GITHUB_OUTPUT -Append
