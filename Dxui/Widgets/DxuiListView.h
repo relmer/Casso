@@ -119,6 +119,13 @@ public:
     void  UpdateAutoFitFromRows     ();
     void  ResetAutoFit              ();
 
+    // Opt-in precise auto-fit. When on, auto (widthDip==0) columns size to the
+    // DWrite-measured max(header + sort-glyph reserve, widest cell) and grow
+    // monotonically as rows change, instead of the cheaper glyph-count
+    // estimate. Costs an O(rows) DWrite re-measure per row change, so keep it
+    // off for streaming lists (the default). Default off.
+    void  SetPreciseAutoFit         (bool enabled)       { m_preciseAutoFit = enabled; }
+
     // Column / row queries.
     size_t         GetColumnCount () const                 { return m_columns.size(); }
     const Column & GetColumnAt    (size_t idx) const       { return m_columns[idx]; }
@@ -148,6 +155,13 @@ public:
     // so a consumer no longer has to reimplement that routing. Default
     // off: OnKey is inert for every existing consumer.
     void  SetKeyboardColumnNav    (bool enabled)           { m_kbColNavEnabled = enabled; }
+
+    // Selects the header keyboard model (only meaningful when column nav is
+    // on). Off (default): the header is a single Tab sub-stop after the body
+    // and Left/Right cycle the focused column -- File-Explorer details view.
+    // On: each header and the divider trailing it are separate sub-stops and
+    // Left/Right resize the column.
+    void  SetKeyboardColumnResize (bool enabled)           { m_kbColResize = enabled; }
 
     // Vertical scroll. The widget keeps a top-row index into m_rows;
     // Paint clips to [m_topRow, m_topRow + capacity). "Sticky tail"
@@ -381,6 +395,10 @@ private:
     void    ApplyKeyboardColumnFocus ();
     bool    HandleKeyboardColumnKey  (WPARAM vk);
     bool    HandleKeyboardBodyRowNav (WPARAM vk);
+    bool    OnKeyColumnResizeNav     (const DxuiKeyEvent & ev);
+    bool    OnKeyBodyHeaderNav       (const DxuiKeyEvent & ev);
+    void    ApplyBodyHeaderFocus     ();
+    void    MoveHeaderFocus          (int dir);
     const IDxuiTheme                * m_theme      = nullptr;
     std::vector<Column>               m_columns;
     std::vector<std::vector<Cell>>    m_rows;
@@ -395,6 +413,8 @@ private:
     // debug panels). ComputeColumnLayout turns it into a pixel width at the
     // current DPI; persists across SetRows.
     std::vector<int>                  m_autoMaxChars;
+    bool                              m_preciseAutoFit    = false;
+    mutable bool                      m_measureDirty      = false;
     DxuiDpiScaler                         m_scaler;
     int                               m_hovered           = -1;
     int                               m_selectedRow       = -1;
@@ -407,6 +427,7 @@ private:
     int                               m_focusedHeaderCol  = -1;
     int                               m_focusedDividerCol = -1;
     bool                              m_kbColNavEnabled   = false;
+    bool                              m_kbColResize       = false;
     int                               m_kbColFocus        = -1;
     bool                              m_vertDragging          = false;
     float                             m_vertDragGrab        = 0.0f;

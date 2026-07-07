@@ -1104,8 +1104,10 @@ void Disk2DebugPanel::ConfigureWidgets()
 
     // The list owns keyboard column navigation: when it holds focus, its
     // own OnKey cycles the header / divider / body sub-stops on Tab and
-    // fires the sort / resize / selection callbacks below.
+    // fires the sort / resize / selection callbacks below. Resize style: Tab
+    // walks header/divider sub-stops and Left/Right nudge column widths.
     m_eventList->SetKeyboardColumnNav (true);
+    m_eventList->SetKeyboardColumnResize (true);
 
     // The list owns its own scroll / thumb / column-resize / row-select
     // routing via OnMouse; these callbacks fold the semantic outcomes

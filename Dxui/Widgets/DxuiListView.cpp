@@ -83,6 +83,12 @@ void DxuiListView::SetRows (std::vector<std::vector<Cell>> rows)
 
 
     m_rows = std::move (rows);
+
+    if (m_preciseAutoFit)
+    {
+        m_measureDirty = true;   // re-measure precise column widths for the new rows
+    }
+
     maxTop = GetMaxTopRow();
 
     if (wasSticky || m_topRow > maxTop)
@@ -130,7 +136,16 @@ void DxuiListView::AppendRows (std::vector<std::vector<Cell>> rows)
     m_rows.insert (m_rows.end(),
                    std::make_move_iterator (rows.begin()),
                    std::make_move_iterator (rows.end()));
-    m_measuredWPx.clear();
+
+    if (m_preciseAutoFit)
+    {
+        m_measureDirty = true;   // grow precise widths monotonically (keep prior max)
+    }
+    else
+    {
+        m_measuredWPx.clear();
+    }
+
     maxTop = GetMaxTopRow();
 
     if (wasSticky || m_topRow > maxTop)
@@ -624,7 +639,7 @@ int DxuiListView::ColumnNaturalWidthPx (size_t c) const
             // column keeps its arrow reserve via measuredPx, while a content-
             // dominated column that gained wider rows later grows via
             // autoFitPx instead of clipping.
-            wpx = std::max (measuredPx, autoFitPx);
+            wpx = m_preciseAutoFit ? measuredPx : std::max (measuredPx, autoFitPx);
         }
     }
 
@@ -1807,9 +1822,10 @@ void DxuiListView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) cons
 
     pal = MakePalette();
 
-    if (m_measuredWPx.size() != m_columns.size())
+    if (m_measuredWPx.size() != m_columns.size() || (m_preciseAutoFit && m_measureDirty))
     {
         MeasureColumnsPx (text);
+        m_measureDirty = false;
     }
 
     ComputeColumnLayout (layoutW, colXPx, colWPx);
@@ -2775,6 +2791,23 @@ void DxuiListView::OnFocusChanged (bool focused)
         m_kbColFocus = -1;
         SetFocusedHeaderColumn (-1);
         SetFocusedDividerColumn (-1);
+        return;
+    }
+
+    // In the body/header model, gaining focus lands directly on the body
+    // sub-stop (selecting a row if none) so a single Tab from the neighbouring
+    // control shows focus immediately. The resize model keeps its neutral entry
+    // (the first Tab / Shift+Tab picks a direction into the sub-stops).
+    if (m_kbColNavEnabled && !m_kbColResize)
+    {
+        m_kbColFocus = 0;
+        SetFocusedHeaderColumn (-1);
+        SetFocusedDividerColumn (-1);
+
+        if (GetSelectedRow() < 0 && GetRowCount() > 0)
+        {
+            SetSelectedRow (0);
+        }
     }
 }
 
@@ -2953,25 +2986,15 @@ bool DxuiListView::HandleKeyboardBodyRowNav (WPARAM vk)
 //
 //  DxuiListView::OnKey
 //
-//  Opt-in keyboard column navigation. When SetKeyboardColumnNav is off the
-//  list is inert (existing consumers are unaffected). When on, Tab walks a
-//  sequence of 2N sub-stops for N visible columns -- header0, divider0,
-//  header1, divider1, ..., header(N-1), body -- and Shift+Tab walks back.
-//  Tabbing past either end releases the sub-focus and returns false so the
-//  host focus manager advances to the neighbouring control. At a sub-stop,
-//  keys act on it: sort a header, resize a divider, or move rows in the
-//  body.
+//  Opt-in keyboard navigation (SetKeyboardColumnNav). Off: the list is inert
+//  (existing consumers unaffected). On: dispatches to one of two models --
+//  the default body/header model or the column/divider resize model
+//  (SetKeyboardColumnResize).
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool DxuiListView::OnKey (const DxuiKeyEvent & ev)
 {
-    int  n     = 0;
-    int  stops = 0;
-    int  body  = 0;
-
-
-
     if (!m_kbColNavEnabled)
     {
         return false;
@@ -2982,7 +3005,33 @@ bool DxuiListView::OnKey (const DxuiKeyEvent & ev)
         return false;
     }
 
-    n = GetVisibleColumnCount();
+    return m_kbColResize ? OnKeyColumnResizeNav (ev) : OnKeyBodyHeaderNav (ev);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiListView::OnKeyColumnResizeNav
+//
+//  Column/divider model (opt-in via SetKeyboardColumnResize). Tab walks 2N
+//  sub-stops for N visible columns -- header0, divider0, header1, divider1,
+//  ..., header(N-1), body -- and Shift+Tab walks back. Tabbing past either end
+//  releases the sub-focus and returns false so the host focus manager advances.
+//  At a sub-stop, keys act on it: sort a header, resize a divider, or move rows.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiListView::OnKeyColumnResizeNav (const DxuiKeyEvent & ev)
+{
+    int  n     = GetVisibleColumnCount();
+    int  stops = 0;
+    int  body  = 0;
+
+
+
     if (n <= 0)
     {
         return false;
@@ -3031,4 +3080,163 @@ bool DxuiListView::OnKey (const DxuiKeyEvent & ev)
     }
 
     return HandleKeyboardColumnKey (ev.vk);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiListView::OnKeyBodyHeaderNav
+//
+//  Default model (File-Explorer details view). Two sub-stops: body then
+//  header. Tab: body -> header -> release; Shift+Tab reverses. Body: arrows /
+//  Home / End / Page move the selection, Space/Enter activate the selected row.
+//  Header: Left/Right cycle the focused column, Space/Enter sort it. No
+//  column-resize sub-stops (see OnKeyColumnResizeNav).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiListView::OnKeyBodyHeaderNav (const DxuiKeyEvent & ev)
+{
+    static constexpr int  kBody   = 0;
+    static constexpr int  kHeader = 1;
+    static constexpr int  kStops  = 2;
+
+
+
+    if (ev.vk == VK_TAB)
+    {
+        m_kbColFocus = ev.shift ? ((m_kbColFocus < 0) ? (kStops - 1) : (m_kbColFocus - 1))
+                                : ((m_kbColFocus < 0) ? kBody         : (m_kbColFocus + 1));
+
+        if (m_kbColFocus < 0 || m_kbColFocus >= kStops)
+        {
+            m_kbColFocus = -1;
+            SetFocusedHeaderColumn (-1);
+            SetFocusedDividerColumn (-1);
+            return false;
+        }
+
+        ApplyBodyHeaderFocus();
+        return true;
+    }
+
+    if (m_kbColFocus == kBody)
+    {
+        if (ev.vk == VK_RETURN || ev.vk == VK_SPACE)
+        {
+            if (GetSelectedRow() >= 0 && m_onActivateRow)
+            {
+                m_onActivateRow (GetSelectedRow());
+                return true;
+            }
+
+            return false;
+        }
+
+        return HandleKeyboardBodyRowNav (ev.vk);
+    }
+
+    if (m_kbColFocus == kHeader)
+    {
+        if (ev.vk == VK_LEFT || ev.vk == VK_RIGHT)
+        {
+            MoveHeaderFocus ((ev.vk == VK_RIGHT) ? 1 : -1);
+            return true;
+        }
+
+        if ((ev.vk == VK_RETURN || ev.vk == VK_SPACE) && m_focusedHeaderCol >= 0 && m_onSortColumn)
+        {
+            m_onSortColumn (m_focusedHeaderCol);
+            return true;
+        }
+    }
+
+    return false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiListView::ApplyBodyHeaderFocus
+//
+//  Reflects the body/header sub-stop into the paint markers. Body clears the
+//  header marker (the selected row is the focus cue) and selects a row if none
+//  is; header selects the focused column, defaulting to the first visible one.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiListView::ApplyBodyHeaderFocus ()
+{
+    SetFocusedDividerColumn (-1);
+
+    if (m_kbColFocus == 1)          // header
+    {
+        bool  valid = (m_focusedHeaderCol >= 0)
+                      && (GetVisibleIndexOfColumn ((size_t) m_focusedHeaderCol) >= 0);
+
+        if (!valid)
+        {
+            SetFocusedHeaderColumn (GetNthVisibleColumnIndex (0));
+        }
+
+        return;
+    }
+
+    SetFocusedHeaderColumn (-1);    // body
+
+    if (GetSelectedRow() < 0 && GetRowCount() > 0)
+    {
+        SetSelectedRow (0);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiListView::MoveHeaderFocus
+//
+//  Steps the focused header column one visible column left / right, clamped to
+//  the ends (no wrap).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiListView::MoveHeaderFocus (int dir)
+{
+    int  n    = GetVisibleColumnCount();
+    int  ord  = 0;
+    int  next = 0;
+
+
+
+    if (n <= 0)
+    {
+        return;
+    }
+
+    ord = (m_focusedHeaderCol >= 0) ? GetVisibleIndexOfColumn ((size_t) m_focusedHeaderCol) : 0;
+    if (ord < 0)
+    {
+        ord = 0;
+    }
+
+    next = ord + dir;
+    if (next < 0)
+    {
+        next = 0;
+    }
+    if (next > n - 1)
+    {
+        next = n - 1;
+    }
+
+    SetFocusedHeaderColumn (GetNthVisibleColumnIndex (next));
 }
