@@ -306,14 +306,14 @@ void DxuiWindow::ShowModelessDialog (int defaultButtonId)
 
 bool DxuiWindow::ProcessDialogMessage (const MSG & msg)
 {
-    HRESULT  hr        = S_OK;
-    bool     isHandled = false;
-    HWND     hwnd      = Hwnd();
+    bool  isHandled = false;
+    HWND  hwnd      = Hwnd();
 
-
-
-    BAIL_OUT_IF (!m_dialogActive || hwnd == nullptr, false);
-    BAIL_OUT_IF (msg.hwnd != hwnd, false);
+    // Only intercept the dialog-navigation keys while a dialog is active and the
+    // message targets this window; otherwise fall through to normal dispatch.
+    // Plain early returns (not BAIL_OUT_IF): this returns bool, not HRESULT.
+    if (!m_dialogActive || hwnd == nullptr) { return false; }
+    if (msg.hwnd != hwnd)                   { return false; }
 
     switch (msg.message)
     {
@@ -326,7 +326,6 @@ bool DxuiWindow::ProcessDialogMessage (const MSG & msg)
             break;
     }
 
-Error:
     return isHandled;
 }
 
