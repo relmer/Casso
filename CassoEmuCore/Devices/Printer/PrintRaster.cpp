@@ -162,6 +162,40 @@ void PrintRaster::Clear ()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  RestoreFromIndexed
+//
+//  Rebuilds the strip from a persisted native-grid index plane and feed state.
+//  The plane is exactly `rows` rows of s_kColumns cells; any surplus/short
+//  input is clamped to that shape so a malformed load can never over-read.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void PrintRaster::RestoreFromIndexed (int rows, const vector<Byte> & cells,
+                                      int paperRow, const vector<int> & boundaries,
+                                      bool capReached)
+{
+    size_t   need = (size_t) (rows > 0 ? rows : 0) * s_kColumns;
+    size_t   copy = need < cells.size () ? need : cells.size ();
+    size_t   i    = 0;
+
+    m_cells.assign (need, 0);
+
+    for (i = 0; i < copy; i++)
+    {
+        m_cells[i] = (Byte) (cells[i] & 0x0F);
+    }
+
+    m_rowsUsed         = rows > 0 ? rows : 0;
+    m_paperRow         = paperRow;
+    m_pageBoundaryRows = boundaries;
+    m_capReached       = capReached;
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CellAt
 //
 ////////////////////////////////////////////////////////////////////////////////

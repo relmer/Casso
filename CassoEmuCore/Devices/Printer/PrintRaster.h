@@ -36,6 +36,13 @@ public:
     void    MarkFormFeed      ();
     void    Clear             ();
 
+    // Persistence restore: repopulate the whole strip from a native-grid index
+    // plane (kDotsPerRow cells per row, one 4-bit ink value each) and saved
+    // feed state. Used by PrintJobSerializer when reloading a pending strip.
+    void    RestoreFromIndexed (int rows, const vector<Byte> & cells,
+                                int paperRow, const vector<int> & boundaries,
+                                bool capReached);
+
     int     PaperRow          () const { return m_paperRow; }
     int     RowsUsed          () const { return m_rowsUsed; }
     bool    CapReached        () const { return m_capReached; }
