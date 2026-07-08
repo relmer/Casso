@@ -235,6 +235,7 @@
     <ClCompile Include="DormannIntegrationTests.cpp" />
     <ClCompile Include="EhmTestHelper.cpp" />
     <ClCompile Include="HarteTestRunner.cpp" />
+    <ClCompile Include="TestCpu65C02Tests.cpp" />
     <ClCompile Include="ModuleSetup.cpp" />
     <ClCompile Include="RegressionTests.cpp" />
     <ClCompile Include="EmuTests\MemoryBusTests.cpp" />
@@ -475,6 +476,7 @@
   <ItemGroup>
     <ClInclude Include="Pch.h" />
     <ClInclude Include="TestHelpers.h" />
+    <ClInclude Include="TestCpu65C02.h" />
     <ClInclude Include="EhmTestHelper.h" />
     <ClInclude Include="HarteTestRunner.h" />
     <ClInclude Include="EmuTests\IFixtureProvider.h" />
