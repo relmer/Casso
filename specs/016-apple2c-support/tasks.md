@@ -15,7 +15,7 @@
 
 ## Phase 1: Setup
 
-- [ ] T001 Verify baseline: full existing `UnitTest` suite green on branch `016-apple2c-support`.
+- [X] T001 Verify baseline: full existing `UnitTest` suite green on branch `016-apple2c-support`. *(1959 tests green.)*
 - [ ] T002 [P] Acquire assets into `UnitTest/Fixtures/` + the machine-ROM pipeline: //c Memory Expansion ROM (ROM 4, 32K), Dormann 65C02 functional test, Harte `wdc65c02` SingleStepTests vectors. (Needed by US1/US2; the ACIA in Phase 2 needs none.)
 
 ---
@@ -28,14 +28,14 @@
 
 ### Tests (write first, expect FAIL)
 
-- [ ] T003 [P] [US3] `UnitTest/EmuTests/Acia6551Tests.cpp`: TX (file endpoint), RX (loopback), baud/framing, status + IRQ flags.
+- [X] T003 [P] [US3] `UnitTest/EmuTests/Acia6551Tests.cpp`: TX (file endpoint), RX (loopback), baud/framing, status + IRQ flags. *(11 tests.)*
 
 ### Implementation
 
-- [ ] T004 [US3] Implement `Acia6551` (`CassoEmuCore/Devices/Acia6551.{h,cpp}`): data/status/command/control registers, RX/TX, baud/framing, IRQ via `InterruptController`.
-- [ ] T005 [US3] Add v1 endpoints: TX → host file (printing), loopback (comms); interface consumable by spec 015 (FR-011).
-- [ ] T006 [US3] Register `acia-6551` in `ComponentRegistry`.
-- [ ] T007 [US3] Make ACIA tests pass; confirm exactly one ACIA implementation (SC-005).
+- [X] T004 [US3] Implement `Acia6551` (`CassoEmuCore/Devices/Acia6551.{h,cpp}`): data/status/command/control registers, RX/TX, baud/framing, IRQ via `InterruptController`.
+- [X] T005 [US3] Add v1 endpoints: TX → host file (printing), loopback (comms); interface consumable by spec 015 (FR-011). *(`IAciaEndpoint`, `AciaLoopbackEndpoint`, `AciaFileEndpoint`.)*
+- [X] T006 [US3] Register `acia-6551` in `ComponentRegistry`.
+- [X] T007 [US3] Make ACIA tests pass; confirm exactly one ACIA implementation (SC-005). *(1970 tests green; single `Acia6551`.)*
 
 **Checkpoint**: 6551 ACIA device complete + tested standalone → **spec 015 is unblocked.** (Independent of everything below — can proceed in parallel with the CPU track.)
 
