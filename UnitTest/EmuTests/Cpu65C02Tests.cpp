@@ -219,41 +219,27 @@ namespace Cpu65C02TestNs
         }
 
 
-        TEST_METHOD (ResetMemoryBit)
+        TEST_METHOD (RockwellBitOpcodesAreNopOnBaseTier)
         {
-            Harness h;
+            // The Apple 65C02 is the base CMOS tier -- the Rockwell bit ops
+            // (RMB/SMB/BBR/BBS) are not present and decode as single-byte NOPs,
+            // matching Apple's shipped parts and AppleWin.
+            Byte    bitOpcodes[] = { 0x07, 0x87, 0x0F, 0x8F };   // RMB0, SMB0, BBR0, BBS0
 
-            h.Poke (0x0030, 0xFF);
-            h.Load ({ 0x07, 0x30 });    // RMB0 $30
-            h.Step ();
+            for (Byte opcode : bitOpcodes)
+            {
+                Harness h;
 
-            Assert::AreEqual<Byte> (0xFE, h.Peek (0x0030));    // bit 0 cleared
-            Assert::AreEqual<Byte> (5, h.Cycles ());
-        }
+                h.SetRegs (0x11, 0x22, 0x33, 0);
+                h.Poke (0x0030, 0xFF);
+                h.Load ({ opcode, 0x30, 0x10 });
+                h.Step ();
 
-
-        TEST_METHOD (BranchOnBitResetTaken)
-        {
-            Harness h;
-
-            h.Poke (0x0030, 0xFE);      // bit 0 clear -> branch
-            h.Load ({ 0x0F, 0x30, 0x10 });   // BBR0 $30, +$10
-            h.Step ();
-
-            // PC after the 3-byte instruction is $0203; +$10 = $0213.
-            Assert::AreEqual<Word> (0x0213, h.PC ());
-        }
-
-
-        TEST_METHOD (BranchOnBitResetNotTaken)
-        {
-            Harness h;
-
-            h.Poke (0x0030, 0x01);      // bit 0 set -> no branch
-            h.Load ({ 0x0F, 0x30, 0x10 });   // BBR0 $30, +$10
-            h.Step ();
-
-            Assert::AreEqual<Word> (0x0203, h.PC ());
+                Assert::AreEqual<Word> (0x0201, h.PC ());          // consumed 1 byte
+                Assert::AreEqual<Byte> (1, h.Cycles ());
+                Assert::AreEqual<Byte> (0xFF, h.Peek (0x0030));    // memory untouched
+                Assert::AreEqual<Byte> (0x11, h.Regs ().a);
+            }
         }
 
 

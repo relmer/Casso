@@ -40,7 +40,6 @@ private:
     void        InitializeCmos          ();
     void        InitializeArithmetic    ();
     void        InitializeCmosLeftovers ();
-    void        InitializeBitOps        ();
     void        InitializeNops          ();
 
     void        SetOpcode (Byte                                  opcode,

@@ -14,7 +14,7 @@ The design uses only existing extension points — no new architecture is introd
 
 **Language/Version**: C++ (`stdcpplatest`, MSVC v145+) per constitution.
 
-**Primary Dependencies**: Windows SDK + STL only (constitution baseline). **No new third-party dependencies.** 65C02 conformance vectors (Klaus Dormann 65C02 functional + Tom Harte `wdc65c02` SingleStepTests) are test *data*, consistent with the existing NMOS Dormann/Harte corpus.
+**Primary Dependencies**: Windows SDK + STL only (constitution baseline). **No new third-party dependencies.** 65C02 conformance vectors (Klaus Dormann 65C02 functional + Tom Harte `synertek65c02` SingleStepTests) are test *data*, consistent with the existing NMOS Dormann/Harte corpus.
 
 **Storage**: Machine config JSON (`Resources/Machines/Apple2c/Apple2c.json`); //c ROM asset (managed like existing machine ROMs via `AssetBootstrap`). Serial TX → host file; no other new persistence.
 
@@ -80,7 +80,7 @@ Casso/
 Resources/Machines/Apple2c/
 └── Apple2c.json                  # [NEW]    //c profile (cpu, rom, devices, phantom-slot map)
 UnitTest/EmuTests/
-├── Cpu65C02Tests.cpp             # [NEW]    Dormann 65C02 + Harte wdc65c02
+├── Cpu65C02Tests.cpp             # [NEW]    Dormann 65C02 + Harte synertek65c02
 ├── Acia6551Tests.cpp             # [NEW]
 ├── AppleMouseTests.cpp           # [NEW]
 └── Apple2cBootTests.cpp          # [NEW]    //c boot + phantom-slot probe

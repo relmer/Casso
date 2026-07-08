@@ -5,7 +5,7 @@ How to validate each user story independently. Build + test with the standard ta
 ## P1 — 65C02 core (ships standalone)
 
 1. Set `Apple2eEnhanced` config `cpu: 65C02`.
-2. Run `Cpu65C02Tests` — Klaus Dormann 65C02 functional + Tom Harte `wdc65c02` SingleStepTests. **Expect 100% pass.**
+2. Run `Cpu65C02Tests` — Klaus Dormann 65C02 functional + Tom Harte `synertek65c02` SingleStepTests. **Expect 100% pass.**
 3. Regression: run the full CPU suite — NMOS (Dormann/Harte NMOS) unchanged; II/II+/unenhanced //e green.
 4. Manual: boot the **Apple //e Enhanced** machine and run a title that uses 65C02 opcodes (previously misbehaved) — verify correct execution.
 

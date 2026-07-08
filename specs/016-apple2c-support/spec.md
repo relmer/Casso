@@ -30,7 +30,7 @@ This feature adds the pieces the //c has beyond the //e: the **65C02 CPU**, the 
 - **Q: Target //c ROM revision?** → **Memory Expansion ROM (ROM 4)** — the most refined/compatible non-Plus //c firmware. v1 is scoped to a **5.25"/128K //c**: the ROM's UniDisk 3.5 (SmartPort) and memory-expansion firmware are *present* but those peripherals are **not implemented** in this spec (they report absent; the ROM still boots to BASIC/monitor). Requires 32K bank-switched-ROM handling. Compatibility risk vs. the original ROM is negligible — later //c ROMs are backward-compatible; titles that run *only* on the original ROM are rare copy-protection / serial-quirk edge cases.
 - **Q: Who builds the shared 6551 ACIA, given spec 015 (printer) is in flight?** → **016 builds the complete dual-port ACIA (all registers, RX+TX, IRQ); spec 015 consumes it.**
 - **Q: Serial host endpoints for v1?** → **Virtual only** — host-file output (printing) + loopback (comms). Real host COM / TCP-telnet endpoints deferred.
-- **Q: 65C02 conformance verification?** → **Klaus Dormann's 65C02 extended-opcode functional test + Tom Harte's `wdc65c02` SingleStepTests** (reuse the existing CPU-test infrastructure used for the NMOS core).
+- **Q: 65C02 conformance verification?** → **Klaus Dormann's 65C02 extended-opcode functional test + Tom Harte's `synertek65c02` SingleStepTests** (reuse the existing CPU-test infrastructure used for the NMOS core).
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -168,7 +168,7 @@ A user boots and runs disk software from the //c's built-in 5.25" drive (and an 
 
 ### Measurable Outcomes
 
-- **SC-001**: The 65C02 conformance suite — **Klaus Dormann's 65C02 extended-opcode functional test + Tom Harte's `wdc65c02` SingleStepTests** — passes 100% on the enhanced/`//c` machines; the NMOS conformance behavior is unchanged on non-enhanced machines.
+- **SC-001**: The 65C02 conformance suite — **Klaus Dormann's 65C02 extended-opcode functional test + Tom Harte's `synertek65c02` SingleStepTests** — passes 100% on the enhanced/`//c` machines; the NMOS conformance behavior is unchanged on non-enhanced machines.
 - **SC-002**: The Apple //c cold-boots to its monitor / Applesoft within the //e startup budget — **no more than 10% over the //e cold-boot wall-clock time on the same host** (measured, not subjective).
 - **SC-003**: At least three representative //c titles run correctly end-to-end: one serial/terminal (or serial-print) task, one mouse application (e.g., MousePaint), and one disk-based game — each booting and operating from the //c profile.
 - **SC-004**: The full existing unit-test suite (including CPU conformance for NMOS, and the Apple II/II+///e machines) stays green — zero regressions.

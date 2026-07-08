@@ -16,7 +16,7 @@
 ## Phase 1: Setup
 
 - [X] T001 Verify baseline: full existing `UnitTest` suite green on branch `016-apple2c-support`. *(1959 tests green.)*
-- [ ] T002 [P] Acquire assets into `UnitTest/Fixtures/` + the machine-ROM pipeline: //c Memory Expansion ROM (ROM 4, 32K), Dormann 65C02 functional test, Harte `wdc65c02` SingleStepTests vectors. (Needed by US1/US2; the ACIA in Phase 2 needs none.)
+- [ ] T002 [P] Acquire assets into `UnitTest/Fixtures/` + the machine-ROM pipeline: //c Memory Expansion ROM (ROM 4, 32K), Dormann 65C02 functional test, Harte `synertek65c02` SingleStepTests vectors. (Needed by US1/US2; the ACIA in Phase 2 needs none.)
 
 ---
 
@@ -57,12 +57,12 @@
 
 **Goal**: 65C02 software runs; the existing //e-Enhanced profile (NMOS today) is corrected.
 
-**Independent Test**: //e-Enhanced `cpu: 65C02`; Dormann 65C02 + Harte `wdc65c02` pass 100%; NMOS suite unchanged.
+**Independent Test**: //e-Enhanced `cpu: 65C02`; Dormann 65C02 + Harte `synertek65c02` pass 100%; NMOS suite unchanged.
 
 ### Tests (expect FAIL)
 
-- [ ] T011 [P] [US1] `UnitTest/EmuTests/Cpu65C02Tests.cpp`: Klaus Dormann 65C02 functional test.
-- [ ] T012 [P] [US1] `Cpu65C02Tests.cpp`: Tom Harte `wdc65c02` SingleStepTests.
+- [ ] T011 [P] [US1] `UnitTest/EmuTests/Cpu65C02Tests.cpp`: Klaus Dormann 65C02 functional test. *(Base CMOS tier: build/run with Rockwell + WDC opcode options disabled — the Apple 65C02 lacks RMB/SMB/BBR/BBS and WAI/STP; see research.md D7.)*
+- [ ] T012 [P] [US1] `Cpu65C02Tests.cpp`: Tom Harte `synertek65c02` SingleStepTests. *(Base tier — not `rockwell65c02`/`wdc65c02`.)*
 
 ### Implementation
 

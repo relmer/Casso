@@ -4,16 +4,6 @@
 
 #include "GroupCmos.h"
 
-// Bit-addressed instruction families (RMBn/SMBn/BBRn/BBSn) are laid out at a
-// fixed 0x10 stride from a base opcode, one per bit 0..7.
-static constexpr Byte    s_kBitOpCount   = 8;
-static constexpr Byte    s_kBitOpStride  = 0x10;
-static constexpr Byte    s_kRmbBase      = 0x07;
-static constexpr Byte    s_kSmbBase      = 0x87;
-static constexpr Byte    s_kBbrBase      = 0x0F;
-static constexpr Byte    s_kBbsBase      = 0x8F;
-static constexpr Byte    s_kBitOpCycles  = 5;
-
 static constexpr Byte    s_kOneByteNopCycles = 1;
 
 
@@ -125,7 +115,6 @@ void Cpu65C02::InitializeCmos ()
 {
     InitializeArithmetic ();
     InitializeCmosLeftovers ();
-    InitializeBitOps ();
     InitializeNops ();
 }
 
@@ -254,38 +243,18 @@ void Cpu65C02::InitializeCmosLeftovers ()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  InitializeBitOps
-//
-//  RMB0-7, SMB0-7 (zero page) and BBR0-7, BBS0-7 (zero page, relative), each
-//  laid out at a fixed stride from its base opcode.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void Cpu65C02::InitializeBitOps ()
-{
-    Byte    i = 0;
-
-    for (i = 0; i < s_kBitOpCount; ++i)
-    {
-        Byte offset = static_cast<Byte> (i * s_kBitOpStride);
-
-        SetOpcode (static_cast<Byte> (s_kRmbBase + offset), "RMB", Microcode::ResetMemoryBit, GlobalAddressingMode::ZeroPage,         nullptr, nullptr, s_kBitOpCycles);
-        SetOpcode (static_cast<Byte> (s_kSmbBase + offset), "SMB", Microcode::SetMemoryBit,   GlobalAddressingMode::ZeroPage,         nullptr, nullptr, s_kBitOpCycles);
-        SetOpcode (static_cast<Byte> (s_kBbrBase + offset), "BBR", Microcode::BitBranchReset, GlobalAddressingMode::ZeroPageRelative, nullptr, nullptr, s_kBitOpCycles);
-        SetOpcode (static_cast<Byte> (s_kBbsBase + offset), "BBS", Microcode::BitBranchSet,   GlobalAddressingMode::ZeroPageRelative, nullptr, nullptr, s_kBitOpCycles);
-    }
-}
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  InitializeNops
 //
 //  The 65C02 defines every opcode. Install the reserved multi-byte NOP forms,
 //  then fill any opcode still marked illegal with a single-byte NOP so nothing
 //  traps as an undefined instruction.
+//
+//  This is deliberately the base CMOS tier, matching the parts Apple shipped
+//  (a GTE/WDC/Rockwell mix whose common instruction set omits the extensions)
+//  and AppleWin: the Rockwell bit ops (RMB/SMB/BBR/BBS, the $x7/$xF columns)
+//  and WDC's WAI/STP ($CB/$DB) are NOT installed, so they fall through here as
+//  single-byte NOPs. The operations/modes backing them still exist in the
+//  CassoCore CMOS superset, inert, ready for a future Rockwell/WDC variant.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

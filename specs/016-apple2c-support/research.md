@@ -42,6 +42,8 @@ Design decisions and their rationale. All spec `[NEEDS CLARIFICATION]` markers w
 
 ## D7 — 65C02 verification via existing Dormann + Harte infrastructure
 
-**Decision**: Verify with Klaus Dormann's 65C02 extended-opcode functional test + Tom Harte's `wdc65c02` SingleStepTests, run through the same harness as the NMOS corpus.
+**Decision**: Verify with Klaus Dormann's 65C02 extended-opcode functional test + Tom Harte's `synertek65c02` SingleStepTests, run through the same harness as the NMOS corpus.
 
 **Rationale**: Reuses proven CPU-test infrastructure; the two corpuses together cover functional correctness and per-opcode cycle accuracy. Test vectors are data, not a third-party code dependency.
+
+**65C02 tier — why `synertek65c02`, not `wdc65c02`**: The Apple //c and //e-Enhanced are the **base CMOS tier**. Apple sourced 65C02s from a vendor mix (GTE most common, plus WDC and Rockwell parts) whose common instruction set omits both the Rockwell bit ops (`RMB`/`SMB`/`BBR`/`BBS`, the `$x7`/`$xF` columns) and WDC's `WAI`/`STP` (`$CB`/`$DB`); Apple firmware never uses them, and AppleWin models them as NOPs. Casso's `Cpu65C02` therefore installs neither — those opcodes decode as single-byte NOPs — so the matching Harte corpus is `synertek65c02` (base), not `rockwell65c02` or `wdc65c02`. The Dormann 65C02 test must likewise be built/run with its Rockwell/WDC opcode options disabled. The backing operations/modes remain in the CassoCore CMOS superset, inert, so a future Rockwell/WDC variant is cheap (see issue #86 for the //e-Enhanced consumer).
