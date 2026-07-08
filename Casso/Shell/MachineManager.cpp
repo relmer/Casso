@@ -23,6 +23,7 @@
 #include "Devices/LanguageCard.h"
 #include "Devices/Apple2eMmu.h"
 #include "Devices/Printer/ParallelFirmware.h"
+#include "Devices/Printer/PrinterCard.h"
 #include "Video/AppleTextMode.h"
 #include "Video/Apple80ColTextMode.h"
 #include "Video/AppleLoResMode.h"
@@ -312,6 +313,13 @@ HRESULT MachineManager::CreateMemoryDevices (const MachineConfig & config)
             }
             else
             {
+                // Cache the printer card so the background drain worker can
+                // reach its ring once the machine is built.
+                if (slot.device == "parallel-printer")
+                {
+                    m_shell.m_refs.printerCard = static_cast<PrinterCard *> (device.get());
+                }
+
                 m_shell.m_memoryBus.AddDevice (device.get());
                 m_shell.m_ownedDevices.push_back (std::move (device));
             }
@@ -435,6 +443,13 @@ HRESULT MachineManager::CreateMemoryDevices (const MachineConfig & config)
     if (m_shell.m_refs.diskController != nullptr && !m_shell.m_diskAudioSources.empty())
     {
         m_shell.m_refs.diskController->SetAudioSink (m_shell.m_diskAudioSources[0].get());
+    }
+
+    // Start the background printer drain once the card exists. Symmetric stop
+    // is in SwitchMachine teardown and OnDestroy.
+    if (m_shell.m_refs.printerCard != nullptr)
+    {
+        m_shell.m_printerWorker.Start (m_shell.m_refs.printerCard->ByteRing());
     }
 
 Error:
@@ -1063,6 +1078,11 @@ HRESULT MachineManager::SwitchMachine (const std::wstring & machineName)
     // reassigned when the new config carries an apple2e-mmu device;
     // it must be explicitly reset here or it'll keep its stale
     // RamDevice pointer alive across a //e -> ][ switch.
+    //
+    // Stop the printer drain thread first: its job holds a reference into the
+    // card's ring, which m_ownedDevices.clear() is about to free.
+    m_shell.m_printerWorker.Stop ();
+
     m_shell.m_cpu.reset();
     m_shell.m_ownedDevices.clear();
     m_shell.m_videoModes.clear();

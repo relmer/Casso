@@ -224,6 +224,7 @@
     <ClCompile Include="CrtPostProcess.cpp" />
     <ClCompile Include="PerfStats.cpp" />
     <ClCompile Include="EmulatorShell.cpp" />
+    <ClCompile Include="Print\PrinterWorker.cpp" />
     <ClCompile Include="DiskSettings.cpp" />
     <ClCompile Include="AssetBootstrap.cpp" />
     <ClCompile Include="Config\Win32FileSystem.cpp" />
@@ -280,6 +281,7 @@
     <ClInclude Include="PerfStats.h" />
     <ClInclude Include="UiCommandTypes.h" />
     <ClInclude Include="EmulatorShell.h" />
+    <ClInclude Include="Print\PrinterWorker.h" />
     <ClInclude Include="Disk2EventDisplay.h" />
     <ClInclude Include="InputEventDisplay.h" />
     <ClInclude Include="DiskSettings.h" />

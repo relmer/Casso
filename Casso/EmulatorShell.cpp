@@ -3526,6 +3526,9 @@ void EmulatorShell::OnDestroy ()
     // RevokeDragDrop requires a valid window handle.
     m_dragDropTarget.Shutdown();
 
+    // Join the printer drain thread before teardown frees the card.
+    m_printerWorker.Stop ();
+
     m_cpuManager.Stop();
 
     // IDxuiHostClient::OnDestroy is notification-only — the host

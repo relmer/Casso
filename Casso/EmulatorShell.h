@@ -14,6 +14,7 @@
 #include "Core/MemoryBus.h"
 #include "D3DRenderer.h"
 #include "Devices/Disk/DiskImageStore.h"
+#include "Print/PrinterWorker.h"
 #include "Shell/ClipboardManager.h"
 #include "Shell/CpuManager.h"
 #include "Shell/DiskManager.h"
@@ -705,9 +706,15 @@ private:
         class RamDevice *             mainRamDev       = nullptr;
         class Disk2Controller *       diskController   = nullptr;
         class VideoOutput *           activeVideoMode  = nullptr;
+        class PrinterCard *           printerCard      = nullptr;
     };
 
     MachineRefs                   m_refs;
+
+    // Background printer drain (ring -> interpreter -> raster). Declared after
+    // m_ownedDevices so it is torn down (thread joined) before the card it
+    // drains.
+    PrinterWorker                 m_printerWorker;
 
     unique_ptr<class Apple2eMmu>  m_mmu;
     unique_ptr<VideoTiming>       m_videoTiming;
