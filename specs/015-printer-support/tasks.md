@@ -13,11 +13,11 @@
 ## Phase 1: Setup
 
 - [ ] T001 Create `CassoEmuCore/Devices/Printer/` and `Casso/Print/` directory skeletons; add all planned .h/.cpp stubs to `CassoEmuCore/CassoEmuCore.vcxproj(.filters)`, `Casso/Casso.vcxproj(.filters)`, and `UnitTest/UnitTest.vcxproj` per plan.md Project Structure (empty EHM-conformant stubs, x64 + ARM64 compile clean)
-- [ ] T002 [P] Define shared printer types (InkPrimary, PrinterEvent variants, DotStyle, grid constants 1280 dots/row, 144 rows/inch, 60-page cap) in `CassoEmuCore/Devices/Printer/PrinterTypes.h`
+- [X] T002 [P] Define shared printer types (InkPrimary, PrinterEvent variants, DotStyle, grid constants 1280 dots/row, 144 rows/inch, 60-page cap) in `CassoEmuCore/Devices/Printer/PrinterTypes.h`
 
 ## Phase 2: Foundational (blocking all user stories)
 
-- [ ] T003 [P] Implement `PrinterByteRing` (fixed SPSC ring, O(1) push, pattern from `CassoEmuCore/Devices/InputEventRing.h`) in `CassoEmuCore/Devices/Printer/PrinterByteRing.h`
+- [X] T003 [P] Implement `PrinterByteRing` (fixed SPSC ring, O(1) push, pattern from `CassoEmuCore/Devices/InputEventRing.h`) in `CassoEmuCore/Devices/Printer/PrinterByteRing.h` — 64 KiB capacity + FreeSpace() for the high-water ready guard; unit suite `UnitTest/PrinterTests/PrinterByteRingTests.cpp` (8 tests incl. two-thread stress)
 - [ ] T004 Implement `PrinterCard : MemoryDevice` per contracts/printer-card-io.md ($C0n0 latch → ring, tolerant status reads, first-touch event flag, Reset/PowerCycle leave paper alone) in `CassoEmuCore/Devices/Printer/PrinterCard.h/.cpp`
 - [ ] T005 [P] Write original slot firmware `CassoEmuCore/Devices/Printer/ParallelFirmware.a65` (PR#n hook, Pascal 1.1 signature bytes + entry table per contracts/printer-card-io.md) and generate `ParallelFirmware.h` (assembled bytes + source text literal)
 - [ ] T006 [P] Unit tests: card register contract, byte ordering, ring overflow assert in `UnitTest/PrinterTests/PrinterCardTests.cpp`

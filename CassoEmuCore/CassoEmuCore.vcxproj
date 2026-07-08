@@ -231,6 +231,7 @@
     <ClCompile Include="Audio\AudioGenerator.cpp" />
     <ClCompile Include="Audio\DriveAudioMixer.cpp" />
     <ClCompile Include="Audio\Disk2AudioSource.cpp" />
+    <ClCompile Include="Devices\Printer\PrinterByteRing.cpp" />
     <ClCompile Include="External\StbVorbisWrapper.cpp">
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <EnableCodeAnalysis>false</EnableCodeAnalysis>
@@ -303,6 +304,8 @@
     <ClInclude Include="Audio\IDriveAudioSource.h" />
     <ClInclude Include="Audio\DriveAudioMixer.h" />
     <ClInclude Include="Audio\Disk2AudioSource.h" />
+    <ClInclude Include="Devices\Printer\PrinterTypes.h" />
+    <ClInclude Include="Devices\Printer\PrinterByteRing.h" />
     <ClInclude Include="External\StbVorbisWrapper.h" />
     <ClInclude Include="External\stb_vorbis.c" />
   </ItemGroup>
