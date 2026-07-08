@@ -60,23 +60,32 @@ string PrintJobSerializer::WriteMetaJson (const PrintRaster & raster)
 
 HRESULT PrintJobSerializer::ReadMetaJson (const string & json, StripMeta & outMeta)
 {
-    HRESULT             hr    = S_OK;
+    HRESULT             hr     = S_OK;
+    HRESULT             hrArr  = S_OK;
     JsonValue           root;
     JsonParseError      err;
-    const JsonValue *   arr   = nullptr;
+    const JsonValue *   arr    = nullptr;
     StripMeta           meta;
 
-    CHR (JsonParser::Parse (json, root, err));
+    hr = JsonParser::Parse (json, root, err);
+    CHR (hr);
     CBREx (root.GetType () == JsonType::Object, E_FAIL);
 
-    CHR (root.GetInt  (s_kszFormatVersion, meta.formatVersion));
+    hr = root.GetInt (s_kszFormatVersion, meta.formatVersion);
+    CHR (hr);
     CBREx (meta.formatVersion == kFormatVersion, E_FAIL);
 
-    CHR (root.GetInt  (s_kszRowsUsed,   meta.rowsUsed));
-    CHR (root.GetInt  (s_kszPaperRow,   meta.paperRow));
-    CHR (root.GetBool (s_kszCapReached, meta.capReached));
+    hr = root.GetInt (s_kszRowsUsed, meta.rowsUsed);
+    CHR (hr);
 
-    if (SUCCEEDED (root.GetArray (s_kszBoundaries, arr)))
+    hr = root.GetInt (s_kszPaperRow, meta.paperRow);
+    CHR (hr);
+
+    hr = root.GetBool (s_kszCapReached, meta.capReached);
+    CHR (hr);
+
+    hrArr = root.GetArray (s_kszBoundaries, arr);
+    if (SUCCEEDED (hrArr))
     {
         size_t   i = 0;
 

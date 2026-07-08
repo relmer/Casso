@@ -30,8 +30,11 @@ HRESULT PrintDelivery::RenderToPng (
     options.outputDpi = dpi;
     options.style     = style;
 
-    CHR (renderer.Render (raster, firstRow, lastRow, options, image));
-    CHR (PngCodec::EncodeRgba (image, dpi, outPng));
+    hr = renderer.Render (raster, firstRow, lastRow, options, image);
+    CHR (hr);
+
+    hr = PngCodec::EncodeRgba (image, dpi, outPng);
+    CHR (hr);
 
 Error:
     return hr;

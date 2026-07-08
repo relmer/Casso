@@ -20,8 +20,9 @@ HRESULT PngCodec::CreateFactory (ComPtr<IWICImagingFactory> & outFactory)
 {
     HRESULT   hr = S_OK;
 
-    CHR (CoCreateInstance (CLSID_WICImagingFactory, nullptr, CLSCTX_INPROC_SERVER,
-                           IID_PPV_ARGS (&outFactory)));
+    hr = CoCreateInstance (CLSID_WICImagingFactory, nullptr, CLSCTX_INPROC_SERVER,
+                           IID_PPV_ARGS (&outFactory));
+    CHR (hr);
 
 Error:
     return hr;
@@ -50,12 +51,21 @@ HRESULT PngCodec::DecodeFirstFrame (
 
     CBREx (!png.empty (), E_INVALIDARG);
 
-    CHR (CreateFactory (outFactory));
-    CHR (outFactory->CreateStream (&stream));
-    CHR (stream->InitializeFromMemory (const_cast<BYTE *> (png.data ()), (DWORD) png.size ()));
-    CHR (outFactory->CreateDecoderFromStream (stream.Get (), nullptr,
-                                              WICDecodeMetadataCacheOnDemand, &decoder));
-    CHR (decoder->GetFrame (0, &outFrame));
+    hr = CreateFactory (outFactory);
+    CHR (hr);
+
+    hr = outFactory->CreateStream (&stream);
+    CHR (hr);
+
+    hr = stream->InitializeFromMemory (const_cast<BYTE *> (png.data ()), (DWORD) png.size ());
+    CHR (hr);
+
+    hr = outFactory->CreateDecoderFromStream (stream.Get (), nullptr,
+                                              WICDecodeMetadataCacheOnDemand, &decoder);
+    CHR (hr);
+
+    hr = decoder->GetFrame (0, &outFrame);
+    CHR (hr);
 
 Error:
     return hr;
@@ -92,29 +102,51 @@ HRESULT PngCodec::EncodeRgba (const RgbaImage & image, int dpi, vector<Byte> & o
     CBREx (image.width > 0 && image.height > 0, E_INVALIDARG);
     CBREx (image.rgba.size () >= (size_t) image.width * image.height * 4, E_INVALIDARG);
 
-    CHR (CreateFactory (factory));
-    CHR (factory->CreateBitmapFromMemory ((UINT) image.width, (UINT) image.height,
+    hr = CreateFactory (factory);
+    CHR (hr);
+
+    hr = factory->CreateBitmapFromMemory ((UINT) image.width, (UINT) image.height,
                                           GUID_WICPixelFormat32bppRGBA,
                                           (UINT) image.width * 4, (UINT) image.rgba.size (),
-                                          const_cast<BYTE *> (image.rgba.data ()), &bitmap));
+                                          const_cast<BYTE *> (image.rgba.data ()), &bitmap);
+    CHR (hr);
 
-    CHR (CreateStreamOnHGlobal (nullptr, TRUE, &stream));
-    CHR (factory->CreateEncoder (GUID_ContainerFormatPng, nullptr, &encoder));
-    CHR (encoder->Initialize (stream.Get (), WICBitmapEncoderNoCache));
-    CHR (encoder->CreateNewFrame (&frame, &props));
-    CHR (frame->Initialize (props.Get ()));
-    CHR (frame->SetSize ((UINT) image.width, (UINT) image.height));
+    hr = CreateStreamOnHGlobal (nullptr, TRUE, &stream);
+    CHR (hr);
+
+    hr = factory->CreateEncoder (GUID_ContainerFormatPng, nullptr, &encoder);
+    CHR (hr);
+
+    hr = encoder->Initialize (stream.Get (), WICBitmapEncoderNoCache);
+    CHR (hr);
+
+    hr = encoder->CreateNewFrame (&frame, &props);
+    CHR (hr);
+
+    hr = frame->Initialize (props.Get ());
+    CHR (hr);
+
+    hr = frame->SetSize ((UINT) image.width, (UINT) image.height);
+    CHR (hr);
 
     res = (double) (dpi > 0 ? dpi : 96);
-    CHR (frame->SetResolution (res, res));
+    hr  = frame->SetResolution (res, res);
+    CHR (hr);
 
     rect.Width  = image.width;
     rect.Height = image.height;
-    CHR (frame->WriteSource (bitmap.Get (), &rect));
-    CHR (frame->Commit ());
-    CHR (encoder->Commit ());
+    hr = frame->WriteSource (bitmap.Get (), &rect);
+    CHR (hr);
 
-    CHR (GetHGlobalFromStream (stream.Get (), &handle));
+    hr = frame->Commit ();
+    CHR (hr);
+
+    hr = encoder->Commit ();
+    CHR (hr);
+
+    hr = GetHGlobalFromStream (stream.Get (), &handle);
+    CHR (hr);
+
     size   = GlobalSize (handle);
     memory = GlobalLock (handle);
     CPREx (memory, E_FAIL);
@@ -164,29 +196,57 @@ HRESULT PngCodec::EncodeIndexed (
     CBREx (palette != nullptr, E_INVALIDARG);
     CBREx (indices.size () >= (size_t) width * height, E_INVALIDARG);
 
-    CHR (CreateFactory (factory));
-    CHR (CreateStreamOnHGlobal (nullptr, TRUE, &stream));
-    CHR (factory->CreateEncoder (GUID_ContainerFormatPng, nullptr, &encoder));
-    CHR (encoder->Initialize (stream.Get (), WICBitmapEncoderNoCache));
-    CHR (encoder->CreateNewFrame (&frame, &props));
-    CHR (frame->Initialize (props.Get ()));
-    CHR (frame->SetSize ((UINT) width, (UINT) height));
+    hr = CreateFactory (factory);
+    CHR (hr);
+
+    hr = CreateStreamOnHGlobal (nullptr, TRUE, &stream);
+    CHR (hr);
+
+    hr = factory->CreateEncoder (GUID_ContainerFormatPng, nullptr, &encoder);
+    CHR (hr);
+
+    hr = encoder->Initialize (stream.Get (), WICBitmapEncoderNoCache);
+    CHR (hr);
+
+    hr = encoder->CreateNewFrame (&frame, &props);
+    CHR (hr);
+
+    hr = frame->Initialize (props.Get ());
+    CHR (hr);
+
+    hr = frame->SetSize ((UINT) width, (UINT) height);
+    CHR (hr);
 
     res = (double) (dpi > 0 ? dpi : 96);
-    CHR (frame->SetResolution (res, res));
-    CHR (frame->SetPixelFormat (&format));
+    hr  = frame->SetResolution (res, res);
+    CHR (hr);
+
+    hr = frame->SetPixelFormat (&format);
+    CHR (hr);
     CBREx (format == GUID_WICPixelFormat8bppIndexed, E_FAIL);
 
-    CHR (factory->CreatePalette (&wicPalette));
-    CHR (wicPalette->InitializeCustom (const_cast<WICColor *> (palette), (UINT) paletteCount));
-    CHR (frame->SetPalette (wicPalette.Get ()));
+    hr = factory->CreatePalette (&wicPalette);
+    CHR (hr);
 
-    CHR (frame->WritePixels ((UINT) height, (UINT) width, (UINT) indices.size (),
-                             const_cast<BYTE *> (indices.data ())));
-    CHR (frame->Commit ());
-    CHR (encoder->Commit ());
+    hr = wicPalette->InitializeCustom (const_cast<WICColor *> (palette), (UINT) paletteCount);
+    CHR (hr);
 
-    CHR (GetHGlobalFromStream (stream.Get (), &handle));
+    hr = frame->SetPalette (wicPalette.Get ());
+    CHR (hr);
+
+    hr = frame->WritePixels ((UINT) height, (UINT) width, (UINT) indices.size (),
+                             const_cast<BYTE *> (indices.data ()));
+    CHR (hr);
+
+    hr = frame->Commit ();
+    CHR (hr);
+
+    hr = encoder->Commit ();
+    CHR (hr);
+
+    hr = GetHGlobalFromStream (stream.Get (), &handle);
+    CHR (hr);
+
     size   = GlobalSize (handle);
     memory = GlobalLock (handle);
     CPREx (memory, E_FAIL);
@@ -217,12 +277,19 @@ HRESULT PngCodec::DecodeRgba (const vector<Byte> & png, RgbaImage & outImage)
     UINT                            width     = 0;
     UINT                            height    = 0;
 
-    CHR (DecodeFirstFrame (png, factory, frame));
-    CHR (WICConvertBitmapSource (GUID_WICPixelFormat32bppRGBA, frame.Get (), &converted));
-    CHR (converted->GetSize (&width, &height));
+    hr = DecodeFirstFrame (png, factory, frame);
+    CHR (hr);
+
+    hr = WICConvertBitmapSource (GUID_WICPixelFormat32bppRGBA, frame.Get (), &converted);
+    CHR (hr);
+
+    hr = converted->GetSize (&width, &height);
+    CHR (hr);
 
     outImage.Allocate ((int) width, (int) height, 0, 0, 0);
-    CHR (converted->CopyPixels (nullptr, width * 4, (UINT) outImage.rgba.size (), outImage.rgba.data ()));
+
+    hr = converted->CopyPixels (nullptr, width * 4, (UINT) outImage.rgba.size (), outImage.rgba.data ());
+    CHR (hr);
 
 Error:
     return hr;
@@ -254,13 +321,21 @@ HRESULT PngCodec::DecodeIndexed (
     UINT                            width   = 0;
     UINT                            height  = 0;
 
-    CHR (DecodeFirstFrame (png, factory, frame));
-    CHR (frame->GetPixelFormat (&format));
+    hr = DecodeFirstFrame (png, factory, frame);
+    CHR (hr);
+
+    hr = frame->GetPixelFormat (&format);
+    CHR (hr);
     CBREx (format == GUID_WICPixelFormat8bppIndexed, E_FAIL);
-    CHR (frame->GetSize (&width, &height));
+
+    hr = frame->GetSize (&width, &height);
+    CHR (hr);
 
     outIndices.assign ((size_t) width * height, 0);
-    CHR (frame->CopyPixels (nullptr, width, (UINT) outIndices.size (), outIndices.data ()));
+
+    hr = frame->CopyPixels (nullptr, width, (UINT) outIndices.size (), outIndices.data ());
+    CHR (hr);
+
     outWidth  = (int) width;
     outHeight = (int) height;
 
@@ -288,8 +363,12 @@ HRESULT PngCodec::ReadDpi (const vector<Byte> & png, int & outDpi)
     double                          dx     = 0.0;
     double                          dy     = 0.0;
 
-    CHR (DecodeFirstFrame (png, factory, frame));
-    CHR (frame->GetResolution (&dx, &dy));
+    hr = DecodeFirstFrame (png, factory, frame);
+    CHR (hr);
+
+    hr = frame->GetResolution (&dx, &dy);
+    CHR (hr);
+
     outDpi = (int) (dx + 0.5);
 
 Error:

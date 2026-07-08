@@ -58,7 +58,8 @@ HRESULT PrintJobPersistence::Save (const PrintRaster & raster, vector<Byte> & ou
         plane.assign ((size_t) width, 0);
     }
 
-    CHR (PngCodec::EncodeIndexed (width, height, plane, s_kInkPalette, 16, s_kNominalDpi, outPng));
+    hr = PngCodec::EncodeIndexed (width, height, plane, s_kInkPalette, 16, s_kNominalDpi, outPng);
+    CHR (hr);
     outJson = PrintJobSerializer::WriteMetaJson (raster);
 
 Error:
@@ -82,8 +83,11 @@ HRESULT PrintJobPersistence::Load (const vector<Byte> & png, const string & json
     int            width  = 0;
     int            height = 0;
 
-    CHR (PngCodec::DecodeIndexed (png, width, height, plane));
-    CHR (PrintJobSerializer::ReadMetaJson (json, meta));
+    hr = PngCodec::DecodeIndexed (png, width, height, plane);
+    CHR (hr);
+
+    hr = PrintJobSerializer::ReadMetaJson (json, meta);
+    CHR (hr);
 
     // The plane defines the real cell extent; a strip persisted as one blank
     // row (empty save) rebuilds to an empty raster via rowsUsed.
@@ -92,7 +96,8 @@ HRESULT PrintJobPersistence::Load (const vector<Byte> & png, const string & json
         height = meta.rowsUsed;
     }
 
-    CHR (PrintJobSerializer::RebuildRaster (width, height, plane, meta, outRaster));
+    hr = PrintJobSerializer::RebuildRaster (width, height, plane, meta, outRaster);
+    CHR (hr);
 
 Error:
     return hr;
