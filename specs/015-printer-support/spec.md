@@ -169,7 +169,7 @@ The user mounts a disk whose image filename (e.g. contains "print shop"), embedd
 - **FR-011**: The user MUST be able to select the output destination — PNG file or Windows printer — in the emulator's settings. The selection (and PNG folder) is a global user preference shared by all emulated machines — host print services are host resources, like the keyboard — and MUST persist across emulator sessions. The clipboard is not a destination (see FR-013).
 - **FR-012**: The PNG destination MUST write automatically named files (collision-free, e.g. timestamped) to a user-configurable folder. On write failure the user is notified and the rendered output is retained for retry.
 - **FR-013**: The printer panel MUST provide an opt-in Copy control that places the current rendered output (the un-ejected strip) on the Windows clipboard as a standard bitmap pasteable into common applications. Copying never ejects the job and works regardless of the selected destination.
-- **FR-014**: The Windows printer destination MUST present the standard Windows print dialog once per ejected job; cancellation retains the job as pending. PDF output is provided by the user selecting the system's "Microsoft Print to PDF" printer — the feature includes no dedicated PDF generation.
+- **FR-014**: The Windows printer destination MUST present the standard Windows print dialog once per ejected job; cancellation retains the job as pending. Pages MUST print at true scale (one fanfold inch equals one printed inch), centered on the target page, clipping only if the target printable area is smaller than the 8-inch printable width. The panel's paper view serves as the content preview; there is no separate paginated print-preview UI in this feature (it belongs to the follow-on dxui print dialog). PDF output is provided by the user selecting the system's "Microsoft Print to PDF" printer — the feature includes no dedicated PDF generation.
 - **FR-015**: For the PNG destination and clipboard copies, a job spanning multiple form lengths MUST render as one continuous image (fanfold paper), up to a maximum strip length of 60 fanfold pages; for the Windows printer destination, the same job MUST be split at page boundaries with no lost or duplicated content.
 - **FR-016**: Output is delivered to the selected destination only when a job completes, via the user's explicit "eject / finish job" action. A form feed marks a page boundary within the job (used for Windows-printer pagination) and does not by itself deliver anything. The emulator MUST indicate when un-ejected output is pending.
 
@@ -233,7 +233,7 @@ The user mounts a disk whose image filename (e.g. contains "print shop"), embedd
 
 - Super Serial Card / 6551 serial interface emulation (contingency only, per Assumptions). Note: planned Apple //c support (discussed on the main branch) requires a 6551 ACIA core anyway — the //c's serial ports are built in and driven by the machine's own ROM, so if that work lands, the serial printing path becomes a shared component with no card-firmware clone required, and this contingency gets substantially cheaper.
 - Epson ESC/P or any second printer command set.
-- Custom dxui print dialog (follow-on).
+- Custom dxui print dialog (follow-on), including any paginated print-preview UI for the Windows printer destination — in this feature the panel's paper view is the preview, and print-to-PDF offers a full-fidelity check when wanted.
 - Dedicated PDF generation.
 - Print-head audio emulation and other physical-fidelity theater.
 - Apple IIgs printing paths.
