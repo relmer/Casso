@@ -49,6 +49,8 @@
 #define IDM_AUDIO_DRIVE_PAN         40054
 #define IDM_AUDIO_DRIVE_TEST        40055
 
+#define IDM_PRINTER_EJECT           40060
+
 #define IDM_HELP_KEYMAP             40040
 #define IDM_HELP_ABOUT              40042
 

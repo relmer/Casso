@@ -37,6 +37,7 @@ public:
     void  OnMachineCommand     (int id);
     void  OnViewCommand        (int id);
     void  OnDiskCommand        (int id);
+    void  OnPrinterCommand     (int id);
     void  OnHelpCommand        (int id);
 
     bool  OnInitMenuPopup      (HWND hwnd, HMENU hMenu, UINT itemIndex, bool isWindowMenu);
@@ -45,5 +46,7 @@ public:
     HRESULT  PromptInsertDiskMru  (int drive);
 
 private:
+    HRESULT  SavePrintout  (const class PrintRaster & raster, fs::path & outFile);
+
     EmulatorShell &  m_shell;
 };

@@ -15,6 +15,8 @@ namespace
     // glyph is underlined when mnemonic cues should be shown.
     constexpr MainMenuCommandEntry  s_kEntries[] =
     {
+        { IDM_PRINTER_EJECT,            MainMenuId::File,    L"&Finish Printing (Eject Paper)", nullptr   },
+        { 0,                            MainMenuId::File,    nullptr,                   nullptr          },
         { IDM_FILE_EXIT,                MainMenuId::File,    L"E&xit",                  nullptr          },
         { IDM_EDIT_COPY_TEXT,           MainMenuId::Edit,    L"&Copy text",             L"Ctrl+Shift+C"  },
         { IDM_EDIT_COPY_SCREENSHOT,     MainMenuId::Edit,    L"Copy &screenshot",       L"Ctrl+Alt+C"    },

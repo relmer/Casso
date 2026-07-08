@@ -6,6 +6,10 @@
 #include "../EmulatorShell.h"
 #include "../resource.h"
 #include "../Shell/DiskMru.h"
+#include "Devices/Printer/PrintDelivery.h"
+#include "Devices/Printer/PrintFileNaming.h"
+#include "Devices/Printer/PrintRaster.h"
+#include "Devices/Printer/PrinterCard.h"
 #include "Version.h"
 #include "Ui/Chrome/ChromeMetrics.h"
 #include "Ui/Chrome/DriveWidget.h"
@@ -82,6 +86,7 @@ bool WindowCommandManager::OnCommand (HWND hwnd, int id)
     else if (id >= IDM_MACHINE_RESET  && id <= IDM_MACHINE_ARROWS_PADDLE)   { OnMachineCommand (id); }
     else if (id >= IDM_DISK_INSERT1   && id <= IDM_DISK_WRITEPROTECT2)      { OnDiskCommand (id); }
     else if (id >= IDM_VIEW_COLOR     && id <= IDM_VIEW_SETTINGS)           { OnViewCommand (id); }
+    else if (id == IDM_PRINTER_EJECT)                                      { OnPrinterCommand (id); }
     else if (id >= IDM_HELP_KEYMAP    && id <= IDM_HELP_ABOUT)              { OnHelpCommand (id); }
 
     return false;
@@ -540,6 +545,123 @@ void WindowCommandManager::OnDiskCommand (int id)
     }
 }
 
+
+
+
+
+static constexpr int   s_kPrintDpi = 576;   // MVP fixed dpi; Settings > Printing wires this later
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SavePrintout
+//
+//  Renders the finished strip to a PNG under <Pictures>\Casso Prints and hands
+//  back the path written. Render/encode/naming are core (unit-tested); this
+//  contributes only the irreducible edges -- known-folder resolution, directory
+//  creation, and the file write. COM is live on the UI thread (OLE drag-drop),
+//  so PngCodec's WIC calls are valid here.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT WindowCommandManager::SavePrintout (const PrintRaster & raster, fs::path & outFile)
+{
+    HRESULT           hr          = S_OK;
+    PWSTR             picturesRaw = nullptr;
+    vector<Byte>      png;
+    fs::path          folder;
+    SYSTEMTIME        now         = {};
+    std::error_code   ec;
+
+    hr = PrintDelivery::RenderToPng (raster, 0, raster.RowsUsed () - 1,
+                                     s_kPrintDpi, DotStyle::Ink, png);
+    CHR (hr);
+
+    hr = SHGetKnownFolderPath (FOLDERID_Pictures, 0, nullptr, &picturesRaw);
+    CHR (hr);
+
+    folder = fs::path (picturesRaw) / L"Casso Prints";
+    fs::create_directories (folder, ec);
+
+    GetLocalTime (&now);
+    outFile = PrintFileNaming::ComposePngPath (folder, now,
+                  [] (const fs::path & p) { std::error_code e; return fs::exists (p, e); });
+
+    {
+        std::ofstream   out (outFile, std::ios::binary | std::ios::trunc);
+
+        CBREx (out.is_open (), E_FAIL);
+        out.write ((const char *) png.data (), (std::streamsize) png.size ());
+        CBREx (out.good (), E_FAIL);
+    }
+
+Error:
+    if (picturesRaw != nullptr)
+    {
+        CoTaskMemFree (picturesRaw);
+    }
+    return hr;
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnPrinterCommand
+//
+//  Finish the current print job: stop the drain, render+save the strip, then
+//  resume onto a fresh sheet. Ejecting always starts a new page (the fanfold
+//  metaphor), so a failed save loses the page rather than stalling the guest.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void WindowCommandManager::OnPrinterCommand (int id)
+{
+    HRESULT        hr   = S_OK;
+    PrinterJob *   job  = nullptr;
+    fs::path       file;
+
+    if (id != IDM_PRINTER_EJECT || m_shell.m_refs.printerCard == nullptr)
+    {
+        return;
+    }
+
+    // Take ownership of the strip: stop the worker, then flush any tail bytes.
+    m_shell.m_printerWorker.Stop ();
+
+    {
+        vector<PrinterEvent>   events;
+        m_shell.m_printerWorker.FlushNow (events);
+    }
+
+    job = m_shell.m_printerWorker.Job ();
+
+    if (job == nullptr || !job->HasContent ())
+    {
+        MessageBoxW (m_shell.m_hwnd, L"The printer has no page to finish yet.",
+                     L"Casso Printer", MB_OK | MB_ICONINFORMATION);
+    }
+    else
+    {
+        hr = SavePrintout (job->Raster (), file);
+
+        if (SUCCEEDED (hr))
+        {
+            std::wstring   msg = L"Saved printout to:\n" + file.wstring ();
+            MessageBoxW (m_shell.m_hwnd, msg.c_str (), L"Casso Printer", MB_OK | MB_ICONINFORMATION);
+        }
+        else
+        {
+            MessageBoxW (m_shell.m_hwnd, L"Could not save the printout.",
+                         L"Casso Printer", MB_OK | MB_ICONWARNING);
+        }
+    }
+
+    m_shell.m_printerWorker.Start (m_shell.m_refs.printerCard->ByteRing ());
+}
 
 
 
