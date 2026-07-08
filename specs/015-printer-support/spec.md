@@ -61,18 +61,18 @@ In the emulator's settings, the user chooses where finished pages go: the Window
 
 ### User Story 4 - The Printer on the Desk (Priority: P4)
 
-When the printer card is enabled, a compact skeuomorphic ImageWriter-style printer appears in the emulator chrome alongside — and substantially smaller than — the disk-drive widgets. Its four-color ribbon cartridge is visible, so the user knows at a glance what to answer in guest software setup menus. While the guest prints, paper rises out of the platen showing the actual rendered output emerging; when un-ejected output is pending, the paper stays visible as the reminder. Pressing the widget's Form Feed button performs the eject/finish-job action; hovering summarizes the virtual configuration.
+When the printer card is enabled, a small printer indicator sits in the window chrome, clear of the centered disk drives. The full skeuomorphic printer — an ImageWriter-class body with its four-color ribbon cartridge visible and paper rising from the platen showing the actual rendered output — lives in a docked side panel shown on demand: it reveals itself automatically the moment the guest engages the printer (firmware activation such as `PR#1`, or the first data byte written to the card), and can be opened or closed any time via the indicator. Pressing the panel's Form Feed button performs the eject/finish-job action; closing the panel with output pending leaves the indicator signaling until the job is delivered. Hovering either surface summarizes the virtual configuration.
 
-**Why this priority**: The widget is the discoverability and control surface for everyday printing — it answers "what printer do I tell Print Shop I have?" without documentation and hosts the eject affordance the pipeline needs. It outranks banners because it is used on every print.
+**Why this priority**: The indicator and panel are the discoverability and control surface for everyday printing — they answer "what printer do I tell Print Shop I have?" without documentation and host the eject affordance the pipeline needs. It outranks banners because it is used on every print.
 
-**Independent Test**: Enable the printer card, observe the widget and its states through a complete print-eject cycle; disable the card and confirm the widget is absent.
+**Independent Test**: Enable the printer card, observe indicator and panel through a complete engage-print-eject cycle, including closing the panel mid-job; disable the card and confirm both are absent.
 
 **Acceptance Scenarios**:
 
-1. **Given** a machine configured with the printer card enabled, **When** the emulator window opens, **Then** the printer widget is visible, is substantially smaller than a disk-drive widget, and shows the four-color ribbon; **Given** the card is disabled, **Then** no printer widget appears.
-2. **Given** the guest is streaming print data, **When** dots are being rendered, **Then** the widget indicates activity and its paper shows the emerging rendered content.
-3. **Given** un-ejected output is pending, **When** the user presses the widget's Form Feed button, **Then** the job is finalized to the selected destination and the paper clears.
-4. **Given** the pointer hovers over the widget, **Then** a summary of the virtual configuration is shown (printer model, ribbon type, interface type, slot number).
+1. **Given** a machine configured with the printer card enabled, **When** the emulator window opens, **Then** the printer indicator is visible without disturbing the disk-drive widgets' centered composition, and no panel is shown; **Given** the card is disabled, **Then** neither indicator nor panel appears.
+2. **Given** the guest activates the card firmware (`PR#1`) or writes its first data byte, **When** that first engagement occurs, **Then** the docked panel reveals automatically and its paper shows the rendered content emerging as printing proceeds.
+3. **Given** un-ejected output is pending and the panel is closed, **Then** the indicator continues to signal the pending state; **When** the user presses the panel's Form Feed button (or invokes the equivalent menu command), **Then** the job is finalized to the selected destination and the paper clears.
+4. **Given** the pointer hovers over the indicator or the panel, **Then** a summary of the virtual configuration is shown (printer model, ribbon type, interface type, slot number).
 
 ---
 
@@ -106,6 +106,23 @@ At the BASIC prompt, the user types `PR#1` and then `LIST` (or `CATALOG` under D
 
 ---
 
+### User Story 7 - Recognizing Printing Software (Priority: P7)
+
+The user mounts a disk whose image filename (e.g. contains "print shop") or on-disk catalog (volume/file names, when the disk uses a standard filesystem) matches a curated list of printing-centric software. The emulator shows a brief, dismissible notice: the printer is ready, and here is what to answer in the software's setup menus. Recognition informs; it never configures.
+
+**Why this priority**: Print Shop asks its setup questions before a single print byte flows, so the engagement-triggered panel reveal (User Story 4) arrives too late for that one moment. A mount-time notice delivers the answers exactly when they are needed — but it is garnish on a feature that works fully without it.
+
+**Independent Test**: Recognition functions are testable with synthetic filenames and catalog data; end to end, mount known and unknown images and observe notice behavior.
+
+**Acceptance Scenarios**:
+
+1. **Given** a disk image whose filename contains a known signature, **When** it is mounted in Drive 1, **Then** a single auto-fading, dismissible notice appears with the setup answers.
+2. **Given** a generically named image containing a standard DOS 3.3/ProDOS filesystem with known catalog signatures, **When** it is mounted, **Then** the same notice appears.
+3. **Given** an unrecognized disk or one with an unreadable/non-standard filesystem, **When** it is mounted, **Then** no notice appears and nothing else changes — printing still reveals the panel via User Story 4.
+4. **Given** any recognition outcome, **Then** machine configuration (card enablement, slot, output destination) is unchanged.
+
+---
+
 ### Edge Cases
 
 - **Job without a final form feed**: Print Shop and BASIC listings often stop mid-page without ejecting. The user must have an explicit "eject page / finish print job" action, and the emulator must indicate when printed-but-unejected data is pending.
@@ -115,7 +132,7 @@ At the BASIC prompt, the user types `PR#1` and then `LIST` (or `CATALOG` under D
 - **Extremely long banner**: continuous output has a documented practical maximum length; reaching it finalizes the strip and notifies the user rather than failing silently.
 - **Full-speed byte bursts**: the guest may send bytes as fast as the CPU can write them; the card's readiness handshake must guarantee no byte is ever dropped or reordered.
 - **Print dialog cancelled**: the job is retained as pending, not destroyed (Acceptance Scenario 3.3).
-- **Window too narrow for the printer widget** (e.g. smallest window scale): the widget collapses to a minimal status indicator that still shows activity/pending state; the eject action remains available through a menu command. The disk-drive widgets' centered composition is never disturbed to make room.
+- **Panel closed or unavailable while output is pending**: the indicator always carries the pending/activity state, and the eject action remains available through a menu command. The indicator never disturbs the disk-drive widgets' centered composition, at any window size.
 
 ## Requirements *(mandatory)*
 
@@ -146,11 +163,17 @@ At the BASIC prompt, the user types `PR#1` and then `LIST` (or `CATALOG` under D
 - **FR-015**: For the clipboard and PNG destinations, a job spanning multiple form lengths MUST render as one continuous image (fanfold paper); for the Windows printer destination, the same job MUST be split at page boundaries with no lost or duplicated content.
 - **FR-016**: A form feed completes the current page. The user MUST also have an explicit "eject page / finish job" action for output the guest never terminates, and the emulator MUST indicate when unejected output is pending.
 
-**Printer widget**
+**Printer indicator and panel**
 
-- **FR-019**: When the printer card is enabled, the emulator MUST display a compact skeuomorphic printer widget depicting an ImageWriter-class printer with its four-color ribbon visible. It MUST be substantially smaller than the existing disk-drive widgets and MUST be absent when the card is disabled.
-- **FR-020**: The widget MUST reflect printer state — idle, actively receiving data, and pending un-ejected output (paper visible in the platen showing the rendered content so far) — and MUST expose the FR-016 eject/finish-job action as its Form Feed control. Output-delivery failures (FR-012) MUST be indicated on the widget (error light).
-- **FR-021**: The widget MUST summarize the virtual printer configuration (printer model, ribbon type, interface type, slot number) on hover, so users can answer guest software setup menus without external documentation.
+- **FR-019**: When the printer card is enabled, the emulator MUST display a compact printer indicator in the window chrome that never disturbs the disk-drive widgets' centered composition, and MUST provide a docked panel containing the skeuomorphic printer view — an ImageWriter-class printer with its four-color ribbon visible and paper rising from the platen showing the rendered output so far. Neither surface appears when the card is disabled.
+- **FR-020**: The panel MUST reveal automatically on the guest's first engagement of the card (slot-firmware activation or first data byte written) and MUST be openable and dismissible by user action at any time. Indicator and panel MUST reflect printer state — idle, receiving data, pending un-ejected output, and output-delivery failure (error light) — and the pending state MUST remain visible on the indicator whenever the panel is closed. The panel's Form Feed control performs the FR-016 eject/finish-job action.
+- **FR-021**: Indicator and panel MUST summarize the virtual printer configuration (printer model, ribbon type, interface type, slot number) on hover, so users can answer guest software setup menus without external documentation.
+
+**Print-title recognition**
+
+- **FR-022**: At Drive 1 mount time, the emulator MUST check the disk image's filename against a curated, bundled list of print-centric title signatures (case-insensitive substring match).
+- **FR-023**: When the mounted image exposes a readable standard filesystem (DOS 3.3 or ProDOS), the emulator MUST additionally match the volume and catalog file names against curated signatures. Both recognition checks MUST be pure functions over supplied data (filename string, decoded catalog entries) so unit tests can drive them synthetically.
+- **FR-024**: On recognition, the emulator MUST surface one brief, dismissible notice per mount stating that the printer is available and what to answer in the software's setup menus. Recognition MUST NOT change any configuration (card enablement, slot, destination) and MUST do nothing at all for unrecognized or unreadable disks.
 
 **Quality constraints**
 
@@ -165,6 +188,7 @@ At the BASIC prompt, the user types `PR#1` and then `LIST` (or `CATALOG` under D
 - **Print Job**: One or more completed pages (or one continuous strip) awaiting or undergoing delivery to the selected destination; survives guest resets until delivered or discarded.
 - **Output Destination Setting**: The persisted user choice of clipboard, PNG folder, or Windows printer, plus destination-specific options (e.g. PNG folder path).
 - **Slot Firmware**: The original firmware image the card exposes to the guest, built from source in this repository.
+- **Print-Title Signature List**: Curated, bundled data (filename substrings and filesystem volume/file names) identifying known print-centric software; informational only — it drives the mount-time notice, never configuration.
 
 ## Success Criteria *(mandatory)*
 
@@ -189,6 +213,7 @@ At the BASIC prompt, the user types `PR#1` and then `LIST` (or `CATALOG` under D
 - The standard Windows print dialog suffices for the initial release; a themed in-app (dxui) print dialog is a later follow-on, out of scope here.
 - PDF output relies on the "Microsoft Print to PDF" system printer; no dedicated PDF writer is built.
 - Physical-printer theater — print-head sound effects, bidirectional head-travel timing, ribbon wear artifacts — is not modeled.
+- Print-title recognition is heuristic and intentionally low-consequence: a false negative is fully covered by the engagement-triggered panel reveal, and a false positive costs one dismissible notice. Copy-protected originals with non-standard filesystems are expected to go unrecognized.
 
 ## Out of Scope
 
