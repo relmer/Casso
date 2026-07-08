@@ -68,6 +68,15 @@ struct RomSpec
     string_view  localRelDir;        // e.g. "Machines/Apple2e" or "Devices/DiskII"
     size_t       expectedSize;
     string_view  description;
+
+    // Optional alternate source. Most ROMs come from the AppleWin GitHub
+    // resource dir (host below empty -> s_kpszAppleWinHost + s_kpszUrlPrefix +
+    // appleWinName). ROMs AppleWin does not carry (e.g. the Apple //c, which
+    // AppleWin does not emulate) set an explicit host + fully-formed,
+    // percent-encoded urlPath and leave appleWinName empty.
+    string_view  altHost    = {};
+    string_view  altUrlPath = {};
+    string_view  sourceLabel = {};   // shown in the download dialog (defaults to AppleWin)
 };
 
 
@@ -84,6 +93,12 @@ static constexpr RomSpec s_kRomCatalog[] =
     { "Apple2e",          "Apple2e_Video.rom",     "Apple2e_Enhanced_Video.rom", "Machines/Apple2e",           4096, "Apple //e Character Generator + MouseText" },
     { "Apple2eEnhanced",  "Apple2eEnhanced.rom",   "Apple2e_Enhanced.rom",       "Machines/Apple2eEnhanced",  16384, "Apple //e Enhanced ROM"                    },
     { "Apple2eEnhanced",  "Apple2e_Video.rom",     "Apple2e_Enhanced_Video.rom", "Machines/Apple2eEnhanced",   4096, "Apple //e Character Generator + MouseText" },
+    // AppleWin does not emulate the //c, so its 32K ROM 4 (memory-expansion
+    // //c, chip 341-0445-B) comes from the apple2.org.za preservation mirror.
+    { "Apple2c",          "Apple2c.rom",           "",                           "Machines/Apple2c",          32768, "Apple //c ROM 4 (341-0445-B, memory expansion)",
+      "mirrors.apple2.org.za",
+      "/Apple%20II%20Documentation%20Project/Computers/Apple%20II/Apple%20IIc/ROM%20Images/Apple%20IIc%20ROM%2004%20-%20341-0445-B.bin",
+      "apple2.org.za" },
     { "",                 "Disk2.rom",             "DISK2.rom",                  "Devices/DiskII",              256, "Disk ][ Boot ROM (slot 6)"                 },
     { "",                 "Disk2_13Sector.rom",    "DISK2-13sector.rom",         "Devices/DiskII",              256, "Disk ][ Boot ROM (13-sector)"              },
 };
@@ -148,6 +163,7 @@ static std::wstring MachineDisplayName (std::string_view machineId)
     if (machineId == "Apple2Plus")      return L"Apple ][+";
     if (machineId == "Apple2e")         return L"Apple //e";
     if (machineId == "Apple2eEnhanced") return L"Apple //e Enhanced";
+    if (machineId == "Apple2c")         return L"Apple //c";
     return std::wstring (machineId.begin (), machineId.end ());
 }
 
@@ -3031,7 +3047,9 @@ HRESULT AssetBootstrap::RunStartupDownloader (
         entry.groupLabel    = MachineDisplayName (narrowMachine) + L" ROMs";
         entry.displayName   = AsciiToWide (spec->description);
         entry.kindLabel     = L"ROM";
-        entry.source        = L"AppleWin (GitHub)";
+        entry.source        = spec->sourceLabel.empty ()
+                              ? L"AppleWin (GitHub)"
+                              : AsciiToWide (spec->sourceLabel);
         entry.selectable    = false;
         entry.selected      = true;
         entry.destPaths.push_back (assetBaseDir / string (spec->localRelDir) / spec->cassoName);
@@ -3045,7 +3063,14 @@ HRESULT AssetBootstrap::RunStartupDownloader (
             HINTERNET     hSes    = nullptr;
             vector<Byte>  payload;
             error_code    ecLocal;
-            wstring       wPath   = wstring (s_kpszUrlPrefix) + AsciiToWide (spec->appleWinName);
+
+            // Default AppleWin source, or the ROM's explicit alternate host
+            // (e.g. the //c ROM on the apple2.org.za mirror).
+            bool          useAlt  = !spec->altHost.empty ();
+            wstring       wHost   = useAlt ? AsciiToWide (spec->altHost) : wstring (s_kpszAppleWinHost);
+            wstring       wPath   = useAlt
+                                    ? AsciiToWide (spec->altUrlPath)
+                                    : (wstring (s_kpszUrlPrefix) + AsciiToWide (spec->appleWinName));
 
             hSes = WinHttpOpen (s_kpszUserAgent,
                                 WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY,
@@ -3055,7 +3080,7 @@ HRESULT AssetBootstrap::RunStartupDownloader (
             CBRF (hSes != nullptr, err = "Cannot initialize WinHTTP session");
 
             hr = DownloadHttp (hSes,
-                                    s_kpszAppleWinHost,
+                                    wHost.c_str (),
                                     wPath.c_str (),
                                     spec->expectedSize,
                                     spec->cassoName,
