@@ -35,7 +35,9 @@ class PrinterWorker
 public:
     ~PrinterWorker ();
 
-    void          Start    (PrinterByteRing & ring);
+    // `seed` restores a persisted pending strip into the job before the drain
+    // thread starts (no race); default-empty seed starts a fresh sheet.
+    void          Start    (PrinterByteRing & ring, PrintRaster seed = PrintRaster ());
     void          Stop     ();
     bool          Running  () const { return m_running; }
 

@@ -24,6 +24,8 @@
 #include "Devices/Apple2eMmu.h"
 #include "Devices/Printer/ParallelFirmware.h"
 #include "Devices/Printer/PrinterCard.h"
+#include "Devices/Printer/PrintRaster.h"
+#include "Print/PrintJobStore.h"
 #include "Video/AppleTextMode.h"
 #include "Video/Apple80ColTextMode.h"
 #include "Video/AppleLoResMode.h"
@@ -445,11 +447,18 @@ HRESULT MachineManager::CreateMemoryDevices (const MachineConfig & config)
         m_shell.m_refs.diskController->SetAudioSink (m_shell.m_diskAudioSources[0].get());
     }
 
-    // Start the background printer drain once the card exists. Symmetric stop
-    // is in SwitchMachine teardown and OnDestroy.
+    // Start the background printer drain once the card exists, seeding it with
+    // this machine's persisted pending strip if one exists (FR-026). A missing
+    // or corrupt sidecar falls back to empty paper. Symmetric save is in
+    // SwitchMachine teardown and OnDestroy.
     if (m_shell.m_refs.printerCard != nullptr)
     {
-        m_shell.m_printerWorker.Start (m_shell.m_refs.printerCard->ByteRing());
+        PrintRaster   pending;
+        HRESULT       hrLoad = PrintJobStore::Load (m_shell.PendingPrintDir (), pending);
+
+        m_shell.m_printerWorker.Start (
+            m_shell.m_refs.printerCard->ByteRing (),
+            SUCCEEDED (hrLoad) ? std::move (pending) : PrintRaster ());
     }
 
 Error:
@@ -1082,6 +1091,24 @@ HRESULT MachineManager::SwitchMachine (const std::wstring & machineName)
     // Stop the printer drain thread first: its job holds a reference into the
     // card's ring, which m_ownedDevices.clear() is about to free.
     m_shell.m_printerWorker.Stop ();
+
+    // Persist the outgoing machine's pending strip before its card is freed --
+    // m_currentMachineName is still the outgoing machine here (FR-026). An empty
+    // strip clears any stale sidecar.
+    if (!m_shell.m_currentMachineName.empty ())
+    {
+        PrinterJob *   printJob = m_shell.m_printerWorker.Job ();
+
+        if (printJob != nullptr && printJob->HasContent ())
+        {
+            HRESULT   hrSave = PrintJobStore::Save (m_shell.PendingPrintDir (), printJob->Raster ());
+            IGNORE_RETURN_VALUE (hrSave, S_OK);
+        }
+        else
+        {
+            PrintJobStore::Clear (m_shell.PendingPrintDir ());
+        }
+    }
 
     m_shell.m_cpu.reset();
     m_shell.m_ownedDevices.clear();

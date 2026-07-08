@@ -10,6 +10,7 @@
 #include "Devices/Printer/PrintFileNaming.h"
 #include "Devices/Printer/PrintRaster.h"
 #include "Devices/Printer/PrinterCard.h"
+#include "Print/PrintJobStore.h"
 #include "Version.h"
 #include "Ui/Chrome/ChromeMetrics.h"
 #include "Ui/Chrome/DriveWidget.h"
@@ -643,24 +644,31 @@ void WindowCommandManager::OnPrinterCommand (int id)
     {
         MessageBoxW (m_shell.m_hwnd, L"The printer has no page to finish yet.",
                      L"Casso Printer", MB_OK | MB_ICONINFORMATION);
+        m_shell.m_printerWorker.Start (m_shell.m_refs.printerCard->ByteRing ());
+        return;
+    }
+
+    hr = SavePrintout (job->Raster (), file);
+
+    if (SUCCEEDED (hr))
+    {
+        std::wstring   msg = L"Saved printout to:\n" + file.wstring ();
+
+        MessageBoxW (m_shell.m_hwnd, msg.c_str (), L"Casso Printer", MB_OK | MB_ICONINFORMATION);
+
+        // Delivered: start a fresh sheet and drop the persisted pending copy.
+        m_shell.m_printerWorker.Start (m_shell.m_refs.printerCard->ByteRing ());
+        PrintJobStore::Clear (m_shell.PendingPrintDir ());
     }
     else
     {
-        hr = SavePrintout (job->Raster (), file);
+        MessageBoxW (m_shell.m_hwnd, L"Could not save the printout; the page is kept.",
+                     L"Casso Printer", MB_OK | MB_ICONWARNING);
 
-        if (SUCCEEDED (hr))
-        {
-            std::wstring   msg = L"Saved printout to:\n" + file.wstring ();
-            MessageBoxW (m_shell.m_hwnd, msg.c_str (), L"Casso Printer", MB_OK | MB_ICONINFORMATION);
-        }
-        else
-        {
-            MessageBoxW (m_shell.m_hwnd, L"Could not save the printout.",
-                         L"Casso Printer", MB_OK | MB_ICONWARNING);
-        }
+        // Keep the strip so the user can retry -- reseed the worker with it
+        // (copied before the old job is replaced). It re-persists on exit.
+        m_shell.m_printerWorker.Start (m_shell.m_refs.printerCard->ByteRing (), job->Raster ());
     }
-
-    m_shell.m_printerWorker.Start (m_shell.m_refs.printerCard->ByteRing ());
 }
 
 

@@ -2,6 +2,7 @@
 
 #include "EmulatorShell.h"
 #include "AssetBootstrap.h"
+#include "Print/PrintJobStore.h"
 
 #include "Core/PathResolver.h"
 #include "Version.h"
@@ -3528,6 +3529,23 @@ void EmulatorShell::OnDestroy ()
 
     // Join the printer drain thread before teardown frees the card.
     m_printerWorker.Stop ();
+
+    // Persist the pending strip on clean exit (FR-026); empty clears any stale
+    // sidecar. Loss on abnormal termination is acceptable per the spec.
+    if (!m_currentMachineName.empty ())
+    {
+        PrinterJob *   printJob = m_printerWorker.Job ();
+
+        if (printJob != nullptr && printJob->HasContent ())
+        {
+            HRESULT   hrSave = PrintJobStore::Save (PendingPrintDir (), printJob->Raster ());
+            IGNORE_RETURN_VALUE (hrSave, S_OK);
+        }
+        else
+        {
+            PrintJobStore::Clear (PendingPrintDir ());
+        }
+    }
 
     m_cpuManager.Stop();
 

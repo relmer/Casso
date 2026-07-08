@@ -63,7 +63,7 @@ void PrinterWorker::OpenCaptureFile ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void PrinterWorker::Start (PrinterByteRing & ring)
+void PrinterWorker::Start (PrinterByteRing & ring, PrintRaster seed)
 {
     if (m_running)
     {
@@ -71,6 +71,14 @@ void PrinterWorker::Start (PrinterByteRing & ring)
     }
 
     m_job = make_unique<PrinterJob> (ring);
+
+    // Restore a persisted pending strip before the thread starts, so new
+    // strikes continue on the restored paper at its saved feed position.
+    if (seed.RowsUsed () > 0)
+    {
+        m_job->Raster () = std::move (seed);
+    }
+
     OpenCaptureFile ();
 
     if (m_capture.is_open ())

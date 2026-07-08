@@ -406,6 +406,13 @@ private:
     // available.
     const std::wstring &  AssetBaseDir () const { return m_assetBaseDir; }
 
+    // Per-machine pending-strip directory (FR-026):
+    // <assetBase>/Machines/<current machine>/PendingPrint.
+    fs::path  PendingPrintDir () const
+    {
+        return fs::path (m_assetBaseDir) / L"Machines" / fs::path (m_currentMachineName) / L"PendingPrint";
+    }
+
     // Live channel for the Settings → Display monitor dropdown. The
     // dropdown calls this on every selection so the user sees the
     // colour-treatment change as they hover/select; Cancel restores
