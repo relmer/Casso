@@ -59,7 +59,24 @@ In the emulator's settings, the user chooses where finished pages go: the Window
 
 ---
 
-### User Story 4 - Banner Printing on Continuous Fanfold Paper (Priority: P4)
+### User Story 4 - The Printer on the Desk (Priority: P4)
+
+When the printer card is enabled, a compact skeuomorphic ImageWriter-style printer appears in the emulator chrome alongside — and substantially smaller than — the disk-drive widgets. Its four-color ribbon cartridge is visible, so the user knows at a glance what to answer in guest software setup menus. While the guest prints, paper rises out of the platen showing the actual rendered output emerging; when un-ejected output is pending, the paper stays visible as the reminder. Pressing the widget's Form Feed button performs the eject/finish-job action; hovering summarizes the virtual configuration.
+
+**Why this priority**: The widget is the discoverability and control surface for everyday printing — it answers "what printer do I tell Print Shop I have?" without documentation and hosts the eject affordance the pipeline needs. It outranks banners because it is used on every print.
+
+**Independent Test**: Enable the printer card, observe the widget and its states through a complete print-eject cycle; disable the card and confirm the widget is absent.
+
+**Acceptance Scenarios**:
+
+1. **Given** a machine configured with the printer card enabled, **When** the emulator window opens, **Then** the printer widget is visible, is substantially smaller than a disk-drive widget, and shows the four-color ribbon; **Given** the card is disabled, **Then** no printer widget appears.
+2. **Given** the guest is streaming print data, **When** dots are being rendered, **Then** the widget indicates activity and its paper shows the emerging rendered content.
+3. **Given** un-ejected output is pending, **When** the user presses the widget's Form Feed button, **Then** the job is finalized to the selected destination and the paper clears.
+4. **Given** the pointer hovers over the widget, **Then** a summary of the virtual configuration is shown (printer model, ribbon type, interface type, slot number).
+
+---
+
+### User Story 5 - Banner Printing on Continuous Fanfold Paper (Priority: P5)
 
 The user prints a Print Shop banner — a message spanning many fanfold pages sideways. With the clipboard or PNG destination, the banner emerges as one continuous image with no page-break seams, something no physical printer could produce. With the Windows printer destination, the banner is split at page boundaries and printed as a sequence of pages.
 
@@ -74,7 +91,7 @@ The user prints a Print Shop banner — a message spanning many fanfold pages si
 
 ---
 
-### User Story 5 - Text Printing from BASIC and DOS (Priority: P5)
+### User Story 6 - Text Printing from BASIC and DOS (Priority: P6)
 
 At the BASIC prompt, the user types `PR#1` and then `LIST` (or `CATALOG` under DOS 3.3). The program listing prints as readable text in the printer's built-in font at the current character pitch, and the user ejects the page to their selected destination.
 
@@ -128,6 +145,12 @@ At the BASIC prompt, the user types `PR#1` and then `LIST` (or `CATALOG` under D
 - **FR-015**: For the clipboard and PNG destinations, a job spanning multiple form lengths MUST render as one continuous image (fanfold paper); for the Windows printer destination, the same job MUST be split at page boundaries with no lost or duplicated content.
 - **FR-016**: A form feed completes the current page. The user MUST also have an explicit "eject page / finish job" action for output the guest never terminates, and the emulator MUST indicate when unejected output is pending.
 
+**Printer widget**
+
+- **FR-019**: When the printer card is enabled, the emulator MUST display a compact skeuomorphic printer widget depicting an ImageWriter-class printer with its four-color ribbon visible. It MUST be substantially smaller than the existing disk-drive widgets and MUST be absent when the card is disabled.
+- **FR-020**: The widget MUST reflect printer state — idle, actively receiving data, and pending un-ejected output (paper visible in the platen showing the rendered content so far) — and MUST expose the FR-016 eject/finish-job action as its Form Feed control. Output-delivery failures (FR-012) MUST be indicated on the widget (error light).
+- **FR-021**: The widget MUST summarize the virtual printer configuration (printer model, ribbon type, interface type, slot number) on hover, so users can answer guest software setup menus without external documentation.
+
 **Quality constraints**
 
 - **FR-017**: The printer interpretation and rasterization component MUST consume plain byte streams with no dependency on the emulator machine, user interface, or any system service, so unit tests can drive it with synthetic streams and verify rasters against golden references.
@@ -153,6 +176,7 @@ At the BASIC prompt, the user types `PR#1` and then `LIST` (or `CATALOG` under D
 - **SC-005**: Automated tests reproduce golden rasters bit-for-bit for every supported command (text, all pitches, line spacing, all graphics densities, all seven colors, reset), and run without touching files, clipboard, printers, or any other system state.
 - **SC-006**: Emulation remains at full speed with uninterrupted audio and video while a print job is streaming.
 - **SC-007**: Switching the output destination in settings takes effect for the next print without restarting the emulator.
+- **SC-008**: A user with no documentation can answer Print Shop's setup questions (printer, ribbon type, interface, slot) correctly using only what the emulator UI shows them.
 
 ## Assumptions
 
