@@ -86,7 +86,6 @@
 
 - [ ] T018 [P] [US2] `UnitTest/EmuTests/Apple2cBootTests.cpp`: //c cold-boots to monitor/Applesoft (ROM signature, 128K).
 - [ ] T019 [P] [US2] `Apple2cBootTests.cpp`: built-in peripherals answer at phantom-slot addresses; no user-insertable slots.
-- [ ] T019a [P] [US3] `UnitTest/EmuTests/AciaPrinterEndpointTests.cpp`: feed the Print Shop Color reference capture (`printshop-color-testpage.bin`, from spec 015) through `AciaPrinterEndpoint`; assert the bytes land in the shared printer ring / produce the expected `ImageWriterInterpreter` events. Mocked, no real serial (Test Isolation).
 
 ### Implementation
 
@@ -94,22 +93,13 @@
 - [ ] T021 [US2] Implement the 32K bank-switched ROM mapping ($C800 expansion-ROM bank switch).
 - [ ] T022 [US2] Create `Resources/Machines/Apple2c/Apple2c.json`: `cpu: 65C02`, 128K, //e substrate components, phantom-slot firmware map.
 - [ ] T023 [US2] Wire the //c firmware slices into `CxxxRomRouter::SetSlotRom` (slots 1/2/3/4/6); ROM-4 SmartPort + mem-expansion firmware present but peripherals report absent (FR-006a).
-- [ ] T024 [US3] Wire the two `Acia6551` instances (Phase 2) into the //c serial ports (slots 1 + 2) in `Apple2c.json` + the //c serial firmware. *(US3's //c-specific integration.)*
+- [ ] T024 [US3] Wire the two `Acia6551` instances (Phase 2) into the //c serial ports (slots 1 + 2) in `Apple2c.json` + the //c serial firmware, with **loopback/file** endpoints. *(US3's //c-specific integration.)*
 
-**Serial printer front door** — the //c has no parallel card, so its printer rides serial port 1 into spec 015's finished, card-agnostic pipeline (behind `PrinterByteRing`). Full brief: `serial-printer-integration.md`. **Depends on spec 015 merged to `master`** (provides the printer pipeline + reference capture).
+> **Deferred → issue #87** (`Apple //c serial printer integration + per-port device selection`). The //c **serial printer** front door (`PrinterSink` ring hoist + `AciaPrinterEndpoint` + port-1 binding) and the Hardware-tab **serial endpoint selector** live there, not here — they need spec 015 on `master` **and** a bootable //c, so they follow this phase. Brief: `serial-printer-integration.md`; fixture: `reference/printshop-color-testpage.bin`.
 
-- [ ] T024a [US3] Hoist `PrinterByteRing` (+ its `PrinterJob`) out of `PrinterCard` into a machine-level `PrinterSink` owned at the `EmulatorShell`/machine level; `PrinterCard` (//e) and the //c serial endpoint both target the shared ring; `PrinterWorker` drains the sink. Mechanical hoist — **no pipeline logic change**. Regression: the //e parallel Print Shop path is unaffected.
-- [ ] T024b [US3] Add `AciaPrinterEndpoint` (`CassoEmuCore/Devices/Printer/` or alongside the other endpoints): an `IAciaEndpoint` whose TX path pushes each byte into the `PrinterSink` ring; RX = "printer ready" stub (confirm against Print Shop's serial driver if it stalls). Make T019a pass.
-- [ ] T024c [US3] Bind //c **serial port 1** → `AciaPrinterEndpoint` in `Apple2c.json` (port 2 stays comms/loopback); no parallel-printer slot row on the //c.
-
-**Port endpoint selection (Hardware settings, FR-011c)** — let the user pick what attaches to each configurable port instead of it being fixed in JSON. Driven by the //c serial ports (printer vs. comms vs. file vs. disconnected). *(May be split to its own issue if it grows — it's a settings-framework feature that also generalizes to //e slots.)*
-
-- [ ] T024d [US3] Model: extend `SettingsPanelState`/`HardwareEntry` (`Casso/Ui/Settings/`) so a port entry carries its selectable endpoint options + current selection (not just the enable/disable checkbox).
-- [ ] T024e [US3] UI: `HardwarePage` renders a per-port endpoint dropdown for the serial ports (reuse `DxuiDropdown`); unit-test via `HardwarePageTests`/`SettingsPanelStateTests`.
-- [ ] T024f [US3] Persist the per-port selection in `UserConfigStore` and apply it at machine build — bind the chosen `IAciaEndpoint` (printer / loopback / file / none) to each port, overriding the `Apple2c.json` default. Test: selection round-trips and drives the endpoint binding.
 - [ ] T025 [US2] Make boot + phantom-slot tests pass; assert //c machine selection persists + restores like any other machine (FR-016).
 
-**Checkpoint**: **Apple //c boots** with working serial ports; serial port 1 prints via the ImageWriter pipeline. SC-002. Full end-to-end Print Shop validation on the //c is covered by T039 (SC-003).
+**Checkpoint**: **Apple //c boots** with working serial ports (loopback/file endpoints). SC-002. Serial *printing* + endpoint selection are issue #87 (post-015/016).
 
 ---
 
@@ -128,7 +118,8 @@
 - [ ] T027 [US4] Implement `AppleMouse` (`CassoEmuCore/Devices/AppleMouse.{h,cpp}`): firmware entry points, X/Y/button, clamp, VBL + mouse IRQ sources.
 - [ ] T028 [US4] Add //c interrupt soft switches ($C019 VBL, mouse IRQ enable/status) to the //c soft-switch path.
 - [ ] T029 [US4] Register `apple-mouse` in `ComponentRegistry`; add to `Apple2c.json` (slot-4 firmware).
-- [ ] T030 [US4] Map the host pointer → guest mouse in the shell input path.
+- [ ] T030 [US4] Map the host pointer → guest mouse in the shell input path. **Mouse mode is non-capturing**: while the host cursor is over the emulator viewport, motion + buttons drive the guest mouse (absolute mapping: host position in the viewport → guest mouse position; host cursor hidden over the viewport); leaving the viewport releases to the host. Contrast with Paddle mode, which captures.
+- [ ] T030a [US4] Add `Mouse` to `InputMappingMode` (`GlobalUserPrefs`: `Off`/`Joystick`/`Paddle`/`Mouse` + string mapping), **gated to mouse-capable machines** (//c, //e-with-mouse; hidden on ][ / ][+ / plain //e). Replace the `JoystickToggleButton` cycle-toggle with a **segmented device selector using skeuomorphic icons** (joystick / paddle / mouse); wire it to the existing "Cycle Input Mode" path + persistence.
 - [ ] T031 [US4] Make mouse tests pass.
 
 **Checkpoint**: mouse-driven //c software (e.g. MousePaint) works.
@@ -149,6 +140,7 @@
 
 - [ ] T033 [US5] Implement `Iwm` (`CassoEmuCore/Devices/Iwm.{h,cpp}`): motor/phase/Q6-Q7, delegating to the existing Disk II / WOZ nibble engine (compose, do not fork).
 - [ ] T034 [US5] Register `iwm` in `ComponentRegistry`; add to `Apple2c.json` (slot-6, internal + external drive).
+- [ ] T034a [US5] Hardware tab: the //c **external drive** is a **Connected / Not connected** toggle that shows/hides the existing drive-mount widget (image name, Mount…, Eject, write-protect). No new media machinery — "Connected" just reveals the existing drive widget; persist the connected state per machine.
 - [ ] T035 [US5] Make //c disk-boot tests pass; regression: existing Disk II machines unchanged.
 
 **Checkpoint**: //c boots from internal/external drive.

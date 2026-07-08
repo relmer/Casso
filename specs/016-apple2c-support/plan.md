@@ -14,7 +14,7 @@ The design uses only existing extension points — no new architecture is introd
 
 **Language/Version**: C++ (`stdcpplatest`, MSVC v145+) per constitution.
 
-**Primary Dependencies**: Windows SDK + STL only (constitution baseline). **No new third-party dependencies.** 65C02 conformance vectors (Klaus Dormann 65C02 functional + Tom Harte `synertek65c02` SingleStepTests) are test *data*, consistent with the existing NMOS Dormann/Harte corpus. The //c **serial printer** front door (`AciaPrinterEndpoint` + machine-level printer sink) reuses spec 015's finished, card-agnostic printer pipeline — it depends on **spec 015 merged to `master`** and adds no third-party dependency (see `serial-printer-integration.md`).
+**Primary Dependencies**: Windows SDK + STL only (constitution baseline). **No new third-party dependencies.** 65C02 conformance vectors (Klaus Dormann 65C02 functional + Tom Harte `synertek65c02` SingleStepTests) are test *data*, consistent with the existing NMOS Dormann/Harte corpus. The //c **serial printer** front door (`AciaPrinterEndpoint` + machine-level printer sink) and the Hardware-tab serial endpoint selector are **deferred to issue #87** — they need spec 015 on `master` plus a bootable //c, so they follow this spec (brief: `serial-printer-integration.md`). This spec keeps the ACIA + both serial ports working via loopback/file endpoints; no third-party dependency either way.
 
 **Storage**: Machine config JSON (`Resources/Machines/Apple2c/Apple2c.json`); //c ROM asset (managed like existing machine ROMs via `AssetBootstrap`). Serial TX → host file; no other new persistence.
 
