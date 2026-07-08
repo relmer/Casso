@@ -144,6 +144,7 @@ bool WindowCommandManager::OnCommand (HWND hwnd, int id)
     else if (id >= IDM_VIEW_COLOR     && id <= IDM_VIEW_SETTINGS)           { OnViewCommand (id); }
     else if (id == IDM_PRINTER_EJECT)                                      { OnPrinterCommand (id); }
     else if (id == IDM_PRINTER_DISCARD)                                    { OnPrinterCommand (id); }
+    else if (id == IDM_PRINTER_COPY)                                       { OnPrinterCommand (id); }
     else if (id >= IDM_HELP_KEYMAP    && id <= IDM_HELP_ABOUT)              { OnHelpCommand (id); }
 
     return false;
@@ -779,14 +780,154 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CopyPrintoutToClipboard
+//
+//  Copies the finished strip to the clipboard as one continuous image (the
+//  fanfold metaphor -- no pagination). Offers CF_DIB (bottom-up BGRA) for
+//  classic paste targets and a registered "PNG" blob for apps that prefer
+//  lossless. Render/encode are core (unit-tested); only the DIB packing and
+//  Win32 clipboard calls live here. Does not consume the strip.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT WindowCommandManager::CopyPrintoutToClipboard (const PrintRaster & raster)
+{
+    HRESULT                  hr       = S_OK;
+    const GlobalUserPrefs &  prefs    = m_shell.m_globalPrefs;
+    PaperRenderer            renderer;
+    PaperRenderer::Options   opt;
+    RgbaImage                img;
+    vector<Byte>             png;
+    HGLOBAL                  hDib     = nullptr;
+    HGLOBAL                  hPng     = nullptr;
+    bool                     opened   = false;
+    size_t                   px       = 0;
+    size_t                   dibBytes = 0;
+    // A 32bpp DIB of the whole strip must stay bounded so a huge multi-page
+    // banner cannot try to place gigabytes on the clipboard. Above the cap we
+    // skip the bitmap and rely on the (compressed) PNG blob instead.
+    const size_t             kMaxDibBytes = (size_t) 256 * 1024 * 1024;
+
+    opt.outputDpi = PrintDpiFromPrefs (prefs);
+    opt.style     = PrintDotStyleFromPrefs (prefs);
+
+    hr = renderer.Render (raster, 0, raster.RowsUsed () - 1, opt, img);
+    CHR (hr);
+    CBREx (img.width > 0 && img.height > 0, E_FAIL);
+
+    px       = (size_t) img.width * img.height;
+    dibBytes = sizeof (BITMAPINFOHEADER) + px * 4;
+
+    if (dibBytes <= kMaxDibBytes)
+    {
+        Byte *             dest = nullptr;
+        BITMAPINFOHEADER   bih  = {};
+
+        hDib = GlobalAlloc (GMEM_MOVEABLE, dibBytes);
+        CPR (hDib);
+
+        dest = (Byte *) GlobalLock (hDib);
+        CPR (dest);
+
+        bih.biSize        = sizeof (bih);
+        bih.biWidth       = img.width;
+        bih.biHeight      = img.height;   // positive == bottom-up rows
+        bih.biPlanes      = 1;
+        bih.biBitCount    = 32;
+        bih.biCompression = BI_RGB;
+        bih.biSizeImage   = (DWORD) (px * 4);
+
+        memcpy (dest, &bih, sizeof (bih));
+        dest += sizeof (bih);
+
+        // Bottom-up DIB: emit rows last-to-first, swapping RGBA -> BGRA.
+        for (int y = img.height - 1; y >= 0; y--)
+        {
+            const Byte * src = &img.rgba[(size_t) y * img.width * 4];
+
+            for (int x = 0; x < img.width; x++)
+            {
+                dest[x * 4 + 0] = src[x * 4 + 2];   // B
+                dest[x * 4 + 1] = src[x * 4 + 1];   // G
+                dest[x * 4 + 2] = src[x * 4 + 0];   // R
+                dest[x * 4 + 3] = src[x * 4 + 3];   // A
+            }
+
+            dest += (size_t) img.width * 4;
+        }
+
+        GlobalUnlock (hDib);
+    }
+
+    if (SUCCEEDED (PrintDelivery::RenderToPng (raster, 0, raster.RowsUsed () - 1,
+                                               opt.outputDpi, opt.style, png))
+        && !png.empty ())
+    {
+        Byte *   dest = nullptr;
+
+        hPng = GlobalAlloc (GMEM_MOVEABLE, png.size ());
+
+        if (hPng != nullptr)
+        {
+            dest = (Byte *) GlobalLock (hPng);
+
+            if (dest != nullptr)
+            {
+                memcpy (dest, png.data (), png.size ());
+                GlobalUnlock (hPng);
+            }
+            else
+            {
+                GlobalFree (hPng);
+                hPng = nullptr;
+            }
+        }
+    }
+
+    CBREx (hDib != nullptr || hPng != nullptr, E_FAIL);
+
+    CBREx (OpenClipboard (m_shell.m_hwnd), E_FAIL);
+    opened = true;
+    CBREx (EmptyClipboard (), E_FAIL);
+
+    // On success the clipboard takes ownership, so null the handle to keep the
+    // cleanup path from freeing it out from under the clipboard.
+    if (hDib != nullptr && SetClipboardData (CF_DIB, hDib) != nullptr)
+    {
+        hDib = nullptr;
+    }
+
+    if (hPng != nullptr)
+    {
+        UINT   fmt = RegisterClipboardFormatW (L"PNG");
+
+        if (fmt != 0 && SetClipboardData (fmt, hPng) != nullptr)
+        {
+            hPng = nullptr;
+        }
+    }
+
+Error:
+    if (opened)          { CloseClipboard (); }
+    if (hDib != nullptr) { GlobalFree (hDib); }
+    if (hPng != nullptr) { GlobalFree (hPng); }
+    return hr;
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  OnPrinterCommand
 //
 //  Handle the strip-level printer commands. Eject finishes the current job:
 //  stop the drain, render+save the strip, then resume onto a fresh sheet
 //  (the fanfold metaphor), so a failed save loses the page rather than
-//  stalling the guest. Discard tears off and throws away the current page
-//  after a confirm, clearing the persisted pending copy (FR-029). Both drain
-//  the ring first so they act on the complete strip.
+//  stalling the guest. Copy places the strip on the clipboard without
+//  consuming it. Discard tears off and throws away the current page after a
+//  confirm, clearing the persisted pending copy (FR-029). All drain the ring
+//  first so they act on the complete strip.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -796,16 +937,18 @@ void WindowCommandManager::OnPrinterCommand (int id)
     PrinterJob *   job  = nullptr;
     fs::path       file;
 
-    if ((id != IDM_PRINTER_EJECT && id != IDM_PRINTER_DISCARD) ||
+    if ((id != IDM_PRINTER_EJECT && id != IDM_PRINTER_DISCARD && id != IDM_PRINTER_COPY) ||
         m_shell.m_refs.printerCard == nullptr)
     {
         return;
     }
 
     bool   discard = (id == IDM_PRINTER_DISCARD);
+    bool   copy    = (id == IDM_PRINTER_COPY);
 
     // Take ownership of the strip: stop the worker, then flush any tail bytes.
-    // Both eject and discard act on the whole strip, so we drain first either way.
+    // Every strip-level command acts on the whole page, so we drain first and
+    // read the job's raster from a quiesced worker (no concurrent mutation).
     m_shell.m_printerWorker.Stop ();
 
     {
@@ -817,11 +960,27 @@ void WindowCommandManager::OnPrinterCommand (int id)
 
     if (job == nullptr || !job->HasContent ())
     {
-        MessageBoxW (m_shell.m_hwnd,
-                     discard ? L"The printer has no page to discard."
-                             : L"The printer has no page to finish yet.",
-                     L"Casso Printer", MB_OK | MB_ICONINFORMATION);
+        const wchar_t * emptyMsg = copy    ? L"The printer has no page to copy yet."
+                                 : discard ? L"The printer has no page to discard."
+                                           : L"The printer has no page to finish yet.";
+
+        MessageBoxW (m_shell.m_hwnd, emptyMsg, L"Casso Printer", MB_OK | MB_ICONINFORMATION);
         m_shell.m_printerWorker.Start (m_shell.m_refs.printerCard->ByteRing ());
+        return;
+    }
+
+    if (copy)
+    {
+        hr = CopyPrintoutToClipboard (job->Raster ());
+
+        // Copy never consumes the strip: resume on the same page regardless.
+        m_shell.m_printerWorker.Start (m_shell.m_refs.printerCard->ByteRing (), job->Raster ());
+
+        if (FAILED (hr))
+        {
+            MessageBoxW (m_shell.m_hwnd, L"Could not copy the printout to the clipboard.",
+                         L"Casso Printer", MB_OK | MB_ICONWARNING);
+        }
         return;
     }
 

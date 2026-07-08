@@ -56,5 +56,10 @@ private:
     // Returns S_FALSE if the user cancels the dialog. Pure Win32 GDI edge.
     HRESULT  PrintToWindowsPrinter (const class PrintRaster & raster);
 
+    // Copies the strip to the clipboard as a bitmap (CF_DIB) and, when it fits,
+    // a registered "PNG" blob, at the configured dpi / dot style. Does not
+    // consume the strip. Pure Win32 clipboard edge (render/encode are core).
+    HRESULT  CopyPrintoutToClipboard (const class PrintRaster & raster);
+
     EmulatorShell &  m_shell;
 };
