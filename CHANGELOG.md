@@ -6,6 +6,27 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 Versioned entries use `MAJOR.MINOR.PATCH` from [Version.h](CassoCore/Version.h).
 Entries before versioning was introduced use dates only.
 
+## [1.6.1] — Keyboard accelerator fixes
+
+Emulator keyboard shortcuts moved off plain `Ctrl+<letter>` so they stop
+stealing valid //e control keystrokes from the running software.
+
+### Fixed
+- **fix(input): emulator accelerators no longer swallow //e `Ctrl+<letter>`
+  keys.** The joystick-mode toggle, Reset, and Power cycle used plain
+  `Ctrl+<letter>` chords, which are valid //e keystrokes the guest reads —
+  so, e.g., Rocky's Boots never saw its Ctrl+I/J/K/M fine-movement keys.
+  They now use Ctrl+Shift: **Ctrl+J → Ctrl+Shift+J** (joystick),
+  **Ctrl+R → Ctrl+Shift+R** (Reset), and Power cycle **Ctrl+Shift+R →
+  Ctrl+Shift+P**. Also removed a dead Ctrl+O binding (fired a no-op
+  machine-picker stub) and a phantom "Ctrl+Alt+R autoboot reset" keymap
+  entry that was never implemented.
+
+### Added
+- **feat(demos): Rocky's Boots and Where in the World is Carmen Sandiego.**
+  Added to the source-checkout demo disks listed in the picker (Carmen as
+  its side A / side B flip-disk pair).
+
 ## [1.6.0] — Disk picker, optional Disk ][, and the reusable Dxui library (spec 013)
 
 The boot / Insert-Disk picker gained search and sort and is preloaded with
