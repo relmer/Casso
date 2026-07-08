@@ -87,6 +87,7 @@ When the printer card is enabled, a small printer indicator sits in the window c
 2. **Given** the guest activates the card firmware (`PR#1`) or writes its first data byte, **When** that first engagement occurs, **Then** the docked panel reveals automatically and its paper shows the rendered content emerging as printing proceeds.
 3. **Given** un-ejected output is pending and the panel is closed, **Then** the indicator continues to signal the pending state; **When** the user presses the panel's Form Feed button (or invokes the equivalent menu command), **Then** the job is finalized to the selected destination and the paper clears.
 4. **Given** the pointer hovers over the indicator or the panel, **Then** a summary of the virtual configuration is shown (printer model, ribbon type, interface type, slot number).
+5. **Given** printer audio is enabled, **When** the guest prints, **Then** print-head, line-feed, and form-feed sounds play in step with the paper presentation, a tear sound accompanies eject/discard, and muting silences all of it without affecting output.
 
 ---
 
@@ -199,6 +200,11 @@ The user mounts a disk whose image filename (e.g. contains "print shop"), embedd
 - **FR-028**: Delivered PNG, clipboard, and panel rendering defaults to 576 dpi square pixels (4× the native vertical density; a pin splat spans ~8 pixels, enough to resolve round dots and weave texture), user-adjustable on the Printing tab (at minimum 288 and 576). Windows printing renders each page at the target printer's device resolution. The feature is optimized for few-page jobs; very long strips MAY take proportionally longer to deliver.
 - **FR-029**: The user MUST be able to discard the pending strip without delivering it — a "tear off and discard" action available on the panel and as a menu command, guarded by a confirmation prompt. Discarding clears the strip, its pending indication, and its persisted copy (FR-026), and delivers nothing.
 
+**Printer audio**
+
+- **FR-030**: The printer MUST have sampled audio synced to its activity: a print-head burst loop while printing, distinct line-feed and form-feed (platen) sounds, and a paper-tear sound on eject and discard. Samples MUST come from a real 1980s dot-matrix printer — an authentic ImageWriter II recording preferred if one can be sourced under a redistribution-compatible license, otherwise any period 9-pin printer. Samples are acquired through the existing consent-gated startup downloader (as Disk II drive audio is), with license and provenance recorded. Volume/mute follows the existing drive-audio settings pattern.
+- **FR-031**: The panel's paper animation and printer audio SHOULD replay activity at approximately real ImageWriter II printing speed, decoupled from the guest — the card always accepts data at full speed (FR-002, FR-018) and the strip raster is complete immediately; only the presentation lags. Eject, discard, and Copy operate on the complete raster at any time, and eject/discard fast-forward the presentation instantly.
+
 ### Key Entities
 
 - **Printer Interface Card**: The emulated slot peripheral the guest talks to — accepts data bytes, reports readiness, and carries the slot firmware. Configured per machine (enabled/disabled, slot number).
@@ -208,6 +214,7 @@ The user mounts a disk whose image filename (e.g. contains "print shop"), embedd
 - **Printing Settings**: The persisted, global host-print-service preferences on the Settings → Printing tab — output destination (PNG folder or Windows printer), PNG folder path, output resolution, dot-rendering style. Host print services are shared by all emulated machines; guest-side printer hardware is per-machine. Clipboard copy is an on-demand panel action, not a destination.
 - **Slot Firmware**: The original firmware image the card exposes to the guest, built from source in this repository.
 - **Print-Title Signature List**: Curated, bundled data (filename substrings and filesystem volume/file names) identifying known print-centric software; informational only — it drives the mount-time notice, never configuration.
+- **Printer Audio Sample Set**: Event samples (head burst, line feed, form feed, paper tear) sliced from a licensed recording of a real 1980s dot-matrix printer, delivered via the consent-gated asset downloader with provenance recorded.
 
 ## Success Criteria *(mandatory)*
 
@@ -232,7 +239,7 @@ The user mounts a disk whose image filename (e.g. contains "print shop"), embedd
 - Downloadable custom character sets, proportional-text justification, and MouseText character printing are not exercised by the flagship scenarios and are out of scope.
 - The classic Windows print dialog has no built-in preview, so preview-before-print is guaranteed by FR-014 (perforated paper view plus a stated page count at eject). The plan phase evaluates the modern Windows system print dialog — which includes a live preview pane and is invokable from desktop applications — as an alternative to the classic dialog; the themed in-app (dxui) print dialog remains a later follow-on, out of scope here.
 - PDF output relies on the "Microsoft Print to PDF" system printer; no dedicated PDF writer is built.
-- Fresh-ribbon ink physics IS modeled (round overlapping dots, overprint color mixing, subtle weave texture — FR-027) because it is what the printed artifact actually looked like. Physical-printer *theater* — print-head sound effects, bidirectional head-travel timing, ribbon wear/aging artifacts, random noise — is not modeled.
+- Fresh-ribbon ink physics IS modeled (round overlapping dots, overprint color mixing, subtle weave texture — FR-027), and printer audio IS in scope (FR-030), because both are part of what the printer actually produced. Remaining *theater* — ribbon wear/aging artifacts, random noise, mechanical failure simulation — is not modeled.
 - Print-title recognition is heuristic and intentionally low-consequence: a false negative is fully covered by the engagement-triggered panel reveal, and a false positive costs one dismissible notice. Copy-protected originals with non-standard filesystems are expected to go unrecognized.
 
 ## Out of Scope
@@ -241,5 +248,5 @@ The user mounts a disk whose image filename (e.g. contains "print shop"), embedd
 - Epson ESC/P or any second printer command set.
 - Custom dxui print dialog (follow-on). A full paginated print-preview experience belongs there; this feature guarantees the lighter preview-before-print of FR-014 (perforated paper view, stated page count), with print-to-PDF as the full-fidelity check when wanted.
 - Dedicated PDF generation.
-- Print-head audio emulation and other physical-fidelity theater.
+- Ribbon wear/aging artifacts and mechanical-failure theater (printer audio is in scope — FR-030).
 - Apple IIgs printing paths.
