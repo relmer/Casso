@@ -506,8 +506,8 @@ public:
 
         Assert::AreEqual (size_t (4), config.internalDevices.size (),
             L"Apple2.json internalDevices count must remain exactly 4");
-        Assert::AreEqual (size_t (1), config.slots.size (),
-            L"Apple2.json must declare exactly one slot (Disk II in slot 6)");
+        Assert::AreEqual (size_t (2), config.slots.size (),
+            L"Apple2.json declares two slots: parallel printer (slot 1), Disk II (slot 6)");
     }
 
 
@@ -546,8 +546,8 @@ public:
 
         Assert::AreEqual (size_t (4), config.internalDevices.size (),
             L"Apple2Plus.json internalDevices count must remain exactly 4");
-        Assert::AreEqual (size_t (1), config.slots.size (),
-            L"Apple2Plus.json must declare exactly one slot (Disk II in slot 6)");
+        Assert::AreEqual (size_t (2), config.slots.size (),
+            L"Apple2Plus.json declares two slots: parallel printer (slot 1), Disk II (slot 6)");
     }
 
 
