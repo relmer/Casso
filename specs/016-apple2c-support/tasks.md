@@ -89,8 +89,8 @@
 
 ### Implementation
 
-- [ ] T020 [US2] Add the //c ROM 4 asset to `AssetBootstrap` (`Casso/AssetBootstrap.cpp`): entry, SHA, "Apple //c" display name, picker entry.
-- [ ] T021 [US2] Implement the 32K bank-switched ROM mapping ($C800 expansion-ROM bank switch).
+- [X] T020 [US2] Add the //c ROM 4 asset to `AssetBootstrap` (`Casso/AssetBootstrap.cpp`): catalog entry, "Apple //c" display name, picker entry. *(AppleWin has no //c ROM — sourced the 32K ROM 4 / 341-0445-B (32768 bytes) from the apple2.org.za mirror; extended `RomSpec` with an optional alternate host/urlPath/label. Size-checked, download-on-demand, not committed.)*
+- [ ] T021 [US2] Implement the 32K bank-switched ROM mapping. *(Mechanism confirmed: the 32K ROM is **two 16K banks**, each covering `$C100-$FFFF`; a **write to `$C028`** selects the visible bank; reset defaults to the main monitor/Applesoft bank. Main ROM `$D000-$FFFF` + the `CxxxRomRouter` `$C100-$CFFF` window both follow the `$C028` bank. Sources: MG's Apple II firmware-banking notes.)*
 - [ ] T022 [US2] Create `Resources/Machines/Apple2c/Apple2c.json`: `cpu: 65C02`, 128K, //e substrate components, phantom-slot firmware map.
 - [ ] T023 [US2] Wire the //c firmware slices into `CxxxRomRouter::SetSlotRom` (slots 1/2/3/4/6); ROM-4 SmartPort + mem-expansion firmware present but peripherals report absent (FR-006a).
 - [ ] T024 [US3] Wire the two `Acia6551` instances (Phase 2) into the //c serial ports (slots 1 + 2) in `Apple2c.json` + the //c serial firmware, with **loopback/file** endpoints. *(US3's //c-specific integration.)*
