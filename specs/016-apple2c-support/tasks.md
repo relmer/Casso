@@ -101,6 +101,12 @@
 - [ ] T024a [US3] Hoist `PrinterByteRing` (+ its `PrinterJob`) out of `PrinterCard` into a machine-level `PrinterSink` owned at the `EmulatorShell`/machine level; `PrinterCard` (//e) and the //c serial endpoint both target the shared ring; `PrinterWorker` drains the sink. Mechanical hoist — **no pipeline logic change**. Regression: the //e parallel Print Shop path is unaffected.
 - [ ] T024b [US3] Add `AciaPrinterEndpoint` (`CassoEmuCore/Devices/Printer/` or alongside the other endpoints): an `IAciaEndpoint` whose TX path pushes each byte into the `PrinterSink` ring; RX = "printer ready" stub (confirm against Print Shop's serial driver if it stalls). Make T019a pass.
 - [ ] T024c [US3] Bind //c **serial port 1** → `AciaPrinterEndpoint` in `Apple2c.json` (port 2 stays comms/loopback); no parallel-printer slot row on the //c.
+
+**Port endpoint selection (Hardware settings, FR-011c)** — let the user pick what attaches to each configurable port instead of it being fixed in JSON. Driven by the //c serial ports (printer vs. comms vs. file vs. disconnected). *(May be split to its own issue if it grows — it's a settings-framework feature that also generalizes to //e slots.)*
+
+- [ ] T024d [US3] Model: extend `SettingsPanelState`/`HardwareEntry` (`Casso/Ui/Settings/`) so a port entry carries its selectable endpoint options + current selection (not just the enable/disable checkbox).
+- [ ] T024e [US3] UI: `HardwarePage` renders a per-port endpoint dropdown for the serial ports (reuse `DxuiDropdown`); unit-test via `HardwarePageTests`/`SettingsPanelStateTests`.
+- [ ] T024f [US3] Persist the per-port selection in `UserConfigStore` and apply it at machine build — bind the chosen `IAciaEndpoint` (printer / loopback / file / none) to each port, overriding the `Apple2c.json` default. Test: selection round-trips and drives the endpoint binding.
 - [ ] T025 [US2] Make boot + phantom-slot tests pass; assert //c machine selection persists + restores like any other machine (FR-016).
 
 **Checkpoint**: **Apple //c boots** with working serial ports; serial port 1 prints via the ImageWriter pipeline. SC-002. Full end-to-end Print Shop validation on the //c is covered by T039 (SC-003).
