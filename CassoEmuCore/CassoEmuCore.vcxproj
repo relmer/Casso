@@ -243,6 +243,7 @@
     <ClCompile Include="Devices\Printer\PngCodec.cpp" />
     <ClCompile Include="Devices\Printer\PrintJobPersistence.cpp" />
     <ClCompile Include="Devices\Printer\PrintFileNaming.cpp" />
+    <ClCompile Include="Devices\Printer\PrintDelivery.cpp" />
     <ClCompile Include="External\StbVorbisWrapper.cpp">
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <EnableCodeAnalysis>false</EnableCodeAnalysis>
@@ -331,6 +332,7 @@
     <ClInclude Include="Devices\Printer\PngCodec.h" />
     <ClInclude Include="Devices\Printer\PrintJobPersistence.h" />
     <ClInclude Include="Devices\Printer\PrintFileNaming.h" />
+    <ClInclude Include="Devices\Printer\PrintDelivery.h" />
     <ClInclude Include="External\StbVorbisWrapper.h" />
     <ClInclude Include="External\stb_vorbis.c" />
   </ItemGroup>
