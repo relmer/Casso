@@ -308,8 +308,12 @@
     <ClInclude Include="Devices\Printer\PrinterTypes.h" />
     <ClInclude Include="Devices\Printer\PrinterByteRing.h" />
     <ClInclude Include="Devices\Printer\PrinterCard.h" />
+    <ClInclude Include="Devices\Printer\ParallelFirmware.h" />
     <ClInclude Include="External\StbVorbisWrapper.h" />
     <ClInclude Include="External\stb_vorbis.c" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="Devices\Printer\ParallelFirmware.a65" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\CassoCore\CassoCore.vcxproj">
