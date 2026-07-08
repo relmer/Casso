@@ -18,9 +18,9 @@
 ## Phase 2: Foundational (blocking all user stories)
 
 - [X] T003 [P] Implement `PrinterByteRing` (fixed SPSC ring, O(1) push, pattern from `CassoEmuCore/Devices/InputEventRing.h`) in `CassoEmuCore/Devices/Printer/PrinterByteRing.h` — 64 KiB capacity + FreeSpace() for the high-water ready guard; unit suite `UnitTest/PrinterTests/PrinterByteRingTests.cpp` (8 tests incl. two-thread stress)
-- [ ] T004 Implement `PrinterCard : MemoryDevice` per contracts/printer-card-io.md ($C0n0 latch → ring, tolerant status reads, first-touch event flag, Reset/PowerCycle leave paper alone) in `CassoEmuCore/Devices/Printer/PrinterCard.h/.cpp`
+- [X] T004 Implement `PrinterCard : MemoryDevice` per contracts/printer-card-io.md ($C0n0 latch → ring, tolerant status reads, first-touch event flag, Reset/PowerCycle leave paper alone) in `CassoEmuCore/Devices/Printer/PrinterCard.h/.cpp` — ready bit driven by ring FreeSpace() high-water guard (FR-002)
 - [ ] T005 [P] Write original slot firmware `CassoEmuCore/Devices/Printer/ParallelFirmware.a65` (PR#n hook, Pascal 1.1 signature bytes + entry table per contracts/printer-card-io.md) and generate `ParallelFirmware.h` (assembled bytes + source text literal)
-- [ ] T006 [P] Unit tests: card register contract, byte ordering, ring overflow assert in `UnitTest/PrinterTests/PrinterCardTests.cpp`
+- [X] T006 [P] Unit tests: card register contract, byte ordering, ring overflow assert in `UnitTest/PrinterTests/PrinterCardTests.cpp` — window placement, FIFO ordering, tolerant status reads, high-water ready/busy transition, first-touch flag (7 tests)
 - [ ] T007 [P] Unit tests: assemble embedded .a65 source with CassoCore assembler, assert byte equality with `ParallelFirmware.h` array in `UnitTest/PrinterTests/FirmwareParityTests.cpp`
 - [ ] T008 Register device type `"parallel-printer"` in `CassoEmuCore/Core/ComponentRegistry.cpp`; install firmware via `CxxxRomRouter::SetSlotRom` and card on the bus during machine build in `Casso/EmulatorShell.cpp`
 - [ ] T009 Add slot 1 `parallel-printer` entry to embedded machine JSONs (`Casso/Machines/Apple2e*.json`) and extend `CassoEmuCore/Core/MachineConfigUpgrade.h/.cpp` to add it to existing configs when slot 1 is free (FR-001); unit tests for the upgrade plan in `UnitTest/` alongside existing MachineConfigUpgrade tests

@@ -307,6 +307,7 @@
     <ClCompile Include="Devices\Disk2AddressMarkWatcherTests.cpp" />
     <ClCompile Include="Devices\Disk2ControllerEventTests.cpp" />
     <ClCompile Include="PrinterTests\PrinterByteRingTests.cpp" />
+    <ClCompile Include="PrinterTests\PrinterCardTests.cpp" />
     <ClCompile Include="..\Casso\CassoPch.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Create</PrecompiledHeader>
       <PrecompiledHeaderOutputFile Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">$(IntDir)CassoPch.pch</PrecompiledHeaderOutputFile>
