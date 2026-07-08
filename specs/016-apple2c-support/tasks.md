@@ -61,16 +61,16 @@
 
 ### Tests (expect FAIL)
 
-- [ ] T011 [P] [US1] `UnitTest/EmuTests/Cpu65C02Tests.cpp`: Klaus Dormann 65C02 functional test. *(Base CMOS tier: build/run with Rockwell + WDC opcode options disabled — the Apple 65C02 lacks RMB/SMB/BBR/BBS and WAI/STP; see research.md D7.)*
-- [ ] T012 [P] [US1] `Cpu65C02Tests.cpp`: Tom Harte `synertek65c02` SingleStepTests. *(Base tier — not `rockwell65c02`/`wdc65c02`.)*
+- [X] T011 [P] [US1] `UnitTest/DormannIntegrationTests.cpp`: Klaus Dormann 65C02 functional test. *(Base CMOS tier, rkwl_wdc_op/wdc_op disabled; assembled in-house — required adding 65C02 support to Casso's assembler — and run to the `$2434` success trap in ~22M instructions.)*
+- [X] T012 [P] [US1] `UnitTest/HarteTestRunner.cpp` (`HarteSynertek65C02`): Tom Harte `synertek65c02` SingleStepTests, **256/256** (2.56M vectors) via flat-memory `TestCpu65C02`. *(Base tier; the 33 reserved-NOP opcodes assert Casso's canonical 1-byte model — see research.md D7 / commit notes — rather than Synertek's 2-3-byte quirk, which Apple never shipped.)*
 
 ### Implementation
 
-- [ ] T013 [US1] Implement `Cpu65C02` (`CassoEmuCore/Core/Cpu65C02.{h,cpp}`, `ICpu` sharing `Cpu6502` dispatch): new opcodes — `STZ`, `PHX`/`PLX`/`PHY`/`PLY`, `BRA`, `TSB`/`TRB`, `INC A`/`DEC A`, `RMB`/`SMB`, `BBR`/`BBS`.
-- [ ] T014 [US1] Addressing modes (`(zp)`, `(abs,X)` JMP) + corrected behaviors (indirect-`JMP` fix, decimal flags/cycles, RMW cycles) + 65C02 timing.
-- [ ] T015 [US1] Register `65C02` → `Cpu65C02` in the CPU factory (T008).
-- [ ] T016 [US1] Set `Apple2eEnhanced` config `cpu: 65C02` (`Resources/Machines/Apple2eEnhanced/*.json`) — the fix for the existing defect.
-- [ ] T017 [US1] Make Dormann + Harte 65C02 pass; run NMOS + II/II+/`//e` regression (unchanged).
+- [X] T013 [US1] Implement `Cpu65C02` (`CassoEmuCore/Core/Cpu65C02.{h,cpp}`, sharing `Cpu6502` dispatch): `STZ`, `PHX`/`PLX`/`PHY`/`PLY`, `BRA`, `TSB`/`TRB`, `INC A`/`DEC A`; `RMB`/`SMB`/`BBR`/`BBS` + `WAI`/`STP` decode as base-tier NOPs.
+- [X] T014 [US1] Addressing modes (`(zp)`, `(abs,X)` JMP) + corrected behaviors (indirect-`JMP` page fix, decimal ADC/SBC flags/cycles incl. invalid-BCD borrow, `$CF` NMOS-undocumented reclaim) + 65C02 timing.
+- [X] T015 [US1] Register `65C02` → `Cpu65C02` in the CPU factory (T008). *(`CpuFactory.cpp` builds `Cpu65C02`; `FactoryBuilds65C02AndRejectsUnknown`.)*
+- [~] T016 [US1] ~~Set `Apple2eEnhanced` config `cpu: 65C02`~~ — **deferred to issue #86**: no `Apple2eEnhanced` machine profile exists yet (only Apple2 / Apple2Plus / Apple2e). The 65C02 core is ready to power it once #86 adds the profile.
+- [X] T017 [US1] Dormann + Harte 65C02 pass; full regression **1988/1988** (NMOS + II/II+/`//e` unchanged).
 
 **Checkpoint**: //e-Enhanced runs on the 65C02. SC-001 + SC-004 green. **Shippable standalone.**
 
