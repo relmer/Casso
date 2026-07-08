@@ -6,6 +6,8 @@
 
 **Status**: Draft
 
+**Tracking**: #9 (65C02 core). Per-phase commits reference this issue (constitution Commit Discipline).
+
 **Input**: User description: "Apple //c machine support: 65C02 CPU core first, then //c ROM and slotless firmware map, dual 6551 ACIA serial ports, built-in mouse, and IWM disk integration."
 
 ## Context: Existing Foundation *(informational)*
@@ -60,7 +62,7 @@ A user selects **Apple //c** from the machine picker and it cold-boots to the //
 
 1. **Given** Apple //c is selected, **When** cold-booted, **Then** it reaches the //c monitor / Applesoft using the //c ROM, with 128K standard.
 2. **Given** the //c has no card slots, **When** firmware probes slot ROM space, **Then** the built-in peripherals respond at their fixed phantom-slot addresses ($C1xx serial 1, $C2xx serial 2, $C3xx 80-column, $C4xx mouse, $C6xx disk).
-3. **Given** the //c open-apple / closed-apple keys, **When** pressed at boot, **Then** they behave as on hardware (e.g., self-test / diagnostics entry).
+3. **Given** a cold boot, **When** the //c firmware runs its startup, **Then** it reaches BASIC / monitor normally. *(The open-apple/closed-apple boot-time **self-test / diagnostics** entry is **deferred to a v1 follow-up** — see Out of scope.)*
 
 ---
 
@@ -167,7 +169,7 @@ A user boots and runs disk software from the //c's built-in 5.25" drive (and an 
 ### Measurable Outcomes
 
 - **SC-001**: The 65C02 conformance suite — **Klaus Dormann's 65C02 extended-opcode functional test + Tom Harte's `wdc65c02` SingleStepTests** — passes 100% on the enhanced/`//c` machines; the NMOS conformance behavior is unchanged on non-enhanced machines.
-- **SC-002**: The Apple //c cold-boots to its monitor / Applesoft within the same startup budget as the //e (no perceptible regression).
+- **SC-002**: The Apple //c cold-boots to its monitor / Applesoft within the //e startup budget — **no more than 10% over the //e cold-boot wall-clock time on the same host** (measured, not subjective).
 - **SC-003**: At least three representative //c titles run correctly end-to-end: one serial/terminal (or serial-print) task, one mouse application (e.g., MousePaint), and one disk-based game — each booting and operating from the //c profile.
 - **SC-004**: The full existing unit-test suite (including CPU conformance for NMOS, and the Apple II/II+///e machines) stays green — zero regressions.
 - **SC-005**: Exactly one 6551 ACIA implementation exists in the tree, consumed by both this feature and spec 015 (verified by inspection — no duplicate ACIA).
@@ -180,4 +182,4 @@ A user boots and runs disk software from the //c's built-in 5.25" drive (and an 
 - The serial-**printing driver** (routing guest output to a host printer/file) is spec 015's scope; this feature provides the 6551 **hardware** (and builds the ACIA that 015 consumes).
 - The disk baseline is the 5.25" drive via the IWM (internal + external port).
 - **Delivery order**: although the 65C02 (US1) is the //c's natural first story, the **6551 ACIA device (US3)** is built first — it is a shared component that blocks the in-flight **spec 015** (printer support). The ACIA device is independent of the CPU and the machine (it is tested standalone via file + loopback); only its //c-specific serial *wiring* waits for the //c bring-up. See `tasks.md` Phase 2.
-- **Out of scope (this spec)**: the Apple //c Plus (4 MHz accelerator); *implementing* the UniDisk 3.5" drive and the memory-expansion card (their ROM-4 firmware is present but reports absent — deferred to follow-ups); real host serial endpoints (COM/TCP); and non-QWERTY keyboard-layout switches.
+- **Out of scope (this spec)**: the Apple //c Plus (4 MHz accelerator); *implementing* the UniDisk 3.5" drive and the memory-expansion card (their ROM-4 firmware is present but reports absent — deferred to follow-ups); the **open-apple/closed-apple boot-time self-test / diagnostics** entry (deferred to a v1 follow-up); real host serial endpoints (COM/TCP); and non-QWERTY keyboard-layout switches.

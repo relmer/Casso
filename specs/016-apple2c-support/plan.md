@@ -115,7 +115,11 @@ UnitTest/EmuTests/
 
 ## Phasing
 
-Each user story is a self-contained, per-phase commit (constitution Commit Discipline). P1 ships standalone value (fixes Enhanced //e) before any //c-specific work; P2 yields a bootable //c; P3–P5 layer the peripherals. P3 builds the ACIA to spec 015's needs as well.
+Each user story is a self-contained, per-phase commit (constitution Commit Discipline).
+
+**Delivery order (per project decision — mirrored in spec.md Assumptions §Delivery order and tasks.md Phase 2): the 6551 ACIA *device* (US3) is built first.** It is independent of the CPU and the //c profile (tested standalone via file + loopback) and unblocks the in-flight **spec 015** (printer support), so it leads regardless of its P3 priority label.
+
+The remainder then follows the natural dependency order: P1 (65C02) ships standalone value (fixes Enhanced //e) before any //c-specific work; P2 yields a bootable //c; US3's //c-specific serial *wiring* (which requires the //c to exist) lands during //c bring-up; P4 (mouse) and P5 (disk) layer the remaining peripherals on top. See tasks.md for the exact phase sequence.
 
 ## Complexity Tracking
 

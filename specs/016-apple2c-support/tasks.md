@@ -94,7 +94,7 @@
 - [ ] T022 [US2] Create `Resources/Machines/Apple2c/Apple2c.json`: `cpu: 65C02`, 128K, //e substrate components, phantom-slot firmware map.
 - [ ] T023 [US2] Wire the //c firmware slices into `CxxxRomRouter::SetSlotRom` (slots 1/2/3/4/6); ROM-4 SmartPort + mem-expansion firmware present but peripherals report absent (FR-006a).
 - [ ] T024 [US3] Wire the two `Acia6551` instances (Phase 2) into the //c serial ports (slots 1 + 2) in `Apple2c.json` + the //c serial firmware. *(US3's //c-specific integration.)*
-- [ ] T025 [US2] Make boot + phantom-slot tests pass.
+- [ ] T025 [US2] Make boot + phantom-slot tests pass; assert //c machine selection persists + restores like any other machine (FR-016).
 
 **Checkpoint**: **Apple //c boots** with working serial ports. SC-002.
 
@@ -108,7 +108,7 @@
 
 ### Tests (expect FAIL)
 
-- [ ] T026 [P] [US4] `UnitTest/EmuTests/AppleMouseTests.cpp`: X/Y/button, VBL/mouse IRQ, $C019 status.
+- [ ] T026 [P] [US4] `UnitTest/EmuTests/AppleMouseTests.cpp`: X/Y/button, VBL/mouse IRQ, $C019 status; assert IRQs neither starve nor double-fire across acknowledge (edge case).
 
 ### Implementation
 
