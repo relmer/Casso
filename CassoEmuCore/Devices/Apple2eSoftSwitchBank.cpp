@@ -4,6 +4,7 @@
 #include "Apple2eMmu.h"
 #include "Apple2eKeyboard.h"
 #include "IInputEventSink.h"
+#include "IRomBankSwitch.h"
 #include "LanguageCard.h"
 #include "Video/IVideoTiming.h"
 
@@ -314,6 +315,16 @@ Byte Apple2eSoftSwitchBank::Read (Word address)
             case 0xC00F:
                 m_altCharSet = true;
                 break;
+            case 0xC028:
+                // Apple //c ROM-bank flip-flop: any access flips the visible
+                // 16K firmware bank across $C100-$FFFF. No effect on the //e
+                // (m_romBank is null there). Reached on writes too -- Write()
+                // forwards non-MMU addresses here.
+                if (m_romBank != nullptr)
+                {
+                    m_romBank->ToggleRomBank ();
+                }
+                break;
             case 0xC05E:
                 m_doubleHiRes = true;
                 bankingChange = true;
@@ -421,6 +432,13 @@ void Apple2eSoftSwitchBank::Reset ()
     m_80colMode   = false;
     m_doubleHiRes = false;
     m_altCharSet  = false;
+
+    // //c: /RESET clears the ROM-bank flip-flop to bank 0 so both power-on
+    // and Ctrl-Reset read the reset vector from the main monitor bank.
+    if (m_romBank != nullptr)
+    {
+        m_romBank->ResetRomBank ();
+    }
 
     m_paddleTriggerCycle = 0;
 

@@ -8,6 +8,7 @@ class Apple2eKeyboard;
 class LanguageCard;
 class IVideoTiming;
 class IInputEventSink;
+class IRomBankSwitch;
 
 
 
@@ -56,6 +57,10 @@ public:
     void SetLanguageCard (LanguageCard * lc)        { m_lc           = lc; }
     void SetVideoTiming  (IVideoTiming * vt)        { m_videoTiming  = vt; }
 
+    // Apple //c only: the $C028 ROM-bank flip-flop. Null on the //e and
+    // earlier, where $C028 has no effect.
+    void SetRomBankSwitch (IRomBankSwitch * rb)     { m_romBank      = rb; }
+
     // Wire the CPU bus-cycle accumulator that drives the PREAD paddle timer.
     void SetCpuCycleSource (const uint64_t * src) { m_cpuCycleSource = src; }
 
@@ -88,6 +93,7 @@ private:
 
     MemoryBus *          m_bus                = nullptr;
     Apple2eMmu *         m_mmu                = nullptr;
+    IRomBankSwitch *     m_romBank            = nullptr;
     Apple2eKeyboard *    m_keyboard           = nullptr;
     LanguageCard *       m_lc                 = nullptr;
     IVideoTiming *       m_videoTiming        = nullptr;

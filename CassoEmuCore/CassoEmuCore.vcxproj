@@ -224,6 +224,7 @@
     <ClCompile Include="Devices\Apple2eKeyboard.cpp" />
     <ClCompile Include="Devices\Apple2eMmu.cpp" />
     <ClCompile Include="Devices\CxxxRomRouter.cpp" />
+    <ClCompile Include="Devices\Apple2cRomBank.cpp" />
     <ClCompile Include="Devices\Apple2eSoftSwitchBank.cpp" />
     <ClCompile Include="Video\AppleTextMode.cpp" />
     <ClCompile Include="Video\CharacterRomData.cpp" />
@@ -294,6 +295,8 @@
     <ClInclude Include="Devices\Apple2eKeyboard.h" />
     <ClInclude Include="Devices\Apple2eMmu.h" />
     <ClInclude Include="Devices\CxxxRomRouter.h" />
+    <ClInclude Include="Devices\Apple2cRomBank.h" />
+    <ClInclude Include="Devices\IRomBankSwitch.h" />
     <ClInclude Include="Devices\Apple2eSoftSwitchBank.h" />
     <ClInclude Include="Video\VideoOutput.h" />
     <ClInclude Include="Video\AppleTextMode.h" />

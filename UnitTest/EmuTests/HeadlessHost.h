@@ -11,6 +11,7 @@
 #include "Devices/Apple2eSoftSwitchBank.h"
 #include "Devices/AppleSpeaker.h"
 #include "Devices/LanguageCard.h"
+#include "Devices/Apple2cRomBank.h"
 #include "Devices/Disk2Controller.h"
 #include "Devices/Disk/DiskImageStore.h"
 #include "Video/VideoTiming.h"
@@ -33,6 +34,7 @@ enum class HeadlessMachineKind
     AppleII,
     AppleIIPlus,
     Apple2e,
+    Apple2c,
 };
 
 
@@ -74,6 +76,10 @@ struct EmulatorCore
     std::unique_ptr<LanguageCardBank>          lcBank;
     std::unique_ptr<EmuCpu>                    cpu;
 
+    // Apple //c (65C02 + 32K two-bank firmware ROM). Set by
+    // HeadlessHost::BuildApple2c; null for every other machine kind.
+    std::unique_ptr<Apple2cRomBank>            romBank;
+
     // Phase 11 (T097/T099-T104). Optional Disk II wiring. Set by
     // HeadlessHost::BuildApple2eWithDisk2 so US2 integration tests can
     // mount synthetic disks through the store and pump the controller's
@@ -113,6 +119,7 @@ public:
     HRESULT             BuildAppleIIPlus         (EmulatorCore & outCore);
     HRESULT             BuildApple2e             (EmulatorCore & outCore);
     HRESULT             BuildApple2eWithDisk2    (EmulatorCore & outCore);
+    HRESULT             BuildApple2c             (EmulatorCore & outCore);
 
 private:
     HRESULT             BuildCommon (HeadlessMachineKind kind, EmulatorCore & outCore);
