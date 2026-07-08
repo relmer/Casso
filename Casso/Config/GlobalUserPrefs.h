@@ -45,7 +45,7 @@ struct GlobalUserPrefs
     // arrow keys (plus Z / X) onto the paddle axes / fire buttons with a
     // spring return to center; Paddle captures the mouse for an absolute,
     // held dial. Cycled via the Machine menu's "Cycle Input Mode" item,
-    // Ctrl+J, and the drive-bar widget; only meaningful on machines with a
+    // Ctrl+Shift+J, and the drive-bar widget; only meaningful on machines with a
     // game port. Migrated from the legacy bool "mapArrowsToJoystick".
     InputMappingMode  inputMappingMode = InputMappingMode::Off;
 

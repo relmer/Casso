@@ -3982,7 +3982,7 @@ void EmulatorShell::OpenSettings ()
 //  HandleHostMetaShortcut
 //
 //  Consume host-meta keys that never reach the emulated //e keyboard: menu
-//  mnemonic navigation, F10 menu focus, Ctrl+V paste, and Ctrl+R reset.
+//  mnemonic navigation, F10 menu focus, Ctrl+V paste, and Ctrl+Shift+R reset.
 //  Returns true when the key was claimed. An unmatched Alt+key deliberately
 //  falls through so combos like Ctrl+Alt+R still reach the reset path.
 //

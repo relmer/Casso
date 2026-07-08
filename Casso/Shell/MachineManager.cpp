@@ -1191,7 +1191,7 @@ void MachineManager::SoftReset()
     }
 
     // Re-zero the Disk II Debug Uptime column on every reset so the
-    // user sees a clean 00:00 anchor after each Ctrl+R / Ctrl+Shift+R.
+    // user sees a clean 00:00 anchor after each Ctrl+Shift+R / Ctrl+Shift+P.
     m_shell.ResetUptimeAnchor();
 }
 

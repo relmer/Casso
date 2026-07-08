@@ -62,7 +62,7 @@ auto-repeat (initial delay, then steady cadence) instead of leaning on
 host-OS key repeat, so timing-sensitive arrow input in games behaves
 the way it did on real hardware.
 
-Three ways to toggle joystick mode — the Machine menu, a new **Ctrl+J**
+Three ways to toggle joystick mode — the Machine menu, a new **Ctrl+Shift+J**
 accelerator, and a dedicated **Joystick Mode** toggle button in the
 bottom drive bar (frameless press-to-pin button with a blue glowing
 LED, hover tooltip, and focus ring). A new Input Debug panel

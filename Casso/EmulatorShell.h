@@ -338,7 +338,7 @@ private:
     void    ToggleInputMappingMode (InputMappingMode target);
 
     // Advance the input mapping mode Off -> Joystick -> Paddle -> Off,
-    // routed from the drive-bar widget, the Machine menu, and Ctrl+J.
+    // routed from the drive-bar widget, the Machine menu, and Ctrl+Shift+J.
     void    CycleInputMappingMode ();
 
     // Paddle-mode mouse capture. Start hides + confines the cursor and
@@ -763,7 +763,7 @@ private:
     // How host arrow / pointer input is mapped onto the emulated game
     // port (Off / Joystick / Paddle). Mirrors
     // GlobalUserPrefs::inputMappingMode and is cycled via the Machine
-    // menu's "Cycle Input Mode" item, Ctrl+J, and the drive-bar widget.
+    // menu's "Cycle Input Mode" item, Ctrl+Shift+J, and the drive-bar widget.
     InputMappingMode  m_inputMode = InputMappingMode::Off;
 
     // Paddle-mode mouse capture. While captured, the cursor is hidden and
