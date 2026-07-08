@@ -809,7 +809,7 @@ HRESULT MachineManager::CreateCpu (const MachineConfig & config)
         }
     }
 
-    m_shell.m_cpu->InitForEmulation();
+    m_shell.m_cpu->InitForEmulation(*m_shell.m_prng);
 
     // Connect speaker to CPU cycle counter for audio timestamps
     if (m_shell.m_refs.speaker != nullptr)

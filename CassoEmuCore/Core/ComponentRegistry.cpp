@@ -13,6 +13,7 @@
 #include "../Devices/Apple2eKeyboard.h"
 #include "../Devices/Apple2eMmu.h"
 #include "../Devices/Apple2eSoftSwitchBank.h"
+#include "../Devices/Acia6551.h"
 
 
 
@@ -125,4 +126,5 @@ void ComponentRegistry::RegisterBuiltinDevices (ComponentRegistry & registry)
     registry.Register ("apple2e-softswitches", Apple2eSoftSwitchBank::Create);
     registry.Register ("language-card",        LanguageCard::Create);
     registry.Register ("disk-ii",              Disk2Controller::Create);
+    registry.Register ("acia-6551",            Acia6551::Create);
 }

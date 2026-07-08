@@ -208,6 +208,8 @@
     <ClCompile Include="Devices\AppleSoftSwitchBank.cpp" />
     <ClCompile Include="Devices\AppleSpeaker.cpp" />
     <ClCompile Include="Devices\LanguageCard.cpp" />
+    <ClCompile Include="Devices\Acia6551.cpp" />
+    <ClCompile Include="Devices\AciaEndpoints.cpp" />
     <ClCompile Include="Devices\Disk2Controller.cpp" />
     <ClCompile Include="Devices\Disk2EventRing.cpp" />
     <ClCompile Include="Devices\InputEventRing.cpp" />
@@ -276,6 +278,9 @@
     <ClInclude Include="Devices\AppleSoftSwitchBank.h" />
     <ClInclude Include="Devices\AppleSpeaker.h" />
     <ClInclude Include="Devices\LanguageCard.h" />
+    <ClInclude Include="Devices\Acia6551.h" />
+    <ClInclude Include="Devices\AciaEndpoints.h" />
+    <ClInclude Include="Devices\IAciaEndpoint.h" />
     <ClInclude Include="Devices\Disk2Controller.h" />
     <ClInclude Include="Devices\IDisk2EventSink.h" />
     <ClInclude Include="Devices\Disk2Event.h" />

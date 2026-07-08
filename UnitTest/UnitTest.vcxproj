@@ -274,6 +274,7 @@
     <ClCompile Include="EmuTests\FixtureProvider.cpp" />
     <ClCompile Include="EmuTests\HeadlessHost.cpp" />
     <ClCompile Include="EmuTests\HeadlessHostTests.cpp" />
+    <ClCompile Include="EmuTests\Acia6551Tests.cpp" />
     <ClCompile Include="EmuTests\InterruptControllerTests.cpp" />
     <ClCompile Include="EmuTests\MmuTests.cpp" />
     <ClCompile Include="EmuTests\ResetSemanticsTests.cpp" />

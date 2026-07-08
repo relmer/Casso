@@ -1,6 +1,7 @@
 #include "Pch.h"
 #include "Core/MemoryBus.h"
 #include "Core/EmuCpu.h"
+#include "Core/Prng.h"
 #include "Core/PathResolver.h"
 #include "Devices/RamDevice.h"
 #include "Devices/RomDevice.h"
@@ -62,7 +63,8 @@ public:
                 cpu.PokeByte (static_cast<Word> (0xD000 + i), romData[i]);
             }
 
-            cpu.InitForEmulation ();
+            Prng prng { 0xCA550001ULL };
+            cpu.InitForEmulation (prng);
         }
     };
 
@@ -333,7 +335,8 @@ public:
             cpu.PokeByte (static_cast<Word> (0xD000 + i), romData[i]);
         }
 
-        cpu.InitForEmulation ();
+        Prng prng { 0xCA550001ULL };
+        cpu.InitForEmulation (prng);
 
         // Apple II+ reset vector is $FA62
         Assert::AreEqual (static_cast<Word> (0xFA62), cpu.GetPC (),
@@ -376,7 +379,8 @@ public:
             cpu.PokeByte (static_cast<Word> (0xD000 + i), romData[i]);
         }
 
-        cpu.InitForEmulation ();
+        Prng prng { 0xCA550001ULL };
+        cpu.InitForEmulation (prng);
 
         for (int i = 0; i < 100000; i++)
         {

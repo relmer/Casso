@@ -112,13 +112,13 @@ void EmuCpu::WriteWord (Word address, Word value)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmuCpu::InitForEmulation ()
+void EmuCpu::InitForEmulation (Prng & prng)
 {
     MemoryBusCpu * pBusCpu = dynamic_cast<MemoryBusCpu *> (m_cpu.get ());
 
     if (pBusCpu)
     {
-        pBusCpu->InitForEmulation ();
+        pBusCpu->InitForEmulation (prng);
     }
 }
 

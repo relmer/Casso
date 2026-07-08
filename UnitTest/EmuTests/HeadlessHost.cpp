@@ -219,7 +219,7 @@ HRESULT HeadlessHost::BuildApple2e (EmulatorCore & outCore)
         outCore.bus->SetWritePage (page, pagePtr);
     }
 
-    outCore.cpu->InitForEmulation ();
+    outCore.cpu->InitForEmulation (*outCore.prng);
 
 Error:
     return hr;
