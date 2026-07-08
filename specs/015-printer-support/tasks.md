@@ -33,8 +33,8 @@
 
 **Independent test**: unit goldens on synthetic + captured streams; end-to-end quickstart scenario 1 (sign → PNG, SC-009 circle check).
 
-- [ ] T012 [P] [US1] Implement `PrintRaster` (bitfield cells, chunked growth, page boundaries, FF marks, 60-page cap, Clear) in `CassoEmuCore/Devices/Printer/PrintRaster.h/.cpp`
-- [ ] T013 [P] [US1] Unit tests: strikes, boundaries, cap, clear in `UnitTest/PrinterTests/PrintRasterTests.cpp`
+- [X] T012 [P] [US1] Implement `PrintRaster` (bitfield cells, chunked growth, page boundaries, FF marks, 60-page cap, Clear) in `CassoEmuCore/Devices/Printer/PrintRaster.h/.cpp`
+- [X] T013 [P] [US1] Unit tests: strikes, boundaries, cap, clear in `UnitTest/PrinterTests/PrintRasterTests.cpp` — 10 tests (overprint OR, blank-feed preservation, FF page-top advance, cap)
 - [ ] T014 [US1] Implement `ImageWriterInterpreter` parser core + monochrome subset (ASCII passthrough consumed-not-rendered until US6 font; CR/LF/FF; pitch selections; line-spacing incl. half-height; bit-image graphics commands; reset; unknown-command consumption + event) emitting strikes + PrinterEvents, per R-003, in `CassoEmuCore/Devices/Printer/ImageWriterInterpreter.h/.cpp`
 - [ ] T015 [US1] Unit tests: per-command-family goldens (hash + cell spot checks), determinism (identical stream → identical hash), captured Print Shop fixture replay in `UnitTest/PrinterTests/ImageWriterInterpreterTests.cpp`
 - [ ] T016 [US1] Implement `PaperRenderer` per R-005 (true-geometry resample, precomputed AA disc kernels at pin diameter, black ink path, Plain square style, 288/576 dpi, deterministic) in `CassoEmuCore/Devices/Printer/PaperRenderer.h/.cpp`

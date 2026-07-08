@@ -235,6 +235,7 @@
     <ClCompile Include="Audio\Disk2AudioSource.cpp" />
     <ClCompile Include="Devices\Printer\PrinterByteRing.cpp" />
     <ClCompile Include="Devices\Printer\PrinterCard.cpp" />
+    <ClCompile Include="Devices\Printer\PrintRaster.cpp" />
     <ClCompile Include="External\StbVorbisWrapper.cpp">
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <EnableCodeAnalysis>false</EnableCodeAnalysis>
@@ -314,6 +315,7 @@
     <ClInclude Include="Devices\Printer\PrinterByteRing.h" />
     <ClInclude Include="Devices\Printer\PrinterCard.h" />
     <ClInclude Include="Devices\Printer\ParallelFirmware.h" />
+    <ClInclude Include="Devices\Printer\PrintRaster.h" />
     <ClInclude Include="External\StbVorbisWrapper.h" />
     <ClInclude Include="External\stb_vorbis.c" />
   </ItemGroup>
