@@ -143,6 +143,7 @@ bool WindowCommandManager::OnCommand (HWND hwnd, int id)
     else if (id >= IDM_DISK_INSERT1   && id <= IDM_DISK_WRITEPROTECT2)      { OnDiskCommand (id); }
     else if (id >= IDM_VIEW_COLOR     && id <= IDM_VIEW_SETTINGS)           { OnViewCommand (id); }
     else if (id == IDM_PRINTER_EJECT)                                      { OnPrinterCommand (id); }
+    else if (id == IDM_PRINTER_DISCARD)                                    { OnPrinterCommand (id); }
     else if (id >= IDM_HELP_KEYMAP    && id <= IDM_HELP_ABOUT)              { OnHelpCommand (id); }
 
     return false;
@@ -780,9 +781,12 @@ Error:
 //
 //  OnPrinterCommand
 //
-//  Finish the current print job: stop the drain, render+save the strip, then
-//  resume onto a fresh sheet. Ejecting always starts a new page (the fanfold
-//  metaphor), so a failed save loses the page rather than stalling the guest.
+//  Handle the strip-level printer commands. Eject finishes the current job:
+//  stop the drain, render+save the strip, then resume onto a fresh sheet
+//  (the fanfold metaphor), so a failed save loses the page rather than
+//  stalling the guest. Discard tears off and throws away the current page
+//  after a confirm, clearing the persisted pending copy (FR-029). Both drain
+//  the ring first so they act on the complete strip.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -792,12 +796,16 @@ void WindowCommandManager::OnPrinterCommand (int id)
     PrinterJob *   job  = nullptr;
     fs::path       file;
 
-    if (id != IDM_PRINTER_EJECT || m_shell.m_refs.printerCard == nullptr)
+    if ((id != IDM_PRINTER_EJECT && id != IDM_PRINTER_DISCARD) ||
+        m_shell.m_refs.printerCard == nullptr)
     {
         return;
     }
 
+    bool   discard = (id == IDM_PRINTER_DISCARD);
+
     // Take ownership of the strip: stop the worker, then flush any tail bytes.
+    // Both eject and discard act on the whole strip, so we drain first either way.
     m_shell.m_printerWorker.Stop ();
 
     {
@@ -809,9 +817,36 @@ void WindowCommandManager::OnPrinterCommand (int id)
 
     if (job == nullptr || !job->HasContent ())
     {
-        MessageBoxW (m_shell.m_hwnd, L"The printer has no page to finish yet.",
+        MessageBoxW (m_shell.m_hwnd,
+                     discard ? L"The printer has no page to discard."
+                             : L"The printer has no page to finish yet.",
                      L"Casso Printer", MB_OK | MB_ICONINFORMATION);
         m_shell.m_printerWorker.Start (m_shell.m_refs.printerCard->ByteRing ());
+        return;
+    }
+
+    if (discard)
+    {
+        // Tear off and throw away the current page (FR-029). Confirm first --
+        // there is no undo -- and default the dialog to "No" so a stray Enter
+        // never destroys a page.
+        int   choice = MessageBoxW (
+            m_shell.m_hwnd,
+            L"Tear off and discard the current printout?\n\n"
+            L"The page in the printer will be thrown away without saving. "
+            L"This cannot be undone.",
+            L"Discard Printout", MB_YESNO | MB_ICONWARNING | MB_DEFBUTTON2);
+
+        if (choice != IDYES)
+        {
+            // Cancelled: keep the strip and resume on the same page.
+            m_shell.m_printerWorker.Start (m_shell.m_refs.printerCard->ByteRing (), job->Raster ());
+            return;
+        }
+
+        // Confirmed: start a fresh sheet and drop the persisted pending copy.
+        m_shell.m_printerWorker.Start (m_shell.m_refs.printerCard->ByteRing ());
+        PrintJobStore::Clear (m_shell.PendingPrintDir ());
         return;
     }
 
