@@ -92,3 +92,9 @@ Boot The (New) Print Shop on the //c, set its printer to **ImageWriter II**, int
 ## Boundary note (resolves a 015/016 seam)
 
 016 spec.md:182 says "the serial-printing driver … is spec 015's scope." In practice 015 shipped the *parallel* path and its serial fallback never triggered (Print Shop drives parallel fine on the //e). So the serial front door is **016's** to build — it is untestable without a bootable //c — reusing 015's finished, card-agnostic pipeline behind `PrinterByteRing`. This document is that assignment.
+
+## Settings / Hardware UX note (//c)
+
+On slotted machines the Hardware settings page (`Casso/Ui/Settings/HardwarePage.cpp`) builds a tree with an "Internal devices" group and a **"Slots"** group; the parallel printer shows as an optional slot-1 row (you *insert* a card).
+
+The //c has no slots, so mirror the concept with a **"Ports" group** representing the back-panel peripheral ports and showing what is *connected* to each — same tree UX, different metaphor (connected vs inserted). The serial printer appears as the device connected to **serial port 1**; port 2 shows the modem/comms endpoint. This keeps the //c Hardware page consistent with the //e one while matching the //c's real, slotless topology.
