@@ -65,8 +65,9 @@ protected:
     bool                          TryDispatchInterrupt (uint32_t & outCycles);
 
     // Pushes PC + status (with B/U bits set per `fromBrk`), sets I=1, and
-    // loads PC from the indicated vector. Used by IRQ/NMI dispatch.
-    void                          DispatchVector (Word vector, bool fromBrk);
+    // loads PC from the indicated vector. Used by IRQ/NMI dispatch. Virtual so
+    // the 65C02 core can additionally clear the decimal flag on entry.
+    virtual void                  DispatchVector (Word vector, bool fromBrk);
 
     // Issue #67: refresh m_busCycle to the cycle of the in-flight memory
     // access. Called from the MemoryBusCpu read/write override so the disk

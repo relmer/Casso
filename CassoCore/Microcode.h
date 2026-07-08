@@ -48,6 +48,25 @@ public:
         SubtractWithCarry,
         Transfer,
         Xor,
+
+        // 65C02 (CMOS) additions. Never referenced by the NMOS instruction
+        // table, so NMOS dispatch is unaffected.
+        StoreZero,          // STZ
+        TestAndSetBits,     // TSB
+        TestAndResetBits,   // TRB
+        ResetMemoryBit,     // RMB0-7
+        SetMemoryBit,       // SMB0-7
+        BitBranchReset,     // BBR0-7
+        BitBranchSet,       // BBS0-7
+        BranchAlways,       // BRA
+        BitTestImmediate,   // BIT #imm (affects Z only)
+
+        // CMOS variants of NMOS operations that differ only in decimal mode /
+        // interrupt entry. The 65C02 table points the affected opcodes here;
+        // the NMOS ops (AddWithCarry / SubtractWithCarry / Break) are untouched.
+        AddWithCarryCmos,       // ADC (decimal N/Z/V correct, +1 cycle)
+        SubtractWithCarryCmos,  // SBC (decimal N/Z/V correct, +1 cycle)
+        BreakCmos,              // BRK (clears decimal flag on entry)
     };
 
     enum Group

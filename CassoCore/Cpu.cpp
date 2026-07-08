@@ -319,7 +319,12 @@ void Cpu::StepOne()
         microcode.operation != Microcode::RotateRight        &&
         microcode.operation != Microcode::Decrement          &&
         microcode.operation != Microcode::DecrementAndCompare &&
-        microcode.operation != Microcode::Increment;
+        microcode.operation != Microcode::Increment          &&
+        microcode.operation != Microcode::StoreZero          &&
+        microcode.operation != Microcode::TestAndSetBits     &&
+        microcode.operation != Microcode::TestAndResetBits   &&
+        microcode.operation != Microcode::ResetMemoryBit     &&
+        microcode.operation != Microcode::SetMemoryBit;
 
     if (isReadOp)
     {
@@ -345,8 +350,10 @@ void Cpu::StepOne()
 
     ExecuteInstruction (microcode, operandInfo);
 
-    // Branch penalty: +1 when taken, +1 more when crossing a page
-    if (microcode.operation == Microcode::Branch && PC != pcAfterFetch)
+    // Branch penalty: +1 when taken, +1 more when crossing a page. BRA is
+    // unconditional so it always pays the taken penalty.
+    if ((microcode.operation == Microcode::Branch ||
+         microcode.operation == Microcode::BranchAlways) && PC != pcAfterFetch)
     {
         m_lastCycles++;
 
@@ -558,6 +565,10 @@ void Cpu::FetchOperand (Microcode microcode, OperandInfo & operandInfo)
     case GlobalAddressingMode::ZeroPageY:         FetchOperandZeroPageY         (operandInfo);               break;
     case GlobalAddressingMode::ZeroPageXIndirect: FetchOperandZeroPageXIndirect (operandInfo);               break;
     case GlobalAddressingMode::ZeroPageIndirectY: FetchOperandZeroPageIndirectY (operandInfo);               break;
+    case GlobalAddressingMode::ZeroPageIndirect:  FetchOperandZeroPageIndirect  (operandInfo);               break;
+    case GlobalAddressingMode::AbsoluteXIndirect: FetchOperandAbsoluteXIndirect (operandInfo);               break;
+    case GlobalAddressingMode::ZeroPageRelative:  FetchOperandZeroPageRelative  (operandInfo);               break;
+    case GlobalAddressingMode::JumpIndirectCmos:  FetchOperandJumpIndirectCmos  (operandInfo);               break;
 
     default:
         std::printf ("Unhandled addressing mode %d\n", microcode.instruction.asBits.addressingMode);
@@ -660,6 +671,93 @@ void Cpu::FetchOperandJumpIndirect (Cpu::OperandInfo & operandInfo)
     operandInfo.operand          = operandInfo.effectiveAddress;
 }
 
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FetchOperandJumpIndirectCmos
+//
+//  65C02 JMP (indirect). Reads the high byte from the next address, fixing the
+//  NMOS $xxFF page-boundary bug.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Cpu::FetchOperandJumpIndirectCmos (Cpu::OperandInfo & operandInfo)
+{
+    operandInfo.location = ReadWord (PC++);
+
+    Word lo = ReadByte (operandInfo.location);
+    Word hi = ReadByte (static_cast<Word> (operandInfo.location + 1));
+
+    operandInfo.effectiveAddress = lo | (hi << 8);
+    operandInfo.operand          = operandInfo.effectiveAddress;
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FetchOperandZeroPageIndirect
+//
+//  65C02 (zp) mode: the effective address is the 16-bit pointer stored at the
+//  zero-page location, wrapping within zero page.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Cpu::FetchOperandZeroPageIndirect (Cpu::OperandInfo & operandInfo)
+{
+    Byte zpAddr = ReadByte (PC);
+
+    operandInfo.location         = zpAddr;
+    operandInfo.effectiveAddress = ReadByte (zpAddr) | (ReadByte ((zpAddr + 1) & 0xFF) << 8);
+    operandInfo.operand          = ReadByte (operandInfo.effectiveAddress);
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FetchOperandAbsoluteXIndirect
+//
+//  65C02 JMP (abs,X): read the 16-bit vector at (absolute base + X).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Cpu::FetchOperandAbsoluteXIndirect (Cpu::OperandInfo & operandInfo)
+{
+    Word base = ReadWord (PC++);
+    Word ptr  = static_cast<Word> (base + X);
+
+    operandInfo.location         = base;
+    operandInfo.effectiveAddress = ReadByte (ptr) | (ReadByte (static_cast<Word> (ptr + 1)) << 8);
+    operandInfo.operand          = operandInfo.effectiveAddress;
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FetchOperandZeroPageRelative
+//
+//  65C02 BBRx/BBSx: a zero-page byte to test followed by a signed branch
+//  displacement. operand carries the tested byte; effectiveAddress the target.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Cpu::FetchOperandZeroPageRelative (Cpu::OperandInfo & operandInfo)
+{
+    Byte zpAddr = ReadByte (PC++);
+    Byte rel    = ReadByte (PC);
+
+    operandInfo.location         = zpAddr;
+    operandInfo.operand          = ReadByte (zpAddr);
+    operandInfo.effectiveAddress = static_cast<Word> ((PC + 1) + (SByte) rel);
+}
 
 
 
@@ -834,7 +932,21 @@ void Cpu::ExecuteInstruction (Microcode microcode, const OperandInfo & operandIn
     case Microcode::Transfer:             CpuOperations::Transfer             (*this, microcode.pSourceRegister, microcode.pDestinationRegister);    break;
     case Microcode::Xor:                  CpuOperations::Xor                  (*this, (Byte) operandInfo.operand);                                   break;
 
-    default:                          
+    // 65C02 (CMOS) operations.
+    case Microcode::StoreZero:            CpuOperations::StoreZero            (*this, operandInfo.effectiveAddress);                                 break;
+    case Microcode::TestAndSetBits:       CpuOperations::TestAndSetBits       (*this, operandInfo.effectiveAddress);                                 break;
+    case Microcode::TestAndResetBits:     CpuOperations::TestAndResetBits     (*this, operandInfo.effectiveAddress);                                 break;
+    case Microcode::ResetMemoryBit:       CpuOperations::ResetMemoryBit       (*this, microcode.instruction, operandInfo.effectiveAddress);          break;
+    case Microcode::SetMemoryBit:         CpuOperations::SetMemoryBit         (*this, microcode.instruction, operandInfo.effectiveAddress);          break;
+    case Microcode::BitBranchReset:       CpuOperations::BitBranchReset       (*this, microcode.instruction, (Byte) operandInfo.operand, operandInfo.effectiveAddress);  break;
+    case Microcode::BitBranchSet:         CpuOperations::BitBranchSet         (*this, microcode.instruction, (Byte) operandInfo.operand, operandInfo.effectiveAddress);  break;
+    case Microcode::BranchAlways:         CpuOperations::BranchAlways         (*this, operandInfo.operand);                                          break;
+    case Microcode::BitTestImmediate:     CpuOperations::BitTestImmediate     (*this, (Byte) operandInfo.operand);                                   break;
+    case Microcode::AddWithCarryCmos:     CpuOperations::AddWithCarryCmos     (*this, (Byte) operandInfo.operand);                                   break;
+    case Microcode::SubtractWithCarryCmos: CpuOperations::SubtractWithCarryCmos (*this, (Byte) operandInfo.operand);                                break;
+    case Microcode::BreakCmos:            CpuOperations::BreakCmos            (*this);                                                               break;
+
+    default:
         std::printf ("Unimplemented instruction:  %s\n", microcode.instructionName);                                
         ASSERT (false);
         break;

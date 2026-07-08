@@ -2,6 +2,7 @@
 
 #include "CpuFactory.h"
 #include "MemoryBusCpu.h"
+#include "Cpu65C02.h"
 
 // Recognized CPU strategy identifiers.
 static constexpr const char *    s_kpszCpu6502  = "6502";
@@ -32,7 +33,7 @@ HRESULT CpuFactory::Create (const string & cpuType, MemoryBus & bus, unique_ptr<
     }
     else if (cpuType == s_kpszCpu65C02)
     {
-        hr = E_NOTIMPL;
+        outCpu = make_unique<Cpu65C02> (bus);
     }
     else
     {

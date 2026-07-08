@@ -648,3 +648,306 @@ void CpuOperations::Xor (Cpu & cpu, Byte operand)
     cpu.status.flags.zero     = cpu.A == 0;
     cpu.status.flags.negative = (bool) (cpu.A & 0x80);
 }
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  StoreZero
+//
+//  65C02 STZ: store $00 to memory. Affects no flags.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CpuOperations::StoreZero (Cpu & cpu, Word effectiveAddress)
+{
+    cpu.WriteByte (effectiveAddress, 0);
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TestAndSetBits
+//
+//  65C02 TSB: Z from (A & memory), then set the A bits in memory.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CpuOperations::TestAndSetBits (Cpu & cpu, Word effectiveAddress)
+{
+    Byte value = cpu.ReadByte (effectiveAddress);
+
+    cpu.status.flags.zero = (cpu.A & value) == 0;
+
+    cpu.WriteByte (effectiveAddress, static_cast<Byte> (value | cpu.A));
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TestAndResetBits
+//
+//  65C02 TRB: Z from (A & memory), then clear the A bits in memory.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CpuOperations::TestAndResetBits (Cpu & cpu, Word effectiveAddress)
+{
+    Byte value = cpu.ReadByte (effectiveAddress);
+
+    cpu.status.flags.zero = (cpu.A & value) == 0;
+
+    cpu.WriteByte (effectiveAddress, static_cast<Byte> (value & ~cpu.A));
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ResetMemoryBit
+//
+//  65C02 RMBn: clear bit n (from the opcode) of the memory byte. No flags.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CpuOperations::ResetMemoryBit (Cpu & cpu, Instruction instruction, Word effectiveAddress)
+{
+    Byte bit   = (instruction.asByte >> 4) & 0x07;
+    Byte value = cpu.ReadByte (effectiveAddress);
+
+    value &= static_cast<Byte> (~(1 << bit));
+
+    cpu.WriteByte (effectiveAddress, value);
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetMemoryBit
+//
+//  65C02 SMBn: set bit n (from the opcode) of the memory byte. No flags.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CpuOperations::SetMemoryBit (Cpu & cpu, Instruction instruction, Word effectiveAddress)
+{
+    Byte bit   = (instruction.asByte >> 4) & 0x07;
+    Byte value = cpu.ReadByte (effectiveAddress);
+
+    value |= static_cast<Byte> (1 << bit);
+
+    cpu.WriteByte (effectiveAddress, value);
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BitBranchReset
+//
+//  65C02 BBRn: branch to target if bit n of the tested byte is clear.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CpuOperations::BitBranchReset (Cpu & cpu, Instruction instruction, Byte value, Word target)
+{
+    Byte bit = (instruction.asByte >> 4) & 0x07;
+
+    if ((value & (1 << bit)) == 0)
+    {
+        cpu.PC = target;
+    }
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BitBranchSet
+//
+//  65C02 BBSn: branch to target if bit n of the tested byte is set.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CpuOperations::BitBranchSet (Cpu & cpu, Instruction instruction, Byte value, Word target)
+{
+    Byte bit = (instruction.asByte >> 4) & 0x07;
+
+    if ((value & (1 << bit)) != 0)
+    {
+        cpu.PC = target;
+    }
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BranchAlways
+//
+//  65C02 BRA: unconditional relative branch.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CpuOperations::BranchAlways (Cpu & cpu, Word target)
+{
+    cpu.PC = target;
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BitTestImmediate
+//
+//  65C02 BIT #imm: affects only the Z flag (N and V are left unchanged, unlike
+//  the memory forms of BIT).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CpuOperations::BitTestImmediate (Cpu & cpu, Byte operand)
+{
+    cpu.status.flags.zero = (cpu.A & operand) == 0;
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AddWithCarryCmos
+//
+//  65C02 ADC. Binary mode matches NMOS. Decimal mode sets N/Z from the final
+//  BCD result (valid, unlike NMOS) and costs one extra cycle.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CpuOperations::AddWithCarryCmos (Cpu & cpu, Byte operand)
+{
+    Byte carryIn   = cpu.status.flags.carry;
+    Byte originalA = cpu.A;
+    Word sum       = cpu.A + operand + carryIn;
+
+    if (cpu.status.flags.decimal)
+    {
+        Word lo = (originalA & 0x0F) + (operand & 0x0F) + carryIn;
+
+        if (lo > 0x09)
+        {
+            lo += 0x06;
+        }
+
+        Word hi = (originalA & 0xF0) + (operand & 0xF0) + (lo > 0x0F ? 0x10 : 0x00);
+
+        // V is from the pre-correction intermediate, as on NMOS.
+        cpu.status.flags.overflow = ((~(originalA ^ operand)) & (originalA ^ hi) & 0x80) != 0;
+
+        if (hi > 0x90)
+        {
+            hi += 0x60;
+        }
+
+        cpu.A                     = (Byte) ((hi & 0xF0) | (lo & 0x0F));
+        cpu.status.flags.carry    = hi > 0xFF;
+        cpu.status.flags.zero     = cpu.A == 0;
+        cpu.status.flags.negative = (bool) (cpu.A & 0x80);
+
+        ++cpu.m_lastCycles;
+    }
+    else
+    {
+        cpu.A                     = (Byte) sum;
+        cpu.status.flags.carry    = sum > 0xFF;
+        cpu.status.flags.zero     = cpu.A == 0;
+        cpu.status.flags.negative = (bool) (cpu.A & 0x80);
+        cpu.status.flags.overflow = ((~(originalA ^ operand)) & (originalA ^ cpu.A) & 0x80) != 0;
+    }
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SubtractWithCarryCmos
+//
+//  65C02 SBC. C and V are from the binary subtraction (as on NMOS); N and Z
+//  reflect the final BCD result in decimal mode, which costs one extra cycle.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CpuOperations::SubtractWithCarryCmos (Cpu & cpu, Byte operand)
+{
+    Byte borrowIn   = !cpu.status.flags.carry;
+    Word difference = cpu.A - operand - borrowIn;
+
+    cpu.status.flags.overflow =
+        ((cpu.A ^ difference) & 0x80) &&
+        ((cpu.A ^ operand) & 0x80);
+    cpu.status.flags.carry = !(difference & 0x8000);
+
+    if (cpu.status.flags.decimal)
+    {
+        Byte originalA = cpu.A;
+        int  lo        = (int) (originalA & 0x0F) - (int) (operand & 0x0F) - (int) borrowIn;
+
+        if (lo < 0)
+        {
+            lo = ((lo - 0x06) & 0x0F) - 0x10;
+        }
+
+        int hi = (int) (originalA & 0xF0) - (int) (operand & 0xF0) + lo;
+
+        if (hi < 0)
+        {
+            hi -= 0x60;
+        }
+
+        cpu.A                     = (Byte) (hi & 0xFF);
+        cpu.status.flags.zero     = cpu.A == 0;
+        cpu.status.flags.negative = (bool) (cpu.A & 0x80);
+
+        ++cpu.m_lastCycles;
+    }
+    else
+    {
+        cpu.A                     = (Byte) difference;
+        cpu.status.flags.zero     = (Byte) difference == 0;
+        cpu.status.flags.negative = (bool) (difference & 0x80);
+    }
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BreakCmos
+//
+//  65C02 BRK: as NMOS, but clears the decimal flag on entry to the handler.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CpuOperations::BreakCmos (Cpu & cpu)
+{
+    cpu.status.flags.brk = 1;
+
+    cpu.PushWord (cpu.PC + 1);
+    cpu.PushByte (cpu.status.status);
+
+    cpu.status.flags.interruptDisable = 1;
+    cpu.status.flags.decimal          = 0;
+    cpu.PC                            = cpu.ReadWord (cpu.irqVector);
+}
