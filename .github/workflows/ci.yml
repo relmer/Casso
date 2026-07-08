@@ -34,6 +34,18 @@ jobs:
       - name: Run Tests
         run: vstest.console.exe ${{ matrix.platform }}/${{ matrix.configuration }}/UnitTest.dll
 
+      # Hand the Release x64 binaries to the release job so it doesn't rebuild
+      # them. Only on master pushes (the only place the release job runs).
+      - name: Upload Release x64 binaries
+        if: matrix.configuration == 'Release' && github.ref == 'refs/heads/master'
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-x64
+          path: |
+            x64/Release/Casso.exe
+            x64/Release/CassoCli.exe
+          retention-days: 1
+
   build-arm64:
     runs-on: windows-latest
     timeout-minutes: 30
@@ -51,11 +63,24 @@ jobs:
       - name: Build ARM64
         run: msbuild Casso.sln -p:Configuration=${{ matrix.configuration }} -p:Platform=ARM64 -p:PreBuildEventUseInBuild=false -p:PostBuildEventUseInBuild=false -p:EnableCppCoreCheck=true -p:RunCodeAnalysis=true -p:CodeAnalysisTreatWarningsAsErrors=true
 
+      # Hand the Release ARM64 binaries to the release job so it doesn't rebuild
+      # them. Only on master pushes (the only place the release job runs).
+      - name: Upload Release ARM64 binaries
+        if: matrix.configuration == 'Release' && github.ref == 'refs/heads/master'
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-arm64
+          path: |
+            ARM64/Release/Casso.exe
+            ARM64/Release/CassoCli.exe
+          retention-days: 1
+
   release:
     # Auto-publish a GitHub release for every passing master push. The release
     # version is read from CassoCore/Version.h; if a tag for that version
     # already exists, this job no-ops (so a re-push without a Version.h bump
-    # doesn't overwrite the previous release).
+    # doesn't overwrite the previous release). The Release x64/ARM64 binaries
+    # are reused from the build jobs (download-artifact), not rebuilt here.
     needs: [build-and-test, build-arm64]
     if: github.event_name == 'push' && github.ref == 'refs/heads/master'
     runs-on: windows-latest
@@ -127,17 +152,21 @@ jobs:
           # step's exit code if we don't explicitly clear it.
           $global:LASTEXITCODE = 0
 
-      - name: Add MSBuild to PATH
+      # Reuse the Release binaries the build-and-test / build-arm64 jobs already
+      # produced instead of rebuilding them here (saved ~7 min per release).
+      - name: Download Release x64 binaries
         if: steps.check.outputs.exists != 'true'
-        uses: microsoft/setup-msbuild@v3
+        uses: actions/download-artifact@v4
+        with:
+          name: release-x64
+          path: x64/Release
 
-      - name: Build Release x64
+      - name: Download Release ARM64 binaries
         if: steps.check.outputs.exists != 'true'
-        run: msbuild Casso.sln -p:Configuration=Release -p:Platform=x64 -p:PreBuildEventUseInBuild=false -p:PostBuildEventUseInBuild=false
-
-      - name: Build Release ARM64
-        if: steps.check.outputs.exists != 'true'
-        run: msbuild Casso.sln -p:Configuration=Release -p:Platform=ARM64 -p:PreBuildEventUseInBuild=false -p:PostBuildEventUseInBuild=false
+        uses: actions/download-artifact@v4
+        with:
+          name: release-arm64
+          path: ARM64/Release
 
       - name: Package release zips
         if: steps.check.outputs.exists != 'true'
