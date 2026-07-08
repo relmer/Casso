@@ -116,7 +116,50 @@ void Cpu65C02::InitializeCmos ()
     InitializeArithmetic ();
     ReclaimUndocumented ();
     InitializeCmosLeftovers ();
+    // NOTE (spec 016): InstallBitOps() is deliberately NOT called yet. The
+    // Apple //c ROM 4 firmware DOES use the Rockwell RMB/SMB/BBR/BBS bit
+    // instructions (proven: without them the //c reset derails at $D010's
+    // BBS0 into RAM), so activating this is a hard requirement for a bootable
+    // //c. But doing so reverses the base-tier "decode as NOP" decision and
+    // changes the conformance-corpus strategy (Harte synertek65c02 ->
+    // rockwell65c02; RockwellBitOpcodesAreNopOnBaseTier must flip). Left
+    // parked for that decision -- one call away from active.
     InitializeNops ();
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  InstallBitOps
+//
+//  The Rockwell/WDC bit instructions RMBn/SMBn (zero-page read-modify-write)
+//  and BBRn/BBSn (zero-page-bit test + relative branch). Apple's //c ROM 4
+//  firmware uses them, so they are part of the tier Casso models. The bit
+//  number is encoded in the opcode ((opcode >> 4) & 7); the operations read it
+//  back from the microcode instruction byte. Installed before InitializeNops
+//  so the illegal-slot NOP fill leaves them alone.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Cpu65C02::InstallBitOps ()
+{
+    static constexpr Byte    s_kBitOpCycles       = 5;
+    static constexpr Byte    s_kBitBranchCycles   = 5;
+
+    for (int n = 0; n < 8; ++n)
+    {
+        Byte    rmb = static_cast<Byte> (0x07 + n * 0x10);   // $07,$17,..,$77
+        Byte    smb = static_cast<Byte> (0x87 + n * 0x10);   // $87,$97,..,$F7
+        Byte    bbr = static_cast<Byte> (0x0F + n * 0x10);   // $0F,$1F,..,$7F
+        Byte    bbs = static_cast<Byte> (0x8F + n * 0x10);   // $8F,$9F,..,$FF
+
+        SetOpcode (rmb, "RMB", Microcode::ResetMemoryBit, GlobalAddressingMode::ZeroPage,         nullptr, nullptr, s_kBitOpCycles);
+        SetOpcode (smb, "SMB", Microcode::SetMemoryBit,   GlobalAddressingMode::ZeroPage,         nullptr, nullptr, s_kBitOpCycles);
+        SetOpcode (bbr, "BBR", Microcode::BitBranchReset, GlobalAddressingMode::ZeroPageRelative, nullptr, nullptr, s_kBitBranchCycles);
+        SetOpcode (bbs, "BBS", Microcode::BitBranchSet,   GlobalAddressingMode::ZeroPageRelative, nullptr, nullptr, s_kBitBranchCycles);
+    }
 }
 
 

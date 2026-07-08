@@ -41,6 +41,7 @@ private:
     void        InitializeArithmetic    ();
     void        ReclaimUndocumented     ();
     void        InitializeCmosLeftovers ();
+    void        InstallBitOps           ();
     void        InitializeNops          ();
 
     void        SetOpcode (Byte                                  opcode,

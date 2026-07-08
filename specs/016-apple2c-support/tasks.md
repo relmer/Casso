@@ -90,8 +90,24 @@
 ### Implementation
 
 - [X] T020 [US2] Add the //c ROM 4 asset to `AssetBootstrap` (`Casso/AssetBootstrap.cpp`): catalog entry, "Apple //c" display name, picker entry. *(AppleWin has no //c ROM — sourced the 32K ROM 4 / 341-0445-B (32768 bytes) from the apple2.org.za mirror; extended `RomSpec` with an optional alternate host/urlPath/label. Size-checked, download-on-demand, not committed.)*
-- [X] T021 [US2] Implement the 32K bank-switched ROM mapping. *(`Apple2cRomBank` + `IRomBankSwitch` hook in the //e soft-switch bank: `$C028` toggles the two 16K banks across `$C100-$FFFF` (LC `$D000-$FFFF` + `CxxxRomRouter` `$C100-$CFFF`); `/RESET` -> bank 0. Headless harness (`BuildApple2c`) **cold-boots the real ROM 4 to the Applesoft `]` prompt**. Production `MachineManager` banked path wired too: `CreateMemoryDevices` adds bank 0 as a flat device (normal LC/Cxxx split), then `WireApple2cRomBank` layers the coordinator + `$C028` hook; `EmulatorShell` owns it and tears it down before the LC/MMU.)*
-- [X] T022 [US2] Create `Resources/Machines/Apple2c/Apple2c.json`: `cpu: 65C02`, 128K, //e substrate. *(JSON + banked systemRom schema (`romBankSize`/`romBankSelect`) + parse tests. Embedded as `IDR_MACHINE_APPLE2C` (resource.h / Casso.rc / `s_kEmbeddedConfigs`); `EnsureMachineConfigs` writes it to disk and `MachineScanner::Scan` surfaces "Apple //c" in the picker. **Pending user GUI smoke-test**: select //c in the app, download ROMs, confirm boot.)*
+- [X] T021 [US2] Implement the 32K bank-switched ROM mapping. *(`Apple2cRomBank` + `IRomBankSwitch` hook in the //e soft-switch bank: `$C028` toggles the two 16K banks across `$C100-$FFFF` (LC `$D000-$FFFF` + `CxxxRomRouter` `$C100-$CFFF`); `/RESET` -> bank 0. Verified: 65C02 resets to the monitor entry `$FA62` with the ROM correctly mapped through the LC (`BuildsAndResetsToMonitorEntry`). Production `MachineManager` path wired: `CreateMemoryDevices` adds bank 0 as a flat device (normal LC/Cxxx split), then `WireApple2cRomBank` layers the coordinator + `$C028` hook; `EmulatorShell` owns it and tears it down before the LC/MMU. ROM-free banking unit tests pass.)*
+- [X] T022 [US2] Create `Resources/Machines/Apple2c/Apple2c.json`: `cpu: 65C02`, 128K, //e substrate. *(JSON + banked systemRom schema (`romBankSize`/`romBankSelect`) + parse tests. Embedded as `IDR_MACHINE_APPLE2C`; `EnsureMachineConfigs` writes it to disk and `MachineScanner::Scan` surfaces "Apple //c" in the picker; selecting it pulls the ROMs via the catalog.)*
+
+> **⚠️ US2 is NOT complete — the //c does not yet cold-boot to BASIC.** An
+> earlier boot test was a false positive (it matched a stray `]` in random
+> RAM). Bring-up with the real ROM 4 found **three blockers**, in order:
+> 1. **Rockwell bit ops (RMB/SMB/BBR/BBS)** — ROM 4 runs `BBS0` at `$D010`;
+>    without them the reset derails into RAM. `Cpu65C02::InstallBitOps()` is
+>    written + proven but **parked** (not called): activating it reverses the
+>    base-tier "decode as NOP" decision and forces the Harte corpus from
+>    `synertek65c02` -> `rockwell65c02` (+ flips `RockwellBitOpcodesAreNopOnBaseTier`).
+>    **Needs a decision.**
+> 2. **//c `$C800-$CFFF` routing** — with bit ops on, the firmware jumps into
+>    the `$C800` expansion window, which the //e `CxxxRomRouter` leaves as
+>    floating `$FF` until `INTC8ROM` latches. The //c has no slots, so that
+>    window must *always* read the internal firmware (a //c router mode).
+> 3. **Built-in peripherals** — serial 6551 ACIA (T024) + IWM disk the reset
+>    firmware probes. Depth TBD once (1)+(2) land.
 - [ ] T023 [US2] Wire the //c firmware slices into `CxxxRomRouter::SetSlotRom` (slots 1/2/3/4/6); ROM-4 SmartPort + mem-expansion firmware present but peripherals report absent (FR-006a).
 - [ ] T024 [US3] Wire the two `Acia6551` instances (Phase 2) into the //c serial ports (slots 1 + 2) in `Apple2c.json` + the //c serial firmware, with **loopback/file** endpoints. *(US3's //c-specific integration.)*
 
