@@ -3,7 +3,7 @@
 // To customize, copy it to Machines/<Name>/<Name>.json (any name
 // other than the three embedded defaults) and edit that copy.
 {
-    "$cassoMachineVersion": 7,
+    "$cassoMachineVersion": 8,
     "name": "Apple ][",
     "releaseYear": 1977,
     "cpu": "6502",
@@ -30,6 +30,7 @@
         { "type": "apple2-gameport" }
     ],
     "slots": [
+        { "slot": 1, "device": "parallel-printer", "capabilityFlag": "optional" },
         { "slot": 6, "device": "disk-ii", "rom": "Disk2.rom" }
     ],
     "video": {

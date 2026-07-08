@@ -175,8 +175,8 @@ struct EmbeddedConfig
 
 static constexpr EmbeddedConfig s_kEmbeddedConfigs[] =
 {
-    { IDR_MACHINE_APPLE2,     "Apple2",     "Apple2.json",     6 },
-    { IDR_MACHINE_APPLE2PLUS, "Apple2Plus", "Apple2Plus.json", 6 },
+    { IDR_MACHINE_APPLE2,     "Apple2",     "Apple2.json",     8 },
+    { IDR_MACHINE_APPLE2PLUS, "Apple2Plus", "Apple2Plus.json", 8 },
     { IDR_MACHINE_APPLE2E,    "Apple2e",    "Apple2e.json",    7 },
 };
 
@@ -249,6 +249,14 @@ static const MachineConfigPriorHash s_kPriorDefaultHashes[] =
 
     // v6 Apple2e.json (before adding the slot-1 parallel printer card).
     { "Apple2e",    "8593a47d87db9090ce001e439fea318854bdc6b255fa328f8ac2dabee1eb9f63" },
+
+    // v8 ][ / ][+ add the slot-1 parallel printer card (matching //e). No
+    // prior-hash entry is needed for the v7->v8 bump: both machines' on-disk
+    // defaults are stamped ($cassoMachineVersion), so Plan refreshes them by
+    // version comparison (diskVersion < embeddedVersion -> OverwriteSilent).
+    // Prior-hash matching only applies to the unstamped v1-era extracts above.
+    // (v7 tables mistakenly stayed at 6, so pre-v8 users -- v6 and v7 alike --
+    // are all < 8 and refresh cleanly.)
 };
 
 
