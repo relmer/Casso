@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Devices/Printer/PrinterCard.h"
+#include "Core/MachineConfig.h"
 
 
 
@@ -20,6 +21,27 @@ PrinterCard::PrinterCard (int slot)
     m_slot    = slot;
     m_ioStart = (Word) (kSlotIoBase + slot * kSlotIoStride);
     m_ioEnd   = (Word) (m_ioStart + kSlotIoSize - 1);
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Create
+//
+//  ComponentRegistry factory. The parallel printer defaults to slot 1 (Apple
+//  II convention) when the config does not pin a slot.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+unique_ptr<MemoryDevice> PrinterCard::Create (const DeviceConfig & config, MemoryBus & bus)
+{
+    int   slot = config.hasSlot ? config.slot : 1;
+
+    (void) bus;
+
+    return make_unique<PrinterCard> (slot);
 }
 
 

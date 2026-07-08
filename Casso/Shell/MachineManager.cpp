@@ -22,6 +22,7 @@
 #include "Devices/Disk2Controller.h"
 #include "Devices/LanguageCard.h"
 #include "Devices/Apple2eMmu.h"
+#include "Devices/Printer/ParallelFirmware.h"
 #include "Video/AppleTextMode.h"
 #include "Video/Apple80ColTextMode.h"
 #include "Video/AppleLoResMode.h"
@@ -314,6 +315,17 @@ HRESULT MachineManager::CreateMemoryDevices (const MachineConfig & config)
                 m_shell.m_memoryBus.AddDevice (device.get());
                 m_shell.m_ownedDevices.push_back (std::move (device));
             }
+        }
+
+        // The parallel printer card ships embedded firmware (no rom file), so
+        // its slot ROM is installed here from the checked-in byte array rather
+        // than loaded from disk. SetSlotRom pads the page.
+        if (slot.device == "parallel-printer" && m_shell.m_mmu != nullptr)
+        {
+            std::vector<Byte>  firmware (s_kParallelFirmwareBytes,
+                                         s_kParallelFirmwareBytes + sizeof (s_kParallelFirmwareBytes));
+
+            m_shell.m_mmu->AttachSlotRom (slot.slot, std::move (firmware));
         }
 
         // Slot ROM at $Cs00-$CsFF

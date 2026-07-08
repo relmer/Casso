@@ -1,6 +1,9 @@
 #include "Pch.h"
 
 #include "Devices/Printer/PrinterCard.h"
+#include "Core/ComponentRegistry.h"
+#include "Core/MachineConfig.h"
+#include "Core/MemoryBus.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -124,6 +127,36 @@ namespace PrinterCardTests
 
             card.Reset();
             Assert::IsFalse (card.EverTouched());
+        }
+
+
+        TEST_METHOD (RegisteredAsParallelPrinter)
+        {
+            ComponentRegistry   registry;
+
+            ComponentRegistry::RegisterBuiltinDevices (registry);
+
+            Assert::IsTrue (registry.IsRegistered ("parallel-printer"));
+        }
+
+
+        TEST_METHOD (FactoryBuildsCardForConfiguredSlot)
+        {
+            ComponentRegistry   registry;
+            MemoryBus           bus;
+            DeviceConfig        cfg;
+
+            ComponentRegistry::RegisterBuiltinDevices (registry);
+
+            cfg.type    = "parallel-printer";
+            cfg.slot    = 2;
+            cfg.hasSlot = true;
+
+            unique_ptr<MemoryDevice>   device = registry.Create (cfg.type, cfg, bus);
+
+            Assert::IsNotNull (device.get());
+            Assert::AreEqual ((Word) 0xC0A0, device->GetStart());
+            Assert::AreEqual ((Word) 0xC0AF, device->GetEnd());
         }
     };
 }

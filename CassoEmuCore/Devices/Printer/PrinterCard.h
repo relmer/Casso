@@ -5,6 +5,10 @@
 #include "Core/MemoryDevice.h"
 #include "Devices/Printer/PrinterByteRing.h"
 
+struct DeviceConfig;
+
+class MemoryBus;
+
 
 
 
@@ -48,6 +52,8 @@ public:
     static constexpr uint32_t   kReadyHighWater = 256;
 
     explicit PrinterCard (int slot);
+
+    static unique_ptr<MemoryDevice> Create (const DeviceConfig & config, MemoryBus & bus);
 
     Byte Read (Word address) override;
     void Write (Word address, Byte value) override;
