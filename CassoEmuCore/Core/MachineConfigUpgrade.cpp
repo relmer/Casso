@@ -202,6 +202,10 @@ namespace
     constexpr const char *  s_kpszSlotsKey           = "slots";
     constexpr const char *  s_kpszInternalDefault    = "required";
     constexpr const char *  s_kpszSlotDefault        = "optional";
+    constexpr const char *  s_kpszSlotNumberKey      = "slot";
+    constexpr const char *  s_kpszDeviceKey          = "device";
+    constexpr const char *  s_kpszPrinterDevice      = "parallel-printer";
+    constexpr int           s_kPrinterDefaultSlot    = 1;
 
 
     int  FindKey (
@@ -275,6 +279,54 @@ namespace
             arr = JsonValue (std::move (rebuiltArr));
         }
         return fChanged;
+    }
+
+
+    // Add a default slot-1 parallel-printer entry to `arr` when slot 1 has
+    // no entry at all. An existing slot-1 entry -- even a disabled one -- is
+    // left untouched, so a slot the user turned off is never resurrected
+    // (FR-001). Returns true if an entry was appended.
+    bool  InjectPrinterSlot (JsonValue & arr)
+    {
+        vector<JsonValue>  rebuilt;
+        size_t             i        = 0;
+
+        if (arr.GetType() != JsonType::Array)
+        {
+            return false;
+        }
+
+        for (i = 0; i < arr.ArraySize(); ++i)
+        {
+            const JsonValue & elem = arr.ArrayAt (i);
+            int               slot = 0;
+
+            if (elem.GetType() == JsonType::Object &&
+                SUCCEEDED (elem.GetInt (s_kpszSlotNumberKey, slot)) &&
+                slot == s_kPrinterDefaultSlot)
+            {
+                return false;
+            }
+        }
+
+        rebuilt.reserve (arr.ArraySize() + 1);
+
+        for (i = 0; i < arr.ArraySize(); ++i)
+        {
+            rebuilt.push_back (arr.ArrayAt (i));
+        }
+
+        {
+            vector<pair<string, JsonValue>>  entry;
+
+            entry.emplace_back (s_kpszSlotNumberKey,     JsonValue ((double) s_kPrinterDefaultSlot));
+            entry.emplace_back (s_kpszDeviceKey,         JsonValue (string (s_kpszPrinterDevice)));
+            entry.emplace_back (s_kpszCapabilityFlagKey, JsonValue (string (s_kpszSlotDefault)));
+            rebuilt.emplace_back (JsonValue (std::move (entry)));
+        }
+
+        arr = JsonValue (std::move (rebuilt));
+        return true;
     }
 
 
@@ -383,6 +435,11 @@ HRESULT MachineConfigUpgrade::MigrateUserConfig (
         {
             if (InjectCapabilityFlag (rebuilt[(size_t) idxSlots].second,
                                       s_kpszSlotDefault))
+            {
+                fChanged = true;
+            }
+
+            if (InjectPrinterSlot (rebuilt[(size_t) idxSlots].second))
             {
                 fChanged = true;
             }

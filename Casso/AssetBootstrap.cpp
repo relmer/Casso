@@ -177,7 +177,7 @@ static constexpr EmbeddedConfig s_kEmbeddedConfigs[] =
 {
     { IDR_MACHINE_APPLE2,     "Apple2",     "Apple2.json",     6 },
     { IDR_MACHINE_APPLE2PLUS, "Apple2Plus", "Apple2Plus.json", 6 },
-    { IDR_MACHINE_APPLE2E,    "Apple2e",    "Apple2e.json",    6 },
+    { IDR_MACHINE_APPLE2E,    "Apple2e",    "Apple2e.json",    7 },
 };
 
 
@@ -246,6 +246,9 @@ static const MachineConfigPriorHash s_kPriorDefaultHashes[] =
 
     // v6 Apple2Plus.json (before adding apple2-gameport device).
     { "Apple2Plus", "a8796968d56185daf6a03bdebebdecc776dfc004003447a78f0bcc5dafaac3e1" },
+
+    // v6 Apple2e.json (before adding the slot-1 parallel printer card).
+    { "Apple2e",    "8593a47d87db9090ce001e439fea318854bdc6b255fa328f8ac2dabee1eb9f63" },
 };
 
 

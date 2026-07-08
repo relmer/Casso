@@ -461,6 +461,57 @@ public:
     }
 
 
+    TEST_METHOD (MigrateUserConfig_AddsParallelPrinterWhenSlot1Free)
+    {
+        string   input    = "{ \"$cassoMachineVersion\": 7,"
+                            "  \"slots\": ["
+                            "    { \"slot\": 6, \"device\": \"disk-ii\", \"capabilityFlag\": \"optional\" }"
+                            "  ] }";
+        string   migrated;
+        HRESULT  hr       = MachineConfigUpgrade::MigrateUserConfig (input, migrated);
+
+        Assert::IsTrue (hr == S_OK,
+            L"A config with slot 1 free must gain the parallel printer.");
+        Assert::IsTrue (migrated.find ("\"parallel-printer\"") != string::npos,
+            L"The injected slot-1 device must be the parallel printer.");
+    }
+
+
+    TEST_METHOD (MigrateUserConfig_LeavesOccupiedSlot1Alone)
+    {
+        string   input    = "{ \"$cassoMachineVersion\": 7,"
+                            "  \"slots\": ["
+                            "    { \"slot\": 1, \"device\": \"disk-ii\", \"capabilityFlag\": \"optional\" }"
+                            "  ] }";
+        string   migrated;
+        HRESULT  hr       = MachineConfigUpgrade::MigrateUserConfig (input, migrated);
+
+        Assert::IsTrue (hr == S_FALSE,
+            L"An occupied slot 1 with a canonical schema needs no change.");
+        Assert::IsTrue (migrated.find ("\"parallel-printer\"") == string::npos,
+            L"Slot 1 already occupied -- must not inject a printer.");
+    }
+
+
+    TEST_METHOD (MigrateUserConfig_NeverResurrectsDisabledPrinter)
+    {
+        string   input    = "{ \"$cassoMachineVersion\": 7,"
+                            "  \"slots\": ["
+                            "    { \"slot\": 1, \"device\": \"parallel-printer\", \"capabilityFlag\": \"optional\", \"enabled\": false }"
+                            "  ] }";
+        string   migrated;
+        HRESULT  hr       = MachineConfigUpgrade::MigrateUserConfig (input, migrated);
+        size_t   first    = migrated.find ("\"parallel-printer\"");
+        size_t   second   = (first == string::npos) ? string::npos
+                                                     : migrated.find ("\"parallel-printer\"", first + 1);
+
+        Assert::IsTrue (hr == S_FALSE,
+            L"A fully-populated slot-1 printer entry needs no change.");
+        Assert::IsTrue (second == string::npos,
+            L"A disabled slot-1 printer must not be duplicated or re-enabled.");
+    }
+
+
     TEST_METHOD (MigrateUserConfig_BothKeysAndMissingFlags_AppliesAllChanges)
     {
         string   input    = "{ \"$cassoMachineVersion\": 3,"
