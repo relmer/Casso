@@ -40,6 +40,13 @@ struct RomReference
     string  file;
     string  resolvedPath;
     size_t  fileSize     = 0;  // Populated after resolution
+
+    // Bank-switched system ROM (Apple //c): the file holds N banks of
+    // romBankSize bytes, each mapped at `address`; a write to the
+    // romBankSelect soft switch toggles the visible bank. Zero when the ROM
+    // is a single flat image (the //e and earlier).
+    Word    romBankSize   = 0;
+    Word    romBankSelect = 0;
 };
 
 

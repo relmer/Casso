@@ -99,6 +99,9 @@ static constexpr RomSpec s_kRomCatalog[] =
       "mirrors.apple2.org.za",
       "/Apple%20II%20Documentation%20Project/Computers/Apple%20II/Apple%20IIc/ROM%20Images/Apple%20IIc%20ROM%2004%20-%20341-0445-B.bin",
       "apple2.org.za" },
+    // The //c character generator is the enhanced (MouseText) 341-0265, the
+    // same part AppleWin ships as Apple2e_Enhanced_Video.rom -- reuse it.
+    { "Apple2c",          "Apple2c_Video.rom",     "Apple2e_Enhanced_Video.rom", "Machines/Apple2c",           4096, "Apple //c Character Generator + MouseText" },
     { "",                 "Disk2.rom",             "DISK2.rom",                  "Devices/DiskII",              256, "Disk ][ Boot ROM (slot 6)"                 },
     { "",                 "Disk2_13Sector.rom",    "DISK2-13sector.rom",         "Devices/DiskII",              256, "Disk ][ Boot ROM (13-sector)"              },
 };

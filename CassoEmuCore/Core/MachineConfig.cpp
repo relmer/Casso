@@ -347,10 +347,46 @@ HRESULT MachineConfigLoader::LoadSystemRom (
                          outError);
     CHR (hr);
 
-    // Validate ROM fits in 64K starting at address
-    CBRF (static_cast<uint32_t> (outConfig.systemRom.address) + outConfig.systemRom.fileSize <= kRamMaxSize,
-          outError = format ("systemRom: address ${:04X} + size ${:X} exceeds 64K",
-                             outConfig.systemRom.address, outConfig.systemRom.fileSize));
+    // Optional bank-switched ROM (Apple //c): romBankSize + romBankSelect.
+    // Absent -> flat single-image ROM (the //e and earlier).
+    {
+        string  bankSizeStr;
+        string  bankSelectStr;
+
+        if (SUCCEEDED (sysRomObj.GetString ("romBankSize", bankSizeStr)))
+        {
+            hr = ParseHexAddress (bankSizeStr, outConfig.systemRom.romBankSize, outError);
+            CHR (hr);
+
+            hr = sysRomObj.GetString ("romBankSelect", bankSelectStr);
+            CHRF (hr, outError = "systemRom.romBankSize requires 'romBankSelect'");
+
+            hr = ParseHexAddress (bankSelectStr, outConfig.systemRom.romBankSelect, outError);
+            CHR (hr);
+        }
+    }
+
+    if (outConfig.systemRom.romBankSize != 0)
+    {
+        // Banked: every bank is mapped at `address`, so each bank (not the
+        // whole file) must fit in 64K, and the file must be a whole number
+        // of banks.
+        CBRF (static_cast<uint32_t> (outConfig.systemRom.address) + outConfig.systemRom.romBankSize <= kRamMaxSize,
+              outError = format ("systemRom: address ${:04X} + bank size ${:X} exceeds 64K",
+                                 outConfig.systemRom.address, outConfig.systemRom.romBankSize));
+
+        CBRF (outConfig.systemRom.fileSize != 0 &&
+              (outConfig.systemRom.fileSize % outConfig.systemRom.romBankSize) == 0,
+              outError = format ("systemRom: file size ${:X} is not a whole number of ${:X}-byte banks",
+                                 outConfig.systemRom.fileSize, outConfig.systemRom.romBankSize));
+    }
+    else
+    {
+        // Validate flat ROM fits in 64K starting at address
+        CBRF (static_cast<uint32_t> (outConfig.systemRom.address) + outConfig.systemRom.fileSize <= kRamMaxSize,
+              outError = format ("systemRom: address ${:04X} + size ${:X} exceeds 64K",
+                                 outConfig.systemRom.address, outConfig.systemRom.fileSize));
+    }
 
 Error:
     return hr;
