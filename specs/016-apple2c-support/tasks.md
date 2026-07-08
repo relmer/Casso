@@ -80,12 +80,13 @@
 
 **Goal**: Select **Apple //c** and cold-boot to monitor/BASIC; peripherals at phantom-slot addresses; the two serial ports (Phase 2 ACIA) wired in.
 
-**Independent Test**: Pick Apple //c → reaches `]`/monitor; probe finds peripherals at $C1xx/$C2xx/$C3xx/$C4xx/$C6xx; serial ports respond.
+**Independent Test**: Pick Apple //c → reaches `]`/monitor; probe finds peripherals at $C1xx/$C2xx/$C3xx/$C4xx/$C6xx; serial ports respond; printing to serial port 1 drives the ImageWriter pipeline.
 
 ### Tests (expect FAIL)
 
 - [ ] T018 [P] [US2] `UnitTest/EmuTests/Apple2cBootTests.cpp`: //c cold-boots to monitor/Applesoft (ROM signature, 128K).
 - [ ] T019 [P] [US2] `Apple2cBootTests.cpp`: built-in peripherals answer at phantom-slot addresses; no user-insertable slots.
+- [ ] T019a [P] [US3] `UnitTest/EmuTests/AciaPrinterEndpointTests.cpp`: feed the Print Shop Color reference capture (`printshop-color-testpage.bin`, from spec 015) through `AciaPrinterEndpoint`; assert the bytes land in the shared printer ring / produce the expected `ImageWriterInterpreter` events. Mocked, no real serial (Test Isolation).
 
 ### Implementation
 
@@ -94,9 +95,15 @@
 - [ ] T022 [US2] Create `Resources/Machines/Apple2c/Apple2c.json`: `cpu: 65C02`, 128K, //e substrate components, phantom-slot firmware map.
 - [ ] T023 [US2] Wire the //c firmware slices into `CxxxRomRouter::SetSlotRom` (slots 1/2/3/4/6); ROM-4 SmartPort + mem-expansion firmware present but peripherals report absent (FR-006a).
 - [ ] T024 [US3] Wire the two `Acia6551` instances (Phase 2) into the //c serial ports (slots 1 + 2) in `Apple2c.json` + the //c serial firmware. *(US3's //c-specific integration.)*
+
+**Serial printer front door** — the //c has no parallel card, so its printer rides serial port 1 into spec 015's finished, card-agnostic pipeline (behind `PrinterByteRing`). Full brief: `serial-printer-integration.md`. **Depends on spec 015 merged to `master`** (provides the printer pipeline + reference capture).
+
+- [ ] T024a [US3] Hoist `PrinterByteRing` (+ its `PrinterJob`) out of `PrinterCard` into a machine-level `PrinterSink` owned at the `EmulatorShell`/machine level; `PrinterCard` (//e) and the //c serial endpoint both target the shared ring; `PrinterWorker` drains the sink. Mechanical hoist — **no pipeline logic change**. Regression: the //e parallel Print Shop path is unaffected.
+- [ ] T024b [US3] Add `AciaPrinterEndpoint` (`CassoEmuCore/Devices/Printer/` or alongside the other endpoints): an `IAciaEndpoint` whose TX path pushes each byte into the `PrinterSink` ring; RX = "printer ready" stub (confirm against Print Shop's serial driver if it stalls). Make T019a pass.
+- [ ] T024c [US3] Bind //c **serial port 1** → `AciaPrinterEndpoint` in `Apple2c.json` (port 2 stays comms/loopback); no parallel-printer slot row on the //c.
 - [ ] T025 [US2] Make boot + phantom-slot tests pass; assert //c machine selection persists + restores like any other machine (FR-016).
 
-**Checkpoint**: **Apple //c boots** with working serial ports. SC-002.
+**Checkpoint**: **Apple //c boots** with working serial ports; serial port 1 prints via the ImageWriter pipeline. SC-002. Full end-to-end Print Shop validation on the //c is covered by T039 (SC-003).
 
 ---
 
