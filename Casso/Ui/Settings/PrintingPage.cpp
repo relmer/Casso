@@ -110,16 +110,32 @@ void PrintingPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
     int  sectionGap = scaler.Px (s_kSectionGapDp);
     int  browseW    = scaler.Px (s_kBrowseWidthDp);
     int  gap        = scaler.Px (s_kGapDp);
-    int  x          = rect.left + pad;
-    int  y          = rect.top  + pad;
-    int  controlsX  = x + labelWidth;
-    int  rightEdge  = rect.right - pad;
+    int  childIndent = scaler.Px (18);          // matches DxuiTreeView indent
+    int  x           = rect.left + pad;
+    int  y           = rect.top  + pad;
+    int  controlsX   = x + labelWidth;
+    int  rightEdge   = rect.right - pad;
 
 
     m_destLabel.SetRect  (MakeRect (x, y, labelWidth, rowHeight));
     m_destLabel.SetText  (L"Send output to:");
     m_destination.SetRect  (MakeRect (controlsX, y, dropWidth, rowHeight));
     m_destination.SetItems ({ L"PNG file", L"Windows printer" });
+    y += rowHeight + sectionGap;
+
+    // Folder is a child of the PNG-file destination: indent it and sit it
+    // directly under the destination row (dimmed when the printer is chosen).
+    m_folderLabel.SetRect (MakeRect (x + childIndent, y, labelWidth - childIndent, rowHeight));
+    m_folderLabel.SetText (L"PNG folder:");
+    {
+        int  valueW = rightEdge - browseW - gap - controlsX;
+
+        if (valueW < scaler.Px (80)) { valueW = scaler.Px (80); }
+
+        m_folderValue.SetRect (MakeRect (controlsX, y, valueW, rowHeight));
+        m_browse.SetLabel     (L"Browse...");
+        m_browse.Layout       (MakeRect (controlsX + valueW + gap, y, browseW, rowHeight));
+    }
     y += rowHeight + sectionGap;
 
     m_dpiLabel.SetRect  (MakeRect (x, y, labelWidth, rowHeight));
@@ -133,18 +149,6 @@ void PrintingPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
     m_dotStyle.SetRect  (MakeRect (controlsX, y, dropWidth, rowHeight));
     m_dotStyle.SetItems ({ L"Ink (round dots)", L"Plain (square)" });
     y += rowHeight + sectionGap;
-
-    m_folderLabel.SetRect (MakeRect (x, y, labelWidth, rowHeight));
-    m_folderLabel.SetText (L"PNG folder:");
-    {
-        int  valueW = rightEdge - browseW - gap - controlsX;
-
-        if (valueW < scaler.Px (80)) { valueW = scaler.Px (80); }
-
-        m_folderValue.SetRect (MakeRect (controlsX, y, valueW, rowHeight));
-        m_browse.SetLabel     (L"Browse…");
-        m_browse.Layout       (MakeRect (controlsX + valueW + gap, y, browseW, rowHeight));
-    }
 
     m_destLabel.SetDpi   (dpi);
     m_destination.SetDpi (dpi);
