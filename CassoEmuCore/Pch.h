@@ -11,6 +11,7 @@
 #include <propvarutil.h>
 #include <shlobj.h>
 #include <knownfolders.h>
+#include <wincodec.h>
 #include <wrl/client.h>
 
 #include <algorithm>

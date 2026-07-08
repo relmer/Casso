@@ -240,6 +240,7 @@
     <ClCompile Include="Devices\Printer\PrintJobSerializer.cpp" />
     <ClCompile Include="Devices\Printer\ImageWriterInterpreter.cpp" />
     <ClCompile Include="Devices\Printer\PrinterJob.cpp" />
+    <ClCompile Include="Devices\Printer\PngCodec.cpp" />
     <ClCompile Include="External\StbVorbisWrapper.cpp">
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <EnableCodeAnalysis>false</EnableCodeAnalysis>
@@ -325,6 +326,7 @@
     <ClInclude Include="Devices\Printer\PrintJobSerializer.h" />
     <ClInclude Include="Devices\Printer\ImageWriterInterpreter.h" />
     <ClInclude Include="Devices\Printer\PrinterJob.h" />
+    <ClInclude Include="Devices\Printer\PngCodec.h" />
     <ClInclude Include="External\StbVorbisWrapper.h" />
     <ClInclude Include="External\stb_vorbis.c" />
   </ItemGroup>
