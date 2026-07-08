@@ -18,7 +18,7 @@ on-demand action. A compact chrome indicator plus an on-demand docked panel
 (skeuomorphic printer with animated, perforated paper and sampled audio, paced
 at realistic print speed) provide discoverability, preview-before-print, and
 the eject/copy/discard controls. Print-title recognition (filename → WOZ META →
-filesystem catalog) surfaces a setup-guidance toast at mount time.
+filesystem catalog) surfaces a setup-guidance notice at mount time.
 
 ## Technical Context
 
@@ -58,7 +58,7 @@ firmware must be original work (FR-003); no new third-party code.
 
 **Scale/Scope**: One new CassoEmuCore device family (`Devices/Printer/`), one
 audio source, one shell services module, one settings page, one chrome
-indicator + docked panel, machine-config upgrade step, ~6 new unit-test
+indicator + docked panel, machine-config upgrade step, ~9 new unit-test
 suites.
 
 ## Constitution Check
@@ -123,7 +123,7 @@ CassoEmuCore/
 │   ├── PrintJobSerializer.h/.cpp     # Strip+state ⇄ memory buffers (pure); shell owns file I/O
 │   ├── TitleRecognizer.h/.cpp        # Pure filename / catalog-name / META-title matching
 │   └── ParallelFirmware.h            # Generated: firmware bytes + embedded .a65 source text
-├── Devices/Printer/ParallelFirmware.a65   # Original slot firmware source (assembled by CassoCli)
+├── Devices/Printer/ParallelFirmware.a65   # Original slot firmware source (assembled in FirmwareParityTests by the in-repo CassoCore assembler — no build step, per R-002)
 ├── Devices/Disk/WozLoader.h/.cpp     # MODIFIED: retain META chunk key/values
 └── Audio/PrinterAudioSource.h/.cpp   # IDriveAudioSource; event-driven sample playback
 
@@ -150,7 +150,9 @@ UnitTest/
     ├── PrinterCardTests.cpp          # Ring semantics, register contract, ordering
     ├── FirmwareParityTests.cpp       # Assemble .a65 source, compare to embedded bytes
     ├── TitleRecognizerTests.cpp
-    └── PrintJobSerializerTests.cpp
+    ├── PrintJobSerializerTests.cpp
+    ├── PrinterPresenterTests.cpp     # Pure pacing/coalescing/fast-forward math, injected clock (deterministic)
+    └── PrinterAudioSourceTests.cpp   # Event-voice scheduling from the presenter clock (synthetic PCM)
 ```
 
 **Structure Decision**: Follow the existing device pattern — guest-facing

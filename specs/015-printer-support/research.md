@@ -9,15 +9,31 @@ name the experiment that confirms them.
 
 **Decision**: `PrinterCard` claims the slot's 16-byte I/O window
 (`$C080 + slot*$10`; slot 1 → `$C090-$C09F`). Write to `$C0n0` latches a data
-byte (strobe implied). Read of `$C0n1` returns status with the "ready" bit
-asserted always (the emulated printer never blocks). All other offsets in the
-window read as ready/echo and ignore writes, tolerantly — Print Shop
-interface drivers vary in which offsets they poke.
+byte into the fixed-capacity SPSC ring (strobe implied). Read of `$C0n1`
+returns status with the "ready" bit asserted while the ring has headroom and
+**de-asserted within a high-water margin of the ring's capacity** — so a guest
+honoring the handshake stalls rather than overflows if the drain ever falls
+behind. All other offsets in the window read as ready/echo and ignore writes,
+tolerantly — Print Shop interface drivers vary in which offsets they poke.
 
-**Rationale**: The emulated pipeline is infinitely fast, so honest handshake
-semantics reduce to "always ready"; tolerance across the window maximizes
-compatibility with the several parallel-card drivers Print Shop ships
-(Apple II Parallel, Grappler+, Epson APL).
+**Ring sizing / FR-002 guarantee**: The ring is sized generously (≥ 64 KB —
+orders of magnitude beyond the fastest sustained 6502 `STA $C0n0` loop,
+≈ 255 KB/s, across many drain intervals). The consumer drains on the presenter
+tick, so in normal operation the ring sits near-empty and ready stays
+continuously asserted — the "always ready" behavior drivers expect. The
+high-water de-assert exists for the one case a pure sizing argument cannot
+cover: the drain runs on the UI thread, and a **modal host dialog (e.g. the
+Windows print dialog) can hold that thread for seconds while the guest keeps
+writing**. Backpressure — not a bigger buffer — is what makes FR-002's
+"never loses or reorders a byte" hold unconditionally for a handshake-honoring
+guest. Overflow past the guard remains a programming error (debug assert); it
+is unreachable while the guard is honored.
+
+**Rationale**: The emulated pipeline is effectively infinitely fast, so honest
+handshake semantics reduce to "ready except under an unobservable high-water
+guard"; tolerance across the window maximizes compatibility with the several
+parallel-card drivers Print Shop ships (Apple II Parallel, Grappler+,
+Epson APL).
 
 **Alternatives**: Cycle-accurate strobe/ACK timing — rejected; no consumer
 can observe it and FR-002 only requires no byte loss.

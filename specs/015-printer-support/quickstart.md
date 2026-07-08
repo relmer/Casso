@@ -19,9 +19,12 @@ Suites that must pass: `ImageWriterInterpreterTests` (per-command goldens,
 determinism: same stream twice → identical raster hash),
 `PaperRendererGoldenTests` (ink + plain styles, both dpi, composite colors,
 weave determinism), `PrintRasterTests` (page boundaries, 60-page cap),
-`PrinterCardTests` (ordering, ring, register contract),
+`PrinterCardTests` (ordering, ring, register contract, high-water backpressure
+on ready — no byte loss when the drain stalls),
 `FirmwareParityTests` (assemble `.a65`, compare embedded bytes),
-`TitleRecognizerTests`, `PrintJobSerializerTests` (round-trip identity).
+`TitleRecognizerTests`, `PrintJobSerializerTests` (round-trip identity),
+`PrinterPresenterTests` (paced replay / coalescing / fast-forward, injected
+clock), `PrinterAudioSourceTests` (event-voice scheduling, synthetic PCM).
 
 ## End-to-end scenarios (map to spec user stories)
 
@@ -46,7 +49,7 @@ weave determinism), `PrintRasterTests` (page boundaries, 60-page cap),
 6. **US6 — text**: `PR#1` + `LIST` prints a readable listing; `CATALOG`
    under DOS 3.3 likewise.
 7. **US7 — recognition**: mount `print shop.dsk` (or a WOZ with META title)
-   → one dismissible toast with setup answers; unknown disk → nothing.
+   → one dismissible notice with setup answers; unknown disk → nothing.
 8. **FR-026 — persistence**: print, don't eject, quit Casso, relaunch, open
    the same machine → paper restored, indicator pending; eject delivers.
 

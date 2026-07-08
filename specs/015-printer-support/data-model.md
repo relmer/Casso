@@ -12,10 +12,15 @@
 | m_ring | PrinterByteRing | fixed-capacity SPSC ring; emu thread produces |
 | m_everTouched | bool | first firmware entry or data write → panel reveal event (FR-020) |
 
-Behavior: `Write($C0n0)` pushes byte (O(1), never blocks — ring sized so the
-consumer always keeps up; overflow is a programming error asserted in debug).
-`Read($C0n1)` returns status with ready asserted. Reset/PowerCycle clear
-nothing on the paper (strip survives guest reset per FR-026 semantics).
+Behavior: `Write($C0n0)` pushes byte (O(1)). `Read($C0n1)` returns status with
+ready asserted while the ring has headroom, **de-asserted within a high-water
+margin of capacity** so a handshake-honoring guest waits instead of overflowing
+if the drain stalls (e.g. a modal print dialog holds the UI thread) — this is
+what upholds FR-002 (see research R-001). The ring is fixed-capacity (≥ 64 KB)
+and normally drained near-empty each presenter tick, so ready stays
+continuously asserted in practice; overflow past the guard is a programming
+error asserted in debug. Reset/PowerCycle clear nothing on the paper (strip
+survives guest reset per FR-026 semantics).
 
 ### ImageWriterInterpreter (pure)
 
@@ -118,3 +123,9 @@ guest CPU ──write──▶ PrinterCard ──ring──▶ ImageWriterInterp
                               eject/copy/discard ──────▶ PaperRenderer ──RGBA──▶ HostPrintServices
                                                                        └────────▶ PrintJobStore (persist native grid)
 ```
+
+**Ring flush before delivery**: eject, copy, and discard first force a
+synchronous `ring → interpreter → raster` drain, so no in-flight byte is left
+unrendered; only then do they render/deliver/clear the complete strip. The
+presentation may still be mid-replay (R-012) — it fast-forwards — but the
+raster operated on is always complete.
