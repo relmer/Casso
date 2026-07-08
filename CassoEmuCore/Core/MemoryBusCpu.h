@@ -35,9 +35,11 @@ public:
     Word    ReadWord         (Word address) override;
     void    WriteWord        (Word address, Word value) override;
 
-    // Randomize main RAM (DRAM power-on simulation), set initial register
-    // state and load PC from the reset vector via the bus.
-    void    InitForEmulation ();
+    // Randomize main RAM from the shared Prng (DRAM power-on simulation),
+    // set initial register state and load PC from the reset vector via the
+    // bus. Uses the same Prng as PowerCycle so the deterministic-seed knob
+    // (and the per-boot seed log) cover the cold-init path too.
+    void    InitForEmulation (Prng & prng);
 
     // Phase 4 split-reset (FR-034 / FR-035).
     //

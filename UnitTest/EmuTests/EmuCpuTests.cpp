@@ -1,6 +1,7 @@
 #include "Pch.h"
 #include "Core/MemoryBus.h"
 #include "Core/EmuCpu.h"
+#include "Core/Prng.h"
 #include "Devices/RamDevice.h"
 #include "Devices/RomDevice.h"
 #include "Video/AppleTextMode.h"
@@ -27,6 +28,11 @@ TEST_CLASS (EmuCpuTests)
 {
 public:
 
+    // Pinned seed so the DRAM fill is deterministic. These tests overwrite
+    // and read back specific cells, so the exact power-on garbage does not
+    // matter -- the fixed seed just keeps runs reproducible.
+    Prng  m_prng { 0xCA550001ULL };
+
     TEST_METHOD (BusRouting_WriteAndReadRAM)
     {
         MemoryBus bus;
@@ -49,7 +55,7 @@ public:
             cpu.PokeByte (static_cast<Word> (0xD000 + i), romData[i]);
         }
 
-        cpu.InitForEmulation ();
+        cpu.InitForEmulation (m_prng);
 
         // EmuCpu::WriteByte routes through bus to RAM
         cpu.WriteByte (0x0300, 0xAB);
@@ -80,7 +86,7 @@ public:
             cpu.PokeByte (static_cast<Word> (0xD000 + i), romData[i]);
         }
 
-        cpu.InitForEmulation ();
+        cpu.InitForEmulation (m_prng);
 
         cpu.WriteByte (0x0050, 0x34);
         cpu.WriteByte (0x0051, 0x12);
@@ -112,7 +118,7 @@ public:
             cpu.PokeByte (static_cast<Word> (0xD000 + i), romData[i]);
         }
 
-        cpu.InitForEmulation ();
+        cpu.InitForEmulation (m_prng);
 
         cpu.WriteWord (0x0060, 0xBEEF);
 
@@ -154,7 +160,7 @@ public:
             cpu.PokeByte (static_cast<Word> (0xD000 + i), romData[i]);
         }
 
-        cpu.InitForEmulation ();
+        cpu.InitForEmulation (m_prng);
         Assert::AreEqual (static_cast<Word> (0xD000), cpu.GetPC ());
 
         for (int i = 0; i < 100; i++)
@@ -200,7 +206,7 @@ public:
             cpu.PokeByte (static_cast<Word> (0xD000 + i), romData[i]);
         }
 
-        cpu.InitForEmulation ();
+        cpu.InitForEmulation (m_prng);
 
         for (int i = 0; i < 100; i++)
         {
@@ -232,7 +238,7 @@ public:
             cpu.PokeByte (static_cast<Word> (0xD000 + i), romData[i]);
         }
 
-        cpu.InitForEmulation ();
+        cpu.InitForEmulation (m_prng);
         Word startPC = cpu.GetPC ();
 
         cpu.StepOne ();
@@ -263,7 +269,7 @@ public:
             cpu.PokeByte (static_cast<Word> (0xD000 + i), romData[i]);
         }
 
-        cpu.InitForEmulation ();
+        cpu.InitForEmulation (m_prng);
 
         // ResetCycles should set counter to zero regardless of prior state
         cpu.ResetCycles ();
@@ -292,7 +298,7 @@ public:
             cpu.PokeByte (static_cast<Word> (0xD000 + i), romData[i]);
         }
 
-        cpu.InitForEmulation ();
+        cpu.InitForEmulation (m_prng);
 
         Assert::AreEqual (static_cast<Byte> (0xFD), cpu.GetSP ());
         Assert::AreEqual (static_cast<Byte> (0), cpu.GetA ());
@@ -364,7 +370,7 @@ public:
             cpu.PokeByte (static_cast<Word> (0xD000 + i), romData[i]);
         }
 
-        cpu.InitForEmulation ();
+        cpu.InitForEmulation (m_prng);
 
         // WriteByte should update BOTH internal memory and bus
         cpu.WriteByte (0x0300, 0x42);
@@ -394,7 +400,7 @@ public:
             cpu.PokeByte (static_cast<Word> (0xD000 + i), romData[i]);
         }
 
-        cpu.InitForEmulation ();
+        cpu.InitForEmulation (m_prng);
 
         cpu.WriteByte (0x0300, 0x42);
 
@@ -436,7 +442,7 @@ public:
             cpu.PokeByte (static_cast<Word> (0xD000 + i), romData[i]);
         }
 
-        cpu.InitForEmulation ();
+        cpu.InitForEmulation (m_prng);
 
         for (int i = 0; i < 10; i++)
         {
@@ -487,7 +493,7 @@ public:
             cpu.PokeByte (static_cast<Word> (0xD000 + i), romData[i]);
         }
 
-        cpu.InitForEmulation ();
+        cpu.InitForEmulation (m_prng);
 
         for (int i = 0; i < 10; i++)
         {

@@ -110,16 +110,13 @@ void MemoryBusCpu::WriteWord (Word address, Word value)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void MemoryBusCpu::InitForEmulation ()
+void MemoryBusCpu::InitForEmulation (Prng & prng)
 {
-    // Randomize RAM ($0000-$BFFF) to simulate real DRAM power-on state.
-    mt19937                          rng (random_device{}());
-    uniform_int_distribution<int>    dist (0, 255);
-
-    for (size_t i = 0; i < 0xC000; i++)
-    {
-        memory[i] = static_cast<Byte> (dist (rng));
-    }
+    // Randomize RAM ($0000-$BFFF) from the shared deterministic Prng to
+    // simulate real DRAM power-on state -- the same source PowerCycle draws
+    // from, so a pinned seed reproduces cold boot byte-for-byte and the
+    // per-boot seed log describes what actually landed in RAM.
+    prng.Fill (memory.data (), 0xC000);
 
     SP = 0xFD;
 
