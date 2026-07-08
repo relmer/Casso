@@ -115,6 +115,7 @@ At the BASIC prompt, the user types `PR#1` and then `LIST` (or `CATALOG` under D
 - **Extremely long banner**: continuous output has a documented practical maximum length; reaching it finalizes the strip and notifies the user rather than failing silently.
 - **Full-speed byte bursts**: the guest may send bytes as fast as the CPU can write them; the card's readiness handshake must guarantee no byte is ever dropped or reordered.
 - **Print dialog cancelled**: the job is retained as pending, not destroyed (Acceptance Scenario 3.3).
+- **Window too narrow for the printer widget** (e.g. smallest window scale): the widget collapses to a minimal status indicator that still shows activity/pending state; the eject action remains available through a menu command. The disk-drive widgets' centered composition is never disturbed to make room.
 
 ## Requirements *(mandatory)*
 
