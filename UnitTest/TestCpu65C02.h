@@ -65,6 +65,9 @@ public:
     void    Step  () { StepOne (); }
     Byte    Cycles () { return GetLastInstructionCycles (); }
 
+    // The 65C02 instruction table, for building a 65C02-aware Assembler.
+    const Microcode * GetInstructionSet () const { return instructionSet.data (); }
+
     // Memory helpers.
     void    Poke     (Word address, Byte value) { memory[address] = value; }
     Byte    Peek     (Word address) const       { return memory[address]; }

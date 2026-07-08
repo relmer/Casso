@@ -279,7 +279,8 @@ bool AssemblySession::IsBranchMnemonic (const std::string & mnemonic)
     return mnemonic == "BPL" || mnemonic == "BMI" ||
            mnemonic == "BVC" || mnemonic == "BVS" ||
            mnemonic == "BCC" || mnemonic == "BCS" ||
-           mnemonic == "BNE" || mnemonic == "BEQ";
+           mnemonic == "BNE" || mnemonic == "BEQ" ||
+           mnemonic == "BRA";   // 65C02 unconditional branch (base tier)
 }
 
 
@@ -315,13 +316,55 @@ GlobalAddressingMode::AddressingMode AssemblySession::ResolveAddressingMode (
             return AM::Immediate;
 
         case OperandSyntax::IndirectX:
+        {
+            // (zp,X) is the common form; JMP (abs,X) is the 65C02 absolute
+            // indexed indirect (JMP only). Prefer zp when it is zp-sized and the
+            // mnemonic supports it, else fall to (abs,X) if supported.
+            OpcodeEntry entry = {};
+
+            if (resolved && value >= 0 && value <= 0xFF &&
+                m_opcodeTable.Lookup (mnemonic, AM::ZeroPageXIndirect, entry))
+            {
+                return AM::ZeroPageXIndirect;
+            }
+
+            if (m_opcodeTable.Lookup (mnemonic, AM::AbsoluteXIndirect, entry))
+            {
+                return AM::AbsoluteXIndirect;
+            }
+
             return AM::ZeroPageXIndirect;
+        }
 
         case OperandSyntax::IndirectY:
             return AM::ZeroPageIndirectY;
 
         case OperandSyntax::Indirect:
+        {
+            OpcodeEntry entry = {};
+
+            // (zp) is the 65C02 zero-page indirect when zp-sized and supported
+            // (LDA/STA/ORA/AND/…); otherwise it is the (abs) JMP indirect.
+            if (resolved && value >= 0 && value <= 0xFF &&
+                m_opcodeTable.Lookup (mnemonic, AM::ZeroPageIndirect, entry))
+            {
+                return AM::ZeroPageIndirect;
+            }
+
+            // (abs) JMP indirect: NMOS JumpIndirect, or the 65C02 page-fixed
+            // variant which carries its own mode enum.
+            if (m_opcodeTable.Lookup (mnemonic, AM::JumpIndirect, entry))
+            {
+                return AM::JumpIndirect;
+            }
+
+            if (m_opcodeTable.Lookup (mnemonic, AM::JumpIndirectCmos, entry))
+            {
+                return AM::JumpIndirectCmos;
+            }
+
             return AM::JumpIndirect;
+        }
 
         case OperandSyntax::IndexedX:
         {
@@ -401,12 +444,16 @@ Byte AssemblySession::EstimateInstructionSize (OperandSyntax syntax, const std::
             return 1;
 
         case OperandSyntax::Immediate:
-        case OperandSyntax::IndirectX:
         case OperandSyntax::IndirectY:
             return 2;
 
+        case OperandSyntax::IndirectX:
+            // (zp,X) is 2 bytes; JMP (abs,X) is 3.
+            return (mnemonic == "JMP") ? 3 : 2;
+
         case OperandSyntax::Indirect:
-            return 3;
+            // (abs) JMP indirect is 3 bytes; 65C02 (zp) indirect is 2.
+            return (mnemonic == "JMP") ? 3 : 2;
 
         case OperandSyntax::IndexedX:
         case OperandSyntax::IndexedY:

@@ -222,28 +222,24 @@ namespace Cpu65C02TestNs
         TEST_METHOD (RockwellBitOpcodesAreNopOnBaseTier)
         {
             // The Apple 65C02 is the base CMOS tier -- the Rockwell bit ops
-            // (RMB/SMB/BBR/BBS) are absent and decode as NOPs. Per Harte's
-            // synertek65c02 vectors these are NOT single-byte: the $x7 column
-            // (RMB/SMB) still consumes a 2-byte (zp) form and the $xF column
-            // (BBR/BBS) a 3-byte (zp,rel) form -- but neither touches memory.
-            struct BitSlot { Byte opcode; Word endPc; };
-            BitSlot cases[] = {
-                { 0x07, 0x0202 },   // RMB0 slot -> 2-byte NOP
-                { 0x87, 0x0202 },   // SMB0 slot -> 2-byte NOP
-                { 0x0F, 0x0203 },   // BBR0 slot -> 3-byte NOP
-                { 0x8F, 0x0203 },   // BBS0 slot -> 3-byte NOP
-            };
+            // (RMB/SMB/BBR/BBS) and WDC's WAI/STP are absent and decode as
+            // single-byte, single-cycle NOPs. This is the canonical base-tier
+            // model (6502.org / AppleWin / Klaus Dormann). Apple did not ship the
+            // Synertek part whose 2-3-byte reserved NOPs Harte's synertek65c02
+            // captures, so that quirk is intentionally not emulated.
+            Byte    bitOpcodes[] = { 0x07, 0x87, 0x0F, 0x8F, 0xCB, 0xDB };
 
-            for (const BitSlot & c : cases)
+            for (Byte opcode : bitOpcodes)
             {
                 Harness h;
 
                 h.SetRegs (0x11, 0x22, 0x33, 0);
                 h.Poke (0x0030, 0xFF);
-                h.Load ({ c.opcode, 0x30, 0x10 });
+                h.Load ({ opcode, 0x30, 0x10 });
                 h.Step ();
 
-                Assert::AreEqual<Word> (c.endPc, h.PC ());         // consumed operand bytes
+                Assert::AreEqual<Word> (0x0201, h.PC ());          // consumed 1 byte
+                Assert::AreEqual<Byte> (1, h.Cycles ());           // 1 cycle
                 Assert::AreEqual<Byte> (0xFF, h.Peek (0x0030));    // memory untouched
                 Assert::AreEqual<Byte> (0x11, h.Regs ().a);        // A untouched
             }

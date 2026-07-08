@@ -39,6 +39,7 @@ private:
     // InitializeGroup00...).
     void        InitializeCmos          ();
     void        InitializeArithmetic    ();
+    void        ReclaimUndocumented     ();
     void        InitializeCmosLeftovers ();
     void        InitializeNops          ();
 
