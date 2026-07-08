@@ -170,6 +170,15 @@ void SettingsApplyController::SnapshotBaselines ()
     // applied yet at Show time.
     m_baselineTheme    = (m_prefs != nullptr) ? m_prefs->activeTheme : std::string();
     m_themeAppliedLive = false;
+
+    // Printing prefs baseline (global host-service prefs) for Cancel / save.
+    if (m_prefs != nullptr)
+    {
+        m_baselinePrintDestination = m_prefs->printDestination;
+        m_baselinePrintPngFolder   = m_prefs->printPngFolder;
+        m_baselinePrintOutputDpi   = m_prefs->printOutputDpi;
+        m_baselinePrintDotStyle    = m_prefs->printDotStyle;
+    }
 }
 
 
@@ -361,8 +370,15 @@ void SettingsApplyController::CommitApply ()
     // whole file atomically.
     if (m_prefs != nullptr)
     {
-        bool    anyCrtChanged = false;
-        size_t  i             = 0;
+        bool    anyCrtChanged   = false;
+        bool    anyPrintChanged = false;
+        size_t  i               = 0;
+
+        anyPrintChanged =
+            m_prefs->printDestination != m_baselinePrintDestination ||
+            m_prefs->printPngFolder   != m_baselinePrintPngFolder   ||
+            m_prefs->printOutputDpi   != m_baselinePrintOutputDpi   ||
+            m_prefs->printDotStyle    != m_baselinePrintDotStyle;
 
         for (i = 0; i < GlobalUserPrefs::kCrtModeCount; i++)
         {
@@ -386,7 +402,7 @@ void SettingsApplyController::CommitApply ()
             }
         }
 
-        if (anyCrtChanged)
+        if (anyCrtChanged || anyPrintChanged)
         {
             HRESULT  hrSave = S_OK;
 
@@ -408,6 +424,11 @@ void SettingsApplyController::CommitApply ()
         {
             m_baselineCrt[i] = m_prefs->crtByMode[i];
         }
+
+        m_baselinePrintDestination = m_prefs->printDestination;
+        m_baselinePrintPngFolder   = m_prefs->printPngFolder;
+        m_baselinePrintOutputDpi   = m_prefs->printOutputDpi;
+        m_baselinePrintDotStyle    = m_prefs->printDotStyle;
     }
     m_baselineColorMode = (int) m_state->Prefs().colorMode;
 
@@ -488,6 +509,13 @@ void SettingsApplyController::Cancel (SettingsPreviewController & preview)
         {
             m_prefs->crtByMode[i] = m_baselineCrt[i];
         }
+
+        // Revert Printing edits (no live effect; they only bind at the next
+        // eject, so this simply un-does the staged pref writes).
+        m_prefs->printDestination = m_baselinePrintDestination;
+        m_prefs->printPngFolder   = m_baselinePrintPngFolder;
+        m_prefs->printOutputDpi   = m_baselinePrintOutputDpi;
+        m_prefs->printDotStyle    = m_baselinePrintDotStyle;
     }
     if (m_emuShell != nullptr && m_baselineColorMode >= 0)
     {

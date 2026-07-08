@@ -68,6 +68,10 @@ public:
         orig.window.placements["topology-A"] = { 100, 50, 1280, 720 };
         orig.window.placements["topology-B"] = { 200, 75, 1920, 1080 };
         orig.window.fullscreen      = true;
+        orig.printDestination       = "windowsPrinter";
+        orig.printPngFolder         = "D:\\Prints";
+        orig.printOutputDpi         = 288;
+        orig.printDotStyle          = "plain";
 
         hr = orig.Save (L"C:\\Casso", fs);
         Assert::IsTrue (SUCCEEDED (hr));
@@ -91,6 +95,10 @@ public:
         Assert::AreEqual (720, loaded.window.placements["topology-A"].h);
         Assert::AreEqual (1920, loaded.window.placements["topology-B"].w);
         Assert::AreEqual (orig.window.fullscreen,       loaded.window.fullscreen);
+        Assert::AreEqual (orig.printDestination, loaded.printDestination);
+        Assert::AreEqual (orig.printPngFolder,   loaded.printPngFolder);
+        Assert::AreEqual (orig.printOutputDpi,   loaded.printOutputDpi);
+        Assert::AreEqual (orig.printDotStyle,    loaded.printDotStyle);
     }
 
 

@@ -6,10 +6,13 @@
 #include "../EmulatorShell.h"
 #include "../resource.h"
 #include "../Shell/DiskMru.h"
+#include "Devices/Printer/PaperRenderer.h"
 #include "Devices/Printer/PrintDelivery.h"
 #include "Devices/Printer/PrintFileNaming.h"
+#include "Devices/Printer/PrintPagination.h"
 #include "Devices/Printer/PrintRaster.h"
 #include "Devices/Printer/PrinterCard.h"
+#include "Devices/Printer/RgbaImage.h"
 #include "Print/PrintJobStore.h"
 #include "Version.h"
 #include "Ui/Chrome/ChromeMetrics.h"
@@ -31,6 +34,58 @@
 namespace
 {
     using namespace ChromeMetrics;
+
+    // Blit an R,G,B,A image onto a printer HDC, scaled to fit the page while
+    // preserving aspect ratio and top-aligned (fanfold continues downward).
+    // GDI DIBs are BGRA, so the channels are swapped into a scratch buffer.
+    HRESULT BlitRgbaToDc (HDC hdc, const RgbaImage & img, int pageW, int pageH)
+    {
+        HRESULT        hr    = S_OK;
+        vector<Byte>   bgra;
+        BITMAPINFO     bmi   = {};
+        size_t         count = 0;
+        size_t         i     = 0;
+        double         scale = 1.0;
+        int            destW = 0;
+        int            destH = 0;
+        int            blit  = 0;
+
+        CBR (img.width > 0 && img.height > 0 && pageW > 0 && pageH > 0);
+
+        count = (size_t) img.width * img.height;
+        bgra.resize (count * 4);
+        for (i = 0; i < count; i++)
+        {
+            bgra[i * 4 + 0] = img.rgba[i * 4 + 2];   // B
+            bgra[i * 4 + 1] = img.rgba[i * 4 + 1];   // G
+            bgra[i * 4 + 2] = img.rgba[i * 4 + 0];   // R
+            bgra[i * 4 + 3] = img.rgba[i * 4 + 3];   // A
+        }
+
+        scale = (std::min) ((double) pageW / img.width, (double) pageH / img.height);
+        if (scale <= 0.0) { scale = 1.0; }
+        destW = (std::max) (1, (int) (img.width  * scale));
+        destH = (std::max) (1, (int) (img.height * scale));
+
+        bmi.bmiHeader.biSize        = sizeof (BITMAPINFOHEADER);
+        bmi.bmiHeader.biWidth       = img.width;
+        bmi.bmiHeader.biHeight      = -img.height;   // negative == top-down
+        bmi.bmiHeader.biPlanes      = 1;
+        bmi.bmiHeader.biBitCount    = 32;
+        bmi.bmiHeader.biCompression = BI_RGB;
+
+        SetStretchBltMode (hdc, HALFTONE);
+        SetBrushOrgEx     (hdc, 0, 0, nullptr);
+
+        blit = StretchDIBits (hdc,
+                              (pageW - destW) / 2, 0, destW, destH,
+                              0, 0, img.width, img.height,
+                              bgra.data (), &bmi, DIB_RGB_COLORS, SRCCOPY);
+        CBREx (blit != GDI_ERROR, E_FAIL);
+
+    Error:
+        return hr;
+    }
 }
 
 
@@ -550,7 +605,16 @@ void WindowCommandManager::OnDiskCommand (int id)
 
 
 
-static constexpr int   s_kPrintDpi = 576;   // MVP fixed dpi; Settings > Printing wires this later
+// Settings > Printing knobs, read live from GlobalUserPrefs at each eject.
+static int PrintDpiFromPrefs (const GlobalUserPrefs & p)
+{
+    return (p.printOutputDpi == 288) ? 288 : 576;   // only 288 / 576 valid (FR-028)
+}
+
+static DotStyle PrintDotStyleFromPrefs (const GlobalUserPrefs & p)
+{
+    return (p.printDotStyle == "plain") ? DotStyle::Plain : DotStyle::Ink;
+}
 
 
 
@@ -559,31 +623,42 @@ static constexpr int   s_kPrintDpi = 576;   // MVP fixed dpi; Settings > Printin
 //
 //  SavePrintout
 //
-//  Renders the finished strip to a PNG under <Pictures>\Casso Prints and hands
-//  back the path written. Render/encode/naming are core (unit-tested); this
-//  contributes only the irreducible edges -- known-folder resolution, directory
-//  creation, and the file write. COM is live on the UI thread (OLE drag-drop),
-//  so PngCodec's WIC calls are valid here.
+//  Renders the finished strip to a PNG under the configured folder (Settings >
+//  Printing; default <Pictures>\Casso Prints) at the chosen dpi + dot style,
+//  and hands back the path written. Render/encode/naming are core (unit-
+//  tested); this contributes only the irreducible edges -- known-folder
+//  resolution, directory creation, and the file write. COM is live on the UI
+//  thread (OLE drag-drop), so PngCodec's WIC calls are valid here.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT WindowCommandManager::SavePrintout (const PrintRaster & raster, fs::path & outFile)
 {
-    HRESULT           hr          = S_OK;
-    PWSTR             picturesRaw = nullptr;
-    vector<Byte>      png;
-    fs::path          folder;
-    SYSTEMTIME        now         = {};
-    std::error_code   ec;
+    HRESULT                   hr          = S_OK;
+    PWSTR                     picturesRaw = nullptr;
+    vector<Byte>              png;
+    fs::path                  folder;
+    SYSTEMTIME                now         = {};
+    std::error_code           ec;
+    const GlobalUserPrefs &   prefs       = m_shell.m_globalPrefs;
 
     hr = PrintDelivery::RenderToPng (raster, 0, raster.RowsUsed () - 1,
-                                     s_kPrintDpi, DotStyle::Ink, png);
+                                     PrintDpiFromPrefs (prefs),
+                                     PrintDotStyleFromPrefs (prefs), png);
     CHR (hr);
 
-    hr = SHGetKnownFolderPath (FOLDERID_Pictures, 0, nullptr, &picturesRaw);
-    CHR (hr);
+    if (!prefs.printPngFolder.empty ())
+    {
+        folder = fs::path (prefs.printPngFolder);
+    }
+    else
+    {
+        hr = SHGetKnownFolderPath (FOLDERID_Pictures, 0, nullptr, &picturesRaw);
+        CHR (hr);
 
-    folder = fs::path (picturesRaw) / L"Casso Prints";
+        folder = fs::path (picturesRaw) / L"Casso Prints";
+    }
+
     fs::create_directories (folder, ec);
 
     GetLocalTime (&now);
@@ -602,6 +677,98 @@ Error:
     if (picturesRaw != nullptr)
     {
         CoTaskMemFree (picturesRaw);
+    }
+    return hr;
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PrintToWindowsPrinter
+//
+//  Delivers the strip to a Windows printer through the standard print dialog.
+//  The strip is paginated (PrintPagination -- core, unit-tested) and each
+//  page's row span is rendered (PaperRenderer -- core) and StretchDIBits'd onto
+//  the printer DC. Only the dialog + GDI job are here (the untestable Win32
+//  edge). Returns S_FALSE if the user cancels the dialog.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT WindowCommandManager::PrintToWindowsPrinter (const PrintRaster & raster)
+{
+    HRESULT                                hr      = S_OK;
+    const GlobalUserPrefs &                prefs   = m_shell.m_globalPrefs;
+    vector<PrintPagination::PageRange>     pages   = PrintPagination::Paginate (raster);
+    PRINTDLGW                              pd      = {};
+    DOCINFOW                               di      = {};
+    bool                                   started = false;
+    int                                    pageW   = 0;
+    int                                    pageH   = 0;
+
+    CBR (!pages.empty ());
+
+    pd.lStructSize = sizeof (pd);
+    pd.hwndOwner   = m_shell.m_hwnd;
+    pd.Flags       = PD_RETURNDC | PD_NOPAGENUMS | PD_NOSELECTION | PD_USEDEVMODECOPIESANDCOLLATE;
+    pd.nCopies     = 1;
+
+    if (!PrintDlgW (&pd))
+    {
+        hr = S_FALSE;   // cancelled / closed
+        goto Error;
+    }
+    CBREx (pd.hDC != nullptr, E_FAIL);
+
+    di.cbSize      = sizeof (di);
+    di.lpszDocName = L"Casso Printout";
+
+    CBREx (StartDocW (pd.hDC, &di) > 0, E_FAIL);
+    started = true;
+
+    pageW = GetDeviceCaps (pd.hDC, HORZRES);
+    pageH = GetDeviceCaps (pd.hDC, VERTRES);
+
+    for (const PrintPagination::PageRange & pr : pages)
+    {
+        PaperRenderer            renderer;
+        PaperRenderer::Options   opt;
+        RgbaImage                img;
+
+        opt.outputDpi = PrintDpiFromPrefs (prefs);
+        opt.style     = PrintDotStyleFromPrefs (prefs);
+
+        hr = renderer.Render (raster, pr.firstRow, pr.lastRow, opt, img);
+        CHR (hr);
+
+        CBREx (StartPage (pd.hDC) > 0, E_FAIL);
+
+        hr = BlitRgbaToDc (pd.hDC, img, pageW, pageH);
+        CHR (hr);
+
+        CBREx (EndPage (pd.hDC) > 0, E_FAIL);
+    }
+
+    CBREx (EndDoc (pd.hDC) > 0, E_FAIL);
+    started = false;
+
+Error:
+    if (started && pd.hDC != nullptr)
+    {
+        AbortDoc (pd.hDC);
+    }
+    if (pd.hDC != nullptr)
+    {
+        DeleteDC (pd.hDC);
+    }
+    if (pd.hDevMode != nullptr)
+    {
+        GlobalFree (pd.hDevMode);
+    }
+    if (pd.hDevNames != nullptr)
+    {
+        GlobalFree (pd.hDevNames);
     }
     return hr;
 }
@@ -648,11 +815,30 @@ void WindowCommandManager::OnPrinterCommand (int id)
         return;
     }
 
-    hr = SavePrintout (job->Raster (), file);
+    // Deliver to the configured destination (Settings > Printing).
+    bool   toPrinter = (m_shell.m_globalPrefs.printDestination == "windowsPrinter");
+
+    if (toPrinter)
+    {
+        hr = PrintToWindowsPrinter (job->Raster ());
+    }
+    else
+    {
+        hr = SavePrintout (job->Raster (), file);
+    }
+
+    if (hr == S_FALSE)
+    {
+        // User cancelled the print dialog: keep the strip, no fresh sheet.
+        m_shell.m_printerWorker.Start (m_shell.m_refs.printerCard->ByteRing (), job->Raster ());
+        return;
+    }
 
     if (SUCCEEDED (hr))
     {
-        std::wstring   msg = L"Saved printout to:\n" + file.wstring ();
+        std::wstring   msg = toPrinter
+                                 ? std::wstring (L"Sent the printout to the printer.")
+                                 : (L"Saved printout to:\n" + file.wstring ());
 
         MessageBoxW (m_shell.m_hwnd, msg.c_str (), L"Casso Printer", MB_OK | MB_ICONINFORMATION);
 
@@ -662,7 +848,7 @@ void WindowCommandManager::OnPrinterCommand (int id)
     }
     else
     {
-        MessageBoxW (m_shell.m_hwnd, L"Could not save the printout; the page is kept.",
+        MessageBoxW (m_shell.m_hwnd, L"Could not deliver the printout; the page is kept.",
                      L"Casso Printer", MB_OK | MB_ICONWARNING);
 
         // Keep the strip so the user can retry -- reseed the worker with it

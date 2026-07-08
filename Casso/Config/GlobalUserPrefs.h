@@ -116,6 +116,16 @@ struct GlobalUserPrefs
     // so every recent disk starts with an unknown (0) load time.
     std::vector<std::int64_t>  recentDiskLoadedAt;
 
+    // Host print-service preferences (Settings > Printing, FR-011). Global --
+    // host print services are shared by every machine. Destination and dot
+    // style are stored as the contract's string tokens (like
+    // audioDownloadConsent); an empty printPngFolder resolves to
+    // <Pictures>\Casso Prints at eject time.
+    std::string  printDestination = "pngFile";   // "pngFile" | "windowsPrinter"
+    std::string  printPngFolder;                  // empty == default folder
+    int          printOutputDpi   = 576;          // 288 | 576 (FR-028)
+    std::string  printDotStyle    = "ink";        // "ink" | "plain" (FR-027)
+
     // Unknown JSON keys round-trip back to disk untouched.
     std::vector<std::pair<std::string, JsonValue>>  unknownPassthrough;
 

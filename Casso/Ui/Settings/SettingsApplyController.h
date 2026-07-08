@@ -99,4 +99,12 @@ private:
     // m_baselineColorMode tracks which monitor was active at open.
     GlobalUserPrefs::Crt  m_baselineCrt[GlobalUserPrefs::kCrtModeCount] = {};
     int                   m_baselineColorMode = -1;
+
+    // Printing prefs baseline (Settings > Printing, global host-service prefs
+    // like the CRT blocks): Cancel reverts these and CommitApply saves the
+    // whole prefs file when any of them changed at OK.
+    std::string  m_baselinePrintDestination;
+    std::string  m_baselinePrintPngFolder;
+    int          m_baselinePrintOutputDpi = 0;
+    std::string  m_baselinePrintDotStyle;
 };
