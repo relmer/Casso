@@ -11,6 +11,16 @@ The solution has five projects:
 - **CassoCli** — Console application (AS65-compatible assembler CLI, links CassoCore)
 - **UnitTest** — DynamicLibrary (Microsoft Native CppUnitTest, links CassoCore and CassoEmuCore)
 
+### Architecture: Thin Exe, Rich Testable Core (NON-NEGOTIABLE)
+
+New code goes in the **core libraries** (`CassoCore` / `CassoEmuCore`), NOT the `Casso` exe. The exe is a trivially thin shim — entry point, window/message loop, and object wiring only. All emulation, parsing, rendering, device models, persistence, and lifecycle/orchestration logic lives in the core static libs, which both the exe **and** the `UnitTest` project link. This is the whole reason the split exists: so essentially everything is unit-testable and mockable.
+
+- **UT-reachable litmus**: before placing code, ask "can the `UnitTest` project link and exercise this?" If a piece of logic can only be tested by running the exe, it is in the wrong place or the wrong shape (entangled with an `HWND`, device context, COM apartment, or menu id). Factor the logic into core behind data-in/data-out functions or interface seams.
+- The exe gets only the **irreducible platform edge** — spawning a thread, `WriteFile`, clipboard, print/file dialogs, menu registration — and each such edge is a thin call into core. System APIs that are pure computation over in-memory buffers (e.g. a WIC image codec) belong in core, where they stay testable.
+- **The existing `Casso` exe has accreted logic that belongs in core** (e.g. `EmulatorShell`). That is debt to be extracted, NEVER a template — do not imitate it. Read exe files only to find wiring points (where objects are constructed/owned, machine build/teardown hooks, menu dispatch), never as a structural template for new logic.
+
+See the Constitution's Principle VI (Thin Executable, Testable Core) and Principle II (Testing Discipline).
+
 ## C++ Specific Guidelines
 
 ### Precompiled Headers
@@ -325,6 +335,7 @@ void Function2()
 - If a module uses system APIs, inject dependencies via interfaces and test
   pure/data-driven logic with mocks or synthetic inputs.
 - Temp files are acceptable only in integration tests, never in unit tests.
+- If code cannot be tested this way, it usually lives in the wrong project — see **Architecture: Thin Exe, Rich Testable Core** above; move the logic into a core lib rather than leaving it untested in the exe.
 
 ## Build System
 
