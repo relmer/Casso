@@ -21,6 +21,15 @@ Casso already emulates the Apple //e substrate the //c is built on, and this wor
 
 This feature adds the pieces the //c has beyond the //e: the **65C02 CPU**, the **//c ROM + slotless "phantom slot" firmware map**, **two 6551 ACIA serial ports**, a **built-in mouse** with interrupts, and **IWM** disk integration.
 
+## Clarifications
+
+### Session 2026-07-08
+
+- **Q: Target //c ROM revision?** → **Memory Expansion ROM (ROM 4)** — the most refined/compatible non-Plus //c firmware. v1 is scoped to a **5.25"/128K //c**: the ROM's UniDisk 3.5 (SmartPort) and memory-expansion firmware are *present* but those peripherals are **not implemented** in this spec (they report absent; the ROM still boots to BASIC/monitor). Requires 32K bank-switched-ROM handling. Compatibility risk vs. the original ROM is negligible — later //c ROMs are backward-compatible; titles that run *only* on the original ROM are rare copy-protection / serial-quirk edge cases.
+- **Q: Who builds the shared 6551 ACIA, given spec 015 (printer) is in flight?** → **016 builds the complete dual-port ACIA (all registers, RX+TX, IRQ); spec 015 consumes it.**
+- **Q: Serial host endpoints for v1?** → **Virtual only** — host-file output (printing) + loopback (comms). Real host COM / TCP-telnet endpoints deferred.
+- **Q: 65C02 conformance verification?** → **Klaus Dormann's 65C02 extended-opcode functional test + Tom Harte's `wdc65c02` SingleStepTests** (reuse the existing CPU-test infrastructure used for the NMOS core).
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Enhanced software runs on the 65C02 (Priority: P1)
@@ -122,14 +131,16 @@ A user boots and runs disk software from the //c's built-in 5.25" drive (and an 
 
 **//c machine profile + firmware map (P2)**
 - **FR-005**: The system MUST define an **Apple //c** machine profile (catalog entry, display name "Apple //c", disk-picker entry) composed of the 65C02, 128K RAM, the //e video/memory substrate, and the //c peripherals.
-- **FR-006**: The system MUST load the //c ROM as a managed asset with integrity verification, consistent with existing machine-ROM handling. [NEEDS CLARIFICATION: target //c ROM revision — original 16K "ROM 255", the "3.5 ROM", or the memory-expansion ROM. Baseline assumption: the common enhanced revision that boots 5.25" disks.]
+- **FR-006**: The system MUST load the **Apple //c Memory Expansion ROM (ROM 4)** as a managed asset with integrity verification, consistent with existing machine-ROM handling. This is a **32K bank-switched** ROM; the router MUST handle the //c's expanded-firmware bank switching ($C800 space).
+- **FR-006a**: The ROM-4 firmware references UniDisk 3.5 (SmartPort) and the memory-expansion card, which are **out of scope for v1**: those peripherals MUST report absent (the ROM still boots to monitor / Applesoft). Adding them is a follow-up.
 - **FR-007**: The system MUST present built-in peripherals at fixed **phantom-slot** ROM/I-O addresses (serial 1 -> slot 1, serial 2 -> slot 2, 80-column -> slot 3, mouse -> slot 4, disk -> slot 6) via the existing `CxxxRomRouter`, with **no** user-insertable expansion slots on this machine.
 - **FR-008**: The //c MUST default to 128K and 80-column-capable video, cold-booting to the //c firmware (monitor / Applesoft).
 
 **Serial ports (P3)**
 - **FR-009**: The system MUST emulate a **6551 ACIA** (data, status, command, control registers; transmit/receive; baud/framing; IRQ) as a reusable device.
 - **FR-010**: The //c MUST expose **two** serial ports (port 1 / printer at slot 1, port 2 / modem at slot 2) backed by the 6551 plus the //c serial firmware.
-- **FR-011**: The 6551 ACIA MUST be implemented exactly once and shared between this feature and spec 015 (printer support). Neither may duplicate it.
+- **FR-011**: The 6551 ACIA MUST be implemented exactly once. **This feature (016) builds the complete dual-port ACIA (all registers, RX+TX, IRQ); spec 015 (printer support) consumes it.** Neither may duplicate it.
+- **FR-011a**: For v1, the serial ports MUST support **virtual endpoints only** — host-file output (printing) and a loopback (comms) — with no dependency on real host serial devices. Real host COM / TCP-telnet endpoints are deferred.
 
 **Mouse (P4)**
 - **FR-012**: The system MUST emulate the //c built-in mouse: firmware entry points, X/Y position, button state, and mouse/VBL interrupt delivery.
@@ -155,7 +166,7 @@ A user boots and runs disk software from the //c's built-in 5.25" drive (and an 
 
 ### Measurable Outcomes
 
-- **SC-001**: A 65C02 instruction-conformance test passes 100% on the enhanced/`//c` machines; the NMOS conformance behavior is unchanged on non-enhanced machines.
+- **SC-001**: The 65C02 conformance suite — **Klaus Dormann's 65C02 extended-opcode functional test + Tom Harte's `wdc65c02` SingleStepTests** — passes 100% on the enhanced/`//c` machines; the NMOS conformance behavior is unchanged on non-enhanced machines.
 - **SC-002**: The Apple //c cold-boots to its monitor / Applesoft within the same startup budget as the //e (no perceptible regression).
 - **SC-003**: At least three representative //c titles run correctly end-to-end: one serial/terminal (or serial-print) task, one mouse application (e.g., MousePaint), and one disk-based game — each booting and operating from the //c profile.
 - **SC-004**: The full existing unit-test suite (including CPU conformance for NMOS, and the Apple II/II+///e machines) stays green — zero regressions.
@@ -165,6 +176,7 @@ A user boots and runs disk software from the //c's built-in 5.25" drive (and an 
 
 - The existing //e substrate (128K aux, 80STORE, language card, `Apple2eMmu`, soft switches, 40/80-column, double hi-res, Disk II/WOZ) is reused unchanged; this feature adds only the //c-specific delta.
 - The 65C02 target is the standard/WDC 65C02 with Rockwell bit ops (`RMB`/`SMB`/`BBR`/`BBS`) as used by the //c ROM — **not** the 65C816.
-- The serial-**printing driver** (routing guest output to a host printer/file) is spec 015's scope; this feature provides the 6551 **hardware** it builds on. The two efforts coordinate on a single ACIA.
+- The //c target ROM is the **Memory Expansion ROM (ROM 4)** — the most refined/compatible non-Plus //c firmware. Later //c ROMs are backward-compatible, so this does not lock out original-ROM software.
+- The serial-**printing driver** (routing guest output to a host printer/file) is spec 015's scope; this feature provides the 6551 **hardware** (and builds the ACIA that 015 consumes).
 - The disk baseline is the 5.25" drive via the IWM (internal + external port).
-- **Out of scope**: the Apple //c Plus (4 MHz accelerator, built-in 3.5" 800K UniDisk, on-board memory expansion), memory-expansion cards, and non-QWERTY keyboard-layout switches.
+- **Out of scope (this spec)**: the Apple //c Plus (4 MHz accelerator); *implementing* the UniDisk 3.5" drive and the memory-expansion card (their ROM-4 firmware is present but reports absent — deferred to follow-ups); real host serial endpoints (COM/TCP); and non-QWERTY keyboard-layout switches.
