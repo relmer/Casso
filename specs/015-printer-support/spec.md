@@ -108,7 +108,7 @@ At the BASIC prompt, the user types `PR#1` and then `LIST` (or `CATALOG` under D
 
 ### User Story 7 - Recognizing Printing Software (Priority: P7)
 
-The user mounts a disk whose image filename (e.g. contains "print shop") or on-disk catalog (volume/file names, when the disk uses a standard filesystem) matches a curated list of printing-centric software. The emulator shows a brief, dismissible notice: the printer is ready, and here is what to answer in the software's setup menus. Recognition informs; it never configures.
+The user mounts a disk whose image filename (e.g. contains "print shop"), embedded container metadata (e.g. a WOZ META title), or on-disk catalog (volume/file names, when the disk uses a standard filesystem) matches a curated list of printing-centric software. The emulator shows a brief, dismissible notice: the printer is ready, and here is what to answer in the software's setup menus. Recognition informs; it never configures.
 
 **Why this priority**: Print Shop asks its setup questions before a single print byte flows, so the engagement-triggered panel reveal (User Story 4) arrives too late for that one moment. A mount-time notice delivers the answers exactly when they are needed — but it is garnish on a feature that works fully without it.
 
@@ -174,6 +174,7 @@ The user mounts a disk whose image filename (e.g. contains "print shop") or on-d
 - **FR-022**: At Drive 1 mount time, the emulator MUST check the disk image's filename against a curated, bundled list of print-centric title signatures (case-insensitive substring match).
 - **FR-023**: When the mounted image exposes a readable standard filesystem (DOS 3.3 or ProDOS), the emulator MUST additionally match the volume and catalog file names against curated signatures. Both recognition checks MUST be pure functions over supplied data (filename string, decoded catalog entries) so unit tests can drive them synthetically.
 - **FR-024**: On recognition, the emulator MUST surface one brief, dismissible notice per mount stating that the printer is available and what to answer in the software's setup menus. Recognition MUST NOT change any configuration (card enablement, slot, destination) and MUST do nothing at all for unrecognized or unreadable disks.
+- **FR-025**: When the disk image container carries embedded descriptive metadata (e.g. a WOZ META chunk with a title), recognition MUST match that metadata against the curated signatures as the highest-confidence tier, ahead of filename and filesystem checks. (Note: DOS 3.3 filesystems have no volume name — catalog file names, stored as high-bit ASCII, are the matchable strings there; ProDOS volume names are plain ASCII.)
 
 **Quality constraints**
 
