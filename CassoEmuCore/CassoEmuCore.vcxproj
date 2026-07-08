@@ -246,6 +246,7 @@
     <ClCompile Include="Devices\Printer\PrintDelivery.cpp" />
     <ClCompile Include="Devices\Printer\PrintPagination.cpp" />
     <ClCompile Include="Devices\Printer\PrinterPacing.cpp" />
+    <ClCompile Include="Devices\Printer\PrinterStatusModel.cpp" />
     <ClCompile Include="External\StbVorbisWrapper.cpp">
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <EnableCodeAnalysis>false</EnableCodeAnalysis>
@@ -337,6 +338,7 @@
     <ClInclude Include="Devices\Printer\PrintDelivery.h" />
     <ClInclude Include="Devices\Printer\PrintPagination.h" />
     <ClInclude Include="Devices\Printer\PrinterPacing.h" />
+    <ClInclude Include="Devices\Printer\PrinterStatusModel.h" />
     <ClInclude Include="External\StbVorbisWrapper.h" />
     <ClInclude Include="External\stb_vorbis.c" />
   </ItemGroup>

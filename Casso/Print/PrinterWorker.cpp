@@ -79,6 +79,9 @@ void PrinterWorker::Start (PrinterByteRing & ring, PrintRaster seed)
         m_job->Raster () = std::move (seed);
     }
 
+    // Reflect any restored strip so the indicator shows Pending immediately.
+    m_hasContent.store (m_job->HasContent (), std::memory_order_relaxed);
+
     OpenCaptureFile ();
 
     if (m_capture.is_open ())
@@ -170,7 +173,13 @@ void PrinterWorker::Run ()
 
         events.clear ();   // presentation events unused until the panel/audio land
 
-        if (drained == 0)
+        if (drained > 0)
+        {
+            // Publish activity + content for the UI-thread status sampler.
+            m_activity.fetch_add (drained, std::memory_order_relaxed);
+            m_hasContent.store   (m_job->HasContent (), std::memory_order_relaxed);
+        }
+        else
         {
             std::this_thread::sleep_for (std::chrono::milliseconds (s_kIdleSleepMs));
         }

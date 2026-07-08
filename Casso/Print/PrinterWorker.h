@@ -48,6 +48,13 @@ public:
     // Synchronous drain of any bytes still in the ring; call only after Stop().
     size_t        FlushNow (vector<PrinterEvent> & events);
 
+    // Thread-safe status signals for the chrome indicator / panel: a monotonic
+    // counter that advances as guest bytes are drained (sample the delta to see
+    // "receiving"), and whether the strip currently holds printed content. Safe
+    // to read from the UI thread while the drain thread runs.
+    uint64_t      ActivityCount () const { return m_activity.load    (std::memory_order_relaxed); }
+    bool          HasContent    () const { return m_hasContent.load (std::memory_order_relaxed); }
+
 private:
     void          Run             ();
     void          OpenCaptureFile ();
@@ -55,6 +62,8 @@ private:
     unique_ptr<PrinterJob>   m_job;
     std::thread              m_thread;
     std::atomic<bool>        m_stopRequested { false };
+    std::atomic<uint64_t>    m_activity      { 0 };
+    std::atomic<bool>        m_hasContent    { false };
     bool                     m_running       = false;
     std::ofstream            m_capture;
 };
