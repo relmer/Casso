@@ -41,6 +41,7 @@ static constexpr ReservedNop    s_kReservedNops[] =
     { 0x5C, GlobalAddressingMode::Absolute,  8 },   // 3-byte, 8 cycle
     { 0xDC, GlobalAddressingMode::Absolute,  4 },   // 3-byte, 4 cycle
     { 0xFC, GlobalAddressingMode::Absolute,  4 },
+    { 0xDB, GlobalAddressingMode::Immediate, 3 },   // WAI slot: 2-byte NOP (base tier)
 };
 
 
@@ -250,11 +251,17 @@ void Cpu65C02::InitializeCmosLeftovers ()
 //  traps as an undefined instruction.
 //
 //  This is deliberately the base CMOS tier, matching the parts Apple shipped
-//  (a GTE/WDC/Rockwell mix whose common instruction set omits the extensions)
-//  and AppleWin: the Rockwell bit ops (RMB/SMB/BBR/BBS, the $x7/$xF columns)
-//  and WDC's WAI/STP ($CB/$DB) are NOT installed, so they fall through here as
-//  single-byte NOPs. The operations/modes backing them still exist in the
-//  CassoCore CMOS superset, inert, ready for a future Rockwell/WDC variant.
+//  (a GTE/WDC/Rockwell mix whose common instruction set omits the extensions):
+//  the Rockwell bit ops (RMB/SMB/BBR/BBS) and WDC's WAI/STP are NOT installed,
+//  so they behave as NOPs. Their operations/modes still exist in the CassoCore
+//  CMOS superset, inert, ready for a future Rockwell/WDC variant.
+//
+//  These NOPs are NOT all single-byte. Harte's synertek65c02 vectors show the
+//  base part still consumes each slot's operand bytes: the $x7 column (RMB/SMB)
+//  is a 2-byte NOP, the $xF column (BBR/BBS) is 3-byte, and $DB (WAI) is 2-byte
+//  (handled in s_kReservedNops). Only the truly empty $x3/$xB slots and $CB are
+//  single-byte. Cycle counts mirror the displaced instruction's slot timing;
+//  conformance checks final state, not cycles.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -265,6 +272,17 @@ void Cpu65C02::InitializeNops ()
     for (const ReservedNop & e : s_kReservedNops)
     {
         SetOpcode (e.opcode, "NOP", Microcode::NoOperation, e.mode, nullptr, nullptr, e.cycles);
+    }
+
+    // $x7 (RMB/SMB slots): 2-byte NOPs.  $xF (BBR/BBS slots): 3-byte NOPs.
+    for (i = 0x07; i <= 0xF7; i += 0x10)
+    {
+        SetOpcode ((Byte) i, "NOP", Microcode::NoOperation, GlobalAddressingMode::ZeroPage, nullptr, nullptr, 5);
+    }
+
+    for (i = 0x0F; i <= 0xFF; i += 0x10)
+    {
+        SetOpcode ((Byte) i, "NOP", Microcode::NoOperation, GlobalAddressingMode::Absolute, nullptr, nullptr, 5);
     }
 
     for (i = 0; i <= 0xFF; ++i)

@@ -372,6 +372,7 @@ dormann_temp/
 # Harte SingleStepTests — generated binary test data (regenerated on demand)
 UnitTest/nes6502/
 UnitTest/6502/
+UnitTest/synertek65c02/
 
 # Disk images we cannot redistribute (Apple-owned)
 /Disks/Apple/dos33-master.dsk

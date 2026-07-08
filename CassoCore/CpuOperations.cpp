@@ -901,21 +901,23 @@ void CpuOperations::SubtractWithCarryCmos (Cpu & cpu, Byte operand)
     if (cpu.status.flags.decimal)
     {
         Byte originalA = cpu.A;
-        int  lo        = (int) (originalA & 0x0F) - (int) (operand & 0x0F) - (int) borrowIn;
+        int  loRaw     = (int) (originalA & 0x0F) - (int) (operand & 0x0F) - (int) borrowIn;
+        int  loBorrow  = loRaw < 0 ? 1 : 0;
+        int  lo        = loRaw - (loBorrow ? 0x06 : 0);
 
-        if (lo < 0)
+        // The high nibble takes a multi-nibble borrow (lo >> 4) so an invalid-BCD
+        // low nibble propagates its full borrow, but the -$60 correction is decided
+        // by the *binary* high borrow (before that extra borrow) — matching the
+        // Synertek 65C02 silicon captured by Harte's synertek65c02 vectors.
+        int  hiBinary  = (int) (originalA >> 4) - (int) (operand >> 4) - loBorrow;
+        int  hi        = (int) (originalA >> 4) - (int) (operand >> 4) + (lo >> 4);
+
+        if (hiBinary < 0)
         {
-            lo = ((lo - 0x06) & 0x0F) - 0x10;
+            hi -= 0x06;
         }
 
-        int hi = (int) (originalA & 0xF0) - (int) (operand & 0xF0) + lo;
-
-        if (hi < 0)
-        {
-            hi -= 0x60;
-        }
-
-        cpu.A                     = (Byte) (hi & 0xFF);
+        cpu.A                     = (Byte) (((hi & 0x0F) << 4) | (lo & 0x0F));
         cpu.status.flags.zero     = cpu.A == 0;
         cpu.status.flags.negative = (bool) (cpu.A & 0x80);
 
