@@ -8,5 +8,6 @@ Read that file at the start of every session.
 
 <!-- SPECKIT START -->
 For additional context about technologies to be used, project structure,
-shell commands, and other important information, read the current plan
+shell commands, and other important information, read the current plan:
+`specs/015-printer-support/plan.md` (spec: `specs/015-printer-support/spec.md`)
 <!-- SPECKIT END -->
