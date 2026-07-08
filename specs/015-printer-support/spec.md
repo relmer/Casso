@@ -8,6 +8,16 @@
 
 **Input**: User description: "Emulated printer support for the Apple //e emulator, with The Print Shop (and New Print Shop color printing) as the flagship scenario. Emulate an Apple ImageWriter II printer (C. Itoh 8510 command set with Apple extensions), including color ribbon support (ESC K color selection: black, yellow, red, blue, orange, green, purple), bit-image graphics (ESC G et al.), pitch-based horizontal densities (72-160 dpi), and 72/144 dpi vertical via half-line feeds. The printer interpreter is a pure byte-stream-in, page-raster-out component (unit-testable with synthetic byte streams, no hardware or system dependencies). The guest sends bytes via an emulated slot interface card: start with a generic parallel interface card (data latch + status register in the slot I/O window, plus a minimal custom slot firmware ROM we assemble with the in-repo assembler); emulate a Super Serial Card (6551 ACIA) only if Print Shop refuses to drive an ImageWriter II through a parallel card. Rasterized output goes to a user-selectable destination configured in settings: (1) clipboard as bitmap, (2) PNG file, (3) Windows printer via the standard Windows print dialog initially (a custom dxui print dialog is a later follow-on, out of scope). PDF output is achieved via the Windows \"Microsoft Print to PDF\" printer rather than a dedicated PDF writer. For clipboard/PNG destinations, emulate continuous fanfold paper so multi-page Print Shop banners render as one continuous image; pagination applies only to the Windows printer destination."
 
+## Clarifications
+
+### Session 2026-07-07
+
+- Q: When is output delivered to the selected destination? → A: Job-based delivery — output is delivered only when the job completes (explicit eject); a form feed marks a page boundary within the job but delivers nothing. The clipboard is not a persisted destination; it is an opt-in Copy control on the printer panel.
+- Q: What happens to pending un-ejected output when the emulator exits? → A: It persists across emulator sessions, per machine — like paper left in the platen. Eject remains fully manual; interpreter settings still reset at machine power-on. Loss on abnormal termination (crash) is acceptable for v1.
+- Q: Is the output-destination setting per machine or global? → A: Global. Host print services (PNG, Windows printing, clipboard copy) are host resources shared by all emulated machines, like the keyboard and mouse; each machine's guest-side printer hardware is per-machine and plumbs into them. The destination setting lives in global user preferences.
+- Q: How is the non-square dot grid (160 dpi horizontal × 144 rows/inch vertical) presented in delivered output? → A: Ink rendering (Option C): delivery resamples to true geometry (square pixels) and renders each dot as a round ink impression at pin diameter (larger than the grid pitch, so adjacent dots merge), with composite colors produced by overprint ink mixing and a subtle deterministic ribbon-weave texture modulation. A plain square-dot rendering remains as fallback. Interpreter golden tests stay on the native dot grid.
+- Q: What is the practical maximum continuous-strip (banner) length? → A: 60 fanfold pages (~55 feet). Reaching the cap finalizes the strip and notifies the user.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Print a Print Shop Page to a PNG File (Priority: P1)
@@ -20,7 +30,7 @@ An emulator user boots an unmodified The Print Shop disk on the emulated Apple /
 
 **Acceptance Scenarios**:
 
-1. **Given** a machine configured with the printer interface card in slot 1 and PNG selected as the destination, **When** Print Shop prints a single-page sign, **Then** a PNG file of the complete page is created in the configured folder and its content is a faithful monochrome rendering of the designed sign.
+1. **Given** a machine configured with the printer interface card in slot 1 and PNG selected as the destination, **When** Print Shop prints a single-page sign and the user ejects the job, **Then** a PNG file of the complete page is created in the configured folder and its content is a faithful monochrome rendering of the designed sign.
 2. **Given** the same setup, **When** the guest prints content mixing text and bit-image graphics at several dot densities on one page, **Then** every element lands at its documented paper position — no horizontal stretching, vertical gaps, or overlapping rows.
 3. **Given** a machine with no printer card configured, **When** the guest reads or writes slot 1's I/O locations, **Then** the emulator behaves exactly as it does today for an empty slot and no output of any kind is produced.
 
@@ -44,16 +54,16 @@ The user selects the four-color ribbon in Print Shop's setup (offered by later r
 
 ### User Story 3 - Choosing the Output Destination (Priority: P3)
 
-In the emulator's settings, the user chooses where finished pages go: the Windows clipboard (as a bitmap), a PNG file in a configurable folder, or a Windows printer via the standard Windows print dialog. Selecting "Microsoft Print to PDF" in that dialog yields PDF output with no dedicated PDF support in the emulator.
+In the emulator's settings, the user chooses where ejected jobs go: a PNG file in a configurable folder, or a Windows printer via the standard Windows print dialog (selecting "Microsoft Print to PDF" there yields PDF output with no dedicated PDF support in the emulator). Delivery happens once per job, at eject. The clipboard is not a destination: a Copy control on the printer panel places the rendered output on the Windows clipboard on demand, whichever destination is selected.
 
-**Why this priority**: Destinations multiply the value of the pipeline but any single destination (PNG, from User Story 1) already proves it. Clipboard and Windows printing are additive conveniences.
+**Why this priority**: Destinations multiply the value of the pipeline but any single destination (PNG, from User Story 1) already proves it. Windows printing and clipboard copy are additive conveniences.
 
-**Independent Test**: With each destination selected in turn, complete a one-page print and verify the page arrives at that destination.
+**Independent Test**: With each destination selected in turn, print and eject a one-page job and verify it arrives at that destination; use the Copy control and verify the clipboard contents.
 
 **Acceptance Scenarios**:
 
-1. **Given** the clipboard destination, **When** a page completes, **Then** a bitmap of the page is on the Windows clipboard and pastes correctly into a standard image editor.
-2. **Given** the Windows printer destination, **When** a print job completes, **Then** the standard Windows print dialog appears, and confirming it prints the job's pages; choosing "Microsoft Print to PDF" produces a PDF.
+1. **Given** rendered output is on the paper (job not yet ejected), **When** the user presses the panel's Copy control, **Then** a bitmap of that output is on the Windows clipboard and pastes correctly into a standard image editor; the job is not ejected and the selected destination is unaffected.
+2. **Given** the Windows printer destination, **When** a job is ejected, **Then** the standard Windows print dialog appears once for the job, and confirming it prints the job's pages; choosing "Microsoft Print to PDF" produces a PDF.
 3. **Given** the Windows printer destination, **When** the user cancels the print dialog, **Then** no output is produced, the job remains available to re-emit, and emulation continues unaffected.
 4. **Given** any destination selection, **When** the emulator is closed and relaunched, **Then** the selection persists.
 
@@ -78,7 +88,7 @@ When the printer card is enabled, a small printer indicator sits in the window c
 
 ### User Story 5 - Banner Printing on Continuous Fanfold Paper (Priority: P5)
 
-The user prints a Print Shop banner — a message spanning many fanfold pages sideways. With the clipboard or PNG destination, the banner emerges as one continuous image with no page-break seams, something no physical printer could produce. With the Windows printer destination, the banner is split at page boundaries and printed as a sequence of pages.
+The user prints a Print Shop banner — a message spanning many fanfold pages sideways. With the PNG destination — or copied via the panel's Copy control — the banner emerges as one continuous image with no page-break seams, something no physical printer could produce. With the Windows printer destination, the banner is split at page boundaries and printed as a sequence of pages.
 
 **Why this priority**: Banners are a beloved Print Shop feature and the continuous-image rendering is a unique payoff of emulation, but it depends on the full pipeline plus destination handling already being in place.
 
@@ -126,10 +136,10 @@ The user mounts a disk whose image filename (e.g. contains "print shop"), embedd
 ### Edge Cases
 
 - **Job without a final form feed**: Print Shop and BASIC listings often stop mid-page without ejecting. The user must have an explicit "eject page / finish print job" action, and the emulator must indicate when printed-but-unejected data is pending.
-- **Guest reset or reboot mid-print**: like a physical printer, pending page content survives a guest reset; it is finalized or discarded only by user action or a completed job.
+- **Guest reset or reboot mid-print**: like a physical printer, pending page content survives a guest reset — and an emulator restart (persisted per machine); it is finalized or discarded only by user action or a completed job.
 - **Unknown or unsupported command sequences**: consumed without effect and without disturbing subsequent interpretation; never crashes or corrupts the page.
 - **Output failure** (PNG folder missing or read-only, disk full, clipboard unavailable): the user is notified, the rendered page is not lost, and the user can retry after fixing the problem or switching destinations.
-- **Extremely long banner**: continuous output has a documented practical maximum length; reaching it finalizes the strip and notifies the user rather than failing silently.
+- **Extremely long banner**: continuous output is capped at 60 fanfold pages (~55 feet); reaching the cap finalizes the strip and notifies the user rather than failing silently.
 - **Full-speed byte bursts**: the guest may send bytes as fast as the CPU can write them; the card's readiness handshake must guarantee no byte is ever dropped or reordered.
 - **Print dialog cancelled**: the job is retained as pending, not destroyed (Acceptance Scenario 3.3).
 - **Panel closed or unavailable while output is pending**: the indicator always carries the pending/activity state, and the eject action remains available through a menu command. The indicator never disturbs the disk-drive widgets' centered composition, at any window size.
@@ -156,17 +166,17 @@ The user mounts a disk whose image filename (e.g. contains "print shop"), embedd
 
 **Output destinations**
 
-- **FR-011**: The user MUST be able to select the output destination — clipboard, PNG file, or Windows printer — in the emulator's settings, and the selection MUST persist across emulator sessions.
+- **FR-011**: The user MUST be able to select the output destination — PNG file or Windows printer — in the emulator's settings. The selection (and PNG folder) is a global user preference shared by all emulated machines — host print services are host resources, like the keyboard — and MUST persist across emulator sessions. The clipboard is not a destination (see FR-013).
 - **FR-012**: The PNG destination MUST write automatically named files (collision-free, e.g. timestamped) to a user-configurable folder. On write failure the user is notified and the rendered output is retained for retry.
-- **FR-013**: The clipboard destination MUST place the page on the Windows clipboard as a standard bitmap pasteable into common applications.
-- **FR-014**: The Windows printer destination MUST present the standard Windows print dialog for the completed job; cancellation retains the job as pending. PDF output is provided by the user selecting the system's "Microsoft Print to PDF" printer — the feature includes no dedicated PDF generation.
-- **FR-015**: For the clipboard and PNG destinations, a job spanning multiple form lengths MUST render as one continuous image (fanfold paper); for the Windows printer destination, the same job MUST be split at page boundaries with no lost or duplicated content.
-- **FR-016**: A form feed completes the current page. The user MUST also have an explicit "eject page / finish job" action for output the guest never terminates, and the emulator MUST indicate when unejected output is pending.
+- **FR-013**: The printer panel MUST provide an opt-in Copy control that places the current rendered output (the un-ejected strip) on the Windows clipboard as a standard bitmap pasteable into common applications. Copying never ejects the job and works regardless of the selected destination.
+- **FR-014**: The Windows printer destination MUST present the standard Windows print dialog once per ejected job; cancellation retains the job as pending. PDF output is provided by the user selecting the system's "Microsoft Print to PDF" printer — the feature includes no dedicated PDF generation.
+- **FR-015**: For the PNG destination and clipboard copies, a job spanning multiple form lengths MUST render as one continuous image (fanfold paper), up to a maximum strip length of 60 fanfold pages; for the Windows printer destination, the same job MUST be split at page boundaries with no lost or duplicated content.
+- **FR-016**: Output is delivered to the selected destination only when a job completes, via the user's explicit "eject / finish job" action. A form feed marks a page boundary within the job (used for Windows-printer pagination) and does not by itself deliver anything. The emulator MUST indicate when un-ejected output is pending.
 
 **Printer indicator and panel**
 
 - **FR-019**: When the printer card is enabled, the emulator MUST display a compact printer indicator in the window chrome that never disturbs the disk-drive widgets' centered composition, and MUST provide a docked panel containing the skeuomorphic printer view — an ImageWriter-class printer with its four-color ribbon visible and paper rising from the platen showing the rendered output so far. Neither surface appears when the card is disabled.
-- **FR-020**: The panel MUST reveal automatically on the guest's first engagement of the card (slot-firmware activation or first data byte written) and MUST be openable and dismissible by user action at any time. Indicator and panel MUST reflect printer state — idle, receiving data, pending un-ejected output, and output-delivery failure (error light) — and the pending state MUST remain visible on the indicator whenever the panel is closed. The panel's Form Feed control performs the FR-016 eject/finish-job action.
+- **FR-020**: The panel MUST reveal automatically on the guest's first engagement of the card (slot-firmware activation or first data byte written) and MUST be openable and dismissible by user action at any time. Indicator and panel MUST reflect printer state — idle, receiving data, pending un-ejected output, and output-delivery failure (error light) — and the pending state MUST remain visible on the indicator whenever the panel is closed. The panel's Form Feed control performs the FR-016 eject/finish-job action, and the panel MUST also expose the FR-013 Copy control.
 - **FR-021**: Indicator and panel MUST summarize the virtual printer configuration (printer model, ribbon type, interface type, slot number) on hover, so users can answer guest software setup menus without external documentation.
 
 **Print-title recognition**
@@ -180,14 +190,16 @@ The user mounts a disk whose image filename (e.g. contains "print shop"), embedd
 
 - **FR-017**: The printer interpretation and rasterization component MUST consume plain byte streams with no dependency on the emulator machine, user interface, or any system service, so unit tests can drive it with synthetic streams and verify rasters against golden references.
 - **FR-018**: Printing MUST NOT measurably degrade emulation speed, audio continuity, or video smoothness while the guest is sending print data.
+- **FR-026**: Pending un-ejected output MUST persist across emulator sessions, per machine: the rendered strip, paper-advance position, and page boundaries are restored when the machine is next opened, with the indicator/panel reflecting the pending state. Interpreter settings (pitch, spacing, color) still reset per FR-010. Loss of pending output on abnormal termination is acceptable.
+- **FR-027**: Delivered output (PNG, clipboard copy, Windows printing, and the panel's paper view) MUST present true page geometry — square pixels, so printed shapes keep their real proportions. The delivery renderer MUST render dots as round ink impressions at pin diameter (wider than the horizontal grid pitch, so adjacent dots merge as on paper), produce composite colors by overprint ink mixing, and apply a subtle, deterministic ribbon-weave texture modulation. Rendering MUST be deterministic (identical raster in, identical image out) so golden-image tests remain valid; a plain square-dot rendering MUST remain available as a fallback. The internal raster (FR-006) stays on the native dot grid.
 
 ### Key Entities
 
 - **Printer Interface Card**: The emulated slot peripheral the guest talks to — accepts data bytes, reports readiness, and carries the slot firmware. Configured per machine (enabled/disabled, slot number).
 - **Emulated Printer**: Consumes the card's byte stream, maintains interpretation state (pitch, spacing, color, position), and places dots on the page raster.
 - **Page Raster**: The in-progress image of the current page (or continuous strip) at the printer's maximum dot resolution, in color.
-- **Print Job**: One or more completed pages (or one continuous strip) awaiting or undergoing delivery to the selected destination; survives guest resets until delivered or discarded.
-- **Output Destination Setting**: The persisted user choice of clipboard, PNG folder, or Windows printer, plus destination-specific options (e.g. PNG folder path).
+- **Print Job**: One or more completed pages (or one continuous strip) awaiting or undergoing delivery to the selected destination; survives guest resets and emulator restarts until delivered or discarded.
+- **Output Destination Setting**: The persisted, global user choice of PNG folder or Windows printer, plus destination-specific options (e.g. PNG folder path). Host print services are shared by all emulated machines; guest-side printer hardware is per-machine. Clipboard copy is an on-demand panel action, not a destination.
 - **Slot Firmware**: The original firmware image the card exposes to the guest, built from source in this repository.
 - **Print-Title Signature List**: Curated, bundled data (filename substrings and filesystem volume/file names) identifying known print-centric software; informational only — it drives the mount-time notice, never configuration.
 
@@ -197,12 +209,13 @@ The user mounts a disk whose image filename (e.g. contains "print shop"), embedd
 
 - **SC-001**: A user can boot an unmodified The Print Shop disk, print a sign or greeting card, and obtain a complete, faithful PNG of the page with no manual steps beyond Print Shop's own flow plus (at most) one eject action.
 - **SC-002**: Print Shop four-color-ribbon prints render all seven ribbon colors correctly, verified against golden reference rasters for each color and each composite.
-- **SC-003**: A multi-page Print Shop banner produces a single continuous image on the PNG/clipboard destinations — zero seams, zero missing or duplicated rows at former page boundaries — and the same content split cleanly into pages on the Windows printer destination.
+- **SC-003**: A multi-page Print Shop banner produces a single continuous image from the PNG destination or a clipboard copy — zero seams, zero missing or duplicated rows at former page boundaries — and the same content split cleanly into pages on the Windows printer destination.
 - **SC-004**: `PR#1` followed by `LIST` or `CATALOG` yields a readable text printout on the first attempt.
 - **SC-005**: Automated tests reproduce golden rasters bit-for-bit for every supported command (text, all pitches, line spacing, all graphics densities, all seven colors, reset), and run without touching files, clipboard, printers, or any other system state.
 - **SC-006**: Emulation remains at full speed with uninterrupted audio and video while a print job is streaming.
 - **SC-007**: Switching the output destination in settings takes effect for the next print without restarting the emulator.
 - **SC-008**: A user with no documentation can answer Print Shop's setup questions (printer, ribbon type, interface, slot) correctly using only what the emulator UI shows them.
+- **SC-009**: Delivered output preserves true shape: a circle printed by the guest measures within 1% of equal width and height in the delivered image.
 
 ## Assumptions
 
@@ -213,12 +226,12 @@ The user mounts a disk whose image filename (e.g. contains "print shop"), embedd
 - Downloadable custom character sets, proportional-text justification, and MouseText character printing are not exercised by the flagship scenarios and are out of scope.
 - The standard Windows print dialog suffices for the initial release; a themed in-app (dxui) print dialog is a later follow-on, out of scope here.
 - PDF output relies on the "Microsoft Print to PDF" system printer; no dedicated PDF writer is built.
-- Physical-printer theater — print-head sound effects, bidirectional head-travel timing, ribbon wear artifacts — is not modeled.
+- Fresh-ribbon ink physics IS modeled (round overlapping dots, overprint color mixing, subtle weave texture — FR-027) because it is what the printed artifact actually looked like. Physical-printer *theater* — print-head sound effects, bidirectional head-travel timing, ribbon wear/aging artifacts, random noise — is not modeled.
 - Print-title recognition is heuristic and intentionally low-consequence: a false negative is fully covered by the engagement-triggered panel reveal, and a false positive costs one dismissible notice. Copy-protected originals with non-standard filesystems are expected to go unrecognized.
 
 ## Out of Scope
 
-- Super Serial Card / 6551 serial interface emulation (contingency only, per Assumptions).
+- Super Serial Card / 6551 serial interface emulation (contingency only, per Assumptions). Note: planned Apple //c support (discussed on the main branch) requires a 6551 ACIA core anyway — the //c's serial ports are built in and driven by the machine's own ROM, so if that work lands, the serial printing path becomes a shared component with no card-firmware clone required, and this contingency gets substantially cheaper.
 - Epson ESC/P or any second printer command set.
 - Custom dxui print dialog (follow-on).
 - Dedicated PDF generation.
