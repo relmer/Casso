@@ -45,9 +45,9 @@
 
 **⚠️ Blocks the 65C02 + //c stories** (not the ACIA above).
 
-- [ ] T008 Extend `MachineConfig` (`CassoEmuCore/Core/MachineConfig.{h,cpp}`) to accept `cpu` ∈ {`6502`, `65C02`} (currently hard-validated to `6502` at `MachineConfig.cpp:726`); add a CPU factory mapping the string → `ICpu`.
-- [ ] T009 Wire `MachineManager` (`Casso/Shell/MachineManager.cpp:~726`) to build `EmuCpu` with the injected strategy per `config.cpu` (default `6502`; existing machines unchanged).
-- [ ] T010 [P] Unit tests (`UnitTest/EmuTests/MachineConfigTests.cpp`): `65C02` parses; unknown rejected; default/`6502` preserved.
+- [X] T008 Extend `MachineConfig` (`CassoEmuCore/Core/MachineConfig.{h,cpp}`) to accept `cpu` ∈ {`6502`, `65C02`} (currently hard-validated to `6502` at `MachineConfig.cpp:726`); add a CPU factory mapping the string → `ICpu`. *(`CpuFactory`; 65C02 → E_NOTIMPL until Phase 4.)*
+- [X] T009 Wire `MachineManager` (`Casso/Shell/MachineManager.cpp:~726`) to build `EmuCpu` with the injected strategy per `config.cpu` (default `6502`; existing machines unchanged).
+- [X] T010 [P] Unit tests (`UnitTest/EmuTests/MachineConfigTests.cpp`): `65C02` parses; unknown rejected; default/`6502` preserved.
 
 **Checkpoint**: config-driven CPU selection; II/II+/`//e` still run NMOS.
 

@@ -723,8 +723,8 @@ HRESULT MachineConfigLoader::Load (
     hr = root.GetString ("cpu", outConfig.cpu);
     CHRF (hr, outError = "Missing or invalid field: 'cpu'");
 
-    CBRF (outConfig.cpu == "6502",
-          outError = format ("Invalid CPU type: '{}' (expected '6502')", outConfig.cpu));
+    CBRF (outConfig.cpu == "6502" || outConfig.cpu == "65C02",
+          outError = format ("Invalid CPU type: '{}' (expected '6502' or '65C02')", outConfig.cpu));
 
     // Required: timing
     hr = root.GetObject ("timing", pTiming);

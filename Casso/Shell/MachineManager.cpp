@@ -8,6 +8,7 @@
 #include "../resource.h"
 #include "Core/PathResolver.h"
 #include "Core/MachineConfig.h"
+#include "Core/CpuFactory.h"
 #include "Core/JsonParser.h"
 #include "Core/JsonWriter.h"
 #include "Core/Prng.h"
@@ -716,14 +717,22 @@ void MachineManager::CreateVideoModes()
 
 HRESULT MachineManager::CreateCpu (const MachineConfig & config)
 {
-    HRESULT        hr      = S_OK;
-    std::ifstream  romFile;
-    Word           addr    = 0;
-    char           byte    = 0;
+    HRESULT                  hr      = S_OK;
+    std::unique_ptr<ICpu>    cpu     = nullptr;
+    std::ifstream            romFile;
+    Word                     addr    = 0;
+    char                     byte    = 0;
 
 
 
-    m_shell.m_cpu = std::make_unique<EmuCpu> (m_shell.m_memoryBus);
+    // Select the CPU strategy per the machine profile (65C02 for the
+    // Enhanced //e and //c; NMOS 6502 for everything else). Building the
+    // wrong part silently is the exact defect this seam removes, so a
+    // strategy that cannot be built fails the machine build here.
+    hr = CpuFactory::Create (config.cpu, m_shell.m_memoryBus, cpu);
+    CHR (hr);
+
+    m_shell.m_cpu = std::make_unique<EmuCpu> (m_shell.m_memoryBus, std::move (cpu));
 
     // --trace: allocate the CPU execution-trace ring now that the CPU
     // exists. Covers both initial machine build and machine switches,
@@ -846,6 +855,7 @@ HRESULT MachineManager::CreateCpu (const MachineConfig & config)
         }
     }
 
+Error:
     return hr;
 }
 

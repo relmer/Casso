@@ -126,6 +126,37 @@ public:
             L"Error should mention the invalid CPU type");
     }
 
+    TEST_METHOD (Load_Cpu65C02_Accepted)
+    {
+        std::string json = R"({
+            "name": "Test",
+            "cpu": "65C02",
+            "timing": {
+                "videoStandard": "ntsc",
+                "clockSpeed": 1023000,
+                "cyclesPerScanline": 65
+            },
+            "ram": [],
+            "systemRom": { "address": "0xD000", "file": "Apple2Plus.rom" },
+            "internalDevices": [],
+            "video": { "modes": [] },
+            "keyboard": { "type": "test" }
+        })";
+
+        MachineConfig config;
+        std::string   error;
+
+        std::vector<fs::path> paths = { "/mock" };
+        HRESULT hr = MachineConfigLoader::Load (json, "TestMachine", paths, MockResolveAll,
+                                                config, error);
+
+        Assert::IsTrue (SUCCEEDED (hr),
+            std::format (L"65C02 profile should load: {}",
+                std::wstring (error.begin (), error.end ())).c_str ());
+        Assert::AreEqual (std::string ("65C02"), config.cpu,
+            L"CPU must be preserved as '65C02'");
+    }
+
     TEST_METHOD (Load_AuxRamRegion_Preserved)
     {
         std::string   json = JsonWithAuxRam ();

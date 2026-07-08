@@ -200,6 +200,7 @@
     <ClCompile Include="Core\MemoryBusCpu.cpp" />
     <ClCompile Include="Core\InterruptController.cpp" />
     <ClCompile Include="Core\ComponentRegistry.cpp" />
+    <ClCompile Include="Core\CpuFactory.cpp" />
     <ClCompile Include="Core\Prng.cpp" />
     <ClCompile Include="Devices\RamDevice.cpp" />
     <ClCompile Include="Devices\RomDevice.cpp" />
@@ -243,6 +244,7 @@
     <ClInclude Include="Pch.h" />
     <ClInclude Include="Core\MemoryDevice.h" />
     <ClInclude Include="Core\ComponentRegistry.h" />
+    <ClInclude Include="Core\CpuFactory.h" />
     <ClInclude Include="Core\JsonParser.h" />
     <ClInclude Include="Core\JsonValue.h" />
     <ClInclude Include="Core\JsonWriter.h" />
