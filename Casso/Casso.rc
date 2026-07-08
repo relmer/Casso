@@ -20,6 +20,7 @@ IDI_CASSO_PHOTOREAL          ICON "..\\Resources\\Icons\\Casso-3-photoreal.ico"
 IDR_MACHINE_APPLE2      RCDATA "..\\Resources\\Machines\\Apple2\\Apple2.json"
 IDR_MACHINE_APPLE2PLUS  RCDATA "..\\Resources\\Machines\\Apple2Plus\\Apple2Plus.json"
 IDR_MACHINE_APPLE2E     RCDATA "..\\Resources\\Machines\\Apple2e\\Apple2e.json"
+IDR_MACHINE_APPLE2C     RCDATA "..\\Resources\\Machines\\Apple2c\\Apple2c.json"
 
 // Embedded built-in theme files (extracted on first run by
 // AssetBootstrap::EnsureThemes — see Casso/AssetBootstrap.cpp).

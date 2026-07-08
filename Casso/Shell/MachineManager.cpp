@@ -23,6 +23,7 @@
 #include "Devices/Disk2Controller.h"
 #include "Devices/LanguageCard.h"
 #include "Devices/Apple2eMmu.h"
+#include "Devices/Apple2cRomBank.h"
 #include "Video/AppleTextMode.h"
 #include "Video/Apple80ColTextMode.h"
 #include "Video/AppleLoResMode.h"
@@ -156,7 +157,38 @@ HRESULT MachineManager::CreateMemoryDevices (const MachineConfig & config)
         m_shell.m_ownedDevices.push_back (std::move (device));
     }
 
-    // System ROM (single, file size determines end address)
+    // System ROM. Two shapes:
+    //   - Flat (//e and earlier): one image mapped at systemRom.address.
+    //   - Banked (//c): a multi-bank file whose active bank is toggled at
+    //     runtime. Bank 0 is added here as a flat $C000-$FFFF image so the
+    //     normal WireLanguageCard split (LC + CxxxRomRouter) applies; the
+    //     Apple2cRomBank is layered on afterward (WireApple2cRomBank) to
+    //     enable the $C028 flip.
+    if (config.systemRom.romBankSize != 0)
+    {
+        std::vector<Byte>  fileBytes;
+
+        hr = ReadRomFileBytes (config.systemRom.resolvedPath, fileBytes);
+
+        if (FAILED (hr) || fileBytes.size () < config.systemRom.romBankSize)
+        {
+            wideError = L"Cannot read banked system ROM: " +
+                        std::wstring (config.systemRom.resolvedPath.begin (),
+                                      config.systemRom.resolvedPath.end ());
+            CBRN (false, wideError.c_str ());
+        }
+
+        Word romStart = config.systemRom.address;
+        Word romEnd   = static_cast<Word> (config.systemRom.address + config.systemRom.romBankSize - 1);
+
+        auto device = RomDevice::CreateFromData (romStart, romEnd,
+                                                 fileBytes.data (),
+                                                 config.systemRom.romBankSize);
+
+        m_shell.m_memoryBus.AddDevice (device.get ());
+        m_shell.m_ownedDevices.push_back (std::move (device));
+    }
+    else
     {
         Word romStart = config.systemRom.address;
         Word romEnd   = static_cast<Word> (config.systemRom.address + config.systemRom.fileSize - 1);
@@ -555,6 +587,103 @@ void MachineManager::WireLanguageCard()
     }
 }
 
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ReadRomFileBytes
+//
+//  Reads an entire ROM image into memory. Used for the //c's banked ROM,
+//  whose 32K file does not fit RomDevice::CreateFromFile's exact-size rule.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT MachineManager::ReadRomFileBytes (const std::string & path, std::vector<Byte> & out)
+{
+    std::ifstream   file (path, std::ios::binary | std::ios::ate);
+
+    if (!file.good ())
+    {
+        return E_FAIL;
+    }
+
+    std::streamoff  size = file.tellg ();
+
+    if (size <= 0)
+    {
+        return E_FAIL;
+    }
+
+    file.seekg (0, std::ios::beg);
+    out.resize (static_cast<size_t> (size));
+    file.read (reinterpret_cast<char *> (out.data ()), size);
+
+    return file.good () ? S_OK : E_FAIL;
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WireApple2cRomBank
+//
+//  Layers the Apple //c firmware-bank coordinator on top of the language
+//  card + CxxxRomRouter that WireLanguageCard already populated from bank 0.
+//  SetBankImages re-applies bank 0 (idempotent) and enables the $C028 flip
+//  via the soft-switch bank's IRomBankSwitch hook. No-op for flat-ROM
+//  machines (the //e and earlier).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MachineManager::WireApple2cRomBank ()
+{
+    const RomReference &  sysRom = m_shell.m_config.systemRom;
+
+    if (sysRom.romBankSize == 0)
+    {
+        return;
+    }
+
+    Apple2eMmu            * mmu = m_shell.m_mmu.get ();
+    Apple2eSoftSwitchBank * sw  = dynamic_cast<Apple2eSoftSwitchBank *> (m_shell.m_refs.softSwitches);
+    LanguageCard          * lc  = nullptr;
+
+    for (auto & dev : m_shell.m_ownedDevices)
+    {
+        lc = dynamic_cast<LanguageCard *> (dev.get ());
+
+        if (lc != nullptr)
+        {
+            break;
+        }
+    }
+
+    if (mmu == nullptr || sw == nullptr || lc == nullptr)
+    {
+        DEBUGMSG (L"WireApple2cRomBank: missing MMU/soft-switches/LC; banking disabled\n");
+        return;
+    }
+
+    std::vector<Byte>   fileBytes;
+    size_t              twoBanks = static_cast<size_t> (sysRom.romBankSize) * 2;
+
+    if (FAILED (ReadRomFileBytes (sysRom.resolvedPath, fileBytes)) ||
+        fileBytes.size () < twoBanks)
+    {
+        DEBUGMSG (L"WireApple2cRomBank: cannot read both ROM banks; banking disabled\n");
+        return;
+    }
+
+    std::vector<Byte>   bank0 (fileBytes.begin (),                     fileBytes.begin () + sysRom.romBankSize);
+    std::vector<Byte>   bank1 (fileBytes.begin () + sysRom.romBankSize, fileBytes.begin () + twoBanks);
+
+    m_shell.m_apple2cRomBank = std::make_unique<Apple2cRomBank> (*lc, *mmu);
+    m_shell.m_apple2cRomBank->SetBankImages (std::move (bank0), std::move (bank1));
+    sw->SetRomBankSwitch (m_shell.m_apple2cRomBank.get ());
+}
 
 
 
@@ -1062,6 +1191,9 @@ HRESULT MachineManager::SwitchMachine (const std::wstring & machineName)
     // it must be explicitly reset here or it'll keep its stale
     // RamDevice pointer alive across a //e -> ][ switch.
     m_shell.m_cpu.reset();
+    // The //c ROM-bank coordinator holds references into the language card
+    // (owned) + MMU; drop it before those owners are torn down.
+    m_shell.m_apple2cRomBank.reset();
     m_shell.m_ownedDevices.clear();
     m_shell.m_videoModes.clear();
     m_shell.m_memoryBus = MemoryBus();
@@ -1088,6 +1220,7 @@ HRESULT MachineManager::SwitchMachine (const std::wstring & machineName)
     }
 
     WireLanguageCard();
+    WireApple2cRomBank();
     CreateVideoModes();
 
     hr = m_shell.m_memoryBus.Validate();

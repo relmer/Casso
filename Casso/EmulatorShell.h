@@ -710,6 +710,10 @@ private:
     MachineRefs                   m_refs;
 
     unique_ptr<class Apple2eMmu>  m_mmu;
+    // Apple //c firmware-bank coordinator ($C028). Null on every other
+    // machine. Owned here (not in m_ownedDevices) because it is not a bus
+    // device; reset during machine teardown before the LC/MMU it references.
+    unique_ptr<class Apple2cRomBank>  m_apple2cRomBank;
     unique_ptr<VideoTiming>       m_videoTiming;
 
     // / T097 / FR-025. The store coordinates auto-flush of dirty

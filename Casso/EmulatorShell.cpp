@@ -17,6 +17,7 @@
 #include "Devices/Disk2Controller.h"
 #include "Devices/LanguageCard.h"
 #include "Devices/Apple2eMmu.h"
+#include "Devices/Apple2cRomBank.h"
 #include "Core/Prng.h"
 
 #include "DiskSettings.h"
