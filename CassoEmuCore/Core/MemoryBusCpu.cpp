@@ -113,9 +113,6 @@ void MemoryBusCpu::WriteWord (Word address, Word value)
 void MemoryBusCpu::InitForEmulation ()
 {
     // Randomize RAM ($0000-$BFFF) to simulate real DRAM power-on state.
-    // Note: the //e ROM's 80STORE handling is incomplete (see issue), so
-    // page 2 text memory ($0800-$0BFF) is zeroed to avoid visual artifacts
-    // when 80STORE redirects $C054/$C055 to aux memory bank selection.
     mt19937                          rng (random_device{}());
     uniform_int_distribution<int>    dist (0, 255);
 
@@ -123,8 +120,6 @@ void MemoryBusCpu::InitForEmulation ()
     {
         memory[i] = static_cast<Byte> (dist (rng));
     }
-
-    fill (memory.begin () + 0x0800, memory.begin () + 0x0C00, Byte (0));
 
     SP = 0xFD;
 
@@ -178,16 +173,13 @@ void MemoryBusCpu::SoftReset ()
 //  PowerCycle
 //
 //  Phase 4 / FR-035. Re-seeds Cpu::memory[$0000-$BFFF) from the shared
-//  Prng, zeros page-2 text ($0800-$0BFF) per the InitForEmulation
-//  comment, then runs the SoftReset sequence.
+//  Prng, then runs the SoftReset sequence.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void MemoryBusCpu::PowerCycle (Prng & prng)
 {
     prng.Fill (memory.data (), 0xC000);
-
-    fill (memory.begin () + 0x0800, memory.begin () + 0x0C00, Byte (0));
 
     A             = 0;
     X             = 0;
