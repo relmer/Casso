@@ -105,13 +105,13 @@ namespace ImageWriterInterpreterTests
             PrintRaster              raster;
             vector<PrinterEvent>     events;
 
-            // ESC G 0002, then top-pin column (0x80) and bottom-pin column (0x01).
+            // ESC G 0002, then bottom-pin column (0x80) and top-pin column (0x01).
             Feed (interp, raster, events, { 0x1B, 'G', '0', '0', '0', '2', 0x80, 0x01 });
 
-            Assert::AreEqual ((Byte) InkPrimary::Black, raster.CellAt (0, 0));   // MSB -> top pin
-            Assert::AreEqual ((Byte) 0,                 raster.CellAt (0, 7));
-            Assert::AreEqual ((Byte) InkPrimary::Black, raster.CellAt (1, 7));   // LSB -> bottom pin
-            Assert::AreEqual ((Byte) 0,                 raster.CellAt (1, 0));
+            Assert::AreEqual ((Byte) InkPrimary::Black, raster.CellAt (0, 7));   // MSB -> bottom pin
+            Assert::AreEqual ((Byte) 0,                 raster.CellAt (0, 0));
+            Assert::AreEqual ((Byte) InkPrimary::Black, raster.CellAt (1, 0));   // LSB -> top pin
+            Assert::AreEqual ((Byte) 0,                 raster.CellAt (1, 7));
 
             Assert::AreEqual (1, CountEvents (events, PrinterEventType::HeadBurst));
             Assert::AreEqual (0, events.back ().fromDot);
@@ -130,8 +130,8 @@ namespace ImageWriterInterpreterTests
             Feed (interp, raster, events, { 0x0D });
             Feed (interp, raster, events, { 0x1B, 'G', '0', '0', '0', '1', 0x80 });
 
-            Assert::AreEqual ((Byte) InkPrimary::Black, raster.CellAt (0, 0));
-            Assert::AreEqual ((Byte) 0,                 raster.CellAt (1, 0));   // CR sent it back to col 0
+            Assert::AreEqual ((Byte) InkPrimary::Black, raster.CellAt (0, 7));   // 0x80 -> bottom pin
+            Assert::AreEqual ((Byte) 0,                 raster.CellAt (1, 7));   // CR sent it back to col 0
         }
 
 

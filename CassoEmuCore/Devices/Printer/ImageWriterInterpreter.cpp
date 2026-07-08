@@ -24,6 +24,16 @@ static constexpr Byte   s_kCmd8Lpi       = 'B';   // 1/8" line feed
 static constexpr Byte   s_kCmdColor      = 'K';   // seven-colour select (acted on in US2)
 static constexpr Byte   s_kCmdReset      = 'c';   // software reset
 
+// Recognized-but-inert preamble Print Shop sends before every graphics pass.
+// ESC '>' / ESC '<' select uni/bidirectional print direction (moot for our
+// deterministic column placement) and ESC 'P' selects the graphics pitch that
+// already matches the 160-dpi native grid. Consumed so they don't surface as
+// UnknownCommand -- confirmed against the Print Shop Color capture, which
+// renders correctly treating them as no-ops.
+static constexpr Byte   s_kCmdPrintDirFwd = '>';
+static constexpr Byte   s_kCmdPrintDirRev = '<';
+static constexpr Byte   s_kCmdGfxPitch    = 'P';
+
 static constexpr int    s_kGraphicsDigits   = 4;
 static constexpr int    s_kLineSpaceDigits   = 2;
 static constexpr int    s_kColorParams       = 1;
@@ -83,6 +93,33 @@ static int PitchForCommand (Byte cmd)
 static bool IsPitchCommand (Byte cmd)
 {
     return cmd == 'n' || cmd == 'N' || cmd == 'E' || cmd == 'e' || cmd == 'q' || cmd == 'Q';
+}
+
+
+
+
+// ESC K colour select: one ASCII digit 0..6 per the ImageWriter II ribbon
+// table (0 black, 1 yellow, 2 red, 3 blue, 4 orange, 5 green, 6 purple). The
+// composites are the OR of their primaries, matching how two overprinted
+// passes accumulate in a cell -- Print Shop Color drives only the 1/2/3
+// primaries and lets overlap form the composites itself.
+static InkPrimary ColorForCode (Byte digit)
+{
+    Byte   yellow = (Byte) InkPrimary::Yellow;
+    Byte   red    = (Byte) InkPrimary::Red;
+    Byte   blue   = (Byte) InkPrimary::Blue;
+
+    switch (digit)
+    {
+    case '0':   return InkPrimary::Black;
+    case '1':   return InkPrimary::Yellow;
+    case '2':   return InkPrimary::Red;
+    case '3':   return InkPrimary::Blue;
+    case '4':   return (InkPrimary) (yellow | red);    // orange
+    case '5':   return (InkPrimary) (yellow | blue);   // green
+    case '6':   return (InkPrimary) (red | blue);      // purple
+    default:    return InkPrimary::Black;
+    }
 }
 
 
@@ -260,6 +297,10 @@ void ImageWriterInterpreter::ConsumeEsc (Byte b, PrintRaster & raster, vector<Pr
         m_pitchDotsPerChar = PitchForCommand (b);
         m_state            = EscState::Idle;
     }
+    else if (b == s_kCmdPrintDirFwd || b == s_kCmdPrintDirRev || b == s_kCmdGfxPitch)
+    {
+        m_state = EscState::Idle;   // recognized no-op preamble (see command table)
+    }
     else
     {
         PrinterEvent   ev;
@@ -283,7 +324,6 @@ void ImageWriterInterpreter::ConsumeEsc (Byte b, PrintRaster & raster, vector<Pr
 void ImageWriterInterpreter::ExecuteParamCommand (PrintRaster & raster, vector<PrinterEvent> & events)
 {
     UNREFERENCED_PARAMETER (raster);
-    UNREFERENCED_PARAMETER (events);
 
     if (m_cmd == s_kCmdGraphics)
     {
@@ -306,9 +346,13 @@ void ImageWriterInterpreter::ExecuteParamCommand (PrintRaster & raster, vector<P
     }
     else if (m_cmd == s_kCmdColor)
     {
-        // US1 is monochrome: the colour param is consumed but not acted on.
-        // US2 (T023) maps it to an InkPrimary and emits ColorChange.
-        m_state = EscState::Idle;
+        PrinterEvent   ev;
+
+        m_color  = ColorForCode (m_params[0]);
+        ev.type  = PrinterEventType::ColorChange;
+        ev.color = m_color;
+        events.push_back (ev);
+        m_state  = EscState::Idle;
     }
     else
     {
@@ -324,9 +368,9 @@ void ImageWriterInterpreter::ExecuteParamCommand (PrintRaster & raster, vector<P
 //  ConsumeGraphicsByte
 //
 //  One bit-image column: eight vertical dots at the current head column.
-//  PROVISIONAL geometry -- MSB is the top pin, dots on consecutive native rows
-//  (144 rows/inch); the capture checkpoint confirms bit order and vertical
-//  pitch. A HeadBurst summarising the run is emitted when it ends.
+//  Bit order confirmed against a real Print Shop Color capture: the LSB (bit 0)
+//  is the TOP pin, dots on consecutive native rows (144 rows/inch). A HeadBurst
+//  summarising the run is emitted when it ends.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -337,7 +381,7 @@ void ImageWriterInterpreter::ConsumeGraphicsByte (Byte b, PrintRaster & raster, 
 
     for (bit = 0; bit < s_kGraphicsPins; bit++)
     {
-        if ((b & (0x80 >> bit)) != 0)
+        if ((b & (0x01 << bit)) != 0)
         {
             raster.Strike (m_headColumnDots, row + bit, m_color);
         }

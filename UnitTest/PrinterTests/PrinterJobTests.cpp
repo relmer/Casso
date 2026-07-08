@@ -43,8 +43,8 @@ namespace PrinterJobTests
             PrinterJob             job (ring);
             vector<PrinterEvent>   events;
 
-            // ESC G 0001 then one top-pin column.
-            PushAll (ring, { 0x1B, 'G', '0', '0', '0', '1', 0x80 });
+            // ESC G 0001 then one top-pin column (0x01 = LSB = top pin).
+            PushAll (ring, { 0x1B, 'G', '0', '0', '0', '1', 0x01 });
 
             size_t   drained = job.Drain (events);
 
@@ -101,7 +101,7 @@ namespace PrinterJobTests
             Assert::IsFalse (job.HasContent ());          // nothing struck yet
 
             // Second drain delivers the data byte; the run completes.
-            PushAll (ring, { 0x80 });
+            PushAll (ring, { 0x01 });
             job.Drain (events);
             Assert::AreEqual ((Byte) InkPrimary::Black, job.Raster ().CellAt (0, 0));
         }
