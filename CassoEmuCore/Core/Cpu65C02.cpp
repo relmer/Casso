@@ -2,6 +2,8 @@
 
 #include "Cpu65C02.h"
 
+#include "GroupCmos.h"
+
 // Bit-addressed instruction families (RMBn/SMBn/BBRn/BBSn) are laid out at a
 // fixed 0x10 stride from a base opcode, one per bit 0..7.
 static constexpr Byte    s_kBitOpCount   = 8;
@@ -17,14 +19,15 @@ static constexpr Byte    s_kOneByteNopCycles = 1;
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  OpcodeModeCycles
+//  ReservedNop
 //
-//  Compact table row for opcodes whose operation is fixed per group and that
-//  take no register pointer (so the row can be a compile-time constant).
+//  A reserved opcode-map hole that the 65C02 executes as a NOP. Unlike the real
+//  instructions (which live in GroupCmos keyed by mnemonic) these are pure fill:
+//  the addressing mode only fixes how many operand bytes are consumed.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-struct OpcodeModeCycles
+struct ReservedNop
 {
     Byte                                   opcode;
     GlobalAddressingMode::AddressingMode   mode;
@@ -32,43 +35,7 @@ struct OpcodeModeCycles
 };
 
 
-// ADC/SBC across every addressing mode. Routed to the CMOS variants so decimal
-// flags and the extra decimal cycle are correct regardless of mode.
-static constexpr OpcodeModeCycles    s_kAdcModes[] =
-{
-    { 0x69, GlobalAddressingMode::Immediate,         2 },
-    { 0x65, GlobalAddressingMode::ZeroPage,          3 },
-    { 0x75, GlobalAddressingMode::ZeroPageX,         4 },
-    { 0x6D, GlobalAddressingMode::Absolute,          4 },
-    { 0x7D, GlobalAddressingMode::AbsoluteX,         4 },
-    { 0x79, GlobalAddressingMode::AbsoluteY,         4 },
-    { 0x61, GlobalAddressingMode::ZeroPageXIndirect, 6 },
-    { 0x71, GlobalAddressingMode::ZeroPageIndirectY, 5 },
-};
-
-static constexpr OpcodeModeCycles    s_kSbcModes[] =
-{
-    { 0xE9, GlobalAddressingMode::Immediate,         2 },
-    { 0xE5, GlobalAddressingMode::ZeroPage,          3 },
-    { 0xF5, GlobalAddressingMode::ZeroPageX,         4 },
-    { 0xED, GlobalAddressingMode::Absolute,          4 },
-    { 0xFD, GlobalAddressingMode::AbsoluteX,         4 },
-    { 0xF9, GlobalAddressingMode::AbsoluteY,         4 },
-    { 0xE1, GlobalAddressingMode::ZeroPageXIndirect, 6 },
-    { 0xF1, GlobalAddressingMode::ZeroPageIndirectY, 5 },
-};
-
-// STZ addressing forms.
-static constexpr OpcodeModeCycles    s_kStzModes[] =
-{
-    { 0x64, GlobalAddressingMode::ZeroPage,  3 },
-    { 0x74, GlobalAddressingMode::ZeroPageX, 4 },
-    { 0x9C, GlobalAddressingMode::Absolute,  4 },
-    { 0x9E, GlobalAddressingMode::AbsoluteX, 5 },
-};
-
-// Reserved multi-byte NOPs: (opcode, addressing mode determines byte count).
-static constexpr OpcodeModeCycles    s_kReservedNops[] =
+static constexpr ReservedNop    s_kReservedNops[] =
 {
     { 0x02, GlobalAddressingMode::Immediate, 2 },   // 2-byte, 2 cycle
     { 0x22, GlobalAddressingMode::Immediate, 2 },
@@ -98,7 +65,7 @@ static constexpr OpcodeModeCycles    s_kReservedNops[] =
 Cpu65C02::Cpu65C02 (MemoryBus & memoryBus)
     : MemoryBusCpu (memoryBus)
 {
-    InstallCmosOpcodes ();
+    InitializeCmos ();
 }
 
 
@@ -147,17 +114,19 @@ void Cpu65C02::SetOpcode (Byte                                  opcode,
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  InstallCmosOpcodes
+//  InitializeCmos
+//
+//  Runs after the base ctor has built the NMOS table; each step below overrides
+//  the affected entries with their 65C02 behavior.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void Cpu65C02::InstallCmosOpcodes ()
+void Cpu65C02::InitializeCmos ()
 {
-    InstallArithmetic ();
-    InstallZeroPageInd ();
-    InstallNewOps ();
-    InstallBitOps ();
-    InstallNops ();
+    InitializeArithmetic ();
+    InitializeCmosLeftovers ();
+    InitializeBitOps ();
+    InitializeNops ();
 }
 
 
@@ -165,25 +134,41 @@ void Cpu65C02::InstallCmosOpcodes ()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  InstallArithmetic
+//  InitializeArithmetic
 //
-//  Re-point every ADC/SBC opcode and BRK at the CMOS variants.
+//  ADC/SBC/BRK keep their NMOS opcodes, modes and cycles and differ only in
+//  behavior, so re-point them by operation instead of by opcode. This relies on
+//  AddWithCarry / SubtractWithCarry / Break each being used by only the ADC /
+//  SBC / BRK opcodes (true of the NMOS table), and automatically covers every
+//  addressing mode. The extra decimal cycle is added at run time by the CMOS
+//  operation itself.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void Cpu65C02::InstallArithmetic ()
+void Cpu65C02::InitializeArithmetic ()
 {
-    for (const OpcodeModeCycles & e : s_kAdcModes)
+    int    i = 0;
+
+    for (i = 0; i <= 0xFF; ++i)
     {
-        SetOpcode (e.opcode, "ADC", Microcode::AddWithCarryCmos, e.mode, nullptr, nullptr, e.cycles);
-    }
+        switch (instructionSet[i].operation)
+        {
+        case Microcode::AddWithCarry:
+            instructionSet[i].operation = Microcode::AddWithCarryCmos;
+            break;
 
-    for (const OpcodeModeCycles & e : s_kSbcModes)
-    {
-        SetOpcode (e.opcode, "SBC", Microcode::SubtractWithCarryCmos, e.mode, nullptr, nullptr, e.cycles);
-    }
+        case Microcode::SubtractWithCarry:
+            instructionSet[i].operation = Microcode::SubtractWithCarryCmos;
+            break;
 
-    SetOpcode (0x00, "BRK", Microcode::BreakCmos, GlobalAddressingMode::SingleByteNoOperand, nullptr, nullptr, 7);
+        case Microcode::Break:
+            instructionSet[i].operation = Microcode::BreakCmos;
+            break;
+
+        default:
+            break;
+        }
+    }
 }
 
 
@@ -191,67 +176,77 @@ void Cpu65C02::InstallArithmetic ()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  InstallZeroPageInd
+//  InitializeCmosLeftovers
 //
-//  The eight (zp) forms of the ALU group.
+//  The 65C02 additions that fill the NMOS opcode-map holes (see GroupCmos).
+//  Mirrors Cpu::InitializeMisc: a table keyed by the mnemonic enum, with the
+//  opcode byte and name pulled from GroupCmos::instruction[].
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void Cpu65C02::InstallZeroPageInd ()
+void Cpu65C02::InitializeCmosLeftovers ()
 {
-    static constexpr Byte    s_kZpIndCycles = 5;
-    GlobalAddressingMode::AddressingMode  mode = GlobalAddressingMode::ZeroPageIndirect;
-
-    SetOpcode (0x12, "ORA", Microcode::Or,                    mode, nullptr, nullptr, s_kZpIndCycles);
-    SetOpcode (0x32, "AND", Microcode::And,                   mode, nullptr, nullptr, s_kZpIndCycles);
-    SetOpcode (0x52, "EOR", Microcode::Xor,                   mode, nullptr, nullptr, s_kZpIndCycles);
-    SetOpcode (0x72, "ADC", Microcode::AddWithCarryCmos,      mode, nullptr, nullptr, s_kZpIndCycles);
-    SetOpcode (0x92, "STA", Microcode::Store,                 mode, &A,      nullptr, s_kZpIndCycles);
-    SetOpcode (0xB2, "LDA", Microcode::Load,                  mode, nullptr, &A,      s_kZpIndCycles);
-    SetOpcode (0xD2, "CMP", Microcode::Compare,               mode, &A,      nullptr, s_kZpIndCycles);
-    SetOpcode (0xF2, "SBC", Microcode::SubtractWithCarryCmos, mode, nullptr, nullptr, s_kZpIndCycles);
-}
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  InstallNewOps
-//
-//  STZ, TSB/TRB, INC A/DEC A, PHX/PLX/PHY/PLY, BRA, BIT (new forms), and the
-//  corrected/added JMP indirect modes.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void Cpu65C02::InstallNewOps ()
-{
-    for (const OpcodeModeCycles & e : s_kStzModes)
+    struct TableEntry
     {
-        SetOpcode (e.opcode, "STZ", Microcode::StoreZero, e.mode, nullptr, nullptr, e.cycles);
+        GroupCmos::Opcode                      opcode;
+        GlobalAddressingMode::AddressingMode   addressingMode;
+        Microcode::Operation                   operation;
+        Byte                                 * pSourceRegister;
+        Byte                                 * pDestinationRegister;
+        Byte                                   baseCycles;
+    };
+
+    TableEntry table[] =
+    {
+        { GroupCmos::STZ_ZP,      GlobalAddressingMode::ZeroPage,            Microcode::StoreZero,             nullptr, nullptr, 3 },
+        { GroupCmos::STZ_ZPX,     GlobalAddressingMode::ZeroPageX,           Microcode::StoreZero,             nullptr, nullptr, 4 },
+        { GroupCmos::STZ_ABS,     GlobalAddressingMode::Absolute,            Microcode::StoreZero,             nullptr, nullptr, 4 },
+        { GroupCmos::STZ_ABSX,    GlobalAddressingMode::AbsoluteX,           Microcode::StoreZero,             nullptr, nullptr, 5 },
+
+        { GroupCmos::TSB_ZP,      GlobalAddressingMode::ZeroPage,            Microcode::TestAndSetBits,        nullptr, nullptr, 5 },
+        { GroupCmos::TSB_ABS,     GlobalAddressingMode::Absolute,            Microcode::TestAndSetBits,        nullptr, nullptr, 6 },
+        { GroupCmos::TRB_ZP,      GlobalAddressingMode::ZeroPage,            Microcode::TestAndResetBits,      nullptr, nullptr, 5 },
+        { GroupCmos::TRB_ABS,     GlobalAddressingMode::Absolute,            Microcode::TestAndResetBits,      nullptr, nullptr, 6 },
+
+        { GroupCmos::ORA_ZPI,     GlobalAddressingMode::ZeroPageIndirect,    Microcode::Or,                    nullptr, nullptr, 5 },
+        { GroupCmos::AND_ZPI,     GlobalAddressingMode::ZeroPageIndirect,    Microcode::And,                   nullptr, nullptr, 5 },
+        { GroupCmos::EOR_ZPI,     GlobalAddressingMode::ZeroPageIndirect,    Microcode::Xor,                   nullptr, nullptr, 5 },
+        { GroupCmos::ADC_ZPI,     GlobalAddressingMode::ZeroPageIndirect,    Microcode::AddWithCarryCmos,      nullptr, nullptr, 5 },
+        { GroupCmos::STA_ZPI,     GlobalAddressingMode::ZeroPageIndirect,    Microcode::Store,                 &A,      nullptr, 5 },
+        { GroupCmos::LDA_ZPI,     GlobalAddressingMode::ZeroPageIndirect,    Microcode::Load,                  nullptr, &A,      5 },
+        { GroupCmos::CMP_ZPI,     GlobalAddressingMode::ZeroPageIndirect,    Microcode::Compare,               &A,      nullptr, 5 },
+        { GroupCmos::SBC_ZPI,     GlobalAddressingMode::ZeroPageIndirect,    Microcode::SubtractWithCarryCmos, nullptr, nullptr, 5 },
+
+        { GroupCmos::INC_A,       GlobalAddressingMode::Accumulator,         Microcode::Increment,             &A,      nullptr, 2 },
+        { GroupCmos::DEC_A,       GlobalAddressingMode::Accumulator,         Microcode::Decrement,             &A,      nullptr, 2 },
+
+        { GroupCmos::PHX,         GlobalAddressingMode::SingleByteNoOperand, Microcode::Push,                  &X,      nullptr, 3 },
+        { GroupCmos::PLX,         GlobalAddressingMode::SingleByteNoOperand, Microcode::Pull,                  nullptr, &X,      4 },
+        { GroupCmos::PHY,         GlobalAddressingMode::SingleByteNoOperand, Microcode::Push,                  &Y,      nullptr, 3 },
+        { GroupCmos::PLY,         GlobalAddressingMode::SingleByteNoOperand, Microcode::Pull,                  nullptr, &Y,      4 },
+
+        { GroupCmos::BRA,         GlobalAddressingMode::Relative,            Microcode::BranchAlways,          nullptr, nullptr, 2 },
+
+        { GroupCmos::BIT_ZPX,     GlobalAddressingMode::ZeroPageX,           Microcode::BitTest,               nullptr, nullptr, 4 },
+        { GroupCmos::BIT_ABSX,    GlobalAddressingMode::AbsoluteX,           Microcode::BitTest,               nullptr, nullptr, 4 },
+        { GroupCmos::BIT_IMM,     GlobalAddressingMode::Immediate,           Microcode::BitTestImmediate,      nullptr, nullptr, 2 },
+
+        { GroupCmos::JMP_IND,     GlobalAddressingMode::JumpIndirectCmos,    Microcode::Jump,                  nullptr, nullptr, 6 },
+        { GroupCmos::JMP_ABSXIND, GlobalAddressingMode::AbsoluteXIndirect,   Microcode::Jump,                  nullptr, nullptr, 6 },
+    };
+
+    for (TableEntry entry : table)
+    {
+        Byte    opcode = GroupCmos::instruction[entry.opcode].instruction;
+
+        SetOpcode (opcode,
+                   GroupCmos::instruction[entry.opcode].name,
+                   entry.operation,
+                   entry.addressingMode,
+                   entry.pSourceRegister,
+                   entry.pDestinationRegister,
+                   entry.baseCycles);
     }
-
-    SetOpcode (0x04, "TSB", Microcode::TestAndSetBits,   GlobalAddressingMode::ZeroPage, nullptr, nullptr, 5);
-    SetOpcode (0x0C, "TSB", Microcode::TestAndSetBits,   GlobalAddressingMode::Absolute, nullptr, nullptr, 6);
-    SetOpcode (0x14, "TRB", Microcode::TestAndResetBits, GlobalAddressingMode::ZeroPage, nullptr, nullptr, 5);
-    SetOpcode (0x1C, "TRB", Microcode::TestAndResetBits, GlobalAddressingMode::Absolute, nullptr, nullptr, 6);
-
-    SetOpcode (0x1A, "INC", Microcode::Increment, GlobalAddressingMode::Accumulator, &A, nullptr, 2);
-    SetOpcode (0x3A, "DEC", Microcode::Decrement, GlobalAddressingMode::Accumulator, &A, nullptr, 2);
-
-    SetOpcode (0xDA, "PHX", Microcode::Push, GlobalAddressingMode::SingleByteNoOperand, &X,      nullptr, 3);
-    SetOpcode (0xFA, "PLX", Microcode::Pull, GlobalAddressingMode::SingleByteNoOperand, nullptr, &X,      4);
-    SetOpcode (0x5A, "PHY", Microcode::Push, GlobalAddressingMode::SingleByteNoOperand, &Y,      nullptr, 3);
-    SetOpcode (0x7A, "PLY", Microcode::Pull, GlobalAddressingMode::SingleByteNoOperand, nullptr, &Y,      4);
-
-    SetOpcode (0x80, "BRA", Microcode::BranchAlways, GlobalAddressingMode::Relative, nullptr, nullptr, 2);
-
-    SetOpcode (0x34, "BIT", Microcode::BitTest,          GlobalAddressingMode::ZeroPageX, nullptr, nullptr, 4);
-    SetOpcode (0x3C, "BIT", Microcode::BitTest,          GlobalAddressingMode::AbsoluteX, nullptr, nullptr, 4);
-    SetOpcode (0x89, "BIT", Microcode::BitTestImmediate, GlobalAddressingMode::Immediate, nullptr, nullptr, 2);
-
-    SetOpcode (0x6C, "JMP", Microcode::Jump, GlobalAddressingMode::JumpIndirectCmos,  nullptr, nullptr, 6);
-    SetOpcode (0x7C, "JMP", Microcode::Jump, GlobalAddressingMode::AbsoluteXIndirect, nullptr, nullptr, 6);
 }
 
 
@@ -259,13 +254,14 @@ void Cpu65C02::InstallNewOps ()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  InstallBitOps
+//  InitializeBitOps
 //
-//  RMB0-7, SMB0-7 (zero page) and BBR0-7, BBS0-7 (zero page, relative).
+//  RMB0-7, SMB0-7 (zero page) and BBR0-7, BBS0-7 (zero page, relative), each
+//  laid out at a fixed stride from its base opcode.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void Cpu65C02::InstallBitOps ()
+void Cpu65C02::InitializeBitOps ()
 {
     Byte    i = 0;
 
@@ -285,7 +281,7 @@ void Cpu65C02::InstallBitOps ()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  InstallNops
+//  InitializeNops
 //
 //  The 65C02 defines every opcode. Install the reserved multi-byte NOP forms,
 //  then fill any opcode still marked illegal with a single-byte NOP so nothing
@@ -293,11 +289,11 @@ void Cpu65C02::InstallBitOps ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void Cpu65C02::InstallNops ()
+void Cpu65C02::InitializeNops ()
 {
     int    i = 0;
 
-    for (const OpcodeModeCycles & e : s_kReservedNops)
+    for (const ReservedNop & e : s_kReservedNops)
     {
         SetOpcode (e.opcode, "NOP", Microcode::NoOperation, e.mode, nullptr, nullptr, e.cycles);
     }

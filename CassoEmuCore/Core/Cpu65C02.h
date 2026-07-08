@@ -33,12 +33,15 @@ protected:
     void        DispatchVector (Word vector, bool fromBrk) override;
 
 private:
-    void        InstallCmosOpcodes  ();
-    void        InstallArithmetic   ();
-    void        InstallZeroPageInd  ();
-    void        InstallNewOps       ();
-    void        InstallBitOps       ();
-    void        InstallNops         ();
+    // These run after the base ctor has already built the NMOS table, so they
+    // override existing entries rather than initialize from scratch; the
+    // Initialize* naming matches the base table-builder family (InitializeMisc,
+    // InitializeGroup00...).
+    void        InitializeCmos          ();
+    void        InitializeArithmetic    ();
+    void        InitializeCmosLeftovers ();
+    void        InitializeBitOps        ();
+    void        InitializeNops          ();
 
     void        SetOpcode (Byte                                  opcode,
                            const char                          * name,
