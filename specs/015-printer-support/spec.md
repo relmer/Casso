@@ -26,9 +26,9 @@ An emulator user boots an unmodified The Print Shop disk on the emulated Apple /
 
 ---
 
-### User Story 2 - Color Printing from The New Print Shop (Priority: P2)
+### User Story 2 - Color Printing with a Four-Color Ribbon (Priority: P2)
 
-The user boots The New Print Shop (1989), selects an ImageWriter II with a color ribbon, and prints a greeting card with colored graphics. The output shows correct colors: the four ribbon primaries (black, yellow, red, blue), the three composites produced by overprinting (orange, green, purple), and paper white.
+The user selects the four-color ribbon in Print Shop's setup (offered by later revisions of the original Print Shop as well as The New Print Shop) and prints a greeting card with colored graphics. The output shows correct colors: the four ribbon primaries (black, yellow, red, blue), the three composites produced by overprinting (orange, green, purple), and paper white.
 
 **Why this priority**: Color is the ImageWriter II's signature capability and the reason it was chosen as the printer to emulate. It builds directly on User Story 1's pipeline.
 
@@ -147,7 +147,7 @@ At the BASIC prompt, the user types `PR#1` and then `LIST` (or `CATALOG` under D
 ### Measurable Outcomes
 
 - **SC-001**: A user can boot an unmodified The Print Shop disk, print a sign or greeting card, and obtain a complete, faithful PNG of the page with no manual steps beyond Print Shop's own flow plus (at most) one eject action.
-- **SC-002**: The New Print Shop color prints render all seven ribbon colors correctly, verified against golden reference rasters for each color and each composite.
+- **SC-002**: Print Shop four-color-ribbon prints render all seven ribbon colors correctly, verified against golden reference rasters for each color and each composite.
 - **SC-003**: A multi-page Print Shop banner produces a single continuous image on the PNG/clipboard destinations — zero seams, zero missing or duplicated rows at former page boundaries — and the same content split cleanly into pages on the Windows printer destination.
 - **SC-004**: `PR#1` followed by `LIST` or `CATALOG` yields a readable text printout on the first attempt.
 - **SC-005**: Automated tests reproduce golden rasters bit-for-bit for every supported command (text, all pitches, line spacing, all graphics densities, all seven colors, reset), and run without touching files, clipboard, printers, or any other system state.
@@ -156,7 +156,7 @@ At the BASIC prompt, the user types `PR#1` and then `LIST` (or `CATALOG` under D
 
 ## Assumptions
 
-- **Print Shop will drive an ImageWriter II through a parallel-type interface card.** Print Shop's printer and interface-card menus are independent selections, so this pairing is expected to work even though the physical ImageWriter II was serial. If testing proves Print Shop's ImageWriter II driver requires serial-card firmware behavior, emulating a Super Serial Card becomes required follow-on work — it is explicitly out of scope for this feature until that is proven necessary.
+- **Print Shop will drive an ImageWriter II through a parallel-type interface card.** Print Shop's printer and interface-card menus are independent selections, so this pairing is expected to work even though the physical ImageWriter II was serial. If testing proves Print Shop's ImageWriter II driver requires serial-card firmware behavior, emulating a Super Serial Card becomes required follow-on work — it is explicitly out of scope for this feature until that is proven necessary. Setup-menu evidence (2026-07-07) supports the pairing: Print Shop's printer and interface lists are independent selections, offering "Apple DMP, ImageWriter, Scribe" alongside "Apple II Parallel Interface", and its ribbon menu offers a four-color ribbon in the original Print Shop. End-to-end byte flow remains to be verified once the card exists.
 - Slot 1 is the default printer slot, per long-standing Apple II convention.
 - The emulated printer always has a color ribbon installed; a black-ribbon-only mode is not modeled.
 - Default paper is US Letter fanfold (8.5 × 11 inches) at the printer's default 6 lines per inch.
