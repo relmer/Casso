@@ -149,6 +149,79 @@ public:
     }
 
 
+    // System ROM display. A banked ROM (//c) shares one $C000-$FFFF window
+    // between two `romBankSize` banks toggled by $C028, so it must report the
+    // true installed size (2x a bank = 32K) with a name that explains the
+    // size/window mismatch. Flat ROMs (][ / ][+ / //e) keep their single
+    // fill-to-$FFFF span. Regression for the Settings memory map reading the
+    // //c ROM as 16K when it is really 32K in two banks.
+    TEST_METHOD (SystemRom_BankedReports32KTwoBanks_FlatUnchanged)
+    {
+        auto romRegion = [] (const SettingsMachineInfo & info)
+        {
+            for (const auto & r : info.memoryRegions)
+            {
+                if (r.name.rfind ("System ROM", 0) == 0)
+                {
+                    return r;
+                }
+            }
+            return SettingsMemoryRegion {};
+        };
+
+        // Banked //c: romBankSize present, no explicit size.
+        const char * cJson = R"JSON({
+            "$cassoMachineVersion": 1,
+            "name": "Apple //c",
+            "timing": { "clockSpeed": 1023000 },
+            "ram": [ { "address": "0x0000", "size": "0xC000" } ],
+            "systemRom": { "address": "0xC000", "romBankSize": "0x4000", "romBankSelect": "0xC028" }
+        })JSON";
+
+        SettingsPanelState  cSt;
+        JsonValue           cv = ParseOrFail (cJson);
+        Assert::IsTrue (SUCCEEDED (cSt.LoadFromMachine ("Apple //c", cv, cv)));
+        SettingsMemoryRegion  cRom = romRegion (cSt.MachineInfo());
+        Assert::AreEqual (std::string ("System ROM (2 banks)"), cRom.name,         L"//c ROM name");
+        Assert::AreEqual (std::string ("32K"),                  cRom.size,         L"//c ROM = 2x16K = 32K");
+        Assert::AreEqual (std::string ("$C000-$FFFF"),          cRom.addressRange, L"//c banks share one window");
+
+        // Flat //e: 16K fill-to-$FFFF from $C000.
+        const char * eJson = R"JSON({
+            "$cassoMachineVersion": 1,
+            "name": "Apple //e",
+            "timing": { "clockSpeed": 1023000 },
+            "ram": [ { "address": "0x0000", "size": "0xC000" } ],
+            "systemRom": { "address": "0xC000" }
+        })JSON";
+
+        SettingsPanelState  eSt;
+        JsonValue           ev = ParseOrFail (eJson);
+        Assert::IsTrue (SUCCEEDED (eSt.LoadFromMachine ("Apple //e", ev, ev)));
+        SettingsMemoryRegion  eRom = romRegion (eSt.MachineInfo());
+        Assert::AreEqual (std::string ("System ROM"),  eRom.name,         L"//e ROM name unchanged");
+        Assert::AreEqual (std::string ("16K"),         eRom.size,         L"//e ROM = 16K");
+        Assert::AreEqual (std::string ("$C000-$FFFF"), eRom.addressRange, L"//e ROM range");
+
+        // Flat ][ / ][+: 12K fill-to-$FFFF from $D000.
+        const char * twoJson = R"JSON({
+            "$cassoMachineVersion": 1,
+            "name": "Apple ][",
+            "timing": { "clockSpeed": 1023000 },
+            "ram": [ { "address": "0x0000", "size": "0xC000" } ],
+            "systemRom": { "address": "0xD000" }
+        })JSON";
+
+        SettingsPanelState  twoSt;
+        JsonValue           tv = ParseOrFail (twoJson);
+        Assert::IsTrue (SUCCEEDED (twoSt.LoadFromMachine ("Apple ][", tv, tv)));
+        SettingsMemoryRegion  twoRom = romRegion (twoSt.MachineInfo());
+        Assert::AreEqual (std::string ("System ROM"),  twoRom.name,         L"][ ROM name unchanged");
+        Assert::AreEqual (std::string ("12K"),         twoRom.size,         L"][ ROM = 12K");
+        Assert::AreEqual (std::string ("$D000-$FFFF"), twoRom.addressRange, L"][ ROM range");
+    }
+
+
     TEST_METHOD (Load_RejectsNonObjectJson)
     {
         SettingsPanelState  st;

@@ -807,20 +807,44 @@ HRESULT SettingsPanelState::ExtractMachineInfo (
     {
         std::string  addr;
         std::string  size;
+        std::string  bankSizeStr;
 
-        IGNORE_RETURN_VALUE (hrRead, romObj->GetString ("address", addr));
-        IGNORE_RETURN_VALUE (hrRead, romObj->GetString ("size",    size));
-        // System ROM size defaults to fill-to-$FFFF when omitted in the
-        // schema. Compute end from address if no size provided.
-        if (size.empty() && ! addr.empty())
+        IGNORE_RETURN_VALUE (hrRead, romObj->GetString ("address",     addr));
+        IGNORE_RETURN_VALUE (hrRead, romObj->GetString ("size",        size));
+        IGNORE_RETURN_VALUE (hrRead, romObj->GetString ("romBankSize", bankSizeStr));
+
+        uint32_t  bankSize = ParseHex (bankSizeStr);
+
+        if (bankSize != 0 && ! addr.empty())
         {
-            uint32_t  startAddr = ParseHex (addr);
-            if (startAddr < 0x10000u)
-            {
-                size = std::format ("0x{:X}", 0x10000u - startAddr);
-            }
+            // Banked system ROM (//c): two `romBankSize` banks share one
+            // address window, toggled by $C028 -- only one is visible at a
+            // time. So the *mapped range* is a single bank span while the
+            // *installed* ROM is twice that (32K in a 16K window on the //c).
+            // Report the true installed size + the window, and name the row
+            // so the size/range mismatch reads as intentional banking.
+            uint32_t              startAddr = ParseHex (addr);
+            uint32_t              windowEnd = startAddr + bankSize - 1;
+            SettingsMemoryRegion  region;
+            region.name         = "System ROM (2 banks)";
+            region.size         = FormatSize (bankSize * 2);
+            region.addressRange = std::format ("${:04X}-${:04X}", startAddr, windowEnd);
+            outInfo.memoryRegions.push_back (std::move (region));
         }
-        FormatRegion ("System ROM", addr, size);
+        else
+        {
+            // Flat system ROM (][ / ][+ / //e). Size defaults to fill-to-
+            // $FFFF when omitted in the schema; compute end from address.
+            if (size.empty() && ! addr.empty())
+            {
+                uint32_t  startAddr = ParseHex (addr);
+                if (startAddr < 0x10000u)
+                {
+                    size = std::format ("0x{:X}", 0x10000u - startAddr);
+                }
+            }
+            FormatRegion ("System ROM", addr, size);
+        }
     }
 
     hrRead = mergedJson.GetArray ("internalDevices", internalDevices);
