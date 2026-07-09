@@ -14,6 +14,7 @@
 #include "Core/MemoryBus.h"
 #include "D3DRenderer.h"
 #include "Devices/Disk/DiskImageStore.h"
+#include "Devices/IAciaEndpoint.h"
 #include "Shell/ClipboardManager.h"
 #include "Shell/CpuManager.h"
 #include "Shell/DiskManager.h"
@@ -689,6 +690,13 @@ private:
 
     // Owned devices
     vector<unique_ptr<MemoryDevice>>     m_ownedDevices;
+
+    // Serial-port endpoints (//c 6551 ACIAs). Owned separately from
+    // m_ownedDevices because an IAciaEndpoint is not a MemoryDevice; each is
+    // bound to its ACIA via SetEndpoint. The loopback endpoints hold a raw
+    // Acia6551* but are never called during teardown, so destruction order
+    // relative to m_ownedDevices is immaterial.
+    vector<unique_ptr<IAciaEndpoint>>    m_ownedAciaEndpoints;
 
     // Video
     vector<unique_ptr<VideoOutput>>      m_videoModes;

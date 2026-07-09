@@ -394,6 +394,29 @@ HRESULT HeadlessHost::BuildApple2c (EmulatorCore & outCore)
     outCore.diskStore      = std::make_unique<DiskImageStore> ();
     outCore.bus->AddDevice (outCore.diskController.get ());
 
+    // //c dual 6551 ACIA serial ports (phantom slots 1 & 2): port 1 ($C098) =
+    // printer, port 2 ($C0A8) = modem. Built in like the IWM (no config slot);
+    // the serial firmware is part of the internal //c ROM. v1 endpoints are
+    // loopback so a data-register write echoes into the receiver. No interrupt
+    // controller in the harness -- the loopback round-trip is polled, not IRQ.
+    {
+        auto aciaBase = [] (int slot) -> Word
+        {
+            return static_cast<Word> (Acia6551::kSlotIoBase
+                                      + slot * Acia6551::kSlotIoStride
+                                      + Acia6551::kAciaRegOffset);
+        };
+
+        outCore.serial1 = std::make_unique<Acia6551> (aciaBase (1));
+        outCore.serial2 = std::make_unique<Acia6551> (aciaBase (2));
+        outCore.serial1Loopback = std::make_unique<AciaLoopbackEndpoint> (outCore.serial1.get ());
+        outCore.serial2Loopback = std::make_unique<AciaLoopbackEndpoint> (outCore.serial2.get ());
+        outCore.serial1->SetEndpoint (outCore.serial1Loopback.get ());
+        outCore.serial2->SetEndpoint (outCore.serial2Loopback.get ());
+        outCore.bus->AddDevice (outCore.serial1.get ());
+        outCore.bus->AddDevice (outCore.serial2.get ());
+    }
+
     hr = CpuFactory::Create ("65C02", *outCore.bus, cpuStrategy);
     if (FAILED (hr))
     {

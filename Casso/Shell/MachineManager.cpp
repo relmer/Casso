@@ -21,6 +21,8 @@
 #include "Devices/Apple2eSoftSwitchBank.h"
 #include "Devices/AppleSpeaker.h"
 #include "Devices/Disk2Controller.h"
+#include "Devices/Acia6551.h"
+#include "Devices/AciaEndpoints.h"
 #include "Devices/LanguageCard.h"
 #include "Devices/Apple2eMmu.h"
 #include "Devices/Apple2cRomBank.h"
@@ -402,6 +404,31 @@ HRESULT MachineManager::CreateMemoryDevices (const MachineConfig & config)
         iwm->SetIwmMode (true);
         m_shell.m_memoryBus.AddDevice (iwm.get ());
         m_shell.m_ownedDevices.push_back (std::move (iwm));
+
+        // //c dual 6551 ACIA serial ports (phantom slots 1 & 2): port 1
+        // ($C098) = printer, port 2 ($C0A8) = modem. Built in like the IWM
+        // (the //c has no config slots) -- the serial firmware is part of the
+        // internal //c ROM. Each raises IRQs through the shared interrupt
+        // controller. v1 endpoints are loopback (comms self-test); the serial
+        // printer-endpoint bridge + Hardware-tab endpoint selector are
+        // downstream work in issue #87.
+        for (int slot = 1; slot <= 2; ++slot)
+        {
+            Word  base = static_cast<Word> (Acia6551::kSlotIoBase
+                                            + slot * Acia6551::kSlotIoStride
+                                            + Acia6551::kAciaRegOffset);
+            auto  acia = std::make_unique<Acia6551> (base);
+
+            HRESULT  hrIc = acia->AttachInterruptController (&m_shell.m_interruptController);
+            IGNORE_RETURN_VALUE (hrIc, S_OK);
+
+            auto  loopback = std::make_unique<AciaLoopbackEndpoint> (acia.get ());
+            acia->SetEndpoint (loopback.get ());
+
+            m_shell.m_memoryBus.AddDevice (acia.get ());
+            m_shell.m_ownedAciaEndpoints.push_back (std::move (loopback));
+            m_shell.m_ownedDevices.push_back (std::move (acia));
+        }
     }
 
     // Cache Disk2Controller pointer for the status-bar drive activity

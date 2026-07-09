@@ -296,4 +296,47 @@ public:
         Assert::AreEqual<Word> (kMonitorReset, core.cpu->GetPC (),
             L"Cold reset must enter the monitor at $FA62");
     }
+
+
+    // T024 (US3): the //c ships two built-in 6551 ACIA serial ports at the
+    // phantom-slot addresses -- port 1 ($C098), port 2 ($C0A8). v1 wires each
+    // to a loopback endpoint, so a guest write to the data register echoes
+    // straight back into the receiver: RxFull latches and the byte reads back.
+    // Proves both ACIAs are mapped at the right addresses and transmit/receive
+    // end to end. (The printer-endpoint bridge is downstream in issue #87.)
+    TEST_METHOD (SerialPortsLoopBackViaBuiltInAcia)
+    {
+        if (!Apple2cRomAvailable ())
+        {
+            Logger::WriteMessage (
+                "SKIP: UnitTest/Fixtures/Apple2c.rom absent "
+                "(copyrighted //c ROM 4, provisioned on demand).");
+            return;
+        }
+
+        HeadlessHost   host;
+        EmulatorCore   core;
+
+        Assert::IsTrue (SUCCEEDED (host.BuildApple2c (core)),
+            L"BuildApple2c must succeed when the ROM is present");
+        core.PowerCycle ();
+
+        const Word  dataAddrs[] = { 0xC098, 0xC0A8 };   // port 1 / port 2 data
+
+        for (Word data : dataAddrs)
+        {
+            Word  status = static_cast<Word> (data + Acia6551::kRegStatus);
+
+            Assert::IsTrue ((core.bus->ReadByte (status) & Acia6551::kStatusRxFull) == 0,
+                L"receiver must start empty");
+
+            core.bus->WriteByte (data, 0x5A);            // transmit -> loopback
+            Assert::IsTrue ((core.bus->ReadByte (status) & Acia6551::kStatusRxFull) != 0,
+                L"loopback must latch RxFull after transmit");
+            Assert::AreEqual<Byte> (0x5A, core.bus->ReadByte (data),
+                L"received byte must equal the transmitted byte");
+            Assert::IsTrue ((core.bus->ReadByte (status) & Acia6551::kStatusRxFull) == 0,
+                L"reading the data register must clear RxFull");
+        }
+    }
 };

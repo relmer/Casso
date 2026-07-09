@@ -13,6 +13,8 @@
 #include "Devices/LanguageCard.h"
 #include "Devices/Apple2cRomBank.h"
 #include "Devices/Disk2Controller.h"
+#include "Devices/Acia6551.h"
+#include "Devices/AciaEndpoints.h"
 #include "Devices/Disk/DiskImageStore.h"
 #include "Video/VideoTiming.h"
 #include "FixtureProvider.h"
@@ -86,6 +88,15 @@ struct EmulatorCore
     // nibble engine in lock-step with the CPU.
     std::unique_ptr<Disk2Controller>           diskController;
     std::unique_ptr<DiskImageStore>            diskStore;
+
+    // Apple //c dual 6551 ACIA serial ports (phantom slots 1 & 2). Set by
+    // HeadlessHost::BuildApple2c; null for every other machine kind. v1
+    // endpoints are loopback (comms self-test) so a guest write to the data
+    // register echoes back into the receiver.
+    std::unique_ptr<Acia6551>                  serial1;
+    std::unique_ptr<Acia6551>                  serial2;
+    std::unique_ptr<AciaLoopbackEndpoint>      serial1Loopback;
+    std::unique_ptr<AciaLoopbackEndpoint>      serial2Loopback;
 
     // Cycle-pumped helpers used by Phase 7 integration tests.
     void   PowerCycle    ();
