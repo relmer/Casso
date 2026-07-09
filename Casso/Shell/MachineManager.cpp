@@ -390,6 +390,20 @@ HRESULT MachineManager::CreateMemoryDevices (const MachineConfig & config)
         }
     }
 
+    // Apple //c: the built-in 5.25" drive is an IWM at slot 6 ($C0E0-$C0EF).
+    // Unlike the //e it is not a card in a slot, so it is created here rather
+    // than from the config's (empty) slot list. Its $C600 boot firmware is part
+    // of the internal //c ROM (served by the no-slots CxxxRomRouter set in
+    // WireApple2cRomBank), so no slot ROM is attached -- only the controller,
+    // in IWM mode so the reset firmware's mode/status probe passes.
+    if (m_shell.m_config.systemRom.romBankSize != 0)
+    {
+        auto iwm = std::make_unique<Disk2Controller> (6);
+        iwm->SetIwmMode (true);
+        m_shell.m_memoryBus.AddDevice (iwm.get ());
+        m_shell.m_ownedDevices.push_back (std::move (iwm));
+    }
+
     // Cache Disk2Controller pointer for the status-bar drive activity
     // indicator. We pick the first one we find (typically slot 6).
     m_shell.m_refs.diskController = nullptr;

@@ -385,6 +385,15 @@ HRESULT HeadlessHost::BuildApple2c (EmulatorCore & outCore)
     outCore.keyboard->SetLanguageCard     (outCore.languageCard.get ());
     outCore.softSwitches->SetLanguageCard (outCore.languageCard.get ());
 
+    // //c built-in drive: a slot-6 Disk II / IWM controller ($C0E0-$C0EF). The
+    // $C600 boot firmware is already part of the internal //c ROM (routed
+    // internally by SetNoExternalSlots), so only the controller device is
+    // added -- no external slot ROM. The reset firmware polls the IWM.
+    outCore.diskController = std::make_unique<Disk2Controller> (6);
+    outCore.diskController->SetIwmMode (true);
+    outCore.diskStore      = std::make_unique<DiskImageStore> ();
+    outCore.bus->AddDevice (outCore.diskController.get ());
+
     hr = CpuFactory::Create ("65C02", *outCore.bus, cpuStrategy);
     if (FAILED (hr))
     {
@@ -394,6 +403,7 @@ HRESULT HeadlessHost::BuildApple2c (EmulatorCore & outCore)
     outCore.cpu = std::make_unique<EmuCpu> (*outCore.bus, std::move (cpuStrategy));
     outCore.cpu->SetVideoTiming (outCore.videoTiming.get ());
     outCore.speaker->SetCycleCounter (outCore.cpu->GetCycleCounterPtr ());
+    outCore.diskController->SetCpuCycleSource (outCore.cpu->GetBusCyclePtr ());
 
     // Bank 0 ($C000-$FFFF) into the CPU memory[] for reset-vector/PeekByte.
     for (size_t i = 0; i < kBankSize; i++)

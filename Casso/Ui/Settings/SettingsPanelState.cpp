@@ -679,6 +679,7 @@ HRESULT SettingsPanelState::ExtractMachineInfo (
     const JsonValue  * romObj          = nullptr;
     const JsonValue  * internalDevices = nullptr;
     const JsonValue  * slots           = nullptr;
+    bool               hasAux          = false;
 
     auto ParseHex = [] (const std::string & str) -> uint32_t
     {
@@ -794,7 +795,8 @@ HRESULT SettingsPanelState::ExtractMachineInfo (
             }
             else
             {
-                label = std::format ("RAM ({})", bank);
+                label   = std::format ("RAM ({})", bank);
+                hasAux  = true;
             }
             FormatRegion (label, addr, size);
         }
@@ -825,6 +827,44 @@ HRESULT SettingsPanelState::ExtractMachineInfo (
     if (SUCCEEDED (hrRead) && internalDevices != nullptr)
     {
         outInfo.devices += internalDevices->ArraySize();
+
+        // A language card adds 16K of bank-switched RAM at $D000-$FFFF per 64K
+        // bank ($D000-$DFFF is double-banked, so 16K in a 12K window). The base
+        // "ram" entries above only cover $0000-$BFFF, so surface the LC RAM here
+        // -- otherwise a 128K //e/​//c reads as only 96K. One region per bank
+        // (main, plus aux when the machine has an aux bank).
+        bool  hasLanguageCard = false;
+        for (size_t d = 0; d < internalDevices->ArraySize(); ++d)
+        {
+            const JsonValue &  dev = internalDevices->ArrayAt (d);
+            std::string        type;
+
+            if (dev.GetType() == JsonType::Object &&
+                SUCCEEDED (dev.GetString ("type", type)) &&
+                type == "language-card")
+            {
+                hasLanguageCard = true;
+                break;
+            }
+        }
+
+        if (hasLanguageCard)
+        {
+            auto addLcRam = [&] (const std::string & label)
+            {
+                SettingsMemoryRegion  region;
+                region.name         = label;
+                region.size         = FormatSize (0x4000);   // 16K ($D000 double-banked)
+                region.addressRange = "$D000-$FFFF";
+                outInfo.memoryRegions.push_back (std::move (region));
+            };
+
+            addLcRam ("RAM (main, bank-switched)");
+            if (hasAux)
+            {
+                addLcRam ("RAM (aux, bank-switched)");
+            }
+        }
     }
 
     hrRead = mergedJson.GetArray ("slots", slots);
@@ -880,8 +920,11 @@ HRESULT SettingsPanelState::ExtractHardware (
         { "apple2-keyboard",         "Keyboard" },
         { "apple2-speaker",          "Speaker" },
         { "apple2-softswitches",     "Soft Switches" },
-        { "apple2e-keyboard",        "Keyboard (Apple //e)" },
-        { "apple2e-softswitches",    "Soft Switches (Apple //e)" },
+        // The //e-generation keyboard/soft-switch controllers are shared by the
+        // //e and the //c, so the label stays machine-neutral (the machine name
+        // is already shown at the top of the panel) rather than hardcoding //e.
+        { "apple2e-keyboard",        "Keyboard" },
+        { "apple2e-softswitches",    "Soft Switches" },
         { "apple2e-mmu",             "Memory Management Unit" },
     };
 

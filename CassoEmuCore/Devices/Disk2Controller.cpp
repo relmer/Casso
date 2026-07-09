@@ -104,7 +104,17 @@ void Disk2Controller::Write (Word address, Byte value)
 
     if (m_q7 && m_q6)
     {
-        m_engine[m_activeDrive].WriteLatch (value);
+        // IWM (//c): Q6H + Q7H with the motor off loads the MODE register
+        // instead of the write latch; with the motor on it is the data-field
+        // write path, same as a Disk II card.
+        if (m_iwmMode && !m_motorOn)
+        {
+            m_iwmModeReg = value;
+        }
+        else
+        {
+            m_engine[m_activeDrive].WriteLatch (value);
+        }
     }
 }
 
@@ -306,12 +316,18 @@ Byte Disk2Controller::HandleReadDispatch()
 
     if (m_q6 && !m_q7)
     {
-        if (m_activeDisk[m_activeDrive]->IsWriteProtected())
+        Byte  sense = m_activeDisk[m_activeDrive]->IsWriteProtected() ? 0x80 : 0x00;
+
+        // IWM (//c): Q6H + Q7L reads the STATUS register. Bit 7 is the sense
+        // input (write protect here), bit 5 is the drive-enable/motor flag,
+        // and bits 4-0 mirror the MODE register the firmware just wrote -- the
+        // reset code writes the mode register then reads it back to confirm.
+        if (m_iwmMode)
         {
-            return 0x80;
+            return sense | (m_motorOn ? 0x20 : 0x00) | (m_iwmModeReg & 0x1F);
         }
 
-        return 0x00;
+        return sense;
     }
 
     return 0;

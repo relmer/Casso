@@ -93,10 +93,11 @@
 - [X] T021 [US2] Implement the 32K bank-switched ROM mapping. *(`Apple2cRomBank` + `IRomBankSwitch` hook in the //e soft-switch bank: `$C028` toggles the two 16K banks across `$C100-$FFFF` (LC `$D000-$FFFF` + `CxxxRomRouter` `$C100-$CFFF`); `/RESET` -> bank 0. Verified: 65C02 resets to the monitor entry `$FA62` with the ROM correctly mapped through the LC (`BuildsAndResetsToMonitorEntry`). Production `MachineManager` path wired: `CreateMemoryDevices` adds bank 0 as a flat device (normal LC/Cxxx split), then `WireApple2cRomBank` layers the coordinator + `$C028` hook; `EmulatorShell` owns it and tears it down before the LC/MMU. ROM-free banking unit tests pass.)*
 - [X] T022 [US2] Create `Resources/Machines/Apple2c/Apple2c.json`: `cpu: 65C02`, 128K, //e substrate. *(JSON + banked systemRom schema (`romBankSize`/`romBankSelect`) + parse tests. Embedded as `IDR_MACHINE_APPLE2C`; `EnsureMachineConfigs` writes it to disk and `MachineScanner::Scan` surfaces "Apple //c" in the picker; selecting it pulls the ROMs via the catalog.)*
 
-> **⚠️ US2 is NOT complete — the //c does not yet cold-boot to BASIC**, but
-> bring-up against the real ROM 4 has cleared the early blockers and the CPU now
-> runs deep into the **bank-1 firmware**. (An earlier boot test was a false
-> positive — it matched a stray `]` in random RAM.)
+> **✅ The //c cold-boots its firmware end-to-end.** With no disk it clears the
+> screen, shows the "Apple //c" banner, probes the built-in IWM drive, and reaches
+> the correct **"Check Disk Drive."** no-disk state (`ColdBootsToCheckDiskDrive`).
+> Booting actual software needs a bootable disk image (the //c has no cassette /
+> BASIC-on-cold-boot). The bring-up chain that got here:
 >
 > 1. ✅ **Rockwell bit ops (RMB/SMB/BBR/BBS)** — RESOLVED. Casso's `Cpu65C02`
 >    now models the **Rockwell R65C02** (bit ops via `InstallBitOps`; WDC
@@ -115,11 +116,14 @@
 >    no longer pre-reads a STORE's target (a spurious read double-toggled the
 >    any-access `$C028` flip-flop). Guards: `KeyboardTests::IIeKeyboard_ForwardsC028...`
 >    (ROM-free) + `Apple2cBootTests::StaC028TogglesRomBankExactlyOnce` (e2e).
-> 4. ⏳ **Next blocker** — the bank-1 firmware then spins in an LC/memory probe
->    loop around `$CC29` (`STA $C08F,X` / `EOR $C08E,X` / `AND #$1F` / `BNE`),
->    before the text screen is cleared.
-> 5. ⏳ **Built-in peripherals** — serial 6551 ACIA (T024) + IWM disk the reset
->    firmware probes.
+> 4. ✅ **Slot-6 IWM** — RESOLVED. The bank-1 firmware at `$CC29` writes the IWM
+>    MODE register then reads it back via the STATUS register to confirm the
+>    built-in drive. The //c drive is an Integrated Woz Machine, so
+>    `Disk2Controller` gained an IWM mode (`SetIwmMode`): MODE register
+>    (Q6H+Q7H+motor-off write) + STATUS register (Q6H+Q7L read, low 5 bits =
+>    MODE). Created in `MachineManager::CreateMemoryDevices` (production) +
+>    `BuildApple2c` (harness) as a built-in slot-6 device, not a config slot.
+> 5. ⏳ **Serial 6551 ACIA** (T024, issue #87) still unwired — not needed to boot.
 - [X] T023 [US2] ~~Wire the //c firmware slices into `CxxxRomRouter::SetSlotRom` (slots 1/2/3/4/6)~~ — **subsumed by blocker 2's no-slots routing.** The //c firmware for every phantom slot already lives in the internal `$C100-$CFFF` image; `SetNoExternalSlots(true)` serves it for the whole window, so no per-slot `SetSlotRom` slices are needed (FR-006a).
 - [ ] T024 [US3] Wire the two `Acia6551` instances (Phase 2) into the //c serial ports (slots 1 + 2) in `Apple2c.json` + the //c serial firmware, with **loopback/file** endpoints. *(US3's //c-specific integration.)*
 

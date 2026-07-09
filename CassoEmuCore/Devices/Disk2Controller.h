@@ -101,6 +101,16 @@ public:
     // address-mark / data-mark events through the same sink.
     void          SetEventSink (IDisk2EventSink * sink) noexcept;
 
+    // Apple //c IWM mode. The //c's built-in drive is an Integrated Woz
+    // Machine, not a Disk II card, so it adds a write-only MODE register and a
+    // read-only STATUS register selected by Q6=1/Q7 with the motor off:
+    //   Q6H + Q7H + motor off + write -> load MODE register
+    //   Q6H + Q7L + read            -> STATUS register (low 5 bits = MODE)
+    // The //c reset firmware writes the mode register then reads it back via
+    // status to confirm the IWM is present. Off by default so a real Disk II
+    // card (the //e) is byte-for-byte unchanged.
+    void   SetIwmMode (bool v) { m_iwmMode = v; }
+
     // Cycle-driven advance. EmuCpu pumps cycles per Step.
     void   Tick (uint32_t cpuCycles);
 
@@ -169,6 +179,11 @@ private:
     int                  m_activeDrive  = 0;
     bool                 m_q6           = false;
     bool                 m_q7           = false;
+
+    // Apple //c IWM (see SetIwmMode). m_iwmMode gates the extra register
+    // behavior; m_iwmModeReg holds the last-written MODE register value.
+    bool                 m_iwmMode      = false;
+    Byte                 m_iwmModeReg   = 0;
 
     DiskImage            m_disks[kDriveCount];
     DiskImage *          m_activeDisk[kDriveCount] = { nullptr, nullptr };
