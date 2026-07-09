@@ -90,7 +90,11 @@ public:
 
     // Pure helper: convert one hardware-entry list into the DxuiTreeNode
     // tree the underlying DxuiTreeView consumes. Exposed for unit tests.
-    static std::vector<DxuiTreeNode>  BuildNodes (const std::vector<HardwareEntry> & entries);
+    // When supportsExternalDrive is set (the //c), a synthetic checkable
+    // "External drive" node is appended, reflecting externalDriveConnected.
+    static std::vector<DxuiTreeNode>  BuildNodes (const std::vector<HardwareEntry> & entries,
+                                                  bool supportsExternalDrive  = false,
+                                                  bool externalDriveConnected = false);
 
 private:
     // The spec block is CPU / Clock / Memory-header (3 fixed rows) + N dynamic

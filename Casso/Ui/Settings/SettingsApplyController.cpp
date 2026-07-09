@@ -94,6 +94,16 @@ namespace
         }
 
         void ApplyWriteProtect (int drive, bool wp)            override { UNREFERENCED_PARAMETER (drive); UNREFERENCED_PARAMETER (wp); }
+
+        void ApplyExternalDriveConnected (bool connected) override
+        {
+            // //c-only live effect: reveal/hide the second drive-mount widget.
+            // Non-//c machines ignore the command (their second drive is fixed
+            // hardware). Cheap + idempotent, so pushed on every Apply.
+            m_shell.PostCommand (connected ? IDM_DRIVE_EXTERNAL_CONNECT
+                                           : IDM_DRIVE_EXTERNAL_DISCONNECT);
+        }
+
         void QueueMachineReset ()                              override { m_resetQueued = true; }
 
         bool  ResetQueued () const { return m_resetQueued; }

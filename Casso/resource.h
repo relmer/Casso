@@ -49,6 +49,12 @@
 #define IDM_AUDIO_DRIVE_PAN         40054
 #define IDM_AUDIO_DRIVE_TEST        40055
 
+// //c optional external drive: show / hide the second drive-mount widget.
+// A per-machine UI pref ($cassoUiPrefs.externalDriveConnected), not a
+// hardware-enable, so toggling it never forces a machine reset.
+#define IDM_DRIVE_EXTERNAL_CONNECT    40056
+#define IDM_DRIVE_EXTERNAL_DISCONNECT 40057
+
 #define IDM_HELP_KEYMAP             40040
 #define IDM_HELP_ABOUT              40042
 

@@ -303,6 +303,14 @@ private:
     // is unchanged, so OnSize would never re-evaluate it. See the
     // WM_APP_DXUI_UPDATE_TITLE handler (the switch-completion signal).
     void    ReflowChromeForMachineChange ();
+
+    // Whether the second (external) drive-mount widget should be visible.
+    // Always true for machines whose second drive is fixed hardware; on the
+    // //c (banked system ROM) the external drive is an optional add-on, shown
+    // only when m_externalDriveConnected. The drive-layout paths consult this
+    // to hide m_driveChrome[1] and skip its hit rect when disconnected.
+    bool    ShouldShowExternalDrive      () const;
+
     SIZE    ClientSizeForCenterPx        (int centerWidthPx, int centerHeightPx);
     SIZE    ClientSizeForFramebufferPx   (int framebufferWidthDp, int framebufferHeightDp);
 
@@ -612,6 +620,14 @@ private:
     // (so the viewport keeps its size + the top-left stays put) rather than
     // re-centring inside a fixed window.
     bool                     m_chromeSizedForHasDisk = true;
+
+    // //c only: whether the optional external drive is "connected". Mirrors
+    // the per-machine $cassoUiPrefs.externalDriveConnected pref; seeded at
+    // machine build and flipped live by IDM_DRIVE_EXTERNAL_CONNECT/DISCONNECT.
+    // Gates the second drive-mount widget (m_driveChrome[1]) via
+    // ShouldShowExternalDrive(). No effect on machines whose second drive is
+    // fixed hardware (they have no banked ROM, so the gate is always open).
+    bool                     m_externalDriveConnected = false;
 
     // Drive widget state pump. The controller channel publishes
     // per-drive door/spin sync events the chrome painter will consume

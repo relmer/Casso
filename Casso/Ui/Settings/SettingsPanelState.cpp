@@ -507,6 +507,24 @@ void SettingsPanelState::SetWriteProtect (int drive, bool wp)
 
 
 
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetExternalDriveConnected
+//
+//  //c external-drive port toggle. A live-effect UI pref -- it only
+//  reveals/hides the second drive-mount widget, so unlike a hardware
+//  enable it never sets RequiresReset.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SettingsPanelState::SetExternalDriveConnected (bool connected)
+{
+    m_current.prefs.externalDriveConnected = connected;
+}
+
+
+
+
 
 ////////////////////////////////////////////////////////////////////////////////
 //
@@ -572,6 +590,7 @@ HRESULT SettingsPanelState::Apply (
     {
         sink.ApplyWriteProtect (i, m_current.prefs.writeProtect[i]);
     }
+    sink.ApplyExternalDriveConnected (m_current.prefs.externalDriveConnected);
 
     // FR-010: any hardware enable diff requires the caller to confirm
     // and the machine to be reset. Queue the reset request; the
@@ -632,6 +651,8 @@ HRESULT SettingsPanelState::ExtractUiPrefs (
 
     outPrefs.floppySoundEnabled = GetBoolOpt   (*uiObj, "floppySoundEnabled", true);
     outPrefs.floppyMechanism    = GetStringOpt (*uiObj, "floppyMechanism",    "shugart");
+
+    outPrefs.externalDriveConnected = GetBoolOpt (*uiObj, "externalDriveConnected", false);
 
     outPrefs.driveMotorVolume = (float) GetNumberOpt (*uiObj, "driveMotorVolume", SettingsUiPrefs::kDefaultDriveMotorVolume);
     outPrefs.driveHeadVolume  = (float) GetNumberOpt (*uiObj, "driveHeadVolume",  SettingsUiPrefs::kDefaultDriveHeadVolume);
@@ -832,6 +853,12 @@ HRESULT SettingsPanelState::ExtractMachineInfo (
             region.size         = FormatSize (bankSize * 2);
             region.addressRange = std::format ("${:04X}-${:04X}", startAddr, windowEnd);
             outInfo.memoryRegions.push_back (std::move (region));
+
+            // A banked system ROM is the //c's defining trait; it is also the
+            // one machine with an optional external drive (its second drive is
+            // an add-on, not fixed hardware). Surface that so the Hardware tab
+            // can offer the External-drive Connected/Not-connected toggle.
+            outInfo.supportsExternalDrive = true;
         }
         else
         {
@@ -1212,6 +1239,7 @@ JsonValue SettingsPanelState::BuildJson (
     uiObj.emplace_back ("writeMode",          JsonValue (std::string (WriteModeToString (prefs.writeMode))));
     uiObj.emplace_back ("floppySoundEnabled", JsonValue (prefs.floppySoundEnabled));
     uiObj.emplace_back ("floppyMechanism",    JsonValue (prefs.floppyMechanism));
+    uiObj.emplace_back ("externalDriveConnected", JsonValue (prefs.externalDriveConnected));
     uiObj.emplace_back ("driveMotorVolume",   JsonValue ((double) prefs.driveMotorVolume));
     uiObj.emplace_back ("driveHeadVolume",    JsonValue ((double) prefs.driveHeadVolume));
     uiObj.emplace_back ("driveDoorVolume",    JsonValue ((double) prefs.driveDoorVolume));
@@ -1248,6 +1276,7 @@ bool SettingsPanelState::PrefsEqual (
     if (a.writeMode             != b.writeMode)             return false;
     if (a.floppySoundEnabled    != b.floppySoundEnabled)    return false;
     if (a.floppyMechanism       != b.floppyMechanism)       return false;
+    if (a.externalDriveConnected != b.externalDriveConnected) return false;
     if (a.driveMotorVolume      != b.driveMotorVolume)       return false;
     if (a.driveHeadVolume       != b.driveHeadVolume)        return false;
     if (a.driveDoorVolume       != b.driveDoorVolume)        return false;

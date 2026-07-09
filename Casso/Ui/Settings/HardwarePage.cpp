@@ -25,6 +25,12 @@ namespace
     constexpr size_t  s_kClockRow         = 1;
     constexpr size_t  s_kMemoryRow        = 2;
 
+    // Label of the synthetic Hardware-tree node for the //c optional external
+    // drive. Not backed by a HardwareEntry (the //c drive is built-in, not a
+    // config slot), so the tree's toggle handler matches this label to route
+    // it to SetExternalDriveConnected instead of SetHardwareEnabled.
+    constexpr wchar_t s_kExternalDriveLabel[] = L"External drive";
+
 
     RECT MakeRect (int l, int t, int w, int h)
     {
@@ -376,7 +382,12 @@ void HardwarePage::Rebuild ()
         }
     }
 
-    nodes = BuildNodes (entries);
+    {
+        bool  supportsExternal  = (info != nullptr) && info->supportsExternalDrive;
+        bool  externalConnected = (state != nullptr) && state->Prefs().externalDriveConnected;
+
+        nodes = BuildNodes (entries, supportsExternal, externalConnected);
+    }
     m_tree.SetNodes (std::move (nodes));
 
     m_tree.SetOnToggle ([state] (const std::wstring & label, bool checked)
@@ -385,6 +396,15 @@ void HardwarePage::Rebuild ()
 
         if (state == nullptr)
         {
+            return;
+        }
+
+        // The synthetic external-drive node is not a HardwareEntry -- it is a
+        // live UI pref, so route it to SetExternalDriveConnected (no reset)
+        // rather than the hardware-enable path.
+        if (label == s_kExternalDriveLabel)
+        {
+            state->SetExternalDriveConnected (checked);
             return;
         }
 
@@ -411,7 +431,9 @@ void HardwarePage::Rebuild ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<DxuiTreeNode> HardwarePage::BuildNodes (const std::vector<HardwareEntry> & entries)
+std::vector<DxuiTreeNode> HardwarePage::BuildNodes (const std::vector<HardwareEntry> & entries,
+                                                    bool supportsExternalDrive,
+                                                    bool externalDriveConnected)
 {
     std::vector<DxuiTreeNode>  out;
     DxuiTreeNode               internalGroup;
@@ -462,6 +484,22 @@ std::vector<DxuiTreeNode> HardwarePage::BuildNodes (const std::vector<HardwareEn
     if (anySlot)
     {
         out.push_back (std::move (slotsGroup));
+    }
+
+    // //c external drive: a top-level checkable node modelling the optional
+    // 5.25" drive on the disk port. Optional (interactive), so the user can
+    // connect/disconnect it; checked mirrors the persisted connected state.
+    // Unlike the hardware rows this is not a config device -- toggling it is
+    // a live UI pref, so the tree's OnToggle routes this label specially.
+    if (supportsExternalDrive)
+    {
+        DxuiTreeNode  external;
+
+        external.label          = s_kExternalDriveLabel;
+        external.capabilityFlag = DxuiTreeCapabilityFlag::Optional;
+        external.checked        = externalDriveConnected;
+        external.expanded       = false;   // leaf: no children, no twisty
+        out.push_back (std::move (external));
     }
 
     return out;

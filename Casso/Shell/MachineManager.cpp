@@ -1118,6 +1118,25 @@ HRESULT MachineManager::SwitchMachine (const std::wstring & machineName)
                         m_shell.HandleCommand (colorCmd);
                     }
                 }
+
+                // //c external drive: adopt the switched-to machine's persisted
+                // connected state so the second drive-mount widget matches the
+                // saved setting once ReflowChromeForMachineChange relays the
+                // chrome. Defaults to not-connected; harmless on non-//c
+                // machines (ShouldShowExternalDrive ignores it when the system
+                // ROM is not banked).
+                {
+                    const JsonValue *  extPrefs  = nullptr;
+                    bool               connected = false;
+
+                    if (SUCCEEDED (mergedJson.GetObject ("$cassoUiPrefs", extPrefs)) &&
+                        extPrefs != nullptr)
+                    {
+                        HRESULT  hrExt = extPrefs->GetBool ("externalDriveConnected", connected);
+                        IGNORE_RETURN_VALUE (hrExt, S_OK);
+                    }
+                    m_shell.m_externalDriveConnected = connected;
+                }
             }
         }
     }

@@ -78,6 +78,10 @@ struct SettingsUiPrefs
     bool               floppySoundEnabled    = true;
     std::string        floppyMechanism       = "shugart";   // "shugart" | "alps"
     bool               writeProtect[2]       = { false, false };
+    // //c only: whether the optional external 5.25" drive is plugged into
+    // the disk port. Reveals/hides the second drive-mount widget. Defaults
+    // to not-connected -- a bare //c ships with just its internal drive.
+    bool               externalDriveConnected = false;
     // Drive-audio component gains (0..1). Defaults mirror the
     // DriveAudioMixer / Disk2AudioSource sound-mix defaults.
     static constexpr float kDefaultDriveMotorVolume = 0.90f;
@@ -138,6 +142,11 @@ struct SettingsMachineInfo
     std::string                          ramSummary;    // "128K RAM" total, ROM excluded
     std::vector<SettingsMemoryRegion>    memoryRegions;
     size_t                               devices       = 0;
+    // True for machines whose second drive is an optional add-on rather than
+    // fixed hardware (the //c external disk port). Drives the Hardware tab's
+    // "External drive" Connected/Not-connected toggle. Detected from a banked
+    // system ROM (romBankSize != 0), the //c's defining trait.
+    bool                                 supportsExternalDrive = false;
 };
 
 
@@ -163,6 +172,7 @@ public:
     virtual void ApplyDriveVolumes   (float motor, float head, float door) = 0;
     virtual void ApplyDrivePan       (float driveOnePan, float driveTwoPan) = 0;
     virtual void ApplyWriteProtect   (int drive, bool wp)            = 0;
+    virtual void ApplyExternalDriveConnected (bool connected)        = 0;
     virtual void QueueMachineReset   ()                              = 0;
 };
 
@@ -218,6 +228,7 @@ public:
     void    SetDriveOnePan      (float pan);
     void    SetDriveTwoPan      (float pan);
     void    SetWriteProtect    (int drive, bool wp);
+    void    SetExternalDriveConnected (bool connected);
     HRESULT SetHardwareEnabled (size_t index, bool enabled);
 
     // ---- Apply ---------------------------------------------------------

@@ -838,12 +838,22 @@ HRESULT EmulatorShell::Initialize (
                     m_driveChrome[0].Hide();
                     m_driveChrome[1].Hide();
                 }
+                else if (!ShouldShowExternalDrive())
+                {
+                    // //c with the optional external drive not connected: the
+                    // internal drive (widget 0) shows, the external (widget 1)
+                    // stays collapsed until the user connects it in Settings.
+                    m_driveChrome[1].Hide();
+                }
 
                 m_uiShell.HitTest().Clear();
                 if (fHasDisk)
                 {
                     m_uiShell.HitTest().Register (DxuiHitRect { m_driveChrome[0].BodyRect(), DxuiHitSlot::Custom, 0 });
-                    m_uiShell.HitTest().Register (DxuiHitRect { m_driveChrome[1].BodyRect(), DxuiHitSlot::Custom, 1 });
+                    if (ShouldShowExternalDrive())
+                    {
+                        m_uiShell.HitTest().Register (DxuiHitRect { m_driveChrome[1].BodyRect(), DxuiHitSlot::Custom, 1 });
+                    }
                 }
             }
 
@@ -1018,6 +1028,19 @@ HRESULT EmulatorShell::Initialize (
 
                             SetDriveAudioPan (0, (float) pan0);
                             SetDriveAudioPan (1, (float) pan1);
+                        }
+
+                        // //c external drive: seed the connected state from the
+                        // persisted pref so the second drive-mount widget shows
+                        // (or stays hidden) on the first paint, before the user
+                        // touches Settings. Defaults to not-connected.
+                        {
+                            bool  connected = false;
+
+                            if (SUCCEEDED (uiPrefs->GetBool ("externalDriveConnected", connected)))
+                            {
+                                m_externalDriveConnected = connected;
+                            }
                         }
                     }
                 }
@@ -1568,6 +1591,30 @@ void EmulatorShell::ReflowChromeForMachineChange ()
                            static_cast<UINT> (rcClient.bottom - rcClient.top));
         }
     }
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::ShouldShowExternalDrive
+//
+//  The second drive-mount widget is fixed hardware on the //e (two-drive
+//  slot-6 controller) and every other Disk ][ machine, so it is always
+//  visible there. The //c's second drive is an optional external unit that
+//  plugs into the disk port, so it appears only when the user has marked it
+//  connected (Hardware tab toggle -> $cassoUiPrefs.externalDriveConnected).
+//  The //c is the only machine with a banked system ROM, so romBankSize is
+//  the discriminator -- the same signal that gates the built-in IWM drive.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool EmulatorShell::ShouldShowExternalDrive () const
+{
+    bool  externalIsOptional = (m_config.systemRom.romBankSize != 0);
+
+    return !externalIsOptional || m_externalDriveConnected;
 }
 
 
@@ -3043,6 +3090,24 @@ void EmulatorShell::DispatchCpuCommand (const EmulatorCommand & cmd)
             if (sscanf_s (cmd.payload.c_str(), "%d,%d", &drive, &kind) == 2)
             {
                 PlayDriveTestSound (drive, kind);
+            }
+            break;
+        }
+
+        case IDM_DRIVE_EXTERNAL_CONNECT:
+        case IDM_DRIVE_EXTERNAL_DISCONNECT:
+        {
+            // //c optional external drive: reveal/hide the second drive-mount
+            // widget. Re-run the chrome layout so ShouldShowExternalDrive()
+            // takes effect immediately. Disk presence is unchanged (the //c
+            // still has its built-in controller), so ReflowChromeForMachineChange
+            // does no window resize -- it just relays widgets + hit rects.
+            bool  connected = (cmd.id == IDM_DRIVE_EXTERNAL_CONNECT);
+
+            if (connected != m_externalDriveConnected)
+            {
+                m_externalDriveConnected = connected;
+                ReflowChromeForMachineChange();
             }
             break;
         }
@@ -5041,6 +5106,15 @@ DxuiMessageResult EmulatorShell::OnSize (UINT widthPx, UINT heightPx)
             if (fHasDisk)
             {
                 LayoutDriveWidgetsInCommandBar (m_driveChrome, bottomInsetPx, static_cast<int> (width), renderH, dpi);
+
+                // LayoutDriveWidgetsInCommandBar lays out (and un-hides) BOTH
+                // widgets. Re-collapse the external one when it is an optional
+                // //c drive the user has not connected, so only the internal
+                // drive shows.
+                if (!ShouldShowExternalDrive())
+                {
+                    m_driveChrome[1].Hide();
+                }
             }
             else
             {
@@ -5072,7 +5146,10 @@ DxuiMessageResult EmulatorShell::OnSize (UINT widthPx, UINT heightPx)
             if (fHasDisk)
             {
                 m_uiShell.HitTest().Register (DxuiHitRect { m_driveChrome[0].BodyRect(), DxuiHitSlot::Custom, 0 });
-                m_uiShell.HitTest().Register (DxuiHitRect { m_driveChrome[1].BodyRect(), DxuiHitSlot::Custom, 1 });
+                if (ShouldShowExternalDrive())
+                {
+                    m_uiShell.HitTest().Register (DxuiHitRect { m_driveChrome[1].BodyRect(), DxuiHitSlot::Custom, 1 });
+                }
             }
         }
     }

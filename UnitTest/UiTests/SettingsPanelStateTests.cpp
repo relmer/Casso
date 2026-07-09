@@ -35,6 +35,7 @@ namespace
         float              lastDriveDoor         = -1.0f;
         float              lastDriveOnePan       = 0.0f;
         float              lastDriveTwoPan       = 0.0f;
+        bool               lastExternalDriveConnected = false;
         int                queuedResetCount      = 0;
         int                applyCount            = 0;
 
@@ -58,6 +59,11 @@ namespace
         void ApplyWriteProtect (int drive, bool wp) override
         {
             if (drive >= 0 && drive < 2) lastWriteProtect[drive] = wp;
+            ++applyCount;
+        }
+        void ApplyExternalDriveConnected (bool connected) override
+        {
+            lastExternalDriveConnected = connected;
             ++applyCount;
         }
         void QueueMachineReset () override { ++queuedResetCount; }
@@ -499,6 +505,70 @@ public:
         Assert::IsTrue (text.find ("\"writeMode\":\"copy-on-write\"") != std::string::npos);
         Assert::IsTrue (text.find ("\"$cassoMachineVersion\"") != std::string::npos,
                         L"version key must round-trip");
+    }
+
+
+    // //c external-drive connect toggle (T034a). A live UI pref: it must
+    // round-trip through $cassoUiPrefs, push through the sink on Apply, make
+    // the panel dirty, and -- unlike a hardware enable -- never queue a reset.
+    TEST_METHOD (ExternalDriveConnected_RoundTripsAndPushesLiveNoReset)
+    {
+        SettingsPanelState  st;
+        JsonValue           v = ParseOrFail (kFixtureJson);
+        st.LoadFromMachine ("X", v, v);
+
+        Assert::IsFalse (st.Prefs().externalDriveConnected, L"defaults to not-connected");
+        Assert::IsFalse (st.IsDirty());
+
+        st.SetExternalDriveConnected (true);
+        Assert::IsTrue  (st.Prefs().externalDriveConnected);
+        Assert::IsTrue  (st.IsDirty(), L"toggling connect makes the panel dirty");
+        Assert::IsFalse (st.RequiresReset(), L"live UI pref -> no reset required");
+
+        RecordingSink  sink;
+        JsonValue      outJson;
+        Assert::IsTrue (SUCCEEDED (st.Apply (sink, outJson)));
+        Assert::IsTrue (sink.lastExternalDriveConnected, L"pushed live through sink");
+        Assert::AreEqual (0, sink.queuedResetCount, L"connect toggle never queues a reset");
+
+        // The connected state persists into the emitted $cassoUiPrefs, and
+        // re-loading that JSON restores it.
+        SettingsUiPrefs  reloaded;
+        Assert::IsTrue (SUCCEEDED (SettingsPanelState::ExtractUiPrefs (outJson, reloaded)));
+        Assert::IsTrue (reloaded.externalDriveConnected, L"externalDriveConnected round-trips");
+    }
+
+
+    // supportsExternalDrive is derived from a banked system ROM (romBankSize),
+    // the //c's defining trait -- it is the only machine whose second drive is
+    // an optional add-on. Flat-ROM machines (//e / ][) report false.
+    TEST_METHOD (SupportsExternalDrive_TrueForBankedRomOnly)
+    {
+        const char * cJson = R"JSON({
+            "$cassoMachineVersion": 1,
+            "name": "Apple //c",
+            "timing": { "clockSpeed": 1023000 },
+            "ram": [ { "address": "0x0000", "size": "0xC000" } ],
+            "systemRom": { "address": "0xC000", "romBankSize": "0x4000", "romBankSelect": "0xC028" }
+        })JSON";
+
+        const char * eJson = R"JSON({
+            "$cassoMachineVersion": 1,
+            "name": "Apple //e",
+            "timing": { "clockSpeed": 1023000 },
+            "ram": [ { "address": "0x0000", "size": "0xC000" } ],
+            "systemRom": { "address": "0xC000" }
+        })JSON";
+
+        SettingsPanelState  cSt;
+        JsonValue           cv = ParseOrFail (cJson);
+        Assert::IsTrue (SUCCEEDED (cSt.LoadFromMachine ("Apple //c", cv, cv)));
+        Assert::IsTrue (cSt.MachineInfo().supportsExternalDrive, L"//c has optional external drive");
+
+        SettingsPanelState  eSt;
+        JsonValue           ev = ParseOrFail (eJson);
+        Assert::IsTrue (SUCCEEDED (eSt.LoadFromMachine ("Apple //e", ev, ev)));
+        Assert::IsFalse (eSt.MachineInfo().supportsExternalDrive, L"//e second drive is fixed hardware");
     }
 
 
