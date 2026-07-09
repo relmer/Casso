@@ -5,6 +5,12 @@
 #include "Core/MemoryBus.h"
 #include "ICpu.h"
 
+// Each Harness embeds a MemoryBus (64K RAM array) + a 65C02; several are
+// stack-allocated per TEST_METHOD (one per scoped sub-case), which sums past
+// the C6262 /analyze stack-frame budget. Matches the per-file suppression the
+// sibling device/CPU test files already use (DeviceTests, Disk2Tests, ...).
+#pragma warning (disable: 6262)
+
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
 
