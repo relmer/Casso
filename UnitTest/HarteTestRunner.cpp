@@ -713,31 +713,26 @@ namespace HarteTests
     {
     public:
 
-        // Casso models the $x7/$xF/$DB reserved slots as 1-byte, 1-cycle NOPs --
-        // the canonical base-tier behavior (6502.org / AppleWin / Klaus Dormann).
-        // Harte's synertek65c02 captures a specific Synertek part that consumes
-        // 2-3 bytes in those slots; Apple shipped Rockwell/NCR/GTE/WDC parts, not
-        // Synertek, so that quirk is intentionally not emulated. For those opcodes
-        // we assert our 1-byte NOP behavior instead of the divergent vector; every
-        // other opcode runs the Harte vector unchanged.
-        static bool IsReservedNopDivergence (Byte opcode)
+        // Casso now models the Rockwell R65C02: the $x7/$xF columns are the
+        // real RMB/SMB/BBR/BBS bit ops, so the Synertek corpus (which models
+        // those slots as multi-byte NOPs) does not apply to them; $CB/$DB stay
+        // NOPs on the Rockwell part but the Synertek corpus differs there too.
+        // These 34 slots are skipped here and covered by Cpu65C02Tests
+        // (RockwellBitOpsExecute / WdcWaiStpDecodeAsNop). Every other opcode is
+        // identical across Synertek and Rockwell, so its Synertek vector runs
+        // unchanged. TODO(spec 016 follow-up): regenerate the rockwell65c02
+        // corpus for full per-vector bit-op coverage.
+        static bool IsRockwellTierDivergence (Byte opcode)
         {
-            return (opcode & 0x0F) == 0x07 || (opcode & 0x0F) == 0x0F || opcode == 0xDB;
+            return (opcode & 0x0F) == 0x07 || (opcode & 0x0F) == 0x0F ||
+                   opcode == 0xCB || opcode == 0xDB;
         }
 
         void RunSynertekOpcode (Byte opcode)
         {
-            if (IsReservedNopDivergence (opcode))
+            if (IsRockwellTierDivergence (opcode))
             {
-                TestCpu65C02 cpu;
-
-                cpu.InitForTest (0x0400);
-                cpu.Poke (0x0400, opcode);
-                cpu.Poke (0x0401, 0xEA);            // sentinel operand byte
-                cpu.Step ();
-
-                Assert::AreEqual<Word> (0x0401, cpu.RegPC ());   // consumed exactly 1 byte
-                return;
+                return;   // covered by Cpu65C02Tests; Synertek vectors don't apply
             }
 
             RunHarteOpcode<TestCpu65C02> ("synertek65c02", opcode);

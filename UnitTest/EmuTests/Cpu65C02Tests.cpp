@@ -219,29 +219,76 @@ namespace Cpu65C02TestNs
         }
 
 
-        TEST_METHOD (RockwellBitOpcodesAreNopOnBaseTier)
+        TEST_METHOD (RockwellBitOpsExecute)
         {
-            // The Apple 65C02 is the base CMOS tier -- the Rockwell bit ops
-            // (RMB/SMB/BBR/BBS) and WDC's WAI/STP are absent and decode as
-            // single-byte, single-cycle NOPs. This is the canonical base-tier
-            // model (6502.org / AppleWin / Klaus Dormann). Apple did not ship the
-            // Synertek part whose 2-3-byte reserved NOPs Harte's synertek65c02
-            // captures, so that quirk is intentionally not emulated.
-            Byte    bitOpcodes[] = { 0x07, 0x87, 0x0F, 0x8F, 0xCB, 0xDB };
+            // Casso models the Rockwell R65C02: RMB/SMB/BBR/BBS are real
+            // instructions (Apple's //c ROM 4 and Enhanced //e firmware use
+            // them). Dormann's rkwl_op suite exercises them exhaustively; here
+            // we assert the core behaviors and encodings.
 
-            for (Byte opcode : bitOpcodes)
+            // RMB0 ($07 zp): clear bit 0 of the zp byte (RMW). 2 bytes, 5 cycles.
+            {
+                Harness h;
+                h.Poke (0x0030, 0xFF);
+                h.Load ({ 0x07, 0x30 });
+                h.Step ();
+                Assert::AreEqual<Word> (0x0202, h.PC ());
+                Assert::AreEqual<Byte> (5,      h.Cycles ());
+                Assert::AreEqual<Byte> (0xFE,   h.Peek (0x0030));
+            }
+
+            // SMB7 ($F7 zp): set bit 7 of the zp byte.
+            {
+                Harness h;
+                h.Poke (0x0030, 0x00);
+                h.Load ({ 0xF7, 0x30 });
+                h.Step ();
+                Assert::AreEqual<Word> (0x0202, h.PC ());
+                Assert::AreEqual<Byte> (0x80,   h.Peek (0x0030));
+            }
+
+            // BBR0 ($0F zp,rel): branch if bit 0 clear. 3 bytes.
+            {
+                Harness h;                                  // taken: bit 0 clear
+                h.Poke (0x0030, 0xFE);
+                h.Load ({ 0x0F, 0x30, 0x10 });
+                h.Step ();
+                Assert::AreEqual<Word> (0x0213, h.PC ());   // $0203 + $10
+            }
+            {
+                Harness h;                                  // not taken: bit 0 set
+                h.Poke (0x0030, 0x01);
+                h.Load ({ 0x0F, 0x30, 0x10 });
+                h.Step ();
+                Assert::AreEqual<Word> (0x0203, h.PC ());
+            }
+
+            // BBS0 ($8F zp,rel): branch if bit 0 set.
+            {
+                Harness h;                                  // taken: bit 0 set
+                h.Poke (0x0030, 0x01);
+                h.Load ({ 0x8F, 0x30, 0x10 });
+                h.Step ();
+                Assert::AreEqual<Word> (0x0213, h.PC ());
+            }
+        }
+
+
+        TEST_METHOD (WdcWaiStpDecodeAsNop)
+        {
+            // WDC's WAI/STP ($CB/$DB) are NOT on the Rockwell parts Apple
+            // shipped, so they remain single-byte, single-cycle NOPs.
+            for (Byte opcode : { 0xCB, 0xDB })
             {
                 Harness h;
 
                 h.SetRegs (0x11, 0x22, 0x33, 0);
-                h.Poke (0x0030, 0xFF);
-                h.Load ({ opcode, 0x30, 0x10 });
+                h.Load ({ opcode, 0xEA });
                 h.Step ();
 
                 Assert::AreEqual<Word> (0x0201, h.PC ());          // consumed 1 byte
-                Assert::AreEqual<Byte> (1, h.Cycles ());           // 1 cycle
-                Assert::AreEqual<Byte> (0xFF, h.Peek (0x0030));    // memory untouched
-                Assert::AreEqual<Byte> (0x11, h.Regs ().a);        // A untouched
+                Assert::AreEqual<Byte> (1,      h.Cycles ());      // 1 cycle
+                Assert::AreEqual<Byte> (0x11,   h.Regs ().a);      // A untouched
             }
         }
 

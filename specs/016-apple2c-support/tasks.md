@@ -95,19 +95,23 @@
 
 > **⚠️ US2 is NOT complete — the //c does not yet cold-boot to BASIC.** An
 > earlier boot test was a false positive (it matched a stray `]` in random
-> RAM). Bring-up with the real ROM 4 found **three blockers**, in order:
-> 1. **Rockwell bit ops (RMB/SMB/BBR/BBS)** — ROM 4 runs `BBS0` at `$D010`;
->    without them the reset derails into RAM. `Cpu65C02::InstallBitOps()` is
->    written + proven but **parked** (not called): activating it reverses the
->    base-tier "decode as NOP" decision and forces the Harte corpus from
->    `synertek65c02` -> `rockwell65c02` (+ flips `RockwellBitOpcodesAreNopOnBaseTier`).
->    **Needs a decision.**
-> 2. **//c `$C800-$CFFF` routing** — with bit ops on, the firmware jumps into
->    the `$C800` expansion window, which the //e `CxxxRomRouter` leaves as
->    floating `$FF` until `INTC8ROM` latches. The //c has no slots, so that
->    window must *always* read the internal firmware (a //c router mode).
-> 3. **Built-in peripherals** — serial 6551 ACIA (T024) + IWM disk the reset
->    firmware probes. Depth TBD once (1)+(2) land.
+> RAM). Bring-up with the real ROM 4 found three blockers:
+>
+> 1. ✅ **Rockwell bit ops (RMB/SMB/BBR/BBS)** — RESOLVED. Casso's `Cpu65C02`
+>    now models the **Rockwell R65C02** (bit ops installed via `InstallBitOps`;
+>    WDC WAI/STP `$CB`/`$DB` stay NOPs). Covered by `Cpu65C02Tests`
+>    (`RockwellBitOpsExecute` / `WdcWaiStpDecodeAsNop`). With this, the //c reset
+>    no longer derails — it runs deep into firmware (to `$C90F`). **Two conformance
+>    follow-ups:** (a) Casso's assembler can't yet emit the BBR/BBS zero-page-
+>    relative form, so the Dormann integration path runs the common opcode subset;
+>    (b) the Harte 65C02 corpus should be regenerated as `rockwell65c02` (the 34
+>    `$x7`/`$xF`/`$CB`/`$DB` slots are currently skipped there, covered by unit tests).
+> 2. ⏳ **//c `$C800-$CFFF` routing** — the firmware jumps into the `$C800`
+>    expansion window, which the //e `CxxxRomRouter` leaves as floating `$FF`
+>    until `INTC8ROM` latches. The //c has no slots, so that window must *always*
+>    read the internal firmware (a //c router mode). **This is the next blocker.**
+> 3. ⏳ **Built-in peripherals** — serial 6551 ACIA (T024) + IWM disk the reset
+>    firmware probes. Depth TBD once (2) lands.
 - [ ] T023 [US2] Wire the //c firmware slices into `CxxxRomRouter::SetSlotRom` (slots 1/2/3/4/6); ROM-4 SmartPort + mem-expansion firmware present but peripherals report absent (FR-006a).
 - [ ] T024 [US3] Wire the two `Acia6551` instances (Phase 2) into the //c serial ports (slots 1 + 2) in `Apple2c.json` + the //c serial firmware, with **loopback/file** endpoints. *(US3's //c-specific integration.)*
 

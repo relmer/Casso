@@ -116,14 +116,7 @@ void Cpu65C02::InitializeCmos ()
     InitializeArithmetic ();
     ReclaimUndocumented ();
     InitializeCmosLeftovers ();
-    // NOTE (spec 016): InstallBitOps() is deliberately NOT called yet. The
-    // Apple //c ROM 4 firmware DOES use the Rockwell RMB/SMB/BBR/BBS bit
-    // instructions (proven: without them the //c reset derails at $D010's
-    // BBS0 into RAM), so activating this is a hard requirement for a bootable
-    // //c. But doing so reverses the base-tier "decode as NOP" decision and
-    // changes the conformance-corpus strategy (Harte synertek65c02 ->
-    // rockwell65c02; RockwellBitOpcodesAreNopOnBaseTier must flip). Left
-    // parked for that decision -- one call away from active.
+    InstallBitOps ();
     InitializeNops ();
 }
 
@@ -318,18 +311,12 @@ void Cpu65C02::InitializeCmosLeftovers ()
 //  then fill any opcode still marked illegal with a single-byte NOP so nothing
 //  traps as an undefined instruction.
 //
-//  This is deliberately the base CMOS tier, matching the parts Apple shipped
-//  (a Rockwell/NCR/GTE/WDC mix whose common instruction set omits the extensions):
-//  the Rockwell bit ops (RMB/SMB/BBR/BBS) and WDC's WAI/STP are NOT installed,
-//  so they behave as NOPs. Their operations/modes still exist in the CassoCore
-//  CMOS superset, inert, ready for a future Rockwell/WDC variant.
-//
-//  The $x7/$xF/$CB/$DB reserved slots are modeled as single-byte, single-cycle
-//  NOPs -- the canonical base-tier behavior documented by 6502.org and used by
-//  AppleWin and the Klaus Dormann 65C02 suite. (Harte's synertek65c02 corpus
-//  instead captures a specific Synertek part that consumes 2-3 bytes in those
-//  slots; Apple did not ship Synertek 65C02s, so that quirk is not emulated.)
-//  They fall through to the single-byte fill below.
+//  Casso models the Rockwell R65C02 -- the CMOS core plus the Rockwell bit ops
+//  (RMB/SMB/BBR/BBS, installed by InstallBitOps), which Apple's //c ROM 4 and
+//  the Enhanced //e firmware use. WDC's WAI/STP ($CB/$DB) are NOT part of the
+//  Rockwell parts Apple shipped, so those two slots remain single-byte,
+//  single-cycle NOPs (canonical per 6502.org / Klaus Dormann), reached by the
+//  illegal-slot fill below. The Harte match is the rockwell65c02 corpus.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
