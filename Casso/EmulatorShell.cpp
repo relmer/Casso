@@ -2382,11 +2382,14 @@ void EmulatorShell::RelayoutJoystickButton ()
 void EmulatorShell::LayoutPrinterIndicator (int bottomInsetPx, int clientW, int clientH, UINT dpi)
 {
     DxuiDpiScaler  scaler;
-    RECT           probe         = {};
+    int            desiredW      = 0;
+    int            desiredH      = 0;
+    int            driveRight    = 0;
+    int            rightPad      = 0;
+    int            avail         = 0;
     int            w             = 0;
     int            h             = 0;
     int            commandBarTop = 0;
-    int            marginX       = 0;
     int            x             = 0;
     int            y             = 0;
 
@@ -2398,18 +2401,32 @@ void EmulatorShell::LayoutPrinterIndicator (int bottomInsetPx, int clientW, int 
 
     scaler.SetDpi (dpi);
 
-    // Probe intrinsic size, then right-align + vertically centre in the band.
-    m_printerIndicator.Layout (RECT{ 0, 0, 0, 0 }, scaler);
-    probe = m_printerIndicator.OuterRect ();
-    w     = probe.right  - probe.left;
-    h     = probe.bottom - probe.top;
+    desiredW = scaler.Px (76);
+    desiredH = scaler.Px (58);
 
+    // Fit inside the dead space to the right of the (centred) drive widgets so
+    // the printer never overlaps a drive or shifts their centring. When the
+    // drives are hidden the right edge is 0 and the full desired size is used.
+    rightPad   = scaler.Px (10);
+    driveRight = std::max (0, (int) m_driveChrome[1].OuterRect ().right);
+    avail      = clientW - rightPad - driveRight - scaler.Px (10);
+
+    w = std::min (desiredW, std::max (scaler.Px (40), avail));
+    h = (w * desiredH) / std::max (1, desiredW);   // keep the wide-low aspect
+
+    // Bottom-align to the same shelf as the drive bodies (their outer bottom is
+    // clientH - the label bottom gap), so the low printer sits beside the tall
+    // drives rather than floating.
+    x             = std::max (0, clientW - rightPad - w);
+    y             = (clientH - scaler.Px (s_kLabelBottomGapDp)) - h;
     commandBarTop = std::max (0, clientH - bottomInsetPx);
-    marginX       = scaler.Px (12);
-    x             = std::max (0, clientW - marginX - w);
-    y             = commandBarTop + std::max (0, ((clientH - commandBarTop) - h) / 2);
 
-    m_printerIndicator.Layout (RECT{ x, y, x, y }, scaler);
+    if (y < commandBarTop)
+    {
+        y = commandBarTop;
+    }
+
+    m_printerIndicator.Layout (RECT{ x, y, x + w, y + h }, scaler);
 }
 
 

@@ -22,10 +22,9 @@
 //  the printer panel (FR-020) is wired once that panel exists; until then the
 //  shell does not register a hit rect for it.
 //
-//  Like the other Casso chrome widgets it has an intrinsic size: Layout treats
-//  boundsDip.left/top as the anchor and computes its own body rect, ignoring
-//  right/bottom. Paint draws nothing when hidden (a machine with no printer
-//  card shows no printer UI).
+//  Layout honours the caller-supplied rect (the shell sizes it to the command-
+//  bar dead space and bottom-aligns it to the drive shelf). Paint draws nothing
+//  when hidden (a machine with no printer card shows no printer UI).
 //
 ////////////////////////////////////////////////////////////////////////////////
 
