@@ -607,6 +607,13 @@ HRESULT EmulatorShell::Initialize (
     CHR (hr);
 
     m_machineManager->WireLanguageCard();
+    // //c banked ROM: layer the $C028 bank-switch coordinator + no-slots
+    // $Cxxx routing on top of the flat bank-0 split WireLanguageCard just
+    // did. Without this the initial-launch //c has no ROM banking (and no
+    // SetNoExternalSlots), so $C800 floats and the firmware derails to a
+    // garbage screen. SwitchMachine already does this; the initial build
+    // path must match it. No-op for non-banked machines (romBankSize == 0).
+    m_machineManager->WireApple2cRomBank();
     m_machineManager->CreateVideoModes();
 
     // Validate memory bus for overlapping device address ranges
