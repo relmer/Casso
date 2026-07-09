@@ -151,6 +151,7 @@ bool WindowCommandManager::OnCommand (HWND hwnd, int id)
     else if (id == IDM_PRINTER_EJECT)                                      { OnPrinterCommand (id); }
     else if (id == IDM_PRINTER_DISCARD)                                    { OnPrinterCommand (id); }
     else if (id == IDM_PRINTER_COPY)                                       { OnPrinterCommand (id); }
+    else if (id == IDM_PRINTER_PREVIEW)                                    { m_shell.ShowPrinterPanel (); }
     else if (id >= IDM_HELP_KEYMAP    && id <= IDM_HELP_ABOUT)              { OnHelpCommand (id); }
 
     return false;

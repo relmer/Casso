@@ -52,8 +52,8 @@ public:
         menu.Open (MainMenuId::File, true);
         Assert::AreEqual (0, menu.HighlightIndex());
         Assert::IsTrue   (menu.HandleKey (VK_RETURN));
-        // File's first row is now "Finish Printing (Eject Paper)".
-        Assert::AreEqual ((int) IDM_PRINTER_EJECT, (int) dispatched);
+        // File's first row is now "Show Printer Preview".
+        Assert::AreEqual ((int) IDM_PRINTER_PREVIEW, (int) dispatched);
         Assert::IsFalse  (menu.IsOpen());
     }
 
@@ -70,8 +70,8 @@ public:
         menu.Open (MainMenuId::File, true);
         Assert::IsTrue   (menu.HandleMouseMove (10, 32 + 28 + 4));
         Assert::IsTrue   (menu.HandleMouseUp   (10, 32 + 28 + 4));
-        // First File row is now "Finish Printing (Eject Paper)".
-        Assert::AreEqual ((int) IDM_PRINTER_EJECT, (int) dispatched);
+        // First File row is now "Show Printer Preview".
+        Assert::AreEqual ((int) IDM_PRINTER_PREVIEW, (int) dispatched);
         Assert::IsFalse  (menu.IsOpen());
     }
 };
