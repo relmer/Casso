@@ -16,7 +16,7 @@
 ## Phase 1: Setup
 
 - [X] T001 Verify baseline: full existing `UnitTest` suite green on branch `016-apple2c-support`. *(1959 tests green.)*
-- [ ] T002 [P] Acquire assets into `UnitTest/Fixtures/` + the machine-ROM pipeline: //c Memory Expansion ROM (ROM 4, 32K), Dormann 65C02 functional test, Harte `synertek65c02` SingleStepTests vectors. (Needed by US1/US2; the ACIA in Phase 2 needs none.)
+- [X] T002 [P] Acquire assets into `UnitTest/Fixtures/` + the machine-ROM pipeline: //c Memory Expansion ROM (ROM 4, 32K), Dormann 65C02 functional test, Harte `synertek65c02` SingleStepTests vectors. (Needed by US1/US2; the ACIA in Phase 2 needs none.) *(All acquired: `UnitTest/Fixtures/Apple2c.rom` (341-0445-B, 32768 B, download-on-demand, uncommitted); Dormann 65C02 assembled in-house (T011); Harte `synertek65c02` vectors wired (T012).)*
 
 ---
 
@@ -84,7 +84,7 @@
 
 ### Tests (expect FAIL)
 
-- [ ] T018 [P] [US2] `UnitTest/EmuTests/Apple2cBootTests.cpp`: //c cold-boots to monitor/Applesoft (ROM signature, 128K).
+- [X] T018 [P] [US2] `UnitTest/EmuTests/Apple2cBootTests.cpp`: //c cold-boots to monitor/Applesoft (ROM signature, 128K). *(`ColdBootsToCheckDiskDrive` scrapes the "Apple //c" banner + "Check Disk Drive." no-disk state; `BuildsAndResetsToMonitorEntry` asserts the RESET vector `$FA62`/CLD + 128K wiring. The //c has no BASIC-on-cold-boot, so "Check Disk Drive." is the correct terminal no-disk screen rather than `]`/monitor.)*
 - [ ] T019 [P] [US2] `Apple2cBootTests.cpp`: built-in peripherals answer at phantom-slot addresses; no user-insertable slots.
 
 ### Implementation
@@ -166,16 +166,16 @@
 
 ### Tests (expect FAIL)
 
-- [ ] T032 [P] [US5] `Apple2cBootTests.cpp` (disk): //c boots from internal drive via IWM; external-drive read.
+- [X] T032 [P] [US5] `Apple2cBootTests.cpp` (disk): //c boots from internal drive via IWM; external-drive read. *(`BootsFromInternalDriveViaIwm`: stamps an in-house 18-byte boot sector into T0S0, cold-boots the //c, and asserts it read the sector via the IWM and ran it — the marker "IWM" lands at $0300 and the CPU spins in the booted halt loop, not the Check-Disk-Drive loop. `ExternalDriveIsReadableViaDriveSelect`: selects drive 2 ($C0EB), spins it up, and samples a valid nibble off the external drive.)*
 
 ### Implementation
 
-- [ ] T033 [US5] Implement `Iwm` (`CassoEmuCore/Devices/Iwm.{h,cpp}`): motor/phase/Q6-Q7, delegating to the existing Disk II / WOZ nibble engine (compose, do not fork).
-- [ ] T034 [US5] Register `iwm` in `ComponentRegistry`; add to `Apple2c.json` (slot-6, internal + external drive).
-- [ ] T034a [US5] Hardware tab: the //c **external drive** is a **Connected / Not connected** toggle that shows/hides the existing drive-mount widget (image name, Mount…, Eject, write-protect). No new media machinery — "Connected" just reveals the existing drive widget; persist the connected state per machine.
-- [ ] T035 [US5] Make //c disk-boot tests pass; regression: existing Disk II machines unchanged.
+- [X] T033 [US5] ~~Implement `Iwm` (`CassoEmuCore/Devices/Iwm.{h,cpp}`)~~ — **satisfied by the existing `Disk2Controller` IWM mode, verified end-to-end (compose, do not fork).** `Disk2Controller::SetIwmMode` already added the MODE/STATUS registers on top of the shared Disk II / WOZ nibble engine; the CPU-visible RDDATA path (Q6L/Q7L) is unchanged, so a mounted disk streams nibbles to the boot ROM. T032's two tests prove both drives read through it — no separate `Iwm` class needed.
+- [~] T034 [US5] Register `iwm` in `ComponentRegistry`; add to `Apple2c.json` (slot-6, internal + external drive). *(**Emulation done**: the built-in slot-6 IWM is created directly in `MachineManager::CreateMemoryDevices` (guarded by `romBankSize != 0`), not via `ComponentRegistry` — the //c drive is built in, not a config slot. Both drives (internal = drive 1, external = drive 2) read at the controller level, proven by T032. **Remaining**: surfacing the external drive in the GUI is T034a.)*
+- [ ] T034a [US5] Hardware tab: the //c **external drive** is a **Connected / Not connected** toggle that shows/hides the existing drive-mount widget (image name, Mount…, Eject, write-protect). No new media machinery — "Connected" just reveals the existing drive widget; persist the connected state per machine. *(Remaining Phase-7 item — the UI/UX layer; the emulation underneath it is ready.)*
+- [X] T035 [US5] Make //c disk-boot tests pass; regression: existing Disk II machines unchanged. *(Both //c disk tests green; full suite 2263/2263, existing Disk II machines unaffected.)*
 
-**Checkpoint**: //c boots from internal/external drive.
+**Checkpoint**: //c boots from its internal drive + reads its external drive via the IWM (emulation complete + tested). The external-drive *GUI toggle* (T034a) is the one remaining Phase-7 item.
 
 ---
 

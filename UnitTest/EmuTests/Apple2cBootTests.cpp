@@ -2,6 +2,9 @@
 #include "HeadlessHost.h"
 #include "TextScreenScraper.h"
 #include "FixtureProvider.h"
+#include "Devices/Disk/DiskImageStore.h"
+#include "Devices/Disk/NibblizationLayer.h"
+#include "Devices/Disk2Controller.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -125,6 +128,134 @@ public:
 
         execAt (0x0300, { 0xAD, 0x28, 0xC0 });   // LDA $C028 (any access flips it)
         Assert::AreEqual (1, core.romBank->CurrentBank (), L"LDA $C028 toggles once");
+    }
+
+    // US5 / T032 + T035: the //c boots from its built-in slot-6 drive through
+    // the IWM. This is the real disk-read path (Q6L/Q7L RDDATA on the same
+    // Disk2Controller the //e uses -- IWM mode only added the MODE/STATUS
+    // registers, not a fork), so a mounted bootable disk must feed nibbles to
+    // the boot ROM. We stamp a 100%-in-house 18-byte boot sector into track 0
+    // sector 0 that writes the marker "IWM" to $0300 and self-loops; on a real
+    // cold boot the //c reads T0S0 into $0800, JMPs $0801, and runs it. If the
+    // IWM read path is broken the //c instead reaches "Check Disk Drive." and
+    // the marker never lands.
+    TEST_METHOD (BootsFromInternalDriveViaIwm)
+    {
+        if (!Apple2cRomAvailable ())
+        {
+            Logger::WriteMessage ("SKIPPED: no Apple2c.rom fixture");
+            return;
+        }
+
+        // 18-byte boot sector assembled by hand (only base-6502 opcodes so it
+        // runs on the //e/][/][+ too). Loaded by the boot ROM at $0801:
+        //   $0801  A9 49     LDA #$49  ; 'I'
+        //   $0803  8D 00 03  STA $0300
+        //   $0806  A9 57     LDA #$57  ; 'W'
+        //   $0808  8D 01 03  STA $0301
+        //   $080B  A9 4D     LDA #$4D  ; 'M'
+        //   $080D  8D 02 03  STA $0302
+        //   $0810  4C 10 08  JMP $0810 ; halt (self-loop)
+        static const Byte kBootSector[] = {
+            0xA9, 0x49, 0x8D, 0x00, 0x03,
+            0xA9, 0x57, 0x8D, 0x01, 0x03,
+            0xA9, 0x4D, 0x8D, 0x02, 0x03,
+            0x4C, 0x10, 0x08
+        };
+
+        // Raw DOS-order .dsk; boot ROM reads T0S0 (256 bytes) into $0800 and
+        // JMPs $0801, so the code sits at file offset 1 (byte $0800 is unused).
+        std::vector<Byte>  raw (NibblizationLayer::kImageByteSize, 0);
+        for (size_t i = 0; i < sizeof (kBootSector); i++)
+        {
+            raw[1 + i] = kBootSector[i];
+        }
+
+        HeadlessHost host; EmulatorCore core;
+        Assert::IsTrue (SUCCEEDED (host.BuildApple2c (core)), L"BuildApple2c");
+
+        // PowerCycle first (it re-seeds DRAM + rebinds the drive to its empty
+        // internal disk), THEN mount -- matching the production ordering.
+        core.PowerCycle ();
+
+        HRESULT hrMount = core.diskStore->MountFromBytes (6, 0, "iwm-boot.dsk",
+                                                          DiskFormat::Dsk, raw);
+        Assert::IsTrue (SUCCEEDED (hrMount), L"MountFromBytes must succeed");
+
+        DiskImage * img = core.diskStore->GetImage (6, 0);
+        Assert::IsNotNull (img, L"mounted image must be retrievable");
+        core.diskController->SetExternalDisk (0, img);   // drive 1 = internal
+
+        // Cold-boot: memory test (~14M cycles) then the IWM boot read. 20M is
+        // ample -- ColdBootsToCheckDiskDrive reaches the post-read state in 15M.
+        core.RunCycles (20'000'000);
+
+        Assert::AreEqual<Byte> (0x49, core.cpu->ReadByte (0x0300),
+            L"boot sector must run and write 'I' to $0300 (IWM read failed?)");
+        Assert::AreEqual<Byte> (0x57, core.cpu->ReadByte (0x0301),
+            L"boot sector must write 'W' to $0301");
+        Assert::AreEqual<Byte> (0x4D, core.cpu->ReadByte (0x0302),
+            L"boot sector must write 'M' to $0302");
+        Assert::AreEqual<Word> (0x0810, core.cpu->GetPC (),
+            L"CPU must be spinning in the booted sector's halt loop, not the "
+            L"ROM's Check-Disk-Drive self-loop");
+    }
+
+    // US5 / T032 + T034: the //c's external (second) drive is drive 2 of the
+    // same slot-6 IWM. A disk mounted there must be reachable by selecting
+    // drive 2 ($C0EB) and reading the data register ($C0EC). Driven the same
+    // way DiskReadbackTests exercises drive 1: detach the CPU cycle source,
+    // select-drive-then-motor-on into read mode, drain the spin-up window, then
+    // Tick the nibble engine and sample $C0EC -- a valid disk nibble (MSB set)
+    // proves the external drive engine streams data. If drive 2 were unwired we
+    // would only ever read the empty-drive floating bus.
+    TEST_METHOD (ExternalDriveIsReadableViaDriveSelect)
+    {
+        if (!Apple2cRomAvailable ())
+        {
+            Logger::WriteMessage ("SKIPPED: no Apple2c.rom fixture");
+            return;
+        }
+
+        // Any non-blank disk works -- the nibblizer frames every track with
+        // sync + address marks, so even a mostly-zero image streams valid bytes.
+        std::vector<Byte>  raw (NibblizationLayer::kImageByteSize, 0);
+        raw[1] = 0xEA;
+
+        HeadlessHost host; EmulatorCore core;
+        Assert::IsTrue (SUCCEEDED (host.BuildApple2c (core)), L"BuildApple2c");
+        core.PowerCycle ();
+
+        HRESULT hrMount = core.diskStore->MountFromBytes (6, 1, "ext.dsk",
+                                                          DiskFormat::Dsk, raw);
+        Assert::IsTrue (SUCCEEDED (hrMount), L"external MountFromBytes must succeed");
+        DiskImage * img = core.diskStore->GetImage (6, 1);
+        Assert::IsNotNull (img, L"external image must be retrievable");
+        core.diskController->SetExternalDisk (1, img);   // drive 2 = external
+
+        // Pump the engine via Tick(N) rather than CPU cycles (the read path's
+        // catch-up needs a live, advancing CPU counter we are not providing).
+        core.diskController->SetCpuCycleSource (nullptr);
+
+        core.bus->ReadByte (0xC0EB);   // select drive 2 (external)
+        core.bus->ReadByte (0xC0E9);   // motor on -> drive 2's engine spins
+        core.bus->ReadByte (0xC0ED);   // Q6 high first
+        core.bus->ReadByte (0xC0EC);   // Q6 low
+        core.bus->ReadByte (0xC0EE);   // Q7 low -> read mode
+        core.diskController->Tick (Disk2Controller::kMotorSpinupCycles);
+
+        bool sawValidNibble = false;
+        for (int i = 0; i < 4000 && !sawValidNibble; i++)
+        {
+            if (core.bus->ReadByte (0xC0EC) & 0x80)
+            {
+                sawValidNibble = true;
+            }
+            core.diskController->Tick (8);   // advance ~one disk bit-time
+        }
+
+        Assert::IsTrue (sawValidNibble,
+            L"drive 2 must stream a valid disk nibble (MSB set) once selected");
     }
 
     // Verifies the parts of the //c that ARE working end-to-end: the 65C02 +
