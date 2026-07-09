@@ -23,6 +23,7 @@
 #include "Shell/WindowManager.h"
 #include "Ui/Chrome/CassoTheme.h"
 #include "Ui/Chrome/DriveWidget.h"
+#include "Ui/Chrome/PrinterIndicator.h"
 #include "Ui/Chrome/JoystickToggleButton.h"
 #include "Ui/Chrome/MainMenu.h"
 #include "Ui/ColorUtil.h"
@@ -463,6 +464,16 @@ private:
     // LayoutJoystickButton has cached valid geometry.
     void    RelayoutJoystickButton ();
 
+    // Position the printer status indicator in the command-bar dead space to
+    // the right of the centred drive widgets, or Hide() it when the machine
+    // has no printer card. Does not affect drive centring.
+    void    LayoutPrinterIndicator (int bottomInsetPx, int clientW, int clientH, UINT dpi);
+
+    // Per-frame: sample the worker's status signals, recompute the indicator
+    // state, and mark a redraw only when it changes (so a static screen still
+    // repaints the LED on a transition).
+    void    UpdatePrinterIndicator ();
+
     // Keyboard chrome-focus ring (see m_chromeFocusIndex). SetChromeFocusIndex
     // updates the index and refreshes which widget paints its focus visual;
     // HandleChromeFocusKey owns all keydown handling while the ring is active
@@ -543,6 +554,11 @@ private:
     MainMenu            m_mainMenu;
     CassoTheme         m_chromeTheme    = CassoTheme::Skeuomorphic();
     std::array<DriveWidget, 2> m_driveChrome;
+
+    // Chrome printer status indicator (right of the centred drive widgets) and
+    // the pure model that derives its state from the worker's live signals.
+    PrinterIndicator    m_printerIndicator;
+    PrinterStatusModel  m_printerStatus;
 
     // DxuiHwndSource running in full-ownership mode. Owns the main
     // HWND (registers WNDCLASS "CassoWindow", calls CreateWindowExW,

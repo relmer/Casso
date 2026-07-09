@@ -1234,6 +1234,7 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     m_host->Root().Adopt (m_driveBandSurface);
     m_host->Root().Adopt (m_driveChrome[0]);
     m_host->Root().Adopt (m_driveChrome[1]);
+    m_host->Root().Adopt (m_printerIndicator);
     m_host->Root().Adopt (m_joystickButton);
 
     // Give the host the chrome theme so its paint pump renders the
@@ -1340,6 +1341,7 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
         int   bottomInsetPx = clientH - vr.bottom;
 
         LayoutDriveWidgetsInCommandBar (m_driveChrome, bottomInsetPx, clientW, clientH, dpi);
+        LayoutPrinterIndicator (bottomInsetPx, clientW, clientH, dpi);
         {
             int  bandTop    = clientH - bottomInsetPx;
             int  bandHeight = MulDiv (s_kJoystickButtonBandDp, static_cast<int> (dpi), s_kBaseDpi);
@@ -2366,6 +2368,93 @@ void EmulatorShell::RelayoutJoystickButton ()
 
 
 
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::LayoutPrinterIndicator
+//
+//  Anchors the printer status indicator in the command-bar dead space at the
+//  right edge, vertically centred in the band. Positioned independently of the
+//  centred drive widgets so it never shifts their layout. Hidden entirely when
+//  the machine has no printer card.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::LayoutPrinterIndicator (int bottomInsetPx, int clientW, int clientH, UINT dpi)
+{
+    DxuiDpiScaler  scaler;
+    RECT           probe         = {};
+    int            w             = 0;
+    int            h             = 0;
+    int            commandBarTop = 0;
+    int            marginX       = 0;
+    int            x             = 0;
+    int            y             = 0;
+
+    if (m_refs.printerCard == nullptr)
+    {
+        m_printerIndicator.Hide ();
+        return;
+    }
+
+    scaler.SetDpi (dpi);
+
+    // Probe intrinsic size, then right-align + vertically centre in the band.
+    m_printerIndicator.Layout (RECT{ 0, 0, 0, 0 }, scaler);
+    probe = m_printerIndicator.OuterRect ();
+    w     = probe.right  - probe.left;
+    h     = probe.bottom - probe.top;
+
+    commandBarTop = std::max (0, clientH - bottomInsetPx);
+    marginX       = scaler.Px (12);
+    x             = std::max (0, clientW - marginX - w);
+    y             = commandBarTop + std::max (0, ((clientH - commandBarTop) - h) / 2);
+
+    m_printerIndicator.Layout (RECT{ x, y, x, y }, scaler);
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::UpdatePrinterIndicator
+//
+//  Samples the worker's thread-safe status signals, recomputes the indicator
+//  state through the pure PrinterStatusModel, and marks a redraw only on a
+//  change so a static screen still repaints the LED on a transition.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::UpdatePrinterIndicator ()
+{
+    int64_t        nowMs  = 0;
+    PrinterStatus  status = PrinterStatus::Idle;
+
+    if (m_refs.printerCard == nullptr)
+    {
+        return;   // indicator is hidden; nothing to sample
+    }
+
+    nowMs = (int64_t) std::chrono::duration_cast<std::chrono::milliseconds> (
+                std::chrono::steady_clock::now ().time_since_epoch ()).count ();
+
+    m_printerStatus.Update (m_printerWorker.ActivityCount (),
+                            (double) nowMs,
+                            m_printerWorker.HasContent (),
+                            false /* error state not surfaced yet */);
+
+    status = m_printerStatus.Status ();
+
+    if (status != m_printerIndicator.Status ())
+    {
+        m_printerIndicator.SetStatus (status);
+        m_d3dRenderer.MarkRedrawNeeded ();
+    }
+}
+
+
+
+
 
 ////////////////////////////////////////////////////////////////////////////////
 //
@@ -2796,6 +2885,11 @@ int EmulatorShell::RunMessageLoop()
 
             m_joystickTooltip.Tick (nowMs);
         }
+
+        // Refresh the printer status LED; marks a redraw itself on a change so
+        // a static screen (e.g. a pending page at the BASIC prompt) repaints.
+        UpdatePrinterIndicator ();
+
         if (!m_d3dRenderer.NeedsPresent (fbDirtyThisFrame))
         {
             Sleep (1);
@@ -5066,6 +5160,8 @@ DxuiMessageResult EmulatorShell::OnSize (UINT widthPx, UINT heightPx)
                 m_driveChrome[0].Hide();
                 m_driveChrome[1].Hide();
             }
+
+            LayoutPrinterIndicator (bottomInsetPx, static_cast<int> (width), renderH, dpi);
 
             // OnSize is the authoritative layout (only fires on a real WM_SIZE,
             // never per-frame), so record the disk-presence this window size now
