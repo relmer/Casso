@@ -17,10 +17,9 @@ namespace
     constexpr int        kLssMaxClock          = 7;
     constexpr uint8_t    kLssInitialState      = 2;
 
-    // Data-latch MSB ("byte ready" / QA) and the write-bit selector taken
-    // from the sequencer's next-state high bit.
+    // Data-latch MSB ("byte ready" / QA, 74LS323 QH). Doubles as the read
+    // "byte ready" signal and the write shift register's serial output.
     constexpr uint8_t    kLatchMsbMask  = 0x80;
-    constexpr uint8_t    kWriteBitMask  = 0x08;
 
     // Sequencer ROM index bit positions (see "Understanding the Apple IIe"
     // Fig 9.11 column ordering): pulse-absent, latch MSB, Q6, Q7, then the
@@ -379,7 +378,19 @@ void Disk2NibbleEngine::StepLss()
     {
         if (m_writeMode && slot >= 0 && !m_disk->IsWriteProtected())
         {
-            uint8_t  outBit = static_cast<uint8_t> ((m_lssState & kWriteBitMask) ? 1 : 0);
+            // The bit committed to the track is the write shift register's
+            // serial output -- i.e. the data-register MSB (74LS323 QH) -- NOT
+            // the sequencer state's high bit. On real hardware the two track
+            // each other because the P6 sequencer and the shift register are
+            // clocked in lockstep by the 2 MHz Q3; a cycle-stepped emulator
+            // that catches the LSS up in bursts at each soft-switch access
+            // cannot hold that sub-clock lockstep, so sampling (state & 0x8)
+            // desyncs and deposits ~AA garbage where FF sync belongs (GH #89).
+            // Sourcing the bit straight from the latch MSB is the physically
+            // correct write-head signal and is robust to catch-up granularity.
+            // Shifts (SL0/SL1) only ever land on sequencer states 2 and A,
+            // never on the clock-4 write phase, so the latch is stable here.
+            uint8_t  outBit = static_cast<uint8_t> ((m_readLatch & kLatchMsbMask) ? 1 : 0);
 
             m_disk->WriteBit (slot, m_bitPos, outBit);
         }

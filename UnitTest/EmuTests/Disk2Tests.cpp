@@ -439,7 +439,7 @@ public:
         size_t                         advanced     = 0;
         size_t                         trackBits    = 4096;
         int                            i            = 0;
-        bool                           anyOne       = false;
+        bool                           allOnes      = true;
         constexpr int                  kNibbleCount = 6;
         constexpr int                  kRegionBits  = kNibbleCount * kBitsPerNibble;
         constexpr Byte                 kOnesData[kNibbleCount] = { 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF };
@@ -453,16 +453,20 @@ public:
         Assert::AreEqual (static_cast<size_t> (kRegionBits), advanced,
             L"LSS write must advance the head one cell per bit-cell tick");
 
+        // GH #89: with the write bit now sourced from the shift-register
+        // MSB, an all-0xFF write in load mode (Q6 held high, MSB constant 1)
+        // must deposit a solid run of one-bits -- not the ~50%-density AA
+        // garbage the old (state & 0x8) path produced.
         for (i = 0; i < kRegionBits; i++)
         {
-            if (img->ReadBit (0, (startBit + i) % trackBits) != 0)
+            if (img->ReadBit (0, (startBit + i) % trackBits) == 0)
             {
-                anyOne = true;
+                allOnes = false;
             }
         }
 
-        Assert::IsTrue (anyOne,
-            L"Writing 0xFF nibbles must deposit flux (one bits) on the track");
+        Assert::IsTrue (allOnes,
+            L"Writing 0xFF nibbles must deposit an unbroken run of one bits (GH #89)");
         Assert::IsTrue (img->IsDirty (),
             L"Write through the LSS must mark the image dirty");
     }
