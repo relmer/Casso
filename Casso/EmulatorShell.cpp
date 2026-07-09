@@ -2447,7 +2447,7 @@ void EmulatorShell::LayoutPrinterIndicator (int bottomInsetPx, int clientW, int 
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::ShowPrinterPanel ()
+void EmulatorShell::ShowPrinterPanel (bool activate)
 {
     HRESULT     hr        = S_OK;
     HINSTANCE   hInstance = nullptr;
@@ -2466,6 +2466,8 @@ void EmulatorShell::ShowPrinterPanel ()
                                      m_d3dRenderer.GetContext (),
                                      &m_chromeTheme);
         CHRF (hr, m_printerPanel.reset ());
+
+        ApplyAppIconToWindow (m_printerPanel->Hwnd ());
 
         // Toolbar actions route through the existing command path (which
         // quiesces the worker, delivers/clears, and resumes), then re-snapshot.
@@ -2492,8 +2494,9 @@ void EmulatorShell::ShowPrinterPanel ()
 
     SnapshotStripToPanel ();
 
-    m_printerPanel->Show ();
-    SetForegroundWindow (m_printerPanel->Hwnd ());
+    // activate=false (auto-open path) shows the preview without pulling focus
+    // off the guest, so a print popping up the window never eats keystrokes.
+    m_printerPanel->Show (activate);
 
 Error:
     return;
@@ -2504,17 +2507,65 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  EmulatorShell::ApplyAppIconToWindow
+//
+//  Give a child DxuiWindow the Casso icon so Alt-Tab / the taskbar show the
+//  Casso motif rather than a generic window icon. The borderless Dxui panels do
+//  not inherit the WNDCLASS icon and Alt-Tab reads the window's WM_GETICON, so
+//  the big + small icons are attached explicitly. LR_SHARED handles are managed
+//  by the system, so there is nothing to free.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::ApplyAppIconToWindow (HWND target)
+{
+    HINSTANCE   hInstance = nullptr;
+    HICON       iconBig   = nullptr;
+    HICON       iconSmall = nullptr;
+
+    if (target == nullptr)
+    {
+        return;
+    }
+
+    hInstance = reinterpret_cast<HINSTANCE> (GetWindowLongPtr (m_hwnd, GWLP_HINSTANCE));
+
+    iconBig   = (HICON) LoadImageW (hInstance, MAKEINTRESOURCEW (IDI_CASSO), IMAGE_ICON,
+                                    GetSystemMetrics (SM_CXICON), GetSystemMetrics (SM_CYICON),
+                                    LR_DEFAULTCOLOR | LR_SHARED);
+    iconSmall = (HICON) LoadImageW (hInstance, MAKEINTRESOURCEW (IDI_CASSO), IMAGE_ICON,
+                                    GetSystemMetrics (SM_CXSMICON), GetSystemMetrics (SM_CYSMICON),
+                                    LR_DEFAULTCOLOR | LR_SHARED);
+
+    if (iconBig != nullptr)
+    {
+        SendMessageW (target, WM_SETICON, ICON_BIG, (LPARAM) iconBig);
+    }
+    if (iconSmall != nullptr)
+    {
+        SendMessageW (target, WM_SETICON, ICON_SMALL, (LPARAM) iconSmall);
+    }
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  EmulatorShell::SnapshotStripToPanel
 //
-//  Reads the strip raster race-free: stop the drain worker, flush any tail
-//  bytes, copy the raster, then resume the worker on the same page (reseeded).
-//  Non-destructive -- the guest keeps printing onto the same strip.
+//  Reads the strip raster race-free WITHOUT stopping the drain worker: the
+//  worker copies the raster under its lock while the same interpreter keeps
+//  running. Fully non-destructive -- previewing (or refreshing) mid-print can
+//  never reset the guest's in-flight state, so it cannot distort the output.
+//  (The old path stopped and re-Start()ed the worker, which rebuilt the
+//  interpreter and reset its line feed from Print Shop's ESC T back to the
+//  default, stretching everything printed after a mid-print preview.)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void EmulatorShell::SnapshotStripToPanel ()
 {
-    PrinterJob *  job = nullptr;
     PrintRaster   snapshot;
 
     if (m_printerPanel == nullptr || !m_printerPanel->IsOpen ())
@@ -2528,24 +2579,10 @@ void EmulatorShell::SnapshotStripToPanel ()
         return;
     }
 
-    m_printerWorker.Stop ();
-
+    if (m_printerWorker.SnapshotStrip (snapshot))
     {
-        vector<PrinterEvent>   events;
-        m_printerWorker.FlushNow (events);
+        m_printerPanel->SetStrip (snapshot);
     }
-
-    job = m_printerWorker.Job ();
-
-    if (job != nullptr)
-    {
-        snapshot = job->Raster ();   // copy
-    }
-
-    // Resume on the same page (seed copies into the worker; snapshot survives).
-    m_printerWorker.Start (m_refs.printerCard->ByteRing (), snapshot);
-
-    m_printerPanel->SetStrip (snapshot);
 }
 
 
@@ -2586,6 +2623,75 @@ void EmulatorShell::UpdatePrinterIndicator ()
         m_printerIndicator.SetStatus (status);
         m_d3dRenderer.MarkRedrawNeeded ();
     }
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::UpdatePrinterPreview
+//
+//  Per-frame: auto-open the preview the moment the guest starts printing, then
+//  refresh the strip live as bytes flow. The read is non-destructive (see
+//  SnapshotStripToPanel), so watching a print in progress never perturbs it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::UpdatePrinterPreview ()
+{
+    static constexpr int64_t   s_kRefreshThrottleMs = 100;   // ~10 Hz live redraw
+
+    bool       hasContent = false;
+    uint64_t   activity   = 0;
+    int64_t    nowMs      = 0;
+
+    if (m_refs.printerCard == nullptr)
+    {
+        return;   // machine has no printer card
+    }
+
+    hasContent = m_printerWorker.HasContent ();
+    activity   = m_printerWorker.ActivityCount ();
+
+    // Rising edge of HasContent == the guest just put ink on the paper. Auto-open
+    // the preview once, without stealing focus, so the paper appears and fills in
+    // as it prints. The edge only re-arms after the page is ejected/discarded, so
+    // manually closing the window mid-print does not fight a re-open every frame.
+    if (hasContent && !m_printerHadContent)
+    {
+        ShowPrinterPanel (false /* activate */);
+    }
+    m_printerHadContent = hasContent;
+
+    // Live refresh, but only while the preview is genuinely visible, only when
+    // new bytes have landed, and no more than once per throttle window (the full
+    // strip is re-rendered each time). A frozen activity count settles on the
+    // final frame because the counter only advances here when we actually draw.
+    if (m_printerPanel == nullptr || !m_printerPanel->IsOpen ())
+    {
+        return;
+    }
+    if (!IsWindowVisible (m_printerPanel->Hwnd ()))
+    {
+        return;   // user closed (hid) it -- skip off-screen rendering
+    }
+    if (activity == m_printerPreviewActivity)
+    {
+        return;   // nothing new drained since the last refresh
+    }
+
+    nowMs = (int64_t) std::chrono::duration_cast<std::chrono::milliseconds> (
+                std::chrono::steady_clock::now ().time_since_epoch ()).count ();
+
+    if (nowMs - m_printerPreviewLastMs < s_kRefreshThrottleMs)
+    {
+        return;   // within the throttle window; the change lands on a later frame
+    }
+
+    SnapshotStripToPanel ();
+    m_printerPreviewActivity = activity;
+    m_printerPreviewLastMs   = nowMs;
 }
 
 
@@ -3029,6 +3135,10 @@ int EmulatorShell::RunMessageLoop()
         // Refresh the printer status LED; marks a redraw itself on a change so
         // a static screen (e.g. a pending page at the BASIC prompt) repaints.
         UpdatePrinterIndicator ();
+
+        // Auto-open the print preview when a print begins and stream the strip
+        // into it live as the guest prints (non-destructive snapshot).
+        UpdatePrinterPreview ();
 
         if (!m_d3dRenderer.NeedsPresent (fbDirtyThisFrame))
         {
@@ -5878,6 +5988,8 @@ void EmulatorShell::OpenDisk2DebugDialog()
                                          &m_chromeTheme);
         CHRF (hr, m_disk2DebugPanel.reset());
 
+        ApplyAppIconToWindow (m_disk2DebugPanel->Hwnd());
+
         m_disk2DebugPanel->SetUptimeAnchor (m_uptimeAnchor);
         m_disk2DebugPanel->SetMultiControllerHint (Disk2Count > 1);
 
@@ -5938,6 +6050,8 @@ void EmulatorShell::OpenInputDebugDialog()
                                          m_d3dRenderer.GetContext(),
                                          &m_chromeTheme);
         CHRF (hr, m_inputDebugPanel.reset());
+
+        ApplyAppIconToWindow (m_inputDebugPanel->Hwnd());
 
         m_inputDebugPanel->SetUptimeAnchor (m_uptimeAnchor);
 

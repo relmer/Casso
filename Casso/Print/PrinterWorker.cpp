@@ -156,6 +156,33 @@ size_t PrinterWorker::FlushNow (vector<PrinterEvent> & events)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  SnapshotStrip
+//
+//  Copies the strip under the raster lock so the live preview reads a consistent
+//  image while the drain thread keeps running -- no Stop()/Start() and no new
+//  interpreter, so the guest's in-flight state (line feed, colour, head column)
+//  is never reset out from under it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool PrinterWorker::SnapshotStrip (PrintRaster & out)
+{
+    std::lock_guard<std::mutex>   lock (m_rasterMutex);
+
+    if (m_job == nullptr)
+    {
+        return false;
+    }
+
+    out = m_job->Raster ();   // copy under lock
+    return true;
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  Run
 //
 //  Drain loop: pull whatever the guest has emitted, then nap briefly only when
@@ -169,7 +196,14 @@ void PrinterWorker::Run ()
 
     while (!m_stopRequested)
     {
-        size_t   drained = m_job->Drain (events);
+        size_t   drained = 0;
+
+        {
+            // Hold the raster lock only across the mutation so a UI-thread
+            // SnapshotStrip sees a consistent strip; the idle nap stays outside.
+            std::lock_guard<std::mutex>   lock (m_rasterMutex);
+            drained = m_job->Drain (events);
+        }
 
         events.clear ();   // presentation events unused until the panel/audio land
 

@@ -74,7 +74,9 @@ public:
     //  the subclass can populate its children. Call Show() to display.
     //
     HRESULT  Create      (const CreateParams & params);
-    void     Show        ();
+    // activate=false shows the window without pulling foreground/focus (for
+    // windows that pop up on their own and must not steal keystrokes).
+    void     Show        (bool activate = true);
     void     Hide        ();
     void     Close        ();
 

@@ -127,7 +127,7 @@ void DxuiWindow::DestroyBackend ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiWindow::Show ()
+void DxuiWindow::Show (bool activate)
 {
     HWND  hwnd = Hwnd();
 
@@ -135,8 +135,17 @@ void DxuiWindow::Show ()
 
     if (hwnd != nullptr)
     {
-        ShowWindow (hwnd, IsIconic (hwnd) ? SW_RESTORE : SW_SHOW);
-        SetForegroundWindow (hwnd);
+        if (activate)
+        {
+            ShowWindow (hwnd, IsIconic (hwnd) ? SW_RESTORE : SW_SHOW);
+            SetForegroundWindow (hwnd);
+        }
+        else
+        {
+            // Bring it on-screen at the top of the z-order but leave focus where
+            // it is, so an auto-opened window never eats the guest's keystrokes.
+            ShowWindow (hwnd, SW_SHOWNOACTIVATE);
+        }
     }
 }
 

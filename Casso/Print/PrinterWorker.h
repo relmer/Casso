@@ -48,6 +48,13 @@ public:
     // Synchronous drain of any bytes still in the ring; call only after Stop().
     size_t        FlushNow (vector<PrinterEvent> & events);
 
+    // Copy the current strip raster for the live preview WITHOUT stopping the
+    // drain thread. The drain loop mutates the raster only while holding
+    // m_rasterMutex, so this yields a consistent copy while the same interpreter
+    // keeps running -- reading the preview can never disturb the job's state.
+    // Returns false when no job is active. Safe to call from the UI thread.
+    bool          SnapshotStrip (PrintRaster & out);
+
     // Thread-safe status signals for the chrome indicator / panel: a monotonic
     // counter that advances as guest bytes are drained (sample the delta to see
     // "receiving"), and whether the strip currently holds printed content. Safe
@@ -61,6 +68,7 @@ private:
 
     unique_ptr<PrinterJob>   m_job;
     std::thread              m_thread;
+    std::mutex               m_rasterMutex;   // guards raster mutation vs. UI-thread SnapshotStrip
     std::atomic<bool>        m_stopRequested { false };
     std::atomic<uint64_t>    m_activity      { 0 };
     std::atomic<bool>        m_hasContent    { false };

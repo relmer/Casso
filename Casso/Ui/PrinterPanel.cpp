@@ -148,6 +148,7 @@ HRESULT PrinterPanel::RenderFrame ()
 void PrinterPanel::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
 {
     int   pad      = scaler.Px (10);
+    int   captionH = CaptionHeightPx ();
     int   toolbarH = scaler.Px (46);
     int   btnH     = scaler.Px (30);
     int   btnW     = scaler.Px (92);
@@ -160,7 +161,9 @@ void PrinterPanel::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
 
     if (m_paper != nullptr)
     {
-        RECT  paperR = { boundsDip.left + pad, boundsDip.top + pad,
+        // Reserve the caption band at the top (the content root spans the full
+        // client, so without this the paper would draw up over the title bar).
+        RECT  paperR = { boundsDip.left + pad, boundsDip.top + captionH + pad,
                          boundsDip.right - pad, boundsDip.bottom - toolbarH };
         m_paper->Layout (paperR, scaler);
     }

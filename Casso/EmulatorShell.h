@@ -470,17 +470,31 @@ private:
     void    LayoutPrinterIndicator (int bottomInsetPx, int clientW, int clientH, UINT dpi);
 
     // Open (creating if needed) the printer panel / print preview window, and
-    // push it a fresh snapshot of the current strip.
-    void    ShowPrinterPanel ();
+    // push it a fresh snapshot of the current strip. `activate` false shows it
+    // without stealing focus from the guest (used by the auto-open path).
+    void    ShowPrinterPanel (bool activate = true);
 
-    // Quiesce the drain worker, copy the strip raster race-free, resume the
-    // worker on the same page, and hand the snapshot to the printer panel.
+    // Copy the strip raster race-free (without stopping the drain worker) and
+    // hand the snapshot to the printer panel. Non-destructive: the live
+    // interpreter keeps running, so pressing/refreshing preview mid-print can
+    // never disturb the job's state or the printed output.
     void    SnapshotStripToPanel ();
 
     // Per-frame: sample the worker's status signals, recompute the indicator
     // state, and mark a redraw only when it changes (so a static screen still
     // repaints the LED on a transition).
     void    UpdatePrinterIndicator ();
+
+    // Per-frame: auto-open the preview when a print begins (rising edge of the
+    // worker's HasContent) and refresh the strip live as bytes flow, throttled
+    // so a busy print does not re-render the whole strip every frame.
+    void    UpdatePrinterPreview ();
+
+    // Attach the Casso app icon (IDI_CASSO) to a child DxuiWindow so it shows the
+    // Casso motif in Alt-Tab / the taskbar. The borderless Dxui panels do not
+    // inherit the WNDCLASS icon, and Alt-Tab reads WM_GETICON, so the big+small
+    // icons are handed over explicitly (as the main window does).
+    void    ApplyAppIconToWindow (HWND target);
 
     // Keyboard chrome-focus ring (see m_chromeFocusIndex). SetChromeFocusIndex
     // updates the index and refreshes which widget paints its focus visual;
@@ -827,6 +841,13 @@ private:
     std::unique_ptr<class Disk2DebugPanel>    m_disk2DebugPanel;
     std::unique_ptr<class InputDebugPanel>    m_inputDebugPanel;
     std::unique_ptr<class PrinterPanel>       m_printerPanel;
+
+    // Live-preview bookkeeping (UpdatePrinterPreview). m_printerHadContent tracks
+    // the previous frame's HasContent so a false->true edge auto-opens the panel
+    // once per print; the activity/time pair throttles the live strip refresh.
+    bool                                      m_printerHadContent      = false;
+    uint64_t                                  m_printerPreviewActivity = 0;
+    int64_t                                   m_printerPreviewLastMs   = 0;
     std::chrono::steady_clock::time_point     m_uptimeAnchor { std::chrono::steady_clock::now() };
 
     // Extracted shell-side managers. WindowManager owns the per-monitor
