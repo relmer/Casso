@@ -474,6 +474,11 @@ private:
     // without stealing focus from the guest (used by the auto-open path).
     void    ShowPrinterPanel (bool activate = true);
 
+    // Owner HWND for printer confirmation / notice message boxes: the preview
+    // panel when it is open and visible (so the box centers on the dialog the
+    // user is acting in), otherwise the main window.
+    HWND    PrinterDialogOwner () const;
+
     // Copy the strip raster race-free (without stopping the drain worker) and
     // hand the snapshot to the printer panel. Non-destructive: the live
     // interpreter keeps running, so pressing/refreshing preview mid-print can
@@ -485,9 +490,10 @@ private:
     // repaints the LED on a transition).
     void    UpdatePrinterIndicator ();
 
-    // Per-frame: auto-open the preview when a print begins (rising edge of the
-    // worker's HasContent) and refresh the strip live as bytes flow, throttled
-    // so a busy print does not re-render the whole strip every frame.
+    // Per-frame: auto-open the preview when a new print begins (activity resuming
+    // after an idle gap) and refresh the strip live as bytes flow, throttled by an
+    // interval that grows with strip height so a busy print does not re-render the
+    // whole strip every frame (nor O(rows^2) over a long banner).
     void    UpdatePrinterPreview ();
 
     // Attach the Casso app icon (IDI_CASSO) to a child DxuiWindow so it shows the
@@ -842,12 +848,17 @@ private:
     std::unique_ptr<class InputDebugPanel>    m_inputDebugPanel;
     std::unique_ptr<class PrinterPanel>       m_printerPanel;
 
-    // Live-preview bookkeeping (UpdatePrinterPreview). m_printerHadContent tracks
-    // the previous frame's HasContent so a false->true edge auto-opens the panel
-    // once per print; the activity/time pair throttles the live strip refresh.
-    bool                                      m_printerHadContent      = false;
-    uint64_t                                  m_printerPreviewActivity = 0;
-    int64_t                                   m_printerPreviewLastMs   = 0;
+    // Live-preview bookkeeping (UpdatePrinterPreview). Auto-open fires once when a
+    // *new* print begins -- activity resuming after an idle gap -- so it opens even
+    // when a prior pending strip is still loaded, yet a mid-print manual close does
+    // not fight a re-open (activity never goes idle mid-print). The refresh
+    // activity/time pair throttles the live strip refresh; the throttle scales with
+    // strip height so a tall banner is not re-rendered O(rows^2).
+    bool                                      m_printerAutoOpenArmed    = true;
+    uint64_t                                  m_printerAutoOpenActivity = 0;
+    int64_t                                   m_printerActiveLastMs     = 0;
+    uint64_t                                  m_printerPreviewActivity  = 0;
+    int64_t                                   m_printerPreviewLastMs    = 0;
     std::chrono::steady_clock::time_point     m_uptimeAnchor { std::chrono::steady_clock::now() };
 
     // Extracted shell-side managers. WindowManager owns the per-monitor

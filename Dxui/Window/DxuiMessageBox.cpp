@@ -278,5 +278,34 @@ int DxuiMessageBox (HWND owner, const IDxuiTheme * theme, const wchar_t * text, 
 
     dlg.SetTheme (theme);
 
+    // Center the box on its owner (Win32 MessageBox centers on the owner too),
+    // clamped to the owner's monitor work area so it never lands off-screen. The
+    // window is created hidden, so this places it before ShowModalDialog shows it.
+    if (owner != nullptr && dlg.Hwnd () != nullptr)
+    {
+        RECT   ownerR = {};
+        RECT   dlgR   = {};
+
+        if (GetWindowRect (owner, &ownerR) && GetWindowRect (dlg.Hwnd (), &dlgR))
+        {
+            int    dw = dlgR.right  - dlgR.left;
+            int    dh = dlgR.bottom - dlgR.top;
+            int    x  = ownerR.left + ((ownerR.right  - ownerR.left) - dw) / 2;
+            int    y  = ownerR.top  + ((ownerR.bottom - ownerR.top)  - dh) / 2;
+
+            HMONITOR     mon = MonitorFromWindow (owner, MONITOR_DEFAULTTONEAREST);
+            MONITORINFO  mi  = { sizeof (mi) };
+
+            if (mon != nullptr && GetMonitorInfoW (mon, &mi))
+            {
+                x = std::clamp (x, (int) mi.rcWork.left, (int) mi.rcWork.right  - dw);
+                y = std::clamp (y, (int) mi.rcWork.top,  (int) mi.rcWork.bottom - dh);
+            }
+
+            SetWindowPos (dlg.Hwnd (), nullptr, x, y, 0, 0,
+                          SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE);
+        }
+    }
+
     return dlg.ShowModalDialog (defaultCmd);
 }

@@ -61,6 +61,10 @@ public:
                      IDxuiTextRenderer   & text,
                      const IDxuiTheme    & theme) override;
 
+    // Escape closes (hides) the preview -- the expected keyboard dismiss for a
+    // preview window; other keys fall through to the base child dispatch.
+    bool     OnKey  (const DxuiKeyEvent  & ev) override;
+
 protected:
     void     OnCreate () override;
 

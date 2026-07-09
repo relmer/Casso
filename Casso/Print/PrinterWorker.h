@@ -62,6 +62,12 @@ public:
     uint64_t      ActivityCount () const { return m_activity.load    (std::memory_order_relaxed); }
     bool          HasContent    () const { return m_hasContent.load (std::memory_order_relaxed); }
 
+    // Current strip height in native rows, published cheaply (no raster copy) so
+    // the live preview can scale its refresh rate to the strip -- re-rendering
+    // the whole strip is O(rows), so a tall banner must refresh less often to
+    // avoid O(rows^2) work. Safe to read from the UI thread.
+    int           RowsUsed      () const { return m_rowsUsed.load   (std::memory_order_relaxed); }
+
 private:
     void          Run             ();
     void          OpenCaptureFile ();
@@ -72,6 +78,7 @@ private:
     std::atomic<bool>        m_stopRequested { false };
     std::atomic<uint64_t>    m_activity      { 0 };
     std::atomic<bool>        m_hasContent    { false };
+    std::atomic<int>         m_rowsUsed      { 0 };   // strip height for preview pacing
     bool                     m_running       = false;
     std::ofstream            m_capture;
 };

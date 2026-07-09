@@ -7,6 +7,7 @@
 #include "../resource.h"
 #include "../Shell/DiskMru.h"
 #include "Devices/Printer/PaperRenderer.h"
+#include "Devices/Printer/PngCodec.h"
 #include "Devices/Printer/PrintDelivery.h"
 #include "Devices/Printer/PrintFileNaming.h"
 #include "Devices/Printer/PrintPagination.h"
@@ -626,6 +627,34 @@ static DotStyle PrintDotStyleFromPrefs (const GlobalUserPrefs & p)
 }
 
 
+// Cap the render dpi for a WHOLE-strip render (PNG file, clipboard) so a long
+// fanfold banner's single RGBA image stays within a memory budget instead of
+// ballooning to gigabytes (each row at 576 dpi is 4608 px * 4 B; a 60-page
+// banner is ~95k rows). The native grid is only 160x144 dpi, so dropping a huge
+// banner from 576 toward ~150 dpi is still well above source resolution -- no
+// meaningful quality loss, and it never OOMs. Short jobs keep the full dpi.
+static int WholeStripDpi (const GlobalUserPrefs & prefs, int rows)
+{
+    const double   kBudgetPx = 128.0 * 1024.0 * 1024.0;   // ~512 MB of RGBA
+    int            dpi       = PrintDpiFromPrefs (prefs);
+
+    if (rows > 0)
+    {
+        // outPx = (kDotsPerRow/160 * dpi) * (rows/144 * dpi)
+        //       = kDotsPerRow * rows * dpi^2 / (160 * 144)
+        double   maxDpi = std::sqrt (kBudgetPx * 160.0 * 144.0
+                                     / ((double) PrinterGrid::kDotsPerRow * (double) rows));
+
+        if ((int) maxDpi < dpi)
+        {
+            dpi = (std::max) (120, (int) maxDpi);
+        }
+    }
+
+    return dpi;
+}
+
+
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -652,7 +681,7 @@ HRESULT WindowCommandManager::SavePrintout (const PrintRaster & raster, fs::path
     const GlobalUserPrefs &   prefs       = m_shell.m_globalPrefs;
 
     hr = PrintDelivery::RenderToPng (raster, 0, raster.RowsUsed () - 1,
-                                     PrintDpiFromPrefs (prefs),
+                                     WholeStripDpi (prefs, raster.RowsUsed ()),
                                      PrintDotStyleFromPrefs (prefs), png);
     CHR (hr);
 
@@ -815,7 +844,10 @@ HRESULT WindowCommandManager::CopyPrintoutToClipboard (const PrintRaster & raste
     // skip the bitmap and rely on the (compressed) PNG blob instead.
     const size_t             kMaxDibBytes = (size_t) 256 * 1024 * 1024;
 
-    opt.outputDpi = PrintDpiFromPrefs (prefs);
+    // Render the whole strip exactly once, capping dpi for very tall banners so
+    // neither the DIB below nor the PNG blob materializes gigabytes. The source
+    // is only 160x144 dpi, so the cap is effectively lossless.
+    opt.outputDpi = WholeStripDpi (prefs, raster.RowsUsed ());
     opt.style     = PrintDotStyleFromPrefs (prefs);
 
     hr = renderer.Render (raster, 0, raster.RowsUsed () - 1, opt, img);
@@ -866,9 +898,9 @@ HRESULT WindowCommandManager::CopyPrintoutToClipboard (const PrintRaster & raste
         GlobalUnlock (hDib);
     }
 
-    if (SUCCEEDED (PrintDelivery::RenderToPng (raster, 0, raster.RowsUsed () - 1,
-                                               opt.outputDpi, opt.style, png))
-        && !png.empty ())
+    // Encode the PNG from the image we already rendered rather than rendering
+    // the strip a second time (the old path doubled peak memory on big banners).
+    if (SUCCEEDED (PngCodec::EncodeRgba (img, opt.outputDpi, png)) && !png.empty ())
     {
         Byte *   dest = nullptr;
 
@@ -971,7 +1003,7 @@ void WindowCommandManager::OnPrinterCommand (int id)
                                  : discard ? L"The printer has no page to discard."
                                            : L"The printer has no page to finish yet.";
 
-        DxuiMessageBox (m_shell.m_hwnd, &m_shell.m_chromeTheme, emptyMsg, L"Casso Printer", MB_OK | MB_ICONINFORMATION);
+        DxuiMessageBox (m_shell.PrinterDialogOwner (), &m_shell.m_chromeTheme, emptyMsg, L"Casso Printer", MB_OK | MB_ICONINFORMATION);
         m_shell.m_printerWorker.Start (m_shell.m_refs.printerCard->ByteRing ());
         return;
     }
@@ -985,7 +1017,7 @@ void WindowCommandManager::OnPrinterCommand (int id)
 
         if (FAILED (hr))
         {
-            DxuiMessageBox (m_shell.m_hwnd, &m_shell.m_chromeTheme, L"Could not copy the printout to the clipboard.",
+            DxuiMessageBox (m_shell.PrinterDialogOwner (), &m_shell.m_chromeTheme, L"Could not copy the printout to the clipboard.",
                          L"Casso Printer", MB_OK | MB_ICONWARNING);
         }
         return;
@@ -997,7 +1029,7 @@ void WindowCommandManager::OnPrinterCommand (int id)
         // there is no undo -- and default the dialog to "No" so a stray Enter
         // never destroys a page.
         int   choice = DxuiMessageBox (
-            m_shell.m_hwnd,
+            m_shell.PrinterDialogOwner (),
             &m_shell.m_chromeTheme,
             L"Tear off and discard the current printout?\n\n"
             L"The page in the printer will be thrown away without saving. "
@@ -1042,7 +1074,7 @@ void WindowCommandManager::OnPrinterCommand (int id)
                                  ? std::wstring (L"Sent the printout to the printer.")
                                  : (L"Saved printout to:\n" + file.wstring ());
 
-        DxuiMessageBox (m_shell.m_hwnd, &m_shell.m_chromeTheme, msg.c_str (), L"Casso Printer", MB_OK | MB_ICONINFORMATION);
+        DxuiMessageBox (m_shell.PrinterDialogOwner (), &m_shell.m_chromeTheme, msg.c_str (), L"Casso Printer", MB_OK | MB_ICONINFORMATION);
 
         // Delivered: start a fresh sheet and drop the persisted pending copy.
         m_shell.m_printerWorker.Start (m_shell.m_refs.printerCard->ByteRing ());
@@ -1050,7 +1082,7 @@ void WindowCommandManager::OnPrinterCommand (int id)
     }
     else
     {
-        DxuiMessageBox (m_shell.m_hwnd, &m_shell.m_chromeTheme, L"Could not deliver the printout; the page is kept.",
+        DxuiMessageBox (m_shell.PrinterDialogOwner (), &m_shell.m_chromeTheme, L"Could not deliver the printout; the page is kept.",
                      L"Casso Printer", MB_OK | MB_ICONWARNING);
 
         // Keep the strip so the user can retry -- reseed the worker with it

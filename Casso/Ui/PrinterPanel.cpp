@@ -216,6 +216,30 @@ void PrinterPanel::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  PrinterPanel::OnKey
+//
+//  Escape hides the preview (its close-box does the same), so the window can be
+//  dismissed from the keyboard. Everything else falls through to the base, which
+//  fans the key to the child controls.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool PrinterPanel::OnKey (const DxuiKeyEvent & ev)
+{
+    if (ev.kind == DxuiKeyEventKind::Down && ev.vk == VK_ESCAPE)
+    {
+        Hide ();
+        return true;
+    }
+
+    return DxuiWindow::OnKey (ev);
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  PrinterPanel::SetStrip
 //
 //  Render the strip (PaperRenderer -- core) at a capped preview DPI, convert to
@@ -241,7 +265,14 @@ void PrinterPanel::SetStrip (const PrintRaster & raster)
 
     if (rows <= 0)
     {
-        m_paper->Clear ();
+        // Show a blank sheet rather than an empty window so the preview always
+        // reads as "paper loaded, nothing printed yet." Solid white matches
+        // PaperRenderer's paper, and the paper view scales it to fit the mat.
+        int                     w     = 8  * s_kPreviewDpi;   //  8" printable width
+        int                     h     = 11 * s_kPreviewDpi;   // one 11" page
+        std::vector<uint32_t>   blank ((size_t) w * h, 0xFFFFFFFFu);
+
+        m_paper->SetImage (std::move (blank), w, h);
         return;
     }
 

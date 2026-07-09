@@ -460,10 +460,10 @@ HRESULT MachineManager::CreateMemoryDevices (const MachineConfig & config)
             m_shell.m_refs.printerCard->ByteRing (),
             SUCCEEDED (hrLoad) ? std::move (pending) : PrintRaster ());
 
-        // Prime the live-preview edge detector to the restored state so a page
-        // carried over from a previous session does not read as a fresh print
-        // and auto-open the preview on boot -- only new printing does.
-        m_shell.m_printerHadContent = m_shell.m_printerWorker.HasContent ();
+        // Prime the live-preview auto-open baseline to the worker's current
+        // activity so a page carried over from a previous session does not read as
+        // a fresh print and auto-open the preview on boot -- only new printing does.
+        m_shell.m_printerAutoOpenActivity = m_shell.m_printerWorker.ActivityCount ();
     }
 
 Error:

@@ -2507,6 +2507,35 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  EmulatorShell::PrinterDialogOwner
+//
+//  Owner HWND for the printer's confirmation / notice boxes. When the preview
+//  panel is open the user is acting inside it (its Finish / Copy / Discard
+//  buttons, or a menu command while watching it), so own the box by the panel
+//  -- the modal box then centers on the panel and disables it while up. With
+//  the panel closed the command came from the main menu, so own it by the main
+//  window.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HWND EmulatorShell::PrinterDialogOwner () const
+{
+    if (m_printerPanel != nullptr
+        && m_printerPanel->IsOpen ()
+        && m_printerPanel->Hwnd () != nullptr
+        && IsWindowVisible (m_printerPanel->Hwnd ()))
+    {
+        return m_printerPanel->Hwnd ();
+    }
+
+    return m_hwnd;
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  EmulatorShell::ApplyAppIconToWindow
 //
 //  Give a child DxuiWindow the Casso icon so Alt-Tab / the taskbar show the
@@ -2640,34 +2669,51 @@ void EmulatorShell::UpdatePrinterIndicator ()
 
 void EmulatorShell::UpdatePrinterPreview ()
 {
-    static constexpr int64_t   s_kRefreshThrottleMs = 100;   // ~10 Hz live redraw
+    static constexpr int64_t   s_kRefreshBaseMs   = 100;    // ~10 Hz on a short strip
+    static constexpr int64_t   s_kRefreshMaxMs    = 1500;   // floor rate on a tall banner
+    static constexpr int       s_kRowsPerExtraMs  = 24;     // +1 ms of throttle per 24 rows
+    static constexpr int64_t   s_kAutoOpenIdleMs  = 1200;   // activity gap that re-arms auto-open
 
-    bool       hasContent = false;
-    uint64_t   activity   = 0;
-    int64_t    nowMs      = 0;
+    uint64_t   activity = 0;
+    int        rows     = 0;
+    int64_t    nowMs    = 0;
 
     if (m_refs.printerCard == nullptr)
     {
         return;   // machine has no printer card
     }
 
-    hasContent = m_printerWorker.HasContent ();
-    activity   = m_printerWorker.ActivityCount ();
+    activity = m_printerWorker.ActivityCount ();
+    rows     = m_printerWorker.RowsUsed ();
+    nowMs    = (int64_t) std::chrono::duration_cast<std::chrono::milliseconds> (
+                   std::chrono::steady_clock::now ().time_since_epoch ()).count ();
 
-    // Rising edge of HasContent == the guest just put ink on the paper. Auto-open
-    // the preview once, without stealing focus, so the paper appears and fills in
-    // as it prints. The edge only re-arms after the page is ejected/discarded, so
-    // manually closing the window mid-print does not fight a re-open every frame.
-    if (hasContent && !m_printerHadContent)
+    // Auto-open on a NEW print session: activity advancing after an idle gap.
+    // Arm while idle, fire once (without stealing focus) when bytes resume, then
+    // stay disarmed until idle again. This opens for a fresh print even when a
+    // prior pending strip is still loaded (no HasContent edge to ride), yet
+    // closing the window mid-print never fights a re-open -- activity keeps
+    // advancing through the print, so the edge does not re-arm until it finishes.
+    if (activity != m_printerAutoOpenActivity)
     {
-        ShowPrinterPanel (false /* activate */);
+        if (m_printerAutoOpenArmed)
+        {
+            ShowPrinterPanel (false /* activate */);
+            m_printerAutoOpenArmed = false;
+        }
+        m_printerAutoOpenActivity = activity;
+        m_printerActiveLastMs     = nowMs;
     }
-    m_printerHadContent = hasContent;
+    else if (!m_printerAutoOpenArmed && nowMs - m_printerActiveLastMs > s_kAutoOpenIdleMs)
+    {
+        m_printerAutoOpenArmed = true;   // print settled: re-arm for the next one
+    }
 
     // Live refresh, but only while the preview is genuinely visible, only when
-    // new bytes have landed, and no more than once per throttle window (the full
-    // strip is re-rendered each time). A frozen activity count settles on the
-    // final frame because the counter only advances here when we actually draw.
+    // new bytes have landed, and no more than once per throttle window. The whole
+    // strip is re-rendered each time (cost ~ rows), so the throttle grows with the
+    // strip: a short receipt refreshes ~10 Hz, a tall banner a couple of times a
+    // second, keeping total live-render work near-linear instead of O(rows^2).
     if (m_printerPanel == nullptr || !m_printerPanel->IsOpen ())
     {
         return;
@@ -2681,12 +2727,15 @@ void EmulatorShell::UpdatePrinterPreview ()
         return;   // nothing new drained since the last refresh
     }
 
-    nowMs = (int64_t) std::chrono::duration_cast<std::chrono::milliseconds> (
-                std::chrono::steady_clock::now ().time_since_epoch ()).count ();
-
-    if (nowMs - m_printerPreviewLastMs < s_kRefreshThrottleMs)
     {
-        return;   // within the throttle window; the change lands on a later frame
+        int64_t   throttleMs = s_kRefreshBaseMs + (int64_t) rows / s_kRowsPerExtraMs;
+
+        if (throttleMs > s_kRefreshMaxMs) { throttleMs = s_kRefreshMaxMs; }
+
+        if (nowMs - m_printerPreviewLastMs < throttleMs)
+        {
+            return;   // within the throttle window; the change lands on a later frame
+        }
     }
 
     SnapshotStripToPanel ();
