@@ -195,6 +195,27 @@ namespace Disk2ControllerEventTests
         }
 
 
+        TEST_METHOD (MotorOffFlushCallback_firesAgainOnEachOperationCycle)
+        {
+            Disk2Controller   ctrl (6);
+            int               flushes = 0;
+
+            ctrl.SetMotorOffFlushCallback ([&] () { flushes++; });
+
+            // First operation: on -> off -> spin down.
+            ctrl.Write (0xC0E9, 0x00);
+            ctrl.Write (0xC0E8, 0x00);
+            ctrl.Tick  (1100000);
+            Assert::AreEqual (1, flushes);
+
+            // Second operation must flush again on its own spindown.
+            ctrl.Write (0xC0E9, 0x00);
+            ctrl.Write (0xC0E8, 0x00);
+            ctrl.Tick  (1100000);
+            Assert::AreEqual (2, flushes, L"each disk operation's spindown flushes");
+        }
+
+
         TEST_METHOD (MotorOffRestrobe_alwaysFiresCommandOff_evenWhenMotorAlreadyOff)
         {
             Disk2Controller      ctrl (6);

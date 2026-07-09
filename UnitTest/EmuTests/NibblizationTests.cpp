@@ -288,4 +288,46 @@ public:
         Assert::IsFalse (original == afterReformat,
             L"the stale original must not survive the reformat");
     }
+
+    TEST_METHOD (Denibblize_UnformattedTrack_ZeroFillsThatTrackAndKeepsOthers)
+    {
+        // A .dsk is a plain sector image, so a track with no decodable
+        // address fields (blank / unformatted bit stream) correctly
+        // denibblizes to zeros for THAT track and leaves neighbors intact --
+        // Denibblize returns S_OK rather than failing. This documents the
+        // "missing sectors read back as zeros" behavior: it is intentional
+        // for sector images (a blank disk is all zeros), not silent
+        // corruption of a valid track.
+        DiskImage      img;
+        vector<Byte>   raw       = MakePinnedRandomImage (0x5A5A5A5Au);
+        vector<Byte>   recovered;
+        const size_t   trkBytes  = 16 * 256;
+        const int      wiped     = 5;
+
+        Assert::IsTrue (SUCCEEDED (NibblizationLayer::NibblizeDsk (raw, img)));
+
+        // Blank track 5's bit stream (no address fields left to decode).
+        img.ResizeTrack (wiped, DiskImage::kDefaultTrackByteSize * 8);
+        {
+            vector<Byte> & b = img.GetTrackBitsForWrite (wiped);
+            std::fill (b.begin (), b.end (), static_cast<Byte> (0));
+        }
+        img.SetTrackBitCount (wiped, DiskImage::kDefaultTrackByteSize * 8);
+
+        Assert::IsTrue (SUCCEEDED (NibblizationLayer::Denibblize (img, DiskFormat::Dsk, recovered)));
+
+        // Wiped track -> all zeros.
+        for (size_t i = 0; i < trkBytes; i++)
+        {
+            Assert::AreEqual (Byte (0), recovered[static_cast<size_t> (wiped) * trkBytes + i]);
+        }
+        // Adjacent track 4 -> unaffected, still matches the original.
+        bool  neighborOk = true;
+        for (size_t i = 0; i < trkBytes; i++)
+        {
+            size_t  off = static_cast<size_t> (4) * trkBytes + i;
+            if (recovered[off] != raw[off]) { neighborOk = false; break; }
+        }
+        Assert::IsTrue (neighborOk, L"a formatted neighbor track must be unaffected");
+    }
 };
