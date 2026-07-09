@@ -129,7 +129,7 @@
 
 > **Deferred → issue #87** (`Apple //c serial printer integration + per-port device selection`). The //c **serial printer** front door (`PrinterSink` ring hoist + `AciaPrinterEndpoint` + port-1 binding) and the Hardware-tab **serial endpoint selector** live there, not here — they need spec 015 on `master` **and** a bootable //c, so they follow this phase. Brief: `serial-printer-integration.md`; fixture: `reference/printshop-color-testpage.bin`.
 
-- [ ] T025 [US2] Make boot + phantom-slot tests pass; assert //c machine selection persists + restores like any other machine (FR-016).
+- [X] T025 [US2] Make boot + phantom-slot tests pass; assert //c machine selection persists + restores like any other machine (FR-016). *(Boot + phantom-slot green: `Apple2cBootTests` `ColdBootsToCheckDiskDrive` / `BuildsAndResetsToMonitorEntry` + `StaC028TogglesRomBankExactlyOnce` (no-external-slots $Cxxx routing), `Apple2cRomBankTests` (5). Persistence: `//c` selection round-trips via the machine-agnostic `GlobalUserPrefs.lastSelectedMachine` string (covered by `GlobalUserPrefsTests::RoundTrip_FullPrefs`); the //c is a first-class registered machine (AssetBootstrap + ComponentRegistry + MachineScanner), so FR-016 holds without a //c-specific duplicate.)*
 
 **Checkpoint**: **Apple //c boots** with working serial ports (loopback/file endpoints). SC-002. Serial *printing* + endpoint selection are issue #87 (post-015/016).
 
@@ -183,7 +183,7 @@
 
 - [ ] T036 [P] Run full `quickstart.md` validation across all stories.
 - [ ] T037 [P] Update `README.md` + `CHANGELOG.md` for the new Apple //c machine.
-- [ ] T038 Full suite green across Debug+Release × x64+ARM64; Code Analysis clean.
+- [~] T038 Full suite green across Debug+Release × x64+ARM64; Code Analysis clean. *(**Validated so far on this x64 host**: builds clean (0W/0E) for all four Debug/Release × x64/ARM64; x64 tests green — Debug 2268/2268, Release 2265/2265 (Debug has 3 assert-only tests); **Code Analysis clean** across the whole solution after suppressing a lone pre-existing C6262 in `Cpu65C02Tests` (per-file pragma matching the sibling test files). **Remaining**: ARM64 **test execution** needs an ARM64 host/CI (can't run ARM64 binaries on x64); final signoff after US4.)*
 - [ ] T039 SC-003: three representative titles run end-to-end on the //c (serial/terminal, MousePaint, disk game).
 
 ---
