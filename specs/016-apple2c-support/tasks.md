@@ -141,14 +141,16 @@
 
 **Independent Test**: Host X/Y/click → firmware position/button; VBL/mouse IRQ delivered; $C019 status correct.
 
+> **Approach locked (design spike done)**: **full IOU hardware model** — run the real //c ROM mouse firmware and emulate the hardware it touches (chosen over firmware-entry HLE, which would need a new CPU execution-trap/register seam). The exact soft-switch contract was **derived by disassembling the //c ROM 4 mouse firmware** (it is the authoritative oracle) and is captured in [`reference/mouse-hardware.md`](reference/mouse-hardware.md): `$C066`/`$C067` bit7 = mouse X0/Y0 (game-port PADDL2/3 repurposed), `$C048` = X0/Y0 IRQ ack, `$C058-$C05F` = mouse/VBL int enables+edge (bracketed by `$C079`/`$C078` IOU gate), `$C05A`/`$C05B` = DISVBL/ENVBL, `$C063` bit7 = button (active-low), `$C019` = VBL (already implemented). Integration surface mapped: the mouse soft-switches live in the keyboard-claimed `$C000-$C063` range + the `Apple2eSoftSwitchBank` page (which returns paddle-timer values for `$C066`/`$C067` today), so the device integrates **via** those, not as a standalone slot device. T026 will drive the **real firmware entry points** (SETMOUSE/READMOUSE/SERVEMOUSE) in the headless harness so exact bit/edge/ack semantics are pinned empirically.
+
 ### Tests (expect FAIL)
 
-- [ ] T026 [P] [US4] `UnitTest/EmuTests/AppleMouseTests.cpp`: X/Y/button, VBL/mouse IRQ, $C019 status; assert IRQs neither starve nor double-fire across acknowledge (edge case).
+- [ ] T026 [P] [US4] `UnitTest/EmuTests/AppleMouseTests.cpp`: X/Y/button, VBL/mouse IRQ, $C019 status; assert IRQs neither starve nor double-fire across acknowledge (edge case). *(Design ready — drives the real firmware via the headless //c per `reference/mouse-hardware.md`.)*
 
 ### Implementation
 
-- [ ] T027 [US4] Implement `AppleMouse` (`CassoEmuCore/Devices/AppleMouse.{h,cpp}`): firmware entry points, X/Y/button, clamp, VBL + mouse IRQ sources.
-- [ ] T028 [US4] Add //c interrupt soft switches ($C019 VBL, mouse IRQ enable/status) to the //c soft-switch path.
+- [ ] T027 [US4] Implement `AppleMouse` (`CassoEmuCore/Devices/AppleMouse.{h,cpp}`): X/Y/button, clamp, VBL + mouse IRQ sources (X0/Y0 quadrature lines + latch/ack), `AttachInterruptController` like `Acia6551`. *(Contract derived; integrates via the soft-switch bank/keyboard rather than claiming its own bus range.)*
+- [ ] T028 [US4] Add //c interrupt soft switches ($C019 VBL, mouse IRQ enable/status) to the //c soft-switch path. *(Map per `reference/mouse-hardware.md`: delegate `$C066`/`$C067`/`$C063`/`$C048`/`$C058-$C05F`/`$C05A`/`$C05B`/`$C078`/`$C079` from `Apple2eSoftSwitchBank`+keyboard to the mouse.)*
 - [ ] T029 [US4] Register `apple-mouse` in `ComponentRegistry`; add to `Apple2c.json` (slot-4 firmware).
 - [ ] T030 [US4] Map the host pointer → guest mouse in the shell input path. **Mouse mode is non-capturing**: while the host cursor is over the emulator viewport, motion + buttons drive the guest mouse (absolute mapping: host position in the viewport → guest mouse position; host cursor hidden over the viewport); leaving the viewport releases to the host. Contrast with Paddle mode, which captures.
 - [ ] T030a [US4] Add `Mouse` to `InputMappingMode` (`GlobalUserPrefs`: `Off`/`Joystick`/`Paddle`/`Mouse` + string mapping), **gated to mouse-capable machines** (//c, //e-with-mouse; hidden on ][ / ][+ / plain //e). Replace the `JoystickToggleButton` cycle-toggle with a **segmented device selector using skeuomorphic icons** (joystick / paddle / mouse); wire it to the existing "Cycle Input Mode" path + persistence.
