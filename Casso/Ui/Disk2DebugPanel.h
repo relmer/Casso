@@ -134,7 +134,15 @@ private:
     void    ConfigureWidgets     ();
     void    DrainAndProject      ();
     void    RebuildFilteredIndices ();
-    void    PushListViewRows     ();
+
+    // GH #88 virtualization. The list pulls only its visible window through
+    // this provider (installed once in ConfigureWidgets); FillRow maps a
+    // visible-row index -> m_filteredIndices -> m_events and materializes
+    // that single row's cells on demand. SyncListRowCount republishes the
+    // virtual row count after the filtered set changes. No per-frame
+    // materialization of the whole list.
+    void    FillRow              (int row, std::vector<DxuiListView::Cell> & out) const;
+    void    SyncListRowCount     ();
     void    PublishToRing        (const Disk2Event & e);
     Disk2Event  MakeStampedEvent (EventCategory cat, Disk2EventType type) const noexcept;
     void    OnFilterChanged      ();
@@ -196,5 +204,12 @@ private:
     bool                                  m_trackEditValid  = true;
     bool                                  m_sectorEditValid = true;
 
-    int                                   m_listSelectedEventIndex = -1;
+    // Selection/focus is tracked by the selected event's stable seq (see
+    // Disk2EventDisplay::seq), not by a row or deque index, so a sort
+    // reorder or deque front-eviction can't silently move or lose it.
+    // 0 == nothing selected. m_nextSeq is the monotonic id source handed
+    // to DebugDialogProjection::DrainAndProject; starting at 1 keeps 0
+    // reserved for "unassigned".
+    uint64_t                              m_selectedSeq = 0;
+    uint64_t                              m_nextSeq     = 1;
 };

@@ -475,7 +475,8 @@ void DebugDialogProjection::DrainAndProject (
     Disk2EventRing &                             ring,
     std::deque<Disk2EventDisplay> &              deque,
     uint32_t                                     droppedCount,
-    std::chrono::steady_clock::time_point        uptimeAnchor)
+    std::chrono::steady_clock::time_point        uptimeAnchor,
+    uint64_t *                                   seqCounter)
 {
     Disk2Event              batch[kDrainBatchSize] = {};
     uint32_t                drained                = 0;
@@ -492,6 +493,10 @@ void DebugDialogProjection::DrainAndProject (
         syntheticLost.payload.lost.count = droppedCount;
 
         FormatEvent (syntheticLost, uptimeAnchor, lostEntry);
+        if (seqCounter != nullptr)
+        {
+            lostEntry.seq = (*seqCounter)++;
+        }
         deque.push_back (std::move (lostEntry));
     }
 
@@ -504,6 +509,10 @@ void DebugDialogProjection::DrainAndProject (
             Disk2EventDisplay  entry;
 
             FormatEvent (batch[i], uptimeAnchor, entry);
+            if (seqCounter != nullptr)
+            {
+                entry.seq = (*seqCounter)++;
+            }
             deque.push_back (std::move (entry));
         }
     }
@@ -567,4 +576,90 @@ int DebugDialogProjection::PreservedFocusItem (
 
 Error:
     return result;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DebugDialogProjection::ResolveSelection
+//
+//  GH #88. Seq-identity selection resolution: keep the selected event
+//  selected (and let the caller scroll it into view) across a sort
+//  reorder, and snap gracefully when it is filtered out or evicted. See
+//  the header for the full rule set.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DebugSelectionResult DebugDialogProjection::ResolveSelection (
+    uint64_t                              selectedSeq,
+    const std::deque<Disk2EventDisplay> & events,
+    const std::vector<size_t> &           filteredIndices) noexcept
+{
+    DebugSelectionResult  result;
+
+    if (selectedSeq == 0 || filteredIndices.empty())
+    {
+        return result;   // {-1, 0}
+    }
+
+    // Exact identity match -- unchanged by a sort reorder.
+    for (size_t row = 0; row < filteredIndices.size(); ++row)
+    {
+        size_t  idx = filteredIndices[row];
+        if (idx < events.size() && events[idx].seq == selectedSeq)
+        {
+            result.row = (int) row;
+            result.seq = selectedSeq;
+            return result;
+        }
+    }
+
+    // Gone: snap to the surviving event with the largest seq <= selectedSeq
+    // (nearest at-or-before), else the earliest surviving event.
+    const size_t  kNone         = filteredIndices.size();
+    size_t        bestBeforeRow = kNone;
+    uint64_t      bestBeforeSeq = 0;
+    size_t        earliestRow   = kNone;
+    uint64_t      earliestSeq   = 0;
+
+    for (size_t row = 0; row < filteredIndices.size(); ++row)
+    {
+        size_t  idx = filteredIndices[row];
+        if (idx >= events.size())
+        {
+            continue;
+        }
+
+        uint64_t  s = events[idx].seq;
+
+        if (earliestRow == kNone || s < earliestSeq)
+        {
+            earliestSeq = s;
+            earliestRow = row;
+        }
+        if (s <= selectedSeq && (bestBeforeRow == kNone || s > bestBeforeSeq))
+        {
+            bestBeforeSeq = s;
+            bestBeforeRow = row;
+        }
+    }
+
+    if (bestBeforeRow != kNone)
+    {
+        result.row = (int) bestBeforeRow;
+        result.seq = bestBeforeSeq;
+        return result;
+    }
+
+    if (earliestRow != kNone)
+    {
+        result.row = (int) earliestRow;
+        result.seq = earliestSeq;
+        return result;
+    }
+
+    return result;   // {-1, 0}
 }

@@ -78,9 +78,10 @@ void DxuiListView::SetColumns (std::vector<Column> cols)
 void DxuiListView::SetRows (std::vector<std::vector<Cell>> rows)
 {
     bool  wasSticky = m_stickyTail;
-    int   maxTop    = 0;
 
-
+    // A pushed row set leaves provider (virtual) mode.
+    m_virtual     = false;
+    m_rowProvider = nullptr;
 
     m_rows = std::move (rows);
 
@@ -89,7 +90,25 @@ void DxuiListView::SetRows (std::vector<std::vector<Cell>> rows)
         m_measureDirty = true;   // re-measure precise column widths for the new rows
     }
 
-    maxTop = GetMaxTopRow();
+    ClampTopAfterCountChange (wasSticky);
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ClampTopAfterCountChange
+//
+//  Re-clamp the top row and re-evaluate sticky-tail after the row count
+//  changes. Shared by SetRows / AppendRows / SetVirtualRowCount /
+//  SetRowProvider so all four keep identical scroll behavior.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiListView::ClampTopAfterCountChange (bool wasSticky)
+{
+    int  maxTop = GetMaxTopRow();
 
     if (wasSticky || m_topRow > maxTop)
     {
@@ -102,6 +121,99 @@ void DxuiListView::SetRows (std::vector<std::vector<Cell>> rows)
     }
 
     m_stickyTail = (m_topRow >= maxTop);
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetRowProvider / SetVirtualRowCount
+//
+//  Enter (or refresh) the virtual row model: the list holds no materialized
+//  rows, tracks only a total count, and pulls cells for the visible window
+//  from `provider` during Paint. SetVirtualRowCount updates just the count
+//  (e.g. a streaming log growing under a stable provider) and keeps the same
+//  sticky-tail semantics as SetRows.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiListView::SetRowProvider (int rowCount, RowProvider provider)
+{
+    bool  wasSticky = m_stickyTail;
+
+    m_virtual      = true;
+    m_rowProvider  = std::move (provider);
+    m_virtualCount = (rowCount > 0) ? rowCount : 0;
+    m_rows.clear();
+
+    ClampTopAfterCountChange (wasSticky);
+}
+
+
+void DxuiListView::SetVirtualRowCount (int rowCount)
+{
+    bool  wasSticky = m_stickyTail;
+
+    m_virtual      = true;
+    m_virtualCount = (rowCount > 0) ? rowCount : 0;
+
+    ClampTopAfterCountChange (wasSticky);
+}
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ProvideRow / NoteAutoFitRow
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiListView::ProvideRow (int r, std::vector<Cell> & out) const
+{
+    out.clear();
+
+    if (m_virtual)
+    {
+        if (m_rowProvider && r >= 0 && r < m_virtualCount)
+        {
+            m_rowProvider (r, out);
+        }
+        return;
+    }
+
+    if (r >= 0 && (size_t) r < m_rows.size())
+    {
+        out = m_rows[(size_t) r];
+    }
+}
+
+
+void DxuiListView::NoteAutoFitRow (const std::vector<Cell> & cells) const
+{
+    if (m_autoMaxChars.size() != m_columns.size())
+    {
+        m_autoMaxChars.assign (m_columns.size(), 0);
+    }
+
+    for (size_t c = 0; c < m_columns.size() && c < cells.size(); ++c)
+    {
+        if (m_columns[c].widthDip != 0 || m_columns[c].stretch)
+        {
+            continue;
+        }
+
+        int  chars = (int) cells[c].text.size();
+
+        if (m_showHeader)
+        {
+            chars = std::max (chars, (int) m_columns[c].title.size());
+        }
+
+        if (chars > m_autoMaxChars[c])
+        {
+            m_autoMaxChars[c] = chars;
+        }
+    }
 }
 
 
@@ -124,14 +236,15 @@ void DxuiListView::SetRows (std::vector<std::vector<Cell>> rows)
 void DxuiListView::AppendRows (std::vector<std::vector<Cell>> rows)
 {
     bool  wasSticky = m_stickyTail;
-    int   maxTop    = 0;
-
-
 
     if (rows.empty())
     {
         return;
     }
+
+    // Appending to a materialized set leaves provider (virtual) mode.
+    m_virtual     = false;
+    m_rowProvider = nullptr;
 
     m_rows.insert (m_rows.end(),
                    std::make_move_iterator (rows.begin()),
@@ -146,19 +259,7 @@ void DxuiListView::AppendRows (std::vector<std::vector<Cell>> rows)
         m_measuredWPx.clear();
     }
 
-    maxTop = GetMaxTopRow();
-
-    if (wasSticky || m_topRow > maxTop)
-    {
-        m_topRow = maxTop;
-    }
-
-    if (m_topRow < 0)
-    {
-        m_topRow = 0;
-    }
-
-    m_stickyTail = (m_topRow >= maxTop);
+    ClampTopAfterCountChange (wasSticky);
 }
 
 
@@ -277,7 +378,7 @@ int DxuiListView::GetColumnEffectiveWidthPx (size_t idx) const
     CBRAEx (idx < m_overrideWPx.size(), E_INVALIDARG);
 
     cap     = GetVisibleRowCapacity();
-    needBar = ((int) m_rows.size() > cap) && (cap > 0);
+    needBar = (RowCount() > cap) && (cap > 0);
     fullW   = (m_boundsDip.right - m_boundsDip.left) - (needBar ? GetScrollbarWidthPx() : 0);
 
     ComputeColumnLayout ((float) fullW, xs, ws);
@@ -556,11 +657,7 @@ Error:
 
 void DxuiListView::SetSelectedRow (int r)
 {
-    HRESULT  hr   = S_OK;
-    int      rows = (int) m_rows.size();
-    int      cap  = 0;
-
-
+    int  rows = RowCount();
 
     if (r >= rows)
     {
@@ -569,26 +666,44 @@ void DxuiListView::SetSelectedRow (int r)
 
     if (r < 0)
     {
-        r = -1;
+        m_selectedRow = -1;
+        return;
     }
 
-    BAIL_OUT_IF (r < 0, S_OK);
-
-    cap = GetVisibleRowCapacity();
-    BAIL_OUT_IF (cap <= 0, S_OK);
-
-    if (r < m_topRow)
-    {
-        SetTopRow (r);
-    }
-    else if (r >= m_topRow + cap)
-    {
-        SetTopRow (r - cap + 1);
-    }
-
-Error:
+    EnsureVisible (r);
     m_selectedRow = r;
-    return;
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EnsureVisible
+//
+//  Scroll the minimum needed to bring `row` into the visible window. Unlike
+//  SetSelectedRow it does not touch selection, so a host can keep a focused
+//  row on screen (e.g. after a re-sort) independent of what is selected.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiListView::EnsureVisible (int row)
+{
+    int  cap = GetVisibleRowCapacity();
+
+    if (row < 0 || row >= RowCount() || cap <= 0)
+    {
+        return;
+    }
+
+    if (row < m_topRow)
+    {
+        SetTopRow (row);
+    }
+    else if (row >= m_topRow + cap)
+    {
+        SetTopRow (row - cap + 1);
+    }
 }
 
 
@@ -697,7 +812,7 @@ DxuiListView::ScrollLayout DxuiListView::ComputeScrollLayout () const
     int           barW  = GetScrollbarWidthPx();
     int           rowH  = m_scaler.Px (s_kRowHeightDip);
     int           hgTop = m_showHeader ? (m_scaler.Px (s_kHeaderHeightDip) + m_scaler.Px (s_kHeaderGapDip)) : 0;
-    int           rows  = (int) m_rows.size();
+    int           rows  = RowCount();
     int           pass  = 0;
 
 
@@ -843,7 +958,7 @@ Error:
 int DxuiListView::GetMaxTopRow () const
 {
     int  cap  = GetVisibleRowCapacity();
-    int  rows = (int) m_rows.size();
+    int  rows = RowCount();
 
 
 
@@ -941,7 +1056,7 @@ bool DxuiListView::IsScrollbarVisible () const
 
 
 
-    return (cap > 0) && ((int) m_rows.size() > cap);
+    return (cap > 0) && (RowCount() > cap);
 }
 
 
@@ -978,7 +1093,7 @@ void DxuiListView::SyncVertScroll () const
 
     info.fMask = SIF_RANGE | SIF_PAGE | SIF_POS;
     info.nMin  = 0;
-    info.nMax  = (int) m_rows.size();
+    info.nMax  = RowCount();
     info.nPage = layout.rowCap;
     info.nPos  = m_topRow;
     m_vertScroll.SetScrollInfo (info);
@@ -1583,7 +1698,7 @@ Error:
 
 int DxuiListView::GetRequiredHeightPx () const
 {
-    int  rows    = (int) m_rows.size();
+    int  rows    = RowCount();
     int  rowH    = m_scaler.Px (s_kRowHeightDip);
     int  headerH = m_showHeader ? m_scaler.Px (s_kHeaderHeightDip) : 0;
     int  hdrGap  = m_showHeader ? m_scaler.Px (s_kHeaderGapDip)    : 0;
@@ -1616,7 +1731,7 @@ int DxuiListView::HitTestColumnResize (int xPx, int yPx, int tolerancePx) const
     int      result  = -1;
     int      headerH = m_showHeader ? m_scaler.Px (s_kHeaderHeightDip) : 0;
     int      cap     = GetVisibleRowCapacity();
-    bool     needBar = ((int) m_rows.size() > cap) && (cap > 0);
+    bool     needBar = (RowCount() > cap) && (cap > 0);
     int      fullW   = (m_boundsDip.right - m_boundsDip.left) - (needBar ? GetScrollbarWidthPx() : 0);
     int      xAdj    = m_hScrollEnabled ? (xPx + m_leftPx) : xPx;
     std::vector<int>  colXPx;
@@ -1710,7 +1825,7 @@ int DxuiListView::HitTestHeaderColumn (int xPx, int yPx) const
     int              result  = -1;
     int              headerH = m_showHeader ? m_scaler.Px (s_kHeaderHeightDip) : 0;
     int              cap     = GetVisibleRowCapacity();
-    bool             needBar = ((int) m_rows.size() > cap) && (cap > 0);
+    bool             needBar = (RowCount() > cap) && (cap > 0);
     int              fullW   = (m_boundsDip.right - m_boundsDip.left) - (needBar ? GetScrollbarWidthPx() : 0);
     int              xAdj    = m_hScrollEnabled ? (xPx + m_leftPx) : xPx;
     std::vector<int> colXPx;
@@ -1767,13 +1882,13 @@ int DxuiListView::HitTestRow (int xPx, int yPx) const
     int      visIdx  = (body < 0 || rowH <= 0) ? -1 : (body / rowH);
     int      cap     = GetVisibleRowCapacity();
     int      abs     = (visIdx < 0) ? -1 : (m_topRow + visIdx);
-    int      rowW    = (m_boundsDip.right - m_boundsDip.left) - ((int) m_rows.size() > cap ? GetScrollbarWidthPx() : 0);
+    int      rowW    = (m_boundsDip.right - m_boundsDip.left) - (RowCount() > cap ? GetScrollbarWidthPx() : 0);
 
 
 
     BAIL_OUT_IF (xPx < 0 || xPx >= rowW, S_OK);
     BAIL_OUT_IF (visIdx < 0 || visIdx >= cap, S_OK);
-    BAIL_OUT_IF (abs < 0 || abs >= (int) m_rows.size(), S_OK);
+    BAIL_OUT_IF (abs < 0 || abs >= RowCount(), S_OK);
 
     result = abs;
 
@@ -1804,7 +1919,7 @@ void DxuiListView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) cons
     float            fullW      = (float) (m_boundsDip.right - m_boundsDip.left);
     float            fullH      = (float) (m_boundsDip.bottom - m_boundsDip.top);
     int              visibleCap = layout.rowCap;
-    int              totalRows  = (int) m_rows.size();
+    int              totalRows  = RowCount();
     int              firstRow   = m_topRow;
     int              lastRow    = std::min (totalRows, m_topRow + (visibleCap > 0 ? visibleCap : totalRows));
     float            barW       = layout.vBar ? (float) GetScrollbarWidthPx() : 0.0f;
@@ -2116,7 +2231,7 @@ void DxuiListView::PaintDataRows (
         bool   isHov = false;
         bool   isSel = false;
 
-        if (r < 0 || (size_t) r >= m_rows.size())
+        if (r < 0 || r >= RowCount())
         {
             continue;
         }
@@ -2137,7 +2252,23 @@ void DxuiListView::PaintDataRows (
             painter.FillRect (x, ry, layoutW, rowH, pal.bgHover);
         }
 
-        const auto & cells = m_rows[(size_t) r];
+        // Virtual mode pulls the row's cells on demand into a reused scratch
+        // buffer and grows auto-fit from it; push mode references m_rows
+        // directly (no per-row copy).
+        const std::vector<Cell> *  cellsPtr = nullptr;
+
+        if (m_virtual)
+        {
+            ProvideRow (r, m_providerScratch);
+            NoteAutoFitRow (m_providerScratch);
+            cellsPtr = &m_providerScratch;
+        }
+        else
+        {
+            cellsPtr = &m_rows[(size_t) r];
+        }
+
+        const std::vector<Cell> &  cells = *cellsPtr;
 
         for (size_t c = 0; c < m_columns.size() && c < cells.size(); ++c)
         {
