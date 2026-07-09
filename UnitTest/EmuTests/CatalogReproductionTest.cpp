@@ -176,4 +176,87 @@ public:
         Assert::IsTrue (volumeBanner,
             L"CATALOG must print a DISK VOLUME header.");
     }
+
+
+    ////////////////////////////////////////////////////////////////////////
+    //
+    //  DOS33_SAVE_RoundTripsToDsk (GH #89)
+    //
+    //  End-to-end gate for the .dsk write path: boot the real DOS 3.3
+    //  master, enter a one-line program, SAVE it, then LOAD it back and
+    //  LIST. Per #89 the write streams a corrupt data field through the
+    //  LSS, so SAVE returns I/O ERROR and the program never round-trips.
+    //
+    ////////////////////////////////////////////////////////////////////////
+
+    TEST_METHOD (DOS33_SAVE_RoundTripsToDsk)
+    {
+        std::vector<Byte>  raw = ReadDskOrEmpty ("Disks/Apple/dos33-master.dsk");
+        if (raw.empty ())
+        {
+            Logger::WriteMessage ("SKIPPED: Disks/Apple/dos33-master.dsk not "
+                                  "available in this checkout.\n");
+            return;
+        }
+
+        Assert::AreEqual (size_t (143360), raw.size (),
+            L"DOS 3.3 master disk must be 143360 bytes");
+
+        HeadlessHost   host;
+        EmulatorCore   core;
+
+        HRESULT  hr = host.BuildApple2eWithDisk2 (core);
+        Assert::IsTrue (SUCCEEDED (hr), L"BuildApple2eWithDisk2 must succeed");
+
+        core.PowerCycle ();
+
+        hr = core.diskStore->MountFromBytes (kSlot6, kDrive1,
+            "dos33-master.dsk", DiskFormat::Dsk, raw);
+        Assert::IsTrue (SUCCEEDED (hr), L"MountFromBytes must succeed");
+
+        DiskImage *  img = core.diskStore->GetImage (kSlot6, kDrive1);
+        Assert::IsNotNull (img, L"Mounted DiskImage must be present");
+        core.diskController->SetExternalDisk (kDrive1, img);
+
+        core.bus->WriteByte (kIntCxRomOff, 0);
+        core.cpu->SetPC (kBootRomEntry);
+
+        core.RunCycles (kDos33ColdBootCycles);
+
+        auto Screen = [&] () -> std::string
+        {
+            std::vector<std::string>  scr = TextScreenScraper::Scrape40 (
+                *core.bus, TextScreenScraper::kTextPage1);
+            std::string               joined;
+            for (const auto & r : scr) { joined += r; joined += "\n"; }
+            return joined;
+        };
+
+        Assert::IsTrue (Screen ().find (']') != std::string::npos,
+            L"DOS 3.3 must reach the ] prompt within the cold-boot budget.");
+
+        // Enter a one-line program and SAVE it.
+        KeystrokeInjector::InjectLine (core, "10 REM TEST PROGRAM", kCatalogCycles);
+        KeystrokeInjector::InjectLine (core, "SAVE TEST", kCatalogCycles);
+        std::string  afterSave = Screen ();
+
+        // Clear the program, LOAD it back, clear the screen, and LIST so
+        // the recovered text is unambiguous (not a SAVE echo left onscreen).
+        KeystrokeInjector::InjectLine (core, "NEW", kCatalogCycles);
+        KeystrokeInjector::InjectLine (core, "LOAD TEST", kCatalogCycles);
+        KeystrokeInjector::InjectLine (core, "HOME", kCatalogCycles);
+        KeystrokeInjector::InjectLine (core, "LIST", kCatalogCycles);
+        std::string  afterList = Screen ();
+
+        Assert::IsTrue (afterSave.find ("I/O ERROR") == std::string::npos &&
+                        afterList.find ("I/O ERROR") == std::string::npos,
+            L"SAVE/LOAD to a .dsk must not return I/O ERROR (GH #89).");
+
+        // DOS 3.3 LIST re-formats the line with its own spacing
+        // ("10  REM  TEST PROGRAM"), so match the REM comment body,
+        // which round-trips verbatim. afterList was captured after a
+        // HOME wipe, so this text can only be the LOADed program.
+        Assert::IsTrue (afterList.find ("TEST PROGRAM") != std::string::npos,
+            L"LOAD+LIST must recover the saved program text (write round-trip).");
+    }
 };

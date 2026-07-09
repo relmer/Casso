@@ -6,6 +6,28 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 Versioned entries use `MAJOR.MINOR.PATCH` from [Version.h](CassoCore/Version.h).
 Entries before versioning was introduced use dates only.
 
+## [1.6.2] — Disk ][ write round-trip fix (GH #89)
+
+### Fixed
+- **fix(disk): writes to `.dsk` images now round-trip (GH #89).** DOS 3.3
+  `SAVE` returned `I/O ERROR` and Print Shop ground forever because the
+  Logic State Sequencer sampled the *sequencer state* bit (`state & 0x8`)
+  as the outgoing write-data line. On real hardware that bit tracks the
+  write shift-register MSB only because the P6 sequencer and the register
+  are clocked in lockstep by the 2 MHz Q3; a cycle-stepped emulator that
+  catches the LSS up in bursts at each soft-switch access cannot hold that
+  sub-clock lockstep, so the sampled bit desynced and deposited ~`AA`
+  garbage where `FF` sync belongs — corrupting every data field DOS wrote.
+  The write bit is now sourced straight from the shift-register MSB
+  (`Disk2NibbleEngine::StepLss`), the physically correct write-head signal,
+  which is robust to catch-up granularity. Address fields were never
+  rewritten by DOS so they survived, which is why reads (CATALOG) worked
+  while writes silently corrupted the disk.
+- Added hermetic write→read-back regression gates: an engine-level
+  `FF`-sync round trip, a CPU-driven known-nibble round trip through the
+  raw bitstream, and an end-to-end DOS 3.3 `SAVE`/`LOAD`/`LIST` round trip
+  — closing the bit-exact write-fidelity gap deferred in #67.
+
 ## [1.6.1] — Keyboard accelerator fixes
 
 Emulator keyboard shortcuts moved off plain `Ctrl+<letter>` so they stop
