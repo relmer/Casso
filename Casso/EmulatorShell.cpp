@@ -3,6 +3,8 @@
 #include "EmulatorShell.h"
 #include "AssetBootstrap.h"
 #include "Print/PrintJobStore.h"
+#include "Devices/Printer/PrinterCard.h"
+#include "Ui/PrinterPanel.h"
 
 #include "Core/PathResolver.h"
 #include "Version.h"
@@ -466,6 +468,9 @@ EmulatorShell::~EmulatorShell()
 
         m_inputDebugPanel.reset();
     }
+
+    // The printer panel holds no machine sinks -- just close its window.
+    m_printerPanel.reset();
 
     // / T097 / FR-025. Final auto-flush of any dirty disks on
     // process shutdown — matches the "graceful exit" requirement from
@@ -2434,6 +2439,117 @@ void EmulatorShell::LayoutPrinterIndicator (int bottomInsetPx, int clientW, int 
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  EmulatorShell::ShowPrinterPanel
+//
+//  Lazily creates the printer panel / print preview window, wires its toolbar
+//  callbacks to the existing delivery commands, pushes a fresh strip snapshot,
+//  and brings it to the foreground. Mirrors ShowDisk2Debug's create pattern.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::ShowPrinterPanel ()
+{
+    HRESULT     hr        = S_OK;
+    HINSTANCE   hInstance = nullptr;
+
+    if (m_printerPanel == nullptr || m_printerPanel->Hwnd () == nullptr)
+    {
+        hInstance      = reinterpret_cast<HINSTANCE> (GetWindowLongPtr (m_hwnd, GWLP_HINSTANCE));
+        m_printerPanel = std::make_unique<PrinterPanel> ();
+
+        hr = m_printerPanel->Create (hInstance,
+                                     m_hwnd,
+                                     m_d3dRenderer.GetDevice (),
+                                     m_d3dRenderer.GetContext (),
+                                     &m_chromeTheme);
+        CHRF (hr, m_printerPanel.reset ());
+
+        // Toolbar actions route through the existing command path (which
+        // quiesces the worker, delivers/clears, and resumes), then re-snapshot.
+        m_printerPanel->SetOnFinish ([this] ()
+        {
+            m_windowCommandManager->HandleCommand (IDM_PRINTER_EJECT);
+            SnapshotStripToPanel ();
+        });
+        m_printerPanel->SetOnCopy ([this] ()
+        {
+            m_windowCommandManager->HandleCommand (IDM_PRINTER_COPY);
+            SnapshotStripToPanel ();
+        });
+        m_printerPanel->SetOnDiscard ([this] ()
+        {
+            m_windowCommandManager->HandleCommand (IDM_PRINTER_DISCARD);
+            SnapshotStripToPanel ();
+        });
+        m_printerPanel->SetOnRefresh ([this] ()
+        {
+            SnapshotStripToPanel ();
+        });
+    }
+
+    SnapshotStripToPanel ();
+
+    m_printerPanel->Show ();
+    SetForegroundWindow (m_printerPanel->Hwnd ());
+
+Error:
+    return;
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::SnapshotStripToPanel
+//
+//  Reads the strip raster race-free: stop the drain worker, flush any tail
+//  bytes, copy the raster, then resume the worker on the same page (reseeded).
+//  Non-destructive -- the guest keeps printing onto the same strip.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::SnapshotStripToPanel ()
+{
+    PrinterJob *  job = nullptr;
+    PrintRaster   snapshot;
+
+    if (m_printerPanel == nullptr || !m_printerPanel->IsOpen ())
+    {
+        return;
+    }
+
+    if (m_refs.printerCard == nullptr)
+    {
+        m_printerPanel->SetStrip (snapshot);   // empty
+        return;
+    }
+
+    m_printerWorker.Stop ();
+
+    {
+        vector<PrinterEvent>   events;
+        m_printerWorker.FlushNow (events);
+    }
+
+    job = m_printerWorker.Job ();
+
+    if (job != nullptr)
+    {
+        snapshot = job->Raster ();   // copy
+    }
+
+    // Resume on the same page (seed copies into the worker; snapshot survives).
+    m_printerWorker.Start (m_refs.printerCard->ByteRing (), snapshot);
+
+    m_printerPanel->SetStrip (snapshot);
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  EmulatorShell::UpdatePrinterIndicator
 //
 //  Samples the worker's thread-safe status signals, recomputes the indicator
@@ -2875,6 +2991,10 @@ int EmulatorShell::RunMessageLoop()
         if (m_inputDebugPanel != nullptr)
         {
             IGNORE_RETURN_VALUE (hr, m_inputDebugPanel->RenderFrame());
+        }
+        if (m_printerPanel != nullptr)
+        {
+            IGNORE_RETURN_VALUE (hr, m_printerPanel->RenderFrame());
         }
         if (m_mainMenu.IsOpen())
         {
@@ -3889,6 +4009,19 @@ DxuiMessageResult EmulatorShell::OnLButtonUp (WPARAM wParam, LPARAM lParam)
         {
             Eject (6, drive.Drive());
             BrowseForDisk (drive.Drive());
+            return DxuiMessageResult::NotHandled;
+        }
+    }
+
+    // A click on the printer status indicator opens the printer panel /
+    // print preview (US4 / FR-020).
+    if (!m_printerIndicator.Hidden ())
+    {
+        RECT  pr = m_printerIndicator.OuterRect ();
+
+        if (x >= pr.left && x < pr.right && y >= pr.top && y < pr.bottom)
+        {
+            ShowPrinterPanel ();
             return DxuiMessageResult::NotHandled;
         }
     }

@@ -469,6 +469,14 @@ private:
     // has no printer card. Does not affect drive centring.
     void    LayoutPrinterIndicator (int bottomInsetPx, int clientW, int clientH, UINT dpi);
 
+    // Open (creating if needed) the printer panel / print preview window, and
+    // push it a fresh snapshot of the current strip.
+    void    ShowPrinterPanel ();
+
+    // Quiesce the drain worker, copy the strip raster race-free, resume the
+    // worker on the same page, and hand the snapshot to the printer panel.
+    void    SnapshotStripToPanel ();
+
     // Per-frame: sample the worker's status signals, recompute the indicator
     // state, and mark a redraw only when it changes (so a static screen still
     // repaints the LED on a transition).
@@ -818,6 +826,7 @@ private:
     // re-zero it even while the panel is closed.
     std::unique_ptr<class Disk2DebugPanel>    m_disk2DebugPanel;
     std::unique_ptr<class InputDebugPanel>    m_inputDebugPanel;
+    std::unique_ptr<class PrinterPanel>       m_printerPanel;
     std::chrono::steady_clock::time_point     m_uptimeAnchor { std::chrono::steady_clock::now() };
 
     // Extracted shell-side managers. WindowManager owns the per-monitor
