@@ -198,7 +198,11 @@ void HardwarePage::SetRect (const RECT & rect, const DxuiDpiScaler & scaler)
             // Memory sub-row N sits at the same y as the "Memory:" header for
             // N=0, and stacks below for N>=1. Row 0 thus shares a line with
             // the Memory: header label; the header itself adds no extra row.
-            int  nameW    = scaler.Px (110);
+            // The name column is wide enough for the longest region label
+            // ("RAM (main, bank-switched)") to stay on one line -- there is
+            // ample dialog margin to the right, and the size/addr columns are
+            // positioned relative to it.
+            int  nameW    = scaler.Px (200);
             int  sizeW    = scaler.Px (55);
             int  addrW    = scaler.Px (130);
             int  subIndex = (int) (i - kFixedInfoRowCount);
