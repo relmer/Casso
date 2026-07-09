@@ -257,4 +257,35 @@ public:
         Assert::IsTrue (viaSer == viaDirect);
         Assert::IsTrue (viaSer == raw);
     }
+
+    TEST_METHOD (DskReformatRewrite_serializesToNewContentNotStale)
+    {
+        // A Print Shop "initialize data disk" (or any reformat) rewrites the
+        // mounted image's tracks. The .dsk write-back (Serialize/Denibblize)
+        // must reflect the NEW content, never the stale original -- the
+        // scenario behind the reported "initialized data disk still shows the
+        // old files" symptom. Because Denibblize scans for GCR address/data
+        // markers (byte-sync), a re-nibblized (reformatted) track round-trips
+        // regardless of the exact gap/sync layout the format produced, so a
+        // standard DOS 3.3 format survives the flush; the earlier loss was
+        // flush *timing*, addressed by motor-idle auto-flush.
+        DiskImage      img;
+        vector<Byte>   original  = MakePinnedRandomImage (0x11111111u);
+        vector<Byte>   rewritten = MakePinnedRandomImage (0x22222222u);
+        vector<Byte>   baseline;
+        vector<Byte>   afterReformat;
+
+        Assert::IsTrue (SUCCEEDED (NibblizationLayer::NibblizeDsk (original, img)));
+        Assert::IsTrue (SUCCEEDED (img.Serialize (baseline)));
+        Assert::IsTrue (original == baseline, L"baseline round-trip");
+
+        // Reformat: overwrite every track with different content.
+        Assert::IsTrue (SUCCEEDED (NibblizationLayer::NibblizeDsk (rewritten, img)));
+        Assert::IsTrue (SUCCEEDED (img.Serialize (afterReformat)));
+
+        Assert::IsTrue  (rewritten == afterReformat,
+            L"a reformatted .dsk must serialize to the new content");
+        Assert::IsFalse (original == afterReformat,
+            L"the stale original must not survive the reformat");
+    }
 };

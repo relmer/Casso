@@ -71,6 +71,10 @@ public:
     // ResizeTrack must be called first; the returned buffer length matches the
     // packed-byte size for the track. Bypasses write-protect.
     vector<Byte> &   GetTrackBitsForWrite (int track) { return m_trackBits[track]; }
+
+    // Const counterpart for read-only serializers (WozLoader::Serialize).
+    // Returns the packed MSB-first bit bytes backing a track slot.
+    const vector<Byte> & GetTrackBits (int track) const { return m_trackBits[track]; }
     void             SetTrackBitCount    (int track, size_t bitCount);
     void             LoadFromBytes       (DiskFormat fmt, const vector<Byte> & raw, const string & sourcePath);
 

@@ -268,6 +268,16 @@ HRESULT DiskImageStore::FlushEntry (Entry & entry)
     entry.image->ClearDirty ();
 
 Error:
+    // A genuine failure to persist a DIRTY image (serialize failed, or the
+    // sink/file write failed) must not vanish -- the early no-op returns
+    // above (clean / unmounted / write-protected) all leave hr == S_OK, so
+    // only real losses reach the reporter. The image keeps its dirty bit on
+    // failure, so a later flush can retry.
+    if (FAILED (hr) && m_flushErrorReporter)
+    {
+        m_flushErrorReporter (entry.path, hr);
+    }
+
     return hr;
 }
 

@@ -177,6 +177,81 @@ public:
         Assert::IsTrue (store.IsMounted (5, 0));
     }
 
+
+    ////////////////////////////////////////////////////////////////////////
+    //
+    //  Flush-error reporting. A dirty image that fails to persist used to
+    //  vanish (every flush caller drops the HRESULT). The reporter surfaces
+    //  the loss; a clean or successful flush must stay silent.
+    //
+    ////////////////////////////////////////////////////////////////////////
+
+    TEST_METHOD (FlushError_reporterFiresOnFailure_withPathAndHr)
+    {
+        DiskImageStore   store;
+        vector<Byte>     raw          = MakeDsk (0);
+        bool             reported     = false;
+        string           reportedPath;
+        HRESULT          reportedHr   = S_OK;
+
+        store.SetFlushSink          ([] (const string &, const vector<Byte> &) { return E_FAIL; });
+        store.SetFlushErrorReporter ([&] (const string & p, HRESULT hr)
+        {
+            reported     = true;
+            reportedPath = p;
+            reportedHr   = hr;
+        });
+
+        Assert::IsTrue (SUCCEEDED (store.MountFromBytes (kSlot, kDrive, "boom.dsk", DiskFormat::Dsk, raw)));
+        store.GetImage (kSlot, kDrive)->WriteBit (0, 0, 1);   // dirty
+
+        HRESULT   hr = store.Flush (kSlot, kDrive);
+
+        Assert::IsTrue   (FAILED (hr));
+        Assert::IsTrue   (reported, L"a failed flush must be reported, not swallowed");
+        Assert::AreEqual (string ("boom.dsk"), reportedPath);
+        Assert::IsTrue   (FAILED (reportedHr));
+    }
+
+    TEST_METHOD (FlushError_noReportOnCleanOrSuccessfulFlush)
+    {
+        DiskImageStore   store;
+        vector<Byte>     raw      = MakeDsk (0);
+        bool             reported = false;
+
+        store.SetFlushSink          ([] (const string &, const vector<Byte> &) { return S_OK; });
+        store.SetFlushErrorReporter ([&] (const string &, HRESULT) { reported = true; });
+
+        // Clean image ejected -> no flush -> no report.
+        Assert::IsTrue (SUCCEEDED (store.MountFromBytes (kSlot, kDrive, "clean.dsk", DiskFormat::Dsk, raw)));
+        store.Eject (kSlot, kDrive);
+        Assert::IsFalse (reported, L"clean image must not report");
+
+        // Dirty image that flushes successfully -> no report.
+        Assert::IsTrue (SUCCEEDED (store.MountFromBytes (kSlot, kDrive, "ok.dsk", DiskFormat::Dsk, raw)));
+        store.GetImage (kSlot, kDrive)->WriteBit (0, 0, 1);
+        Assert::IsTrue  (SUCCEEDED (store.Flush (kSlot, kDrive)));
+        Assert::IsFalse (reported, L"a successful flush must not report");
+    }
+
+    TEST_METHOD (FlushError_surfacesThroughVoidEjectPath)
+    {
+        // Eject is void and drops FlushEntry's HRESULT; the reporter must
+        // still fire so an eject that loses writes isn't silent.
+        DiskImageStore   store;
+        vector<Byte>     raw      = MakeDsk (0);
+        int              reports  = 0;
+
+        store.SetFlushSink          ([] (const string &, const vector<Byte> &) { return E_FAIL; });
+        store.SetFlushErrorReporter ([&] (const string &, HRESULT) { reports++; });
+
+        Assert::IsTrue (SUCCEEDED (store.MountFromBytes (kSlot, kDrive, "e.dsk", DiskFormat::Dsk, raw)));
+        store.GetImage (kSlot, kDrive)->WriteBit (0, 0, 1);
+        store.Eject (kSlot, kDrive);
+
+        Assert::AreEqual (1, reports, L"Eject flush failure must surface via the reporter");
+    }
+
     TEST_METHOD (FlushAll_ClearsDirtyFlags)
     {
         DiskImageStore   store;

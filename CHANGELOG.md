@@ -6,6 +6,45 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 Versioned entries use `MAJOR.MINOR.PATCH` from [Version.h](CassoCore/Version.h).
 Entries before versioning was introduced use dates only.
 
+## [1.6.3] — Disk write persistence: WOZ write-back, flush safety
+
+Follows GH #89 (which fixed the emulated write *bit*) by fixing the
+*persistence* layer that #89 never touched — the path from the in-memory
+track bit streams back to the host file.
+
+### Fixed
+- **fix(disk): WOZ writes now persist (write-back was never implemented).**
+  `DiskImage::Serialize`'s WOZ arm returned the untouched *source* bytes and
+  ignored every guest write, so edits to a writable `.woz` were silently
+  discarded on flush. A new `WozLoader::Serialize` emits a valid WOZ v2 image
+  (INFO + TMAP + TRKS + block-aligned bit streams, correct header CRC32) from
+  the live per-track buffers, preserving the write-protect flag. Guest writes
+  now round-trip; WOZ becomes the reliable writable format (raw bit stream, no
+  lossy sector re-encode). This is also the serializer 017 (blank-disk
+  creation) needs.
+- **fix(disk): disk-flush failures are no longer silently swallowed.** Every
+  flush caller dropped `FlushEntry`'s `HRESULT` (`Eject`/`PowerCycle` are
+  void; the exit path and `SoftReset` `IGNORE_RETURN_VALUE` it), so a failed
+  write-back vanished with no error and the user lost writes. `DiskImageStore`
+  now invokes an injected flush-error reporter on a genuine failure to persist
+  a dirty image; the shell logs it and warns the user via the shared EHM
+  notifier.
+
+### Added
+- **feat(disk): motor-idle auto-flush.** Dirty disk images are now persisted
+  when the drive motor spins down (a naturally debounced, ~1s-after-last-access
+  "operation complete" boundary), so writes survive a crash/kill before the
+  next eject or exit. The flush fires on the CPU thread inside
+  `Disk2Controller::Tick` — the thread that owns the disk writes — so it races
+  nothing, and skips clean images.
+
+### Notes
+- Confirmed the `.dsk` write-back round-trips a full reformat: `Denibblize`
+  scans for GCR address/data markers (byte-sync), so a standard DOS 3.3 format
+  survives regardless of gap/sync layout. The earlier "initialized data disk
+  still shows the old files" symptom was flush *timing*, now addressed by the
+  motor-idle auto-flush above.
+
 ## [1.6.2] — Disk ][ write round-trip fix (GH #89)
 
 ### Fixed
