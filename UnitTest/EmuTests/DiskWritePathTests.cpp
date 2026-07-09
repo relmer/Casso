@@ -51,61 +51,90 @@ namespace
     };
 
 
-    // Assembly for the write routine. X = $60 selects slot 6, so the
-    // indexed soft switches resolve to $C0E9/$C0EC/$C0ED/$C0EE/$C0EF.
-    std::string  BuildWriteSource (size_t payloadLen)
-    {
-        std::string  s;
-        s += ".org $6000\n";
-        s += "MOTOR = $C089\n";
-        s += "Q6L   = $C08C\n";
-        s += "Q6H   = $C08D\n";
-        s += "Q7L   = $C08E\n";
-        s += "Q7H   = $C08F\n";
-        s += "PTAB  = $7000\n";
-        s += "start\n";
-        s += "    ldx #$60\n";
-        s += "    lda MOTOR,x\n";       // motor on
-        s += "    lda Q7L,x\n";         // Q7 off (read)
-        s += "    lda Q6L,x\n";         // Q6 off
-        s += "    lda Q7H,x\n";         // Q7 on (write armed)
+    // A DOS-cadence write routine. X = $60 selects slot 6, so the indexed
+    // soft switches resolve to $C0E9/$C0EC/$C0ED/$C0EE/$C0EF. Each loop body
+    // is padded with NOPs to the exact bit-cell budget the LSS expects: 40
+    // cycles/nibble for self-sync $FF (10 bit cells) and 32 cycles/nibble
+    // for the payload (8 bit cells). PLEN is the payload length; the test
+    // asserts it stays in step with s_kPayload before running the routine.
+    constexpr char  kWriteSource[] = R"(
+                    .org $6000
+        MOTOR = $C089
+        Q6L   = $C08C
+        Q6H   = $C08D
+        Q7L   = $C08E
+        Q7H   = $C08F
+        PTAB  = $7000
+        PLEN  = 26                  ; == s_kPayload.size()
+        start:
+                    ldx #$60
+                    lda MOTOR,x         ; motor on
+                    lda Q7L,x           ; Q7 off (read)
+                    lda Q6L,x           ; Q6 off
+                    lda Q7H,x           ; Q7 on (write armed)
 
-        // Self-sync run: 40 x $FF at 40 cycles/nibble (10 bit cells).
-        s += "    ldy #40\n";
-        s += "sync1\n";
-        s += "    lda #$FF\n";          // 2
-        s += "    sta Q6H,x\n";         // 5  load  [load point]
-        s += "    lda Q6L,x\n";         // 4  shift
-        s += "    dey\n";               // 2
-        for (int i = 0; i < 12; i++) { s += "    nop\n"; }   // +24 -> 40
-        s += "    bne sync1\n";         // 3
+                    ; leading self-sync: 40 x $FF at 40 cycles/nibble
+                    ldy #40
+        sync1:
+                    lda #$FF            ; 2
+                    sta Q6H,x           ; 5  load
+                    lda Q6L,x           ; 4  shift
+                    dey                 ; 2
+                    nop                 ; 12 nops = 24  -> 40 total
+                    nop
+                    nop
+                    nop
+                    nop
+                    nop
+                    nop
+                    nop
+                    nop
+                    nop
+                    nop
+                    nop
+                    bne sync1           ; 3
 
-        // Payload: N nibbles at 32 cycles/nibble (8 bit cells).
-        s += "    ldy #0\n";
-        s += "data1\n";
-        s += "    lda PTAB,y\n";        // 4
-        s += "    sta Q6H,x\n";         // 5  load  [load point]
-        s += "    lda Q6L,x\n";         // 4  shift
-        s += "    iny\n";               // 2
-        s += "    cpy #" + std::to_string (payloadLen) + "\n";  // 2
-        for (int i = 0; i < 6; i++) { s += "    nop\n"; }    // +12 -> 32
-        s += "    bne data1\n";         // 3
+                    ; payload: PLEN nibbles at 32 cycles/nibble
+                    ldy #0
+        data1:
+                    lda PTAB,y          ; 4
+                    sta Q6H,x           ; 5  load
+                    lda Q6L,x           ; 4  shift
+                    iny                 ; 2
+                    cpy #PLEN           ; 2
+                    nop                 ; 6 nops = 12  -> 32 total
+                    nop
+                    nop
+                    nop
+                    nop
+                    nop
+                    bne data1           ; 3
 
-        // Trailing self-sync so the payload is bracketed by gaps.
-        s += "    ldy #20\n";
-        s += "sync2\n";
-        s += "    lda #$FF\n";
-        s += "    sta Q6H,x\n";
-        s += "    lda Q6L,x\n";
-        s += "    dey\n";
-        for (int i = 0; i < 12; i++) { s += "    nop\n"; }
-        s += "    bne sync2\n";
+                    ; trailing self-sync so the payload is bracketed by gaps
+                    ldy #20
+        sync2:
+                    lda #$FF
+                    sta Q6H,x
+                    lda Q6L,x
+                    dey
+                    nop
+                    nop
+                    nop
+                    nop
+                    nop
+                    nop
+                    nop
+                    nop
+                    nop
+                    nop
+                    nop
+                    nop
+                    bne sync2
 
-        s += "    lda Q7L,x\n";         // Q7 off
-        s += "halt\n";
-        s += "    jmp halt\n";
-        return s;
-    }
+                    lda Q7L,x           ; Q7 off
+        halt:
+                    jmp halt
+)";
 
 
     // Frame a track's packed bit stream into nibbles exactly as the LSS
@@ -242,10 +271,14 @@ public:
             core.bus->WriteByte (static_cast<Word> (kPayloadAddr + i), s_kPayload[i]);
         }
 
-        // Assemble + load the write routine.
+        // Assemble + load the write routine. PLEN in kWriteSource is
+        // hardcoded to the payload length; keep the two in step.
+        Assert::AreEqual (size_t (26), s_kPayload.size (),
+            L"kWriteSource hardcodes PLEN = 26; update both together");
+
         Cpu             asmCpu;
         Assembler       assembler (asmCpu.GetInstructionSet ());
-        AssemblyResult  r = assembler.Assemble (BuildWriteSource (s_kPayload.size ()));
+        AssemblyResult  r = assembler.Assemble (kWriteSource);
 
         if (!r.success)
         {
