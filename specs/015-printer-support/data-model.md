@@ -1,6 +1,6 @@
 # Data Model: Emulated Printer Support (ImageWriter II)
 
-**Feature**: 015-printer-support | **Date**: 2026-07-07
+**Feature**: 015-printer-support | **Date**: 2026-07-07 (rev. 2026-07-09: viewport + head-position stream)
 
 ## Guest-side (CassoEmuCore)
 
@@ -52,6 +52,30 @@ Input: bytes. Output: calls into `PrintRaster` (strike cells) and an ordered
 Lifecycle (state transitions): `Empty → Printing (first strike) → Pending
 (guest idle, un-ejected) → Empty (eject delivers whole strip / discard)`.
 Cancelled delivery: `Pending` unchanged. Guest reset: no transition.
+
+### PrinterViewport (pure, clock-injected — FR-033)
+
+| Field | Type | Notes |
+|---|---|---|
+| viewportRows | int | ~1 page of native rows (11" × 144); user-adjustable |
+| followLive | bool | true → top tracks the newest printed row |
+| scrollOffsetRows | int | user scrollback offset from the live row (0 when following) |
+| lastScrollMs | int64 | injected-clock time of last user scroll input |
+| snapDelayMs | const | ~2000; idle beyond this while scrolled → snap back to live |
+
+Inputs: `Advance(liveRow)`, `Scroll(deltaRows, nowMs)` (wheel/touch/arrows),
+`Tick(nowMs)`. Output: visible native-row span `{firstRow, lastRow}` for the
+incremental renderer. Pure math, no UI deps — unit-tested like
+`PrinterPacing` / `PrinterStatusModel`.
+
+### Head-position stream (FR-034)
+
+The interpreter's existing `HeadBurst{fromDot,toDot,row}` events gain paced
+per-column playback: `PrinterPacing` maps a burst + clock to the head's
+current column, so the panel reveals ink left→right *within* a line. The
+worker exposes the newest `{row, column}` thread-safely (like
+`ActivityCount`/`RowsUsed`) without touching the raster, which remains
+complete immediately.
 
 ### TitleRecognizer (pure)
 
@@ -108,8 +132,19 @@ enabled: true }` — default in embedded machine JSONs; added by
 ### Widget state
 
 Indicator: `{ visible, activity (idle/receiving/pending/error), tooltip
-config summary }`. Panel: `{ shown, pinned, presentedRow, perforations from
-pageBoundaryRows, controls: FormFeed(eject), Copy, Discard(confirm) }`.
+config summary }`. Panel: `{ shown, presentedRow, viewport (PrinterViewport),
+perforations from pageBoundaryRows, controls: FormFeed(eject), Copy,
+Discard(confirm), scroll hint }`.
+
+### Panel content texture + 3D scene (FR-032)
+
+The panel renders printed content — strip ink, tractor-feed sprocket
+strips/holes, perforations, head-column reveal — into a persistent 2D tile
+buffer covering the viewport span (new rows only; never a whole-strip
+re-render). The presentation maps that texture onto a curled-paper mesh in
+front of a procedurally-built, bottom-anchored printer chassis under a
+perspective camera (Dxui D3D11 additive path — research R-017); a flat blit of
+the same texture is the fallback. Paper furniture stays panel-only (FR-027).
 
 ## Relationships
 

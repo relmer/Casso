@@ -118,9 +118,9 @@
 
 **Shipped (2026-07-09):**
 
-- [X] [US4] T061 Delivery memory bound: `WholeStripDpi()` caps whole-strip PNG/clipboard render dpi to a ~512 MB budget (toward but not below native); `CopyPrintoutToClipboard` renders once and encodes the PNG from that image (was a double render) in `Casso/Shell/WindowCommandManager.cpp` (FR-028; commit `de6ee886`)
-- [X] [US4] T062 Windows-printer delivery tracing (driver name, page geometry, per-GDI-call GetLastError) to diagnose the PDF "failed to deliver" in `Casso/Shell/WindowCommandManager.cpp` (commit `f7b5cf92`)
-- [X] [US4] T063 Interim live-preview fixes: non-destructive snapshot under raster lock, activity-resume auto-open, blank-sheet empty preview, message boxes owned by/centered on the panel (`PrinterDialogOwner` + `DxuiMessageBox` owner-centering), Escape-to-close in `Casso/EmulatorShell.cpp` + `Casso/Ui/PrinterPanel.cpp` + `Dxui/Window/DxuiMessageBox.cpp` (the strip-scaled refresh throttle here is a stopgap superseded by T065; commits `de6ee886`/`f7b5cf92`)
+- [X] T061 [US4] Delivery memory bound: `WholeStripDpi()` caps whole-strip PNG/clipboard render dpi to a ~512 MB budget (toward but not below native); `CopyPrintoutToClipboard` renders once and encodes the PNG from that image (was a double render) in `Casso/Shell/WindowCommandManager.cpp` (FR-028; commit `de6ee886`)
+- [X] T062 [US4] Windows-printer delivery tracing (driver name, page geometry, per-GDI-call GetLastError) to diagnose the PDF "failed to deliver" in `Casso/Shell/WindowCommandManager.cpp` (commit `f7b5cf92`)
+- [X] T063 [US4] Interim live-preview fixes: non-destructive snapshot under raster lock, activity-resume auto-open, blank-sheet empty preview, message boxes owned by/centered on the panel (`PrinterDialogOwner` + `DxuiMessageBox` owner-centering), Escape-to-close in `Casso/EmulatorShell.cpp` + `Casso/Ui/PrinterPanel.cpp` + `Dxui/Window/DxuiMessageBox.cpp` (the strip-scaled refresh throttle here is a stopgap superseded by T065; commits `de6ee886`/`f7b5cf92`)
 
 **Phase A — viewport + incremental render (the real perf fix; presentation-agnostic):**
 
