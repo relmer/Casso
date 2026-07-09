@@ -222,6 +222,48 @@ public:
     }
 
 
+    // RAM total headline. Sums every RAM region -- main + aux ($0000-$BFFF) and
+    // both language-card banks ($D000-$FFFF) -- while EXCLUDING system ROM, so a
+    // 128K //c reads "128K RAM" (not 160K with the 32K ROM folded in). A 48K ][
+    // with no aux/LC reads "48K RAM".
+    TEST_METHOD (MemoryTotal_SumsRamAcrossBanks_ExcludesRom)
+    {
+        // 128K //c: 48K main + 48K aux + 16K + 16K language-card banks.
+        const char * cJson = R"JSON({
+            "$cassoMachineVersion": 1,
+            "name": "Apple //c",
+            "timing": { "clockSpeed": 1023000 },
+            "ram": [
+                { "address": "0x0000", "size": "0xC000" },
+                { "address": "0x0000", "size": "0xC000", "bank": "aux" }
+            ],
+            "systemRom": { "address": "0xC000", "romBankSize": "0x4000" },
+            "internalDevices": [ { "type": "language-card" } ]
+        })JSON";
+
+        SettingsPanelState  cSt;
+        JsonValue           cv = ParseOrFail (cJson);
+        Assert::IsTrue (SUCCEEDED (cSt.LoadFromMachine ("Apple //c", cv, cv)));
+        Assert::AreEqual (std::string ("128K RAM"), cSt.MachineInfo().ramSummary,
+            L"48+48+16+16 = 128K; the 32K ROM must not be counted");
+
+        // 48K ][: single main bank, no aux, no language card.
+        const char * twoJson = R"JSON({
+            "$cassoMachineVersion": 1,
+            "name": "Apple ][",
+            "timing": { "clockSpeed": 1023000 },
+            "ram": [ { "address": "0x0000", "size": "0xC000" } ],
+            "systemRom": { "address": "0xD000" }
+        })JSON";
+
+        SettingsPanelState  twoSt;
+        JsonValue           tv = ParseOrFail (twoJson);
+        Assert::IsTrue (SUCCEEDED (twoSt.LoadFromMachine ("Apple ][", tv, tv)));
+        Assert::AreEqual (std::string ("48K RAM"), twoSt.MachineInfo().ramSummary,
+            L"single 48K main bank");
+    }
+
+
     TEST_METHOD (Load_RejectsNonObjectJson)
     {
         SettingsPanelState  st;

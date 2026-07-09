@@ -135,6 +135,7 @@ struct SettingsMachineInfo
     std::string                          cpu;
     std::string                          cpuManufacturer;
     uint32_t                             clockSpeed    = 0;
+    std::string                          ramSummary;    // "128K RAM" total, ROM excluded
     std::vector<SettingsMemoryRegion>    memoryRegions;
     size_t                               devices       = 0;
 };

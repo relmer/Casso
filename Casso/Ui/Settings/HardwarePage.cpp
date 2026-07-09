@@ -195,10 +195,10 @@ void HardwarePage::SetRect (const RECT & rect, const DxuiDpiScaler & scaler)
     {
         if (i >= kFixedInfoRowCount)
         {
-            // Memory sub-row N sits at the same y as the "Memory:" header for
-            // N=0, and stacks below for N>=1. Row 0 thus shares a line with
-            // the Memory: header label; the header itself adds no extra row.
-            // The name column is wide enough for the longest region label
+            // Memory sub-rows stack UNDER the "Memory:" header, which now
+            // carries the RAM total ("128K RAM") in its value column. So the
+            // per-region breakdown starts one row below the header (+1). The
+            // name column is wide enough for the longest region label
             // ("RAM (main, bank-switched)") to stay on one line -- there is
             // ample dialog margin to the right, and the size/addr columns are
             // positioned relative to it.
@@ -206,7 +206,7 @@ void HardwarePage::SetRect (const RECT & rect, const DxuiDpiScaler & scaler)
             int  sizeW    = scaler.Px (55);
             int  addrW    = scaler.Px (130);
             int  subIndex = (int) (i - kFixedInfoRowCount);
-            int  rowY     = m_infoTop + ((int) s_kMemoryRow + subIndex) * rowHeight;
+            int  rowY     = m_infoTop + ((int) s_kMemoryRow + 1 + subIndex) * rowHeight;
 
             m_infoLabels[i].SetRect (MakeRect (valueX,                 rowY, nameW, rowHeight));
             m_infoValues[i].SetRect (MakeRect (valueX + nameW,         rowY, sizeW, rowHeight));
@@ -224,11 +224,12 @@ void HardwarePage::SetRect (const RECT & rect, const DxuiDpiScaler & scaler)
         m_infoExtras[i].SetDpi (dpi);
     }
 
-    // y now sits one row PAST the Memory header. Bump down by the remaining
-    // memory rows (rowsInUse - 1, since row 0 shares a line with the header).
-    if (m_memoryRowsInUse > 1)
+    // y now sits one row PAST the Memory header (which holds the RAM total).
+    // Every region row stacks below that header now, so bump down by the full
+    // region count to clear them before the device tree.
+    if (m_memoryRowsInUse > 0)
     {
-        y += (int) (m_memoryRowsInUse - 1) * rowHeight;
+        y += (int) m_memoryRowsInUse * rowHeight;
     }
 
     treeRect.left = x;
@@ -344,7 +345,7 @@ void HardwarePage::Rebuild ()
 
         m_infoValues[s_kCpuRow].SetText    (cpuDisplay);
         m_infoValues[s_kClockRow].SetText  (FormatGrouped (info->clockSpeed) + L" Hz");
-        m_infoValues[s_kMemoryRow].SetText (L"");        // header row, value column blank
+        m_infoValues[s_kMemoryRow].SetText (Widen (info->ramSummary));   // RAM total on the header line
 
         size_t  rowsInUse = std::min<size_t> (info->memoryRegions.size(), kMaxMemoryRows);
         size_t  i         = 0;

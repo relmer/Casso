@@ -680,6 +680,7 @@ HRESULT SettingsPanelState::ExtractMachineInfo (
     const JsonValue  * internalDevices = nullptr;
     const JsonValue  * slots           = nullptr;
     bool               hasAux          = false;
+    uint32_t           totalRamBytes   = 0;
 
     auto ParseHex = [] (const std::string & str) -> uint32_t
     {
@@ -799,6 +800,7 @@ HRESULT SettingsPanelState::ExtractMachineInfo (
                 hasAux  = true;
             }
             FormatRegion (label, addr, size);
+            totalRamBytes += ParseHex (size);
         }
     }
 
@@ -881,6 +883,7 @@ HRESULT SettingsPanelState::ExtractMachineInfo (
                 region.size         = FormatSize (0x4000);   // 16K ($D000 double-banked)
                 region.addressRange = "$D000-$FFFF";
                 outInfo.memoryRegions.push_back (std::move (region));
+                totalRamBytes += 0x4000;
             };
 
             addLcRam ("RAM (main, bank-switched)");
@@ -895,6 +898,14 @@ HRESULT SettingsPanelState::ExtractMachineInfo (
     if (SUCCEEDED (hrRead) && slots != nullptr)
     {
         outInfo.devices += slots->ArraySize();
+    }
+
+    // Headline total: sum every RAM region (main + aux + language-card banks;
+    // ROM is excluded) so a 128K //e/​//c reads its full 128K at a glance above
+    // the per-region breakdown.
+    if (totalRamBytes != 0)
+    {
+        outInfo.ramSummary = FormatSize (totalRamBytes) + " RAM";
     }
 
 Error:
