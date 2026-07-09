@@ -134,7 +134,7 @@ namespace
                     lda Q7L,x           ; Q7 off
         halt:
                     jmp halt
-)";
+    )";
 
 
     // Frame a track's packed bit stream into nibbles exactly as the LSS
