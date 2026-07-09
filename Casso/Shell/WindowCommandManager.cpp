@@ -37,6 +37,35 @@ namespace
 {
     using namespace ChromeMetrics;
 
+    // Trace the Windows-printer delivery path (visible in DebugView / the VS
+    // Output window). A "failed to deliver" is otherwise a black box -- this puts
+    // the chosen driver, page geometry, and the exact failing GDI call +
+    // GetLastError into the log so a PDF / real-printer failure can be diagnosed.
+    void  LogPrinter (const std::wstring & msg)
+    {
+        OutputDebugStringW ((L"[Printer] " + msg + L"\n").c_str ());
+    }
+
+    // The device the user picked in the print dialog (DEVNAMES holds it as an
+    // offset into its own block), for the delivery trace.
+    std::wstring  SelectedPrinterName (const PRINTDLGW & pd)
+    {
+        std::wstring   name;
+
+        if (pd.hDevNames != nullptr)
+        {
+            const DEVNAMES *  dn = (const DEVNAMES *) GlobalLock (pd.hDevNames);
+
+            if (dn != nullptr)
+            {
+                name = (const wchar_t *) dn + dn->wDeviceOffset;
+                GlobalUnlock (pd.hDevNames);
+            }
+        }
+
+        return name;
+    }
+
     // Blit an R,G,B,A image onto a printer HDC. The strip is scaled to fit the
     // page WIDTH (uniform scale, aspect preserved) and top-aligned so the
     // fanfold continues downward across page breaks. Fitting to width -- not
@@ -88,7 +117,9 @@ namespace
                               (pageW - destW) / 2, 0, destW, destH,
                               0, 0, img.width, img.height,
                               bgra.data (), &bmi, DIB_RGB_COLORS, SRCCOPY);
-        CBREx (blit != GDI_ERROR, E_FAIL);
+        CBRFEx (blit != GDI_ERROR, E_FAIL,
+                LogPrinter (std::format (L"StretchDIBits GDI_ERROR: src {}x{} -> dest {}x{} on page {}x{}, GetLastError={}",
+                                         img.width, img.height, destW, destH, pageW, pageH, ::GetLastError ())));
 
     Error:
         return hr;
@@ -744,8 +775,13 @@ HRESULT WindowCommandManager::PrintToWindowsPrinter (const PrintRaster & raster)
     bool                                   started = false;
     int                                    pageW   = 0;
     int                                    pageH   = 0;
+    int                                    pageIx  = 0;
 
-    CBR (!pages.empty ());
+    LogPrinter (std::format (L"deliver: {} rows -> {} page(s), dpi={}, style={}",
+                             raster.RowsUsed (), pages.size (), PrintDpiFromPrefs (prefs),
+                             PrintDotStyleFromPrefs (prefs) == DotStyle::Ink ? L"ink" : L"plain"));
+
+    CBRF (!pages.empty (), LogPrinter (L"deliver: nothing to print (0 pages)"));
 
     pd.lStructSize = sizeof (pd);
     pd.hwndOwner   = m_shell.m_hwnd;
@@ -754,19 +790,31 @@ HRESULT WindowCommandManager::PrintToWindowsPrinter (const PrintRaster & raster)
 
     if (!PrintDlgW (&pd))
     {
+        // CommDlgExtendedError == 0 means the user simply cancelled the dialog.
+        DWORD   cderr = CommDlgExtendedError ();
+
+        LogPrinter (std::format (L"PrintDlg returned false (CommDlgExtendedError=0x{:X}){}",
+                                 cderr, cderr == 0 ? L" -- user cancelled" : L""));
         hr = S_FALSE;   // cancelled / closed
         goto Error;
     }
-    CBREx (pd.hDC != nullptr, E_FAIL);
+    LogPrinter (std::format (L"printer='{}'", SelectedPrinterName (pd)));
+    CBRFEx (pd.hDC != nullptr, E_FAIL, LogPrinter (L"PrintDlg returned a null DC"));
 
     di.cbSize      = sizeof (di);
     di.lpszDocName = L"Casso Printout";
 
-    CBREx (StartDocW (pd.hDC, &di) > 0, E_FAIL);
+    // "Microsoft Print to PDF" pops its Save-As prompt here; cancelling it makes
+    // StartDoc fail (GetLastError == ERROR_CANCELLED / 1223) rather than crash.
+    CBRFEx (StartDocW (pd.hDC, &di) > 0, E_FAIL,
+            LogPrinter (std::format (L"StartDoc failed, GetLastError={}", ::GetLastError ())));
     started = true;
 
     pageW = GetDeviceCaps (pd.hDC, HORZRES);
     pageH = GetDeviceCaps (pd.hDC, VERTRES);
+    LogPrinter (std::format (L"device page: {}x{} px, {}x{} dpi",
+                             pageW, pageH,
+                             GetDeviceCaps (pd.hDC, LOGPIXELSX), GetDeviceCaps (pd.hDC, LOGPIXELSY)));
 
     for (const PrintPagination::PageRange & pr : pages)
     {
@@ -778,20 +826,31 @@ HRESULT WindowCommandManager::PrintToWindowsPrinter (const PrintRaster & raster)
         opt.style     = PrintDotStyleFromPrefs (prefs);
 
         hr = renderer.Render (raster, pr.firstRow, pr.lastRow, opt, img);
-        CHR (hr);
+        CHRF (hr, LogPrinter (std::format (L"page {} render failed, hr=0x{:08X}", pageIx, (uint32_t) hr)));
 
-        CBREx (StartPage (pd.hDC) > 0, E_FAIL);
+        CBRFEx (StartPage (pd.hDC) > 0, E_FAIL,
+                LogPrinter (std::format (L"page {} StartPage failed, GetLastError={}", pageIx, ::GetLastError ())));
 
         hr = BlitRgbaToDc (pd.hDC, img, pageW, pageH);
-        CHR (hr);
+        CHRF (hr, LogPrinter (std::format (L"page {} blit failed, hr=0x{:08X}", pageIx, (uint32_t) hr)));
 
-        CBREx (EndPage (pd.hDC) > 0, E_FAIL);
+        CBRFEx (EndPage (pd.hDC) > 0, E_FAIL,
+                LogPrinter (std::format (L"page {} EndPage failed, GetLastError={}", pageIx, ::GetLastError ())));
+
+        pageIx++;
     }
 
-    CBREx (EndDoc (pd.hDC) > 0, E_FAIL);
+    CBRFEx (EndDoc (pd.hDC) > 0, E_FAIL,
+            LogPrinter (std::format (L"EndDoc failed, GetLastError={}", ::GetLastError ())));
     started = false;
+    LogPrinter (std::format (L"deliver: success ({} page(s) sent)", pages.size ()));
 
 Error:
+    if (FAILED (hr))
+    {
+        LogPrinter (std::format (L"deliver: FAILED, hr=0x{:08X}", (uint32_t) hr));
+    }
+
     if (started && pd.hDC != nullptr)
     {
         AbortDoc (pd.hDC);
