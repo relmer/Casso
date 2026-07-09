@@ -36,8 +36,13 @@ namespace
 {
     using namespace ChromeMetrics;
 
-    // Blit an R,G,B,A image onto a printer HDC, scaled to fit the page while
-    // preserving aspect ratio and top-aligned (fanfold continues downward).
+    // Blit an R,G,B,A image onto a printer HDC. The strip is scaled to fit the
+    // page WIDTH (uniform scale, aspect preserved) and top-aligned so the
+    // fanfold continues downward across page breaks. Fitting to width -- not
+    // min(width,height) -- is deliberate: the strip width is identical on every
+    // page, so a width fit gives every page the same horizontal scale and left
+    // edge. A min() fit would height-limit full pages but width-limit the short
+    // last page, scaling their columns differently and misaligning page-to-page.
     // GDI DIBs are BGRA, so the channels are swapped into a scratch buffer.
     HRESULT BlitRgbaToDc (HDC hdc, const RgbaImage & img, int pageW, int pageH)
     {
@@ -63,7 +68,7 @@ namespace
             bgra[i * 4 + 3] = img.rgba[i * 4 + 3];   // A
         }
 
-        scale = (std::min) ((double) pageW / img.width, (double) pageH / img.height);
+        scale = (double) pageW / img.width;   // fit width; identical scale on every page
         if (scale <= 0.0) { scale = 1.0; }
         destW = (std::max) (1, (int) (img.width  * scale));
         destH = (std::max) (1, (int) (img.height * scale));

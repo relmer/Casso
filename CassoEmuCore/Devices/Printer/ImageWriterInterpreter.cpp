@@ -42,6 +42,7 @@ static constexpr int    s_kColorParams       = 1;
 static constexpr int    s_kDefaultLineFeedRows  = PrinterGrid::kRowsPerInch / 6;   // 24
 static constexpr int    s_kDefaultPitchDots      = PrinterGrid::kDotsPerInchH / 10;  // ~10 cpi (provisional)
 static constexpr int    s_kGraphicsPins          = 8;
+static constexpr int    s_kGraphicsRowsPerPin    = PrinterGrid::kRowsPerInch / 72;  // 2: pins sit 1/72" apart on the 144-row grid
 
 
 
@@ -369,7 +370,11 @@ void ImageWriterInterpreter::ExecuteParamCommand (PrintRaster & raster, vector<P
 //
 //  One bit-image column: eight vertical dots at the current head column.
 //  Bit order confirmed against a real Print Shop Color capture: the LSB (bit 0)
-//  is the TOP pin, dots on consecutive native rows (144 rows/inch). A HeadBurst
+//  is the TOP pin. The ImageWriter II's pins are spaced 1/72" apart, i.e. two
+//  rows on the 144 rows/inch native grid, so each pin fills a 2-row-tall dot
+//  (an 8-pin column spans 16 rows). Print Shop feeds ~14 rows between passes,
+//  slightly overlapping the bands so there are no white gaps between lines; the
+//  older 1-row-per-pin model left a 6-row blank stripe every line. A HeadBurst
 //  summarising the run is emitted when it ends.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -383,7 +388,12 @@ void ImageWriterInterpreter::ConsumeGraphicsByte (Byte b, PrintRaster & raster, 
     {
         if ((b & (0x01 << bit)) != 0)
         {
-            raster.Strike (m_headColumnDots, row + bit, m_color);
+            int   top = row + bit * s_kGraphicsRowsPerPin;
+
+            for (int r = 0; r < s_kGraphicsRowsPerPin; r++)
+            {
+                raster.Strike (m_headColumnDots, top + r, m_color);
+            }
         }
     }
 

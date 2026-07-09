@@ -34,18 +34,21 @@ namespace ImageWriterCalibrationTests
     {
     public:
 
-        //  ESC G byte 0x01 (LSB) lands on the TOP pin (row+0), 0x80 (MSB) on
-        //  the bottom pin (row+7). This is the bit the capture pinned.
+        //  ESC G byte 0x01 (LSB) lands on the TOP pin, 0x80 (MSB) on the bottom
+        //  pin. Pins are 1/72" apart -- two rows on the 144-row grid -- so each
+        //  pin fills a 2-row dot: top pin -> rows 0..1, bottom pin -> rows 14..15.
         TEST_METHOD (GraphicsBitOrderLsbIsTopPin)
         {
             vector<Byte>   lsb = { s_kEsc, 'K', '1', s_kEsc, 'G', '0', '0', '0', '1', 0x01 };
             vector<Byte>   msb = { s_kEsc, 'K', '1', s_kEsc, 'G', '0', '0', '0', '1', 0x80 };
 
-            Assert::AreEqual ((int) InkPrimary::Yellow, (int) RunSingleColumn (lsb, 0), L"LSB should strike top pin");
-            Assert::AreEqual (0,                        (int) RunSingleColumn (lsb, 7), L"LSB must not strike bottom");
+            Assert::AreEqual ((int) InkPrimary::Yellow, (int) RunSingleColumn (lsb, 0),  L"LSB should strike top pin (row 0)");
+            Assert::AreEqual ((int) InkPrimary::Yellow, (int) RunSingleColumn (lsb, 1),  L"top pin fills a 2-row dot (row 1)");
+            Assert::AreEqual (0,                        (int) RunSingleColumn (lsb, 14), L"LSB must not strike bottom");
 
-            Assert::AreEqual ((int) InkPrimary::Yellow, (int) RunSingleColumn (msb, 7), L"MSB should strike bottom pin");
-            Assert::AreEqual (0,                        (int) RunSingleColumn (msb, 0), L"MSB must not strike top");
+            Assert::AreEqual ((int) InkPrimary::Yellow, (int) RunSingleColumn (msb, 14), L"MSB should strike bottom pin (row 14)");
+            Assert::AreEqual ((int) InkPrimary::Yellow, (int) RunSingleColumn (msb, 15), L"bottom pin fills a 2-row dot (row 15)");
+            Assert::AreEqual (0,                        (int) RunSingleColumn (msb, 0),  L"MSB must not strike top");
         }
 
 
