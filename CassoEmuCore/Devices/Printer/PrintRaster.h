@@ -43,6 +43,13 @@ public:
                                 int paperRow, const vector<int> & boundaries,
                                 bool capReached);
 
+    // Copy rows [firstRow, lastRow] into `out`, rebased so out's row 0 is this
+    // strip's firstRow; page boundaries falling inside the span carry over
+    // (rebased). Bounded by the span, never the whole strip -- this is the
+    // live preview's per-refresh snapshot (FR-033), so a 60-page banner costs
+    // the same to snapshot as a receipt. Out-of-range spans yield an empty out.
+    void    CopyRowSpan       (int firstRow, int lastRow, PrintRaster & out) const;
+
     int     PaperRow          () const { return m_paperRow; }
     int     RowsUsed          () const { return m_rowsUsed; }
     bool    CapReached        () const { return m_capReached; }

@@ -124,9 +124,9 @@
 
 **Phase A — viewport + incremental render (the real perf fix; presentation-agnostic):**
 
-- [ ] T064 [P] [US4] Implement `PrinterViewport` — pure clock-injected scroll/follow/snap state (follow newest row while printing; wheel/touch/arrow offset; snap to live row after ~2 s idle; expose visible native-row span) in `CassoEmuCore/Devices/Printer/PrinterViewport.h/.cpp` + unit tests in `UnitTest/PrinterTests/PrinterViewportTests.cpp` (FR-033)
-- [ ] T065 [US4] Rework `PrinterPanel`/`PrinterPaperView` to render only newly-produced rows into a persistent tile buffer driven by `PrinterViewport` (~1-page viewport, no whole-strip re-render — replaces the T063 throttle) plus the on-screen scroll hint, in `Casso/Ui/PrinterPanel.cpp` + `Casso/Ui/PrinterPaperView.cpp` (FR-033, SC-010)
-- [ ] T066 [US4] Wire panel input: mouse wheel, touch, Up/Down arrows → viewport scroll; snap-back timer; keep Escape-to-close in `Casso/Ui/PrinterPanel.cpp` (FR-033)
+- [X] T064 [P] [US4] Implement `PrinterViewport` — pure clock-injected scroll/follow/snap state (follow newest row while printing; wheel/touch/arrow offset; snap to live row after ~2 s idle; expose visible native-row span) in `CassoEmuCore/Devices/Printer/PrinterViewport.h/.cpp` + 11 unit tests in `UnitTest/PrinterTests/PrinterViewportTests.cpp` (FR-033)
+- [X] T065 [US4] Rework `PrinterPanel` to a viewport-driven span render (~1-page span snapshot via new `PrintRaster::CopyRowSpan` + `PrinterWorker::SnapshotStripSpan`, rendered at fixed 144 dpi onto a constant full-page canvas, bottom-anchored, live row at the platen edge; no whole-strip snapshot or re-render anywhere — replaces the T063 throttle) plus the on-screen scroll hint, in `Casso/Ui/PrinterPanel.cpp` (FR-033, SC-010). NOTE: cost is bounded by the span (flat per frame); strict delta-only tile updates fold into T069's head-reveal dirty regions.
+- [X] T066 [US4] Wire panel input: mouse wheel → viewport scroll (`OnMouse` Wheel intercept), Up/Down/PageUp/PageDown arrows (`OnKey`), snap-back timer via per-frame `RefreshLive` tick; Escape-to-close kept, in `Casso/Ui/PrinterPanel.cpp` (FR-033)
 
 **Phase B — paper realism (into the content texture):**
 

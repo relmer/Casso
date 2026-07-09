@@ -479,10 +479,10 @@ private:
     // user is acting in), otherwise the main window.
     HWND    PrinterDialogOwner () const;
 
-    // Copy the strip raster race-free (without stopping the drain worker) and
-    // hand the snapshot to the printer panel. Non-destructive: the live
-    // interpreter keeps running, so pressing/refreshing preview mid-print can
-    // never disturb the job's state or the printed output.
+    // Force-refresh the printer panel from the drain worker (race-free, without
+    // stopping it): the panel snapshots and renders only its visible ~1-page
+    // viewport span. Non-destructive: the live interpreter keeps running, so
+    // refreshing mid-print can never disturb the job's state or the output.
     void    SnapshotStripToPanel ();
 
     // Per-frame: sample the worker's status signals, recompute the indicator
@@ -851,14 +851,11 @@ private:
     // Live-preview bookkeeping (UpdatePrinterPreview). Auto-open fires once when a
     // *new* print begins -- activity resuming after an idle gap -- so it opens even
     // when a prior pending strip is still loaded, yet a mid-print manual close does
-    // not fight a re-open (activity never goes idle mid-print). The refresh
-    // activity/time pair throttles the live strip refresh; the throttle scales with
-    // strip height so a tall banner is not re-rendered O(rows^2).
+    // not fight a re-open (activity never goes idle mid-print). Refresh pacing and
+    // change detection live in the panel's viewport (PrinterPanel::RefreshLive).
     bool                                      m_printerAutoOpenArmed    = true;
     uint64_t                                  m_printerAutoOpenActivity = 0;
     int64_t                                   m_printerActiveLastMs     = 0;
-    uint64_t                                  m_printerPreviewActivity  = 0;
-    int64_t                                   m_printerPreviewLastMs    = 0;
     std::chrono::steady_clock::time_point     m_uptimeAnchor { std::chrono::steady_clock::now() };
 
     // Extracted shell-side managers. WindowManager owns the per-monitor

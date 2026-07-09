@@ -2583,19 +2583,20 @@ void EmulatorShell::ApplyAppIconToWindow (HWND target)
 //
 //  EmulatorShell::SnapshotStripToPanel
 //
-//  Reads the strip raster race-free WITHOUT stopping the drain worker: the
-//  worker copies the raster under its lock while the same interpreter keeps
-//  running. Fully non-destructive -- previewing (or refreshing) mid-print can
-//  never reset the guest's in-flight state, so it cannot distort the output.
-//  (The old path stopped and re-Start()ed the worker, which rebuilt the
-//  interpreter and reset its line feed from Print Shop's ESC T back to the
-//  default, stretching everything printed after a mid-print preview.)
+//  Force-refreshes the panel from the drain worker WITHOUT stopping it: the
+//  panel snapshots only its visible viewport span under the worker's raster
+//  lock while the same interpreter keeps running. Fully non-destructive --
+//  previewing (or refreshing) mid-print can never reset the guest's in-flight
+//  state, so it cannot distort the output. (The original path stopped and
+//  re-Start()ed the worker, which rebuilt the interpreter and reset its line
+//  feed from Print Shop's ESC T back to the default, stretching everything
+//  printed after a mid-print preview.)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void EmulatorShell::SnapshotStripToPanel ()
 {
-    PrintRaster   snapshot;
+    int64_t   nowMs = 0;
 
     if (m_printerPanel == nullptr || !m_printerPanel->IsOpen ())
     {
@@ -2604,14 +2605,18 @@ void EmulatorShell::SnapshotStripToPanel ()
 
     if (m_refs.printerCard == nullptr)
     {
-        m_printerPanel->SetStrip (snapshot);   // empty
+        PrintRaster   empty;
+
+        m_printerPanel->SetStrip (empty);   // blank sheet
         return;
     }
 
-    if (m_printerWorker.SnapshotStrip (snapshot))
-    {
-        m_printerPanel->SetStrip (snapshot);
-    }
+    nowMs = (int64_t) std::chrono::duration_cast<std::chrono::milliseconds> (
+                std::chrono::steady_clock::now ().time_since_epoch ()).count ();
+
+    // Forced refresh through the panel's viewport: snapshots and renders only
+    // the visible ~1-page span (never the whole strip), same as the live path.
+    m_printerPanel->RefreshLive (m_printerWorker, nowMs, true /* force */);
 }
 
 
@@ -2669,13 +2674,9 @@ void EmulatorShell::UpdatePrinterIndicator ()
 
 void EmulatorShell::UpdatePrinterPreview ()
 {
-    static constexpr int64_t   s_kRefreshBaseMs   = 100;    // ~10 Hz on a short strip
-    static constexpr int64_t   s_kRefreshMaxMs    = 1500;   // floor rate on a tall banner
-    static constexpr int       s_kRowsPerExtraMs  = 24;     // +1 ms of throttle per 24 rows
-    static constexpr int64_t   s_kAutoOpenIdleMs  = 1200;   // activity gap that re-arms auto-open
+    static constexpr int64_t   s_kAutoOpenIdleMs = 1200;   // activity gap that re-arms auto-open
 
     uint64_t   activity = 0;
-    int        rows     = 0;
     int64_t    nowMs    = 0;
 
     if (m_refs.printerCard == nullptr)
@@ -2684,7 +2685,6 @@ void EmulatorShell::UpdatePrinterPreview ()
     }
 
     activity = m_printerWorker.ActivityCount ();
-    rows     = m_printerWorker.RowsUsed ();
     nowMs    = (int64_t) std::chrono::duration_cast<std::chrono::milliseconds> (
                    std::chrono::steady_clock::now ().time_since_epoch ()).count ();
 
@@ -2709,11 +2709,9 @@ void EmulatorShell::UpdatePrinterPreview ()
         m_printerAutoOpenArmed = true;   // print settled: re-arm for the next one
     }
 
-    // Live refresh, but only while the preview is genuinely visible, only when
-    // new bytes have landed, and no more than once per throttle window. The whole
-    // strip is re-rendered each time (cost ~ rows), so the throttle grows with the
-    // strip: a short receipt refreshes ~10 Hz, a tall banner a couple of times a
-    // second, keeping total live-render work near-linear instead of O(rows^2).
+    // Live refresh while the preview is genuinely visible. The panel's viewport
+    // does its own change detection and renders at most the visible ~1-page span
+    // (FR-033), so this per-frame call is flat-cost regardless of strip length.
     if (m_printerPanel == nullptr || !m_printerPanel->IsOpen ())
     {
         return;
@@ -2722,25 +2720,8 @@ void EmulatorShell::UpdatePrinterPreview ()
     {
         return;   // user closed (hid) it -- skip off-screen rendering
     }
-    if (activity == m_printerPreviewActivity)
-    {
-        return;   // nothing new drained since the last refresh
-    }
 
-    {
-        int64_t   throttleMs = s_kRefreshBaseMs + (int64_t) rows / s_kRowsPerExtraMs;
-
-        if (throttleMs > s_kRefreshMaxMs) { throttleMs = s_kRefreshMaxMs; }
-
-        if (nowMs - m_printerPreviewLastMs < throttleMs)
-        {
-            return;   // within the throttle window; the change lands on a later frame
-        }
-    }
-
-    SnapshotStripToPanel ();
-    m_printerPreviewActivity = activity;
-    m_printerPreviewLastMs   = nowMs;
+    m_printerPanel->RefreshLive (m_printerWorker, nowMs);
 }
 
 

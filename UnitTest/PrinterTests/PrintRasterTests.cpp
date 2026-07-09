@@ -142,5 +142,82 @@ namespace PrintRasterTests
 
             Assert::AreEqual ((Byte) 0, raster.CellAt (100, 100));
         }
+
+
+        TEST_METHOD (CopyRowSpanRebasesCells)
+        {
+            PrintRaster   raster;
+            PrintRaster   span;
+
+            raster.Strike (10, 100, InkPrimary::Black);
+            raster.Strike (20, 150, InkPrimary::Red);
+            raster.Strike (30, 200, InkPrimary::Blue);   // outside the span
+
+            raster.CopyRowSpan (100, 199, span);
+
+            Assert::AreEqual (100, span.RowsUsed ());
+            Assert::AreEqual ((Byte) InkPrimary::Black, span.CellAt (10, 0));    // 100 -> 0
+            Assert::AreEqual ((Byte) InkPrimary::Red,   span.CellAt (20, 50));   // 150 -> 50
+            Assert::AreEqual ((Byte) 0,                 span.CellAt (30, 100));  // 200 excluded
+        }
+
+
+        TEST_METHOD (CopyRowSpanClampsToUsedExtent)
+        {
+            PrintRaster   raster;
+            PrintRaster   span;
+
+            raster.Strike (0, 49, InkPrimary::Black);   // rowsUsed == 50
+
+            raster.CopyRowSpan (-10, 500, span);
+
+            Assert::AreEqual (50, span.RowsUsed ());
+            Assert::AreEqual ((Byte) InkPrimary::Black, span.CellAt (0, 49));
+        }
+
+
+        TEST_METHOD (CopyRowSpanEmptyWhenOutOfRange)
+        {
+            PrintRaster   raster;
+            PrintRaster   span;
+
+            raster.Strike (0, 9, InkPrimary::Black);
+
+            raster.CopyRowSpan (100, 200, span);   // entirely past the extent
+
+            Assert::AreEqual (0, span.RowsUsed ());
+        }
+
+
+        TEST_METHOD (CopyRowSpanCarriesRebasedBoundaries)
+        {
+            PrintRaster   raster;
+            PrintRaster   span;
+
+            raster.Strike (0, 10, InkPrimary::Black);
+            raster.MarkFormFeed ();                       // boundary at kPageRows
+            raster.Strike (0, PrinterGrid::kPageRows + 50, InkPrimary::Black);
+
+            raster.CopyRowSpan (PrinterGrid::kPageRows - 100,
+                                PrinterGrid::kPageRows + 50, span);
+
+            Assert::AreEqual ((size_t) 1, span.PageBoundaryRows ().size ());
+            Assert::AreEqual (100, span.PageBoundaryRows ()[0]);   // rebased
+        }
+
+
+        TEST_METHOD (CopyRowSpanCopiesAdvancedBlankRowsAsWhite)
+        {
+            PrintRaster   raster;
+            PrintRaster   span;
+
+            raster.Strike      (0, 0, InkPrimary::Black);
+            raster.AdvanceRows (5000);   // blank feed beyond the allocated store
+
+            raster.CopyRowSpan (4000, 4999, span);
+
+            Assert::AreEqual (1000, span.RowsUsed ());
+            Assert::AreEqual ((Byte) 0, span.CellAt (0, 500));
+        }
     };
 }

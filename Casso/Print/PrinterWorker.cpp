@@ -184,6 +184,32 @@ bool PrinterWorker::SnapshotStrip (PrintRaster & out)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  SnapshotStripSpan
+//
+//  Viewport-bounded variant of SnapshotStrip: copies only the requested rows
+//  under the raster lock, so the live preview's per-refresh cost stays flat
+//  no matter how long the banner grows.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool PrinterWorker::SnapshotStripSpan (int firstRow, int lastRow, PrintRaster & out)
+{
+    std::lock_guard<std::mutex>   lock (m_rasterMutex);
+
+    if (m_job == nullptr)
+    {
+        return false;
+    }
+
+    m_job->Raster ().CopyRowSpan (firstRow, lastRow, out);
+    return true;
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  Run
 //
 //  Drain loop: pull whatever the guest has emitted, then nap briefly only when

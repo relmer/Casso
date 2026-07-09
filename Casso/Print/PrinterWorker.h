@@ -55,6 +55,11 @@ public:
     // Returns false when no job is active. Safe to call from the UI thread.
     bool          SnapshotStrip (PrintRaster & out);
 
+    // Same contract, but copies only rows [firstRow, lastRow] (rebased to 0 in
+    // `out`). The live preview snapshots its ~1-page viewport through this so
+    // per-refresh cost is bounded by the viewport, not the strip (FR-033).
+    bool          SnapshotStripSpan (int firstRow, int lastRow, PrintRaster & out);
+
     // Thread-safe status signals for the chrome indicator / panel: a monotonic
     // counter that advances as guest bytes are drained (sample the delta to see
     // "receiving"), and whether the strip currently holds printed content. Safe

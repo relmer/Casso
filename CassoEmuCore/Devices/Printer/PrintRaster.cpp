@@ -196,6 +196,67 @@ void PrintRaster::RestoreFromIndexed (int rows, const vector<Byte> & cells,
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  CopyRowSpan
+//
+//  Rebased bounded copy for the live preview: out's row 0 is this strip's
+//  firstRow. Rows past the allocated store are blank (all paper white), so a
+//  span reaching into advanced-but-unstruck paper copies zeros, not garbage.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void PrintRaster::CopyRowSpan (int firstRow, int lastRow, PrintRaster & out) const
+{
+    int      spanRows  = 0;
+    size_t   available = m_cells.size () / s_kColumns;
+
+    out.Clear ();
+
+    if (firstRow < 0)
+    {
+        firstRow = 0;
+    }
+    if (lastRow >= m_rowsUsed)
+    {
+        lastRow = m_rowsUsed - 1;
+    }
+    if (lastRow < firstRow)
+    {
+        return;
+    }
+
+    spanRows = lastRow - firstRow + 1;
+
+    out.m_cells.assign ((size_t) spanRows * s_kColumns, 0);
+
+    for (int row = firstRow; row <= lastRow; row++)
+    {
+        if ((size_t) row >= available)
+        {
+            break;   // beyond the allocated store: rest of the span is blank
+        }
+
+        memcpy (&out.m_cells[(size_t) (row - firstRow) * s_kColumns],
+                &m_cells[(size_t) row * s_kColumns],
+                s_kColumns);
+    }
+
+    out.m_rowsUsed = spanRows;
+    out.m_paperRow = spanRows;
+
+    for (int boundary : m_pageBoundaryRows)
+    {
+        if (boundary > firstRow && boundary <= lastRow + 1)
+        {
+            out.m_pageBoundaryRows.push_back (boundary - firstRow);
+        }
+    }
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CellAt
 //
 ////////////////////////////////////////////////////////////////////////////////
