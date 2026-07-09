@@ -267,9 +267,10 @@ static HRESULT LoadMachineConfig (
             mruPruned = mru.Prune ([] (const fs::path & p)
                                    {
                                        return fs::exists (p)
-                                              && !AssetBootstrap::IsForeignWorktreeDisk (p);
+                                              && !AssetBootstrap::IsForeignCheckoutDisk (p);
                                    });
 
+            AssetBootstrap::AppendSiblingDisksFromMruFolders (mruPruned);
             AssetBootstrap::AppendBundledDemoDisks (mruPruned);
 
             hr = AssetBootstrap::PromptBootDiskMru (

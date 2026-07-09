@@ -53,12 +53,23 @@ public:
     // de-duplicated against existing entries. No-op in an installed layout.
     static void     AppendBundledDemoDisks (std::vector<DiskMru::Entry> & mountable);
 
-    // True if `p` is a disk under a git worktree checkout OTHER than the one
-    // this build runs from. Used to keep the shared %LOCALAPPDATA% recent-disks
-    // MRU from listing the same disk once per sibling worktree copy of the repo
-    // -- an MRU entry under a worktree is shown only when the running exe lives
-    // in that same worktree; entries outside any worktree always pass.
-    static bool     IsForeignWorktreeDisk (const fs::path & p);
+    // Append every supported disk image found in the folders that already
+    // contain a `mountable` entry (i.e. the recent-disk folders), so a disk
+    // sitting next to a recent one is offered in the picker without having
+    // to be mounted first. Each MRU folder is scanned fresh; results are
+    // sorted and de-duplicated against existing entries by filesystem
+    // identity, and foreign-worktree disks are excluded. Call this BEFORE
+    // AppendBundledDemoDisks so the scan set is exactly the MRU folders.
+    static void     AppendSiblingDisksFromMruFolders (std::vector<DiskMru::Entry> & mountable);
+
+    // True if `p` is a disk belonging to a checkout of this repo OTHER than
+    // the one this build runs from (a sibling .claude/worktrees/<name> copy,
+    // or the main tree when the running exe lives in a worktree). Used to keep
+    // the shared %LOCALAPPDATA% recent-disks MRU from listing disks that live
+    // in a different checkout; disks outside the repo entirely (the user's own
+    // folders, %LOCALAPPDATA%) always pass. See RepoCheckout.h for the pure,
+    // unit-tested classification.
+    static bool     IsForeignCheckoutDisk (const fs::path & p);
 
     static HRESULT  GetRequiredRoms       (HINSTANCE                hInstance,
                                            const wstring          & machineName,

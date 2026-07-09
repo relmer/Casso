@@ -37,6 +37,28 @@ track bit streams back to the host file.
   next eject or exit. The flush fires on the CPU thread inside
   `Disk2Controller::Tick` — the thread that owns the disk writes — so it races
   nothing, and skips clean images.
+- **feat(disk): the disk picker now lists sibling images from recent-disk
+  folders.** Both the boot-time and runtime insert pickers previously showed
+  only disks that were already in the recent-disks MRU (plus bundled demos), so
+  a freshly created or copied image sitting right next to a recent disk was
+  invisible until it had been mounted once via Browse. The pickers now also
+  enumerate every folder that contains a recent disk and offer all supported
+  images found there (`.dsk`/`.do`/`.po`/`.nib`/`.woz`), de-duplicated against
+  the MRU and excluding disks from other repo checkouts.
+  `DiskMru::DistinctFolders` computes the folder set (pure/unit-tested);
+  `AssetBootstrap::AppendSiblingDisksFromMruFolders` does the scan.
+
+### Changed
+- **The recent-disks prune is now scoped to the running *checkout*, not just
+  foreign worktrees (dev builds only).** `IsForeignWorktreeDisk` →
+  `IsForeignCheckoutDisk`: the shared `%LOCALAPPDATA%` MRU is populated by
+  every checkout of the repo on the machine (the main tree plus each
+  `.claude/worktrees/<name>` copy), so the picker now hides recent disks that
+  live in *any* checkout other than the one the running exe belongs to —
+  including the **main tree** when running from a worktree, which the old rule
+  let through. Disks outside the repo entirely (the user's own folders,
+  `%LOCALAPPDATA%`) always show, so this is invisible to installed users (no
+  worktrees). The classification moved to a pure, unit-tested `RepoCheckout.h`.
 
 ### Notes
 - Confirmed the `.dsk` write-back round-trips a full reformat: `Denibblize`
