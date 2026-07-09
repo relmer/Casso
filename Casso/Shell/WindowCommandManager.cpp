@@ -83,8 +83,39 @@ bool WindowCommandManager::OnCommand (HWND hwnd, int id)
     else if (id >= IDM_DISK_INSERT1   && id <= IDM_DISK_WRITEPROTECT2)      { OnDiskCommand (id); }
     else if (id >= IDM_VIEW_COLOR     && id <= IDM_VIEW_SETTINGS)           { OnViewCommand (id); }
     else if (id >= IDM_HELP_KEYMAP    && id <= IDM_HELP_ABOUT)              { OnHelpCommand (id); }
+    else if (id == IDM_DRIVE_EXTERNAL_CONNECT ||
+             id == IDM_DRIVE_EXTERNAL_DISCONNECT)                          { OnExternalDriveCommand (id); }
 
     return false;
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnExternalDriveCommand
+//
+//  //c optional external drive: reveal/hide the second drive-mount widget
+//  (m_driveChrome[1]). Runs on the UI thread -- it relays the chrome (menu
+//  bar + drive band), which asserts UI-thread affinity -- so it is reached
+//  via PostMessage(WM_COMMAND) from the settings apply sink, not the CPU
+//  command queue. Disk presence is unchanged (the //c keeps its built-in
+//  controller), so ReflowChromeForMachineChange does no window resize -- it
+//  just re-lays the widgets + hit-test map, where ShouldShowExternalDrive()
+//  gates the second widget.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void WindowCommandManager::OnExternalDriveCommand (int id)
+{
+    bool  connected = (id == IDM_DRIVE_EXTERNAL_CONNECT);
+
+    if (connected != m_shell.m_externalDriveConnected)
+    {
+        m_shell.m_externalDriveConnected = connected;
+        m_shell.ReflowChromeForMachineChange();
+    }
 }
 
 

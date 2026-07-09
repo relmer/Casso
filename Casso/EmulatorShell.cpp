@@ -3094,24 +3094,6 @@ void EmulatorShell::DispatchCpuCommand (const EmulatorCommand & cmd)
             break;
         }
 
-        case IDM_DRIVE_EXTERNAL_CONNECT:
-        case IDM_DRIVE_EXTERNAL_DISCONNECT:
-        {
-            // //c optional external drive: reveal/hide the second drive-mount
-            // widget. Re-run the chrome layout so ShouldShowExternalDrive()
-            // takes effect immediately. Disk presence is unchanged (the //c
-            // still has its built-in controller), so ReflowChromeForMachineChange
-            // does no window resize -- it just relays widgets + hit rects.
-            bool  connected = (cmd.id == IDM_DRIVE_EXTERNAL_CONNECT);
-
-            if (connected != m_externalDriveConnected)
-            {
-                m_externalDriveConnected = connected;
-                ReflowChromeForMachineChange();
-            }
-            break;
-        }
-
         default:
             break;
     }
