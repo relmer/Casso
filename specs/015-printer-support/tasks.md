@@ -110,6 +110,39 @@
 - [ ] T059 Run `scripts\Build.ps1 -RunCodeAnalysis` both archs + full `scripts\RunTests.ps1`; fix all findings (merge gate)
 - [ ] T060 Workspace hygiene sweep: remove capture files, test PNGs, stray diagnostics; final quickstart full pass
 
+## Phase 11: User Story 4 (cont.) — Live-Print Preview Redesign (P4)
+
+**Context**: Real Print Shop banner testing (2026-07-09) showed the first-cut panel re-rendered the whole strip every frame — O(rows²) time, unbounded memory — and delivery of a long banner exhausted memory. This phase implements the FR-032/033/034 presentation (1-page live viewport, scrollback, head-timing ink reveal, 3D scene) per the plan's "Preview Presentation Architecture" addendum. It refines Phase 6 (US4); the content pipeline stays 2D/testable and the 3D layer only presents the resulting texture.
+
+**Independent test**: print a max-length banner — preview stays responsive with flat per-frame cost, memory bounded (SC-010); head sweeps L→R laying ink, viewport follows newest row, scrollback + snap-to-live work (SC-011).
+
+**Shipped (2026-07-09):**
+
+- [X] [US4] T061 Delivery memory bound: `WholeStripDpi()` caps whole-strip PNG/clipboard render dpi to a ~512 MB budget (toward but not below native); `CopyPrintoutToClipboard` renders once and encodes the PNG from that image (was a double render) in `Casso/Shell/WindowCommandManager.cpp` (FR-028; commit `de6ee886`)
+- [X] [US4] T062 Windows-printer delivery tracing (driver name, page geometry, per-GDI-call GetLastError) to diagnose the PDF "failed to deliver" in `Casso/Shell/WindowCommandManager.cpp` (commit `f7b5cf92`)
+- [X] [US4] T063 Interim live-preview fixes: non-destructive snapshot under raster lock, activity-resume auto-open, blank-sheet empty preview, message boxes owned by/centered on the panel (`PrinterDialogOwner` + `DxuiMessageBox` owner-centering), Escape-to-close in `Casso/EmulatorShell.cpp` + `Casso/Ui/PrinterPanel.cpp` + `Dxui/Window/DxuiMessageBox.cpp` (the strip-scaled refresh throttle here is a stopgap superseded by T065; commits `de6ee886`/`f7b5cf92`)
+
+**Phase A — viewport + incremental render (the real perf fix; presentation-agnostic):**
+
+- [ ] T064 [P] [US4] Implement `PrinterViewport` — pure clock-injected scroll/follow/snap state (follow newest row while printing; wheel/touch/arrow offset; snap to live row after ~2 s idle; expose visible native-row span) in `CassoEmuCore/Devices/Printer/PrinterViewport.h/.cpp` + unit tests in `UnitTest/PrinterTests/PrinterViewportTests.cpp` (FR-033)
+- [ ] T065 [US4] Rework `PrinterPanel`/`PrinterPaperView` to render only newly-produced rows into a persistent tile buffer driven by `PrinterViewport` (~1-page viewport, no whole-strip re-render — replaces the T063 throttle) plus the on-screen scroll hint, in `Casso/Ui/PrinterPanel.cpp` + `Casso/Ui/PrinterPaperView.cpp` (FR-033, SC-010)
+- [ ] T066 [US4] Wire panel input: mouse wheel, touch, Up/Down arrows → viewport scroll; snap-back timer; keep Escape-to-close in `Casso/Ui/PrinterPanel.cpp` (FR-033)
+
+**Phase B — paper realism (into the content texture):**
+
+- [ ] T067 [US4] Render tractor-feed sprocket strips + holes down both edges and light perforations along the strips and between pages into the panel's content texture (panel-only per FR-027) in `Casso/Ui/PrinterPaperView.cpp` (FR-032)
+
+**Phase C — head-timing ink reveal:**
+
+- [ ] T068 [US4] Expose the print head's column position + timestamp stream from `ImageWriterInterpreter`/`PrinterJob`/`PrinterWorker` without mutating the (immediately-complete) raster in `CassoEmuCore/Devices/Printer/` + `Casso/Print/PrinterWorker.*` (FR-034)
+- [ ] T069 [US4] Extend `PrinterPacing` to a left→right per-column ink reveal within the current line and drive the panel's incremental reveal from it in `CassoEmuCore/Devices/Printer/PrinterPacing.*` + `Casso/Ui/PrinterPanel.cpp` + unit tests (FR-034, FR-031)
+
+**Phase D — 3D presentation scene (needs user eyeball for final tuning):**
+
+- [ ] T070 [US4] Add a scoped 3D path to Dxui's D3D11 renderer — MVP constant buffer + textured/lit shader (additive to the existing painter/text-renderer pipeline) in `Dxui/Render/` (FR-032)
+- [ ] T071 [US4] Implement `Printer3DScene` — bottom-anchored ImageWriter chassis mesh + dynamically-curled paper mesh mapping the content texture under a perspective camera, paper curling out of view above the viewport — in `Casso/Ui/Printer3DScene.h/.cpp` (FR-032)
+- [ ] T072 [US4] End-to-end: long-banner print shows head sweeping L→R laying ink, viewport follows newest row, scrollback + snap-to-live, bounded memory / flat frame cost (SC-010/SC-011); user reviews the 3D scene aesthetics
+
 ## Dependencies
 
 - Phase 2 blocks all stories (card, firmware, config, capture corpus).
@@ -117,6 +150,7 @@
 - US3's settings page precedes US4's audio-volume wiring (T028 → T040) — otherwise US4 depends only on US1.
 - US5 depends on US1 (+US3 for Windows pagination); US6 depends on US1 only; US7 is independent of all printing phases after Phase 2 (pure recognition + toast).
 - MVP = Phases 1–3. Each later phase is an independently shippable increment; commit per phase, push after commit.
+- Phase 11 (preview redesign) refines Phase 6 (US4): needs the US1 pipeline + the US4 panel (T034/T035). Internally A→B→C→D — Phase A (viewport/incremental render) is the perf fix and lands first; B/C add into the same content texture; D (3D scene) presents it last and is the only part needing a live eyeball. T061–T063 already shipped.
 
 ## Parallel opportunities
 
@@ -124,3 +158,4 @@
 - US1: T012+T013 ∥ T018 while T014 proceeds; T016 after T012.
 - US4: T033 ∥ T038 ∥ (T034→T035); US6 T046 ∥ T048 prep; US7 T050 ∥ T051 ∥ T053.
 - US5/US6/US7 are mutually independent once US1 lands — parallelizable across sessions.
+- Phase 11: T064 (`PrinterViewport`, pure) ∥ T067 (paper furniture) ∥ T068 (head-column signal) once Phase A's panel rework (T065) lands; T070 (3D pipeline) ∥ T068/T069 before T071 composes them.

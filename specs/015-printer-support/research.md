@@ -256,3 +256,49 @@ The panel is a right-edge surface built on the spec-007 `ChromeLayout`
 primitives: transient overlay style when auto-revealed, reserving the edge
 inset (window resize, emulator pixels preserved) only when the user pins it.
 Detailed geometry follows the DxuiWindow architecture from spec 013.
+
+**Update (2026-07-09)**: the panel shipped as a **separate top-level
+`DxuiWindow`** (peer of the main window, like the Disk II / Input debug
+panels), NOT a docked `ChromeLayout` edge surface — the user confirmed it
+should be its own Dxui window (and it doubles as print preview, FR-020). The
+indicator remains a chrome control; clicking it opens the panel window.
+
+## R-017: Preview presentation architecture (FR-032/033/034)
+
+**Decision**: Decouple content from presentation. The printed content (strip
+ink + paper furniture + head-column ink reveal) renders to a **2D texture** in
+pure, unit-testable code; a **real-3D** presentation layer maps that texture
+onto a curled-paper surface in front of a procedurally-built ImageWriter
+chassis (anchored at the panel bottom, paper curling out of view above a
+~1-page viewport). 3D is a *contained additive* path on the existing Dxui
+**D3D11** pipeline (custom HLSL shaders + vertex buffers already present; the
+text renderer already samples textures): add an MVP constant buffer, one
+textured/lit shader, and two meshes (chassis + dynamically-curled paper). No
+new engine, no image asset, no new third-party dependency.
+
+**Rationale**: The hero visual — printout mapped onto curling paper receding in
+perspective — is genuinely 3D and reads as flat trapezoids if faked in 2D. The
+chassis and paper share one camera, so both go 3D together. It becomes the
+pilot 3D primitive the drive widgets adopt when they move to true 3D — a
+lower-stakes place to prove the path than always-visible drive chrome.
+Isolating 3D to the final stage keeps the content pipeline testable and leaves
+a flat 2D fallback available (FR-032). Caveat: the 3D scene needs a live user
+eyeball for aesthetic tuning; the 2D content phases self-verify (testable math
++ capturable panel).
+
+## R-018: Long-banner memory — delivery cap + incremental preview
+
+**Decision**: Two independent bounds. (1) **Delivery** (PNG/clipboard) caps the
+whole-strip render dpi against a fixed RGBA budget (`WholeStripDpi()`, ~512 MB),
+dropping from 576 toward but not below the ~160×144 native grid, and renders the
+strip ONCE — the clipboard PNG is encoded from that same image (was a double
+render). Effectively lossless (no source detail above native). (2) **Preview**
+renders only newly-produced rows into a persistent tile buffer inside a ~1-page
+`PrinterViewport` (FR-033), so per-frame cost is flat regardless of strip
+length. The interim shipped fix (activity-gated, strip-scaled refresh throttle)
+is a stopgap the viewport replaces.
+
+**Rationale**: A 60-page banner is ~4608 × ~700k px at 576 dpi; materializing it
+(let alone twice) exhausts memory, and re-rendering it every frame is O(rows²).
+Bounding delivery by budget and the preview by viewport fixes both at the root
+(SC-010).

@@ -1,6 +1,6 @@
 # Implementation Plan: Emulated Printer Support (ImageWriter II)
 
-**Branch**: `015-printer-support` | **Date**: 2026-07-07 | **Spec**: [spec.md](spec.md)
+**Branch**: `015-printer-support` | **Date**: 2026-07-07 (rev. 2026-07-09: preview presentation addendum) | **Spec**: [spec.md](spec.md)
 
 **Input**: Feature specification from `/specs/015-printer-support/spec.md`
 
@@ -161,3 +161,83 @@ no system dependencies), host integration (files, clipboard, printers,
 dialogs, chrome) in the `Casso` shell. This is the same split
 `Disk2Controller` / `DiskManager` / `DriveWidget` already use, and it is what
 lets FR-017 and the constitution's test-isolation rule hold without friction.
+
+## Preview Presentation Architecture (2026-07-09 addendum)
+
+Covers FR-032/FR-033/FR-034 and SC-010/SC-011 — the panel's live-print
+presentation, decided after real Print Shop banner testing exposed that the
+first-cut "render the whole strip every ~100 ms" preview was O(rows²) in time
+and unbounded in memory. The redesign is staged so the perf-critical, testable
+work lands first and the aesthetic 3D scene last.
+
+**Core principle — decouple content from presentation.** The printed *content*
+(strip ink + paper furniture + the head-column ink reveal) renders to a **2D
+texture** in plain, unit-testable code; the *presentation* layer only maps that
+texture onto the paper surface and draws the printer. So the 2D-vs-3D decision
+is isolated to the final stage, everything upstream stays testable, and a flat
+fallback is always available (FR-032).
+
+**Rendering approach (real 3D, contained).** Dxui's painter is already a custom
+**D3D11** pipeline with its own HLSL vertex/pixel shaders, vertex buffers, and
+blend state (NOT Direct2D); `DxuiTextRenderer::DrawIconBitmap` already samples
+textures. So a 3D scene is an *additive* path, not a new engine: add one MVP
+constant buffer, one textured+lit shader, and two meshes (a static chassis and
+a dynamically-curled paper strip whose UVs map the content texture). The
+printer is anchored at the panel bottom; paper rises from the platen and curls
+out of view above a ~1-page viewport (FR-032). This is the pilot 3D primitive
+the drive widgets adopt when they later move from flat/faux-3D to true 3D.
+
+**Viewport + scroll (FR-033), pure/testable.** A `PrinterViewport` value type
+owns the scroll/follow state machine: follow the newest row while printing;
+wheel/touch/Up-Down scroll offsets earlier pages into view; after ~2 s idle,
+snap back to the live row; expose the visible native-row span. Clock-injected,
+no UI deps — unit-tested like `PrinterPacing`/`PrinterStatusModel`. The panel
+renders only newly-produced rows into a persistent tile buffer (incremental),
+so per-frame cost is flat regardless of strip length (SC-010).
+
+**Head-timing ink reveal (FR-034).** The interpreter/worker exposes the print
+head's column position + timestamp as it lays dots (without touching the
+already-complete raster); `PrinterPacing` drives the left→right per-column
+reveal within the current line. Extends the existing pacing model rather than
+replacing it.
+
+**Delivery memory bound (FR-028) — SHIPPED.** `WholeStripDpi()` caps the
+whole-strip PNG/clipboard render dpi against a ~512 MB RGBA budget (drops toward
+but not below native); `CopyPrintoutToClipboard` renders once and encodes the
+PNG from that image (was a double render). Commit `de6ee886`.
+
+**Also SHIPPED this pass (interim, superseded where noted):** non-destructive
+live snapshot + activity-resume auto-open + strip-scaled refresh throttle
+(the throttle is the stopgap the FR-033 incremental viewport replaces);
+blank-sheet empty preview; message boxes owned by / centered on the panel
+(`PrinterDialogOwner` + `DxuiMessageBox` owner-centering); Escape-to-close;
+Windows-printer delivery tracing to diagnose the PDF "failed to deliver"
+(commit `f7b5cf92`). Commits `de6ee886`, `f7b5cf92`.
+
+**New/changed components for the redesign:**
+
+```text
+CassoEmuCore/Devices/Printer/
+├── PrinterViewport.h/.cpp        # NEW: pure scroll/follow/snap state (clock-injected)
+├── PrinterPacing.*               # EXTEND: per-column head reveal timing
+└── ImageWriterInterpreter/PrinterJob  # EXTEND: expose head-column + timestamp stream
+
+Casso/
+├── Ui/PrinterPanel.*             # REWORK: viewport-driven incremental render (no whole-strip re-render)
+├── Ui/PrinterPaperView.*         # REWORK/REPLACE: persistent tile buffer; feeds the 3D layer
+├── Ui/Printer3DScene.h/.cpp      # NEW: chassis + curled-paper meshes, camera, textured/lit shader
+└── Print/PrinterWorker.*         # DONE: RowsUsed() atomic; EXTEND: head-column signal
+
+Dxui/Render/                      # EXTEND: MVP cbuffer + textured/lit shader path (or a scoped 3D helper)
+
+UnitTest/PrinterTests/
+└── PrinterViewportTests.cpp      # NEW: follow/scroll/snap math, injected clock
+```
+
+**Phasing:** (A) `PrinterViewport` + incremental render into the content
+texture, 1-page follow/scroll/snap, on-screen hint — the real perf fix,
+presentation-agnostic. (B) tractor-feed sprocket strips/holes + perforations in
+the content texture. (C) head-timing per-column ink reveal (worker signal +
+pacing). (D) the 3D scene — chassis + curled paper mapping the content texture.
+A–C are self-verifiable (testable math + capturable panel); D needs the user's
+eye for final aesthetic tuning.

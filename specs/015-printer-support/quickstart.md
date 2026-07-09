@@ -52,6 +52,16 @@ clock), `PrinterAudioSourceTests` (event-voice scheduling, synthetic PCM).
    → one dismissible notice with setup answers; unknown disk → nothing.
 8. **FR-026 — persistence**: print, don't eject, quit Casso, relaunch, open
    the same machine → paper restored, indicator pending; eject delivers.
+9. **US4 preview redesign — long banner (FR-032/033/034, SC-010/011)**: print a
+   long (many-page) Print Shop banner. Expect: the preview auto-opens on the
+   fresh print and shows the head sweeping left→right laying ink (partial lines
+   visible, not whole lines popping in), the ~1-page viewport following the
+   newest rows; scroll back with wheel / Up-Down arrows to review earlier pages,
+   then pause ~2 s → view snaps back to the printing row. Throughout, Casso
+   memory stays bounded and the preview does not slow as the strip grows.
+   Deliver: Copy and Finish→PNG complete without a multi-GB spike (delivery dpi
+   auto-caps for very tall strips). Windows-printer failures now trace to the
+   debug log (driver, geometry, failing GDI call + GetLastError).
 
 ## Empirical gates from research
 
