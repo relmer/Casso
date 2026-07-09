@@ -3,6 +3,7 @@
 #include "PrinterPanel.h"
 
 #include "CassoTheme.h"
+#include "Render/IDxuiPainter.h"
 #include "Devices/Printer/PaperRenderer.h"
 #include "Devices/Printer/PrintRaster.h"
 #include "Devices/Printer/RgbaImage.h"
@@ -109,7 +110,7 @@ void PrinterPanel::OnCreate ()
 void PrinterPanel::SetTheme (const CassoTheme * theme)
 {
     m_theme = theme;
-    DxuiWindow::SetTheme (reinterpret_cast<const IDxuiTheme *> (theme));
+    DxuiWindow::SetTheme (theme);   // implicit upcast CassoTheme -> DxuiTheme -> IDxuiTheme
 }
 
 
@@ -153,6 +154,10 @@ void PrinterPanel::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
     int   by       = boundsDip.bottom - toolbarH + (toolbarH - btnH) / 2;
     int   bx       = boundsDip.left + pad;
 
+    // Our override replaces DxuiPanel::Layout, which would otherwise record the
+    // panel's own bounds; set them so Paint's backdrop fills the whole client.
+    SetBounds (boundsDip);
+
     if (m_paper != nullptr)
     {
         RECT  paperR = { boundsDip.left + pad, boundsDip.top + pad,
@@ -175,6 +180,32 @@ void PrinterPanel::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
         RECT  r = { boundsDip.right - pad - btnW, by, boundsDip.right - pad, by + btnH };
         m_refresh->Layout (r, scaler);
     }
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PrinterPanel::Paint
+//
+//  Fill the client with the device-bezel backdrop, then let the base pump paint
+//  the paper view and toolbar buttons on top. Without an explicit backdrop the
+//  toolbar band would show whatever the swap chain last cleared to.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void PrinterPanel::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
+{
+    RECT  b = Bounds ();
+
+    painter.FillRect ((float) b.left,
+                      (float) b.top,
+                      (float) (b.right  - b.left),
+                      (float) (b.bottom - b.top),
+                      0xFF33363B);
+
+    DxuiPanel::Paint (painter, text, theme);
 }
 
 

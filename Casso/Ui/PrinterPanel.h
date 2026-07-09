@@ -57,6 +57,10 @@ public:
     void     Layout (const RECT          & boundsDip,
                      const DxuiDpiScaler & scaler) override;
 
+    void     Paint  (IDxuiPainter        & painter,
+                     IDxuiTextRenderer   & text,
+                     const IDxuiTheme    & theme) override;
+
 protected:
     void     OnCreate () override;
 
