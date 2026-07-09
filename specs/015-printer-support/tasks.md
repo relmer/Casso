@@ -130,7 +130,7 @@
 
 **Phase B — paper realism (into the content texture):**
 
-- [ ] T067 [US4] Render tractor-feed sprocket strips + holes down both edges and light perforations along the strips and between pages into the panel's content texture (panel-only per FR-027) in `Casso/Ui/PrinterPaperView.cpp` (FR-032)
+- [X] T067 [US4] Render tractor-feed sprocket strips + holes down both edges and light perforations along the strips and between pages into the panel's content canvas (panel-only per FR-027): 9.5" stock at 144 dpi, 0.5" strips, 5/32" holes on 1/2" pitch punched transparent (mat shows through), perf dashes darken-blend over ink, phase strip-absolute so furniture feeds with the paper — `PrinterPanel::ComposeCanvas` in `Casso/Ui/PrinterPanel.cpp` (FR-032)
 
 **Phase C — head-timing ink reveal:**
 

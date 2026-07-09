@@ -8,6 +8,7 @@
 
 
 struct CassoTheme;
+struct RgbaImage;
 class  PrintRaster;
 class  PrinterWorker;
 
@@ -88,7 +89,8 @@ protected:
 
 private:
     void     ShowBlankSheet ();
-    void     RenderSpan     (const PrintRaster & spanRaster);
+    void     RenderSpan     (const PrintRaster & spanRaster, int firstAbsRow);
+    void     ComposeCanvas  (const RgbaImage * content, int contentFirstAbsRow);
 
     static int64_t  NowMs ();
 

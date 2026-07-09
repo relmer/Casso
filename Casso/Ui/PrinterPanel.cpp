@@ -34,6 +34,39 @@ namespace
     constexpr int       s_kWheelRowsPerNotch = 96;    // 2/3" per wheel notch
     constexpr int       s_kArrowScrollRows   = 48;    // 1/3" per key press
 
+    // Fanfold paper furniture (FR-032; panel-only per FR-027), all in px at the
+    // fixed 144 dpi preview scale. Real continuous-form stock: 9.5" wide with
+    // 0.5" tractor strips both sides (tear width 8.5"), 5/32" sprocket holes on
+    // a 1/2" pitch, and the 8" printable area centered between the strips.
+    constexpr int       s_kStockWidthPx   = (19 * PrinterGrid::kRowsPerInch) / 2;   // 9.5" = 1368
+    constexpr int       s_kStripWidthPx   = PrinterGrid::kRowsPerInch / 2;          // 0.5" =   72
+    constexpr int       s_kContentXPx     = s_kStripWidthPx + PrinterGrid::kRowsPerInch / 4;   // 0.75" = 108
+    constexpr int       s_kHoleRadiusPx   = 11;                                     // ~5/32" dia
+    constexpr int       s_kHolePitchPx    = PrinterGrid::kRowsPerInch / 2;          // 0.5" =   72
+    constexpr uint32_t  s_kArgbHoleRim    = 0xFFB8B8B8;   // sprocket hole edge
+
+
+    // Floor modulus: hole / perforation phase stays continuous for rows above
+    // the top of the strip (the leading fanfold paper), where absRow < 0.
+    constexpr int FloorMod (int a, int m)
+    {
+        return ((a % m) + m) % m;
+    }
+
+
+    // Perforation dash: a slight darkening of whatever it crosses -- light gray
+    // on paper white, a shade darker on ink -- like a real perf cut, instead of
+    // stamping gray over (and visually erasing) printed content.
+    inline void DarkenPerf (uint32_t & px)
+    {
+        uint32_t  a = px & 0xFF000000u;
+        uint32_t  r = ((px >> 16) & 0xFF) * 210 / 255;
+        uint32_t  g = ((px >>  8) & 0xFF) * 210 / 255;
+        uint32_t  b = ( px        & 0xFF) * 210 / 255;
+
+        px = a | (r << 16) | (g << 8) | b;
+    }
+
     constexpr wchar_t   s_kpszScrollHint [] =
         L"Scroll wheel or Up/Down to review earlier pages \u2022 snaps back to the live row when idle";
 }
@@ -219,7 +252,7 @@ void PrinterPanel::RefreshLive (PrinterWorker & worker, int64_t nowMs, bool forc
     }
     else if (worker.SnapshotStripSpan (span.firstRow, span.lastRow, spanRaster))
     {
-        RenderSpan (spanRaster);
+        RenderSpan (spanRaster, span.firstRow);
     }
     else
     {
@@ -272,7 +305,7 @@ void PrinterPanel::SetStrip (const PrintRaster & raster)
 
     span = m_viewport.VisibleSpan ();
     raster.CopyRowSpan (span.firstRow, span.lastRow, spanRaster);
-    RenderSpan (spanRaster);
+    RenderSpan (spanRaster, span.firstRow);
 
     m_renderedSpan = span;
     m_hasRendered  = true;
@@ -286,18 +319,13 @@ void PrinterPanel::SetStrip (const PrintRaster & raster)
 //  PrinterPanel::ShowBlankSheet
 //
 //  A blank sheet rather than an empty window, so the preview always reads as
-//  "paper loaded, nothing printed yet." Full viewport height at the fixed
-//  preview dpi keeps the image dimensions identical to the printed case.
+//  "paper loaded, nothing printed yet" -- same fanfold canvas, no content.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void PrinterPanel::ShowBlankSheet ()
 {
-    int                     w = 8 * s_kPreviewDpi;
-    int                     h = m_viewport.ViewportRows ();   // 1 native row == 1 px at 144 dpi
-    std::vector<uint32_t>   blank ((size_t) w * h, 0xFFFFFFFFu);
-
-    m_paper->SetImage (std::move (blank), w, h);
+    ComposeCanvas (nullptr, 0);
 }
 
 
@@ -307,23 +335,20 @@ void PrinterPanel::ShowBlankSheet ()
 //
 //  PrinterPanel::RenderSpan
 //
-//  Render the (rebased) span raster and bottom-anchor it on a fixed
-//  full-viewport canvas: the live row sits at the bottom -- where the platen
-//  will be -- and paper white fills upward until content has fed that far.
-//  Constant canvas size = stable texture and scale-to-fit (no zoom jumps).
+//  Render the (rebased) span raster, then compose it onto the fanfold canvas.
+//  `firstAbsRow` is the span's first row in strip-absolute terms, which keys
+//  the sprocket-hole / perforation phase so the furniture scrolls WITH the
+//  paper instead of sitting still while content slides past it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void PrinterPanel::RenderSpan (const PrintRaster & spanRaster)
+void PrinterPanel::RenderSpan (const PrintRaster & spanRaster, int firstAbsRow)
 {
-    HRESULT                  hr       = S_OK;
-    int                      rows     = spanRaster.RowsUsed ();
-    int                      canvasH  = m_viewport.ViewportRows ();   // px == rows at 144 dpi
+    HRESULT                  hr   = S_OK;
+    int                      rows = spanRaster.RowsUsed ();
     PaperRenderer            renderer;
     PaperRenderer::Options   opt;
     RgbaImage                img;
-    std::vector<uint32_t>    bgra;
-    size_t                   dstBase  = 0;
 
     if (rows <= 0)
     {
@@ -336,31 +361,142 @@ void PrinterPanel::RenderSpan (const PrintRaster & spanRaster)
 
     hr = renderer.Render (spanRaster, 0, rows - 1, opt, img);
 
-    if (FAILED (hr) || img.width <= 0 || img.height <= 0 || img.height > canvasH)
+    if (FAILED (hr) || img.width <= 0 || img.height <= 0 || img.height > m_viewport.ViewportRows ())
     {
         return;   // keep the previous frame rather than flash a bad one
     }
 
-    bgra.assign ((size_t) img.width * canvasH, 0xFFFFFFFFu);   // paper white
-    dstBase = (size_t) (canvasH - img.height) * img.width;     // bottom-anchor
+    ComposeCanvas (&img, firstAbsRow);
+}
 
-    for (size_t i = 0; i < (size_t) img.width * img.height; i++)
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PrinterPanel::ComposeCanvas
+//
+//  Builds the fanfold-paper view (FR-032): a fixed full-viewport canvas at
+//  9.5" stock width -- tractor strips with sprocket holes down both edges,
+//  light vertical perforations where the strips tear off, cross perforations
+//  at every 11" page boundary -- with the rendered content bottom-anchored in
+//  the printable area (the live row sits at the bottom, where the platen
+//  will be). Hole and perforation phase is strip-absolute, so the furniture
+//  feeds upward with the paper. Constant canvas size = stable texture and
+//  scale-to-fit (no zoom jumps). Holes are punched transparent so the dark
+//  mat shows through them.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void PrinterPanel::ComposeCanvas (const RgbaImage * content, int contentFirstAbsRow)
+{
+    int                     canvasW   = s_kStockWidthPx;
+    int                     canvasH   = m_viewport.ViewportRows ();   // px == rows at 144 dpi
+    int                     topAbsRow = 0;
+    std::vector<uint32_t>   bgra ((size_t) canvasW * canvasH, 0xFFFFFFFFu);   // paper white
+
+    // The canvas bottom is the content span's last row (blank sheet: row 0).
+    if (content != nullptr)
     {
-        uint32_t  r = img.rgba[i * 4 + 0];
-        uint32_t  g = img.rgba[i * 4 + 1];
-        uint32_t  b = img.rgba[i * 4 + 2];
-        uint32_t  a = img.rgba[i * 4 + 3];
-
-        // Premultiply so the GPU blit composites correctly (paper is opaque, so
-        // this is a no-op there, but the margins/anti-aliased dots carry alpha).
-        uint32_t  pr = r * a / 255;
-        uint32_t  pg = g * a / 255;
-        uint32_t  pb = b * a / 255;
-
-        bgra[dstBase + i] = (a << 24) | (pr << 16) | (pg << 8) | pb;
+        topAbsRow = contentFirstAbsRow + content->height - canvasH;
+    }
+    else
+    {
+        topAbsRow = 1 - canvasH;
     }
 
-    m_paper->SetImage (std::move (bgra), img.width, canvasH);
+    // Content, bottom-anchored in the printable area, premultiplied for the
+    // GPU blit (paper is opaque, but anti-aliased dot edges carry alpha).
+    if (content != nullptr)
+    {
+        int   yTop = (contentFirstAbsRow - topAbsRow);
+
+        for (int y = 0; y < content->height; y++)
+        {
+            uint32_t *     dst = &bgra[(size_t) (yTop + y) * canvasW + s_kContentXPx];
+            const Byte *   src = content->PixelAt (0, y);
+
+            for (int x = 0; x < content->width; x++)
+            {
+                uint32_t  r = src[x * 4 + 0];
+                uint32_t  g = src[x * 4 + 1];
+                uint32_t  b = src[x * 4 + 2];
+                uint32_t  a = src[x * 4 + 3];
+
+                dst[x] = (a << 24) | ((r * a / 255) << 16) | ((g * a / 255) << 8) | (b * a / 255);
+            }
+        }
+    }
+
+    // Vertical tear-off perforations where the tractor strips meet the sheet:
+    // dotted 1-px columns, phase locked to the paper (4 px on / 4 px off).
+    for (int y = 0; y < canvasH; y++)
+    {
+        if (FloorMod (topAbsRow + y, 8) < 4)
+        {
+            DarkenPerf (bgra[(size_t) y * canvasW + s_kStripWidthPx - 1]);
+            DarkenPerf (bgra[(size_t) y * canvasW + canvasW - s_kStripWidthPx]);
+        }
+    }
+
+    // Cross perforations at every page boundary (11" pitch, strip-absolute):
+    // a dotted row across the full stock width, same dash rhythm.
+    for (int y = 0; y < canvasH; y++)
+    {
+        if (FloorMod (topAbsRow + y, PrinterGrid::kPageRows) == 0)
+        {
+            uint32_t *   row = &bgra[(size_t) y * canvasW];
+
+            for (int x = 0; x < canvasW; x++)
+            {
+                if (x % 8 < 4)
+                {
+                    DarkenPerf (row[x]);
+                }
+            }
+        }
+    }
+
+    // Sprocket holes: punched transparent (alpha 0 -- the mat shows through)
+    // with a soft rim, centered in each strip on the 1/2" pitch.
+    {
+        int   xL = s_kStripWidthPx / 2;
+        int   xR = canvasW - s_kStripWidthPx / 2;
+        int   r  = s_kHoleRadiusPx;
+
+        for (int y = -r; y < canvasH + r; y++)
+        {
+            if (FloorMod (topAbsRow + y, s_kHolePitchPx) != s_kHolePitchPx / 2)
+            {
+                continue;   // y is not a hole-center row
+            }
+
+            for (int dy = -r - 1; dy <= r + 1; dy++)
+            {
+                int   py = y + dy;
+
+                if (py < 0 || py >= canvasH)
+                {
+                    continue;
+                }
+
+                for (int dx = -r - 1; dx <= r + 1; dx++)
+                {
+                    int   d2 = dx * dx + dy * dy;
+
+                    for (int cx : { xL, xR })
+                    {
+                        uint32_t &   px = bgra[(size_t) py * canvasW + cx + dx];
+
+                        if      (d2 <= r * r)             { px = 0x00000000u;   }
+                        else if (d2 <= (r + 1) * (r + 1)) { px = s_kArgbHoleRim; }
+                    }
+                }
+            }
+        }
+    }
+
+    m_paper->SetImage (std::move (bgra), canvasW, canvasH);
 }
 
 
