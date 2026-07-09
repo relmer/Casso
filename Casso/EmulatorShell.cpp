@@ -2457,8 +2457,11 @@ void EmulatorShell::ShowPrinterPanel ()
         hInstance      = reinterpret_cast<HINSTANCE> (GetWindowLongPtr (m_hwnd, GWLP_HINSTANCE));
         m_printerPanel = std::make_unique<PrinterPanel> ();
 
+        // No owner window: the preview is a peer of the main window, not an
+        // owned popup. An owned window is permanently z-locked above its owner
+        // (always-on-top of Casso); a peer can be sent behind Casso normally.
         hr = m_printerPanel->Create (hInstance,
-                                     m_hwnd,
+                                     nullptr,
                                      m_d3dRenderer.GetDevice (),
                                      m_d3dRenderer.GetContext (),
                                      &m_chromeTheme);

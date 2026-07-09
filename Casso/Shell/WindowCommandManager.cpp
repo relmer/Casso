@@ -10,6 +10,7 @@
 #include "Devices/Printer/PrintDelivery.h"
 #include "Devices/Printer/PrintFileNaming.h"
 #include "Devices/Printer/PrintPagination.h"
+#include "Window/DxuiMessageBox.h"
 #include "Devices/Printer/PrintRaster.h"
 #include "Devices/Printer/PrinterCard.h"
 #include "Devices/Printer/RgbaImage.h"
@@ -964,7 +965,7 @@ void WindowCommandManager::OnPrinterCommand (int id)
                                  : discard ? L"The printer has no page to discard."
                                            : L"The printer has no page to finish yet.";
 
-        MessageBoxW (m_shell.m_hwnd, emptyMsg, L"Casso Printer", MB_OK | MB_ICONINFORMATION);
+        DxuiMessageBox (m_shell.m_hwnd, &m_shell.m_chromeTheme, emptyMsg, L"Casso Printer", MB_OK | MB_ICONINFORMATION);
         m_shell.m_printerWorker.Start (m_shell.m_refs.printerCard->ByteRing ());
         return;
     }
@@ -978,7 +979,7 @@ void WindowCommandManager::OnPrinterCommand (int id)
 
         if (FAILED (hr))
         {
-            MessageBoxW (m_shell.m_hwnd, L"Could not copy the printout to the clipboard.",
+            DxuiMessageBox (m_shell.m_hwnd, &m_shell.m_chromeTheme, L"Could not copy the printout to the clipboard.",
                          L"Casso Printer", MB_OK | MB_ICONWARNING);
         }
         return;
@@ -989,8 +990,9 @@ void WindowCommandManager::OnPrinterCommand (int id)
         // Tear off and throw away the current page (FR-029). Confirm first --
         // there is no undo -- and default the dialog to "No" so a stray Enter
         // never destroys a page.
-        int   choice = MessageBoxW (
+        int   choice = DxuiMessageBox (
             m_shell.m_hwnd,
+            &m_shell.m_chromeTheme,
             L"Tear off and discard the current printout?\n\n"
             L"The page in the printer will be thrown away without saving. "
             L"This cannot be undone.",
@@ -1034,7 +1036,7 @@ void WindowCommandManager::OnPrinterCommand (int id)
                                  ? std::wstring (L"Sent the printout to the printer.")
                                  : (L"Saved printout to:\n" + file.wstring ());
 
-        MessageBoxW (m_shell.m_hwnd, msg.c_str (), L"Casso Printer", MB_OK | MB_ICONINFORMATION);
+        DxuiMessageBox (m_shell.m_hwnd, &m_shell.m_chromeTheme, msg.c_str (), L"Casso Printer", MB_OK | MB_ICONINFORMATION);
 
         // Delivered: start a fresh sheet and drop the persisted pending copy.
         m_shell.m_printerWorker.Start (m_shell.m_refs.printerCard->ByteRing ());
@@ -1042,7 +1044,7 @@ void WindowCommandManager::OnPrinterCommand (int id)
     }
     else
     {
-        MessageBoxW (m_shell.m_hwnd, L"Could not deliver the printout; the page is kept.",
+        DxuiMessageBox (m_shell.m_hwnd, &m_shell.m_chromeTheme, L"Could not deliver the printout; the page is kept.",
                      L"Casso Printer", MB_OK | MB_ICONWARNING);
 
         // Keep the strip so the user can retry -- reseed the worker with it
