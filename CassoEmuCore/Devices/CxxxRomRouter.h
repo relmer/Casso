@@ -49,10 +49,18 @@ public:
     void SetSlotRom     (int slot, vector<Byte> data);
     bool HasSlotRom     (int slot) const;
 
+    // Apple //c: there are no external card slots, so the whole $C100-$CFFF
+    // window (including the $C800 expansion space) is always the internal
+    // firmware regardless of the INTCXROM/SLOTC3ROM/INTC8ROM switches -- the
+    // //c ROM jumps straight into $C800 with those switches clear. On the //e
+    // this stays false and the full slot/expansion arbitration applies.
+    void SetNoExternalSlots (bool v) { m_noExternalSlots = v; }
+
 private:
     Byte ResolveByte    (Word address);
 
     Apple2eMmu &   m_mmu;
     vector<Byte>   m_internal;
     vector<Byte>   m_slotRom[8];
+    bool           m_noExternalSlots = false;
 };

@@ -209,7 +209,9 @@ Byte CxxxRomRouter::ResolveByte (Word address)
 
 
 
-    if (intCx)
+    // Apple //c: no card slots -> the entire window is internal firmware,
+    // independent of the switches (the //c ROM enters $C800 with them clear).
+    if (m_noExternalSlots || intCx)
     {
         return romOffset < m_internal.size () ? m_internal[romOffset] : kFloatingBusByte;
     }

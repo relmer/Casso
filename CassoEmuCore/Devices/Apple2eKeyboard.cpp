@@ -51,6 +51,14 @@ Byte Apple2eKeyboard::Read (Word address)
         return m_softSwitchSibling->Read (address);
     }
 
+    // $C028: Apple //c ROM-bank flip-flop (ROMBANK) — soft-switch bank, which
+    // toggles the visible firmware bank on any access. Unused on the //e (the
+    // sibling no-ops when no ROM-bank switch is attached).
+    if (address == 0xC028 && m_softSwitchSibling != nullptr)
+    {
+        return m_softSwitchSibling->Read (address);
+    }
+
     // $C030-$C03F: speaker click — speaker device.
     if (address >= 0xC030 && address <= 0xC03F && m_speakerSibling != nullptr)
     {
@@ -251,6 +259,14 @@ void Apple2eKeyboard::Write (Word address, Byte value)
     }
 
     if (address >= 0xC011 && address <= 0xC01F && m_softSwitchSibling != nullptr)
+    {
+        m_softSwitchSibling->Write (address, value);
+        return;
+    }
+
+    // $C028: Apple //c ROM-bank flip-flop — forward to the soft-switch bank
+    // (toggles on write too; no-op on the //e).
+    if (address == 0xC028 && m_softSwitchSibling != nullptr)
     {
         m_softSwitchSibling->Write (address, value);
         return;

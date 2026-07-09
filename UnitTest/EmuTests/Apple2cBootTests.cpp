@@ -11,23 +11,25 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 //  Spec 016 / US2. These exercise the Apple //c wiring against the real ROM 4.
 //
-//  IMPORTANT -- the //c does NOT yet cold-boot to Applesoft. Bring-up so far
-//  proves the banking + ROM mapping + 65C02 reset are correct (the CPU resets
-//  to the monitor entry $FA62 and begins executing firmware), but a full boot
-//  is blocked on three things found during bring-up:
+//  IMPORTANT -- the //c does NOT yet cold-boot to Applesoft, but bring-up has
+//  cleared several blockers and the CPU now runs deep into the bank-1 firmware:
 //
-//    1. Rockwell bit ops (RMB/SMB/BBR/BBS). ROM 4 executes BBS0 at $D010; with
-//       the base-tier NOP decode the reset derails into RAM. Cpu65C02 has an
-//       InstallBitOps() ready but not called (a parked base-tier decision).
-//    2. //c $C800-$CFFF routing. With bit ops on, the firmware next jumps into
-//       the $C800 expansion window, which the //e CxxxRomRouter leaves as
-//       floating bus ($FF) until INTC8ROM latches. The //c has no slots, so
-//       that window must always read the internal firmware.
-//    3. Built-in peripherals (serial 6551 ACIA / IWM disk) the firmware probes.
+//    1. RESOLVED. Rockwell bit ops (RMB/SMB/BBR/BBS): Cpu65C02 models the
+//       Rockwell R65C02 (ROM 4 runs BBS0 at $D010).
+//    2. RESOLVED. //c $C100-$CFFF routing: the //c has no card slots, so the
+//       whole window (incl. the $C800 expansion space) always reads internal
+//       firmware -- CxxxRomRouter::SetNoExternalSlots(true).
+//    3. RESOLVED. $C028 ROM-bank toggle: the Apple2eKeyboard front device owns
+//       $C000-$C063 and forwards sub-ranges to its siblings; it now forwards
+//       $C028 to the soft-switch bank (which drives the ROM-bank flip-flop).
+//       Paired with the CPU store no longer pre-reading its target (a dummy
+//       read + the write would double-toggle the flip-flop).
 //
-//  So the "reaches BASIC" assertion is intentionally absent -- it would only
-//  pass on garbage. The ROM fixture is copyrighted + uncommitted; tests skip
-//  when it is absent so CI never needs a machine ROM.
+//  Remaining: the bank-1 firmware then spins in an LC/memory probe loop around
+//  $CC29 (STA $C08F,X / EOR $C08E,X), and the built-in peripherals (serial 6551
+//  ACIA / IWM disk) are still unwired. So the "reaches BASIC" assertion is
+//  intentionally absent. The ROM fixture is copyrighted + uncommitted; tests
+//  skip when it is absent so CI never needs a machine ROM.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -48,6 +50,45 @@ namespace
 TEST_CLASS (Apple2cBootTests)
 {
 public:
+
+    // Regression for the $C028 ROM-bank flip-flop end-to-end through the CPU
+    // and the full bus dispatch. Guards two fixes that must hold together:
+    //   (a) Apple2eKeyboard (the $C000-$C063 front device) forwards $C028 to
+    //       the soft-switch bank that drives the flip-flop, and
+    //   (b) a CPU store no longer pre-reads its target -- a dummy read plus the
+    //       store's write would toggle the flop twice (net no switch).
+    // If either regresses, the bank stays on 0 and this fails.
+    TEST_METHOD (StaC028TogglesRomBankExactlyOnce)
+    {
+        if (!Apple2cRomAvailable ())
+        {
+            Logger::WriteMessage ("SKIPPED: no Apple2c.rom fixture");
+            return;
+        }
+
+        HeadlessHost host; EmulatorCore core;
+        Assert::IsTrue (SUCCEEDED (host.BuildApple2c (core)), L"BuildApple2c");
+        core.PowerCycle ();
+
+        Assert::AreEqual (0, core.romBank->CurrentBank (), L"reset selects bank 0");
+
+        auto execAt = [&] (Word at, std::initializer_list<Byte> bytes)
+        {
+            Word a = at;
+            for (Byte b : bytes) core.cpu->WriteByte (a++, b);
+            core.cpu->SetPC (at);
+            core.cpu->StepOne ();
+        };
+
+        execAt (0x0300, { 0x8D, 0x28, 0xC0 });   // STA $C028
+        Assert::AreEqual (1, core.romBank->CurrentBank (), L"STA $C028 toggles once");
+
+        execAt (0x0300, { 0x8D, 0x28, 0xC0 });   // STA $C028 again
+        Assert::AreEqual (0, core.romBank->CurrentBank (), L"second STA toggles back");
+
+        execAt (0x0300, { 0xAD, 0x28, 0xC0 });   // LDA $C028 (any access flips it)
+        Assert::AreEqual (1, core.romBank->CurrentBank (), L"LDA $C028 toggles once");
+    }
 
     // Verifies the parts of the //c that ARE working end-to-end: the 65C02 +
     // 32K two-bank firmware wire up, and a cold reset lands on the monitor

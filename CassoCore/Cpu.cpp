@@ -789,7 +789,18 @@ void Cpu::FetchOperandAbsolute (Cpu::OperandInfo & operandInfo, Microcode & micr
 {
     operandInfo.location         = ReadWord (PC++);
     operandInfo.effectiveAddress = operandInfo.location;
-    operandInfo.operand          = ReadByte (operandInfo.effectiveAddress);
+
+    // A store (STA/STX/STY/STZ abs) never reads its target on real hardware --
+    // it only writes. Pre-reading here would fire a spurious side effect on any
+    // $C0xx soft switch. That is fatal for the Apple //c ROM-bank flip-flop at
+    // $C028, which flips on ANY access: a dummy read plus the store's own write
+    // would toggle it twice (net no bank switch) and derail the //c firmware.
+    // Stores don't use operandInfo.operand, so leaving it 0 is correct.
+    if (microcode.operation != Microcode::Store &&
+        microcode.operation != Microcode::StoreZero)
+    {
+        operandInfo.operand = ReadByte (operandInfo.effectiveAddress);
+    }
 }
 
 

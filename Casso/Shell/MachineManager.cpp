@@ -683,6 +683,9 @@ void MachineManager::WireApple2cRomBank ()
     m_shell.m_apple2cRomBank = std::make_unique<Apple2cRomBank> (*lc, *mmu);
     m_shell.m_apple2cRomBank->SetBankImages (std::move (bank0), std::move (bank1));
     sw->SetRomBankSwitch (m_shell.m_apple2cRomBank.get ());
+
+    // //c: no card slots -> $C100-$CFFF is always the internal firmware.
+    mmu->GetCxxxRouter ()->SetNoExternalSlots (true);
 }
 
 

@@ -5,6 +5,7 @@
 #include "Devices/Apple2eSoftSwitchBank.h"
 #include "Devices/Apple2eMmu.h"
 #include "Devices/RamDevice.h"
+#include "Devices/IRomBankSwitch.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -237,6 +238,37 @@ public:
 
         Assert::IsTrue (sw.Is80ColMode (),
             L"Write to $C00D via keyboard should reach softswitch and enable 80COL");
+    }
+
+    // The Apple //c ROM-bank flip-flop lives at $C028, inside the $C000-$C063
+    // window the keyboard front device owns. It must forward that address to
+    // the soft-switch bank on both a write (STA) and a read (any access flips
+    // the flop). Regression for the //c bank switch that stayed stuck on bank 0.
+    TEST_METHOD (IIeKeyboard_ForwardsC028ToRomBankFlipFlop)
+    {
+        struct CountingRomBank : IRomBankSwitch
+        {
+            int toggles = 0;
+            int resets  = 0;
+            void ToggleRomBank () override { ++toggles; }
+            void ResetRomBank  () override { ++resets;  }
+        };
+
+        MemoryBus              bus;
+        Apple2eSoftSwitchBank  sw  (&bus);
+        Apple2eKeyboard        iieKbd (&bus);
+        CountingRomBank        romBank;
+
+        sw.SetRomBankSwitch (&romBank);
+        iieKbd.SetSoftSwitchSibling (&sw);
+
+        iieKbd.Write (0xC028, 0);
+        Assert::AreEqual (1, romBank.toggles,
+            L"Write $C028 via keyboard should reach the ROM-bank flip-flop once");
+
+        iieKbd.Read (0xC028);
+        Assert::AreEqual (2, romBank.toggles,
+            L"Read $C028 via keyboard should also flip the ROM-bank flip-flop");
     }
 
     TEST_METHOD (Reset_ClearsAllState)

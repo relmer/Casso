@@ -367,6 +367,9 @@ HRESULT HeadlessHost::BuildApple2c (EmulatorCore & outCore)
         goto Error;
     }
 
+    // //c: no card slots -> $C100-$CFFF is always the internal firmware.
+    outCore.mmu->GetCxxxRouter ()->SetNoExternalSlots (true);
+
     {
         std::vector<Byte>   bank0 (romBytes.begin (),             romBytes.begin () + kBankSize);
         std::vector<Byte>   bank1 (romBytes.begin () + kBankSize, romBytes.end ());
