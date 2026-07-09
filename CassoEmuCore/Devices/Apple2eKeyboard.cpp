@@ -2,6 +2,7 @@
 
 #include "Apple2eKeyboard.h"
 #include "Apple2eSoftSwitchBank.h"
+#include "AppleMouse.h"
 #include "AppleSpeaker.h"
 #include "IInputEventSink.h"
 
@@ -65,6 +66,14 @@ Byte Apple2eKeyboard::Read (Word address)
         return m_speakerSibling->Read (address);
     }
 
+    // $C048 (//c RSTXY): any access clears the mouse movement-interrupt
+    // latches. No data behind the address — the read still returns 0.
+    if (address == 0xC048 && m_mouse != nullptr)
+    {
+        m_mouse->AccessRstXY ();
+        return 0;
+    }
+
     // $C050-$C05F: video display soft switches — soft-switch bank.
     if (address >= 0xC050 && address <= 0xC05F && m_softSwitchSibling != nullptr)
     {
@@ -91,10 +100,13 @@ Byte Apple2eKeyboard::Read (Word address)
         return value;
     }
 
-    // $C063: Shift (bit 7).
+    // $C063: mouse button on the //c (ACTIVE LOW; the //c wires the button
+    // where the //e had its shift-key mod); Shift (bit 7) on the //e.
     if (address == 0xC063)
     {
-        Byte value = m_shift.load (memory_order_acquire) ? 0x80 : 0x00;
+        Byte value = (m_mouse != nullptr)
+                         ? m_mouse->ReadButton ()
+                         : (m_shift.load (memory_order_acquire) ? 0x80 : 0x00);
 
         EmitButtonRead (address, value);
 
@@ -275,6 +287,13 @@ void Apple2eKeyboard::Write (Word address, Byte value)
     if (address >= 0xC030 && address <= 0xC03F && m_speakerSibling != nullptr)
     {
         m_speakerSibling->Write (address, value);
+        return;
+    }
+
+    // $C048 (//c RSTXY): any access — the firmware acks with STA $C048.
+    if (address == 0xC048 && m_mouse != nullptr)
+    {
+        m_mouse->AccessRstXY ();
         return;
     }
 

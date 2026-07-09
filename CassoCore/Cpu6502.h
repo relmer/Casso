@@ -59,6 +59,15 @@ public:
     bool                          IsNmiLineAsserted () const { return m_nmiLine; }
     bool                          IsNmiPending      () const { return m_nmiPending; }
 
+    // Interrupt poll for StepOne + AddCycles hosts (EmulatorShell's slice
+    // loop, the headless harness's RunCycles). Dispatches a pending NMI or
+    // unmasked IRQ, recording the 7-cycle prologue as the last-instruction
+    // cost WITHOUT advancing m_totalCycles — the host's AddCycles rollup
+    // does that, exactly as it does for a real instruction. Returns true
+    // when an interrupt was dispatched (the host skips StepOne for that
+    // iteration). ICpu::Step wraps this with the accumulate included.
+    bool                          DispatchPendingInterrupt ();
+
 protected:
     // Returns true if a pending NMI or unmasked IRQ was dispatched. On
     // dispatch, sets outCycles = 7 and accumulates m_totalCycles.

@@ -15,6 +15,8 @@
 #include "Devices/Disk2Controller.h"
 #include "Devices/Acia6551.h"
 #include "Devices/AciaEndpoints.h"
+#include "Devices/AppleMouse.h"
+#include "Core/InterruptController.h"
 #include "Devices/Disk/DiskImageStore.h"
 #include "Video/VideoTiming.h"
 #include "FixtureProvider.h"
@@ -97,6 +99,12 @@ struct EmulatorCore
     std::unique_ptr<Acia6551>                  serial2;
     std::unique_ptr<AciaLoopbackEndpoint>      serial1Loopback;
     std::unique_ptr<AciaLoopbackEndpoint>      serial2Loopback;
+
+    // Apple //c IOU mouse (US4) + the shared interrupt controller its VBL /
+    // movement IRQ lines aggregate through. Set by HeadlessHost::BuildApple2c;
+    // null for every other machine kind.
+    std::unique_ptr<InterruptController>       interruptController;
+    std::unique_ptr<AppleMouse>                mouse;
 
     // Cycle-pumped helpers used by Phase 7 integration tests.
     void   PowerCycle    ();

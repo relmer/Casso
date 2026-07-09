@@ -18,6 +18,7 @@
 #include "Devices/LanguageCard.h"
 #include "Devices/Apple2eMmu.h"
 #include "Devices/Apple2cRomBank.h"
+#include "Devices/AppleMouse.h"
 #include "Core/Prng.h"
 
 #include "DiskSettings.h"

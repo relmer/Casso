@@ -257,6 +257,7 @@
     <ClCompile Include="EmuTests\MachineConfigTests.cpp" />
     <ClCompile Include="EmuTests\Apple2cRomBankTests.cpp" />
     <ClCompile Include="EmuTests\Apple2cBootTests.cpp" />
+    <ClCompile Include="EmuTests\AppleMouseTests.cpp" />
     <ClCompile Include="EmuTests\MachineConfigUpgradeTests.cpp" />
     <ClCompile Include="EmuTests\MachineScannerTests.cpp" />
     <ClCompile Include="EmuTests\VideoModeTests.cpp" />

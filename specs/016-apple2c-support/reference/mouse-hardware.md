@@ -1,5 +1,27 @@
 # //c Mouse Hardware Contract (US4)
 
+> **STATUS: IMPLEMENTED + FIRMWARE-VALIDATED.** `AppleMouse`
+> (`CassoEmuCore/Devices/AppleMouse.{h,cpp}`) implements this contract;
+> `AppleMouseTests` proves it — including the oracle test that drives the
+> REAL ROM 4 firmware protocol (INITMOUSE/SETMOUSE/READMOUSE) end to end.
+> Corrections discovered during implementation (updated below):
+> **the mouse is phantom slot 7 on ROM 4** (slot 4 is the memory-expansion
+> firmware) — signature `$C705=$38 $C707=$18 $C70B=$01 $C70C=$20 $C7FB=$D6`,
+> entry table `$C712-$C719` (SETMOUSE=$C71C, SERVEMOUSE=$C722,
+> READMOUSE=$C728, CLEARMOUSE=$C72E, POSMOUSE=$C71A, CLAMPMOUSE=$C734,
+> HOMEMOUSE=$C73A, INITMOUSE=$C740; each a `STA $C028` bank trampoline).
+> Additional pinned semantics: `$C015`/`$C017` bit7 = X0/Y0 interrupt
+> pending (read-only — the service loop reads them twice); direction =
+> `$C066` bit7 set → X increments, `$C067` INVERTED (`EOR #$80`) → bit7
+> clear → Y increments; firmware steps position exactly ±1 per latched
+> axis per interrupt and does its own clamping (screen holes); `$C070`
+> read clears the VBL latch; `$C019` = VBL interrupt LATCH (latched at
+> onset regardless of ENVBL, validated via INITMOUSE's enable gate).
+> Also fixed en route: `EmuCpu::StepOne` now polls the interrupt lines
+> (`Cpu6502::DispatchPendingInterrupt`) — the StepOne+AddCycles hosts
+> (production slice loop, headless RunCycles) previously never dispatched
+> hardware IRQs at all; the mouse is the first real source.
+
 Derived by disassembling the //c ROM 4 mouse firmware (`UnitTest/Fixtures/Apple2c.rom`,
 32K = 2×16K banks mapped to `$C000-$FFFF`, toggled by `$C028`). The firmware is the
 authoritative oracle: implement the hardware below and the real ROM firmware must drive

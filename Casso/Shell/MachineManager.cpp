@@ -26,6 +26,7 @@
 #include "Devices/LanguageCard.h"
 #include "Devices/Apple2eMmu.h"
 #include "Devices/Apple2cRomBank.h"
+#include "Devices/AppleMouse.h"
 #include "Video/AppleTextMode.h"
 #include "Video/Apple80ColTextMode.h"
 #include "Video/AppleLoResMode.h"
@@ -398,12 +399,49 @@ HRESULT MachineManager::CreateMemoryDevices (const MachineConfig & config)
     // of the internal //c ROM (served by the no-slots CxxxRomRouter set in
     // WireApple2cRomBank), so no slot ROM is attached -- only the controller,
     // in IWM mode so the reset firmware's mode/status probe passes.
+    // //c IOU mouse (US4): destroyed with the outgoing machine, rebuilt
+    // below for the //c. The keyboard/soft-switch bank holding the old
+    // pointer are torn down with the same machine, and the CPU thread is
+    // stopped during construction, so no stale-pointer window exists.
+    m_shell.m_mouse.reset ();
+
     if (m_shell.m_config.systemRom.romBankSize != 0)
     {
         auto iwm = std::make_unique<Disk2Controller> (6);
         iwm->SetIwmMode (true);
         m_shell.m_memoryBus.AddDevice (iwm.get ());
         m_shell.m_ownedDevices.push_back (std::move (iwm));
+
+        // //c built-in IOU mouse (US4): not a bus device -- the keyboard
+        // ($C048 ack, $C063 button) and soft-switch bank ($C015/$C017/$C019
+        // status, $C066/$C067 direction, $C058-$C05F IOU programming,
+        // $C078/$C079 gate, $C070 VBL clear) forward its register surface;
+        // the real ROM 4 mouse firmware (phantom slot 7) runs against it.
+        // IRQ lines aggregate through the shared interrupt controller; the
+        // CPU cycle fan-out tick is wired in CreateCpu.
+        {
+            m_shell.m_mouse = std::make_unique<AppleMouse> ();
+
+            HRESULT  hrIc = m_shell.m_mouse->AttachInterruptController (&m_shell.m_interruptController);
+            IGNORE_RETURN_VALUE (hrIc, S_OK);
+
+            if (m_shell.m_videoTiming != nullptr)
+            {
+                m_shell.m_mouse->SetVideoTiming (m_shell.m_videoTiming.get ());
+            }
+
+            auto * iieKbd = dynamic_cast<Apple2eKeyboard *>       (m_shell.m_refs.keyboard);
+            auto * iieSw  = dynamic_cast<Apple2eSoftSwitchBank *> (m_shell.m_refs.softSwitches);
+
+            if (iieKbd != nullptr)
+            {
+                iieKbd->SetMouse (m_shell.m_mouse.get ());
+            }
+            if (iieSw != nullptr)
+            {
+                iieSw->SetMouse (m_shell.m_mouse.get ());
+            }
+        }
 
         // //c dual 6551 ACIA serial ports (phantom slots 1 & 2): port 1
         // ($C098) = printer, port 2 ($C0A8) = modem. Built in like the IWM
@@ -924,12 +962,18 @@ HRESULT MachineManager::CreateCpu (const MachineConfig & config)
         m_shell.m_cpu->SetVideoTiming (m_shell.m_videoTiming.get());
     }
 
-    // Wire the InterruptController to the CPU. wiring registers zero
-    // asserters today -- the //e card slots (1/3/4/5/6) will allocate
-    // tokens here in later phases as their devices are added. The
-    // controller exists now so Apple ][ / ][+ / //e all share the same
-    // IRQ aggregation seam.
+    // Wire the InterruptController to the CPU. On the //c the mouse's VBL +
+    // movement lines (and the two ACIAs) assert through it; on the //e and
+    // earlier no sources assert yet, so the seam is shared but quiet.
     m_shell.m_interruptController.SetCpu (m_shell.m_cpu->GetCpu());
+
+    // //c IOU mouse: tick the device from the per-instruction cycle fan-out
+    // so VBL-edge latching and paced movement interrupts stay phase-locked
+    // to CPU progress (null for every other machine).
+    if (m_shell.m_mouse != nullptr)
+    {
+        m_shell.m_cpu->SetCycleSink (m_shell.m_mouse.get ());
+    }
 
     // The base Cpu class uses an internal memory[] array. Copy system
     // ROM and slot ROMs into that array so PeekByte/disassembly can
@@ -1386,6 +1430,13 @@ void MachineManager::SoftReset()
 
     m_shell.m_interruptController.SoftReset();
 
+    // //c IOU mouse: /RESET clears the interrupt latches + enables and
+    // shuts the IOU access gate (matches power-on state).
+    if (m_shell.m_mouse != nullptr)
+    {
+        m_shell.m_mouse->Reset();
+    }
+
     if (m_shell.m_videoTiming != nullptr)
     {
         m_shell.m_videoTiming->SoftReset();
@@ -1443,6 +1494,13 @@ void MachineManager::PowerCycle()
     }
 
     m_shell.m_interruptController.PowerCycle();
+
+    // //c IOU mouse: power-on state (latches clear, interrupts masked,
+    // IOU access gate shut).
+    if (m_shell.m_mouse != nullptr)
+    {
+        m_shell.m_mouse->Reset();
+    }
 
     if (m_shell.m_videoTiming != nullptr)
     {

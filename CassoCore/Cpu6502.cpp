@@ -208,6 +208,34 @@ void Cpu6502::SetRegisters (const Cpu6502Registers & regs)
 
 bool Cpu6502::TryDispatchInterrupt (uint32_t & outCycles)
 {
+    if (!DispatchPendingInterrupt ())
+    {
+        return false;
+    }
+
+    outCycles      = static_cast<uint32_t> (m_lastCycles);
+    m_totalCycles += outCycles;
+
+    return true;
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DispatchPendingInterrupt
+//
+//  Shared dispatch core. NMI edge takes priority and fires regardless of
+//  the I flag; IRQ fires only when (P & I) == 0. Records the 7-cycle
+//  interrupt prologue as the last-instruction cost so StepOne+AddCycles
+//  hosts account for it exactly like an instruction; deliberately does NOT
+//  touch m_totalCycles (Step's wrapper and the hosts' AddCycles do).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool Cpu6502::DispatchPendingInterrupt ()
+{
     bool        dispatched = false;
 
 
@@ -218,17 +246,15 @@ bool Cpu6502::TryDispatchInterrupt (uint32_t & outCycles)
 
         DispatchVector (nmiVector, false);
 
-        outCycles      = 7;
-        m_totalCycles += outCycles;
-        dispatched     = true;
+        m_lastCycles = 7;
+        dispatched   = true;
     }
     else if (m_irqLine && status.flags.interruptDisable == 0)
     {
         DispatchVector (irqVector, false);
 
-        outCycles      = 7;
-        m_totalCycles += outCycles;
-        dispatched     = true;
+        m_lastCycles = 7;
+        dispatched   = true;
     }
 
     return dispatched;

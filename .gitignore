@@ -396,3 +396,6 @@ build/
 # Per-user Claude Code settings and a stray exported chat transcript (not for VCS)
 .claude/settings.local.json
 /Casso Dxui refactor - spec 013.md
+
+# Copyrighted machine ROMs provisioned on demand; tests skip when absent
+UnitTest/Fixtures/*.rom

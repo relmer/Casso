@@ -428,6 +428,19 @@ HRESULT HeadlessHost::BuildApple2c (EmulatorCore & outCore)
     outCore.speaker->SetCycleCounter (outCore.cpu->GetCycleCounterPtr ());
     outCore.diskController->SetCpuCycleSource (outCore.cpu->GetBusCyclePtr ());
 
+    // //c IOU mouse (US4): interrupt controller aggregates the mouse's VBL +
+    // movement IRQ lines onto the 65C02's maskable line; the keyboard and
+    // soft-switch bank forward the mouse's register surface; the CPU cycle
+    // fan-out ticks the device so VBL-edge latching and paced movement
+    // interrupts stay phase-locked to CPU progress.
+    outCore.interruptController = std::make_unique<InterruptController> (outCore.cpu->GetCpu ());
+    outCore.mouse               = std::make_unique<AppleMouse> ();
+    outCore.mouse->AttachInterruptController (outCore.interruptController.get ());
+    outCore.mouse->SetVideoTiming (outCore.videoTiming.get ());
+    outCore.keyboard->SetMouse     (outCore.mouse.get ());
+    outCore.softSwitches->SetMouse (outCore.mouse.get ());
+    outCore.cpu->SetCycleSink      (outCore.mouse.get ());
+
     // Bank 0 ($C000-$FFFF) into the CPU memory[] for reset-vector/PeekByte.
     for (size_t i = 0; i < kBankSize; i++)
     {
@@ -477,6 +490,15 @@ void EmulatorCore::PowerCycle ()
     {
         videoTiming->PowerCycle (*prng);
     }
+
+    if (interruptController != nullptr)
+    {
+        interruptController->PowerCycle ();
+    }
+    if (mouse != nullptr)
+    {
+        mouse->Reset ();
+    }
 }
 
 
@@ -508,6 +530,15 @@ void EmulatorCore::SoftReset ()
     if (videoTiming != nullptr)
     {
         videoTiming->SoftReset ();
+    }
+
+    if (interruptController != nullptr)
+    {
+        interruptController->SoftReset ();
+    }
+    if (mouse != nullptr)
+    {
+        mouse->Reset ();
     }
 
     cpu->SoftReset ();

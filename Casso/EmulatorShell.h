@@ -738,6 +738,11 @@ private:
     // machine. Owned here (not in m_ownedDevices) because it is not a bus
     // device; reset during machine teardown before the LC/MMU it references.
     unique_ptr<class Apple2cRomBank>  m_apple2cRomBank;
+    // Apple //c IOU mouse (US4). Null on every other machine. Owned here
+    // (not in m_ownedDevices) because it is not a bus device: the keyboard
+    // and soft-switch bank forward its register surface, and the EmuCpu
+    // cycle fan-out ticks it (VBL-edge latch + paced movement interrupts).
+    unique_ptr<class AppleMouse>  m_mouse;
     unique_ptr<VideoTiming>       m_videoTiming;
 
     // / T097 / FR-025. The store coordinates auto-flush of dirty

@@ -67,6 +67,11 @@ void EmuCpu::AddCycles (Byte n)
     {
         m_videoTiming->Tick (n);
     }
+
+    if (m_cycleSink != nullptr)
+    {
+        m_cycleSink->Tick (n);
+    }
 }
 
 

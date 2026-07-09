@@ -61,6 +61,15 @@ public:
     // earlier, where $C028 has no effect.
     void SetRomBankSwitch (IRomBankSwitch * rb)     { m_romBank      = rb; }
 
+    // Apple //c only: the IOU mouse (US4). When attached this bank serves
+    // the mouse's soft-switch surface — $C015/$C017 (X0/Y0 interrupt
+    // status), $C019 (VBL interrupt latch, replacing the //e RDVBLBAR),
+    // $C066/$C067 (MOUX1/MOUY1 direction lines, replacing PADDL2/3),
+    // $C070's VBL-latch clear side effect, $C078/$C079 (IOU access gate),
+    // and $C058-$C05F as the IOU programming bank while access is enabled.
+    // Null on the //e and earlier, where all legacy behavior stands.
+    void SetMouse (class AppleMouse * mouse)        { m_mouse        = mouse; }
+
     // Wire the CPU bus-cycle accumulator that drives the PREAD paddle timer.
     void SetCpuCycleSource (const uint64_t * src) { m_cpuCycleSource = src; }
 
@@ -94,6 +103,7 @@ private:
     MemoryBus *          m_bus                = nullptr;
     Apple2eMmu *         m_mmu                = nullptr;
     IRomBankSwitch *     m_romBank            = nullptr;
+    class AppleMouse *   m_mouse              = nullptr;
     Apple2eKeyboard *    m_keyboard           = nullptr;
     LanguageCard *       m_lc                 = nullptr;
     IVideoTiming *       m_videoTiming        = nullptr;

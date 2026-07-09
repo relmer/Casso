@@ -6,6 +6,7 @@
 #include "MemoryBus.h"
 #include "MemoryBusCpu.h"
 #include "Video/IVideoTiming.h"
+#include "ICycleSink.h"
 
 #include <memory>
 
@@ -71,8 +72,25 @@ public:
     void             SetVideoTiming      (IVideoTiming * vt) { m_videoTiming = vt; }
     IVideoTiming *   GetVideoTiming      () const            { return m_videoTiming; }
 
-    // 6502 execution surface
-    void             StepOne                  ()                              { m_cpu6502->StepOne (); }
+    // US4 (//c mouse). Optional second per-AddCycles sink for devices that
+    // must observe CPU progress between bus accesses (the IOU mouse's
+    // VBL-edge + paced movement interrupts). Null-safe like the video sink.
+    void             SetCycleSink        (ICycleSink * sink) { m_cycleSink = sink; }
+
+    // 6502 execution surface. StepOne polls the interrupt lines first (US4:
+    // the //c mouse/VBL IRQs are the first hardware sources asserted through
+    // InterruptController): a pending NMI / unmasked IRQ dispatches its
+    // 7-cycle vector prologue INSTEAD of an opcode fetch, reported through
+    // GetLastInstructionCycles so the StepOne+AddCycles hosts (EmulatorShell
+    // slice loop, headless RunCycles) account for it exactly like an
+    // instruction. Machines with no asserted sources take the fast path.
+    void             StepOne                  ()
+    {
+        if (!m_cpu6502->DispatchPendingInterrupt ())
+        {
+            m_cpu6502->StepOne ();
+        }
+    }
     Byte             GetLastInstructionCycles () const                        { return m_cpu6502->GetLastInstructionCycles (); }
 
     // Execution trace (--trace switch). Forwarded to the underlying 6502.
@@ -119,4 +137,5 @@ private:
     std::unique_ptr<ICpu>    m_cpu;
     Cpu6502 *                m_cpu6502     = nullptr;
     IVideoTiming *           m_videoTiming = nullptr;
+    ICycleSink *             m_cycleSink   = nullptr;
 };
