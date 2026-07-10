@@ -12,6 +12,7 @@ struct CassoTheme;
 struct RgbaImage;
 class  PrintRaster;
 class  PrinterWorker;
+class  Printer3DScene;
 
 
 
@@ -42,8 +43,8 @@ class PrinterPanel : public DxuiWindow
 public:
     using ActionFn = std::function<void ()>;
 
-    PrinterPanel  () = default;
-    ~PrinterPanel () override = default;
+    PrinterPanel  ();
+    ~PrinterPanel () override;
 
     HRESULT  Create (HINSTANCE              hInstance,
                      HWND                   hwndOwner,
@@ -126,6 +127,13 @@ private:
     bool                    m_pacingPrimed     = false;
     int                     m_renderedRevealRow = -1;
     int                     m_renderedRevealCol = -1;
+
+    // 3D presentation (FR-032): the ImageWriter + curled-paper scene, drawn
+    // from the window's before-present hook into m_paperRectPx (which the
+    // panel's Paint therefore does NOT fill). Null = flat PrinterPaperView
+    // fallback. unique_ptr so this header stays free of the scene's D3D types.
+    std::unique_ptr<Printer3DScene>   m_scene;
+    RECT                              m_paperRectPx = {};
 
     RECT                    m_hintRect         = {};
     float                   m_hintFontPx       = 12.0f;

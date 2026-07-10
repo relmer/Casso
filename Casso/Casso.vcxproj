@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug|Win32">
@@ -272,6 +272,7 @@
     <ClCompile Include="Disk2DebugDialogState.cpp" />
     <ClCompile Include="InputDebugDialogState.cpp" />
     <ClCompile Include="Ui\Disk2DebugPanel.cpp" />
+    <ClCompile Include="Ui\Printer3DScene.cpp" />
     <ClCompile Include="Ui\PrinterPanel.cpp" />
     <ClCompile Include="Ui\PrinterPaperView.cpp" />
     <ClCompile Include="Ui\InputDebugPanel.cpp" />
@@ -343,6 +344,7 @@
     <ClInclude Include="Disk2DebugDialogState.h" />
     <ClInclude Include="InputDebugDialogState.h" />
     <ClInclude Include="Ui\Disk2DebugPanel.h" />
+    <ClInclude Include="Ui\Printer3DScene.h" />
     <ClInclude Include="Ui\PrinterPanel.h" />
     <ClInclude Include="Ui\PrinterPaperView.h" />
     <ClInclude Include="Ui\InputDebugPanel.h" />

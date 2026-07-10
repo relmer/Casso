@@ -139,8 +139,8 @@
 
 **Phase D — 3D presentation scene (needs user eyeball for final tuning):**
 
-- [ ] T070 [US4] Add a scoped 3D path to Dxui's D3D11 renderer — MVP constant buffer + textured/lit shader (additive to the existing painter/text-renderer pipeline) in `Dxui/Render/` (FR-032)
-- [ ] T071 [US4] Implement `Printer3DScene` — bottom-anchored ImageWriter chassis mesh + dynamically-curled paper mesh mapping the content texture under a perspective camera, paper curling out of view above the viewport — in `Casso/Ui/Printer3DScene.h/.cpp` (FR-032)
+- [X] T070 [US4] Add a scoped 3D path to Dxui's D3D11 renderer — `Dxui3DRenderer`: one MVP cbuffer (row_major, row-vector), one textured+tinted VS/PS pair, dynamic VB, dynamic content texture + 1x1 white for untextured geometry, premultiplied source-over (same compositing as DxuiPainter), full state set per draw, no depth (painter's algorithm) — in `Dxui/Render/Dxui3DRenderer.h/.cpp` (FR-032)
+- [X] T071 [US4] Implement `Printer3DScene` — procedural bottom-anchored ImageWriter body (platinum case, deck + slot recess, smoked carriage window, paced head carriage w/ four-color ribbon cartridge, power LED) + paper strip rising from the platen with backward lean and a backward curl (content canvas mapped 1:1 by arclength, slices darken as they turn from the light), drawn back-to-front from the panel window's before-present hook (backdrop → body-behind-paper → paper → body-front); panel leaves the paper rect unfilled and keeps `PrinterPaperView` as the flat fallback — in `Casso/Ui/Printer3DScene.h/.cpp` + `Casso/Ui/PrinterPanel.*` (FR-032)
 - [ ] T072 [US4] End-to-end: long-banner print shows head sweeping L→R laying ink, viewport follows newest row, scrollback + snap-to-live, bounded memory / flat frame cost (SC-010/SC-011); user reviews the 3D scene aesthetics
 
 ## Dependencies

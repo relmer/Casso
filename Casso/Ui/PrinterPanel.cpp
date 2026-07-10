@@ -3,6 +3,7 @@
 #include "PrinterPanel.h"
 
 #include "CassoTheme.h"
+#include "Printer3DScene.h"
 #include "Render/IDxuiPainter.h"
 #include "Render/IDxuiTextRenderer.h"
 #include "Devices/Printer/PaperRenderer.h"
@@ -81,6 +82,22 @@ namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  PrinterPanel ctor / dtor
+//
+//  Defined here (not defaulted in the header) so unique_ptr<Printer3DScene>
+//  destroys against the complete type.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+PrinterPanel::PrinterPanel () = default;
+
+PrinterPanel::~PrinterPanel () = default;
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  PrinterPanel::Create
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -118,6 +135,35 @@ HRESULT PrinterPanel::Create (
     CHR (hr);
 
     SetTheme (m_theme);
+
+    // 3D presentation (FR-032): build the scene on THIS window's own device
+    // (its swap chain does not live on the emulator renderer's device) and
+    // draw it from the before-present hook -- under the panel chrome, which
+    // deliberately leaves the paper rect unfilled. Failure falls back to the
+    // flat PrinterPaperView silently.
+    {
+        std::unique_ptr<Printer3DScene>   scene = std::make_unique<Printer3DScene> ();
+
+        if (PopupHost () != nullptr &&
+            SUCCEEDED (scene->Initialize (PopupHost ()->GetDevice (), PopupHost ()->GetContext ())))
+        {
+            m_scene = std::move (scene);
+
+            PopupHost ()->SetBeforePresentHook ([this] ()
+            {
+                if (m_scene != nullptr && m_paperRectPx.right > m_paperRectPx.left)
+                {
+                    m_scene->Render (m_paperRectPx);
+                }
+            });
+
+            if (m_paper != nullptr)
+            {
+                m_paper->SetVisible (false);   // the scene presents the content now
+            }
+        }
+    }
+
     Show ();
 
 Error:
@@ -259,6 +305,11 @@ void PrinterPanel::RefreshLive (PrinterWorker & worker, int64_t nowMs, bool forc
     revealRow  = m_pacing.RevealedRows ();
     revealCol  = m_pacing.RevealedColDots ();
     bandBottom = (std::min) (revealRow + s_kPinBandRows - 1, rows - 1);
+
+    if (m_scene != nullptr)
+    {
+        m_scene->SetHeadColumn01 ((float) revealCol / (float) PrinterGrid::kDotsPerRow);
+    }
 
     // The viewport follows the REVEALED edge, not the raster's -- so a paced
     // reveal happens on-screen instead of scrolling past unseen.
@@ -435,6 +486,7 @@ void PrinterPanel::RenderSpan (const PrintRaster & spanRaster, int firstAbsRow,
 void PrinterPanel::ComposeCanvas (const RgbaImage * content, int contentFirstAbsRow,
                                   int revealBandTopAbs, int revealColDots)
 {
+    HRESULT                 hr        = S_OK;
     int                     canvasW   = s_kStockWidthPx;
     int                     canvasH   = m_viewport.ViewportRows ();   // px == rows at 144 dpi
     int                     topAbsRow = 0;
@@ -550,7 +602,14 @@ void PrinterPanel::ComposeCanvas (const RgbaImage * content, int contentFirstAbs
         }
     }
 
-    m_paper->SetImage (std::move (bgra), canvasW, canvasH);
+    if (m_scene != nullptr)
+    {
+        IGNORE_RETURN_VALUE (hr, m_scene->SetContent (bgra.data (), canvasW, canvasH));
+    }
+    else
+    {
+        m_paper->SetImage (std::move (bgra), canvasW, canvasH);
+    }
 }
 
 
@@ -654,13 +713,18 @@ void PrinterPanel::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
                      boundsDip.right - pad,
                      boundsDip.bottom - toolbarH };
 
-    if (m_paper != nullptr)
     {
         // Reserve the caption band at the top (the content root spans the full
         // client, so without this the paper would draw up over the title bar).
         RECT  paperR = { boundsDip.left + pad, boundsDip.top + captionH + pad,
                          boundsDip.right - pad, boundsDip.bottom - toolbarH - hintH };
-        m_paper->Layout (paperR, scaler);
+
+        m_paperRectPx = paperR;   // the 3D scene's viewport (before-present hook)
+
+        if (m_paper != nullptr)
+        {
+            m_paper->Layout (paperR, scaler);
+        }
     }
 
     for (DxuiButton * btn : { m_finish, m_copy, m_discard })
@@ -698,11 +762,30 @@ void PrinterPanel::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
     HRESULT  hr = S_OK;
     RECT     b  = Bounds ();
 
-    painter.FillRect ((float) b.left,
-                      (float) b.top,
-                      (float) (b.right  - b.left),
-                      (float) (b.bottom - b.top),
-                      0xFF33363B);
+    if (m_scene != nullptr && m_paperRectPx.right > m_paperRectPx.left)
+    {
+        // The 3D scene owns the paper rect (drawn from the before-present
+        // hook, UNDER this painter flush) -- fill only the frame around it,
+        // or the backdrop would cover the scene.
+        RECT   p = m_paperRectPx;
+
+        painter.FillRect ((float) b.left, (float) b.top,
+                          (float) (b.right - b.left), (float) (p.top - b.top), 0xFF33363B);
+        painter.FillRect ((float) b.left, (float) p.bottom,
+                          (float) (b.right - b.left), (float) (b.bottom - p.bottom), 0xFF33363B);
+        painter.FillRect ((float) b.left, (float) p.top,
+                          (float) (p.left - b.left), (float) (p.bottom - p.top), 0xFF33363B);
+        painter.FillRect ((float) p.right, (float) p.top,
+                          (float) (b.right - p.right), (float) (p.bottom - p.top), 0xFF33363B);
+    }
+    else
+    {
+        painter.FillRect ((float) b.left,
+                          (float) b.top,
+                          (float) (b.right  - b.left),
+                          (float) (b.bottom - b.top),
+                          0xFF33363B);
+    }
 
     DxuiPanel::Paint (painter, text, theme);
 
