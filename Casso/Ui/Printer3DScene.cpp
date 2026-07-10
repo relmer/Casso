@@ -40,14 +40,14 @@ namespace
     // (vertical half-cylinders hugging the body ends), and the paper-advance
     // knob sticking out of the right tower.
     constexpr float   s_kBayHalfW   = 0.70f;
-    constexpr float   s_kTowerCx    = 0.76f;    // tower axis x (mirrored left)
-    constexpr float   s_kTowerCz    = -0.10f;
-    constexpr float   s_kTowerR     = 0.12f;
-    constexpr float   s_kTowerY0    = 0.28f;    // grounded below the hood top
-    constexpr float   s_kTowerY1    = 0.54f;    // rises past the cover's top edge
-    constexpr float   s_kKnobX0     = 0.88f;    // knob spans body edge..out
+    constexpr float   s_kTowerCx    = 0.77f;    // post axis x (mirrored left)
+    constexpr float   s_kTowerCz    = -0.08f;
+    constexpr float   s_kTowerR     = 0.14f;    // squat: reads as a case end, not a cup
+    constexpr float   s_kTowerY0    = 0.24f;    // buried in the hood: grounded, not perched
+    constexpr float   s_kTowerY1    = 0.52f;    // just past the cover's top edge
+    constexpr float   s_kKnobX0     = 0.90f;    // knob emerges from the right post
     constexpr float   s_kKnobX1     = 0.99f;
-    constexpr float   s_kKnobR      = 0.055f;
+    constexpr float   s_kKnobR      = 0.050f;
     constexpr float   s_kKnobCy     = 0.44f;    // knob axis (y, z)
     constexpr float   s_kKnobCz     = -0.06f;
 
@@ -80,17 +80,18 @@ namespace
     constexpr uint32_t   s_kArgbLedErr   = 0xFF63262A;   // error LED, unlit dark red
     constexpr uint32_t   s_kArgbRibbon[4] = { 0xFF202020, 0xFFF0C810, 0xFFC83030, 0xFF2848A8 };
 
-    // Control staircase (right of the front face): six caps rising toward the
-    // right, matching the real panel -- paper load/eject, form feed, line
-    // feed, print quality, select, on/off -- with LEDs above the right three.
-    // Each cap sits in a darker recessed well so it reads as a raised button.
+    // Control cluster (right of the front face): six small caps rising gently
+    // toward the right -- paper load/eject, form feed, line feed, print
+    // quality, select, on/off -- with tiny LEDs above the right three. Sized
+    // from the reference photo: the whole cluster spans ~10% of the body
+    // width, so the caps read as switches, not stair treads.
     constexpr int     s_kButtonCount  = 6;
-    constexpr float   s_kButtonX0     = 0.50f;    // leftmost cap center
-    constexpr float   s_kButtonY0     = 0.15f;
-    constexpr float   s_kButtonDx     = 0.058f;
-    constexpr float   s_kButtonDy     = 0.0145f;
-    constexpr float   s_kButtonW      = 0.050f;
-    constexpr float   s_kButtonH      = 0.017f;
+    constexpr float   s_kButtonX0     = 0.62f;    // leftmost cap center
+    constexpr float   s_kButtonY0     = 0.155f;
+    constexpr float   s_kButtonDx     = 0.036f;
+    constexpr float   s_kButtonDy     = 0.0075f;
+    constexpr float   s_kButtonW      = 0.030f;
+    constexpr float   s_kButtonH      = 0.011f;
 
     // The Casso cassowary badge (lower-left of the front face, where the real
     // machine wears its apple). Silhouette + rainbow mirror the DriveWidget
@@ -392,25 +393,28 @@ void Printer3DScene::AppendLatheY (std::vector<Vertex> & out,
 //
 //  Printer3DScene::AppendDiscY
 //
-//  Horizontal disc fan (the towers' flat top caps), full circle at height y.
+//  Horizontal disc fan at height y, swept through [a0, a1] (angle 0 faces the
+//  viewer). The end posts use only the FRONT half: a full ellipse rim from
+//  this high camera reads as an open cup, which the real case is not.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void Printer3DScene::AppendDiscY (std::vector<Vertex> & out,
                                   float cx, float cz, float radius, float y,
-                                  int segments, uint32_t argb, float shade)
+                                  float a0, float a1, int segments,
+                                  uint32_t argb, float shade)
 {
     float   a = (float) ((argb >> 24) & 0xFF) / 255.0f;
     float   r = (float) ((argb >> 16) & 0xFF) / 255.0f * shade * a;
     float   g = (float) ((argb >>  8) & 0xFF) / 255.0f * shade * a;
     float   b = (float) ((argb      ) & 0xFF) / 255.0f * shade * a;
 
-    float   prevX = cx;
-    float   prevZ = cz + radius;
+    float   prevX = cx + radius * std::sin (a0);
+    float   prevZ = cz + radius * std::cos (a0);
 
     for (int i = 1; i <= segments; i++)
     {
-        float   ang  = 2.0f * s_kPi * (float) i / (float) segments;
+        float   ang  = a0 + (a1 - a0) * (float) i / (float) segments;
         float   xPos = cx + radius * std::sin (ang);
         float   zPos = cz + radius * std::cos (ang);
 
@@ -711,16 +715,19 @@ void Printer3DScene::BuildBodyFront (std::vector<Vertex> & out) const
     BuildCassoLogo (out);
     BuildControls  (out);
 
-    // Rounded platen end towers: vertical half-cylinders hugging the body
-    // ends, grounded below the hood and rising past the smoked cover's top
-    // edge, each with a flat top cap. The paper-advance knob (a short
-    // x-axis cylinder with an end cap) sticks out of the right one.
+    // Rounded platen end posts: squat vertical half-rounds at the body ends,
+    // buried in the hood so they grow out of the case, rising just past the
+    // smoked cover. Only the FRONT half of each top cap is drawn -- a full
+    // ellipse rim reads as an open cup from this camera. The paper-advance
+    // knob (a short x-axis cylinder with an end cap) emerges from the right.
     AppendLatheY (out, -s_kTowerCx, s_kTowerCz, s_kTowerR, s_kTowerY0, s_kTowerY1,
                   -s_kPi * 0.5f, s_kPi * 0.5f, 14, s_kArgbCase);
     AppendLatheY (out,  s_kTowerCx, s_kTowerCz, s_kTowerR, s_kTowerY0, s_kTowerY1,
                   -s_kPi * 0.5f, s_kPi * 0.5f, 14, s_kArgbCase);
-    AppendDiscY  (out, -s_kTowerCx, s_kTowerCz, s_kTowerR, s_kTowerY1, 16, s_kArgbCase, 0.98f);
-    AppendDiscY  (out,  s_kTowerCx, s_kTowerCz, s_kTowerR, s_kTowerY1, 16, s_kArgbCase, 0.98f);
+    AppendDiscY  (out, -s_kTowerCx, s_kTowerCz, s_kTowerR, s_kTowerY1,
+                  -s_kPi * 0.5f, s_kPi * 0.5f, 8, s_kArgbCase, 0.96f);
+    AppendDiscY  (out,  s_kTowerCx, s_kTowerCz, s_kTowerR, s_kTowerY1,
+                  -s_kPi * 0.5f, s_kPi * 0.5f, 8, s_kArgbCase, 0.96f);
 
     AppendLatheX (out, s_kKnobX0, s_kKnobX1, s_kKnobCy, s_kKnobCz, s_kKnobR,
                   -0.35f, s_kPi, 8, s_kArgbCase);
@@ -753,36 +760,32 @@ void Printer3DScene::BuildBodyFront (std::vector<Vertex> & out) const
 
 void Printer3DScene::BuildControls (std::vector<Vertex> & out) const
 {
-    float   zWell = s_kBodyZFront + 0.002f;
-    float   zCap  = s_kBodyZFront + 0.004f;
+    float   zf = s_kBodyZFront + 0.002f;
 
     for (int i = 0; i < s_kButtonCount; i++)
     {
         float   cx = s_kButtonX0 + (float) i * s_kButtonDx;
         float   cy = s_kButtonY0 + (float) i * s_kButtonDy;
 
-        // Recessed well, with the cap seated high in it so the exposed lower
-        // band of the well reads as the shadow under a raised button.
-        AppendFaceQuad (out, cx - s_kButtonW * 0.5f - 0.005f, cx + s_kButtonW * 0.5f + 0.005f,
-                        cy - 0.008f, cy + s_kButtonH + 0.003f, zWell, s_kArgbCase, 0.52f);
+        // Small cream cap over a hairline shadow -- at this scale the real
+        // panel shows little more than the caps themselves.
         AppendFaceQuad (out, cx - s_kButtonW * 0.5f, cx + s_kButtonW * 0.5f,
-                        cy, cy + s_kButtonH, zCap, s_kArgbButton, 1.0f);
+                        cy - 0.003f, cy, zf, s_kArgbCase, 0.55f);
+        AppendFaceQuad (out, cx - s_kButtonW * 0.5f, cx + s_kButtonW * 0.5f,
+                        cy, cy + s_kButtonH, zf, s_kArgbButton, 1.0f);
 
-        // LED slots above the right three caps: print quality, select, on/off.
+        // Tiny LED bars above the right three caps: print quality, select,
+        // and the on/off pair (pwr green under the unlit error red).
         if (i >= 3)
         {
-            float   ly    = cy + s_kButtonH + 0.020f;
-            float   slotH = (i == 5) ? 0.030f : 0.017f;
+            float   ly = cy + s_kButtonH + 0.010f;
 
-            AppendFaceQuad (out, cx - 0.023f, cx + 0.023f, ly - 0.002f, ly + slotH, zWell,
-                            s_kArgbCase, 0.52f);
-            AppendFaceQuad (out, cx - 0.019f, cx + 0.019f, ly, ly + 0.012f, zCap,
+            AppendFaceQuad (out, cx - 0.013f, cx + 0.013f, ly, ly + 0.008f, zf,
                             s_kArgbLedOn, 1.0f);
 
             if (i == 5)
             {
-                // on/off: unlit error red stacked above the lit pwr green.
-                AppendFaceQuad (out, cx - 0.019f, cx + 0.019f, ly + 0.014f, ly + 0.026f, zCap,
+                AppendFaceQuad (out, cx - 0.013f, cx + 0.013f, ly + 0.010f, ly + 0.018f, zf,
                                 s_kArgbLedErr, 1.0f);
             }
         }

@@ -73,7 +73,8 @@ private:
                                  float a0, float a1, int segments, uint32_t argb);
     static void  AppendDiscY    (std::vector<Vertex> & out,
                                  float cx, float cz, float radius, float y,
-                                 int segments, uint32_t argb, float shade);
+                                 float a0, float a1, int segments,
+                                 uint32_t argb, float shade);
 
     void  BuildBackdrop   (std::vector<Vertex> & out) const;
     void  BuildBodyBack   (std::vector<Vertex> & out) const;
