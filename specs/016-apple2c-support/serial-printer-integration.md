@@ -2,7 +2,7 @@
 
 **Status**: brief for the //c effort. Written 2026-07-08 from spec 015 (printer support).
 **Depends on**: spec 015 merged to `master` (provides the printer sink this bridges to).
-**Owns**: this work belongs to **016** — it is //c-specific serial *wiring* (the `AciaPrinterEndpoint` + machine config), gated on the //c profile, and only testable once a //c can boot Print Shop. It slots alongside 016 task **T024** (US3 serial wiring).
+**Owns**: this work belongs to **issue #87** (`Apple //c serial printer integration + per-port device selection`) — it needs BOTH spec 015 and spec 016 on `master`, so it is downstream of each (016 never waits on it; 016 ships the ACIA + loopback/file ports). Originally drafted as 016 task T024 before the deferral.
 
 ---
 
@@ -91,7 +91,7 @@ Boot The (New) Print Shop on the //c, set its printer to **ImageWriter II**, int
 
 ## Boundary note (resolves a 015/016 seam)
 
-016 spec.md:182 says "the serial-printing driver … is spec 015's scope." In practice 015 shipped the *parallel* path and its serial fallback never triggered (Print Shop drives parallel fine on the //e). So the serial front door is **016's** to build — it is untestable without a bootable //c — reusing 015's finished, card-agnostic pipeline behind `PrinterByteRing`. This document is that assignment.
+016 spec.md:182 says "the serial-printing driver … is spec 015's scope." In practice 015 shipped the *parallel* path and its serial fallback never triggered (Print Shop drives parallel fine on the //e). So the serial front door is **#87's** to build (downstream of 015 + 016) — it is untestable without a bootable //c — reusing 015's finished, card-agnostic pipeline behind `PrinterByteRing`. This document is that assignment.
 
 ## Settings / Hardware UX note (//c)
 

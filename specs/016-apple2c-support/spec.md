@@ -18,7 +18,7 @@ Casso already emulates the Apple //e substrate the //c is built on, and this wor
 - **Memory**: 128K aux RAM, 80STORE, language card, `Apple2eMmu`, `Apple2eSoftSwitchBank`, `CxxxRomRouter` (slot-ROM routing).
 - **Video**: 40/80-column text, lo-res, hi-res, and **double hi-res** (`AppleDoubleHiResMode`, 560×192).
 - **Disk**: Disk II controller + WOZ nibble engine (protection fidelity certified, #67).
-- **Machines defined today**: Apple II, Apple II+, Apple //e, **Apple //e Enhanced** — the last of which is nominally 65C02-based but currently runs on the NMOS core (a latent defect this feature also corrects).
+- **Machines defined today**: Apple II, Apple II+, Apple //e. *(Correction: no "Apple //e Enhanced" profile actually exists yet — T016 established this; creating it is **issue #86**. The 65C02 core this feature builds is what that profile will select.)*
 - **Composition**: JSON-driven device registration (`ComponentRegistry`), per-machine config assets.
 
 This feature adds the pieces the //c has beyond the //e: the **65C02 CPU**, the **//c ROM + slotless "phantom slot" firmware map**, **two 6551 ACIA serial ports**, a **built-in mouse** with interrupts, and **IWM** disk integration.
@@ -30,7 +30,7 @@ This feature adds the pieces the //c has beyond the //e: the **65C02 CPU**, the 
 - **Q: Target //c ROM revision?** → **Memory Expansion ROM (ROM 4)** — the most refined/compatible non-Plus //c firmware. v1 is scoped to a **5.25"/128K //c**: the ROM's UniDisk 3.5 (SmartPort) and memory-expansion firmware are *present* but those peripherals are **not implemented** in this spec (they report absent; the ROM still boots to BASIC/monitor). Requires 32K bank-switched-ROM handling. Compatibility risk vs. the original ROM is negligible — later //c ROMs are backward-compatible; titles that run *only* on the original ROM are rare copy-protection / serial-quirk edge cases.
 - **Q: Who builds the shared 6551 ACIA, given spec 015 (printer) is in flight?** → **016 builds the complete dual-port ACIA (all registers, RX+TX, IRQ); spec 015 consumes it.**
 - **Q: Serial host endpoints for v1?** → **Virtual only** — host-file output (printing) + loopback (comms). Real host COM / TCP-telnet endpoints deferred.
-- **Q: 65C02 conformance verification?** → **Klaus Dormann's 65C02 extended-opcode functional test + Tom Harte's `synertek65c02` SingleStepTests** (reuse the existing CPU-test infrastructure used for the NMOS core).
+- **Q: 65C02 conformance verification?** → **Klaus Dormann's 65C02 extended-opcode functional test + Tom Harte's SingleStepTests** (reuse the existing CPU-test infrastructure used for the NMOS core). *(Superseded detail: the corpus was first pinned as `synertek65c02` (base CMOS tier), but the shipped core is the **Rockwell R65C02** — ROM 4 firmware uses RMB/SMB/BBR/BBS — so the target corpus is the **`rockwell65c02`** tier; regenerating it is follow-up T041.)*
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -60,8 +60,8 @@ A user selects **Apple //c** from the machine picker and it cold-boots to the //
 
 **Acceptance Scenarios**:
 
-1. **Given** Apple //c is selected, **When** cold-booted, **Then** it reaches the //c monitor / Applesoft using the //c ROM, with 128K standard.
-2. **Given** the //c has no card slots, **When** firmware probes slot ROM space, **Then** the built-in peripherals respond at their fixed phantom-slot addresses ($C1xx serial 1, $C2xx serial 2, $C3xx 80-column, $C4xx mouse, $C6xx disk).
+1. **Given** Apple //c is selected, **When** cold-booted with no disk, **Then** the //c firmware runs its full startup and terminates at **"Check Disk Drive."** (the //c has no BASIC-on-cold-boot; with a bootable disk mounted it boots that disk), with 128K standard.
+2. **Given** the //c has no card slots, **When** firmware probes slot ROM space, **Then** the built-in peripherals respond at their fixed phantom-slot addresses ($C1xx serial 1, $C2xx serial 2, $C3xx 80-column, $C6xx disk, **$C7xx mouse** — ROM 4 places the mouse at slot 7; slot 4 carries the memory-expansion firmware).
 3. **Given** a cold boot, **When** the //c firmware runs its startup, **Then** it reaches BASIC / monitor normally. *(The open-apple/closed-apple boot-time **self-test / diagnostics** entry is **deferred to a v1 follow-up** — see Out of scope.)*
 
 ---
@@ -128,15 +128,15 @@ A user boots and runs disk software from the //c's built-in 5.25" drive (and an 
 **65C02 CPU (P1)**
 - **FR-001**: The system MUST provide a 65C02 CPU core implementing the full documented 65C02 instruction set — new opcodes (`STZ`, `PHX`/`PLX`/`PHY`/`PLY`, `BRA`, `TSB`/`TRB`, `INC A`/`DEC A`, `RMB`/`SMB`, `BBR`/`BBS`), new addressing modes (`(zp)`, `(abs,X)` for `JMP`), and 65C02 cycle timings.
 - **FR-002**: The system MUST match documented 65C02-vs-NMOS behavioral differences (fixed indirect-`JMP` page-boundary bug; decimal-mode flag correctness and cycle penalty; RMW cycle counts).
-- **FR-003**: The system MUST select the CPU variant per machine profile: **65C02** for Apple //e Enhanced and Apple //c; **NMOS 6502** for Apple II, II+, and unenhanced //e (unchanged).
+- **FR-003**: The system MUST select the CPU variant per machine profile: **65C02** for the Apple //c (and the future Apple //e Enhanced profile — **deferred to issue #86**; no such profile exists today); **NMOS 6502** for Apple II, II+, and //e (unchanged).
 - **FR-004**: Selecting a non-enhanced machine MUST leave its emulation behavior unchanged (no regressions in the existing suite).
 
 **//c machine profile + firmware map (P2)**
 - **FR-005**: The system MUST define an **Apple //c** machine profile (catalog entry, display name "Apple //c", disk-picker entry) composed of the 65C02, 128K RAM, the //e video/memory substrate, and the //c peripherals.
 - **FR-006**: The system MUST load the **Apple //c Memory Expansion ROM (ROM 4)** as a managed asset with integrity verification, consistent with existing machine-ROM handling. This is a **32K bank-switched** ROM; the router MUST handle the //c's expanded-firmware bank switching ($C800 space).
 - **FR-006a**: The ROM-4 firmware references UniDisk 3.5 (SmartPort) and the memory-expansion card, which are **out of scope for v1**: those peripherals MUST report absent (the ROM still boots to monitor / Applesoft). Adding them is a follow-up.
-- **FR-007**: The system MUST present built-in peripherals at fixed **phantom-slot** ROM/I-O addresses (serial 1 -> slot 1, serial 2 -> slot 2, 80-column -> slot 3, mouse -> slot 4, disk -> slot 6) via the existing `CxxxRomRouter`, with **no** user-insertable expansion slots on this machine.
-- **FR-008**: The //c MUST default to 128K and 80-column-capable video, cold-booting to the //c firmware (monitor / Applesoft).
+- **FR-007**: The system MUST present built-in peripherals at fixed **phantom-slot** ROM/I-O addresses (serial 1 -> slot 1, serial 2 -> slot 2, 80-column -> slot 3, disk -> slot 6, **mouse -> slot 7**; corrected from the original "slot 4" assumption — ROM 4's firmware places the mouse signature/entries at $C7xx and the memory-expansion firmware at $C4xx, established by disassembly) via the existing `CxxxRomRouter`, with **no** user-insertable expansion slots on this machine.
+- **FR-008**: The //c MUST default to 128K and 80-column-capable video, cold-booting through the //c firmware to the correct terminal state: **a mounted bootable disk boots; with no disk the machine displays "Check Disk Drive."** (hardware-verified; the //c does not fall into BASIC on cold boot).
 
 **Serial ports (P3)**
 - **FR-009**: The system MUST emulate a **6551 ACIA** (data, status, command, control registers; transmit/receive; baud/framing; IRQ) as a reusable device.
@@ -148,7 +148,8 @@ A user boots and runs disk software from the //c's built-in 5.25" drive (and an 
 **Mouse (P4)**
 - **FR-012**: The system MUST emulate the //c built-in mouse: firmware entry points, X/Y position, button state, and mouse/VBL interrupt delivery.
 - **FR-013**: The system MUST map the host pointer to the guest mouse and honor the //c interrupt soft switches (VBL at $C019, mouse IRQ status/enable). **Mouse mode is non-capturing**: the guest mouse tracks the host pointer (absolute mapping) while it is over the emulator viewport, with the host cursor hidden there and released when it leaves — distinct from Paddle mode, which captures the host mouse.
-- **FR-013a**: The //c mouse/joystick share one DB-9 game port, so the game-port device is a single selection. The system MUST extend the existing `InputMappingMode` (`Off`/`Joystick`/`Paddle`) with a **`Mouse`** mode, gated to mouse-capable machines, exposed as a **skeuomorphic device selector** (icons for joystick / paddle / mouse) replacing the current cycle-toggle, persisted in user prefs.
+- **FR-013a** *(revised 2026-07-09; the original single-selection model is superseded)*: Although the //c's mouse/joystick share one physical DB-9 port, joystick (PDL0/1+PB0/1) and mouse (X0/X1/Y0/Y1+PB2) drive **disjoint game-port lines at disjoint addresses** — exclusivity on real hardware is mechanical, not architectural. The system MUST therefore model input mapping as **two orthogonal selections**: **Keys** = `Off`/`Joystick` (arrows+Z/X) and **Pointer** = `Off`/`Paddle`/`Mouse` (Paddle↔Mouse remain mutually exclusive — both claim the host pointer; `Mouse` only on mouse-capable machines). Both persist in user prefs, migrating the legacy single `inputMappingMode` (T030b). UI: a **two-group skeuomorphic device selector** (icons) replacing the cycle-toggle (T030d). *(Interim shipped state: single-enum `Mouse` in the cycle, machine-gated + firmware-live-gated.)*
+- **FR-013b** *(new 2026-07-09)*: The //c mouse is a **connectable peripheral**, not standard equipment (the //c shipped the port + firmware; the mouse was sold separately). The Settings **Machine tab** MUST offer a **"Mouse — Connected / Not connected"** toggle on the FR-014a external-drive pattern (`$cassoUiPrefs.mouseConnected`, per-machine, live-apply, no reset) (T030c). Disconnected = the IOU remains (built-in silicon) but no host input feeds it and the Pointer mapping hides `Mouse` — indistinguishable from an unplugged DB-9. Default: **connected** *(provisional recommendation — zero-config MousePaint, invisible otherwise thanks to the firmware-live gate; flip to disconnected if authenticity / consistency with the external-drive default is preferred — pending user confirmation)*.
 
 **Disk (P5)**
 - **FR-014**: The system MUST integrate disk access via an **IWM** interface presenting the existing Disk II / WOZ nibble engine as the //c's built-in internal drive (slot-6 space) plus an external drive port — without forking the nibble/WOZ engine.
@@ -171,8 +172,8 @@ A user boots and runs disk software from the //c's built-in 5.25" drive (and an 
 
 ### Measurable Outcomes
 
-- **SC-001**: The 65C02 conformance suite — **Klaus Dormann's 65C02 extended-opcode functional test + Tom Harte's `synertek65c02` SingleStepTests** — passes 100% on the enhanced/`//c` machines; the NMOS conformance behavior is unchanged on non-enhanced machines.
-- **SC-002**: The Apple //c cold-boots to its monitor / Applesoft within the //e startup budget — **no more than 10% over the //e cold-boot wall-clock time on the same host** (measured, not subjective).
+- **SC-001**: The 65C02 conformance suite — **Klaus Dormann's 65C02 extended-opcode functional test + Tom Harte's SingleStepTests at the Rockwell R65C02 tier** — passes 100% on the enhanced/`//c` machines; the NMOS conformance behavior is unchanged on non-enhanced machines. *(Two tracked gaps soften "100%" today: the assembler cannot yet emit BBR/BBS zp-rel, so Dormann runs the common subset (T040), and the Harte corpus is not yet regenerated as `rockwell65c02`, with the 34 bit-op slots covered by unit tests instead (T041). The "Apple //e Enhanced" leg is deferred with the profile itself → issue #86.)*
+- **SC-002**: The Apple //c cold-boots to its correct terminal state (mounted disk boots; no disk → "Check Disk Drive.") within the //e startup budget — **no more than 10% over the //e cold-boot wall-clock time on the same host** (measured, not subjective).
 - **SC-003**: At least three representative //c titles run correctly end-to-end: one **serial/terminal** task, one mouse application (e.g., MousePaint), and one disk-based game — each booting and operating from the //c profile. *(Serial-**print** end-to-end validation, e.g. Print Shop, moves to issue #87.)*
 - **SC-004**: The full existing unit-test suite (including CPU conformance for NMOS, and the Apple II/II+///e machines) stays green — zero regressions.
 - **SC-005**: Exactly one 6551 ACIA implementation exists in the tree, consumed by both this feature and spec 015 (verified by inspection — no duplicate ACIA).
@@ -182,7 +183,7 @@ A user boots and runs disk software from the //c's built-in 5.25" drive (and an 
 - The existing //e substrate (128K aux, 80STORE, language card, `Apple2eMmu`, soft switches, 40/80-column, double hi-res, Disk II/WOZ) is reused unchanged; this feature adds only the //c-specific delta.
 - The 65C02 target is the standard/WDC 65C02 with Rockwell bit ops (`RMB`/`SMB`/`BBR`/`BBS`) as used by the //c ROM — **not** the 65C816.
 - The //c target ROM is the **Memory Expansion ROM (ROM 4)** — the most refined/compatible non-Plus //c firmware. Later //c ROMs are backward-compatible, so this does not lock out original-ROM software.
-- **Printer split (015/016 seam, resolved)**: spec 015 owns the platform-neutral **printer pipeline** (`PrinterByteRing` → `ImageWriterInterpreter` → raster → PNG) and the //e *parallel* front door. This feature (016) owns the //c **serial front door** into that pipeline — the `AciaPrinterEndpoint` + the machine-level ring hoist + the //c config — because it is only testable once a //c can boot (FR-011b). 015 provides the 6551 **hardware** that both consume. See `serial-printer-integration.md`.
+- **Printer split (015/016/#87 seam, resolved)**: spec 015 owns the platform-neutral **printer pipeline** (`PrinterByteRing` → `ImageWriterInterpreter` → raster → PNG) and the //e *parallel* front door. **This feature (016) owns the 6551 ACIA hardware + both //c serial ports with loopback/file endpoints** (FR-009..FR-011a); 015 consumes the same ACIA. The //c **serial printer front door** (`AciaPrinterEndpoint` + machine-level ring hoist + port-1 binding) is **downstream issue #87's** (FR-011b/c) — it needs both 015 and 016 on `master`. See `serial-printer-integration.md`.
 - The disk baseline is the 5.25" drive via the IWM (internal + external port).
 - **Delivery order**: although the 65C02 (US1) is the //c's natural first story, the **6551 ACIA device (US3)** is built first — it is a shared component that blocks the in-flight **spec 015** (printer support). The ACIA device is independent of the CPU and the machine (it is tested standalone via file + loopback); only its //c-specific serial *wiring* waits for the //c bring-up. See `tasks.md` Phase 2.
 - **Out of scope (this spec)**: the Apple //c Plus (4 MHz accelerator); *implementing* the UniDisk 3.5" drive and the memory-expansion card (their ROM-4 firmware is present but reports absent — deferred to follow-ups); the **open-apple/closed-apple boot-time self-test / diagnostics** entry (deferred to a v1 follow-up); real host serial endpoints (COM/TCP); and non-QWERTY keyboard-layout switches.

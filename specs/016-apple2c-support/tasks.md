@@ -160,6 +160,10 @@
 > 2. **Mouse is a connectable peripheral, not standard equipment** (the //c shipped with the port + firmware; the mouse was a separate purchase): add a **"Mouse — Connected / Not connected"** toggle to the Settings **Machine tab**, exactly the T034a external-drive pattern (`$cassoUiPrefs.mouseConnected`, synthetic Hardware-tree node, live-apply, no reset). Disconnected = the IOU stays (built-in silicon) but the shell never feeds host input and the Pointer mapping hides Mouse — identical to an unplugged DB-9 on real hardware. Default: **connected** (recommended: zero-config MousePaint; invisible otherwise thanks to the GuestMouseLive gate) — confirm default with user.
 > 3. With (1)+(2): Pointer mapping can default to Mouse on the //c when connected.
 - [X] T031 [US4] Make mouse tests pass. *(All 7 green; full suite 2276/2276 — the CPU interrupt-dispatch change regressed nothing across Dormann/Harte/boot/disk; production //c boots DOS 3.3 with the mouse + ACIAs + live IRQ dispatch wired.)*
+- [ ] T030b [US4] **Split the input model** (FR-013a revised): two persisted prefs — Keys = Off/Joystick, Pointer = Off/Paddle/Mouse — with migration from the legacy `inputMappingMode` (joystick→Keys:Joystick, paddle→Pointer:Paddle, mouse→Pointer:Mouse); rework the ~15 `m_inputMode` consultation sites (keys paths → Keys, pointer paths → Pointer); Paddle↔Mouse stay exclusive.
+- [ ] T030c [US4] **Mouse — Connected / Not connected** Machine-tab toggle (FR-013b), on the T034a external-drive pattern: `$cassoUiPrefs.mouseConnected` (per-machine, live-apply, no reset), synthetic Hardware-tree node (//c only), disconnected = shell feeds no input + Pointer hides Mouse (IOU silicon stays). Default **connected** (provisional — pending user confirmation; disconnected = authentic/consistent-with-external-drive alternative). With T030b: Pointer defaults to Mouse on the //c when connected.
+- [ ] T030d [US4] Two-group **skeuomorphic device selector** replacing the cycle-toggle (Keys group: joystick icon; Pointer group: paddle/mouse icons) — needs icon assets.
+
 
 **Checkpoint**: mouse-driven //c software (e.g. MousePaint) works.
 
@@ -190,6 +194,8 @@
 
 - [ ] T036 [P] Run full `quickstart.md` validation across all stories.
 - [ ] T037 [P] Update `README.md` + `CHANGELOG.md` for the new Apple //c machine.
+- [ ] T040 [P] Assembler: emit BBR/BBS zero-page-relative encodings so the Dormann 65C02 integration test can run the FULL Rockwell set (today it runs the common subset; SC-001 gap).
+- [ ] T041 [P] Regenerate the Harte SingleStepTests corpus as **`rockwell65c02`** (the current corpus skips the 34 `$x7`/`$xF`/`$CB`/`$DB` slots, covered by unit tests instead; SC-001 gap).
 - [~] T038 Full suite green across Debug+Release × x64+ARM64; Code Analysis clean. *(**Validated so far on this x64 host**: builds clean (0W/0E) for all four Debug/Release × x64/ARM64; x64 tests green — Debug 2268/2268, Release 2265/2265 (Debug has 3 assert-only tests); **Code Analysis clean** across the whole solution after suppressing a lone pre-existing C6262 in `Cpu65C02Tests` (per-file pragma matching the sibling test files). **Remaining**: ARM64 **test execution** needs an ARM64 host/CI (can't run ARM64 binaries on x64); final signoff after US4.)*
 - [ ] T039 SC-003: three representative titles run end-to-end on the //c (serial/terminal, MousePaint, disk game).
 

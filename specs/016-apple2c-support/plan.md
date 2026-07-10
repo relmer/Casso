@@ -100,7 +100,7 @@ UnitTest/EmuTests/
 - `Resources/Machines/Apple2c/Apple2c.json`: `cpu: 65C02`, 128K, the //e substrate components (`apple2e-keyboard`, `apple2e-softswitches`, MMU, `language-card`) + the //c peripherals.
 - //c ROM (ROM 4, 32K) added to the `AssetBootstrap` machine table (+ SHA + "Apple //c" display name + picker entry).
 - Bank-switched ROM: extend the ROM mapping to page the 32K firmware ($C800 expansion-ROM bank switch).
-- `CxxxRomRouter::SetSlotRom` for slots 1 (serial 1), 2 (serial 2), 3 (80-col), 4 (mouse), 6 (disk) from the //c firmware; no user-insertable slots on this machine.
+- `CxxxRomRouter::SetSlotRom` for slots 1 (serial 1), 2 (serial 2), 3 (80-col), 6 (disk), **7 (mouse — ROM 4; slot 4 = memory-expansion firmware)** from the //c firmware; no user-insertable slots on this machine. *(In practice subsumed by no-slots routing: `SetNoExternalSlots(true)` serves the whole internal window.)*
 
 **P3 — Dual 6551 ACIA**
 - New `Acia6551` device: data / status / command / control registers, RX+TX, baud/framing, IRQ via `InterruptController`. Registered in `ComponentRegistry`; two instances (ports 1 & 2) in the //c JSON.
