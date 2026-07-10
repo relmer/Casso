@@ -23,20 +23,26 @@ namespace
     // Case footprint.
     constexpr float   s_kBodyHalfW  = 0.88f;
     constexpr float   s_kBodyZFront = 0.42f;
-    constexpr float   s_kBodyZBack  = -0.88f;
+    constexpr float   s_kBodyZBack  = -0.82f;
+
+    // The whole printer is inclined 20 degrees front-to-back, rotating about
+    // the bottom edge of the front face (y=0 at the front plane): the rear
+    // lifts and the front face tips toward the camera, like the real machine
+    // on its feet. Applied as a model matrix in Render.
+    constexpr float   s_kBodyTiltRad = 20.0f * s_kPi / 180.0f;
 
     // Side profile, front to back: face -> step ledge -> hood -> smoked cover.
-    // The ledge is TWICE as deep (z) as the front face is tall (y), per the
+    // The ledge is 1.8x as deep (z) as the front face is tall (y), per the
     // reference: a broad flat deck before the lid begins.
     constexpr float   s_kFaceTopY      = 0.30f;    // lower front face 0..this
-    constexpr float   s_kLedgeZ        = -0.18f;   // step ledge spans this..front (depth == 2 * s_kFaceTopY)
+    constexpr float   s_kLedgeZ        = -0.12f;   // step ledge spans this..front (depth == 1.8 * s_kFaceTopY)
     constexpr float   s_kHoodFrontY    = 0.375f;   // hood riser top (at ledge z)
     constexpr float   s_kHoodBackY     = 0.415f;   // hood top rear edge...
-    constexpr float   s_kHoodZBack     = -0.28f;   // ...at this z
+    constexpr float   s_kHoodZBack     = -0.22f;   // ...at this z
     constexpr float   s_kCoverTopY     = 0.485f;   // smoked cover top edge...
-    constexpr float   s_kCoverZTop     = -0.43f;   // ...at this z
+    constexpr float   s_kCoverZTop     = -0.37f;   // ...at this z
     constexpr float   s_kDeckY         = 0.40f;    // vented rear deck height
-    constexpr float   s_kDeckZFront    = -0.48f;
+    constexpr float   s_kDeckZFront    = -0.42f;
 
     // Platen bay (seen through the smoked cover), its rounded end towers
     // (vertical half-cylinders hugging the body ends), and the paper-advance
@@ -50,7 +56,7 @@ namespace
     constexpr float   s_kEndXIn     = 0.70f;    // housing spans In..Out (mirrored)
     constexpr float   s_kEndXOut    = 0.90f;    // slightly proud of the body side
     constexpr float   s_kEndCy      = 0.44f;    // crown axis (y, z)
-    constexpr float   s_kEndCz      = -0.32f;
+    constexpr float   s_kEndCz      = -0.26f;
     constexpr float   s_kEndR       = 0.08f;    // crown radius (top = 0.52)
     constexpr float   s_kEndBaseY   = 0.34f;    // buried in the hood
     constexpr float   s_kKnobX1     = 0.99f;
@@ -58,17 +64,17 @@ namespace
 
     // Paper strip: leans back from vertical, then curls away over a roll.
     constexpr float   s_kPaperHalfW  = 0.62f;   // clears the end housings
-    constexpr float   s_kPaperZ      = -0.46f;
+    constexpr float   s_kPaperZ      = -0.40f;
     constexpr float   s_kPaperStartY = 0.46f;   // just below the cover's top edge
     constexpr float   s_kPaperTilt   = 12.0f * s_kPi / 180.0f;
-    constexpr float   s_kStraightLen = 1.15f;   // arclength before the curl
+    constexpr float   s_kStraightLen = 0.95f;   // arclength before the curl (fits the tilted frame)
     constexpr float   s_kCurlRadius  = 0.28f;
     constexpr int     s_kPaperSlices = 48;
 
     // Camera: in front and above, looking slightly down so the printer sits at
     // the bottom of the frame and the paper rises through the middle.
-    constexpr float   s_kEye[3]   = { 0.0f, 1.25f, 3.30f };
-    constexpr float   s_kAt[3]    = { 0.0f, 0.85f, 0.0f };
+    constexpr float   s_kEye[3]   = { 0.0f, 1.35f, 3.30f };
+    constexpr float   s_kAt[3]    = { 0.0f, 0.95f, 0.0f };
     constexpr float   s_kFovY     = 34.0f * s_kPi / 180.0f;
 
     // Palette (ARGB): warm ImageWriter platinum + accents.
@@ -196,6 +202,26 @@ namespace
     {
         memset (out, 0, 16 * sizeof (float));
         out[0] = out[5] = out[10] = out[15] = 1.0f;
+    }
+
+
+    // Model matrix: rotate the whole printer about the x-axis line through the
+    // bottom edge of the front face (y = 0, z = pivotZ), tipping tops toward
+    // the camera so the rear of the machine lifts by `tiltRad`.
+    void TiltAboutFrontBottom (float tiltRad, float pivotZ, float out[16])
+    {
+        float   c = std::cos (tiltRad);
+        float   s = std::sin (tiltRad);
+
+        memset (out, 0, 16 * sizeof (float));
+        out[0]  = 1.0f;
+        out[5]  = c;
+        out[6]  = s;
+        out[9]  = -s;
+        out[10] = c;
+        out[13] = pivotZ * s;
+        out[14] = pivotZ * (1.0f - c);
+        out[15] = 1.0f;
     }
 }
 
@@ -871,8 +897,10 @@ void Printer3DScene::Render (const RECT & targetPx)
     HRESULT          hr = S_OK;
     int              w  = targetPx.right - targetPx.left;
     int              h  = targetPx.bottom - targetPx.top;
+    float            model[16];
     float            view[16];
     float            proj[16];
+    float            viewProj[16];
     float            mvp[16];
     float            identity[16];
     D3D11_VIEWPORT   vp = {};
@@ -888,9 +916,11 @@ void Printer3DScene::Render (const RECT & targetPx)
     vp.Height   = (float) h;
     vp.MaxDepth = 1.0f;
 
+    TiltAboutFrontBottom (s_kBodyTiltRad, s_kBodyZFront, model);
     LookAtRH         (s_kEye, s_kAt, view);
     PerspectiveFovRH (s_kFovY, (float) w / (float) h, 0.1f, 20.0f, proj);
-    Mul44            (view, proj, mvp);
+    Mul44            (view, proj, viewProj);
+    Mul44            (model, viewProj, mvp);
     IdentityMvp      (identity);
 
     m_backdrop.clear ();
