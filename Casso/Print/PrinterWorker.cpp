@@ -82,6 +82,8 @@ void PrinterWorker::Start (PrinterByteRing & ring, PrintRaster seed)
     // Reflect any restored strip so the indicator shows Pending immediately.
     m_hasContent.store (m_job->HasContent (), std::memory_order_relaxed);
     m_rowsUsed.store   (m_job->Raster ().RowsUsed (), std::memory_order_relaxed);
+    m_headPos.store    (((uint64_t) (uint32_t) m_job->HeadRow () << 32)
+                        | (uint32_t) m_job->HeadColumnDots (), std::memory_order_relaxed);
 
     OpenCaptureFile ();
 
@@ -223,8 +225,9 @@ void PrinterWorker::Run ()
 
     while (!m_stopRequested)
     {
-        size_t   drained = 0;
-        int      rowsNow = 0;
+        size_t     drained = 0;
+        int        rowsNow = 0;
+        uint64_t   headPos = 0;
 
         {
             // Hold the raster lock only across the mutation so a UI-thread
@@ -232,17 +235,20 @@ void PrinterWorker::Run ()
             std::lock_guard<std::mutex>   lock (m_rasterMutex);
             drained = m_job->Drain (events);
             rowsNow = m_job->Raster ().RowsUsed ();
+            headPos = ((uint64_t) (uint32_t) m_job->HeadRow () << 32)
+                      | (uint32_t) m_job->HeadColumnDots ();
         }
 
         events.clear ();   // presentation events unused until the panel/audio land
 
         if (drained > 0)
         {
-            // Publish activity + content + strip height for the UI-thread status
-            // sampler and the live-preview refresh pacer.
+            // Publish activity + content + strip height + head position for the
+            // UI-thread status sampler and the live-preview reveal (FR-034).
             m_activity.fetch_add (drained, std::memory_order_relaxed);
             m_hasContent.store   (m_job->HasContent (), std::memory_order_relaxed);
             m_rowsUsed.store     (rowsNow, std::memory_order_relaxed);
+            m_headPos.store      (headPos, std::memory_order_relaxed);
         }
         else
         {

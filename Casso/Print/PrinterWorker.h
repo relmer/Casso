@@ -73,6 +73,18 @@ public:
     // avoid O(rows^2) work. Safe to read from the UI thread.
     int           RowsUsed      () const { return m_rowsUsed.load   (std::memory_order_relaxed); }
 
+    // The print head's newest position (paper row + dot column), published
+    // atomically as one word after each drain so the pair is always coherent.
+    // Drives the panel's left-to-right ink reveal (FR-034); reading it never
+    // touches the raster. Safe to call from the UI thread.
+    void          HeadPosition  (int & row, int & colDots) const
+    {
+        uint64_t   packed = m_headPos.load (std::memory_order_relaxed);
+
+        row     = (int) (packed >> 32);
+        colDots = (int) (packed & 0xFFFFFFFFu);
+    }
+
 private:
     void          Run             ();
     void          OpenCaptureFile ();
@@ -84,6 +96,7 @@ private:
     std::atomic<uint64_t>    m_activity      { 0 };
     std::atomic<bool>        m_hasContent    { false };
     std::atomic<int>         m_rowsUsed      { 0 };   // strip height for preview pacing
+    std::atomic<uint64_t>    m_headPos       { 0 };   // (row << 32) | colDots (FR-034)
     bool                     m_running       = false;
     std::ofstream            m_capture;
 };

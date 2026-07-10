@@ -3,6 +3,7 @@
 #include "Window/DxuiWindow.h"
 #include "Widgets/DxuiButton.h"
 
+#include "Devices/Printer/PrinterPacing.h"
 #include "Devices/Printer/PrinterViewport.h"
 #include "PrinterPaperView.h"
 
@@ -89,8 +90,10 @@ protected:
 
 private:
     void     ShowBlankSheet ();
-    void     RenderSpan     (const PrintRaster & spanRaster, int firstAbsRow);
-    void     ComposeCanvas  (const RgbaImage * content, int contentFirstAbsRow);
+    void     RenderSpan     (const PrintRaster & spanRaster, int firstAbsRow,
+                             int revealBandTopAbs, int revealColDots);
+    void     ComposeCanvas  (const RgbaImage * content, int contentFirstAbsRow,
+                             int revealBandTopAbs, int revealColDots);
 
     static int64_t  NowMs ();
 
@@ -114,6 +117,15 @@ private:
     uint64_t                m_renderedActivity = 0;
     int64_t                 m_lastRenderMs     = 0;
     bool                    m_hasRendered      = false;
+
+    // Head-timing ink reveal (FR-034): pacing chases the worker's head
+    // position at ImageWriter speed; the rendered-reveal pair detects sweep
+    // motion so the panel keeps animating between byte arrivals. Primed
+    // caught-up on first refresh so a restored strip never replays history.
+    PrinterPacing           m_pacing;
+    bool                    m_pacingPrimed     = false;
+    int                     m_renderedRevealRow = -1;
+    int                     m_renderedRevealCol = -1;
 
     RECT                    m_hintRect         = {};
     float                   m_hintFontPx       = 12.0f;

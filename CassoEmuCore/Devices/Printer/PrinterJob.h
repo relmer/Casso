@@ -46,6 +46,11 @@ public:
     const PrintRaster &  Raster     () const { return m_raster; }
     PrintRaster &        Raster     ()       { return m_raster; }
 
+    // The print head's position for the FR-034 ink reveal: the raster's paper
+    // row (top of the current pin band) plus the interpreter's dot column.
+    int                  HeadRow        () const { return m_raster.PaperRow (); }
+    int                  HeadColumnDots () const { return m_interpreter.HeadColumnDots (); }
+
     void    SetByteObserver (function<void (const Byte *, size_t)> observer) { m_observer = move (observer); }
 
 private:

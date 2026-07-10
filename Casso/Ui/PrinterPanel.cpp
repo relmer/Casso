@@ -45,6 +45,11 @@ namespace
     constexpr int       s_kHolePitchPx    = PrinterGrid::kRowsPerInch / 2;          // 0.5" =   72
     constexpr uint32_t  s_kArgbHoleRim    = 0xFFB8B8B8;   // sprocket hole edge
 
+    // The live pin band (FR-034): a head pass strikes 8 pins spaced 1/72",
+    // i.e. 2 native rows each -- 16 rows below the paper row. The reveal mask
+    // clips this band at the paced head column; rows above it are complete.
+    constexpr int       s_kPinBandRows = 8 * (PrinterGrid::kRowsPerInch / 72);
+
 
     // Floor modulus: hole / perforation phase stays continuous for rows above
     // the top of the strip (the leading fanfold paper), where absRow < 0.
@@ -209,10 +214,17 @@ int64_t PrinterPanel::NowMs ()
 
 void PrinterPanel::RefreshLive (PrinterWorker & worker, int64_t nowMs, bool force)
 {
-    int                     rows     = worker.RowsUsed ();
-    uint64_t                activity = worker.ActivityCount ();
+    int                     rows        = worker.RowsUsed ();
+    uint64_t                activity    = worker.ActivityCount ();
+    double                  nowSec      = (double) nowMs / 1000.0;
+    int                     headRow     = 0;
+    int                     headCol     = 0;
+    int                     revealRow   = 0;
+    int                     revealCol   = 0;
+    int                     bandBottom  = 0;
+    bool                    moved       = false;
+    bool                    revealMoved = false;
     PrinterViewport::Span   span;
-    bool                    moved    = false;
     PrintRaster             spanRaster;
 
     if (m_paper == nullptr)
@@ -220,23 +232,47 @@ void PrinterPanel::RefreshLive (PrinterWorker & worker, int64_t nowMs, bool forc
         return;
     }
 
+    worker.HeadPosition (headRow, headCol);
+
     // A shrunk strip means eject/discard tore the paper off: rewind the view
-    // to the fresh sheet instead of staring past its end.
+    // and the reveal to the fresh sheet instead of staring past its end.
     if (rows - 1 < m_viewport.LiveRow ())
     {
         m_viewport.Reset ();
+        m_pacing.Reset (nowSec, 0);
     }
 
+    // First refresh starts caught up at the head, so opening the panel over a
+    // restored pending strip never replays its history (only NEW ink animates).
+    if (!m_pacingPrimed)
+    {
+        m_pacing.Reset (nowSec, headRow);
+        m_pacingPrimed = true;
+    }
+
+    // The FR-034 reveal: pacing chases the head at ImageWriter speed. At
+    // authentic guest speed it stays caught up (the sweep IS the guest's own
+    // timing); at max speed it animates behind, jump-cutting past big backlogs.
+    m_pacing.SetTargetPosition (headRow, headCol);
+    m_pacing.Advance (nowSec);
+
+    revealRow  = m_pacing.RevealedRows ();
+    revealCol  = m_pacing.RevealedColDots ();
+    bandBottom = (std::min) (revealRow + s_kPinBandRows - 1, rows - 1);
+
+    // The viewport follows the REVEALED edge, not the raster's -- so a paced
+    // reveal happens on-screen instead of scrolling past unseen.
     if (rows > 0)
     {
-        m_viewport.Advance (rows - 1);
+        m_viewport.Advance ((std::max) (bandBottom, 0));
     }
     m_viewport.Tick (nowMs);
 
-    span  = m_viewport.VisibleSpan ();
-    moved = (span.firstRow != m_renderedSpan.firstRow || span.lastRow != m_renderedSpan.lastRow);
+    span        = m_viewport.VisibleSpan ();
+    moved       = (span.firstRow != m_renderedSpan.firstRow || span.lastRow != m_renderedSpan.lastRow);
+    revealMoved = (revealRow != m_renderedRevealRow || revealCol != m_renderedRevealCol);
 
-    if (!force && !moved && m_hasRendered && activity == m_renderedActivity)
+    if (!force && !moved && !revealMoved && m_hasRendered && activity == m_renderedActivity)
     {
         return;   // nothing changed: zero work this frame
     }
@@ -252,17 +288,19 @@ void PrinterPanel::RefreshLive (PrinterWorker & worker, int64_t nowMs, bool forc
     }
     else if (worker.SnapshotStripSpan (span.firstRow, span.lastRow, spanRaster))
     {
-        RenderSpan (spanRaster, span.firstRow);
+        RenderSpan (spanRaster, span.firstRow, revealRow, revealCol);
     }
     else
     {
         ShowBlankSheet ();   // no active job: fresh paper in the platen
     }
 
-    m_renderedSpan     = span;
-    m_renderedActivity = activity;
-    m_lastRenderMs     = nowMs;
-    m_hasRendered      = true;
+    m_renderedSpan      = span;
+    m_renderedActivity  = activity;
+    m_renderedRevealRow = revealRow;
+    m_renderedRevealCol = revealCol;
+    m_lastRenderMs      = nowMs;
+    m_hasRendered       = true;
     Invalidate ();
 }
 
@@ -305,7 +343,7 @@ void PrinterPanel::SetStrip (const PrintRaster & raster)
 
     span = m_viewport.VisibleSpan ();
     raster.CopyRowSpan (span.firstRow, span.lastRow, spanRaster);
-    RenderSpan (spanRaster, span.firstRow);
+    RenderSpan (spanRaster, span.firstRow, -1, 0);   // no live head: show everything
 
     m_renderedSpan = span;
     m_hasRendered  = true;
@@ -325,7 +363,7 @@ void PrinterPanel::SetStrip (const PrintRaster & raster)
 
 void PrinterPanel::ShowBlankSheet ()
 {
-    ComposeCanvas (nullptr, 0);
+    ComposeCanvas (nullptr, 0, -1, 0);
 }
 
 
@@ -338,11 +376,13 @@ void PrinterPanel::ShowBlankSheet ()
 //  Render the (rebased) span raster, then compose it onto the fanfold canvas.
 //  `firstAbsRow` is the span's first row in strip-absolute terms, which keys
 //  the sprocket-hole / perforation phase so the furniture scrolls WITH the
-//  paper instead of sitting still while content slides past it.
+//  paper instead of sitting still while content slides past it. The reveal
+//  pair (band top + head column, FR-034) clips the live line; -1 disables.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void PrinterPanel::RenderSpan (const PrintRaster & spanRaster, int firstAbsRow)
+void PrinterPanel::RenderSpan (const PrintRaster & spanRaster, int firstAbsRow,
+                               int revealBandTopAbs, int revealColDots)
 {
     HRESULT                  hr   = S_OK;
     int                      rows = spanRaster.RowsUsed ();
@@ -366,7 +406,7 @@ void PrinterPanel::RenderSpan (const PrintRaster & spanRaster, int firstAbsRow)
         return;   // keep the previous frame rather than flash a bad one
     }
 
-    ComposeCanvas (&img, firstAbsRow);
+    ComposeCanvas (&img, firstAbsRow, revealBandTopAbs, revealColDots);
 }
 
 
@@ -386,9 +426,14 @@ void PrinterPanel::RenderSpan (const PrintRaster & spanRaster, int firstAbsRow)
 //  scale-to-fit (no zoom jumps). Holes are punched transparent so the dark
 //  mat shows through them.
 //
+//  The FR-034 reveal mask clips the live pin band: rows at or below
+//  `revealBandTopAbs` show ink only left of the paced head column, so the
+//  head visibly lays ink as it sweeps. -1 disables the mask.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
-void PrinterPanel::ComposeCanvas (const RgbaImage * content, int contentFirstAbsRow)
+void PrinterPanel::ComposeCanvas (const RgbaImage * content, int contentFirstAbsRow,
+                                  int revealBandTopAbs, int revealColDots)
 {
     int                     canvasW   = s_kStockWidthPx;
     int                     canvasH   = m_viewport.ViewportRows ();   // px == rows at 144 dpi
@@ -407,16 +452,25 @@ void PrinterPanel::ComposeCanvas (const RgbaImage * content, int contentFirstAbs
 
     // Content, bottom-anchored in the printable area, premultiplied for the
     // GPU blit (paper is opaque, but anti-aliased dot edges carry alpha).
+    // Rows in the live pin band blit only up to the paced head column; ink to
+    // its right stays paper white until the sweep gets there (FR-034).
     if (content != nullptr)
     {
         int   yTop = (contentFirstAbsRow - topAbsRow);
 
         for (int y = 0; y < content->height; y++)
         {
-            uint32_t *     dst = &bgra[(size_t) (yTop + y) * canvasW + s_kContentXPx];
-            const Byte *   src = content->PixelAt (0, y);
+            uint32_t *     dst  = &bgra[(size_t) (yTop + y) * canvasW + s_kContentXPx];
+            const Byte *   src  = content->PixelAt (0, y);
+            int            xEnd = content->width;
 
-            for (int x = 0; x < content->width; x++)
+            if (revealBandTopAbs >= 0 && contentFirstAbsRow + y >= revealBandTopAbs)
+            {
+                xEnd = std::clamp (revealColDots * content->width / PrinterGrid::kDotsPerRow,
+                                   0, content->width);
+            }
+
+            for (int x = 0; x < xEnd; x++)
             {
                 uint32_t  r = src[x * 4 + 0];
                 uint32_t  g = src[x * 4 + 1];

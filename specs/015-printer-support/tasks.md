@@ -134,8 +134,8 @@
 
 **Phase C — head-timing ink reveal:**
 
-- [ ] T068 [US4] Expose the print head's column position + timestamp stream from `ImageWriterInterpreter`/`PrinterJob`/`PrinterWorker` without mutating the (immediately-complete) raster in `CassoEmuCore/Devices/Printer/` + `Casso/Print/PrinterWorker.*` (FR-034)
-- [ ] T069 [US4] Extend `PrinterPacing` to a left→right per-column ink reveal within the current line and drive the panel's incremental reveal from it in `CassoEmuCore/Devices/Printer/PrinterPacing.*` + `Casso/Ui/PrinterPanel.cpp` + unit tests (FR-034, FR-031)
+- [X] T068 [US4] Expose the print head's position from the pipeline without mutating the raster: `ImageWriterInterpreter::HeadColumnDots`, `PrinterJob::HeadRow/HeadColumnDots`, `PrinterWorker::HeadPosition` (row+column packed in one atomic, published per drain) in `CassoEmuCore/Devices/Printer/` + `Casso/Print/PrinterWorker.*` (FR-034)
+- [X] T069 [US4] Extend `PrinterPacing` with a per-line column channel (`SetTargetPosition`/`RevealedColDots`: sweep at dotsPerSecond on arrival at the live line, full width while catching up, same-row max-hold so overprint passes never un-reveal ink, FF/jump-cut snap) + 5 unit tests; `PrinterPanel::RefreshLive` drives it (primed caught-up so restored strips don't replay; viewport follows the REVEALED edge) and `ComposeCanvas` clips the 16-row pin band at the paced head column in `CassoEmuCore/Devices/Printer/PrinterPacing.*` + `Casso/Ui/PrinterPanel.cpp` (FR-034, FR-031)
 
 **Phase D — 3D presentation scene (needs user eyeball for final tuning):**
 
