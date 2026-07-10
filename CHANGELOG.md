@@ -6,6 +6,32 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 Versioned entries use `MAJOR.MINOR.PATCH` from [Version.h](CassoCore/Version.h).
 Entries before versioning was introduced use dates only.
 
+## [1.6.4] — Disk ][ Debug panel virtualization (GH #88)
+
+### Fixed
+- **fix(ui): the Disk ][ Debug panel no longer wedges under disk-heavy
+  activity (GH #88).** Every render frame rebuilt and re-materialized the
+  entire event list into the `DxuiListView` — up to 100,000 rows, each six
+  freshly-heap-allocated `std::wstring` cells — even when only a handful of
+  events were visible and nothing had changed. Under a `SAVE` or a Print
+  Shop print (thousands of head-step / address-mark events per second) the
+  per-frame allocation storm starved the UI thread and the app appeared to
+  hang. The list now uses a **virtual (provider) row model**: it holds no
+  materialized rows, tracks only a count, and pulls cells for just the
+  visible window (`O(visible)` per frame instead of `O(total)`). A
+  per-frame **change-gate** skips the filter/sort rebuild entirely on idle
+  frames (no new events), and columns auto-fit from the visible window as
+  rows scroll in.
+
+### Changed
+- **Selection and keyboard focus in the Disk ][ Debug panel now track the
+  selected event by a stable monotonic identity (`seq`) rather than by row
+  or deque index.** A column re-sort keeps the same event selected *and*
+  scrolls it back into view, and a selection that is filtered out or
+  evicted from the rolling history snaps to the nearest surviving event
+  instead of silently jumping. The resolution logic is a pure, headlessly
+  unit-tested helper (`DebugDialogProjection::ResolveSelection`).
+
 ## [1.6.3] — Disk write persistence: WOZ write-back, flush safety
 
 Follows GH #89 (which fixed the emulated write *bit*) by fixing the

@@ -94,6 +94,20 @@ public:
     void  SetRows         (std::vector<std::vector<Cell>> rows);
     void  AppendRows      (std::vector<std::vector<Cell>> rows);
 
+    // Virtual (provider) row model. Instead of materializing every row up
+    // front via SetRows, the host supplies a total row count plus a callback
+    // that fills one row's cells on demand. Paint pulls only the rows in the
+    // visible window, so a 100k-row live log costs O(visible) per frame
+    // instead of O(total) allocations (GH #88). Mutually exclusive with
+    // SetRows/AppendRows: installing a provider drops any pushed rows, and
+    // SetRows/AppendRows clears provider mode. The provider is invoked during
+    // Paint (const) for rows in [GetTopRow(), +capacity); it must be a pure
+    // read of host state valid for the ListView's lifetime.
+    using RowProvider = std::function<void (int row, std::vector<Cell> & out)>;
+    void  SetRowProvider     (int rowCount, RowProvider provider);
+    void  SetVirtualRowCount (int rowCount);
+    bool  IsVirtual          () const                      { return m_virtual; }
+
     // Column visibility & widths.
     void  SetColumnVisible          (size_t idx, bool visible);
     bool  IsColumnVisible           (size_t idx) const     { return (idx < m_columns.size()) && m_columns[idx].visible; }
@@ -130,7 +144,7 @@ public:
     size_t         GetColumnCount () const                 { return m_columns.size(); }
     const Column & GetColumnAt    (size_t idx) const       { return m_columns[idx]; }
 
-    int   GetRowCount              () const                 { return (int) m_rows.size(); }
+    int   GetRowCount              () const                 { return RowCount(); }
     int   GetHoveredRow            () const                 { return m_hovered; }
     bool  IsHeaderShown            () const                 { return m_showHeader; }
     int   GetHeaderHeightPx        () const                 { return m_showHeader ? m_scaler.Px (s_kHeaderHeightDip) : 0; }
@@ -176,6 +190,9 @@ public:
     bool  IsStickyTailEnabled   () const                 { return m_stickyTail; }
     void  SetTopRow             (int topRow);
     void  ScrollByRows          (int delta)              { SetTopRow (m_topRow + delta); }
+    // Scroll just enough to bring `row` into the visible window, without
+    // changing selection (SetSelectedRow does the same but also selects).
+    void  EnsureVisible         (int row);
     void  ScrollByWheelDelta    (int wheelDelta, int linesPerNotch = 3);
 
     // Scrollbar geometry & thumb-drag. xPx/yPx are relative to the
@@ -346,6 +363,20 @@ private:
         int   contentW  = 0;
     };
 
+    // Row count honoring virtual (provider) mode. All scroll math, hit-test,
+    // and paint bounds go through this so the two modes share one code path.
+    int          RowCount            () const { return m_virtual ? m_virtualCount : (int) m_rows.size(); }
+    // Fill `out` with row `r`'s cells: from the provider in virtual mode, or
+    // a copy of m_rows[r] otherwise. Used by Paint's visible-window pull.
+    void         ProvideRow          (int r, std::vector<Cell> & out) const;
+    // Grow the monotonic auto-fit glyph counts from one row's cells (the
+    // per-row half of UpdateAutoFitFromRows, used for the visible window in
+    // virtual mode where m_rows is empty).
+    void         NoteAutoFitRow      (const std::vector<Cell> & cells) const;
+    // Clamp m_topRow / sticky-tail after the row count changes (shared by
+    // SetRows / AppendRows / SetVirtualRowCount / SetRowProvider).
+    void         ClampTopAfterCountChange (bool wasSticky);
+
     Palette      MakePalette         () const;
     ScrollLayout ComputeScrollLayout () const;
     int          ColumnNaturalWidthPx (size_t c) const;
@@ -412,10 +443,18 @@ private:
     // the cheap fallback used when no DWrite measurement exists (e.g. the
     // debug panels). ComputeColumnLayout turns it into a pixel width at the
     // current DPI; persists across SetRows.
-    std::vector<int>                  m_autoMaxChars;
+    // Mutable: grown from the visible window during const Paint in virtual
+    // mode (mirrors m_measuredWPx, which is likewise refreshed from Paint).
+    mutable std::vector<int>          m_autoMaxChars;
     bool                              m_preciseAutoFit    = false;
     mutable bool                      m_measureDirty      = false;
     DxuiDpiScaler                         m_scaler;
+    // Virtual (provider) row model — see SetRowProvider. When m_virtual is
+    // true, m_rows is empty and rows are pulled on demand into m_providerScratch.
+    bool                              m_virtual           = false;
+    int                               m_virtualCount      = 0;
+    RowProvider                       m_rowProvider;
+    mutable std::vector<Cell>         m_providerScratch;
     int                               m_hovered           = -1;
     int                               m_selectedRow       = -1;
     int                               m_sortColumn        = -1;
