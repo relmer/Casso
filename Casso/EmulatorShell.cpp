@@ -3713,6 +3713,20 @@ bool EmulatorShell::GuestMouseActive () const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  GuestMouseLive
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool EmulatorShell::GuestMouseLive () const
+{
+    return GuestMouseActive () && m_mouse->XyInterruptsEnabled ();
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  UpdateGuestMouseFromHost
 //
 //  Absolute host->guest mapping for //c Mouse mode. The mouse firmware owns
@@ -3739,7 +3753,9 @@ void EmulatorShell::UpdateGuestMouseFromHost (int xPx, int yPx)
     int          vpH = vp.bottom - vp.top;
 
 
-    if (m_cpu == nullptr || m_mouse == nullptr || vpW <= 1 || vpH <= 1)
+    // Cheap first gate: nothing to map until guest software has enabled the
+    // mouse (the hole sanity checks below remain the correctness backstop).
+    if (m_cpu == nullptr || !GuestMouseLive () || vpW <= 1 || vpH <= 1)
     {
         return;
     }
@@ -3798,7 +3814,10 @@ DxuiMessageResult EmulatorShell::OnSetCursor (WORD hitTest)
     POINT  pt = {};
 
 
-    if (hitTest != HTCLIENT || !GuestMouseActive ())
+    // Only hide the cursor once guest software has turned the mouse on
+    // (GuestMouseLive) -- over a BASIC prompt or a non-mouse game the guest
+    // draws no pointer, so hiding the host cursor would just look broken.
+    if (hitTest != HTCLIENT || !GuestMouseLive ())
     {
         return DxuiMessageResult::NotHandled;
     }
@@ -3879,9 +3898,10 @@ DxuiMessageResult EmulatorShell::OnLButtonDown (WPARAM wParam, LPARAM lParam)
     IGNORE_RETURN_VALUE (consumed, false);
 
     // //c Mouse mode (non-capturing): a press over the emulator viewport is
-    // the guest mouse button. Chrome outside the viewport (menu bar, drive
-    // band, panels) already had its chance above and behaves as before.
-    if (GuestMouseActive ()
+    // the guest mouse button -- but only once guest software has turned the
+    // mouse on, so clicks aren't silently swallowed at a BASIC prompt.
+    // Chrome outside the viewport already had its chance above.
+    if (GuestMouseLive ()
         && x >= m_viewportBoundsPx.left && x < m_viewportBoundsPx.right
         && y >= m_viewportBoundsPx.top  && y < m_viewportBoundsPx.bottom)
     {

@@ -352,6 +352,14 @@ private:
     // this, so a persisted Mouse mode on a mouse-less machine is inert.
     bool    GuestMouseActive       () const;
 
+    // True when guest software has actually turned the mouse on: the
+    // firmware's SETMOUSE programs ENBXY through the IOU for every active
+    // mode, a hardware sequence ($C079 -> $C059 -> $C078) that garbage RAM
+    // cannot fake. Gates the cursor-hide and button capture so the host
+    // pointer never vanishes (or gets swallowed) while nothing mouse-aware
+    // is running — which in turn makes Mouse mode safe to leave on.
+    bool    GuestMouseLive         () const;
+
     // Absolute host→guest mapping: the host position inside the emulator
     // viewport maps proportionally into the firmware's live clamp window
     // (read from the slot-7 screen holes along with the current position),
