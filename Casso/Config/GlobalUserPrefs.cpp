@@ -55,6 +55,7 @@ static const std::set<std::string>  s_kKnownTopLevel = {
 static constexpr const char *  s_kpszInputModeOff      = "off";
 static constexpr const char *  s_kpszInputModeJoystick = "joystick";
 static constexpr const char *  s_kpszInputModePaddle   = "paddle";
+static constexpr const char *  s_kpszInputModeMouse    = "mouse";
 
 // Serialized string tokens for ColorMonitorTextMode.
 static constexpr const char *  s_kpszTextModeWhite  = "white";
@@ -311,6 +312,9 @@ const char * GlobalUserPrefs::InputMappingModeToString (InputMappingMode mode)
         case InputMappingMode::Paddle:
             return s_kpszInputModePaddle;
 
+        case InputMappingMode::Mouse:
+            return s_kpszInputModeMouse;
+
         case InputMappingMode::Off:
         default:
             return s_kpszInputModeOff;
@@ -340,6 +344,11 @@ InputMappingMode GlobalUserPrefs::InputMappingModeFromString (const std::string 
     if (s == s_kpszInputModePaddle)
     {
         return InputMappingMode::Paddle;
+    }
+
+    if (s == s_kpszInputModeMouse)
+    {
+        return InputMappingMode::Mouse;
     }
 
     if (s == s_kpszInputModeOff)

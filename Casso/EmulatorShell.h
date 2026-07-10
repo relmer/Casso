@@ -225,6 +225,7 @@ private:
     DxuiMessageResult  OnLButtonUp     (WPARAM wParam, LPARAM lParam) override;
     DxuiMessageResult  OnRButtonDown   (WPARAM wParam, LPARAM lParam) override;
     DxuiMessageResult  OnRButtonUp     (WPARAM wParam, LPARAM lParam) override;
+    DxuiMessageResult  OnSetCursor     (WORD hitTest) override;
     DxuiMessageResult  OnActivateApp   (bool active) override;
     DxuiMessageResult  OnKillFocus     () override;
     DxuiMessageResult  OnCancelMode    () override;
@@ -345,6 +346,20 @@ private:
     // Radio-group toggle for the Machine-menu items: selects `target`, or
     // turns mapping Off if `target` is already the active mode.
     void    ToggleInputMappingMode (InputMappingMode target);
+
+    // //c mouse mode (US4 / T030). True while Mouse mode is selected AND the
+    // current machine has the IOU mouse — every runtime consumer guards on
+    // this, so a persisted Mouse mode on a mouse-less machine is inert.
+    bool    GuestMouseActive       () const;
+
+    // Absolute host→guest mapping: the host position inside the emulator
+    // viewport maps proportionally into the firmware's live clamp window
+    // (read from the slot-7 screen holes along with the current position),
+    // and the delta is queued as movement units. Self-correcting — any units
+    // the firmware clamps away are re-derived from the holes on the next
+    // move. No-op until the guest app has initialized the mouse firmware
+    // (garbage holes fail the sanity checks).
+    void    UpdateGuestMouseFromHost (int xPx, int yPx);
 
     // Advance the input mapping mode Off -> Joystick -> Paddle -> Off,
     // routed from the drive-bar widget, the Machine menu, and Ctrl+Shift+J.

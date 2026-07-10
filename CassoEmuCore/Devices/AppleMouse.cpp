@@ -92,13 +92,18 @@ void AppleMouse::Tick (uint32_t cpuCycles)
         m_lastInVblank = inVblank;
     }
 
-    // Drain host motion into the CPU-side queue.
+    // Drain host motion into the CPU-side queue. Clamp the backlog to the
+    // firmware's maximum clamp span: real hardware doesn't queue at all
+    // (unserviced pulses are simply lost), so an unbounded backlog while
+    // the guest has interrupts masked would replay a stale burst later.
     {
+        constexpr int  kMaxPending = 1023;
+
         int  dx = m_hostDx.exchange (0, std::memory_order_acq_rel);
         int  dy = m_hostDy.exchange (0, std::memory_order_acq_rel);
 
-        m_pendingX += dx;
-        m_pendingY += dy;
+        m_pendingX = std::clamp (m_pendingX + dx, -kMaxPending, kMaxPending);
+        m_pendingY = std::clamp (m_pendingY + dy, -kMaxPending, kMaxPending);
     }
 
     // Latch one unit per idle axis. MOUX1 bit 7 = 1 -> firmware increments X

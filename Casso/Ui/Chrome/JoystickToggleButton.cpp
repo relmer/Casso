@@ -30,6 +30,7 @@ static constexpr float    s_kFallbackCharPx = 7.5f;
 static constexpr const wchar_t * s_kFontFamily = DxuiTheme::kBodyFace;
 static constexpr wchar_t  s_kLabel[]      = L"Joystick Mode";
 static constexpr wchar_t  s_kPaddleLabel[] = L"Paddle Mode \u2014 Esc to exit";
+static constexpr wchar_t  s_kMouseLabel[]  = L"Mouse Mode";
 
 // The LED glows a fixed realistic blue regardless of the active theme's
 // drive LED hue (which is red on skeuomorphic, green on phosphor); a dark
@@ -46,12 +47,21 @@ static constexpr wchar_t  s_kPaddleTooltip[] =
     L"The mouse drives paddles 0 and 1; left / right buttons fire.\n"
     L"Press Esc to release the mouse and exit paddle mode.";
 
+static constexpr wchar_t  s_kMouseTooltip[] =
+    L"The host pointer drives the built-in mouse while over the screen\n"
+    L"(non-capturing). Click again to disable input mapping.";
+
 
 
 
 const wchar_t * JoystickToggleButton::Label () const
 {
-    return (m_mode == InputMappingMode::Paddle) ? s_kPaddleLabel : s_kLabel;
+    switch (m_mode)
+    {
+        case InputMappingMode::Paddle:  return s_kPaddleLabel;
+        case InputMappingMode::Mouse:   return s_kMouseLabel;
+        default:                        return s_kLabel;
+    }
 }
 
 
@@ -241,5 +251,10 @@ void JoystickToggleButton::Paint (IDxuiPainter & painter, IDxuiTextRenderer & te
 
 const wchar_t * JoystickToggleButton::TooltipText () const
 {
-    return (m_mode == InputMappingMode::Paddle) ? s_kPaddleTooltip : s_kTooltip;
+    switch (m_mode)
+    {
+        case InputMappingMode::Paddle:  return s_kPaddleTooltip;
+        case InputMappingMode::Mouse:   return s_kMouseTooltip;
+        default:                        return s_kTooltip;
+    }
 }

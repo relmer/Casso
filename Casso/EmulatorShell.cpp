@@ -3620,6 +3620,15 @@ DxuiMessageResult EmulatorShell::OnMouseMove (WPARAM wParam, LPARAM lParam)
         return DxuiMessageResult::Handled;
     }
 
+    // //c Mouse mode (non-capturing): a move over the emulator viewport
+    // drives the guest mouse via absolute mapping. Deliberately falls
+    // through to normal routing — the viewport has no chrome, and moves
+    // outside it (menu bar, drive band) behave exactly as before.
+    if (GuestMouseActive ())
+    {
+        UpdateGuestMouseFromHost (x, y);
+    }
+
     // A fresh hover over a drive widget replays its basename marquee, so
     // the full filename can be re-read on demand.
     for (DriveWidget & drive : m_driveChrome)
@@ -3690,6 +3699,130 @@ DxuiMessageResult EmulatorShell::OnMouseLeave ()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  GuestMouseActive
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool EmulatorShell::GuestMouseActive () const
+{
+    return m_inputMode == InputMappingMode::Mouse && m_mouse != nullptr;
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  UpdateGuestMouseFromHost
+//
+//  Absolute host->guest mapping for //c Mouse mode. The mouse firmware owns
+//  position and clamping, publishing both through the slot-7 screen holes:
+//
+//      position   $047F/$057F (X lo/hi)   $04FF/$05FF (Y lo/hi)
+//      clamp min  $047D/$057D (X)         $04FD/$05FD (Y)
+//      clamp max  $067D/$077D (X)         $06FD/$07FD (Y)
+//
+//  The host position's fraction across the viewport maps into the live
+//  clamp window, and the delta from the firmware's current position is
+//  queued as movement units. Self-correcting: any units the firmware
+//  clamps away are re-derived from the holes on the next move. Sanity
+//  checks make this a no-op until the guest app has initialized the mouse
+//  firmware (pre-INITMOUSE holes are garbage). PeekByte reads the CPU's
+//  memory array directly (same cross-thread pattern as screen scraping).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::UpdateGuestMouseFromHost (int xPx, int yPx)
+{
+    const RECT & vp = m_viewportBoundsPx;
+    int          vpW = vp.right  - vp.left;
+    int          vpH = vp.bottom - vp.top;
+
+
+    if (m_cpu == nullptr || m_mouse == nullptr || vpW <= 1 || vpH <= 1)
+    {
+        return;
+    }
+
+    if (xPx < vp.left || xPx >= vp.right || yPx < vp.top || yPx >= vp.bottom)
+    {
+        return;
+    }
+
+    auto peek16 = [this] (Word lo, Word hi)
+    {
+        return (int) m_cpu->PeekByte (lo) | ((int) m_cpu->PeekByte (hi) << 8);
+    };
+
+    int  xMin = peek16 (0x047D, 0x057D);
+    int  xMax = peek16 (0x067D, 0x077D);
+    int  yMin = peek16 (0x04FD, 0x05FD);
+    int  yMax = peek16 (0x06FD, 0x07FD);
+    int  curX = peek16 (0x047F, 0x057F);
+    int  curY = peek16 (0x04FF, 0x05FF);
+
+    // Sanity: a live clamp window is ordered, spans at most the firmware's
+    // 0..1023 default range, and contains the current position. Anything
+    // else means the mouse firmware isn't initialized yet.
+    if (xMax <= xMin || yMax <= yMin ||
+        xMax - xMin > 1023 || yMax - yMin > 1023 ||
+        curX < xMin || curX > xMax || curY < yMin || curY > yMax)
+    {
+        return;
+    }
+
+    int  targetX = xMin + MulDiv (xPx - vp.left, xMax - xMin, vpW - 1);
+    int  targetY = yMin + MulDiv (yPx - vp.top,  yMax - yMin, vpH - 1);
+
+    if (targetX != curX || targetY != curY)
+    {
+        m_mouse->MoveBy (targetX - curX, targetY - curY);
+    }
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnSetCursor
+//
+//  //c Mouse mode is non-capturing but hides the host cursor while it is
+//  over the emulator viewport (the guest draws its own pointer); leaving
+//  the viewport -- or the client area -- restores the normal arrow.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiMessageResult EmulatorShell::OnSetCursor (WORD hitTest)
+{
+    POINT  pt = {};
+
+
+    if (hitTest != HTCLIENT || !GuestMouseActive ())
+    {
+        return DxuiMessageResult::NotHandled;
+    }
+
+    if (!GetCursorPos (&pt) || !ScreenToClient (m_hwnd, &pt))
+    {
+        return DxuiMessageResult::NotHandled;
+    }
+
+    if (pt.x >= m_viewportBoundsPx.left && pt.x < m_viewportBoundsPx.right &&
+        pt.y >= m_viewportBoundsPx.top  && pt.y < m_viewportBoundsPx.bottom)
+    {
+        SetCursor (nullptr);
+        return DxuiMessageResult::Handled;
+    }
+
+    return DxuiMessageResult::NotHandled;
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  OnLButtonDown
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -3744,6 +3877,16 @@ DxuiMessageResult EmulatorShell::OnLButtonDown (WPARAM wParam, LPARAM lParam)
     // message as not fully handled.
     consumed = m_uiShell.OnLButtonDown (x, y);
     IGNORE_RETURN_VALUE (consumed, false);
+
+    // //c Mouse mode (non-capturing): a press over the emulator viewport is
+    // the guest mouse button. Chrome outside the viewport (menu bar, drive
+    // band, panels) already had its chance above and behaves as before.
+    if (GuestMouseActive ()
+        && x >= m_viewportBoundsPx.left && x < m_viewportBoundsPx.right
+        && y >= m_viewportBoundsPx.top  && y < m_viewportBoundsPx.bottom)
+    {
+        m_mouse->SetButton (true);
+    }
 
     return DxuiMessageResult::NotHandled;
 }
@@ -3823,6 +3966,14 @@ DxuiMessageResult EmulatorShell::OnLButtonUp (WPARAM wParam, LPARAM lParam)
     {
         StartPaddleCapture();
         return DxuiMessageResult::Handled;
+    }
+
+    // //c Mouse mode: any left-release drops the guest mouse button --
+    // unconditionally (not viewport-gated), so a press inside the viewport
+    // released outside it can never leave the guest button stuck.
+    if (GuestMouseActive ())
+    {
+        m_mouse->SetButton (false);
     }
 
     return DxuiMessageResult::NotHandled;
@@ -4612,6 +4763,13 @@ void EmulatorShell::SetInputMappingMode (InputMappingMode mode)
         StopPaddleCapture();
     }
 
+    // Leaving Mouse mode: release a held guest button so it can't stick.
+    if (prev == InputMappingMode::Mouse && mode != InputMappingMode::Mouse
+        && m_mouse != nullptr)
+    {
+        m_mouse->SetButton (false);
+    }
+
     m_inputMode                    = mode;
     m_globalPrefs.inputMappingMode = mode;
     m_joystickButton.SetMode (mode);
@@ -4700,6 +4858,13 @@ void EmulatorShell::CycleInputMappingMode ()
             break;
 
         case InputMappingMode::Paddle:
+            // Mouse mode only exists on mouse-capable machines (the //c);
+            // everywhere else the cycle wraps straight back to Off.
+            next = (m_mouse != nullptr) ? InputMappingMode::Mouse
+                                        : InputMappingMode::Off;
+            break;
+
+        case InputMappingMode::Mouse:
         default:
             next = InputMappingMode::Off;
             break;
