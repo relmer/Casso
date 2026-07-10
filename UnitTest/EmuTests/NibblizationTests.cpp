@@ -257,4 +257,77 @@ public:
         Assert::IsTrue (viaSer == viaDirect);
         Assert::IsTrue (viaSer == raw);
     }
+
+    TEST_METHOD (DskReformatRewrite_serializesToNewContentNotStale)
+    {
+        // A Print Shop "initialize data disk" (or any reformat) rewrites the
+        // mounted image's tracks. The .dsk write-back (Serialize/Denibblize)
+        // must reflect the NEW content, never the stale original -- the
+        // scenario behind the reported "initialized data disk still shows the
+        // old files" symptom. Because Denibblize scans for GCR address/data
+        // markers (byte-sync), a re-nibblized (reformatted) track round-trips
+        // regardless of the exact gap/sync layout the format produced, so a
+        // standard DOS 3.3 format survives the flush; the earlier loss was
+        // flush *timing*, addressed by motor-idle auto-flush.
+        DiskImage      img;
+        vector<Byte>   original  = MakePinnedRandomImage (0x11111111u);
+        vector<Byte>   rewritten = MakePinnedRandomImage (0x22222222u);
+        vector<Byte>   baseline;
+        vector<Byte>   afterReformat;
+
+        Assert::IsTrue (SUCCEEDED (NibblizationLayer::NibblizeDsk (original, img)));
+        Assert::IsTrue (SUCCEEDED (img.Serialize (baseline)));
+        Assert::IsTrue (original == baseline, L"baseline round-trip");
+
+        // Reformat: overwrite every track with different content.
+        Assert::IsTrue (SUCCEEDED (NibblizationLayer::NibblizeDsk (rewritten, img)));
+        Assert::IsTrue (SUCCEEDED (img.Serialize (afterReformat)));
+
+        Assert::IsTrue  (rewritten == afterReformat,
+            L"a reformatted .dsk must serialize to the new content");
+        Assert::IsFalse (original == afterReformat,
+            L"the stale original must not survive the reformat");
+    }
+
+    TEST_METHOD (Denibblize_UnformattedTrack_ZeroFillsThatTrackAndKeepsOthers)
+    {
+        // A .dsk is a plain sector image, so a track with no decodable
+        // address fields (blank / unformatted bit stream) correctly
+        // denibblizes to zeros for THAT track and leaves neighbors intact --
+        // Denibblize returns S_OK rather than failing. This documents the
+        // "missing sectors read back as zeros" behavior: it is intentional
+        // for sector images (a blank disk is all zeros), not silent
+        // corruption of a valid track.
+        DiskImage      img;
+        vector<Byte>   raw       = MakePinnedRandomImage (0x5A5A5A5Au);
+        vector<Byte>   recovered;
+        const size_t   trkBytes  = 16 * 256;
+        const int      wiped     = 5;
+
+        Assert::IsTrue (SUCCEEDED (NibblizationLayer::NibblizeDsk (raw, img)));
+
+        // Blank track 5's bit stream (no address fields left to decode).
+        img.ResizeTrack (wiped, DiskImage::kDefaultTrackByteSize * 8);
+        {
+            vector<Byte> & b = img.GetTrackBitsForWrite (wiped);
+            std::fill (b.begin (), b.end (), static_cast<Byte> (0));
+        }
+        img.SetTrackBitCount (wiped, DiskImage::kDefaultTrackByteSize * 8);
+
+        Assert::IsTrue (SUCCEEDED (NibblizationLayer::Denibblize (img, DiskFormat::Dsk, recovered)));
+
+        // Wiped track -> all zeros.
+        for (size_t i = 0; i < trkBytes; i++)
+        {
+            Assert::AreEqual (Byte (0), recovered[static_cast<size_t> (wiped) * trkBytes + i]);
+        }
+        // Adjacent track 4 -> unaffected, still matches the original.
+        bool  neighborOk = true;
+        for (size_t i = 0; i < trkBytes; i++)
+        {
+            size_t  off = static_cast<size_t> (4) * trkBytes + i;
+            if (recovered[off] != raw[off]) { neighborOk = false; break; }
+        }
+        Assert::IsTrue (neighborOk, L"a formatted neighbor track must be unaffected");
+    }
 };

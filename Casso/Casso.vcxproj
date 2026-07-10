@@ -304,6 +304,7 @@
     <ClInclude Include="Ui\Dialogs\MessageDialog.h" />
     <ClInclude Include="Ui\Dialogs\StartupDownloadDialog.h" />
     <ClInclude Include="Shell\DiskMru.h" />
+    <ClInclude Include="Shell\RepoCheckout.h" />
     <ClInclude Include="Ui\Chrome\MainMenu.h" />
     <ClInclude Include="Ui\ThemeLoader.h" />
     <ClInclude Include="Ui\ThemeManager.h" />

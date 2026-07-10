@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "AssetBootstrap.h"
+#include "Shell/RepoCheckout.h"
 #include "Config/GlobalUserPrefs.h"
 #include "Config/UserConfigStore.h"
 #include "Config/Win32FileSystem.h"
@@ -882,58 +883,24 @@ fs::path AssetBootstrap::GetDiskDirectory()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  WorktreeKeyOf  (file-local)
-//
-//  A Claude worktree checkout lives at <repo>/.claude/worktrees/<name>/...
-//  Returns the ".../.claude/worktrees/<name>" prefix identifying that
-//  worktree, or an empty string if `p` is not inside one.
+//  IsForeignCheckoutDisk
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-static std::wstring WorktreeKeyOf (const fs::path & p)
-{
-    std::vector<fs::path>  comps (p.begin(), p.end());
-
-    for (size_t i = 0; i + 2 < comps.size(); ++i)
-    {
-        if (_wcsicmp (comps[i].c_str(),     L".claude")   == 0 &&
-            _wcsicmp (comps[i + 1].c_str(), L"worktrees") == 0)
-        {
-            fs::path  key;
-
-            for (size_t j = 0; j <= i + 2; ++j)
-                key /= comps[j];
-
-            return key.wstring();
-        }
-    }
-
-    return std::wstring();
-}
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  IsForeignWorktreeDisk
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool AssetBootstrap::IsForeignWorktreeDisk (const fs::path & p)
+bool AssetBootstrap::IsForeignCheckoutDisk (const fs::path & p)
 {
     // The %LOCALAPPDATA% recent-disks MRU is shared across every checkout of
     // the repo (the main tree plus each .claude/worktrees/<name> copy), so it
-    // accumulates absolute paths from all of them -- the same demo then shows
-    // once per checkout. Hide any MRU disk that lives under a worktree OTHER
-    // than the one this build runs from; disks outside any worktree (the main
-    // tree, or the user's own folders) always pass.
-    static const std::wstring  runningKey = WorktreeKeyOf (PathResolver::GetExecutableDirectory());
-    const std::wstring         entryKey   = WorktreeKeyOf (p);
+    // accumulates absolute paths from all of them -- the same disk then shows
+    // once per checkout. Hide any MRU disk that belongs to a checkout OTHER
+    // than the one this build runs from (a sibling worktree, or the main tree
+    // when we run from a worktree); disks outside the repo entirely (the
+    // user's own folders, %LOCALAPPDATA%) always pass. The classification is
+    // pure/lexical and unit-tested in RepoCheckout.h.
+    static const std::wstring  runningKey =
+        RepoCheckout::WorktreeKeyOf (PathResolver::GetExecutableDirectory());
 
-    if (entryKey.empty())
-        return false;                                        // not under a worktree
-
-    return _wcsicmp (entryKey.c_str(), runningKey.c_str()) != 0;
+    return RepoCheckout::IsForeignCheckoutDisk (p, runningKey);
 }
 
 
@@ -1025,6 +992,68 @@ void AssetBootstrap::AppendBundledDemoDisks (std::vector<DiskMru::Entry> & mount
     }
 }
 
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AppendSiblingDisksFromMruFolders
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void AssetBootstrap::AppendSiblingDisksFromMruFolders (std::vector<DiskMru::Entry> & mountable)
+{
+    std::vector<fs::path>  folders = DiskMru::DistinctFolders (mountable);
+    std::vector<fs::path>  discovered;
+
+    // Enumerate each recent-disk folder fresh on every open: the user can
+    // drop a new image next to a recent one (or hand one back from a tool)
+    // while Casso runs, and the picker should surface it without a mount.
+    // These folders are small (a personal disk stash or the Demos dir), so
+    // the walk is cheap.
+    for (const fs::path & dir : folders)
+    {
+        error_code  ecDir;
+
+        for (const fs::directory_entry & entry : fs::directory_iterator (dir, ecDir))
+        {
+            error_code  ecFile;
+
+            if (entry.is_regular_file (ecFile) &&
+                IsSupportedDiskImageExtension (entry.path().wstring()) &&
+                !IsForeignCheckoutDisk (entry.path()))
+            {
+                discovered.push_back (entry.path().lexically_normal());
+            }
+        }
+    }
+
+    std::sort (discovered.begin(), discovered.end());
+
+    // Append the disks we don't already list, de-duplicating by filesystem
+    // identity against the existing entries (and anything appended earlier
+    // in this same pass), matching AppendBundledDemoDisks.
+    for (const fs::path & disk : discovered)
+    {
+        bool        already = false;
+        error_code  ecDup;
+
+        for (const DiskMru::Entry & existing : mountable)
+        {
+            if (fs::equivalent (existing.path, disk, ecDup))
+            {
+                already = true;
+                break;
+            }
+        }
+
+        if (!already)
+        {
+            mountable.push_back (DiskMru::Entry { disk, 0 });
+        }
+    }
+}
 
 
 

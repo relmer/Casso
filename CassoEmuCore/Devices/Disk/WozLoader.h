@@ -36,6 +36,15 @@ public:
 
     static HRESULT  Load (const vector<Byte> & raw, DiskImage & out);
 
+    // Serialize a DiskImage back to a WOZ v2 byte image (INFO + TMAP +
+    // TRKS + block-aligned bit streams, with a valid header CRC32). The
+    // per-track bit streams come straight from the image's live buffers,
+    // so guest writes round-trip; the write-protect flag is preserved.
+    // Always emits v2 regardless of the source variant. META and INFO
+    // fields Casso does not model (creator string aside) are synthesized
+    // to spec-valid defaults rather than preserved.
+    static HRESULT  Serialize (const DiskImage & img, vector<Byte> & outBytes);
+
     static HRESULT  BuildSyntheticV2 (
         Byte                  diskType,
         bool                  writeProtected,

@@ -868,6 +868,16 @@ HRESULT MachineManager::CreateCpu (const MachineConfig & config)
     if (m_shell.m_refs.diskController != nullptr)
     {
         m_shell.m_refs.diskController->SetCpuCycleSource (m_shell.m_cpu->GetBusCyclePtr());
+
+        // Motor-idle auto-flush: when the drive spins down (operation done),
+        // persist dirty images so writes survive a crash / kill before the
+        // next eject or exit. The callback fires on the CPU thread inside
+        // Tick, which owns the disk writes, so it races nothing; FlushAll
+        // skips clean images and the flush-error reporter surfaces failures.
+        m_shell.m_refs.diskController->SetMotorOffFlushCallback ([this] ()
+        {
+            m_shell.m_diskStore.FlushAll ();
+        });
     }
 
     // Drive the analog paddle/joystick PREAD timer ($C070 strobe,

@@ -311,9 +311,9 @@ void DiskImage::ClearDirty ()
 //  Serialize
 //
 //  For sector-based formats (DSK/DO/PO) this calls back into the
-//  NibblizationLayer to recover the flat sector image. For WOZ images we
-//  fall back to the cached raw source bytes (Phase 10 does not yet
-//  generate WOZ output from edited bit streams).
+//  NibblizationLayer to recover the flat sector image. For WOZ images it
+//  re-emits a WOZ v2 byte image from the live per-track bit streams via
+//  WozLoader::Serialize, so guest writes round-trip on flush.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -330,14 +330,7 @@ HRESULT DiskImage::Serialize (vector<Byte> & outBytes) const
             break;
 
         case DiskFormat::Woz:
-            if (m_rawSourceBytes.empty ())
-            {
-                hr = E_NOTIMPL;
-            }
-            else
-            {
-                outBytes = m_rawSourceBytes;
-            }
+            hr = WozLoader::Serialize (*this, outBytes);
             break;
 
         default:

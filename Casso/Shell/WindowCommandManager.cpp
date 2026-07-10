@@ -573,9 +573,10 @@ HRESULT WindowCommandManager::PromptInsertDiskMru (int drive)
     mruPruned = mru.Prune ([] (const std::filesystem::path & p)
                            {
                                return std::filesystem::exists (p)
-                                      && !AssetBootstrap::IsForeignWorktreeDisk (p);
+                                      && !AssetBootstrap::IsForeignCheckoutDisk (p);
                            });
 
+    AssetBootstrap::AppendSiblingDisksFromMruFolders (mruPruned);
     AssetBootstrap::AppendBundledDemoDisks (mruPruned);
 
     hr = AssetBootstrap::PromptInsertDiskMru (GetModuleHandle (nullptr),

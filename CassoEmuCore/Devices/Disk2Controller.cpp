@@ -512,6 +512,16 @@ void Disk2Controller::Tick (uint32_t cpuCycles)
             {
                 m_eventSink->OnMotorDisengaged();
             }
+
+            // Motor-idle auto-flush: the operation is complete and this is
+            // the CPU thread that owns the disk writes, so it's a race-free
+            // moment to persist any dirty images (see
+            // SetMotorOffFlushCallback). Fires after the sinks so a
+            // debug-panel observer still records MotorDisengaged first.
+            if (m_motorOffFlushCallback)
+            {
+                m_motorOffFlushCallback();
+            }
         }
         else
         {
