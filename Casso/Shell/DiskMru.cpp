@@ -126,6 +126,68 @@ void DiskMru::ReplaceAll (std::vector<Entry> entries)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DistinctFolders
+//
+//  Returns the distinct parent directories of `entries`, preserving
+//  first-seen order. Comparison is lexical and case-insensitive (ASCII
+//  fold) over the normalized path so that recents living in the same
+//  folder — however each was spelled when mounted — collapse to a single
+//  directory. No filesystem access: DiskMru stays IO-free.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<std::filesystem::path>
+DiskMru::DistinctFolders (const std::vector<Entry> & entries)
+{
+    std::vector<std::filesystem::path>  folders;
+    std::vector<std::wstring>           seenKeys;   // ASCII-folded dir strings
+
+
+
+    for (const Entry & e : entries)
+    {
+        std::filesystem::path  dir = e.path.parent_path().lexically_normal();
+        std::wstring           key;
+        bool                   seen = false;
+
+        if (dir.empty())
+        {
+            continue;                               // bare filename, no folder
+        }
+
+        key = dir.wstring();
+        for (wchar_t & c : key)
+        {
+            if (c >= L'A' && c <= L'Z')
+            {
+                c = static_cast<wchar_t> (c + (L'a' - L'A'));
+            }
+        }
+
+        for (const std::wstring & existing : seenKeys)
+        {
+            if (existing == key)
+            {
+                seen = true;
+                break;
+            }
+        }
+
+        if (!seen)
+        {
+            seenKeys.push_back (key);
+            folders.push_back (dir);
+        }
+    }
+
+    return folders;
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  FromUtf8
 //
 //  Constructs a DiskMru from the GlobalUserPrefs `recentDisks` /

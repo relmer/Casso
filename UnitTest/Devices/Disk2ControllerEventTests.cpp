@@ -157,6 +157,65 @@ namespace Disk2ControllerEventTests
         }
 
 
+        TEST_METHOD (MotorOffFlushCallback_firesOnceOnSpindownCompletion)
+        {
+            Disk2Controller   ctrl (6);
+            int               flushes = 0;
+
+            ctrl.SetMotorOffFlushCallback ([&] () { flushes++; });
+
+            ctrl.Write (0xC0E9, 0x00);    // motor on
+            ctrl.Write (0xC0E8, 0x00);    // motor off (arms spindown)
+
+            // Mid-spindown: the disk op isn't done yet, so no flush.
+            ctrl.Tick (500000);
+            Assert::AreEqual (0, flushes, L"flush must wait for the spindown to complete");
+
+            // Past the 1,000,000-cycle spindown timer -> motor disengages.
+            ctrl.Tick (600000);
+            Assert::AreEqual (1, flushes, L"motor-off flush fires on spindown completion");
+
+            // Motor already off: further ticks must not re-fire.
+            ctrl.Tick (2000000);
+            Assert::AreEqual (1, flushes, L"no re-fire while the motor stays off");
+        }
+
+
+        TEST_METHOD (MotorOffFlushCallback_notFiredWhileMotorRuns)
+        {
+            Disk2Controller   ctrl (6);
+            int               flushes = 0;
+
+            ctrl.SetMotorOffFlushCallback ([&] () { flushes++; });
+
+            ctrl.Write (0xC0E9, 0x00);    // motor on, never commanded off
+            ctrl.Tick  (5000000);
+
+            Assert::AreEqual (0, flushes, L"a running motor must not trigger a flush");
+        }
+
+
+        TEST_METHOD (MotorOffFlushCallback_firesAgainOnEachOperationCycle)
+        {
+            Disk2Controller   ctrl (6);
+            int               flushes = 0;
+
+            ctrl.SetMotorOffFlushCallback ([&] () { flushes++; });
+
+            // First operation: on -> off -> spin down.
+            ctrl.Write (0xC0E9, 0x00);
+            ctrl.Write (0xC0E8, 0x00);
+            ctrl.Tick  (1100000);
+            Assert::AreEqual (1, flushes);
+
+            // Second operation must flush again on its own spindown.
+            ctrl.Write (0xC0E9, 0x00);
+            ctrl.Write (0xC0E8, 0x00);
+            ctrl.Tick  (1100000);
+            Assert::AreEqual (2, flushes, L"each disk operation's spindown flushes");
+        }
+
+
         TEST_METHOD (MotorOffRestrobe_alwaysFiresCommandOff_evenWhenMotorAlreadyOff)
         {
             Disk2Controller      ctrl (6);

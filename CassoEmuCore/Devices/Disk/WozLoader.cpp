@@ -65,6 +65,37 @@ static void Write32LE (Byte * p, uint32_t v)
 }
 
 
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Crc32
+//
+//  Standard reflected CRC-32 (poly 0xEDB88320, init/final XOR 0xFFFFFFFF) --
+//  the algorithm the WOZ header CRC is computed with, over every byte after
+//  the 12-byte header. Bit-serial (no table); serialization is cold, so the
+//  per-byte inner loop is not worth a 1 KB static table.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+static uint32_t Crc32 (const Byte * data, size_t len)
+{
+    uint32_t   crc = 0xFFFFFFFFu;
+    size_t     i   = 0;
+    int        b   = 0;
+
+    for (i = 0; i < len; i++)
+    {
+        crc ^= data[i];
+        for (b = 0; b < 8; b++)
+        {
+            uint32_t   mask = static_cast<uint32_t> (-static_cast<int32_t> (crc & 1u));
+            crc = (crc >> 1) ^ (0xEDB88320u & mask);
+        }
+    }
+
+    return ~crc;
+}
+
+
 
 
 
@@ -511,6 +542,176 @@ HRESULT WozLoader::BuildSyntheticV2 (
     {
         memcpy (outBytes.data () + bitStreamStart, trackZeroBitStream.data (), payloadBytes);
     }
+
+    return hr;
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WozLoader::Serialize
+//
+//  Emit a WOZ v2 byte image from a DiskImage's live per-track bit streams,
+//  so guest writes round-trip on flush (the write-back path that was never
+//  finished -- Serialize's WOZ arm used to return the untouched source
+//  bytes). Layout mirrors BuildSyntheticV2 but spans every populated slot:
+//
+//      [0..11]       header (WOZ2 sig + CRC32)
+//      [12..79]      INFO chunk (8-byte hdr + 60-byte payload)
+//      [80..247]     TMAP chunk (8-byte hdr + 160 quarter-track slots)
+//      [248..1535]   TRKS chunk (8-byte hdr + 160 x 8-byte TRK records)
+//      [block 3..]   per-track bit streams, each block-aligned (512 bytes)
+//
+//  The TMAP is rebuilt from the image's quarter-track map (ResolveQuarterTrack),
+//  and each slot's TRK record points at its block-aligned bit stream. The
+//  write-protect flag is carried through from INFO. Emitting v2 for any source
+//  variant is fine -- the loader reads v2 and Casso only models 5.25" disks.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT WozLoader::Serialize (const DiskImage & img, vector<Byte> & outBytes)
+{
+    struct TrkGeom
+    {
+        uint16_t   startBlock = 0;
+        uint16_t   blockCount = 0;
+        uint32_t   bitCount   = 0;
+    };
+
+    HRESULT             hr           = S_OK;
+    int                 slotCount    = img.GetTrackCount ();
+    uint16_t            nextBlock    = 3;                 // blocks 0..2 hold the chunks
+    uint16_t            largestTrack = 0;
+    size_t              trksRecBytes = kV2TrkRecordCount * kV2TrkRecordSize;
+    size_t              pos          = 0;
+    int                 slot         = 0;
+    int                 qt           = 0;
+    vector<TrkGeom>     geom (kV2TrkRecordCount);
+
+    if (slotCount > static_cast<int> (kV2TrkRecordCount))
+    {
+        slotCount = static_cast<int> (kV2TrkRecordCount);
+    }
+
+    // Pass 1: assign each populated slot a block-aligned region after the
+    // three fixed header blocks.
+    for (slot = 0; slot < slotCount; slot++)
+    {
+        size_t   bitCount = img.GetTrackBitCount (slot);
+        size_t   byteCount = 0;
+        size_t   blocks    = 0;
+
+        if (bitCount == 0)
+        {
+            continue;
+        }
+
+        byteCount = (bitCount + 7) / 8;
+        blocks    = (byteCount + kV2BlockSize - 1) / kV2BlockSize;
+
+        geom[slot].startBlock = nextBlock;
+        geom[slot].blockCount = static_cast<uint16_t> (blocks);
+        geom[slot].bitCount   = static_cast<uint32_t> (bitCount);
+
+        nextBlock = static_cast<uint16_t> (nextBlock + blocks);
+        if (blocks > largestTrack)
+        {
+            largestTrack = static_cast<uint16_t> (blocks);
+        }
+    }
+
+    outBytes.assign (static_cast<size_t> (nextBlock) * kV2BlockSize, 0);
+
+    // Header (CRC filled in last).
+    memcpy (outBytes.data (), kSigV2, kSigLen);
+
+    pos = kHeaderSize;
+
+    // INFO chunk.
+    memcpy    (outBytes.data () + pos, kInfoMagic, 4);
+    Write32LE (outBytes.data () + pos + 4, static_cast<uint32_t> (kInfoChunkSize));
+    {
+        Byte *        info      = outBytes.data () + pos + 8;
+        const char    creator[] = "Casso";
+
+        info[0] = 2;                                            // INFO version 2
+        info[1] = 1;                                            // disk type: 5.25"
+        info[2] = static_cast<Byte> (img.IsWriteProtected () ? 1 : 0);
+        info[3] = 0;                                            // synchronized
+        info[4] = 1;                                            // cleaned
+        memset (info + 5, ' ', 32);                             // creator: 32 bytes, space-padded
+        memcpy (info + 5, creator, sizeof (creator) - 1);
+        info[37] = 1;                                           // disk sides
+        info[38] = 0;                                           // boot sector format: unknown
+        info[39] = 32;                                          // optimal bit timing: 5.25" = 4us
+        // compatible hardware (+40..41) / required RAM (+42..43): unknown = 0
+        Write16LE (info + 44, largestTrack);                   // largest track, in blocks
+    }
+    pos += 8 + kInfoChunkSize;
+
+    // TMAP chunk: one slot index (or 0xFF) per quarter-track phase.
+    memcpy    (outBytes.data () + pos, kTmapMagic, 4);
+    Write32LE (outBytes.data () + pos + 4, static_cast<uint32_t> (kTmapChunkSize));
+    {
+        Byte *   tmap = outBytes.data () + pos + 8;
+
+        for (qt = 0; qt < static_cast<int> (kTmapChunkSize); qt++)
+        {
+            int   resolved = img.ResolveQuarterTrack (qt);
+
+            tmap[qt] = (resolved >= 0 && resolved < slotCount)
+                       ? static_cast<Byte> (resolved)
+                       : kTmapEmptyTrack;
+        }
+    }
+    pos += 8 + kTmapChunkSize;
+
+    // TRKS chunk: 160 fixed 8-byte records; populated slots reference their
+    // block-aligned bit stream, the rest stay zero (empty).
+    memcpy    (outBytes.data () + pos, kTrksMagic, 4);
+    Write32LE (outBytes.data () + pos + 4, static_cast<uint32_t> (trksRecBytes));
+    {
+        Byte *   trks = outBytes.data () + pos + 8;
+
+        for (slot = 0; slot < static_cast<int> (kV2TrkRecordCount); slot++)
+        {
+            Byte *   rec = trks + static_cast<size_t> (slot) * kV2TrkRecordSize;
+
+            Write16LE (rec,     geom[slot].startBlock);
+            Write16LE (rec + 2, geom[slot].blockCount);
+            Write32LE (rec + 4, geom[slot].bitCount);
+        }
+    }
+
+    // Per-track bit-stream payload at each slot's block offset.
+    for (slot = 0; slot < slotCount; slot++)
+    {
+        const vector<Byte> *  bits      = nullptr;
+        size_t                byteCount = 0;
+        size_t                dstOff    = 0;
+
+        if (geom[slot].bitCount == 0)
+        {
+            continue;
+        }
+
+        bits      = &img.GetTrackBits (slot);
+        byteCount = (geom[slot].bitCount + 7) / 8;
+        dstOff    = static_cast<size_t> (geom[slot].startBlock) * kV2BlockSize;
+
+        if (byteCount > bits->size ())
+        {
+            byteCount = bits->size ();
+        }
+
+        memcpy (outBytes.data () + dstOff, bits->data (), byteCount);
+    }
+
+    // Header CRC32 over everything after the 12-byte header.
+    Write32LE (outBytes.data () + kSigLen,
+               Crc32 (outBytes.data () + kHeaderSize, outBytes.size () - kHeaderSize));
 
     return hr;
 }

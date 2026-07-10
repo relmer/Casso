@@ -281,5 +281,91 @@ namespace DiskMruTests
             Assert::AreEqual ((std::int64_t) 1700000000, snap[0].lastLoadedUnix);
             Assert::AreEqual ((std::int64_t) 0,          snap[1].lastLoadedUnix);
         }
+
+
+        //////////////////////////////////////////////////////////////////////
+        //
+        //  DistinctFolders
+        //
+        //  The disk picker scans these folders for sibling images, so the
+        //  set must be de-duped (recents in one folder collapse to that one
+        //  directory) yet keep first-seen order, be case-insensitive (the
+        //  host filesystem is), and skip entries with no folder.
+        //
+        //////////////////////////////////////////////////////////////////////
+
+        static std::vector<DiskMru::Entry> MakeEntries (std::initializer_list<const wchar_t *> paths)
+        {
+            std::vector<DiskMru::Entry>  entries;
+
+            for (const wchar_t * p : paths)
+            {
+                entries.push_back (DiskMru::Entry { std::filesystem::path (p), 0 });
+            }
+            return entries;
+        }
+
+
+        TEST_METHOD (DistinctFolders_Empty_ReturnsEmpty)
+        {
+            auto  folders = DiskMru::DistinctFolders ({});
+
+            Assert::AreEqual ((size_t) 0, folders.size());
+        }
+
+
+        TEST_METHOD (DistinctFolders_SameFolder_CollapsesToOne)
+        {
+            auto  entries = MakeEntries ({ L"C:\\Disks\\A.dsk",
+                                           L"C:\\Disks\\B.woz",
+                                           L"C:\\Disks\\C.po" });
+            auto  folders = DiskMru::DistinctFolders (entries);
+
+            Assert::AreEqual ((size_t) 1, folders.size());
+            Assert::IsTrue (folders[0] == std::filesystem::path (L"C:\\Disks"));
+        }
+
+
+        TEST_METHOD (DistinctFolders_DifferentFolders_PreserveFirstSeenOrder)
+        {
+            auto  entries = MakeEntries ({ L"C:\\Two\\B.dsk",
+                                           L"C:\\One\\A.dsk",
+                                           L"C:\\Two\\C.dsk",     // repeat of \Two
+                                           L"C:\\Three\\D.dsk" });
+            auto  folders = DiskMru::DistinctFolders (entries);
+
+            Assert::AreEqual ((size_t) 3, folders.size());
+            Assert::IsTrue (folders[0] == std::filesystem::path (L"C:\\Two"));
+            Assert::IsTrue (folders[1] == std::filesystem::path (L"C:\\One"));
+            Assert::IsTrue (folders[2] == std::filesystem::path (L"C:\\Three"));
+        }
+
+
+        TEST_METHOD (DistinctFolders_CaseInsensitive_CollapsesFoldedDuplicate)
+        {
+            // The host filesystem is case-insensitive, so two recents whose
+            // folders differ only by case are the SAME directory and must be
+            // scanned once. The first-seen spelling is the one returned.
+            auto  entries = MakeEntries ({ L"C:\\Disks\\A.dsk",
+                                           L"C:\\DISKS\\B.dsk" });
+            auto  folders = DiskMru::DistinctFolders (entries);
+
+            Assert::AreEqual ((size_t) 1, folders.size());
+            Assert::IsTrue (folders[0] == std::filesystem::path (L"C:\\Disks"));
+        }
+
+
+        TEST_METHOD (DistinctFolders_BareFilename_Skipped)
+        {
+            // An entry with no parent directory (a bare filename) has no
+            // folder to scan and must be dropped rather than yielding an
+            // empty path we would then try to enumerate.
+            auto  entries = MakeEntries ({ L"loose.dsk",
+                                           L"C:\\Disks\\A.dsk" });
+            auto  folders = DiskMru::DistinctFolders (entries);
+
+            Assert::AreEqual ((size_t) 1, folders.size());
+            Assert::IsTrue (folders[0] == std::filesystem::path (L"C:\\Disks"));
+        }
     };
 }

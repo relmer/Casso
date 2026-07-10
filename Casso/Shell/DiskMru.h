@@ -56,6 +56,16 @@ public:
     // de-dup / cap; we still cap on the way in defensively.
     void                 ReplaceAll   (std::vector<Entry> entries);
 
+    // Distinct parent directories of `entries`, in first-seen order. The
+    // picker uses this to decide which folders to scan for sibling disk
+    // images (so a disk sitting next to a recent one is offered without
+    // having to be mounted first). Purely lexical (no filesystem access):
+    // paths are lexically normalized and folded case-insensitively for the
+    // de-dup, so two recents in the same folder collapse to one directory.
+    // Entries whose path has no parent (a bare filename) are skipped.
+    static std::vector<std::filesystem::path>
+                         DistinctFolders (const std::vector<Entry> & entries);
+
     size_t               Size         () const { return m_entries.size(); }
     bool                 Empty        () const { return m_entries.empty(); }
 

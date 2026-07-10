@@ -338,6 +338,210 @@ public:
 
     ////////////////////////////////////////////////////////////////////////////
     //
+    //  GH #88 -- stable-seq stamping in DrainAndProject.
+    //
+    //  The optional seqCounter arm assigns each appended event a monotonic
+    //  Disk2EventDisplay::seq (identity for selection/focus tracking) and
+    //  advances the counter, so an unchanged counter is a reliable "nothing
+    //  was added" signal -- the premise of the panel's per-frame change-gate.
+    //
+    ////////////////////////////////////////////////////////////////////////////
+
+    TEST_METHOD (DrainAndProject_seqCounter_stampsMonotonicallyAndAdvances)
+    {
+        Disk2EventRing                   ring;
+        std::deque<Disk2EventDisplay>    deque;
+        auto                             anchor  = std::chrono::steady_clock::now();
+        uint64_t                         counter = 1;
+
+        for (int i = 0; i < 3; i++)
+        {
+            Assert::IsTrue (ring.TryPush (MakeStep (i, i + 1, 100 + static_cast<uint64_t> (i))));
+        }
+
+        DebugDialogProjection::DrainAndProject (ring, deque, 0, anchor, &counter);
+
+        Assert::AreEqual (size_t (3),  deque.size());
+        Assert::AreEqual (uint64_t (1), deque[0].seq);
+        Assert::AreEqual (uint64_t (2), deque[1].seq);
+        Assert::AreEqual (uint64_t (3), deque[2].seq);
+        Assert::AreEqual (uint64_t (4), counter);
+    }
+
+
+    TEST_METHOD (DrainAndProject_seqCounter_stampsSyntheticEventsLost)
+    {
+        Disk2EventRing                   ring;
+        std::deque<Disk2EventDisplay>    deque;
+        auto                             anchor  = std::chrono::steady_clock::now();
+        uint64_t                         counter = 1;
+
+        Assert::IsTrue (ring.TryPush (MakeStep (1, 2, 100)));
+
+        DebugDialogProjection::DrainAndProject (ring, deque, 5, anchor, &counter);
+
+        // The leading EventsLost record is stamped first, then the drained event.
+        Assert::AreEqual (size_t (2),   deque.size());
+        Assert::IsTrue   (deque[0].type == Disk2EventType::EventsLost);
+        Assert::AreEqual (uint64_t (1), deque[0].seq);
+        Assert::AreEqual (uint64_t (2), deque[1].seq);
+        Assert::AreEqual (uint64_t (3), counter);
+    }
+
+
+    TEST_METHOD (DrainAndProject_seqCounter_emptyRingZeroDropped_counterUnchanged)
+    {
+        Disk2EventRing                   ring;
+        std::deque<Disk2EventDisplay>    deque;
+        auto                             anchor  = std::chrono::steady_clock::now();
+        uint64_t                         counter = 7;
+
+        DebugDialogProjection::DrainAndProject (ring, deque, 0, anchor, &counter);
+
+        // The change-gate leans on this: nothing added -> counter frozen.
+        Assert::AreEqual (size_t (0),   deque.size());
+        Assert::AreEqual (uint64_t (7), counter);
+    }
+
+
+    TEST_METHOD (DrainAndProject_nullSeqCounter_leavesSeqUnassigned)
+    {
+        Disk2EventRing                   ring;
+        std::deque<Disk2EventDisplay>    deque;
+        auto                             anchor = std::chrono::steady_clock::now();
+
+        Assert::IsTrue (ring.TryPush (MakeStep (1, 2, 100)));
+        Assert::IsTrue (ring.TryPush (MakeStep (2, 3, 200)));
+
+        // Back-compat 4-arg form: seq stays at its 0 default.
+        DebugDialogProjection::DrainAndProject (ring, deque, 0, anchor);
+
+        Assert::AreEqual (size_t (2),   deque.size());
+        Assert::AreEqual (uint64_t (0), deque[0].seq);
+        Assert::AreEqual (uint64_t (0), deque[1].seq);
+    }
+
+
+
+    ////////////////////////////////////////////////////////////////////////////
+    //
+    //  GH #88 -- ResolveSelection (seq-identity selection resolution).
+    //
+    //  filteredIndices are indices into the event deque IN DISPLAY ORDER
+    //  (already filtered and sort-reordered). Selection is matched by seq,
+    //  so a sort reorder keeps the same event selected; a filtered-out or
+    //  evicted selection snaps to the nearest survivor at-or-before it.
+    //
+    ////////////////////////////////////////////////////////////////////////////
+
+    static Disk2EventDisplay MakeSeq (uint64_t seq)
+    {
+        Disk2EventDisplay  d = MakeDisplay (Disk2EventType::HeadStep, EventCategory::Controller);
+
+        d.seq = seq;
+        return d;
+    }
+
+
+    TEST_METHOD (ResolveSelection_zeroSeq_clears)
+    {
+        std::deque<Disk2EventDisplay>  events = { MakeSeq (10), MakeSeq (20) };
+        std::vector<size_t>            filtered = { 0, 1 };
+
+        DebugSelectionResult  r = DebugDialogProjection::ResolveSelection (0, events, filtered);
+
+        Assert::AreEqual (-1,            r.row);
+        Assert::AreEqual (uint64_t (0), r.seq);
+    }
+
+
+    TEST_METHOD (ResolveSelection_emptyFiltered_clears)
+    {
+        std::deque<Disk2EventDisplay>  events = { MakeSeq (10), MakeSeq (20) };
+        std::vector<size_t>            filtered;   // everything filtered out
+
+        DebugSelectionResult  r = DebugDialogProjection::ResolveSelection (20, events, filtered);
+
+        Assert::AreEqual (-1,            r.row);
+        Assert::AreEqual (uint64_t (0), r.seq);
+    }
+
+
+    TEST_METHOD (ResolveSelection_exactMatch_returnsRowKeepsSeq)
+    {
+        std::deque<Disk2EventDisplay>  events = { MakeSeq (10), MakeSeq (20), MakeSeq (30) };
+        std::vector<size_t>            filtered = { 0, 1, 2 };
+
+        DebugSelectionResult  r = DebugDialogProjection::ResolveSelection (20, events, filtered);
+
+        Assert::AreEqual (1,             r.row);
+        Assert::AreEqual (uint64_t (20), r.seq);
+    }
+
+
+    TEST_METHOD (ResolveSelection_afterSortReorder_sameEventStaysSelected)
+    {
+        std::deque<Disk2EventDisplay>  events = { MakeSeq (10), MakeSeq (20), MakeSeq (30) };
+
+        // A column sort reorders the display order to {idx2, idx0, idx1}
+        // == seqs {30, 10, 20}. The selected event (seq 20) is now at row 2.
+        std::vector<size_t>            filtered = { 2, 0, 1 };
+
+        DebugSelectionResult  r = DebugDialogProjection::ResolveSelection (20, events, filtered);
+
+        Assert::AreEqual (2,             r.row);
+        Assert::AreEqual (uint64_t (20), r.seq);
+    }
+
+
+    TEST_METHOD (ResolveSelection_filteredOut_snapsToNearestBefore)
+    {
+        // seq 30 (deque idx 2) is filtered out; survivors ascending.
+        std::deque<Disk2EventDisplay>  events =
+            { MakeSeq (10), MakeSeq (20), MakeSeq (30), MakeSeq (40), MakeSeq (50) };
+        std::vector<size_t>            filtered = { 0, 1, 3, 4 };
+
+        DebugSelectionResult  r = DebugDialogProjection::ResolveSelection (30, events, filtered);
+
+        // Largest surviving seq <= 30 is 20 (deque idx 1, row 1).
+        Assert::AreEqual (1,             r.row);
+        Assert::AreEqual (uint64_t (20), r.seq);
+    }
+
+
+    TEST_METHOD (ResolveSelection_nearestBefore_honorsReorderedFilteredSet)
+    {
+        std::deque<Disk2EventDisplay>  events =
+            { MakeSeq (10), MakeSeq (20), MakeSeq (40), MakeSeq (50) };
+
+        // Descending display order: {50, 40, 20, 10}. Selection seq 30 was
+        // never present; nearest at-or-before is seq 20, now at row 2.
+        std::vector<size_t>            filtered = { 3, 2, 1, 0 };
+
+        DebugSelectionResult  r = DebugDialogProjection::ResolveSelection (30, events, filtered);
+
+        Assert::AreEqual (2,             r.row);
+        Assert::AreEqual (uint64_t (20), r.seq);
+    }
+
+
+    TEST_METHOD (ResolveSelection_evictedBelowAll_snapsToEarliestSurvivor)
+    {
+        // The older events were evicted; selection seq 5 precedes every
+        // survivor, so there is no at-or-before match -> earliest survivor.
+        std::deque<Disk2EventDisplay>  events = { MakeSeq (30), MakeSeq (40), MakeSeq (50) };
+        std::vector<size_t>            filtered = { 0, 1, 2 };
+
+        DebugSelectionResult  r = DebugDialogProjection::ResolveSelection (5, events, filtered);
+
+        Assert::AreEqual (0,             r.row);
+        Assert::AreEqual (uint64_t (30), r.seq);
+    }
+
+
+
+    ////////////////////////////////////////////////////////////////////////////
+    //
     //  Spec-006 T072 -- filter composition tests.
     //
     //  Build a small deque of pre-formatted display rows and exercise

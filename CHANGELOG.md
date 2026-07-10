@@ -6,6 +6,93 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 Versioned entries use `MAJOR.MINOR.PATCH` from [Version.h](CassoCore/Version.h).
 Entries before versioning was introduced use dates only.
 
+## [1.6.4] — Disk ][ Debug panel virtualization (GH #88)
+
+### Fixed
+- **fix(ui): the Disk ][ Debug panel no longer wedges under disk-heavy
+  activity (GH #88).** Every render frame rebuilt and re-materialized the
+  entire event list into the `DxuiListView` — up to 100,000 rows, each six
+  freshly-heap-allocated `std::wstring` cells — even when only a handful of
+  events were visible and nothing had changed. Under a `SAVE` or a Print
+  Shop print (thousands of head-step / address-mark events per second) the
+  per-frame allocation storm starved the UI thread and the app appeared to
+  hang. The list now uses a **virtual (provider) row model**: it holds no
+  materialized rows, tracks only a count, and pulls cells for just the
+  visible window (`O(visible)` per frame instead of `O(total)`). A
+  per-frame **change-gate** skips the filter/sort rebuild entirely on idle
+  frames (no new events), and columns auto-fit from the visible window as
+  rows scroll in.
+
+### Changed
+- **Selection and keyboard focus in the Disk ][ Debug panel now track the
+  selected event by a stable monotonic identity (`seq`) rather than by row
+  or deque index.** A column re-sort keeps the same event selected *and*
+  scrolls it back into view, and a selection that is filtered out or
+  evicted from the rolling history snaps to the nearest surviving event
+  instead of silently jumping. The resolution logic is a pure, headlessly
+  unit-tested helper (`DebugDialogProjection::ResolveSelection`).
+
+## [1.6.3] — Disk write persistence: WOZ write-back, flush safety
+
+Follows GH #89 (which fixed the emulated write *bit*) by fixing the
+*persistence* layer that #89 never touched — the path from the in-memory
+track bit streams back to the host file.
+
+### Fixed
+- **fix(disk): WOZ writes now persist (write-back was never implemented).**
+  `DiskImage::Serialize`'s WOZ arm returned the untouched *source* bytes and
+  ignored every guest write, so edits to a writable `.woz` were silently
+  discarded on flush. A new `WozLoader::Serialize` emits a valid WOZ v2 image
+  (INFO + TMAP + TRKS + block-aligned bit streams, correct header CRC32) from
+  the live per-track buffers, preserving the write-protect flag. Guest writes
+  now round-trip; WOZ becomes the reliable writable format (raw bit stream, no
+  lossy sector re-encode). This is also the serializer 017 (blank-disk
+  creation) needs.
+- **fix(disk): disk-flush failures are no longer silently swallowed.** Every
+  flush caller dropped `FlushEntry`'s `HRESULT` (`Eject`/`PowerCycle` are
+  void; the exit path and `SoftReset` `IGNORE_RETURN_VALUE` it), so a failed
+  write-back vanished with no error and the user lost writes. `DiskImageStore`
+  now invokes an injected flush-error reporter on a genuine failure to persist
+  a dirty image; the shell logs it and warns the user via the shared EHM
+  notifier.
+
+### Added
+- **feat(disk): motor-idle auto-flush.** Dirty disk images are now persisted
+  when the drive motor spins down (a naturally debounced, ~1s-after-last-access
+  "operation complete" boundary), so writes survive a crash/kill before the
+  next eject or exit. The flush fires on the CPU thread inside
+  `Disk2Controller::Tick` — the thread that owns the disk writes — so it races
+  nothing, and skips clean images.
+- **feat(disk): the disk picker now lists sibling images from recent-disk
+  folders.** Both the boot-time and runtime insert pickers previously showed
+  only disks that were already in the recent-disks MRU (plus bundled demos), so
+  a freshly created or copied image sitting right next to a recent disk was
+  invisible until it had been mounted once via Browse. The pickers now also
+  enumerate every folder that contains a recent disk and offer all supported
+  images found there (`.dsk`/`.do`/`.po`/`.nib`/`.woz`), de-duplicated against
+  the MRU and excluding disks from other repo checkouts.
+  `DiskMru::DistinctFolders` computes the folder set (pure/unit-tested);
+  `AssetBootstrap::AppendSiblingDisksFromMruFolders` does the scan.
+
+### Changed
+- **The recent-disks prune is now scoped to the running *checkout*, not just
+  foreign worktrees (dev builds only).** `IsForeignWorktreeDisk` →
+  `IsForeignCheckoutDisk`: the shared `%LOCALAPPDATA%` MRU is populated by
+  every checkout of the repo on the machine (the main tree plus each
+  `.claude/worktrees/<name>` copy), so the picker now hides recent disks that
+  live in *any* checkout other than the one the running exe belongs to —
+  including the **main tree** when running from a worktree, which the old rule
+  let through. Disks outside the repo entirely (the user's own folders,
+  `%LOCALAPPDATA%`) always show, so this is invisible to installed users (no
+  worktrees). The classification moved to a pure, unit-tested `RepoCheckout.h`.
+
+### Notes
+- Confirmed the `.dsk` write-back round-trips a full reformat: `Denibblize`
+  scans for GCR address/data markers (byte-sync), so a standard DOS 3.3 format
+  survives regardless of gap/sync layout. The earlier "initialized data disk
+  still shows the old files" symptom was flush *timing*, now addressed by the
+  motor-idle auto-flush above.
+
 ## [1.6.2] — Disk ][ write round-trip fix (GH #89)
 
 ### Fixed

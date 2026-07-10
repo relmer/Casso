@@ -42,6 +42,18 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
+// Outcome of resolving a seq-tracked selection against the current
+// filtered/sorted view (see DebugDialogProjection::ResolveSelection).
+// row == -1 means "clear the selection"; seq is the identity that ended
+// up selected (0 when cleared), which the caller stores back so the next
+// rebuild tracks the possibly-snapped event.
+struct DebugSelectionResult
+{
+    int       row = -1;
+    uint64_t  seq = 0;
+};
+
+
 class DebugDialogProjection
 {
 public:
@@ -68,11 +80,16 @@ public:
     // EventsLost record FIRST before the drained batch (FR-010).
     // After the batch, enforce the rolling cap by pop_front'ing
     // until size <= kDisplayDequeCap.
+    // When seqCounter is non-null, each event pushed this call is stamped
+    // with a monotonic Disk2EventDisplay::seq drawn from *seqCounter (which
+    // is advanced past the last assigned value). Null leaves seq at 0 --
+    // used by callers that don't need identity tracking.
     static void               DrainAndProject  (
         Disk2EventRing &                            ring,
         std::deque<Disk2EventDisplay> &             deque,
         uint32_t                                     droppedCount,
-        std::chrono::steady_clock::time_point        uptimeAnchor);
+        std::chrono::steady_clock::time_point        uptimeAnchor,
+        uint64_t *                                   seqCounter = nullptr);
 
     // Spec-006 round-4 bug 5. Helper for preserving the user's
     // focused row across a filter rebuild. `priorDequeIdx` is the
@@ -92,4 +109,23 @@ public:
     static int                PreservedFocusItem (
         uint32_t                                     priorDequeIdx,
         const std::vector<uint32_t> &                newFilteredIndices) noexcept;
+
+    // GH #88. Resolve a seq-tracked selection against the current view.
+    // `filteredIndices` are indices into `events` in the ORDER they are
+    // displayed (already filtered and sort-reordered -- NOT necessarily
+    // ascending), so identity is matched by Disk2EventDisplay::seq, never
+    // by row or deque index. Rules:
+    //   * selectedSeq == 0 or no visible rows          -> {row:-1, seq:0}
+    //   * the event with selectedSeq is still visible   -> its row (a sort
+    //         reorder keeps the same event selected)
+    //   * otherwise (filtered out / deque-evicted) snap to the surviving
+    //         visible event with the largest seq <= selectedSeq (nearest
+    //         at-or-before it chronologically, since seq is monotonic with
+    //         insertion), else the earliest surviving event.
+    // Pure and side-effect free so the (HWND-bound) panel can delegate to
+    // it and this resolution is unit-tested headlessly.
+    static DebugSelectionResult ResolveSelection (
+        uint64_t                                     selectedSeq,
+        const std::deque<Disk2EventDisplay> &        events,
+        const std::vector<size_t> &                  filteredIndices) noexcept;
 };

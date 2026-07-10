@@ -31,6 +31,14 @@ The project includes:
 
 See [CHANGELOG.md](CHANGELOG.md) for the granular history.
 
+### Reliable disk writes (v1.6.2–v1.6.3)
+
+Fixed several bugs that corrupted or silently dropped guest writes to `.dsk`,
+`.do`, `.po`, and `.woz` images — a Logic State Sequencer write-bit error that
+garbled DOS 3.3 `SAVE`s (GH #89), and missing WOZ write-back that discarded
+every `.woz` edit. Dirty disks now also flush automatically when the drive
+motor spins down, so changes survive a crash or force-quit.
+
 ### Disk picker, settings, and a reusable UI library (v1.6.0)
 
 The boot / Insert-Disk picker gained a search box and click-to-sort columns,

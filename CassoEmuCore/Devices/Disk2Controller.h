@@ -111,6 +111,15 @@ public:
     // card (the //e) is byte-for-byte unchanged.
     void   SetIwmMode (bool v) { m_iwmMode = v; }
 
+    // Motor-idle auto-flush hook. Invoked on the CPU thread at the exact
+    // moment the motor spins down (the true->false transition in Tick) --
+    // i.e. right after a disk operation completes and ~1 second after the
+    // last access, a naturally debounced, race-free point to persist dirty
+    // images (this thread owns the writes). The shell wires it to
+    // DiskImageStore::FlushAll so guest writes survive a crash / kill before
+    // the next eject / exit. Caller-owned; null = no-op (tests, headless).
+    void          SetMotorOffFlushCallback (std::function<void ()> cb) { m_motorOffFlushCallback = std::move (cb); }
+
     // Cycle-driven advance. EmuCpu pumps cycles per Step.
     void   Tick (uint32_t cpuCycles);
 
@@ -193,6 +202,10 @@ private:
 
     IDisk2EventSink *         m_eventSink       = nullptr;
     Disk2AddressMarkWatcher   m_addrMarkWatcher;
+
+    // Fired on the CPU thread when the motor finishes spinning down; the
+    // shell uses it to persist dirty disk images (see SetMotorOffFlushCallback).
+    std::function<void ()>    m_motorOffFlushCallback;
 
     const uint64_t *          m_cpuCycleSource = nullptr;
     uint64_t                  m_lastCpuSync    = 0;

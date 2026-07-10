@@ -557,6 +557,31 @@ HRESULT EmulatorShell::Initialize (
                                                     *m_userConfigStore,
                                                     m_uiFs);
 
+    // Surface disk-flush failures instead of silently losing writes. Every
+    // flush caller (Eject / PowerCycle are void; the exit path and SoftReset
+    // IGNORE_RETURN_VALUE) drops FlushEntry's HRESULT, so a failed write-back
+    // used to vanish. The store now reports genuine failures here; we log and
+    // warn the user via the shared EHM notifier. fs::path(narrow).wstring()
+    // is the exact inverse of the fs::path(wide).string() narrowing the mount
+    // path went through.
+    m_diskStore.SetFlushErrorReporter ([] (const std::string & path, HRESULT hr)
+    {
+        std::wstring  widePath = fs::path (path).wstring ();
+        wchar_t       msg[512] = {};
+
+        swprintf_s (msg,
+                    L"Casso could not save changes to the disk image:\n\n%s\n\n"
+                    L"Your recent writes were NOT persisted (error 0x%08X). The file "
+                    L"on disk is unchanged. If this is a .dsk, try a .woz image -- "
+                    L"WOZ round-trips writes reliably.",
+                    widePath.empty () ? L"(unknown path)" : widePath.c_str (),
+                    static_cast<unsigned> (hr));
+
+        OutputDebugStringW (msg);
+        OutputDebugStringW (L"\n");
+        EhmNotifyUser (msg);
+    });
+
     // P6 -- bring up OLE on the UI thread before any RegisterDragDrop
     // call lands; IFileDialog (click-to-browse, used by the drive
     // widgets) also requires the apartment to be live. OleInitialize
