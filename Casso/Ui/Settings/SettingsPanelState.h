@@ -208,8 +208,16 @@ public:
     // True when the (staged) hardware config includes an enabled Disk ][
     // controller (a slot whose device is "disk-ii"). Drives the settings
     // sheet's dynamic Disk tab (#84): no enabled controller -> no Disk tab.
+    // The //c's drive is a BUILT-IN IWM, not a config slot, so it never
+    // appears in the hardware list — a banked system ROM (the //c's
+    // defining trait, the same signal that creates the IWM) counts as a
+    // controller here, or the //c would wrongly lose its Disk tab.
     bool HasDiskIIController () const
     {
+        if (m_machineInfo.supportsExternalDrive)   // banked ROM -> built-in IWM
+        {
+            return true;
+        }
         for (const HardwareEntry & e : m_current.hardware)
         {
             if (e.type == "disk-ii" && e.enabled) { return true; }

@@ -4847,6 +4847,11 @@ void EmulatorShell::CycleInputMappingMode ()
 
 
 
+    // Mouse (mouse-capable machines only) deliberately precedes Paddle:
+    // entering Paddle CAPTURES the pointer (clicks become fire buttons),
+    // so any mode placed after Paddle would be unreachable by clicking
+    // the toggle. Mouse mode is non-capturing, so the toggle stays
+    // clickable and Paddle remains reachable from it.
     switch (m_inputMode)
     {
         case InputMappingMode::Off:
@@ -4854,17 +4859,15 @@ void EmulatorShell::CycleInputMappingMode ()
             break;
 
         case InputMappingMode::Joystick:
+            next = (m_mouse != nullptr) ? InputMappingMode::Mouse
+                                        : InputMappingMode::Paddle;
+            break;
+
+        case InputMappingMode::Mouse:
             next = InputMappingMode::Paddle;
             break;
 
         case InputMappingMode::Paddle:
-            // Mouse mode only exists on mouse-capable machines (the //c);
-            // everywhere else the cycle wraps straight back to Off.
-            next = (m_mouse != nullptr) ? InputMappingMode::Mouse
-                                        : InputMappingMode::Off;
-            break;
-
-        case InputMappingMode::Mouse:
         default:
             next = InputMappingMode::Off;
             break;

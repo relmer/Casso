@@ -572,6 +572,28 @@ public:
     }
 
 
+    // The //c's drive is a built-in IWM, not a "disk-ii" slot, so the
+    // hardware-list scan alone would hide the Settings Disk tab on the //c
+    // (#84's dynamic-tab gate). A banked system ROM must count as a
+    // controller. Regression: Settings > Disk disappeared on the //c.
+    TEST_METHOD (HasDiskIIController_TrueForBuiltInIwmMachine)
+    {
+        const char * cJson = R"JSON({
+            "$cassoMachineVersion": 1,
+            "name": "Apple //c",
+            "timing": { "clockSpeed": 1023000 },
+            "ram": [ { "address": "0x0000", "size": "0xC000" } ],
+            "systemRom": { "address": "0xC000", "romBankSize": "0x4000", "romBankSelect": "0xC028" }
+        })JSON";
+
+        SettingsPanelState  st;
+        JsonValue           v = ParseOrFail (cJson);
+        Assert::IsTrue (SUCCEEDED (st.LoadFromMachine ("Apple //c", v, v)));
+        Assert::IsTrue (st.HasDiskIIController (),
+            L"//c built-in IWM (no disk-ii slot) must still yield a Disk tab");
+    }
+
+
     TEST_METHOD (MachineSwitch_RebindsToNewMachine)
     {
         SettingsPanelState  st;
