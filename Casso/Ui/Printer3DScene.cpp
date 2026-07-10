@@ -40,16 +40,19 @@ namespace
     // (vertical half-cylinders hugging the body ends), and the paper-advance
     // knob sticking out of the right tower.
     constexpr float   s_kBayHalfW   = 0.70f;
-    constexpr float   s_kTowerCx    = 0.77f;    // post axis x (mirrored left)
-    constexpr float   s_kTowerCz    = -0.08f;
-    constexpr float   s_kTowerR     = 0.14f;    // squat: reads as a case end, not a cup
-    constexpr float   s_kTowerY0    = 0.24f;    // buried in the hood: grounded, not perched
-    constexpr float   s_kTowerY1    = 0.52f;    // just past the cover's top edge
-    constexpr float   s_kKnobX0     = 0.90f;    // knob emerges from the right post
+
+    // Platen end housings: rounded-top blocks running front-to-back at each
+    // end of the platen line, merged into the case (NOT freestanding
+    // cylinders). Extruded along x with a quarter-round crown; the paper-
+    // advance knob emerges from the right one on the same axis.
+    constexpr float   s_kEndXIn     = 0.70f;    // housing spans In..Out (mirrored)
+    constexpr float   s_kEndXOut    = 0.90f;    // slightly proud of the body side
+    constexpr float   s_kEndCy      = 0.44f;    // crown axis (y, z)
+    constexpr float   s_kEndCz      = -0.02f;
+    constexpr float   s_kEndR       = 0.08f;    // crown radius (top = 0.52)
+    constexpr float   s_kEndBaseY   = 0.34f;    // buried in the hood
     constexpr float   s_kKnobX1     = 0.99f;
     constexpr float   s_kKnobR      = 0.050f;
-    constexpr float   s_kKnobCy     = 0.44f;    // knob axis (y, z)
-    constexpr float   s_kKnobCz     = -0.06f;
 
     // Paper strip: leans back from vertical, then curls away over a roll.
     constexpr float   s_kPaperHalfW  = 0.62f;   // clears the end towers
@@ -350,57 +353,16 @@ void Printer3DScene::AppendLatheX (std::vector<Vertex> & out,
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  Printer3DScene::AppendLatheY
+//  Printer3DScene::AppendDiscX
 //
-//  Fake cylinder around a VERTICAL axis: the rounded platen end towers.
-//  Sweeps quads through angles [a0, a1] in the x/z plane (angle 0 faces the
-//  viewer, +pi/2 toward +x), spanning y0..y1, with per-segment shading from
-//  the frontal light.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void Printer3DScene::AppendLatheY (std::vector<Vertex> & out,
-                                   float cx, float cz, float radius, float y0, float y1,
-                                   float a0, float a1, int segments, uint32_t argb)
-{
-    float   prevX = cx + radius * std::sin (a0);
-    float   prevZ = cz + radius * std::cos (a0);
-
-    for (int i = 1; i <= segments; i++)
-    {
-        float   a     = a0 + (a1 - a0) * (float) i / (float) segments;
-        float   xPos  = cx + radius * std::sin (a);
-        float   zPos  = cz + radius * std::cos (a);
-        float   mid   = a0 + (a1 - a0) * ((float) i - 0.5f) / (float) segments;
-        float   shade = (std::max) (0.55f, 0.20f + 0.80f * std::cos (mid));
-
-        float   p00[3] = { prevX, y1, prevZ };
-        float   p10[3] = { xPos, y1, zPos };
-        float   p01[3] = { prevX, y0, prevZ };
-        float   p11[3] = { xPos, y0, zPos };
-
-        AppendQuad (out, p00, p10, p01, p11, 0, 0, 1, 1, argb, shade);
-
-        prevX = xPos;
-        prevZ = zPos;
-    }
-}
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  Printer3DScene::AppendDiscY
-//
-//  Horizontal disc fan at height y, swept through [a0, a1] (angle 0 faces the
-//  viewer). The end posts use only the FRONT half: a full ellipse rim from
-//  this high camera reads as an open cup, which the real case is not.
+//  Fan in the y/z plane at constant x (a cap facing left or right): the flat
+//  inner side of a platen end housing. Angle 0 faces the viewer (+z), +pi/2
+//  is up.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void Printer3DScene::AppendDiscY (std::vector<Vertex> & out,
-                                  float cx, float cz, float radius, float y,
+void Printer3DScene::AppendDiscX (std::vector<Vertex> & out,
+                                  float x, float cy, float cz, float radius,
                                   float a0, float a1, int segments,
                                   uint32_t argb, float shade)
 {
@@ -409,24 +371,24 @@ void Printer3DScene::AppendDiscY (std::vector<Vertex> & out,
     float   g = (float) ((argb >>  8) & 0xFF) / 255.0f * shade * a;
     float   b = (float) ((argb      ) & 0xFF) / 255.0f * shade * a;
 
-    float   prevX = cx + radius * std::sin (a0);
+    float   prevY = cy + radius * std::sin (a0);
     float   prevZ = cz + radius * std::cos (a0);
 
     for (int i = 1; i <= segments; i++)
     {
         float   ang  = a0 + (a1 - a0) * (float) i / (float) segments;
-        float   xPos = cx + radius * std::sin (ang);
+        float   yPos = cy + radius * std::sin (ang);
         float   zPos = cz + radius * std::cos (ang);
 
-        Vertex   vc = { cx,    y, cz,    0, 0, r, g, b, a };
-        Vertex   v0 = { prevX, y, prevZ, 0, 0, r, g, b, a };
-        Vertex   v1 = { xPos,  y, zPos,  0, 0, r, g, b, a };
+        Vertex   vc = { x, cy,    cz,    0, 0, r, g, b, a };
+        Vertex   v0 = { x, prevY, prevZ, 0, 0, r, g, b, a };
+        Vertex   v1 = { x, yPos,  zPos,  0, 0, r, g, b, a };
 
         out.push_back (vc);
         out.push_back (v0);
         out.push_back (v1);
 
-        prevX = xPos;
+        prevY = yPos;
         prevZ = zPos;
     }
 }
@@ -624,7 +586,7 @@ void Printer3DScene::BuildBodyFront (std::vector<Vertex> & out) const
 {
     // Platen roller (dark drum behind the head), lit along its top.
     {
-        float   zR = s_kKnobCz + 0.02f;
+        float   zR = s_kEndCz + 0.02f;
 
         float   t00[3] = { -s_kBayHalfW, 0.475f, zR };
         float   t10[3] = {  s_kBayHalfW, 0.475f, zR };
@@ -646,7 +608,7 @@ void Printer3DScene::BuildBodyFront (std::vector<Vertex> & out) const
     {
         float   travel = s_kPaperHalfW - 0.10f;
         float   cx     = -travel + m_head01 * 2.0f * travel;
-        float   zH     = s_kKnobCz + 0.06f;
+        float   zH     = s_kEndCz + 0.06f;
 
         float   p00[3] = { cx - 0.075f, 0.455f, zH };
         float   p10[3] = { cx + 0.075f, 0.455f, zH };
@@ -715,29 +677,52 @@ void Printer3DScene::BuildBodyFront (std::vector<Vertex> & out) const
     BuildCassoLogo (out);
     BuildControls  (out);
 
-    // Rounded platen end posts: squat vertical half-rounds at the body ends,
-    // buried in the hood so they grow out of the case, rising just past the
-    // smoked cover. Only the FRONT half of each top cap is drawn -- a full
-    // ellipse rim reads as an open cup from this camera. The paper-advance
-    // knob (a short x-axis cylinder with an end cap) emerges from the right.
-    AppendLatheY (out, -s_kTowerCx, s_kTowerCz, s_kTowerR, s_kTowerY0, s_kTowerY1,
-                  -s_kPi * 0.5f, s_kPi * 0.5f, 14, s_kArgbCase);
-    AppendLatheY (out,  s_kTowerCx, s_kTowerCz, s_kTowerR, s_kTowerY0, s_kTowerY1,
-                  -s_kPi * 0.5f, s_kPi * 0.5f, 14, s_kArgbCase);
-    AppendDiscY  (out, -s_kTowerCx, s_kTowerCz, s_kTowerR, s_kTowerY1,
-                  -s_kPi * 0.5f, s_kPi * 0.5f, 8, s_kArgbCase, 0.96f);
-    AppendDiscY  (out,  s_kTowerCx, s_kTowerCz, s_kTowerR, s_kTowerY1,
-                  -s_kPi * 0.5f, s_kPi * 0.5f, 8, s_kArgbCase, 0.96f);
-
-    AppendLatheX (out, s_kKnobX0, s_kKnobX1, s_kKnobCy, s_kKnobCz, s_kKnobR,
-                  -0.35f, s_kPi, 8, s_kArgbCase);
-
-    // Knob end cap: a dimmer disc approximation (edge-on from this camera).
+    // Platen end housings: rounded-top blocks running front-to-back at each
+    // end, merged into the case. Per side: a short front face rising out of
+    // the hood, a quarter-round crown arcing from that face over the top
+    // toward the back (an x-axis lathe -- the curve is in the side profile,
+    // like the real end covers), and a flat inner side cap facing center.
+    for (int side = 0; side < 2; side++)
     {
-        float   p00[3] = { s_kKnobX1, s_kKnobCy + s_kKnobR * 0.8f, s_kKnobCz + 0.01f };
-        float   p10[3] = { s_kKnobX1 + 0.012f, s_kKnobCy + s_kKnobR * 0.55f, s_kKnobCz };
-        float   p01[3] = { s_kKnobX1, s_kKnobCy - s_kKnobR * 0.8f, s_kKnobCz + 0.01f };
-        float   p11[3] = { s_kKnobX1 + 0.012f, s_kKnobCy - s_kKnobR * 0.55f, s_kKnobCz };
+        float   xIn   = (side == 0) ? -s_kEndXOut : s_kEndXIn;
+        float   xOut  = (side == 0) ? -s_kEndXIn : s_kEndXOut;
+        float   xCap  = (side == 0) ? -s_kEndXIn : s_kEndXIn;   // inner side faces center
+        float   zFace = s_kEndCz + s_kEndR;
+
+        // Front face up to where the crown begins.
+        {
+            float   p00[3] = { xIn, s_kEndCy, zFace };
+            float   p10[3] = { xOut, s_kEndCy, zFace };
+            float   p01[3] = { xIn, s_kEndBaseY, zFace };
+            float   p11[3] = { xOut, s_kEndBaseY, zFace };
+
+            AppendQuad (out, p00, p10, p01, p11, 0, 0, 1, 1, s_kArgbCase, 0.86f);
+        }
+
+        // Crown: front horizon, over the top, down to the back horizon.
+        AppendLatheX (out, xIn, xOut, s_kEndCy, s_kEndCz, s_kEndR, 0.0f, s_kPi, 10, s_kArgbCase);
+
+        // Inner side cap: the profile's crown semicircle plus the block below.
+        AppendDiscX (out, xCap, s_kEndCy, s_kEndCz, s_kEndR, 0.0f, s_kPi, 8, s_kArgbCase, 0.68f);
+        {
+            float   p00[3] = { xCap, s_kEndCy, s_kEndCz + s_kEndR };
+            float   p10[3] = { xCap, s_kEndCy, s_kEndCz - s_kEndR };
+            float   p01[3] = { xCap, s_kEndBaseY, s_kEndCz + s_kEndR };
+            float   p11[3] = { xCap, s_kEndBaseY, s_kEndCz - s_kEndR };
+
+            AppendQuad (out, p00, p10, p01, p11, 0, 0, 1, 1, s_kArgbCase, 0.68f);
+        }
+    }
+
+    // Paper-advance knob: a short barrel on the crown axis, emerging from the
+    // right housing, with a dim end-cap sliver (edge-on from this camera).
+    AppendLatheX (out, s_kEndXOut, s_kKnobX1, s_kEndCy, s_kEndCz, s_kKnobR,
+                  -0.35f, s_kPi, 8, s_kArgbCase);
+    {
+        float   p00[3] = { s_kKnobX1, s_kEndCy + s_kKnobR * 0.8f, s_kEndCz + 0.01f };
+        float   p10[3] = { s_kKnobX1 + 0.012f, s_kEndCy + s_kKnobR * 0.55f, s_kEndCz };
+        float   p01[3] = { s_kKnobX1, s_kEndCy - s_kKnobR * 0.8f, s_kEndCz + 0.01f };
+        float   p11[3] = { s_kKnobX1 + 0.012f, s_kEndCy - s_kKnobR * 0.55f, s_kEndCz };
 
         AppendQuad (out, p00, p10, p01, p11, 0, 0, 1, 1, s_kArgbCase, 0.70f);
     }
@@ -760,32 +745,44 @@ void Printer3DScene::BuildBodyFront (std::vector<Vertex> & out) const
 
 void Printer3DScene::BuildControls (std::vector<Vertex> & out) const
 {
-    float   zf = s_kBodyZFront + 0.002f;
+    float   zWall = s_kBodyZFront + 0.001f;
+    float   zCap  = s_kBodyZFront + 0.016f;   // paddles stand proud of the face
 
     for (int i = 0; i < s_kButtonCount; i++)
     {
         float   cx = s_kButtonX0 + (float) i * s_kButtonDx;
         float   cy = s_kButtonY0 + (float) i * s_kButtonDy;
+        float   x0 = cx - s_kButtonW * 0.5f;
+        float   x1 = cx + s_kButtonW * 0.5f;
+        float   y1 = cy + s_kButtonH;
 
-        // Small cream cap over a hairline shadow -- at this scale the real
-        // panel shows little more than the caps themselves.
-        AppendFaceQuad (out, cx - s_kButtonW * 0.5f, cx + s_kButtonW * 0.5f,
-                        cy - 0.003f, cy, zf, s_kArgbCase, 0.55f);
-        AppendFaceQuad (out, cx - s_kButtonW * 0.5f, cx + s_kButtonW * 0.5f,
-                        cy, cy + s_kButtonH, zf, s_kArgbButton, 1.0f);
+        // Real switches protrude: a shadow on the wall beneath, the paddle's
+        // top face catching the light, and its front face standing proud.
+        AppendFaceQuad (out, x0, x1, cy - 0.006f, cy, zWall, s_kArgbCase, 0.52f);
 
-        // Tiny LED bars above the right three caps: print quality, select,
-        // and the on/off pair (pwr green under the unlit error red).
+        {
+            float   p00[3] = { x0, y1, zWall };
+            float   p10[3] = { x1, y1, zWall };
+            float   p01[3] = { x0, y1, zCap };
+            float   p11[3] = { x1, y1, zCap };
+
+            AppendQuad (out, p00, p10, p01, p11, 0, 0, 1, 1, s_kArgbButton, 1.06f);
+        }
+
+        AppendFaceQuad (out, x0, x1, cy, y1, zCap, s_kArgbButton, 0.94f);
+
+        // Tiny LED windows flush in the wall above the right three: print
+        // quality, select, and the on/off pair (pwr green under error red).
         if (i >= 3)
         {
-            float   ly = cy + s_kButtonH + 0.010f;
+            float   ly = cy + s_kButtonH + 0.012f;
 
-            AppendFaceQuad (out, cx - 0.013f, cx + 0.013f, ly, ly + 0.008f, zf,
+            AppendFaceQuad (out, cx - 0.013f, cx + 0.013f, ly, ly + 0.008f, zWall,
                             s_kArgbLedOn, 1.0f);
 
             if (i == 5)
             {
-                AppendFaceQuad (out, cx - 0.013f, cx + 0.013f, ly + 0.010f, ly + 0.018f, zf,
+                AppendFaceQuad (out, cx - 0.013f, cx + 0.013f, ly + 0.010f, ly + 0.018f, zWall,
                                 s_kArgbLedErr, 1.0f);
             }
         }

@@ -59,20 +59,17 @@ private:
                              float u0, float v0, float u1, float v1,
                              uint32_t argb, float shade);
 
-    // Axis-aligned front-face quad helper (z constant), plus fake cylinders:
-    // an x-axis lathe (the platen knob), a y-axis lathe (the rounded platen
-    // end towers), and a horizontal disc fan (the towers' top caps).
+    // Axis-aligned front-face quad helper (z constant), plus rounded pieces:
+    // an x-axis lathe (the platen end housings' rounded tops and the knob
+    // barrel) and a y/z-plane fan at constant x (the housings' side caps).
     static void  AppendFaceQuad (std::vector<Vertex> & out,
                                  float x0, float x1, float y0, float y1, float z,
                                  uint32_t argb, float shade);
     static void  AppendLatheX   (std::vector<Vertex> & out,
                                  float x0, float x1, float cy, float cz, float radius,
                                  float a0, float a1, int segments, uint32_t argb);
-    static void  AppendLatheY   (std::vector<Vertex> & out,
-                                 float cx, float cz, float radius, float y0, float y1,
-                                 float a0, float a1, int segments, uint32_t argb);
-    static void  AppendDiscY    (std::vector<Vertex> & out,
-                                 float cx, float cz, float radius, float y,
+    static void  AppendDiscX    (std::vector<Vertex> & out,
+                                 float x, float cy, float cz, float radius,
                                  float a0, float a1, int segments,
                                  uint32_t argb, float shade);
 
