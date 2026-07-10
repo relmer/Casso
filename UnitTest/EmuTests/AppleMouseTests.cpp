@@ -328,6 +328,27 @@ public:
 
         Byte  status = core.cpu->ReadByte (0x077F);
         Assert::IsTrue ((status & 0x80) != 0, L"$077F bit 7: button currently down");
+
+        // ---- Absolute targeting (the T030 GUI path) ---------------------
+        // Publish a mid-viewport fraction; the DEVICE must project it into
+        // the firmware's live clamp window (read from the screen holes on
+        // the CPU thread) and march the firmware there one interrupt per
+        // unit. Default clamps are 0..1023, so 50%/50% ~= (511, 511).
+        // Regression: the original UI-thread PeekByte mapping read stale
+        // memory and silently no-oped in production (X/Y stuck at 0).
+        core.mouse->SetHostTargetFraction (0x8000, 0x8000);
+        core.RunCycles (8'000'000);
+
+        core.cpu->SetPC (0x0320);                          // READMOUSE stub
+        core.RunCycles (100'000);
+
+        int  tx = core.cpu->ReadByte (0x047F) | (core.cpu->ReadByte (0x057F) << 8);
+        int  ty = core.cpu->ReadByte (0x04FF) | (core.cpu->ReadByte (0x05FF) << 8);
+        char  msg[96];
+        sprintf_s (msg, "absolute target -> firmware position (%d, %d)", tx, ty);
+        Logger::WriteMessage (msg);
+        Assert::IsTrue (tx > 495 && tx < 528, L"absolute X lands near mid-clamp (~511)");
+        Assert::IsTrue (ty > 495 && ty < 528, L"absolute Y lands near mid-clamp (~511)");
     }
 
 

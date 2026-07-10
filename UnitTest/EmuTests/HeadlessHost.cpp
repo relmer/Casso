@@ -437,6 +437,7 @@ HRESULT HeadlessHost::BuildApple2c (EmulatorCore & outCore)
     outCore.mouse               = std::make_unique<AppleMouse> ();
     outCore.mouse->AttachInterruptController (outCore.interruptController.get ());
     outCore.mouse->SetVideoTiming (outCore.videoTiming.get ());
+    outCore.mouse->SetBus (outCore.bus.get ());
     outCore.keyboard->SetMouse     (outCore.mouse.get ());
     outCore.softSwitches->SetMouse (outCore.mouse.get ());
     outCore.cpu->SetCycleSink      (outCore.mouse.get ());

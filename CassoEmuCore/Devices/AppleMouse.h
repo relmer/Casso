@@ -6,6 +6,7 @@
 #include "Core/IInterruptController.h"
 
 class IVideoTiming;
+class MemoryBus;
 
 
 
@@ -66,10 +67,27 @@ public:
     // VBL-onset source for the VBL interrupt latch. Caller-owned.
     void    SetVideoTiming (IVideoTiming * vt) { m_videoTiming = vt; }
 
+    // Memory bus for reading the mouse firmware's screen holes (position +
+    // clamp window) during Tick — CPU thread, so the reads are race-free
+    // with guest execution and see the live MMU mapping (the shell's UI
+    // thread must NOT read guest memory directly). Caller-owned.
+    void    SetBus (MemoryBus * bus) { m_bus = bus; }
+
     // ---- Host input (any thread) -----------------------------------------
 
     void    MoveBy    (int dx, int dy);
     void    SetButton (bool down) { m_hostButton.store (down, std::memory_order_release); }
+
+    // Absolute host->guest targeting (T030): the host pointer's position
+    // over the emulator viewport as 16-bit fractions (0..65535 across each
+    // axis). Tick (CPU thread) projects the fraction into the firmware's
+    // LIVE clamp window (read from the slot-7 screen holes via the bus) and
+    // queues the delta from the firmware's current position as movement
+    // units — self-correcting: units the firmware clamps away re-derive on
+    // the next tick. Inert until the guest initializes the mouse firmware
+    // (hole sanity checks) or when no bus is wired.
+    void    SetHostTargetFraction (uint16_t fx, uint16_t fy);
+    void    ClearHostTarget       () { m_hasTarget.store (false, std::memory_order_release); }
 
     // ---- ICycleSink (CPU thread, from EmuCpu::AddCycles) -------------------
 
@@ -101,11 +119,30 @@ public:
 
 private:
     void    UpdateIrqLines ();
+    void    RetargetFromHoles ();
+
+    // Firmware screen holes (slot 7): position, clamp min/max, per axis.
+    static constexpr Word     kHoleXPosLo  = 0x047F, kHoleXPosHi  = 0x057F;
+    static constexpr Word     kHoleYPosLo  = 0x04FF, kHoleYPosHi  = 0x05FF;
+    static constexpr Word     kHoleXMinLo  = 0x047D, kHoleXMinHi  = 0x057D;
+    static constexpr Word     kHoleXMaxLo  = 0x067D, kHoleXMaxHi  = 0x077D;
+    static constexpr Word     kHoleYMinLo  = 0x04FD, kHoleYMinHi  = 0x05FD;
+    static constexpr Word     kHoleYMaxLo  = 0x06FD, kHoleYMaxHi  = 0x07FD;
+
+    // Retarget cadence: re-derive pending motion from the holes at ~500 Hz
+    // rather than per instruction (12 bus reads per pass).
+    static constexpr uint32_t kRetargetIntervalCycles = 2048;
 
     // Host-thread accumulator (drained by Tick on the CPU thread).
     std::atomic<int>          m_hostDx      { 0 };
     std::atomic<int>          m_hostDy      { 0 };
     std::atomic<bool>         m_hostButton  { false };
+
+    // Absolute target: packed fx<<16|fy viewport fractions + validity flag.
+    std::atomic<uint32_t>     m_hostTarget  { 0 };
+    std::atomic<bool>         m_hasTarget   { false };
+    uint32_t                  m_retargetCountdown = 0;
+    class MemoryBus *         m_bus         = nullptr;
 
     // CPU-side movement queue: signed units not yet latched.
     int                       m_pendingX    = 0;

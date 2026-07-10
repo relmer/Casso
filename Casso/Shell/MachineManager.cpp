@@ -425,6 +425,8 @@ HRESULT MachineManager::CreateMemoryDevices (const MachineConfig & config)
             HRESULT  hrIc = m_shell.m_mouse->AttachInterruptController (&m_shell.m_interruptController);
             IGNORE_RETURN_VALUE (hrIc, S_OK);
 
+            m_shell.m_mouse->SetBus (&m_shell.m_memoryBus);
+
             if (m_shell.m_videoTiming != nullptr)
             {
                 m_shell.m_mouse->SetVideoTiming (m_shell.m_videoTiming.get ());

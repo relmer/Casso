@@ -3716,6 +3716,14 @@ DxuiMessageResult EmulatorShell::OnMouseLeave ()
     m_joystickButton.SetHovered (false);
     m_joystickButton.SetPressed (false);
     m_joystickTooltip.RequestHide (nowMs);
+
+    // //c Mouse mode: the cursor left the window entirely — release the
+    // guest mouse target (non-capturing contract).
+    if (m_mouse != nullptr)
+    {
+        m_mouse->ClearHostTarget ();
+    }
+
     return DxuiMessageResult::NotHandled;
 }
 
@@ -3778,47 +3786,29 @@ void EmulatorShell::UpdateGuestMouseFromHost (int xPx, int yPx)
     int          vpH = vp.bottom - vp.top;
 
 
-    // Cheap first gate: nothing to map until guest software has enabled the
-    // mouse (the hole sanity checks below remain the correctness backstop).
-    if (m_cpu == nullptr || !GuestMouseLive () || vpW <= 1 || vpH <= 1)
+    if (!GuestMouseLive () || vpW <= 1 || vpH <= 1)
     {
         return;
     }
 
     if (xPx < vp.left || xPx >= vp.right || yPx < vp.top || yPx >= vp.bottom)
     {
+        // Leaving the viewport releases the guest mouse to wherever the
+        // firmware last put it (non-capturing contract).
+        m_mouse->ClearHostTarget ();
         return;
     }
 
-    auto peek16 = [this] (Word lo, Word hi)
-    {
-        return (int) m_cpu->PeekByte (lo) | ((int) m_cpu->PeekByte (hi) << 8);
-    };
+    // Publish the viewport fraction only. The DEVICE projects it into the
+    // firmware's live clamp window on the CPU thread (AppleMouse::Tick ->
+    // RetargetFromHoles): guest memory must not be read from the UI thread
+    // -- the CPU's debug array is not the live MMU-mapped RAM, and bus
+    // reads here would race the CPU thread. (The original PeekByte-based
+    // mapping read stale bytes and silently no-oped in production.)
+    uint16_t  fx = static_cast<uint16_t> (MulDiv (xPx - vp.left, 65535, vpW - 1));
+    uint16_t  fy = static_cast<uint16_t> (MulDiv (yPx - vp.top,  65535, vpH - 1));
 
-    int  xMin = peek16 (0x047D, 0x057D);
-    int  xMax = peek16 (0x067D, 0x077D);
-    int  yMin = peek16 (0x04FD, 0x05FD);
-    int  yMax = peek16 (0x06FD, 0x07FD);
-    int  curX = peek16 (0x047F, 0x057F);
-    int  curY = peek16 (0x04FF, 0x05FF);
-
-    // Sanity: a live clamp window is ordered, spans at most the firmware's
-    // 0..1023 default range, and contains the current position. Anything
-    // else means the mouse firmware isn't initialized yet.
-    if (xMax <= xMin || yMax <= yMin ||
-        xMax - xMin > 1023 || yMax - yMin > 1023 ||
-        curX < xMin || curX > xMax || curY < yMin || curY > yMax)
-    {
-        return;
-    }
-
-    int  targetX = xMin + MulDiv (xPx - vp.left, xMax - xMin, vpW - 1);
-    int  targetY = yMin + MulDiv (yPx - vp.top,  yMax - yMin, vpH - 1);
-
-    if (targetX != curX || targetY != curY)
-    {
-        m_mouse->MoveBy (targetX - curX, targetY - curY);
-    }
+    m_mouse->SetHostTargetFraction (fx, fy);
 }
 
 
@@ -4808,11 +4798,13 @@ void EmulatorShell::SetInputMappingMode (InputMappingMode mode)
         StopPaddleCapture();
     }
 
-    // Leaving Mouse mode: release a held guest button so it can't stick.
+    // Leaving Mouse mode: release a held guest button so it can't stick,
+    // and drop the absolute target so the guest mouse stops tracking.
     if (prev == InputMappingMode::Mouse && mode != InputMappingMode::Mouse
         && m_mouse != nullptr)
     {
         m_mouse->SetButton (false);
+        m_mouse->ClearHostTarget ();
     }
 
     m_inputMode                    = mode;

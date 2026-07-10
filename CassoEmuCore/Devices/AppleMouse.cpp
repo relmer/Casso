@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "AppleMouse.h"
+#include "Core/MemoryBus.h"
 #include "Video/IVideoTiming.h"
 
 
@@ -78,7 +79,17 @@ void AppleMouse::MoveBy (int dx, int dy)
 
 void AppleMouse::Tick (uint32_t cpuCycles)
 {
-    UNREFERENCED_PARAMETER (cpuCycles);
+    // Absolute targeting: periodically re-derive the pending motion from
+    // the host target fraction + the firmware's live screen holes.
+    if (m_retargetCountdown <= cpuCycles)
+    {
+        m_retargetCountdown = kRetargetIntervalCycles;
+        RetargetFromHoles ();
+    }
+    else
+    {
+        m_retargetCountdown -= cpuCycles;
+    }
 
     // VBL onset edge.
     if (m_videoTiming != nullptr)
@@ -124,6 +135,89 @@ void AppleMouse::Tick (uint32_t cpuCycles)
     }
 
     UpdateIrqLines ();
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetHostTargetFraction
+//
+//  Host thread. Latest-wins packed store; Tick consumes it on the CPU
+//  thread at the retarget cadence.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void AppleMouse::SetHostTargetFraction (uint16_t fx, uint16_t fy)
+{
+    m_hostTarget.store ((static_cast<uint32_t> (fx) << 16) | fy,
+                        std::memory_order_release);
+    m_hasTarget.store (true, std::memory_order_release);
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RetargetFromHoles
+//
+//  CPU thread. Projects the host viewport fraction into the mouse
+//  firmware's LIVE clamp window and REPLACES the pending motion with the
+//  delta from the firmware's current position (both read from the slot-7
+//  screen holes over the bus — same thread as guest execution, so the
+//  reads are race-free and see the live MMU mapping). A latched-but-
+//  unacknowledged unit is counted as already applied. Self-correcting:
+//  anything the firmware clamps away re-derives on the next pass. The
+//  hole sanity checks make this inert until the guest app has initialized
+//  the mouse firmware (pre-INITMOUSE holes are garbage).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void AppleMouse::RetargetFromHoles ()
+{
+    if (m_bus == nullptr || !m_hasTarget.load (std::memory_order_acquire))
+    {
+        return;
+    }
+
+    uint32_t  packed = m_hostTarget.load (std::memory_order_acquire);
+    int       fx     = static_cast<int> (packed >> 16);
+    int       fy     = static_cast<int> (packed & 0xFFFF);
+
+    auto rd16 = [this] (Word lo, Word hi)
+    {
+        return static_cast<int> (m_bus->ReadByte (lo))
+             | (static_cast<int> (m_bus->ReadByte (hi)) << 8);
+    };
+
+    int  xMin = rd16 (kHoleXMinLo, kHoleXMinHi);
+    int  xMax = rd16 (kHoleXMaxLo, kHoleXMaxHi);
+    int  yMin = rd16 (kHoleYMinLo, kHoleYMinHi);
+    int  yMax = rd16 (kHoleYMaxLo, kHoleYMaxHi);
+    int  curX = rd16 (kHoleXPosLo, kHoleXPosHi);
+    int  curY = rd16 (kHoleYPosLo, kHoleYPosHi);
+
+    // Sanity: a live clamp window is ordered, spans at most the firmware's
+    // 0..1023 default range, and contains the current position.
+    if (xMax <= xMin || yMax <= yMin ||
+        xMax - xMin > 1023 || yMax - yMin > 1023 ||
+        curX < xMin || curX > xMax || curY < yMin || curY > yMax)
+    {
+        return;
+    }
+
+    int  targetX = xMin + (fx * (xMax - xMin)) / 65535;
+    int  targetY = yMin + (fy * (yMax - yMin)) / 65535;
+
+    // A latched, unacknowledged unit will land as +/-1 when the firmware
+    // services it; count it as already applied so it isn't double-queued.
+    int  inFlightX = m_xInt ? (((m_mouX1 & 0x80) != 0) ? +1 : -1) : 0;
+    int  inFlightY = m_yInt ? (((m_mouY1 & 0x80) != 0) ? -1 : +1) : 0;
+
+    m_pendingX = (targetX - curX) - inFlightX;
+    m_pendingY = (targetY - curY) - inFlightY;
 }
 
 
@@ -233,6 +327,8 @@ void AppleMouse::Reset ()
 {
     m_hostDx.store (0, std::memory_order_release);
     m_hostDy.store (0, std::memory_order_release);
+    m_hasTarget.store (false, std::memory_order_release);
+    m_retargetCountdown = 0;
 
     m_pendingX         = 0;
     m_pendingY         = 0;
