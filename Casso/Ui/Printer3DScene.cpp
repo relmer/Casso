@@ -32,10 +32,10 @@ namespace
     constexpr float   s_kBodyTiltRad = 20.0f * s_kPi / 180.0f;
 
     // Side profile, front to back: face -> step ledge -> hood -> smoked cover.
-    // The lid's front edge reaches forward to cover 40% of the body box's top,
-    // leaving a 0.324-deep exposed shelf in front of it.
-    constexpr float   s_kFaceTopY      = 0.315f;   // lower front face 0..this
-    constexpr float   s_kLedgeZ        = 0.096f;   // hood front edge; shelf spans this..front
+    // The lid's front edge reaches forward over the body box's top, leaving a
+    // ~0.29-deep exposed shelf in front of it.
+    constexpr float   s_kFaceTopY      = 0.331f;   // lower front face 0..this
+    constexpr float   s_kLedgeZ        = 0.128f;   // hood front edge; shelf spans this..front
     constexpr float   s_kHoodFrontY    = 0.375f;   // hood riser top (at ledge z)
     constexpr float   s_kHoodBackY     = 0.415f;   // hood top rear edge...
     constexpr float   s_kHoodZBack     = -0.22f;   // ...at this z
