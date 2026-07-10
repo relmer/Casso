@@ -1,9 +1,13 @@
 #include "Pch.h"
 #include "HeadlessHost.h"
 #include "FixtureProvider.h"
+#include "KeystrokeInjector.h"
+#include "TextScreenScraper.h"
 #include "Devices/AppleMouse.h"
 #include "Core/InterruptController.h"
 #include "Video/VideoTiming.h"
+
+#include <fstream>
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -324,5 +328,59 @@ public:
 
         Byte  status = core.cpu->ReadByte (0x077F);
         Assert::IsTrue ((status & 0x80) != 0, L"$077F bit 7: button currently down");
+    }
+
+
+    // DIAGNOSTIC (user repro): boot the user's writable DOS 3.3 disk, type
+    // the corrected BASIC mouse program (PR#7 + CHR$(1) to turn the mouse
+    // on, IN#7 to redirect input), inject host motion, and dump the screen.
+    // Validates the BASIC IN#/PR# firmware hook path the protocol-entry
+    // oracle test does not cover. Skips unless the local disk exists.
+    TEST_METHOD (Diag_BasicInSevenHookTracksMotion)
+    {
+        const char *  kDiskPath = "C:\\Users\\relmer\\AppData\\Local\\Casso\\Disks\\DOS 3.3 Writable.woz";
+        std::ifstream f (kDiskPath, std::ios::binary);
+        if (!Apple2cRomAvailable () || !f.good ())
+        {
+            Logger::WriteMessage ("SKIPPED: ROM or local DOS 3.3 disk absent");
+            return;
+        }
+        std::vector<uint8_t>  bytes ((std::istreambuf_iterator<char> (f)), std::istreambuf_iterator<char> ());
+
+        HeadlessHost  host;
+        EmulatorCore  core;
+        Assert::IsTrue (SUCCEEDED (host.BuildApple2c (core)));
+        core.PowerCycle ();
+        Assert::IsTrue (SUCCEEDED (core.diskStore->MountFromBytes (6, 0, kDiskPath, DiskFormat::Woz, bytes)));
+        core.diskController->SetExternalDisk (0, core.diskStore->GetImage (6, 0));
+
+        core.RunCycles (60'000'000);                       // boot DOS 3.3 to ]
+        auto dump = [&] (const char * tag)
+        {
+            Logger::WriteMessage (tag);
+            for (const std::string & row : TextScreenScraper::Scrape (core))
+            {
+                Logger::WriteMessage (row.c_str ());
+            }
+        };
+
+        KeystrokeInjector::InjectLine (core, "10 D$=CHR$(4)");
+        KeystrokeInjector::InjectLine (core, "20 PRINT D$;\"PR#7\":PRINT CHR$(1):PRINT D$;\"PR#0\"");
+        KeystrokeInjector::InjectLine (core, "30 PRINT D$;\"IN#7\"");
+        KeystrokeInjector::InjectLine (core, "40 INPUT \"\";X,Y,B");
+        KeystrokeInjector::InjectLine (core, "50 PRINT X;\" \";Y;\" \";B");
+        KeystrokeInjector::InjectLine (core, "60 GOTO 40");
+        KeystrokeInjector::InjectLine (core, "RUN", 2'000'000);
+
+        core.mouse->MoveBy (+7, +4);                       // host motion
+        core.RunCycles (4'000'000);
+        core.mouse->SetButton (true);
+        core.RunCycles (2'000'000);
+        dump ("---- screen after RUN + motion ----");
+        char  st[128];
+        sprintf_s (st, "xyEn=%d mode07FF=%02X PC=%04X",
+                   core.mouse->XyInterruptsEnabled () ? 1 : 0,
+                   core.cpu->ReadByte (0x07FF), core.cpu->GetPC ());
+        Logger::WriteMessage (st);
     }
 };
