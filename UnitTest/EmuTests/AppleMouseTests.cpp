@@ -383,4 +383,149 @@ public:
                    core.cpu->ReadByte (0x07FF), core.cpu->GetPC ());
         Logger::WriteMessage (st);
     }
+
+
+    // DIAGNOSTIC control (env-gated): the SAME DOS 3.3 disk + SAVE flow on a
+    // //e with a plain Disk II controller (no IWM mode). Distinguishes an
+    // IWM-mode-specific write bug from a general harness/DOS-save issue.
+    TEST_METHOD (Diag_ControlSaveOnApple2e)
+    {
+        char    envBuf[8] = {};
+        size_t  envLen    = 0;
+        if (getenv_s (&envLen, envBuf, sizeof (envBuf), "CASSO_DIAG_SAVE_MOUSETEST") != 0
+            || envLen == 0 || envBuf[0] != '1')
+        {
+            Logger::WriteMessage ("SKIPPED: env gate");
+            return;
+        }
+        const char *  kDiskPath = "C:\\Users\\relmer\\AppData\\Local\\Casso\\Disks\\DOS 3.3 Writable.woz";
+        std::ifstream f (kDiskPath, std::ios::binary);
+        if (!f.good ()) { Logger::WriteMessage ("SKIPPED: disk absent"); return; }
+        std::vector<uint8_t>  bytes ((std::istreambuf_iterator<char> (f)), std::istreambuf_iterator<char> ());
+
+        HeadlessHost  host;
+        EmulatorCore  core;
+        Assert::IsTrue (SUCCEEDED (host.BuildApple2eWithDisk2 (core)));
+        core.diskController->SetIwmMode (true);   // discriminator: IWM vs 65C02
+        core.PowerCycle ();
+        Assert::IsTrue (SUCCEEDED (core.diskStore->MountFromBytes (6, 0, "control.woz", DiskFormat::Woz, bytes)));
+        core.diskController->SetExternalDisk (0, core.diskStore->GetImage (6, 0));
+        core.RunCycles (60'000'000);
+
+        KeystrokeInjector::InjectLine (core, "NEW");
+        KeystrokeInjector::InjectLine (core, "10 PRINT \"HI\"");
+        KeystrokeInjector::InjectLine (core, "SAVE CONTROL.TEST", 12'000'000);
+        KeystrokeInjector::InjectLine (core, "LOAD CONTROL.TEST", 12'000'000);
+        KeystrokeInjector::InjectLine (core, "LIST", 2'000'000);
+
+        Logger::WriteMessage ("---- //e control: after SAVE/LOAD/LIST ----");
+        bool  ok = false;
+        for (const std::string & row : TextScreenScraper::Scrape (core))
+        {
+            Logger::WriteMessage (row.c_str ());
+            if (row.find ("PRINT \"HI\"") != std::string::npos) { ok = true; }
+        }
+        DiskImage *  img = core.diskStore->GetImage (6, 0);
+        char  diag[96];
+        sprintf_s (diag, "//e control: dirty=%d listOk=%d",
+                   (img != nullptr && img->IsDirty ()) ? 1 : 0, ok ? 1 : 0);
+        Logger::WriteMessage (diag);
+        Assert::IsTrue (ok, L"//e control SAVE/LOAD/LIST must round-trip");
+    }
+
+
+    // DIAGNOSTIC / UTILITY (deliberately env-gated: MUTATES a user disk).
+    // Replaces MOUSE.TEST on the user's writable DOS 3.3 disk with the
+    // corrected BASIC mouse program (DOS-chained IN#/PR# + CHR$(1) mouse-on),
+    // flushes the WOZ back to the file, then re-mounts the written file in a
+    // fresh core and LISTs it to verify the save round-tripped. Runs only
+    // when CASSO_DIAG_SAVE_MOUSETEST=1 is set; skips otherwise.
+    TEST_METHOD (Diag_SaveFixedMouseTestToDisk)
+    {
+        char    envBuf[8] = {};
+        size_t  envLen    = 0;
+        if (getenv_s (&envLen, envBuf, sizeof (envBuf), "CASSO_DIAG_SAVE_MOUSETEST") != 0
+            || envLen == 0 || envBuf[0] != '1')
+        {
+            Logger::WriteMessage ("SKIPPED: set CASSO_DIAG_SAVE_MOUSETEST=1 to run (mutates a user disk)");
+            return;
+        }
+
+        const char *  kDiskPath = "C:\\Users\\relmer\\AppData\\Local\\Casso\\Disks\\DOS 3.3 Writable.woz";
+        std::ifstream f (kDiskPath, std::ios::binary);
+        if (!Apple2cRomAvailable () || !f.good ())
+        {
+            Logger::WriteMessage ("SKIPPED: ROM or local DOS 3.3 disk absent");
+            return;
+        }
+        std::vector<uint8_t>  bytes ((std::istreambuf_iterator<char> (f)), std::istreambuf_iterator<char> ());
+        f.close ();
+
+        auto dump = [] (EmulatorCore & c, const char * tag)
+        {
+            Logger::WriteMessage (tag);
+            for (const std::string & row : TextScreenScraper::Scrape (c))
+            {
+                Logger::WriteMessage (row.c_str ());
+            }
+        };
+
+        // ---- Pass 1: boot, type the fixed program, SAVE, flush ----------
+        {
+            HeadlessHost  host;
+            EmulatorCore  core;
+            Assert::IsTrue (SUCCEEDED (host.BuildApple2c (core)));
+            core.PowerCycle ();
+            Assert::IsTrue (SUCCEEDED (core.diskStore->MountFromBytes (6, 0, kDiskPath, DiskFormat::Woz, bytes)));
+            core.diskController->SetExternalDisk (0, core.diskStore->GetImage (6, 0));
+            core.RunCycles (60'000'000);                   // boot DOS 3.3 to ]
+
+            KeystrokeInjector::InjectLine (core, "NEW");
+            KeystrokeInjector::InjectLine (core, "10 D$=CHR$(4)");
+            KeystrokeInjector::InjectLine (core, "20 PRINT D$;\"PR#7\":PRINT CHR$(1):PRINT D$;\"PR#0\"");
+            KeystrokeInjector::InjectLine (core, "30 PRINT D$;\"IN#7\"");
+            KeystrokeInjector::InjectLine (core, "40 INPUT \"\";X,Y,B");
+            KeystrokeInjector::InjectLine (core, "50 PRINT X;\" \";Y;\" \";B");
+            KeystrokeInjector::InjectLine (core, "60 GOTO 40");
+            KeystrokeInjector::InjectLine (core, "SAVE MOUSE.TEST", 12'000'000);   // DOS write
+            KeystrokeInjector::InjectLine (core, "CATALOG", 6'000'000);
+
+            dump (core, "---- after SAVE + CATALOG ----");
+
+            DiskImage *  img = core.diskStore->GetImage (6, 0);
+            char  diag[128];
+            sprintf_s (diag, "image dirty=%d writeProtected=%d",
+                       (img != nullptr && img->IsDirty ()) ? 1 : 0,
+                       (img != nullptr && img->IsWriteProtected ()) ? 1 : 0);
+            Logger::WriteMessage (diag);
+
+            Assert::IsTrue (SUCCEEDED (core.diskStore->FlushAll ()), L"flush WOZ back to file");
+        }
+
+        // ---- Pass 2: fresh core, mount the WRITTEN file, LOAD + LIST ----
+        {
+            std::ifstream f2 (kDiskPath, std::ios::binary);
+            Assert::IsTrue (f2.good (), L"written file must exist");
+            std::vector<uint8_t>  bytes2 ((std::istreambuf_iterator<char> (f2)), std::istreambuf_iterator<char> ());
+
+            HeadlessHost  host;
+            EmulatorCore  core;
+            Assert::IsTrue (SUCCEEDED (host.BuildApple2c (core)));
+            core.PowerCycle ();
+            Assert::IsTrue (SUCCEEDED (core.diskStore->MountFromBytes (6, 0, kDiskPath, DiskFormat::Woz, bytes2)));
+            core.diskController->SetExternalDisk (0, core.diskStore->GetImage (6, 0));
+            core.RunCycles (60'000'000);
+
+            KeystrokeInjector::InjectLine (core, "LOAD MOUSE.TEST", 12'000'000);
+            KeystrokeInjector::InjectLine (core, "LIST", 3'000'000);
+            dump (core, "---- LIST after reload from written file ----");
+
+            bool  sawPr7 = false;
+            for (const std::string & row : TextScreenScraper::Scrape (core))
+            {
+                if (row.find ("PR#7") != std::string::npos) { sawPr7 = true; }
+            }
+            Assert::IsTrue (sawPr7, L"reloaded MOUSE.TEST must contain the PR#7 mouse-on line");
+        }
+    }
 };
