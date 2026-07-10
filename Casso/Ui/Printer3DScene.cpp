@@ -23,18 +23,20 @@ namespace
     // Case footprint.
     constexpr float   s_kBodyHalfW  = 0.88f;
     constexpr float   s_kBodyZFront = 0.42f;
-    constexpr float   s_kBodyZBack  = -0.58f;
+    constexpr float   s_kBodyZBack  = -0.88f;
 
     // Side profile, front to back: face -> step ledge -> hood -> smoked cover.
+    // The ledge is TWICE as deep (z) as the front face is tall (y), per the
+    // reference: a broad flat deck before the lid begins.
     constexpr float   s_kFaceTopY      = 0.30f;    // lower front face 0..this
-    constexpr float   s_kLedgeZ        = 0.28f;    // step ledge spans this..front
+    constexpr float   s_kLedgeZ        = -0.18f;   // step ledge spans this..front (depth == 2 * s_kFaceTopY)
     constexpr float   s_kHoodFrontY    = 0.375f;   // hood riser top (at ledge z)
     constexpr float   s_kHoodBackY     = 0.415f;   // hood top rear edge...
-    constexpr float   s_kHoodZBack     = 0.02f;    // ...at this z
+    constexpr float   s_kHoodZBack     = -0.28f;   // ...at this z
     constexpr float   s_kCoverTopY     = 0.485f;   // smoked cover top edge...
-    constexpr float   s_kCoverZTop     = -0.13f;   // ...at this z
+    constexpr float   s_kCoverZTop     = -0.43f;   // ...at this z
     constexpr float   s_kDeckY         = 0.40f;    // vented rear deck height
-    constexpr float   s_kDeckZFront    = -0.18f;
+    constexpr float   s_kDeckZFront    = -0.48f;
 
     // Platen bay (seen through the smoked cover), its rounded end towers
     // (vertical half-cylinders hugging the body ends), and the paper-advance
@@ -48,15 +50,15 @@ namespace
     constexpr float   s_kEndXIn     = 0.70f;    // housing spans In..Out (mirrored)
     constexpr float   s_kEndXOut    = 0.90f;    // slightly proud of the body side
     constexpr float   s_kEndCy      = 0.44f;    // crown axis (y, z)
-    constexpr float   s_kEndCz      = -0.02f;
+    constexpr float   s_kEndCz      = -0.32f;
     constexpr float   s_kEndR       = 0.08f;    // crown radius (top = 0.52)
     constexpr float   s_kEndBaseY   = 0.34f;    // buried in the hood
     constexpr float   s_kKnobX1     = 0.99f;
     constexpr float   s_kKnobR      = 0.050f;
 
     // Paper strip: leans back from vertical, then curls away over a roll.
-    constexpr float   s_kPaperHalfW  = 0.62f;   // clears the end towers
-    constexpr float   s_kPaperZ      = -0.16f;
+    constexpr float   s_kPaperHalfW  = 0.62f;   // clears the end housings
+    constexpr float   s_kPaperZ      = -0.46f;
     constexpr float   s_kPaperStartY = 0.46f;   // just below the cover's top edge
     constexpr float   s_kPaperTilt   = 12.0f * s_kPi / 180.0f;
     constexpr float   s_kStraightLen = 1.15f;   // arclength before the curl
