@@ -7,29 +7,51 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  Scene constants -- world units; the printer body is ~1.84 wide. Everything
-//  here is a tuning knob for the look; nothing depends on exact values.
+//  Scene constants -- world units; the printer body is ~1.76 wide. Modeled on
+//  the real ImageWriter II: a tall lower front face (badge left, control
+//  staircase right), a recessed step ledge, the raised hood that lifts off,
+//  the smoked platen cover with the print head visible through it, a vented
+//  rear deck, round platen end covers, and the platen knob on the right.
+//  Everything here is a tuning knob for the look.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace
 {
-    // Body (ImageWriter-class case).
-    constexpr float   s_kBodyHalfW  = 0.92f;    // x extent
-    constexpr float   s_kBodyH      = 0.40f;    // deck height (y)
-    constexpr float   s_kBodyZFront = 0.42f;
-    constexpr float   s_kBodyZBack  = -0.42f;
+    constexpr float   s_kPi = 3.14159265f;
 
-    // Paper slot in the deck; the paper strip passes through its middle.
-    constexpr float   s_kSlotZFront = -0.08f;
-    constexpr float   s_kSlotZBack  = -0.24f;
-    constexpr float   s_kSlotHalfW  = 0.84f;
+    // Case footprint.
+    constexpr float   s_kBodyHalfW  = 0.88f;
+    constexpr float   s_kBodyZFront = 0.42f;
+    constexpr float   s_kBodyZBack  = -0.58f;
+
+    // Side profile, front to back: face -> step ledge -> hood -> smoked cover.
+    constexpr float   s_kFaceTopY      = 0.30f;    // lower front face 0..this
+    constexpr float   s_kLedgeZ        = 0.28f;    // step ledge spans this..front
+    constexpr float   s_kHoodFrontY    = 0.375f;   // hood riser top (at ledge z)
+    constexpr float   s_kHoodBackY     = 0.415f;   // hood top rear edge...
+    constexpr float   s_kHoodZBack     = 0.02f;    // ...at this z
+    constexpr float   s_kCoverTopY     = 0.485f;   // smoked cover top edge...
+    constexpr float   s_kCoverZTop     = -0.13f;   // ...at this z
+    constexpr float   s_kDeckY         = 0.40f;    // vented rear deck height
+    constexpr float   s_kDeckZFront    = -0.18f;
+
+    // Platen bay (seen through the smoked cover) and its round end covers.
+    constexpr float   s_kBayHalfW   = 0.76f;
+    constexpr float   s_kDrumXIn    = 0.74f;    // platen end drums span In..Out
+    constexpr float   s_kDrumXOut   = 0.88f;
+    constexpr float   s_kDrumR     = 0.095f;
+    constexpr float   s_kKnobXOut   = 0.985f;   // platen knob past the right drum
+    constexpr float   s_kKnobR     = 0.055f;
+    constexpr float   s_kDrumCy     = 0.445f;   // drum/knob axis (y, z)
+    constexpr float   s_kDrumCz     = -0.06f;
 
     // Paper strip: leans back from vertical, then curls away over a roll.
-    constexpr float   s_kPaperHalfW = 0.78f;
-    constexpr float   s_kPaperZ     = -0.16f;
-    constexpr float   s_kPaperTilt  = 12.0f * 3.14159265f / 180.0f;
-    constexpr float   s_kStraightLen = 1.15f;   // arclength before the curl (flat page dominates)
+    constexpr float   s_kPaperHalfW  = 0.72f;
+    constexpr float   s_kPaperZ      = -0.16f;
+    constexpr float   s_kPaperStartY = 0.46f;   // just below the cover's top edge
+    constexpr float   s_kPaperTilt   = 12.0f * s_kPi / 180.0f;
+    constexpr float   s_kStraightLen = 1.15f;   // arclength before the curl
     constexpr float   s_kCurlRadius  = 0.28f;
     constexpr int     s_kPaperSlices = 48;
 
@@ -37,17 +59,58 @@ namespace
     // the bottom of the frame and the paper rises through the middle.
     constexpr float   s_kEye[3]   = { 0.0f, 1.25f, 3.30f };
     constexpr float   s_kAt[3]    = { 0.0f, 0.85f, 0.0f };
-    constexpr float   s_kFovY     = 34.0f * 3.14159265f / 180.0f;
+    constexpr float   s_kFovY     = 34.0f * s_kPi / 180.0f;
 
-    // Palette (ARGB): ImageWriter platinum + accents.
+    // Palette (ARGB): warm ImageWriter platinum + accents.
     constexpr uint32_t   s_kArgbMat      = 0xFF33363B;   // panel mat behind everything
-    constexpr uint32_t   s_kArgbCase     = 0xFFD6D1C5;   // platinum
-    constexpr uint32_t   s_kArgbCaseLip  = 0xFFB9B4A8;   // darker lower front lip
+    constexpr uint32_t   s_kArgbCase     = 0xFFD8D3C6;   // platinum case
+    constexpr uint32_t   s_kArgbButton   = 0xFFE8E3D6;   // control caps (lighter cream)
+    constexpr uint32_t   s_kArgbBay      = 0xFF14161A;   // platen bay interior
     constexpr uint32_t   s_kArgbSlot     = 0xFF17181B;   // paper slot recess
-    constexpr uint32_t   s_kArgbWindow   = 0xE0121418;   // smoked carriage window
-    constexpr uint32_t   s_kArgbCarriage = 0xFF2A2D33;   // print-head carriage
-    constexpr uint32_t   s_kArgbLed      = 0xFF35C060;   // power LED
+    constexpr uint32_t   s_kArgbRollerHi = 0xFF3F4348;   // platen roller, lit top
+    constexpr uint32_t   s_kArgbRollerLo = 0xFF26282C;   // platen roller, shadowed
+    constexpr uint32_t   s_kArgbHead     = 0xFF1E2126;   // print head / carriage
+    constexpr uint32_t   s_kArgbCover    = 0x99101418;   // smoked cover (translucent)
+    constexpr uint32_t   s_kArgbLedOn    = 0xFF2FBF5F;   // lit green LED
+    constexpr uint32_t   s_kArgbLedErr   = 0xFF63262A;   // error LED, unlit dark red
     constexpr uint32_t   s_kArgbRibbon[4] = { 0xFF202020, 0xFFF0C810, 0xFFC83030, 0xFF2848A8 };
+
+    // Control staircase (right of the front face): six caps rising toward the
+    // right, matching the real panel -- paper load/eject, form feed, line
+    // feed, print quality, select, on/off -- with LEDs above the right three.
+    constexpr int     s_kButtonCount  = 6;
+    constexpr float   s_kButtonX0     = 0.49f;    // leftmost cap center
+    constexpr float   s_kButtonY0     = 0.115f;
+    constexpr float   s_kButtonDx     = 0.062f;
+    constexpr float   s_kButtonDy     = 0.017f;
+    constexpr float   s_kButtonW      = 0.052f;
+    constexpr float   s_kButtonH      = 0.020f;
+
+    // The Casso cassowary badge (lower-left of the front face, where the real
+    // machine wears its apple). Silhouette + rainbow mirror the DriveWidget
+    // chrome badge (DrawCassowaryRainbow) -- that painter is the source of
+    // truth for the motif; this is its 3D rendition.
+    constexpr int       s_kLogoGridW = 36;
+    constexpr int       s_kLogoGridH = 54;
+    constexpr uint64_t  s_kLogoSilhouette[s_kLogoGridH] = {
+        0x0000000000ULL, 0x0000000000ULL, 0x0000000000ULL, 0x0000000000ULL, 0x0000000000ULL,
+        0x000000FE00ULL, 0x000001FF80ULL, 0x000003FFC0ULL, 0x000007FFE0ULL, 0x00000FFFC0ULL,
+        0x00000FFFC0ULL, 0x00001FFF80ULL, 0x00001FFF00ULL, 0x00003FFF00ULL, 0x00003FFF00ULL,
+        0x00007FFE00ULL, 0x00007FFE00ULL, 0x0000FFFE00ULL, 0x0000FFFC00ULL, 0x0000FFFC00ULL,
+        0x0000FFFC00ULL, 0x0001FFFC00ULL, 0x0001FFFC00ULL, 0x0001FFFC00ULL, 0x0001FFFC00ULL,
+        0x0003FFFE00ULL, 0x0003FFFE00ULL, 0x0003FFFF00ULL, 0x0003FFFF80ULL, 0x0003FFFFC0ULL,
+        0x0003FFFFC0ULL, 0x0007FFFFE0ULL, 0x0007FFFFE0ULL, 0x0007FFFFE0ULL, 0x000FFFFFF0ULL,
+        0x001FFFFFF0ULL, 0x003FFFFFF0ULL, 0x007FFFFFF0ULL, 0x00FFFFFFF0ULL, 0x01FFFFFFF8ULL,
+        0x01FFFFFFF8ULL, 0x03F007FFF8ULL, 0x038000FFF8ULL, 0x0200007FF8ULL, 0x0000007FF8ULL,
+        0x0000007FF8ULL, 0x0000007FF8ULL, 0x000000FFF8ULL, 0x000000FFF8ULL, 0x000001FFF8ULL,
+        0x000001FFF8ULL, 0x000001FFF8ULL, 0x000001FFF0ULL, 0x000003FFF0ULL
+    };
+    constexpr uint32_t  s_kLogoStripes[6] = {
+        0xFF61BB46, 0xFFFDB827, 0xFFF5821F, 0xFFE03A3E, 0xFF963D97, 0xFF009DDC
+    };
+    constexpr float     s_kLogoLeft   = -0.82f;
+    constexpr float     s_kLogoWidth  = 0.075f;
+    constexpr float     s_kLogoTopY   = 0.19f;
 
 
     ////////////////////////////////////////////////////////////////////////////
@@ -183,7 +246,7 @@ void Printer3DScene::SetHeadColumn01 (float x01)
 //
 //  p00..p11 are the quad corners at (u0,v0) (u1,v0) (u0,v1) (u1,v1); `shade`
 //  bakes the lighting into the tint, and colors are emitted premultiplied so
-//  translucent pieces (the smoked window) composite correctly.
+//  translucent pieces (the smoked cover) composite correctly.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -216,6 +279,70 @@ void Printer3DScene::AppendQuad (std::vector<Vertex> & out,
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  Printer3DScene::AppendFaceQuad
+//
+//  Vertical quad on a constant-z plane (the front face and everything on it).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Printer3DScene::AppendFaceQuad (std::vector<Vertex> & out,
+                                     float x0, float x1, float y0, float y1, float z,
+                                     uint32_t argb, float shade)
+{
+    float   p00[3] = { x0, y1, z };
+    float   p10[3] = { x1, y1, z };
+    float   p01[3] = { x0, y0, z };
+    float   p11[3] = { x1, y0, z };
+
+    AppendQuad (out, p00, p10, p01, p11, 0, 0, 1, 1, argb, shade);
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Printer3DScene::AppendLatheX
+//
+//  Fake cylinder around an x-parallel axis: sweeps `segments` quads through
+//  angles [a0, a1] in the y/z plane (angle 0 faces the viewer, pi/2 up), with
+//  per-segment Lambert shading from a front-top light. Approximates the round
+//  platen end covers and the knob well enough at this scene scale.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Printer3DScene::AppendLatheX (std::vector<Vertex> & out,
+                                   float x0, float x1, float cy, float cz, float radius,
+                                   float a0, float a1, int segments, uint32_t argb)
+{
+    float   prevY = cy + radius * std::sin (a0);
+    float   prevZ = cz + radius * std::cos (a0);
+
+    for (int i = 1; i <= segments; i++)
+    {
+        float   a     = a0 + (a1 - a0) * (float) i / (float) segments;
+        float   yPos  = cy + radius * std::sin (a);
+        float   zPos  = cz + radius * std::cos (a);
+        float   mid   = a0 + (a1 - a0) * ((float) i - 0.5f) / (float) segments;
+        float   shade = (std::max) (0.42f, 0.62f * std::sin (mid) + 0.78f * std::cos (mid));
+
+        float   p00[3] = { x0, prevY, prevZ };
+        float   p10[3] = { x1, prevY, prevZ };
+        float   p01[3] = { x0, yPos, zPos };
+        float   p11[3] = { x1, yPos, zPos };
+
+        AppendQuad (out, p00, p10, p01, p11, 0, 0, 1, 1, argb, shade);
+
+        prevY = yPos;
+        prevZ = zPos;
+    }
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  Printer3DScene::BuildBackdrop
 //
 //  Full-viewport mat quad in NDC (drawn with an identity matrix): the scene
@@ -241,49 +368,54 @@ void Printer3DScene::BuildBackdrop (std::vector<Vertex> & out) const
 //
 //  Printer3DScene::BuildBodyBack
 //
-//  The parts of the printer BEHIND the paper: the deck strip behind the slot
-//  and the slot recess itself. Drawn before the paper so the strip visibly
-//  emerges out of the slot.
+//  Everything BEHIND the paper: the vented rear deck (grooves running to the
+//  back of the machine), the slot strip the paper rises through, and the
+//  platen bay's back wall. Drawn before the paper so the strip visibly
+//  emerges out of the machine.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void Printer3DScene::BuildBodyBack (std::vector<Vertex> & out) const
 {
-    // Deck behind the slot (light hits the deck from the front: back is dimmer).
+    // Rear deck base.
     {
-        float   p00[3] = { -s_kBodyHalfW, s_kBodyH, s_kBodyZBack };
-        float   p10[3] = {  s_kBodyHalfW, s_kBodyH, s_kBodyZBack };
-        float   p01[3] = { -s_kBodyHalfW, s_kBodyH, s_kSlotZBack };
-        float   p11[3] = {  s_kBodyHalfW, s_kBodyH, s_kSlotZBack };
+        float   p00[3] = { -s_kBodyHalfW, s_kDeckY, s_kBodyZBack };
+        float   p10[3] = {  s_kBodyHalfW, s_kDeckY, s_kBodyZBack };
+        float   p01[3] = { -s_kBodyHalfW, s_kDeckY, s_kDeckZFront };
+        float   p11[3] = {  s_kBodyHalfW, s_kDeckY, s_kDeckZFront };
 
-        AppendQuad (out, p00, p10, p01, p11, 0, 0, 1, 1, s_kArgbCase, 0.86f);
+        AppendQuad (out, p00, p10, p01, p11, 0, 0, 1, 1, s_kArgbCase, 0.94f);
     }
 
-    // Slot recess.
+    // Vent grooves: thin darker stripes running front-to-back across the deck.
+    for (float gx = -0.84f; gx <= 0.84f; gx += 0.06f)
     {
-        float   p00[3] = { -s_kSlotHalfW, s_kBodyH, s_kSlotZBack };
-        float   p10[3] = {  s_kSlotHalfW, s_kBodyH, s_kSlotZBack };
-        float   p01[3] = { -s_kSlotHalfW, s_kBodyH, s_kSlotZFront };
-        float   p11[3] = {  s_kSlotHalfW, s_kBodyH, s_kSlotZFront };
+        float   p00[3] = { gx,          s_kDeckY, s_kBodyZBack + 0.02f };
+        float   p10[3] = { gx + 0.010f, s_kDeckY, s_kBodyZBack + 0.02f };
+        float   p01[3] = { gx,          s_kDeckY, s_kDeckZFront - 0.015f };
+        float   p11[3] = { gx + 0.010f, s_kDeckY, s_kDeckZFront - 0.015f };
+
+        AppendQuad (out, p00, p10, p01, p11, 0, 0, 1, 1, s_kArgbCase, 0.66f);
+    }
+
+    // Slot strip between the deck and the platen bay.
+    {
+        float   p00[3] = { -s_kBayHalfW, s_kDeckY, s_kDeckZFront };
+        float   p10[3] = {  s_kBayHalfW, s_kDeckY, s_kDeckZFront };
+        float   p01[3] = { -s_kBayHalfW, s_kDeckY, s_kCoverZTop - 0.015f };
+        float   p11[3] = {  s_kBayHalfW, s_kDeckY, s_kCoverZTop - 0.015f };
 
         AppendQuad (out, p00, p10, p01, p11, 0, 0, 1, 1, s_kArgbSlot, 1.0f);
     }
 
-    // Deck side strips flanking the slot recess.
+    // Platen bay back wall (seen through the smoked cover, behind the roller).
     {
-        float   l00[3] = { -s_kBodyHalfW, s_kBodyH, s_kSlotZBack };
-        float   l10[3] = { -s_kSlotHalfW, s_kBodyH, s_kSlotZBack };
-        float   l01[3] = { -s_kBodyHalfW, s_kBodyH, s_kSlotZFront };
-        float   l11[3] = { -s_kSlotHalfW, s_kBodyH, s_kSlotZFront };
+        float   p00[3] = { -s_kBayHalfW, 0.50f, s_kCoverZTop - 0.015f };
+        float   p10[3] = {  s_kBayHalfW, 0.50f, s_kCoverZTop - 0.015f };
+        float   p01[3] = { -s_kBayHalfW, 0.34f, s_kCoverZTop - 0.015f };
+        float   p11[3] = {  s_kBayHalfW, 0.34f, s_kCoverZTop - 0.015f };
 
-        AppendQuad (out, l00, l10, l01, l11, 0, 0, 1, 1, s_kArgbCase, 0.90f);
-
-        float   r00[3] = {  s_kSlotHalfW, s_kBodyH, s_kSlotZBack };
-        float   r10[3] = {  s_kBodyHalfW, s_kBodyH, s_kSlotZBack };
-        float   r01[3] = {  s_kSlotHalfW, s_kBodyH, s_kSlotZFront };
-        float   r11[3] = {  s_kBodyHalfW, s_kBodyH, s_kSlotZFront };
-
-        AppendQuad (out, r00, r10, r01, r11, 0, 0, 1, 1, s_kArgbCase, 0.90f);
+        AppendQuad (out, p00, p10, p01, p11, 0, 0, 1, 1, s_kArgbBay, 1.0f);
     }
 }
 
@@ -311,13 +443,12 @@ void Printer3DScene::BuildPaper (std::vector<Vertex> & out) const
     float   dz       = -std::sin (s_kPaperTilt);
     float   ny       = dz;                              // curl normal: down-and-back
     float   nz       = -dy;
-    float   startY   = s_kBodyH - 0.04f;                // begins just inside the slot
-    float   p1y      = startY + dy * s_kStraightLen;    // where the curl begins
+    float   p1y      = s_kPaperStartY + dy * s_kStraightLen;   // where the curl begins
     float   p1z      = s_kPaperZ + dz * s_kStraightLen;
     float   cy       = p1y + s_kCurlRadius * ny;        // curl center
     float   cz       = p1z + s_kCurlRadius * nz;
 
-    float   prevY    = startY;
+    float   prevY    = s_kPaperStartY;
     float   prevZ    = s_kPaperZ;
     float   prevV    = 1.0f;
     float   prevSh   = 1.0f;
@@ -331,7 +462,7 @@ void Printer3DScene::BuildPaper (std::vector<Vertex> & out) const
 
         if (s <= s_kStraightLen)
         {
-            yPos = startY + dy * s;
+            yPos = s_kPaperStartY + dy * s;
             zPos = s_kPaperZ + dz * s;
         }
         else
@@ -374,8 +505,8 @@ void Printer3DScene::BuildPaper (std::vector<Vertex> & out) const
 
         // The curl's tail fell behind the printer: the rest is out of sight.
         // (Only the curl -- the straight section legitimately starts below
-        // deck level, inside the slot.)
-        if (s > s_kStraightLen && yPos < s_kBodyH + 0.03f)
+        // the cover's top edge, inside the machine.)
+        if (s > s_kStraightLen && yPos < s_kDeckY + 0.05f)
         {
             break;
         }
@@ -389,89 +520,239 @@ void Printer3DScene::BuildPaper (std::vector<Vertex> & out) const
 //
 //  Printer3DScene::BuildBodyFront
 //
-//  Everything in front of the paper: the deck ahead of the slot, the front
-//  face with its darker lip, the smoked carriage window with the paced head
-//  carriage and its four-color ribbon cartridge, and the power LED.
+//  Everything in front of the paper, in painter's order: the platen roller
+//  and the paced print head inside the bay, the smoked cover over them, then
+//  the hood, step ledge, front face, badge, controls, platen end drums, and
+//  the knob.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void Printer3DScene::BuildBodyFront (std::vector<Vertex> & out) const
 {
-    // Deck ahead of the slot.
+    // Platen roller (dark drum behind the head), lit along its top.
     {
-        float   p00[3] = { -s_kBodyHalfW, s_kBodyH, s_kSlotZFront };
-        float   p10[3] = {  s_kBodyHalfW, s_kBodyH, s_kSlotZFront };
-        float   p01[3] = { -s_kBodyHalfW, s_kBodyH, s_kBodyZFront };
-        float   p11[3] = {  s_kBodyHalfW, s_kBodyH, s_kBodyZFront };
+        float   zR = s_kDrumCz + 0.02f;
 
-        AppendQuad (out, p00, p10, p01, p11, 0, 0, 1, 1, s_kArgbCase, 1.0f);
+        float   t00[3] = { -s_kBayHalfW, 0.475f, zR };
+        float   t10[3] = {  s_kBayHalfW, 0.475f, zR };
+        float   t01[3] = { -s_kBayHalfW, 0.435f, zR };
+        float   t11[3] = {  s_kBayHalfW, 0.435f, zR };
+
+        AppendQuad (out, t00, t10, t01, t11, 0, 0, 1, 1, s_kArgbRollerHi, 1.0f);
+
+        float   b00[3] = { -s_kBayHalfW, 0.435f, zR };
+        float   b10[3] = {  s_kBayHalfW, 0.435f, zR };
+        float   b01[3] = { -s_kBayHalfW, 0.385f, zR };
+        float   b11[3] = {  s_kBayHalfW, 0.385f, zR };
+
+        AppendQuad (out, b00, b10, b01, b11, 0, 0, 1, 1, s_kArgbRollerLo, 1.0f);
     }
 
-    // Front face (top at the deck edge, bottom at the desk).
+    // Print head riding the platen at the paced column (FR-034), its ribbon
+    // cartridge showing the four ink stripes -- all seen through the smoke.
     {
-        float   p00[3] = { -s_kBodyHalfW, s_kBodyH, s_kBodyZFront };
-        float   p10[3] = {  s_kBodyHalfW, s_kBodyH, s_kBodyZFront };
-        float   p01[3] = { -s_kBodyHalfW, 0.06f,    s_kBodyZFront };
-        float   p11[3] = {  s_kBodyHalfW, 0.06f,    s_kBodyZFront };
+        float   travel = s_kPaperHalfW - 0.10f;
+        float   cx     = -travel + m_head01 * 2.0f * travel;
+        float   zH     = s_kDrumCz + 0.06f;
 
-        AppendQuad (out, p00, p10, p01, p11, 0, 0, 1, 1, s_kArgbCase, 0.90f);
-    }
+        float   p00[3] = { cx - 0.075f, 0.455f, zH };
+        float   p10[3] = { cx + 0.075f, 0.455f, zH };
+        float   p01[3] = { cx - 0.075f, 0.355f, zH };
+        float   p11[3] = { cx + 0.075f, 0.355f, zH };
 
-    // Darker lower lip.
-    {
-        float   p00[3] = { -s_kBodyHalfW, 0.06f, s_kBodyZFront };
-        float   p10[3] = {  s_kBodyHalfW, 0.06f, s_kBodyZFront };
-        float   p01[3] = { -s_kBodyHalfW, 0.0f,  s_kBodyZFront };
-        float   p11[3] = {  s_kBodyHalfW, 0.0f,  s_kBodyZFront };
-
-        AppendQuad (out, p00, p10, p01, p11, 0, 0, 1, 1, s_kArgbCaseLip, 0.85f);
-    }
-
-    // Smoked carriage window (slightly proud of the front face).
-    {
-        float   zf     = s_kBodyZFront + 0.002f;
-        float   p00[3] = { -0.80f, 0.32f, zf };
-        float   p10[3] = {  0.80f, 0.32f, zf };
-        float   p01[3] = { -0.80f, 0.14f, zf };
-        float   p11[3] = {  0.80f, 0.14f, zf };
-
-        AppendQuad (out, p00, p10, p01, p11, 0, 0, 1, 1, s_kArgbWindow, 1.0f);
-    }
-
-    // Head carriage riding the window at the paced column (FR-034), with the
-    // four-color ribbon cartridge on its back.
-    {
-        float   zf   = s_kBodyZFront + 0.004f;
-        float   cx   = -0.60f + m_head01 * 1.20f;
-        float   p00[3] = { cx - 0.09f, 0.30f, zf };
-        float   p10[3] = { cx + 0.09f, 0.30f, zf };
-        float   p01[3] = { cx - 0.09f, 0.16f, zf };
-        float   p11[3] = { cx + 0.09f, 0.16f, zf };
-
-        AppendQuad (out, p00, p10, p01, p11, 0, 0, 1, 1, s_kArgbCarriage, 1.0f);
+        AppendQuad (out, p00, p10, p01, p11, 0, 0, 1, 1, s_kArgbHead, 1.0f);
 
         for (int i = 0; i < 4; i++)
         {
-            float   rx     = cx - 0.072f + (float) i * 0.038f;
-            float   zr     = zf + 0.002f;
-            float   r00[3] = { rx,          0.285f, zr };
-            float   r10[3] = { rx + 0.030f, 0.285f, zr };
-            float   r01[3] = { rx,          0.255f, zr };
-            float   r11[3] = { rx + 0.030f, 0.255f, zr };
+            float   rx     = cx - 0.058f + (float) i * 0.030f;
+            float   r00[3] = { rx,          0.435f, zH + 0.005f };
+            float   r10[3] = { rx + 0.024f, 0.435f, zH + 0.005f };
+            float   r01[3] = { rx,          0.410f, zH + 0.005f };
+            float   r11[3] = { rx + 0.024f, 0.410f, zH + 0.005f };
 
             AppendQuad (out, r00, r10, r01, r11, 0, 0, 1, 1, s_kArgbRibbon[i], 1.0f);
         }
     }
 
-    // Power LED, bottom-left.
+    // Smoked cover: angled translucent pane from the hood's rear edge up and
+    // back over the bay -- the head and roller read through it, darkened.
     {
-        float   zf     = s_kBodyZFront + 0.002f;
-        float   p00[3] = { -0.86f, 0.115f, zf };
-        float   p10[3] = { -0.80f, 0.115f, zf };
-        float   p01[3] = { -0.86f, 0.085f, zf };
-        float   p11[3] = { -0.80f, 0.085f, zf };
+        float   p00[3] = { -s_kBayHalfW, s_kCoverTopY, s_kCoverZTop };
+        float   p10[3] = {  s_kBayHalfW, s_kCoverTopY, s_kCoverZTop };
+        float   p01[3] = { -s_kBayHalfW, s_kHoodBackY, s_kHoodZBack };
+        float   p11[3] = {  s_kBayHalfW, s_kHoodBackY, s_kHoodZBack };
 
-        AppendQuad (out, p00, p10, p01, p11, 0, 0, 1, 1, s_kArgbLed, 1.0f);
+        AppendQuad (out, p00, p10, p01, p11, 0, 0, 1, 1, s_kArgbCover, 1.0f);
+    }
+
+    // Hood top (the raised cover that lifts off), sloping up toward the bay.
+    {
+        float   p00[3] = { -s_kBodyHalfW, s_kHoodBackY, s_kHoodZBack };
+        float   p10[3] = {  s_kBodyHalfW, s_kHoodBackY, s_kHoodZBack };
+        float   p01[3] = { -s_kBodyHalfW, s_kHoodFrontY, s_kLedgeZ };
+        float   p11[3] = {  s_kBodyHalfW, s_kHoodFrontY, s_kLedgeZ };
+
+        AppendQuad (out, p00, p10, p01, p11, 0, 0, 1, 1, s_kArgbCase, 1.0f);
+    }
+
+    // Hood riser (its front edge) down to the step ledge.
+    {
+        float   p00[3] = { -s_kBodyHalfW, s_kHoodFrontY, s_kLedgeZ };
+        float   p10[3] = {  s_kBodyHalfW, s_kHoodFrontY, s_kLedgeZ };
+        float   p01[3] = { -s_kBodyHalfW, s_kFaceTopY, s_kLedgeZ };
+        float   p11[3] = {  s_kBodyHalfW, s_kFaceTopY, s_kLedgeZ };
+
+        AppendQuad (out, p00, p10, p01, p11, 0, 0, 1, 1, s_kArgbCase, 0.82f);
+    }
+
+    // Step ledge (horizontal shelf between the hood and the front face).
+    {
+        float   p00[3] = { -s_kBodyHalfW, s_kFaceTopY, s_kLedgeZ };
+        float   p10[3] = {  s_kBodyHalfW, s_kFaceTopY, s_kLedgeZ };
+        float   p01[3] = { -s_kBodyHalfW, s_kFaceTopY, s_kBodyZFront };
+        float   p11[3] = {  s_kBodyHalfW, s_kFaceTopY, s_kBodyZFront };
+
+        AppendQuad (out, p00, p10, p01, p11, 0, 0, 1, 1, s_kArgbCase, 0.97f);
+    }
+
+    // Front face.
+    AppendFaceQuad (out, -s_kBodyHalfW, s_kBodyHalfW, 0.0f, s_kFaceTopY, s_kBodyZFront,
+                    s_kArgbCase, 0.90f);
+
+    BuildCassoLogo (out);
+    BuildControls  (out);
+
+    // Round platen end covers and the paper-advance knob on the right --
+    // faked cylinders swept from the front around to the back.
+    AppendLatheX (out, -s_kDrumXOut, -s_kDrumXIn, s_kDrumCy, s_kDrumCz, s_kDrumR,
+                  -0.35f, s_kPi, 10, s_kArgbCase);
+    AppendLatheX (out,  s_kDrumXIn,  s_kDrumXOut, s_kDrumCy, s_kDrumCz, s_kDrumR,
+                  -0.35f, s_kPi, 10, s_kArgbCase);
+    AppendLatheX (out,  s_kDrumXOut, s_kKnobXOut, s_kDrumCy, s_kDrumCz, s_kKnobR,
+                  -0.35f, s_kPi, 8, s_kArgbCase);
+
+    // Knob end cap: a dimmer disc approximation (edge-on from this camera).
+    {
+        float   p00[3] = { s_kKnobXOut, s_kDrumCy + s_kKnobR * 0.8f, s_kDrumCz + 0.01f };
+        float   p10[3] = { s_kKnobXOut + 0.012f, s_kDrumCy + s_kKnobR * 0.55f, s_kDrumCz };
+        float   p01[3] = { s_kKnobXOut, s_kDrumCy - s_kKnobR * 0.8f, s_kDrumCz + 0.01f };
+        float   p11[3] = { s_kKnobXOut + 0.012f, s_kDrumCy - s_kKnobR * 0.55f, s_kDrumCz };
+
+        AppendQuad (out, p00, p10, p01, p11, 0, 0, 1, 1, s_kArgbCase, 0.70f);
+    }
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Printer3DScene::BuildControls
+//
+//  The control staircase on the front face's right: six cream caps rising
+//  toward the right (paper load/eject, form feed, line feed, print quality,
+//  select, on/off), with status LEDs above the right three -- print quality
+//  and select lit green, and the on/off pair: pwr lit green below a dark
+//  (unlit) error red.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Printer3DScene::BuildControls (std::vector<Vertex> & out) const
+{
+    float   zf = s_kBodyZFront + 0.002f;
+
+    for (int i = 0; i < s_kButtonCount; i++)
+    {
+        float   cx = s_kButtonX0 + (float) i * s_kButtonDx;
+        float   cy = s_kButtonY0 + (float) i * s_kButtonDy;
+
+        // Cap front + a lighter top sliver for the 3D pop.
+        AppendFaceQuad (out, cx - s_kButtonW * 0.5f, cx + s_kButtonW * 0.5f,
+                        cy, cy + s_kButtonH, zf, s_kArgbButton, 0.92f);
+        AppendFaceQuad (out, cx - s_kButtonW * 0.5f, cx + s_kButtonW * 0.5f,
+                        cy + s_kButtonH, cy + s_kButtonH + 0.008f, zf, s_kArgbButton, 1.0f);
+
+        // LEDs above the right three caps: print quality, select, on/off.
+        if (i >= 3)
+        {
+            float   ly = cy + s_kButtonH + 0.024f;
+
+            AppendFaceQuad (out, cx - 0.020f, cx + 0.020f, ly, ly + 0.013f, zf,
+                            s_kArgbLedOn, 1.0f);
+
+            if (i == 5)
+            {
+                // on/off: unlit error red stacked above the lit pwr green.
+                AppendFaceQuad (out, cx - 0.020f, cx + 0.020f, ly + 0.013f, ly + 0.026f, zf,
+                                s_kArgbLedErr, 1.0f);
+            }
+        }
+    }
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Printer3DScene::BuildCassoLogo
+//
+//  The Casso cassowary badge in rainbow stripes, lower-left of the front face
+//  (where the real machine wears its apple). One quad per contiguous bit run
+//  per silhouette row, same as the chrome DriveWidget badge.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Printer3DScene::BuildCassoLogo (std::vector<Vertex> & out) const
+{
+    float   zf     = s_kBodyZFront + 0.002f;
+    float   height = s_kLogoWidth * (float) s_kLogoGridH / (float) s_kLogoGridW;
+    float   rowH   = height / (float) s_kLogoGridH;
+    float   colW   = s_kLogoWidth / (float) s_kLogoGridW;
+    int     first  = -1;
+    int     last   = -1;
+
+    for (int row = 0; row < s_kLogoGridH; row++)
+    {
+        if (s_kLogoSilhouette[row] != 0)
+        {
+            if (first < 0) { first = row; }
+            last = row;
+        }
+    }
+    if (last < first)
+    {
+        return;
+    }
+
+    for (int row = first; row <= last; row++)
+    {
+        uint64_t   bits   = s_kLogoSilhouette[row];
+        int        stripe = ((row - first) * 6) / (last - first + 1);
+        uint32_t   argb   = s_kLogoStripes[stripe];
+        float      yTop   = s_kLogoTopY - (float) (row - first) * rowH;
+        int        col    = 0;
+
+        while (col < s_kLogoGridW)
+        {
+            if ((bits & (1ULL << col)) == 0)
+            {
+                col++;
+                continue;
+            }
+
+            int   runStart = col;
+
+            while (col < s_kLogoGridW && (bits & (1ULL << col)) != 0)
+            {
+                col++;
+            }
+
+            AppendFaceQuad (out,
+                            s_kLogoLeft + (float) runStart * colW,
+                            s_kLogoLeft + (float) col * colW,
+                            yTop - rowH, yTop, zf, argb, 1.0f);
+        }
     }
 }
 

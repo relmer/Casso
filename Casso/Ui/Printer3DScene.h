@@ -59,10 +59,21 @@ private:
                              float u0, float v0, float u1, float v1,
                              uint32_t argb, float shade);
 
+    // Axis-aligned front-face quad helper (z constant) and an x-axis lathe
+    // (fake cylinder: platen end drums + knob) swept in the y/z plane.
+    static void  AppendFaceQuad (std::vector<Vertex> & out,
+                                 float x0, float x1, float y0, float y1, float z,
+                                 uint32_t argb, float shade);
+    static void  AppendLatheX   (std::vector<Vertex> & out,
+                                 float x0, float x1, float cy, float cz, float radius,
+                                 float a0, float a1, int segments, uint32_t argb);
+
     void  BuildBackdrop   (std::vector<Vertex> & out) const;
     void  BuildBodyBack   (std::vector<Vertex> & out) const;
     void  BuildPaper      (std::vector<Vertex> & out) const;
     void  BuildBodyFront  (std::vector<Vertex> & out) const;
+    void  BuildControls   (std::vector<Vertex> & out) const;
+    void  BuildCassoLogo  (std::vector<Vertex> & out) const;
 
     Dxui3DRenderer   m_renderer;
     float            m_head01        = 0.0f;
