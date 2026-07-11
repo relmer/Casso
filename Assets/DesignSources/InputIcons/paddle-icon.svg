@@ -20,8 +20,8 @@
     </linearGradient>
   </defs>
 
-  <!-- orange fire button poking out of the head's left edge -->
-  <rect x="14" y="30" width="12" height="16" rx="4" fill="url(#pBtn)" stroke="#A63C14" stroke-width="1.5"/>
+  <!-- orange fire button at 2 o'clock on the head (6 o'clock = handle) -->
+  <rect x="63" y="11" width="15" height="16" rx="4" fill="url(#pBtn)" stroke="#A63C14" stroke-width="1.5"/>
 
   <!-- handle: tapered teardrop tail -->
   <path d="M 36,52 L 60,52 Q 62,52 62,55 L 58,84 Q 57.5,89 52,89 L 44,89 Q 38.5,89 38,84 L 34,55 Q 34,52 36,52 Z"

@@ -1,76 +1,64 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" width="96" height="96">
   <!--
-    Apple Hand Controller (A2M2001) 3/4 glyph, rev 2 — Skeuomorphic theme.
-    Composition per user reference (Image #12): ribbed wedge handle in the
-    foreground running to the lower-left; at upper-right the head — housing
-    collar, tall KNURLED DIAL cylinder, and the smaller knurled cap cylinder
-    stacked on top (embossed oval on its face); orange fire button on the
-    head's right flank. Rounded edges throughout. 96x96 grid = D2D spec.
+    Apple Hand Controller (A2M2001) 3/4 glyph, rev 3 - Skeuomorphic theme.
+    Same shared camera as the joystick (viewer lower-right, elevated):
+    the handle extends SOUTH toward the viewer (front face + right side
+    visible), the stacked knurled dial cylinders rise from the head at
+    the back, and the orange fire button pokes out at the head's
+    2 o'clock (matching the corrected top-down master). Cylinder minor
+    axes are widened beyond the strict oblique ratio for legibility.
   -->
   <defs>
-    <linearGradient id="pkBody" x1="0" y1="0" x2="1" y2="1">
+    <linearGradient id="pBody" x1="0" y1="0" x2="1" y2="1">
       <stop offset="0" stop-color="#E4DFD0"/><stop offset="1" stop-color="#C6C0AF"/>
     </linearGradient>
-    <linearGradient id="pkDialSide" x1="0" y1="0" x2="0" y2="1">
+    <linearGradient id="pSide" x1="0" y1="0" x2="0" y2="1">
       <stop offset="0" stop-color="#C0BAA9"/><stop offset="1" stop-color="#9C9685"/>
     </linearGradient>
-    <radialGradient id="pkDialTop" cx="0.4" cy="0.35" r="0.9">
+    <radialGradient id="pTop" cx="0.4" cy="0.35" r="0.9">
       <stop offset="0" stop-color="#D2CCBC"/><stop offset="1" stop-color="#B0AA99"/>
     </radialGradient>
-    <linearGradient id="pkBtn" x1="0" y1="0" x2="0" y2="1">
+    <linearGradient id="pBtn" x1="0" y1="0" x2="0" y2="1">
       <stop offset="0" stop-color="#FF7038"/><stop offset="1" stop-color="#E04E1E"/>
     </linearGradient>
   </defs>
 
-  <!-- handle: side face (extruded below the top face, with case seam) -->
-  <path d="M 56.7,68.2 L 26.4,84.9 Q 22,87.3 22,82.3 L 22,79 L 52,62 L 56.7,64 Z"
-        fill="#B3AD9C" stroke="#8F8A7A" stroke-width="2" stroke-linejoin="round"
-        transform="translate(0,9)"/>
-  <!-- handle: top face (wedge to the lower-left, rounded corners) -->
-  <path d="M 41.5,45.5 Q 44.5,42 48.5,45 L 55,63 Q 57,67 53.5,69.5 L 28,83.5 Q 23.5,86 18.5,83 L 14,74
-           Q 12,69.5 15.5,66.5 Z"
-        fill="url(#pkBody)" stroke="#8F8A7A" stroke-width="2" stroke-linejoin="round"/>
-  <!-- grip ribs across the handle -->
-  <g stroke="#A9A392" stroke-width="1.7" opacity="0.9" stroke-linecap="round">
-    <line x1="44.5" y1="57.5" x2="24.5" y2="71"/>
-    <line x1="47.5" y1="62.5" x2="27" y2="76.5"/>
-    <line x1="41"   y1="52.5" x2="21.5" y2="66"/>
-    <line x1="50"   y1="67.5" x2="30.5" y2="81"/>
+  <!-- handle: right side face, front face, top face (td (34,52)-(62,89) mapped, extruded down 13) -->
+  <polygon points="49.8,57.8 58.1,50.8 58.1,63.8 49.8,70.8" fill="#A9A392" stroke="#8F8A7A" stroke-width="1.8" stroke-linejoin="round"/>
+  <path d="M 34.5,57.8 L 49.8,57.8 L 49.8,68.8 Q 49.8,70.8 47.8,70.8 L 36.5,70.8 Q 34.5,70.8 34.5,68.8 Z"
+        fill="url(#pBody)" stroke="#8F8A7A" stroke-width="1.8" stroke-linejoin="round"/>
+  <polygon points="36.8,50.8 58.1,50.8 49.8,57.8 34.5,57.8" fill="#E0DBCB" stroke="#8F8A7A" stroke-width="1.8" stroke-linejoin="round"/>
+  <!-- grip ribs: front face -->
+  <line x1="36" y1="61"   x2="48.3" y2="61"   stroke="#A9A392" stroke-width="1.4"/>
+  <line x1="36" y1="64"   x2="48.3" y2="64"   stroke="#A9A392" stroke-width="1.4"/>
+  <line x1="36" y1="67"   x2="48.3" y2="67"   stroke="#A9A392" stroke-width="1.4"/>
+  <line x1="38.5" y1="53.9" x2="52.5" y2="53.9" stroke="#A9A392" stroke-width="1.2" opacity="0.9"/>
+
+  <!-- fire button at the head's 2 o'clock: raised orange box (drawn under the dial) -->
+  <rect x="63" y="39" width="10" height="10" rx="3" fill="url(#pBtn)" stroke="#A63C14" stroke-width="1.4"/>
+
+  <!-- head: housing cylinder (base at the handle deck) -->
+  <path d="M 31,46 A 19,8 0 0 0 69,46 L 69,52 A 19,8 0 0 1 31,52 Z"
+        fill="url(#pSide)" stroke="#827D6C" stroke-width="1.6" stroke-linejoin="round"/>
+  <ellipse cx="50" cy="46" rx="19" ry="8" fill="url(#pBody)" stroke="#8F8A7A" stroke-width="1.6"/>
+
+  <!-- knurled dial ring -->
+  <path d="M 34,40 A 16,6.8 0 0 0 66,40 L 66,47.5 A 16,6.8 0 0 1 34,47.5 Z"
+        fill="url(#pSide)" stroke="#827D6C" stroke-width="1.4" stroke-linejoin="round"/>
+  <g stroke="#7E7967" stroke-width="1.3" opacity="0.85">
+    <line x1="37" y1="42.5" x2="37" y2="50"/>
+    <line x1="41.3" y1="44.7" x2="41.3" y2="52.2"/>
+    <line x1="45.6" y1="45.9" x2="45.6" y2="53.4"/>
+    <line x1="50" y1="46.3" x2="50" y2="53.8"/>
+    <line x1="54.4" y1="45.9" x2="54.4" y2="53.4"/>
+    <line x1="58.7" y1="44.7" x2="58.7" y2="52.2"/>
+    <line x1="63" y1="42.5" x2="63" y2="50"/>
   </g>
+  <ellipse cx="50" cy="40" rx="16" ry="6.8" fill="url(#pTop)" stroke="#827D6C" stroke-width="1.4"/>
 
-  <!-- orange fire button on the right flank of the head -->
-  <rect x="80" y="44" width="11" height="16" rx="4.5" fill="url(#pkBtn)" stroke="#A63C14" stroke-width="1.5"/>
-
-  <!-- head housing collar: side wall + rim -->
-  <path d="M 33,48 A 25,12 0 0 0 83,48 L 83,54 A 25,12 0 0 1 33,54 Z"
-        fill="#B5AF9E" stroke="#8F8A7A" stroke-width="2" stroke-linejoin="round"/>
-  <ellipse cx="58" cy="48" rx="25" ry="12" fill="url(#pkBody)" stroke="#8F8A7A" stroke-width="2"/>
-
-  <!-- dial ring: tall knurled cylinder seated in the collar -->
-  <path d="M 36,40 A 22,10.5 0 0 0 80,40 L 80,50 A 22,10.5 0 0 1 36,50 Z"
-        fill="url(#pkDialSide)" stroke="#827D6C" stroke-width="1.6" stroke-linejoin="round"/>
-  <g stroke="#7E7967" stroke-width="1.4" opacity="0.8">
-    <line x1="40" y1="44.5" x2="40" y2="54"/>
-    <line x1="46" y1="47.5" x2="46" y2="57"/>
-    <line x1="52" y1="49.3" x2="52" y2="58.8"/>
-    <line x1="58" y1="50"   x2="58" y2="59.5"/>
-    <line x1="64" y1="49.3" x2="64" y2="58.8"/>
-    <line x1="70" y1="47.5" x2="70" y2="57"/>
-    <line x1="76" y1="44.5" x2="76" y2="54"/>
-  </g>
-  <ellipse cx="58" cy="40" rx="22" ry="10.5" fill="url(#pkDialTop)" stroke="#827D6C" stroke-width="1.6"/>
-
-  <!-- cap: smaller knurled cylinder stacked on the dial -->
-  <path d="M 45.5,26 A 12.5,6 0 0 0 70.5,26 L 70.5,36 A 12.5,6 0 0 1 45.5,36 Z"
-        fill="url(#pkDialSide)" stroke="#827D6C" stroke-width="1.6" stroke-linejoin="round"/>
-  <g stroke="#7E7967" stroke-width="1.2" opacity="0.8">
-    <line x1="49" y1="29.5" x2="49" y2="39"/>
-    <line x1="54" y1="31.3" x2="54" y2="40.8"/>
-    <line x1="58" y1="31.8" x2="58" y2="41.3"/>
-    <line x1="62" y1="31.3" x2="62" y2="40.8"/>
-    <line x1="67" y1="29.5" x2="67" y2="39"/>
-  </g>
-  <ellipse cx="58" cy="26" rx="12.5" ry="6" fill="url(#pkDialTop)" stroke="#827D6C" stroke-width="1.6"/>
-  <!-- embossed oval on the cap face -->
-  <ellipse cx="58" cy="26" rx="5" ry="2.3" fill="none" stroke="#948E7D" stroke-width="1.4"/>
+  <!-- cap cylinder with embossed oval -->
+  <path d="M 42,33 A 8,3.4 0 0 0 58,33 L 58,40 A 8,3.4 0 0 1 42,40 Z"
+        fill="url(#pSide)" stroke="#827D6C" stroke-width="1.4" stroke-linejoin="round"/>
+  <ellipse cx="50" cy="33" rx="8" ry="3.4" fill="url(#pTop)" stroke="#827D6C" stroke-width="1.4"/>
+  <ellipse cx="50" cy="33" rx="3.4" ry="1.4" fill="none" stroke="#948E7D" stroke-width="1.2"/>
 </svg>
