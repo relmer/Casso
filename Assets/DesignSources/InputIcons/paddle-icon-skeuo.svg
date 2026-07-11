@@ -1,15 +1,15 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" width="96" height="96">
   <!--
-    Apple Hand Controller (A2M2001) 3/4 glyph, rev 8 - Skeuomorphic theme.
-    Proportion pass against the reference photos: the knurled dial FILLS
-    the head (collar rim band 1.5 + gap 2 on a 21 radius, was 2.5 + 3),
-    the dome is a wide soft mound (ellipse, same gray as the ring, not a
-    hard cone), the handle is a fat wedge (83% of head width at the
-    joint, rounded tip corners, 9 fine ribs), the fire button is a big
-    tab seated LOW on the collar wall (top below the rim, bottom at the
-    parting seam), and the shell parting seam runs continuously from the
-    handle side around the collar wall. Circles squash to ry/rx = 0.35
-    (shared lower-right camera).
+    Apple Hand Controller (A2M2001) 3/4 glyph, rev 10 - Skeuomorphic theme.
+    Convergence pass against the reference photos:
+      - the dome is a LOW flared cone (height ~23% of width, concave
+        sides, springing from the knurl's edge), same gray as the ring -
+        no more ball-on-a-plate;
+      - the ring's exposed knurl band deepened 4 -> 6 units;
+      - the fire button gains a thin lit top facet;
+      - handle ribs wrap over the SE shoulder onto the side face;
+      - Apple-badge chip hinted in the smooth patch near the tip.
+    Circles squash to ry/rx = 0.35 (shared lower-right camera).
   -->
   <defs>
     <linearGradient id="pBody" x1="0" y1="0" x2="1" y2="1">
@@ -25,7 +25,7 @@
       <stop offset="0" stop-color="#A29C8A"/><stop offset="1" stop-color="#8B8573"/>
     </linearGradient>
     <linearGradient id="pDome" x1="0" y1="0" x2="0.3" y2="1">
-      <stop offset="0" stop-color="#BDB7A5"/><stop offset="1" stop-color="#9A9483"/>
+      <stop offset="0" stop-color="#B9B3A1"/><stop offset="1" stop-color="#999380"/>
     </linearGradient>
     <linearGradient id="pCap" x1="0" y1="0" x2="0.4" y2="1">
       <stop offset="0" stop-color="#C4BEAC"/><stop offset="1" stop-color="#A8A290"/>
@@ -35,24 +35,38 @@
     </linearGradient>
   </defs>
 
-  <!-- handle wedge: tip end face, SE side face + seam, top face, ribs -->
+  <!-- handle wedge: tip end face, SE side face + seam, top face -->
   <path d="M 13,68 L 30,78 L 30,82.5 Q 30,85 27.5,83.5 L 15.5,76.5 Q 13,75 13,72.5 Z"
         fill="#A9A392" stroke="#8F8A7A" stroke-width="1.6" stroke-linejoin="round"/>
   <polygon points="30,78 74.5,52 74.5,62 30,85" fill="#B3AD9C" stroke="#8F8A7A" stroke-width="1.6" stroke-linejoin="round"/>
   <line x1="31" y1="82" x2="73.5" y2="58.2" stroke="#8F8A7A" stroke-width="1" opacity="0.7"/>
   <path d="M 14.8,66.3 L 41,42.5 L 74.5,52 L 32.2,76.7 Q 30,78 27.8,76.7 L 15.2,69.3 Q 13,68 14.8,66.3 Z"
         fill="url(#pBody)" stroke="#8F8A7A" stroke-width="2" stroke-linejoin="round"/>
+  <!-- ribs: inset from the NW edge, wrapping over the SE shoulder -->
   <g stroke="#A9A392" stroke-width="1.3">
-    <line x1="19.1" y1="64.7" x2="35.5" y2="73.0"/>
-    <line x1="21.4" y1="62.7" x2="39.0" y2="71.0"/>
-    <line x1="23.8" y1="60.6" x2="42.4" y2="68.9"/>
-    <line x1="26.1" y1="58.6" x2="45.9" y2="66.8"/>
-    <line x1="28.4" y1="56.6" x2="49.4" y2="64.7"/>
-    <line x1="30.8" y1="54.5" x2="52.8" y2="62.6"/>
-    <line x1="33.1" y1="52.5" x2="56.3" y2="60.6"/>
-    <line x1="35.5" y1="50.4" x2="59.7" y2="58.5"/>
-    <line x1="37.8" y1="48.4" x2="63.2" y2="56.4"/>
+    <line x1="19.1" y1="64.7" x2="36.5" y2="73.5"/>
+    <line x1="21.4" y1="62.7" x2="40.1" y2="71.5"/>
+    <line x1="23.8" y1="60.6" x2="43.5" y2="69.4"/>
+    <line x1="26.1" y1="58.6" x2="47.1" y2="67.3"/>
+    <line x1="28.4" y1="56.6" x2="50.7" y2="65.2"/>
+    <line x1="30.8" y1="54.5" x2="54.1" y2="63.1"/>
+    <line x1="33.1" y1="52.5" x2="57.7" y2="61.1"/>
+    <line x1="35.5" y1="50.4" x2="61.1" y2="59.0"/>
+    <line x1="37.8" y1="48.4" x2="64.7" y2="56.9"/>
   </g>
+  <g stroke="#98927F" stroke-width="1.1">
+    <line x1="36.5" y1="73.5" x2="36.5" y2="75.7"/>
+    <line x1="40.1" y1="71.5" x2="40.1" y2="73.7"/>
+    <line x1="43.5" y1="69.4" x2="43.5" y2="71.6"/>
+    <line x1="47.1" y1="67.3" x2="47.1" y2="69.5"/>
+    <line x1="50.7" y1="65.2" x2="50.7" y2="67.4"/>
+    <line x1="54.1" y1="63.1" x2="54.1" y2="65.3"/>
+    <line x1="57.7" y1="61.1" x2="57.7" y2="63.3"/>
+    <line x1="61.1" y1="59.0" x2="61.1" y2="61.2"/>
+    <line x1="64.7" y1="56.9" x2="64.7" y2="59.1"/>
+  </g>
+  <!-- Apple badge chip in the smooth patch near the tip -->
+  <polygon points="23.3,68.4 26.4,70.0 25.1,72.6 22.0,71.1" fill="#A9A392" opacity="0.6"/>
 
   <!-- housing collar: cylinder wall (+ continuous parting seam) + rim -->
   <path d="M 37,38 A 21 7.3 0 0 0 79,38 L 79,48 A 21 7.3 0 0 1 37,48 Z"
@@ -62,47 +76,50 @@
   <!-- dark opening the dial sits in (thin: the dial fills the head) -->
   <ellipse cx="58" cy="38" rx="19.5" ry="6.8" fill="#6B6759"/>
 
-  <!-- knurled ring: fills the opening, knurl on its wall -->
-  <path d="M 40.5,34 A 17.5 6.1 0 0 0 75.5,34 L 75.5,38 A 17.5 6.1 0 0 1 40.5,38 Z"
+  <!-- knurled ring: fills the opening, 6-unit knurl band on its wall -->
+  <path d="M 40.5,32 A 17.5 6.1 0 0 0 75.5,32 L 75.5,38 A 17.5 6.1 0 0 1 40.5,38 Z"
         fill="url(#pDialWall)"/>
-  <ellipse cx="58" cy="34" rx="17.5" ry="6.1" fill="url(#pDial)" stroke="#827D6C" stroke-width="1.4"/>
+  <ellipse cx="58" cy="32" rx="17.5" ry="6.1" fill="url(#pDial)" stroke="#827D6C" stroke-width="1.4"/>
   <g stroke="#7E7967" stroke-width="1.1" opacity="0.85">
-    <line x1="58" y1="40.1" x2="58" y2="44.1"/>
-    <line x1="60.6" y1="40.0" x2="60.6" y2="44.0"/>
-    <line x1="55.4" y1="40.0" x2="55.4" y2="44.0"/>
-    <line x1="63.2" y1="39.8" x2="63.2" y2="43.8"/>
-    <line x1="52.8" y1="39.8" x2="52.8" y2="43.8"/>
-    <line x1="65.8" y1="39.5" x2="65.8" y2="43.5"/>
-    <line x1="50.2" y1="39.5" x2="50.2" y2="43.5"/>
-    <line x1="68.4" y1="38.9" x2="68.4" y2="42.9"/>
-    <line x1="47.6" y1="38.9" x2="47.6" y2="42.9"/>
-    <line x1="71" y1="38.1" x2="71" y2="42.1"/>
-    <line x1="45" y1="38.1" x2="45" y2="42.1"/>
-    <line x1="73.6" y1="36.8" x2="73.6" y2="40.8"/>
-    <line x1="42.4" y1="36.8" x2="42.4" y2="40.8"/>
+    <line x1="58" y1="38.1" x2="58" y2="44.1"/>
+    <line x1="60.6" y1="38.0" x2="60.6" y2="44.0"/>
+    <line x1="55.4" y1="38.0" x2="55.4" y2="44.0"/>
+    <line x1="63.2" y1="37.8" x2="63.2" y2="43.8"/>
+    <line x1="52.8" y1="37.8" x2="52.8" y2="43.8"/>
+    <line x1="65.8" y1="37.5" x2="65.8" y2="43.5"/>
+    <line x1="50.2" y1="37.5" x2="50.2" y2="43.5"/>
+    <line x1="68.4" y1="36.9" x2="68.4" y2="42.9"/>
+    <line x1="47.6" y1="36.9" x2="47.6" y2="42.9"/>
+    <line x1="71" y1="36.1" x2="71" y2="42.1"/>
+    <line x1="45" y1="36.1" x2="45" y2="42.1"/>
+    <line x1="73.6" y1="34.8" x2="73.6" y2="40.8"/>
+    <line x1="42.4" y1="34.8" x2="42.4" y2="40.8"/>
   </g>
 
-  <!-- wide soft dome: same gray family, ellipse mound -->
-  <ellipse cx="58" cy="31.5" rx="15" ry="7" fill="url(#pDome)" stroke="#827D6C" stroke-width="1"/>
+  <!-- LOW dome, same gray family, springing at the knurl's edge; sides
+       bow gently OUTWARD (convex shoulder, not a concave trumpet) -->
+  <path d="M 42,31 Q 45,26.8 50.5,23.5 L 65.5,23.5 Q 71,26.8 74,31 A 16 5.6 0 0 1 42,31 Z"
+        fill="url(#pDome)" stroke="#827D6C" stroke-width="0.9"/>
 
   <!-- knurled cap cylinder -->
-  <path d="M 50.5,18 A 7.5 2.6 0 0 0 65.5,18 L 65.5,24 A 7.5 2.6 0 0 1 50.5,24 Z"
+  <path d="M 50.5,17.5 A 7.5 2.6 0 0 0 65.5,17.5 L 65.5,23.5 A 7.5 2.6 0 0 1 50.5,23.5 Z"
         fill="url(#pDialWall)"/>
   <g stroke="#7E7967" stroke-width="1.1" opacity="0.85">
-    <line x1="58" y1="20.6" x2="58" y2="26.6"/>
-    <line x1="60.4" y1="20.5" x2="60.4" y2="26.5"/>
-    <line x1="55.6" y1="20.5" x2="55.6" y2="26.5"/>
-    <line x1="62.8" y1="20.0" x2="62.8" y2="26.0"/>
-    <line x1="53.2" y1="20.0" x2="53.2" y2="26.0"/>
-    <line x1="65.2" y1="18.7" x2="65.2" y2="24.7"/>
-    <line x1="50.8" y1="18.7" x2="50.8" y2="24.7"/>
+    <line x1="58" y1="20.1" x2="58" y2="26.1"/>
+    <line x1="60.4" y1="20.0" x2="60.4" y2="26.0"/>
+    <line x1="55.6" y1="20.0" x2="55.6" y2="26.0"/>
+    <line x1="62.8" y1="19.5" x2="62.8" y2="25.5"/>
+    <line x1="53.2" y1="19.5" x2="53.2" y2="25.5"/>
+    <line x1="65.2" y1="18.2" x2="65.2" y2="24.2"/>
+    <line x1="50.8" y1="18.2" x2="50.8" y2="24.2"/>
   </g>
-  <ellipse cx="58" cy="18" rx="7.5" ry="2.6" fill="url(#pCap)" stroke="#827D6C" stroke-width="1.4"/>
+  <ellipse cx="58" cy="17.5" rx="7.5" ry="2.6" fill="url(#pCap)" stroke="#827D6C" stroke-width="1.4"/>
   <!-- cap top: circular groove + the "0" mark -->
-  <ellipse cx="58" cy="18" rx="4.4" ry="1.5" fill="none" stroke="#827D6C" stroke-width="0.9" opacity="0.8"/>
-  <ellipse cx="58" cy="18" rx="1.5" ry="0.55" fill="none" stroke="#827D6C" stroke-width="1.1"/>
+  <ellipse cx="58" cy="17.5" rx="4.4" ry="1.5" fill="none" stroke="#827D6C" stroke-width="0.9" opacity="0.8"/>
+  <ellipse cx="58" cy="17.5" rx="1.5" ry="0.55" fill="none" stroke="#827D6C" stroke-width="1.1"/>
 
-  <!-- orange fire button: big tab seated LOW on the collar wall -->
+  <!-- orange fire button: big tab seated LOW, with a thin lit top facet -->
   <path d="M 76.5,42 L 82.5,42.9 Q 86.5,43.5 86.5,47 Q 86.5,50.5 82.5,51.4 L 76.5,52.5 Z"
         fill="url(#pBtn)" stroke="#A63C14" stroke-width="1.4" stroke-linejoin="round"/>
+  <line x1="76.8" y1="42.5" x2="83.5" y2="43.5" stroke="#FF9058" stroke-width="1.2"/>
 </svg>
