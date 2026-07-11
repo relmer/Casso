@@ -1,73 +1,100 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" width="96" height="96">
   <!--
-    Apple Hand Controller (A2M2001) 3/4 glyph, rev 6 - Skeuomorphic theme.
-    SHARED lower-right camera with the joystick and mouse, now at the same
-    LOW elevation: horizontal circles squash to ry = rx/3, so the dial
-    reads as a squat cylinder whose knurl shows on its visible WALL (the
-    top ticks all but vanish at this angle, as on the real unit). The
-    handle leans down-LEFT (skew 0.25 about its top) because south points
-    toward the viewer. The fire button is a chunk of the head's own
-    ellipse at 2 o'clock WITH HEIGHT: top arc band + east-facing outer
-    wall + radial end-cut face (right/east walls are visible from this
-    camera, like the joystick/mouse side faces).
+    Apple Hand Controller (A2M2001) 3/4 glyph, rev 7 - Skeuomorphic theme.
+    Rebuilt from the user's reference photos (lower 3/4 view, handle
+    toward the viewer's lower-left = our shared lower-right camera
+    mirrored onto the same lean). Structure, bottom to top:
+      - broad ribbed handle WEDGE tapering to the lower-left tip, with a
+        visible SE side face + tip end face (heights 10 -> 7),
+      - cream housing COLLAR (squat cylinder, rim + wall) with a dark
+        opening annulus,
+      - knurled RING rising out of the opening (knurl on its wall),
+      - smooth DOME up to the narrower knurled CAP cylinder,
+      - flat cap top with the circular groove + "0" mark,
+      - orange fire button: a side TAB at 3 o'clock on the collar wall.
+    All horizontal circles squash to ry/rx = 0.35 (shared low camera).
   -->
   <defs>
     <linearGradient id="pBody" x1="0" y1="0" x2="1" y2="1">
       <stop offset="0" stop-color="#E4DFD0"/><stop offset="1" stop-color="#C6C0AF"/>
     </linearGradient>
-    <linearGradient id="pSide" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#B6B09F"/><stop offset="1" stop-color="#98927F"/>
+    <linearGradient id="pWall" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#C8C2B1"/><stop offset="1" stop-color="#ABA593"/>
     </linearGradient>
     <linearGradient id="pDial" x1="0" y1="0" x2="0.4" y2="1">
-      <stop offset="0" stop-color="#C1BBA9"/><stop offset="1" stop-color="#9A9483"/>
+      <stop offset="0" stop-color="#B5AF9D"/><stop offset="1" stop-color="#9A9483"/>
+    </linearGradient>
+    <linearGradient id="pDialWall" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#A29C8A"/><stop offset="1" stop-color="#8B8573"/>
     </linearGradient>
     <linearGradient id="pCap" x1="0" y1="0" x2="0.4" y2="1">
-      <stop offset="0" stop-color="#D2CCBC"/><stop offset="1" stop-color="#ACA694"/>
+      <stop offset="0" stop-color="#C4BEAC"/><stop offset="1" stop-color="#A8A290"/>
     </linearGradient>
-    <linearGradient id="pBtn" x1="0" y1="0" x2="1" y2="0">
+    <linearGradient id="pBtn" x1="0" y1="0" x2="0" y2="1">
       <stop offset="0" stop-color="#FF7038"/><stop offset="1" stop-color="#E04E1E"/>
     </linearGradient>
   </defs>
 
-  <!-- handle: leans down-left under the shared camera (skew about y=40) -->
-  <g transform="matrix(1,0,-0.25,1,10,0)">
-    <polygon points="61,40 65,43 60.5,82.5 57,79" fill="#A9A392" stroke="#8F8A7A" stroke-width="1.6" stroke-linejoin="round"/>
-    <polygon points="44,79 57,79 60.5,82.5 47.5,82.5" fill="#B3AD9C" stroke="#8F8A7A" stroke-width="1.6" stroke-linejoin="round"/>
-    <path d="M 37,40 L 59,40 Q 61,40 61,43 L 57.5,76 Q 57,79 52,79 L 44,79 Q 39,79 38.5,76 L 35,43 Q 35,40 37,40 Z"
-          fill="url(#pBody)" stroke="#8F8A7A" stroke-width="2" stroke-linejoin="round"/>
-    <line x1="38"   y1="54" x2="58"   y2="54" stroke="#A9A392" stroke-width="1.6"/>
-    <line x1="38.8" y1="60" x2="57.2" y2="60" stroke="#A9A392" stroke-width="1.6"/>
-    <line x1="39.6" y1="66" x2="56.4" y2="66" stroke="#A9A392" stroke-width="1.6"/>
-    <line x1="40.4" y1="72" x2="55.6" y2="72" stroke="#A9A392" stroke-width="1.6"/>
+  <!-- handle wedge: top face, SE side face, tip end face, ribs, seam -->
+  <polygon points="15,69 29,77 29,84 15,76" fill="#A9A392" stroke="#8F8A7A" stroke-width="1.6" stroke-linejoin="round"/>
+  <polygon points="29,77 73,52 73,62 29,84" fill="#B3AD9C" stroke="#8F8A7A" stroke-width="1.6" stroke-linejoin="round"/>
+  <line x1="30" y1="81" x2="72" y2="58.2" stroke="#8F8A7A" stroke-width="1" opacity="0.7"/>
+  <polygon points="15,69 43,44 73,52 29,77" fill="url(#pBody)" stroke="#8F8A7A" stroke-width="2" stroke-linejoin="round"/>
+  <g stroke="#A9A392" stroke-width="1.6">
+    <line x1="21.4" y1="65.1" x2="35.5" y2="71.9"/>
+    <line x1="24.3" y1="62.6" x2="39.8" y2="69.4"/>
+    <line x1="27.2" y1="60.1" x2="44.1" y2="66.9"/>
+    <line x1="30.2" y1="57.6" x2="48.4" y2="64.4"/>
+    <line x1="33.1" y1="55.1" x2="52.6" y2="61.9"/>
+    <line x1="36.0" y1="52.6" x2="56.9" y2="59.4"/>
+    <line x1="38.9" y1="50.1" x2="61.2" y2="56.9"/>
   </g>
 
-  <!-- fire button: top arc band, then east-facing outer wall (drop 8),
-       then the radial end-cut face at the 3 o'clock end -->
-  <path d="M 48,30 L 66.0,22.9 A 28 9.3 0 0 1 75.6,28.4 Z"
-        fill="url(#pBtn)" stroke="#A63C14" stroke-width="1.5" stroke-linejoin="round"/>
-  <path d="M 71.7,25.1 A 28 9.3 0 0 1 75.6,28.4 L 75.6,36.4 A 28 9.3 0 0 0 71.7,33.1 Z"
-        fill="#C24418" stroke="#A63C14" stroke-width="1.2" stroke-linejoin="round"/>
-  <path d="M 71.6,28.6 L 75.6,28.4 L 75.6,36.4 L 71.6,36.6 Z" fill="#A63C14"/>
+  <!-- housing collar: cylinder wall + rim -->
+  <path d="M 37,38 A 21 7.3 0 0 0 79,38 L 79,48 A 21 7.3 0 0 1 37,48 Z"
+        fill="url(#pWall)" stroke="#8F8A7A" stroke-width="1.6" stroke-linejoin="round"/>
+  <ellipse cx="58" cy="38" rx="21" ry="7.3" fill="url(#pBody)" stroke="#8F8A7A" stroke-width="2"/>
+  <!-- dark opening the dial sits in -->
+  <ellipse cx="58" cy="38" rx="18.5" ry="6.5" fill="#6B6759"/>
 
-  <!-- head: housing wall + top, squashed to the shared low elevation -->
-  <ellipse cx="48" cy="38" rx="24" ry="8" fill="url(#pSide)" stroke="#8F8A7A" stroke-width="1.6"/>
-  <ellipse cx="48" cy="30" rx="24" ry="8" fill="url(#pBody)" stroke="#8F8A7A" stroke-width="2"/>
-
-  <!-- knurled dial: raised 4 above the housing; the knurl reads on the
-       visible wall crescent at this elevation -->
-  <ellipse cx="48" cy="30" rx="19" ry="6.3" fill="url(#pSide)" stroke="#827D6C" stroke-width="1.4"/>
-  <ellipse cx="48" cy="26" rx="19" ry="6.3" fill="url(#pDial)" stroke="#827D6C" stroke-width="1.5"/>
-  <g stroke="#7E7967" stroke-width="1.6" opacity="0.85">
-    <line x1="48" y1="32.3" x2="48" y2="36.3"/>
-    <line x1="53" y1="32.1" x2="53" y2="36.1"/>
-    <line x1="43" y1="32.1" x2="43" y2="36.1"/>
-    <line x1="58" y1="31.4" x2="58" y2="35.4"/>
-    <line x1="38" y1="31.4" x2="38" y2="35.4"/>
-    <line x1="63" y1="29.9" x2="63" y2="33.9"/>
-    <line x1="33" y1="29.9" x2="33" y2="33.9"/>
+  <!-- knurled ring rising out of the opening -->
+  <path d="M 42.5,34 A 15.5 5.4 0 0 0 73.5,34 L 73.5,38 A 15.5 5.4 0 0 1 42.5,38 Z"
+        fill="url(#pDialWall)"/>
+  <ellipse cx="58" cy="34" rx="15.5" ry="5.4" fill="url(#pDial)" stroke="#827D6C" stroke-width="1.4"/>
+  <g stroke="#7E7967" stroke-width="1.4" opacity="0.85">
+    <line x1="58" y1="39.4" x2="58" y2="43.4"/>
+    <line x1="62.5" y1="39.2" x2="62.5" y2="43.2"/>
+    <line x1="53.5" y1="39.2" x2="53.5" y2="43.2"/>
+    <line x1="66.5" y1="38.5" x2="66.5" y2="42.5"/>
+    <line x1="49.5" y1="38.5" x2="49.5" y2="42.5"/>
+    <line x1="70" y1="37.4" x2="70" y2="41.4"/>
+    <line x1="46" y1="37.4" x2="46" y2="41.4"/>
+    <line x1="72.5" y1="35.9" x2="72.5" y2="39.9"/>
+    <line x1="43.5" y1="35.9" x2="43.5" y2="39.9"/>
   </g>
 
-  <!-- raised center cap -->
-  <ellipse cx="48" cy="26" rx="10" ry="3.3" fill="url(#pSide)" stroke="#827D6C" stroke-width="1.3"/>
-  <ellipse cx="48" cy="23.5" rx="10" ry="3.3" fill="url(#pCap)" stroke="#827D6C" stroke-width="1.5"/>
+  <!-- smooth dome up to the cap -->
+  <polygon points="49.5,26 66.5,26 73.5,34 42.5,34" fill="url(#pCap)"
+           stroke="#827D6C" stroke-width="1.2" stroke-linejoin="round"/>
+
+  <!-- knurled cap cylinder -->
+  <path d="M 49.5,19 A 8.5 3 0 0 0 66.5,19 L 66.5,26 A 8.5 3 0 0 1 49.5,26 Z"
+        fill="url(#pDialWall)"/>
+  <g stroke="#7E7967" stroke-width="1.3" opacity="0.85">
+    <line x1="58" y1="22" x2="58" y2="29"/>
+    <line x1="61" y1="21.8" x2="61" y2="28.8"/>
+    <line x1="55" y1="21.8" x2="55" y2="28.8"/>
+    <line x1="64" y1="21.1" x2="64" y2="28.1"/>
+    <line x1="52" y1="21.1" x2="52" y2="28.1"/>
+    <line x1="66" y1="20.0" x2="66" y2="27.0"/>
+    <line x1="50" y1="20.0" x2="50" y2="27.0"/>
+  </g>
+  <ellipse cx="58" cy="19" rx="8.5" ry="3" fill="url(#pCap)" stroke="#827D6C" stroke-width="1.4"/>
+  <!-- cap top: circular groove + the "0" mark -->
+  <ellipse cx="58" cy="19" rx="5" ry="1.75" fill="none" stroke="#827D6C" stroke-width="0.9" opacity="0.8"/>
+  <ellipse cx="58" cy="19" rx="1.7" ry="0.6" fill="none" stroke="#827D6C" stroke-width="1.1"/>
+
+  <!-- orange fire button: side tab at 3 o'clock on the collar wall -->
+  <path d="M 77.5,40 L 82.5,40.8 Q 85.8,41.3 85.8,44.2 Q 85.8,47.1 82.5,47.7 L 77.5,48.7 Z"
+        fill="url(#pBtn)" stroke="#A63C14" stroke-width="1.4" stroke-linejoin="round"/>
 </svg>
