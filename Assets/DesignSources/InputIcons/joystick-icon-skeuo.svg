@@ -20,7 +20,8 @@
   </defs>
   <path d="M 74,58 L 83,46 Q 86,42 86,47 L 86,69 Q 86,74 83,78 L 74,90 Z"
         fill="#A9A392" stroke="#8F8A7A" stroke-width="2" stroke-linejoin="round"/>
-  <rect x="10" y="58" width="64" height="32" rx="6" fill="url(#jFront)" stroke="#8F8A7A" stroke-width="2"/>
+  <path d="M 16,58 L 74,58 L 74,90 L 16,90 Q 10,90 10,84 L 10,64 Q 10,58 16,58 Z"
+        fill="url(#jFront)" stroke="#8F8A7A" stroke-width="2" stroke-linejoin="round"/>
   <line x1="13" y1="76" x2="71" y2="76" stroke="#8F8A7A" stroke-width="1.2" opacity="0.8"/>
   <path d="M 10,77 h 64 v 7 q 0,6 -6,6 H 16 q -6,0 -6,-6 Z" fill="#000000" opacity="0.06"/>
   <path d="M 13,54 L 19,46 Q 22,42 27,42 L 81,42 Q 86,42 83,46 L 77,54 Q 74,58 69,58 L 15,58 Q 10,58 13,54 Z"

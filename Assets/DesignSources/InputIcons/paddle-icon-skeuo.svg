@@ -27,8 +27,8 @@
   </defs>
 
   <!-- handle: right-side sliver, bottom edge, top face with ribs -->
-  <polygon points="61,50 65,53 61,86 57,83" fill="#A9A392" stroke="#8F8A7A" stroke-width="1.6" stroke-linejoin="round"/>
-  <polygon points="39,83 57,83 61,86 56,89 41,89" fill="#B3AD9C" stroke="#8F8A7A" stroke-width="1.6" stroke-linejoin="round"/>
+  <polygon points="61,50 65,53 60.5,86.5 57,83" fill="#A9A392" stroke="#8F8A7A" stroke-width="1.6" stroke-linejoin="round"/>
+  <polygon points="44,83 57,83 60.5,86.5 47.5,86.5" fill="#B3AD9C" stroke="#8F8A7A" stroke-width="1.6" stroke-linejoin="round"/>
   <path d="M 37,50 L 59,50 Q 61,50 61,53 L 57.5,80 Q 57,83 52,83 L 44,83 Q 39,83 38.5,80 L 35,53 Q 35,50 37,50 Z"
         fill="url(#pBody)" stroke="#8F8A7A" stroke-width="2" stroke-linejoin="round"/>
   <line x1="38"   y1="58" x2="58"   y2="58" stroke="#A9A392" stroke-width="1.6"/>
@@ -37,7 +37,7 @@
   <line x1="40.4" y1="76" x2="55.6" y2="76" stroke="#A9A392" stroke-width="1.6"/>
 
   <!-- fire button: curved chunk of the head circle at 2 o'clock -->
-  <path d="M 48,36 L 66.3,14.6 A 28.5 28.5 0 0 1 76.1,30.6 Z"
+  <path d="M 48,36 L 66.0,18.2 A 28 23.3 0 0 1 75.6,31.9 Z"
         fill="url(#pBtn)" stroke="#A63C14" stroke-width="1.5" stroke-linejoin="round"/>
 
   <!-- head: side band (height) + housing top -->

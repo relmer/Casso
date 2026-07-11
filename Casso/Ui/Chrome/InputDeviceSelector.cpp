@@ -462,16 +462,16 @@ void InputDeviceSelector::PaintPaddleGlyph (IDxuiPainter & p, const RECT & box, 
     // head's own radius at 2 o'clock, ribbed handle south with a right
     // sliver + bottom edge for depth.
     // handle
-    p.FillConvexQuad  (g.X (61), g.Y (50), g.X (65), g.Y (53), g.X (61), g.Y (86), g.X (57), g.Y (83), kSideFace);
-    p.FillConvexQuad  (g.X (39), g.Y (83), g.X (57), g.Y (83), g.X (59), g.Y (87.5f), g.X (41), g.Y (87.5f), 0xFFB3AD9C);
+    p.FillConvexQuad  (g.X (61), g.Y (50), g.X (65), g.Y (53), g.X (60.5f), g.Y (86.5f), g.X (57), g.Y (83), kSideFace);
+    p.FillConvexQuad  (g.X (44), g.Y (83), g.X (57), g.Y (83), g.X (60.5f), g.Y (86.5f), g.X (47.5f), g.Y (86.5f), 0xFFB3AD9C);
     p.FillConvexQuad  (g.X (37), g.Y (50), g.X (61), g.Y (50), g.X (56), g.Y (83), g.X (40), g.Y (83), kCase);
     p.DrawLineApprox  (g.X (38), g.Y (58), g.X (58), g.Y (58), g.S (1.6f), kRib);
     p.DrawLineApprox  (g.X (38.8f), g.Y (64), g.X (57.2f), g.Y (64), g.S (1.6f), kRib);
     p.DrawLineApprox  (g.X (39.6f), g.Y (70), g.X (56.4f), g.Y (70), g.S (1.6f), kRib);
     p.DrawLineApprox  (g.X (40.4f), g.Y (76), g.X (55.6f), g.Y (76), g.S (1.6f), kRib);
     // curved fire button at 2 o'clock (ellipse-arc quads; housing covers inner edge)
-    p.FillConvexQuad  (g.X (66.3f), g.Y (14.6f), g.X (72.7f), g.Y (21.8f), g.X (64.5f), g.Y (26.1f), g.X (60.2f), g.Y (21.4f), kOrange);
-    p.FillConvexQuad  (g.X (72.7f), g.Y (21.8f), g.X (76.1f), g.Y (30.6f), g.X (66.7f), g.Y (32.1f), g.X (64.5f), g.Y (26.1f), kOrange);
+    p.FillConvexQuad  (g.X (66.0f), g.Y (18.2f), g.X (72.2f), g.Y (24.4f), g.X (65.3f), g.Y (27.7f), g.X (60.9f), g.Y (23.3f), kOrange);
+    p.FillConvexQuad  (g.X (72.2f), g.Y (24.4f), g.X (75.6f), g.Y (31.9f), g.X (67.7f), g.Y (33.1f), g.X (65.3f), g.Y (27.7f), kOrange);
     // head: side band + housing top (squashed circle keeps the template)
     p.FillEllipseApprox (g.X (48), g.Y (42), g.S (24), g.S (20), kDialSide);
     p.FillEllipseApprox (g.X (48), g.Y (36), g.S (24), g.S (20), kCase);
