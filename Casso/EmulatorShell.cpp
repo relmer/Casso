@@ -2978,7 +2978,10 @@ void EmulatorShell::DispatchCpuCommand (const EmulatorCommand & cmd)
         {
             if (m_cpu)
             {
-                m_cpu->StepOne();
+                if (!m_cpu->TryStepInterrupt())
+                {
+                    m_cpu->StepOne();
+                }
 
                 if (m_refs.diskController != nullptr)
                 {
@@ -3238,7 +3241,10 @@ void EmulatorShell::StepInstructionWhilePaused()
         return;
     }
 
-    m_cpu->StepOne();
+    if (!m_cpu->TryStepInterrupt())
+    {
+        m_cpu->StepOne();
+    }
 
     if (m_refs.diskController != nullptr)
     {
@@ -3351,7 +3357,10 @@ void EmulatorShell::ExecuteCpuSlices()
 
         while (sliceActual < sliceTarget)
         {
-            m_cpu->StepOne();
+            if (!m_cpu->TryStepInterrupt())
+            {
+                m_cpu->StepOne();
+            }
 
             cycles = m_cpu->GetLastInstructionCycles();
 

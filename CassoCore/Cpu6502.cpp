@@ -237,6 +237,48 @@ bool Cpu6502::TryDispatchInterrupt (uint32_t & outCycles)
 
 
 
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TryStepInterrupt
+//
+//  Host-loop companion to TryDispatchInterrupt. Same dispatch decision (NMI
+//  edge, or IRQ when I == 0) and the same 7-cycle cost, but the cost is
+//  recorded in m_lastCycles rather than rolled into m_totalCycles here: the
+//  caller's StepOne + AddCycles path owns the accumulator, so an interrupt step
+//  and a normal instruction step account identically. Returns true if an
+//  interrupt was taken (the caller then skips StepOne for this step).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool Cpu6502::TryStepInterrupt ()
+{
+    bool    dispatched = false;
+
+
+
+    if (m_nmiPending)
+    {
+        m_nmiPending = false;
+
+        DispatchVector (nmiVector, false);
+
+        m_lastCycles = 7;
+        dispatched   = true;
+    }
+    else if (m_irqLine && status.flags.interruptDisable == 0)
+    {
+        DispatchVector (irqVector, false);
+
+        m_lastCycles = 7;
+        dispatched   = true;
+    }
+
+    return dispatched;
+}
+
+
+
+
 
 ////////////////////////////////////////////////////////////////////////////////
 //
