@@ -298,6 +298,59 @@ public:
     }
 
 
+    // T019 (US2 / FR-007): the slotless //c serves every built-in peripheral
+    // at its fixed phantom-slot firmware page through the live bus (no-slots
+    // $Cxxx routing). Signatures verified against the ROM 4 image: the
+    // Pascal firmware ID bytes ($Cn05=$38/$Cn07=$18) at serial 1/2, 80-col,
+    // and mouse (slot 7 on ROM 4); the classic Disk II boot prologue
+    // (LDX #$20 / LDY #$00) at $C600; live 6551 status registers at the
+    // slot-1/2 I/O pages; and the $C800 expansion space always reading
+    // internal firmware.
+    TEST_METHOD (PhantomSlotsServeBuiltInPeripherals)
+    {
+        if (!Apple2cRomAvailable ())
+        {
+            Logger::WriteMessage ("SKIPPED: no Apple2c.rom fixture");
+            return;
+        }
+
+        FixtureProvider        fp;
+        std::vector<uint8_t>   rom;
+        Assert::IsTrue (SUCCEEDED (fp.OpenFixture ("Apple2c.rom", rom)));
+
+        HeadlessHost   host;
+        EmulatorCore   core;
+        Assert::IsTrue (SUCCEEDED (host.BuildApple2c (core)));
+        core.PowerCycle ();
+
+        // Pascal firmware ID at each phantom firmware page.
+        const Word  pages[] = { 0xC100, 0xC200, 0xC300, 0xC700 };
+        for (Word base : pages)
+        {
+            Assert::AreEqual<Byte> (0x38, core.bus->ReadByte ((Word) (base + 0x05)),
+                L"$Cn05 Pascal ID present");
+            Assert::AreEqual<Byte> (0x18, core.bus->ReadByte ((Word) (base + 0x07)),
+                L"$Cn07 Pascal ID present");
+        }
+
+        // Disk boot firmware at slot 6: LDX #$20 / LDY #$00 prologue.
+        Assert::AreEqual<Byte> (0xA2, core.bus->ReadByte (0xC600), L"$C600 LDX");
+        Assert::AreEqual<Byte> (0x20, core.bus->ReadByte (0xC601), L"$C601 #$20");
+        Assert::AreEqual<Byte> (0xA0, core.bus->ReadByte (0xC602), L"$C602 LDY");
+
+        // Live 6551 ACIAs behind the slot-1/2 I/O pages (TxEmpty after reset).
+        Assert::IsTrue ((core.bus->ReadByte (0xC099) & 0x10) != 0, L"port 1 ACIA status");
+        Assert::IsTrue ((core.bus->ReadByte (0xC0A9) & 0x10) != 0, L"port 2 ACIA status");
+
+        // No user-insertable slots: the $C800 expansion space always reads
+        // the internal firmware image (bank 0), never a card ROM.
+        Assert::AreEqual<Byte> ((Byte) rom[0x0800], core.bus->ReadByte (0xC800),
+            L"$C800 serves internal firmware");
+        Assert::AreEqual<Byte> ((Byte) rom[0x0FFF], core.bus->ReadByte (0xCFFF),
+            L"$CFFF serves internal firmware");
+    }
+
+
     // T024 (US3): the //c ships two built-in 6551 ACIA serial ports at the
     // phantom-slot addresses -- port 1 ($C098), port 2 ($C0A8). v1 wires each
     // to a loopback endpoint, so a guest write to the data register echoes

@@ -85,7 +85,7 @@
 ### Tests (expect FAIL)
 
 - [X] T018 [P] [US2] `UnitTest/EmuTests/Apple2cBootTests.cpp`: //c cold-boots to monitor/Applesoft (ROM signature, 128K). *(`ColdBootsToCheckDiskDrive` scrapes the "Apple //c" banner + "Check Disk Drive." no-disk state; `BuildsAndResetsToMonitorEntry` asserts the RESET vector `$FA62`/CLD + 128K wiring. The //c has no BASIC-on-cold-boot, so "Check Disk Drive." is the correct terminal no-disk screen rather than `]`/monitor.)*
-- [ ] T019 [P] [US2] `Apple2cBootTests.cpp`: built-in peripherals answer at phantom-slot addresses; no user-insertable slots.
+- [X] T019 [P] [US2] `Apple2cBootTests.cpp`: built-in peripherals answer at phantom-slot addresses; no user-insertable slots. *(Done: `PhantomSlotsServeBuiltInPeripherals` — Pascal ID bytes at $C1xx/$C2xx/$C3xx/$C7xx, Disk II boot prologue at $C600, live 6551 status at the slot-1/2 I/O pages, and $C800/$CFFF always serving internal firmware.)*
 
 ### Implementation
 
@@ -193,7 +193,7 @@
 ## Phase 8: Polish & Cross-Cutting
 
 - [ ] T036 [P] Run full `quickstart.md` validation across all stories.
-- [ ] T037 [P] Update `README.md` + `CHANGELOG.md` for the new Apple //c machine.
+- [X] T037 [P] Update `README.md` + `CHANGELOG.md` for the new Apple //c machine. *(Done: README machine list + v1.7.0 What is New section; CHANGELOG [1.7.0] entry; Version.h bumped 1.6.4 -> 1.7.0.)*
 - [ ] T040 [P] Assembler: emit BBR/BBS zero-page-relative encodings so the Dormann 65C02 integration test can run the FULL Rockwell set (today it runs the common subset; SC-001 gap).
 - [ ] T041 [P] Regenerate the Harte SingleStepTests corpus as **`rockwell65c02`** (the current corpus skips the 34 `$x7`/`$xF`/`$CB`/`$DB` slots, covered by unit tests instead; SC-001 gap).
 - [~] T038 Full suite green across Debug+Release × x64+ARM64; Code Analysis clean. *(**Validated so far on this x64 host**: builds clean (0W/0E) for all four Debug/Release × x64/ARM64; x64 tests green — Debug 2268/2268, Release 2265/2265 (Debug has 3 assert-only tests); **Code Analysis clean** across the whole solution after suppressing a lone pre-existing C6262 in `Cpu65C02Tests` (per-file pragma matching the sibling test files). **Remaining**: ARM64 **test execution** needs an ARM64 host/CI (can't run ARM64 binaries on x64); final signoff after US4.)*

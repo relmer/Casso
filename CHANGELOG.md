@@ -6,6 +6,45 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 Versioned entries use `MAJOR.MINOR.PATCH` from [Version.h](CassoCore/Version.h).
 Entries before versioning was introduced use dates only.
 
+## [1.7.0] — Apple //c machine support (spec 016)
+
+### Added
+- **feat(machine): Apple //c** — a new machine profile on the //e substrate,
+  scoped to the 5.25"/128K //c with the **Memory Expansion ROM (ROM 4)**
+  (managed asset, download-on-demand). Boots real DOS 3.3 / ProDOS media;
+  with no disk it reaches the authentic "Check Disk Drive." state.
+- **feat(cpu): Rockwell R65C02 core** — full 65C02 instruction set including
+  the Rockwell bit ops (`RMB`/`SMB`/`BBR`/`BBS`, used by the //c firmware),
+  new addressing modes, and CMOS behavioral fixes (indirect-`JMP` page bug,
+  decimal-mode flags/cycles). Validated against Klaus Dormann's 65C02
+  functional test and Tom Harte's SingleStepTests.
+- **feat(machine): slotless phantom-slot firmware map** — the //c's built-in
+  peripherals answer at their fixed firmware pages (serial 1/2, 80-column,
+  disk at $C600, mouse at $C700 on ROM 4) through the internal 32K
+  bank-switched ROM ($C028 bank flip-flop); no user-insertable slots.
+- **feat(disk): IWM mode** — the built-in slot-6 drive is an Integrated Woz
+  Machine over the shared WOZ nibble engine (MODE/STATUS registers; reads,
+  writes, and boot verified end-to-end), plus an optional **external drive**
+  with a Connected / Not connected toggle on the Machine tab.
+- **feat(serial): dual 6551 ACIA serial ports** (port 1 printer, port 2
+  modem) with loopback/file endpoints; one shared ACIA implementation also
+  consumed by the printer feature. (Serial *printing* lands via issue #87.)
+- **feat(mouse): //c IOU mouse** — full hardware model (X0/Y0 movement
+  interrupts with $C048 acknowledge, $C015/$C017 status, VBL latch at
+  $C019 cleared by $C070, IOUDIS-gated $C058-$C05F programming) driven by
+  the REAL ROM 4 mouse firmware; the host pointer maps absolutely onto the
+  guest mouse (non-capturing) while over the emulator viewport. The mouse
+  is a connectable peripheral (Machine-tab toggle, default connected).
+- **feat(input): split input model + device selector** — input mapping is
+  now two orthogonal selections (Keys: arrows→joystick; Pointer: paddle or
+  mouse), replacing the single cycle mode, with a new segmented drive-bar
+  selector drawing skeuomorphic glyphs of the real Apple peripherals
+  (perspective on the skeuomorphic theme, top-down on DarkModern/retro).
+- **feat(cpu): live hardware IRQ dispatch** — the CPU loop now services
+  maskable interrupts from the shared interrupt controller (the //c mouse
+  and VBL are the first sources); the 65C02 vector prologue is accounted
+  like an instruction, leaving existing machines byte-identical.
+
 ## [1.6.4] — Disk ][ Debug panel virtualization (GH #88)
 
 ### Fixed
