@@ -117,6 +117,29 @@ public:
             L"each state maps to a distinct tooltip");
         Assert::IsTrue (mouse.find (L"pointer") != std::wstring::npos,
             L"mouse tooltip describes the pointer mapping");
+
+        // Positional tooltips: each segment describes ITSELF, regardless of
+        // the current state.
+        InputDeviceSelector  laid = MakeLaidOut (true);
+        RECT  b = laid.Bounds ();
+        int   midY = (b.top + b.bottom) / 2;
+        std::wstring  segTips[3];
+        int           found = 0;
+        InputDeviceSelector::Segment  last = InputDeviceSelector::Segment::None;
+        for (int x = b.left; x < b.right && found < 3; ++x)
+        {
+            InputDeviceSelector::Segment  seg = laid.SegmentAt (x, midY);
+            if (seg != InputDeviceSelector::Segment::None && seg != last)
+            {
+                segTips[found++] = laid.TooltipTextAt (x, midY);
+                last = seg;
+            }
+        }
+        Assert::AreEqual (3, found, L"three segment tooltips collected");
+        Assert::IsTrue (segTips[0] != segTips[1] && segTips[1] != segTips[2],
+            L"segment tooltips are independent");
+        Assert::IsTrue (segTips[0].find (L"Joystick") != std::wstring::npos, L"seg 0 = joystick tip");
+        Assert::IsTrue (segTips[2].find (L"Mouse")    != std::wstring::npos, L"seg 2 = mouse tip");
     }
 
 

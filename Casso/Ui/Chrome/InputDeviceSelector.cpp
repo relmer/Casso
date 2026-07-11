@@ -1,4 +1,5 @@
 #include "Pch.h"
+#include "Theme/DxuiTheme.h"
 
 #include "InputDeviceSelector.h"
 
@@ -8,7 +9,7 @@
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  Palette — transcribed from the SVG masters (warm ABS beige family, the
-//  fire-button orange, and the drive-bar LED blue for selection).
+//  fire-button orange, and the drive-bar LED blue for the state LEDs).
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -40,22 +41,40 @@ namespace
     constexpr uint32_t  kHighlight  = 0x59FFFFFF;   // specular highlights
     constexpr uint32_t  kSeam       = 0xB88F8A7A;   // case seam lines
 
-    constexpr uint32_t  kSelAccent  = 0xFF3DA1FF;   // LED blue (drive bar)
-    constexpr uint32_t  kSelGlow    = 0x2E3DA1FF;
-    constexpr uint32_t  kChipBg     = 0x1F000000;
-    constexpr uint32_t  kChipBgHot  = 0x14FFFFFF;
-    constexpr uint32_t  kChipEdge   = 0x5A8F8A7A;
+    // LED state colors — identical to the drive-bar / old toggle LED.
+    constexpr uint32_t  kLedOnCore  = 0xFF3DA1FF;
+    constexpr uint32_t  kLedOnHalo  = 0xA03DA1FF;
+    constexpr uint32_t  kLedOffCore = 0xFF06121A;
 
-    // Tooltips per display state.
-    constexpr wchar_t  kTipOff[] =
+    constexpr uint32_t  kFocusRing  = 0xFF3DA1FF;
+    constexpr uint32_t  kHoverBg    = 0x16FFFFFF;
+    constexpr uint32_t  kDividerCol = 0x5A8F8A7A;
+
+    constexpr const wchar_t * kFontFamily = DxuiTheme::kBodyFace;
+
+    constexpr const wchar_t * kLabels[3] = { L"Joystick mode", L"Paddle mode", L"Mouse mode" };
+
+    // Per-segment tooltips (independent, per user feedback).
+    constexpr wchar_t  kTipJoystickSeg[] =
+        L"Joystick mode — arrows steer the joystick, X and Z fire.\n"
+        L"Click to toggle. Works alongside the pointer devices.";
+    constexpr wchar_t  kTipPaddleSeg[] =
+        L"Paddle mode — the captured mouse drives paddles 0 and 1;\n"
+        L"left / right buttons fire. Esc releases the pointer.";
+    constexpr wchar_t  kTipMouseSeg[] =
+        L"Mouse mode — the host pointer drives the built-in mouse while\n"
+        L"over the screen (non-capturing).";
+
+    // State-summary fallbacks (paddle-capture notice + gap hover).
+    constexpr wchar_t  kTipOffState[] =
         L"Input devices: joystick (arrow keys), paddle, or mouse.\n"
         L"Click a device to connect it to the game port.";
-    constexpr wchar_t  kTipJoystick[] =
-        L"Arrows, Z, and X keys are mapped to the joystick and its buttons.";
-    constexpr wchar_t  kTipPaddle[] =
+    constexpr wchar_t  kTipPaddleState[] =
         L"The mouse drives paddles 0 and 1; left / right buttons fire.\n"
         L"Press Esc to release the mouse and exit paddle mode.";
-    constexpr wchar_t  kTipMouse[] =
+    constexpr wchar_t  kTipJoystickState[] =
+        L"Arrows, Z, and X keys are mapped to the joystick and its buttons.";
+    constexpr wchar_t  kTipMouseState[] =
         L"The host pointer drives the built-in mouse while over the screen\n"
         L"(non-capturing).";
 }
@@ -67,46 +86,84 @@ namespace
 //
 //  Layout
 //
-//  boundsDip carries the anchor CENTER point. Chips are laid out
-//  [J] | [P][M] around it; the group gap gets a divider at paint time.
+//  boundsDip carries the anchor CENTER point. Each segment lays out as
+//  [LED] [icon] [label]; label widths come from the text renderer with a
+//  Segoe-advance fallback before the draw target exists (same contract as
+//  the old toggle button).
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void InputDeviceSelector::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
 {
-    int  chip   = scaler.Px (kChipDp);
-    int  gap    = scaler.Px (kChipGapDp);
-    int  ggap   = scaler.Px (kGroupGapDp);
-    int  pad    = scaler.Px (kPadDp);
-    int  n      = SegmentCount ();
-    int  w      = pad * 2 + chip * n + ggap + (n == 3 ? gap : 0);
-    int  h      = pad * 2 + chip;
-    int  cx     = boundsDip.left;
-    int  cy     = boundsDip.top;
-    int  x      = cx - w / 2;
-    int  y      = cy - h / 2;
+    UINT   dpi     = scaler.Dpi ();
+    UINT   eDpi    = (dpi == 0) ? 96u : dpi;
+    int    icon    = MulDiv (kIconDp,    (int) eDpi, 96);
+    int    pad     = MulDiv (kPadDp,     (int) eDpi, 96);
+    int    segPad  = MulDiv (kSegPadDp,  (int) eDpi, 96);
+    int    ledGap  = MulDiv (kLedGapDp,  (int) eDpi, 96);
+    int    ledR    = MulDiv (4,          (int) eDpi, 96);
+    int    textGap = MulDiv (kTextGapDp, (int) eDpi, 96);
+    int    segGap  = MulDiv (kSegGapDp,  (int) eDpi, 96);
+    int    gGap    = MulDiv (kGroupGapDp,(int) eDpi, 96);
+    float  fontPx  = kFontDip * (float) eDpi / 96.0f;
+    int    n       = SegmentCount ();
+    int    h       = icon + pad * 2;
+    int    segW[3] = {};
+    int    txtW[3] = {};
 
 
-    m_dpi    = scaler.Dpi ();
-    m_bounds = RECT { x, y, x + w, y + h };
+    m_dpi = eDpi;
 
-    int  sx = x + pad;
-
-    // Keys group: joystick.
-    m_segRects[0] = RECT { sx, y + pad, sx + chip, y + pad + chip };
-    sx += chip + ggap;
-
-    // Pointer group: paddle [+ mouse].
-    m_segRects[1] = RECT { sx, y + pad, sx + chip, y + pad + chip };
-    sx += chip + gap;
-
-    if (n == 3)
+    for (int i = 0; i < n; i++)
     {
-        m_segRects[2] = RECT { sx, y + pad, sx + chip, y + pad + chip };
+        float  tw = 0.0f;
+        float  th = 0.0f;
+
+        if (m_textRenderer != nullptr)
+        {
+            HRESULT  hrM = m_textRenderer->MeasureString (SegmentLabel (i), fontPx, kFontFamily, tw, th);
+            if (FAILED (hrM)) { tw = 0.0f; }
+        }
+        if (tw <= 0.0f)
+        {
+            tw = (float) wcslen (SegmentLabel (i)) * kFallbackCharPx * (float) eDpi / 96.0f;
+        }
+
+        txtW[i] = (int) (tw + 0.5f);
+        segW[i] = segPad + ledR * 2 + ledGap + icon + textGap + txtW[i] + segPad;
     }
-    else
+
+    int  total = segW[0] + gGap;
+    for (int i = 1; i < n; i++)
+    {
+        total += segW[i] + ((i + 1 < n) ? segGap : 0);
+    }
+
+    int  x = boundsDip.left - total / 2;
+    int  y = boundsDip.top  - h / 2;
+
+    m_bounds = RECT { x, y, x + total, y + h };
+
+    int  sx = x;
+    for (int i = 0; i < n; i++)
+    {
+        m_segRects[i]   = RECT { sx, y, sx + segW[i], y + h };
+        m_ledCenters[i] = POINT { sx + segPad + ledR, y + h / 2 };
+
+        int  ix = sx + segPad + ledR * 2 + ledGap;
+        m_iconRects[i]  = RECT { ix, y + pad, ix + icon, y + pad + icon };
+
+        int  tx = ix + icon + textGap;
+        m_textRects[i]  = RECT { tx, y, tx + txtW[i], y + h };
+
+        sx += segW[i] + ((i == 0) ? gGap : segGap);
+    }
+
+    if (n < 3)
     {
         m_segRects[2] = RECT {};
+        m_iconRects[2] = RECT {};
+        m_textRects[2] = RECT {};
     }
 }
 
@@ -154,20 +211,38 @@ bool InputDeviceSelector::SegmentSelected (int index) const
 }
 
 
+const wchar_t * InputDeviceSelector::SegmentLabel (int index) const
+{
+    return kLabels[(index >= 0 && index < 3) ? index : 0];
+}
+
+
 
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  TooltipText
+//  Tooltips
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 const wchar_t * InputDeviceSelector::TooltipText () const
 {
-    if (m_pointer == InputMappingMode::Mouse)  return kTipMouse;
-    if (m_pointer == InputMappingMode::Paddle) return kTipPaddle;
-    if (m_arrowsJoystick)                      return kTipJoystick;
-    return kTipOff;
+    if (m_pointer == InputMappingMode::Mouse)  return kTipMouseState;
+    if (m_pointer == InputMappingMode::Paddle) return kTipPaddleState;
+    if (m_arrowsJoystick)                      return kTipJoystickState;
+    return kTipOffState;
+}
+
+
+const wchar_t * InputDeviceSelector::TooltipTextAt (int x, int y) const
+{
+    switch (SegmentAt (x, y))
+    {
+        case Segment::Joystick: return kTipJoystickSeg;
+        case Segment::Paddle:   return kTipPaddleSeg;
+        case Segment::Mouse:    return kTipMouseSeg;
+        default:                return TooltipText ();
+    }
 }
 
 
@@ -177,57 +252,72 @@ const wchar_t * InputDeviceSelector::TooltipText () const
 //
 //  Paint
 //
+//  Per segment: hover wash, state LED (lit drive-bar blue / dark off core),
+//  peripheral glyph, text label. State is the LED — no selection outline
+//  (an outline reads as focus); keyboard focus keeps the thin accent ring
+//  around the whole control.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void InputDeviceSelector::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
 {
-    UNREFERENCED_PARAMETER (text);
-    UNREFERENCED_PARAMETER (theme);
+    static constexpr Segment  kOrder[3] = { Segment::Joystick, Segment::Paddle, Segment::Mouse };
 
     if (m_bounds.right <= m_bounds.left)
     {
         return;                       // hidden
     }
 
-    float  inset = (float) (m_dpi) / 96.0f * 2.0f;
+    float  fontPx = kFontDip * (float) m_dpi / 96.0f;
+    float  ledR   = 4.0f * (float) m_dpi / 96.0f;
 
     for (int i = 0; i < SegmentCount (); i++)
     {
         const RECT & r   = m_segRects[i];
         bool         sel = SegmentSelected (i);
-        float        x   = (float) r.left;
-        float        y   = (float) r.top;
-        float        w   = (float) (r.right - r.left);
-        float        h   = (float) (r.bottom - r.top);
 
-        painter.FillRect (x, y, w, h, (m_hovered && !sel) ? kChipBgHot : kChipBg);
+        if (m_hovered && m_hoverSegment == kOrder[i])
+        {
+            painter.FillRect ((float) r.left, (float) r.top,
+                              (float) (r.right - r.left), (float) (r.bottom - r.top), kHoverBg);
+        }
 
+        // State LED.
         if (sel)
         {
-            painter.FillRect    (x, y, w, h, kSelGlow);
-            painter.OutlineRect (x, y, w, h, inset, kSelAccent);
+            painter.FillCircleApprox ((float) m_ledCenters[i].x, (float) m_ledCenters[i].y, ledR * 1.9f, kLedOnHalo);
+            painter.FillCircleApprox ((float) m_ledCenters[i].x, (float) m_ledCenters[i].y, ledR, kLedOnCore);
         }
         else
         {
-            painter.OutlineRect (x, y, w, h, 1.0f, kChipEdge);
+            painter.FillCircleApprox ((float) m_ledCenters[i].x, (float) m_ledCenters[i].y, ledR, kLedOffCore);
         }
-
-        RECT  box = { r.left   + (LONG) inset, r.top    + (LONG) inset,
-                      r.right  - (LONG) inset, r.bottom - (LONG) inset };
 
         switch (i)
         {
-            case 0: PaintJoystickGlyph (painter, box, m_skeuoStyle); break;
-            case 1: PaintPaddleGlyph   (painter, box, m_skeuoStyle); break;
-            case 2: PaintMouseGlyph    (painter, box, m_skeuoStyle); break;
+            case 0: PaintJoystickGlyph (painter, m_iconRects[i], m_skeuoStyle); break;
+            case 1: PaintPaddleGlyph   (painter, m_iconRects[i], m_skeuoStyle); break;
+            case 2: PaintMouseGlyph    (painter, m_iconRects[i], m_skeuoStyle); break;
         }
+
+        HRESULT  hrT = text.DrawString (SegmentLabel (i),
+                                        (float) m_textRects[i].left,
+                                        (float) m_textRects[i].top,
+                                        (float) (m_textRects[i].right - m_textRects[i].left) + 4.0f,
+                                        (float) (m_textRects[i].bottom - m_textRects[i].top),
+                                        theme.ButtonText (),
+                                        fontPx,
+                                        kFontFamily,
+                                        DxuiTextRenderer::HAlign::Left,
+                                        DxuiTextRenderer::VAlign::CenterOnCapHeight);
+        IGNORE_RETURN_VALUE (hrT, S_OK);
     }
 
     // Divider between the Keys and Pointer groups.
     {
         float  dx = (float) (m_segRects[0].right + m_segRects[1].left) * 0.5f;
-        painter.FillRect (dx, (float) m_bounds.top + 3.0f, 1.0f,
-                          (float) (m_bounds.bottom - m_bounds.top) - 6.0f, kChipEdge);
+        painter.FillRect (dx, (float) m_bounds.top + 4.0f, 1.0f,
+                          (float) (m_bounds.bottom - m_bounds.top) - 8.0f, kDividerCol);
     }
 
     if (m_focused)
@@ -235,7 +325,7 @@ void InputDeviceSelector::Paint (IDxuiPainter & painter, IDxuiTextRenderer & tex
         painter.OutlineRect ((float) m_bounds.left - 1, (float) m_bounds.top - 1,
                              (float) (m_bounds.right - m_bounds.left) + 2,
                              (float) (m_bounds.bottom - m_bounds.top) + 2,
-                             1.0f, kSelAccent);
+                             1.0f, kFocusRing);
     }
 
     if (m_pressed)
@@ -402,7 +492,7 @@ void InputDeviceSelector::PaintMouseGlyph (IDxuiPainter & p, const RECT & box, b
 
     if (!skeuo)
     {
-        // Top-down (mouse-icon.svg).
+        // Top-down (mouse-icon.svg): button on the NORTH side.
         p.FillRect     (g.X (20), g.Y (6),  g.S (56), g.S (84), kCase);
         p.OutlineRect  (g.X (20), g.Y (6),  g.S (56), g.S (84), g.S (2), kCaseEdge);
         p.FillRect     (g.X (27), g.Y (13), g.S (42), g.S (70), kCaseLight);
@@ -413,8 +503,8 @@ void InputDeviceSelector::PaintMouseGlyph (IDxuiPainter & p, const RECT & box, b
         return;
     }
 
-    // 3/4 perspective (mouse-icon-skeuo.svg): shallow chamfered box, the
-    // wide gray button recessed at the front-left of the top face.
+    // 3/4 perspective: shallow chamfered box pointing NORTH — the single
+    // gray button recessed at the BACK (north) edge of the top face.
     p.FillConvexQuad  (g.X (68), g.Y (58), g.X (86), g.Y (35), g.X (86), g.Y (62), g.X (68), g.Y (86), kSideFace);
     p.FillRect        (g.X (8),  g.Y (58), g.S (60), g.S (28), kCase);
     p.OutlineRect     (g.X (8),  g.Y (58), g.S (60), g.S (28), g.S (2), kCaseEdge);
@@ -423,11 +513,9 @@ void InputDeviceSelector::PaintMouseGlyph (IDxuiPainter & p, const RECT & box, b
     p.DrawLineApprox  (g.X (8),  g.Y (58), g.X (24), g.Y (36), g.S (1.6f), kCaseEdge);
     p.DrawLineApprox  (g.X (24), g.Y (36), g.X (86), g.Y (36), g.S (1.6f), kCaseEdge);
     p.DrawLineApprox  (g.X (86), g.Y (36), g.X (70), g.Y (58), g.S (1.6f), kCaseEdge);
-    // chamfer frame hint
-    p.DrawLineApprox  (g.X (15), g.Y (55), g.X (28), g.Y (39), g.S (1.2f), 0xE6B4AE9C);
-    p.DrawLineApprox  (g.X (28), g.Y (39), g.X (79), g.Y (39), g.S (1.2f), 0xE6B4AE9C);
-    p.DrawLineApprox  (g.X (79), g.Y (39), g.X (66), g.Y (55), g.S (1.2f), 0xE6B4AE9C);
-    // recessed button (under-quad = recess edge, then the key face)
-    p.FillConvexQuad  (g.X (15), g.Y (56.5f), g.X (24.5f), g.Y (39), g.X (49.5f), g.Y (39), g.X (40), g.Y (56.5f), kMouseBtnEdge);
-    p.FillConvexQuad  (g.X (17), g.Y (55), g.X (25.5f), g.Y (40.5f), g.X (47.5f), g.Y (40.5f), g.X (39), g.Y (55), kMouseBtn);
+    // chamfer frame hint (south portion, away from the button)
+    p.DrawLineApprox  (g.X (15), g.Y (55), g.X (66), g.Y (55), g.S (1.2f), 0xE6B4AE9C);
+    // recessed button at the back/north of the top face
+    p.FillConvexQuad  (g.X (33.5f), g.Y (53), g.X (43),   g.Y (38.5f), g.X (68),   g.Y (38.5f), g.X (58.5f), g.Y (53), kMouseBtnEdge);
+    p.FillConvexQuad  (g.X (35.5f), g.Y (51.5f), g.X (44), g.Y (40),   g.X (66),   g.Y (40),   g.X (57.5f), g.Y (51.5f), kMouseBtn);
 }

@@ -32,7 +32,8 @@
   <path d="M 16.5,53 L 25.5,40.5 Q 27,38.5 30,38.5 L 78,38.5 Q 81,38.5 79.5,40.5 L 70.5,53 Q 69,55.5 66,55.5 L 15,55.5 Q 15,55.5 16.5,53 Z"
         fill="none" stroke="#B4AE9C" stroke-width="1.4" opacity="0.9"/>
 
-  <!-- recessed single button near the front-left of the top face -->
-  <path d="M 17.5,52 L 24,42.5 Q 25.5,40.5 28.5,40.5 L 44,40.5 Q 47.5,40.5 46,42.5 L 39.5,52 Q 38,54.5 34.5,54.5 L 19.5,54.5 Q 16,54.5 17.5,52 Z"
+  <!-- recessed single button at the BACK (north) edge of the top face
+       (rev 3: the mouse points north; button on the N side per feedback) -->
+  <path d="M 36.5,51 L 44.5,40.5 Q 45.5,39.5 48,39.5 L 64,39.5 Q 67,39.5 66,41 L 58.5,51 Q 57,53 54,53 L 39,53 Q 35.5,53 36.5,51 Z"
         fill="url(#mkBtn)" stroke="#6E6B62" stroke-width="1.8" stroke-linejoin="round"/>
 </svg>

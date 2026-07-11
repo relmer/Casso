@@ -3690,10 +3690,13 @@ DxuiMessageResult EmulatorShell::OnMouseMove (WPARAM wParam, LPARAM lParam)
 
     overBtn = m_joystickButton.HitTest (x, y);
     m_joystickButton.SetHovered (overBtn);
+    m_joystickButton.SetHoverPoint (x, y);
 
     if (overBtn)
     {
-        m_joystickTooltip.RequestShow (m_joystickButton.Bounds(), m_joystickButton.TooltipText(), nowMs);
+        // Per-segment tooltip: each device explains its own mapping.
+        m_joystickTooltip.RequestShow (m_joystickButton.Bounds(),
+                                       m_joystickButton.TooltipTextAt (x, y), nowMs);
     }
     else
     {
