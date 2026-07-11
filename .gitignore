@@ -399,3 +399,6 @@ build/
 
 # Copyrighted machine ROMs provisioned on demand; tests skip when absent
 UnitTest/Fixtures/*.rom
+
+# User-local asset archives (not for the repo)
+Assets/*.zip
