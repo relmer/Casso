@@ -525,6 +525,22 @@ void SettingsPanelState::SetExternalDriveConnected (bool connected)
 
 
 
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetMouseConnected
+//
+//  //c mouse-port toggle (FR-013b). Live UI pref: never sets RequiresReset.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SettingsPanelState::SetMouseConnected (bool connected)
+{
+    m_current.prefs.mouseConnected = connected;
+}
+
+
+
+
 
 ////////////////////////////////////////////////////////////////////////////////
 //
@@ -591,6 +607,7 @@ HRESULT SettingsPanelState::Apply (
         sink.ApplyWriteProtect (i, m_current.prefs.writeProtect[i]);
     }
     sink.ApplyExternalDriveConnected (m_current.prefs.externalDriveConnected);
+    sink.ApplyMouseConnected (m_current.prefs.mouseConnected);
 
     // FR-010: any hardware enable diff requires the caller to confirm
     // and the machine to be reset. Queue the reset request; the
@@ -653,6 +670,7 @@ HRESULT SettingsPanelState::ExtractUiPrefs (
     outPrefs.floppyMechanism    = GetStringOpt (*uiObj, "floppyMechanism",    "shugart");
 
     outPrefs.externalDriveConnected = GetBoolOpt (*uiObj, "externalDriveConnected", false);
+    outPrefs.mouseConnected         = GetBoolOpt (*uiObj, "mouseConnected", true);
 
     outPrefs.driveMotorVolume = (float) GetNumberOpt (*uiObj, "driveMotorVolume", SettingsUiPrefs::kDefaultDriveMotorVolume);
     outPrefs.driveHeadVolume  = (float) GetNumberOpt (*uiObj, "driveHeadVolume",  SettingsUiPrefs::kDefaultDriveHeadVolume);
@@ -1240,6 +1258,7 @@ JsonValue SettingsPanelState::BuildJson (
     uiObj.emplace_back ("floppySoundEnabled", JsonValue (prefs.floppySoundEnabled));
     uiObj.emplace_back ("floppyMechanism",    JsonValue (prefs.floppyMechanism));
     uiObj.emplace_back ("externalDriveConnected", JsonValue (prefs.externalDriveConnected));
+    uiObj.emplace_back ("mouseConnected",         JsonValue (prefs.mouseConnected));
     uiObj.emplace_back ("driveMotorVolume",   JsonValue ((double) prefs.driveMotorVolume));
     uiObj.emplace_back ("driveHeadVolume",    JsonValue ((double) prefs.driveHeadVolume));
     uiObj.emplace_back ("driveDoorVolume",    JsonValue ((double) prefs.driveDoorVolume));
@@ -1277,6 +1296,7 @@ bool SettingsPanelState::PrefsEqual (
     if (a.floppySoundEnabled    != b.floppySoundEnabled)    return false;
     if (a.floppyMechanism       != b.floppyMechanism)       return false;
     if (a.externalDriveConnected != b.externalDriveConnected) return false;
+    if (a.mouseConnected         != b.mouseConnected)         return false;
     if (a.driveMotorVolume      != b.driveMotorVolume)       return false;
     if (a.driveHeadVolume       != b.driveHeadVolume)        return false;
     if (a.driveDoorVolume       != b.driveDoorVolume)        return false;

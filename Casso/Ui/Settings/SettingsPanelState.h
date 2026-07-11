@@ -82,6 +82,11 @@ struct SettingsUiPrefs
     // the disk port. Reveals/hides the second drive-mount widget. Defaults
     // to not-connected -- a bare //c ships with just its internal drive.
     bool               externalDriveConnected = false;
+    // //c only: whether the mouse peripheral is plugged into the DB-9 port
+    // (FR-013b). Defaults to CONNECTED (confirmed 2026-07-09): a connected-
+    // but-unused mouse has no UI footprint (firmware-live gate), so
+    // MousePaint works zero-config.
+    bool               mouseConnected         = true;
     // Drive-audio component gains (0..1). Defaults mirror the
     // DriveAudioMixer / Disk2AudioSource sound-mix defaults.
     static constexpr float kDefaultDriveMotorVolume = 0.90f;
@@ -173,6 +178,7 @@ public:
     virtual void ApplyDrivePan       (float driveOnePan, float driveTwoPan) = 0;
     virtual void ApplyWriteProtect   (int drive, bool wp)            = 0;
     virtual void ApplyExternalDriveConnected (bool connected)        = 0;
+    virtual void ApplyMouseConnected         (bool connected)        = 0;
     virtual void QueueMachineReset   ()                              = 0;
 };
 
@@ -237,6 +243,7 @@ public:
     void    SetDriveTwoPan      (float pan);
     void    SetWriteProtect    (int drive, bool wp);
     void    SetExternalDriveConnected (bool connected);
+    void    SetMouseConnected         (bool connected);
     HRESULT SetHardwareEnabled (size_t index, bool enabled);
 
     // ---- Apply ---------------------------------------------------------

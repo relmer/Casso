@@ -85,6 +85,8 @@ bool WindowCommandManager::OnCommand (HWND hwnd, int id)
     else if (id >= IDM_HELP_KEYMAP    && id <= IDM_HELP_ABOUT)              { OnHelpCommand (id); }
     else if (id == IDM_DRIVE_EXTERNAL_CONNECT ||
              id == IDM_DRIVE_EXTERNAL_DISCONNECT)                          { OnExternalDriveCommand (id); }
+    else if (id == IDM_MOUSE_CONNECT ||
+             id == IDM_MOUSE_DISCONNECT)                                   { OnMouseConnectCommand (id); }
 
     return false;
 }
@@ -106,6 +108,27 @@ bool WindowCommandManager::OnCommand (HWND hwnd, int id)
 //  gates the second widget.
 //
 ////////////////////////////////////////////////////////////////////////////////
+
+void WindowCommandManager::OnMouseConnectCommand (int id)
+{
+    // //c mouse peripheral connect/disconnect (FR-013b). No chrome change;
+    // just the state gate. Disconnecting while Mouse mode is active drops
+    // the mapping to Off so the mode never points at an unplugged device.
+    bool  connected = (id == IDM_MOUSE_CONNECT);
+
+    if (connected != m_shell.m_mouseConnected)
+    {
+        m_shell.m_mouseConnected = connected;
+
+        if (!connected && m_shell.m_inputMode == InputMappingMode::Mouse)
+        {
+            m_shell.SetInputMappingMode (InputMappingMode::Off);
+        }
+    }
+}
+
+
+
 
 void WindowCommandManager::OnExternalDriveCommand (int id)
 {

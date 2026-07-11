@@ -36,6 +36,7 @@ namespace
         float              lastDriveOnePan       = 0.0f;
         float              lastDriveTwoPan       = 0.0f;
         bool               lastExternalDriveConnected = false;
+        bool               lastMouseConnected         = true;
         int                queuedResetCount      = 0;
         int                applyCount            = 0;
 
@@ -64,6 +65,11 @@ namespace
         void ApplyExternalDriveConnected (bool connected) override
         {
             lastExternalDriveConnected = connected;
+            ++applyCount;
+        }
+        void ApplyMouseConnected (bool connected) override
+        {
+            lastMouseConnected = connected;
             ++applyCount;
         }
         void QueueMachineReset () override { ++queuedResetCount; }
@@ -591,6 +597,31 @@ public:
         Assert::IsTrue (SUCCEEDED (st.LoadFromMachine ("Apple //c", v, v)));
         Assert::IsTrue (st.HasDiskIIController (),
             L"//c built-in IWM (no disk-ii slot) must still yield a Disk tab");
+    }
+
+
+    // //c mouse peripheral toggle (FR-013b / T030c): defaults CONNECTED,
+    // round-trips $cassoUiPrefs, pushes live through the sink, no reset.
+    TEST_METHOD (MouseConnected_DefaultsOnRoundTripsNoReset)
+    {
+        SettingsPanelState  st;
+        JsonValue           v = ParseOrFail (kFixtureJson);
+        st.LoadFromMachine ("X", v, v);
+
+        Assert::IsTrue  (st.Prefs().mouseConnected, L"defaults to connected");
+        st.SetMouseConnected (false);
+        Assert::IsTrue  (st.IsDirty());
+        Assert::IsFalse (st.RequiresReset(), L"live UI pref -> no reset");
+
+        RecordingSink  sink;
+        JsonValue      outJson;
+        Assert::IsTrue (SUCCEEDED (st.Apply (sink, outJson)));
+        Assert::IsFalse (sink.lastMouseConnected, L"pushed live");
+        Assert::AreEqual (0, sink.queuedResetCount);
+
+        SettingsUiPrefs  reloaded;
+        Assert::IsTrue (SUCCEEDED (SettingsPanelState::ExtractUiPrefs (outJson, reloaded)));
+        Assert::IsFalse (reloaded.mouseConnected, L"mouseConnected round-trips");
     }
 
 

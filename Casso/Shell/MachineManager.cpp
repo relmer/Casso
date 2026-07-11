@@ -1219,6 +1219,16 @@ HRESULT MachineManager::SwitchMachine (const std::wstring & machineName)
                         IGNORE_RETURN_VALUE (hrExt, S_OK);
                     }
                     m_shell.m_externalDriveConnected = connected;
+
+                    // //c mouse peripheral: adopt the switched-to machine's
+                    // persisted connected state (default CONNECTED, FR-013b).
+                    bool  mouseConn = true;
+                    if (extPrefs != nullptr)
+                    {
+                        HRESULT  hrM = extPrefs->GetBool ("mouseConnected", mouseConn);
+                        IGNORE_RETURN_VALUE (hrM, S_OK);
+                    }
+                    m_shell.m_mouseConnected = mouseConn;
                 }
             }
         }

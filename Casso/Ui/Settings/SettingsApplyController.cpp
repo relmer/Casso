@@ -108,6 +108,14 @@ namespace
             PostMessageW (m_shell.GetHwnd(), WM_COMMAND, MAKEWPARAM (id, 0), 0);
         }
 
+        void ApplyMouseConnected (bool connected) override
+        {
+            // //c-only live effect (FR-013b): connect/disconnect the mouse
+            // peripheral. UI-thread routed like the external drive.
+            WORD  id = connected ? IDM_MOUSE_CONNECT : IDM_MOUSE_DISCONNECT;
+            PostMessageW (m_shell.GetHwnd(), WM_COMMAND, MAKEWPARAM (id, 0), 0);
+        }
+
         void QueueMachineReset ()                              override { m_resetQueued = true; }
 
         bool  ResetQueued () const { return m_resetQueued; }

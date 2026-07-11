@@ -653,6 +653,14 @@ private:
     // fixed hardware (they have no banked ROM, so the gate is always open).
     bool                     m_externalDriveConnected = false;
 
+    // //c only: whether the mouse peripheral is plugged into the DB-9 port
+    // (FR-013b). Mirrors $cassoUiPrefs.mouseConnected (default CONNECTED);
+    // flipped live by IDM_MOUSE_CONNECT/DISCONNECT. Disconnected = the IOU
+    // silicon stays but GuestMouseActive() is false (no host input feeds
+    // the device) and the input-mode cycle hides Mouse -- indistinguishable
+    // from an unplugged DB-9 on real hardware.
+    bool                     m_mouseConnected = true;
+
     // Drive widget state pump. The controller channel publishes
     // per-drive door/spin sync events the chrome painter will consume
     // once reintroduced. The drag-drop target registers a single

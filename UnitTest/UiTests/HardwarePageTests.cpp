@@ -154,10 +154,14 @@ public:
         std::vector<DxuiTreeNode>  nodes =
             HardwarePage::BuildNodes (entries, /*supportsExternalDrive*/ true, /*connected*/ true);
 
-        Assert::AreEqual<size_t> (2u, nodes.size(),
-            L"Internal-devices group + the external-drive leaf.");
-        const DxuiTreeNode & ext = nodes.back();
+        Assert::AreEqual<size_t> (3u, nodes.size(),
+            L"Internal-devices group + external-drive leaf + mouse leaf.");
+        const DxuiTreeNode & ext = nodes[nodes.size() - 2];
         Assert::AreEqual (std::wstring (L"External drive"), ext.label);
+        const DxuiTreeNode & ms = nodes.back();
+        Assert::AreEqual (std::wstring (L"Mouse"), ms.label);
+        Assert::IsTrue (ms.checked, L"mouse defaults connected");
+        Assert::IsTrue (ms.capabilityFlag == DxuiTreeCapabilityFlag::Optional);
         Assert::IsTrue (ext.capabilityFlag == DxuiTreeCapabilityFlag::Optional,
             L"External drive must be interactive (Optional).");
         Assert::IsTrue (ext.checked, L"Connected pref -> checked node.");
@@ -170,7 +174,7 @@ public:
         std::vector<DxuiTreeNode>  nodes =
             HardwarePage::BuildNodes ({}, /*supportsExternalDrive*/ true, /*connected*/ false);
 
-        Assert::AreEqual<size_t> (1u, nodes.size(), L"Just the external-drive leaf.");
+        Assert::AreEqual<size_t> (2u, nodes.size(), L"External-drive + mouse leaves.");
         Assert::AreEqual (std::wstring (L"External drive"), nodes[0].label);
         Assert::IsFalse (nodes[0].checked, L"Not-connected pref -> unchecked node.");
     }

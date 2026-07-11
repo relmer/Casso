@@ -1056,16 +1056,22 @@ HRESULT EmulatorShell::Initialize (
                             SetDriveAudioPan (1, (float) pan1);
                         }
 
-                        // //c external drive: seed the connected state from the
-                        // persisted pref so the second drive-mount widget shows
-                        // (or stays hidden) on the first paint, before the user
-                        // touches Settings. Defaults to not-connected.
+                        // //c external drive + mouse: seed the connected states
+                        // from the persisted prefs so first paint + input gating
+                        // match the user's saved setup. External drive defaults
+                        // not-connected; mouse defaults CONNECTED (FR-013b).
                         {
                             bool  connected = false;
 
                             if (SUCCEEDED (uiPrefs->GetBool ("externalDriveConnected", connected)))
                             {
                                 m_externalDriveConnected = connected;
+                            }
+
+                            bool  mouseConn = true;
+                            if (SUCCEEDED (uiPrefs->GetBool ("mouseConnected", mouseConn)))
+                            {
+                                m_mouseConnected = mouseConn;
                             }
                         }
                     }
@@ -3738,7 +3744,8 @@ DxuiMessageResult EmulatorShell::OnMouseLeave ()
 
 bool EmulatorShell::GuestMouseActive () const
 {
-    return m_inputMode == InputMappingMode::Mouse && m_mouse != nullptr;
+    return m_inputMode == InputMappingMode::Mouse && m_mouse != nullptr
+        && m_mouseConnected;
 }
 
 
@@ -4896,8 +4903,9 @@ void EmulatorShell::CycleInputMappingMode ()
             break;
 
         case InputMappingMode::Joystick:
-            next = (m_mouse != nullptr) ? InputMappingMode::Mouse
-                                        : InputMappingMode::Paddle;
+            next = (m_mouse != nullptr && m_mouseConnected)
+                       ? InputMappingMode::Mouse
+                       : InputMappingMode::Paddle;
             break;
 
         case InputMappingMode::Mouse:

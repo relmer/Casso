@@ -31,6 +31,9 @@ namespace
     // it to SetExternalDriveConnected instead of SetHardwareEnabled.
     constexpr wchar_t s_kExternalDriveLabel[] = L"External drive";
 
+    // Synthetic node for the //c mouse peripheral (FR-013b) -- same pattern.
+    constexpr wchar_t s_kMouseLabel[]         = L"Mouse";
+
 
     RECT MakeRect (int l, int t, int w, int h)
     {
@@ -385,8 +388,9 @@ void HardwarePage::Rebuild ()
     {
         bool  supportsExternal  = (info != nullptr) && info->supportsExternalDrive;
         bool  externalConnected = (state != nullptr) && state->Prefs().externalDriveConnected;
+        bool  mouseConnected    = (state == nullptr) || state->Prefs().mouseConnected;
 
-        nodes = BuildNodes (entries, supportsExternal, externalConnected);
+        nodes = BuildNodes (entries, supportsExternal, externalConnected, mouseConnected);
     }
     m_tree.SetNodes (std::move (nodes));
 
@@ -405,6 +409,12 @@ void HardwarePage::Rebuild ()
         if (label == s_kExternalDriveLabel)
         {
             state->SetExternalDriveConnected (checked);
+            return;
+        }
+
+        if (label == s_kMouseLabel)
+        {
+            state->SetMouseConnected (checked);
             return;
         }
 
@@ -433,7 +443,8 @@ void HardwarePage::Rebuild ()
 
 std::vector<DxuiTreeNode> HardwarePage::BuildNodes (const std::vector<HardwareEntry> & entries,
                                                     bool supportsExternalDrive,
-                                                    bool externalDriveConnected)
+                                                    bool externalDriveConnected,
+                                                    bool mouseConnected)
 {
     std::vector<DxuiTreeNode>  out;
     DxuiTreeNode               internalGroup;
@@ -500,6 +511,14 @@ std::vector<DxuiTreeNode> HardwarePage::BuildNodes (const std::vector<HardwareEn
         external.checked        = externalDriveConnected;
         external.expanded       = false;   // leaf: no children, no twisty
         out.push_back (std::move (external));
+
+        // //c mouse peripheral (FR-013b): connectable, default connected.
+        DxuiTreeNode  mouse;
+        mouse.label          = s_kMouseLabel;
+        mouse.capabilityFlag = DxuiTreeCapabilityFlag::Optional;
+        mouse.checked        = mouseConnected;
+        mouse.expanded       = false;
+        out.push_back (std::move (mouse));
     }
 
     return out;
