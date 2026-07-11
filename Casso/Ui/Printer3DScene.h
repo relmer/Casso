@@ -38,6 +38,15 @@ public:
 
     bool     IsInitialized () const { return m_renderer.IsInitialized (); }
 
+    // Install the user-authored CAD model of the printer (Wavefront OBJ+MTL
+    // text, e.g. the embedded Tinkercad export). Replaces the procedural body
+    // -- the paper, paced head, and Casso badge stay procedural and anchor
+    // themselves to the loaded platen. On failure the scene keeps the
+    // procedural body, so a bad model never blanks the panel.
+    HRESULT  SetModel (const std::string & objText, const std::string & mtlText);
+
+    bool     HasModel () const { return !m_mesh.empty (); }
+
     // Upload the composed fanfold canvas (premultiplied BGRA). Call when the
     // content changes; the paper mesh samples it every frame.
     HRESULT  SetContent (const uint32_t * bgra, int width, int height);
@@ -78,16 +87,32 @@ private:
     void  BuildPaper      (std::vector<Vertex> & out) const;
     void  BuildBodyFront  (std::vector<Vertex> & out) const;
     void  BuildControls   (std::vector<Vertex> & out) const;
-    void  BuildCassoLogo  (std::vector<Vertex> & out) const;
+    void  BuildCassoLogo  (std::vector<Vertex> & out, float faceZ) const;
+    void  BuildHeadOverlay (std::vector<Vertex> & out) const;
 
     Dxui3DRenderer   m_renderer;
     float            m_head01        = 0.0f;
     int              m_contentWidth  = 0;
     int              m_contentHeight = 0;
 
+    // The loaded CAD body (already remapped/scaled/re-grounded, lighting
+    // baked); empty = procedural fallback. The platen and front-face anchors
+    // are measured off the loaded geometry so the paper, paced head, and
+    // badge land on the printer exactly where the user built its features.
+    std::vector<Vertex>   m_mesh;
+    float                 m_meshFrontZ  = 0.0f;   // front face plane (badge sits on it)
+    float                 m_platenY     = 0.0f;   // roller axis
+    float                 m_platenZ     = 0.0f;
+    float                 m_platenR     = 0.0f;   // roller radius
+    float                 m_paperStartY = 0.0f;   // paper emergence (from the platen)
+    float                 m_paperZ      = 0.0f;
+    float                 m_logoLeft    = 0.0f;   // badge placement on the front face
+    float                 m_logoTopY    = 0.0f;
+
     // Scratch vertex lists, reused across frames to avoid per-frame churn.
     // Draw order is the painter's algorithm: backdrop, body behind the paper,
-    // the paper itself, then the body front over its lower edge.
+    // the paper itself, then the body front over its lower edge. (The loaded
+    // mesh path instead uses the renderer's real depth buffer.)
     std::vector<Vertex>   m_backdrop;
     std::vector<Vertex>   m_solidBack;
     std::vector<Vertex>   m_paper;

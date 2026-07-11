@@ -54,15 +54,25 @@ public:
     // `textured == true` sample it; call again only when the content changes.
     HRESULT  UpdateContentTexture (const uint32_t * bgra, int width, int height);
 
+    // Prepare (and clear) a depth buffer matching the currently bound render
+    // target, for draws submitted with `depthTest == true`. Call once at the
+    // start of a scene frame, AFTER the caller's render target is bound --
+    // the depth texture is sized by querying it. Loaded meshes need real
+    // depth testing (their triangles arrive in arbitrary order); the
+    // hand-built painter's-algorithm batches keep passing false.
+    HRESULT  BeginDepthPass ();
+
     // Transform `verts` by row-major `mvp` (row-vector convention: clip = v * M)
     // and draw as a triangle list into the currently bound render target,
     // restricted to `viewportPx`. `textured` selects the content texture;
     // untextured geometry samples opaque white, so the tint IS the color.
+    // `depthTest` binds the BeginDepthPass buffer (test + write, LESS).
     HRESULT  DrawTriangles (const Vertex   * verts,
                             size_t           vertexCount,
                             const float      mvp[16],
                             bool             textured,
-                            const D3D11_VIEWPORT & viewportPx);
+                            const D3D11_VIEWPORT & viewportPx,
+                            bool             depthTest = false);
 
 private:
     HRESULT  CreateShaders      ();
@@ -79,8 +89,14 @@ private:
     ComPtr<ID3D11Buffer>              m_mvpBuffer;
     ComPtr<ID3D11BlendState>          m_blendState;
     ComPtr<ID3D11RasterizerState>     m_rasterState;
-    ComPtr<ID3D11DepthStencilState>   m_depthState;
+    ComPtr<ID3D11DepthStencilState>   m_depthState;       // depth off (painter's algorithm)
+    ComPtr<ID3D11DepthStencilState>   m_depthStateTest;   // LESS test + write (meshes)
     ComPtr<ID3D11SamplerState>        m_sampler;
+
+    ComPtr<ID3D11Texture2D>           m_depthTex;
+    ComPtr<ID3D11DepthStencilView>    m_depthDsv;
+    int                               m_depthWidth  = 0;
+    int                               m_depthHeight = 0;
 
     ComPtr<ID3D11Texture2D>           m_contentTex;
     ComPtr<ID3D11ShaderResourceView>  m_contentSrv;

@@ -101,3 +101,9 @@
 #define IDR_THEME_RETRO_FONT_TTF            350
 #define IDR_THEME_RETRO_FONT_OFL            351
 #define IDR_THEME_RETRO_FONT_TODO           352
+
+// Embedded 3D reference model for the printer panel's skeuomorphic scene
+// (Printer3DScene) -- the user's own Tinkercad CAD model of the ImageWriter
+// II, exported as OBJ+MTL. See Resources/Models/ImageWriterII/.
+#define IDR_MODEL_IMAGEWRITER_OBJ           400
+#define IDR_MODEL_IMAGEWRITER_MTL           401

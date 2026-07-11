@@ -2,6 +2,8 @@
 
 #include "Printer3DScene.h"
 
+#include "Devices/Printer/ObjMeshParser.h"
+
 
 
 
@@ -244,7 +246,300 @@ namespace
 
 HRESULT Printer3DScene::Initialize (ID3D11Device * device, ID3D11DeviceContext * context)
 {
+    // Default anchors serve the procedural fallback; SetModel re-measures
+    // them off the loaded geometry.
+    m_meshFrontZ  = s_kBodyZFront;
+    m_paperStartY = s_kPaperStartY;
+    m_paperZ      = s_kPaperZ;
+    m_logoLeft    = s_kLogoLeft;
+    m_logoTopY    = s_kLogoTopY;
+
     return m_renderer.Initialize (device, context);
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Printer3DScene::SetModel
+//
+//  Turns the user's CAD export into the scene's body mesh:
+//
+//   1. Colors remap from Tinkercad's part-identification palette to the real
+//      machine's (platinum case, dark roller, cream caps, signal LEDs). The
+//      error LED shares Tinkercad's red with the platen housings, so it is
+//      picked out by position before the coordinate transform.
+//   2. Axes remap from Tinkercad's Z-up (X width, Y depth, Z height) to the
+//      scene's Y-up, with +z toward the camera (the model's front is -Y),
+//      scaled so the overall width matches the procedural body's footprint.
+//   3. The model bakes the same front-to-back incline the scene applies at
+//      render time (s_kBodyTiltRad), so it is un-tilted here and re-grounded
+//      (feet on y=0, front face at s_kBodyZFront); the runtime model matrix
+//      then tilts mesh and procedural overlays together, keeping the paper,
+//      head, and badge in one consistent upright frame.
+//   4. Flat Lambert lighting from the scene's frontal light is baked per
+//      face, and the platen anchors (roller axis, radius, front plane) are
+//      measured from the roller's geometry so the paper and paced head land
+//      on the printer exactly where the user put its platen.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT Printer3DScene::SetModel (const std::string & objText, const std::string & mtlText)
+{
+    HRESULT                    hr      = S_OK;
+    std::vector<ObjTriangle>   tris;
+    float                      maxAbsX = 0.0f;
+    float                      preMinY = 0.0f, preMaxY = 0.0f, preMaxZ = 0.0f;
+    bool                       first   = true;
+
+    // Tinkercad's five part-identification colors (MTL Kd values) -> the real
+    // machine's palette. Matched by value with a wide epsilon.
+    struct ColorMap { float r, g, b; uint32_t argb; };
+    static constexpr ColorMap   s_kPalette[] =
+    {
+        { 0.8667f, 0.8863f, 0.8941f, s_kArgbCase     },   // cream: body/lid/case
+        { 0.9137f, 0.1137f, 0.1765f, s_kArgbCase     },   // red: platen end housings
+        { 0.9608f, 0.5137f, 0.1216f, 0xFF3A3D42      },   // orange: platen roller
+        { 0.2745f, 0.7176f, 0.2863f, s_kArgbLedOn    },   // green: lit LEDs
+        { 0.6549f, 0.6784f, 0.6941f, s_kArgbButton   },   // gray: control caps
+    };
+
+    CBREx (ObjMeshParser::Parse (objText, mtlText, tris) && !tris.empty (), E_FAIL);
+
+    m_mesh.clear ();
+    m_mesh.reserve (tris.size () * 3);
+
+    // Pass 1 (original model coordinates): overall extents for the scale.
+    for (const ObjTriangle & t : tris)
+    {
+        const float *   pts[3] = { t.p0, t.p1, t.p2 };
+
+        for (const float * p : pts)
+        {
+            maxAbsX = (std::max) (maxAbsX, std::abs (p[0]));
+        }
+    }
+    CBREx (maxAbsX > 0.0f, E_FAIL);
+
+    {
+        float   scale   = 0.95f / maxAbsX;               // overall width, with side margins in frame
+        float   cUntilt = std::cos (s_kBodyTiltRad);
+        float   sUntilt = -std::sin (s_kBodyTiltRad);    // reverse of the runtime tilt
+        float   lightL  = std::sqrt (0.18f * 0.18f + 0.88f * 0.88f + 0.44f * 0.44f);
+        float   lx      = 0.18f / lightL;                // top-weighted light: top faces bright,
+        float   ly      = 0.88f / lightL;                // fronts mid, sides dim -- the profile
+        float   lz      = 0.44f / lightL;                // reads instead of washing into a slab
+
+        float   rollerMinY = 0.0f, rollerMaxY = 0.0f, rollerMinZ = 0.0f, rollerMaxZ = 0.0f;
+        bool    rollerSeen = false;
+
+        struct XYZ { float x, y, z; };
+        std::vector<XYZ>        pos;
+        std::vector<uint32_t>   argbs;
+
+        pos.reserve (tris.size () * 3);
+        argbs.reserve (tris.size ());
+
+        for (const ObjTriangle & t : tris)
+        {
+            // Color remap, with the error LED (red like the housings, but a
+            // tiny cap on the sloped control deck) picked out by its position
+            // in ORIGINAL model coordinates.
+            uint32_t   argb    = 0xFFFFFFFF;
+            bool       matched = false;
+            bool       roller  = false;
+
+            for (const ColorMap & m : s_kPalette)
+            {
+                if (std::abs (t.r - m.r) < 0.02f && std::abs (t.g - m.g) < 0.02f &&
+                    std::abs (t.b - m.b) < 0.02f)
+                {
+                    argb    = m.argb;
+                    matched = true;
+                    roller  = (m.argb == 0xFF3A3D42);
+                    break;
+                }
+            }
+
+            if (!matched)
+            {
+                // Unmapped material: keep the author's color.
+                uint32_t   r8 = (uint32_t) std::clamp (t.r * 255.0f, 0.0f, 255.0f);
+                uint32_t   g8 = (uint32_t) std::clamp (t.g * 255.0f, 0.0f, 255.0f);
+                uint32_t   b8 = (uint32_t) std::clamp (t.b * 255.0f, 0.0f, 255.0f);
+
+                argb = 0xFF000000u | (r8 << 16) | (g8 << 8) | b8;
+            }
+            else if (argb == s_kArgbCase && std::abs (t.r - 0.9137f) < 0.02f)
+            {
+                // Red-material triangle: error LED if it lives in the small
+                // control-deck cap region (model coords), housing otherwise.
+                bool   isLed = true;
+
+                const float *   pts[3] = { t.p0, t.p1, t.p2 };
+                for (const float * p : pts)
+                {
+                    if (p[0] < 150.0f || p[0] > 176.0f ||
+                        p[1] < -104.0f || p[1] > -94.0f ||
+                        p[2] < 71.0f || p[2] > 77.0f)
+                    {
+                        isLed = false;
+                        break;
+                    }
+                }
+
+                if (isLed)
+                {
+                    argb = s_kArgbLedErr;
+                }
+            }
+
+            // Axis remap + scale + un-tilt, tracking the post-transform bbox.
+            const float *   pts[3] = { t.p0, t.p1, t.p2 };
+            for (const float * p : pts)
+            {
+                float   x  = p[0] * scale;
+                float   y  = p[2] * scale;            // model Z (height) -> scene y
+                float   z  = -p[1] * scale;           // model -Y (front) -> scene +z
+                float   zp = 0.6703f;                 // approx front edge; re-grounding absorbs error
+                float   dz = z - zp;
+                float   ry = y * cUntilt - dz * sUntilt;
+                float   rz = zp + y * sUntilt + dz * cUntilt;
+
+                if (first)
+                {
+                    preMinY = preMaxY = ry;
+                    preMaxZ = rz;
+                    first   = false;
+                }
+                preMinY = (std::min) (preMinY, ry);
+                preMaxY = (std::max) (preMaxY, ry);
+                preMaxZ = (std::max) (preMaxZ, rz);
+
+                pos.push_back ({ x, ry, rz });
+            }
+
+            argbs.push_back (argb);
+
+            if (roller)
+            {
+                for (size_t k = pos.size () - 3; k < pos.size (); k++)
+                {
+                    if (!rollerSeen)
+                    {
+                        rollerMinY = rollerMaxY = pos[k].y;
+                        rollerMinZ = rollerMaxZ = pos[k].z;
+                        rollerSeen = true;
+                    }
+                    rollerMinY = (std::min) (rollerMinY, pos[k].y);
+                    rollerMaxY = (std::max) (rollerMaxY, pos[k].y);
+                    rollerMinZ = (std::min) (rollerMinZ, pos[k].z);
+                    rollerMaxZ = (std::max) (rollerMaxZ, pos[k].z);
+                }
+            }
+        }
+
+        // Re-ground: feet on y=0, front face at the procedural body's plane so
+        // the camera framing carries over unchanged.
+        float   dy = -preMinY;
+        float   dz = s_kBodyZFront - preMaxZ;
+
+        for (XYZ & p : pos)
+        {
+            p.y += dy;
+            p.z += dz;
+        }
+
+        // Bake per-face Lambert shading (two-sided: CAD winding is arbitrary).
+        for (size_t t = 0; t < argbs.size (); t++)
+        {
+            const XYZ &   a = pos[t * 3 + 0];
+            const XYZ &   b = pos[t * 3 + 1];
+            const XYZ &   c = pos[t * 3 + 2];
+
+            float   ux = b.x - a.x, uy = b.y - a.y, uz = b.z - a.z;
+            float   vx = c.x - a.x, vy = c.y - a.y, vz = c.z - a.z;
+            float   nx = uy * vz - uz * vy;
+            float   ny = uz * vx - ux * vz;
+            float   nz2 = ux * vy - uy * vx;
+            float   nl = std::sqrt (nx * nx + ny * ny + nz2 * nz2);
+            float   shade = 0.72f;
+
+            if (nl > 1e-8f)
+            {
+                float   d = (nx * lx + ny * ly + nz2 * lz) / nl;
+
+                shade = std::clamp (0.30f + 0.70f * std::abs (d), 0.0f, 1.0f);
+            }
+
+            uint32_t   argb = argbs[t];
+            float      cr   = (float) ((argb >> 16) & 0xFF) / 255.0f * shade;
+            float      cg   = (float) ((argb >>  8) & 0xFF) / 255.0f * shade;
+            float      cb   = (float) ((argb      ) & 0xFF) / 255.0f * shade;
+
+            for (int k = 0; k < 3; k++)
+            {
+                const XYZ &   p = pos[t * 3 + k];
+
+                m_mesh.push_back ({ p.x, p.y, p.z, 0.0f, 0.0f, cr, cg, cb, 1.0f });
+            }
+        }
+
+        // Platen anchors from the roller's measured geometry: the paper rises
+        // through the roller's back half and the head rides its front.
+        if (rollerSeen)
+        {
+            m_platenY = (rollerMinY + rollerMaxY) * 0.5f + dy;
+            m_platenZ = (rollerMinZ + rollerMaxZ) * 0.5f + dz;
+            m_platenR = (rollerMaxY - rollerMinY) * 0.5f;
+
+            m_paperZ      = m_platenZ - m_platenR * 0.45f;
+            m_paperStartY = m_platenY - 0.05f;
+        }
+
+        m_meshFrontZ = s_kBodyZFront;
+
+        // Measure the actual front FACE (the model has a base below it, so
+        // "y = 0 upward" is wrong for badge placement): the verts on the
+        // front plane give its true extent, and the badge sits lower-left
+        // within it -- where the real machine wears its apple.
+        {
+            float   faceMinX = 0.0f, faceMinY = 0.0f, faceMaxY = 0.0f;
+            bool    faceSeen = false;
+
+            for (const XYZ & p : pos)
+            {
+                if (p.z > m_meshFrontZ - 0.02f)
+                {
+                    if (!faceSeen)
+                    {
+                        faceMinX = p.x;
+                        faceMinY = faceMaxY = p.y;
+                        faceSeen = true;
+                    }
+                    faceMinX = (std::min) (faceMinX, p.x);
+                    faceMinY = (std::min) (faceMinY, p.y);
+                    faceMaxY = (std::max) (faceMaxY, p.y);
+                }
+            }
+
+            if (faceSeen)
+            {
+                float   faceH = faceMaxY - faceMinY;
+
+                m_logoLeft = faceMinX + 0.06f;
+                m_logoTopY = faceMinY + faceH * 0.62f;
+            }
+        }
+    }
+
+Error:
+    if (FAILED (hr))
+    {
+        m_mesh.clear ();   // never leave a half-loaded body: fall back whole
+    }
+    return hr;
 }
 
 
@@ -570,13 +865,13 @@ void Printer3DScene::BuildPaper (std::vector<Vertex> & out) const
     float   dz       = -std::sin (s_kPaperTilt);
     float   ny       = dz;                              // curl normal: down-and-back
     float   nz       = -dy;
-    float   p1y      = s_kPaperStartY + dy * s_kStraightLen;   // where the curl begins
-    float   p1z      = s_kPaperZ + dz * s_kStraightLen;
+    float   p1y      = m_paperStartY + dy * s_kStraightLen;   // where the curl begins
+    float   p1z      = m_paperZ + dz * s_kStraightLen;
     float   cy       = p1y + s_kCurlRadius * ny;        // curl center
     float   cz       = p1z + s_kCurlRadius * nz;
 
-    float   prevY    = s_kPaperStartY;
-    float   prevZ    = s_kPaperZ;
+    float   prevY    = m_paperStartY;
+    float   prevZ    = m_paperZ;
     float   prevV    = 1.0f;
     float   prevSh   = 1.0f;
 
@@ -589,8 +884,8 @@ void Printer3DScene::BuildPaper (std::vector<Vertex> & out) const
 
         if (s <= s_kStraightLen)
         {
-            yPos = s_kPaperStartY + dy * s;
-            zPos = s_kPaperZ + dz * s;
+            yPos = m_paperStartY + dy * s;
+            zPos = m_paperZ + dz * s;
         }
         else
         {
@@ -784,7 +1079,7 @@ void Printer3DScene::BuildBodyFront (std::vector<Vertex> & out) const
         }
     }
 
-    BuildCassoLogo (out);
+    BuildCassoLogo (out, s_kBodyZFront);
     BuildControls  (out);
 
     // Platen end housings: rounded-top blocks running front-to-back at each
@@ -918,12 +1213,14 @@ void Printer3DScene::BuildControls (std::vector<Vertex> & out) const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void Printer3DScene::BuildCassoLogo (std::vector<Vertex> & out) const
+void Printer3DScene::BuildCassoLogo (std::vector<Vertex> & out, float faceZ) const
 {
-    float   zf     = s_kBodyZFront + 0.002f;
+    float   zf     = faceZ + 0.002f;
     float   height = s_kLogoWidth * (float) s_kLogoGridH / (float) s_kLogoGridW;
     float   rowH   = height / (float) s_kLogoGridH;
     float   colW   = s_kLogoWidth / (float) s_kLogoGridW;
+    float   left   = m_logoLeft;
+    float   topY   = m_logoTopY;
     int     first  = -1;
     int     last   = -1;
 
@@ -945,7 +1242,7 @@ void Printer3DScene::BuildCassoLogo (std::vector<Vertex> & out) const
         uint64_t   bits   = s_kLogoSilhouette[row];
         int        stripe = ((row - first) * 6) / (last - first + 1);
         uint32_t   argb   = s_kLogoStripes[stripe];
-        float      yTop   = s_kLogoTopY - (float) (row - first) * rowH;
+        float      yTop   = topY - (float) (row - first) * rowH;
         int        col    = 0;
 
         while (col < s_kLogoGridW)
@@ -964,10 +1261,51 @@ void Printer3DScene::BuildCassoLogo (std::vector<Vertex> & out) const
             }
 
             AppendFaceQuad (out,
-                            s_kLogoLeft + (float) runStart * colW,
-                            s_kLogoLeft + (float) col * colW,
+                            left + (float) runStart * colW,
+                            left + (float) col * colW,
                             yTop - rowH, yTop, zf, argb, 1.0f);
         }
+    }
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Printer3DScene::BuildHeadOverlay
+//
+//  The paced print head (FR-034) for the loaded-mesh path: a dark carriage
+//  with its four ribbon-ink stripes, riding the measured roller's front at
+//  the reveal column. (The procedural path keeps its own inline head.)
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Printer3DScene::BuildHeadOverlay (std::vector<Vertex> & out) const
+{
+    float   travel = s_kPaperHalfW - 0.10f;
+    float   cx     = -travel + m_head01 * 2.0f * travel;
+    float   zH     = m_platenZ + m_platenR + 0.015f;
+    float   yTop   = m_platenY + m_platenR * 0.35f;
+    float   yBot   = m_platenY - m_platenR * 0.85f;
+
+    float   p00[3] = { cx - 0.075f, yTop, zH };
+    float   p10[3] = { cx + 0.075f, yTop, zH };
+    float   p01[3] = { cx - 0.075f, yBot, zH };
+    float   p11[3] = { cx + 0.075f, yBot, zH };
+
+    AppendQuad (out, p00, p10, p01, p11, 0, 0, 1, 1, s_kArgbHead, 1.0f);
+
+    for (int i = 0; i < 4; i++)
+    {
+        float   rx     = cx - 0.058f + (float) i * 0.030f;
+        float   ry     = m_platenY - m_platenR * 0.25f;
+        float   r00[3] = { rx,          ry + 0.025f, zH + 0.005f };
+        float   r10[3] = { rx + 0.024f, ry + 0.025f, zH + 0.005f };
+        float   r01[3] = { rx,          ry,          zH + 0.005f };
+        float   r11[3] = { rx + 0.024f, ry,          zH + 0.005f };
+
+        AppendQuad (out, r00, r10, r01, r11, 0, 0, 1, 1, s_kArgbRibbon[i], 1.0f);
     }
 }
 
@@ -1016,13 +1354,33 @@ void Printer3DScene::Render (const RECT & targetPx)
     m_paper.clear ();
     m_solidFront.clear ();
 
-    BuildBackdrop  (m_backdrop);
-    BuildBodyBack  (m_solidBack);
-    BuildPaper     (m_paper);
-    BuildBodyFront (m_solidFront);
+    BuildBackdrop (m_backdrop);
+    BuildPaper    (m_paper);
 
-    IGNORE_RETURN_VALUE (hr, m_renderer.DrawTriangles (m_backdrop.data (),   m_backdrop.size (),   identity, false, vp));
-    IGNORE_RETURN_VALUE (hr, m_renderer.DrawTriangles (m_solidBack.data (),  m_solidBack.size (),  mvp,      false, vp));
-    IGNORE_RETURN_VALUE (hr, m_renderer.DrawTriangles (m_paper.data (),      m_paper.size (),      mvp,      true,  vp));
-    IGNORE_RETURN_VALUE (hr, m_renderer.DrawTriangles (m_solidFront.data (), m_solidFront.size (), mvp,      false, vp));
+    IGNORE_RETURN_VALUE (hr, m_renderer.DrawTriangles (m_backdrop.data (), m_backdrop.size (), identity, false, vp));
+
+    if (HasModel ())
+    {
+        // Loaded CAD body: real depth testing (its triangles arrive in
+        // arbitrary order), with the paper, paced head, and badge overlays
+        // depth-tested against it so occlusion just works.
+        m_solidFront.clear ();
+        BuildHeadOverlay (m_solidFront);
+        BuildCassoLogo   (m_solidFront, m_meshFrontZ);
+
+        IGNORE_RETURN_VALUE (hr, m_renderer.BeginDepthPass ());
+        IGNORE_RETURN_VALUE (hr, m_renderer.DrawTriangles (m_mesh.data (),       m_mesh.size (),       mvp, false, vp, true));
+        IGNORE_RETURN_VALUE (hr, m_renderer.DrawTriangles (m_paper.data (),      m_paper.size (),      mvp, true,  vp, true));
+        IGNORE_RETURN_VALUE (hr, m_renderer.DrawTriangles (m_solidFront.data (), m_solidFront.size (), mvp, false, vp, true));
+    }
+    else
+    {
+        // Procedural fallback: hand-ordered painter's-algorithm batches.
+        BuildBodyBack  (m_solidBack);
+        BuildBodyFront (m_solidFront);
+
+        IGNORE_RETURN_VALUE (hr, m_renderer.DrawTriangles (m_solidBack.data (),  m_solidBack.size (),  mvp, false, vp));
+        IGNORE_RETURN_VALUE (hr, m_renderer.DrawTriangles (m_paper.data (),      m_paper.size (),      mvp, true,  vp));
+        IGNORE_RETURN_VALUE (hr, m_renderer.DrawTriangles (m_solidFront.data (), m_solidFront.size (), mvp, false, vp));
+    }
 }

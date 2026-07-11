@@ -40,6 +40,11 @@ IDR_THEME_RETRO_FONT_TTF           RCDATA "..\\Resources\\Themes\\RetroTerminal\
 IDR_THEME_RETRO_FONT_OFL           RCDATA "..\\Resources\\Themes\\RetroTerminal\\fonts\\OFL.txt"
 IDR_THEME_RETRO_FONT_TODO          RCDATA "..\\Resources\\Themes\\RetroTerminal\\fonts\\TODO_FONTS.md"
 
+// Embedded 3D reference model for the printer panel's skeuomorphic scene --
+// the user's Tinkercad CAD model of the ImageWriter II (OBJ+MTL).
+IDR_MODEL_IMAGEWRITER_OBJ          RCDATA "..\\Resources\\Models\\ImageWriterII\\ImageWriterII.obj"
+IDR_MODEL_IMAGEWRITER_MTL          RCDATA "..\\Resources\\Models\\ImageWriterII\\ImageWriterII.mtl"
+
 // Embedded CRT HLSL sources (compiled at runtime by CrtPostProcess).
 IDR_HLSL_BRIGHTNESS      RCDATA "Shaders\\CRT\\brightness.hlsl"
 IDR_HLSL_SCANLINES       RCDATA "Shaders\\CRT\\scanlines.hlsl"

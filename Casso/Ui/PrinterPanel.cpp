@@ -4,6 +4,7 @@
 
 #include "CassoTheme.h"
 #include "Printer3DScene.h"
+#include "../resource.h"
 #include "Render/IDxuiPainter.h"
 #include "Render/IDxuiTextRenderer.h"
 #include "Devices/Printer/PaperRenderer.h"
@@ -75,6 +76,31 @@ namespace
 
     constexpr wchar_t   s_kpszScrollHint [] =
         L"Scroll wheel or Up/Down to review earlier pages \u2022 snaps back to the live row when idle";
+
+
+    // Read an embedded RCDATA resource (the user's ImageWriter CAD model)
+    // into a string. Returns empty on any failure -- the scene then keeps
+    // its procedural body, so a missing model never blanks the panel.
+    std::string LoadTextResource (int resourceId)
+    {
+        HINSTANCE   hInstance = GetModuleHandleW (nullptr);
+        HRSRC       hRes      = nullptr;
+        HGLOBAL     hMem      = nullptr;
+        DWORD       cbData    = 0;
+        void      * pData     = nullptr;
+
+        hRes = FindResourceW (hInstance, MAKEINTRESOURCEW (resourceId), RT_RCDATA);
+        if (hRes == nullptr) { return {}; }
+
+        cbData = SizeofResource (hInstance, hRes);
+        hMem   = LoadResource (hInstance, hRes);
+        if (cbData == 0 || hMem == nullptr) { return {}; }
+
+        pData = LockResource (hMem);
+        if (pData == nullptr) { return {}; }
+
+        return std::string ((const char *) pData, cbData);
+    }
 }
 
 
@@ -148,6 +174,18 @@ HRESULT PrinterPanel::Create (
             SUCCEEDED (scene->Initialize (PopupHost ()->GetDevice (), PopupHost ()->GetContext ())))
         {
             m_scene = std::move (scene);
+
+            // The user's ImageWriter CAD model, embedded as OBJ+MTL. Failure
+            // silently keeps the procedural body.
+            {
+                std::string   obj = LoadTextResource (IDR_MODEL_IMAGEWRITER_OBJ);
+                std::string   mtl = LoadTextResource (IDR_MODEL_IMAGEWRITER_MTL);
+
+                if (!obj.empty ())
+                {
+                    IGNORE_RETURN_VALUE (hr, m_scene->SetModel (obj, mtl));
+                }
+            }
 
             PopupHost ()->SetBeforePresentHook ([this] ()
             {

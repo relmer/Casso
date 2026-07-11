@@ -124,15 +124,20 @@ void Dxui3DRenderer::Shutdown ()
     m_blendState.Reset ();
     m_rasterState.Reset ();
     m_depthState.Reset ();
+    m_depthStateTest.Reset ();
     m_sampler.Reset ();
     m_contentTex.Reset ();
     m_contentSrv.Reset ();
     m_whiteTex.Reset ();
     m_whiteSrv.Reset ();
+    m_depthTex.Reset ();
+    m_depthDsv.Reset ();
 
     m_vertexBufferCapacity = 0;
     m_contentWidth         = 0;
     m_contentHeight        = 0;
+    m_depthWidth           = 0;
+    m_depthHeight          = 0;
     m_device               = nullptr;
     m_context              = nullptr;
 }
@@ -231,13 +236,21 @@ HRESULT Dxui3DRenderer::CreatePipelineState ()
         CHR (hr);
     }
 
-    // No depth buffer: consumers submit back-to-front (painter's algorithm).
+    // Two depth modes: off for hand-ordered painter's-algorithm batches, and
+    // LESS test+write for loaded meshes whose triangles arrive unordered.
     {
         D3D11_DEPTH_STENCIL_DESC   depth = {};
 
         depth.DepthEnable = FALSE;
 
         hr = m_device->CreateDepthStencilState (&depth, m_depthState.GetAddressOf ());
+        CHR (hr);
+
+        depth.DepthEnable    = TRUE;
+        depth.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ALL;
+        depth.DepthFunc      = D3D11_COMPARISON_LESS;
+
+        hr = m_device->CreateDepthStencilState (&depth, m_depthStateTest.GetAddressOf ());
         CHR (hr);
     }
 
@@ -370,6 +383,72 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  BeginDepthPass
+//
+//  Sizes (or re-sizes) the depth buffer to the render target that is bound
+//  RIGHT NOW, and clears it for this frame's depth-tested draws. Queried
+//  rather than passed in so the caller (a before-present hook) needs no
+//  knowledge of the host's back-buffer plumbing.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT Dxui3DRenderer::BeginDepthPass ()
+{
+    HRESULT                         hr  = S_OK;
+    ComPtr<ID3D11RenderTargetView>  rtv;
+    ComPtr<ID3D11Resource>          res;
+    ComPtr<ID3D11Texture2D>         tex;
+    D3D11_TEXTURE2D_DESC            desc = {};
+
+    CBREx (m_device != nullptr, E_UNEXPECTED);
+
+    m_context->OMGetRenderTargets (1, rtv.GetAddressOf (), nullptr);
+    CBREx (rtv != nullptr, E_UNEXPECTED);
+
+    rtv->GetResource (res.GetAddressOf ());
+    hr = res.As (&tex);
+    CHR (hr);
+
+    tex->GetDesc (&desc);
+
+    if ((int) desc.Width != m_depthWidth || (int) desc.Height != m_depthHeight ||
+        m_depthDsv == nullptr)
+    {
+        D3D11_TEXTURE2D_DESC   depthDesc = {};
+
+        m_depthTex.Reset ();
+        m_depthDsv.Reset ();
+
+        depthDesc.Width            = desc.Width;
+        depthDesc.Height           = desc.Height;
+        depthDesc.MipLevels        = 1;
+        depthDesc.ArraySize        = 1;
+        depthDesc.Format           = DXGI_FORMAT_D24_UNORM_S8_UINT;
+        depthDesc.SampleDesc.Count = 1;
+        depthDesc.Usage            = D3D11_USAGE_DEFAULT;
+        depthDesc.BindFlags        = D3D11_BIND_DEPTH_STENCIL;
+
+        hr = m_device->CreateTexture2D (&depthDesc, nullptr, m_depthTex.GetAddressOf ());
+        CHR (hr);
+
+        hr = m_device->CreateDepthStencilView (m_depthTex.Get (), nullptr, m_depthDsv.GetAddressOf ());
+        CHR (hr);
+
+        m_depthWidth  = (int) desc.Width;
+        m_depthHeight = (int) desc.Height;
+    }
+
+    m_context->ClearDepthStencilView (m_depthDsv.Get (), D3D11_CLEAR_DEPTH, 1.0f, 0);
+
+Error:
+    return hr;
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DrawTriangles
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -378,7 +457,8 @@ HRESULT Dxui3DRenderer::DrawTriangles (const Vertex   * verts,
                                        size_t           vertexCount,
                                        const float      mvp[16],
                                        bool             textured,
-                                       const D3D11_VIEWPORT & viewportPx)
+                                       const D3D11_VIEWPORT & viewportPx,
+                                       bool             depthTest)
 {
     HRESULT                     hr           = S_OK;
     D3D11_MAPPED_SUBRESOURCE    mapped       = {};
@@ -386,6 +466,7 @@ HRESULT Dxui3DRenderer::DrawTriangles (const Vertex   * verts,
     UINT                        offset       = 0;
     float                       blendFactor[4] = {};
     ID3D11ShaderResourceView *  srv          = nullptr;
+    bool                        useDepth     = depthTest && m_depthDsv != nullptr;
 
     CBREx (m_device != nullptr, E_UNEXPECTED);
     CBREx (verts != nullptr && vertexCount > 0 && (vertexCount % 3) == 0, E_INVALIDARG);
@@ -405,11 +486,25 @@ HRESULT Dxui3DRenderer::DrawTriangles (const Vertex   * verts,
     memcpy (mapped.pData, mvp, 16 * sizeof (float));
     m_context->Unmap (m_mvpBuffer.Get (), 0);
 
+    // Depth-tested draws re-bind the current RTV together with our DSV (the
+    // host bound it without one); depth-off draws leave the bindings alone.
+    if (useDepth)
+    {
+        ComPtr<ID3D11RenderTargetView>  rtv;
+
+        m_context->OMGetRenderTargets (1, rtv.GetAddressOf (), nullptr);
+        CBREx (rtv != nullptr, E_UNEXPECTED);
+
+        ID3D11RenderTargetView *  rtvs[1] = { rtv.Get () };
+
+        m_context->OMSetRenderTargets (1, rtvs, m_depthDsv.Get ());
+    }
+
     // Full state set every draw (mirrors DxuiPainter::End): interleaving with
     // the painter and text renderer needs no save/restore etiquette.
     m_context->RSSetViewports         (1, &viewportPx);
     m_context->OMSetBlendState        (m_blendState.Get (), blendFactor, 0xFFFFFFFF);
-    m_context->OMSetDepthStencilState (m_depthState.Get (), 0);
+    m_context->OMSetDepthStencilState (useDepth ? m_depthStateTest.Get () : m_depthState.Get (), 0);
     m_context->RSSetState             (m_rasterState.Get ());
 
     m_context->IASetInputLayout       (m_layout.Get ());
