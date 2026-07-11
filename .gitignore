@@ -76,6 +76,9 @@ StyleCopReport.xml
 *.ilk
 *.meta
 *.obj
+# ...but Wavefront OBJ 3D models under Resources are source assets, not
+# compiler output (e.g. the printer panel's embedded ImageWriter model).
+!Resources/**/*.obj
 *.iobj
 *.pch
 *.pdb
