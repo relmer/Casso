@@ -15,6 +15,7 @@
 #include "Devices/Apple2eSoftSwitchBank.h"
 #include "Devices/AppleSpeaker.h"
 #include "Devices/Disk2Controller.h"
+#include "Devices/Mockingboard/MockingboardCard.h"
 #include "Devices/LanguageCard.h"
 #include "Devices/Apple2eMmu.h"
 #include "Core/Prng.h"
@@ -990,6 +991,10 @@ HRESULT EmulatorShell::Initialize (
                         if (SUCCEEDED (uiPrefs->GetBool ("floppySoundEnabled", enabled)))
                         {
                             m_driveAudioMixer.SetEnabled (enabled);
+                        }
+                        if (SUCCEEDED (uiPrefs->GetBool ("mockingboardEnabled", enabled)))
+                        {
+                            m_mockingboardAudioMixer.SetEnabled (enabled);
                         }
                         if (SUCCEEDED (uiPrefs->GetString ("floppyMechanism", mechNarrow)) && !mechNarrow.empty())
                         {
@@ -2887,6 +2892,14 @@ void EmulatorShell::OnCpuThreadStart()
         HRESULT  hrLoad = m_driveAudioMixer.SetMechanism (m_driveAudioMixer.GetMechanism());
         IGNORE_RETURN_VALUE (hrLoad, S_OK);
     }
+
+    // The initial machine is built before WASAPI comes up, so its PSGs
+    // do not yet know the host sample rate. Seed it now (machine switches
+    // after this point pick it up at build time in MachineManager).
+    if (m_wasapiAudio.IsInitialized() && m_refs.mockingboard != nullptr)
+    {
+        m_refs.mockingboard->SetSampleRate (m_wasapiAudio.GetSampleRate());
+    }
 }
 
 
@@ -2972,6 +2985,11 @@ void EmulatorShell::DispatchCpuCommand (const EmulatorCommand & cmd)
                     m_refs.diskController->Tick (m_cpu->GetLastInstructionCycles());
                 }
 
+                if (m_refs.mockingboard != nullptr)
+                {
+                    m_refs.mockingboard->Tick (m_cpu->GetLastInstructionCycles());
+                }
+
                 if (m_refs.keyboard != nullptr)
                 {
                     m_refs.keyboard->Tick (m_cpu->GetLastInstructionCycles());
@@ -3004,6 +3022,13 @@ void EmulatorShell::DispatchCpuCommand (const EmulatorCommand & cmd)
         case IDM_AUDIO_DRIVE_DISABLE:
         {
             m_driveAudioMixer.SetEnabled (cmd.id == IDM_AUDIO_DRIVE_ENABLE);
+            break;
+        }
+
+        case IDM_AUDIO_MOCKINGBOARD_ENABLE:
+        case IDM_AUDIO_MOCKINGBOARD_DISABLE:
+        {
+            m_mockingboardAudioMixer.SetEnabled (cmd.id == IDM_AUDIO_MOCKINGBOARD_ENABLE);
             break;
         }
 
@@ -3220,6 +3245,11 @@ void EmulatorShell::StepInstructionWhilePaused()
         m_refs.diskController->Tick (m_cpu->GetLastInstructionCycles());
     }
 
+    if (m_refs.mockingboard != nullptr)
+    {
+        m_refs.mockingboard->Tick (m_cpu->GetLastInstructionCycles());
+    }
+
     if (m_refs.keyboard != nullptr)
     {
         m_refs.keyboard->Tick (m_cpu->GetLastInstructionCycles());
@@ -3340,6 +3370,11 @@ void EmulatorShell::ExecuteCpuSlices()
                 m_refs.diskController->Tick (cycles);
             }
 
+            if (m_refs.mockingboard != nullptr)
+            {
+                m_refs.mockingboard->Tick (cycles);
+            }
+
             if (m_refs.keyboard != nullptr)
             {
                 m_refs.keyboard->Tick (cycles);
@@ -3360,7 +3395,8 @@ void EmulatorShell::ExecuteCpuSlices()
                                        m_refs.speaker->GetFrameInitialState(),
                                        numSamples,
                                        &m_driveAudioMixer,
-                                       m_cpu->GetTotalCycles());
+                                       m_cpu->GetTotalCycles(),
+                                       &m_mockingboardAudioMixer);
 
             m_refs.speaker->ClearTimestamps();
             m_refs.speaker->BeginFrame();

@@ -200,6 +200,28 @@ namespace
 
         return false;
     }
+
+
+    ////////////////////////////////////////////////////////////////////////////
+    //
+    //  HasSlotDevice — true if `cfg` installs `device` in `slot`.
+    //
+    ////////////////////////////////////////////////////////////////////////////
+
+    bool HasSlotDevice (const MachineConfig & cfg, int slot, const std::string & device)
+    {
+        size_t   i;
+
+        for (i = 0; i < cfg.slots.size (); i++)
+        {
+            if (cfg.slots[i].slot == slot && cfg.slots[i].device == device)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
 }
 
 
@@ -546,8 +568,12 @@ public:
 
         Assert::AreEqual (size_t (4), config.internalDevices.size (),
             L"Apple2Plus.json internalDevices count must remain exactly 4");
-        Assert::AreEqual (size_t (1), config.slots.size (),
-            L"Apple2Plus.json must declare exactly one slot (Disk II in slot 6)");
+        Assert::AreEqual (size_t (2), config.slots.size (),
+            L"Apple2Plus.json must declare two slots (Mockingboard in slot 4, Disk II in slot 6)");
+        Assert::IsTrue (HasSlotDevice (config, 4, "mockingboard"),
+            L"Apple2Plus.json must install a Mockingboard in slot 4");
+        Assert::IsTrue (HasSlotDevice (config, 6, "disk-ii"),
+            L"Apple2Plus.json must keep the Disk II controller in slot 6");
     }
 
 

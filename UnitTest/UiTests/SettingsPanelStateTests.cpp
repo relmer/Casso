@@ -28,6 +28,7 @@ namespace
         SettingsSpeedMode  lastSpeed             = SettingsSpeedMode::Authentic;
         SettingsColorMode  lastColor             = SettingsColorMode::Color;
         bool               lastFloppySound       = true;
+        bool               lastMockingboard      = true;
         std::string        lastMechanism;
         bool               lastWriteProtect[2]   = { false, false };
         float              lastDriveMotor        = -1.0f;
@@ -41,6 +42,7 @@ namespace
         void ApplySpeedMode    (SettingsSpeedMode mode) override   { lastSpeed = mode; ++applyCount; }
         void ApplyColorMode    (SettingsColorMode mode) override   { lastColor = mode; ++applyCount; }
         void ApplyFloppySound  (bool enabled) override             { lastFloppySound = enabled; ++applyCount; }
+        void ApplyMockingboard (bool enabled) override             { lastMockingboard = enabled; ++applyCount; }
         void ApplyMechanism    (const std::string & m) override    { lastMechanism = m; ++applyCount; }
         void ApplyDriveVolumes (float motor, float head, float door) override
         {

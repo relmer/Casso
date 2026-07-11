@@ -177,3 +177,24 @@ void InterruptController::PowerCycle ()
 {
     SoftReset ();
 }
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ResetSources
+//
+//  Machine-teardown path: reclaim every source token and clear the
+//  aggregate so a rebuilt machine re-registers its IRQ sources from a
+//  fresh pool.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void InterruptController::ResetSources ()
+{
+    m_aggregate  = 0;
+    m_nextSource = 0;
+
+    UpdateLine ();
+}

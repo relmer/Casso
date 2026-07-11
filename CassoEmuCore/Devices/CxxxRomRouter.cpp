@@ -115,6 +115,62 @@ bool CxxxRomRouter::HasSlotRom (int slot) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  SetSlotIoDevice
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CxxxRomRouter::SetSlotIoDevice (int slot, MemoryDevice * device)
+{
+    if (slot < kMinSlot || slot > kMaxSlot)
+    {
+        return;
+    }
+
+    m_slotIoDevice[slot] = device;
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SlotIoDeviceFor
+//
+//  Returns the active I/O device owning `address`'s slot page, or nullptr
+//  if the address should resolve to ROM. Slot cards are only visible when
+//  INTCXROM=0; slot 3 additionally yields to the internal 80-column
+//  firmware unless SLOTC3ROM=1, and the $C800+ expansion window is never a
+//  slot I/O page.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+MemoryDevice * CxxxRomRouter::SlotIoDeviceFor (Word address) const
+{
+    int   slot = static_cast<int> ((address >> 8) & 0x0F);
+
+    if (m_mmu.GetIntCxRom ())
+    {
+        return nullptr;
+    }
+
+    if (address >= kExpansionRomStart || slot < kMinSlot || slot > kMaxSlot)
+    {
+        return nullptr;
+    }
+
+    if (slot == 3 && !m_mmu.GetSlotC3Rom ())
+    {
+        return nullptr;
+    }
+
+    return m_slotIoDevice[slot];
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  Read
 //
 //  Resolves the byte then handles the $CFFF post-read side effect
@@ -124,7 +180,8 @@ bool CxxxRomRouter::HasSlotRom (int slot) const
 
 Byte CxxxRomRouter::Read (Word address)
 {
-    Byte  value = ResolveByte (address);
+    MemoryDevice *  io    = SlotIoDeviceFor (address);
+    Byte            value = (io != nullptr) ? io->Read (address) : ResolveByte (address);
 
 
 
@@ -159,7 +216,13 @@ Byte CxxxRomRouter::Read (Word address)
 
 void CxxxRomRouter::Write (Word address, Byte value)
 {
-    UNREFERENCED_PARAMETER (value);
+    MemoryDevice *  io = SlotIoDeviceFor (address);
+
+    if (io != nullptr)
+    {
+        io->Write (address, value);
+        return;
+    }
 
     if (address == kIntC8RomClearAddr)
     {

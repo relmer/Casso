@@ -416,6 +416,20 @@ void SettingsPanelState::SetFloppySound (bool enabled)
 
 
 
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetMockingboard
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SettingsPanelState::SetMockingboard (bool enabled)
+{
+    m_current.prefs.mockingboardEnabled = enabled;
+}
+
+
+
+
 
 ////////////////////////////////////////////////////////////////////////////////
 //
@@ -562,6 +576,7 @@ HRESULT SettingsPanelState::Apply (
     sink.ApplySpeedMode   (m_current.prefs.speedMode);
     sink.ApplyColorMode   (m_current.prefs.colorMode);
     sink.ApplyFloppySound (m_current.prefs.floppySoundEnabled);
+    sink.ApplyMockingboard (m_current.prefs.mockingboardEnabled);
     sink.ApplyMechanism   (m_current.prefs.floppyMechanism);
     sink.ApplyDriveVolumes (m_current.prefs.driveMotorVolume,
                             m_current.prefs.driveHeadVolume,
@@ -630,8 +645,9 @@ HRESULT SettingsPanelState::ExtractUiPrefs (
         GetStringOpt (*uiObj, "writeMode", "buffer-and-flush"),
         SettingsWriteMode::BufferAndFlush);
 
-    outPrefs.floppySoundEnabled = GetBoolOpt   (*uiObj, "floppySoundEnabled", true);
-    outPrefs.floppyMechanism    = GetStringOpt (*uiObj, "floppyMechanism",    "shugart");
+    outPrefs.floppySoundEnabled = GetBoolOpt   (*uiObj, "floppySoundEnabled",  true);
+    outPrefs.mockingboardEnabled = GetBoolOpt  (*uiObj, "mockingboardEnabled", true);
+    outPrefs.floppyMechanism    = GetStringOpt (*uiObj, "floppyMechanism",     "shugart");
 
     outPrefs.driveMotorVolume = (float) GetNumberOpt (*uiObj, "driveMotorVolume", SettingsUiPrefs::kDefaultDriveMotorVolume);
     outPrefs.driveHeadVolume  = (float) GetNumberOpt (*uiObj, "driveHeadVolume",  SettingsUiPrefs::kDefaultDriveHeadVolume);
@@ -1133,6 +1149,7 @@ JsonValue SettingsPanelState::BuildJson (
     uiObj.emplace_back ("colorMode",          JsonValue (std::string (ColorToString (prefs.colorMode))));
     uiObj.emplace_back ("writeMode",          JsonValue (std::string (WriteModeToString (prefs.writeMode))));
     uiObj.emplace_back ("floppySoundEnabled", JsonValue (prefs.floppySoundEnabled));
+    uiObj.emplace_back ("mockingboardEnabled", JsonValue (prefs.mockingboardEnabled));
     uiObj.emplace_back ("floppyMechanism",    JsonValue (prefs.floppyMechanism));
     uiObj.emplace_back ("driveMotorVolume",   JsonValue ((double) prefs.driveMotorVolume));
     uiObj.emplace_back ("driveHeadVolume",    JsonValue ((double) prefs.driveHeadVolume));
@@ -1169,6 +1186,7 @@ bool SettingsPanelState::PrefsEqual (
     if (a.colorMode             != b.colorMode)             return false;
     if (a.writeMode             != b.writeMode)             return false;
     if (a.floppySoundEnabled    != b.floppySoundEnabled)    return false;
+    if (a.mockingboardEnabled   != b.mockingboardEnabled)   return false;
     if (a.floppyMechanism       != b.floppyMechanism)       return false;
     if (a.driveMotorVolume      != b.driveMotorVolume)       return false;
     if (a.driveHeadVolume       != b.driveHeadVolume)        return false;

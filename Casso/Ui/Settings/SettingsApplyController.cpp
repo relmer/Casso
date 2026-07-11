@@ -67,6 +67,12 @@ namespace
                                          : IDM_AUDIO_DRIVE_DISABLE);
         }
 
+        void ApplyMockingboard (bool enabled) override
+        {
+            m_shell.PostCommand (enabled ? IDM_AUDIO_MOCKINGBOARD_ENABLE
+                                         : IDM_AUDIO_MOCKINGBOARD_DISABLE);
+        }
+
         void ApplyMechanism    (const std::string & mechanism) override
         {
             m_shell.PostCommand (IDM_AUDIO_DRIVE_MECHANISM, mechanism);

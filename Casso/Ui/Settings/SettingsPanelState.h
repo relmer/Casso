@@ -76,6 +76,7 @@ struct SettingsUiPrefs
     SettingsColorMode  colorMode             = SettingsColorMode::Color;
     SettingsWriteMode  writeMode             = SettingsWriteMode::BufferAndFlush;
     bool               floppySoundEnabled    = true;
+    bool               mockingboardEnabled   = true;
     std::string        floppyMechanism       = "shugart";   // "shugart" | "alps"
     bool               writeProtect[2]       = { false, false };
     // Drive-audio component gains (0..1). Defaults mirror the
@@ -158,6 +159,7 @@ public:
     virtual void ApplySpeedMode      (SettingsSpeedMode mode)        = 0;
     virtual void ApplyColorMode      (SettingsColorMode mode)        = 0;
     virtual void ApplyFloppySound    (bool enabled)                  = 0;
+    virtual void ApplyMockingboard   (bool enabled)                  = 0;
     virtual void ApplyMechanism      (const std::string & mechanism) = 0;
     virtual void ApplyDriveVolumes   (float motor, float head, float door) = 0;
     virtual void ApplyDrivePan       (float driveOnePan, float driveTwoPan) = 0;
@@ -210,6 +212,7 @@ public:
     void    SetColorMode       (SettingsColorMode mode);
     void    SetWriteMode       (SettingsWriteMode mode);
     void    SetFloppySound     (bool enabled);
+    void    SetMockingboard    (bool enabled);
     void    SetMechanism       (const std::string & mechanism);
     void    SetDriveMotorVolume (float gain);
     void    SetDriveHeadVolume  (float gain);

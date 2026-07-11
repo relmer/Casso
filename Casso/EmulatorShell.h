@@ -656,6 +656,12 @@ private:
     DriveAudioMixer                      m_driveAudioMixer;
     vector<unique_ptr<Disk2AudioSource>> m_diskAudioSources;
 
+    // Mockingboard audio. Its own mixer so the "Mockingboard" Options
+    // toggle is independent of the Drive Audio toggle. The PSG audio
+    // sources are owned by the MockingboardCard device; the mixer holds
+    // borrowed pointers, re-registered by MachineManager on every build.
+    DriveAudioMixer                      m_mockingboardAudioMixer;
+
     // Live per-sound drive-audio gains (0..1), seeded from $cassoUiPrefs
     // at startup and updated via SetDriveAudioVolumes. Stored on the shell
     // so they survive machine resets (MachineManager re-seeds fresh
@@ -704,6 +710,7 @@ private:
         class AppleSpeaker *          speaker          = nullptr;
         class RamDevice *             mainRamDev       = nullptr;
         class Disk2Controller *       diskController   = nullptr;
+        class MockingboardCard *      mockingboard     = nullptr;
         class VideoOutput *           activeVideoMode  = nullptr;
     };
 
