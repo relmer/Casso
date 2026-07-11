@@ -1,13 +1,15 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" width="96" height="96">
   <!--
-    Apple Hand Controller (A2M2001) 3/4 glyph, rev 5 - Skeuomorphic theme.
-    SHARED lower-right camera with the joystick and mouse: the head is a
-    puck squashed to the common low elevation (ry = 14/24 rx), the handle
-    leans down-LEFT (skew 0.25 about its top, y=40) because south points
-    toward the viewer, and all top surfaces use the same linear top-light
-    as jTop/mTop - no straight-on radial dome shading. The curved fire
-    button stays a protruding chunk of the head's own ellipse at
-    2 o'clock.
+    Apple Hand Controller (A2M2001) 3/4 glyph, rev 6 - Skeuomorphic theme.
+    SHARED lower-right camera with the joystick and mouse, now at the same
+    LOW elevation: horizontal circles squash to ry = rx/3, so the dial
+    reads as a squat cylinder whose knurl shows on its visible WALL (the
+    top ticks all but vanish at this angle, as on the real unit). The
+    handle leans down-LEFT (skew 0.25 about its top) because south points
+    toward the viewer. The fire button is a chunk of the head's own
+    ellipse at 2 o'clock WITH HEIGHT: top arc band + east-facing outer
+    wall + radial end-cut face (right/east walls are visible from this
+    camera, like the joystick/mouse side faces).
   -->
   <defs>
     <linearGradient id="pBody" x1="0" y1="0" x2="1" y2="1">
@@ -39,33 +41,33 @@
     <line x1="40.4" y1="72" x2="55.6" y2="72" stroke="#A9A392" stroke-width="1.6"/>
   </g>
 
-  <!-- fire button: curved chunk of the head ellipse at 2 o'clock -->
-  <path d="M 48,32 L 66.0,19.5 A 28 16.3 0 0 1 75.6,29.2 Z"
+  <!-- fire button: top arc band, then east-facing outer wall (drop 8),
+       then the radial end-cut face at the 3 o'clock end -->
+  <path d="M 48,30 L 66.0,22.9 A 28 9.3 0 0 1 75.6,28.4 Z"
         fill="url(#pBtn)" stroke="#A63C14" stroke-width="1.5" stroke-linejoin="round"/>
+  <path d="M 71.7,25.1 A 28 9.3 0 0 1 75.6,28.4 L 75.6,36.4 A 28 9.3 0 0 0 71.7,33.1 Z"
+        fill="#C24418" stroke="#A63C14" stroke-width="1.2" stroke-linejoin="round"/>
+  <path d="M 71.6,28.6 L 75.6,28.4 L 75.6,36.4 L 71.6,36.6 Z" fill="#A63C14"/>
 
-  <!-- head: puck at the shared low elevation (side band = wall height) -->
-  <ellipse cx="48" cy="38" rx="24" ry="14" fill="url(#pSide)" stroke="#8F8A7A" stroke-width="1.6"/>
-  <ellipse cx="48" cy="32" rx="24" ry="14" fill="url(#pBody)" stroke="#8F8A7A" stroke-width="2"/>
+  <!-- head: housing wall + top, squashed to the shared low elevation -->
+  <ellipse cx="48" cy="38" rx="24" ry="8" fill="url(#pSide)" stroke="#8F8A7A" stroke-width="1.6"/>
+  <ellipse cx="48" cy="30" rx="24" ry="8" fill="url(#pBody)" stroke="#8F8A7A" stroke-width="2"/>
 
-  <!-- knurled dial (elliptical, matching the top-down tick ring) -->
-  <ellipse cx="48" cy="34.5" rx="19" ry="11" fill="url(#pSide)" stroke="#827D6C" stroke-width="1.4"/>
-  <ellipse cx="48" cy="31" rx="19" ry="11" fill="url(#pDial)" stroke="#827D6C" stroke-width="1.5"/>
+  <!-- knurled dial: raised 4 above the housing; the knurl reads on the
+       visible wall crescent at this elevation -->
+  <ellipse cx="48" cy="30" rx="19" ry="6.3" fill="url(#pSide)" stroke="#827D6C" stroke-width="1.4"/>
+  <ellipse cx="48" cy="26" rx="19" ry="6.3" fill="url(#pDial)" stroke="#827D6C" stroke-width="1.5"/>
   <g stroke="#7E7967" stroke-width="1.6" opacity="0.85">
-    <line x1="48" y1="20.5" x2="48" y2="23.4"/>
-    <line x1="57.3" y1="21.9" x2="54.8" y2="24.4"/>
-    <line x1="64.1" y1="25.8" x2="59.8" y2="27.2"/>
-    <line x1="66.6" y1="31" x2="61.6" y2="31"/>
-    <line x1="64.1" y1="36.3" x2="59.8" y2="34.8"/>
-    <line x1="57.3" y1="40.1" x2="54.8" y2="37.6"/>
-    <line x1="48" y1="41.5" x2="48" y2="38.6"/>
-    <line x1="38.7" y1="40.1" x2="41.2" y2="37.6"/>
-    <line x1="31.9" y1="36.3" x2="36.2" y2="34.8"/>
-    <line x1="29.4" y1="31" x2="34.4" y2="31"/>
-    <line x1="31.9" y1="25.8" x2="36.2" y2="27.2"/>
-    <line x1="38.7" y1="21.9" x2="41.2" y2="24.4"/>
+    <line x1="48" y1="32.3" x2="48" y2="36.3"/>
+    <line x1="53" y1="32.1" x2="53" y2="36.1"/>
+    <line x1="43" y1="32.1" x2="43" y2="36.1"/>
+    <line x1="58" y1="31.4" x2="58" y2="35.4"/>
+    <line x1="38" y1="31.4" x2="38" y2="35.4"/>
+    <line x1="63" y1="29.9" x2="63" y2="33.9"/>
+    <line x1="33" y1="29.9" x2="33" y2="33.9"/>
   </g>
 
   <!-- raised center cap -->
-  <ellipse cx="48" cy="32.6" rx="10" ry="5.8" fill="url(#pSide)" stroke="#827D6C" stroke-width="1.3"/>
-  <ellipse cx="48" cy="29.5" rx="10" ry="5.8" fill="url(#pCap)" stroke="#827D6C" stroke-width="1.5"/>
+  <ellipse cx="48" cy="26" rx="10" ry="3.3" fill="url(#pSide)" stroke="#827D6C" stroke-width="1.3"/>
+  <ellipse cx="48" cy="23.5" rx="10" ry="3.3" fill="url(#pCap)" stroke="#827D6C" stroke-width="1.5"/>
 </svg>

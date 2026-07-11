@@ -470,12 +470,14 @@ void InputDeviceSelector::PaintPaddleGlyph (IDxuiPainter & p, const RECT & box, 
         return;
     }
 
-    // 3/4 perspective (paddle-icon-skeuo.svg rev 5): SHARED lower-right
-    // camera with the joystick and mouse. The head is a puck squashed to
-    // the common low elevation (ry = 14/24 rx), the handle leans down-LEFT
-    // (skew 0.25 about its top, y=40) because south points toward the
-    // viewer, and the fire button is a protruding chunk of the head's own
-    // ellipse at 2 o'clock. No radial dome shading — flat top faces.
+    // 3/4 perspective (paddle-icon-skeuo.svg rev 6): SHARED lower-right
+    // camera with the joystick and mouse, at the same LOW elevation —
+    // horizontal circles squash to ry = rx/3, so the dial reads as a
+    // squat cylinder whose knurl shows on its visible WALL. The handle
+    // leans down-LEFT (skew 0.25 about its top, y=40) because south
+    // points toward the viewer. The fire button is a chunk of the head's
+    // own ellipse at 2 o'clock WITH HEIGHT (top band + east wall + end
+    // cut — east faces are visible from this camera).
     // handle (coordinates pre-skewed: x' = x - 0.25*(y - 40))
     p.FillConvexQuad  (g.X (61), g.Y (40), g.X (64.3f), g.Y (43), g.X (49.9f), g.Y (82.5f), g.X (47.3f), g.Y (79), kSideFace);
     p.FillConvexQuad  (g.X (34.3f), g.Y (79), g.X (47.3f), g.Y (79), g.X (49.9f), g.Y (82.5f), g.X (36.9f), g.Y (82.5f), 0xFFB3AD9C);
@@ -484,25 +486,29 @@ void InputDeviceSelector::PaintPaddleGlyph (IDxuiPainter & p, const RECT & box, 
     p.DrawLineApprox  (g.X (33.8f), g.Y (60), g.X (52.2f), g.Y (60), g.S (1.6f), kRib);
     p.DrawLineApprox  (g.X (33.1f), g.Y (66), g.X (49.9f), g.Y (66), g.S (1.6f), kRib);
     p.DrawLineApprox  (g.X (32.4f), g.Y (72), g.X (47.6f), g.Y (72), g.S (1.6f), kRib);
-    // curved fire button at 2 o'clock (ellipse-arc quads; housing covers inner edge)
-    p.FillConvexQuad  (g.X (66.0f), g.Y (19.5f), g.X (72.2f), g.Y (23.8f), g.X (68.8f), g.Y (25.0f), g.X (63.4f), g.Y (21.3f), kOrange);
-    p.FillConvexQuad  (g.X (72.2f), g.Y (23.8f), g.X (75.6f), g.Y (29.2f), g.X (71.7f), g.Y (29.6f), g.X (68.8f), g.Y (25.0f), kOrange);
-    // head: side band (wall height) + housing top at the shared elevation
-    p.FillEllipseApprox (g.X (48), g.Y (38), g.S (24), g.S (14), kDialSide);
-    p.FillEllipseApprox (g.X (48), g.Y (32), g.S (24), g.S (14), kCase);
-    // knurled dial
-    p.FillEllipseApprox (g.X (48), g.Y (34.5f), g.S (19), g.S (11), kDialSide);
-    p.FillEllipseApprox (g.X (48), g.Y (31), g.S (19), g.S (11), kDial);
-    for (int i = 0; i < 12; i++)
+    // fire button at 2 o'clock: top arc band, east-facing outer wall
+    // (drop 8), and the radial end-cut face at the 3 o'clock end; the
+    // housing ellipses painted after cover the band's inner edge
+    p.FillConvexQuad  (g.X (66.0f), g.Y (22.9f), g.X (71.7f), g.Y (25.1f), g.X (68.4f), g.Y (25.8f), g.X (63.4f), g.Y (23.9f), kOrange);
+    p.FillConvexQuad  (g.X (71.7f), g.Y (25.1f), g.X (75.6f), g.Y (28.4f), g.X (71.6f), g.Y (28.6f), g.X (68.4f), g.Y (25.8f), kOrange);
+    p.FillConvexQuad  (g.X (71.7f), g.Y (25.1f), g.X (74.1f), g.Y (26.7f), g.X (74.1f), g.Y (34.7f), g.X (71.7f), g.Y (33.1f), 0xFFC24418);
+    p.FillConvexQuad  (g.X (74.1f), g.Y (26.7f), g.X (75.6f), g.Y (28.4f), g.X (75.6f), g.Y (36.4f), g.X (74.1f), g.Y (34.7f), 0xFFC24418);
+    p.FillConvexQuad  (g.X (71.6f), g.Y (28.6f), g.X (75.6f), g.Y (28.4f), g.X (75.6f), g.Y (36.4f), g.X (71.6f), g.Y (36.6f), 0xFFA63C14);
+    // head: housing wall + top, squashed to the shared low elevation
+    p.FillEllipseApprox (g.X (48), g.Y (38), g.S (24), g.S (8), kDialSide);
+    p.FillEllipseApprox (g.X (48), g.Y (30), g.S (24), g.S (8), kCase);
+    // dial raised 4 above the housing; knurl on the visible wall crescent
+    p.FillEllipseApprox (g.X (48), g.Y (30), g.S (19), g.S (6.3f), kDialSide);
+    p.FillEllipseApprox (g.X (48), g.Y (26), g.S (19), g.S (6.3f), kDial);
+    for (int i = -3; i <= 3; i++)
     {
-        float  a  = (float) i * 6.2831853f / 12.0f;
-        float  ca = cosf (a), sa = sinf (a);
-        p.DrawLineApprox (g.X (48 + sa * 18.6f), g.Y (31 - ca * 10.5f),
-                          g.X (48 + sa * 13.6f), g.Y (31 - ca * 7.6f), g.S (1.6f), kTick);
+        float  x = 5.0f * (float) i;
+        float  s = sqrtf (1.0f - (x / 19.0f) * (x / 19.0f));
+        p.DrawLineApprox (g.X (48 + x), g.Y (26 + 6.3f * s), g.X (48 + x), g.Y (30 + 6.3f * s), g.S (1.6f), kTick);
     }
     // raised center cap
-    p.FillEllipseApprox (g.X (48), g.Y (32.6f), g.S (10), g.S (5.8f), kDialSide);
-    p.FillEllipseApprox (g.X (48), g.Y (29.5f), g.S (10), g.S (5.8f), kKnob);
+    p.FillEllipseApprox (g.X (48), g.Y (26), g.S (10), g.S (3.3f), kDialSide);
+    p.FillEllipseApprox (g.X (48), g.Y (23.5f), g.S (10), g.S (3.3f), kKnob);
 }
 
 
@@ -523,26 +529,26 @@ void InputDeviceSelector::PaintMouseGlyph (IDxuiPainter & p, const RECT & box, b
         return;
     }
 
-    // 3/4 perspective (mouse-icon-skeuo.svg rev 5): shared lower-right
+    // 3/4 perspective (mouse-icon-skeuo.svg rev 6): shared lower-right
     // camera; proportions follow the top-down master (footprint 56x84,
     // button 64% width at the NORTH end, depth slightly exaggerated).
-    // Art sits 16 grid units above the master's desk plane so the glyph
-    // is vertically centered like the joystick and paddle.
-    p.FillConvexQuad  (g.X (59), g.Y (48), g.X (71), g.Y (32), g.X (71), g.Y (50), g.X (59), g.Y (68), kSideFace);
-    p.FillRect        (g.X (16), g.Y (48), g.S (43), g.S (20), kCase);
-    p.OutlineRect     (g.X (16), g.Y (48), g.S (43), g.S (20), g.S (2), kCaseEdge);
-    p.DrawLineApprox  (g.X (18.5f), g.Y (62), g.X (56.5f), g.Y (62), g.S (1.1f), kSeam);
-    p.FillConvexQuad  (g.X (16), g.Y (48), g.X (28), g.Y (32), g.X (71), g.Y (32), g.X (59), g.Y (48), kCaseLight);
-    p.DrawLineApprox  (g.X (16), g.Y (48), g.X (28), g.Y (32), g.S (1.6f), kCaseEdge);
-    p.DrawLineApprox  (g.X (28), g.Y (32), g.X (71), g.Y (32), g.S (1.6f), kCaseEdge);
-    p.DrawLineApprox  (g.X (71), g.Y (32), g.X (59), g.Y (48), g.S (1.6f), kCaseEdge);
+    // Art sits 16 grid units above the master's desk plane and 4.5 right
+    // (silhouette spans 55 units) so the glyph is centered both ways.
+    p.FillConvexQuad  (g.X (63.5f), g.Y (48), g.X (75.5f), g.Y (32), g.X (75.5f), g.Y (50), g.X (63.5f), g.Y (68), kSideFace);
+    p.FillRect        (g.X (20.5f), g.Y (48), g.S (43), g.S (20), kCase);
+    p.OutlineRect     (g.X (20.5f), g.Y (48), g.S (43), g.S (20), g.S (2), kCaseEdge);
+    p.DrawLineApprox  (g.X (23), g.Y (62), g.X (61), g.Y (62), g.S (1.1f), kSeam);
+    p.FillConvexQuad  (g.X (20.5f), g.Y (48), g.X (32.5f), g.Y (32), g.X (75.5f), g.Y (32), g.X (63.5f), g.Y (48), kCaseLight);
+    p.DrawLineApprox  (g.X (20.5f), g.Y (48), g.X (32.5f), g.Y (32), g.S (1.6f), kCaseEdge);
+    p.DrawLineApprox  (g.X (32.5f), g.Y (32), g.X (75.5f), g.Y (32), g.S (1.6f), kCaseEdge);
+    p.DrawLineApprox  (g.X (75.5f), g.Y (32), g.X (63.5f), g.Y (48), g.S (1.6f), kCaseEdge);
     // STRONG peripheral bevel: raised inner plateau above the bevel band
-    p.FillConvexQuad  (g.X (23.5f), g.Y (43.5f), g.X (30), g.Y (34), g.X (65.5f), g.Y (34), g.X (59), g.Y (43.5f), 0xFFEFEADB);
-    p.DrawLineApprox  (g.X (23.5f), g.Y (43.5f), g.X (30), g.Y (34), g.S (1.5f), 0xFFB4AE9C);
-    p.DrawLineApprox  (g.X (30), g.Y (34), g.X (65.5f), g.Y (34), g.S (1.5f), 0xFFB4AE9C);
-    p.DrawLineApprox  (g.X (65.5f), g.Y (34), g.X (59), g.Y (43.5f), g.S (1.5f), 0xFFB4AE9C);
-    p.DrawLineApprox  (g.X (23.5f), g.Y (43.5f), g.X (59), g.Y (43.5f), g.S (1.5f), 0xFFB4AE9C);
+    p.FillConvexQuad  (g.X (28), g.Y (43.5f), g.X (34.5f), g.Y (34), g.X (70), g.Y (34), g.X (63.5f), g.Y (43.5f), 0xFFEFEADB);
+    p.DrawLineApprox  (g.X (28), g.Y (43.5f), g.X (34.5f), g.Y (34), g.S (1.5f), 0xFFB4AE9C);
+    p.DrawLineApprox  (g.X (34.5f), g.Y (34), g.X (70), g.Y (34), g.S (1.5f), 0xFFB4AE9C);
+    p.DrawLineApprox  (g.X (70), g.Y (34), g.X (63.5f), g.Y (43.5f), g.S (1.5f), 0xFFB4AE9C);
+    p.DrawLineApprox  (g.X (28), g.Y (43.5f), g.X (63.5f), g.Y (43.5f), g.S (1.5f), 0xFFB4AE9C);
     // the single wide button at the NORTH (back), shorter front-to-back
-    p.FillConvexQuad  (g.X (34.7f), g.Y (34.3f), g.X (63.4f), g.Y (34.3f), g.X (59.8f), g.Y (39.4f), g.X (31.2f), g.Y (39.4f), kMouseBtnEdge);
-    p.FillConvexQuad  (g.X (35.9f), g.Y (35.3f), g.X (61.8f), g.Y (35.3f), g.X (58.8f), g.Y (38.4f), g.X (33), g.Y (38.4f), kMouseBtn);
+    p.FillConvexQuad  (g.X (39.2f), g.Y (34.3f), g.X (67.9f), g.Y (34.3f), g.X (64.3f), g.Y (39.4f), g.X (35.7f), g.Y (39.4f), kMouseBtnEdge);
+    p.FillConvexQuad  (g.X (40.4f), g.Y (35.3f), g.X (66.3f), g.Y (35.3f), g.X (63.3f), g.Y (38.4f), g.X (37.5f), g.Y (38.4f), kMouseBtn);
 }

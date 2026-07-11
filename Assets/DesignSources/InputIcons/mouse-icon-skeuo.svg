@@ -9,6 +9,8 @@
     the joystick and paddle, and the front/top faces meet at exactly
     (16,64) with a square shared corner (separately rounded corners left
     a notch and crossing strokes at the left silhouette).
+    Rev 6: art shifted 4.5 right - the silhouette spans 55 units, so the
+    left edge sits at 20.5 for a symmetric footprint about x=48.
   -->
   <defs>
     <linearGradient id="mTop" x1="0" y1="0" x2="0.4" y2="1">
@@ -21,7 +23,7 @@
       <stop offset="0" stop-color="#C2BFB8"/><stop offset="1" stop-color="#9F9C93"/>
     </linearGradient>
   </defs>
-  <g transform="translate(0,-16)">
+  <g transform="translate(4.5,-16)">
     <!-- right side face -->
     <path d="M 59,64 L 69,50 Q 71,47 71,51 L 71,63 Q 71,67 69,70 L 59,84 Z"
           fill="#A9A392" stroke="#8F8A7A" stroke-width="2" stroke-linejoin="round"/>
