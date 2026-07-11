@@ -341,7 +341,31 @@ private:
     // it, re-syncs the game port (resolving joystick axes / buttons from
     // current keys, centering on leave), and starts or stops mouse capture
     // for Paddle mode.
+    // FR-013a split input model. SetArrowsJoystick / SetPointerMapping set
+    // the two orthogonal axes independently (menu items); SetInputMappingMode
+    // applies a combined PRESET (button cycle + legacy callers): Joystick =
+    // keys-only, Paddle/Mouse = pointer-only, Off = both off. Paddle<->Mouse
+    // stay exclusive (both claim the host pointer).
     void    SetInputMappingMode (InputMappingMode mode);
+    void    SetArrowsJoystick   (bool on);
+    void    SetPointerMapping   (InputMappingMode pointer);   // Off/Paddle/Mouse
+
+    // The single mode the (pre-T030d) toggle button displays: the pointer
+    // mapping when active, else Joystick when the keys mapping is on.
+    InputMappingMode  DisplayInputMode () const
+    {
+        return (m_pointerMode != InputMappingMode::Off) ? m_pointerMode
+             : (m_arrowsJoystick ? InputMappingMode::Joystick : InputMappingMode::Off);
+    }
+
+    // FR-013b: with a connected mouse and no pointer mapping chosen, the //c
+    // defaults Pointer to Mouse (runtime nudge, not persisted; invisible
+    // until mouse software runs thanks to the firmware-live gate).
+    void    ApplyDefaultPointerForMachine ();
+
+private:
+    void    SyncInputModeUi ();
+public:
 
     // Radio-group toggle for the Machine-menu items: selects `target`, or
     // turns mapping Off if `target` is already the active mode.
@@ -826,9 +850,10 @@ private:
 
     // How host arrow / pointer input is mapped onto the emulated game
     // port (Off / Joystick / Paddle). Mirrors
-    // GlobalUserPrefs::inputMappingMode and is cycled via the Machine
+    // GlobalUserPrefs (split model, FR-013a) and is cycled via the Machine
     // menu's "Cycle Input Mode" item, Ctrl+Shift+J, and the drive-bar widget.
-    InputMappingMode  m_inputMode = InputMappingMode::Off;
+    InputMappingMode  m_pointerMode    = InputMappingMode::Off;   // Off/Paddle/Mouse
+    bool              m_arrowsJoystick = false;                    // Keys axis
 
     // Paddle-mode mouse capture. While captured, the cursor is hidden and
     // confined, relative motion drives the paddle axes (held, no recenter),

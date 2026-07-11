@@ -47,7 +47,12 @@ struct GlobalUserPrefs
     // held dial. Cycled via the Machine menu's "Cycle Input Mode" item,
     // Ctrl+Shift+J, and the drive-bar widget; only meaningful on machines with a
     // game port. Migrated from the legacy bool "mapArrowsToJoystick".
-    InputMappingMode  inputMappingMode = InputMappingMode::Off;
+    InputMappingMode  inputMappingMode = InputMappingMode::Off;   // legacy combined (kept in sync for downgrade compat)
+
+    // FR-013a split input model: Keys (arrows->joystick) x Pointer
+    // (Off/Paddle/Mouse). Migrated from the legacy single mode on load.
+    bool              arrowsToJoystick = false;
+    InputMappingMode  pointerMapping   = InputMappingMode::Off;
 
     // Text color used when the Color monitor is active (the monochrome
     // monitors derive their text from the phosphor tint instead). White is

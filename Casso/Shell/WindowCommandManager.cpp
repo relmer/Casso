@@ -120,9 +120,9 @@ void WindowCommandManager::OnMouseConnectCommand (int id)
     {
         m_shell.m_mouseConnected = connected;
 
-        if (!connected && m_shell.m_inputMode == InputMappingMode::Mouse)
+        if (!connected && m_shell.m_pointerMode == InputMappingMode::Mouse)
         {
-            m_shell.SetInputMappingMode (InputMappingMode::Off);
+            m_shell.SetPointerMapping (InputMappingMode::Off);
         }
     }
 }

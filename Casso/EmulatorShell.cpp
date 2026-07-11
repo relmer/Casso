@@ -710,15 +710,18 @@ HRESULT EmulatorShell::Initialize (
         hrPrefs = m_userConfigStore->LoadAll (m_globalPrefs, m_uiFs);
         IGNORE_RETURN_VALUE (hrPrefs, S_OK);
 
-        // Paddle is an active mouse-capture mode, not a passive remap; never
-        // restore it on launch (it would light the LED / widen the widget
-        // while the mouse is NOT actually captured). Fall back to Off; the
-        // passive Joystick remap is safe to restore.
-        m_inputMode = (m_globalPrefs.inputMappingMode == InputMappingMode::Paddle)
-                          ? InputMappingMode::Off
-                          : m_globalPrefs.inputMappingMode;
-        m_globalPrefs.inputMappingMode = m_inputMode;
-        m_joystickButton.SetMode (m_inputMode);
+        // Restore the split input mappings (FR-013a). Keys (arrows->
+        // joystick) is a passive remap, safe to restore. Pointer: Paddle is
+        // an active mouse-capture mode, never restored on launch (it would
+        // light the LED while the mouse is NOT captured) -- falls back to
+        // Off; Mouse is non-capturing and restores safely.
+        m_arrowsJoystick = m_globalPrefs.arrowsToJoystick;
+        m_pointerMode    = (m_globalPrefs.pointerMapping == InputMappingMode::Paddle)
+                               ? InputMappingMode::Off
+                               : m_globalPrefs.pointerMapping;
+        m_globalPrefs.pointerMapping   = m_pointerMode;
+        m_globalPrefs.inputMappingMode = DisplayInputMode();
+        m_joystickButton.SetMode (DisplayInputMode());
 
         SetColorMonitorTextArgbLive (
             ColorUtil::ResolveColorMonitorTextArgb (m_globalPrefs.colorMonitorTextMode,
@@ -1074,6 +1077,10 @@ HRESULT EmulatorShell::Initialize (
                                 m_mouseConnected = mouseConn;
                             }
                         }
+
+                        // //c: default Pointer -> Mouse when connected and
+                        // nothing else was chosen (FR-013b).
+                        ApplyDefaultPointerForMachine ();
                     }
                 }
             }
@@ -1374,8 +1381,8 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     {
         switch (commandId)
         {
-            case IDM_MACHINE_ARROWS_JOYSTICK: return m_inputMode == InputMappingMode::Joystick;
-            case IDM_MACHINE_ARROWS_PADDLE:   return m_inputMode == InputMappingMode::Paddle;
+            case IDM_MACHINE_ARROWS_JOYSTICK: return m_arrowsJoystick;
+            case IDM_MACHINE_ARROWS_PADDLE:   return m_pointerMode == InputMappingMode::Paddle;
             default:                          return false;
         }
     });
@@ -2424,7 +2431,7 @@ void EmulatorShell::LayoutJoystickButton (int clientW,
     m_joyBtnDpi        = dpi;
 
     scaler.SetDpi (dpi);
-    m_joystickButton.SetMode (m_inputMode);
+    m_joystickButton.SetMode (DisplayInputMode());
     m_joystickButton.Layout (anchor, scaler);
     // m_joystickTooltip is a deferred popup: it derives its DPI from its
     // popup host (set via SetPopupHost) at show time, so no SetDpi here.
@@ -3744,7 +3751,7 @@ DxuiMessageResult EmulatorShell::OnMouseLeave ()
 
 bool EmulatorShell::GuestMouseActive () const
 {
-    return m_inputMode == InputMappingMode::Mouse && m_mouse != nullptr
+    return m_pointerMode == InputMappingMode::Mouse && m_mouse != nullptr
         && m_mouseConnected;
 }
 
@@ -4004,7 +4011,7 @@ DxuiMessageResult EmulatorShell::OnLButtonUp (WPARAM wParam, LPARAM lParam)
 
     // A bare left-click on the emulator screen (no chrome / widget / drive
     // hit) in Paddle mode re-grabs the pointer after an Esc release.
-    if (m_inputMode == InputMappingMode::Paddle && !m_paddleCaptured)
+    if (m_pointerMode == InputMappingMode::Paddle && !m_paddleCaptured)
     {
         StartPaddleCapture();
         return DxuiMessageResult::Handled;
@@ -4401,9 +4408,9 @@ DxuiMessageResult EmulatorShell::OnKeyDown (WPARAM vk, LPARAM lParam)
     // 0. Esc exits paddle mode: releases the mouse capture (cursor
     //    reappears) and returns the input mapping to Off, matching the
     //    "Esc to exit" hint on the widget.
-    if (m_inputMode == InputMappingMode::Paddle && vk == VK_ESCAPE)
+    if (m_pointerMode == InputMappingMode::Paddle && vk == VK_ESCAPE)
     {
-        SetInputMappingMode (InputMappingMode::Off);
+        SetPointerMapping (InputMappingMode::Off);
         BAIL_OUT_IF (true, S_OK);
     }
 
@@ -4503,7 +4510,7 @@ bool EmulatorShell::OnViewportKey (const DxuiKeyEvent & ev)
     // fire buttons when "Map Arrows to Joystick" is on AND a game-port
     // paddle bank is present. Recomputed per event so a mode change between
     // press and release is always honored.
-    bool  driveJoystick = m_inputMode == InputMappingMode::Joystick &&
+    bool  driveJoystick = m_arrowsJoystick &&
                           (dynamic_cast<Apple2eSoftSwitchBank *> (m_refs.softSwitches) != nullptr ||
                            m_refs.gamePort != nullptr);
 
@@ -4587,12 +4594,12 @@ bool EmulatorShell::OnViewportKey (const DxuiKeyEvent & ev)
         // releases the physical keys.
         ApplyAppleModifierKeys (vk, false);
 
-        if (m_inputMode == InputMappingMode::Joystick && IsArrowVk (vk))
+        if (m_arrowsJoystick && IsArrowVk (vk))
         {
             UpdateJoystickAxesFromKeys();
         }
 
-        if (m_inputMode == InputMappingMode::Joystick)
+        if (m_arrowsJoystick)
         {
             UpdateJoystickButtonsFromKeys();
         }
@@ -4793,56 +4800,84 @@ Error:
 
 void EmulatorShell::SetInputMappingMode (InputMappingMode mode)
 {
-    auto             * iieSw    = dynamic_cast<Apple2eSoftSwitchBank *> (m_refs.softSwitches);
-    auto             * iieKbd   = dynamic_cast<Apple2eKeyboard *>       (m_refs.keyboard);
-    auto             * gamePort = m_refs.gamePort;
-    InputMappingMode   prev     = m_inputMode;
-
-
-
-    if (prev == InputMappingMode::Paddle && mode != InputMappingMode::Paddle)
+    // Combined PRESET setter (button cycle + legacy callers): selects BOTH
+    // axes of the FR-013a split model. The Machine-menu items toggle the
+    // axes independently via SetArrowsJoystick / SetPointerMapping, so
+    // e.g. Joystick keys + Mouse pointer can coexist (disjoint game-port
+    // lines); presets deliberately reset the other axis.
+    switch (mode)
     {
-        StopPaddleCapture();
+        case InputMappingMode::Joystick:
+            SetPointerMapping (InputMappingMode::Off);
+            SetArrowsJoystick (true);
+            break;
+
+        case InputMappingMode::Paddle:
+            SetArrowsJoystick (false);
+            SetPointerMapping (InputMappingMode::Paddle);
+            break;
+
+        case InputMappingMode::Mouse:
+            SetArrowsJoystick (false);
+            SetPointerMapping (InputMappingMode::Mouse);
+            break;
+
+        case InputMappingMode::Off:
+        default:
+            SetArrowsJoystick (false);
+            SetPointerMapping (InputMappingMode::Off);
+            break;
     }
+}
 
-    // Leaving Mouse mode: release a held guest button so it can't stick,
-    // and drop the absolute target so the guest mouse stops tracking.
-    if (prev == InputMappingMode::Mouse && mode != InputMappingMode::Mouse
-        && m_mouse != nullptr)
-    {
-        m_mouse->SetButton (false);
-        m_mouse->ClearHostTarget ();
-    }
 
-    m_inputMode                    = mode;
-    m_globalPrefs.inputMappingMode = mode;
-    m_joystickButton.SetMode (mode);
 
-    // The frame width tracks the current label (Paddle is wider), so
-    // resize the button now rather than waiting for the next layout pass.
-    RelayoutJoystickButton();
 
-    SaveGlobalPrefs();
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetArrowsJoystick
+//
+//  Keys axis of the split input model: maps arrows + X/Z onto the joystick
+//  axes / fire buttons. Independent of the Pointer axis. Turning it off
+//  neutralizes the key-derived stick and buttons so a held key can't stay
+//  stuck (axes left alone while Paddle owns them).
+//
+////////////////////////////////////////////////////////////////////////////////
 
-    if (mode == InputMappingMode::Joystick)
+void EmulatorShell::SetArrowsJoystick (bool on)
+{
+    auto * iieSw    = dynamic_cast<Apple2eSoftSwitchBank *> (m_refs.softSwitches);
+    auto * iieKbd   = dynamic_cast<Apple2eKeyboard *>       (m_refs.keyboard);
+    auto * gamePort = m_refs.gamePort;
+
+
+    m_arrowsJoystick               = on;
+    m_globalPrefs.arrowsToJoystick = on;
+    SyncInputModeUi();
+
+    if (on)
     {
         UpdateJoystickAxesFromKeys();
         UpdateJoystickButtonsFromKeys();
         return;
     }
 
-    // Off / Paddle: center the axes and drop the X / Z fire mapping (leaving
-    // only the host Alt keys) so a held key can't stay stuck.
-    if (iieSw != nullptr)
+    if (m_pointerMode != InputMappingMode::Paddle)
     {
-        iieSw->SetPaddle (0, Apple2eSoftSwitchBank::s_knPaddleCenter);
-        iieSw->SetPaddle (1, Apple2eSoftSwitchBank::s_knPaddleCenter);
+        if (iieSw != nullptr)
+        {
+            iieSw->SetPaddle (0, Apple2eSoftSwitchBank::s_knPaddleCenter);
+            iieSw->SetPaddle (1, Apple2eSoftSwitchBank::s_knPaddleCenter);
+        }
+        if (gamePort != nullptr)
+        {
+            gamePort->SetPaddle (0, AppleGamePort::s_knPaddleCenter);
+            gamePort->SetPaddle (1, AppleGamePort::s_knPaddleCenter);
+        }
     }
 
     if (gamePort != nullptr)
     {
-        gamePort->SetPaddle (0, AppleGamePort::s_knPaddleCenter);
-        gamePort->SetPaddle (1, AppleGamePort::s_knPaddleCenter);
         gamePort->SetButton (0, false);
         gamePort->SetButton (1, false);
     }
@@ -4852,11 +4887,60 @@ void EmulatorShell::SetInputMappingMode (InputMappingMode mode)
         iieKbd->SetOpenApple   ((GetKeyState (VK_LMENU) & 0x8000) != 0);
         iieKbd->SetClosedApple ((GetKeyState (VK_RMENU) & 0x8000) != 0);
     }
+}
 
-    if (mode == InputMappingMode::Paddle)
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetPointerMapping
+//
+//  Pointer axis of the split input model: Off / Paddle (capturing) /
+//  Mouse (non-capturing //c IOU mouse). Paddle and Mouse are mutually
+//  exclusive by construction -- both claim the host pointer.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::SetPointerMapping (InputMappingMode pointer)
+{
+    auto             * iieSw = dynamic_cast<Apple2eSoftSwitchBank *> (m_refs.softSwitches);
+    InputMappingMode   prev  = m_pointerMode;
+
+
+    if (pointer == InputMappingMode::Joystick)   // not a pointer mode
+    {
+        pointer = InputMappingMode::Off;
+    }
+
+    if (prev == InputMappingMode::Paddle && pointer != InputMappingMode::Paddle)
+    {
+        StopPaddleCapture();
+    }
+
+    // Leaving Mouse: release a held guest button so it can't stick, and
+    // drop the absolute target so the guest mouse stops tracking.
+    if (prev == InputMappingMode::Mouse && pointer != InputMappingMode::Mouse
+        && m_mouse != nullptr)
+    {
+        m_mouse->SetButton (false);
+        m_mouse->ClearHostTarget ();
+    }
+
+    m_pointerMode                = pointer;
+    m_globalPrefs.pointerMapping = pointer;
+    SyncInputModeUi();
+
+    if (pointer == InputMappingMode::Paddle)
     {
         int64_t  nowMs = (int64_t) std::chrono::duration_cast<std::chrono::milliseconds> (
                              std::chrono::steady_clock::now().time_since_epoch()).count();
+
+        if (iieSw != nullptr)
+        {
+            iieSw->SetPaddle (0, Apple2eSoftSwitchBank::s_knPaddleCenter);
+            iieSw->SetPaddle (1, Apple2eSoftSwitchBank::s_knPaddleCenter);
+        }
 
         m_paddleAxisX = (float) s_kPaddleCenterByte;
         m_paddleAxisY = (float) s_kPaddleCenterByte;
@@ -4876,6 +4960,55 @@ void EmulatorShell::SetInputMappingMode (InputMappingMode mode)
 
 
 
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SyncInputModeUi
+//
+//  Common tail for the axis setters: refresh the toggle button's displayed
+//  mode, keep the legacy combined pref in sync (downgrade compat), persist.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::SyncInputModeUi ()
+{
+    m_globalPrefs.inputMappingMode = DisplayInputMode();
+    m_joystickButton.SetMode (DisplayInputMode());
+    RelayoutJoystickButton();
+    SaveGlobalPrefs();
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ApplyDefaultPointerForMachine
+//
+//  FR-013b: a //c with its mouse connected and no pointer mapping chosen
+//  defaults Pointer to Mouse -- a runtime nudge, not persisted, and
+//  invisible until guest mouse software runs (firmware-live gate). Called
+//  after the per-machine connected states are seeded at launch and on
+//  machine switch.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::ApplyDefaultPointerForMachine ()
+{
+    if (m_mouse != nullptr && m_mouseConnected
+        && m_pointerMode == InputMappingMode::Off)
+    {
+        m_pointerMode = InputMappingMode::Mouse;
+        m_joystickButton.SetMode (DisplayInputMode());
+
+        if (m_hwnd != nullptr)
+        {
+            RelayoutJoystickButton();
+        }
+    }
+}
+
+
+
 
 ////////////////////////////////////////////////////////////////////////////////
 //
@@ -4887,7 +5020,8 @@ void EmulatorShell::SetInputMappingMode (InputMappingMode mode)
 
 void EmulatorShell::CycleInputMappingMode ()
 {
-    InputMappingMode  next = InputMappingMode::Off;
+    InputMappingMode  next    = InputMappingMode::Off;
+    InputMappingMode  current = DisplayInputMode();
 
 
 
@@ -4896,7 +5030,7 @@ void EmulatorShell::CycleInputMappingMode ()
     // so any mode placed after Paddle would be unreachable by clicking
     // the toggle. Mouse mode is non-capturing, so the toggle stays
     // clickable and Paddle remains reachable from it.
-    switch (m_inputMode)
+    switch (current)
     {
         case InputMappingMode::Off:
             next = InputMappingMode::Joystick;
@@ -4937,7 +5071,26 @@ void EmulatorShell::CycleInputMappingMode ()
 
 void EmulatorShell::ToggleInputMappingMode (InputMappingMode target)
 {
-    SetInputMappingMode (m_inputMode == target ? InputMappingMode::Off : target);
+    switch (target)
+    {
+        case InputMappingMode::Joystick:
+            SetArrowsJoystick (!m_arrowsJoystick);
+            break;
+
+        case InputMappingMode::Paddle:
+            SetPointerMapping (m_pointerMode == InputMappingMode::Paddle
+                                   ? InputMappingMode::Off : InputMappingMode::Paddle);
+            break;
+
+        case InputMappingMode::Mouse:
+            SetPointerMapping (m_pointerMode == InputMappingMode::Mouse
+                                   ? InputMappingMode::Off : InputMappingMode::Mouse);
+            break;
+
+        default:
+            SetInputMappingMode (InputMappingMode::Off);
+            break;
+    }
 }
 
 
@@ -4967,7 +5120,7 @@ void EmulatorShell::StartPaddleCapture ()
 
 
 
-    BAIL_OUT_IF (m_inputMode != InputMappingMode::Paddle, S_OK);
+    BAIL_OUT_IF (m_pointerMode != InputMappingMode::Paddle, S_OK);
     BAIL_OUT_IF (m_paddleCaptured,                        S_OK);
     BAIL_OUT_IF (m_hwnd == nullptr,                       S_OK);
     BAIL_OUT_IF (GetForegroundWindow() != m_hwnd,         S_OK);
@@ -5227,7 +5380,7 @@ DxuiMessageResult EmulatorShell::OnChar (WPARAM ch, LPARAM lParam)
     // / OnKeyUp), so swallow their WM_CHAR to keep the letters from also
     // typing into the //e keyboard latch -- mirroring how arrow keys are
     // withheld from the latch.
-    if (m_inputMode == InputMappingMode::Joystick &&
+    if (m_arrowsJoystick &&
         (dynamic_cast<Apple2eSoftSwitchBank *> (m_refs.softSwitches) != nullptr ||
          m_refs.gamePort != nullptr) &&
         (ch == L'x' || ch == L'X' || ch == L'z' || ch == L'Z'))

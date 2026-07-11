@@ -1229,6 +1229,10 @@ HRESULT MachineManager::SwitchMachine (const std::wstring & machineName)
                         IGNORE_RETURN_VALUE (hrM, S_OK);
                     }
                     m_shell.m_mouseConnected = mouseConn;
+
+                    // //c: default Pointer -> Mouse when connected and no
+                    // pointer mapping is active (FR-013b). Runtime nudge.
+                    m_shell.ApplyDefaultPointerForMachine ();
                 }
             }
         }

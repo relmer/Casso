@@ -41,6 +41,8 @@ static const std::set<std::string>  s_kKnownTopLevel = {
     "lastSelectedMachine",
     "audioDownloadConsent",
     "inputMappingMode",
+    "arrowsToJoystick",
+    "pointerMapping",
     "mapArrowsToJoystick",
     "colorMonitorTextMode",
     "colorMonitorTextCustom",
@@ -901,6 +903,8 @@ JsonValue GlobalUserPrefs::ToJson() const
     root.emplace_back ("lastSelectedMachine",  JsonValue (lastSelectedMachine));
     root.emplace_back ("audioDownloadConsent", JsonValue (audioDownloadConsent));
     root.emplace_back ("inputMappingMode",     JsonValue (std::string (InputMappingModeToString (inputMappingMode))));
+    root.emplace_back ("arrowsToJoystick",     JsonValue (arrowsToJoystick));
+    root.emplace_back ("pointerMapping",       JsonValue (std::string (InputMappingModeToString (pointerMapping))));
     root.emplace_back ("colorMonitorTextMode", JsonValue (std::string (ColorTextModeToString (colorMonitorTextMode))));
     root.emplace_back ("colorMonitorTextCustom", JsonValue ((double) (colorMonitorTextCustomArgb & 0x00FFFFFFu)));
 
@@ -986,6 +990,30 @@ HRESULT GlobalUserPrefs::FromJson (const JsonValue & v)
     else if (legacyArrows)
     {
         inputMappingMode = InputMappingMode::Joystick;
+    }
+
+    // FR-013a split model. New keys win; absent keys migrate from the
+    // legacy single mode (joystick -> Keys on; paddle/mouse -> Pointer).
+    arrowsToJoystick = GetBoolOpt (v, "arrowsToJoystick",
+                                   inputMappingMode == InputMappingMode::Joystick);
+    {
+        std::string  pointerStr = GetStringOpt (v, "pointerMapping", "");
+
+        if (!pointerStr.empty())
+        {
+            pointerMapping = InputMappingModeFromString (pointerStr, InputMappingMode::Off);
+            if (pointerMapping == InputMappingMode::Joystick)
+            {
+                pointerMapping = InputMappingMode::Off;    // not a pointer mode
+            }
+        }
+        else
+        {
+            pointerMapping = (inputMappingMode == InputMappingMode::Paddle ||
+                              inputMappingMode == InputMappingMode::Mouse)
+                                 ? inputMappingMode
+                                 : InputMappingMode::Off;
+        }
     }
 
     textModeStr          = GetStringOpt (v, "colorMonitorTextMode", "");
