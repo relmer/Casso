@@ -1,10 +1,14 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" width="96" height="96">
   <!--
-    Apple Mouse (M0100) 3/4 glyph, rev 4 - Skeuomorphic theme.
+    Apple Mouse (M0100) 3/4 glyph, rev 5 - Skeuomorphic theme.
     Same shared camera as the joystick. Body proportions follow the
     top-down master (footprint 56x84, button 64% width at the north end);
     the button sits on the top face at the BACK (north) with its depth
     slightly exaggerated so it reads through the foreshortening.
+    Rev 5: art lifted 16 units so the glyph is vertically centered like
+    the joystick and paddle, and the front/top faces meet at exactly
+    (16,64) with a square shared corner (separately rounded corners left
+    a notch and crossing strokes at the left silhouette).
   -->
   <defs>
     <linearGradient id="mTop" x1="0" y1="0" x2="0.4" y2="1">
@@ -17,21 +21,23 @@
       <stop offset="0" stop-color="#C2BFB8"/><stop offset="1" stop-color="#9F9C93"/>
     </linearGradient>
   </defs>
-  <!-- right side face -->
-  <path d="M 59,64 L 69,50 Q 71,47 71,51 L 71,63 Q 71,67 69,70 L 59,84 Z"
-        fill="#A9A392" stroke="#8F8A7A" stroke-width="2" stroke-linejoin="round"/>
-  <!-- front face -->
-  <path d="M 21,64 L 59,64 L 59,84 L 21,84 Q 16,84 16,79 L 16,69 Q 16,64 21,64 Z"
-        fill="url(#mFront)" stroke="#8F8A7A" stroke-width="2" stroke-linejoin="round"/>
-  <line x1="18.5" y1="78" x2="56.5" y2="78" stroke="#8F8A7A" stroke-width="1.1" opacity="0.7"/>
-  <!-- top face -->
-  <path d="M 19,61 L 26,51 Q 28,48 32.5,48 L 67,48 Q 71.5,48 69,51.5 L 62,61 Q 59.5,64 55,64 L 20.5,64 Q 16,64 19,61 Z"
-        fill="url(#mTop)" stroke="#8F8A7A" stroke-width="2" stroke-linejoin="round"/>
-  <!-- STRONG peripheral bevel: inner plateau raised above the bevel band -->
-  <path d="M 23.5,59.5 L 29,52 Q 30.5,50 34,50 L 63.5,50 Q 66.8,50 65,52.5 L 59.6,59.5 Q 57.7,62 54.2,62 L 26.5,62 Q 22,62 23.5,59.5 Z"
-        fill="#EFEADB" stroke="#B4AE9C" stroke-width="1.6" stroke-linejoin="round"/>
-  <!-- the single wide button at the NORTH (back), shorter front-to-back -->
-  <polygon points="34.7,50.3 63.4,50.3 59.8,55.4 31.2,55.4" fill="#6E6B62"
-           stroke="#6E6B62" stroke-width="2.2" stroke-linejoin="round"/>
-  <polygon points="35.9,51.3 61.8,51.3 58.8,54.4 33,54.4" fill="url(#mBtn)"/>
+  <g transform="translate(0,-16)">
+    <!-- right side face -->
+    <path d="M 59,64 L 69,50 Q 71,47 71,51 L 71,63 Q 71,67 69,70 L 59,84 Z"
+          fill="#A9A392" stroke="#8F8A7A" stroke-width="2" stroke-linejoin="round"/>
+    <!-- front face -->
+    <path d="M 16,64 L 59,64 L 59,84 L 21,84 Q 16,84 16,79 Z"
+          fill="url(#mFront)" stroke="#8F8A7A" stroke-width="2" stroke-linejoin="round"/>
+    <line x1="18.5" y1="78" x2="56.5" y2="78" stroke="#8F8A7A" stroke-width="1.1" opacity="0.7"/>
+    <!-- top face -->
+    <path d="M 19,61 L 26,51 Q 28,48 32.5,48 L 67,48 Q 71.5,48 69,51.5 L 62,61 Q 59.5,64 55,64 L 16,64 Z"
+          fill="url(#mTop)" stroke="#8F8A7A" stroke-width="2" stroke-linejoin="round"/>
+    <!-- STRONG peripheral bevel: inner plateau raised above the bevel band -->
+    <path d="M 23.5,59.5 L 29,52 Q 30.5,50 34,50 L 63.5,50 Q 66.8,50 65,52.5 L 59.6,59.5 Q 57.7,62 54.2,62 L 26.5,62 Q 22,62 23.5,59.5 Z"
+          fill="#EFEADB" stroke="#B4AE9C" stroke-width="1.6" stroke-linejoin="round"/>
+    <!-- the single wide button at the NORTH (back), shorter front-to-back -->
+    <polygon points="34.7,50.3 63.4,50.3 59.8,55.4 31.2,55.4" fill="#6E6B62"
+             stroke="#6E6B62" stroke-width="2.2" stroke-linejoin="round"/>
+    <polygon points="35.9,51.3 61.8,51.3 58.8,54.4 33,54.4" fill="url(#mBtn)"/>
+  </g>
 </svg>

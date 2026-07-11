@@ -1,6 +1,9 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" width="96" height="96">
   <!--
-    Apple Joystick IIe (A2M2002) 3/4 glyph, rev 3 - Skeuomorphic theme.
+    Apple Joystick IIe (A2M2002) 3/4 glyph, rev 5 - Skeuomorphic theme.
+    Rev 5: the front and top faces meet at exactly (10,58) with a square
+    shared corner (separately rounded corners left a notch and crossing
+    strokes at the left silhouette).
     SHARED CAMERA (all skeuo device glyphs): viewer at the lower-right
     corner, elevated. Oblique map from the top-down master grid:
         X = 10 + (x-6)*0.762 + (90-y)*0.143 ;  Y = 58 - (90-y)*0.190
@@ -20,11 +23,11 @@
   </defs>
   <path d="M 74,58 L 83,46 Q 86,42 86,47 L 86,69 Q 86,74 83,78 L 74,90 Z"
         fill="#A9A392" stroke="#8F8A7A" stroke-width="2" stroke-linejoin="round"/>
-  <path d="M 16,58 L 74,58 L 74,90 L 16,90 Q 10,90 10,84 L 10,64 Q 10,58 16,58 Z"
+  <path d="M 10,58 L 74,58 L 74,90 L 16,90 Q 10,90 10,84 Z"
         fill="url(#jFront)" stroke="#8F8A7A" stroke-width="2" stroke-linejoin="round"/>
   <line x1="13" y1="76" x2="71" y2="76" stroke="#8F8A7A" stroke-width="1.2" opacity="0.8"/>
   <path d="M 10,77 h 64 v 7 q 0,6 -6,6 H 16 q -6,0 -6,-6 Z" fill="#000000" opacity="0.06"/>
-  <path d="M 13,54 L 19,46 Q 22,42 27,42 L 81,42 Q 86,42 83,46 L 77,54 Q 74,58 69,58 L 15,58 Q 10,58 13,54 Z"
+  <path d="M 13,54 L 19,46 Q 22,42 27,42 L 81,42 Q 86,42 83,46 L 77,54 Q 74,58 69,58 L 10,58 Z"
         fill="url(#jTop)" stroke="#8F8A7A" stroke-width="2" stroke-linejoin="round"/>
   <!-- well: top-down (36,36)-(86,86) mapped -->
   <polygon points="33.4,57.2 71.7,57.2 78.8,47.7 40.6,47.7" fill="#6B6759"
