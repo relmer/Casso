@@ -1,0 +1,49 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" width="96" height="96">
+  <!--
+    Apple Joystick IIe (A2M2002) 3/4 perspective glyph — Skeuomorphic theme.
+    Rev 2: rounded corners/edges throughout (bezier-rounded face outlines,
+    r=5), matching the molded plastic of the real case and the top-down
+    variants. Oblique projection (+12,-16). 96x96 grid = D2D paint spec.
+  -->
+  <defs>
+    <linearGradient id="sTop" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#E8E3D4"/><stop offset="1" stop-color="#D3CDBC"/>
+    </linearGradient>
+    <linearGradient id="sFront" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#CFC9B8"/><stop offset="1" stop-color="#BFB9A7"/>
+    </linearGradient>
+    <linearGradient id="sBtn" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FF7038"/><stop offset="1" stop-color="#E04E1E"/>
+    </linearGradient>
+    <linearGradient id="sStick" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#55514B"/><stop offset="0.4" stop-color="#3A3733"/><stop offset="1" stop-color="#262421"/>
+    </linearGradient>
+  </defs>
+
+  <!-- body: right side face (rounded outer corners) -->
+  <path d="M 74,58 L 83,46 Q 86,42 86,47 L 86,69 Q 86,74 83,78 L 74,90 Z"
+        fill="#A9A392" stroke="#8F8A7A" stroke-width="2" stroke-linejoin="round"/>
+  <!-- body: front face (two tiers, rounded) -->
+  <rect x="10" y="58" width="64" height="32" rx="6" fill="url(#sFront)" stroke="#8F8A7A" stroke-width="2"/>
+  <line x1="13" y1="76" x2="71" y2="76" stroke="#8F8A7A" stroke-width="1.2" opacity="0.8"/>
+  <path d="M 10,77 h 64 v 7 q 0,6 -6,6 H 16 q -6,0 -6,-6 Z" fill="#000000" opacity="0.06"/>
+  <!-- body: top face (bezier-rounded parallelogram) -->
+  <path d="M 13,54 L 19,46 Q 22,42 27,42 L 81,42 Q 86,42 83,46 L 77,54 Q 74,58 69,58 L 15,58 Q 10,58 13,54 Z"
+        fill="url(#sTop)" stroke="#8F8A7A" stroke-width="2" stroke-linejoin="round"/>
+
+  <!-- well opening (rounded via fattened join) -->
+  <polygon points="28,54 66,54 74,46 36,46" fill="#6B6759" stroke="#6B6759" stroke-width="5" stroke-linejoin="round"/>
+  <!-- funnel facets catching light inside the well -->
+  <polygon points="36,46 74,46 61,50 45,50" fill="#8D8877" stroke="#8D8877" stroke-width="2" stroke-linejoin="round"/>
+  <polygon points="66,54 74,46 61,50" fill="#7C7767"/>
+
+  <!-- stick: thin shaft, tapered grip (rounded), domed cap -->
+  <rect x="49.4" y="42" width="3.2" height="10" rx="1.5" fill="#7A6A4E"/>
+  <polygon points="47.5,44 54.5,44 57,14 45,14" fill="url(#sStick)" stroke="#3A3733" stroke-width="3" stroke-linejoin="round"/>
+  <circle cx="51" cy="14" r="6.5" fill="url(#sStick)"/>
+  <ellipse cx="49" cy="12" rx="2.2" ry="3" fill="#FFFFFF" opacity="0.22"/>
+
+  <!-- fire buttons on the upper front deck -->
+  <rect x="17" y="61.5" width="13" height="12" rx="3" fill="url(#sBtn)" stroke="#A63C14" stroke-width="1.4"/>
+  <rect x="36" y="61.5" width="13" height="12" rx="3" fill="url(#sBtn)" stroke="#A63C14" stroke-width="1.4"/>
+</svg>

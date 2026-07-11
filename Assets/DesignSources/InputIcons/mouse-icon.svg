@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" width="96" height="96">
+  <!--
+    Apple Mouse (M0100 family) top-down glyph — DarkModern / retro themes.
+    Rounded-rect body with the chamfered side bevel (inner plateau), single
+    wide gray button at the top. Cord omitted. 96x96 grid = D2D paint spec.
+  -->
+  <defs>
+    <linearGradient id="mBody" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#E2DDCE"/><stop offset="1" stop-color="#C9C3B2"/>
+    </linearGradient>
+    <linearGradient id="mPlateau" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#EAE5D6"/><stop offset="1" stop-color="#D5CFBE"/>
+    </linearGradient>
+    <linearGradient id="mBtn" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#C4C2BB"/><stop offset="1" stop-color="#A5A29A"/>
+    </linearGradient>
+  </defs>
+
+  <!-- body (outer footprint, chamfered corners feel via generous rx) -->
+  <rect x="20" y="6" width="56" height="84" rx="12" fill="url(#mBody)" stroke="#8F8A7A" stroke-width="2"/>
+  <!-- top plateau (inside the side bevel) -->
+  <rect x="27" y="13" width="42" height="70" rx="8" fill="url(#mPlateau)" stroke="#9B9686" stroke-width="1" opacity="0.9"/>
+  <!-- bevel accent lines (chamfer hint, lower corners) -->
+  <line x1="27" y1="76" x2="22" y2="86" stroke="#ABA593" stroke-width="1.2" opacity="0.7"/>
+  <line x1="69" y1="76" x2="74" y2="86" stroke="#ABA593" stroke-width="1.2" opacity="0.7"/>
+
+  <!-- the single wide button -->
+  <rect x="30" y="14" width="36" height="24" rx="5" fill="url(#mBtn)" stroke="#7E7B70" stroke-width="1.8"/>
+  <!-- button gap line -->
+  <line x1="30" y1="42" x2="66" y2="42" stroke="#9B9686" stroke-width="1.4" opacity="0.8"/>
+</svg>
