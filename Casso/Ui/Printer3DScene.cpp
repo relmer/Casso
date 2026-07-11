@@ -20,16 +20,21 @@ namespace
 {
     constexpr float   s_kPi = 3.14159265f;
 
-    // Case footprint.
-    constexpr float   s_kBodyHalfW  = 0.88f;
+    // Case footprint. Width and overall depth are set to match the width:
+    // height:depth ratio (3.740 : 1.0 : 2.696) measured off the user's
+    // reference CAD model (Tinkercad export, Assets/Imagewriter II.zip); the
+    // extra depth lands entirely in the rear deck (no explicit rule ever fixed
+    // its depth, unlike the front-portion ratios below).
+    constexpr float   s_kBodyHalfW  = 0.907f;
     constexpr float   s_kBodyZFront = 0.42f;
-    constexpr float   s_kBodyZBack  = -0.82f;
+    constexpr float   s_kBodyZBack  = -0.888f;
 
-    // The whole printer is inclined 20 degrees front-to-back, rotating about
-    // the bottom edge of the front face (y=0 at the front plane): the rear
-    // lifts and the front face tips toward the camera, like the real machine
-    // on its feet. Applied as a model matrix in Render.
-    constexpr float   s_kBodyTiltRad = 20.0f * s_kPi / 180.0f;
+    // The whole printer is inclined 10 degrees front-to-back (matches the
+    // reference model), rotating about the bottom edge of the front face
+    // (y=0 at the front plane): the rear lifts and the front face tips
+    // toward the camera, like the real machine on its feet. Applied as a
+    // model matrix in Render.
+    constexpr float   s_kBodyTiltRad = 10.0f * s_kPi / 180.0f;
 
     // Side profile, front to back: face -> step ledge -> hood -> smoked cover.
     // Reference proportions: the exposed shelf is as deep as the front face is
@@ -52,14 +57,17 @@ namespace
     // Platen end housings: rounded-top blocks running front-to-back at each
     // end of the platen line, merged into the case (NOT freestanding
     // cylinders). Extruded along x with a quarter-round crown; the paper-
-    // advance knob emerges from the right one on the same axis.
-    constexpr float   s_kEndXIn     = 0.70f;    // housing spans In..Out (mirrored)
-    constexpr float   s_kEndXOut    = 0.90f;    // slightly proud of the body side
+    // advance knob emerges from the right one on the same axis. X-span and
+    // ground contact match the reference model: the housing's inner/outer
+    // edges sit at 0.882/1.118 of the body half-width (measured), and it
+    // reaches all the way down to the ground -- NOT floating mid-height.
+    constexpr float   s_kEndXIn     = 0.80f;    // housing spans In..Out (mirrored)
+    constexpr float   s_kEndXOut    = 1.01f;    // proud of the body side both ways
     constexpr float   s_kEndCy      = 0.44f;    // crown axis (y, z)
     constexpr float   s_kEndCz      = -0.26f;
     constexpr float   s_kEndR       = 0.08f;    // crown radius (top = 0.52)
-    constexpr float   s_kEndBaseY   = 0.34f;    // buried in the hood
-    constexpr float   s_kKnobX1     = 0.99f;
+    constexpr float   s_kEndBaseY   = 0.0f;     // touches the ground, per reference
+    constexpr float   s_kKnobX1     = 1.10f;
     constexpr float   s_kKnobR      = 0.050f;
 
     // Paper strip: leans back from vertical, then curls away over a roll.
@@ -470,15 +478,51 @@ void Printer3DScene::BuildBodyBack (std::vector<Vertex> & out) const
         AppendQuad (out, p00, p10, p01, p11, 0, 0, 1, 1, s_kArgbCase, 0.94f);
     }
 
-    // Vent grooves: thin darker stripes running front-to-back across the deck.
-    for (float gx = -0.84f; gx <= 0.84f; gx += 0.06f)
+    // Vent grooves: true recessed slats running front-to-back across the
+    // deck -- a shallow trench (floor + two side walls) rather than a flat
+    // shading trick, so the recess actually reads as depth under the raking
+    // camera angle instead of just a darker stripe.
     {
-        float   p00[3] = { gx,          s_kDeckY, s_kBodyZBack + 0.02f };
-        float   p10[3] = { gx + 0.010f, s_kDeckY, s_kBodyZBack + 0.02f };
-        float   p01[3] = { gx,          s_kDeckY, s_kDeckZFront - 0.015f };
-        float   p11[3] = { gx + 0.010f, s_kDeckY, s_kDeckZFront - 0.015f };
+        constexpr float   kVentRecess = 0.012f;
+        constexpr float   kVentW      = 0.010f;
+        float              zB         = s_kBodyZBack + 0.02f;
+        float              zF         = s_kDeckZFront - 0.015f;
+        float              floorY     = s_kDeckY - kVentRecess;
 
-        AppendQuad (out, p00, p10, p01, p11, 0, 0, 1, 1, s_kArgbCase, 0.66f);
+        for (float gx = -0.84f; gx <= 0.84f; gx += 0.06f)
+        {
+            float   rx = gx + kVentW;
+
+            // Floor of the trench.
+            {
+                float   p00[3] = { gx, floorY, zB };
+                float   p10[3] = { rx, floorY, zB };
+                float   p01[3] = { gx, floorY, zF };
+                float   p11[3] = { rx, floorY, zF };
+
+                AppendQuad (out, p00, p10, p01, p11, 0, 0, 1, 1, s_kArgbCase, 0.42f);
+            }
+
+            // Left wall (facing +x).
+            {
+                float   p00[3] = { gx, s_kDeckY, zB };
+                float   p10[3] = { gx, s_kDeckY, zF };
+                float   p01[3] = { gx, floorY,   zB };
+                float   p11[3] = { gx, floorY,   zF };
+
+                AppendQuad (out, p00, p10, p01, p11, 0, 0, 1, 1, s_kArgbCase, 0.58f);
+            }
+
+            // Right wall (facing -x).
+            {
+                float   p00[3] = { rx, s_kDeckY, zF };
+                float   p10[3] = { rx, s_kDeckY, zB };
+                float   p01[3] = { rx, floorY,   zF };
+                float   p11[3] = { rx, floorY,   zB };
+
+                AppendQuad (out, p00, p10, p01, p11, 0, 0, 1, 1, s_kArgbCase, 0.58f);
+            }
+        }
     }
 
     // Slot strip between the deck and the platen bay.
@@ -702,6 +746,44 @@ void Printer3DScene::BuildBodyFront (std::vector<Vertex> & out) const
     AppendFaceQuad (out, -s_kBodyHalfW, s_kBodyHalfW, 0.0f, s_kFaceTopY, s_kBodyZFront,
                     s_kArgbCase, 0.90f);
 
+    // Wraparound reveal groove: a shallow recessed accent line partway up the
+    // front face (floor + two edge walls, drawn over the flat face so it
+    // reads as a real inset). Runs the full width here; the badge and control
+    // caps paint over it afterward, same as a real reveal line disappearing
+    // behind surface-mounted trim.
+    {
+        constexpr float   kGrooveYRatio = 0.30f;   // fraction up the front-face height
+        constexpr float   kGrooveBandH  = 0.012f;
+        constexpr float   kGrooveRecess = 0.010f;
+
+        float   gy0    = s_kFaceTopY * kGrooveYRatio;
+        float   gy1    = gy0 + kGrooveBandH;
+        float   zOuter = s_kBodyZFront;
+        float   zInner = s_kBodyZFront - kGrooveRecess;
+
+        AppendFaceQuad (out, -s_kBodyHalfW, s_kBodyHalfW, gy0, gy1, zInner, s_kArgbCase, 0.55f);
+
+        // Top wall (ceiling of the groove, facing down).
+        {
+            float   p00[3] = { -s_kBodyHalfW, gy1, zOuter };
+            float   p10[3] = {  s_kBodyHalfW, gy1, zOuter };
+            float   p01[3] = { -s_kBodyHalfW, gy1, zInner };
+            float   p11[3] = {  s_kBodyHalfW, gy1, zInner };
+
+            AppendQuad (out, p00, p10, p01, p11, 0, 0, 1, 1, s_kArgbCase, 0.70f);
+        }
+
+        // Bottom wall (floor of the approach into the groove, facing up).
+        {
+            float   p00[3] = { -s_kBodyHalfW, gy0, zInner };
+            float   p10[3] = {  s_kBodyHalfW, gy0, zInner };
+            float   p01[3] = { -s_kBodyHalfW, gy0, zOuter };
+            float   p11[3] = {  s_kBodyHalfW, gy0, zOuter };
+
+            AppendQuad (out, p00, p10, p01, p11, 0, 0, 1, 1, s_kArgbCase, 0.88f);
+        }
+    }
+
     BuildCassoLogo (out);
     BuildControls  (out);
 
@@ -766,8 +848,10 @@ void Printer3DScene::BuildBodyFront (std::vector<Vertex> & out) const
 //  The control staircase on the front face's right: six cream caps rising
 //  toward the right (paper load/eject, form feed, line feed, print quality,
 //  select, on/off), with status LEDs above the right three -- print quality
-//  and select lit green, and the on/off pair: pwr lit green below a dark
-//  (unlit) error red.
+//  and select each get a single lit-green window; the on/off pair is a single
+//  window split side by side, per the reference model -- unlit error (red)
+//  on the left half, lit pwr (green) on the right half, both at the same
+//  height (not stacked).
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -799,20 +883,24 @@ void Printer3DScene::BuildControls (std::vector<Vertex> & out) const
 
         AppendFaceQuad (out, x0, x1, cy, y1, zCap, s_kArgbButton, 0.94f);
 
-        // Tiny LED windows flush in the wall above the right three: print
-        // quality, select, and the on/off pair (pwr green under error red).
-        if (i >= 3)
+        // LED windows flush in the wall above the right three caps.
+        if (i == 3 || i == 4)
         {
+            // print quality / select: a single lit-green window.
             float   ly = cy + s_kButtonH + 0.012f;
 
             AppendFaceQuad (out, cx - 0.013f, cx + 0.013f, ly, ly + 0.008f, zWall,
                             s_kArgbLedOn, 1.0f);
+        }
+        else if (i == 5)
+        {
+            // on/off: one window, split left(error, unlit)/right(pwr, lit).
+            float   ly = cy + s_kButtonH + 0.012f;
 
-            if (i == 5)
-            {
-                AppendFaceQuad (out, cx - 0.013f, cx + 0.013f, ly + 0.010f, ly + 0.018f, zWall,
-                                s_kArgbLedErr, 1.0f);
-            }
+            AppendFaceQuad (out, cx - 0.013f, cx,          ly, ly + 0.008f, zWall,
+                            s_kArgbLedErr, 1.0f);
+            AppendFaceQuad (out, cx,          cx + 0.013f, ly, ly + 0.008f, zWall,
+                            s_kArgbLedOn, 1.0f);
         }
     }
 }
