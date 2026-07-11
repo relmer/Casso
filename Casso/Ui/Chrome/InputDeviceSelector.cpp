@@ -471,41 +471,40 @@ void InputDeviceSelector::PaintPaddleGlyph (IDxuiPainter & p, const RECT & box, 
     }
 
     // 3/4 perspective (paddle-icon-skeuo.svg rev 10): converged against
-    // the reference photos. The knurled dial FILLS the head (thin collar
-    // rim + gap), a LOW convex-shouldered DOME rises from the knurl's
-    // edge to the knurled CAP with the groove-and-"0" top, the handle is
-    // a fat wedge (83% of head width at the joint, 9 fine ribs wrapping
-    // the SE shoulder, badge chip near the tip), the fire button is a
-    // big tab seated LOW on the collar wall with a lit top facet, and
-    // the shell parting seam runs from the handle side around the
-    // collar. Circles squash to ry/rx = 0.35 (shared camera).
-    // handle wedge: tip end face, SE side face + seam, top face, ribs
+    // the reference photos. The HANDLE terminates in a DISC (rx 21)
+    // under the dial, slightly larger than it — handle and disc are one
+    // cream body whose top surface has edges TANGENT to the disc ellipse
+    // ((37.7,36.1) and (77.2,40.9)). The DIAL is two flat knurled
+    // CYLINDERS (rx 17.5 / 7.5) joined by a small-radius FILLET skirt —
+    // no dome. The fire BUTTON is an arc segment of the handle disc at
+    // rx 24.5 (vs 21), following the disc's curvature at ~3:00-4:30.
+    // Circles squash to ry/rx = 0.35 (shared camera).
+    // handle-disc wall, then tip face, then the SE side face (blends
+    // into the disc wall — no seam between them)
+    p.FillEllipseApprox (g.X (58), g.Y (48), g.S (21), g.S (7.3f), 0xFFBFB9A7);
+    p.FillRect          (g.X (37), g.Y (38), g.S (42), g.S (10), 0xFFBFB9A7);
     p.FillConvexQuad  (g.X (13), g.Y (68), g.X (30), g.Y (78), g.X (30), g.Y (85), g.X (13), g.Y (75), kSideFace);
-    p.FillConvexQuad  (g.X (30), g.Y (78), g.X (74.5f), g.Y (52), g.X (74.5f), g.Y (62), g.X (30), g.Y (85), 0xFFB3AD9C);
-    p.DrawLineApprox  (g.X (31), g.Y (82), g.X (73.5f), g.Y (58.2f), g.S (1.0f), 0xB38F8A7A);
-    p.FillConvexQuad  (g.X (13), g.Y (68), g.X (41), g.Y (42.5f), g.X (74.5f), g.Y (52), g.X (30), g.Y (78), kCase);
-    for (int i = 0; i < 9; i++)
+    p.FillConvexQuad  (g.X (30), g.Y (78), g.X (77), g.Y (41), g.X (74), g.Y (54), g.X (30), g.Y (85), 0xFFB3AD9C);
+    // unified top surface: disc top + handle top, one cream body
+    p.FillEllipseApprox (g.X (58), g.Y (38), g.S (21), g.S (7.3f), kCase);
+    p.FillConvexQuad  (g.X (13), g.Y (68), g.X (37.7f), g.Y (36.1f), g.X (77.2f), g.Y (40.9f), g.X (30), g.Y (78), kCase);
+    for (int i = 0; i < 8; i++)
     {
-        float  t  = 0.16f + 0.08f * (float) i;
-        float  lx = 13 + 28 * t,    ly = 68 - 25.5f * t;    // left edge, tip->joint
-        float  rx = 30 + 44.5f * t, ry = 78 - 26 * t;       // right edge, tip->joint
+        float  t  = 0.14f + 0.07f * (float) i;
+        float  lx = 13 + 24.7f * t, ly = 68 - 31.9f * t;    // left edge, tip->tangent
+        float  rx = 30 + 47.2f * t, ry = 78 - 37.1f * t;    // right edge, tip->tangent
         float  ex = lx + 0.97f * (rx - lx), ey = ly + 0.97f * (ry - ly);
         p.DrawLineApprox (g.X (lx + 0.08f * (rx - lx)), g.Y (ly + 0.08f * (ry - ly)),
                           g.X (ex), g.Y (ey), g.S (1.3f), kRib);
         // ribs wrap over the SE shoulder onto the side face
         p.DrawLineApprox (g.X (ex), g.Y (ey), g.X (ex), g.Y (ey + 2.2f), g.S (1.1f), 0xFF98927F);
     }
-    // Apple badge chip in the smooth patch near the tip
+    // Apple badge chip in the smooth patch near the tip, parting seam
     p.FillConvexQuad  (g.X (23.3f), g.Y (68.4f), g.X (26.4f), g.Y (70), g.X (25.1f), g.Y (72.6f), g.X (22), g.Y (71.1f), 0x99A9A392);
-    // housing collar: wall (base ellipse + rect) + parting seam + rim
-    p.FillEllipseApprox (g.X (58), g.Y (48), g.S (21), g.S (7.3f), 0xFFBFB9A7);
-    p.FillRect          (g.X (37), g.Y (38), g.S (42), g.S (10), 0xFFBFB9A7);
-    p.DrawLineApprox    (g.X (41), g.Y (49.5f), g.X (49), g.Y (52.2f), g.S (1.0f), 0x998F8A7A);
-    p.DrawLineApprox    (g.X (49), g.Y (52.2f), g.X (67), g.Y (52.2f), g.S (1.0f), 0x998F8A7A);
-    p.DrawLineApprox    (g.X (67), g.Y (52.2f), g.X (75), g.Y (49.5f), g.S (1.0f), 0x998F8A7A);
-    p.FillEllipseApprox (g.X (58), g.Y (38), g.S (21), g.S (7.3f), kCase);
+    p.DrawLineApprox  (g.X (31), g.Y (82), g.X (71.5f), g.Y (52.5f), g.S (1.0f), 0xB38F8A7A);
+    // dark opening the dial sits in
     p.FillEllipseApprox (g.X (58), g.Y (38), g.S (19.5f), g.S (6.8f), kHole);
-    // knurled ring: fills the opening, 6-unit knurl band on its wall
+    // dial lower cylinder: flat top, 6-unit knurl band on its wall
     p.FillEllipseApprox (g.X (58), g.Y (38), g.S (17.5f), g.S (6.1f), kDialSide);
     p.FillRect          (g.X (40.5f), g.Y (32), g.S (35), g.S (6), kDialSide);
     p.FillEllipseApprox (g.X (58), g.Y (32), g.S (17.5f), g.S (6.1f), kDial);
@@ -515,28 +514,28 @@ void InputDeviceSelector::PaintPaddleGlyph (IDxuiPainter & p, const RECT & box, 
         float  s  = sqrtf (1.0f - (dx / 17.5f) * (dx / 17.5f));
         p.DrawLineApprox (g.X (58 + dx), g.Y (32 + 6.1f * s), g.X (58 + dx), g.Y (38 + 6.1f * s), g.S (1.1f), kTick);
     }
-    // LOW dome springing at the knurl's edge, sides bowing gently
-    // outward (base ellipse + two frustum slices sampling the SVG curve)
-    p.FillEllipseApprox (g.X (58), g.Y (31), g.S (16), g.S (5.6f), kDial);
-    p.FillConvexQuad  (g.X (42), g.Y (31), g.X (74), g.Y (31), g.X (70.4f), g.Y (27), g.X (45.6f), g.Y (27), kDial);
-    p.FillConvexQuad  (g.X (45.6f), g.Y (27), g.X (70.4f), g.Y (27), g.X (65.5f), g.Y (23.5f), g.X (50.5f), g.Y (23.5f), kDial);
-    // knurled cap cylinder, then the groove-and-"0" top
-    p.FillEllipseApprox (g.X (58), g.Y (23.5f), g.S (7.5f), g.S (2.6f), kDialSide);
-    p.FillRect          (g.X (50.5f), g.Y (17.5f), g.S (15), g.S (6), kDialSide);
+    // small-radius fillet where the cap cylinder meets the flat top
+    p.FillEllipseApprox (g.X (58), g.Y (31.3f), g.S (10), g.S (3.5f), 0xFFA6A08E);
+    // dial upper cylinder (knurled cap), then the groove-and-"0" top
+    p.FillEllipseApprox (g.X (58), g.Y (32), g.S (7.5f), g.S (2.6f), kDialSide);
+    p.FillRect          (g.X (50.5f), g.Y (23), g.S (15), g.S (9), kDialSide);
     for (int i = -3; i <= 3; i++)
     {
         float  dx = 2.4f * (float) i;
         float  s  = sqrtf (1.0f - (dx / 7.5f) * (dx / 7.5f));
-        p.DrawLineApprox (g.X (58 + dx), g.Y (17.5f + 2.6f * s), g.X (58 + dx), g.Y (23.5f + 2.6f * s), g.S (1.1f), kTick);
+        p.DrawLineApprox (g.X (58 + dx), g.Y (23 + 2.6f * s), g.X (58 + dx), g.Y (32 + 2.6f * s), g.S (1.1f), kTick);
     }
-    p.FillEllipseApprox (g.X (58), g.Y (17.5f), g.S (7.5f), g.S (2.6f), kKnob);
-    p.FillEllipseApprox (g.X (58), g.Y (17.5f), g.S (4.4f), g.S (1.5f), kDialSide);
-    p.FillEllipseApprox (g.X (58), g.Y (17.5f), g.S (3.3f), g.S (1.1f), kKnob);
-    p.FillEllipseApprox (g.X (58), g.Y (17.5f), g.S (1.5f), g.S (0.55f), kDialSide);
-    // orange fire button: big tab seated LOW, with a thin lit top facet
-    p.FillConvexQuad  (g.X (76.5f), g.Y (42), g.X (84.5f), g.Y (43), g.X (84.5f), g.Y (51.4f), g.X (76.5f), g.Y (52.5f), kOrange);
-    p.FillEllipseApprox (g.X (84.5f), g.Y (47.2f), g.S (2), g.S (4.2f), kOrange);
-    p.DrawLineApprox  (g.X (76.8f), g.Y (42.5f), g.X (83.5f), g.Y (43.5f), g.S (1.2f), 0xFFFF9058);
+    p.FillEllipseApprox (g.X (58), g.Y (23), g.S (7.5f), g.S (2.6f), kKnob);
+    p.FillEllipseApprox (g.X (58), g.Y (23), g.S (4.4f), g.S (1.5f), kDialSide);
+    p.FillEllipseApprox (g.X (58), g.Y (23), g.S (3.3f), g.S (1.1f), kKnob);
+    p.FillEllipseApprox (g.X (58), g.Y (23), g.S (1.5f), g.S (0.55f), kDialSide);
+    // fire button: rim-concentric arc segment (quads sample the arcs at
+    // 3:00 / 3:45 / 4:30) — lit top band, orange outer wall, dark S cut
+    p.FillConvexQuad  (g.X (82.4f), g.Y (37.8f), g.X (82.4f), g.Y (44.3f), g.X (81), g.Y (47.9f), g.X (81), g.Y (41.4f), kOrange);
+    p.FillConvexQuad  (g.X (81), g.Y (41.4f), g.X (81), g.Y (47.9f), g.X (75.3f), g.Y (51), g.X (75.3f), g.Y (44.5f), kOrange);
+    p.FillConvexQuad  (g.X (78.9f), g.Y (37.4f), g.X (82.4f), g.Y (37.8f), g.X (81), g.Y (41.4f), g.X (77.7f), g.Y (40.5f), 0xFFFF7D46);
+    p.FillConvexQuad  (g.X (77.7f), g.Y (40.5f), g.X (81), g.Y (41.4f), g.X (75.3f), g.Y (44.5f), g.X (72.8f), g.Y (43.2f), 0xFFFF7D46);
+    p.FillConvexQuad  (g.X (72.8f), g.Y (43.2f), g.X (75.3f), g.Y (44.5f), g.X (75.3f), g.Y (51), g.X (72.8f), g.Y (49.7f), 0xFFC24418);
 }
 
 
