@@ -581,6 +581,156 @@ void DxuiPainter::FillCircleApprox (
 
 
 
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FillEllipseApprox
+//
+//  Axis-aligned ellipse via the same horizontal rect slicing as
+//  FillCircleApprox, with the half-width scaled by rx/ry.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiPainter::FillEllipseApprox (
+    float     cxPx,
+    float     cyPx,
+    float     radiusXPx,
+    float     radiusYPx,
+    uint32_t  argbColor)
+{
+    int  slices = (int) (radiusYPx * 2.0f);
+
+
+    DXUI_ASSERT_UI_THREAD();
+
+    if (radiusXPx <= 0.0f || radiusYPx <= 0.0f) return;
+    if (slices <  6)  slices = 6;
+    if (slices > 32)  slices = 32;
+
+    for (int i = 0; i < slices; i++)
+    {
+        float  y0   = cyPx - radiusYPx + (2.0f * radiusYPx * (float) i)       / (float) slices;
+        float  y1   = cyPx - radiusYPx + (2.0f * radiusYPx * (float) (i + 1)) / (float) slices;
+        float  ymid = (y0 + y1) * 0.5f;
+        float  t    = (ymid - cyPx) / radiusYPx;
+        float  sq   = 1.0f - t * t;
+        float  half = (sq > 0.0f) ? radiusXPx * sqrtf (sq) : 0.0f;
+
+        FillRect (cxPx - half, y0, 2.0f * half, y1 - y0, argbColor);
+    }
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FillConvexQuad
+//
+//  Convex quad (points in order) via horizontal scanline slices: for each
+//  slice the left/right span is interpolated along the two edges the slice
+//  crosses. Good to ~1px, matching the circle approximation's fidelity.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiPainter::FillConvexQuad (
+    float x0, float y0, float x1, float y1,
+    float x2, float y2, float x3, float y3,
+    uint32_t argbColor)
+{
+    float  px[4] = { x0, x1, x2, x3 };
+    float  py[4] = { y0, y1, y2, y3 };
+    float  minY  = py[0], maxY = py[0];
+
+
+    DXUI_ASSERT_UI_THREAD();
+
+    for (int i = 1; i < 4; i++)
+    {
+        if (py[i] < minY) minY = py[i];
+        if (py[i] > maxY) maxY = py[i];
+    }
+
+    int  slices = (int) (maxY - minY);
+    if (slices < 1)   slices = 1;
+    if (slices > 96)  slices = 96;
+
+    for (int i = 0; i < slices; i++)
+    {
+        float  sy0  = minY + (maxY - minY) * (float) i       / (float) slices;
+        float  sy1  = minY + (maxY - minY) * (float) (i + 1) / (float) slices;
+        float  ymid = (sy0 + sy1) * 0.5f;
+        float  lo   = 0.0f;
+        float  hi   = 0.0f;
+        bool   any  = false;
+
+        // Intersect the scanline with each edge; track the min/max x.
+        for (int e = 0; e < 4; e++)
+        {
+            float  ax = px[e],           ay = py[e];
+            float  bx = px[(e + 1) & 3], by = py[(e + 1) & 3];
+
+            if ((ay <= ymid && by >= ymid) || (by <= ymid && ay >= ymid))
+            {
+                float  dy = by - ay;
+                float  x  = (fabsf (dy) < 0.0001f) ? ax
+                                                   : ax + (bx - ax) * (ymid - ay) / dy;
+                if (!any)        { lo = hi = x; any = true; }
+                else if (x < lo) { lo = x; }
+                else if (x > hi) { hi = x; }
+            }
+        }
+
+        if (any && hi > lo)
+        {
+            FillRect (lo, sy0, hi - lo, sy1 - sy0, argbColor);
+        }
+    }
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DrawLineApprox
+//
+//  Line segment as small steps of filled rects along the major axis --
+//  glyph-stroke quality (grip ribs, knurl ticks), not general vector art.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiPainter::DrawLineApprox (
+    float x0, float y0, float x1, float y1,
+    float thicknessPx, uint32_t argbColor)
+{
+    float  dx    = x1 - x0;
+    float  dy    = y1 - y0;
+    float  len   = sqrtf (dx * dx + dy * dy);
+    float  half  = thicknessPx * 0.5f;
+
+
+    DXUI_ASSERT_UI_THREAD();
+
+    if (len < 0.5f)
+    {
+        FillRect (x0 - half, y0 - half, thicknessPx, thicknessPx, argbColor);
+        return;
+    }
+
+    int  steps = (int) len + 1;
+    if (steps > 96) steps = 96;
+
+    for (int i = 0; i <= steps; i++)
+    {
+        float  t = (float) i / (float) steps;
+        FillRect (x0 + dx * t - half, y0 + dy * t - half,
+                  thicknessPx, thicknessPx, argbColor);
+    }
+}
+
+
+
+
 
 ////////////////////////////////////////////////////////////////////////////////
 //

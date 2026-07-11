@@ -399,6 +399,10 @@
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderOutputFile>$(IntDir)CassoPch.pch</PrecompiledHeaderOutputFile>
     </ClCompile>
+    <ClCompile Include="..\Casso\Ui\Chrome\InputDeviceSelector.cpp">
+      <PrecompiledHeader>Use</PrecompiledHeader>
+      <PrecompiledHeaderOutputFile>$(IntDir)CassoPch.pch</PrecompiledHeaderOutputFile>
+    </ClCompile>
     <ClCompile Include="..\Casso\CrtPostProcess.cpp">
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderOutputFile>$(IntDir)CassoPch.pch</PrecompiledHeaderOutputFile>
@@ -436,6 +440,7 @@
     <ClCompile Include="UiTests\ColorUtilTests.cpp" />
     <ClCompile Include="UiTests\HardwareTreeTests.cpp" />
     <ClCompile Include="UiTests\HardwarePageTests.cpp" />
+    <ClCompile Include="UiTests\InputDeviceSelectorTests.cpp" />
     <ClCompile Include="UiTests\CrtParameterMappingTests.cpp" />
     <ClCompile Include="UiTests\CrtLetterboxLayoutTests.cpp" />
     <ClCompile Include="UiTests\DpiScalerTests.cpp" />

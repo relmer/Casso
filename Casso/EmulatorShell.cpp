@@ -721,7 +721,7 @@ HRESULT EmulatorShell::Initialize (
                                : m_globalPrefs.pointerMapping;
         m_globalPrefs.pointerMapping   = m_pointerMode;
         m_globalPrefs.inputMappingMode = DisplayInputMode();
-        m_joystickButton.SetMode (DisplayInputMode());
+        SyncSelectorState();
 
         SetColorMonitorTextArgbLive (
             ColorUtil::ResolveColorMonitorTextArgb (m_globalPrefs.colorMonitorTextMode,
@@ -2349,6 +2349,11 @@ void EmulatorShell::ApplyThemeToChrome (const CassoTheme & theme)
     m_driveChrome[0].SetCompact (theme.compactDrives);
     m_driveChrome[1].SetCompact (theme.compactDrives);
 
+    // T030d: the device selector's glyph style follows the drive style --
+    // full skeuomorphic themes get the 3/4 perspective peripherals, compact
+    // (DarkModern / retro) themes the top-down glyphs.
+    m_joystickButton.SetSkeuoStyle (!theme.compactDrives);
+
     // Push the nav/dropdown palette onto the menu bar so both the
     // in-window strip and the popup-backed dropdown render with chrome
     // colours (the old per-frame apply path is dead post-T129).
@@ -2431,7 +2436,7 @@ void EmulatorShell::LayoutJoystickButton (int clientW,
     m_joyBtnDpi        = dpi;
 
     scaler.SetDpi (dpi);
-    m_joystickButton.SetMode (DisplayInputMode());
+    SyncSelectorState();
     m_joystickButton.Layout (anchor, scaler);
     // m_joystickTooltip is a deferred popup: it derives its DPI from its
     // popup host (set via SetPopupHost) at show time, so no SetDpi here.
@@ -3979,7 +3984,20 @@ DxuiMessageResult EmulatorShell::OnLButtonUp (WPARAM wParam, LPARAM lParam)
     // arrow / X / Z inputs runs.
     if (m_joystickButton.HitTest (x, y))
     {
-        CycleInputMappingMode();
+        switch (m_joystickButton.SegmentAt (x, y))
+        {
+            case InputDeviceSelector::Segment::Joystick:
+                ToggleInputMappingMode (InputMappingMode::Joystick);
+                break;
+            case InputDeviceSelector::Segment::Paddle:
+                ToggleInputMappingMode (InputMappingMode::Paddle);
+                break;
+            case InputDeviceSelector::Segment::Mouse:
+                ToggleInputMappingMode (InputMappingMode::Mouse);
+                break;
+            default:
+                break;
+        }
         return DxuiMessageResult::NotHandled;
     }
 
@@ -4972,9 +4990,27 @@ void EmulatorShell::SetPointerMapping (InputMappingMode pointer)
 void EmulatorShell::SyncInputModeUi ()
 {
     m_globalPrefs.inputMappingMode = DisplayInputMode();
-    m_joystickButton.SetMode (DisplayInputMode());
+    SyncSelectorState();
     RelayoutJoystickButton();
     SaveGlobalPrefs();
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SyncSelectorState
+//
+//  Pushes the split-model state (Keys, Pointer, mouse availability) into
+//  the T030d device selector.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::SyncSelectorState ()
+{
+    m_joystickButton.SetState (m_arrowsJoystick, m_pointerMode,
+                               m_mouse != nullptr && m_mouseConnected);
 }
 
 
@@ -4998,7 +5034,7 @@ void EmulatorShell::ApplyDefaultPointerForMachine ()
         && m_pointerMode == InputMappingMode::Off)
     {
         m_pointerMode = InputMappingMode::Mouse;
-        m_joystickButton.SetMode (DisplayInputMode());
+        SyncSelectorState();
 
         if (m_hwnd != nullptr)
         {

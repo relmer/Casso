@@ -23,7 +23,7 @@
 #include "Shell/WindowManager.h"
 #include "Ui/Chrome/CassoTheme.h"
 #include "Ui/Chrome/DriveWidget.h"
-#include "Ui/Chrome/JoystickToggleButton.h"
+#include "Ui/Chrome/InputDeviceSelector.h"
 #include "Ui/Chrome/MainMenu.h"
 #include "Ui/ColorUtil.h"
 #include "Ui/Dialogs/DialogDefinition.h"
@@ -365,6 +365,7 @@ private:
 
 private:
     void    SyncInputModeUi ();
+    void    SyncSelectorState ();
 public:
 
     // Radio-group toggle for the Machine-menu items: selects `target`, or
@@ -628,7 +629,7 @@ private:
     // Joystick-mode toggle button (mirrors IDM_MACHINE_ARROWS_JOYSTICK),
     // centered in the drive bar above the drive widgets, with its own
     // hover tooltip.
-    JoystickToggleButton  m_joystickButton;
+    InputDeviceSelector   m_joystickButton;   // T030d segmented device selector
     DxuiTooltip               m_joystickTooltip;
 
     // Solid background for the bottom drive-bar band. The CRT composite
