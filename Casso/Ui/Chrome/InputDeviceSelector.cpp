@@ -470,58 +470,62 @@ void InputDeviceSelector::PaintPaddleGlyph (IDxuiPainter & p, const RECT & box, 
         return;
     }
 
-    // 3/4 perspective (paddle-icon-skeuo.svg rev 7): rebuilt from the
-    // reference photos on the shared lower-right camera. Ribbed handle
-    // WEDGE tapering to the lower-left tip; cream housing COLLAR with a
-    // dark opening; knurled RING rising from it; smooth DOME up to the
-    // narrower knurled CAP cylinder with the groove-and-"0" top; orange
-    // fire button as a side TAB at 3 o'clock. Circles squash to 0.35.
+    // 3/4 perspective (paddle-icon-skeuo.svg rev 8): proportions matched
+    // to the reference photos. The knurled dial FILLS the head (thin
+    // collar rim + gap), a wide soft DOME rises to the knurled CAP, the
+    // handle is a fat wedge (83% of head width at the joint, 9 fine
+    // ribs), the fire button is a big tab seated LOW on the collar wall,
+    // and the shell parting seam runs from the handle side around the
+    // collar. Circles squash to ry/rx = 0.35 (shared camera).
     // handle wedge: tip end face, SE side face + seam, top face, ribs
-    p.FillConvexQuad  (g.X (15), g.Y (69), g.X (29), g.Y (77), g.X (29), g.Y (84), g.X (15), g.Y (76), kSideFace);
-    p.FillConvexQuad  (g.X (29), g.Y (77), g.X (73), g.Y (52), g.X (73), g.Y (62), g.X (29), g.Y (84), 0xFFB3AD9C);
-    p.DrawLineApprox  (g.X (30), g.Y (81), g.X (72), g.Y (58.2f), g.S (1.0f), 0xB38F8A7A);
-    p.FillConvexQuad  (g.X (15), g.Y (69), g.X (43), g.Y (44), g.X (73), g.Y (52), g.X (29), g.Y (77), kCase);
-    for (int i = 0; i < 7; i++)
+    p.FillConvexQuad  (g.X (13), g.Y (68), g.X (30), g.Y (78), g.X (30), g.Y (85), g.X (13), g.Y (75), kSideFace);
+    p.FillConvexQuad  (g.X (30), g.Y (78), g.X (74.5f), g.Y (52), g.X (74.5f), g.Y (62), g.X (30), g.Y (85), 0xFFB3AD9C);
+    p.DrawLineApprox  (g.X (31), g.Y (82), g.X (73.5f), g.Y (58.2f), g.S (1.0f), 0xB38F8A7A);
+    p.FillConvexQuad  (g.X (13), g.Y (68), g.X (41), g.Y (42.5f), g.X (74.5f), g.Y (52), g.X (30), g.Y (78), kCase);
+    for (int i = 0; i < 9; i++)
     {
-        float  t  = 0.18f + 0.10f * (float) i;
-        float  lx = 15 + 28 * t, ly = 69 - 25 * t;      // left edge, tip->joint
-        float  rx = 29 + 44 * t, ry = 77 - 25 * t;      // right edge, tip->joint
+        float  t  = 0.16f + 0.08f * (float) i;
+        float  lx = 13 + 28 * t,    ly = 68 - 25.5f * t;    // left edge, tip->joint
+        float  rx = 30 + 44.5f * t, ry = 78 - 26 * t;       // right edge, tip->joint
         p.DrawLineApprox (g.X (lx + 0.08f * (rx - lx)), g.Y (ly + 0.08f * (ry - ly)),
-                          g.X (lx + 0.92f * (rx - lx)), g.Y (ly + 0.92f * (ry - ly)), g.S (1.6f), kRib);
+                          g.X (lx + 0.92f * (rx - lx)), g.Y (ly + 0.92f * (ry - ly)), g.S (1.3f), kRib);
     }
-    // housing collar: wall (base ellipse + rect) + rim + dark opening
+    // housing collar: wall (base ellipse + rect) + parting seam + rim
     p.FillEllipseApprox (g.X (58), g.Y (48), g.S (21), g.S (7.3f), 0xFFBFB9A7);
     p.FillRect          (g.X (37), g.Y (38), g.S (42), g.S (10), 0xFFBFB9A7);
+    p.DrawLineApprox    (g.X (41), g.Y (49.5f), g.X (49), g.Y (52.2f), g.S (1.0f), 0x998F8A7A);
+    p.DrawLineApprox    (g.X (49), g.Y (52.2f), g.X (67), g.Y (52.2f), g.S (1.0f), 0x998F8A7A);
+    p.DrawLineApprox    (g.X (67), g.Y (52.2f), g.X (75), g.Y (49.5f), g.S (1.0f), 0x998F8A7A);
     p.FillEllipseApprox (g.X (58), g.Y (38), g.S (21), g.S (7.3f), kCase);
-    p.FillEllipseApprox (g.X (58), g.Y (38), g.S (18.5f), g.S (6.5f), kHole);
-    // knurled ring rising out of the opening
-    p.FillEllipseApprox (g.X (58), g.Y (38), g.S (15.5f), g.S (5.4f), kDialSide);
-    p.FillRect          (g.X (42.5f), g.Y (34), g.S (31), g.S (4), kDialSide);
-    p.FillEllipseApprox (g.X (58), g.Y (34), g.S (15.5f), g.S (5.4f), kDial);
-    for (int i = -4; i <= 4; i++)
+    p.FillEllipseApprox (g.X (58), g.Y (38), g.S (19.5f), g.S (6.8f), kHole);
+    // knurled ring: fills the opening, knurl on its wall
+    p.FillEllipseApprox (g.X (58), g.Y (38), g.S (17.5f), g.S (6.1f), kDialSide);
+    p.FillRect          (g.X (40.5f), g.Y (34), g.S (35), g.S (4), kDialSide);
+    p.FillEllipseApprox (g.X (58), g.Y (34), g.S (17.5f), g.S (6.1f), kDial);
+    for (int i = -6; i <= 6; i++)
     {
-        float  dx = 3.6f * (float) i;
-        float  s  = sqrtf (1.0f - (dx / 15.5f) * (dx / 15.5f));
-        p.DrawLineApprox (g.X (58 + dx), g.Y (34 + 5.4f * s), g.X (58 + dx), g.Y (38 + 5.4f * s), g.S (1.4f), kTick);
+        float  dx = 2.6f * (float) i;
+        float  s  = sqrtf (1.0f - (dx / 17.5f) * (dx / 17.5f));
+        p.DrawLineApprox (g.X (58 + dx), g.Y (34 + 6.1f * s), g.X (58 + dx), g.Y (38 + 6.1f * s), g.S (1.1f), kTick);
     }
-    // smooth dome up to the cap
-    p.FillConvexQuad  (g.X (49.5f), g.Y (26), g.X (66.5f), g.Y (26), g.X (73.5f), g.Y (34), g.X (42.5f), g.Y (34), kKnob);
+    // wide soft dome up to the cap
+    p.FillEllipseApprox (g.X (58), g.Y (31.5f), g.S (15), g.S (7), kKnob);
     // knurled cap cylinder, then the groove-and-"0" top
-    p.FillEllipseApprox (g.X (58), g.Y (26), g.S (8.5f), g.S (3), kDialSide);
-    p.FillRect          (g.X (49.5f), g.Y (19), g.S (17), g.S (7), kDialSide);
+    p.FillEllipseApprox (g.X (58), g.Y (24), g.S (7.5f), g.S (2.6f), kDialSide);
+    p.FillRect          (g.X (50.5f), g.Y (18), g.S (15), g.S (6), kDialSide);
     for (int i = -3; i <= 3; i++)
     {
-        float  dx = 2.7f * (float) i;
-        float  s  = sqrtf (1.0f - (dx / 8.5f) * (dx / 8.5f));
-        p.DrawLineApprox (g.X (58 + dx), g.Y (19 + 3 * s), g.X (58 + dx), g.Y (26 + 3 * s), g.S (1.3f), kTick);
+        float  dx = 2.4f * (float) i;
+        float  s  = sqrtf (1.0f - (dx / 7.5f) * (dx / 7.5f));
+        p.DrawLineApprox (g.X (58 + dx), g.Y (18 + 2.6f * s), g.X (58 + dx), g.Y (24 + 2.6f * s), g.S (1.1f), kTick);
     }
-    p.FillEllipseApprox (g.X (58), g.Y (19), g.S (8.5f), g.S (3), kKnob);
-    p.FillEllipseApprox (g.X (58), g.Y (19), g.S (5), g.S (1.75f), kDialSide);
-    p.FillEllipseApprox (g.X (58), g.Y (19), g.S (3.8f), g.S (1.3f), kKnob);
-    p.FillEllipseApprox (g.X (58), g.Y (19), g.S (1.7f), g.S (0.6f), kDialSide);
-    // orange fire button: side tab at 3 o'clock on the collar wall
-    p.FillConvexQuad  (g.X (77.5f), g.Y (40), g.X (84), g.Y (41), g.X (84), g.Y (47.5f), g.X (77.5f), g.Y (48.7f), kOrange);
-    p.FillEllipseApprox (g.X (84), g.Y (44.2f), g.S (1.8f), g.S (3.3f), kOrange);
+    p.FillEllipseApprox (g.X (58), g.Y (18), g.S (7.5f), g.S (2.6f), kKnob);
+    p.FillEllipseApprox (g.X (58), g.Y (18), g.S (4.4f), g.S (1.5f), kDialSide);
+    p.FillEllipseApprox (g.X (58), g.Y (18), g.S (3.3f), g.S (1.1f), kKnob);
+    p.FillEllipseApprox (g.X (58), g.Y (18), g.S (1.5f), g.S (0.55f), kDialSide);
+    // orange fire button: big tab seated LOW on the collar wall
+    p.FillConvexQuad  (g.X (76.5f), g.Y (42), g.X (84.5f), g.Y (43), g.X (84.5f), g.Y (51.4f), g.X (76.5f), g.Y (52.5f), kOrange);
+    p.FillEllipseApprox (g.X (84.5f), g.Y (47.2f), g.S (2), g.S (4.2f), kOrange);
 }
 
 
