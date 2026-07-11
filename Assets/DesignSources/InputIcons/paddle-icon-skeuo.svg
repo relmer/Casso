@@ -75,49 +75,50 @@
   <polygon points="23.3,68.4 26.4,70.0 25.1,72.6 22.0,71.1" fill="#A9A392" opacity="0.6"/>
   <!-- shell parting seam along the handle -->
   <line x1="31" y1="82" x2="71.5" y2="52.5" stroke="#8F8A7A" stroke-width="1" opacity="0.7"/>
+  <line x1="71.5" y1="52.5" x2="75.3" y2="50.8" stroke="#8F8A7A" stroke-width="1" opacity="0.6"/>
 
   <!-- dark opening the dial sits in -->
-  <ellipse cx="58" cy="38" rx="19.5" ry="6.8" fill="#6B6759"/>
+  <ellipse cx="58" cy="36.5" rx="19.2" ry="6.7" fill="#6B6759"/>
 
   <!-- dial lower cylinder: flat top, 6-unit knurl band on its wall -->
-  <path d="M 40.5,32 A 17.5 6.1 0 0 0 75.5,32 L 75.5,38 A 17.5 6.1 0 0 1 40.5,38 Z"
+  <path d="M 40.5,30.5 A 17.5 6.1 0 0 0 75.5,30.5 L 75.5,36.5 A 17.5 6.1 0 0 1 40.5,36.5 Z"
         fill="url(#pDialWall)"/>
-  <ellipse cx="58" cy="32" rx="17.5" ry="6.1" fill="url(#pDial)" stroke="#827D6C" stroke-width="1.4"/>
+  <ellipse cx="58" cy="30.5" rx="17.5" ry="6.1" fill="url(#pDial)" stroke="#827D6C" stroke-width="1.4"/>
   <g stroke="#7E7967" stroke-width="1.1" opacity="0.85">
-    <line x1="58" y1="38.1" x2="58" y2="44.1"/>
-    <line x1="60.6" y1="38.0" x2="60.6" y2="44.0"/>
-    <line x1="55.4" y1="38.0" x2="55.4" y2="44.0"/>
-    <line x1="63.2" y1="37.8" x2="63.2" y2="43.8"/>
-    <line x1="52.8" y1="37.8" x2="52.8" y2="43.8"/>
-    <line x1="65.8" y1="37.5" x2="65.8" y2="43.5"/>
-    <line x1="50.2" y1="37.5" x2="50.2" y2="43.5"/>
-    <line x1="68.4" y1="36.9" x2="68.4" y2="42.9"/>
-    <line x1="47.6" y1="36.9" x2="47.6" y2="42.9"/>
-    <line x1="71" y1="36.1" x2="71" y2="42.1"/>
-    <line x1="45" y1="36.1" x2="45" y2="42.1"/>
-    <line x1="73.6" y1="34.8" x2="73.6" y2="40.8"/>
-    <line x1="42.4" y1="34.8" x2="42.4" y2="40.8"/>
+    <line x1="58" y1="36.6" x2="58" y2="42.6"/>
+    <line x1="60.6" y1="36.5" x2="60.6" y2="42.5"/>
+    <line x1="55.4" y1="36.5" x2="55.4" y2="42.5"/>
+    <line x1="63.2" y1="36.3" x2="63.2" y2="42.3"/>
+    <line x1="52.8" y1="36.3" x2="52.8" y2="42.3"/>
+    <line x1="65.8" y1="36.0" x2="65.8" y2="42.0"/>
+    <line x1="50.2" y1="36.0" x2="50.2" y2="42.0"/>
+    <line x1="68.4" y1="35.4" x2="68.4" y2="41.4"/>
+    <line x1="47.6" y1="35.4" x2="47.6" y2="41.4"/>
+    <line x1="71" y1="34.6" x2="71" y2="40.6"/>
+    <line x1="45" y1="34.6" x2="45" y2="40.6"/>
+    <line x1="73.6" y1="33.3" x2="73.6" y2="39.3"/>
+    <line x1="42.4" y1="33.3" x2="42.4" y2="39.3"/>
   </g>
 
   <!-- small-radius fillet where the cap cylinder meets the flat top -->
-  <ellipse cx="58" cy="31.3" rx="10" ry="3.5" fill="#A6A08E"/>
+  <ellipse cx="58" cy="29.8" rx="10" ry="3.5" fill="#A6A08E"/>
 
   <!-- dial upper cylinder (knurled cap) -->
-  <path d="M 50.5,23 A 7.5 2.6 0 0 0 65.5,23 L 65.5,32 A 7.5 2.6 0 0 1 50.5,32 Z"
+  <path d="M 50.5,21.5 A 7.5 2.6 0 0 0 65.5,21.5 L 65.5,30.5 A 7.5 2.6 0 0 1 50.5,30.5 Z"
         fill="url(#pDialWall)"/>
   <g stroke="#7E7967" stroke-width="1.1" opacity="0.85">
-    <line x1="58" y1="25.6" x2="58" y2="34.6"/>
-    <line x1="60.4" y1="25.5" x2="60.4" y2="34.5"/>
-    <line x1="55.6" y1="25.5" x2="55.6" y2="34.5"/>
-    <line x1="62.8" y1="25.0" x2="62.8" y2="34.0"/>
-    <line x1="53.2" y1="25.0" x2="53.2" y2="34.0"/>
-    <line x1="65.2" y1="23.7" x2="65.2" y2="32.7"/>
-    <line x1="50.8" y1="23.7" x2="50.8" y2="32.7"/>
+    <line x1="58" y1="24.1" x2="58" y2="33.1"/>
+    <line x1="60.4" y1="24.0" x2="60.4" y2="33.0"/>
+    <line x1="55.6" y1="24.0" x2="55.6" y2="33.0"/>
+    <line x1="62.8" y1="23.5" x2="62.8" y2="32.5"/>
+    <line x1="53.2" y1="23.5" x2="53.2" y2="32.5"/>
+    <line x1="65.2" y1="22.2" x2="65.2" y2="31.2"/>
+    <line x1="50.8" y1="22.2" x2="50.8" y2="31.2"/>
   </g>
-  <ellipse cx="58" cy="23" rx="7.5" ry="2.6" fill="url(#pCap)" stroke="#827D6C" stroke-width="1.4"/>
+  <ellipse cx="58" cy="21.5" rx="7.5" ry="2.6" fill="url(#pCap)" stroke="#827D6C" stroke-width="1.4"/>
   <!-- cap top: circular groove + the "0" mark -->
-  <ellipse cx="58" cy="23" rx="4.4" ry="1.5" fill="none" stroke="#827D6C" stroke-width="0.9" opacity="0.8"/>
-  <ellipse cx="58" cy="23" rx="1.5" ry="0.55" fill="none" stroke="#827D6C" stroke-width="1.1"/>
+  <ellipse cx="58" cy="21.5" rx="4.4" ry="1.5" fill="none" stroke="#827D6C" stroke-width="0.9" opacity="0.8"/>
+  <ellipse cx="58" cy="21.5" rx="1.5" ry="0.55" fill="none" stroke="#827D6C" stroke-width="1.1"/>
 
   <!-- fire button: arc segment of the handle disc at rx 24.5 (vs 21),
        following the disc curvature, spanning ~3:00-4:30; drawn as one
@@ -129,3 +130,4 @@
         fill="#FF7D46"/>
   <path d="M 72.8,43.2 L 75.3,44.5 L 75.3,51.0 L 72.8,49.7 Z" fill="#C24418"/>
 </svg>
+
