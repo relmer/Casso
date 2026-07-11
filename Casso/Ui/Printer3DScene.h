@@ -99,7 +99,10 @@ private:
     // baked); empty = procedural fallback. The platen and front-face anchors
     // are measured off the loaded geometry so the paper, paced head, and
     // badge land on the printer exactly where the user built its features.
+    // Black-colored model parts become the translucent smoked window
+    // (m_meshGlass), drawn last so the platen shows through it.
     std::vector<Vertex>   m_mesh;
+    std::vector<Vertex>   m_meshGlass;
     float                 m_meshFrontZ  = 0.0f;   // front face plane (badge sits on it)
     float                 m_platenY     = 0.0f;   // roller axis
     float                 m_platenZ     = 0.0f;

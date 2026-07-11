@@ -88,7 +88,9 @@ namespace
     constexpr float   s_kFovY     = 34.0f * s_kPi / 180.0f;
 
     // Palette (ARGB): warm ImageWriter platinum + accents.
-    constexpr uint32_t   s_kArgbMat      = 0xFF33363B;   // panel mat behind everything
+    // The mat is deliberately lighter than the dark platen roller so the
+    // roller's silhouette reads against it (they used to be near-identical).
+    constexpr uint32_t   s_kArgbMat      = 0xFF4A505A;   // panel mat behind everything
     constexpr uint32_t   s_kArgbCase     = 0xFFD8D3C6;   // platinum case
     constexpr uint32_t   s_kArgbButton   = 0xFFE8E3D6;   // control caps (lighter cream)
     constexpr uint32_t   s_kArgbBay      = 0xFF14161A;   // platen bay interior
@@ -308,6 +310,7 @@ HRESULT Printer3DScene::SetModel (const std::string & objText, const std::string
     CBREx (ObjMeshParser::Parse (objText, mtlText, tris) && !tris.empty (), E_FAIL);
 
     m_mesh.clear ();
+    m_meshGlass.clear ();
     m_mesh.reserve (tris.size () * 3);
 
     // Pass 1 (original model coordinates): overall extents for the scale.
@@ -345,13 +348,25 @@ HRESULT Printer3DScene::SetModel (const std::string & objText, const std::string
         {
             // Color remap, with the error LED (red like the housings, but a
             // tiny cap on the sloped control deck) picked out by its position
-            // in ORIGINAL model coordinates.
+            // in ORIGINAL model coordinates. BLACK parts are the smoked
+            // window: they become translucent (alpha < 1) and are routed to
+            // the glass pass below so the platen reads through them.
             uint32_t   argb    = 0xFFFFFFFF;
             bool       matched = false;
             bool       roller  = false;
 
+            if (t.r < 0.10f && t.g < 0.10f && t.b < 0.10f)
+            {
+                argb    = 0x8C14181D;   // smoked translucent
+                matched = true;
+            }
+
             for (const ColorMap & m : s_kPalette)
             {
+                if (matched)
+                {
+                    break;
+                }
                 if (std::abs (t.r - m.r) < 0.02f && std::abs (t.g - m.g) < 0.02f &&
                     std::abs (t.b - m.b) < 0.02f)
                 {
@@ -474,15 +489,20 @@ HRESULT Printer3DScene::SetModel (const std::string & objText, const std::string
             }
 
             uint32_t   argb = argbs[t];
-            float      cr   = (float) ((argb >> 16) & 0xFF) / 255.0f * shade;
-            float      cg   = (float) ((argb >>  8) & 0xFF) / 255.0f * shade;
-            float      cb   = (float) ((argb      ) & 0xFF) / 255.0f * shade;
+            float      ca   = (float) ((argb >> 24) & 0xFF) / 255.0f;
+            float      cr   = (float) ((argb >> 16) & 0xFF) / 255.0f * shade * ca;
+            float      cg   = (float) ((argb >>  8) & 0xFF) / 255.0f * shade * ca;
+            float      cb   = (float) ((argb      ) & 0xFF) / 255.0f * shade * ca;
+
+            // Translucent parts (the smoked window) go to the glass pass,
+            // drawn after everything they must show through.
+            std::vector<Vertex> &   dest = (ca < 1.0f) ? m_meshGlass : m_mesh;
 
             for (int k = 0; k < 3; k++)
             {
                 const XYZ &   p = pos[t * 3 + k];
 
-                m_mesh.push_back ({ p.x, p.y, p.z, 0.0f, 0.0f, cr, cg, cb, 1.0f });
+                dest.push_back ({ p.x, p.y, p.z, 0.0f, 0.0f, cr, cg, cb, ca });
             }
         }
 
@@ -538,6 +558,7 @@ Error:
     if (FAILED (hr))
     {
         m_mesh.clear ();   // never leave a half-loaded body: fall back whole
+        m_meshGlass.clear ();
     }
     return hr;
 }
@@ -1372,6 +1393,12 @@ void Printer3DScene::Render (const RECT & targetPx)
         IGNORE_RETURN_VALUE (hr, m_renderer.DrawTriangles (m_mesh.data (),       m_mesh.size (),       mvp, false, vp, true));
         IGNORE_RETURN_VALUE (hr, m_renderer.DrawTriangles (m_paper.data (),      m_paper.size (),      mvp, true,  vp, true));
         IGNORE_RETURN_VALUE (hr, m_renderer.DrawTriangles (m_solidFront.data (), m_solidFront.size (), mvp, false, vp, true));
+
+        // The smoked window last, over everything it must show through.
+        if (!m_meshGlass.empty ())
+        {
+            IGNORE_RETURN_VALUE (hr, m_renderer.DrawTriangles (m_meshGlass.data (), m_meshGlass.size (), mvp, false, vp, true));
+        }
     }
     else
     {

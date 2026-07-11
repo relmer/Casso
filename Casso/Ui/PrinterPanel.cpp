@@ -800,6 +800,10 @@ void PrinterPanel::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
     HRESULT  hr = S_OK;
     RECT     b  = Bounds ();
 
+    // Matches the 3D scene's mat color (Printer3DScene s_kArgbMat) so the
+    // frame and the scene backdrop read as one surface.
+    constexpr uint32_t   kArgbFrame = 0xFF4A505A;
+
     if (m_scene != nullptr && m_paperRectPx.right > m_paperRectPx.left)
     {
         // The 3D scene owns the paper rect (drawn from the before-present
@@ -808,13 +812,13 @@ void PrinterPanel::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
         RECT   p = m_paperRectPx;
 
         painter.FillRect ((float) b.left, (float) b.top,
-                          (float) (b.right - b.left), (float) (p.top - b.top), 0xFF33363B);
+                          (float) (b.right - b.left), (float) (p.top - b.top), kArgbFrame);
         painter.FillRect ((float) b.left, (float) p.bottom,
-                          (float) (b.right - b.left), (float) (b.bottom - p.bottom), 0xFF33363B);
+                          (float) (b.right - b.left), (float) (b.bottom - p.bottom), kArgbFrame);
         painter.FillRect ((float) b.left, (float) p.top,
-                          (float) (p.left - b.left), (float) (p.bottom - p.top), 0xFF33363B);
+                          (float) (p.left - b.left), (float) (p.bottom - p.top), kArgbFrame);
         painter.FillRect ((float) p.right, (float) p.top,
-                          (float) (b.right - p.right), (float) (p.bottom - p.top), 0xFF33363B);
+                          (float) (b.right - p.right), (float) (p.bottom - p.top), kArgbFrame);
     }
     else
     {
@@ -822,7 +826,7 @@ void PrinterPanel::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
                           (float) b.top,
                           (float) (b.right  - b.left),
                           (float) (b.bottom - b.top),
-                          0xFF33363B);
+                          kArgbFrame);
     }
 
     DxuiPanel::Paint (painter, text, theme);
