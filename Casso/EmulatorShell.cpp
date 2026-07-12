@@ -992,10 +992,6 @@ HRESULT EmulatorShell::Initialize (
                         {
                             m_driveAudioMixer.SetEnabled (enabled);
                         }
-                        if (SUCCEEDED (uiPrefs->GetBool ("mockingboardEnabled", enabled)))
-                        {
-                            m_mockingboardAudioMixer.SetEnabled (enabled);
-                        }
                         if (SUCCEEDED (uiPrefs->GetString ("floppyMechanism", mechNarrow)) && !mechNarrow.empty())
                         {
                             // DriveAudioMixer matches mechanism names case-
@@ -3028,13 +3024,6 @@ void EmulatorShell::DispatchCpuCommand (const EmulatorCommand & cmd)
             break;
         }
 
-        case IDM_AUDIO_MOCKINGBOARD_ENABLE:
-        case IDM_AUDIO_MOCKINGBOARD_DISABLE:
-        {
-            m_mockingboardAudioMixer.SetEnabled (cmd.id == IDM_AUDIO_MOCKINGBOARD_ENABLE);
-            break;
-        }
-
         case IDM_AUDIO_DRIVE_MECHANISM:
         {
             // Payload is "shugart" or "alps" (canonical lower-case from
@@ -3317,6 +3306,7 @@ void EmulatorShell::ExecuteCpuSlices()
 {
     static constexpr uint32_t kSliceCycles = 1023;
 
+    HRESULT   hr              = S_OK;
     uint32_t  targetCycles    = m_cyclesPerFrame;
     SpeedMode speed           = m_cpuManager.GetSpeedMode();
     bool      audioActive     = (m_refs.speaker != nullptr && m_wasapiAudio.IsInitialized());
@@ -3399,13 +3389,14 @@ void EmulatorShell::ExecuteCpuSlices()
 
             m_sampleRemainder = exactSamples - static_cast<double> (numSamples);
 
-            m_wasapiAudio.SubmitFrame (m_refs.speaker->GetToggleTimestamps(),
-                                       sliceActual,
-                                       m_refs.speaker->GetFrameInitialState(),
-                                       numSamples,
-                                       &m_driveAudioMixer,
-                                       m_cpu->GetTotalCycles(),
-                                       &m_mockingboardAudioMixer);
+            hr = m_wasapiAudio.SubmitFrame (m_refs.speaker->GetToggleTimestamps(),
+                                            sliceActual,
+                                            m_refs.speaker->GetFrameInitialState(),
+                                            numSamples,
+                                            &m_driveAudioMixer,
+                                            m_cpu->GetTotalCycles(),
+                                            &m_mockingboardAudioMixer);
+            IGNORE_RETURN_VALUE (hr, S_OK);
 
             m_refs.speaker->ClearTimestamps();
             m_refs.speaker->BeginFrame();

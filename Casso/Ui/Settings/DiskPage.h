@@ -84,7 +84,6 @@ private:
 
     DxuiLabel                        m_wpLabel;
     DxuiLabel                        m_writeModeLabel;
-    DxuiLabel                        m_mockingboardLabel;
     DxuiLabel                        m_audioLabel;
     DxuiLabel                        m_mechLabel;
     DxuiLabel                        m_motorLabel;
@@ -95,7 +94,6 @@ private:
 
     DxuiDropdown                     m_writeMode;
     DxuiDropdown                     m_mechanism;
-    DxuiToggle                       m_mockingboard;
     DxuiToggle                       m_driveAudio;
     std::array<DxuiCheckbox, 2>      m_writeProtect;
     DxuiSlider                       m_motorVol;

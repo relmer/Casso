@@ -56,7 +56,6 @@ DiskPage::DiskPage (std::wstring title)
 
     Adopt (m_wpLabel);
     Adopt (m_writeModeLabel);
-    Adopt (m_mockingboardLabel);
     Adopt (m_audioLabel);
     Adopt (m_mechLabel);
     Adopt (m_motorLabel);
@@ -67,7 +66,6 @@ DiskPage::DiskPage (std::wstring title)
 
     Adopt (m_writeMode);
     Adopt (m_mechanism);
-    Adopt (m_mockingboard);
     Adopt (m_driveAudio);
     for (i = 0; i < m_writeProtect.size(); ++i)
     {
@@ -150,11 +148,6 @@ void DiskPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
     m_writeMode.SetItems ({ L"Buffer and flush", L"Copy on write" });
     y += rowHeight + sectionGap;
 
-    m_mockingboardLabel.SetRect (MakeRect (x, y, labelWidth, rowHeight));
-    m_mockingboardLabel.SetText (L"Mockingboard:");
-    m_mockingboard.SetRect (MakeRect (controlsX, y, checkWidth, rowHeight));
-    y += rowHeight + sectionGap;
-
     m_audioLabel.SetRect (MakeRect (x, y, labelWidth, rowHeight));
     m_audioLabel.SetText (L"Drive audio:");
     m_driveAudio.SetRect (MakeRect (controlsX, y, checkWidth, rowHeight));
@@ -211,8 +204,6 @@ void DiskPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
 
     m_wpLabel.SetDpi         (dpi);
     m_writeModeLabel.SetDpi  (dpi);
-    m_mockingboardLabel.SetDpi (dpi);
-    m_mockingboard.SetDpi    (dpi);
     m_audioLabel.SetDpi      (dpi);
     m_mechLabel.SetDpi       (dpi);
     m_writeMode.SetDpi       (dpi);
@@ -263,7 +254,6 @@ void DiskPage::Rebuild ()
     m_writeMode.SetSelected ((int) state->Prefs().writeMode);
     m_mechanism.SetSelected (state->Prefs().floppyMechanism == "alps" ? 1 : 0);
     m_driveAudio.SetChecked (state->Prefs().floppySoundEnabled);
-    m_mockingboard.SetChecked (state->Prefs().mockingboardEnabled);
     m_writeProtect[0].SetChecked (state->Prefs().writeProtect[0]);
     m_writeProtect[1].SetChecked (state->Prefs().writeProtect[1]);
     m_motorVol.SetValue     (state->Prefs().driveMotorVolume * 100.0f);
@@ -280,7 +270,6 @@ void DiskPage::Rebuild ()
         state->SetFloppySound (checked);
         ApplyDriveAudioChildEnabled (checked);
     });
-    m_mockingboard.SetOnChange ([state] (bool checked) { state->SetMockingboard (checked); });
     m_writeProtect[0].SetOnChange ([state] (bool checked) { state->SetWriteProtect (0, checked); });
     m_writeProtect[1].SetOnChange ([state] (bool checked) { state->SetWriteProtect (1, checked); });
 
