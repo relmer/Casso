@@ -492,6 +492,16 @@ void InputDeviceSelector::PaintPaddleGlyph (IDxuiPainter & p, const RECT & box, 
     p.FillConvexQuad  (g.X (11.2f), g.Y (63.8f), g.X (26.8f), g.Y (66.9f), g.X (26.8f), g.Y (76.9f), g.X (11.2f), g.Y (73.8f), kSideFace);
     p.FillEllipseApprox (g.X (58), g.Y (48), g.S (21), g.S (7.3f), 0xFFBFB9A7);
     p.FillRect          (g.X (37), g.Y (38), g.S (42), g.S (10), 0xFFBFB9A7);
+    // disc base FRONT rim where the bowl seats on the handle top, capped
+    // at the SE tangent generator (74.3,52.6) so it stops at the union
+    // and does not run past toward the button; the handle top (next)
+    // hides its west half, leaving the genuine front seating line
+    {
+        const float  rimX[] = { 40, 47.5f, 54.4f, 58, 61.65f, 68.5f, 74.3f };
+        const float  rimY[] = { 51.8f, 54.3f, 55.2f, 55.3f, 55.2f, 54.3f, 52.6f };
+        for (int i = 0; i < 6; i++)
+            p.DrawLineApprox (g.X (rimX[i]), g.Y (rimY[i]), g.X (rimX[i + 1]), g.Y (rimY[i + 1]), g.S (1.4f), 0xFF8F8A7A);
+    }
     // unified top surface: disc top + handle top, one cream body
     p.FillEllipseApprox (g.X (58), g.Y (38), g.S (21), g.S (7.3f), kCase);
     p.FillConvexQuad  (g.X (11.2f), g.Y (63.8f), g.X (38.4f), g.Y (35.4f), g.X (74.3f), g.Y (42.6f), g.X (26.8f), g.Y (66.9f), kCase);

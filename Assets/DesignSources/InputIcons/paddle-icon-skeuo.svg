@@ -56,11 +56,17 @@
   <path d="M 11.2,63.8 L 26.8,66.9 L 26.8,74.6 Q 26.8,76.9 24.3,76.4 L 13.6,74.3 Q 11.2,73.8 11.2,71.6 Z"
         fill="#A9A392" stroke="#8F8A7A" stroke-width="1.6" stroke-linejoin="round"/>
   <!-- handle-disc wall (one body with the handle), over the junction.
-       NO stroke: a stroked base rim drew the disc's bottom edge across
-       the open handle top as a rogue line at the union. The gradient
-       shades the wall; the disc-top ellipse defines the rim. -->
+       Fill only; the base rim is stroked separately below so it can be
+       capped at the union instead of running past toward the button. -->
   <path d="M 37,38 A 21 7.3 0 0 0 79,38 L 79,48 A 21 7.3 0 0 1 37,48 Z"
         fill="url(#pWall)"/>
+  <!-- disc base FRONT rim where the bowl seats on the handle top. Capped
+       at the SE tangent generator (74.3,52.6) so it connects to the
+       handle at the union and does NOT continue past toward the button.
+       Drawn before the top surface, which hides its west half (above the
+       shoulder line); only the genuine front seating line shows. -->
+  <path d="M 40,51.8 A 21 7.3 0 0 1 74.3,52.6" fill="none"
+        stroke="#8F8A7A" stroke-width="1.4"/>
   <!-- unified top surface: disc top + handle top as ONE path, side edges
        tangent to the disc ellipse at (38.4,35.4) and (74.3,42.6) -->
   <path d="M 38.4,35.4 A 21 7.3 0 1 1 74.3,42.6 L 29.0,65.8 Q 26.8,66.9 24.4,66.4 L 13.6,64.3 Q 11.2,63.8 12.9,62.0 Z"
