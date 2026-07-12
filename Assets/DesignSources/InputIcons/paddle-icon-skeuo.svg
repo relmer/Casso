@@ -55,9 +55,12 @@
   <!-- tip end face -->
   <path d="M 11.2,63.8 L 26.8,66.9 L 26.8,74.6 Q 26.8,76.9 24.3,76.4 L 13.6,74.3 Q 11.2,73.8 11.2,71.6 Z"
         fill="#A9A392" stroke="#8F8A7A" stroke-width="1.6" stroke-linejoin="round"/>
-  <!-- handle-disc wall (one body with the handle), over the junction -->
+  <!-- handle-disc wall (one body with the handle), over the junction.
+       NO stroke: a stroked base rim drew the disc's bottom edge across
+       the open handle top as a rogue line at the union. The gradient
+       shades the wall; the disc-top ellipse defines the rim. -->
   <path d="M 37,38 A 21 7.3 0 0 0 79,38 L 79,48 A 21 7.3 0 0 1 37,48 Z"
-        fill="url(#pWall)" stroke="#8F8A7A" stroke-width="1.6" stroke-linejoin="round"/>
+        fill="url(#pWall)"/>
   <!-- unified top surface: disc top + handle top as ONE path, side edges
        tangent to the disc ellipse at (38.4,35.4) and (74.3,42.6) -->
   <path d="M 38.4,35.4 A 21 7.3 0 1 1 74.3,42.6 L 29.0,65.8 Q 26.8,66.9 24.4,66.4 L 13.6,64.3 Q 11.2,63.8 12.9,62.0 Z"
@@ -86,11 +89,10 @@
   </g>
   <!-- Apple badge chip in the smooth patch near the tip -->
   <polygon points="20.2,63.5 23.1,64.1 25.2,61.9 22.3,61.3" fill="#A9A392" opacity="0.6"/>
-  <!-- shell parting seam: runs along the mid-height of the SE side wall
-       (top outline dropped ~5). Stops before the disc: the continuation
-       toward the disc was drawn last (over everything) and floated onto
-       the top surface as a rogue line at the handle/disc union. -->
-  <line x1="27" y1="71.9" x2="59" y2="55.4" stroke="#8F8A7A" stroke-width="1" opacity="0.7"/>
+  <!-- shell parting seam: runs the length of the SE side wall at mid-
+       height (top outline dropped ~5), continuing up to the disc. -->
+  <line x1="27" y1="71.9" x2="61" y2="54.4" stroke="#8F8A7A" stroke-width="1" opacity="0.7"/>
+  <line x1="61" y1="54.4" x2="73.5" y2="48.0" stroke="#8F8A7A" stroke-width="1" opacity="0.6"/>
 
   <!-- dark opening the dial sits in -->
   <ellipse cx="58" cy="38" rx="19.5" ry="6.8" fill="#6B6759"/>
