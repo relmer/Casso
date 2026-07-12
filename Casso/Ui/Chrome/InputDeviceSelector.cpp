@@ -488,49 +488,50 @@ void InputDeviceSelector::PaintPaddleGlyph (IDxuiPainter & p, const RECT & box, 
     // unified top surface: disc top + handle top, one cream body
     p.FillEllipseApprox (g.X (58), g.Y (38), g.S (21), g.S (7.3f), kCase);
     p.FillConvexQuad  (g.X (13), g.Y (68), g.X (37.7f), g.Y (36.1f), g.X (77.2f), g.Y (40.9f), g.X (30), g.Y (78), kCase);
+    // grip lines: full width NW edge -> SE shoulder, all PARALLEL to the
+    // handle's bottom edge (constant direction (17,10)); u pairs each
+    // NW-edge station with the SE-shoulder point along that direction
     for (int i = 0; i < 8; i++)
     {
-        float  t  = 0.14f + 0.07f * (float) i;
-        float  lx = 13 + 24.7f * t, ly = 68 - 31.9f * t;    // left edge, tip->tangent
-        float  rx = 30 + 47.2f * t, ry = 78 - 37.1f * t;    // right edge, tip->tangent
-        float  ex = lx + 0.97f * (rx - lx), ey = ly + 0.97f * (ry - ly);
-        p.DrawLineApprox (g.X (lx + 0.08f * (rx - lx)), g.Y (ly + 0.08f * (ry - ly)),
-                          g.X (ex), g.Y (ey), g.S (1.3f), kRib);
-        // ribs wrap over the SE shoulder onto the side face
-        p.DrawLineApprox (g.X (ex), g.Y (ey), g.X (ex), g.Y (ey + 2.2f), g.S (1.1f), 0xFF98927F);
+        float  t  = 0.18f + 0.10f * (float) i;
+        float  u  = 0.7158f * t;
+        float  lx = 13 + 24.7f * t, ly = 68 - 31.9f * t;    // on the NW edge
+        float  sx = 30 + 47.2f * u, sy = 78 - 37.1f * u;    // on the SE shoulder
+        p.DrawLineApprox (g.X (lx), g.Y (ly), g.X (sx), g.Y (sy), g.S (1.3f), kRib);
+        // grip lines wrap over the SE shoulder onto the side face
+        p.DrawLineApprox (g.X (sx), g.Y (sy), g.X (sx), g.Y (sy + 2.2f), g.S (1.1f), 0xFF98927F);
     }
     // Apple badge chip in the smooth patch near the tip, parting seam
     p.FillConvexQuad  (g.X (23.3f), g.Y (68.4f), g.X (26.4f), g.Y (70), g.X (25.1f), g.Y (72.6f), g.X (22), g.Y (71.1f), 0x99A9A392);
     p.DrawLineApprox  (g.X (31), g.Y (82), g.X (71.5f), g.Y (52.5f), g.S (1.0f), 0xB38F8A7A);
     p.DrawLineApprox  (g.X (71.5f), g.Y (52.5f), g.X (75.3f), g.Y (50.8f), g.S (1.0f), 0x998F8A7A);
-    // dark opening the dial sits in; the dial assembly sits 1.5 north of
-    // the disc center so the bowl's FRONT shoulder shows (photo cue)
-    p.FillEllipseApprox (g.X (58), g.Y (36.5f), g.S (19.2f), g.S (6.7f), kHole);
+    // dark opening the dial sits in (dial concentric with the disc)
+    p.FillEllipseApprox (g.X (58), g.Y (38), g.S (19.5f), g.S (6.8f), kHole);
     // dial lower cylinder: flat top, 6-unit knurl band on its wall
-    p.FillEllipseApprox (g.X (58), g.Y (36.5f), g.S (17.5f), g.S (6.1f), kDialSide);
-    p.FillRect          (g.X (40.5f), g.Y (30.5f), g.S (35), g.S (6), kDialSide);
-    p.FillEllipseApprox (g.X (58), g.Y (30.5f), g.S (17.5f), g.S (6.1f), kDial);
+    p.FillEllipseApprox (g.X (58), g.Y (38), g.S (17.5f), g.S (6.1f), kDialSide);
+    p.FillRect          (g.X (40.5f), g.Y (32), g.S (35), g.S (6), kDialSide);
+    p.FillEllipseApprox (g.X (58), g.Y (32), g.S (17.5f), g.S (6.1f), kDial);
     for (int i = -6; i <= 6; i++)
     {
         float  dx = 2.6f * (float) i;
         float  s  = sqrtf (1.0f - (dx / 17.5f) * (dx / 17.5f));
-        p.DrawLineApprox (g.X (58 + dx), g.Y (30.5f + 6.1f * s), g.X (58 + dx), g.Y (36.5f + 6.1f * s), g.S (1.1f), kTick);
+        p.DrawLineApprox (g.X (58 + dx), g.Y (32 + 6.1f * s), g.X (58 + dx), g.Y (38 + 6.1f * s), g.S (1.1f), kTick);
     }
     // small-radius fillet where the cap cylinder meets the flat top
-    p.FillEllipseApprox (g.X (58), g.Y (29.8f), g.S (10), g.S (3.5f), 0xFFA6A08E);
+    p.FillEllipseApprox (g.X (58), g.Y (31.3f), g.S (10), g.S (3.5f), 0xFFA6A08E);
     // dial upper cylinder (knurled cap), then the groove-and-"0" top
-    p.FillEllipseApprox (g.X (58), g.Y (30.5f), g.S (7.5f), g.S (2.6f), kDialSide);
-    p.FillRect          (g.X (50.5f), g.Y (21.5f), g.S (15), g.S (9), kDialSide);
+    p.FillEllipseApprox (g.X (58), g.Y (32), g.S (7.5f), g.S (2.6f), kDialSide);
+    p.FillRect          (g.X (50.5f), g.Y (23), g.S (15), g.S (9), kDialSide);
     for (int i = -3; i <= 3; i++)
     {
         float  dx = 2.4f * (float) i;
         float  s  = sqrtf (1.0f - (dx / 7.5f) * (dx / 7.5f));
-        p.DrawLineApprox (g.X (58 + dx), g.Y (21.5f + 2.6f * s), g.X (58 + dx), g.Y (30.5f + 2.6f * s), g.S (1.1f), kTick);
+        p.DrawLineApprox (g.X (58 + dx), g.Y (23 + 2.6f * s), g.X (58 + dx), g.Y (32 + 2.6f * s), g.S (1.1f), kTick);
     }
-    p.FillEllipseApprox (g.X (58), g.Y (21.5f), g.S (7.5f), g.S (2.6f), kKnob);
-    p.FillEllipseApprox (g.X (58), g.Y (21.5f), g.S (4.4f), g.S (1.5f), kDialSide);
-    p.FillEllipseApprox (g.X (58), g.Y (21.5f), g.S (3.3f), g.S (1.1f), kKnob);
-    p.FillEllipseApprox (g.X (58), g.Y (21.5f), g.S (1.5f), g.S (0.55f), kDialSide);
+    p.FillEllipseApprox (g.X (58), g.Y (23), g.S (7.5f), g.S (2.6f), kKnob);
+    p.FillEllipseApprox (g.X (58), g.Y (23), g.S (4.4f), g.S (1.5f), kDialSide);
+    p.FillEllipseApprox (g.X (58), g.Y (23), g.S (3.3f), g.S (1.1f), kKnob);
+    p.FillEllipseApprox (g.X (58), g.Y (23), g.S (1.5f), g.S (0.55f), kDialSide);
     // fire button: rim-concentric arc segment (quads sample the arcs at
     // 3:00 / 3:45 / 4:30) — lit top band, orange outer wall, dark S cut
     p.FillConvexQuad  (g.X (82.4f), g.Y (37.8f), g.X (82.4f), g.Y (44.3f), g.X (81), g.Y (47.9f), g.X (81), g.Y (41.4f), kOrange);
