@@ -39,8 +39,9 @@ public:
         uint32_t                        totalCyclesThisSlice,
         float                           currentSpeakerState,
         uint32_t                        numSamplesToGenerate,
-        DriveAudioMixer *               driveMixer        = nullptr,
-        uint64_t                        currentCycleCount = 0);
+        DriveAudioMixer *               driveMixer         = nullptr,
+        uint64_t                        currentCycleCount  = 0,
+        DriveAudioMixer *               mockingboardMixer  = nullptr);
     void    RecordDriveDoorSyncEvent (int drive, int64_t timestampMs);
     int64_t GetLastDriveDoorSyncEventMs (int drive) const;
 

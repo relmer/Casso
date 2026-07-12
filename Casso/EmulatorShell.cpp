@@ -15,6 +15,7 @@
 #include "Devices/Apple2eSoftSwitchBank.h"
 #include "Devices/AppleSpeaker.h"
 #include "Devices/Disk2Controller.h"
+#include "Devices/Mockingboard/MockingboardCard.h"
 #include "Devices/LanguageCard.h"
 #include "Devices/Apple2eMmu.h"
 #include "Core/Prng.h"
@@ -2887,6 +2888,14 @@ void EmulatorShell::OnCpuThreadStart()
         HRESULT  hrLoad = m_driveAudioMixer.SetMechanism (m_driveAudioMixer.GetMechanism());
         IGNORE_RETURN_VALUE (hrLoad, S_OK);
     }
+
+    // The initial machine is built before WASAPI comes up, so its PSGs
+    // do not yet know the host sample rate. Seed it now (machine switches
+    // after this point pick it up at build time in MachineManager).
+    if (m_wasapiAudio.IsInitialized() && m_refs.mockingboard != nullptr)
+    {
+        m_refs.mockingboard->SetSampleRate (m_wasapiAudio.GetSampleRate());
+    }
 }
 
 
@@ -2965,11 +2974,19 @@ void EmulatorShell::DispatchCpuCommand (const EmulatorCommand & cmd)
         {
             if (m_cpu)
             {
-                m_cpu->StepOne();
+                if (!m_cpu->TryStepInterrupt())
+                {
+                    m_cpu->StepOne();
+                }
 
                 if (m_refs.diskController != nullptr)
                 {
                     m_refs.diskController->Tick (m_cpu->GetLastInstructionCycles());
+                }
+
+                if (m_refs.mockingboard != nullptr)
+                {
+                    m_refs.mockingboard->Tick (m_cpu->GetLastInstructionCycles());
                 }
 
                 if (m_refs.keyboard != nullptr)
@@ -3213,11 +3230,19 @@ void EmulatorShell::StepInstructionWhilePaused()
         return;
     }
 
-    m_cpu->StepOne();
+    if (!m_cpu->TryStepInterrupt())
+    {
+        m_cpu->StepOne();
+    }
 
     if (m_refs.diskController != nullptr)
     {
         m_refs.diskController->Tick (m_cpu->GetLastInstructionCycles());
+    }
+
+    if (m_refs.mockingboard != nullptr)
+    {
+        m_refs.mockingboard->Tick (m_cpu->GetLastInstructionCycles());
     }
 
     if (m_refs.keyboard != nullptr)
@@ -3281,6 +3306,7 @@ void EmulatorShell::ExecuteCpuSlices()
 {
     static constexpr uint32_t kSliceCycles = 1023;
 
+    HRESULT   hr              = S_OK;
     uint32_t  targetCycles    = m_cyclesPerFrame;
     SpeedMode speed           = m_cpuManager.GetSpeedMode();
     bool      audioActive     = (m_refs.speaker != nullptr && m_wasapiAudio.IsInitialized());
@@ -3321,7 +3347,10 @@ void EmulatorShell::ExecuteCpuSlices()
 
         while (sliceActual < sliceTarget)
         {
-            m_cpu->StepOne();
+            if (!m_cpu->TryStepInterrupt())
+            {
+                m_cpu->StepOne();
+            }
 
             cycles = m_cpu->GetLastInstructionCycles();
 
@@ -3340,6 +3369,11 @@ void EmulatorShell::ExecuteCpuSlices()
                 m_refs.diskController->Tick (cycles);
             }
 
+            if (m_refs.mockingboard != nullptr)
+            {
+                m_refs.mockingboard->Tick (cycles);
+            }
+
             if (m_refs.keyboard != nullptr)
             {
                 m_refs.keyboard->Tick (cycles);
@@ -3355,12 +3389,14 @@ void EmulatorShell::ExecuteCpuSlices()
 
             m_sampleRemainder = exactSamples - static_cast<double> (numSamples);
 
-            m_wasapiAudio.SubmitFrame (m_refs.speaker->GetToggleTimestamps(),
-                                       sliceActual,
-                                       m_refs.speaker->GetFrameInitialState(),
-                                       numSamples,
-                                       &m_driveAudioMixer,
-                                       m_cpu->GetTotalCycles());
+            hr = m_wasapiAudio.SubmitFrame (m_refs.speaker->GetToggleTimestamps(),
+                                            sliceActual,
+                                            m_refs.speaker->GetFrameInitialState(),
+                                            numSamples,
+                                            &m_driveAudioMixer,
+                                            m_cpu->GetTotalCycles(),
+                                            &m_mockingboardAudioMixer);
+            IGNORE_RETURN_VALUE (hr, S_OK);
 
             m_refs.speaker->ClearTimestamps();
             m_refs.speaker->BeginFrame();

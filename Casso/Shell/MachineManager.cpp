@@ -20,6 +20,7 @@
 #include "Devices/Apple2eSoftSwitchBank.h"
 #include "Devices/AppleSpeaker.h"
 #include "Devices/Disk2Controller.h"
+#include "Devices/Mockingboard/MockingboardCard.h"
 #include "Devices/LanguageCard.h"
 #include "Devices/Apple2eMmu.h"
 #include "Video/AppleTextMode.h"
@@ -423,6 +424,49 @@ HRESULT MachineManager::CreateMemoryDevices (const MachineConfig & config)
     if (m_shell.m_refs.diskController != nullptr && !m_shell.m_diskAudioSources.empty())
     {
         m_shell.m_refs.diskController->SetAudioSink (m_shell.m_diskAudioSources[0].get());
+    }
+
+    // Mockingboard wiring. Cache the card (if the active config installs
+    // one), attach both VIA timer-IRQ sources to the shared controller,
+    // and register the two PSG audio sources (PSG #1 hard-left, PSG #2
+    // hard-right) with the dedicated Mockingboard mixer. The card owns
+    // the sources; the mixer holds borrowed pointers, dropped on the next
+    // teardown.
+    m_shell.m_refs.mockingboard = nullptr;
+    m_shell.m_mockingboardAudioMixer.UnregisterAllSources();
+
+    for (auto & dev : m_shell.m_ownedDevices)
+    {
+        MockingboardCard *  mb = dynamic_cast<MockingboardCard *> (dev.get());
+
+        if (mb != nullptr)
+        {
+            m_shell.m_refs.mockingboard = mb;
+            break;
+        }
+    }
+
+    if (m_shell.m_refs.mockingboard != nullptr)
+    {
+        hr = m_shell.m_refs.mockingboard->AttachInterruptController (&m_shell.m_interruptController);
+        CHR (hr);
+
+        m_shell.m_mockingboardAudioMixer.RegisterSource (m_shell.m_refs.mockingboard->GetAudioSource (0));
+        m_shell.m_mockingboardAudioMixer.RegisterSource (m_shell.m_refs.mockingboard->GetAudioSource (1));
+
+        m_shell.m_refs.mockingboard->SetSampleRate (m_shell.m_wasapiAudio.GetSampleRate());
+
+        // On the //e the Apple2eMmu's CxxxRomRouter owns $C100-$CFFF, so a
+        // bus device at $Cn00 would be shadowed. Register the card as the
+        // slot's active I/O device so the router delegates that page to it
+        // (INTCXROM=0). On ][/][+ there is no MMU and the card is
+        // bus-resident.
+        if (m_shell.m_mmu != nullptr)
+        {
+            m_shell.m_mmu->GetCxxxRouter()->SetSlotIoDevice (
+                m_shell.m_refs.mockingboard->GetSlot(),
+                m_shell.m_refs.mockingboard);
+        }
     }
 
 Error:
@@ -1061,6 +1105,16 @@ HRESULT MachineManager::SwitchMachine (const std::wstring & machineName)
     // reassigned when the new config carries an apple2e-mmu device;
     // it must be explicitly reset here or it'll keep its stale
     // RamDevice pointer alive across a //e -> ][ switch.
+    // The Mockingboard's PSG audio sources are owned by the card device
+    // in m_ownedDevices, so the mixer's borrowed pointers must be dropped
+    // before that collection is cleared below (CreateMemoryDevices
+    // re-registers fresh ones for the new machine).
+    m_shell.m_mockingboardAudioMixer.UnregisterAllSources();
+
+    // Reclaim IRQ source tokens before the devices that hold them are
+    // destroyed; the rebuilt machine re-registers from a fresh pool.
+    m_shell.m_interruptController.ResetSources();
+
     m_shell.m_cpu.reset();
     m_shell.m_ownedDevices.clear();
     m_shell.m_videoModes.clear();

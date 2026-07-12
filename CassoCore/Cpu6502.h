@@ -59,6 +59,10 @@ public:
     bool                          IsNmiLineAsserted () const { return m_nmiLine; }
     bool                          IsNmiPending      () const { return m_nmiPending; }
 
+    // Dispatches a pending NMI/IRQ for host loops that drive the CPU with raw
+    // StepOne rather than the self-accounting Step(). Returns true if taken.
+    bool                          TryStepInterrupt();
+
 protected:
     // Returns true if a pending NMI or unmasked IRQ was dispatched. On
     // dispatch, sets outCycles = 7 and accumulates m_totalCycles.

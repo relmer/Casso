@@ -75,6 +75,9 @@ public:
     void             StepOne                  ()                              { m_cpu6502->StepOne (); }
     Byte             GetLastInstructionCycles () const                        { return m_cpu6502->GetLastInstructionCycles (); }
 
+    // Interrupt-aware companion to StepOne; see Cpu6502::TryStepInterrupt.
+    bool             TryStepInterrupt() { return m_cpu6502->TryStepInterrupt(); }
+
     // Execution trace (--trace switch). Forwarded to the underlying 6502.
     void             EnableTrace     (size_t capacity)  { m_cpu6502->EnableTrace (capacity); }
     bool             IsTraceEnabled  () const           { return m_cpu6502->IsTraceEnabled (); }
