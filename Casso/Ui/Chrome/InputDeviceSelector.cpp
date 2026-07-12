@@ -480,14 +480,16 @@ void InputDeviceSelector::PaintPaddleGlyph (IDxuiPainter & p, const RECT & box, 
     // at (38.4,35.4) / (74.3,42.6). DIAL: two flat knurled CYLINDERS
     // (rx 17.5 / 7.5) joined by a small-radius FILLET skirt. BUTTON:
     // rim-concentric arc segment (rx 24.5 vs 21) at ~3:00-4:30.
-    // CONSTANT-thickness shell: bottom outline = top outline extruded
-    // straight down 11, so the SE side wall keeps full height along the
-    // whole handle (it used to taper to nothing at the disc end). Draw
-    // order: SE side face, bottom edge, tip face, disc wall (covers the
-    // junction), disc top, handle top.
-    p.FillConvexQuad  (g.X (26.8f), g.Y (66.9f), g.X (63.7f), g.Y (48), g.X (63.7f), g.Y (59), g.X (26.8f), g.Y (77.9f), 0xFFB3AD9C);
-    p.DrawLineApprox  (g.X (26.8f), g.Y (77.9f), g.X (61), g.Y (60.4f), g.S (1.4f), 0xFF8F8A7A);
-    p.FillConvexQuad  (g.X (11.2f), g.Y (63.8f), g.X (26.8f), g.Y (66.9f), g.X (26.8f), g.Y (77.9f), g.X (11.2f), g.Y (74.8f), kSideFace);
+    // UNION of slab + disc cylinder. Shell thickness = 10 = the disc's
+    // own wall height (top ellipse cy38 -> base cy48). The SE side wall
+    // runs to the disc's SE tangent generator at x=74.3 (y 42.6 rim ->
+    // 52.6 base), coinciding with the disc wall there so the two merge
+    // with no gap; the bottom outline (top outline + (0,10)) lands on
+    // the disc base ellipse. Draw order: SE side face, bottom edge, tip
+    // face, disc wall (covers the junction), disc top, handle top.
+    p.FillConvexQuad  (g.X (26.8f), g.Y (66.9f), g.X (74.3f), g.Y (42.6f), g.X (74.3f), g.Y (52.6f), g.X (26.8f), g.Y (76.9f), 0xFFB3AD9C);
+    p.DrawLineApprox  (g.X (26.8f), g.Y (76.9f), g.X (73), g.Y (53.2f), g.S (1.4f), 0xFF8F8A7A);
+    p.FillConvexQuad  (g.X (11.2f), g.Y (63.8f), g.X (26.8f), g.Y (66.9f), g.X (26.8f), g.Y (76.9f), g.X (11.2f), g.Y (73.8f), kSideFace);
     p.FillEllipseApprox (g.X (58), g.Y (48), g.S (21), g.S (7.3f), 0xFFBFB9A7);
     p.FillRect          (g.X (37), g.Y (38), g.S (42), g.S (10), 0xFFBFB9A7);
     // unified top surface: disc top + handle top, one cream body
@@ -507,8 +509,8 @@ void InputDeviceSelector::PaintPaddleGlyph (IDxuiPainter & p, const RECT & box, 
     }
     // Apple badge chip in the smooth patch near the tip, parting seam
     p.FillConvexQuad  (g.X (20.2f), g.Y (63.5f), g.X (23.1f), g.Y (64.1f), g.X (25.2f), g.Y (61.9f), g.X (22.3f), g.Y (61.3f), 0x99A9A392);
-    p.DrawLineApprox  (g.X (27), g.Y (72.4f), g.X (61), g.Y (54.9f), g.S (1.0f), 0xB38F8A7A);
-    p.DrawLineApprox  (g.X (61), g.Y (54.9f), g.X (74), g.Y (49.5f), g.S (1.0f), 0x998F8A7A);
+    p.DrawLineApprox  (g.X (27), g.Y (71.9f), g.X (61), g.Y (54.4f), g.S (1.0f), 0xB38F8A7A);
+    p.DrawLineApprox  (g.X (61), g.Y (54.4f), g.X (73.5f), g.Y (48), g.S (1.0f), 0x998F8A7A);
     // dark opening the dial sits in (dial concentric with the disc)
     p.FillEllipseApprox (g.X (58), g.Y (38), g.S (19.5f), g.S (6.8f), kHole);
     // dial lower cylinder: flat top, 6-unit knurl band on its wall

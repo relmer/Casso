@@ -43,12 +43,17 @@
        the SE side wall keeps its full height along the whole handle
        (previously it tapered to nothing at the disc end). Draw order:
        side wall, tip face, disc wall (covers the junction), top face. -->
-  <!-- SE side face: constant-thickness slab, clipped where it passes
-       under the disc base (y=48) -->
-  <polygon points="26.8,66.9 63.7,48.0 63.7,59.0 26.8,77.9" fill="#B3AD9C"/>
-  <line x1="26.8" y1="77.9" x2="61" y2="60.4" stroke="#8F8A7A" stroke-width="1.8"/>
+  <!-- SE side face: constant-thickness slab, down-extruded by 10 =
+       the disc's OWN wall height (top ellipse cy38 -> base ellipse
+       cy48). Its far edge is the disc's SE tangent GENERATOR at x=74.3
+       (y 42.6 on the top rim -> 52.6 on the base), so the slab wall and
+       the disc wall coincide there and merge with no gap: a true union
+       of slab + cylinder. The bottom outline (top outline + (0,10)) is
+       automatically tangent to the disc base ellipse. -->
+  <polygon points="26.8,66.9 74.3,42.6 74.3,52.6 26.8,76.9" fill="#B3AD9C"/>
+  <line x1="26.8" y1="76.9" x2="73" y2="53.2" stroke="#8F8A7A" stroke-width="1.8"/>
   <!-- tip end face -->
-  <path d="M 11.2,63.8 L 26.8,66.9 L 26.8,75.6 Q 26.8,77.9 24.3,77.4 L 13.6,75.3 Q 11.2,74.8 11.2,72.6 Z"
+  <path d="M 11.2,63.8 L 26.8,66.9 L 26.8,74.6 Q 26.8,76.9 24.3,76.4 L 13.6,74.3 Q 11.2,73.8 11.2,71.6 Z"
         fill="#A9A392" stroke="#8F8A7A" stroke-width="1.6" stroke-linejoin="round"/>
   <!-- handle-disc wall (one body with the handle), over the junction -->
   <path d="M 37,38 A 21 7.3 0 0 0 79,38 L 79,48 A 21 7.3 0 0 1 37,48 Z"
@@ -83,8 +88,8 @@
   <polygon points="20.2,63.5 23.1,64.1 25.2,61.9 22.3,61.3" fill="#A9A392" opacity="0.6"/>
   <!-- shell parting seam: runs along the mid-height of the SE side wall
        (top outline dropped ~5.5), continuing under the button -->
-  <line x1="27" y1="72.4" x2="61" y2="54.9" stroke="#8F8A7A" stroke-width="1" opacity="0.7"/>
-  <line x1="61" y1="54.9" x2="74" y2="49.5" stroke="#8F8A7A" stroke-width="1" opacity="0.6"/>
+  <line x1="27" y1="71.9" x2="61" y2="54.4" stroke="#8F8A7A" stroke-width="1" opacity="0.7"/>
+  <line x1="61" y1="54.4" x2="73.5" y2="48.0" stroke="#8F8A7A" stroke-width="1" opacity="0.6"/>
 
   <!-- dark opening the dial sits in -->
   <ellipse cx="58" cy="38" rx="19.5" ry="6.8" fill="#6B6759"/>
