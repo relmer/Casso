@@ -2,6 +2,7 @@
 
 #include "CxxxRomRouter.h"
 #include "Apple2eMmu.h"
+#include "Ehm.h"
 
 
 
@@ -24,7 +25,11 @@ static constexpr Word  kSlotRomPageSize    = 0x0100;
 static constexpr Word  kInternalRomSize    = 0x0F00;
 static constexpr int   kMinSlot            = 1;
 static constexpr int   kMaxSlot            = 7;
+static constexpr int   kSlot3              = 3;
 static constexpr Byte  kFloatingBusByte    = 0xFF;
+static constexpr int   kAddressPageShift   = 8;
+static constexpr int   kSlotNibbleMask     = 0x0F;
+static constexpr Word  kPageOffsetMask     = 0x00FF;
 
 
 
@@ -58,7 +63,7 @@ void CxxxRomRouter::SetInternalRom (vector<Byte> data)
 {
     m_internal = move (data);
 
-    if (m_internal.size () < kInternalRomSize)
+    if (m_internal.size() < kInternalRomSize)
     {
         m_internal.resize (kInternalRomSize, kFloatingBusByte);
     }
@@ -72,21 +77,28 @@ void CxxxRomRouter::SetInternalRom (vector<Byte> data)
 //
 //  SetSlotRom
 //
+//  Installs a slot's 256-byte $Cn00 ROM page. A slot index outside 1..7 is
+//  a caller bug and asserts.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void CxxxRomRouter::SetSlotRom (int slot, vector<Byte> data)
 {
-    if (slot < kMinSlot || slot > kMaxSlot)
-    {
-        return;
-    }
+    HRESULT  hr = S_OK;
+
+
+
+    CBRAEx (slot >= kMinSlot && slot <= kMaxSlot, E_INVALIDARG);
 
     m_slotRom[slot] = move (data);
 
-    if (m_slotRom[slot].size () < kSlotRomPageSize)
+    if (m_slotRom[slot].size() < kSlotRomPageSize)
     {
         m_slotRom[slot].resize (kSlotRomPageSize, kFloatingBusByte);
     }
+
+Error:
+    return;
 }
 
 
@@ -97,16 +109,24 @@ void CxxxRomRouter::SetSlotRom (int slot, vector<Byte> data)
 //
 //  HasSlotRom
 //
+//  True if slot `slot` has a ROM page installed. A slot index outside 1..7
+//  is a caller bug and asserts.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 bool CxxxRomRouter::HasSlotRom (int slot) const
 {
-    if (slot < kMinSlot || slot > kMaxSlot)
-    {
-        return false;
-    }
+    HRESULT  hr     = S_OK;
+    bool     result = false;
 
-    return !m_slotRom[slot].empty ();
+
+
+    CBRAEx (slot >= kMinSlot && slot <= kMaxSlot, E_INVALIDARG);
+
+    result = !m_slotRom[slot].empty();
+
+Error:
+    return result;
 }
 
 
@@ -117,17 +137,26 @@ bool CxxxRomRouter::HasSlotRom (int slot) const
 //
 //  SetSlotIoDevice
 //
+//  Registers (or clears, when `device` is nullptr) the active I/O device
+//  owning a slot's $Cn00 page. A slot index outside 1..7 is a caller bug
+//  and asserts.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void CxxxRomRouter::SetSlotIoDevice (int slot, MemoryDevice * device)
 {
-    if (slot < kMinSlot || slot > kMaxSlot)
-    {
-        return;
-    }
+    HRESULT  hr = S_OK;
+
+
+
+    CBRAEx (slot >= kMinSlot && slot <= kMaxSlot, E_INVALIDARG);
 
     m_slotIoDevice[slot] = device;
+
+Error:
+    return;
 }
+
 
 
 
@@ -146,25 +175,22 @@ void CxxxRomRouter::SetSlotIoDevice (int slot, MemoryDevice * device)
 
 MemoryDevice * CxxxRomRouter::SlotIoDeviceFor (Word address) const
 {
-    int   slot = static_cast<int> ((address >> 8) & 0x0F);
+    HRESULT         hr     = S_OK;
+    MemoryDevice *  result = nullptr;
+    int             slot   = static_cast<int> ((address >> kAddressPageShift) & kSlotNibbleMask);
 
-    if (m_mmu.GetIntCxRom ())
-    {
-        return nullptr;
-    }
 
-    if (address >= kExpansionRomStart || slot < kMinSlot || slot > kMaxSlot)
-    {
-        return nullptr;
-    }
 
-    if (slot == 3 && !m_mmu.GetSlotC3Rom ())
-    {
-        return nullptr;
-    }
+    BAIL_OUT_IF (m_mmu.GetIntCxRom(), S_OK);
+    BAIL_OUT_IF (address >= kExpansionRomStart || slot < kMinSlot || slot > kMaxSlot, S_OK);
+    BAIL_OUT_IF (slot == kSlot3 && !m_mmu.GetSlotC3Rom(), S_OK);
 
-    return m_slotIoDevice[slot];
+    result = m_slotIoDevice[slot];
+
+Error:
+    return result;
 }
+
 
 
 
@@ -187,7 +213,7 @@ Byte CxxxRomRouter::Read (Word address)
 
     if (address >= kSlot3PageStart && address <= kSlot3PageEnd)
     {
-        if (!m_mmu.GetIntCxRom () && !m_mmu.GetSlotC3Rom ())
+        if (!m_mmu.GetIntCxRom() && !m_mmu.GetSlotC3Rom())
         {
             m_mmu.SetIntC8Rom (true);
         }
@@ -195,7 +221,7 @@ Byte CxxxRomRouter::Read (Word address)
 
     if (address == kIntC8RomClearAddr)
     {
-        m_mmu.ResetIntC8Rom ();
+        m_mmu.ResetIntC8Rom();
     }
 
     return value;
@@ -209,8 +235,10 @@ Byte CxxxRomRouter::Read (Word address)
 //
 //  Write
 //
-//  Writes are ignored (ROM); only the $CFFF side effect is preserved so
-//  software using STA $CFFF to deactivate expansion ROM still works.
+//  Writes are ignored (ROM); a slot I/O page is delegated to its device,
+//  and the $CFFF side effect (STA $CFFF to deactivate expansion ROM) is
+//  preserved. The two are mutually exclusive by address, so no page ever
+//  both delegates and clears INTC8ROM.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -218,15 +246,15 @@ void CxxxRomRouter::Write (Word address, Byte value)
 {
     MemoryDevice *  io = SlotIoDeviceFor (address);
 
+
+
     if (io != nullptr)
     {
         io->Write (address, value);
-        return;
     }
-
-    if (address == kIntC8RomClearAddr)
+    else if (address == kIntC8RomClearAddr)
     {
-        m_mmu.ResetIntC8Rom ();
+        m_mmu.ResetIntC8Rom();
     }
 }
 
@@ -240,7 +268,7 @@ void CxxxRomRouter::Write (Word address, Byte value)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void CxxxRomRouter::Reset ()
+void CxxxRomRouter::Reset()
 {
 }
 
@@ -252,53 +280,50 @@ void CxxxRomRouter::Reset ()
 //
 //  ResolveByte
 //
-//  Maps an address to the active byte source per audit §8.
+//  Maps an address to the active byte source per audit §8. Out-of-range
+//  addresses and unmapped slots read as the floating bus.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 Byte CxxxRomRouter::ResolveByte (Word address)
 {
-    if (address < kCxxxRouterStart || address > kCxxxRouterEnd)
+    HRESULT  hr        = S_OK;
+    Byte     result    = kFloatingBusByte;
+    bool     intCx     = false;
+    bool     slotC3    = false;
+    bool     intC8     = false;
+    bool     inSlot3   = false;
+    bool     inExp     = false;
+    Word     romOffset = 0;
+    int      slot      = 0;
+    Word     pageOff   = 0;
+
+
+
+    BAIL_OUT_IF (address < kCxxxRouterStart || address > kCxxxRouterEnd, S_OK);
+
+    intCx     = m_mmu.GetIntCxRom();
+    slotC3    = m_mmu.GetSlotC3Rom();
+    intC8     = m_mmu.GetIntC8Rom();
+    inSlot3   = (address >= kSlot3PageStart    && address <= kSlot3PageEnd);
+    inExp     = (address >= kExpansionRomStart && address <= kExpansionRomLast);
+    romOffset = static_cast<Word> (address - kCxxxRouterStart);
+    slot      = static_cast<int>  ((address >> kAddressPageShift) & kSlotNibbleMask);
+    pageOff   = static_cast<Word> (address & kPageOffsetMask);
+
+    if (intCx || (inSlot3 && !slotC3) || (inExp && intC8))
     {
-        return kFloatingBusByte;
+        result = (romOffset < m_internal.size()) ? m_internal[romOffset] : kFloatingBusByte;
+    }
+    else if (inExp)
+    {
+        result = kFloatingBusByte;
+    }
+    else if (slot >= kMinSlot && slot <= kMaxSlot && !m_slotRom[slot].empty())
+    {
+        result = (pageOff < m_slotRom[slot].size()) ? m_slotRom[slot][pageOff] : kFloatingBusByte;
     }
 
-    bool  intCx     = m_mmu.GetIntCxRom ();
-    bool  slotC3    = m_mmu.GetSlotC3Rom ();
-    bool  intC8     = m_mmu.GetIntC8Rom ();
-    bool  inSlot3   = (address >= kSlot3PageStart    && address <= kSlot3PageEnd);
-    bool  inExp     = (address >= kExpansionRomStart && address <= kExpansionRomLast);
-    Word  romOffset = static_cast<Word> (address - kCxxxRouterStart);
-
-
-
-    if (intCx)
-    {
-        return romOffset < m_internal.size () ? m_internal[romOffset] : kFloatingBusByte;
-    }
-
-    if (inSlot3 && !slotC3)
-    {
-        return romOffset < m_internal.size () ? m_internal[romOffset] : kFloatingBusByte;
-    }
-
-    if (inExp)
-    {
-        if (intC8)
-        {
-            return romOffset < m_internal.size () ? m_internal[romOffset] : kFloatingBusByte;
-        }
-
-        return kFloatingBusByte;
-    }
-
-    int   slot    = static_cast<int> ((address >> 8) & 0x0F);
-    Word  pageOff = static_cast<Word> (address & 0xFF);
-
-    if (slot < kMinSlot || slot > kMaxSlot || m_slotRom[slot].empty ())
-    {
-        return kFloatingBusByte;
-    }
-
-    return pageOff < m_slotRom[slot].size () ? m_slotRom[slot][pageOff] : kFloatingBusByte;
+Error:
+    return result;
 }
