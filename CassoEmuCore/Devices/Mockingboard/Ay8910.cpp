@@ -1,6 +1,8 @@
 #include "Pch.h"
 
 #include "Ay8910.h"
+#include "Ehm.h"
+
 
 
 
@@ -16,6 +18,8 @@ static constexpr Byte    s_kNoisePeriodMask = 0x1F;   // noise period is 5 bits
 static constexpr int     s_kByteShift       = 8;
 static constexpr int     s_kLfsrFeedbackTap = 3;      // AY noise taps bits 0 and 3
 static constexpr int     s_kLfsrHighBit     = 16;     // 17-bit shift register
+static constexpr int     s_kChannelCount    = 3;
+
 
 
 
@@ -30,8 +34,9 @@ Ay8910::Ay8910 (double clockHz)
 {
     m_clockHz = clockHz;
 
-    Reset ();
+    Reset();
 }
+
 
 
 
@@ -59,6 +64,7 @@ void Ay8910::SetSampleRate (uint32_t sampleRate)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  SetClock
@@ -75,9 +81,14 @@ void Ay8910::SetClock (double clockHz)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  WriteData
+//
+//  A data write reaches the register selected by the last latched address.
+//  Addresses outside 0..15 select no register, so the write is inert -- the
+//  documented AY behaviour, not a bug.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -92,15 +103,21 @@ void Ay8910::WriteData (Byte value)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  ReadData
+//
+//  Reads the register selected by the last latched address; an out-of-range
+//  address reads as the floating data bus (0xFF).
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 Byte Ay8910::ReadData () const
 {
     Byte   result = 0xFF;
+
+
 
     if (m_latched < kRegCount)
     {
@@ -113,21 +130,25 @@ Byte Ay8910::ReadData () const
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  WriteRegister
 //
-//  A write to the envelope-shape register always restarts the envelope,
-//  even when the value is unchanged.
+//  Direct register write. `reg` must name one of the 16 registers -- the bus
+//  path (WriteData) filters out-of-range addresses, so reaching here with
+//  reg >= 16 is a caller bug and asserts. A write to the envelope-shape
+//  register always restarts the envelope, even when the value is unchanged.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void Ay8910::WriteRegister (Byte reg, Byte value)
 {
-    if (reg >= kRegCount)
-    {
-        return;
-    }
+    HRESULT  hr = S_OK;
+
+
+
+    CBRAEx (reg < kRegCount, E_INVALIDARG);
 
     m_regs[reg] = value;
 
@@ -135,7 +156,11 @@ void Ay8910::WriteRegister (Byte reg, Byte value)
     {
         RestartEnvelope (value);
     }
+
+Error:
+    return;
 }
+
 
 
 
@@ -144,19 +169,26 @@ void Ay8910::WriteRegister (Byte reg, Byte value)
 //
 //  ReadRegister
 //
+//  Direct register read. `reg` must name one of the 16 registers; reaching
+//  here with reg >= 16 is a caller bug and asserts.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 Byte Ay8910::ReadRegister (Byte reg) const
 {
-    Byte   result = 0xFF;
+    HRESULT  hr     = S_OK;
+    Byte     result = 0xFF;
 
-    if (reg < kRegCount)
-    {
-        result = m_regs[reg];
-    }
 
+
+    CBRAEx (reg < kRegCount, E_INVALIDARG);
+
+    result = m_regs[reg];
+
+Error:
     return result;
 }
+
 
 
 
@@ -167,9 +199,11 @@ Byte Ay8910::ReadRegister (Byte reg) const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void Ay8910::Reset ()
+void Ay8910::Reset()
 {
     int   c = 0;
+
+
 
     for (c = 0; c < kRegCount; c++)
     {
@@ -179,16 +213,16 @@ void Ay8910::Reset ()
     m_latched   = 0;
     m_tickAccum = 0.0;
 
-    for (c = 0; c < 3; c++)
+    for (c = 0; c < s_kChannelCount; c++)
     {
         m_toneCounter[c] = TonePeriod (c);
         m_toneState[c]   = 0;
     }
 
-    m_noiseCounter = 2 * NoisePeriod ();
+    m_noiseCounter = 2 * NoisePeriod();
     m_lfsr         = 1;
 
-    m_envCounter = 2 * EnvPeriod ();
+    m_envCounter = 2 * EnvPeriod();
     m_envLevel   = 0;
     m_envDirUp   = false;
     m_envHolding = false;
@@ -203,25 +237,28 @@ void Ay8910::Reset ()
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  GenerateSample
 //
 //  Advances the engine by one output sample worth of base ticks (a
 //  fractional accumulator carries the remainder between samples) and
-//  returns the resulting mono output.
+//  returns the resulting mono output. Requires a configured sample rate --
+//  generating audio before SetSampleRate is a code-ordering bug and asserts.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-float Ay8910::GenerateSample ()
+float Ay8910::GenerateSample()
 {
-    int   ticks = 0;
-    int   i     = 0;
+    HRESULT  hr     = S_OK;
+    float    result = 0.0f;
+    int      ticks  = 0;
+    int      i      = 0;
 
-    if (m_sampleRate == 0)
-    {
-        return 0.0f;
-    }
+
+
+    CBRAEx (m_sampleRate != 0, E_UNEXPECTED);
 
     m_tickAccum += m_ticksPerSample;
     ticks        = static_cast<int> (m_tickAccum);
@@ -229,11 +266,15 @@ float Ay8910::GenerateSample ()
 
     for (i = 0; i < ticks; i++)
     {
-        AdvanceBaseTick ();
+        AdvanceBaseTick();
     }
 
-    return CurrentOutput ();
+    result = CurrentOutput();
+
+Error:
+    return result;
 }
+
 
 
 
@@ -261,6 +302,7 @@ float Ay8910::VolumeForLevel (int level)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  AdvanceBaseTick
@@ -271,11 +313,13 @@ float Ay8910::VolumeForLevel (int level)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void Ay8910::AdvanceBaseTick ()
+void Ay8910::AdvanceBaseTick()
 {
     int   c = 0;
 
-    for (c = 0; c < 3; c++)
+
+
+    for (c = 0; c < s_kChannelCount; c++)
     {
         if (--m_toneCounter[c] <= 0)
         {
@@ -286,16 +330,17 @@ void Ay8910::AdvanceBaseTick ()
 
     if (--m_noiseCounter <= 0)
     {
-        m_noiseCounter = 2 * NoisePeriod ();
-        StepLfsr ();
+        m_noiseCounter = 2 * NoisePeriod();
+        StepLfsr();
     }
 
     if (--m_envCounter <= 0)
     {
-        m_envCounter = 2 * EnvPeriod ();
-        EnvelopeStep ();
+        m_envCounter = 2 * EnvPeriod();
+        EnvelopeStep();
     }
 }
+
 
 
 
@@ -309,12 +354,13 @@ void Ay8910::AdvanceBaseTick ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void Ay8910::StepLfsr ()
+void Ay8910::StepLfsr()
 {
     uint32_t   feedback = (m_lfsr ^ (m_lfsr >> s_kLfsrFeedbackTap)) & 1u;
 
     m_lfsr = (m_lfsr >> 1) | (feedback << s_kLfsrHighBit);
 }
+
 
 
 
@@ -328,55 +374,50 @@ void Ay8910::StepLfsr ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void Ay8910::EnvelopeStep ()
+void Ay8910::EnvelopeStep()
 {
     if (m_envHolding)
     {
-        return;
+        // Held at the last level; nothing to advance.
     }
-
-    // Still inside a ramp: move one level toward the far end.
-    if (m_envDirUp && m_envLevel < kMaxEnvLevel)
+    else if (m_envDirUp && m_envLevel < kMaxEnvLevel)
     {
+        // Still ramping up toward the top.
         m_envLevel++;
-        return;
     }
-
-    if (!m_envDirUp && m_envLevel > 0)
+    else if (!m_envDirUp && m_envLevel > 0)
     {
+        // Still ramping down toward zero.
         m_envLevel--;
-        return;
     }
-
-    // Ramp complete (level sits at the end it reached).
-    if (!m_envCont)
+    else if (!m_envCont)
     {
+        // Ramp complete, one-shot: park at 0 and hold.
         m_envLevel   = 0;
         m_envHolding = true;
-        return;
     }
-
-    if (m_envHold)
+    else if (m_envHold)
     {
+        // Ramp complete, hold at the end reached (ALTERNATE flips it once).
         m_envHolding = true;
 
         if (m_envAlt)
         {
             m_envLevel = m_envDirUp ? 0 : kMaxEnvLevel;
         }
-
-        return;
     }
-
-    if (m_envAlt)
+    else if (m_envAlt)
     {
+        // ALTERNATE: reverse direction for the next ramp.
         m_envDirUp = !m_envDirUp;
     }
     else
     {
+        // Repeat: jump back to the start of the ramp.
         m_envLevel = m_envDirUp ? 0 : kMaxEnvLevel;
     }
 }
+
 
 
 
@@ -400,8 +441,9 @@ void Ay8910::RestartEnvelope (Byte shape)
     m_envHolding = false;
     m_envDirUp   = m_envAttack;
     m_envLevel   = m_envDirUp ? 0 : kMaxEnvLevel;
-    m_envCounter = 2 * EnvPeriod ();
+    m_envCounter = 2 * EnvPeriod();
 }
+
 
 
 
@@ -422,10 +464,12 @@ float Ay8910::CurrentOutput () const
     float   out   = 0.0f;
     int     c     = 0;
 
-    for (c = 0; c < 3; c++)
+
+
+    for (c = 0; c < s_kChannelCount; c++)
     {
         int    toneDisabled  = (mixer >> c) & 1;
-        int    noiseDisabled = (mixer >> (c + 3)) & 1;
+        int    noiseDisabled = (mixer >> (c + s_kChannelCount)) & 1;
         int    toneTerm      = toneDisabled  | m_toneState[c];
         int    noiseTerm     = noiseDisabled | static_cast<int> (m_lfsr & 1u);
         int    active        = toneTerm & noiseTerm;
@@ -440,6 +484,7 @@ float Ay8910::CurrentOutput () const
 
     return out;
 }
+
 
 
 
@@ -462,6 +507,7 @@ int Ay8910::TonePeriod (int channel) const
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  NoisePeriod
@@ -474,6 +520,7 @@ int Ay8910::NoisePeriod () const
 
     return (period == 0) ? 1 : period;
 }
+
 
 
 

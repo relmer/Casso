@@ -6,6 +6,7 @@
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  MockingboardCard
@@ -28,6 +29,7 @@ MockingboardCard::MockingboardCard (int slot)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  Read
@@ -43,17 +45,20 @@ Byte MockingboardCard::Read (Word address)
     Word   offset = static_cast<Word> ((address - m_base) & (kPageSize - 1));
     int    index  = (offset & kVia2Select) ? 1 : 0;
     Byte   reg    = static_cast<Byte> (offset & Via6522::kRegisterMask);
-    Byte   portB  = m_via[index].GetPortB ();
+    Byte   portB  = m_via[index].GetPortB();
+
+
 
     if ((reg == Via6522::kRegOra || reg == Via6522::kRegOraNh) &&
         (portB & kAyResetLow) != 0 &&
         (portB & kAyControlMask) == kAyBc1)
     {
-        m_via[index].SetPortAInput (m_psg[index].ReadData ());
+        m_via[index].SetPortAInput (m_psg[index].ReadData());
     }
 
     return m_via[index].ReadRegister (reg);
 }
+
 
 
 
@@ -70,10 +75,13 @@ void MockingboardCard::Write (Word address, Byte value)
     int    index  = (offset & kVia2Select) ? 1 : 0;
     Byte   reg    = static_cast<Byte> (offset & Via6522::kRegisterMask);
 
+
+
     m_via[index].WriteRegister (reg, value);
 
     SyncPsg (index);
 }
+
 
 
 
@@ -84,17 +92,20 @@ void MockingboardCard::Write (Word address, Byte value)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void MockingboardCard::Reset ()
+void MockingboardCard::Reset()
 {
     int   i = 0;
 
+
+
     for (i = 0; i < kViaCount; i++)
     {
-        m_via[i].Reset ();
-        m_psg[i].Reset ();
+        m_via[i].Reset();
+        m_psg[i].Reset();
         m_lastControl[i] = 0;
     }
 }
+
 
 
 
@@ -108,10 +119,11 @@ void MockingboardCard::Reset ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void MockingboardCard::SoftReset ()
+void MockingboardCard::SoftReset()
 {
-    Reset ();
+    Reset();
 }
+
 
 
 
@@ -120,14 +132,19 @@ void MockingboardCard::SoftReset ()
 //
 //  PowerCycle
 //
+//  The Mockingboard has no DRAM-shaped state to randomise, so a cold start
+//  is identical to a reset; the Prng required by the MemoryDevice contract
+//  is unused.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void MockingboardCard::PowerCycle (Prng & prng)
 {
-    (void) prng;
+    UNREFERENCED_PARAMETER (prng);
 
-    Reset ();
+    Reset();
 }
+
 
 
 
@@ -142,11 +159,14 @@ void MockingboardCard::Tick (uint32_t cycles)
 {
     int   i = 0;
 
+
+
     for (i = 0; i < kViaCount; i++)
     {
         m_via[i].Tick (cycles);
     }
 }
+
 
 
 
@@ -162,6 +182,8 @@ HRESULT MockingboardCard::AttachInterruptController (IInterruptController * ic)
     HRESULT   hr = S_OK;
     int       i  = 0;
 
+
+
     for (i = 0; i < kViaCount; i++)
     {
         hr = m_via[i].AttachInterruptController (ic);
@@ -171,6 +193,7 @@ HRESULT MockingboardCard::AttachInterruptController (IInterruptController * ic)
 Error:
     return hr;
 }
+
 
 
 
@@ -185,11 +208,14 @@ void MockingboardCard::SetSampleRate (uint32_t sampleRate)
 {
     int   i = 0;
 
+
+
     for (i = 0; i < kViaCount; i++)
     {
         m_psg[i].SetSampleRate (sampleRate);
     }
 }
+
 
 
 
@@ -207,42 +233,41 @@ void MockingboardCard::SetSampleRate (uint32_t sampleRate)
 
 void MockingboardCard::SyncPsg (int index)
 {
-    Byte   portB   = m_via[index].GetPortB ();
-    Byte   portA   = m_via[index].GetPortA ();
+    Byte   portB   = m_via[index].GetPortB();
+    Byte   portA   = m_via[index].GetPortA();
     Byte   control = static_cast<Byte> (portB & kAyControlMask);
+
+
 
     if ((portB & kAyResetLow) == 0)
     {
-        m_psg[index].Reset ();
+        m_psg[index].Reset();
         m_lastControl[index] = 0;
-        return;
     }
-
-    if (control == m_lastControl[index])
+    else if (control != m_lastControl[index])
     {
-        return;
+        switch (control)
+        {
+        case (kAyBdir | kAyBc1):   // latch register address
+            m_psg[index].LatchAddress (portA);
+            break;
+
+        case kAyBdir:              // write data to the latched register
+            m_psg[index].WriteData (portA);
+            break;
+
+        case kAyBc1:               // read data from the latched register
+            m_via[index].SetPortAInput (m_psg[index].ReadData());
+            break;
+
+        default:                   // inactive
+            break;
+        }
+
+        m_lastControl[index] = control;
     }
-
-    switch (control)
-    {
-    case (kAyBdir | kAyBc1):   // latch register address
-        m_psg[index].LatchAddress (portA);
-        break;
-
-    case kAyBdir:              // write data to the latched register
-        m_psg[index].WriteData (portA);
-        break;
-
-    case kAyBc1:               // read data from the latched register
-        m_via[index].SetPortAInput (m_psg[index].ReadData ());
-        break;
-
-    default:                   // inactive
-        break;
-    }
-
-    m_lastControl[index] = control;
 }
+
 
 
 
@@ -255,7 +280,7 @@ void MockingboardCard::SyncPsg (int index)
 
 unique_ptr<MemoryDevice> MockingboardCard::Create (const DeviceConfig & config, MemoryBus & bus)
 {
-    (void) bus;
+    UNREFERENCED_PARAMETER (bus);
 
     return make_unique<MockingboardCard> (config.slot);
 }

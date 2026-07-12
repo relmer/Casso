@@ -5,6 +5,7 @@
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  ReadRegister
@@ -20,15 +21,17 @@ Byte Via6522::ReadRegister (Byte reg)
 {
     Byte   result = 0;
 
+
+
     switch (reg & kRegisterMask)
     {
     case kRegOrb:
-        result = GetPortB ();
+        result = GetPortB();
         break;
 
     case kRegOra:
     case kRegOraNh:
-        result = GetPortA ();
+        result = GetPortA();
         break;
 
     case kRegDdrb:
@@ -78,11 +81,11 @@ Byte Via6522::ReadRegister (Byte reg)
         break;
 
     case kRegIfr:
-        result = GetIfr ();
+        result = GetIfr();
         break;
 
     case kRegIer:
-        result = GetIer ();
+        result = GetIer();
         break;
 
     default:
@@ -91,6 +94,7 @@ Byte Via6522::ReadRegister (Byte reg)
 
     return result;
 }
+
 
 
 
@@ -108,6 +112,10 @@ Byte Via6522::ReadRegister (Byte reg)
 
 void Via6522::WriteRegister (Byte reg, Byte value)
 {
+    HRESULT  hr = S_OK;
+
+
+
     switch (reg & kRegisterMask)
     {
     case kRegOrb:
@@ -162,17 +170,27 @@ void Via6522::WriteRegister (Byte reg, Byte value)
         break;
 
     case kRegAcr:
+        // Only the Timer1 mode bit is modelled. Any other ACR bit selects an
+        // unmodelled feature (T2 pulse counting, shift register, PB7 output,
+        // port input latching). Store the value for read-back, then assert so
+        // a debug build surfaces any title that actually configures one --
+        // in release the write is simply inert for the unmodelled bits.
         m_acr = value;
+        CBRAEx ((value & ~kAcrT1Continuous) == 0, E_INVALIDARG);
         break;
 
     case kRegPcr:
+        // CA1/CA2/CB1/CB2 handshaking is unmodelled. The Mockingboard drives
+        // the AY from the ports, not the handshake lines, so a non-zero PCR
+        // means a title depends on something we do not implement.
         m_pcr = value;
+        CBRAEx (value == 0, E_INVALIDARG);
         break;
 
     case kRegIfr:
         // Write-1-to-clear the flag bits; bit 7 is not a real flag.
         m_ifr &= static_cast<Byte> (~(value & 0x7F));
-        UpdateIrq ();
+        UpdateIrq();
         break;
 
     case kRegIer:
@@ -184,13 +202,17 @@ void Via6522::WriteRegister (Byte reg, Byte value)
         {
             m_ier &= static_cast<Byte> (~(value & 0x7F));
         }
-        UpdateIrq ();
+        UpdateIrq();
         break;
 
     default:
         break;
     }
+
+Error:
+    return;
 }
+
 
 
 
@@ -199,18 +221,17 @@ void Via6522::WriteRegister (Byte reg, Byte value)
 //
 //  Tick
 //
+//  Advance both timers by `cycles` phi2 clocks. A zero count is a harmless
+//  no-op -- each timer step is a no-op when it cannot underflow.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void Via6522::Tick (uint32_t cycles)
 {
-    if (cycles == 0)
-    {
-        return;
-    }
-
     TickTimer1 (cycles);
     TickTimer2 (cycles);
 }
+
 
 
 
@@ -221,7 +242,7 @@ void Via6522::Tick (uint32_t cycles)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void Via6522::Reset ()
+void Via6522::Reset()
 {
     m_ora   = 0;
     m_orb   = 0;
@@ -246,8 +267,9 @@ void Via6522::Reset ()
     m_t2Counter = 0;
     m_t2Armed   = false;
 
-    UpdateIrq ();
+    UpdateIrq();
 }
+
 
 
 
@@ -261,6 +283,8 @@ void Via6522::Reset ()
 HRESULT Via6522::AttachInterruptController (IInterruptController * ic)
 {
     HRESULT   hr = S_OK;
+
+
 
     CBRAEx (ic, E_INVALIDARG);
 
@@ -277,6 +301,7 @@ Error:
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  GetIfr
@@ -286,9 +311,11 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-Byte Via6522::GetIfr () const
+Byte Via6522::GetIfr() const
 {
     Byte   ifr = static_cast<Byte> (m_ifr & 0x7F);
+
+
 
     if ((m_ifr & m_ier & 0x7F) != 0)
     {
@@ -297,6 +324,7 @@ Byte Via6522::GetIfr () const
 
     return ifr;
 }
+
 
 
 
@@ -324,34 +352,38 @@ void Via6522::TickTimer1 (uint32_t cycles)
     int64_t   period      = latch + 1;
     int64_t   into        = 0;
 
+
+
     if (static_cast<int64_t> (cycles) < toUnderflow)
     {
         m_t1Counter = static_cast<int32_t> (counter - cycles);
-        return;
-    }
-
-    if (m_t1Armed)
-    {
-        SetFlag (kIrqTimer1);
-
-        if (!freeRun)
-        {
-            m_t1Armed = false;
-        }
-    }
-
-    remaining = static_cast<int64_t> (cycles) - toUnderflow;
-
-    if (freeRun)
-    {
-        into        = remaining % period;
-        m_t1Counter = static_cast<int32_t> (latch - into);
     }
     else
     {
-        m_t1Counter = static_cast<int32_t> (0xFFFF - (remaining & 0xFFFF));
+        if (m_t1Armed)
+        {
+            SetFlag (kIrqTimer1);
+
+            if (!freeRun)
+            {
+                m_t1Armed = false;
+            }
+        }
+
+        remaining = static_cast<int64_t> (cycles) - toUnderflow;
+
+        if (freeRun)
+        {
+            into        = remaining % period;
+            m_t1Counter = static_cast<int32_t> (latch - into);
+        }
+        else
+        {
+            m_t1Counter = static_cast<int32_t> (0xFFFF - (remaining & 0xFFFF));
+        }
     }
 }
+
 
 
 
@@ -371,28 +403,32 @@ void Via6522::TickTimer2 (uint32_t cycles)
     int64_t   toUnderflow = counter + 1;
     int64_t   remaining   = 0;
 
+
+
     if (static_cast<int64_t> (cycles) < toUnderflow)
     {
         m_t2Counter = static_cast<int32_t> (counter - cycles);
-        return;
     }
-
-    if (m_t2Armed)
+    else
     {
-        SetFlag (kIrqTimer2);
-        m_t2Armed = false;
-    }
+        if (m_t2Armed)
+        {
+            SetFlag (kIrqTimer2);
+            m_t2Armed = false;
+        }
 
-    remaining   = static_cast<int64_t> (cycles) - toUnderflow;
-    m_t2Counter = static_cast<int32_t> (0xFFFF - (remaining & 0xFFFF));
+        remaining   = static_cast<int64_t> (cycles) - toUnderflow;
+        m_t2Counter = static_cast<int32_t> (0xFFFF - (remaining & 0xFFFF));
+    }
 }
+
 
 
 
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  SetFlag / ClearFlag
+//  SetFlag
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -400,16 +436,26 @@ void Via6522::SetFlag (Byte flag)
 {
     m_ifr |= static_cast<Byte> (flag & 0x7F);
 
-    UpdateIrq ();
+    UpdateIrq();
 }
 
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ClearFlag
+//
+////////////////////////////////////////////////////////////////////////////////
 
 void Via6522::ClearFlag (Byte flag)
 {
     m_ifr &= static_cast<Byte> (~(flag & 0x7F));
 
-    UpdateIrq ();
+    UpdateIrq();
 }
+
 
 
 
@@ -418,23 +464,22 @@ void Via6522::ClearFlag (Byte flag)
 //
 //  UpdateIrq
 //
-//  Level-sensitive: the line follows (IFR & IER) continuously.
+//  Level-sensitive: the line follows (IFR & IER) continuously. A VIA that
+//  has not been bound to an interrupt controller simply drives nothing.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void Via6522::UpdateIrq ()
+void Via6522::UpdateIrq()
 {
-    if (!m_irqBound || (m_ic == nullptr))
+    if (m_irqBound && m_ic != nullptr)
     {
-        return;
-    }
-
-    if ((m_ifr & m_ier & 0x7F) != 0)
-    {
-        m_ic->Assert (m_irqSource);
-    }
-    else
-    {
-        m_ic->Clear (m_irqSource);
+        if ((m_ifr & m_ier & 0x7F) != 0)
+        {
+            m_ic->Assert (m_irqSource);
+        }
+        else
+        {
+            m_ic->Clear (m_irqSource);
+        }
     }
 }
