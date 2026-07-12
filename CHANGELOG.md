@@ -24,11 +24,20 @@ Entries before versioning was introduced use dates only.
   into the stereo bus (PSG #1 hard-left, PSG #2 hard-right) through a
   dedicated audio mixer so they sum cleanly with the speaker and Disk II
   audio. The card is installed in slot 4 of the Apple ][+ and //e profiles
-  and can be muted live via **Settings → Disk → Mockingboard** (mirroring
-  the Drive Audio toggle) or removed entirely from **Settings → Machine**.
+  and is enabled or removed from its slot in the **Hardware** tab's device
+  list (the card's slot entry is the single Mockingboard control).
   On the //e the `CxxxRomRouter` now delegates a slot's `$Cn00` page to an
   active I/O card when `INTCXROM=0`, so the card is reachable behind the
   MMU. Clean-room throughout: no GPL emulator code was copied.
+
+### Fixed
+- **fix(cpu): the emulator run loop now services maskable interrupts.**
+  The shell drove the CPU exclusively through the interrupt-blind
+  `StepOne`, so no device IRQ was ever dispatched — latent until the
+  Mockingboard became the first device in Casso to assert one. Music
+  players (e.g. *Zaxxon*) arm a Timer 1 IRQ and depend on its handler
+  firing; without dispatch they stayed silent. Each step site now
+  dispatches a pending NMI/IRQ before executing the next instruction.
 
 ## [1.6.4] — Disk ][ Debug panel virtualization (GH #88)
 

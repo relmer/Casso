@@ -38,8 +38,8 @@ Apple II audio standard. Two clean-room chip cores written from the datasheets
 (a reusable **6522 VIA** and the **AY-3-8910 PSG**: 3 tone voices + noise +
 envelope) render to stereo float PCM, with VIA Timer 1 driving the periodic
 IRQs music players use for tempo. The card ships in slot 4 of the ][+ and //e
-profiles; it can be muted live from Settings → Disk → Mockingboard or removed
-from Settings → Machine. Games like *Ultima IV*, *Skyfox*, and *Music
+profiles; it is installed or removed from its slot in the Hardware tab's
+device list. Games like *Ultima IV*, *Skyfox*, and *Music
 Construction Set* get their real soundtracks back.
 
 ### Reliable disk writes (v1.6.2–v1.6.3)
@@ -283,7 +283,7 @@ All 56 standard 6502 mnemonics are implemented. Validated against [Klaus Dormann
 - [x] Apple //e fidelity — cold boot to BASIC, audit-correct Language Card, 64 KB aux RAM, 80-column text + Double Hi-Res, soft reset vs. power cycle, IRQ/NMI dispatch, RDVBLBAR
 - [x] Disk II controller — DOS 3.3 / ProDOS `.dsk` / `.do` / `.po` nibblization + WOZ v1 / v2 with auto-flush on eject
 - [x] Disk II mechanical audio — stereo motor hum, head-step clicks, track-0 bump, disk insert / eject sounds, with a runtime Settings → Machine → Drive audio toggle. Built on a generic `IDriveAudioSink` / `IDriveAudioSource` / `DriveAudioMixer` abstraction so future drive types (//c internal 5.25, DuoDisk, ProFile, …) plug in without touching the mixer
-- [x] Mockingboard A/C sound card — clean-room 6522 VIA + AY-3-8910 PSG (3 tone voices + noise + envelope), stereo PCM, Timer 1 tempo IRQs, slot-4 install on ][+ / //e, live mute toggle ([#66](https://github.com/relmer/Casso/issues/66))
+- [x] Mockingboard A/C sound card — clean-room 6522 VIA + AY-3-8910 PSG (3 tone voices + noise + envelope), stereo PCM, Timer 1 tempo IRQs, slot-4 install on ][+ / //e ([#66](https://github.com/relmer/Casso/issues/66))
 - [x] Headless test harness for deterministic integration tests (`HeadlessHost`, framebuffer scraper, keyboard injector)
 - [x] Performance gate — emulator throughput budget enforced in CI (Release-only)
 - [x] Cycle-accurate execution and profiling ([#57](https://github.com/relmer/Casso/issues/57))

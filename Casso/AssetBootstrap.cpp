@@ -177,8 +177,8 @@ struct EmbeddedConfig
 static constexpr EmbeddedConfig s_kEmbeddedConfigs[] =
 {
     { IDR_MACHINE_APPLE2,     "Apple2",     "Apple2.json",     6 },
-    { IDR_MACHINE_APPLE2PLUS, "Apple2Plus", "Apple2Plus.json", 6 },
-    { IDR_MACHINE_APPLE2E,    "Apple2e",    "Apple2e.json",    6 },
+    { IDR_MACHINE_APPLE2PLUS, "Apple2Plus", "Apple2Plus.json", 8 },
+    { IDR_MACHINE_APPLE2E,    "Apple2e",    "Apple2e.json",    7 },
 };
 
 
@@ -247,6 +247,12 @@ static const MachineConfigPriorHash s_kPriorDefaultHashes[] =
 
     // v6 Apple2Plus.json (before adding apple2-gameport device).
     { "Apple2Plus", "a8796968d56185daf6a03bdebebdecc776dfc004003447a78f0bcc5dafaac3e1" },
+
+    // v6 Apple2e.json (master, before the slot-4 Mockingboard).
+    { "Apple2e",    "8593a47d87db9090ce001e439fea318854bdc6b255fa328f8ac2dabee1eb9f63" },
+
+    // v7 Apple2Plus.json (master, before the slot-4 Mockingboard).
+    { "Apple2Plus", "99824c2f34e40c9411d46d17c5a34d78b1bbd2a29e4487fc0326457b18986236" },
 };
 
 
@@ -521,6 +527,36 @@ HRESULT AssetBootstrap::EnsureMachineConfigs (
     error_code  ec;
 
 
+
+#if defined(_DEBUG)
+    // Self-check: each embedded config's currentVersion stamp must match the
+    // $cassoMachineVersion baked into its JSON. If they drift, Plan() below
+    // treats an unchanged on-disk extract as already current and silently
+    // skips a real change -- the failure that once hid the slot-4 Mockingboard.
+    for (const EmbeddedConfig & selfCheck : s_kEmbeddedConfigs)
+    {
+        span<const Byte>  scBytes   = ExtractResource (hInstance, selfCheck.resourceId);
+        string            scJson    = string (reinterpret_cast<const char *> (scBytes.data()), scBytes.size());
+        JsonValue         scRoot;
+        JsonParseError    scErr;
+        int               scVersion = 0;
+        HRESULT           scParseHr = S_OK;
+        HRESULT           scVerHr   = S_OK;
+
+
+
+        scParseHr = JsonParser::Parse (scJson, scRoot, scErr);
+
+        if (SUCCEEDED (scParseHr))
+        {
+            scVerHr = scRoot.GetInt ("$cassoMachineVersion", scVersion);
+
+            _ASSERTE (SUCCEEDED (scVerHr)
+                      && scVersion == selfCheck.currentVersion
+                      && "s_kEmbeddedConfigs currentVersion out of sync with embedded $cassoMachineVersion");
+        }
+    }
+#endif
 
     // Embedded machine JSONs always extract under %LOCALAPPDATA%\Casso\,
     // not into whichever exe-adjacent Machines/ a dev happens to have
