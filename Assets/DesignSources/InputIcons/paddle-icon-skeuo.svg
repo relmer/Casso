@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" width="96" height="96">
   <!--
-    Apple Hand Controller (A2M2001) 3/4 glyph, rev 25 - Skeuomorphic theme.
+    Apple Hand Controller (A2M2001) 3/4 glyph, rev 26 - Skeuomorphic theme.
     - HANDLE terminates in a SUBSTANTIAL raised cream DISC (rx21) that the
       top-surface side edges are TANGENT to at (38.4,35.4)/(74.3,42.6); the
       disc base ellipse (58,38) seats on the handle top and the disc rises
@@ -111,9 +111,10 @@
   <ellipse cx="58.0" cy="13" rx="7.5" ry="2.6" fill="url(#pCap)" stroke="#827D6C" stroke-width="1.4"/>
   <ellipse cx="58.0" cy="13" rx="4.4" ry="1.53" fill="none" stroke="#827D6C" stroke-width="0.9" opacity="0.8"/>
   <ellipse cx="58.0" cy="13" rx="1.5" ry="0.52" fill="none" stroke="#827D6C" stroke-width="1.1" opacity="1.0"/>
-  <!-- fire button: arc tab protruding from the housing disc SE -->
-  <path d="M 78.9,27.4 A 21 7.3 0 0 1 72.8,33.2 L 75.3,34.5 L 75.3,39.0 A 24.5 8.5 0 0 0 82.4,33.5 L 82.4,27.4 Z"
-        fill="url(#pBtn)" stroke="#A63C14" stroke-width="1.2" stroke-linejoin="round"/>
-  <path d="M 78.9,27.4 A 21 7.3 0 0 1 72.8,33.2 L 75.3,34.5 A 24.5 8.5 0 0 0 82.4,27.4 Z" fill="#FF7D46"/>
-  <path d="M 72.8,33.2 L 75.3,34.5 L 75.3,39.0 L 72.8,37.7 Z" fill="#C24418"/>
+  <!-- fire button: TALL thin vertical rounded tab protruding
+       slightly from the disc right side (~3:00), spanning the
+       disc wall height; lit south face + darker outer edge. -->
+  <path d="M 82.0,28.8 Q 84.1,29.4 84.0,32.0 L 83.7,37.4 Q 83.6,39.6 81.5,39.6 L 80.6,39.2 L 81.5,29.0 Z" fill="#C6461C"/>
+  <path d="M 77.3,28.2 Q 79.1,26.8 81.2,27.6 Q 83.5,28.4 83.4,31.1 L 83.1,37.2 Q 83.0,39.5 80.8,39.4 Q 77.9,39.2 77.7,36.7 L 77.3,30.2 Q 77.1,28.7 77.3,28.2 Z" fill="url(#pBtn)" stroke="#A63C14" stroke-width="1.1" stroke-linejoin="round"/>
+  <path d="M 78.4,28.8 Q 80.0,27.7 81.8,28.4 L 81.1,29.8 Q 79.6,29.1 78.2,30.1 Z" fill="#FF9A5E"/>
 </svg>

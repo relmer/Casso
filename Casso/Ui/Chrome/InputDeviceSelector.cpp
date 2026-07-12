@@ -471,7 +471,7 @@ void InputDeviceSelector::PaintPaddleGlyph (IDxuiPainter & p, const RECT & box, 
         return;
     }
 
-    // 3/4 perspective (paddle-icon-skeuo.svg rev 25): the handle is one
+    // 3/4 perspective (paddle-icon-skeuo.svg rev 26): the handle is one
     // CONSISTENT projection with the dial (plan axis 30 deg west of
     // south under the shared 0.35 camera): every transverse edge and
     // grip line projects along (0.866,0.175) = slope +0.20, every axial
@@ -484,7 +484,8 @@ void InputDeviceSelector::PaintPaddleGlyph (IDxuiPainter & p, const RECT & box, 
     // overhang. DIAL sits in a dark recess on the disc: TWO flat knurled
     // cylinders (wide lower rx17.5 + narrow upper cap rx7.5) joined by a
     // SMALL-radius fillet shoulder; cap top carries the "0" mark. BUTTON:
-    // arc tab protruding from the disc SE (convex OUT), ~3:00-4:30. UNION
+    // tall thin vertical rounded tab protruding from the disc right (~3:00),
+    // embedded in the disc wall. UNION
     // of slab + disc cylinder: shell thickness = 10; the SE side wall
     // runs to the disc SE tangent generator at x=74.3 so the two merge
     // with no gap. Draw order: SE side face, bottom edge, tip face, top
@@ -560,12 +561,18 @@ void InputDeviceSelector::PaintPaddleGlyph (IDxuiPainter & p, const RECT & box, 
     p.FillEllipseApprox (g.X (58), g.Y (13), g.S (4.4f), g.S (1.53f), kDialEdge);
     p.FillEllipseApprox (g.X (58), g.Y (13), g.S (3.6f), g.S (1.25f), kKnob);
     p.FillEllipseApprox (g.X (58), g.Y (13), g.S (1.5f), g.S (0.52f), kDialEdge);
-    // fire button: arc tab protruding from the housing disc SE (convex OUT),
-    // ~3:00-4:30. iN/iS inner rim, oN/oS outer rim, fT/fB front wall, dL cut.
-    p.FillConvexQuad  (g.X (78.9f), g.Y (27.4f), g.X (82.4f), g.Y (27.4f), g.X (82.4f), g.Y (33.5f), g.X (75.3f), g.Y (39), kOrange);
-    p.FillConvexQuad  (g.X (78.9f), g.Y (27.4f), g.X (75.3f), g.Y (39), g.X (72.8f), g.Y (37.7f), g.X (72.8f), g.Y (33.2f), kOrange);
-    p.FillConvexQuad  (g.X (78.9f), g.Y (27.4f), g.X (82.4f), g.Y (27.4f), g.X (75.3f), g.Y (34.5f), g.X (72.8f), g.Y (33.2f), 0xFFFF7D46);
-    p.FillConvexQuad  (g.X (72.8f), g.Y (33.2f), g.X (75.3f), g.Y (34.5f), g.X (75.3f), g.Y (39), g.X (72.8f), g.Y (37.7f), 0xFFC24418);
+    // fire button: TALL thin vertical rounded tab protruding slightly from
+    // the disc right side (~3:00), embedded in the disc, as in the photo.
+    // Capsule = edge underlay, orange body + rounded ends, then a left
+    // highlight and a darker outer (east) edge for form.
+    p.FillEllipseApprox (g.X (80.3f), g.Y (28.8f), g.S (3.5f), g.S (1.9f), kOrangeEdge);
+    p.FillEllipseApprox (g.X (80.2f), g.Y (38.2f), g.S (3.3f), g.S (1.9f), kOrangeEdge);
+    p.FillRect          (g.X (76.8f), g.Y (28.8f), g.S (7.0f), g.S (9.4f), kOrangeEdge);
+    p.FillEllipseApprox (g.X (80.3f), g.Y (28.8f), g.S (3.0f), g.S (1.5f), kOrange);
+    p.FillEllipseApprox (g.X (80.2f), g.Y (38.2f), g.S (2.8f), g.S (1.5f), kOrange);
+    p.FillRect          (g.X (77.3f), g.Y (28.8f), g.S (6.0f), g.S (9.4f), kOrange);
+    p.FillRect          (g.X (81.6f), g.Y (30.0f), g.S (1.6f), g.S (7.0f), 0xFFC6461C);
+    p.FillRect          (g.X (77.9f), g.Y (30.2f), g.S (1.7f), g.S (6.6f), 0xFFFF9A5E);
 }
 
 
