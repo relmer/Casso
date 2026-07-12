@@ -470,41 +470,41 @@ void InputDeviceSelector::PaintPaddleGlyph (IDxuiPainter & p, const RECT & box, 
         return;
     }
 
-    // 3/4 perspective (paddle-icon-skeuo.svg rev 10): converged against
-    // the reference photos. The HANDLE terminates in a DISC (rx 21)
-    // under the dial, slightly larger than it — handle and disc are one
-    // cream body whose top surface has edges TANGENT to the disc ellipse
-    // ((37.7,36.1) and (77.2,40.9)). The DIAL is two flat knurled
-    // CYLINDERS (rx 17.5 / 7.5) joined by a small-radius FILLET skirt —
-    // no dome. The fire BUTTON is an arc segment of the handle disc at
-    // rx 24.5 (vs 21), following the disc's curvature at ~3:00-4:30.
-    // Circles squash to ry/rx = 0.35 (shared camera).
+    // 3/4 perspective (paddle-icon-skeuo.svg rev 14): the handle is one
+    // CONSISTENT projection with the dial (plan axis 30 deg west of
+    // south under the shared 0.35 camera): every transverse edge and
+    // grip line projects along (0.866,0.175) = slope +0.20, every axial
+    // line along (-0.5,0.303) = slope -0.61, so slope_t * slope_a =
+    // -0.35^2 as the dial's ellipses require. Handle and disc (rx 21)
+    // are one cream body, top-surface edges TANGENT to the disc ellipse
+    // at (38.4,35.4) / (74.3,42.6). DIAL: two flat knurled CYLINDERS
+    // (rx 17.5 / 7.5) joined by a small-radius FILLET skirt. BUTTON:
+    // rim-concentric arc segment (rx 24.5 vs 21) at ~3:00-4:30.
     // handle-disc wall, then tip face, then the SE side face (blends
     // into the disc wall — no seam between them)
     p.FillEllipseApprox (g.X (58), g.Y (48), g.S (21), g.S (7.3f), 0xFFBFB9A7);
     p.FillRect          (g.X (37), g.Y (38), g.S (42), g.S (10), 0xFFBFB9A7);
-    p.FillConvexQuad  (g.X (13), g.Y (68), g.X (30), g.Y (78), g.X (30), g.Y (85), g.X (13), g.Y (75), kSideFace);
-    p.FillConvexQuad  (g.X (30), g.Y (78), g.X (77), g.Y (41), g.X (74), g.Y (54), g.X (30), g.Y (85), 0xFFB3AD9C);
+    p.FillConvexQuad  (g.X (11.2f), g.Y (63.8f), g.X (26.8f), g.Y (66.9f), g.X (26.8f), g.Y (72.6f), g.X (11.2f), g.Y (69.4f), kSideFace);
+    p.FillConvexQuad  (g.X (26.8f), g.Y (66.9f), g.X (74.3f), g.Y (42.6f), g.X (56.3f), g.Y (54.7f), g.X (26.8f), g.Y (72.6f), 0xFFB3AD9C);
     // unified top surface: disc top + handle top, one cream body
     p.FillEllipseApprox (g.X (58), g.Y (38), g.S (21), g.S (7.3f), kCase);
-    p.FillConvexQuad  (g.X (13), g.Y (68), g.X (37.7f), g.Y (36.1f), g.X (77.2f), g.Y (40.9f), g.X (30), g.Y (78), kCase);
-    // grip lines: full width NW edge -> SE shoulder, all PARALLEL to the
-    // handle's bottom edge (constant direction (17,10)); u pairs each
-    // NW-edge station with the SE-shoulder point along that direction
+    p.FillConvexQuad  (g.X (11.2f), g.Y (63.8f), g.X (38.4f), g.Y (35.4f), g.X (74.3f), g.Y (42.6f), g.X (26.8f), g.Y (66.9f), kCase);
+    // grip lines: full width NW edge -> SE shoulder; equal edge stations
+    // pair up because both edges span tip -> tangency together, and each
+    // line projects along the shared transverse direction (slope +0.20)
     for (int i = 0; i < 8; i++)
     {
-        float  t  = 0.18f + 0.10f * (float) i;
-        float  u  = 0.7158f * t;
-        float  lx = 13 + 24.7f * t, ly = 68 - 31.9f * t;    // on the NW edge
-        float  sx = 30 + 47.2f * u, sy = 78 - 37.1f * u;    // on the SE shoulder
+        float  t  = 0.20f + 0.08f * (float) i;
+        float  lx = 11.2f + 27.2f * t, ly = 63.8f - 28.4f * t;   // on the NW edge
+        float  sx = 26.8f + 47.5f * t, sy = 66.9f - 24.3f * t;   // on the SE shoulder
         p.DrawLineApprox (g.X (lx), g.Y (ly), g.X (sx), g.Y (sy), g.S (1.3f), kRib);
         // grip lines wrap over the SE shoulder onto the side face
         p.DrawLineApprox (g.X (sx), g.Y (sy), g.X (sx), g.Y (sy + 2.2f), g.S (1.1f), 0xFF98927F);
     }
     // Apple badge chip in the smooth patch near the tip, parting seam
-    p.FillConvexQuad  (g.X (23.3f), g.Y (68.4f), g.X (26.4f), g.Y (70), g.X (25.1f), g.Y (72.6f), g.X (22), g.Y (71.1f), 0x99A9A392);
-    p.DrawLineApprox  (g.X (31), g.Y (82), g.X (71.5f), g.Y (52.5f), g.S (1.0f), 0xB38F8A7A);
-    p.DrawLineApprox  (g.X (71.5f), g.Y (52.5f), g.X (75.3f), g.Y (50.8f), g.S (1.0f), 0x998F8A7A);
+    p.FillConvexQuad  (g.X (20.2f), g.Y (63.5f), g.X (23.1f), g.Y (64.1f), g.X (25.2f), g.Y (61.9f), g.X (22.3f), g.Y (61.3f), 0x99A9A392);
+    p.DrawLineApprox  (g.X (28), g.Y (70.3f), g.X (62), g.Y (51), g.S (1.0f), 0xB38F8A7A);
+    p.DrawLineApprox  (g.X (62), g.Y (51), g.X (74), g.Y (49.5f), g.S (1.0f), 0x998F8A7A);
     // dark opening the dial sits in (dial concentric with the disc)
     p.FillEllipseApprox (g.X (58), g.Y (38), g.S (19.5f), g.S (6.8f), kHole);
     // dial lower cylinder: flat top, 6-unit knurl band on its wall
