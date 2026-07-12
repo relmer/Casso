@@ -75,12 +75,8 @@ public:
     void             StepOne                  ()                              { m_cpu6502->StepOne (); }
     Byte             GetLastInstructionCycles () const                        { return m_cpu6502->GetLastInstructionCycles (); }
 
-    // Interrupt-aware companion to StepOne for the shell run loop. Dispatches a
-    // pending NMI/IRQ (returns true) or does nothing (returns false); on a true
-    // return the caller skips StepOne and GetLastInstructionCycles() reports the
-    // 7-cycle interrupt cost. Callers that drive the CPU with raw StepOne MUST
-    // gate it on this or maskable IRQs are never serviced.
-    bool             TryStepInterrupt         ()                              { return m_cpu6502->TryStepInterrupt (); }
+    // Interrupt-aware companion to StepOne; see Cpu6502::TryStepInterrupt.
+    bool             TryStepInterrupt() { return m_cpu6502->TryStepInterrupt(); }
 
     // Execution trace (--trace switch). Forwarded to the underlying 6502.
     void             EnableTrace     (size_t capacity)  { m_cpu6502->EnableTrace (capacity); }

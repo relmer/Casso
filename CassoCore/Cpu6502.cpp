@@ -135,15 +135,16 @@ void Cpu6502::SetInterruptLine (CpuInterruptKind kind, bool asserted)
     if (kind == CpuInterruptKind::kMaskable)
     {
         m_irqLine = asserted;
-        return;
     }
-
-    if (asserted && !m_nmiLine)
+    else
     {
-        m_nmiPending = true;
-    }
+        if (asserted && !m_nmiLine)
+        {
+            m_nmiPending = true;
+        }
 
-    m_nmiLine = asserted;
+        m_nmiLine = asserted;
+    }
 }
 
 
@@ -250,7 +251,7 @@ bool Cpu6502::TryDispatchInterrupt (uint32_t & outCycles)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool Cpu6502::TryStepInterrupt ()
+bool Cpu6502::TryStepInterrupt()
 {
     bool    dispatched = false;
 

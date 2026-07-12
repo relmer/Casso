@@ -34,6 +34,10 @@ namespace Apple2eFidelity
     static constexpr Word   kNmiHandler = 0xA000;
     static constexpr Word   kStartPc    = 0x8000;
 
+    // Via6522Timer1IrqReachesCpuThroughHostLoop bounds.
+    static constexpr Word   kNopFieldBytes = 64;    // NOP scratch the CPU runs before the IRQ fires
+    static constexpr int    kMaxHostSteps  = 200;   // host-loop iterations before we give up
+
 
     static void SeedVectors (TestCpu & cpu)
     {
@@ -244,22 +248,22 @@ namespace Apple2eFidelity
             cpu.InitForTest (kStartPc);
             SeedVectors (cpu);
             cpu.Poke (kStartPc, 0xEA);   // NOP -- must NOT run; IRQ pre-empts it
-            cpu.Status ().flags.interruptDisable = 0;
+            cpu.Status().flags.interruptDisable = 0;
 
             iface.SetInterruptLine (CpuInterruptKind::kMaskable, true);
 
             // One iteration of the shell's exact stepping pattern.
-            tookIrq = cpu.TryStepInterrupt ();
+            tookIrq = cpu.TryStepInterrupt();
             if (!tookIrq)
             {
-                cpu.StepOne ();
+                cpu.StepOne();
             }
 
             Assert::IsTrue (tookIrq,
                             L"Host step loop must dispatch the asserted IRQ");
-            Assert::AreEqual (kIrqHandler, cpu.RegPC (),
+            Assert::AreEqual (kIrqHandler, cpu.RegPC(),
                               L"PC must vector to the IRQ handler via the StepOne loop");
-            Assert::AreEqual (static_cast<Byte> (7), cpu.GetLastInstructionCycles (),
+            Assert::AreEqual (static_cast<Byte> (7), cpu.GetLastInstructionCycles(),
                               L"Interrupt step must report 7 cycles for host cycle accounting");
         }
 
@@ -275,18 +279,18 @@ namespace Apple2eFidelity
             cpu.InitForTest (kStartPc);
             SeedVectors (cpu);
             cpu.Poke (kStartPc, 0xEA);   // NOP -- must run because I=1 masks the IRQ
-            cpu.Status ().flags.interruptDisable = 1;
+            cpu.Status().flags.interruptDisable = 1;
 
             iface.SetInterruptLine (CpuInterruptKind::kMaskable, true);
 
-            tookIrq = cpu.TryStepInterrupt ();
+            tookIrq = cpu.TryStepInterrupt();
             if (!tookIrq)
             {
-                cpu.StepOne ();
+                cpu.StepOne();
             }
 
             Assert::IsFalse (tookIrq, L"IRQ must not dispatch while I=1");
-            Assert::AreEqual (static_cast<Word> (kStartPc + 1), cpu.RegPC (),
+            Assert::AreEqual (static_cast<Word> (kStartPc + 1), cpu.RegPC(),
                               L"With I=1 the NOP must run instead of vectoring");
         }
 
@@ -301,18 +305,18 @@ namespace Apple2eFidelity
 
             cpu.InitForTest (kStartPc);
             SeedVectors (cpu);
-            cpu.Status ().flags.interruptDisable = 1;   // NMI ignores I
+            cpu.Status().flags.interruptDisable = 1;   // NMI ignores I
 
             iface.SetInterruptLine (CpuInterruptKind::kNonMaskable, true);
 
-            took = cpu.TryStepInterrupt ();
+            took = cpu.TryStepInterrupt();
             if (!took)
             {
-                cpu.StepOne ();
+                cpu.StepOne();
             }
 
             Assert::IsTrue (took, L"Host step loop must dispatch the NMI edge");
-            Assert::AreEqual (kNmiHandler, cpu.RegPC (),
+            Assert::AreEqual (kNmiHandler, cpu.RegPC(),
                               L"NMI must vector via $FFFA through the StepOne loop");
         }
 
@@ -336,11 +340,11 @@ namespace Apple2eFidelity
 
             cpu.InitForTest (kStartPc);
             SeedVectors (cpu);
-            for (a = kStartPc; a < kStartPc + 64; ++a)
+            for (a = kStartPc; a < kStartPc + kNopFieldBytes; ++a)
             {
                 cpu.Poke (a, 0xEA);      // NOP field so StepOne makes progress
             }
-            cpu.Status ().flags.interruptDisable = 0;
+            cpu.Status().flags.interruptDisable = 0;
 
             Assert::AreEqual (S_OK, via.AttachInterruptController (&ic),
                               L"VIA must bind to the interrupt controller");
@@ -352,16 +356,16 @@ namespace Apple2eFidelity
             via.WriteRegister (Via6522::kRegT1LL, 0x10);
             via.WriteRegister (Via6522::kRegT1CH, 0x00);   // load+arm, count = 0x0010
 
-            for (i = 0; i < 200 && !reachedHandler; ++i)
+            for (i = 0; i < kMaxHostSteps && !reachedHandler; ++i)
             {
-                if (!cpu.TryStepInterrupt ())
+                if (!cpu.TryStepInterrupt())
                 {
-                    cpu.StepOne ();
+                    cpu.StepOne();
                 }
 
-                via.Tick (cpu.GetLastInstructionCycles ());
+                via.Tick (cpu.GetLastInstructionCycles());
 
-                if (cpu.RegPC () == kIrqHandler)
+                if (cpu.RegPC() == kIrqHandler)
                 {
                     reachedHandler = true;
                 }

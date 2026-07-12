@@ -59,17 +59,9 @@ public:
     bool                          IsNmiLineAsserted () const { return m_nmiLine; }
     bool                          IsNmiPending      () const { return m_nmiPending; }
 
-    // Host-driven interrupt dispatch for run loops that own their own cycle
-    // accounting (StepOne + AddCycles) rather than the self-accounting Step().
-    // Dispatches a pending NMI edge or unmasked IRQ via DispatchVector, records
-    // the 7-cycle cost in m_lastCycles (so GetLastInstructionCycles reports it),
-    // and leaves m_totalCycles to the caller's AddCycles -- so an interrupt step
-    // and a normal instruction step advance the counters through one identical
-    // path. Returns true if an interrupt was taken, in which case the caller
-    // skips StepOne for this step. The shell run loop MUST call this each step
-    // or maskable IRQs are never serviced (the failure mode that hid until the
-    // Mockingboard became the first device to assert one).
-    bool                          TryStepInterrupt ();
+    // Dispatches a pending NMI/IRQ for host loops that drive the CPU with raw
+    // StepOne rather than the self-accounting Step(). Returns true if taken.
+    bool                          TryStepInterrupt();
 
 protected:
     // Returns true if a pending NMI or unmasked IRQ was dispatched. On
