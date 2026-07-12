@@ -60,13 +60,13 @@
        capped at the union instead of running past toward the button. -->
   <path d="M 37,38 A 21 7.3 0 0 0 79,38 L 79,48 A 21 7.3 0 0 1 37,48 Z"
         fill="url(#pWall)"/>
-  <!-- disc base seating edge: ONLY the SE quarter of the bowl base,
-       where it curves down to meet the handle at the union tangent
-       (74.3,52.6). The rest of the base ellipse projects low (~y55, mid-
-       handle) and would sweep across the top as a rogue line, so it is
-       omitted; in the photo the front base is a soft transition and only
-       this SE curve reads as an edge before it merges with the seam. -->
-  <path d="M 65,54.8 A 21 7.3 0 0 1 74.3,52.6" fill="none"
+  <!-- disc base seating edge: the SE arc of the bowl base rim, tucking
+       BEHIND the fire button (drawn later, which clips its east end).
+       It follows the base ellipse from the front-right and disappears
+       under the button, exactly as the bowl base meets the seam under
+       the button in the photo. The rest of the base projects low and is
+       a soft transition, so it is omitted. -->
+  <path d="M 62,55.1 A 21 7.3 0 0 1 79,48" fill="none"
         stroke="#8F8A7A" stroke-width="1.4"/>
   <!-- unified top surface: disc top + handle top as ONE path, side edges
        tangent to the disc ellipse at (38.4,35.4) and (74.3,42.6) -->
