@@ -509,8 +509,9 @@ void InputDeviceSelector::PaintPaddleGlyph (IDxuiPainter & p, const RECT & box, 
     }
     // Apple badge chip in the smooth patch near the tip, parting seam
     p.FillConvexQuad  (g.X (20.2f), g.Y (63.5f), g.X (23.1f), g.Y (64.1f), g.X (25.2f), g.Y (61.9f), g.X (22.3f), g.Y (61.3f), 0x99A9A392);
-    p.DrawLineApprox  (g.X (27), g.Y (71.9f), g.X (61), g.Y (54.4f), g.S (1.0f), 0xB38F8A7A);
-    p.DrawLineApprox  (g.X (61), g.Y (54.4f), g.X (73.5f), g.Y (48), g.S (1.0f), 0x998F8A7A);
+    // parting seam on the SE side wall; stops before the disc so it does
+    // not float onto the top surface at the handle/disc union
+    p.DrawLineApprox  (g.X (27), g.Y (71.9f), g.X (59), g.Y (55.4f), g.S (1.0f), 0xB38F8A7A);
     // dark opening the dial sits in (dial concentric with the disc)
     p.FillEllipseApprox (g.X (58), g.Y (38), g.S (19.5f), g.S (6.8f), kHole);
     // dial lower cylinder: flat top, 6-unit knurl band on its wall
