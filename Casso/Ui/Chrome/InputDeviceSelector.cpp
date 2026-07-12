@@ -492,14 +492,14 @@ void InputDeviceSelector::PaintPaddleGlyph (IDxuiPainter & p, const RECT & box, 
     p.FillConvexQuad  (g.X (11.2f), g.Y (63.8f), g.X (26.8f), g.Y (66.9f), g.X (26.8f), g.Y (76.9f), g.X (11.2f), g.Y (73.8f), kSideFace);
     p.FillEllipseApprox (g.X (58), g.Y (48), g.S (21), g.S (7.3f), 0xFFBFB9A7);
     p.FillRect          (g.X (37), g.Y (38), g.S (42), g.S (10), 0xFFBFB9A7);
-    // disc base FRONT rim where the bowl seats on the handle top, capped
-    // at the SE tangent generator (74.3,52.6) so it stops at the union
-    // and does not run past toward the button; the handle top (next)
-    // hides its west half, leaving the genuine front seating line
+    // disc base seating edge: ONLY the SE quarter of the bowl base, where
+    // it curves down to the union tangent (74.3,52.6). The rest projects
+    // low (~y55, mid-handle) and would sweep across the top as a rogue
+    // line, so it is omitted -- the front base is a soft transition.
     {
-        const float  rimX[] = { 40, 47.5f, 54.4f, 58, 61.65f, 68.5f, 74.3f };
-        const float  rimY[] = { 51.8f, 54.3f, 55.2f, 55.3f, 55.2f, 54.3f, 52.6f };
-        for (int i = 0; i < 6; i++)
+        const float  rimX[] = { 65, 68.5f, 71.5f, 74.3f };
+        const float  rimY[] = { 54.9f, 54.4f, 53.6f, 52.6f };
+        for (int i = 0; i < 3; i++)
             p.DrawLineApprox (g.X (rimX[i]), g.Y (rimY[i]), g.X (rimX[i + 1]), g.Y (rimY[i + 1]), g.S (1.4f), 0xFF8F8A7A);
     }
     // unified top surface: disc top + handle top, one cream body
