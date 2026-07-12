@@ -470,7 +470,7 @@ void InputDeviceSelector::PaintPaddleGlyph (IDxuiPainter & p, const RECT & box, 
         return;
     }
 
-    // 3/4 perspective (paddle-icon-skeuo.svg rev 20 + seating-edge fade):
+    // 3/4 perspective (paddle-icon-skeuo.svg rev 20, no disc-base stroke):
     // the handle is one
     // CONSISTENT projection with the dial (plan axis 30 deg west of
     // south under the shared 0.35 camera): every transverse edge and
@@ -493,21 +493,12 @@ void InputDeviceSelector::PaintPaddleGlyph (IDxuiPainter & p, const RECT & box, 
     p.FillConvexQuad  (g.X (11.2f), g.Y (63.8f), g.X (26.8f), g.Y (66.9f), g.X (26.8f), g.Y (76.9f), g.X (11.2f), g.Y (73.8f), kSideFace);
     p.FillEllipseApprox (g.X (58), g.Y (48), g.S (21), g.S (7.3f), 0xFFBFB9A7);
     p.FillRect          (g.X (37), g.Y (38), g.S (42), g.S (10), 0xFFBFB9A7);
-    // disc base seating edge: the SE arc of the bowl base rim, FADING IN
-    // from the front (58,55.3 -- a soft transition, as in the photo) to a
-    // clear edge at the union tangent (74.3,52.6) that tucks under the
-    // button. The alpha ramp replaces the SE-quarter-only stroke, which
-    // left an orphaned hard stub floating on the side face.
-    {
-        const float  rimX[] = { 58, 61.3f, 64.5f, 67.8f, 71, 74.3f };
-        const float  rimY[] = { 55.3f, 55.21f, 54.94f, 54.46f, 53.73f, 52.6f };
-        for (int i = 0; i < 5; i++)
-        {
-            uint32_t  a   = 0x30u + 0x30u * (uint32_t) i;   // 0x30..0xF0 west->east
-            uint32_t  col = (a << 24) | 0x008F8A7Au;
-            p.DrawLineApprox (g.X (rimX[i]), g.Y (rimY[i]), g.X (rimX[i + 1]), g.Y (rimY[i + 1]), g.S (1.5f), col);
-        }
-    }
+    // No explicit disc-base seating stroke: the disc sits sunk in the handle
+    // (base ellipse at y48, below the handle top), so any drawn base rim
+    // either floats as an orphaned stub or sweeps across the handle as a
+    // rogue line. The disc WALL fill (0xFFBFB9A7, darker than the body)
+    // already meets the handle as a clean tonal edge, so the disc reads as
+    // seated with no stray line segment.
     // unified top surface: disc top + handle top, one cream body
     p.FillEllipseApprox (g.X (58), g.Y (38), g.S (21), g.S (7.3f), kCase);
     p.FillConvexQuad  (g.X (11.2f), g.Y (63.8f), g.X (38.4f), g.Y (35.4f), g.X (74.3f), g.Y (42.6f), g.X (26.8f), g.Y (66.9f), kCase);

@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" width="96" height="96">
   <!--
-    Apple Hand Controller (A2M2001) 3/4 glyph, rev 20 + seating-edge fade.
+    Apple Hand Controller (A2M2001) 3/4 glyph, rev 20 (no disc-base stroke).
     Skeuomorphic theme.
     - HANDLE terminates in a DISC (rx 21) under the dial; one cream body,
       top-surface side edges TANGENT to the disc ellipse ((37.7,36.1) and
@@ -33,14 +33,6 @@
     <linearGradient id="pBtn" x1="0" y1="0" x2="0" y2="1">
       <stop offset="0" stop-color="#FF7038"/><stop offset="1" stop-color="#E04E1E"/>
     </linearGradient>
-    <!-- seating-edge fade: transparent at the front (west), firming to a
-         clear edge at the union (east), so the disc base reads as a soft
-         transition instead of an orphaned SE-quarter stub. -->
-    <linearGradient id="pSeat" x1="0" y1="0" x2="1" y2="0">
-      <stop offset="0" stop-color="#8F8A7A" stop-opacity="0"/>
-      <stop offset="0.55" stop-color="#8F8A7A" stop-opacity="0.4"/>
-      <stop offset="1" stop-color="#8F8A7A" stop-opacity="0.95"/>
-    </linearGradient>
   </defs>
 
   <!-- CONSISTENT handle projection (plan axis 30 deg west of south under
@@ -69,13 +61,13 @@
        capped at the union instead of running past toward the button. -->
   <path d="M 37,38 A 21 7.3 0 0 0 79,38 L 79,48 A 21 7.3 0 0 1 37,48 Z"
         fill="url(#pWall)"/>
-  <!-- disc base seating edge: the SE arc of the bowl base rim, FADING IN
-       from the front (58,55.3 -- soft transition, as in the photo) to a
-       clear edge at the union tangent (74.3,52.6) that tucks under the
-       button. The fade (pSeat) removes the orphaned hard stub the SE-
-       quarter-only stroke used to leave floating on the side face. -->
-  <path d="M 58,55.3 A 21 7.3 0 0 1 74.3,52.6" fill="none"
-        stroke="url(#pSeat)" stroke-width="1.5" stroke-linecap="round"/>
+  <!-- No explicit disc-base seating stroke: the disc sits sunk in the
+       handle (base ellipse at y48, below the handle's top surface), so any
+       drawn base rim either floats as an orphaned stub or sweeps across the
+       handle as a rogue line. The disc WALL fill (pWall, darker than the
+       body) already meets the handle as a clean tonal edge, so the disc
+       reads as seated with no stray line segment. -->
+
   <!-- unified top surface: disc top + handle top as ONE path, side edges
        tangent to the disc ellipse at (38.4,35.4) and (74.3,42.6) -->
   <path d="M 38.4,35.4 A 21 7.3 0 1 1 74.3,42.6 L 29.0,65.8 Q 26.8,66.9 24.4,66.4 L 13.6,64.3 Q 11.2,63.8 12.9,62.0 Z"
