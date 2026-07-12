@@ -30,6 +30,8 @@ namespace
     constexpr uint32_t  kDialSide   = 0xFFA79F8D;   // cylinder side bands
     constexpr uint32_t  kDialTop    = 0xFFC1BBAA;
     constexpr uint32_t  kDialEdge   = 0xFF827D6C;
+    constexpr uint32_t  kHousing    = 0xFFBDB6A4;   // paddle dial housing boss
+    constexpr uint32_t  kDome       = 0xFFD0C9B7;   // paddle dial smooth dome
     constexpr uint32_t  kTick       = 0xFF7E7967;   // knurl ticks
     constexpr uint32_t  kRib        = 0xFFA9A392;   // grip ribs
     constexpr uint32_t  kOrange     = 0xFFF0602B;   // fire buttons
@@ -470,40 +472,28 @@ void InputDeviceSelector::PaintPaddleGlyph (IDxuiPainter & p, const RECT & box, 
         return;
     }
 
-    // 3/4 perspective (paddle-icon-skeuo.svg rev 14): the handle is one
+    // 3/4 perspective (paddle-icon-skeuo.svg rev 24): the handle is one
     // CONSISTENT projection with the dial (plan axis 30 deg west of
     // south under the shared 0.35 camera): every transverse edge and
     // grip line projects along (0.866,0.175) = slope +0.20, every axial
     // line along (-0.5,0.303) = slope -0.61, so slope_t * slope_a =
-    // -0.35^2 as the dial's ellipses require. Handle and disc (rx 21)
-    // are one cream body, top-surface edges TANGENT to the disc ellipse
-    // at (38.4,35.4) / (74.3,42.6). DIAL: two flat knurled CYLINDERS
-    // (rx 17.5 / 7.5) joined by a small-radius FILLET skirt. BUTTON:
-    // rim-concentric arc segment (rx 24.5 vs 21) at ~3:00-4:30.
-    // UNION of slab + disc cylinder. Shell thickness = 10 = the disc's
-    // own wall height (top ellipse cy38 -> base cy48). The SE side wall
-    // runs to the disc's SE tangent generator at x=74.3 (y 42.6 rim ->
-    // 52.6 base), coinciding with the disc wall there so the two merge
-    // with no gap; the bottom outline (top outline + (0,10)) lands on
-    // the disc base ellipse. Draw order: SE side face, bottom edge, tip
-    // face, disc wall (covers the junction), disc top, handle top.
+    // -0.35^2 as the dial's ellipses require. The handle terminates in a
+    // raised cream housing boss whose BASE ellipse (58,38) seats on the
+    // handle top (the ellipse the top-surface edges are tangent to at
+    // (38.4,35.4)/(74.3,42.6)), so the dial rises UP from there with no
+    // sunken overhang. DIAL: thin housing lip -> BIG knurled ring (rx18,
+    // dominant) -> smooth cream DOME (frustum rx16.5->rx6.5) -> small
+    // knurled cap with the "0" mark. BUTTON: arc tab on the housing SE
+    // side (convex OUT), ~3:00-4:30. UNION of slab + housing cylinder:
+    // shell thickness = 10; the SE side wall runs to the housing SE
+    // tangent generator at x=74.3 so the two merge with no gap. Draw
+    // order: SE side face, bottom edge, tip face, top surface, grips,
+    // seam, then the raised housing boss + dial + button on top.
     p.FillConvexQuad  (g.X (26.8f), g.Y (66.9f), g.X (74.3f), g.Y (42.6f), g.X (74.3f), g.Y (52.6f), g.X (26.8f), g.Y (76.9f), 0xFFB3AD9C);
     p.DrawLineApprox  (g.X (26.8f), g.Y (76.9f), g.X (73), g.Y (53.2f), g.S (1.4f), 0xFF8F8A7A);
     p.FillConvexQuad  (g.X (11.2f), g.Y (63.8f), g.X (26.8f), g.Y (66.9f), g.X (26.8f), g.Y (76.9f), g.X (11.2f), g.Y (73.8f), kSideFace);
-    p.FillEllipseApprox (g.X (58), g.Y (48), g.S (21), g.S (7.3f), 0xFFBFB9A7);
-    p.FillRect          (g.X (37), g.Y (38), g.S (42), g.S (10), 0xFFBFB9A7);
-    // disc base seating edge: the SE arc of the bowl base rim, following
-    // the base ellipse and tucking BEHIND the fire button (drawn later,
-    // which clips its east end past x~76.5) -- the bowl base meeting the
-    // seam under the button, as in the photo. The rest of the base
-    // projects low and is a soft transition, so it is omitted.
-    {
-        const float  rimX[] = { 62, 66, 70, 74, 79 };
-        const float  rimY[] = { 55.2f, 54.75f, 54.0f, 52.73f, 48 };
-        for (int i = 0; i < 4; i++)
-            p.DrawLineApprox (g.X (rimX[i]), g.Y (rimY[i]), g.X (rimX[i + 1]), g.Y (rimY[i + 1]), g.S (1.4f), 0xFF8F8A7A);
-    }
-    // unified top surface: disc top + handle top, one cream body
+    // unified top surface: disc footprint + handle top, one cream body; the
+    // raised dial housing boss is drawn AFTER this (it rises up from y38).
     p.FillEllipseApprox (g.X (58), g.Y (38), g.S (21), g.S (7.3f), kCase);
     p.FillConvexQuad  (g.X (11.2f), g.Y (63.8f), g.X (38.4f), g.Y (35.4f), g.X (74.3f), g.Y (42.6f), g.X (26.8f), g.Y (66.9f), kCase);
     // grip lines: full width NW edge -> SE shoulder; equal edge stations
@@ -523,40 +513,61 @@ void InputDeviceSelector::PaintPaddleGlyph (IDxuiPainter & p, const RECT & box, 
     // shell parting seam along the SE side wall, continuing to the disc
     p.DrawLineApprox  (g.X (27), g.Y (71.9f), g.X (61), g.Y (54.4f), g.S (1.0f), 0xB38F8A7A);
     p.DrawLineApprox  (g.X (61), g.Y (54.4f), g.X (73.5f), g.Y (48), g.S (1.0f), 0x998F8A7A);
-    // dark opening the dial sits in (dial concentric with the disc)
-    p.FillEllipseApprox (g.X (58), g.Y (38), g.S (19.5f), g.S (6.8f), kHole);
-    // dial lower cylinder: flat top, 6-unit knurl band on its wall
-    p.FillEllipseApprox (g.X (58), g.Y (38), g.S (17.5f), g.S (6.1f), kDialSide);
-    p.FillRect          (g.X (40.5f), g.Y (32), g.S (35), g.S (6), kDialSide);
-    p.FillEllipseApprox (g.X (58), g.Y (32), g.S (17.5f), g.S (6.1f), kDial);
+    // === DISC: raised cream housing boss + BIG knurled ring + smooth cream
+    // DOME + small knurled cap; matches paddle-icon-skeuo.svg (gen_disc.py).
+    // Everything rises UP from the base ellipse (58,38) that seats on the
+    // handle top, so there is no sunken overhang and no rogue base line.
+    // --- housing boss: base 38 -> rim 34 (thin cream lip) ---
+    p.FillEllipseApprox (g.X (58), g.Y (38), g.S (21), g.S (7.3f), kHousing);
+    p.FillRect          (g.X (37), g.Y (34), g.S (42), g.S (4), kHousing);
+    p.FillEllipseApprox (g.X (58), g.Y (34), g.S (21), g.S (7.3f), kHousing);
+    // seating edge: the front arc of the boss base rim on the handle top
+    for (int i = 0; i < 6; i++)
+    {
+        float  x0 = 37.0f + 42.0f * (float) i / 6.0f;
+        float  x1 = 37.0f + 42.0f * (float) (i + 1) / 6.0f;
+        float  s0 = sqrtf (fmaxf (0.0f, 1.0f - ((x0 - 58) / 21) * ((x0 - 58) / 21)));
+        float  s1 = sqrtf (fmaxf (0.0f, 1.0f - ((x1 - 58) / 21) * ((x1 - 58) / 21)));
+        p.DrawLineApprox (g.X (x0), g.Y (38 + 7.3f * s0), g.X (x1), g.Y (38 + 7.3f * s1), g.S (1.4f), kCaseEdge);
+    }
+    // dark opening the dial sits in
+    p.FillEllipseApprox (g.X (58), g.Y (34), g.S (19.3f), g.S (6.7f), kHole);
+    // big knurled ring (dominant): wall 24..34
+    p.FillEllipseApprox (g.X (58), g.Y (34), g.S (18), g.S (6.3f), kDialSide);
+    p.FillRect          (g.X (40), g.Y (24), g.S (36), g.S (10), kDialSide);
     for (int i = -6; i <= 6; i++)
     {
-        float  dx = 2.6f * (float) i;
-        float  s  = sqrtf (1.0f - (dx / 17.5f) * (dx / 17.5f));
-        p.DrawLineApprox (g.X (58 + dx), g.Y (32 + 6.1f * s), g.X (58 + dx), g.Y (38 + 6.1f * s), g.S (1.1f), kTick);
+        float  dx = 18.0f * 0.94f * (float) i / 6.0f;
+        float  s  = sqrtf (fmaxf (0.0f, 1.0f - (dx / 18.0f) * (dx / 18.0f)));
+        p.DrawLineApprox (g.X (58 + dx), g.Y (24 + 6.264f * s), g.X (58 + dx), g.Y (34 + 6.264f * s), g.S (1.1f), kTick);
     }
-    // small-radius fillet where the cap cylinder meets the flat top
-    p.FillEllipseApprox (g.X (58), g.Y (31.3f), g.S (10), g.S (3.5f), 0xFFA6A08E);
-    // dial upper cylinder (knurled cap), then the groove-and-"0" top
-    p.FillEllipseApprox (g.X (58), g.Y (32), g.S (7.5f), g.S (2.6f), kDialSide);
-    p.FillRect          (g.X (50.5f), g.Y (23), g.S (15), g.S (9), kDialSide);
+    p.FillEllipseApprox (g.X (58), g.Y (24), g.S (18), g.S (6.3f), kDialEdge);
+    p.FillEllipseApprox (g.X (58), g.Y (24), g.S (17.2f), g.S (6.0f), kDial);
+    // smooth cream dome (frustum) rx16.5@24 -> rx6.5@17.5, tapering to cap
+    p.FillEllipseApprox (g.X (58), g.Y (24), g.S (16.5f), g.S (5.74f), kDome);
+    p.FillConvexQuad  (g.X (41.5f), g.Y (24), g.X (74.5f), g.Y (24), g.X (64.5f), g.Y (17.5f), g.X (51.5f), g.Y (17.5f), kDome);
+    p.FillEllipseApprox (g.X (58), g.Y (17.5f), g.S (6.5f), g.S (2.26f), kCaseEdge);
+    p.FillEllipseApprox (g.X (58), g.Y (17.5f), g.S (5.9f), g.S (2.05f), kDome);
+    // small knurled cap: wall 11.5..17.5
+    p.FillEllipseApprox (g.X (58), g.Y (17.5f), g.S (6.2f), g.S (2.16f), kDialSide);
+    p.FillRect          (g.X (51.8f), g.Y (11.5f), g.S (12.4f), g.S (6), kDialSide);
     for (int i = -3; i <= 3; i++)
     {
-        float  dx = 2.4f * (float) i;
-        float  s  = sqrtf (1.0f - (dx / 7.5f) * (dx / 7.5f));
-        p.DrawLineApprox (g.X (58 + dx), g.Y (23 + 2.6f * s), g.X (58 + dx), g.Y (32 + 2.6f * s), g.S (1.1f), kTick);
+        float  dx = 6.2f * 0.94f * (float) i / 3.0f;
+        float  s  = sqrtf (fmaxf (0.0f, 1.0f - (dx / 6.2f) * (dx / 6.2f)));
+        p.DrawLineApprox (g.X (58 + dx), g.Y (11.5f + 2.158f * s), g.X (58 + dx), g.Y (17.5f + 2.158f * s), g.S (1.1f), kTick);
     }
-    p.FillEllipseApprox (g.X (58), g.Y (23), g.S (7.5f), g.S (2.6f), kKnob);
-    p.FillEllipseApprox (g.X (58), g.Y (23), g.S (4.4f), g.S (1.5f), kDialSide);
-    p.FillEllipseApprox (g.X (58), g.Y (23), g.S (3.3f), g.S (1.1f), kKnob);
-    p.FillEllipseApprox (g.X (58), g.Y (23), g.S (1.5f), g.S (0.55f), kDialSide);
-    // fire button: rim-concentric arc segment (quads sample the arcs at
-    // 3:00 / 3:45 / 4:30) — lit top band, orange outer wall, dark S cut
-    p.FillConvexQuad  (g.X (82.4f), g.Y (37.8f), g.X (82.4f), g.Y (44.3f), g.X (81), g.Y (47.9f), g.X (81), g.Y (41.4f), kOrange);
-    p.FillConvexQuad  (g.X (81), g.Y (41.4f), g.X (81), g.Y (47.9f), g.X (75.3f), g.Y (51), g.X (75.3f), g.Y (44.5f), kOrange);
-    p.FillConvexQuad  (g.X (78.9f), g.Y (37.4f), g.X (82.4f), g.Y (37.8f), g.X (81), g.Y (41.4f), g.X (77.7f), g.Y (40.5f), 0xFFFF7D46);
-    p.FillConvexQuad  (g.X (77.7f), g.Y (40.5f), g.X (81), g.Y (41.4f), g.X (75.3f), g.Y (44.5f), g.X (72.8f), g.Y (43.2f), 0xFFFF7D46);
-    p.FillConvexQuad  (g.X (72.8f), g.Y (43.2f), g.X (75.3f), g.Y (44.5f), g.X (75.3f), g.Y (51), g.X (72.8f), g.Y (49.7f), 0xFFC24418);
+    p.FillEllipseApprox (g.X (58), g.Y (11.5f), g.S (6.2f), g.S (2.16f), kKnob);
+    // cap top: circular groove + the "0" mark
+    p.FillEllipseApprox (g.X (58), g.Y (11.5f), g.S (3.9f), g.S (1.36f), kDialEdge);
+    p.FillEllipseApprox (g.X (58), g.Y (11.5f), g.S (3.2f), g.S (1.11f), kKnob);
+    p.FillEllipseApprox (g.X (58), g.Y (11.5f), g.S (1.4f), g.S (0.49f), kDialEdge);
+    // fire button: arc tab on the housing SE side (convex OUT), ~3:00-4:30.
+    // iN/iS inner rim, oN/oS outer rim, fT/fB front wall, dL dark lower-left.
+    p.FillConvexQuad  (g.X (78.9f), g.Y (33.4f), g.X (82.4f), g.Y (33.4f), g.X (82.4f), g.Y (39.5f), g.X (75.3f), g.Y (45), kOrange);
+    p.FillConvexQuad  (g.X (78.9f), g.Y (33.4f), g.X (75.3f), g.Y (45), g.X (72.8f), g.Y (43.7f), g.X (72.8f), g.Y (39.2f), kOrange);
+    p.FillConvexQuad  (g.X (78.9f), g.Y (33.4f), g.X (82.4f), g.Y (33.4f), g.X (75.3f), g.Y (40.5f), g.X (72.8f), g.Y (39.2f), 0xFFFF7D46);
+    p.FillConvexQuad  (g.X (72.8f), g.Y (39.2f), g.X (75.3f), g.Y (40.5f), g.X (75.3f), g.Y (45), g.X (72.8f), g.Y (43.7f), 0xFFC24418);
 }
 
 
