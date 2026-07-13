@@ -366,11 +366,16 @@ namespace
     struct GlyphMap
     {
         float  bx, by, s;
-        GlyphMap (const RECT & box)
+        // scale < 1 shrinks the glyph about the box centre (96-grid 48,48) so
+        // it gains uniform whitespace inside the icon box -- used to balance
+        // the joystick (which otherwise fills edge-to-edge) against the
+        // paddle/mouse.
+        GlyphMap (const RECT & box, float scale = 1.0f)
         {
-            bx = (float) box.left;
-            by = (float) box.top;
-            s  = (float) (box.right - box.left) / 96.0f;
+            float  full = (float) (box.right - box.left) / 96.0f;
+            s  = full * scale;
+            bx = (float) box.left + (float) (box.right  - box.left) * 0.5f - 48.0f * s;
+            by = (float) box.top  + (float) (box.bottom - box.top)  * 0.5f - 48.0f * s;
         }
         float  X (float v) const { return bx + v * s; }
         float  Y (float v) const { return by + v * s; }
@@ -381,7 +386,10 @@ namespace
 
 void InputDeviceSelector::PaintJoystickGlyph (IDxuiPainter & p, const RECT & box, bool skeuo)
 {
-    GlyphMap  g (box);
+    // The 3/4 joystick fills its box edge-to-edge (stick to the top, case to
+    // the bottom); shrink it about centre so it carries whitespace like the
+    // paddle and mouse glyphs. The top-down glyph is left at full size.
+    GlyphMap  g (box, skeuo ? 0.86f : 1.0f);
 
     if (!skeuo)
     {
@@ -625,6 +633,7 @@ void InputDeviceSelector::PaintMouseGlyph (IDxuiPainter & p, const RECT & box, b
     p.FillConvexQuad  (g.X(48.1f), g.Y(43.4f), g.X(46.4f), g.Y(25.4f), g.X(43.3f), g.Y(25.6f), g.X(14.7f), g.Y(48.2f), 0xFFC9C3B2);
     p.FillConvexQuad  (g.X(48.1f), g.Y(43.4f), g.X(14.7f), g.Y(48.2f), g.X(12.9f), g.Y(50.9f), g.X(12.7f), g.Y(53.4f), 0xFFC9C3B2);
     p.FillConvexQuad  (g.X(48.1f), g.Y(43.4f), g.X(12.7f), g.Y(53.4f), g.X(14.1f), g.Y(55.4f), g.X(16.9f), g.Y(56.6f), 0xFFC9C3B2);
+    p.FillConvexQuad  (g.X(48.1f), g.Y(43.4f), g.X(16.9f), g.Y(56.6f), g.X(28.5f), g.Y(58.9f), g.X(40.1f), g.Y(61.2f), 0xFFC9C3B2);
     p.FillConvexQuad  (g.X(48.2f), g.Y(40.7f), g.X(30.6f), g.Y(54.7f), g.X(42.2f), g.Y(57.0f), g.X(44.7f), g.Y(57.1f), 0xFFE4DFD0);
     p.FillConvexQuad  (g.X(48.2f), g.Y(40.7f), g.X(44.7f), g.Y(57.1f), g.X(47.5f), g.Y(56.5f), g.X(50.1f), g.Y(55.3f), 0xFFE4DFD0);
     p.FillConvexQuad  (g.X(48.2f), g.Y(40.7f), g.X(50.1f), g.Y(55.3f), g.X(52.2f), g.Y(53.7f), g.X(80.8f), g.Y(31.0f), 0xFFE4DFD0);
@@ -635,6 +644,7 @@ void InputDeviceSelector::PaintMouseGlyph (IDxuiPainter & p, const RECT & box, b
     p.FillConvexQuad  (g.X(48.2f), g.Y(40.7f), g.X(48.1f), g.Y(23.9f), g.X(46.0f), g.Y(24.1f), g.X(17.5f), g.Y(46.7f), 0xFFE4DFD0);
     p.FillConvexQuad  (g.X(48.2f), g.Y(40.7f), g.X(17.5f), g.Y(46.7f), g.X(16.3f), g.Y(48.5f), g.X(16.1f), g.Y(50.2f), 0xFFE4DFD0);
     p.FillConvexQuad  (g.X(48.2f), g.Y(40.7f), g.X(16.1f), g.Y(50.2f), g.X(17.1f), g.Y(51.6f), g.X(18.9f), g.Y(52.3f), 0xFFE4DFD0);
+    p.FillConvexQuad  (g.X(48.2f), g.Y(40.7f), g.X(18.9f), g.Y(52.3f), g.X(30.6f), g.Y(54.7f), g.X(42.2f), g.Y(57.0f), 0xFFE4DFD0);
     p.DrawLineApprox  (g.X(28.5f), g.Y(58.9f), g.X(40.1f), g.Y(61.2f), g.S(1.6f), 0xFF8F8A7A);
     p.DrawLineApprox  (g.X(40.1f), g.Y(61.2f), g.X(43.9f), g.Y(61.4f), g.S(1.6f), 0xFF8F8A7A);
     p.DrawLineApprox  (g.X(43.9f), g.Y(61.4f), g.X(48.0f), g.Y(60.5f), g.S(1.6f), 0xFF8F8A7A);
@@ -688,6 +698,7 @@ void InputDeviceSelector::PaintMouseGlyph (IDxuiPainter & p, const RECT & box, b
     p.FillConvexQuad  (g.X(60.3f), g.Y(29.2f), g.X(49.5f), g.Y(23.8f), g.X(48.0f), g.Y(23.9f), g.X(39.5f), g.Y(26.6f), 0xFFBFB9A8);
     p.FillConvexQuad  (g.X(60.3f), g.Y(29.2f), g.X(39.5f), g.Y(26.6f), g.X(38.6f), g.Y(27.3f), g.X(38.5f), g.Y(28.1f), 0xFFBFB9A8);
     p.FillConvexQuad  (g.X(60.3f), g.Y(29.2f), g.X(38.5f), g.Y(28.1f), g.X(39.2f), g.Y(28.9f), g.X(40.5f), g.Y(29.5f), 0xFFBFB9A8);
+    p.FillConvexQuad  (g.X(60.3f), g.Y(29.2f), g.X(40.5f), g.Y(29.5f), g.X(53.3f), g.Y(32.0f), g.X(66.0f), g.Y(34.5f), 0xFFBFB9A8);
     p.FillConvexQuad  (g.X(60.3f), g.Y(28.3f), g.X(53.3f), g.Y(31.0f), g.X(66.0f), g.Y(33.6f), g.X(67.8f), g.Y(33.7f), 0xFFC2BCAB);
     p.FillConvexQuad  (g.X(60.3f), g.Y(28.3f), g.X(67.8f), g.Y(33.7f), g.X(69.9f), g.Y(33.4f), g.X(71.8f), g.Y(33.0f), 0xFFC2BCAB);
     p.FillConvexQuad  (g.X(60.3f), g.Y(28.3f), g.X(71.8f), g.Y(33.0f), g.X(73.4f), g.Y(32.4f), g.X(81.9f), g.Y(29.7f), 0xFFC2BCAB);
@@ -698,6 +709,7 @@ void InputDeviceSelector::PaintMouseGlyph (IDxuiPainter & p, const RECT & box, b
     p.FillConvexQuad  (g.X(60.3f), g.Y(28.3f), g.X(49.5f), g.Y(22.9f), g.X(48.0f), g.Y(22.9f), g.X(39.5f), g.Y(25.7f), 0xFFC2BCAB);
     p.FillConvexQuad  (g.X(60.3f), g.Y(28.3f), g.X(39.5f), g.Y(25.7f), g.X(38.6f), g.Y(26.4f), g.X(38.5f), g.Y(27.1f), 0xFFC2BCAB);
     p.FillConvexQuad  (g.X(60.3f), g.Y(28.3f), g.X(38.5f), g.Y(27.1f), g.X(39.2f), g.Y(27.9f), g.X(40.5f), g.Y(28.5f), 0xFFC2BCAB);
+    p.FillConvexQuad  (g.X(60.3f), g.Y(28.3f), g.X(40.5f), g.Y(28.5f), g.X(53.3f), g.Y(31.0f), g.X(66.0f), g.Y(33.6f), 0xFFC2BCAB);
     p.DrawLineApprox  (g.X(53.3f), g.Y(31.0f), g.X(66.0f), g.Y(33.6f), g.S(1.3f), 0xFF8F8A7A);
     p.DrawLineApprox  (g.X(66.0f), g.Y(33.6f), g.X(67.8f), g.Y(33.7f), g.S(1.3f), 0xFF8F8A7A);
     p.DrawLineApprox  (g.X(67.8f), g.Y(33.7f), g.X(69.9f), g.Y(33.4f), g.S(1.3f), 0xFF8F8A7A);

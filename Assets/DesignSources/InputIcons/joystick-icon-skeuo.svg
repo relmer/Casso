@@ -21,6 +21,10 @@
       <stop offset="0" stop-color="#55514B"/><stop offset="0.4" stop-color="#3A3733"/><stop offset="1" stop-color="#262421"/>
     </linearGradient>
   </defs>
+  <!-- rev 6: whole glyph scaled 0.86 about (48,48) so it carries whitespace
+       inside the icon box like the paddle/mouse (previously edge-to-edge).
+       Mirrors the GlyphMap scale in PaintJoystickGlyph. -->
+  <g transform="translate(48,48) scale(0.86) translate(-48,-48)">
   <path d="M 74,58 L 83,46 Q 86,42 86,47 L 86,69 Q 86,74 83,78 L 74,90 Z"
         fill="#A9A392" stroke="#8F8A7A" stroke-width="2" stroke-linejoin="round"/>
   <path d="M 10,58 L 74,58 L 74,90 L 16,90 Q 10,90 10,84 Z"
@@ -47,4 +51,5 @@
            stroke="#3A3733" stroke-width="3" stroke-linejoin="round"/>
   <circle cx="56" cy="14" r="6.5" fill="url(#jStick)"/>
   <ellipse cx="54" cy="12" rx="2.2" ry="3" fill="#FFFFFF" opacity="0.22"/>
+  </g>
 </svg>
