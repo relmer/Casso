@@ -574,7 +574,7 @@ void DxuiPainter::FillCircleApprox (
         float  sq   = radiusPx * radiusPx - dy * dy;
         float  half = (sq > 0.0f) ? sqrtf (sq) : 0.0f;
 
-        FillRect (cxPx - half, y0, 2.0f * half, y1 - y0, argbColor);
+        FillSpanAA (cxPx - half, cxPx + half, y0, y1 - y0, argbColor);
     }
 }
 
@@ -615,8 +615,57 @@ void DxuiPainter::FillEllipseApprox (
         float  sq   = 1.0f - t * t;
         float  half = (sq > 0.0f) ? radiusXPx * sqrtf (sq) : 0.0f;
 
-        FillRect (cxPx - half, y0, 2.0f * half, y1 - y0, argbColor);
+        FillSpanAA (cxPx - half, cxPx + half, y0, y1 - y0, argbColor);
     }
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FillSpanAA
+//
+//  Fill one horizontal scanline span with coverage anti-aliasing on the
+//  fractional left/right edges: the interior whole-pixel columns get full
+//  colour, and the boundary pixel columns get the colour at partial alpha =
+//  fractional coverage. A plain FillRect hard-snaps its edges to pixel
+//  centres, so a stack of them approximating an oblique edge stair-steps;
+//  feathering the end columns turns that staircase into a smooth ramp.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiPainter::FillSpanAA (float x0, float x1, float y, float h, uint32_t argbColor)
+{
+    if (x1 <= x0 || h <= 0.0f) return;
+
+    uint32_t  baseA = (argbColor >> 24) & 0xFFu;
+    auto      withA = [&](float cov) -> uint32_t
+    {
+        cov = (cov < 0.0f) ? 0.0f : (cov > 1.0f) ? 1.0f : cov;
+        uint32_t  a = (uint32_t) ((float) baseA * cov + 0.5f);
+        return (argbColor & 0x00FFFFFFu) | (a << 24);
+    };
+
+    float  xl = floorf (x0);
+    float  xr = floorf (x1);
+
+    if (xl == xr)                                       // span within one column
+    {
+        FillRect (xl, y, 1.0f, h, withA (x1 - x0));
+        return;
+    }
+
+    if (xr > xl + 1.0f)                                 // interior full columns
+        FillRect (xl + 1.0f, y, xr - (xl + 1.0f), h, argbColor);
+
+    float  leftCov = (xl + 1.0f) - x0;                  // left edge coverage
+    if (leftCov > 0.004f)
+        FillRect (xl, y, 1.0f, h, withA (leftCov));
+
+    float  rightCov = x1 - xr;                          // right edge coverage
+    if (rightCov > 0.004f)
+        FillRect (xr, y, 1.0f, h, withA (rightCov));
 }
 
 
@@ -682,7 +731,7 @@ void DxuiPainter::FillConvexQuad (
 
         if (any && hi > lo)
         {
-            FillRect (lo, sy0, hi - lo, sy1 - sy0, argbColor);
+            FillSpanAA (lo, hi, sy0, sy1 - sy0, argbColor);
         }
     }
 }

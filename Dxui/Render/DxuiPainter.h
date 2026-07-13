@@ -115,6 +115,11 @@ private:
                               const Vertex & bottomLeft,
                               const Vertex & bottomRight);
     void    NdcFromPixel     (float xPx, float yPx, float & outX, float & outY) const;
+    // Fill a horizontal span [x0,x1] x [y,y+h] with 1px coverage AA on the
+    // fractional left/right edges (partial-alpha edge columns). The approx
+    // fills route their scanline spans through this so oblique glyph
+    // silhouettes read smooth instead of stair-stepped.
+    void    FillSpanAA       (float x0, float x1, float y, float h, uint32_t argbColor);
 
     static Vertex MakeVertex (uint32_t argbColor, float alphaMultiplier = 1.0f);
 
