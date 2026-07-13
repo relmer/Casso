@@ -53,16 +53,22 @@ namespace
 
     constexpr const wchar_t * kLabels[3] = { L"Joystick mode", L"Paddle mode", L"Mouse mode" };
 
+    // Second label line shown under "Paddle mode" while paddle is active: the
+    // captured mouse hides the cursor, so the exit key must be visible on the
+    // control itself. Smaller + muted so it reads as a hint, not a label.
+    constexpr const wchar_t * kPaddleEscHint  = L"ESC to exit";
+    constexpr float           kSubLabelScale  = 0.8f;   // hint font vs label font
+    constexpr int             kPaddleSegIndex = 1;      // order: Joystick, Paddle, Mouse
+
     // Per-segment tooltips (independent, per user feedback).
     constexpr wchar_t  kTipJoystickSeg[] =
-        L"Joystick mode \u2014 arrows steer the joystick, X and Z fire.\n"
+        L"Map the arrow keys and X/Z to the joystick and buttons 0/1.\n"
         L"Click to toggle. Works alongside the pointer devices.";
     constexpr wchar_t  kTipPaddleSeg[] =
-        L"Paddle mode \u2014 the captured mouse drives paddles 0 and 1;\n"
-        L"left / right buttons fire. Esc releases the pointer.";
+        L"Captures the mouse and maps it to paddles 0/1 and buttons 0/1\n"
+        L"Press ESC to exit this mode.";
     constexpr wchar_t  kTipMouseSeg[] =
-        L"Mouse mode \u2014 the host pointer drives the built-in mouse while\n"
-        L"over the screen (non-capturing).";
+        L"Send host mouse inputs to the machine";
 
     // State-summary fallbacks (paddle-capture notice + gap hover).
     constexpr wchar_t  kTipOffState[] =
@@ -126,6 +132,24 @@ void InputDeviceSelector::Layout (const RECT & boundsDip, const DxuiDpiScaler & 
         if (tw <= 0.0f)
         {
             tw = (float) wcslen (SegmentLabel (i)) * kFallbackCharPx * (float) eDpi / 96.0f;
+        }
+
+        // Paddle carries a smaller "ESC to exit" hint line when active. Reserve
+        // the wider of label / hint (always, not just when active) so toggling
+        // paddle never reflows the bar. The hint's smaller font keeps it
+        // narrower than the label in practice, so this is a no-op on width.
+        if (i == kPaddleSegIndex)
+        {
+            float  hw    = 0.0f;
+            float  hh    = 0.0f;
+            float  hFont = fontPx * kSubLabelScale;
+            bool   ok    = m_textRenderer != nullptr
+                        && SUCCEEDED (m_textRenderer->MeasureString (kPaddleEscHint, hFont, kFontFamily, hw, hh));
+            if (!ok)
+            {
+                hw = (float) wcslen (kPaddleEscHint) * kFallbackCharPx * kSubLabelScale * (float) eDpi / 96.0f;
+            }
+            if (hw > tw) { tw = hw; }
         }
 
         txtW[i] = (int) (tw + 0.5f);
@@ -314,17 +338,37 @@ void InputDeviceSelector::Paint (IDxuiPainter & painter, IDxuiTextRenderer & tex
             case 2: PaintMouseGlyph    (painter, m_iconRects[i], m_skeuoStyle); break;
         }
 
-        HRESULT  hrT = text.DrawString (SegmentLabel (i),
-                                        (float) m_textRects[i].left,
-                                        (float) m_textRects[i].top,
-                                        (float) (m_textRects[i].right - m_textRects[i].left) + 4.0f,
-                                        (float) (m_textRects[i].bottom - m_textRects[i].top),
-                                        theme.ButtonText (),
-                                        fontPx,
-                                        kFontFamily,
-                                        DxuiTextRenderer::HAlign::Left,
-                                        DxuiTextRenderer::VAlign::CenterOnCapHeight);
-        IGNORE_RETURN_VALUE (hrT, S_OK);
+        float  tx = (float) m_textRects[i].left;
+        float  ty = (float) m_textRects[i].top;
+        float  tw = (float) (m_textRects[i].right - m_textRects[i].left) + 4.0f;
+        float  bh = (float) (m_textRects[i].bottom - m_textRects[i].top);
+
+        if (kOrder[i] == Segment::Paddle && sel)
+        {
+            // Active paddle: stack "Paddle mode" over a muted "ESC to exit"
+            // hint around the band midline. Neither line has descenders, so
+            // the split abuts cleanly.
+            HRESULT  hrL = text.DrawString (SegmentLabel (i), tx, ty, tw, bh * 0.52f,
+                                            theme.ButtonText (), fontPx, kFontFamily,
+                                            DxuiTextRenderer::HAlign::Left,
+                                            DxuiTextRenderer::VAlign::Bottom,
+                                            DxuiFontWeight::Normal, false);
+            HRESULT  hrH = text.DrawString (kPaddleEscHint, tx, ty + bh * 0.52f, tw, bh * 0.48f,
+                                            theme.ForegroundMuted (), fontPx * kSubLabelScale, kFontFamily,
+                                            DxuiTextRenderer::HAlign::Left,
+                                            DxuiTextRenderer::VAlign::Top,
+                                            DxuiFontWeight::Normal, false);
+            IGNORE_RETURN_VALUE (hrL, S_OK);
+            IGNORE_RETURN_VALUE (hrH, S_OK);
+        }
+        else
+        {
+            HRESULT  hrT = text.DrawString (SegmentLabel (i), tx, ty, tw, bh,
+                                            theme.ButtonText (), fontPx, kFontFamily,
+                                            DxuiTextRenderer::HAlign::Left,
+                                            DxuiTextRenderer::VAlign::CenterOnCapHeight);
+            IGNORE_RETURN_VALUE (hrT, S_OK);
+        }
     }
 
     // Divider between the Keys and Pointer groups.

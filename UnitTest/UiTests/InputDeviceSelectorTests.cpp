@@ -138,8 +138,16 @@ public:
         Assert::AreEqual (3, found, L"three segment tooltips collected");
         Assert::IsTrue (segTips[0] != segTips[1] && segTips[1] != segTips[2],
             L"segment tooltips are independent");
-        Assert::IsTrue (segTips[0].find (L"Joystick") != std::wstring::npos, L"seg 0 = joystick tip");
-        Assert::IsTrue (segTips[2].find (L"Mouse")    != std::wstring::npos, L"seg 2 = mouse tip");
+
+        // Case-insensitive so the assertion tracks each segment's SUBJECT, not
+        // the exact wording / capitalization of the tooltip copy.
+        auto containsCI = [] (std::wstring hay, const wchar_t * needleLower)
+        {
+            for (wchar_t & c : hay) { if (c >= L'A' && c <= L'Z') { c = (wchar_t) (c - L'A' + L'a'); } }
+            return hay.find (needleLower) != std::wstring::npos;
+        };
+        Assert::IsTrue (containsCI (segTips[0], L"joystick"), L"seg 0 = joystick tip");
+        Assert::IsTrue (containsCI (segTips[2], L"mouse"),    L"seg 2 = mouse tip");
     }
 
 
