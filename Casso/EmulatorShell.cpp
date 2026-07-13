@@ -4859,9 +4859,11 @@ void EmulatorShell::SetInputMappingMode (InputMappingMode mode)
 //  SetArrowsJoystick
 //
 //  Keys axis of the split input model: maps arrows + X/Z onto the joystick
-//  axes / fire buttons. Independent of the Pointer axis. Turning it off
-//  neutralizes the key-derived stick and buttons so a held key can't stay
-//  stuck (axes left alone while Paddle owns them).
+//  axes / fire buttons. Independent of the Mouse pointer (disjoint hardware),
+//  but mutually exclusive with Paddle -- both drive the game-port paddle
+//  lines -- so enabling it drops an active Paddle. Turning it off neutralizes
+//  the key-derived stick and buttons so a held key can't stay stuck (axes
+//  left alone while Paddle owns them).
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -4871,6 +4873,13 @@ void EmulatorShell::SetArrowsJoystick (bool on)
     auto * iieKbd   = dynamic_cast<Apple2eKeyboard *>       (m_refs.keyboard);
     auto * gamePort = m_refs.gamePort;
 
+    // Mirror of the rule in SetPointerMapping: the Keys axis drives PDL0/1,
+    // so enabling it must drop an active Paddle (they fight over the same
+    // game-port lines). Mouse uses a separate slot card and may coexist.
+    if (on && m_pointerMode == InputMappingMode::Paddle)
+    {
+        SetPointerMapping (InputMappingMode::Off);
+    }
 
     m_arrowsJoystick               = on;
     m_globalPrefs.arrowsToJoystick = on;
@@ -4932,6 +4941,17 @@ void EmulatorShell::SetPointerMapping (InputMappingMode pointer)
     if (pointer == InputMappingMode::Joystick)   // not a pointer mode
     {
         pointer = InputMappingMode::Off;
+    }
+
+    // Paddle owns the game-port paddle axes (PDL0/1) -- the same lines the
+    // arrows->joystick remap drives -- so entering Paddle must drop the Keys
+    // axis. Mouse is a separate slot card (disjoint lines) and may coexist
+    // with Joystick, so only Paddle clears it. Enforced here (not just in the
+    // SetInputMappingMode presets) so the per-segment / menu toggle paths
+    // honor the same paddle-vs-joystick exclusivity.
+    if (pointer == InputMappingMode::Paddle && m_arrowsJoystick)
+    {
+        SetArrowsJoystick (false);
     }
 
     if (prev == InputMappingMode::Paddle && pointer != InputMappingMode::Paddle)
