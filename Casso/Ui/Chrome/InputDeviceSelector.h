@@ -91,8 +91,12 @@ public:
     static void PaintMouseGlyph    (IDxuiPainter & p, const RECT & box, bool skeuo);
 
 private:
-    static constexpr int    kIconDp     = 44;    // glyph box (2x the original chips)
-    static constexpr int    kPadDp      = 3;     // vertical padding
+    static constexpr int    kIconDp     = 38;    // glyph box; kept so the row
+                                                 // (icon + 2*pad) fits inside the
+                                                 // s_kJoystickButtonBandDp (43 dp)
+                                                 // band above the drive widget --
+                                                 // 44 + 2*3 = 50 overflowed onto it.
+    static constexpr int    kPadDp      = 1;     // vertical padding
     static constexpr int    kSegPadDp   = 6;     // segment leading/trailing pad
     static constexpr int    kLedGapDp   = 5;     // LED -> icon gap
     static constexpr int    kTextGapDp  = 6;     // icon -> label gap
