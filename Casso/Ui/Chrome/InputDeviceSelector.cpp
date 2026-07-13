@@ -55,13 +55,13 @@ namespace
 
     // Per-segment tooltips (independent, per user feedback).
     constexpr wchar_t  kTipJoystickSeg[] =
-        L"Joystick mode — arrows steer the joystick, X and Z fire.\n"
+        L"Joystick mode \u2014 arrows steer the joystick, X and Z fire.\n"
         L"Click to toggle. Works alongside the pointer devices.";
     constexpr wchar_t  kTipPaddleSeg[] =
-        L"Paddle mode — the captured mouse drives paddles 0 and 1;\n"
+        L"Paddle mode \u2014 the captured mouse drives paddles 0 and 1;\n"
         L"left / right buttons fire. Esc releases the pointer.";
     constexpr wchar_t  kTipMouseSeg[] =
-        L"Mouse mode — the host pointer drives the built-in mouse while\n"
+        L"Mouse mode \u2014 the host pointer drives the built-in mouse while\n"
         L"over the screen (non-capturing).";
 
     // State-summary fallbacks (paddle-capture notice + gap hover).
