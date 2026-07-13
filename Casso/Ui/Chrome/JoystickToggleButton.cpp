@@ -44,7 +44,7 @@ static constexpr wchar_t  s_kTooltip[] =
     L"Click again for paddle mode, or disable to restore normal keys.";
 
 static constexpr wchar_t  s_kPaddleTooltip[] =
-    L"The mouse drives paddles 0 and 1; left / right buttons fire.\n"
+    L"The mouse drives paddles 0 and 1; left / right click = buttons 0 and 1.\n"
     L"Press Esc to release the mouse and exit paddle mode.";
 
 static constexpr wchar_t  s_kMouseTooltip[] =

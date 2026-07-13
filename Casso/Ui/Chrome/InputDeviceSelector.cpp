@@ -75,7 +75,7 @@ namespace
         L"Input devices: joystick (arrow keys), paddle, or mouse.\n"
         L"Click a device to connect it to the game port.";
     constexpr wchar_t  kTipPaddleState[] =
-        L"The mouse drives paddles 0 and 1; left / right buttons fire.\n"
+        L"The mouse drives paddles 0 and 1; left / right click = buttons 0 and 1.\n"
         L"Press Esc to release the mouse and exit paddle mode.";
     constexpr wchar_t  kTipJoystickState[] =
         L"Arrows, Z, and X keys are mapped to the joystick and its buttons.";
