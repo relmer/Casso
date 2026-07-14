@@ -61,3 +61,23 @@ size_t PrinterJob::Drain (vector<PrinterEvent> & outEvents)
 
     return total;
 }
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FormFeed
+//
+//  Feeds a single $0C through the interpreter, exactly as if the guest had
+//  sent it -- the paper advances to the top of the next page through the
+//  same code path, so page boundaries and events stay consistent.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void PrinterJob::FormFeed (vector<PrinterEvent> & outEvents)
+{
+    Byte   ff = 0x0C;
+
+    m_interpreter.Consume (&ff, 1, m_raster, outEvents);
+}

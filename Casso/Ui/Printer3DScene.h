@@ -54,6 +54,13 @@ public:
     // Paced head position across the printable width, 0..1 (FR-034).
     void     SetHeadColumn01 (float x01);
 
+    // How much paper has physically fed PAST the head, as a fraction of the
+    // content canvas (0 = fresh sheet, its leading edge aligned at the
+    // strike line; 1 = a full page risen above the platen). The paper mesh
+    // above the head is built only to this length, so a fresh sheet shows
+    // no phantom blank page and the sheet visibly grows as printing feeds.
+    void     SetPaperFeed01 (float feed01);
+
     // Draw the scene into the currently bound render target, restricted to
     // `targetPx` (window pixel coordinates). Call from the window's
     // before-present hook: the panel chrome paints over it afterwards.
@@ -92,6 +99,7 @@ private:
 
     Dxui3DRenderer   m_renderer;
     float            m_head01        = 0.0f;
+    float            m_paperFeed01   = 1.0f;
     int              m_contentWidth  = 0;
     int              m_contentHeight = 0;
 

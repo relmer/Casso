@@ -613,6 +613,20 @@ void Printer3DScene::SetHeadColumn01 (float x01)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  Printer3DScene::SetPaperFeed01
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Printer3DScene::SetPaperFeed01 (float feed01)
+{
+    m_paperFeed01 = std::clamp (feed01, 0.0f, 1.0f);
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  Printer3DScene::AppendQuad
 //
 //  p00..p11 are the quad corners at (u0,v0) (u1,v0) (u0,v1) (u1,v1); `shade`
@@ -955,12 +969,24 @@ void Printer3DScene::BuildPaper (std::vector<Vertex> & out) const
         }
     }
 
-    for (int i = 1; i <= s_kPaperSlices; i++)
+    // Only paper that has physically fed PAST the head exists above it: the
+    // path stops at the sheet's leading edge (a fresh page is just the edge
+    // at the strike line; it grows out of the platen as printing feeds).
+    float   sLimit = total * m_paperFeed01;
+
+    for (int i = 1; i <= s_kPaperSlices && sLimit > 0.0005f; i++)
     {
         float   s     = total * (float) i / (float) s_kPaperSlices;
+        bool    edge  = false;
         float   yPos  = 0.0f;
         float   zPos  = 0.0f;
         float   shade = 1.0f;
+
+        if (s >= sLimit)
+        {
+            s    = sLimit;   // final partial slice: the leading edge lands exactly here
+            edge = true;
+        }
 
         if (s <= arcLen)
         {
@@ -1014,6 +1040,12 @@ void Printer3DScene::BuildPaper (std::vector<Vertex> & out) const
         prevZ  = zPos;
         prevV  = 1.0f - s / total;
         prevSh = shade;
+
+        // The paper's leading edge: nothing exists beyond it.
+        if (edge)
+        {
+            break;
+        }
 
         // The curl's tail fell behind the printer: the rest is out of sight.
         // (Only the curl -- the platen wrap and straight section legitimately

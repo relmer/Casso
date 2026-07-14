@@ -65,6 +65,32 @@ namespace PrinterJobTests
         }
 
 
+        TEST_METHOD (HostFormFeedAdvancesToNextPageTop)
+        {
+            // The preview's Form Feed button: identical to the guest sending
+            // $0C, through the same interpreter path.
+            PrinterByteRing        ring;
+            PrinterJob             job (ring);
+            vector<PrinterEvent>   events;
+
+            PushAll (ring, { 0x1B, 'G', '0', '0', '0', '1', 0x01, 0x0A });
+            job.Drain (events);
+
+            int   before = job.HeadRow ();
+
+            job.FormFeed (events);
+
+            Assert::AreEqual (PrinterGrid::kPageRows, job.HeadRow ());
+            Assert::IsTrue (job.HeadRow () > before);
+            Assert::AreEqual (1, (int) std::count_if (events.begin (), events.end (),
+                [] (const PrinterEvent & e) { return e.type == PrinterEventType::FormFeed; }));
+
+            // A second feed lands on the following page top.
+            job.FormFeed (events);
+            Assert::AreEqual (2 * PrinterGrid::kPageRows, job.HeadRow ());
+        }
+
+
         TEST_METHOD (ObserverSeesEveryDrainedByte)
         {
             PrinterByteRing        ring;

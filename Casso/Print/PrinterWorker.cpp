@@ -212,6 +212,39 @@ bool PrinterWorker::SnapshotStripSpan (int firstRow, int lastRow, PrintRaster & 
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  FormFeed
+//
+//  Host-initiated page advance through the job's own interpreter path, then
+//  the same signal publishing a drain performs -- the panel's viewport and
+//  pacing follow the new head position and animate the feed at printer
+//  speed. Activity is deliberately NOT bumped: it tracks GUEST bytes (the
+//  idle signal that gates this very button and the auto-open logic).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void PrinterWorker::FormFeed ()
+{
+    std::lock_guard<std::mutex>   lock (m_rasterMutex);
+    vector<PrinterEvent>          events;
+
+    if (m_job == nullptr)
+    {
+        return;
+    }
+
+    m_job->FormFeed (events);
+
+    m_hasContent.store (m_job->HasContent (), std::memory_order_relaxed);
+    m_rowsUsed.store   (m_job->Raster ().RowsUsed (), std::memory_order_relaxed);
+    m_headPos.store    (((uint64_t) (uint32_t) m_job->HeadRow () << 32)
+                        | (uint32_t) m_job->HeadColumnDots (), std::memory_order_relaxed);
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  Run
 //
 //  Drain loop: pull whatever the guest has emitted, then nap briefly only when

@@ -67,10 +67,11 @@ public:
     // visible span through the same viewport.
     void     SetStrip (const PrintRaster & raster);
 
-    void     SetOnFinish  (ActionFn fn) { m_onFinish  = std::move (fn); }
-    void     SetOnCopy    (ActionFn fn) { m_onCopy    = std::move (fn); }
-    void     SetOnDiscard (ActionFn fn) { m_onDiscard = std::move (fn); }
-    void     SetOnRefresh (ActionFn fn) { m_onRefresh = std::move (fn); }
+    void     SetOnFinish   (ActionFn fn) { m_onFinish   = std::move (fn); }
+    void     SetOnCopy     (ActionFn fn) { m_onCopy     = std::move (fn); }
+    void     SetOnDiscard  (ActionFn fn) { m_onDiscard  = std::move (fn); }
+    void     SetOnFormFeed (ActionFn fn) { m_onFormFeed = std::move (fn); }
+    void     SetOnRefresh  (ActionFn fn) { m_onRefresh  = std::move (fn); }
 
     void     Layout (const RECT          & boundsDip,
                      const DxuiDpiScaler & scaler) override;
@@ -100,15 +101,17 @@ private:
 
     const CassoTheme  * m_theme   = nullptr;
 
-    PrinterPaperView  * m_paper   = nullptr;
-    DxuiButton        * m_finish  = nullptr;
-    DxuiButton        * m_copy    = nullptr;
-    DxuiButton        * m_discard = nullptr;
-    DxuiButton        * m_refresh = nullptr;
+    PrinterPaperView  * m_paper    = nullptr;
+    DxuiButton        * m_finish   = nullptr;
+    DxuiButton        * m_copy     = nullptr;
+    DxuiButton        * m_discard  = nullptr;
+    DxuiButton        * m_formFeed = nullptr;
+    DxuiButton        * m_refresh  = nullptr;
 
     ActionFn            m_onFinish;
     ActionFn            m_onCopy;
     ActionFn            m_onDiscard;
+    ActionFn            m_onFormFeed;
     ActionFn            m_onRefresh;
 
     // Live-viewport state (FR-033). m_renderedSpan/-Activity detect "something

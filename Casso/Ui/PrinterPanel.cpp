@@ -225,16 +225,18 @@ Error:
 
 void PrinterPanel::OnCreate ()
 {
-    m_paper   = CreateChild<PrinterPaperView> ();
-    m_finish  = CreateChild<DxuiButton> (L"Finish");
-    m_copy    = CreateChild<DxuiButton> (L"Copy");
-    m_discard = CreateChild<DxuiButton> (L"Discard");
-    m_refresh = CreateChild<DxuiButton> (L"Refresh");
+    m_paper    = CreateChild<PrinterPaperView> ();
+    m_finish   = CreateChild<DxuiButton> (L"Finish");
+    m_copy     = CreateChild<DxuiButton> (L"Copy");
+    m_discard  = CreateChild<DxuiButton> (L"Discard");
+    m_formFeed = CreateChild<DxuiButton> (L"Form Feed");
+    m_refresh  = CreateChild<DxuiButton> (L"Refresh");
 
-    m_finish->SetOnClick  ([this] () { if (m_onFinish)  { m_onFinish  (); } });
-    m_copy->SetOnClick    ([this] () { if (m_onCopy)    { m_onCopy    (); } });
-    m_discard->SetOnClick ([this] () { if (m_onDiscard) { m_onDiscard (); } });
-    m_refresh->SetOnClick ([this] () { if (m_onRefresh) { m_onRefresh (); } });
+    m_finish->SetOnClick   ([this] () { if (m_onFinish)   { m_onFinish   (); } });
+    m_copy->SetOnClick     ([this] () { if (m_onCopy)     { m_onCopy     (); } });
+    m_discard->SetOnClick  ([this] () { if (m_onDiscard)  { m_onDiscard  (); } });
+    m_formFeed->SetOnClick ([this] () { if (m_onFormFeed) { m_onFormFeed (); } });
+    m_refresh->SetOnClick  ([this] () { if (m_onRefresh)  { m_onRefresh  (); } });
 }
 
 
@@ -819,6 +821,15 @@ void PrinterPanel::ComposeCanvas (const RgbaImage * content, int contentFirstAbs
 
     if (m_scene != nullptr)
     {
+        // The sheet above the head only exists as far as paper has fed past
+        // it: bottomAbsRow IS that feed (rows 0..bottom have passed) -- no
+        // phantom blank page on a fresh sheet. A short leader always shows
+        // (a loaded fanfold's edge sits just past the head; with nothing
+        // visible the printer reads as out of paper).
+        constexpr int   kLeaderRows = 48;   // ~1/3" of leading edge
+
+        m_scene->SetPaperFeed01 ((float) std::clamp ((std::max) (bottomAbsRow, kLeaderRows), 0, canvasH)
+                                 / (float) canvasH);
         IGNORE_RETURN_VALUE (hr, m_scene->SetContent (m_canvas.data (), canvasW, canvasH));
     }
     else
@@ -944,7 +955,7 @@ void PrinterPanel::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
         }
     }
 
-    for (DxuiButton * btn : { m_finish, m_copy, m_discard })
+    for (DxuiButton * btn : { m_finish, m_copy, m_discard, m_formFeed })
     {
         if (btn != nullptr)
         {

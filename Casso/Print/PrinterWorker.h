@@ -60,6 +60,12 @@ public:
     // per-refresh cost is bounded by the viewport, not the strip (FR-033).
     bool          SnapshotStripSpan (int firstRow, int lastRow, PrintRaster & out);
 
+    // Host form feed (the preview's Form Feed button): advances the paper to
+    // the top of the next page exactly as if the guest had sent $0C, under
+    // the raster lock. The shell gates this on printer idleness so it never
+    // interleaves with an in-flight print. Safe to call from the UI thread.
+    void          FormFeed ();
+
     // Thread-safe status signals for the chrome indicator / panel: a monotonic
     // counter that advances as guest bytes are drained (sample the delta to see
     // "receiving"), and whether the strip currently holds printed content. Safe

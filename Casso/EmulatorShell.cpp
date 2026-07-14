@@ -2512,6 +2512,24 @@ void EmulatorShell::ShowPrinterPanel (bool activate)
             m_windowCommandManager->HandleCommand (IDM_PRINTER_DISCARD);
             SnapshotStripToPanel ();
         });
+        m_printerPanel->SetOnFormFeed ([this] ()
+        {
+            // The real ImageWriter's FORM FEED button, honored only while
+            // the printer is idle -- pressing it mid-print would interleave
+            // a page break into the guest's own stream, so it is ignored
+            // (same idle signal that re-arms the auto-open logic).
+            static constexpr int64_t   s_kFormFeedIdleMs = 1200;
+
+            int64_t   nowMs = (int64_t) std::chrono::duration_cast<std::chrono::milliseconds> (
+                                  std::chrono::steady_clock::now ().time_since_epoch ()).count ();
+
+            if (nowMs - m_printerActiveLastMs < s_kFormFeedIdleMs)
+            {
+                return;   // an actual print is streaming: ignore the button
+            }
+
+            m_printerWorker.FormFeed ();
+        });
         m_printerPanel->SetOnRefresh ([this] ()
         {
             SnapshotStripToPanel ();

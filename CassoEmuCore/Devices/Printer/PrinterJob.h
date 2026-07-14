@@ -42,6 +42,11 @@ public:
     // into the raster, appending presentation events. Returns bytes drained.
     size_t  Drain (vector<PrinterEvent> & outEvents);
 
+    // Host-initiated form feed (the preview's Form Feed button): identical to
+    // the guest sending $0C. The caller must only invoke this while the
+    // printer is idle so it can't interleave with an in-flight command.
+    void    FormFeed (vector<PrinterEvent> & outEvents);
+
     bool                 HasContent () const { return m_raster.RowsUsed () > 0; }
     const PrintRaster &  Raster     () const { return m_raster; }
     PrintRaster &        Raster     ()       { return m_raster; }
