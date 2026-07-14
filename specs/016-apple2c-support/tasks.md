@@ -61,7 +61,7 @@
 
 ### Tests (expect FAIL)
 
-- [X] T011 [P] [US1] `UnitTest/DormannIntegrationTests.cpp`: Klaus Dormann 65C02 functional test. *(Base CMOS tier, rkwl_wdc_op/wdc_op disabled; assembled in-house — required adding 65C02 support to Casso's assembler — and run to the `$2434` success trap in ~22M instructions.)*
+- [X] T011 [P] [US1] `UnitTest/DormannIntegrationTests.cpp`: Klaus Dormann 65C02 functional test. *(Rockwell tier, `rkwl_wdc_op=1`/`wdc_op=0`; assembled in-house — required adding 65C02 support to Casso's assembler, incl. the BBR/BBS/RMB/SMB bit ops in as65's `<bit>,<zp>[,<target>]` operand form — and run to the `$2569` success trap.)*
 - [X] T012 [P] [US1] `UnitTest/HarteTestRunner.cpp` (`HarteSynertek65C02`): Tom Harte `synertek65c02` SingleStepTests, **256/256** (2.56M vectors) via flat-memory `TestCpu65C02`. *(Base tier; the 33 reserved-NOP opcodes assert Casso's canonical 1-byte model — see research.md D7 / commit notes — rather than Synertek's 2-3-byte quirk, which Apple never shipped.)*
 
 ### Implementation
@@ -101,11 +101,13 @@
 >
 > 1. ✅ **Rockwell bit ops (RMB/SMB/BBR/BBS)** — RESOLVED. Casso's `Cpu65C02`
 >    now models the **Rockwell R65C02** (bit ops via `InstallBitOps`; WDC
->    WAI/STP `$CB`/`$DB` stay NOPs). Covered by `Cpu65C02Tests`. **Two conformance
->    follow-ups:** (a) Casso's assembler can't yet emit the BBR/BBS zero-page-
->    relative form, so the Dormann integration path runs the common opcode subset;
->    (b) the Harte 65C02 corpus should be regenerated as `rockwell65c02` (the 34
->    `$x7`/`$xF`/`$CB`/`$DB` slots are currently skipped there, covered by unit tests).
+>    WAI/STP `$CB`/`$DB` stay NOPs). Covered by `Cpu65C02Tests`. **Conformance
+>    follow-ups:** (a) ✅ RESOLVED — the assembler now emits the BBR/BBS zero-page-
+>    relative form (and RMB/SMB) via `--cpu 65c02`, in both as65's `<bit>,<zp>`
+>    operand form and the suffixed spelling, so the Dormann integration path runs
+>    the full Rockwell tier (`rkwl_wdc_op=1`); (b) the Harte 65C02 corpus should be
+>    regenerated as `rockwell65c02` (the 34 `$x7`/`$xF`/`$CB`/`$DB` slots are
+>    currently skipped there, covered by unit tests).
 > 2. ✅ **//c `$C100-$CFFF` routing** — RESOLVED. The //c has no card slots, so
 >    the whole window (incl. the `$C800` expansion space) always reads internal
 >    firmware: `CxxxRomRouter::SetNoExternalSlots(true)` (set in `WireApple2cRomBank`
