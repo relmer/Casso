@@ -125,6 +125,13 @@ public:
         HICON                    appIconBig               = nullptr;
         HICON                    appIconSmall             = nullptr;
 
+        // DXGI present sync interval (default 1 = wait for vblank).
+        // An animating window sharing the UI thread with another
+        // vsynced present should use 0 so the thread doesn't stack
+        // two vblank waits per frame; windowed flip-model presents
+        // are composed by DWM at vsync either way, so 0 doesn't tear.
+        UINT                     presentSyncInterval      = 1;
+
         // When true (the default), Create() stands up a D3D11 device
         // + DXGI flip-discard swap chain on the host HWND so the
         // internal panel tree paints through GetSwapChain() /

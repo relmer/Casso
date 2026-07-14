@@ -119,6 +119,12 @@ private:
     int64_t                 m_lastRenderMs     = 0;
     bool                    m_hasRendered      = false;
 
+    // Smooth scrolling: the DISPLAYED window glides toward the viewport's
+    // logical position at frame rate, so discrete key/wheel steps (and the
+    // snap back to live) read as continuous paper motion. < 0 = unseeded.
+    double                  m_smoothBottom     = -1.0;
+    int64_t                 m_smoothLastMs     = 0;
+
     // Head-timing ink reveal (FR-034): pacing chases the worker's head
     // position at ImageWriter speed; the rendered-reveal pair detects sweep
     // motion so the panel keeps animating between byte arrivals. Primed

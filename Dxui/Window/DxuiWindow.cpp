@@ -52,6 +52,7 @@ HRESULT DxuiWindow::Create (const CreateParams & params)
     hostParams.insetRootBelowCaption = params.insetContentBelowCaption;
     hostParams.appIconBig            = params.appIconBig;
     hostParams.appIconSmall          = params.appIconSmall;
+    hostParams.presentSyncInterval   = params.presentSyncInterval;
 
     m_source = std::make_unique<DxuiHwndSource>();
     m_source->SetClient (this);

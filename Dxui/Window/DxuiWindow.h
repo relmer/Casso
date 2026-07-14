@@ -62,6 +62,13 @@ public:
         LPCWSTR             classNameOverride = nullptr;
         HICON               appIconBig        = nullptr;
         HICON               appIconSmall      = nullptr;
+
+        // DXGI present sync interval. The default (1) waits for vblank; an
+        // animating window that shares the UI thread with another vsynced
+        // present should use 0 so the two don't stack to two vblank waits
+        // per frame (DWM still composes at vsync, so windowed flip-model
+        // presents do not tear).
+        UINT                presentSyncInterval = 1;
     };
 
 

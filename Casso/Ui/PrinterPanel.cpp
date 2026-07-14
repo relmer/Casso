@@ -157,6 +157,12 @@ HRESULT PrinterPanel::Create (
     params.captionStyle      = DxuiCaptionStyle::CloseOnly;
     params.classNameOverride = s_kpszClassName;
 
+    // The preview animates (paper feed, head sweep, smooth scroll) on the
+    // same UI thread that presents the vsynced main window; presenting this
+    // window unsynced keeps the pair from stacking two vblank waits per
+    // frame and halving everyone's frame rate. DWM composes at vsync.
+    params.presentSyncInterval = 0;
+
     hr = DxuiWindow::Create (params);
     CHR (hr);
 
@@ -325,6 +331,7 @@ void PrinterPanel::RefreshLive (PrinterWorker & worker, int64_t nowMs, bool forc
         m_viewport.Reset ();
         m_pacing.Reset (nowSec, 0);
         m_spanImgValid = false;
+        m_smoothBottom = -1.0;   // teleport, don't glide across the tear
     }
 
     // First refresh starts caught up at the head, so opening the panel over a
@@ -358,7 +365,35 @@ void PrinterPanel::RefreshLive (PrinterWorker & worker, int64_t nowMs, bool forc
     }
     m_viewport.Tick (nowMs);
 
-    span        = m_viewport.VisibleSpan ();
+    span = m_viewport.VisibleSpan ();
+
+    // Smooth scrolling: glide the DISPLAYED window toward the viewport's
+    // logical position, so discrete key/wheel steps and the snap-to-live
+    // read as continuous paper motion rather than jumps. Runs at the panel
+    // frame rate; once converged it costs nothing.
+    {
+        double   target = (double) span.lastRow;
+        double   dtSec  = (m_smoothLastMs > 0) ? (double) (nowMs - m_smoothLastMs) / 1000.0 : 0.016;
+
+        m_smoothLastMs = nowMs;
+
+        if (m_smoothBottom < 0.0)
+        {
+            m_smoothBottom = target;   // first frame: start where the paper is
+        }
+
+        dtSec           = std::clamp (dtSec, 0.0, 0.1);
+        m_smoothBottom += (target - m_smoothBottom) * (1.0 - std::exp (-dtSec / 0.08));
+
+        if (std::abs (target - m_smoothBottom) < 0.75)
+        {
+            m_smoothBottom = target;   // converged: land exactly on the row
+        }
+
+        span.lastRow  = (int) std::lround (m_smoothBottom);
+        span.firstRow = (std::max) (0, span.lastRow - m_viewport.ViewportRows () + 1);
+    }
+
     moved       = (span.firstRow != m_renderedSpan.firstRow || span.lastRow != m_renderedSpan.lastRow);
     revealMoved = (revealRow != m_renderedRevealRow || revealCol != m_renderedRevealCol);
 

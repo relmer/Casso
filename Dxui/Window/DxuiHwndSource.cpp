@@ -1585,7 +1585,7 @@ void DxuiHwndSource::PresentFrame ()
         return;
     }
 
-    hr = m_swapChain->Present (1, 0);
+    hr = m_swapChain->Present (m_params.presentSyncInterval, 0);
     CHRA (hr);
 
     if (m_compDevice)
