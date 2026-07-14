@@ -32,6 +32,7 @@
         { "type": "language-card" }
     ],
     "slots": [
+        { "slot": 4, "device": "mockingboard" },
         { "slot": 6, "device": "disk-ii", "rom": "Disk2.rom" }
     ],
     "video": {

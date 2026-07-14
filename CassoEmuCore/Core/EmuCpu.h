@@ -86,12 +86,15 @@ public:
     // instruction. Machines with no asserted sources take the fast path.
     void             StepOne                  ()
     {
-        if (!m_cpu6502->DispatchPendingInterrupt ())
+        if (!m_cpu6502->TryStepInterrupt ())
         {
             m_cpu6502->StepOne ();
         }
     }
     Byte             GetLastInstructionCycles () const                        { return m_cpu6502->GetLastInstructionCycles (); }
+
+    // Interrupt-aware companion to StepOne; see Cpu6502::TryStepInterrupt.
+    bool             TryStepInterrupt() { return m_cpu6502->TryStepInterrupt(); }
 
     // Execution trace (--trace switch). Forwarded to the underlying 6502.
     void             EnableTrace     (size_t capacity)  { m_cpu6502->EnableTrace (capacity); }

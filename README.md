@@ -19,19 +19,19 @@ Two of the three built-in themes booting the [casso-rocks demo disk](Apple2/Demo
 
 The project includes:
 
-- **Apple II platform emulator** — GUI-based Apple II, II+, //e, and //c emulator with D3D11 rendering, WASAPI audio, Disk II controller with realistic mechanical sounds, analog game I/O (joystick/paddle via the PREAD timer), data-driven machine configs, 80-column text + Double Hi-Res, auxiliary RAM, audit-correct Language Card state machine, and cycle-accurate IRQ/NMI infrastructure.
+- **Apple II platform emulator** — GUI-based Apple II, II+, //e, //e Enhanced, and //c emulator with D3D11 rendering, WASAPI audio, Disk II controller with realistic mechanical sounds, Mockingboard sound card (dual 6522 VIA + AY-3-8910 PSG), analog game I/O (joystick/paddle via the PREAD timer), data-driven machine configs, 80-column text + Double Hi-Res, auxiliary RAM, audit-correct Language Card state machine, and cycle-accurate IRQ/NMI infrastructure.
 - **6502 CPU emulator** — passes [Klaus Dormann's functional test suite](https://github.com/Klaus2m5/6502_65C02_functional_tests) and all 151 legal-opcode sets from [Tom Harte's SingleStepTests](https://github.com/SingleStepTests/ProcessorTests) (10,000 vectors each).
 - **AS65-compatible assembler** — a from-scratch reimplementation of Frank A. Kingswood's AS65, intended as a drop-in replacement. Supports the complete AS65 syntax: macros, conditional assembly (`if`/`ifdef`/`ifndef`/`else`/`endif`), the full expression evaluator (arithmetic, bitwise, logical, shift, `<`/`>` byte selectors, current-PC `*`), `equ`/`=` constants, `include`, three-segment model (`code`/`data`/`bss`), AS65-style listing output, and AS65 command-line flags (`-l`, `-t`, `-s`, `-s2`, `-z`, `-c`, `-w`, `-d`, `-g`, ...) including flag concatenation (`-tlfile`).
 - **CLI tool** — runs as an AS65-style assembler by default, or with the `run` subcommand to load and execute a binary or assembly source.
 - **First-run asset bootstrap** — Casso fetches the ROMs, sample disks, and Disk II audio samples it needs on first launch (with user consent), so a fresh `Casso.exe` boots to a usable //e BASIC prompt with no manual setup.
 - **Headless test harness** — `HeadlessHost` drives the emulator with no Win32 window, enabling deterministic integration tests for cold boot, disk boot, video framebuffer hashing, and reset semantics.
-- **1900+ unit tests** — comprehensive coverage of CPU instruction encoding, addressing modes, arithmetic, branching, assembler features, audio pipeline (speaker + drive), //e MMU + Language Card, video timing, Disk II nibble engine, WOZ + nibblized image formats, 80-col + DHGR video, reset semantics, perf budget, and backwards-compat for ][ and ][ plus machines.
+- **2000+ unit tests** — comprehensive coverage of CPU instruction encoding, addressing modes, arithmetic, branching, assembler features, audio pipeline (speaker + drive + Mockingboard), 6522 VIA timers/IRQ + AY-3-8910 synthesis, //e MMU + Language Card, video timing, Disk II nibble engine, WOZ + nibblized image formats, 80-col + DHGR video, reset semantics, perf budget, and backwards-compat for ][ and ][ plus machines.
 
 ## What's New
 
 See [CHANGELOG.md](CHANGELOG.md) for the granular history.
 
-### Apple //c (v1.7.0)
+### Apple //c + //e Enhanced (v1.8.0)
 
 Casso now emulates the **Apple //c** (ROM 4, 5.25"/128K): a Rockwell
 R65C02 core validated against the Dormann and Harte conformance suites,
@@ -41,7 +41,21 @@ the built-in IWM disk drive (plus a connectable external drive), dual
 by the machine's real mouse firmware, with the host pointer mapping
 non-capturing onto the guest. Input mapping split into independent
 Keys (arrows→joystick) and Pointer (paddle/mouse) selections with a new
-segmented device selector drawing the real Apple peripherals.
+segmented device selector drawing the real Apple peripherals. The same
+65C02 also powers a new **Apple //e Enhanced** profile (issue #86) — the
+//e with the enhanced firmware + MouseText video ROM, for the CMOS titles
+that misbehave on the NMOS //e.
+
+### Mockingboard sound card (v1.7.0)
+
+Casso now emulates the Sweet Micro Systems Mockingboard A/C — the de-facto
+Apple II audio standard. Two clean-room chip cores written from the datasheets
+(a reusable **6522 VIA** and the **AY-3-8910 PSG**: 3 tone voices + noise +
+envelope) render to stereo float PCM, with VIA Timer 1 driving the periodic
+IRQs music players use for tempo. The card ships in slot 4 of the ][+ and //e
+profiles; it is installed or removed from its slot in the Hardware tab's
+device list. Games like *Ultima IV*, *Skyfox*, and *Music
+Construction Set* get their real soundtracks back.
 
 ### Reliable disk writes (v1.6.2–v1.6.3)
 
@@ -289,6 +303,7 @@ All 56 standard 6502 mnemonics are implemented. Validated against [Klaus Dormann
 - [x] Apple //e fidelity — cold boot to BASIC, audit-correct Language Card, 64 KB aux RAM, 80-column text + Double Hi-Res, soft reset vs. power cycle, IRQ/NMI dispatch, RDVBLBAR
 - [x] Disk II controller — DOS 3.3 / ProDOS `.dsk` / `.do` / `.po` nibblization + WOZ v1 / v2 with auto-flush on eject
 - [x] Disk II mechanical audio — stereo motor hum, head-step clicks, track-0 bump, disk insert / eject sounds, with a runtime Settings → Machine → Drive audio toggle. Built on a generic `IDriveAudioSink` / `IDriveAudioSource` / `DriveAudioMixer` abstraction so future drive types (//c internal 5.25, DuoDisk, ProFile, …) plug in without touching the mixer
+- [x] Mockingboard A/C sound card — clean-room 6522 VIA + AY-3-8910 PSG (3 tone voices + noise + envelope), stereo PCM, Timer 1 tempo IRQs, slot-4 install on ][+ / //e ([#66](https://github.com/relmer/Casso/issues/66))
 - [x] Headless test harness for deterministic integration tests (`HeadlessHost`, framebuffer scraper, keyboard injector)
 - [x] Performance gate — emulator throughput budget enforced in CI (Release-only)
 - [x] Cycle-accurate execution and profiling ([#57](https://github.com/relmer/Casso/issues/57))

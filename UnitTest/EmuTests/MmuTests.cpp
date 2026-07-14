@@ -66,6 +66,27 @@ namespace
             bus.AddDevice (&sw);
         }
     };
+
+
+    // Stand-in for an active slot-I/O card (e.g. a Mockingboard) that owns
+    // a $Cn00 page. Records the last access so the router-delegation tests
+    // can assert whether the device was reached.
+    class RecordingIoDevice : public MemoryDevice
+    {
+    public:
+        explicit RecordingIoDevice (Word start) : m_start (start) {}
+
+        Byte Read     (Word address) override { m_lastReadAddr = address; return 0x5A; }
+        void Write    (Word address, Byte value) override { m_lastWriteAddr = address; m_lastWriteValue = value; }
+        Word GetStart () const override { return m_start; }
+        Word GetEnd   () const override { return static_cast<Word> (m_start + 0xFF); }
+        void Reset    () override {}
+
+        Word m_start          = 0;
+        Word m_lastReadAddr   = 0;
+        Word m_lastWriteAddr  = 0;
+        Byte m_lastWriteValue = 0;
+    };
 }
 
 
@@ -395,6 +416,40 @@ public:
 
         Assert::AreEqual (static_cast<Byte> (0xCC), f.bus.ReadByte (0xC600),
             L"Audit C8: INTCXROM=1 must shadow slot 6 with internal ROM");
+    }
+
+    TEST_METHOD (SlotIoDeviceReachableWhenIntCxRomClear)
+    {
+        MmuFixture         f;
+        RecordingIoDevice  io (0xC400);
+
+        f.mmu.GetCxxxRouter ()->SetSlotIoDevice (4, &io);
+        f.mmu.SetIntCxRom (false);
+
+        Assert::AreEqual (static_cast<Byte> (0x5A), f.bus.ReadByte (0xC404),
+            L"INTCXROM=0 must route slot-4 $Cn00 reads to the active I/O device");
+        Assert::AreEqual (static_cast<Word> (0xC404), io.m_lastReadAddr);
+
+        f.bus.WriteByte (0xC405, 0x33);
+        Assert::AreEqual (static_cast<Word> (0xC405), io.m_lastWriteAddr);
+        Assert::AreEqual (static_cast<Byte> (0x33), io.m_lastWriteValue);
+    }
+
+    TEST_METHOD (SlotIoDeviceShadowedWhenIntCxRomSet)
+    {
+        MmuFixture         f;
+        RecordingIoDevice  io (0xC400);
+
+        vector<Byte>       internal (0x0F00, 0xEE);
+
+        f.mmu.AttachInternalCxxxRom (move (internal));
+        f.mmu.GetCxxxRouter ()->SetSlotIoDevice (4, &io);
+        f.mmu.SetIntCxRom (true);
+
+        Assert::AreEqual (static_cast<Byte> (0xEE), f.bus.ReadByte (0xC404),
+            L"INTCXROM=1 must shadow the slot-4 I/O device with internal ROM");
+        Assert::AreEqual (static_cast<Word> (0), io.m_lastReadAddr,
+            L"A shadowed device must not observe the read");
     }
 
     TEST_METHOD (SlotC3Rom_ClearMapsInternal80ColFirmware)

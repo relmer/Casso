@@ -135,15 +135,16 @@ void Cpu6502::SetInterruptLine (CpuInterruptKind kind, bool asserted)
     if (kind == CpuInterruptKind::kMaskable)
     {
         m_irqLine = asserted;
-        return;
     }
-
-    if (asserted && !m_nmiLine)
+    else
     {
-        m_nmiPending = true;
-    }
+        if (asserted && !m_nmiLine)
+        {
+            m_nmiPending = true;
+        }
 
-    m_nmiLine = asserted;
+        m_nmiLine = asserted;
+    }
 }
 
 
@@ -208,7 +209,7 @@ void Cpu6502::SetRegisters (const Cpu6502Registers & regs)
 
 bool Cpu6502::TryDispatchInterrupt (uint32_t & outCycles)
 {
-    if (!DispatchPendingInterrupt ())
+    if (!TryStepInterrupt ())
     {
         return false;
     }
@@ -224,19 +225,20 @@ bool Cpu6502::TryDispatchInterrupt (uint32_t & outCycles)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DispatchPendingInterrupt
+//  TryStepInterrupt
 //
-//  Shared dispatch core. NMI edge takes priority and fires regardless of
-//  the I flag; IRQ fires only when (P & I) == 0. Records the 7-cycle
-//  interrupt prologue as the last-instruction cost so StepOne+AddCycles
-//  hosts account for it exactly like an instruction; deliberately does NOT
-//  touch m_totalCycles (Step's wrapper and the hosts' AddCycles do).
+//  Host-loop companion to TryDispatchInterrupt. Same dispatch decision (NMI
+//  edge, or IRQ when I == 0) and the same 7-cycle cost, but the cost is
+//  recorded in m_lastCycles rather than rolled into m_totalCycles here: the
+//  caller's StepOne + AddCycles path owns the accumulator, so an interrupt step
+//  and a normal instruction step account identically. Returns true if an
+//  interrupt was taken (the caller then skips StepOne for this step).
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool Cpu6502::DispatchPendingInterrupt ()
+bool Cpu6502::TryStepInterrupt()
 {
-    bool        dispatched = false;
+    bool    dispatched = false;
 
 
 

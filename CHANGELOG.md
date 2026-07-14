@@ -6,7 +6,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 Versioned entries use `MAJOR.MINOR.PATCH` from [Version.h](CassoCore/Version.h).
 Entries before versioning was introduced use dates only.
 
-## [1.7.0] — Apple //c machine support (spec 016)
+## [1.8.0] — Apple //c and Apple //e Enhanced machines (spec 016 + #86)
 
 ### Added
 - **feat(machine): Apple //c** — a new machine profile on the //e substrate,
@@ -51,6 +51,45 @@ Entries before versioning was introduced use dates only.
   maskable interrupts from the shared interrupt controller (the //c mouse
   and VBL are the first sources); the 65C02 vector prologue is accounted
   like an instruction, leaving existing machines byte-identical.
+- **feat(machine): Apple //e Enhanced** (issue #86) — the //e with a 65C02
+  and the enhanced firmware + MouseText video ROM, so it runs the CMOS
+  titles that misbehave on the NMOS //e. Reuses the //e substrate (128K,
+  slot-4 Mockingboard, slot-6 Disk ][); the enhanced ROM is a managed
+  download-on-demand asset. Auto-discovered by the machine picker; cold-boots
+  its firmware on the 65C02 (headless boot test).
+
+## [1.7.0] — Mockingboard sound card (GH #66)
+
+### Added
+- **feat(emu): Mockingboard A/C sound card emulation.** Adds the de-facto
+  Apple II audio standard: two clean-room chip cores written from the
+  datasheets — a generic **6522 VIA** (full register file, Timer 1
+  one-shot/continuous, Timer 2, IFR/IER and a level-sensitive IRQ line,
+  ports A/B with data-direction registers) and an **AY-3-8910 PSG** (three
+  square-wave tone channels, a 17-bit-LFSR noise generator, a 16-level
+  envelope generator, and a logarithmic DAC rendered to float32 PCM
+  resampled to the host rate). A **MockingboardCard** aggregates two of
+  each in a slot's `$Cn00` I/O page, decoding address bit 7 to the two VIAs
+  and translating each VIA's port A/B into the AY data bus and BC1/BDIR/RESET
+  control lines. Timer 1 IRQs — the tempo source Mockingboard music players
+  rely on — feed the existing interrupt controller, and the two PSGs mix
+  into the stereo bus (PSG #1 hard-left, PSG #2 hard-right) through a
+  dedicated audio mixer so they sum cleanly with the speaker and Disk II
+  audio. The card is installed in slot 4 of the Apple ][+ and //e profiles
+  and is enabled or removed from its slot in the **Hardware** tab's device
+  list (the card's slot entry is the single Mockingboard control).
+  On the //e the `CxxxRomRouter` now delegates a slot's `$Cn00` page to an
+  active I/O card when `INTCXROM=0`, so the card is reachable behind the
+  MMU. Clean-room throughout: no GPL emulator code was copied.
+
+### Fixed
+- **fix(cpu): the emulator run loop now services maskable interrupts.**
+  The shell drove the CPU exclusively through the interrupt-blind
+  `StepOne`, so no device IRQ was ever dispatched — latent until the
+  Mockingboard became the first device in Casso to assert one. Music
+  players (e.g. *Zaxxon*) arm a Timer 1 IRQ and depend on its handler
+  firing; without dispatch they stayed silent. Each step site now
+  dispatches a pending NMI/IRQ before executing the next instruction.
 
 ## [1.6.4] — Disk ][ Debug panel virtualization (GH #88)
 
