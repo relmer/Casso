@@ -6,6 +6,65 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 Versioned entries use `MAJOR.MINOR.PATCH` from [Version.h](CassoCore/Version.h).
 Entries before versioning was introduced use dates only.
 
+## [1.7.0] — Mockingboard sound card (GH #66)
+
+### Added
+- **feat(emu): Mockingboard A/C sound card emulation.** Adds the de-facto
+  Apple II audio standard: two clean-room chip cores written from the
+  datasheets — a generic **6522 VIA** (full register file, Timer 1
+  one-shot/continuous, Timer 2, IFR/IER and a level-sensitive IRQ line,
+  ports A/B with data-direction registers) and an **AY-3-8910 PSG** (three
+  square-wave tone channels, a 17-bit-LFSR noise generator, a 16-level
+  envelope generator, and a logarithmic DAC rendered to float32 PCM
+  resampled to the host rate). A **MockingboardCard** aggregates two of
+  each in a slot's `$Cn00` I/O page, decoding address bit 7 to the two VIAs
+  and translating each VIA's port A/B into the AY data bus and BC1/BDIR/RESET
+  control lines. Timer 1 IRQs — the tempo source Mockingboard music players
+  rely on — feed the existing interrupt controller, and the two PSGs mix
+  into the stereo bus (PSG #1 hard-left, PSG #2 hard-right) through a
+  dedicated audio mixer so they sum cleanly with the speaker and Disk II
+  audio. The card is installed in slot 4 of the Apple ][+ and //e profiles
+  and is enabled or removed from its slot in the **Hardware** tab's device
+  list (the card's slot entry is the single Mockingboard control).
+  On the //e the `CxxxRomRouter` now delegates a slot's `$Cn00` page to an
+  active I/O card when `INTCXROM=0`, so the card is reachable behind the
+  MMU. Clean-room throughout: no GPL emulator code was copied.
+
+### Fixed
+- **fix(cpu): the emulator run loop now services maskable interrupts.**
+  The shell drove the CPU exclusively through the interrupt-blind
+  `StepOne`, so no device IRQ was ever dispatched — latent until the
+  Mockingboard became the first device in Casso to assert one. Music
+  players (e.g. *Zaxxon*) arm a Timer 1 IRQ and depend on its handler
+  firing; without dispatch they stayed silent. Each step site now
+  dispatches a pending NMI/IRQ before executing the next instruction.
+
+## [1.6.4] — Disk ][ Debug panel virtualization (GH #88)
+
+### Fixed
+- **fix(ui): the Disk ][ Debug panel no longer wedges under disk-heavy
+  activity (GH #88).** Every render frame rebuilt and re-materialized the
+  entire event list into the `DxuiListView` — up to 100,000 rows, each six
+  freshly-heap-allocated `std::wstring` cells — even when only a handful of
+  events were visible and nothing had changed. Under a `SAVE` or a Print
+  Shop print (thousands of head-step / address-mark events per second) the
+  per-frame allocation storm starved the UI thread and the app appeared to
+  hang. The list now uses a **virtual (provider) row model**: it holds no
+  materialized rows, tracks only a count, and pulls cells for just the
+  visible window (`O(visible)` per frame instead of `O(total)`). A
+  per-frame **change-gate** skips the filter/sort rebuild entirely on idle
+  frames (no new events), and columns auto-fit from the visible window as
+  rows scroll in.
+
+### Changed
+- **Selection and keyboard focus in the Disk ][ Debug panel now track the
+  selected event by a stable monotonic identity (`seq`) rather than by row
+  or deque index.** A column re-sort keeps the same event selected *and*
+  scrolls it back into view, and a selection that is filtered out or
+  evicted from the rolling history snaps to the nearest surviving event
+  instead of silently jumping. The resolution logic is a pure, headlessly
+  unit-tested helper (`DebugDialogProjection::ResolveSelection`).
+
 ## [1.6.3] — Disk write persistence: WOZ write-back, flush safety
 
 Follows GH #89 (which fixed the emulated write *bit*) by fixing the

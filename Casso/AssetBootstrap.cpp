@@ -177,8 +177,8 @@ struct EmbeddedConfig
 static constexpr EmbeddedConfig s_kEmbeddedConfigs[] =
 {
     { IDR_MACHINE_APPLE2,     "Apple2",     "Apple2.json",     8 },
-    { IDR_MACHINE_APPLE2PLUS, "Apple2Plus", "Apple2Plus.json", 8 },
-    { IDR_MACHINE_APPLE2E,    "Apple2e",    "Apple2e.json",    7 },
+    { IDR_MACHINE_APPLE2PLUS, "Apple2Plus", "Apple2Plus.json", 9 },
+    { IDR_MACHINE_APPLE2E,    "Apple2e",    "Apple2e.json",    8 },
 };
 
 
@@ -248,16 +248,19 @@ static const MachineConfigPriorHash s_kPriorDefaultHashes[] =
     // v6 Apple2Plus.json (before adding apple2-gameport device).
     { "Apple2Plus", "a8796968d56185daf6a03bdebebdecc776dfc004003447a78f0bcc5dafaac3e1" },
 
-    // v6 Apple2e.json (before adding the slot-1 parallel printer card).
+    // v6 Apple2e.json (before the slot-4 Mockingboard / slot-1 printer).
     { "Apple2e",    "8593a47d87db9090ce001e439fea318854bdc6b255fa328f8ac2dabee1eb9f63" },
 
-    // v8 ][ / ][+ add the slot-1 parallel printer card (matching //e). No
-    // prior-hash entry is needed for the v7->v8 bump: both machines' on-disk
-    // defaults are stamped ($cassoMachineVersion), so Plan refreshes them by
-    // version comparison (diskVersion < embeddedVersion -> OverwriteSilent).
-    // Prior-hash matching only applies to the unstamped v1-era extracts above.
-    // (v7 tables mistakenly stayed at 6, so pre-v8 users -- v6 and v7 alike --
-    // are all < 8 and refresh cleanly.)
+    // v7 Apple2Plus.json (master, before the slot-4 Mockingboard).
+    { "Apple2Plus", "99824c2f34e40c9411d46d17c5a34d78b1bbd2a29e4487fc0326457b18986236" },
+
+    // v7 Apple2e.json (master Mockingboard slot 4; superseded by v8, which
+    // carries both the Mockingboard and the slot-1 parallel printer).
+    { "Apple2e",    "294312b9acc832c022b14c9d2e38946b13f7baab9d149760f79a8ee75ec3178a" },
+
+    // v8 Apple2Plus.json (master Mockingboard slot 4; superseded by v9, which
+    // carries both the Mockingboard and the slot-1 parallel printer).
+    { "Apple2Plus", "c3b3222ddfd2c08b65afb80ece15fa5fee87fa487e5e3f4ed661931ba323a9c4" },
 };
 
 
@@ -532,6 +535,36 @@ HRESULT AssetBootstrap::EnsureMachineConfigs (
     error_code  ec;
 
 
+
+#if defined(_DEBUG)
+    // Self-check: each embedded config's currentVersion stamp must match the
+    // $cassoMachineVersion baked into its JSON. If they drift, Plan() below
+    // treats an unchanged on-disk extract as already current and silently
+    // skips a real change -- the failure that once hid the slot-4 Mockingboard.
+    for (const EmbeddedConfig & selfCheck : s_kEmbeddedConfigs)
+    {
+        span<const Byte>  scBytes   = ExtractResource (hInstance, selfCheck.resourceId);
+        string            scJson    = string (reinterpret_cast<const char *> (scBytes.data()), scBytes.size());
+        JsonValue         scRoot;
+        JsonParseError    scErr;
+        int               scVersion = 0;
+        HRESULT           scParseHr = S_OK;
+        HRESULT           scVerHr   = S_OK;
+
+
+
+        scParseHr = JsonParser::Parse (scJson, scRoot, scErr);
+
+        if (SUCCEEDED (scParseHr))
+        {
+            scVerHr = scRoot.GetInt ("$cassoMachineVersion", scVersion);
+
+            _ASSERTE (SUCCEEDED (scVerHr)
+                      && scVersion == selfCheck.currentVersion
+                      && "s_kEmbeddedConfigs currentVersion out of sync with embedded $cassoMachineVersion");
+        }
+    }
+#endif
 
     // Embedded machine JSONs always extract under %LOCALAPPDATA%\Casso\,
     // not into whichever exe-adjacent Machines/ a dev happens to have

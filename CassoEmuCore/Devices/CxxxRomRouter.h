@@ -49,10 +49,18 @@ public:
     void SetSlotRom     (int slot, vector<Byte> data);
     bool HasSlotRom     (int slot) const;
 
+    // Register an active I/O device (e.g. a Mockingboard) that owns a
+    // slot's $Cn00 page. When slot cards are visible (INTCXROM=0) reads
+    // and writes to that page are delegated to the device instead of
+    // resolving to slot ROM. Caller-owned; pass nullptr to detach.
+    void SetSlotIoDevice (int slot, MemoryDevice * device);
+
 private:
-    Byte ResolveByte    (Word address);
+    Byte           ResolveByte     (Word address);
+    MemoryDevice * SlotIoDeviceFor (Word address) const;
 
     Apple2eMmu &   m_mmu;
     vector<Byte>   m_internal;
     vector<Byte>   m_slotRom[8];
+    MemoryDevice * m_slotIoDevice[8] = {};
 };

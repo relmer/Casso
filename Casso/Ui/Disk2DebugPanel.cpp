@@ -424,52 +424,23 @@ void Disk2DebugPanel::ShowColumnMenu (int anchorX, int anchorY)
 //
 //  ApplyListSelection
 //
-//  Resolves m_listSelectedEventIndex (an absolute index into m_events)
-//  against the current m_filteredIndices and pushes the corresponding
-//  visible-row index into the DxuiListView. If the previously-selected
-//  event is no longer visible under the current filter, snap to the
-//  previous still-visible row (or the next one if there is no
-//  previous). If neither exists, clear the selection.
+//  Resolves the selected event (tracked by its stable seq) against the
+//  current filtered/sorted order via the pure DebugDialogProjection helper,
+//  then pushes the resulting visible-row index into the DxuiListView, which
+//  scrolls it into view. Because identity is the event's seq -- not a row or
+//  deque index -- a sort reorder keeps the same event selected AND visible,
+//  and a filtered-out / evicted selection snaps to the nearest survivor. The
+//  resolution logic is unit-tested headlessly in DebugDialogProjection.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void Disk2DebugPanel::ApplyListSelection()
 {
-    if (m_listSelectedEventIndex < 0 || m_filteredIndices.empty())
-    {
-        m_listSelectedEventIndex = -1;
-        m_eventList->SetSelectedRow (-1);
-        return;
-    }
+    DebugSelectionResult  res =
+        DebugDialogProjection::ResolveSelection (m_selectedSeq, m_events, m_filteredIndices);
 
-    size_t  target = (size_t) m_listSelectedEventIndex;
-    auto    it     = std::lower_bound (m_filteredIndices.begin(),
-                                       m_filteredIndices.end(),
-                                       target);
-
-    if (it != m_filteredIndices.end() && *it == target)
-    {
-        m_eventList->SetSelectedRow ((int) (it - m_filteredIndices.begin()));
-        return;
-    }
-
-    if (it != m_filteredIndices.begin())
-    {
-        auto prev = it - 1;
-        m_listSelectedEventIndex = (int) *prev;
-        m_eventList->SetSelectedRow ((int) (prev - m_filteredIndices.begin()));
-        return;
-    }
-
-    if (it != m_filteredIndices.end())
-    {
-        m_listSelectedEventIndex = (int) *it;
-        m_eventList->SetSelectedRow ((int) (it - m_filteredIndices.begin()));
-        return;
-    }
-
-    m_listSelectedEventIndex = -1;
-    m_eventList->SetSelectedRow (-1);
+    m_selectedSeq = res.seq;
+    m_eventList->SetSelectedRow (res.row);
 }
 
 
@@ -481,8 +452,7 @@ void Disk2DebugPanel::ApplyListSelection()
 //  OnListSelectionMoved
 //
 //  Mirrors the DxuiListView's new selected-row index back into our
-//  persistent event-index identity so it survives filter/sort
-//  rebuilds.
+//  persistent seq identity so it survives filter/sort rebuilds.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -493,10 +463,12 @@ void Disk2DebugPanel::OnListSelectionMoved()
 
     if (row < 0 || (size_t) row >= m_filteredIndices.size())
     {
-        m_listSelectedEventIndex = -1;
+        m_selectedSeq = 0;
         return;
     }
-    m_listSelectedEventIndex = (int) m_filteredIndices[(size_t) row];
+
+    size_t  idx = m_filteredIndices[(size_t) row];
+    m_selectedSeq = (idx < m_events.size()) ? m_events[idx].seq : 0;
 }
 
 
@@ -526,7 +498,7 @@ void Disk2DebugPanel::SortByColumn (int absCol)
     }
     m_eventList->SetSortIndicator (m_sortColumn, m_sortDescending);
     RebuildFilteredIndices();
-    PushListViewRows();
+    SyncListRowCount();
     ApplyListSelection();
 }
 
@@ -1114,17 +1086,33 @@ void Disk2DebugPanel::ConfigureWidgets()
     // back into the panel (selected event, sort).
     m_eventList->SetOnSelectionChanged ([this] (int row)
     {
+        // The list already moved (and scrolled to) its own selected row;
+        // just record that event's stable seq so the selection survives the
+        // next filter/sort rebuild. Re-resolving here would be redundant.
         if (row >= 0 && row < (int) m_filteredIndices.size())
         {
-            m_listSelectedEventIndex = (int) m_filteredIndices[(size_t) row];
+            size_t  idx = m_filteredIndices[(size_t) row];
+            m_selectedSeq = (idx < m_events.size()) ? m_events[idx].seq : 0;
         }
-        ApplyListSelection();
+        else
+        {
+            m_selectedSeq = 0;
+        }
     });
     m_eventList->SetOnSortColumn ([this] (int col)
     {
         SortByColumn (col);
     });
     m_eventList->SetOnColumnResized ([] (int, int) {});
+
+    // Install the virtual-row provider once: the list pulls only its visible
+    // window through FillRow, so a 100k-row live log costs O(visible) per
+    // frame instead of re-materializing every row (GH #88). The row count is
+    // republished each rebuild via SyncListRowCount.
+    m_eventList->SetRowProvider (0, [this] (int row, std::vector<DxuiListView::Cell> & out)
+    {
+        FillRow (row, out);
+    });
 
     m_columnMenu.SetOnSelect ([this] (int index)
     {
@@ -1178,11 +1166,23 @@ void Disk2DebugPanel::DrainAndProject()
     }
 
     dropped = m_droppedSinceLastDrain.exchange (0, std::memory_order_acq_rel);
-    DebugDialogProjection::DrainAndProject (m_ring, m_events, dropped, m_uptimeAnchor);
 
-    RebuildFilteredIndices();
-    PushListViewRows();
-    ApplyListSelection();
+    // Change-gate: DrainAndProject stamps each appended event from m_nextSeq,
+    // so an unchanged counter means the ring was empty (and no dropped-count
+    // synthetic was pushed) -- nothing was added and no front-eviction shifted
+    // the deque, so the filtered set and rows are already current. Skip the
+    // O(n) rebuild/re-sort on idle frames; the disk-heavy path (GH #88) still
+    // rebuilds, but only when there is genuinely new data to show.
+    uint64_t  seqBefore = m_nextSeq;
+
+    DebugDialogProjection::DrainAndProject (m_ring, m_events, dropped, m_uptimeAnchor, &m_nextSeq);
+
+    if (m_nextSeq != seqBefore)
+    {
+        RebuildFilteredIndices();
+        SyncListRowCount();
+        ApplyListSelection();
+    }
 }
 
 
@@ -1275,54 +1275,69 @@ void Disk2DebugPanel::RebuildFilteredIndices()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  PushListViewRows
+//  FillRow
 //
-//  Manual virtualization: only push the rows that fit visibly within
-//  the DxuiListView slot. Walking from the tail keeps the most recent
-//  events visible, matching the legacy auto-tail behavior.
+//  Virtual-row provider (GH #88). Called by the DxuiListView only for the
+//  rows in its visible window, `row` being a visible-row index into
+//  m_filteredIndices. Maps that to the backing Disk2EventDisplay and
+//  materializes its six cells into `out` (already cleared by the widget).
+//  Runs on the render thread during Paint, a pure read of m_events /
+//  m_filteredIndices, so no per-frame allocation of the whole list.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void Disk2DebugPanel::PushListViewRows()
+void Disk2DebugPanel::FillRow (int row, std::vector<DxuiListView::Cell> & out) const
 {
-    size_t  total = m_filteredIndices.size();
-    size_t  cap   = m_events.size();
-    std::vector<std::vector<DxuiListView::Cell>>  rows;
-
-
-    rows.reserve (total);
-
-    for (size_t k = 0; k < total; k++)
+    if (row < 0 || (size_t) row >= m_filteredIndices.size())
     {
-        size_t  idx = m_filteredIndices[k];
-        if (idx >= cap) { continue; }
-        const Disk2EventDisplay & e = m_events[idx];
-
-        std::vector<DxuiListView::Cell>  row;
-        row.push_back ({ std::wstring (e.wallStr.data()),   false });
-        row.push_back ({ std::wstring (e.uptimeStr.data()), false });
-        row.push_back ({ std::wstring (e.cycleStr.data()),  false });
-
-        wchar_t  driveBuf[8] = {};
-        if (e.drive == Disk2EventDisplay::kFieldNotApplicable)
-        {
-            row.push_back ({ L"", false });
-        }
-        else
-        {
-            swprintf_s (driveBuf, L"%d", e.drive + 1);
-            row.push_back ({ std::wstring (driveBuf), false });
-        }
-
-        std::wstring_view  label = DebugDialogProjection::EventLabel (e.category, e.type);
-        row.push_back ({ std::wstring (label), false });
-        row.push_back ({ e.detail, false });
-
-        rows.push_back (std::move (row));
+        return;
     }
 
-    m_eventList->SetRows (std::move (rows));
-    m_eventList->UpdateAutoFitFromRows();
+    size_t  idx = m_filteredIndices[(size_t) row];
+    if (idx >= m_events.size())
+    {
+        return;
+    }
+
+    const Disk2EventDisplay & e = m_events[idx];
+
+    out.push_back ({ std::wstring (e.wallStr.data()),   false });
+    out.push_back ({ std::wstring (e.uptimeStr.data()), false });
+    out.push_back ({ std::wstring (e.cycleStr.data()),  false });
+
+    if (e.drive == Disk2EventDisplay::kFieldNotApplicable)
+    {
+        out.push_back ({ L"", false });
+    }
+    else
+    {
+        wchar_t  driveBuf[8] = {};
+        swprintf_s (driveBuf, L"%d", e.drive + 1);
+        out.push_back ({ std::wstring (driveBuf), false });
+    }
+
+    std::wstring_view  label = DebugDialogProjection::EventLabel (e.category, e.type);
+    out.push_back ({ std::wstring (label), false });
+    out.push_back ({ e.detail, false });
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SyncListRowCount
+//
+//  Republish the virtual row count after the filtered set changes. The list
+//  keeps its stable FillRow provider and pulls only the visible window, so
+//  this is O(1) -- no materialization of the (possibly 100k-row) list.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Disk2DebugPanel::SyncListRowCount()
+{
+    m_eventList->SetVirtualRowCount ((int) m_filteredIndices.size());
 }
 
 
@@ -1384,7 +1399,7 @@ Disk2Event Disk2DebugPanel::MakeStampedEvent (EventCategory cat, Disk2EventType 
 void Disk2DebugPanel::OnFilterChanged()
 {
     RebuildFilteredIndices();
-    PushListViewRows();
+    SyncListRowCount();
     ApplyListSelection();
 }
 
@@ -1467,9 +1482,9 @@ void Disk2DebugPanel::ClearEvents()
     m_events.clear();
     m_filteredIndices.clear();
     m_currentDrive = 0;
-    m_listSelectedEventIndex = -1;
+    m_selectedSeq  = 0;
     m_eventList->ResetAutoFit();
-    PushListViewRows();
+    SyncListRowCount();
     ApplyListSelection();
 }
 

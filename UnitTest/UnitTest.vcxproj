@@ -275,6 +275,9 @@
     <ClCompile Include="EmuTests\HeadlessHost.cpp" />
     <ClCompile Include="EmuTests\HeadlessHostTests.cpp" />
     <ClCompile Include="EmuTests\Acia6551Tests.cpp" />
+    <ClCompile Include="EmuTests\Via6522Tests.cpp" />
+    <ClCompile Include="EmuTests\Ay8910Tests.cpp" />
+    <ClCompile Include="EmuTests\MockingboardCardTests.cpp" />
     <ClCompile Include="EmuTests\InterruptControllerTests.cpp" />
     <ClCompile Include="EmuTests\MmuTests.cpp" />
     <ClCompile Include="EmuTests\ResetSemanticsTests.cpp" />
@@ -469,6 +472,7 @@
     <ClCompile Include="Dxui\DxuiMenuBarTests.cpp" />
     <ClCompile Include="Dxui\DxuiPanelTests.cpp" />
     <ClCompile Include="Dxui\DxuiPopupHostTests.cpp" />
+    <ClCompile Include="Dxui\DxuiListViewVirtualTests.cpp" />
     <ClCompile Include="Dxui\DxuiScrollbarTests.cpp" />
     <ClCompile Include="Dxui\DxuiStackLayoutTests.cpp" />
     <ClCompile Include="Dxui\DxuiViewportTests.cpp" />

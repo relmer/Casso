@@ -630,8 +630,8 @@ HRESULT SettingsPanelState::ExtractUiPrefs (
         GetStringOpt (*uiObj, "writeMode", "buffer-and-flush"),
         SettingsWriteMode::BufferAndFlush);
 
-    outPrefs.floppySoundEnabled = GetBoolOpt   (*uiObj, "floppySoundEnabled", true);
-    outPrefs.floppyMechanism    = GetStringOpt (*uiObj, "floppyMechanism",    "shugart");
+    outPrefs.floppySoundEnabled = GetBoolOpt   (*uiObj, "floppySoundEnabled",  true);
+    outPrefs.floppyMechanism    = GetStringOpt (*uiObj, "floppyMechanism",     "shugart");
 
     outPrefs.driveMotorVolume = (float) GetNumberOpt (*uiObj, "driveMotorVolume", SettingsUiPrefs::kDefaultDriveMotorVolume);
     outPrefs.driveHeadVolume  = (float) GetNumberOpt (*uiObj, "driveHeadVolume",  SettingsUiPrefs::kDefaultDriveHeadVolume);

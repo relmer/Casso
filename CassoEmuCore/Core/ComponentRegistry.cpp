@@ -15,6 +15,7 @@
 #include "../Devices/Apple2eSoftSwitchBank.h"
 #include "../Devices/Acia6551.h"
 #include "../Devices/Printer/PrinterCard.h"
+#include "../Devices/Mockingboard/MockingboardCard.h"
 
 
 
@@ -129,4 +130,5 @@ void ComponentRegistry::RegisterBuiltinDevices (ComponentRegistry & registry)
     registry.Register ("disk-ii",              Disk2Controller::Create);
     registry.Register ("acia-6551",            Acia6551::Create);
     registry.Register ("parallel-printer",     PrinterCard::Create);
+    registry.Register ("mockingboard",         MockingboardCard::Create);
 }

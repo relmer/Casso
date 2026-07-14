@@ -3,7 +3,7 @@
 // To customize, copy it to Machines/<Name>/<Name>.json (any name
 // other than the three embedded defaults) and edit that copy.
 {
-    "$cassoMachineVersion": 8,
+    "$cassoMachineVersion": 9,
     "name": "Apple ][ plus",
     "releaseYear": 1979,
     "cpu": "6502",
@@ -31,6 +31,7 @@
     ],
     "slots": [
         { "slot": 1, "device": "parallel-printer", "capabilityFlag": "optional" },
+        { "slot": 4, "device": "mockingboard" },
         { "slot": 6, "device": "disk-ii", "rom": "Disk2.rom" }
     ],
     "video": {

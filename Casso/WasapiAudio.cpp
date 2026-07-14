@@ -215,7 +215,8 @@ HRESULT WasapiAudio::SubmitFrame (
     float                           currentSpeakerState,
     uint32_t                        numSamplesToGenerate,
     DriveAudioMixer *               driveMixer,
-    uint64_t                        currentCycleCount)
+    uint64_t                        currentCycleCount,
+    DriveAudioMixer *               mockingboardMixer)
 {
     HRESULT    hr             = S_OK;
     size_t     prevFrames     = 0;
@@ -278,6 +279,17 @@ HRESULT WasapiAudio::SubmitFrame (
         {
             driveMixer->Tick (currentCycleCount);
             driveMixer->GeneratePCM (m_driveScratch.data(), numSamplesToGenerate);
+
+            DriveAudioMixer::MixDriveIntoSpeakerStereo (
+                stereoPtr, m_driveScratch.data(), numSamplesToGenerate);
+        }
+
+        // Mockingboard PSG audio shares the same additive stereo mix but
+        // runs through its own mixer so its Options toggle is independent
+        // of Drive Audio. Its sources ignore the cycle-based Tick.
+        if (mockingboardMixer != nullptr)
+        {
+            mockingboardMixer->GeneratePCM (m_driveScratch.data(), numSamplesToGenerate);
 
             DriveAudioMixer::MixDriveIntoSpeakerStereo (
                 stereoPtr, m_driveScratch.data(), numSamplesToGenerate);

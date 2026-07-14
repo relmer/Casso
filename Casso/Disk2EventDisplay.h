@@ -37,6 +37,13 @@ struct Disk2EventDisplay
 {
     static constexpr int   kFieldNotApplicable = INT_MIN;
 
+    // Monotonic identity assigned when the event is projected into the
+    // display deque (see DebugDialogProjection::DrainAndProject). Stable
+    // across sort reorders and deque front-eviction, so a UI can track a
+    // selected / focused event by seq rather than by a shifting row or
+    // deque index. 0 means "unassigned".
+    uint64_t                 seq         = 0;
+
     EventCategory            category    = EventCategory::Controller;
     Disk2EventType           type        = Disk2EventType::EventsLost;
 
