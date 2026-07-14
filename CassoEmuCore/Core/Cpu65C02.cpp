@@ -141,6 +141,20 @@ void Cpu65C02::InstallBitOps ()
     static constexpr Byte    s_kBitOpCycles       = 5;
     static constexpr Byte    s_kBitBranchCycles   = 5;
 
+    // The bit index is baked into the mnemonic (RMB0..RMB7 etc.), exactly as the
+    // instructions are written in assembly, as well as into the opcode
+    // ((opcode >> 4) & 7) which the operations read back. Distinct names let the
+    // disassembler show the right bit and let the assembler's OpcodeTable tell the
+    // eight variants apart (they would otherwise collapse onto one shared key).
+    static constexpr const char * const s_kRmbNames[8] =
+        { "RMB0", "RMB1", "RMB2", "RMB3", "RMB4", "RMB5", "RMB6", "RMB7" };
+    static constexpr const char * const s_kSmbNames[8] =
+        { "SMB0", "SMB1", "SMB2", "SMB3", "SMB4", "SMB5", "SMB6", "SMB7" };
+    static constexpr const char * const s_kBbrNames[8] =
+        { "BBR0", "BBR1", "BBR2", "BBR3", "BBR4", "BBR5", "BBR6", "BBR7" };
+    static constexpr const char * const s_kBbsNames[8] =
+        { "BBS0", "BBS1", "BBS2", "BBS3", "BBS4", "BBS5", "BBS6", "BBS7" };
+
     for (int n = 0; n < 8; ++n)
     {
         Byte    rmb = static_cast<Byte> (0x07 + n * 0x10);   // $07,$17,..,$77
@@ -148,10 +162,10 @@ void Cpu65C02::InstallBitOps ()
         Byte    bbr = static_cast<Byte> (0x0F + n * 0x10);   // $0F,$1F,..,$7F
         Byte    bbs = static_cast<Byte> (0x8F + n * 0x10);   // $8F,$9F,..,$FF
 
-        SetOpcode (rmb, "RMB", Microcode::ResetMemoryBit, GlobalAddressingMode::ZeroPage,         nullptr, nullptr, s_kBitOpCycles);
-        SetOpcode (smb, "SMB", Microcode::SetMemoryBit,   GlobalAddressingMode::ZeroPage,         nullptr, nullptr, s_kBitOpCycles);
-        SetOpcode (bbr, "BBR", Microcode::BitBranchReset, GlobalAddressingMode::ZeroPageRelative, nullptr, nullptr, s_kBitBranchCycles);
-        SetOpcode (bbs, "BBS", Microcode::BitBranchSet,   GlobalAddressingMode::ZeroPageRelative, nullptr, nullptr, s_kBitBranchCycles);
+        SetOpcode (rmb, s_kRmbNames[n], Microcode::ResetMemoryBit, GlobalAddressingMode::ZeroPage,         nullptr, nullptr, s_kBitOpCycles);
+        SetOpcode (smb, s_kSmbNames[n], Microcode::SetMemoryBit,   GlobalAddressingMode::ZeroPage,         nullptr, nullptr, s_kBitOpCycles);
+        SetOpcode (bbr, s_kBbrNames[n], Microcode::BitBranchReset, GlobalAddressingMode::ZeroPageRelative, nullptr, nullptr, s_kBitBranchCycles);
+        SetOpcode (bbs, s_kBbsNames[n], Microcode::BitBranchSet,   GlobalAddressingMode::ZeroPageRelative, nullptr, nullptr, s_kBitBranchCycles);
     }
 }
 

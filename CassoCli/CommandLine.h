@@ -13,9 +13,11 @@ struct CommandLineOptions
 {
     enum class Subcommand    { None, Run, Help, Version, As65 };
     enum class OutputFormat  { Binary, SRecord, IntelHex };
+    enum class CpuTarget     { M6502, M65C02 };
 
     Subcommand  subcommand      = Subcommand::None;
     OutputFormat outputFormat    = OutputFormat::Binary;
+    CpuTarget   cpuTarget       = CpuTarget::M6502;   // --cpu (default: strict 6502)
     std::string inputFile;
     std::string outputFile;
     std::string listingFile;     // -l<file> listing output file

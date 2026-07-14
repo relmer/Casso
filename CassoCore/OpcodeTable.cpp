@@ -32,6 +32,7 @@ static Byte GetOperandSize (GlobalAddressingMode::AddressingMode mode)
     case GlobalAddressingMode::JumpIndirectCmos:   return 2;   // 65C02 (abs) page-fixed JMP
     case GlobalAddressingMode::ZeroPageIndirect:   return 1;   // 65C02 (zp)
     case GlobalAddressingMode::AbsoluteXIndirect:  return 2;   // 65C02 (abs,X) JMP
+    case GlobalAddressingMode::ZeroPageRelative:   return 2;   // 65C02 BBRn/BBSn: zp byte + rel byte
     case GlobalAddressingMode::Relative:           return 1;
     case GlobalAddressingMode::SingleByteNoOperand: return 0;
     default:                                       return 0;

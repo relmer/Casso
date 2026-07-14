@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "TestHelpers.h"
+#include "TestCpu65C02.h"
 #include "Assembler.h"
 
 
@@ -25,6 +26,20 @@ namespace AssemblerTests
     static Assembler BuildAssembler ()
     {
         TestCpu cpu;
+        cpu.InitForTest ();
+        return Assembler (cpu.GetInstructionSet ());
+    }
+
+
+    ////////////////////////////////////////////////////////////////////////////////
+    //
+    //  BuildAssembler65C02 — assembler over the CMOS 65C02 instruction table
+    //
+    ////////////////////////////////////////////////////////////////////////////////
+
+    static Assembler BuildAssembler65C02 ()
+    {
+        TestCpu65C02 cpu;
         cpu.InitForTest ();
         return Assembler (cpu.GetInstructionSet ());
     }
@@ -2102,6 +2117,206 @@ namespace AssemblerTests
             Assert::AreEqual ((size_t) 0, result.bytes.size ());
             Assert::AreEqual ((size_t) 0, result.errors.size ());
             Assert::AreEqual ((size_t) 3, result.symbols.size ());  // 3 built-in symbols
+        }
+    };
+
+
+
+
+    ////////////////////////////////////////////////////////////////////////////////
+    //
+    //  Cpu65C02EncodingTests
+    //
+    //  The as65 `--cpu 65c02` tier: the CMOS-only opcodes the assembler must emit,
+    //  and the strictness guarantee that they are rejected under the default 6502
+    //  table. Focus is on the Rockwell bit instructions (RMBn/SMBn zero-page and
+    //  BBRn/BBSn zero-page-relative) whose bit index rides in the mnemonic.
+    //
+    ////////////////////////////////////////////////////////////////////////////////
+
+    TEST_CLASS (Cpu65C02EncodingTests)
+    {
+    public:
+
+        //  RMBn / SMBn — zero-page read-modify-write; opcode is $x7, bit in x.
+
+        TEST_METHOD (RMB_SMB_ZeroPage_EncodePerBit)
+        {
+            Assembler a = BuildAssembler65C02 ();
+
+            auto rmb0 = a.Assemble ("RMB0 $30");
+            Assert::IsTrue (rmb0.success);
+            Assert::AreEqual ((size_t) 2, rmb0.bytes.size ());
+            Assert::AreEqual ((Byte) 0x07, rmb0.bytes[0]);
+            Assert::AreEqual ((Byte) 0x30, rmb0.bytes[1]);
+
+            auto rmb3 = a.Assemble ("RMB3 $30");
+            Assert::IsTrue (rmb3.success);
+            Assert::AreEqual ((Byte) 0x37, rmb3.bytes[0]);   // $07 + 3*$10
+
+            auto smb7 = a.Assemble ("SMB7 $30");
+            Assert::IsTrue (smb7.success);
+            Assert::AreEqual ((size_t) 2, smb7.bytes.size ());
+            Assert::AreEqual ((Byte) 0xF7, smb7.bytes[0]);   // $87 + 7*$10
+            Assert::AreEqual ((Byte) 0x30, smb7.bytes[1]);
+        }
+
+
+        //  BBRn / BBSn — zero-page, then a relative offset to the branch target.
+
+        TEST_METHOD (BBR_BBS_ZeroPageRelative_ForwardAndBackward)
+        {
+            Assembler a = BuildAssembler65C02 ();
+
+            // Forward branch: BBR0 at $0200 (3 bytes) → target $0205 is +2 past the
+            // instruction end ($0203).
+            auto fwd = a.Assemble (".org $0200\nBBR0 $30,$0205");
+            Assert::IsTrue (fwd.success);
+            Assert::AreEqual ((size_t) 3, fwd.bytes.size ());
+            Assert::AreEqual ((Byte) 0x0F, fwd.bytes[0]);    // BBR0
+            Assert::AreEqual ((Byte) 0x30, fwd.bytes[1]);    // zero-page address
+            Assert::AreEqual ((Byte) 0x02, fwd.bytes[2]);    // $0205 - $0203
+
+            // Backward branch: BBS7 at $0210 → target $0205 is -14 (0xF2).
+            auto back = a.Assemble (".org $0210\nBBS7 $30,$0205");
+            Assert::IsTrue (back.success);
+            Assert::AreEqual ((size_t) 3, back.bytes.size ());
+            Assert::AreEqual ((Byte) 0xFF, back.bytes[0]);   // BBS7 = $8F + 7*$10
+            Assert::AreEqual ((Byte) 0x30, back.bytes[1]);
+            Assert::AreEqual ((Byte) 0xF2, back.bytes[2]);   // $0205 - $0213 = -14
+        }
+
+
+        //  The branch target may be a symbol resolved on pass 2.
+
+        TEST_METHOD (BBR_ZeroPageRelative_LabelTarget)
+        {
+            Assembler a = BuildAssembler65C02 ();
+
+            // Two single-byte instructions separate the branch from its target so
+            // `skip` lands at $0204; the offset byte (skip - $0203) is what proves
+            // the second operand resolved against the pass-2 symbol table. (INX/DEX
+            // rather than NOP: on the CMOS table "NOP" aliases a reserved single-
+            // byte opcode, which would muddy an exact-byte filler assertion.)
+            auto r = a.Assemble (".org $0200\nBBR3 $20,skip\nINX\nskip: DEX");
+            Assert::IsTrue (r.success);
+            Assert::AreEqual ((size_t) 5, r.bytes.size ());
+            Assert::AreEqual ((Byte) 0x3F, r.bytes[0]);      // BBR3 = $0F + 3*$10
+            Assert::AreEqual ((Byte) 0x20, r.bytes[1]);      // zero-page address
+            Assert::AreEqual ((Byte) 0x01, r.bytes[2]);      // skip ($0204) - $0203
+            Assert::AreEqual ((Byte) 0xE8, r.bytes[3]);      // INX
+            Assert::AreEqual ((Byte) 0xCA, r.bytes[4]);      // skip: DEX
+        }
+
+
+        //  An out-of-range bit-branch target is a hard error.
+
+        TEST_METHOD (BBR_ZeroPageRelative_OutOfRangeIsError)
+        {
+            Assembler a = BuildAssembler65C02 ();
+
+            auto r = a.Assemble (".org $0200\nBBR0 $30,$0400");
+            Assert::IsFalse (r.success);
+        }
+
+
+        //  A representative non-bit CMOS opcode also assembles on the 65C02 table.
+
+        TEST_METHOD (STZ_ZeroPage_Encodes)
+        {
+            Assembler a = BuildAssembler65C02 ();
+
+            auto r = a.Assemble ("STZ $30");
+            Assert::IsTrue (r.success);
+            Assert::AreEqual ((size_t) 2, r.bytes.size ());
+            Assert::AreEqual ((Byte) 0x64, r.bytes[0]);      // STZ zp
+            Assert::AreEqual ((Byte) 0x30, r.bytes[1]);
+        }
+
+
+        //  Strictness: CMOS-only mnemonics must NOT assemble under the 6502 table,
+        //  so `casso as65` (default 6502) never silently accepts 65C02 code.
+
+        TEST_METHOD (Cmos_Opcodes_RejectedOn6502)
+        {
+            Assembler a = BuildAssembler ();
+
+            Assert::IsFalse (a.Assemble (".org $0200\nBBR0 $30,$0205").success, L"BBR0 must fail on 6502");
+            Assert::IsFalse (a.Assemble ("RMB0 $30").success,               L"RMB0 must fail on 6502");
+            Assert::IsFalse (a.Assemble ("SMB7 $30").success,               L"SMB7 must fail on 6502");
+            Assert::IsFalse (a.Assemble ("STZ $30").success,                L"STZ must fail on 6502");
+            Assert::IsFalse (a.Assemble ("RMB 0,$30").success,              L"RMB bit,zp must fail on 6502");
+            Assert::IsFalse (a.Assemble (".org $0200\nBBR 0,$30,$0205").success, L"BBR bit,zp,tgt must fail on 6502");
+        }
+
+
+        //  as65 operand form: RMB/SMB take `<bit>,<zp>` with a bare mnemonic.
+
+        TEST_METHOD (RMB_SMB_OperandForm_EncodePerBit)
+        {
+            Assembler a = BuildAssembler65C02 ();
+
+            auto rmb3 = a.Assemble ("RMB 3,$30");
+            Assert::IsTrue (rmb3.success);
+            Assert::AreEqual ((size_t) 2, rmb3.bytes.size ());
+            Assert::AreEqual ((Byte) 0x37, rmb3.bytes[0]);   // same opcode as RMB3 $30
+            Assert::AreEqual ((Byte) 0x30, rmb3.bytes[1]);
+
+            auto smb7 = a.Assemble ("SMB 7,$30");
+            Assert::IsTrue (smb7.success);
+            Assert::AreEqual ((Byte) 0xF7, smb7.bytes[0]);
+
+            // A constant expression for the bit is fine (as65 allows it).
+            auto rmbExpr = a.Assemble ("RMB (1<<2),$30");
+            Assert::IsTrue (rmbExpr.success);
+            Assert::AreEqual ((Byte) 0x47, rmbExpr.bytes[0]);   // bit 4 -> $07 + 4*$10
+        }
+
+
+        //  as65 operand form: BBR/BBS take `<bit>,<zp>,<target>`.
+
+        TEST_METHOD (BBR_BBS_OperandForm_WithLabel)
+        {
+            Assembler a = BuildAssembler65C02 ();
+
+            auto fwd = a.Assemble (".org $0200\nBBR 0,$30,$0205");
+            Assert::IsTrue (fwd.success);
+            Assert::AreEqual ((size_t) 3, fwd.bytes.size ());
+            Assert::AreEqual ((Byte) 0x0F, fwd.bytes[0]);    // BBR0
+            Assert::AreEqual ((Byte) 0x30, fwd.bytes[1]);
+            Assert::AreEqual ((Byte) 0x02, fwd.bytes[2]);    // $0205 - $0203
+
+            auto lbl = a.Assemble (".org $0200\nBBS 3,$20,skip\nINX\nskip: DEX");
+            Assert::IsTrue (lbl.success);
+            Assert::AreEqual ((size_t) 5, lbl.bytes.size ());
+            Assert::AreEqual ((Byte) 0xBF, lbl.bytes[0]);    // BBS3 = $8F + 3*$10
+            Assert::AreEqual ((Byte) 0x20, lbl.bytes[1]);
+            Assert::AreEqual ((Byte) 0x01, lbl.bytes[2]);    // skip ($0204) - $0203
+        }
+
+
+        //  An out-of-range bit index is a hard error under either form.
+
+        TEST_METHOD (BitOp_BadBitNumberIsError)
+        {
+            Assembler a = BuildAssembler65C02 ();
+
+            Assert::IsFalse (a.Assemble ("RMB 8,$30").success, L"bit 8 is out of range");
+            Assert::IsFalse (a.Assemble ("SMB -1,$30").success, L"negative bit is out of range");
+        }
+
+
+        //  RMB stays a reserve-storage directive in its `<count>` form: as65 uses
+        //  `rmb <bit>,<zp>` for the instruction and `ds`/`rmb <count>` for storage,
+        //  so the comma is what selects the instruction.
+
+        TEST_METHOD (RMB_CountForm_StillReservesStorage)
+        {
+            Assembler a = BuildAssembler65C02 ();
+
+            auto r = a.Assemble ("RMB 5");
+            Assert::IsTrue (r.success);
+            Assert::AreEqual ((size_t) 5, r.bytes.size ());   // reserved 5 bytes, not an opcode
         }
     };
 }
