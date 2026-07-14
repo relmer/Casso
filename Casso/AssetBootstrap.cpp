@@ -553,6 +553,7 @@ HRESULT AssetBootstrap::EnsureMachineConfigs (
         bool                          diskExists      = false;
         string                        diskContent;
         string                        diskHashHex;
+        string                        embeddedHashHex;
         MachineConfigUpgradeAction    action          = MachineConfigUpgradeAction::Skip;
 
 
@@ -578,9 +579,29 @@ HRESULT AssetBootstrap::EnsureMachineConfigs (
             diskHashHex = MachineConfigUpgrade::BytesToHex (diskHash);
         }
 
+        // Digest of THIS build's embedded default: version stamps can
+        // collide across feature branches, so Plan treats content
+        // equality (not the stamp) as the up-to-date test.
+        bytes = ExtractResource (hInstance, cfg.resourceId);
+
+        if (bytes.empty())
+        {
+            hr = E_FAIL;
+            continue;
+        }
+
+        {
+            string              embeddedContent (reinterpret_cast<const char *> (bytes.data()), bytes.size());
+            array<uint8_t, 32>  embeddedHash =
+                ComputeSha256 (MachineConfigUpgrade::NormalizeBytes (embeddedContent));
+
+            embeddedHashHex = MachineConfigUpgrade::BytesToHex (embeddedHash);
+        }
+
         action = MachineConfigUpgrade::Plan (
             cfg.machineName,
             cfg.currentVersion,
+            embeddedHashHex,
             diskExists ? &diskContent : nullptr,
             diskHashHex,
             span<const MachineConfigPriorHash> (s_kPriorDefaultHashes));
@@ -602,14 +623,6 @@ HRESULT AssetBootstrap::EnsureMachineConfigs (
                 hr = hrBak;
                 continue;
             }
-        }
-
-        bytes = ExtractResource (hInstance, cfg.resourceId);
-
-        if (bytes.empty())
-        {
-            hr = E_FAIL;
-            continue;
         }
 
         hrItem = WriteFileBytes (target, bytes);

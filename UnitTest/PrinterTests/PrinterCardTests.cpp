@@ -93,6 +93,27 @@ namespace PrinterCardTests
         }
 
 
+        TEST_METHOD (ReadyStatusSatisfiesCapturedDriverProbes)
+        {
+            // Locked from the Print Shop capture (R-001/T011). Its
+            // Grappler+ driver refuses to send anything until
+            // (status & $07) == $03 -- SELECT and FAULT# high, PAPER-OUT
+            // low -- and our firmware plus the Apple II Parallel driver
+            // poll bit 7 set. Both must hold at once or Print Shop shows
+            // "PRINTER TEST FAILED" without writing a byte.
+            PrinterCard   card (1);
+            Byte          status = card.Read ((Word) (card.GetStart() + PrinterCard::kStatusOffset));
+
+            Assert::AreEqual ((Byte) 0x03, (Byte) (status & 0x07));
+            Assert::AreEqual ((Byte) 0x80, (Byte) (status & 0x80));
+
+            // Busy must fail the same probes so a handshake-honoring
+            // guest actually waits.
+            Assert::AreNotEqual ((Byte) 0x03, (Byte) (PrinterCard::kStatusBusy & 0x07));
+            Assert::AreEqual ((Byte) 0x00, (Byte) (PrinterCard::kStatusBusy & 0x80));
+        }
+
+
         TEST_METHOD (StatusGoesBusyAtHighWater)
         {
             PrinterCard   card (1);

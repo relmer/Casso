@@ -43,9 +43,13 @@ public:
     static constexpr Word   kDataOffset   = 0x0;   // +$0 write: data latch
     static constexpr Word   kStatusOffset = 0x1;   // +$1 read:  status
 
-    // Ready asserts every commonly tested convention at once; busy clears
-    // them (exact value locked after Print Shop capture, R-001).
-    static constexpr Byte   kStatusReady  = 0xFF;
+    // Ready value locked from the Print Shop capture (R-001/T011): its
+    // Grappler+ driver probes (status & $07) == $03 before sending a single
+    // byte -- Centronics SELECT/FAULT# high with PAPER-OUT low -- while our
+    // firmware and the Apple II Parallel driver poll bit 7 set. $83 serves
+    // all three; the old $FF guess failed the Grappler+ probe (its bit 2 --
+    // paper out -- must be CLEAR).
+    static constexpr Byte   kStatusReady  = 0x83;
     static constexpr Byte   kStatusBusy   = 0x00;
 
     // Ready de-asserts once free ring space drops to this margin.

@@ -99,6 +99,7 @@ Error:
 MachineConfigUpgradeAction MachineConfigUpgrade::Plan (
     string_view                                machineName,
     int                                        embeddedVersion,
+    string_view                                embeddedNormalizedHashHex,
     const string                             * diskContent,
     string_view                                diskNormalizedHashHex,
     span<const MachineConfigPriorHash>         priorHashes)
@@ -112,15 +113,28 @@ MachineConfigUpgradeAction MachineConfigUpgrade::Plan (
     CBRF (diskContent != nullptr, action = MachineConfigUpgradeAction::Extract);
 
     diskVersion = ParseStamp (*diskContent);
-    CBRF (diskVersion < embeddedVersion, action = MachineConfigUpgradeAction::Skip);
+
+    // Strictly newer stamp: never downgrade the user.
+    CBRF (diskVersion <= embeddedVersion, action = MachineConfigUpgradeAction::Skip);
+
+    // Equal stamp: up to date only if the CONTENT matches this build's
+    // embedded default. Parallel feature branches can each ship a
+    // different config under the same version number, so an equal stamp
+    // alone proves nothing; a mismatched file falls through to the hash
+    // checks below (known prior extract -> silent refresh, else backup
+    // first).
+    CBRF (!(diskVersion == embeddedVersion &&
+            diskNormalizedHashHex == embeddedNormalizedHashHex),
+          action = MachineConfigUpgradeAction::Skip);
 
     // Stamped but stale: extracted by an older Casso release — safe
     // to overwrite, no backup.
-    CBRF (diskVersion <= 0, action = MachineConfigUpgradeAction::OverwriteSilent);
+    CBRF (diskVersion <= 0 || diskVersion == embeddedVersion,
+          action = MachineConfigUpgradeAction::OverwriteSilent);
 
-    // Unstamped: hash-match against known historical defaults; any
-    // match means the file is an untouched extract and is safe to
-    // refresh.
+    // Unstamped or stamp-collided: hash-match against known historical
+    // defaults; any match means the file is an untouched extract and is
+    // safe to refresh.
     CBR (!diskNormalizedHashHex.empty());
 
     for (const MachineConfigPriorHash & p : priorHashes)
