@@ -73,8 +73,11 @@ namespace ImageWriterInterpreterTests
         }
 
 
-        TEST_METHOD (EscALineSpacingIsSixLpi)
+        TEST_METHOD (EscASetsLineSpacingIn72nds)
         {
+            // ESC A n: ONE binary parameter, line feed = n/72" (T011 capture:
+            // Print Shop's sign passes feed at ESC A $07 = 14 native rows;
+            // its text uses ESC A $0C = 1/6").
             ImageWriterInterpreter   interp;
             PrintRaster              raster;
             vector<PrinterEvent>     events;
@@ -82,8 +85,11 @@ namespace ImageWriterInterpreterTests
             Feed (interp, raster, events, { 0x1B, 'B', 0x0A });   // 8 lpi then LF
             Assert::AreEqual (PrinterGrid::kRowsPerInch / 8, raster.PaperRow ());   // 18
 
-            Feed (interp, raster, events, { 0x1B, 'A', 0x0A });   // back to 6 lpi then LF
-            Assert::AreEqual (PrinterGrid::kRowsPerInch / 8 + PrinterGrid::kRowsPerInch / 6, raster.PaperRow ());
+            Feed (interp, raster, events, { 0x1B, 'A', 0x0C, 0x0A });   // 12/72" = 1/6" then LF
+            Assert::AreEqual (18 + PrinterGrid::kRowsPerInch / 6, raster.PaperRow ());
+
+            Feed (interp, raster, events, { 0x1B, 'A', 0x07, 0x0A });   // 7/72" = 14 rows then LF
+            Assert::AreEqual (18 + PrinterGrid::kRowsPerInch / 6 + 14, raster.PaperRow ());
         }
 
 
@@ -133,7 +139,8 @@ namespace ImageWriterInterpreterTests
             // Shop's ImageWriter driver sends for its setup welcome message
             // (T011 capture: ESC L $00 $02 + 512 columns). Pin order is the
             // REVERSE of ESC G: the MSB is the top pin (the welcome message
-            // prints upside down otherwise).
+            // prints upside down otherwise). Columns are 120 dpi, so the
+            // first two land on native dots 0 and 1.
             Feed (interp, raster, events, { 0x1B, 'L', 0x02, 0x00, 0x80, 0x01 });
 
             Assert::AreEqual ((Byte) InkPrimary::Black, raster.CellAt (0, 0));   // MSB -> TOP pin
@@ -160,19 +167,23 @@ namespace ImageWriterInterpreterTests
             }
             Feed (interp, raster, events, stream);
 
+            // 120-dpi columns on the 160-dpi grid: 256 columns span
+            // 256*4/3 = 341 native dots, gap-free.
             Assert::AreEqual ((Byte) InkPrimary::Black, raster.CellAt (0,   0));
-            Assert::AreEqual ((Byte) InkPrimary::Black, raster.CellAt (255, 0));
+            Assert::AreEqual ((Byte) InkPrimary::Black, raster.CellAt (170, 0));
+            Assert::AreEqual ((Byte) InkPrimary::Black, raster.CellAt (340, 0));
+            Assert::AreEqual ((Byte) 0,                 raster.CellAt (341, 0));
             Assert::AreEqual (1, CountEvents (events, PrinterEventType::HeadBurst));
-            Assert::AreEqual (255, events.back ().toDot);   // all 256 columns were data, not text
+            Assert::AreEqual (340, events.back ().toDot);   // all 256 columns were data, not text
         }
 
 
         TEST_METHOD (PrintShopWelcomeMessagePrefixRendersInk)
         {
             // The exact prefix Print Shop's setup test sends (T011 capture):
-            // CR CR, ESC A, FF, LF, then ESC L $00 $02 + 512 graphics
-            // columns, CR LF. The form feed puts the ink on page 2; the
-            // graphics band must land there with real strikes.
+            // CR CR, ESC A $0C (1/6" spacing), LF, then ESC L $00 $02 + 512
+            // graphics columns, CR LF. The band lands one line feed down and
+            // spans 512*4/3 = 682 native dots (120-dpi columns).
             ImageWriterInterpreter   interp;
             PrintRaster              raster;
             vector<PrinterEvent>     events;
@@ -186,15 +197,52 @@ namespace ImageWriterInterpreterTests
             stream.push_back (0x0A);
             Feed (interp, raster, events, stream);
 
-            int   bandTop = PrinterGrid::kPageRows + PrinterGrid::kRowsPerInch / 6;   // FF then one 6-lpi LF
+            int   bandTop = PrinterGrid::kRowsPerInch / 6;   // one 1/6" line feed
 
             Assert::AreEqual (1, CountEvents (events, PrinterEventType::HeadBurst));
             Assert::AreEqual (0, CountEvents (events, PrinterEventType::UnknownCommand));
             Assert::AreEqual ((Byte) 0,                 raster.CellAt (0,   bandTop));      // MSB clear -> top pin empty
             Assert::AreEqual ((Byte) InkPrimary::Black, raster.CellAt (0,   bandTop + 2));  // bit 6 -> second pin
-            Assert::AreEqual ((Byte) InkPrimary::Black, raster.CellAt (511, bandTop + 2));
+            Assert::AreEqual ((Byte) InkPrimary::Black, raster.CellAt (681, bandTop + 2));  // last column's dot
             Assert::IsTrue (raster.RowsUsed () > bandTop,
                 L"the graphics band must extend the used-rows extent");
+        }
+
+
+        TEST_METHOD (PrintShopSignPassGeometry)
+        {
+            // One sign pass from the T011 sign capture: ESC A $07 spacing,
+            // then ESC L 96 + ESC L 864 back to back (one 960-column line =
+            // the full 8" printable width at 120 dpi), CR LF. The two bursts
+            // must butt seamlessly and the feed must be 14 rows.
+            ImageWriterInterpreter   interp;
+            PrintRaster              raster;
+            vector<PrinterEvent>     events;
+            vector<Byte>             stream = { 0x1B, 'A', 0x07, 0x1B, 'L', 0x60, 0x00 };
+
+            for (int i = 0; i < 96; i++)
+            {
+                stream.push_back (0xFF);
+            }
+            stream.push_back (0x1B);
+            stream.push_back ('L');
+            stream.push_back (0x60);   // 864 = 0x0360
+            stream.push_back (0x03);
+            for (int i = 0; i < 864; i++)
+            {
+                stream.push_back (0xFF);
+            }
+            stream.push_back (0x0D);
+            stream.push_back (0x0A);
+            Feed (interp, raster, events, stream);
+
+            // 960 columns * 4/3 = 1280 dots = the full printable width; the
+            // seam at column 96 (dot 128) must carry ink from both bursts.
+            Assert::AreEqual ((Byte) InkPrimary::Black, raster.CellAt (0,    0));
+            Assert::AreEqual ((Byte) InkPrimary::Black, raster.CellAt (127,  0));
+            Assert::AreEqual ((Byte) InkPrimary::Black, raster.CellAt (128,  0));
+            Assert::AreEqual ((Byte) InkPrimary::Black, raster.CellAt (1279, 0));
+            Assert::AreEqual (14, raster.PaperRow ());   // ESC A $07 = 14 native rows
         }
 
 

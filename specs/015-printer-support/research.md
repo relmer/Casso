@@ -58,6 +58,15 @@ count, 512 for the test) followed by exactly that many column bytes, with
 **bit 7 as the TOP pin** — the reverse of `ESC G`'s documented LSB-top
 order (the message prints upside down otherwise).
 
+**Sign capture addendum (2026-07-14)**: a full Print Shop sign print locked
+two more dialect facts. `ESC A` takes **one binary parameter**: line feed =
+n/72" (the sign feeds `ESC A $07` = 14 native rows between passes — the
+overlap feed; text uses `ESC A $0C` = 1/6"). The old parameterless "6 lpi"
+reading fed 24 rows per pass: a 1.7x vertical stretch with banding. And
+`ESC L` columns are **120 dpi** (the sign is 96+864 = 960 columns for the
+full 8" printable width), mapped 4 native dots per 3 columns; `ESC G`
+streams (banner: `G1280`, testpage) remain native 160 dpi 1:1.
+
 ## R-002: Slot firmware strategy
 
 **Decision**: Original firmware written as

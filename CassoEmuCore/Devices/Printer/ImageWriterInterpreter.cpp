@@ -20,7 +20,7 @@ static constexpr Byte   s_kPrintableHi = 0x7E;
 static constexpr Byte   s_kCmdGraphics   = 'G';   // bit-image, 4 ASCII-digit count
 static constexpr Byte   s_kCmdGraphicsBin = 'L';  // bit-image, 2 BINARY count bytes (LSB first)
 static constexpr Byte   s_kCmdLineSpace  = 'T';   // n/144" line feed, 2 ASCII digits
-static constexpr Byte   s_kCmd6Lpi       = 'A';   // 1/6" line feed
+static constexpr Byte   s_kCmdLineSpace72 = 'A';  // n/72" line feed, 1 BINARY byte (Print Shop capture)
 static constexpr Byte   s_kCmd8Lpi       = 'B';   // 1/8" line feed
 static constexpr Byte   s_kCmdColor      = 'K';   // seven-colour select (acted on in US2)
 static constexpr Byte   s_kCmdReset      = 'c';   // software reset
@@ -38,7 +38,15 @@ static constexpr Byte   s_kCmdGfxPitch    = 'P';
 static constexpr int    s_kGraphicsDigits    = 4;
 static constexpr int    s_kGraphicsBinParams = 2;
 static constexpr int    s_kLineSpaceDigits   = 2;
+static constexpr int    s_kLineSpace72Params = 1;
 static constexpr int    s_kColorParams       = 1;
+
+// ESC L columns are 120 dpi (Print Shop capture: its full-page sign is 960
+// columns across the 8" printable width), mapped onto the 160-dpi native
+// grid as 4 dots per 3 columns. ESC G stays native 1:1 (its captures stream
+// 1280 columns for the same width).
+static constexpr int    s_kGfxBinDotsNum     = PrinterGrid::kDotsPerInchH;   // 160
+static constexpr int    s_kGfxBinDotsDen     = 120;
 
 // Defaults (data-model). 6 lpi over the 144 rows/inch native grid.
 static constexpr int    s_kDefaultLineFeedRows  = PrinterGrid::kRowsPerInch / 6;   // 24
@@ -285,10 +293,10 @@ void ImageWriterInterpreter::ConsumeEsc (Byte b, PrintRaster & raster, vector<Pr
         m_paramsNeeded = s_kColorParams;
         m_state        = EscState::Param;
     }
-    else if (b == s_kCmd6Lpi)
+    else if (b == s_kCmdLineSpace72)
     {
-        m_lineFeedRows = PrinterGrid::kRowsPerInch / 6;
-        m_state        = EscState::Idle;
+        m_paramsNeeded = s_kLineSpace72Params;
+        m_state        = EscState::Param;
     }
     else if (b == s_kCmd8Lpi)
     {
@@ -349,11 +357,15 @@ void ImageWriterInterpreter::ExecuteParamCommand (PrintRaster & raster, vector<P
         // Shop printer-test capture (T011): its ImageWriter welcome message
         // arrives as ESC L $00 $02 followed by exactly 512 column bytes --
         // and prints upside down unless the MSB is the TOP pin, the
-        // opposite bit order from ESC G.
+        // opposite bit order from ESC G. Columns are 120 dpi (4 native dots
+        // per 3 columns), anchored at the head position where the burst
+        // began.
         int   dataCount = m_params[0] | (m_params[1] << 8);
 
         m_gfxRemaining = dataCount;
         m_gfxMsbTop    = true;
+        m_gfxColIndex  = 0;
+        m_gfxStartDot  = m_headColumnDots;
         m_burstFromDot = -1;
         m_burstToDot   = -1;
         m_state        = dataCount > 0 ? EscState::GraphicsData : EscState::Idle;
@@ -365,6 +377,20 @@ void ImageWriterInterpreter::ExecuteParamCommand (PrintRaster & raster, vector<P
         if (n > 0)
         {
             m_lineFeedRows = n;   // n/144" -> n native rows
+        }
+        m_state = EscState::Idle;
+    }
+    else if (m_cmd == s_kCmdLineSpace72)
+    {
+        // ESC A n: line feed of n/72" (ONE binary byte -- Print Shop capture:
+        // its sign passes feed at ESC A $07 = 14 native rows, its text at
+        // ESC A $0C = 1/6"). The documented parameterless "6 lpi" reading
+        // fed 24 rows per sign pass -- a 1.7x vertical stretch with banding.
+        int   n = m_params[0];
+
+        if (n > 0)
+        {
+            m_lineFeedRows = n * (PrinterGrid::kRowsPerInch / 72);
         }
         m_state = EscState::Idle;
     }
@@ -404,8 +430,19 @@ void ImageWriterInterpreter::ExecuteParamCommand (PrintRaster & raster, vector<P
 
 void ImageWriterInterpreter::ConsumeGraphicsByte (Byte b, PrintRaster & raster, vector<PrinterEvent> & events)
 {
-    int   row = raster.PaperRow ();
-    int   bit = 0;
+    int   row   = raster.PaperRow ();
+    int   dot0  = m_headColumnDots;
+    int   dot1  = m_headColumnDots + 1;
+    int   bit   = 0;
+
+    // ESC G columns are native 160-dpi dots. ESC L columns are 120 dpi:
+    // column i of the burst spans native dots [i*4/3, (i+1)*4/3) from the
+    // burst's start position (widths 1,1,2 repeating).
+    if (m_gfxMsbTop)
+    {
+        dot0 = m_gfxStartDot + (m_gfxColIndex       * s_kGfxBinDotsNum) / s_kGfxBinDotsDen;
+        dot1 = m_gfxStartDot + ((m_gfxColIndex + 1) * s_kGfxBinDotsNum) / s_kGfxBinDotsDen;
+    }
 
     for (bit = 0; bit < s_kGraphicsPins; bit++)
     {
@@ -417,19 +454,23 @@ void ImageWriterInterpreter::ConsumeGraphicsByte (Byte b, PrintRaster & raster, 
 
             for (int r = 0; r < s_kGraphicsRowsPerPin; r++)
             {
-                raster.Strike (m_headColumnDots, top + r, m_color);
+                for (int d = dot0; d < dot1; d++)
+                {
+                    raster.Strike (d, top + r, m_color);
+                }
             }
         }
     }
 
     if (m_burstFromDot < 0)
     {
-        m_burstFromDot = m_headColumnDots;
+        m_burstFromDot = dot0;
         m_burstRow     = row;
     }
-    m_burstToDot = m_headColumnDots;
+    m_burstToDot = dot1 - 1;
 
-    m_headColumnDots++;
+    m_headColumnDots = dot1;
+    m_gfxColIndex++;
     m_gfxRemaining--;
 
     if (m_gfxRemaining <= 0)

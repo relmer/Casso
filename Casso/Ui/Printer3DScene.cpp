@@ -895,25 +895,65 @@ void Printer3DScene::BuildPaper (std::vector<Vertex> & out) const
     float   dz       = -std::sin (s_kPaperTilt);
     float   ny       = dz;                              // curl normal: down-and-back
     float   nz       = -dy;
-    float   p1y      = m_paperStartY + dy * s_kStraightLen;   // where the curl begins
-    float   p1z      = m_paperZ + dz * s_kStraightLen;
+
+    // The live end of the paper takes the real machine's "U" path: it comes
+    // up the platen's FRONT (the strike line sits under the head, read
+    // through the smoked window), hugs the roller only until its tangent
+    // matches the rise direction, then peels off and rises leaning back --
+    // one continuous ribbon, so a printed row stays visible from the moment
+    // the head lays it until it curls away at the top. (The under-platen
+    // half of the U is inside the machine and is not built.)
+    float   wrapR    = m_platenR + 0.002f;              // just off the rubber, INSIDE the smoked barrel
+    float   wrapEnd  = s_kPaperTilt;                    // peel where the arc tangent = rise direction
+    float   arcLen   = wrapR * wrapEnd;
+
+    float   peelY    = m_platenY + wrapR * std::sin (wrapEnd);
+    float   peelZ    = m_platenZ + wrapR * std::cos (wrapEnd);
+    float   p1y      = peelY + dy * s_kStraightLen;     // where the curl begins
+    float   p1z      = peelZ + dz * s_kStraightLen;
     float   cy       = p1y + s_kCurlRadius * ny;        // curl center
     float   cz       = p1z + s_kCurlRadius * nz;
-
-    // The live end of the paper wraps the platen the way the real machine
-    // feeds it: the newest row sits at the roller's FRONT (under the head,
-    // read through the smoked window), arcs over the top, and disappears
-    // behind the roller where the sheet re-emerges as the rising fanfold.
-    // The short run hidden behind the roller is simply not built -- it is
-    // occluded on the real machine too.
-    float   wrapR    = m_platenR + 0.002f;              // just off the rubber, INSIDE the smoked barrel
-    float   wrapEnd  = 1.833f;                          // ~105 deg: past the top, into occlusion
-    float   arcLen   = wrapR * wrapEnd;
 
     float   prevY    = m_platenY;                       // theta = 0: the front strike line
     float   prevZ    = m_platenZ + wrapR;
     float   prevV    = 1.0f;
     float   prevSh   = 0.72f;
+
+    // Below the strike line the sheet keeps wrapping down toward the feed
+    // slot -- unprinted paper, so it samples a known-white texel inside the
+    // tractor strip instead of the content rows. Without it the paper's
+    // bottom edge would terminate abruptly at mid-roller.
+    {
+        const int     kUnderSlices = 4;
+        const float   kUnderSweep  = 0.55f;   // ~32 degrees below the strike line
+        float         uy           = 0.005f;  // tractor-strip texel: always paper white
+
+        for (int i = 0; i < kUnderSlices; i++)
+        {
+            float   a0 = -kUnderSweep + kUnderSweep * (float) i       / (float) kUnderSlices;
+            float   a1 = -kUnderSweep + kUnderSweep * (float) (i + 1) / (float) kUnderSlices;
+            float   s0 = 0.50f + 0.22f * (a0 + kUnderSweep) / kUnderSweep;
+            float   s1 = 0.50f + 0.22f * (a1 + kUnderSweep) / kUnderSweep;
+
+            float   p00[3] = { -s_kPaperHalfW, m_platenY + wrapR * std::sin (a0), m_platenZ + wrapR * std::cos (a0) };
+            float   p10[3] = {  s_kPaperHalfW, m_platenY + wrapR * std::sin (a0), m_platenZ + wrapR * std::cos (a0) };
+            float   p01[3] = { -s_kPaperHalfW, m_platenY + wrapR * std::sin (a1), m_platenZ + wrapR * std::cos (a1) };
+            float   p11[3] = {  s_kPaperHalfW, m_platenY + wrapR * std::sin (a1), m_platenZ + wrapR * std::cos (a1) };
+
+            size_t   base = out.size ();
+
+            AppendQuad (out, p00, p10, p01, p11, uy, 0.5f, uy, 0.5f, 0xFFFFFFFF, 1.0f);
+
+            for (size_t k = 0; k < 6; k++)
+            {
+                float   sh = (out[base + k].y < p01[1]) ? s0 : s1;
+
+                out[base + k].r *= sh;
+                out[base + k].g *= sh;
+                out[base + k].b *= sh;
+            }
+        }
+    }
 
     for (int i = 1; i <= s_kPaperSlices; i++)
     {
@@ -928,14 +968,14 @@ void Printer3DScene::BuildPaper (std::vector<Vertex> & out) const
 
             yPos  = m_platenY + wrapR * std::sin (theta);
             zPos  = m_platenZ + wrapR * std::cos (theta);
-            shade = 0.72f + 0.28f * (std::max) (0.0f, std::sin (theta));
+            shade = 0.72f + 0.28f * std::sin (theta / (std::max) (wrapEnd, 0.001f));
         }
         else if (s - arcLen <= s_kStraightLen)
         {
             float   s2 = s - arcLen;
 
-            yPos = m_paperStartY + dy * s2;
-            zPos = m_paperZ + dz * s2;
+            yPos = peelY + dy * s2;
+            zPos = peelZ + dz * s2;
         }
         else
         {

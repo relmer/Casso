@@ -194,6 +194,80 @@ DxuiHwndSource::~DxuiHwndSource()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DefaultAppIcon
+//
+//  The host executable's first icon group -- the same icon Explorer shows
+//  for the exe -- loaded once per size and cached for the process lifetime.
+//  Windows secondary to the main frame default to it so pickers, panels,
+//  and dialogs carry the app's identity instead of the generic Windows
+//  icon. Returns nullptr when the exe has no icon resources; callers then
+//  leave the system default in place.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+namespace
+{
+    struct FirstIconGroup
+    {
+        bool      found     = false;
+        wchar_t   nameBuf[256] = {};
+        LPCWSTR   id        = nullptr;
+    };
+}
+
+static BOOL CALLBACK FirstIconGroupProc (HMODULE, LPCWSTR, LPWSTR name, LONG_PTR param)
+{
+    FirstIconGroup * out = (FirstIconGroup *) param;
+
+    if (IS_INTRESOURCE (name))
+    {
+        out->id = name;
+    }
+    else
+    {
+        (void) wcsncpy_s (out->nameBuf, name, _TRUNCATE);
+        out->id = out->nameBuf;
+    }
+    out->found = true;
+
+    return FALSE;   // first group only
+}
+
+static HICON DefaultAppIcon (bool big)
+{
+    static HICON   s_big    = nullptr;
+    static HICON   s_small  = nullptr;
+    static bool    s_loaded = false;
+
+    if (!s_loaded)
+    {
+        FirstIconGroup   group;
+
+        s_loaded = true;
+        (void) EnumResourceNamesW (nullptr, RT_GROUP_ICON, FirstIconGroupProc, (LONG_PTR) &group);
+
+        if (group.found)
+        {
+            HMODULE   exe = GetModuleHandleW (nullptr);
+
+            s_big   = (HICON) LoadImageW (exe, group.id, IMAGE_ICON,
+                                          GetSystemMetrics (SM_CXICON),
+                                          GetSystemMetrics (SM_CYICON), LR_DEFAULTCOLOR);
+            s_small = (HICON) LoadImageW (exe, group.id, IMAGE_ICON,
+                                          GetSystemMetrics (SM_CXSMICON),
+                                          GetSystemMetrics (SM_CYSMICON), LR_DEFAULTCOLOR);
+        }
+    }
+
+    return big ? s_big : s_small;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  Create
 //
 //  Registers a per-instance window class, calls CreateWindowEx with
@@ -320,17 +394,30 @@ HRESULT DxuiHwndSource::Create (const CreateParams & params)
     // which monitor it landed on.
     m_scaler.SetDpi (GetDpiForWindow (m_hwnd));
 
-    // Apply optional app icons. Win32 MessageBox dialogs + the
-    // taskbar pick the icon up via WM_GETICON, NOT WNDCLASS::hIcon,
-    // so the explicit WM_SETICON pair is required even when the
-    // class was registered with icons.
-    if (params.appIconBig != nullptr)
+    // Apply app icons. Win32 MessageBox dialogs + the taskbar pick the icon
+    // up via WM_GETICON, NOT WNDCLASS::hIcon, so the explicit WM_SETICON
+    // pair is required even when the class was registered with icons. When
+    // the caller supplies none, default to the host executable's first icon
+    // group so secondary windows (pickers, panels, dialogs) carry the app's
+    // identity instead of the generic Windows icon.
     {
-        SendMessageW (m_hwnd, WM_SETICON, ICON_BIG, (LPARAM) params.appIconBig);
-    }
-    if (params.appIconSmall != nullptr)
-    {
-        SendMessageW (m_hwnd, WM_SETICON, ICON_SMALL, (LPARAM) params.appIconSmall);
+        HICON   iconBig   = params.appIconBig;
+        HICON   iconSmall = params.appIconSmall;
+
+        if (iconBig == nullptr && iconSmall == nullptr)
+        {
+            iconBig   = DefaultAppIcon (true);
+            iconSmall = DefaultAppIcon (false);
+        }
+
+        if (iconBig != nullptr)
+        {
+            SendMessageW (m_hwnd, WM_SETICON, ICON_BIG, (LPARAM) iconBig);
+        }
+        if (iconSmall != nullptr)
+        {
+            SendMessageW (m_hwnd, WM_SETICON, ICON_SMALL, (LPARAM) iconSmall);
+        }
     }
 
     if (params.createSwapChain)

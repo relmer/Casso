@@ -324,6 +324,7 @@ void PrinterPanel::RefreshLive (PrinterWorker & worker, int64_t nowMs, bool forc
     {
         m_viewport.Reset ();
         m_pacing.Reset (nowSec, 0);
+        m_spanImgValid = false;
     }
 
     // First refresh starts caught up at the head, so opening the panel over a
@@ -377,7 +378,9 @@ void PrinterPanel::RefreshLive (PrinterWorker & worker, int64_t nowMs, bool forc
     }
     else if (worker.SnapshotStripSpan (span.firstRow, span.lastRow, spanRaster))
     {
-        RenderSpan (spanRaster, span.firstRow, span.lastRow, revealRow, revealCol);
+        bool   contentDirty = (activity != m_renderedActivity) || !m_hasRendered;
+
+        RenderSpan (spanRaster, span.firstRow, span.lastRow, contentDirty, revealRow, revealCol);
     }
     else
     {
@@ -432,7 +435,7 @@ void PrinterPanel::SetStrip (const PrintRaster & raster)
 
     span = m_viewport.VisibleSpan ();
     raster.CopyRowSpan (span.firstRow, span.lastRow, spanRaster);
-    RenderSpan (spanRaster, span.firstRow, span.lastRow, -1, 0);   // no live head: show everything
+    RenderSpan (spanRaster, span.firstRow, span.lastRow, true, -1, 0);   // no live head: show everything
 
     m_renderedSpan = span;
     m_hasRendered  = true;
@@ -467,26 +470,28 @@ void PrinterPanel::ShowBlankSheet ()
 //  the canvas bottom is the span's LAST row (the live row at the platen), and
 //  the sprocket-hole / perforation phase keys off the same frame so the
 //  furniture scrolls WITH the paper instead of sitting still while content
-//  slides past it. The rendered image covers only the span's INK extent
-//  (RowsUsed), which can end well above the live row -- a welcome banner
-//  followed by nothing must NOT be dragged down to the platen. The reveal
-//  pair (band top + head column, FR-034) clips the live line; -1 disables.
+//  slides past it. The reveal pair (band top + head column, FR-034) clips
+//  the live line; -1 disables.
+//
+//  The ink render is the expensive step, so it is cached by absolute row:
+//  scrolling shifts the window over UNCHANGED content, and only the newly
+//  exposed rows are rendered (the rest memmove within the cache). New bytes
+//  (`contentDirty`) or a span that stops lining up rebuild the whole image.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void PrinterPanel::RenderSpan (const PrintRaster & spanRaster, int firstAbsRow, int lastAbsRow,
-                               int revealBandTopAbs, int revealColDots)
+                               bool contentDirty, int revealBandTopAbs, int revealColDots)
 {
-    HRESULT                  hr   = S_OK;
-    int                      rows = spanRaster.RowsUsed ();
+    HRESULT                  hr       = S_OK;
+    int                      spanRows = lastAbsRow - firstAbsRow + 1;
     PaperRenderer            renderer;
     PaperRenderer::Options   opt;
-    RgbaImage                img;
 
-    if (rows <= 0)
+    if (spanRows <= 0)
     {
-        // Ink-free span: blank paper, but keep the furniture phase locked to
-        // the span so holes and perforations still track the scroll.
+        // Degenerate span: blank paper, furniture still tracking the scroll.
+        m_spanImgValid = false;
         ComposeCanvas (nullptr, 0, lastAbsRow, -1, 0);
         return;
     }
@@ -494,14 +499,65 @@ void PrinterPanel::RenderSpan (const PrintRaster & spanRaster, int firstAbsRow, 
     opt.outputDpi = s_kPreviewDpi;
     opt.style     = DotStyle::Ink;
 
-    hr = renderer.Render (spanRaster, 0, rows - 1, opt, img);
+    bool   haveImg = false;
 
-    if (FAILED (hr) || img.width <= 0 || img.height <= 0 || img.height > m_viewport.ViewportRows ())
+    if (!contentDirty && m_spanImgValid && m_spanImg.height == spanRows)
     {
-        return;   // keep the previous frame rather than flash a bad one
+        int   delta = firstAbsRow - m_spanImgFirstAbsRow;   // + = scrolled toward live
+
+        if (delta == 0)
+        {
+            haveImg = true;   // reveal-only update: the ink image is current
+        }
+        else if (std::abs (delta) < spanRows)
+        {
+            // Pure scroll: shift the overlap, render only the exposed edge.
+            int         keepRows = spanRows - std::abs (delta);
+            size_t      rowBytes = (size_t) m_spanImg.width * 4;
+            int         newFirst = (delta > 0) ? spanRows - delta : 0;   // exposed block, span-relative
+            int         newCount = std::abs (delta);
+            RgbaImage   edge;
+
+            if (delta > 0)
+            {
+                memmove (m_spanImg.PixelAt (0, 0), m_spanImg.PixelAt (0, delta), rowBytes * keepRows);
+            }
+            else
+            {
+                memmove (m_spanImg.PixelAt (0, -delta), m_spanImg.PixelAt (0, 0), rowBytes * keepRows);
+            }
+
+            hr = renderer.Render (spanRaster, newFirst, newFirst + newCount - 1, opt, edge);
+
+            if (SUCCEEDED (hr) && edge.width == m_spanImg.width && edge.height == newCount)
+            {
+                memcpy (m_spanImg.PixelAt (0, newFirst), edge.PixelAt (0, 0), rowBytes * newCount);
+                m_spanImgFirstAbsRow = firstAbsRow;
+                haveImg              = true;
+            }
+        }
     }
 
-    ComposeCanvas (&img, firstAbsRow, lastAbsRow, revealBandTopAbs, revealColDots);
+    if (!haveImg)
+    {
+        hr = renderer.Render (spanRaster, 0, spanRows - 1, opt, m_spanImg);
+
+        if (FAILED (hr) || m_spanImg.width <= 0 || m_spanImg.height != spanRows)
+        {
+            m_spanImgValid = false;
+            return;   // keep the previous frame rather than flash a bad one
+        }
+
+        m_spanImgFirstAbsRow = firstAbsRow;
+        m_spanImgValid       = true;
+    }
+
+    if (m_spanImg.height > m_viewport.ViewportRows ())
+    {
+        return;   // span larger than the canvas: keep the previous frame
+    }
+
+    ComposeCanvas (&m_spanImg, firstAbsRow, lastAbsRow, revealBandTopAbs, revealColDots);
 }
 
 

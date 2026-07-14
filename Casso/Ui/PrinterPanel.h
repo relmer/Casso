@@ -5,11 +5,11 @@
 
 #include "Devices/Printer/PrinterPacing.h"
 #include "Devices/Printer/PrinterViewport.h"
+#include "Devices/Printer/RgbaImage.h"
 #include "PrinterPaperView.h"
 
 
 struct CassoTheme;
-struct RgbaImage;
 class  PrintRaster;
 class  PrinterWorker;
 class  Printer3DScene;
@@ -92,7 +92,7 @@ protected:
 private:
     void     ShowBlankSheet ();
     void     RenderSpan     (const PrintRaster & spanRaster, int firstAbsRow, int lastAbsRow,
-                             int revealBandTopAbs, int revealColDots);
+                             bool contentDirty, int revealBandTopAbs, int revealColDots);
     void     ComposeCanvas  (const RgbaImage * content, int contentFirstAbsRow, int bottomAbsRow,
                              int revealBandTopAbs, int revealColDots);
 
@@ -127,6 +127,14 @@ private:
     bool                    m_pacingPrimed     = false;
     int                     m_renderedRevealRow = -1;
     int                     m_renderedRevealCol = -1;
+
+    // Rendered-span cache: scrolling shifts the visible window over UNCHANGED
+    // strip content, so the expensive ink render is reused row-for-row and
+    // only newly exposed rows are rendered. Invalidated whenever new bytes
+    // land (contentDirty) or the span geometry stops lining up.
+    RgbaImage               m_spanImg;
+    int                     m_spanImgFirstAbsRow = 0;
+    bool                    m_spanImgValid       = false;
 
     // 3D presentation (FR-032): the ImageWriter + curled-paper scene, drawn
     // from the window's before-present hook into m_paperRectPx (which the

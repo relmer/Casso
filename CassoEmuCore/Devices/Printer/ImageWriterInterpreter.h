@@ -72,10 +72,14 @@ private:
     int         m_paramsGot     = 0;
     Byte        m_params[4]     = { 0, 0, 0, 0 };
 
-    // Active bit-image run. m_gfxMsbTop selects the pin order: ESC G data
-    // puts the TOP pin in bit 0, ESC L data in bit 7 (T011 capture).
+    // Active bit-image run. m_gfxMsbTop selects the ESC L conventions (both
+    // from the T011 capture): TOP pin in bit 7 (ESC G uses bit 0) and
+    // 120-dpi columns laid from m_gfxStartDot by m_gfxColIndex (ESC G is
+    // native 1:1).
     int         m_gfxRemaining  = 0;
     bool        m_gfxMsbTop     = false;
+    int         m_gfxColIndex   = 0;
+    int         m_gfxStartDot   = 0;
     int         m_burstFromDot  = -1;
     int         m_burstToDot    = -1;
     int         m_burstRow      = 0;
