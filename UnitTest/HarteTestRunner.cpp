@@ -700,300 +700,300 @@ namespace HarteTests
 
     ////////////////////////////////////////////////////////////////////////////////
     //
-    //  HarteSynertek65C02
+    //  HarteRockwell65C02
     //
-    //  Tom Harte SingleStepTests for the base-tier (Synertek) 65C02 -- the exact
-    //  match for Casso Cpu65C02 (no Rockwell bit ops, no WAI/STP). One method per
-    //  opcode byte; RunHarteOpcode skips silently when a .bin is absent, so the
-    //  suite stays green before the synertek65c02 vectors are generated.
+    //  Tom Harte SingleStepTests for the Rockwell R65C02 -- the exact CPU Casso
+    //  Cpu65C02 models (RMB/SMB/BBR/BBS bit ops in the $x7/$xF columns; WDC WAI/STP
+    //  decode as NOPs). One method per opcode byte; RunHarteOpcode skips silently
+    //  when a .bin is absent, so the suite stays green before the rockwell65c02
+    //  vectors are generated (scripts/GenerateHarteTests.py --cpu rockwell65c02).
     //
     ////////////////////////////////////////////////////////////////////////////////
 
-    TEST_CLASS (HarteSynertek65C02)
+    TEST_CLASS (HarteRockwell65C02)
     {
     public:
 
-        // Casso now models the Rockwell R65C02: the $x7/$xF columns are the
-        // real RMB/SMB/BBR/BBS bit ops, so the Synertek corpus (which models
-        // those slots as multi-byte NOPs) does not apply to them; $CB/$DB stay
-        // NOPs on the Rockwell part but the Synertek corpus differs there too.
-        // These 34 slots are skipped here and covered by Cpu65C02Tests
-        // (RockwellBitOpsExecute / WdcWaiStpDecodeAsNop). Every other opcode is
-        // identical across Synertek and Rockwell, so its Synertek vector runs
-        // unchanged. TODO(spec 016 follow-up): regenerate the rockwell65c02
-        // corpus for full per-vector bit-op coverage.
-        static bool IsRockwellTierDivergence (Byte opcode)
+        // Only $DB is skipped. Harte's silicon-derived corpus (both synertek65c02
+        // and rockwell65c02) models $DB as a 2-byte NOP, but Klaus Dormann's
+        // functional test asserts a 1-byte NOP (`nop_test $db,1`); the two
+        // conformance oracles genuinely disagree on this undefined opcode. Casso
+        // follows Dormann (1-byte) so the Dormann integration test stays green, so
+        // its final state differs from Harte here by the extra fetched byte. $DB is
+        // undefined, so no real software depends on it; WdcWaiStpDecodeAsNop pins
+        // Casso's chosen behavior. Everything else -- including the 32 bit ops and
+        // the 1-byte $CB NOP -- is run against the Rockwell vectors.
+        static bool IsSkippedSlot (Byte opcode)
         {
-            return (opcode & 0x0F) == 0x07 || (opcode & 0x0F) == 0x0F ||
-                   opcode == 0xCB || opcode == 0xDB;
+            return opcode == 0xDB;
         }
 
-        void RunSynertekOpcode (Byte opcode)
+        void RunRockwellOpcode (Byte opcode)
         {
-            if (IsRockwellTierDivergence (opcode))
+            if (IsSkippedSlot (opcode))
             {
-                return;   // covered by Cpu65C02Tests; Synertek vectors don't apply
+                return;   // Dormann/Harte disagree on $DB; see IsSkippedSlot.
             }
 
-            RunHarteOpcode<TestCpu65C02> ("synertek65c02", opcode);
+            RunHarteOpcode<TestCpu65C02> ("rockwell65c02", opcode);
         }
 
-        TEST_METHOD (Op65_00) { RunSynertekOpcode (0x00); }
-        TEST_METHOD (Op65_01) { RunSynertekOpcode (0x01); }
-        TEST_METHOD (Op65_02) { RunSynertekOpcode (0x02); }
-        TEST_METHOD (Op65_03) { RunSynertekOpcode (0x03); }
-        TEST_METHOD (Op65_04) { RunSynertekOpcode (0x04); }
-        TEST_METHOD (Op65_05) { RunSynertekOpcode (0x05); }
-        TEST_METHOD (Op65_06) { RunSynertekOpcode (0x06); }
-        TEST_METHOD (Op65_07) { RunSynertekOpcode (0x07); }
-        TEST_METHOD (Op65_08) { RunSynertekOpcode (0x08); }
-        TEST_METHOD (Op65_09) { RunSynertekOpcode (0x09); }
-        TEST_METHOD (Op65_0A) { RunSynertekOpcode (0x0A); }
-        TEST_METHOD (Op65_0B) { RunSynertekOpcode (0x0B); }
-        TEST_METHOD (Op65_0C) { RunSynertekOpcode (0x0C); }
-        TEST_METHOD (Op65_0D) { RunSynertekOpcode (0x0D); }
-        TEST_METHOD (Op65_0E) { RunSynertekOpcode (0x0E); }
-        TEST_METHOD (Op65_0F) { RunSynertekOpcode (0x0F); }
-        TEST_METHOD (Op65_10) { RunSynertekOpcode (0x10); }
-        TEST_METHOD (Op65_11) { RunSynertekOpcode (0x11); }
-        TEST_METHOD (Op65_12) { RunSynertekOpcode (0x12); }
-        TEST_METHOD (Op65_13) { RunSynertekOpcode (0x13); }
-        TEST_METHOD (Op65_14) { RunSynertekOpcode (0x14); }
-        TEST_METHOD (Op65_15) { RunSynertekOpcode (0x15); }
-        TEST_METHOD (Op65_16) { RunSynertekOpcode (0x16); }
-        TEST_METHOD (Op65_17) { RunSynertekOpcode (0x17); }
-        TEST_METHOD (Op65_18) { RunSynertekOpcode (0x18); }
-        TEST_METHOD (Op65_19) { RunSynertekOpcode (0x19); }
-        TEST_METHOD (Op65_1A) { RunSynertekOpcode (0x1A); }
-        TEST_METHOD (Op65_1B) { RunSynertekOpcode (0x1B); }
-        TEST_METHOD (Op65_1C) { RunSynertekOpcode (0x1C); }
-        TEST_METHOD (Op65_1D) { RunSynertekOpcode (0x1D); }
-        TEST_METHOD (Op65_1E) { RunSynertekOpcode (0x1E); }
-        TEST_METHOD (Op65_1F) { RunSynertekOpcode (0x1F); }
-        TEST_METHOD (Op65_20) { RunSynertekOpcode (0x20); }
-        TEST_METHOD (Op65_21) { RunSynertekOpcode (0x21); }
-        TEST_METHOD (Op65_22) { RunSynertekOpcode (0x22); }
-        TEST_METHOD (Op65_23) { RunSynertekOpcode (0x23); }
-        TEST_METHOD (Op65_24) { RunSynertekOpcode (0x24); }
-        TEST_METHOD (Op65_25) { RunSynertekOpcode (0x25); }
-        TEST_METHOD (Op65_26) { RunSynertekOpcode (0x26); }
-        TEST_METHOD (Op65_27) { RunSynertekOpcode (0x27); }
-        TEST_METHOD (Op65_28) { RunSynertekOpcode (0x28); }
-        TEST_METHOD (Op65_29) { RunSynertekOpcode (0x29); }
-        TEST_METHOD (Op65_2A) { RunSynertekOpcode (0x2A); }
-        TEST_METHOD (Op65_2B) { RunSynertekOpcode (0x2B); }
-        TEST_METHOD (Op65_2C) { RunSynertekOpcode (0x2C); }
-        TEST_METHOD (Op65_2D) { RunSynertekOpcode (0x2D); }
-        TEST_METHOD (Op65_2E) { RunSynertekOpcode (0x2E); }
-        TEST_METHOD (Op65_2F) { RunSynertekOpcode (0x2F); }
-        TEST_METHOD (Op65_30) { RunSynertekOpcode (0x30); }
-        TEST_METHOD (Op65_31) { RunSynertekOpcode (0x31); }
-        TEST_METHOD (Op65_32) { RunSynertekOpcode (0x32); }
-        TEST_METHOD (Op65_33) { RunSynertekOpcode (0x33); }
-        TEST_METHOD (Op65_34) { RunSynertekOpcode (0x34); }
-        TEST_METHOD (Op65_35) { RunSynertekOpcode (0x35); }
-        TEST_METHOD (Op65_36) { RunSynertekOpcode (0x36); }
-        TEST_METHOD (Op65_37) { RunSynertekOpcode (0x37); }
-        TEST_METHOD (Op65_38) { RunSynertekOpcode (0x38); }
-        TEST_METHOD (Op65_39) { RunSynertekOpcode (0x39); }
-        TEST_METHOD (Op65_3A) { RunSynertekOpcode (0x3A); }
-        TEST_METHOD (Op65_3B) { RunSynertekOpcode (0x3B); }
-        TEST_METHOD (Op65_3C) { RunSynertekOpcode (0x3C); }
-        TEST_METHOD (Op65_3D) { RunSynertekOpcode (0x3D); }
-        TEST_METHOD (Op65_3E) { RunSynertekOpcode (0x3E); }
-        TEST_METHOD (Op65_3F) { RunSynertekOpcode (0x3F); }
-        TEST_METHOD (Op65_40) { RunSynertekOpcode (0x40); }
-        TEST_METHOD (Op65_41) { RunSynertekOpcode (0x41); }
-        TEST_METHOD (Op65_42) { RunSynertekOpcode (0x42); }
-        TEST_METHOD (Op65_43) { RunSynertekOpcode (0x43); }
-        TEST_METHOD (Op65_44) { RunSynertekOpcode (0x44); }
-        TEST_METHOD (Op65_45) { RunSynertekOpcode (0x45); }
-        TEST_METHOD (Op65_46) { RunSynertekOpcode (0x46); }
-        TEST_METHOD (Op65_47) { RunSynertekOpcode (0x47); }
-        TEST_METHOD (Op65_48) { RunSynertekOpcode (0x48); }
-        TEST_METHOD (Op65_49) { RunSynertekOpcode (0x49); }
-        TEST_METHOD (Op65_4A) { RunSynertekOpcode (0x4A); }
-        TEST_METHOD (Op65_4B) { RunSynertekOpcode (0x4B); }
-        TEST_METHOD (Op65_4C) { RunSynertekOpcode (0x4C); }
-        TEST_METHOD (Op65_4D) { RunSynertekOpcode (0x4D); }
-        TEST_METHOD (Op65_4E) { RunSynertekOpcode (0x4E); }
-        TEST_METHOD (Op65_4F) { RunSynertekOpcode (0x4F); }
-        TEST_METHOD (Op65_50) { RunSynertekOpcode (0x50); }
-        TEST_METHOD (Op65_51) { RunSynertekOpcode (0x51); }
-        TEST_METHOD (Op65_52) { RunSynertekOpcode (0x52); }
-        TEST_METHOD (Op65_53) { RunSynertekOpcode (0x53); }
-        TEST_METHOD (Op65_54) { RunSynertekOpcode (0x54); }
-        TEST_METHOD (Op65_55) { RunSynertekOpcode (0x55); }
-        TEST_METHOD (Op65_56) { RunSynertekOpcode (0x56); }
-        TEST_METHOD (Op65_57) { RunSynertekOpcode (0x57); }
-        TEST_METHOD (Op65_58) { RunSynertekOpcode (0x58); }
-        TEST_METHOD (Op65_59) { RunSynertekOpcode (0x59); }
-        TEST_METHOD (Op65_5A) { RunSynertekOpcode (0x5A); }
-        TEST_METHOD (Op65_5B) { RunSynertekOpcode (0x5B); }
-        TEST_METHOD (Op65_5C) { RunSynertekOpcode (0x5C); }
-        TEST_METHOD (Op65_5D) { RunSynertekOpcode (0x5D); }
-        TEST_METHOD (Op65_5E) { RunSynertekOpcode (0x5E); }
-        TEST_METHOD (Op65_5F) { RunSynertekOpcode (0x5F); }
-        TEST_METHOD (Op65_60) { RunSynertekOpcode (0x60); }
-        TEST_METHOD (Op65_61) { RunSynertekOpcode (0x61); }
-        TEST_METHOD (Op65_62) { RunSynertekOpcode (0x62); }
-        TEST_METHOD (Op65_63) { RunSynertekOpcode (0x63); }
-        TEST_METHOD (Op65_64) { RunSynertekOpcode (0x64); }
-        TEST_METHOD (Op65_65) { RunSynertekOpcode (0x65); }
-        TEST_METHOD (Op65_66) { RunSynertekOpcode (0x66); }
-        TEST_METHOD (Op65_67) { RunSynertekOpcode (0x67); }
-        TEST_METHOD (Op65_68) { RunSynertekOpcode (0x68); }
-        TEST_METHOD (Op65_69) { RunSynertekOpcode (0x69); }
-        TEST_METHOD (Op65_6A) { RunSynertekOpcode (0x6A); }
-        TEST_METHOD (Op65_6B) { RunSynertekOpcode (0x6B); }
-        TEST_METHOD (Op65_6C) { RunSynertekOpcode (0x6C); }
-        TEST_METHOD (Op65_6D) { RunSynertekOpcode (0x6D); }
-        TEST_METHOD (Op65_6E) { RunSynertekOpcode (0x6E); }
-        TEST_METHOD (Op65_6F) { RunSynertekOpcode (0x6F); }
-        TEST_METHOD (Op65_70) { RunSynertekOpcode (0x70); }
-        TEST_METHOD (Op65_71) { RunSynertekOpcode (0x71); }
-        TEST_METHOD (Op65_72) { RunSynertekOpcode (0x72); }
-        TEST_METHOD (Op65_73) { RunSynertekOpcode (0x73); }
-        TEST_METHOD (Op65_74) { RunSynertekOpcode (0x74); }
-        TEST_METHOD (Op65_75) { RunSynertekOpcode (0x75); }
-        TEST_METHOD (Op65_76) { RunSynertekOpcode (0x76); }
-        TEST_METHOD (Op65_77) { RunSynertekOpcode (0x77); }
-        TEST_METHOD (Op65_78) { RunSynertekOpcode (0x78); }
-        TEST_METHOD (Op65_79) { RunSynertekOpcode (0x79); }
-        TEST_METHOD (Op65_7A) { RunSynertekOpcode (0x7A); }
-        TEST_METHOD (Op65_7B) { RunSynertekOpcode (0x7B); }
-        TEST_METHOD (Op65_7C) { RunSynertekOpcode (0x7C); }
-        TEST_METHOD (Op65_7D) { RunSynertekOpcode (0x7D); }
-        TEST_METHOD (Op65_7E) { RunSynertekOpcode (0x7E); }
-        TEST_METHOD (Op65_7F) { RunSynertekOpcode (0x7F); }
-        TEST_METHOD (Op65_80) { RunSynertekOpcode (0x80); }
-        TEST_METHOD (Op65_81) { RunSynertekOpcode (0x81); }
-        TEST_METHOD (Op65_82) { RunSynertekOpcode (0x82); }
-        TEST_METHOD (Op65_83) { RunSynertekOpcode (0x83); }
-        TEST_METHOD (Op65_84) { RunSynertekOpcode (0x84); }
-        TEST_METHOD (Op65_85) { RunSynertekOpcode (0x85); }
-        TEST_METHOD (Op65_86) { RunSynertekOpcode (0x86); }
-        TEST_METHOD (Op65_87) { RunSynertekOpcode (0x87); }
-        TEST_METHOD (Op65_88) { RunSynertekOpcode (0x88); }
-        TEST_METHOD (Op65_89) { RunSynertekOpcode (0x89); }
-        TEST_METHOD (Op65_8A) { RunSynertekOpcode (0x8A); }
-        TEST_METHOD (Op65_8B) { RunSynertekOpcode (0x8B); }
-        TEST_METHOD (Op65_8C) { RunSynertekOpcode (0x8C); }
-        TEST_METHOD (Op65_8D) { RunSynertekOpcode (0x8D); }
-        TEST_METHOD (Op65_8E) { RunSynertekOpcode (0x8E); }
-        TEST_METHOD (Op65_8F) { RunSynertekOpcode (0x8F); }
-        TEST_METHOD (Op65_90) { RunSynertekOpcode (0x90); }
-        TEST_METHOD (Op65_91) { RunSynertekOpcode (0x91); }
-        TEST_METHOD (Op65_92) { RunSynertekOpcode (0x92); }
-        TEST_METHOD (Op65_93) { RunSynertekOpcode (0x93); }
-        TEST_METHOD (Op65_94) { RunSynertekOpcode (0x94); }
-        TEST_METHOD (Op65_95) { RunSynertekOpcode (0x95); }
-        TEST_METHOD (Op65_96) { RunSynertekOpcode (0x96); }
-        TEST_METHOD (Op65_97) { RunSynertekOpcode (0x97); }
-        TEST_METHOD (Op65_98) { RunSynertekOpcode (0x98); }
-        TEST_METHOD (Op65_99) { RunSynertekOpcode (0x99); }
-        TEST_METHOD (Op65_9A) { RunSynertekOpcode (0x9A); }
-        TEST_METHOD (Op65_9B) { RunSynertekOpcode (0x9B); }
-        TEST_METHOD (Op65_9C) { RunSynertekOpcode (0x9C); }
-        TEST_METHOD (Op65_9D) { RunSynertekOpcode (0x9D); }
-        TEST_METHOD (Op65_9E) { RunSynertekOpcode (0x9E); }
-        TEST_METHOD (Op65_9F) { RunSynertekOpcode (0x9F); }
-        TEST_METHOD (Op65_A0) { RunSynertekOpcode (0xA0); }
-        TEST_METHOD (Op65_A1) { RunSynertekOpcode (0xA1); }
-        TEST_METHOD (Op65_A2) { RunSynertekOpcode (0xA2); }
-        TEST_METHOD (Op65_A3) { RunSynertekOpcode (0xA3); }
-        TEST_METHOD (Op65_A4) { RunSynertekOpcode (0xA4); }
-        TEST_METHOD (Op65_A5) { RunSynertekOpcode (0xA5); }
-        TEST_METHOD (Op65_A6) { RunSynertekOpcode (0xA6); }
-        TEST_METHOD (Op65_A7) { RunSynertekOpcode (0xA7); }
-        TEST_METHOD (Op65_A8) { RunSynertekOpcode (0xA8); }
-        TEST_METHOD (Op65_A9) { RunSynertekOpcode (0xA9); }
-        TEST_METHOD (Op65_AA) { RunSynertekOpcode (0xAA); }
-        TEST_METHOD (Op65_AB) { RunSynertekOpcode (0xAB); }
-        TEST_METHOD (Op65_AC) { RunSynertekOpcode (0xAC); }
-        TEST_METHOD (Op65_AD) { RunSynertekOpcode (0xAD); }
-        TEST_METHOD (Op65_AE) { RunSynertekOpcode (0xAE); }
-        TEST_METHOD (Op65_AF) { RunSynertekOpcode (0xAF); }
-        TEST_METHOD (Op65_B0) { RunSynertekOpcode (0xB0); }
-        TEST_METHOD (Op65_B1) { RunSynertekOpcode (0xB1); }
-        TEST_METHOD (Op65_B2) { RunSynertekOpcode (0xB2); }
-        TEST_METHOD (Op65_B3) { RunSynertekOpcode (0xB3); }
-        TEST_METHOD (Op65_B4) { RunSynertekOpcode (0xB4); }
-        TEST_METHOD (Op65_B5) { RunSynertekOpcode (0xB5); }
-        TEST_METHOD (Op65_B6) { RunSynertekOpcode (0xB6); }
-        TEST_METHOD (Op65_B7) { RunSynertekOpcode (0xB7); }
-        TEST_METHOD (Op65_B8) { RunSynertekOpcode (0xB8); }
-        TEST_METHOD (Op65_B9) { RunSynertekOpcode (0xB9); }
-        TEST_METHOD (Op65_BA) { RunSynertekOpcode (0xBA); }
-        TEST_METHOD (Op65_BB) { RunSynertekOpcode (0xBB); }
-        TEST_METHOD (Op65_BC) { RunSynertekOpcode (0xBC); }
-        TEST_METHOD (Op65_BD) { RunSynertekOpcode (0xBD); }
-        TEST_METHOD (Op65_BE) { RunSynertekOpcode (0xBE); }
-        TEST_METHOD (Op65_BF) { RunSynertekOpcode (0xBF); }
-        TEST_METHOD (Op65_C0) { RunSynertekOpcode (0xC0); }
-        TEST_METHOD (Op65_C1) { RunSynertekOpcode (0xC1); }
-        TEST_METHOD (Op65_C2) { RunSynertekOpcode (0xC2); }
-        TEST_METHOD (Op65_C3) { RunSynertekOpcode (0xC3); }
-        TEST_METHOD (Op65_C4) { RunSynertekOpcode (0xC4); }
-        TEST_METHOD (Op65_C5) { RunSynertekOpcode (0xC5); }
-        TEST_METHOD (Op65_C6) { RunSynertekOpcode (0xC6); }
-        TEST_METHOD (Op65_C7) { RunSynertekOpcode (0xC7); }
-        TEST_METHOD (Op65_C8) { RunSynertekOpcode (0xC8); }
-        TEST_METHOD (Op65_C9) { RunSynertekOpcode (0xC9); }
-        TEST_METHOD (Op65_CA) { RunSynertekOpcode (0xCA); }
-        TEST_METHOD (Op65_CB) { RunSynertekOpcode (0xCB); }
-        TEST_METHOD (Op65_CC) { RunSynertekOpcode (0xCC); }
-        TEST_METHOD (Op65_CD) { RunSynertekOpcode (0xCD); }
-        TEST_METHOD (Op65_CE) { RunSynertekOpcode (0xCE); }
-        TEST_METHOD (Op65_CF) { RunSynertekOpcode (0xCF); }
-        TEST_METHOD (Op65_D0) { RunSynertekOpcode (0xD0); }
-        TEST_METHOD (Op65_D1) { RunSynertekOpcode (0xD1); }
-        TEST_METHOD (Op65_D2) { RunSynertekOpcode (0xD2); }
-        TEST_METHOD (Op65_D3) { RunSynertekOpcode (0xD3); }
-        TEST_METHOD (Op65_D4) { RunSynertekOpcode (0xD4); }
-        TEST_METHOD (Op65_D5) { RunSynertekOpcode (0xD5); }
-        TEST_METHOD (Op65_D6) { RunSynertekOpcode (0xD6); }
-        TEST_METHOD (Op65_D7) { RunSynertekOpcode (0xD7); }
-        TEST_METHOD (Op65_D8) { RunSynertekOpcode (0xD8); }
-        TEST_METHOD (Op65_D9) { RunSynertekOpcode (0xD9); }
-        TEST_METHOD (Op65_DA) { RunSynertekOpcode (0xDA); }
-        TEST_METHOD (Op65_DB) { RunSynertekOpcode (0xDB); }
-        TEST_METHOD (Op65_DC) { RunSynertekOpcode (0xDC); }
-        TEST_METHOD (Op65_DD) { RunSynertekOpcode (0xDD); }
-        TEST_METHOD (Op65_DE) { RunSynertekOpcode (0xDE); }
-        TEST_METHOD (Op65_DF) { RunSynertekOpcode (0xDF); }
-        TEST_METHOD (Op65_E0) { RunSynertekOpcode (0xE0); }
-        TEST_METHOD (Op65_E1) { RunSynertekOpcode (0xE1); }
-        TEST_METHOD (Op65_E2) { RunSynertekOpcode (0xE2); }
-        TEST_METHOD (Op65_E3) { RunSynertekOpcode (0xE3); }
-        TEST_METHOD (Op65_E4) { RunSynertekOpcode (0xE4); }
-        TEST_METHOD (Op65_E5) { RunSynertekOpcode (0xE5); }
-        TEST_METHOD (Op65_E6) { RunSynertekOpcode (0xE6); }
-        TEST_METHOD (Op65_E7) { RunSynertekOpcode (0xE7); }
-        TEST_METHOD (Op65_E8) { RunSynertekOpcode (0xE8); }
-        TEST_METHOD (Op65_E9) { RunSynertekOpcode (0xE9); }
-        TEST_METHOD (Op65_EA) { RunSynertekOpcode (0xEA); }
-        TEST_METHOD (Op65_EB) { RunSynertekOpcode (0xEB); }
-        TEST_METHOD (Op65_EC) { RunSynertekOpcode (0xEC); }
-        TEST_METHOD (Op65_ED) { RunSynertekOpcode (0xED); }
-        TEST_METHOD (Op65_EE) { RunSynertekOpcode (0xEE); }
-        TEST_METHOD (Op65_EF) { RunSynertekOpcode (0xEF); }
-        TEST_METHOD (Op65_F0) { RunSynertekOpcode (0xF0); }
-        TEST_METHOD (Op65_F1) { RunSynertekOpcode (0xF1); }
-        TEST_METHOD (Op65_F2) { RunSynertekOpcode (0xF2); }
-        TEST_METHOD (Op65_F3) { RunSynertekOpcode (0xF3); }
-        TEST_METHOD (Op65_F4) { RunSynertekOpcode (0xF4); }
-        TEST_METHOD (Op65_F5) { RunSynertekOpcode (0xF5); }
-        TEST_METHOD (Op65_F6) { RunSynertekOpcode (0xF6); }
-        TEST_METHOD (Op65_F7) { RunSynertekOpcode (0xF7); }
-        TEST_METHOD (Op65_F8) { RunSynertekOpcode (0xF8); }
-        TEST_METHOD (Op65_F9) { RunSynertekOpcode (0xF9); }
-        TEST_METHOD (Op65_FA) { RunSynertekOpcode (0xFA); }
-        TEST_METHOD (Op65_FB) { RunSynertekOpcode (0xFB); }
-        TEST_METHOD (Op65_FC) { RunSynertekOpcode (0xFC); }
-        TEST_METHOD (Op65_FD) { RunSynertekOpcode (0xFD); }
-        TEST_METHOD (Op65_FE) { RunSynertekOpcode (0xFE); }
-        TEST_METHOD (Op65_FF) { RunSynertekOpcode (0xFF); }
+        TEST_METHOD (Op65_00) { RunRockwellOpcode (0x00); }
+        TEST_METHOD (Op65_01) { RunRockwellOpcode (0x01); }
+        TEST_METHOD (Op65_02) { RunRockwellOpcode (0x02); }
+        TEST_METHOD (Op65_03) { RunRockwellOpcode (0x03); }
+        TEST_METHOD (Op65_04) { RunRockwellOpcode (0x04); }
+        TEST_METHOD (Op65_05) { RunRockwellOpcode (0x05); }
+        TEST_METHOD (Op65_06) { RunRockwellOpcode (0x06); }
+        TEST_METHOD (Op65_07) { RunRockwellOpcode (0x07); }
+        TEST_METHOD (Op65_08) { RunRockwellOpcode (0x08); }
+        TEST_METHOD (Op65_09) { RunRockwellOpcode (0x09); }
+        TEST_METHOD (Op65_0A) { RunRockwellOpcode (0x0A); }
+        TEST_METHOD (Op65_0B) { RunRockwellOpcode (0x0B); }
+        TEST_METHOD (Op65_0C) { RunRockwellOpcode (0x0C); }
+        TEST_METHOD (Op65_0D) { RunRockwellOpcode (0x0D); }
+        TEST_METHOD (Op65_0E) { RunRockwellOpcode (0x0E); }
+        TEST_METHOD (Op65_0F) { RunRockwellOpcode (0x0F); }
+        TEST_METHOD (Op65_10) { RunRockwellOpcode (0x10); }
+        TEST_METHOD (Op65_11) { RunRockwellOpcode (0x11); }
+        TEST_METHOD (Op65_12) { RunRockwellOpcode (0x12); }
+        TEST_METHOD (Op65_13) { RunRockwellOpcode (0x13); }
+        TEST_METHOD (Op65_14) { RunRockwellOpcode (0x14); }
+        TEST_METHOD (Op65_15) { RunRockwellOpcode (0x15); }
+        TEST_METHOD (Op65_16) { RunRockwellOpcode (0x16); }
+        TEST_METHOD (Op65_17) { RunRockwellOpcode (0x17); }
+        TEST_METHOD (Op65_18) { RunRockwellOpcode (0x18); }
+        TEST_METHOD (Op65_19) { RunRockwellOpcode (0x19); }
+        TEST_METHOD (Op65_1A) { RunRockwellOpcode (0x1A); }
+        TEST_METHOD (Op65_1B) { RunRockwellOpcode (0x1B); }
+        TEST_METHOD (Op65_1C) { RunRockwellOpcode (0x1C); }
+        TEST_METHOD (Op65_1D) { RunRockwellOpcode (0x1D); }
+        TEST_METHOD (Op65_1E) { RunRockwellOpcode (0x1E); }
+        TEST_METHOD (Op65_1F) { RunRockwellOpcode (0x1F); }
+        TEST_METHOD (Op65_20) { RunRockwellOpcode (0x20); }
+        TEST_METHOD (Op65_21) { RunRockwellOpcode (0x21); }
+        TEST_METHOD (Op65_22) { RunRockwellOpcode (0x22); }
+        TEST_METHOD (Op65_23) { RunRockwellOpcode (0x23); }
+        TEST_METHOD (Op65_24) { RunRockwellOpcode (0x24); }
+        TEST_METHOD (Op65_25) { RunRockwellOpcode (0x25); }
+        TEST_METHOD (Op65_26) { RunRockwellOpcode (0x26); }
+        TEST_METHOD (Op65_27) { RunRockwellOpcode (0x27); }
+        TEST_METHOD (Op65_28) { RunRockwellOpcode (0x28); }
+        TEST_METHOD (Op65_29) { RunRockwellOpcode (0x29); }
+        TEST_METHOD (Op65_2A) { RunRockwellOpcode (0x2A); }
+        TEST_METHOD (Op65_2B) { RunRockwellOpcode (0x2B); }
+        TEST_METHOD (Op65_2C) { RunRockwellOpcode (0x2C); }
+        TEST_METHOD (Op65_2D) { RunRockwellOpcode (0x2D); }
+        TEST_METHOD (Op65_2E) { RunRockwellOpcode (0x2E); }
+        TEST_METHOD (Op65_2F) { RunRockwellOpcode (0x2F); }
+        TEST_METHOD (Op65_30) { RunRockwellOpcode (0x30); }
+        TEST_METHOD (Op65_31) { RunRockwellOpcode (0x31); }
+        TEST_METHOD (Op65_32) { RunRockwellOpcode (0x32); }
+        TEST_METHOD (Op65_33) { RunRockwellOpcode (0x33); }
+        TEST_METHOD (Op65_34) { RunRockwellOpcode (0x34); }
+        TEST_METHOD (Op65_35) { RunRockwellOpcode (0x35); }
+        TEST_METHOD (Op65_36) { RunRockwellOpcode (0x36); }
+        TEST_METHOD (Op65_37) { RunRockwellOpcode (0x37); }
+        TEST_METHOD (Op65_38) { RunRockwellOpcode (0x38); }
+        TEST_METHOD (Op65_39) { RunRockwellOpcode (0x39); }
+        TEST_METHOD (Op65_3A) { RunRockwellOpcode (0x3A); }
+        TEST_METHOD (Op65_3B) { RunRockwellOpcode (0x3B); }
+        TEST_METHOD (Op65_3C) { RunRockwellOpcode (0x3C); }
+        TEST_METHOD (Op65_3D) { RunRockwellOpcode (0x3D); }
+        TEST_METHOD (Op65_3E) { RunRockwellOpcode (0x3E); }
+        TEST_METHOD (Op65_3F) { RunRockwellOpcode (0x3F); }
+        TEST_METHOD (Op65_40) { RunRockwellOpcode (0x40); }
+        TEST_METHOD (Op65_41) { RunRockwellOpcode (0x41); }
+        TEST_METHOD (Op65_42) { RunRockwellOpcode (0x42); }
+        TEST_METHOD (Op65_43) { RunRockwellOpcode (0x43); }
+        TEST_METHOD (Op65_44) { RunRockwellOpcode (0x44); }
+        TEST_METHOD (Op65_45) { RunRockwellOpcode (0x45); }
+        TEST_METHOD (Op65_46) { RunRockwellOpcode (0x46); }
+        TEST_METHOD (Op65_47) { RunRockwellOpcode (0x47); }
+        TEST_METHOD (Op65_48) { RunRockwellOpcode (0x48); }
+        TEST_METHOD (Op65_49) { RunRockwellOpcode (0x49); }
+        TEST_METHOD (Op65_4A) { RunRockwellOpcode (0x4A); }
+        TEST_METHOD (Op65_4B) { RunRockwellOpcode (0x4B); }
+        TEST_METHOD (Op65_4C) { RunRockwellOpcode (0x4C); }
+        TEST_METHOD (Op65_4D) { RunRockwellOpcode (0x4D); }
+        TEST_METHOD (Op65_4E) { RunRockwellOpcode (0x4E); }
+        TEST_METHOD (Op65_4F) { RunRockwellOpcode (0x4F); }
+        TEST_METHOD (Op65_50) { RunRockwellOpcode (0x50); }
+        TEST_METHOD (Op65_51) { RunRockwellOpcode (0x51); }
+        TEST_METHOD (Op65_52) { RunRockwellOpcode (0x52); }
+        TEST_METHOD (Op65_53) { RunRockwellOpcode (0x53); }
+        TEST_METHOD (Op65_54) { RunRockwellOpcode (0x54); }
+        TEST_METHOD (Op65_55) { RunRockwellOpcode (0x55); }
+        TEST_METHOD (Op65_56) { RunRockwellOpcode (0x56); }
+        TEST_METHOD (Op65_57) { RunRockwellOpcode (0x57); }
+        TEST_METHOD (Op65_58) { RunRockwellOpcode (0x58); }
+        TEST_METHOD (Op65_59) { RunRockwellOpcode (0x59); }
+        TEST_METHOD (Op65_5A) { RunRockwellOpcode (0x5A); }
+        TEST_METHOD (Op65_5B) { RunRockwellOpcode (0x5B); }
+        TEST_METHOD (Op65_5C) { RunRockwellOpcode (0x5C); }
+        TEST_METHOD (Op65_5D) { RunRockwellOpcode (0x5D); }
+        TEST_METHOD (Op65_5E) { RunRockwellOpcode (0x5E); }
+        TEST_METHOD (Op65_5F) { RunRockwellOpcode (0x5F); }
+        TEST_METHOD (Op65_60) { RunRockwellOpcode (0x60); }
+        TEST_METHOD (Op65_61) { RunRockwellOpcode (0x61); }
+        TEST_METHOD (Op65_62) { RunRockwellOpcode (0x62); }
+        TEST_METHOD (Op65_63) { RunRockwellOpcode (0x63); }
+        TEST_METHOD (Op65_64) { RunRockwellOpcode (0x64); }
+        TEST_METHOD (Op65_65) { RunRockwellOpcode (0x65); }
+        TEST_METHOD (Op65_66) { RunRockwellOpcode (0x66); }
+        TEST_METHOD (Op65_67) { RunRockwellOpcode (0x67); }
+        TEST_METHOD (Op65_68) { RunRockwellOpcode (0x68); }
+        TEST_METHOD (Op65_69) { RunRockwellOpcode (0x69); }
+        TEST_METHOD (Op65_6A) { RunRockwellOpcode (0x6A); }
+        TEST_METHOD (Op65_6B) { RunRockwellOpcode (0x6B); }
+        TEST_METHOD (Op65_6C) { RunRockwellOpcode (0x6C); }
+        TEST_METHOD (Op65_6D) { RunRockwellOpcode (0x6D); }
+        TEST_METHOD (Op65_6E) { RunRockwellOpcode (0x6E); }
+        TEST_METHOD (Op65_6F) { RunRockwellOpcode (0x6F); }
+        TEST_METHOD (Op65_70) { RunRockwellOpcode (0x70); }
+        TEST_METHOD (Op65_71) { RunRockwellOpcode (0x71); }
+        TEST_METHOD (Op65_72) { RunRockwellOpcode (0x72); }
+        TEST_METHOD (Op65_73) { RunRockwellOpcode (0x73); }
+        TEST_METHOD (Op65_74) { RunRockwellOpcode (0x74); }
+        TEST_METHOD (Op65_75) { RunRockwellOpcode (0x75); }
+        TEST_METHOD (Op65_76) { RunRockwellOpcode (0x76); }
+        TEST_METHOD (Op65_77) { RunRockwellOpcode (0x77); }
+        TEST_METHOD (Op65_78) { RunRockwellOpcode (0x78); }
+        TEST_METHOD (Op65_79) { RunRockwellOpcode (0x79); }
+        TEST_METHOD (Op65_7A) { RunRockwellOpcode (0x7A); }
+        TEST_METHOD (Op65_7B) { RunRockwellOpcode (0x7B); }
+        TEST_METHOD (Op65_7C) { RunRockwellOpcode (0x7C); }
+        TEST_METHOD (Op65_7D) { RunRockwellOpcode (0x7D); }
+        TEST_METHOD (Op65_7E) { RunRockwellOpcode (0x7E); }
+        TEST_METHOD (Op65_7F) { RunRockwellOpcode (0x7F); }
+        TEST_METHOD (Op65_80) { RunRockwellOpcode (0x80); }
+        TEST_METHOD (Op65_81) { RunRockwellOpcode (0x81); }
+        TEST_METHOD (Op65_82) { RunRockwellOpcode (0x82); }
+        TEST_METHOD (Op65_83) { RunRockwellOpcode (0x83); }
+        TEST_METHOD (Op65_84) { RunRockwellOpcode (0x84); }
+        TEST_METHOD (Op65_85) { RunRockwellOpcode (0x85); }
+        TEST_METHOD (Op65_86) { RunRockwellOpcode (0x86); }
+        TEST_METHOD (Op65_87) { RunRockwellOpcode (0x87); }
+        TEST_METHOD (Op65_88) { RunRockwellOpcode (0x88); }
+        TEST_METHOD (Op65_89) { RunRockwellOpcode (0x89); }
+        TEST_METHOD (Op65_8A) { RunRockwellOpcode (0x8A); }
+        TEST_METHOD (Op65_8B) { RunRockwellOpcode (0x8B); }
+        TEST_METHOD (Op65_8C) { RunRockwellOpcode (0x8C); }
+        TEST_METHOD (Op65_8D) { RunRockwellOpcode (0x8D); }
+        TEST_METHOD (Op65_8E) { RunRockwellOpcode (0x8E); }
+        TEST_METHOD (Op65_8F) { RunRockwellOpcode (0x8F); }
+        TEST_METHOD (Op65_90) { RunRockwellOpcode (0x90); }
+        TEST_METHOD (Op65_91) { RunRockwellOpcode (0x91); }
+        TEST_METHOD (Op65_92) { RunRockwellOpcode (0x92); }
+        TEST_METHOD (Op65_93) { RunRockwellOpcode (0x93); }
+        TEST_METHOD (Op65_94) { RunRockwellOpcode (0x94); }
+        TEST_METHOD (Op65_95) { RunRockwellOpcode (0x95); }
+        TEST_METHOD (Op65_96) { RunRockwellOpcode (0x96); }
+        TEST_METHOD (Op65_97) { RunRockwellOpcode (0x97); }
+        TEST_METHOD (Op65_98) { RunRockwellOpcode (0x98); }
+        TEST_METHOD (Op65_99) { RunRockwellOpcode (0x99); }
+        TEST_METHOD (Op65_9A) { RunRockwellOpcode (0x9A); }
+        TEST_METHOD (Op65_9B) { RunRockwellOpcode (0x9B); }
+        TEST_METHOD (Op65_9C) { RunRockwellOpcode (0x9C); }
+        TEST_METHOD (Op65_9D) { RunRockwellOpcode (0x9D); }
+        TEST_METHOD (Op65_9E) { RunRockwellOpcode (0x9E); }
+        TEST_METHOD (Op65_9F) { RunRockwellOpcode (0x9F); }
+        TEST_METHOD (Op65_A0) { RunRockwellOpcode (0xA0); }
+        TEST_METHOD (Op65_A1) { RunRockwellOpcode (0xA1); }
+        TEST_METHOD (Op65_A2) { RunRockwellOpcode (0xA2); }
+        TEST_METHOD (Op65_A3) { RunRockwellOpcode (0xA3); }
+        TEST_METHOD (Op65_A4) { RunRockwellOpcode (0xA4); }
+        TEST_METHOD (Op65_A5) { RunRockwellOpcode (0xA5); }
+        TEST_METHOD (Op65_A6) { RunRockwellOpcode (0xA6); }
+        TEST_METHOD (Op65_A7) { RunRockwellOpcode (0xA7); }
+        TEST_METHOD (Op65_A8) { RunRockwellOpcode (0xA8); }
+        TEST_METHOD (Op65_A9) { RunRockwellOpcode (0xA9); }
+        TEST_METHOD (Op65_AA) { RunRockwellOpcode (0xAA); }
+        TEST_METHOD (Op65_AB) { RunRockwellOpcode (0xAB); }
+        TEST_METHOD (Op65_AC) { RunRockwellOpcode (0xAC); }
+        TEST_METHOD (Op65_AD) { RunRockwellOpcode (0xAD); }
+        TEST_METHOD (Op65_AE) { RunRockwellOpcode (0xAE); }
+        TEST_METHOD (Op65_AF) { RunRockwellOpcode (0xAF); }
+        TEST_METHOD (Op65_B0) { RunRockwellOpcode (0xB0); }
+        TEST_METHOD (Op65_B1) { RunRockwellOpcode (0xB1); }
+        TEST_METHOD (Op65_B2) { RunRockwellOpcode (0xB2); }
+        TEST_METHOD (Op65_B3) { RunRockwellOpcode (0xB3); }
+        TEST_METHOD (Op65_B4) { RunRockwellOpcode (0xB4); }
+        TEST_METHOD (Op65_B5) { RunRockwellOpcode (0xB5); }
+        TEST_METHOD (Op65_B6) { RunRockwellOpcode (0xB6); }
+        TEST_METHOD (Op65_B7) { RunRockwellOpcode (0xB7); }
+        TEST_METHOD (Op65_B8) { RunRockwellOpcode (0xB8); }
+        TEST_METHOD (Op65_B9) { RunRockwellOpcode (0xB9); }
+        TEST_METHOD (Op65_BA) { RunRockwellOpcode (0xBA); }
+        TEST_METHOD (Op65_BB) { RunRockwellOpcode (0xBB); }
+        TEST_METHOD (Op65_BC) { RunRockwellOpcode (0xBC); }
+        TEST_METHOD (Op65_BD) { RunRockwellOpcode (0xBD); }
+        TEST_METHOD (Op65_BE) { RunRockwellOpcode (0xBE); }
+        TEST_METHOD (Op65_BF) { RunRockwellOpcode (0xBF); }
+        TEST_METHOD (Op65_C0) { RunRockwellOpcode (0xC0); }
+        TEST_METHOD (Op65_C1) { RunRockwellOpcode (0xC1); }
+        TEST_METHOD (Op65_C2) { RunRockwellOpcode (0xC2); }
+        TEST_METHOD (Op65_C3) { RunRockwellOpcode (0xC3); }
+        TEST_METHOD (Op65_C4) { RunRockwellOpcode (0xC4); }
+        TEST_METHOD (Op65_C5) { RunRockwellOpcode (0xC5); }
+        TEST_METHOD (Op65_C6) { RunRockwellOpcode (0xC6); }
+        TEST_METHOD (Op65_C7) { RunRockwellOpcode (0xC7); }
+        TEST_METHOD (Op65_C8) { RunRockwellOpcode (0xC8); }
+        TEST_METHOD (Op65_C9) { RunRockwellOpcode (0xC9); }
+        TEST_METHOD (Op65_CA) { RunRockwellOpcode (0xCA); }
+        TEST_METHOD (Op65_CB) { RunRockwellOpcode (0xCB); }
+        TEST_METHOD (Op65_CC) { RunRockwellOpcode (0xCC); }
+        TEST_METHOD (Op65_CD) { RunRockwellOpcode (0xCD); }
+        TEST_METHOD (Op65_CE) { RunRockwellOpcode (0xCE); }
+        TEST_METHOD (Op65_CF) { RunRockwellOpcode (0xCF); }
+        TEST_METHOD (Op65_D0) { RunRockwellOpcode (0xD0); }
+        TEST_METHOD (Op65_D1) { RunRockwellOpcode (0xD1); }
+        TEST_METHOD (Op65_D2) { RunRockwellOpcode (0xD2); }
+        TEST_METHOD (Op65_D3) { RunRockwellOpcode (0xD3); }
+        TEST_METHOD (Op65_D4) { RunRockwellOpcode (0xD4); }
+        TEST_METHOD (Op65_D5) { RunRockwellOpcode (0xD5); }
+        TEST_METHOD (Op65_D6) { RunRockwellOpcode (0xD6); }
+        TEST_METHOD (Op65_D7) { RunRockwellOpcode (0xD7); }
+        TEST_METHOD (Op65_D8) { RunRockwellOpcode (0xD8); }
+        TEST_METHOD (Op65_D9) { RunRockwellOpcode (0xD9); }
+        TEST_METHOD (Op65_DA) { RunRockwellOpcode (0xDA); }
+        TEST_METHOD (Op65_DB) { RunRockwellOpcode (0xDB); }
+        TEST_METHOD (Op65_DC) { RunRockwellOpcode (0xDC); }
+        TEST_METHOD (Op65_DD) { RunRockwellOpcode (0xDD); }
+        TEST_METHOD (Op65_DE) { RunRockwellOpcode (0xDE); }
+        TEST_METHOD (Op65_DF) { RunRockwellOpcode (0xDF); }
+        TEST_METHOD (Op65_E0) { RunRockwellOpcode (0xE0); }
+        TEST_METHOD (Op65_E1) { RunRockwellOpcode (0xE1); }
+        TEST_METHOD (Op65_E2) { RunRockwellOpcode (0xE2); }
+        TEST_METHOD (Op65_E3) { RunRockwellOpcode (0xE3); }
+        TEST_METHOD (Op65_E4) { RunRockwellOpcode (0xE4); }
+        TEST_METHOD (Op65_E5) { RunRockwellOpcode (0xE5); }
+        TEST_METHOD (Op65_E6) { RunRockwellOpcode (0xE6); }
+        TEST_METHOD (Op65_E7) { RunRockwellOpcode (0xE7); }
+        TEST_METHOD (Op65_E8) { RunRockwellOpcode (0xE8); }
+        TEST_METHOD (Op65_E9) { RunRockwellOpcode (0xE9); }
+        TEST_METHOD (Op65_EA) { RunRockwellOpcode (0xEA); }
+        TEST_METHOD (Op65_EB) { RunRockwellOpcode (0xEB); }
+        TEST_METHOD (Op65_EC) { RunRockwellOpcode (0xEC); }
+        TEST_METHOD (Op65_ED) { RunRockwellOpcode (0xED); }
+        TEST_METHOD (Op65_EE) { RunRockwellOpcode (0xEE); }
+        TEST_METHOD (Op65_EF) { RunRockwellOpcode (0xEF); }
+        TEST_METHOD (Op65_F0) { RunRockwellOpcode (0xF0); }
+        TEST_METHOD (Op65_F1) { RunRockwellOpcode (0xF1); }
+        TEST_METHOD (Op65_F2) { RunRockwellOpcode (0xF2); }
+        TEST_METHOD (Op65_F3) { RunRockwellOpcode (0xF3); }
+        TEST_METHOD (Op65_F4) { RunRockwellOpcode (0xF4); }
+        TEST_METHOD (Op65_F5) { RunRockwellOpcode (0xF5); }
+        TEST_METHOD (Op65_F6) { RunRockwellOpcode (0xF6); }
+        TEST_METHOD (Op65_F7) { RunRockwellOpcode (0xF7); }
+        TEST_METHOD (Op65_F8) { RunRockwellOpcode (0xF8); }
+        TEST_METHOD (Op65_F9) { RunRockwellOpcode (0xF9); }
+        TEST_METHOD (Op65_FA) { RunRockwellOpcode (0xFA); }
+        TEST_METHOD (Op65_FB) { RunRockwellOpcode (0xFB); }
+        TEST_METHOD (Op65_FC) { RunRockwellOpcode (0xFC); }
+        TEST_METHOD (Op65_FD) { RunRockwellOpcode (0xFD); }
+        TEST_METHOD (Op65_FE) { RunRockwellOpcode (0xFE); }
+        TEST_METHOD (Op65_FF) { RunRockwellOpcode (0xFF); }
 
     };
 
