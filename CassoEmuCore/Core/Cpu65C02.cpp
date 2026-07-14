@@ -338,9 +338,14 @@ void Cpu65C02::InitializeNops ()
 {
     int    i = 0;
 
+    // These reserved / undefined-opcode slots execute and disassemble as NOPs
+    // (real CMOS behavior), but they are opcode-map fill, not instructions anyone
+    // writes -- so hide them from the assembler. Otherwise the highest such slot
+    // would shadow the canonical NOP ($EA) when OpcodeTable inverts by mnemonic.
     for (const ReservedNop & e : s_kReservedNops)
     {
         SetOpcode (e.opcode, "NOP", Microcode::NoOperation, e.mode, nullptr, nullptr, e.cycles);
+        instructionSet[e.opcode].assemblerHidden = true;
     }
 
     for (i = 0; i <= 0xFF; ++i)
@@ -348,6 +353,7 @@ void Cpu65C02::InitializeNops ()
         if (!instructionSet[i].isLegal)
         {
             SetOpcode (static_cast<Byte> (i), "NOP", Microcode::NoOperation, GlobalAddressingMode::SingleByteNoOperand, nullptr, nullptr, s_kOneByteNopCycles);
+            instructionSet[i].assemblerHidden = true;
         }
     }
 }

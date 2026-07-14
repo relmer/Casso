@@ -127,7 +127,10 @@ OpcodeTable::OpcodeTable (const Microcode instructionSet[256])
     {
         const Microcode & mc = instructionSet[i];
 
-        if (!mc.isLegal)
+        // Skip illegal opcodes and assembler-hidden fills (e.g. the 65C02
+        // reserved-NOP slots): they execute and disassemble, but must not be
+        // selectable by mnemonic -- otherwise a filler NOP would shadow $EA.
+        if (!mc.isLegal || mc.assemblerHidden)
         {
             continue;
         }

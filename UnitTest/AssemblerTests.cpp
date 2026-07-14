@@ -2220,6 +2220,21 @@ namespace AssemblerTests
         }
 
 
+        //  NOP must assemble to the canonical $EA, not one of the 65C02's reserved
+        //  NOP-fill slots. Those slots execute/disassemble as NOPs but are hidden
+        //  from the opcode table, so they can't shadow $EA.
+
+        TEST_METHOD (NOP_EncodesToCanonicalEA)
+        {
+            Assembler a = BuildAssembler65C02 ();
+
+            auto r = a.Assemble ("NOP");
+            Assert::IsTrue (r.success);
+            Assert::AreEqual ((size_t) 1, r.bytes.size ());
+            Assert::AreEqual ((Byte) 0xEA, r.bytes[0]);
+        }
+
+
         //  A representative non-bit CMOS opcode also assembles on the 65C02 table.
 
         TEST_METHOD (STZ_ZeroPage_Encodes)
