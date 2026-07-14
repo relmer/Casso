@@ -377,7 +377,7 @@ void PrinterPanel::RefreshLive (PrinterWorker & worker, int64_t nowMs, bool forc
     }
     else if (worker.SnapshotStripSpan (span.firstRow, span.lastRow, spanRaster))
     {
-        RenderSpan (spanRaster, span.firstRow, revealRow, revealCol);
+        RenderSpan (spanRaster, span.firstRow, span.lastRow, revealRow, revealCol);
     }
     else
     {
@@ -432,7 +432,7 @@ void PrinterPanel::SetStrip (const PrintRaster & raster)
 
     span = m_viewport.VisibleSpan ();
     raster.CopyRowSpan (span.firstRow, span.lastRow, spanRaster);
-    RenderSpan (spanRaster, span.firstRow, -1, 0);   // no live head: show everything
+    RenderSpan (spanRaster, span.firstRow, span.lastRow, -1, 0);   // no live head: show everything
 
     m_renderedSpan = span;
     m_hasRendered  = true;
@@ -452,7 +452,7 @@ void PrinterPanel::SetStrip (const PrintRaster & raster)
 
 void PrinterPanel::ShowBlankSheet ()
 {
-    ComposeCanvas (nullptr, 0, -1, 0);
+    ComposeCanvas (nullptr, 0, 0, -1, 0);
 }
 
 
@@ -463,14 +463,18 @@ void PrinterPanel::ShowBlankSheet ()
 //  PrinterPanel::RenderSpan
 //
 //  Render the (rebased) span raster, then compose it onto the fanfold canvas.
-//  `firstAbsRow` is the span's first row in strip-absolute terms, which keys
-//  the sprocket-hole / perforation phase so the furniture scrolls WITH the
-//  paper instead of sitting still while content slides past it. The reveal
+//  `firstAbsRow`/`lastAbsRow` are the span's bounds in strip-absolute terms:
+//  the canvas bottom is the span's LAST row (the live row at the platen), and
+//  the sprocket-hole / perforation phase keys off the same frame so the
+//  furniture scrolls WITH the paper instead of sitting still while content
+//  slides past it. The rendered image covers only the span's INK extent
+//  (RowsUsed), which can end well above the live row -- a welcome banner
+//  followed by nothing must NOT be dragged down to the platen. The reveal
 //  pair (band top + head column, FR-034) clips the live line; -1 disables.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void PrinterPanel::RenderSpan (const PrintRaster & spanRaster, int firstAbsRow,
+void PrinterPanel::RenderSpan (const PrintRaster & spanRaster, int firstAbsRow, int lastAbsRow,
                                int revealBandTopAbs, int revealColDots)
 {
     HRESULT                  hr   = S_OK;
@@ -481,7 +485,9 @@ void PrinterPanel::RenderSpan (const PrintRaster & spanRaster, int firstAbsRow,
 
     if (rows <= 0)
     {
-        ShowBlankSheet ();
+        // Ink-free span: blank paper, but keep the furniture phase locked to
+        // the span so holes and perforations still track the scroll.
+        ComposeCanvas (nullptr, 0, lastAbsRow, -1, 0);
         return;
     }
 
@@ -495,7 +501,7 @@ void PrinterPanel::RenderSpan (const PrintRaster & spanRaster, int firstAbsRow,
         return;   // keep the previous frame rather than flash a bad one
     }
 
-    ComposeCanvas (&img, firstAbsRow, revealBandTopAbs, revealColDots);
+    ComposeCanvas (&img, firstAbsRow, lastAbsRow, revealBandTopAbs, revealColDots);
 }
 
 
@@ -508,12 +514,14 @@ void PrinterPanel::RenderSpan (const PrintRaster & spanRaster, int firstAbsRow,
 //  Builds the fanfold-paper view (FR-032): a fixed full-viewport canvas at
 //  9.5" stock width -- tractor strips with sprocket holes down both edges,
 //  light vertical perforations where the strips tear off, cross perforations
-//  at every 11" page boundary -- with the rendered content bottom-anchored in
-//  the printable area (the live row sits at the bottom, where the platen
-//  will be). Hole and perforation phase is strip-absolute, so the furniture
-//  feeds upward with the paper. Constant canvas size = stable texture and
-//  scale-to-fit (no zoom jumps). Holes are punched transparent so the dark
-//  mat shows through them.
+//  at every 11" page boundary. The canvas bottom is `bottomAbsRow` (the
+//  span's live row, where the platen will be) and content rows land at their
+//  true strip positions above it -- ink that ends before the live row keeps
+//  its trailing gap instead of being dragged down to the platen. Hole and
+//  perforation phase is strip-absolute, so the furniture feeds upward with
+//  the paper. Constant canvas size = stable texture and scale-to-fit (no
+//  zoom jumps). Holes are punched transparent so the dark mat shows through
+//  them.
 //
 //  The FR-034 reveal mask clips the live pin band: rows at or below
 //  `revealBandTopAbs` show ink only left of the paced head column, so the
@@ -521,24 +529,14 @@ void PrinterPanel::RenderSpan (const PrintRaster & spanRaster, int firstAbsRow,
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void PrinterPanel::ComposeCanvas (const RgbaImage * content, int contentFirstAbsRow,
+void PrinterPanel::ComposeCanvas (const RgbaImage * content, int contentFirstAbsRow, int bottomAbsRow,
                                   int revealBandTopAbs, int revealColDots)
 {
     HRESULT                 hr        = S_OK;
     int                     canvasW   = s_kStockWidthPx;
     int                     canvasH   = m_viewport.ViewportRows ();   // px == rows at 144 dpi
-    int                     topAbsRow = 0;
+    int                     topAbsRow = bottomAbsRow - canvasH + 1;   // canvas bottom = span's live row
     std::vector<uint32_t>   bgra ((size_t) canvasW * canvasH, 0xFFFFFFFFu);   // paper white
-
-    // The canvas bottom is the content span's last row (blank sheet: row 0).
-    if (content != nullptr)
-    {
-        topAbsRow = contentFirstAbsRow + content->height - canvasH;
-    }
-    else
-    {
-        topAbsRow = 1 - canvasH;
-    }
 
     // Content, bottom-anchored in the printable area, premultiplied for the
     // GPU blit (paper is opaque, but anti-aliased dot edges carry alpha).

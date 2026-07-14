@@ -72,8 +72,10 @@ private:
     int         m_paramsGot     = 0;
     Byte        m_params[4]     = { 0, 0, 0, 0 };
 
-    // Active bit-image run.
+    // Active bit-image run. m_gfxMsbTop selects the pin order: ESC G data
+    // puts the TOP pin in bit 0, ESC L data in bit 7 (T011 capture).
     int         m_gfxRemaining  = 0;
+    bool        m_gfxMsbTop     = false;
     int         m_burstFromDot  = -1;
     int         m_burstToDot    = -1;
     int         m_burstRow      = 0;

@@ -900,10 +900,20 @@ void Printer3DScene::BuildPaper (std::vector<Vertex> & out) const
     float   cy       = p1y + s_kCurlRadius * ny;        // curl center
     float   cz       = p1z + s_kCurlRadius * nz;
 
-    float   prevY    = m_paperStartY;
-    float   prevZ    = m_paperZ;
+    // The live end of the paper wraps the platen the way the real machine
+    // feeds it: the newest row sits at the roller's FRONT (under the head,
+    // read through the smoked window), arcs over the top, and disappears
+    // behind the roller where the sheet re-emerges as the rising fanfold.
+    // The short run hidden behind the roller is simply not built -- it is
+    // occluded on the real machine too.
+    float   wrapR    = m_platenR + 0.002f;              // just off the rubber, INSIDE the smoked barrel
+    float   wrapEnd  = 1.833f;                          // ~105 deg: past the top, into occlusion
+    float   arcLen   = wrapR * wrapEnd;
+
+    float   prevY    = m_platenY;                       // theta = 0: the front strike line
+    float   prevZ    = m_platenZ + wrapR;
     float   prevV    = 1.0f;
-    float   prevSh   = 1.0f;
+    float   prevSh   = 0.72f;
 
     for (int i = 1; i <= s_kPaperSlices; i++)
     {
@@ -912,14 +922,24 @@ void Printer3DScene::BuildPaper (std::vector<Vertex> & out) const
         float   zPos  = 0.0f;
         float   shade = 1.0f;
 
-        if (s <= s_kStraightLen)
+        if (s <= arcLen)
         {
-            yPos = m_paperStartY + dy * s;
-            zPos = m_paperZ + dz * s;
+            float   theta = s / wrapR;
+
+            yPos  = m_platenY + wrapR * std::sin (theta);
+            zPos  = m_platenZ + wrapR * std::cos (theta);
+            shade = 0.72f + 0.28f * (std::max) (0.0f, std::sin (theta));
+        }
+        else if (s - arcLen <= s_kStraightLen)
+        {
+            float   s2 = s - arcLen;
+
+            yPos = m_paperStartY + dy * s2;
+            zPos = m_paperZ + dz * s2;
         }
         else
         {
-            float   phi = (s - s_kStraightLen) / s_kCurlRadius;
+            float   phi = (s - arcLen - s_kStraightLen) / s_kCurlRadius;
 
             yPos  = cy + s_kCurlRadius * (-ny * std::cos (phi) + dy * std::sin (phi));
             zPos  = cz + s_kCurlRadius * (-nz * std::cos (phi) + dz * std::sin (phi));
@@ -956,9 +976,9 @@ void Printer3DScene::BuildPaper (std::vector<Vertex> & out) const
         prevSh = shade;
 
         // The curl's tail fell behind the printer: the rest is out of sight.
-        // (Only the curl -- the straight section legitimately starts below
-        // the cover's top edge, inside the machine.)
-        if (s > s_kStraightLen && yPos < s_kDeckY + 0.05f)
+        // (Only the curl -- the platen wrap and straight section legitimately
+        // pass below the cover's top edge, inside the machine.)
+        if (s - arcLen > s_kStraightLen && yPos < s_kDeckY + 0.05f)
         {
             break;
         }

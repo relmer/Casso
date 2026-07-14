@@ -44,6 +44,20 @@ captures verifies which offsets its drivers actually touch. The exact ready
 bit position(s) get locked down then — the card can assert ready on all bits
 that any driver tests without conflict.
 
+**LOCKED (2026-07-14, live Print Shop capture — T011)**: ready = `$83`,
+busy = `$00`. Print Shop's Grappler+ driver probes `(status & $07) == $03`
+before sending a single byte (Centronics SELECT and FAULT# high with
+PAPER-OUT **low** — so the old all-bits-set `$FF` guess failed the probe and
+produced "PRINTER TEST FAILED" with zero bytes written). Our firmware's CSW
+loop and Print Shop's Apple II Parallel driver both poll bit 7 set; `$83`
+satisfies every observed probe at once. The Apple II Parallel driver polls
+`$C0n4` and streams regardless; Grappler+ reads the status via `LDA abs,X`
+with `X = slot*16`. Two further captures locked graphics behavior: the
+welcome message arrives as `ESC L <lo> <hi>` (binary little-endian column
+count, 512 for the test) followed by exactly that many column bytes, with
+**bit 7 as the TOP pin** — the reverse of `ESC G`'s documented LSB-top
+order (the message prints upside down otherwise).
+
 ## R-002: Slot firmware strategy
 
 **Decision**: Original firmware written as

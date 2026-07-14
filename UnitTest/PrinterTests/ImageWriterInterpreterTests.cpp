@@ -123,6 +123,81 @@ namespace ImageWriterInterpreterTests
         }
 
 
+        TEST_METHOD (BinaryCountBitImageStrikesLikeEscG)
+        {
+            ImageWriterInterpreter   interp;
+            PrintRaster              raster;
+            vector<PrinterEvent>     events;
+
+            // ESC L with a BINARY little-endian count -- the form Print
+            // Shop's ImageWriter driver sends for its setup welcome message
+            // (T011 capture: ESC L $00 $02 + 512 columns). Pin order is the
+            // REVERSE of ESC G: the MSB is the top pin (the welcome message
+            // prints upside down otherwise).
+            Feed (interp, raster, events, { 0x1B, 'L', 0x02, 0x00, 0x80, 0x01 });
+
+            Assert::AreEqual ((Byte) InkPrimary::Black, raster.CellAt (0, 0));   // MSB -> TOP pin
+            Assert::AreEqual ((Byte) InkPrimary::Black, raster.CellAt (1, 14));  // LSB -> bottom pin
+            Assert::AreEqual ((Byte) 0,                 raster.CellAt (0, 14));
+
+            Assert::AreEqual (1, CountEvents (events, PrinterEventType::HeadBurst));
+            Assert::AreEqual (0, CountEvents (events, PrinterEventType::UnknownCommand));
+            Assert::AreEqual (0, events.back ().fromDot);
+            Assert::AreEqual (1, events.back ().toDot);
+        }
+
+
+        TEST_METHOD (BinaryCountBitImageHighByteScalesCount)
+        {
+            ImageWriterInterpreter   interp;
+            PrintRaster              raster;
+            vector<PrinterEvent>     events;
+            vector<Byte>             stream = { 0x1B, 'L', 0x00, 0x01 };   // count = 256, LSB first
+
+            for (int i = 0; i < 256; i++)
+            {
+                stream.push_back (0x80);   // top pin (MSB) all the way across
+            }
+            Feed (interp, raster, events, stream);
+
+            Assert::AreEqual ((Byte) InkPrimary::Black, raster.CellAt (0,   0));
+            Assert::AreEqual ((Byte) InkPrimary::Black, raster.CellAt (255, 0));
+            Assert::AreEqual (1, CountEvents (events, PrinterEventType::HeadBurst));
+            Assert::AreEqual (255, events.back ().toDot);   // all 256 columns were data, not text
+        }
+
+
+        TEST_METHOD (PrintShopWelcomeMessagePrefixRendersInk)
+        {
+            // The exact prefix Print Shop's setup test sends (T011 capture):
+            // CR CR, ESC A, FF, LF, then ESC L $00 $02 + 512 graphics
+            // columns, CR LF. The form feed puts the ink on page 2; the
+            // graphics band must land there with real strikes.
+            ImageWriterInterpreter   interp;
+            PrintRaster              raster;
+            vector<PrinterEvent>     events;
+            vector<Byte>             stream = { 0x0D, 0x0D, 0x1B, 'A', 0x0C, 0x0A, 0x1B, 'L', 0x00, 0x02 };
+
+            for (int i = 0; i < 512; i++)
+            {
+                stream.push_back (0x7F);   // all pins but the top (MSB clear)
+            }
+            stream.push_back (0x0D);
+            stream.push_back (0x0A);
+            Feed (interp, raster, events, stream);
+
+            int   bandTop = PrinterGrid::kPageRows + PrinterGrid::kRowsPerInch / 6;   // FF then one 6-lpi LF
+
+            Assert::AreEqual (1, CountEvents (events, PrinterEventType::HeadBurst));
+            Assert::AreEqual (0, CountEvents (events, PrinterEventType::UnknownCommand));
+            Assert::AreEqual ((Byte) 0,                 raster.CellAt (0,   bandTop));      // MSB clear -> top pin empty
+            Assert::AreEqual ((Byte) InkPrimary::Black, raster.CellAt (0,   bandTop + 2));  // bit 6 -> second pin
+            Assert::AreEqual ((Byte) InkPrimary::Black, raster.CellAt (511, bandTop + 2));
+            Assert::IsTrue (raster.RowsUsed () > bandTop,
+                L"the graphics band must extend the used-rows extent");
+        }
+
+
         TEST_METHOD (CarriageReturnResetsHeadColumn)
         {
             ImageWriterInterpreter   interp;

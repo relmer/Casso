@@ -18,6 +18,7 @@ static constexpr Byte   s_kPrintableHi = 0x7E;
 // ESC command bytes. PROVISIONAL (pending T011 capture) except where noted;
 // isolated here so the grammar is a one-line change once the capture lands.
 static constexpr Byte   s_kCmdGraphics   = 'G';   // bit-image, 4 ASCII-digit count
+static constexpr Byte   s_kCmdGraphicsBin = 'L';  // bit-image, 2 BINARY count bytes (LSB first)
 static constexpr Byte   s_kCmdLineSpace  = 'T';   // n/144" line feed, 2 ASCII digits
 static constexpr Byte   s_kCmd6Lpi       = 'A';   // 1/6" line feed
 static constexpr Byte   s_kCmd8Lpi       = 'B';   // 1/8" line feed
@@ -34,7 +35,8 @@ static constexpr Byte   s_kCmdPrintDirFwd = '>';
 static constexpr Byte   s_kCmdPrintDirRev = '<';
 static constexpr Byte   s_kCmdGfxPitch    = 'P';
 
-static constexpr int    s_kGraphicsDigits   = 4;
+static constexpr int    s_kGraphicsDigits    = 4;
+static constexpr int    s_kGraphicsBinParams = 2;
 static constexpr int    s_kLineSpaceDigits   = 2;
 static constexpr int    s_kColorParams       = 1;
 
@@ -268,6 +270,11 @@ void ImageWriterInterpreter::ConsumeEsc (Byte b, PrintRaster & raster, vector<Pr
         m_paramsNeeded = s_kGraphicsDigits;
         m_state        = EscState::Param;
     }
+    else if (b == s_kCmdGraphicsBin)
+    {
+        m_paramsNeeded = s_kGraphicsBinParams;
+        m_state        = EscState::Param;
+    }
     else if (b == s_kCmdLineSpace)
     {
         m_paramsNeeded = s_kLineSpaceDigits;
@@ -331,6 +338,22 @@ void ImageWriterInterpreter::ExecuteParamCommand (PrintRaster & raster, vector<P
         int   dataCount = DecodeAsciiDigits (m_params, s_kGraphicsDigits);
 
         m_gfxRemaining = dataCount;
+        m_gfxMsbTop    = false;
+        m_burstFromDot = -1;
+        m_burstToDot   = -1;
+        m_state        = dataCount > 0 ? EscState::GraphicsData : EscState::Idle;
+    }
+    else if (m_cmd == s_kCmdGraphicsBin)
+    {
+        // Binary-count bit image, count LSB first. Locked from the Print
+        // Shop printer-test capture (T011): its ImageWriter welcome message
+        // arrives as ESC L $00 $02 followed by exactly 512 column bytes --
+        // and prints upside down unless the MSB is the TOP pin, the
+        // opposite bit order from ESC G.
+        int   dataCount = m_params[0] | (m_params[1] << 8);
+
+        m_gfxRemaining = dataCount;
+        m_gfxMsbTop    = true;
         m_burstFromDot = -1;
         m_burstToDot   = -1;
         m_state        = dataCount > 0 ? EscState::GraphicsData : EscState::Idle;
@@ -388,7 +411,9 @@ void ImageWriterInterpreter::ConsumeGraphicsByte (Byte b, PrintRaster & raster, 
     {
         if ((b & (0x01 << bit)) != 0)
         {
-            int   top = row + bit * s_kGraphicsRowsPerPin;
+            // ESC G: bit 0 is the top pin. ESC L: bit 7 is (T011 capture).
+            int   pin = m_gfxMsbTop ? (s_kGraphicsPins - 1 - bit) : bit;
+            int   top = row + pin * s_kGraphicsRowsPerPin;
 
             for (int r = 0; r < s_kGraphicsRowsPerPin; r++)
             {

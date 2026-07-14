@@ -91,9 +91,9 @@ protected:
 
 private:
     void     ShowBlankSheet ();
-    void     RenderSpan     (const PrintRaster & spanRaster, int firstAbsRow,
+    void     RenderSpan     (const PrintRaster & spanRaster, int firstAbsRow, int lastAbsRow,
                              int revealBandTopAbs, int revealColDots);
-    void     ComposeCanvas  (const RgbaImage * content, int contentFirstAbsRow,
+    void     ComposeCanvas  (const RgbaImage * content, int contentFirstAbsRow, int bottomAbsRow,
                              int revealBandTopAbs, int revealColDots);
 
     static int64_t  NowMs ();
