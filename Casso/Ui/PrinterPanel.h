@@ -2,6 +2,7 @@
 
 #include "Window/DxuiWindow.h"
 #include "Widgets/DxuiButton.h"
+#include "Widgets/DxuiTooltip.h"
 
 #include "Devices/Printer/PrinterPacing.h"
 #include "Devices/Printer/PrinterViewport.h"
@@ -71,7 +72,6 @@ public:
     void     SetOnCopy     (ActionFn fn) { m_onCopy     = std::move (fn); }
     void     SetOnDiscard  (ActionFn fn) { m_onDiscard  = std::move (fn); }
     void     SetOnFormFeed (ActionFn fn) { m_onFormFeed = std::move (fn); }
-    void     SetOnRefresh  (ActionFn fn) { m_onRefresh  = std::move (fn); }
 
     void     Layout (const RECT          & boundsDip,
                      const DxuiDpiScaler & scaler) override;
@@ -92,6 +92,7 @@ protected:
 
 private:
     void     ShowBlankSheet ();
+    void     UpdateTooltip  (int x, int y);
     void     RenderSpan     (const PrintRaster & spanRaster, int firstAbsRow, int lastAbsRow,
                              bool contentDirty, int revealBandTopAbs, int revealColDots);
     void     ComposeCanvas  (const RgbaImage * content, int contentFirstAbsRow, int bottomAbsRow,
@@ -106,13 +107,18 @@ private:
     DxuiButton        * m_copy     = nullptr;
     DxuiButton        * m_discard  = nullptr;
     DxuiButton        * m_formFeed = nullptr;
-    DxuiButton        * m_refresh  = nullptr;
 
     ActionFn            m_onFinish;
     ActionFn            m_onCopy;
     ActionFn            m_onDiscard;
     ActionFn            m_onFormFeed;
-    ActionFn            m_onRefresh;
+
+    // Hover tooltips for the toolbar (disabled buttons explain WHY they are
+    // disabled), plus the guest-activity clock that drives the Form Feed
+    // button's enabled state: feeding mid-print would interleave a page
+    // break into the guest's stream, so it only arms once the print idles.
+    DxuiTooltip         m_tooltip;
+    int64_t             m_lastActivityChangeMs = 0;
 
     // Live-viewport state (FR-033). m_renderedSpan/-Activity detect "something
     // changed" so an idle panel does zero render work per frame.

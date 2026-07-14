@@ -36,6 +36,10 @@ namespace
     constexpr int       s_kWheelRowsPerNotch = 96;    // 2/3" per wheel notch
     constexpr int       s_kArrowScrollRows   = 48;    // 1/3" per key press
 
+    // Guest-activity gap after which the print counts as finished: Form Feed
+    // arms, matching the shell-side gate on the same signal.
+    constexpr int64_t   s_kPrintIdleMs = 1200;
+
     // Fanfold paper furniture (FR-032; panel-only per FR-027), all in px at the
     // fixed 144 dpi preview scale. Real continuous-form stock: 9.5" wide with
     // 0.5" tractor strips both sides (tear width 8.5"), 5/32" sprocket holes on
@@ -168,6 +172,8 @@ HRESULT PrinterPanel::Create (
 
     SetTheme (m_theme);
 
+    m_tooltip.SetPopupHost (PopupHost ());
+
     // 3D presentation (FR-032): build the scene on THIS window's own device
     // (its swap chain does not live on the emulator renderer's device) and
     // draw it from the before-present hook -- under the panel chrome, which
@@ -226,17 +232,15 @@ Error:
 void PrinterPanel::OnCreate ()
 {
     m_paper    = CreateChild<PrinterPaperView> ();
-    m_finish   = CreateChild<DxuiButton> (L"Finish");
+    m_finish   = CreateChild<DxuiButton> (L"Eject");
     m_copy     = CreateChild<DxuiButton> (L"Copy");
     m_discard  = CreateChild<DxuiButton> (L"Discard");
     m_formFeed = CreateChild<DxuiButton> (L"Form Feed");
-    m_refresh  = CreateChild<DxuiButton> (L"Refresh");
 
     m_finish->SetOnClick   ([this] () { if (m_onFinish)   { m_onFinish   (); } });
     m_copy->SetOnClick     ([this] () { if (m_onCopy)     { m_onCopy     (); } });
     m_discard->SetOnClick  ([this] () { if (m_onDiscard)  { m_onDiscard  (); } });
     m_formFeed->SetOnClick ([this] () { if (m_onFormFeed) { m_onFormFeed (); } });
-    m_refresh->SetOnClick  ([this] () { if (m_onRefresh)  { m_onRefresh  (); } });
 }
 
 
@@ -270,8 +274,68 @@ HRESULT PrinterPanel::RenderFrame ()
         return S_OK;
     }
 
+    m_tooltip.Tick (NowMs ());
     Invalidate ();
     return S_OK;
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PrinterPanel::UpdateTooltip
+//
+//  Hover help for the toolbar. A disabled button's tip says WHY it is
+//  disabled instead of what it would do.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void PrinterPanel::UpdateTooltip (int x, int y)
+{
+    int64_t   now = NowMs ();
+
+    if (m_finish != nullptr && m_finish->HitTest (x, y))
+    {
+        m_tooltip.RequestShow (m_finish->Bounds (),
+            m_finish->Enabled ()
+                ? L"Finish the job: deliver the printout to the configured destination (PNG file or Windows printer) and load a fresh sheet"
+                : L"Eject (nothing has been printed yet)",
+            now);
+        return;
+    }
+
+    if (m_copy != nullptr && m_copy->HitTest (x, y))
+    {
+        m_tooltip.RequestShow (m_copy->Bounds (),
+            m_copy->Enabled ()
+                ? L"Copy the whole printout to the clipboard (the paper stays in the printer)"
+                : L"Copy to clipboard (nothing has been printed yet)",
+            now);
+        return;
+    }
+
+    if (m_discard != nullptr && m_discard->HitTest (x, y))
+    {
+        m_tooltip.RequestShow (m_discard->Bounds (),
+            m_discard->Enabled ()
+                ? L"Tear off the printout and throw it away, loading a fresh sheet"
+                : L"Discard (nothing has been printed yet)",
+            now);
+        return;
+    }
+
+    if (m_formFeed != nullptr && m_formFeed->HitTest (x, y))
+    {
+        m_tooltip.RequestShow (m_formFeed->Bounds (),
+            m_formFeed->Enabled ()
+                ? L"Feed the paper to the top of the next page"
+                : L"Form feed (waiting for the current print to finish)",
+            now);
+        return;
+    }
+
+    m_tooltip.RequestHide (now);
 }
 
 
@@ -325,6 +389,25 @@ void PrinterPanel::RefreshLive (PrinterWorker & worker, int64_t nowMs, bool forc
     }
 
     worker.HeadPosition (headRow, headCol);
+
+    // Toolbar validity: the delivery actions need a printout on the paper;
+    // Form Feed arms only once the guest print idles (feeding mid-print
+    // would interleave a page break into its stream).
+    if (activity != m_renderedActivity)
+    {
+        m_lastActivityChangeMs = nowMs;
+    }
+
+    {
+        bool   hasContent = rows > 0;
+        bool   printing   = (m_lastActivityChangeMs != 0)
+                            && (nowMs - m_lastActivityChangeMs < s_kPrintIdleMs);
+
+        if (m_finish   != nullptr) { m_finish->SetEnabled   (hasContent); }
+        if (m_copy     != nullptr) { m_copy->SetEnabled     (hasContent); }
+        if (m_discard  != nullptr) { m_discard->SetEnabled  (hasContent); }
+        if (m_formFeed != nullptr) { m_formFeed->SetEnabled (!printing);  }
+    }
 
     // A shrunk strip means eject/discard tore the paper off: rewind the view
     // and the reveal to the fresh sheet instead of staring past its end.
@@ -861,6 +944,15 @@ bool PrinterPanel::OnMouse (const DxuiMouseEvent & ev)
         return true;   // next RefreshLive renders the moved span immediately
     }
 
+    if (ev.kind == DxuiMouseEventKind::Move)
+    {
+        UpdateTooltip (ev.positionDip.x, ev.positionDip.y);
+    }
+    else if (ev.kind == DxuiMouseEventKind::Down)
+    {
+        m_tooltip.RequestHide (NowMs ());
+    }
+
     return DxuiWindow::OnMouse (ev);
 }
 
@@ -916,7 +1008,7 @@ bool PrinterPanel::OnKey (const DxuiKeyEvent & ev)
 //  PrinterPanel::Layout
 //
 //  Paper view fills the client above a hint strip and bottom toolbar; Finish /
-//  Copy / Discard run left-to-right and Refresh anchors to the right.
+//  Eject / Copy / Discard / Form Feed run left-to-right.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -965,11 +1057,8 @@ void PrinterPanel::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
         }
     }
 
-    if (m_refresh != nullptr)
-    {
-        RECT  r = { boundsDip.right - pad - btnW, by, boundsDip.right - pad, by + btnH };
-        m_refresh->Layout (r, scaler);
-    }
+    m_tooltip.SetViewportSize (boundsDip.right - boundsDip.left,
+                               boundsDip.bottom - boundsDip.top);
 }
 
 

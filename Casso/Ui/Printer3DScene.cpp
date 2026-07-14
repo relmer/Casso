@@ -80,6 +80,7 @@ namespace
     constexpr float   s_kStraightLen = 0.95f;   // arclength before the curl (fits the tilted frame)
     constexpr float   s_kCurlRadius  = 0.28f;
     constexpr int     s_kPaperSlices = 48;
+    constexpr float   s_kEdgeFeather = 0.004f;  // ~2px silhouette fade (no MSAA on the swap chain)
 
     // Camera: in front and above, looking slightly down so the printer sits at
     // the bottom of the frame and the paper rises through the middle.
@@ -900,6 +901,40 @@ void Printer3DScene::BuildBodyBack (std::vector<Vertex> & out) const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AppendSideFeather
+//
+//  A hair-width strip from the paper's edge at xIn out to xOut, fading to
+//  fully transparent -- geometric antialiasing for the sheet's silhouette
+//  (the swap chain has no MSAA, so raw quad edges stair-step against the
+//  mat). Inner vertices carry the slice shades; outer vertices are zeroed
+//  premultiplied color so the blend interpolates to nothing.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+static void AppendSideFeather (std::vector<Dxui3DRenderer::Vertex> & out,
+                               float xIn, float xOut, float u,
+                               float y0, float z0, float v0, float sh0,
+                               float y1, float z1, float v1, float sh1)
+{
+    Dxui3DRenderer::Vertex   in0  = { xIn,  y0, z0, u, v0, sh0, sh0, sh0, 1.0f };
+    Dxui3DRenderer::Vertex   in1  = { xIn,  y1, z1, u, v1, sh1, sh1, sh1, 1.0f };
+    Dxui3DRenderer::Vertex   out0 = { xOut, y0, z0, u, v0, 0.0f, 0.0f, 0.0f, 0.0f };
+    Dxui3DRenderer::Vertex   out1 = { xOut, y1, z1, u, v1, 0.0f, 0.0f, 0.0f, 0.0f };
+
+    out.push_back (in0);
+    out.push_back (out0);
+    out.push_back (in1);
+    out.push_back (out0);
+    out.push_back (out1);
+    out.push_back (in1);
+}
+
+
+
+
+
 void Printer3DScene::BuildPaper (std::vector<Vertex> & out) const
 {
     float   aspect   = (m_contentWidth > 0) ? (float) m_contentHeight / (float) m_contentWidth
@@ -966,6 +1001,11 @@ void Printer3DScene::BuildPaper (std::vector<Vertex> & out) const
                 out[base + k].g *= sh;
                 out[base + k].b *= sh;
             }
+
+            AppendSideFeather (out, -s_kPaperHalfW, -s_kPaperHalfW - s_kEdgeFeather, uy,
+                               p00[1], p00[2], 0.5f, s0, p01[1], p01[2], 0.5f, s1);
+            AppendSideFeather (out,  s_kPaperHalfW,  s_kPaperHalfW + s_kEdgeFeather, uy,
+                               p10[1], p10[2], 0.5f, s0, p11[1], p11[2], 0.5f, s1);
         }
     }
 
@@ -1034,6 +1074,11 @@ void Printer3DScene::BuildPaper (std::vector<Vertex> & out) const
                 out[base + k].g *= sh;
                 out[base + k].b *= sh;
             }
+
+            AppendSideFeather (out, -s_kPaperHalfW, -s_kPaperHalfW - s_kEdgeFeather, 0.001f,
+                               prevY, prevZ, prevV, prevSh, yPos, zPos, v, shade);
+            AppendSideFeather (out,  s_kPaperHalfW,  s_kPaperHalfW + s_kEdgeFeather, 0.999f,
+                               prevY, prevZ, prevV, prevSh, yPos, zPos, v, shade);
         }
 
         prevY  = yPos;
@@ -1041,9 +1086,21 @@ void Printer3DScene::BuildPaper (std::vector<Vertex> & out) const
         prevV  = 1.0f - s / total;
         prevSh = shade;
 
-        // The paper's leading edge: nothing exists beyond it.
+        // The paper's leading edge: nothing exists beyond it (a feather strip
+        // continuing along the path fades the edge itself).
         if (edge)
         {
+            Vertex   in0  = { -s_kPaperHalfW, yPos, zPos, 0.001f, prevV, prevSh, prevSh, prevSh, 1.0f };
+            Vertex   in1  = {  s_kPaperHalfW, yPos, zPos, 0.999f, prevV, prevSh, prevSh, prevSh, 1.0f };
+            Vertex   out0 = { -s_kPaperHalfW, yPos + s_kEdgeFeather, zPos, 0.001f, prevV, 0.0f, 0.0f, 0.0f, 0.0f };
+            Vertex   out1 = {  s_kPaperHalfW, yPos + s_kEdgeFeather, zPos, 0.999f, prevV, 0.0f, 0.0f, 0.0f, 0.0f };
+
+            out.push_back (in0);
+            out.push_back (in1);
+            out.push_back (out0);
+            out.push_back (in1);
+            out.push_back (out1);
+            out.push_back (out0);
             break;
         }
 

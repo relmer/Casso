@@ -2530,10 +2530,6 @@ void EmulatorShell::ShowPrinterPanel (bool activate)
 
             m_printerWorker.FormFeed ();
         });
-        m_printerPanel->SetOnRefresh ([this] ()
-        {
-            SnapshotStripToPanel ();
-        });
     }
 
     SnapshotStripToPanel ();
