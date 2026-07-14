@@ -131,10 +131,24 @@ private:
     // Rendered-span cache: scrolling shifts the visible window over UNCHANGED
     // strip content, so the expensive ink render is reused row-for-row and
     // only newly exposed rows are rendered. Invalidated whenever new bytes
-    // land (contentDirty) or the span geometry stops lining up.
+    // land (contentDirty) or the span geometry stops lining up. The
+    // generation counter bumps on full re-renders so the canvas cache below
+    // knows when content pixels changed under it.
     RgbaImage               m_spanImg;
     int                     m_spanImgFirstAbsRow = 0;
     bool                    m_spanImgValid       = false;
+    uint64_t                m_spanImgGen         = 0;
+
+    // Composed-canvas cache: scroll steps memmove the finished canvas and
+    // rebuild only the newly exposed rows; reveal-sweep frames rebuild only
+    // the live pin band. Anything else falls back to a full compose.
+    std::vector<uint32_t>   m_canvas;
+    int                     m_canvasTopAbs    = 0;
+    int                     m_canvasRevealTop = -2;
+    int                     m_canvasRevealCol = -1;
+    uint64_t                m_canvasSpanGen   = 0;
+    bool                    m_canvasHasContent = false;
+    bool                    m_canvasValid      = false;
 
     // 3D presentation (FR-032): the ImageWriter + curled-paper scene, drawn
     // from the window's before-present hook into m_paperRectPx (which the

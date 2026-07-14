@@ -45,28 +45,28 @@ void PrinterViewport::Advance (int liveRow)
 //  PrinterViewport::Scroll
 //
 //  Moves the view's bottom anchor by deltaRows and clamps it to the strip:
-//  no further back than a full viewport against the top of the paper, no
-//  further forward than the live row. Reaching the live row hands control
-//  back to Following, so a user who scrolls all the way down "catches" the
-//  print head again.
+//  no further back than a full viewport against the top of the paper, and no
+//  further forward than overscrollRows past the live row -- the blank feed
+//  that lifts the just-printed tail out from behind the platen. Landing
+//  exactly on the live row hands control back to Following, so a user who
+//  scrolls onto it "catches" the print head again.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void PrinterViewport::Scroll (int deltaRows, int64_t nowMs)
 {
-    int   bottom = std::clamp (BottomRow () + deltaRows, MinBottomRow (), m_liveRow);
+    int   bottom = std::clamp (BottomRow () + deltaRows,
+                               MinBottomRow (), m_liveRow + m_cfg.overscrollRows);
 
-    // The clamp decides the mode: landing on the live row (including any
-    // scroll on a strip still shorter than one viewport, where there is
-    // nowhere to go) means Following; anywhere earlier means Scrolled.
-    m_following = (bottom >= m_liveRow);
+    m_following = (bottom == m_liveRow);
 
     if (!m_following)
     {
         m_anchorBottom = bottom;
     }
 
-    m_lastScrollMs = nowMs;
+    m_liveRowAtScroll = m_liveRow;
+    m_lastScrollMs    = nowMs;
 }
 
 
@@ -80,9 +80,14 @@ void PrinterViewport::Scroll (int deltaRows, int64_t nowMs)
 
 void PrinterViewport::Tick (int64_t nowMs)
 {
-    if (!m_following && nowMs - m_lastScrollMs >= m_cfg.snapDelayMs)
+    // Snap back only when there is a live print to return to: the live row
+    // must have advanced since the user scrolled. A finished print stays
+    // where the user put it (scrolled back OR overscrolled forward).
+    if (!m_following &&
+        m_liveRow > m_liveRowAtScroll &&
+        nowMs - m_lastScrollMs >= m_cfg.snapDelayMs)
     {
-        m_following = true;   // idle long enough: snap back to the live row
+        m_following = true;
     }
 }
 
@@ -116,10 +121,11 @@ PrinterViewport::Span PrinterViewport::VisibleSpan () const
 
 void PrinterViewport::Reset ()
 {
-    m_liveRow      = 0;
-    m_anchorBottom = 0;
-    m_lastScrollMs = 0;
-    m_following    = true;
+    m_liveRow         = 0;
+    m_anchorBottom    = 0;
+    m_liveRowAtScroll = 0;
+    m_lastScrollMs    = 0;
+    m_following       = true;
 }
 
 
@@ -142,7 +148,7 @@ int PrinterViewport::BottomRow () const
         return m_liveRow;
     }
 
-    return std::clamp (m_anchorBottom, MinBottomRow (), m_liveRow);
+    return std::clamp (m_anchorBottom, MinBottomRow (), m_liveRow + m_cfg.overscrollRows);
 }
 
 

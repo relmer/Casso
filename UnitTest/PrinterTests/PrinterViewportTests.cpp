@@ -9,13 +9,15 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 // row after an idle gap. Clock-injected so every transition is deterministic.
 namespace PrinterViewportTests
 {
-    // Small viewport (100 rows) + short snap (2000 ms) keeps the arithmetic
-    // readable; the production defaults only change the constants.
+    // Small viewport (100 rows), short snap (2000 ms), small overscroll (25
+    // rows) keep the arithmetic readable; the production defaults only
+    // change the constants.
     static PrinterViewport::Config Cfg (int rows = 100, int64_t snapMs = 2000)
     {
         PrinterViewport::Config   c;
-        c.viewportRows = rows;
-        c.snapDelayMs  = snapMs;
+        c.viewportRows   = rows;
+        c.snapDelayMs    = snapMs;
+        c.overscrollRows = 25;
         return c;
     }
 
@@ -100,7 +102,7 @@ namespace PrinterViewportTests
         }
 
 
-        TEST_METHOD (ScrollForwardToLiveResumesFollowing)
+        TEST_METHOD (ScrollForwardOntoLiveResumesFollowing)
         {
             PrinterViewport   v (Cfg ());
 
@@ -108,26 +110,67 @@ namespace PrinterViewportTests
             v.Scroll  (-150, 0);
             Assert::IsFalse (v.FollowingLive ());
 
-            v.Scroll  (+500, 100);   // past the live row
+            v.Scroll  (+150, 100);   // lands exactly on the live row
 
             Assert::IsTrue (v.FollowingLive ());
             Assert::AreEqual (500, v.VisibleSpan ().lastRow);
         }
 
 
-        TEST_METHOD (SnapsBackToLiveAfterIdleDelay)
+        TEST_METHOD (OverscrollPastLiveFeedsBlankPaper)
+        {
+            // Scrolling forward past the live row is the hand form-feed that
+            // lifts the just-printed tail out from behind the platen.
+            PrinterViewport   v (Cfg ());
+
+            v.Advance (500);
+            v.Scroll  (+10, 0);
+
+            Assert::IsFalse (v.FollowingLive ());
+            Assert::AreEqual (510, v.VisibleSpan ().lastRow);
+        }
+
+
+        TEST_METHOD (OverscrollClampsAtItsLimit)
+        {
+            PrinterViewport   v (Cfg ());
+
+            v.Advance (500);
+            v.Scroll  (+100000, 0);
+
+            Assert::AreEqual (525, v.VisibleSpan ().lastRow);   // live + overscrollRows
+        }
+
+
+        TEST_METHOD (SnapsBackToLiveOnceIdleAndPrintingContinued)
         {
             PrinterViewport   v (Cfg (100, 2000));
 
             v.Advance (500);
             v.Scroll  (-150, 1000);
+            v.Advance (600);   // the print keeps going
 
             v.Tick (2999);   // 1999 ms idle: not yet
             Assert::IsFalse (v.FollowingLive ());
 
             v.Tick (3000);   // 2000 ms idle: snap
             Assert::IsTrue  (v.FollowingLive ());
-            Assert::AreEqual (500, v.VisibleSpan ().lastRow);
+            Assert::AreEqual (600, v.VisibleSpan ().lastRow);
+        }
+
+
+        TEST_METHOD (FinishedPrintStaysWhereTheUserScrolledIt)
+        {
+            // No new rows since the scroll: there is no "currently printing
+            // row" to return to, so idling must NOT yank the view away.
+            PrinterViewport   v (Cfg (100, 2000));
+
+            v.Advance (500);
+            v.Scroll  (+10, 1000);   // overscrolled to read the tail
+
+            v.Tick (1000000);
+            Assert::IsFalse (v.FollowingLive ());
+            Assert::AreEqual (510, v.VisibleSpan ().lastRow);
         }
 
 
@@ -138,6 +181,7 @@ namespace PrinterViewportTests
             v.Advance (500);
             v.Scroll  (-150, 1000);
             v.Scroll  (-10,  2500);   // keeps interacting
+            v.Advance (900);          // print continues past the last scroll
 
             v.Tick (3500);            // only 1000 ms since the last scroll
             Assert::IsFalse (v.FollowingLive ());

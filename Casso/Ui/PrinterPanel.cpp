@@ -75,7 +75,7 @@ namespace
     }
 
     constexpr wchar_t   s_kpszScrollHint [] =
-        L"Scroll wheel or Up/Down to review earlier pages \u2022 snaps back to the live row when idle";
+        L"Scroll wheel or Up/Down to review \u2022 scroll past the end to lift the last page \u2022 rejoins a live print when idle";
 
 
     // Read an embedded RCDATA resource (the user's ImageWriter CAD model)
@@ -550,6 +550,7 @@ void PrinterPanel::RenderSpan (const PrintRaster & spanRaster, int firstAbsRow, 
 
         m_spanImgFirstAbsRow = firstAbsRow;
         m_spanImgValid       = true;
+        m_spanImgGen++;      // content pixels changed: the canvas cache must rebuild
     }
 
     if (m_spanImg.height > m_viewport.ViewportRows ())
@@ -588,119 +589,208 @@ void PrinterPanel::RenderSpan (const PrintRaster & spanRaster, int firstAbsRow, 
 void PrinterPanel::ComposeCanvas (const RgbaImage * content, int contentFirstAbsRow, int bottomAbsRow,
                                   int revealBandTopAbs, int revealColDots)
 {
-    HRESULT                 hr        = S_OK;
-    int                     canvasW   = s_kStockWidthPx;
-    int                     canvasH   = m_viewport.ViewportRows ();   // px == rows at 144 dpi
-    int                     topAbsRow = bottomAbsRow - canvasH + 1;   // canvas bottom = span's live row
-    std::vector<uint32_t>   bgra ((size_t) canvasW * canvasH, 0xFFFFFFFFu);   // paper white
+    HRESULT   hr        = S_OK;
+    int       canvasW   = s_kStockWidthPx;
+    int       canvasH   = m_viewport.ViewportRows ();   // px == rows at 144 dpi
+    int       topAbsRow = bottomAbsRow - canvasH + 1;   // canvas bottom = span's live row
+    int       holeR     = s_kHoleRadiusPx;
 
-    // Content, bottom-anchored in the printable area, premultiplied for the
-    // GPU blit (paper is opaque, but anti-aliased dot edges carry alpha).
-    // Rows in the live pin band blit only up to the paced head column; ink to
-    // its right stays paper white until the sweep gets there (FR-034).
-    if (content != nullptr)
+    if (m_canvas.size () != (size_t) canvasW * canvasH)
     {
-        int   yTop = (contentFirstAbsRow - topAbsRow);
-
-        for (int y = 0; y < content->height; y++)
-        {
-            uint32_t *     dst  = &bgra[(size_t) (yTop + y) * canvasW + s_kContentXPx];
-            const Byte *   src  = content->PixelAt (0, y);
-            int            xEnd = content->width;
-
-            if (revealBandTopAbs >= 0 && contentFirstAbsRow + y >= revealBandTopAbs)
-            {
-                xEnd = std::clamp (revealColDots * content->width / PrinterGrid::kDotsPerRow,
-                                   0, content->width);
-            }
-
-            for (int x = 0; x < xEnd; x++)
-            {
-                uint32_t  r = src[x * 4 + 0];
-                uint32_t  g = src[x * 4 + 1];
-                uint32_t  b = src[x * 4 + 2];
-                uint32_t  a = src[x * 4 + 3];
-
-                dst[x] = (a << 24) | ((r * a / 255) << 16) | ((g * a / 255) << 8) | (b * a / 255);
-            }
-        }
+        m_canvas.assign ((size_t) canvasW * canvasH, 0xFFFFFFFFu);
+        m_canvasValid = false;
     }
 
-    // Vertical tear-off perforations where the tractor strips meet the sheet:
-    // dotted 1-px columns, phase locked to the paper (4 px on / 4 px off).
-    for (int y = 0; y < canvasH; y++)
+    // Rebuild canvas rows [rowFirst..rowLast] (canvas-relative, inclusive)
+    // from scratch: paper white, content blit with the FR-034 reveal clip,
+    // perforations, then the sprocket holes whose circles reach the range.
+    // Everything is a function of absolute row phase, so a range rebuild is
+    // bit-identical to the same rows of a full rebuild.
+    auto RebuildRows = [&] (int rowFirst, int rowLast)
     {
-        if (FloorMod (topAbsRow + y, 8) < 4)
+        rowFirst = (std::max) (rowFirst, 0);
+        rowLast  = (std::min) (rowLast, canvasH - 1);
+
+        if (rowLast < rowFirst)
         {
-            DarkenPerf (bgra[(size_t) y * canvasW + s_kStripWidthPx - 1]);
-            DarkenPerf (bgra[(size_t) y * canvasW + canvasW - s_kStripWidthPx]);
+            return;
         }
-    }
 
-    // Cross perforations at every page boundary (11" pitch, strip-absolute):
-    // a dotted row across the full stock width, same dash rhythm.
-    for (int y = 0; y < canvasH; y++)
-    {
-        if (FloorMod (topAbsRow + y, PrinterGrid::kPageRows) == 0)
+        std::fill (m_canvas.begin () + (size_t) rowFirst * canvasW,
+                   m_canvas.begin () + ((size_t) rowLast + 1) * canvasW, 0xFFFFFFFFu);
+
+        // Content, bottom-anchored in the printable area, premultiplied for
+        // the GPU blit (paper is opaque, but anti-aliased dot edges carry
+        // alpha). Rows in the live pin band blit only up to the paced head
+        // column; ink to its right stays paper white until the sweep gets
+        // there (FR-034).
+        if (content != nullptr)
         {
-            uint32_t *   row = &bgra[(size_t) y * canvasW];
+            int   yTop = (contentFirstAbsRow - topAbsRow);
 
-            for (int x = 0; x < canvasW; x++)
+            for (int y = 0; y < content->height; y++)
             {
-                if (x % 8 < 4)
-                {
-                    DarkenPerf (row[x]);
-                }
-            }
-        }
-    }
-
-    // Sprocket holes: punched transparent (alpha 0 -- the mat shows through)
-    // with a soft rim, centered in each strip on the 1/2" pitch.
-    {
-        int   xL = s_kStripWidthPx / 2;
-        int   xR = canvasW - s_kStripWidthPx / 2;
-        int   r  = s_kHoleRadiusPx;
-
-        for (int y = -r; y < canvasH + r; y++)
-        {
-            if (FloorMod (topAbsRow + y, s_kHolePitchPx) != s_kHolePitchPx / 2)
-            {
-                continue;   // y is not a hole-center row
-            }
-
-            for (int dy = -r - 1; dy <= r + 1; dy++)
-            {
-                int   py = y + dy;
-
-                if (py < 0 || py >= canvasH)
+                if (yTop + y < rowFirst || yTop + y > rowLast)
                 {
                     continue;
                 }
 
-                for (int dx = -r - 1; dx <= r + 1; dx++)
+                uint32_t *     dst  = &m_canvas[(size_t) (yTop + y) * canvasW + s_kContentXPx];
+                const Byte *   src  = content->PixelAt (0, y);
+                int            xEnd = content->width;
+
+                if (revealBandTopAbs >= 0 && contentFirstAbsRow + y >= revealBandTopAbs)
                 {
-                    int   d2 = dx * dx + dy * dy;
+                    xEnd = std::clamp (revealColDots * content->width / PrinterGrid::kDotsPerRow,
+                                       0, content->width);
+                }
 
-                    for (int cx : { xL, xR })
+                for (int x = 0; x < xEnd; x++)
+                {
+                    uint32_t  r = src[x * 4 + 0];
+                    uint32_t  g = src[x * 4 + 1];
+                    uint32_t  b = src[x * 4 + 2];
+                    uint32_t  a = src[x * 4 + 3];
+
+                    dst[x] = (a << 24) | ((r * a / 255) << 16) | ((g * a / 255) << 8) | (b * a / 255);
+                }
+            }
+        }
+
+        // Vertical tear-off perforations where the tractor strips meet the
+        // sheet: dotted 1-px columns, phase locked to the paper.
+        for (int y = rowFirst; y <= rowLast; y++)
+        {
+            if (FloorMod (topAbsRow + y, 8) < 4)
+            {
+                DarkenPerf (m_canvas[(size_t) y * canvasW + s_kStripWidthPx - 1]);
+                DarkenPerf (m_canvas[(size_t) y * canvasW + canvasW - s_kStripWidthPx]);
+            }
+        }
+
+        // Cross perforations at every page boundary (11" pitch).
+        for (int y = rowFirst; y <= rowLast; y++)
+        {
+            if (FloorMod (topAbsRow + y, PrinterGrid::kPageRows) == 0)
+            {
+                uint32_t *   row = &m_canvas[(size_t) y * canvasW];
+
+                for (int x = 0; x < canvasW; x++)
+                {
+                    if (x % 8 < 4)
                     {
-                        uint32_t &   px = bgra[(size_t) py * canvasW + cx + dx];
-
-                        if      (d2 <= r * r)             { px = 0x00000000u;   }
-                        else if (d2 <= (r + 1) * (r + 1)) { px = s_kArgbHoleRim; }
+                        DarkenPerf (row[x]);
                     }
                 }
             }
         }
-    }
 
-    if (m_scene != nullptr)
+        // Sprocket holes: punched transparent (alpha 0 -- the mat shows
+        // through) with a soft rim, centered in each strip on the 1/2"
+        // pitch. Center rows just outside the range still reach into it, so
+        // scan wider and clip the writes to the range.
+        {
+            int   xL = s_kStripWidthPx / 2;
+            int   xR = canvasW - s_kStripWidthPx / 2;
+
+            for (int y = rowFirst - holeR - 1; y <= rowLast + holeR + 1; y++)
+            {
+                if (FloorMod (topAbsRow + y, s_kHolePitchPx) != s_kHolePitchPx / 2)
+                {
+                    continue;   // y is not a hole-center row
+                }
+
+                for (int dy = -holeR - 1; dy <= holeR + 1; dy++)
+                {
+                    int   py = y + dy;
+
+                    if (py < rowFirst || py > rowLast)
+                    {
+                        continue;
+                    }
+
+                    for (int dx = -holeR - 1; dx <= holeR + 1; dx++)
+                    {
+                        int   d2 = dx * dx + dy * dy;
+
+                        for (int cx : { xL, xR })
+                        {
+                            uint32_t &   px = m_canvas[(size_t) py * canvasW + cx + dx];
+
+                            if      (d2 <= holeR * holeR)             { px = 0x00000000u;   }
+                            else if (d2 <= (holeR + 1) * (holeR + 1)) { px = s_kArgbHoleRim; }
+                        }
+                    }
+                }
+            }
+        }
+    };
+
+    // Fast paths apply only while the SAME full-height content sits aligned
+    // under the canvas (no strip-start clamp, no new ink since the cache was
+    // composed): a scroll step memmoves and rebuilds the exposed edge; a
+    // reveal-sweep frame rebuilds just the pin-band rows.
+    bool   aligned = m_canvasValid
+                     && content != nullptr && m_canvasHasContent
+                     && m_canvasSpanGen == m_spanImgGen
+                     && content->height == canvasH
+                     && contentFirstAbsRow == topAbsRow;
+    bool   revealSame = (revealBandTopAbs == m_canvasRevealTop && revealColDots == m_canvasRevealCol);
+    int    delta      = topAbsRow - m_canvasTopAbs;
+
+    if (aligned && delta == 0 && revealSame)
     {
-        IGNORE_RETURN_VALUE (hr, m_scene->SetContent (bgra.data (), canvasW, canvasH));
+        // Bit-identical frame; the caller's change detection normally
+        // prevents this, so just re-upload.
+    }
+    else if (aligned && delta == 0)
+    {
+        // Reveal sweep only: rebuild from the older of the two band tops
+        // down to the canvas bottom (the bands live in the last rows).
+        int   oldTop = (m_canvasRevealTop >= 0) ? m_canvasRevealTop - topAbsRow : canvasH;
+        int   newTop = (revealBandTopAbs  >= 0) ? revealBandTopAbs  - topAbsRow : canvasH;
+
+        RebuildRows ((std::min) (oldTop, newTop), canvasH - 1);
+    }
+    else if (aligned && revealSame && std::abs (delta) < canvasH)
+    {
+        // Scroll step: shift the finished canvas and rebuild the exposed
+        // edge (padded by the hole radius so straddling holes stay round).
+        int      keepRows = canvasH - std::abs (delta);
+        size_t   rowBytes = (size_t) canvasW * 4;
+
+        if (delta > 0)
+        {
+            memmove (m_canvas.data (), m_canvas.data () + (size_t) delta * canvasW, rowBytes * keepRows);
+            RebuildRows (canvasH - delta - holeR - 1, canvasH - 1);
+        }
+        else
+        {
+            memmove (m_canvas.data () + (size_t) (-delta) * canvasW, m_canvas.data (), rowBytes * keepRows);
+            RebuildRows (0, -delta + holeR);
+        }
     }
     else
     {
-        m_paper->SetImage (std::move (bgra), canvasW, canvasH);
+        RebuildRows (0, canvasH - 1);
+    }
+
+    m_canvasTopAbs     = topAbsRow;
+    m_canvasRevealTop  = revealBandTopAbs;
+    m_canvasRevealCol  = revealColDots;
+    m_canvasSpanGen    = m_spanImgGen;
+    m_canvasHasContent = (content != nullptr);
+    m_canvasValid      = true;
+
+    if (m_scene != nullptr)
+    {
+        IGNORE_RETURN_VALUE (hr, m_scene->SetContent (m_canvas.data (), canvasW, canvasH));
+    }
+    else
+    {
+        std::vector<uint32_t>   copy = m_canvas;
+
+        m_paper->SetImage (std::move (copy), canvasW, canvasH);
     }
 }
 
