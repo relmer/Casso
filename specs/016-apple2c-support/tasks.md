@@ -102,7 +102,7 @@
 > 1. ✅ **Rockwell bit ops (RMB/SMB/BBR/BBS)** — RESOLVED. Casso's `Cpu65C02`
 >    now models the **Rockwell R65C02** (bit ops via `InstallBitOps`; WDC
 >    WAI/STP `$CB`/`$DB` stay NOPs). Covered by `Cpu65C02Tests`. **Conformance
->    follow-ups:** (a) ✅ RESOLVED — the assembler now emits the BBR/BBS zero-page-
+>    follow-ups:** (a) RESOLVED — the assembler now emits the BBR/BBS zero-page-
 >    relative form (and RMB/SMB) via `--cpu 65c02`, in both as65's `<bit>,<zp>`
 >    operand form and the suffixed spelling, so the Dormann integration path runs
 >    the full Rockwell tier (`rkwl_wdc_op=1`); (b) the Harte 65C02 corpus should be
@@ -125,7 +125,7 @@
 >    (Q6H+Q7H+motor-off write) + STATUS register (Q6H+Q7L read, low 5 bits =
 >    MODE). Created in `MachineManager::CreateMemoryDevices` (production) +
 >    `BuildApple2c` (harness) as a built-in slot-6 device, not a config slot.
-> 5. ⏳ **Serial 6551 ACIA** (T024) — the two ACIA ports aren't wired into the //c yet (loopback/file endpoints); not needed to boot, and **fully in 016 scope** (self-contained, no dependency on 015 or #87). The serial *printer bridge* is separate **downstream** work in #87, which depends on 016 + 015 — never the reverse.
+> 5. ✅ **Serial 6551 ACIA** (T024) — RESOLVED. The two ACIA ports are wired into the //c serial ports with loopback endpoints (covered by `Apple2cBootTests::SerialPortsLoopBackViaBuiltInAcia`); **fully in 016 scope** (self-contained, no dependency on 015 or #87). The serial *printer bridge* is separate **downstream** work in #87, which depends on 016 + 015 — never the reverse.
 - [X] T023 [US2] ~~Wire the //c firmware slices into `CxxxRomRouter::SetSlotRom` (slots 1/2/3/4/6)~~ — **subsumed by blocker 2's no-slots routing.** The //c firmware for every phantom slot already lives in the internal `$C100-$CFFF` image; `SetNoExternalSlots(true)` serves it for the whole window, so no per-slot `SetSlotRom` slices are needed (FR-006a).
 - [X] T024 [US3] Wire the two `Acia6551` instances (Phase 2) into the //c serial ports (slots 1 + 2) + the //c serial firmware, with **loopback/file** endpoints. *(**Done.** Two built-in 6551 ACIAs created like the IWM (the //c is slotless) at the phantom-slot addresses — port 1 $C098, port 2 $C0A8 — in both build paths: `MachineManager::CreateMemoryDevices` (production, attached to the shared `InterruptController`) and `HeadlessHost::BuildApple2c` (harness). v1 endpoints are loopback (`AciaLoopbackEndpoint`); the serial firmware is already in the internal //c ROM. Covered by `Apple2cBootTests::SerialPortsLoopBackViaBuiltInAcia` (both ports round-trip a byte); //c still boots (verified in-app + boot tests green). Endpoints owned via `EmulatorShell::m_ownedAciaEndpoints`. The printer-endpoint bridge is downstream in #87, **not** part of T024.)*
 
