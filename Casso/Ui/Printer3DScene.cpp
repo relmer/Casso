@@ -355,7 +355,10 @@ HRESULT Printer3DScene::SetModel (const std::string & objText, const std::string
             bool       matched = false;
             bool       roller  = false;
 
-            if (t.r < 0.10f && t.g < 0.10f && t.b < 0.10f)
+            // Tinkercad's darkest swatch exports as Kd ~0.17-0.19, so the
+            // "black means glass" test reaches to 0.25 -- the next-darkest
+            // real material (button gray) sits far above at ~0.65.
+            if (t.r < 0.25f && t.g < 0.25f && t.b < 0.25f)
             {
                 argb    = 0x8C14181D;   // smoked translucent
                 matched = true;
@@ -422,15 +425,21 @@ HRESULT Printer3DScene::SetModel (const std::string & objText, const std::string
                 float   ry = y * cUntilt - dz * sUntilt;
                 float   rz = zp + y * sUntilt + dz * cUntilt;
 
-                if (first)
+                // Only OPAQUE geometry defines the grounding extents: the
+                // printer stands on its feet and fronts on its case even if
+                // a smoked-glass shape strays past them mid-edit.
+                if ((argb >> 24) == 0xFFu)
                 {
-                    preMinY = preMaxY = ry;
-                    preMaxZ = rz;
-                    first   = false;
+                    if (first)
+                    {
+                        preMinY = preMaxY = ry;
+                        preMaxZ = rz;
+                        first   = false;
+                    }
+                    preMinY = (std::min) (preMinY, ry);
+                    preMaxY = (std::max) (preMaxY, ry);
+                    preMaxZ = (std::max) (preMaxZ, rz);
                 }
-                preMinY = (std::min) (preMinY, ry);
-                preMaxY = (std::max) (preMaxY, ry);
-                preMaxZ = (std::max) (preMaxZ, rz);
 
                 pos.push_back ({ x, ry, rz });
             }
