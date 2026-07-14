@@ -18,6 +18,13 @@ Entries before versioning was introduced use dates only.
   new addressing modes, and CMOS behavioral fixes (indirect-`JMP` page bug,
   decimal-mode flags/cycles). Validated against Klaus Dormann's 65C02
   functional test and Tom Harte's SingleStepTests.
+- **feat(asm): 65C02 assembly (`--cpu 65c02`)** — the built-in as65 assembler
+  can now target the 65C02. `--cpu 65c02` unlocks the CMOS opcodes (`STZ`,
+  `BRA`, `TSB`/`TRB`, `RMB`/`SMB`/`BBR`/`BBS`, the `(zp)` and `(abs,X)` modes);
+  the default stays a strict 6502, so 65C02-only opcodes are rejected unless
+  requested. The Rockwell bit ops accept both as65's `<bit>,<zp>[,<target>]`
+  operand form and the suffixed spelling (`RMB0 $zp`, `BBR3 $zp,target`), and
+  the `.a65c` extension is recognized. `NOP` assembles to the canonical `$EA`.
 - **feat(machine): slotless phantom-slot firmware map** — the //c's built-in
   peripherals answer at their fixed firmware pages (serial 1/2, 80-column,
   disk at $C600, mouse at $C700 on ROM 4) through the internal 32K
@@ -453,13 +460,14 @@ copy-protected WOZ image ([#68](https://github.com/relmer/Casso/issues/68)).
   left/right arrow keys plays as it did on real hardware.
 - **feat(input): Map Arrows to Joystick mode.** An optional input mode
   that drives the emulated game port from the host keyboard so joystick
-  games are playable without a physical controller: the arrow keys steer
-  paddle 0/1 (last-pressed-wins on opposing keys), and the **X** and
-  **Z** keys act as fire buttons 0 and 1 (Open-Apple `$C061` /
-  Closed-Apple `$C062`), coexisting with the host Alt keys. While the
-  mode is on, the arrow and X/Z keys are withheld from the //e keyboard
-  latch so they can't also type. Toggling the mode resolves axes and
-  buttons from the live key state and recenters/releases them on exit.
+  games are playable without a physical controller: the arrow keys are
+  mapped to paddle 0/1 (last-pressed-wins on opposing keys) and the **X**
+  and **Z** keys act as buttons 0/1 (the same Open-Apple `$C061` /
+  Closed-Apple `$C062` soft-switches the host Alt keys drive, so both
+  input sources coexist). While the mode is on, the arrow and X/Z keys
+  are not sent as standard keyboard input via the //e keyboard latch so
+  they can't also type. Toggling the mode resolves axes and buttons from
+  the live key state and recenters/releases them on exit.
   Three ways to flip it: **Machine → Map Arrows to Joystick**, the
   **Ctrl+J** accelerator, or a dedicated **Joystick Mode** toggle button
   in the bottom drive bar — a frameless press-to-pin button with a blue

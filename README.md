@@ -8,7 +8,7 @@
 
 ## About
 
-Casso is a retro / classic-machine platform emulator and from-scratch AS65-compatible 6502 assembler, written in C++. Today the platform emulator targets the Apple II family (][, ][+, //e, **//c**); the abstractions are generic enough to host other 6502-based machines later.
+Casso is a retro / classic-machine platform emulator and from-scratch AS65-compatible 6502 / 65C02 assembler, written in C++. Today the platform emulator targets the Apple II family (][, ][+, //e, **//c**); the abstractions are generic enough to host other 6502-based machines later.
 
 Two of the three built-in themes booting the [casso-rocks demo disk](Apple2/Demos) — same Apple //e core, different chrome:
 
@@ -71,13 +71,13 @@ build on, with the window host owning the Direct3D swap chain directly.
 ### Game-input revamp (v1.5.1523)
 
 Real-time action games like *Karateka*, *Choplifter*, and *Lode Runner*
-are now playable from the host keyboard with no physical joystick.
-A new **Map Arrows to Joystick** mode steers paddle 0/1 from the arrow
-keys (last-pressed-wins on opposing keys) and binds **X** / **Z** to
-fire buttons 0 / 1 (the same Open-Apple / Closed-Apple soft-switches the
-host Alt keys drive, so both input sources coexist); while the mode is
-on, those keys are withheld from the //e keyboard latch so they don't
-also type. The //e keyboard itself now generates hardware-faithful
+are now playable from the host keyboard without a physical joystick.
+A new **Map Arrows to Joystick** mode maps the arrow keys to paddle 0/1
+(last-pressed-wins on opposing keys) and binds **X** / **Z** to buttons
+0/1 (the same Open-Apple / Closed-Apple soft-switches the host Alt keys
+drive, so both input sources coexist); in this mode, those keys are not
+sent as standard input via the //e keyboard so they don't also type. The
+//e keyboard itself now generates hardware-faithful
 auto-repeat (initial delay, then steady cadence) instead of leaning on
 host-OS key repeat, so timing-sensitive arrow input in games behaves
 the way it did on real hardware.
@@ -212,6 +212,10 @@ CassoCli input.a65 -d DEBUG=1 -o output.bin
 # Generate a listing with cycle counts
 CassoCli input.a65 -c -l listing.txt
 
+# Assemble 65C02 source (CMOS opcodes: STZ, BRA, RMB/SMB/BBR/BBS, ...)
+# The default is a strict 6502; 65C02-only opcodes are rejected without --cpu.
+CassoCli input.a65c --cpu 65c02 -o output.bin
+
 # Assemble and run an assembly source directly
 CassoCli run input.a65
 
@@ -252,6 +256,7 @@ Available machine configs are in `Machines/<MachineName>/<MachineName>.json`.
 |---------|---------------|
 | All 56 mnemonics | `LDA`, `STA`, `ADC`, `BNE`, etc. |
 | All addressing modes | `#$42`, `$30`, `$1234,X`, `($20),Y`, `A` |
+| CPU target | `--cpu 6502` (default, strict) or `--cpu 65c02` for CMOS opcodes (`STZ`, `BRA`, `TSB`/`TRB`, `RMB`/`SMB`/`BBR`/`BBS`, `(zp)`, `(abs,X)`); Rockwell bit ops take `<bit>,<zp>[,<target>]` or the suffixed `RMB0`/`BBR3` form |
 | Labels | `loop: DEX` / `BNE loop` |
 | Directives | `.org $8000`, `.byte $FF`, `.word $1234`, `.text "hello"`, `code`/`data`/`bss` |
 | Constants | `value = $42`, `carry equ %00000001` (chains and forward refs supported) |
@@ -291,10 +296,10 @@ All 56 standard 6502 mnemonics are implemented. Validated against [Klaus Dormann
 - [x] Boot *Karateka* from its WOZ image (RWTS18 copy protection) ([#68](https://github.com/relmer/Casso/issues/68))
 - [x] Boot *Lode Runner* from its WOZ image (copy protection) ([#70](https://github.com/relmer/Casso/issues/70))
 - [x] Play *Space Quarks* on the Apple ][ and ][ plus — required Apple ][ and ][ plus game-port emulation (paddles, buttons, PTRIG) plus an inverse-text character-ROM fix
+- [x] 65C02 extended instruction support (Rockwell R65C02 core), with assembler `--cpu 65c02` flag ([#9](https://github.com/relmer/Casso/issues/9))
 
 ### Medium Priority
 
-- [ ] 65C02 extended instruction support, with assembler `--cpu` flag ([#9](https://github.com/relmer/Casso/issues/9))
 - [ ] Undocumented / illegal opcode support ([#52](https://github.com/relmer/Casso/issues/52))
 - [ ] Rockwell / WDC 65C02 variants ([#49](https://github.com/relmer/Casso/issues/49), [#50](https://github.com/relmer/Casso/issues/50))
 - [ ] *Choplifter* gameplay starts after the title screen (WOZ copy protection) ([#69](https://github.com/relmer/Casso/issues/69), [#72](https://github.com/relmer/Casso/issues/72))
