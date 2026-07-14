@@ -40,6 +40,12 @@ namespace
     // arms, matching the shell-side gate on the same signal.
     constexpr int64_t   s_kPrintIdleMs = 1200;
 
+    // Zoom: each button press / wheel notch scales by this factor, clamped to
+    // [min,max]. 1 = fit-to-window; the scene camera does the magnifying.
+    constexpr float     s_kZoomStep = 1.25f;
+    constexpr float     s_kZoomMin  = 1.0f;
+    constexpr float     s_kZoomMax  = 4.0f;
+
     // Fanfold paper furniture (FR-032; panel-only per FR-027), all in px at the
     // fixed 144 dpi preview scale. Real continuous-form stock: 9.5" wide with
     // 0.5" tractor strips both sides (tear width 8.5"), 5/32" sprocket holes on
@@ -231,16 +237,41 @@ Error:
 
 void PrinterPanel::OnCreate ()
 {
-    m_paper    = CreateChild<PrinterPaperView> ();
-    m_finish   = CreateChild<DxuiButton> (L"Eject");
-    m_copy     = CreateChild<DxuiButton> (L"Copy");
-    m_discard  = CreateChild<DxuiButton> (L"Discard");
-    m_formFeed = CreateChild<DxuiButton> (L"Form Feed");
+    m_paper     = CreateChild<PrinterPaperView> ();
 
-    m_finish->SetOnClick   ([this] () { if (m_onFinish)   { m_onFinish   (); } });
-    m_copy->SetOnClick     ([this] () { if (m_onCopy)     { m_onCopy     (); } });
-    m_discard->SetOnClick  ([this] () { if (m_onDiscard)  { m_onDiscard  (); } });
-    m_formFeed->SetOnClick ([this] () { if (m_onFormFeed) { m_onFormFeed (); } });
+    // Top toolbar. The ellipsis on Print / Save signals a dialog follows.
+    m_print     = CreateChild<DxuiButton> (L"Print\u2026");
+    m_saveAs    = CreateChild<DxuiButton> (L"Save\u2026");
+    m_copy      = CreateChild<DxuiButton> (L"Copy");
+    m_zoomOut   = CreateChild<DxuiButton> (L"\u2212");   // minus sign
+    m_zoomReset = CreateChild<DxuiButton> (L"100%");
+    m_zoomIn    = CreateChild<DxuiButton> (L"+");
+
+    // Bottom row.
+    m_formFeed  = CreateChild<DxuiButton> (L"Form Feed");
+    m_discard   = CreateChild<DxuiButton> (L"Discard");
+
+    m_print->SetOnClick     ([this] () { if (m_onPrint)    { m_onPrint    (); } });
+    m_saveAs->SetOnClick    ([this] () { if (m_onSaveAs)   { m_onSaveAs   (); } });
+    m_copy->SetOnClick      ([this] () { if (m_onCopy)     { m_onCopy     (); } });
+    m_formFeed->SetOnClick  ([this] () { if (m_onFormFeed) { m_onFormFeed (); } });
+    m_discard->SetOnClick   ([this] () { if (m_onDiscard)  { m_onDiscard  (); } });
+
+    m_zoomOut->SetOnClick   ([this] () { ApplyZoom (m_zoom / s_kZoomStep); });
+    m_zoomReset->SetOnClick ([this] () { ApplyZoom (1.0f); });
+    m_zoomIn->SetOnClick    ([this] () { ApplyZoom (m_zoom * s_kZoomStep); });
+
+    // A freshly opened panel has nothing on the paper yet, so the delivery
+    // actions start disabled; RefreshLive enables them the moment content
+    // appears. (Without this, a preview opened over a machine with no printer
+    // card -- which never runs RefreshLive -- would show them wrongly live.)
+    m_print->SetEnabled   (false);
+    m_saveAs->SetEnabled  (false);
+    m_copy->SetEnabled    (false);
+    m_discard->SetEnabled (false);
+
+    // Establish the zoom label ("100%") and disable [-] at the low end.
+    ApplyZoom (m_zoom);
 }
 
 
@@ -295,12 +326,22 @@ void PrinterPanel::UpdateTooltip (int x, int y)
 {
     int64_t   now = NowMs ();
 
-    if (m_finish != nullptr && m_finish->HitTest (x, y))
+    if (m_print != nullptr && m_print->HitTest (x, y))
     {
-        m_tooltip.RequestShow (m_finish->Bounds (),
-            m_finish->Enabled ()
-                ? L"Finish the job: deliver the printout to the configured destination (PNG file or Windows printer) and load a fresh sheet"
-                : L"Eject (nothing has been printed yet)",
+        m_tooltip.RequestShow (m_print->Bounds (),
+            m_print->Enabled ()
+                ? L"Send the printout to a Windows printer (the paper stays in the printer, so you can also save or copy it)"
+                : L"Print (nothing has been printed yet)",
+            now);
+        return;
+    }
+
+    if (m_saveAs != nullptr && m_saveAs->HitTest (x, y))
+    {
+        m_tooltip.RequestShow (m_saveAs->Bounds (),
+            m_saveAs->Enabled ()
+                ? L"Save the printout as a PNG image file (the paper stays in the printer)"
+                : L"Save (nothing has been printed yet)",
             now);
         return;
     }
@@ -315,13 +356,23 @@ void PrinterPanel::UpdateTooltip (int x, int y)
         return;
     }
 
-    if (m_discard != nullptr && m_discard->HitTest (x, y))
+    if (m_zoomOut != nullptr && m_zoomOut->HitTest (x, y))
     {
-        m_tooltip.RequestShow (m_discard->Bounds (),
-            m_discard->Enabled ()
-                ? L"Tear off the printout and throw it away, loading a fresh sheet"
-                : L"Discard (nothing has been printed yet)",
-            now);
+        m_tooltip.RequestShow (m_zoomOut->Bounds (),
+            m_zoomOut->Enabled () ? L"Zoom out" : L"Zoom out (already at fit-to-window)", now);
+        return;
+    }
+
+    if (m_zoomReset != nullptr && m_zoomReset->HitTest (x, y))
+    {
+        m_tooltip.RequestShow (m_zoomReset->Bounds (), L"Reset the zoom to fit the window", now);
+        return;
+    }
+
+    if (m_zoomIn != nullptr && m_zoomIn->HitTest (x, y))
+    {
+        m_tooltip.RequestShow (m_zoomIn->Bounds (),
+            m_zoomIn->Enabled () ? L"Zoom in" : L"Zoom in (already at maximum)", now);
         return;
     }
 
@@ -335,7 +386,53 @@ void PrinterPanel::UpdateTooltip (int x, int y)
         return;
     }
 
+    if (m_discard != nullptr && m_discard->HitTest (x, y))
+    {
+        m_tooltip.RequestShow (m_discard->Bounds (),
+            m_discard->Enabled ()
+                ? L"Tear off the printout and throw it away, loading a fresh sheet"
+                : L"Discard (nothing has been printed yet)",
+            now);
+        return;
+    }
+
     m_tooltip.RequestHide (now);
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PrinterPanel::ApplyZoom
+//
+//  Clamp the requested zoom, push it to the 3D scene camera, relabel the
+//  reset button with the live percentage, and disable the +/- buttons at the
+//  ends of the range. Zoom is preview-only chrome (FR-027): it never touches
+//  the raster, the viewport, or delivery.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void PrinterPanel::ApplyZoom (float zoom)
+{
+    m_zoom = std::clamp (zoom, s_kZoomMin, s_kZoomMax);
+
+    if (m_scene != nullptr)
+    {
+        m_scene->SetZoom (m_zoom);
+    }
+
+    if (m_zoomReset != nullptr)
+    {
+        wchar_t   label[16];
+        swprintf_s (label, L"%d%%", (int) std::lround (m_zoom * 100.0f));
+        m_zoomReset->SetLabel (label);
+    }
+
+    if (m_zoomOut != nullptr) { m_zoomOut->SetEnabled (m_zoom > s_kZoomMin + 1e-3f); }
+    if (m_zoomIn  != nullptr) { m_zoomIn->SetEnabled  (m_zoom < s_kZoomMax - 1e-3f); }
+
+    Invalidate ();
 }
 
 
@@ -403,7 +500,8 @@ void PrinterPanel::RefreshLive (PrinterWorker & worker, int64_t nowMs, bool forc
         bool   printing   = (m_lastActivityChangeMs != 0)
                             && (nowMs - m_lastActivityChangeMs < s_kPrintIdleMs);
 
-        if (m_finish   != nullptr) { m_finish->SetEnabled   (hasContent); }
+        if (m_print    != nullptr) { m_print->SetEnabled    (hasContent); }
+        if (m_saveAs   != nullptr) { m_saveAs->SetEnabled   (hasContent); }
         if (m_copy     != nullptr) { m_copy->SetEnabled     (hasContent); }
         if (m_discard  != nullptr) { m_discard->SetEnabled  (hasContent); }
         if (m_formFeed != nullptr) { m_formFeed->SetEnabled (!printing);  }
@@ -940,6 +1038,13 @@ bool PrinterPanel::OnMouse (const DxuiMouseEvent & ev)
 {
     if (ev.kind == DxuiMouseEventKind::Wheel && !ev.wheelHorizontal && ev.wheelDelta != 0.0f)
     {
+        if (ev.ctrl)
+        {
+            // Ctrl+wheel zooms, like every document viewer (wheel up = in).
+            ApplyZoom (ev.wheelDelta > 0.0f ? m_zoom * s_kZoomStep : m_zoom / s_kZoomStep);
+            return true;
+        }
+
         m_viewport.Scroll ((int) (-ev.wheelDelta * s_kWheelRowsPerNotch), NowMs ());
         return true;   // next RefreshLive renders the moved span immediately
     }
@@ -1007,37 +1112,84 @@ bool PrinterPanel::OnKey (const DxuiKeyEvent & ev)
 //
 //  PrinterPanel::Layout
 //
-//  Paper view fills the client above a hint strip and bottom toolbar; Finish /
-//  Eject / Copy / Discard / Form Feed run left-to-right.
+//  Two toolbars sandwich the paper. The TOP band carries the document actions
+//  (Print / Save / Copy, left) and the zoom cluster ([-] [nnn%] [+], right).
+//  The paper view fills the middle, above a hint strip. The BOTTOM band
+//  carries paper handling (Form Feed, then Discard).
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void PrinterPanel::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
 {
     int   pad      = scaler.Px (10);
+    int   gap      = scaler.Px (6);
     int   captionH = CaptionHeightPx ();
     int   toolbarH = scaler.Px (46);
     int   hintH    = scaler.Px (20);
     int   btnH     = scaler.Px (30);
-    int   btnW     = scaler.Px (92);
-    int   by       = boundsDip.bottom - toolbarH + (toolbarH - btnH) / 2;
-    int   bx       = boundsDip.left + pad;
+    int   btnW     = scaler.Px (84);    // Print... / Save... / Copy / Form Feed / Discard
+    int   zoomW    = scaler.Px (42);    // [-] and [+]
+    int   zoomResetW = scaler.Px (54);  // [nnn%]
 
     // Our override replaces DxuiPanel::Layout, which would otherwise record the
     // panel's own bounds; set them so Paint's backdrop fills the whole client.
     SetBounds (boundsDip);
 
+    int   topBandTop = boundsDip.top + captionH;
+    int   topBy      = topBandTop + (toolbarH - btnH) / 2;
+    int   botBandTop = boundsDip.bottom - toolbarH;
+    int   botBy      = botBandTop + (toolbarH - btnH) / 2;
+
+    // Top band: document actions run left-to-right from the left pad.
+    {
+        int   bx = boundsDip.left + pad;
+
+        for (DxuiButton * btn : { m_print, m_saveAs, m_copy })
+        {
+            if (btn != nullptr)
+            {
+                RECT  r = { bx, topBy, bx + btnW, topBy + btnH };
+                btn->Layout (r, scaler);
+                bx += btnW + gap;
+            }
+        }
+    }
+
+    // Top band: zoom cluster [-] [nnn%] [+] hugs the right edge.
+    {
+        int   clusterW = zoomW + gap + zoomResetW + gap + zoomW;
+        int   zx       = boundsDip.right - pad - clusterW;
+
+        struct { DxuiButton * btn; int w; }   zoomBtns[] =
+        {
+            { m_zoomOut,   zoomW      },
+            { m_zoomReset, zoomResetW },
+            { m_zoomIn,    zoomW      },
+        };
+
+        for (auto & z : zoomBtns)
+        {
+            if (z.btn != nullptr)
+            {
+                RECT  r = { zx, topBy, zx + z.w, topBy + btnH };
+                z.btn->Layout (r, scaler);
+            }
+            zx += z.w + gap;
+        }
+    }
+
     m_hintFontPx = scaler.Pxf (11.0f);
     m_hintRect   = { boundsDip.left + pad,
-                     boundsDip.bottom - toolbarH - hintH,
+                     botBandTop - hintH,
                      boundsDip.right - pad,
-                     boundsDip.bottom - toolbarH };
+                     botBandTop };
 
     {
-        // Reserve the caption band at the top (the content root spans the full
-        // client, so without this the paper would draw up over the title bar).
-        RECT  paperR = { boundsDip.left + pad, boundsDip.top + captionH + pad,
-                         boundsDip.right - pad, boundsDip.bottom - toolbarH - hintH };
+        // The paper fills the middle, between the two toolbar bands (the top
+        // band already reserves the caption, so the paper never rides up over
+        // the title bar).
+        RECT  paperR = { boundsDip.left + pad, topBandTop + toolbarH,
+                         boundsDip.right - pad, botBandTop - hintH };
 
         m_paperRectPx = paperR;   // the 3D scene's viewport (before-present hook)
 
@@ -1047,13 +1199,18 @@ void PrinterPanel::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
         }
     }
 
-    for (DxuiButton * btn : { m_finish, m_copy, m_discard, m_formFeed })
+    // Bottom band: paper handling, left-to-right.
     {
-        if (btn != nullptr)
+        int   bx = boundsDip.left + pad;
+
+        for (DxuiButton * btn : { m_formFeed, m_discard })
         {
-            RECT  r = { bx, by, bx + btnW, by + btnH };
-            btn->Layout (r, scaler);
-            bx += btnW + pad;
+            if (btn != nullptr)
+            {
+                RECT  r = { bx, botBy, bx + btnW, botBy + btnH };
+                btn->Layout (r, scaler);
+                bx += btnW + gap;
+            }
         }
     }
 

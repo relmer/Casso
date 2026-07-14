@@ -53,6 +53,8 @@
 #define IDM_PRINTER_DISCARD         40061
 #define IDM_PRINTER_COPY            40062
 #define IDM_PRINTER_PREVIEW         40063
+#define IDM_PRINTER_PRINT           40064
+#define IDM_PRINTER_SAVEAS          40065
 
 #define IDM_HELP_KEYMAP             40040
 #define IDM_HELP_ABOUT              40042

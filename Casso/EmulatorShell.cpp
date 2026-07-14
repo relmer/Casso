@@ -2497,9 +2497,17 @@ void EmulatorShell::ShowPrinterPanel (bool activate)
 
         // Toolbar actions route through the existing command path (which
         // quiesces the worker, delivers/clears, and resumes), then re-snapshot.
-        m_printerPanel->SetOnFinish ([this] ()
+        // Print / Save / Copy are non-destructive: they deliver the strip and
+        // leave the paper in the printer, so one printout can be printed AND
+        // saved AND copied. Discard is the one tear-off.
+        m_printerPanel->SetOnPrint ([this] ()
         {
-            m_windowCommandManager->HandleCommand (IDM_PRINTER_EJECT);
+            m_windowCommandManager->HandleCommand (IDM_PRINTER_PRINT);
+            SnapshotStripToPanel ();
+        });
+        m_printerPanel->SetOnSaveAs ([this] ()
+        {
+            m_windowCommandManager->HandleCommand (IDM_PRINTER_SAVEAS);
             SnapshotStripToPanel ();
         });
         m_printerPanel->SetOnCopy ([this] ()

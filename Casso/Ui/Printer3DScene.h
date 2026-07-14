@@ -54,6 +54,11 @@ public:
     // Paced head position across the printable width, 0..1 (FR-034).
     void     SetHeadColumn01 (float x01);
 
+    // Preview magnification, 1 = fit (default). The camera narrows its field
+    // of view by this factor, so 2 shows the paper at twice the size without
+    // moving the eye or rebuilding any geometry. Clamped to a sane range.
+    void     SetZoom (float zoom);
+
     // How much paper has physically fed PAST the head, as a fraction of the
     // content canvas (0 = fresh sheet, its leading edge aligned at the
     // strike line; 1 = a full page risen above the platen). The paper mesh
@@ -100,6 +105,7 @@ private:
     Dxui3DRenderer   m_renderer;
     float            m_head01        = 0.0f;
     float            m_paperFeed01   = 1.0f;
+    float            m_zoom          = 1.0f;
     int              m_contentWidth  = 0;
     int              m_contentHeight = 0;
 

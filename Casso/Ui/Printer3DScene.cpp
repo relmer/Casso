@@ -628,6 +628,20 @@ void Printer3DScene::SetPaperFeed01 (float feed01)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  Printer3DScene::SetZoom
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Printer3DScene::SetZoom (float zoom)
+{
+    m_zoom = std::clamp (zoom, 1.0f, 4.0f);
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  Printer3DScene::AppendQuad
 //
 //  p00..p11 are the quad corners at (u0,v0) (u1,v0) (u0,v1) (u1,v1); `shade`
@@ -1523,7 +1537,10 @@ void Printer3DScene::Render (const RECT & targetPx)
 
     TiltAboutFrontBottom (s_kBodyTiltRad, s_kBodyZFront, model);
     LookAtRH         (s_kEye, s_kAt, view);
-    PerspectiveFovRH (s_kFovY, (float) w / (float) h, 0.1f, 20.0f, proj);
+
+    // Zoom narrows the field of view about the same eye, so the paper grows
+    // in place without moving the camera into the geometry (1 = fit).
+    PerspectiveFovRH (s_kFovY / m_zoom, (float) w / (float) h, 0.1f, 20.0f, proj);
     Mul44            (view, proj, viewProj);
     Mul44            (model, viewProj, mvp);
     IdentityMvp      (identity);

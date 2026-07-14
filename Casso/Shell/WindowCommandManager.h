@@ -51,6 +51,11 @@ private:
     // from GlobalUserPrefs.
     HRESULT  SavePrintout  (const class PrintRaster & raster, fs::path & outFile);
 
+    // Save-As variant: the user picks the PNG path through IFileSaveDialog
+    // (defaulting to the configured folder and a timestamped name). Returns
+    // S_FALSE when the dialog is cancelled.
+    HRESULT  SavePrintoutAs (const class PrintRaster & raster, fs::path & outFile);
+
     // Delivers the strip to a Windows printer via the standard print dialog:
     // paginates (PrintPagination) and StretchDIBits each page's rendered span.
     // Returns S_FALSE if the user cancels the dialog. Pure Win32 GDI edge.

@@ -68,7 +68,8 @@ public:
     // visible span through the same viewport.
     void     SetStrip (const PrintRaster & raster);
 
-    void     SetOnFinish   (ActionFn fn) { m_onFinish   = std::move (fn); }
+    void     SetOnPrint    (ActionFn fn) { m_onPrint    = std::move (fn); }
+    void     SetOnSaveAs   (ActionFn fn) { m_onSaveAs   = std::move (fn); }
     void     SetOnCopy     (ActionFn fn) { m_onCopy     = std::move (fn); }
     void     SetOnDiscard  (ActionFn fn) { m_onDiscard  = std::move (fn); }
     void     SetOnFormFeed (ActionFn fn) { m_onFormFeed = std::move (fn); }
@@ -93,6 +94,7 @@ protected:
 private:
     void     ShowBlankSheet ();
     void     UpdateTooltip  (int x, int y);
+    void     ApplyZoom      (float zoom);   // clamp, push to scene, relabel
     void     RenderSpan     (const PrintRaster & spanRaster, int firstAbsRow, int lastAbsRow,
                              bool contentDirty, int revealBandTopAbs, int revealColDots);
     void     ComposeCanvas  (const RgbaImage * content, int contentFirstAbsRow, int bottomAbsRow,
@@ -103,15 +105,30 @@ private:
     const CassoTheme  * m_theme   = nullptr;
 
     PrinterPaperView  * m_paper    = nullptr;
-    DxuiButton        * m_finish   = nullptr;
-    DxuiButton        * m_copy     = nullptr;
-    DxuiButton        * m_discard  = nullptr;
-    DxuiButton        * m_formFeed = nullptr;
 
-    ActionFn            m_onFinish;
+    // Top toolbar: document actions (Print / Save / Copy -- all
+    // non-destructive) on the left, the zoom cluster on the right.
+    DxuiButton        * m_print    = nullptr;
+    DxuiButton        * m_saveAs   = nullptr;
+    DxuiButton        * m_copy     = nullptr;
+    DxuiButton        * m_zoomOut  = nullptr;
+    DxuiButton        * m_zoomReset = nullptr;
+    DxuiButton        * m_zoomIn   = nullptr;
+
+    // Bottom row: paper handling (Form Feed advances a page; Discard is the
+    // one destructive tear-off).
+    DxuiButton        * m_formFeed = nullptr;
+    DxuiButton        * m_discard  = nullptr;
+
+    ActionFn            m_onPrint;
+    ActionFn            m_onSaveAs;
     ActionFn            m_onCopy;
     ActionFn            m_onDiscard;
     ActionFn            m_onFormFeed;
+
+    // Preview magnification driving the 3D scene's camera. Stepped by the
+    // zoom buttons and Ctrl+wheel; 1 = fit-to-window.
+    float               m_zoom = 1.0f;
 
     // Hover tooltips for the toolbar (disabled buttons explain WHY they are
     // disabled), plus the guest-activity clock that drives the Form Feed
