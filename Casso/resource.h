@@ -86,6 +86,7 @@
 #define IDR_MACHINE_APPLE2PLUS      201
 #define IDR_MACHINE_APPLE2E         202
 #define IDR_MACHINE_APPLE2C         203
+#define IDR_MACHINE_APPLE2E_ENHANCED 204
 
 // Embedded built-in theme files (RCDATA). Per spec 007-ui-overhaul
 // The three built-in themes are extracted to

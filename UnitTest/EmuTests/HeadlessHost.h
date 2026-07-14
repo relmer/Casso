@@ -38,6 +38,7 @@ enum class HeadlessMachineKind
     AppleII,
     AppleIIPlus,
     Apple2e,
+    Apple2eEnhanced,
     Apple2c,
 };
 
@@ -137,6 +138,7 @@ public:
     HRESULT             BuildAppleII             (EmulatorCore & outCore);
     HRESULT             BuildAppleIIPlus         (EmulatorCore & outCore);
     HRESULT             BuildApple2e             (EmulatorCore & outCore);
+    HRESULT             BuildApple2eEnhanced     (EmulatorCore & outCore);
     HRESULT             BuildApple2eWithDisk2    (EmulatorCore & outCore);
     HRESULT             BuildApple2c             (EmulatorCore & outCore);
 
