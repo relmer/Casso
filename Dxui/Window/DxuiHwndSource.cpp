@@ -29,8 +29,8 @@ namespace
     //  top-level window) or on the work area itself (ownerless / minimized
     //  owner), then clamp to the monitor's rcWork so it never opens with
     //  its bottom edge — and command buttons — beneath the taskbar. rcWork
-    //  already excludes the taskbar; MonitorFromRect / MonitorFromWindow
-    //  pick the monitor nearest the owner, else the primary.
+    //  already excludes the taskbar; the monitor is the one nearest the
+    //  owner, or the primary (work area via SPI_GETWORKAREA) when ownerless.
     //
     POINT  ComputeOnScreenPlacement (HWND owner, int widthPx, int heightPx)
     {
@@ -47,10 +47,12 @@ namespace
         {
             monitor = MonitorFromRect (&anchor, MONITOR_DEFAULTTONEAREST);
         }
-        else
+        else if (owner != nullptr)
         {
+            // Minimized owner (or GetWindowRect failed): keep the anchor
+            // empty so we center on the owner monitor's work area.
             anchor  = {};
-            monitor = MonitorFromWindow (owner, MONITOR_DEFAULTTOPRIMARY);
+            monitor = MonitorFromWindow (owner, MONITOR_DEFAULTTONEAREST);
         }
 
         if (monitor != nullptr && GetMonitorInfoW (monitor, &info) != FALSE)
