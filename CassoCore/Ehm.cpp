@@ -34,19 +34,78 @@ void SetBreakpointFunction (EHM_BREAKPOINT_FUNC func)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EhmBreakpoint (void)
+#ifdef UNICODE
+void EhmBreakpoint (const wchar_t * file, int line, const wchar_t * func, const wchar_t * expr)
 {
+    wchar_t  msg[1024];
+
 #ifdef _WINDOWS_
-    g_pfnBreakpoint ? g_pfnBreakpoint() : __debugbreak();
-#elif defined(_MSC_VER)
-    g_pfnBreakpoint ? g_pfnBreakpoint() : __debugbreak();
-#else
-    if (g_pfnBreakpoint)
+    HRESULT  hrFmt = StringCchPrintfW (msg, sizeof (msg) / sizeof (msg[0]),
+                                       L"%s(%d) - %s - Assertion failed:  %s",
+                                       file, line, func, expr);
+    if (FAILED (hrFmt))
     {
-        g_pfnBreakpoint();
+        msg[0] = L'\0';
+    }
+#else
+    if (swprintf (msg, sizeof (msg) / sizeof (msg[0]),
+                  L"%ls(%d) - %ls - Assertion failed:  %ls",
+                  file, line, func, expr) < 0)
+    {
+        msg[0] = L'\0';
     }
 #endif
+
+    // Log to the debugger Output window / stderr, as before.
+    DEBUGMSG (L"%s\n", msg);
+
+    // Hand the formatted text to the host (GUI dialog, test harness, ...).
+    // With no host installed, fall back to the raw debugger break.
+    if (g_pfnBreakpoint != nullptr)
+    {
+        g_pfnBreakpoint (msg);
+        return;
+    }
+
+#if defined(_WINDOWS_) || defined(_MSC_VER)
+    __debugbreak();
+#endif
 }
+#else
+void EhmBreakpoint (const char * file, int line, const char * func, const char * expr)
+{
+    char  msg[1024];
+
+#ifdef _WINDOWS_
+    HRESULT  hrFmt = StringCchPrintfA (msg, sizeof (msg),
+                                       "%s(%d) - %s - Assertion failed:  %s",
+                                       file, line, func, expr);
+    if (FAILED (hrFmt))
+    {
+        msg[0] = '\0';
+    }
+#else
+    if (snprintf (msg, sizeof (msg),
+                  "%s(%d) - %s - Assertion failed:  %s",
+                  file, line, func, expr) < 0)
+    {
+        msg[0] = '\0';
+    }
+#endif
+
+    DEBUGMSG ("%s\n", msg);
+
+    if (g_pfnBreakpoint != nullptr)
+    {
+        g_pfnBreakpoint (msg);
+        return;
+    }
+
+#if defined(_WINDOWS_) || defined(_MSC_VER)
+    __debugbreak();
+#endif
+}
+#endif
 
 
 

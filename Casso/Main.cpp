@@ -430,6 +430,42 @@ int WINAPI wWinMain (
         MessageBoxW (NULL, message, L"Casso emulator", MB_OK | MB_ICONERROR);
     });
 
+    // Register a GUI assertion breakpoint. In debug builds a failed EHM
+    // assertion (the *A macro variants, or a bare ASSERT) otherwise breaks
+    // via a raw int 3 -- fine under a debugger, but with none attached it
+    // becomes a silent "Casso.exe has stopped working" WER crash with no
+    // detail. Instead surface the assertion text and let the user choose
+    // Abort (quit) / Retry (break, e.g. after attaching a debugger) /
+    // Ignore (continue on EHM's normal error path, as a release build would).
+    SetBreakpointFunction ([] (const wchar_t * message)
+    {
+        if (IsDebuggerPresent())
+        {
+            __debugbreak();   // break at the assertion site, as before
+            return;
+        }
+
+        std::wstring text = L"An internal assertion failed:\n\n";
+        text += (message != nullptr && message[0] != L'\0') ? message : L"(no detail)";
+        text += L"\n\n"
+                L"Abort  = quit now\n"
+                L"Retry  = break (attach a debugger first to inspect)\n"
+                L"Ignore = try to continue";
+
+        int choice = MessageBoxW (NULL, text.c_str(), L"Casso \x2014 assertion failed",
+                                  MB_ABORTRETRYIGNORE | MB_ICONERROR | MB_DEFBUTTON1 | MB_TASKMODAL);
+
+        if (choice == IDABORT)
+        {
+            TerminateProcess (GetCurrentProcess(), 3);
+        }
+        else if (choice == IDRETRY)
+        {
+            __debugbreak();   // no-op crash if still no debugger; lets you attach one
+        }
+        // IDIGNORE: fall through -- EHM continues on its normal error path.
+    });
+
     // Parse command line
     hr = ParseCommandLine (lpCmdLine, machineName, disk1Path, disk2Path, traceCapacity);
     CHR (hr);
