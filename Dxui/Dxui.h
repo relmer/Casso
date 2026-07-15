@@ -116,6 +116,7 @@ struct IDCompositionVisual;
 #include "Core/DxuiGridLayout.h"
 #include "Core/DxuiStackLayout.h"
 #include "Core/DxuiPanel.h"
+#include "Core/DxuiPanZoom.h"
 #include "Core/DxuiViewport.h"
 #include "Core/DxuiFocusManager.h"
 
