@@ -237,6 +237,7 @@
     <ClCompile Include="Audio\AudioGenerator.cpp" />
     <ClCompile Include="Audio\DriveAudioMixer.cpp" />
     <ClCompile Include="Audio\Disk2AudioSource.cpp" />
+    <ClCompile Include="Audio\PrinterAudioSource.cpp" />
     <ClCompile Include="Devices\Printer\PrinterByteRing.cpp" />
     <ClCompile Include="Devices\Printer\PrinterCard.cpp" />
     <ClCompile Include="Devices\Printer\PrintRaster.cpp" />
@@ -332,6 +333,7 @@
     <ClInclude Include="Audio\IDriveAudioSource.h" />
     <ClInclude Include="Audio\DriveAudioMixer.h" />
     <ClInclude Include="Audio\Disk2AudioSource.h" />
+    <ClInclude Include="Audio\PrinterAudioSource.h" />
     <ClInclude Include="Devices\Printer\PrinterTypes.h" />
     <ClInclude Include="Devices\Printer\PrinterByteRing.h" />
     <ClInclude Include="Devices\Printer\PrinterCard.h" />

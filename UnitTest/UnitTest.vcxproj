@@ -302,6 +302,7 @@
     <ClCompile Include="EmuTests\DiskAudioFetchTests.cpp" />
     <ClCompile Include="EmuTests\PerformanceTests.cpp" />
     <ClCompile Include="Audio\Disk2AudioSourceStateTests.cpp" />
+    <ClCompile Include="Audio\PrinterAudioSourceTests.cpp" />
     <ClCompile Include="Audio\Disk2AudioSourcePlaybackTests.cpp" />
     <ClCompile Include="Audio\Disk2AudioSourceSeekTests.cpp" />
     <ClCompile Include="Audio\DriveAudioMixerTests.cpp" />
