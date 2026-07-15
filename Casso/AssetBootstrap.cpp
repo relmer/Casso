@@ -176,7 +176,7 @@ struct EmbeddedConfig
 
 static constexpr EmbeddedConfig s_kEmbeddedConfigs[] =
 {
-    { IDR_MACHINE_APPLE2,     "Apple2",     "Apple2.json",     6 },
+    { IDR_MACHINE_APPLE2,     "Apple2",     "Apple2.json",     7 },
     { IDR_MACHINE_APPLE2PLUS, "Apple2Plus", "Apple2Plus.json", 8 },
     { IDR_MACHINE_APPLE2E,    "Apple2e",    "Apple2e.json",    7 },
 };
