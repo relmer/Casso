@@ -477,24 +477,16 @@ int WINAPI wWinMain (
                             earlyPrefs.lastSelectedMachine.end());
     }
 
-    if (machineName.empty() ||
-        PathResolver::FindFile (
-            PathResolver::BuildSearchPaths (PathResolver::GetExecutableDirectory(),
-                                            PathResolver::GetWorkingDirectory()),
-            fs::path ("Machines") / fs::path (machineName).string()
-                                  / (fs::path (machineName).string() + ".json")).empty())
+    // Resolve the requested machine (from --machine or last-selected prefs)
+    // to a canonical on-disk name. The filesystem is case-insensitive, so a
+    // mis-cased --machine value like "apple2e" still loads its config -- but
+    // FindRomSpec and MachineDisplayName match names exactly, so a lowercase
+    // name would report every per-machine ROM missing. Canonicalize against
+    // the scan so downstream lookups agree. An unmatched / empty request
+    // falls back to Apple //e (else the first discovered machine, else the
+    // Apple2e literal) so the LoadMachineConfig flow can still offer the ROM
+    // / sample-disk downloads instead of bailing with a dead-end MessageBox.
     {
-        // Legacy Win32 `MachinePickerDialog` is retired (FR-027). At
-        // startup we deterministically pick a sensible default machine
-        // from `MachineScanner::Scan`; the user can switch later via
-        // the Settings panel. Apple //e is the modern Apple II family
-        // member most users will want, so prefer it if discovered.
-        // Otherwise fall back to the first scan result. If nothing
-        // was discovered at all (Machines/ missing, asset bootstrap
-        // wiped between runs) we still default to Apple2e so the
-        // downstream LoadMachineConfig flow gets to offer the ROM /
-        // sample-disk downloads instead of bailing with a dead-end
-        // error MessageBox.
         constexpr std::wstring_view  s_kPreferredDefaultMachine = L"Apple2e";
 
         vector<fs::path> scanPaths = PathResolver::BuildSearchPaths (
@@ -506,23 +498,8 @@ int WINAPI wWinMain (
             &MachineScanner::ListDirectory,
             &MachineScanner::ReadFile);
 
-        machineName.clear();
-        for (const MachineInfo & info : discovered)
-        {
-            if (info.fileName == s_kPreferredDefaultMachine)
-            {
-                machineName = info.fileName;
-                break;
-            }
-        }
-        if (machineName.empty() && !discovered.empty())
-        {
-            machineName = discovered.front().fileName;
-        }
-        if (machineName.empty())
-        {
-            machineName = std::wstring (s_kPreferredDefaultMachine);
-        }
+        machineName = MachineScanner::SelectCanonical (
+            discovered, machineName, s_kPreferredDefaultMachine);
     }
 
     // Load machine configuration. S_FALSE here means the user
