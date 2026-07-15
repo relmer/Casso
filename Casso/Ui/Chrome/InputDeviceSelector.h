@@ -5,6 +5,7 @@
 #include "Core/IDxuiControl.h"
 #include "Render/IDxuiPainter.h"
 #include "Render/IDxuiTextRenderer.h"
+#include "Theme/DxuiTheme.h"
 #include "UiCommandTypes.h"
 
 class IDxuiTheme;
@@ -106,6 +107,75 @@ private:
     static constexpr int    kGroupGapDp = 14;    // gap between Keys | Pointer groups
     static constexpr float  kFontDip    = 13.0f;
     static constexpr float  kFallbackCharPx = 7.5f;
+
+    // Palette — transcribed from the SVG masters (warm ABS beige family, the
+    // fire-button orange, and the drive-bar LED blue for the state LEDs).
+    static constexpr uint32_t  kCase       = 0xFFD8D2C1;   // body plastic
+    static constexpr uint32_t  kCaseLight  = 0xFFE2DDCD;   // top faces / plateau
+    static constexpr uint32_t  kCaseEdge   = 0xFF8F8A7A;   // molded edge stroke
+    static constexpr uint32_t  kSideFace   = 0xFFA9A392;   // oblique right-side faces
+    static constexpr uint32_t  kFacetTop   = 0xFFC7C1B1;   // funnel facets, light..dark
+    static constexpr uint32_t  kFacetLeft  = 0xFFB5AF9E;
+    static constexpr uint32_t  kFacetRight = 0xFFA39D8C;
+    static constexpr uint32_t  kFacetBot   = 0xFF948E7D;
+    static constexpr uint32_t  kHole       = 0xFF6B6759;   // pivot hole / well opening
+    static constexpr uint32_t  kKnob       = 0xFFB9B4A6;   // stick knob / dial caps
+    static constexpr uint32_t  kKnobEdge   = 0xFF6E6A5C;
+    static constexpr uint32_t  kDial       = 0xFFABA592;   // paddle dial body
+    static constexpr uint32_t  kDialSide   = 0xFFA79F8D;   // cylinder side bands
+    static constexpr uint32_t  kDialTop    = 0xFFC1BBAA;
+    static constexpr uint32_t  kDialEdge   = 0xFF827D6C;
+    static constexpr uint32_t  kTick       = 0xFF7E7967;   // knurl ticks
+    static constexpr uint32_t  kRib        = 0xFFA9A392;   // grip ribs
+    static constexpr uint32_t  kOrange     = 0xFFF0602B;   // fire buttons
+    static constexpr uint32_t  kOrangeEdge = 0xFFA63C14;
+    static constexpr uint32_t  kMouseBtn   = 0xFFB0ADA4;   // mouse button gray
+    static constexpr uint32_t  kMouseBtnEdge = 0xFF6E6B62;
+    static constexpr uint32_t  kStick      = 0xFF3A3733;   // joystick grip
+    static constexpr uint32_t  kShaft      = 0xFF7A6A4E;   // brass shaft
+    static constexpr uint32_t  kHighlight  = 0x59FFFFFF;   // specular highlights
+    static constexpr uint32_t  kSeam       = 0xB88F8A7A;   // case seam lines
+
+    // LED state colors — identical to the drive-bar / old toggle LED.
+    static constexpr uint32_t  kLedOnCore  = 0xFF3DA1FF;
+    static constexpr uint32_t  kLedOffCore = 0xFF06121A;
+
+    static constexpr uint32_t  kFocusRing  = 0xFF3DA1FF;
+    static constexpr uint32_t  kHoverBg    = 0x16FFFFFF;
+    static constexpr uint32_t  kDividerCol = 0x5A8F8A7A;
+
+    static constexpr const wchar_t * kFontFamily = DxuiTheme::kBodyFace;
+    static constexpr const wchar_t * kLabels[3]  = { L"Joystick mode", L"Paddle mode", L"Mouse mode" };
+
+    // Second label line shown under "Paddle mode" while paddle is active: the
+    // captured mouse hides the cursor, so the exit key must be visible on the
+    // control itself. Smaller + muted so it reads as a hint, not a label.
+    static constexpr const wchar_t * kPaddleEscHint  = L"ESC to exit";
+    static constexpr float           kSubLabelScale  = 0.8f;   // hint font vs label font
+    static constexpr int             kPaddleSegIndex = 1;      // order: Joystick, Paddle, Mouse
+
+    // Per-segment tooltips (independent, per user feedback).
+    static constexpr wchar_t  kTipJoystickSeg[] =
+        L"Map the arrow keys and X/Z to the joystick and buttons 0/1.\n"
+        L"Click to toggle. Works alongside the pointer devices.";
+    static constexpr wchar_t  kTipPaddleSeg[] =
+        L"Captures the mouse and maps it to paddles 0/1 and buttons 0/1\n"
+        L"Press ESC to exit this mode.";
+    static constexpr wchar_t  kTipMouseSeg[] =
+        L"Send host mouse inputs to the machine";
+
+    // State-summary fallbacks (paddle-capture notice + gap hover).
+    static constexpr wchar_t  kTipOffState[] =
+        L"Input devices: joystick (arrow keys), paddle, or mouse.\n"
+        L"Click a device to connect it to the game port.";
+    static constexpr wchar_t  kTipPaddleState[] =
+        L"The mouse drives paddles 0 and 1; left / right click = buttons 0 and 1.\n"
+        L"Press Esc to release the mouse and exit paddle mode.";
+    static constexpr wchar_t  kTipJoystickState[] =
+        L"Arrows, Z, and X keys are mapped to the joystick and its buttons.";
+    static constexpr wchar_t  kTipMouseState[] =
+        L"The host pointer drives the built-in mouse while over the screen\n"
+        L"(non-capturing).";
 
     int      SegmentCount() const { return m_mouseAvailable ? 3 : 2; }
     bool     SegmentSelected (int index) const;

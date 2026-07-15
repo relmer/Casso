@@ -47,6 +47,17 @@ public:
 private:
     void ApplyBank     (int bank);
 
+    // Bank image geometry: each 16K bank is a full $C000-$FFFF image;
+    // ApplyBank re-slices $C100-$CFFF and $D000-$FFFF out of it.
+    static constexpr Word    kBankImageStart = 0xC000;
+    static constexpr size_t  kBankImageSize  = 0x4000;      // 16 KiB
+    static constexpr Word    kCxxxStart      = 0xC100;
+    static constexpr size_t  kCxxxSize       = 0x0F00;      // $C100-$CFFF
+    static constexpr Word    kLcRomStart     = 0xD000;
+    static constexpr size_t  kLcRomSize      = 0x3000;      // $D000-$FFFF
+    static constexpr size_t  kCxxxOffset     = kCxxxStart  - kBankImageStart;   // $0100
+    static constexpr size_t  kLcRomOffset    = kLcRomStart - kBankImageStart;   // $1000
+
     LanguageCard &  m_lc;
     Apple2eMmu   &  m_mmu;
     vector<Byte>    m_bank[2];
