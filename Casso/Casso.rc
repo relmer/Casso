@@ -45,6 +45,24 @@ IDR_THEME_RETRO_FONT_TODO          RCDATA "..\\Resources\\Themes\\RetroTerminal\
 IDR_MODEL_IMAGEWRITER_OBJ          RCDATA "..\\Resources\\Models\\ImageWriterII\\ImageWriterII.obj"
 IDR_MODEL_IMAGEWRITER_MTL          RCDATA "..\\Resources\\Models\\ImageWriterII\\ImageWriterII.mtl"
 
+// Embedded ImageWriter II mechanical sound set (extracted to the asset base by
+// EnsureImageWriterSounds; decoded by PrinterAudioSource). CC BY 4.0 -- see
+// Assets/ImageWriter II Sounds/ATTRIBUTION.txt.
+IDR_SOUND_PRINT_DRAFT              RCDATA "..\\Assets\\ImageWriter II Sounds\\print_draft_loop.mp3"
+IDR_SOUND_PRINT_MEDIUM            RCDATA "..\\Assets\\ImageWriter II Sounds\\print_medium_loop.mp3"
+IDR_SOUND_PRINT_NLQ               RCDATA "..\\Assets\\ImageWriter II Sounds\\print_nlq_loop.mp3"
+IDR_SOUND_LINE_FEED_1             RCDATA "..\\Assets\\ImageWriter II Sounds\\line_feed_01.mp3"
+IDR_SOUND_LINE_FEED_2             RCDATA "..\\Assets\\ImageWriter II Sounds\\line_feed_02.mp3"
+IDR_SOUND_LINE_FEED_3             RCDATA "..\\Assets\\ImageWriter II Sounds\\line_feed_03.mp3"
+IDR_SOUND_PAGE_FEED_SHORT         RCDATA "..\\Assets\\ImageWriter II Sounds\\page_feed_short.mp3"
+IDR_SOUND_PAGE_FEED_MEDIUM        RCDATA "..\\Assets\\ImageWriter II Sounds\\page_feed_medium.mp3"
+IDR_SOUND_PAGE_FEED_LONG          RCDATA "..\\Assets\\ImageWriter II Sounds\\page_feed_long.mp3"
+IDR_SOUND_PAPER_TEAR_1            RCDATA "..\\Assets\\ImageWriter II Sounds\\paper_tear_01.mp3"
+IDR_SOUND_PAPER_TEAR_2            RCDATA "..\\Assets\\ImageWriter II Sounds\\paper_tear_02.mp3"
+IDR_SOUND_PAPER_TEAR_3            RCDATA "..\\Assets\\ImageWriter II Sounds\\paper_tear_03.mp3"
+IDR_SOUND_PAPER_TEAR_4            RCDATA "..\\Assets\\ImageWriter II Sounds\\paper_tear_04.mp3"
+IDR_SOUND_PAPER_TEAR_5            RCDATA "..\\Assets\\ImageWriter II Sounds\\paper_tear_05.mp3"
+
 // Embedded CRT HLSL sources (compiled at runtime by CrtPostProcess).
 IDR_HLSL_BRIGHTNESS      RCDATA "Shaders\\CRT\\brightness.hlsl"
 IDR_HLSL_SCANLINES       RCDATA "Shaders\\CRT\\scanlines.hlsl"

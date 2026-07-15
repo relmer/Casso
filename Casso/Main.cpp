@@ -461,6 +461,11 @@ int WINAPI wWinMain (
         // preserved — the planner only ever touches built-in dirs.
         hrThemes = AssetBootstrap::EnsureThemes (hInstance);
         IGNORE_RETURN_VALUE (hrThemes, S_OK);
+
+        // Extract the ImageWriter II mechanical sound set next to the machine
+        // configs and themes so the printer preview has audio on first launch.
+        HRESULT hrSounds = AssetBootstrap::EnsureImageWriterSounds (hInstance);
+        IGNORE_RETURN_VALUE (hrSounds, S_OK);
     }
 
     // Resolve machine name: command line > UserPrefs.json lastSelectedMachine > first discovered.

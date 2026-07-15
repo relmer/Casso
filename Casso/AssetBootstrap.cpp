@@ -879,6 +879,81 @@ HRESULT AssetBootstrap::EnsureThemes (
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  EnsureImageWriterSounds
+//
+//  Extract the embedded ImageWriter II mechanical sound grains to
+//  %LOCALAPPDATA%\Casso\ImageWriter II Sounds\ so PrinterAudioSource can decode
+//  them by path (Media Foundation needs a file). Unlike machine configs /
+//  themes there is no user-edit or versioning story: the grains are read-only
+//  assets, so a missing file is (re)written and an existing one is left alone.
+//  Best-effort throughout -- a failed write leaves that grain silent.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT AssetBootstrap::EnsureImageWriterSounds (HINSTANCE hInstance)
+{
+    struct SoundAsset { int resourceId; const wchar_t * fileName; };
+
+    static const SoundAsset  s_kSounds[] =
+    {
+        { IDR_SOUND_PRINT_DRAFT,       L"print_draft_loop.mp3"  },
+        { IDR_SOUND_PRINT_MEDIUM,      L"print_medium_loop.mp3" },
+        { IDR_SOUND_PRINT_NLQ,         L"print_nlq_loop.mp3"    },
+        { IDR_SOUND_LINE_FEED_1,       L"line_feed_01.mp3"      },
+        { IDR_SOUND_LINE_FEED_2,       L"line_feed_02.mp3"      },
+        { IDR_SOUND_LINE_FEED_3,       L"line_feed_03.mp3"      },
+        { IDR_SOUND_PAGE_FEED_SHORT,   L"page_feed_short.mp3"   },
+        { IDR_SOUND_PAGE_FEED_MEDIUM,  L"page_feed_medium.mp3"  },
+        { IDR_SOUND_PAGE_FEED_LONG,    L"page_feed_long.mp3"    },
+        { IDR_SOUND_PAPER_TEAR_1,      L"paper_tear_01.mp3"     },
+        { IDR_SOUND_PAPER_TEAR_2,      L"paper_tear_02.mp3"     },
+        { IDR_SOUND_PAPER_TEAR_3,      L"paper_tear_03.mp3"     },
+        { IDR_SOUND_PAPER_TEAR_4,      L"paper_tear_04.mp3"     },
+        { IDR_SOUND_PAPER_TEAR_5,      L"paper_tear_05.mp3"     },
+    };
+
+    HRESULT     hr        = S_OK;
+    fs::path    soundsDir;
+    error_code  ec;
+
+    soundsDir = GetAssetBaseDirectory() / L"ImageWriter II Sounds";
+    fs::create_directories (soundsDir, ec);
+
+    for (const SoundAsset & asset : s_kSounds)
+    {
+        fs::path          target = soundsDir / asset.fileName;
+        span<const Byte>  bytes;
+        HRESULT           hrItem;
+
+        if (fs::exists (target, ec))
+        {
+            continue;   // already extracted; grains are immutable
+        }
+
+        bytes = ExtractResource (hInstance, asset.resourceId);
+
+        if (bytes.empty())
+        {
+            hr = E_FAIL;   // resource missing from this build
+            continue;
+        }
+
+        hrItem = WriteFileBytes (target, bytes);
+
+        if (FAILED (hrItem))
+        {
+            hr = hrItem;
+        }
+    }
+
+    return hr;
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  GetAssetBaseDirectory
 //
 //  Returns %LOCALAPPDATA%\Casso\ -- the single, user-writable root for

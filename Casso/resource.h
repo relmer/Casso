@@ -110,3 +110,22 @@
 // II, exported as OBJ+MTL. See Resources/Models/ImageWriterII/.
 #define IDR_MODEL_IMAGEWRITER_OBJ           400
 #define IDR_MODEL_IMAGEWRITER_MTL           401
+
+// Embedded ImageWriter II mechanical sound set (extracted to
+// %LOCALAPPDATA%\Casso\ImageWriter II Sounds\ by EnsureImageWriterSounds).
+// Recorded from a real machine by Scott Lawrence; CC BY 4.0 (BleuLlama
+// ImageWriterIISimulator). See Assets/ImageWriter II Sounds/ATTRIBUTION.txt.
+#define IDR_SOUND_PRINT_DRAFT               500
+#define IDR_SOUND_PRINT_MEDIUM              501
+#define IDR_SOUND_PRINT_NLQ                 502
+#define IDR_SOUND_LINE_FEED_1               503
+#define IDR_SOUND_LINE_FEED_2               504
+#define IDR_SOUND_LINE_FEED_3               505
+#define IDR_SOUND_PAGE_FEED_SHORT           506
+#define IDR_SOUND_PAGE_FEED_MEDIUM          507
+#define IDR_SOUND_PAGE_FEED_LONG            508
+#define IDR_SOUND_PAPER_TEAR_1              509
+#define IDR_SOUND_PAPER_TEAR_2              510
+#define IDR_SOUND_PAPER_TEAR_3              511
+#define IDR_SOUND_PAPER_TEAR_4              512
+#define IDR_SOUND_PAPER_TEAR_5              513

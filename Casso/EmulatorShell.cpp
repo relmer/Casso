@@ -2517,6 +2517,7 @@ void EmulatorShell::ShowPrinterPanel (bool activate)
         });
         m_printerPanel->SetOnDiscard ([this] ()
         {
+            m_printerAudio.PlayTearOff ();   // random paper-tear on the one tear-off
             m_windowCommandManager->HandleCommand (IDM_PRINTER_DISCARD);
             SnapshotStripToPanel ();
         });
@@ -2535,6 +2536,13 @@ void EmulatorShell::ShowPrinterPanel (bool activate)
             {
                 return;   // an actual print is streaming: ignore the button
             }
+
+            // Scale the form-feed sound by how much of the current page will
+            // feed to the tear bar (less unused -> shorter feed -> shorter
+            // grain). A page that just wrapped feeds a full sheet (unused ~1).
+            int    rowsOnPage = m_printerWorker.RowsUsed () % PrinterGrid::kPageRows;
+            float  unused     = 1.0f - (float) rowsOnPage / (float) PrinterGrid::kPageRows;
+            m_printerAudio.PlayFormFeed (unused);
 
             m_printerWorker.FormFeed ();
         });
@@ -2779,6 +2787,18 @@ void EmulatorShell::UpdatePrinterPreview ()
     }
 
     m_printerPanel->RefreshLive (m_printerWorker, nowMs);
+
+    // Feed the paced carriage position to the printer audio so the mechanical
+    // sound tracks the on-screen head (Option A), sharing the exact reveal the
+    // panel just advanced. The audio thread gates its carriage loop + fires the
+    // line-feed clacks off this; a closed / hidden preview stops publishing, so
+    // the loop naturally goes quiet.
+    {
+        int64_t  progressDots = 0;
+        int      colDots      = 0;
+        m_printerPanel->GetPacedReveal (progressDots, colDots);
+        m_printerAudio.PublishReveal (progressDots, colDots);
+    }
 
     // Hold a smooth present cadence while the carriage is sweeping or a pan/zoom
     // is easing. Without this the loop drops to Sleep(1) whenever the emulator
@@ -3302,6 +3322,17 @@ void EmulatorShell::OnCpuThreadStart()
 
         HRESULT  hrLoad = m_driveAudioMixer.SetMechanism (m_driveAudioMixer.GetMechanism());
         IGNORE_RETURN_VALUE (hrLoad, S_OK);
+    }
+
+    // Load the ImageWriter mechanical sound set (embedded CC BY 4.0 grains that
+    // EnsureImageWriterSounds extracted to the asset base). Decodes MP3 via the
+    // same Media Foundation path as the Disk II WAVs; a missing grain is silent.
+    if (m_wasapiAudio.IsInitialized())
+    {
+        fs::path  soundsDir = AssetBootstrap::GetAssetBaseDirectory() / L"ImageWriter II Sounds";
+        HRESULT   hrSnd     = m_printerAudio.LoadSounds (soundsDir.wstring().c_str(),
+                                                         m_wasapiAudio.GetSampleRate());
+        IGNORE_RETURN_VALUE (hrSnd, S_OK);
     }
 
     // The initial machine is built before WASAPI comes up, so its PSGs

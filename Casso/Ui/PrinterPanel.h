@@ -65,6 +65,20 @@ public:
     // sleep tick (which a print with a static guest screen would otherwise hit).
     bool     NeedsAnimationFrame () const { return m_sweeping || m_panZoomEasing; }
 
+    // Paced carriage position for the printer audio (Option A / FR-034): a
+    // monotonic revealed-dot counter and the within-line sweep column, both in
+    // native dots. The audio source gates its carriage loop on the counter
+    // advancing and fires a line-feed clack when the column wraps back toward
+    // the left margin. This reads the SAME paced reveal the panel renders, so
+    // the mechanical sound follows what is seen, not the raw guest byte stream.
+    // Valid after RefreshLive.
+    void     GetPacedReveal (int64_t & progressDots, int & colDots) const
+    {
+        int  rows = m_pacing.RevealedRows ();
+        colDots      = m_pacing.RevealedColDots ();
+        progressDots = (int64_t) rows * PrinterGrid::kDotsPerRow + colDots;
+    }
+
     // Per-frame live update (FR-033): advance the viewport to the worker's
     // newest row, tick the snap-back clock, and re-render the visible span
     // when something changed (new bytes, viewport motion, or `force`). Cost

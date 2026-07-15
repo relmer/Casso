@@ -38,6 +38,14 @@ public:
     // to `ThemeBootstrapPlanner::Plan`.
     static HRESULT  EnsureThemes          (HINSTANCE hInstance);
 
+    // Extract the embedded ImageWriter II sound set into
+    // `<assetBase>/ImageWriter II Sounds/` on first launch. Each grain is
+    // written only if missing (the files are read-only assets, never
+    // user-edited), so subsequent launches are a cheap existence check.
+    // Best-effort: a failed write leaves that grain absent and the printer
+    // audio simply plays it as silence. CC BY 4.0 (Scott Lawrence / BleuLlama).
+    static HRESULT  EnsureImageWriterSounds (HINSTANCE hInstance);
+
     // Returns the install root that contains (or should contain) the
     // per-machine `Machines/` and per-device `Devices/` subtrees. The
     // downloader places freshly fetched ROMs at

@@ -441,6 +441,12 @@ HRESULT MachineManager::CreateMemoryDevices (const MachineConfig & config)
         }
     }
 
+    // The emulated ImageWriter shares the generic drive-audio bus (FR-016). It
+    // is a single persistent shell-owned source; the UnregisterAllSources above
+    // dropped it along with the disk sources, so re-register it here on every
+    // machine build. Silent until the live preview publishes a paced reveal.
+    m_shell.m_driveAudioMixer.RegisterSource (&m_shell.m_printerAudio);
+
     // Feed real disk head / motor / door events to drive 0's source only when
     // the machine actually has the Disk ][ controller realized.
     if (m_shell.m_refs.diskController != nullptr && !m_shell.m_diskAudioSources.empty())

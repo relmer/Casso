@@ -4,6 +4,7 @@
 
 #include "Audio/Disk2AudioSource.h"
 #include "Audio/DriveAudioMixer.h"
+#include "Audio/PrinterAudioSource.h"
 #include "Config/GlobalUserPrefs.h"
 #include "Config/UserConfigStore.h"
 #include "Config/Win32FileSystem.h"
@@ -707,6 +708,12 @@ private:
     // Disk II controller (FR-015).
     DriveAudioMixer                      m_driveAudioMixer;
     vector<unique_ptr<Disk2AudioSource>> m_diskAudioSources;
+
+    // Emulated ImageWriter II mechanical audio (Option A: driven by the paced
+    // on-screen carriage, not the raw guest stream). A single persistent source
+    // on the shared drive-audio bus (FR-016), re-registered by MachineManager on
+    // every build. Its grains load once in OnCpuThreadStart.
+    PrinterAudioSource                   m_printerAudio;
 
     // Mockingboard audio. Its own mixer so the "Mockingboard" Options
     // toggle is independent of the Drive Audio toggle. The PSG audio
