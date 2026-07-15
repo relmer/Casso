@@ -361,8 +361,9 @@ HRESULT PrinterPanel::RenderFrame ()
 
     // Advance the pan/zoom glide and push the transform to the scene every
     // frame (runs even with no printer card, so zooming a blank sheet still
-    // animates). RefreshLive layers the follow-mode panY target on top.
-    m_panZoom.Tick ((double) NowMs () / 1000.0);
+    // animates). RefreshLive layers the follow-mode panY target on top. The
+    // Tick return keeps the frame cadence hot while a glide is still in flight.
+    m_panZoomEasing = m_panZoom.Tick ((double) NowMs () / 1000.0);
     SyncTransform ();
 
     Invalidate ();
@@ -661,6 +662,12 @@ void PrinterPanel::RefreshLive (PrinterWorker & worker, int64_t nowMs, bool forc
     revealRow  = m_pacing.RevealedRows ();
     revealCol  = m_pacing.RevealedColDots ();
     bandBottom = (std::min) (revealRow + s_kPinBandRows - 1, rows - 1);
+
+    // The carriage is animating whenever the reveal trails the guest's head --
+    // catching up through older rows, or sweeping the live line. The shell reads
+    // this (NeedsAnimationFrame) to hold a smooth present cadence through the
+    // sweep instead of stepping on the idle loop's coarse sleep tick.
+    m_sweeping = (revealRow < headRow) || (revealCol < headCol);
 
     if (m_scene != nullptr)
     {

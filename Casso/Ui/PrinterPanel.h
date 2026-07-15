@@ -58,6 +58,13 @@ public:
     HRESULT  RenderFrame ();
     void     SetTheme (const CassoTheme * theme);
 
+    // True while the panel needs a continuous animation cadence: the carriage
+    // is still sweeping toward the guest's head position, or a pan/zoom is
+    // easing. The shell forces a present each frame while true so the motion
+    // runs at the present rate instead of stepping on the idle loop's coarse
+    // sleep tick (which a print with a static guest screen would otherwise hit).
+    bool     NeedsAnimationFrame () const { return m_sweeping || m_panZoomEasing; }
+
     // Per-frame live update (FR-033): advance the viewport to the worker's
     // newest row, tick the snap-back clock, and re-render the visible span
     // when something changed (new bytes, viewport motion, or `force`). Cost
@@ -168,6 +175,12 @@ private:
     // restored strip doesn't read the initial sync as a fresh receive (which
     // would flash the status LEDs bright before settling to their idle glow).
     bool                    m_activityPrimed   = false;
+
+    // Animation-cadence signals read by NeedsAnimationFrame: the carriage is
+    // still chasing the head (set in RefreshLive) or the pan/zoom is easing
+    // (set in RenderFrame from the controller's Tick).
+    bool                    m_sweeping         = false;
+    bool                    m_panZoomEasing    = false;
 
     // panY seeding: on the first content frame (and after a tear-off) snap
     // m_panZoom's eased position onto the target instead of gliding, so

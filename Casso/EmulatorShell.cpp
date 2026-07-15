@@ -2779,6 +2779,15 @@ void EmulatorShell::UpdatePrinterPreview ()
     }
 
     m_printerPanel->RefreshLive (m_printerWorker, nowMs);
+
+    // Hold a smooth present cadence while the carriage is sweeping or a pan/zoom
+    // is easing. Without this the loop drops to Sleep(1) whenever the emulator
+    // framebuffer is static (a guest that prints without touching the screen),
+    // and that coarse, jittery tick makes the head step across the platen.
+    if (m_printerPanel->NeedsAnimationFrame ())
+    {
+        m_d3dRenderer.MarkRedrawNeeded ();
+    }
 }
 
 
