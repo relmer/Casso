@@ -174,8 +174,6 @@ void SettingsApplyController::SnapshotBaselines ()
     // Printing prefs baseline (global host-service prefs) for Cancel / save.
     if (m_prefs != nullptr)
     {
-        m_baselinePrintDestination = m_prefs->printDestination;
-        m_baselinePrintPngFolder   = m_prefs->printPngFolder;
         m_baselinePrintOutputDpi   = m_prefs->printOutputDpi;
         m_baselinePrintDotStyle    = m_prefs->printDotStyle;
     }
@@ -375,8 +373,6 @@ void SettingsApplyController::CommitApply ()
         size_t  i               = 0;
 
         anyPrintChanged =
-            m_prefs->printDestination != m_baselinePrintDestination ||
-            m_prefs->printPngFolder   != m_baselinePrintPngFolder   ||
             m_prefs->printOutputDpi   != m_baselinePrintOutputDpi   ||
             m_prefs->printDotStyle    != m_baselinePrintDotStyle;
 
@@ -425,8 +421,6 @@ void SettingsApplyController::CommitApply ()
             m_baselineCrt[i] = m_prefs->crtByMode[i];
         }
 
-        m_baselinePrintDestination = m_prefs->printDestination;
-        m_baselinePrintPngFolder   = m_prefs->printPngFolder;
         m_baselinePrintOutputDpi   = m_prefs->printOutputDpi;
         m_baselinePrintDotStyle    = m_prefs->printDotStyle;
     }
@@ -511,9 +505,7 @@ void SettingsApplyController::Cancel (SettingsPreviewController & preview)
         }
 
         // Revert Printing edits (no live effect; they only bind at the next
-        // eject, so this simply un-does the staged pref writes).
-        m_prefs->printDestination = m_baselinePrintDestination;
-        m_prefs->printPngFolder   = m_baselinePrintPngFolder;
+        // delivery, so this simply un-does the staged pref writes).
         m_prefs->printOutputDpi   = m_baselinePrintOutputDpi;
         m_prefs->printDotStyle    = m_baselinePrintDotStyle;
     }

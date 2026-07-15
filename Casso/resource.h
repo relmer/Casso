@@ -49,7 +49,8 @@
 #define IDM_AUDIO_DRIVE_PAN         40054
 #define IDM_AUDIO_DRIVE_TEST        40055
 
-#define IDM_PRINTER_EJECT           40060
+// 40060 was IDM_PRINTER_EJECT (removed: delivery destination is now chosen
+// per action via the preview's Print / Save buttons, not a File-menu Eject).
 #define IDM_PRINTER_DISCARD         40061
 #define IDM_PRINTER_COPY            40062
 #define IDM_PRINTER_PREVIEW         40063

@@ -48,8 +48,6 @@ static const std::set<std::string>  s_kKnownTopLevel = {
     "recentDiskLoadedAt",
     "crt",
     "window",
-    "printDestination",
-    "printPngFolder",
     "printOutputDpi",
     "printDotStyle"
 };
@@ -922,8 +920,6 @@ JsonValue GlobalUserPrefs::ToJson() const
     root.emplace_back ("recentDiskLoadedAt", RecentDiskTimesToJson (recentDiskLoadedAt));
 
     // Printing (host print services, FR-011).
-    root.emplace_back ("printDestination", JsonValue (printDestination));
-    root.emplace_back ("printPngFolder",   JsonValue (printPngFolder));
     root.emplace_back ("printOutputDpi",   JsonValue ((double) printOutputDpi));
     root.emplace_back ("printDotStyle",    JsonValue (printDotStyle));
 
@@ -1034,8 +1030,6 @@ HRESULT GlobalUserPrefs::FromJson (const JsonValue & v)
     }
 
     // Printing (host print services, FR-011); absent keys keep struct defaults.
-    printDestination = GetStringOpt (v, "printDestination", printDestination);
-    printPngFolder   = GetStringOpt (v, "printPngFolder",   printPngFolder);
     printOutputDpi   = GetIntOpt    (v, "printOutputDpi",   printOutputDpi);
     printDotStyle    = GetStringOpt (v, "printDotStyle",    printDotStyle);
 

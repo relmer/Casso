@@ -16,7 +16,6 @@ namespace
     constexpr MainMenuCommandEntry  s_kEntries[] =
     {
         { IDM_PRINTER_PREVIEW,          MainMenuId::File,    L"Show &Printer Preview",  nullptr          },
-        { IDM_PRINTER_EJECT,            MainMenuId::File,    L"&Finish Printing (Eject Paper)", nullptr   },
         { IDM_PRINTER_COPY,             MainMenuId::File,    L"&Copy Printout to Clipboard",    nullptr   },
         { IDM_PRINTER_DISCARD,          MainMenuId::File,    L"&Discard Printout (Tear Off)",   nullptr   },
         { 0,                            MainMenuId::File,    nullptr,                   nullptr          },

@@ -78,62 +78,6 @@ void SettingsSheet::OnBuildPages ()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  SettingsSheet::PickPrintFolder
-//
-//  Modal folder chooser for the Printing page's PNG output folder. Pure Win32
-//  shell edge (untestable), so it lives in the shell.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool SettingsSheet::PickPrintFolder (std::wstring & outFolder)
-{
-    HRESULT                  hr      = S_OK;
-    ComPtr<IFileOpenDialog>  dialog;
-    ComPtr<IShellItem>       item;
-    PWSTR                    pszPath = nullptr;
-    DWORD                    opts    = 0;
-    bool                     ok      = false;
-
-
-    hr = CoCreateInstance (CLSID_FileOpenDialog, nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS (&dialog));
-    CHR (hr);
-
-    hr = dialog->GetOptions (&opts);
-    CHR (hr);
-
-    hr = dialog->SetOptions (opts | FOS_PICKFOLDERS);
-    CHR (hr);
-
-    hr = dialog->Show (Hwnd ());
-    if (hr == HRESULT_FROM_WIN32 (ERROR_CANCELLED))
-    {
-        hr = S_FALSE;
-        goto Error;
-    }
-    CHR (hr);
-
-    hr = dialog->GetResult (&item);
-    CHR (hr);
-
-    hr = item->GetDisplayName (SIGDN_FILESYSPATH, &pszPath);
-    CHR (hr);
-
-    outFolder = pszPath;
-    ok        = true;
-
-Error:
-    if (pszPath != nullptr)
-    {
-        CoTaskMemFree (pszPath);
-    }
-    return ok;
-}
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  OpenModeless
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -374,20 +318,9 @@ HRESULT SettingsSheet::OpenModeless (
     m_displayPage->SetPopupHost  (PopupHost());
     m_printingPage->SetPopupHost (PopupHost());
 
-    // Printing page: bind global prefs, seed the default PNG folder for its
-    // display, and hand it a folder picker. Edits persist / revert through the
-    // apply controller (SnapshotBaselines captures printing prefs too).
-    {
-        PWSTR   picturesRaw = nullptr;
-
-        if (SUCCEEDED (SHGetKnownFolderPath (FOLDERID_Pictures, 0, nullptr, &picturesRaw)) &&
-            picturesRaw != nullptr)
-        {
-            m_printingPage->SetDefaultPngFolder ((fs::path (picturesRaw) / L"Casso Prints").wstring ());
-            CoTaskMemFree (picturesRaw);
-        }
-    }
-    m_printingPage->SetOnBrowseFolder ([this] (std::wstring & out) { return PickPrintFolder (out); });
+    // Printing page: bind global prefs (resolution + dot style). Edits persist
+    // / revert through the apply controller (SnapshotBaselines captures the
+    // printing prefs too).
     m_printingPage->SetPrefs (&prefs);
 
     // Pull the running machine + discovered themes into the pages.

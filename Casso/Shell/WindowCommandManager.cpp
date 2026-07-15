@@ -180,7 +180,6 @@ bool WindowCommandManager::OnCommand (HWND hwnd, int id)
     else if (id >= IDM_MACHINE_RESET  && id <= IDM_MACHINE_ARROWS_PADDLE)   { OnMachineCommand (id); }
     else if (id >= IDM_DISK_INSERT1   && id <= IDM_DISK_WRITEPROTECT2)      { OnDiskCommand (id); }
     else if (id >= IDM_VIEW_COLOR     && id <= IDM_VIEW_SETTINGS)           { OnViewCommand (id); }
-    else if (id == IDM_PRINTER_EJECT)                                      { OnPrinterCommand (id); }
     else if (id == IDM_PRINTER_DISCARD)                                    { OnPrinterCommand (id); }
     else if (id == IDM_PRINTER_COPY)                                       { OnPrinterCommand (id); }
     else if (id == IDM_PRINTER_PRINT)                                      { OnPrinterCommand (id); }
@@ -693,77 +692,12 @@ static int WholeStripDpi (const GlobalUserPrefs & prefs, int rows)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  SavePrintout
-//
-//  Renders the finished strip to a PNG under the configured folder (Settings >
-//  Printing; default <Pictures>\Casso Prints) at the chosen dpi + dot style,
-//  and hands back the path written. Render/encode/naming are core (unit-
-//  tested); this contributes only the irreducible edges -- known-folder
-//  resolution, directory creation, and the file write. COM is live on the UI
-//  thread (OLE drag-drop), so PngCodec's WIC calls are valid here.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-HRESULT WindowCommandManager::SavePrintout (const PrintRaster & raster, fs::path & outFile)
-{
-    HRESULT                   hr          = S_OK;
-    PWSTR                     picturesRaw = nullptr;
-    vector<Byte>              png;
-    fs::path                  folder;
-    SYSTEMTIME                now         = {};
-    std::error_code           ec;
-    const GlobalUserPrefs &   prefs       = m_shell.m_globalPrefs;
-
-    hr = PrintDelivery::RenderToPng (raster, 0, raster.RowsUsed () - 1,
-                                     WholeStripDpi (prefs, raster.RowsUsed ()),
-                                     PrintDotStyleFromPrefs (prefs), png);
-    CHR (hr);
-
-    if (!prefs.printPngFolder.empty ())
-    {
-        folder = fs::path (prefs.printPngFolder);
-    }
-    else
-    {
-        hr = SHGetKnownFolderPath (FOLDERID_Pictures, 0, nullptr, &picturesRaw);
-        CHR (hr);
-
-        folder = fs::path (picturesRaw) / L"Casso Prints";
-    }
-
-    fs::create_directories (folder, ec);
-
-    GetLocalTime (&now);
-    outFile = PrintFileNaming::ComposePngPath (folder, now,
-                  [] (const fs::path & p) { std::error_code e; return fs::exists (p, e); });
-
-    {
-        std::ofstream   out (outFile, std::ios::binary | std::ios::trunc);
-
-        CBREx (out.is_open (), E_FAIL);
-        out.write ((const char *) png.data (), (std::streamsize) png.size ());
-        CBREx (out.good (), E_FAIL);
-    }
-
-Error:
-    if (picturesRaw != nullptr)
-    {
-        CoTaskMemFree (picturesRaw);
-    }
-    return hr;
-}
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  SavePrintoutAs
 //
-//  Save-As variant of SavePrintout: the user picks the destination through
-//  IFileSaveDialog (seeded with the configured folder and a timestamped
-//  name), and the strip renders to that exact path. Returns S_FALSE when
-//  the dialog is cancelled.
+//  The user picks the destination through IFileSaveDialog (seeded with the
+//  default folder <Pictures>\Casso Prints and a timestamped name), and the
+//  strip renders to that exact path at the configured dpi + dot style.
+//  Returns S_FALSE when the dialog is cancelled.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -797,12 +731,8 @@ HRESULT WindowCommandManager::SavePrintoutAs (const PrintRaster & raster, fs::pa
     hr = dialog->SetDefaultExtension (L"png");
     CHR (hr);
 
-    // Seed the same folder + timestamped name the automatic save would use.
-    if (!prefs.printPngFolder.empty ())
-    {
-        folder = fs::path (prefs.printPngFolder);
-    }
-    else if (SUCCEEDED (SHGetKnownFolderPath (FOLDERID_Pictures, 0, nullptr, &picturesRaw)))
+    // Seed the default folder <Pictures>\Casso Prints + a timestamped name.
+    if (SUCCEEDED (SHGetKnownFolderPath (FOLDERID_Pictures, 0, nullptr, &picturesRaw)))
     {
         folder = fs::path (picturesRaw) / L"Casso Prints";
     }
@@ -1140,9 +1070,10 @@ Error:
 //  NON-DESTRUCTIVE: they deliver the current strip and leave the paper in
 //  the printer, so one printout can be printed AND saved AND copied. Discard
 //  is the one explicit tear-off (confirmed, clears the persisted pending
-//  copy, FR-029). Eject is the legacy menu command, kept as
-//  deliver-then-clear for the File menu. All drain the ring first so they
-//  act on the complete strip, reading the raster from a quiesced worker.
+//  copy, FR-029). All drain the ring first so they act on the complete
+//  strip, reading the raster from a quiesced worker. Print always targets a
+//  Windows printer; Save always writes a PNG through the file dialog -- the
+//  destination is chosen by which command runs, not a stored preference.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1152,7 +1083,7 @@ void WindowCommandManager::OnPrinterCommand (int id)
     PrinterJob *   job  = nullptr;
     fs::path       file;
 
-    if ((id != IDM_PRINTER_EJECT && id != IDM_PRINTER_DISCARD && id != IDM_PRINTER_COPY &&
+    if ((id != IDM_PRINTER_DISCARD && id != IDM_PRINTER_COPY &&
          id != IDM_PRINTER_PRINT && id != IDM_PRINTER_SAVEAS) ||
         m_shell.m_refs.printerCard == nullptr)
     {
@@ -1163,7 +1094,6 @@ void WindowCommandManager::OnPrinterCommand (int id)
     bool   copy    = (id == IDM_PRINTER_COPY);
     bool   print   = (id == IDM_PRINTER_PRINT);
     bool   saveAs  = (id == IDM_PRINTER_SAVEAS);
-    bool   eject   = (id == IDM_PRINTER_EJECT);
 
     // Take ownership of the strip: stop the worker, then flush any tail bytes.
     // Every strip-level command acts on the whole page, so we drain first and
@@ -1182,8 +1112,7 @@ void WindowCommandManager::OnPrinterCommand (int id)
         const wchar_t * emptyMsg = copy    ? L"The printer has no page to copy yet."
                                  : discard ? L"The printer has no page to discard."
                                  : print   ? L"The printer has no page to print yet."
-                                 : saveAs  ? L"The printer has no page to save yet."
-                                           : L"The printer has no page to finish yet.";
+                                           : L"The printer has no page to save yet.";
 
         DxuiMessageBox (m_shell.PrinterDialogOwner (), &m_shell.m_chromeTheme, emptyMsg, L"Casso Printer", MB_OK | MB_ICONINFORMATION);
         m_shell.m_printerWorker.Start (m_shell.m_refs.printerCard->ByteRing ());
@@ -1231,22 +1160,15 @@ void WindowCommandManager::OnPrinterCommand (int id)
         return;
     }
 
-    // Print / Save / Save-As / (legacy) Eject all deliver the strip. Print
-    // and Save-As are non-destructive (paper stays); Eject follows the
-    // configured destination and clears to a fresh sheet (File-menu legacy).
-    bool   toPrinter = print || (eject && m_shell.m_globalPrefs.printDestination == "windowsPrinter");
-
-    if (toPrinter)
+    // Print -> Windows printer; Save -> PNG via file dialog. Both are
+    // non-destructive: the paper stays so it can be delivered again.
+    if (print)
     {
         hr = PrintToWindowsPrinter (job->Raster ());
     }
-    else if (saveAs)
-    {
-        hr = SavePrintoutAs (job->Raster (), file);
-    }
     else
     {
-        hr = SavePrintout (job->Raster (), file);
+        hr = SavePrintoutAs (job->Raster (), file);
     }
 
     if (hr == S_FALSE)
@@ -1258,23 +1180,14 @@ void WindowCommandManager::OnPrinterCommand (int id)
 
     if (SUCCEEDED (hr))
     {
-        std::wstring   msg = toPrinter
+        std::wstring   msg = print
                                  ? std::wstring (L"Sent the printout to the printer.")
                                  : (L"Saved printout to:\n" + file.wstring ());
 
         DxuiMessageBox (m_shell.PrinterDialogOwner (), &m_shell.m_chromeTheme, msg.c_str (), L"Casso Printer", MB_OK | MB_ICONINFORMATION);
 
-        if (eject)
-        {
-            // Legacy Eject: deliver then load a fresh sheet.
-            m_shell.m_printerWorker.Start (m_shell.m_refs.printerCard->ByteRing ());
-            PrintJobStore::Clear (m_shell.PendingPrintDir ());
-        }
-        else
-        {
-            // Print / Save keep the paper so it can also be saved / printed.
-            m_shell.m_printerWorker.Start (m_shell.m_refs.printerCard->ByteRing (), job->Raster ());
-        }
+        // Non-destructive: keep the paper so it can also be saved / printed.
+        m_shell.m_printerWorker.Start (m_shell.m_refs.printerCard->ByteRing (), job->Raster ());
     }
     else
     {

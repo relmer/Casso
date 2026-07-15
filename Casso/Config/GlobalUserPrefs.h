@@ -117,12 +117,11 @@ struct GlobalUserPrefs
     std::vector<std::int64_t>  recentDiskLoadedAt;
 
     // Host print-service preferences (Settings > Printing, FR-011). Global --
-    // host print services are shared by every machine. Destination and dot
-    // style are stored as the contract's string tokens (like
-    // audioDownloadConsent); an empty printPngFolder resolves to
-    // <Pictures>\Casso Prints at eject time.
-    std::string  printDestination = "pngFile";   // "pngFile" | "windowsPrinter"
-    std::string  printPngFolder;                  // empty == default folder
+    // host print services are shared by every machine. The delivery
+    // destination is no longer a stored preference: Print always targets a
+    // Windows printer and Save always writes a PNG through the file dialog
+    // (default folder <Pictures>\Casso Prints). Dot style is stored as the
+    // contract's string token (like audioDownloadConsent).
     int          printOutputDpi   = 576;          // 288 | 576 (FR-028)
     std::string  printDotStyle    = "ink";        // "ink" | "plain" (FR-027)
 

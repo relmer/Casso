@@ -182,10 +182,6 @@ private:
     DisplayPage  * m_displayPage  = nullptr;
     PrintingPage * m_printingPage = nullptr;
 
-    // Modal folder picker for the Printing page's PNG folder (FOS_PICKFOLDERS).
-    // Returns true + the chosen path, false on cancel/error.
-    bool  PickPrintFolder (std::wstring & outFolder);
-
     // Registration index of the Disk page, so OnDialogTick can show / hide its
     // tab as the staged Disk ][ controller is toggled (#84 Phase B). -1 until
     // the pages are built.
