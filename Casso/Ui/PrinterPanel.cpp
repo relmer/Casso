@@ -33,7 +33,7 @@ namespace
     constexpr int64_t   s_kMinRenderIntervalMs = 16;
 
     // Scroll step sizes in native rows (144 rows/inch).
-    constexpr int       s_kWheelRowsPerNotch = 96;    // 2/3" per wheel notch
+    constexpr int       s_kWheelRowsPerNotch = 144;   // 1" per wheel notch
     constexpr int       s_kArrowScrollRows   = 48;    // 1/3" per key press
 
     // Guest-activity gap after which the print counts as finished: Form Feed
@@ -155,8 +155,9 @@ DxuiPanZoom::Config PrinterPanel::PanZoomConfig ()
     cfg.zoomStep       = s_kZoomStep;
     cfg.wheelPanY      = (float) s_kWheelRowsPerNotch;   // native rows / notch
     cfg.wheelPanX      = (float) s_kWheelRowsPerNotch;   // content px / notch
-    cfg.easeTauSec     = 0.08;    // matches the retired m_smoothBottom glide
+    cfg.easeTauSec     = 0.08;    // glide used ONLY for the follow snap-back
     cfg.zoomEaseTauSec = 0.0;     // instant zoom (fit-to-window chrome)
+    cfg.userPanInstant = true;    // wheel / drag track the paper 1:1, no lag
 
     return cfg;
 }

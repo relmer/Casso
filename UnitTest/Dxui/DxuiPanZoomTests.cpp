@@ -371,6 +371,29 @@ public:
 
 
 
+    TEST_METHOD (UserPanInstant_UserPanSnapsButFollowStillEases)
+    {
+        DxuiPanZoom::Config  cfg;
+        cfg.userPanInstant = true;
+        cfg.easeTauSec     = 0.1;
+        cfg.wheelPanY      = 100.0f;
+        DxuiPanZoom  pz (cfg);
+        pz.SetPanYBounds (-1000.0f, 1000.0f);
+
+        // A user wheel lands immediately -- no Tick needed, no glide.
+        pz.OnMouse (Wheel (-1.0f));
+        Assert::AreEqual (100.0f, pz.PanY (), 0.001f);
+
+        // A programmatic follow target still eases (only partway after a slice).
+        pz.SetPanYTarget (0.0f);
+        pz.Tick (0.0);
+        pz.Tick (0.01);
+        Assert::IsTrue (pz.PanY () > 0.0f);
+        Assert::IsTrue (pz.PanY () < 100.0f);
+    }
+
+
+
     TEST_METHOD (OnChange_FiresForZoomAndPan)
     {
         DxuiPanZoom  pz;

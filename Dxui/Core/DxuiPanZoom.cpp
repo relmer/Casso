@@ -285,6 +285,10 @@ void DxuiPanZoom::NudgePanX (double deltaContent)
     if (target != m_panX.target)
     {
         m_panX.target = target;
+        if (m_cfg.userPanInstant)
+        {
+            m_panX.cur = target;   // horizontal nudges are always user input
+        }
         Changed ();
     }
 }
@@ -302,6 +306,13 @@ void DxuiPanZoom::NudgePanY (double deltaContent, bool user)
 
     bool changed = (target != m_panY.target);
     m_panY.target = target;
+
+    // Direct manipulation tracks instantly; programmatic follow (user == false)
+    // keeps the glide so the snap back to the live row still eases.
+    if (user && m_cfg.userPanInstant)
+    {
+        m_panY.cur = target;
+    }
 
     if (user && m_onUserPanY)
     {

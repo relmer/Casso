@@ -57,6 +57,11 @@ public:
         float   wheelPanX  = 96.0f;    // content units per horizontal wheel notch
         double  easeTauSec     = 0.06; // pan glide time constant (0 = snap, no ease)
         double  zoomEaseTauSec = 0.06; // zoom glide time constant (0 = instant zoom)
+        // Direct manipulation (wheel / drag / PanByUser) tracks 1:1 with no
+        // glide, so the content sticks to the fingers instead of trailing them;
+        // only programmatic pan (SetPanYTarget follow mode) keeps easeTauSec's
+        // glide. Leave false for a fully-eased view.
+        bool    userPanInstant = false;
         bool    enableZoom = true;
         bool    enablePanX = true;
         bool    enablePanY = true;
