@@ -146,9 +146,9 @@ bool DxuiPanZoom::Tick (double nowSec)
     }
 
     bool moving = false;
-    moving |= EaseToward (m_zoom, dt);
-    moving |= EaseToward (m_panX, dt);
-    moving |= EaseToward (m_panY, dt);
+    moving |= EaseToward (m_zoom, dt, m_cfg.zoomEaseTauSec);
+    moving |= EaseToward (m_panX, dt, m_cfg.easeTauSec);
+    moving |= EaseToward (m_panY, dt, m_cfg.easeTauSec);
 
     if (moving)
     {
@@ -206,12 +206,43 @@ void DxuiPanZoom::SetPanYTarget (float y)
 
 
 
+void DxuiPanZoom::PanByUser (float deltaContentX, float deltaContentY)
+{
+    if (m_cfg.enablePanX && deltaContentX != 0.0f)
+    {
+        NudgePanX ((double) deltaContentX);
+    }
+    if (m_cfg.enablePanY && deltaContentY != 0.0f)
+    {
+        NudgePanY ((double) deltaContentY, /*user*/ true);
+    }
+}
+
+
+
+
 void DxuiPanZoom::SnapPanY (float y)
 {
     m_panY.cur    = y;
     m_panY.target = y;
     ClampTargets ();
     Changed ();
+}
+
+
+
+
+void DxuiPanZoom::ZoomIn ()
+{
+    ApplyZoomFactor (m_cfg.zoomStep);
+}
+
+
+
+
+void DxuiPanZoom::ZoomOut ()
+{
+    ApplyZoomFactor (1.0 / m_cfg.zoomStep);
 }
 
 
@@ -300,7 +331,7 @@ void DxuiPanZoom::ClampTargets ()
 
 
 
-bool DxuiPanZoom::EaseToward (Eased & v, double dtSec)
+bool DxuiPanZoom::EaseToward (Eased & v, double dtSec, double tauSec)
 {
     double diff = v.target - v.cur;
     if (diff == 0.0)
@@ -308,14 +339,14 @@ bool DxuiPanZoom::EaseToward (Eased & v, double dtSec)
         return false;
     }
 
-    if (m_cfg.easeTauSec <= 0.0)
+    if (tauSec <= 0.0)
     {
         v.cur = v.target;
         return false;
     }
 
     // Frame-rate independent exponential glide toward a (possibly moving) target.
-    double k = 1.0 - exp (-dtSec / m_cfg.easeTauSec);
+    double k = 1.0 - exp (-dtSec / tauSec);
     v.cur += diff * k;
 
     // Close enough -> snap and stop animating.

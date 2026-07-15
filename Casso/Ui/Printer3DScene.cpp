@@ -642,6 +642,24 @@ void Printer3DScene::SetZoom (float zoom)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  Printer3DScene::SetPanX
+//
+//  Map the normalized pan (-1..1 = paper edge) to a world-space X offset of the
+//  camera. At full pan a paper edge (s_kPaperHalfW from center) sits under the
+//  eye; the zoom-narrowed field of view then frames that edge.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Printer3DScene::SetPanX (float panXNorm)
+{
+    m_panX = std::clamp (panXNorm, -1.0f, 1.0f) * s_kPaperHalfW;
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  Printer3DScene::AppendQuad
 //
 //  p00..p11 are the quad corners at (u0,v0) (u1,v0) (u0,v1) (u1,v1); `shade`
@@ -1536,7 +1554,15 @@ void Printer3DScene::Render (const RECT & targetPx)
     vp.MaxDepth = 1.0f;
 
     TiltAboutFrontBottom (s_kBodyTiltRad, s_kBodyZFront, model);
-    LookAtRH         (s_kEye, s_kAt, view);
+
+    // Horizontal pan slides eye + look-at together in world X, revealing a
+    // paper edge when zoomed (0 = centered). Vertical/depth stay put.
+    {
+        float   eye[3] = { s_kEye[0] + m_panX, s_kEye[1], s_kEye[2] };
+        float   at[3]  = { s_kAt[0]  + m_panX, s_kAt[1],  s_kAt[2]  };
+
+        LookAtRH (eye, at, view);
+    }
 
     // Zoom narrows the field of view about the same eye, so the paper grows
     // in place without moving the camera into the geometry (1 = fit).

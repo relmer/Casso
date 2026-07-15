@@ -59,6 +59,11 @@ public:
     // moving the eye or rebuilding any geometry. Clamped to a sane range.
     void     SetZoom (float zoom);
 
+    // Horizontal pan, normalized: 0 = centered, +/-1 = a paper edge centered in
+    // the view. Slides the camera sideways (only meaningful once zoomed in, when
+    // the paper is wider than the field of view) without moving the eye in.
+    void     SetPanX (float panXNorm);
+
     // How much paper has physically fed PAST the head, as a fraction of the
     // content canvas (0 = fresh sheet, its leading edge aligned at the
     // strike line; 1 = a full page risen above the platen). The paper mesh
@@ -106,6 +111,7 @@ private:
     float            m_head01        = 0.0f;
     float            m_paperFeed01   = 1.0f;
     float            m_zoom          = 1.0f;
+    float            m_panX          = 0.0f;   // world-space horizontal camera offset
     int              m_contentWidth  = 0;
     int              m_contentHeight = 0;
 

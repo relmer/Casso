@@ -3,6 +3,7 @@
 #include "Window/DxuiWindow.h"
 #include "Widgets/DxuiButton.h"
 #include "Widgets/DxuiTooltip.h"
+#include "Core/DxuiPanZoom.h"
 
 #include "Devices/Printer/PrinterPacing.h"
 #include "Devices/Printer/PrinterViewport.h"
@@ -94,7 +95,18 @@ protected:
 private:
     void     ShowBlankSheet ();
     void     UpdateTooltip  (int x, int y);
-    void     ApplyZoom      (float zoom);   // clamp, push to scene, relabel
+
+    // Push the pan/zoom transform to the 3D scene and refresh the zoom chrome
+    // (per-frame; the pan/zoom state itself lives in m_panZoom). Also refreshes
+    // the zoom-dependent horizontal pan bounds and the drag scale.
+    void     SyncTransform  ();
+
+    // True while the mouse is dragging the paper (pan), so Move/Up events route
+    // to m_panZoom instead of the toolbar. Seeded by a left-press on the paper.
+    bool     PaperHit       (int x, int y) const;
+
+    static DxuiPanZoom::Config  PanZoomConfig ();
+
     void     RenderSpan     (const PrintRaster & spanRaster, int firstAbsRow, int lastAbsRow,
                              bool contentDirty, int revealBandTopAbs, int revealColDots);
     void     ComposeCanvas  (const RgbaImage * content, int contentFirstAbsRow, int bottomAbsRow,
@@ -126,9 +138,16 @@ private:
     ActionFn            m_onDiscard;
     ActionFn            m_onFormFeed;
 
-    // Preview magnification driving the 3D scene's camera. Stepped by the
-    // zoom buttons and Ctrl+wheel; 1 = fit-to-window.
-    float               m_zoom = 1.0f;
+    // The reusable pan + zoom controller (FR-027 zoom is preview-only chrome).
+    // Owns the eased vertical scroll position (panY, in native rows), the
+    // horizontal pan (panX, in content px), the zoom factor, and all of the
+    // input gestures: wheel / drag / Ctrl+wheel / Ctrl +/-/0 / touchpad pinch +
+    // two-finger pan. m_viewport is the follow-mode policy layered on its panY.
+    DxuiPanZoom         m_panZoom;
+
+    // Last zoom target pushed to the button chrome, so the label / enabled
+    // states only refresh when the zoom actually changes (not every frame).
+    float               m_zoomChromeSynced = -1.0f;
 
     // Hover tooltips for the toolbar (disabled buttons explain WHY they are
     // disabled), plus the guest-activity clock that drives the Form Feed
@@ -145,17 +164,10 @@ private:
     int64_t                 m_lastRenderMs     = 0;
     bool                    m_hasRendered      = false;
 
-    // Smooth scrolling: the DISPLAYED window glides toward the viewport's
-    // logical position at frame rate, so discrete key/wheel steps (and the
-    // snap back to live) read as continuous paper motion. < 0 = unseeded.
-    double                  m_smoothBottom     = -1.0;
-    int64_t                 m_smoothLastMs     = 0;
-
-    // Fractional wheel accumulator: a precision touchpad streams many
-    // sub-notch wheel deltas, so truncating each event's row count to an int
-    // discards most of a slow scroll (it feels dead until enough accumulates).
-    // Carry the remainder here and only apply whole rows.
-    double                  m_wheelAccumRows   = 0.0;
+    // panY seeding: on the first content frame (and after a tear-off) snap
+    // m_panZoom's eased position onto the target instead of gliding, so
+    // opening the panel over a restored strip doesn't scroll across it.
+    bool                    m_panYSeeded       = false;
 
     // Head-timing ink reveal (FR-034): pacing chases the worker's head
     // position at ImageWriter speed; the rendered-reveal pair detects sweep

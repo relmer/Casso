@@ -42,29 +42,17 @@ void PrinterViewport::Advance (int liveRow)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  PrinterViewport::Scroll
+//  PrinterViewport::NotifyUserScroll
 //
-//  Moves the view's bottom anchor by deltaRows and clamps it to the strip:
-//  no further back than a full viewport against the top of the paper, and no
-//  further forward than overscrollRows past the live row -- the blank feed
-//  that lifts the just-printed tail out from behind the platen. Landing
-//  exactly on the live row hands control back to Following, so a user who
-//  scrolls onto it "catches" the print head again.
+//  The user grabbed the scroll (panZoom moved panY on their input): leave
+//  Following so the view stays where they park it, and record the moment plus
+//  the live row so the idle snap only fires once printing advances past here.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void PrinterViewport::Scroll (int deltaRows, int64_t nowMs)
+void PrinterViewport::NotifyUserScroll (int64_t nowMs)
 {
-    int   bottom = std::clamp (BottomRow () + deltaRows,
-                               MinBottomRow (), m_liveRow + m_cfg.overscrollRows);
-
-    m_following = (bottom == m_liveRow);
-
-    if (!m_following)
-    {
-        m_anchorBottom = bottom;
-    }
-
+    m_following       = false;
     m_liveRowAtScroll = m_liveRow;
     m_lastScrollMs    = nowMs;
 }
@@ -96,18 +84,17 @@ void PrinterViewport::Tick (int64_t nowMs)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  PrinterViewport::VisibleSpan
+//  PrinterViewport::MinBottomRow
+//
+//  The furthest back the bottom may scroll: a full viewport against the top
+//  of the paper -- unless the strip is still shorter than one viewport, in
+//  which case there is nowhere to scroll and the bottom pins to the live row.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-PrinterViewport::Span PrinterViewport::VisibleSpan () const
+int PrinterViewport::MinBottomRow () const
 {
-    Span   span;
-
-    span.lastRow  = BottomRow ();
-    span.firstRow = (std::max) (0, span.lastRow - m_cfg.viewportRows + 1);
-
-    return span;
+    return (std::min) (m_liveRow, m_cfg.viewportRows - 1);
 }
 
 
@@ -122,49 +109,7 @@ PrinterViewport::Span PrinterViewport::VisibleSpan () const
 void PrinterViewport::Reset ()
 {
     m_liveRow         = 0;
-    m_anchorBottom    = 0;
     m_liveRowAtScroll = 0;
     m_lastScrollMs    = 0;
     m_following       = true;
-}
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  PrinterViewport::BottomRow
-//
-//  The view's current bottom row. Following rides the live row; Scrolled uses
-//  the absolute anchor, re-clamped in case the config or strip shrank the
-//  legal range after the anchor was recorded.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-int PrinterViewport::BottomRow () const
-{
-    if (m_following)
-    {
-        return m_liveRow;
-    }
-
-    return std::clamp (m_anchorBottom, MinBottomRow (), m_liveRow + m_cfg.overscrollRows);
-}
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  PrinterViewport::MinBottomRow
-//
-//  The furthest back the bottom may scroll: a full viewport against the top
-//  of the paper -- unless the strip is still shorter than one viewport, in
-//  which case there is nowhere to scroll and the bottom stays on the live row.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-int PrinterViewport::MinBottomRow () const
-{
-    return (std::min) (m_liveRow, m_cfg.viewportRows - 1);
 }

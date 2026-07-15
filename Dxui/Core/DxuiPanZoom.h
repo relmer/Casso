@@ -55,7 +55,8 @@ public:
         float   zoomStep   = 1.25f;    // multiplicative per wheel notch / key press
         float   wheelPanY  = 96.0f;    // content units per vertical wheel notch
         float   wheelPanX  = 96.0f;    // content units per horizontal wheel notch
-        double  easeTauSec = 0.06;     // glide time constant (0 = snap, no ease)
+        double  easeTauSec     = 0.06; // pan glide time constant (0 = snap, no ease)
+        double  zoomEaseTauSec = 0.06; // zoom glide time constant (0 = instant zoom)
         bool    enableZoom = true;
         bool    enablePanX = true;
         bool    enablePanY = true;
@@ -88,10 +89,17 @@ public:
     void   SetPanYTarget (float y);
     float  PanYTarget () const { return (float) m_panY.target; }
 
+    // Programmatic USER pan (host-routed keys like arrows / page keys): moves
+    // the pan target and DOES count as a user pan (fires OnUserPanY), so a
+    // follow-mode owner drops out of follow just as a wheel or drag would.
+    void   PanByUser (float deltaContentX, float deltaContentY);
+
     // Teleport panY (both current and target) with no glide -- e.g. when the
     // content is torn off and replaced, so the view does not slide across it.
     void   SnapPanY (float y);
 
+    void   ZoomIn    ();   // one step in  (multiply target by zoomStep)
+    void   ZoomOut   ();   // one step out (divide  target by zoomStep)
     void   ResetZoom ();   // zoom target -> zoomMin
 
     // Eased current transform -- what the host renders this frame.
@@ -119,7 +127,7 @@ private:
     void  NudgePanX (double deltaContent);
     void  NudgePanY (double deltaContent, bool user);
     void  ClampTargets ();
-    bool  EaseToward (Eased & v, double dtSec);
+    bool  EaseToward (Eased & v, double dtSec, double tauSec);
     void  Changed ();
 
     Config  m_cfg;

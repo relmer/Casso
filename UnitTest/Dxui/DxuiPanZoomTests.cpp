@@ -332,6 +332,45 @@ public:
 
 
 
+    TEST_METHOD (PanByUser_MovesPanAndFiresUserPan)
+    {
+        DxuiPanZoom  pz;
+        pz.SetPanYBounds (-1000.0f, 1000.0f);
+        pz.SetPanXBounds (-1000.0f, 1000.0f);
+
+        int  userPans = 0;
+        pz.SetOnUserPanY ([&] { userPans++; });
+
+        pz.PanByUser (10.0f, -48.0f);
+        Settle (pz);
+        Assert::AreEqual (10.0f,  pz.PanX (), 0.001f);
+        Assert::AreEqual (-48.0f, pz.PanY (), 0.001f);
+        Assert::AreEqual (1, userPans);
+    }
+
+
+
+    TEST_METHOD (ZoomEaseTauZero_ZoomsInstantlyWhilePanGlides)
+    {
+        DxuiPanZoom::Config  cfg;
+        cfg.zoomEaseTauSec = 0.0;    // instant zoom
+        cfg.easeTauSec     = 0.1;    // smooth pan
+        cfg.wheelPanY      = 100.0f;
+        DxuiPanZoom  pz (cfg);
+        pz.SetPanYBounds (-1000.0f, 1000.0f);
+
+        pz.OnMouse (Wheel (+1.0f, false, true));   // zoom target 1.25
+        pz.OnMouse (Wheel (-1.0f));                // pan target +100
+        pz.Tick (0.0);
+        pz.Tick (0.01);                            // a tiny slice of time
+
+        Assert::AreEqual (1.25f, pz.Zoom (), 0.0001f);   // zoom already there
+        Assert::IsTrue   (pz.PanY () > 0.0f);            // pan still gliding
+        Assert::IsTrue   (pz.PanY () < 100.0f);
+    }
+
+
+
     TEST_METHOD (OnChange_FiresForZoomAndPan)
     {
         DxuiPanZoom  pz;

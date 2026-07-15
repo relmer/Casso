@@ -125,9 +125,41 @@ namespace
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-PrinterPanel::PrinterPanel () = default;
+PrinterPanel::PrinterPanel ()
+    : m_panZoom (PanZoomConfig ())
+{
+}
 
 PrinterPanel::~PrinterPanel () = default;
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PrinterPanel::PanZoomConfig
+//
+//  Tunes the reusable controller for the printer preview: zoom range + step
+//  match the old toolbar, a wheel notch scrolls 2/3" (96 native rows) or pans
+//  96 content px horizontally, pan glides to preserve the smooth-scroll feel,
+//  and zoom stays instant (FR-027 preview chrome the user already liked).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiPanZoom::Config PrinterPanel::PanZoomConfig ()
+{
+    DxuiPanZoom::Config   cfg;
+
+    cfg.zoomMin        = s_kZoomMin;
+    cfg.zoomMax        = s_kZoomMax;
+    cfg.zoomStep       = s_kZoomStep;
+    cfg.wheelPanY      = (float) s_kWheelRowsPerNotch;   // native rows / notch
+    cfg.wheelPanX      = (float) s_kWheelRowsPerNotch;   // content px / notch
+    cfg.easeTauSec     = 0.08;    // matches the retired m_smoothBottom glide
+    cfg.zoomEaseTauSec = 0.0;     // instant zoom (fit-to-window chrome)
+
+    return cfg;
+}
 
 
 
@@ -257,9 +289,15 @@ void PrinterPanel::OnCreate ()
     m_formFeed->SetOnClick  ([this] () { if (m_onFormFeed) { m_onFormFeed (); } });
     m_discard->SetOnClick   ([this] () { if (m_onDiscard)  { m_onDiscard  (); } });
 
-    m_zoomOut->SetOnClick   ([this] () { ApplyZoom (m_zoom / s_kZoomStep); });
-    m_zoomReset->SetOnClick ([this] () { ApplyZoom (1.0f); });
-    m_zoomIn->SetOnClick    ([this] () { ApplyZoom (m_zoom * s_kZoomStep); });
+    m_zoomOut->SetOnClick   ([this] () { m_panZoom.ZoomOut (); });
+    m_zoomReset->SetOnClick ([this] () { m_panZoom.ResetZoom (); });
+    m_zoomIn->SetOnClick    ([this] () { m_panZoom.ZoomIn (); });
+
+    // The controller drives all pan/zoom motion; any change repaints, and a
+    // genuine user pan drops the viewport out of follow mode so the scrollback
+    // holds where the user parks it (RefreshLive stops chasing the live row).
+    m_panZoom.SetOnChange   ([this] () { Invalidate (); });
+    m_panZoom.SetOnUserPanY ([this] () { m_viewport.NotifyUserScroll (NowMs ()); });
 
     // A freshly opened panel has nothing on the paper yet, so the delivery
     // actions start disabled; RefreshLive enables them the moment content
@@ -271,7 +309,7 @@ void PrinterPanel::OnCreate ()
     m_discard->SetEnabled (false);
 
     // Establish the zoom label ("100%") and disable [-] at the low end.
-    ApplyZoom (m_zoom);
+    SyncTransform ();
 }
 
 
@@ -306,6 +344,13 @@ HRESULT PrinterPanel::RenderFrame ()
     }
 
     m_tooltip.Tick (NowMs ());
+
+    // Advance the pan/zoom glide and push the transform to the scene every
+    // frame (runs even with no printer card, so zooming a blank sheet still
+    // animates). RefreshLive layers the follow-mode panY target on top.
+    m_panZoom.Tick ((double) NowMs () / 1000.0);
+    SyncTransform ();
+
     Invalidate ();
     return S_OK;
 }
@@ -404,35 +449,81 @@ void PrinterPanel::UpdateTooltip (int x, int y)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  PrinterPanel::ApplyZoom
+//  PrinterPanel::SyncTransform
 //
-//  Clamp the requested zoom, push it to the 3D scene camera, relabel the
-//  reset button with the live percentage, and disable the +/- buttons at the
-//  ends of the range. Zoom is preview-only chrome (FR-027): it never touches
-//  the raster, the viewport, or delivery.
+//  Per-frame bridge from the pan/zoom controller to the 3D scene and toolbar.
+//  Pushes the eased zoom + horizontal pan to the camera, refreshes the
+//  zoom-dependent pan bounds and drag scale, and (only when the zoom actually
+//  changed) relabels the reset button and re-enables the +/- ends. Zoom is
+//  preview-only chrome (FR-027): it never touches the raster or delivery.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void PrinterPanel::ApplyZoom (float zoom)
+void PrinterPanel::SyncTransform ()
 {
-    m_zoom = std::clamp (zoom, s_kZoomMin, s_kZoomMax);
+    float   zoom = m_panZoom.Zoom ();
+
+    // Horizontal pan is only possible once zoomed in: at zoom Z the paper is Z
+    // times wider than the view, so it may slide +/- half the hidden width.
+    // panX is in content px; hand the scene a normalized -1..1 (paper edge).
+    {
+        float   halfRange = (float) s_kStockWidthPx * 0.5f * (1.0f - 1.0f / zoom);
+
+        m_panZoom.SetPanXBounds (-halfRange, halfRange);
+    }
+
+    // Drag scale: a screen-pixel drag moves this many content units. The paper
+    // fills m_paperRectPx showing viewportRows tall x stock wide, both shrunk
+    // by the zoom, so more zoom -> fewer content units per dragged pixel.
+    {
+        int     pw = m_paperRectPx.right - m_paperRectPx.left;
+        int     ph = m_paperRectPx.bottom - m_paperRectPx.top;
+        float   perPxX = (pw > 0) ? (float) s_kStockWidthPx / ((float) pw * zoom) : 1.0f;
+        float   perPxY = (ph > 0) ? (float) m_viewport.ViewportRows () / ((float) ph * zoom) : 1.0f;
+
+        m_panZoom.SetDragScale (perPxX, perPxY);
+    }
 
     if (m_scene != nullptr)
     {
-        m_scene->SetZoom (m_zoom);
+        m_scene->SetZoom (zoom);
+        m_scene->SetPanX (m_panZoom.PanX () / ((float) s_kStockWidthPx * 0.5f));
     }
 
-    if (m_zoomReset != nullptr)
+    // Zoom chrome changes rarely; refresh it only when the target moves.
+    if (m_panZoom.ZoomTarget () != m_zoomChromeSynced)
     {
-        wchar_t   label[16];
-        swprintf_s (label, L"%d%%", (int) std::lround (m_zoom * 100.0f));
-        m_zoomReset->SetLabel (label);
+        m_zoomChromeSynced = m_panZoom.ZoomTarget ();
+
+        if (m_zoomReset != nullptr)
+        {
+            wchar_t   label[16];
+            swprintf_s (label, L"%d%%", (int) std::lround (m_zoomChromeSynced * 100.0f));
+            m_zoomReset->SetLabel (label);
+        }
+
+        if (m_zoomOut != nullptr) { m_zoomOut->SetEnabled (m_zoomChromeSynced > s_kZoomMin + 1e-3f); }
+        if (m_zoomIn  != nullptr) { m_zoomIn->SetEnabled  (m_zoomChromeSynced < s_kZoomMax - 1e-3f); }
     }
+}
 
-    if (m_zoomOut != nullptr) { m_zoomOut->SetEnabled (m_zoom > s_kZoomMin + 1e-3f); }
-    if (m_zoomIn  != nullptr) { m_zoomIn->SetEnabled  (m_zoom < s_kZoomMax - 1e-3f); }
 
-    Invalidate ();
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PrinterPanel::PaperHit
+//
+//  True when (x,y) DIP lands on the paper area (the 3D scene / paper view),
+//  where a left-press begins a pan-drag. Toolbar bands sit outside this rect,
+//  so their buttons keep their clicks.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool PrinterPanel::PaperHit (int x, int y) const
+{
+    return x >= m_paperRectPx.left && x < m_paperRectPx.right &&
+           y >= m_paperRectPx.top  && y < m_paperRectPx.bottom;
 }
 
 
@@ -514,7 +605,7 @@ void PrinterPanel::RefreshLive (PrinterWorker & worker, int64_t nowMs, bool forc
         m_viewport.Reset ();
         m_pacing.Reset (nowSec, 0);
         m_spanImgValid = false;
-        m_smoothBottom = -1.0;   // teleport, don't glide across the tear
+        m_panYSeeded   = false;   // reseed onto the fresh sheet, don't glide across the tear
     }
 
     // First refresh starts caught up at the head, so opening the panel over a
@@ -548,34 +639,30 @@ void PrinterPanel::RefreshLive (PrinterWorker & worker, int64_t nowMs, bool forc
     }
     m_viewport.Tick (nowMs);
 
-    span = m_viewport.VisibleSpan ();
+    // The scroll position lives in m_panZoom now. Follow mode drives its panY
+    // target to the live row each frame; a user pan (which fired
+    // NotifyUserScroll) instead leaves it parked where they put it. panZoom
+    // clamps to the viewport's legal bounds and eases the position (glided in
+    // RenderFrame's Tick), and the eased bottom row is what we render.
+    m_panZoom.SetPanYBounds ((float) m_viewport.MinBottomRow (),
+                             (float) m_viewport.MaxBottomRow ());
 
-    // Smooth scrolling: glide the DISPLAYED window toward the viewport's
-    // logical position, so discrete key/wheel steps and the snap-to-live
-    // read as continuous paper motion rather than jumps. Runs at the panel
-    // frame rate; once converged it costs nothing.
+    if (m_viewport.FollowingLive ())
     {
-        double   target = (double) span.lastRow;
-        double   dtSec  = (m_smoothLastMs > 0) ? (double) (nowMs - m_smoothLastMs) / 1000.0 : 0.016;
-
-        m_smoothLastMs = nowMs;
-
-        if (m_smoothBottom < 0.0)
-        {
-            m_smoothBottom = target;   // first frame: start where the paper is
-        }
-
-        dtSec           = std::clamp (dtSec, 0.0, 0.1);
-        m_smoothBottom += (target - m_smoothBottom) * (1.0 - std::exp (-dtSec / 0.08));
-
-        if (std::abs (target - m_smoothBottom) < 0.75)
-        {
-            m_smoothBottom = target;   // converged: land exactly on the row
-        }
-
-        span.lastRow  = (int) std::lround (m_smoothBottom);
-        span.firstRow = (std::max) (0, span.lastRow - m_viewport.ViewportRows () + 1);
+        m_panZoom.SetPanYTarget ((float) m_viewport.LiveRow ());
     }
+
+    // Seed the eased position onto the target on the first content frame (and
+    // after a tear), so opening over a restored strip lands on the paper
+    // instead of scrolling down to it from row 0.
+    if (!m_panYSeeded && rows > 0)
+    {
+        m_panZoom.SnapPanY (m_panZoom.PanYTarget ());
+        m_panYSeeded = true;
+    }
+
+    span.lastRow  = (int) std::lround (m_panZoom.PanY ());
+    span.firstRow = (std::max) (0, span.lastRow - m_viewport.ViewportRows () + 1);
 
     moved       = (span.firstRow != m_renderedSpan.firstRow || span.lastRow != m_renderedSpan.lastRow);
     revealMoved = (revealRow != m_renderedRevealRow || revealCol != m_renderedRevealCol);
@@ -651,7 +738,18 @@ void PrinterPanel::SetStrip (const PrintRaster & raster)
 
     m_viewport.Advance (rows - 1);
 
-    span = m_viewport.VisibleSpan ();
+    // One-shot push: place panZoom's eased position on the follow target (no
+    // glide) and render that bottom-anchored span.
+    m_panZoom.SetPanYBounds ((float) m_viewport.MinBottomRow (), (float) m_viewport.MaxBottomRow ());
+    if (m_viewport.FollowingLive ())
+    {
+        m_panZoom.SetPanYTarget ((float) m_viewport.LiveRow ());
+    }
+    m_panZoom.SnapPanY (m_panZoom.PanYTarget ());
+    m_panYSeeded = true;
+
+    span.lastRow  = (int) std::lround (m_panZoom.PanY ());
+    span.firstRow = (std::max) (0, span.lastRow - m_viewport.ViewportRows () + 1);
     raster.CopyRowSpan (span.firstRow, span.lastRow, spanRaster);
     RenderSpan (spanRaster, span.firstRow, span.lastRow, true, -1, 0);   // no live head: show everything
 
@@ -1028,44 +1126,43 @@ void PrinterPanel::ComposeCanvas (const RgbaImage * content, int contentFirstAbs
 //
 //  PrinterPanel::OnMouse
 //
-//  Vertical wheel scrolls the viewport (wheel up = back toward earlier pages,
-//  like every scrolling surface); everything else -- including the toolbar
-//  buttons' clicks -- flows through the base dispatch untouched.
+//  The paper area is a pan/zoom surface driven by the reusable controller:
+//  vertical wheel scrolls (wheel up = back toward earlier pages), horizontal
+//  wheel / two-finger pan slides sideways when zoomed, Ctrl+wheel (and touchpad
+//  pinch) zooms, and a left-drag on the paper pans. The toolbar bands sit
+//  outside the paper rect, so their button clicks flow through the base
+//  dispatch untouched.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool PrinterPanel::OnMouse (const DxuiMouseEvent & ev)
 {
-    if (ev.kind == DxuiMouseEventKind::Wheel && !ev.wheelHorizontal && ev.wheelDelta != 0.0f)
+    // Wheel gestures (scroll / pan / zoom) always belong to the controller.
+    if (ev.kind == DxuiMouseEventKind::Wheel)
     {
-        if (ev.ctrl)
+        if (m_panZoom.OnMouse (ev))
         {
-            // Ctrl+wheel zooms, like every document viewer (wheel up = in).
-            ApplyZoom (ev.wheelDelta > 0.0f ? m_zoom * s_kZoomStep : m_zoom / s_kZoomStep);
             return true;
         }
+    }
 
-        // Accumulate fractional rows so slow, high-resolution touchpad scrolls
-        // (many sub-notch deltas) are not truncated away event by event. Apply
-        // only whole rows; carry the remainder to the next event. A direction
-        // reversal drops the stale remainder so the reverse feels immediate.
-        double   rows = -(double) ev.wheelDelta * s_kWheelRowsPerNotch;
+    // A left-press on the paper begins a pan-drag; presses on the toolbar fall
+    // through so the buttons get their clicks.
+    if (ev.kind == DxuiMouseEventKind::Down &&
+        ev.button == DxuiMouseButton::Left &&
+        PaperHit (ev.positionDip.x, ev.positionDip.y))
+    {
+        m_tooltip.RequestHide (NowMs ());
+        m_panZoom.OnMouse (ev);
+        return true;
+    }
 
-        if ((rows < 0.0) != (m_wheelAccumRows < 0.0))
-        {
-            m_wheelAccumRows = 0.0;
-        }
-
-        m_wheelAccumRows += rows;
-
-        int   whole = (int) m_wheelAccumRows;   // toward zero
-
-        if (whole != 0)
-        {
-            m_wheelAccumRows -= whole;
-            m_viewport.Scroll (whole, NowMs ());
-        }
-        return true;   // next RefreshLive renders the moved span immediately
+    // Continue / end an active drag. OnMouse returns true only while a drag is
+    // in progress, so non-drag moves fall through to the hover tooltip below.
+    if ((ev.kind == DxuiMouseEventKind::Move || ev.kind == DxuiMouseEventKind::Up) &&
+        m_panZoom.OnMouse (ev))
+    {
+        return true;
     }
 
     if (ev.kind == DxuiMouseEventKind::Move)
@@ -1087,9 +1184,10 @@ bool PrinterPanel::OnMouse (const DxuiMouseEvent & ev)
 //
 //  PrinterPanel::OnKey
 //
-//  Up/Down and PageUp/PageDown scroll the viewport (FR-033); Escape hides the
-//  preview (its close-box does the same). Everything else falls through to
-//  the base, which fans the key to the child controls.
+//  Ctrl +/-/0 zoom via the controller (also the touchpad pinch path); Up/Down
+//  and PageUp/PageDown scroll (FR-033); Escape hides the preview (its close-box
+//  does the same). Everything else falls through to the base, which fans the
+//  key to the child controls.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1097,6 +1195,12 @@ bool PrinterPanel::OnKey (const DxuiKeyEvent & ev)
 {
     if (ev.kind == DxuiKeyEventKind::Down)
     {
+        // Ctrl +/=, Ctrl -, Ctrl 0 -> zoom in / out / reset.
+        if (ev.ctrl && m_panZoom.OnKey (ev))
+        {
+            return true;
+        }
+
         switch (ev.vk)
         {
             case VK_ESCAPE:
@@ -1104,19 +1208,19 @@ bool PrinterPanel::OnKey (const DxuiKeyEvent & ev)
                 return true;
 
             case VK_UP:
-                m_viewport.Scroll (-s_kArrowScrollRows, NowMs ());
+                m_panZoom.PanByUser (0.0f, -(float) s_kArrowScrollRows);
                 return true;
 
             case VK_DOWN:
-                m_viewport.Scroll (+s_kArrowScrollRows, NowMs ());
+                m_panZoom.PanByUser (0.0f, +(float) s_kArrowScrollRows);
                 return true;
 
             case VK_PRIOR:
-                m_viewport.Scroll (-PrinterGrid::kPageRows, NowMs ());
+                m_panZoom.PanByUser (0.0f, -(float) PrinterGrid::kPageRows);
                 return true;
 
             case VK_NEXT:
-                m_viewport.Scroll (+PrinterGrid::kPageRows, NowMs ());
+                m_panZoom.PanByUser (0.0f, +(float) PrinterGrid::kPageRows);
                 return true;
         }
     }
