@@ -24,47 +24,43 @@
 namespace
 {
     //
-    //  Resolve on-screen placement for an ownerless / dialog window:
-    //  center it on the owner (when the owner is a normal, non-minimized
-    //  top-level window) or on the work area itself (ownerless / minimized
-    //  owner), then clamp to the monitor's rcWork so it never opens with
-    //  its bottom edge — and command buttons — beneath the taskbar. rcWork
-    //  already excludes the taskbar; the monitor is the one nearest the
-    //  owner, or the primary (work area via SPI_GETWORKAREA) when ownerless.
+    //  Nudge a freshly-created, still-hidden CW_USEDEFAULT window the
+    //  minimum needed so its whole frame sits within its monitor's work
+    //  area — fixing a cascade that would open the bottom edge (and its
+    //  command-button row) beneath the taskbar — without otherwise moving
+    //  it (position only, no re-centering over the owner). rcWork already
+    //  excludes the taskbar.
     //
-    POINT  ComputeOnScreenPlacement (HWND owner, int widthPx, int heightPx)
+    void  NudgeWindowOnScreen (HWND hwnd)
     {
-        RECT         anchor  = {};
-        RECT         work    = { 0, 0, 1920, 1080 };
+        RECT         rect    = {};
         HMONITOR     monitor = nullptr;
         MONITORINFO  info    = { sizeof (info) };
-        SIZE         size    = { widthPx, heightPx };
+        RECT         work    = { 0, 0, 1920, 1080 };
+        POINT        placed  = {};
 
 
 
-        if (owner != nullptr && IsWindow (owner) && !IsIconic (owner)
-            && GetWindowRect (owner, &anchor) != FALSE)
+        if (hwnd != nullptr && GetWindowRect (hwnd, &rect) != FALSE)
         {
-            monitor = MonitorFromRect (&anchor, MONITOR_DEFAULTTONEAREST);
-        }
-        else if (owner != nullptr)
-        {
-            // Minimized owner (or GetWindowRect failed): keep the anchor
-            // empty so we center on the owner monitor's work area.
-            anchor  = {};
-            monitor = MonitorFromWindow (owner, MONITOR_DEFAULTTONEAREST);
-        }
+            monitor = MonitorFromWindow (hwnd, MONITOR_DEFAULTTONEAREST);
+            if (monitor != nullptr && GetMonitorInfoW (monitor, &info) != FALSE)
+            {
+                work = info.rcWork;
+            }
+            else if (SystemParametersInfoW (SPI_GETWORKAREA, 0, &work, 0) == FALSE)
+            {
+                work = { 0, 0, 1920, 1080 };
+            }
 
-        if (monitor != nullptr && GetMonitorInfoW (monitor, &info) != FALSE)
-        {
-            work = info.rcWork;
-        }
-        else if (SystemParametersInfoW (SPI_GETWORKAREA, 0, &work, 0) == FALSE)
-        {
-            work = { 0, 0, 1920, 1080 };
-        }
+            placed = DxuiHwndSource::ClampToWorkArea (rect, work);
 
-        return DxuiHwndSource::CenterAndClamp (anchor, work, size);
+            if (placed.x != rect.left || placed.y != rect.top)
+            {
+                SetWindowPos (hwnd, nullptr, placed.x, placed.y, 0, 0,
+                              SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE);
+            }
+        }
     }
 }
 
@@ -270,7 +266,6 @@ HRESULT DxuiHwndSource::Create (const CreateParams & params)
     int          windowY        = 0;
     int          widthPx        = 0;
     int          heightPx       = 0;
-    POINT        placement      = {};
 
 
 
@@ -347,17 +342,13 @@ HRESULT DxuiHwndSource::Create (const CreateParams & params)
     }
     else
     {
+        // Let the OS pick a cascade position (the window keeps its natural
+        // placement, not re-centered over the owner); NudgeWindowOnScreen
+        // below only corrects it if it lands partly off-screen.
+        windowX  = CW_USEDEFAULT;
+        windowY  = CW_USEDEFAULT;
         widthPx  = MulDiv (params.initialSizeDip.cx, (int) dpiAtCreate, (int) s_kDefaultDpi);
         heightPx = MulDiv (params.initialSizeDip.cy, (int) dpiAtCreate, (int) s_kDefaultDpi);
-
-        // Center the window on its owner (or the primary monitor when
-        // ownerless) and clamp it to that monitor's work area, so a tall
-        // dialog opens fully on-screen instead of cascading with its bottom
-        // button row beneath the taskbar. CW_USEDEFAULT handed the OS a
-        // top-left cascade point with no on-screen-fit guarantee.
-        placement = ComputeOnScreenPlacement (params.ownerHwnd, widthPx, heightPx);
-        windowX   = placement.x;
-        windowY   = placement.y;
     }
 
     m_hwnd = CreateWindowExW (exStyle,
@@ -378,6 +369,15 @@ HRESULT DxuiHwndSource::Create (const CreateParams & params)
     // Re-seed scaler from the per-window DPI now that the HWND knows
     // which monitor it landed on.
     m_scaler.SetDpi (GetDpiForWindow (m_hwnd));
+
+    // A CW_USEDEFAULT dialog can cascade with its lower edge — and button
+    // row — beneath the taskbar. Nudge the still-hidden window the minimum
+    // needed to sit fully within its monitor's work area (position only, no
+    // re-centering). The saved-RECT path places itself and is left as-is.
+    if (!params.useInitialWindowRectPx)
+    {
+        NudgeWindowOnScreen (m_hwnd);
+    }
 
     // Apply optional app icons. Win32 MessageBox dialogs + the
     // taskbar pick the icon up via WM_GETICON, NOT WNDCLASS::hIcon,
@@ -430,35 +430,29 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DxuiHwndSource::CenterAndClamp
+//  DxuiHwndSource::ClampToWorkArea
 //
-//  Pure placement geometry (declared in the header). Centers a window of
-//  `size` on `anchor` (or on `work` when `anchor` is empty), then clamps
-//  the result so the whole window stays inside `work`. The bottom / right
-//  are clamped first, so a window larger than the work area on an axis
-//  ends up pinned to work's top / left there — keeping the caption and
-//  top-of-content on-screen instead of the bottom button row off it.
+//  Pure placement geometry (declared in the header). Shifts `windowRect`
+//  the minimum needed so the whole frame lies within `work`, returning the
+//  new top-left. The bottom / right are corrected first, so a window larger
+//  than the work area on an axis then pins to work's top / left there —
+//  keeping the caption on-screen rather than the bottom button row off it.
+//  A window that already fits is returned at its current position.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-POINT DxuiHwndSource::CenterAndClamp (const RECT & anchor, const RECT & work, SIZE size)
+POINT DxuiHwndSource::ClampToWorkArea (const RECT & windowRect, const RECT & work)
 {
-    bool   haveAnchor = (anchor.right > anchor.left) && (anchor.bottom > anchor.top);
-    LONG   baseLeft   = haveAnchor ? anchor.left                  : work.left;
-    LONG   baseTop    = haveAnchor ? anchor.top                   : work.top;
-    LONG   baseWidth  = haveAnchor ? (anchor.right  - anchor.left) : (work.right  - work.left);
-    LONG   baseHeight = haveAnchor ? (anchor.bottom - anchor.top)  : (work.bottom - work.top);
-    POINT  result     = {};
+    LONG   width  = windowRect.right  - windowRect.left;
+    LONG   height = windowRect.bottom - windowRect.top;
+    POINT  result = { windowRect.left, windowRect.top };
 
 
 
-    result.x = baseLeft + (baseWidth  - size.cx) / 2;
-    result.y = baseTop  + (baseHeight - size.cy) / 2;
-
-    if (result.x + size.cx > work.right)  { result.x = work.right  - size.cx; }
-    if (result.y + size.cy > work.bottom) { result.y = work.bottom - size.cy; }
-    if (result.x < work.left)             { result.x = work.left;             }
-    if (result.y < work.top)              { result.y = work.top;             }
+    if (result.x + width  > work.right)  { result.x = work.right  - width;  }
+    if (result.y + height > work.bottom) { result.y = work.bottom - height; }
+    if (result.x < work.left)            { result.x = work.left;            }
+    if (result.y < work.top)             { result.y = work.top;             }
 
     return result;
 }

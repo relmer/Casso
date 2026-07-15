@@ -17,13 +17,6 @@ namespace
     }
 
 
-    SIZE  Size (LONG cx, LONG cy)
-    {
-        SIZE  sz = { cx, cy };
-        return sz;
-    }
-
-
     void  AssertPoint (LONG expX, LONG expY, POINT actual, const wchar_t * what)
     {
         Assert::AreEqual (expX, actual.x, what);
@@ -40,55 +33,53 @@ TEST_CLASS (DxuiHwndSourcePlacementTests)
 public:
 
     //
-    //  A window that fits centers on the owner rect and the work-area
-    //  clamp leaves it untouched.
+    //  A window already fully within the work area keeps its position: the
+    //  clamp never re-centers a window that fits.
     //
-    TEST_METHOD (CentersOnOwnerWhenItFits)
+    TEST_METHOD (FullyOnScreenIsUnchanged)
     {
-        POINT  p = DxuiHwndSource::CenterAndClamp (Rect (100, 100, 900, 700), s_kWork, Size (400, 300));
+        POINT  p = DxuiHwndSource::ClampToWorkArea (Rect (300, 200, 900, 700), s_kWork);
 
 
-        AssertPoint (300, 250, p, L"centered on the 800x600 owner");
+        AssertPoint (300, 200, p, L"already-visible window is left where it is");
     }
 
 
     //
-    //  An empty anchor (ownerless, or a minimized owner) centers on the
-    //  work area itself.
+    //  The reported bug: a cascade drops the bottom (and its button row)
+    //  under the taskbar; the window is lifted straight up the minimum
+    //  amount and its horizontal position is preserved.
     //
-    TEST_METHOD (CentersOnWorkAreaWhenAnchorEmpty)
+    TEST_METHOD (BottomUnderTaskbarLiftedUp)
     {
-        POINT  p = DxuiHwndSource::CenterAndClamp (Rect (0, 0, 0, 0), s_kWork, Size (400, 300));
+        POINT  p = DxuiHwndSource::ClampToWorkArea (Rect (200, 700, 700, 1300), s_kWork);
 
 
-        AssertPoint (760, 370, p, L"centered on the 1920x1040 work area");
+        AssertPoint (200, 440, p, L"bottom meets work.bottom; x unchanged");
     }
 
 
     //
-    //  The reported bug: centering on a low owner pushes the bottom (and
-    //  its command-button row) under the taskbar; the clamp lifts it back
-    //  fully on-screen.
+    //  A window past the right edge is pulled left the minimum amount.
     //
-    TEST_METHOD (ClampsBottomUpFromUnderTaskbar)
+    TEST_METHOD (RightEdgeOffScreenPulledLeft)
     {
-        POINT  p = DxuiHwndSource::CenterAndClamp (Rect (0, 800, 500, 1000), s_kWork, Size (400, 600));
+        POINT  p = DxuiHwndSource::ClampToWorkArea (Rect (1700, 100, 2100, 400), s_kWork);
 
 
-        AssertPoint (50, 440, p, L"bottom pinned to work.bottom - height");
+        AssertPoint (1520, 100, p, L"right meets work.right; y unchanged");
     }
 
 
     //
-    //  A window wider than the space to its owner's right is pulled left so
-    //  its right edge stops at the work area.
+    //  A window above the work area (a top-docked taskbar) is pushed down.
     //
-    TEST_METHOD (ClampsRightEdgeInward)
+    TEST_METHOD (AboveWorkAreaPushedDown)
     {
-        POINT  p = DxuiHwndSource::CenterAndClamp (Rect (1600, 100, 1900, 400), s_kWork, Size (600, 200));
+        POINT  p = DxuiHwndSource::ClampToWorkArea (Rect (200, -60, 600, 240), Rect (0, 40, 1920, 1080));
 
 
-        AssertPoint (1320, 150, p, L"right pinned to work.right - width");
+        AssertPoint (200, 40, p, L"pushed down to the top-docked work area");
     }
 
 
@@ -96,9 +87,9 @@ public:
     //  A window larger than the work area pins to the top-left, so the
     //  caption stays reachable rather than the bottom sliding off-screen.
     //
-    TEST_METHOD (OversizedWindowPinsTopLeft)
+    TEST_METHOD (OversizedPinsTopLeft)
     {
-        POINT  p = DxuiHwndSource::CenterAndClamp (Rect (0, 0, 0, 0), s_kWork, Size (2000, 1200));
+        POINT  p = DxuiHwndSource::ClampToWorkArea (Rect (-50, -30, 2000, 1210), s_kWork);
 
 
         AssertPoint (0, 0, p, L"oversized window pinned to the work origin");
@@ -106,14 +97,14 @@ public:
 
 
     //
-    //  Work areas with a non-zero origin (a monitor left of the primary, or
-    //  a top / left taskbar) clamp against that origin, not against 0,0.
+    //  Work areas with a non-zero origin (a monitor left of the primary)
+    //  clamp against that origin, not against 0,0.
     //
     TEST_METHOD (HonorsOffsetWorkAreaOrigin)
     {
-        POINT  p = DxuiHwndSource::CenterAndClamp (Rect (0, 0, 0, 0), Rect (-1920, 0, 0, 1080), Size (400, 300));
+        POINT  p = DxuiHwndSource::ClampToWorkArea (Rect (-2000, 100, -1600, 400), Rect (-1920, 0, 0, 1080));
 
 
-        AssertPoint (-1160, 390, p, L"centered on the left-hand monitor");
+        AssertPoint (-1920, 100, p, L"clamped to the left monitor's left edge");
     }
 };
