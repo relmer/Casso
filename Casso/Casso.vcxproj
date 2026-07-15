@@ -284,6 +284,7 @@
     <ClInclude Include="InputEventDisplay.h" />
     <ClInclude Include="DiskSettings.h" />
     <ClInclude Include="AssetBootstrap.h" />
+    <ClInclude Include="EmbeddedMachineConfigs.h" />
     <ClInclude Include="Config\IFileSystem.h" />
     <ClInclude Include="Config\Win32FileSystem.h" />
     <ClInclude Include="Config\WindowPlacementProfile.h" />
