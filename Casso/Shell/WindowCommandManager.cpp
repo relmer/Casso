@@ -1257,6 +1257,8 @@ void WindowCommandManager::OnHelpCommand (int id)
                                   false, L"" });
             def.body.push_back ({ L"MIT License",
                                   true, L"https://github.com/relmer/Casso/blob/master/LICENSE" });
+            def.body.push_back ({ L"\n\nImageWriter II printer sounds by Scott Lawrence (CC BY 4.0)",
+                                  true, L"https://github.com/BleuLlama/ImageWriterIISimulator" });
             def.buttons.push_back ({ L"OK", 0, true, true });
             (void) m_shell.ShowModalDialog (def);
             break;

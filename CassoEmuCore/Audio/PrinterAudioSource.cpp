@@ -149,36 +149,59 @@ PrinterAudioSource::~PrinterAudioSource ()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  LoadSound
+//  LoadSounds
 //
-//  Best-effort decode + slice. Returns the MFStartup HRESULT; a decode failure
-//  leaves the grains empty (silent) but is not itself an error.
+//  Best-effort decode of the whole BleuLlama grain set from `dir`. Returns the
+//  MFStartup HRESULT; a per-file decode failure leaves that slot empty (silent)
+//  but does not itself fail the load (matches Disk2AudioSource::LoadSamples).
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT PrinterAudioSource::LoadSound (const wchar_t * path, uint32_t targetSampleRate)
+HRESULT PrinterAudioSource::LoadSounds (const wchar_t * dir, uint32_t targetSampleRate)
 {
-    HRESULT        hr        = S_OK;
-    bool           mfStarted = false;
-    vector<float>  full;
+    HRESULT  hr        = S_OK;
+    bool     mfStarted = false;
 
-    if (path == nullptr || targetSampleRate == 0)
+    if (dir == nullptr || targetSampleRate == 0)
     {
         return E_INVALIDARG;
     }
+
+    // Decode is best-effort per file: on failure the slot stays empty and that
+    // sound is simply silent, so a partial asset set never faults playback.
+    // Declared before the first CHR so its goto cannot skip the initialization.
+    auto  decode = [&] (const wchar_t * name, vector<float> & dst)
+    {
+        wstring  path = wstring (dir) + L"\\" + name;
+        if (FAILED (DecodeToMonoFloat (path.c_str (), targetSampleRate, dst)))
+        {
+            dst.clear ();
+        }
+    };
 
     hr = MFStartup (MF_VERSION, MFSTARTUP_LITE);
     CHR (hr);
     mfStarted = true;
 
-    // Decode is best-effort: on failure `full` is empty and slicing yields no
-    // grains, so the source is simply silent.
-    if (FAILED (DecodeToMonoFloat (path, targetSampleRate, full)))
-    {
-        full.clear ();
-    }
+    m_sampleRate = targetSampleRate;
 
-    SliceGrains (full, targetSampleRate);
+    decode (L"print_draft_loop.mp3",  m_loops[(int) Quality::Draft]);
+    decode (L"print_medium_loop.mp3", m_loops[(int) Quality::Medium]);
+    decode (L"print_nlq_loop.mp3",    m_loops[(int) Quality::NLQ]);
+
+    decode (L"line_feed_01.mp3", m_lineFeeds[0]);
+    decode (L"line_feed_02.mp3", m_lineFeeds[1]);
+    decode (L"line_feed_03.mp3", m_lineFeeds[2]);
+
+    decode (L"page_feed_short.mp3",  m_pageFeeds[0]);
+    decode (L"page_feed_medium.mp3", m_pageFeeds[1]);
+    decode (L"page_feed_long.mp3",   m_pageFeeds[2]);
+
+    decode (L"paper_tear_01.mp3", m_tears[0]);
+    decode (L"paper_tear_02.mp3", m_tears[1]);
+    decode (L"paper_tear_03.mp3", m_tears[2]);
+    decode (L"paper_tear_04.mp3", m_tears[3]);
+    decode (L"paper_tear_05.mp3", m_tears[4]);
 
 Error:
     if (mfStarted)
@@ -194,50 +217,13 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  SliceGrains
-//
-//  Copy the print-loop (sustained bidirectional line -> end) and line-feed
-//  (short clack) sub-ranges out of the fully decoded buffer. Out-of-range
-//  timestamps clamp; an empty / too-short buffer yields empty grains (silent).
+//  SetQuality
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void PrinterAudioSource::SliceGrains (const vector<float> & full, uint32_t sampleRate)
+void PrinterAudioSource::SetQuality (Quality quality)
 {
-    m_printLoop.clear ();
-    m_feed.clear ();
-    m_sampleRate = sampleRate;
-    m_printPos   = 0;
-    m_feedPos    = 0;
-    m_feedActive = false;
-
-    if (full.empty () || sampleRate == 0)
-    {
-        return;
-    }
-
-    size_t  total = full.size ();
-
-    auto  idx = [&] (double sec) -> size_t
-    {
-        double  s = sec * (double) sampleRate;
-        if (s < 0.0) { s = 0.0; }
-        size_t  n = (size_t) (s + 0.5);
-        return (n > total) ? total : n;
-    };
-
-    size_t  printBegin = idx (kPrintLoopBeginSec);
-    if (printBegin < total)
-    {
-        m_printLoop.assign (full.begin () + printBegin, full.end ());
-    }
-
-    size_t  feedBegin = idx (kFeedBeginSec);
-    size_t  feedEnd   = idx (kFeedEndSec);
-    if (feedBegin < feedEnd)
-    {
-        m_feed.assign (full.begin () + feedBegin, full.begin () + feedEnd);
-    }
+    m_quality = quality;
 }
 
 
@@ -253,6 +239,40 @@ void PrinterAudioSource::PublishReveal (int64_t progressDots, int colDots)
 {
     m_revealProgress.store (progressDots, std::memory_order_relaxed);
     m_revealCol.store      ((int32_t) colDots, std::memory_order_relaxed);
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PlayFormFeed / PlayTearOff
+//
+//  Fire a user-action one-shot. The grain is chosen here (UI thread) and the
+//  choice is handed to the audio thread through m_pendingAction so the mix side
+//  needs no RNG and no page-fraction math. Encoding: 1..3 = page-feed
+//  short/medium/long, 4..8 = tear 0..4.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void PrinterAudioSource::PlayFormFeed (float unusedPage01)
+{
+    float  u = std::clamp (unusedPage01, 0.0f, 1.0f);
+
+    // Less of the page unused -> a shorter feed to the tear bar -> shorter grain.
+    int  slot = (u < (1.0f / 3.0f)) ? 0 : (u < (2.0f / 3.0f)) ? 1 : 2;
+
+    m_pendingAction.store (1 + slot, std::memory_order_release);
+}
+
+
+void PrinterAudioSource::PlayTearOff ()
+{
+    // Cheap LCG; UI-thread only, so no synchronization needed on m_rng.
+    m_rng = m_rng * 1664525u + 1013904223u;
+    int  pick = (int) ((m_rng >> 24) % (uint32_t) kNumTears);
+
+    m_pendingAction.store (1 + kNumPageFeeds + pick, std::memory_order_release);
 }
 
 
@@ -290,8 +310,9 @@ void PrinterAudioSource::SetPan (float panLeft, float panRight)
 //  GeneratePCM
 //
 //  Clear, read the published reveal, gate the carriage loop on the head still
-//  advancing, fire a line-feed clack on a column wrap, and mix. All timers are
-//  in samples so playback is sample-rate independent.
+//  advancing, fire a line-feed clack on a column wrap, latch any pending user
+//  action, and mix the three channels. All timers are in samples so playback is
+//  sample-rate independent.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -313,20 +334,52 @@ void PrinterAudioSource::GeneratePCM (float * outMono, uint32_t numSamples)
         m_printHoldSamples = (int32_t) (kPrintHoldSec * (double) m_sampleRate);
     }
 
-    // Column wrapped back toward the left margin -> a new line began: clack.
-    if (col + kLineWrapDropDots < m_lastCol &&
-        m_feedThrottle <= 0 &&
-        !m_feed.empty ())
+    // Column wrapped back toward the left margin -> a new line began: clack. Each
+    // line rotates through the three recorded feed variants so repeats do not
+    // sound machine-stamped; empty variants are skipped.
+    if (col + kLineWrapDropDots < m_lastCol && m_feedThrottle <= 0)
     {
-        m_feedActive  = true;
-        m_feedPos     = 0;
-        m_feedThrottle = (int32_t) (kFeedMinIntervalSec * (double) m_sampleRate);
+        for (int tries = 0; tries < kNumLineFeeds; tries++)
+        {
+            const vector<float> &  cand = m_lineFeeds[m_lineFeedNext];
+            m_lineFeedNext = (m_lineFeedNext + 1) % kNumLineFeeds;
+            if (!cand.empty ())
+            {
+                m_lineFeedBuf  = &cand;
+                m_lineFeedPos  = 0;
+                m_feedThrottle = (int32_t) (kFeedMinIntervalSec * (double) m_sampleRate);
+                break;
+            }
+        }
+    }
+
+    // Latch a pending user action (form feed / tear). Newest wins if two land in
+    // one window -- discard-then-tear reads naturally as the later sound.
+    int32_t  action = m_pendingAction.exchange (0, std::memory_order_acquire);
+    if (action >= 1 && action <= kNumPageFeeds)
+    {
+        const vector<float> &  buf = m_pageFeeds[action - 1];
+        if (!buf.empty ())
+        {
+            m_actionBuf = &buf;
+            m_actionPos = 0;
+        }
+    }
+    else if (action >= 1 + kNumPageFeeds && action <= kNumPageFeeds + kNumTears)
+    {
+        const vector<float> &  buf = m_tears[action - 1 - kNumPageFeeds];
+        if (!buf.empty ())
+        {
+            m_actionBuf = &buf;
+            m_actionPos = 0;
+        }
     }
 
     if (!m_muted && m_volume > 0.0f)
     {
-        MixPrintLoop (outMono, numSamples);
-        MixFeed      (outMono, numSamples);
+        MixCarriage (outMono, numSamples);
+        MixLineFeed (outMono, numSamples);
+        MixAction   (outMono, numSamples);
     }
 
     m_printHoldSamples = (std::max) (0, m_printHoldSamples - (int32_t) numSamples);
@@ -340,16 +393,17 @@ void PrinterAudioSource::GeneratePCM (float * outMono, uint32_t numSamples)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  MixPrintLoop
+//  MixCarriage
 //
-//  Loop the sustained carriage grain while the head is still sweeping (the hold
-//  timer is live). Empty grain == silent.
+//  Loop the carriage grain for the selected quality while the head is still
+//  sweeping (the hold timer is live). Empty grain == silent.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void PrinterAudioSource::MixPrintLoop (float * out, uint32_t n)
+void PrinterAudioSource::MixCarriage (float * out, uint32_t n)
 {
-    uint32_t  len = (uint32_t) m_printLoop.size ();
+    const vector<float> &  loop = m_loops[(int) m_quality];
+    uint32_t               len  = (uint32_t) loop.size ();
 
     if (m_printHoldSamples <= 0 || len == 0)
     {
@@ -358,13 +412,13 @@ void PrinterAudioSource::MixPrintLoop (float * out, uint32_t n)
 
     for (uint32_t i = 0; i < n; i++)
     {
-        if (m_printPos >= len)
+        if (m_carriagePos >= len)
         {
-            m_printPos = 0;
+            m_carriagePos = 0;
         }
 
-        out[i] += m_printLoop[m_printPos] * m_volume;
-        m_printPos++;
+        out[i] += loop[m_carriagePos] * m_volume;
+        m_carriagePos++;
     }
 }
 
@@ -373,31 +427,31 @@ void PrinterAudioSource::MixPrintLoop (float * out, uint32_t n)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  MixFeed
+//  MixLineFeed
 //
 //  One-shot line-feed clack. Stops once the grain is exhausted.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void PrinterAudioSource::MixFeed (float * out, uint32_t n)
+void PrinterAudioSource::MixLineFeed (float * out, uint32_t n)
 {
-    uint32_t  len = (uint32_t) m_feed.size ();
-
-    if (!m_feedActive || len == 0)
+    if (m_lineFeedBuf == nullptr)
     {
         return;
     }
 
+    uint32_t  len = (uint32_t) m_lineFeedBuf->size ();
+
     for (uint32_t i = 0; i < n; i++)
     {
-        if (m_feedPos >= len)
+        if (m_lineFeedPos >= len)
         {
-            m_feedActive = false;
+            m_lineFeedBuf = nullptr;
             break;
         }
 
-        out[i] += m_feed[m_feedPos] * m_volume;
-        m_feedPos++;
+        out[i] += (*m_lineFeedBuf)[m_lineFeedPos] * m_volume;
+        m_lineFeedPos++;
     }
 }
 
@@ -406,28 +460,78 @@ void PrinterAudioSource::MixFeed (float * out, uint32_t n)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  SetGrainsForTest / SetFullBufferForTest
+//  MixAction
+//
+//  One-shot form-feed / paper-tear. Stops once the grain is exhausted.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void PrinterAudioSource::MixAction (float * out, uint32_t n)
+{
+    if (m_actionBuf == nullptr)
+    {
+        return;
+    }
+
+    uint32_t  len = (uint32_t) m_actionBuf->size ();
+
+    for (uint32_t i = 0; i < n; i++)
+    {
+        if (m_actionPos >= len)
+        {
+            m_actionBuf = nullptr;
+            break;
+        }
+
+        out[i] += (*m_actionBuf)[m_actionPos] * m_volume;
+        m_actionPos++;
+    }
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetLoopForTest / SetLineFeedForTest / SetPageFeedForTest / SetTearForTest
 //
 //  Test seams that avoid a Media Foundation decode (constitution Principle II).
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void PrinterAudioSource::SetGrainsForTest (
-    vector<float> &&  printLoop,
-    vector<float> &&  feed,
+void PrinterAudioSource::SetLoopForTest (
+    Quality           quality,
+    vector<float> &&  samples,
     uint32_t          sampleRate)
 {
-    m_printLoop  = std::move (printLoop);
-    m_feed       = std::move (feed);
-    m_sampleRate = sampleRate;
-    m_printPos   = 0;
-    m_feedPos    = 0;
-    m_feedActive = false;
+    m_loops[(int) quality] = std::move (samples);
+    m_sampleRate           = sampleRate;
+    m_carriagePos          = 0;
 }
 
 
-void PrinterAudioSource::SetFullBufferForTest (vector<float> && full, uint32_t sampleRate)
+void PrinterAudioSource::SetLineFeedForTest (int index, vector<float> && samples)
 {
-    vector<float>  local = std::move (full);
-    SliceGrains (local, sampleRate);
+    if (index >= 0 && index < kNumLineFeeds)
+    {
+        m_lineFeeds[index] = std::move (samples);
+    }
+}
+
+
+void PrinterAudioSource::SetPageFeedForTest (int index, vector<float> && samples)
+{
+    if (index >= 0 && index < kNumPageFeeds)
+    {
+        m_pageFeeds[index] = std::move (samples);
+    }
+}
+
+
+void PrinterAudioSource::SetTearForTest (int index, vector<float> && samples)
+{
+    if (index >= 0 && index < kNumTears)
+    {
+        m_tears[index] = std::move (samples);
+    }
 }

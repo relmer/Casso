@@ -14,32 +14,32 @@
 //  same DriveAudioMixer bus as the Disk II drives. The sound is Option A
 //  (research T038): the audio follows the PACED on-screen carriage rather than
 //  the raw guest byte stream, so what you hear matches what you see even when
-//  the machine runs at 2x / max (the visible head is capped at the real 250 cps
-//  / 25 in-per-sec, so the carriage grain plays at its natural pitch -- no
-//  time-stretch, just gate on/off and loop).
+//  the machine runs at 2x / max (the visible head is capped at the real
+//  ~250 cps / 25 in-per-sec, so the carriage loop plays at its natural rate --
+//  no time-stretch, just gate on/off and loop).
 //
-//  Grains are sliced from a single CC0 recording of a real ImageWriter II
-//  self-test (freesound.org/s/662714 by jewettg, CC0): a sustained
-//  bidirectional-printing segment loops while the carriage sweeps, and a short
-//  segment fires as a one-shot line-feed clack at each new line.
+//  Sounds are the pre-sliced CC BY 4.0 grains recorded from a real ImageWriter
+//  II by Scott Lawrence (github.com/BleuLlama/ImageWriterIISimulator):
+//    * a carriage-printing loop per print quality (draft / medium / NLQ),
+//      looped while the head sweeps;
+//    * line-feed clacks (three variants, rotated) fired at each new line;
+//    * page-feed one-shots (short / medium / long) picked by feed distance for
+//      Form Feed;
+//    * paper-tear one-shots (five, chosen at random) for Discard.
 //
-//  Threading: PublishReveal / SetVolume / SetMuted / SetPan run on the UI (or
-//  CPU) thread; GeneratePCM runs on the audio mix thread. The reveal state and
-//  pan cross the boundary through atomics; the grain buffers are loaded once
-//  before mixing starts and then only read. Empty grains == silent, so a
-//  missing / unreadable asset never faults (matching the Disk II loader).
+//  Threading: LoadSounds / SetQuality / PublishReveal / PlayFormFeed /
+//  PlayTearOff / SetVolume / SetMuted / SetPan run on the UI (or CPU) thread;
+//  GeneratePCM runs on the audio mix thread. Reveal state, user-action triggers,
+//  and pan cross the boundary through atomics; the grain buffers load once
+//  before mixing. Empty grains == silent, so a missing asset never faults.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 class PrinterAudioSource : public IDriveAudioSource
 {
 public:
-    // Grain boundaries (seconds) into the self-test recording. The sustained
-    // bidirectional-line segment is the carriage-printing loop; the short
-    // segment is the line-feed clack.
-    static constexpr double  kPrintLoopBeginSec  = 8.4;   // -> end of file
-    static constexpr double  kFeedBeginSec       = 3.7;
-    static constexpr double  kFeedEndSec         = 3.9;
+    // Carriage-loop print quality (which loop plays while the head sweeps).
+    enum class Quality { Draft = 0, Medium = 1, NLQ = 2 };
 
     static constexpr float   kDefaultVolume      = 0.80f;
 
@@ -56,15 +56,22 @@ public:
     // carriage returning to the left margin), which fires a line-feed clack.
     static constexpr int     kLineWrapDropDots   = 400;
 
+    static constexpr int     kNumLineFeeds       = 3;
+    static constexpr int     kNumPageFeeds       = 3;   // short, medium, long
+    static constexpr int     kNumTears           = 5;
+
     PrinterAudioSource ();
     ~PrinterAudioSource () override;
 
-    // Decode `path` (any Media Foundation format, incl. MP3) to mono float at
-    // `targetSampleRate`, then slice the print-loop + line-feed grains. A
-    // missing / unreadable file leaves the grains empty -> silent. Returns the
-    // MFStartup result; per-file decode failure does NOT propagate (best-effort,
+    // Decode the sound set from `dir` (absolute path to the "ImageWriter II
+    // Sounds" folder) to mono float at `targetSampleRate` via Media Foundation.
+    // A missing / unreadable file leaves that slot empty (silent). Returns the
+    // MFStartup HRESULT; per-file decode failures do NOT propagate (best-effort,
     // matching Disk2AudioSource::LoadSamples).
-    HRESULT  LoadSound (const wchar_t * path, uint32_t targetSampleRate);
+    HRESULT  LoadSounds (const wchar_t * dir, uint32_t targetSampleRate);
+
+    // Which carriage loop plays while the head sweeps.
+    void  SetQuality (Quality quality);
 
     // Publish the paced on-screen reveal (UI thread). `progressDots` is a
     // monotonic revealed-dot counter (row * dotsPerRow + column); `colDots` is
@@ -72,6 +79,12 @@ public:
     // progress advancing and fires a line-feed clack when the column wraps back
     // toward the left margin.
     void  PublishReveal (int64_t progressDots, int colDots);
+
+    // User-action one-shots (UI thread; consumed on the audio thread). Form Feed
+    // picks the page-feed grain by how much of the page will feed (`unusedPage01`
+    // in 0..1 -> less == shorter); Discard picks a random paper-tear.
+    void  PlayFormFeed (float unusedPage01);
+    void  PlayTearOff  ();
 
     // Master printer-audio gain (0..1) and mute (UI / CPU thread).
     void  SetVolume (float volume);
@@ -93,35 +106,57 @@ public:
     void   OnDiskEjected     () override {}
 
     // Test seams / introspection (no Media Foundation in unit tests).
-    void    SetGrainsForTest     (vector<float> && printLoop, vector<float> && feed, uint32_t sampleRate);
-    void    SetFullBufferForTest (vector<float> && full, uint32_t sampleRate);
-    size_t  PrintLoopSamples () const { return m_printLoop.size (); }
-    size_t  FeedSamples      () const { return m_feed.size (); }
-    bool    IsPrinting       () const { return m_printHoldSamples > 0; }
-    bool    IsFeedPlaying    () const { return m_feedActive; }
+    void    SetLoopForTest     (Quality quality, vector<float> && samples, uint32_t sampleRate);
+    void    SetLineFeedForTest (int index, vector<float> && samples);
+    void    SetPageFeedForTest (int index, vector<float> && samples);
+    void    SetTearForTest     (int index, vector<float> && samples);
+
+    bool    IsPrinting     () const { return m_printHoldSamples > 0; }
+    bool    IsFeedPlaying  () const { return m_lineFeedBuf != nullptr; }
+    bool    IsActionPlaying () const { return m_actionBuf != nullptr; }
+    Quality CurrentQuality () const { return m_quality; }
 
 private:
-    void  SliceGrains  (const vector<float> & full, uint32_t sampleRate);
-    void  MixPrintLoop (float * out, uint32_t n);
-    void  MixFeed      (float * out, uint32_t n);
+    void  MixCarriage (float * out, uint32_t n);
+    void  MixLineFeed (float * out, uint32_t n);
+    void  MixAction   (float * out, uint32_t n);
 
     uint32_t       m_sampleRate = 0;
+    // Default matches the on-screen head: it is paced at real DRAFT speed
+    // (~250 cps, single pass), so the draft loop reads in sync with the sweep.
+    // NLQ / Medium stay wired for when the head model tracks the guest quality.
+    Quality        m_quality    = Quality::Draft;
 
-    vector<float>  m_printLoop;     // looped while the carriage is sweeping
-    vector<float>  m_feed;          // one-shot at each line boundary
-    uint32_t       m_printPos   = 0;
-    uint32_t       m_feedPos    = 0;
-    bool           m_feedActive = false;
+    vector<float>  m_loops[3];                    // Draft, Medium, NLQ carriage loops
+    vector<float>  m_lineFeeds[kNumLineFeeds];
+    vector<float>  m_pageFeeds[kNumPageFeeds];    // short, medium, long
+    vector<float>  m_tears[kNumTears];
+
+    uint32_t       m_carriagePos  = 0;
+
+    const vector<float> *  m_lineFeedBuf  = nullptr;   // active line-feed one-shot
+    uint32_t               m_lineFeedPos  = 0;
+    int                    m_lineFeedNext = 0;          // rotation cursor
+
+    const vector<float> *  m_actionBuf = nullptr;       // active form-feed / tear one-shot
+    uint32_t               m_actionPos = 0;
 
     // Sync channel: UI thread writes, audio thread reads.
     std::atomic<int64_t>  m_revealProgress { 0 };
     std::atomic<int32_t>  m_revealCol      { 0 };
+
+    // User-action request (UI thread writes, audio thread exchanges to 0):
+    // 0 = none, 1..3 = page-feed short/medium/long, 4..8 = tear 0..4.
+    std::atomic<int32_t>  m_pendingAction  { 0 };
 
     // Audio-thread-local reveal tracking + gate timers (in samples).
     int64_t  m_lastProgress     = 0;
     int32_t  m_lastCol          = 0;
     int32_t  m_printHoldSamples = 0;
     int32_t  m_feedThrottle     = 0;
+
+    // Random cursor for the tear pick (UI thread only).
+    uint32_t m_rng = 0x1234abcdu;
 
     float  m_volume = kDefaultVolume;
     bool   m_muted  = false;
