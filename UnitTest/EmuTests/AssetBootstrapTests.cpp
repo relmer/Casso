@@ -100,7 +100,7 @@ public:
 
     // The Enhanced //e is defined by its 65C02: the enhanced ROM runs CMOS
     // opcodes the NMOS //e cannot, which is the whole reason the profile
-    // exists (issue #86). Lock the CPU string so the embed can never
+    // exists. Lock the CPU string so the embed can never
     // silently ship a 6502 that would crash on the enhanced firmware.
     TEST_METHOD (Embedded_Apple2eEnhanced_UsesCmos65C02)
     {

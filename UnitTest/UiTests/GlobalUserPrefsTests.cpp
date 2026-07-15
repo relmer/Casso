@@ -167,7 +167,7 @@ public:
     }
 
 
-    // FR-013a migration: configs with only the legacy single mode split
+    // Migration: configs with only the legacy single mode split
     // correctly -- joystick -> Keys on; paddle/mouse -> Pointer; new keys win.
     TEST_METHOD (SplitInputMappings_MigrateFromLegacySingleMode)
     {

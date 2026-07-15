@@ -12,7 +12,7 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  InputDeviceSelectorTests (T030d)
+//  InputDeviceSelectorTests
 //
 //  Pure-logic coverage for the segmented device selector: segment layout
 //  and hit-testing across the 2- and 3-segment configurations, tooltip
@@ -47,8 +47,8 @@ public:
         InputDeviceSelector  two   = MakeLaidOut (false);
         InputDeviceSelector  three = MakeLaidOut (true);
 
-        RECT  b2 = two.Bounds ();
-        RECT  b3 = three.Bounds ();
+        RECT  b2 = two.Bounds();
+        RECT  b3 = three.Bounds();
 
         Assert::AreEqual (200L, (b2.left + b2.right) / 2,  L"2-seg centered X");
         Assert::AreEqual (100L, (b2.top + b2.bottom) / 2,  L"2-seg centered Y");
@@ -60,7 +60,7 @@ public:
     TEST_METHOD (SegmentAt_MapsChipsAndRejectsGaps)
     {
         InputDeviceSelector  sel = MakeLaidOut (true);
-        RECT  b = sel.Bounds ();
+        RECT  b = sel.Bounds();
 
         // Walk the control horizontally at mid height; collect segments.
         int   midY = (b.top + b.bottom) / 2;
@@ -84,7 +84,7 @@ public:
 
         // Without the mouse, the third segment must be gone.
         InputDeviceSelector  two = MakeLaidOut (false);
-        RECT  c = two.Bounds ();
+        RECT  c = two.Bounds();
         bool  sawM2 = false;
         for (int x = c.left; x < c.right; ++x)
         {
@@ -102,16 +102,16 @@ public:
         InputDeviceSelector  sel;
 
         sel.SetState (false, InputMappingMode::Off, true);
-        std::wstring  off = sel.TooltipText ();
+        std::wstring  off = sel.TooltipText();
 
         sel.SetState (true, InputMappingMode::Off, true);
-        std::wstring  joy = sel.TooltipText ();
+        std::wstring  joy = sel.TooltipText();
 
         sel.SetState (true, InputMappingMode::Mouse, true);
-        std::wstring  mouse = sel.TooltipText ();
+        std::wstring  mouse = sel.TooltipText();
 
         sel.SetState (false, InputMappingMode::Paddle, true);
-        std::wstring  paddle = sel.TooltipText ();
+        std::wstring  paddle = sel.TooltipText();
 
         Assert::IsTrue (off != joy && joy != mouse && mouse != paddle,
             L"each state maps to a distinct tooltip");
@@ -121,7 +121,7 @@ public:
         // Positional tooltips: each segment describes ITSELF, regardless of
         // the current state.
         InputDeviceSelector  laid = MakeLaidOut (true);
-        RECT  b = laid.Bounds ();
+        RECT  b = laid.Bounds();
         int   midY = (b.top + b.bottom) / 2;
         std::wstring  segTips[3];
         int           found = 0;
@@ -160,9 +160,9 @@ public:
             MockDxuiPainter  p;
             paint (p, box, skeuo);
 
-            Assert::IsTrue (p.Calls ().size () > 4, name);
+            Assert::IsTrue (p.Calls().size() > 4, name);
 
-            for (const RecordedPaintCall & c : p.Calls ())
+            for (const RecordedPaintCall & c : p.Calls())
             {
                 Assert::IsTrue (c.x >= box.left - 2 && c.y >= box.top - 2 &&
                                 c.x + c.width  <= box.right + 2 &&

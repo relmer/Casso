@@ -3117,7 +3117,7 @@ HRESULT AssetBootstrap::RunStartupDownloader (
         entry.groupLabel    = MachineDisplayName (narrowMachine) + L" ROMs";
         entry.displayName   = AsciiToWide (spec->description);
         entry.kindLabel     = L"ROM";
-        entry.source        = spec->sourceLabel.empty ()
+        entry.source        = spec->sourceLabel.empty()
                               ? L"AppleWin (GitHub)"
                               : AsciiToWide (spec->sourceLabel);
         entry.selectable    = false;
@@ -3136,7 +3136,7 @@ HRESULT AssetBootstrap::RunStartupDownloader (
 
             // Default AppleWin source, or the ROM's explicit alternate host
             // (e.g. the //c ROM on the apple2.org.za mirror).
-            bool          useAlt  = !spec->altHost.empty ();
+            bool          useAlt  = !spec->altHost.empty();
             wstring       wHost   = useAlt ? AsciiToWide (spec->altHost) : wstring (s_kpszAppleWinHost);
             wstring       wPath   = useAlt
                                     ? AsciiToWide (spec->altUrlPath)
@@ -3150,7 +3150,7 @@ HRESULT AssetBootstrap::RunStartupDownloader (
             CBRF (hSes != nullptr, err = "Cannot initialize WinHTTP session");
 
             hr = DownloadHttp (hSes,
-                                    wHost.c_str (),
+                                    wHost.c_str(),
                                     wPath.c_str (),
                                     spec->expectedSize,
                                     spec->cassoName,

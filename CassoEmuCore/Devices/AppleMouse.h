@@ -20,7 +20,7 @@ class MemoryBus;
 //  soft-switch programming interface. The //c mouse is built in (no card);
 //  the real ROM 4 mouse firmware runs unmodified against this hardware
 //  model — the register contract below was derived by disassembling that
-//  firmware (specs/016-apple2c-support/reference/mouse-hardware.md):
+//  firmware:
 //
 //      $C015 R7   X0-interrupt pending (read-only status)
 //      $C017 R7   Y0-interrupt pending (read-only status)
@@ -56,7 +56,7 @@ class MemoryBus;
 class AppleMouse : public ICycleSink
 {
 public:
-    AppleMouse () = default;
+    AppleMouse() = default;
 
     // ---- Wiring ----------------------------------------------------------
 
@@ -78,7 +78,7 @@ public:
     void    MoveBy    (int dx, int dy);
     void    SetButton (bool down) { m_hostButton.store (down, std::memory_order_release); }
 
-    // Absolute host->guest targeting (T030): the host pointer's position
+    // Absolute host->guest targeting: the host pointer's position
     // over the emulator viewport as 16-bit fractions (0..65535 across each
     // axis). Tick (CPU thread) projects the fraction into the firmware's
     // LIVE clamp window (read from the slot-7 screen holes via the bus) and
@@ -95,8 +95,8 @@ public:
 
     // ---- Soft-switch surface (CPU thread, forwarded by keyboard/bank) -----
 
-    Byte    ReadXInterruptStatus () const { return m_xInt   ? 0x80 : 0x00; }   // $C015 bit 7
-    Byte    ReadYInterruptStatus () const { return m_yInt   ? 0x80 : 0x00; }   // $C017 bit 7
+    Byte    ReadXInterruptStatus() const { return m_xInt   ? 0x80 : 0x00; }   // $C015 bit 7
+    Byte    ReadYInterruptStatus() const { return m_yInt   ? 0x80 : 0x00; }   // $C017 bit 7
     Byte    ReadVblInterrupt     () const { return m_vblInt ? 0x80 : 0x00; }   // $C019 bit 7
     Byte    ReadButton           () const;                                      // $C063 bit 7
     Byte    ReadMouX1            () const { return m_mouX1; }                   // $C066 bit 7
@@ -105,21 +105,21 @@ public:
     void    AccessRstXY   ();                          // $C048 any access
     void    AccessPtrig   ();                          // $C070 read side effect
     void    WriteIouAccess (bool enabled) { m_iouAccessEnabled = enabled; }   // $C079/$C078
-    bool    IsIouAccessEnabled () const   { return m_iouAccessEnabled; }
+    bool    IsIouAccessEnabled() const   { return m_iouAccessEnabled; }
     void    AccessIouSwitch (Word address);            // $C058-$C05F while enabled
 
     // ---- Lifecycle ---------------------------------------------------------
 
-    void    Reset ();
+    void    Reset();
 
     // ---- Inspectors (tests) ------------------------------------------------
 
     bool    XyInterruptsEnabled  () const { return m_xyEnabled; }
-    bool    VblInterruptsEnabled () const { return m_vblEnabled; }
+    bool    VblInterruptsEnabled() const { return m_vblEnabled; }
 
 private:
-    void    UpdateIrqLines ();
-    void    RetargetFromHoles ();
+    void    UpdateIrqLines();
+    void    RetargetFromHoles();
 
     // Firmware screen holes (slot 7): position, clamp min/max, per axis.
     static constexpr Word     kHoleXPosLo  = 0x047F, kHoleXPosHi  = 0x057F;

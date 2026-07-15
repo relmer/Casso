@@ -56,7 +56,7 @@
 #define IDM_DRIVE_EXTERNAL_DISCONNECT 40057
 
 // //c mouse peripheral: connect / disconnect the mouse from the DB-9 port
-// (FR-013b). A per-machine UI pref like the external drive; the IOU stays
+// A per-machine UI pref like the external drive; the IOU stays
 // (built-in silicon) but a disconnected mouse gets no host input and the
 // Pointer mapping hides Mouse. Default connected.
 #define IDM_MOUSE_CONNECT             40058

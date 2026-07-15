@@ -43,10 +43,8 @@ public:
     void  SetRect    (const RECT & rect)  { SetBounds (rect); }
     void  SetLabel   (const std::wstring & label) { m_label = label; }
 
-    // Draw the label on a single line, ellipsizing (…) when it doesn't fit,
-    // instead of word-wrapping into the next row. For fixed-height list rows
-    // (e.g. the startup ROM-download dialog) where a wrap would collide with
-    // the following row. Default off preserves the wrapping behavior.
+    // Draw the label on one line, ellipsizing (…) instead of wrapping — for
+    // fixed-height list rows. Default off keeps the wrapping behavior.
     void  SetSingleLineLabel (bool v) { m_singleLineLabel = v; }
     void  SetChecked (bool checked) { m_checked = checked; }
     void  SetEnabled (bool enabled) { IDxuiControl::SetEnabled (enabled); m_enabled = enabled; if (!enabled) { m_hover = false; m_pressed = false; } }
@@ -81,7 +79,12 @@ public:
     DxuiAccessibleRole  AccessibleRole () const override { return DxuiAccessibleRole::Checkbox; }
 
 private:
-    void  Toggle ();
+    void  Toggle();
+
+    static std::wstring  EllipsizeToWidth (IDxuiTextRenderer  & text,
+                                           const std::wstring & label,
+                                           float                fontDip,
+                                           float                maxWidth);
 
 
     std::wstring  m_label;

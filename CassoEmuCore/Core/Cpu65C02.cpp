@@ -55,7 +55,7 @@ static constexpr ReservedNop    s_kReservedNops[] =
 Cpu65C02::Cpu65C02 (MemoryBus & memoryBus)
     : MemoryBusCpu (memoryBus)
 {
-    InitializeCmos ();
+    InitializeCmos();
 }
 
 
@@ -111,13 +111,13 @@ void Cpu65C02::SetOpcode (Byte                                  opcode,
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void Cpu65C02::InitializeCmos ()
+void Cpu65C02::InitializeCmos()
 {
-    InitializeArithmetic ();
-    ReclaimUndocumented ();
-    InitializeCmosLeftovers ();
-    InstallBitOps ();
-    InitializeNops ();
+    InitializeArithmetic();
+    ReclaimUndocumented();
+    InitializeCmosLeftovers();
+    InstallBitOps();
+    InitializeNops();
 }
 
 
@@ -136,7 +136,7 @@ void Cpu65C02::InitializeCmos ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void Cpu65C02::InstallBitOps ()
+void Cpu65C02::InstallBitOps()
 {
     static constexpr Byte    s_kBitOpCycles       = 5;
     static constexpr Byte    s_kBitBranchCycles   = 5;
@@ -184,13 +184,13 @@ void Cpu65C02::InstallBitOps ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void Cpu65C02::ReclaimUndocumented ()
+void Cpu65C02::ReclaimUndocumented()
 {
     static constexpr Byte    s_kNmosUndocumented[] = { 0x04, 0xCF };
 
     for (Byte opcode : s_kNmosUndocumented)
     {
-        instructionSet[opcode] = Microcode ();
+        instructionSet[opcode] = Microcode();
     }
 }
 
@@ -210,7 +210,7 @@ void Cpu65C02::ReclaimUndocumented ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void Cpu65C02::InitializeArithmetic ()
+void Cpu65C02::InitializeArithmetic()
 {
     int    i = 0;
 
@@ -249,7 +249,7 @@ void Cpu65C02::InitializeArithmetic ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void Cpu65C02::InitializeCmosLeftovers ()
+void Cpu65C02::InitializeCmosLeftovers()
 {
     struct TableEntry
     {
@@ -334,7 +334,7 @@ void Cpu65C02::InitializeCmosLeftovers ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void Cpu65C02::InitializeNops ()
+void Cpu65C02::InitializeNops()
 {
     int    i = 0;
 

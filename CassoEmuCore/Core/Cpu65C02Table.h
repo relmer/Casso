@@ -18,4 +18,4 @@ class Microcode;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-const Microcode * GetCpu65C02InstructionSet ();
+const Microcode * GetCpu65C02InstructionSet();

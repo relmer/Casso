@@ -84,7 +84,7 @@ void AppleMouse::Tick (uint32_t cpuCycles)
     if (m_retargetCountdown <= cpuCycles)
     {
         m_retargetCountdown = kRetargetIntervalCycles;
-        RetargetFromHoles ();
+        RetargetFromHoles();
     }
     else
     {
@@ -94,7 +94,7 @@ void AppleMouse::Tick (uint32_t cpuCycles)
     // VBL onset edge.
     if (m_videoTiming != nullptr)
     {
-        bool  inVblank = m_videoTiming->IsInVblank ();
+        bool  inVblank = m_videoTiming->IsInVblank();
 
         if (inVblank && !m_lastInVblank)
         {
@@ -134,7 +134,7 @@ void AppleMouse::Tick (uint32_t cpuCycles)
         m_yInt      = true;
     }
 
-    UpdateIrqLines ();
+    UpdateIrqLines();
 }
 
 
@@ -175,7 +175,7 @@ void AppleMouse::SetHostTargetFraction (uint16_t fx, uint16_t fy)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void AppleMouse::RetargetFromHoles ()
+void AppleMouse::RetargetFromHoles()
 {
     if (m_bus == nullptr || !m_hasTarget.load (std::memory_order_acquire))
     {
@@ -234,7 +234,7 @@ void AppleMouse::RetargetFromHoles ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-Byte AppleMouse::ReadButton () const
+Byte AppleMouse::ReadButton() const
 {
     return m_hostButton.load (std::memory_order_acquire) ? 0x00 : 0x80;
 }
@@ -252,12 +252,12 @@ Byte AppleMouse::ReadButton () const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void AppleMouse::AccessRstXY ()
+void AppleMouse::AccessRstXY()
 {
     m_xInt = false;
     m_yInt = false;
 
-    UpdateIrqLines ();
+    UpdateIrqLines();
 }
 
 
@@ -272,11 +272,11 @@ void AppleMouse::AccessRstXY ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void AppleMouse::AccessPtrig ()
+void AppleMouse::AccessPtrig()
 {
     m_vblInt = false;
 
-    UpdateIrqLines ();
+    UpdateIrqLines();
 }
 
 
@@ -307,7 +307,7 @@ void AppleMouse::AccessIouSwitch (Word address)
     case 0x7: m_y0EdgeFalling = true;  break;   // $C05F Y0EDGE falling
     }
 
-    UpdateIrqLines ();
+    UpdateIrqLines();
 }
 
 
@@ -323,7 +323,7 @@ void AppleMouse::AccessIouSwitch (Word address)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void AppleMouse::Reset ()
+void AppleMouse::Reset()
 {
     m_hostDx.store (0, std::memory_order_release);
     m_hostDy.store (0, std::memory_order_release);
@@ -344,7 +344,7 @@ void AppleMouse::Reset ()
     m_iouAccessEnabled = false;
     m_lastInVblank     = false;
 
-    UpdateIrqLines ();
+    UpdateIrqLines();
 }
 
 
@@ -359,7 +359,7 @@ void AppleMouse::Reset ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void AppleMouse::UpdateIrqLines ()
+void AppleMouse::UpdateIrqLines()
 {
     if (!m_irqBound || m_ic == nullptr)
     {

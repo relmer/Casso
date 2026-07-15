@@ -41,7 +41,7 @@ public:
         Assert::IsNotNull (core.prng.get ());
     }
 
-    // The Apple //e Enhanced (issue #86) cold-boots its enhanced firmware on
+    // The Apple //e Enhanced cold-boots its enhanced firmware on
     // the 65C02: the RESET vector points into ROM, a cold PowerCycle enters
     // it, and the CPU then runs firmware (PC stays in the $C000-$FFFF ROM
     // window). A 6502 mis-wire would derail the moment the enhanced ROM hits
@@ -53,7 +53,7 @@ public:
             std::vector<uint8_t>  probe;
 
             if (FAILED (fp.OpenFixture ("Apple2eEnhanced.rom", probe)) ||
-                probe.size () != 0x4000)
+                probe.size() != 0x4000)
             {
                 Logger::WriteMessage (
                     "SKIPPED: UnitTest/Fixtures/Apple2eEnhanced.rom absent "
@@ -73,12 +73,12 @@ public:
         Assert::IsTrue (resetVec >= 0xC000,
             L"RESET vector must point into the enhanced //e ROM");
 
-        core.PowerCycle ();
-        Assert::AreEqual<Word> (resetVec, core.cpu->GetPC (),
+        core.PowerCycle();
+        Assert::AreEqual<Word> (resetVec, core.cpu->GetPC(),
             L"Cold reset must enter the enhanced firmware entry");
 
         core.RunCycles (20'000'000);
-        Assert::IsTrue (core.cpu->GetPC () >= 0xC000,
+        Assert::IsTrue (core.cpu->GetPC() >= 0xC000,
             L"After cold boot the CPU must be executing firmware in ROM "
             L"($C000-$FFFF); a 6502 mis-wire would derail on a CMOS opcode");
     }

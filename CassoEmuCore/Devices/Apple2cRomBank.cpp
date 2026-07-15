@@ -5,17 +5,14 @@
 #include "Apple2eMmu.h"
 
 
-namespace
-{
-    static constexpr Word    kBankImageStart = 0xC000;      // each bank spans $C000-$FFFF
-    static constexpr size_t  kBankImageSize  = 0x4000;      // 16 KiB
-    static constexpr Word    kCxxxStart      = 0xC100;
-    static constexpr size_t  kCxxxSize       = 0x0F00;      // $C100-$CFFF
-    static constexpr Word    kLcRomStart     = 0xD000;
-    static constexpr size_t  kLcRomSize      = 0x3000;      // $D000-$FFFF
-    static constexpr size_t  kCxxxOffset     = kCxxxStart  - kBankImageStart;   // $0100
-    static constexpr size_t  kLcRomOffset    = kLcRomStart - kBankImageStart;   // $1000
-}
+static constexpr Word    s_kBankImageStart = 0xC000;      // each bank spans $C000-$FFFF
+static constexpr size_t  s_kBankImageSize  = 0x4000;      // 16 KiB
+static constexpr Word    s_kCxxxStart      = 0xC100;
+static constexpr size_t  s_kCxxxSize       = 0x0F00;      // $C100-$CFFF
+static constexpr Word    s_kLcRomStart     = 0xD000;
+static constexpr size_t  s_kLcRomSize      = 0x3000;      // $D000-$FFFF
+static constexpr size_t  s_kCxxxOffset     = s_kCxxxStart  - s_kBankImageStart;   // $0100
+static constexpr size_t  s_kLcRomOffset    = s_kLcRomStart - s_kBankImageStart;   // $1000
 
 
 
@@ -66,13 +63,13 @@ void Apple2cRomBank::ApplyBank (int bank)
 {
     const vector<Byte> &  image = m_bank[bank];
 
-    if (image.size () < kBankImageSize)
+    if (image.size() < s_kBankImageSize)
     {
         return;
     }
 
-    vector<Byte>   cxxx  (image.begin () + kCxxxOffset,  image.begin () + kCxxxOffset  + kCxxxSize);
-    vector<Byte>   lcRom (image.begin () + kLcRomOffset, image.begin () + kLcRomOffset + kLcRomSize);
+    vector<Byte>   cxxx  (image.begin() + s_kCxxxOffset,  image.begin() + s_kCxxxOffset  + s_kCxxxSize);
+    vector<Byte>   lcRom (image.begin() + s_kLcRomOffset, image.begin() + s_kLcRomOffset + s_kLcRomSize);
 
     m_mmu.AttachInternalCxxxRom (std::move (cxxx));
     m_lc.SetRomData             (lcRom);
@@ -89,13 +86,13 @@ void Apple2cRomBank::ApplyBank (int bank)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void Apple2cRomBank::ToggleRomBank ()
+void Apple2cRomBank::ToggleRomBank()
 {
     ApplyBank (m_current ^ 1);
 }
 
 
-void Apple2cRomBank::ResetRomBank ()
+void Apple2cRomBank::ResetRomBank()
 {
     ApplyBank (0);
 }

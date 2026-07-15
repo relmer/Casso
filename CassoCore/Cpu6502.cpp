@@ -209,7 +209,7 @@ void Cpu6502::SetRegisters (const Cpu6502Registers & regs)
 
 bool Cpu6502::TryDispatchInterrupt (uint32_t & outCycles)
 {
-    if (!TryStepInterrupt ())
+    if (!TryStepInterrupt())
     {
         return false;
     }

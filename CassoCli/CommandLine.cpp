@@ -381,10 +381,10 @@ static const Microcode * SelectInstructionSet (const CommandLineOptions & option
 {
     if (options.cpuTarget == CommandLineOptions::CpuTarget::M65C02)
     {
-        return GetCpu65C02InstructionSet ();
+        return GetCpu65C02InstructionSet();
     }
 
-    return cpu.GetInstructionSet ();
+    return cpu.GetInstructionSet();
 }
 
 

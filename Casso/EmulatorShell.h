@@ -341,7 +341,7 @@ private:
     // it, re-syncs the game port (resolving joystick axes / buttons from
     // current keys, centering on leave), and starts or stops mouse capture
     // for Paddle mode.
-    // FR-013a split input model. SetArrowsJoystick / SetPointerMapping set
+    // Split input model. SetArrowsJoystick / SetPointerMapping set
     // the two orthogonal axes independently (menu items); SetInputMappingMode
     // applies a combined PRESET (button cycle + legacy callers): Joystick =
     // keys-only, Paddle/Mouse = pointer-only, Off = both off. Paddle<->Mouse
@@ -350,29 +350,29 @@ private:
     void    SetArrowsJoystick   (bool on);
     void    SetPointerMapping   (InputMappingMode pointer);   // Off/Paddle/Mouse
 
-    // The single mode the (pre-T030d) toggle button displays: the pointer
+    // The single mode the legacy toggle button displays: the pointer
     // mapping when active, else Joystick when the keys mapping is on.
-    InputMappingMode  DisplayInputMode () const
+    InputMappingMode  DisplayInputMode() const
     {
         return (m_pointerMode != InputMappingMode::Off) ? m_pointerMode
              : (m_arrowsJoystick ? InputMappingMode::Joystick : InputMappingMode::Off);
     }
 
-    // FR-013b: with a connected mouse and no pointer mapping chosen, the //c
+    // With a connected mouse and no pointer mapping chosen, the //c
     // defaults Pointer to Mouse (runtime nudge, not persisted; invisible
     // until mouse software runs thanks to the firmware-live gate).
-    void    ApplyDefaultPointerForMachine ();
+    void    ApplyDefaultPointerForMachine();
 
 private:
-    void    SyncInputModeUi ();
-    void    SyncSelectorState ();
+    void    SyncInputModeUi();
+    void    SyncSelectorState();
 public:
 
     // Radio-group toggle for the Machine-menu items: selects `target`, or
     // turns mapping Off if `target` is already the active mode.
     void    ToggleInputMappingMode (InputMappingMode target);
 
-    // //c mouse mode (US4 / T030). True while Mouse mode is selected AND the
+    // //c mouse mode. True while Mouse mode is selected AND the
     // current machine has the IOU mouse — every runtime consumer guards on
     // this, so a persisted Mouse mode on a mouse-less machine is inert.
     bool    GuestMouseActive       () const;
@@ -629,7 +629,7 @@ private:
     // Joystick-mode toggle button (mirrors IDM_MACHINE_ARROWS_JOYSTICK),
     // centered in the drive bar above the drive widgets, with its own
     // hover tooltip.
-    InputDeviceSelector   m_joystickButton;   // T030d segmented device selector
+    InputDeviceSelector   m_joystickButton;   // Segmented device selector
     DxuiTooltip               m_joystickTooltip;
 
     // Solid background for the bottom drive-bar band. The CRT composite
@@ -679,7 +679,7 @@ private:
     bool                     m_externalDriveConnected = false;
 
     // //c only: whether the mouse peripheral is plugged into the DB-9 port
-    // (FR-013b). Mirrors $cassoUiPrefs.mouseConnected (default CONNECTED);
+    // Mirrors $cassoUiPrefs.mouseConnected (default CONNECTED);
     // flipped live by IDM_MOUSE_CONNECT/DISCONNECT. Disconnected = the IOU
     // silicon stays but GuestMouseActive() is false (no host input feeds
     // the device) and the input-mode cycle hides Mouse -- indistinguishable
@@ -801,7 +801,7 @@ private:
     // machine. Owned here (not in m_ownedDevices) because it is not a bus
     // device; reset during machine teardown before the LC/MMU it references.
     unique_ptr<class Apple2cRomBank>  m_apple2cRomBank;
-    // Apple //c IOU mouse (US4). Null on every other machine. Owned here
+    // Apple //c IOU mouse. Null on every other machine. Owned here
     // (not in m_ownedDevices) because it is not a bus device: the keyboard
     // and soft-switch bank forward its register surface, and the EmuCpu
     // cycle fan-out ticks it (VBL-edge latch + paced movement interrupts).
@@ -858,7 +858,7 @@ private:
 
     // How host arrow / pointer input is mapped onto the emulated game
     // port (Off / Joystick / Paddle). Mirrors
-    // GlobalUserPrefs (split model, FR-013a) and is cycled via the Machine
+    // GlobalUserPrefs (split model) and is cycled via the Machine
     // menu's "Cycle Input Mode" item, Ctrl+Shift+J, and the drive-bar widget.
     InputMappingMode  m_pointerMode    = InputMappingMode::Off;   // Off/Paddle/Mouse
     bool              m_arrowsJoystick = false;                    // Keys axis

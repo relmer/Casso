@@ -41,7 +41,7 @@ namespace Cpu65C02TestNs
     class Harness
     {
     public:
-        Harness () : m_cpu (m_bus)
+        Harness() : m_cpu (m_bus)
         {
             SetRegs (0, 0, 0, 0);
             m_cpu.SetPC (kProgram);
@@ -62,7 +62,7 @@ namespace Cpu65C02TestNs
 
         void    SetRegs (Byte a, Byte x, Byte y, Byte p)
         {
-            Cpu6502Registers    regs = m_cpu.GetRegisters ();
+            Cpu6502Registers    regs = m_cpu.GetRegisters();
 
             regs.a = a;
             regs.x = x;
@@ -72,10 +72,10 @@ namespace Cpu65C02TestNs
             m_cpu.SetRegisters (regs);
         }
 
-        Cpu6502Registers    Regs ()   { return m_cpu.GetRegisters (); }
-        Byte                Cycles () { return m_cpu.GetLastInstructionCycles (); }
-        Word                PC ()     { return m_cpu.GetPC (); }
-        void                Step ()   { m_cpu.StepOne (); }
+        Cpu6502Registers    Regs()   { return m_cpu.GetRegisters(); }
+        Byte                Cycles() { return m_cpu.GetLastInstructionCycles(); }
+        Word                PC()     { return m_cpu.GetPC(); }
+        void                Step()   { m_cpu.StepOne(); }
 
     private:
         MemoryBus    m_bus;
@@ -100,11 +100,11 @@ namespace Cpu65C02TestNs
 
             h.SetRegs (0x7F, 0, 0, 0);
             h.Load ({ 0x1A });          // INC A
-            h.Step ();
+            h.Step();
 
-            Assert::AreEqual<Byte> (0x80, h.Regs ().a);
-            Assert::IsTrue ((h.Regs ().p & kFlagNegative) != 0);
-            Assert::AreEqual<Byte> (2, h.Cycles ());
+            Assert::AreEqual<Byte> (0x80, h.Regs().a);
+            Assert::IsTrue ((h.Regs().p & kFlagNegative) != 0);
+            Assert::AreEqual<Byte> (2, h.Cycles());
         }
 
 
@@ -114,10 +114,10 @@ namespace Cpu65C02TestNs
 
             h.SetRegs (0x01, 0, 0, 0);
             h.Load ({ 0x3A });          // DEC A
-            h.Step ();
+            h.Step();
 
-            Assert::AreEqual<Byte> (0x00, h.Regs ().a);
-            Assert::IsTrue ((h.Regs ().p & kFlagZero) != 0);
+            Assert::AreEqual<Byte> (0x00, h.Regs().a);
+            Assert::IsTrue ((h.Regs().p & kFlagZero) != 0);
         }
 
 
@@ -127,10 +127,10 @@ namespace Cpu65C02TestNs
 
             h.Poke (0x0010, 0xAB);
             h.Load ({ 0x64, 0x10 });    // STZ $10
-            h.Step ();
+            h.Step();
 
             Assert::AreEqual<Byte> (0x00, h.Peek (0x0010));
-            Assert::AreEqual<Byte> (3, h.Cycles ());
+            Assert::AreEqual<Byte> (3, h.Cycles());
         }
 
 
@@ -139,11 +139,11 @@ namespace Cpu65C02TestNs
             Harness h;
 
             h.Load ({ 0x80, 0x04 });    // BRA +4
-            h.Step ();
+            h.Step();
 
             // PC after the 2-byte instruction is $0202; +4 = $0206.
-            Assert::AreEqual<Word> (0x0206, h.PC ());
-            Assert::AreEqual<Byte> (3, h.Cycles ());   // 2 base + 1 taken
+            Assert::AreEqual<Word> (0x0206, h.PC());
+            Assert::AreEqual<Byte> (3, h.Cycles());   // 2 base + 1 taken
         }
 
 
@@ -153,11 +153,11 @@ namespace Cpu65C02TestNs
 
             h.SetRegs (0, 0x5C, 0, 0);
             h.Load ({ 0xDA, 0xA2, 0x00, 0xFA });   // PHX ; LDX #$00 ; PLX
-            h.Step ();                              // PHX
-            h.Step ();                              // LDX #$00
-            Assert::AreEqual<Byte> (0x00, h.Regs ().x);
-            h.Step ();                              // PLX
-            Assert::AreEqual<Byte> (0x5C, h.Regs ().x);
+            h.Step();                              // PHX
+            h.Step();                              // LDX #$00
+            Assert::AreEqual<Byte> (0x00, h.Regs().x);
+            h.Step();                              // PLX
+            Assert::AreEqual<Byte> (0x5C, h.Regs().x);
         }
 
 
@@ -168,9 +168,9 @@ namespace Cpu65C02TestNs
             h.SetRegs (0x0F, 0, 0, 0);
             h.Poke (0x0020, 0xF0);
             h.Load ({ 0x04, 0x20 });    // TSB $20
-            h.Step ();
+            h.Step();
 
-            Assert::IsTrue ((h.Regs ().p & kFlagZero) != 0);   // 0x0F & 0xF0 == 0
+            Assert::IsTrue ((h.Regs().p & kFlagZero) != 0);   // 0x0F & 0xF0 == 0
             Assert::AreEqual<Byte> (0xFF, h.Peek (0x0020));    // bits set
         }
 
@@ -182,9 +182,9 @@ namespace Cpu65C02TestNs
             h.SetRegs (0x0F, 0, 0, 0);
             h.Poke (0x0020, 0xFF);
             h.Load ({ 0x14, 0x20 });    // TRB $20
-            h.Step ();
+            h.Step();
 
-            Assert::IsTrue ((h.Regs ().p & kFlagZero) == 0);   // 0x0F & 0xFF != 0
+            Assert::IsTrue ((h.Regs().p & kFlagZero) == 0);   // 0x0F & 0xFF != 0
             Assert::AreEqual<Byte> (0xF0, h.Peek (0x0020));    // bits cleared
         }
 
@@ -197,10 +197,10 @@ namespace Cpu65C02TestNs
             h.Poke (0x0041, 0x03);      // pointer high -> $0300
             h.Poke (0x0300, 0x99);      // target value
             h.Load ({ 0xB2, 0x40 });    // LDA ($40)
-            h.Step ();
+            h.Step();
 
-            Assert::AreEqual<Byte> (0x99, h.Regs ().a);
-            Assert::AreEqual<Byte> (5, h.Cycles ());
+            Assert::AreEqual<Byte> (0x99, h.Regs().a);
+            Assert::AreEqual<Byte> (5, h.Cycles());
         }
 
 
@@ -218,10 +218,10 @@ namespace Cpu65C02TestNs
             h.Poke (0x0200, 0x6C);      // JMP ($02FF)  -- note $0200 overwritten
             h.Poke (0x0201, 0xFF);
             h.Poke (0x0202, 0x02);
-            h.Step ();
+            h.Step();
 
-            Assert::AreEqual<Word> (0x1234, h.PC ());
-            Assert::AreEqual<Byte> (6, h.Cycles ());
+            Assert::AreEqual<Word> (0x1234, h.PC());
+            Assert::AreEqual<Byte> (6, h.Cycles());
         }
 
 
@@ -237,9 +237,9 @@ namespace Cpu65C02TestNs
                 Harness h;
                 h.Poke (0x0030, 0xFF);
                 h.Load ({ 0x07, 0x30 });
-                h.Step ();
-                Assert::AreEqual<Word> (0x0202, h.PC ());
-                Assert::AreEqual<Byte> (5,      h.Cycles ());
+                h.Step();
+                Assert::AreEqual<Word> (0x0202, h.PC());
+                Assert::AreEqual<Byte> (5,      h.Cycles());
                 Assert::AreEqual<Byte> (0xFE,   h.Peek (0x0030));
             }
 
@@ -248,8 +248,8 @@ namespace Cpu65C02TestNs
                 Harness h;
                 h.Poke (0x0030, 0x00);
                 h.Load ({ 0xF7, 0x30 });
-                h.Step ();
-                Assert::AreEqual<Word> (0x0202, h.PC ());
+                h.Step();
+                Assert::AreEqual<Word> (0x0202, h.PC());
                 Assert::AreEqual<Byte> (0x80,   h.Peek (0x0030));
             }
 
@@ -258,15 +258,15 @@ namespace Cpu65C02TestNs
                 Harness h;                                  // taken: bit 0 clear
                 h.Poke (0x0030, 0xFE);
                 h.Load ({ 0x0F, 0x30, 0x10 });
-                h.Step ();
-                Assert::AreEqual<Word> (0x0213, h.PC ());   // $0203 + $10
+                h.Step();
+                Assert::AreEqual<Word> (0x0213, h.PC());   // $0203 + $10
             }
             {
                 Harness h;                                  // not taken: bit 0 set
                 h.Poke (0x0030, 0x01);
                 h.Load ({ 0x0F, 0x30, 0x10 });
-                h.Step ();
-                Assert::AreEqual<Word> (0x0203, h.PC ());
+                h.Step();
+                Assert::AreEqual<Word> (0x0203, h.PC());
             }
 
             // BBS0 ($8F zp,rel): branch if bit 0 set.
@@ -274,8 +274,8 @@ namespace Cpu65C02TestNs
                 Harness h;                                  // taken: bit 0 set
                 h.Poke (0x0030, 0x01);
                 h.Load ({ 0x8F, 0x30, 0x10 });
-                h.Step ();
-                Assert::AreEqual<Word> (0x0213, h.PC ());
+                h.Step();
+                Assert::AreEqual<Word> (0x0213, h.PC());
             }
         }
 
@@ -290,11 +290,11 @@ namespace Cpu65C02TestNs
 
                 h.SetRegs (0x11, 0x22, 0x33, 0);
                 h.Load ({ opcode, 0xEA });
-                h.Step ();
+                h.Step();
 
-                Assert::AreEqual<Word> (0x0201, h.PC ());          // consumed 1 byte
-                Assert::AreEqual<Byte> (1,      h.Cycles ());      // 1 cycle
-                Assert::AreEqual<Byte> (0x11,   h.Regs ().a);      // A untouched
+                Assert::AreEqual<Word> (0x0201, h.PC());          // consumed 1 byte
+                Assert::AreEqual<Byte> (1,      h.Cycles());      // 1 cycle
+                Assert::AreEqual<Byte> (0x11,   h.Regs().a);      // A untouched
             }
         }
 
@@ -305,12 +305,12 @@ namespace Cpu65C02TestNs
 
             h.SetRegs (0x09, 0, 0, kFlagDecimal);
             h.Load ({ 0x69, 0x01 });    // ADC #$01  (decimal)
-            h.Step ();
+            h.Step();
 
-            Assert::AreEqual<Byte> (0x10, h.Regs ().a);        // BCD 9 + 1 = 10
-            Assert::IsTrue ((h.Regs ().p & kFlagZero) == 0);
-            Assert::IsTrue ((h.Regs ().p & kFlagNegative) == 0);
-            Assert::AreEqual<Byte> (3, h.Cycles ());           // 2 base + 1 decimal
+            Assert::AreEqual<Byte> (0x10, h.Regs().a);        // BCD 9 + 1 = 10
+            Assert::IsTrue ((h.Regs().p & kFlagZero) == 0);
+            Assert::IsTrue ((h.Regs().p & kFlagNegative) == 0);
+            Assert::AreEqual<Byte> (3, h.Cycles());           // 2 base + 1 decimal
         }
 
 
@@ -320,11 +320,11 @@ namespace Cpu65C02TestNs
 
             h.SetRegs (0x11, 0x22, 0x33, 0);
             h.Load ({ 0x03 });          // reserved -> 1-byte NOP
-            h.Step ();
+            h.Step();
 
-            Assert::AreEqual<Word> (0x0201, h.PC ());
-            Assert::AreEqual<Byte> (0x11, h.Regs ().a);
-            Assert::AreEqual<Byte> (1, h.Cycles ());
+            Assert::AreEqual<Word> (0x0201, h.PC());
+            Assert::AreEqual<Byte> (0x11, h.Regs().a);
+            Assert::AreEqual<Byte> (1, h.Cycles());
         }
 
 
@@ -337,7 +337,7 @@ namespace Cpu65C02TestNs
 
             hr = CpuFactory::Create ("65C02", busA, cpu);
             Assert::AreEqual (S_OK, hr);
-            Assert::IsNotNull (cpu.get ());
+            Assert::IsNotNull (cpu.get());
 
             hr = CpuFactory::Create ("z80", busB, cpu);
             Assert::IsTrue (FAILED (hr));

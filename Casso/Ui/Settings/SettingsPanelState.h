@@ -83,7 +83,7 @@ struct SettingsUiPrefs
     // to not-connected -- a bare //c ships with just its internal drive.
     bool               externalDriveConnected = false;
     // //c only: whether the mouse peripheral is plugged into the DB-9 port
-    // (FR-013b). Defaults to CONNECTED (confirmed 2026-07-09): a connected-
+    // Defaults to CONNECTED (confirmed 2026-07-09): a connected-
     // but-unused mouse has no UI footprint (firmware-live gate), so
     // MousePaint works zero-config.
     bool               mouseConnected         = true;

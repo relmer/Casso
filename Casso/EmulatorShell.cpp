@@ -711,7 +711,7 @@ HRESULT EmulatorShell::Initialize (
         hrPrefs = m_userConfigStore->LoadAll (m_globalPrefs, m_uiFs);
         IGNORE_RETURN_VALUE (hrPrefs, S_OK);
 
-        // Restore the split input mappings (FR-013a). Keys (arrows->
+        // Restore the split input mappings. Keys (arrows->
         // joystick) is a passive remap, safe to restore. Pointer: Paddle is
         // an active mouse-capture mode, never restored on launch (it would
         // light the LED while the mouse is NOT captured) -- falls back to
@@ -1063,7 +1063,7 @@ HRESULT EmulatorShell::Initialize (
                         // //c external drive + mouse: seed the connected states
                         // from the persisted prefs so first paint + input gating
                         // match the user's saved setup. External drive defaults
-                        // not-connected; mouse defaults CONNECTED (FR-013b).
+                        // not-connected; mouse defaults CONNECTED.
                         {
                             bool  connected = false;
 
@@ -1080,8 +1080,8 @@ HRESULT EmulatorShell::Initialize (
                         }
 
                         // //c: default Pointer -> Mouse when connected and
-                        // nothing else was chosen (FR-013b).
-                        ApplyDefaultPointerForMachine ();
+                        // nothing else was chosen.
+                        ApplyDefaultPointerForMachine();
                     }
                 }
             }
@@ -1650,7 +1650,7 @@ void EmulatorShell::ReflowChromeForMachineChange ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool EmulatorShell::ShouldShowExternalDrive () const
+bool EmulatorShell::ShouldShowExternalDrive() const
 {
     bool  externalIsOptional = (m_config.systemRom.romBankSize != 0);
 
@@ -2350,7 +2350,7 @@ void EmulatorShell::ApplyThemeToChrome (const CassoTheme & theme)
     m_driveChrome[0].SetCompact (theme.compactDrives);
     m_driveChrome[1].SetCompact (theme.compactDrives);
 
-    // T030d: the device selector's glyph style follows the drive style --
+    // The device selector's glyph style follows the drive style --
     // full skeuomorphic themes get the 3/4 perspective peripherals, compact
     // (DarkModern / retro) themes the top-down glyphs.
     m_joystickButton.SetSkeuoStyle (!theme.compactDrives);
@@ -3703,7 +3703,7 @@ DxuiMessageResult EmulatorShell::OnMouseMove (WPARAM wParam, LPARAM lParam)
     // drives the guest mouse via absolute mapping. Deliberately falls
     // through to normal routing — the viewport has no chrome, and moves
     // outside it (menu bar, drive band) behave exactly as before.
-    if (GuestMouseActive ())
+    if (GuestMouseActive())
     {
         UpdateGuestMouseFromHost (x, y);
     }
@@ -3778,7 +3778,7 @@ DxuiMessageResult EmulatorShell::OnMouseLeave ()
     // guest mouse target (non-capturing contract).
     if (m_mouse != nullptr)
     {
-        m_mouse->ClearHostTarget ();
+        m_mouse->ClearHostTarget();
     }
 
     return DxuiMessageResult::NotHandled;
@@ -3793,7 +3793,7 @@ DxuiMessageResult EmulatorShell::OnMouseLeave ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool EmulatorShell::GuestMouseActive () const
+bool EmulatorShell::GuestMouseActive() const
 {
     return m_pointerMode == InputMappingMode::Mouse && m_mouse != nullptr
         && m_mouseConnected;
@@ -3808,9 +3808,9 @@ bool EmulatorShell::GuestMouseActive () const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool EmulatorShell::GuestMouseLive () const
+bool EmulatorShell::GuestMouseLive() const
 {
-    return GuestMouseActive () && m_mouse->XyInterruptsEnabled ();
+    return GuestMouseActive() && m_mouse->XyInterruptsEnabled();
 }
 
 
@@ -3844,7 +3844,7 @@ void EmulatorShell::UpdateGuestMouseFromHost (int xPx, int yPx)
     int          vpH = vp.bottom - vp.top;
 
 
-    if (!GuestMouseLive () || vpW <= 1 || vpH <= 1)
+    if (!GuestMouseLive() || vpW <= 1 || vpH <= 1)
     {
         return;
     }
@@ -3853,7 +3853,7 @@ void EmulatorShell::UpdateGuestMouseFromHost (int xPx, int yPx)
     {
         // Leaving the viewport releases the guest mouse to wherever the
         // firmware last put it (non-capturing contract).
-        m_mouse->ClearHostTarget ();
+        m_mouse->ClearHostTarget();
         return;
     }
 
@@ -3890,7 +3890,7 @@ DxuiMessageResult EmulatorShell::OnSetCursor (WORD hitTest)
     // Only hide the cursor once guest software has turned the mouse on
     // (GuestMouseLive) -- over a BASIC prompt or a non-mouse game the guest
     // draws no pointer, so hiding the host cursor would just look broken.
-    if (hitTest != HTCLIENT || !GuestMouseLive ())
+    if (hitTest != HTCLIENT || !GuestMouseLive())
     {
         return DxuiMessageResult::NotHandled;
     }
@@ -3974,7 +3974,7 @@ DxuiMessageResult EmulatorShell::OnLButtonDown (WPARAM wParam, LPARAM lParam)
     // the guest mouse button -- but only once guest software has turned the
     // mouse on, so clicks aren't silently swallowed at a BASIC prompt.
     // Chrome outside the viewport already had its chance above.
-    if (GuestMouseLive ()
+    if (GuestMouseLive()
         && x >= m_viewportBoundsPx.left && x < m_viewportBoundsPx.right
         && y >= m_viewportBoundsPx.top  && y < m_viewportBoundsPx.bottom)
     {
@@ -4077,7 +4077,7 @@ DxuiMessageResult EmulatorShell::OnLButtonUp (WPARAM wParam, LPARAM lParam)
     // //c Mouse mode: any left-release drops the guest mouse button --
     // unconditionally (not viewport-gated), so a press inside the viewport
     // released outside it can never leave the guest button stuck.
-    if (GuestMouseActive ())
+    if (GuestMouseActive())
     {
         m_mouse->SetButton (false);
     }
@@ -4858,7 +4858,7 @@ Error:
 void EmulatorShell::SetInputMappingMode (InputMappingMode mode)
 {
     // Combined PRESET setter (button cycle + legacy callers): selects BOTH
-    // axes of the FR-013a split model. The Machine-menu items toggle the
+    // axes of the split model. The Machine-menu items toggle the
     // axes independently via SetArrowsJoystick / SetPointerMapping, so
     // e.g. Joystick keys + Mouse pointer can coexist (disjoint game-port
     // lines); presets deliberately reset the other axis.
@@ -5001,7 +5001,7 @@ void EmulatorShell::SetPointerMapping (InputMappingMode pointer)
         && m_mouse != nullptr)
     {
         m_mouse->SetButton (false);
-        m_mouse->ClearHostTarget ();
+        m_mouse->ClearHostTarget();
     }
 
     m_pointerMode                = pointer;
@@ -5046,7 +5046,7 @@ void EmulatorShell::SetPointerMapping (InputMappingMode pointer)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::SyncInputModeUi ()
+void EmulatorShell::SyncInputModeUi()
 {
     m_globalPrefs.inputMappingMode = DisplayInputMode();
     SyncSelectorState();
@@ -5062,11 +5062,11 @@ void EmulatorShell::SyncInputModeUi ()
 //  SyncSelectorState
 //
 //  Pushes the split-model state (Keys, Pointer, mouse availability) into
-//  the T030d device selector.
+//  the device selector.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::SyncSelectorState ()
+void EmulatorShell::SyncSelectorState()
 {
     m_joystickButton.SetState (m_arrowsJoystick, m_pointerMode,
                                m_mouse != nullptr && m_mouseConnected);
@@ -5079,7 +5079,7 @@ void EmulatorShell::SyncSelectorState ()
 //
 //  ApplyDefaultPointerForMachine
 //
-//  FR-013b: a //c with its mouse connected and no pointer mapping chosen
+//  A //c with its mouse connected and no pointer mapping chosen
 //  defaults Pointer to Mouse -- a runtime nudge, not persisted, and
 //  invisible until guest mouse software runs (firmware-live gate). Called
 //  after the per-machine connected states are seeded at launch and on
@@ -5087,7 +5087,7 @@ void EmulatorShell::SyncSelectorState ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::ApplyDefaultPointerForMachine ()
+void EmulatorShell::ApplyDefaultPointerForMachine()
 {
     if (m_mouse != nullptr && m_mouseConnected
         && m_pointerMode == InputMappingMode::Off)

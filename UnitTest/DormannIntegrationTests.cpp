@@ -41,8 +41,8 @@ namespace DormannIntegrationTests
     static Assembler BuildAssembler65C02 (AssemblerOptions opts = {})
     {
         TestCpu65C02 cpu;
-        cpu.InitForTest ();
-        return Assembler (cpu.GetInstructionSet (), opts);
+        cpu.InitForTest();
+        return Assembler (cpu.GetInstructionSet(), opts);
     }
 
 
@@ -374,7 +374,7 @@ namespace DormannIntegrationTests
 
         BEGIN_TEST_METHOD_ATTRIBUTE (Dormann65C02AssemblesSuccessfully)
             TEST_METHOD_ATTRIBUTE (L"TestCategory", L"Integration")
-        END_TEST_METHOD_ATTRIBUTE ()
+        END_TEST_METHOD_ATTRIBUTE()
 
         TEST_METHOD (Dormann65C02AssemblesSuccessfully)
         {
@@ -387,7 +387,7 @@ namespace DormannIntegrationTests
             }
 
             std::string source = ReadTextFile (sourceFile);
-            remove (sourceFile.c_str ());
+            remove (sourceFile.c_str());
 
             Assert::IsFalse (source.empty (), L"Source file is empty");
 
@@ -403,13 +403,13 @@ namespace DormannIntegrationTests
             {
                 std::wstring msg = L"65C02 assembly failed with errors:";
 
-                for (size_t i = 0; i < result.errors.size () && i < 15; i++)
+                for (size_t i = 0; i < result.errors.size() && i < 15; i++)
                 {
                     msg += L"\n  Line " + std::to_wstring (result.errors[i].lineNumber)
                          + L": " + std::wstring (result.errors[i].message.begin (), result.errors[i].message.end ());
                 }
 
-                Assert::Fail (msg.c_str ());
+                Assert::Fail (msg.c_str());
             }
 
             Assert::IsTrue (result.bytes.size () > 8000, L"Output should span the 10K code segment");
@@ -428,7 +428,7 @@ namespace DormannIntegrationTests
 
         BEGIN_TEST_METHOD_ATTRIBUTE (Dormann65C02RunsInCpu)
             TEST_METHOD_ATTRIBUTE (L"TestCategory", L"Integration")
-        END_TEST_METHOD_ATTRIBUTE ()
+        END_TEST_METHOD_ATTRIBUTE()
 
         TEST_METHOD (Dormann65C02RunsInCpu)
         {
@@ -441,9 +441,9 @@ namespace DormannIntegrationTests
             }
 
             std::string source = ReadTextFile (sourceFile);
-            remove (sourceFile.c_str ());
+            remove (sourceFile.c_str());
 
-            if (source.empty ())
+            if (source.empty())
             {
                 Logger::WriteMessage ("SKIPPED: Source file is empty");
                 return;
@@ -466,12 +466,12 @@ namespace DormannIntegrationTests
             TestCpu65C02 cpu;
             cpu.InitForTest (0x0400);
 
-            for (size_t i = 0; i < result.bytes.size (); i++)
+            for (size_t i = 0; i < result.bytes.size(); i++)
             {
                 cpu.Poke ((Word) (result.startAddress + i), result.bytes[i]);
             }
 
-            cpu.RegPC () = 0x0400;
+            cpu.RegPC() = 0x0400;
 
             // With the Rockwell-tier subset (wdc_op=0, rkwl_wdc_op=1) the extended-
             // opcodes suite runs to a success self-trap at $2569 (~22M instructions).
@@ -484,7 +484,7 @@ namespace DormannIntegrationTests
 
             for (int i = 0; i < maxInstructions; i++)
             {
-                Word currentPC = cpu.RegPC ();
+                Word currentPC = cpu.RegPC();
 
                 if (currentPC == successTrap)
                 {
@@ -512,7 +512,7 @@ namespace DormannIntegrationTests
                 }
 
                 prevPC = currentPC;
-                cpu.Step ();
+                cpu.Step();
             }
 
             Assert::Fail (L"Dormann 65C02 reached the instruction ceiling without "

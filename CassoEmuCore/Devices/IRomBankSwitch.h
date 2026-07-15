@@ -21,8 +21,8 @@
 class IRomBankSwitch
 {
 public:
-    virtual ~IRomBankSwitch () = default;
+    virtual ~IRomBankSwitch() = default;
 
-    virtual void ToggleRomBank () = 0;
+    virtual void ToggleRomBank() = 0;
     virtual void ResetRomBank  () = 0;
 };

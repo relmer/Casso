@@ -70,7 +70,7 @@ Byte Apple2eKeyboard::Read (Word address)
     // latches. No data behind the address — the read still returns 0.
     if (address == 0xC048 && m_mouse != nullptr)
     {
-        m_mouse->AccessRstXY ();
+        m_mouse->AccessRstXY();
         return 0;
     }
 
@@ -105,7 +105,7 @@ Byte Apple2eKeyboard::Read (Word address)
     if (address == 0xC063)
     {
         Byte value = (m_mouse != nullptr)
-                         ? m_mouse->ReadButton ()
+                         ? m_mouse->ReadButton()
                          : (m_shift.load (memory_order_acquire) ? 0x80 : 0x00);
 
         EmitButtonRead (address, value);
@@ -293,7 +293,7 @@ void Apple2eKeyboard::Write (Word address, Byte value)
     // $C048 (//c RSTXY): any access — the firmware acks with STA $C048.
     if (address == 0xC048 && m_mouse != nullptr)
     {
-        m_mouse->AccessRstXY ();
+        m_mouse->AccessRstXY();
         return;
     }
 

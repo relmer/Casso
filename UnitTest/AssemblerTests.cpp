@@ -37,11 +37,11 @@ namespace AssemblerTests
     //
     ////////////////////////////////////////////////////////////////////////////////
 
-    static Assembler BuildAssembler65C02 ()
+    static Assembler BuildAssembler65C02()
     {
         TestCpu65C02 cpu;
-        cpu.InitForTest ();
-        return Assembler (cpu.GetInstructionSet ());
+        cpu.InitForTest();
+        return Assembler (cpu.GetInstructionSet());
     }
 
 
@@ -2142,11 +2142,11 @@ namespace AssemblerTests
 
         TEST_METHOD (RMB_SMB_ZeroPage_EncodePerBit)
         {
-            Assembler a = BuildAssembler65C02 ();
+            Assembler a = BuildAssembler65C02();
 
             auto rmb0 = a.Assemble ("RMB0 $30");
             Assert::IsTrue (rmb0.success);
-            Assert::AreEqual ((size_t) 2, rmb0.bytes.size ());
+            Assert::AreEqual ((size_t) 2, rmb0.bytes.size());
             Assert::AreEqual ((Byte) 0x07, rmb0.bytes[0]);
             Assert::AreEqual ((Byte) 0x30, rmb0.bytes[1]);
 
@@ -2156,7 +2156,7 @@ namespace AssemblerTests
 
             auto smb7 = a.Assemble ("SMB7 $30");
             Assert::IsTrue (smb7.success);
-            Assert::AreEqual ((size_t) 2, smb7.bytes.size ());
+            Assert::AreEqual ((size_t) 2, smb7.bytes.size());
             Assert::AreEqual ((Byte) 0xF7, smb7.bytes[0]);   // $87 + 7*$10
             Assert::AreEqual ((Byte) 0x30, smb7.bytes[1]);
         }
@@ -2166,13 +2166,13 @@ namespace AssemblerTests
 
         TEST_METHOD (BBR_BBS_ZeroPageRelative_ForwardAndBackward)
         {
-            Assembler a = BuildAssembler65C02 ();
+            Assembler a = BuildAssembler65C02();
 
             // Forward branch: BBR0 at $0200 (3 bytes) → target $0205 is +2 past the
             // instruction end ($0203).
             auto fwd = a.Assemble (".org $0200\nBBR0 $30,$0205");
             Assert::IsTrue (fwd.success);
-            Assert::AreEqual ((size_t) 3, fwd.bytes.size ());
+            Assert::AreEqual ((size_t) 3, fwd.bytes.size());
             Assert::AreEqual ((Byte) 0x0F, fwd.bytes[0]);    // BBR0
             Assert::AreEqual ((Byte) 0x30, fwd.bytes[1]);    // zero-page address
             Assert::AreEqual ((Byte) 0x02, fwd.bytes[2]);    // $0205 - $0203
@@ -2180,7 +2180,7 @@ namespace AssemblerTests
             // Backward branch: BBS7 at $0210 → target $0205 is -14 (0xF2).
             auto back = a.Assemble (".org $0210\nBBS7 $30,$0205");
             Assert::IsTrue (back.success);
-            Assert::AreEqual ((size_t) 3, back.bytes.size ());
+            Assert::AreEqual ((size_t) 3, back.bytes.size());
             Assert::AreEqual ((Byte) 0xFF, back.bytes[0]);   // BBS7 = $8F + 7*$10
             Assert::AreEqual ((Byte) 0x30, back.bytes[1]);
             Assert::AreEqual ((Byte) 0xF2, back.bytes[2]);   // $0205 - $0213 = -14
@@ -2191,7 +2191,7 @@ namespace AssemblerTests
 
         TEST_METHOD (BBR_ZeroPageRelative_LabelTarget)
         {
-            Assembler a = BuildAssembler65C02 ();
+            Assembler a = BuildAssembler65C02();
 
             // Two single-byte instructions separate the branch from its target so
             // `skip` lands at $0204; the offset byte (skip - $0203) is what proves
@@ -2200,7 +2200,7 @@ namespace AssemblerTests
             // byte opcode, which would muddy an exact-byte filler assertion.)
             auto r = a.Assemble (".org $0200\nBBR3 $20,skip\nINX\nskip: DEX");
             Assert::IsTrue (r.success);
-            Assert::AreEqual ((size_t) 5, r.bytes.size ());
+            Assert::AreEqual ((size_t) 5, r.bytes.size());
             Assert::AreEqual ((Byte) 0x3F, r.bytes[0]);      // BBR3 = $0F + 3*$10
             Assert::AreEqual ((Byte) 0x20, r.bytes[1]);      // zero-page address
             Assert::AreEqual ((Byte) 0x01, r.bytes[2]);      // skip ($0204) - $0203
@@ -2213,7 +2213,7 @@ namespace AssemblerTests
 
         TEST_METHOD (BBR_ZeroPageRelative_OutOfRangeIsError)
         {
-            Assembler a = BuildAssembler65C02 ();
+            Assembler a = BuildAssembler65C02();
 
             auto r = a.Assemble (".org $0200\nBBR0 $30,$0400");
             Assert::IsFalse (r.success);
@@ -2226,11 +2226,11 @@ namespace AssemblerTests
 
         TEST_METHOD (NOP_EncodesToCanonicalEA)
         {
-            Assembler a = BuildAssembler65C02 ();
+            Assembler a = BuildAssembler65C02();
 
             auto r = a.Assemble ("NOP");
             Assert::IsTrue (r.success);
-            Assert::AreEqual ((size_t) 1, r.bytes.size ());
+            Assert::AreEqual ((size_t) 1, r.bytes.size());
             Assert::AreEqual ((Byte) 0xEA, r.bytes[0]);
         }
 
@@ -2239,11 +2239,11 @@ namespace AssemblerTests
 
         TEST_METHOD (STZ_ZeroPage_Encodes)
         {
-            Assembler a = BuildAssembler65C02 ();
+            Assembler a = BuildAssembler65C02();
 
             auto r = a.Assemble ("STZ $30");
             Assert::IsTrue (r.success);
-            Assert::AreEqual ((size_t) 2, r.bytes.size ());
+            Assert::AreEqual ((size_t) 2, r.bytes.size());
             Assert::AreEqual ((Byte) 0x64, r.bytes[0]);      // STZ zp
             Assert::AreEqual ((Byte) 0x30, r.bytes[1]);
         }
@@ -2254,7 +2254,7 @@ namespace AssemblerTests
 
         TEST_METHOD (Cmos_Opcodes_RejectedOn6502)
         {
-            Assembler a = BuildAssembler ();
+            Assembler a = BuildAssembler();
 
             Assert::IsFalse (a.Assemble (".org $0200\nBBR0 $30,$0205").success, L"BBR0 must fail on 6502");
             Assert::IsFalse (a.Assemble ("RMB0 $30").success,               L"RMB0 must fail on 6502");
@@ -2269,11 +2269,11 @@ namespace AssemblerTests
 
         TEST_METHOD (RMB_SMB_OperandForm_EncodePerBit)
         {
-            Assembler a = BuildAssembler65C02 ();
+            Assembler a = BuildAssembler65C02();
 
             auto rmb3 = a.Assemble ("RMB 3,$30");
             Assert::IsTrue (rmb3.success);
-            Assert::AreEqual ((size_t) 2, rmb3.bytes.size ());
+            Assert::AreEqual ((size_t) 2, rmb3.bytes.size());
             Assert::AreEqual ((Byte) 0x37, rmb3.bytes[0]);   // same opcode as RMB3 $30
             Assert::AreEqual ((Byte) 0x30, rmb3.bytes[1]);
 
@@ -2292,18 +2292,18 @@ namespace AssemblerTests
 
         TEST_METHOD (BBR_BBS_OperandForm_WithLabel)
         {
-            Assembler a = BuildAssembler65C02 ();
+            Assembler a = BuildAssembler65C02();
 
             auto fwd = a.Assemble (".org $0200\nBBR 0,$30,$0205");
             Assert::IsTrue (fwd.success);
-            Assert::AreEqual ((size_t) 3, fwd.bytes.size ());
+            Assert::AreEqual ((size_t) 3, fwd.bytes.size());
             Assert::AreEqual ((Byte) 0x0F, fwd.bytes[0]);    // BBR0
             Assert::AreEqual ((Byte) 0x30, fwd.bytes[1]);
             Assert::AreEqual ((Byte) 0x02, fwd.bytes[2]);    // $0205 - $0203
 
             auto lbl = a.Assemble (".org $0200\nBBS 3,$20,skip\nINX\nskip: DEX");
             Assert::IsTrue (lbl.success);
-            Assert::AreEqual ((size_t) 5, lbl.bytes.size ());
+            Assert::AreEqual ((size_t) 5, lbl.bytes.size());
             Assert::AreEqual ((Byte) 0xBF, lbl.bytes[0]);    // BBS3 = $8F + 3*$10
             Assert::AreEqual ((Byte) 0x20, lbl.bytes[1]);
             Assert::AreEqual ((Byte) 0x01, lbl.bytes[2]);    // skip ($0204) - $0203
@@ -2314,7 +2314,7 @@ namespace AssemblerTests
 
         TEST_METHOD (BitOp_BadBitNumberIsError)
         {
-            Assembler a = BuildAssembler65C02 ();
+            Assembler a = BuildAssembler65C02();
 
             Assert::IsFalse (a.Assemble ("RMB 8,$30").success, L"bit 8 is out of range");
             Assert::IsFalse (a.Assemble ("SMB -1,$30").success, L"negative bit is out of range");
@@ -2327,11 +2327,11 @@ namespace AssemblerTests
 
         TEST_METHOD (RMB_CountForm_StillReservesStorage)
         {
-            Assembler a = BuildAssembler65C02 ();
+            Assembler a = BuildAssembler65C02();
 
             auto r = a.Assemble ("RMB 5");
             Assert::IsTrue (r.success);
-            Assert::AreEqual ((size_t) 5, r.bytes.size ());   // reserved 5 bytes, not an opcode
+            Assert::AreEqual ((size_t) 5, r.bytes.size());   // reserved 5 bytes, not an opcode
         }
     };
 }

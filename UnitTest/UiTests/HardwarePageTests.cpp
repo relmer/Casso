@@ -141,7 +141,7 @@ public:
     }
 
 
-    // //c external drive (T034a): when the machine supports the optional
+    // //c external drive: when the machine supports the optional
     // external drive, BuildNodes appends a top-level checkable "External
     // drive" leaf whose checked state mirrors the connected pref. It is
     // Optional (interactive) so the user can connect/disconnect it, and has

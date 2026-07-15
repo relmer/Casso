@@ -61,7 +61,7 @@ public:
     // earlier, where $C028 has no effect.
     void SetRomBankSwitch (IRomBankSwitch * rb)     { m_romBank      = rb; }
 
-    // Apple //c only: the IOU mouse (US4). When attached this bank serves
+    // Apple //c only: the IOU mouse. When attached this bank serves
     // the mouse's soft-switch surface — $C015/$C017 (X0/Y0 interrupt
     // status), $C019 (VBL interrupt latch, replacing the //e RDVBLBAR),
     // $C066/$C067 (MOUX1/MOUY1 direction lines, replacing PADDL2/3),

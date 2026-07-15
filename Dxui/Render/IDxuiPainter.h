@@ -50,7 +50,7 @@ public:
                                      float    radiusPx,
                                      uint32_t argbColor)                        = 0;
 
-    // Glyph-painting primitives (T030d input-device selector). Defaulted
+    // Glyph-painting primitives (input-device selector). Defaulted
     // to no-ops on the interface so test mocks and simple painters compile
     // unchanged; the concrete DxuiPainter implements them with the same
     // rect-slicing technique as FillCircleApprox. The quad must be convex,

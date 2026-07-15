@@ -2957,7 +2957,7 @@ void AssemblySession::NormalizeBitOp (const PendingLine & current, LineInfo & in
 
         // Need the bit plus at least the zero-page operand; otherwise leave it and
         // let the normal path report the (invalid) addressing mode.
-        if (parts.size () >= 2)
+        if (parts.size() >= 2)
         {
             ExprResult er = ExpressionEvaluator::Evaluate (parts[0], m_pass1Ctx);
 
@@ -2973,7 +2973,7 @@ void AssemblySession::NormalizeBitOp (const PendingLine & current, LineInfo & in
 
                 std::string rest;
 
-                for (size_t i = 1; i < parts.size (); ++i)
+                for (size_t i = 1; i < parts.size(); ++i)
                 {
                     if (i > 1)
                     {

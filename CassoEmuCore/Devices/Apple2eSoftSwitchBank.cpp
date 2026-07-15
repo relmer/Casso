@@ -87,7 +87,7 @@ Byte Apple2eSoftSwitchBank::ReadStatusRegister (Word address)
         kbdBits = m_keyboard->GetLatchedKeyDataBits ();
     }
 
-    // //c IOU mouse overrides (US4): with no slots, the //c repurposes
+    // //c IOU mouse overrides: with no slots, the //c repurposes
     // $C015/$C017 as the mouse X0/Y0 interrupt-status reads (RDINTCXROM /
     // RDSLOTC3ROM are meaningless there -- the //c ROM never reads them for
     // MMU state), and $C019 reads the VBL interrupt LATCH (set at VBL onset,
@@ -96,8 +96,8 @@ Byte Apple2eSoftSwitchBank::ReadStatusRegister (Word address)
     {
         switch (address)
         {
-            case 0xC015: return static_cast<Byte> (kbdBits | m_mouse->ReadXInterruptStatus ());
-            case 0xC017: return static_cast<Byte> (kbdBits | m_mouse->ReadYInterruptStatus ());
+            case 0xC015: return static_cast<Byte> (kbdBits | m_mouse->ReadXInterruptStatus());
+            case 0xC017: return static_cast<Byte> (kbdBits | m_mouse->ReadYInterruptStatus());
             case 0xC019: return static_cast<Byte> (kbdBits | m_mouse->ReadVblInterrupt     ());
             default:     break;
         }
@@ -310,7 +310,7 @@ Byte Apple2eSoftSwitchBank::Read (Word address)
         // firmware's VBL acknowledge -- bank-0 IRQ path reads $C070).
         if (m_mouse != nullptr)
         {
-            m_mouse->AccessPtrig ();
+            m_mouse->AccessPtrig();
         }
 
         EmitPaddleTrigger ();
@@ -319,8 +319,8 @@ Byte Apple2eSoftSwitchBank::Read (Word address)
     {
         // //c: $C066/$C067 are the mouse direction lines MOUX1/MOUY1 (the
         // //c has no paddles 2/3; the IRQ prologue reads these at entry).
-        result = (address == 0xC066) ? m_mouse->ReadMouX1 ()
-                                     : m_mouse->ReadMouY1 ();
+        result = (address == 0xC066) ? m_mouse->ReadMouX1()
+                                     : m_mouse->ReadMouY1();
     }
     else if (address >= s_kwPaddle0Address && address <= s_kwPaddle0Address + (s_knPaddleAxisCount - 1))
     {
@@ -330,7 +330,7 @@ Byte Apple2eSoftSwitchBank::Read (Word address)
 
         EmitPaddleRead (address, result);
     }
-    else if (m_mouse != nullptr && m_mouse->IsIouAccessEnabled ()
+    else if (m_mouse != nullptr && m_mouse->IsIouAccessEnabled()
              && address >= 0xC058 && address <= 0xC05F)
     {
         // //c with IOU access enabled ($C079): $C058-$C05F program the mouse
@@ -362,7 +362,7 @@ Byte Apple2eSoftSwitchBank::Read (Word address)
                 // forwards non-MMU addresses here.
                 if (m_romBank != nullptr)
                 {
-                    m_romBank->ToggleRomBank ();
+                    m_romBank->ToggleRomBank();
                 }
                 break;
             case 0xC05E:
@@ -491,7 +491,7 @@ void Apple2eSoftSwitchBank::Reset ()
     // and Ctrl-Reset read the reset vector from the main monitor bank.
     if (m_romBank != nullptr)
     {
-        m_romBank->ResetRomBank ();
+        m_romBank->ResetRomBank();
     }
 
     m_paddleTriggerCycle = 0;

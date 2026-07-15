@@ -529,7 +529,7 @@ void SettingsPanelState::SetExternalDriveConnected (bool connected)
 //
 //  SetMouseConnected
 //
-//  //c mouse-port toggle (FR-013b). Live UI pref: never sets RequiresReset.
+//  //c mouse-port toggle. Live UI pref: never sets RequiresReset.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

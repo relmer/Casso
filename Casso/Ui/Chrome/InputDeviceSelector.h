@@ -14,7 +14,7 @@ class IDxuiTheme;
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  InputDeviceSelector (T030d / FR-013a)
+//  InputDeviceSelector
 //
 //  Segmented two-group device selector replacing the JoystickToggleButton
 //  cycle-toggle in the drive bar. Reflects the split input model:
@@ -105,7 +105,7 @@ private:
     static constexpr float  kFontDip    = 13.0f;
     static constexpr float  kFallbackCharPx = 7.5f;
 
-    int      SegmentCount () const { return m_mouseAvailable ? 3 : 2; }
+    int      SegmentCount() const { return m_mouseAvailable ? 3 : 2; }
     bool     SegmentSelected (int index) const;
     const wchar_t * SegmentLabel (int index) const;
 

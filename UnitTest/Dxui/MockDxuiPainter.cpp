@@ -105,7 +105,7 @@ void MockDxuiPainter::FillCircleApprox (float cxPx, float cyPx, float radiusPx, 
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  Glyph primitives (T030d) -- each recorded as its bounding box so tests
+//  Glyph primitives -- each recorded as its bounding box so tests
 //  can assert containment uniformly.
 //
 ////////////////////////////////////////////////////////////////////////////////

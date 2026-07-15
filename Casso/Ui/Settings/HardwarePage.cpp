@@ -31,7 +31,7 @@ namespace
     // it to SetExternalDriveConnected instead of SetHardwareEnabled.
     constexpr wchar_t s_kExternalDriveLabel[] = L"External drive";
 
-    // Synthetic node for the //c mouse peripheral (FR-013b) -- same pattern.
+    // Synthetic node for the //c mouse peripheral -- same pattern.
     constexpr wchar_t s_kMouseLabel[]         = L"Mouse";
 
 
@@ -512,7 +512,7 @@ std::vector<DxuiTreeNode> HardwarePage::BuildNodes (const std::vector<HardwareEn
         external.expanded       = false;   // leaf: no children, no twisty
         out.push_back (std::move (external));
 
-        // //c mouse peripheral (FR-013b): connectable, default connected.
+        // //c mouse peripheral: connectable, default connected.
         DxuiTreeNode  mouse;
         mouse.label          = s_kMouseLabel;
         mouse.capabilityFlag = DxuiTreeCapabilityFlag::Optional;

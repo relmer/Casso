@@ -211,12 +211,12 @@ namespace
     }
 
 
-    bool Apple2cRomAvailable ()
+    bool Apple2cRomAvailable()
     {
         FixtureProvider        fp;
         std::vector<uint8_t>   bytes;
         return SUCCEEDED (fp.OpenFixture ("Apple2c.rom", bytes)) &&
-               bytes.size () == kApple2cRomSize;
+               bytes.size() == kApple2cRomSize;
     }
 
 
@@ -237,7 +237,7 @@ namespace
         const wchar_t      *  label,
         int                   minTracks)
     {
-        if (!Apple2cRomAvailable ())
+        if (!Apple2cRomAvailable())
         {
             Logger::WriteMessage (
                 "SKIPPED: UnitTest/Fixtures/Apple2c.rom absent "
@@ -247,10 +247,10 @@ namespace
 
         fs::path   wozPath = FindRepoFile (relPath);
 
-        if (wozPath.empty ())
+        if (wozPath.empty())
         {
             Logger::WriteMessage ("SKIPPED: WOZ file not found: ");
-            Logger::WriteMessage (relPath.c_str ());
+            Logger::WriteMessage (relPath.c_str());
             Logger::WriteMessage ("\n");
             return;
         }
@@ -270,10 +270,10 @@ namespace
 
         // PowerCycle first (re-seeds DRAM + rebinds the drive to its empty
         // internal disk), THEN mount -- matching the production ordering.
-        core.PowerCycle ();
+        core.PowerCycle();
 
         hr = core.diskStore->MountFromBytes (kSlot6, kDrive1,
-            wozPath.string (), DiskFormat::Woz, bytes);
+            wozPath.string(), DiskFormat::Woz, bytes);
         Assert::IsTrue (SUCCEEDED (hr), L"MountFromBytes must succeed for real WOZ");
 
         internal = core.diskStore->GetImage (kSlot6, kDrive1);
@@ -285,15 +285,15 @@ namespace
         // IWM. No forced $C600 entry -- this is the real //c boot path.
         RunAndSampleTracks (core, kApple2cBootBudget, tracksVisited, minTracks);
 
-        Assert::IsTrue (core.diskController->IsMotorOn (),
+        Assert::IsTrue (core.diskController->IsMotorOn(),
             L"Boot ROM must turn the motor on");
 
         swprintf_s (failMsg,
             L"%ls: head only visited %zu distinct tracks on the //c (need >= %d); "
             L"the //c IWM boot path likely stalled",
-            label, tracksVisited.size (), minTracks);
+            label, tracksVisited.size(), minTracks);
         Assert::IsTrue (
-            tracksVisited.size () >= static_cast<size_t> (minTracks),
+            tracksVisited.size() >= static_cast<size_t> (minTracks),
             failMsg);
     }
 }
@@ -351,7 +351,7 @@ public:
 
 
     ////////////////////////////////////////////////////////////////////////
-    //  SC-003 (T039): a real disk game boots end-to-end on the Apple //c
+    //  A real disk game boots end-to-end on the Apple //c
     //  through its built-in slot-6 IWM. Choplifter is a standard DOS 3.3
     //  boot that runs on //e-class hardware; the //c shares the //e's WOZ
     //  nibble engine + RDDATA path (IWM mode only adds the MODE/STATUS

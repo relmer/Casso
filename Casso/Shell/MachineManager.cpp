@@ -174,22 +174,22 @@ HRESULT MachineManager::CreateMemoryDevices (const MachineConfig & config)
 
         hr = ReadRomFileBytes (config.systemRom.resolvedPath, fileBytes);
 
-        if (FAILED (hr) || fileBytes.size () < config.systemRom.romBankSize)
+        if (FAILED (hr) || fileBytes.size() < config.systemRom.romBankSize)
         {
             wideError = L"Cannot read banked system ROM: " +
-                        std::wstring (config.systemRom.resolvedPath.begin (),
-                                      config.systemRom.resolvedPath.end ());
-            CBRN (false, wideError.c_str ());
+                        std::wstring (config.systemRom.resolvedPath.begin(),
+                                      config.systemRom.resolvedPath.end());
+            CBRN (false, wideError.c_str());
         }
 
         Word romStart = config.systemRom.address;
         Word romEnd   = static_cast<Word> (config.systemRom.address + config.systemRom.romBankSize - 1);
 
         auto device = RomDevice::CreateFromData (romStart, romEnd,
-                                                 fileBytes.data (),
+                                                 fileBytes.data(),
                                                  config.systemRom.romBankSize);
 
-        m_shell.m_memoryBus.AddDevice (device.get ());
+        m_shell.m_memoryBus.AddDevice (device.get());
         m_shell.m_ownedDevices.push_back (std::move (device));
     }
     else
@@ -400,20 +400,20 @@ HRESULT MachineManager::CreateMemoryDevices (const MachineConfig & config)
     // of the internal //c ROM (served by the no-slots CxxxRomRouter set in
     // WireApple2cRomBank), so no slot ROM is attached -- only the controller,
     // in IWM mode so the reset firmware's mode/status probe passes.
-    // //c IOU mouse (US4): destroyed with the outgoing machine, rebuilt
+    // //c IOU mouse: destroyed with the outgoing machine, rebuilt
     // below for the //c. The keyboard/soft-switch bank holding the old
     // pointer are torn down with the same machine, and the CPU thread is
     // stopped during construction, so no stale-pointer window exists.
-    m_shell.m_mouse.reset ();
+    m_shell.m_mouse.reset();
 
     if (m_shell.m_config.systemRom.romBankSize != 0)
     {
         auto iwm = std::make_unique<Disk2Controller> (6);
         iwm->SetIwmMode (true);
-        m_shell.m_memoryBus.AddDevice (iwm.get ());
+        m_shell.m_memoryBus.AddDevice (iwm.get());
         m_shell.m_ownedDevices.push_back (std::move (iwm));
 
-        // //c built-in IOU mouse (US4): not a bus device -- the keyboard
+        // //c built-in IOU mouse: not a bus device -- the keyboard
         // ($C048 ack, $C063 button) and soft-switch bank ($C015/$C017/$C019
         // status, $C066/$C067 direction, $C058-$C05F IOU programming,
         // $C078/$C079 gate, $C070 VBL clear) forward its register surface;
@@ -430,7 +430,7 @@ HRESULT MachineManager::CreateMemoryDevices (const MachineConfig & config)
 
             if (m_shell.m_videoTiming != nullptr)
             {
-                m_shell.m_mouse->SetVideoTiming (m_shell.m_videoTiming.get ());
+                m_shell.m_mouse->SetVideoTiming (m_shell.m_videoTiming.get());
             }
 
             auto * iieKbd = dynamic_cast<Apple2eKeyboard *>       (m_shell.m_refs.keyboard);
@@ -438,11 +438,11 @@ HRESULT MachineManager::CreateMemoryDevices (const MachineConfig & config)
 
             if (iieKbd != nullptr)
             {
-                iieKbd->SetMouse (m_shell.m_mouse.get ());
+                iieKbd->SetMouse (m_shell.m_mouse.get());
             }
             if (iieSw != nullptr)
             {
-                iieSw->SetMouse (m_shell.m_mouse.get ());
+                iieSw->SetMouse (m_shell.m_mouse.get());
             }
         }
 
@@ -452,7 +452,7 @@ HRESULT MachineManager::CreateMemoryDevices (const MachineConfig & config)
         // internal //c ROM. Each raises IRQs through the shared interrupt
         // controller. v1 endpoints are loopback (comms self-test); the serial
         // printer-endpoint bridge + Hardware-tab endpoint selector are
-        // downstream work in issue #87.
+        // downstream work.
         for (int slot = 1; slot <= 2; ++slot)
         {
             Word  base = static_cast<Word> (Acia6551::kSlotIoBase
@@ -463,10 +463,10 @@ HRESULT MachineManager::CreateMemoryDevices (const MachineConfig & config)
             HRESULT  hrIc = acia->AttachInterruptController (&m_shell.m_interruptController);
             IGNORE_RETURN_VALUE (hrIc, S_OK);
 
-            auto  loopback = std::make_unique<AciaLoopbackEndpoint> (acia.get ());
-            acia->SetEndpoint (loopback.get ());
+            auto  loopback = std::make_unique<AciaLoopbackEndpoint> (acia.get());
+            acia->SetEndpoint (loopback.get());
 
-            m_shell.m_memoryBus.AddDevice (acia.get ());
+            m_shell.m_memoryBus.AddDevice (acia.get());
             m_shell.m_ownedAciaEndpoints.push_back (std::move (loopback));
             m_shell.m_ownedDevices.push_back (std::move (acia));
         }
@@ -729,12 +729,12 @@ HRESULT MachineManager::ReadRomFileBytes (const std::string & path, std::vector<
 {
     std::ifstream   file (path, std::ios::binary | std::ios::ate);
 
-    if (!file.good ())
+    if (!file.good())
     {
         return E_FAIL;
     }
 
-    std::streamoff  size = file.tellg ();
+    std::streamoff  size = file.tellg();
 
     if (size <= 0)
     {
@@ -743,9 +743,9 @@ HRESULT MachineManager::ReadRomFileBytes (const std::string & path, std::vector<
 
     file.seekg (0, std::ios::beg);
     out.resize (static_cast<size_t> (size));
-    file.read (reinterpret_cast<char *> (out.data ()), size);
+    file.read (reinterpret_cast<char *> (out.data()), size);
 
-    return file.good () ? S_OK : E_FAIL;
+    return file.good() ? S_OK : E_FAIL;
 }
 
 
@@ -763,7 +763,7 @@ HRESULT MachineManager::ReadRomFileBytes (const std::string & path, std::vector<
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void MachineManager::WireApple2cRomBank ()
+void MachineManager::WireApple2cRomBank()
 {
     const RomReference &  sysRom = m_shell.m_config.systemRom;
 
@@ -772,13 +772,13 @@ void MachineManager::WireApple2cRomBank ()
         return;
     }
 
-    Apple2eMmu            * mmu = m_shell.m_mmu.get ();
+    Apple2eMmu            * mmu = m_shell.m_mmu.get();
     Apple2eSoftSwitchBank * sw  = dynamic_cast<Apple2eSoftSwitchBank *> (m_shell.m_refs.softSwitches);
     LanguageCard          * lc  = nullptr;
 
     for (auto & dev : m_shell.m_ownedDevices)
     {
-        lc = dynamic_cast<LanguageCard *> (dev.get ());
+        lc = dynamic_cast<LanguageCard *> (dev.get());
 
         if (lc != nullptr)
         {
@@ -796,21 +796,21 @@ void MachineManager::WireApple2cRomBank ()
     size_t              twoBanks = static_cast<size_t> (sysRom.romBankSize) * 2;
 
     if (FAILED (ReadRomFileBytes (sysRom.resolvedPath, fileBytes)) ||
-        fileBytes.size () < twoBanks)
+        fileBytes.size() < twoBanks)
     {
         DEBUGMSG (L"WireApple2cRomBank: cannot read both ROM banks; banking disabled\n");
         return;
     }
 
-    std::vector<Byte>   bank0 (fileBytes.begin (),                     fileBytes.begin () + sysRom.romBankSize);
-    std::vector<Byte>   bank1 (fileBytes.begin () + sysRom.romBankSize, fileBytes.begin () + twoBanks);
+    std::vector<Byte>   bank0 (fileBytes.begin(),                     fileBytes.begin() + sysRom.romBankSize);
+    std::vector<Byte>   bank1 (fileBytes.begin() + sysRom.romBankSize, fileBytes.begin() + twoBanks);
 
     m_shell.m_apple2cRomBank = std::make_unique<Apple2cRomBank> (*lc, *mmu);
     m_shell.m_apple2cRomBank->SetBankImages (std::move (bank0), std::move (bank1));
-    sw->SetRomBankSwitch (m_shell.m_apple2cRomBank.get ());
+    sw->SetRomBankSwitch (m_shell.m_apple2cRomBank.get());
 
     // //c: no card slots -> $C100-$CFFF is always the internal firmware.
-    mmu->GetCxxxRouter ()->SetNoExternalSlots (true);
+    mmu->GetCxxxRouter()->SetNoExternalSlots (true);
 }
 
 
@@ -1018,7 +1018,7 @@ HRESULT MachineManager::CreateCpu (const MachineConfig & config)
     // to CPU progress (null for every other machine).
     if (m_shell.m_mouse != nullptr)
     {
-        m_shell.m_cpu->SetCycleSink (m_shell.m_mouse.get ());
+        m_shell.m_cpu->SetCycleSink (m_shell.m_mouse.get());
     }
 
     // The base Cpu class uses an internal memory[] array. Copy system
@@ -1265,7 +1265,7 @@ HRESULT MachineManager::SwitchMachine (const std::wstring & machineName)
                     m_shell.m_externalDriveConnected = connected;
 
                     // //c mouse peripheral: adopt the switched-to machine's
-                    // persisted connected state (default CONNECTED, FR-013b).
+                    // persisted connected state (default CONNECTED).
                     bool  mouseConn = true;
                     if (extPrefs != nullptr)
                     {
@@ -1275,8 +1275,8 @@ HRESULT MachineManager::SwitchMachine (const std::wstring & machineName)
                     m_shell.m_mouseConnected = mouseConn;
 
                     // //c: default Pointer -> Mouse when connected and no
-                    // pointer mapping is active (FR-013b). Runtime nudge.
-                    m_shell.ApplyDefaultPointerForMachine ();
+                    // pointer mapping is active. Runtime nudge.
+                    m_shell.ApplyDefaultPointerForMachine();
                 }
             }
         }

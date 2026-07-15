@@ -49,7 +49,7 @@ struct GlobalUserPrefs
     // game port. Migrated from the legacy bool "mapArrowsToJoystick".
     InputMappingMode  inputMappingMode = InputMappingMode::Off;   // legacy combined (kept in sync for downgrade compat)
 
-    // FR-013a split input model: Keys (arrows->joystick) x Pointer
+    // Split input model: Keys (arrows->joystick) x Pointer
     // (Off/Paddle/Mouse). Migrated from the legacy single mode on load.
     bool              arrowsToJoystick = false;
     InputMappingMode  pointerMapping   = InputMappingMode::Off;

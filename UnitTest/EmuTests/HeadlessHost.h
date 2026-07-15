@@ -101,7 +101,7 @@ struct EmulatorCore
     std::unique_ptr<AciaLoopbackEndpoint>      serial1Loopback;
     std::unique_ptr<AciaLoopbackEndpoint>      serial2Loopback;
 
-    // Apple //c IOU mouse (US4) + the shared interrupt controller its VBL /
+    // Apple //c IOU mouse + the shared interrupt controller its VBL /
     // movement IRQ lines aggregate through. Set by HeadlessHost::BuildApple2c;
     // null for every other machine kind.
     std::unique_ptr<InterruptController>       interruptController;

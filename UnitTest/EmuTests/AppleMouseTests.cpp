@@ -16,7 +16,7 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  AppleMouseTests (T026 / US4)
+//  AppleMouseTests
 //
 //  Two tiers. The device tier drives the IOU mouse hardware directly:
 //  movement-interrupt latching across acknowledge (the "neither starve nor
@@ -33,7 +33,7 @@ namespace
 {
     static constexpr size_t   kRomSize = 0x8000;
 
-    bool Apple2cRomAvailable ()
+    bool Apple2cRomAvailable()
     {
         FixtureProvider        fp;
         std::vector<uint8_t>   bytes;
@@ -83,14 +83,14 @@ public:
         for (int i = 0; i < 100; ++i) { mouse.Tick (1); }
         Assert::IsTrue (ic.IsAnyAsserted (), L"line must hold until acknowledged");
 
-        mouse.AccessRstXY ();
+        mouse.AccessRstXY();
         Assert::IsFalse (ic.IsAnyAsserted (),          L"$C048 ack must drop the line");
         Assert::AreEqual<Byte> (0x00, mouse.ReadXInterruptStatus (), L"ack clears the pending flag");
 
         mouse.Tick (1);
         Assert::IsTrue (ic.IsAnyAsserted (), L"second queued unit re-asserts after ack");
 
-        mouse.AccessRstXY ();
+        mouse.AccessRstXY();
         mouse.Tick (1);
         Assert::IsFalse (ic.IsAnyAsserted (), L"queue drained: no third interrupt");
     }
@@ -112,7 +112,7 @@ public:
         Assert::AreEqual<Byte> (0x80, mouse.ReadMouX1 (), L"+X (right) -> MOUX1 bit 7 set");
         Assert::AreEqual<Byte> (0x00, mouse.ReadMouY1 (), L"+Y (down)  -> MOUY1 bit 7 clear");
 
-        mouse.AccessRstXY ();
+        mouse.AccessRstXY();
         mouse.MoveBy (-1, -1);
         mouse.Tick (1);
         Assert::AreEqual<Byte> (0x00, mouse.ReadMouX1 (), L"-X (left) -> MOUX1 bit 7 clear");
@@ -145,7 +145,7 @@ public:
         Assert::IsTrue (ic.IsAnyAsserted (), L"ENVBL with a pending latch asserts");
 
         // $C070 acknowledge.
-        mouse.AccessPtrig ();
+        mouse.AccessPtrig();
         Assert::AreEqual<Byte> (0x00, mouse.ReadVblInterrupt (), L"$C070 clears the latch");
         Assert::IsFalse (ic.IsAnyAsserted (), L"ack drops the line");
 
@@ -187,7 +187,7 @@ public:
 
         mouse.MoveBy (1, 0);
         mouse.Tick (1);
-        Assert::IsTrue (ic.IsAnyAsserted ());
+        Assert::IsTrue (ic.IsAnyAsserted());
 
         mouse.WriteIouAccess (true);
         mouse.AccessIouSwitch (kDisXy);
@@ -211,7 +211,7 @@ public:
     // routing). This is how MousePaint-class software finds the mouse.
     TEST_METHOD (FirmwareIdentifiesMouseAtSlot7)
     {
-        if (!Apple2cRomAvailable ())
+        if (!Apple2cRomAvailable())
         {
             Logger::WriteMessage ("SKIPPED: no Apple2c.rom fixture");
             return;
@@ -221,7 +221,7 @@ public:
         EmulatorCore   core;
 
         Assert::IsTrue (SUCCEEDED (host.BuildApple2c (core)));
-        core.PowerCycle ();
+        core.PowerCycle();
 
         Assert::AreEqual<Byte> (0x38, core.bus->ReadByte (0xC705), L"$C705 signature");
         Assert::AreEqual<Byte> (0x18, core.bus->ReadByte (0xC707), L"$C707 signature");
@@ -242,7 +242,7 @@ public:
     // status hole. Skips when the ROM fixture is absent.
     TEST_METHOD (FirmwareTracksMotionAndButton_TransparentMode)
     {
-        if (!Apple2cRomAvailable ())
+        if (!Apple2cRomAvailable())
         {
             Logger::WriteMessage ("SKIPPED: no Apple2c.rom fixture");
             return;
@@ -252,7 +252,7 @@ public:
         EmulatorCore   core;
 
         Assert::IsTrue (SUCCEEDED (host.BuildApple2c (core)));
-        core.PowerCycle ();
+        core.PowerCycle();
 
         // Let the reset firmware initialize (screen, zero page) and run
         // past the first VBL onset so the VBL latch is set -- the firmware's
@@ -307,14 +307,14 @@ public:
             sprintf_s (diag,
                 "DIAG: x=%d y=%d PC=%04X xyEn=%d vblEn=%d xInt=%02X yInt=%02X "
                 "mode07FF=%02X status077F=%02X anyIrq=%d",
-                x, y, core.cpu->GetPC (),
-                core.mouse->XyInterruptsEnabled () ? 1 : 0,
-                core.mouse->VblInterruptsEnabled () ? 1 : 0,
-                core.mouse->ReadXInterruptStatus (),
-                core.mouse->ReadYInterruptStatus (),
+                x, y, core.cpu->GetPC(),
+                core.mouse->XyInterruptsEnabled() ? 1 : 0,
+                core.mouse->VblInterruptsEnabled() ? 1 : 0,
+                core.mouse->ReadXInterruptStatus(),
+                core.mouse->ReadYInterruptStatus(),
                 core.cpu->ReadByte (0x07FF),
                 core.cpu->ReadByte (0x077F),
-                core.interruptController->IsAnyAsserted () ? 1 : 0);
+                core.interruptController->IsAnyAsserted() ? 1 : 0);
             Logger::WriteMessage (diag);
         }
 
@@ -329,7 +329,7 @@ public:
         Byte  status = core.cpu->ReadByte (0x077F);
         Assert::IsTrue ((status & 0x80) != 0, L"$077F bit 7: button currently down");
 
-        // ---- Absolute targeting (the T030 GUI path) ---------------------
+        // ---- Absolute targeting (the GUI path) ---------------------
         // Publish a mid-viewport fraction; the DEVICE must project it into
         // the firmware's live clamp window (read from the screen holes on
         // the CPU thread) and march the firmware there one interrupt per
@@ -361,7 +361,7 @@ public:
     {
         const char *  kDiskPath = "C:\\Users\\relmer\\AppData\\Local\\Casso\\Disks\\DOS 3.3 Writable.woz";
         std::ifstream f (kDiskPath, std::ios::binary);
-        if (!Apple2cRomAvailable () || !f.good ())
+        if (!Apple2cRomAvailable() || !f.good())
         {
             Logger::WriteMessage ("SKIPPED: ROM or local DOS 3.3 disk absent");
             return;
@@ -371,7 +371,7 @@ public:
         HeadlessHost  host;
         EmulatorCore  core;
         Assert::IsTrue (SUCCEEDED (host.BuildApple2c (core)));
-        core.PowerCycle ();
+        core.PowerCycle();
         Assert::IsTrue (SUCCEEDED (core.diskStore->MountFromBytes (6, 0, kDiskPath, DiskFormat::Woz, bytes)));
         core.diskController->SetExternalDisk (0, core.diskStore->GetImage (6, 0));
 
@@ -381,7 +381,7 @@ public:
             Logger::WriteMessage (tag);
             for (const std::string & row : TextScreenScraper::Scrape (core))
             {
-                Logger::WriteMessage (row.c_str ());
+                Logger::WriteMessage (row.c_str());
             }
         };
 
@@ -400,8 +400,8 @@ public:
         dump ("---- screen after RUN + motion ----");
         char  st[128];
         sprintf_s (st, "xyEn=%d mode07FF=%02X PC=%04X",
-                   core.mouse->XyInterruptsEnabled () ? 1 : 0,
-                   core.cpu->ReadByte (0x07FF), core.cpu->GetPC ());
+                   core.mouse->XyInterruptsEnabled() ? 1 : 0,
+                   core.cpu->ReadByte (0x07FF), core.cpu->GetPC());
         Logger::WriteMessage (st);
     }
 
@@ -428,7 +428,7 @@ public:
         EmulatorCore  core;
         Assert::IsTrue (SUCCEEDED (host.BuildApple2eWithDisk2 (core)));
         core.diskController->SetIwmMode (true);   // discriminator: IWM vs 65C02
-        core.PowerCycle ();
+        core.PowerCycle();
         Assert::IsTrue (SUCCEEDED (core.diskStore->MountFromBytes (6, 0, "control.woz", DiskFormat::Woz, bytes)));
         core.diskController->SetExternalDisk (0, core.diskStore->GetImage (6, 0));
         core.RunCycles (60'000'000);
@@ -443,13 +443,13 @@ public:
         bool  ok = false;
         for (const std::string & row : TextScreenScraper::Scrape (core))
         {
-            Logger::WriteMessage (row.c_str ());
+            Logger::WriteMessage (row.c_str());
             if (row.find ("PRINT \"HI\"") != std::string::npos) { ok = true; }
         }
         DiskImage *  img = core.diskStore->GetImage (6, 0);
         char  diag[96];
         sprintf_s (diag, "//e control: dirty=%d listOk=%d",
-                   (img != nullptr && img->IsDirty ()) ? 1 : 0, ok ? 1 : 0);
+                   (img != nullptr && img->IsDirty()) ? 1 : 0, ok ? 1 : 0);
         Logger::WriteMessage (diag);
         Assert::IsTrue (ok, L"//e control SAVE/LOAD/LIST must round-trip");
     }
@@ -474,20 +474,20 @@ public:
 
         const char *  kDiskPath = "C:\\Users\\relmer\\AppData\\Local\\Casso\\Disks\\DOS 3.3 Writable.woz";
         std::ifstream f (kDiskPath, std::ios::binary);
-        if (!Apple2cRomAvailable () || !f.good ())
+        if (!Apple2cRomAvailable() || !f.good())
         {
             Logger::WriteMessage ("SKIPPED: ROM or local DOS 3.3 disk absent");
             return;
         }
         std::vector<uint8_t>  bytes ((std::istreambuf_iterator<char> (f)), std::istreambuf_iterator<char> ());
-        f.close ();
+        f.close();
 
         auto dump = [] (EmulatorCore & c, const char * tag)
         {
             Logger::WriteMessage (tag);
             for (const std::string & row : TextScreenScraper::Scrape (c))
             {
-                Logger::WriteMessage (row.c_str ());
+                Logger::WriteMessage (row.c_str());
             }
         };
 
@@ -496,7 +496,7 @@ public:
             HeadlessHost  host;
             EmulatorCore  core;
             Assert::IsTrue (SUCCEEDED (host.BuildApple2c (core)));
-            core.PowerCycle ();
+            core.PowerCycle();
             Assert::IsTrue (SUCCEEDED (core.diskStore->MountFromBytes (6, 0, kDiskPath, DiskFormat::Woz, bytes)));
             core.diskController->SetExternalDisk (0, core.diskStore->GetImage (6, 0));
             core.RunCycles (60'000'000);                   // boot DOS 3.3 to ]
@@ -516,8 +516,8 @@ public:
             DiskImage *  img = core.diskStore->GetImage (6, 0);
             char  diag[128];
             sprintf_s (diag, "image dirty=%d writeProtected=%d",
-                       (img != nullptr && img->IsDirty ()) ? 1 : 0,
-                       (img != nullptr && img->IsWriteProtected ()) ? 1 : 0);
+                       (img != nullptr && img->IsDirty()) ? 1 : 0,
+                       (img != nullptr && img->IsWriteProtected()) ? 1 : 0);
             Logger::WriteMessage (diag);
 
             Assert::IsTrue (SUCCEEDED (core.diskStore->FlushAll ()), L"flush WOZ back to file");
@@ -532,7 +532,7 @@ public:
             HeadlessHost  host;
             EmulatorCore  core;
             Assert::IsTrue (SUCCEEDED (host.BuildApple2c (core)));
-            core.PowerCycle ();
+            core.PowerCycle();
             Assert::IsTrue (SUCCEEDED (core.diskStore->MountFromBytes (6, 0, kDiskPath, DiskFormat::Woz, bytes2)));
             core.diskController->SetExternalDisk (0, core.diskStore->GetImage (6, 0));
             core.RunCycles (60'000'000);

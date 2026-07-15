@@ -14,7 +14,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-const Microcode * GetCpu65C02InstructionSet ()
+const Microcode * GetCpu65C02InstructionSet()
 {
     // Build the authoritative CMOS table once, straight from a real Cpu65C02, so
     // the assembler and the emulator can never drift apart. The bus and CPU are
@@ -24,5 +24,5 @@ const Microcode * GetCpu65C02InstructionSet ()
     static MemoryBus bus;
     static Cpu65C02  cpu (bus);
 
-    return cpu.GetInstructionSet ();
+    return cpu.GetInstructionSet();
 }

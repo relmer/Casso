@@ -25,7 +25,7 @@ HRESULT CpuFactory::Create (const string & cpuType, MemoryBus & bus, unique_ptr<
 {
     HRESULT   hr = S_OK;
 
-    outCpu.reset ();
+    outCpu.reset();
 
     if (cpuType == s_kpszCpu6502)
     {

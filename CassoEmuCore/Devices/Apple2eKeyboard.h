@@ -74,7 +74,7 @@ public:
     // (RDVBLBAR) (Phase 5 wiring).
     void SetVideoTiming (class IVideoTiming * vt) { m_videoTiming = vt; }
 
-    // Apple //c only: the IOU mouse (US4). When attached, $C063 reads the
+    // Apple //c only: the IOU mouse. When attached, $C063 reads the
     // mouse button (ACTIVE LOW — the //c wires the button where the //e had
     // its shift-key mod) and $C048 (RSTXY, any access) clears the movement
     // interrupt latches. Null on the //e and earlier, where the legacy

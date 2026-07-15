@@ -72,12 +72,12 @@ public:
     void             SetVideoTiming      (IVideoTiming * vt) { m_videoTiming = vt; }
     IVideoTiming *   GetVideoTiming      () const            { return m_videoTiming; }
 
-    // US4 (//c mouse). Optional second per-AddCycles sink for devices that
+    // //c mouse sink: an optional second per-AddCycles sink for devices that
     // must observe CPU progress between bus accesses (the IOU mouse's
     // VBL-edge + paced movement interrupts). Null-safe like the video sink.
     void             SetCycleSink        (ICycleSink * sink) { m_cycleSink = sink; }
 
-    // 6502 execution surface. StepOne polls the interrupt lines first (US4:
+    // 6502 execution surface. StepOne polls the interrupt lines first (
     // the //c mouse/VBL IRQs are the first hardware sources asserted through
     // InterruptController): a pending NMI / unmasked IRQ dispatches its
     // 7-cycle vector prologue INSTEAD of an opcode fetch, reported through
@@ -86,9 +86,9 @@ public:
     // instruction. Machines with no asserted sources take the fast path.
     void             StepOne                  ()
     {
-        if (!m_cpu6502->TryStepInterrupt ())
+        if (!m_cpu6502->TryStepInterrupt())
         {
-            m_cpu6502->StepOne ();
+            m_cpu6502->StepOne();
         }
     }
     Byte             GetLastInstructionCycles () const                        { return m_cpu6502->GetLastInstructionCycles (); }

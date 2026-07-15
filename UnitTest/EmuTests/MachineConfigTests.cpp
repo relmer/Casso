@@ -152,7 +152,7 @@ public:
 
         Assert::IsTrue (SUCCEEDED (hr),
             std::format (L"65C02 profile should load: {}",
-                std::wstring (error.begin (), error.end ())).c_str ());
+                std::wstring (error.begin(), error.end())).c_str());
         Assert::AreEqual (std::string ("65C02"), config.cpu,
             L"CPU must be preserved as '65C02'");
     }
@@ -186,7 +186,7 @@ public:
 
         Assert::IsTrue (SUCCEEDED (hr),
             std::format (L"Banked //c ROM should load: {}",
-                std::wstring (error.begin (), error.end ())).c_str ());
+                std::wstring (error.begin(), error.end())).c_str());
         Assert::AreEqual (Word (0x4000), config.systemRom.romBankSize,
             L"romBankSize must parse to 0x4000");
         Assert::AreEqual (Word (0xC028), config.systemRom.romBankSelect,

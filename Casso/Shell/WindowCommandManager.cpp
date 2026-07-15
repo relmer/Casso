@@ -111,7 +111,7 @@ bool WindowCommandManager::OnCommand (HWND hwnd, int id)
 
 void WindowCommandManager::OnMouseConnectCommand (int id)
 {
-    // //c mouse peripheral connect/disconnect (FR-013b). No chrome change;
+    // //c mouse peripheral connect/disconnect. No chrome change;
     // just the state gate. Disconnecting while Mouse mode is active drops
     // the mapping to Off so the mode never points at an unplugged device.
     bool  connected = (id == IDM_MOUSE_CONNECT);

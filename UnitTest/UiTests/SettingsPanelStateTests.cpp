@@ -514,7 +514,7 @@ public:
     }
 
 
-    // //c external-drive connect toggle (T034a). A live UI pref: it must
+    // //c external-drive connect toggle. A live UI pref: it must
     // round-trip through $cassoUiPrefs, push through the sink on Apply, make
     // the panel dirty, and -- unlike a hardware enable -- never queue a reset.
     TEST_METHOD (ExternalDriveConnected_RoundTripsAndPushesLiveNoReset)
@@ -580,7 +580,7 @@ public:
 
     // The //c's drive is a built-in IWM, not a "disk-ii" slot, so the
     // hardware-list scan alone would hide the Settings Disk tab on the //c
-    // (#84's dynamic-tab gate). A banked system ROM must count as a
+    // (the dynamic-tab gate). A banked system ROM must count as a
     // controller. Regression: Settings > Disk disappeared on the //c.
     TEST_METHOD (HasDiskIIController_TrueForBuiltInIwmMachine)
     {
@@ -595,12 +595,12 @@ public:
         SettingsPanelState  st;
         JsonValue           v = ParseOrFail (cJson);
         Assert::IsTrue (SUCCEEDED (st.LoadFromMachine ("Apple //c", v, v)));
-        Assert::IsTrue (st.HasDiskIIController (),
+        Assert::IsTrue (st.HasDiskIIController(),
             L"//c built-in IWM (no disk-ii slot) must still yield a Disk tab");
     }
 
 
-    // //c mouse peripheral toggle (FR-013b / T030c): defaults CONNECTED,
+    // //c mouse peripheral toggle: defaults CONNECTED,
     // round-trips $cassoUiPrefs, pushes live through the sink, no reset.
     TEST_METHOD (MouseConnected_DefaultsOnRoundTripsNoReset)
     {

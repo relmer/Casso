@@ -13,7 +13,7 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 //  Apple2cBootTests
 //
-//  Spec 016 / US2. These exercise the Apple //c wiring against the real ROM 4.
+//  These exercise the Apple //c wiring against the real ROM 4.
 //
 //  The //c now cold-boots its firmware end-to-end (ColdBootsToCheckDiskDrive):
 //  with no disk it clears the screen, shows the "Apple //c" banner, and reaches
@@ -46,7 +46,7 @@ namespace
     static constexpr size_t     kRomSize = 0x8000;      // 32K, two 16K banks
     static constexpr Word       kMonitorReset = 0xFA62; // ROM 4 RESET vector target
 
-    bool Apple2cRomAvailable ()
+    bool Apple2cRomAvailable()
     {
         FixtureProvider        fp;
         std::vector<uint8_t>   bytes;
@@ -67,7 +67,7 @@ public:
     // no-slots $Cxxx routing, and the slot-6 IWM mode/status register.
     TEST_METHOD (ColdBootsToCheckDiskDrive)
     {
-        if (!Apple2cRomAvailable ())
+        if (!Apple2cRomAvailable())
         {
             Logger::WriteMessage ("SKIPPED: no Apple2c.rom fixture");
             return;
@@ -75,7 +75,7 @@ public:
 
         HeadlessHost host; EmulatorCore core;
         Assert::IsTrue (SUCCEEDED (host.BuildApple2c (core)), L"BuildApple2c");
-        core.PowerCycle ();
+        core.PowerCycle();
         core.RunCycles (15'000'000);
 
         std::string screen;
@@ -100,7 +100,7 @@ public:
     // If either regresses, the bank stays on 0 and this fails.
     TEST_METHOD (StaC028TogglesRomBankExactlyOnce)
     {
-        if (!Apple2cRomAvailable ())
+        if (!Apple2cRomAvailable())
         {
             Logger::WriteMessage ("SKIPPED: no Apple2c.rom fixture");
             return;
@@ -108,7 +108,7 @@ public:
 
         HeadlessHost host; EmulatorCore core;
         Assert::IsTrue (SUCCEEDED (host.BuildApple2c (core)), L"BuildApple2c");
-        core.PowerCycle ();
+        core.PowerCycle();
 
         Assert::AreEqual (0, core.romBank->CurrentBank (), L"reset selects bank 0");
 
@@ -117,7 +117,7 @@ public:
             Word a = at;
             for (Byte b : bytes) core.cpu->WriteByte (a++, b);
             core.cpu->SetPC (at);
-            core.cpu->StepOne ();
+            core.cpu->StepOne();
         };
 
         execAt (0x0300, { 0x8D, 0x28, 0xC0 });   // STA $C028
@@ -130,7 +130,7 @@ public:
         Assert::AreEqual (1, core.romBank->CurrentBank (), L"LDA $C028 toggles once");
     }
 
-    // US5 / T032 + T035: the //c boots from its built-in slot-6 drive through
+    // The //c boots from its built-in slot-6 drive through
     // the IWM. This is the real disk-read path (Q6L/Q7L RDDATA on the same
     // Disk2Controller the //e uses -- IWM mode only added the MODE/STATUS
     // registers, not a fork), so a mounted bootable disk must feed nibbles to
@@ -141,7 +141,7 @@ public:
     // the marker never lands.
     TEST_METHOD (BootsFromInternalDriveViaIwm)
     {
-        if (!Apple2cRomAvailable ())
+        if (!Apple2cRomAvailable())
         {
             Logger::WriteMessage ("SKIPPED: no Apple2c.rom fixture");
             return;
@@ -176,7 +176,7 @@ public:
 
         // PowerCycle first (it re-seeds DRAM + rebinds the drive to its empty
         // internal disk), THEN mount -- matching the production ordering.
-        core.PowerCycle ();
+        core.PowerCycle();
 
         HRESULT hrMount = core.diskStore->MountFromBytes (6, 0, "iwm-boot.dsk",
                                                           DiskFormat::Dsk, raw);
@@ -196,12 +196,12 @@ public:
             L"boot sector must write 'W' to $0301");
         Assert::AreEqual<Byte> (0x4D, core.cpu->ReadByte (0x0302),
             L"boot sector must write 'M' to $0302");
-        Assert::AreEqual<Word> (0x0810, core.cpu->GetPC (),
+        Assert::AreEqual<Word> (0x0810, core.cpu->GetPC(),
             L"CPU must be spinning in the booted sector's halt loop, not the "
             L"ROM's Check-Disk-Drive self-loop");
     }
 
-    // US5 / T032 + T034: the //c's external (second) drive is drive 2 of the
+    // The //c's external (second) drive is drive 2 of the
     // same slot-6 IWM. A disk mounted there must be reachable by selecting
     // drive 2 ($C0EB) and reading the data register ($C0EC). Driven the same
     // way DiskReadbackTests exercises drive 1: detach the CPU cycle source,
@@ -211,7 +211,7 @@ public:
     // would only ever read the empty-drive floating bus.
     TEST_METHOD (ExternalDriveIsReadableViaDriveSelect)
     {
-        if (!Apple2cRomAvailable ())
+        if (!Apple2cRomAvailable())
         {
             Logger::WriteMessage ("SKIPPED: no Apple2c.rom fixture");
             return;
@@ -224,7 +224,7 @@ public:
 
         HeadlessHost host; EmulatorCore core;
         Assert::IsTrue (SUCCEEDED (host.BuildApple2c (core)), L"BuildApple2c");
-        core.PowerCycle ();
+        core.PowerCycle();
 
         HRESULT hrMount = core.diskStore->MountFromBytes (6, 1, "ext.dsk",
                                                           DiskFormat::Dsk, raw);
@@ -263,7 +263,7 @@ public:
     // entry with the ROM correctly mapped through the language card.
     TEST_METHOD (BuildsAndResetsToMonitorEntry)
     {
-        if (!Apple2cRomAvailable ())
+        if (!Apple2cRomAvailable())
         {
             Logger::WriteMessage (
                 "SKIP: UnitTest/Fixtures/Apple2c.rom absent "
@@ -276,7 +276,7 @@ public:
 
         Assert::IsTrue (SUCCEEDED (host.BuildApple2c (core)),
             L"BuildApple2c must succeed when the ROM is present");
-        Assert::IsTrue (core.HasApple2e (),
+        Assert::IsTrue (core.HasApple2e(),
             L"//c wiring (65C02 + MMU) must be complete");
 
         // Reset vector (read through the bus -> language card ROM, bank 0)
@@ -292,13 +292,13 @@ public:
             L"$FA62 must read CLD from the mapped monitor ROM");
 
         // The CPU powers on at the reset entry.
-        core.PowerCycle ();
-        Assert::AreEqual<Word> (kMonitorReset, core.cpu->GetPC (),
+        core.PowerCycle();
+        Assert::AreEqual<Word> (kMonitorReset, core.cpu->GetPC(),
             L"Cold reset must enter the monitor at $FA62");
     }
 
 
-    // T019 (US2 / FR-007): the slotless //c serves every built-in peripheral
+    // The slotless //c serves every built-in peripheral
     // at its fixed phantom-slot firmware page through the live bus (no-slots
     // $Cxxx routing). Signatures verified against the ROM 4 image: the
     // Pascal firmware ID bytes ($Cn05=$38/$Cn07=$18) at serial 1/2, 80-col,
@@ -308,7 +308,7 @@ public:
     // internal firmware.
     TEST_METHOD (PhantomSlotsServeBuiltInPeripherals)
     {
-        if (!Apple2cRomAvailable ())
+        if (!Apple2cRomAvailable())
         {
             Logger::WriteMessage ("SKIPPED: no Apple2c.rom fixture");
             return;
@@ -321,7 +321,7 @@ public:
         HeadlessHost   host;
         EmulatorCore   core;
         Assert::IsTrue (SUCCEEDED (host.BuildApple2c (core)));
-        core.PowerCycle ();
+        core.PowerCycle();
 
         // Pascal firmware ID at each phantom firmware page.
         const Word  pages[] = { 0xC100, 0xC200, 0xC300, 0xC700 };
@@ -351,15 +351,15 @@ public:
     }
 
 
-    // T024 (US3): the //c ships two built-in 6551 ACIA serial ports at the
+    // The //c ships two built-in 6551 ACIA serial ports at the
     // phantom-slot addresses -- port 1 ($C098), port 2 ($C0A8). v1 wires each
     // to a loopback endpoint, so a guest write to the data register echoes
     // straight back into the receiver: RxFull latches and the byte reads back.
     // Proves both ACIAs are mapped at the right addresses and transmit/receive
-    // end to end. (The printer-endpoint bridge is downstream in issue #87.)
+    // end to end. (The printer-endpoint bridge is downstream.)
     TEST_METHOD (SerialPortsLoopBackViaBuiltInAcia)
     {
-        if (!Apple2cRomAvailable ())
+        if (!Apple2cRomAvailable())
         {
             Logger::WriteMessage (
                 "SKIP: UnitTest/Fixtures/Apple2c.rom absent "
@@ -372,7 +372,7 @@ public:
 
         Assert::IsTrue (SUCCEEDED (host.BuildApple2c (core)),
             L"BuildApple2c must succeed when the ROM is present");
-        core.PowerCycle ();
+        core.PowerCycle();
 
         const Word  dataAddrs[] = { 0xC098, 0xC0A8 };   // port 1 / port 2 data
 

@@ -20,7 +20,7 @@
 class ICycleSink
 {
 public:
-    virtual         ~ICycleSink () = default;
+    virtual         ~ICycleSink() = default;
 
     virtual void     Tick (uint32_t cpuCycles) = 0;
 };

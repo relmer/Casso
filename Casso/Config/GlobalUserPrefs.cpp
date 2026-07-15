@@ -992,7 +992,7 @@ HRESULT GlobalUserPrefs::FromJson (const JsonValue & v)
         inputMappingMode = InputMappingMode::Joystick;
     }
 
-    // FR-013a split model. New keys win; absent keys migrate from the
+    // Split model. New keys win; absent keys migrate from the
     // legacy single mode (joystick -> Keys on; paddle/mouse -> Pointer).
     arrowsToJoystick = GetBoolOpt (v, "arrowsToJoystick",
                                    inputMappingMode == InputMappingMode::Joystick);

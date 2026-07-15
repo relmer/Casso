@@ -35,14 +35,14 @@ namespace TestCpu65C02Tests
             cpu.Poke (0xF003, 0xA9); cpu.Poke (0xF004, 0x42);
             cpu.Poke (0xF005, 0x8D); cpu.Poke (0xF006, 0x00); cpu.Poke (0xF007, 0xD0);
 
-            cpu.Step ();    // STZ $CF00
-            cpu.Step ();    // LDA #$42
-            cpu.Step ();    // STA $D000
+            cpu.Step();    // STZ $CF00
+            cpu.Step();    // LDA #$42
+            cpu.Step();    // STA $D000
 
             Assert::AreEqual<Byte> (0x00, cpu.Peek (0xCF00));   // CMOS STZ into high RAM
-            Assert::AreEqual<Byte> (0x42, cpu.RegA ());
+            Assert::AreEqual<Byte> (0x42, cpu.RegA());
             Assert::AreEqual<Byte> (0x42, cpu.Peek (0xD000));   // store into high RAM
-            Assert::AreEqual<Word> (0xF008, cpu.RegPC ());
+            Assert::AreEqual<Word> (0xF008, cpu.RegPC());
         }
 
 
@@ -51,14 +51,14 @@ namespace TestCpu65C02Tests
             TestCpu65C02 cpu;
 
             cpu.InitForTest (0x0200);
-            cpu.Status ().flags.decimal = 1;    // 65C02 clears D on BRK entry
+            cpu.Status().flags.decimal = 1;    // 65C02 clears D on BRK entry
             cpu.PokeWord (0xFFFE, 0x0400);      // IRQ/BRK vector -> $0400
             cpu.Poke (0x0200, 0x00);            // BRK
 
-            cpu.Step ();
+            cpu.Step();
 
-            Assert::AreEqual<Word> (0x0400, cpu.RegPC ());          // vector read from flat $FFFE
-            Assert::IsTrue (cpu.Status ().flags.decimal == 0);      // BreakCmos cleared D
+            Assert::AreEqual<Word> (0x0400, cpu.RegPC());          // vector read from flat $FFFE
+            Assert::IsTrue (cpu.Status().flags.decimal == 0);      // BreakCmos cleared D
         }
     };
 }

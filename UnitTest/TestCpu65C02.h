@@ -45,7 +45,7 @@ protected:
 class TestCpu65C02 : private TestCpu65C02Bus, public Cpu65C02
 {
 public:
-    TestCpu65C02 () : TestCpu65C02Bus (), Cpu65C02 (m_testBus) {}
+    TestCpu65C02() : TestCpu65C02Bus(), Cpu65C02 (m_testBus) {}
 
     // Flat-memory overrides: the whole 64K address space is Cpu::memory[].
     Byte    ReadByte  (Word address) override             { return memory[address]; }
@@ -57,16 +57,16 @@ public:
     Byte &      RegA  () { return A; }
     Byte &      RegX  () { return X; }
     Byte &      RegY  () { return Y; }
-    Byte &      RegSP () { return SP; }
-    Word &      RegPC () { return PC; }
-    CpuStatus & Status () { return status; }
+    Byte &      RegSP() { return SP; }
+    Word &      RegPC() { return PC; }
+    CpuStatus & Status() { return status; }
 
     // Execute one instruction via the real dispatch (no async interrupts).
-    void    Step  () { StepOne (); }
-    Byte    Cycles () { return GetLastInstructionCycles (); }
+    void    Step  () { StepOne(); }
+    Byte    Cycles() { return GetLastInstructionCycles(); }
 
     // The 65C02 instruction table, for building a 65C02-aware Assembler.
-    const Microcode * GetInstructionSet () const { return instructionSet.data (); }
+    const Microcode * GetInstructionSet() const { return instructionSet.data(); }
 
     // Memory helpers.
     void    Poke     (Word address, Byte value) { memory[address] = value; }
@@ -89,6 +89,6 @@ public:
         SP = 0xFF;
         PC = startPC;
 
-        std::fill (memory.begin (), memory.end (), Byte (0));
+        std::fill (memory.begin(), memory.end(), Byte (0));
     }
 };

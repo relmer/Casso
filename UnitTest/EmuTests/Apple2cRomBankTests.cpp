@@ -46,7 +46,7 @@ namespace
     {
         int  toggles = 0;
         int  resets  = 0;
-        void ToggleRomBank () override { ++toggles; }
+        void ToggleRomBank() override { ++toggles; }
         void ResetRomBank  () override { ++resets; }
     };
 }
@@ -65,7 +65,7 @@ public:
 
         romBank.SetBankImages (MakeBank (0xA0), MakeBank (0xB1));
 
-        Assert::AreEqual<int>  (0,    romBank.CurrentBank ());
+        Assert::AreEqual<int>  (0,    romBank.CurrentBank());
         Assert::AreEqual<Byte> (0xA0, lc.ReadRom (kLcWindow));
     }
 
@@ -78,12 +78,12 @@ public:
 
         romBank.SetBankImages (MakeBank (0xA0), MakeBank (0xB1));
 
-        romBank.ToggleRomBank ();
-        Assert::AreEqual<int>  (1,    romBank.CurrentBank ());
+        romBank.ToggleRomBank();
+        Assert::AreEqual<int>  (1,    romBank.CurrentBank());
         Assert::AreEqual<Byte> (0xB1, lc.ReadRom (kLcWindow));
 
-        romBank.ToggleRomBank ();
-        Assert::AreEqual<int>  (0,    romBank.CurrentBank ());
+        romBank.ToggleRomBank();
+        Assert::AreEqual<int>  (0,    romBank.CurrentBank());
         Assert::AreEqual<Byte> (0xA0, lc.ReadRom (kLcWindow));
     }
 
@@ -96,11 +96,11 @@ public:
 
         romBank.SetBankImages (MakeBank (0xA0), MakeBank (0xB1));
 
-        romBank.ToggleRomBank ();                  // -> bank 1
-        Assert::AreEqual<int> (1, romBank.CurrentBank ());
+        romBank.ToggleRomBank();                  // -> bank 1
+        Assert::AreEqual<int> (1, romBank.CurrentBank());
 
-        romBank.ResetRomBank ();                   // -> bank 0
-        Assert::AreEqual<int>  (0,    romBank.CurrentBank ());
+        romBank.ResetRomBank();                   // -> bank 0
+        Assert::AreEqual<int>  (0,    romBank.CurrentBank());
         Assert::AreEqual<Byte> (0xA0, lc.ReadRom (kLcWindow));
     }
 
@@ -117,7 +117,7 @@ public:
         ss.Write (0xC028, 0x00);                    // write forwards through Read
         Assert::AreEqual (2, spy.toggles);
 
-        ss.Reset ();                                // /RESET -> bank 0
+        ss.Reset();                                // /RESET -> bank 0
         Assert::AreEqual (1, spy.resets);
     }
 
@@ -128,6 +128,6 @@ public:
         // Must not crash / must be a harmless no-op with no hook attached.
         ss.Read  (0xC028);
         ss.Write (0xC028, 0x00);
-        ss.Reset ();
+        ss.Reset();
     }
 };
