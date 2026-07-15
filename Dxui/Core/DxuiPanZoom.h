@@ -18,11 +18,18 @@
 //  (a 2D image, a 3D scene, a document...).
 //
 //  Interactions handled:
-//    * vertical wheel                -> pan Y
-//    * horizontal wheel              -> pan X
-//    * Ctrl + wheel                  -> zoom
-//    * left-button drag              -> pan (both axes)
+//    * vertical wheel                -> pan Y (content scroll)
+//    * horizontal wheel              -> pan X (camera framing)
+//    * Ctrl + wheel                  -> zoom (cursor-anchored)
+//    * left-button drag              -> frame the zoomed view (panX + panYCam)
 //    * Ctrl +/= , Ctrl - , Ctrl 0    -> zoom in / out / reset
+//
+//  Two vertical axes, because a zoomable 3D view has two distinct vertical
+//  intents. panY is the CONTENT scroll (wheel / arrows -- review the document);
+//  panYCam is CAMERA FRAMING (drag / cursor-anchored zoom -- move the eye over
+//  the magnified scene to bring an off-center corner into view). panX doubles
+//  as horizontal framing. Framing bounds grow with zoom and collapse to zero at
+//  fit, so a drag does nothing until there is something off-screen to reach.
 //
 //  Windows Precision Touchpads deliver pinch-zoom as Ctrl+wheel and two-finger
 //  pan as wheel / h-wheel, so those gestures ride the same paths for free --
@@ -95,6 +102,10 @@ public:
     void  SetPanYBounds (float lo, float hi);
     void  SetPanXBounds (float lo, float hi);
 
+    // Camera vertical framing range (grows with zoom, zero at fit). Drag and
+    // cursor-anchored zoom move panYCam within it to frame the magnified scene.
+    void  SetPanYCamBounds (float lo, float hi);
+
     // Content units per screen pixel for drag, set from the owner's layout and
     // current zoom (a drag of N pixels moves the content by N * scale units).
     void  SetDragScale (float contentPerPixelX, float contentPerPixelY);
@@ -133,6 +144,7 @@ public:
     float  Zoom () const { return (float) m_zoom.cur; }
     float  PanX () const { return (float) m_panX.cur; }
     float  PanY () const { return (float) m_panY.cur; }
+    float  PanYCam () const { return (float) m_panYCam.cur; }   // camera vertical framing
     float  ZoomTarget () const { return (float) m_zoom.target; }
 
     bool   Zoomed () const { return m_zoom.target > (double) m_cfg.zoomMin + 1e-3; }
@@ -157,8 +169,8 @@ private:
                            float anchorX = 0.0f, float anchorY = 0.0f);
     void  NudgePanX (double deltaContent);
     void  NudgePanY (double deltaContent, bool user);
+    void  NudgePanYCam (double deltaContent);   // camera vertical framing (drag / zoom anchor)
     void  SpillPanY (double deltaContent);      // apply a delta, overflowing into overscroll
-    void  ZoomAnchorPanY (double deltaContent); // like a pan but no OnUserPanY (keeps follow)
     void  ClampTargets ();
     bool  EaseToward (Eased & v, double dtSec, double tauSec);
     void  Changed ();
@@ -167,10 +179,12 @@ private:
     Eased   m_zoom;
     Eased   m_panX;
     Eased   m_panY;
+    Eased   m_panYCam;       // camera vertical framing (independent of content scroll)
     Eased   m_overscrollY;   // bounded panY overflow -> host view translation
 
     double  m_panXlo = 0.0, m_panXhi = 0.0;
     double  m_panYlo = 0.0, m_panYhi = 0.0;
+    double  m_panYCamLo = 0.0, m_panYCamHi = 0.0;
     float   m_overscrollMax = 0.0f;
 
     float   m_viewCenterX = 0.0f;

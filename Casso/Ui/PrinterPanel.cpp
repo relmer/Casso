@@ -478,23 +478,28 @@ void PrinterPanel::SyncTransform ()
 {
     float   zoom = m_panZoom.Zoom ();
 
-    // Horizontal pan is only possible once zoomed in: at zoom Z the paper is Z
-    // times wider than the view, so it may slide +/- half the hidden width.
-    // panX is in content px; hand the scene a normalized -1..1 (paper edge).
+    // Framing is only possible once zoomed in. Horizontal: at zoom Z the paper
+    // is Z times wider than the view, so panX may slide +/- half the hidden
+    // width (content px; the scene takes a normalized -1..1 paper edge).
+    // Vertical camera framing spans a normalized +/-(1 - 1/Z): zero at fit,
+    // approaching +/-1 (full up/down reach) as the zoom climbs.
     {
         float   halfRange = (float) s_kStockWidthPx * 0.5f * (1.0f - 1.0f / zoom);
+        float   camRange  = 1.0f - 1.0f / zoom;
 
         m_panZoom.SetPanXBounds (-halfRange, halfRange);
+        m_panZoom.SetPanYCamBounds (-camRange, camRange);
     }
 
-    // Drag scale: a screen-pixel drag moves this many content units. The paper
-    // fills m_paperRectPx showing viewportRows tall x stock wide, both shrunk
-    // by the zoom, so more zoom -> fewer content units per dragged pixel.
+    // Drag scale: a screen-pixel drag moves this much. panX is content px (paper
+    // width shrinks with zoom -> fewer content px per dragged pixel). panYCam is
+    // the normalized camera framing -- a fixed fraction per pixel so a partial
+    // drag reaches the up/down limit at any zoom (it clamps to the bounds above).
     {
         int     pw = m_paperRectPx.right - m_paperRectPx.left;
         int     ph = m_paperRectPx.bottom - m_paperRectPx.top;
         float   perPxX = (pw > 0) ? (float) s_kStockWidthPx / ((float) pw * zoom) : 1.0f;
-        float   perPxY = (ph > 0) ? (float) m_viewport.ViewportRows () / ((float) ph * zoom) : 1.0f;
+        float   perPxY = (ph > 0) ? 2.2f / (float) ph : 1.0f;
 
         m_panZoom.SetDragScale (perPxX, perPxY);
     }
@@ -514,6 +519,7 @@ void PrinterPanel::SyncTransform ()
     {
         m_scene->SetZoom (zoom);
         m_scene->SetPanX (m_panZoom.PanX () / ((float) s_kStockWidthPx * 0.5f));
+        m_scene->SetCameraPanY (m_panZoom.PanYCam ());
         m_scene->SetWorldPanY ((overMax > 0.0f) ? (m_panZoom.OverscrollY () / overMax) : 0.0f);
     }
 

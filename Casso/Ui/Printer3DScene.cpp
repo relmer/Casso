@@ -94,6 +94,11 @@ namespace
     // the machine on screen.
     constexpr float   s_kWorldPanYSpan = 0.55f;
 
+    // Camera vertical framing reach (world units) at normalized +/-1: how far
+    // the eye may travel up (paper) / down (deck + LEDs) when framing a zoomed
+    // view. Enough that a ~3x zoom can bring the front-panel controls into view.
+    constexpr float   s_kCamPanYSpan = 0.95f;
+
     // Palette (ARGB): warm ImageWriter platinum + accents.
     // The mat is deliberately lighter than the dark platen roller so the
     // roller's silhouette reads against it (they used to be near-identical).
@@ -753,6 +758,25 @@ void Printer3DScene::SetPanX (float panXNorm)
 void Printer3DScene::SetWorldPanY (float panYNorm)
 {
     m_worldPanY = std::clamp (panYNorm, -1.0f, 1.0f) * s_kWorldPanYSpan;
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Printer3DScene::SetCameraPanY
+//
+//  Map the normalized framing pan (+1 up toward the paper, -1 down onto the
+//  deck) to a world-Y offset of the eye and look-at together -- the vertical
+//  partner of SetPanX. Lets a magnified view be panned to bring any part of the
+//  machine (e.g. the lower-front LEDs) into frame.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Printer3DScene::SetCameraPanY (float panYNorm)
+{
+    m_camPanY = std::clamp (panYNorm, -1.0f, 1.0f) * s_kCamPanYSpan;
 }
 
 
@@ -1801,11 +1825,12 @@ void Printer3DScene::Render (const RECT & targetPx)
     // fixed backdrop -- the "nudge past the scroll limit" travel.
     model[13] += m_worldPanY;
 
-    // Horizontal pan slides eye + look-at together in world X, revealing a
-    // paper edge when zoomed (0 = centered). Vertical/depth stay put.
+    // Pan slides eye + look-at together: world X reveals a paper edge, world Y
+    // (camera framing) tilts the view up toward the paper or down onto the deck
+    // and its LEDs. Both are only useful once zoomed in; depth stays put.
     {
-        float   eye[3] = { s_kEye[0] + m_panX, s_kEye[1], s_kEye[2] };
-        float   at[3]  = { s_kAt[0]  + m_panX, s_kAt[1],  s_kAt[2]  };
+        float   eye[3] = { s_kEye[0] + m_panX, s_kEye[1] + m_camPanY, s_kEye[2] };
+        float   at[3]  = { s_kAt[0]  + m_panX, s_kAt[1]  + m_camPanY, s_kAt[2]  };
 
         LookAtRH (eye, at, view);
     }

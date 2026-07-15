@@ -76,15 +76,18 @@ bool DxuiPanZoom::OnMouse (const DxuiMouseEvent & ev)
             double dy = (double) (ev.positionDip.y - m_dragLast.y);
             m_dragLast = ev.positionDip;
 
-            // Dragging the content right/down should move the content WITH the
-            // cursor, i.e. reveal what is up/left -> pan target moves opposite.
+            // A drag FRAMES the magnified view (moving the camera), it does not
+            // scroll the document -- that stays on the wheel / arrows. Content
+            // follows the finger: drag right reveals the left, drag down reveals
+            // what is above. panX is world-X, panYCam is the inverted screen->
+            // world Y, so both track the cursor.
             if (m_cfg.enablePanX && dx != 0.0)
             {
                 NudgePanX (-dx * (double) m_dragPerPxX);
             }
-            if (m_cfg.enablePanY && dy != 0.0)
+            if (dy != 0.0)
             {
-                NudgePanY (-dy * (double) m_dragPerPxY, /*user*/ true);
+                NudgePanYCam (dy * (double) m_dragPerPxY);
             }
             return true;
         }
@@ -146,13 +149,15 @@ bool DxuiPanZoom::Tick (double nowSec)
     if (dt <= 0.0)
     {
         return (m_zoom.cur != m_zoom.target) || (m_panX.cur != m_panX.target) ||
-               (m_panY.cur != m_panY.target) || (m_overscrollY.cur != m_overscrollY.target);
+               (m_panY.cur != m_panY.target) || (m_panYCam.cur != m_panYCam.target) ||
+               (m_overscrollY.cur != m_overscrollY.target);
     }
 
     bool moving = false;
     moving |= EaseToward (m_zoom, dt, m_cfg.zoomEaseTauSec);
     moving |= EaseToward (m_panX, dt, m_cfg.easeTauSec);
     moving |= EaseToward (m_panY, dt, m_cfg.easeTauSec);
+    moving |= EaseToward (m_panYCam, dt, m_cfg.easeTauSec);
     moving |= EaseToward (m_overscrollY, dt, m_cfg.easeTauSec);
 
     if (moving)
@@ -179,6 +184,16 @@ void DxuiPanZoom::SetPanXBounds (float lo, float hi)
 {
     m_panXlo = lo;
     m_panXhi = hi;
+    ClampTargets ();
+}
+
+
+
+
+void DxuiPanZoom::SetPanYCamBounds (float lo, float hi)
+{
+    m_panYCamLo = lo;
+    m_panYCamHi = hi;
     ClampTargets ();
 }
 
@@ -298,9 +313,11 @@ void DxuiPanZoom::ApplyZoomFactor (double factor, bool anchored, float anchorX, 
         {
             NudgePanX (((double) anchorX - (double) m_viewCenterX) * (double) m_dragPerPxX * s);
         }
-        if (m_cfg.enablePanY && m_dragPerPxY != 0.0f)
+        if (m_dragPerPxY != 0.0f)
         {
-            ZoomAnchorPanY (((double) anchorY - (double) m_viewCenterY) * (double) m_dragPerPxY * s);
+            // Frame vertically toward the cursor. Screen Y is inverted from the
+            // camera's world Y, so the sign is opposite the horizontal anchor.
+            NudgePanYCam (-((double) anchorY - (double) m_viewCenterY) * (double) m_dragPerPxY * s);
         }
     }
 
@@ -400,31 +417,31 @@ void DxuiPanZoom::SpillPanY (double deltaContent)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DxuiPanZoom::ZoomAnchorPanY
+//  DxuiPanZoom::NudgePanYCam
 //
-//  Vertical component of a cursor-anchored zoom: moves panY (spilling into
-//  overscroll) WITHOUT firing OnUserPanY, so anchoring the zoom never drops a
-//  follow-mode owner out of follow (which would then override this next frame
-//  anyway). Snaps the eased value when direct manipulation is instant.
+//  Camera vertical framing (drag / cursor-anchored zoom). A continuous
+//  accumulator clamped to the framing bounds, which grow with zoom -- moving
+//  the eye over the magnified scene WITHOUT touching the content scroll or
+//  follow mode. Snaps when direct manipulation is instant.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiPanZoom::ZoomAnchorPanY (double deltaContent)
+void DxuiPanZoom::NudgePanYCam (double deltaContent)
 {
-    double  prevPanY = m_panY.target;
-    double  prevOver = m_overscrollY.target;
+    double  target = m_panYCam.target + deltaContent;
 
-    SpillPanY (deltaContent);
-
-    bool  changed = (m_panY.target != prevPanY) || (m_overscrollY.target != prevOver);
-
-    if (m_cfg.userPanInstant)
+    if (m_panYCamHi >= m_panYCamLo)
     {
-        m_panY.cur        = m_panY.target;
-        m_overscrollY.cur = m_overscrollY.target;
+        target = std::min (std::max (target, m_panYCamLo), m_panYCamHi);
     }
-    if (changed)
+
+    if (target != m_panYCam.target)
     {
+        m_panYCam.target = target;
+        if (m_cfg.userPanInstant)
+        {
+            m_panYCam.cur = target;
+        }
         Changed ();
     }
 }
@@ -441,6 +458,10 @@ void DxuiPanZoom::ClampTargets ()
     if (m_panXhi >= m_panXlo)
     {
         m_panX.target = std::min (std::max (m_panX.target, m_panXlo), m_panXhi);
+    }
+    if (m_panYCamHi >= m_panYCamLo)
+    {
+        m_panYCam.target = std::min (std::max (m_panYCam.target, m_panYCamLo), m_panYCamHi);
     }
 }
 

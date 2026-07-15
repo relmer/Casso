@@ -76,6 +76,13 @@ public:
     // itself rather than hitting a wall. Clamped, so it can never leave view.
     void     SetWorldPanY (float panYNorm);
 
+    // Camera vertical framing, normalized: 0 = default eye, +1 = look up toward
+    // the paper top, -1 = look down onto the deck (bringing the lower-front
+    // controls / LEDs into view when zoomed). Slides the eye + look-at together
+    // in world Y (the vertical partner of SetPanX), so a magnified view can be
+    // panned to any part of the machine.
+    void     SetCameraPanY (float panYNorm);
+
     // How much paper has physically fed PAST the head, as a fraction of the
     // content canvas (0 = fresh sheet, its leading edge aligned at the
     // strike line; 1 = a full page risen above the platen). The paper mesh
@@ -143,6 +150,7 @@ private:
     float            m_zoom          = 1.0f;
     float            m_panX          = 0.0f;   // world-space horizontal camera offset
     float            m_worldPanY     = 0.0f;   // world-space vertical shift of the whole scene
+    float            m_camPanY        = 0.0f;   // world-space vertical camera framing offset
     float            m_ledSelect     = 0.30f;  // green-lamp brightness, dim rest (panel-driven)
     bool             m_ledError      = false;  // red fault lamp
     int              m_contentWidth  = 0;

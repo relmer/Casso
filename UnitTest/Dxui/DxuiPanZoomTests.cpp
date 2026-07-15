@@ -243,11 +243,12 @@ public:
 
 
 
-    TEST_METHOD (LeftDrag_PansBothAxesByScale)
+    TEST_METHOD (LeftDrag_FramesCameraNotContent)
     {
         DxuiPanZoom  pz;
-        pz.SetPanXBounds (-1000.0f, 1000.0f);
-        pz.SetPanYBounds (-1000.0f, 1000.0f);
+        pz.SetPanXBounds    (-1000.0f, 1000.0f);
+        pz.SetPanYBounds    (-1000.0f, 1000.0f);
+        pz.SetPanYCamBounds (-1000.0f, 1000.0f);
         pz.SetDragScale (2.0f, 3.0f);
 
         pz.OnMouse (Mouse (DxuiMouseEventKind::Down, DxuiMouseButton::Left, 100, 100));
@@ -255,9 +256,28 @@ public:
         pz.OnMouse (Mouse (DxuiMouseEventKind::Up,   DxuiMouseButton::Left, 90, 80));
         Settle (pz);
 
-        // Dragging left 10px / up 20px moves content opposite: +20 x, +60 y.
-        Assert::AreEqual (20.0f, pz.PanX (), 0.01f);
-        Assert::AreEqual (60.0f, pz.PanY (), 0.01f);
+        // A drag FRAMES the camera. Left 10px reveals the left (panX +20); up
+        // 20px frames the camera down (panYCam -60). The content scroll (panY)
+        // is untouched -- that lives on the wheel.
+        Assert::AreEqual (20.0f,  pz.PanX (),    0.01f);
+        Assert::AreEqual (-60.0f, pz.PanYCam (), 0.01f);
+        Assert::AreEqual (0.0f,   pz.PanY (),    0.01f);
+    }
+
+
+
+    TEST_METHOD (PanYCamBounds_ClampFraming)
+    {
+        DxuiPanZoom  pz;
+        pz.SetPanYCamBounds (-0.5f, 0.5f);
+        pz.SetDragScale (1.0f, 1.0f);
+
+        // A big upward drag frames down, but the framing clamps to its bound.
+        pz.OnMouse (Mouse (DxuiMouseEventKind::Down, DxuiMouseButton::Left, 0, 500));
+        pz.OnMouse (Mouse (DxuiMouseEventKind::Move, DxuiMouseButton::Left, 0, 0));
+        pz.OnMouse (Mouse (DxuiMouseEventKind::Up,   DxuiMouseButton::Left, 0, 0));
+        Settle (pz);
+        Assert::AreEqual (-0.5f, pz.PanYCam (), 0.001f);
     }
 
 
@@ -441,13 +461,14 @@ public:
 
 
 
-    TEST_METHOD (CtrlWheelZoom_AnchorsPanYWithoutDroppingFollow)
+    TEST_METHOD (CtrlWheelZoom_AnchorsCameraFramingNotContent)
     {
         DxuiPanZoom::Config  cfg;
         cfg.userPanInstant = true;
         DxuiPanZoom  pz (cfg);
-        pz.SetPanXBounds (-1000.0f, 1000.0f);
-        pz.SetPanYBounds (-1000.0f, 1000.0f);
+        pz.SetPanXBounds    (-1000.0f, 1000.0f);
+        pz.SetPanYBounds    (-1000.0f, 1000.0f);
+        pz.SetPanYCamBounds (-1000.0f, 1000.0f);
         pz.SetDragScale (2.0f, 3.0f);
         pz.SetViewCenter (100.0f, 100.0f);
 
@@ -457,8 +478,10 @@ public:
         pz.OnMouse (WheelAt (+1.0f, 100, 200));   // cursor 100px below center
         Settle (pz);
 
-        Assert::AreEqual (60.0f, pz.PanY (), 0.01f);   // 100 * 3 * 0.2
-        Assert::AreEqual (0, userPans);                // zoom anchor must not drop follow
+        // Frames the camera down toward the cursor: -(200-100)*3*(1 - 1/1.25).
+        Assert::AreEqual (-60.0f, pz.PanYCam (), 0.01f);
+        Assert::AreEqual (0.0f,   pz.PanY (),    0.01f);   // content scroll untouched
+        Assert::AreEqual (0, userPans);                     // framing never fires user-pan
     }
 
 
