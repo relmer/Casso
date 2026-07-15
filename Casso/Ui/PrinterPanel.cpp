@@ -643,6 +643,14 @@ void PrinterPanel::RefreshLive (PrinterWorker & worker, int64_t nowMs, bool forc
     if (m_scene != nullptr)
     {
         m_scene->SetHeadColumn01 ((float) revealCol / (float) PrinterGrid::kDotsPerRow);
+
+        // Front-panel LEDs: the green lamps rest at a dim glow and light up
+        // (bright + halo) while the printer is actively receiving; the red
+        // fault lamp stays dark for now (no fault state wired yet).
+        bool   receiving = (m_lastActivityChangeMs != 0)
+                           && (nowMs - m_lastActivityChangeMs < s_kPrintIdleMs);
+
+        m_scene->SetLeds (receiving ? 1.0f : 0.30f, /*error*/ false);
     }
 
     // The viewport follows the REVEALED edge, not the raster's -- so a paced

@@ -54,6 +54,12 @@ public:
     // Paced head position across the printable width, 0..1 (FR-034).
     void     SetHeadColumn01 (float x01);
 
+    // Front-panel status LEDs. select01 is the green-lamp brightness (0..1; the
+    // panel raises it toward 1 while the printer is receiving and rests it low
+    // when idle); error lights the red fault lamp. Unlit lamps glow a very dim
+    // base color; lit lamps brighten and gain a soft halo.
+    void     SetLeds (float select01, bool error);
+
     // Preview magnification, 1 = fit (default). The camera narrows its field
     // of view by this factor, so 2 shows the paper at twice the size without
     // moving the eye or rebuilding any geometry. Clamped to a sane range.
@@ -99,6 +105,24 @@ private:
                                  float a0, float a1, int segments,
                                  uint32_t argb, float shade);
 
+    // A soft radial halo in the x/y plane at constant z: a triangle fan whose
+    // center carries the (premultiplied) color and whose rim is transparent, so
+    // it composites as a glow. Used behind a lit LED lens.
+    static void  AppendGlowZ    (std::vector<Vertex> & out,
+                                 float cx, float cy, float z, float rx, float ry,
+                                 uint32_t argb, float coreAlpha, int segments);
+
+    // One front-panel LED at (cx,cy): a dim base lens when intensity ~0, a
+    // bright lens plus halo as intensity -> 1. halfW sets the lens half-width
+    // (the on/off pair uses narrower half-lamps).
+    static void  AppendLed      (std::vector<Vertex> & out,
+                                 float cx, float cy, float z,
+                                 uint32_t argb, float intensity, float halfW);
+
+    // Rebuild the per-frame LED batches (recolored lens faces + glow halos)
+    // from the loaded lamps at the current SELECT / error brightness.
+    void  BuildLedBatches ();
+
     void  BuildBackdrop   (std::vector<Vertex> & out) const;
     void  BuildBodyBack   (std::vector<Vertex> & out) const;
     void  BuildPaper      (std::vector<Vertex> & out) const;
@@ -112,6 +136,8 @@ private:
     float            m_paperFeed01   = 1.0f;
     float            m_zoom          = 1.0f;
     float            m_panX          = 0.0f;   // world-space horizontal camera offset
+    float            m_ledSelect     = 1.0f;   // SELECT lamp brightness (panel-driven)
+    bool             m_ledError      = false;  // red fault lamp
     int              m_contentWidth  = 0;
     int              m_contentHeight = 0;
 
@@ -123,6 +149,16 @@ private:
     // (m_meshGlass), drawn last so the platen shows through it.
     std::vector<Vertex>   m_mesh;
     std::vector<Vertex>   m_meshGlass;
+
+    // Front-panel LEDs lifted out of the static mesh so their brightness can
+    // track printer state: the LED lens faces (recolored per frame) and the
+    // clustered lamp centers that seed the glow halos. Built once by SetModel.
+    struct LedFace   { float  p[3][3]; float shade; bool red; };
+    struct LedLamp   { float  cx, cy, cz, halfW, halfH; bool red; };
+    std::vector<LedFace>   m_ledFaces;
+    std::vector<LedLamp>   m_ledLamps;
+    std::vector<Vertex>    m_ledBatch;    // scratch: recolored lens faces
+    std::vector<Vertex>    m_glowBatch;   // scratch: halo fans
     float                 m_meshFrontZ  = 0.0f;   // front face plane (badge sits on it)
     float                 m_platenY     = 0.0f;   // roller axis
     float                 m_platenZ     = 0.0f;
