@@ -20,12 +20,12 @@ namespace fs = std::filesystem;
 
 static constexpr int    s_kRowHeightDp        = 28;
 static constexpr int    s_kRowGapDp           = 2;
-static constexpr int    s_kBodyWidthDp        = 560;
+static constexpr int    s_kBodyWidthDp        = 620;
 static constexpr int    s_kHeaderHeightDp     = 26;
 static constexpr int    s_kHeaderGapAboveDp   = 12;
 static constexpr float  s_kFontDp             = 13.0f;
 static constexpr float  s_kHeaderFontDp       = 13.0f;
-static constexpr float  s_kSourceColumnDp     = 170.0f;
+static constexpr float  s_kSourceColumnDp     = 130.0f;
 static constexpr float  s_kStatusColumnDp     = 64.0f;
 static constexpr float  s_kColumnGapDp        = 12.0f;
 static constexpr unsigned int  s_kTickIntervalMs = 100;
@@ -330,11 +330,12 @@ void StartupDownloadDialog::PaintEntryRow (
 
 
 
-    cb.SetChecked (entry.selected);
-    cb.SetEnabled (entry.selectable && !downloading);
-    cb.SetRect    (cbRect);
-    cb.SetLabel   (entry.displayName);
-    cb.Paint      (*ctx.painter, *ctx.text, *ctx.theme);
+    cb.SetChecked         (entry.selected);
+    cb.SetEnabled         (entry.selectable && !downloading);
+    cb.SetRect            (cbRect);
+    cb.SetLabel           (entry.displayName);
+    cb.SetSingleLineLabel (true);   // ellipsize; never wrap into the next row
+    cb.Paint              (*ctx.painter, *ctx.text, *ctx.theme);
 
     sourceLabel.SetText (entry.source);
     sourceLabel.SetRect ({ (LONG) (m.x + cbAvailW + m.colGap), (LONG) y,

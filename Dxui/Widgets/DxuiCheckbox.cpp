@@ -8,6 +8,58 @@
 
 
 
+namespace
+{
+    // Longest prefix of `label` that fits `maxWidth` with a trailing ellipsis;
+    // returns `label` unchanged when it already fits.
+    std::wstring EllipsizeToWidth (IDxuiTextRenderer & text,
+                                   const std::wstring & label,
+                                   float                fontDip,
+                                   float                maxWidth)
+    {
+        float  w = 0.0f;
+        float  h = 0.0f;
+
+        if (label.empty () || maxWidth <= 0.0f)
+        {
+            return label;
+        }
+
+        text.MeasureString (label.c_str (), fontDip, DxuiTheme::kBodyFace, w, h);
+
+        if (w <= maxWidth)
+        {
+            return label;
+        }
+
+        const wchar_t * const  kEllipsis = L"\x2026";   // …
+        size_t                 lo        = 0;
+        size_t                 hi        = label.size ();
+
+        while (lo < hi)
+        {
+            size_t        mid  = (lo + hi + 1) / 2;
+            std::wstring  cand = label.substr (0, mid) + kEllipsis;
+
+            text.MeasureString (cand.c_str (), fontDip, DxuiTheme::kBodyFace, w, h);
+
+            if (w <= maxWidth)
+            {
+                lo = mid;
+            }
+            else
+            {
+                hi = mid - 1;
+            }
+        }
+
+        return (lo == 0) ? std::wstring (kEllipsis) : label.substr (0, lo) + kEllipsis;
+    }
+}
+
+
+
+
 
 ////////////////////////////////////////////////////////////////////////////////
 //
@@ -199,16 +251,23 @@ void DxuiCheckbox::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
                              theme.FocusRing());
     }
 
-    IGNORE_RETURN_VALUE (hr, text.DrawString (m_label.c_str(),
-                                              boxLeft + boxSize + labelGap,
+    float         labelX = boxLeft + boxSize + labelGap;
+    float         labelW = (float) (m_boundsDip.right - m_boundsDip.left) - boxSize - labelGap;
+    std::wstring  drawn  = m_singleLineLabel ? EllipsizeToWidth (text, m_label, fontDip, labelW)
+                                             : m_label;
+
+    IGNORE_RETURN_VALUE (hr, text.DrawString (drawn.c_str(),
+                                              labelX,
                                               (float) m_boundsDip.top,
-                                              (float) (m_boundsDip.right - m_boundsDip.left) - boxSize - labelGap,
+                                              labelW,
                                               (float) (m_boundsDip.bottom - m_boundsDip.top),
                                               textColor,
                                               fontDip,
                                               DxuiTheme::kBodyFace,
                                               DxuiTextHAlign::Left,
-                                              DxuiTextVAlign::Center));
+                                              DxuiTextVAlign::Center,
+                                              DxuiFontWeight::Normal,
+                                              !m_singleLineLabel));
 }
 
 
