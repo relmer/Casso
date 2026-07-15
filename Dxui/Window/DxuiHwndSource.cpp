@@ -21,6 +21,53 @@
 
 
 
+namespace
+{
+    //
+    //  Nudge a freshly-created, still-hidden CW_USEDEFAULT window the
+    //  minimum needed so its whole frame sits within its monitor's work
+    //  area — fixing a cascade that would open the bottom edge (and its
+    //  command-button row) beneath the taskbar — without otherwise moving
+    //  it (position only, no re-centering over the owner). rcWork already
+    //  excludes the taskbar.
+    //
+    void  NudgeWindowOnScreen (HWND hwnd)
+    {
+        RECT         rect    = {};
+        HMONITOR     monitor = nullptr;
+        MONITORINFO  info    = { sizeof (info) };
+        RECT         work    = { 0, 0, 1920, 1080 };
+        POINT        placed  = {};
+
+
+
+        if (hwnd != nullptr && GetWindowRect (hwnd, &rect) != FALSE)
+        {
+            monitor = MonitorFromWindow (hwnd, MONITOR_DEFAULTTONEAREST);
+            if (monitor != nullptr && GetMonitorInfoW (monitor, &info) != FALSE)
+            {
+                work = info.rcWork;
+            }
+            else if (SystemParametersInfoW (SPI_GETWORKAREA, 0, &work, 0) == FALSE)
+            {
+                work = { 0, 0, 1920, 1080 };
+            }
+
+            placed = DxuiHwndSource::ClampToWorkArea (rect, work);
+
+            if (placed.x != rect.left || placed.y != rect.top)
+            {
+                SetWindowPos (hwnd, nullptr, placed.x, placed.y, 0, 0,
+                              SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE);
+            }
+        }
+    }
+}
+
+
+
+
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  DxuiHwndSource::NotifySystemButtonsMaximizedInTree
@@ -295,6 +342,9 @@ HRESULT DxuiHwndSource::Create (const CreateParams & params)
     }
     else
     {
+        // Let the OS pick a cascade position (the window keeps its natural
+        // placement, not re-centered over the owner); NudgeWindowOnScreen
+        // below only corrects it if it lands partly off-screen.
         windowX  = CW_USEDEFAULT;
         windowY  = CW_USEDEFAULT;
         widthPx  = MulDiv (params.initialSizeDip.cx, (int) dpiAtCreate, (int) s_kDefaultDpi);
@@ -319,6 +369,15 @@ HRESULT DxuiHwndSource::Create (const CreateParams & params)
     // Re-seed scaler from the per-window DPI now that the HWND knows
     // which monitor it landed on.
     m_scaler.SetDpi (GetDpiForWindow (m_hwnd));
+
+    // A CW_USEDEFAULT dialog can cascade with its lower edge — and button
+    // row — beneath the taskbar. Nudge the still-hidden window the minimum
+    // needed to sit fully within its monitor's work area (position only, no
+    // re-centering). The saved-RECT path places itself and is left as-is.
+    if (!params.useInitialWindowRectPx)
+    {
+        NudgeWindowOnScreen (m_hwnd);
+    }
 
     // Apply optional app icons. Win32 MessageBox dialogs + the
     // taskbar pick the icon up via WM_GETICON, NOT WNDCLASS::hIcon,
@@ -363,6 +422,39 @@ Error:
         Destroy();
     }
     return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiHwndSource::ClampToWorkArea
+//
+//  Pure placement geometry (declared in the header). Shifts `windowRect`
+//  the minimum needed so the whole frame lies within `work`, returning the
+//  new top-left. The bottom / right are corrected first, so a window larger
+//  than the work area on an axis then pins to work's top / left there —
+//  keeping the caption on-screen rather than the bottom button row off it.
+//  A window that already fits is returned at its current position.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+POINT DxuiHwndSource::ClampToWorkArea (const RECT & windowRect, const RECT & work)
+{
+    LONG   width  = windowRect.right  - windowRect.left;
+    LONG   height = windowRect.bottom - windowRect.top;
+    POINT  result = { windowRect.left, windowRect.top };
+
+
+
+    if (result.x + width  > work.right)  { result.x = work.right  - width;  }
+    if (result.y + height > work.bottom) { result.y = work.bottom - height; }
+    if (result.x < work.left)            { result.x = work.left;            }
+    if (result.y < work.top)             { result.y = work.top;             }
+
+    return result;
 }
 
 

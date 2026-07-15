@@ -10,6 +10,7 @@
 #include "Core/MachineConfig.h"
 #include "Core/MachineConfigUpgrade.h"
 #include "Core/PathResolver.h"
+#include "EmbeddedMachineConfigs.h"
 #include "External/StbVorbisWrapper.h"
 #include "resource.h"
 #include "Ui/ThemeManager.h"
@@ -158,28 +159,13 @@ static std::wstring MachineDisplayName (std::string_view machineId)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  EmbeddedConfig
+//  EmbeddedConfig / s_kEmbeddedConfigs
+//
+//  Moved to EmbeddedMachineConfigs.h (included above) so AssetBootstrapTests
+//  reads the same stamp table and can assert in CI that each stamp matches
+//  its embedded JSON's $cassoMachineVersion.
 //
 ////////////////////////////////////////////////////////////////////////////////
-
-struct EmbeddedConfig
-{
-    int          resourceId;
-    string_view  machineName;        // "Apple2", "Apple2Plus", "Apple2e"
-    string_view  fileName;           // "<machineName>.json"
-    int          currentVersion;     // must match "$cassoMachineVersion" in the embedded JSON
-};
-
-
-
-
-
-static constexpr EmbeddedConfig s_kEmbeddedConfigs[] =
-{
-    { IDR_MACHINE_APPLE2,     "Apple2",     "Apple2.json",     6 },
-    { IDR_MACHINE_APPLE2PLUS, "Apple2Plus", "Apple2Plus.json", 8 },
-    { IDR_MACHINE_APPLE2E,    "Apple2e",    "Apple2e.json",    7 },
-};
 
 
 
