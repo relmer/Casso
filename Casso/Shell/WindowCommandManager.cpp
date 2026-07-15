@@ -467,7 +467,8 @@ HRESULT WindowCommandManager::PromptForDiskImage (int drive)
     ComPtr<IFileOpenDialog>          dialog;
     ComPtr<IShellItem>               item;
     PWSTR                            pszPath    = nullptr;
-    COMDLG_FILTERSPEC                filters[1] = { { L"Disk images", L"*.dsk;*.nib;*.woz;*.po" } };
+    COMDLG_FILTERSPEC                filters[2] = { { L"Disk images", L"*.dsk;*.do;*.nib;*.woz;*.po" },
+                                                    { L"All files",   L"*.*" } };
 
 
 
@@ -477,7 +478,7 @@ HRESULT WindowCommandManager::PromptForDiskImage (int drive)
                            IID_PPV_ARGS (&dialog));
     CHR (hr);
 
-    hr = dialog->SetFileTypes (1, filters);
+    hr = dialog->SetFileTypes (ARRAYSIZE (filters), filters);
     CHR (hr);
 
     hr = dialog->Show (m_shell.m_hwnd);
