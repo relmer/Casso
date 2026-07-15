@@ -825,9 +825,12 @@ HRESULT SettingsPanelState::ExtractMachineInfo (
             {
                 continue;
             }
-            IGNORE_RETURN_VALUE (hrRead, entry.GetString ("address", addr));
-            IGNORE_RETURN_VALUE (hrRead, entry.GetString ("size",    size));
-            IGNORE_RETURN_VALUE (hrRead, entry.GetString ("bank",    bank));
+            hrRead = entry.GetString ("address", addr);
+            IGNORE_RETURN_VALUE (hrRead, S_OK);
+            hrRead = entry.GetString ("size", size);
+            IGNORE_RETURN_VALUE (hrRead, S_OK);
+            hrRead = entry.GetString ("bank", bank);
+            IGNORE_RETURN_VALUE (hrRead, S_OK);
 
             if (bank.empty() || bank == "main")
             {
@@ -850,9 +853,12 @@ HRESULT SettingsPanelState::ExtractMachineInfo (
         std::string  size;
         std::string  bankSizeStr;
 
-        IGNORE_RETURN_VALUE (hrRead, romObj->GetString ("address",     addr));
-        IGNORE_RETURN_VALUE (hrRead, romObj->GetString ("size",        size));
-        IGNORE_RETURN_VALUE (hrRead, romObj->GetString ("romBankSize", bankSizeStr));
+        hrRead = romObj->GetString ("address", addr);
+        IGNORE_RETURN_VALUE (hrRead, S_OK);
+        hrRead = romObj->GetString ("size", size);
+        IGNORE_RETURN_VALUE (hrRead, S_OK);
+        hrRead = romObj->GetString ("romBankSize", bankSizeStr);
+        IGNORE_RETURN_VALUE (hrRead, S_OK);
 
         uint32_t  bankSize = ParseHex (bankSizeStr);
 

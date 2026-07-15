@@ -767,7 +767,8 @@ HRESULT EmulatorShell::Initialize (
             // Persisted theme name is unknown (renamed, deleted, or
             // first-run with a stale default) -- fall back to the
             // canonical built-in so the listener still fires.
-            IGNORE_RETURN_VALUE (hrActivate, m_themeManager->Activate ("Skeuomorphic"));
+            hrActivate = m_themeManager->Activate ("Skeuomorphic");
+            IGNORE_RETURN_VALUE (hrActivate, S_OK);
         }
 
         // Apply the persisted per-machine colorMode (and any other
@@ -2863,11 +2864,13 @@ int EmulatorShell::RunMessageLoop()
 
         if (m_disk2DebugPanel != nullptr)
         {
-            IGNORE_RETURN_VALUE (hr, m_disk2DebugPanel->RenderFrame());
+            hr = m_disk2DebugPanel->RenderFrame();
+            IGNORE_RETURN_VALUE (hr, S_OK);
         }
         if (m_inputDebugPanel != nullptr)
         {
-            IGNORE_RETURN_VALUE (hr, m_inputDebugPanel->RenderFrame());
+            hr = m_inputDebugPanel->RenderFrame();
+            IGNORE_RETURN_VALUE (hr, S_OK);
         }
         if (m_mainMenu.IsOpen())
         {

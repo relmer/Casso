@@ -228,16 +228,17 @@ void JoystickToggleButton::Paint (IDxuiPainter & painter, IDxuiTextRenderer & te
 
     m_led.Paint (painter, coreArgb, haloArgb);
 
-    IGNORE_RETURN_VALUE (hr, text.DrawString (Label(),
-                                              textX,
-                                              bt,
-                                              (float) m_bounds.right - textX,
-                                              bh,
-                                              theme.navItemText,
-                                              fontDip,
-                                              s_kFontFamily,
-                                              DxuiTextRenderer::HAlign::Left,
-                                              DxuiTextRenderer::VAlign::CenterOnCapHeight));
+    hr = text.DrawString (Label(),
+                          textX,
+                          bt,
+                          (float) m_bounds.right - textX,
+                          bh,
+                          theme.navItemText,
+                          fontDip,
+                          s_kFontFamily,
+                          DxuiTextRenderer::HAlign::Left,
+                          DxuiTextRenderer::VAlign::CenterOnCapHeight);
+    IGNORE_RETURN_VALUE (hr, S_OK);
 }
 
 
