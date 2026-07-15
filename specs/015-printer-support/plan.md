@@ -12,12 +12,14 @@ rasterizes the C. Itoh 8510 + Apple command subset onto a native 160×144 dpi
 dot grid. A deterministic CPU "paper renderer" turns the dot grid into
 true-geometry ink imagery (round overlapping pin splats, overprint color
 mixing, ribbon-weave modulation). Output is job-based: a single continuous
-fanfold strip per machine that persists across sessions, ejected explicitly to
-host print services — PNG file or Windows printer — with clipboard copy as an
-on-demand action. A compact chrome indicator plus an on-demand panel window
+fanfold strip per machine that persists across sessions and is delivered on
+demand and non-destructively to host print services from the preview panel —
+Print (Windows printer), Save (PNG file), Copy (clipboard) — each leaving the
+paper loaded; Discard is the sole tear-off. There is no stored destination
+preference. A compact chrome indicator plus an on-demand panel window
 (skeuomorphic printer with animated, perforated paper and sampled audio, paced
 at realistic print speed) provide discoverability, preview-before-print, and
-the eject/copy/discard controls. The panel's preview is a live-print
+the Print/Save/Copy/Discard controls. The panel's preview is a live-print
 presentation (FR-032–034): a ~1-page viewport follows the print head with an
 incremental new-rows-only render, wheel/touch/arrow scrollback snaps back to
 the live row, ink appears per head column as the head sweeps, and a contained
@@ -60,7 +62,7 @@ static lib + Casso Win32 shell + UnitTest)
 **Performance Goals**: FR-018 — zero measurable emulation impact: the card's
 guest-facing `Write` is an O(1) ring-buffer push on the emulation thread
 (pattern: `InputEventRing`). Interpretation/rasterization drain on a dedicated
-printer worker thread. Eject-time render of a typical 1-3 page job at 576 dpi
+printer worker thread. Delivery-time render of a typical 1-3 page job at 576 dpi
 completes in ≤ ~2 s; long strips scale linearly (FR-028 allows it). Preview:
 per-frame cost flat regardless of strip length — the panel renders only
 newly-produced rows into a persistent buffer inside a ~1-page viewport
@@ -98,15 +100,16 @@ violations to justify; Complexity Tracking omitted.*
   the checked-in `.a65` source with the in-repo assembler and compares to the
   embedded bytes.
 - **III. UX Consistency**: Printing settings join `SettingsSheet` as a new
-  page (Disk-tab visibility precedent); eject/copy/discard also exposed as
-  `WindowCommandManager` commands; existing notice/toast and themed-dialog
-  patterns reused (printer dialogs are `DxuiMessageBox`, owner-centered).
+  page (Disk-tab visibility precedent); Copy/Discard also exposed as
+  `WindowCommandManager` commands (Print/Save are panel-only, per-action);
+  existing notice/toast and themed-dialog patterns reused (printer dialogs are
+  `DxuiMessageBox`, owner-centered).
   Backward compatibility: config upgrade is additive and the card is
   per-machine disable-able; with the card disabled, slot 1 behavior is
   bit-identical to today.
 - **IV. Performance**: Emulation-thread work is O(1) per guest write; no
   allocation on the hot path (fixed ring). Rendering/delivery run off-thread
-  at eject time; preview work is viewport-bounded (never O(strip)) per frame.
+  at delivery time; preview work is viewport-bounded (never O(strip)) per frame.
 - **V. Simplicity**: One printer, one card, one command set (SSC/6551
   explicitly deferred to the //c effort). No speculative abstraction beyond
   the `IPrinterByteSink` seam the //c serial port will eventually reuse. The
@@ -174,7 +177,7 @@ Casso/
 ├── Ui/Settings/PrintingPage.h/.cpp   # Settings → Printing tab
 ├── Config/GlobalUserPrefs.h/.cpp     # MODIFIED: printing fields
 ├── AssetBootstrap.h/.cpp             # MODIFIED: printer audio sample set row
-├── Shell/WindowCommandManager.cpp    # MODIFIED: eject / copy / discard / preview commands, delivery sinks + WholeStripDpi cap + delivery tracing
+├── Shell/WindowCommandManager.cpp    # MODIFIED: print / save / copy / discard / preview commands, delivery sinks + WholeStripDpi cap + delivery tracing
 └── Machines/*.json (embedded)        # MODIFIED: slot 1 parallel-printer default
 
 Dxui/

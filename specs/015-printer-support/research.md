@@ -186,7 +186,7 @@ designed out.
 **Decision v1**: Classic `PrintDlgEx` + GDI: for each 11" page span,
 `StretchDIBits` the renderer output into the printer DC at true scale
 (`GetDeviceCaps(LOGPIXELSX/Y)`), centered, clipped per FR-014. Page count
-shown in the eject confirmation per FR-014.
+shown in the Print confirmation per FR-014.
 
 **Spike (time-boxed, before UI polish tasks)**: WinRT `PrintManager` via
 `IPrintManagerInterop` — the modern system dialog with live preview, fed by
@@ -202,7 +202,8 @@ indexed PNG — lossless, tiny for mostly-white strips) plus
 `PendingPrint/strip.json` sidecar (format version, paper-advance position,
 page-boundary rows, cap state). Serialize/deserialize to memory buffers in
 `PrintJobSerializer` (pure, unit-tested); `PrintJobStore` does the file I/O.
-Save on clean exit and after eject/discard; missing/corrupt/unknown-version
+Save on clean exit and after deliver (Print/Save/Copy)/discard; cleared only
+on discard (delivery is non-destructive); missing/corrupt/unknown-version
 files → start with empty paper, silently (spec: crash loss acceptable).
 
 **Alternatives**: proprietary binary blob — rejected (PNG is already
@@ -232,7 +233,7 @@ text, graphics rows at the equivalent head-pass rate, line feeds ~20 ms per
 `PrinterAudioSource` events from the same clock. The raster is always
 complete ahead of the presentation; a bounded presentation queue coalesces
 when the guest outruns the show by more than ~2 pages (jump-cut forward with
-a fast-feed sound); eject/discard fast-forward instantly.
+a fast-feed sound); deliver/discard fast-forward instantly.
 
 **Rationale**: Sight and sound stay in lockstep from one event stream; the
 guest is never throttled (FR-002/FR-018); impatience has an escape hatch.

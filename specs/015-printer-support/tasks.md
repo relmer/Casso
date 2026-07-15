@@ -54,16 +54,16 @@
 - [ ] T025 [P] [US2] Unit tests: seven-color golden bands, overprint composites, no-color-command → black in `UnitTest/PrinterTests/ImageWriterInterpreterTests.cpp` + `PaperRendererGoldenTests.cpp`
 - [ ] T026 [US2] End-to-end: four-color ribbon Print Shop card (quickstart scenario 2); capture color byte stream as fixture
 
-## Phase 5: User Story 3 — Choosing the Output Destination (P3)
+## Phase 5: User Story 3 — Delivering the Printout: Print / Save / Copy (P3)
 
-**Independent test**: each destination delivers a one-page job; Copy pastes both formats; cancel retains.
+**Independent test**: Print / Save / Copy each deliver the same one-page strip non-destructively (paper stays loaded); Copy pastes both formats; cancel retains. (The delivery destination is chosen per action, not a stored setting — see the 2026-07-14 clarification.)
 
-- [ ] T027 [P] [US3] Add printing fields to `Casso/Config/GlobalUserPrefs.h/.cpp` per contracts/printing-settings.md (round-trip preserved)
-- [ ] T028 [US3] Create Settings → Printing tab (`Casso/Ui/Settings/PrintingPage.h/.cpp`), register in `Casso/Ui/Settings/SettingsSheet.cpp` (FR-011; destination, folder picker, dpi, dot style, audio volume/mute placeholder)
+- [ ] T027 [P] [US3] Add printing fields to `Casso/Config/GlobalUserPrefs.h/.cpp` per contracts/printing-settings.md (round-trip preserved; render options only — resolution + dot style)
+- [ ] T028 [US3] Create Settings → Printing tab (`Casso/Ui/Settings/PrintingPage.h/.cpp`), register in `Casso/Ui/Settings/SettingsSheet.cpp` (FR-011; dpi, dot style, audio volume/mute placeholder — no destination selector or folder picker: delivery target is per-action)
 - [ ] T029 [US3] SPIKE (time-boxed 1 day): `IPrintManagerInterop` modern print dialog from unpackaged exe; record outcome here and in research.md R-009; choose dialog path
 - [ ] T030 [US3] Implement Windows printer sink (dialog per R-009 outcome, GDI true-scale centered pages via StretchDIBits at device dpi, page-count confirmation before dialog, cancel retains strip; print/spooler failure notifies the user and retains the strip for retry) in `Casso/Print/HostPrintServices.h/.cpp` (FR-014, output-failure edge case)
 - [ ] T031 [US3] Implement clipboard copy (registered "PNG" format immediate + delayed-render CF_DIB with size cap; clipboard-open/unavailable failure notifies the user and leaves the strip untouched) in `Casso/Print/HostPrintServices.h/.cpp` (FR-013, output-failure edge case) + Copy menu command in `Casso/Shell/WindowCommandManager.cpp`
-- [ ] T032 [US3] End-to-end: quickstart scenario 3 (PDF via Microsoft Print to PDF, Paint paste, editor paste, cancel, persistence of destination selection); assert a destination change in Settings takes effect on the very next eject with no relaunch (SC-007)
+- [ ] T032 [US3] End-to-end: quickstart scenario 3 (PDF via Microsoft Print to PDF, Paint paste, editor paste, cancel); assert one rendered strip can be Printed AND Saved AND Copied without re-printing because each delivery leaves the paper loaded (SC-007)
 
 ## Phase 6: User Story 4 — The Printer on the Desk (P4)
 

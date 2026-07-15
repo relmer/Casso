@@ -31,16 +31,17 @@ clock), `PrinterAudioSourceTests` (event-voice scheduling, synthetic PCM).
 1. **US1 — Print Shop → PNG**: boot Print Shop; setup: printer "Apple DMP,
    ImageWriter, Scribe", interface "Apple II Parallel Interface", slot 1,
    four-color ribbon; design and print a sign. Expect: panel auto-reveals on
-   first bytes, paper animates with audio, press Form Feed → PNG appears in
-   the configured folder, monochrome sign, true geometry (circle test:
-   width == height ±1%, SC-009).
+   first bytes, paper animates with audio, press Save → choose a path → PNG
+   written there (default `<Pictures>/Casso Prints`), monochrome sign, true
+   geometry (circle test: width == height ±1%, SC-009).
 2. **US2 — color**: print a color card with the four-color ribbon selected.
    Expect all seven colors; composites where colors overlap.
-3. **US3 — destinations**: switch Settings → Printing to Windows printer;
-   eject shows page count then the print dialog; "Microsoft Print to PDF"
-   yields a PDF at true scale. Copy button pastes into Paint (legacy DIB) and
-   into an editor that reads "PNG" format at full fidelity. Cancel the dialog
-   → strip stays pending.
+3. **US3 — delivery (Print / Save / Copy, non-destructive)**: with a strip on
+   the paper, press Print → it states the page count then shows the Windows
+   print dialog ("Microsoft Print to PDF" yields a PDF at true scale); the
+   paper stays loaded afterward, so Save then writes a PNG and Copy pastes into
+   Paint (legacy DIB) and into an editor that reads "PNG" format at full
+   fidelity — all from the one printout. Cancel a dialog → strip unchanged.
 4. **US4 — widget**: card enabled → indicator present, drives untouched;
    `PR#1` from BASIC reveals panel; close panel mid-job → indicator blinks
    pending; hover shows config summary; discard prompts, then clears.
@@ -50,8 +51,9 @@ clock), `PrinterAudioSourceTests` (event-voice scheduling, synthetic PCM).
    under DOS 3.3 likewise.
 7. **US7 — recognition**: mount `print shop.dsk` (or a WOZ with META title)
    → one dismissible notice with setup answers; unknown disk → nothing.
-8. **FR-026 — persistence**: print, don't eject, quit Casso, relaunch, open
-   the same machine → paper restored, indicator pending; eject delivers.
+8. **FR-026 — persistence**: print, don't deliver, quit Casso, relaunch, open
+   the same machine → paper restored, indicator pending; Save / Print deliver
+   the restored strip, Discard clears it.
 9. **US4 preview redesign — long banner (FR-032/033/034, SC-010/011)**: print a
    long (many-page) Print Shop banner. Expect: the preview auto-opens on the
    fresh print and shows the head sweeping left→right laying ink (partial lines
@@ -59,7 +61,7 @@ clock), `PrinterAudioSourceTests` (event-voice scheduling, synthetic PCM).
    newest rows; scroll back with wheel / Up-Down arrows to review earlier pages,
    then pause ~2 s → view snaps back to the printing row. Throughout, Casso
    memory stays bounded and the preview does not slow as the strip grows.
-   Deliver: Copy and Finish→PNG complete without a multi-GB spike (delivery dpi
+   Deliver: Copy and Save→PNG complete without a multi-GB spike (delivery dpi
    auto-caps for very tall strips). Windows-printer failures now trace to the
    debug log (driver, geometry, failing GDI call + GetLastError).
 

@@ -4,8 +4,6 @@
 
 ```json
 {
-  "printDestination": "pngFile",        // "pngFile" | "windowsPrinter"
-  "printPngFolder": "C:/Users/.../Pictures/Casso Prints",
   "printOutputDpi": 576,                 // 288 | 576 (FR-028)
   "printDotStyle": "ink",               // "ink" | "plain" (FR-027)
   "printerAudioMuted": false,
@@ -13,8 +11,13 @@
 }
 ```
 
-Surfaced on Settings → Printing (new `PrintingPage`, FR-011). Unknown fields
-preserved on round-trip per existing prefs behavior.
+Surfaced on Settings → Printing (`PrintingPage`, FR-011): only the render
+options (resolution + dot style). The delivery target is NOT a stored
+preference — it is chosen per action by the preview's Print / Save / Copy
+controls (FR-013/FR-014), so there is no `printDestination` and no
+`printPngFolder`; Save prompts for the path via a file dialog defaulting to
+`<Pictures>/Casso Prints`. Unknown fields (including these two if present in
+an older prefs file) are preserved on round-trip per existing prefs behavior.
 
 ## Machine config slot entry (per machine, FR-001)
 
@@ -47,10 +50,11 @@ Location: `<per-machine user state>/PendingPrint/`
 ```
 
 Rules: load at machine open (missing/corrupt/newer version → empty paper,
-silent); write on clean exit, eject, discard; delete directory contents on
-eject/discard success. Renderer settings are deliberately NOT persisted here
-— the native grid is the source of truth and re-renders under current
-settings (research R-010).
+silent); write on clean exit and after Print / Save / Copy / discard; delete
+directory contents on discard success only (Print / Save / Copy are
+non-destructive and keep the strip). Renderer settings are deliberately NOT
+persisted here — the native grid is the source of truth and re-renders under
+current settings (research R-010).
 
 ## Recognition signature table (embedded, FR-022/023/025)
 

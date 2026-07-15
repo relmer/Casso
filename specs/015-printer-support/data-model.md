@@ -50,8 +50,10 @@ Input: bytes. Output: calls into `PrintRaster` (strike cells) and an ordered
 | capReached | bool | 60 form lengths (FR-015) |
 
 Lifecycle (state transitions): `Empty → Printing (first strike) → Pending
-(guest idle, un-ejected) → Empty (eject delivers whole strip / discard)`.
-Cancelled delivery: `Pending` unchanged. Guest reset: no transition.
+(guest idle, un-delivered) → Empty (discard only)`. Print / Save / Copy
+deliver the strip non-destructively and leave it `Pending` (the paper stays
+loaded); only Discard clears to `Empty`. Cancelled delivery: `Pending`
+unchanged. Guest reset: no transition.
 
 ### PrinterViewport (pure, clock-injected — FR-033)
 
@@ -97,19 +99,20 @@ identical to `Disk2AudioSource`.
 |---|---|---|
 | eventQueue | deque<PrinterEvent> | drained at paced rate (R-012) |
 | presentedRow | int | paper animation position ≤ raster rowsUsed |
-| pacing | consts | ~250 cps head, LF ms/row; fast-forward on eject/discard |
+| pacing | consts | ~250 cps head, LF ms/row; fast-forward on deliver/discard |
 
 ### PrintJobStore (persistence, FR-026)
 
 Sidecar schema (versioned JSON): `{ formatVersion, paperRow, rowsUsed,
 pageBoundaryRows[], capReached }` + `strip.png` (native-grid indexed PNG).
-Load at machine open; save on clean exit, eject, discard.
+Load at machine open; save on clean exit and after Print / Save / Copy /
+discard; cleared only on discard (delivery is non-destructive).
 
 ### HostPrintServices
 
 | Sink | Input | Output |
 |---|---|---|
-| PngFileSink | rendered RGBA + dpi | timestamped file in configured folder (FR-012) |
+| SavePngSink | rendered RGBA + dpi | PNG at a user-picked path (file dialog), default `<Pictures>/Casso Prints` (FR-012) |
 | WindowsPrintSink | per-page rendered RGBA | PrintDlgEx/GDI (or PrintManager per R-009 spike), true scale (FR-014) |
 | ClipboardCopy | rendered RGBA + dpi | "PNG" format + delayed CF_DIB (FR-013) |
 
@@ -117,11 +120,13 @@ Load at machine open; save on clean exit, eject, discard.
 
 | Field | Type | Default |
 |---|---|---|
-| printDestination | enum {PngFile, WindowsPrinter} | PngFile |
-| printPngFolder | path string | `<Pictures>/Casso Prints` (created on first use) |
 | printOutputDpi | int {288, 576} | 576 |
 | printDotStyle | enum {Ink, Plain} | Ink |
 | printerAudioVolume / Mute | existing drive-audio pattern | on, moderate |
+
+Delivery target is not stored: Print / Save / Copy choose it per action
+(Save prompts via a file dialog defaulting to `<Pictures>/Casso Prints`), so
+there is no `printDestination` / `printPngFolder`.
 
 ### Machine config (per machine)
 
@@ -133,8 +138,9 @@ enabled: true }` — default in embedded machine JSONs; added by
 
 Indicator: `{ visible, activity (idle/receiving/pending/error), tooltip
 config summary }`. Panel: `{ shown, presentedRow, viewport (PrinterViewport),
-perforations from pageBoundaryRows, controls: FormFeed(eject), Copy,
-Discard(confirm), scroll hint }`.
+perforations from pageBoundaryRows, zoom, controls: Print, Save, Copy (all
+non-destructive), FormFeed(advance to next page top), Discard(confirm),
+scroll hint }`.
 
 ### Panel content texture + 3D scene (FR-032)
 
@@ -155,12 +161,13 @@ guest CPU ──write──▶ PrinterCard ──ring──▶ ImageWriterInterp
                                    PrinterPresenter ──paced──▶ PrinterPanel/paper │
                                           │                └──▶ PrinterAudioSource│
                                           ▼                                       ▼
-                              eject/copy/discard ──────▶ PaperRenderer ──RGBA──▶ HostPrintServices
+                       print/save/copy/discard ──────▶ PaperRenderer ──RGBA──▶ HostPrintServices
                                                                        └────────▶ PrintJobStore (persist native grid)
 ```
 
-**Ring flush before delivery**: eject, copy, and discard first force a
+**Ring flush before delivery**: Print, Save, Copy, and discard first force a
 synchronous `ring → interpreter → raster` drain, so no in-flight byte is left
-unrendered; only then do they render/deliver/clear the complete strip. The
-presentation may still be mid-replay (R-012) — it fast-forwards — but the
+unrendered; only then do they render/deliver the complete strip (Print / Save
+/ Copy keep it; only discard clears). The presentation may still be mid-replay
+(R-012) — it fast-forwards — but the
 raster operated on is always complete.
