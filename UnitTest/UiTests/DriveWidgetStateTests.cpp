@@ -139,14 +139,17 @@ public:
         Assert::IsFalse (st.motorOn.load (std::memory_order_relaxed));
     }
 
-    TEST_METHOD (IsSupportedDiskImageExtension_AcceptsAllFourCanonical)
+    TEST_METHOD (IsSupportedDiskImageExtension_AcceptsAllFiveCanonical)
     {
         Assert::IsTrue (IsSupportedDiskImageExtension (L"a.dsk"));
+        Assert::IsTrue (IsSupportedDiskImageExtension (L"a.do"));
         Assert::IsTrue (IsSupportedDiskImageExtension (L"a.nib"));
         Assert::IsTrue (IsSupportedDiskImageExtension (L"a.woz"));
         Assert::IsTrue (IsSupportedDiskImageExtension (L"a.po"));
         Assert::IsTrue (IsSupportedDiskImageExtension (L"C:\\path\\to\\BOOT.DSK"),
                         L"extension check must be case-insensitive");
+        Assert::IsTrue (IsSupportedDiskImageExtension (L"C:\\Demos\\MousePaint.DO"),
+                        L".do (DOS-ordered) must be accepted, case-insensitively");
     }
 
     TEST_METHOD (IsSupportedDiskImageExtension_RejectsUnknownAndBare)

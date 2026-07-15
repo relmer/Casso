@@ -152,13 +152,13 @@ struct DriveWidgetState
 //
 //  IsSupportedDiskImageExtension
 //
-//  Case-insensitive check for the four supported disk image extensions.
+//  Case-insensitive check for the five supported disk image extensions.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 inline bool IsSupportedDiskImageExtension (const std::wstring & path)
 {
-    static const wchar_t * const  kExts[] = { L".dsk", L".nib", L".woz", L".po" };
+    static const wchar_t * const  kExts[] = { L".dsk", L".do", L".nib", L".woz", L".po" };
 
     size_t  dot = path.find_last_of (L'.');
 
