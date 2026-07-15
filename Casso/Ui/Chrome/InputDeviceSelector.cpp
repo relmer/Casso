@@ -402,7 +402,7 @@ void InputDeviceSelector::Paint (IDxuiPainter & painter, IDxuiTextRenderer & tex
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-struct GlyphMap
+struct InputDeviceSelector::GlyphMap
 {
     float  bx, by, s;
     // scale < 1 shrinks the glyph about the box centre (96-grid 48,48) so

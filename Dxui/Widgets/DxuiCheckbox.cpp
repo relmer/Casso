@@ -31,7 +31,8 @@ std::wstring DxuiCheckbox::EllipsizeToWidth (IDxuiTextRenderer  & text,
         return label;
     }
 
-    IGNORE_RETURN_VALUE (hr, text.MeasureString (label.c_str(), fontDip, DxuiTheme::kBodyFace, w, h));
+    hr = text.MeasureString (label.c_str(), fontDip, DxuiTheme::kBodyFace, w, h);
+    IGNORE_RETURN_VALUE (hr, S_OK);
 
     if (w <= maxWidth)
     {
@@ -47,7 +48,8 @@ std::wstring DxuiCheckbox::EllipsizeToWidth (IDxuiTextRenderer  & text,
         size_t        mid  = (lo + hi + 1) / 2;
         std::wstring  cand = label.substr (0, mid) + kEllipsis;
 
-        IGNORE_RETURN_VALUE (hr, text.MeasureString (cand.c_str(), fontDip, DxuiTheme::kBodyFace, w, h));
+        hr = text.MeasureString (cand.c_str(), fontDip, DxuiTheme::kBodyFace, w, h);
+        IGNORE_RETURN_VALUE (hr, S_OK);
 
         if (w <= maxWidth)
         {
@@ -234,16 +236,17 @@ void DxuiCheckbox::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
 
     if (m_checked)
     {
-        IGNORE_RETURN_VALUE (hr, text.DrawString (s_kpszCheckMark,
-                                                  boxLeft,
-                                                  boxTop,
-                                                  boxSize,
-                                                  boxSize,
-                                                  glyphColor,
-                                                  boxSize * 0.95f,
-                                                  L"Segoe UI Symbol",
-                                                  DxuiTextHAlign::Center,
-                                                  DxuiTextVAlign::Center));
+        hr = text.DrawString (s_kpszCheckMark,
+                              boxLeft,
+                              boxTop,
+                              boxSize,
+                              boxSize,
+                              glyphColor,
+                              boxSize * 0.95f,
+                              L"Segoe UI Symbol",
+                              DxuiTextHAlign::Center,
+                              DxuiTextVAlign::Center);
+        IGNORE_RETURN_VALUE (hr, S_OK);
     }
 
     if (m_focused)
@@ -261,18 +264,19 @@ void DxuiCheckbox::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
     std::wstring  drawn  = m_singleLineLabel ? EllipsizeToWidth (text, m_label, fontDip, labelW)
                                              : m_label;
 
-    IGNORE_RETURN_VALUE (hr, text.DrawString (drawn.c_str(),
-                                              labelX,
-                                              (float) m_boundsDip.top,
-                                              labelW,
-                                              (float) (m_boundsDip.bottom - m_boundsDip.top),
-                                              textColor,
-                                              fontDip,
-                                              DxuiTheme::kBodyFace,
-                                              DxuiTextHAlign::Left,
-                                              DxuiTextVAlign::Center,
-                                              DxuiFontWeight::Normal,
-                                              !m_singleLineLabel));
+    hr = text.DrawString (drawn.c_str(),
+                          labelX,
+                          (float) m_boundsDip.top,
+                          labelW,
+                          (float) (m_boundsDip.bottom - m_boundsDip.top),
+                          textColor,
+                          fontDip,
+                          DxuiTheme::kBodyFace,
+                          DxuiTextHAlign::Left,
+                          DxuiTextVAlign::Center,
+                          DxuiFontWeight::Normal,
+                          !m_singleLineLabel);
+    IGNORE_RETURN_VALUE (hr, S_OK);
 }
 
 

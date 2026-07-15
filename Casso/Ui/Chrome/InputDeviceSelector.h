@@ -91,6 +91,8 @@ public:
     static void PaintMouseGlyph    (IDxuiPainter & p, const RECT & box, bool skeuo);
 
 private:
+    struct GlyphMap;   // master-grid -> box coordinate mapper (defined in the .cpp)
+
     static constexpr int    kIconDp     = 35;    // glyph box; the row height
                                                  // (icon + 2*pad = 37) fits the
                                                  // s_kJoystickButtonBandDp (43 dp)
