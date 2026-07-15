@@ -177,8 +177,8 @@ public:
             GlobalUserPrefs     p;
             std::string  json = std::string ("{\"$cassoGlobalPrefsVersion\":1,") + body + "}";
             Assert::IsTrue (SUCCEEDED (fs.WriteAllText (
-                GlobalUserPrefs::FilePath (L"C:\Casso"), json)));
-            Assert::IsTrue (SUCCEEDED (p.Load (L"C:\Casso", fs)));
+                GlobalUserPrefs::FilePath (L"C:\\Casso"), json)));
+            Assert::IsTrue (SUCCEEDED (p.Load (L"C:\\Casso", fs)));
             return p;
         };
 
