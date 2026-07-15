@@ -43,6 +43,16 @@
 //  panY programmatically with SetPanYTarget each frame; a genuine USER pan
 //  fires OnUserPanY so the owner can drop out of follow.
 //
+//  Overscroll (optional, panY only): once panY is pinned at a bound, further
+//  vertical pan spills into a separate bounded offset (SetOverscrollYMax /
+//  OverscrollY) instead of hitting a wall -- the host maps it to a whole-view
+//  translation so the content nudges past its scroll limit up to a hard stop.
+//  Follow mode springs it back to zero.
+//
+//  Cursor-anchored zoom: a wheel / pinch zoom keeps the content point under the
+//  cursor fixed (the pan targets shift by the drag scale). Button / key zoom
+//  stays centered. The host supplies the view center with SetViewCenter.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 class DxuiPanZoom
@@ -89,6 +99,18 @@ public:
     // current zoom (a drag of N pixels moves the content by N * scale units).
     void  SetDragScale (float contentPerPixelX, float contentPerPixelY);
 
+    // View center in the same pixel space as event positions, refreshed by the
+    // owner from its content rect. Anchors a wheel / pinch zoom on the cursor.
+    void  SetViewCenter (float cx, float cy) { m_viewCenterX = cx; m_viewCenterY = cy; }
+
+    // Max panY overscroll (content units) past the bounds: once panY is pinned
+    // at a bound, further pan spills here, up to +/- this. 0 = a hard stop.
+    void  SetOverscrollYMax (float maxContent) { m_overscrollMax = (maxContent > 0.0f) ? maxContent : 0.0f; }
+
+    // Current eased overscroll offset (0 within bounds); the host maps it to a
+    // whole-view translation. Sign follows the pan direction that spilled it.
+    float  OverscrollY () const { return (float) m_overscrollY.cur; }
+
     // Programmatic pan-Y (follow mode): moves the target WITHOUT counting as a
     // user pan, so it never trips OnUserPanY.
     void   SetPanYTarget (float y);
@@ -128,9 +150,15 @@ private:
         double  target = 0.0;
     };
 
-    void  ApplyZoomFactor (double factor);   // multiply zoom target, clamp
+    // Multiply the zoom target and clamp. When anchored, shift the pan targets
+    // so the content under (anchorX, anchorY) stays put; otherwise zoom about
+    // the view center.
+    void  ApplyZoomFactor (double factor, bool anchored = false,
+                           float anchorX = 0.0f, float anchorY = 0.0f);
     void  NudgePanX (double deltaContent);
     void  NudgePanY (double deltaContent, bool user);
+    void  SpillPanY (double deltaContent);      // apply a delta, overflowing into overscroll
+    void  ZoomAnchorPanY (double deltaContent); // like a pan but no OnUserPanY (keeps follow)
     void  ClampTargets ();
     bool  EaseToward (Eased & v, double dtSec, double tauSec);
     void  Changed ();
@@ -139,9 +167,14 @@ private:
     Eased   m_zoom;
     Eased   m_panX;
     Eased   m_panY;
+    Eased   m_overscrollY;   // bounded panY overflow -> host view translation
 
     double  m_panXlo = 0.0, m_panXhi = 0.0;
     double  m_panYlo = 0.0, m_panYhi = 0.0;
+    float   m_overscrollMax = 0.0f;
+
+    float   m_viewCenterX = 0.0f;
+    float   m_viewCenterY = 0.0f;
 
     float   m_dragPerPxX = 1.0f;
     float   m_dragPerPxY = 1.0f;

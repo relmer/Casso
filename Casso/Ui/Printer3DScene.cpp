@@ -88,6 +88,12 @@ namespace
     constexpr float   s_kAt[3]    = { 0.0f, 0.95f, 0.0f };
     constexpr float   s_kFovY     = 34.0f * s_kPi / 180.0f;
 
+    // World-pan hard stop (world units) at normalized +/-1: how far the whole
+    // scene may slide vertically when panning past the paper's scroll limit.
+    // ~half a view height at the paper plane -- a clear nudge that always keeps
+    // the machine on screen.
+    constexpr float   s_kWorldPanYSpan = 0.55f;
+
     // Palette (ARGB): warm ImageWriter platinum + accents.
     // The mat is deliberately lighter than the dark platen roller so the
     // roller's silhouette reads against it (they used to be near-identical).
@@ -728,6 +734,25 @@ void Printer3DScene::SetZoom (float zoom)
 void Printer3DScene::SetPanX (float panXNorm)
 {
     m_panX = std::clamp (panXNorm, -1.0f, 1.0f) * s_kPaperHalfW;
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Printer3DScene::SetWorldPanY
+//
+//  Map the normalized world pan (-1..1 = the up/down hard stop) to a world-Y
+//  translation of the whole scene. Applied to the model matrix in Render, so
+//  the printer, paper, head, and badge move together while the full-screen
+//  backdrop (identity transform) stays put.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Printer3DScene::SetWorldPanY (float panYNorm)
+{
+    m_worldPanY = std::clamp (panYNorm, -1.0f, 1.0f) * s_kWorldPanYSpan;
 }
 
 
@@ -1770,6 +1795,11 @@ void Printer3DScene::Render (const RECT & targetPx)
     vp.MaxDepth = 1.0f;
 
     TiltAboutFrontBottom (s_kBodyTiltRad, s_kBodyZFront, model);
+
+    // World pan slides the whole model up/down in world Y (row-vector
+    // translation row), moving printer + paper + overlays together against the
+    // fixed backdrop -- the "nudge past the scroll limit" travel.
+    model[13] += m_worldPanY;
 
     // Horizontal pan slides eye + look-at together in world X, revealing a
     // paper edge when zoomed (0 = centered). Vertical/depth stay put.

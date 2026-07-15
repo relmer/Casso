@@ -498,10 +498,22 @@ void PrinterPanel::SyncTransform ()
         m_panZoom.SetDragScale (perPxX, perPxY);
     }
 
+    // Cursor-anchored zoom needs the paper rect's center in the same space as
+    // event positions (PaperHit compares them directly, so m_paperRectPx is it).
+    m_panZoom.SetViewCenter ((float) (m_paperRectPx.left + m_paperRectPx.right) * 0.5f,
+                             (float) (m_paperRectPx.top  + m_paperRectPx.bottom) * 0.5f);
+
+    // World overscroll: once the paper is pinned at a scroll limit, up to half a
+    // viewport of further pan slides the whole 3D world to a hard stop instead
+    // of hitting a wall. The scene takes a normalized -1..1 (edge = stop).
+    float   overMax = (float) m_viewport.ViewportRows () * 0.5f;
+    m_panZoom.SetOverscrollYMax (overMax);
+
     if (m_scene != nullptr)
     {
         m_scene->SetZoom (zoom);
         m_scene->SetPanX (m_panZoom.PanX () / ((float) s_kStockWidthPx * 0.5f));
+        m_scene->SetWorldPanY ((overMax > 0.0f) ? (m_panZoom.OverscrollY () / overMax) : 0.0f);
     }
 
     // Zoom chrome changes rarely; refresh it only when the target moves.
@@ -591,6 +603,16 @@ void PrinterPanel::RefreshLive (PrinterWorker & worker, int64_t nowMs, bool forc
     }
 
     worker.HeadPosition (headRow, headCol);
+
+    // Adopt the worker's current activity count on the first refresh so that
+    // opening the panel over a restored / pending strip does NOT read the
+    // initial 0 -> N sync as a fresh "receiving" event -- which would flash the
+    // status LEDs bright for a full idle window before settling back to dim.
+    if (!m_activityPrimed)
+    {
+        m_renderedActivity = activity;
+        m_activityPrimed   = true;
+    }
 
     // Toolbar validity: the delivery actions need a printout on the paper;
     // Form Feed arms only once the guest print idles (feeding mid-print

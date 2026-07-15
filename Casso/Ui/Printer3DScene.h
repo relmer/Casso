@@ -70,6 +70,12 @@ public:
     // the paper is wider than the field of view) without moving the eye in.
     void     SetPanX (float panXNorm);
 
+    // Whole-world vertical pan, normalized: 0 = resting frame, +/-1 = the hard
+    // stop up / down. Translates the ENTIRE printer + paper (not the backdrop)
+    // in world Y, so panning past the paper's scroll limit nudges the machine
+    // itself rather than hitting a wall. Clamped, so it can never leave view.
+    void     SetWorldPanY (float panYNorm);
+
     // How much paper has physically fed PAST the head, as a fraction of the
     // content canvas (0 = fresh sheet, its leading edge aligned at the
     // strike line; 1 = a full page risen above the platen). The paper mesh
@@ -136,7 +142,8 @@ private:
     float            m_paperFeed01   = 1.0f;
     float            m_zoom          = 1.0f;
     float            m_panX          = 0.0f;   // world-space horizontal camera offset
-    float            m_ledSelect     = 1.0f;   // SELECT lamp brightness (panel-driven)
+    float            m_worldPanY     = 0.0f;   // world-space vertical shift of the whole scene
+    float            m_ledSelect     = 0.30f;  // green-lamp brightness, dim rest (panel-driven)
     bool             m_ledError      = false;  // red fault lamp
     int              m_contentWidth  = 0;
     int              m_contentHeight = 0;

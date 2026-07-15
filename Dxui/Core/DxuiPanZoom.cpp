@@ -30,9 +30,12 @@ bool DxuiPanZoom::OnMouse (const DxuiMouseEvent & ev)
 
             // Ctrl + wheel zooms (this is also how a Precision Touchpad pinch
             // arrives). Vertical wheel only -- a horizontal pinch is nonsense.
+            // Anchored on the cursor so the content under it stays fixed.
             if (ev.ctrl && !ev.wheelHorizontal && m_cfg.enableZoom)
             {
-                ApplyZoomFactor (ev.wheelDelta > 0.0f ? m_cfg.zoomStep : 1.0 / m_cfg.zoomStep);
+                ApplyZoomFactor (ev.wheelDelta > 0.0f ? m_cfg.zoomStep : 1.0 / m_cfg.zoomStep,
+                                 /*anchored*/ true,
+                                 (float) ev.positionDip.x, (float) ev.positionDip.y);
                 return true;
             }
 
@@ -142,13 +145,15 @@ bool DxuiPanZoom::Tick (double nowSec)
 
     if (dt <= 0.0)
     {
-        return (m_zoom.cur != m_zoom.target) || (m_panX.cur != m_panX.target) || (m_panY.cur != m_panY.target);
+        return (m_zoom.cur != m_zoom.target) || (m_panX.cur != m_panX.target) ||
+               (m_panY.cur != m_panY.target) || (m_overscrollY.cur != m_overscrollY.target);
     }
 
     bool moving = false;
     moving |= EaseToward (m_zoom, dt, m_cfg.zoomEaseTauSec);
     moving |= EaseToward (m_panX, dt, m_cfg.easeTauSec);
     moving |= EaseToward (m_panY, dt, m_cfg.easeTauSec);
+    moving |= EaseToward (m_overscrollY, dt, m_cfg.easeTauSec);
 
     if (moving)
     {
@@ -196,9 +201,16 @@ void DxuiPanZoom::SetPanYTarget (float y)
     {
         clamped = std::min (std::max ((double) y, m_panYlo), m_panYhi);
     }
-    if (clamped != m_panY.target)
+
+    // Follow mode owns the paper position again, so spring any world overscroll
+    // back home (eases via Tick), returning the view to its resting frame.
+    bool  changed = (clamped != m_panY.target) || (m_overscrollY.target != 0.0);
+
+    m_panY.target        = clamped;
+    m_overscrollY.target = 0.0;
+
+    if (changed)
     {
-        m_panY.target = clamped;
         Changed ();
     }
 }
@@ -225,6 +237,8 @@ void DxuiPanZoom::SnapPanY (float y)
 {
     m_panY.cur    = y;
     m_panY.target = y;
+    m_overscrollY.cur    = 0.0;   // torn / replaced content: world back to home
+    m_overscrollY.target = 0.0;
     ClampTargets ();
     Changed ();
 }
@@ -260,14 +274,37 @@ void DxuiPanZoom::ResetZoom ()
 
 
 
-void DxuiPanZoom::ApplyZoomFactor (double factor)
+void DxuiPanZoom::ApplyZoomFactor (double factor, bool anchored, float anchorX, float anchorY)
 {
-    double z = std::min (std::max (m_zoom.target * factor, (double) m_cfg.zoomMin), (double) m_cfg.zoomMax);
-    if (z != m_zoom.target)
+    double z0 = m_zoom.target;
+    double z1 = std::min (std::max (z0 * factor, (double) m_cfg.zoomMin), (double) m_cfg.zoomMax);
+    if (z1 == z0)
     {
-        m_zoom.target = z;
-        Changed ();
+        return;
     }
+    m_zoom.target = z1;
+
+    // Cursor-anchored zoom: shift the pan targets so the content point under the
+    // cursor stays put. The visible content span scales by z0/z1, so a point
+    // (anchor - center) pixels off-center moves by that fraction; countering it
+    // needs delta_content = (anchor - center) * contentPerPixel * (1 - z0/z1),
+    // where contentPerPixel is the drag scale at the pre-zoom magnification.
+    // Buttons / keys pass anchored = false and zoom about the center untouched.
+    if (anchored)
+    {
+        double  s = 1.0 - z0 / z1;
+
+        if (m_cfg.enablePanX && m_dragPerPxX != 0.0f)
+        {
+            NudgePanX (((double) anchorX - (double) m_viewCenterX) * (double) m_dragPerPxX * s);
+        }
+        if (m_cfg.enablePanY && m_dragPerPxY != 0.0f)
+        {
+            ZoomAnchorPanY (((double) anchorY - (double) m_viewCenterY) * (double) m_dragPerPxY * s);
+        }
+    }
+
+    Changed ();
 }
 
 
@@ -298,25 +335,93 @@ void DxuiPanZoom::NudgePanX (double deltaContent)
 
 void DxuiPanZoom::NudgePanY (double deltaContent, bool user)
 {
-    double target = m_panY.target + deltaContent;
-    if (m_panYhi >= m_panYlo)
-    {
-        target = std::min (std::max (target, m_panYlo), m_panYhi);
-    }
+    double  prevPanY = m_panY.target;
+    double  prevOver = m_overscrollY.target;
 
-    bool changed = (target != m_panY.target);
-    m_panY.target = target;
+    SpillPanY (deltaContent);
+
+    bool  changed = (m_panY.target != prevPanY) || (m_overscrollY.target != prevOver);
 
     // Direct manipulation tracks instantly; programmatic follow (user == false)
     // keeps the glide so the snap back to the live row still eases.
     if (user && m_cfg.userPanInstant)
     {
-        m_panY.cur = target;
+        m_panY.cur        = m_panY.target;
+        m_overscrollY.cur = m_overscrollY.target;
     }
 
     if (user && m_onUserPanY)
     {
         m_onUserPanY ();
+    }
+    if (changed)
+    {
+        Changed ();
+    }
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiPanZoom::SpillPanY
+//
+//  Apply a content delta to the panY target, spilling anything past the bounds
+//  into the bounded overscroll offset. panY + overscroll behave as one extended
+//  axis clamped to [lo - max, hi + max]: within [lo, hi] the overscroll stays
+//  zero; beyond, panY pins at the bound and the remainder rides overscroll (so
+//  panning back unwinds the overscroll before the paper scrolls again). With
+//  overscrollMax = 0 this is just the old hard clamp.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiPanZoom::SpillPanY (double deltaContent)
+{
+    double  base = m_panY.target + m_overscrollY.target;
+
+    if (m_panYhi < m_panYlo)   // bounds unset: free pan, no overscroll
+    {
+        m_panY.target        = base + deltaContent;
+        m_overscrollY.target = 0.0;
+        return;
+    }
+
+    double  extLo = m_panYlo - (double) m_overscrollMax;
+    double  extHi = m_panYhi + (double) m_overscrollMax;
+    double  ext   = std::min (std::max (base + deltaContent, extLo), extHi);
+
+    m_panY.target        = std::min (std::max (ext, m_panYlo), m_panYhi);
+    m_overscrollY.target = ext - m_panY.target;
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiPanZoom::ZoomAnchorPanY
+//
+//  Vertical component of a cursor-anchored zoom: moves panY (spilling into
+//  overscroll) WITHOUT firing OnUserPanY, so anchoring the zoom never drops a
+//  follow-mode owner out of follow (which would then override this next frame
+//  anyway). Snaps the eased value when direct manipulation is instant.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiPanZoom::ZoomAnchorPanY (double deltaContent)
+{
+    double  prevPanY = m_panY.target;
+    double  prevOver = m_overscrollY.target;
+
+    SpillPanY (deltaContent);
+
+    bool  changed = (m_panY.target != prevPanY) || (m_overscrollY.target != prevOver);
+
+    if (m_cfg.userPanInstant)
+    {
+        m_panY.cur        = m_panY.target;
+        m_overscrollY.cur = m_overscrollY.target;
     }
     if (changed)
     {

@@ -164,6 +164,11 @@ private:
     int64_t                 m_lastRenderMs     = 0;
     bool                    m_hasRendered      = false;
 
+    // Adopt the worker's activity count on the first refresh so opening over a
+    // restored strip doesn't read the initial sync as a fresh receive (which
+    // would flash the status LEDs bright before settling to their idle glow).
+    bool                    m_activityPrimed   = false;
+
     // panY seeding: on the first content frame (and after a tear-off) snap
     // m_panZoom's eased position onto the target instead of gliding, so
     // opening the panel over a restored strip doesn't scroll across it.

@@ -41,6 +41,15 @@ namespace
 
 
 
+    DxuiMouseEvent  WheelAt (float delta, LONG x, LONG y, bool ctrl = true)
+    {
+        DxuiMouseEvent  ev = Wheel (delta, /*horizontal*/ false, ctrl);
+        ev.positionDip     = POINT { x, y };
+        return ev;
+    }
+
+
+
     DxuiKeyEvent  CtrlKey (WPARAM vk)
     {
         DxuiKeyEvent  ev;
@@ -405,5 +414,182 @@ public:
         pz.OnMouse (Wheel (+1.0f, false, true));   // zoom
         pz.OnMouse (Wheel (-1.0f));                // pan
         Assert::IsTrue (changes >= 2);
+    }
+
+
+
+    // Cursor-anchored zoom: a ctrl+wheel at an off-center cursor shifts the pan
+    // so the content under the cursor stays put. delta = (cursor - center) *
+    // contentPerPixel * (1 - z0/z1); here (150-100)*2 * (1 - 1/1.25) = 50*2*0.2.
+    TEST_METHOD (CtrlWheelZoom_AnchorsPanXOnCursor)
+    {
+        DxuiPanZoom::Config  cfg;
+        cfg.userPanInstant = true;
+        DxuiPanZoom  pz (cfg);
+        pz.SetPanXBounds (-1000.0f, 1000.0f);
+        pz.SetPanYBounds (-1000.0f, 1000.0f);
+        pz.SetDragScale (2.0f, 3.0f);
+        pz.SetViewCenter (100.0f, 100.0f);
+
+        pz.OnMouse (WheelAt (+1.0f, 150, 100));   // zoom in, cursor 50px right of center
+        Settle (pz);
+
+        Assert::AreEqual (1.25f, pz.ZoomTarget (), 0.0001f);
+        Assert::AreEqual (20.0f, pz.PanX (), 0.01f);   // 50 * 2 * 0.2
+        Assert::AreEqual (0.0f,  pz.PanY (), 0.01f);   // cursor vertically centered
+    }
+
+
+
+    TEST_METHOD (CtrlWheelZoom_AnchorsPanYWithoutDroppingFollow)
+    {
+        DxuiPanZoom::Config  cfg;
+        cfg.userPanInstant = true;
+        DxuiPanZoom  pz (cfg);
+        pz.SetPanXBounds (-1000.0f, 1000.0f);
+        pz.SetPanYBounds (-1000.0f, 1000.0f);
+        pz.SetDragScale (2.0f, 3.0f);
+        pz.SetViewCenter (100.0f, 100.0f);
+
+        int  userPans = 0;
+        pz.SetOnUserPanY ([&] { userPans++; });
+
+        pz.OnMouse (WheelAt (+1.0f, 100, 200));   // cursor 100px below center
+        Settle (pz);
+
+        Assert::AreEqual (60.0f, pz.PanY (), 0.01f);   // 100 * 3 * 0.2
+        Assert::AreEqual (0, userPans);                // zoom anchor must not drop follow
+    }
+
+
+
+    TEST_METHOD (ButtonZoom_DoesNotPan)
+    {
+        DxuiPanZoom  pz;
+        pz.SetPanXBounds (-1000.0f, 1000.0f);
+        pz.SetPanYBounds (-1000.0f, 1000.0f);
+        pz.SetDragScale (2.0f, 3.0f);
+        pz.SetViewCenter (100.0f, 100.0f);
+
+        pz.ZoomIn ();                    // centered zoom -- no cursor anchor
+        Settle (pz);
+        Assert::IsTrue   (pz.ZoomTarget () > 1.0f);
+        Assert::AreEqual (0.0f, pz.PanX (), 0.0001f);
+        Assert::AreEqual (0.0f, pz.PanY (), 0.0001f);
+    }
+
+
+
+    // Overscroll: past the panY bound, further pan spills into a bounded offset
+    // (the host's world translation) instead of a hard wall, capped at the max.
+    TEST_METHOD (Overscroll_SpillsPastBoundToMax)
+    {
+        DxuiPanZoom::Config  cfg;
+        cfg.wheelPanY      = 20.0f;
+        cfg.userPanInstant = true;
+        DxuiPanZoom  pz (cfg);
+        pz.SetPanYBounds (-50.0f, 50.0f);
+        pz.SetOverscrollYMax (30.0f);
+
+        for (int i = 0; i < 6; i++)
+        {
+            pz.OnMouse (Wheel (-1.0f));   // push panY toward +50, then overscroll
+        }
+        Settle (pz);
+
+        Assert::AreEqual (50.0f, pz.PanY (),       0.001f);   // paper pinned at the limit
+        Assert::AreEqual (30.0f, pz.OverscrollY (), 0.001f);  // world nudged to its stop
+    }
+
+
+
+    TEST_METHOD (Overscroll_UnwindsBeforePaperScrollsBack)
+    {
+        DxuiPanZoom::Config  cfg;
+        cfg.wheelPanY      = 20.0f;
+        cfg.userPanInstant = true;
+        DxuiPanZoom  pz (cfg);
+        pz.SetPanYBounds (-50.0f, 50.0f);
+        pz.SetOverscrollYMax (30.0f);
+
+        for (int i = 0; i < 6; i++)
+        {
+            pz.OnMouse (Wheel (-1.0f));   // maxed: panY 50, overscroll 30
+        }
+
+        pz.OnMouse (Wheel (+1.0f));       // one notch back: overscroll unwinds first
+        Settle (pz);
+        Assert::AreEqual (50.0f, pz.PanY (),       0.001f);   // paper still pinned
+        Assert::AreEqual (10.0f, pz.OverscrollY (), 0.001f);  // 30 - 20
+
+        pz.OnMouse (Wheel (+1.0f));       // next notch: overscroll gone, paper moves
+        Settle (pz);
+        Assert::AreEqual (40.0f, pz.PanY (),       0.001f);
+        Assert::AreEqual (0.0f,  pz.OverscrollY (), 0.001f);
+    }
+
+
+
+    TEST_METHOD (Overscroll_FollowSpringsHome)
+    {
+        DxuiPanZoom::Config  cfg;
+        cfg.wheelPanY      = 20.0f;
+        cfg.userPanInstant = true;
+        DxuiPanZoom  pz (cfg);
+        pz.SetPanYBounds (-50.0f, 50.0f);
+        pz.SetOverscrollYMax (30.0f);
+
+        for (int i = 0; i < 6; i++)
+        {
+            pz.OnMouse (Wheel (-1.0f));   // into overscroll
+        }
+        Assert::IsTrue (pz.OverscrollY () > 0.0f);
+
+        pz.SetPanYTarget (0.0f);          // follow mode reclaims the paper position
+        Settle (pz);
+        Assert::AreEqual (0.0f, pz.OverscrollY (), 0.001f);   // world sprung home
+        Assert::AreEqual (0.0f, pz.PanY (),        0.001f);
+    }
+
+
+
+    TEST_METHOD (OverscrollMaxZero_HardStopAtBound)
+    {
+        DxuiPanZoom::Config  cfg;
+        cfg.wheelPanY      = 20.0f;
+        cfg.userPanInstant = true;
+        DxuiPanZoom  pz (cfg);
+        pz.SetPanYBounds (-50.0f, 50.0f);
+        // No SetOverscrollYMax: the default 0 keeps the old hard clamp.
+
+        for (int i = 0; i < 6; i++)
+        {
+            pz.OnMouse (Wheel (-1.0f));
+        }
+        Settle (pz);
+        Assert::AreEqual (50.0f, pz.PanY (),       0.001f);
+        Assert::AreEqual (0.0f,  pz.OverscrollY (), 0.001f);
+    }
+
+
+
+    TEST_METHOD (SnapPanY_ClearsOverscroll)
+    {
+        DxuiPanZoom::Config  cfg;
+        cfg.wheelPanY      = 20.0f;
+        cfg.userPanInstant = true;
+        DxuiPanZoom  pz (cfg);
+        pz.SetPanYBounds (-50.0f, 50.0f);
+        pz.SetOverscrollYMax (30.0f);
+
+        for (int i = 0; i < 6; i++)
+        {
+            pz.OnMouse (Wheel (-1.0f));
+        }
+        Assert::IsTrue (pz.OverscrollY () > 0.0f);
+
+        pz.SnapPanY (0.0f);               // torn / replaced content
+        Assert::AreEqual (0.0f, pz.OverscrollY (), 0.0001f);
+        Assert::AreEqual (0.0f, pz.PanY (),        0.0001f);
     }
 };
