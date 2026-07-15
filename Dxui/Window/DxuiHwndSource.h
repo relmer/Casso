@@ -174,6 +174,19 @@ public:
     void     Destroy           ();
 
     //
+    //  Pure placement geometry (no Win32 calls, so it is unit-tested
+    //  directly). Returns the top-left pixel position for a window of
+    //  `size` centered on `anchor` — or, when `anchor` is empty, centered
+    //  on `work` — then clamped so the whole window stays inside the
+    //  monitor `work` area. A window larger than `work` on an axis pins to
+    //  work's top / left on that axis, keeping the caption reachable
+    //  instead of letting the bottom slide off. Create() uses this to place
+    //  ownerless / dialog windows fully on-screen rather than cascading
+    //  under the taskbar.
+    //
+    static POINT  CenterAndClamp  (const RECT & anchor, const RECT & work, SIZE size);
+
+    //
     //  Adopt mode — wrap an existing HWND that the caller continues
     //  to own. The host does NOT call CreateWindow / DestroyWindow
     //  and does NOT create a swap chain or D3D device; the caller's
