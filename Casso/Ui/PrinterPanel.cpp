@@ -1045,7 +1045,26 @@ bool PrinterPanel::OnMouse (const DxuiMouseEvent & ev)
             return true;
         }
 
-        m_viewport.Scroll ((int) (-ev.wheelDelta * s_kWheelRowsPerNotch), NowMs ());
+        // Accumulate fractional rows so slow, high-resolution touchpad scrolls
+        // (many sub-notch deltas) are not truncated away event by event. Apply
+        // only whole rows; carry the remainder to the next event. A direction
+        // reversal drops the stale remainder so the reverse feels immediate.
+        double   rows = -(double) ev.wheelDelta * s_kWheelRowsPerNotch;
+
+        if ((rows < 0.0) != (m_wheelAccumRows < 0.0))
+        {
+            m_wheelAccumRows = 0.0;
+        }
+
+        m_wheelAccumRows += rows;
+
+        int   whole = (int) m_wheelAccumRows;   // toward zero
+
+        if (whole != 0)
+        {
+            m_wheelAccumRows -= whole;
+            m_viewport.Scroll (whole, NowMs ());
+        }
         return true;   // next RefreshLive renders the moved span immediately
     }
 

@@ -151,6 +151,12 @@ private:
     double                  m_smoothBottom     = -1.0;
     int64_t                 m_smoothLastMs     = 0;
 
+    // Fractional wheel accumulator: a precision touchpad streams many
+    // sub-notch wheel deltas, so truncating each event's row count to an int
+    // discards most of a slow scroll (it feels dead until enough accumulates).
+    // Carry the remainder here and only apply whole rows.
+    double                  m_wheelAccumRows   = 0.0;
+
     // Head-timing ink reveal (FR-034): pacing chases the worker's head
     // position at ImageWriter speed; the rendered-reveal pair detects sweep
     // motion so the panel keeps animating between byte arrivals. Primed
