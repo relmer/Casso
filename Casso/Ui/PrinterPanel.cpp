@@ -211,6 +211,16 @@ HRESULT PrinterPanel::Create (
 
     SetTheme (m_theme);
 
+    // The shell's UI loop repaints this panel every frame (RenderFrame), so the
+    // per-wheel-message auto-invalidate is redundant here -- and a precision
+    // touchpad's wheel-message flood would otherwise spawn a synchronous 3D
+    // repaint per message and starve the loop's own paint pump, freezing the
+    // view mid-scroll. Let the loop own paint pacing.
+    if (PopupHost () != nullptr)
+    {
+        PopupHost ()->SetSuppressInputInvalidate (true);
+    }
+
     m_tooltip.SetPopupHost (PopupHost ());
 
     // 3D presentation (FR-032): build the scene on THIS window's own device
@@ -294,10 +304,13 @@ void PrinterPanel::OnCreate ()
     m_zoomReset->SetOnClick ([this] () { m_panZoom.ResetZoom (); });
     m_zoomIn->SetOnClick    ([this] () { m_panZoom.ZoomIn (); });
 
-    // The controller drives all pan/zoom motion; any change repaints, and a
-    // genuine user pan drops the viewport out of follow mode so the scrollback
-    // holds where the user parks it (RefreshLive stops chasing the live row).
-    m_panZoom.SetOnChange   ([this] () { Invalidate (); });
+    // A genuine user pan drops the viewport out of follow mode so the
+    // scrollback holds where the user parks it (RefreshLive stops chasing the
+    // live row). Deliberately NO OnChange->Invalidate: RenderFrame already
+    // repaints the panel every UI-loop frame, so repainting per input event
+    // would fire a synchronous 3D redraw for every one of the message flood a
+    // trackpad scroll produces -- clogging the message pump and freezing the
+    // view until the fingers stop (the paint pacing stays owned by the loop).
     m_panZoom.SetOnUserPanY ([this] () { m_viewport.NotifyUserScroll (NowMs ()); });
 
     // A freshly opened panel has nothing on the paper yet, so the delivery

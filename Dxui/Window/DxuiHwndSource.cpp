@@ -1965,7 +1965,7 @@ LRESULT DxuiHwndSource::WndProc (UINT msg, WPARAM wp, LPARAM lp)
         case WM_MOUSEWHEEL:
             if (m_client != nullptr && m_client->OnMouseWheel (wp, lp, false) == DxuiMessageResult::Handled)
             {
-                InvalidateRect (m_hwnd, nullptr, FALSE);
+                if (!m_suppressInputInvalidate) { InvalidateRect (m_hwnd, nullptr, FALSE); }
                 return 0;
             }
             break;
@@ -1973,7 +1973,7 @@ LRESULT DxuiHwndSource::WndProc (UINT msg, WPARAM wp, LPARAM lp)
         case WM_MOUSEHWHEEL:
             if (m_client != nullptr && m_client->OnMouseWheel (wp, lp, true) == DxuiMessageResult::Handled)
             {
-                InvalidateRect (m_hwnd, nullptr, FALSE);
+                if (!m_suppressInputInvalidate) { InvalidateRect (m_hwnd, nullptr, FALSE); }
                 return 0;
             }
             break;

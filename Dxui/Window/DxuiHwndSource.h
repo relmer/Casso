@@ -301,6 +301,18 @@ public:
     //  nullptr clears any previously-installed client.
     //
     void          SetClient     (IDxuiHostClient * client);
+
+    //
+    //  Externally-driven windows (repainted every frame by an owning
+    //  render loop, e.g. the printer preview) can suppress the
+    //  auto-InvalidateRect the wheel handlers issue on a handled scroll.
+    //  A precision-touchpad scroll floods the queue with wheel messages;
+    //  invalidating per message spawns a WM_PAINT per message and lets the
+    //  paint work starve the loop's own frame pump. With this set the owner
+    //  is responsible for repainting (it already does, every frame).
+    //
+    void          SetSuppressInputInvalidate (bool suppress) { m_suppressInputInvalidate = suppress; }
+
     void          SetDefaultProcForTest      (std::function<LRESULT (HWND, UINT, WPARAM, LPARAM)> defaultProc);
     void          SetTrackMouseEventForTest  (std::function<BOOL (TRACKMOUSEEVENT *)> trackMouseEvent);
 
@@ -555,6 +567,7 @@ private:
 
     bool                              m_ownsHwnd           = false;
     bool                              m_ownsPaintPump      = false;
+    bool                              m_suppressInputInvalidate = false;
     bool                              m_synthetic          = false;
     bool                              m_adoptMode          = false;
     bool                              m_classRegistered    = false;
