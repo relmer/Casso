@@ -88,6 +88,26 @@ public:
 
 
 
+    TEST_METHOD (CarriageLoop_SilentWhenFeedingWithoutInk)
+    {
+        PrinterAudioSource  src;
+        src.SetLoopForTest (Quality::Draft, Const (64, 0.5f), 1000);
+        src.SetVolume (1.0f);
+
+        // Head advancing but NOT laying ink (a form feed / blank line feed):
+        // the carriage buzz stays silent even though the reveal progresses.
+        src.PublishReveal (1000, 0, false /* inkActive */);
+        Assert::AreEqual (0.0f, Frame (src, 16), 0.0f);
+        Assert::IsFalse  (src.IsPrinting ());
+
+        // Progress at a further position WITH ink -> the buzz arms.
+        src.PublishReveal (2000, 0, true /* inkActive */);
+        Assert::AreEqual (0.5f, Frame (src, 16), 0.0001f);
+        Assert::IsTrue   (src.IsPrinting ());
+    }
+
+
+
     TEST_METHOD (CarriageLoop_TracksSelectedQuality)
     {
         PrinterAudioSource  src;

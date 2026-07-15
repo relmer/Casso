@@ -634,6 +634,11 @@ void PrinterPanel::RefreshLive (PrinterWorker & worker, int64_t nowMs, bool forc
         bool   printing   = (m_lastActivityChangeMs != 0)
                             && (nowMs - m_lastActivityChangeMs < s_kPrintIdleMs);
 
+        // Held for NeedsAnimationFrame so the present cadence stays hot across
+        // the whole active print, not just the strict sweep (avoids the coarse
+        // idle tick jerking the carriage at every line boundary).
+        m_printingActive = printing;
+
         if (m_print    != nullptr) { m_print->SetEnabled    (hasContent); }
         if (m_saveAs   != nullptr) { m_saveAs->SetEnabled   (hasContent); }
         if (m_copy     != nullptr) { m_copy->SetEnabled     (hasContent); }
@@ -737,16 +742,21 @@ void PrinterPanel::RefreshLive (PrinterWorker & worker, int64_t nowMs, bool forc
     if (rows <= 0)
     {
         ShowBlankSheet ();
+        m_revealInk = false;
     }
     else if (worker.SnapshotStripSpan (span.firstRow, span.lastRow, spanRaster))
     {
         bool   contentDirty = (activity != m_renderedActivity) || !m_hasRendered;
 
         RenderSpan (spanRaster, span.firstRow, span.lastRow, contentDirty, revealRow, revealCol);
+
+        // Tell the audio whether the head is on ink (buzz) vs feeding (silent).
+        m_revealInk = RevealBandHasInk (spanRaster, span.firstRow, revealRow, revealCol);
     }
     else
     {
         ShowBlankSheet ();   // no active job: fresh paper in the platen
+        m_revealInk = false;
     }
 
     m_renderedSpan      = span;
@@ -756,6 +766,51 @@ void PrinterPanel::RefreshLive (PrinterWorker & worker, int64_t nowMs, bool forc
     m_lastRenderMs      = nowMs;
     m_hasRendered       = true;
     Invalidate ();
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PrinterPanel::RevealBandHasInk
+//
+//  Whether the paced head is on ink (buzz) vs. feeding blank paper (silent),
+//  sampled from the span raster at the reveal position. While the head sweeps a
+//  live line (colDots < full width) we look a short distance BEHIND the sweep
+//  column -- enough to bridge inter-character gaps so a word buzzes as one, but
+//  far short of a margin-wide blank run. While catching up through complete
+//  rows (colDots pinned at full width) there is no meaningful sweep column, so
+//  we ask the simpler question: does this whole row carry any ink? -- inked text
+//  rows buzz, blank feed / form-feed rows stay silent.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool PrinterPanel::RevealBandHasInk (const PrintRaster & spanRaster, int spanFirstRow,
+                                     int revealRow, int revealCol) const
+{
+    // 0.3": bridges the blank between characters, silent across a wide margin.
+    constexpr int  kInkLookbackDots = (PrinterGrid::kDotsPerInchH * 3) / 10;
+
+    bool  sweeping = revealCol < PrinterGrid::kDotsPerRow;
+    int   loCol    = sweeping ? (std::max) (0, revealCol - kInkLookbackDots) : 0;
+    int   hiCol    = sweeping ? revealCol : (PrinterGrid::kDotsPerRow - 1);
+
+    int   topRow = (std::max) (0, revealRow - spanFirstRow);   // span-relative
+    int   botRow = revealRow - spanFirstRow + s_kPinBandRows - 1;
+
+    for (int r = topRow; r <= botRow; r++)
+    {
+        for (int c = loCol; c <= hiCol; c++)
+        {
+            if (spanRaster.CellAt (c, r) != 0)
+            {
+                return true;
+            }
+        }
+    }
+
+    return false;
 }
 
 

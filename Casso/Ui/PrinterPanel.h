@@ -63,20 +63,22 @@ public:
     // easing. The shell forces a present each frame while true so the motion
     // runs at the present rate instead of stepping on the idle loop's coarse
     // sleep tick (which a print with a static guest screen would otherwise hit).
-    bool     NeedsAnimationFrame () const { return m_sweeping || m_panZoomEasing; }
+    bool     NeedsAnimationFrame () const { return m_sweeping || m_panZoomEasing || m_printingActive; }
 
     // Paced carriage position for the printer audio (Option A / FR-034): a
-    // monotonic revealed-dot counter and the within-line sweep column, both in
-    // native dots. The audio source gates its carriage loop on the counter
-    // advancing and fires a line-feed clack when the column wraps back toward
-    // the left margin. This reads the SAME paced reveal the panel renders, so
-    // the mechanical sound follows what is seen, not the raw guest byte stream.
-    // Valid after RefreshLive.
-    void     GetPacedReveal (int64_t & progressDots, int & colDots) const
+    // monotonic revealed-dot counter, the within-line sweep column (both in
+    // native dots), and whether the paced head is currently laying ink.
+    // `inkActive` is false while the paper merely feeds (form feed / blank line
+    // feed) or the head traverses a wide blank margin, so the audio source can
+    // keep the carriage BUZZ off during non-print motion. This reads the SAME
+    // paced reveal the panel renders, so the mechanical sound follows what is
+    // seen, not the raw guest byte stream. Valid after RefreshLive.
+    void     GetPacedReveal (int64_t & progressDots, int & colDots, bool & inkActive) const
     {
         int  rows = m_pacing.RevealedRows ();
         colDots      = m_pacing.RevealedColDots ();
         progressDots = (int64_t) rows * PrinterGrid::kDotsPerRow + colDots;
+        inkActive    = m_revealInk;
     }
 
     // Per-frame live update (FR-033): advance the viewport to the worker's
@@ -132,6 +134,14 @@ private:
                              bool contentDirty, int revealBandTopAbs, int revealColDots);
     void     ComposeCanvas  (const RgbaImage * content, int contentFirstAbsRow, int bottomAbsRow,
                              int revealBandTopAbs, int revealColDots);
+
+    // True when the pin band starting at absolute row `revealRow` carries ink
+    // within a short look-back of the sweep column `revealCol`, sampled from the
+    // span raster (whose row 0 == absolute `spanFirstRow`). Drives m_revealInk /
+    // the audio buzz gate; the look-back bridges inter-character gaps so a word
+    // reads as one continuous buzz while a wide blank margin reads as silence.
+    bool     RevealBandHasInk (const PrintRaster & spanRaster, int spanFirstRow,
+                               int revealRow, int revealCol) const;
 
     static int64_t  NowMs ();
 
@@ -191,10 +201,15 @@ private:
     bool                    m_activityPrimed   = false;
 
     // Animation-cadence signals read by NeedsAnimationFrame: the carriage is
-    // still chasing the head (set in RefreshLive) or the pan/zoom is easing
-    // (set in RenderFrame from the controller's Tick).
+    // still chasing the head (set in RefreshLive), the pan/zoom is easing (set in
+    // RenderFrame from the controller's Tick), or the printer is actively
+    // receiving. The last one holds the smooth present cadence across line
+    // boundaries -- where the reveal momentarily catches the head and m_sweeping
+    // would otherwise flip false for a frame, dropping the loop onto the coarse
+    // idle sleep tick and jerking the carriage once per line.
     bool                    m_sweeping         = false;
     bool                    m_panZoomEasing    = false;
+    bool                    m_printingActive   = false;
 
     // panY seeding: on the first content frame (and after a tear-off) snap
     // m_panZoom's eased position onto the target instead of gliding, so
@@ -209,6 +224,11 @@ private:
     bool                    m_pacingPrimed     = false;
     int                     m_renderedRevealRow = -1;
     int                     m_renderedRevealCol = -1;
+
+    // Ink-under-head flag for the printer audio (see GetPacedReveal): true when
+    // the pin band at the paced reveal carries ink just behind the sweep column.
+    // Recomputed each render from the span raster; false on a blank sheet.
+    bool                    m_revealInk        = false;
 
     // Rendered-span cache: scrolling shifts the visible window over UNCHANGED
     // strip content, so the expensive ink render is reused row-for-row and

@@ -2517,7 +2517,9 @@ void EmulatorShell::ShowPrinterPanel (bool activate)
         });
         m_printerPanel->SetOnDiscard ([this] ()
         {
-            m_printerAudio.PlayTearOff ();   // random paper-tear on the one tear-off
+            // The tear-off sound fires from the confirmed branch of the discard
+            // handler (WindowCommandManager), NOT here -- so cancelling the
+            // confirmation dialog does not rip a page we are keeping.
             m_windowCommandManager->HandleCommand (IDM_PRINTER_DISCARD);
             SnapshotStripToPanel ();
         });
@@ -2796,8 +2798,9 @@ void EmulatorShell::UpdatePrinterPreview ()
     {
         int64_t  progressDots = 0;
         int      colDots      = 0;
-        m_printerPanel->GetPacedReveal (progressDots, colDots);
-        m_printerAudio.PublishReveal (progressDots, colDots);
+        bool     inkActive    = false;
+        m_printerPanel->GetPacedReveal (progressDots, colDots, inkActive);
+        m_printerAudio.PublishReveal (progressDots, colDots, inkActive);
     }
 
     // Position the printer sound in the stereo field by where the preview window

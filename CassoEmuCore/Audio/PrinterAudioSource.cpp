@@ -235,10 +235,11 @@ void PrinterAudioSource::SetQuality (Quality quality)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void PrinterAudioSource::PublishReveal (int64_t progressDots, int colDots)
+void PrinterAudioSource::PublishReveal (int64_t progressDots, int colDots, bool inkActive)
 {
     m_revealProgress.store (progressDots, std::memory_order_relaxed);
     m_revealCol.store      ((int32_t) colDots, std::memory_order_relaxed);
+    m_revealInk.store      (inkActive ? 1 : 0, std::memory_order_relaxed);
 }
 
 
@@ -327,9 +328,14 @@ void PrinterAudioSource::GeneratePCM (float * outMono, uint32_t numSamples)
 
     int64_t  progress = m_revealProgress.load (std::memory_order_relaxed);
     int32_t  col      = m_revealCol.load (std::memory_order_relaxed);
+    bool     ink      = m_revealInk.load (std::memory_order_relaxed) != 0;
 
-    // Head advanced this frame -> (re)arm the carriage loop for one hold window.
-    if (progress > m_lastProgress)
+    // Head advanced this frame AND is laying ink -> (re)arm the carriage buzz for
+    // one hold window. Gating on ink (not just motion) keeps a form feed / blank
+    // line feed / wide blank margin from buzzing like a print: those advance the
+    // reveal but publish ink=false, so the hold decays and the buzz falls silent
+    // while the one-shot feed grains carry the sound.
+    if (progress > m_lastProgress && ink)
     {
         m_printHoldSamples = (int32_t) (kPrintHoldSec * (double) m_sampleRate);
     }

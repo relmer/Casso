@@ -75,10 +75,13 @@ public:
 
     // Publish the paced on-screen reveal (UI thread). `progressDots` is a
     // monotonic revealed-dot counter (row * dotsPerRow + column); `colDots` is
-    // the within-line sweep column. The audio thread gates the carriage loop on
-    // progress advancing and fires a line-feed clack when the column wraps back
-    // toward the left margin.
-    void  PublishReveal (int64_t progressDots, int colDots);
+    // the within-line sweep column. `inkActive` is true when the paced head is
+    // actually laying ink (vs. merely feeding paper or traversing a blank
+    // margin) -- the audio thread gates the carriage BUZZ on progress advancing
+    // AND ink, so a form feed / blank line feed feeds silently under its own
+    // one-shot instead of buzzing like a print. The line-feed clack still fires
+    // on a column wrap regardless (that IS the feed sound).
+    void  PublishReveal (int64_t progressDots, int colDots, bool inkActive = true);
 
     // User-action one-shots (UI thread; consumed on the audio thread). Form Feed
     // picks the page-feed grain by how much of the page will feed (`unusedPage01`
@@ -144,6 +147,7 @@ private:
     // Sync channel: UI thread writes, audio thread reads.
     std::atomic<int64_t>  m_revealProgress { 0 };
     std::atomic<int32_t>  m_revealCol      { 0 };
+    std::atomic<int32_t>  m_revealInk      { 1 };   // 1 = head laying ink (buzz eligible)
 
     // User-action request (UI thread writes, audio thread exchanges to 0):
     // 0 = none, 1..3 = page-feed short/medium/long, 4..8 = tear 0..4.

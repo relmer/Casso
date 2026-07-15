@@ -1154,7 +1154,9 @@ void WindowCommandManager::OnPrinterCommand (int id)
             return;
         }
 
-        // Confirmed: start a fresh sheet and drop the persisted pending copy.
+        // Confirmed: play the tear-off (a random paper-tear), start a fresh
+        // sheet, and drop the persisted pending copy.
+        m_shell.m_printerAudio.PlayTearOff ();
         m_shell.m_printerWorker.Start (m_shell.m_refs.printerCard->ByteRing ());
         PrintJobStore::Clear (m_shell.PendingPrintDir ());
         return;
