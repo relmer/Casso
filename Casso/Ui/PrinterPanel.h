@@ -131,17 +131,17 @@ private:
     static DxuiPanZoom::Config  PanZoomConfig ();
 
     void     RenderSpan     (const PrintRaster & spanRaster, int firstAbsRow, int lastAbsRow,
-                             bool contentDirty, int revealBandTopAbs, int revealColDots);
+                             bool contentDirty, int revealBandTopAbs, int revealLoDots, int revealHiDots);
     void     ComposeCanvas  (const RgbaImage * content, int contentFirstAbsRow, int bottomAbsRow,
-                             int revealBandTopAbs, int revealColDots);
+                             int revealBandTopAbs, int revealLoDots, int revealHiDots);
 
-    // True when the pin band starting at absolute row `revealRow` carries ink
-    // within a short look-back of the sweep column `revealCol`, sampled from the
-    // span raster (whose row 0 == absolute `spanFirstRow`). Drives m_revealInk /
-    // the audio buzz gate; the look-back bridges inter-character gaps so a word
-    // reads as one continuous buzz while a wide blank margin reads as silence.
+    // True when the pin band starting at absolute row `revealRow` carries ink in
+    // columns [sampleLoCol, sampleHiCol], sampled from the span raster (whose row
+    // 0 == absolute `spanFirstRow`). Drives m_revealInk / the audio buzz gate;
+    // the caller picks the range (a short window behind the head in the sweep
+    // direction while printing, or the whole row while feeding).
     bool     RevealBandHasInk (const PrintRaster & spanRaster, int spanFirstRow,
-                               int revealRow, int revealCol) const;
+                               int revealRow, int sampleLoCol, int sampleHiCol) const;
 
     static int64_t  NowMs ();
 
@@ -247,7 +247,8 @@ private:
     std::vector<uint32_t>   m_canvas;
     int                     m_canvasTopAbs    = 0;
     int                     m_canvasRevealTop = -2;
-    int                     m_canvasRevealCol = -1;
+    int                     m_canvasRevealLo  = -1;
+    int                     m_canvasRevealHi  = -1;
     uint64_t                m_canvasSpanGen   = 0;
     bool                    m_canvasHasContent = false;
     bool                    m_canvasValid      = false;

@@ -81,6 +81,12 @@ public:
     int   TargetRows   () const;
     bool  IsCaughtUp   () const;   // no rows left to reveal (sweep may continue)
 
+    // The real ImageWriter prints bidirectionally: each line's carriage pass
+    // runs opposite to the last. This flag flips every time a fresh line's sweep
+    // begins (see Advance), so the presenter can drive the head + ink reveal
+    // right-to-left on alternate lines. Starts left-to-right.
+    bool  SweepLeftToRight () const { return m_sweepLeftToRight; }
+
 private:
     Config  m_cfg;
     double  m_lastTime    = 0.0;
@@ -91,4 +97,5 @@ private:
     int     m_sweepRow    = -1;    // row the current sweep belongs to
     bool    m_started     = false;
     bool    m_fastForward = false;
+    bool    m_sweepLeftToRight = true;   // reverses each new line (bidirectional)
 };

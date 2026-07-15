@@ -256,5 +256,24 @@ namespace PrinterPacingTests
             Assert::AreEqual (11,  p.RevealedRows ());
             Assert::AreEqual (640, p.RevealedColDots ());
         }
+
+
+        TEST_METHOD (SweepDirectionReversesEachLine)
+        {
+            // The ImageWriter prints bidirectionally: the carriage direction
+            // flips every time a fresh line's sweep begins (on arrival).
+            PrinterPacing   p (ColCfg (1000.0, 1000.0));
+
+            p.Reset (0.0, 10);
+            Assert::IsTrue (p.SweepLeftToRight ());   // starts left-to-right
+
+            p.SetTargetPosition (11, 500);
+            p.Advance (0.25);                          // first line arrives -> reverse
+            Assert::IsFalse (p.SweepLeftToRight ());
+
+            p.SetTargetPosition (25, 300);
+            p.Advance (1.0);                           // next line arrives -> reverse again
+            Assert::IsTrue (p.SweepLeftToRight ());
+        }
     };
 }

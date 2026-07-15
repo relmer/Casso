@@ -62,6 +62,14 @@ namespace
     // clips this band at the paced head column; rows above it are complete.
     constexpr int       s_kPinBandRows = 8 * (PrinterGrid::kRowsPerInch / 72);
 
+    // Bidirectional reveal lag: the carriage prints alternate lines right-to-left
+    // (real ImageWriter), but our interpreter fills each line's dots left-to-
+    // right, so a right-to-left reveal is only correct on a COMPLETED line. Hold
+    // the reveal this many rows behind the guest's head while it prints so the
+    // line being swept is always fully in the raster -- comfortably more than a
+    // pin band, ~1/6" (one text line). Released to the live head once idle.
+    constexpr int       s_kBidiLagRows = 24;
+
 
     // Floor modulus: hole / perforation phase stays continuous for rows above
     // the top of the strip (the leading fanfold paper), where absRow < 0.
@@ -598,6 +606,9 @@ void PrinterPanel::RefreshLive (PrinterWorker & worker, int64_t nowMs, bool forc
     int                     headCol     = 0;
     int                     revealRow   = 0;
     int                     revealCol   = 0;
+    int                     revealLo    = 0;
+    int                     revealHi    = 0;
+    bool                    sweepLtr    = true;
     int                     bandBottom  = 0;
     bool                    moved       = false;
     bool                    revealMoved = false;
@@ -667,18 +678,47 @@ void PrinterPanel::RefreshLive (PrinterWorker & worker, int64_t nowMs, bool forc
     // The FR-034 reveal: pacing chases the head at ImageWriter speed. At
     // authentic guest speed it stays caught up (the sweep IS the guest's own
     // timing); at max speed it animates behind, jump-cutting past big backlogs.
-    m_pacing.SetTargetPosition (headRow, headCol);
+    //
+    // Bidirectional carriage: the real ImageWriter prints each line in the
+    // opposite direction. Our interpreter lays every line's dots left-to-right,
+    // so a right-to-left REVEAL only looks correct once the line is COMPLETE in
+    // the raster -- hold the reveal one line behind the guest while it is
+    // actively printing (released to the live head the moment the print idles).
+    // The sweep runs the full carriage width in the alternating direction; the
+    // ink-gate keeps the buzz silent over the blank overtravel of a short line.
+    int  laggedRow = m_printingActive ? (std::max) (0, headRow - s_kBidiLagRows) : headRow;
+
+    m_pacing.SetTargetPosition (laggedRow, PrinterGrid::kDotsPerRow);
     m_pacing.Advance (nowSec);
 
     revealRow  = m_pacing.RevealedRows ();
-    revealCol  = m_pacing.RevealedColDots ();
     bandBottom = (std::min) (revealRow + s_kPinBandRows - 1, rows - 1);
+    sweepLtr   = m_pacing.SweepLeftToRight ();
 
-    // The carriage is animating whenever the reveal trails the guest's head --
-    // catching up through older rows, or sweeping the live line. The shell reads
-    // this (NeedsAnimationFrame) to hold a smooth present cadence through the
-    // sweep instead of stepping on the idle loop's coarse sleep tick.
-    m_sweeping = (revealRow < headRow) || (revealCol < headCol);
+    {
+        int  progress = m_pacing.RevealedColDots ();   // 0..kDotsPerRow sweep distance
+
+        if (!m_pacing.IsCaughtUp ())
+        {
+            // Rows still feeding: the band shows complete; park the head at the
+            // start of the coming sweep so it doesn't jump to the far margin.
+            revealCol = sweepLtr ? 0 : PrinterGrid::kDotsPerRow;
+            revealLo  = 0;
+            revealHi  = PrinterGrid::kDotsPerRow;
+        }
+        else
+        {
+            // Head screen column + revealed span, mirrored for a R->L pass.
+            revealCol = sweepLtr ? progress : (PrinterGrid::kDotsPerRow - progress);
+            revealLo  = sweepLtr ? 0 : revealCol;
+            revealHi  = sweepLtr ? revealCol : PrinterGrid::kDotsPerRow;
+        }
+    }
+
+    // The carriage is animating whenever the reveal trails the lagged target or a
+    // sweep is mid-flight; m_printingActive additionally holds the present
+    // cadence hot across line boundaries (see NeedsAnimationFrame).
+    m_sweeping = (revealRow < laggedRow) || (revealLo > 0) || (revealHi < PrinterGrid::kDotsPerRow);
 
     if (m_scene != nullptr)
     {
@@ -748,10 +788,34 @@ void PrinterPanel::RefreshLive (PrinterWorker & worker, int64_t nowMs, bool forc
     {
         bool   contentDirty = (activity != m_renderedActivity) || !m_hasRendered;
 
-        RenderSpan (spanRaster, span.firstRow, span.lastRow, contentDirty, revealRow, revealCol);
+        RenderSpan (spanRaster, span.firstRow, span.lastRow, contentDirty, revealRow, revealLo, revealHi);
 
         // Tell the audio whether the head is on ink (buzz) vs feeding (silent).
-        m_revealInk = RevealBandHasInk (spanRaster, span.firstRow, revealRow, revealCol);
+        // Sample just BEHIND the head in the sweep direction; a whole-row scan
+        // while rows are still feeding (no meaningful sweep column yet).
+        {
+            constexpr int  kInkLookbackDots = (PrinterGrid::kDotsPerInchH * 3) / 10;   // 0.3"
+            int  sampleLo;
+            int  sampleHi;
+
+            if (!m_pacing.IsCaughtUp ())
+            {
+                sampleLo = 0;
+                sampleHi = PrinterGrid::kDotsPerRow - 1;
+            }
+            else if (sweepLtr)
+            {
+                sampleLo = (std::max) (0, revealCol - kInkLookbackDots);
+                sampleHi = revealCol;
+            }
+            else
+            {
+                sampleLo = revealCol;
+                sampleHi = (std::min) (PrinterGrid::kDotsPerRow - 1, revealCol + kInkLookbackDots);
+            }
+
+            m_revealInk = RevealBandHasInk (spanRaster, span.firstRow, revealRow, sampleLo, sampleHi);
+        }
     }
     else
     {
@@ -775,33 +839,25 @@ void PrinterPanel::RefreshLive (PrinterWorker & worker, int64_t nowMs, bool forc
 //
 //  PrinterPanel::RevealBandHasInk
 //
-//  Whether the paced head is on ink (buzz) vs. feeding blank paper (silent),
-//  sampled from the span raster at the reveal position. While the head sweeps a
-//  live line (colDots < full width) we look a short distance BEHIND the sweep
-//  column -- enough to bridge inter-character gaps so a word buzzes as one, but
-//  far short of a margin-wide blank run. While catching up through complete
-//  rows (colDots pinned at full width) there is no meaningful sweep column, so
-//  we ask the simpler question: does this whole row carry any ink? -- inked text
-//  rows buzz, blank feed / form-feed rows stay silent.
+//  Whether the pin band at the reveal row carries any ink within the column
+//  range [sampleLoCol, sampleHiCol], sampled from the span raster. The caller
+//  picks the range: a short window just behind the head in the sweep direction
+//  while printing a live line (bridges inter-character gaps so a word buzzes as
+//  one, but goes silent over a wide margin), or the whole row while rows are
+//  still feeding. Drives the audio buzz gate -- inked rows buzz, blank feed /
+//  form-feed rows stay silent.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool PrinterPanel::RevealBandHasInk (const PrintRaster & spanRaster, int spanFirstRow,
-                                     int revealRow, int revealCol) const
+                                     int revealRow, int sampleLoCol, int sampleHiCol) const
 {
-    // 0.3": bridges the blank between characters, silent across a wide margin.
-    constexpr int  kInkLookbackDots = (PrinterGrid::kDotsPerInchH * 3) / 10;
-
-    bool  sweeping = revealCol < PrinterGrid::kDotsPerRow;
-    int   loCol    = sweeping ? (std::max) (0, revealCol - kInkLookbackDots) : 0;
-    int   hiCol    = sweeping ? revealCol : (PrinterGrid::kDotsPerRow - 1);
-
     int   topRow = (std::max) (0, revealRow - spanFirstRow);   // span-relative
     int   botRow = revealRow - spanFirstRow + s_kPinBandRows - 1;
 
     for (int r = topRow; r <= botRow; r++)
     {
-        for (int c = loCol; c <= hiCol; c++)
+        for (int c = sampleLoCol; c <= sampleHiCol; c++)
         {
             if (spanRaster.CellAt (c, r) != 0)
             {
@@ -863,7 +919,7 @@ void PrinterPanel::SetStrip (const PrintRaster & raster)
     span.lastRow  = (int) std::lround (m_panZoom.PanY ());
     span.firstRow = (std::max) (0, span.lastRow - m_viewport.ViewportRows () + 1);
     raster.CopyRowSpan (span.firstRow, span.lastRow, spanRaster);
-    RenderSpan (spanRaster, span.firstRow, span.lastRow, true, -1, 0);   // no live head: show everything
+    RenderSpan (spanRaster, span.firstRow, span.lastRow, true, -1, 0, 0);   // no live head: show everything
 
     m_renderedSpan = span;
     m_hasRendered  = true;
@@ -883,7 +939,7 @@ void PrinterPanel::SetStrip (const PrintRaster & raster)
 
 void PrinterPanel::ShowBlankSheet ()
 {
-    ComposeCanvas (nullptr, 0, 0, -1, 0);
+    ComposeCanvas (nullptr, 0, 0, -1, 0, 0);
 }
 
 
@@ -909,7 +965,7 @@ void PrinterPanel::ShowBlankSheet ()
 ////////////////////////////////////////////////////////////////////////////////
 
 void PrinterPanel::RenderSpan (const PrintRaster & spanRaster, int firstAbsRow, int lastAbsRow,
-                               bool contentDirty, int revealBandTopAbs, int revealColDots)
+                               bool contentDirty, int revealBandTopAbs, int revealLoDots, int revealHiDots)
 {
     HRESULT                  hr       = S_OK;
     int                      spanRows = lastAbsRow - firstAbsRow + 1;
@@ -920,7 +976,7 @@ void PrinterPanel::RenderSpan (const PrintRaster & spanRaster, int firstAbsRow, 
     {
         // Degenerate span: blank paper, furniture still tracking the scroll.
         m_spanImgValid = false;
-        ComposeCanvas (nullptr, 0, lastAbsRow, -1, 0);
+        ComposeCanvas (nullptr, 0, lastAbsRow, -1, 0, 0);
         return;
     }
 
@@ -986,7 +1042,7 @@ void PrinterPanel::RenderSpan (const PrintRaster & spanRaster, int firstAbsRow, 
         return;   // span larger than the canvas: keep the previous frame
     }
 
-    ComposeCanvas (&m_spanImg, firstAbsRow, lastAbsRow, revealBandTopAbs, revealColDots);
+    ComposeCanvas (&m_spanImg, firstAbsRow, lastAbsRow, revealBandTopAbs, revealLoDots, revealHiDots);
 }
 
 
@@ -1015,7 +1071,7 @@ void PrinterPanel::RenderSpan (const PrintRaster & spanRaster, int firstAbsRow, 
 ////////////////////////////////////////////////////////////////////////////////
 
 void PrinterPanel::ComposeCanvas (const RgbaImage * content, int contentFirstAbsRow, int bottomAbsRow,
-                                  int revealBandTopAbs, int revealColDots)
+                                  int revealBandTopAbs, int revealLoDots, int revealHiDots)
 {
     HRESULT   hr        = S_OK;
     int       canvasW   = s_kStockWidthPx;
@@ -1063,17 +1119,23 @@ void PrinterPanel::ComposeCanvas (const RgbaImage * content, int contentFirstAbs
                     continue;
                 }
 
-                uint32_t *     dst  = &m_canvas[(size_t) (yTop + y) * canvasW + s_kContentXPx];
-                const Byte *   src  = content->PixelAt (0, y);
-                int            xEnd = content->width;
+                uint32_t *     dst    = &m_canvas[(size_t) (yTop + y) * canvasW + s_kContentXPx];
+                const Byte *   src    = content->PixelAt (0, y);
+                int            xStart = 0;
+                int            xEnd   = content->width;
 
+                // Rows in the live pin band reveal only the swept column span in
+                // the carriage's current direction: [0, head] left-to-right, or
+                // [head, width] on a right-to-left pass (FR-034, bidirectional).
                 if (revealBandTopAbs >= 0 && contentFirstAbsRow + y >= revealBandTopAbs)
                 {
-                    xEnd = std::clamp (revealColDots * content->width / PrinterGrid::kDotsPerRow,
-                                       0, content->width);
+                    xStart = std::clamp (revealLoDots * content->width / PrinterGrid::kDotsPerRow,
+                                         0, content->width);
+                    xEnd   = std::clamp (revealHiDots * content->width / PrinterGrid::kDotsPerRow,
+                                         0, content->width);
                 }
 
-                for (int x = 0; x < xEnd; x++)
+                for (int x = xStart; x < xEnd; x++)
                 {
                     uint32_t  r = src[x * 4 + 0];
                     uint32_t  g = src[x * 4 + 1];
@@ -1163,7 +1225,9 @@ void PrinterPanel::ComposeCanvas (const RgbaImage * content, int contentFirstAbs
                      && m_canvasSpanGen == m_spanImgGen
                      && content->height == canvasH
                      && contentFirstAbsRow == topAbsRow;
-    bool   revealSame = (revealBandTopAbs == m_canvasRevealTop && revealColDots == m_canvasRevealCol);
+    bool   revealSame = (revealBandTopAbs == m_canvasRevealTop
+                         && revealLoDots == m_canvasRevealLo
+                         && revealHiDots == m_canvasRevealHi);
     int    delta      = topAbsRow - m_canvasTopAbs;
 
     if (aligned && delta == 0 && revealSame)
@@ -1205,7 +1269,8 @@ void PrinterPanel::ComposeCanvas (const RgbaImage * content, int contentFirstAbs
 
     m_canvasTopAbs     = topAbsRow;
     m_canvasRevealTop  = revealBandTopAbs;
-    m_canvasRevealCol  = revealColDots;
+    m_canvasRevealLo   = revealLoDots;
+    m_canvasRevealHi   = revealHiDots;
     m_canvasSpanGen    = m_spanImgGen;
     m_canvasHasContent = (content != nullptr);
     m_canvasValid      = true;

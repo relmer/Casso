@@ -34,6 +34,7 @@ void PrinterPacing::Reset (double nowSeconds, int revealedRows)
     m_sweepRow    = -1;
     m_started     = true;
     m_fastForward = false;
+    m_sweepLeftToRight = true;
 
     if (m_target < (int) m_revealed)
     {
@@ -159,10 +160,12 @@ int PrinterPacing::Advance (double nowSeconds)
         {
             if (wasBehind)
             {
-                // The reveal just reached the live line: the head starts its
-                // sweep from the left margin (the dt spent catching up is not
-                // double-spent on the sweep; it continues next step).
-                m_revealedCol = 0.0;
+                // The reveal just reached the live line: the head starts a fresh
+                // sweep (the dt spent catching up is not double-spent on the
+                // sweep; it continues next step). Each new line reverses the
+                // carriage direction -- the ImageWriter prints bidirectionally.
+                m_revealedCol      = 0.0;
+                m_sweepLeftToRight = !m_sweepLeftToRight;
             }
             else
             {
