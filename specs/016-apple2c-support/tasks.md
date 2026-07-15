@@ -69,7 +69,7 @@
 - [X] T013 [US1] Implement `Cpu65C02` (`CassoEmuCore/Core/Cpu65C02.{h,cpp}`, sharing `Cpu6502` dispatch): `STZ`, `PHX`/`PLX`/`PHY`/`PLY`, `BRA`, `TSB`/`TRB`, `INC A`/`DEC A`; `RMB`/`SMB`/`BBR`/`BBS` + `WAI`/`STP` decode as base-tier NOPs.
 - [X] T014 [US1] Addressing modes (`(zp)`, `(abs,X)` JMP) + corrected behaviors (indirect-`JMP` page fix, decimal ADC/SBC flags/cycles incl. invalid-BCD borrow, `$CF` NMOS-undocumented reclaim) + 65C02 timing.
 - [X] T015 [US1] Register `65C02` → `Cpu65C02` in the CPU factory (T008). *(`CpuFactory.cpp` builds `Cpu65C02`; `FactoryBuilds65C02AndRejectsUnknown`.)*
-- [~] T016 [US1] ~~Set `Apple2eEnhanced` config `cpu: 65C02`~~ — **deferred to issue #86**: no `Apple2eEnhanced` machine profile exists yet (only Apple2 / Apple2Plus / Apple2e). The 65C02 core is ready to power it once #86 adds the profile.
+- [X] T016 [US1] Set `Apple2eEnhanced` config `cpu: 65C02`. *(Done — issue #86 landed: the Apple //e Enhanced profile shipped in `a51837c5`, `Resources/Machines/Apple2eEnhanced/Apple2eEnhanced.json` with `cpu: 65C02`, embedded as `IDR_MACHINE_APPLE2E_ENHANCED`; cold-boots the 65C02 firmware — `HeadlessHostTests.BuildApple2eEnhanced_ColdBootsFirmwareOn65C02`.)*
 - [X] T017 [US1] Dormann + Harte 65C02 pass; full regression **1988/1988** (NMOS + II/II+/`//e` unchanged).
 
 **Checkpoint**: //e-Enhanced runs on the 65C02. SC-001 + SC-004 green. **Shippable standalone.**
