@@ -24,10 +24,6 @@ class PrinterByteRing;
 //  for eject/persistence; FlushNow() then drains any final bytes single-
 //  threaded.
 //
-//  A temporary raw-byte capture tee (to %TEMP%\casso-printer-capture.bin) is
-//  wired here to grab a real Print Shop stream for the T011 checkpoint; remove
-//  it once the interpreter's provisional command bytes are pinned.
-//
 ////////////////////////////////////////////////////////////////////////////////
 
 class PrinterWorker
@@ -92,8 +88,7 @@ public:
     }
 
 private:
-    void          Run             ();
-    void          OpenCaptureFile ();
+    void          Run ();
 
     unique_ptr<PrinterJob>   m_job;
     std::thread              m_thread;
@@ -104,5 +99,4 @@ private:
     std::atomic<int>         m_rowsUsed      { 0 };   // strip height for preview pacing
     std::atomic<uint64_t>    m_headPos       { 0 };   // (row << 32) | colDots (FR-034)
     bool                     m_running       = false;
-    std::ofstream            m_capture;
 };

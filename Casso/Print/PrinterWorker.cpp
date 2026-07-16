@@ -28,33 +28,6 @@ PrinterWorker::~PrinterWorker ()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  OpenCaptureFile
-//
-//  TEMPORARY (T011): tees the raw card stream to a fixed temp file so a real
-//  Print Shop print can be captured and used to pin the interpreter's
-//  provisional command bytes. Remove once that is done.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void PrinterWorker::OpenCaptureFile ()
-{
-    wchar_t   tempDir[MAX_PATH] = {};
-    DWORD     count             = GetTempPathW (MAX_PATH, tempDir);
-
-    if (count == 0 || count > MAX_PATH)
-    {
-        return;
-    }
-
-    fs::path   path = fs::path (tempDir) / L"casso-printer-capture.bin";
-    m_capture.open (path, std::ios::binary | std::ios::trunc);
-}
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  Start
 //
 //  Builds a fresh job over the card's ring and spawns the drain thread. A
@@ -84,17 +57,6 @@ void PrinterWorker::Start (PrinterByteRing & ring, PrintRaster seed)
     m_rowsUsed.store   (m_job->Raster ().RowsUsed (), std::memory_order_relaxed);
     m_headPos.store    (((uint64_t) (uint32_t) m_job->HeadRow () << 32)
                         | (uint32_t) m_job->HeadColumnDots (), std::memory_order_relaxed);
-
-    OpenCaptureFile ();
-
-    if (m_capture.is_open ())
-    {
-        m_job->SetByteObserver ([this] (const Byte * data, size_t size)
-        {
-            m_capture.write ((const char *) data, (streamsize) size);
-            m_capture.flush ();
-        });
-    }
 
     m_stopRequested = false;
     m_running       = true;
@@ -128,11 +90,6 @@ void PrinterWorker::Stop ()
     }
 
     m_running = false;
-
-    if (m_capture.is_open ())
-    {
-        m_capture.close ();
-    }
 }
 
 
