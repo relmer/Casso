@@ -457,6 +457,20 @@ private:
         return m_driveWidgetState[(size_t) driveIndex].mountedImagePath;
     }
 
+    // Write-protect breakdown for a drive, read from the live per-drive
+    // widget state (refreshed each frame by DiskManager::UpdateDriveWidgets).
+    // Used by the Settings → Theme preview so its sample drive shows the
+    // padlock cue for whatever is actually mounted. Index 0 is drive 1.
+    WriteProtectInfo  DriveWriteProtect (int driveIndex) const
+    {
+        if (driveIndex < 0 || driveIndex >= (int) m_driveWidgetState.size())
+        {
+            return WriteProtectInfo();
+        }
+
+        return m_driveWidgetState[(size_t) driveIndex].writeProtect;
+    }
+
     // Base directory for user preferences. SettingsPanel.CommitApply
     // uses this as the fallback save path when the unified store is not
     // available.

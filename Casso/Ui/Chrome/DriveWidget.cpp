@@ -66,7 +66,6 @@ namespace
     // with the LED for attention.
     constexpr int      s_kWpBadgeWidthPx   = 13;
     constexpr int      s_kWpBadgeHeightPx  = 15;
-    constexpr int      s_kWpBadgeMarginPx  = 7;
     constexpr uint32_t s_kWpBadgeFillArgb  = 0xFFD8B76A;   // warm brass body
     constexpr uint32_t s_kWpBadgeShadeArgb = 0xFF7A6026;   // darker brass edge / shackle
     constexpr uint32_t s_kWpBadgeHoleArgb  = 0xFF2A2109;   // keyhole
@@ -933,15 +932,21 @@ void DriveWidget::Paint (
         DrawCassowaryRainbow (painter, iconX, iconY, (float) iconW, (float) iconH);
     }
 
-    // Write-protect padlock, top-right of the faceplate (opposite the
-    // DRIVE label) when the mounted disk is protected by any source.
+    // Write-protect padlock, top-right of the faceplate. Occupies a cell
+    // the same size and horizontal position as the Cassowary logo below,
+    // mirrored to the top edge, with the (smaller) padlock centered inside
+    // it so the two marks read as a balanced pair.
     if (m_state.writeProtect.Any())
     {
-        int    badgeW = Scale (s_kWpBadgeWidthPx,  dpi);
-        int    badgeH = Scale (s_kWpBadgeHeightPx, dpi);
-        int    margin = Scale (s_kWpBadgeMarginPx, dpi);
-        float  badgeX = (float) (m_faceRect.right - badgeW - margin);
-        float  badgeY = (float) (m_faceRect.top + margin);
+        int    cellW  = Scale (s_kCassowaryWidthPx,  dpi);
+        int    cellH  = Scale (s_kCassowaryHeightPx, dpi);
+        int    margin = Scale (s_kCassowaryMarginPx, dpi);
+        int    badgeW = Scale (s_kWpBadgeWidthPx,    dpi);
+        int    badgeH = Scale (s_kWpBadgeHeightPx,   dpi);
+        float  cellX  = (float) (m_faceRect.right - cellW - margin);
+        float  cellY  = (float) (m_faceRect.top + margin);
+        float  badgeX = cellX + (float) (cellW - badgeW) / 2.0f;
+        float  badgeY = cellY + (float) (cellH - badgeH) / 2.0f;
 
         DrawPadlock (painter, badgeX, badgeY, (float) badgeW, (float) badgeH,
                      s_kWpBadgeFillArgb, s_kWpBadgeShadeArgb, s_kWpBadgeHoleArgb);
