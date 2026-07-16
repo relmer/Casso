@@ -46,6 +46,41 @@ namespace
         OutputDebugStringW ((L"[Printer] " + msg + L"\n").c_str ());
     }
 
+    // Turn a failure HRESULT into a "0xXXXXXXXX -- <system text>" detail line for
+    // the error dialog: the friendly sentence is for humans; this trailer is the
+    // hr + OS message for nerds (and bug reports). A Win32-wrapped code
+    // (HRESULT_FROM_WIN32) resolves to its GetLastError text; other HRESULTs
+    // resolve where the system has a message and degrade to just the hex code.
+    std::wstring  FormatSystemError (HRESULT hr)
+    {
+        std::wstring   detail = std::format (L"0x{:08X}", (uint32_t) hr);
+        DWORD          code   = (HRESULT_FACILITY (hr) == FACILITY_WIN32)
+                                    ? (DWORD) HRESULT_CODE (hr)
+                                    : (DWORD) hr;
+        LPWSTR         text   = nullptr;
+
+        DWORD  n = FormatMessageW (
+            FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
+            nullptr, code, MAKELANGID (LANG_NEUTRAL, SUBLANG_DEFAULT),
+            (LPWSTR) &text, 0, nullptr);
+
+        if (n != 0 && text != nullptr)
+        {
+            std::wstring   sys (text);
+
+            // Trim the trailing ". \r\n" the system appends.
+            while (!sys.empty () &&
+                   (sys.back () == L'\r' || sys.back () == L'\n' || sys.back () == L'.' || sys.back () == L' '))
+            {
+                sys.pop_back ();
+            }
+            if (!sys.empty ()) { detail += L" -- " + sys; }
+        }
+        if (text != nullptr) { LocalFree (text); }
+
+        return detail;
+    }
+
     // The device the user picked in the print dialog (DEVNAMES holds it as an
     // offset into its own block), for the delivery trace.
     std::wstring  SelectedPrinterName (const PRINTDLGW & pd)
@@ -117,9 +152,9 @@ namespace
                               (pageW - destW) / 2, 0, destW, destH,
                               0, 0, img.width, img.height,
                               bgra.data (), &bmi, DIB_RGB_COLORS, SRCCOPY);
-        CBRFEx (blit != GDI_ERROR, E_FAIL,
-                LogPrinter (std::format (L"StretchDIBits GDI_ERROR: src {}x{} -> dest {}x{} on page {}x{}, GetLastError={}",
-                                         img.width, img.height, destW, destH, pageW, pageH, ::GetLastError ())));
+        CWRF (blit != GDI_ERROR,
+              LogPrinter (std::format (L"StretchDIBits GDI_ERROR: src {}x{} -> dest {}x{} on page {}x{}, GetLastError={}",
+                                       img.width, img.height, destW, destH, pageW, pageH, ::GetLastError ())));
 
     Error:
         return hr;
@@ -929,7 +964,7 @@ HRESULT WindowCommandManager::PrintToWindowsPrinter (const PrintRaster & raster)
         DWORD   gle = ::GetLastError ();
 
         LogPrinter (std::format (L"StartDoc failed, GetLastError={}", gle));
-        hr = (gle == ERROR_CANCELLED) ? S_FALSE : E_FAIL;
+        hr = (gle == ERROR_CANCELLED) ? S_FALSE : HRESULT_FROM_WIN32 (gle);
         goto Error;
     }
     started = true;
@@ -952,20 +987,22 @@ HRESULT WindowCommandManager::PrintToWindowsPrinter (const PrintRaster & raster)
         hr = renderer.Render (raster, pr.firstRow, pr.lastRow, opt, img);
         CHRF (hr, LogPrinter (std::format (L"page {} render failed, hr=0x{:08X}", pageIx, (uint32_t) hr)));
 
-        CBRFEx (StartPage (pd.hDC) > 0, E_FAIL,
-                LogPrinter (std::format (L"page {} StartPage failed, GetLastError={}", pageIx, ::GetLastError ())));
+        // CWRF captures HRESULT_FROM_WIN32(GetLastError()) into hr so the real
+        // GDI failure code (not a bare E_FAIL) reaches the user-facing detail.
+        CWRF (StartPage (pd.hDC) > 0,
+              LogPrinter (std::format (L"page {} StartPage failed, GetLastError={}", pageIx, ::GetLastError ())));
 
         hr = BlitRgbaToDc (pd.hDC, img, pageW, pageH);
         CHRF (hr, LogPrinter (std::format (L"page {} blit failed, hr=0x{:08X}", pageIx, (uint32_t) hr)));
 
-        CBRFEx (EndPage (pd.hDC) > 0, E_FAIL,
-                LogPrinter (std::format (L"page {} EndPage failed, GetLastError={}", pageIx, ::GetLastError ())));
+        CWRF (EndPage (pd.hDC) > 0,
+              LogPrinter (std::format (L"page {} EndPage failed, GetLastError={}", pageIx, ::GetLastError ())));
 
         pageIx++;
     }
 
-    CBRFEx (EndDoc (pd.hDC) > 0, E_FAIL,
-            LogPrinter (std::format (L"EndDoc failed, GetLastError={}", ::GetLastError ())));
+    CWRF (EndDoc (pd.hDC) > 0,
+          LogPrinter (std::format (L"EndDoc failed, GetLastError={}", ::GetLastError ())));
     started = false;
     LogPrinter (std::format (L"deliver: success ({} page(s) sent)", pages.size ()));
 
@@ -1270,8 +1307,16 @@ void WindowCommandManager::OnPrinterCommand (int id)
     }
     else
     {
-        DxuiMessageBox (m_shell.PrinterDialogOwner (), &m_shell.m_chromeTheme,
-                     L"Something went wrong while sending your printout, so it is still waiting in the printer. Please try printing again.",
+        // Human sentence first, then a "Details:" trailer with the hr + OS message
+        // so a nerd (or a bug report) can see exactly what failed without the
+        // dialog reading like a stack trace.
+        std::wstring   msg = print
+                                 ? std::wstring (L"Something went wrong while sending your printout, so it is still waiting in the printer. Please try printing again.")
+                                 : std::wstring (L"Something went wrong while saving your printout, so it is still waiting in the printer. Please try again.");
+
+        msg += L"\n\nDetails: " + FormatSystemError (hr);
+
+        DxuiMessageBox (m_shell.PrinterDialogOwner (), &m_shell.m_chromeTheme, msg.c_str (),
                      L"Casso Printer", MB_OK | MB_ICONWARNING);
 
         // Keep the strip so the user can retry -- reseed the worker with it
