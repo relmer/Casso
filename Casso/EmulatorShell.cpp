@@ -3485,6 +3485,15 @@ void EmulatorShell::ExecuteCpuSlices()
             m_refs.speaker->BeginFrame();
         }
     }
+
+    // Apply the active game-compat patch table once per frame. No-op unless
+    // the current machine installed rules (the //c VBL-spin defuser). Scanning
+    // goes through the bus so it honors live MMU banking and re-patches any
+    // site the loader rewrites over.
+    if (m_gamePatcher.RuleCount() > 0)
+    {
+        m_gamePatcher.ScanRam (m_memoryBus);
+    }
 }
 
 

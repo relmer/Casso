@@ -120,6 +120,10 @@ HRESULT MachineManager::CreateMemoryDevices (const MachineConfig & config)
 
 
 
+    // Reset the game-compat patch table for the incoming machine; the //c
+    // block below re-installs its rules. Other machines run with none.
+    m_shell.m_gamePatcher.Clear();
+
     // Load character generator ROM (used by video renderers, not on bus)
     if (!config.characterRom.resolvedPath.empty())
     {
@@ -408,6 +412,13 @@ HRESULT MachineManager::CreateMemoryDevices (const MachineConfig & config)
 
     if (m_shell.m_config.systemRom.romBankSize != 0)
     {
+        // //c compatibility shim: titles that VBL-sync with the //e idiom
+        // `LDA $C019 / BMI *-3` spin forever on the //c (sticky VBL-interrupt
+        // latch, not the //e's live RDVBLBAR). The patcher NOPs those branches
+        // in RAM so the wait falls through -- e.g. Karateka boots instead of
+        // hanging after load. Real-hardware Karateka has the same bug.
+        m_shell.m_gamePatcher.AddApple2cVblSpin();
+
         auto iwm = std::make_unique<Disk2Controller> (6);
         iwm->SetIwmMode (true);
         m_shell.m_memoryBus.AddDevice (iwm.get());

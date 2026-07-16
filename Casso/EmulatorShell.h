@@ -10,6 +10,7 @@
 #include "Core/ComponentRegistry.h"
 #include "Core/EmuCpu.h"
 #include "Core/InterruptController.h"
+#include "Core/GamePatcher.h"
 #include "Core/MachineConfig.h"
 #include "Core/MemoryBus.h"
 #include "D3DRenderer.h"
@@ -571,6 +572,7 @@ private:
     MemoryBus           m_memoryBus;
     ComponentRegistry   m_registry;
     InterruptController m_interruptController;
+    GamePatcher         m_gamePatcher;
     unique_ptr<EmuCpu> m_cpu;
     unique_ptr<class Prng> m_prng;
     size_t                 m_traceCapacity = 0;       // --trace ring size (entries); 0 = off

@@ -297,6 +297,7 @@
     <ClCompile Include="EmuTests\BootRomDecoderTests.cpp" />
     <ClCompile Include="EmuTests\BootDiskTests.cpp" />
     <ClCompile Include="EmuTests\GameBootTests.cpp" />
+    <ClCompile Include="EmuTests\GamePatcherTests.cpp" />
     <ClCompile Include="EmuTests\CatalogReproductionTest.cpp" />
     <ClCompile Include="EmuTests\DiskWritePathTests.cpp" />
     <ClCompile Include="EmuTests\Pr3AuxClearTest.cpp" />

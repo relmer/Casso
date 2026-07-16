@@ -203,6 +203,7 @@
     <ClCompile Include="Core\CpuFactory.cpp" />
     <ClCompile Include="Core\Cpu65C02.cpp" />
     <ClCompile Include="Core\Cpu65C02Table.cpp" />
+    <ClCompile Include="Core\GamePatcher.cpp" />
     <ClCompile Include="Core\Prng.cpp" />
     <ClCompile Include="Devices\RamDevice.cpp" />
     <ClCompile Include="Devices\RomDevice.cpp" />
@@ -265,6 +266,7 @@
     <ClInclude Include="Core\MachineConfig.h" />
     <ClInclude Include="Core\MachineConfigUpgrade.h" />
     <ClInclude Include="Core\MachineScanner.h" />
+    <ClInclude Include="Core\GamePatcher.h" />
     <ClInclude Include="Core\PathResolver.h" />
     <ClInclude Include="Core\Prng.h" />
     <ClInclude Include="Core\IInterruptController.h" />
