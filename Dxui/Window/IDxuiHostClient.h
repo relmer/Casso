@@ -337,22 +337,18 @@ public:
         return DxuiMessageResult::NotHandled;
     }
 
-    // WM_ENTERSIZEMOVE. The OS is entering its own modal move / size
-    // loop (the user grabbed the caption or a resize edge); the host's
-    // outer message pump will NOT run again until the matching
-    // OnExitSizeMove. A client whose rendering / animation is driven by
-    // that outer pump uses this to start a WM_TIMER so it keeps painting
-    // (and any paced audio keeps advancing) for the duration of the drag
-    // instead of freezing. Notification only -- the host still falls
-    // through to DefWindowProc so the OS modal loop runs normally.
-    virtual void  OnEnterSizeMove    ()
-    {
-    }
-
-    // WM_EXITSIZEMOVE. The OS modal move / size loop just ended and the
-    // host's outer pump is about to resume. Symmetric with
-    // OnEnterSizeMove -- kill any timer started there. Notification only.
-    virtual void  OnExitSizeMove     ()
+    // Fired repeatedly by the host WHILE the OS runs its own modal move /
+    // size loop (the user grabbed the caption or a resize edge). Between
+    // WM_ENTERSIZEMOVE and WM_EXITSIZEMOVE the OS owns the thread and the
+    // client's outer message pump does NOT iterate, so a client whose
+    // rendering / animation is driven by that pump would freeze until the
+    // drag ends. The host runs a short internal timer for the duration of
+    // the loop and calls this each tick; the client does one frame's worth
+    // of upkeep (present the latest content, advance any paced audio) so it
+    // keeps moving. A held-still drag produces no WM_MOVING / WM_SIZING at
+    // all, so this timer tick is the only signal during it. The host owns
+    // the timer entirely -- the client just supplies the per-frame work.
+    virtual void  OnModalLoopTick    ()
     {
     }
 

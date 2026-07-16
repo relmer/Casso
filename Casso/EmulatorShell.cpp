@@ -3438,25 +3438,19 @@ bool EmulatorShell::PumpUiFrame()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  OnEnterSizeMove / OnExitSizeMove
+//  OnModalLoopTick
 //
-//  Keep the UI thread painting during an OS modal move / size loop. Between
-//  WM_ENTERSIZEMOVE and WM_EXITSIZEMOVE the OS owns the thread and RunMessageLoop
-//  does not iterate, so without this the live printer preview freezes and its
-//  paced audio falls silent (the reveal stops advancing) until the user lets go
-//  -- then it jumps. A short WM_TIMER fires even inside that modal loop; its
-//  OnTimer pumps one UI frame so the preview and sound keep flowing.
+//  Called by the host on its keep-alive timer WHILE the OS runs a modal move /
+//  size loop (a title-bar hold or resize-edge drag). RunMessageLoop is not
+//  iterating during that loop, so without this the live printer preview freezes
+//  and its paced audio falls silent (the reveal stops advancing) until the drag
+//  ends -- then it jumps. The host owns the timer; we just render one frame.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::OnEnterSizeMove()
+void EmulatorShell::OnModalLoopTick()
 {
-    ::SetTimer (m_hwnd, kModalPumpTimerId, USER_TIMER_MINIMUM, nullptr);
-}
-
-void EmulatorShell::OnExitSizeMove()
-{
-    ::KillTimer (m_hwnd, kModalPumpTimerId);
+    PumpUiFrame();
 }
 
 
@@ -6268,15 +6262,7 @@ LRESULT EmulatorShell::OnDrawItem (HWND hwnd, UINT msg, WPARAM wParam, LPARAM lP
 
 DxuiMessageResult EmulatorShell::OnTimer (UINT_PTR timerId)
 {
-    // Keep-alive tick fired inside an OS modal move / size loop (armed by
-    // OnEnterSizeMove). RunMessageLoop is not iterating, so pump one UI frame
-    // here so the live printer preview + its paced audio keep flowing instead of
-    // freezing until the drag ends.
-    if (timerId == kModalPumpTimerId)
-    {
-        PumpUiFrame();
-        return DxuiMessageResult::Handled;
-    }
+    UNREFERENCED_PARAMETER (timerId);
 
     return DxuiMessageResult::NotHandled;
 }

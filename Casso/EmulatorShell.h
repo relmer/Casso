@@ -119,13 +119,11 @@ public:
     // indicator + live preview (which also paces the printer audio), and -- if
     // anything needs presenting -- drive a synchronous WM_PAINT. Returns true iff
     // it presented (caller idle-sleeps when false). Factored out of RunMessageLoop
-    // so the WM_ENTERSIZEMOVE keep-alive timer can pump it while the OS modal
-    // move / size loop owns the thread (otherwise the preview + sound freeze on a
-    // title-bar hold, then jump on release).
+    // so the host's OnModalLoopTick can pump it while the OS modal move / size
+    // loop owns the thread (otherwise the preview + sound freeze on a title-bar
+    // hold, then jump on release). The host owns the keep-alive timer; the shell
+    // only supplies this per-frame work.
     bool PumpUiFrame();
-
-    // WM_TIMER id for the OnEnterSizeMove/OnExitSizeMove keep-alive pump above.
-    static constexpr UINT_PTR  kModalPumpTimerId = 0xCA55;
 
     void HandleCommand (WORD commandId);
 
@@ -250,8 +248,7 @@ private:
     DxuiMessageResult  OnSize          (UINT widthPx, UINT heightPx) override;
     DxuiMessageResult  OnGetMinMax     (MINMAXINFO * info) override;
     DxuiMessageResult  OnTimer         (UINT_PTR timerId) override;
-    void               OnEnterSizeMove () override;
-    void               OnExitSizeMove  () override;
+    void               OnModalLoopTick () override;
     DxuiMessageResult  OnInitMenuPopup (HMENU hMenu, UINT itemIndex, bool isWindowMenu) override;
     DxuiMessageResult  OnNcMouseMove   (LRESULT hitTest, int xScreen, int yScreen) override;
     DxuiMessageResult  OnNcMouseLeave() override;

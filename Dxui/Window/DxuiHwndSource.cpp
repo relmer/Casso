@@ -18,6 +18,12 @@
 #endif
 
 
+// Host-owned WM_TIMER id armed for the duration of an OS modal move / size loop
+// (WM_ENTERSIZEMOVE..WM_EXITSIZEMOVE) to drive IDxuiHostClient::OnModalLoopTick.
+// Distinct from any client SetTimer id, which route to OnTimer instead.
+static constexpr UINT_PTR  s_kModalLoopTimerId = 0xDCE1;
+
+
 
 
 
@@ -2101,16 +2107,24 @@ LRESULT DxuiHwndSource::WndProc (UINT msg, WPARAM wp, LPARAM lp)
             break;
 
         case WM_ENTERSIZEMOVE:
-            // Notification only: let the client start a keep-alive timer, then
-            // fall through so the OS runs its modal move / size loop as usual.
-            if (m_client != nullptr) { m_client->OnEnterSizeMove(); }
+            // The OS is about to run its own modal move / size loop, during which
+            // our outer pump stops. Run a short internal timer so the client can
+            // keep painting; fall through so the OS loop still starts normally.
+            ::SetTimer (m_hwnd, s_kModalLoopTimerId, USER_TIMER_MINIMUM, nullptr);
             break;
 
         case WM_EXITSIZEMOVE:
-            if (m_client != nullptr) { m_client->OnExitSizeMove(); }
+            ::KillTimer (m_hwnd, s_kModalLoopTimerId);
             break;
 
         case WM_TIMER:
+            // The host-owned keep-alive tick (armed by WM_ENTERSIZEMOVE) is not a
+            // client SetTimer id; route it to OnModalLoopTick, not OnTimer.
+            if (wp == s_kModalLoopTimerId)
+            {
+                if (m_client != nullptr) { m_client->OnModalLoopTick(); }
+                return 0;
+            }
             if (m_client != nullptr && m_client->OnTimer (static_cast<UINT_PTR> (wp)) == DxuiMessageResult::Handled)
             {
                 InvalidateRect (m_hwnd, nullptr, FALSE);
