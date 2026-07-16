@@ -1510,7 +1510,6 @@ void PrinterPanel::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
     }
 
     m_hintFontPx = scaler.Pxf (11.0f);
-    m_fpsFontPx  = scaler.Pxf (15.0f);   // DEBUG FPS overlay, DPI-scaled + readable
     m_hintRect   = { boundsDip.left + pad,
                      botBandTop - hintH,
                      boundsDip.right - pad,
@@ -1614,51 +1613,6 @@ void PrinterPanel::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
             DxuiTextHAlign::Center,
             DxuiTextVAlign::Center,
             DxuiFontWeight::Normal,
-            false));
-    }
-
-    // DEBUG (temporary): preview FPS overlay, lower-right. This Paint runs once
-    // per actual repaint, so the wall-clock gap between calls is exactly the
-    // visible frame interval -- an even ~60 reads fluid; bouncing / big ms
-    // spikes are the jerky-printhead stutter we are chasing.
-    {
-        int64_t   nowMs = NowMs();
-
-        if (m_fpsLastPaintMs != 0)
-        {
-            m_fpsLastDeltaMs = nowMs - m_fpsLastPaintMs;
-            if (m_fpsLastDeltaMs > 0)
-            {
-                float  inst = 1000.0f / (float) m_fpsLastDeltaMs;
-                m_fpsSmoothed = (m_fpsSmoothed <= 0.0f) ? inst : (m_fpsSmoothed * 0.9f + inst * 0.1f);
-            }
-        }
-        m_fpsLastPaintMs = nowMs;
-
-        RECT            r    = (m_paperRectPx.right > m_paperRectPx.left) ? m_paperRectPx : b;
-        DxuiFontHandle  bf   = theme.BodyFont();
-        std::wstring    txt  = std::format (L"{:.0f} fps  {}ms", m_fpsSmoothed, m_fpsLastDeltaMs);
-        float           fh   = m_fpsFontPx * 1.5f;              // chip height
-        float           fw   = m_fpsFontPx * 8.2f;              // chip width
-        float           fpad = m_fpsFontPx * 0.4f;
-        float           fx   = (float) r.right  - fw - fpad;
-        float           fy   = (float) r.bottom - fh - fpad;
-
-        // Dark backing chip so the green reads over the paper / 3D scene.
-        painter.FillRect (fx, fy, fw, fh, 0xC0101410);
-
-        IGNORE_RETURN_VALUE (hr, text.DrawString (
-            txt.c_str (),
-            fx,
-            fy,
-            fw,
-            fh,
-            0xFF3BFF74,
-            m_fpsFontPx,
-            bf.face,
-            DxuiTextHAlign::Center,
-            DxuiTextVAlign::Center,
-            DxuiFontWeight::Bold,
             false));
     }
 }
