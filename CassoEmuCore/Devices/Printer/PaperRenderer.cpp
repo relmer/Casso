@@ -65,12 +65,12 @@ static constexpr Byte  s_kPalette[16][3] =
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void PaperRenderer::BuildWeaveTile ()
+void PaperRenderer::BuildWeaveTile()
 {
     int   x = 0;
     int   y = 0;
 
-    if (!m_weave.empty ())
+    if (!m_weave.empty())
     {
         return;
     }
@@ -109,12 +109,12 @@ void PaperRenderer::BuildDiscKernels (int outputDpi)
     int      side       = 2 * foot + 1;
     int      rem        = 0;
 
-    if (m_kernelDpi == outputDpi && !m_kernels.empty ())
+    if (m_kernelDpi == outputDpi && !m_kernels.empty())
     {
         return;
     }
 
-    m_kernels.clear ();
+    m_kernels.clear();
     m_kernels.resize (s_kHDenom);
 
     for (rem = 0; rem < s_kHDenom; rem++)
@@ -315,7 +315,7 @@ HRESULT PaperRenderer::Render (
         goto Error;
     }
 
-    BuildWeaveTile ();
+    BuildWeaveTile();
     BuildDiscKernels (dpi);
 
     outW = s_kColumns * dpi / s_kNativeDpiH;

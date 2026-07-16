@@ -164,8 +164,8 @@ namespace PaperRendererTests
             Assert::IsTrue (SUCCEEDED (r1.Render (raster, 0, 3, opt, a)));
             Assert::IsTrue (SUCCEEDED (r2.Render (raster, 0, 3, opt, b)));
 
-            Assert::AreEqual (a.rgba.size (), b.rgba.size ());
-            for (i = 0; i < (int) a.rgba.size (); i++)
+            Assert::AreEqual (a.rgba.size(), b.rgba.size());
+            for (i = 0; i < (int) a.rgba.size(); i++)
             {
                 Assert::AreEqual (a.rgba[i], b.rgba[i]);
             }

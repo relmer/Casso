@@ -35,7 +35,7 @@ namespace PrintDeliveryTests
         {
             if (m_ownsCom)
             {
-                CoUninitialize ();
+                CoUninitialize();
             }
         }
 
@@ -56,8 +56,8 @@ namespace PrintDeliveryTests
             }
 
             Assert::IsTrue (SUCCEEDED (PrintDelivery::RenderToPng (
-                raster, 0, raster.RowsUsed () - 1, 288, DotStyle::Ink, png)));
-            Assert::IsTrue (png.size () > 8);
+                raster, 0, raster.RowsUsed() - 1, 288, DotStyle::Ink, png)));
+            Assert::IsTrue (png.size() > 8);
 
             Assert::IsTrue (SUCCEEDED (PngCodec::DecodeRgba (png, decoded)));
             Assert::AreEqual (1280 * 288 / 160, decoded.width);          // full printable width

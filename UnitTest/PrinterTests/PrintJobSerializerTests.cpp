@@ -26,7 +26,7 @@ namespace PrintJobSerializerTests
         raster.Strike (100, 3, InkPrimary::Red);       // orange composite (0x6)
         raster.Strike (1279, 5, InkPrimary::Blue);
         raster.AdvanceRows (200);
-        raster.MarkFormFeed ();                        // boundary at 1584, paperRow=1584
+        raster.MarkFormFeed();                        // boundary at 1584, paperRow=1584
     }
 
 
@@ -53,12 +53,12 @@ namespace PrintJobSerializerTests
             Assert::IsTrue (SUCCEEDED (PrintJobSerializer::ReadMetaJson (json, meta)));
             Assert::IsTrue (SUCCEEDED (PrintJobSerializer::RebuildRaster (w, h, pixels, meta, rebuilt)));
 
-            Assert::AreEqual (original.RowsUsed (),   rebuilt.RowsUsed ());
-            Assert::AreEqual (original.PaperRow (),   rebuilt.PaperRow ());
-            Assert::AreEqual (original.CapReached (), rebuilt.CapReached ());
+            Assert::AreEqual (original.RowsUsed(),   rebuilt.RowsUsed());
+            Assert::AreEqual (original.PaperRow(),   rebuilt.PaperRow());
+            Assert::AreEqual (original.CapReached(), rebuilt.CapReached());
 
-            Assert::AreEqual (original.PageBoundaryRows ().size (), rebuilt.PageBoundaryRows ().size ());
-            Assert::AreEqual (PrinterGrid::kPageRows, rebuilt.PageBoundaryRows ()[0]);
+            Assert::AreEqual (original.PageBoundaryRows().size(), rebuilt.PageBoundaryRows().size());
+            Assert::AreEqual (PrinterGrid::kPageRows, rebuilt.PageBoundaryRows()[0]);
 
             // Struck cells (including the orange composite) survive intact.
             Assert::AreEqual ((Byte) InkPrimary::Black, rebuilt.CellAt (0, 0));
@@ -80,7 +80,7 @@ namespace PrintJobSerializerTests
 
             Assert::AreEqual (PrinterGrid::kDotsPerRow, w);
             Assert::AreEqual (10, h);                              // rowsUsed
-            Assert::AreEqual ((size_t) w * h, pixels.size ());
+            Assert::AreEqual ((size_t) w * h, pixels.size());
         }
 
 

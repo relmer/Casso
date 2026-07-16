@@ -142,7 +142,7 @@ static InkPrimary ColorForCode (Byte digit)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ImageWriterInterpreter::Reset ()
+void ImageWriterInterpreter::Reset()
 {
     m_headColumnDots  = 0;
     m_lineFeedRows     = s_kDefaultLineFeedRows;
@@ -238,7 +238,7 @@ void ImageWriterInterpreter::ConsumeIdle (Byte b, PrintRaster & raster, vector<P
     {
         PrinterEvent   ev;
 
-        raster.MarkFormFeed ();
+        raster.MarkFormFeed();
         m_headColumnDots = 0;
         ev.type = PrinterEventType::FormFeed;
         events.push_back (ev);
@@ -430,7 +430,7 @@ void ImageWriterInterpreter::ExecuteParamCommand (PrintRaster & raster, vector<P
 
 void ImageWriterInterpreter::ConsumeGraphicsByte (Byte b, PrintRaster & raster, vector<PrinterEvent> & events)
 {
-    int   row   = raster.PaperRow ();
+    int   row   = raster.PaperRow();
     int   dot0  = m_headColumnDots;
     int   dot1  = m_headColumnDots + 1;
     int   bit   = 0;
@@ -502,7 +502,7 @@ void ImageWriterInterpreter::EmitReset (vector<PrinterEvent> & events)
 {
     PrinterEvent   ev;
 
-    Reset ();
+    Reset();
     ev.type = PrinterEventType::ResetSeen;
     events.push_back (ev);
 }

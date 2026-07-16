@@ -42,9 +42,9 @@ namespace
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-Dxui3DRenderer::~Dxui3DRenderer ()
+Dxui3DRenderer::~Dxui3DRenderer()
 {
-    Shutdown ();
+    Shutdown();
 }
 
 
@@ -65,10 +65,10 @@ HRESULT Dxui3DRenderer::Initialize (ID3D11Device * device, ID3D11DeviceContext *
     m_device  = device;
     m_context = context;
 
-    hr = CreateShaders ();
+    hr = CreateShaders();
     CHR (hr);
 
-    hr = CreatePipelineState ();
+    hr = CreatePipelineState();
     CHR (hr);
 
     // 1x1 opaque white: untextured geometry samples it so the vertex tint IS
@@ -90,17 +90,17 @@ HRESULT Dxui3DRenderer::Initialize (ID3D11Device * device, ID3D11DeviceContext *
         initial.pSysMem     = &white;
         initial.SysMemPitch = sizeof (white);
 
-        hr = m_device->CreateTexture2D (&desc, &initial, m_whiteTex.GetAddressOf ());
+        hr = m_device->CreateTexture2D (&desc, &initial, m_whiteTex.GetAddressOf());
         CHR (hr);
 
-        hr = m_device->CreateShaderResourceView (m_whiteTex.Get (), nullptr, m_whiteSrv.GetAddressOf ());
+        hr = m_device->CreateShaderResourceView (m_whiteTex.Get(), nullptr, m_whiteSrv.GetAddressOf());
         CHR (hr);
     }
 
 Error:
     if (FAILED (hr))
     {
-        Shutdown ();
+        Shutdown();
     }
     return hr;
 }
@@ -114,24 +114,24 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void Dxui3DRenderer::Shutdown ()
+void Dxui3DRenderer::Shutdown()
 {
-    m_vs.Reset ();
-    m_ps.Reset ();
-    m_layout.Reset ();
-    m_vertexBuffer.Reset ();
-    m_mvpBuffer.Reset ();
-    m_blendState.Reset ();
-    m_rasterState.Reset ();
-    m_depthState.Reset ();
-    m_depthStateTest.Reset ();
-    m_sampler.Reset ();
-    m_contentTex.Reset ();
-    m_contentSrv.Reset ();
-    m_whiteTex.Reset ();
-    m_whiteSrv.Reset ();
-    m_depthTex.Reset ();
-    m_depthDsv.Reset ();
+    m_vs.Reset();
+    m_ps.Reset();
+    m_layout.Reset();
+    m_vertexBuffer.Reset();
+    m_mvpBuffer.Reset();
+    m_blendState.Reset();
+    m_rasterState.Reset();
+    m_depthState.Reset();
+    m_depthStateTest.Reset();
+    m_sampler.Reset();
+    m_contentTex.Reset();
+    m_contentSrv.Reset();
+    m_whiteTex.Reset();
+    m_whiteSrv.Reset();
+    m_depthTex.Reset();
+    m_depthDsv.Reset();
 
     m_vertexBufferCapacity = 0;
     m_contentWidth         = 0;
@@ -151,7 +151,7 @@ void Dxui3DRenderer::Shutdown ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT Dxui3DRenderer::CreateShaders ()
+HRESULT Dxui3DRenderer::CreateShaders()
 {
     HRESULT            hr      = S_OK;
     ComPtr<ID3DBlob>   vsBlob;
@@ -167,25 +167,25 @@ HRESULT Dxui3DRenderer::CreateShaders ()
 
     hr = D3DCompile (s_kVertexShaderSrc, sizeof (s_kVertexShaderSrc) - 1,
                      nullptr, nullptr, nullptr, "main", "vs_4_0",
-                     0, 0, vsBlob.GetAddressOf (), errors.GetAddressOf ());
+                     0, 0, vsBlob.GetAddressOf(), errors.GetAddressOf());
     CHR (hr);
 
     hr = D3DCompile (s_kPixelShaderSrc, sizeof (s_kPixelShaderSrc) - 1,
                      nullptr, nullptr, nullptr, "main", "ps_4_0",
-                     0, 0, psBlob.GetAddressOf (), errors.ReleaseAndGetAddressOf ());
+                     0, 0, psBlob.GetAddressOf(), errors.ReleaseAndGetAddressOf());
     CHR (hr);
 
-    hr = m_device->CreateVertexShader (vsBlob->GetBufferPointer (), vsBlob->GetBufferSize (),
-                                       nullptr, m_vs.GetAddressOf ());
+    hr = m_device->CreateVertexShader (vsBlob->GetBufferPointer(), vsBlob->GetBufferSize(),
+                                       nullptr, m_vs.GetAddressOf());
     CHR (hr);
 
-    hr = m_device->CreatePixelShader (psBlob->GetBufferPointer (), psBlob->GetBufferSize (),
-                                      nullptr, m_ps.GetAddressOf ());
+    hr = m_device->CreatePixelShader (psBlob->GetBufferPointer(), psBlob->GetBufferSize(),
+                                      nullptr, m_ps.GetAddressOf());
     CHR (hr);
 
     hr = m_device->CreateInputLayout (layout, ARRAYSIZE (layout),
-                                      vsBlob->GetBufferPointer (), vsBlob->GetBufferSize (),
-                                      m_layout.GetAddressOf ());
+                                      vsBlob->GetBufferPointer(), vsBlob->GetBufferSize(),
+                                      m_layout.GetAddressOf());
     CHR (hr);
 
 Error:
@@ -201,7 +201,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT Dxui3DRenderer::CreatePipelineState ()
+HRESULT Dxui3DRenderer::CreatePipelineState()
 {
     HRESULT   hr = S_OK;
 
@@ -219,7 +219,7 @@ HRESULT Dxui3DRenderer::CreatePipelineState ()
         blend.RenderTarget[0].BlendOpAlpha          = D3D11_BLEND_OP_ADD;
         blend.RenderTarget[0].RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_ALL;
 
-        hr = m_device->CreateBlendState (&blend, m_blendState.GetAddressOf ());
+        hr = m_device->CreateBlendState (&blend, m_blendState.GetAddressOf());
         CHR (hr);
     }
 
@@ -232,7 +232,7 @@ HRESULT Dxui3DRenderer::CreatePipelineState ()
         raster.CullMode        = D3D11_CULL_NONE;
         raster.DepthClipEnable = TRUE;
 
-        hr = m_device->CreateRasterizerState (&raster, m_rasterState.GetAddressOf ());
+        hr = m_device->CreateRasterizerState (&raster, m_rasterState.GetAddressOf());
         CHR (hr);
     }
 
@@ -243,14 +243,14 @@ HRESULT Dxui3DRenderer::CreatePipelineState ()
 
         depth.DepthEnable = FALSE;
 
-        hr = m_device->CreateDepthStencilState (&depth, m_depthState.GetAddressOf ());
+        hr = m_device->CreateDepthStencilState (&depth, m_depthState.GetAddressOf());
         CHR (hr);
 
         depth.DepthEnable    = TRUE;
         depth.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ALL;
         depth.DepthFunc      = D3D11_COMPARISON_LESS;
 
-        hr = m_device->CreateDepthStencilState (&depth, m_depthStateTest.GetAddressOf ());
+        hr = m_device->CreateDepthStencilState (&depth, m_depthStateTest.GetAddressOf());
         CHR (hr);
     }
 
@@ -263,7 +263,7 @@ HRESULT Dxui3DRenderer::CreatePipelineState ()
         samp.AddressW       = D3D11_TEXTURE_ADDRESS_CLAMP;
         samp.MaxLOD         = D3D11_FLOAT32_MAX;
 
-        hr = m_device->CreateSamplerState (&samp, m_sampler.GetAddressOf ());
+        hr = m_device->CreateSamplerState (&samp, m_sampler.GetAddressOf());
         CHR (hr);
     }
 
@@ -275,7 +275,7 @@ HRESULT Dxui3DRenderer::CreatePipelineState ()
         cb.BindFlags      = D3D11_BIND_CONSTANT_BUFFER;
         cb.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
 
-        hr = m_device->CreateBuffer (&cb, nullptr, m_mvpBuffer.GetAddressOf ());
+        hr = m_device->CreateBuffer (&cb, nullptr, m_mvpBuffer.GetAddressOf());
         CHR (hr);
     }
 
@@ -302,14 +302,14 @@ HRESULT Dxui3DRenderer::EnsureVertexBuffer (size_t requiredVerts)
         return S_OK;
     }
 
-    m_vertexBuffer.Reset ();
+    m_vertexBuffer.Reset();
 
     desc.ByteWidth      = (UINT) (requiredVerts * sizeof (Vertex));
     desc.Usage          = D3D11_USAGE_DYNAMIC;
     desc.BindFlags      = D3D11_BIND_VERTEX_BUFFER;
     desc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
 
-    hr = m_device->CreateBuffer (&desc, nullptr, m_vertexBuffer.GetAddressOf ());
+    hr = m_device->CreateBuffer (&desc, nullptr, m_vertexBuffer.GetAddressOf());
     CHR (hr);
 
     m_vertexBufferCapacity = requiredVerts;
@@ -339,8 +339,8 @@ HRESULT Dxui3DRenderer::UpdateContentTexture (const uint32_t * bgra, int width, 
     {
         D3D11_TEXTURE2D_DESC   desc = {};
 
-        m_contentTex.Reset ();
-        m_contentSrv.Reset ();
+        m_contentTex.Reset();
+        m_contentSrv.Reset();
 
         desc.Width            = (UINT) width;
         desc.Height           = (UINT) height;
@@ -352,17 +352,17 @@ HRESULT Dxui3DRenderer::UpdateContentTexture (const uint32_t * bgra, int width, 
         desc.BindFlags        = D3D11_BIND_SHADER_RESOURCE;
         desc.CPUAccessFlags   = D3D11_CPU_ACCESS_WRITE;
 
-        hr = m_device->CreateTexture2D (&desc, nullptr, m_contentTex.GetAddressOf ());
+        hr = m_device->CreateTexture2D (&desc, nullptr, m_contentTex.GetAddressOf());
         CHR (hr);
 
-        hr = m_device->CreateShaderResourceView (m_contentTex.Get (), nullptr, m_contentSrv.GetAddressOf ());
+        hr = m_device->CreateShaderResourceView (m_contentTex.Get(), nullptr, m_contentSrv.GetAddressOf());
         CHR (hr);
 
         m_contentWidth  = width;
         m_contentHeight = height;
     }
 
-    hr = m_context->Map (m_contentTex.Get (), 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped);
+    hr = m_context->Map (m_contentTex.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped);
     CHR (hr);
 
     for (int y = 0; y < height; y++)
@@ -372,7 +372,7 @@ HRESULT Dxui3DRenderer::UpdateContentTexture (const uint32_t * bgra, int width, 
                 (size_t) width * sizeof (uint32_t));
     }
 
-    m_context->Unmap (m_contentTex.Get (), 0);
+    m_context->Unmap (m_contentTex.Get(), 0);
 
 Error:
     return hr;
@@ -392,7 +392,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT Dxui3DRenderer::BeginDepthPass ()
+HRESULT Dxui3DRenderer::BeginDepthPass()
 {
     HRESULT                         hr  = S_OK;
     ComPtr<ID3D11RenderTargetView>  rtv;
@@ -402,10 +402,10 @@ HRESULT Dxui3DRenderer::BeginDepthPass ()
 
     CBREx (m_device != nullptr, E_UNEXPECTED);
 
-    m_context->OMGetRenderTargets (1, rtv.GetAddressOf (), nullptr);
+    m_context->OMGetRenderTargets (1, rtv.GetAddressOf(), nullptr);
     CBREx (rtv != nullptr, E_UNEXPECTED);
 
-    rtv->GetResource (res.GetAddressOf ());
+    rtv->GetResource (res.GetAddressOf());
     hr = res.As (&tex);
     CHR (hr);
 
@@ -416,8 +416,8 @@ HRESULT Dxui3DRenderer::BeginDepthPass ()
     {
         D3D11_TEXTURE2D_DESC   depthDesc = {};
 
-        m_depthTex.Reset ();
-        m_depthDsv.Reset ();
+        m_depthTex.Reset();
+        m_depthDsv.Reset();
 
         depthDesc.Width            = desc.Width;
         depthDesc.Height           = desc.Height;
@@ -428,17 +428,17 @@ HRESULT Dxui3DRenderer::BeginDepthPass ()
         depthDesc.Usage            = D3D11_USAGE_DEFAULT;
         depthDesc.BindFlags        = D3D11_BIND_DEPTH_STENCIL;
 
-        hr = m_device->CreateTexture2D (&depthDesc, nullptr, m_depthTex.GetAddressOf ());
+        hr = m_device->CreateTexture2D (&depthDesc, nullptr, m_depthTex.GetAddressOf());
         CHR (hr);
 
-        hr = m_device->CreateDepthStencilView (m_depthTex.Get (), nullptr, m_depthDsv.GetAddressOf ());
+        hr = m_device->CreateDepthStencilView (m_depthTex.Get(), nullptr, m_depthDsv.GetAddressOf());
         CHR (hr);
 
         m_depthWidth  = (int) desc.Width;
         m_depthHeight = (int) desc.Height;
     }
 
-    m_context->ClearDepthStencilView (m_depthDsv.Get (), D3D11_CLEAR_DEPTH, 1.0f, 0);
+    m_context->ClearDepthStencilView (m_depthDsv.Get(), D3D11_CLEAR_DEPTH, 1.0f, 0);
 
 Error:
     return hr;
@@ -471,20 +471,20 @@ HRESULT Dxui3DRenderer::DrawTriangles (const Vertex   * verts,
     CBREx (m_device != nullptr, E_UNEXPECTED);
     CBREx (verts != nullptr && vertexCount > 0 && (vertexCount % 3) == 0, E_INVALIDARG);
 
-    srv = (textured && m_contentSrv != nullptr) ? m_contentSrv.Get () : m_whiteSrv.Get ();
+    srv = (textured && m_contentSrv != nullptr) ? m_contentSrv.Get() : m_whiteSrv.Get();
 
     hr = EnsureVertexBuffer (vertexCount);
     CHR (hr);
 
-    hr = m_context->Map (m_vertexBuffer.Get (), 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped);
+    hr = m_context->Map (m_vertexBuffer.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped);
     CHR (hr);
     memcpy (mapped.pData, verts, vertexCount * sizeof (Vertex));
-    m_context->Unmap (m_vertexBuffer.Get (), 0);
+    m_context->Unmap (m_vertexBuffer.Get(), 0);
 
-    hr = m_context->Map (m_mvpBuffer.Get (), 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped);
+    hr = m_context->Map (m_mvpBuffer.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped);
     CHR (hr);
     memcpy (mapped.pData, mvp, 16 * sizeof (float));
-    m_context->Unmap (m_mvpBuffer.Get (), 0);
+    m_context->Unmap (m_mvpBuffer.Get(), 0);
 
     // Depth-tested draws re-bind the current RTV together with our DSV (the
     // host bound it without one); depth-off draws leave the bindings alone.
@@ -492,30 +492,30 @@ HRESULT Dxui3DRenderer::DrawTriangles (const Vertex   * verts,
     {
         ComPtr<ID3D11RenderTargetView>  rtv;
 
-        m_context->OMGetRenderTargets (1, rtv.GetAddressOf (), nullptr);
+        m_context->OMGetRenderTargets (1, rtv.GetAddressOf(), nullptr);
         CBREx (rtv != nullptr, E_UNEXPECTED);
 
-        ID3D11RenderTargetView *  rtvs[1] = { rtv.Get () };
+        ID3D11RenderTargetView *  rtvs[1] = { rtv.Get() };
 
-        m_context->OMSetRenderTargets (1, rtvs, m_depthDsv.Get ());
+        m_context->OMSetRenderTargets (1, rtvs, m_depthDsv.Get());
     }
 
     // Full state set every draw (mirrors DxuiPainter::End): interleaving with
     // the painter and text renderer needs no save/restore etiquette.
     m_context->RSSetViewports         (1, &viewportPx);
-    m_context->OMSetBlendState        (m_blendState.Get (), blendFactor, 0xFFFFFFFF);
-    m_context->OMSetDepthStencilState (useDepth ? m_depthStateTest.Get () : m_depthState.Get (), 0);
-    m_context->RSSetState             (m_rasterState.Get ());
+    m_context->OMSetBlendState        (m_blendState.Get(), blendFactor, 0xFFFFFFFF);
+    m_context->OMSetDepthStencilState (useDepth ? m_depthStateTest.Get() : m_depthState.Get(), 0);
+    m_context->RSSetState             (m_rasterState.Get());
 
-    m_context->IASetInputLayout       (m_layout.Get ());
+    m_context->IASetInputLayout       (m_layout.Get());
     m_context->IASetPrimitiveTopology (D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-    m_context->IASetVertexBuffers     (0, 1, m_vertexBuffer.GetAddressOf (), &stride, &offset);
+    m_context->IASetVertexBuffers     (0, 1, m_vertexBuffer.GetAddressOf(), &stride, &offset);
 
-    m_context->VSSetShader            (m_vs.Get (), nullptr, 0);
-    m_context->VSSetConstantBuffers   (0, 1, m_mvpBuffer.GetAddressOf ());
-    m_context->PSSetShader            (m_ps.Get (), nullptr, 0);
+    m_context->VSSetShader            (m_vs.Get(), nullptr, 0);
+    m_context->VSSetConstantBuffers   (0, 1, m_mvpBuffer.GetAddressOf());
+    m_context->PSSetShader            (m_ps.Get(), nullptr, 0);
     m_context->PSSetShaderResources   (0, 1, &srv);
-    m_context->PSSetSamplers          (0, 1, m_sampler.GetAddressOf ());
+    m_context->PSSetSamplers          (0, 1, m_sampler.GetAddressOf());
 
     m_context->Draw ((UINT) vertexCount, 0);
 

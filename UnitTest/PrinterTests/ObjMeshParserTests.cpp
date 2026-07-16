@@ -27,7 +27,7 @@ namespace ObjMeshParserTests
             std::vector<ObjTriangle>   tris;
 
             Assert::IsTrue  (ObjMeshParser::Parse (obj, mtl, tris));
-            Assert::AreEqual ((size_t) 1, tris.size ());
+            Assert::AreEqual ((size_t) 1, tris.size());
             Assert::AreEqual (1.0f, tris[0].r);
             Assert::AreEqual (0.0f, tris[0].g);
             Assert::AreEqual (0.0f, tris[0].b);
@@ -48,7 +48,7 @@ namespace ObjMeshParserTests
             std::vector<ObjTriangle>   tris;
 
             Assert::IsTrue  (ObjMeshParser::Parse (obj, "", tris));
-            Assert::AreEqual ((size_t) 2, tris.size ());
+            Assert::AreEqual ((size_t) 2, tris.size());
 
             // Fan: (v1,v2,v3) and (v1,v3,v4) -- both share the first vertex.
             Assert::AreEqual (0.0f, tris[0].p0[0]);
@@ -70,7 +70,7 @@ namespace ObjMeshParserTests
             std::vector<ObjTriangle>   tris;
 
             Assert::IsTrue  (ObjMeshParser::Parse (obj, "", tris));
-            Assert::AreEqual ((size_t) 1, tris.size ());
+            Assert::AreEqual ((size_t) 1, tris.size());
             Assert::AreEqual (1.0f, tris[0].p1[0]);
         }
 
@@ -87,7 +87,7 @@ namespace ObjMeshParserTests
             std::vector<ObjTriangle>   tris;
 
             Assert::IsTrue  (ObjMeshParser::Parse (obj, "newmtl other\nKd 0 0 1\n", tris));
-            Assert::AreEqual ((size_t) 1, tris.size ());
+            Assert::AreEqual ((size_t) 1, tris.size());
             Assert::AreEqual (1.0f, tris[0].r);
             Assert::AreEqual (1.0f, tris[0].g);
             Assert::AreEqual (1.0f, tris[0].b);
@@ -105,7 +105,7 @@ namespace ObjMeshParserTests
             std::vector<ObjTriangle>   tris;
 
             Assert::IsTrue  (ObjMeshParser::Parse (obj, "", tris));
-            Assert::AreEqual ((size_t) 1, tris.size ());
+            Assert::AreEqual ((size_t) 1, tris.size());
             Assert::AreEqual (1.0f, tris[0].p1[0]);
             Assert::AreEqual (1.0f, tris[0].p2[1]);
         }
@@ -128,7 +128,7 @@ namespace ObjMeshParserTests
             std::vector<ObjTriangle>   tris;
 
             Assert::IsTrue  (ObjMeshParser::Parse (obj, mtl, tris));
-            Assert::AreEqual ((size_t) 2, tris.size ());
+            Assert::AreEqual ((size_t) 2, tris.size());
             Assert::AreEqual (1.0f, tris[0].r);
             Assert::AreEqual (0.0f, tris[0].b);
             Assert::AreEqual (0.0f, tris[1].r);
@@ -157,7 +157,7 @@ namespace ObjMeshParserTests
             std::vector<ObjTriangle>   tris;
 
             Assert::IsTrue  (ObjMeshParser::Parse (obj, "", tris));
-            Assert::AreEqual ((size_t) 0, tris.size ());
+            Assert::AreEqual ((size_t) 0, tris.size());
         }
     };
 }

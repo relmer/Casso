@@ -38,7 +38,7 @@ namespace
             {
                 ls >> curName;
             }
-            else if (tag == "Kd" && !curName.empty ())
+            else if (tag == "Kd" && !curName.empty())
             {
                 Rgb   c = { 1.0f, 1.0f, 1.0f };
 
@@ -65,7 +65,7 @@ namespace
 
     int ParseFaceIndex (const std::string & token, size_t vertexCount)
     {
-        int   vi = std::atoi (token.c_str ());
+        int   vi = std::atoi (token.c_str());
 
         if (vi < 0)
         {
@@ -95,7 +95,7 @@ bool ObjMeshParser::Parse (const std::string        & objText,
     std::istringstream                     stream (objText);
     std::string                            line;
 
-    outTriangles.clear ();
+    outTriangles.clear();
 
     while (std::getline (stream, line))
     {
@@ -118,7 +118,7 @@ bool ObjMeshParser::Parse (const std::string        & objText,
             ls >> name;
 
             auto   it = materials.find (name);
-            curColor  = (it != materials.end ()) ? it->second : Rgb { 1.0f, 1.0f, 1.0f };
+            curColor  = (it != materials.end()) ? it->second : Rgb { 1.0f, 1.0f, 1.0f };
         }
         else if (tag == "f")
         {
@@ -127,16 +127,16 @@ bool ObjMeshParser::Parse (const std::string        & objText,
 
             while (ls >> token)
             {
-                int   vi = ParseFaceIndex (token, verts.size ());
+                int   vi = ParseFaceIndex (token, verts.size());
 
-                if (vi >= 1 && (size_t) vi <= verts.size ())
+                if (vi >= 1 && (size_t) vi <= verts.size())
                 {
                     faceVerts.push_back (vi - 1);   // OBJ is 1-indexed
                 }
             }
 
             // Fan-triangulate any n-gon (n>=3): (0,1,2), (0,2,3), (0,3,4), ...
-            for (size_t k = 1; k + 1 < faceVerts.size (); k++)
+            for (size_t k = 1; k + 1 < faceVerts.size(); k++)
             {
                 ObjTriangle   tri;
 
@@ -154,5 +154,5 @@ bool ObjMeshParser::Parse (const std::string        & objText,
         }
     }
 
-    return !verts.empty ();
+    return !verts.empty();
 }

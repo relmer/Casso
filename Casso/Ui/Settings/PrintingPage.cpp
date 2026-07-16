@@ -73,7 +73,7 @@ PrintingPage::PrintingPage (std::wstring title)
 void PrintingPage::SetPrefs (GlobalUserPrefs * prefs)
 {
     m_prefs = prefs;
-    Rebuild ();
+    Rebuild();
 }
 
 
@@ -102,7 +102,7 @@ void PrintingPage::SetPopupHost (DxuiHwndSource * host)
 
 void PrintingPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
 {
-    UINT dpi         = scaler.Dpi ();
+    UINT dpi         = scaler.Dpi();
     int  pad         = scaler.Px (s_kPagePadDp);
     int  rowHeight   = scaler.Px (s_kRowHeightDp);
     int  labelWidth  = scaler.Px (s_kLabelWidthDp);
@@ -176,7 +176,7 @@ void PrintingPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void PrintingPage::Rebuild ()
+void PrintingPage::Rebuild()
 {
     GlobalUserPrefs *  prefs = m_prefs;
 
@@ -197,39 +197,39 @@ void PrintingPage::Rebuild ()
     m_dpi.SetSelect ([this, prefs] (int idx)
     {
         prefs->printOutputDpi = (idx == 1) ? 576 : 288;
-        MarkDirty ();
+        MarkDirty();
     });
 
     m_dotStyle.SetSelect ([this, prefs] (int idx)
     {
         prefs->printDotStyle = (idx == 1) ? "plain" : "ink";
-        MarkDirty ();
+        MarkDirty();
     });
 
     m_soundsToggle.SetOnChange ([this, prefs] (bool checked)
     {
         prefs->printerAudioEnabled = checked;
-        ApplyEnabledState ();
-        MarkDirty ();
+        ApplyEnabledState();
+        MarkDirty();
     });
 
     m_volume.SetOnChange ([this, prefs] (float v)
     {
         prefs->printerAudioVolume = v / 100.0f;
-        MarkDirty ();
+        MarkDirty();
     });
 
     m_panOverride.SetOnChange ([this, prefs] (bool checked)
     {
         prefs->printerAudioPanOverride = checked;
-        ApplyEnabledState ();
-        MarkDirty ();
+        ApplyEnabledState();
+        MarkDirty();
     });
 
     m_pan.SetOnChange ([this, prefs] (float v)
     {
         prefs->printerAudioPan = v / 100.0f;
-        MarkDirty ();
+        MarkDirty();
     });
 }
 
@@ -315,7 +315,7 @@ void PrintingPage::ConfigurePanSlider (DxuiSlider & slider, const RECT & rect)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void PrintingPage::ApplyEnabledState ()
+void PrintingPage::ApplyEnabledState()
 {
     bool  soundsOn = (m_prefs != nullptr) && m_prefs->printerAudioEnabled;
     bool  panLive  = soundsOn && (m_prefs != nullptr) && m_prefs->printerAudioPanOverride;

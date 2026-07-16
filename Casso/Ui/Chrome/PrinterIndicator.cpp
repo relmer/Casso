@@ -48,7 +48,7 @@ namespace
 void PrinterIndicator::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
 {
     m_hidden   = false;
-    m_dpi      = scaler.Dpi ();
+    m_dpi      = scaler.Dpi();
     m_bodyRect = boundsDip;
 
     SetBounds (m_bodyRect);

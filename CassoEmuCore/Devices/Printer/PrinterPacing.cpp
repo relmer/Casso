@@ -102,7 +102,7 @@ void PrinterPacing::SetTargetPosition (int targetRows, int targetColDots)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void PrinterPacing::RequestFastForward ()
+void PrinterPacing::RequestFastForward()
 {
     m_fastForward = true;
 }
@@ -119,7 +119,7 @@ void PrinterPacing::RequestFastForward ()
 int PrinterPacing::Advance (double nowSeconds)
 {
     double  dt        = 0.0;
-    bool    wasBehind = RevealedRows () < m_target;
+    bool    wasBehind = RevealedRows() < m_target;
 
     if (!m_started)
     {
@@ -156,7 +156,7 @@ int PrinterPacing::Advance (double nowSeconds)
             m_revealed = (double) m_target;
         }
 
-        if (RevealedRows () >= m_target)
+        if (RevealedRows() >= m_target)
         {
             if (wasBehind)
             {
@@ -179,7 +179,7 @@ int PrinterPacing::Advance (double nowSeconds)
         }
     }
 
-    return RevealedRows ();
+    return RevealedRows();
 }
 
 
@@ -191,7 +191,7 @@ int PrinterPacing::Advance (double nowSeconds)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-int PrinterPacing::RevealedRows () const
+int PrinterPacing::RevealedRows() const
 {
     int  rows = (int) m_revealed;
 
@@ -210,11 +210,11 @@ int PrinterPacing::RevealedRows () const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-int PrinterPacing::RevealedColDots () const
+int PrinterPacing::RevealedColDots() const
 {
     int  col = 0;
 
-    if (RevealedRows () < m_target)
+    if (RevealedRows() < m_target)
     {
         // Still catching up through older rows: those lines show complete.
         return PrinterGrid::kDotsPerRow;
@@ -237,7 +237,7 @@ int PrinterPacing::RevealedColDots () const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-int PrinterPacing::TargetRows () const
+int PrinterPacing::TargetRows() const
 {
     return m_target;
 }
@@ -251,7 +251,7 @@ int PrinterPacing::TargetRows () const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool PrinterPacing::IsCaughtUp () const
+bool PrinterPacing::IsCaughtUp() const
 {
-    return RevealedRows () >= m_target;
+    return RevealedRows() >= m_target;
 }

@@ -35,7 +35,7 @@ namespace PrintJobPersistenceTests
         {
             if (m_ownsCom)
             {
-                CoUninitialize ();
+                CoUninitialize();
             }
         }
 
@@ -52,19 +52,19 @@ namespace PrintJobPersistenceTests
             original.Strike (100,  3, InkPrimary::Red);      // orange (0x6)
             original.Strike (1279, 5, InkPrimary::Blue);
             original.AdvanceRows (200);
-            original.MarkFormFeed ();                        // boundary at 1584
+            original.MarkFormFeed();                        // boundary at 1584
 
             Assert::IsTrue (SUCCEEDED (PrintJobPersistence::Save (original, png, json)));
-            Assert::IsTrue (png.size () > 8);
+            Assert::IsTrue (png.size() > 8);
             Assert::IsTrue (SUCCEEDED (PrintJobPersistence::Load (png, json, reloaded)));
 
-            Assert::AreEqual (original.RowsUsed (), reloaded.RowsUsed ());
-            Assert::AreEqual (original.PaperRow (), reloaded.PaperRow ());
+            Assert::AreEqual (original.RowsUsed(), reloaded.RowsUsed());
+            Assert::AreEqual (original.PaperRow(), reloaded.PaperRow());
             Assert::AreEqual ((Byte) InkPrimary::Black, reloaded.CellAt (0, 0));
             Assert::AreEqual ((Byte) 0x6,               reloaded.CellAt (100, 3));
             Assert::AreEqual ((Byte) InkPrimary::Blue,  reloaded.CellAt (1279, 5));
-            Assert::AreEqual ((size_t) 1, reloaded.PageBoundaryRows ().size ());
-            Assert::AreEqual (PrinterGrid::kPageRows, reloaded.PageBoundaryRows ()[0]);
+            Assert::AreEqual ((size_t) 1, reloaded.PageBoundaryRows().size());
+            Assert::AreEqual (PrinterGrid::kPageRows, reloaded.PageBoundaryRows()[0]);
         }
 
 
@@ -78,8 +78,8 @@ namespace PrintJobPersistenceTests
             Assert::IsTrue (SUCCEEDED (PrintJobPersistence::Save (original, png, json)));
             Assert::IsTrue (SUCCEEDED (PrintJobPersistence::Load (png, json, reloaded)));
 
-            Assert::AreEqual (0, reloaded.RowsUsed ());
-            Assert::IsFalse (reloaded.RowsUsed () > 0);
+            Assert::AreEqual (0, reloaded.RowsUsed());
+            Assert::IsFalse (reloaded.RowsUsed() > 0);
         }
 
 

@@ -18,7 +18,7 @@ vector<PrintPagination::PageRange> PrintPagination::Paginate (const PrintRaster 
 {
     vector<PageRange>   pages;
     vector<int>         breaks;
-    int                 rowsUsed = raster.RowsUsed ();
+    int                 rowsUsed = raster.RowsUsed();
 
     if (rowsUsed <= 0)
     {
@@ -28,7 +28,7 @@ vector<PrintPagination::PageRange> PrintPagination::Paginate (const PrintRaster 
     // Guest form feeds are hard page breaks; bracket them with the strip ends.
     breaks.push_back (0);
 
-    for (int b : raster.PageBoundaryRows ())
+    for (int b : raster.PageBoundaryRows())
     {
         if (b > 0 && b < rowsUsed)
         {
@@ -38,11 +38,11 @@ vector<PrintPagination::PageRange> PrintPagination::Paginate (const PrintRaster 
 
     breaks.push_back (rowsUsed);
 
-    std::sort (breaks.begin (), breaks.end ());
-    breaks.erase (std::unique (breaks.begin (), breaks.end ()), breaks.end ());
+    std::sort (breaks.begin(), breaks.end());
+    breaks.erase (std::unique (breaks.begin(), breaks.end()), breaks.end());
 
     // Within each form-feed segment, cap every page at one physical page height.
-    for (size_t i = 0; i + 1 < breaks.size (); i++)
+    for (size_t i = 0; i + 1 < breaks.size(); i++)
     {
         int   segStart = breaks[i];
         int   segEnd   = breaks[i + 1];   // exclusive

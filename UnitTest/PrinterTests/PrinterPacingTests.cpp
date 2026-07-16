@@ -35,7 +35,7 @@ namespace PrinterPacingTests
             Assert::AreEqual (100, p.Advance (1.0));
             Assert::AreEqual (250, p.Advance (2.5));
             Assert::AreEqual (300, p.Advance (3.0));
-            Assert::IsFalse  (p.IsCaughtUp ());
+            Assert::IsFalse  (p.IsCaughtUp());
         }
 
 
@@ -49,7 +49,7 @@ namespace PrinterPacingTests
             Assert::AreEqual (100, p.Advance (1.0));
             Assert::AreEqual (150, p.Advance (2.0));   // would be 200, clamped
             Assert::AreEqual (150, p.Advance (5.0));   // stays put
-            Assert::IsTrue   (p.IsCaughtUp ());
+            Assert::IsTrue   (p.IsCaughtUp());
         }
 
 
@@ -59,10 +59,10 @@ namespace PrinterPacingTests
 
             p.Reset (0.0);
             p.SetTargetRows (5000);
-            p.RequestFastForward ();
+            p.RequestFastForward();
 
             Assert::AreEqual (5000, p.Advance (0.01));   // tiny dt, still all revealed
-            Assert::IsTrue   (p.IsCaughtUp ());
+            Assert::IsTrue   (p.IsCaughtUp());
         }
 
 
@@ -72,14 +72,14 @@ namespace PrinterPacingTests
 
             p.Reset (0.0);
             p.SetTargetRows (200);
-            p.RequestFastForward ();
+            p.RequestFastForward();
 
             Assert::AreEqual (200, p.Advance (0.01));
 
             // Grow the job; the earlier fast-forward must not still be latched.
             p.SetTargetRows (400);
             Assert::AreEqual (200, p.Advance (0.01));   // ~1 row of new reveal, clamps low
-            Assert::IsFalse  (p.IsCaughtUp ());
+            Assert::IsFalse  (p.IsCaughtUp());
         }
 
 
@@ -92,7 +92,7 @@ namespace PrinterPacingTests
             p.SetTargetRows (5000);
 
             Assert::AreEqual (5000, p.Advance (0.1));
-            Assert::IsTrue   (p.IsCaughtUp ());
+            Assert::IsTrue   (p.IsCaughtUp());
         }
 
 
@@ -105,7 +105,7 @@ namespace PrinterPacingTests
             p.SetTargetRows (300);
 
             Assert::AreEqual (100, p.Advance (1.0));
-            Assert::IsFalse  (p.IsCaughtUp ());
+            Assert::IsFalse  (p.IsCaughtUp());
         }
 
 
@@ -129,7 +129,7 @@ namespace PrinterPacingTests
             p.Reset (10.0, 400);
             p.SetTargetRows (1000);
 
-            Assert::AreEqual (400, p.RevealedRows ());
+            Assert::AreEqual (400, p.RevealedRows());
             Assert::AreEqual (500, p.Advance (11.0));   // +100 rows in 1s
         }
 
@@ -143,8 +143,8 @@ namespace PrinterPacingTests
             Assert::AreEqual (500, p.Advance (5.0));
 
             p.SetTargetRows (300);                      // target shrank below reveal
-            Assert::AreEqual (300, p.RevealedRows ());
-            Assert::IsTrue   (p.IsCaughtUp ());
+            Assert::AreEqual (300, p.RevealedRows());
+            Assert::IsTrue   (p.IsCaughtUp());
         }
 
 
@@ -181,14 +181,14 @@ namespace PrinterPacingTests
             p.SetTargetPosition (11, 80);      // one row behind, head at dot 80
 
             p.Advance (0.01);                  // rows 10 -> 11: arrival
-            Assert::AreEqual (11, p.RevealedRows ());
-            Assert::AreEqual (0,  p.RevealedColDots ());   // sweep restarts at the margin
+            Assert::AreEqual (11, p.RevealedRows());
+            Assert::AreEqual (0,  p.RevealedColDots());   // sweep restarts at the margin
 
             p.Advance (0.51);                  // +0.5 s * 100 dots/s
-            Assert::AreEqual (50, p.RevealedColDots ());
+            Assert::AreEqual (50, p.RevealedColDots());
 
             p.Advance (5.0);                   // clamps at the head column
-            Assert::AreEqual (80, p.RevealedColDots ());
+            Assert::AreEqual (80, p.RevealedColDots());
         }
 
 
@@ -200,8 +200,8 @@ namespace PrinterPacingTests
             p.SetTargetPosition (500, 40);
 
             p.Advance (1.0);                   // rows 0 -> 100 of 500: still behind
-            Assert::IsFalse  (p.IsCaughtUp ());
-            Assert::AreEqual (PrinterGrid::kDotsPerRow, p.RevealedColDots ());
+            Assert::IsFalse  (p.IsCaughtUp());
+            Assert::AreEqual (PrinterGrid::kDotsPerRow, p.RevealedColDots());
         }
 
 
@@ -213,12 +213,12 @@ namespace PrinterPacingTests
             p.SetTargetPosition (11, 800);
             p.Advance (0.01);                  // arrival
             p.Advance (1.01);                  // sweep 0 -> 800 (clamped)
-            Assert::AreEqual (800, p.RevealedColDots ());
+            Assert::AreEqual (800, p.RevealedColDots());
 
             // Overprint pass: the head returns to the left on the SAME row.
             // The column target max-holds so revealed ink never disappears.
             p.SetTargetPosition (11, 100);
-            Assert::AreEqual (800, p.RevealedColDots ());
+            Assert::AreEqual (800, p.RevealedColDots());
         }
 
 
@@ -231,16 +231,16 @@ namespace PrinterPacingTests
             p.SetTargetPosition (11, 500);
             p.Advance (0.25);                  // arrival on row 11
             p.Advance (0.75);                  // sweep 0 -> 500 (clamped)
-            Assert::AreEqual (500, p.RevealedColDots ());
+            Assert::AreEqual (500, p.RevealedColDots());
 
             p.SetTargetPosition (25, 300);     // line feed: new live line
-            Assert::AreEqual (PrinterGrid::kDotsPerRow, p.RevealedColDots ());   // catching up
+            Assert::AreEqual (PrinterGrid::kDotsPerRow, p.RevealedColDots());   // catching up
             p.Advance (1.0);                   // 14 rows at 1000 r/s: arrival
-            Assert::AreEqual (25, p.RevealedRows ());
-            Assert::AreEqual (0,  p.RevealedColDots ());
+            Assert::AreEqual (25, p.RevealedRows());
+            Assert::AreEqual (0,  p.RevealedColDots());
 
             p.Advance (1.25);                  // sweep resumes on the new line
-            Assert::AreEqual (250, p.RevealedColDots ());
+            Assert::AreEqual (250, p.RevealedColDots());
         }
 
 
@@ -250,11 +250,11 @@ namespace PrinterPacingTests
 
             p.Reset (0.0, 10);
             p.SetTargetPosition (11, 640);
-            p.RequestFastForward ();
+            p.RequestFastForward();
 
             p.Advance (0.01);
-            Assert::AreEqual (11,  p.RevealedRows ());
-            Assert::AreEqual (640, p.RevealedColDots ());
+            Assert::AreEqual (11,  p.RevealedRows());
+            Assert::AreEqual (640, p.RevealedColDots());
         }
 
 
@@ -265,15 +265,15 @@ namespace PrinterPacingTests
             PrinterPacing   p (ColCfg (1000.0, 1000.0));
 
             p.Reset (0.0, 10);
-            Assert::IsTrue (p.SweepLeftToRight ());   // starts left-to-right
+            Assert::IsTrue (p.SweepLeftToRight());   // starts left-to-right
 
             p.SetTargetPosition (11, 500);
             p.Advance (0.25);                          // first line arrives -> reverse
-            Assert::IsFalse (p.SweepLeftToRight ());
+            Assert::IsFalse (p.SweepLeftToRight());
 
             p.SetTargetPosition (25, 300);
             p.Advance (1.0);                           // next line arrives -> reverse again
-            Assert::IsTrue (p.SweepLeftToRight ());
+            Assert::IsTrue (p.SweepLeftToRight());
         }
     };
 }

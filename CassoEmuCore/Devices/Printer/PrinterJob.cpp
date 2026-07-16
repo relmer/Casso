@@ -17,10 +17,10 @@ static constexpr uint32_t   s_kDrainChunk = 4096;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void PrinterJob::Reset ()
+void PrinterJob::Reset()
 {
-    m_interpreter.Reset ();
-    m_raster.Clear ();
+    m_interpreter.Reset();
+    m_raster.Clear();
 }
 
 

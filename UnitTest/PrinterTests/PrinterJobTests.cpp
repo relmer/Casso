@@ -24,7 +24,7 @@ namespace PrinterJobTests
     static void PushAll (PrinterByteRing & ring, const vector<Byte> & bytes)
     {
         size_t   i = 0;
-        for (i = 0; i < bytes.size (); i++)
+        for (i = 0; i < bytes.size(); i++)
         {
             Assert::IsTrue (ring.TryPush (bytes[i]));
         }
@@ -49,8 +49,8 @@ namespace PrinterJobTests
             size_t   drained = job.Drain (events);
 
             Assert::AreEqual ((size_t) 7, drained);
-            Assert::AreEqual ((Byte) InkPrimary::Black, job.Raster ().CellAt (0, 0));
-            Assert::IsTrue (job.HasContent ());
+            Assert::AreEqual ((Byte) InkPrimary::Black, job.Raster().CellAt (0, 0));
+            Assert::IsTrue (job.HasContent());
         }
 
 
@@ -61,7 +61,7 @@ namespace PrinterJobTests
             vector<PrinterEvent>   events;
 
             Assert::AreEqual ((size_t) 0, job.Drain (events));
-            Assert::IsFalse (job.HasContent ());
+            Assert::IsFalse (job.HasContent());
         }
 
 
@@ -76,18 +76,18 @@ namespace PrinterJobTests
             PushAll (ring, { 0x1B, 'G', '0', '0', '0', '1', 0x01, 0x0A });
             job.Drain (events);
 
-            int   before = job.HeadRow ();
+            int   before = job.HeadRow();
 
             job.FormFeed (events);
 
-            Assert::AreEqual (PrinterGrid::kPageRows, job.HeadRow ());
-            Assert::IsTrue (job.HeadRow () > before);
-            Assert::AreEqual (1, (int) std::count_if (events.begin (), events.end (),
+            Assert::AreEqual (PrinterGrid::kPageRows, job.HeadRow());
+            Assert::IsTrue (job.HeadRow() > before);
+            Assert::AreEqual (1, (int) std::count_if (events.begin(), events.end(),
                 [] (const PrinterEvent & e) { return e.type == PrinterEventType::FormFeed; }));
 
             // A second feed lands on the following page top.
             job.FormFeed (events);
-            Assert::AreEqual (2 * PrinterGrid::kPageRows, job.HeadRow ());
+            Assert::AreEqual (2 * PrinterGrid::kPageRows, job.HeadRow());
         }
 
 
@@ -100,15 +100,15 @@ namespace PrinterJobTests
 
             job.SetByteObserver ([&] (const Byte * p, size_t n)
             {
-                seen.insert (seen.end (), p, p + n);
+                seen.insert (seen.end(), p, p + n);
             });
 
             vector<Byte>   stream = { 0x1B, 'T', '1', '2', 0x0A, 0x0C };
             PushAll (ring, stream);
             job.Drain (events);
 
-            Assert::AreEqual (stream.size (), seen.size ());
-            for (size_t i = 0; i < stream.size (); i++)
+            Assert::AreEqual (stream.size(), seen.size());
+            for (size_t i = 0; i < stream.size(); i++)
             {
                 Assert::AreEqual (stream[i], seen[i]);
             }
@@ -124,12 +124,12 @@ namespace PrinterJobTests
             // First drain gets the graphics header but no data byte yet.
             PushAll (ring, { 0x1B, 'G', '0', '0', '0', '1' });
             job.Drain (events);
-            Assert::IsFalse (job.HasContent ());          // nothing struck yet
+            Assert::IsFalse (job.HasContent());          // nothing struck yet
 
             // Second drain delivers the data byte; the run completes.
             PushAll (ring, { 0x01 });
             job.Drain (events);
-            Assert::AreEqual ((Byte) InkPrimary::Black, job.Raster ().CellAt (0, 0));
+            Assert::AreEqual ((Byte) InkPrimary::Black, job.Raster().CellAt (0, 0));
         }
 
 
@@ -141,13 +141,13 @@ namespace PrinterJobTests
 
             PushAll (ring, { 0x1B, 'G', '0', '0', '0', '1', 0x80, 0x0A });
             job.Drain (events);
-            Assert::IsTrue (job.HasContent ());
+            Assert::IsTrue (job.HasContent());
 
-            job.Reset ();
+            job.Reset();
 
-            Assert::IsFalse (job.HasContent ());
-            Assert::AreEqual (0, job.Raster ().RowsUsed ());
-            Assert::AreEqual (0, job.Raster ().PaperRow ());
+            Assert::IsFalse (job.HasContent());
+            Assert::AreEqual (0, job.Raster().RowsUsed());
+            Assert::AreEqual (0, job.Raster().PaperRow());
         }
     };
 }

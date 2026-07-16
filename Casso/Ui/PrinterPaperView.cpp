@@ -28,7 +28,7 @@ void PrinterPaperView::SetImage (std::vector<uint32_t> && bgra, int srcW, int sr
 {
     if (srcW <= 0 || srcH <= 0)
     {
-        Clear ();
+        Clear();
         return;
     }
 
@@ -46,9 +46,9 @@ void PrinterPaperView::SetImage (std::vector<uint32_t> && bgra, int srcW, int sr
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void PrinterPaperView::Clear ()
+void PrinterPaperView::Clear()
 {
-    m_bgra.clear ();
+    m_bgra.clear();
     m_srcW = 0;
     m_srcH = 0;
 }
@@ -65,7 +65,7 @@ void PrinterPaperView::Clear ()
 void PrinterPaperView::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
 {
     m_bounds = boundsDip;
-    m_dpi    = scaler.Dpi ();
+    m_dpi    = scaler.Dpi();
 
     SetBounds (boundsDip);
 }
@@ -102,7 +102,7 @@ void PrinterPaperView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, 
 
     painter.FillRect (x, y, w, h, kMat);
 
-    if (!HasImage ())
+    if (!HasImage())
     {
         return;
     }
@@ -137,6 +137,6 @@ void PrinterPaperView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, 
         painter.FillRect    (dX + scaler.Pxf (3.0f), dY + scaler.Pxf (3.0f), dW, dH, kShadow);
         painter.OutlineRect (dX, dY, dW, dH, 1.0f, kBorder);
 
-        IGNORE_RETURN_VALUE (hr, text.DrawIconBitmap (m_bgra.data (), m_srcW, m_srcH, dX, dY, dW, dH));
+        IGNORE_RETURN_VALUE (hr, text.DrawIconBitmap (m_bgra.data(), m_srcW, m_srcH, dX, dY, dW, dH));
     }
 }

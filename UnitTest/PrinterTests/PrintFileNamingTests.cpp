@@ -18,7 +18,7 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
 namespace PrintFileNamingTests
 {
-    static SYSTEMTIME FixedTime ()
+    static SYSTEMTIME FixedTime()
     {
         SYSTEMTIME   st = {};
         st.wYear   = 2026;
@@ -40,11 +40,11 @@ namespace PrintFileNamingTests
         TEST_METHOD (ComposesTimestampedName)
         {
             fs::path   path = PrintFileNaming::ComposePngPath (
-                L"C:\\Prints", FixedTime (), [] (const fs::path &) { return false; });
+                L"C:\\Prints", FixedTime(), [] (const fs::path &) { return false; });
 
             Assert::AreEqual (wstring (L"Casso Print 2026-07-08 143005.png"),
-                              path.filename ().wstring ());
-            Assert::AreEqual (wstring (L"C:\\Prints"), path.parent_path ().wstring ());
+                              path.filename().wstring());
+            Assert::AreEqual (wstring (L"C:\\Prints"), path.parent_path().wstring());
         }
 
 
@@ -53,28 +53,28 @@ namespace PrintFileNamingTests
             wstring   firstTaken = L"Casso Print 2026-07-08 143005.png";
 
             fs::path   path = PrintFileNaming::ComposePngPath (
-                L"C:\\Prints", FixedTime (),
-                [&] (const fs::path & p) { return p.filename ().wstring () == firstTaken; });
+                L"C:\\Prints", FixedTime(),
+                [&] (const fs::path & p) { return p.filename().wstring() == firstTaken; });
 
             Assert::AreEqual (wstring (L"Casso Print 2026-07-08 143005 (2).png"),
-                              path.filename ().wstring ());
+                              path.filename().wstring());
         }
 
 
         TEST_METHOD (SkipsMultipleCollisions)
         {
             fs::path   path = PrintFileNaming::ComposePngPath (
-                L"C:\\Prints", FixedTime (),
+                L"C:\\Prints", FixedTime(),
                 [] (const fs::path & p)
                 {
-                    wstring   name = p.filename ().wstring ();
+                    wstring   name = p.filename().wstring();
                     return name == L"Casso Print 2026-07-08 143005.png"
                         || name == L"Casso Print 2026-07-08 143005 (2).png"
                         || name == L"Casso Print 2026-07-08 143005 (3).png";
                 });
 
             Assert::AreEqual (wstring (L"Casso Print 2026-07-08 143005 (4).png"),
-                              path.filename ().wstring ());
+                              path.filename().wstring());
         }
     };
 }

@@ -39,7 +39,7 @@ static HRESULT DecodeToMonoFloat (
     DWORD                    floatCount = 0;
     DWORD                    i          = 0;
 
-    outSamples.clear ();
+    outSamples.clear();
 
     hr = MFCreateSourceReaderFromURL (path, nullptr, &reader);
     CHR (hr);
@@ -72,7 +72,7 @@ static HRESULT DecodeToMonoFloat (
     CHR (hr);
 
     hr = reader->SetCurrentMediaType (
-        MF_SOURCE_READER_FIRST_AUDIO_STREAM, nullptr, pcmType.Get ());
+        MF_SOURCE_READER_FIRST_AUDIO_STREAM, nullptr, pcmType.Get());
     CHR (hr);
 
     hr = reader->SetStreamSelection (MF_SOURCE_READER_FIRST_AUDIO_STREAM, TRUE);
@@ -80,8 +80,8 @@ static HRESULT DecodeToMonoFloat (
 
     for (;;)
     {
-        sample.Reset ();
-        buffer.Reset ();
+        sample.Reset();
+        buffer.Reset();
         flags = 0;
 
         hr = reader->ReadSample (
@@ -94,7 +94,7 @@ static HRESULT DecodeToMonoFloat (
             break;
         }
 
-        if (sample.Get () == nullptr)
+        if (sample.Get() == nullptr)
         {
             continue;
         }
@@ -113,14 +113,14 @@ static HRESULT DecodeToMonoFloat (
             outSamples.push_back (srcFloat[i]);
         }
 
-        hr = buffer->Unlock ();
+        hr = buffer->Unlock();
         CHR (hr);
     }
 
 Error:
     if (FAILED (hr))
     {
-        outSamples.clear ();
+        outSamples.clear();
     }
 
     return hr;
@@ -135,12 +135,12 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-PrinterAudioSource::PrinterAudioSource ()
+PrinterAudioSource::PrinterAudioSource()
 {
 }
 
 
-PrinterAudioSource::~PrinterAudioSource ()
+PrinterAudioSource::~PrinterAudioSource()
 {
 }
 
@@ -173,9 +173,9 @@ HRESULT PrinterAudioSource::LoadSounds (const wchar_t * dir, uint32_t targetSamp
     auto  decode = [&] (const wchar_t * name, vector<float> & dst)
     {
         wstring  path = wstring (dir) + L"\\" + name;
-        if (FAILED (DecodeToMonoFloat (path.c_str (), targetSampleRate, dst)))
+        if (FAILED (DecodeToMonoFloat (path.c_str(), targetSampleRate, dst)))
         {
-            dst.clear ();
+            dst.clear();
         }
     };
 
@@ -206,7 +206,7 @@ HRESULT PrinterAudioSource::LoadSounds (const wchar_t * dir, uint32_t targetSamp
 Error:
     if (mfStarted)
     {
-        MFShutdown ();
+        MFShutdown();
     }
 
     return hr;
@@ -267,7 +267,7 @@ void PrinterAudioSource::PlayFormFeed (float unusedPage01)
 }
 
 
-void PrinterAudioSource::PlayTearOff ()
+void PrinterAudioSource::PlayTearOff()
 {
     // Cheap LCG; UI-thread only, so no synchronization needed on m_rng.
     m_rng = m_rng * 1664525u + 1013904223u;
@@ -349,7 +349,7 @@ void PrinterAudioSource::GeneratePCM (float * outMono, uint32_t numSamples)
         {
             const vector<float> &  cand = m_lineFeeds[m_lineFeedNext];
             m_lineFeedNext = (m_lineFeedNext + 1) % kNumLineFeeds;
-            if (!cand.empty ())
+            if (!cand.empty())
             {
                 m_lineFeedBuf  = &cand;
                 m_lineFeedPos  = 0;
@@ -365,7 +365,7 @@ void PrinterAudioSource::GeneratePCM (float * outMono, uint32_t numSamples)
     if (action >= 1 && action <= kNumPageFeeds)
     {
         const vector<float> &  buf = m_pageFeeds[action - 1];
-        if (!buf.empty ())
+        if (!buf.empty())
         {
             m_actionBuf = &buf;
             m_actionPos = 0;
@@ -374,7 +374,7 @@ void PrinterAudioSource::GeneratePCM (float * outMono, uint32_t numSamples)
     else if (action >= 1 + kNumPageFeeds && action <= kNumPageFeeds + kNumTears)
     {
         const vector<float> &  buf = m_tears[action - 1 - kNumPageFeeds];
-        if (!buf.empty ())
+        if (!buf.empty())
         {
             m_actionBuf = &buf;
             m_actionPos = 0;
@@ -409,7 +409,7 @@ void PrinterAudioSource::GeneratePCM (float * outMono, uint32_t numSamples)
 void PrinterAudioSource::MixCarriage (float * out, uint32_t n)
 {
     const vector<float> &  loop = m_loops[(int) m_quality];
-    uint32_t               len  = (uint32_t) loop.size ();
+    uint32_t               len  = (uint32_t) loop.size();
 
     if (m_printHoldSamples <= 0 || len == 0)
     {
@@ -446,7 +446,7 @@ void PrinterAudioSource::MixLineFeed (float * out, uint32_t n)
         return;
     }
 
-    uint32_t  len = (uint32_t) m_lineFeedBuf->size ();
+    uint32_t  len = (uint32_t) m_lineFeedBuf->size();
 
     for (uint32_t i = 0; i < n; i++)
     {
@@ -479,7 +479,7 @@ void PrinterAudioSource::MixAction (float * out, uint32_t n)
         return;
     }
 
-    uint32_t  len = (uint32_t) m_actionBuf->size ();
+    uint32_t  len = (uint32_t) m_actionBuf->size();
 
     for (uint32_t i = 0; i < n; i++)
     {

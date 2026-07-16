@@ -107,7 +107,7 @@ void PrinterCard::Write (Word address, Byte value)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void PrinterCard::Reset ()
+void PrinterCard::Reset()
 {
     m_everTouched = false;
 }
@@ -124,7 +124,7 @@ void PrinterCard::Reset ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-Byte PrinterCard::ReadStatus () const
+Byte PrinterCard::ReadStatus() const
 {
     if (m_ring.FreeSpace() > kReadyHighWater)
     {

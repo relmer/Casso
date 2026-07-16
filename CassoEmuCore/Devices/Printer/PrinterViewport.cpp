@@ -92,7 +92,7 @@ void PrinterViewport::Tick (int64_t nowMs)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-int PrinterViewport::MinBottomRow () const
+int PrinterViewport::MinBottomRow() const
 {
     return (std::min) (m_liveRow, m_cfg.viewportRows - 1);
 }
@@ -106,7 +106,7 @@ int PrinterViewport::MinBottomRow () const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void PrinterViewport::Reset ()
+void PrinterViewport::Reset()
 {
     m_liveRow         = 0;
     m_liveRowAtScroll = 0;

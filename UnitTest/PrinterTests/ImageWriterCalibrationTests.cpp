@@ -24,8 +24,8 @@ namespace ImageWriterCalibrationTests
         ImageWriterInterpreter   interp;
         vector<PrinterEvent>     events;
 
-        interp.Reset ();
-        interp.Consume (stream.data (), stream.size (), raster, events);
+        interp.Reset();
+        interp.Consume (stream.data(), stream.size(), raster, events);
         return raster.CellAt (0, row);
     }
 
@@ -97,8 +97,8 @@ namespace ImageWriterCalibrationTests
                 s_kEsc, 'K', '1', s_kEsc, 'G', '0', '0', '0', '1', 0x01,
             };
 
-            interp.Reset ();
-            interp.Consume (stream.data (), stream.size (), raster, events);
+            interp.Reset();
+            interp.Consume (stream.data(), stream.size(), raster, events);
 
             for (const PrinterEvent & e : events)
             {

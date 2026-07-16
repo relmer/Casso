@@ -31,16 +31,16 @@ string PrintJobSerializer::WriteMetaJson (const PrintRaster & raster)
     vector<pair<string, JsonValue>>   root;
     size_t                            i = 0;
 
-    for (i = 0; i < raster.PageBoundaryRows ().size (); i++)
+    for (i = 0; i < raster.PageBoundaryRows().size(); i++)
     {
-        boundaries.push_back (JsonValue ((double) raster.PageBoundaryRows ()[i]));
+        boundaries.push_back (JsonValue ((double) raster.PageBoundaryRows()[i]));
     }
 
     root.push_back ({ s_kszFormatVersion, JsonValue ((double) kFormatVersion)        });
-    root.push_back ({ s_kszRowsUsed,      JsonValue ((double) raster.RowsUsed ())     });
-    root.push_back ({ s_kszPaperRow,      JsonValue ((double) raster.PaperRow ())     });
+    root.push_back ({ s_kszRowsUsed,      JsonValue ((double) raster.RowsUsed())     });
+    root.push_back ({ s_kszPaperRow,      JsonValue ((double) raster.PaperRow())     });
     root.push_back ({ s_kszBoundaries,    JsonValue (move (boundaries))              });
-    root.push_back ({ s_kszCapReached,    JsonValue (raster.CapReached ())            });
+    root.push_back ({ s_kszCapReached,    JsonValue (raster.CapReached())            });
 
     return JsonWriter::Write (JsonValue (move (root)));
 }
@@ -69,7 +69,7 @@ HRESULT PrintJobSerializer::ReadMetaJson (const string & json, StripMeta & outMe
 
     hr = JsonParser::Parse (json, root, err);
     CHR (hr);
-    CBREx (root.GetType () == JsonType::Object, E_FAIL);
+    CBREx (root.GetType() == JsonType::Object, E_FAIL);
 
     hr = root.GetInt (s_kszFormatVersion, meta.formatVersion);
     CHR (hr);
@@ -89,9 +89,9 @@ HRESULT PrintJobSerializer::ReadMetaJson (const string & json, StripMeta & outMe
     {
         size_t   i = 0;
 
-        for (i = 0; i < arr->ArraySize (); i++)
+        for (i = 0; i < arr->ArraySize(); i++)
         {
-            meta.pageBoundaryRows.push_back (arr->ArrayAt (i).GetInt ());
+            meta.pageBoundaryRows.push_back (arr->ArrayAt (i).GetInt());
         }
     }
 
@@ -117,7 +117,7 @@ void PrintJobSerializer::ExtractIndexPlane (
     vector<Byte> &      outPixels)
 {
     int   width  = PrinterGrid::kDotsPerRow;
-    int   height = raster.RowsUsed ();
+    int   height = raster.RowsUsed();
     int   row    = 0;
     int   col    = 0;
 
@@ -156,7 +156,7 @@ HRESULT PrintJobSerializer::RebuildRaster (
     // error, so no assert (the store falls back to empty paper, FR-026).
     CBREx (width == PrinterGrid::kDotsPerRow, E_INVALIDARG);
     CBREx (height >= 0,                       E_INVALIDARG);
-    CBREx (pixels.size () >= (size_t) width * height, E_INVALIDARG);
+    CBREx (pixels.size() >= (size_t) width * height, E_INVALIDARG);
 
     outRaster.RestoreFromIndexed (height, pixels, meta.paperRow,
                                   meta.pageBoundaryRows, meta.capReached);

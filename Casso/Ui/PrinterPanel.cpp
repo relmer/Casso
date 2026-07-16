@@ -140,12 +140,12 @@ namespace
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-PrinterPanel::PrinterPanel ()
-    : m_panZoom (PanZoomConfig ())
+PrinterPanel::PrinterPanel()
+    : m_panZoom (PanZoomConfig())
 {
 }
 
-PrinterPanel::~PrinterPanel () = default;
+PrinterPanel::~PrinterPanel() = default;
 
 
 
@@ -161,7 +161,7 @@ PrinterPanel::~PrinterPanel () = default;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-DxuiPanZoom::Config PrinterPanel::PanZoomConfig ()
+DxuiPanZoom::Config PrinterPanel::PanZoomConfig()
 {
     DxuiPanZoom::Config   cfg;
 
@@ -199,7 +199,7 @@ HRESULT PrinterPanel::Create (
     UNREFERENCED_PARAMETER (device);
     UNREFERENCED_PARAMETER (context);
 
-    if (IsCreated ())
+    if (IsCreated())
     {
         return S_OK;
     }
@@ -231,12 +231,12 @@ HRESULT PrinterPanel::Create (
     // touchpad's wheel-message flood would otherwise spawn a synchronous 3D
     // repaint per message and starve the loop's own paint pump, freezing the
     // view mid-scroll. Let the loop own paint pacing.
-    if (PopupHost () != nullptr)
+    if (PopupHost() != nullptr)
     {
-        PopupHost ()->SetSuppressInputInvalidate (true);
+        PopupHost()->SetSuppressInputInvalidate (true);
     }
 
-    m_tooltip.SetPopupHost (PopupHost ());
+    m_tooltip.SetPopupHost (PopupHost());
 
     // 3D presentation (FR-032): build the scene on THIS window's own device
     // (its swap chain does not live on the emulator renderer's device) and
@@ -246,8 +246,8 @@ HRESULT PrinterPanel::Create (
     {
         std::unique_ptr<Printer3DScene>   scene = std::make_unique<Printer3DScene> ();
 
-        if (PopupHost () != nullptr &&
-            SUCCEEDED (scene->Initialize (PopupHost ()->GetDevice (), PopupHost ()->GetContext ())))
+        if (PopupHost() != nullptr &&
+            SUCCEEDED (scene->Initialize (PopupHost()->GetDevice(), PopupHost()->GetContext())))
         {
             m_scene = std::move (scene);
 
@@ -257,13 +257,13 @@ HRESULT PrinterPanel::Create (
                 std::string   obj = LoadTextResource (IDR_MODEL_IMAGEWRITER_OBJ);
                 std::string   mtl = LoadTextResource (IDR_MODEL_IMAGEWRITER_MTL);
 
-                if (!obj.empty ())
+                if (!obj.empty())
                 {
                     IGNORE_RETURN_VALUE (hr, m_scene->SetModel (obj, mtl));
                 }
             }
 
-            PopupHost ()->SetBeforePresentHook ([this] ()
+            PopupHost()->SetBeforePresentHook ([this] ()
             {
                 if (m_scene != nullptr && m_paperRectPx.right > m_paperRectPx.left)
                 {
@@ -278,7 +278,7 @@ HRESULT PrinterPanel::Create (
         }
     }
 
-    Show ();
+    Show();
 
 Error:
     return hr;
@@ -293,7 +293,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void PrinterPanel::OnCreate ()
+void PrinterPanel::OnCreate()
 {
     m_paper     = CreateChild<PrinterPaperView> ();
 
@@ -312,12 +312,12 @@ void PrinterPanel::OnCreate ()
     m_print->SetOnClick     ([this] () { if (m_onPrint)    { m_onPrint    (); } });
     m_saveAs->SetOnClick    ([this] () { if (m_onSaveAs)   { m_onSaveAs   (); } });
     m_copy->SetOnClick      ([this] () { if (m_onCopy)     { m_onCopy     (); } });
-    m_formFeed->SetOnClick  ([this] () { if (m_onFormFeed) { m_onFormFeed (); } });
+    m_formFeed->SetOnClick  ([this] () { if (m_onFormFeed) { m_onFormFeed(); } });
     m_discard->SetOnClick   ([this] () { if (m_onDiscard)  { m_onDiscard  (); } });
 
-    m_zoomOut->SetOnClick   ([this] () { m_panZoom.ZoomOut (); });
-    m_zoomReset->SetOnClick ([this] () { m_panZoom.ResetZoom (); });
-    m_zoomIn->SetOnClick    ([this] () { m_panZoom.ZoomIn (); });
+    m_zoomOut->SetOnClick   ([this] () { m_panZoom.ZoomOut(); });
+    m_zoomReset->SetOnClick ([this] () { m_panZoom.ResetZoom(); });
+    m_zoomIn->SetOnClick    ([this] () { m_panZoom.ZoomIn(); });
 
     // A genuine user pan drops the viewport out of follow mode so the
     // scrollback holds where the user parks it (RefreshLive stops chasing the
@@ -326,7 +326,7 @@ void PrinterPanel::OnCreate ()
     // would fire a synchronous 3D redraw for every one of the message flood a
     // trackpad scroll produces -- clogging the message pump and freezing the
     // view until the fingers stop (the paint pacing stays owned by the loop).
-    m_panZoom.SetOnUserPanY ([this] () { m_viewport.NotifyUserScroll (NowMs ()); });
+    m_panZoom.SetOnUserPanY ([this] () { m_viewport.NotifyUserScroll (NowMs()); });
 
     // A freshly opened panel has nothing on the paper yet, so the delivery
     // actions start disabled; RefreshLive enables them the moment content
@@ -338,7 +338,7 @@ void PrinterPanel::OnCreate ()
     m_discard->SetEnabled (false);
 
     // Establish the zoom label ("100%") and disable [-] at the low end.
-    SyncTransform ();
+    SyncTransform();
 }
 
 
@@ -365,23 +365,23 @@ void PrinterPanel::SetTheme (const CassoTheme * theme)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT PrinterPanel::RenderFrame ()
+HRESULT PrinterPanel::RenderFrame()
 {
-    if (!IsCreated ())
+    if (!IsCreated())
     {
         return S_OK;
     }
 
-    m_tooltip.Tick (NowMs ());
+    m_tooltip.Tick (NowMs());
 
     // Advance the pan/zoom glide and push the transform to the scene every
     // frame (runs even with no printer card, so zooming a blank sheet still
     // animates). RefreshLive layers the follow-mode panY target on top. The
     // Tick return keeps the frame cadence hot while a glide is still in flight.
-    m_panZoomEasing = m_panZoom.Tick ((double) NowMs () / 1000.0);
-    SyncTransform ();
+    m_panZoomEasing = m_panZoom.Tick ((double) NowMs() / 1000.0);
+    SyncTransform();
 
-    Invalidate ();
+    Invalidate();
     return S_OK;
 }
 
@@ -399,12 +399,12 @@ HRESULT PrinterPanel::RenderFrame ()
 
 void PrinterPanel::UpdateTooltip (int x, int y)
 {
-    int64_t   now = NowMs ();
+    int64_t   now = NowMs();
 
     if (m_print != nullptr && m_print->HitTest (x, y))
     {
-        m_tooltip.RequestShow (m_print->Bounds (),
-            m_print->Enabled ()
+        m_tooltip.RequestShow (m_print->Bounds(),
+            m_print->Enabled()
                 ? L"Send the printout to a Windows printer (the paper stays in the printer, so you can also save or copy it)"
                 : L"Print (nothing has been printed yet)",
             now);
@@ -413,8 +413,8 @@ void PrinterPanel::UpdateTooltip (int x, int y)
 
     if (m_saveAs != nullptr && m_saveAs->HitTest (x, y))
     {
-        m_tooltip.RequestShow (m_saveAs->Bounds (),
-            m_saveAs->Enabled ()
+        m_tooltip.RequestShow (m_saveAs->Bounds(),
+            m_saveAs->Enabled()
                 ? L"Save the printout as a PNG image file (the paper stays in the printer)"
                 : L"Save (nothing has been printed yet)",
             now);
@@ -423,8 +423,8 @@ void PrinterPanel::UpdateTooltip (int x, int y)
 
     if (m_copy != nullptr && m_copy->HitTest (x, y))
     {
-        m_tooltip.RequestShow (m_copy->Bounds (),
-            m_copy->Enabled ()
+        m_tooltip.RequestShow (m_copy->Bounds(),
+            m_copy->Enabled()
                 ? L"Copy the whole printout to the clipboard (the paper stays in the printer)"
                 : L"Copy to clipboard (nothing has been printed yet)",
             now);
@@ -433,28 +433,28 @@ void PrinterPanel::UpdateTooltip (int x, int y)
 
     if (m_zoomOut != nullptr && m_zoomOut->HitTest (x, y))
     {
-        m_tooltip.RequestShow (m_zoomOut->Bounds (),
-            m_zoomOut->Enabled () ? L"Zoom out" : L"Zoom out (already at fit-to-window)", now);
+        m_tooltip.RequestShow (m_zoomOut->Bounds(),
+            m_zoomOut->Enabled() ? L"Zoom out" : L"Zoom out (already at fit-to-window)", now);
         return;
     }
 
     if (m_zoomReset != nullptr && m_zoomReset->HitTest (x, y))
     {
-        m_tooltip.RequestShow (m_zoomReset->Bounds (), L"Reset the zoom to fit the window", now);
+        m_tooltip.RequestShow (m_zoomReset->Bounds(), L"Reset the zoom to fit the window", now);
         return;
     }
 
     if (m_zoomIn != nullptr && m_zoomIn->HitTest (x, y))
     {
-        m_tooltip.RequestShow (m_zoomIn->Bounds (),
-            m_zoomIn->Enabled () ? L"Zoom in" : L"Zoom in (already at maximum)", now);
+        m_tooltip.RequestShow (m_zoomIn->Bounds(),
+            m_zoomIn->Enabled() ? L"Zoom in" : L"Zoom in (already at maximum)", now);
         return;
     }
 
     if (m_formFeed != nullptr && m_formFeed->HitTest (x, y))
     {
-        m_tooltip.RequestShow (m_formFeed->Bounds (),
-            m_formFeed->Enabled ()
+        m_tooltip.RequestShow (m_formFeed->Bounds(),
+            m_formFeed->Enabled()
                 ? L"Feed the paper to the top of the next page"
                 : L"Form feed (waiting for the current print to finish)",
             now);
@@ -463,8 +463,8 @@ void PrinterPanel::UpdateTooltip (int x, int y)
 
     if (m_discard != nullptr && m_discard->HitTest (x, y))
     {
-        m_tooltip.RequestShow (m_discard->Bounds (),
-            m_discard->Enabled ()
+        m_tooltip.RequestShow (m_discard->Bounds(),
+            m_discard->Enabled()
                 ? L"Tear off the printout and throw it away, loading a fresh sheet"
                 : L"Discard (nothing has been printed yet)",
             now);
@@ -489,9 +489,9 @@ void PrinterPanel::UpdateTooltip (int x, int y)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void PrinterPanel::SyncTransform ()
+void PrinterPanel::SyncTransform()
 {
-    float   zoom = m_panZoom.Zoom ();
+    float   zoom = m_panZoom.Zoom();
 
     // Framing is only possible once zoomed in. Horizontal: at zoom Z the paper
     // is Z times wider than the view, so panX may slide +/- half the hidden
@@ -528,21 +528,21 @@ void PrinterPanel::SyncTransform ()
     // World overscroll: once the paper is pinned at a scroll limit, up to half a
     // viewport of further pan slides the whole 3D world to a hard stop instead
     // of hitting a wall. The scene takes a normalized -1..1 (edge = stop).
-    float   overMax = (float) m_viewport.ViewportRows () * 0.5f;
+    float   overMax = (float) m_viewport.ViewportRows() * 0.5f;
     m_panZoom.SetOverscrollYMax (overMax);
 
     if (m_scene != nullptr)
     {
         m_scene->SetZoom (zoom);
-        m_scene->SetPanX (m_panZoom.PanX () / ((float) s_kStockWidthPx * 0.5f));
-        m_scene->SetCameraPanY (m_panZoom.PanYCam ());
-        m_scene->SetWorldPanY ((overMax > 0.0f) ? (m_panZoom.OverscrollY () / overMax) : 0.0f);
+        m_scene->SetPanX (m_panZoom.PanX() / ((float) s_kStockWidthPx * 0.5f));
+        m_scene->SetCameraPanY (m_panZoom.PanYCam());
+        m_scene->SetWorldPanY ((overMax > 0.0f) ? (m_panZoom.OverscrollY() / overMax) : 0.0f);
     }
 
     // Zoom chrome changes rarely; refresh it only when the target moves.
-    if (m_panZoom.ZoomTarget () != m_zoomChromeSynced)
+    if (m_panZoom.ZoomTarget() != m_zoomChromeSynced)
     {
-        m_zoomChromeSynced = m_panZoom.ZoomTarget ();
+        m_zoomChromeSynced = m_panZoom.ZoomTarget();
 
         if (m_zoomReset != nullptr)
         {
@@ -584,10 +584,10 @@ bool PrinterPanel::PaperHit (int x, int y) const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-int64_t PrinterPanel::NowMs ()
+int64_t PrinterPanel::NowMs()
 {
     return (int64_t) std::chrono::duration_cast<std::chrono::milliseconds> (
-               std::chrono::steady_clock::now ().time_since_epoch ()).count ();
+               std::chrono::steady_clock::now().time_since_epoch()).count();
 }
 
 
@@ -607,8 +607,8 @@ int64_t PrinterPanel::NowMs ()
 
 void PrinterPanel::RefreshLive (PrinterWorker & worker, int64_t nowMs, bool force)
 {
-    int                     rows        = worker.RowsUsed ();
-    uint64_t                activity    = worker.ActivityCount ();
+    int                     rows        = worker.RowsUsed();
+    uint64_t                activity    = worker.ActivityCount();
     double                  nowSec      = (double) nowMs / 1000.0;
     int                     headRow     = 0;
     int                     headCol     = 0;
@@ -667,9 +667,9 @@ void PrinterPanel::RefreshLive (PrinterWorker & worker, int64_t nowMs, bool forc
 
     // A shrunk strip means eject/discard tore the paper off: rewind the view
     // and the reveal to the fresh sheet instead of staring past its end.
-    if (rows - 1 < m_viewport.LiveRow ())
+    if (rows - 1 < m_viewport.LiveRow())
     {
-        m_viewport.Reset ();
+        m_viewport.Reset();
         m_pacing.Reset (nowSec, 0);
         m_spanImgValid = false;
         m_panYSeeded   = false;   // reseed onto the fresh sheet, don't glide across the tear
@@ -699,14 +699,14 @@ void PrinterPanel::RefreshLive (PrinterWorker & worker, int64_t nowMs, bool forc
     m_pacing.SetTargetPosition (laggedRow, PrinterGrid::kDotsPerRow);
     m_pacing.Advance (nowSec);
 
-    revealRow  = m_pacing.RevealedRows ();
+    revealRow  = m_pacing.RevealedRows();
     bandBottom = (std::min) (revealRow + s_kPinBandRows - 1, rows - 1);
-    sweepLtr   = m_pacing.SweepLeftToRight ();
+    sweepLtr   = m_pacing.SweepLeftToRight();
 
     {
-        int  progress = m_pacing.RevealedColDots ();   // 0..kDotsPerRow sweep distance
+        int  progress = m_pacing.RevealedColDots();   // 0..kDotsPerRow sweep distance
 
-        if (!m_pacing.IsCaughtUp ())
+        if (!m_pacing.IsCaughtUp())
         {
             // Rows still feeding: the band shows complete; park the head at the
             // start of the coming sweep so it doesn't jump to the far margin.
@@ -753,12 +753,12 @@ void PrinterPanel::RefreshLive (PrinterWorker & worker, int64_t nowMs, bool forc
     // NotifyUserScroll) instead leaves it parked where they put it. panZoom
     // clamps to the viewport's legal bounds and eases the position (glided in
     // RenderFrame's Tick), and the eased bottom row is what we render.
-    m_panZoom.SetPanYBounds ((float) m_viewport.MinBottomRow (),
-                             (float) m_viewport.MaxBottomRow ());
+    m_panZoom.SetPanYBounds ((float) m_viewport.MinBottomRow(),
+                             (float) m_viewport.MaxBottomRow());
 
-    if (m_viewport.FollowingLive ())
+    if (m_viewport.FollowingLive())
     {
-        m_panZoom.SetPanYTarget ((float) m_viewport.LiveRow ());
+        m_panZoom.SetPanYTarget ((float) m_viewport.LiveRow());
     }
 
     // Seed the eased position onto the target on the first content frame (and
@@ -766,12 +766,12 @@ void PrinterPanel::RefreshLive (PrinterWorker & worker, int64_t nowMs, bool forc
     // instead of scrolling down to it from row 0.
     if (!m_panYSeeded && rows > 0)
     {
-        m_panZoom.SnapPanY (m_panZoom.PanYTarget ());
+        m_panZoom.SnapPanY (m_panZoom.PanYTarget());
         m_panYSeeded = true;
     }
 
-    span.lastRow  = (int) std::lround (m_panZoom.PanY ());
-    span.firstRow = (std::max) (0, span.lastRow - m_viewport.ViewportRows () + 1);
+    span.lastRow  = (int) std::lround (m_panZoom.PanY());
+    span.firstRow = (std::max) (0, span.lastRow - m_viewport.ViewportRows() + 1);
 
     moved       = (span.firstRow != m_renderedSpan.firstRow || span.lastRow != m_renderedSpan.lastRow);
     revealMoved = (revealRow != m_renderedRevealRow || revealCol != m_renderedRevealCol);
@@ -788,7 +788,7 @@ void PrinterPanel::RefreshLive (PrinterWorker & worker, int64_t nowMs, bool forc
 
     if (rows <= 0)
     {
-        ShowBlankSheet ();
+        ShowBlankSheet();
         m_revealInk = false;
     }
     else if (worker.SnapshotStripSpan (span.firstRow, span.lastRow, spanRaster))
@@ -805,7 +805,7 @@ void PrinterPanel::RefreshLive (PrinterWorker & worker, int64_t nowMs, bool forc
             int  sampleLo;
             int  sampleHi;
 
-            if (!m_pacing.IsCaughtUp ())
+            if (!m_pacing.IsCaughtUp())
             {
                 sampleLo = 0;
                 sampleHi = PrinterGrid::kDotsPerRow - 1;
@@ -826,7 +826,7 @@ void PrinterPanel::RefreshLive (PrinterWorker & worker, int64_t nowMs, bool forc
     }
     else
     {
-        ShowBlankSheet ();   // no active job: fresh paper in the platen
+        ShowBlankSheet();   // no active job: fresh paper in the platen
         m_revealInk = false;
     }
 
@@ -836,7 +836,7 @@ void PrinterPanel::RefreshLive (PrinterWorker & worker, int64_t nowMs, bool forc
     m_renderedRevealCol = revealCol;
     m_lastRenderMs      = nowMs;
     m_hasRendered       = true;
-    Invalidate ();
+    Invalidate();
 }
 
 
@@ -890,7 +890,7 @@ bool PrinterPanel::RevealBandHasInk (const PrintRaster & spanRaster, int spanFir
 
 void PrinterPanel::SetStrip (const PrintRaster & raster)
 {
-    int                     rows = raster.RowsUsed ();
+    int                     rows = raster.RowsUsed();
     PrinterViewport::Span   span;
     PrintRaster             spanRaster;
 
@@ -899,14 +899,14 @@ void PrinterPanel::SetStrip (const PrintRaster & raster)
         return;
     }
 
-    if (rows - 1 < m_viewport.LiveRow ())
+    if (rows - 1 < m_viewport.LiveRow())
     {
-        m_viewport.Reset ();
+        m_viewport.Reset();
     }
 
     if (rows <= 0)
     {
-        ShowBlankSheet ();
+        ShowBlankSheet();
         m_hasRendered = true;
         return;
     }
@@ -915,16 +915,16 @@ void PrinterPanel::SetStrip (const PrintRaster & raster)
 
     // One-shot push: place panZoom's eased position on the follow target (no
     // glide) and render that bottom-anchored span.
-    m_panZoom.SetPanYBounds ((float) m_viewport.MinBottomRow (), (float) m_viewport.MaxBottomRow ());
-    if (m_viewport.FollowingLive ())
+    m_panZoom.SetPanYBounds ((float) m_viewport.MinBottomRow(), (float) m_viewport.MaxBottomRow());
+    if (m_viewport.FollowingLive())
     {
-        m_panZoom.SetPanYTarget ((float) m_viewport.LiveRow ());
+        m_panZoom.SetPanYTarget ((float) m_viewport.LiveRow());
     }
-    m_panZoom.SnapPanY (m_panZoom.PanYTarget ());
+    m_panZoom.SnapPanY (m_panZoom.PanYTarget());
     m_panYSeeded = true;
 
-    span.lastRow  = (int) std::lround (m_panZoom.PanY ());
-    span.firstRow = (std::max) (0, span.lastRow - m_viewport.ViewportRows () + 1);
+    span.lastRow  = (int) std::lround (m_panZoom.PanY());
+    span.firstRow = (std::max) (0, span.lastRow - m_viewport.ViewportRows() + 1);
     raster.CopyRowSpan (span.firstRow, span.lastRow, spanRaster);
     RenderSpan (spanRaster, span.firstRow, span.lastRow, true, -1, 0, 0);   // no live head: show everything
 
@@ -944,7 +944,7 @@ void PrinterPanel::SetStrip (const PrintRaster & raster)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void PrinterPanel::ShowBlankSheet ()
+void PrinterPanel::ShowBlankSheet()
 {
     ComposeCanvas (nullptr, 0, 0, -1, 0, 0);
 }
@@ -1044,7 +1044,7 @@ void PrinterPanel::RenderSpan (const PrintRaster & spanRaster, int firstAbsRow, 
         m_spanImgGen++;      // content pixels changed: the canvas cache must rebuild
     }
 
-    if (m_spanImg.height > m_viewport.ViewportRows ())
+    if (m_spanImg.height > m_viewport.ViewportRows())
     {
         return;   // span larger than the canvas: keep the previous frame
     }
@@ -1082,11 +1082,11 @@ void PrinterPanel::ComposeCanvas (const RgbaImage * content, int contentFirstAbs
 {
     HRESULT   hr        = S_OK;
     int       canvasW   = s_kStockWidthPx;
-    int       canvasH   = m_viewport.ViewportRows ();   // px == rows at 144 dpi
+    int       canvasH   = m_viewport.ViewportRows();   // px == rows at 144 dpi
     int       topAbsRow = bottomAbsRow - canvasH + 1;   // canvas bottom = span's live row
     int       holeR     = s_kHoleRadiusPx;
 
-    if (m_canvas.size () != (size_t) canvasW * canvasH)
+    if (m_canvas.size() != (size_t) canvasW * canvasH)
     {
         m_canvas.assign ((size_t) canvasW * canvasH, 0xFFFFFFFFu);
         m_canvasValid = false;
@@ -1107,8 +1107,8 @@ void PrinterPanel::ComposeCanvas (const RgbaImage * content, int contentFirstAbs
             return;
         }
 
-        std::fill (m_canvas.begin () + (size_t) rowFirst * canvasW,
-                   m_canvas.begin () + ((size_t) rowLast + 1) * canvasW, 0xFFFFFFFFu);
+        std::fill (m_canvas.begin() + (size_t) rowFirst * canvasW,
+                   m_canvas.begin() + ((size_t) rowLast + 1) * canvasW, 0xFFFFFFFFu);
 
         // Content, bottom-anchored in the printable area, premultiplied for
         // the GPU blit (paper is opaque, but anti-aliased dot edges carry
@@ -1260,12 +1260,12 @@ void PrinterPanel::ComposeCanvas (const RgbaImage * content, int contentFirstAbs
 
         if (delta > 0)
         {
-            memmove (m_canvas.data (), m_canvas.data () + (size_t) delta * canvasW, rowBytes * keepRows);
+            memmove (m_canvas.data(), m_canvas.data() + (size_t) delta * canvasW, rowBytes * keepRows);
             RebuildRows (canvasH - delta - holeR - 1, canvasH - 1);
         }
         else
         {
-            memmove (m_canvas.data () + (size_t) (-delta) * canvasW, m_canvas.data (), rowBytes * keepRows);
+            memmove (m_canvas.data() + (size_t) (-delta) * canvasW, m_canvas.data(), rowBytes * keepRows);
             RebuildRows (0, -delta + holeR);
         }
     }
@@ -1293,7 +1293,7 @@ void PrinterPanel::ComposeCanvas (const RgbaImage * content, int contentFirstAbs
 
         m_scene->SetPaperFeed01 ((float) std::clamp ((std::max) (bottomAbsRow, kLeaderRows), 0, canvasH)
                                  / (float) canvasH);
-        IGNORE_RETURN_VALUE (hr, m_scene->SetContent (m_canvas.data (), canvasW, canvasH));
+        IGNORE_RETURN_VALUE (hr, m_scene->SetContent (m_canvas.data(), canvasW, canvasH));
     }
     else
     {
@@ -1336,7 +1336,7 @@ bool PrinterPanel::OnMouse (const DxuiMouseEvent & ev)
         ev.button == DxuiMouseButton::Left &&
         PaperHit (ev.positionDip.x, ev.positionDip.y))
     {
-        m_tooltip.RequestHide (NowMs ());
+        m_tooltip.RequestHide (NowMs());
         m_panZoom.OnMouse (ev);
         return true;
     }
@@ -1355,7 +1355,7 @@ bool PrinterPanel::OnMouse (const DxuiMouseEvent & ev)
     }
     else if (ev.kind == DxuiMouseEventKind::Down)
     {
-        m_tooltip.RequestHide (NowMs ());
+        m_tooltip.RequestHide (NowMs());
     }
 
     return DxuiWindow::OnMouse (ev);
@@ -1388,7 +1388,7 @@ bool PrinterPanel::OnKey (const DxuiKeyEvent & ev)
         switch (ev.vk)
         {
             case VK_ESCAPE:
-                Hide ();
+                Hide();
                 return true;
 
             case VK_UP:
@@ -1430,7 +1430,7 @@ void PrinterPanel::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
 {
     int   pad      = scaler.Px (10);
     int   gap      = scaler.Px (6);
-    int   captionH = CaptionHeightPx ();
+    int   captionH = CaptionHeightPx();
     int   toolbarH = scaler.Px (46);
     int   hintH    = scaler.Px (20);
     int   btnH     = scaler.Px (30);
@@ -1541,7 +1541,7 @@ void PrinterPanel::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
 void PrinterPanel::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
 {
     HRESULT  hr = S_OK;
-    RECT     b  = Bounds ();
+    RECT     b  = Bounds();
 
     // Matches the 3D scene's mat color (Printer3DScene s_kArgbMat) so the
     // frame and the scene backdrop read as one surface.
@@ -1575,7 +1575,7 @@ void PrinterPanel::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
     DxuiPanel::Paint (painter, text, theme);
 
     {
-        DxuiFontHandle  bf = theme.BodyFont ();
+        DxuiFontHandle  bf = theme.BodyFont();
 
         IGNORE_RETURN_VALUE (hr, text.DrawString (
             s_kpszScrollHint,

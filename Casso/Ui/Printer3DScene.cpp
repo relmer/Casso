@@ -325,13 +325,13 @@ HRESULT Printer3DScene::SetModel (const std::string & objText, const std::string
         { 0.6549f, 0.6784f, 0.6941f, s_kArgbButton   },   // gray: control caps
     };
 
-    CBREx (ObjMeshParser::Parse (objText, mtlText, tris) && !tris.empty (), E_FAIL);
+    CBREx (ObjMeshParser::Parse (objText, mtlText, tris) && !tris.empty(), E_FAIL);
 
-    m_mesh.clear ();
-    m_meshGlass.clear ();
-    m_ledFaces.clear ();
-    m_ledLamps.clear ();
-    m_mesh.reserve (tris.size () * 3);
+    m_mesh.clear();
+    m_meshGlass.clear();
+    m_ledFaces.clear();
+    m_ledLamps.clear();
+    m_mesh.reserve (tris.size() * 3);
 
     // Pass 1 (original model coordinates): overall extents for the scale.
     for (const ObjTriangle & t : tris)
@@ -361,8 +361,8 @@ HRESULT Printer3DScene::SetModel (const std::string & objText, const std::string
         std::vector<XYZ>        pos;
         std::vector<uint32_t>   argbs;
 
-        pos.reserve (tris.size () * 3);
-        argbs.reserve (tris.size ());
+        pos.reserve (tris.size() * 3);
+        argbs.reserve (tris.size());
 
         for (const ObjTriangle & t : tris)
         {
@@ -468,7 +468,7 @@ HRESULT Printer3DScene::SetModel (const std::string & objText, const std::string
 
             if (roller)
             {
-                for (size_t k = pos.size () - 3; k < pos.size (); k++)
+                for (size_t k = pos.size() - 3; k < pos.size(); k++)
                 {
                     if (!rollerSeen)
                     {
@@ -507,7 +507,7 @@ HRESULT Printer3DScene::SetModel (const std::string & objText, const std::string
         std::vector<FaceCand>  ledCand;
 
         // Bake per-face Lambert shading (two-sided: CAD winding is arbitrary).
-        for (size_t t = 0; t < argbs.size (); t++)
+        for (size_t t = 0; t < argbs.size(); t++)
         {
             const XYZ &   a = pos[t * 3 + 0];
             const XYZ &   b = pos[t * 3 + 1];
@@ -550,7 +550,7 @@ HRESULT Printer3DScene::SetModel (const std::string & objText, const std::string
                 float   gz  = (a.z + b.z + c.z) / 3.0f;
                 int     hit = -1;
 
-                for (size_t li = 0; li < lampAcc.size (); li++)
+                for (size_t li = 0; li < lampAcc.size(); li++)
                 {
                     LampAcc &   L   = lampAcc[li];
                     float       lx2 = L.sx / (float) L.n;
@@ -565,7 +565,7 @@ HRESULT Printer3DScene::SetModel (const std::string & objText, const std::string
 
                 if (hit < 0)
                 {
-                    hit = (int) lampAcc.size ();
+                    hit = (int) lampAcc.size();
                     lampAcc.push_back ({ gx, gy, gz, 1, gx, gx, gy, gy, red });
                 }
                 else
@@ -627,14 +627,14 @@ HRESULT Printer3DScene::SetModel (const std::string & objText, const std::string
         // panel no longer flashes every lamp together while receiving.
         {
             std::vector<int>   greens;
-            for (size_t i = 0; i < m_ledLamps.size (); i++)
+            for (size_t i = 0; i < m_ledLamps.size(); i++)
             {
                 if (!m_ledLamps[i].red) { greens.push_back ((int) i); }
             }
-            std::sort (greens.begin (), greens.end (),
+            std::sort (greens.begin(), greens.end(),
                        [&] (int a, int b) { return m_ledLamps[a].cx < m_ledLamps[b].cx; });
 
-            int   n = (int) greens.size ();
+            int   n = (int) greens.size();
             for (int gi = 0; gi < n; gi++)
             {
                 LampRole   role = LampRole::Select;
@@ -719,8 +719,8 @@ HRESULT Printer3DScene::SetModel (const std::string & objText, const std::string
 Error:
     if (FAILED (hr))
     {
-        m_mesh.clear ();   // never leave a half-loaded body: fall back whole
-        m_meshGlass.clear ();
+        m_mesh.clear();   // never leave a half-loaded body: fall back whole
+        m_meshGlass.clear();
     }
     return hr;
 }
@@ -1119,10 +1119,10 @@ void Printer3DScene::AppendLed (std::vector<Vertex> & out,
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void Printer3DScene::BuildLedBatches ()
+void Printer3DScene::BuildLedBatches()
 {
-    m_glowBatch.clear ();
-    m_ledBatch.clear ();
+    m_glowBatch.clear();
+    m_ledBatch.clear();
 
     for (const LedFace & f : m_ledFaces)
     {
@@ -1360,7 +1360,7 @@ void Printer3DScene::BuildPaper (std::vector<Vertex> & out) const
             float   p01[3] = { -s_kPaperHalfW, m_platenY + wrapR * std::sin (a1), m_platenZ + wrapR * std::cos (a1) };
             float   p11[3] = {  s_kPaperHalfW, m_platenY + wrapR * std::sin (a1), m_platenZ + wrapR * std::cos (a1) };
 
-            size_t   base = out.size ();
+            size_t   base = out.size();
 
             AppendQuad (out, p00, p10, p01, p11, uy, 0.5f, uy, 0.5f, 0xFFFFFFFF, 1.0f);
 
@@ -1432,7 +1432,7 @@ void Printer3DScene::BuildPaper (std::vector<Vertex> & out) const
 
             // Per-slice shade via two AppendQuads would double vertices; write
             // the quad directly so top/bottom edges carry their own shades.
-            size_t   base = out.size ();
+            size_t   base = out.size();
 
             AppendQuad (out, p00, p10, p01, p11, 0.0f, prevV, 1.0f, v, 0xFFFFFFFF, 1.0f);
 
@@ -1884,7 +1884,7 @@ void Printer3DScene::Render (const RECT & targetPx)
     float            identity[16];
     D3D11_VIEWPORT   vp = {};
 
-    if (!m_renderer.IsInitialized () || w <= 0 || h <= 0)
+    if (!m_renderer.IsInitialized() || w <= 0 || h <= 0)
     {
         return;
     }
@@ -1919,47 +1919,47 @@ void Printer3DScene::Render (const RECT & targetPx)
     Mul44            (model, viewProj, mvp);
     IdentityMvp      (identity);
 
-    m_backdrop.clear ();
-    m_solidBack.clear ();
-    m_paper.clear ();
-    m_solidFront.clear ();
+    m_backdrop.clear();
+    m_solidBack.clear();
+    m_paper.clear();
+    m_solidFront.clear();
 
     BuildBackdrop (m_backdrop);
     BuildPaper    (m_paper);
 
-    IGNORE_RETURN_VALUE (hr, m_renderer.DrawTriangles (m_backdrop.data (), m_backdrop.size (), identity, false, vp));
+    IGNORE_RETURN_VALUE (hr, m_renderer.DrawTriangles (m_backdrop.data(), m_backdrop.size(), identity, false, vp));
 
-    if (HasModel ())
+    if (HasModel())
     {
         // Loaded CAD body: real depth testing (its triangles arrive in
         // arbitrary order), with the paper, paced head, and badge overlays
         // depth-tested against it so occlusion just works.
-        m_solidFront.clear ();
+        m_solidFront.clear();
         BuildHeadOverlay (m_solidFront);
         BuildCassoLogo   (m_solidFront, m_meshFrontZ);
 
-        IGNORE_RETURN_VALUE (hr, m_renderer.BeginDepthPass ());
-        IGNORE_RETURN_VALUE (hr, m_renderer.DrawTriangles (m_mesh.data (),       m_mesh.size (),       mvp, false, vp, true));
-        IGNORE_RETURN_VALUE (hr, m_renderer.DrawTriangles (m_paper.data (),      m_paper.size (),      mvp, true,  vp, true));
-        IGNORE_RETURN_VALUE (hr, m_renderer.DrawTriangles (m_solidFront.data (), m_solidFront.size (), mvp, false, vp, true));
+        IGNORE_RETURN_VALUE (hr, m_renderer.BeginDepthPass());
+        IGNORE_RETURN_VALUE (hr, m_renderer.DrawTriangles (m_mesh.data(),       m_mesh.size(),       mvp, false, vp, true));
+        IGNORE_RETURN_VALUE (hr, m_renderer.DrawTriangles (m_paper.data(),      m_paper.size(),      mvp, true,  vp, true));
+        IGNORE_RETURN_VALUE (hr, m_renderer.DrawTriangles (m_solidFront.data(), m_solidFront.size(), mvp, false, vp, true));
 
         // The smoked window last, over everything it must show through.
-        if (!m_meshGlass.empty ())
+        if (!m_meshGlass.empty())
         {
-            IGNORE_RETURN_VALUE (hr, m_renderer.DrawTriangles (m_meshGlass.data (), m_meshGlass.size (), mvp, false, vp, true));
+            IGNORE_RETURN_VALUE (hr, m_renderer.DrawTriangles (m_meshGlass.data(), m_meshGlass.size(), mvp, false, vp, true));
         }
 
         // Front-panel LEDs over the finished body: a glow halo per lit lamp,
         // then the recolored lens faces on top. No depth -- they sit on the
         // front-most deck, and the halo must not be occluded by the lens plane.
-        BuildLedBatches ();
-        if (!m_glowBatch.empty ())
+        BuildLedBatches();
+        if (!m_glowBatch.empty())
         {
-            IGNORE_RETURN_VALUE (hr, m_renderer.DrawTriangles (m_glowBatch.data (), m_glowBatch.size (), mvp, false, vp, false));
+            IGNORE_RETURN_VALUE (hr, m_renderer.DrawTriangles (m_glowBatch.data(), m_glowBatch.size(), mvp, false, vp, false));
         }
-        if (!m_ledBatch.empty ())
+        if (!m_ledBatch.empty())
         {
-            IGNORE_RETURN_VALUE (hr, m_renderer.DrawTriangles (m_ledBatch.data (), m_ledBatch.size (), mvp, false, vp, false));
+            IGNORE_RETURN_VALUE (hr, m_renderer.DrawTriangles (m_ledBatch.data(), m_ledBatch.size(), mvp, false, vp, false));
         }
     }
     else
@@ -1968,8 +1968,8 @@ void Printer3DScene::Render (const RECT & targetPx)
         BuildBodyBack  (m_solidBack);
         BuildBodyFront (m_solidFront);
 
-        IGNORE_RETURN_VALUE (hr, m_renderer.DrawTriangles (m_solidBack.data (),  m_solidBack.size (),  mvp, false, vp));
-        IGNORE_RETURN_VALUE (hr, m_renderer.DrawTriangles (m_paper.data (),      m_paper.size (),      mvp, true,  vp));
-        IGNORE_RETURN_VALUE (hr, m_renderer.DrawTriangles (m_solidFront.data (), m_solidFront.size (), mvp, false, vp));
+        IGNORE_RETURN_VALUE (hr, m_renderer.DrawTriangles (m_solidBack.data(),  m_solidBack.size(),  mvp, false, vp));
+        IGNORE_RETURN_VALUE (hr, m_renderer.DrawTriangles (m_paper.data(),      m_paper.size(),      mvp, true,  vp));
+        IGNORE_RETURN_VALUE (hr, m_renderer.DrawTriangles (m_solidFront.data(), m_solidFront.size(), mvp, false, vp));
     }
 }

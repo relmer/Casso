@@ -112,7 +112,7 @@ uint32_t PrinterByteRing::Drain (Byte * out, uint32_t maxCount) noexcept
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-uint32_t PrinterByteRing::ApproxSize () const noexcept
+uint32_t PrinterByteRing::ApproxSize() const noexcept
 {
     uint32_t  tail = m_tail.load (std::memory_order_relaxed);
     uint32_t  head = m_head.load (std::memory_order_relaxed);
@@ -134,7 +134,7 @@ uint32_t PrinterByteRing::ApproxSize () const noexcept
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-uint32_t PrinterByteRing::FreeSpace () const noexcept
+uint32_t PrinterByteRing::FreeSpace() const noexcept
 {
     uint32_t  tail     = m_tail.load (std::memory_order_relaxed);
     uint32_t  head     = m_head.load (std::memory_order_acquire);

@@ -27,7 +27,7 @@ namespace PrintPaginationTests
 
         TEST_METHOD (EmptyStripHasNoPages)
         {
-            Assert::AreEqual ((size_t) 0, PrintPagination::Paginate (Make (0)).size ());
+            Assert::AreEqual ((size_t) 0, PrintPagination::Paginate (Make (0)).size());
         }
 
 
@@ -35,7 +35,7 @@ namespace PrintPaginationTests
         {
             auto   pages = PrintPagination::Paginate (Make (500));
 
-            Assert::AreEqual ((size_t) 1, pages.size ());
+            Assert::AreEqual ((size_t) 1, pages.size());
             Assert::AreEqual (0,   pages[0].firstRow);
             Assert::AreEqual (499, pages[0].lastRow);
         }
@@ -45,7 +45,7 @@ namespace PrintPaginationTests
         {
             auto   pages = PrintPagination::Paginate (Make (PrinterGrid::kPageRows));
 
-            Assert::AreEqual ((size_t) 1, pages.size ());
+            Assert::AreEqual ((size_t) 1, pages.size());
             Assert::AreEqual (0,                            pages[0].firstRow);
             Assert::AreEqual (PrinterGrid::kPageRows - 1,   pages[0].lastRow);
         }
@@ -55,7 +55,7 @@ namespace PrintPaginationTests
         {
             auto   pages = PrintPagination::Paginate (Make (PrinterGrid::kPageRows + 1));
 
-            Assert::AreEqual ((size_t) 2, pages.size ());
+            Assert::AreEqual ((size_t) 2, pages.size());
             Assert::AreEqual (PrinterGrid::kPageRows, pages[1].firstRow);
             Assert::AreEqual (PrinterGrid::kPageRows, pages[1].lastRow);
         }
@@ -66,7 +66,7 @@ namespace PrintPaginationTests
             int    rows  = PrinterGrid::kPageRows * 2 + 1044;   // three pages
             auto   pages = PrintPagination::Paginate (Make (rows));
 
-            Assert::AreEqual ((size_t) 3, pages.size ());
+            Assert::AreEqual ((size_t) 3, pages.size());
             Assert::AreEqual (0,                              pages[0].firstRow);
             Assert::AreEqual (PrinterGrid::kPageRows - 1,     pages[0].lastRow);
             Assert::AreEqual (PrinterGrid::kPageRows,         pages[1].firstRow);
@@ -82,7 +82,7 @@ namespace PrintPaginationTests
             // then its remainder (each under one physical page).
             auto   pages = PrintPagination::Paginate (Make (2000, { 800 }));
 
-            Assert::AreEqual ((size_t) 2, pages.size ());
+            Assert::AreEqual ((size_t) 2, pages.size());
             Assert::AreEqual (0,    pages[0].firstRow);
             Assert::AreEqual (799,  pages[0].lastRow);
             Assert::AreEqual (800,  pages[1].firstRow);
@@ -97,7 +97,7 @@ namespace PrintPaginationTests
             auto   pages = PrintPagination::Paginate (
                 Make (2 * PrinterGrid::kPageRows, { PrinterGrid::kPageRows }));
 
-            Assert::AreEqual ((size_t) 2, pages.size ());
+            Assert::AreEqual ((size_t) 2, pages.size());
         }
 
 
@@ -106,7 +106,7 @@ namespace PrintPaginationTests
             // 0, ==rowsUsed, and beyond are all no-ops.
             auto   pages = PrintPagination::Paginate (Make (500, { 0, 500, 900 }));
 
-            Assert::AreEqual ((size_t) 1, pages.size ());
+            Assert::AreEqual ((size_t) 1, pages.size());
             Assert::AreEqual (499, pages[0].lastRow);
         }
     };

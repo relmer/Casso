@@ -60,7 +60,7 @@ void PrinterStatusModel::Update (uint64_t activityCount, double nowMs, bool hasC
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-PrinterStatus PrinterStatusModel::Status () const
+PrinterStatus PrinterStatusModel::Status() const
 {
     return m_status;
 }
@@ -74,7 +74,7 @@ PrinterStatus PrinterStatusModel::Status () const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void PrinterStatusModel::Reset ()
+void PrinterStatusModel::Reset()
 {
     m_lastActivity   = 0;
     m_lastActivityMs = 0.0;

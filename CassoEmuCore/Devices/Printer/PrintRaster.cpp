@@ -26,7 +26,7 @@ void PrintRaster::EnsureRowAllocated (int row)
     int   neededRows = 0;
     int   chunkRows  = 0;
 
-    if ((size_t) (row + 1) * s_kColumns <= m_cells.size ())
+    if ((size_t) (row + 1) * s_kColumns <= m_cells.size())
     {
         return;
     }
@@ -117,7 +117,7 @@ void PrintRaster::AdvanceRows (int rows)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void PrintRaster::MarkFormFeed ()
+void PrintRaster::MarkFormFeed()
 {
     int   nextTop = ((m_paperRow / s_kPageRows) + 1) * s_kPageRows;
 
@@ -148,10 +148,10 @@ void PrintRaster::MarkFormFeed ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void PrintRaster::Clear ()
+void PrintRaster::Clear()
 {
-    m_cells.clear ();
-    m_pageBoundaryRows.clear ();
+    m_cells.clear();
+    m_pageBoundaryRows.clear();
     m_paperRow   = 0;
     m_rowsUsed   = 0;
     m_capReached = false;
@@ -175,7 +175,7 @@ void PrintRaster::RestoreFromIndexed (int rows, const vector<Byte> & cells,
                                       bool capReached)
 {
     size_t   need = (size_t) (rows > 0 ? rows : 0) * s_kColumns;
-    size_t   copy = need < cells.size () ? need : cells.size ();
+    size_t   copy = need < cells.size() ? need : cells.size();
     size_t   i    = 0;
 
     m_cells.assign (need, 0);
@@ -207,9 +207,9 @@ void PrintRaster::RestoreFromIndexed (int rows, const vector<Byte> & cells,
 void PrintRaster::CopyRowSpan (int firstRow, int lastRow, PrintRaster & out) const
 {
     int      spanRows  = 0;
-    size_t   available = m_cells.size () / s_kColumns;
+    size_t   available = m_cells.size() / s_kColumns;
 
-    out.Clear ();
+    out.Clear();
 
     if (firstRow < 0)
     {
@@ -272,7 +272,7 @@ Byte PrintRaster::CellAt (int columnDot, int row) const
 
     index = (size_t) row * s_kColumns + columnDot;
 
-    if (index >= m_cells.size ())
+    if (index >= m_cells.size())
     {
         return 0;
     }

@@ -25,9 +25,9 @@ static HRESULT ReadAllBytes (const fs::path & path, vector<Byte> & out)
     HRESULT         hr = S_OK;
     std::ifstream   in (path, std::ios::binary);
 
-    CBR (in.is_open ());
+    CBR (in.is_open());
     out.assign ((std::istreambuf_iterator<char> (in)), std::istreambuf_iterator<char> ());
-    CBR (in.good () || in.eof ());
+    CBR (in.good() || in.eof());
 
 Error:
     return hr;
@@ -47,9 +47,9 @@ static HRESULT ReadAllText (const fs::path & path, string & out)
     HRESULT         hr = S_OK;
     std::ifstream   in (path, std::ios::binary);
 
-    CBR (in.is_open ());
+    CBR (in.is_open());
     out.assign ((std::istreambuf_iterator<char> (in)), std::istreambuf_iterator<char> ());
-    CBR (in.good () || in.eof ());
+    CBR (in.good() || in.eof());
 
 Error:
     return hr;
@@ -69,9 +69,9 @@ static HRESULT WriteAllBytes (const fs::path & path, const vector<Byte> & bytes)
     HRESULT         hr = S_OK;
     std::ofstream   out (path, std::ios::binary | std::ios::trunc);
 
-    CBR (out.is_open ());
-    out.write ((const char *) bytes.data (), (std::streamsize) bytes.size ());
-    CBR (out.good ());
+    CBR (out.is_open());
+    out.write ((const char *) bytes.data(), (std::streamsize) bytes.size());
+    CBR (out.good());
 
 Error:
     return hr;
@@ -91,9 +91,9 @@ static HRESULT WriteAllText (const fs::path & path, const string & text)
     HRESULT         hr = S_OK;
     std::ofstream   out (path, std::ios::binary | std::ios::trunc);
 
-    CBR (out.is_open ());
-    out.write (text.data (), (std::streamsize) text.size ());
-    CBR (out.good ());
+    CBR (out.is_open());
+    out.write (text.data(), (std::streamsize) text.size());
+    CBR (out.good());
 
 Error:
     return hr;

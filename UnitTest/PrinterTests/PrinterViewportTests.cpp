@@ -30,60 +30,60 @@ namespace PrinterViewportTests
 
         TEST_METHOD (FollowsLiveRowByDefault)
         {
-            PrinterViewport   v (Cfg ());
+            PrinterViewport   v (Cfg());
 
-            Assert::IsTrue (v.FollowingLive ());
+            Assert::IsTrue (v.FollowingLive());
 
             v.Advance (500);
 
-            Assert::AreEqual (500, v.LiveRow ());
-            Assert::IsTrue   (v.FollowingLive ());
+            Assert::AreEqual (500, v.LiveRow());
+            Assert::IsTrue   (v.FollowingLive());
         }
 
 
         TEST_METHOD (AdvanceIsMonotonic)
         {
-            PrinterViewport   v (Cfg ());
+            PrinterViewport   v (Cfg());
 
             v.Advance (500);
             v.Advance (200);   // stale lesser value must not regress the live row
 
-            Assert::AreEqual (500, v.LiveRow ());
+            Assert::AreEqual (500, v.LiveRow());
         }
 
 
         TEST_METHOD (NotifyUserScrollLeavesFollowMode)
         {
-            PrinterViewport   v (Cfg ());
+            PrinterViewport   v (Cfg());
 
             v.Advance (500);
             v.NotifyUserScroll (0);
 
-            Assert::IsFalse (v.FollowingLive ());
+            Assert::IsFalse (v.FollowingLive());
         }
 
 
         TEST_METHOD (BoundsSpanFullPageOfScrollbackPlusOverscroll)
         {
-            PrinterViewport   v (Cfg ());   // 100-row viewport, 25 overscroll
+            PrinterViewport   v (Cfg());   // 100-row viewport, 25 overscroll
 
             v.Advance (500);
 
             // Furthest back = a full viewport against the top of the strip
             // (bottom row 99 -> first row 0); furthest forward = live + 25.
-            Assert::AreEqual (99,  v.MinBottomRow ());
-            Assert::AreEqual (525, v.MaxBottomRow ());
+            Assert::AreEqual (99,  v.MinBottomRow());
+            Assert::AreEqual (525, v.MaxBottomRow());
         }
 
 
         TEST_METHOD (ShortStripPinsMinBottomToLiveRow)
         {
-            PrinterViewport   v (Cfg ());
+            PrinterViewport   v (Cfg());
 
             v.Advance (30);   // strip shorter than the viewport: nowhere to scroll back
 
-            Assert::AreEqual (30, v.MinBottomRow ());   // == live row
-            Assert::AreEqual (55, v.MaxBottomRow ());   // live + overscroll still allowed
+            Assert::AreEqual (30, v.MinBottomRow());   // == live row
+            Assert::AreEqual (55, v.MaxBottomRow());   // live + overscroll still allowed
         }
 
 
@@ -96,10 +96,10 @@ namespace PrinterViewportTests
             v.Advance (600);   // the print keeps going
 
             v.Tick (2999);   // 1999 ms idle: not yet
-            Assert::IsFalse (v.FollowingLive ());
+            Assert::IsFalse (v.FollowingLive());
 
             v.Tick (3000);   // 2000 ms idle: snap
-            Assert::IsTrue  (v.FollowingLive ());
+            Assert::IsTrue  (v.FollowingLive());
         }
 
 
@@ -113,7 +113,7 @@ namespace PrinterViewportTests
             v.NotifyUserScroll (1000);
 
             v.Tick (1000000);
-            Assert::IsFalse (v.FollowingLive ());
+            Assert::IsFalse (v.FollowingLive());
         }
 
 
@@ -127,24 +127,24 @@ namespace PrinterViewportTests
             v.Advance (900);             // print continues past the last scroll
 
             v.Tick (3500);               // only 1000 ms since the last scroll
-            Assert::IsFalse (v.FollowingLive ());
+            Assert::IsFalse (v.FollowingLive());
 
             v.Tick (4500);
-            Assert::IsTrue  (v.FollowingLive ());
+            Assert::IsTrue  (v.FollowingLive());
         }
 
 
         TEST_METHOD (ResetReturnsToFollowingAtTop)
         {
-            PrinterViewport   v (Cfg ());
+            PrinterViewport   v (Cfg());
 
             v.Advance (500);
             v.NotifyUserScroll (0);
             v.Reset   ();
 
-            Assert::IsTrue   (v.FollowingLive ());
-            Assert::AreEqual (0, v.LiveRow ());
-            Assert::AreEqual (0, v.MinBottomRow ());
+            Assert::IsTrue   (v.FollowingLive());
+            Assert::AreEqual (0, v.LiveRow());
+            Assert::AreEqual (0, v.MinBottomRow());
         }
     };
 }

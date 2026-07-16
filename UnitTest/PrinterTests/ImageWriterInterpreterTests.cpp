@@ -24,7 +24,7 @@ namespace ImageWriterInterpreterTests
     static void Feed (ImageWriterInterpreter & interp, PrintRaster & raster,
                       vector<PrinterEvent> & events, const vector<Byte> & bytes)
     {
-        interp.Consume (bytes.data (), bytes.size (), raster, events);
+        interp.Consume (bytes.data(), bytes.size(), raster, events);
     }
 
 
@@ -32,7 +32,7 @@ namespace ImageWriterInterpreterTests
     {
         int   n = 0;
         size_t i = 0;
-        for (i = 0; i < events.size (); i++)
+        for (i = 0; i < events.size(); i++)
         {
             if (events[i].type == type) n++;
         }
@@ -54,7 +54,7 @@ namespace ImageWriterInterpreterTests
 
             Feed (interp, raster, events, { 0x0A });     // LF
 
-            Assert::AreEqual (PrinterGrid::kRowsPerInch / 6, raster.PaperRow ());   // 24
+            Assert::AreEqual (PrinterGrid::kRowsPerInch / 6, raster.PaperRow());   // 24
             Assert::AreEqual (1, CountEvents (events, PrinterEventType::LineFeed));
             Assert::AreEqual (PrinterGrid::kRowsPerInch / 6, events[0].rows);
         }
@@ -68,7 +68,7 @@ namespace ImageWriterInterpreterTests
 
             Feed (interp, raster, events, { 0x0C });     // FF
 
-            Assert::AreEqual (PrinterGrid::kPageRows, raster.PaperRow ());
+            Assert::AreEqual (PrinterGrid::kPageRows, raster.PaperRow());
             Assert::AreEqual (1, CountEvents (events, PrinterEventType::FormFeed));
         }
 
@@ -83,13 +83,13 @@ namespace ImageWriterInterpreterTests
             vector<PrinterEvent>     events;
 
             Feed (interp, raster, events, { 0x1B, 'B', 0x0A });   // 8 lpi then LF
-            Assert::AreEqual (PrinterGrid::kRowsPerInch / 8, raster.PaperRow ());   // 18
+            Assert::AreEqual (PrinterGrid::kRowsPerInch / 8, raster.PaperRow());   // 18
 
             Feed (interp, raster, events, { 0x1B, 'A', 0x0C, 0x0A });   // 12/72" = 1/6" then LF
-            Assert::AreEqual (18 + PrinterGrid::kRowsPerInch / 6, raster.PaperRow ());
+            Assert::AreEqual (18 + PrinterGrid::kRowsPerInch / 6, raster.PaperRow());
 
             Feed (interp, raster, events, { 0x1B, 'A', 0x07, 0x0A });   // 7/72" = 14 rows then LF
-            Assert::AreEqual (18 + PrinterGrid::kRowsPerInch / 6 + 14, raster.PaperRow ());
+            Assert::AreEqual (18 + PrinterGrid::kRowsPerInch / 6 + 14, raster.PaperRow());
         }
 
 
@@ -101,7 +101,7 @@ namespace ImageWriterInterpreterTests
 
             Feed (interp, raster, events, { 0x1B, 'T', '1', '8', 0x0A });   // 18/144" then LF
 
-            Assert::AreEqual (18, raster.PaperRow ());
+            Assert::AreEqual (18, raster.PaperRow());
         }
 
 
@@ -124,8 +124,8 @@ namespace ImageWriterInterpreterTests
             Assert::AreEqual ((Byte) 0,                 raster.CellAt (1, 14));
 
             Assert::AreEqual (1, CountEvents (events, PrinterEventType::HeadBurst));
-            Assert::AreEqual (0, events.back ().fromDot);
-            Assert::AreEqual (1, events.back ().toDot);
+            Assert::AreEqual (0, events.back().fromDot);
+            Assert::AreEqual (1, events.back().toDot);
         }
 
 
@@ -149,8 +149,8 @@ namespace ImageWriterInterpreterTests
 
             Assert::AreEqual (1, CountEvents (events, PrinterEventType::HeadBurst));
             Assert::AreEqual (0, CountEvents (events, PrinterEventType::UnknownCommand));
-            Assert::AreEqual (0, events.back ().fromDot);
-            Assert::AreEqual (1, events.back ().toDot);
+            Assert::AreEqual (0, events.back().fromDot);
+            Assert::AreEqual (1, events.back().toDot);
         }
 
 
@@ -174,7 +174,7 @@ namespace ImageWriterInterpreterTests
             Assert::AreEqual ((Byte) InkPrimary::Black, raster.CellAt (340, 0));
             Assert::AreEqual ((Byte) 0,                 raster.CellAt (341, 0));
             Assert::AreEqual (1, CountEvents (events, PrinterEventType::HeadBurst));
-            Assert::AreEqual (340, events.back ().toDot);   // all 256 columns were data, not text
+            Assert::AreEqual (340, events.back().toDot);   // all 256 columns were data, not text
         }
 
 
@@ -204,7 +204,7 @@ namespace ImageWriterInterpreterTests
             Assert::AreEqual ((Byte) 0,                 raster.CellAt (0,   bandTop));      // MSB clear -> top pin empty
             Assert::AreEqual ((Byte) InkPrimary::Black, raster.CellAt (0,   bandTop + 2));  // bit 6 -> second pin
             Assert::AreEqual ((Byte) InkPrimary::Black, raster.CellAt (681, bandTop + 2));  // last column's dot
-            Assert::IsTrue (raster.RowsUsed () > bandTop,
+            Assert::IsTrue (raster.RowsUsed() > bandTop,
                 L"the graphics band must extend the used-rows extent");
         }
 
@@ -242,7 +242,7 @@ namespace ImageWriterInterpreterTests
             Assert::AreEqual ((Byte) InkPrimary::Black, raster.CellAt (127,  0));
             Assert::AreEqual ((Byte) InkPrimary::Black, raster.CellAt (128,  0));
             Assert::AreEqual ((Byte) InkPrimary::Black, raster.CellAt (1279, 0));
-            Assert::AreEqual (14, raster.PaperRow ());   // ESC A $07 = 14 native rows
+            Assert::AreEqual (14, raster.PaperRow());   // ESC A $07 = 14 native rows
         }
 
 
@@ -270,8 +270,8 @@ namespace ImageWriterInterpreterTests
 
             Feed (interp, raster, events, { 'H', 'e', 'l', 'l', 'o' });
 
-            Assert::AreEqual (0, raster.RowsUsed ());        // no strikes, no advance
-            Assert::AreEqual ((size_t) 0, events.size ());
+            Assert::AreEqual (0, raster.RowsUsed());        // no strikes, no advance
+            Assert::AreEqual ((size_t) 0, events.size());
         }
 
 
@@ -284,7 +284,7 @@ namespace ImageWriterInterpreterTests
             Feed (interp, raster, events, { 0x1B, 0x7A });   // ESC 'z' -- not in the subset
 
             Assert::AreEqual (1, CountEvents (events, PrinterEventType::UnknownCommand));
-            Assert::AreEqual ((Byte) 0x7A, events.back ().leadByte);
+            Assert::AreEqual ((Byte) 0x7A, events.back().leadByte);
         }
 
 
@@ -300,7 +300,7 @@ namespace ImageWriterInterpreterTests
             Feed (interp, raster, events, { 0x0A });                  // LF at default spacing
 
             Assert::AreEqual (1, CountEvents (events, PrinterEventType::ResetSeen));
-            Assert::AreEqual (PrinterGrid::kRowsPerInch / 6, raster.PaperRow ());   // default 24
+            Assert::AreEqual (PrinterGrid::kRowsPerInch / 6, raster.PaperRow());   // default 24
         }
 
 
@@ -320,11 +320,11 @@ namespace ImageWriterInterpreterTests
             Feed (a, ra, ea, stream);
             Feed (b, rb, eb, stream);
 
-            Assert::AreEqual (ra.RowsUsed (), rb.RowsUsed ());
-            Assert::AreEqual (ra.PaperRow (), rb.PaperRow ());
-            Assert::AreEqual (ea.size (),     eb.size ());
+            Assert::AreEqual (ra.RowsUsed(), rb.RowsUsed());
+            Assert::AreEqual (ra.PaperRow(), rb.PaperRow());
+            Assert::AreEqual (ea.size(),     eb.size());
 
-            for (i = 0; i < ea.size (); i++)
+            for (i = 0; i < ea.size(); i++)
             {
                 Assert::IsTrue (ea[i].type == eb[i].type);
                 Assert::AreEqual (ea[i].fromDot, eb[i].fromDot);

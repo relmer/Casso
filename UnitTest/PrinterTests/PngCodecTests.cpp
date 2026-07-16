@@ -35,7 +35,7 @@ namespace PngCodecTests
         {
             if (m_ownsCom)
             {
-                CoUninitialize ();
+                CoUninitialize();
             }
         }
 
@@ -54,12 +54,12 @@ namespace PngCodecTests
             SetPixel (src, 1, 1, 0x20, 0x40, 0x60, 0x80);   // partial alpha
 
             Assert::IsTrue (SUCCEEDED (PngCodec::EncodeRgba (src, 576, png)));
-            Assert::IsTrue (png.size () > 8);
+            Assert::IsTrue (png.size() > 8);
             Assert::IsTrue (SUCCEEDED (PngCodec::DecodeRgba (png, back)));
 
             Assert::AreEqual (src.width,  back.width);
             Assert::AreEqual (src.height, back.height);
-            for (size_t i = 0; i < src.rgba.size (); i++)
+            for (size_t i = 0; i < src.rgba.size(); i++)
             {
                 Assert::AreEqual (src.rgba[i], back.rgba[i]);
             }
@@ -105,8 +105,8 @@ namespace PngCodecTests
 
             Assert::AreEqual (w, outW);
             Assert::AreEqual (h, outH);
-            Assert::AreEqual (indices.size (), back.size ());
-            for (i = 0; i < (int) indices.size (); i++)
+            Assert::AreEqual (indices.size(), back.size());
+            for (i = 0; i < (int) indices.size(); i++)
             {
                 Assert::AreEqual (indices[i], back[i]);
             }

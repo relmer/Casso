@@ -130,7 +130,7 @@ bool DxuiPanZoom::OnKey (const DxuiKeyEvent & ev)
 
     case '0':
     case VK_NUMPAD0:
-        ResetZoom ();
+        ResetZoom();
         return true;
 
     default:
@@ -162,7 +162,7 @@ bool DxuiPanZoom::Tick (double nowSec)
 
     if (moving)
     {
-        Changed ();
+        Changed();
     }
     return moving;
 }
@@ -174,7 +174,7 @@ void DxuiPanZoom::SetPanYBounds (float lo, float hi)
 {
     m_panYlo = lo;
     m_panYhi = hi;
-    ClampTargets ();
+    ClampTargets();
 }
 
 
@@ -184,7 +184,7 @@ void DxuiPanZoom::SetPanXBounds (float lo, float hi)
 {
     m_panXlo = lo;
     m_panXhi = hi;
-    ClampTargets ();
+    ClampTargets();
 }
 
 
@@ -194,7 +194,7 @@ void DxuiPanZoom::SetPanYCamBounds (float lo, float hi)
 {
     m_panYCamLo = lo;
     m_panYCamHi = hi;
-    ClampTargets ();
+    ClampTargets();
 }
 
 
@@ -226,7 +226,7 @@ void DxuiPanZoom::SetPanYTarget (float y)
 
     if (changed)
     {
-        Changed ();
+        Changed();
     }
 }
 
@@ -254,14 +254,14 @@ void DxuiPanZoom::SnapPanY (float y)
     m_panY.target = y;
     m_overscrollY.cur    = 0.0;   // torn / replaced content: world back to home
     m_overscrollY.target = 0.0;
-    ClampTargets ();
-    Changed ();
+    ClampTargets();
+    Changed();
 }
 
 
 
 
-void DxuiPanZoom::ZoomIn ()
+void DxuiPanZoom::ZoomIn()
 {
     ApplyZoomFactor (m_cfg.zoomStep);
 }
@@ -269,7 +269,7 @@ void DxuiPanZoom::ZoomIn ()
 
 
 
-void DxuiPanZoom::ZoomOut ()
+void DxuiPanZoom::ZoomOut()
 {
     ApplyZoomFactor (1.0 / m_cfg.zoomStep);
 }
@@ -277,12 +277,12 @@ void DxuiPanZoom::ZoomOut ()
 
 
 
-void DxuiPanZoom::ResetZoom ()
+void DxuiPanZoom::ResetZoom()
 {
     if (m_zoom.target != (double) m_cfg.zoomMin)
     {
         m_zoom.target = m_cfg.zoomMin;
-        Changed ();
+        Changed();
     }
 }
 
@@ -321,7 +321,7 @@ void DxuiPanZoom::ApplyZoomFactor (double factor, bool anchored, float anchorX, 
         }
     }
 
-    Changed ();
+    Changed();
 }
 
 
@@ -343,7 +343,7 @@ void DxuiPanZoom::NudgePanX (double deltaContent)
         {
             m_panX.cur = target;   // horizontal nudges are always user input
         }
-        Changed ();
+        Changed();
     }
 }
 
@@ -369,11 +369,11 @@ void DxuiPanZoom::NudgePanY (double deltaContent, bool user)
 
     if (user && m_onUserPanY)
     {
-        m_onUserPanY ();
+        m_onUserPanY();
     }
     if (changed)
     {
-        Changed ();
+        Changed();
     }
 }
 
@@ -442,14 +442,14 @@ void DxuiPanZoom::NudgePanYCam (double deltaContent)
         {
             m_panYCam.cur = target;
         }
-        Changed ();
+        Changed();
     }
 }
 
 
 
 
-void DxuiPanZoom::ClampTargets ()
+void DxuiPanZoom::ClampTargets()
 {
     if (m_panYhi >= m_panYlo)
     {
@@ -498,10 +498,10 @@ bool DxuiPanZoom::EaseToward (Eased & v, double dtSec, double tauSec)
 
 
 
-void DxuiPanZoom::Changed ()
+void DxuiPanZoom::Changed()
 {
     if (m_onChange)
     {
-        m_onChange ();
+        m_onChange();
     }
 }

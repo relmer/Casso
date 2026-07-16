@@ -64,13 +64,13 @@ namespace PrinterPipelineTests
             vector<Byte>             stream;
 
             BuildSignStream (stream);
-            interp.Consume (stream.data (), stream.size (), raster, events);
+            interp.Consume (stream.data(), stream.size(), raster, events);
 
             // First band occupies rows 0..7, columns 0..19.
             Assert::AreEqual ((Byte) InkPrimary::Black, raster.CellAt (0, 0));
             Assert::AreEqual ((Byte) InkPrimary::Black, raster.CellAt (19, 7));
             Assert::AreEqual ((Byte) 0,                 raster.CellAt (20, 0));
-            Assert::IsTrue (raster.RowsUsed () > 0);
+            Assert::IsTrue (raster.RowsUsed() > 0);
 
             // Render the whole strip and confirm ink actually landed.
             {
@@ -82,7 +82,7 @@ namespace PrinterPipelineTests
 
                 opt.outputDpi = 288;
                 Assert::IsTrue (SUCCEEDED (
-                    renderer.Render (raster, 0, raster.RowsUsed () - 1, opt, img)));
+                    renderer.Render (raster, 0, raster.RowsUsed() - 1, opt, img)));
 
                 for (y = 0; y < img.height; y++)
                 {
@@ -110,7 +110,7 @@ namespace PrinterPipelineTests
             int                      w = 0, h = 0;
 
             BuildSignStream (stream);
-            interp.Consume (stream.data (), stream.size (), original, events);
+            interp.Consume (stream.data(), stream.size(), original, events);
 
             PrintJobSerializer::ExtractIndexPlane (original, w, h, plane);
             string   json = PrintJobSerializer::WriteMetaJson (original);
@@ -118,7 +118,7 @@ namespace PrinterPipelineTests
             Assert::IsTrue (SUCCEEDED (PrintJobSerializer::ReadMetaJson (json, meta)));
             Assert::IsTrue (SUCCEEDED (PrintJobSerializer::RebuildRaster (w, h, plane, meta, reloaded)));
 
-            Assert::AreEqual (original.RowsUsed (),        reloaded.RowsUsed ());
+            Assert::AreEqual (original.RowsUsed(),        reloaded.RowsUsed());
             Assert::AreEqual (original.CellAt (0, 0),      reloaded.CellAt (0, 0));
             Assert::AreEqual (original.CellAt (19, 7),     reloaded.CellAt (19, 7));
         }

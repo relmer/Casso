@@ -54,7 +54,7 @@ namespace
         for (;;)
         {
             size_t  nl  = text.find (L'\n', pos);
-            size_t  end = (nl == std::wstring::npos) ? text.size () : nl;
+            size_t  end = (nl == std::wstring::npos) ? text.size() : nl;
             int     len = (int) (end - pos);
 
             lines += (std::max) (1, (len + cpl - 1) / cpl);
@@ -127,10 +127,10 @@ namespace
             }
 
             {
-                DxuiFontHandle  bf = theme.BodyFont ();
+                DxuiFontHandle  bf = theme.BodyFont();
 
                 IGNORE_RETURN_VALUE (hr, text.DrawString (
-                    m_text.c_str (),
+                    m_text.c_str(),
                     (float) tr.left,
                     (float) tr.top,
                     (float) (tr.right  - tr.left),
@@ -178,7 +178,7 @@ namespace
         }
 
     protected:
-        void  OnCreate () override
+        void  OnCreate() override
         {
             MessageBoxBody *  body = CreateDialogContent<MessageBoxBody> ();
 
@@ -232,7 +232,7 @@ int DxuiMessageBox (HWND owner, const IDxuiTheme * theme, const wchar_t * text, 
     }
 
     defIndex = (int) ((uType & MB_DEFMASK) >> 8);
-    if (defIndex < 0 || defIndex >= (int) buttons.size ())
+    if (defIndex < 0 || defIndex >= (int) buttons.size())
     {
         defIndex = 0;
     }
@@ -281,12 +281,12 @@ int DxuiMessageBox (HWND owner, const IDxuiTheme * theme, const wchar_t * text, 
     // Center the box on its owner (Win32 MessageBox centers on the owner too),
     // clamped to the owner's monitor work area so it never lands off-screen. The
     // window is created hidden, so this places it before ShowModalDialog shows it.
-    if (owner != nullptr && dlg.Hwnd () != nullptr)
+    if (owner != nullptr && dlg.Hwnd() != nullptr)
     {
         RECT   ownerR = {};
         RECT   dlgR   = {};
 
-        if (GetWindowRect (owner, &ownerR) && GetWindowRect (dlg.Hwnd (), &dlgR))
+        if (GetWindowRect (owner, &ownerR) && GetWindowRect (dlg.Hwnd(), &dlgR))
         {
             int    dw = dlgR.right  - dlgR.left;
             int    dh = dlgR.bottom - dlgR.top;
@@ -302,7 +302,7 @@ int DxuiMessageBox (HWND owner, const IDxuiTheme * theme, const wchar_t * text, 
                 y = std::clamp (y, (int) mi.rcWork.top,  (int) mi.rcWork.bottom - dh);
             }
 
-            SetWindowPos (dlg.Hwnd (), nullptr, x, y, 0, 0,
+            SetWindowPos (dlg.Hwnd(), nullptr, x, y, 0, 0,
                           SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE);
         }
     }

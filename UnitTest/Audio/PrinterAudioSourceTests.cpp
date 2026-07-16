@@ -42,7 +42,7 @@ namespace
     float  Frame (PrinterAudioSource & src, uint32_t n)
     {
         vector<float>  out (n, 0.0f);
-        src.GeneratePCM (out.data (), n);
+        src.GeneratePCM (out.data(), n);
         return Peak (out);
     }
 }
@@ -58,14 +58,14 @@ public:
     {
         PrinterAudioSource  src;
 
-        Assert::AreEqual (IDriveAudioSource::kCenterPan, src.PanLeft (),  0.0001f);
-        Assert::AreEqual (IDriveAudioSource::kCenterPan, src.PanRight (), 0.0001f);
-        Assert::IsFalse  (src.IsPrinting ());
-        Assert::IsFalse  (src.IsFeedPlaying ());
-        Assert::IsFalse  (src.IsActionPlaying ());
+        Assert::AreEqual (IDriveAudioSource::kCenterPan, src.PanLeft(),  0.0001f);
+        Assert::AreEqual (IDriveAudioSource::kCenterPan, src.PanRight(), 0.0001f);
+        Assert::IsFalse  (src.IsPrinting());
+        Assert::IsFalse  (src.IsFeedPlaying());
+        Assert::IsFalse  (src.IsActionPlaying());
 
         // Default loop matches the head, which is paced at real draft speed.
-        Assert::IsTrue (Quality::Draft == src.CurrentQuality ());
+        Assert::IsTrue (Quality::Draft == src.CurrentQuality());
 
         // No grains loaded: even with the head advancing, output is silent.
         src.PublishReveal (1000, 0);
@@ -83,7 +83,7 @@ public:
         src.PublishReveal (1000, 0);   // head moved forward
 
         Assert::AreEqual (0.5f, Frame (src, 16), 0.0001f);   // loop grain at unity volume
-        Assert::IsTrue   (src.IsPrinting ());
+        Assert::IsTrue   (src.IsPrinting());
     }
 
 
@@ -98,12 +98,12 @@ public:
         // the carriage buzz stays silent even though the reveal progresses.
         src.PublishReveal (1000, 0, false /* inkActive */);
         Assert::AreEqual (0.0f, Frame (src, 16), 0.0f);
-        Assert::IsFalse  (src.IsPrinting ());
+        Assert::IsFalse  (src.IsPrinting());
 
         // Progress at a further position WITH ink -> the buzz arms.
         src.PublishReveal (2000, 0, true /* inkActive */);
         Assert::AreEqual (0.5f, Frame (src, 16), 0.0001f);
-        Assert::IsTrue   (src.IsPrinting ());
+        Assert::IsTrue   (src.IsPrinting());
     }
 
 
@@ -139,7 +139,7 @@ public:
 
         // Same reveal (head stopped): the hold has drained, so now silent.
         Assert::AreEqual (0.0f, Frame (src, 16), 0.0f);
-        Assert::IsFalse  (src.IsPrinting ());
+        Assert::IsFalse  (src.IsPrinting());
     }
 
 
@@ -154,12 +154,12 @@ public:
         // Establish the previous column near the right margin.
         src.PublishReveal (2000, 1200);
         Frame (src, 8);
-        Assert::IsFalse (src.IsFeedPlaying ());
+        Assert::IsFalse (src.IsFeedPlaying());
 
         // Column wraps back to the margin: a new line began -> clack fires.
         src.PublishReveal (3000, 10);
         Assert::AreEqual (0.9f, Frame (src, 8), 0.0001f);
-        Assert::IsTrue   (src.IsFeedPlaying ());
+        Assert::IsTrue   (src.IsFeedPlaying());
     }
 
 
@@ -205,7 +205,7 @@ public:
 
         src.PublishReveal (2100, 300);   // column advancing, no wrap
         Frame (src, 8);
-        Assert::IsFalse (src.IsFeedPlaying ());
+        Assert::IsFalse (src.IsFeedPlaying());
     }
 
 
@@ -241,8 +241,8 @@ public:
         }
         src.SetVolume (1.0f);
 
-        Assert::IsFalse (src.IsActionPlaying ());
-        src.PlayTearOff ();
+        Assert::IsFalse (src.IsActionPlaying());
+        src.PlayTearOff();
         Assert::AreEqual (0.7f, Frame (src, 8), 0.0001f);
     }
 
@@ -277,7 +277,7 @@ public:
     {
         PrinterAudioSource  src;
         src.SetPan (0.3f, 0.9f);
-        Assert::AreEqual (0.3f, src.PanLeft (),  0.0001f);
-        Assert::AreEqual (0.9f, src.PanRight (), 0.0001f);
+        Assert::AreEqual (0.3f, src.PanLeft(),  0.0001f);
+        Assert::AreEqual (0.9f, src.PanRight(), 0.0001f);
     }
 };
