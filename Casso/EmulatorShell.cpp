@@ -817,18 +817,40 @@ HRESULT EmulatorShell::Initialize (
                         std::string        colorMode;
 
                         if (SUCCEEDED (mergedJson.GetObject ("$cassoUiPrefs", uiPrefs)) &&
-                            uiPrefs != nullptr &&
-                            SUCCEEDED (uiPrefs->GetString ("colorMode", colorMode)))
+                            uiPrefs != nullptr)
                         {
-                            int  modeIdx = -1;
-                            if      (colorMode == "color") { modeIdx = 0; }
-                            else if (colorMode == "green") { modeIdx = 1; }
-                            else if (colorMode == "amber") { modeIdx = 2; }
-                            else if (colorMode == "white") { modeIdx = 3; }
-
-                            if (modeIdx >= 0)
+                            if (SUCCEEDED (uiPrefs->GetString ("colorMode", colorMode)))
                             {
-                                SetColorModeLive (modeIdx);
+                                int  modeIdx = -1;
+                                if      (colorMode == "color") { modeIdx = 0; }
+                                else if (colorMode == "green") { modeIdx = 1; }
+                                else if (colorMode == "amber") { modeIdx = 2; }
+                                else if (colorMode == "white") { modeIdx = 3; }
+
+                                if (modeIdx >= 0)
+                                {
+                                    SetColorModeLive (modeIdx);
+                                }
+                            }
+
+                            // //c external drive + mouse: seed the connected
+                            // states HERE -- before the drive-chrome layout below
+                            // gates on ShouldShowExternalDrive() -- so the first
+                            // paint matches the saved setup. Seeding them only in
+                            // the later mixer-prefs block left a persisted
+                            // "external drive connected" invisible until the user
+                            // re-toggled it in Settings. External drive defaults
+                            // not-connected; mouse defaults CONNECTED.
+                            bool  extConnected = false;
+                            if (SUCCEEDED (uiPrefs->GetBool ("externalDriveConnected", extConnected)))
+                            {
+                                m_externalDriveConnected = extConnected;
+                            }
+
+                            bool  mouseConn = true;
+                            if (SUCCEEDED (uiPrefs->GetBool ("mouseConnected", mouseConn)))
+                            {
+                                m_mouseConnected = mouseConn;
                             }
                         }
                     }
@@ -1061,27 +1083,11 @@ HRESULT EmulatorShell::Initialize (
                             SetDriveAudioPan (1, (float) pan1);
                         }
 
-                        // //c external drive + mouse: seed the connected states
-                        // from the persisted prefs so first paint + input gating
-                        // match the user's saved setup. External drive defaults
-                        // not-connected; mouse defaults CONNECTED.
-                        {
-                            bool  connected = false;
-
-                            if (SUCCEEDED (uiPrefs->GetBool ("externalDriveConnected", connected)))
-                            {
-                                m_externalDriveConnected = connected;
-                            }
-
-                            bool  mouseConn = true;
-                            if (SUCCEEDED (uiPrefs->GetBool ("mouseConnected", mouseConn)))
-                            {
-                                m_mouseConnected = mouseConn;
-                            }
-                        }
-
                         // //c: default Pointer -> Mouse when connected and
-                        // nothing else was chosen.
+                        // nothing else was chosen. (The external-drive + mouse
+                        // connected-states are seeded earlier, before the drive-
+                        // chrome layout, so the first paint reflects the saved
+                        // setup rather than the defaults.)
                         ApplyDefaultPointerForMachine();
                     }
                 }
