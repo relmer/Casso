@@ -91,6 +91,13 @@ public:
 
     DriveWidgetRegion  HitTest         (int x, int y) const;
     HRESULT            OnDrop          (const std::wstring & path);
+
+    // Write-protect breakdown of the mounted image, refreshed by
+    // SyncFromState. The shell reads it to decide whether to surface the
+    // hover tooltip and to compose the source-specific message.
+    const WriteProtectInfo & WriteProtect () const { return m_state.writeProtect; }
+    bool               IsWriteProtected () const { return m_state.writeProtect.Any(); }
+
     RECT               BodyRect        () const { return m_bodyRect; }
     RECT               OuterRect       () const
     {

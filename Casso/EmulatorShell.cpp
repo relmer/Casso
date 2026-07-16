@@ -556,7 +556,8 @@ HRESULT EmulatorShell::Initialize (
                                                     m_cpuManager,
                                                     m_currentMachineName,
                                                     *m_userConfigStore,
-                                                    m_uiFs);
+                                                    m_uiFs,
+                                                    m_userWriteProtect);
 
     // Surface disk-flush failures instead of silently losing writes. Every
     // flush caller (Eject / PowerCycle are void; the exit path and SoftReset
@@ -851,6 +852,24 @@ HRESULT EmulatorShell::Initialize (
                             if (SUCCEEDED (uiPrefs->GetBool ("mouseConnected", mouseConn)))
                             {
                                 m_mouseConnected = mouseConn;
+                            }
+
+                            // Seed the per-drive user write-protect preference
+                            // BEFORE MountCommandLineDisks below so the very
+                            // first mount already re-asserts it onto the image.
+                            const JsonValue *  wpArr = nullptr;
+                            if (SUCCEEDED (uiPrefs->GetArray ("writeProtect", wpArr)) &&
+                                wpArr != nullptr)
+                            {
+                                for (size_t wi = 0; wi < wpArr->ArraySize() && wi < m_userWriteProtect.size(); ++wi)
+                                {
+                                    const JsonValue &  entry = wpArr->ArrayAt (wi);
+
+                                    if (entry.GetType() == JsonType::Bool)
+                                    {
+                                        m_userWriteProtect[wi] = entry.GetBool();
+                                    }
+                                }
                             }
                         }
                     }
@@ -1331,6 +1350,12 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     // Tick. SetTheme seeds the tooltip surface colours.
     m_joystickTooltip.SetPopupHost (m_host.get());
     m_joystickTooltip.SetTheme     (m_chromeTheme);
+
+    // The drive-widget write-protect tooltip shares the host popup pool.
+    // It surfaces on a dwell over a write-protected drive and names the
+    // protection source(s).
+    m_driveTooltip.SetPopupHost (m_host.get());
+    m_driveTooltip.SetTheme     (m_chromeTheme);
 
     // Defer the size reconcile until after ShowWindow. The NC frame
     // (border carve-out from DefWindowProc + DWM rounded corners +
@@ -2708,6 +2733,38 @@ void EmulatorShell::SetColorMonitorTextArgbLive (uint32_t argb)
 
 
 
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetDriveUserWriteProtect
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::SetDriveUserWriteProtect (int drive, bool wp)
+{
+    DiskImage *  image = nullptr;
+
+
+    if (drive < 0 || drive >= (int) m_userWriteProtect.size())
+    {
+        return;
+    }
+
+    m_userWriteProtect[(size_t) drive] = wp;
+
+    // Apply to whatever is mounted right now so the toggle takes effect
+    // without a remount; a later mount re-applies the standing preference
+    // via DiskManager::MountDiskInSlot6.
+    image = m_diskStore.GetImage (6, drive);
+
+    if (image != nullptr)
+    {
+        image->SetUserWriteProtected (wp);
+    }
+}
+
+
+
+
 
 ////////////////////////////////////////////////////////////////////////////////
 //
@@ -2903,6 +2960,7 @@ int EmulatorShell::RunMessageLoop()
                                  std::chrono::steady_clock::now().time_since_epoch()).count();
 
             m_joystickTooltip.Tick (nowMs);
+            m_driveTooltip.Tick    (nowMs);
         }
         if (!m_d3dRenderer.NeedsPresent (fbDirtyThisFrame))
         {
@@ -3097,6 +3155,16 @@ void EmulatorShell::DispatchCpuCommand (const EmulatorCommand & cmd)
             int   drive = (cmd.id == IDM_DISK_EJECT1) ? 0 : 1;
 
             m_diskManager->EjectDiskInSlot6 (drive);
+            break;
+        }
+
+        case IDM_DISK_WRITEPROTECT1:
+        case IDM_DISK_WRITEPROTECT2:
+        {
+            int   drive = (cmd.id == IDM_DISK_WRITEPROTECT1) ? 0 : 1;
+            bool  wp    = (!cmd.payload.empty() && cmd.payload[0] == '1');
+
+            SetDriveUserWriteProtect (drive, wp);
             break;
         }
 
@@ -3690,12 +3758,13 @@ void EmulatorShell::OnDestroy ()
 
 DxuiMessageResult EmulatorShell::OnMouseMove (WPARAM wParam, LPARAM lParam)
 {
-    int      x        = ((int) (short) LOWORD (lParam));
-    int      y        = ((int) (short) HIWORD (lParam));
-    bool     leftDown = (wParam & MK_LBUTTON) != 0;
-    bool     overBtn  = false;
-    int64_t  nowMs    = (int64_t) std::chrono::duration_cast<std::chrono::milliseconds> (
-                            std::chrono::steady_clock::now().time_since_epoch()).count();
+    int            x        = ((int) (short) LOWORD (lParam));
+    int            y        = ((int) (short) HIWORD (lParam));
+    bool           leftDown = (wParam & MK_LBUTTON) != 0;
+    bool           overBtn  = false;
+    DriveWidget *  wpDrive  = nullptr;
+    int64_t        nowMs    = (int64_t) std::chrono::duration_cast<std::chrono::milliseconds> (
+                                  std::chrono::steady_clock::now().time_since_epoch()).count();
 
 
 
@@ -3718,7 +3787,8 @@ DxuiMessageResult EmulatorShell::OnMouseMove (WPARAM wParam, LPARAM lParam)
     }
 
     // A fresh hover over a drive widget replays its basename marquee, so
-    // the full filename can be re-read on demand.
+    // the full filename can be re-read on demand. The same pass notes a
+    // write-protected drive under the pointer so the WP tooltip can show.
     for (DriveWidget & drive : m_driveChrome)
     {
         RECT  outer  = drive.OuterRect();
@@ -3726,6 +3796,11 @@ DxuiMessageResult EmulatorShell::OnMouseMove (WPARAM wParam, LPARAM lParam)
                        y >= outer.top  && y < outer.bottom;
 
         drive.UpdateMarqueeHover (inside, nowMs);
+
+        if (inside && drive.IsWriteProtected())
+        {
+            wpDrive = &drive;
+        }
     }
 
     if (m_uiShell.OnMouseMove (x, y, leftDown))
@@ -3746,6 +3821,20 @@ DxuiMessageResult EmulatorShell::OnMouseMove (WPARAM wParam, LPARAM lParam)
     else
     {
         m_joystickTooltip.RequestHide (nowMs);
+    }
+
+    // Write-protect tooltip: shown on a dwell over a protected drive,
+    // suppressed while the joystick button owns the hover (mutually
+    // exclusive bands, but be explicit).
+    if (wpDrive != nullptr && !overBtn)
+    {
+        m_driveTooltip.RequestShow (wpDrive->OuterRect(),
+                                    ComposeWriteProtectTooltip (wpDrive->WriteProtect()),
+                                    nowMs);
+    }
+    else
+    {
+        m_driveTooltip.RequestHide (nowMs);
     }
 
     return DxuiMessageResult::NotHandled;
@@ -3782,6 +3871,7 @@ DxuiMessageResult EmulatorShell::OnMouseLeave ()
     m_joystickButton.SetHovered (false);
     m_joystickButton.SetPressed (false);
     m_joystickTooltip.RequestHide (nowMs);
+    m_driveTooltip.RequestHide (nowMs);
 
     // //c Mouse mode: the cursor left the window entirely — release the
     // guest mouse target (non-capturing contract).

@@ -222,7 +222,7 @@ void DiskImage::WriteBit (int track, size_t bitIndex, uint8_t bit)
         return;
     }
 
-    if (m_writeProtected)
+    if (IsWriteProtected ())
     {
         return;
     }
@@ -269,7 +269,23 @@ bool DiskImage::IsDirty () const
 
 bool DiskImage::IsWriteProtected () const
 {
-    return m_writeProtected;
+    return m_imageWriteProtected
+        || m_userWriteProtected
+        || m_fileReadOnly
+        || m_fileNoPermission;
+}
+
+
+WriteProtectInfo DiskImage::GetWriteProtectInfo () const
+{
+    WriteProtectInfo  info;
+
+    info.imageFlag    = m_imageWriteProtected;
+    info.userSetting  = m_userWriteProtected;
+    info.readOnlyFile = m_fileReadOnly;
+    info.noPermission = m_fileNoPermission;
+
+    return info;
 }
 
 
@@ -535,7 +551,7 @@ void DiskImage::Eject ()
 {
     HRESULT   hr = S_OK;
 
-    if (m_dirty && !m_writeProtected)
+    if (m_dirty && !IsWriteProtected ())
     {
         hr = Flush ();
         IGNORE_RETURN_VALUE (hr, S_OK);
@@ -547,8 +563,12 @@ void DiskImage::Eject ()
     m_trackBitCounts.assign (kDefaultTrackCount, 0);
     m_trackDirty.assign     (kDefaultTrackCount, false);
     InitWholeTrackMap ();
-    m_loaded = false;
-    m_dirty  = false;
+    m_loaded              = false;
+    m_dirty               = false;
+    m_imageWriteProtected = false;
+    m_userWriteProtected  = false;
+    m_fileReadOnly        = false;
+    m_fileNoPermission    = false;
 }
 
 

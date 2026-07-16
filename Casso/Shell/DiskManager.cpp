@@ -4,6 +4,7 @@
 
 #include "Core/MemoryBus.h"
 #include "Devices/Disk2Controller.h"
+#include "Devices/Disk/DiskImage.h"
 #include "Devices/Disk/DiskImageStore.h"
 #include "Audio/DriveAudioMixer.h"
 #include "Audio/Disk2AudioSource.h"
@@ -36,7 +37,8 @@ DiskManager::DiskManager (
     CpuManager                                      & cpuManager,
     const std::wstring                              & currentMachineName,
     UserConfigStore                                 & userConfigStore,
-    IFileSystem                                     & fileSystem)
+    IFileSystem                                     & fileSystem,
+    std::array<bool, 2>                             & userWriteProtect)
     : m_ownedDevices       (ownedDevices),
       m_diskStore          (diskStore),
       m_diskAudioSources   (diskAudioSources),
@@ -47,7 +49,8 @@ DiskManager::DiskManager (
       m_cpuManager         (cpuManager),
       m_currentMachineName (currentMachineName),
       m_userConfigStore    (userConfigStore),
-      m_fileSystem         (fileSystem)
+      m_fileSystem         (fileSystem),
+      m_userWriteProtect   (userWriteProtect)
 {
 }
 
@@ -70,6 +73,98 @@ int64_t DiskManager::NowMs()
     auto  duration = std::chrono::steady_clock::now().time_since_epoch();
 
     return std::chrono::duration_cast<std::chrono::milliseconds> (duration).count();
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ProbeFileWritability
+//
+//  Determines whether the backing host file can be written back to.
+//  Prefers the read-only attribute (surfaced via the owner_write perms
+//  bit on Windows) so a plain read-only file reports its true cause;
+//  otherwise probes with a non-truncating read+write open to catch ACL
+//  denials / exclusive locks. A missing / empty path is writable --
+//  there is nothing to protect.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskManager::ProbeFileWritability (
+    const std::string & path,
+    bool              & outReadOnly,
+    bool              & outNoPermission)
+{
+    std::error_code  ec;
+    fs::path         p (path);
+    fs::file_status  st;
+
+
+    outReadOnly     = false;
+    outNoPermission = false;
+
+    if (path.empty() || !fs::exists (p, ec))
+    {
+        return;
+    }
+
+    st = fs::status (p, ec);
+
+    if (!ec && (st.permissions() & fs::perms::owner_write) == fs::perms::none)
+    {
+        outReadOnly = true;
+        return;
+    }
+
+    {
+        std::fstream  probe (p, std::ios::in | std::ios::out | std::ios::binary);
+
+        if (!probe.good())
+        {
+            outNoPermission = true;
+        }
+    }
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ApplyExternalWriteProtect
+//
+//  Re-asserts the user's per-drive write-protect preference and the
+//  backing file's writability onto a freshly mounted image. The image's
+//  own embedded flag (WOZ INFO chunk) is set by its loader and left
+//  alone here.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DiskManager::ApplyExternalWriteProtect (
+    int                 drive,
+    DiskImage         * image,
+    const std::string & path)
+{
+    bool  readOnly     = false;
+    bool  noPermission = false;
+    bool  userWp       = false;
+
+
+    if (image == nullptr)
+    {
+        return;
+    }
+
+    if (drive >= 0 && drive < static_cast<int> (m_userWriteProtect.size()))
+    {
+        userWp = m_userWriteProtect[drive];
+    }
+
+    ProbeFileWritability (path, readOnly, noPermission);
+
+    image->SetUserWriteProtected (userWp);
+    image->SetFileWriteProtect   (readOnly, noPermission);
 }
 
 
@@ -221,6 +316,13 @@ HRESULT DiskManager::MountDiskInSlot6 (int drive, const std::string & path)
 
     external = m_diskStore.GetImage (6, drive);
     controller->SetExternalDisk (drive, external);
+
+    // Re-assert the user's per-drive write-protect preference and probe
+    // the backing file's writability onto the freshly loaded image (the
+    // image's own embedded flag is already set by its loader). Without
+    // this, a new mount would silently drop a standing user WP setting
+    // and let the guest write to a read-only host file.
+    ApplyExternalWriteProtect (drive, external, path);
 
     // The store-based mount path bypasses the controller's own
     // MountDisk method, so fire the IDisk2EventSink hook explicitly
@@ -540,6 +642,15 @@ void DiskManager::UpdateDriveWidgets()
 
         st.motorOn.store    (motorOn, std::memory_order_relaxed);
         st.diskActive.store (active,  std::memory_order_relaxed);
+
+        // Sample the mounted image's write-protect breakdown for the
+        // padlock cue + hover tooltip. Empty drive -> no protection.
+        {
+            DiskImage *  image = m_diskStore.GetImage (6, drive);
+
+            st.writeProtect = (image != nullptr) ? image->GetWriteProtectInfo()
+                                                 : WriteProtectInfo();
+        }
     }
 
     m_driveWidgets.SyncFromStates (m_driveWidgetState);
