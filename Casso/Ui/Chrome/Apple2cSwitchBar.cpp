@@ -57,6 +57,22 @@ namespace
                        tan, refBottom, LerpArgb (top, bot, (t0 + t1) * 0.5f));
         }
     }
+
+    // Horizontal companion to ShearGrad: interpolates left -> right across the
+    // width by stacking full-height vertical columns (each its own thin slanted
+    // sliver), so a left/right-directional shadow follows the same lean.
+    void ShearGradH (IDxuiPainter & p, float xL, float yTop, float w, float h,
+                     float tan, float refBottom, uint32_t left, uint32_t right, int cols)
+    {
+        for (int i = 0; i < cols; i++)
+        {
+            float  t0 = (float) i       / (float) cols;
+            float  t1 = (float) (i + 1) / (float) cols;
+
+            ShearFill (p, xL + w * t0, yTop, w * (t1 - t0), h,
+                       tan, refBottom, LerpArgb (left, right, (t0 + t1) * 0.5f));
+        }
+    }
 }
 
 
@@ -235,24 +251,24 @@ void Apple2cSwitchBar::PaintLabel (IDxuiTextRenderer & text, const RECT & r, con
 //
 //  PaintResetButton
 //
-//  A slanted cream cap that sits proud of the case and depresses while pressed
-//  (momentary, unlike the latching switches). Dormant (no Ctrl) it paints with
-//  a muted label so the user reads that it needs a modifier; armed (Ctrl held)
-//  the label darkens. The label rides down with the cap when it sinks.
+//  A slanted cream cap that reads raised, then darkens and takes the sunk
+//  top-left shadow while pressed (momentary, unlike the latching switches).
+//  Dormant (no Ctrl) it paints with a muted label so the user reads that it
+//  needs a modifier; armed (Ctrl held) the label darkens. A 1px label nudge
+//  gives the press a tactile beat.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void Apple2cSwitchBar::PaintResetButton (IDxuiPainter & p, IDxuiTextRenderer & text, const RECT & r)
 {
-    bool   dn     = (m_pressedPart == Part::Reset);
-    float  travel = (float) (r.bottom - r.top) * kCapTravel;
+    bool  dn = (m_pressedPart == Part::Reset);
 
     PaintSlantCap (p, r, dn, m_hovered && m_hoverPart == Part::Reset,
                    dn ? kCapLo : kCapHi, dn ? kKeyLoIn : kCapLo);
 
     HRESULT  hr = text.DrawString (kLabelReset,
                                    (float) r.left,
-                                   (float) r.top + (dn ? travel : 0.0f),
+                                   (float) r.top + (dn ? 1.0f : 0.0f),
                                    (float) (r.right - r.left),
                                    (float) (r.bottom - r.top),
                                    m_resetArmed ? kCapText : kCapTextOff,
@@ -270,57 +286,55 @@ void Apple2cSwitchBar::PaintResetButton (IDxuiPainter & p, IDxuiTextRenderer & t
 //
 //  PaintSlantCap
 //
-//  The shared skeuomorphic cap: a right-leaning parallelogram seated in a
-//  shallow molded recess. Out (proud) the cap rides at the top, brightly
-//  top-lit, with a soft shadow gradient fading down onto the case beneath it --
-//  it reads as sitting above the surface. In (pressed) the cap drops by
-//  kCapTravel, its face darkened, and the recess lip above casts a smooth
-//  shadow gradient down across the sunk cap -- it reads as pushed below the
-//  surface. The two states differ in cap brightness, vertical position, AND
-//  shadow direction, so the clicked state is unambiguous at a glance. All
-//  shadows are vertical gradients (dark at the casting edge, fading to clear)
-//  rather than flat blocks.
+//  The shared skeuomorphic cap: a right-leaning parallelogram lit from the
+//  top-left. The cap fills its whole slot (no gap); depth is carried purely by
+//  directional shading. Out (proud) it is highlit along the top and left edges
+//  and shadowed toward the bottom-right, so it reads as standing above the
+//  surface. In (pressed) it is darkened and shadowed from the top and left --
+//  the two overlap in the top-left corner and, on a thin switch, swallow most
+//  of the cap -- with only a faint catch at the bottom-right, so it reads as
+//  sunk below the surface. Shadows and highlights are gradients that fade to
+//  clear, never flat blocks.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void Apple2cSwitchBar::PaintSlantCap (IDxuiPainter & p, const RECT & r, bool pressedIn,
                                       bool hovered, uint32_t faceHi, uint32_t faceLo)
 {
-    constexpr int  kStrips = 10;
+    constexpr int  kN = 10;
 
-    float  x       = (float) r.left;
-    float  y       = (float) r.top;
-    float  w       = (float) (r.right - r.left);
-    float  h       = (float) (r.bottom - r.top);
-    float  tan     = kSlantTan;
-    float  refB    = y + h;                 // shear pivot: the recess bottom
-    float  dx      = h * tan;               // top-edge overhang
-    float  bodyW   = w - dx;                // cap body width (bbox minus overhang)
-    float  travel  = h * kCapTravel;        // proud <-> depressed offset
-    float  capH    = h - travel;            // cap shorter than the recess
-    float  capY    = pressedIn ? y + travel : y;
+    float  x     = (float) r.left;
+    float  y     = (float) r.top;
+    float  w     = (float) (r.right - r.left);
+    float  h     = (float) (r.bottom - r.top);
+    float  tan   = kSlantTan;
+    float  refB  = y + h;
+    float  dx    = h * tan;                  // top-edge overhang
+    float  bodyW = w - dx;                   // cap body width (bbox minus overhang)
+    float  cx    = x + 1.0f;
+    float  cy    = y + 1.0f;
+    float  cw    = bodyW - 2.0f;             // cap face, inside a thin rim
+    float  ch    = h - 2.0f;
 
 
-    // Shallow molded recess: thin rim, subtle floor (barely darker than case).
-    ShearFill (p, x,        y,        bodyW,        h,        tan, refB, kSocketRim);
-    ShearFill (p, x + 1.0f, y + 1.0f, bodyW - 2.0f, h - 2.0f, tan, refB, kSocket);
+    // Thin molded rim, then the cap face fills the whole footprint.
+    ShearFill (p, x, y, bodyW, h, tan, refB, kSocketRim);
+    ShearGrad (p, cx, cy, cw, ch, tan, refB, faceHi, faceLo, kN);
 
-    if (pressedIn)
+    if (!pressedIn)
     {
-        // Cap face first, then the recess-lip shadow gradient laid over the
-        // exposed mouth above the cap and softly onto the cap's upper face.
-        ShearGrad (p, x + 1.0f, capY, bodyW - 2.0f, capH, tan, refB, faceHi, faceLo, kStrips);
-        ShearGrad (p, x + 1.0f, y + 1.0f, bodyW - 2.0f, travel + capH * 0.55f,
-                   tan, refB, kShadowDk, kShadowNil, kStrips);
+        // Raised: highlit top + left, shadowed bottom + right.
+        ShearFill  (p, cx, cy, cw, 1.2f, tan, refB, kLitEdge);                               // top highlight
+        ShearGradH (p, cx, cy, cw * 0.5f, ch, tan, refB, kLitEdge, kShadowNil, kN);          // left highlight
+        ShearGrad  (p, cx, cy + ch * 0.45f, cw, ch * 0.55f, tan, refB, kShadowNil, kShadeProud, kN); // bottom shadow
+        ShearGradH (p, cx + cw * 0.5f, cy, cw * 0.5f, ch, tan, refB, kShadowNil, kShadeProud, kN);    // right shadow
     }
     else
     {
-        // Proud cap, a bright top catchlight, then a soft drop shadow fading
-        // down the exposed recess floor beneath the raised cap.
-        ShearGrad (p, x + 1.0f, capY, bodyW - 2.0f, capH, tan, refB, faceHi, faceLo, kStrips);
-        ShearFill (p, x + 1.0f, capY, bodyW - 2.0f, 1.5f, tan, refB, kKeyHi);
-        ShearGrad (p, x + 1.0f, capY + capH - 1.0f, bodyW - 2.0f, travel + 1.0f,
-                   tan, refB, kShadowLt, kShadowNil, kStrips);
+        // Sunk: shadowed top + left (dominant), a faint catch bottom-right.
+        ShearGrad  (p, cx, cy, cw, ch * 0.62f, tan, refB, kShadePushed, kShadowNil, kN);     // top shadow
+        ShearGradH (p, cx, cy, cw * 0.62f, ch, tan, refB, kShadePushed, kShadowNil, kN);     // left shadow
+        ShearFill  (p, cx, cy + ch - 1.2f, cw, 1.2f, tan, refB, kLitFoot);                   // bottom-right catch
     }
 
     if (hovered)

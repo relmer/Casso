@@ -111,10 +111,9 @@ private:
 
     // The real //c case switches are slanted parallelograms (top edge kicked
     // right, matching the italic silk-screen labels). kSlantTan is tan of that
-    // lean; kCapTravel is how far a cap rides proud of / sunk below the case
-    // surface, as a fraction of the switch height -- the visible click cue.
+    // lean; the raised/sunk click cue is carried by directional shading, not a
+    // positional gap (see PaintSlantCap).
     static constexpr float kSlantTan   = 0.176f;   // ~10 degrees
-    static constexpr float kCapTravel  = 0.22f;
 
     // Case palette — fixed (theme-independent) so the strip always reads as the
     // //c case. kCase is the ImageWriter II platinum body colour, matching the
@@ -132,19 +131,19 @@ private:
     static constexpr uint32_t  kCapText   = 0xFF5A5647;
     static constexpr uint32_t  kCapTextOff = 0xFF9A9484; // dormant (no Ctrl) reset label
 
-    // The recess is a shallow molded depression, only a touch darker than the
-    // case -- depth comes from soft gradient shadows, not a dark fill (a
-    // near-black slot read as an unexplained block behind a proud cap).
-    static constexpr uint32_t  kSocket    = 0xFFC9C4B5;   // molded recess floor (subtle)
-    static constexpr uint32_t  kSocketRim = 0xFF9A9484;   // thin rim around the recess
+    // The cap fills its slot; a thin rim just seats it in the case. Depth is
+    // carried by directional shading in PaintSlantCap, not a dark recess fill.
+    static constexpr uint32_t  kSocketRim = 0xFF9A9484;   // thin rim around the cap
     static constexpr uint32_t  kKeyFace   = 0xFFDED9CC;   // key top, out
     static constexpr uint32_t  kKeyHi     = 0xFFF0ECE0;   // cap face top, out (proud)
     static constexpr uint32_t  kKeyLo     = 0xFFBDB8AA;   // cap face bottom, out
     static constexpr uint32_t  kKeyFaceIn = 0xFFB2AD9F;   // cap face top, in (darkened)
     static constexpr uint32_t  kKeyLoIn   = 0xFF938E80;   // cap face bottom, in (darker still)
-    static constexpr uint32_t  kShadowDk  = 0x70000000;   // near edge of a cast shadow gradient
-    static constexpr uint32_t  kShadowLt  = 0x55000000;   // proud cap's lighter drop shadow
-    static constexpr uint32_t  kShadowNil = 0x00000000;   // far edge (fully transparent)
+    static constexpr uint32_t  kShadeProud  = 0x4E000000; // bottom/right shading on a raised cap
+    static constexpr uint32_t  kShadePushed = 0x84000000; // top/left shading on a sunk cap (dominant)
+    static constexpr uint32_t  kLitEdge     = 0x66FFFFFF; // top/left catchlight on a raised cap
+    static constexpr uint32_t  kLitFoot     = 0x2AFFFFFF; // faint bottom/right catch on a sunk cap
+    static constexpr uint32_t  kShadowNil   = 0x00000000; // transparent far edge
 
     static constexpr uint32_t  kLedOff    = 0xFF25281F;   // dark LED (idle)
     static constexpr uint32_t  kLedGreen  = 0xFF3CE070;   // lit green (power / disk use)
