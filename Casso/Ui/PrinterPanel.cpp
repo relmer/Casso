@@ -748,33 +748,33 @@ void PrinterPanel::RefreshLive (PrinterWorker & worker, int64_t nowMs, bool forc
 
     if (m_scene != nullptr)
     {
-        // The reveal column is where ink is being laid; the VISIBLE carriage
-        // chases it but is a physical object -- it can move at most the real
-        // carriage speed and must never teleport. During continuous printing the
-        // frontier advances at exactly this rate, so the head tracks it with no
-        // lag; when the frontier snaps to an edge (reveal caught up) or restarts
-        // from the opposite edge (next band, flipped direction), the head glides
-        // across instead of jumping -- which is what makes the sweep read smooth.
-        float   headTarget01 = (float) revealCol / (float) PrinterGrid::kDotsPerRow;
-
+        // Free carriage sweep: the visible head runs its own constant-speed
+        // triangle wave across the platen while the print is live, reversing at
+        // each margin (bidirectional print). It is deliberately NOT tied to the
+        // reveal column -- that column snaps to an edge on catch-up and resets to
+        // zero on each fed sub-chunk, so chasing it makes the head jog
+        // forward-back-forward within a line. A physical carriage does neither.
         if (m_headCol01 < 0.0f)
         {
-            m_headCol01 = headTarget01;   // first frame on a fresh sheet: adopt, don't glide in
+            m_headCol01 = 0.0f;   // fresh sheet: start the carriage at the home margin
+            m_headDir   = 1.0f;
         }
-        else
+        else if (m_printingActive)
         {
-            double  dt      = nowSec - m_headColLastSec;
-            float   maxStep = 0.0f;
-            float   delta   = headTarget01 - m_headCol01;
+            double  dt   = nowSec - m_headColLastSec;
+            float   step = 0.0f;
 
-            if (dt < 0.0) { dt = 0.0; }
+            if (dt < 0.0)  { dt = 0.0; }
+            if (dt > 0.10) { dt = 0.10; }   // after an idle stall, resume gently -- don't launch across the platen
 
-            maxStep = (float) (m_pacing.DotsPerSecond() / (double) PrinterGrid::kDotsPerRow * dt);
+            step         = (float) (m_pacing.DotsPerSecond() / (double) PrinterGrid::kDotsPerRow * dt);
+            m_headCol01 += m_headDir * step;
 
-            if      (delta >  maxStep) { delta =  maxStep; }
-            else if (delta < -maxStep) { delta = -maxStep; }
-
-            m_headCol01 += delta;
+            while (m_headCol01 > 1.0f || m_headCol01 < 0.0f)   // fold back off both margins
+            {
+                if (m_headCol01 > 1.0f) { m_headCol01 = 2.0f - m_headCol01; m_headDir = -1.0f; }
+                if (m_headCol01 < 0.0f) { m_headCol01 =       - m_headCol01; m_headDir =  1.0f; }
+            }
         }
         m_headColLastSec = nowSec;
 
