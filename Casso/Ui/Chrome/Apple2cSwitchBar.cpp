@@ -323,11 +323,15 @@ void Apple2cSwitchBar::PaintSlantCap (IDxuiPainter & p, const RECT & r, bool pre
 
     if (!pressedIn)
     {
-        // Raised: highlit top + left, shadowed bottom + right.
-        ShearFill  (p, cx, cy, cw, 1.2f, tan, refB, kLitEdge);                               // top highlight
-        ShearGradH (p, cx, cy, cw * 0.5f, ch, tan, refB, kLitEdge, kShadowNil, kN);          // left highlight
-        ShearGrad  (p, cx, cy + ch * 0.45f, cw, ch * 0.55f, tan, refB, kShadowNil, kShadeProud, kN); // bottom shadow
-        ShearGradH (p, cx + cw * 0.5f, cy, cw * 0.5f, ch, tan, refB, kShadowNil, kShadeProud, kN);    // right shadow
+        // Raised: highlit top + left, shadowed bottom + right. The bottom and
+        // right shadows share one band thickness so they read as one even
+        // edge shadow rather than a fat bottom stripe on the tall thin caps.
+        float  band = (cw < ch ? cw : ch) * 0.5f;
+
+        ShearFill  (p, cx, cy, cw, 1.2f, tan, refB, kLitEdge);                          // top highlight
+        ShearGradH (p, cx, cy, band, ch, tan, refB, kLitEdge, kShadowNil, kN);          // left highlight
+        ShearGrad  (p, cx, cy + ch - band, cw, band, tan, refB, kShadowNil, kShadeProud, kN); // bottom shadow
+        ShearGradH (p, cx + cw - band, cy, band, ch, tan, refB, kShadowNil, kShadeProud, kN);  // right shadow
     }
     else
     {
