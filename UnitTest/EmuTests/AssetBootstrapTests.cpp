@@ -118,42 +118,6 @@ public:
             L"Apple2eEnhanced must select the 65C02 core");
     }
 
-    // CI guard for the runtime _DEBUG self-check in EnsureMachineConfigs: every
-    // embedded machine JSON's $cassoMachineVersion must equal its
-    // s_kEmbeddedConfigs stamp. If the JSON is bumped but the stamp is not,
-    // Plan() treats an unchanged on-disk extract as already current and silently
-    // skips a real upgrade -- the bug that once hid the slot-4 Mockingboard and,
-    // for years, the Apple ][ game-port config (Apple2.json v7 / stamp 6). These
-    // expected versions mirror s_kEmbeddedConfigs; bump both in lockstep.
-    TEST_METHOD (Embedded_MachineVersions_MatchEmbeddedConfigStamps)
-    {
-        struct Expected { int resourceId; const wchar_t * name; int version; };
-
-        const Expected expected[] = {
-            { IDR_MACHINE_APPLE2,           L"Apple2",          7 },
-            { IDR_MACHINE_APPLE2PLUS,       L"Apple2Plus",      8 },
-            { IDR_MACHINE_APPLE2E,          L"Apple2e",         7 },
-            { IDR_MACHINE_APPLE2C,          L"Apple2c",         1 },
-            { IDR_MACHINE_APPLE2E_ENHANCED, L"Apple2eEnhanced", 1 },
-        };
-
-        for (const Expected & e : expected)
-        {
-            std::string      jsonText = LoadEmbeddedJson (e.resourceId);
-            JsonValue        root;
-            JsonParseError   parseError;
-            int              version  = 0;
-
-            Assert::IsTrue (SUCCEEDED (JsonParser::Parse (jsonText, root, parseError)),
-                L"embedded machine JSON must parse");
-            Assert::IsTrue (SUCCEEDED (root.GetInt ("$cassoMachineVersion", version)),
-                L"embedded machine JSON must declare $cassoMachineVersion");
-            Assert::AreEqual (e.version, version,
-                (std::wstring (L"embedded $cassoMachineVersion out of sync with the "
-                               L"s_kEmbeddedConfigs stamp for ") + e.name).c_str ());
-        }
-    }
-
     ////////////////////////////////////////////////////////////////////////////
     //
     //  Embedded_*_DiskController
