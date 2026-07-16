@@ -279,7 +279,28 @@ bool AssemblySession::IsBranchMnemonic (const std::string & mnemonic)
     return mnemonic == "BPL" || mnemonic == "BMI" ||
            mnemonic == "BVC" || mnemonic == "BVS" ||
            mnemonic == "BCC" || mnemonic == "BCS" ||
-           mnemonic == "BNE" || mnemonic == "BEQ";
+           mnemonic == "BNE" || mnemonic == "BEQ" ||
+           mnemonic == "BRA";   // 65C02 unconditional branch (base tier)
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  IsBitOpMnemonic — bare Rockwell bit-op mnemonic (as65 operand form)
+//
+//  RMB/SMB/BBR/BBS in their bare, bit-as-operand spelling. The opcode table keys
+//  these per bit (RMB0..RMB7), so the bare names are not IsMnemonic()-recognized;
+//  callers that decide "mnemonic vs. label" must special-case them, and
+//  NormalizeBitOp folds the bit operand back into the suffixed mnemonic.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool AssemblySession::IsBitOpMnemonic (const std::string & mnemonic)
+{
+    return mnemonic == "RMB" || mnemonic == "SMB" ||
+           mnemonic == "BBR" || mnemonic == "BBS";
 }
 
 
@@ -315,13 +336,55 @@ GlobalAddressingMode::AddressingMode AssemblySession::ResolveAddressingMode (
             return AM::Immediate;
 
         case OperandSyntax::IndirectX:
+        {
+            // (zp,X) is the common form; JMP (abs,X) is the 65C02 absolute
+            // indexed indirect (JMP only). Prefer zp when it is zp-sized and the
+            // mnemonic supports it, else fall to (abs,X) if supported.
+            OpcodeEntry entry = {};
+
+            if (resolved && value >= 0 && value <= 0xFF &&
+                m_opcodeTable.Lookup (mnemonic, AM::ZeroPageXIndirect, entry))
+            {
+                return AM::ZeroPageXIndirect;
+            }
+
+            if (m_opcodeTable.Lookup (mnemonic, AM::AbsoluteXIndirect, entry))
+            {
+                return AM::AbsoluteXIndirect;
+            }
+
             return AM::ZeroPageXIndirect;
+        }
 
         case OperandSyntax::IndirectY:
             return AM::ZeroPageIndirectY;
 
         case OperandSyntax::Indirect:
+        {
+            OpcodeEntry entry = {};
+
+            // (zp) is the 65C02 zero-page indirect when zp-sized and supported
+            // (LDA/STA/ORA/AND/…); otherwise it is the (abs) JMP indirect.
+            if (resolved && value >= 0 && value <= 0xFF &&
+                m_opcodeTable.Lookup (mnemonic, AM::ZeroPageIndirect, entry))
+            {
+                return AM::ZeroPageIndirect;
+            }
+
+            // (abs) JMP indirect: NMOS JumpIndirect, or the 65C02 page-fixed
+            // variant which carries its own mode enum.
+            if (m_opcodeTable.Lookup (mnemonic, AM::JumpIndirect, entry))
+            {
+                return AM::JumpIndirect;
+            }
+
+            if (m_opcodeTable.Lookup (mnemonic, AM::JumpIndirectCmos, entry))
+            {
+                return AM::JumpIndirectCmos;
+            }
+
             return AM::JumpIndirect;
+        }
 
         case OperandSyntax::IndexedX:
         {
@@ -352,6 +415,10 @@ GlobalAddressingMode::AddressingMode AssemblySession::ResolveAddressingMode (
 
             return AM::AbsoluteY;
         }
+
+        case OperandSyntax::ZeroPageRelative:
+            // 65C02 BBRn/BBSn only; a mnemonic lacking this mode fails the lookup.
+            return AM::ZeroPageRelative;
 
         case OperandSyntax::Bare:
         {
@@ -401,12 +468,16 @@ Byte AssemblySession::EstimateInstructionSize (OperandSyntax syntax, const std::
             return 1;
 
         case OperandSyntax::Immediate:
-        case OperandSyntax::IndirectX:
         case OperandSyntax::IndirectY:
             return 2;
 
+        case OperandSyntax::IndirectX:
+            // (zp,X) is 2 bytes; JMP (abs,X) is 3.
+            return (mnemonic == "JMP") ? 3 : 2;
+
         case OperandSyntax::Indirect:
-            return 3;
+            // (abs) JMP indirect is 3 bytes; 65C02 (zp) indirect is 2.
+            return (mnemonic == "JMP") ? 3 : 2;
 
         case OperandSyntax::IndexedX:
         case OperandSyntax::IndexedY:
@@ -419,6 +490,10 @@ Byte AssemblySession::EstimateInstructionSize (OperandSyntax syntax, const std::
 
             return 3;
         }
+
+        case OperandSyntax::ZeroPageRelative:
+            // 65C02 BBRn/BBSn: opcode + zero-page byte + relative offset.
+            return 3;
     }
 
     return 1;
@@ -2760,6 +2835,7 @@ HRESULT AssemblySession::HandleColonlessLabel (const PendingLine & current, Line
 
     if (!info.parsed.startsAtColumn0 || !info.parsed.label.empty () ||
         m_opcodeTable.IsMnemonic (info.parsed.mnemonic) ||
+        IsBitOpMnemonic (info.parsed.mnemonic) ||
         m_macros.find (info.parsed.mnemonic) != m_macros.end ())
     {
         goto Error;
@@ -2861,6 +2937,63 @@ HRESULT AssemblySession::ExtractColonlessLabelName (const PendingLine & current,
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  AssemblySession::NormalizeBitOp
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void AssemblySession::NormalizeBitOp (const PendingLine & current, LineInfo & info)
+{
+    const std::string & m = info.parsed.mnemonic;
+
+
+
+    // as65 spells the Rockwell bit ops with the bit as a leading operand and a bare
+    // mnemonic: RMB/SMB as `<bit>,<zp>`, BBR/BBS as `<bit>,<zp>,<target>`. Fold the
+    // bit into the mnemonic (RMB3, BBS0, ...) so the shared classifier and opcode
+    // table resolve them exactly like the suffixed form (RMB3 $zp, BBS0 $zp,tgt).
+    if (m == "RMB" || m == "SMB" || m == "BBR" || m == "BBS")
+    {
+        std::vector<std::string> parts = Parser::SplitArgList (info.parsed.operand);
+
+        // Need the bit plus at least the zero-page operand; otherwise leave it and
+        // let the normal path report the (invalid) addressing mode.
+        if (parts.size() >= 2)
+        {
+            ExprResult er = ExpressionEvaluator::Evaluate (parts[0], m_pass1Ctx);
+
+            if (!er.success || er.value < 0 || er.value > 7)
+            {
+                RecordError (current.sourceLineNumber,
+                    "Bit number for " + m + " must be a constant 0..7");
+                info.hasError = true;
+            }
+            else
+            {
+                info.parsed.mnemonic = m + std::to_string (er.value);
+
+                std::string rest;
+
+                for (size_t i = 1; i < parts.size(); ++i)
+                {
+                    if (i > 1)
+                    {
+                        rest += ",";
+                    }
+
+                    rest += parts[i];
+                }
+
+                info.parsed.operand = rest;
+            }
+        }
+    }
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  AssemblySession::ClassifyAndResolve
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -2870,6 +3003,8 @@ HRESULT AssemblySession::ClassifyAndResolve (const PendingLine & current, LineIn
     HRESULT hr = S_OK;
 
 
+
+    NormalizeBitOp (current, info);
 
     info.classified    = Parser::ClassifyOperand (info.parsed.operand);
     info.isInstruction = true;
@@ -3703,6 +3838,56 @@ HRESULT AssemblySession::EmitInstructionBytes (const LineInfo & info, int32_t va
         }
 
         value = offset & 0xFF;
+    }
+
+    if (mode == GlobalAddressingMode::ZeroPageRelative)
+    {
+        // 65C02 BBRn/BBSn: three bytes — opcode, a zero-page address byte, then a
+        // relative offset to the branch target. `value` already holds the resolved
+        // zero-page address (first operand); the branch target is the second
+        // operand, evaluated here against the fully-populated pass-2 symbol table.
+        // Always emit exactly three bytes so the image stays aligned with the size
+        // reserved in pass 1, even when an operand fails to resolve.
+        OpcodeEntry entry      = {};
+        Byte        offsetByte = 0;
+
+        if (!m_opcodeTable.Lookup (info.parsed.mnemonic, mode, entry))
+        {
+            RecordError (info.parsed.lineNumber, "Cannot encode: " + info.parsed.mnemonic);
+            return hr;
+        }
+
+        ExprResult er = ExpressionEvaluator::Evaluate (info.classified.secondExpression, m_pass2Ctx);
+
+        if (!er.success)
+        {
+            RecordError (info.parsed.lineNumber,
+                "Undefined symbol in: " + info.classified.secondExpression);
+        }
+        else
+        {
+            int offset = er.value - (int) (info.pc + 3);
+
+            if (offset < -128 || offset > 127)
+            {
+                RecordError (info.parsed.lineNumber, "Branch target out of range");
+            }
+
+            offsetByte = (Byte) (offset & 0xFF);
+
+            for (const auto & sym : m_symbols)
+            {
+                if (info.classified.secondExpression.find (sym.first) != std::string::npos)
+                {
+                    m_referencedLabels[sym.first] = info.parsed.lineNumber;
+                }
+            }
+        }
+
+        EmitByte (entry.opcode, emitPC);
+        EmitByte ((Byte) (value & 0xFF), emitPC);   // zero-page address
+        EmitByte (offsetByte, emitPC);              // relative branch offset
+        return hr;
     }
 
     {

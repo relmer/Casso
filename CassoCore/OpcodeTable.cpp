@@ -29,6 +29,10 @@ static Byte GetOperandSize (GlobalAddressingMode::AddressingMode mode)
     case GlobalAddressingMode::Accumulator:        return 0;
     case GlobalAddressingMode::JumpAbsolute:       return 2;
     case GlobalAddressingMode::JumpIndirect:       return 2;
+    case GlobalAddressingMode::JumpIndirectCmos:   return 2;   // 65C02 (abs) page-fixed JMP
+    case GlobalAddressingMode::ZeroPageIndirect:   return 1;   // 65C02 (zp)
+    case GlobalAddressingMode::AbsoluteXIndirect:  return 2;   // 65C02 (abs,X) JMP
+    case GlobalAddressingMode::ZeroPageRelative:   return 2;   // 65C02 BBRn/BBSn: zp byte + rel byte
     case GlobalAddressingMode::Relative:           return 1;
     case GlobalAddressingMode::SingleByteNoOperand: return 0;
     default:                                       return 0;
@@ -123,7 +127,10 @@ OpcodeTable::OpcodeTable (const Microcode instructionSet[256])
     {
         const Microcode & mc = instructionSet[i];
 
-        if (!mc.isLegal)
+        // Skip illegal opcodes and assembler-hidden fills (e.g. the 65C02
+        // reserved-NOP slots): they execute and disassemble, but must not be
+        // selectable by mnemonic -- otherwise a filler NOP would shadow $EA.
+        if (!mc.isLegal || mc.assemblerHidden)
         {
             continue;
         }

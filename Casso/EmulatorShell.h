@@ -14,6 +14,7 @@
 #include "Core/MemoryBus.h"
 #include "D3DRenderer.h"
 #include "Devices/Disk/DiskImageStore.h"
+#include "Devices/IAciaEndpoint.h"
 #include "Shell/ClipboardManager.h"
 #include "Shell/CpuManager.h"
 #include "Shell/DiskManager.h"
@@ -22,7 +23,7 @@
 #include "Shell/WindowManager.h"
 #include "Ui/Chrome/CassoTheme.h"
 #include "Ui/Chrome/DriveWidget.h"
-#include "Ui/Chrome/JoystickToggleButton.h"
+#include "Ui/Chrome/InputDeviceSelector.h"
 #include "Ui/Chrome/MainMenu.h"
 #include "Ui/ColorUtil.h"
 #include "Ui/Dialogs/DialogDefinition.h"
@@ -224,6 +225,7 @@ private:
     DxuiMessageResult  OnLButtonUp     (WPARAM wParam, LPARAM lParam) override;
     DxuiMessageResult  OnRButtonDown   (WPARAM wParam, LPARAM lParam) override;
     DxuiMessageResult  OnRButtonUp     (WPARAM wParam, LPARAM lParam) override;
+    DxuiMessageResult  OnSetCursor     (WORD hitTest) override;
     DxuiMessageResult  OnActivateApp   (bool active) override;
     DxuiMessageResult  OnKillFocus     () override;
     DxuiMessageResult  OnCancelMode    () override;
@@ -303,6 +305,14 @@ private:
     // is unchanged, so OnSize would never re-evaluate it. See the
     // WM_APP_DXUI_UPDATE_TITLE handler (the switch-completion signal).
     void    ReflowChromeForMachineChange ();
+
+    // Whether the second (external) drive-mount widget should be visible.
+    // Always true for machines whose second drive is fixed hardware; on the
+    // //c (banked system ROM) the external drive is an optional add-on, shown
+    // only when m_externalDriveConnected. The drive-layout paths consult this
+    // to hide m_driveChrome[1] and skip its hit rect when disconnected.
+    bool    ShouldShowExternalDrive      () const;
+
     SIZE    ClientSizeForCenterPx        (int centerWidthPx, int centerHeightPx);
     SIZE    ClientSizeForFramebufferPx   (int framebufferWidthDp, int framebufferHeightDp);
 
@@ -331,11 +341,58 @@ private:
     // it, re-syncs the game port (resolving joystick axes / buttons from
     // current keys, centering on leave), and starts or stops mouse capture
     // for Paddle mode.
+    // Split input model. SetArrowsJoystick / SetPointerMapping set
+    // the two orthogonal axes independently (menu items); SetInputMappingMode
+    // applies a combined PRESET (button cycle + legacy callers): Joystick =
+    // keys-only, Paddle/Mouse = pointer-only, Off = both off. Paddle<->Mouse
+    // stay exclusive (both claim the host pointer).
     void    SetInputMappingMode (InputMappingMode mode);
+    void    SetArrowsJoystick   (bool on);
+    void    SetPointerMapping   (InputMappingMode pointer);   // Off/Paddle/Mouse
+
+    // The single mode the legacy toggle button displays: the pointer
+    // mapping when active, else Joystick when the keys mapping is on.
+    InputMappingMode  DisplayInputMode() const
+    {
+        return (m_pointerMode != InputMappingMode::Off) ? m_pointerMode
+             : (m_arrowsJoystick ? InputMappingMode::Joystick : InputMappingMode::Off);
+    }
+
+    // With a connected mouse and no pointer mapping chosen, the //c
+    // defaults Pointer to Mouse (runtime nudge, not persisted; invisible
+    // until mouse software runs thanks to the firmware-live gate).
+    void    ApplyDefaultPointerForMachine();
+
+private:
+    void    SyncInputModeUi();
+    void    SyncSelectorState();
+public:
 
     // Radio-group toggle for the Machine-menu items: selects `target`, or
     // turns mapping Off if `target` is already the active mode.
     void    ToggleInputMappingMode (InputMappingMode target);
+
+    // //c mouse mode. True while Mouse mode is selected AND the
+    // current machine has the IOU mouse — every runtime consumer guards on
+    // this, so a persisted Mouse mode on a mouse-less machine is inert.
+    bool    GuestMouseActive       () const;
+
+    // True when guest software has actually turned the mouse on: the
+    // firmware's SETMOUSE programs ENBXY through the IOU for every active
+    // mode, a hardware sequence ($C079 -> $C059 -> $C078) that garbage RAM
+    // cannot fake. Gates the cursor-hide and button capture so the host
+    // pointer never vanishes (or gets swallowed) while nothing mouse-aware
+    // is running — which in turn makes Mouse mode safe to leave on.
+    bool    GuestMouseLive         () const;
+
+    // Absolute host→guest mapping: the host position inside the emulator
+    // viewport maps proportionally into the firmware's live clamp window
+    // (read from the slot-7 screen holes along with the current position),
+    // and the delta is queued as movement units. Self-correcting — any units
+    // the firmware clamps away are re-derived from the holes on the next
+    // move. No-op until the guest app has initialized the mouse firmware
+    // (garbage holes fail the sanity checks).
+    void    UpdateGuestMouseFromHost (int xPx, int yPx);
 
     // Advance the input mapping mode Off -> Joystick -> Paddle -> Off,
     // routed from the drive-bar widget, the Machine menu, and Ctrl+Shift+J.
@@ -572,7 +629,7 @@ private:
     // Joystick-mode toggle button (mirrors IDM_MACHINE_ARROWS_JOYSTICK),
     // centered in the drive bar above the drive widgets, with its own
     // hover tooltip.
-    JoystickToggleButton  m_joystickButton;
+    InputDeviceSelector   m_joystickButton;   // Segmented device selector
     DxuiTooltip               m_joystickTooltip;
 
     // Solid background for the bottom drive-bar band. The CRT composite
@@ -612,6 +669,22 @@ private:
     // (so the viewport keeps its size + the top-left stays put) rather than
     // re-centring inside a fixed window.
     bool                     m_chromeSizedForHasDisk = true;
+
+    // //c only: whether the optional external drive is "connected". Mirrors
+    // the per-machine $cassoUiPrefs.externalDriveConnected pref; seeded at
+    // machine build and flipped live by IDM_DRIVE_EXTERNAL_CONNECT/DISCONNECT.
+    // Gates the second drive-mount widget (m_driveChrome[1]) via
+    // ShouldShowExternalDrive(). No effect on machines whose second drive is
+    // fixed hardware (they have no banked ROM, so the gate is always open).
+    bool                     m_externalDriveConnected = false;
+
+    // //c only: whether the mouse peripheral is plugged into the DB-9 port
+    // Mirrors $cassoUiPrefs.mouseConnected (default CONNECTED);
+    // flipped live by IDM_MOUSE_CONNECT/DISCONNECT. Disconnected = the IOU
+    // silicon stays but GuestMouseActive() is false (no host input feeds
+    // the device) and the input-mode cycle hides Mouse -- indistinguishable
+    // from an unplugged DB-9 on real hardware.
+    bool                     m_mouseConnected = true;
 
     // Drive widget state pump. The controller channel publishes
     // per-drive door/spin sync events the chrome painter will consume
@@ -680,6 +753,13 @@ private:
     // Owned devices
     vector<unique_ptr<MemoryDevice>>     m_ownedDevices;
 
+    // Serial-port endpoints (//c 6551 ACIAs). Owned separately from
+    // m_ownedDevices because an IAciaEndpoint is not a MemoryDevice; each is
+    // bound to its ACIA via SetEndpoint. The loopback endpoints hold a raw
+    // Acia6551* but are never called during teardown, so destruction order
+    // relative to m_ownedDevices is immaterial.
+    vector<unique_ptr<IAciaEndpoint>>    m_ownedAciaEndpoints;
+
     // Video
     vector<unique_ptr<VideoOutput>>      m_videoModes;
     CharacterRomData                     m_charRom;
@@ -717,6 +797,15 @@ private:
     MachineRefs                   m_refs;
 
     unique_ptr<class Apple2eMmu>  m_mmu;
+    // Apple //c firmware-bank coordinator ($C028). Null on every other
+    // machine. Owned here (not in m_ownedDevices) because it is not a bus
+    // device; reset during machine teardown before the LC/MMU it references.
+    unique_ptr<class Apple2cRomBank>  m_apple2cRomBank;
+    // Apple //c IOU mouse. Null on every other machine. Owned here
+    // (not in m_ownedDevices) because it is not a bus device: the keyboard
+    // and soft-switch bank forward its register surface, and the EmuCpu
+    // cycle fan-out ticks it (VBL-edge latch + paced movement interrupts).
+    unique_ptr<class AppleMouse>  m_mouse;
     unique_ptr<VideoTiming>       m_videoTiming;
 
     // / T097 / FR-025. The store coordinates auto-flush of dirty
@@ -769,9 +858,10 @@ private:
 
     // How host arrow / pointer input is mapped onto the emulated game
     // port (Off / Joystick / Paddle). Mirrors
-    // GlobalUserPrefs::inputMappingMode and is cycled via the Machine
+    // GlobalUserPrefs (split model) and is cycled via the Machine
     // menu's "Cycle Input Mode" item, Ctrl+Shift+J, and the drive-bar widget.
-    InputMappingMode  m_inputMode = InputMappingMode::Off;
+    InputMappingMode  m_pointerMode    = InputMappingMode::Off;   // Off/Paddle/Mouse
+    bool              m_arrowsJoystick = false;                    // Keys axis
 
     // Paddle-mode mouse capture. While captured, the cursor is hidden and
     // confined, relative motion drives the paddle axes (held, no recenter),

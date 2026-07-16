@@ -311,7 +311,12 @@ Byte CxxxRomRouter::ResolveByte (Word address)
     slot      = static_cast<int>  ((address >> kAddressPageShift) & kSlotNibbleMask);
     pageOff   = static_cast<Word> (address & kPageOffsetMask);
 
-    if (intCx || (inSlot3 && !slotC3) || (inExp && intC8))
+    // Apple //c (m_noExternalSlots): with no external card slots the whole
+    // $C100-$CFFF window (incl. the $C800 expansion space) is always internal
+    // firmware regardless of INTCXROM/SLOTC3ROM/INTC8ROM -- the //c ROM enters
+    // $C800 with them clear. On the //e this stays false and normal arbitration
+    // applies.
+    if (m_noExternalSlots || intCx || (inSlot3 && !slotC3) || (inExp && intC8))
     {
         result = (romOffset < m_internal.size()) ? m_internal[romOffset] : kFloatingBusByte;
     }

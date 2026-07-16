@@ -201,6 +201,11 @@ def main():
     # single byte (legal or not) for focused debugging.
     if args.opcode:
         opcodes = [int(args.opcode, 16)]
+    elif args.cpu != "6502":
+        # The 65C02 variants (e.g. synertek65c02) define behavior for every
+        # opcode byte -- real instructions plus base-tier NOPs -- so exercise
+        # all 256. Casso's Cpu65C02 likewise fills every byte.
+        opcodes = list(range(256))
     elif args.legal_only:
         opcodes = list(LEGAL_6502_OPCODES)
     else:

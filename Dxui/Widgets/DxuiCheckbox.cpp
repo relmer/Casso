@@ -8,6 +8,65 @@
 
 
 
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiCheckbox::EllipsizeToWidth
+//
+//  Longest prefix of `label` that fits `maxWidth` with a trailing ellipsis;
+//  returns `label` unchanged when it already fits.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring DxuiCheckbox::EllipsizeToWidth (IDxuiTextRenderer  & text,
+                                             const std::wstring & label,
+                                             float                fontDip,
+                                             float                maxWidth)
+{
+    HRESULT  hr = S_OK;
+    float    w  = 0.0f;
+    float    h  = 0.0f;
+
+    if (label.empty() || maxWidth <= 0.0f)
+    {
+        return label;
+    }
+
+    hr = text.MeasureString (label.c_str(), fontDip, DxuiTheme::kBodyFace, w, h);
+    IGNORE_RETURN_VALUE (hr, S_OK);
+
+    if (w <= maxWidth)
+    {
+        return label;
+    }
+
+    const wchar_t * const  kEllipsis = L"\x2026";   // …
+    size_t                 lo        = 0;
+    size_t                 hi        = label.size();
+
+    while (lo < hi)
+    {
+        size_t        mid  = (lo + hi + 1) / 2;
+        std::wstring  cand = label.substr (0, mid) + kEllipsis;
+
+        hr = text.MeasureString (cand.c_str(), fontDip, DxuiTheme::kBodyFace, w, h);
+        IGNORE_RETURN_VALUE (hr, S_OK);
+
+        if (w <= maxWidth)
+        {
+            lo = mid;
+        }
+        else
+        {
+            hi = mid - 1;
+        }
+    }
+
+    return (lo == 0) ? std::wstring (kEllipsis) : label.substr (0, lo) + kEllipsis;
+}
+
+
+
+
 
 ////////////////////////////////////////////////////////////////////////////////
 //
@@ -122,11 +181,11 @@ bool DxuiCheckbox::OnKey (WPARAM vk)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DxuiToggle
+//  Toggle
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiCheckbox::Toggle ()
+void DxuiCheckbox::Toggle()
 {
     m_checked = !m_checked;
 
@@ -177,16 +236,17 @@ void DxuiCheckbox::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
 
     if (m_checked)
     {
-        IGNORE_RETURN_VALUE (hr, text.DrawString (s_kpszCheckMark,
-                                                  boxLeft,
-                                                  boxTop,
-                                                  boxSize,
-                                                  boxSize,
-                                                  glyphColor,
-                                                  boxSize * 0.95f,
-                                                  L"Segoe UI Symbol",
-                                                  DxuiTextHAlign::Center,
-                                                  DxuiTextVAlign::Center));
+        hr = text.DrawString (s_kpszCheckMark,
+                              boxLeft,
+                              boxTop,
+                              boxSize,
+                              boxSize,
+                              glyphColor,
+                              boxSize * 0.95f,
+                              L"Segoe UI Symbol",
+                              DxuiTextHAlign::Center,
+                              DxuiTextVAlign::Center);
+        IGNORE_RETURN_VALUE (hr, S_OK);
     }
 
     if (m_focused)
@@ -199,16 +259,24 @@ void DxuiCheckbox::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
                              theme.FocusRing());
     }
 
-    IGNORE_RETURN_VALUE (hr, text.DrawString (m_label.c_str(),
-                                              boxLeft + boxSize + labelGap,
-                                              (float) m_boundsDip.top,
-                                              (float) (m_boundsDip.right - m_boundsDip.left) - boxSize - labelGap,
-                                              (float) (m_boundsDip.bottom - m_boundsDip.top),
-                                              textColor,
-                                              fontDip,
-                                              DxuiTheme::kBodyFace,
-                                              DxuiTextHAlign::Left,
-                                              DxuiTextVAlign::Center));
+    float         labelX = boxLeft + boxSize + labelGap;
+    float         labelW = (float) (m_boundsDip.right - m_boundsDip.left) - boxSize - labelGap;
+    std::wstring  drawn  = m_singleLineLabel ? EllipsizeToWidth (text, m_label, fontDip, labelW)
+                                             : m_label;
+
+    hr = text.DrawString (drawn.c_str(),
+                          labelX,
+                          (float) m_boundsDip.top,
+                          labelW,
+                          (float) (m_boundsDip.bottom - m_boundsDip.top),
+                          textColor,
+                          fontDip,
+                          DxuiTheme::kBodyFace,
+                          DxuiTextHAlign::Left,
+                          DxuiTextVAlign::Center,
+                          DxuiFontWeight::Normal,
+                          !m_singleLineLabel);
+    IGNORE_RETURN_VALUE (hr, S_OK);
 }
 
 

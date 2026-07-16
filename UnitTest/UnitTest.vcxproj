@@ -235,6 +235,7 @@
     <ClCompile Include="DormannIntegrationTests.cpp" />
     <ClCompile Include="EhmTestHelper.cpp" />
     <ClCompile Include="HarteTestRunner.cpp" />
+    <ClCompile Include="TestCpu65C02Tests.cpp" />
     <ClCompile Include="ModuleSetup.cpp" />
     <ClCompile Include="RegressionTests.cpp" />
     <ClCompile Include="EmuTests\MemoryBusTests.cpp" />
@@ -254,6 +255,9 @@
     <ClCompile Include="EmuTests\RegistryTests.cpp" />
     <ClCompile Include="EmuTests\PathResolverTests.cpp" />
     <ClCompile Include="EmuTests\MachineConfigTests.cpp" />
+    <ClCompile Include="EmuTests\Apple2cRomBankTests.cpp" />
+    <ClCompile Include="EmuTests\Apple2cBootTests.cpp" />
+    <ClCompile Include="EmuTests\AppleMouseTests.cpp" />
     <ClCompile Include="EmuTests\MachineConfigUpgradeTests.cpp" />
     <ClCompile Include="EmuTests\MachineScannerTests.cpp" />
     <ClCompile Include="EmuTests\VideoModeTests.cpp" />
@@ -275,6 +279,7 @@
     <ClCompile Include="EmuTests\HeadlessHost.cpp" />
     <ClCompile Include="EmuTests\HeadlessHostTests.cpp" />
     <ClCompile Include="EmuTests\Acia6551Tests.cpp" />
+    <ClCompile Include="EmuTests\Cpu65C02Tests.cpp" />
     <ClCompile Include="EmuTests\Via6522Tests.cpp" />
     <ClCompile Include="EmuTests\Ay8910Tests.cpp" />
     <ClCompile Include="EmuTests\MockingboardCardTests.cpp" />
@@ -397,6 +402,10 @@
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderOutputFile>$(IntDir)CassoPch.pch</PrecompiledHeaderOutputFile>
     </ClCompile>
+    <ClCompile Include="..\Casso\Ui\Chrome\InputDeviceSelector.cpp">
+      <PrecompiledHeader>Use</PrecompiledHeader>
+      <PrecompiledHeaderOutputFile>$(IntDir)CassoPch.pch</PrecompiledHeaderOutputFile>
+    </ClCompile>
     <ClCompile Include="..\Casso\CrtPostProcess.cpp">
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderOutputFile>$(IntDir)CassoPch.pch</PrecompiledHeaderOutputFile>
@@ -434,6 +443,7 @@
     <ClCompile Include="UiTests\ColorUtilTests.cpp" />
     <ClCompile Include="UiTests\HardwareTreeTests.cpp" />
     <ClCompile Include="UiTests\HardwarePageTests.cpp" />
+    <ClCompile Include="UiTests\InputDeviceSelectorTests.cpp" />
     <ClCompile Include="UiTests\CrtParameterMappingTests.cpp" />
     <ClCompile Include="UiTests\CrtLetterboxLayoutTests.cpp" />
     <ClCompile Include="UiTests\DpiScalerTests.cpp" />
@@ -481,6 +491,7 @@
   <ItemGroup>
     <ClInclude Include="Pch.h" />
     <ClInclude Include="TestHelpers.h" />
+    <ClInclude Include="TestCpu65C02.h" />
     <ClInclude Include="EhmTestHelper.h" />
     <ClInclude Include="HarteTestRunner.h" />
     <ClInclude Include="EmuTests\IFixtureProvider.h" />

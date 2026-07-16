@@ -35,6 +35,8 @@ namespace
         float              lastDriveDoor         = -1.0f;
         float              lastDriveOnePan       = 0.0f;
         float              lastDriveTwoPan       = 0.0f;
+        bool               lastExternalDriveConnected = false;
+        bool               lastMouseConnected         = true;
         int                queuedResetCount      = 0;
         int                applyCount            = 0;
 
@@ -58,6 +60,16 @@ namespace
         void ApplyWriteProtect (int drive, bool wp) override
         {
             if (drive >= 0 && drive < 2) lastWriteProtect[drive] = wp;
+            ++applyCount;
+        }
+        void ApplyExternalDriveConnected (bool connected) override
+        {
+            lastExternalDriveConnected = connected;
+            ++applyCount;
+        }
+        void ApplyMouseConnected (bool connected) override
+        {
+            lastMouseConnected = connected;
             ++applyCount;
         }
         void QueueMachineReset () override { ++queuedResetCount; }
@@ -146,6 +158,121 @@ public:
         Assert::AreEqual (size_t (1), st.MachineInfo().memoryRegions.size());
         // Devices counts internal + slot entries.
         Assert::AreEqual (s_kFixtureDevices, st.MachineInfo().devices);
+    }
+
+
+    // System ROM display. A banked ROM (//c) shares one $C000-$FFFF window
+    // between two `romBankSize` banks toggled by $C028, so it must report the
+    // true installed size (2x a bank = 32K) with a name that explains the
+    // size/window mismatch. Flat ROMs (][ / ][+ / //e) keep their single
+    // fill-to-$FFFF span. Regression for the Settings memory map reading the
+    // //c ROM as 16K when it is really 32K in two banks.
+    TEST_METHOD (SystemRom_BankedReports32KTwoBanks_FlatUnchanged)
+    {
+        auto romRegion = [] (const SettingsMachineInfo & info)
+        {
+            for (const auto & r : info.memoryRegions)
+            {
+                if (r.name.rfind ("System ROM", 0) == 0)
+                {
+                    return r;
+                }
+            }
+            return SettingsMemoryRegion {};
+        };
+
+        // Banked //c: romBankSize present, no explicit size.
+        const char * cJson = R"JSON({
+            "$cassoMachineVersion": 1,
+            "name": "Apple //c",
+            "timing": { "clockSpeed": 1023000 },
+            "ram": [ { "address": "0x0000", "size": "0xC000" } ],
+            "systemRom": { "address": "0xC000", "romBankSize": "0x4000", "romBankSelect": "0xC028" }
+        })JSON";
+
+        SettingsPanelState  cSt;
+        JsonValue           cv = ParseOrFail (cJson);
+        Assert::IsTrue (SUCCEEDED (cSt.LoadFromMachine ("Apple //c", cv, cv)));
+        SettingsMemoryRegion  cRom = romRegion (cSt.MachineInfo());
+        Assert::AreEqual (std::string ("System ROM (2 banks)"), cRom.name,         L"//c ROM name");
+        Assert::AreEqual (std::string ("32K"),                  cRom.size,         L"//c ROM = 2x16K = 32K");
+        Assert::AreEqual (std::string ("$C000-$FFFF"),          cRom.addressRange, L"//c banks share one window");
+
+        // Flat //e: 16K fill-to-$FFFF from $C000.
+        const char * eJson = R"JSON({
+            "$cassoMachineVersion": 1,
+            "name": "Apple //e",
+            "timing": { "clockSpeed": 1023000 },
+            "ram": [ { "address": "0x0000", "size": "0xC000" } ],
+            "systemRom": { "address": "0xC000" }
+        })JSON";
+
+        SettingsPanelState  eSt;
+        JsonValue           ev = ParseOrFail (eJson);
+        Assert::IsTrue (SUCCEEDED (eSt.LoadFromMachine ("Apple //e", ev, ev)));
+        SettingsMemoryRegion  eRom = romRegion (eSt.MachineInfo());
+        Assert::AreEqual (std::string ("System ROM"),  eRom.name,         L"//e ROM name unchanged");
+        Assert::AreEqual (std::string ("16K"),         eRom.size,         L"//e ROM = 16K");
+        Assert::AreEqual (std::string ("$C000-$FFFF"), eRom.addressRange, L"//e ROM range");
+
+        // Flat ][ / ][+: 12K fill-to-$FFFF from $D000.
+        const char * twoJson = R"JSON({
+            "$cassoMachineVersion": 1,
+            "name": "Apple ][",
+            "timing": { "clockSpeed": 1023000 },
+            "ram": [ { "address": "0x0000", "size": "0xC000" } ],
+            "systemRom": { "address": "0xD000" }
+        })JSON";
+
+        SettingsPanelState  twoSt;
+        JsonValue           tv = ParseOrFail (twoJson);
+        Assert::IsTrue (SUCCEEDED (twoSt.LoadFromMachine ("Apple ][", tv, tv)));
+        SettingsMemoryRegion  twoRom = romRegion (twoSt.MachineInfo());
+        Assert::AreEqual (std::string ("System ROM"),  twoRom.name,         L"][ ROM name unchanged");
+        Assert::AreEqual (std::string ("12K"),         twoRom.size,         L"][ ROM = 12K");
+        Assert::AreEqual (std::string ("$D000-$FFFF"), twoRom.addressRange, L"][ ROM range");
+    }
+
+
+    // RAM total headline. Sums every RAM region -- main + aux ($0000-$BFFF) and
+    // both language-card banks ($D000-$FFFF) -- while EXCLUDING system ROM, so a
+    // 128K //c reads "128K RAM" (not 160K with the 32K ROM folded in). A 48K ][
+    // with no aux/LC reads "48K RAM".
+    TEST_METHOD (MemoryTotal_SumsRamAcrossBanks_ExcludesRom)
+    {
+        // 128K //c: 48K main + 48K aux + 16K + 16K language-card banks.
+        const char * cJson = R"JSON({
+            "$cassoMachineVersion": 1,
+            "name": "Apple //c",
+            "timing": { "clockSpeed": 1023000 },
+            "ram": [
+                { "address": "0x0000", "size": "0xC000" },
+                { "address": "0x0000", "size": "0xC000", "bank": "aux" }
+            ],
+            "systemRom": { "address": "0xC000", "romBankSize": "0x4000" },
+            "internalDevices": [ { "type": "language-card" } ]
+        })JSON";
+
+        SettingsPanelState  cSt;
+        JsonValue           cv = ParseOrFail (cJson);
+        Assert::IsTrue (SUCCEEDED (cSt.LoadFromMachine ("Apple //c", cv, cv)));
+        Assert::AreEqual (std::string ("128K RAM"), cSt.MachineInfo().ramSummary,
+            L"48+48+16+16 = 128K; the 32K ROM must not be counted");
+
+        // 48K ][: single main bank, no aux, no language card.
+        const char * twoJson = R"JSON({
+            "$cassoMachineVersion": 1,
+            "name": "Apple ][",
+            "timing": { "clockSpeed": 1023000 },
+            "ram": [ { "address": "0x0000", "size": "0xC000" } ],
+            "systemRom": { "address": "0xD000" }
+        })JSON";
+
+        SettingsPanelState  twoSt;
+        JsonValue           tv = ParseOrFail (twoJson);
+        Assert::IsTrue (SUCCEEDED (twoSt.LoadFromMachine ("Apple ][", tv, tv)));
+        Assert::AreEqual (std::string ("48K RAM"), twoSt.MachineInfo().ramSummary,
+            L"single 48K main bank");
     }
 
 
@@ -384,6 +511,117 @@ public:
         Assert::IsTrue (text.find ("\"writeMode\":\"copy-on-write\"") != std::string::npos);
         Assert::IsTrue (text.find ("\"$cassoMachineVersion\"") != std::string::npos,
                         L"version key must round-trip");
+    }
+
+
+    // //c external-drive connect toggle. A live UI pref: it must
+    // round-trip through $cassoUiPrefs, push through the sink on Apply, make
+    // the panel dirty, and -- unlike a hardware enable -- never queue a reset.
+    TEST_METHOD (ExternalDriveConnected_RoundTripsAndPushesLiveNoReset)
+    {
+        SettingsPanelState  st;
+        JsonValue           v = ParseOrFail (kFixtureJson);
+        st.LoadFromMachine ("X", v, v);
+
+        Assert::IsFalse (st.Prefs().externalDriveConnected, L"defaults to not-connected");
+        Assert::IsFalse (st.IsDirty());
+
+        st.SetExternalDriveConnected (true);
+        Assert::IsTrue  (st.Prefs().externalDriveConnected);
+        Assert::IsTrue  (st.IsDirty(), L"toggling connect makes the panel dirty");
+        Assert::IsFalse (st.RequiresReset(), L"live UI pref -> no reset required");
+
+        RecordingSink  sink;
+        JsonValue      outJson;
+        Assert::IsTrue (SUCCEEDED (st.Apply (sink, outJson)));
+        Assert::IsTrue (sink.lastExternalDriveConnected, L"pushed live through sink");
+        Assert::AreEqual (0, sink.queuedResetCount, L"connect toggle never queues a reset");
+
+        // The connected state persists into the emitted $cassoUiPrefs, and
+        // re-loading that JSON restores it.
+        SettingsUiPrefs  reloaded;
+        Assert::IsTrue (SUCCEEDED (SettingsPanelState::ExtractUiPrefs (outJson, reloaded)));
+        Assert::IsTrue (reloaded.externalDriveConnected, L"externalDriveConnected round-trips");
+    }
+
+
+    // supportsExternalDrive is derived from a banked system ROM (romBankSize),
+    // the //c's defining trait -- it is the only machine whose second drive is
+    // an optional add-on. Flat-ROM machines (//e / ][) report false.
+    TEST_METHOD (SupportsExternalDrive_TrueForBankedRomOnly)
+    {
+        const char * cJson = R"JSON({
+            "$cassoMachineVersion": 1,
+            "name": "Apple //c",
+            "timing": { "clockSpeed": 1023000 },
+            "ram": [ { "address": "0x0000", "size": "0xC000" } ],
+            "systemRom": { "address": "0xC000", "romBankSize": "0x4000", "romBankSelect": "0xC028" }
+        })JSON";
+
+        const char * eJson = R"JSON({
+            "$cassoMachineVersion": 1,
+            "name": "Apple //e",
+            "timing": { "clockSpeed": 1023000 },
+            "ram": [ { "address": "0x0000", "size": "0xC000" } ],
+            "systemRom": { "address": "0xC000" }
+        })JSON";
+
+        SettingsPanelState  cSt;
+        JsonValue           cv = ParseOrFail (cJson);
+        Assert::IsTrue (SUCCEEDED (cSt.LoadFromMachine ("Apple //c", cv, cv)));
+        Assert::IsTrue (cSt.MachineInfo().supportsExternalDrive, L"//c has optional external drive");
+
+        SettingsPanelState  eSt;
+        JsonValue           ev = ParseOrFail (eJson);
+        Assert::IsTrue (SUCCEEDED (eSt.LoadFromMachine ("Apple //e", ev, ev)));
+        Assert::IsFalse (eSt.MachineInfo().supportsExternalDrive, L"//e second drive is fixed hardware");
+    }
+
+
+    // The //c's drive is a built-in IWM, not a "disk-ii" slot, so the
+    // hardware-list scan alone would hide the Settings Disk tab on the //c
+    // (the dynamic-tab gate). A banked system ROM must count as a
+    // controller. Regression: Settings > Disk disappeared on the //c.
+    TEST_METHOD (HasDiskIIController_TrueForBuiltInIwmMachine)
+    {
+        const char * cJson = R"JSON({
+            "$cassoMachineVersion": 1,
+            "name": "Apple //c",
+            "timing": { "clockSpeed": 1023000 },
+            "ram": [ { "address": "0x0000", "size": "0xC000" } ],
+            "systemRom": { "address": "0xC000", "romBankSize": "0x4000", "romBankSelect": "0xC028" }
+        })JSON";
+
+        SettingsPanelState  st;
+        JsonValue           v = ParseOrFail (cJson);
+        Assert::IsTrue (SUCCEEDED (st.LoadFromMachine ("Apple //c", v, v)));
+        Assert::IsTrue (st.HasDiskIIController(),
+            L"//c built-in IWM (no disk-ii slot) must still yield a Disk tab");
+    }
+
+
+    // //c mouse peripheral toggle: defaults CONNECTED,
+    // round-trips $cassoUiPrefs, pushes live through the sink, no reset.
+    TEST_METHOD (MouseConnected_DefaultsOnRoundTripsNoReset)
+    {
+        SettingsPanelState  st;
+        JsonValue           v = ParseOrFail (kFixtureJson);
+        st.LoadFromMachine ("X", v, v);
+
+        Assert::IsTrue  (st.Prefs().mouseConnected, L"defaults to connected");
+        st.SetMouseConnected (false);
+        Assert::IsTrue  (st.IsDirty());
+        Assert::IsFalse (st.RequiresReset(), L"live UI pref -> no reset");
+
+        RecordingSink  sink;
+        JsonValue      outJson;
+        Assert::IsTrue (SUCCEEDED (st.Apply (sink, outJson)));
+        Assert::IsFalse (sink.lastMouseConnected, L"pushed live");
+        Assert::AreEqual (0, sink.queuedResetCount);
+
+        SettingsUiPrefs  reloaded;
+        Assert::IsTrue (SUCCEEDED (SettingsPanelState::ExtractUiPrefs (outJson, reloaded)));
+        Assert::IsFalse (reloaded.mouseConnected, L"mouseConnected round-trips");
     }
 
 

@@ -6,6 +6,58 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 Versioned entries use `MAJOR.MINOR.PATCH` from [Version.h](CassoCore/Version.h).
 Entries before versioning was introduced use dates only.
 
+## [1.8.0] — Apple //c and Apple //e Enhanced machines (spec 016 + #86)
+
+### Added
+- **feat(machine): Apple //c** — a new machine profile on the //e substrate,
+  scoped to the 5.25"/128K //c with the **Memory Expansion ROM (ROM 4)**
+  (managed asset, download-on-demand). Boots real DOS 3.3 / ProDOS media;
+  with no disk it reaches the authentic "Check Disk Drive." state.
+- **feat(cpu): Rockwell R65C02 core** — full 65C02 instruction set including
+  the Rockwell bit ops (`RMB`/`SMB`/`BBR`/`BBS`, used by the //c firmware),
+  new addressing modes, and CMOS behavioral fixes (indirect-`JMP` page bug,
+  decimal-mode flags/cycles). Validated against Klaus Dormann's 65C02
+  functional test and Tom Harte's SingleStepTests.
+- **feat(asm): 65C02 assembly (`--cpu 65c02`)** — the built-in as65 assembler
+  can now target the 65C02. `--cpu 65c02` unlocks the CMOS opcodes (`STZ`,
+  `BRA`, `TSB`/`TRB`, `RMB`/`SMB`/`BBR`/`BBS`, the `(zp)` and `(abs,X)` modes);
+  the default stays a strict 6502, so 65C02-only opcodes are rejected unless
+  requested. The Rockwell bit ops accept both as65's `<bit>,<zp>[,<target>]`
+  operand form and the suffixed spelling (`RMB0 $zp`, `BBR3 $zp,target`), and
+  the `.a65c` extension is recognized. `NOP` assembles to the canonical `$EA`.
+- **feat(machine): slotless phantom-slot firmware map** — the //c's built-in
+  peripherals answer at their fixed firmware pages (serial 1/2, 80-column,
+  disk at $C600, mouse at $C700 on ROM 4) through the internal 32K
+  bank-switched ROM ($C028 bank flip-flop); no user-insertable slots.
+- **feat(disk): IWM mode** — the built-in slot-6 drive is an Integrated Woz
+  Machine over the shared WOZ nibble engine (MODE/STATUS registers; reads,
+  writes, and boot verified end-to-end), plus an optional **external drive**
+  with a Connected / Not connected toggle on the Machine tab.
+- **feat(serial): dual 6551 ACIA serial ports** (port 1 printer, port 2
+  modem) with loopback/file endpoints; one shared ACIA implementation also
+  consumed by the printer feature. (Serial *printing* lands via issue #87.)
+- **feat(mouse): //c IOU mouse** — full hardware model (X0/Y0 movement
+  interrupts with $C048 acknowledge, $C015/$C017 status, VBL latch at
+  $C019 cleared by $C070, IOUDIS-gated $C058-$C05F programming) driven by
+  the REAL ROM 4 mouse firmware; the host pointer maps absolutely onto the
+  guest mouse (non-capturing) while over the emulator viewport. The mouse
+  is a connectable peripheral (Machine-tab toggle, default connected).
+- **feat(input): split input model + device selector** — input mapping is
+  now two orthogonal selections (Keys: arrows→joystick; Pointer: paddle or
+  mouse), replacing the single cycle mode, with a new segmented drive-bar
+  selector drawing skeuomorphic glyphs of the real Apple peripherals
+  (perspective on the skeuomorphic theme, top-down on DarkModern/retro).
+- **feat(cpu): live hardware IRQ dispatch** — the CPU loop now services
+  maskable interrupts from the shared interrupt controller (the //c mouse
+  and VBL are the first sources); the 65C02 vector prologue is accounted
+  like an instruction, leaving existing machines byte-identical.
+- **feat(machine): Apple //e Enhanced** (issue #86) — the //e with a 65C02
+  and the enhanced firmware + MouseText video ROM, so it runs the CMOS
+  titles that misbehave on the NMOS //e. Reuses the //e substrate (128K,
+  slot-4 Mockingboard, slot-6 Disk ][); the enhanced ROM is a managed
+  download-on-demand asset. Auto-discovered by the machine picker; cold-boots
+  its firmware on the 65C02 (headless boot test).
+
 ## [1.7.0] — Mockingboard sound card (GH #66)
 
 ### Added
@@ -447,13 +499,14 @@ copy-protected WOZ image ([#68](https://github.com/relmer/Casso/issues/68)).
   left/right arrow keys plays as it did on real hardware.
 - **feat(input): Map Arrows to Joystick mode.** An optional input mode
   that drives the emulated game port from the host keyboard so joystick
-  games are playable without a physical controller: the arrow keys steer
-  paddle 0/1 (last-pressed-wins on opposing keys), and the **X** and
-  **Z** keys act as fire buttons 0 and 1 (Open-Apple `$C061` /
-  Closed-Apple `$C062`), coexisting with the host Alt keys. While the
-  mode is on, the arrow and X/Z keys are withheld from the //e keyboard
-  latch so they can't also type. Toggling the mode resolves axes and
-  buttons from the live key state and recenters/releases them on exit.
+  games are playable without a physical controller: the arrow keys are
+  mapped to paddle 0/1 (last-pressed-wins on opposing keys) and the **X**
+  and **Z** keys act as buttons 0/1 (the same Open-Apple `$C061` /
+  Closed-Apple `$C062` soft-switches the host Alt keys drive, so both
+  input sources coexist). While the mode is on, the arrow and X/Z keys
+  are not sent as standard keyboard input via the //e keyboard latch so
+  they can't also type. Toggling the mode resolves axes and buttons from
+  the live key state and recenters/releases them on exit.
   Three ways to flip it: **Machine → Map Arrows to Joystick**, the
   **Ctrl+J** accelerator, or a dedicated **Joystick Mode** toggle button
   in the bottom drive bar — a frameless press-to-pin button with a blue

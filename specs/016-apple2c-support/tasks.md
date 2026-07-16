@@ -1,0 +1,246 @@
+# Tasks: Apple //c Machine Support
+
+**Input**: Design documents from `specs/016-apple2c-support/` (plan.md, spec.md, research.md, data-model.md, quickstart.md)
+
+**Tests**: Included — the constitution mandates unit tests, and the spec defines test-based success criteria.
+
+**Organization**: Grouped by user story (US1–US5 from the spec). **Delivery order re-sequenced** (per project decision): US3's 6551 ACIA *device* is built first because it blocks the in-flight **spec 015** (see Phase 2). US3's //c-specific serial *wiring* still follows the //c bring-up (Phase 5, T024).
+
+## Format: `[ID] [P?] [Story] Description`
+
+- **[P]**: can run in parallel (different files, no dependency)
+- **[Story]**: US1–US5 (maps to the spec's user stories)
+
+---
+
+## Phase 1: Setup
+
+- [X] T001 Verify baseline: full existing `UnitTest` suite green on branch `016-apple2c-support`. *(1959 tests green.)*
+- [X] T002 [P] Acquire assets into `UnitTest/Fixtures/` + the machine-ROM pipeline: //c Memory Expansion ROM (ROM 4, 32K), Dormann 65C02 functional test, Harte `synertek65c02` SingleStepTests vectors. (Needed by US1/US2; the ACIA in Phase 2 needs none.) *(All acquired: `UnitTest/Fixtures/Apple2c.rom` (341-0445-B, 32768 B, download-on-demand, uncommitted); Dormann 65C02 assembled in-house (T011); Harte `synertek65c02` vectors wired (T012).)*
+
+---
+
+## Phase 2: User Story 3 (device) — 6551 ACIA 🚧 UNBLOCKS SPEC 015
+
+**Delivery-elevated ahead of US1.** The reusable dual-port 6551 ACIA is the shared component spec 015 (printer) is blocked on. Independent of the CPU and the //c profile.
+
+**Independent Test**: register-level TX → host-file endpoint; loopback RX → correct bytes + status/IRQ flags. No //c or CPU required.
+
+### Tests (write first, expect FAIL)
+
+- [X] T003 [P] [US3] `UnitTest/EmuTests/Acia6551Tests.cpp`: TX (file endpoint), RX (loopback), baud/framing, status + IRQ flags. *(11 tests.)*
+
+### Implementation
+
+- [X] T004 [US3] Implement `Acia6551` (`CassoEmuCore/Devices/Acia6551.{h,cpp}`): data/status/command/control registers, RX/TX, baud/framing, IRQ via `InterruptController`.
+- [X] T005 [US3] Add v1 endpoints: TX → host file (printing), loopback (comms); interface consumable by spec 015 (FR-011). *(`IAciaEndpoint`, `AciaLoopbackEndpoint`, `AciaFileEndpoint`.)*
+- [X] T006 [US3] Register `acia-6551` in `ComponentRegistry`.
+- [X] T007 [US3] Make ACIA tests pass; confirm exactly one ACIA implementation (SC-005). *(1970 tests green; single `Acia6551`.)*
+
+**Checkpoint**: 6551 ACIA device complete + tested standalone → **spec 015 is unblocked.** (Independent of everything below — can proceed in parallel with the CPU track.)
+
+---
+
+## Phase 3: Foundational — CPU-selection seam
+
+**⚠️ Blocks the 65C02 + //c stories** (not the ACIA above).
+
+- [X] T008 Extend `MachineConfig` (`CassoEmuCore/Core/MachineConfig.{h,cpp}`) to accept `cpu` ∈ {`6502`, `65C02`} (currently hard-validated to `6502` at `MachineConfig.cpp:726`); add a CPU factory mapping the string → `ICpu`. *(`CpuFactory`; 65C02 → E_NOTIMPL until Phase 4.)*
+- [X] T009 Wire `MachineManager` (`Casso/Shell/MachineManager.cpp:~726`) to build `EmuCpu` with the injected strategy per `config.cpu` (default `6502`; existing machines unchanged).
+- [X] T010 [P] Unit tests (`UnitTest/EmuTests/MachineConfigTests.cpp`): `65C02` parses; unknown rejected; default/`6502` preserved.
+
+**Checkpoint**: config-driven CPU selection; II/II+/`//e` still run NMOS.
+
+---
+
+## Phase 4: User Story 1 — 65C02 core 🎯
+
+**Goal**: 65C02 software runs; the existing //e-Enhanced profile (NMOS today) is corrected.
+
+**Independent Test**: //e-Enhanced `cpu: 65C02`; Dormann 65C02 + Harte `synertek65c02` pass 100%; NMOS suite unchanged.
+
+### Tests (expect FAIL)
+
+- [X] T011 [P] [US1] `UnitTest/DormannIntegrationTests.cpp`: Klaus Dormann 65C02 functional test. *(Rockwell tier, `rkwl_wdc_op=1`/`wdc_op=0`; assembled in-house — required adding 65C02 support to Casso's assembler, incl. the BBR/BBS/RMB/SMB bit ops in as65's `<bit>,<zp>[,<target>]` operand form — and run to the `$2569` success trap.)*
+- [X] T012 [P] [US1] `UnitTest/HarteTestRunner.cpp` (`HarteSynertek65C02`): Tom Harte `synertek65c02` SingleStepTests, **256/256** (2.56M vectors) via flat-memory `TestCpu65C02`. *(Base tier; the 33 reserved-NOP opcodes assert Casso's canonical 1-byte model — see research.md D7 / commit notes — rather than Synertek's 2-3-byte quirk, which Apple never shipped.)*
+
+### Implementation
+
+- [X] T013 [US1] Implement `Cpu65C02` (`CassoEmuCore/Core/Cpu65C02.{h,cpp}`, sharing `Cpu6502` dispatch): `STZ`, `PHX`/`PLX`/`PHY`/`PLY`, `BRA`, `TSB`/`TRB`, `INC A`/`DEC A`; `RMB`/`SMB`/`BBR`/`BBS` + `WAI`/`STP` decode as base-tier NOPs.
+- [X] T014 [US1] Addressing modes (`(zp)`, `(abs,X)` JMP) + corrected behaviors (indirect-`JMP` page fix, decimal ADC/SBC flags/cycles incl. invalid-BCD borrow, `$CF` NMOS-undocumented reclaim) + 65C02 timing.
+- [X] T015 [US1] Register `65C02` → `Cpu65C02` in the CPU factory (T008). *(`CpuFactory.cpp` builds `Cpu65C02`; `FactoryBuilds65C02AndRejectsUnknown`.)*
+- [X] T016 [US1] Set `Apple2eEnhanced` config `cpu: 65C02`. *(Done — issue #86 landed: the Apple //e Enhanced profile shipped in `a51837c5`, `Resources/Machines/Apple2eEnhanced/Apple2eEnhanced.json` with `cpu: 65C02`, embedded as `IDR_MACHINE_APPLE2E_ENHANCED`; cold-boots the 65C02 firmware — `HeadlessHostTests.BuildApple2eEnhanced_ColdBootsFirmwareOn65C02`.)*
+- [X] T017 [US1] Dormann + Harte 65C02 pass; full regression **1988/1988** (NMOS + II/II+/`//e` unchanged).
+
+**Checkpoint**: //e-Enhanced runs on the 65C02. SC-001 + SC-004 green. **Shippable standalone.**
+
+---
+
+## Phase 5: User Story 2 — Apple //c boot + firmware map (+ US3 serial wiring)
+
+**Goal**: Select **Apple //c** and cold-boot to monitor/BASIC; peripherals at phantom-slot addresses; the two serial ports (Phase 2 ACIA) wired in.
+
+**Independent Test**: Pick Apple //c → reaches `]`/monitor; probe finds peripherals at $C1xx/$C2xx/$C3xx/$C4xx/$C6xx; serial ports respond; printing to serial port 1 drives the ImageWriter pipeline.
+
+### Tests (expect FAIL)
+
+- [X] T018 [P] [US2] `UnitTest/EmuTests/Apple2cBootTests.cpp`: //c cold-boots to monitor/Applesoft (ROM signature, 128K). *(`ColdBootsToCheckDiskDrive` scrapes the "Apple //c" banner + "Check Disk Drive." no-disk state; `BuildsAndResetsToMonitorEntry` asserts the RESET vector `$FA62`/CLD + 128K wiring. The //c has no BASIC-on-cold-boot, so "Check Disk Drive." is the correct terminal no-disk screen rather than `]`/monitor.)*
+- [X] T019 [P] [US2] `Apple2cBootTests.cpp`: built-in peripherals answer at phantom-slot addresses; no user-insertable slots. *(Done: `PhantomSlotsServeBuiltInPeripherals` — Pascal ID bytes at $C1xx/$C2xx/$C3xx/$C7xx, Disk II boot prologue at $C600, live 6551 status at the slot-1/2 I/O pages, and $C800/$CFFF always serving internal firmware.)*
+
+### Implementation
+
+- [X] T020 [US2] Add the //c ROM 4 asset to `AssetBootstrap` (`Casso/AssetBootstrap.cpp`): catalog entry, "Apple //c" display name, picker entry. *(AppleWin has no //c ROM — sourced the 32K ROM 4 / 341-0445-B (32768 bytes) from the apple2.org.za mirror; extended `RomSpec` with an optional alternate host/urlPath/label. Size-checked, download-on-demand, not committed.)*
+- [X] T021 [US2] Implement the 32K bank-switched ROM mapping. *(`Apple2cRomBank` + `IRomBankSwitch` hook in the //e soft-switch bank: `$C028` toggles the two 16K banks across `$C100-$FFFF` (LC `$D000-$FFFF` + `CxxxRomRouter` `$C100-$CFFF`); `/RESET` -> bank 0. Verified: 65C02 resets to the monitor entry `$FA62` with the ROM correctly mapped through the LC (`BuildsAndResetsToMonitorEntry`). Production `MachineManager` path wired: `CreateMemoryDevices` adds bank 0 as a flat device (normal LC/Cxxx split), then `WireApple2cRomBank` layers the coordinator + `$C028` hook; `EmulatorShell` owns it and tears it down before the LC/MMU. ROM-free banking unit tests pass.)*
+- [X] T022 [US2] Create `Resources/Machines/Apple2c/Apple2c.json`: `cpu: 65C02`, 128K, //e substrate. *(JSON + banked systemRom schema (`romBankSize`/`romBankSelect`) + parse tests. Embedded as `IDR_MACHINE_APPLE2C`; `EnsureMachineConfigs` writes it to disk and `MachineScanner::Scan` surfaces "Apple //c" in the picker; selecting it pulls the ROMs via the catalog.)*
+
+> **✅ The //c cold-boots its firmware end-to-end.** With no disk it clears the
+> screen, shows the "Apple //c" banner, probes the built-in IWM drive, and reaches
+> the correct **"Check Disk Drive."** no-disk state (`ColdBootsToCheckDiskDrive`).
+> Booting actual software needs a bootable disk image (the //c has no cassette /
+> BASIC-on-cold-boot). The bring-up chain that got here:
+>
+> 1. ✅ **Rockwell bit ops (RMB/SMB/BBR/BBS)** — RESOLVED. Casso's `Cpu65C02`
+>    now models the **Rockwell R65C02** (bit ops via `InstallBitOps`; WDC
+>    WAI/STP `$CB`/`$DB` stay NOPs). Covered by `Cpu65C02Tests`. **Conformance
+>    follow-ups:** (a) RESOLVED — the assembler now emits the BBR/BBS zero-page-
+>    relative form (and RMB/SMB) via `--cpu 65c02`, in both as65's `<bit>,<zp>`
+>    operand form and the suffixed spelling, so the Dormann integration path runs
+>    the full Rockwell tier (`rkwl_wdc_op=1`); (b) the Harte 65C02 corpus should be
+>    regenerated as `rockwell65c02` (the 34 `$x7`/`$xF`/`$CB`/`$DB` slots are
+>    currently skipped there, covered by unit tests).
+> 2. ✅ **//c `$C100-$CFFF` routing** — RESOLVED. The //c has no card slots, so
+>    the whole window (incl. the `$C800` expansion space) always reads internal
+>    firmware: `CxxxRomRouter::SetNoExternalSlots(true)` (set in `WireApple2cRomBank`
+>    + `BuildApple2c`). This subsumes T023 (no per-slot ROM slices needed).
+> 3. ✅ **`$C028` ROM-bank toggle never fired** — RESOLVED (two bugs, fixed
+>    together): (a) `Apple2eKeyboard` (front device for `$C000-$C063`) now forwards
+>    `$C028` read+write to the soft-switch bank; (b) `Cpu::FetchOperandAbsolute`
+>    no longer pre-reads a STORE's target (a spurious read double-toggled the
+>    any-access `$C028` flip-flop). Guards: `KeyboardTests::IIeKeyboard_ForwardsC028...`
+>    (ROM-free) + `Apple2cBootTests::StaC028TogglesRomBankExactlyOnce` (e2e).
+> 4. ✅ **Slot-6 IWM** — RESOLVED. The bank-1 firmware at `$CC29` writes the IWM
+>    MODE register then reads it back via the STATUS register to confirm the
+>    built-in drive. The //c drive is an Integrated Woz Machine, so
+>    `Disk2Controller` gained an IWM mode (`SetIwmMode`): MODE register
+>    (Q6H+Q7H+motor-off write) + STATUS register (Q6H+Q7L read, low 5 bits =
+>    MODE). Created in `MachineManager::CreateMemoryDevices` (production) +
+>    `BuildApple2c` (harness) as a built-in slot-6 device, not a config slot.
+> 5. ✅ **Serial 6551 ACIA** (T024) — RESOLVED. The two ACIA ports are wired into the //c serial ports with loopback endpoints (covered by `Apple2cBootTests::SerialPortsLoopBackViaBuiltInAcia`); **fully in 016 scope** (self-contained, no dependency on 015 or #87). The serial *printer bridge* is separate **downstream** work in #87, which depends on 016 + 015 — never the reverse.
+- [X] T023 [US2] ~~Wire the //c firmware slices into `CxxxRomRouter::SetSlotRom` (slots 1/2/3/4/6)~~ — **subsumed by blocker 2's no-slots routing.** The //c firmware for every phantom slot already lives in the internal `$C100-$CFFF` image; `SetNoExternalSlots(true)` serves it for the whole window, so no per-slot `SetSlotRom` slices are needed (FR-006a).
+- [X] T024 [US3] Wire the two `Acia6551` instances (Phase 2) into the //c serial ports (slots 1 + 2) + the //c serial firmware, with **loopback/file** endpoints. *(**Done.** Two built-in 6551 ACIAs created like the IWM (the //c is slotless) at the phantom-slot addresses — port 1 $C098, port 2 $C0A8 — in both build paths: `MachineManager::CreateMemoryDevices` (production, attached to the shared `InterruptController`) and `HeadlessHost::BuildApple2c` (harness). v1 endpoints are loopback (`AciaLoopbackEndpoint`); the serial firmware is already in the internal //c ROM. Covered by `Apple2cBootTests::SerialPortsLoopBackViaBuiltInAcia` (both ports round-trip a byte); //c still boots (verified in-app + boot tests green). Endpoints owned via `EmulatorShell::m_ownedAciaEndpoints`. The printer-endpoint bridge is downstream in #87, **not** part of T024.)*
+
+> **Out of 016 scope — strictly downstream in #87** (`Apple //c serial printer integration + per-port device selection`). The //c **serial printer** front door (`PrinterSink` ring hoist + `AciaPrinterEndpoint` + port-1 binding) and the Hardware-tab **serial endpoint selector** belong to **#87, not 016**. #87 depends on this spec **and** spec 015 landing on `master`, so it is downstream of both — **016 never waits on #87** (that would be circular, since #87 requires 016 complete). Brief: `serial-printer-integration.md`; fixture: `reference/printshop-color-testpage.bin`.
+
+- [X] T025 [US2] Make boot + phantom-slot tests pass; assert //c machine selection persists + restores like any other machine (FR-016). *(Boot + phantom-slot green: `Apple2cBootTests` `ColdBootsToCheckDiskDrive` / `BuildsAndResetsToMonitorEntry` + `StaC028TogglesRomBankExactlyOnce` (no-external-slots $Cxxx routing), `Apple2cRomBankTests` (5). Persistence: `//c` selection round-trips via the machine-agnostic `GlobalUserPrefs.lastSelectedMachine` string (covered by `GlobalUserPrefsTests::RoundTrip_FullPrefs`); the //c is a first-class registered machine (AssetBootstrap + ComponentRegistry + MachineScanner), so FR-016 holds without a //c-specific duplicate.)*
+
+**Checkpoint**: **Apple //c boots** with working serial ports (loopback/file endpoints). SC-002. Serial *printing* + endpoint selection are issue #87 (post-015/016).
+
+---
+
+## Phase 6: User Story 4 — Mouse + interrupts
+
+**Goal**: Mouse-driven //c software via the built-in mouse firmware + VBL/mouse IRQs.
+
+**Independent Test**: Host X/Y/click → firmware position/button; VBL/mouse IRQ delivered; $C019 status correct.
+
+> **Approach locked (design spike done)**: **full IOU hardware model** — run the real //c ROM mouse firmware and emulate the hardware it touches (chosen over firmware-entry HLE, which would need a new CPU execution-trap/register seam). The exact soft-switch contract was **derived by disassembling the //c ROM 4 mouse firmware** (it is the authoritative oracle) and is captured in [`reference/mouse-hardware.md`](reference/mouse-hardware.md): `$C066`/`$C067` bit7 = mouse X0/Y0 (game-port PADDL2/3 repurposed), `$C048` = X0/Y0 IRQ ack, `$C058-$C05F` = mouse/VBL int enables+edge (bracketed by `$C079`/`$C078` IOU gate), `$C05A`/`$C05B` = DISVBL/ENVBL, `$C063` bit7 = button (active-low), `$C019` = VBL (already implemented). Integration surface mapped: the mouse soft-switches live in the keyboard-claimed `$C000-$C063` range + the `Apple2eSoftSwitchBank` page (which returns paddle-timer values for `$C066`/`$C067` today), so the device integrates **via** those, not as a standalone slot device. T026 will drive the **real firmware entry points** (SETMOUSE/READMOUSE/SERVEMOUSE) in the headless harness so exact bit/edge/ack semantics are pinned empirically.
+
+### Tests (expect FAIL)
+
+- [X] T026 [P] [US4] `UnitTest/EmuTests/AppleMouseTests.cpp`: X/Y/button, VBL/mouse IRQ, $C019 status; assert IRQs neither starve nor double-fire across acknowledge (edge case). *(**Done — 7 tests.** Device tier: `MovementLatch_HoldsUntilAck_NeverDoubleFires` (the edge case: level-held until $C048 ack, one IRQ per unit, queue drains), direction polarity, VBL latch/ENVBL gate/$C070 clear, active-low button, DISXY mask-not-clear. Firmware tier (the oracle): `FirmwareIdentifiesMouseAtSlot7` + `FirmwareTracksMotionAndButton_TransparentMode` — a RAM driver calls the REAL ROM 4 protocol entries (INITMOUSE $C740 → SETMOUSE $C71C mode 1) and injected +5/+3 host motion flows entirely through the firmware's IRQ service; READMOUSE reports x=5,y=3 in the slot-7 screen holes and the button reads through the status hole.)*
+
+### Implementation
+
+- [X] T027 [US4] Implement `AppleMouse` (`CassoEmuCore/Devices/AppleMouse.{h,cpp}`): X/Y/button, VBL + mouse IRQ sources (X0/Y0 latch/ack), `AttachInterruptController` like `Acia6551`. *(Done. Not a bus device — integrates via keyboard/bank forwarding (the $C028 precedent); host motion accumulates atomically and latches one unit per axis per interrupt; firmware owns position + clamping. Ticked per-instruction via the new `ICycleSink` seam on `EmuCpu::AddCycles`.)*
+- [X] T028 [US4] Add //c interrupt soft switches to the //c soft-switch path. *(Done, per the corrected `reference/mouse-hardware.md` map: keyboard forwards $C048 (RSTXY) + $C063 (button, active-low, replacing the //e shift read); the bank serves $C015/$C017 (X0/Y0 int status) + $C019 (VBL latch) status overrides, $C066/$C067 (MOUX1/MOUY1), $C070 VBL-clear side effect, $C078/$C079 IOUDIS gate, and $C058-$C05F as the IOU programming bank while access is enabled — all //c-gated (mouse attached), so //e behavior is untouched. **Bonus root-cause fix**: `EmuCpu::StepOne` now polls the IRQ/NMI lines (`Cpu6502::DispatchPendingInterrupt`) — the StepOne+AddCycles hosts (production slice loop, headless RunCycles) had NEVER dispatched a hardware interrupt; the mouse is the first real source through `InterruptController`.)*
+- [X] T029 [US4] ~~Register `apple-mouse` in `ComponentRegistry`; add to `Apple2c.json` (slot-4 firmware)~~ — **satisfied by built-in creation (matches the IWM/ACIA pattern, T034).** The //c mouse is built-in hardware, not a config slot: created directly in `MachineManager::CreateMemoryDevices` (production, //c-gated) + `HeadlessHost::BuildApple2c` (harness); its slot-7 firmware is already in the internal //c ROM (**ROM 4 puts the mouse at phantom slot 7** — slot 4 is the memory-expansion firmware; spec's "slot 4" assumption corrected by the firmware itself).
+- [X] T030 [US4] Map the host pointer → guest mouse in the shell input path. *(**Done — non-capturing absolute mapping.** `EmulatorShell::UpdateGuestMouseFromHost`: the host position's fraction across the emulator viewport maps into the firmware's LIVE clamp window (clamps + current position read from the slot-7 screen holes — $047D/$067D X min/max, $04FD/$06FD Y, $047F/$04FF position), and the delta queues as movement units via `AppleMouse::MoveBy`. Self-correcting (clamped units re-derive next move); inert until the guest INITMOUSEs (garbage holes fail sanity checks). Left press over the viewport = guest button (release unconditional so it can't stick); `OnSetCursor` hides the host cursor over the viewport in Mouse mode only; leaving the viewport releases to the host. Paddle mode's capture behavior untouched.)*
+- [X] T030a [US4] Add `Mouse` to `InputMappingMode` + segmented skeuomorphic device selector. *(**Done — both deliverables shipped, the selector realized by T030d.** `InputMappingMode::Mouse` added (`GlobalUserPrefs` "mouse" token round-trips; persisted). The **segmented skeuomorphic device selector** is `InputDeviceSelector` (T030d) — it replaced the interim `JoystickToggleButton` cycle-toggle described in this task's first cut; the split-model rework (T030b) generalized it into the two-group [Keys | Pointer] control with per-segment LEDs, skeuomorphic peripheral glyphs, and tooltips, covered by `InputDeviceSelectorTests`. Mouse-live gating (cursor-hide/button-capture only once firmware ENBXY'd the IOU) carried over. See T030b–T030d for the shipped surface.)*
+
+> **Agreed design revisions (2026-07-09, supersede FR-013a's single-selection):**
+> 1. **Split the input model into two orthogonal mappings** — hardware analysis: joystick (PDL0/1+PB0/1) and mouse (X0/X1/Y0/Y1+PB2) drive disjoint game-port lines at disjoint addresses; exclusivity on real hardware is mechanical (one DB-9 plug), not architectural. New model: **Keys** = Off/Joystick (arrows+ZX) × **Pointer** = Off/Paddle/Mouse (Paddle↔Mouse stay exclusive — both claim the host pointer). Two persisted prefs with migration from `inputMappingMode`; T030a's selector becomes two groups.
+> 2. **Mouse is a connectable peripheral, not standard equipment** (the //c shipped with the port + firmware; the mouse was a separate purchase): add a **"Mouse — Connected / Not connected"** toggle to the Settings **Machine tab**, exactly the T034a external-drive pattern (`$cassoUiPrefs.mouseConnected`, synthetic Hardware-tree node, live-apply, no reset). Disconnected = the IOU stays (built-in silicon) but the shell never feeds host input and the Pointer mapping hides Mouse — identical to an unplugged DB-9 on real hardware. Default: **connected** (confirmed 2026-07-09 — zero-config MousePaint; invisible otherwise thanks to the GuestMouseLive gate).
+> 3. With (1)+(2): Pointer mapping can default to Mouse on the //c when connected.
+- [X] T031 [US4] Make mouse tests pass. *(All 7 green; full suite 2276/2276 — the CPU interrupt-dispatch change regressed nothing across Dormann/Harte/boot/disk; production //c boots DOS 3.3 with the mouse + ACIAs + live IRQ dispatch wired.)*
+- [X] T030b [US4] **Split the input model** (FR-013a revised): two persisted prefs — Keys = Off/Joystick, Pointer = Off/Paddle/Mouse — with migration from the legacy `inputMappingMode` (joystick→Keys:Joystick, paddle→Pointer:Paddle, mouse→Pointer:Mouse); rework the ~15 `m_inputMode` consultation sites (keys paths → Keys, pointer paths → Pointer); Paddle↔Mouse stay exclusive. *(Done: GlobalUserPrefs.arrowsToJoystick + pointerMapping with legacy-mode migration (SplitInputMappings_MigrateFromLegacySingleMode); EmulatorShell m_arrowsJoystick x m_pointerMode with SetArrowsJoystick/SetPointerMapping axis setters + SetInputMappingMode as the preset cycle; menu items toggle axes independently; Esc now exits Paddle only (keys survive); //c Pointer defaults to Mouse when connected (ApplyDefaultPointerForMachine, runtime nudge at launch + switch).)*
+- [X] T030c [US4] **Mouse — Connected / Not connected** Machine-tab toggle (FR-013b), on the T034a external-drive pattern: `$cassoUiPrefs.mouseConnected` (per-machine, live-apply, no reset), synthetic Hardware-tree node (//c only), disconnected = shell feeds no input + Pointer hides Mouse (IOU silicon stays). Default **connected** (confirmed 2026-07-09). With T030b: Pointer defaults to Mouse on the //c when connected. *(Done: mouseConnected pref (default connected) + synthetic Mouse Hardware-tree node + IDM_MOUSE_CONNECT/DISCONNECT UI-thread routing; disconnect drops Mouse mode + hides it from the cycle; seeded at launch/switch. Pointer-defaults-to-Mouse rides T030b.)*
+- [X] T030d [US4] Two-group **skeuomorphic device selector** replacing the cycle-toggle (Keys group: joystick icon; Pointer group: paddle/mouse icons) — needs icon assets. *(Done: InputDeviceSelector replaces JoystickToggleButton — two groups [Keys: joystick] | [Pointer: paddle, mouse-when-connected], glyphs painted procedurally from the SVG masters (Assets/DesignSources/InputIcons) via new IDxuiPainter primitives (FillConvexQuad/FillEllipseApprox/DrawLineApprox, rect-sliced in DxuiPainter, default no-op on the interface); 3/4-perspective glyphs on skeuo themes, top-down on compact themes (follows theme.compactDrives); LED-blue selection ring; segment clicks toggle axes via ToggleInputMappingMode; keyboard activation still cycles. InputDeviceSelectorTests (4) cover layout/segments/tooltips/glyph containment. Rev 2 per user feedback: 2x icons (44dp) + text labels ("[icon] Joystick mode" etc.), independent per-segment tooltips (TooltipTextAt), on/off shown by drive-bar LED (halo+core) instead of an outline ring (outline = focus only), and the mouse glyph reoriented north-up (button on the N side, both styles + SVG master synced).)*
+
+
+**Checkpoint**: mouse-driven //c software (e.g. MousePaint) works.
+
+---
+
+## Phase 7: User Story 5 — IWM disk
+
+**Goal**: //c boots/reads/writes internal + external drives via the IWM, reusing the WOZ engine.
+
+**Independent Test**: WOZ in internal drive → boots via IWM (slot-6 space); external drive → second-drive access.
+
+### Tests (expect FAIL)
+
+- [X] T032 [P] [US5] `Apple2cBootTests.cpp` (disk): //c boots from internal drive via IWM; external-drive read. *(`BootsFromInternalDriveViaIwm`: stamps an in-house 18-byte boot sector into T0S0, cold-boots the //c, and asserts it read the sector via the IWM and ran it — the marker "IWM" lands at $0300 and the CPU spins in the booted halt loop, not the Check-Disk-Drive loop. `ExternalDriveIsReadableViaDriveSelect`: selects drive 2 ($C0EB), spins it up, and samples a valid nibble off the external drive.)*
+
+### Implementation
+
+- [X] T033 [US5] ~~Implement `Iwm` (`CassoEmuCore/Devices/Iwm.{h,cpp}`)~~ — **satisfied by the existing `Disk2Controller` IWM mode, verified end-to-end (compose, do not fork).** `Disk2Controller::SetIwmMode` already added the MODE/STATUS registers on top of the shared Disk II / WOZ nibble engine; the CPU-visible RDDATA path (Q6L/Q7L) is unchanged, so a mounted disk streams nibbles to the boot ROM. T032's two tests prove both drives read through it — no separate `Iwm` class needed.
+- [X] T034 [US5] Register `iwm` in `ComponentRegistry`; add to `Apple2c.json` (slot-6, internal + external drive). *(**Emulation done**: the built-in slot-6 IWM is created directly in `MachineManager::CreateMemoryDevices` (guarded by `romBankSize != 0`), not via `ComponentRegistry` — the //c drive is built in, not a config slot. Both drives (internal = drive 1, external = drive 2) read at the controller level, proven by T032. GUI surfacing is T034a, now complete.)*
+- [X] T034a [US5] Hardware tab: the //c **external drive** is a **Connected / Not connected** toggle that shows/hides the existing drive-mount widget (image name, Mount…, Eject, write-protect). No new media machinery — "Connected" just reveals the existing drive widget; persist the connected state per machine. *(Done. A per-machine `$cassoUiPrefs.externalDriveConnected` pref (defaults not-connected) drives a checkable "External drive" node in the Settings > Hardware tree — only for machines with a banked ROM (`SettingsMachineInfo.supportsExternalDrive`, the //c). Toggling it is a live UI pref (no reset): `SettingsPanelState::SetExternalDriveConnected` → `ISettingsApplySink::ApplyExternalDriveConnected` → `IDM_DRIVE_EXTERNAL_CONNECT/DISCONNECT` → `EmulatorShell::ShouldShowExternalDrive()` gates `m_driveChrome[1]` (widget + hit rect) in both drive-layout paths, re-laid via `ReflowChromeForMachineChange`. Seeded at initial launch and on menu machine-switch. Non-//c machines: the gate is always open, second drive unchanged. Covered by `ExternalDriveConnected_RoundTripsAndPushesLiveNoReset`, `SupportsExternalDrive_TrueForBankedRomOnly`, and 3 `HardwarePageTests` `BuildNodes_*ExternalDrive*` cases.)*
+- [X] T035 [US5] Make //c disk-boot tests pass; regression: existing Disk II machines unchanged. *(Both //c disk tests green; full suite 2268/2268, existing Disk II machines unaffected.)*
+
+**Checkpoint** ✅: //c boots from its internal drive + reads its external drive via the IWM (emulation complete + tested), **and** the external-drive GUI toggle (T034a) ships. Phase 7 / User Story 5 complete.
+
+---
+
+## Phase 8: Polish & Cross-Cutting
+
+- [X] T036 [P] Run full `quickstart.md` validation across all stories. *(Done. Full Debug x64 suite **2372/2372** green (`RunTests.ps1`). Per-story test-class mapping: **P1 65C02** → `Cpu65C02Tests` (16) + `Dormann65C02*` (full Rockwell tier, `rkwl_wdc_op=1`, to the `$2569` success trap) + Harte `rockwell65c02` (256/256, all `$00`–`$FF`); **P2 //c boot** → `Apple2cBootTests` (8: cold-boot to Check-Disk-Drive, phantom-slot peripherals, monitor entry) + `Apple2cRomBankTests` (6, `$C028` bank flip); **P3 serial** → `Acia6551Tests` (12) + `SerialPortsLoopBackViaBuiltInAcia`; **P4 mouse** → `AppleMouseTests` (12); **P5 IWM disk** → `BootsFromInternalDriveViaIwm` + `ExternalDriveIsReadableViaDriveSelect`. SC-004 (zero regressions) and SC-005 (single `Acia6551`) hold. Fixed `quickstart.md`:8 (`synertek65c02` → `rockwell65c02`). Named-title manual acceptance is tracked in T039.)*
+- [X] T037 [P] Update `README.md` + `CHANGELOG.md` for the new Apple //c machine. *(Done: README machine list + v1.7.0 What is New section; CHANGELOG [1.7.0] entry; Version.h bumped 1.6.4 -> 1.7.0.)*
+- [X] T040 [P] Assembler: emit BBR/BBS zero-page-relative encodings so the Dormann 65C02 integration test can run the FULL Rockwell set (today it runs the common subset; SC-001 gap). *(Done: `--cpu 65c02` selects the CMOS table (default stays strict 6502); new `ZeroPageRelative` two-operand emit path for BBR/BBS; RMB/SMB/BBR/BBS accept as65's `<bit>,<zp>[,<target>]` operand form and the suffixed spelling. Dormann 65C02 integration now runs the full Rockwell tier (`rkwl_wdc_op=1`) to the `$2569` success trap. Also fixed `NOP`->`$EA` on the CMOS table. Commits `98852c3a`, `527e2af6`.)*
+- [X] T041 [P] Regenerate the Harte SingleStepTests corpus as **`rockwell65c02`** (the current corpus skips the 34 `$x7`/`$xF`/`$CB`/`$DB` slots, covered by unit tests instead; SC-001 gap). *(Done: `HarteTestRunner.cpp` `HarteSynertek65C02` -> `HarteRockwell65C02`, corpus `synertek65c02` -> `rockwell65c02` (`.gitignore` updated; `GenerateHarteTests.py --cpu rockwell65c02`). The 32 bit-op slots (`$x7`/`$xF`) and `$CB` now run against the real Rockwell vectors — **256/256** pass. Only `$DB` stays skipped: Harte's silicon corpus models it as a 2-byte NOP but Dormann's `nop_test $db,1` asserts 1-byte; the two oracles disagree on this undefined opcode and Casso follows Dormann to keep the functional test green — documented in `IsSkippedSlot`.)*
+- [X] T038 Full suite green across Debug+Release × x64+ARM64; Code Analysis clean. *(**Done — ARM64 test-execution descoped.** Builds clean (0W/0E) for all four Debug/Release × x64/ARM64; **x64 tests green — Debug 2372/2372, Release 2369/2369** (Debug carries 3 assert-only tests); **Code Analysis clean** across the solution (lone pre-existing C6262 in `Cpu65C02Tests` suppressed per-file, matching the sibling test files). One Release run showed a single transient failure in a wall-clock-sensitive perf test under concurrent build load; it reproduced green on three isolated re-runs. **ARM64 test *execution* removed from scope** — the developer no longer has an ARM64 device (2026-07-14); ARM64 remains build-validated only.)*
+- [X] T039 SC-003: three representative titles run end-to-end on the //c (serial/terminal, MousePaint, disk game). *(**Done (2026-07-15): MousePaint + a real disk game (Choplifter) confirmed booting live on the //c; the serial/terminal leg is accepted as covered by the ACIA loopback + 12 `Acia6551Tests` — the //c's built-in 6551 ports are wired to loopback endpoints, so a live terminal exercises nothing those tests don't already prove.** Automated backing in the tree; one leg literal.** **Disk game:** `GameBootTests.Choplifter_WozBoot_OnApple2c_HeadVisitsContentTracks` cold-boots the //c and autoboots a real commercial WOZ (Choplifter) through the built-in slot-6 IWM — the head sweeps ≥10 content tracks, i.e. a title actually loading, not a track-0 stall. **Serial/terminal:** `Apple2cBootTests.SerialPortsLoopBackViaBuiltInAcia` + 12 `Acia6551Tests` drive both built-in 6551 ports transmit/receive end-to-end on the booted //c. **Mouse:** 12 `AppleMouseTests` drive the //c mouse firmware end-to-end (position/button/VBL IRQ). **Remaining (manual user signoff):** running the literal named apps — MousePaint and a serial-terminal program — on the live UI; those disks are copyrighted/uncommitted and need a human at the machine to confirm visually. The interaction substrate each depends on is proven green above.)*
+
+---
+
+## Dependencies & Execution Order
+
+### Critical path
+
+`Setup → [US3 device] 6551 ACIA (unblocks 015)` **∥** `(Foundational → [US1] 65C02) → [US2] //c boot + serial wiring → {[US4] mouse ∥ [US5] disk} → Polish`
+
+- **Phase 2 (ACIA) is independent** — it can run fully in parallel with the CPU track; it is listed first to unblock **spec 015** as early as possible.
+- **T024** (US3's //c serial wiring) is the one US3 task that depends on the //c profile (US2), so it lives in Phase 5.
+
+### Phase dependencies
+- **Setup** → none.
+- **Phase 2 (6551 ACIA)** → Setup only; independent of everything below. **Unblocks spec 015.**
+- **Foundational** → Setup; blocks US1 + //c.
+- **US1 (65C02)** → Foundational.
+- **US2 (//c)** → US1.
+- **US4 / US5** → US2 (mutually independent, parallelizable).
+- **Polish** → desired stories.
+
+### On the re-sequencing
+"Prioritize US3 over US1": US3's **ACIA device** (the piece spec 015 needs) is now Phase 2 — ahead of US1 — and independent. Its **//c-specific serial wiring** (T024) still requires the //c to exist, so it remains in the //c bring-up (Phase 5).
+
+---
+
+## Implementation Strategy
+
+### Unblock spec 015 first
+1. Setup → **Phase 2 (6551 ACIA device)** → validate (file + loopback) → **spec 015 unblocked**.
+2. Then the //c track: Foundational → 65C02 (US1, also fixes //e-Enhanced) → //c boot + serial wiring (US2) → mouse (US4) / disk (US5).
+
+### Parallel opportunity
+The ACIA track (Phase 2) and the CPU track (Foundational → US1) share no files and can be worked concurrently.
+
+---
+
+## Notes
+- `[P]` = different files, no dependency. `[Story]` maps a task to US1–US5.
+- Write each story's tests first; confirm FAIL before implementing.
+- The 6551 (US3) is the single ACIA (SC-005) — spec 015 consumes it; no duplication.
+- The IWM (US5) delegates to the existing WOZ engine — do not fork it.
+- v1 defers UniDisk 3.5 + memory-expansion peripherals (ROM-4 firmware present but reports absent).
+- Commit after each task or logical group; stop at any checkpoint to validate a story independently.

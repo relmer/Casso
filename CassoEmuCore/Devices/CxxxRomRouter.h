@@ -49,6 +49,13 @@ public:
     void SetSlotRom     (int slot, vector<Byte> data);
     bool HasSlotRom     (int slot) const;
 
+    // Apple //c: there are no external card slots, so the whole $C100-$CFFF
+    // window (including the $C800 expansion space) is always the internal
+    // firmware regardless of the INTCXROM/SLOTC3ROM/INTC8ROM switches -- the
+    // //c ROM jumps straight into $C800 with those switches clear. On the //e
+    // this stays false and the full slot/expansion arbitration applies.
+    void SetNoExternalSlots (bool v) { m_noExternalSlots = v; }
+
     // Register an active I/O device (e.g. a Mockingboard) that owns a
     // slot's $Cn00 page. When slot cards are visible (INTCXROM=0) reads
     // and writes to that page are delegated to the device instead of
@@ -62,5 +69,6 @@ private:
     Apple2eMmu &   m_mmu;
     vector<Byte>   m_internal;
     vector<Byte>   m_slotRom[8];
+    bool           m_noExternalSlots = false;
     MemoryDevice * m_slotIoDevice[8] = {};
 };

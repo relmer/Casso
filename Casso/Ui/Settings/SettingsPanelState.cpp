@@ -507,6 +507,40 @@ void SettingsPanelState::SetWriteProtect (int drive, bool wp)
 
 
 
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetExternalDriveConnected
+//
+//  //c external-drive port toggle. A live-effect UI pref -- it only
+//  reveals/hides the second drive-mount widget, so unlike a hardware
+//  enable it never sets RequiresReset.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SettingsPanelState::SetExternalDriveConnected (bool connected)
+{
+    m_current.prefs.externalDriveConnected = connected;
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetMouseConnected
+//
+//  //c mouse-port toggle. Live UI pref: never sets RequiresReset.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SettingsPanelState::SetMouseConnected (bool connected)
+{
+    m_current.prefs.mouseConnected = connected;
+}
+
+
+
+
 
 ////////////////////////////////////////////////////////////////////////////////
 //
@@ -572,6 +606,8 @@ HRESULT SettingsPanelState::Apply (
     {
         sink.ApplyWriteProtect (i, m_current.prefs.writeProtect[i]);
     }
+    sink.ApplyExternalDriveConnected (m_current.prefs.externalDriveConnected);
+    sink.ApplyMouseConnected (m_current.prefs.mouseConnected);
 
     // FR-010: any hardware enable diff requires the caller to confirm
     // and the machine to be reset. Queue the reset request; the
@@ -633,6 +669,9 @@ HRESULT SettingsPanelState::ExtractUiPrefs (
     outPrefs.floppySoundEnabled = GetBoolOpt   (*uiObj, "floppySoundEnabled",  true);
     outPrefs.floppyMechanism    = GetStringOpt (*uiObj, "floppyMechanism",     "shugart");
 
+    outPrefs.externalDriveConnected = GetBoolOpt (*uiObj, "externalDriveConnected", false);
+    outPrefs.mouseConnected         = GetBoolOpt (*uiObj, "mouseConnected", true);
+
     outPrefs.driveMotorVolume = (float) GetNumberOpt (*uiObj, "driveMotorVolume", SettingsUiPrefs::kDefaultDriveMotorVolume);
     outPrefs.driveHeadVolume  = (float) GetNumberOpt (*uiObj, "driveHeadVolume",  SettingsUiPrefs::kDefaultDriveHeadVolume);
     outPrefs.driveDoorVolume  = (float) GetNumberOpt (*uiObj, "driveDoorVolume",  SettingsUiPrefs::kDefaultDriveDoorVolume);
@@ -679,6 +718,8 @@ HRESULT SettingsPanelState::ExtractMachineInfo (
     const JsonValue  * romObj          = nullptr;
     const JsonValue  * internalDevices = nullptr;
     const JsonValue  * slots           = nullptr;
+    bool               hasAux          = false;
+    uint32_t           totalRamBytes   = 0;
 
     auto ParseHex = [] (const std::string & str) -> uint32_t
     {
@@ -784,9 +825,12 @@ HRESULT SettingsPanelState::ExtractMachineInfo (
             {
                 continue;
             }
-            IGNORE_RETURN_VALUE (hrRead, entry.GetString ("address", addr));
-            IGNORE_RETURN_VALUE (hrRead, entry.GetString ("size",    size));
-            IGNORE_RETURN_VALUE (hrRead, entry.GetString ("bank",    bank));
+            hrRead = entry.GetString ("address", addr);
+            IGNORE_RETURN_VALUE (hrRead, S_OK);
+            hrRead = entry.GetString ("size", size);
+            IGNORE_RETURN_VALUE (hrRead, S_OK);
+            hrRead = entry.GetString ("bank", bank);
+            IGNORE_RETURN_VALUE (hrRead, S_OK);
 
             if (bank.empty() || bank == "main")
             {
@@ -794,9 +838,11 @@ HRESULT SettingsPanelState::ExtractMachineInfo (
             }
             else
             {
-                label = std::format ("RAM ({})", bank);
+                label   = std::format ("RAM ({})", bank);
+                hasAux  = true;
             }
             FormatRegion (label, addr, size);
+            totalRamBytes += ParseHex (size);
         }
     }
 
@@ -805,32 +851,112 @@ HRESULT SettingsPanelState::ExtractMachineInfo (
     {
         std::string  addr;
         std::string  size;
+        std::string  bankSizeStr;
 
-        IGNORE_RETURN_VALUE (hrRead, romObj->GetString ("address", addr));
-        IGNORE_RETURN_VALUE (hrRead, romObj->GetString ("size",    size));
-        // System ROM size defaults to fill-to-$FFFF when omitted in the
-        // schema. Compute end from address if no size provided.
-        if (size.empty() && ! addr.empty())
+        hrRead = romObj->GetString ("address", addr);
+        IGNORE_RETURN_VALUE (hrRead, S_OK);
+        hrRead = romObj->GetString ("size", size);
+        IGNORE_RETURN_VALUE (hrRead, S_OK);
+        hrRead = romObj->GetString ("romBankSize", bankSizeStr);
+        IGNORE_RETURN_VALUE (hrRead, S_OK);
+
+        uint32_t  bankSize = ParseHex (bankSizeStr);
+
+        if (bankSize != 0 && ! addr.empty())
         {
-            uint32_t  startAddr = ParseHex (addr);
-            if (startAddr < 0x10000u)
-            {
-                size = std::format ("0x{:X}", 0x10000u - startAddr);
-            }
+            // Banked system ROM (//c): two `romBankSize` banks share one
+            // address window, toggled by $C028 -- only one is visible at a
+            // time. So the *mapped range* is a single bank span while the
+            // *installed* ROM is twice that (32K in a 16K window on the //c).
+            // Report the true installed size + the window, and name the row
+            // so the size/range mismatch reads as intentional banking.
+            uint32_t              startAddr = ParseHex (addr);
+            uint32_t              windowEnd = startAddr + bankSize - 1;
+            SettingsMemoryRegion  region;
+            region.name         = "System ROM (2 banks)";
+            region.size         = FormatSize (bankSize * 2);
+            region.addressRange = std::format ("${:04X}-${:04X}", startAddr, windowEnd);
+            outInfo.memoryRegions.push_back (std::move (region));
+
+            // A banked system ROM is the //c's defining trait; it is also the
+            // one machine with an optional external drive (its second drive is
+            // an add-on, not fixed hardware). Surface that so the Hardware tab
+            // can offer the External-drive Connected/Not-connected toggle.
+            outInfo.supportsExternalDrive = true;
         }
-        FormatRegion ("System ROM", addr, size);
+        else
+        {
+            // Flat system ROM (][ / ][+ / //e). Size defaults to fill-to-
+            // $FFFF when omitted in the schema; compute end from address.
+            if (size.empty() && ! addr.empty())
+            {
+                uint32_t  startAddr = ParseHex (addr);
+                if (startAddr < 0x10000u)
+                {
+                    size = std::format ("0x{:X}", 0x10000u - startAddr);
+                }
+            }
+            FormatRegion ("System ROM", addr, size);
+        }
     }
 
     hrRead = mergedJson.GetArray ("internalDevices", internalDevices);
     if (SUCCEEDED (hrRead) && internalDevices != nullptr)
     {
         outInfo.devices += internalDevices->ArraySize();
+
+        // A language card adds 16K of bank-switched RAM at $D000-$FFFF per 64K
+        // bank ($D000-$DFFF is double-banked, so 16K in a 12K window). The base
+        // "ram" entries above only cover $0000-$BFFF, so surface the LC RAM here
+        // -- otherwise a 128K //e/​//c reads as only 96K. One region per bank
+        // (main, plus aux when the machine has an aux bank).
+        bool  hasLanguageCard = false;
+        for (size_t d = 0; d < internalDevices->ArraySize(); ++d)
+        {
+            const JsonValue &  dev = internalDevices->ArrayAt (d);
+            std::string        type;
+
+            if (dev.GetType() == JsonType::Object &&
+                SUCCEEDED (dev.GetString ("type", type)) &&
+                type == "language-card")
+            {
+                hasLanguageCard = true;
+                break;
+            }
+        }
+
+        if (hasLanguageCard)
+        {
+            auto addLcRam = [&] (const std::string & label)
+            {
+                SettingsMemoryRegion  region;
+                region.name         = label;
+                region.size         = FormatSize (0x4000);   // 16K ($D000 double-banked)
+                region.addressRange = "$D000-$FFFF";
+                outInfo.memoryRegions.push_back (std::move (region));
+                totalRamBytes += 0x4000;
+            };
+
+            addLcRam ("RAM (main, bank-switched)");
+            if (hasAux)
+            {
+                addLcRam ("RAM (aux, bank-switched)");
+            }
+        }
     }
 
     hrRead = mergedJson.GetArray ("slots", slots);
     if (SUCCEEDED (hrRead) && slots != nullptr)
     {
         outInfo.devices += slots->ArraySize();
+    }
+
+    // Headline total: sum every RAM region (main + aux + language-card banks;
+    // ROM is excluded) so a 128K //e/​//c reads its full 128K at a glance above
+    // the per-region breakdown.
+    if (totalRamBytes != 0)
+    {
+        outInfo.ramSummary = FormatSize (totalRamBytes) + " RAM";
     }
 
 Error:
@@ -880,8 +1006,11 @@ HRESULT SettingsPanelState::ExtractHardware (
         { "apple2-keyboard",         "Keyboard" },
         { "apple2-speaker",          "Speaker" },
         { "apple2-softswitches",     "Soft Switches" },
-        { "apple2e-keyboard",        "Keyboard (Apple //e)" },
-        { "apple2e-softswitches",    "Soft Switches (Apple //e)" },
+        // The //e-generation keyboard/soft-switch controllers are shared by the
+        // //e and the //c, so the label stays machine-neutral (the machine name
+        // is already shown at the top of the panel) rather than hardcoding //e.
+        { "apple2e-keyboard",        "Keyboard" },
+        { "apple2e-softswitches",    "Soft Switches" },
         { "apple2e-mmu",             "Memory Management Unit" },
     };
 
@@ -1134,6 +1263,8 @@ JsonValue SettingsPanelState::BuildJson (
     uiObj.emplace_back ("writeMode",          JsonValue (std::string (WriteModeToString (prefs.writeMode))));
     uiObj.emplace_back ("floppySoundEnabled", JsonValue (prefs.floppySoundEnabled));
     uiObj.emplace_back ("floppyMechanism",    JsonValue (prefs.floppyMechanism));
+    uiObj.emplace_back ("externalDriveConnected", JsonValue (prefs.externalDriveConnected));
+    uiObj.emplace_back ("mouseConnected",         JsonValue (prefs.mouseConnected));
     uiObj.emplace_back ("driveMotorVolume",   JsonValue ((double) prefs.driveMotorVolume));
     uiObj.emplace_back ("driveHeadVolume",    JsonValue ((double) prefs.driveHeadVolume));
     uiObj.emplace_back ("driveDoorVolume",    JsonValue ((double) prefs.driveDoorVolume));
@@ -1170,6 +1301,8 @@ bool SettingsPanelState::PrefsEqual (
     if (a.writeMode             != b.writeMode)             return false;
     if (a.floppySoundEnabled    != b.floppySoundEnabled)    return false;
     if (a.floppyMechanism       != b.floppyMechanism)       return false;
+    if (a.externalDriveConnected != b.externalDriveConnected) return false;
+    if (a.mouseConnected         != b.mouseConnected)         return false;
     if (a.driveMotorVolume      != b.driveMotorVolume)       return false;
     if (a.driveHeadVolume       != b.driveHeadVolume)        return false;
     if (a.driveDoorVolume       != b.driveDoorVolume)        return false;

@@ -41,6 +41,8 @@ static const std::set<std::string>  s_kKnownTopLevel = {
     "lastSelectedMachine",
     "audioDownloadConsent",
     "inputMappingMode",
+    "arrowsToJoystick",
+    "pointerMapping",
     "mapArrowsToJoystick",
     "colorMonitorTextMode",
     "colorMonitorTextCustom",
@@ -55,6 +57,7 @@ static const std::set<std::string>  s_kKnownTopLevel = {
 static constexpr const char *  s_kpszInputModeOff      = "off";
 static constexpr const char *  s_kpszInputModeJoystick = "joystick";
 static constexpr const char *  s_kpszInputModePaddle   = "paddle";
+static constexpr const char *  s_kpszInputModeMouse    = "mouse";
 
 // Serialized string tokens for ColorMonitorTextMode.
 static constexpr const char *  s_kpszTextModeWhite  = "white";
@@ -311,6 +314,9 @@ const char * GlobalUserPrefs::InputMappingModeToString (InputMappingMode mode)
         case InputMappingMode::Paddle:
             return s_kpszInputModePaddle;
 
+        case InputMappingMode::Mouse:
+            return s_kpszInputModeMouse;
+
         case InputMappingMode::Off:
         default:
             return s_kpszInputModeOff;
@@ -340,6 +346,11 @@ InputMappingMode GlobalUserPrefs::InputMappingModeFromString (const std::string 
     if (s == s_kpszInputModePaddle)
     {
         return InputMappingMode::Paddle;
+    }
+
+    if (s == s_kpszInputModeMouse)
+    {
+        return InputMappingMode::Mouse;
     }
 
     if (s == s_kpszInputModeOff)
@@ -892,6 +903,8 @@ JsonValue GlobalUserPrefs::ToJson() const
     root.emplace_back ("lastSelectedMachine",  JsonValue (lastSelectedMachine));
     root.emplace_back ("audioDownloadConsent", JsonValue (audioDownloadConsent));
     root.emplace_back ("inputMappingMode",     JsonValue (std::string (InputMappingModeToString (inputMappingMode))));
+    root.emplace_back ("arrowsToJoystick",     JsonValue (arrowsToJoystick));
+    root.emplace_back ("pointerMapping",       JsonValue (std::string (InputMappingModeToString (pointerMapping))));
     root.emplace_back ("colorMonitorTextMode", JsonValue (std::string (ColorTextModeToString (colorMonitorTextMode))));
     root.emplace_back ("colorMonitorTextCustom", JsonValue ((double) (colorMonitorTextCustomArgb & 0x00FFFFFFu)));
 
@@ -977,6 +990,30 @@ HRESULT GlobalUserPrefs::FromJson (const JsonValue & v)
     else if (legacyArrows)
     {
         inputMappingMode = InputMappingMode::Joystick;
+    }
+
+    // Split model. New keys win; absent keys migrate from the
+    // legacy single mode (joystick -> Keys on; paddle/mouse -> Pointer).
+    arrowsToJoystick = GetBoolOpt (v, "arrowsToJoystick",
+                                   inputMappingMode == InputMappingMode::Joystick);
+    {
+        std::string  pointerStr = GetStringOpt (v, "pointerMapping", "");
+
+        if (!pointerStr.empty())
+        {
+            pointerMapping = InputMappingModeFromString (pointerStr, InputMappingMode::Off);
+            if (pointerMapping == InputMappingMode::Joystick)
+            {
+                pointerMapping = InputMappingMode::Off;    // not a pointer mode
+            }
+        }
+        else
+        {
+            pointerMapping = (inputMappingMode == InputMappingMode::Paddle ||
+                              inputMappingMode == InputMappingMode::Mouse)
+                                 ? inputMappingMode
+                                 : InputMappingMode::Off;
+        }
     }
 
     textModeStr          = GetStringOpt (v, "colorMonitorTextMode", "");

@@ -1,0 +1,44 @@
+// DO NOT EDIT. This file is a Casso embedded default and will be
+// overwritten on launch when an out-of-date stamp is detected.
+// To customize, copy it to Machines/<Name>/<Name>.json (any name
+// other than the embedded defaults) and edit that copy.
+{
+    "$cassoMachineVersion": 1,
+    "name": "Apple //e Enhanced",
+    "releaseYear": 1985,
+    "cpu": "65C02",
+    "cpuManufacturer": "Rockwell",
+    "timing": {
+        "videoStandard": "ntsc",
+        "clockSpeed": 1022727,
+        "cyclesPerScanline": 65
+    },
+    "ram": [
+        { "address": "0x0000", "size": "0xC000" },
+        { "address": "0x0000", "size": "0xC000", "bank": "aux" }
+    ],
+    "systemRom": {
+        "address": "0xC000",
+        "file": "Apple2eEnhanced.rom"
+    },
+    "characterRom": {
+        "file": "Apple2e_Video.rom"
+    },
+    "internalDevices": [
+        { "type": "apple2e-keyboard" },
+        { "type": "apple2-speaker" },
+        { "type": "apple2e-softswitches" },
+        { "type": "apple2e-mmu" },
+        { "type": "language-card" }
+    ],
+    "slots": [
+        { "slot": 4, "device": "mockingboard" },
+        { "slot": 6, "device": "disk-ii", "rom": "Disk2.rom" }
+    ],
+    "video": {
+        "modes": ["apple2-text40", "apple2-text80", "apple2-lores", "apple2-hires", "apple2-doublehires"]
+    },
+    "keyboard": {
+        "type": "apple2e-full"
+    }
+}

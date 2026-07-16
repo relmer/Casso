@@ -82,6 +82,42 @@ public:
             L"Apple2e slot 6 ROM must be Disk2.rom");
     }
 
+    TEST_METHOD (Embedded_Apple2eEnhanced_RequiresSystemCharacterAndDisk2Rom)
+    {
+        std::vector<std::string> files;
+
+        AssertRomList (IDR_MACHINE_APPLE2E_ENHANCED, files);
+
+        Assert::AreEqual (size_t (3), files.size(),
+            L"Apple2eEnhanced must reference exactly 3 ROMs "
+            L"(system + character + Disk II slot)");
+        Assert::AreEqual (std::string ("Apple2eEnhanced.rom"), files[0],
+            L"Apple2eEnhanced system ROM must be the enhanced //e ROM");
+        Assert::AreEqual (std::string ("Apple2e_Video.rom"),   files[1],
+            L"Apple2eEnhanced shares the //e MouseText character ROM");
+        Assert::AreEqual (std::string ("Disk2.rom"),           files[2],
+            L"Apple2eEnhanced slot 6 ROM must be Disk2.rom");
+    }
+
+    // The Enhanced //e is defined by its 65C02: the enhanced ROM runs CMOS
+    // opcodes the NMOS //e cannot, which is the whole reason the profile
+    // exists. Lock the CPU string so the embed can never
+    // silently ship a 6502 that would crash on the enhanced firmware.
+    TEST_METHOD (Embedded_Apple2eEnhanced_UsesCmos65C02)
+    {
+        std::string      jsonText = LoadEmbeddedJson (IDR_MACHINE_APPLE2E_ENHANCED);
+        JsonValue        root;
+        JsonParseError   parseError;
+        std::string      cpu;
+
+        Assert::IsTrue (SUCCEEDED (JsonParser::Parse (jsonText, root, parseError)),
+            L"Embedded Apple2eEnhanced JSON must parse cleanly");
+        Assert::IsTrue (SUCCEEDED (root.GetString ("cpu", cpu)),
+            L"Apple2eEnhanced config must declare a cpu");
+        Assert::AreEqual (std::string ("65C02"), cpu,
+            L"Apple2eEnhanced must select the 65C02 core");
+    }
+
     ////////////////////////////////////////////////////////////////////////////
     //
     //  Embedded_*_DiskController
@@ -111,6 +147,13 @@ public:
     {
         Assert::IsTrue (EmbeddedHasDiskController (IDR_MACHINE_APPLE2E),
             L"Apple //e must declare a slot 6 disk-ii device so the "
+            L"first-run boot-disk prompt actually fires");
+    }
+
+    TEST_METHOD (Embedded_Apple2eEnhanced_HasDiskController)
+    {
+        Assert::IsTrue (EmbeddedHasDiskController (IDR_MACHINE_APPLE2E_ENHANCED),
+            L"Apple //e Enhanced must declare a slot 6 disk-ii device so the "
             L"first-run boot-disk prompt actually fires");
     }
 

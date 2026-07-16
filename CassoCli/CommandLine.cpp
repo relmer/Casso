@@ -3,6 +3,7 @@
 #include "CommandLine.h"
 #include "Assembler.h"
 #include "Cpu.h"
+#include "Cpu65C02Table.h"
 #include "Microcode.h"
 #include "OutputFormats.h"
 #include "Version.h"
@@ -359,7 +360,31 @@ static std::string StripExtension (const std::string & path)
 
 static bool IsAssemblySource (const std::string & path)
 {
-    return EndsWith (path, ".asm") || EndsWith (path, ".s") || EndsWith (path, ".a65");
+    return EndsWith (path, ".asm") || EndsWith (path, ".s") ||
+           EndsWith (path, ".a65") || EndsWith (path, ".a65c");
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SelectInstructionSet
+//
+//  Picks the assembler's target instruction table from --cpu. The default is the
+//  strict 6502 table (`cpu`), so 65C02-only opcodes never assemble by accident;
+//  --cpu 65c02 substitutes the CMOS 65C02 (Rockwell R65C02) table.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+static const Microcode * SelectInstructionSet (const CommandLineOptions & options, const Cpu & cpu)
+{
+    if (options.cpuTarget == CommandLineOptions::CpuTarget::M65C02)
+    {
+        return GetCpu65C02InstructionSet();
+    }
+
+    return cpu.GetInstructionSet();
 }
 
 
@@ -773,6 +798,50 @@ static void ParseAs65Flags (int argc, char * argv[], CommandLineOptions & option
 
             options.showHelp = true;
             return;
+        }
+
+        // Long option: --cpu <target> / --cpu=<target> selects the target
+        // instruction set. Default stays 6502 so 65C02-only opcodes never assemble
+        // by accident; only an explicit --cpu 65c02 unlocks the CMOS tier.
+        if (arg == "--cpu" || arg.rfind ("--cpu=", 0) == 0)
+        {
+            std::string val;
+
+            if (arg == "--cpu")
+            {
+                if (argIndex + 1 < argc)
+                {
+                    val = argv[++argIndex];
+                }
+            }
+            else
+            {
+                val = arg.substr (6);   // after "--cpu="
+            }
+
+            for (char & c : val)
+            {
+                c = (char) tolower ((unsigned char) c);
+            }
+
+            if (val == "6502")
+            {
+                options.cpuTarget = CommandLineOptions::CpuTarget::M6502;
+            }
+            else if (val == "65c02")
+            {
+                options.cpuTarget = CommandLineOptions::CpuTarget::M65C02;
+            }
+            else
+            {
+                std::cerr << "Error: unknown --cpu target '" << val
+                          << "' (expected 6502 or 65c02)\n";
+                options.showHelp = true;
+                return;
+            }
+
+            argIndex++;
+            continue;
         }
 
         // Normalize / prefix to - for flag parsing
@@ -1268,6 +1337,9 @@ static void PrintUsageAssembler (const char * sp)
     std::println ("  <source>               Assembly source file");
     std::println ("                         (will try .a65, .asm, .s if no extension is present)");
     std::println ("");
+    std::println ("  --cpu <6502|65c02>     Target CPU (default: 6502). 65c02 enables the");
+    std::println ("                         CMOS opcodes (STZ, BRA, RMBn/SMBn, BBRn/BBSn, ...);");
+    std::println ("                         under 6502 those are rejected as invalid.");
 
     const char * lines[] =
     {
@@ -1405,7 +1477,7 @@ int DoRun (const CommandLineOptions & options)
         AssemblerOptions asmOptions = {};
         asmOptions.warningMode     = options.warningMode;
 
-        auto ar = AssembleFile (options.inputFile, cpu.GetInstructionSet (), asmOptions);
+        auto ar = AssembleFile (options.inputFile, SelectInstructionSet (options, cpu), asmOptions);
         ReportAssemblyDiagnostics (ar);
 
         if (!ar.ok)
@@ -1497,7 +1569,7 @@ int DoAs65 (const CommandLineOptions & options)
     cpu.Reset ();
 
     auto startTime = std::chrono::high_resolution_clock::now ();
-    auto ar        = AssembleFile (options.inputFile, cpu.GetInstructionSet (), asmOptions);
+    auto ar        = AssembleFile (options.inputFile, SelectInstructionSet (options, cpu), asmOptions);
     auto endTime   = std::chrono::high_resolution_clock::now ();
 
     if (options.verbose)

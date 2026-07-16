@@ -78,7 +78,15 @@ protected:
     void FetchOperandRelative          (Cpu::OperandInfo & operandInfo);
     void FetchOperandZeroPage          (Cpu::OperandInfo & operandInfo);
     void FetchOperandZeroPageXIndirect (Cpu::OperandInfo & operandInfo);
-    
+
+    // 65C02 addressing-mode fetches. Selected purely by the CMOS instruction
+    // table; the NMOS table never references them, so NMOS decode is unchanged.
+    // FetchOperandJumpIndirectCmos is the page-boundary-correct JMP ($xxFF).
+    void FetchOperandZeroPageIndirect  (Cpu::OperandInfo & operandInfo);
+    void FetchOperandAbsoluteXIndirect (Cpu::OperandInfo & operandInfo);
+    void FetchOperandZeroPageRelative  (Cpu::OperandInfo & operandInfo);
+    void FetchOperandJumpIndirectCmos  (Cpu::OperandInfo & operandInfo);
+
     void ExecuteInstruction            (Microcode microcode, const OperandInfo & operandInfo);
 
     // Stack operations

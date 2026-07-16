@@ -1,7 +1,10 @@
 #include "Pch.h"
 
+#include <regex>
+
 #include "Assembler.h"
 #include "TestHelpers.h"
+#include "TestCpu65C02.h"
 
 
 
@@ -26,6 +29,41 @@ namespace DormannIntegrationTests
         TestCpu cpu;
         cpu.InitForTest ();
         return Assembler (cpu.GetInstructionSet (), opts);
+    }
+
+
+    ////////////////////////////////////////////////////////////////////////////////
+    //
+    //  BuildAssembler65C02
+    //
+    ////////////////////////////////////////////////////////////////////////////////
+
+    static Assembler BuildAssembler65C02 (AssemblerOptions opts = {})
+    {
+        TestCpu65C02 cpu;
+        cpu.InitForTest();
+        return Assembler (cpu.GetInstructionSet(), opts);
+    }
+
+
+    ////////////////////////////////////////////////////////////////////////////////
+    //
+    //  SelectDormannOpcodeSubset
+    //
+    //  Casso's Cpu65C02 models the Rockwell R65C02: RMB/SMB/BBR/BBS present (the
+    //  assembler emits them in as65's `<bit>,<zp>[,<target>]` operand form), but no
+    //  WDC WAI/STP. So this path keeps the Rockwell tier enabled (rkwl_wdc_op = 1 --
+    //  the Rockwell CPU decodes $x7/$xF as real bit ops, not NOPs) and only disables
+    //  wdc_op, leaving WAI/STP tested as NOPs. Only the line-anchored assignment is
+    //  rewritten; the `if ... = 1` conditionals that gate subtest assembly stay
+    //  intact.
+    //
+    ////////////////////////////////////////////////////////////////////////////////
+
+    static std::string SelectDormannOpcodeSubset (const std::string & source)
+    {
+        return std::regex_replace (
+            source, std::regex (R"(^wdc_op = 1)", std::regex::multiline), "wdc_op = 0");
     }
 
 
@@ -304,6 +342,181 @@ namespace DormannIntegrationTests
                       L"no longer converges.",
                       maxInstructions, successTrap, cpu.RegPC ());
             Assert::Fail (msg);
+        }
+    };
+
+
+
+
+    ////////////////////////////////////////////////////////////////////////////////
+    //
+    //  Dormann65C02Tests
+    //
+    ////////////////////////////////////////////////////////////////////////////////
+
+    TEST_CLASS (Dormann65C02Tests)
+    {
+    public:
+
+        static constexpr const char * kSourceUrl =
+            "https://raw.githubusercontent.com/Klaus2m5/6502_65C02_functional_tests/master/65C02_extended_opcodes_test.a65c";
+
+
+        ////////////////////////////////////////////////////////////////////////////////
+        //
+        //  Dormann65C02AssemblesSuccessfully
+        //
+        //  Probe: can the 65C02-aware assembler assemble the Rockwell-tier Dormann
+        //  extended-opcodes source (rkwl_wdc_op=1, BBR/BBS/RMB/SMB in as65's operand
+        //  form)? Surfaces any addressing-mode/mnemonic gaps before the CPU run.
+        //
+        ////////////////////////////////////////////////////////////////////////////////
+
+        BEGIN_TEST_METHOD_ATTRIBUTE (Dormann65C02AssemblesSuccessfully)
+            TEST_METHOD_ATTRIBUTE (L"TestCategory", L"Integration")
+        END_TEST_METHOD_ATTRIBUTE()
+
+        TEST_METHOD (Dormann65C02AssemblesSuccessfully)
+        {
+            std::string sourceFile = "dormann65_source.dormann.tmp";
+
+            if (!DownloadFile (kSourceUrl, sourceFile))
+            {
+                Logger::WriteMessage ("SKIPPED: Cannot download Dormann 65C02 source (no network?)");
+                return;
+            }
+
+            std::string source = ReadTextFile (sourceFile);
+            remove (sourceFile.c_str());
+
+            Assert::IsFalse (source.empty (), L"Source file is empty");
+
+            source = SelectDormannOpcodeSubset (source);
+
+            AssemblerOptions opts;
+            opts.fillByte = 0x00;
+
+            Assembler a      = BuildAssembler65C02 (opts);
+            auto      result = a.Assemble (source);
+
+            if (!result.success)
+            {
+                std::wstring msg = L"65C02 assembly failed with errors:";
+
+                for (size_t i = 0; i < result.errors.size() && i < 15; i++)
+                {
+                    msg += L"\n  Line " + std::to_wstring (result.errors[i].lineNumber)
+                         + L": " + std::wstring (result.errors[i].message.begin (), result.errors[i].message.end ());
+                }
+
+                Assert::Fail (msg.c_str());
+            }
+
+            Assert::IsTrue (result.bytes.size () > 8000, L"Output should span the 10K code segment");
+        }
+
+
+        ////////////////////////////////////////////////////////////////////////////////
+        //
+        //  Dormann65C02RunsInCpu
+        //
+        //  Assembles the Rockwell-tier extended-opcodes suite and runs it in a
+        //  flat-memory Cpu65C02 to the success self-trap. A self-loop at any other
+        //  address is a failing Dormann subtest (its PC identifies which).
+        //
+        ////////////////////////////////////////////////////////////////////////////////
+
+        BEGIN_TEST_METHOD_ATTRIBUTE (Dormann65C02RunsInCpu)
+            TEST_METHOD_ATTRIBUTE (L"TestCategory", L"Integration")
+        END_TEST_METHOD_ATTRIBUTE()
+
+        TEST_METHOD (Dormann65C02RunsInCpu)
+        {
+            std::string sourceFile = "dormann65_cpu_source.dormann.tmp";
+
+            if (!DownloadFile (kSourceUrl, sourceFile))
+            {
+                Logger::WriteMessage ("SKIPPED: Cannot download Dormann 65C02 source (no network?)");
+                return;
+            }
+
+            std::string source = ReadTextFile (sourceFile);
+            remove (sourceFile.c_str());
+
+            if (source.empty())
+            {
+                Logger::WriteMessage ("SKIPPED: Source file is empty");
+                return;
+            }
+
+            source = SelectDormannOpcodeSubset (source);
+
+            AssemblerOptions opts;
+            opts.fillByte = 0xFF;
+
+            Assembler a      = BuildAssembler65C02 (opts);
+            auto      result = a.Assemble (source);
+
+            if (!result.success)
+            {
+                Logger::WriteMessage ("SKIPPED: Assembly failed (see Dormann65C02AssemblesSuccessfully)");
+                return;
+            }
+
+            TestCpu65C02 cpu;
+            cpu.InitForTest (0x0400);
+
+            for (size_t i = 0; i < result.bytes.size(); i++)
+            {
+                cpu.Poke ((Word) (result.startAddress + i), result.bytes[i]);
+            }
+
+            cpu.RegPC() = 0x0400;
+
+            // With the Rockwell-tier subset (wdc_op=0, rkwl_wdc_op=1) the extended-
+            // opcodes suite runs to a success self-trap at $2569 (~22M instructions).
+            // A self-loop at any other PC is a failing Dormann subtest; its address
+            // identifies which.
+            const int    maxInstructions = 200000000;
+            const Word   successTrap     = 0x2569;
+            Word         prevPC          = 0xFFFF;
+            int          sameCount       = 0;
+
+            for (int i = 0; i < maxInstructions; i++)
+            {
+                Word currentPC = cpu.RegPC();
+
+                if (currentPC == successTrap)
+                {
+                    return;  // Success: silent
+                }
+
+                // Detect a trap (same PC twice in a row = self-loop).
+                if (currentPC == prevPC)
+                {
+                    if (++sameCount >= 2)
+                    {
+                        wchar_t msg[256];
+                        swprintf (msg, 256,
+                                  L"Dormann 65C02 trap at $%04X after %d instructions "
+                                  L"(success trap is $%04X). A trap at any other PC is a "
+                                  L"failing subtest -- the address identifies which one in "
+                                  L"the Dormann source.",
+                                  currentPC, i, successTrap);
+                        Assert::Fail (msg);
+                    }
+                }
+                else
+                {
+                    sameCount = 0;
+                }
+
+                prevPC = currentPC;
+                cpu.Step();
+            }
+
+            Assert::Fail (L"Dormann 65C02 reached the instruction ceiling without "
+                          L"hitting the success trap at $2569.");
         }
     };
 }

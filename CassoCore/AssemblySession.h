@@ -88,6 +88,7 @@ private:
                                         const std::string & uniqueSuffix,
                                         std::vector<std::string> & expandedLines);
     HRESULT HandleColonlessLabel       (const PendingLine & current, LineInfo & info, bool & handled);
+    void    NormalizeBitOp             (const PendingLine & current, LineInfo & info);
     HRESULT ClassifyAndResolve         (const PendingLine & current, LineInfo & info);
     HRESULT ValidateAssemblyCompletion ();
 
@@ -138,6 +139,7 @@ private:
     static std::vector<Byte>        ParseIntelHex           (const std::string & content);
     static std::vector<std::string> GenerateByteDirectives  (const std::vector<Byte> & data);
     static bool                     IsBranchMnemonic        (const std::string & mnemonic);
+    static bool                     IsBitOpMnemonic         (const std::string & mnemonic);
     static Byte                     EstimateInstructionSize (OperandSyntax syntax, const std::string & mnemonic);
     static std::string              ProcessEscapeSequences  (const std::string & str);
     static bool                     EvaluateDirectiveArgs   (const std::string & argText,

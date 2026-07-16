@@ -1,5 +1,6 @@
 #include "Pch.h"
 #include "HeadlessHost.h"
+#include "FixtureProvider.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -38,6 +39,48 @@ public:
             L"HeadlessHost wires an IAudioSink mock");
         Assert::IsNotNull (core.fixtures.get ());
         Assert::IsNotNull (core.prng.get ());
+    }
+
+    // The Apple //e Enhanced cold-boots its enhanced firmware on
+    // the 65C02: the RESET vector points into ROM, a cold PowerCycle enters
+    // it, and the CPU then runs firmware (PC stays in the $C000-$FFFF ROM
+    // window). A 6502 mis-wire would derail the moment the enhanced ROM hits
+    // a CMOS opcode. Skips when the copyrighted enhanced //e ROM is absent.
+    TEST_METHOD (BuildApple2eEnhanced_ColdBootsFirmwareOn65C02)
+    {
+        {
+            FixtureProvider       fp;
+            std::vector<uint8_t>  probe;
+
+            if (FAILED (fp.OpenFixture ("Apple2eEnhanced.rom", probe)) ||
+                probe.size() != 0x4000)
+            {
+                Logger::WriteMessage (
+                    "SKIPPED: UnitTest/Fixtures/Apple2eEnhanced.rom absent "
+                    "(copyrighted enhanced //e ROM, provisioned on demand).\n");
+                return;
+            }
+        }
+
+        HeadlessHost   host;
+        EmulatorCore   core;
+
+        Assert::IsTrue (SUCCEEDED (host.BuildApple2eEnhanced (core)),
+            L"BuildApple2eEnhanced must succeed when the ROM is present");
+
+        Word resetVec = static_cast<Word> (core.cpu->ReadByte (0xFFFC)) |
+                        (static_cast<Word> (core.cpu->ReadByte (0xFFFD)) << 8);
+        Assert::IsTrue (resetVec >= 0xC000,
+            L"RESET vector must point into the enhanced //e ROM");
+
+        core.PowerCycle();
+        Assert::AreEqual<Word> (resetVec, core.cpu->GetPC(),
+            L"Cold reset must enter the enhanced firmware entry");
+
+        core.RunCycles (20'000'000);
+        Assert::IsTrue (core.cpu->GetPC() >= 0xC000,
+            L"After cold boot the CPU must be executing firmware in ROM "
+            L"($C000-$FFFF); a 6502 mis-wire would derail on a CMOS opcode");
     }
 
     TEST_METHOD (FixtureProviderRejectsPathsOutsideFixtures)

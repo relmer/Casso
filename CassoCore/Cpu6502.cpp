@@ -209,30 +209,15 @@ void Cpu6502::SetRegisters (const Cpu6502Registers & regs)
 
 bool Cpu6502::TryDispatchInterrupt (uint32_t & outCycles)
 {
-    bool        dispatched = false;
-
-
-
-    if (m_nmiPending)
+    if (!TryStepInterrupt())
     {
-        m_nmiPending = false;
-
-        DispatchVector (nmiVector, false);
-
-        outCycles      = 7;
-        m_totalCycles += outCycles;
-        dispatched     = true;
-    }
-    else if (m_irqLine && status.flags.interruptDisable == 0)
-    {
-        DispatchVector (irqVector, false);
-
-        outCycles      = 7;
-        m_totalCycles += outCycles;
-        dispatched     = true;
+        return false;
     }
 
-    return dispatched;
+    outCycles      = static_cast<uint32_t> (m_lastCycles);
+    m_totalCycles += outCycles;
+
+    return true;
 }
 
 

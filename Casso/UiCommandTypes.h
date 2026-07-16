@@ -59,8 +59,12 @@ enum class SpeedMode
 //  arrow keys (plus Z / X) onto the paddle axes and fire buttons with a
 //  spring return to center on release; Paddle captures the mouse and maps
 //  relative motion onto the paddle axes, holding the last position (no
-//  recenter) the way a real paddle's dial does. Cycled Off -> Joystick ->
-//  Paddle -> Off from the drive-bar widget and the Machine menu.
+//  recenter) the way a real paddle's dial does. Mouse (mouse-capable
+//  machines only — the //c) is NON-capturing: while the host cursor is
+//  over the emulator viewport its position maps absolutely onto the guest
+//  mouse (host cursor hidden there); leaving the viewport releases to the
+//  host. Cycled Off -> Joystick -> Paddle [-> Mouse] -> Off from the
+//  drive-bar widget and the Machine menu.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -68,7 +72,8 @@ enum class InputMappingMode
 {
     Off,
     Joystick,
-    Paddle
+    Paddle,
+    Mouse
 };
 
 

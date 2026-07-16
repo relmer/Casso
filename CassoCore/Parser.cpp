@@ -308,7 +308,7 @@ ParsedLine Parser::ParseLine (const std::string & line, int lineNumber)
              firstWordUpper == "FCW" || firstWordUpper == "FDB")                                         { canonicalDirective = ".WORD";  }
     else if (firstWordUpper == "DD")                                                                     { canonicalDirective = ".DD";    }
     else if (firstWordUpper == "END")                                                                    { canonicalDirective = ".END";   }
-    else if (firstWordUpper == "DS"  || firstWordUpper == "DSB" || firstWordUpper == "RMB")              { canonicalDirective = ".DS";    }
+    else if (firstWordUpper == "DS"  || firstWordUpper == "DSB")                                         { canonicalDirective = ".DS";    }
     else if (firstWordUpper == "ALIGN")                                                                  { canonicalDirective = ".ALIGN"; }
     else if (firstWordUpper == "ERROR")                                                                  { canonicalDirective = ".ERROR"; }
 
@@ -336,6 +336,20 @@ ParsedLine Parser::ParseLine (const std::string & line, int lineNumber)
     else if (firstWordUpper == "NOLIST")                                                                 { canonicalDirective = ".NOLIST"; }
     else if (firstWordUpper == "PAGE")                                                                   { canonicalDirective = ".PAGE";   }
     else if (firstWordUpper == "TITLE")                                                                  { canonicalDirective = ".TITLE";  }
+
+    // RMB is dual-purpose: `rmb <count>` reserves storage (a .DS synonym), but
+    // as65 also spells the Rockwell "reset memory bit" instruction as
+    // `rmb <bit>,<zp>`. The two-operand comma form is the instruction and must
+    // reach the mnemonic path; a bare count stays the directive.
+    if (canonicalDirective.empty () && firstWordUpper == "RMB")
+    {
+        std::string rmbArg = (spacePos == std::string::npos) ? "" : remainder.substr (spacePos + 1);
+
+        if (rmbArg.find (',') == std::string::npos)
+        {
+            canonicalDirective = ".DS";
+        }
+    }
 
     if (!canonicalDirective.empty ())
     {
@@ -605,9 +619,13 @@ ClassifiedOperand Parser::ClassifyOperand (const std::string & operand)
             return result;
         }
 
-        // Comma but not ,X or ,Y — treat as bare (shouldn't happen for 6502)
-        result.syntax     = OperandSyntax::Bare;
-        result.expression = op;
+        // Comma but neither ,X nor ,Y — the two-operand zero-page,relative form
+        // used by the 65C02 BBRn/BBSn bit-branch instructions (zp,target). Not a
+        // valid 6502 form; ResolveAddressingMode maps it to ZeroPageRelative and a
+        // mnemonic without that mode (i.e. any 6502 mnemonic) fails the lookup.
+        result.syntax           = OperandSyntax::ZeroPageRelative;
+        result.expression       = exprPart;
+        result.secondExpression = TrimOperand (op.substr (commaPos + 1));
         return result;
     }
 

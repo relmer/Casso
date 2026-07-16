@@ -94,6 +94,28 @@ namespace
         }
 
         void ApplyWriteProtect (int drive, bool wp)            override { UNREFERENCED_PARAMETER (drive); UNREFERENCED_PARAMETER (wp); }
+
+        void ApplyExternalDriveConnected (bool connected) override
+        {
+            // //c-only live effect: reveal/hide the second drive-mount widget.
+            // Non-//c machines ignore the command (their second drive is fixed
+            // hardware). Cheap + idempotent, so pushed on every Apply. Routed
+            // via PostMessage(WM_COMMAND) -- NOT the CPU command queue -- so it
+            // runs on the UI thread: it relays the chrome (menu bar + drive
+            // band), which asserts UI-thread affinity. Mirrors ApplyColorMode.
+            WORD  id = connected ? IDM_DRIVE_EXTERNAL_CONNECT
+                                 : IDM_DRIVE_EXTERNAL_DISCONNECT;
+            PostMessageW (m_shell.GetHwnd(), WM_COMMAND, MAKEWPARAM (id, 0), 0);
+        }
+
+        void ApplyMouseConnected (bool connected) override
+        {
+            // //c-only live effect: connect/disconnect the mouse
+            // peripheral. UI-thread routed like the external drive.
+            WORD  id = connected ? IDM_MOUSE_CONNECT : IDM_MOUSE_DISCONNECT;
+            PostMessageW (m_shell.GetHwnd(), WM_COMMAND, MAKEWPARAM (id, 0), 0);
+        }
+
         void QueueMachineReset ()                              override { m_resetQueued = true; }
 
         bool  ResetQueued () const { return m_resetQueued; }
