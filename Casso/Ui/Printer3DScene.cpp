@@ -495,9 +495,16 @@ HRESULT Printer3DScene::SetModel (const std::string & objText, const std::string
             p.z += dz;
         }
 
-        // Greedy proximity clusters of LED faces -> one glow lamp each.
+        // Greedy proximity clusters of LED faces -> one lamp each.
         struct LampAcc { float sx, sy, sz; int n; float minx, maxx, miny, maxy; bool red; };
         std::vector<LampAcc>   lampAcc;
+
+        // Candidate LED lens faces: only the horizontal (top/bottom) caps of
+        // each LED box, kept aside so that -- once the boxes are clustered and
+        // the top plane of each is known -- just the TOP cap survives as a flat
+        // surface-flush lens. The blocky side walls are never stored.
+        struct FaceCand { float p[3][3]; float shade; float cy; int lampIdx; };
+        std::vector<FaceCand>  ledCand;
 
         // Bake per-face Lambert shading (two-sided: CAD winding is arbitrary).
         for (size_t t = 0; t < argbs.size (); t++)
@@ -523,35 +530,33 @@ HRESULT Printer3DScene::SetModel (const std::string & objText, const std::string
 
             uint32_t   argb = argbs[t];
 
-            // LED faces are lifted OUT of the static mesh so their brightness
-            // (and glow) can track printer state at render time. Record the
-            // face + fold its centroid into a proximity-clustered lamp.
+            // LED boxes are lifted OUT of the static mesh so their brightness
+            // can track printer state. Keep only each box's flat horizontal cap
+            // (a box side wall has an nx/nz-dominant normal; the caps are
+            // ny-dominant) -- the walls are dropped so the lamp reads as a flat
+            // rectangle whose top surface sits flush on the deck. Each kept cap
+            // folds its centroid into a proximity-clustered lamp, matched on the
+            // x/z footprint so a box's top and bottom caps share one lamp.
             if (argb == s_kArgbLedOn || argb == s_kArgbLedErr)
             {
-                bool     red = (argb == s_kArgbLedErr);
-                LedFace  f;
-
-                for (int k = 0; k < 3; k++)
+                if (nl <= 1e-8f || ny * ny < nx * nx || ny * ny < nz2 * nz2)
                 {
-                    const XYZ &   p = pos[t * 3 + k];
-                    f.p[k][0] = p.x; f.p[k][1] = p.y; f.p[k][2] = p.z;
+                    continue;   // side wall of the LED box -- never shown
                 }
-                f.shade = shade;
-                f.red   = red;
-                m_ledFaces.push_back (f);
 
-                float   gx = (a.x + b.x + c.x) / 3.0f;
-                float   gy = (a.y + b.y + c.y) / 3.0f;
-                float   gz = (a.z + b.z + c.z) / 3.0f;
+                bool    red = (argb == s_kArgbLedErr);
+                float   gx  = (a.x + b.x + c.x) / 3.0f;
+                float   gy  = (a.y + b.y + c.y) / 3.0f;
+                float   gz  = (a.z + b.z + c.z) / 3.0f;
                 int     hit = -1;
 
                 for (size_t li = 0; li < lampAcc.size (); li++)
                 {
-                    LampAcc &   L = lampAcc[li];
+                    LampAcc &   L   = lampAcc[li];
                     float       lx2 = L.sx / (float) L.n;
-                    float       ly2 = L.sy / (float) L.n;
+                    float       lz2 = L.sz / (float) L.n;
 
-                    if (L.red == red && std::abs (gx - lx2) < 0.020f && std::abs (gy - ly2) < 0.020f)
+                    if (L.red == red && std::abs (gx - lx2) < 0.020f && std::abs (gz - lz2) < 0.020f)
                     {
                         hit = (int) li;
                         break;
@@ -560,6 +565,7 @@ HRESULT Printer3DScene::SetModel (const std::string & objText, const std::string
 
                 if (hit < 0)
                 {
+                    hit = (int) lampAcc.size ();
                     lampAcc.push_back ({ gx, gy, gz, 1, gx, gx, gy, gy, red });
                 }
                 else
@@ -569,6 +575,17 @@ HRESULT Printer3DScene::SetModel (const std::string & objText, const std::string
                     L.minx = (std::min) (L.minx, gx); L.maxx = (std::max) (L.maxx, gx);
                     L.miny = (std::min) (L.miny, gy); L.maxy = (std::max) (L.maxy, gy);
                 }
+
+                FaceCand   fc;
+                for (int k = 0; k < 3; k++)
+                {
+                    const XYZ &   p = pos[t * 3 + k];
+                    fc.p[k][0] = p.x; fc.p[k][1] = p.y; fc.p[k][2] = p.z;
+                }
+                fc.shade   = shade;
+                fc.cy      = gy;
+                fc.lampIdx = hit;
+                ledCand.push_back (fc);
                 continue;
             }
 
@@ -625,6 +642,30 @@ HRESULT Printer3DScene::SetModel (const std::string & objText, const std::string
                 else if (gi == n - 1)       { role = LampRole::Power;   }   // rightmost
                 m_ledLamps[greens[gi]].role = role;
             }
+        }
+
+        // Keep each box's TOP cap only (the bottom cap sits against the deck,
+        // hidden), tagged with its lamp's role so BuildLedBatches can recolor
+        // the flat lens per state. A cap is "top" when its centroid is on the
+        // upper half of its box's cap span.
+        for (const FaceCand & fc : ledCand)
+        {
+            const LampAcc &   L   = lampAcc[fc.lampIdx];
+            float             mid = (L.miny + L.maxy) * 0.5f;
+
+            if (fc.cy < mid - 1e-6f)
+            {
+                continue;
+            }
+
+            LedFace   f;
+            for (int k = 0; k < 3; k++)
+            {
+                f.p[k][0] = fc.p[k][0]; f.p[k][1] = fc.p[k][1]; f.p[k][2] = fc.p[k][2];
+            }
+            f.shade = fc.shade;
+            f.role  = m_ledLamps[fc.lampIdx].role;
+            m_ledFaces.push_back (f);
         }
 
         // Platen anchors from the roller's measured geometry: the paper rises
@@ -1035,45 +1076,6 @@ void Printer3DScene::AppendGlowZ (std::vector<Vertex> & out,
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  Printer3DScene::AppendDiscZ
-//
-//  A solid flat disc (triangle fan) in the x/y plane at constant z: a round
-//  LED lens face in one uniform premultiplied color. Used in the loaded-mesh
-//  path so a lamp shows as a surface-level round lens instead of the CAD
-//  model's blocky extruded LED cap.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void Printer3DScene::AppendDiscZ (std::vector<Vertex> & out,
-                                  float cx, float cy, float z, float radius,
-                                  uint32_t argb, float shade, int segments)
-{
-    float   a = (float) ((argb >> 24) & 0xFF) / 255.0f;
-    float   r = (float) ((argb >> 16) & 0xFF) / 255.0f * shade * a;
-    float   g = (float) ((argb >>  8) & 0xFF) / 255.0f * shade * a;
-    float   b = (float) ((argb      ) & 0xFF) / 255.0f * shade * a;
-
-    Vertex   c = { cx, cy, z, 0.0f, 0.0f, r, g, b, a };
-
-    for (int i = 0; i < segments; i++)
-    {
-        float   a0 = 6.2831853f * (float) i       / (float) segments;
-        float   a1 = 6.2831853f * (float) (i + 1) / (float) segments;
-
-        Vertex   v0 = { cx + radius * std::cos (a0), cy + radius * std::sin (a0), z, 0, 0, r, g, b, a };
-        Vertex   v1 = { cx + radius * std::cos (a1), cy + radius * std::sin (a1), z, 0, 0, r, g, b, a };
-
-        out.push_back (c);
-        out.push_back (v0);
-        out.push_back (v1);
-    }
-}
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  Printer3DScene::AppendLed
 //
 //  One procedural front-panel LED at (cx,cy) on a constant-z face: a dim lens
@@ -1109,11 +1111,11 @@ void Printer3DScene::AppendLed (std::vector<Vertex> & out,
 //
 //  Printer3DScene::BuildLedBatches
 //
-//  Rebuild the loaded-mesh LED overlay for this frame: a glow halo per lit
-//  lamp and a round, surface-level lens per lamp, each at its ROLE's live
-//  brightness (Power/Select steady-lit, Print Quality per selected quality,
-//  the red Error lamp dark until a fault). The round lens replaces the CAD
-//  model's blocky lifted LED faces (see AppendDiscZ / m_ledFaces).
+//  Rebuild the loaded-mesh LED overlay for this frame: recolor each lamp's
+//  flat top-cap rectangle at its ROLE's live brightness (Power/Select
+//  steady-lit, Print Quality per selected quality, the red Error lamp dark
+//  until a fault). Only the flat top surface is drawn -- the box side walls
+//  were dropped in SetModel, so a lamp reads as a rectangle flush on the deck.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1122,28 +1124,19 @@ void Printer3DScene::BuildLedBatches ()
     m_glowBatch.clear ();
     m_ledBatch.clear ();
 
-    for (const LedLamp & L : m_ledLamps)
+    for (const LedFace & f : m_ledFaces)
     {
-        float      intensity = RoleIntensity (L.role);
-        uint32_t   base      = L.red ? s_kLedRed : s_kLedGreen;
+        float      intensity = RoleIntensity (f.role);
+        uint32_t   base      = (f.role == LampRole::Error) ? s_kLedRed : s_kLedGreen;
+        float      bright    = 0.16f + 1.10f * intensity;
+        float      r         = (float) ((base >> 16) & 0xFF) / 255.0f * f.shade * bright;
+        float      g         = (float) ((base >>  8) & 0xFF) / 255.0f * f.shade * bright;
+        float      b         = (float) ((base      ) & 0xFF) / 255.0f * f.shade * bright;
 
-        // Round lens sized to the lamp (its centroid spread underestimates the
-        // real cap, so scale up a touch) but clamped small enough that adjacent
-        // lamps never merge. Sits just proud of the front deck, covering the
-        // hole where the CAD LED cap was lifted out of the static mesh.
-        float   radius = std::clamp ((std::max) (L.halfW, L.halfH) * 1.5f + 0.004f, 0.008f, 0.016f);
-        float   shade  = 0.16f + 1.10f * intensity;
-
-        // Halo under the lens, only once the lamp is meaningfully lit.
-        float   core = 0.60f * (std::max) (0.0f, intensity - 0.15f);
-        if (core > 0.02f)
+        for (int k = 0; k < 3; k++)
         {
-            float   glow = radius * 2.2f + 0.006f;
-
-            AppendGlowZ (m_glowBatch, L.cx, L.cy, L.cz, glow, glow, base, core, 24);
+            m_ledBatch.push_back ({ f.p[k][0], f.p[k][1], f.p[k][2], 0.0f, 0.0f, r, g, b, 1.0f });
         }
-
-        AppendDiscZ (m_ledBatch, L.cx, L.cy, L.cz + 0.0010f, radius, base, shade, 20);
     }
 }
 

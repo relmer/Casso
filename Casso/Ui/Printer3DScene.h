@@ -132,13 +132,6 @@ private:
                                  float cx, float cy, float z, float rx, float ry,
                                  uint32_t argb, float coreAlpha, int segments);
 
-    // A solid flat round disc in the x/y plane at constant z: a surface-level
-    // LED lens face, uniform (premultiplied) color. Round so a lamp reads as a
-    // lens rather than the CAD model's blocky lifted cap.
-    static void  AppendDiscZ    (std::vector<Vertex> & out,
-                                 float cx, float cy, float z, float radius,
-                                 uint32_t argb, float shade, int segments);
-
     // One front-panel LED at (cx,cy): a dim base lens when intensity ~0, a
     // bright lens plus halo as intensity -> 1. halfW sets the lens half-width
     // (the on/off pair uses narrower half-lamps).
@@ -188,11 +181,11 @@ private:
     // Front-panel status lamps, each with a fixed real-panel meaning so they no
     // longer light in unison: Power (steady, powered), Select (online/ready),
     // Print Quality (selected quality), Error (red paper/fault). SetModel
-    // assigns roles by left-to-right position; RoleIntensity maps each role to
-    // its live brightness. The LED faces are lifted out of the static mesh only
-    // so the lamp centers/extents can be clustered from them -- the render draws
-    // round surface-level lenses at those centers, NOT the blocky lifted faces.
-    struct LedFace   { float  p[3][3]; float shade; bool red; };
+    // clusters the model's LED boxes into lamps, assigns roles by left-to-right
+    // position, and keeps ONLY each box's flat top rectangle (m_ledFaces) as a
+    // surface-flush lens -- the blocky side walls are dropped. BuildLedBatches
+    // recolors those flat faces per role each frame.
+    struct LedFace   { float  p[3][3]; float shade; LampRole role; };
     struct LedLamp   { float  cx, cy, cz, halfW, halfH; bool red; LampRole role; };
     std::vector<LedFace>   m_ledFaces;
     std::vector<LedLamp>   m_ledLamps;
