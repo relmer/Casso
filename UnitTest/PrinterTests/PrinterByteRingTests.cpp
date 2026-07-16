@@ -1,5 +1,4 @@
 #include "Pch.h"
-#include <thread>
 
 #include "Devices/Printer/PrinterByteRing.h"
 

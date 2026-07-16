@@ -5,8 +5,6 @@
 #include "Devices/Printer/PrinterTypes.h"
 #include "Devices/Printer/PrintRaster.h"
 
-#include <algorithm>
-
 
 
 

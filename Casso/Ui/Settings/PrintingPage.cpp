@@ -16,6 +16,8 @@ namespace
     constexpr int    s_kRowHeightDp     = 28;
     constexpr int    s_kLabelWidthDp    = 130;
     constexpr int    s_kDropdownWidthDp = 220;
+    constexpr int    s_kCheckWidthDp    = 140;
+    constexpr int    s_kChildIndentDp   = 18;    // one nesting step (matches DxuiTreeView)
     constexpr int    s_kSectionGapDp    = 14;
     constexpr int    s_kPagePadDp       = 16;
 
@@ -100,16 +102,17 @@ void PrintingPage::SetPopupHost (DxuiHwndSource * host)
 
 void PrintingPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
 {
-    UINT dpi        = scaler.Dpi ();
-    int  pad        = scaler.Px (s_kPagePadDp);
-    int  rowHeight  = scaler.Px (s_kRowHeightDp);
-    int  labelWidth = scaler.Px (s_kLabelWidthDp);
-    int  dropWidth  = scaler.Px (s_kDropdownWidthDp);
-    int  checkWidth = scaler.Px (140);
-    int  sectionGap = scaler.Px (s_kSectionGapDp);
-    int  x          = rect.left + pad;
-    int  y          = rect.top  + pad;
-    int  controlsX  = x + labelWidth;
+    UINT dpi         = scaler.Dpi ();
+    int  pad         = scaler.Px (s_kPagePadDp);
+    int  rowHeight   = scaler.Px (s_kRowHeightDp);
+    int  labelWidth  = scaler.Px (s_kLabelWidthDp);
+    int  dropWidth   = scaler.Px (s_kDropdownWidthDp);
+    int  checkWidth  = scaler.Px (s_kCheckWidthDp);
+    int  childIndent = scaler.Px (s_kChildIndentDp);
+    int  sectionGap  = scaler.Px (s_kSectionGapDp);
+    int  x           = rect.left + pad;
+    int  y           = rect.top  + pad;
+    int  controlsX   = x + labelWidth;
 
 
     m_dpiLabel.SetRect  (MakeRect (x, y, labelWidth, rowHeight));
@@ -122,13 +125,11 @@ void PrintingPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
     m_styleLabel.SetText  (L"Dot style:");
     m_dotStyle.SetRect  (MakeRect (controlsX, y, dropWidth, rowHeight));
     m_dotStyle.SetItems ({ L"Ink (round dots)", L"Plain (square)" });
-    y += rowHeight + sectionGap * 2;
+    y += rowHeight + sectionGap;
 
-    // Printer sound (FR-034): a master toggle whose children (volume, manual
-    // pan) indent one step; the pan slider indents a second step under the
-    // manual-pan checkbox. Labels indent; the controls stay in one column.
-    int  childIndent = scaler.Px (18);
-
+    // Printer sound: a master toggle whose children (volume, manual pan) indent
+    // one step; the pan slider indents a second step under the manual-pan
+    // checkbox. Labels indent; the controls stay in one column.
     m_audioLabel.SetRect (MakeRect (x, y, labelWidth, rowHeight));
     m_audioLabel.SetText (L"Printer sound:");
     m_soundsToggle.SetRect (MakeRect (controlsX, y, checkWidth, rowHeight));
