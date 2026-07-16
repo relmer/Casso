@@ -277,4 +277,5 @@ private:
     int64_t                 m_fpsLastPaintMs   = 0;
     float                   m_fpsSmoothed      = 0.0f;
     int64_t                 m_fpsLastDeltaMs   = 0;
+    float                   m_fpsFontPx        = 15.0f;   // DPI-scaled in Layout
 };
