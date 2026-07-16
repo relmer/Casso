@@ -2808,7 +2808,7 @@ void EmulatorShell::UpdatePrinterPreview ()
     // without any live-apply plumbing; the shared "Drive Audio" master still
     // gates the whole bus above this.
     m_printerAudio.SetVolume (m_globalPrefs.printerAudioVolume);
-    m_printerAudio.SetMuted  (m_globalPrefs.printerAudioMuted);
+    m_printerAudio.SetMuted  (!m_globalPrefs.printerAudioEnabled);
 
     // Position the printer sound in the stereo field. Manual override (Settings >
     // Printing) pins a fixed pan; otherwise it auto-follows where the preview

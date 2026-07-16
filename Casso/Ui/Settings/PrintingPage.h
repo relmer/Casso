@@ -8,6 +8,7 @@
 #include "Widgets/DxuiDropdown.h"
 #include "Widgets/DxuiLabel.h"
 #include "Widgets/DxuiCheckbox.h"
+#include "Widgets/DxuiToggle.h"
 #include "Widgets/DxuiSlider.h"
 
 
@@ -30,12 +31,14 @@ class DxuiHwndSource;
 //      * Dot style      (DxuiDropdown: ink / plain, FR-027)
 //
 //  Plus the ImageWriter II mechanical-sound knobs (FR-034), which likewise
-//  write straight into GlobalUserPrefs and bind when the printer next sounds:
+//  write straight into GlobalUserPrefs and bind when the printer next sounds.
+//  A master toggle (on by default) enables the whole group; its children
+//  disable + dim when it is off:
 //
-//      * Volume         (DxuiSlider: 0..100 %)
-//      * Mute           (DxuiCheckbox: silence the printer bus)
-//      * Manual pan     (DxuiCheckbox: pin the stereo pan) + its child:
-//          - Pan        (DxuiSlider: Left .. Center .. Right)
+//      * Printer sound  (DxuiToggle: master enable) + its children:
+//          - Volume     (DxuiSlider: 0..100 %)
+//          - Manual pan (DxuiCheckbox: pin the stereo pan) + its child:
+//              - Pan    (DxuiSlider: Left .. Center .. Right)
 //
 //  The delivery destination is no longer a preference: the preview's Print /
 //  Save buttons (and the File menu's Copy) choose it per action, and Save
@@ -61,15 +64,19 @@ public:
     DxuiDropdown       & DotStyleDropdown    ()       { return m_dotStyle;     }
     const DxuiDropdown & ResolutionDropdown  () const { return m_dpi;         }
     const DxuiDropdown & DotStyleDropdown    () const { return m_dotStyle;     }
+    DxuiToggle         & SoundsToggle        ()       { return m_soundsToggle; }
     DxuiSlider         & VolumeSlider        ()       { return m_volume;       }
-    DxuiCheckbox       & MuteCheckbox        ()       { return m_mute;         }
     DxuiCheckbox       & PanOverrideCheckbox ()       { return m_panOverride;  }
     DxuiSlider         & PanSlider           ()       { return m_pan;          }
 
 private:
     void  ConfigureVolumeSlider (DxuiSlider & slider, const RECT & rect);
     void  ConfigurePanSlider    (DxuiSlider & slider, const RECT & rect);
-    void  ApplyPanEnabled       (bool enabled);
+
+    // Enable / dim the printer-sound children from the current prefs: the
+    // volume + manual-pan controls follow the master toggle, and the pan
+    // slider additionally follows the manual-pan checkbox.
+    void  ApplyEnabledState     ();
 
     GlobalUserPrefs *  m_prefs = nullptr;
 
@@ -79,9 +86,9 @@ private:
     DxuiDropdown  m_dotStyle;
 
     DxuiLabel     m_audioLabel;
+    DxuiToggle    m_soundsToggle;
     DxuiLabel     m_volumeLabel;
     DxuiSlider    m_volume;
-    DxuiCheckbox  m_mute;
     DxuiCheckbox  m_panOverride;
     DxuiLabel     m_panLabel;
     DxuiSlider    m_pan;

@@ -50,7 +50,8 @@ static const std::set<std::string>  s_kKnownTopLevel = {
     "window",
     "printOutputDpi",
     "printDotStyle",
-    "printerAudioMuted",
+    "printerAudioEnabled",
+    "printerAudioMuted",          // legacy (pre-toggle); consumed, no longer emitted
     "printerAudioVolume",
     "printerAudioPanOverride",
     "printerAudioPan"
@@ -928,7 +929,7 @@ JsonValue GlobalUserPrefs::ToJson() const
     root.emplace_back ("printDotStyle",    JsonValue (printDotStyle));
 
     // Printer mechanical-audio prefs (FR-034).
-    root.emplace_back ("printerAudioMuted",       JsonValue (printerAudioMuted));
+    root.emplace_back ("printerAudioEnabled",     JsonValue (printerAudioEnabled));
     root.emplace_back ("printerAudioVolume",      JsonValue ((double) printerAudioVolume));
     root.emplace_back ("printerAudioPanOverride", JsonValue (printerAudioPanOverride));
     root.emplace_back ("printerAudioPan",         JsonValue ((double) printerAudioPan));
@@ -1044,7 +1045,10 @@ HRESULT GlobalUserPrefs::FromJson (const JsonValue & v)
     printDotStyle    = GetStringOpt (v, "printDotStyle",    printDotStyle);
 
     // Printer mechanical-audio prefs (FR-034); absent keys keep struct defaults.
-    printerAudioMuted       = GetBoolOpt   (v, "printerAudioMuted",       printerAudioMuted);
+    // Legacy pre-toggle files stored the inverse `printerAudioMuted`; fall back
+    // to it (inverted) so an older mute survives the rename to `enabled`.
+    printerAudioEnabled     = GetBoolOpt   (v, "printerAudioEnabled",
+                                            !GetBoolOpt (v, "printerAudioMuted", !printerAudioEnabled));
     printerAudioVolume      = (float) GetNumberOpt (v, "printerAudioVolume",      printerAudioVolume);
     printerAudioPanOverride = GetBoolOpt   (v, "printerAudioPanOverride", printerAudioPanOverride);
     printerAudioPan         = (float) GetNumberOpt (v, "printerAudioPan",         printerAudioPan);

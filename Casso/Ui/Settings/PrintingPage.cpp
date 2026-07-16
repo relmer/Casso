@@ -51,9 +51,9 @@ PrintingPage::PrintingPage (std::wstring title)
     Adopt (m_styleLabel);
     Adopt (m_dotStyle);
     Adopt (m_audioLabel);
+    Adopt (m_soundsToggle);
     Adopt (m_volumeLabel);
     Adopt (m_volume);
-    Adopt (m_mute);
     Adopt (m_panOverride);
     Adopt (m_panLabel);
     Adopt (m_pan);
@@ -105,6 +105,7 @@ void PrintingPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
     int  rowHeight  = scaler.Px (s_kRowHeightDp);
     int  labelWidth = scaler.Px (s_kLabelWidthDp);
     int  dropWidth  = scaler.Px (s_kDropdownWidthDp);
+    int  checkWidth = scaler.Px (140);
     int  sectionGap = scaler.Px (s_kSectionGapDp);
     int  x          = rect.left + pad;
     int  y          = rect.top  + pad;
@@ -123,43 +124,41 @@ void PrintingPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
     m_dotStyle.SetItems ({ L"Ink (round dots)", L"Plain (square)" });
     y += rowHeight + sectionGap * 2;
 
-    // Printer sound (FR-034). The pan slider is a child of the manual-pan
-    // checkbox, indented to match its parent's control column.
+    // Printer sound (FR-034): a master toggle whose children (volume, manual
+    // pan) indent one step; the pan slider indents a second step under the
+    // manual-pan checkbox. Labels indent; the controls stay in one column.
     int  childIndent = scaler.Px (18);
 
-    m_audioLabel.SetRect (MakeRect (x, y, labelWidth + dropWidth, rowHeight));
-    m_audioLabel.SetText (L"Printer sound");
+    m_audioLabel.SetRect (MakeRect (x, y, labelWidth, rowHeight));
+    m_audioLabel.SetText (L"Printer sound:");
+    m_soundsToggle.SetRect (MakeRect (controlsX, y, checkWidth, rowHeight));
     y += rowHeight + sectionGap;
 
-    m_volumeLabel.SetRect (MakeRect (x, y, labelWidth, rowHeight));
+    m_volumeLabel.SetRect (MakeRect (x + childIndent, y, labelWidth - childIndent, rowHeight));
     m_volumeLabel.SetText (L"Volume:");
     ConfigureVolumeSlider (m_volume, MakeRect (controlsX, y, dropWidth, rowHeight));
     y += rowHeight + sectionGap;
 
-    m_mute.SetRect  (MakeRect (controlsX, y, dropWidth, rowHeight));
-    m_mute.SetLabel (L"Mute printer sound");
-    y += rowHeight + sectionGap;
-
-    m_panOverride.SetRect  (MakeRect (controlsX, y, dropWidth, rowHeight));
+    m_panOverride.SetRect  (MakeRect (x + childIndent, y, labelWidth + dropWidth - childIndent, rowHeight));
     m_panOverride.SetLabel (L"Manual stereo pan");
     y += rowHeight + sectionGap;
 
-    m_panLabel.SetRect (MakeRect (x + childIndent, y, labelWidth - childIndent, rowHeight));
+    m_panLabel.SetRect (MakeRect (x + childIndent * 2, y, labelWidth - childIndent * 2, rowHeight));
     m_panLabel.SetText (L"Pan:");
     ConfigurePanSlider (m_pan, MakeRect (controlsX, y, dropWidth, rowHeight));
     y += rowHeight + sectionGap;
 
-    m_dpiLabel.SetDpi    (dpi);
-    m_dpi.SetDpi         (dpi);
-    m_styleLabel.SetDpi  (dpi);
-    m_dotStyle.SetDpi    (dpi);
-    m_audioLabel.SetDpi  (dpi);
-    m_volumeLabel.SetDpi (dpi);
-    m_volume.SetDpi      (dpi);
-    m_mute.SetDpi        (dpi);
-    m_panOverride.SetDpi (dpi);
-    m_panLabel.SetDpi    (dpi);
-    m_pan.SetDpi         (dpi);
+    m_dpiLabel.SetDpi      (dpi);
+    m_dpi.SetDpi           (dpi);
+    m_styleLabel.SetDpi    (dpi);
+    m_dotStyle.SetDpi      (dpi);
+    m_audioLabel.SetDpi    (dpi);
+    m_soundsToggle.SetDpi  (dpi);
+    m_volumeLabel.SetDpi   (dpi);
+    m_volume.SetDpi        (dpi);
+    m_panOverride.SetDpi   (dpi);
+    m_panLabel.SetDpi      (dpi);
+    m_pan.SetDpi           (dpi);
 
     DxuiPanel::SetBounds (rect);
 }
@@ -188,11 +187,11 @@ void PrintingPage::Rebuild ()
 
     m_dpi.SetSelected      (prefs->printOutputDpi == 576 ? 1 : 0);
     m_dotStyle.SetSelected (DotStyleToIndex (prefs->printDotStyle));
+    m_soundsToggle.SetChecked (prefs->printerAudioEnabled);
     m_volume.SetValue      (prefs->printerAudioVolume * 100.0f);
-    m_mute.SetChecked      (prefs->printerAudioMuted);
     m_panOverride.SetChecked (prefs->printerAudioPanOverride);
     m_pan.SetValue         (prefs->printerAudioPan * 100.0f);
-    ApplyPanEnabled        (prefs->printerAudioPanOverride);
+    ApplyEnabledState      ();
 
     m_dpi.SetSelect ([this, prefs] (int idx)
     {
@@ -206,22 +205,23 @@ void PrintingPage::Rebuild ()
         MarkDirty ();
     });
 
+    m_soundsToggle.SetOnChange ([this, prefs] (bool checked)
+    {
+        prefs->printerAudioEnabled = checked;
+        ApplyEnabledState ();
+        MarkDirty ();
+    });
+
     m_volume.SetOnChange ([this, prefs] (float v)
     {
         prefs->printerAudioVolume = v / 100.0f;
         MarkDirty ();
     });
 
-    m_mute.SetOnChange ([this, prefs] (bool checked)
-    {
-        prefs->printerAudioMuted = checked;
-        MarkDirty ();
-    });
-
     m_panOverride.SetOnChange ([this, prefs] (bool checked)
     {
         prefs->printerAudioPanOverride = checked;
-        ApplyPanEnabled (checked);
+        ApplyEnabledState ();
         MarkDirty ();
     });
 
@@ -305,15 +305,27 @@ void PrintingPage::ConfigurePanSlider (DxuiSlider & slider, const RECT & rect)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  PrintingPage::ApplyPanEnabled
+//  PrintingPage::ApplyEnabledState
 //
-//  The pan slider is a child of the manual-pan checkbox: it is only live when
-//  the override is on (otherwise the sound auto-pans to follow the preview).
+//  Cascade the two nested gates: the master "Printer sound" toggle enables the
+//  volume slider + manual-pan checkbox, and the pan slider is additionally
+//  gated by the manual-pan checkbox (it auto-follows the preview when off).
+//  Disabled controls dim their labels to match.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void PrintingPage::ApplyPanEnabled (bool enabled)
+void PrintingPage::ApplyEnabledState ()
 {
-    m_pan.SetEnabled     (enabled);
-    m_panLabel.SetTextRole (enabled ? DxuiTextRole::Body : DxuiTextRole::Disabled);
+    bool  soundsOn = (m_prefs != nullptr) && m_prefs->printerAudioEnabled;
+    bool  panLive  = soundsOn && (m_prefs != nullptr) && m_prefs->printerAudioPanOverride;
+
+    DxuiTextRole  childRole = soundsOn ? DxuiTextRole::Body : DxuiTextRole::Disabled;
+    DxuiTextRole  panRole   = panLive  ? DxuiTextRole::Body : DxuiTextRole::Disabled;
+
+    m_volume.SetEnabled      (soundsOn);
+    m_panOverride.SetEnabled (soundsOn);
+    m_pan.SetEnabled         (panLive);
+
+    m_volumeLabel.SetTextRole (childRole);
+    m_panLabel.SetTextRole    (panRole);
 }

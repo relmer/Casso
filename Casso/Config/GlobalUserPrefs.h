@@ -126,11 +126,12 @@ struct GlobalUserPrefs
     std::string  printDotStyle    = "ink";        // "ink" | "plain" (FR-027)
 
     // ImageWriter II mechanical-sound preferences (Settings > Printing audio,
-    // FR-034). Volume 0..1 (default matches PrinterAudioSource::kDefaultVolume);
-    // muted silences the printer bus alone (the shared "Drive Audio" master
-    // enable still gates it). By default the sound auto-pans to follow the
-    // preview window; panOverride pins it to a fixed pan (-1 left .. +1 right).
-    bool         printerAudioMuted        = false;
+    // FR-034). `enabled` is the printer-sound master toggle (on by default);
+    // when off the printer bus is silent (the shared "Drive Audio" master
+    // enable still gates it above this). Volume 0..1 (default matches
+    // PrinterAudioSource::kDefaultVolume). By default the sound auto-pans to
+    // follow the preview window; panOverride pins a fixed pan (-1 left .. +1).
+    bool         printerAudioEnabled      = true;
     float        printerAudioVolume       = 0.80f;
     bool         printerAudioPanOverride  = false;
     float        printerAudioPan          = 0.0f;   // -1 .. +1, used when override is on
