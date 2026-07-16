@@ -269,4 +269,12 @@ private:
 
     RECT                    m_hintRect         = {};
     float                   m_hintFontPx       = 12.0f;
+
+    // DEBUG (temporary): preview FPS overlay for the jerky-printhead
+    // investigation. The interval between actual Paint calls IS the visible
+    // frame cadence, so an EMA of it + the last frame time surfaces stutter at
+    // a glance. Remove once the pacing is understood.
+    int64_t                 m_fpsLastPaintMs   = 0;
+    float                   m_fpsSmoothed      = 0.0f;
+    int64_t                 m_fpsLastDeltaMs   = 0;
 };

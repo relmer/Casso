@@ -1615,4 +1615,44 @@ void PrinterPanel::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
             DxuiFontWeight::Normal,
             false));
     }
+
+    // DEBUG (temporary): preview FPS overlay, lower-right. This Paint runs once
+    // per actual repaint, so the wall-clock gap between calls is exactly the
+    // visible frame interval -- an even ~60 reads fluid; bouncing / big ms
+    // spikes are the jerky-printhead stutter we are chasing.
+    {
+        int64_t   nowMs = NowMs();
+
+        if (m_fpsLastPaintMs != 0)
+        {
+            m_fpsLastDeltaMs = nowMs - m_fpsLastPaintMs;
+            if (m_fpsLastDeltaMs > 0)
+            {
+                float  inst = 1000.0f / (float) m_fpsLastDeltaMs;
+                m_fpsSmoothed = (m_fpsSmoothed <= 0.0f) ? inst : (m_fpsSmoothed * 0.9f + inst * 0.1f);
+            }
+        }
+        m_fpsLastPaintMs = nowMs;
+
+        RECT            r   = (m_paperRectPx.right > m_paperRectPx.left) ? m_paperRectPx : b;
+        DxuiFontHandle  bf  = theme.BodyFont();
+        std::wstring    txt = std::format (L"{:.0f} fps  {}ms", m_fpsSmoothed, m_fpsLastDeltaMs);
+        float           fw  = 132.0f;
+        float           fh  = 18.0f;
+        float           fpad = 6.0f;
+
+        IGNORE_RETURN_VALUE (hr, text.DrawString (
+            txt.c_str (),
+            (float) r.right - fw - fpad,
+            (float) r.bottom - fh - fpad,
+            fw,
+            fh,
+            0xFF33FF66,
+            12.0f,
+            bf.face,
+            DxuiTextHAlign::Right,
+            DxuiTextVAlign::Bottom,
+            DxuiFontWeight::Bold,
+            false));
+    }
 }
