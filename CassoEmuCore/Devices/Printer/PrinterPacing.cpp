@@ -61,30 +61,30 @@ void PrinterPacing::SetTargetRows (int targetRows)
 //
 //  PrinterPacing::SetTargetPosition
 //
-//  Sets how many rows the guest has produced (the reveal chases this). The
+//  Sets how many rows the guest has produced (the carriage chases this). The
 //  column argument is retained for API / future head-column tracking, but the
 //  sweep runs the full carriage width every band (revealing ink IS the sweep),
-//  so it is not used to bound the sweep here. A target that shrinks below the
-//  reveal (a tear-off) clamps the reveal back onto the fresh sheet.
+//  so it is not used to bound the sweep here.
+//
+//  Crucially this does NOT touch the head column. When the carriage has caught
+//  the guest it parks at the margin its last pass ended on; fresh content simply
+//  lets Advance resume the sweep from that same margin. Resetting the column here
+//  (the old behavior) teleported the head back to an edge on every sub-chunk the
+//  guest fed a band in -- the forward/back/forward stutter. A target that shrinks
+//  below the reveal (a tear-off) rewinds onto the fresh sheet.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void PrinterPacing::SetTargetPosition (int targetRows, int targetColDots)
 {
-    bool  wasCaughtUp = m_revealed >= (double) m_target;
-
     (void) targetColDots;
 
     m_target = (targetRows > 0) ? targetRows : 0;
 
     if (m_revealed > (double) m_target)
     {
-        m_revealed    = (double) m_target;                      // target shrank (tear-off): clamp
-        m_revealedCol = (double) PrinterGrid::kDotsPerRow;
-    }
-    else if (wasCaughtUp && m_revealed < (double) m_target)
-    {
-        m_revealedCol = 0.0;   // new content after catching up: begin a fresh live band's sweep
+        m_revealed    = (double) m_target;   // target shrank (tear-off): clamp
+        m_revealedCol = 0.0;                 // rest the carriage at the home margin
     }
 }
 
@@ -131,19 +131,21 @@ int PrinterPacing::Advance (double nowSeconds)
 
     m_lastTime = nowSeconds;
 
-    // Already at the newest content: hold the live band complete, no sweep.
+    // Already at the newest content: the carriage rests where its last pass left
+    // it (a margin). Do NOT move the column -- parking in place is exactly what
+    // lets the next band resume the sweep from that margin instead of jumping.
     if (m_revealed >= (double) m_target)
     {
-        m_revealed    = (double) m_target;
-        m_revealedCol = dotsPerRow;
+        m_revealed = (double) m_target;
         return RevealedRows();
     }
 
-    // Fast-forward, or a backlog too large to sweep through: snap to the target.
+    // Fast-forward, or a backlog too large to sweep through: jump-cut to the
+    // target and rest the carriage at the home margin.
     if (m_fastForward || ((double) m_target - m_revealed) > m_cfg.coalesceRows)
     {
         m_revealed    = (double) m_target;
-        m_revealedCol = dotsPerRow;
+        m_revealedCol = 0.0;
         m_fastForward = false;
         return RevealedRows();
     }
@@ -161,12 +163,14 @@ int PrinterPacing::Advance (double nowSeconds)
         m_sweepLeftToRight = !m_sweepLeftToRight;
     }
 
+    // Reached the newest content mid-pass: the carriage parks at the column it
+    // got to. Produced ink up to here is shown; nothing lies beyond it yet, so
+    // there is no snap -- when more arrives the sweep continues from this column.
     if (m_revealed >= (double) m_target)
     {
-        m_revealed    = (double) m_target;   // reached newest content mid-pass
-        m_revealedCol = dotsPerRow;          // show the live band complete
+        m_revealed = (double) m_target;
     }
-    else if (m_revealedCol > dotsPerRow)
+    if (m_revealedCol > dotsPerRow)
     {
         m_revealedCol = dotsPerRow;
     }
@@ -204,16 +208,11 @@ int PrinterPacing::RevealedRows() const
 
 int PrinterPacing::RevealedColDots() const
 {
-    int  col = 0;
-
-    // Caught up: the live band shows complete (no partial sweep to draw).
-    if (RevealedRows() >= m_target)
-    {
-        return PrinterGrid::kDotsPerRow;
-    }
-
-    // Sweeping the live band -- expose it left-to-right up to the head column.
-    col = (int) m_revealedCol;
+    // The single source of truth for the head's column: the swept position within
+    // the live band while printing, or the margin the carriage is parked on when
+    // caught up. Never snaps to full width -- a parked head sits at its margin so
+    // the presenter can rest the glyph there and resume the next pass smoothly.
+    int  col = (int) m_revealedCol;
 
     if (col < 0)                        { col = 0; }
     if (col > PrinterGrid::kDotsPerRow) { col = PrinterGrid::kDotsPerRow; }

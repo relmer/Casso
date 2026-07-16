@@ -59,8 +59,13 @@ namespace PrinterPacingTests
         }
 
 
-        TEST_METHOD (CaughtUpShowsTheLiveBandComplete)
+        TEST_METHOD (CaughtUpParksTheCarriageAtTheMargin)
         {
+            // One full L->R pass reveals the band and catches the guest. The head
+            // must PARK where the pass ended (col wraps to 0, direction flips to
+            // R->L -- so the presenter rests it at the right margin), NOT snap to
+            // full width. Snapping to full with the flipped direction is what
+            // teleported the glyph to the far edge (the old bug).
             PrinterPacing   p (Cfg (1280.0, 16, 1.0e9));
 
             p.Reset (0.0);
@@ -69,7 +74,53 @@ namespace PrinterPacingTests
             p.Advance (1.0);                           // one pass reveals the band
             Assert::AreEqual (16, p.RevealedRows());
             Assert::IsTrue   (p.IsCaughtUp());
-            Assert::AreEqual (PrinterGrid::kDotsPerRow, p.RevealedColDots());
+            Assert::AreEqual (0, p.RevealedColDots());     // parked at the pass-end margin
+            Assert::IsFalse  (p.SweepLeftToRight());        // reversed for the next pass
+        }
+
+
+        TEST_METHOD (ParkedCarriageHoldsStillWhileCaughtUp)
+        {
+            // With no new content, further Advances must not move the head at all.
+            PrinterPacing   p (Cfg (1280.0, 16, 1.0e9));
+
+            p.Reset (0.0);
+            p.SetTargetRows (16);
+            p.Advance (1.0);                           // caught up, parked
+
+            int   parked = p.RevealedColDots();
+            p.Advance (2.0);
+            Assert::AreEqual (parked, p.RevealedColDots());
+            p.Advance (9.0);
+            Assert::AreEqual (parked, p.RevealedColDots());
+            Assert::IsFalse  (p.SweepLeftToRight());        // no spurious flip either
+        }
+
+
+        TEST_METHOD (ResumesFromTheMarginWithoutBacktrack)
+        {
+            // The head jog (forward-halfway, back, forward) came from the column
+            // snapping to full on catch-up and resetting to zero on the next fed
+            // chunk. Here: sweep a full L->R band to catch-up (parks at col 0,
+            // now sweeping R->L), then feed more -- the carriage must resume the
+            // R->L pass FROM the margin (col climbs 0 -> up), same direction, no
+            // reset, no jump.
+            PrinterPacing   p (Cfg (1280.0, 16, 1.0e9));
+
+            p.Reset (0.0);
+            p.SetTargetRows (16);
+            p.Advance (1.0);                           // pass 1 done, caught up
+            Assert::AreEqual (0, p.RevealedColDots());
+            Assert::IsFalse  (p.SweepLeftToRight());
+
+            p.SetTargetRows (1000);                    // guest feeds the next band
+            Assert::AreEqual (0, p.RevealedColDots());  // feeding alone never moves the head
+
+            Assert::AreEqual (16,  p.Advance (1.25));   // rows unchanged this sub-pass...
+            Assert::AreEqual (320, p.RevealedColDots()); // ...head climbed 0 -> 320 off the margin
+            Assert::IsFalse  (p.SweepLeftToRight());     // still the same R->L pass
+            p.Advance (1.5);
+            Assert::AreEqual (640, p.RevealedColDots()); // and keeps climbing, monotonic
         }
 
 
@@ -98,7 +149,7 @@ namespace PrinterPacingTests
 
             Assert::AreEqual (5000, p.Advance (0.01));
             Assert::IsTrue   (p.IsCaughtUp());
-            Assert::AreEqual (PrinterGrid::kDotsPerRow, p.RevealedColDots());
+            Assert::AreEqual (0, p.RevealedColDots());   // jump-cut rests the carriage at home
         }
 
 
@@ -215,7 +266,7 @@ namespace PrinterPacingTests
         }
 
 
-        TEST_METHOD (FastForwardSnapsColumnToo)
+        TEST_METHOD (FastForwardParksColumnAtHome)
         {
             PrinterPacing   p (Cfg (1280.0, 16, 1.0e9));
 
@@ -225,7 +276,7 @@ namespace PrinterPacingTests
 
             p.Advance (0.01);
             Assert::AreEqual (500, p.RevealedRows());
-            Assert::AreEqual (PrinterGrid::kDotsPerRow, p.RevealedColDots());
+            Assert::AreEqual (0, p.RevealedColDots());   // parked at home after the jump-cut
         }
     };
 }

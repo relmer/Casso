@@ -81,19 +81,15 @@ public:
 
     int   RevealedRows () const;
 
-    // Dot column revealed within the live line: rows below RevealedRows() are
-    // complete; the line AT RevealedRows() shows up to this column. Full width
-    // while the reveal is still catching up through older rows.
+    // The head's dot column -- the single source of truth for where the carriage
+    // is. While printing it is the swept position within the live line (rows
+    // below RevealedRows() are complete; the line AT RevealedRows() shows up to
+    // this column). When caught up it is the margin the carriage parked on -- it
+    // never snaps to full width, so the head rests and resumes without jumping.
     int   RevealedColDots () const;
 
     int   TargetRows   () const;
-    bool  IsCaughtUp   () const;   // no rows left to reveal (sweep may continue)
-
-    // The carriage sweep rate (dots/second) -- the ONLY pace in the model. The
-    // presenter uses it to cap how fast the VISIBLE head glyph may travel so the
-    // physical carriage can never teleport across the platen (the reveal column
-    // itself snaps to an edge on catch-up; the head must glide, not jump).
-    double  DotsPerSecond () const { return m_cfg.dotsPerSecond; }
+    bool  IsCaughtUp   () const;   // no rows left to reveal (carriage parked at a margin)
 
     // The real ImageWriter prints bidirectionally: each line's carriage pass
     // runs opposite to the last. This flag flips every time a fresh line's sweep
@@ -105,7 +101,7 @@ private:
     Config  m_cfg;
     double  m_lastTime    = 0.0;
     double  m_revealed    = 0.0;   // top of the live (sweeping) band, in rows
-    double  m_revealedCol = (double) PrinterGrid::kDotsPerRow;   // sweep column within it
+    double  m_revealedCol = 0.0;   // head column within it; 0 == parked at the home margin
     int     m_target      = 0;
     bool    m_started     = false;
     bool    m_fastForward = false;

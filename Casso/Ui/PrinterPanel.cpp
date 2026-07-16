@@ -698,7 +698,6 @@ void PrinterPanel::RefreshLive (PrinterWorker & worker, int64_t nowMs, bool forc
         m_pacing.Reset (nowSec, 0);
         m_spanImgValid = false;
         m_panYSeeded   = false;   // reseed onto the fresh sheet, don't glide across the tear
-        m_headCol01    = -1.0f;   // and don't glide the carriage across the tear either
     }
 
     // First refresh starts caught up at the head, so opening the panel over a
@@ -748,37 +747,12 @@ void PrinterPanel::RefreshLive (PrinterWorker & worker, int64_t nowMs, bool forc
 
     if (m_scene != nullptr)
     {
-        // Free carriage sweep: the visible head runs its own constant-speed
-        // triangle wave across the platen while the print is live, reversing at
-        // each margin (bidirectional print). It is deliberately NOT tied to the
-        // reveal column -- that column snaps to an edge on catch-up and resets to
-        // zero on each fed sub-chunk, so chasing it makes the head jog
-        // forward-back-forward within a line. A physical carriage does neither.
-        if (m_headCol01 < 0.0f)
-        {
-            m_headCol01 = 0.0f;   // fresh sheet: start the carriage at the home margin
-            m_headDir   = 1.0f;
-        }
-        else if (m_printingActive)
-        {
-            double  dt   = nowSec - m_headColLastSec;
-            float   step = 0.0f;
-
-            if (dt < 0.0)  { dt = 0.0; }
-            if (dt > 0.10) { dt = 0.10; }   // after an idle stall, resume gently -- don't launch across the platen
-
-            step         = (float) (m_pacing.DotsPerSecond() / (double) PrinterGrid::kDotsPerRow * dt);
-            m_headCol01 += m_headDir * step;
-
-            while (m_headCol01 > 1.0f || m_headCol01 < 0.0f)   // fold back off both margins
-            {
-                if (m_headCol01 > 1.0f) { m_headCol01 = 2.0f - m_headCol01; m_headDir = -1.0f; }
-                if (m_headCol01 < 0.0f) { m_headCol01 =       - m_headCol01; m_headDir =  1.0f; }
-            }
-        }
-        m_headColLastSec = nowSec;
-
-        m_scene->SetHeadColumn01 (m_headCol01);
+        // One carriage, one clock. The head glyph rides the very same swept
+        // column that reveals the ink and drives the audio -- PrinterPacing owns
+        // it. That column is monotonic within a pass and parks at its margin when
+        // the carriage catches the guest, so the glyph sweeps smoothly and rests
+        // there without any separate oscillator or easing to drift out of sync.
+        m_scene->SetHeadColumn01 ((float) revealCol / (float) PrinterGrid::kDotsPerRow);
 
         // Front-panel status lamps carry fixed per-lamp meanings (see
         // Printer3DScene::LampRole): Power + Select sit steady-lit while the
