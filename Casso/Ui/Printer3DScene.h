@@ -139,6 +139,15 @@ private:
                                  float cx, float cy, float z,
                                  uint32_t argb, float intensity, float halfW);
 
+    // Row-vector 4x4 matrix helpers (clip = v * view * proj), matching the
+    // renderer's row_major cbuffer. Hand-rolled to keep the 3D path free of a
+    // math-library header dependency.
+    static void  Mul44                (const float a[16], const float b[16], float out[16]);
+    static void  LookAtRH             (const float eye[3], const float at[3], float out[16]);
+    static void  PerspectiveFovRH     (float fovY, float aspect, float zn, float zf, float out[16]);
+    static void  IdentityMvp          (float out[16]);
+    static void  TiltAboutFrontBottom (float tiltRad, float pivotZ, float out[16]);
+
     // Rebuild the per-frame LED batches (round surface-level lenses + glow
     // halos) from the loaded lamps, each at its role's live brightness.
     void  BuildLedBatches ();

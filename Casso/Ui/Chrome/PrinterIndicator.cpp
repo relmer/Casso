@@ -5,30 +5,36 @@
 
 
 
-namespace
-{
-    // ImageWriter II platinum chassis.
-    constexpr uint32_t  kPlatTop  = 0xFFEDE9DD;
-    constexpr uint32_t  kPlatBot  = 0xFFCAC5B5;
-    constexpr uint32_t  kEdge     = 0xFF8C8879;
-    constexpr uint32_t  kSmoked   = 0xFF42454B;   // smoked paper cover / hood
-    constexpr uint32_t  kSlot     = 0xFF2A2A2C;   // paper exit slit
-    constexpr uint32_t  kPanel    = 0xFFB4AF9F;   // recessed front control panel
-    constexpr uint32_t  kPaper    = 0xFFFBFBF6;   // fanfold paper
-    constexpr uint32_t  kPaperFld = 0xFFD7D5CB;   // fold / edge shading
-    constexpr uint32_t  kHole     = 0xFF74716A;   // tractor sprocket holes
-    constexpr uint32_t  kShadow   = 0x55101012;   // soft ground shadow
+// ImageWriter II platinum chassis.
+static constexpr uint32_t  s_kPlatTop  = 0xFFEDE9DD;
+static constexpr uint32_t  s_kPlatBot  = 0xFFCAC5B5;
+static constexpr uint32_t  s_kEdge     = 0xFF8C8879;
+static constexpr uint32_t  s_kSmoked   = 0xFF42454B;   // smoked paper cover / hood
+static constexpr uint32_t  s_kSlot     = 0xFF2A2A2C;   // paper exit slit
+static constexpr uint32_t  s_kPanel    = 0xFFB4AF9F;   // recessed front control panel
+static constexpr uint32_t  s_kPaper    = 0xFFFBFBF6;   // fanfold paper
+static constexpr uint32_t  s_kPaperFld = 0xFFD7D5CB;   // fold / edge shading
+static constexpr uint32_t  s_kHole     = 0xFF74716A;   // tractor sprocket holes
+static constexpr uint32_t  s_kShadow   = 0x55101012;   // soft ground shadow
 
-    uint32_t  StatusCore (PrinterStatus s)
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PrinterIndicator::StatusCore
+//
+////////////////////////////////////////////////////////////////////////////////
+
+uint32_t PrinterIndicator::StatusCore (PrinterStatus status)
+{
+    switch (status)
     {
-        switch (s)
-        {
-        case PrinterStatus::Receiving: return 0xFF3FD35A;   // green: printing now
-        case PrinterStatus::Pending:   return 0xFFF5A623;   // amber: page waiting
-        case PrinterStatus::Error:     return 0xFFE5484D;   // red:   failed
-        case PrinterStatus::Idle:
-        default:                       return 0xFF3B7A46;   // dim green: powered, idle
-        }
+    case PrinterStatus::Receiving: return 0xFF3FD35A;   // green: printing now
+    case PrinterStatus::Pending:   return 0xFFF5A623;   // amber: page waiting
+    case PrinterStatus::Error:     return 0xFFE5484D;   // red:   failed
+    case PrinterStatus::Idle:
+    default:                       return 0xFF3B7A46;   // dim green: powered, idle
     }
 }
 
@@ -101,24 +107,24 @@ void PrinterIndicator::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, 
         float  step   = scaler.Pxf (3.4f);
         float  inset  = scaler.Pxf (1.8f);
 
-        painter.FillRect (paperX, y, paperW, paperB - y, kPaper);
-        painter.FillRect (paperX, y + (paperB - y) * 0.5f, paperW, scaler.Pxf (1.0f), kPaperFld);
+        painter.FillRect (paperX, y, paperW, paperB - y, s_kPaper);
+        painter.FillRect (paperX, y + (paperB - y) * 0.5f, paperW, scaler.Pxf (1.0f), s_kPaperFld);
 
         for (float hy = y + step; hy < paperB - step * 0.5f; hy += step)
         {
-            painter.FillCircleApprox (paperX + inset,          hy, holeR, kHole);
-            painter.FillCircleApprox (paperX + paperW - inset, hy, holeR, kHole);
+            painter.FillCircleApprox (paperX + inset,          hy, holeR, s_kHole);
+            painter.FillCircleApprox (paperX + paperW - inset, hy, holeR, s_kHole);
         }
     }
 
     // --- Platinum chassis. ---
-    painter.FillGradientRect (x, bodyTop, w, bodyH, kPlatTop, kPlatBot);
-    painter.OutlineRect      (x, bodyTop, w, bodyH, 1.0f, kEdge);
+    painter.FillGradientRect (x, bodyTop, w, bodyH, s_kPlatTop, s_kPlatBot);
+    painter.OutlineRect      (x, bodyTop, w, bodyH, 1.0f, s_kEdge);
 
     // Smoked paper cover / hood across the top of the chassis (where the paper
     // enters). A thin platinum lip sits just below it.
     painter.FillRect (x + scaler.Pxf (1.5f), bodyTop + scaler.Pxf (1.5f),
-                      w - scaler.Pxf (3.0f), bodyH * 0.30f, kSmoked);
+                      w - scaler.Pxf (3.0f), bodyH * 0.30f, s_kSmoked);
 
     // --- Front print slot + the printed sheet emerging over the front. ---
     {
@@ -126,8 +132,8 @@ void PrinterIndicator::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, 
         float  ftW   = w * 0.46f;
         float  ftX   = x + (w - ftW) * 0.42f;
 
-        painter.FillRect (ftX, slotY, ftW, bodyBot - slotY - scaler.Pxf (2.0f), kPaper);
-        painter.FillRect (x + scaler.Pxf (3.0f), slotY, w - scaler.Pxf (6.0f), scaler.Pxf (1.4f), kSlot);
+        painter.FillRect (ftX, slotY, ftW, bodyBot - slotY - scaler.Pxf (2.0f), s_kPaper);
+        painter.FillRect (x + scaler.Pxf (3.0f), slotY, w - scaler.Pxf (6.0f), scaler.Pxf (1.4f), s_kSlot);
     }
 
     // --- Front-right control panel + status light. ---
@@ -142,12 +148,12 @@ void PrinterIndicator::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, 
         float     cx   = panX + panW * 0.5f;
         float     cy   = panY + panH * 0.5f;
 
-        painter.FillRect         (panX, panY, panW, panH, kPanel);
+        painter.FillRect         (panX, panY, panW, panH, s_kPanel);
         painter.FillCircleApprox (cx, cy, r * 1.9f, halo);
         painter.FillCircleApprox (cx, cy, r,        core);
     }
 
     // Soft ground shadow along the chassis foot.
     painter.FillRect (x + scaler.Pxf (2.0f), bodyBot - scaler.Pxf (1.0f),
-                      w - scaler.Pxf (4.0f), scaler.Pxf (1.5f), kShadow);
+                      w - scaler.Pxf (4.0f), scaler.Pxf (1.5f), s_kShadow);
 }

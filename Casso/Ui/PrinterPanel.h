@@ -145,6 +145,13 @@ private:
 
     static int64_t  NowMs ();
 
+    // Fanfold-paper furniture helpers (panel-only): the hole / perforation
+    // phase modulus, the perforation-dash pixel darken, and the embedded
+    // CAD-model resource loader.
+    static int          FloorMod         (int a, int m);
+    static void         DarkenPerf       (uint32_t & px);
+    static std::string  LoadTextResource (int resourceId);
+
     const CassoTheme  * m_theme   = nullptr;
 
     PrinterPaperView  * m_paper    = nullptr;

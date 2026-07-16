@@ -5,33 +5,30 @@
 
 
 
-namespace
-{
-    // Row-vector convention (clip = v * M) with a row_major cbuffer matrix, so
-    // the CPU-side float[16] goes into the constant buffer untransposed.
-    static const char s_kVertexShaderSrc[] =
-        "cbuffer Mvp : register(b0) { row_major float4x4 mvp; };\n"
-        "struct VSIn  { float3 pos : POSITION; float2 uv : TEXCOORD0; float4 col : COLOR; };\n"
-        "struct VSOut { float4 pos : SV_POSITION; float2 uv : TEXCOORD0; float4 col : COLOR; };\n"
-        "VSOut main (VSIn input)\n"
-        "{\n"
-        "    VSOut output;\n"
-        "    output.pos = mul (float4 (input.pos, 1.0f), mvp);\n"
-        "    output.uv  = input.uv;\n"
-        "    output.col = input.col;\n"
-        "    return output;\n"
-        "}\n";
+// Row-vector convention (clip = v * M) with a row_major cbuffer matrix, so
+// the CPU-side float[16] goes into the constant buffer untransposed.
+static const char s_kVertexShaderSrc[] =
+    "cbuffer Mvp : register(b0) { row_major float4x4 mvp; };\n"
+    "struct VSIn  { float3 pos : POSITION; float2 uv : TEXCOORD0; float4 col : COLOR; };\n"
+    "struct VSOut { float4 pos : SV_POSITION; float2 uv : TEXCOORD0; float4 col : COLOR; };\n"
+    "VSOut main (VSIn input)\n"
+    "{\n"
+    "    VSOut output;\n"
+    "    output.pos = mul (float4 (input.pos, 1.0f), mvp);\n"
+    "    output.uv  = input.uv;\n"
+    "    output.col = input.col;\n"
+    "    return output;\n"
+    "}\n";
 
 
-    static const char s_kPixelShaderSrc[] =
-        "Texture2D    tex  : register(t0);\n"
-        "SamplerState samp : register(s0);\n"
-        "struct PSIn { float4 pos : SV_POSITION; float2 uv : TEXCOORD0; float4 col : COLOR; };\n"
-        "float4 main (PSIn input) : SV_TARGET\n"
-        "{\n"
-        "    return tex.Sample (samp, input.uv) * input.col;\n"
-        "}\n";
-}
+static const char s_kPixelShaderSrc[] =
+    "Texture2D    tex  : register(t0);\n"
+    "SamplerState samp : register(s0);\n"
+    "struct PSIn { float4 pos : SV_POSITION; float2 uv : TEXCOORD0; float4 col : COLOR; };\n"
+    "float4 main (PSIn input) : SV_TARGET\n"
+    "{\n"
+    "    return tex.Sample (samp, input.uv) * input.col;\n"
+    "}\n";
 
 
 

@@ -43,4 +43,12 @@ public:
     static bool Parse (const std::string        & objText,
                        const std::string        & mtlText,
                        std::vector<ObjTriangle>  & outTriangles);
+
+private:
+    struct Rgb { float r, g, b; };
+
+    // `newmtl` / `Kd`-keyed diffuse colors parsed from the MTL text, and the
+    // leading vertex index of an OBJ face token (negative == relative).
+    static std::unordered_map<std::string, Rgb>  ParseMtl       (const std::string & mtlText);
+    static int                                   ParseFaceIndex (const std::string & token, size_t vertexCount);
 };

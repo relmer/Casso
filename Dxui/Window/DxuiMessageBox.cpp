@@ -12,190 +12,196 @@
 
 
 
-namespace
+// Icon glyphs (Segoe MDL2 Assets) + accent colours -- same set the shell's
+// task-dialog path uses, so a Dxui message box reads identically.
+static constexpr wchar_t   s_kGlyphInfo     = L'\uE946';   // MDL2 Info
+static constexpr wchar_t   s_kGlyphWarning  = L'\uE7BA';   // MDL2 Warning
+static constexpr wchar_t   s_kGlyphError    = L'\uEA39';   // MDL2 ErrorBadge
+static constexpr uint32_t  s_kArgbInfo      = 0xFF4A9EDB;
+static constexpr uint32_t  s_kArgbWarning   = 0xFFF5A623;
+static constexpr uint32_t  s_kArgbError     = 0xFFE5424D;
+static constexpr wchar_t   s_kMdl2Font   [] = L"Segoe MDL2 Assets";
+
+static constexpr int  s_kWidthDip        = 400;
+static constexpr int  s_kIconColDip      =  40;   // glyph column width
+static constexpr int  s_kIconTextGapDip  =  10;
+static constexpr int  s_kGlyphSizeDip    =  28;
+static constexpr int  s_kLineHeightDip   =  20;
+static constexpr int  s_kChromeHeightDip = 104;   // caption + button row + content vpad
+static constexpr int  s_kMinHeightDip    = 128;
+static constexpr int  s_kMaxHeightDip    = 560;
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiMessageBoxBody -- the content control: an optional semantic glyph in a
+//  left column, and the wrapped message text (theme body font) beside it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+class DxuiMessageBoxBody : public DxuiPanel
 {
-    // Icon glyphs (Segoe MDL2 Assets) + accent colours -- same set the shell's
-    // task-dialog path uses, so a Dxui message box reads identically.
-    constexpr wchar_t   s_kGlyphInfo     = L'\uE946';   // MDL2 Info
-    constexpr wchar_t   s_kGlyphWarning  = L'\uE7BA';   // MDL2 Warning
-    constexpr wchar_t   s_kGlyphError    = L'\uEA39';   // MDL2 ErrorBadge
-    constexpr uint32_t  s_kArgbInfo      = 0xFF4A9EDB;
-    constexpr uint32_t  s_kArgbWarning   = 0xFFF5A623;
-    constexpr uint32_t  s_kArgbError     = 0xFFE5424D;
-    constexpr wchar_t   s_kMdl2Font   [] = L"Segoe MDL2 Assets";
+public:
+    void  Set (std::wstring text, wchar_t glyph, uint32_t glyphArgb)
+    {
+        m_text      = std::move (text);
+        m_glyph     = glyph;
+        m_glyphArgb = glyphArgb;
+    }
 
-    constexpr int  s_kWidthDip        = 400;
-    constexpr int  s_kIconColDip      =  40;   // glyph column width
-    constexpr int  s_kIconTextGapDip  =  10;
-    constexpr int  s_kGlyphSizeDip    =  28;
-    constexpr int  s_kLineHeightDip   =  20;
-    constexpr int  s_kChromeHeightDip = 104;   // caption + button row + content vpad
-    constexpr int  s_kMinHeightDip    = 128;
-    constexpr int  s_kMaxHeightDip    = 560;
+    void  Layout (const RECT & boundsPx, const DxuiDpiScaler & scaler) override
+    {
+        m_bounds = boundsPx;
+        m_scaler = scaler;
+        SetBounds (boundsPx);
+    }
+
+    void  Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override
+    {
+        HRESULT  hr    = S_OK;
+        RECT     tr    = m_bounds;
+
+        UNREFERENCED_PARAMETER (painter);
+
+        if (m_glyph != 0)
+        {
+            wchar_t  g[2]      = { m_glyph, L'\0' };
+            int      iconColPx = m_scaler.Px (s_kIconColDip);
+
+            IGNORE_RETURN_VALUE (hr, text.DrawString (
+                g,
+                (float) m_bounds.left,
+                (float) m_bounds.top,
+                (float) iconColPx,
+                (float) (m_bounds.bottom - m_bounds.top),
+                m_glyphArgb,
+                m_scaler.Pxf ((float) s_kGlyphSizeDip),
+                s_kMdl2Font,
+                DxuiTextHAlign::Center,
+                DxuiTextVAlign::Center,
+                DxuiFontWeight::Normal,
+                false));
+
+            tr.left += iconColPx + m_scaler.Px (s_kIconTextGapDip);
+        }
+
+        {
+            DxuiFontHandle  bf = theme.BodyFont();
+
+            IGNORE_RETURN_VALUE (hr, text.DrawString (
+                m_text.c_str(),
+                (float) tr.left,
+                (float) tr.top,
+                (float) (tr.right  - tr.left),
+                (float) (tr.bottom - tr.top),
+                theme.TextColor (DxuiTextRole::Body),
+                m_scaler.Pxf (bf.sizeDip),
+                bf.face,
+                DxuiTextHAlign::Left,
+                DxuiTextVAlign::Center,
+                bf.weight,
+                true));
+        }
+    }
+
+private:
+    std::wstring   m_text;
+    wchar_t        m_glyph     = 0;
+    uint32_t       m_glyphArgb = 0;
+    RECT           m_bounds    = {};
+    DxuiDpiScaler  m_scaler;
+};
 
 
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiMessageBoxWindow -- the modal dialog: builds the body + buttons in
+//  OnCreate, then the free function shows it via ShowModalDialog.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+class DxuiMessageBoxWindow : public DxuiDialogWindow
+{
+public:
     struct ButtonSpec
     {
         const wchar_t *  label = nullptr;
         int              id    = 0;
     };
 
-
     // Rough (renderer-free) wrapped-line estimate so the dialog can be sized
     // before its backend exists. Mirrors the shell's line-count heuristic.
-    int  EstimateTextHeightDip (const std::wstring & text, bool hasGlyph)
+    static int  EstimateTextHeightDip (const std::wstring & text, bool hasGlyph);
+
+    void  Configure (std::wstring              text,
+                     wchar_t                   glyph,
+                     uint32_t                  glyphArgb,
+                     std::vector<ButtonSpec>   buttons)
     {
-        int     contentW    = s_kWidthDip - 40 - (hasGlyph ? (s_kIconColDip + s_kIconTextGapDip) : 0);
-        int     approxCharW = 7;   // ~13dip body font average advance
-        int     cpl         = (std::max) (8, contentW / approxCharW);
-        int     lines       = 0;
-        size_t  pos         = 0;
-
-        for (;;)
-        {
-            size_t  nl  = text.find (L'\n', pos);
-            size_t  end = (nl == std::wstring::npos) ? text.size() : nl;
-            int     len = (int) (end - pos);
-
-            lines += (std::max) (1, (len + cpl - 1) / cpl);
-
-            if (nl == std::wstring::npos)
-            {
-                break;
-            }
-
-            pos = nl + 1;
-        }
-
-        return (std::max) (1, lines) * s_kLineHeightDip;
+        m_text      = std::move (text);
+        m_glyph     = glyph;
+        m_glyphArgb = glyphArgb;
+        m_buttons   = std::move (buttons);
     }
 
-
-
-
-    ////////////////////////////////////////////////////////////////////////////
-    //
-    //  MessageBoxBody -- the content control: an optional semantic glyph in a
-    //  left column, and the wrapped message text (theme body font) beside it.
-    //
-    ////////////////////////////////////////////////////////////////////////////
-
-    class MessageBoxBody : public DxuiPanel
+protected:
+    void  OnCreate() override
     {
-    public:
-        void  Set (std::wstring text, wchar_t glyph, uint32_t glyphArgb)
+        DxuiMessageBoxBody *  body = CreateDialogContent<DxuiMessageBoxBody> ();
+
+        body->Set (m_text, m_glyph, m_glyphArgb);
+
+        for (const ButtonSpec & b : m_buttons)
         {
-            m_text      = std::move (text);
-            m_glyph     = glyph;
-            m_glyphArgb = glyphArgb;
+            AddDialogButton (b.label, b.id);
         }
+    }
 
-        void  Layout (const RECT & boundsPx, const DxuiDpiScaler & scaler) override
-        {
-            m_bounds = boundsPx;
-            m_scaler = scaler;
-            SetBounds (boundsPx);
-        }
-
-        void  Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override
-        {
-            HRESULT  hr    = S_OK;
-            RECT     tr    = m_bounds;
-
-            UNREFERENCED_PARAMETER (painter);
-
-            if (m_glyph != 0)
-            {
-                wchar_t  g[2]      = { m_glyph, L'\0' };
-                int      iconColPx = m_scaler.Px (s_kIconColDip);
-
-                IGNORE_RETURN_VALUE (hr, text.DrawString (
-                    g,
-                    (float) m_bounds.left,
-                    (float) m_bounds.top,
-                    (float) iconColPx,
-                    (float) (m_bounds.bottom - m_bounds.top),
-                    m_glyphArgb,
-                    m_scaler.Pxf ((float) s_kGlyphSizeDip),
-                    s_kMdl2Font,
-                    DxuiTextHAlign::Center,
-                    DxuiTextVAlign::Center,
-                    DxuiFontWeight::Normal,
-                    false));
-
-                tr.left += iconColPx + m_scaler.Px (s_kIconTextGapDip);
-            }
-
-            {
-                DxuiFontHandle  bf = theme.BodyFont();
-
-                IGNORE_RETURN_VALUE (hr, text.DrawString (
-                    m_text.c_str(),
-                    (float) tr.left,
-                    (float) tr.top,
-                    (float) (tr.right  - tr.left),
-                    (float) (tr.bottom - tr.top),
-                    theme.TextColor (DxuiTextRole::Body),
-                    m_scaler.Pxf (bf.sizeDip),
-                    bf.face,
-                    DxuiTextHAlign::Left,
-                    DxuiTextVAlign::Center,
-                    bf.weight,
-                    true));
-            }
-        }
-
-    private:
-        std::wstring   m_text;
-        wchar_t        m_glyph     = 0;
-        uint32_t       m_glyphArgb = 0;
-        RECT           m_bounds    = {};
-        DxuiDpiScaler  m_scaler;
-    };
+private:
+    std::wstring              m_text;
+    wchar_t                   m_glyph     = 0;
+    uint32_t                  m_glyphArgb = 0;
+    std::vector<ButtonSpec>   m_buttons;
+};
 
 
 
 
-    ////////////////////////////////////////////////////////////////////////////
-    //
-    //  DxuiMessageBoxWindow -- the modal dialog: builds the body + buttons in
-    //  OnCreate, then the free function shows it via ShowModalDialog.
-    //
-    ////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiMessageBoxWindow::EstimateTextHeightDip
+//
+////////////////////////////////////////////////////////////////////////////////
 
-    class DxuiMessageBoxWindow : public DxuiDialogWindow
+int DxuiMessageBoxWindow::EstimateTextHeightDip (const std::wstring & text, bool hasGlyph)
+{
+    int     contentW    = s_kWidthDip - 40 - (hasGlyph ? (s_kIconColDip + s_kIconTextGapDip) : 0);
+    int     approxCharW = 7;   // ~13dip body font average advance
+    int     cpl         = (std::max) (8, contentW / approxCharW);
+    int     lines       = 0;
+    size_t  pos         = 0;
+
+    for (;;)
     {
-    public:
-        void  Configure (std::wstring              text,
-                         wchar_t                   glyph,
-                         uint32_t                  glyphArgb,
-                         std::vector<ButtonSpec>   buttons)
+        size_t  nl  = text.find (L'\n', pos);
+        size_t  end = (nl == std::wstring::npos) ? text.size() : nl;
+        int     len = (int) (end - pos);
+
+        lines += (std::max) (1, (len + cpl - 1) / cpl);
+
+        if (nl == std::wstring::npos)
         {
-            m_text      = std::move (text);
-            m_glyph     = glyph;
-            m_glyphArgb = glyphArgb;
-            m_buttons   = std::move (buttons);
+            break;
         }
 
-    protected:
-        void  OnCreate() override
-        {
-            MessageBoxBody *  body = CreateDialogContent<MessageBoxBody> ();
+        pos = nl + 1;
+    }
 
-            body->Set (m_text, m_glyph, m_glyphArgb);
-
-            for (const ButtonSpec & b : m_buttons)
-            {
-                AddDialogButton (b.label, b.id);
-            }
-        }
-
-    private:
-        std::wstring              m_text;
-        wchar_t                   m_glyph     = 0;
-        uint32_t                  m_glyphArgb = 0;
-        std::vector<ButtonSpec>   m_buttons;
-    };
+    return (std::max) (1, lines) * s_kLineHeightDip;
 }
 
 
@@ -209,6 +215,8 @@ namespace
 
 int DxuiMessageBox (HWND owner, const IDxuiTheme * theme, const wchar_t * text, const wchar_t * caption, UINT uType)
 {
+    using ButtonSpec = DxuiMessageBoxWindow::ButtonSpec;
+
     std::vector<ButtonSpec>   buttons;
     std::wstring              body       = (text != nullptr) ? text : L"";
     wchar_t                   glyph      = 0;
@@ -248,7 +256,7 @@ int DxuiMessageBox (HWND owner, const IDxuiTheme * theme, const wchar_t * text, 
     }
 
     heightDip = std::clamp (s_kChromeHeightDip
-                                + (std::max) (EstimateTextHeightDip (body, glyph != 0),
+                                + (std::max) (DxuiMessageBoxWindow::EstimateTextHeightDip (body, glyph != 0),
                                               (glyph != 0) ? s_kGlyphSizeDip : 0),
                             s_kMinHeightDip,
                             s_kMaxHeightDip);

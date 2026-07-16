@@ -16,9 +16,9 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace
+TEST_CLASS (DxuiPanZoomTests)
 {
-    DxuiMouseEvent  Wheel (float delta, bool horizontal = false, bool ctrl = false)
+    static DxuiMouseEvent  Wheel (float delta, bool horizontal = false, bool ctrl = false)
     {
         DxuiMouseEvent  ev;
         ev.kind            = DxuiMouseEventKind::Wheel;
@@ -30,7 +30,7 @@ namespace
 
 
 
-    DxuiMouseEvent  Mouse (DxuiMouseEventKind kind, DxuiMouseButton button, LONG x, LONG y)
+    static DxuiMouseEvent  Mouse (DxuiMouseEventKind kind, DxuiMouseButton button, LONG x, LONG y)
     {
         DxuiMouseEvent  ev;
         ev.kind        = kind;
@@ -41,7 +41,7 @@ namespace
 
 
 
-    DxuiMouseEvent  WheelAt (float delta, LONG x, LONG y, bool ctrl = true)
+    static DxuiMouseEvent  WheelAt (float delta, LONG x, LONG y, bool ctrl = true)
     {
         DxuiMouseEvent  ev = Wheel (delta, /*horizontal*/ false, ctrl);
         ev.positionDip     = POINT { x, y };
@@ -50,7 +50,7 @@ namespace
 
 
 
-    DxuiKeyEvent  CtrlKey (WPARAM vk)
+    static DxuiKeyEvent  CtrlKey (WPARAM vk)
     {
         DxuiKeyEvent  ev;
         ev.kind = DxuiKeyEventKind::Down;
@@ -63,18 +63,12 @@ namespace
 
     // Ease long enough (large dt) that current reaches target for assertions
     // about the settled transform.
-    void  Settle (DxuiPanZoom & pz)
+    static void  Settle (DxuiPanZoom & pz)
     {
         pz.Tick (0.0);
         pz.Tick (10.0);
     }
-}
 
-
-
-
-TEST_CLASS (DxuiPanZoomTests)
-{
 public:
 
     TEST_METHOD (Defaults_ZoomMinNoPan)

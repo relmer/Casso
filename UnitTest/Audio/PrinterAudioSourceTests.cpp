@@ -19,18 +19,18 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace
+TEST_CLASS (PrinterAudioSourceTests)
 {
-    typedef PrinterAudioSource::Quality  Quality;
+    using Quality = PrinterAudioSource::Quality;
 
-    vector<float>  Const (size_t n, float v)
+    static vector<float>  Const (size_t n, float v)
     {
         return vector<float> (n, v);
     }
 
 
     // Peak absolute sample in a mixed buffer.
-    float  Peak (const vector<float> & buf)
+    static float  Peak (const vector<float> & buf)
     {
         float  peak = 0.0f;
         for (float s : buf) { peak = (std::max) (peak, std::fabs (s)); }
@@ -39,19 +39,13 @@ namespace
 
 
     // Advance one frame and return the peak of that frame.
-    float  Frame (PrinterAudioSource & src, uint32_t n)
+    static float  Frame (PrinterAudioSource & src, uint32_t n)
     {
         vector<float>  out (n, 0.0f);
         src.GeneratePCM (out.data(), n);
         return Peak (out);
     }
-}
 
-
-
-
-TEST_CLASS (PrinterAudioSourceTests)
-{
 public:
 
     TEST_METHOD (Defaults_CenteredSilentIdleDraftQuality)

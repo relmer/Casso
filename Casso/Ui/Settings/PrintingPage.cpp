@@ -5,32 +5,44 @@
 
 
 
+// Layout metrics (DIP).
+static constexpr int    s_kRowHeightDp     = 28;
+static constexpr int    s_kLabelWidthDp    = 130;
+static constexpr int    s_kDropdownWidthDp = 220;
+static constexpr int    s_kCheckWidthDp    = 140;
+static constexpr int    s_kChildIndentDp   = 18;    // one nesting step (matches DxuiTreeView)
+static constexpr int    s_kSectionGapDp    = 14;
+static constexpr int    s_kPagePadDp       = 16;
+
+
+
+
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  Anonymous helpers
+//  PrintingPage::MakeRect
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace
+RECT PrintingPage::MakeRect (int l, int t, int w, int h)
 {
-    constexpr int    s_kRowHeightDp     = 28;
-    constexpr int    s_kLabelWidthDp    = 130;
-    constexpr int    s_kDropdownWidthDp = 220;
-    constexpr int    s_kCheckWidthDp    = 140;
-    constexpr int    s_kChildIndentDp   = 18;    // one nesting step (matches DxuiTreeView)
-    constexpr int    s_kSectionGapDp    = 14;
-    constexpr int    s_kPagePadDp       = 16;
+    RECT  rc = { l, t, l + w, t + h };
+    return rc;
+}
 
 
-    RECT MakeRect (int l, int t, int w, int h)
-    {
-        RECT  rc = { l, t, l + w, t + h };
-        return rc;
-    }
 
-    // Dot-style token <-> dropdown index. The dpi dropdown maps index 0 -> 288,
-    // 1 -> 576.
-    int  DotStyleToIndex (const std::string & s) { return s == "plain" ? 1 : 0; }
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PrintingPage::DotStyleToIndex
+//
+//  Dot-style token -> dropdown index (index 1 == "plain", else 0 == "ink").
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int PrintingPage::DotStyleToIndex (const std::string & token)
+{
+    return token == "plain" ? 1 : 0;
 }
 
 

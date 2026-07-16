@@ -70,6 +70,9 @@ public:
     DxuiSlider         & PanSlider           ()       { return m_pan;          }
 
 private:
+    static RECT  MakeRect        (int l, int t, int w, int h);
+    static int   DotStyleToIndex (const std::string & token);
+
     void  ConfigureVolumeSlider (DxuiSlider & slider, const RECT & rect);
     void  ConfigurePanSlider    (DxuiSlider & slider, const RECT & rect);
 

@@ -8,12 +8,9 @@
 
 
 
-namespace
-{
-    constexpr uint32_t  kMat    = 0xFF26282C;   // dark mat behind the paper
-    constexpr uint32_t  kShadow = 0x55000000;   // soft paper drop shadow
-    constexpr uint32_t  kBorder = 0xFF14161A;   // thin paper edge
-}
+static constexpr uint32_t  s_kMat    = 0xFF26282C;   // dark mat behind the paper
+static constexpr uint32_t  s_kShadow = 0x55000000;   // soft paper drop shadow
+static constexpr uint32_t  s_kBorder = 0xFF14161A;   // thin paper edge
 
 
 
@@ -100,7 +97,7 @@ void PrinterPaperView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, 
 
     scaler.SetDpi (m_dpi);
 
-    painter.FillRect (x, y, w, h, kMat);
+    painter.FillRect (x, y, w, h, s_kMat);
 
     if (!HasImage())
     {
@@ -134,8 +131,8 @@ void PrinterPaperView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, 
         dX = x + (w - dW) * 0.5f;
         dY = y + (h - dH) * 0.5f;
 
-        painter.FillRect    (dX + scaler.Pxf (3.0f), dY + scaler.Pxf (3.0f), dW, dH, kShadow);
-        painter.OutlineRect (dX, dY, dW, dH, 1.0f, kBorder);
+        painter.FillRect    (dX + scaler.Pxf (3.0f), dY + scaler.Pxf (3.0f), dW, dH, s_kShadow);
+        painter.OutlineRect (dX, dY, dW, dH, 1.0f, s_kBorder);
 
         IGNORE_RETURN_VALUE (hr, text.DrawIconBitmap (m_bgra.data(), m_srcW, m_srcH, dX, dY, dW, dH));
     }

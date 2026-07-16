@@ -15,117 +15,141 @@
 
 
 
-namespace
+static constexpr wchar_t   s_kpszTitle     [] = L"Casso Printer";
+static constexpr wchar_t   s_kpszClassName [] = L"CassoPrinterPanel";
+
+static constexpr int       s_kPreferredWidthDip  = 560;
+static constexpr int       s_kPreferredHeightDip = 680;
+
+// Viewport render: 144 dpi maps native rows 1:1 to pixels, so the visible
+// ~1-page span is a fixed 1152x1584 image regardless of strip length --
+// bounded memory, stable scale-to-fit, and delta-friendly row alignment.
+static constexpr int       s_kPreviewDpi = PrinterGrid::kRowsPerInch;
+
+// Minimum interval between live re-renders while bytes stream (~60 Hz).
+// Viewport motion (scroll / snap) bypasses it so input feels immediate.
+static constexpr int64_t   s_kMinRenderIntervalMs = 16;
+
+// Scroll step sizes in native rows (144 rows/inch).
+static constexpr int       s_kWheelRowsPerNotch = 144;   // 1" per wheel notch
+static constexpr int       s_kArrowScrollRows   = 48;    // 1/3" per key press
+
+// Guest-activity gap after which the print counts as finished: Form Feed
+// arms, matching the shell-side gate on the same signal.
+static constexpr int64_t   s_kPrintIdleMs = 1200;
+
+// Zoom: each button press / wheel notch scales by this factor, clamped to
+// [min,max]. 1 = fit-to-window; the scene camera does the magnifying.
+static constexpr float     s_kZoomStep = 1.25f;
+static constexpr float     s_kZoomMin  = 1.0f;
+static constexpr float     s_kZoomMax  = 4.0f;
+
+// Framing reach: a plain (1 - 1/Z) can only center the content EDGE, but the
+// status LEDs + switches sit just inside the lower-right corner and need a
+// touch more camera travel to bring to the middle at ~300%. Boost the reach
+// so the corners are framable by 3x, clamped to 1 so the printer can't be
+// panned clear out of the view.
+static constexpr float     s_kFramingReach = 1.5f;
+
+// Fanfold paper furniture (FR-032; panel-only per FR-027), all in px at the
+// fixed 144 dpi preview scale. Real continuous-form stock: 9.5" wide with
+// 0.5" tractor strips both sides (tear width 8.5"), 5/32" sprocket holes on
+// a 1/2" pitch, and the 8" printable area centered between the strips.
+static constexpr int       s_kStockWidthPx   = (19 * PrinterGrid::kRowsPerInch) / 2;   // 9.5" = 1368
+static constexpr int       s_kStripWidthPx   = PrinterGrid::kRowsPerInch / 2;          // 0.5" =   72
+static constexpr int       s_kContentXPx     = s_kStripWidthPx + PrinterGrid::kRowsPerInch / 4;   // 0.75" = 108
+static constexpr int       s_kHoleRadiusPx   = 11;                                     // ~5/32" dia
+static constexpr int       s_kHolePitchPx    = PrinterGrid::kRowsPerInch / 2;          // 0.5" =   72
+static constexpr uint32_t  s_kArgbHoleRim    = 0xFFB8B8B8;   // sprocket hole edge
+
+// The live pin band (FR-034): a head pass strikes 8 pins spaced 1/72",
+// i.e. 2 native rows each -- 16 rows below the paper row. The reveal mask
+// clips this band at the paced head column; rows above it are complete.
+static constexpr int       s_kPinBandRows = 8 * (PrinterGrid::kRowsPerInch / 72);
+
+// Bidirectional reveal lag: the carriage prints alternate lines right-to-left
+// (real ImageWriter), but our interpreter fills each line's dots left-to-
+// right, so a right-to-left reveal is only correct on a COMPLETED line. Hold
+// the reveal this many rows behind the guest's head while it prints so the
+// line being swept is always fully in the raster -- comfortably more than a
+// pin band, ~1/6" (one text line). Released to the live head once idle.
+static constexpr int       s_kBidiLagRows = 24;
+
+static constexpr wchar_t   s_kpszScrollHint [] =
+    L"Scroll wheel or Up/Down to review \u2022 scroll past the end to lift the last page \u2022 rejoins a live print when idle";
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PrinterPanel::FloorMod
+//
+//  Floor modulus: hole / perforation phase stays continuous for rows above the
+//  top of the strip (the leading fanfold paper), where absRow < 0.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int PrinterPanel::FloorMod (int a, int m)
 {
-    constexpr wchar_t   s_kpszTitle     [] = L"Casso Printer";
-    constexpr wchar_t   s_kpszClassName [] = L"CassoPrinterPanel";
-
-    constexpr int       s_kPreferredWidthDip  = 560;
-    constexpr int       s_kPreferredHeightDip = 680;
-
-    // Viewport render: 144 dpi maps native rows 1:1 to pixels, so the visible
-    // ~1-page span is a fixed 1152x1584 image regardless of strip length --
-    // bounded memory, stable scale-to-fit, and delta-friendly row alignment.
-    constexpr int       s_kPreviewDpi = PrinterGrid::kRowsPerInch;
-
-    // Minimum interval between live re-renders while bytes stream (~60 Hz).
-    // Viewport motion (scroll / snap) bypasses it so input feels immediate.
-    constexpr int64_t   s_kMinRenderIntervalMs = 16;
-
-    // Scroll step sizes in native rows (144 rows/inch).
-    constexpr int       s_kWheelRowsPerNotch = 144;   // 1" per wheel notch
-    constexpr int       s_kArrowScrollRows   = 48;    // 1/3" per key press
-
-    // Guest-activity gap after which the print counts as finished: Form Feed
-    // arms, matching the shell-side gate on the same signal.
-    constexpr int64_t   s_kPrintIdleMs = 1200;
-
-    // Zoom: each button press / wheel notch scales by this factor, clamped to
-    // [min,max]. 1 = fit-to-window; the scene camera does the magnifying.
-    constexpr float     s_kZoomStep = 1.25f;
-    constexpr float     s_kZoomMin  = 1.0f;
-    constexpr float     s_kZoomMax  = 4.0f;
-
-    // Framing reach: a plain (1 - 1/Z) can only center the content EDGE, but the
-    // status LEDs + switches sit just inside the lower-right corner and need a
-    // touch more camera travel to bring to the middle at ~300%. Boost the reach
-    // so the corners are framable by 3x, clamped to 1 so the printer can't be
-    // panned clear out of the view.
-    constexpr float     s_kFramingReach = 1.5f;
-
-    // Fanfold paper furniture (FR-032; panel-only per FR-027), all in px at the
-    // fixed 144 dpi preview scale. Real continuous-form stock: 9.5" wide with
-    // 0.5" tractor strips both sides (tear width 8.5"), 5/32" sprocket holes on
-    // a 1/2" pitch, and the 8" printable area centered between the strips.
-    constexpr int       s_kStockWidthPx   = (19 * PrinterGrid::kRowsPerInch) / 2;   // 9.5" = 1368
-    constexpr int       s_kStripWidthPx   = PrinterGrid::kRowsPerInch / 2;          // 0.5" =   72
-    constexpr int       s_kContentXPx     = s_kStripWidthPx + PrinterGrid::kRowsPerInch / 4;   // 0.75" = 108
-    constexpr int       s_kHoleRadiusPx   = 11;                                     // ~5/32" dia
-    constexpr int       s_kHolePitchPx    = PrinterGrid::kRowsPerInch / 2;          // 0.5" =   72
-    constexpr uint32_t  s_kArgbHoleRim    = 0xFFB8B8B8;   // sprocket hole edge
-
-    // The live pin band (FR-034): a head pass strikes 8 pins spaced 1/72",
-    // i.e. 2 native rows each -- 16 rows below the paper row. The reveal mask
-    // clips this band at the paced head column; rows above it are complete.
-    constexpr int       s_kPinBandRows = 8 * (PrinterGrid::kRowsPerInch / 72);
-
-    // Bidirectional reveal lag: the carriage prints alternate lines right-to-left
-    // (real ImageWriter), but our interpreter fills each line's dots left-to-
-    // right, so a right-to-left reveal is only correct on a COMPLETED line. Hold
-    // the reveal this many rows behind the guest's head while it prints so the
-    // line being swept is always fully in the raster -- comfortably more than a
-    // pin band, ~1/6" (one text line). Released to the live head once idle.
-    constexpr int       s_kBidiLagRows = 24;
+    return ((a % m) + m) % m;
+}
 
 
-    // Floor modulus: hole / perforation phase stays continuous for rows above
-    // the top of the strip (the leading fanfold paper), where absRow < 0.
-    constexpr int FloorMod (int a, int m)
-    {
-        return ((a % m) + m) % m;
-    }
 
 
-    // Perforation dash: a slight darkening of whatever it crosses -- light gray
-    // on paper white, a shade darker on ink -- like a real perf cut, instead of
-    // stamping gray over (and visually erasing) printed content.
-    inline void DarkenPerf (uint32_t & px)
-    {
-        uint32_t  a = px & 0xFF000000u;
-        uint32_t  r = ((px >> 16) & 0xFF) * 210 / 255;
-        uint32_t  g = ((px >>  8) & 0xFF) * 210 / 255;
-        uint32_t  b = ( px        & 0xFF) * 210 / 255;
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PrinterPanel::DarkenPerf
+//
+//  Perforation dash: a slight darkening of whatever it crosses -- light gray on
+//  paper white, a shade darker on ink -- like a real perf cut, instead of
+//  stamping gray over (and visually erasing) printed content.
+//
+////////////////////////////////////////////////////////////////////////////////
 
-        px = a | (r << 16) | (g << 8) | b;
-    }
+void PrinterPanel::DarkenPerf (uint32_t & px)
+{
+    uint32_t  a = px & 0xFF000000u;
+    uint32_t  r = ((px >> 16) & 0xFF) * 210 / 255;
+    uint32_t  g = ((px >>  8) & 0xFF) * 210 / 255;
+    uint32_t  b = ( px        & 0xFF) * 210 / 255;
 
-    constexpr wchar_t   s_kpszScrollHint [] =
-        L"Scroll wheel or Up/Down to review \u2022 scroll past the end to lift the last page \u2022 rejoins a live print when idle";
+    px = a | (r << 16) | (g << 8) | b;
+}
 
 
-    // Read an embedded RCDATA resource (the user's ImageWriter CAD model)
-    // into a string. Returns empty on any failure -- the scene then keeps
-    // its procedural body, so a missing model never blanks the panel.
-    std::string LoadTextResource (int resourceId)
-    {
-        HINSTANCE   hInstance = GetModuleHandleW (nullptr);
-        HRSRC       hRes      = nullptr;
-        HGLOBAL     hMem      = nullptr;
-        DWORD       cbData    = 0;
-        void      * pData     = nullptr;
 
-        hRes = FindResourceW (hInstance, MAKEINTRESOURCEW (resourceId), RT_RCDATA);
-        if (hRes == nullptr) { return {}; }
 
-        cbData = SizeofResource (hInstance, hRes);
-        hMem   = LoadResource (hInstance, hRes);
-        if (cbData == 0 || hMem == nullptr) { return {}; }
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PrinterPanel::LoadTextResource
+//
+//  Read an embedded RCDATA resource (the user's ImageWriter CAD model) into a
+//  string. Returns empty on any failure -- the scene then keeps its procedural
+//  body, so a missing model never blanks the panel.
+//
+////////////////////////////////////////////////////////////////////////////////
 
-        pData = LockResource (hMem);
-        if (pData == nullptr) { return {}; }
+std::string PrinterPanel::LoadTextResource (int resourceId)
+{
+    HINSTANCE   hInstance = GetModuleHandleW (nullptr);
+    HRSRC       hRes      = nullptr;
+    HGLOBAL     hMem      = nullptr;
+    DWORD       cbData    = 0;
+    void      * pData     = nullptr;
 
-        return std::string ((const char *) pData, cbData);
-    }
+    hRes = FindResourceW (hInstance, MAKEINTRESOURCEW (resourceId), RT_RCDATA);
+    if (hRes == nullptr) { return {}; }
+
+    cbData = SizeofResource (hInstance, hRes);
+    hMem   = LoadResource (hInstance, hRes);
+    if (cbData == 0 || hMem == nullptr) { return {}; }
+
+    pData = LockResource (hMem);
+    if (pData == nullptr) { return {}; }
+
+    return std::string ((const char *) pData, cbData);
 }
 
 

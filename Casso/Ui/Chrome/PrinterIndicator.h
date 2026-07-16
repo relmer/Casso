@@ -56,6 +56,9 @@ public:
     RECT           OuterRect () const { return m_bodyRect; }
 
 private:
+    // Maps the current status to its LED core colour.
+    static uint32_t  StatusCore (PrinterStatus status);
+
     PrinterStatus  m_status   = PrinterStatus::Idle;
     RECT           m_bodyRect = {};
     UINT           m_dpi      = 96;

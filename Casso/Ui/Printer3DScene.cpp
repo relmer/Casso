@@ -18,241 +18,238 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace
+static constexpr float   s_kPi = 3.14159265f;
+
+// Case footprint. Width and overall depth are set to match the width:
+// height:depth ratio (3.740 : 1.0 : 2.696) measured off the user's
+// reference CAD model (Tinkercad export, Assets/Imagewriter II.zip); the
+// extra depth lands entirely in the rear deck (no explicit rule ever fixed
+// its depth, unlike the front-portion ratios below).
+static constexpr float   s_kBodyHalfW  = 0.907f;
+static constexpr float   s_kBodyZFront = 0.42f;
+static constexpr float   s_kBodyZBack  = -0.888f;
+
+// The whole printer is inclined 10 degrees front-to-back (matches the
+// reference model), rotating about the bottom edge of the front face
+// (y=0 at the front plane): the rear lifts and the front face tips
+// toward the camera, like the real machine on its feet. Applied as a
+// model matrix in Render.
+static constexpr float   s_kBodyTiltRad = 10.0f * s_kPi / 180.0f;
+
+// Side profile, front to back: face -> step ledge -> hood -> smoked cover.
+// Reference proportions: the exposed shelf is as deep as the front face is
+// tall, and the cover box is 5% deeper than that shelf.
+static constexpr float   s_kFaceTopY      = 0.331f;   // lower front face 0..this
+static constexpr float   s_kLedgeZ        = 0.089f;   // hood front edge; shelf depth == s_kFaceTopY
+static constexpr float   s_kHoodFrontY    = 0.375f;   // hood riser top (at ledge z)
+static constexpr float   s_kHoodBackY     = 0.415f;   // hood top rear edge...
+static constexpr float   s_kHoodZBack     = -0.259f;  // ...at this z (cover depth = 1.05 * shelf)
+static constexpr float   s_kCoverTopY     = 0.485f;   // smoked cover top edge...
+static constexpr float   s_kCoverZTop     = -0.37f;   // ...at this z
+static constexpr float   s_kDeckY         = 0.40f;    // vented rear deck height
+static constexpr float   s_kDeckZFront    = -0.42f;
+
+// Platen bay (seen through the smoked cover), its rounded end towers
+// (vertical half-cylinders hugging the body ends), and the paper-advance
+// knob sticking out of the right tower.
+static constexpr float   s_kBayHalfW   = 0.70f;
+
+// Platen end housings: rounded-top blocks running front-to-back at each
+// end of the platen line, merged into the case (NOT freestanding
+// cylinders). Extruded along x with a quarter-round crown; the paper-
+// advance knob emerges from the right one on the same axis. X-span and
+// ground contact match the reference model: the housing's inner/outer
+// edges sit at 0.882/1.118 of the body half-width (measured), and it
+// reaches all the way down to the ground -- NOT floating mid-height.
+static constexpr float   s_kEndXIn     = 0.80f;    // housing spans In..Out (mirrored)
+static constexpr float   s_kEndXOut    = 1.01f;    // proud of the body side both ways
+static constexpr float   s_kEndCy      = 0.44f;    // crown axis (y, z)
+static constexpr float   s_kEndCz      = -0.26f;
+static constexpr float   s_kEndR       = 0.08f;    // crown radius (top = 0.52)
+static constexpr float   s_kEndBaseY   = 0.0f;     // touches the ground, per reference
+static constexpr float   s_kKnobX1     = 1.10f;
+static constexpr float   s_kKnobR      = 0.050f;
+
+// Paper strip: leans back from vertical, then curls away over a roll.
+static constexpr float   s_kPaperHalfW  = 0.62f;   // clears the end housings
+static constexpr float   s_kPaperZ      = -0.40f;
+static constexpr float   s_kPaperStartY = 0.46f;   // just below the cover's top edge
+static constexpr float   s_kPaperTilt   = 12.0f * s_kPi / 180.0f;
+static constexpr float   s_kStraightLen = 0.95f;   // arclength before the curl (fits the tilted frame)
+static constexpr float   s_kCurlRadius  = 0.28f;
+static constexpr int     s_kPaperSlices = 48;
+static constexpr float   s_kEdgeFeather = 0.004f;  // ~2px silhouette fade (no MSAA on the swap chain)
+
+// Camera: in front and above, looking slightly down so the printer sits at
+// the bottom of the frame and the paper rises through the middle.
+static constexpr float   s_kEye[3]   = { 0.0f, 1.35f, 3.30f };
+static constexpr float   s_kAt[3]    = { 0.0f, 0.95f, 0.0f };
+static constexpr float   s_kFovY     = 34.0f * s_kPi / 180.0f;
+
+// World-pan hard stop (world units) at normalized +/-1: how far the whole
+// scene may slide vertically when panning past the paper's scroll limit.
+// ~half a view height at the paper plane -- a clear nudge that always keeps
+// the machine on screen.
+static constexpr float   s_kWorldPanYSpan = 0.55f;
+
+// Camera vertical framing reach (world units) at normalized +/-1: how far
+// the eye may travel up (paper) / down (deck + LEDs) when framing a zoomed
+// view. Enough that a ~3x zoom can bring the front-panel controls into view.
+static constexpr float   s_kCamPanYSpan = 0.95f;
+
+// Palette (ARGB): warm ImageWriter platinum + accents.
+// The mat is deliberately lighter than the dark platen roller so the
+// roller's silhouette reads against it (they used to be near-identical).
+static constexpr uint32_t   s_kArgbMat      = 0xFF4A505A;   // panel mat behind everything
+static constexpr uint32_t   s_kArgbCase     = 0xFFD8D3C6;   // platinum case
+static constexpr uint32_t   s_kArgbButton   = 0xFFE8E3D6;   // control caps (lighter cream)
+static constexpr uint32_t   s_kArgbBay      = 0xFF14161A;   // platen bay interior
+static constexpr uint32_t   s_kArgbSlot     = 0xFF17181B;   // paper slot recess
+static constexpr uint32_t   s_kArgbRollerHi = 0xFF3F4348;   // platen roller, lit top
+static constexpr uint32_t   s_kArgbRollerLo = 0xFF26282C;   // platen roller, shadowed
+static constexpr uint32_t   s_kArgbHead     = 0xFF1E2126;   // print head / carriage
+static constexpr uint32_t   s_kArgbCover    = 0x99101418;   // smoked cover (translucent)
+static constexpr uint32_t   s_kArgbLedOn    = 0xFF2FBF5F;   // green-LED detection sentinel (mesh remap)
+static constexpr uint32_t   s_kArgbLedErr   = 0xFF63262A;   // error-LED detection sentinel (mesh remap)
+
+// Display bases for the dynamic LED render (brightness set per frame from
+// printer state): a vivid green for POWER / SELECT / PRINT QUALITY and a
+// vivid red for the fault lamp. Dim at rest, bright + haloed when lit.
+static constexpr uint32_t   s_kLedGreen     = 0xFF3CE070;
+static constexpr uint32_t   s_kLedRed       = 0xFFE8402E;
+static constexpr uint32_t   s_kArgbRibbon[4] = { 0xFF202020, 0xFFF0C810, 0xFFC83030, 0xFF2848A8 };
+
+// Control cluster (right of the front face): six small caps rising gently
+// toward the right -- paper load/eject, form feed, line feed, print
+// quality, select, on/off -- with tiny LEDs above the right three. Sized
+// from the reference photo: the whole cluster spans ~10% of the body
+// width, so the caps read as switches, not stair treads.
+static constexpr int     s_kButtonCount  = 6;
+static constexpr float   s_kButtonX0     = 0.62f;    // leftmost cap center
+static constexpr float   s_kButtonY0     = 0.155f;
+static constexpr float   s_kButtonDx     = 0.036f;
+static constexpr float   s_kButtonDy     = 0.0075f;
+static constexpr float   s_kButtonW      = 0.030f;
+static constexpr float   s_kButtonH      = 0.011f;
+
+// The Casso cassowary badge (lower-left of the front face, where the real
+// machine wears its apple). Silhouette + rainbow mirror the DriveWidget
+// chrome badge (DrawCassowaryRainbow) -- that painter is the source of
+// truth for the motif; this is its 3D rendition.
+static constexpr int       s_kLogoGridW = 36;
+static constexpr int       s_kLogoGridH = 54;
+static constexpr uint64_t  s_kLogoSilhouette[s_kLogoGridH] = {
+    0x0000000000ULL, 0x0000000000ULL, 0x0000000000ULL, 0x0000000000ULL, 0x0000000000ULL,
+    0x000000FE00ULL, 0x000001FF80ULL, 0x000003FFC0ULL, 0x000007FFE0ULL, 0x00000FFFC0ULL,
+    0x00000FFFC0ULL, 0x00001FFF80ULL, 0x00001FFF00ULL, 0x00003FFF00ULL, 0x00003FFF00ULL,
+    0x00007FFE00ULL, 0x00007FFE00ULL, 0x0000FFFE00ULL, 0x0000FFFC00ULL, 0x0000FFFC00ULL,
+    0x0000FFFC00ULL, 0x0001FFFC00ULL, 0x0001FFFC00ULL, 0x0001FFFC00ULL, 0x0001FFFC00ULL,
+    0x0003FFFE00ULL, 0x0003FFFE00ULL, 0x0003FFFF00ULL, 0x0003FFFF80ULL, 0x0003FFFFC0ULL,
+    0x0003FFFFC0ULL, 0x0007FFFFE0ULL, 0x0007FFFFE0ULL, 0x0007FFFFE0ULL, 0x000FFFFFF0ULL,
+    0x001FFFFFF0ULL, 0x003FFFFFF0ULL, 0x007FFFFFF0ULL, 0x00FFFFFFF0ULL, 0x01FFFFFFF8ULL,
+    0x01FFFFFFF8ULL, 0x03F007FFF8ULL, 0x038000FFF8ULL, 0x0200007FF8ULL, 0x0000007FF8ULL,
+    0x0000007FF8ULL, 0x0000007FF8ULL, 0x000000FFF8ULL, 0x000000FFF8ULL, 0x000001FFF8ULL,
+    0x000001FFF8ULL, 0x000001FFF8ULL, 0x000001FFF0ULL, 0x000003FFF0ULL
+};
+static constexpr uint32_t  s_kLogoStripes[6] = {
+    0xFF61BB46, 0xFFFDB827, 0xFFF5821F, 0xFFE03A3E, 0xFF963D97, 0xFF009DDC
+};
+static constexpr float     s_kLogoLeft   = -0.82f;
+static constexpr float     s_kLogoWidth  = 0.075f;
+static constexpr float     s_kLogoTopY   = 0.19f;
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Printer3DScene -- row-vector matrix helpers (clip = v * view * proj),
+//  matching the renderer's row_major cbuffer. Hand-rolled to keep the 3D path
+//  free of a math-library header dependency.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Printer3DScene::Mul44 (const float a[16], const float b[16], float out[16])
 {
-    constexpr float   s_kPi = 3.14159265f;
-
-    // Case footprint. Width and overall depth are set to match the width:
-    // height:depth ratio (3.740 : 1.0 : 2.696) measured off the user's
-    // reference CAD model (Tinkercad export, Assets/Imagewriter II.zip); the
-    // extra depth lands entirely in the rear deck (no explicit rule ever fixed
-    // its depth, unlike the front-portion ratios below).
-    constexpr float   s_kBodyHalfW  = 0.907f;
-    constexpr float   s_kBodyZFront = 0.42f;
-    constexpr float   s_kBodyZBack  = -0.888f;
-
-    // The whole printer is inclined 10 degrees front-to-back (matches the
-    // reference model), rotating about the bottom edge of the front face
-    // (y=0 at the front plane): the rear lifts and the front face tips
-    // toward the camera, like the real machine on its feet. Applied as a
-    // model matrix in Render.
-    constexpr float   s_kBodyTiltRad = 10.0f * s_kPi / 180.0f;
-
-    // Side profile, front to back: face -> step ledge -> hood -> smoked cover.
-    // Reference proportions: the exposed shelf is as deep as the front face is
-    // tall, and the cover box is 5% deeper than that shelf.
-    constexpr float   s_kFaceTopY      = 0.331f;   // lower front face 0..this
-    constexpr float   s_kLedgeZ        = 0.089f;   // hood front edge; shelf depth == s_kFaceTopY
-    constexpr float   s_kHoodFrontY    = 0.375f;   // hood riser top (at ledge z)
-    constexpr float   s_kHoodBackY     = 0.415f;   // hood top rear edge...
-    constexpr float   s_kHoodZBack     = -0.259f;  // ...at this z (cover depth = 1.05 * shelf)
-    constexpr float   s_kCoverTopY     = 0.485f;   // smoked cover top edge...
-    constexpr float   s_kCoverZTop     = -0.37f;   // ...at this z
-    constexpr float   s_kDeckY         = 0.40f;    // vented rear deck height
-    constexpr float   s_kDeckZFront    = -0.42f;
-
-    // Platen bay (seen through the smoked cover), its rounded end towers
-    // (vertical half-cylinders hugging the body ends), and the paper-advance
-    // knob sticking out of the right tower.
-    constexpr float   s_kBayHalfW   = 0.70f;
-
-    // Platen end housings: rounded-top blocks running front-to-back at each
-    // end of the platen line, merged into the case (NOT freestanding
-    // cylinders). Extruded along x with a quarter-round crown; the paper-
-    // advance knob emerges from the right one on the same axis. X-span and
-    // ground contact match the reference model: the housing's inner/outer
-    // edges sit at 0.882/1.118 of the body half-width (measured), and it
-    // reaches all the way down to the ground -- NOT floating mid-height.
-    constexpr float   s_kEndXIn     = 0.80f;    // housing spans In..Out (mirrored)
-    constexpr float   s_kEndXOut    = 1.01f;    // proud of the body side both ways
-    constexpr float   s_kEndCy      = 0.44f;    // crown axis (y, z)
-    constexpr float   s_kEndCz      = -0.26f;
-    constexpr float   s_kEndR       = 0.08f;    // crown radius (top = 0.52)
-    constexpr float   s_kEndBaseY   = 0.0f;     // touches the ground, per reference
-    constexpr float   s_kKnobX1     = 1.10f;
-    constexpr float   s_kKnobR      = 0.050f;
-
-    // Paper strip: leans back from vertical, then curls away over a roll.
-    constexpr float   s_kPaperHalfW  = 0.62f;   // clears the end housings
-    constexpr float   s_kPaperZ      = -0.40f;
-    constexpr float   s_kPaperStartY = 0.46f;   // just below the cover's top edge
-    constexpr float   s_kPaperTilt   = 12.0f * s_kPi / 180.0f;
-    constexpr float   s_kStraightLen = 0.95f;   // arclength before the curl (fits the tilted frame)
-    constexpr float   s_kCurlRadius  = 0.28f;
-    constexpr int     s_kPaperSlices = 48;
-    constexpr float   s_kEdgeFeather = 0.004f;  // ~2px silhouette fade (no MSAA on the swap chain)
-
-    // Camera: in front and above, looking slightly down so the printer sits at
-    // the bottom of the frame and the paper rises through the middle.
-    constexpr float   s_kEye[3]   = { 0.0f, 1.35f, 3.30f };
-    constexpr float   s_kAt[3]    = { 0.0f, 0.95f, 0.0f };
-    constexpr float   s_kFovY     = 34.0f * s_kPi / 180.0f;
-
-    // World-pan hard stop (world units) at normalized +/-1: how far the whole
-    // scene may slide vertically when panning past the paper's scroll limit.
-    // ~half a view height at the paper plane -- a clear nudge that always keeps
-    // the machine on screen.
-    constexpr float   s_kWorldPanYSpan = 0.55f;
-
-    // Camera vertical framing reach (world units) at normalized +/-1: how far
-    // the eye may travel up (paper) / down (deck + LEDs) when framing a zoomed
-    // view. Enough that a ~3x zoom can bring the front-panel controls into view.
-    constexpr float   s_kCamPanYSpan = 0.95f;
-
-    // Palette (ARGB): warm ImageWriter platinum + accents.
-    // The mat is deliberately lighter than the dark platen roller so the
-    // roller's silhouette reads against it (they used to be near-identical).
-    constexpr uint32_t   s_kArgbMat      = 0xFF4A505A;   // panel mat behind everything
-    constexpr uint32_t   s_kArgbCase     = 0xFFD8D3C6;   // platinum case
-    constexpr uint32_t   s_kArgbButton   = 0xFFE8E3D6;   // control caps (lighter cream)
-    constexpr uint32_t   s_kArgbBay      = 0xFF14161A;   // platen bay interior
-    constexpr uint32_t   s_kArgbSlot     = 0xFF17181B;   // paper slot recess
-    constexpr uint32_t   s_kArgbRollerHi = 0xFF3F4348;   // platen roller, lit top
-    constexpr uint32_t   s_kArgbRollerLo = 0xFF26282C;   // platen roller, shadowed
-    constexpr uint32_t   s_kArgbHead     = 0xFF1E2126;   // print head / carriage
-    constexpr uint32_t   s_kArgbCover    = 0x99101418;   // smoked cover (translucent)
-    constexpr uint32_t   s_kArgbLedOn    = 0xFF2FBF5F;   // green-LED detection sentinel (mesh remap)
-    constexpr uint32_t   s_kArgbLedErr   = 0xFF63262A;   // error-LED detection sentinel (mesh remap)
-
-    // Display bases for the dynamic LED render (brightness set per frame from
-    // printer state): a vivid green for POWER / SELECT / PRINT QUALITY and a
-    // vivid red for the fault lamp. Dim at rest, bright + haloed when lit.
-    constexpr uint32_t   s_kLedGreen     = 0xFF3CE070;
-    constexpr uint32_t   s_kLedRed       = 0xFFE8402E;
-    constexpr uint32_t   s_kArgbRibbon[4] = { 0xFF202020, 0xFFF0C810, 0xFFC83030, 0xFF2848A8 };
-
-    // Control cluster (right of the front face): six small caps rising gently
-    // toward the right -- paper load/eject, form feed, line feed, print
-    // quality, select, on/off -- with tiny LEDs above the right three. Sized
-    // from the reference photo: the whole cluster spans ~10% of the body
-    // width, so the caps read as switches, not stair treads.
-    constexpr int     s_kButtonCount  = 6;
-    constexpr float   s_kButtonX0     = 0.62f;    // leftmost cap center
-    constexpr float   s_kButtonY0     = 0.155f;
-    constexpr float   s_kButtonDx     = 0.036f;
-    constexpr float   s_kButtonDy     = 0.0075f;
-    constexpr float   s_kButtonW      = 0.030f;
-    constexpr float   s_kButtonH      = 0.011f;
-
-    // The Casso cassowary badge (lower-left of the front face, where the real
-    // machine wears its apple). Silhouette + rainbow mirror the DriveWidget
-    // chrome badge (DrawCassowaryRainbow) -- that painter is the source of
-    // truth for the motif; this is its 3D rendition.
-    constexpr int       s_kLogoGridW = 36;
-    constexpr int       s_kLogoGridH = 54;
-    constexpr uint64_t  s_kLogoSilhouette[s_kLogoGridH] = {
-        0x0000000000ULL, 0x0000000000ULL, 0x0000000000ULL, 0x0000000000ULL, 0x0000000000ULL,
-        0x000000FE00ULL, 0x000001FF80ULL, 0x000003FFC0ULL, 0x000007FFE0ULL, 0x00000FFFC0ULL,
-        0x00000FFFC0ULL, 0x00001FFF80ULL, 0x00001FFF00ULL, 0x00003FFF00ULL, 0x00003FFF00ULL,
-        0x00007FFE00ULL, 0x00007FFE00ULL, 0x0000FFFE00ULL, 0x0000FFFC00ULL, 0x0000FFFC00ULL,
-        0x0000FFFC00ULL, 0x0001FFFC00ULL, 0x0001FFFC00ULL, 0x0001FFFC00ULL, 0x0001FFFC00ULL,
-        0x0003FFFE00ULL, 0x0003FFFE00ULL, 0x0003FFFF00ULL, 0x0003FFFF80ULL, 0x0003FFFFC0ULL,
-        0x0003FFFFC0ULL, 0x0007FFFFE0ULL, 0x0007FFFFE0ULL, 0x0007FFFFE0ULL, 0x000FFFFFF0ULL,
-        0x001FFFFFF0ULL, 0x003FFFFFF0ULL, 0x007FFFFFF0ULL, 0x00FFFFFFF0ULL, 0x01FFFFFFF8ULL,
-        0x01FFFFFFF8ULL, 0x03F007FFF8ULL, 0x038000FFF8ULL, 0x0200007FF8ULL, 0x0000007FF8ULL,
-        0x0000007FF8ULL, 0x0000007FF8ULL, 0x000000FFF8ULL, 0x000000FFF8ULL, 0x000001FFF8ULL,
-        0x000001FFF8ULL, 0x000001FFF8ULL, 0x000001FFF0ULL, 0x000003FFF0ULL
-    };
-    constexpr uint32_t  s_kLogoStripes[6] = {
-        0xFF61BB46, 0xFFFDB827, 0xFFF5821F, 0xFFE03A3E, 0xFF963D97, 0xFF009DDC
-    };
-    constexpr float     s_kLogoLeft   = -0.82f;
-    constexpr float     s_kLogoWidth  = 0.075f;
-    constexpr float     s_kLogoTopY   = 0.19f;
-
-
-    ////////////////////////////////////////////////////////////////////////////
-    //
-    //  Row-vector matrix helpers (clip = v * view * proj), matching the
-    //  renderer's row_major cbuffer. Hand-rolled to keep the 3D path free of
-    //  header dependencies -- three small functions is all a fixed scene needs.
-    //
-    ////////////////////////////////////////////////////////////////////////////
-
-    void Mul44 (const float a[16], const float b[16], float out[16])
+    for (int r = 0; r < 4; r++)
     {
-        for (int r = 0; r < 4; r++)
+        for (int c = 0; c < 4; c++)
         {
-            for (int c = 0; c < 4; c++)
-            {
-                out[r * 4 + c] = a[r * 4 + 0] * b[0 * 4 + c]
-                               + a[r * 4 + 1] * b[1 * 4 + c]
-                               + a[r * 4 + 2] * b[2 * 4 + c]
-                               + a[r * 4 + 3] * b[3 * 4 + c];
-            }
+            out[r * 4 + c] = a[r * 4 + 0] * b[0 * 4 + c]
+                           + a[r * 4 + 1] * b[1 * 4 + c]
+                           + a[r * 4 + 2] * b[2 * 4 + c]
+                           + a[r * 4 + 3] * b[3 * 4 + c];
         }
     }
+}
 
 
-    void LookAtRH (const float eye[3], const float at[3], float out[16])
-    {
-        float   z[3] = { eye[0] - at[0], eye[1] - at[1], eye[2] - at[2] };
-        float   zl   = std::sqrt (z[0] * z[0] + z[1] * z[1] + z[2] * z[2]);
-        float   x[3] = {};
-        float   xl   = 0.0f;
-        float   y[3] = {};
+void Printer3DScene::LookAtRH (const float eye[3], const float at[3], float out[16])
+{
+    float   z[3] = { eye[0] - at[0], eye[1] - at[1], eye[2] - at[2] };
+    float   zl   = std::sqrt (z[0] * z[0] + z[1] * z[1] + z[2] * z[2]);
+    float   x[3] = {};
+    float   xl   = 0.0f;
+    float   y[3] = {};
 
-        z[0] /= zl; z[1] /= zl; z[2] /= zl;
+    z[0] /= zl; z[1] /= zl; z[2] /= zl;
 
-        // x = normalize(cross(up, z)) with up = (0,1,0)
-        x[0] = z[2]; x[1] = 0.0f; x[2] = -z[0];
-        xl   = std::sqrt (x[0] * x[0] + x[2] * x[2]);
-        x[0] /= xl; x[2] /= xl;
+    // x = normalize(cross(up, z)) with up = (0,1,0)
+    x[0] = z[2]; x[1] = 0.0f; x[2] = -z[0];
+    xl   = std::sqrt (x[0] * x[0] + x[2] * x[2]);
+    x[0] /= xl; x[2] /= xl;
 
-        // y = cross(z, x)
-        y[0] = z[1] * x[2] - z[2] * x[1];
-        y[1] = z[2] * x[0] - z[0] * x[2];
-        y[2] = z[0] * x[1] - z[1] * x[0];
+    // y = cross(z, x)
+    y[0] = z[1] * x[2] - z[2] * x[1];
+    y[1] = z[2] * x[0] - z[0] * x[2];
+    y[2] = z[0] * x[1] - z[1] * x[0];
 
-        out[0]  = x[0]; out[1]  = y[0]; out[2]  = z[0]; out[3]  = 0.0f;
-        out[4]  = x[1]; out[5]  = y[1]; out[6]  = z[1]; out[7]  = 0.0f;
-        out[8]  = x[2]; out[9]  = y[2]; out[10] = z[2]; out[11] = 0.0f;
-        out[12] = -(x[0] * eye[0] + x[1] * eye[1] + x[2] * eye[2]);
-        out[13] = -(y[0] * eye[0] + y[1] * eye[1] + y[2] * eye[2]);
-        out[14] = -(z[0] * eye[0] + z[1] * eye[1] + z[2] * eye[2]);
-        out[15] = 1.0f;
-    }
-
-
-    void PerspectiveFovRH (float fovY, float aspect, float zn, float zf, float out[16])
-    {
-        float   ys = 1.0f / std::tan (fovY * 0.5f);
-        float   xs = ys / aspect;
-
-        memset (out, 0, 16 * sizeof (float));
-        out[0]  = xs;
-        out[5]  = ys;
-        out[10] = zf / (zn - zf);
-        out[11] = -1.0f;
-        out[14] = zn * zf / (zn - zf);
-    }
+    out[0]  = x[0]; out[1]  = y[0]; out[2]  = z[0]; out[3]  = 0.0f;
+    out[4]  = x[1]; out[5]  = y[1]; out[6]  = z[1]; out[7]  = 0.0f;
+    out[8]  = x[2]; out[9]  = y[2]; out[10] = z[2]; out[11] = 0.0f;
+    out[12] = -(x[0] * eye[0] + x[1] * eye[1] + x[2] * eye[2]);
+    out[13] = -(y[0] * eye[0] + y[1] * eye[1] + y[2] * eye[2]);
+    out[14] = -(z[0] * eye[0] + z[1] * eye[1] + z[2] * eye[2]);
+    out[15] = 1.0f;
+}
 
 
-    void IdentityMvp (float out[16])
-    {
-        memset (out, 0, 16 * sizeof (float));
-        out[0] = out[5] = out[10] = out[15] = 1.0f;
-    }
+void Printer3DScene::PerspectiveFovRH (float fovY, float aspect, float zn, float zf, float out[16])
+{
+    float   ys = 1.0f / std::tan (fovY * 0.5f);
+    float   xs = ys / aspect;
+
+    memset (out, 0, 16 * sizeof (float));
+    out[0]  = xs;
+    out[5]  = ys;
+    out[10] = zf / (zn - zf);
+    out[11] = -1.0f;
+    out[14] = zn * zf / (zn - zf);
+}
 
 
-    // Model matrix: rotate the whole printer about the x-axis line through the
-    // bottom edge of the front face (y = 0, z = pivotZ), tipping tops toward
-    // the camera so the rear of the machine lifts by `tiltRad`.
-    void TiltAboutFrontBottom (float tiltRad, float pivotZ, float out[16])
-    {
-        float   c = std::cos (tiltRad);
-        float   s = std::sin (tiltRad);
+void Printer3DScene::IdentityMvp (float out[16])
+{
+    memset (out, 0, 16 * sizeof (float));
+    out[0] = out[5] = out[10] = out[15] = 1.0f;
+}
 
-        memset (out, 0, 16 * sizeof (float));
-        out[0]  = 1.0f;
-        out[5]  = c;
-        out[6]  = s;
-        out[9]  = -s;
-        out[10] = c;
-        out[13] = pivotZ * s;
-        out[14] = pivotZ * (1.0f - c);
-        out[15] = 1.0f;
-    }
+
+// Model matrix: rotate the whole printer about the x-axis line through the
+// bottom edge of the front face (y = 0, z = pivotZ), tipping tops toward
+// the camera so the rear of the machine lifts by `tiltRad`.
+void Printer3DScene::TiltAboutFrontBottom (float tiltRad, float pivotZ, float out[16])
+{
+    float   c = std::cos (tiltRad);
+    float   s = std::sin (tiltRad);
+
+    memset (out, 0, 16 * sizeof (float));
+    out[0]  = 1.0f;
+    out[5]  = c;
+    out[6]  = s;
+    out[9]  = -s;
+    out[10] = c;
+    out[13] = pivotZ * s;
+    out[14] = pivotZ * (1.0f - c);
+    out[15] = 1.0f;
 }
 
 

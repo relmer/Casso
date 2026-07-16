@@ -5,75 +5,71 @@
 
 
 
-namespace
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ObjMeshParser::ParseMtl
+//
+//  `newmtl <name>` starts a material; a `Kd r g b` line inside it sets the
+//  diffuse color. Any other MTL directive (Ka, d, illum, ...) is ignored --
+//  this scene bakes flat per-triangle color, nothing else.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::unordered_map<std::string, ObjMeshParser::Rgb> ObjMeshParser::ParseMtl (const std::string & mtlText)
 {
-    struct Rgb { float r, g, b; };
+    std::unordered_map<std::string, Rgb>   materials;
+    std::istringstream                     stream (mtlText);
+    std::string                            line;
+    std::string                            curName;
 
-
-    ////////////////////////////////////////////////////////////////////////////
-    //
-    //  ParseMtl
-    //
-    //  `newmtl <name>` starts a material; a `Kd r g b` line inside it sets
-    //  the diffuse color. Any other MTL directive (Ka, d, illum, ...) is
-    //  ignored -- this scene bakes flat per-triangle color, nothing else.
-    //
-    ////////////////////////////////////////////////////////////////////////////
-
-    std::unordered_map<std::string, Rgb> ParseMtl (const std::string & mtlText)
+    while (std::getline (stream, line))
     {
-        std::unordered_map<std::string, Rgb>   materials;
-        std::istringstream                     stream (mtlText);
-        std::string                            line;
-        std::string                            curName;
+        std::istringstream   ls (line);
+        std::string          tag;
 
-        while (std::getline (stream, line))
+        ls >> tag;
+
+        if (tag == "newmtl")
         {
-            std::istringstream   ls (line);
-            std::string          tag;
-
-            ls >> tag;
-
-            if (tag == "newmtl")
-            {
-                ls >> curName;
-            }
-            else if (tag == "Kd" && !curName.empty())
-            {
-                Rgb   c = { 1.0f, 1.0f, 1.0f };
-
-                ls >> c.r >> c.g >> c.b;
-                materials[curName] = c;
-            }
+            ls >> curName;
         }
+        else if (tag == "Kd" && !curName.empty())
+        {
+            Rgb   c = { 1.0f, 1.0f, 1.0f };
 
-        return materials;
+            ls >> c.r >> c.g >> c.b;
+            materials[curName] = c;
+        }
     }
 
+    return materials;
+}
 
-    ////////////////////////////////////////////////////////////////////////////
-    //
-    //  ParseFaceIndex
-    //
-    //  A face token is "v", "v/vt", "v/vt/vn", or "v//vn" -- only the leading
-    //  vertex index matters here (no UVs/normals in a flat-shaded CAD scene).
-    //  Negative indices are relative to the current vertex count (OBJ spec);
-    //  Tinkercad emits plain positive 1-based indices, but this costs nothing
-    //  to honor.
-    //
-    ////////////////////////////////////////////////////////////////////////////
 
-    int ParseFaceIndex (const std::string & token, size_t vertexCount)
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ObjMeshParser::ParseFaceIndex
+//
+//  A face token is "v", "v/vt", "v/vt/vn", or "v//vn" -- only the leading
+//  vertex index matters here (no UVs/normals in a flat-shaded CAD scene).
+//  Negative indices are relative to the current vertex count (OBJ spec);
+//  Tinkercad emits plain positive 1-based indices, but this costs nothing to
+//  honor.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int ObjMeshParser::ParseFaceIndex (const std::string & token, size_t vertexCount)
+{
+    int   vi = std::atoi (token.c_str());
+
+    if (vi < 0)
     {
-        int   vi = std::atoi (token.c_str());
-
-        if (vi < 0)
-        {
-            vi = (int) vertexCount + vi + 1;
-        }
-
-        return vi;
+        vi = (int) vertexCount + vi + 1;
     }
+
+    return vi;
 }
 
 
