@@ -174,6 +174,18 @@ public:
     void     Destroy           ();
 
     //
+    //  Pure placement geometry (no Win32 calls, so it is unit-tested
+    //  directly). Given a window's current screen rect and its monitor's
+    //  work area, returns the top-left after shifting the window the
+    //  minimum needed to sit fully inside `work` — pinning to work's top /
+    //  left when the window is larger than the work area on an axis. A
+    //  window that already fits keeps its position (no re-centering).
+    //  Create() applies this to CW_USEDEFAULT dialogs so a cascade never
+    //  leaves the bottom button row under the taskbar.
+    //
+    static POINT  ClampToWorkArea  (const RECT & windowRect, const RECT & work);
+
+    //
     //  Adopt mode — wrap an existing HWND that the caller continues
     //  to own. The host does NOT call CreateWindow / DestroyWindow
     //  and does NOT create a swap chain or D3D device; the caller's

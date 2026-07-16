@@ -10,6 +10,7 @@
 #include "Core/MachineConfig.h"
 #include "Core/MachineConfigUpgrade.h"
 #include "Core/PathResolver.h"
+#include "EmbeddedMachineConfigs.h"
 #include "External/StbVorbisWrapper.h"
 #include "resource.h"
 #include "Ui/ThemeManager.h"
@@ -36,7 +37,6 @@ static constexpr LPCWSTR       s_kpszUrlPrefix    = L"/AppleWin/AppleWin/master/
 static constexpr LPCWSTR       s_kpszAsimovHost   = L"www.apple.asimov.net";
 
 static constexpr int           s_kBootMruBodyWidthDp = 520;
-
 
 
 
@@ -83,7 +83,6 @@ struct RomSpec
 
 
 
-
 static constexpr RomSpec s_kRomCatalog[] =
 {
     { "Apple2",           "Apple2.rom",            "Apple2.rom",                 "Machines/Apple2",           12288, "Apple ][ ROM (Integer BASIC)"              },
@@ -106,7 +105,6 @@ static constexpr RomSpec s_kRomCatalog[] =
     { "",                 "Disk2.rom",             "DISK2.rom",                  "Devices/DiskII",              256, "Disk ][ Boot ROM (slot 6)"                 },
     { "",                 "Disk2_13Sector.rom",    "DISK2-13sector.rom",         "Devices/DiskII",              256, "Disk ][ Boot ROM (13-sector)"              },
 };
-
 
 
 
@@ -160,7 +158,6 @@ static constexpr BootDiskSpec s_kProDOSDisk =
 
 
 
-
 static std::wstring MachineDisplayName (std::string_view machineId)
 {
     if (machineId == "Apple2")          return L"Apple ][";
@@ -174,34 +171,15 @@ static std::wstring MachineDisplayName (std::string_view machineId)
 
 
 
-
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  EmbeddedConfig
+//  EmbeddedConfig / s_kEmbeddedConfigs
+//
+//  Moved to EmbeddedMachineConfigs.h (included above) so AssetBootstrapTests
+//  reads the same stamp table and can assert in CI that each stamp matches
+//  its embedded JSON's $cassoMachineVersion.
 //
 ////////////////////////////////////////////////////////////////////////////////
-
-struct EmbeddedConfig
-{
-    int          resourceId;
-    string_view  machineName;        // "Apple2", "Apple2Plus", "Apple2e"
-    string_view  fileName;           // "<machineName>.json"
-    int          currentVersion;     // must match "$cassoMachineVersion" in the embedded JSON
-};
-
-
-
-
-
-static constexpr EmbeddedConfig s_kEmbeddedConfigs[] =
-{
-    { IDR_MACHINE_APPLE2,          "Apple2",          "Apple2.json",          7 },
-    { IDR_MACHINE_APPLE2PLUS,      "Apple2Plus",      "Apple2Plus.json",      8 },
-    { IDR_MACHINE_APPLE2E,         "Apple2e",         "Apple2e.json",         7 },
-    { IDR_MACHINE_APPLE2C,         "Apple2c",         "Apple2c.json",         1 },
-    { IDR_MACHINE_APPLE2E_ENHANCED,"Apple2eEnhanced", "Apple2eEnhanced.json", 1 },
-};
-
 
 
 
@@ -279,7 +257,6 @@ static const MachineConfigPriorHash s_kPriorDefaultHashes[] =
 
 
 
-
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  DiskAudioSpec
@@ -310,7 +287,6 @@ struct DiskAudioSpec
 
 
 
-
 static constexpr LPCWSTR  s_kpszOpenEmulatorHost      = L"raw.githubusercontent.com";
 static constexpr LPCWSTR  s_kpszOpenEmulatorPathFmt   = L"/openemulator/libemulation/master/res/sounds/";
 
@@ -329,9 +305,7 @@ static constexpr DiskAudioSpec s_kDiskAudioCatalog[] =
 
 
 
-
 static constexpr string_view s_kDiskAudioMechanisms[] = { "Shugart", "Alps" };
-
 
 
 
@@ -350,7 +324,6 @@ static wstring AsciiToWide (string_view s)
 {
     return wstring (s.begin(), s.end());
 }
-
 
 
 
@@ -392,7 +365,6 @@ static span<const Byte> ExtractResource (HINSTANCE hInstance, int resourceId)
 Error:
     return result;
 }
-
 
 
 
@@ -459,7 +431,6 @@ Error:
 
 
 
-
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  WriteFileBytes
@@ -482,7 +453,6 @@ static HRESULT WriteFileBytes (const fs::path & path, span<const Byte> bytes)
 Error:
     return hr;
 }
-
 
 
 
@@ -523,7 +493,6 @@ static HRESULT BackupUserEditedConfig (const fs::path & target)
 Error:
     return hr;
 }
-
 
 
 
@@ -672,7 +641,6 @@ HRESULT AssetBootstrap::EnsureMachineConfigs (
 
 
 
-
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  EmbeddedThemeFile / EmbeddedTheme
@@ -700,14 +668,12 @@ struct EmbeddedThemeFile
 
 
 
-
 struct EmbeddedTheme
 {
     const char *                       dirName;        // matches "name" in theme.json
     int                                currentVersion; // mirrors theme.json $cassoThemeVersion
     span<const EmbeddedThemeFile>      files;
 };
-
 
 
 
@@ -723,7 +689,6 @@ static constexpr EmbeddedThemeFile s_kSkeuomorphicFiles[] =
 
 
 
-
 static constexpr EmbeddedThemeFile s_kDarkModernFiles[] =
 {
     { IDR_THEME_DARK_THEME_JSON,         "theme.json"          },
@@ -731,7 +696,6 @@ static constexpr EmbeddedThemeFile s_kDarkModernFiles[] =
     { IDR_THEME_DARK_FONT_OFL,           "fonts/OFL.txt"       },
     { IDR_THEME_DARK_FONT_TODO,          "fonts/TODO_FONTS.md" },
 };
-
 
 
 
@@ -747,14 +711,12 @@ static constexpr EmbeddedThemeFile s_kRetroTerminalFiles[] =
 
 
 
-
 static const EmbeddedTheme s_kEmbeddedThemes[] =
 {
     { "Skeuomorphic",  1, span<const EmbeddedThemeFile> (s_kSkeuomorphicFiles)  },
     { "DarkModern",    1, span<const EmbeddedThemeFile> (s_kDarkModernFiles)    },
     { "RetroTerminal", 1, span<const EmbeddedThemeFile> (s_kRetroTerminalFiles) },
 };
-
 
 
 
@@ -872,7 +834,6 @@ HRESULT AssetBootstrap::EnsureThemes (
 
     return hr;
 }
-
 
 
 
@@ -1041,7 +1002,6 @@ void AssetBootstrap::AppendBundledDemoDisks (std::vector<DiskMru::Entry> & mount
 
 
 
-
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  AppendSiblingDisksFromMruFolders
@@ -1144,7 +1104,6 @@ static const RomSpec * FindRomSpec (string_view machineName, string_view cassoNa
 
     return result;
 }
-
 
 
 
@@ -1306,7 +1265,6 @@ Error:
 
 
 
-
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  FindEmbeddedConfig
@@ -1338,7 +1296,6 @@ static const EmbeddedConfig * FindEmbeddedConfig (const wstring & machineName)
 
     return result;
 }
-
 
 
 
@@ -1394,7 +1351,6 @@ Error:
 
 
 
-
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  GetRequiredRoms
@@ -1431,7 +1387,6 @@ HRESULT AssetBootstrap::GetRequiredRoms (
 Error:
     return hr;
 }
-
 
 
 
@@ -1530,7 +1485,6 @@ Error:
 
 
 
-
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  GetEmbeddedDisplayName
@@ -1568,7 +1522,6 @@ static wstring GetEmbeddedDisplayName (HINSTANCE hInstance, const wstring & mach
 
     return result;
 }
-
 
 
 
@@ -1643,7 +1596,6 @@ Error:
 
 
 
-
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  FilesHaveSameContent
@@ -1714,7 +1666,6 @@ static bool FilesHaveSameContent (const fs::path & a, const fs::path & b)
 
     return true;
 }
-
 
 
 
@@ -1817,7 +1768,6 @@ private:
 
 
 
-
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  DiskMruPickerSession::FileMtimeUnix
@@ -1847,7 +1797,6 @@ std::int64_t DiskMruPickerSession::FileMtimeUnix (const fs::path & path)
 Error:
     return result;
 }
-
 
 
 
@@ -1905,7 +1854,6 @@ Error:
 
 
 
-
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  DiskMruPickerSession::ConfigureWidgets
@@ -1941,7 +1889,6 @@ void DiskMruPickerSession::ConfigureWidgets()
     m_list.SetOnSortColumn           ([this] (int col) { ApplySort (col); });
     m_list.SetOnActivateRow          ([this] (int row) { m_pendingChoice = ChosenResultAt (row); });
 }
-
 
 
 
@@ -2104,7 +2051,6 @@ void DiskMruPickerSession::RebuildView()
 
 
 
-
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  DiskMruPickerSession::ApplySort
@@ -2143,7 +2089,6 @@ Error:
 
 
 
-
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  DiskMruPickerSession::ChosenResultAt
@@ -2166,7 +2111,6 @@ int DiskMruPickerSession::ChosenResultAt (int visibleRow) const
 
     return result;
 }
-
 
 
 
@@ -2385,7 +2329,6 @@ namespace
 
 
 
-
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  DiskMruPickerSession::Run
@@ -2452,7 +2395,6 @@ int DiskMruPickerSession::Run()
 Error:
     return chosen;
 }
-
 
 
 
@@ -2636,7 +2578,6 @@ Error:
 
 
 
-
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  PromptInsertDiskMru
@@ -2805,7 +2746,6 @@ Error:
 
 
 
-
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  FetchAndDecodeOgg
@@ -2961,7 +2901,6 @@ Error:
 
 
 
-
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  WritePcmAsWav
@@ -3045,7 +2984,6 @@ HRESULT AssetBootstrap::WritePcmAsWav (
 Error:
     return hr;
 }
-
 
 
 

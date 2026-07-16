@@ -3,6 +3,7 @@
 #include "Core/JsonValue.h"
 #include "Core/MachineConfig.h"
 #include "../Casso/resource.h"
+#include "../Casso/EmbeddedMachineConfigs.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -190,6 +191,47 @@ public:
         Assert::IsTrue (EmbeddedHasDiskController (IDR_MACHINE_APPLE2E_ENHANCED),
             L"Apple //e Enhanced must declare a slot 6 disk-ii device so the "
             L"first-run boot-disk prompt actually fires");
+    }
+
+    ////////////////////////////////////////////////////////////////////////////
+    //
+    //  Embedded_StampMatchesEachJsonCassoMachineVersion
+    //
+    //  The invariant EnsureMachineConfigs' _DEBUG self-check guards at
+    //  startup, lifted into CI: every s_kEmbeddedConfigs stamp must equal the
+    //  $cassoMachineVersion baked into that machine's embedded JSON. A stamp
+    //  that drifts below its JSON silently skips a real config upgrade -- the
+    //  game-port commit once bumped Apple2.json 6 -> 7 but left the stamp at
+    //  6, hiding the ][ game port from existing users. Reads the real stamps
+    //  from the shared header so a copy can't rot out of sync.
+    //
+    ////////////////////////////////////////////////////////////////////////////
+
+    TEST_METHOD (Embedded_StampMatchesEachJsonCassoMachineVersion)
+    {
+        for (const EmbeddedConfig & cfg : s_kEmbeddedConfigs)
+        {
+            std::string     jsonText = LoadEmbeddedJson (cfg.resourceId);
+            std::wstring    machine  (cfg.machineName.begin(), cfg.machineName.end());
+            JsonValue       root;
+            JsonParseError  parseError;
+            int             version  = 0;
+            HRESULT         hrParse  = S_OK;
+            HRESULT         hrVer    = S_OK;
+
+
+            hrParse = JsonParser::Parse (jsonText, root, parseError);
+            Assert::IsTrue (SUCCEEDED (hrParse),
+                std::format (L"{} embedded JSON must parse", machine).c_str());
+
+            hrVer = root.GetInt ("$cassoMachineVersion", version);
+            Assert::IsTrue (SUCCEEDED (hrVer),
+                std::format (L"{} embedded JSON must carry $cassoMachineVersion", machine).c_str());
+
+            Assert::AreEqual (cfg.currentVersion, version,
+                std::format (L"{} s_kEmbeddedConfigs stamp ({}) must equal its embedded "
+                             L"$cassoMachineVersion ({})", machine, cfg.currentVersion, version).c_str());
+        }
     }
 
 private:

@@ -101,6 +101,94 @@ public:
 
     ////////////////////////////////////////////////////////////////////////////
     //
+    //  SelectCanonical_*
+    //
+    //  Resolving a requested machine name to its canonical on-disk casing.
+    //  The regression this guards: `--machine apple2e` kept its lowercase
+    //  casing (the case-insensitive filesystem still loaded the config), so
+    //  FindRomSpec's exact-match lookup reported every ][ /e ROM missing.
+    //
+    ////////////////////////////////////////////////////////////////////////////
+
+    static vector<MachineInfo> MakeMachines (std::initializer_list<const wchar_t *> fileNames)
+    {
+        vector<MachineInfo>  out;
+
+
+        for (const wchar_t * name : fileNames)
+        {
+            MachineInfo  info;
+
+            info.fileName    = name;
+            info.displayName = name;
+            out.push_back (info);
+        }
+
+        return out;
+    }
+
+
+    TEST_METHOD (SelectCanonical_MatchesRequestedCaseInsensitively)
+    {
+        auto machines = MakeMachines ({ L"Apple2", L"Apple2Plus", L"Apple2e" });
+
+        Assert::AreEqual (wstring (L"Apple2e"),
+            MachineScanner::SelectCanonical (machines, L"apple2e", L"Apple2e"),
+            L"a lowercase --machine value resolves to the on-disk casing");
+    }
+
+
+    TEST_METHOD (SelectCanonical_KeepsExactMatch)
+    {
+        auto machines = MakeMachines ({ L"Apple2", L"Apple2Plus", L"Apple2e" });
+
+        Assert::AreEqual (wstring (L"Apple2Plus"),
+            MachineScanner::SelectCanonical (machines, L"Apple2Plus", L"Apple2e"));
+    }
+
+
+    TEST_METHOD (SelectCanonical_UnmatchedFallsBackToPreferred)
+    {
+        auto machines = MakeMachines ({ L"Apple2", L"Apple2Plus", L"Apple2e" });
+
+        Assert::AreEqual (wstring (L"Apple2e"),
+            MachineScanner::SelectCanonical (machines, L"nonesuch", L"Apple2e"),
+            L"an unknown machine falls back to the preferred default");
+    }
+
+
+    TEST_METHOD (SelectCanonical_EmptyRequestUsesPreferred)
+    {
+        auto machines = MakeMachines ({ L"Apple2", L"Apple2e" });
+
+        Assert::AreEqual (wstring (L"Apple2e"),
+            MachineScanner::SelectCanonical (machines, L"", L"Apple2e"));
+    }
+
+
+    TEST_METHOD (SelectCanonical_PreferredAbsentFallsToFirst)
+    {
+        auto machines = MakeMachines ({ L"Commodore64", L"Nes" });
+
+        Assert::AreEqual (wstring (L"Commodore64"),
+            MachineScanner::SelectCanonical (machines, L"unknown", L"Apple2e"),
+            L"with no preferred present, the first discovered machine wins");
+    }
+
+
+    TEST_METHOD (SelectCanonical_NoneDiscoveredReturnsPreferred)
+    {
+        vector<MachineInfo>  none;
+
+        Assert::AreEqual (wstring (L"Apple2e"),
+            MachineScanner::SelectCanonical (none, L"apple2e", L"Apple2e"),
+            L"with nothing discovered, the preferred literal is used so the "
+            L"downloader flow still runs");
+    }
+
+
+    ////////////////////////////////////////////////////////////////////////////
+    //
     //  Scan_FlatLayout_ReturnsEmpty
     //
     //  The pre-fix bug: scanner expected Machines/*.json directly. Verify
