@@ -819,26 +819,44 @@ void PrinterPanel::RefreshLive (PrinterWorker & worker, int64_t nowMs, bool forc
 
         RenderSpan (spanRaster, span.firstRow, span.lastRow, contentDirty, revealRow, revealLo, revealHi);
 
-        // Tell the audio whether the head is on ink (buzz) vs feeding (silent).
-        // Sample just BEHIND the head in the sweep direction -- the sweep is now
-        // always the reveal (backlog included), so there is a meaningful head
-        // column every frame; behind-head keeps a word buzzing as one but goes
-        // silent over a wide blank margin.
+        // Tell the audio whether the head passed over ink (buzz) vs blank feed
+        // (silent). Sample the FULL column span the head swept SINCE THE LAST
+        // FRAME, not a fixed lookback: at carriage speed the head advances more
+        // dots per frame than a short window is wide, so a thin feature crossed
+        // between two frames (a border edge, a lone glyph) used to fall between
+        // the samples and drop the buzz -- exactly the "misses sometimes" and the
+        // silent borders on a whitespace line. A small bridge behind the leading
+        // edge keeps a word buzzing across the blank gaps between glyphs (the
+        // audio hold bridges the rest). On a line wrap the column jumps margin to
+        // margin (the band advanced, or an implausibly wide step) -- there is no
+        // contiguous path to sample, so fall back to a lookback window at the new
+        // head rather than sampling the whole line.
         {
-            constexpr int  kInkLookbackDots = (PrinterGrid::kDotsPerInchH * 3) / 10;   // 0.3"
+            constexpr int  kInkBridgeDots = (PrinterGrid::kDotsPerInchH * 3) / 20;   // 0.15"
+            int  prevCol = m_renderedRevealCol;
+            int  colJump = (revealCol > prevCol) ? (revealCol - prevCol) : (prevCol - revealCol);
+            bool wrapped = (revealRow != m_renderedRevealRow)
+                           || (prevCol < 0)
+                           || (colJump > PrinterGrid::kDotsPerRow / 2);
             int  sampleLo;
             int  sampleHi;
 
-            if (sweepLtr)
+            if (wrapped)
             {
-                sampleLo = (std::max) (0, revealCol - kInkLookbackDots);
-                sampleHi = (std::min) (PrinterGrid::kDotsPerRow - 1, revealCol);
+                sampleLo = sweepLtr ? (revealCol - kInkBridgeDots) : revealCol;
+                sampleHi = sweepLtr ? revealCol : (revealCol + kInkBridgeDots);
             }
             else
             {
-                sampleLo = (std::max) (0, revealCol);
-                sampleHi = (std::min) (PrinterGrid::kDotsPerRow - 1, revealCol + kInkLookbackDots);
+                int  lo = (std::min) (prevCol, revealCol);
+                int  hi = (std::max) (prevCol, revealCol);
+
+                sampleLo = sweepLtr ? (lo - kInkBridgeDots) : lo;                 // bridge behind the head
+                sampleHi = sweepLtr ? hi : (hi + kInkBridgeDots);
             }
+
+            sampleLo = (std::max) (0, sampleLo);
+            sampleHi = (std::min) (PrinterGrid::kDotsPerRow - 1, sampleHi);
 
             m_revealInk = RevealBandHasInk (spanRaster, span.firstRow, revealRow, sampleLo, sampleHi);
         }
