@@ -570,6 +570,7 @@ HRESULT HeadlessHost::BuildApple2c (EmulatorCore & outCore)
     outCore.mouse->SetVideoTiming (outCore.videoTiming.get());
     outCore.mouse->SetBus (outCore.bus.get());
     outCore.keyboard->SetMouse     (outCore.mouse.get());
+    outCore.keyboard->SetApple2cMode (true);   // //c case switches ($C060 + Dvorak)
     outCore.softSwitches->SetMouse (outCore.mouse.get());
     outCore.cpu->SetCycleSink      (outCore.mouse.get());
 

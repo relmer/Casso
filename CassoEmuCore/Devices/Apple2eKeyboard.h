@@ -81,6 +81,38 @@ public:
     // shift-read / no-op behavior stands.
     void SetMouse (class AppleMouse * mouse) { m_mouse = mouse; }
 
+    // Apple //c case switches (two latching pushbuttons on the top of the
+    // case). SetApple2cMode enables the //c-only behaviors below; on the //e
+    // and earlier they stay dormant (the //e leaves $C060 floating and never
+    // remaps the keyboard). Set from the UI thread, read from the CPU thread.
+    //
+    //   80/40 switch  — reflected in $C060 bit 7 (RD80SW). The //c firmware
+    //     samples it at reset to choose the 40- or 80-column boot width.
+    //     "Pressed in" (down) selects 80 columns; "out" (up) selects 40.
+    //   keyboard switch — swaps the built-in keyboard layout. On US machines
+    //     "pressed in" (down) selects the Dvorak layout; "out" is the standard
+    //     Sholes/QWERTY layout. There is no CPU-readable soft switch for it:
+    //     the real keyboard encoder remaps the keycodes, so we remap the typed
+    //     character stream via MapTypedChar.
+    void SetApple2cMode          (bool on)   { m_apple2cMode.store          (on, memory_order_release); }
+    void SetEightyColumnSwitchIn (bool in)   { m_eightyColSwitchIn.store    (in, memory_order_release); }
+    void SetKeyboardSwitchDvorak (bool on)   { m_keyboardSwitchDvorak.store (on, memory_order_release); }
+
+    bool IsEightyColumnSwitchIn  () const    { return m_eightyColSwitchIn.load    (memory_order_acquire); }
+    bool IsKeyboardSwitchDvorak  () const    { return m_keyboardSwitchDvorak.load (memory_order_acquire); }
+
+    // Apply the //c keyboard-layout switch to one typed character. Returns the
+    // Dvorak equivalent of `ascii` when the keyboard switch is engaged and the
+    // machine is a //c; otherwise returns `ascii` unchanged. Physical
+    // keystrokes route through here; injected characters (clipboard paste) do
+    // not, matching hardware where the switch only remaps the encoder.
+    Byte MapTypedChar (Byte ascii) const;
+
+    // Pure QWERTY-position → Dvorak-character map (US Dvorak Simplified
+    // Keyboard). Exposed static for direct unit testing. Non-remapped
+    // characters (digits, whitespace, control codes) pass through unchanged.
+    static Byte QwertyToDvorak (Byte ascii);
+
     // Override key press to allow lowercase
     void KeyPressRaw (Byte asciiChar);
 
@@ -97,6 +129,16 @@ private:
     static constexpr int  kButtonCount        = 3;     // $C061-$C063
     static constexpr int  kHostButtonCount    = 2;     // Open / Closed Apple
 
+    // //c 80/40 case switch, read at $C060 (RD80SW), bit 7. Per Apple's Tech
+    // Info Library (TIL02094): PEEK(49248) >= 128 (bit 7 set) = switch DOWN
+    // (pressed in) = 80 columns; < 128 (bit 7 clear) = switch UP (out) = 40
+    // columns. The switch only sets this bit — software (a booting disk's
+    // PR#3, AppleWorks, etc.) reads it and picks the width; the bare no-disk
+    // ROM screen never consults it.
+    static constexpr Word kwEightyColumnSwitch = 0xC060;
+    static constexpr Byte kEightyColSwitchIn   = 0x80;   // switch in  (down) -> 80 cols
+    static constexpr Byte kEightyColSwitchOut  = 0x00;   // switch out (up)   -> 40 cols
+
     // CPU thread. Coalesced emit for a guest read of a $C061-$C063
     // button: fires only when that button's returned byte changed.
     void EmitButtonRead (Word address, Byte value);
@@ -112,6 +154,12 @@ private:
     atomic<bool>                   m_openApple   {false};
     atomic<bool>                   m_closedApple {false};
     atomic<bool>                   m_shift       {false};
+
+    // Apple //c case-switch state. m_apple2cMode gates the //c-only behaviors
+    // (the //e leaves these dormant). See the setters above.
+    atomic<bool>                   m_apple2cMode          {false};
+    atomic<bool>                   m_eightyColSwitchIn    {false};
+    atomic<bool>                   m_keyboardSwitchDvorak {false};
 
     // Last-emitted byte per button for coalescing (CPU thread only).
     // -1 means "nothing emitted yet"; a Byte never matches it.

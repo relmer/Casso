@@ -439,6 +439,10 @@ HRESULT MachineManager::CreateMemoryDevices (const MachineConfig & config)
             if (iieKbd != nullptr)
             {
                 iieKbd->SetMouse (m_shell.m_mouse.get());
+
+                // Enable the //c case switches ($C060 80/40 read + the
+                // keyboard-layout remap). Dormant on the //e.
+                iieKbd->SetApple2cMode (true);
             }
             if (iieSw != nullptr)
             {

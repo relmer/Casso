@@ -538,6 +538,10 @@ HRESULT EmulatorShell::Initialize (
     m_chromeDock.SetDock (m_titleBand,  DxuiDock::Top);
     m_chromeDock.SetDock (m_navBand,    DxuiDock::Top);
     m_chromeDock.SetDock (m_driveBand,  DxuiDock::Bottom);
+    // Registered AFTER the drive band so the dock peels the drive bar off the
+    // very bottom first and the //c switch strip lands just above it (between
+    // the viewport and the joystick/paddle/mouse bar).
+    m_chromeDock.SetDock (m_switchBand, DxuiDock::Bottom);
     m_chromeDock.SetDock (m_centerBand, DxuiDock::Fill);
 
     assetBaseDir = AssetBootstrap::GetAssetBaseDirectory();
@@ -704,6 +708,7 @@ HRESULT EmulatorShell::Initialize (
         // parameter on every call.
         m_mainMenu.SetTextRendererForMeasure (&m_uiShell.Text());
         m_joystickButton.SetTextRenderer     (&m_uiShell.Text());
+        m_switchBar.SetTextRenderer          (&m_uiShell.Text());
 
         m_themeManager    = std::make_unique<ThemeManager> (m_uiFs, themesDir.wstring());
         hrTheme           = m_themeManager->Discover();
@@ -1312,6 +1317,7 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     m_host->Root().Adopt (m_driveChrome[0]);
     m_host->Root().Adopt (m_driveChrome[1]);
     m_host->Root().Adopt (m_joystickButton);
+    m_host->Root().Adopt (m_switchBar);
 
     // Give the host the chrome theme so its paint pump renders the
     // adopted chrome -- PaintPump no-ops when no theme is set.
@@ -1331,6 +1337,10 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     // Tick. SetTheme seeds the tooltip surface colours.
     m_joystickTooltip.SetPopupHost (m_host.get());
     m_joystickTooltip.SetTheme     (m_chromeTheme);
+
+    // The //c switch strip shares the same deferred-tooltip pattern.
+    m_switchBarTooltip.SetPopupHost (m_host.get());
+    m_switchBarTooltip.SetTheme     (m_chromeTheme);
 
     // Defer the size reconcile until after ShowWindow. The NC frame
     // (border carve-out from DefWindowProc + DWM rounded corners +
@@ -1414,16 +1424,20 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     m_driveChrome[1].Initialize (6, 1, this);
     {
         RECT  vr            = ComputeViewportRect (clientW, clientH);
-        int   bottomInsetPx = clientH - vr.bottom;
+        RECT  driveRect     = m_driveBand.Bounds();
+        int   bottomInsetPx = clientH - driveRect.top;   // drive band height only
 
+        (void) vr;                                        // dock side-effect: bands arranged
         LayoutDriveWidgetsInCommandBar (m_driveChrome, bottomInsetPx, clientW, clientH, dpi);
         {
-            int  bandTop    = clientH - bottomInsetPx;
+            int  bandTop    = driveRect.top;
             int  bandHeight = MulDiv (s_kJoystickButtonBandDp, static_cast<int> (dpi), s_kBaseDpi);
 
             m_driveBandSurface.SetBounds (RECT{ 0, bandTop, clientW, clientH });
             LayoutJoystickButton (clientW, bandTop, bandHeight, dpi);
         }
+
+        LayoutSwitchBar (dpi);
     }
 
     UpdateViewportLayout (clientW, clientH);
@@ -1498,9 +1512,14 @@ void EmulatorShell::SyncChromeBands ()
     bool  hasDisk     = (m_diskManager != nullptr) && m_diskManager->HasSlot6Controller();
     int   driveBandDp = hasDisk ? m_driveBarThicknessDp : s_kJoystickButtonBandDp;
 
-    m_titleBand.SetBounds (RECT{ 0, 0, 0, m_scaler.Px (s_kTitleBarBandDp) });
-    m_navBand.SetBounds   (RECT{ 0, 0, 0, m_scaler.Px (s_kNavStripBandDp) });
-    m_driveBand.SetBounds (RECT{ 0, 0, 0, m_scaler.Px (driveBandDp) });
+    // The //c switch strip only exists on the //c; everywhere else the band
+    // collapses to zero height so the dock leaves the viewport unchanged.
+    int  switchBandDp = IsApple2c() ? s_kSwitchBandDp : 0;
+
+    m_titleBand.SetBounds  (RECT{ 0, 0, 0, m_scaler.Px (s_kTitleBarBandDp) });
+    m_navBand.SetBounds    (RECT{ 0, 0, 0, m_scaler.Px (s_kNavStripBandDp) });
+    m_driveBand.SetBounds  (RECT{ 0, 0, 0, m_scaler.Px (driveBandDp) });
+    m_switchBand.SetBounds (RECT{ 0, 0, 0, m_scaler.Px (switchBandDp) });
 }
 
 
@@ -1519,7 +1538,7 @@ void EmulatorShell::SyncChromeBands ()
 
 RECT EmulatorShell::ComputeViewportRect (int widthPx, int heightPx)
 {
-    IDxuiControl *  kids[] = { &m_titleBand, &m_navBand, &m_driveBand, &m_centerBand };
+    IDxuiControl *  kids[] = { &m_titleBand, &m_navBand, &m_driveBand, &m_switchBand, &m_centerBand };
 
 
 
@@ -1599,22 +1618,29 @@ void EmulatorShell::ReflowChromeForMachineChange ()
         return;
     }
 
-    bool  newHasDisk      = (m_diskManager != nullptr) && m_diskManager->HasSlot6Controller();
-    bool  presenceChanged = (newHasDisk != m_chromeSizedForHasDisk);
+    bool  newHasDisk    = (m_diskManager != nullptr) && m_diskManager->HasSlot6Controller();
+    bool  newIsApple2c  = IsApple2c();
+    bool  layoutChanged = (newHasDisk != m_chromeSizedForHasDisk) ||
+                          (newIsApple2c != m_chromeSizedForApple2c);
 
-    // Resize the window by the band delta -- but not for min/max/fullscreen
+    // Resize the window by the total bottom-band delta -- the drive band
+    // (disk-presence) plus the //c switch band -- but not for min/max/fullscreen
     // windows, where the user explicitly chose the size (mirrors
     // ApplyThemeToChrome). Those just relayout inside the fixed frame.
-    if (presenceChanged &&
+    if (layoutChanged &&
         !IsIconic (m_hwnd) && !IsZoomed (m_hwnd) && !m_d3dRenderer.IsFullscreen())
     {
-        int  oldBandDp = m_chromeSizedForHasDisk ? m_driveBarThicknessDp : s_kJoystickButtonBandDp;
-        int  newBandDp = newHasDisk              ? m_driveBarThicknessDp : s_kJoystickButtonBandDp;
-        int  deltaPx   = m_scaler.Px (newBandDp) - m_scaler.Px (oldBandDp);
+        int  oldDriveDp  = m_chromeSizedForHasDisk ? m_driveBarThicknessDp : s_kJoystickButtonBandDp;
+        int  newDriveDp  = newHasDisk              ? m_driveBarThicknessDp : s_kJoystickButtonBandDp;
+        int  oldSwitchDp = m_chromeSizedForApple2c ? s_kSwitchBandDp : 0;
+        int  newSwitchDp = newIsApple2c            ? s_kSwitchBandDp : 0;
+        int  deltaPx     = (m_scaler.Px (newDriveDp)  - m_scaler.Px (oldDriveDp)) +
+                           (m_scaler.Px (newSwitchDp) - m_scaler.Px (oldSwitchDp));
 
         m_chromeSizedForHasDisk = newHasDisk;
+        m_chromeSizedForApple2c = newIsApple2c;
 
-        // The drive band is bottom-docked full-width, so only the height moves.
+        // The bands are bottom-docked full-width, so only the height moves.
         // SWP_NOMOVE pins the top-left corner; the WM_SIZE it generates drives
         // OnSize to re-lay the bands, widgets, and hit-test map.
         SetWindowPos (m_hwnd, nullptr, 0, 0,
@@ -1625,6 +1651,7 @@ void EmulatorShell::ReflowChromeForMachineChange ()
     }
 
     m_chromeSizedForHasDisk = newHasDisk;
+    m_chromeSizedForApple2c = newIsApple2c;
 
     // No band delta (unchanged presence, or a fixed-state window): relayout at
     // the current client size so widget visibility + hit rects still refresh.
@@ -1680,7 +1707,7 @@ bool EmulatorShell::ShouldShowExternalDrive() const
 
 SIZE EmulatorShell::ClientSizeForCenterPx (int centerWidthPx, int centerHeightPx)
 {
-    IDxuiControl *  bands[] = { &m_titleBand, &m_navBand, &m_driveBand };
+    IDxuiControl *  bands[] = { &m_titleBand, &m_navBand, &m_driveBand, &m_switchBand };
 
 
 
@@ -2472,6 +2499,122 @@ void EmulatorShell::RelayoutJoystickButton ()
 
 
 
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::LayoutSwitchBar
+//
+//  Positions the //c case-switch strip over its chrome band. On any other
+//  machine the band is zero-height, so the strip is hidden (and un-hit-tested).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::LayoutSwitchBar (UINT dpi)
+{
+    DxuiDpiScaler  scaler;
+
+
+    if (!IsApple2c())
+    {
+        m_switchBar.Hide();
+        return;
+    }
+
+    scaler.SetDpi (dpi);
+    SyncSwitchBarState();
+    m_switchBar.Layout (m_switchBand.Bounds(), scaler);
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::SyncSwitchBarState
+//
+//  Pushes the live //c switch + indicator state onto the strip: the two
+//  latching switches are read back from the keyboard device (single source of
+//  truth), the disk-use LED tracks slot-6 drive activity, power is always lit
+//  while the machine runs, and the reset button is "armed" only while Ctrl is
+//  held (real Control-Reset).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::SyncSwitchBarState ()
+{
+    Apple2eKeyboard *  iieKbd = dynamic_cast<Apple2eKeyboard *> (m_refs.keyboard);
+    bool               diskOn = false;
+
+
+    if (iieKbd != nullptr)
+    {
+        m_switchBar.SetEightyFortyIn (iieKbd->IsEightyColumnSwitchIn());
+        m_switchBar.SetKeyboardIn    (iieKbd->IsKeyboardSwitchDvorak());
+    }
+
+    for (const DriveWidget & drive : m_driveChrome)
+    {
+        diskOn = diskOn || (drive.Led() == LedState::Active);
+    }
+
+    m_switchBar.SetDiskActive (diskOn);
+    m_switchBar.SetPowerOn    (true);
+    m_switchBar.SetResetArmed ((GetKeyState (VK_CONTROL) & 0x8000) != 0);
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::HandleSwitchBarClick
+//
+//  Actions a left-button release over one of the //c switch-strip parts. The
+//  reset button is inert unless Ctrl is held (the real //c key does nothing on
+//  its own); Open-Apple / Closed-Apple, mapped from the held Alt keys, ride the
+//  reset into the firmware for a cold boot / diagnostics. The 80/40 and
+//  keyboard switches latch: each click flips the switch state on the keyboard
+//  device, which the strip re-reads on the next SyncSwitchBarState.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::HandleSwitchBarClick (Apple2cSwitchBar::Part part)
+{
+    Apple2eKeyboard *  iieKbd = dynamic_cast<Apple2eKeyboard *> (m_refs.keyboard);
+
+
+    switch (part)
+    {
+        case Apple2cSwitchBar::Part::Reset:
+            // Only a modifier-qualified press resets, matching the case key.
+            if ((GetKeyState (VK_CONTROL) & 0x8000) != 0)
+            {
+                m_refs.keyboard->SetKeyDown (false);
+                PostCommand (IDM_MACHINE_RESET);
+            }
+            break;
+
+        case Apple2cSwitchBar::Part::EightyForty:
+            if (iieKbd != nullptr)
+            {
+                iieKbd->SetEightyColumnSwitchIn (!iieKbd->IsEightyColumnSwitchIn());
+            }
+            break;
+
+        case Apple2cSwitchBar::Part::Keyboard:
+            if (iieKbd != nullptr)
+            {
+                iieKbd->SetKeyboardSwitchDvorak (!iieKbd->IsKeyboardSwitchDvorak());
+            }
+            break;
+
+        default:
+            break;
+    }
+}
+
+
+
+
 
 ////////////////////////////////////////////////////////////////////////////////
 //
@@ -2868,6 +3011,13 @@ int EmulatorShell::RunMessageLoop()
             }
         }
 
+        // //c switch strip: refresh the disk-use LED (drive activity) and the
+        // Ctrl-armed reset cue every UI frame so they track live state.
+        if (IsApple2c())
+        {
+            SyncSwitchBarState();
+        }
+
         if (m_disk2DebugPanel != nullptr)
         {
             hr = m_disk2DebugPanel->RenderFrame();
@@ -2896,13 +3046,15 @@ int EmulatorShell::RunMessageLoop()
             m_d3dRenderer.MarkRedrawNeeded();
         }
 
-        // Drive the joystick-button tooltip dwell timer; it shows / hides
-        // its popup once the open / close delay elapses after a hover.
+        // Drive the joystick-button + //c switch-strip tooltip dwell timers;
+        // each shows / hides its popup once the open / close delay elapses
+        // after a hover.
         {
             int64_t  nowMs = (int64_t) std::chrono::duration_cast<std::chrono::milliseconds> (
                                  std::chrono::steady_clock::now().time_since_epoch()).count();
 
             m_joystickTooltip.Tick (nowMs);
+            m_switchBarTooltip.Tick (nowMs);
         }
         if (!m_d3dRenderer.NeedsPresent (fbDirtyThisFrame))
         {
@@ -3748,6 +3900,26 @@ DxuiMessageResult EmulatorShell::OnMouseMove (WPARAM wParam, LPARAM lParam)
         m_joystickTooltip.RequestHide (nowMs);
     }
 
+    // //c switch strip: hover state, the Ctrl-armed reset cue, and a per-part
+    // tooltip (reset / 80/40 / keyboard). Inert on non-//c machines (hidden).
+    if (IsApple2c())
+    {
+        const wchar_t * tip = m_switchBar.TooltipTextAt (x, y);
+
+        m_switchBar.SetHovered    (m_switchBar.HitTest (x, y));
+        m_switchBar.SetHoverPoint (x, y);
+        m_switchBar.SetResetArmed ((GetKeyState (VK_CONTROL) & 0x8000) != 0);
+
+        if (tip != nullptr)
+        {
+            m_switchBarTooltip.RequestShow (m_switchBar.Bounds(), tip, nowMs);
+        }
+        else
+        {
+            m_switchBarTooltip.RequestHide (nowMs);
+        }
+    }
+
     return DxuiMessageResult::NotHandled;
 }
 
@@ -3782,6 +3954,10 @@ DxuiMessageResult EmulatorShell::OnMouseLeave ()
     m_joystickButton.SetHovered (false);
     m_joystickButton.SetPressed (false);
     m_joystickTooltip.RequestHide (nowMs);
+
+    m_switchBar.SetHovered     (false);
+    m_switchBar.SetPressedPart (Apple2cSwitchBar::Part::None);
+    m_switchBarTooltip.RequestHide (nowMs);
 
     // //c Mouse mode: the cursor left the window entirely — release the
     // guest mouse target (non-capturing contract).
@@ -3972,6 +4148,11 @@ DxuiMessageResult EmulatorShell::OnLButtonDown (WPARAM wParam, LPARAM lParam)
 
     m_joystickButton.SetPressed (m_joystickButton.HitTest (x, y));
 
+    if (IsApple2c())
+    {
+        m_switchBar.SetPressedPart (m_switchBar.PartAt (x, y));
+    }
+
     // The UI shell (debug panels, on-screen buttons) gets first crack at
     // the press. Its return is moot here: nothing else in this handler
     // depends on whether the click was consumed, and we always report the
@@ -4004,9 +4185,10 @@ DxuiMessageResult EmulatorShell::OnLButtonDown (WPARAM wParam, LPARAM lParam)
 
 DxuiMessageResult EmulatorShell::OnLButtonUp (WPARAM wParam, LPARAM lParam)
 {
-    int                x      = ((int) (short) LOWORD (lParam));
-    int                y      = ((int) (short) HIWORD (lParam));
-    DriveWidgetRegion  region = DriveWidgetRegion::None;
+    int                     x          = ((int) (short) LOWORD (lParam));
+    int                     y          = ((int) (short) HIWORD (lParam));
+    DriveWidgetRegion       region     = DriveWidgetRegion::None;
+    Apple2cSwitchBar::Part  switchPart  = Apple2cSwitchBar::Part::None;
 
 
 
@@ -4022,8 +4204,23 @@ DxuiMessageResult EmulatorShell::OnLButtonUp (WPARAM wParam, LPARAM lParam)
 
     ReleaseCapture();
     m_joystickButton.SetPressed (false);
+
+    // //c switch strip: latch the switch / fire the (Ctrl-gated) reset on
+    // release over a part. Captured before the pressed-part is cleared.
+    if (IsApple2c())
+    {
+        switchPart = m_switchBar.PartAt (x, y);
+        m_switchBar.SetPressedPart (Apple2cSwitchBar::Part::None);
+    }
+
     if (m_uiShell.OnLButtonUp (x, y))
     {
+        return DxuiMessageResult::NotHandled;
+    }
+
+    if (switchPart != Apple2cSwitchBar::Part::None)
+    {
+        HandleSwitchBarClick (switchPart);
         return DxuiMessageResult::NotHandled;
     }
 
@@ -4676,8 +4873,16 @@ bool EmulatorShell::OnViewportKey (const DxuiKeyEvent & ev)
 
         if (ch >= 1 && ch <= 127)
         {
-            m_refs.keyboard->KeyPress (static_cast<Byte> (ch));
-            m_refs.keyboard->BeginKeyRepeat (static_cast<Byte> (ch));
+            // //c keyboard switch: remap physical keystrokes to Dvorak when the
+            // switch is engaged. A no-op on the //e and on QWERTY. Clipboard
+            // paste feeds KeyPress directly (not this path), so pasted text is
+            // never remapped -- matching the hardware encoder.
+            auto  * iieKbd = dynamic_cast<Apple2eKeyboard *> (m_refs.keyboard);
+            Byte    code   = (iieKbd != nullptr) ? iieKbd->MapTypedChar (static_cast<Byte> (ch))
+                                                 : static_cast<Byte> (ch);
+
+            m_refs.keyboard->KeyPress (code);
+            m_refs.keyboard->BeginKeyRepeat (code);
         }
     }
 
@@ -5553,8 +5758,11 @@ DxuiMessageResult EmulatorShell::OnSize (UINT widthPx, UINT heightPx)
 
         {
             RECT  vr            = ComputeViewportRect (static_cast<int> (width), renderH);
-            int   bottomInsetPx = renderH - vr.bottom;
+            RECT  driveRect     = m_driveBand.Bounds();
+            int   bottomInsetPx = renderH - driveRect.top;   // drive band height only
             bool  fHasDisk      = (m_diskManager != nullptr) && m_diskManager->HasSlot6Controller();
+
+            (void) vr;                                        // dock side-effect: bands arranged
 
             if (fHasDisk)
             {
@@ -5582,18 +5790,21 @@ DxuiMessageResult EmulatorShell::OnSize (UINT widthPx, UINT heightPx)
             }
 
             // OnSize is the authoritative layout (only fires on a real WM_SIZE,
-            // never per-frame), so record the disk-presence this window size now
-            // accounts for. ReflowChromeForMachineChange reads this pre-switch
-            // value to grow/shrink the window by the band delta.
+            // never per-frame), so record the disk-presence + //c-ness this
+            // window size now accounts for. ReflowChromeForMachineChange reads
+            // these pre-switch values to grow/shrink the window by the band delta.
             m_chromeSizedForHasDisk = fHasDisk;
+            m_chromeSizedForApple2c = IsApple2c();
 
             {
-                int  bandTop    = renderH - bottomInsetPx;
+                int  bandTop    = driveRect.top;
                 int  bandHeight = MulDiv (s_kJoystickButtonBandDp, static_cast<int> (dpi), s_kBaseDpi);
 
                 m_driveBandSurface.SetBounds (RECT{ 0, bandTop, static_cast<int> (width), renderH });
                 LayoutJoystickButton (static_cast<int> (width), bandTop, bandHeight, dpi);
             }
+
+            LayoutSwitchBar (dpi);
 
             m_uiShell.HitTest().Clear();
             if (fHasDisk)

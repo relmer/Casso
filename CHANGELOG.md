@@ -47,6 +47,19 @@ Entries before versioning was introduced use dates only.
   mouse), replacing the single cycle mode, with a new segmented drive-bar
   selector drawing skeuomorphic glyphs of the real Apple peripherals
   (perspective on the skeuomorphic theme, top-down on DarkModern/retro).
+- **feat(machine): //c case-switch strip** — the two latching switches on
+  the top of the //c case are now modeled and exposed. The **80/40 switch**
+  drives `$C060` (RD80SW) bit 7 — pressed in (down) selects 80-column
+  startup, out selects 40; it is a software-read switch (a booting disk's
+  `PR#3` acts on it), so the bare ROM screen is unaffected, matching real
+  hardware. The **keyboard switch** remaps the typed character stream to the
+  Dvorak layout while engaged (QWERTY when out); paste is never remapped. A
+  new skeuomorphic control strip — painted in the ImageWriter II platinum
+  case colour, between the emulator viewport and the joystick/paddle/mouse
+  bar, //c-only — reproduces the case top: a **reset** button (inert unless
+  Ctrl is held, mirroring the real Control-Reset key; Open/Closed-Apple ride
+  it for cold boot), the two latching switches (drawn sunk when in, proud
+  when out), and lit **disk-use** / **power** indicator LEDs.
 - **feat(cpu): live hardware IRQ dispatch** — the CPU loop now services
   maskable interrupts from the shared interrupt controller (the //c mouse
   and VBL are the first sources); the 65C02 vector prologue is accounted

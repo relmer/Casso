@@ -113,6 +113,16 @@ Byte Apple2eKeyboard::Read (Word address)
         return value;
     }
 
+    // $C060 (RD80SW): the //c 80/40 case switch, bit 7. The IOU pulls the
+    // line low while the switch is pressed in, so an "in" switch reads bit 7
+    // clear (80 columns) and an "out" switch reads bit 7 set (40 columns).
+    // On the //e there is no device here — $C060 stays the floating-bus 0.
+    if (address == kwEightyColumnSwitch && m_apple2cMode.load (memory_order_acquire))
+    {
+        return m_eightyColSwitchIn.load (memory_order_acquire) ? kEightyColSwitchIn
+                                                               : kEightyColSwitchOut;
+    }
+
     // $C000-$C00B (keyboard data) and $C010 (strobe-clear) fall through
     // to the base AppleKeyboard. Other unowned addresses ($C020-$C02F,
     // $C040-$C04F, $C060) return 0 — no device behind them on a //e.
@@ -239,6 +249,98 @@ void Apple2eKeyboard::EmitHostButton (int index, bool pressed)
 void Apple2eKeyboard::KeyPressRaw (Byte asciiChar)
 {
     KeyPress (asciiChar);
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MapTypedChar
+//
+//  Route one physical keystroke through the //c keyboard-layout switch. When
+//  the machine is a //c and the keyboard switch is engaged (Dvorak), the
+//  character the host produced on a QWERTY key is remapped to the character
+//  the Dvorak encoder would have produced for that same physical key. In every
+//  other case the character passes through unchanged.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+Byte Apple2eKeyboard::MapTypedChar (Byte ascii) const
+{
+    if (m_apple2cMode.load (memory_order_acquire) &&
+        m_keyboardSwitchDvorak.load (memory_order_acquire))
+    {
+        return QwertyToDvorak (ascii);
+    }
+
+    return ascii;
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  QwertyToDvorak
+//
+//  Maps a character produced on a US-QWERTY key to the character the US Dvorak
+//  Simplified Keyboard produces on the same physical key — the exact remap the
+//  //c keyboard switch performs in its encoder. Digits, whitespace, and every
+//  control code pass through untouched (their key positions are identical in
+//  both layouts). Both letter cases and the shifted punctuation are covered.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+Byte Apple2eKeyboard::QwertyToDvorak (Byte ascii)
+{
+    switch (ascii)
+    {
+        // Top letter row: q w e r t y u i o p [ ]
+        case 'q': return '\'';   case 'Q': return '"';
+        case 'w': return ',';    case 'W': return '<';
+        case 'e': return '.';    case 'E': return '>';
+        case 'r': return 'p';    case 'R': return 'P';
+        case 't': return 'y';    case 'T': return 'Y';
+        case 'y': return 'f';    case 'Y': return 'F';
+        case 'u': return 'g';    case 'U': return 'G';
+        case 'i': return 'c';    case 'I': return 'C';
+        case 'o': return 'r';    case 'O': return 'R';
+        case 'p': return 'l';    case 'P': return 'L';
+        case '[': return '/';    case '{': return '?';
+        case ']': return '=';    case '}': return '+';
+
+        // Home row: a s d f g h j k l ; '
+        case 'a': return 'a';    case 'A': return 'A';
+        case 's': return 'o';    case 'S': return 'O';
+        case 'd': return 'e';    case 'D': return 'E';
+        case 'f': return 'u';    case 'F': return 'U';
+        case 'g': return 'i';    case 'G': return 'I';
+        case 'h': return 'd';    case 'H': return 'D';
+        case 'j': return 'h';    case 'J': return 'H';
+        case 'k': return 't';    case 'K': return 'T';
+        case 'l': return 'n';    case 'L': return 'N';
+        case ';': return 's';    case ':': return 'S';
+        case '\'': return '-';   case '"': return '_';
+
+        // Bottom row: z x c v b n m , . /
+        case 'z': return ';';    case 'Z': return ':';
+        case 'x': return 'q';    case 'X': return 'Q';
+        case 'c': return 'j';    case 'C': return 'J';
+        case 'v': return 'k';    case 'V': return 'K';
+        case 'b': return 'x';    case 'B': return 'X';
+        case 'n': return 'b';    case 'N': return 'B';
+        case 'm': return 'm';    case 'M': return 'M';
+        case ',': return 'w';    case '<': return 'W';
+        case '.': return 'v';    case '>': return 'V';
+        case '/': return 'z';    case '?': return 'Z';
+
+        // Number-row tail: the '-' and '=' keys carry the bracket pair.
+        case '-': return '[';    case '_': return '{';
+        case '=': return ']';    case '+': return '}';
+
+        default:  return ascii;
+    }
 }
 
 
