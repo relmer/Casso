@@ -130,6 +130,7 @@ private:
     static constexpr uint32_t  kCapEdge   = 0xFF98917F;
     static constexpr uint32_t  kCapText   = 0xFF5A5647;
     static constexpr uint32_t  kCapTextOff = 0xFF9A9484; // dormant (no Ctrl) reset label
+    static constexpr uint32_t  kCapTextDn = 0xFF14100A;  // pressed reset label (near-black, readable on the sunk cap)
 
     // The cap fills its slot; a thin rim just seats it in the case. Depth is
     // carried by directional shading in PaintSlantCap, not a dark recess fill.

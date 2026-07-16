@@ -233,6 +233,9 @@ const wchar_t * Apple2cSwitchBar::TooltipTextAt (int x, int y) const
 
 void Apple2cSwitchBar::PaintLabel (IDxuiTextRenderer & text, const RECT & r, const wchar_t * s, float fontPx)
 {
+    // Lean the silk-screen labels at the same slant as the switch caps.
+    text.PushTextSkew (kSlantTan, (float) (r.top + r.bottom) * 0.5f);
+
     HRESULT  hr = text.DrawString (s,
                                    (float) r.left, (float) r.top,
                                    (float) (r.right - r.left) + 4.0f,
@@ -242,6 +245,8 @@ void Apple2cSwitchBar::PaintLabel (IDxuiTextRenderer & text, const RECT & r, con
                                    DxuiTextVAlign::CenterOnCapHeight,
                                    DxuiFontWeight::Normal, false);
     IGNORE_RETURN_VALUE (hr, S_OK);
+
+    text.PopTextSkew ();
 }
 
 
@@ -261,22 +266,29 @@ void Apple2cSwitchBar::PaintLabel (IDxuiTextRenderer & text, const RECT & r, con
 
 void Apple2cSwitchBar::PaintResetButton (IDxuiPainter & p, IDxuiTextRenderer & text, const RECT & r)
 {
-    bool  dn = (m_pressedPart == Part::Reset);
+    bool      dn      = (m_pressedPart == Part::Reset);
+    // Pressed, the cap darkens and takes the top-left shadow, so the muted /
+    // mid label washes out -- switch to near-black so it stays legible.
+    uint32_t  textCol = dn ? kCapTextDn : (m_resetArmed ? kCapText : kCapTextOff);
 
     PaintSlantCap (p, r, dn, m_hovered && m_hoverPart == Part::Reset,
                    dn ? kCapLo : kCapHi, dn ? kKeyLoIn : kCapLo);
+
+    text.PushTextSkew (kSlantTan, (float) (r.top + r.bottom) * 0.5f);
 
     HRESULT  hr = text.DrawString (kLabelReset,
                                    (float) r.left,
                                    (float) r.top + (dn ? 1.0f : 0.0f),
                                    (float) (r.right - r.left),
                                    (float) (r.bottom - r.top),
-                                   m_resetArmed ? kCapText : kCapTextOff,
+                                   textCol,
                                    kFontDip * (float) m_dpi / 96.0f, kFontFamily,
                                    DxuiTextHAlign::Center,
                                    DxuiTextVAlign::CenterOnCapHeight,
                                    DxuiFontWeight::Normal, false);
     IGNORE_RETURN_VALUE (hr, S_OK);
+
+    text.PopTextSkew ();
 }
 
 

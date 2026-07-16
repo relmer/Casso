@@ -825,6 +825,48 @@ Error:
 }
 
 
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PushTextSkew / PopTextSkew
+//
+//  Compose a horizontal shear onto the context transform: a point at height y
+//  is pushed right by (yPivot - y) * tanX, so vertical strokes lean right and
+//  nothing shifts at the pivot. Saves the prior transform for PopTextSkew.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiTextRenderer::PushTextSkew (float tanX, float yPivotDip)
+{
+    DXUI_ASSERT_UI_THREAD();
+
+    if (m_d2dContext == nullptr)
+    {
+        return;
+    }
+
+    m_d2dContext->GetTransform (&m_savedTransform);
+
+    D2D1::Matrix3x2F  shear (1.0f, 0.0f,
+                             -tanX, 1.0f,
+                             tanX * yPivotDip, 0.0f);
+
+    m_d2dContext->SetTransform (shear * (*D2D1::Matrix3x2F::ReinterpretBaseType (&m_savedTransform)));
+}
+
+
+void DxuiTextRenderer::PopTextSkew ()
+{
+    DXUI_ASSERT_UI_THREAD();
+
+    if (m_d2dContext == nullptr)
+    {
+        return;
+    }
+
+    m_d2dContext->SetTransform (m_savedTransform);
+}
+
+
 
 
 
