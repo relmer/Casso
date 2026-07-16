@@ -8,11 +8,20 @@
 
 **Organization**: Phases map to spec user stories (P1→US1 … P7→US7). Constitution commit discipline: commit after each completed phase. Push after commits (feature branch).
 
+**Status — reconciled 2026-07-16** (every `[X]` is backed by code committed on this branch):
+US1–US5 plus the Phase 11 preview redesign are implemented and unit-tested (full suite green). **US6 (draft-text printing, T046–T049) and US7 (disk-title recognition, T050–T055) are not started.** Several completed tasks shipped under different names than their original text:
+- Delivery sinks (T020/T030/T031): the planned `HostPrintServices` was split into `PrintDelivery` + `PngCodec` + `PrintFileNaming` (core) plus the Print/Save/Copy handlers in `WindowCommandManager` — no `HostPrintServices` file exists.
+- Pacing (T036): shipped as `PrinterPacing` + `PrinterViewport`, not a `PrinterPresenter`.
+- "Eject" (T021/T037): replaced by per-action, non-destructive Print/Save/Copy + Form Feed + tear-off Discard.
+- Audio (T038/T040): the BleuLlama sample set is **bundled** (committed, extracted by `AssetBootstrap::EnsureImageWriterSounds`), not fetched by the startup downloader; volume/mute wired to the Printing page.
+- Long-strip memory (T042): a dpi cap (`WholeStripDpi`, ~512 MB budget), not row-banding.
+Still open: T010 (dropped), US6 T046–T049, US7 T050–T055, end-to-end sign-offs T026/T032/T041/T045/T072, and polish / merge-gates T056–T060.
+
 ## Format: `[ID] [P?] [Story] Description`
 
 ## Phase 1: Setup
 
-- [ ] T001 Create `CassoEmuCore/Devices/Printer/` and `Casso/Print/` directory skeletons; add all planned .h/.cpp stubs to `CassoEmuCore/CassoEmuCore.vcxproj(.filters)`, `Casso/Casso.vcxproj(.filters)`, and `UnitTest/UnitTest.vcxproj` per plan.md Project Structure (empty EHM-conformant stubs, x64 + ARM64 compile clean)
+- [X] T001 Create `CassoEmuCore/Devices/Printer/` and `Casso/Print/` directory skeletons; add all planned .h/.cpp stubs to `CassoEmuCore/CassoEmuCore.vcxproj(.filters)`, `Casso/Casso.vcxproj(.filters)`, and `UnitTest/UnitTest.vcxproj` per plan.md Project Structure (empty EHM-conformant stubs, x64 + ARM64 compile clean)
 - [X] T002 [P] Define shared printer types (InkPrimary, PrinterEvent variants, DotStyle, grid constants 1280 dots/row, 144 rows/inch, 60-page cap) in `CassoEmuCore/Devices/Printer/PrinterTypes.h`
 
 ## Phase 2: Foundational (blocking all user stories)
@@ -24,7 +33,7 @@
 - [X] T007 [P] Unit tests: assemble embedded .a65 source with CassoCore assembler, assert byte equality with `ParallelFirmware.h` array in `UnitTest/PrinterTests/FirmwareParityTests.cpp`
 - [X] T008 Register device type `"parallel-printer"` in `CassoEmuCore/Core/ComponentRegistry.cpp`; install firmware via `CxxxRomRouter::SetSlotRom` and card on the bus during machine build in `Casso/EmulatorShell.cpp` — `PrinterCard::Create` factory; embedded firmware installed via `Apple2eMmu::AttachSlotRom` in `Casso/Shell/MachineManager.cpp`; +2 registry tests
 - [X] T009 Add slot 1 `parallel-printer` entry to embedded machine JSONs (`Casso/Machines/Apple2e*.json`) and extend `CassoEmuCore/Core/MachineConfigUpgrade.h/.cpp` to add it to existing configs when slot 1 is free (FR-001); unit tests for the upgrade plan in `UnitTest/` alongside existing MachineConfigUpgrade tests — `Resources/Machines/Apple2e/Apple2e.json` v6→v7 + prior-hash in AssetBootstrap; `MigrateUserConfig` injects slot-1 printer honoring disabled entries; +3 tests
-- [ ] T010 Implement byte-capture debug sink (menu-gated capture-to-file of the raw card stream, doubling as FR-009 unknown-command diagnostics) in `Casso/Print/HostPrintServices.h/.cpp` + `Casso/Shell/WindowCommandManager.cpp` (R-014)
+- [ ] T010 **DROPPED** — the byte-capture tee was removed on this branch (no `HostPrintServices` ever shipped); FR-009 unknown-command diagnostics ride the interpreter's `UnknownCommand` `PrinterEvent` instead of a capture-to-file sink
 - [X] T011 CHECKPOINT: boot Print Shop, select Apple DMP/ImageWriter + Apple II Parallel Interface + slot 1, run test prints per parallel-interface menu option; archive captures as `UnitTest/Fixtures/Printer/*.bin` fixtures (own generated data); lock the R-001 status byte value and record findings in research.md — DONE 2026-07-14 for Apple II Parallel + Grappler+ (both welcome tests pass end-to-end): status locked at `$83` (Grappler+ probes `(s & $07) == $03`), `ESC L` binary-count MSB-top graphics locked, findings in research.md R-001; captured stream encoded in `ImageWriterInterpreterTests` (welcome-prefix replay) in lieu of .bin fixtures; remaining interfaces (Epson APL etc.) can be captured the same way if ever reported broken
 
 ## Phase 3: User Story 1 — Print a Print Shop Page to a PNG File (P1) 🎯 MVP
@@ -40,50 +49,50 @@
 - [X] T016 [US1] Implement `PaperRenderer` per R-005 (true-geometry resample, precomputed AA disc kernels at pin diameter, black ink path, Plain square style, 288/576 dpi, deterministic) in `CassoEmuCore/Devices/Printer/PaperRenderer.h/.cpp` — full 7-colour overprint palette + ribbon weave; `RgbaImage` container added
 - [X] T017 [US1] Unit tests: geometry (SC-009 circle aspect ≤1%), dot roundness spot pixels, style/dpi matrix, determinism hashes in `UnitTest/PrinterTests/PaperRendererTests.cpp` — 9 tests
 - [X] T018 [P] [US1] Implement `PrintJobSerializer` (strip+meta ⇄ indexed pixel plane + sidecar JSON per contracts/printing-settings.md) in `CassoEmuCore/Devices/Printer/PrintJobSerializer.h/.cpp` with round-trip tests in `UnitTest/PrinterTests/PrintJobSerializerTests.cpp` — pure (WIC PNG wrap deferred to PrintJobStore per R-007/R-010); added `PrintRaster::RestoreFromIndexed`; 5 tests
-- [ ] T019 [US1] Implement `PrintJobStore` (per-machine PendingPrint/ load-at-open, save on exit/eject/discard, corrupt→empty-silent) in `Casso/Print/PrintJobStore.h/.cpp` (FR-026)
-- [ ] T020 [US1] Implement PNG file sink (WIC encode, pHYs dpi, timestamped collision-free names, configurable folder with default `<Pictures>/Casso Prints`, failure notice retains strip) in `Casso/Print/HostPrintServices.h/.cpp` (FR-012)
-- [ ] T021 [US1] Wire the drain path in `Casso/EmulatorShell.cpp`: ring → interpreter → raster on UI tick, with high-water backpressure on the card's ready bit (R-001) so a stalled UI thread never drops a byte (FR-002); eject forces a synchronous full ring flush before rendering; add Eject / Finish Job menu command (delivers whole strip per FR-016, clears on success) in `Casso/Shell/WindowCommandManager.cpp`
-- [ ] T022 [US1] End-to-end validation: quickstart scenario 1 (Print Shop sign → PNG) + scenario 8 (persistence across relaunch); record results; clean up diagnostic artifacts
+- [X] T019 [US1] Implement `PrintJobStore` (per-machine PendingPrint/ load-at-open, save on exit/eject/discard, corrupt→empty-silent) in `Casso/Print/PrintJobStore.h/.cpp` (FR-026)
+- [X] T020 [US1] Implement PNG file sink (WIC encode, pHYs dpi, timestamped collision-free names, configurable folder with default `<Pictures>/Casso Prints`, failure notice retains strip) in `Casso/Print/HostPrintServices.h/.cpp` (FR-012)
+- [X] T021 [US1] Wire the drain path in `Casso/EmulatorShell.cpp`: ring → interpreter → raster on UI tick, with high-water backpressure on the card's ready bit (R-001) so a stalled UI thread never drops a byte (FR-002); eject forces a synchronous full ring flush before rendering; add Eject / Finish Job menu command (delivers whole strip per FR-016, clears on success) in `Casso/Shell/WindowCommandManager.cpp`
+- [X] T022 [US1] End-to-end validation: quickstart scenario 1 (Print Shop sign → PNG) + scenario 8 (persistence across relaunch); record results; clean up diagnostic artifacts
 
 ## Phase 4: User Story 2 — Color Printing with a Four-Color Ribbon (P2)
 
 **Independent test**: synthetic 7-color band stream renders correct colors; New/original Print Shop color print end-to-end.
 
-- [ ] T023 [US2] Add `ESC K n` color selection + color state to reset semantics in `CassoEmuCore/Devices/Printer/ImageWriterInterpreter.h/.cpp`; strikes OR the active primary into cells
-- [ ] T024 [US2] Implement subtractive overprint mixing + composite derivation (orange/green/purple, black-dominance) and per-primary ink layers in `CassoEmuCore/Devices/Printer/PaperRenderer.h/.cpp` (FR-007, R-004/R-005)
-- [ ] T025 [P] [US2] Unit tests: seven-color golden bands, overprint composites, no-color-command → black in `UnitTest/PrinterTests/ImageWriterInterpreterTests.cpp` + `PaperRendererGoldenTests.cpp`
+- [X] T023 [US2] Add `ESC K n` color selection + color state to reset semantics in `CassoEmuCore/Devices/Printer/ImageWriterInterpreter.h/.cpp`; strikes OR the active primary into cells
+- [X] T024 [US2] Implement subtractive overprint mixing + composite derivation (orange/green/purple, black-dominance) and per-primary ink layers in `CassoEmuCore/Devices/Printer/PaperRenderer.h/.cpp` (FR-007, R-004/R-005)
+- [X] T025 [P] [US2] Unit tests: seven-color golden bands, overprint composites, no-color-command → black in `UnitTest/PrinterTests/ImageWriterInterpreterTests.cpp` + `PaperRendererGoldenTests.cpp`
 - [ ] T026 [US2] End-to-end: four-color ribbon Print Shop card (quickstart scenario 2); capture color byte stream as fixture
 
 ## Phase 5: User Story 3 — Delivering the Printout: Print / Save / Copy (P3)
 
 **Independent test**: Print / Save / Copy each deliver the same one-page strip non-destructively (paper stays loaded); Copy pastes both formats; cancel retains. (The delivery destination is chosen per action, not a stored setting — see the 2026-07-14 clarification.)
 
-- [ ] T027 [P] [US3] Add printing fields to `Casso/Config/GlobalUserPrefs.h/.cpp` per contracts/printing-settings.md (round-trip preserved; render options only — resolution + dot style)
-- [ ] T028 [US3] Create Settings → Printing tab (`Casso/Ui/Settings/PrintingPage.h/.cpp`), register in `Casso/Ui/Settings/SettingsSheet.cpp` (FR-011; dpi, dot style, audio volume/mute placeholder — no destination selector or folder picker: delivery target is per-action)
-- [ ] T029 [US3] SPIKE (time-boxed 1 day): `IPrintManagerInterop` modern print dialog from unpackaged exe; record outcome here and in research.md R-009; choose dialog path
-- [ ] T030 [US3] Implement Windows printer sink (dialog per R-009 outcome, GDI true-scale centered pages via StretchDIBits at device dpi, page-count confirmation before dialog, cancel retains strip; print/spooler failure notifies the user and retains the strip for retry) in `Casso/Print/HostPrintServices.h/.cpp` (FR-014, output-failure edge case)
-- [ ] T031 [US3] Implement clipboard copy (registered "PNG" format immediate + delayed-render CF_DIB with size cap; clipboard-open/unavailable failure notifies the user and leaves the strip untouched) in `Casso/Print/HostPrintServices.h/.cpp` (FR-013, output-failure edge case) + Copy menu command in `Casso/Shell/WindowCommandManager.cpp`
+- [X] T027 [P] [US3] Add printing fields to `Casso/Config/GlobalUserPrefs.h/.cpp` per contracts/printing-settings.md (round-trip preserved; render options only — resolution + dot style)
+- [X] T028 [US3] Create Settings → Printing tab (`Casso/Ui/Settings/PrintingPage.h/.cpp`), register in `Casso/Ui/Settings/SettingsSheet.cpp` (FR-011; dpi, dot style, audio volume/mute placeholder — no destination selector or folder picker: delivery target is per-action)
+- [X] T029 [US3] SPIKE (time-boxed 1 day): `IPrintManagerInterop` modern print dialog from unpackaged exe; record outcome here and in research.md R-009; choose dialog path
+- [X] T030 [US3] Implement Windows printer sink (dialog per R-009 outcome, GDI true-scale centered pages via StretchDIBits at device dpi, page-count confirmation before dialog, cancel retains strip; print/spooler failure notifies the user and retains the strip for retry) in `Casso/Print/HostPrintServices.h/.cpp` (FR-014, output-failure edge case)
+- [X] T031 [US3] Implement clipboard copy (registered "PNG" format immediate + delayed-render CF_DIB with size cap; clipboard-open/unavailable failure notifies the user and leaves the strip untouched) in `Casso/Print/HostPrintServices.h/.cpp` (FR-013, output-failure edge case) + Copy menu command in `Casso/Shell/WindowCommandManager.cpp`
 - [ ] T032 [US3] End-to-end: quickstart scenario 3 (PDF via Microsoft Print to PDF, Paint paste, editor paste, cancel); assert one rendered strip can be Printed AND Saved AND Copied without re-printing because each delivery leaves the paper loaded (SC-007)
 
 ## Phase 6: User Story 4 — The Printer on the Desk (P4)
 
 **Independent test**: full engage-print-eject cycle through indicator + panel, including audio and discard.
 
-- [ ] T033 [P] [US4] Implement `PrinterIndicator` chrome control (right-corner anchor in command bar dead space, vanishing-point skew, idle/receiving/pending/error states, config tooltip, click toggles panel) in `Casso/Ui/Chrome/PrinterIndicator.h/.cpp` (FR-019/021; never disturbs drive centering)
-- [ ] T034 [US4] Implement `PrinterPanel` docked right-edge surface on ChromeLayout (transient overlay on auto-reveal, inset when pinned) in `Casso/Ui/PrinterPanel.h/.cpp` (R-016)
-- [ ] T035 [US4] Render skeuomorphic printer + fanfold paper in the panel (four-color ribbon cartridge, sprocket strips/holes, cross-perf page boundaries from `PageBoundaryRows`, paper shows PaperRenderer output; paper furniture panel-only per FR-027; panel hover shows the same virtual-config summary as the indicator per FR-021) in `Casso/Ui/PrinterPanel.cpp`
-- [ ] T036 [US4] Implement `PrinterPresenter` pacing (R-012: ~250 cps replay clock, coalescing jump-cut, FastForward) in `Casso/Print/PrinterPresenter.h/.cpp`; reveal triggers on firmware entry + first byte (FR-020); extract the pacing/coalescing/fast-forward decisions as pure clock-driven math and unit-test them with an injected clock in `UnitTest/PrinterTests/PrinterPresenterTests.cpp`
-- [ ] T037 [US4] Panel controls: Form Feed (eject), Copy, tear-off Discard with confirmation; each forces a synchronous ring flush before acting on the strip; Discard clears strip + persistence (FR-029); wire to WindowCommandManager equivalents in `Casso/Ui/PrinterPanel.cpp` + `Casso/Shell/WindowCommandManager.cpp`
-- [ ] T038 [P] [US4] Prepare printer audio sample set: source authentic ImageWriter II recording (retro community / record one) or licensed period 9-pin fallback per R-011; slice into head-burst loop, line feed, form feed, paper tear; host alongside existing drive-audio assets with license + provenance manifest (HUMAN-IN-LOOP: sourcing/licensing sign-off)
-- [ ] T039 [US4] Implement `PrinterAudioSource : IDriveAudioSource` (event voices driven by presenter clock) in `CassoEmuCore/Audio/PrinterAudioSource.h/.cpp`, register with `DriveAudioMixer`; synthetic-PCM unit tests in `UnitTest/PrinterTests/`
-- [ ] T040 [US4] Add printer sample-set row to the consent-gated startup downloader in `Casso/AssetBootstrap.h/.cpp` (FR-030); volume/mute wired to Printing settings page
+- [X] T033 [P] [US4] Implement `PrinterIndicator` chrome control (right-corner anchor in command bar dead space, vanishing-point skew, idle/receiving/pending/error states, config tooltip, click toggles panel) in `Casso/Ui/Chrome/PrinterIndicator.h/.cpp` (FR-019/021; never disturbs drive centering)
+- [X] T034 [US4] Implement `PrinterPanel` docked right-edge surface on ChromeLayout (transient overlay on auto-reveal, inset when pinned) in `Casso/Ui/PrinterPanel.h/.cpp` (R-016)
+- [X] T035 [US4] Render skeuomorphic printer + fanfold paper in the panel (four-color ribbon cartridge, sprocket strips/holes, cross-perf page boundaries from `PageBoundaryRows`, paper shows PaperRenderer output; paper furniture panel-only per FR-027; panel hover shows the same virtual-config summary as the indicator per FR-021) in `Casso/Ui/PrinterPanel.cpp`
+- [X] T036 [US4] Implement `PrinterPresenter` pacing (R-012: ~250 cps replay clock, coalescing jump-cut, FastForward) in `Casso/Print/PrinterPresenter.h/.cpp`; reveal triggers on firmware entry + first byte (FR-020); extract the pacing/coalescing/fast-forward decisions as pure clock-driven math and unit-test them with an injected clock in `UnitTest/PrinterTests/PrinterPresenterTests.cpp`
+- [X] T037 [US4] Panel controls: Form Feed (eject), Copy, tear-off Discard with confirmation; each forces a synchronous ring flush before acting on the strip; Discard clears strip + persistence (FR-029); wire to WindowCommandManager equivalents in `Casso/Ui/PrinterPanel.cpp` + `Casso/Shell/WindowCommandManager.cpp`
+- [X] T038 [P] [US4] Prepare printer audio sample set: source authentic ImageWriter II recording (retro community / record one) or licensed period 9-pin fallback per R-011; slice into head-burst loop, line feed, form feed, paper tear; host alongside existing drive-audio assets with license + provenance manifest (HUMAN-IN-LOOP: sourcing/licensing sign-off)
+- [X] T039 [US4] Implement `PrinterAudioSource : IDriveAudioSource` (event voices driven by presenter clock) in `CassoEmuCore/Audio/PrinterAudioSource.h/.cpp`, register with `DriveAudioMixer`; synthetic-PCM unit tests in `UnitTest/PrinterTests/`
+- [X] T040 [US4] Add printer sample-set row to the consent-gated startup downloader in `Casso/AssetBootstrap.h/.cpp` (FR-030); volume/mute wired to Printing settings page
 - [ ] T041 [US4] End-to-end: quickstart scenario 4 + acceptance 4.5 (audio in step with paper, tear on discard, mute silences); verify indicator-only pending state after closing panel mid-job
 
 ## Phase 7: User Story 5 — Banner Printing on Continuous Fanfold Paper (P5)
 
-- [ ] T042 [US5] Banded rendering + streamed PNG encode for long strips (bounded working memory) in `CassoEmuCore/Devices/Printer/PaperRenderer.cpp` + `Casso/Print/HostPrintServices.cpp` (FR-015/FR-028)
-- [ ] T043 [US5] Windows-printer pagination of a banner strip (page tiling, no lost/duplicated rows) + cap-reached finalize-and-notify path in `Casso/Print/HostPrintServices.cpp` (FR-015 cap, edge case)
-- [ ] T044 [P] [US5] Unit tests: pagination row accounting, cap behavior in `UnitTest/PrinterTests/PrintRasterTests.cpp`
+- [X] T042 [US5] Banded rendering + streamed PNG encode for long strips (bounded working memory) in `CassoEmuCore/Devices/Printer/PaperRenderer.cpp` + `Casso/Print/HostPrintServices.cpp` (FR-015/FR-028)
+- [X] T043 [US5] Windows-printer pagination of a banner strip (page tiling, no lost/duplicated rows) + cap-reached finalize-and-notify path in `Casso/Print/HostPrintServices.cpp` (FR-015 cap, edge case)
+- [X] T044 [P] [US5] Unit tests: pagination row accounting, cap behavior in `UnitTest/PrinterTests/PrintRasterTests.cpp`
 - [ ] T045 [US5] End-to-end: quickstart scenario 5 (multi-page banner → seamless PNG; same banner → paginated PDF; SC-003)
 
 ## Phase 8: User Story 6 — Text Printing from BASIC and DOS (P6)
