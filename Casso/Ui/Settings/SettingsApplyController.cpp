@@ -176,6 +176,10 @@ void SettingsApplyController::SnapshotBaselines ()
     {
         m_baselinePrintOutputDpi   = m_prefs->printOutputDpi;
         m_baselinePrintDotStyle    = m_prefs->printDotStyle;
+        m_baselinePrinterAudioMuted       = m_prefs->printerAudioMuted;
+        m_baselinePrinterAudioVolume      = m_prefs->printerAudioVolume;
+        m_baselinePrinterAudioPanOverride = m_prefs->printerAudioPanOverride;
+        m_baselinePrinterAudioPan         = m_prefs->printerAudioPan;
     }
 }
 
@@ -373,8 +377,12 @@ void SettingsApplyController::CommitApply ()
         size_t  i               = 0;
 
         anyPrintChanged =
-            m_prefs->printOutputDpi   != m_baselinePrintOutputDpi   ||
-            m_prefs->printDotStyle    != m_baselinePrintDotStyle;
+            m_prefs->printOutputDpi          != m_baselinePrintOutputDpi          ||
+            m_prefs->printDotStyle           != m_baselinePrintDotStyle           ||
+            m_prefs->printerAudioMuted       != m_baselinePrinterAudioMuted       ||
+            m_prefs->printerAudioVolume      != m_baselinePrinterAudioVolume      ||
+            m_prefs->printerAudioPanOverride != m_baselinePrinterAudioPanOverride ||
+            m_prefs->printerAudioPan         != m_baselinePrinterAudioPan;
 
         for (i = 0; i < GlobalUserPrefs::kCrtModeCount; i++)
         {
@@ -423,6 +431,10 @@ void SettingsApplyController::CommitApply ()
 
         m_baselinePrintOutputDpi   = m_prefs->printOutputDpi;
         m_baselinePrintDotStyle    = m_prefs->printDotStyle;
+        m_baselinePrinterAudioMuted       = m_prefs->printerAudioMuted;
+        m_baselinePrinterAudioVolume      = m_prefs->printerAudioVolume;
+        m_baselinePrinterAudioPanOverride = m_prefs->printerAudioPanOverride;
+        m_baselinePrinterAudioPan         = m_prefs->printerAudioPan;
     }
     m_baselineColorMode = (int) m_state->Prefs().colorMode;
 
@@ -505,9 +517,13 @@ void SettingsApplyController::Cancel (SettingsPreviewController & preview)
         }
 
         // Revert Printing edits (no live effect; they only bind at the next
-        // delivery, so this simply un-does the staged pref writes).
+        // delivery / printer sound, so this simply un-does the staged writes).
         m_prefs->printOutputDpi   = m_baselinePrintOutputDpi;
         m_prefs->printDotStyle    = m_baselinePrintDotStyle;
+        m_prefs->printerAudioMuted       = m_baselinePrinterAudioMuted;
+        m_prefs->printerAudioVolume      = m_baselinePrinterAudioVolume;
+        m_prefs->printerAudioPanOverride = m_baselinePrinterAudioPanOverride;
+        m_prefs->printerAudioPan         = m_baselinePrinterAudioPan;
     }
     if (m_emuShell != nullptr && m_baselineColorMode >= 0)
     {

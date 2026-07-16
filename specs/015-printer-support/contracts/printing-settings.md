@@ -7,12 +7,18 @@
   "printOutputDpi": 576,                 // 288 | 576 (FR-028)
   "printDotStyle": "ink",               // "ink" | "plain" (FR-027)
   "printerAudioMuted": false,
-  "printerAudioVolume": 0.6
+  "printerAudioVolume": 0.8,             // 0..1 (matches PrinterAudioSource::kDefaultVolume)
+  "printerAudioPanOverride": false,      // true pins a fixed pan; false auto-follows the preview window
+  "printerAudioPan": 0.0                 // -1 (left) .. +1 (right), used when override is on
 }
 ```
 
-Surfaced on Settings → Printing (`PrintingPage`, FR-011): only the render
-options (resolution + dot style). The delivery target is NOT a stored
+Surfaced on Settings → Printing (`PrintingPage`, FR-011): the render options
+(resolution + dot style) plus the ImageWriter II mechanical-sound knobs
+(volume, mute, manual stereo pan override + pan, FR-034). Like the render
+options these write straight into `GlobalUserPrefs`; the sound binds when the
+printer next sounds (`EmulatorShell::UpdatePrinterPreview` reads them per
+frame). The delivery target is NOT a stored
 preference — it is chosen per action by the preview's Print / Save / Copy
 controls (FR-013/FR-014), so there is no `printDestination` and no
 `printPngFolder`; Save prompts for the path via a file dialog defaulting to

@@ -125,6 +125,16 @@ struct GlobalUserPrefs
     int          printOutputDpi   = 576;          // 288 | 576 (FR-028)
     std::string  printDotStyle    = "ink";        // "ink" | "plain" (FR-027)
 
+    // ImageWriter II mechanical-sound preferences (Settings > Printing audio,
+    // FR-034). Volume 0..1 (default matches PrinterAudioSource::kDefaultVolume);
+    // muted silences the printer bus alone (the shared "Drive Audio" master
+    // enable still gates it). By default the sound auto-pans to follow the
+    // preview window; panOverride pins it to a fixed pan (-1 left .. +1 right).
+    bool         printerAudioMuted        = false;
+    float        printerAudioVolume       = 0.80f;
+    bool         printerAudioPanOverride  = false;
+    float        printerAudioPan          = 0.0f;   // -1 .. +1, used when override is on
+
     // Unknown JSON keys round-trip back to disk untouched.
     std::vector<std::pair<std::string, JsonValue>>  unknownPassthrough;
 

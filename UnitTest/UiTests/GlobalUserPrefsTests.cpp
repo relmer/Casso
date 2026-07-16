@@ -70,6 +70,10 @@ public:
         orig.window.fullscreen      = true;
         orig.printOutputDpi         = 288;
         orig.printDotStyle          = "plain";
+        orig.printerAudioMuted            = true;
+        orig.printerAudioVolume           = 0.35f;
+        orig.printerAudioPanOverride      = true;
+        orig.printerAudioPan              = -0.5f;
 
         hr = orig.Save (L"C:\\Casso", fs);
         Assert::IsTrue (SUCCEEDED (hr));
@@ -95,6 +99,10 @@ public:
         Assert::AreEqual (orig.window.fullscreen,       loaded.window.fullscreen);
         Assert::AreEqual (orig.printOutputDpi,   loaded.printOutputDpi);
         Assert::AreEqual (orig.printDotStyle,    loaded.printDotStyle);
+        Assert::AreEqual (orig.printerAudioMuted,       loaded.printerAudioMuted);
+        Assert::AreEqual (orig.printerAudioVolume,      loaded.printerAudioVolume);
+        Assert::AreEqual (orig.printerAudioPanOverride, loaded.printerAudioPanOverride);
+        Assert::AreEqual (orig.printerAudioPan,         loaded.printerAudioPan);
     }
 
 

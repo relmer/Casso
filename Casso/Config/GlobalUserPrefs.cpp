@@ -49,7 +49,11 @@ static const std::set<std::string>  s_kKnownTopLevel = {
     "crt",
     "window",
     "printOutputDpi",
-    "printDotStyle"
+    "printDotStyle",
+    "printerAudioMuted",
+    "printerAudioVolume",
+    "printerAudioPanOverride",
+    "printerAudioPan"
 };
 
 
@@ -923,6 +927,12 @@ JsonValue GlobalUserPrefs::ToJson() const
     root.emplace_back ("printOutputDpi",   JsonValue ((double) printOutputDpi));
     root.emplace_back ("printDotStyle",    JsonValue (printDotStyle));
 
+    // Printer mechanical-audio prefs (FR-034).
+    root.emplace_back ("printerAudioMuted",       JsonValue (printerAudioMuted));
+    root.emplace_back ("printerAudioVolume",      JsonValue ((double) printerAudioVolume));
+    root.emplace_back ("printerAudioPanOverride", JsonValue (printerAudioPanOverride));
+    root.emplace_back ("printerAudioPan",         JsonValue ((double) printerAudioPan));
+
     // Round-trip unknown keys verbatim.
     for (const auto & kv : unknownPassthrough)
     {
@@ -1032,6 +1042,14 @@ HRESULT GlobalUserPrefs::FromJson (const JsonValue & v)
     // Printing (host print services, FR-011); absent keys keep struct defaults.
     printOutputDpi   = GetIntOpt    (v, "printOutputDpi",   printOutputDpi);
     printDotStyle    = GetStringOpt (v, "printDotStyle",    printDotStyle);
+
+    // Printer mechanical-audio prefs (FR-034); absent keys keep struct defaults.
+    printerAudioMuted       = GetBoolOpt   (v, "printerAudioMuted",       printerAudioMuted);
+    printerAudioVolume      = (float) GetNumberOpt (v, "printerAudioVolume",      printerAudioVolume);
+    printerAudioPanOverride = GetBoolOpt   (v, "printerAudioPanOverride", printerAudioPanOverride);
+    printerAudioPan         = (float) GetNumberOpt (v, "printerAudioPan",         printerAudioPan);
+    printerAudioVolume      = std::clamp (printerAudioVolume, 0.0f, 1.0f);
+    printerAudioPan         = std::clamp (printerAudioPan,   -1.0f, 1.0f);
 
     // Capture unknown top-level keys for round-tripping.
     for (const auto & entry : v.GetObjectEntries())

@@ -2803,35 +2803,50 @@ void EmulatorShell::UpdatePrinterPreview ()
         m_printerAudio.PublishReveal (progressDots, colDots, inkActive);
     }
 
-    // Position the printer sound in the stereo field by where the preview window
-    // sits relative to the main Casso window (auto mode). Center-to-center X
-    // offset, normalized so the two windows just touching side by side is a hard
-    // pan and a fully overlapping (co-centered) window is dead center. A manual
-    // override (Settings > Printing) will later gate this.
+    // Printer-sound volume + mute (Settings > Printing audio, FR-034). Read from
+    // prefs each frame so an OK / Cancel in Settings binds on the next update
+    // without any live-apply plumbing; the shared "Drive Audio" master still
+    // gates the whole bus above this.
+    m_printerAudio.SetVolume (m_globalPrefs.printerAudioVolume);
+    m_printerAudio.SetMuted  (m_globalPrefs.printerAudioMuted);
+
+    // Position the printer sound in the stereo field. Manual override (Settings >
+    // Printing) pins a fixed pan; otherwise it auto-follows where the preview
+    // window sits relative to the main Casso window -- center-to-center X offset,
+    // normalized so the two windows just touching side by side is a hard pan and
+    // a fully overlapping (co-centered) window is dead center.
     {
-        RECT  mainR    = {};
-        RECT  printerR = {};
+        float  pan = 0.0f;
 
-        if (GetWindowRect (m_hwnd, &mainR) &&
-            GetWindowRect (m_printerPanel->Hwnd (), &printerR))
+        if (m_globalPrefs.printerAudioPanOverride)
         {
-            float  mainCenter    = (float) (mainR.left    + mainR.right)    * 0.5f;
-            float  printerCenter = (float) (printerR.left + printerR.right) * 0.5f;
-            float  mainHalf      = (float) (mainR.right    - mainR.left)    * 0.5f;
-            float  printerHalf   = (float) (printerR.right - printerR.left) * 0.5f;
-            float  reference     = mainHalf + printerHalf;   // touching side by side
-
-            float  pan = 0.0f;
-            if (reference > 1.0f)
-            {
-                pan = std::clamp ((printerCenter - mainCenter) / reference, -1.0f, 1.0f);
-            }
-
-            float  panL = 0.0f;
-            float  panR = 0.0f;
-            DriveAudioMixer::PanToStereo (pan, panL, panR);
-            m_printerAudio.SetPan (panL, panR);
+            pan = std::clamp (m_globalPrefs.printerAudioPan, -1.0f, 1.0f);
         }
+        else
+        {
+            RECT  mainR    = {};
+            RECT  printerR = {};
+
+            if (GetWindowRect (m_hwnd, &mainR) &&
+                GetWindowRect (m_printerPanel->Hwnd (), &printerR))
+            {
+                float  mainCenter    = (float) (mainR.left    + mainR.right)    * 0.5f;
+                float  printerCenter = (float) (printerR.left + printerR.right) * 0.5f;
+                float  mainHalf      = (float) (mainR.right    - mainR.left)    * 0.5f;
+                float  printerHalf   = (float) (printerR.right - printerR.left) * 0.5f;
+                float  reference     = mainHalf + printerHalf;   // touching side by side
+
+                if (reference > 1.0f)
+                {
+                    pan = std::clamp ((printerCenter - mainCenter) / reference, -1.0f, 1.0f);
+                }
+            }
+        }
+
+        float  panL = 0.0f;
+        float  panR = 0.0f;
+        DriveAudioMixer::PanToStereo (pan, panL, panR);
+        m_printerAudio.SetPan (panL, panR);
     }
 
     // Hold a smooth present cadence while the carriage is sweeping or a pan/zoom
