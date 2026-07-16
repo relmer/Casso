@@ -6,6 +6,26 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 Versioned entries use `MAJOR.MINOR.PATCH` from [Version.h](CassoCore/Version.h).
 Entries before versioning was introduced use dates only.
 
+## [1.9.0] — Write-protect indicator
+
+### Added
+- **feat(disk): write-protect indicator** — a write-protected drive now
+  shows a small brass padlock on its face (both the skeuomorphic and
+  compact drive widgets), and hovering the drive raises a tooltip that
+  states the disk is write-protected and names the source(s): the
+  write-protect setting, the image's own flag (WOZ), a read-only backing
+  file, or missing write permission for the file.
+
+### Fixed
+- **fix(disk): honor the write-protect setting** — the Settings ▸ Disk
+  "Write protect" checkboxes previously did nothing. They now actually
+  protect the mounted disk (the guest sees the write-protect sense bit and
+  writes are rejected), the preference is re-applied across ejects/remounts
+  and restored on next launch, and a read-only or unwritable backing file
+  is likewise treated as write-protected so in-emulator writes can't be
+  silently lost.
+
+
 ## [1.8.0] — Apple //c and Apple //e Enhanced machines (spec 016 + #86)
 
 ### Added

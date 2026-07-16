@@ -6,6 +6,7 @@
 class CpuManager;
 class Disk2AudioSource;
 class Disk2Controller;
+class DiskImage;
 class DiskImageStore;
 class DriveWidget;
 class DriveWidgetController;
@@ -54,7 +55,8 @@ public:
                  CpuManager                                      & cpuManager,
                  const std::wstring                              & currentMachineName,
                  UserConfigStore                                 & userConfigStore,
-                 IFileSystem                                     & fileSystem);
+                 IFileSystem                                     & fileSystem,
+                 std::array<bool, 2>                             & userWriteProtect);
 
     Disk2Controller *   FindSlot6Controller    ();
     bool                HasSlot6Controller     () { return FindSlot6Controller() != nullptr; }
@@ -80,6 +82,21 @@ public:
     // animation FSM and the audio drive-door sync recorder.
     static int64_t  NowMs ();
 
+    // Applies the effective external write-protect state to a freshly
+    // mounted image: the user's per-drive preference plus the backing
+    // file's read-only / no-write-permission status (probed from the
+    // host filesystem). The image's own embedded flag is left untouched.
+    void     ApplyExternalWriteProtect (int drive, DiskImage * image, const std::string & path);
+
+    // Probes whether the host file at `path` can be written back. Sets
+    // outReadOnly when the file carries the read-only attribute and
+    // outNoPermission when it cannot be opened for writing for another
+    // reason (ACL denial, exclusive lock). A missing / empty path is
+    // treated as writable (nothing to protect).
+    static void  ProbeFileWritability (const std::string & path,
+                                       bool              & outReadOnly,
+                                       bool              & outNoPermission);
+
 private:
     std::vector<std::unique_ptr<MemoryDevice>>       & m_ownedDevices;
     DiskImageStore                                   & m_diskStore;
@@ -92,6 +109,7 @@ private:
     const std::wstring                               & m_currentMachineName;
     UserConfigStore                                  & m_userConfigStore;
     IFileSystem                                      & m_fileSystem;
+    std::array<bool, 2>                              & m_userWriteProtect;
 
     std::array<uint64_t, 2>  m_lastReadNibbles      {};
     std::array<uint64_t, 2>  m_lastWriteNibbles     {};

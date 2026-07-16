@@ -93,7 +93,20 @@ namespace
             m_shell.PostCommand (IDM_AUDIO_DRIVE_PAN, payload);
         }
 
-        void ApplyWriteProtect (int drive, bool wp)            override { UNREFERENCED_PARAMETER (drive); UNREFERENCED_PARAMETER (wp); }
+        void ApplyWriteProtect (int drive, bool wp)            override
+        {
+            // Route through the CPU-thread command queue (like insert /
+            // eject) so the mounted DiskImage's write-protect flag -- read
+            // by the controller on that thread -- is mutated there. The
+            // command id encodes the drive; the payload carries the bool.
+            WORD  id = (drive == 0) ? IDM_DISK_WRITEPROTECT1
+                                    : IDM_DISK_WRITEPROTECT2;
+
+            if (drive == 0 || drive == 1)
+            {
+                m_shell.PostCommand (id, wp ? std::string ("1") : std::string ("0"));
+            }
+        }
 
         void ApplyExternalDriveConnected (bool connected) override
         {
