@@ -64,6 +64,7 @@ struct PrinterGrid
     static constexpr int   kRowsPerInch  = 144;                           // vertical density
     static constexpr int   kDotsPerRow   = 1280;                          // 8" printable * 160 dpi
     static constexpr int   kPageRows     = 1584;                          // 11" page * 144 rows/inch
+    static constexpr int   kPinBandRows  = 8 * (kRowsPerInch / 72);       // one 8-pin graphics band, in native rows (=16)
     static constexpr int   kMaxFormPages = 60;                            // strip cap (~55 feet)
     static constexpr int   kMaxStripRows = kPageRows * kMaxFormPages;     // hard raster ceiling
 };

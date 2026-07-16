@@ -19,21 +19,24 @@
 //  deterministic and is unit-tested with an injected clock -- no real time and
 //  no threads.
 //
-//  Behavior:
-//   - Rows reveal at a steady rate (rowsPerSecond), approximating the
-//     ImageWriter's ~250 cps replay feel.
-//   - Within the live line, ink reveals left-to-right at dotsPerSecond as the
-//     head sweeps (FR-034): SetTargetPosition supplies the head's row + dot
-//     column; RevealedColDots is the sweep position. While the reveal is
-//     still catching up through older rows, those lines show at full width;
-//     the sweep restarts from column 0 when the reveal reaches the live row.
-//     Same-row column targets are max-held so a second overprint pass (color
-//     printing re-sweeps the same line) never un-reveals ink already shown.
+//  Behavior (single carriage clock -- the row reveal and the head sweep are the
+//  SAME motion, not two independent rates that can outrun each other):
+//   - The head sweeps the live band left-to-right (then right-to-left, ...) at
+//     dotsPerSecond; RevealedColDots is that sweep position. Rows already swept
+//     show complete below it.
+//   - Completing a full-width sweep reveals exactly ONE pin band (rowsPerSweep
+//     rows) and steps the head down a band -- so revealing ink IS the sweep, at
+//     the real ImageWriter's ~one-band-per-pass rate, no matter how fast the
+//     guest dumped the bytes. This is what keeps the motion smooth: the reveal
+//     never blows through a band full-width faster than the head could draw it.
 //   - RequestFastForward reveals everything on the next Advance (skip the show).
 //   - A coalescing jump-cut avoids animating a huge backlog: when the target
 //     runs more than coalesceRows ahead of what is revealed (a burst of
 //     buffered output, or the panel was hidden during a long job), the reveal
-//     snaps to the target instead of crawling through thousands of rows.
+//     snaps to the target instead of sweeping through thousands of rows.
+//   - SetTargetPosition's column argument is retained for API/head-tracking use
+//     but the sweep runs the full carriage width every band (the panel drives it
+//     with the full width); it never pulls the reveal backwards.
 //
 //  All times are seconds on a caller-supplied monotonic clock; a clock that
 //  goes backwards simply makes no progress for that step.
@@ -45,9 +48,14 @@ class PrinterPacing
 public:
     struct Config
     {
-        double  rowsPerSecond = 432.0;    // steady reveal rate (tunable feel)
-        double  coalesceRows  = 2000.0;   // backlog beyond this -> jump-cut
-        double  dotsPerSecond = 4000.0;   // head sweep within the live line (FR-034)
+        // The carriage sweep speed is the ONLY rate: rows reveal as a consequence
+        // of sweeps completing (one pin band per full-width pass), so the two can
+        // never run at incoherent rates. dotsPerSecond / kDotsPerRow * rowsPerSweep
+        // is the effective row-feed rate (~50 rows/s at the defaults -- real
+        // ImageWriter graphics speed).
+        double  dotsPerSecond = 4000.0;                     // head sweep across the band (FR-034)
+        int     rowsPerSweep  = PrinterGrid::kPinBandRows;  // rows revealed per full-width sweep
+        double  coalesceRows  = 2000.0;                     // backlog beyond this -> jump-cut
     };
 
     explicit PrinterPacing (const Config & cfg = Config ());
@@ -90,12 +98,10 @@ public:
 private:
     Config  m_cfg;
     double  m_lastTime    = 0.0;
-    double  m_revealed    = 0.0;   // fractional so sub-row rates accumulate
-    double  m_revealedCol = (double) PrinterGrid::kDotsPerRow;
+    double  m_revealed    = 0.0;   // top of the live (sweeping) band, in rows
+    double  m_revealedCol = (double) PrinterGrid::kDotsPerRow;   // sweep column within it
     int     m_target      = 0;
-    int     m_targetCol   = PrinterGrid::kDotsPerRow;
-    int     m_sweepRow    = -1;    // row the current sweep belongs to
     bool    m_started     = false;
     bool    m_fastForward = false;
-    bool    m_sweepLeftToRight = true;   // reverses each new line (bidirectional)
+    bool    m_sweepLeftToRight = true;   // reverses each new band (bidirectional)
 };

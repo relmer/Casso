@@ -64,8 +64,9 @@ static constexpr uint32_t  s_kArgbHoleRim    = 0xFFB8B8B8;   // sprocket hole ed
 
 // The live pin band (FR-034): a head pass strikes 8 pins spaced 1/72",
 // i.e. 2 native rows each -- 16 rows below the paper row. The reveal mask
-// clips this band at the paced head column; rows above it are complete.
-static constexpr int       s_kPinBandRows = 8 * (PrinterGrid::kRowsPerInch / 72);
+// clips this band at the paced head column; rows above it are complete. MUST
+// equal PrinterPacing's rowsPerSweep so a swept band tiles exactly onto the next.
+static constexpr int       s_kPinBandRows = PrinterGrid::kPinBandRows;
 
 // Bidirectional reveal lag: the carriage prints alternate lines right-to-left
 // (real ImageWriter), but our interpreter fills each line's dots left-to-
@@ -728,23 +729,15 @@ void PrinterPanel::RefreshLive (PrinterWorker & worker, int64_t nowMs, bool forc
     sweepLtr   = m_pacing.SweepLeftToRight();
 
     {
+        // The head sweeps the live band whether or not it has caught the guest:
+        // revealing ink IS the sweep now (PrinterPacing), so a backlog drains as a
+        // visible carriage pass, not a full-width snap. progress == full width when
+        // caught up, so the live band then shows complete. Mirror for a R->L pass.
         int  progress = m_pacing.RevealedColDots();   // 0..kDotsPerRow sweep distance
 
-        if (!m_pacing.IsCaughtUp())
-        {
-            // Rows still feeding: the band shows complete; park the head at the
-            // start of the coming sweep so it doesn't jump to the far margin.
-            revealCol = sweepLtr ? 0 : PrinterGrid::kDotsPerRow;
-            revealLo  = 0;
-            revealHi  = PrinterGrid::kDotsPerRow;
-        }
-        else
-        {
-            // Head screen column + revealed span, mirrored for a R->L pass.
-            revealCol = sweepLtr ? progress : (PrinterGrid::kDotsPerRow - progress);
-            revealLo  = sweepLtr ? 0 : revealCol;
-            revealHi  = sweepLtr ? revealCol : PrinterGrid::kDotsPerRow;
-        }
+        revealCol = sweepLtr ? progress : (PrinterGrid::kDotsPerRow - progress);
+        revealLo  = sweepLtr ? 0 : revealCol;
+        revealHi  = sweepLtr ? revealCol : PrinterGrid::kDotsPerRow;
     }
 
     // The carriage is animating whenever the reveal trails the lagged target or a
@@ -822,26 +815,23 @@ void PrinterPanel::RefreshLive (PrinterWorker & worker, int64_t nowMs, bool forc
         RenderSpan (spanRaster, span.firstRow, span.lastRow, contentDirty, revealRow, revealLo, revealHi);
 
         // Tell the audio whether the head is on ink (buzz) vs feeding (silent).
-        // Sample just BEHIND the head in the sweep direction; a whole-row scan
-        // while rows are still feeding (no meaningful sweep column yet).
+        // Sample just BEHIND the head in the sweep direction -- the sweep is now
+        // always the reveal (backlog included), so there is a meaningful head
+        // column every frame; behind-head keeps a word buzzing as one but goes
+        // silent over a wide blank margin.
         {
             constexpr int  kInkLookbackDots = (PrinterGrid::kDotsPerInchH * 3) / 10;   // 0.3"
             int  sampleLo;
             int  sampleHi;
 
-            if (!m_pacing.IsCaughtUp())
-            {
-                sampleLo = 0;
-                sampleHi = PrinterGrid::kDotsPerRow - 1;
-            }
-            else if (sweepLtr)
+            if (sweepLtr)
             {
                 sampleLo = (std::max) (0, revealCol - kInkLookbackDots);
-                sampleHi = revealCol;
+                sampleHi = (std::min) (PrinterGrid::kDotsPerRow - 1, revealCol);
             }
             else
             {
-                sampleLo = revealCol;
+                sampleLo = (std::max) (0, revealCol);
                 sampleHi = (std::min) (PrinterGrid::kDotsPerRow - 1, revealCol + kInkLookbackDots);
             }
 

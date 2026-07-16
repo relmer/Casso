@@ -5,16 +5,19 @@
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
 // Clock-driven pacing for the printer panel's paper animation (R-012). The
-// reveal is deterministic under an injected clock: a steady rate, a fast-forward
-// skip, and a coalescing jump-cut past large backlogs. Rates/thresholds are set
-// explicitly per test so behavior -- not the tuned default constants -- is what
-// is asserted.
+// reveal is a single carriage clock: the head sweeps the live band at
+// dotsPerSecond, and each completed full-width pass reveals ONE pin band
+// (rowsPerSweep rows) and steps down -- so revealing rows and the head sweep are
+// the same motion. Rates/thresholds are set explicitly per test so behavior --
+// not the tuned default constants -- is what is asserted. kDotsPerRow == 1280;
+// tests use dotsPerSecond == 1280 so exactly one sweep completes per second.
 namespace PrinterPacingTests
 {
-    static PrinterPacing::Config Cfg (double rate, double coalesce)
+    static PrinterPacing::Config Cfg (double dotsPerSec, int rowsPerSweep, double coalesce)
     {
         PrinterPacing::Config   c;
-        c.rowsPerSecond = rate;
+        c.dotsPerSecond = dotsPerSec;
+        c.rowsPerSweep  = rowsPerSweep;
         c.coalesceRows  = coalesce;
         return c;
     }
@@ -24,51 +27,84 @@ namespace PrinterPacingTests
     {
     public:
 
-        TEST_METHOD (RevealsAtSteadyRate)
+        TEST_METHOD (RevealsOneBandPerSweep)
         {
-            // 100 rows/s, coalesce disabled (huge threshold) so we see the crawl.
-            PrinterPacing   p (Cfg (100.0, 1.0e9));
+            // 1280 dots/s over a 1280-dot row == one sweep (one 16-row band) per s.
+            PrinterPacing   p (Cfg (1280.0, 16, 1.0e9));
 
             p.Reset (0.0);
             p.SetTargetRows (1000);
 
-            Assert::AreEqual (100, p.Advance (1.0));
-            Assert::AreEqual (250, p.Advance (2.5));
-            Assert::AreEqual (300, p.Advance (3.0));
+            Assert::AreEqual (0,  p.Advance (0.5));   // half a pass: no band yet
+            Assert::AreEqual (16, p.Advance (1.0));   // one pass done -> 1 band
+            Assert::AreEqual (32, p.Advance (2.0));   // two passes -> 2 bands
             Assert::IsFalse  (p.IsCaughtUp());
         }
 
 
-        TEST_METHOD (ClampsToTargetAndCatchesUp)
+        TEST_METHOD (ColumnSweepsAcrossTheLiveBand)
         {
-            PrinterPacing   p (Cfg (100.0, 1.0e9));
+            // While behind the guest, the head column is the visible sweep -- not
+            // a full-width snap (that was the old bug). 1280 dots/s.
+            PrinterPacing   p (Cfg (1280.0, 16, 1.0e9));
 
             p.Reset (0.0);
-            p.SetTargetRows (150);
+            p.SetTargetRows (1000);
 
-            Assert::AreEqual (100, p.Advance (1.0));
-            Assert::AreEqual (150, p.Advance (2.0));   // would be 200, clamped
-            Assert::AreEqual (150, p.Advance (5.0));   // stays put
+            p.Advance (0.25);
+            Assert::AreEqual (320, p.RevealedColDots());   // 1280 * 0.25
+            p.Advance (0.50);
+            Assert::AreEqual (640, p.RevealedColDots());
+            Assert::IsFalse  (p.IsCaughtUp());
+        }
+
+
+        TEST_METHOD (CaughtUpShowsTheLiveBandComplete)
+        {
+            PrinterPacing   p (Cfg (1280.0, 16, 1.0e9));
+
+            p.Reset (0.0);
+            p.SetTargetRows (16);
+
+            p.Advance (1.0);                           // one pass reveals the band
+            Assert::AreEqual (16, p.RevealedRows());
+            Assert::IsTrue   (p.IsCaughtUp());
+            Assert::AreEqual (PrinterGrid::kDotsPerRow, p.RevealedColDots());
+        }
+
+
+        TEST_METHOD (RevealCapsAtTarget)
+        {
+            PrinterPacing   p (Cfg (1280.0, 16, 1.0e9));
+
+            p.Reset (0.0);
+            p.SetTargetRows (40);                      // 40 rows = 2.5 bands
+
+            Assert::AreEqual (16, p.Advance (1.0));
+            Assert::AreEqual (32, p.Advance (2.0));
+            Assert::AreEqual (40, p.Advance (3.0));    // 3rd band clamps to the target
+            Assert::AreEqual (40, p.Advance (9.0));    // stays put
             Assert::IsTrue   (p.IsCaughtUp());
         }
 
 
         TEST_METHOD (FastForwardRevealsEverythingNextAdvance)
         {
-            PrinterPacing   p (Cfg (100.0, 1.0e9));
+            PrinterPacing   p (Cfg (1280.0, 16, 1.0e9));
 
             p.Reset (0.0);
             p.SetTargetRows (5000);
             p.RequestFastForward();
 
-            Assert::AreEqual (5000, p.Advance (0.01));   // tiny dt, still all revealed
+            Assert::AreEqual (5000, p.Advance (0.01));
             Assert::IsTrue   (p.IsCaughtUp());
+            Assert::AreEqual (PrinterGrid::kDotsPerRow, p.RevealedColDots());
         }
 
 
         TEST_METHOD (FastForwardIsOneShot)
         {
-            PrinterPacing   p (Cfg (100.0, 1.0e9));
+            PrinterPacing   p (Cfg (1280.0, 16, 1.0e9));
 
             p.Reset (0.0);
             p.SetTargetRows (200);
@@ -78,7 +114,7 @@ namespace PrinterPacingTests
 
             // Grow the job; the earlier fast-forward must not still be latched.
             p.SetTargetRows (400);
-            Assert::AreEqual (200, p.Advance (0.01));   // ~1 row of new reveal, clamps low
+            Assert::AreEqual (200, p.Advance (0.02));   // sweeping again, not snapped
             Assert::IsFalse  (p.IsCaughtUp());
         }
 
@@ -86,7 +122,7 @@ namespace PrinterPacingTests
         TEST_METHOD (CoalesceJumpCutsPastLargeBacklog)
         {
             // Backlog (5000) far exceeds the 500-row coalesce threshold: snap.
-            PrinterPacing   p (Cfg (100.0, 500.0));
+            PrinterPacing   p (Cfg (1280.0, 16, 500.0));
 
             p.Reset (0.0);
             p.SetTargetRows (5000);
@@ -96,54 +132,54 @@ namespace PrinterPacingTests
         }
 
 
-        TEST_METHOD (SmallBacklogAnimatesNotJumpCut)
+        TEST_METHOD (SmallBacklogSweepsNotJumpCut)
         {
-            // Backlog (300) is under the 500 threshold: crawl, do not snap.
-            PrinterPacing   p (Cfg (100.0, 500.0));
+            // Backlog (300) is under the 500 threshold: sweep, do not snap.
+            PrinterPacing   p (Cfg (1280.0, 16, 500.0));
 
             p.Reset (0.0);
             p.SetTargetRows (300);
 
-            Assert::AreEqual (100, p.Advance (1.0));
+            Assert::AreEqual (16, p.Advance (1.0));    // one band, still animating
             Assert::IsFalse  (p.IsCaughtUp());
         }
 
 
         TEST_METHOD (BackwardClockMakesNoProgress)
         {
-            PrinterPacing   p (Cfg (100.0, 1.0e9));
+            PrinterPacing   p (Cfg (1280.0, 16, 1.0e9));
 
             p.Reset (0.0);
             p.SetTargetRows (1000);
 
-            Assert::AreEqual (500, p.Advance (5.0));
-            Assert::AreEqual (500, p.Advance (3.0));   // time went back -> no change
-            Assert::AreEqual (600, p.Advance (4.0));   // resumes from last time
+            Assert::AreEqual (80, p.Advance (5.0));    // 5 passes -> 80 rows
+            Assert::AreEqual (80, p.Advance (3.0));    // time went back -> no change
+            Assert::AreEqual (96, p.Advance (4.0));    // resumes from the t=3 baseline
         }
 
 
         TEST_METHOD (ResetWithRevealedRows)
         {
-            PrinterPacing   p (Cfg (100.0, 1.0e9));
+            PrinterPacing   p (Cfg (1280.0, 16, 1.0e9));
 
             p.Reset (10.0, 400);
             p.SetTargetRows (1000);
 
             Assert::AreEqual (400, p.RevealedRows());
-            Assert::AreEqual (500, p.Advance (11.0));   // +100 rows in 1s
+            Assert::AreEqual (416, p.Advance (11.0));   // +1 band in 1 s
         }
 
 
         TEST_METHOD (ShrinkingTargetClampsReveal)
         {
-            PrinterPacing   p (Cfg (100.0, 1.0e9));
+            PrinterPacing   p (Cfg (1280.0, 16, 1.0e9));
 
             p.Reset (0.0);
             p.SetTargetRows (1000);
-            Assert::AreEqual (500, p.Advance (5.0));
+            Assert::AreEqual (80, p.Advance (5.0));
 
-            p.SetTargetRows (300);                      // target shrank below reveal
-            Assert::AreEqual (300, p.RevealedRows());
+            p.SetTargetRows (50);                       // target shrank below reveal
+            Assert::AreEqual (50, p.RevealedRows());
             Assert::IsTrue   (p.IsCaughtUp());
         }
 
@@ -152,128 +188,44 @@ namespace PrinterPacingTests
         {
             // Without Reset, the first Advance sets the baseline (dt == 0), so no
             // giant jump from a large absolute timestamp.
-            PrinterPacing   p (Cfg (100.0, 1.0e9));
+            PrinterPacing   p (Cfg (1280.0, 16, 1.0e9));
 
             p.SetTargetRows (1000);
 
-            Assert::AreEqual (0,   p.Advance (12345.0));   // baseline, no progress
-            Assert::AreEqual (100, p.Advance (12346.0));   // +1s
+            Assert::AreEqual (0,  p.Advance (12345.0));   // baseline, no progress
+            Assert::AreEqual (16, p.Advance (12346.0));   // +1 s -> 1 band
         }
 
 
-        // ---- FR-034 column sweep (head timing) ----
-
-        static PrinterPacing::Config ColCfg (double rowRate, double dotRate)
+        TEST_METHOD (SweepDirectionReversesEachBand)
         {
-            PrinterPacing::Config   c;
-            c.rowsPerSecond = rowRate;
-            c.coalesceRows  = 1.0e9;
-            c.dotsPerSecond = dotRate;
-            return c;
-        }
-
-
-        TEST_METHOD (ColumnSweepsAtDotRateOnArrival)
-        {
-            PrinterPacing   p (ColCfg (100.0, 100.0));
+            // The ImageWriter prints bidirectionally: the carriage direction flips
+            // every time a fresh band's pass begins (on sweep completion).
+            PrinterPacing   p (Cfg (1280.0, 16, 1.0e9));
 
             p.Reset (0.0, 10);
-            p.SetTargetPosition (11, 80);      // one row behind, head at dot 80
+            p.SetTargetRows (1000);
+            Assert::IsTrue  (p.SweepLeftToRight());    // starts left-to-right
 
-            p.Advance (0.01);                  // rows 10 -> 11: arrival
-            Assert::AreEqual (11, p.RevealedRows());
-            Assert::AreEqual (0,  p.RevealedColDots());   // sweep restarts at the margin
+            p.Advance (1.0);                            // first pass completes -> reverse
+            Assert::IsFalse (p.SweepLeftToRight());
 
-            p.Advance (0.51);                  // +0.5 s * 100 dots/s
-            Assert::AreEqual (50, p.RevealedColDots());
-
-            p.Advance (5.0);                   // clamps at the head column
-            Assert::AreEqual (80, p.RevealedColDots());
-        }
-
-
-        TEST_METHOD (ColumnIsFullWidthWhileRowsCatchUp)
-        {
-            PrinterPacing   p (ColCfg (100.0, 100.0));
-
-            p.Reset (0.0);
-            p.SetTargetPosition (500, 40);
-
-            p.Advance (1.0);                   // rows 0 -> 100 of 500: still behind
-            Assert::IsFalse  (p.IsCaughtUp());
-            Assert::AreEqual (PrinterGrid::kDotsPerRow, p.RevealedColDots());
-        }
-
-
-        TEST_METHOD (SameRowColumnTargetMaxHolds)
-        {
-            PrinterPacing   p (ColCfg (100.0, 1000.0));
-
-            p.Reset (0.0, 10);
-            p.SetTargetPosition (11, 800);
-            p.Advance (0.01);                  // arrival
-            p.Advance (1.01);                  // sweep 0 -> 800 (clamped)
-            Assert::AreEqual (800, p.RevealedColDots());
-
-            // Overprint pass: the head returns to the left on the SAME row.
-            // The column target max-holds so revealed ink never disappears.
-            p.SetTargetPosition (11, 100);
-            Assert::AreEqual (800, p.RevealedColDots());
-        }
-
-
-        TEST_METHOD (NewRowRestartsSweep)
-        {
-            // Times are exact binary fractions so rate * dt has no FP residue.
-            PrinterPacing   p (ColCfg (1000.0, 1000.0));
-
-            p.Reset (0.0, 10);
-            p.SetTargetPosition (11, 500);
-            p.Advance (0.25);                  // arrival on row 11
-            p.Advance (0.75);                  // sweep 0 -> 500 (clamped)
-            Assert::AreEqual (500, p.RevealedColDots());
-
-            p.SetTargetPosition (25, 300);     // line feed: new live line
-            Assert::AreEqual (PrinterGrid::kDotsPerRow, p.RevealedColDots());   // catching up
-            p.Advance (1.0);                   // 14 rows at 1000 r/s: arrival
-            Assert::AreEqual (25, p.RevealedRows());
-            Assert::AreEqual (0,  p.RevealedColDots());
-
-            p.Advance (1.25);                  // sweep resumes on the new line
-            Assert::AreEqual (250, p.RevealedColDots());
+            p.Advance (2.0);                            // next pass -> reverse again
+            Assert::IsTrue  (p.SweepLeftToRight());
         }
 
 
         TEST_METHOD (FastForwardSnapsColumnToo)
         {
-            PrinterPacing   p (ColCfg (100.0, 100.0));
+            PrinterPacing   p (Cfg (1280.0, 16, 1.0e9));
 
             p.Reset (0.0, 10);
-            p.SetTargetPosition (11, 640);
+            p.SetTargetRows (500);
             p.RequestFastForward();
 
             p.Advance (0.01);
-            Assert::AreEqual (11,  p.RevealedRows());
-            Assert::AreEqual (640, p.RevealedColDots());
-        }
-
-
-        TEST_METHOD (SweepDirectionReversesEachLine)
-        {
-            // The ImageWriter prints bidirectionally: the carriage direction
-            // flips every time a fresh line's sweep begins (on arrival).
-            PrinterPacing   p (ColCfg (1000.0, 1000.0));
-
-            p.Reset (0.0, 10);
-            Assert::IsTrue (p.SweepLeftToRight());   // starts left-to-right
-
-            p.SetTargetPosition (11, 500);
-            p.Advance (0.25);                          // first line arrives -> reverse
-            Assert::IsFalse (p.SweepLeftToRight());
-
-            p.SetTargetPosition (25, 300);
-            p.Advance (1.0);                           // next line arrives -> reverse again
-            Assert::IsTrue (p.SweepLeftToRight());
+            Assert::AreEqual (500, p.RevealedRows());
+            Assert::AreEqual (PrinterGrid::kDotsPerRow, p.RevealedColDots());
         }
     };
 }
