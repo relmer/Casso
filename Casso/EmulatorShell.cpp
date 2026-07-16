@@ -3276,137 +3276,187 @@ int EmulatorShell::RunMessageLoop()
             }
         }
 
-        // Copy latest framebuffer under lock, then present with vsync
-        bool  fbDirtyThisFrame = false;
-        {
-            lock_guard<mutex> lock (m_fbMutex);
-
-            if (m_fbReady)
-            {
-                m_fbReady        = false;
-                fbDirtyThisFrame = true;
-            }
-        }
-
-        // / FR-038. Push the latest CRT params (brightness slider,
-        // scanlines/bloom/color-bleed toggles + magnitudes) to the
-        // renderer every UI frame so user edits land on the very next
-        // present. The active theme's `crtDefaults` only apply when the
-        // user hasn't customised anything yet (see MakeCrtParams).
-        {
-            const ThemeCrtDefaults *  themeDefaults = nullptr;
-            if (m_themeManager != nullptr)
-            {
-                const LoadedTheme *  active = m_themeManager->GetActiveTheme();
-                if (active != nullptr)
-                {
-                    themeDefaults = &active->crtDefaults;
-                }
-            }
-            CrtParams  params = MakeCrtParams (m_globalPrefs.crtByMode[(int) m_colorMode.load(std::memory_order_acquire)],
-                                               (size_t) m_colorMode.load(std::memory_order_acquire),
-                                               themeDefaults,
-                                               (float) m_d3dRenderer.GetBackBufferWidth(),
-                                               (float) m_d3dRenderer.GetBackBufferHeight());
-            m_d3dRenderer.SetCrtParams (params);
-        }
-
-        // Skip the entire upload + 9-pass post-process when neither the
-        // emulator framebuffer nor any CRT param changed (and the
-        // persistence trail isn't still decaying). Saves ~20%% GPU at a
-        // BASIC prompt. PeekMessage above still drains messages; the
-        // brief sleep keeps this thread from spinning.
-        //
-        // FORCE PRESENT when the nav layer has an open menu so menu
-        // hover / open / close transitions paint. Without this, a
-        // paused machine produces no fb changes -> no Present -> menus
-        // open in state-only and never repaint, looking dead.
-        // Per-UI-frame chrome upkeep that used to live in the after-blit
-        // hook: advance drive-door animations and force a present while a
-        // door is mid-transition so the chrome keeps repainting even when
-        // the emulator framebuffer is static.
-        if (m_diskManager != nullptr)
-        {
-            m_diskManager->UpdateDriveWidgets();
-        }
-        for (const DriveWidgetState & st : m_driveWidgetState)
-        {
-            if (st.doorState == DriveWidgetState::Door::Opening ||
-                st.doorState == DriveWidgetState::Door::Closing)
-            {
-                m_d3dRenderer.MarkRedrawNeeded();
-                break;
-            }
-        }
-
-        if (m_disk2DebugPanel != nullptr)
-        {
-            hr = m_disk2DebugPanel->RenderFrame();
-            IGNORE_RETURN_VALUE (hr, S_OK);
-        }
-        if (m_inputDebugPanel != nullptr)
-        {
-            hr = m_inputDebugPanel->RenderFrame();
-            IGNORE_RETURN_VALUE (hr, S_OK);
-        }
-        if (m_printerPanel != nullptr)
-        {
-            IGNORE_RETURN_VALUE (hr, m_printerPanel->RenderFrame());
-        }
-        if (m_mainMenu.IsOpen())
-        {
-            m_d3dRenderer.MarkRedrawNeeded();
-        }
-
-        // While the modeless Settings sheet is open, force a present every UI
-        // frame so live Display edits (brightness / contrast / scanlines / text
-        // color) reflect in the emulator instantly. The retired SettingsWindow
-        // was rendered inline in this loop each frame, which coupled the
-        // emulator's present cadence to the settings edits; the standalone
-        // sheet decoupled it, so between framebuffer changes (e.g. a cursor
-        // blink) a CRT-param edit would otherwise wait for the next
-        // NeedsPresent trigger and appear laggy.
-        if (m_settingsSheet != nullptr)
-        {
-            m_d3dRenderer.MarkRedrawNeeded();
-        }
-
-        // Drive the joystick-button tooltip dwell timer; it shows / hides
-        // its popup once the open / close delay elapses after a hover.
-        {
-            int64_t  nowMs = (int64_t) std::chrono::duration_cast<std::chrono::milliseconds> (
-                                 std::chrono::steady_clock::now().time_since_epoch()).count();
-
-            m_joystickTooltip.Tick (nowMs);
-        }
-
-        // Refresh the printer status LED; marks a redraw itself on a change so
-        // a static screen (e.g. a pending page at the BASIC prompt) repaints.
-        UpdatePrinterIndicator ();
-
-        // Auto-open the print preview when a print begins and stream the strip
-        // into it live as the guest prints (non-destructive snapshot).
-        UpdatePrinterPreview ();
-
-        if (!m_d3dRenderer.NeedsPresent (fbDirtyThisFrame))
+        // One UI render cycle (framebuffer latch + chrome + printer preview /
+        // audio + present). Idle-sleep when there was nothing to present so this
+        // thread does not spin. PumpUiFrame is ALSO driven off a WM_TIMER during
+        // an OS modal move / size loop (OnEnterSizeMove) so the preview + printer
+        // sound keep running while the user holds the title bar.
+        if (!PumpUiFrame())
         {
             Sleep (1);
-            continue;
         }
-
-        // Drive the host paint pump for this frame. Stage the emulator
-        // framebuffer for the before-present hook, then request a
-        // synchronous WM_PAINT: the host clears, the hook composites the
-        // framebuffer, the chrome paints on top, and the host presents.
-        m_pendingFramebuffer = fbDirtyThisFrame ? m_uiFramebuffer.data() : nullptr;
-        InvalidateRect (m_hwnd, nullptr, FALSE);
-        UpdateWindow   (m_hwnd);
     }
 
     m_cpuManager.Stop();
 
 Error:
     return 0;
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PumpUiFrame
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool EmulatorShell::PumpUiFrame()
+{
+    HRESULT  hr = S_OK;
+
+    // Copy latest framebuffer under lock, then present with vsync
+    bool  fbDirtyThisFrame = false;
+    {
+        lock_guard<mutex> lock (m_fbMutex);
+
+        if (m_fbReady)
+        {
+            m_fbReady        = false;
+            fbDirtyThisFrame = true;
+        }
+    }
+
+    // / FR-038. Push the latest CRT params (brightness slider,
+    // scanlines/bloom/color-bleed toggles + magnitudes) to the
+    // renderer every UI frame so user edits land on the very next
+    // present. The active theme's `crtDefaults` only apply when the
+    // user hasn't customised anything yet (see MakeCrtParams).
+    {
+        const ThemeCrtDefaults *  themeDefaults = nullptr;
+        if (m_themeManager != nullptr)
+        {
+            const LoadedTheme *  active = m_themeManager->GetActiveTheme();
+            if (active != nullptr)
+            {
+                themeDefaults = &active->crtDefaults;
+            }
+        }
+        CrtParams  params = MakeCrtParams (m_globalPrefs.crtByMode[(int) m_colorMode.load(std::memory_order_acquire)],
+                                           (size_t) m_colorMode.load(std::memory_order_acquire),
+                                           themeDefaults,
+                                           (float) m_d3dRenderer.GetBackBufferWidth(),
+                                           (float) m_d3dRenderer.GetBackBufferHeight());
+        m_d3dRenderer.SetCrtParams (params);
+    }
+
+    // Skip the entire upload + 9-pass post-process when neither the
+    // emulator framebuffer nor any CRT param changed (and the
+    // persistence trail isn't still decaying). Saves ~20%% GPU at a
+    // BASIC prompt. PeekMessage above still drains messages; the
+    // brief sleep keeps this thread from spinning.
+    //
+    // FORCE PRESENT when the nav layer has an open menu so menu
+    // hover / open / close transitions paint. Without this, a
+    // paused machine produces no fb changes -> no Present -> menus
+    // open in state-only and never repaint, looking dead.
+    // Per-UI-frame chrome upkeep that used to live in the after-blit
+    // hook: advance drive-door animations and force a present while a
+    // door is mid-transition so the chrome keeps repainting even when
+    // the emulator framebuffer is static.
+    if (m_diskManager != nullptr)
+    {
+        m_diskManager->UpdateDriveWidgets();
+    }
+    for (const DriveWidgetState & st : m_driveWidgetState)
+    {
+        if (st.doorState == DriveWidgetState::Door::Opening ||
+            st.doorState == DriveWidgetState::Door::Closing)
+        {
+            m_d3dRenderer.MarkRedrawNeeded();
+            break;
+        }
+    }
+
+    if (m_disk2DebugPanel != nullptr)
+    {
+        hr = m_disk2DebugPanel->RenderFrame();
+        IGNORE_RETURN_VALUE (hr, S_OK);
+    }
+    if (m_inputDebugPanel != nullptr)
+    {
+        hr = m_inputDebugPanel->RenderFrame();
+        IGNORE_RETURN_VALUE (hr, S_OK);
+    }
+    if (m_printerPanel != nullptr)
+    {
+        IGNORE_RETURN_VALUE (hr, m_printerPanel->RenderFrame());
+    }
+    if (m_mainMenu.IsOpen())
+    {
+        m_d3dRenderer.MarkRedrawNeeded();
+    }
+
+    // While the modeless Settings sheet is open, force a present every UI
+    // frame so live Display edits (brightness / contrast / scanlines / text
+    // color) reflect in the emulator instantly. The retired SettingsWindow
+    // was rendered inline in this loop each frame, which coupled the
+    // emulator's present cadence to the settings edits; the standalone
+    // sheet decoupled it, so between framebuffer changes (e.g. a cursor
+    // blink) a CRT-param edit would otherwise wait for the next
+    // NeedsPresent trigger and appear laggy.
+    if (m_settingsSheet != nullptr)
+    {
+        m_d3dRenderer.MarkRedrawNeeded();
+    }
+
+    // Drive the joystick-button tooltip dwell timer; it shows / hides
+    // its popup once the open / close delay elapses after a hover.
+    {
+        int64_t  nowMs = (int64_t) std::chrono::duration_cast<std::chrono::milliseconds> (
+                             std::chrono::steady_clock::now().time_since_epoch()).count();
+
+        m_joystickTooltip.Tick (nowMs);
+    }
+
+    // Refresh the printer status LED; marks a redraw itself on a change so
+    // a static screen (e.g. a pending page at the BASIC prompt) repaints.
+    UpdatePrinterIndicator ();
+
+    // Auto-open the print preview when a print begins and stream the strip
+    // into it live as the guest prints (non-destructive snapshot).
+    UpdatePrinterPreview ();
+
+    if (!m_d3dRenderer.NeedsPresent (fbDirtyThisFrame))
+    {
+        return false;
+    }
+
+    // Drive the host paint pump for this frame. Stage the emulator
+    // framebuffer for the before-present hook, then request a
+    // synchronous WM_PAINT: the host clears, the hook composites the
+    // framebuffer, the chrome paints on top, and the host presents.
+    m_pendingFramebuffer = fbDirtyThisFrame ? m_uiFramebuffer.data() : nullptr;
+    InvalidateRect (m_hwnd, nullptr, FALSE);
+    UpdateWindow   (m_hwnd);
+    return true;
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnEnterSizeMove / OnExitSizeMove
+//
+//  Keep the UI thread painting during an OS modal move / size loop. Between
+//  WM_ENTERSIZEMOVE and WM_EXITSIZEMOVE the OS owns the thread and RunMessageLoop
+//  does not iterate, so without this the live printer preview freezes and its
+//  paced audio falls silent (the reveal stops advancing) until the user lets go
+//  -- then it jumps. A short WM_TIMER fires even inside that modal loop; its
+//  OnTimer pumps one UI frame so the preview and sound keep flowing.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::OnEnterSizeMove()
+{
+    ::SetTimer (m_hwnd, kModalPumpTimerId, USER_TIMER_MINIMUM, nullptr);
+}
+
+void EmulatorShell::OnExitSizeMove()
+{
+    ::KillTimer (m_hwnd, kModalPumpTimerId);
 }
 
 
@@ -6218,7 +6268,15 @@ LRESULT EmulatorShell::OnDrawItem (HWND hwnd, UINT msg, WPARAM wParam, LPARAM lP
 
 DxuiMessageResult EmulatorShell::OnTimer (UINT_PTR timerId)
 {
-    UNREFERENCED_PARAMETER (timerId);
+    // Keep-alive tick fired inside an OS modal move / size loop (armed by
+    // OnEnterSizeMove). RunMessageLoop is not iterating, so pump one UI frame
+    // here so the live printer preview + its paced audio keep flowing instead of
+    // freezing until the drag ends.
+    if (timerId == kModalPumpTimerId)
+    {
+        PumpUiFrame();
+        return DxuiMessageResult::Handled;
+    }
 
     return DxuiMessageResult::NotHandled;
 }

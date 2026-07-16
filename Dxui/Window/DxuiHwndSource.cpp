@@ -2100,6 +2100,16 @@ LRESULT DxuiHwndSource::WndProc (UINT msg, WPARAM wp, LPARAM lp)
             }
             break;
 
+        case WM_ENTERSIZEMOVE:
+            // Notification only: let the client start a keep-alive timer, then
+            // fall through so the OS runs its modal move / size loop as usual.
+            if (m_client != nullptr) { m_client->OnEnterSizeMove(); }
+            break;
+
+        case WM_EXITSIZEMOVE:
+            if (m_client != nullptr) { m_client->OnExitSizeMove(); }
+            break;
+
         case WM_TIMER:
             if (m_client != nullptr && m_client->OnTimer (static_cast<UINT_PTR> (wp)) == DxuiMessageResult::Handled)
             {

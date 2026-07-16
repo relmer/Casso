@@ -337,6 +337,25 @@ public:
         return DxuiMessageResult::NotHandled;
     }
 
+    // WM_ENTERSIZEMOVE. The OS is entering its own modal move / size
+    // loop (the user grabbed the caption or a resize edge); the host's
+    // outer message pump will NOT run again until the matching
+    // OnExitSizeMove. A client whose rendering / animation is driven by
+    // that outer pump uses this to start a WM_TIMER so it keeps painting
+    // (and any paced audio keeps advancing) for the duration of the drag
+    // instead of freezing. Notification only -- the host still falls
+    // through to DefWindowProc so the OS modal loop runs normally.
+    virtual void  OnEnterSizeMove    ()
+    {
+    }
+
+    // WM_EXITSIZEMOVE. The OS modal move / size loop just ended and the
+    // host's outer pump is about to resume. Symmetric with
+    // OnEnterSizeMove -- kill any timer started there. Notification only.
+    virtual void  OnExitSizeMove     ()
+    {
+    }
+
     // WM_TIMER. timerId is the UINT_PTR identifier the client
     // passed to SetTimer. Return ``Handled`` if your override
     // fully processed the tick; ``NotHandled`` to let
