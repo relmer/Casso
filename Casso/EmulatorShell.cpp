@@ -21,6 +21,8 @@
 #include "Devices/Mockingboard/MockingboardCard.h"
 #include "Devices/LanguageCard.h"
 #include "Devices/Apple2eMmu.h"
+#include "Devices/Apple2cRomBank.h"
+#include "Devices/AppleMouse.h"
 #include "Core/Prng.h"
 
 #include "DiskSettings.h"
@@ -638,6 +640,13 @@ HRESULT EmulatorShell::Initialize (
     CHR (hr);
 
     m_machineManager->WireLanguageCard();
+    // //c banked ROM: layer the $C028 bank-switch coordinator + no-slots
+    // $Cxxx routing on top of the flat bank-0 split WireLanguageCard just
+    // did. Without this the initial-launch //c has no ROM banking (and no
+    // SetNoExternalSlots), so $C800 floats and the firmware derails to a
+    // garbage screen. SwitchMachine already does this; the initial build
+    // path must match it. No-op for non-banked machines (romBankSize == 0).
+    m_machineManager->WireApple2cRomBank();
     m_machineManager->CreateVideoModes();
 
     // Validate memory bus for overlapping device address ranges
@@ -708,15 +717,18 @@ HRESULT EmulatorShell::Initialize (
         hrPrefs = m_userConfigStore->LoadAll (m_globalPrefs, m_uiFs);
         IGNORE_RETURN_VALUE (hrPrefs, S_OK);
 
-        // Paddle is an active mouse-capture mode, not a passive remap; never
-        // restore it on launch (it would light the LED / widen the widget
-        // while the mouse is NOT actually captured). Fall back to Off; the
-        // passive Joystick remap is safe to restore.
-        m_inputMode = (m_globalPrefs.inputMappingMode == InputMappingMode::Paddle)
-                          ? InputMappingMode::Off
-                          : m_globalPrefs.inputMappingMode;
-        m_globalPrefs.inputMappingMode = m_inputMode;
-        m_joystickButton.SetMode (m_inputMode);
+        // Restore the split input mappings. Keys (arrows->
+        // joystick) is a passive remap, safe to restore. Pointer: Paddle is
+        // an active mouse-capture mode, never restored on launch (it would
+        // light the LED while the mouse is NOT captured) -- falls back to
+        // Off; Mouse is non-capturing and restores safely.
+        m_arrowsJoystick = m_globalPrefs.arrowsToJoystick;
+        m_pointerMode    = (m_globalPrefs.pointerMapping == InputMappingMode::Paddle)
+                               ? InputMappingMode::Off
+                               : m_globalPrefs.pointerMapping;
+        m_globalPrefs.pointerMapping   = m_pointerMode;
+        m_globalPrefs.inputMappingMode = DisplayInputMode();
+        SyncSelectorState();
 
         SetColorMonitorTextArgbLive (
             ColorUtil::ResolveColorMonitorTextArgb (m_globalPrefs.colorMonitorTextMode,
@@ -761,7 +773,8 @@ HRESULT EmulatorShell::Initialize (
             // Persisted theme name is unknown (renamed, deleted, or
             // first-run with a stale default) -- fall back to the
             // canonical built-in so the listener still fires.
-            IGNORE_RETURN_VALUE (hrActivate, m_themeManager->Activate ("Skeuomorphic"));
+            hrActivate = m_themeManager->Activate ("Skeuomorphic");
+            IGNORE_RETURN_VALUE (hrActivate, S_OK);
         }
 
         // Apply the persisted per-machine colorMode (and any other
@@ -810,18 +823,40 @@ HRESULT EmulatorShell::Initialize (
                         std::string        colorMode;
 
                         if (SUCCEEDED (mergedJson.GetObject ("$cassoUiPrefs", uiPrefs)) &&
-                            uiPrefs != nullptr &&
-                            SUCCEEDED (uiPrefs->GetString ("colorMode", colorMode)))
+                            uiPrefs != nullptr)
                         {
-                            int  modeIdx = -1;
-                            if      (colorMode == "color") { modeIdx = 0; }
-                            else if (colorMode == "green") { modeIdx = 1; }
-                            else if (colorMode == "amber") { modeIdx = 2; }
-                            else if (colorMode == "white") { modeIdx = 3; }
-
-                            if (modeIdx >= 0)
+                            if (SUCCEEDED (uiPrefs->GetString ("colorMode", colorMode)))
                             {
-                                SetColorModeLive (modeIdx);
+                                int  modeIdx = -1;
+                                if      (colorMode == "color") { modeIdx = 0; }
+                                else if (colorMode == "green") { modeIdx = 1; }
+                                else if (colorMode == "amber") { modeIdx = 2; }
+                                else if (colorMode == "white") { modeIdx = 3; }
+
+                                if (modeIdx >= 0)
+                                {
+                                    SetColorModeLive (modeIdx);
+                                }
+                            }
+
+                            // //c external drive + mouse: seed the connected
+                            // states HERE -- before the drive-chrome layout below
+                            // gates on ShouldShowExternalDrive() -- so the first
+                            // paint matches the saved setup. Seeding them only in
+                            // the later mixer-prefs block left a persisted
+                            // "external drive connected" invisible until the user
+                            // re-toggled it in Settings. External drive defaults
+                            // not-connected; mouse defaults CONNECTED.
+                            bool  extConnected = false;
+                            if (SUCCEEDED (uiPrefs->GetBool ("externalDriveConnected", extConnected)))
+                            {
+                                m_externalDriveConnected = extConnected;
+                            }
+
+                            bool  mouseConn = true;
+                            if (SUCCEEDED (uiPrefs->GetBool ("mouseConnected", mouseConn)))
+                            {
+                                m_mouseConnected = mouseConn;
                             }
                         }
                     }
@@ -862,12 +897,22 @@ HRESULT EmulatorShell::Initialize (
                     m_driveChrome[0].Hide();
                     m_driveChrome[1].Hide();
                 }
+                else if (!ShouldShowExternalDrive())
+                {
+                    // //c with the optional external drive not connected: the
+                    // internal drive (widget 0) shows, the external (widget 1)
+                    // stays collapsed until the user connects it in Settings.
+                    m_driveChrome[1].Hide();
+                }
 
                 m_uiShell.HitTest().Clear();
                 if (fHasDisk)
                 {
                     m_uiShell.HitTest().Register (DxuiHitRect { m_driveChrome[0].BodyRect(), DxuiHitSlot::Custom, 0 });
-                    m_uiShell.HitTest().Register (DxuiHitRect { m_driveChrome[1].BodyRect(), DxuiHitSlot::Custom, 1 });
+                    if (ShouldShowExternalDrive())
+                    {
+                        m_uiShell.HitTest().Register (DxuiHitRect { m_driveChrome[1].BodyRect(), DxuiHitSlot::Custom, 1 });
+                    }
                 }
             }
 
@@ -1043,6 +1088,13 @@ HRESULT EmulatorShell::Initialize (
                             SetDriveAudioPan (0, (float) pan0);
                             SetDriveAudioPan (1, (float) pan1);
                         }
+
+                        // //c: default Pointer -> Mouse when connected and
+                        // nothing else was chosen. (The external-drive + mouse
+                        // connected-states are seeded earlier, before the drive-
+                        // chrome layout, so the first paint reflects the saved
+                        // setup rather than the defaults.)
+                        ApplyDefaultPointerForMachine();
                     }
                 }
             }
@@ -1344,8 +1396,8 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     {
         switch (commandId)
         {
-            case IDM_MACHINE_ARROWS_JOYSTICK: return m_inputMode == InputMappingMode::Joystick;
-            case IDM_MACHINE_ARROWS_PADDLE:   return m_inputMode == InputMappingMode::Paddle;
+            case IDM_MACHINE_ARROWS_JOYSTICK: return m_arrowsJoystick;
+            case IDM_MACHINE_ARROWS_PADDLE:   return m_pointerMode == InputMappingMode::Paddle;
             default:                          return false;
         }
     });
@@ -1594,6 +1646,30 @@ void EmulatorShell::ReflowChromeForMachineChange ()
                            static_cast<UINT> (rcClient.bottom - rcClient.top));
         }
     }
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::ShouldShowExternalDrive
+//
+//  The second drive-mount widget is fixed hardware on the //e (two-drive
+//  slot-6 controller) and every other Disk ][ machine, so it is always
+//  visible there. The //c's second drive is an optional external unit that
+//  plugs into the disk port, so it appears only when the user has marked it
+//  connected (Hardware tab toggle -> $cassoUiPrefs.externalDriveConnected).
+//  The //c is the only machine with a banked system ROM, so romBankSize is
+//  the discriminator -- the same signal that gates the built-in IWM drive.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool EmulatorShell::ShouldShowExternalDrive() const
+{
+    bool  externalIsOptional = (m_config.systemRom.romBankSize != 0);
+
+    return !externalIsOptional || m_externalDriveConnected;
 }
 
 
@@ -2289,6 +2365,11 @@ void EmulatorShell::ApplyThemeToChrome (const CassoTheme & theme)
     m_driveChrome[0].SetCompact (theme.compactDrives);
     m_driveChrome[1].SetCompact (theme.compactDrives);
 
+    // The device selector's glyph style follows the drive style --
+    // full skeuomorphic themes get the 3/4 perspective peripherals, compact
+    // (DarkModern / retro) themes the top-down glyphs.
+    m_joystickButton.SetSkeuoStyle (!theme.compactDrives);
+
     // Push the nav/dropdown palette onto the menu bar so both the
     // in-window strip and the popup-backed dropdown render with chrome
     // colours (the old per-frame apply path is dead post-T129).
@@ -2371,7 +2452,7 @@ void EmulatorShell::LayoutJoystickButton (int clientW,
     m_joyBtnDpi        = dpi;
 
     scaler.SetDpi (dpi);
-    m_joystickButton.SetMode (m_inputMode);
+    SyncSelectorState();
     m_joystickButton.Layout (anchor, scaler);
     // m_joystickTooltip is a deferred popup: it derives its DPI from its
     // popup host (set via SetPopupHost) at show time, so no SetDpi here.
@@ -3260,11 +3341,13 @@ int EmulatorShell::RunMessageLoop()
 
         if (m_disk2DebugPanel != nullptr)
         {
-            IGNORE_RETURN_VALUE (hr, m_disk2DebugPanel->RenderFrame());
+            hr = m_disk2DebugPanel->RenderFrame();
+            IGNORE_RETURN_VALUE (hr, S_OK);
         }
         if (m_inputDebugPanel != nullptr)
         {
-            IGNORE_RETURN_VALUE (hr, m_inputDebugPanel->RenderFrame());
+            hr = m_inputDebugPanel->RenderFrame();
+            IGNORE_RETURN_VALUE (hr, S_OK);
         }
         if (m_printerPanel != nullptr)
         {
@@ -4140,6 +4223,15 @@ DxuiMessageResult EmulatorShell::OnMouseMove (WPARAM wParam, LPARAM lParam)
         return DxuiMessageResult::Handled;
     }
 
+    // //c Mouse mode (non-capturing): a move over the emulator viewport
+    // drives the guest mouse via absolute mapping. Deliberately falls
+    // through to normal routing — the viewport has no chrome, and moves
+    // outside it (menu bar, drive band) behave exactly as before.
+    if (GuestMouseActive())
+    {
+        UpdateGuestMouseFromHost (x, y);
+    }
+
     // A fresh hover over a drive widget replays its basename marquee, so
     // the full filename can be re-read on demand.
     for (DriveWidget & drive : m_driveChrome)
@@ -4158,10 +4250,13 @@ DxuiMessageResult EmulatorShell::OnMouseMove (WPARAM wParam, LPARAM lParam)
 
     overBtn = m_joystickButton.HitTest (x, y);
     m_joystickButton.SetHovered (overBtn);
+    m_joystickButton.SetHoverPoint (x, y);
 
     if (overBtn)
     {
-        m_joystickTooltip.RequestShow (m_joystickButton.Bounds(), m_joystickButton.TooltipText(), nowMs);
+        // Per-segment tooltip: each device explains its own mapping.
+        m_joystickTooltip.RequestShow (m_joystickButton.Bounds(),
+                                       m_joystickButton.TooltipTextAt (x, y), nowMs);
     }
     else
     {
@@ -4202,6 +4297,140 @@ DxuiMessageResult EmulatorShell::OnMouseLeave ()
     m_joystickButton.SetHovered (false);
     m_joystickButton.SetPressed (false);
     m_joystickTooltip.RequestHide (nowMs);
+
+    // //c Mouse mode: the cursor left the window entirely — release the
+    // guest mouse target (non-capturing contract).
+    if (m_mouse != nullptr)
+    {
+        m_mouse->ClearHostTarget();
+    }
+
+    return DxuiMessageResult::NotHandled;
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GuestMouseActive
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool EmulatorShell::GuestMouseActive() const
+{
+    return m_pointerMode == InputMappingMode::Mouse && m_mouse != nullptr
+        && m_mouseConnected;
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GuestMouseLive
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool EmulatorShell::GuestMouseLive() const
+{
+    return GuestMouseActive() && m_mouse->XyInterruptsEnabled();
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  UpdateGuestMouseFromHost
+//
+//  Absolute host->guest mapping for //c Mouse mode. The mouse firmware owns
+//  position and clamping, publishing both through the slot-7 screen holes:
+//
+//      position   $047F/$057F (X lo/hi)   $04FF/$05FF (Y lo/hi)
+//      clamp min  $047D/$057D (X)         $04FD/$05FD (Y)
+//      clamp max  $067D/$077D (X)         $06FD/$07FD (Y)
+//
+//  The host position's fraction across the viewport maps into the live
+//  clamp window, and the delta from the firmware's current position is
+//  queued as movement units. Self-correcting: any units the firmware
+//  clamps away are re-derived from the holes on the next move. Sanity
+//  checks make this a no-op until the guest app has initialized the mouse
+//  firmware (pre-INITMOUSE holes are garbage). PeekByte reads the CPU's
+//  memory array directly (same cross-thread pattern as screen scraping).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::UpdateGuestMouseFromHost (int xPx, int yPx)
+{
+    const RECT & vp = m_viewportBoundsPx;
+    int          vpW = vp.right  - vp.left;
+    int          vpH = vp.bottom - vp.top;
+
+
+    if (!GuestMouseLive() || vpW <= 1 || vpH <= 1)
+    {
+        return;
+    }
+
+    if (xPx < vp.left || xPx >= vp.right || yPx < vp.top || yPx >= vp.bottom)
+    {
+        // Leaving the viewport releases the guest mouse to wherever the
+        // firmware last put it (non-capturing contract).
+        m_mouse->ClearHostTarget();
+        return;
+    }
+
+    // Publish the viewport fraction only. The DEVICE projects it into the
+    // firmware's live clamp window on the CPU thread (AppleMouse::Tick ->
+    // RetargetFromHoles): guest memory must not be read from the UI thread
+    // -- the CPU's debug array is not the live MMU-mapped RAM, and bus
+    // reads here would race the CPU thread. (The original PeekByte-based
+    // mapping read stale bytes and silently no-oped in production.)
+    uint16_t  fx = static_cast<uint16_t> (MulDiv (xPx - vp.left, 65535, vpW - 1));
+    uint16_t  fy = static_cast<uint16_t> (MulDiv (yPx - vp.top,  65535, vpH - 1));
+
+    m_mouse->SetHostTargetFraction (fx, fy);
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnSetCursor
+//
+//  //c Mouse mode is non-capturing but hides the host cursor while it is
+//  over the emulator viewport (the guest draws its own pointer); leaving
+//  the viewport -- or the client area -- restores the normal arrow.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiMessageResult EmulatorShell::OnSetCursor (WORD hitTest)
+{
+    POINT  pt = {};
+
+
+    // Only hide the cursor once guest software has turned the mouse on
+    // (GuestMouseLive) -- over a BASIC prompt or a non-mouse game the guest
+    // draws no pointer, so hiding the host cursor would just look broken.
+    if (hitTest != HTCLIENT || !GuestMouseLive())
+    {
+        return DxuiMessageResult::NotHandled;
+    }
+
+    if (!GetCursorPos (&pt) || !ScreenToClient (m_hwnd, &pt))
+    {
+        return DxuiMessageResult::NotHandled;
+    }
+
+    if (pt.x >= m_viewportBoundsPx.left && pt.x < m_viewportBoundsPx.right &&
+        pt.y >= m_viewportBoundsPx.top  && pt.y < m_viewportBoundsPx.bottom)
+    {
+        SetCursor (nullptr);
+        return DxuiMessageResult::Handled;
+    }
+
     return DxuiMessageResult::NotHandled;
 }
 
@@ -4265,6 +4494,17 @@ DxuiMessageResult EmulatorShell::OnLButtonDown (WPARAM wParam, LPARAM lParam)
     consumed = m_uiShell.OnLButtonDown (x, y);
     IGNORE_RETURN_VALUE (consumed, false);
 
+    // //c Mouse mode (non-capturing): a press over the emulator viewport is
+    // the guest mouse button -- but only once guest software has turned the
+    // mouse on, so clicks aren't silently swallowed at a BASIC prompt.
+    // Chrome outside the viewport already had its chance above.
+    if (GuestMouseLive()
+        && x >= m_viewportBoundsPx.left && x < m_viewportBoundsPx.right
+        && y >= m_viewportBoundsPx.top  && y < m_viewportBoundsPx.bottom)
+    {
+        m_mouse->SetButton (true);
+    }
+
     return DxuiMessageResult::NotHandled;
 }
 
@@ -4307,7 +4547,20 @@ DxuiMessageResult EmulatorShell::OnLButtonUp (WPARAM wParam, LPARAM lParam)
     // arrow / X / Z inputs runs.
     if (m_joystickButton.HitTest (x, y))
     {
-        CycleInputMappingMode();
+        switch (m_joystickButton.SegmentAt (x, y))
+        {
+            case InputDeviceSelector::Segment::Joystick:
+                ToggleInputMappingMode (InputMappingMode::Joystick);
+                break;
+            case InputDeviceSelector::Segment::Paddle:
+                ToggleInputMappingMode (InputMappingMode::Paddle);
+                break;
+            case InputDeviceSelector::Segment::Mouse:
+                ToggleInputMappingMode (InputMappingMode::Mouse);
+                break;
+            default:
+                break;
+        }
         return DxuiMessageResult::NotHandled;
     }
 
@@ -4352,10 +4605,18 @@ DxuiMessageResult EmulatorShell::OnLButtonUp (WPARAM wParam, LPARAM lParam)
 
     // A bare left-click on the emulator screen (no chrome / widget / drive
     // hit) in Paddle mode re-grabs the pointer after an Esc release.
-    if (m_inputMode == InputMappingMode::Paddle && !m_paddleCaptured)
+    if (m_pointerMode == InputMappingMode::Paddle && !m_paddleCaptured)
     {
         StartPaddleCapture();
         return DxuiMessageResult::Handled;
+    }
+
+    // //c Mouse mode: any left-release drops the guest mouse button --
+    // unconditionally (not viewport-gated), so a press inside the viewport
+    // released outside it can never leave the guest button stuck.
+    if (GuestMouseActive())
+    {
+        m_mouse->SetButton (false);
     }
 
     return DxuiMessageResult::NotHandled;
@@ -4741,9 +5002,9 @@ DxuiMessageResult EmulatorShell::OnKeyDown (WPARAM vk, LPARAM lParam)
     // 0. Esc exits paddle mode: releases the mouse capture (cursor
     //    reappears) and returns the input mapping to Off, matching the
     //    "Esc to exit" hint on the widget.
-    if (m_inputMode == InputMappingMode::Paddle && vk == VK_ESCAPE)
+    if (m_pointerMode == InputMappingMode::Paddle && vk == VK_ESCAPE)
     {
-        SetInputMappingMode (InputMappingMode::Off);
+        SetPointerMapping (InputMappingMode::Off);
         BAIL_OUT_IF (true, S_OK);
     }
 
@@ -4843,7 +5104,7 @@ bool EmulatorShell::OnViewportKey (const DxuiKeyEvent & ev)
     // fire buttons when "Map Arrows to Joystick" is on AND a game-port
     // paddle bank is present. Recomputed per event so a mode change between
     // press and release is always honored.
-    bool  driveJoystick = m_inputMode == InputMappingMode::Joystick &&
+    bool  driveJoystick = m_arrowsJoystick &&
                           (dynamic_cast<Apple2eSoftSwitchBank *> (m_refs.softSwitches) != nullptr ||
                            m_refs.gamePort != nullptr);
 
@@ -4927,12 +5188,12 @@ bool EmulatorShell::OnViewportKey (const DxuiKeyEvent & ev)
         // releases the physical keys.
         ApplyAppleModifierKeys (vk, false);
 
-        if (m_inputMode == InputMappingMode::Joystick && IsArrowVk (vk))
+        if (m_arrowsJoystick && IsArrowVk (vk))
         {
             UpdateJoystickAxesFromKeys();
         }
 
-        if (m_inputMode == InputMappingMode::Joystick)
+        if (m_arrowsJoystick)
         {
             UpdateJoystickButtonsFromKeys();
         }
@@ -5133,47 +5394,93 @@ Error:
 
 void EmulatorShell::SetInputMappingMode (InputMappingMode mode)
 {
-    auto             * iieSw    = dynamic_cast<Apple2eSoftSwitchBank *> (m_refs.softSwitches);
-    auto             * iieKbd   = dynamic_cast<Apple2eKeyboard *>       (m_refs.keyboard);
-    auto             * gamePort = m_refs.gamePort;
-    InputMappingMode   prev     = m_inputMode;
-
-
-
-    if (prev == InputMappingMode::Paddle && mode != InputMappingMode::Paddle)
+    // Combined PRESET setter (button cycle + legacy callers): selects BOTH
+    // axes of the split model. The Machine-menu items toggle the
+    // axes independently via SetArrowsJoystick / SetPointerMapping, so
+    // e.g. Joystick keys + Mouse pointer can coexist (disjoint game-port
+    // lines); presets deliberately reset the other axis.
+    switch (mode)
     {
-        StopPaddleCapture();
+        case InputMappingMode::Joystick:
+            SetPointerMapping (InputMappingMode::Off);
+            SetArrowsJoystick (true);
+            break;
+
+        case InputMappingMode::Paddle:
+            SetArrowsJoystick (false);
+            SetPointerMapping (InputMappingMode::Paddle);
+            break;
+
+        case InputMappingMode::Mouse:
+            SetArrowsJoystick (false);
+            SetPointerMapping (InputMappingMode::Mouse);
+            break;
+
+        case InputMappingMode::Off:
+        default:
+            SetArrowsJoystick (false);
+            SetPointerMapping (InputMappingMode::Off);
+            break;
+    }
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetArrowsJoystick
+//
+//  Keys axis of the split input model: maps arrows + X/Z onto the joystick
+//  axes / fire buttons. Independent of the Mouse pointer (disjoint hardware),
+//  but mutually exclusive with Paddle -- both drive the game-port paddle
+//  lines -- so enabling it drops an active Paddle. Turning it off neutralizes
+//  the key-derived stick and buttons so a held key can't stay stuck (axes
+//  left alone while Paddle owns them).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::SetArrowsJoystick (bool on)
+{
+    auto * iieSw    = dynamic_cast<Apple2eSoftSwitchBank *> (m_refs.softSwitches);
+    auto * iieKbd   = dynamic_cast<Apple2eKeyboard *>       (m_refs.keyboard);
+    auto * gamePort = m_refs.gamePort;
+
+    // Mirror of the rule in SetPointerMapping: the Keys axis drives PDL0/1,
+    // so enabling it must drop an active Paddle (they fight over the same
+    // game-port lines). Mouse uses a separate slot card and may coexist.
+    if (on && m_pointerMode == InputMappingMode::Paddle)
+    {
+        SetPointerMapping (InputMappingMode::Off);
     }
 
-    m_inputMode                    = mode;
-    m_globalPrefs.inputMappingMode = mode;
-    m_joystickButton.SetMode (mode);
+    m_arrowsJoystick               = on;
+    m_globalPrefs.arrowsToJoystick = on;
+    SyncInputModeUi();
 
-    // The frame width tracks the current label (Paddle is wider), so
-    // resize the button now rather than waiting for the next layout pass.
-    RelayoutJoystickButton();
-
-    SaveGlobalPrefs();
-
-    if (mode == InputMappingMode::Joystick)
+    if (on)
     {
         UpdateJoystickAxesFromKeys();
         UpdateJoystickButtonsFromKeys();
         return;
     }
 
-    // Off / Paddle: center the axes and drop the X / Z fire mapping (leaving
-    // only the host Alt keys) so a held key can't stay stuck.
-    if (iieSw != nullptr)
+    if (m_pointerMode != InputMappingMode::Paddle)
     {
-        iieSw->SetPaddle (0, Apple2eSoftSwitchBank::s_knPaddleCenter);
-        iieSw->SetPaddle (1, Apple2eSoftSwitchBank::s_knPaddleCenter);
+        if (iieSw != nullptr)
+        {
+            iieSw->SetPaddle (0, Apple2eSoftSwitchBank::s_knPaddleCenter);
+            iieSw->SetPaddle (1, Apple2eSoftSwitchBank::s_knPaddleCenter);
+        }
+        if (gamePort != nullptr)
+        {
+            gamePort->SetPaddle (0, AppleGamePort::s_knPaddleCenter);
+            gamePort->SetPaddle (1, AppleGamePort::s_knPaddleCenter);
+        }
     }
 
     if (gamePort != nullptr)
     {
-        gamePort->SetPaddle (0, AppleGamePort::s_knPaddleCenter);
-        gamePort->SetPaddle (1, AppleGamePort::s_knPaddleCenter);
         gamePort->SetButton (0, false);
         gamePort->SetButton (1, false);
     }
@@ -5183,11 +5490,71 @@ void EmulatorShell::SetInputMappingMode (InputMappingMode mode)
         iieKbd->SetOpenApple   ((GetKeyState (VK_LMENU) & 0x8000) != 0);
         iieKbd->SetClosedApple ((GetKeyState (VK_RMENU) & 0x8000) != 0);
     }
+}
 
-    if (mode == InputMappingMode::Paddle)
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetPointerMapping
+//
+//  Pointer axis of the split input model: Off / Paddle (capturing) /
+//  Mouse (non-capturing //c IOU mouse). Paddle and Mouse are mutually
+//  exclusive by construction -- both claim the host pointer.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::SetPointerMapping (InputMappingMode pointer)
+{
+    auto             * iieSw = dynamic_cast<Apple2eSoftSwitchBank *> (m_refs.softSwitches);
+    InputMappingMode   prev  = m_pointerMode;
+
+
+    if (pointer == InputMappingMode::Joystick)   // not a pointer mode
+    {
+        pointer = InputMappingMode::Off;
+    }
+
+    // Paddle owns the game-port paddle axes (PDL0/1) -- the same lines the
+    // arrows->joystick remap drives -- so entering Paddle must drop the Keys
+    // axis. Mouse is a separate slot card (disjoint lines) and may coexist
+    // with Joystick, so only Paddle clears it. Enforced here (not just in the
+    // SetInputMappingMode presets) so the per-segment / menu toggle paths
+    // honor the same paddle-vs-joystick exclusivity.
+    if (pointer == InputMappingMode::Paddle && m_arrowsJoystick)
+    {
+        SetArrowsJoystick (false);
+    }
+
+    if (prev == InputMappingMode::Paddle && pointer != InputMappingMode::Paddle)
+    {
+        StopPaddleCapture();
+    }
+
+    // Leaving Mouse: release a held guest button so it can't stick, and
+    // drop the absolute target so the guest mouse stops tracking.
+    if (prev == InputMappingMode::Mouse && pointer != InputMappingMode::Mouse
+        && m_mouse != nullptr)
+    {
+        m_mouse->SetButton (false);
+        m_mouse->ClearHostTarget();
+    }
+
+    m_pointerMode                = pointer;
+    m_globalPrefs.pointerMapping = pointer;
+    SyncInputModeUi();
+
+    if (pointer == InputMappingMode::Paddle)
     {
         int64_t  nowMs = (int64_t) std::chrono::duration_cast<std::chrono::milliseconds> (
                              std::chrono::steady_clock::now().time_since_epoch()).count();
+
+        if (iieSw != nullptr)
+        {
+            iieSw->SetPaddle (0, Apple2eSoftSwitchBank::s_knPaddleCenter);
+            iieSw->SetPaddle (1, Apple2eSoftSwitchBank::s_knPaddleCenter);
+        }
 
         m_paddleAxisX = (float) s_kPaddleCenterByte;
         m_paddleAxisY = (float) s_kPaddleCenterByte;
@@ -5207,6 +5574,73 @@ void EmulatorShell::SetInputMappingMode (InputMappingMode mode)
 
 
 
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SyncInputModeUi
+//
+//  Common tail for the axis setters: refresh the toggle button's displayed
+//  mode, keep the legacy combined pref in sync (downgrade compat), persist.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::SyncInputModeUi()
+{
+    m_globalPrefs.inputMappingMode = DisplayInputMode();
+    SyncSelectorState();
+    RelayoutJoystickButton();
+    SaveGlobalPrefs();
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SyncSelectorState
+//
+//  Pushes the split-model state (Keys, Pointer, mouse availability) into
+//  the device selector.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::SyncSelectorState()
+{
+    m_joystickButton.SetState (m_arrowsJoystick, m_pointerMode,
+                               m_mouse != nullptr && m_mouseConnected);
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ApplyDefaultPointerForMachine
+//
+//  A //c with its mouse connected and no pointer mapping chosen
+//  defaults Pointer to Mouse -- a runtime nudge, not persisted, and
+//  invisible until guest mouse software runs (firmware-live gate). Called
+//  after the per-machine connected states are seeded at launch and on
+//  machine switch.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::ApplyDefaultPointerForMachine()
+{
+    if (m_mouse != nullptr && m_mouseConnected
+        && m_pointerMode == InputMappingMode::Off)
+    {
+        m_pointerMode = InputMappingMode::Mouse;
+        SyncSelectorState();
+
+        if (m_hwnd != nullptr)
+        {
+            RelayoutJoystickButton();
+        }
+    }
+}
+
+
+
 
 ////////////////////////////////////////////////////////////////////////////////
 //
@@ -5218,17 +5652,29 @@ void EmulatorShell::SetInputMappingMode (InputMappingMode mode)
 
 void EmulatorShell::CycleInputMappingMode ()
 {
-    InputMappingMode  next = InputMappingMode::Off;
+    InputMappingMode  next    = InputMappingMode::Off;
+    InputMappingMode  current = DisplayInputMode();
 
 
 
-    switch (m_inputMode)
+    // Mouse (mouse-capable machines only) deliberately precedes Paddle:
+    // entering Paddle CAPTURES the pointer (clicks become fire buttons),
+    // so any mode placed after Paddle would be unreachable by clicking
+    // the toggle. Mouse mode is non-capturing, so the toggle stays
+    // clickable and Paddle remains reachable from it.
+    switch (current)
     {
         case InputMappingMode::Off:
             next = InputMappingMode::Joystick;
             break;
 
         case InputMappingMode::Joystick:
+            next = (m_mouse != nullptr && m_mouseConnected)
+                       ? InputMappingMode::Mouse
+                       : InputMappingMode::Paddle;
+            break;
+
+        case InputMappingMode::Mouse:
             next = InputMappingMode::Paddle;
             break;
 
@@ -5257,7 +5703,26 @@ void EmulatorShell::CycleInputMappingMode ()
 
 void EmulatorShell::ToggleInputMappingMode (InputMappingMode target)
 {
-    SetInputMappingMode (m_inputMode == target ? InputMappingMode::Off : target);
+    switch (target)
+    {
+        case InputMappingMode::Joystick:
+            SetArrowsJoystick (!m_arrowsJoystick);
+            break;
+
+        case InputMappingMode::Paddle:
+            SetPointerMapping (m_pointerMode == InputMappingMode::Paddle
+                                   ? InputMappingMode::Off : InputMappingMode::Paddle);
+            break;
+
+        case InputMappingMode::Mouse:
+            SetPointerMapping (m_pointerMode == InputMappingMode::Mouse
+                                   ? InputMappingMode::Off : InputMappingMode::Mouse);
+            break;
+
+        default:
+            SetInputMappingMode (InputMappingMode::Off);
+            break;
+    }
 }
 
 
@@ -5287,7 +5752,7 @@ void EmulatorShell::StartPaddleCapture ()
 
 
 
-    BAIL_OUT_IF (m_inputMode != InputMappingMode::Paddle, S_OK);
+    BAIL_OUT_IF (m_pointerMode != InputMappingMode::Paddle, S_OK);
     BAIL_OUT_IF (m_paddleCaptured,                        S_OK);
     BAIL_OUT_IF (m_hwnd == nullptr,                       S_OK);
     BAIL_OUT_IF (GetForegroundWindow() != m_hwnd,         S_OK);
@@ -5547,7 +6012,7 @@ DxuiMessageResult EmulatorShell::OnChar (WPARAM ch, LPARAM lParam)
     // / OnKeyUp), so swallow their WM_CHAR to keep the letters from also
     // typing into the //e keyboard latch -- mirroring how arrow keys are
     // withheld from the latch.
-    if (m_inputMode == InputMappingMode::Joystick &&
+    if (m_arrowsJoystick &&
         (dynamic_cast<Apple2eSoftSwitchBank *> (m_refs.softSwitches) != nullptr ||
          m_refs.gamePort != nullptr) &&
         (ch == L'x' || ch == L'X' || ch == L'z' || ch == L'Z'))
@@ -5622,6 +6087,15 @@ DxuiMessageResult EmulatorShell::OnSize (UINT widthPx, UINT heightPx)
             if (fHasDisk)
             {
                 LayoutDriveWidgetsInCommandBar (m_driveChrome, bottomInsetPx, static_cast<int> (width), renderH, dpi);
+
+                // LayoutDriveWidgetsInCommandBar lays out (and un-hides) BOTH
+                // widgets. Re-collapse the external one when it is an optional
+                // //c drive the user has not connected, so only the internal
+                // drive shows.
+                if (!ShouldShowExternalDrive())
+                {
+                    m_driveChrome[1].Hide();
+                }
             }
             else
             {
@@ -5655,7 +6129,10 @@ DxuiMessageResult EmulatorShell::OnSize (UINT widthPx, UINT heightPx)
             if (fHasDisk)
             {
                 m_uiShell.HitTest().Register (DxuiHitRect { m_driveChrome[0].BodyRect(), DxuiHitSlot::Custom, 0 });
-                m_uiShell.HitTest().Register (DxuiHitRect { m_driveChrome[1].BodyRect(), DxuiHitSlot::Custom, 1 });
+                if (ShouldShowExternalDrive())
+                {
+                    m_uiShell.HitTest().Register (DxuiHitRect { m_driveChrome[1].BodyRect(), DxuiHitSlot::Custom, 1 });
+                }
             }
         }
     }

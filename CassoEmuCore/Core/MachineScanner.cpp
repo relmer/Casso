@@ -137,6 +137,96 @@ vector<MachineInfo> MachineScanner::Scan (
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  EqualsIgnoreCaseAscii
+//
+//  ASCII case-insensitive compare of two wide strings. Machine identifiers
+//  are ASCII ("Apple2e", "Apple2Plus"), so folding A-Z per code unit is
+//  sufficient and avoids a locale dependency.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+static bool EqualsIgnoreCaseAscii (std::wstring_view a, std::wstring_view b)
+{
+    bool  equal = (a.size() == b.size());
+
+
+
+    for (size_t i = 0; equal && i < a.size(); ++i)
+    {
+        wchar_t  ca = (a[i] >= L'A' && a[i] <= L'Z') ? (wchar_t) (a[i] + (L'a' - L'A')) : a[i];
+        wchar_t  cb = (b[i] >= L'A' && b[i] <= L'Z') ? (wchar_t) (b[i] + (L'a' - L'A')) : b[i];
+
+        equal = (ca == cb);
+    }
+
+    return equal;
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SelectCanonical
+//
+//  Resolve `requested` to a discovered machine's canonical fileName so a
+//  mis-cased --machine value still selects the right config and downstream
+//  exact-match lookups (ROM catalog, display name) agree. See the header
+//  for the fallback order.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+wstring MachineScanner::SelectCanonical (
+    const vector<MachineInfo> & discovered,
+    std::wstring_view           requested,
+    std::wstring_view           preferred)
+{
+    wstring  result;
+
+
+
+    if (!requested.empty())
+    {
+        for (const MachineInfo & info : discovered)
+        {
+            if (EqualsIgnoreCaseAscii (info.fileName, requested))
+            {
+                result = info.fileName;
+                break;
+            }
+        }
+    }
+
+    if (result.empty())
+    {
+        for (const MachineInfo & info : discovered)
+        {
+            if (info.fileName == preferred)
+            {
+                result = info.fileName;
+                break;
+            }
+        }
+    }
+
+    if (result.empty() && !discovered.empty())
+    {
+        result = discovered.front().fileName;
+    }
+
+    if (result.empty())
+    {
+        result = wstring (preferred);
+    }
+
+    return result;
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ListDirectory
 //
 ////////////////////////////////////////////////////////////////////////////////

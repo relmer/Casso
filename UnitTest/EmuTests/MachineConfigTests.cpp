@@ -126,6 +126,102 @@ public:
             L"Error should mention the invalid CPU type");
     }
 
+    TEST_METHOD (Load_Cpu65C02_Accepted)
+    {
+        std::string json = R"({
+            "name": "Test",
+            "cpu": "65C02",
+            "timing": {
+                "videoStandard": "ntsc",
+                "clockSpeed": 1023000,
+                "cyclesPerScanline": 65
+            },
+            "ram": [],
+            "systemRom": { "address": "0xD000", "file": "Apple2Plus.rom" },
+            "internalDevices": [],
+            "video": { "modes": [] },
+            "keyboard": { "type": "test" }
+        })";
+
+        MachineConfig config;
+        std::string   error;
+
+        std::vector<fs::path> paths = { "/mock" };
+        HRESULT hr = MachineConfigLoader::Load (json, "TestMachine", paths, MockResolveAll,
+                                                config, error);
+
+        Assert::IsTrue (SUCCEEDED (hr),
+            std::format (L"65C02 profile should load: {}",
+                std::wstring (error.begin(), error.end())).c_str());
+        Assert::AreEqual (std::string ("65C02"), config.cpu,
+            L"CPU must be preserved as '65C02'");
+    }
+
+    TEST_METHOD (Load_BankedSystemRom_Parsed)
+    {
+        // Apple //c: a 32K ROM mapped as two 16K banks at $C000, toggled by
+        // $C028. Each bank (not the whole file) must fit in 64K.
+        std::string json = R"({
+            "name": "Test //c",
+            "cpu": "65C02",
+            "timing": { "videoStandard": "ntsc", "clockSpeed": 1023000, "cyclesPerScanline": 65 },
+            "ram": [],
+            "systemRom": {
+                "address": "0xC000",
+                "file": "Apple2c.rom",
+                "romBankSize": "0x4000",
+                "romBankSelect": "0xC028"
+            },
+            "internalDevices": [],
+            "video": { "modes": [] },
+            "keyboard": { "type": "test" }
+        })";
+
+        MachineConfig config;
+        std::string   error;
+
+        std::vector<fs::path> paths = { "/mock" };
+        HRESULT hr = MachineConfigLoader::Load (json, "TestMachine", paths, MockResolveAll,
+                                                config, error);
+
+        Assert::IsTrue (SUCCEEDED (hr),
+            std::format (L"Banked //c ROM should load: {}",
+                std::wstring (error.begin(), error.end())).c_str());
+        Assert::AreEqual (Word (0x4000), config.systemRom.romBankSize,
+            L"romBankSize must parse to 0x4000");
+        Assert::AreEqual (Word (0xC028), config.systemRom.romBankSelect,
+            L"romBankSelect must parse to 0xC028");
+        Assert::AreEqual (size_t (32768), config.systemRom.fileSize,
+            L"32K file spans two 16K banks");
+    }
+
+    TEST_METHOD (Load_BankedSystemRom_RequiresSelect)
+    {
+        // romBankSize without romBankSelect is a config error.
+        std::string json = R"({
+            "name": "Test //c",
+            "cpu": "65C02",
+            "timing": { "videoStandard": "ntsc", "clockSpeed": 1023000, "cyclesPerScanline": 65 },
+            "ram": [],
+            "systemRom": { "address": "0xC000", "file": "Apple2c.rom", "romBankSize": "0x4000" },
+            "internalDevices": [],
+            "video": { "modes": [] },
+            "keyboard": { "type": "test" }
+        })";
+
+        MachineConfig config;
+        std::string   error;
+
+        std::vector<fs::path> paths = { "/mock" };
+        HRESULT hr = MachineConfigLoader::Load (json, "TestMachine", paths, MockResolveAll,
+                                                config, error);
+
+        Assert::IsTrue (FAILED (hr),
+            L"romBankSize without romBankSelect must fail");
+        Assert::IsTrue (error.find ("romBankSelect") != std::string::npos,
+            L"Error must name the missing romBankSelect field");
+    }
+
     TEST_METHOD (Load_AuxRamRegion_Preserved)
     {
         std::string   json = JsonWithAuxRam ();
@@ -482,9 +578,13 @@ private:
         {
             expectedSize = 2048;
         }
-        else if (filename == "Apple2e_Video.rom")
+        else if (filename == "Apple2e_Video.rom" || filename == "Apple2c_Video.rom")
         {
             expectedSize = 4096;
+        }
+        else if (filename == "Apple2c.rom")
+        {
+            expectedSize = 32768;   // //c ROM 4: two 16K banks
         }
         else
         {

@@ -3,7 +3,9 @@
 #include "Apple2eSoftSwitchBank.h"
 #include "Apple2eMmu.h"
 #include "Apple2eKeyboard.h"
+#include "AppleMouse.h"
 #include "IInputEventSink.h"
+#include "IRomBankSwitch.h"
 #include "LanguageCard.h"
 #include "Video/IVideoTiming.h"
 
@@ -83,6 +85,22 @@ Byte Apple2eSoftSwitchBank::ReadStatusRegister (Word address)
     if (m_keyboard != nullptr)
     {
         kbdBits = m_keyboard->GetLatchedKeyDataBits ();
+    }
+
+    // //c IOU mouse overrides: with no slots, the //c repurposes
+    // $C015/$C017 as the mouse X0/Y0 interrupt-status reads (RDINTCXROM /
+    // RDSLOTC3ROM are meaningless there -- the //c ROM never reads them for
+    // MMU state), and $C019 reads the VBL interrupt LATCH (set at VBL onset,
+    // cleared by $C070) instead of the //e's live RDVBLBAR signal.
+    if (m_mouse != nullptr)
+    {
+        switch (address)
+        {
+            case 0xC015: return static_cast<Byte> (kbdBits | m_mouse->ReadXInterruptStatus());
+            case 0xC017: return static_cast<Byte> (kbdBits | m_mouse->ReadYInterruptStatus());
+            case 0xC019: return static_cast<Byte> (kbdBits | m_mouse->ReadVblInterrupt     ());
+            default:     break;
+        }
     }
 
     switch (address)
@@ -288,7 +306,21 @@ Byte Apple2eSoftSwitchBank::Read (Word address)
         // resistor-capacitor countdown.
         m_paddleTriggerCycle = (m_cpuCycleSource != nullptr) ? *m_cpuCycleSource : 0;
 
+        // //c: a $C070 access also clears the VBL interrupt latch (the
+        // firmware's VBL acknowledge -- bank-0 IRQ path reads $C070).
+        if (m_mouse != nullptr)
+        {
+            m_mouse->AccessPtrig();
+        }
+
         EmitPaddleTrigger ();
+    }
+    else if (m_mouse != nullptr && (address == 0xC066 || address == 0xC067))
+    {
+        // //c: $C066/$C067 are the mouse direction lines MOUX1/MOUY1 (the
+        // //c has no paddles 2/3; the IRQ prologue reads these at entry).
+        result = (address == 0xC066) ? m_mouse->ReadMouX1()
+                                     : m_mouse->ReadMouY1();
     }
     else if (address >= s_kwPaddle0Address && address <= s_kwPaddle0Address + (s_knPaddleAxisCount - 1))
     {
@@ -297,6 +329,15 @@ Byte Apple2eSoftSwitchBank::Read (Word address)
         result = ReadPaddle (address);
 
         EmitPaddleRead (address, result);
+    }
+    else if (m_mouse != nullptr && m_mouse->IsIouAccessEnabled()
+             && address >= 0xC058 && address <= 0xC05F)
+    {
+        // //c with IOU access enabled ($C079): $C058-$C05F program the mouse
+        // and VBL interrupt switches instead of the annunciator/DHIRES bank.
+        // Any access programs (the firmware uses STA via the Write->Read
+        // fall-through).
+        m_mouse->AccessIouSwitch (address);
     }
     else
     {
@@ -314,6 +355,16 @@ Byte Apple2eSoftSwitchBank::Read (Word address)
             case 0xC00F:
                 m_altCharSet = true;
                 break;
+            case 0xC028:
+                // Apple //c ROM-bank flip-flop: any access flips the visible
+                // 16K firmware bank across $C100-$FFFF. No effect on the //e
+                // (m_romBank is null there). Reached on writes too -- Write()
+                // forwards non-MMU addresses here.
+                if (m_romBank != nullptr)
+                {
+                    m_romBank->ToggleRomBank();
+                }
+                break;
             case 0xC05E:
                 m_doubleHiRes = true;
                 bankingChange = true;
@@ -321,6 +372,20 @@ Byte Apple2eSoftSwitchBank::Read (Word address)
             case 0xC05F:
                 m_doubleHiRes = false;
                 bankingChange = true;
+                break;
+            case 0xC078:
+                // //c IOUDIS on: $C058-$C05F revert to annunciator/DHIRES.
+                if (m_mouse != nullptr)
+                {
+                    m_mouse->WriteIouAccess (false);
+                }
+                break;
+            case 0xC079:
+                // //c IOUDIS off: $C058-$C05F program the IOU mouse switches.
+                if (m_mouse != nullptr)
+                {
+                    m_mouse->WriteIouAccess (true);
+                }
                 break;
             default:
                 break;
@@ -421,6 +486,13 @@ void Apple2eSoftSwitchBank::Reset ()
     m_80colMode   = false;
     m_doubleHiRes = false;
     m_altCharSet  = false;
+
+    // //c: /RESET clears the ROM-bank flip-flop to bank 0 so both power-on
+    // and Ctrl-Reset read the reset vector from the main monitor bank.
+    if (m_romBank != nullptr)
+    {
+        m_romBank->ResetRomBank();
+    }
 
     m_paddleTriggerCycle = 0;
 

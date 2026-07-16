@@ -56,6 +56,8 @@ public:
 
         orig.activeTheme            = "Retro Terminal";
         orig.lastSelectedMachine    = "Apple2e";
+        orig.arrowsToJoystick       = true;
+        orig.pointerMapping         = InputMappingMode::Mouse;
         orig.crtByMode[0].brightness         = 1.25f;
         orig.crtByMode[0].contrast           = 1.35f;
         orig.crtByMode[0].scanlinesEnabled   = true;
@@ -83,6 +85,9 @@ public:
 
         Assert::AreEqual (orig.activeTheme,         loaded.activeTheme);
         Assert::AreEqual (orig.lastSelectedMachine, loaded.lastSelectedMachine);
+        Assert::AreEqual (orig.arrowsToJoystick, loaded.arrowsToJoystick);
+        Assert::IsTrue   (orig.pointerMapping == loaded.pointerMapping,
+                          L"split pointer mapping round-trips");
         Assert::AreEqual (orig.crtByMode[0].brightness,      loaded.crtByMode[0].brightness);
         Assert::AreEqual (orig.crtByMode[0].contrast,        loaded.crtByMode[0].contrast);
         Assert::AreEqual (orig.crtByMode[0].scanlinesEnabled,    loaded.crtByMode[0].scanlinesEnabled);
@@ -171,6 +176,39 @@ public:
         // crt sub-object missing → struct defaults preserved.
         Assert::AreEqual (1.0f, prefs.crtByMode[0].brightness);
         Assert::AreEqual (1.0f, prefs.crtByMode[0].contrast);
+    }
+
+
+    // Migration: configs with only the legacy single mode split
+    // correctly -- joystick -> Keys on; paddle/mouse -> Pointer; new keys win.
+    TEST_METHOD (SplitInputMappings_MigrateFromLegacySingleMode)
+    {
+        auto load = [] (const std::string & body)
+        {
+            InMemoryFileSystem  fs;
+            GlobalUserPrefs     p;
+            std::string  json = std::string ("{\"$cassoGlobalPrefsVersion\":1,") + body + "}";
+            Assert::IsTrue (SUCCEEDED (fs.WriteAllText (
+                GlobalUserPrefs::FilePath (L"C:\\Casso"), json)));
+            Assert::IsTrue (SUCCEEDED (p.Load (L"C:\\Casso", fs)));
+            return p;
+        };
+
+        GlobalUserPrefs  joy = load ("\"inputMappingMode\":\"joystick\"");
+        Assert::IsTrue  (joy.arrowsToJoystick,                          L"legacy joystick -> Keys on");
+        Assert::IsTrue  (joy.pointerMapping == InputMappingMode::Off,   L"legacy joystick -> Pointer off");
+
+        GlobalUserPrefs  pad = load ("\"inputMappingMode\":\"paddle\"");
+        Assert::IsFalse (pad.arrowsToJoystick);
+        Assert::IsTrue  (pad.pointerMapping == InputMappingMode::Paddle, L"legacy paddle -> Pointer paddle");
+
+        GlobalUserPrefs  ms = load ("\"inputMappingMode\":\"mouse\"");
+        Assert::IsTrue  (ms.pointerMapping == InputMappingMode::Mouse,   L"legacy mouse -> Pointer mouse");
+
+        GlobalUserPrefs  split = load (
+            "\"inputMappingMode\":\"paddle\",\"arrowsToJoystick\":true,\"pointerMapping\":\"mouse\"");
+        Assert::IsTrue  (split.arrowsToJoystick,                         L"new keys win over legacy");
+        Assert::IsTrue  (split.pointerMapping == InputMappingMode::Mouse);
     }
 
 

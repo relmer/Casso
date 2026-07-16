@@ -93,38 +93,54 @@
 
 
 
-typedef void (*EHM_BREAKPOINT_FUNC)(void);
+//
+// Breakpoint hook -- called when an EHM assertion (the *A macro
+// variants, or a bare ASSERT) fails in a debug build. The handler is
+// handed the fully-formatted "file(line) - func - Assertion failed:
+// expr" text so a GUI host can surface it (e.g. a MessageBox) instead
+// of the raw int 3 that otherwise becomes a silent WER crash when no
+// debugger is attached. With no handler installed, EhmBreakpoint falls
+// back to __debugbreak().
+//
+
+#ifdef UNICODE
+    typedef void (*EHM_BREAKPOINT_FUNC)(const wchar_t * message);
+#else
+    typedef void (*EHM_BREAKPOINT_FUNC)(const char * message);
+#endif
 
 extern EHM_BREAKPOINT_FUNC g_pfnBreakpoint;
 
 void SetBreakpointFunction (EHM_BREAKPOINT_FUNC func);
-void EhmBreakpoint         (void);
+
+#ifdef UNICODE
+    void EhmBreakpoint (const wchar_t * file, int line, const wchar_t * func, const wchar_t * expr);
+#else
+    void EhmBreakpoint (const char * file, int line, const char * func, const char * expr);
+#endif
 
 
 
 #if defined(DBG) || defined(DEBUG) || defined(_DEBUG)
-    #define EHM_BREAKPOINT EhmBreakpoint()
+    #define EHM_BREAKPOINT(__file, __line, __func, __expr) \
+        EhmBreakpoint ((__file), (__line), (__func), (__expr))
 #else
-    #define EHM_BREAKPOINT
+    #define EHM_BREAKPOINT(__file, __line, __func, __expr)  ((void) 0)
 #endif
 
 
 
 #ifdef UNICODE
-    #define ASSERT(__condition)                                             \
-        if (!(__condition))                                                 \
-        {                                                                   \
-            DEBUGMSG ((L"%s(%d) - %s - Assertion failed:  %s\n"),           \
-                        __WFILE__, __LINE__, __WFUNCTION__, L#__condition); \
-            EHM_BREAKPOINT;                                                 \
+    #define ASSERT(__condition)                                                 \
+        if (!(__condition))                                                     \
+        {                                                                       \
+            EHM_BREAKPOINT (__WFILE__, __LINE__, __WFUNCTION__, L#__condition);  \
         }
 #else
-    #define ASSERT(__condition)                                             \
-        if (!(__condition))                                                 \
-        {                                                                   \
-            DEBUGMSG ("%s(%d) - %s - Assertion failed:  %s\n",              \
-                       __FILE__, __LINE__, __FUNCTION__, #__condition);     \
-            EHM_BREAKPOINT;                                                 \
+    #define ASSERT(__condition)                                                 \
+        if (!(__condition))                                                     \
+        {                                                                       \
+            EHM_BREAKPOINT (__FILE__, __LINE__, __FUNCTION__, #__condition);     \
         }
 #endif
 

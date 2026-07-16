@@ -10,6 +10,7 @@
 #include "Core/MachineConfig.h"
 #include "Core/MachineConfigUpgrade.h"
 #include "Core/PathResolver.h"
+#include "EmbeddedMachineConfigs.h"
 #include "External/StbVorbisWrapper.h"
 #include "resource.h"
 #include "Ui/ThemeManager.h"
@@ -36,7 +37,6 @@ static constexpr LPCWSTR       s_kpszUrlPrefix    = L"/AppleWin/AppleWin/master/
 static constexpr LPCWSTR       s_kpszAsimovHost   = L"www.apple.asimov.net";
 
 static constexpr int           s_kBootMruBodyWidthDp = 520;
-
 
 
 
@@ -69,8 +69,16 @@ struct RomSpec
     string_view  localRelDir;        // e.g. "Machines/Apple2e" or "Devices/DiskII"
     size_t       expectedSize;
     string_view  description;
-};
 
+    // Optional alternate source. Most ROMs come from the AppleWin GitHub
+    // resource dir (host below empty -> s_kpszAppleWinHost + s_kpszUrlPrefix +
+    // appleWinName). ROMs AppleWin does not carry (e.g. the Apple //c, which
+    // AppleWin does not emulate) set an explicit host + fully-formed,
+    // percent-encoded urlPath and leave appleWinName empty.
+    string_view  altHost    = {};
+    string_view  altUrlPath = {};
+    string_view  sourceLabel = {};   // shown in the download dialog (defaults to AppleWin)
+};
 
 
 
@@ -85,10 +93,18 @@ static constexpr RomSpec s_kRomCatalog[] =
     { "Apple2e",          "Apple2e_Video.rom",     "Apple2e_Enhanced_Video.rom", "Machines/Apple2e",           4096, "Apple //e Character Generator + MouseText" },
     { "Apple2eEnhanced",  "Apple2eEnhanced.rom",   "Apple2e_Enhanced.rom",       "Machines/Apple2eEnhanced",  16384, "Apple //e Enhanced ROM"                    },
     { "Apple2eEnhanced",  "Apple2e_Video.rom",     "Apple2e_Enhanced_Video.rom", "Machines/Apple2eEnhanced",   4096, "Apple //e Character Generator + MouseText" },
+    // AppleWin does not emulate the //c, so its 32K ROM 4 (memory-expansion
+    // //c, chip 341-0445-B) comes from the apple2.org.za preservation mirror.
+    { "Apple2c",          "Apple2c.rom",           "",                           "Machines/Apple2c",          32768, "Apple //c ROM 4 (341-0445-B, memory expansion)",
+      "mirrors.apple2.org.za",
+      "/Apple%20II%20Documentation%20Project/Computers/Apple%20II/Apple%20IIc/ROM%20Images/Apple%20IIc%20ROM%2004%20-%20341-0445-B.bin",
+      "apple2.org.za" },
+    // The //c character generator is the enhanced (MouseText) 341-0265, the
+    // same part AppleWin ships as Apple2e_Enhanced_Video.rom -- reuse it.
+    { "Apple2c",          "Apple2c_Video.rom",     "Apple2e_Enhanced_Video.rom", "Machines/Apple2c",           4096, "Apple //c Character Generator + MouseText" },
     { "",                 "Disk2.rom",             "DISK2.rom",                  "Devices/DiskII",              256, "Disk ][ Boot ROM (slot 6)"                 },
     { "",                 "Disk2_13Sector.rom",    "DISK2-13sector.rom",         "Devices/DiskII",              256, "Disk ][ Boot ROM (13-sector)"              },
 };
-
 
 
 
@@ -142,45 +158,28 @@ static constexpr BootDiskSpec s_kProDOSDisk =
 
 
 
-
 static std::wstring MachineDisplayName (std::string_view machineId)
 {
     if (machineId == "Apple2")          return L"Apple ][";
     if (machineId == "Apple2Plus")      return L"Apple ][+";
     if (machineId == "Apple2e")         return L"Apple //e";
     if (machineId == "Apple2eEnhanced") return L"Apple //e Enhanced";
+    if (machineId == "Apple2c")         return L"Apple //c";
     return std::wstring (machineId.begin (), machineId.end ());
 }
 
 
 
 
-
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  EmbeddedConfig
+//  EmbeddedConfig / s_kEmbeddedConfigs
+//
+//  Moved to EmbeddedMachineConfigs.h (included above) so AssetBootstrapTests
+//  reads the same stamp table and can assert in CI that each stamp matches
+//  its embedded JSON's $cassoMachineVersion.
 //
 ////////////////////////////////////////////////////////////////////////////////
-
-struct EmbeddedConfig
-{
-    int          resourceId;
-    string_view  machineName;        // "Apple2", "Apple2Plus", "Apple2e"
-    string_view  fileName;           // "<machineName>.json"
-    int          currentVersion;     // must match "$cassoMachineVersion" in the embedded JSON
-};
-
-
-
-
-
-static constexpr EmbeddedConfig s_kEmbeddedConfigs[] =
-{
-    { IDR_MACHINE_APPLE2,     "Apple2",     "Apple2.json",     8 },
-    { IDR_MACHINE_APPLE2PLUS, "Apple2Plus", "Apple2Plus.json", 9 },
-    { IDR_MACHINE_APPLE2E,    "Apple2e",    "Apple2e.json",    8 },
-};
-
 
 
 
@@ -266,7 +265,6 @@ static const MachineConfigPriorHash s_kPriorDefaultHashes[] =
 
 
 
-
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  DiskAudioSpec
@@ -297,7 +295,6 @@ struct DiskAudioSpec
 
 
 
-
 static constexpr LPCWSTR  s_kpszOpenEmulatorHost      = L"raw.githubusercontent.com";
 static constexpr LPCWSTR  s_kpszOpenEmulatorPathFmt   = L"/openemulator/libemulation/master/res/sounds/";
 
@@ -316,9 +313,7 @@ static constexpr DiskAudioSpec s_kDiskAudioCatalog[] =
 
 
 
-
 static constexpr string_view s_kDiskAudioMechanisms[] = { "Shugart", "Alps" };
-
 
 
 
@@ -337,7 +332,6 @@ static wstring AsciiToWide (string_view s)
 {
     return wstring (s.begin(), s.end());
 }
-
 
 
 
@@ -379,7 +373,6 @@ static span<const Byte> ExtractResource (HINSTANCE hInstance, int resourceId)
 Error:
     return result;
 }
-
 
 
 
@@ -446,7 +439,6 @@ Error:
 
 
 
-
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  WriteFileBytes
@@ -469,7 +461,6 @@ static HRESULT WriteFileBytes (const fs::path & path, span<const Byte> bytes)
 Error:
     return hr;
 }
-
 
 
 
@@ -510,7 +501,6 @@ static HRESULT BackupUserEditedConfig (const fs::path & target)
 Error:
     return hr;
 }
-
 
 
 
@@ -672,7 +662,6 @@ HRESULT AssetBootstrap::EnsureMachineConfigs (
 
 
 
-
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  EmbeddedThemeFile / EmbeddedTheme
@@ -700,14 +689,12 @@ struct EmbeddedThemeFile
 
 
 
-
 struct EmbeddedTheme
 {
     const char *                       dirName;        // matches "name" in theme.json
     int                                currentVersion; // mirrors theme.json $cassoThemeVersion
     span<const EmbeddedThemeFile>      files;
 };
-
 
 
 
@@ -723,7 +710,6 @@ static constexpr EmbeddedThemeFile s_kSkeuomorphicFiles[] =
 
 
 
-
 static constexpr EmbeddedThemeFile s_kDarkModernFiles[] =
 {
     { IDR_THEME_DARK_THEME_JSON,         "theme.json"          },
@@ -731,7 +717,6 @@ static constexpr EmbeddedThemeFile s_kDarkModernFiles[] =
     { IDR_THEME_DARK_FONT_OFL,           "fonts/OFL.txt"       },
     { IDR_THEME_DARK_FONT_TODO,          "fonts/TODO_FONTS.md" },
 };
-
 
 
 
@@ -747,14 +732,12 @@ static constexpr EmbeddedThemeFile s_kRetroTerminalFiles[] =
 
 
 
-
 static const EmbeddedTheme s_kEmbeddedThemes[] =
 {
     { "Skeuomorphic",  1, span<const EmbeddedThemeFile> (s_kSkeuomorphicFiles)  },
     { "DarkModern",    1, span<const EmbeddedThemeFile> (s_kDarkModernFiles)    },
     { "RetroTerminal", 1, span<const EmbeddedThemeFile> (s_kRetroTerminalFiles) },
 };
-
 
 
 
@@ -872,7 +855,6 @@ HRESULT AssetBootstrap::EnsureThemes (
 
     return hr;
 }
-
 
 
 
@@ -1116,7 +1098,6 @@ void AssetBootstrap::AppendBundledDemoDisks (std::vector<DiskMru::Entry> & mount
 
 
 
-
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  AppendSiblingDisksFromMruFolders
@@ -1219,7 +1200,6 @@ static const RomSpec * FindRomSpec (string_view machineName, string_view cassoNa
 
     return result;
 }
-
 
 
 
@@ -1381,7 +1361,6 @@ Error:
 
 
 
-
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  FindEmbeddedConfig
@@ -1413,7 +1392,6 @@ static const EmbeddedConfig * FindEmbeddedConfig (const wstring & machineName)
 
     return result;
 }
-
 
 
 
@@ -1469,7 +1447,6 @@ Error:
 
 
 
-
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  GetRequiredRoms
@@ -1506,7 +1483,6 @@ HRESULT AssetBootstrap::GetRequiredRoms (
 Error:
     return hr;
 }
-
 
 
 
@@ -1605,7 +1581,6 @@ Error:
 
 
 
-
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  GetEmbeddedDisplayName
@@ -1643,7 +1618,6 @@ static wstring GetEmbeddedDisplayName (HINSTANCE hInstance, const wstring & mach
 
     return result;
 }
-
 
 
 
@@ -1718,7 +1692,6 @@ Error:
 
 
 
-
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  FilesHaveSameContent
@@ -1789,7 +1762,6 @@ static bool FilesHaveSameContent (const fs::path & a, const fs::path & b)
 
     return true;
 }
-
 
 
 
@@ -1892,7 +1864,6 @@ private:
 
 
 
-
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  DiskMruPickerSession::FileMtimeUnix
@@ -1922,7 +1893,6 @@ std::int64_t DiskMruPickerSession::FileMtimeUnix (const fs::path & path)
 Error:
     return result;
 }
-
 
 
 
@@ -1980,7 +1950,6 @@ Error:
 
 
 
-
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  DiskMruPickerSession::ConfigureWidgets
@@ -2016,7 +1985,6 @@ void DiskMruPickerSession::ConfigureWidgets()
     m_list.SetOnSortColumn           ([this] (int col) { ApplySort (col); });
     m_list.SetOnActivateRow          ([this] (int row) { m_pendingChoice = ChosenResultAt (row); });
 }
-
 
 
 
@@ -2179,7 +2147,6 @@ void DiskMruPickerSession::RebuildView()
 
 
 
-
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  DiskMruPickerSession::ApplySort
@@ -2218,7 +2185,6 @@ Error:
 
 
 
-
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  DiskMruPickerSession::ChosenResultAt
@@ -2241,7 +2207,6 @@ int DiskMruPickerSession::ChosenResultAt (int visibleRow) const
 
     return result;
 }
-
 
 
 
@@ -2460,7 +2425,6 @@ namespace
 
 
 
-
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  DiskMruPickerSession::Run
@@ -2527,7 +2491,6 @@ int DiskMruPickerSession::Run()
 Error:
     return chosen;
 }
-
 
 
 
@@ -2711,7 +2674,6 @@ Error:
 
 
 
-
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  PromptInsertDiskMru
@@ -2880,7 +2842,6 @@ Error:
 
 
 
-
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  FetchAndDecodeOgg
@@ -3036,7 +2997,6 @@ Error:
 
 
 
-
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  WritePcmAsWav
@@ -3124,7 +3084,6 @@ Error:
 
 
 
-
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  RunStartupDownloader
@@ -3192,7 +3151,9 @@ HRESULT AssetBootstrap::RunStartupDownloader (
         entry.groupLabel    = MachineDisplayName (narrowMachine) + L" ROMs";
         entry.displayName   = AsciiToWide (spec->description);
         entry.kindLabel     = L"ROM";
-        entry.source        = L"AppleWin (GitHub)";
+        entry.source        = spec->sourceLabel.empty()
+                              ? L"AppleWin (GitHub)"
+                              : AsciiToWide (spec->sourceLabel);
         entry.selectable    = false;
         entry.selected      = true;
         entry.destPaths.push_back (assetBaseDir / string (spec->localRelDir) / spec->cassoName);
@@ -3206,7 +3167,14 @@ HRESULT AssetBootstrap::RunStartupDownloader (
             HINTERNET     hSes    = nullptr;
             vector<Byte>  payload;
             error_code    ecLocal;
-            wstring       wPath   = wstring (s_kpszUrlPrefix) + AsciiToWide (spec->appleWinName);
+
+            // Default AppleWin source, or the ROM's explicit alternate host
+            // (e.g. the //c ROM on the apple2.org.za mirror).
+            bool          useAlt  = !spec->altHost.empty();
+            wstring       wHost   = useAlt ? AsciiToWide (spec->altHost) : wstring (s_kpszAppleWinHost);
+            wstring       wPath   = useAlt
+                                    ? AsciiToWide (spec->altUrlPath)
+                                    : (wstring (s_kpszUrlPrefix) + AsciiToWide (spec->appleWinName));
 
             hSes = WinHttpOpen (s_kpszUserAgent,
                                 WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY,
@@ -3216,7 +3184,7 @@ HRESULT AssetBootstrap::RunStartupDownloader (
             CBRF (hSes != nullptr, err = "Cannot initialize WinHTTP session");
 
             hr = DownloadHttp (hSes,
-                                    s_kpszAppleWinHost,
+                                    wHost.c_str(),
                                     wPath.c_str (),
                                     spec->expectedSize,
                                     spec->cassoName,

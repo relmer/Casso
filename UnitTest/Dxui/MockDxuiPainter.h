@@ -25,6 +25,9 @@ enum class RecordedPaintKind
     FillGradientRect,
     OutlineRect,
     FillCircleApprox,
+    FillConvexQuad,       // recorded as the quad's bounding box
+    FillEllipseApprox,    // recorded as the ellipse's bounding box
+    DrawLineApprox,       // recorded as the segment's bounding box
 };
 
 
@@ -55,6 +58,10 @@ public:
     void  FillGradientRect  (float xPx, float yPx, float widthPx, float heightPx, uint32_t argbTop, uint32_t argbBottom) override;
     void  OutlineRect       (float xPx, float yPx, float widthPx, float heightPx, float thicknessPx, uint32_t argbColor) override;
     void  FillCircleApprox  (float cxPx, float cyPx, float radiusPx, uint32_t argbColor) override;
+    void  FillConvexQuad    (float x0, float y0, float x1, float y1,
+                             float x2, float y2, float x3, float y3, uint32_t argbColor) override;
+    void  FillEllipseApprox (float cxPx, float cyPx, float radiusXPx, float radiusYPx, uint32_t argbColor) override;
+    void  DrawLineApprox    (float x0, float y0, float x1, float y1, float thicknessPx, uint32_t argbColor) override;
 
 private:
     std::vector<RecordedPaintCall>  m_calls;

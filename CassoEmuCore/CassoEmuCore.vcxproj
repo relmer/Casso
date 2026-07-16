@@ -200,6 +200,9 @@
     <ClCompile Include="Core\MemoryBusCpu.cpp" />
     <ClCompile Include="Core\InterruptController.cpp" />
     <ClCompile Include="Core\ComponentRegistry.cpp" />
+    <ClCompile Include="Core\CpuFactory.cpp" />
+    <ClCompile Include="Core\Cpu65C02.cpp" />
+    <ClCompile Include="Core\Cpu65C02Table.cpp" />
     <ClCompile Include="Core\Prng.cpp" />
     <ClCompile Include="Devices\RamDevice.cpp" />
     <ClCompile Include="Devices\RomDevice.cpp" />
@@ -210,6 +213,7 @@
     <ClCompile Include="Devices\LanguageCard.cpp" />
     <ClCompile Include="Devices\Acia6551.cpp" />
     <ClCompile Include="Devices\AciaEndpoints.cpp" />
+    <ClCompile Include="Devices\AppleMouse.cpp" />
     <ClCompile Include="Devices\Mockingboard\Via6522.cpp" />
     <ClCompile Include="Devices\Mockingboard\Ay8910.cpp" />
     <ClCompile Include="Devices\Mockingboard\MockingboardAudioSource.cpp" />
@@ -226,6 +230,7 @@
     <ClCompile Include="Devices\Apple2eKeyboard.cpp" />
     <ClCompile Include="Devices\Apple2eMmu.cpp" />
     <ClCompile Include="Devices\CxxxRomRouter.cpp" />
+    <ClCompile Include="Devices\Apple2cRomBank.cpp" />
     <ClCompile Include="Devices\Apple2eSoftSwitchBank.cpp" />
     <ClCompile Include="Video\AppleTextMode.cpp" />
     <ClCompile Include="Video\CharacterRomData.cpp" />
@@ -264,11 +269,15 @@
     <ClInclude Include="Pch.h" />
     <ClInclude Include="Core\MemoryDevice.h" />
     <ClInclude Include="Core\ComponentRegistry.h" />
+    <ClInclude Include="Core\CpuFactory.h" />
+    <ClInclude Include="Core\Cpu65C02.h" />
+    <ClInclude Include="Core\Cpu65C02Table.h" />
     <ClInclude Include="Core\JsonParser.h" />
     <ClInclude Include="Core\JsonValue.h" />
     <ClInclude Include="Core\JsonWriter.h" />
     <ClInclude Include="Core\MemoryBus.h" />
     <ClInclude Include="Core\EmuCpu.h" />
+    <ClInclude Include="Core\ICycleSink.h" />
     <ClInclude Include="Core\MemoryBusCpu.h" />
     <ClInclude Include="Core\MachineConfig.h" />
     <ClInclude Include="Core\MachineConfigUpgrade.h" />
@@ -299,6 +308,7 @@
     <ClInclude Include="Devices\LanguageCard.h" />
     <ClInclude Include="Devices\Acia6551.h" />
     <ClInclude Include="Devices\AciaEndpoints.h" />
+    <ClInclude Include="Devices\AppleMouse.h" />
     <ClInclude Include="Devices\Mockingboard\Via6522.h" />
     <ClInclude Include="Devices\Mockingboard\Ay8910.h" />
     <ClInclude Include="Devices\Mockingboard\MockingboardAudioSource.h" />
@@ -315,6 +325,8 @@
     <ClInclude Include="Devices\Apple2eKeyboard.h" />
     <ClInclude Include="Devices\Apple2eMmu.h" />
     <ClInclude Include="Devices\CxxxRomRouter.h" />
+    <ClInclude Include="Devices\Apple2cRomBank.h" />
+    <ClInclude Include="Devices\IRomBankSwitch.h" />
     <ClInclude Include="Devices\Apple2eSoftSwitchBank.h" />
     <ClInclude Include="Video\VideoOutput.h" />
     <ClInclude Include="Video\AppleTextMode.h" />

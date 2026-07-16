@@ -2,6 +2,7 @@
 #include "HeadlessHost.h"
 
 #include "Core/MemoryBusCpu.h"
+#include "Core/CpuFactory.h"
 #include "Devices/RomDevice.h"
 
 
@@ -231,6 +232,137 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  HeadlessHost::BuildApple2eEnhanced
+//
+//  The Apple //e Enhanced. Identical //e wiring to BuildApple2e
+//  but driven by the enhanced firmware (`Apple2eEnhanced.rom`) on a 65C02
+//  CPU strategy. The enhanced ROM runs CMOS opcodes the NMOS //e cannot, so
+//  this differs from BuildApple2e only in (a) the ROM image loaded and (b)
+//  the CpuFactory "65C02" strategy behind the EmuCpu (mirroring BuildApple2c's
+//  CPU seam). Flat 16K ROM -- no //c-style bank switching.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT HeadlessHost::BuildApple2eEnhanced (EmulatorCore & outCore)
+{
+    HRESULT                hr          = S_OK;
+    std::vector<uint8_t>   romBytes;
+    std::unique_ptr<ICpu>  cpuStrategy;
+    Byte                 * mainRamBase = nullptr;
+    int                    page;
+
+    hr = BuildCommon (HeadlessMachineKind::Apple2eEnhanced, outCore);
+    if (FAILED (hr))
+    {
+        goto Error;
+    }
+
+    hr = outCore.fixtures->OpenFixture ("Apple2eEnhanced.rom", romBytes);
+    if (FAILED (hr))
+    {
+        goto Error;
+    }
+
+    if (romBytes.size() != kSystemRomSize)
+    {
+        hr = E_UNEXPECTED;
+        goto Error;
+    }
+
+    outCore.bus          = std::make_unique<MemoryBus> ();
+    outCore.mainRam      = std::make_unique<RamDevice> (0x0000, kRamEnd);
+    outCore.videoTiming  = std::make_unique<VideoTiming> ();
+    outCore.mmu          = std::make_unique<Apple2eMmu> ();
+    outCore.keyboard     = std::make_unique<Apple2eKeyboard> (outCore.bus.get());
+    outCore.softSwitches = std::make_unique<Apple2eSoftSwitchBank> (outCore.bus.get());
+    outCore.speaker      = std::make_unique<AppleSpeaker> ();
+    outCore.languageCard = std::make_unique<LanguageCard> (*outCore.bus);
+    outCore.lcBank       = std::make_unique<LanguageCardBank> (*outCore.languageCard);
+
+    outCore.bus->AddDevice (outCore.mainRam.get());
+    outCore.bus->AddDevice (outCore.keyboard.get());
+    outCore.bus->AddDevice (outCore.speaker.get());
+    outCore.bus->AddDevice (outCore.softSwitches.get());
+    outCore.bus->AddDevice (outCore.languageCard.get());
+
+    outCore.keyboard->SetSoftSwitchSibling (outCore.softSwitches.get());
+    outCore.softSwitches->SetKeyboard      (outCore.keyboard.get());
+    outCore.keyboard->SetSpeakerSibling    (outCore.speaker.get());
+    outCore.keyboard->SetMmu               (outCore.mmu.get());
+    outCore.keyboard->SetVideoTiming       (outCore.videoTiming.get());
+    outCore.softSwitches->SetVideoTiming   (outCore.videoTiming.get());
+    outCore.softSwitches->SetMmu           (outCore.mmu.get());
+
+    hr = outCore.mmu->Initialize (
+        outCore.bus.get(),
+        outCore.mainRam.get(),
+        nullptr,
+        nullptr,
+        nullptr,
+        outCore.softSwitches.get());
+    if (FAILED (hr))
+    {
+        goto Error;
+    }
+
+    {
+        std::vector<Byte>   cxxxData (kCxxxRomSize);
+        std::vector<Byte>   lcRom    (kLcRomSize);
+
+        std::copy (romBytes.begin() + kCxxxRomOffset,
+                   romBytes.begin() + kCxxxRomOffset + kCxxxRomSize,
+                   cxxxData.begin());
+        std::copy (romBytes.begin() + kLcRomOffset,
+                   romBytes.begin() + kLcRomOffset + kLcRomSize,
+                   lcRom.begin());
+
+        outCore.mmu->AttachInternalCxxxRom (std::move (cxxxData));
+        outCore.languageCard->SetRomData    (lcRom);
+    }
+
+    outCore.bus->AddDevice (outCore.lcBank.get());
+
+    outCore.languageCard->SetMmu          (outCore.mmu.get());
+    outCore.keyboard->SetLanguageCard     (outCore.languageCard.get());
+    outCore.softSwitches->SetLanguageCard (outCore.languageCard.get());
+
+    hr = CpuFactory::Create ("65C02", *outCore.bus, cpuStrategy);
+    if (FAILED (hr))
+    {
+        goto Error;
+    }
+
+    outCore.cpu = std::make_unique<EmuCpu> (*outCore.bus, std::move (cpuStrategy));
+    outCore.cpu->SetVideoTiming (outCore.videoTiming.get());
+    outCore.speaker->SetCycleCounter (outCore.cpu->GetCycleCounterPtr());
+
+    for (size_t i = 0; i < romBytes.size(); i++)
+    {
+        outCore.cpu->PokeByte (
+            static_cast<Word> (kSystemRomStart + i),
+            romBytes[i]);
+    }
+
+    mainRamBase = const_cast<Byte *> (outCore.cpu->GetMemory());
+
+    for (page = 0; page < kRamPageCount; page++)
+    {
+        Byte * pagePtr = mainRamBase + (page * kPageSize);
+        outCore.bus->SetReadPage  (page, pagePtr);
+        outCore.bus->SetWritePage (page, pagePtr);
+    }
+
+    outCore.cpu->InitForEmulation (*outCore.prng);
+
+Error:
+    return hr;
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  HeadlessHost::BuildApple2eWithDisk2
 //
 //  Phase 11 (T097-T104). Extends BuildApple2e by attaching the Disk II
@@ -284,6 +416,189 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  HeadlessHost::BuildApple2c
+//
+//  Wires a full Apple //c from `Apple2c.rom` (a 32K two-bank firmware image,
+//  loaded via the IFixtureProvider). The //c is a 65C02 on the //e substrate
+//  (MMU, soft switches, keyboard, speaker, language card) whose $C000-$FFFF
+//  firmware is bank-switched: an Apple2cRomBank owns both 16K banks and, via
+//  the soft-switch bank's $C028 hook, re-slices the active bank into the LC
+//  ($D000-$FFFF) and the CxxxRomRouter ($C100-$CFFF). Reset selects bank 0
+//  (the monitor/Applesoft bank).
+//
+//  Differs from BuildApple2e only in (a) the 65C02 CPU strategy and (b) the
+//  banked firmware wiring; the memory map is otherwise identical. As with the
+//  //e, the system-rom bytes for bank 0 are poked into the CPU memory[] so the
+//  reset-vector read + PeekByte see them.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT HeadlessHost::BuildApple2c (EmulatorCore & outCore)
+{
+    HRESULT                hr          = S_OK;
+    std::vector<uint8_t>   romBytes;
+    std::unique_ptr<ICpu>  cpuStrategy;
+    Byte                 * mainRamBase = nullptr;
+    int                    page;
+
+    static constexpr size_t  kBankSize    = 0x4000;   // 16 KiB per bank
+    static constexpr size_t  kTwoBankSize = 0x8000;   // 32 KiB Apple2c.rom
+
+    hr = BuildCommon (HeadlessMachineKind::Apple2c, outCore);
+    if (FAILED (hr))
+    {
+        goto Error;
+    }
+
+    hr = outCore.fixtures->OpenFixture ("Apple2c.rom", romBytes);
+    if (FAILED (hr))
+    {
+        goto Error;
+    }
+
+    if (romBytes.size() != kTwoBankSize)
+    {
+        hr = E_UNEXPECTED;
+        goto Error;
+    }
+
+    outCore.bus          = std::make_unique<MemoryBus> ();
+    outCore.mainRam      = std::make_unique<RamDevice> (0x0000, kRamEnd);
+    outCore.videoTiming  = std::make_unique<VideoTiming> ();
+    outCore.mmu          = std::make_unique<Apple2eMmu> ();
+    outCore.keyboard     = std::make_unique<Apple2eKeyboard> (outCore.bus.get());
+    outCore.softSwitches = std::make_unique<Apple2eSoftSwitchBank> (outCore.bus.get());
+    outCore.speaker      = std::make_unique<AppleSpeaker> ();
+    outCore.languageCard = std::make_unique<LanguageCard> (*outCore.bus);
+    outCore.lcBank       = std::make_unique<LanguageCardBank> (*outCore.languageCard);
+
+    outCore.bus->AddDevice (outCore.mainRam.get());
+    outCore.bus->AddDevice (outCore.keyboard.get());
+    outCore.bus->AddDevice (outCore.speaker.get());
+    outCore.bus->AddDevice (outCore.softSwitches.get());
+    outCore.bus->AddDevice (outCore.languageCard.get());
+
+    outCore.keyboard->SetSoftSwitchSibling (outCore.softSwitches.get());
+    outCore.softSwitches->SetKeyboard      (outCore.keyboard.get());
+    outCore.keyboard->SetSpeakerSibling    (outCore.speaker.get());
+    outCore.keyboard->SetMmu               (outCore.mmu.get());
+    outCore.keyboard->SetVideoTiming       (outCore.videoTiming.get());
+    outCore.softSwitches->SetVideoTiming   (outCore.videoTiming.get());
+    outCore.softSwitches->SetMmu           (outCore.mmu.get());
+
+    hr = outCore.mmu->Initialize (
+        outCore.bus.get(),
+        outCore.mainRam.get(),
+        nullptr,
+        nullptr,
+        nullptr,
+        outCore.softSwitches.get());
+    if (FAILED (hr))
+    {
+        goto Error;
+    }
+
+    // //c: no card slots -> $C100-$CFFF is always the internal firmware.
+    outCore.mmu->GetCxxxRouter()->SetNoExternalSlots (true);
+
+    {
+        std::vector<Byte>   bank0 (romBytes.begin(),             romBytes.begin() + kBankSize);
+        std::vector<Byte>   bank1 (romBytes.begin() + kBankSize, romBytes.end());
+
+        outCore.romBank = std::make_unique<Apple2cRomBank> (*outCore.languageCard, *outCore.mmu);
+        outCore.romBank->SetBankImages (std::move (bank0), std::move (bank1));
+        outCore.softSwitches->SetRomBankSwitch (outCore.romBank.get());
+    }
+
+    outCore.bus->AddDevice (outCore.lcBank.get());
+
+    outCore.languageCard->SetMmu          (outCore.mmu.get());
+    outCore.keyboard->SetLanguageCard     (outCore.languageCard.get());
+    outCore.softSwitches->SetLanguageCard (outCore.languageCard.get());
+
+    // //c built-in drive: a slot-6 Disk II / IWM controller ($C0E0-$C0EF). The
+    // $C600 boot firmware is already part of the internal //c ROM (routed
+    // internally by SetNoExternalSlots), so only the controller device is
+    // added -- no external slot ROM. The reset firmware polls the IWM.
+    outCore.diskController = std::make_unique<Disk2Controller> (6);
+    outCore.diskController->SetIwmMode (true);
+    outCore.diskStore      = std::make_unique<DiskImageStore> ();
+    outCore.bus->AddDevice (outCore.diskController.get());
+
+    // //c dual 6551 ACIA serial ports (phantom slots 1 & 2): port 1 ($C098) =
+    // printer, port 2 ($C0A8) = modem. Built in like the IWM (no config slot);
+    // the serial firmware is part of the internal //c ROM. v1 endpoints are
+    // loopback so a data-register write echoes into the receiver. No interrupt
+    // controller in the harness -- the loopback round-trip is polled, not IRQ.
+    {
+        auto aciaBase = [] (int slot) -> Word
+        {
+            return static_cast<Word> (Acia6551::kSlotIoBase
+                                      + slot * Acia6551::kSlotIoStride
+                                      + Acia6551::kAciaRegOffset);
+        };
+
+        outCore.serial1 = std::make_unique<Acia6551> (aciaBase (1));
+        outCore.serial2 = std::make_unique<Acia6551> (aciaBase (2));
+        outCore.serial1Loopback = std::make_unique<AciaLoopbackEndpoint> (outCore.serial1.get());
+        outCore.serial2Loopback = std::make_unique<AciaLoopbackEndpoint> (outCore.serial2.get());
+        outCore.serial1->SetEndpoint (outCore.serial1Loopback.get());
+        outCore.serial2->SetEndpoint (outCore.serial2Loopback.get());
+        outCore.bus->AddDevice (outCore.serial1.get());
+        outCore.bus->AddDevice (outCore.serial2.get());
+    }
+
+    hr = CpuFactory::Create ("65C02", *outCore.bus, cpuStrategy);
+    if (FAILED (hr))
+    {
+        goto Error;
+    }
+
+    outCore.cpu = std::make_unique<EmuCpu> (*outCore.bus, std::move (cpuStrategy));
+    outCore.cpu->SetVideoTiming (outCore.videoTiming.get());
+    outCore.speaker->SetCycleCounter (outCore.cpu->GetCycleCounterPtr());
+    outCore.diskController->SetCpuCycleSource (outCore.cpu->GetBusCyclePtr());
+
+    // //c IOU mouse: interrupt controller aggregates the mouse's VBL +
+    // movement IRQ lines onto the 65C02's maskable line; the keyboard and
+    // soft-switch bank forward the mouse's register surface; the CPU cycle
+    // fan-out ticks the device so VBL-edge latching and paced movement
+    // interrupts stay phase-locked to CPU progress.
+    outCore.interruptController = std::make_unique<InterruptController> (outCore.cpu->GetCpu());
+    outCore.mouse               = std::make_unique<AppleMouse> ();
+    outCore.mouse->AttachInterruptController (outCore.interruptController.get());
+    outCore.mouse->SetVideoTiming (outCore.videoTiming.get());
+    outCore.mouse->SetBus (outCore.bus.get());
+    outCore.keyboard->SetMouse     (outCore.mouse.get());
+    outCore.softSwitches->SetMouse (outCore.mouse.get());
+    outCore.cpu->SetCycleSink      (outCore.mouse.get());
+
+    // Bank 0 ($C000-$FFFF) into the CPU memory[] for reset-vector/PeekByte.
+    for (size_t i = 0; i < kBankSize; i++)
+    {
+        outCore.cpu->PokeByte (static_cast<Word> (kSystemRomStart + i), romBytes[i]);
+    }
+
+    mainRamBase = const_cast<Byte *> (outCore.cpu->GetMemory());
+
+    for (page = 0; page < kRamPageCount; page++)
+    {
+        Byte * pagePtr = mainRamBase + (page * kPageSize);
+        outCore.bus->SetReadPage  (page, pagePtr);
+        outCore.bus->SetWritePage (page, pagePtr);
+    }
+
+    outCore.cpu->InitForEmulation (*outCore.prng);
+
+Error:
+    return hr;
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  EmulatorCore::PowerCycle
 //
 //  Phase 7. Re-seeds every DRAM-owning device from the shared Prng then
@@ -306,6 +621,15 @@ void EmulatorCore::PowerCycle ()
     if (videoTiming != nullptr)
     {
         videoTiming->PowerCycle (*prng);
+    }
+
+    if (interruptController != nullptr)
+    {
+        interruptController->PowerCycle();
+    }
+    if (mouse != nullptr)
+    {
+        mouse->Reset();
     }
 }
 
@@ -338,6 +662,15 @@ void EmulatorCore::SoftReset ()
     if (videoTiming != nullptr)
     {
         videoTiming->SoftReset ();
+    }
+
+    if (interruptController != nullptr)
+    {
+        interruptController->SoftReset();
+    }
+    if (mouse != nullptr)
+    {
+        mouse->Reset();
     }
 
     cpu->SoftReset ();

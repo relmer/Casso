@@ -50,6 +50,7 @@ enum class OperandSyntax
     IndirectY,     // (expr),Y
     Indirect,      // (expr)  — used for JMP ($addr)
     Accumulator,   // A
+    ZeroPageRelative, // expr,expr — 65C02 BBRn/BBSn bit-branch (zp,target)
 };
 
 
@@ -64,8 +65,9 @@ enum class OperandSyntax
 
 struct ClassifiedOperand
 {
-    OperandSyntax syntax;       // Syntactic form detected by parser
-    std::string   expression;   // Inner expression string for evaluation
+    OperandSyntax syntax;           // Syntactic form detected by parser
+    std::string   expression;       // Inner expression string for evaluation
+    std::string   secondExpression; // Second operand (ZeroPageRelative branch target)
 };
 
 

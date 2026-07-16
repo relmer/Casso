@@ -21,8 +21,8 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //  DragDropTargetFormatTests
 //
 //  Verifies the testable subset of T141: that DxuiDragDropTarget::
-//  ExtractFirstHDropPath round-trips each of the four supported disk
-//  image extensions (.dsk, .nib, .woz, .po) through a CF_HDROP /
+//  ExtractFirstHDropPath round-trips each of the five supported disk
+//  image extensions (.dsk, .do, .nib, .woz, .po) through a CF_HDROP /
 //  HGLOBAL pipe identical to what Explorer hands us.
 //
 //  Format acceptance / rejection by the mount path itself lives in
@@ -314,10 +314,10 @@ public:
         Assert::AreEqual (E_POINTER, t.DragOver (0, pt, nullptr));
     }
 
-    TEST_METHOD (Extensions_AllFourFormats_AreAccepted)
+    TEST_METHOD (Extensions_AllFiveFormats_AreAccepted)
     {
         const wchar_t *  exts[] = {
-            L"C:\\a.dsk", L"C:\\a.NIB", L"C:\\a.Woz", L"C:\\a.po"
+            L"C:\\a.dsk", L"C:\\a.DO", L"C:\\a.NIB", L"C:\\a.Woz", L"C:\\a.po"
         };
 
         for (size_t i = 0; i < sizeof (exts) / sizeof (exts[0]); i++)
@@ -329,7 +329,7 @@ public:
 
             (void) t.DragEnter (&obj, 0, pt, &effect);
             Assert::IsTrue (t.IsDragAcceptedType(),
-                L"All four supported extensions must accept regardless of case");
+                L"All five supported extensions must accept regardless of case");
         }
     }
 };

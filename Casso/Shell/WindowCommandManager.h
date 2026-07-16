@@ -39,6 +39,8 @@ public:
     void  OnDiskCommand        (int id);
     void  OnPrinterCommand     (int id);
     void  OnHelpCommand        (int id);
+    void  OnExternalDriveCommand (int id);
+    void  OnMouseConnectCommand  (int id);
 
     bool  OnInitMenuPopup      (HWND hwnd, HMENU hMenu, UINT itemIndex, bool isWindowMenu);
 

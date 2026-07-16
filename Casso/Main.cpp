@@ -430,6 +430,42 @@ int WINAPI wWinMain (
         MessageBoxW (NULL, message, L"Casso emulator", MB_OK | MB_ICONERROR);
     });
 
+    // Register a GUI assertion breakpoint. In debug builds a failed EHM
+    // assertion (the *A macro variants, or a bare ASSERT) otherwise breaks
+    // via a raw int 3 -- fine under a debugger, but with none attached it
+    // becomes a silent "Casso.exe has stopped working" WER crash with no
+    // detail. Instead surface the assertion text and let the user choose
+    // Abort (quit) / Retry (break, e.g. after attaching a debugger) /
+    // Ignore (continue on EHM's normal error path, as a release build would).
+    SetBreakpointFunction ([] (const wchar_t * message)
+    {
+        if (IsDebuggerPresent())
+        {
+            __debugbreak();   // break at the assertion site, as before
+            return;
+        }
+
+        std::wstring text = L"An internal assertion failed:\n\n";
+        text += (message != nullptr && message[0] != L'\0') ? message : L"(no detail)";
+        text += L"\n\n"
+                L"Abort  = quit now\n"
+                L"Retry  = break (attach a debugger first to inspect)\n"
+                L"Ignore = try to continue";
+
+        int choice = MessageBoxW (NULL, text.c_str(), L"Casso \x2014 assertion failed",
+                                  MB_ABORTRETRYIGNORE | MB_ICONERROR | MB_DEFBUTTON1 | MB_TASKMODAL);
+
+        if (choice == IDABORT)
+        {
+            TerminateProcess (GetCurrentProcess(), 3);
+        }
+        else if (choice == IDRETRY)
+        {
+            __debugbreak();   // no-op crash if still no debugger; lets you attach one
+        }
+        // IDIGNORE: fall through -- EHM continues on its normal error path.
+    });
+
     // Parse command line
     hr = ParseCommandLine (lpCmdLine, machineName, disk1Path, disk2Path, traceCapacity);
     CHR (hr);
@@ -482,24 +518,16 @@ int WINAPI wWinMain (
                             earlyPrefs.lastSelectedMachine.end());
     }
 
-    if (machineName.empty() ||
-        PathResolver::FindFile (
-            PathResolver::BuildSearchPaths (PathResolver::GetExecutableDirectory(),
-                                            PathResolver::GetWorkingDirectory()),
-            fs::path ("Machines") / fs::path (machineName).string()
-                                  / (fs::path (machineName).string() + ".json")).empty())
+    // Resolve the requested machine (from --machine or last-selected prefs)
+    // to a canonical on-disk name. The filesystem is case-insensitive, so a
+    // mis-cased --machine value like "apple2e" still loads its config -- but
+    // FindRomSpec and MachineDisplayName match names exactly, so a lowercase
+    // name would report every per-machine ROM missing. Canonicalize against
+    // the scan so downstream lookups agree. An unmatched / empty request
+    // falls back to Apple //e (else the first discovered machine, else the
+    // Apple2e literal) so the LoadMachineConfig flow can still offer the ROM
+    // / sample-disk downloads instead of bailing with a dead-end MessageBox.
     {
-        // Legacy Win32 `MachinePickerDialog` is retired (FR-027). At
-        // startup we deterministically pick a sensible default machine
-        // from `MachineScanner::Scan`; the user can switch later via
-        // the Settings panel. Apple //e is the modern Apple II family
-        // member most users will want, so prefer it if discovered.
-        // Otherwise fall back to the first scan result. If nothing
-        // was discovered at all (Machines/ missing, asset bootstrap
-        // wiped between runs) we still default to Apple2e so the
-        // downstream LoadMachineConfig flow gets to offer the ROM /
-        // sample-disk downloads instead of bailing with a dead-end
-        // error MessageBox.
         constexpr std::wstring_view  s_kPreferredDefaultMachine = L"Apple2e";
 
         vector<fs::path> scanPaths = PathResolver::BuildSearchPaths (
@@ -511,23 +539,8 @@ int WINAPI wWinMain (
             &MachineScanner::ListDirectory,
             &MachineScanner::ReadFile);
 
-        machineName.clear();
-        for (const MachineInfo & info : discovered)
-        {
-            if (info.fileName == s_kPreferredDefaultMachine)
-            {
-                machineName = info.fileName;
-                break;
-            }
-        }
-        if (machineName.empty() && !discovered.empty())
-        {
-            machineName = discovered.front().fileName;
-        }
-        if (machineName.empty())
-        {
-            machineName = std::wstring (s_kPreferredDefaultMachine);
-        }
+        machineName = MachineScanner::SelectCanonical (
+            discovered, machineName, s_kPreferredDefaultMachine);
     }
 
     // Load machine configuration. S_FALSE here means the user

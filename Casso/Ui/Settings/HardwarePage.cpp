@@ -25,6 +25,15 @@ namespace
     constexpr size_t  s_kClockRow         = 1;
     constexpr size_t  s_kMemoryRow        = 2;
 
+    // Label of the synthetic Hardware-tree node for the //c optional external
+    // drive. Not backed by a HardwareEntry (the //c drive is built-in, not a
+    // config slot), so the tree's toggle handler matches this label to route
+    // it to SetExternalDriveConnected instead of SetHardwareEnabled.
+    constexpr wchar_t s_kExternalDriveLabel[] = L"External drive";
+
+    // Synthetic node for the //c mouse peripheral -- same pattern.
+    constexpr wchar_t s_kMouseLabel[]         = L"Mouse";
+
 
     RECT MakeRect (int l, int t, int w, int h)
     {
@@ -195,14 +204,18 @@ void HardwarePage::SetRect (const RECT & rect, const DxuiDpiScaler & scaler)
     {
         if (i >= kFixedInfoRowCount)
         {
-            // Memory sub-row N sits at the same y as the "Memory:" header for
-            // N=0, and stacks below for N>=1. Row 0 thus shares a line with
-            // the Memory: header label; the header itself adds no extra row.
-            int  nameW    = scaler.Px (110);
+            // Memory sub-rows stack UNDER the "Memory:" header, which now
+            // carries the RAM total ("128K RAM") in its value column. So the
+            // per-region breakdown starts one row below the header (+1). The
+            // name column is wide enough for the longest region label
+            // ("RAM (main, bank-switched)") to stay on one line -- there is
+            // ample dialog margin to the right, and the size/addr columns are
+            // positioned relative to it.
+            int  nameW    = scaler.Px (200);
             int  sizeW    = scaler.Px (55);
             int  addrW    = scaler.Px (130);
             int  subIndex = (int) (i - kFixedInfoRowCount);
-            int  rowY     = m_infoTop + ((int) s_kMemoryRow + subIndex) * rowHeight;
+            int  rowY     = m_infoTop + ((int) s_kMemoryRow + 1 + subIndex) * rowHeight;
 
             m_infoLabels[i].SetRect (MakeRect (valueX,                 rowY, nameW, rowHeight));
             m_infoValues[i].SetRect (MakeRect (valueX + nameW,         rowY, sizeW, rowHeight));
@@ -220,11 +233,12 @@ void HardwarePage::SetRect (const RECT & rect, const DxuiDpiScaler & scaler)
         m_infoExtras[i].SetDpi (dpi);
     }
 
-    // y now sits one row PAST the Memory header. Bump down by the remaining
-    // memory rows (rowsInUse - 1, since row 0 shares a line with the header).
-    if (m_memoryRowsInUse > 1)
+    // y now sits one row PAST the Memory header (which holds the RAM total).
+    // Every region row stacks below that header now, so bump down by the full
+    // region count to clear them before the device tree.
+    if (m_memoryRowsInUse > 0)
     {
-        y += (int) (m_memoryRowsInUse - 1) * rowHeight;
+        y += (int) m_memoryRowsInUse * rowHeight;
     }
 
     treeRect.left = x;
@@ -340,7 +354,7 @@ void HardwarePage::Rebuild ()
 
         m_infoValues[s_kCpuRow].SetText    (cpuDisplay);
         m_infoValues[s_kClockRow].SetText  (FormatGrouped (info->clockSpeed) + L" Hz");
-        m_infoValues[s_kMemoryRow].SetText (L"");        // header row, value column blank
+        m_infoValues[s_kMemoryRow].SetText (Widen (info->ramSummary));   // RAM total on the header line
 
         size_t  rowsInUse = std::min<size_t> (info->memoryRegions.size(), kMaxMemoryRows);
         size_t  i         = 0;
@@ -371,7 +385,13 @@ void HardwarePage::Rebuild ()
         }
     }
 
-    nodes = BuildNodes (entries);
+    {
+        bool  supportsExternal  = (info != nullptr) && info->supportsExternalDrive;
+        bool  externalConnected = (state != nullptr) && state->Prefs().externalDriveConnected;
+        bool  mouseConnected    = (state == nullptr) || state->Prefs().mouseConnected;
+
+        nodes = BuildNodes (entries, supportsExternal, externalConnected, mouseConnected);
+    }
     m_tree.SetNodes (std::move (nodes));
 
     m_tree.SetOnToggle ([state] (const std::wstring & label, bool checked)
@@ -380,6 +400,21 @@ void HardwarePage::Rebuild ()
 
         if (state == nullptr)
         {
+            return;
+        }
+
+        // The synthetic external-drive node is not a HardwareEntry -- it is a
+        // live UI pref, so route it to SetExternalDriveConnected (no reset)
+        // rather than the hardware-enable path.
+        if (label == s_kExternalDriveLabel)
+        {
+            state->SetExternalDriveConnected (checked);
+            return;
+        }
+
+        if (label == s_kMouseLabel)
+        {
+            state->SetMouseConnected (checked);
             return;
         }
 
@@ -406,7 +441,10 @@ void HardwarePage::Rebuild ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<DxuiTreeNode> HardwarePage::BuildNodes (const std::vector<HardwareEntry> & entries)
+std::vector<DxuiTreeNode> HardwarePage::BuildNodes (const std::vector<HardwareEntry> & entries,
+                                                    bool supportsExternalDrive,
+                                                    bool externalDriveConnected,
+                                                    bool mouseConnected)
 {
     std::vector<DxuiTreeNode>  out;
     DxuiTreeNode               internalGroup;
@@ -457,6 +495,30 @@ std::vector<DxuiTreeNode> HardwarePage::BuildNodes (const std::vector<HardwareEn
     if (anySlot)
     {
         out.push_back (std::move (slotsGroup));
+    }
+
+    // //c external drive: a top-level checkable node modelling the optional
+    // 5.25" drive on the disk port. Optional (interactive), so the user can
+    // connect/disconnect it; checked mirrors the persisted connected state.
+    // Unlike the hardware rows this is not a config device -- toggling it is
+    // a live UI pref, so the tree's OnToggle routes this label specially.
+    if (supportsExternalDrive)
+    {
+        DxuiTreeNode  external;
+
+        external.label          = s_kExternalDriveLabel;
+        external.capabilityFlag = DxuiTreeCapabilityFlag::Optional;
+        external.checked        = externalDriveConnected;
+        external.expanded       = false;   // leaf: no children, no twisty
+        out.push_back (std::move (external));
+
+        // //c mouse peripheral: connectable, default connected.
+        DxuiTreeNode  mouse;
+        mouse.label          = s_kMouseLabel;
+        mouse.capabilityFlag = DxuiTreeCapabilityFlag::Optional;
+        mouse.checked        = mouseConnected;
+        mouse.expanded       = false;
+        out.push_back (std::move (mouse));
     }
 
     return out;

@@ -44,4 +44,18 @@ public:
     static void SubtractWithCarry    (Cpu & cpu, Byte operand);
     static void Transfer             (Cpu & cpu, Byte * pSourceRegister, Byte * pDestinationRegister);
     static void Xor                  (Cpu & cpu, Byte operand);
+
+    // 65C02 (CMOS) operations.
+    static void StoreZero             (Cpu & cpu, Word effectiveAddress);
+    static void TestAndSetBits        (Cpu & cpu, Word effectiveAddress);
+    static void TestAndResetBits      (Cpu & cpu, Word effectiveAddress);
+    static void ResetMemoryBit        (Cpu & cpu, Instruction instruction, Word effectiveAddress);
+    static void SetMemoryBit          (Cpu & cpu, Instruction instruction, Word effectiveAddress);
+    static void BitBranchReset        (Cpu & cpu, Instruction instruction, Byte value, Word target);
+    static void BitBranchSet          (Cpu & cpu, Instruction instruction, Byte value, Word target);
+    static void BranchAlways          (Cpu & cpu, Word target);
+    static void BitTestImmediate      (Cpu & cpu, Byte operand);
+    static void AddWithCarryCmos      (Cpu & cpu, Byte operand);
+    static void SubtractWithCarryCmos (Cpu & cpu, Byte operand);
+    static void BreakCmos             (Cpu & cpu);
 };

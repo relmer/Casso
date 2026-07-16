@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" width="96" height="96">
+  <!--
+    Apple Joystick IIe (A2M2002) top-down glyph — Casso T030d device selector.
+    Geometry doubles as the D2D paint spec: coordinates are on a 96x96 grid,
+    scale by (sizePx / 96). Light source top-left; the well is an inverted
+    pyramid (4 facets darkening toward bottom-right) with the stick knob at
+    center. Two square orange fire buttons sit diagonally at the upper-left,
+    matching the real unit. Cord/stress-relief omitted.
+  -->
+  <defs>
+    <linearGradient id="caseGrad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0"   stop-color="#E4DFD0"/>
+      <stop offset="1"   stop-color="#CBC5B4"/>
+    </linearGradient>
+    <linearGradient id="btnGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0"   stop-color="#FF7038"/>
+      <stop offset="1"   stop-color="#E04E1E"/>
+    </linearGradient>
+    <radialGradient id="knobGrad" cx="0.38" cy="0.35" r="0.9">
+      <stop offset="0"   stop-color="#D3CEC0"/>
+      <stop offset="1"   stop-color="#A19C8C"/>
+    </radialGradient>
+  </defs>
+
+  <!-- case -->
+  <rect x="6" y="6" width="84" height="84" rx="10" fill="url(#caseGrad)" stroke="#8F8A7A" stroke-width="2"/>
+
+  <!-- stick well: rim -->
+  <rect x="36" y="36" width="50" height="50" rx="2" fill="none" stroke="#8F8A7A" stroke-width="1.5"/>
+
+  <!-- well facets (inverted pyramid, outer 37..85, inner 53..69) -->
+  <polygon points="37,37 85,37 69,53 53,53" fill="#C7C1B1"/>
+  <polygon points="37,37 53,53 53,69 37,85" fill="#B5AF9E"/>
+  <polygon points="85,37 85,85 69,69 69,53" fill="#A39D8C"/>
+  <polygon points="37,85 85,85 69,69 53,69" fill="#948E7D"/>
+
+  <!-- pivot hole -->
+  <rect x="53" y="53" width="16" height="16" fill="#6B6759"/>
+
+  <!-- stick knob (top-down: circle) -->
+  <circle cx="61" cy="61" r="10" fill="url(#knobGrad)" stroke="#6E6A5C" stroke-width="1.5"/>
+  <circle cx="58" cy="58" r="4" fill="#FFFFFF" opacity="0.35"/>
+
+  <!-- fire buttons (diagonal upper-left, per the real layout) -->
+  <rect x="36" y="11" width="16" height="16" rx="2.5" fill="url(#btnGrad)" stroke="#A63C14" stroke-width="1.5"/>
+  <rect x="11" y="36" width="16" height="16" rx="2.5" fill="url(#btnGrad)" stroke="#A63C14" stroke-width="1.5"/>
+</svg>

@@ -42,6 +42,10 @@ public:
 
     void  SetRect    (const RECT & rect)  { SetBounds (rect); }
     void  SetLabel   (const std::wstring & label) { m_label = label; }
+
+    // Draw the label on one line, ellipsizing (…) instead of wrapping — for
+    // fixed-height list rows. Default off keeps the wrapping behavior.
+    void  SetSingleLineLabel (bool v) { m_singleLineLabel = v; }
     void  SetChecked (bool checked) { m_checked = checked; }
     void  SetEnabled (bool enabled) { IDxuiControl::SetEnabled (enabled); m_enabled = enabled; if (!enabled) { m_hover = false; m_pressed = false; } }
     void  SetFocused (bool focused) { m_focused = focused; }
@@ -75,13 +79,19 @@ public:
     DxuiAccessibleRole  AccessibleRole () const override { return DxuiAccessibleRole::Checkbox; }
 
 private:
-    void  Toggle ();
+    void  Toggle();
+
+    static std::wstring  EllipsizeToWidth (IDxuiTextRenderer  & text,
+                                           const std::wstring & label,
+                                           float                fontDip,
+                                           float                maxWidth);
 
 
     std::wstring  m_label;
     ChangeFn      m_change;
     bool          m_checked = false;
     bool          m_enabled = true;
+    bool          m_singleLineLabel = false;
     bool          m_focused = false;
     bool          m_hover   = false;
     bool          m_pressed = false;

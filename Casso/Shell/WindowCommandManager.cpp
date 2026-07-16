@@ -186,8 +186,75 @@ bool WindowCommandManager::OnCommand (HWND hwnd, int id)
     else if (id == IDM_PRINTER_SAVEAS)                                     { OnPrinterCommand (id); }
     else if (id == IDM_PRINTER_PREVIEW)                                    { m_shell.ShowPrinterPanel (); }
     else if (id >= IDM_HELP_KEYMAP    && id <= IDM_HELP_ABOUT)              { OnHelpCommand (id); }
+    else if (id == IDM_DRIVE_EXTERNAL_CONNECT ||
+             id == IDM_DRIVE_EXTERNAL_DISCONNECT)                          { OnExternalDriveCommand (id); }
+    else if (id == IDM_MOUSE_CONNECT ||
+             id == IDM_MOUSE_DISCONNECT)                                   { OnMouseConnectCommand (id); }
 
     return false;
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnExternalDriveCommand
+//
+//  //c optional external drive: reveal/hide the second drive-mount widget
+//  (m_driveChrome[1]). Runs on the UI thread -- it relays the chrome (menu
+//  bar + drive band), which asserts UI-thread affinity -- so it is reached
+//  via PostMessage(WM_COMMAND) from the settings apply sink, not the CPU
+//  command queue. Disk presence is unchanged (the //c keeps its built-in
+//  controller), so ReflowChromeForMachineChange does no window resize -- it
+//  just re-lays the widgets + hit-test map, where ShouldShowExternalDrive()
+//  gates the second widget.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void WindowCommandManager::OnMouseConnectCommand (int id)
+{
+    // //c mouse peripheral connect/disconnect. No chrome change;
+    // just the state gate. Disconnecting while Mouse mode is active drops
+    // the mapping to Off so the mode never points at an unplugged device.
+    bool  connected = (id == IDM_MOUSE_CONNECT);
+
+    if (connected != m_shell.m_mouseConnected)
+    {
+        m_shell.m_mouseConnected = connected;
+
+        if (!connected && m_shell.m_pointerMode == InputMappingMode::Mouse)
+        {
+            // Drops Mouse mode; SetPointerMapping re-syncs the selector as a
+            // side effect (SyncInputModeUi -> SyncSelectorState + relayout).
+            m_shell.SetPointerMapping (InputMappingMode::Off);
+        }
+        else
+        {
+            // Availability changed with no mode change (reconnect, or a
+            // disconnect while not in Mouse mode): refresh the selector so
+            // the Mouse segment reappears / disappears -- SetState flips the
+            // availability flag and the relayout rebuilds the 2<->3 segment
+            // geometry + hit map. UI-thread routed (posted WM_COMMAND), so
+            // relaying the button here is safe.
+            m_shell.SyncSelectorState();
+            m_shell.RelayoutJoystickButton();
+        }
+    }
+}
+
+
+
+
+void WindowCommandManager::OnExternalDriveCommand (int id)
+{
+    bool  connected = (id == IDM_DRIVE_EXTERNAL_CONNECT);
+
+    if (connected != m_shell.m_externalDriveConnected)
+    {
+        m_shell.m_externalDriveConnected = connected;
+        m_shell.ReflowChromeForMachineChange();
+    }
 }
 
 
@@ -503,7 +570,8 @@ HRESULT WindowCommandManager::PromptForDiskImage (int drive)
     ComPtr<IFileOpenDialog>          dialog;
     ComPtr<IShellItem>               item;
     PWSTR                            pszPath    = nullptr;
-    COMDLG_FILTERSPEC                filters[1] = { { L"Disk images", L"*.dsk;*.nib;*.woz;*.po" } };
+    COMDLG_FILTERSPEC                filters[2] = { { L"Disk images", L"*.dsk;*.do;*.nib;*.woz;*.po" },
+                                                    { L"All files",   L"*.*" } };
 
 
 
@@ -513,7 +581,7 @@ HRESULT WindowCommandManager::PromptForDiskImage (int drive)
                            IID_PPV_ARGS (&dialog));
     CHR (hr);
 
-    hr = dialog->SetFileTypes (1, filters);
+    hr = dialog->SetFileTypes (ARRAYSIZE (filters), filters);
     CHR (hr);
 
     hr = dialog->Show (m_shell.m_hwnd);

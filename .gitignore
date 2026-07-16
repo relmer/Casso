@@ -375,6 +375,8 @@ dormann_temp/
 # Harte SingleStepTests — generated binary test data (regenerated on demand)
 UnitTest/nes6502/
 UnitTest/6502/
+UnitTest/synertek65c02/
+UnitTest/rockwell65c02/
 
 # Disk images we cannot redistribute (Apple-owned)
 /Disks/Apple/dos33-master.dsk
@@ -397,4 +399,9 @@ build/
 
 # Per-user Claude Code settings and a stray exported chat transcript (not for VCS)
 .claude/settings.local.json
+# Git worktrees created under the repo (linked working trees; never committed)
+.claude/worktrees/
 /Casso Dxui refactor - spec 013.md
+
+# Copyrighted machine ROMs provisioned on demand; tests skip when absent
+UnitTest/Fixtures/*.rom

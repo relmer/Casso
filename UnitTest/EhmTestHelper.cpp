@@ -22,9 +22,17 @@ namespace UnitTestHelpers
     //
     ////////////////////////////////////////////////////////////////////////////////
 
-    static void EhmBreakpointHandler ()
+    static void EhmBreakpointHandler (const wchar_t * message)
     {
-        Assert::Fail (L"EHM assertion failure detected in unit test");
+        std::wstring  detail = L"EHM assertion failure detected in unit test";
+
+        if (message != nullptr && message[0] != L'\0')
+        {
+            detail += L": ";
+            detail += message;
+        }
+
+        Assert::Fail (detail.c_str());
     }
 
 
