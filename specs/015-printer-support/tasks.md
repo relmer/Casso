@@ -9,13 +9,13 @@
 **Organization**: Phases map to spec user stories (P1→US1 … P7→US7). Constitution commit discipline: commit after each completed phase. Push after commits (feature branch).
 
 **Status — reconciled 2026-07-16** (every `[X]` is backed by code committed on this branch):
-US1–US5 plus the Phase 11 preview redesign are implemented and unit-tested (full suite green). **US6 (draft-text printing, T046–T049) and US7 (disk-title recognition, T050–T055) are not started.** Several completed tasks shipped under different names than their original text:
+US1–US5 plus the Phase 11 preview redesign are implemented and unit-tested (full suite green). **US6 (draft-text printing, T046–T049) is not started; US7 (disk-title recognition, T050–T055) is DROPPED — auto-attach supersedes it, recognition polish moved to GH #78 (see Phase 9).** Several completed tasks shipped under different names than their original text:
 - Delivery sinks (T020/T030/T031): the planned `HostPrintServices` was split into `PrintDelivery` + `PngCodec` + `PrintFileNaming` (core) plus the Print/Save/Copy handlers in `WindowCommandManager` — no `HostPrintServices` file exists.
 - Pacing (T036): shipped as `PrinterPacing` + `PrinterViewport`, not a `PrinterPresenter`.
 - "Eject" (T021/T037): replaced by per-action, non-destructive Print/Save/Copy + Form Feed + tear-off Discard.
 - Audio (T038/T040): the BleuLlama sample set is **bundled** (committed, extracted by `AssetBootstrap::EnsureImageWriterSounds`), not fetched by the startup downloader; volume/mute wired to the Printing page.
 - Long-strip memory (T042): a dpi cap (`WholeStripDpi`, ~512 MB budget), not row-banding.
-Still open: T010 (dropped), US6 T046–T049, US7 T050–T055, end-to-end sign-offs T026/T032/T041/T045/T072, and polish / merge-gates T056–T060.
+Still open: T010 (dropped), US6 T046–T049, end-to-end sign-offs T026/T032/T041/T045/T072, polish / merge-gates T056–T060, and DCR-1/DCR-2. Dropped: US7 T050–T055 (→ #78). Post-ship bug fixes BUG-1/3/4 landed; BUG-2 (head fluidity) still under investigation.
 
 ## Format: `[ID] [P?] [Story] Description`
 
@@ -102,14 +102,23 @@ Still open: T010 (dropped), US6 T046–T049, US7 T050–T055, end-to-end sign-of
 - [ ] T048 [P] [US6] Unit tests: text line goldens, wrap, pitch matrix in `UnitTest/PrinterTests/ImageWriterInterpreterTests.cpp`
 - [ ] T049 [US6] End-to-end: `PR#1` + `LIST` and DOS 3.3 `CATALOG` (quickstart scenario 6; SC-004)
 
-## Phase 9: User Story 7 — Recognizing Printing Software (P7)
+## Phase 9: User Story 7 — Recognizing Printing Software (P7) — **DROPPED 2026-07-16**
 
-- [ ] T050 [P] [US7] Retain META chunk key/values in `CassoEmuCore/Devices/Disk/WozLoader.h/.cpp` (currently ignored at load) and expose on the loaded image
-- [ ] T051 [P] [US7] Implement DOS 3.3 / ProDOS catalog-name extraction as pure functions over denibblized sector data (high-bit masking for DOS 3.3; ProDOS volume+file names) in `CassoEmuCore/Devices/Printer/TitleRecognizer.h/.cpp`
-- [ ] T052 [US7] Implement three-tier matcher (META > filename substring > catalog) + embedded signature table per contracts/printing-settings.md in `CassoEmuCore/Devices/Printer/TitleRecognizer.cpp`
-- [ ] T053 [P] [US7] Unit tests: synthetic filenames/META/catalogs, tier precedence, no-match silence in `UnitTest/PrinterTests/TitleRecognizerTests.cpp`
-- [ ] T054 [US7] Mount-time hook (Drive 1 only) + one dismissible setup-guidance notice per mount, zero config side effects, in `Casso/Shell/DiskManager.cpp` (FR-024)
-- [ ] T055 [US7] End-to-end: quickstart scenario 7 (known name, generic name w/ standard filesystem, unknown disk)
+**Dropped.** The printer now **auto-attaches** as an optional slot-1 `parallel-printer`
+device in every machine config (`Resources/Machines/{Apple2,Apple2Plus,Apple2e}.json`,
+`capabilityFlag: optional`), and the user can deselect it from the Hardware settings
+checkboxes. Per-title *recognition* is therefore no longer needed to make printing work —
+it would only be polish (auto-suggesting the printer for known print software). That polish,
+and the shared recognition subsystem it belongs to, now live in **GH #78** ("auto-enable
+joystick mode for known game disks…"), which owns the same catalog/META/hash/filesystem-sniff
+machinery; see the 2026-07-16 comment there. These tasks are not being implemented in 015.
+
+- [~] T050 [P] [US7] ~~Retain META chunk key/values in `WozLoader`~~ — **DROPPED → #78**
+- [~] T051 [P] [US7] ~~DOS 3.3 / ProDOS catalog-name extraction~~ — **DROPPED → #78**
+- [~] T052 [US7] ~~Three-tier matcher + signature table~~ — **DROPPED → #78**
+- [~] T053 [P] [US7] ~~TitleRecognizer unit tests~~ — **DROPPED → #78**
+- [~] T054 [US7] ~~Mount-time hook + dismissible notice~~ — **DROPPED → #78**
+- [~] T055 [US7] ~~End-to-end: quickstart scenario 7~~ — **DROPPED → #78**
 
 ## Phase 10: Polish & Cross-Cutting
 
@@ -151,6 +160,37 @@ Still open: T010 (dropped), US6 T046–T049, US7 T050–T055, end-to-end sign-of
 - [X] T070 [US4] Add a scoped 3D path to Dxui's D3D11 renderer — `Dxui3DRenderer`: one MVP cbuffer (row_major, row-vector), one textured+tinted VS/PS pair, dynamic VB, dynamic content texture + 1x1 white for untextured geometry, premultiplied source-over (same compositing as DxuiPainter), full state set per draw, no depth (painter's algorithm) — in `Dxui/Render/Dxui3DRenderer.h/.cpp` (FR-032)
 - [X] T071 [US4] Implement `Printer3DScene` — procedural bottom-anchored ImageWriter body (platinum case, deck + slot recess, smoked carriage window, paced head carriage w/ four-color ribbon cartridge, power LED) + paper strip rising from the platen with backward lean and a backward curl (content canvas mapped 1:1 by arclength, slices darken as they turn from the light), drawn back-to-front from the panel window's before-present hook (backdrop → body-behind-paper → paper → body-front); panel leaves the paper rect unfilled and keeps `PrinterPaperView` as the flat fallback — in `Casso/Ui/Printer3DScene.h/.cpp` + `Casso/Ui/PrinterPanel.*` (FR-032)
 - [ ] T072 [US4] End-to-end: long-banner print shows head sweeping L→R laying ink, viewport follows newest row, scrollback + snap-to-live, bounded memory / flat frame cost (SC-010/SC-011); user reviews the 3D scene aesthetics
+
+## Design Change Requests (post-implementation, 2026-07-16)
+
+Raised while dogfooding the shipped feature; larger than bug fixes, so tracked as DCRs
+rather than folded silently into the spec.
+
+- [ ] DCR-1 **Windows print dialog "doesn't support print preview".** The OS modern print UI
+  advertises a preview pane we don't fill, which reads as broken even though Casso already
+  shows its own live preview. Implement the OS print-preview affordance (or otherwise stop the
+  dialog advertising an empty one) so the experience doesn't look half-finished. Owner: TBD.
+- [ ] DCR-2 **Replace the chrome printer indicator with a command toolbar.** The standalone
+  printer widget in the main window doesn't match the rest of the UI. Prototype a toolbar row
+  below the menu bar carrying the most-common commands (Settings, Print, Volume slider + Mute,
+  Reset, Power, …) and retire the bespoke indicator. Prototype in progress. Owner: TBD.
+
+## Bug fixes (post-implementation, 2026-07-16)
+
+Shipped on this branch after real-hardware dogfooding:
+
+- [X] BUG-1 Printing preview + sound froze during a title-bar / resize-edge drag (OS modal
+  move/size loop starves the UI pump). Host-owned keep-alive `WM_TIMER` drives a new
+  `IDxuiHostClient::OnModalLoopTick` → `EmulatorShell::PumpUiFrame`; render body factored out of
+  `RunMessageLoop`. `Dxui/Window/*` + `Casso/EmulatorShell.*`.
+- [X] BUG-2 Print head fluidity — **open**, needs runtime observation. Added a temporary preview
+  FPS overlay (lower-right of the panel) to characterize the stutter. `Casso/Ui/PrinterPanel.*`.
+- [X] BUG-3 Carriage buzz cut out on every line feed (ink-gated hold decayed in the ink=false
+  gap). Lengthened `kPrintHoldSec` 0.05→0.25 s to bridge line feeds; a form feed / tear now cuts
+  the hold to stay clean. `CassoEmuCore/Audio/PrinterAudioSource.*` + tests.
+- [X] BUG-4 Delivery-failure dialog was nerdspeak + a cancelled Print-to-PDF Save-As fired it.
+  Cancel now silent (S_FALSE); message is plain-language with a `Details: 0x… — <system text>`
+  trailer (CWRF captures the real GDI error). `Casso/Shell/WindowCommandManager.cpp`.
 
 ## Dependencies
 
