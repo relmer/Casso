@@ -54,11 +54,13 @@ public:
     // Paced head position across the printable width, 0..1 (FR-034).
     void     SetHeadColumn01 (float x01);
 
-    // Front-panel status LEDs. select01 is the green-lamp brightness (0..1; the
-    // panel raises it toward 1 while the printer is receiving and rests it low
-    // when idle); error lights the red fault lamp. Unlit lamps glow a very dim
-    // base color; lit lamps brighten and gain a soft halo.
-    void     SetLeds (float select01, bool error);
+    // Front-panel status lamps. Each lamp carries a FIXED meaning (Power,
+    // Select, Print Quality, Error -- see LampRole); this only sets the live
+    // inputs those meanings read: `online` lights the SELECT lamp (printer
+    // ready) and `error` lights the red fault lamp. Power stays lit (powered)
+    // and Print Quality follows the selected quality. Unlit lamps show a dim
+    // base-color lens; lit lamps brighten and gain a soft halo.
+    void     SetLeds (bool online, bool error);
 
     // Preview magnification, 1 = fit (default). The camera narrows its field
     // of view by this factor, so 2 shows the paper at twice the size without
@@ -98,6 +100,11 @@ public:
 private:
     using Vertex = Dxui3DRenderer::Vertex;
 
+    // Fixed real-panel meaning of each front-panel lamp, so they light for
+    // their own reason instead of all together (see BuildLedBatches /
+    // RoleIntensity). SetModel assigns a role to each clustered lamp.
+    enum class LampRole { Power, Select, Quality, Error };
+
     static void  AppendQuad (std::vector<Vertex> & out,
                              const float p00[3], const float p10[3],
                              const float p01[3], const float p11[3],
@@ -125,6 +132,13 @@ private:
                                  float cx, float cy, float z, float rx, float ry,
                                  uint32_t argb, float coreAlpha, int segments);
 
+    // A solid flat round disc in the x/y plane at constant z: a surface-level
+    // LED lens face, uniform (premultiplied) color. Round so a lamp reads as a
+    // lens rather than the CAD model's blocky lifted cap.
+    static void  AppendDiscZ    (std::vector<Vertex> & out,
+                                 float cx, float cy, float z, float radius,
+                                 uint32_t argb, float shade, int segments);
+
     // One front-panel LED at (cx,cy): a dim base lens when intensity ~0, a
     // bright lens plus halo as intensity -> 1. halfW sets the lens half-width
     // (the on/off pair uses narrower half-lamps).
@@ -132,9 +146,14 @@ private:
                                  float cx, float cy, float z,
                                  uint32_t argb, float intensity, float halfW);
 
-    // Rebuild the per-frame LED batches (recolored lens faces + glow halos)
-    // from the loaded lamps at the current SELECT / error brightness.
+    // Rebuild the per-frame LED batches (round surface-level lenses + glow
+    // halos) from the loaded lamps, each at its role's live brightness.
     void  BuildLedBatches ();
+
+    // The live brightness (0..1) of a lamp given its fixed role and the current
+    // online / quality / error inputs. Drives each lamp INDIVIDUALLY so the
+    // front panel no longer pulses every lamp together.
+    float RoleIntensity (LampRole role) const;
 
     void  BuildBackdrop   (std::vector<Vertex> & out) const;
     void  BuildBodyBack   (std::vector<Vertex> & out) const;
@@ -151,8 +170,9 @@ private:
     float            m_panX          = 0.0f;   // world-space horizontal camera offset
     float            m_worldPanY     = 0.0f;   // world-space vertical shift of the whole scene
     float            m_camPanY        = 0.0f;   // world-space vertical camera framing offset
-    float            m_ledSelect     = 0.30f;  // green-lamp brightness, dim rest (panel-driven)
-    bool             m_ledError      = false;  // red fault lamp
+    bool             m_ledOnline     = true;   // SELECT lamp: printer online / ready
+    float            m_ledQuality01  = 0.0f;   // PRINT QUALITY lamp: selected quality (draft = off)
+    bool             m_ledError      = false;  // ERROR lamp: paper out / fault
     int              m_contentWidth  = 0;
     int              m_contentHeight = 0;
 
@@ -165,11 +185,15 @@ private:
     std::vector<Vertex>   m_mesh;
     std::vector<Vertex>   m_meshGlass;
 
-    // Front-panel LEDs lifted out of the static mesh so their brightness can
-    // track printer state: the LED lens faces (recolored per frame) and the
-    // clustered lamp centers that seed the glow halos. Built once by SetModel.
+    // Front-panel status lamps, each with a fixed real-panel meaning so they no
+    // longer light in unison: Power (steady, powered), Select (online/ready),
+    // Print Quality (selected quality), Error (red paper/fault). SetModel
+    // assigns roles by left-to-right position; RoleIntensity maps each role to
+    // its live brightness. The LED faces are lifted out of the static mesh only
+    // so the lamp centers/extents can be clustered from them -- the render draws
+    // round surface-level lenses at those centers, NOT the blocky lifted faces.
     struct LedFace   { float  p[3][3]; float shade; bool red; };
-    struct LedLamp   { float  cx, cy, cz, halfW, halfH; bool red; };
+    struct LedLamp   { float  cx, cy, cz, halfW, halfH; bool red; LampRole role; };
     std::vector<LedFace>   m_ledFaces;
     std::vector<LedLamp>   m_ledLamps;
     std::vector<Vertex>    m_ledBatch;    // scratch: recolored lens faces

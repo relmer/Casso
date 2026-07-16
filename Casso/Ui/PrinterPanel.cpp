@@ -46,6 +46,13 @@ namespace
     constexpr float     s_kZoomMin  = 1.0f;
     constexpr float     s_kZoomMax  = 4.0f;
 
+    // Framing reach: a plain (1 - 1/Z) can only center the content EDGE, but the
+    // status LEDs + switches sit just inside the lower-right corner and need a
+    // touch more camera travel to bring to the middle at ~300%. Boost the reach
+    // so the corners are framable by 3x, clamped to 1 so the printer can't be
+    // panned clear out of the view.
+    constexpr float     s_kFramingReach = 1.5f;
+
     // Fanfold paper furniture (FR-032; panel-only per FR-027), all in px at the
     // fixed 144 dpi preview scale. Real continuous-form stock: 9.5" wide with
     // 0.5" tractor strips both sides (tear width 8.5"), 5/32" sprocket holes on
@@ -492,8 +499,9 @@ void PrinterPanel::SyncTransform ()
     // Vertical camera framing spans a normalized +/-(1 - 1/Z): zero at fit,
     // approaching +/-1 (full up/down reach) as the zoom climbs.
     {
-        float   halfRange = (float) s_kStockWidthPx * 0.5f * (1.0f - 1.0f / zoom);
-        float   camRange  = 1.0f - 1.0f / zoom;
+        float   f         = (std::min) (1.0f, s_kFramingReach * (1.0f - 1.0f / zoom));
+        float   halfRange = (float) s_kStockWidthPx * 0.5f * f;
+        float   camRange  = f;
 
         m_panZoom.SetPanXBounds (-halfRange, halfRange);
         m_panZoom.SetPanYCamBounds (-camRange, camRange);
@@ -724,13 +732,12 @@ void PrinterPanel::RefreshLive (PrinterWorker & worker, int64_t nowMs, bool forc
     {
         m_scene->SetHeadColumn01 ((float) revealCol / (float) PrinterGrid::kDotsPerRow);
 
-        // Front-panel LEDs: the green lamps rest at a dim glow and light up
-        // (bright + halo) while the printer is actively receiving; the red
-        // fault lamp stays dark for now (no fault state wired yet).
-        bool   receiving = (m_lastActivityChangeMs != 0)
-                           && (nowMs - m_lastActivityChangeMs < s_kPrintIdleMs);
-
-        m_scene->SetLeds (receiving ? 1.0f : 0.30f, /*error*/ false);
+        // Front-panel status lamps carry fixed per-lamp meanings (see
+        // Printer3DScene::LampRole): Power + Select sit steady-lit while the
+        // emulated printer is powered + online, while Print Quality (draft) and
+        // the red fault lamp stay dark. They no longer pulse together with the
+        // receive activity -- the carriage motion and sound convey that.
+        m_scene->SetLeds (/*online*/ true, /*error*/ false);
     }
 
     // The viewport follows the REVEALED edge, not the raster's -- so a paced

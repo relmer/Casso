@@ -599,7 +599,32 @@ HRESULT Printer3DScene::SetModel (const std::string & objText, const std::string
             lamp.halfW = (L.maxx - L.minx) * 0.5f;
             lamp.halfH = (L.maxy - L.miny) * 0.5f;
             lamp.red   = L.red;
+            lamp.role  = L.red ? LampRole::Error : LampRole::Select;
             m_ledLamps.push_back (lamp);
+        }
+
+        // Assign each GREEN lamp a fixed front-panel role by left-to-right
+        // position, matching the reference panel (Print Quality, Select, then
+        // Power on the on/off cap); the red lamp is the paper/fault Error
+        // indicator. Roles drive each lamp INDIVIDUALLY (RoleIntensity), so the
+        // panel no longer flashes every lamp together while receiving.
+        {
+            std::vector<int>   greens;
+            for (size_t i = 0; i < m_ledLamps.size (); i++)
+            {
+                if (!m_ledLamps[i].red) { greens.push_back ((int) i); }
+            }
+            std::sort (greens.begin (), greens.end (),
+                       [&] (int a, int b) { return m_ledLamps[a].cx < m_ledLamps[b].cx; });
+
+            int   n = (int) greens.size ();
+            for (int gi = 0; gi < n; gi++)
+            {
+                LampRole   role = LampRole::Select;
+                if      (n >= 3 && gi == 0) { role = LampRole::Quality; }   // leftmost
+                else if (gi == n - 1)       { role = LampRole::Power;   }   // rightmost
+                m_ledLamps[greens[gi]].role = role;
+            }
         }
 
         // Platen anchors from the roller's measured geometry: the paper rises
@@ -748,16 +773,21 @@ void Printer3DScene::SetPanX (float panXNorm)
 //
 //  Printer3DScene::SetWorldPanY
 //
-//  Map the normalized world pan (-1..1 = the up/down hard stop) to a world-Y
+//  Map the normalized world pan (-1..0 = the downward hard stop) to a world-Y
 //  translation of the whole scene. Applied to the model matrix in Render, so
 //  the printer, paper, head, and badge move together while the full-screen
 //  backdrop (identity transform) stays put.
+//
+//  Clamped to the NON-POSITIVE half only: the printer is anchored to the bottom
+//  of the window, so an upward world pan (which would float the machine off the
+//  bottom edge) is disallowed. Only the downward rubber-band at the top of the
+//  scrollback still nudges the world.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void Printer3DScene::SetWorldPanY (float panYNorm)
 {
-    m_worldPanY = std::clamp (panYNorm, -1.0f, 1.0f) * s_kWorldPanYSpan;
+    m_worldPanY = std::clamp (panYNorm, -1.0f, 0.0f) * s_kWorldPanYSpan;
 }
 
 
@@ -788,10 +818,31 @@ void Printer3DScene::SetCameraPanY (float panYNorm)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void Printer3DScene::SetLeds (float select01, bool error)
+void Printer3DScene::SetLeds (bool online, bool error)
 {
-    m_ledSelect = std::clamp (select01, 0.0f, 1.0f);
+    m_ledOnline = online;
     m_ledError  = error;
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Printer3DScene::RoleIntensity
+//
+////////////////////////////////////////////////////////////////////////////////
+
+float Printer3DScene::RoleIntensity (LampRole role) const
+{
+    switch (role)
+    {
+        case LampRole::Power:   return 1.0f;                        // powered
+        case LampRole::Select:  return m_ledOnline ? 1.0f : 0.0f;   // online / ready
+        case LampRole::Quality: return m_ledQuality01;              // selected quality (draft = 0)
+        case LampRole::Error:   return m_ledError ? 1.0f : 0.0f;    // paper / fault
+    }
+    return 0.0f;
 }
 
 
@@ -984,6 +1035,45 @@ void Printer3DScene::AppendGlowZ (std::vector<Vertex> & out,
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  Printer3DScene::AppendDiscZ
+//
+//  A solid flat disc (triangle fan) in the x/y plane at constant z: a round
+//  LED lens face in one uniform premultiplied color. Used in the loaded-mesh
+//  path so a lamp shows as a surface-level round lens instead of the CAD
+//  model's blocky extruded LED cap.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Printer3DScene::AppendDiscZ (std::vector<Vertex> & out,
+                                  float cx, float cy, float z, float radius,
+                                  uint32_t argb, float shade, int segments)
+{
+    float   a = (float) ((argb >> 24) & 0xFF) / 255.0f;
+    float   r = (float) ((argb >> 16) & 0xFF) / 255.0f * shade * a;
+    float   g = (float) ((argb >>  8) & 0xFF) / 255.0f * shade * a;
+    float   b = (float) ((argb      ) & 0xFF) / 255.0f * shade * a;
+
+    Vertex   c = { cx, cy, z, 0.0f, 0.0f, r, g, b, a };
+
+    for (int i = 0; i < segments; i++)
+    {
+        float   a0 = 6.2831853f * (float) i       / (float) segments;
+        float   a1 = 6.2831853f * (float) (i + 1) / (float) segments;
+
+        Vertex   v0 = { cx + radius * std::cos (a0), cy + radius * std::sin (a0), z, 0, 0, r, g, b, a };
+        Vertex   v1 = { cx + radius * std::cos (a1), cy + radius * std::sin (a1), z, 0, 0, r, g, b, a };
+
+        out.push_back (c);
+        out.push_back (v0);
+        out.push_back (v1);
+    }
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  Printer3DScene::AppendLed
 //
 //  One procedural front-panel LED at (cx,cy) on a constant-z face: a dim lens
@@ -1019,10 +1109,11 @@ void Printer3DScene::AppendLed (std::vector<Vertex> & out,
 //
 //  Printer3DScene::BuildLedBatches
 //
-//  Rebuild the loaded-mesh LED overlay for this frame: a glow halo per lamp
-//  and the recolored lens faces, at the current SELECT / error brightness.
-//  The green front lamps ride m_ledSelect (dim at idle, bright while
-//  receiving); the fault lamp is red, dim until m_ledError.
+//  Rebuild the loaded-mesh LED overlay for this frame: a glow halo per lit
+//  lamp and a round, surface-level lens per lamp, each at its ROLE's live
+//  brightness (Power/Select steady-lit, Print Quality per selected quality,
+//  the red Error lamp dark until a fault). The round lens replaces the CAD
+//  model's blocky lifted LED faces (see AppendDiscZ / m_ledFaces).
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1031,41 +1122,28 @@ void Printer3DScene::BuildLedBatches ()
     m_glowBatch.clear ();
     m_ledBatch.clear ();
 
-    float   greenI = m_ledSelect;
-    float   redI   = m_ledError ? 1.0f : 0.10f;
-
-    // Halos first (drawn under the lens faces).
     for (const LedLamp & L : m_ledLamps)
     {
-        float      intensity = L.red ? redI : greenI;
-        float      core      = 0.60f * (std::max) (0.0f, intensity - 0.15f);
+        float      intensity = RoleIntensity (L.role);
         uint32_t   base      = L.red ? s_kLedRed : s_kLedGreen;
 
-        if (core < 0.02f)
+        // Round lens sized to the lamp (its centroid spread underestimates the
+        // real cap, so scale up a touch) but clamped small enough that adjacent
+        // lamps never merge. Sits just proud of the front deck, covering the
+        // hole where the CAD LED cap was lifted out of the static mesh.
+        float   radius = std::clamp ((std::max) (L.halfW, L.halfH) * 1.5f + 0.004f, 0.008f, 0.016f);
+        float   shade  = 0.16f + 1.10f * intensity;
+
+        // Halo under the lens, only once the lamp is meaningfully lit.
+        float   core = 0.60f * (std::max) (0.0f, intensity - 0.15f);
+        if (core > 0.02f)
         {
-            continue;
+            float   glow = radius * 2.2f + 0.006f;
+
+            AppendGlowZ (m_glowBatch, L.cx, L.cy, L.cz, glow, glow, base, core, 24);
         }
 
-        float   rx = (std::max) (0.010f, L.halfW * 2.2f + 0.006f);
-        float   ry = (std::max) (0.008f, L.halfH * 2.2f + 0.006f);
-
-        AppendGlowZ (m_glowBatch, L.cx, L.cy, L.cz, rx, ry, base, core, 24);
-    }
-
-    // Recolored lens faces (the lifted mesh LED triangles).
-    for (const LedFace & f : m_ledFaces)
-    {
-        float      intensity = f.red ? redI : greenI;
-        uint32_t   base      = f.red ? s_kLedRed : s_kLedGreen;
-        float      bright    = 0.16f + 1.10f * intensity;
-        float      r         = (float) ((base >> 16) & 0xFF) / 255.0f * f.shade * bright;
-        float      g         = (float) ((base >>  8) & 0xFF) / 255.0f * f.shade * bright;
-        float      b         = (float) ((base      ) & 0xFF) / 255.0f * f.shade * bright;
-
-        for (int k = 0; k < 3; k++)
-        {
-            m_ledBatch.push_back ({ f.p[k][0], f.p[k][1], f.p[k][2], 0.0f, 0.0f, r, g, b, 1.0f });
-        }
+        AppendDiscZ (m_ledBatch, L.cx, L.cy, L.cz + 0.0010f, radius, base, shade, 20);
     }
 }
 
@@ -1657,21 +1735,27 @@ void Printer3DScene::BuildControls (std::vector<Vertex> & out) const
 
         AppendFaceQuad (out, x0, x1, cy, y1, zCap, s_kArgbButton, 0.94f);
 
-        // LED windows flush in the wall above the right three caps -- dim base,
-        // glowing with a halo as they light (green rides SELECT; the on/off
-        // pair carries the red fault lamp and the green power lamp).
-        float   greenI = m_ledSelect;
-        float   redI   = m_ledError ? 1.0f : 0.10f;
-        float   ledCy  = cy + s_kButtonH + 0.012f + 0.004f;
+        // LED windows flush in the wall above the right three caps, each at its
+        // own fixed meaning (i==3 print quality, i==4 select, i==5 on/off pair:
+        // red fault + green power) -- no longer all riding one brightness.
+        float   qualityI = RoleIntensity (LampRole::Quality);
+        float   selectI  = RoleIntensity (LampRole::Select);
+        float   powerI   = RoleIntensity (LampRole::Power);
+        float   errorI   = RoleIntensity (LampRole::Error);
+        float   ledCy    = cy + s_kButtonH + 0.012f + 0.004f;
 
-        if (i == 3 || i == 4)
+        if (i == 3)
         {
-            AppendLed (out, cx, ledCy, zWall, s_kLedGreen, greenI, 0.013f);
+            AppendLed (out, cx, ledCy, zWall, s_kLedGreen, qualityI, 0.013f);
+        }
+        else if (i == 4)
+        {
+            AppendLed (out, cx, ledCy, zWall, s_kLedGreen, selectI, 0.013f);
         }
         else if (i == 5)
         {
-            AppendLed (out, cx - 0.0065f, ledCy, zWall, s_kLedRed,   redI,   0.006f);
-            AppendLed (out, cx + 0.0065f, ledCy, zWall, s_kLedGreen, greenI, 0.006f);
+            AppendLed (out, cx - 0.0065f, ledCy, zWall, s_kLedRed,   errorI, 0.006f);
+            AppendLed (out, cx + 0.0065f, ledCy, zWall, s_kLedGreen, powerI, 0.006f);
         }
     }
 }
