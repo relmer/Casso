@@ -919,10 +919,19 @@ HRESULT WindowCommandManager::PrintToWindowsPrinter (const PrintRaster & raster)
     di.cbSize      = sizeof (di);
     di.lpszDocName = L"Casso Printout";
 
-    // "Microsoft Print to PDF" pops its Save-As prompt here; cancelling it makes
-    // StartDoc fail (GetLastError == ERROR_CANCELLED / 1223) rather than crash.
-    CBRFEx (StartDocW (pd.hDC, &di) > 0, E_FAIL,
-            LogPrinter (std::format (L"StartDoc failed, GetLastError={}", ::GetLastError ())));
+    // "Microsoft Print to PDF" (and some drivers) pop a Save-As prompt inside
+    // StartDoc; cancelling it makes StartDoc fail with GetLastError ==
+    // ERROR_CANCELLED (1223). That is a user cancel, not a delivery failure -- so
+    // report it exactly like a cancelled print dialog (S_FALSE: keep the page, no
+    // scary "could not deliver" popup) instead of E_FAIL.
+    if (StartDocW (pd.hDC, &di) <= 0)
+    {
+        DWORD   gle = ::GetLastError ();
+
+        LogPrinter (std::format (L"StartDoc failed, GetLastError={}", gle));
+        hr = (gle == ERROR_CANCELLED) ? S_FALSE : E_FAIL;
+        goto Error;
+    }
     started = true;
 
     pageW = GetDeviceCaps (pd.hDC, HORZRES);
@@ -1261,7 +1270,8 @@ void WindowCommandManager::OnPrinterCommand (int id)
     }
     else
     {
-        DxuiMessageBox (m_shell.PrinterDialogOwner (), &m_shell.m_chromeTheme, L"Could not deliver the printout; the page is kept.",
+        DxuiMessageBox (m_shell.PrinterDialogOwner (), &m_shell.m_chromeTheme,
+                     L"Something went wrong while sending your printout, so it is still waiting in the printer. Please try printing again.",
                      L"Casso Printer", MB_OK | MB_ICONWARNING);
 
         // Keep the strip so the user can retry -- reseed the worker with it

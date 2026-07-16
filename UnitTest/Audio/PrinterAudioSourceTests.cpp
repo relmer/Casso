@@ -127,13 +127,61 @@ public:
         src.SetLoopForTest (Quality::Draft, Const (64, 0.5f), 1000);
         src.SetVolume (1.0f);
 
-        // hold = 0.05 s * 1000 = 50 samples. One 100-sample frame consumes it.
+        // hold = kPrintHoldSec (0.25 s) * 1000 = 250 samples (long enough to
+        // bridge a line feed's ink=false gap so the buzz stays continuous).
         src.PublishReveal (1000, 0);
         Assert::IsTrue (Frame (src, 100) > 0.0f);   // still playing this frame
 
-        // Same reveal (head stopped): the hold has drained, so now silent.
+        // Head stopped (same reveal, no re-arm): drain the rest of the hold. Once
+        // more than 250 samples have elapsed with no advance, the buzz is silent.
+        Frame (src, 200);                            // 100 + 200 = 300 > 250 -> drained
         Assert::AreEqual (0.0f, Frame (src, 16), 0.0f);
         Assert::IsFalse  (src.IsPrinting());
+    }
+
+
+
+    TEST_METHOD (CarriageLoop_BridgesLineFeedInkGap)
+    {
+        PrinterAudioSource  src;
+        src.SetLoopForTest (Quality::Draft, Const (64, 0.5f), 1000);
+        src.SetVolume (1.0f);
+
+        // Print a line (ink) to arm the buzz.
+        src.PublishReveal (1000, 1200, true /* inkActive */);
+        Assert::AreEqual (0.5f, Frame (src, 16), 0.0001f);
+
+        // Line feed: reveal advances but ink=false for a short gap. The buzz must
+        // stay alive under the clack (it does not re-arm, but the 250-sample hold
+        // outlasts this 16-sample feed frame) so printing sounds continuous
+        // instead of cutting out between every line.
+        src.PublishReveal (1100, 10, false /* inkActive */);
+        Assert::AreEqual (0.5f, Frame (src, 16), 0.0001f);
+        Assert::IsTrue   (src.IsPrinting());
+
+        // Next inked line re-arms as usual.
+        src.PublishReveal (1200, 20, true /* inkActive */);
+        Assert::AreEqual (0.5f, Frame (src, 16), 0.0001f);
+    }
+
+
+
+    TEST_METHOD (FormFeed_CutsCarriageBuzz)
+    {
+        PrinterAudioSource  src;
+        src.SetLoopForTest     (Quality::Draft, Const (64, 0.5f), 1000);
+        src.SetPageFeedForTest (0, Const (8, 0.9f));
+        src.SetVolume (1.0f);
+
+        // Arm the buzz, then request a form feed. The action latch cuts the
+        // (now long) carriage hold so the page feed plays clean under its own
+        // grain rather than trailing the buzz across the advance.
+        src.PublishReveal (1000, 1200, true /* inkActive */);
+        Assert::IsTrue (Frame (src, 16) > 0.0f);
+
+        src.PlayFormFeed (0.10f /* short */);
+        Assert::AreEqual (0.9f, Frame (src, 8), 0.0001f);   // the page-feed grain, not the 0.5 buzz
+        Assert::IsFalse  (src.IsPrinting());                // carriage hold was cut
     }
 
 

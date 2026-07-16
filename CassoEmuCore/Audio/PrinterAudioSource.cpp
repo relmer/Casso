@@ -360,8 +360,14 @@ void PrinterAudioSource::GeneratePCM (float * outMono, uint32_t numSamples)
     }
 
     // Latch a pending user action (form feed / tear). Newest wins if two land in
-    // one window -- discard-then-tear reads naturally as the later sound.
+    // one window -- discard-then-tear reads naturally as the later sound. Any such
+    // action cuts the carriage buzz so a form feed / tear plays clean under its
+    // own grain and never trails the (now longer) print hold across the advance.
     int32_t  action = m_pendingAction.exchange (0, std::memory_order_acquire);
+    if (action != 0)
+    {
+        m_printHoldSamples = 0;
+    }
     if (action >= 1 && action <= kNumPageFeeds)
     {
         const vector<float> &  buf = m_pageFeeds[action - 1];

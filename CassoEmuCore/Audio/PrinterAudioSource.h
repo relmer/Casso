@@ -43,10 +43,15 @@ public:
 
     static constexpr float   kDefaultVolume      = 0.80f;
 
-    // Carriage-loop hold after the last reveal advance (seconds). Bridges the
-    // UI publish / audio consume rate mismatch so the loop does not gate on and
-    // off between reveal updates; a longer silence than this = head stopped.
-    static constexpr double  kPrintHoldSec       = 0.05;
+    // Carriage-loop hold after the last inked reveal advance (seconds). Long
+    // enough to BRIDGE the brief ink=false gap of a line feed (carriage return +
+    // one-line paper advance) so the print buzz stays continuous UNDER the
+    // line-feed clacks instead of cutting out between every line -- the head is
+    // still mechanically moving through the return. A form feed / tear is a much
+    // longer, explicit action: its one-shot latch cuts this hold (GeneratePCM) so
+    // it feeds silently under its own grain. A silence longer than this = the head
+    // genuinely stopped.
+    static constexpr double  kPrintHoldSec       = 0.25;
 
     // Minimum spacing between line-feed one-shots, so a burst of column wraps (a
     // fast catch-up) cannot machine-gun the clack.
