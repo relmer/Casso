@@ -8,6 +8,62 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  Slanted-fill helpers (file-local)
+//
+//  Every piece of a switch cap shares one shear field so it reads as a single
+//  leaning parallelogram: a point at absolute height y is pushed right by
+//  (refBottom - y) * tan, i.e. no shift at the reference bottom, growing toward
+//  the top. ShearFill draws one solid parallelogram strip; ShearGrad stacks
+//  strips with an interpolated colour for a top-lit gradient on the slant.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+namespace
+{
+    uint32_t LerpArgb (uint32_t a, uint32_t b, float t)
+    {
+        auto  chan = [] (uint32_t c, int shift) { return (int) ((c >> shift) & 0xFFu); };
+        auto  mix  = [&] (int shift)
+        {
+            int  v = chan (a, shift) + (int) ((chan (b, shift) - chan (a, shift)) * t + 0.5f);
+            return (uint32_t) (v < 0 ? 0 : (v > 255 ? 255 : v));
+        };
+
+        return (mix (24) << 24) | (mix (16) << 16) | (mix (8) << 8) | mix (0);
+    }
+
+    void ShearFill (IDxuiPainter & p, float xL, float yTop, float w, float h,
+                    float tan, float refBottom, uint32_t argb)
+    {
+        float  st = (refBottom - yTop)       * tan;   // top-edge shift
+        float  sb = (refBottom - (yTop + h)) * tan;   // bottom-edge shift
+
+        p.FillConvexQuad (xL + st,     yTop,
+                          xL + w + st, yTop,
+                          xL + w + sb, yTop + h,
+                          xL + sb,     yTop + h,
+                          argb);
+    }
+
+    void ShearGrad (IDxuiPainter & p, float xL, float yTop, float w, float h,
+                    float tan, float refBottom, uint32_t top, uint32_t bot, int strips)
+    {
+        for (int i = 0; i < strips; i++)
+        {
+            float  t0 = (float) i       / (float) strips;
+            float  t1 = (float) (i + 1) / (float) strips;
+
+            ShearFill (p, xL, yTop + h * t0, w, h * (t1 - t0),
+                       tan, refBottom, LerpArgb (top, bot, (t0 + t1) * 0.5f));
+        }
+    }
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  MeasureLabel
 //
 //  Width of a silk-screen label in pixels. Uses the text renderer when one is
@@ -69,6 +125,12 @@ void Apple2cSwitchBar::Layout (const RECT & boundsDip, const DxuiDpiScaler & sca
     float  fontPx  = kFontDip * (float) eDpi / 96.0f;
     int    cy      = (boundsDip.top + boundsDip.bottom) / 2;
 
+    // Slanted caps lean right, so their bounding box is wider than the cap body
+    // by the top-edge overhang. Budget it into each hit rect so the parallelogram
+    // top-right corner never rides over the next element or its label.
+    int    slantKey   = (int) (keyH   * kSlantTan + 0.5f);
+    int    slantReset = (int) (resetH * kSlantTan + 0.5f);
+
 
     m_dpi    = eDpi;
     m_bounds = boundsDip;
@@ -76,18 +138,18 @@ void Apple2cSwitchBar::Layout (const RECT & boundsDip, const DxuiDpiScaler & sca
     // Left group: [reset] [80/40 key] "80/40" [keyboard key] "keyboard".
     int  x = boundsDip.left + edge;
 
-    m_resetRect = RECT { x, cy - resetH / 2, x + resetW, cy + resetH / 2 };
-    x += resetW + gGap;
+    m_resetRect = RECT { x, cy - resetH / 2, x + resetW + slantReset, cy + resetH / 2 };
+    x += resetW + slantReset + gGap;
 
     int  eightyLblW = (int) (MeasureLabel (kLabelEighty, fontPx) + 0.5f);
-    m_eightyKey   = RECT { x, cy - keyH / 2, x + keyW, cy + keyH / 2 };
-    m_eightyLabel = RECT { x + keyW + lblGap, boundsDip.top, x + keyW + lblGap + eightyLblW, boundsDip.bottom };
+    m_eightyKey   = RECT { x, cy - keyH / 2, x + keyW + slantKey, cy + keyH / 2 };
+    m_eightyLabel = RECT { m_eightyKey.right + lblGap, boundsDip.top, m_eightyKey.right + lblGap + eightyLblW, boundsDip.bottom };
     m_eightyRect  = RECT { m_eightyKey.left, m_eightyKey.top, m_eightyLabel.right, m_eightyKey.bottom };
     x = m_eightyLabel.right + swGap;
 
     int  kbdLblW = (int) (MeasureLabel (kLabelKeyboard, fontPx) + 0.5f);
-    m_kbdKey   = RECT { x, cy - keyH / 2, x + keyW, cy + keyH / 2 };
-    m_kbdLabel = RECT { x + keyW + lblGap, boundsDip.top, x + keyW + lblGap + kbdLblW, boundsDip.bottom };
+    m_kbdKey   = RECT { x, cy - keyH / 2, x + keyW + slantKey, cy + keyH / 2 };
+    m_kbdLabel = RECT { m_kbdKey.right + lblGap, boundsDip.top, m_kbdKey.right + lblGap + kbdLblW, boundsDip.bottom };
     m_kbdRect  = RECT { m_kbdKey.left, m_kbdKey.top, m_kbdLabel.right, m_kbdKey.bottom };
 
     // Right group: [disk-use LED] "disk use"  [power LED] "power", right-anchored.
@@ -170,42 +232,26 @@ void Apple2cSwitchBar::PaintLabel (IDxuiTextRenderer & text, const RECT & r, con
 //
 //  PaintResetButton
 //
-//  A raised cream cap. Dormant (no Ctrl) it paints with a muted label so the
-//  user reads that it needs a modifier; armed (Ctrl held) the label darkens.
-//  While pressed the bevel inverts and the cap sinks a pixel.
+//  A slanted cream cap that sits proud of the case and depresses while pressed
+//  (momentary, unlike the latching switches). Dormant (no Ctrl) it paints with
+//  a muted label so the user reads that it needs a modifier; armed (Ctrl held)
+//  the label darkens. The label rides down with the cap when it sinks.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void Apple2cSwitchBar::PaintResetButton (IDxuiPainter & p, IDxuiTextRenderer & text, const RECT & r)
 {
-    float  x  = (float) r.left;
-    float  y  = (float) r.top;
-    float  w  = (float) (r.right - r.left);
-    float  h  = (float) (r.bottom - r.top);
-    bool   dn = (m_pressedPart == Part::Reset);
+    bool   dn     = (m_pressedPart == Part::Reset);
+    float  travel = (float) (r.bottom - r.top) * kCapTravel;
 
-
-    if (dn)
-    {
-        p.FillGradientRect (x, y, w, h, kCapLo, kCapHi);
-        p.FillRect         (x, y, w, 1.5f, 0x40000000);           // inner top shadow
-    }
-    else
-    {
-        p.FillGradientRect (x, y, w, h, kCapHi, kCapLo);
-        p.FillRect         (x + 1.0f, y + 1.0f, w - 2.0f, 1.0f, kCapHi);   // top highlight
-        p.FillRect         (x + 1.0f, y + h - 2.0f, w - 2.0f, 1.0f, kCapLo); // bottom shade
-    }
-
-    p.OutlineRect (x, y, w, h, 1.0f, kCapEdge);
-
-    if (m_hovered && m_hoverPart == Part::Reset)
-    {
-        p.FillRect (x, y, w, h, kHoverWash);
-    }
+    PaintSlantCap (p, r, dn, m_hovered && m_hoverPart == Part::Reset,
+                   dn ? kCapLo : kCapHi, dn ? kKeyLoIn : kCapLo);
 
     HRESULT  hr = text.DrawString (kLabelReset,
-                                   x, y + (dn ? 1.0f : 0.0f), w, h,
+                                   (float) r.left,
+                                   (float) r.top + (dn ? travel : 0.0f),
+                                   (float) (r.right - r.left),
+                                   (float) (r.bottom - r.top),
                                    m_resetArmed ? kCapText : kCapTextOff,
                                    kFontDip * (float) m_dpi / 96.0f, kFontFamily,
                                    DxuiTextHAlign::Center,
@@ -219,53 +265,75 @@ void Apple2cSwitchBar::PaintResetButton (IDxuiPainter & p, IDxuiTextRenderer & t
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  PaintSlantCap
+//
+//  The shared skeuomorphic cap: a right-leaning parallelogram seated in a dark
+//  molded recess. Out (proud) the cap rides at the top of its recess, brightly
+//  top-lit with a highlight edge and a shadow gap opening beneath it -- it reads
+//  as sitting above the case surface. In (pressed) the cap drops by kCapTravel,
+//  its face darkened, with the recess mouth exposed above it and an inner shadow
+//  cast across its top -- it reads as pushed below the surface. The two states
+//  differ in cap brightness, vertical position, AND shadow direction, so the
+//  clicked state is unambiguous at a glance.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Apple2cSwitchBar::PaintSlantCap (IDxuiPainter & p, const RECT & r, bool pressedIn,
+                                      bool hovered, uint32_t faceHi, uint32_t faceLo)
+{
+    float  x       = (float) r.left;
+    float  y       = (float) r.top;
+    float  w       = (float) (r.right - r.left);
+    float  h       = (float) (r.bottom - r.top);
+    float  tan     = kSlantTan;
+    float  refB    = y + h;                 // shear pivot: the recess bottom
+    float  dx      = h * tan;               // top-edge overhang
+    float  bodyW   = w - dx;                // cap body width (bbox minus overhang)
+    float  travel  = h * kCapTravel;        // proud <-> depressed offset
+    float  capH    = h - travel;            // cap shorter than the recess
+    float  capY    = pressedIn ? y + travel : y;
+
+
+    // Molded recess: dark rim, slightly lighter floor.
+    ShearFill (p, x,        y,        bodyW,        h,        tan, refB, kSocketRim);
+    ShearFill (p, x + 1.0f, y + 1.0f, bodyW - 2.0f, h - 2.0f, tan, refB, kSocket);
+
+    // Cap face, top-lit gradient.
+    ShearGrad (p, x + 1.0f, capY, bodyW - 2.0f, capH, tan, refB, faceHi, faceLo, 7);
+
+    if (!pressedIn)
+    {
+        ShearFill (p, x + 1.0f, capY, bodyW - 2.0f, 1.5f, tan, refB, kKeyHi);            // top catchlight
+        ShearFill (p, x + 1.0f, capY + capH, bodyW - 2.0f, travel, tan, refB, kKeyDrop); // shadow gap beneath
+    }
+    else
+    {
+        ShearFill (p, x + 1.0f, capY, bodyW - 2.0f, capH * 0.34f, tan, refB, kKeyShadow); // inner top shadow
+    }
+
+    if (hovered)
+    {
+        ShearFill (p, x, y, bodyW, h, tan, refB, kHoverWash);
+    }
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  PaintKey
 //
-//  A latching case key in its recessed well. Out = a proud, highlit cap sitting
-//  at the top of the well with the dark slot showing below it. In = the cap sunk
-//  to the bottom, its face darkened, with an inner shadow cast across the slot
-//  above it — the unambiguous "clicked down and staying" state.
+//  A latching case switch: the shared slanted cap, out (proud) when the switch
+//  is released and in (depressed + darkened) while it stays clicked down.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void Apple2cSwitchBar::PaintKey (IDxuiPainter & p, const RECT & keyRect, bool pressedIn, bool hovered)
 {
-    float  wx   = (float) keyRect.left;
-    float  wy   = (float) keyRect.top;
-    float  ww   = (float) (keyRect.right - keyRect.left);
-    float  wh   = (float) (keyRect.bottom - keyRect.top);
-    float  sink = wh * 0.28f;                    // travel between out and in
-
-
-    // Recessed well the key rides in.
-    p.FillRect    (wx, wy, ww, wh, kWell);
-    p.OutlineRect (wx, wy, ww, wh, 1.0f, kWellRim);
-
-    if (pressedIn)
-    {
-        // Sunk cap: lower, flat and dark, with a shadow cast over the slot above.
-        p.FillRect         (wx + 1.0f, wy + 1.0f, ww - 2.0f, sink, kKeyShadow);
-        p.FillGradientRect (wx + 1.0f, wy + sink, ww - 2.0f, wh - sink - 1.0f, kKeyFaceIn, kKeyLo);
-        p.FillRect         (wx + 1.0f, wy + sink, ww - 2.0f, 1.0f, kKeyShadow);   // lip shadow
-    }
-    else
-    {
-        // Proud cap: raised toward the top, highlit, slot shows beneath it.
-        p.FillGradientRect (wx + 1.0f, wy + 1.0f, ww - 2.0f, wh - sink - 1.0f, kKeyHi, kKeyLo);
-        p.FillRect         (wx + 1.0f, wy + 1.0f, ww - 2.0f, 1.0f, kKeyHi);       // top highlight
-        p.FillRect         (wx + 1.0f, wy + wh - sink - 1.0f, ww - 2.0f, 1.0f, kWellRim); // cap foot
-        p.FillRect         (wx + 1.0f, wy + wh - sink, ww - 2.0f, sink - 1.0f, kWell);    // exposed slot
-    }
-
-    // Diagonal molding notch near the cap top, echoing the case switches.
-    p.DrawLineApprox (wx + ww * 0.28f, wy + (pressedIn ? sink : 0.0f) + wh * 0.16f,
-                      wx + ww * 0.72f, wy + (pressedIn ? sink : 0.0f) + wh * 0.30f,
-                      1.0f, kKeyLo);
-
-    if (hovered)
-    {
-        p.FillRect (wx, wy, ww, wh, kHoverWash);
-    }
+    PaintSlantCap (p, keyRect, pressedIn, hovered,
+                   pressedIn ? kKeyFaceIn : kKeyHi,
+                   pressedIn ? kKeyLoIn   : kKeyLo);
 }
 
 

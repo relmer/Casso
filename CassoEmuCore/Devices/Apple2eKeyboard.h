@@ -98,6 +98,14 @@ public:
     void SetEightyColumnSwitchIn (bool in)   { m_eightyColSwitchIn.store    (in, memory_order_release); }
     void SetKeyboardSwitchDvorak (bool on)   { m_keyboardSwitchDvorak.store (on, memory_order_release); }
 
+    // Whether the HOST OS keyboard layout is itself a Dvorak variant. The
+    // shell probes this from the live layout and feeds it here. When the host
+    // is already Dvorak, MapTypedChar leaves the stream untouched even with the
+    // case switch engaged: the character the host delivered is the one the user
+    // intended, so remapping would double-translate. (A Dvorak-host user just
+    // types normally and Casso receives the key they actually hit.)
+    void SetHostKeyboardDvorak   (bool on)   { m_hostKeyboardDvorak.store   (on, memory_order_release); }
+
     bool IsEightyColumnSwitchIn  () const    { return m_eightyColSwitchIn.load    (memory_order_acquire); }
     bool IsKeyboardSwitchDvorak  () const    { return m_keyboardSwitchDvorak.load (memory_order_acquire); }
 
@@ -160,6 +168,7 @@ private:
     atomic<bool>                   m_apple2cMode          {false};
     atomic<bool>                   m_eightyColSwitchIn    {false};
     atomic<bool>                   m_keyboardSwitchDvorak {false};
+    atomic<bool>                   m_hostKeyboardDvorak   {false};
 
     // Last-emitted byte per button for coalescing (CPU thread only).
     // -1 means "nothing emitted yet"; a Byte never matches it.

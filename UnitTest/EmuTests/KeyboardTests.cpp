@@ -720,6 +720,26 @@ public:
             L"//c with the keyboard switch in must remap 's' to Dvorak 'o'");
     }
 
+    TEST_METHOD (MapTypedChar_PassthroughWhenHostIsDvorak)
+    {
+        // //c with the keyboard switch in, but the HOST layout is already
+        // Dvorak: the character we received is the one the user intended, so
+        // remapping would double-translate. Suppress it regardless of switch.
+        Apple2eKeyboard kbd;
+
+        kbd.SetApple2cMode          (true);
+        kbd.SetKeyboardSwitchDvorak (true);
+        kbd.SetHostKeyboardDvorak   (true);
+
+        Assert::AreEqual<Byte> ('s', kbd.MapTypedChar ('s'),
+            L"a Dvorak host must suppress the remap even with the switch in");
+
+        // Clearing the host flag (QWERTY host) re-enables the remap.
+        kbd.SetHostKeyboardDvorak (false);
+        Assert::AreEqual<Byte> ('o', kbd.MapTypedChar ('s'),
+            L"a QWERTY host with the switch in remaps 's' to Dvorak 'o'");
+    }
+
     TEST_METHOD (Dvorak_TypedThroughLatch_ReadsRemappedCharacter)
     {
         // End-to-end: the shell would feed MapTypedChar's result to KeyPress.

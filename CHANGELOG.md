@@ -53,13 +53,17 @@ Entries before versioning was introduced use dates only.
   startup, out selects 40; it is a software-read switch (a booting disk's
   `PR#3` acts on it), so the bare ROM screen is unaffected, matching real
   hardware. The **keyboard switch** remaps the typed character stream to the
-  Dvorak layout while engaged (QWERTY when out); paste is never remapped. A
+  Dvorak layout while engaged (QWERTY when out); the remap is skipped when the
+  host OS layout is itself Dvorak (a Dvorak-host user types normally, so the
+  received character is already correct), and paste is never remapped. A
   new skeuomorphic control strip — painted in the ImageWriter II platinum
   case colour, between the emulator viewport and the joystick/paddle/mouse
   bar, //c-only — reproduces the case top: a **reset** button (inert unless
   Ctrl is held, mirroring the real Control-Reset key; Open/Closed-Apple ride
-  it for cold boot), the two latching switches (drawn sunk when in, proud
-  when out), and lit **disk-use** / **power** indicator LEDs.
+  it for cold boot), the two latching switches, and lit **disk-use** /
+  **power** indicator LEDs. The reset button and switches are drawn as the
+  real hardware's right-slanted parallelogram caps, sitting proud of the case
+  and depressing below its surface when clicked — an unmistakable pressed cue.
 - **feat(cpu): live hardware IRQ dispatch** — the CPU loop now services
   maskable interrupts from the shared interrupt controller (the //c mouse
   and VBL are the first sources); the 65C02 vector prologue is accounted

@@ -109,6 +109,13 @@ private:
     static constexpr float kFontDip    = 12.5f;
     static constexpr float kFallbackCharPx = 6.6f;
 
+    // The real //c case switches are slanted parallelograms (top edge kicked
+    // right, matching the italic silk-screen labels). kSlantTan is tan of that
+    // lean; kCapTravel is how far a cap rides proud of / sunk below the case
+    // surface, as a fraction of the switch height -- the visible click cue.
+    static constexpr float kSlantTan   = 0.176f;   // ~10 degrees
+    static constexpr float kCapTravel  = 0.22f;
+
     // Case palette — fixed (theme-independent) so the strip always reads as the
     // //c case. kCase is the ImageWriter II platinum body colour, matching the
     // printer chrome so the two peripherals share a family.
@@ -125,13 +132,15 @@ private:
     static constexpr uint32_t  kCapText   = 0xFF5A5647;
     static constexpr uint32_t  kCapTextOff = 0xFF9A9484; // dormant (no Ctrl) reset label
 
-    static constexpr uint32_t  kWell      = 0xFF33302A;   // recessed slot behind a key
-    static constexpr uint32_t  kWellRim   = 0xFF211F1A;
+    static constexpr uint32_t  kSocket    = 0xFF33302A;   // molded recess the cap seats in
+    static constexpr uint32_t  kSocketRim = 0xFF211F1A;   // dark rim around the recess
     static constexpr uint32_t  kKeyFace   = 0xFFDED9CC;   // key top, out
-    static constexpr uint32_t  kKeyHi     = 0xFFF0ECE0;
-    static constexpr uint32_t  kKeyLo     = 0xFFBDB8AA;
-    static constexpr uint32_t  kKeyFaceIn = 0xFFB9B4A6;   // key top, pushed in (darker)
-    static constexpr uint32_t  kKeyShadow = 0x66000000;   // inner shadow above a sunk key
+    static constexpr uint32_t  kKeyHi     = 0xFFF0ECE0;   // cap face top, out (proud)
+    static constexpr uint32_t  kKeyLo     = 0xFFBDB8AA;   // cap face bottom, out
+    static constexpr uint32_t  kKeyFaceIn = 0xFFB2AD9F;   // cap face top, in (darkened)
+    static constexpr uint32_t  kKeyLoIn   = 0xFF938E80;   // cap face bottom, in (darker still)
+    static constexpr uint32_t  kKeyShadow = 0x66000000;   // inner shadow across a sunk cap
+    static constexpr uint32_t  kKeyDrop   = 0x55000000;   // drop shadow beneath a proud cap
 
     static constexpr uint32_t  kLedOff    = 0xFF25281F;   // dark LED (idle)
     static constexpr uint32_t  kLedGreen  = 0xFF3CE070;   // lit green (power / disk use)
@@ -164,6 +173,12 @@ private:
     void  PaintKey         (IDxuiPainter & p, const RECT & keyRect, bool pressedIn, bool hovered);
     void  PaintLed         (IDxuiPainter & p, const RECT & r, bool lit);
     void  PaintLabel       (IDxuiTextRenderer & text, const RECT & r, const wchar_t * s, float fontPx);
+
+    // Paints a slanted (parallelogram) cap seated in its case recess, riding
+    // proud of the surface when out and depressed below it when in -- the
+    // shared look for the reset button and both latching switches.
+    void  PaintSlantCap    (IDxuiPainter & p, const RECT & r, bool pressedIn,
+                            bool hovered, uint32_t faceHi, uint32_t faceLo);
 
     RECT                 m_bounds       = {};
     RECT                 m_resetRect    = {};

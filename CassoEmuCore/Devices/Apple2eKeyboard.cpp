@@ -264,12 +264,18 @@ void Apple2eKeyboard::KeyPressRaw (Byte asciiChar)
 //  the Dvorak encoder would have produced for that same physical key. In every
 //  other case the character passes through unchanged.
 //
+//  The remap only makes sense when the HOST layout is QWERTY. If the host is
+//  itself Dvorak, the character we received is already the one the user
+//  intended, so remapping would double-translate; we therefore leave the
+//  stream untouched whenever the host is Dvorak, regardless of the switch.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 Byte Apple2eKeyboard::MapTypedChar (Byte ascii) const
 {
-    if (m_apple2cMode.load (memory_order_acquire) &&
-        m_keyboardSwitchDvorak.load (memory_order_acquire))
+    if (m_apple2cMode.load          (memory_order_acquire) &&
+        m_keyboardSwitchDvorak.load (memory_order_acquire) &&
+        !m_hostKeyboardDvorak.load  (memory_order_acquire))
     {
         return QwertyToDvorak (ascii);
     }

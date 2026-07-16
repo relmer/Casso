@@ -4767,6 +4767,35 @@ DxuiMessageResult EmulatorShell::OnKeyUp (WPARAM vk, LPARAM lParam)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HostKeyboardLayoutIsDvorak
+//
+//  True when the host's active keyboard layout is a Dvorak variant. Probed
+//  behaviourally rather than by KLID string, so it catches every Dvorak layout
+//  (US, left/right-hand, third-party) without a hard-coded list: VkKeyScanEx
+//  reports which physical key (VK code) produces 'o'. On QWERTY that is VK 'O';
+//  on Dvorak 'o' lives on the physical 'S' key, so it reports VK 'S'. Unlike
+//  ToUnicode this leaves no dead-key state behind. The //c keyboard switch only
+//  needs to remap when the host is QWERTY -- see Apple2eKeyboard::MapTypedChar.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+static bool HostKeyboardLayoutIsDvorak ()
+{
+    HKL    hkl = GetKeyboardLayout (0);
+    SHORT  vk  = VkKeyScanExW (L'o', hkl);
+
+    if (vk == -1)
+    {
+        return false;                      // 'o' unreachable -> assume QWERTY
+    }
+
+    return LOBYTE (vk) == 'S';
+}
+
+
 bool EmulatorShell::OnViewportKey (const DxuiKeyEvent & ev)
 {
     // Arrow keys double as the emulated joystick axes / the X / Z keys as
@@ -4874,10 +4903,18 @@ bool EmulatorShell::OnViewportKey (const DxuiKeyEvent & ev)
         if (ch >= 1 && ch <= 127)
         {
             // //c keyboard switch: remap physical keystrokes to Dvorak when the
-            // switch is engaged. A no-op on the //e and on QWERTY. Clipboard
-            // paste feeds KeyPress directly (not this path), so pasted text is
-            // never remapped -- matching the hardware encoder.
+            // switch is engaged. A no-op on the //e, when the switch is out, and
+            // when the HOST layout is already Dvorak (the shell feeds that live
+            // so MapTypedChar can skip the remap and avoid double-translating).
+            // Clipboard paste feeds KeyPress directly (not this path), so pasted
+            // text is never remapped -- matching the hardware encoder.
             auto  * iieKbd = dynamic_cast<Apple2eKeyboard *> (m_refs.keyboard);
+
+            if (iieKbd != nullptr)
+            {
+                iieKbd->SetHostKeyboardDvorak (HostKeyboardLayoutIsDvorak());
+            }
+
             Byte    code   = (iieKbd != nullptr) ? iieKbd->MapTypedChar (static_cast<Byte> (ch))
                                                  : static_cast<Byte> (ch);
 
