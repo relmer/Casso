@@ -257,7 +257,8 @@ void DiskImage::WriteBit (int track, size_t bitIndex, uint8_t bit)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  IsDirty / IsWriteProtected / GetSourceFormat / IsTrackDirty / ClearDirty
+//  IsDirty / IsWriteProtected / GetWriteProtectInfo / GetSourceFormat /
+//  IsTrackDirty / ClearDirty
 //
 ////////////////////////////////////////////////////////////////////////////////
 

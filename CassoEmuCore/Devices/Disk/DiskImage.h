@@ -41,7 +41,6 @@ public:
     void          WriteBit          (int track, size_t bitIndex, uint8_t bit) override;
     bool          IsDirty           () const override;
     bool          IsWriteProtected  () const override;
-    WriteProtectInfo GetWriteProtectInfo () const override;
     DiskFormat    GetSourceFormat   () const override;
     HRESULT       Serialize         (vector<Byte> & outBytes) const override;
 
@@ -67,6 +66,7 @@ public:
     }
     bool             IsImageWriteProtected  () const { return m_imageWriteProtected; }
     bool             IsUserWriteProtected   () const { return m_userWriteProtected;  }
+    WriteProtectInfo GetWriteProtectInfo    () const;
 
     const string &   GetFilePath         () const { return m_filePath; }
     void             SetSourceFormat     (DiskFormat fmt) { m_format = fmt; }

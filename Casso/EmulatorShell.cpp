@@ -2733,6 +2733,7 @@ void EmulatorShell::SetColorMonitorTextArgbLive (uint32_t argb)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  SetDriveUserWriteProtect

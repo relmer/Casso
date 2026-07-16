@@ -90,7 +90,6 @@ public:
     virtual void          WriteBit            (int track, size_t bitIndex, uint8_t bit) = 0;
     virtual bool          IsDirty             () const = 0;
     virtual bool          IsWriteProtected    () const = 0;
-    virtual WriteProtectInfo GetWriteProtectInfo () const = 0;
     virtual DiskFormat    GetSourceFormat     () const = 0;
     virtual HRESULT       Serialize           (std::vector<uint8_t> & outBytes) const = 0;
 };
