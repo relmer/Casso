@@ -16,9 +16,10 @@ namespace PrinterPacingTests
     static PrinterPacing::Config Cfg (double dotsPerSec, int rowsPerSweep, double coalesce)
     {
         PrinterPacing::Config   c;
-        c.dotsPerSecond = dotsPerSec;
-        c.rowsPerSweep  = rowsPerSweep;
-        c.coalesceRows  = coalesce;
+        c.dotsPerSecond     = dotsPerSec;
+        c.rowsPerSweep      = rowsPerSweep;
+        c.coalesceRows      = coalesce;
+        c.maxAdvanceSeconds = 1.0e9;   // the sweep-math tests inject large time steps; don't clamp them
         return c;
     }
 
@@ -245,6 +246,31 @@ namespace PrinterPacingTests
 
             Assert::AreEqual (0,  p.Advance (12345.0));   // baseline, no progress
             Assert::AreEqual (16, p.Advance (12346.0));   // +1 s -> 1 band
+        }
+
+
+        TEST_METHOD (LargeDtIsCappedSoAStalledSweepAnimates)
+        {
+            // A long render-loop stall (big dt) must NOT finish a whole pass in
+            // one Advance -- otherwise the head teleports a full sweep the frame
+            // the loop wakes. With a 0.05s cap at 1280 dots/s, one Advance moves
+            // at most 64 dots, leaving the head mid-pass (not caught up) so the
+            // panel keeps animating the rest.
+            PrinterPacing::Config   c;
+            c.dotsPerSecond     = 1280.0;
+            c.rowsPerSweep      = 16;
+            c.coalesceRows      = 1.0e9;
+            c.maxAdvanceSeconds = 0.05;
+
+            PrinterPacing   p (c);
+            p.Reset (0.0);
+            p.SetTargetRows (1000);
+
+            Assert::AreEqual (0,  p.Advance (10.0));    // 10s stall -> capped, no band completes
+            Assert::AreEqual (64, p.RevealedColDots()); // only 1280 * 0.05 swept
+            Assert::IsFalse  (p.IsCaughtUp());
+            Assert::AreEqual (0,  p.Advance (10.05));   // next real frame continues the pass...
+            Assert::AreEqual (128, p.RevealedColDots());
         }
 
 

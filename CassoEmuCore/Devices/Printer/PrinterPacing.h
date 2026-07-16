@@ -56,6 +56,16 @@ public:
         double  dotsPerSecond = 4000.0;                     // head sweep across the band (FR-034)
         int     rowsPerSweep  = PrinterGrid::kPinBandRows;  // rows revealed per full-width sweep
         double  coalesceRows  = 2000.0;                     // backlog beyond this -> jump-cut
+
+        // Ceiling on the dt a single Advance may act on. The panel's render loop
+        // drops to a coarse idle tick between the guest's data bursts, so the
+        // first Advance after a stall carries a large dt; without this the head
+        // would complete a whole pass (or several) in one frame -- a visible
+        // jump. Capping it leaves the head mid-sweep, which keeps the panel's
+        // animation cadence hot so the pass animates over frames. ~1/6 of a pass
+        // at the default speed; well above any real frame interval, so only
+        // post-stall frames are ever clamped.
+        double  maxAdvanceSeconds = 0.05;
     };
 
     explicit PrinterPacing (const Config & cfg = Config ());

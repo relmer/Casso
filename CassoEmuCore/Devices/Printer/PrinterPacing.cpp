@@ -131,6 +131,11 @@ int PrinterPacing::Advance (double nowSeconds)
 
     m_lastTime = nowSeconds;
 
+    if (dt > m_cfg.maxAdvanceSeconds)
+    {
+        dt = m_cfg.maxAdvanceSeconds;   // a long render stall must not leap a whole pass in one frame
+    }
+
     // Already at the newest content: the carriage rests where its last pass left
     // it (a margin). Do NOT move the column -- parking in place is exactly what
     // lets the next band resume the sweep from that margin instead of jumping.
