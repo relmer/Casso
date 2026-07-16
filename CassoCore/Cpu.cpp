@@ -296,11 +296,17 @@ void Cpu::StepOne()
             DumpInstructionTrace (opcode, PC);
         }
 
-        ASSERT (false);
+        // Do NOT break into the debugger on an illegal / not-yet-implemented
+        // opcode: real software (e.g. Space Quarks) legitimately executes NMOS
+        // undocumented ops we have not added yet (GH #52), and the DEBUGMSG above
+        // already records the opcode + PC. Treat it as a 2-cycle single-byte NOP
+        // and keep running. Uncomment the assert to break in while tracking down
+        // a specific illegal-opcode fault.
+        // ASSERT (false);
 
         m_lastCycles = 2;
         ++PC;
-        
+
         return;
     }
 
