@@ -132,15 +132,19 @@ private:
     static constexpr uint32_t  kCapText   = 0xFF5A5647;
     static constexpr uint32_t  kCapTextOff = 0xFF9A9484; // dormant (no Ctrl) reset label
 
-    static constexpr uint32_t  kSocket    = 0xFF33302A;   // molded recess the cap seats in
-    static constexpr uint32_t  kSocketRim = 0xFF211F1A;   // dark rim around the recess
+    // The recess is a shallow molded depression, only a touch darker than the
+    // case -- depth comes from soft gradient shadows, not a dark fill (a
+    // near-black slot read as an unexplained block behind a proud cap).
+    static constexpr uint32_t  kSocket    = 0xFFC9C4B5;   // molded recess floor (subtle)
+    static constexpr uint32_t  kSocketRim = 0xFF9A9484;   // thin rim around the recess
     static constexpr uint32_t  kKeyFace   = 0xFFDED9CC;   // key top, out
     static constexpr uint32_t  kKeyHi     = 0xFFF0ECE0;   // cap face top, out (proud)
     static constexpr uint32_t  kKeyLo     = 0xFFBDB8AA;   // cap face bottom, out
     static constexpr uint32_t  kKeyFaceIn = 0xFFB2AD9F;   // cap face top, in (darkened)
     static constexpr uint32_t  kKeyLoIn   = 0xFF938E80;   // cap face bottom, in (darker still)
-    static constexpr uint32_t  kKeyShadow = 0x66000000;   // inner shadow across a sunk cap
-    static constexpr uint32_t  kKeyDrop   = 0x55000000;   // drop shadow beneath a proud cap
+    static constexpr uint32_t  kShadowDk  = 0x70000000;   // near edge of a cast shadow gradient
+    static constexpr uint32_t  kShadowLt  = 0x55000000;   // proud cap's lighter drop shadow
+    static constexpr uint32_t  kShadowNil = 0x00000000;   // far edge (fully transparent)
 
     static constexpr uint32_t  kLedOff    = 0xFF25281F;   // dark LED (idle)
     static constexpr uint32_t  kLedGreen  = 0xFF3CE070;   // lit green (power / disk use)

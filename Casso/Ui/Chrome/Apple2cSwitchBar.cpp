@@ -153,18 +153,21 @@ void Apple2cSwitchBar::Layout (const RECT & boundsDip, const DxuiDpiScaler & sca
     m_kbdRect  = RECT { m_kbdKey.left, m_kbdKey.top, m_kbdLabel.right, m_kbdKey.bottom };
 
     // Right group: [disk-use LED] "disk use"  [power LED] "power", right-anchored.
+    // The LEDs lean the same way as the switches, so budget their overhang too.
+    int  slantLed  = (int) (ledH * kSlantTan + 0.5f);
+    int  ledBoxW   = ledW + slantLed;
     int  diskLblW  = (int) (MeasureLabel (kLabelDiskUse, fontPx) + 0.5f);
     int  powerLblW = (int) (MeasureLabel (kLabelPower,   fontPx) + 0.5f);
-    int  rightW    = ledW + lblGap + diskLblW + indGap + ledW + lblGap + powerLblW;
+    int  rightW    = ledBoxW + lblGap + diskLblW + indGap + ledBoxW + lblGap + powerLblW;
     int  rx        = boundsDip.right - edge - rightW;
 
-    m_diskLed   = RECT { rx, cy - ledH / 2, rx + ledW, cy + ledH / 2 };
-    rx += ledW + lblGap;
+    m_diskLed   = RECT { rx, cy - ledH / 2, rx + ledBoxW, cy + ledH / 2 };
+    rx = m_diskLed.right + lblGap;
     m_diskLabel = RECT { rx, boundsDip.top, rx + diskLblW, boundsDip.bottom };
     rx += diskLblW + indGap;
 
-    m_powerLed   = RECT { rx, cy - ledH / 2, rx + ledW, cy + ledH / 2 };
-    rx += ledW + lblGap;
+    m_powerLed   = RECT { rx, cy - ledH / 2, rx + ledBoxW, cy + ledH / 2 };
+    rx = m_powerLed.right + lblGap;
     m_powerLabel = RECT { rx, boundsDip.top, rx + powerLblW, boundsDip.bottom };
 }
 
@@ -267,20 +270,24 @@ void Apple2cSwitchBar::PaintResetButton (IDxuiPainter & p, IDxuiTextRenderer & t
 //
 //  PaintSlantCap
 //
-//  The shared skeuomorphic cap: a right-leaning parallelogram seated in a dark
-//  molded recess. Out (proud) the cap rides at the top of its recess, brightly
-//  top-lit with a highlight edge and a shadow gap opening beneath it -- it reads
-//  as sitting above the case surface. In (pressed) the cap drops by kCapTravel,
-//  its face darkened, with the recess mouth exposed above it and an inner shadow
-//  cast across its top -- it reads as pushed below the surface. The two states
-//  differ in cap brightness, vertical position, AND shadow direction, so the
-//  clicked state is unambiguous at a glance.
+//  The shared skeuomorphic cap: a right-leaning parallelogram seated in a
+//  shallow molded recess. Out (proud) the cap rides at the top, brightly
+//  top-lit, with a soft shadow gradient fading down onto the case beneath it --
+//  it reads as sitting above the surface. In (pressed) the cap drops by
+//  kCapTravel, its face darkened, and the recess lip above casts a smooth
+//  shadow gradient down across the sunk cap -- it reads as pushed below the
+//  surface. The two states differ in cap brightness, vertical position, AND
+//  shadow direction, so the clicked state is unambiguous at a glance. All
+//  shadows are vertical gradients (dark at the casting edge, fading to clear)
+//  rather than flat blocks.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void Apple2cSwitchBar::PaintSlantCap (IDxuiPainter & p, const RECT & r, bool pressedIn,
                                       bool hovered, uint32_t faceHi, uint32_t faceLo)
 {
+    constexpr int  kStrips = 10;
+
     float  x       = (float) r.left;
     float  y       = (float) r.top;
     float  w       = (float) (r.right - r.left);
@@ -294,21 +301,26 @@ void Apple2cSwitchBar::PaintSlantCap (IDxuiPainter & p, const RECT & r, bool pre
     float  capY    = pressedIn ? y + travel : y;
 
 
-    // Molded recess: dark rim, slightly lighter floor.
+    // Shallow molded recess: thin rim, subtle floor (barely darker than case).
     ShearFill (p, x,        y,        bodyW,        h,        tan, refB, kSocketRim);
     ShearFill (p, x + 1.0f, y + 1.0f, bodyW - 2.0f, h - 2.0f, tan, refB, kSocket);
 
-    // Cap face, top-lit gradient.
-    ShearGrad (p, x + 1.0f, capY, bodyW - 2.0f, capH, tan, refB, faceHi, faceLo, 7);
-
-    if (!pressedIn)
+    if (pressedIn)
     {
-        ShearFill (p, x + 1.0f, capY, bodyW - 2.0f, 1.5f, tan, refB, kKeyHi);            // top catchlight
-        ShearFill (p, x + 1.0f, capY + capH, bodyW - 2.0f, travel, tan, refB, kKeyDrop); // shadow gap beneath
+        // Cap face first, then the recess-lip shadow gradient laid over the
+        // exposed mouth above the cap and softly onto the cap's upper face.
+        ShearGrad (p, x + 1.0f, capY, bodyW - 2.0f, capH, tan, refB, faceHi, faceLo, kStrips);
+        ShearGrad (p, x + 1.0f, y + 1.0f, bodyW - 2.0f, travel + capH * 0.55f,
+                   tan, refB, kShadowDk, kShadowNil, kStrips);
     }
     else
     {
-        ShearFill (p, x + 1.0f, capY, bodyW - 2.0f, capH * 0.34f, tan, refB, kKeyShadow); // inner top shadow
+        // Proud cap, a bright top catchlight, then a soft drop shadow fading
+        // down the exposed recess floor beneath the raised cap.
+        ShearGrad (p, x + 1.0f, capY, bodyW - 2.0f, capH, tan, refB, faceHi, faceLo, kStrips);
+        ShearFill (p, x + 1.0f, capY, bodyW - 2.0f, 1.5f, tan, refB, kKeyHi);
+        ShearGrad (p, x + 1.0f, capY + capH - 1.0f, bodyW - 2.0f, travel + 1.0f,
+                   tan, refB, kShadowLt, kShadowNil, kStrips);
     }
 
     if (hovered)
@@ -343,19 +355,24 @@ void Apple2cSwitchBar::PaintKey (IDxuiPainter & p, const RECT & keyRect, bool pr
 //
 //  PaintLed
 //
-//  A thin vertical indicator bar. Lit LEDs carry a soft green glow; idle LEDs
-//  read as a dark recessed lamp.
+//  A thin indicator lamp, slanted to match the case switches. Lit LEDs carry a
+//  soft green glow with a specular catch; idle LEDs read as a dark recessed
+//  lamp. The glow halo stays radial (a diffuse bloom has no edge to slant).
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void Apple2cSwitchBar::PaintLed (IDxuiPainter & p, const RECT & r, bool lit)
 {
-    float  x  = (float) r.left;
-    float  y  = (float) r.top;
-    float  w  = (float) (r.right - r.left);
-    float  h  = (float) (r.bottom - r.top);
-    float  cx = x + w * 0.5f;
-    float  cy = y + h * 0.5f;
+    float  x     = (float) r.left;
+    float  y     = (float) r.top;
+    float  w     = (float) (r.right - r.left);
+    float  h     = (float) (r.bottom - r.top);
+    float  tan   = kSlantTan;
+    float  refB  = y + h;
+    float  dx    = h * tan;
+    float  bodyW = w - dx;                   // lamp body width (bbox minus overhang)
+    float  cx    = x + w * 0.5f;             // body centre at mid-height
+    float  cy    = y + h * 0.5f;
 
 
     if (lit)
@@ -366,17 +383,17 @@ void Apple2cSwitchBar::PaintLed (IDxuiPainter & p, const RECT & r, bool lit)
         {
             float     t = (float) ring / (float) (kRings + 1);
             uint32_t  a = (uint32_t) (110.0f * (1.0f - t) * (1.0f - t) + 0.5f);
-            p.FillCircleApprox (cx, cy, (w * 0.5f) + (h * 0.55f) * t,
+            p.FillCircleApprox (cx, cy, (bodyW * 0.5f) + (h * 0.55f) * t,
                                 (a << 24) | (kLedGreenGlow & 0x00FFFFFF));
         }
     }
 
-    p.OutlineRect (x - 1.0f, y - 1.0f, w + 2.0f, h + 2.0f, 1.0f, kLedRim);
-    p.FillRect    (x, y, w, h, lit ? kLedGreen : kLedOff);
+    ShearFill (p, x,        y,        bodyW,        h,        tan, refB, kLedRim);
+    ShearFill (p, x + 1.0f, y + 1.0f, bodyW - 2.0f, h - 2.0f, tan, refB, lit ? kLedGreen : kLedOff);
 
     if (lit)
     {
-        p.FillRect (x + 1.0f, y + 1.0f, w * 0.4f, h * 0.4f, 0x66FFFFFF);   // specular
+        ShearFill (p, x + 1.5f, y + 1.5f, bodyW * 0.4f, h * 0.4f, tan, refB, 0x66FFFFFF);   // specular
     }
 }
 
