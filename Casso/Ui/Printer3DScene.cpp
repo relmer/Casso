@@ -22,7 +22,7 @@ static constexpr float   s_kPi = 3.14159265f;
 
 // Case footprint. Width and overall depth are set to match the width:
 // height:depth ratio (3.740 : 1.0 : 2.696) measured off the user's
-// reference CAD model (Tinkercad export, Assets/Imagewriter II.zip); the
+// reference CAD model (Assets/Imagewriter II 3D model (Tinkercad).zip); the
 // extra depth lands entirely in the rear deck (no explicit rule ever fixed
 // its depth, unlike the front-portion ratios below).
 static constexpr float   s_kBodyHalfW  = 0.907f;
