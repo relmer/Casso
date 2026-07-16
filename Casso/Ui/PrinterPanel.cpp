@@ -698,6 +698,7 @@ void PrinterPanel::RefreshLive (PrinterWorker & worker, int64_t nowMs, bool forc
         m_pacing.Reset (nowSec, 0);
         m_spanImgValid = false;
         m_panYSeeded   = false;   // reseed onto the fresh sheet, don't glide across the tear
+        m_headCol01    = -1.0f;   // and don't glide the carriage across the tear either
     }
 
     // First refresh starts caught up at the head, so opening the panel over a
@@ -747,7 +748,37 @@ void PrinterPanel::RefreshLive (PrinterWorker & worker, int64_t nowMs, bool forc
 
     if (m_scene != nullptr)
     {
-        m_scene->SetHeadColumn01 ((float) revealCol / (float) PrinterGrid::kDotsPerRow);
+        // The reveal column is where ink is being laid; the VISIBLE carriage
+        // chases it but is a physical object -- it can move at most the real
+        // carriage speed and must never teleport. During continuous printing the
+        // frontier advances at exactly this rate, so the head tracks it with no
+        // lag; when the frontier snaps to an edge (reveal caught up) or restarts
+        // from the opposite edge (next band, flipped direction), the head glides
+        // across instead of jumping -- which is what makes the sweep read smooth.
+        float   headTarget01 = (float) revealCol / (float) PrinterGrid::kDotsPerRow;
+
+        if (m_headCol01 < 0.0f)
+        {
+            m_headCol01 = headTarget01;   // first frame on a fresh sheet: adopt, don't glide in
+        }
+        else
+        {
+            double  dt      = nowSec - m_headColLastSec;
+            float   maxStep = 0.0f;
+            float   delta   = headTarget01 - m_headCol01;
+
+            if (dt < 0.0) { dt = 0.0; }
+
+            maxStep = (float) (m_pacing.DotsPerSecond() / (double) PrinterGrid::kDotsPerRow * dt);
+
+            if      (delta >  maxStep) { delta =  maxStep; }
+            else if (delta < -maxStep) { delta = -maxStep; }
+
+            m_headCol01 += delta;
+        }
+        m_headColLastSec = nowSec;
+
+        m_scene->SetHeadColumn01 (m_headCol01);
 
         // Front-panel status lamps carry fixed per-lamp meanings (see
         // Printer3DScene::LampRole): Power + Select sit steady-lit while the

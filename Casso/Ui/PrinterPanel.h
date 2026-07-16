@@ -232,6 +232,16 @@ private:
     int                     m_renderedRevealRow = -1;
     int                     m_renderedRevealCol = -1;
 
+    // Eased carriage position (0..1 across the platen) for the visible head
+    // glyph. The reveal column snaps to an edge whenever the reveal catches the
+    // guest and restarts from the opposite edge on the next band, so binding the
+    // head straight to it teleports the carriage between edges when the guest's
+    // band cadence is slower than one sweep. We instead glide the head toward the
+    // ink frontier, capped at the pacing's own carriage speed, so a physical head
+    // can never jump. -1 = unseeded (adopt the target without gliding in).
+    float                   m_headCol01        = -1.0f;
+    double                  m_headColLastSec   = 0.0;
+
     // Ink-under-head flag for the printer audio (see GetPacedReveal): true when
     // the pin band at the paced reveal carries ink just behind the sweep column.
     // Recomputed each render from the span raster; false on a blank sheet.

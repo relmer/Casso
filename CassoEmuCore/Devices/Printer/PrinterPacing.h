@@ -89,6 +89,12 @@ public:
     int   TargetRows   () const;
     bool  IsCaughtUp   () const;   // no rows left to reveal (sweep may continue)
 
+    // The carriage sweep rate (dots/second) -- the ONLY pace in the model. The
+    // presenter uses it to cap how fast the VISIBLE head glyph may travel so the
+    // physical carriage can never teleport across the platen (the reveal column
+    // itself snaps to an edge on catch-up; the head must glide, not jump).
+    double  DotsPerSecond () const { return m_cfg.dotsPerSecond; }
+
     // The real ImageWriter prints bidirectionally: each line's carriage pass
     // runs opposite to the last. This flag flips every time a fresh line's sweep
     // begins (see Advance), so the presenter can drive the head + ink reveal
