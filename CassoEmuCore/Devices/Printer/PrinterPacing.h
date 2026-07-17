@@ -57,15 +57,19 @@ public:
         int     rowsPerSweep  = PrinterGrid::kPinBandRows;  // rows revealed per full-width sweep
         double  coalesceRows  = 2000.0;                     // backlog beyond this -> jump-cut
 
-        // Ceiling on the dt a single Advance may act on. The panel's render loop
-        // drops to a coarse idle tick between the guest's data bursts, so the
-        // first Advance after a stall carries a large dt; without this the head
-        // would complete a whole pass (or several) in one frame -- a visible
-        // jump. Capping it leaves the head mid-sweep, which keeps the panel's
-        // animation cadence hot so the pass animates over frames. ~1/6 of a pass
-        // at the default speed; well above any real frame interval, so only
-        // post-stall frames are ever clamped.
-        double  maxAdvanceSeconds = 0.05;
+        // The panel's render loop drops to a coarse idle tick between the guest's
+        // data bursts, so the first Advance after a gap carries a large dt.
+        // Acting on it whole would leap a full carriage pass (or several) in one
+        // frame -- a visible jump. But a fixed ceiling on every dt is worse: it
+        // also clamps merely-slow frames, dragging the sweep below carriage speed
+        // whenever the frame rate dips (the "sometimes very slow" head). So a dt
+        // beyond resumeThresholdSeconds is treated as a RESUME from a parked loop
+        // -- the head advances only resumeNudgeSeconds to re-arm the sweep (which
+        // re-hots the loop), and the backlog then animates over the frames that
+        // follow. Normal and slow frames pass through untouched, so the sweep
+        // always runs at full carriage speed regardless of frame rate.
+        double  resumeThresholdSeconds = 0.20;   // dt above this == the loop was parked, not merely slow
+        double  resumeNudgeSeconds     = 0.02;   // advance only this much on the resume frame
     };
 
     explicit PrinterPacing (const Config & cfg = Config ());

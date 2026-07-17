@@ -16,10 +16,10 @@ namespace PrinterPacingTests
     static PrinterPacing::Config Cfg (double dotsPerSec, int rowsPerSweep, double coalesce)
     {
         PrinterPacing::Config   c;
-        c.dotsPerSecond     = dotsPerSec;
-        c.rowsPerSweep      = rowsPerSweep;
-        c.coalesceRows      = coalesce;
-        c.maxAdvanceSeconds = 1.0e9;   // the sweep-math tests inject large time steps; don't clamp them
+        c.dotsPerSecond          = dotsPerSec;
+        c.rowsPerSweep           = rowsPerSweep;
+        c.coalesceRows           = coalesce;
+        c.resumeThresholdSeconds = 1.0e9;   // math tests inject large discrete steps; don't treat them as resumes
         return c;
     }
 
@@ -249,28 +249,34 @@ namespace PrinterPacingTests
         }
 
 
-        TEST_METHOD (LargeDtIsCappedSoAStalledSweepAnimates)
+        TEST_METHOD (StallResumesWithoutLeapingButSlowFramesAreNotThrottled)
         {
-            // A long render-loop stall (big dt) must NOT finish a whole pass in
-            // one Advance -- otherwise the head teleports a full sweep the frame
-            // the loop wakes. With a 0.05s cap at 1280 dots/s, one Advance moves
-            // at most 64 dots, leaving the head mid-pass (not caught up) so the
-            // panel keeps animating the rest.
+            // Two things at once. (1) A long idle-loop stall (huge dt) must NOT
+            // leap a whole pass on resume -- it nudges the head just off the
+            // margin so the sweep re-arms and animates the rest. (2) A merely-slow
+            // frame (dt under the resume threshold) is NOT clamped -- it advances
+            // the full carriage speed for its dt, so a low frame rate never drags
+            // the sweep slow.
             PrinterPacing::Config   c;
-            c.dotsPerSecond     = 1280.0;
-            c.rowsPerSweep      = 16;
-            c.coalesceRows      = 1.0e9;
-            c.maxAdvanceSeconds = 0.05;
+            c.dotsPerSecond          = 1280.0;
+            c.rowsPerSweep           = 16;
+            c.coalesceRows           = 1.0e9;
+            c.resumeThresholdSeconds = 0.20;
+            c.resumeNudgeSeconds     = 0.02;
 
             PrinterPacing   p (c);
             p.Reset (0.0);
             p.SetTargetRows (1000);
 
-            Assert::AreEqual (0,  p.Advance (10.0));    // 10s stall -> capped, no band completes
-            Assert::AreEqual (64, p.RevealedColDots()); // only 1280 * 0.05 swept
+            Assert::AreEqual (0, p.Advance (10.0));      // 10s stall -> resume nudge, no pass completes
+            int  afterStall = p.RevealedColDots();
+            Assert::IsTrue   (afterStall > 0 && afterStall < 200);   // just off the margin, nowhere near a full pass
             Assert::IsFalse  (p.IsCaughtUp());
-            Assert::AreEqual (0,  p.Advance (10.05));   // next real frame continues the pass...
-            Assert::AreEqual (128, p.RevealedColDots());
+
+            // A slow 10 fps frame (dt 0.1 < 0.2 threshold) is unthrottled: full
+            // carriage speed is 1280 * 0.1 = 128 dots, not a clamped sliver.
+            p.Advance (10.1);
+            Assert::IsTrue   (p.RevealedColDots() - afterStall > 100);
         }
 
 

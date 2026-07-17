@@ -131,9 +131,9 @@ int PrinterPacing::Advance (double nowSeconds)
 
     m_lastTime = nowSeconds;
 
-    if (dt > m_cfg.maxAdvanceSeconds)
+    if (dt > m_cfg.resumeThresholdSeconds)
     {
-        dt = m_cfg.maxAdvanceSeconds;   // a long render stall must not leap a whole pass in one frame
+        dt = m_cfg.resumeNudgeSeconds;   // resuming from a parked loop: nudge to re-arm the sweep, don't leap the gap
     }
 
     // Already at the newest content: the carriage rests where its last pass left
