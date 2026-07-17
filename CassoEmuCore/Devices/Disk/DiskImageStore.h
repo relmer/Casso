@@ -34,19 +34,18 @@
 //  image but couldn't (serialize failure, or the file/sink write failed)
 //  used to vanish -- every caller drops FlushEntry's HRESULT (Eject and
 //  PowerCycle are void; the shell/SoftReset IGNORE_RETURN_VALUE it), so a
-//  user's writes could be silently lost. SetFlushErrorReporter installs a
-//  callback that FlushEntry invokes on genuine failure, so the loss is
-//  surfaced (the shell logs + notifies the user) regardless of what the
-//  caller does with the return. Kept UI-agnostic by injection, like
-//  SetFlushSink, so it is headlessly testable.
+//  user's writes could be silently lost. FlushEntry now surfaces the loss
+//  itself through the shared EHM notifier (CHRN/CBRN -> EhmNotifyUser),
+//  which routes to whatever handler the host registered (a MessageBox in
+//  the GUI, stderr headless), so the report reaches the user regardless of
+//  what the caller does with the return.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 class DiskImageStore
 {
 public:
-    using FlushSink          = std::function<HRESULT (const string &, const vector<Byte> &)>;
-    using FlushErrorReporter = std::function<void (const string &, HRESULT)>;
+    using FlushSink = std::function<HRESULT (const string &, const vector<Byte> &)>;
 
     static constexpr int   kSlotCount  = 8;
     static constexpr int   kDriveCount = 2;
@@ -67,7 +66,6 @@ public:
     const string &GetSourcePath     (int slot, int drive) const;
 
     void          SetFlushSink      (FlushSink sink) { m_flushSink = std::move (sink); }
-    void          SetFlushErrorReporter (FlushErrorReporter reporter) { m_flushErrorReporter = std::move (reporter); }
 
     static HRESULT  DetectFormatByExtension (const string & path, DiskFormat & outFmt);
 
@@ -84,8 +82,11 @@ private:
     const Entry & At                (int slot, int drive) const;
     HRESULT       FlushEntry        (Entry & entry);
 
-    Entry              m_entries[kSlotCount][kDriveCount];
-    FlushSink          m_flushSink;
-    FlushErrorReporter m_flushErrorReporter;
-    string             m_emptyPath;
+    // Builds the user-facing "could not save" message from the mount path;
+    // handed to CHRN/CBRN in FlushEntry on a genuine persist failure.
+    static wstring FormatFlushLossMessage (const string & path);
+
+    Entry      m_entries[kSlotCount][kDriveCount];
+    FlushSink  m_flushSink;
+    string     m_emptyPath;
 };
