@@ -1,5 +1,6 @@
 #include "Pch.h"
 
+#include "Devices/Printer/DraftFont.h"
 #include "Devices/Printer/ImageWriterInterpreter.h"
 #include "Devices/Printer/PrintRaster.h"
 
@@ -64,7 +65,7 @@ static int DecodeAsciiDigits (const Byte * digits, int count)
 
     for (i = 0; i < count; i++)
     {
-        Byte   d = digits[i];
+        Byte   d = (Byte) (digits[i] & 0x7F);   // ASCII digits by definition: BASIC sends them high-bit set
 
         if (d >= '0' && d <= '9')
         {
@@ -213,14 +214,21 @@ void ImageWriterInterpreter::Consume (
 //
 //  ConsumeIdle
 //
-//  Ground state: control codes act; ESC opens a command; printable ASCII is
-//  consumed but not rendered (the draft font arrives with US6); other control
-//  bytes are ignored.
+//  Ground state: control codes act; ESC opens a command; printable ASCII
+//  renders in the built-in draft font (US6); other control bytes are ignored.
+//
+//  The high data bit is masked here (and only here): Apple firmware output --
+//  PR#1, LIST, CATALOG -- arrives as high-bit ASCII ($8D CR, $C1 'A'), and the
+//  printer's documented default is to ignore the 8th data bit for text and
+//  commands. Binary command parameters and bit-image data (the Param and
+//  GraphicsData states) keep all 8 bits.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void ImageWriterInterpreter::ConsumeIdle (Byte b, PrintRaster & raster, vector<PrinterEvent> & events)
 {
+    b &= 0x7F;
+
     if (b == s_kCR)
     {
         m_headColumnDots = 0;
@@ -249,8 +257,86 @@ void ImageWriterInterpreter::ConsumeIdle (Byte b, PrintRaster & raster, vector<P
     }
     else if (b >= s_kPrintableLo && b <= s_kPrintableHi)
     {
-        // Consumed-not-rendered until the US6 draft font.
+        RenderTextChar (b, raster, events);
     }
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RenderTextChar
+//
+//  One printable character in the built-in draft font (US6) at the current
+//  pitch. The glyph's 7 stored columns map onto the character cell exactly the
+//  way ESC L's 120-dpi columns map onto the native grid: sub-column i spans
+//  native dots [i*cell/8, (i+1)*cell/8), so every documented pitch density
+//  lays down cleanly (the 8th sub-column is the inter-character gap). Set bits
+//  strike pins top-down (bit 0 = top, like ESC G), each filling 2 native rows.
+//  A character that would cross the right margin wraps first -- the real
+//  machine prints its overflowing line buffer with an implicit CR + LF.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ImageWriterInterpreter::RenderTextChar (Byte ch, PrintRaster & raster, vector<PrinterEvent> & events)
+{
+    int   cellDots = m_pitchDotsPerChar;
+    int   row      = 0;
+    int   sub      = 0;
+    int   bit      = 0;
+
+    if (cellDots <= 0)
+    {
+        return;
+    }
+
+    if (m_headColumnDots + cellDots > PrinterGrid::kDotsPerRow)
+    {
+        PrinterEvent   ev;
+
+        raster.AdvanceRows (m_lineFeedRows);
+        m_headColumnDots = 0;
+        ev.type = PrinterEventType::LineFeed;
+        ev.rows = m_lineFeedRows;
+        events.push_back (ev);
+    }
+
+    row = raster.PaperRow();
+
+    {
+        const Byte *  glyph = DraftFont::kGlyphs[ch - DraftFont::kGlyphFirst];
+
+        for (sub = 0; sub < DraftFont::kGlyphCols; sub++)
+        {
+            Byte   colBits = glyph[sub];
+            int    dot0    = m_headColumnDots + (sub       * cellDots) / DraftFont::kCellSubCols;
+            int    dot1    = m_headColumnDots + ((sub + 1) * cellDots) / DraftFont::kCellSubCols;
+
+            if (colBits == 0)
+            {
+                continue;
+            }
+
+            for (bit = 0; bit < s_kGraphicsPins; bit++)
+            {
+                if ((colBits & (0x01 << bit)) != 0)
+                {
+                    int   top = row + bit * s_kGraphicsRowsPerPin;
+
+                    for (int r = 0; r < s_kGraphicsRowsPerPin; r++)
+                    {
+                        for (int d = dot0; d < dot1; d++)
+                        {
+                            raster.Strike (d, top + r, m_color);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    m_headColumnDots += cellDots;
 }
 
 
@@ -269,6 +355,8 @@ void ImageWriterInterpreter::ConsumeIdle (Byte b, PrintRaster & raster, vector<P
 void ImageWriterInterpreter::ConsumeEsc (Byte b, PrintRaster & raster, vector<PrinterEvent> & events)
 {
     UNREFERENCED_PARAMETER (raster);
+
+    b &= 0x7F;   // command letters are ASCII; BASIC sends them high-bit set (see ConsumeIdle)
 
     m_cmd       = b;
     m_paramsGot = 0;
@@ -398,7 +486,7 @@ void ImageWriterInterpreter::ExecuteParamCommand (PrintRaster & raster, vector<P
     {
         PrinterEvent   ev;
 
-        m_color  = ColorForCode (m_params[0]);
+        m_color  = ColorForCode ((Byte) (m_params[0] & 0x7F));   // ASCII digit param (see DecodeAsciiDigits)
         ev.type  = PrinterEventType::ColorChange;
         ev.color = m_color;
         events.push_back (ev);

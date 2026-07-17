@@ -97,10 +97,10 @@ Still open: T010 (dropped), US6 T046–T049, end-to-end sign-offs T026/T032/T041
 
 ## Phase 8: User Story 6 — Text Printing from BASIC and DOS (P6)
 
-- [ ] T046 [P] [US6] Author original draft dot-matrix glyph set (7-dot-column style, full printable ASCII; original work, no copied ROM font) in `CassoEmuCore/Devices/Printer/DraftFont.h`
-- [ ] T047 [US6] Text rendering in `ImageWriterInterpreter` (glyph columns at current pitch, right-margin wrap, LF spacing defaults) in `CassoEmuCore/Devices/Printer/ImageWriterInterpreter.cpp`
-- [ ] T048 [P] [US6] Unit tests: text line goldens, wrap, pitch matrix in `UnitTest/PrinterTests/ImageWriterInterpreterTests.cpp`
-- [ ] T049 [US6] End-to-end: `PR#1` + `LIST` and DOS 3.3 `CATALOG` (quickstart scenario 6; SC-004)
+- [X] T046 [P] [US6] Author original draft dot-matrix glyph set (7-dot-column style, full printable ASCII; original work, no copied ROM font) in `CassoEmuCore/Devices/Printer/DraftFont.h` — designed as ASCII art in `scripts/GenDraftFont.py` (the design master; regenerates the table), 5x7 body + descender row, pre-centered in a 7-column cell, bit 0 = top pin like ESC G
+- [X] T047 [US6] Text rendering in `ImageWriterInterpreter` (glyph columns at current pitch, right-margin wrap, LF spacing defaults) in `CassoEmuCore/Devices/Printer/ImageWriterInterpreter.cpp` — glyph sub-columns map onto the pitch cell with the ESC L numerator/denominator scheme so every documented density lays down cleanly; the 8th data bit is masked for text/commands/ASCII-digit params (PR#1 output arrives high-bit set) while binary params + graphics data keep all 8 bits; PLUS the slot firmware now injects LF after CR like Apple's real parallel card (BASIC/DOS send bare CRs; Print Shop drives the card I/O directly and is untouched) — `ParallelFirmware.a65`/`.h` regenerated, parity test green
+- [X] T048 [P] [US6] Unit tests: text line goldens, wrap, pitch matrix in `UnitTest/PrinterTests/ImageWriterInterpreterTests.cpp` — glyph geometry at pica, high-bit ASCII, space, bare-CR overprint, 80-column wrap, pitch switching (replaces the obsolete PrintableAsciiIsConsumedNotRendered)
+- [ ] T049 [US6] End-to-end: `PR#1` + `LIST` and DOS 3.3 `CATALOG` (quickstart scenario 6; SC-004) — needs a live guest run (user)
 
 ## Phase 9: User Story 7 — Recognizing Printing Software (P7) — **DROPPED 2026-07-16**
 

@@ -57,6 +57,7 @@ private:
     void    ConsumeEsc          (Byte b, PrintRaster & raster, vector<PrinterEvent> & events);
     void    ExecuteParamCommand (PrintRaster & raster, vector<PrinterEvent> & events);
     void    ConsumeGraphicsByte (Byte b, PrintRaster & raster, vector<PrinterEvent> & events);
+    void    RenderTextChar      (Byte ch, PrintRaster & raster, vector<PrinterEvent> & events);
     void    EmitReset           (vector<PrinterEvent> & events);
 
     // Interpreter state (data-model: resets on printer-reset and machine start).

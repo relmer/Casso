@@ -262,16 +262,92 @@ namespace ImageWriterInterpreterTests
         }
 
 
-        TEST_METHOD (PrintableAsciiIsConsumedNotRendered)
+        TEST_METHOD (TextRendersDraftGlyphAtPica)
         {
+            // US6: 'H' fed as high-bit ASCII ($C8 -- what PR#1 LIST actually
+            // sends; the 8th data bit is ignored for text). Pica cell = 16
+            // native dots, so glyph sub-column i spans dots [i*2, (i+1)*2);
+            // each pin fills 2 rows (bit 0 = top, like ESC G).
             ImageWriterInterpreter   interp;
             PrintRaster              raster;
             vector<PrinterEvent>     events;
 
-            Feed (interp, raster, events, { 'H', 'e', 'l', 'l', 'o' });
+            Feed (interp, raster, events, { 0xC8 });   // 'H' | 0x80
 
-            Assert::AreEqual (0, raster.RowsUsed());        // no strikes, no advance
-            Assert::AreEqual ((size_t) 0, events.size());
+            Assert::IsTrue (raster.CellAt (2, 0)   != 0);   // left stem  (sub-col 1, top pin)
+            Assert::IsTrue (raster.CellAt (3, 13)  != 0);   // left stem  (baseline pin, rows 12..13)
+            Assert::IsTrue (raster.CellAt (6, 6)   != 0);   // crossbar   (sub-col 3, pin 3 -> rows 6..7)
+            Assert::IsTrue (raster.CellAt (10, 0)  != 0);   // right stem (sub-col 5)
+            Assert::IsTrue (raster.CellAt (0, 0)   == 0);   // pre-centered: sub-col 0 blank
+            Assert::IsTrue (raster.CellAt (14, 0)  == 0);   // trailing inter-character gap blank
+            Assert::AreEqual (16, interp.HeadColumnDots());  // advanced one pica cell
+        }
+
+
+        TEST_METHOD (TextSpaceAdvancesWithoutInk)
+        {
+            // DOS catalogs pad with $A0 (space | high bit): the head advances a
+            // cell but nothing strikes.
+            ImageWriterInterpreter   interp;
+            PrintRaster              raster;
+            vector<PrinterEvent>     events;
+
+            Feed (interp, raster, events, { 0xA0 });
+
+            Assert::AreEqual (0,  raster.RowsUsed());
+            Assert::AreEqual (16, interp.HeadColumnDots());
+        }
+
+
+        TEST_METHOD (TextBareCarriageReturnOverprintsWithoutFeed)
+        {
+            // BASIC sends bare CRs ($8D); the slot FIRMWARE injects the LF (like
+            // Apple's parallel card), so at the interpreter a lone CR returns
+            // the head without feeding -- overprint, exactly like the real
+            // mechanism.
+            ImageWriterInterpreter   interp;
+            PrintRaster              raster;
+            vector<PrinterEvent>     events;
+
+            Feed (interp, raster, events, { 0xC1, 0x8D, 0xC2 });   // 'A' CR 'B'
+
+            Assert::AreEqual (0,  raster.PaperRow());        // no feed
+            Assert::AreEqual (16, interp.HeadColumnDots());  // 'B' printed from the left margin
+        }
+
+
+        TEST_METHOD (TextWrapsAtTheRightMargin)
+        {
+            // 80 pica characters exactly fill the 1280-dot line; the 81st wraps
+            // with an implicit new line at the current spacing (default 1/6").
+            ImageWriterInterpreter   interp;
+            PrintRaster              raster;
+            vector<PrinterEvent>     events;
+            vector<Byte>             line (81, 0xD7);   // 'W' | 0x80
+
+            Feed (interp, raster, events, line);
+
+            Assert::AreEqual (PrinterGrid::kRowsPerInch / 6, raster.PaperRow());   // wrapped once
+            Assert::AreEqual (16, interp.HeadColumnDots());                        // 81st char on the new line
+            Assert::AreEqual (1,  CountEvents (events, PrinterEventType::LineFeed));
+        }
+
+
+        TEST_METHOD (TextPitchSelectionChangesCellWidth)
+        {
+            // ESC Q (ultracondensed, 160/17 = 9 dots/char) then ESC N (pica, 16)
+            // -- the second sequence sent entirely high-bit set, as BASIC would.
+            ImageWriterInterpreter   interp;
+            PrintRaster              raster;
+            vector<PrinterEvent>     events;
+            int                      condensed = PrinterGrid::kDotsPerInchH / 17;
+            int                      pica      = PrinterGrid::kDotsPerInchH / 10;
+
+            Feed (interp, raster, events, { 0x1B, 'Q', 'M' });
+            Assert::AreEqual (condensed, interp.HeadColumnDots());
+
+            Feed (interp, raster, events, { 0x9B, 0xCE, 0xCD });   // ESC N 'M', high-bit
+            Assert::AreEqual (condensed + pica, interp.HeadColumnDots());
         }
 
 

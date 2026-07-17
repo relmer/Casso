@@ -29,10 +29,11 @@ static constexpr Word   s_kParallelFirmwareOrigin = 0xC100;
 static constexpr Byte   s_kParallelFirmwareBytes[] =
 {
     0x4C, 0x11, 0xC1, 0x00, 0x00, 0x38, 0x00, 0x18, 0x00, 0x00, 0x00, 0x01,
-    0x12, 0x2C, 0x2D, 0x2F, 0x32, 0x48, 0x98, 0x48, 0x20, 0x17, 0xC1, 0x68,
+    0x12, 0x41, 0x42, 0x44, 0x47, 0x48, 0x98, 0x48, 0x20, 0x17, 0xC1, 0x68,
     0x68, 0x29, 0x0F, 0x0A, 0x0A, 0x0A, 0x0A, 0xAA, 0xBD, 0x81, 0xC0, 0x10,
-    0xFB, 0x68, 0xA8, 0x68, 0x9D, 0x80, 0xC0, 0x60, 0x60, 0x38, 0x60, 0x4C,
-    0x11, 0xC1, 0x60,
+    0xFB, 0x68, 0xA8, 0x68, 0x9D, 0x80, 0xC0, 0xC9, 0x8D, 0xF0, 0x05, 0xC9,
+    0x0D, 0xF0, 0x01, 0x60, 0x48, 0xBD, 0x81, 0xC0, 0x10, 0xFB, 0xA9, 0x0A,
+    0x9D, 0x80, 0xC0, 0x68, 0x60, 0x60, 0x38, 0x60, 0x4C, 0x11, 0xC1, 0x60,
 };
 
 static constexpr const char *   s_kParallelFirmwareSource = R"ASM(; ============================================================================
@@ -93,6 +94,13 @@ PCLASS  = $12            ; Pascal device class: printer (provisional)
 ;  character) and Y; uses X as the slot*16 I/O index. Honors the ready bit,
 ;  so if the card ever de-asserts ready (high-water backpressure) the guest
 ;  waits here instead of losing a byte.
+;
+;  Like Apple's parallel interface card, the firmware sends a line feed after
+;  every carriage return: BASIC / DOS output (PR#n, LIST, CATALOG) emits bare
+;  CRs ($8D or $0D) and relies on the interface to advance the paper. Software
+;  that must control line feeds itself (Print Shop et al.) drives the card's
+;  I/O locations directly and never passes through this routine -- exactly as
+;  on the real card.
 ; ----------------------------------------------------------------------------
 OUTPUT:
         pha                      ; save the character
@@ -118,6 +126,20 @@ WAIT:
         tay                      ; restore Y
         pla                      ; A = saved character
         sta IODATA,x             ; latch the character to the card
+        cmp #$8D                 ; carriage return (COUT sends high-bit ASCII)?
+        beq CRLF
+        cmp #$0D                 ; or a plain CR
+        beq CRLF
+        rts
+
+CRLF:
+        pha                      ; keep the character to return in A
+LFWAIT:
+        lda IOSTAT,x             ; honor ready for the injected byte too
+        bpl LFWAIT
+        lda #$0A
+        sta IODATA,x             ; line feed after CR (like Apple's card)
+        pla
         rts
 
 ; ----------------------------------------------------------------------------

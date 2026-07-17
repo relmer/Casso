@@ -354,6 +354,7 @@
     <ClInclude Include="Devices\Printer\PaperRenderer.h" />
     <ClInclude Include="Devices\Printer\RgbaImage.h" />
     <ClInclude Include="Devices\Printer\PrintJobSerializer.h" />
+    <ClInclude Include="Devices\Printer\DraftFont.h" />
     <ClInclude Include="Devices\Printer\ImageWriterInterpreter.h" />
     <ClInclude Include="Devices\Printer\PrinterJob.h" />
     <ClInclude Include="Devices\Printer\PngCodec.h" />
