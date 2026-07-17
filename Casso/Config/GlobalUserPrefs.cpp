@@ -56,7 +56,9 @@ static const std::set<std::string>  s_kKnownTopLevel = {
     "printerAudioMuted",          // legacy (pre-toggle); consumed, no longer emitted
     "printerAudioVolume",
     "printerAudioPanOverride",
-    "printerAudioPan"
+    "printerAudioPan",
+    "masterVolume",
+    "masterMuted"
 };
 
 
@@ -947,6 +949,10 @@ JsonValue GlobalUserPrefs::ToJson() const
     root.emplace_back ("printerAudioPanOverride", JsonValue (printerAudioPanOverride));
     root.emplace_back ("printerAudioPan",         JsonValue ((double) printerAudioPan));
 
+    // Master output volume (chrome toolbar).
+    root.emplace_back ("masterVolume", JsonValue ((double) masterVolume));
+    root.emplace_back ("masterMuted",  JsonValue (masterMuted));
+
     // Round-trip unknown keys verbatim.
     for (const auto & kv : unknownPassthrough)
     {
@@ -1091,6 +1097,11 @@ HRESULT GlobalUserPrefs::FromJson (const JsonValue & v)
     printerAudioPan         = (float) GetNumberOpt (v, "printerAudioPan",         printerAudioPan);
     printerAudioVolume      = std::clamp (printerAudioVolume, 0.0f, 1.0f);
     printerAudioPan         = std::clamp (printerAudioPan,   -1.0f, 1.0f);
+
+    // Master output volume (chrome toolbar); absent keys keep struct defaults.
+    masterVolume = (float) GetNumberOpt (v, "masterVolume", masterVolume);
+    masterMuted  = GetBoolOpt (v, "masterMuted", masterMuted);
+    masterVolume = std::clamp (masterVolume, 0.0f, 1.0f);
 
     // Capture unknown top-level keys for round-tripping.
     for (const auto & entry : v.GetObjectEntries())

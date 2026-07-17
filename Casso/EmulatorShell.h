@@ -27,6 +27,7 @@
 #include "Ui/Chrome/DriveWidget.h"
 #include "Ui/Chrome/InputDeviceSelector.h"
 #include "Ui/Chrome/PrinterIndicator.h"
+#include "Ui/Chrome/CommandToolbar.h"
 #include "Ui/Chrome/MainMenu.h"
 #include "Ui/ColorUtil.h"
 #include "Ui/Dialogs/DialogDefinition.h"
@@ -653,8 +654,14 @@ private:
     CassoTheme         m_chromeTheme    = CassoTheme::Skeuomorphic();
     std::array<DriveWidget, 2> m_driveChrome;
 
-    // Chrome printer status indicator (right of the centred drive widgets) and
-    // the pure model that derives its state from the worker's live signals.
+    // The command toolbar (spec 015 DCR-2): the strip below the menu bar with
+    // Settings / Printer (+status LED) / master Volume + Mute / Screenshot /
+    // Reset / Power. Carries the printer status light, retiring the standalone
+    // PrinterIndicator (whose instance below is no longer adopted or painted).
+    CommandToolbar      m_toolbar;
+
+    // Chrome printer status indicator -- RETIRED by the toolbar's printer
+    // button (DCR-2); kept only until the class is deleted after sign-off.
     PrinterIndicator    m_printerIndicator;
     PrinterStatusModel  m_printerStatus;
 
@@ -718,11 +725,13 @@ private:
     // thickness the theme mutates (compact vs full).
     static constexpr int  s_kTitleBarBandDp     = 32;
     static constexpr int  s_kNavStripBandDp     = 32;
+    static constexpr int  s_kToolbarBandDp      = 42;   // command toolbar (DCR-2)
     static constexpr int  s_kInitialDriveBandDp = 256;
 
     DxuiDockLayout           m_chromeDock;
     ChromeBand               m_titleBand;
     ChromeBand               m_navBand;
+    ChromeBand               m_toolbarBand;
     ChromeBand               m_driveBand;
     ChromeBand               m_centerBand;
     int                      m_driveBarThicknessDp = s_kInitialDriveBandDp;

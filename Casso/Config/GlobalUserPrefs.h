@@ -141,6 +141,12 @@ struct GlobalUserPrefs
     bool         printerAudioPanOverride  = false;
     float        printerAudioPan          = 0.0f;   // -1 .. +1, used when override is on
 
+    // Master output volume (the chrome toolbar's slider + mute): one gain over
+    // the completed audio mix, so speaker, drives, printer, and Mockingboard
+    // scale together. Mute keeps the slider value; the mix just gets gain 0.
+    float        masterVolume             = 1.0f;   // 0 .. 1
+    bool         masterMuted              = false;
+
     // Unknown JSON keys round-trip back to disk untouched.
     std::vector<std::pair<std::string, JsonValue>>  unknownPassthrough;
 

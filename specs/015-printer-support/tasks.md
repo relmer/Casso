@@ -171,10 +171,14 @@ rather than folded silently into the spec.
   shows its own live preview. Implement the OS print-preview affordance (or otherwise stop the
   dialog advertising an empty one) so the experience doesn't look half-finished. IN SCOPE for
   this spec (not deferred) — ships on this branch alongside DCR-2 before the merge gates.
-- [ ] DCR-2 **Replace the chrome printer indicator with a command toolbar.** The standalone
-  printer widget in the main window doesn't match the rest of the UI. Prototype a toolbar row
-  below the menu bar carrying the most-common commands (Settings, Print, Volume slider + Mute,
-  Reset, Power, …) and retire the bespoke indicator. Prototype in progress. Owner: TBD.
+- [X] DCR-2 **Replace the chrome printer indicator with a command toolbar.** BUILT (needs the
+  user's visual pass): `CommandToolbar` (Ui/Chrome) docks a 42dp band below the menu bar with
+  icon+label buttons -- Settings (MDL2 gear), Printer (miniature skeuomorphic ImageWriter II
+  glyph carrying the status LED, dispatching IDM_PRINTER_PREVIEW), master Volume slider + Mute
+  (NEW master output gain: one atomic gain over the completed WASAPI mix, persisted as
+  masterVolume/masterMuted in GlobalUserPrefs), Screenshot, Reset, Power -- all existing IDM_*
+  through HandleCommand. The standalone PrinterIndicator is retired (un-adopted, click-to-open
+  removed); its class + dead layout plumbing get deleted after user sign-off.
 
 ## Bug fixes (post-implementation, 2026-07-16)
 

@@ -76,6 +76,8 @@ public:
         orig.printerAudioVolume           = 0.35f;
         orig.printerAudioPanOverride      = true;
         orig.printerAudioPan              = -0.5f;
+        orig.masterVolume                 = 0.65f;
+        orig.masterMuted                  = true;
 
         hr = orig.Save (L"C:\\Casso", fs);
         Assert::IsTrue (SUCCEEDED (hr));
@@ -108,6 +110,8 @@ public:
         Assert::AreEqual (orig.printerAudioVolume,      loaded.printerAudioVolume);
         Assert::AreEqual (orig.printerAudioPanOverride, loaded.printerAudioPanOverride);
         Assert::AreEqual (orig.printerAudioPan,         loaded.printerAudioPan);
+        Assert::AreEqual (orig.masterVolume,            loaded.masterVolume);
+        Assert::AreEqual (orig.masterMuted,             loaded.masterMuted);
     }
 
 

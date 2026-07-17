@@ -541,10 +541,11 @@ HRESULT EmulatorShell::Initialize (
     // Register the chrome bands + center with the dock layout once --
     // their thicknesses are refreshed from DPI + live drive-bar state
     // on every ComputeViewportRect / ClientSizeForCenterPx call.
-    m_chromeDock.SetDock (m_titleBand,  DxuiDock::Top);
-    m_chromeDock.SetDock (m_navBand,    DxuiDock::Top);
-    m_chromeDock.SetDock (m_driveBand,  DxuiDock::Bottom);
-    m_chromeDock.SetDock (m_centerBand, DxuiDock::Fill);
+    m_chromeDock.SetDock (m_titleBand,   DxuiDock::Top);
+    m_chromeDock.SetDock (m_navBand,     DxuiDock::Top);
+    m_chromeDock.SetDock (m_toolbarBand, DxuiDock::Top);
+    m_chromeDock.SetDock (m_driveBand,   DxuiDock::Bottom);
+    m_chromeDock.SetDock (m_centerBand,  DxuiDock::Fill);
 
     assetBaseDir = AssetBootstrap::GetAssetBaseDirectory();
     machinesDir  = assetBaseDir / fs::path ("Machines") / fs::path (m_currentMachineName);
@@ -710,6 +711,7 @@ HRESULT EmulatorShell::Initialize (
         // parameter on every call.
         m_mainMenu.SetTextRendererForMeasure (&m_uiShell.Text());
         m_joystickButton.SetTextRenderer     (&m_uiShell.Text());
+        m_toolbar.SetTextRenderer            (&m_uiShell.Text());
 
         m_themeManager    = std::make_unique<ThemeManager> (m_uiFs, themesDir.wstring());
         hrTheme           = m_themeManager->Discover();
@@ -1317,7 +1319,7 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     m_host->Root().Adopt (m_driveBandSurface);
     m_host->Root().Adopt (m_driveChrome[0]);
     m_host->Root().Adopt (m_driveChrome[1]);
-    m_host->Root().Adopt (m_printerIndicator);
+    m_host->Root().Adopt (m_toolbar);
     m_host->Root().Adopt (m_joystickButton);
 
     // Give the host the chrome theme so its paint pump renders the
@@ -1392,6 +1394,19 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
         m_mainMenu.Layout (menuBarBounds, m_scaler);
     }
     m_mainMenu.SetDispatch ([this] (WORD commandId) { HandleCommand (commandId); });
+
+    // Command toolbar (DCR-2): commands route through the same HandleCommand
+    // path as the menu; the volume group drives the master output gain and
+    // persists in GlobalUserPrefs (saved with the rest on exit).
+    m_toolbar.SetDispatch ([this] (WORD commandId) { HandleCommand (commandId); });
+    m_toolbar.SetVolumeSink ([this] (float volume01, bool muted)
+    {
+        m_globalPrefs.masterVolume = volume01;
+        m_globalPrefs.masterMuted  = muted;
+        m_wasapiAudio.SetMasterGain (muted ? 0.0f : volume01);
+    });
+    m_toolbar.SetVolume (m_globalPrefs.masterVolume, m_globalPrefs.masterMuted);
+    m_wasapiAudio.SetMasterGain (m_globalPrefs.masterMuted ? 0.0f : m_globalPrefs.masterVolume);
     m_mainMenu.SetCheckQuery ([this] (WORD commandId) -> bool
     {
         switch (commandId)
@@ -1506,9 +1521,10 @@ void EmulatorShell::SyncChromeBands ()
     bool  hasDisk     = (m_diskManager != nullptr) && m_diskManager->HasSlot6Controller();
     int   driveBandDp = hasDisk ? m_driveBarThicknessDp : s_kJoystickButtonBandDp;
 
-    m_titleBand.SetBounds (RECT{ 0, 0, 0, m_scaler.Px (s_kTitleBarBandDp) });
-    m_navBand.SetBounds   (RECT{ 0, 0, 0, m_scaler.Px (s_kNavStripBandDp) });
-    m_driveBand.SetBounds (RECT{ 0, 0, 0, m_scaler.Px (driveBandDp) });
+    m_titleBand.SetBounds   (RECT{ 0, 0, 0, m_scaler.Px (s_kTitleBarBandDp) });
+    m_navBand.SetBounds     (RECT{ 0, 0, 0, m_scaler.Px (s_kNavStripBandDp) });
+    m_toolbarBand.SetBounds (RECT{ 0, 0, 0, m_scaler.Px (s_kToolbarBandDp) });
+    m_driveBand.SetBounds   (RECT{ 0, 0, 0, m_scaler.Px (driveBandDp) });
 }
 
 
@@ -1527,12 +1543,16 @@ void EmulatorShell::SyncChromeBands ()
 
 RECT EmulatorShell::ComputeViewportRect (int widthPx, int heightPx)
 {
-    IDxuiControl *  kids[] = { &m_titleBand, &m_navBand, &m_driveBand, &m_centerBand };
+    IDxuiControl *  kids[] = { &m_titleBand, &m_navBand, &m_toolbarBand, &m_driveBand, &m_centerBand };
 
 
 
     SyncChromeBands();
     m_chromeDock.Arrange (RECT{ 0, 0, widthPx, heightPx }, m_scaler, kids);
+
+    // The command toolbar rides its band: re-lay it every viewport pass so a
+    // resize / DPI change reflows the buttons with the strip.
+    m_toolbar.Layout (m_toolbarBand.Bounds(), m_scaler);
 
     return m_centerBand.Bounds();
 }
@@ -1688,7 +1708,7 @@ bool EmulatorShell::ShouldShowExternalDrive() const
 
 SIZE EmulatorShell::ClientSizeForCenterPx (int centerWidthPx, int centerHeightPx)
 {
-    IDxuiControl *  bands[] = { &m_titleBand, &m_navBand, &m_driveBand };
+    IDxuiControl *  bands[] = { &m_titleBand, &m_navBand, &m_toolbarBand, &m_driveBand };
 
 
 
@@ -2787,8 +2807,11 @@ void EmulatorShell::UpdatePrinterIndicator ()
 
     if (m_refs.printerCard == nullptr)
     {
-        return;   // indicator is hidden; nothing to sample
+        m_toolbar.SetPrinterPresent (false);
+        return;   // no card: the toolbar's printer button disables
     }
+
+    m_toolbar.SetPrinterPresent (true);
 
     nowMs = (int64_t) std::chrono::duration_cast<std::chrono::milliseconds> (
                 std::chrono::steady_clock::now ().time_since_epoch ()).count ();
@@ -2800,9 +2823,12 @@ void EmulatorShell::UpdatePrinterIndicator ()
 
     status = m_printerStatus.Status ();
 
+    // The toolbar's printer button carries the status light now (DCR-2); the
+    // retired standalone indicator is no longer adopted or painted.
     if (status != m_printerIndicator.Status ())
     {
         m_printerIndicator.SetStatus (status);
+        m_toolbar.SetPrinterStatus (status);
         m_d3dRenderer.MarkRedrawNeeded ();
     }
 }
@@ -4307,6 +4333,12 @@ DxuiMessageResult EmulatorShell::OnMouseMove (WPARAM wParam, LPARAM lParam)
         m_joystickTooltip.RequestHide (nowMs);
     }
 
+    // Command toolbar hover / slider drag (DCR-2).
+    if (m_toolbar.OnToolbarMouseMove (x, y, leftDown))
+    {
+        m_d3dRenderer.MarkRedrawNeeded ();
+    }
+
     return DxuiMessageResult::NotHandled;
 }
 
@@ -4341,6 +4373,7 @@ DxuiMessageResult EmulatorShell::OnMouseLeave ()
     m_joystickButton.SetHovered (false);
     m_joystickButton.SetPressed (false);
     m_joystickTooltip.RequestHide (nowMs);
+    m_toolbar.OnToolbarMouseLeave ();
 
     // //c Mouse mode: the cursor left the window entirely — release the
     // guest mouse target (non-capturing contract).
@@ -4531,6 +4564,12 @@ DxuiMessageResult EmulatorShell::OnLButtonDown (WPARAM wParam, LPARAM lParam)
 
     m_joystickButton.SetPressed (m_joystickButton.HitTest (x, y));
 
+    // Command toolbar press (button press states + slider drag start).
+    if (m_toolbar.OnToolbarLButtonDown (x, y))
+    {
+        m_d3dRenderer.MarkRedrawNeeded ();
+    }
+
     // The UI shell (debug panels, on-screen buttons) gets first crack at
     // the press. Its return is moot here: nothing else in this handler
     // depends on whether the click was consumed, and we always report the
@@ -4581,6 +4620,14 @@ DxuiMessageResult EmulatorShell::OnLButtonUp (WPARAM wParam, LPARAM lParam)
 
     ReleaseCapture();
     m_joystickButton.SetPressed (false);
+
+    // Command toolbar release: click dispatch / mute toggle / slider drop.
+    if (m_toolbar.OnToolbarLButtonUp (x, y))
+    {
+        m_d3dRenderer.MarkRedrawNeeded ();
+        return DxuiMessageResult::NotHandled;
+    }
+
     if (m_uiShell.OnLButtonUp (x, y))
     {
         return DxuiMessageResult::NotHandled;
@@ -4634,18 +4681,8 @@ DxuiMessageResult EmulatorShell::OnLButtonUp (WPARAM wParam, LPARAM lParam)
         }
     }
 
-    // A click on the printer status indicator opens the printer panel /
-    // print preview (US4 / FR-020).
-    if (!m_printerIndicator.Hidden ())
-    {
-        RECT  pr = m_printerIndicator.OuterRect ();
-
-        if (x >= pr.left && x < pr.right && y >= pr.top && y < pr.bottom)
-        {
-            ShowPrinterPanel ();
-            return DxuiMessageResult::NotHandled;
-        }
-    }
+    // (The standalone printer indicator's click-to-open is retired: the
+    // toolbar's Printer button dispatches IDM_PRINTER_PREVIEW instead, DCR-2.)
 
     // A bare left-click on the emulator screen (no chrome / widget / drive
     // hit) in Paddle mode re-grabs the pointer after an Esc release.
