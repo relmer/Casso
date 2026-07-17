@@ -446,7 +446,7 @@ private:
 
     // //e/c auxiliary 64 KiB RAM bank (nullptr on ][/][+). Used by the clipboard
     // text scrape to read the aux half of an 80-column screen.
-    const Byte *  AuxRamBuffer () const;
+    const Byte *  AuxRamBuffer() const;
 
     // Accessor used by the Settings → Theme preview to copy the live
     // emulator framebuffer into the mock window. The UI framebuffer is

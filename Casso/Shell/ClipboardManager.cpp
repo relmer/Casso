@@ -116,6 +116,7 @@ std::wstring ClipboardManager::BuildScreenText (const Byte * auxRam) const
     int   cols   = eighty ? s_kTextCols80 : s_kTextCols;
 
 
+
     for (int row = 0; row < s_kTextRows; row++)
     {
         Word  base = static_cast<Word> (s_kTextBase

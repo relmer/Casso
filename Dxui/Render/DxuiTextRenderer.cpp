@@ -854,7 +854,7 @@ void DxuiTextRenderer::PushTextSkew (float tanX, float yPivotDip)
 }
 
 
-void DxuiTextRenderer::PopTextSkew ()
+void DxuiTextRenderer::PopTextSkew()
 {
     DXUI_ASSERT_UI_THREAD();
 

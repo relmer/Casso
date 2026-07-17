@@ -638,7 +638,7 @@ public:
 
         Assert::AreEqual (static_cast<Byte> (0x00), kbd.Read (0xC060),
             L"//c $C060 with the 80/40 switch out (40 cols) must read bit 7 clear");
-        Assert::IsFalse (kbd.IsEightyColumnSwitchIn (),
+        Assert::IsFalse (kbd.IsEightyColumnSwitchIn(),
             L"switch state accessor must report 'out'");
     }
 
@@ -652,7 +652,7 @@ public:
 
         Assert::AreEqual (static_cast<Byte> (0x80), kbd.Read (0xC060),
             L"//c $C060 with the 80/40 switch in (80 cols) must read bit 7 set");
-        Assert::IsTrue (kbd.IsEightyColumnSwitchIn (),
+        Assert::IsTrue (kbd.IsEightyColumnSwitchIn(),
             L"switch state accessor must report 'in'");
     }
 

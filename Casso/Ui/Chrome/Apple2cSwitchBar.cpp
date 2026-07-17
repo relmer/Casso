@@ -246,7 +246,7 @@ void Apple2cSwitchBar::PaintLabel (IDxuiTextRenderer & text, const RECT & r, con
                                    DxuiFontWeight::Normal, false);
     IGNORE_RETURN_VALUE (hr, S_OK);
 
-    text.PopTextSkew ();
+    text.PopTextSkew();
 }
 
 
@@ -289,7 +289,7 @@ void Apple2cSwitchBar::PaintResetButton (IDxuiPainter & p, IDxuiTextRenderer & t
                                    DxuiFontWeight::Normal, false);
     IGNORE_RETURN_VALUE (hr, S_OK);
 
-    text.PopTextSkew ();
+    text.PopTextSkew();
 }
 
 

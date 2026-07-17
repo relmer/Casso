@@ -31,11 +31,11 @@ namespace
     public:
         explicit Rd80VidStub (bool on) : m_val (on ? 0x80 : 0x00) {}
 
-        Byte Read     (Word)            override { return m_val; }
-        void Write    (Word, Byte)      override {}
-        Word GetStart () const          override { return 0xC01F; }
-        Word GetEnd   () const          override { return 0xC01F; }
-        void Reset    ()                override {}
+        Byte Read (Word) override { return m_val; }
+        void Write (Word, Byte) override {}
+        Word GetStart() const override { return 0xC01F; }
+        Word GetEnd() const override { return 0xC01F; }
+        void Reset() override {}
 
     private:
         Byte  m_val;
@@ -64,15 +64,19 @@ TEST_CLASS (ClipboardTextTests)
         main[kRow0 + 1] = Screen ('D');   // odd display column 3
     }
 
-    static ClipboardManager  MakeClipboard (MemoryBus & bus)
-    {
-        static std::mutex             s_m1;
-        static std::mutex             s_m2;
-        static std::string            s_paste;
-        static std::vector<uint32_t>  s_fb;
-        static AppleKeyboard *        s_kbdSlot = nullptr;
+    // The ClipboardManager keeps references to these; BuildScreenText never
+    // reads them, but they must outlive the manager, so they live on the
+    // (per-test) fixture rather than as shared statics.
+    std::mutex             m_cmdMutex;
+    std::mutex             m_fbMutex;
+    std::string            m_pasteBuffer;
+    std::vector<uint32_t>  m_uiFramebuffer;
+    AppleKeyboard *        m_keyboardSlot = nullptr;
 
-        return ClipboardManager (bus, s_m1, s_paste, s_m2, s_fb, 0, 0, &s_kbdSlot);
+    ClipboardManager  MakeClipboard (MemoryBus & bus)
+    {
+        return ClipboardManager (bus, m_cmdMutex, m_pasteBuffer, m_fbMutex,
+                                 m_uiFramebuffer, 0, 0, &m_keyboardSlot);
     }
 
     static std::wstring  FirstRow (const std::wstring & text)

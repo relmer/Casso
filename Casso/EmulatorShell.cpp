@@ -2565,7 +2565,7 @@ void EmulatorShell::LayoutSwitchBar (UINT dpi)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::SyncSwitchBarState ()
+void EmulatorShell::SyncSwitchBarState()
 {
     Apple2eKeyboard *  iieKbd = dynamic_cast<Apple2eKeyboard *> (m_refs.keyboard);
     bool               diskOn = false;
@@ -2595,7 +2595,7 @@ void EmulatorShell::SyncSwitchBarState ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-const Byte * EmulatorShell::AuxRamBuffer () const
+const Byte * EmulatorShell::AuxRamBuffer() const
 {
     return m_machineManager != nullptr ? m_machineManager->GetAuxRamBuffer() : nullptr;
 }
@@ -3383,6 +3383,7 @@ void EmulatorShell::DispatchCpuCommand (const EmulatorCommand & cmd)
 void EmulatorShell::PersistSwitchState (const char * key, bool value)
 {
     HRESULT  hr = S_OK;
+
 
 
     if (m_userConfigStore == nullptr || m_currentMachineName.empty())
@@ -4855,7 +4856,7 @@ DxuiMessageResult EmulatorShell::OnKeyUp (WPARAM vk, LPARAM lParam)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-static bool HostKeyboardLayoutIsDvorak ()
+static bool HostKeyboardLayoutIsDvorak()
 {
     HKL    hkl = GetKeyboardLayout (0);
     SHORT  vk  = VkKeyScanExW (L'o', hkl);
