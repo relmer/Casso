@@ -410,10 +410,15 @@
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderOutputFile>$(IntDir)CassoPch.pch</PrecompiledHeaderOutputFile>
     </ClCompile>
+    <ClCompile Include="..\Casso\Shell\ClipboardManager.cpp">
+      <PrecompiledHeader>Use</PrecompiledHeader>
+      <PrecompiledHeaderOutputFile>$(IntDir)CassoPch.pch</PrecompiledHeaderOutputFile>
+    </ClCompile>
     <ClCompile Include="..\Casso\CrtPostProcess.cpp">
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderOutputFile>$(IntDir)CassoPch.pch</PrecompiledHeaderOutputFile>
     </ClCompile>
+    <ClCompile Include="Casso\ClipboardTextTests.cpp" />
     <ClCompile Include="Casso\TrackSectorPredicateTests.cpp" />
     <ClCompile Include="Casso\DebugDialogProjectionTests.cpp" />
     <ClCompile Include="Casso\InputDebugFilterTests.cpp" />

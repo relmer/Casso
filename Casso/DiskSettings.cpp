@@ -270,3 +270,103 @@ HRESULT DiskSettings::WriteSavedDiskPath (
 Error:
     return hr;
 }
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WriteSavedUiPrefBool
+//
+//  Splice a boolean into the merged config's $cassoUiPrefs block and persist
+//  the delta. Mirrors WriteSavedDiskPath's read-modify-write, keyed on an
+//  arbitrary $cassoUiPrefs field name rather than diskNPath.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DiskSettings::WriteSavedUiPrefBool (
+    UserConfigStore    & store,
+    IFileSystem        & fs,
+    const std::string  & key,
+    const std::wstring & machineName,
+    bool                 value)
+{
+    HRESULT                                          hr             = S_OK;
+    JsonValue                                        defaultJson;
+    JsonValue                                        mergedJson;
+    JsonValue                                        updatedJson;
+    std::vector<std::pair<std::string, JsonValue>>   rootEntries;
+    std::vector<std::pair<std::string, JsonValue>>   uiPrefsEntries;
+    int                                              uiPrefsIdx     = -1;
+    int                                              i              = 0;
+
+
+
+    if (key.empty() || machineName.empty())
+    {
+        return E_INVALIDARG;
+    }
+
+    hr = LoadMachineDefaultJson (machineName, defaultJson);
+    if (hr != S_OK)
+    {
+        return S_FALSE;
+    }
+
+    hr = store.Load (WideToUtf8 (machineName), defaultJson, fs, mergedJson);
+    CHR (hr);
+
+    if (mergedJson.GetType() != JsonType::Object)
+    {
+        return S_FALSE;
+    }
+
+    rootEntries = mergedJson.GetObjectEntries();
+
+    for (i = 0; i < (int) rootEntries.size(); ++i)
+    {
+        if (rootEntries[(size_t) i].first == "$cassoUiPrefs")
+        {
+            uiPrefsIdx = i;
+            if (rootEntries[(size_t) i].second.GetType() == JsonType::Object)
+            {
+                uiPrefsEntries = rootEntries[(size_t) i].second.GetObjectEntries();
+            }
+            break;
+        }
+    }
+
+    {
+        bool  replaced = false;
+        for (i = 0; i < (int) uiPrefsEntries.size(); ++i)
+        {
+            if (uiPrefsEntries[(size_t) i].first == key)
+            {
+                uiPrefsEntries[(size_t) i].second = JsonValue (value);
+                replaced = true;
+                break;
+            }
+        }
+        if (!replaced)
+        {
+            uiPrefsEntries.emplace_back (key, JsonValue (value));
+        }
+    }
+
+    if (uiPrefsIdx < 0)
+    {
+        rootEntries.emplace_back ("$cassoUiPrefs", JsonValue (std::move (uiPrefsEntries)));
+    }
+    else
+    {
+        rootEntries[(size_t) uiPrefsIdx].second = JsonValue (std::move (uiPrefsEntries));
+    }
+
+    updatedJson = JsonValue (std::move (rootEntries));
+
+    hr = store.SaveDelta (WideToUtf8 (machineName), updatedJson, defaultJson, fs);
+    CHR (hr);
+
+Error:
+    return hr;
+}

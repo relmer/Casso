@@ -1088,6 +1088,32 @@ HRESULT EmulatorShell::Initialize (
                             SetDriveAudioPan (1, (float) pan1);
                         }
 
+                        // //c case-switch latches: restore the 80/40 and
+                        // keyboard (Dvorak) switch positions onto the keyboard
+                        // device. Absent keys leave the hardware default (both
+                        // out), and only //c configs ever carry them, so this is
+                        // naturally a no-op elsewhere. The switch strip re-reads
+                        // the device on its next SyncSwitchBarState.
+                        {
+                            Apple2eKeyboard *  iieKbd =
+                                dynamic_cast<Apple2eKeyboard *> (m_refs.keyboard);
+
+                            if (iieKbd != nullptr)
+                            {
+                                bool  eightyIn = false;
+                                bool  dvorak   = false;
+
+                                if (SUCCEEDED (uiPrefs->GetBool ("eightyColumnSwitch", eightyIn)))
+                                {
+                                    iieKbd->SetEightyColumnSwitchIn (eightyIn);
+                                }
+                                if (SUCCEEDED (uiPrefs->GetBool ("keyboardDvorak", dvorak)))
+                                {
+                                    iieKbd->SetKeyboardSwitchDvorak (dvorak);
+                                }
+                            }
+                        }
+
                         // //c: default Pointer -> Mouse when connected and
                         // nothing else was chosen. (The external-drive + mouse
                         // connected-states are seeded earlier, before the drive-
@@ -2565,6 +2591,20 @@ void EmulatorShell::SyncSwitchBarState ()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  EmulatorShell::AuxRamBuffer
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const Byte * EmulatorShell::AuxRamBuffer () const
+{
+    return m_machineManager != nullptr ? m_machineManager->GetAuxRamBuffer() : nullptr;
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  EmulatorShell::HandleSwitchBarClick
 //
 //  Actions a left-button release over one of the //c switch-strip parts. The
@@ -2595,14 +2635,20 @@ void EmulatorShell::HandleSwitchBarClick (Apple2cSwitchBar::Part part)
         case Apple2cSwitchBar::Part::EightyForty:
             if (iieKbd != nullptr)
             {
-                iieKbd->SetEightyColumnSwitchIn (!iieKbd->IsEightyColumnSwitchIn());
+                bool  newIn = !iieKbd->IsEightyColumnSwitchIn();
+
+                iieKbd->SetEightyColumnSwitchIn (newIn);
+                PersistSwitchState ("eightyColumnSwitch", newIn);
             }
             break;
 
         case Apple2cSwitchBar::Part::Keyboard:
             if (iieKbd != nullptr)
             {
-                iieKbd->SetKeyboardSwitchDvorak (!iieKbd->IsKeyboardSwitchDvorak());
+                bool  newDvorak = !iieKbd->IsKeyboardSwitchDvorak();
+
+                iieKbd->SetKeyboardSwitchDvorak (newDvorak);
+                PersistSwitchState ("keyboardDvorak", newDvorak);
             }
             break;
 
@@ -3318,6 +3364,35 @@ void EmulatorShell::DispatchCpuCommand (const EmulatorCommand & cmd)
         default:
             break;
     }
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::PersistSwitchState
+//
+//  Writes one //c case-switch latch into the current machine's per-machine
+//  $cassoUiPrefs block so the position survives across runs. Best-effort: a
+//  missing store / machine name, or a write failure, just leaves the on-disk
+//  state as it was.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::PersistSwitchState (const char * key, bool value)
+{
+    HRESULT  hr = S_OK;
+
+
+    if (m_userConfigStore == nullptr || m_currentMachineName.empty())
+    {
+        return;
+    }
+
+    hr = DiskSettings::WriteSavedUiPrefBool (*m_userConfigStore, m_uiFs, key,
+                                             m_currentMachineName, value);
+    IGNORE_RETURN_VALUE (hr, S_OK);
 }
 
 

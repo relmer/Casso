@@ -376,6 +376,9 @@ private:
     void    LayoutSwitchBar        (UINT dpi);
     void    SyncSwitchBarState     ();
     void    HandleSwitchBarClick   (Apple2cSwitchBar::Part part);
+    // Persist one case-switch latch ("eightyColumnSwitch" / "keyboardDvorak")
+    // into the current machine's $cassoUiPrefs so it survives across runs.
+    void    PersistSwitchState     (const char * key, bool value);
 public:
 
     // Radio-group toggle for the Machine-menu items: selects `target`, or
@@ -440,6 +443,10 @@ private:
     HRESULT SwitchMachine (const std::wstring & machineName);
     void    ShowMachinePicker();
     const std::wstring &  CurrentMachineName () const { return m_currentMachineName; }
+
+    // //e/c auxiliary 64 KiB RAM bank (nullptr on ][/][+). Used by the clipboard
+    // text scrape to read the aux half of an 80-column screen.
+    const Byte *  AuxRamBuffer () const;
 
     // Accessor used by the Settings → Theme preview to copy the live
     // emulator framebuffer into the mock window. The UI framebuffer is

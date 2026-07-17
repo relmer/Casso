@@ -40,10 +40,19 @@ public:
                        AppleKeyboard          * * pKeyboardSlot);
     ~ClipboardManager () = default;
 
-    void  CopyScreenText     (HWND hwnd) const;
+    // auxRam is the //e/c auxiliary 64 KiB bank (nullptr on ][/][+). When
+    // present AND the 80-column display is on (RD80VID), the text screen is
+    // read as 80 interleaved columns (aux = even, main = odd); otherwise the
+    // plain 40-column main page is read.
+    void  CopyScreenText     (HWND hwnd, const Byte * auxRam) const;
     void  CopyScreenshot     (HWND hwnd);
     void  PasteFromClipboard (HWND hwnd);
     void  DrainPasteBuffer   ();
+
+    // Screen-text scrape, factored out of CopyScreenText so it can be unit
+    // tested without the Win32 clipboard. Returns CRLF-terminated rows with
+    // trailing spaces trimmed.
+    std::wstring  BuildScreenText (const Byte * auxRam) const;
 
 private:
     MemoryBus              & m_memoryBus;
