@@ -57,7 +57,7 @@ private:
     // Delivers the strip to a Windows printer via the standard print dialog:
     // paginates (PrintPagination) and StretchDIBits each page's rendered span.
     // Returns S_FALSE if the user cancels the dialog. Pure Win32 GDI edge.
-    HRESULT  PrintToWindowsPrinter (const class PrintRaster & raster);
+    HRESULT  PrintToWindowsPrinter (const class PrintRaster & raster, std::wstring & failedStage);
 
     // Copies the strip to the clipboard as a bitmap (CF_DIB) and, when it fits,
     // a registered "PNG" blob, at the configured dpi / dot style. Does not

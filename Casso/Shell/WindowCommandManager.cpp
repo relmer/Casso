@@ -81,6 +81,38 @@ namespace
         return detail;
     }
 
+    // StartPage / EndPage / EndDoc report failure as a return value <= 0 using
+    // the SP_* family, and frequently do NOT set GetLastError -- which is how a
+    // print failure used to degrade to "Unspecified error" (or worse: CWRF's
+    // HRESULT_FROM_WIN32(0) == S_OK, a silent false success). Map the result to
+    // an honest HRESULT: a user abort (the Print-to-PDF Save-As cancel can
+    // surface mid-job on modern Windows, not just at StartDoc) becomes S_FALSE
+    // exactly like a cancelled dialog; disk-full / out-of-memory get their real
+    // codes; anything else uses GetLastError when present and only degrades to
+    // E_FAIL when the driver reported nothing at all.
+    HRESULT HrFromSpoolResult (int ret, const wchar_t * call, int pageIx)
+    {
+        HRESULT   hr  = S_OK;
+        DWORD     gle = ::GetLastError ();   // capture before logging can clobber it
+
+        if (ret > 0)
+        {
+            return S_OK;
+        }
+
+        LogPrinter (std::format (L"{} failed on page {}: ret={}, GetLastError={}", call, pageIx, ret, gle));
+
+        if      (ret == SP_USERABORT)                                    { hr = S_FALSE;                              }
+        else if (ret == SP_APPABORT)                                     { hr = E_ABORT;                              }
+        else if (ret == SP_OUTOFDISK)                                    { hr = HRESULT_FROM_WIN32 (ERROR_DISK_FULL); }
+        else if (ret == SP_OUTOFMEMORY)                                  { hr = E_OUTOFMEMORY;                        }
+        else if (gle == ERROR_CANCELLED || gle == ERROR_PRINT_CANCELLED) { hr = S_FALSE;                              }
+        else if (gle != 0)                                               { hr = HRESULT_FROM_WIN32 (gle);             }
+        else                                                             { hr = E_FAIL;                               }
+
+        return hr;
+    }
+
     // The device the user picked in the print dialog (DEVNAMES holds it as an
     // offset into its own block), for the delivery trace.
     std::wstring  SelectedPrinterName (const PRINTDLGW & pd)
@@ -121,7 +153,10 @@ namespace
         int            destH = 0;
         int            blit  = 0;
 
-        CBR (img.width > 0 && img.height > 0 && pageW > 0 && pageH > 0);
+        CBRF (img.width > 0 && img.height > 0,
+              LogPrinter (std::format (L"blit: page image is empty ({}x{})", img.width, img.height)));
+        CBRF (pageW > 0 && pageH > 0,
+              LogPrinter (std::format (L"blit: device reported a degenerate page ({}x{})", pageW, pageH)));
 
         count = (size_t) img.width * img.height;
         bgra.resize (count * 4);
@@ -148,13 +183,25 @@ namespace
         SetStretchBltMode (hdc, HALFTONE);
         SetBrushOrgEx     (hdc, 0, 0, nullptr);
 
+        // Failure is GDI_ERROR (-1 as an int) *or* zero scan lines copied (the
+        // destination always spans >= 1 line, so a genuine success copies at
+        // least one) -- blit <= 0 covers both. GDI often reports these with
+        // GetLastError()==0; CWRF would turn that into HRESULT_FROM_WIN32(0)
+        // == S_OK -- a silent false success -- so fall back to E_FAIL
+        // explicitly when there is no error code to keep.
         blit = StretchDIBits (hdc,
                               (pageW - destW) / 2, 0, destW, destH,
                               0, 0, img.width, img.height,
                               bgra.data (), &bmi, DIB_RGB_COLORS, SRCCOPY);
-        CWRF (blit != GDI_ERROR,
-              LogPrinter (std::format (L"StretchDIBits GDI_ERROR: src {}x{} -> dest {}x{} on page {}x{}, GetLastError={}",
-                                       img.width, img.height, destW, destH, pageW, pageH, ::GetLastError ())));
+        if (blit <= 0)
+        {
+            DWORD   gle = ::GetLastError ();
+
+            LogPrinter (std::format (L"StretchDIBits failed (ret={}): src {}x{} -> dest {}x{} on page {}x{}, GetLastError={}",
+                                     blit, img.width, img.height, destW, destH, pageW, pageH, gle));
+            hr = (gle != 0) ? HRESULT_FROM_WIN32 (gle) : E_FAIL;
+            goto Error;
+        }
 
     Error:
         return hr;
@@ -911,11 +958,14 @@ Error:
 //  The strip is paginated (PrintPagination -- core, unit-tested) and each
 //  page's row span is rendered (PaperRenderer -- core) and StretchDIBits'd onto
 //  the printer DC. Only the dialog + GDI job are here (the untestable Win32
-//  edge). Returns S_FALSE if the user cancels the dialog.
+//  edge). Returns S_FALSE if the user cancels -- the dialog, the Save-As
+//  prompt inside StartDoc, or (modern Print-to-PDF) an abort surfacing at a
+//  later spool call. On failure `failedStage` names the call that failed so
+//  the error dialog's Details line pinpoints it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT WindowCommandManager::PrintToWindowsPrinter (const PrintRaster & raster)
+HRESULT WindowCommandManager::PrintToWindowsPrinter (const PrintRaster & raster, std::wstring & failedStage)
 {
     HRESULT                                hr      = S_OK;
     const GlobalUserPrefs &                prefs   = m_shell.m_globalPrefs;
@@ -931,7 +981,9 @@ HRESULT WindowCommandManager::PrintToWindowsPrinter (const PrintRaster & raster)
                              raster.RowsUsed (), pages.size (), PrintDpiFromPrefs (prefs),
                              PrintDotStyleFromPrefs (prefs) == DotStyle::Ink ? L"ink" : L"plain"));
 
-    CBRF (!pages.empty (), LogPrinter (L"deliver: nothing to print (0 pages)"));
+    CBRF (!pages.empty (),
+          failedStage = L"pagination (the page has no printable content)";
+          LogPrinter (L"deliver: nothing to print (0 pages)"));
 
     pd.lStructSize = sizeof (pd);
     pd.hwndOwner   = m_shell.m_hwnd;
@@ -949,22 +1001,22 @@ HRESULT WindowCommandManager::PrintToWindowsPrinter (const PrintRaster & raster)
         goto Error;
     }
     LogPrinter (std::format (L"printer='{}'", SelectedPrinterName (pd)));
-    CBRFEx (pd.hDC != nullptr, E_FAIL, LogPrinter (L"PrintDlg returned a null DC"));
+    CBRFEx (pd.hDC != nullptr, E_FAIL,
+            failedStage = L"PrintDlg (the chosen printer returned no device context)";
+            LogPrinter (L"PrintDlg returned a null DC"));
 
     di.cbSize      = sizeof (di);
     di.lpszDocName = L"Casso Printout";
 
     // "Microsoft Print to PDF" (and some drivers) pop a Save-As prompt inside
-    // StartDoc; cancelling it makes StartDoc fail with GetLastError ==
-    // ERROR_CANCELLED (1223). That is a user cancel, not a delivery failure -- so
-    // report it exactly like a cancelled print dialog (S_FALSE: keep the page, no
-    // scary "could not deliver" popup) instead of E_FAIL.
-    if (StartDocW (pd.hDC, &di) <= 0)
+    // StartDoc; cancelling it is a user cancel, not a delivery failure -- so it
+    // reports exactly like a cancelled print dialog (S_FALSE: keep the page, no
+    // scary "could not deliver" popup). HrFromSpoolResult owns that mapping,
+    // including the SP_* codes and the GetLastError()==0 case.
+    hr = HrFromSpoolResult (StartDocW (pd.hDC, &di), L"StartDoc", 0);
+    if (hr != S_OK)
     {
-        DWORD   gle = ::GetLastError ();
-
-        LogPrinter (std::format (L"StartDoc failed, GetLastError={}", gle));
-        hr = (gle == ERROR_CANCELLED) ? S_FALSE : HRESULT_FROM_WIN32 (gle);
+        if (FAILED (hr)) { failedStage = L"StartDoc (starting the print job)"; }
         goto Error;
     }
     started = true;
@@ -985,24 +1037,42 @@ HRESULT WindowCommandManager::PrintToWindowsPrinter (const PrintRaster & raster)
         opt.style     = PrintDotStyleFromPrefs (prefs);
 
         hr = renderer.Render (raster, pr.firstRow, pr.lastRow, opt, img);
-        CHRF (hr, LogPrinter (std::format (L"page {} render failed, hr=0x{:08X}", pageIx, (uint32_t) hr)));
+        CHRF (hr,
+              failedStage = std::format (L"rendering page {}", pageIx + 1);
+              LogPrinter (std::format (L"page {} render failed, hr=0x{:08X}", pageIx, (uint32_t) hr)));
 
-        // CWRF captures HRESULT_FROM_WIN32(GetLastError()) into hr so the real
-        // GDI failure code (not a bare E_FAIL) reaches the user-facing detail.
-        CWRF (StartPage (pd.hDC) > 0,
-              LogPrinter (std::format (L"page {} StartPage failed, GetLastError={}", pageIx, ::GetLastError ())));
+        // Every spool call routes through HrFromSpoolResult: SP_* return codes
+        // and GetLastError map to honest HRESULTs, and a mid-job user abort
+        // (Print-to-PDF Save-As cancel on modern Windows) comes back S_FALSE --
+        // exit quietly, keep the page, no failure dialog.
+        hr = HrFromSpoolResult (StartPage (pd.hDC), L"StartPage", pageIx);
+        if (hr != S_OK)
+        {
+            if (FAILED (hr)) { failedStage = std::format (L"StartPage (page {})", pageIx + 1); }
+            goto Error;
+        }
 
         hr = BlitRgbaToDc (pd.hDC, img, pageW, pageH);
-        CHRF (hr, LogPrinter (std::format (L"page {} blit failed, hr=0x{:08X}", pageIx, (uint32_t) hr)));
+        CHRF (hr,
+              failedStage = std::format (L"drawing page {} onto the printer", pageIx + 1);
+              LogPrinter (std::format (L"page {} blit failed, hr=0x{:08X}", pageIx, (uint32_t) hr)));
 
-        CWRF (EndPage (pd.hDC) > 0,
-              LogPrinter (std::format (L"page {} EndPage failed, GetLastError={}", pageIx, ::GetLastError ())));
+        hr = HrFromSpoolResult (EndPage (pd.hDC), L"EndPage", pageIx);
+        if (hr != S_OK)
+        {
+            if (FAILED (hr)) { failedStage = std::format (L"EndPage (page {})", pageIx + 1); }
+            goto Error;
+        }
 
         pageIx++;
     }
 
-    CWRF (EndDoc (pd.hDC) > 0,
-          LogPrinter (std::format (L"EndDoc failed, GetLastError={}", ::GetLastError ())));
+    hr = HrFromSpoolResult (EndDoc (pd.hDC), L"EndDoc", pageIx);
+    if (hr != S_OK)
+    {
+        if (FAILED (hr)) { failedStage = L"EndDoc (finishing the print job)"; }
+        goto Error;
+    }
     started = false;
     LogPrinter (std::format (L"deliver: success ({} page(s) sent)", pages.size ()));
 
@@ -1221,7 +1291,11 @@ void WindowCommandManager::OnPrinterCommand (int id)
 
     job = m_shell.m_printerWorker.Job ();
 
-    if (job == nullptr || !job->HasContent ())
+    // "No page" also covers a strip whose drained bytes left nothing on the
+    // paper (no ink AND no feed -- e.g. a bare escape preamble): HasContent is
+    // true but RowsUsed is 0, which would otherwise reach delivery, paginate to
+    // zero pages, and surface as a scary "something went wrong".
+    if (job == nullptr || !job->HasContent () || job->Raster ().RowsUsed () <= 0)
     {
         const wchar_t * emptyMsg = copy    ? L"The printer has no page to copy yet."
                                  : discard ? L"The printer has no page to discard."
@@ -1229,7 +1303,15 @@ void WindowCommandManager::OnPrinterCommand (int id)
                                            : L"The printer has no page to save yet.";
 
         DxuiMessageBox (m_shell.PrinterDialogOwner (), &m_shell.m_chromeTheme, emptyMsg, L"Casso Printer", MB_OK | MB_ICONINFORMATION);
-        m_shell.m_printerWorker.Start (m_shell.m_refs.printerCard->ByteRing ());
+
+        if (job != nullptr)
+        {
+            m_shell.m_printerWorker.Start (m_shell.m_refs.printerCard->ByteRing (), job->Raster ());
+        }
+        else
+        {
+            m_shell.m_printerWorker.Start (m_shell.m_refs.printerCard->ByteRing ());
+        }
         return;
     }
 
@@ -1278,9 +1360,11 @@ void WindowCommandManager::OnPrinterCommand (int id)
 
     // Print -> Windows printer; Save -> PNG via file dialog. Both are
     // non-destructive: the paper stays so it can be delivered again.
+    std::wstring   failedStage;
+
     if (print)
     {
-        hr = PrintToWindowsPrinter (job->Raster ());
+        hr = PrintToWindowsPrinter (job->Raster (), failedStage);
     }
     else
     {
@@ -1307,14 +1391,19 @@ void WindowCommandManager::OnPrinterCommand (int id)
     }
     else
     {
-        // Human sentence first, then a "Details:" trailer with the hr + OS message
-        // so a nerd (or a bug report) can see exactly what failed without the
-        // dialog reading like a stack trace.
+        // Human sentence first, then a "Details:" trailer with the failing stage
+        // + hr + OS message so a nerd (or a bug report) can see exactly what
+        // failed without the dialog reading like a stack trace.
         std::wstring   msg = print
                                  ? std::wstring (L"Something went wrong while sending your printout, so it is still waiting in the printer. Please try printing again.")
                                  : std::wstring (L"Something went wrong while saving your printout, so it is still waiting in the printer. Please try again.");
 
-        msg += L"\n\nDetails: " + FormatSystemError (hr);
+        msg += L"\n\nDetails: ";
+        if (!failedStage.empty ())
+        {
+            msg += failedStage + L"\n";
+        }
+        msg += FormatSystemError (hr);
 
         DxuiMessageBox (m_shell.PrinterDialogOwner (), &m_shell.m_chromeTheme, msg.c_str (),
                      L"Casso Printer", MB_OK | MB_ICONWARNING);
