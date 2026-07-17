@@ -35,6 +35,7 @@
 ROMBASE = $C100          ; default slot-1 ROM page (assembly origin only)
 IODATA  = $C080          ; data latch base; runtime index = slot*16
 IOSTAT  = $C081          ; status base;     runtime index = slot*16
+YSAVE   = $06F8          ; per-slot screen-hole scratch (base + slot#): caller Y
 
         .org ROMBASE
 
@@ -46,10 +47,16 @@ IOSTAT  = $C081          ; status base;     runtime index = slot*16
         .byte $00, $00, $00, $00, $00, $00, $00, $00, $00, $00
 
 ; ----------------------------------------------------------------------------
-;  OUTPUT -- per-character output (char in A). Preserves A (returns the
-;  character) and Y; uses X as the slot*16 I/O index. Honors the ready bit,
-;  so if the card ever de-asserts ready (high-water backpressure) the guest
-;  waits here instead of losing a byte.
+;  OUTPUT -- per-character output (char in A). The COUT-handler contract:
+;  return the character in A and preserve X and Y -- AppleSoft and DOS keep
+;  live state in X across COUT calls, so a handler that clobbers it corrupts
+;  the caller (the "PR#1 floods the printer" bug). X is therefore never
+;  touched: all I/O indexing runs through Y, and the caller's Y parks in our
+;  slot's screen-hole scratch byte (the sanctioned per-slot firmware
+;  workspace, exactly how the real cards did it).
+;
+;  Honors the ready bit, so if the card ever de-asserts ready (high-water
+;  backpressure) the guest waits here instead of losing a byte.
 ;
 ;  Like Apple's parallel interface card, the firmware sends a line feed after
 ;  every carriage return: BASIC / DOS output (PR#n, LIST, CATALOG) emits bare
@@ -59,41 +66,53 @@ IOSTAT  = $C081          ; status base;     runtime index = slot*16
 ;  on the real card.
 ; ----------------------------------------------------------------------------
 OUTPUT:
-        pha                      ; save the character
+        pha                      ; park the character
         tya
-        pha                      ; save Y
+        pha                      ; park caller Y (moved to the screen hole below)
 
         jsr HERE                 ; push return address (high byte = $Cn)
 HERE:
         pla                      ; discard return low byte
         pla                      ; A = return high byte = $Cn
         and #$0F                 ; A = slot number
+        tay                      ; Y = slot # (screen-hole index)
+        pla                      ; A = caller Y
+        sta YSAVE,y              ; caller Y -> our slot's scratch byte
+        tya
         asl a
         asl a
         asl a
         asl a                    ; A = slot * 16
-        tax                      ; X = slot*16 I/O index
+        tay                      ; Y = slot*16 I/O index (X stays untouched)
 
 WAIT:
-        lda IOSTAT,x             ; status: bit 7 set = ready
+        lda IOSTAT,y             ; status: bit 7 set = ready
         bpl WAIT                 ; wait while busy (normally falls straight through)
 
-        pla                      ; A = saved Y
-        tay                      ; restore Y
-        pla                      ; A = saved character
-        sta IODATA,x             ; latch the character to the card
+        pla                      ; A = the character (stack is ours again)
+        pha                      ; keep it parked for the final restore
+        sta IODATA,y             ; latch the character to the card
         cmp #$8D                 ; carriage return (COUT sends high-bit ASCII)?
         beq CRLF
         cmp #$0D                 ; or a plain CR
         beq CRLF
+
+DONE:
+        tya                      ; A = slot*16
+        lsr a
+        lsr a
+        lsr a
+        lsr a                    ; A = slot #
+        tay                      ; Y = slot # (screen-hole index)
+        lda YSAVE,y              ; A = caller Y
+        tay                      ; caller Y restored
+        pla                      ; A = the character (COUT contract)
         rts
 
 CRLF:
-        pha                      ; keep the character to return in A
 LFWAIT:
-        lda IOSTAT,x             ; honor ready for the injected byte too
+        lda IOSTAT,y             ; honor ready for the injected byte too
         bpl LFWAIT
         lda #$0A
-        sta IODATA,x             ; line feed after CR (like Apple's card)
-        pla
-        rts
+        sta IODATA,y             ; line feed after CR (like Apple's card)
+        jmp DONE

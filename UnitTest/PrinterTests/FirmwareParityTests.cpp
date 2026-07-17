@@ -84,6 +84,8 @@ namespace FirmwareParityTests
             cpu.RegSP () = 0xFF;
             cpu.DoPushWord (0x7FFF);        // RTS returns here + 1 == 0x8000
             cpu.RegA ()  = character;
+            cpu.RegX ()  = 0x5A;            // sentinel: the COUT contract preserves X
+            cpu.RegY ()  = 0xA5;            // ... and Y
             cpu.RegPC () = (Word) s_kParallelFirmwareOrigin;
 
             while (cpu.RegPC () != 0x8000 && steps < cap)
@@ -104,7 +106,24 @@ namespace FirmwareParityTests
             Assert::IsTrue    (steps < 400, L"OUTPUT must terminate -- no runaway");
             Assert::AreEqual  ((Byte) 0xC1, cpu.Peek (0xC090), L"character latched to the slot-1 data port");
             Assert::AreEqual  ((Byte) 0xC1, cpu.RegA (),       L"A (the character) preserved for COUT");
-            Assert::AreEqual  ((Byte) 0x10, cpu.RegX (),       L"slot discovered as 1 -> index slot*16");
+        }
+
+
+        TEST_METHOD (OutputPreservesXAndY)
+        {
+            // The COUT-handler contract: X and Y come back untouched.
+            // AppleSoft and DOS keep live state in X across COUT calls, so a
+            // handler that clobbers it corrupts the caller -- this was the
+            // "PR#1 floods the printer with garbage" bug.
+            TestCpu  cpu;
+
+            RunOutput (cpu, 0xC1);                    // plain character path
+            Assert::AreEqual ((Byte) 0x5A, cpu.RegX (), L"X preserved (plain char)");
+            Assert::AreEqual ((Byte) 0xA5, cpu.RegY (), L"Y preserved (plain char)");
+
+            RunOutput (cpu, 0x8D);                    // CR + injected-LF path
+            Assert::AreEqual ((Byte) 0x5A, cpu.RegX (), L"X preserved (CR path)");
+            Assert::AreEqual ((Byte) 0xA5, cpu.RegY (), L"Y preserved (CR path)");
         }
 
 
