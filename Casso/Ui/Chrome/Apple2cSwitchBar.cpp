@@ -349,21 +349,16 @@ void Apple2cSwitchBar::PaintSlantCap (IDxuiPainter & p, const RECT & r, bool pre
         ShearGrad  (p, cx, cy + ch - edge, cw, edge, tan, refB, kShadowNil, kShadeProud, kN); // bottom shadow
         ShearGradH (p, cx + cw - edge, cy, edge, ch, tan, refB, kShadowNil, kShadeProud, kN); // right shadow
     }
-    else if (deepPress)
-    {
-        // Deep press (latching switch): darkened face under a dominant top-left
-        // shadow -- a thin switch goes nearly all shadow -- with a faint catch
-        // at the bottom-right.
-        ShearGrad  (p, cx, cy, cw, ch * 0.62f, tan, refB, kShadePushed, kShadowNil, kN);     // top shadow
-        ShearGradH (p, cx, cy, cw * 0.62f, ch, tan, refB, kShadePushed, kShadowNil, kN);     // left shadow
-        ShearFill  (p, cx, cy + ch - 1.2f, cw, 1.2f, tan, refB, kLitFoot);                   // bottom-right catch
-    }
     else
     {
-        // Shallow press (momentary reset, shadow-only): the bevels move to the
-        // top + left, so the depth cue flips while the face and label stay put.
-        ShearGrad  (p, cx, cy, cw, edge, tan, refB, kShadeProud, kShadowNil, kN);       // top shadow
-        ShearGradH (p, cx, cy, edge, ch, tan, refB, kShadeProud, kShadowNil, kN);       // left shadow
+        // Pressed: the thin bevel simply flips to the top + left. The latching
+        // switches recess a step deeper (kShadePushed) than the momentary reset
+        // (kShadeProud) and darken their face slightly (see PaintKey), so a
+        // latched-in switch still reads at rest -- but without the old top-left
+        // wash that drowned the narrow caps in shadow.
+        uint32_t  sh = deepPress ? kShadePushed : kShadeProud;
+        ShearGrad  (p, cx, cy, cw, edge, tan, refB, sh, kShadowNil, kN);   // top shadow
+        ShearGradH (p, cx, cy, edge, ch, tan, refB, sh, kShadowNil, kN);   // left shadow
     }
 
     if (hovered)

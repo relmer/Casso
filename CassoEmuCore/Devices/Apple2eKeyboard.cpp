@@ -113,9 +113,9 @@ Byte Apple2eKeyboard::Read (Word address)
         return value;
     }
 
-    // $C060 (RD80SW): the //c 80/40 case switch, bit 7. The IOU pulls the
-    // line low while the switch is pressed in, so an "in" switch reads bit 7
-    // clear (80 columns) and an "out" switch reads bit 7 set (40 columns).
+    // $C060 (RD80SW): the //c 80/40 case switch, bit 7. A switch pressed in
+    // (down) reads bit 7 set (0x80) = 80 columns; a switch out (up) reads bit 7
+    // clear (0x00) = 40 columns (Apple TIL02094, matching the constants below).
     // On the //e there is no device here — $C060 stays the floating-bus 0.
     if (address == kwEightyColumnSwitch && m_apple2cMode.load (memory_order_acquire))
     {

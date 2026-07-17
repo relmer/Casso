@@ -127,13 +127,12 @@ private:
     // The cap fills its slot; a thin rim just seats it in the case. Depth is
     // carried by directional shading in PaintSlantCap, not a dark recess fill.
     static constexpr uint32_t  kSocketRim = 0xFF9A9484;   // thin rim around the cap
-    // Raised caps (reset + OUT switches) share the cream kCap/kCapHi face; only
-    // the sunk (pressed-in) latching switch darkens.
-    static constexpr uint32_t  kKeyFaceIn = 0xFFB2AD9F;   // cap face top, in (darkened)
-    static constexpr uint32_t  kKeyLoIn   = 0xFF938E80;   // cap face bottom, in (darker still)
-    static constexpr uint32_t  kShadeProud  = 0x4E000000; // bottom/right shading on a raised cap
-    static constexpr uint32_t  kShadePushed = 0x84000000; // top/left shading on a sunk cap (dominant)
-    static constexpr uint32_t  kLitFoot     = 0x2AFFFFFF; // faint bottom/right catch on a sunk cap
+    // Raised caps (reset + OUT switches) share the cream kCap/kCapHi face; a
+    // latched-in switch keeps that cream but a step darker, reading as recessed.
+    static constexpr uint32_t  kKeyFaceIn = 0xFFD4D1C7;   // cap face top, in (soft recess)
+    static constexpr uint32_t  kKeyLoIn   = 0xFFC9C5BA;   // cap face bottom, in
+    static constexpr uint32_t  kShadeProud  = 0x4E000000; // bottom/right bevel on a raised cap
+    static constexpr uint32_t  kShadePushed = 0x84000000; // deeper top/left bevel on a sunk switch
     static constexpr uint32_t  kShadowNil   = 0x00000000; // transparent far edge
 
     static constexpr uint32_t  kLedOff    = 0xFF25281F;   // dark LED (idle)
