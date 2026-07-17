@@ -3314,6 +3314,7 @@ int EmulatorShell::RunMessageLoop()
             if (msg.message == WM_APP_DXUI_UPDATE_TITLE)
             {
                 UpdateWindowTitle();
+                ApplyToolbarMachineTint();   // strip wears the new machine's case color
                 ReflowChromeForMachineChange();
                 continue;
             }
@@ -5764,13 +5765,16 @@ void EmulatorShell::ApplyDefaultPointerForMachine()
     if (m_mouse != nullptr && m_mouseConnected
         && m_pointerMode == InputMappingMode::Off)
     {
+        // State only -- NO chrome work here. This runs on the CPU thread
+        // during SwitchMachine, and the selector sync / joystick-button
+        // relayout measure text through the Dxui renderer, which is
+        // UI-thread-only (DxuiAssertUiThread fired on a //c -> //e switch).
+        // Both paths already relayout on the UI thread afterwards: a machine
+        // switch posts WM_APP_DXUI_UPDATE_TITLE, whose handler runs
+        // ReflowChromeForMachineChange -> OnSize -> LayoutJoystickButton
+        // (which SyncSelectorState()s itself), and the launch path lays out
+        // the chrome later in Initialize.
         m_pointerMode = InputMappingMode::Mouse;
-        SyncSelectorState();
-
-        if (m_hwnd != nullptr)
-        {
-            RelayoutJoystickButton();
-        }
     }
 }
 
