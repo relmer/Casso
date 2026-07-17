@@ -195,24 +195,15 @@ HRESULT DiskSettings::WriteSavedDiskPath (
 
     
 
-    if (drive < 0 || drive > 1 || machineName.empty())
-    {
-        return E_INVALIDARG;
-    }
+    BAIL_OUT_IF (drive < 0 || drive > 1 || machineName.empty(), E_INVALIDARG);
 
     hr = LoadMachineDefaultJson (machineName, defaultJson);
-    if (hr != S_OK)
-    {
-        return S_FALSE;
-    }
+    BAIL_OUT_IF (hr != S_OK, S_FALSE);
 
     hr = store.Load (WideToUtf8 (machineName), defaultJson, fs, mergedJson);
     CHR (hr);
 
-    if (mergedJson.GetType() != JsonType::Object)
-    {
-        return S_FALSE;
-    }
+    BAIL_OUT_IF (mergedJson.GetType() != JsonType::Object, S_FALSE);
 
     stored       = PathResolver::MakeExeRelativePath (path);
     storedNarrow = WideToUtf8 (stored);
@@ -302,24 +293,15 @@ HRESULT DiskSettings::WriteSavedUiPrefBool (
 
 
 
-    if (key.empty() || machineName.empty())
-    {
-        return E_INVALIDARG;
-    }
+    BAIL_OUT_IF (key.empty() || machineName.empty(), E_INVALIDARG);
 
     hr = LoadMachineDefaultJson (machineName, defaultJson);
-    if (hr != S_OK)
-    {
-        return S_FALSE;
-    }
+    BAIL_OUT_IF (hr != S_OK, S_FALSE);
 
     hr = store.Load (WideToUtf8 (machineName), defaultJson, fs, mergedJson);
     CHR (hr);
 
-    if (mergedJson.GetType() != JsonType::Object)
-    {
-        return S_FALSE;
-    }
+    BAIL_OUT_IF (mergedJson.GetType() != JsonType::Object, S_FALSE);
 
     rootEntries = mergedJson.GetObjectEntries();
 

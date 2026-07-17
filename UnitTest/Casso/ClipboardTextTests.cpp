@@ -21,7 +21,7 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace
+TEST_CLASS (ClipboardTextTests)
 {
     // Minimal $C01F responder. The I/O range is device-routed on the bus (a RAM
     // page can't back it, and open bus reads as 0xFF), so the 80-column status
@@ -40,11 +40,7 @@ namespace
     private:
         Byte  m_val;
     };
-}
 
-
-TEST_CLASS (ClipboardTextTests)
-{
     // Row 0 of the text screen lives at $0400; consecutive character cells map
     // to $0400, $0401, ... in each bank. Seed a distinctive interleave:
     //   aux[$0400]='A' main[$0400]='B' aux[$0401]='C' main[$0401]='D'

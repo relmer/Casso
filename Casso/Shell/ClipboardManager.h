@@ -55,6 +55,10 @@ public:
     std::wstring  BuildScreenText (const Byte * auxRam) const;
 
 private:
+    // Map one raw text-screen byte to a printable wchar (high bit stripped,
+    // non-printables blanked).
+    static wchar_t  DecodeScreenByte (Byte ch);
+
     MemoryBus              & m_memoryBus;
     std::mutex             & m_cmdMutex;
     std::string            & m_pasteBuffer;

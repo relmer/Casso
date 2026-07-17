@@ -175,6 +175,18 @@ private:
     void  PaintSlantCap    (IDxuiPainter & p, const RECT & r, bool pressedIn,
                             bool deepPress, bool hovered, uint32_t faceHi, uint32_t faceLo);
 
+    // Low-level slanted-fill primitives shared by the cap/LED painters. Every
+    // piece shares one shear field: a point at height y shifts right by
+    // (refBottom - y) * tan. ShearFill draws one parallelogram strip; ShearGrad
+    // / ShearGradH stack strips with an interpolated colour for a gradient.
+    static uint32_t  LerpArgb   (uint32_t a, uint32_t b, float t);
+    static void      ShearFill  (IDxuiPainter & p, float xL, float yTop, float w, float h,
+                                 float tan, float refBottom, uint32_t argb);
+    static void      ShearGrad  (IDxuiPainter & p, float xL, float yTop, float w, float h,
+                                 float tan, float refBottom, uint32_t top, uint32_t bot, int strips);
+    static void      ShearGradH (IDxuiPainter & p, float xL, float yTop, float w, float h,
+                                 float tan, float refBottom, uint32_t left, uint32_t right, int cols);
+
     RECT                 m_bounds       = {};
     RECT                 m_resetRect    = {};
     RECT                 m_eightyRect   = {};   // clickable: key + label

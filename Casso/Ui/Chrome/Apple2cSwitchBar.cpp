@@ -8,70 +8,123 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  Slanted-fill helpers (file-local)
+//  Apple2cSwitchBar::LerpArgb
 //
-//  Every piece of a switch cap shares one shear field so it reads as a single
-//  leaning parallelogram: a point at absolute height y is pushed right by
-//  (refBottom - y) * tan, i.e. no shift at the reference bottom, growing toward
-//  the top. ShearFill draws one solid parallelogram strip; ShearGrad stacks
-//  strips with an interpolated colour for a top-lit gradient on the slant.
+//  Per-channel linear blend between two ARGB colours, clamped to 0..255.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace
+uint32_t Apple2cSwitchBar::LerpArgb (uint32_t a, uint32_t b, float t)
 {
-    uint32_t LerpArgb (uint32_t a, uint32_t b, float t)
+    auto  chan = [] (uint32_t c, int shift) { return (int) ((c >> shift) & 0xFFu); };
+    auto  mix  = [&] (int shift)
     {
-        auto  chan = [] (uint32_t c, int shift) { return (int) ((c >> shift) & 0xFFu); };
-        auto  mix  = [&] (int shift)
-        {
-            int  v = chan (a, shift) + (int) ((chan (b, shift) - chan (a, shift)) * t + 0.5f);
-            return (uint32_t) (v < 0 ? 0 : (v > 255 ? 255 : v));
-        };
+        int  v = chan (a, shift) + (int) ((chan (b, shift) - chan (a, shift)) * t + 0.5f);
+        return (uint32_t) (v < 0 ? 0 : (v > 255 ? 255 : v));
+    };
 
-        return (mix (24) << 24) | (mix (16) << 16) | (mix (8) << 8) | mix (0);
+    return (mix (24) << 24) | (mix (16) << 16) | (mix (8) << 8) | mix (0);
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Apple2cSwitchBar::ShearFill
+//
+//  Draw one solid parallelogram strip on the shared shear field: a point at
+//  absolute height y is pushed right by (refBottom - y) * tan -- no shift at the
+//  reference bottom, growing toward the top.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Apple2cSwitchBar::ShearFill (
+    IDxuiPainter  & p,
+    float           xL,
+    float           yTop,
+    float           w,
+    float           h,
+    float           tan,
+    float           refBottom,
+    uint32_t        argb)
+{
+    float  st = (refBottom - yTop)       * tan;   // top-edge shift
+    float  sb = (refBottom - (yTop + h)) * tan;   // bottom-edge shift
+
+    p.FillConvexQuad (xL + st,     yTop,
+                      xL + w + st, yTop,
+                      xL + w + sb, yTop + h,
+                      xL + sb,     yTop + h,
+                      argb);
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Apple2cSwitchBar::ShearGrad
+//
+//  Stack ShearFill strips top-to-bottom with an interpolated colour for a
+//  top-lit gradient along the slant.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Apple2cSwitchBar::ShearGrad (
+    IDxuiPainter  & p,
+    float           xL,
+    float           yTop,
+    float           w,
+    float           h,
+    float           tan,
+    float           refBottom,
+    uint32_t        top,
+    uint32_t        bot,
+    int             strips)
+{
+    for (int i = 0; i < strips; i++)
+    {
+        float  t0 = (float) i       / (float) strips;
+        float  t1 = (float) (i + 1) / (float) strips;
+
+        ShearFill (p, xL, yTop + h * t0, w, h * (t1 - t0),
+                   tan, refBottom, LerpArgb (top, bot, (t0 + t1) * 0.5f));
     }
+}
 
-    void ShearFill (IDxuiPainter & p, float xL, float yTop, float w, float h,
-                    float tan, float refBottom, uint32_t argb)
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Apple2cSwitchBar::ShearGradH
+//
+//  Horizontal companion to ShearGrad: interpolates left -> right across the
+//  width by stacking full-height vertical columns (each a thin slanted sliver),
+//  so a left/right-directional shadow follows the same lean.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Apple2cSwitchBar::ShearGradH (
+    IDxuiPainter  & p,
+    float           xL,
+    float           yTop,
+    float           w,
+    float           h,
+    float           tan,
+    float           refBottom,
+    uint32_t        left,
+    uint32_t        right,
+    int             cols)
+{
+    for (int i = 0; i < cols; i++)
     {
-        float  st = (refBottom - yTop)       * tan;   // top-edge shift
-        float  sb = (refBottom - (yTop + h)) * tan;   // bottom-edge shift
+        float  t0 = (float) i       / (float) cols;
+        float  t1 = (float) (i + 1) / (float) cols;
 
-        p.FillConvexQuad (xL + st,     yTop,
-                          xL + w + st, yTop,
-                          xL + w + sb, yTop + h,
-                          xL + sb,     yTop + h,
-                          argb);
-    }
-
-    void ShearGrad (IDxuiPainter & p, float xL, float yTop, float w, float h,
-                    float tan, float refBottom, uint32_t top, uint32_t bot, int strips)
-    {
-        for (int i = 0; i < strips; i++)
-        {
-            float  t0 = (float) i       / (float) strips;
-            float  t1 = (float) (i + 1) / (float) strips;
-
-            ShearFill (p, xL, yTop + h * t0, w, h * (t1 - t0),
-                       tan, refBottom, LerpArgb (top, bot, (t0 + t1) * 0.5f));
-        }
-    }
-
-    // Horizontal companion to ShearGrad: interpolates left -> right across the
-    // width by stacking full-height vertical columns (each its own thin slanted
-    // sliver), so a left/right-directional shadow follows the same lean.
-    void ShearGradH (IDxuiPainter & p, float xL, float yTop, float w, float h,
-                     float tan, float refBottom, uint32_t left, uint32_t right, int cols)
-    {
-        for (int i = 0; i < cols; i++)
-        {
-            float  t0 = (float) i       / (float) cols;
-            float  t1 = (float) (i + 1) / (float) cols;
-
-            ShearFill (p, xL + w * t0, yTop, w * (t1 - t0), h,
-                       tan, refBottom, LerpArgb (left, right, (t0 + t1) * 0.5f));
-        }
+        ShearFill (p, xL + w * t0, yTop, w * (t1 - t0), h,
+                   tan, refBottom, LerpArgb (left, right, (t0 + t1) * 0.5f));
     }
 }
 

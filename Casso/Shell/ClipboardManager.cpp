@@ -34,29 +34,6 @@ namespace
     constexpr WORD  s_kDibBitCount      = 32;
     constexpr Word  s_kRd80Vid          = 0xC01F;   // 80-column display status
     constexpr int   s_kTextCols80       = 80;
-
-
-    // Map one raw text-screen byte to a printable wchar. Normal, inverse, and
-    // flashing glyphs all live in the $80-$FF span, so strip the high bit and
-    // blank anything outside printable ASCII.
-    wchar_t DecodeScreenByte (Byte ch)
-    {
-        if (ch >= s_kInverseHighStart)
-        {
-            ch -= s_kHighBitMask;
-        }
-        else if (ch >= s_kHighBitMask)
-        {
-            ch -= s_kHighBitMask;
-        }
-
-        if (ch < s_kPrintableLow || ch > s_kPrintableHigh)
-        {
-            ch = ' ';
-        }
-
-        return static_cast<wchar_t> (ch);
-    }
 }
 
 
@@ -89,6 +66,38 @@ ClipboardManager::ClipboardManager (
 {
 }
 
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ClipboardManager::DecodeScreenByte
+//
+//  Map one raw text-screen byte to a printable wchar. Normal, inverse, and
+//  flashing glyphs all live in the $80-$FF span, so strip the high bit and
+//  blank anything outside printable ASCII.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+wchar_t ClipboardManager::DecodeScreenByte (Byte ch)
+{
+    if (ch >= s_kInverseHighStart)
+    {
+        ch -= s_kHighBitMask;
+    }
+    else if (ch >= s_kHighBitMask)
+    {
+        ch -= s_kHighBitMask;
+    }
+
+    if (ch < s_kPrintableLow || ch > s_kPrintableHigh)
+    {
+        ch = ' ';
+    }
+
+    return static_cast<wchar_t> (ch);
+}
 
 
 
