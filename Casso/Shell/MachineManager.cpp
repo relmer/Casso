@@ -1467,9 +1467,6 @@ HRESULT MachineManager::SwitchMachine (const std::wstring & machineName)
     m_shell.m_currentMachineName = machineName;
     m_shell.m_config             = newConfig;
     m_shell.m_cyclesPerFrame     = newConfig.cyclesPerFrame;
-    // (The toolbar's machine tint re-applies on the UI thread, in the
-    // WM_APP_DXUI_UPDATE_TITLE handler that follows every switch --
-    // SwitchMachine runs on the CPU thread and must not touch chrome.)
 
     hr = CreateMemoryDevices (newConfig);
     CHR (hr);

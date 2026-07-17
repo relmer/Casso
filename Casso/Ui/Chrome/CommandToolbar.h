@@ -82,16 +82,6 @@ public:
     void  SetPrinterStatus  (PrinterStatus status)       { m_printerStatus = status; }
     void  SetPrinterPresent (bool present)               { m_printerPresent = present; }
 
-    // Machine-colored chrome: the strip paints this vertical case-color
-    // gradient (Disk ][ beige for the II family, platinum for //c-era
-    // machines) with dark ink for contrast. 0 falls back to the theme
-    // background with theme ink.
-    void  SetMachineTint    (uint32_t topArgb, uint32_t botArgb)
-    {
-        m_tintTop = topArgb;
-        m_tintBot = botArgb;
-    }
-
     // Shell-forwarded mouse input. Return true when the event was consumed
     // (over a button, or the slider is tracking a drag).
     bool  OnToolbarMouseMove   (int x, int y, bool leftDown);
@@ -142,6 +132,4 @@ private:
     bool                  m_muted          = false;
     PrinterStatus         m_printerStatus  = PrinterStatus::Idle;
     bool                  m_printerPresent = false;
-    uint32_t              m_tintTop        = 0;       // machine case tint (0 = theme background)
-    uint32_t              m_tintBot        = 0;
 };

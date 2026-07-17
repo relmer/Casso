@@ -44,14 +44,6 @@ static constexpr wchar_t  s_kGlyphVolume     = L'\uE767';   // speaker
 static constexpr wchar_t  s_kGlyphMuted      = L'\uE74F';   // muted speaker
 static constexpr wchar_t  s_kGlyphPrint      = L'\uE749';   // printer (monoline, matches the set)
 
-// Ink + hover treatment over the machine-tinted (light case-color) strip;
-// the un-tinted fallback uses the theme's chrome colors instead.
-static constexpr uint32_t  s_kTintInk        = 0xFF3A3428;   // dark ink on beige / platinum
-static constexpr uint32_t  s_kTintHover      = 0x1E000000;
-static constexpr uint32_t  s_kTintPressed    = 0x33000000;
-static constexpr uint32_t  s_kTintBorder     = 0x50000000;
-static constexpr uint32_t  s_kTintHairline   = 0x5A46402F;   // strip's bottom edge shade
-
 
 
 
@@ -546,8 +538,7 @@ void CommandToolbar::PaintButton (Button & btn, IDxuiPainter & painter,
     float     iconDip  = s_kIconDip * (float) m_dpi / (float) s_kBaseDpi;
     int       padX     = MulDiv (s_kBtnPadXDp, (int) m_dpi, s_kBaseDpi);
     int       iconGap  = MulDiv (s_kIconGapDp, (int) m_dpi, s_kBaseDpi);
-    bool      tinted   = (m_tintTop != 0);
-    uint32_t  ink      = tinted ? s_kTintInk : theme.navItemText;
+    uint32_t  ink      = theme.navItemText;
     float     iconW    = iconDip;
     float     textX    = 0.0f;
 
@@ -558,12 +549,11 @@ void CommandToolbar::PaintButton (Button & btn, IDxuiPainter & painter,
 
     if (active)
     {
-        uint32_t  fill   = btn.pressed ? (tinted ? s_kTintPressed : theme.buttonPressed)
-                                       : (tinted ? s_kTintHover   : theme.buttonHover);
-        uint32_t  border = tinted ? s_kTintBorder : theme.buttonBorder;
+        uint32_t  fill = btn.pressed ? theme.buttonPressed
+                                     : (btn.hovered ? theme.buttonHover : theme.buttonIdle);
 
         painter.FillRect    (bl, bt, bw, bh, fill);
-        painter.OutlineRect (bl, bt, bw, bh, 1.0f, border);
+        painter.OutlineRect (bl, bt, bw, bh, 1.0f, theme.buttonBorder);
     }
 
     // Ribbon mode: icon centered over a small label. The icon gets the region
@@ -666,19 +656,11 @@ void CommandToolbar::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
         return;
     }
 
-    // Machine-colored chrome: the strip wears the selected machine's case
-    // color (Disk ][ beige for the II family, platinum for //c-era machines),
-    // tying the toolbar to the hardware like the drive widgets. Without a
-    // tint it stays on the theme backdrop.
-    if (m_tintTop != 0)
-    {
-        painter.FillGradientRect (bl, btTop, bw, bhAll, m_tintTop, m_tintBot);
-        painter.FillRect (bl, (float) m_barRect.bottom - 1.0f, bw, 1.0f, s_kTintHairline);
-    }
-    else
-    {
-        painter.FillRect (bl, (float) m_barRect.bottom - 1.0f, bw, 1.0f, theme.buttonBorder);
-    }
+    // The strip continues the menu bar's themed surface (navStrip), so the
+    // two chrome rows above the emulator read as one block; a hairline
+    // separates the toolbar from the viewport below.
+    painter.FillRect (bl, btTop, bw, bhAll, theme.navStrip);
+    painter.FillRect (bl, (float) m_barRect.bottom - 1.0f, bw, 1.0f, theme.buttonBorder);
 
     // The printer button follows card presence: no card, no printer button.
     m_buttons[1].enabled = m_printerPresent;
