@@ -212,11 +212,44 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  FormatFlushLossMessage
+//
+//  User-facing message for a flush that failed to persist a dirty image,
+//  built from the mount path (widened) the store already holds. Handed to
+//  the CHRN/CBRN notifications in FlushEntry.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+wstring DiskImageStore::FormatFlushLossMessage (const string & path)
+{
+    wstring  widePath = fs::path (path).wstring ();
+
+
+
+    if (widePath.empty ())
+    {
+        widePath = L"(unknown path)";
+    }
+
+    return L"Casso could not save changes to the disk image:\n\n" + widePath +
+           L"\n\nYour recent writes were NOT persisted. The file on disk is "
+           L"unchanged. If this is a .dsk, try a .woz image -- WOZ round-trips "
+           L"writes reliably.";
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  FlushEntry
 //
-//  Centralized flush helper. Dispatches through SetFlushSink when the
-//  test hook is installed; otherwise writes to the host filesystem.
-//  Does nothing if the image is clean or no source path is recorded.
+//  Centralized flush helper. Dispatches through SetFlushSink when the test
+//  hook is installed; otherwise writes to the host filesystem. Does nothing
+//  if the image is clean or no source path is recorded. A genuine failure
+//  to persist a dirty image is surfaced to the user via the shared EHM
+//  notifier (CHRN/CBRN), because every caller drops the return value.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -226,40 +259,38 @@ HRESULT DiskImageStore::FlushEntry (Entry & entry)
     vector<Byte>  bytes;
     bool          fileOk = false;
 
-    if (!entry.mounted || entry.image == nullptr)
-    {
-        goto Error;
-    }
 
-    if (!entry.image->IsDirty ())
-    {
-        goto Error;
-    }
+
+    // No-op cases -- nothing dirty to persist -- succeed silently.
+    BAIL_OUT_IF (!entry.mounted || entry.image == nullptr, S_OK);
+    BAIL_OUT_IF (!entry.image->IsDirty (), S_OK);
 
     if (entry.image->IsWriteProtected ())
     {
         entry.image->ClearDirty ();
-        goto Error;
+        BAIL_OUT_IF (true, S_OK);
     }
 
+    // A genuine failure to persist a DIRTY image must not vanish: every
+    // caller drops FlushEntry's HRESULT (Eject / PowerCycle are void; the
+    // shell / SoftReset IGNORE_RETURN_VALUE it), so the loss is surfaced
+    // here through the shared EHM notifier rather than a return nobody
+    // checks. The image keeps its dirty bit on failure so a later flush
+    // can retry.
     hr = entry.image->Serialize (bytes);
-
-    if (FAILED (hr))
-    {
-        goto Error;
-    }
+    CHRN (hr, FormatFlushLossMessage (entry.path).c_str ());
 
     if (m_flushSink)
     {
         hr = m_flushSink (entry.path, bytes);
-        CHR (hr);
+        CHRN (hr, FormatFlushLossMessage (entry.path).c_str ());
     }
     else if (!entry.path.empty ())
     {
         ofstream  file (entry.path, ios::binary);
 
         fileOk = file.good ();
-        CBREx (fileOk, E_FAIL);
+        CBRN (fileOk, FormatFlushLossMessage (entry.path).c_str ());
 
         file.write (reinterpret_cast<const char *> (bytes.data ()),
                     static_cast<streamsize> (bytes.size ()));
@@ -268,16 +299,6 @@ HRESULT DiskImageStore::FlushEntry (Entry & entry)
     entry.image->ClearDirty ();
 
 Error:
-    // A genuine failure to persist a DIRTY image (serialize failed, or the
-    // sink/file write failed) must not vanish -- the early no-op returns
-    // above (clean / unmounted / write-protected) all leave hr == S_OK, so
-    // only real losses reach the reporter. The image keeps its dirty bit on
-    // failure, so a later flush can retry.
-    if (FAILED (hr) && m_flushErrorReporter)
-    {
-        m_flushErrorReporter (entry.path, hr);
-    }
-
     return hr;
 }
 

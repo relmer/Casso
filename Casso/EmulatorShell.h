@@ -51,6 +51,7 @@
 
 class DxuiHwndSource;
 class SettingsSheet;
+class JsonValue;
 
 
 
@@ -274,6 +275,35 @@ private:
     // Initialization helpers
     HRESULT CreateEmulatorWindow (HINSTANCE hInstance);
     void    ReconcileInitialClientSize ();
+
+    // Initialize() decomposition -- one single-purpose step each, called
+    // in order from Initialize. HRESULT-returning steps propagate failure
+    // and abort startup via CHR; the void ones have no failable work.
+    void    RegisterChromeDock            ();
+    void    InitAssetPathsAndStores       ();
+    void    AllocateFramebuffers          ();
+    HRESULT PrimeChromeThemeEarly         ();
+    HRESULT BuildMachineDevices           (const MachineConfig & config);
+    HRESULT InitializeRenderer            ();
+    HRESULT InitializeUiShell             ();
+    HRESULT WireUiShellChromeAndThemes    ();
+    void    RestoreInputAndColorPrefs     ();
+    void    RecordActiveMachineSelection  ();
+    void    SubscribeAndActivateTheme     ();
+    HRESULT FinishUiShellLayout           ();
+    void    InstallDragDropTarget         ();
+
+    // Persisted per-machine $cassoUiPrefs. LoadMachineUiPrefs reads +
+    // merges the machine JSON, returning the "$cassoUiPrefs" object (or
+    // null when it is simply absent -- a non-error). Each Apply* helper
+    // loads its own copy and seeds one subsystem (chrome vs audio).
+    HRESULT LoadMachineUiPrefs            (JsonValue & outDoc, const JsonValue * & outUiPrefs);
+    HRESULT ApplyPersistedChromePrefs     ();
+    HRESULT ApplyPersistedAudioPrefs      ();
+
+    // Truncating wide->narrow of m_currentMachineName (machine config
+    // names are ASCII): the config-store key + lastSelectedMachine pref.
+    std::string CurrentMachineNameNarrow  () const;
 
     // Drives the host's root panel layout for the Apple ][ viewport
     // child. Computes the framebuffer rectangle (client minus chrome
