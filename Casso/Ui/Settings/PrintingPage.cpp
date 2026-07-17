@@ -10,6 +10,7 @@ static constexpr int    s_kRowHeightDp     = 28;
 static constexpr int    s_kLabelWidthDp    = 130;
 static constexpr int    s_kDropdownWidthDp = 220;
 static constexpr int    s_kCheckWidthDp    = 140;
+static constexpr int    s_kResetWidthDp    = 130;   // matches DiskPage's restore button
 static constexpr int    s_kChildIndentDp   = 18;    // one nesting step (matches DxuiTreeView)
 static constexpr int    s_kSectionGapDp    = 14;
 static constexpr int    s_kPagePadDp       = 16;
@@ -71,6 +72,7 @@ PrintingPage::PrintingPage (std::wstring title)
     Adopt (m_panOverride);
     Adopt (m_panLabel);
     Adopt (m_pan);
+    Adopt (m_reset);
 }
 
 
@@ -120,6 +122,7 @@ void PrintingPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
     int  labelWidth  = scaler.Px (s_kLabelWidthDp);
     int  dropWidth   = scaler.Px (s_kDropdownWidthDp);
     int  checkWidth  = scaler.Px (s_kCheckWidthDp);
+    int  resetWidth  = scaler.Px (s_kResetWidthDp);
     int  childIndent = scaler.Px (s_kChildIndentDp);
     int  sectionGap  = scaler.Px (s_kSectionGapDp);
     int  x           = rect.left + pad;
@@ -161,6 +164,10 @@ void PrintingPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
     ConfigurePanSlider (m_pan, MakeRect (controlsX, y, dropWidth, rowHeight));
     y += rowHeight + sectionGap;
 
+    m_reset.SetLabel (L"Restore defaults");
+    m_reset.Layout   (MakeRect (controlsX, y, resetWidth, rowHeight));
+    y += rowHeight + sectionGap;
+
     m_dpiLabel.SetDpi      (dpi);
     m_dpi.SetDpi           (dpi);
     m_styleLabel.SetDpi    (dpi);
@@ -172,6 +179,7 @@ void PrintingPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
     m_panOverride.SetDpi   (dpi);
     m_panLabel.SetDpi      (dpi);
     m_pan.SetDpi           (dpi);
+    m_reset.SetDpi         (dpi);
 
     DxuiPanel::SetBounds (rect);
 }
@@ -243,6 +251,51 @@ void PrintingPage::Rebuild()
         prefs->printerAudioPan = v / 100.0f;
         MarkDirty();
     });
+
+    m_reset.SetOnClick ([this] { ResetToDefaults(); });
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PrintingPage::ResetToDefaults
+//
+//  Puts every pref on the page back to the GlobalUserPrefs field defaults (a
+//  default-constructed instance IS the authority -- no duplicated constants to
+//  drift) and re-syncs the widgets explicitly. Deliberately does NOT call
+//  Rebuild: that would replace this button's own OnClick closure while it is
+//  still executing. Cancel reverts the reset like any other edit; OK persists.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void PrintingPage::ResetToDefaults()
+{
+    GlobalUserPrefs   defaults;
+
+
+    if (m_prefs == nullptr)
+    {
+        return;
+    }
+
+    m_prefs->printOutputDpi          = defaults.printOutputDpi;
+    m_prefs->printDotStyle           = defaults.printDotStyle;
+    m_prefs->printerAudioEnabled     = defaults.printerAudioEnabled;
+    m_prefs->printerAudioVolume      = defaults.printerAudioVolume;
+    m_prefs->printerAudioPanOverride = defaults.printerAudioPanOverride;
+    m_prefs->printerAudioPan         = defaults.printerAudioPan;
+
+    m_dpi.SetSelected         (m_prefs->printOutputDpi == 576 ? 1 : 0);
+    m_dotStyle.SetSelected    (DotStyleToIndex (m_prefs->printDotStyle));
+    m_soundsToggle.SetChecked (m_prefs->printerAudioEnabled);
+    m_volume.SetValue         (m_prefs->printerAudioVolume * 100.0f);
+    m_panOverride.SetChecked  (m_prefs->printerAudioPanOverride);
+    m_pan.SetValue            (m_prefs->printerAudioPan * 100.0f);
+
+    ApplyEnabledState();
+    MarkDirty();
 }
 
 

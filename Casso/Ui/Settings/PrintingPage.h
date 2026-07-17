@@ -5,6 +5,7 @@
 #include "../../Config/GlobalUserPrefs.h"
 
 #include "Window/DxuiPropertyPage.h"
+#include "Widgets/DxuiButton.h"
 #include "Widgets/DxuiDropdown.h"
 #include "Widgets/DxuiLabel.h"
 #include "Widgets/DxuiCheckbox.h"
@@ -40,6 +41,10 @@ class DxuiHwndSource;
 //          - Manual pan (DxuiCheckbox: pin the stereo pan) + its child:
 //              - Pan    (DxuiSlider: Left .. Center .. Right)
 //
+//  A "Restore defaults" button (matching DiskPage's) puts every control on the
+//  page back to the GlobalUserPrefs field defaults; Cancel still reverts it
+//  like any other edit, OK persists it.
+//
 //  The delivery destination is no longer a preference: the preview's Print /
 //  Save buttons (and the File menu's Copy) choose it per action, and Save
 //  always prompts for the PNG path, so a stored destination + folder are gone.
@@ -68,6 +73,7 @@ public:
     DxuiSlider         & VolumeSlider        ()       { return m_volume;       }
     DxuiCheckbox       & PanOverrideCheckbox ()       { return m_panOverride;  }
     DxuiSlider         & PanSlider           ()       { return m_pan;          }
+    DxuiButton         & ResetButton         ()       { return m_reset;        }
 
 private:
     static RECT  MakeRect        (int l, int t, int w, int h);
@@ -80,6 +86,11 @@ private:
     // volume + manual-pan controls follow the master toggle, and the pan
     // slider additionally follows the manual-pan checkbox.
     void  ApplyEnabledState     ();
+
+    // Put every pref on the page back to the GlobalUserPrefs field defaults
+    // and re-sync the widgets (explicitly -- NOT via Rebuild, which would
+    // replace this button's own OnClick closure while it is executing).
+    void  ResetToDefaults       ();
 
     GlobalUserPrefs *  m_prefs = nullptr;
 
@@ -95,4 +106,6 @@ private:
     DxuiCheckbox  m_panOverride;
     DxuiLabel     m_panLabel;
     DxuiSlider    m_pan;
+
+    DxuiButton    m_reset;
 };
