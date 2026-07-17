@@ -277,12 +277,14 @@ private:
     void    ReconcileInitialClientSize ();
 
     // Initialize() decomposition -- one single-purpose step each, called
-    // in order from Initialize. HRESULT-returning steps propagate failure
-    // and abort startup via CHR; the void ones have no failable work.
+    // in order from Initialize. HRESULT-returning steps propagate genuine
+    // infrastructure failure and abort startup via CHR; the void ones have
+    // no failable work, or recover in place (e.g. corrupt user prefs reset
+    // to defaults) rather than abort.
     void    RegisterChromeDock            ();
     void    InitAssetPathsAndStores       ();
     void    AllocateFramebuffers          ();
-    HRESULT PrimeChromeThemeEarly         ();
+    void    PrimeChromeThemeEarly         ();
     HRESULT BuildMachineDevices           (const MachineConfig & config);
     HRESULT InitializeRenderer            ();
     HRESULT InitializeUiShell             ();
@@ -294,12 +296,13 @@ private:
     void    InstallDragDropTarget         ();
 
     // Persisted per-machine $cassoUiPrefs. LoadMachineUiPrefs reads +
-    // merges the machine JSON, returning the "$cassoUiPrefs" object (or
-    // null when it is simply absent -- a non-error). Each Apply* helper
-    // loads its own copy and seeds one subsystem (chrome vs audio).
-    HRESULT LoadMachineUiPrefs            (JsonValue & outDoc, const JsonValue * & outUiPrefs);
-    HRESULT ApplyPersistedChromePrefs     ();
-    HRESULT ApplyPersistedAudioPrefs      ();
+    // merges the machine JSON, handing back the "$cassoUiPrefs" object in
+    // outUiPrefs -- or null when it is absent OR unreadable/corrupt, both
+    // recovered to defaults, never fatal. Each Apply* helper loads its own
+    // copy and seeds one subsystem (chrome vs audio).
+    void    LoadMachineUiPrefs            (JsonValue & outDoc, const JsonValue * & outUiPrefs);
+    void    ApplyPersistedChromePrefs     ();
+    void    ApplyPersistedAudioPrefs      ();
 
     // Truncating wide->narrow of m_currentMachineName (machine config
     // names are ASCII): the config-store key + lastSelectedMachine pref.

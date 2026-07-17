@@ -546,9 +546,7 @@ HRESULT EmulatorShell::Initialize (
     ComponentRegistry::RegisterBuiltinDevices (m_registry);
 
     AllocateFramebuffers();
-
-    hr = PrimeChromeThemeEarly();
-    CHR (hr);
+    PrimeChromeThemeEarly();
 
     hr = CreateEmulatorWindow (hInstance);
     CHR (hr);
@@ -602,8 +600,7 @@ HRESULT EmulatorShell::Initialize (
     RecordRecentDisk (std::filesystem::path (disk2Path).wstring());
     RecordRecentDisk (std::filesystem::path (disk1Path).wstring());
 
-    hr = ApplyPersistedAudioPrefs();
-    CHR (hr);
+    ApplyPersistedAudioPrefs();
 
 Error:
     return hr;
@@ -704,23 +701,26 @@ void EmulatorShell::AllocateFramebuffers()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT EmulatorShell::PrimeChromeThemeEarly()
+void EmulatorShell::PrimeChromeThemeEarly()
 {
     HRESULT  hr = S_OK;
 
 
 
-    // A missing UserPrefs.json (first run) still returns success with
-    // defaults; only a genuine parse/IO failure propagates, so we never
-    // boot the window on half-read settings.
+    // A corrupt or unreadable UserPrefs.json must not block startup: reset
+    // to defaults and surface the loss to the user rather than aborting or
+    // silently swallowing it. (A missing file is not a failure -- LoadAll
+    // returns success with defaults on first run.) There is no "notify and
+    // continue" EHM macro -- the *N macros bail -- so notify directly.
     hr = m_userConfigStore->LoadAll (m_globalPrefs, m_uiFs);
-    CHR (hr);
+    if (FAILED (hr))
+    {
+        m_globalPrefs = GlobalUserPrefs {};
+        EhmNotifyUser (L"Casso couldn't read your settings file, so it was reset to defaults.");
+    }
 
     m_chromeTheme = CassoTheme::ForName (m_globalPrefs.activeTheme);
     ApplyThemeToChrome (m_chromeTheme);
-
-Error:
-    return hr;
 }
 
 
@@ -825,15 +825,15 @@ Error:
 //
 //  Reads the active machine's JSON config and merges the user overrides via
 //  UserConfigStore, handing back the "$cassoUiPrefs" object in outUiPrefs.
-//  Absence -- no config file, or no such key (a fresh machine) -- is a
-//  normal state, reported as S_OK with outUiPrefs == nullptr; only a
-//  genuine parse/IO/merge failure returns a failing HRESULT for the caller
-//  to propagate. The returned pointer aliases into outDoc, so outDoc must
-//  outlive every use of it.
+//  Any problem -- missing/unreadable/corrupt file, failed merge, or no such
+//  key (a fresh machine) -- collapses to outUiPrefs == nullptr so the caller
+//  keeps the built-in defaults; these cosmetic per-machine prefs never block
+//  startup. The returned pointer aliases into outDoc, so outDoc must outlive
+//  every use of it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT EmulatorShell::LoadMachineUiPrefs (
+void EmulatorShell::LoadMachineUiPrefs (
     JsonValue         & outDoc,
     const JsonValue * & outUiPrefs)
 {
@@ -855,8 +855,12 @@ HRESULT EmulatorShell::LoadMachineUiPrefs (
 
     outUiPrefs = nullptr;
 
-    // No config file on the search path, or one we can't open, means "no
-    // persisted prefs" -- report success with a null object, not an error.
+    // Every failure below recovers to "no persisted prefs" (outUiPrefs stays
+    // null -> caller keeps defaults) instead of aborting: a missing/unreadable
+    // file, malformed JSON, a failed override merge, an unexpected shape, or a
+    // missing "$cassoUiPrefs" key. Whole-file corruption is already surfaced
+    // to the user by PrimeChromeThemeEarly; these cosmetic prefs recover
+    // quietly.
     BAIL_OUT_IF (configPath.empty(), S_OK);
     configFile.open (configPath);
     BAIL_OUT_IF (!configFile.good(), S_OK);
@@ -864,27 +868,22 @@ HRESULT EmulatorShell::LoadMachineUiPrefs (
     ss << configFile.rdbuf();
     jsonText = ss.str();
 
-    // Malformed JSON or a failed override merge IS a real error worth
-    // surfacing -- propagate it.
     hr = JsonParser::Parse (jsonText, defaultJson, parseErr);
-    CHR (hr);
+    BAIL_OUT_IF (FAILED (hr), S_OK);
 
     hr = m_userConfigStore->Load (machineNameNarrow, defaultJson, m_uiFs, outDoc);
-    CHR (hr);
+    BAIL_OUT_IF (FAILED (hr), S_OK);
 
     BAIL_OUT_IF (outDoc.GetType() != JsonType::Object, S_OK);
 
-    // A missing "$cassoUiPrefs" key is the first-run-for-this-machine case:
-    // leave outUiPrefs null and report success so the caller keeps defaults.
     hr = outDoc.GetObject ("$cassoUiPrefs", outUiPrefs);
     if (FAILED (hr))
     {
         outUiPrefs = nullptr;
-        hr         = S_OK;
     }
 
 Error:
-    return hr;
+    return;
 }
 
 
@@ -897,9 +896,10 @@ Error:
 //
 //  Native UI runtime bootstrap. UiShell owns the painter, text renderer,
 //  hit-tester, focus manager, and input translator; the host panel-tree
-//  pump composites the chrome on top of the emulator frame. Any step that
-//  genuinely fails -- D2D/text bring-up, theme enumeration, a corrupt
-//  config -- aborts startup through CHR, and Main surfaces it.
+//  pump composites the chrome on top of the emulator frame. Infrastructure
+//  bring-up that genuinely fails -- D2D/text, theme enumeration -- aborts
+//  startup through CHR (Main surfaces it); corrupt user prefs recover to
+//  defaults rather than abort.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -918,9 +918,7 @@ HRESULT EmulatorShell::InitializeUiShell()
     RestoreInputAndColorPrefs();
     RecordActiveMachineSelection();
     SubscribeAndActivateTheme();
-
-    hr = ApplyPersistedChromePrefs();
-    CHR (hr);
+    ApplyPersistedChromePrefs();
 
     hr = FinishUiShellLayout();
     CHR (hr);
@@ -1089,7 +1087,7 @@ void EmulatorShell::SubscribeAndActivateTheme()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT EmulatorShell::ApplyPersistedChromePrefs()
+void EmulatorShell::ApplyPersistedChromePrefs()
 {
     HRESULT            hr           = S_OK;
     HRESULT            hrOpt        = S_OK;
@@ -1102,8 +1100,7 @@ HRESULT EmulatorShell::ApplyPersistedChromePrefs()
 
 
 
-    hr = LoadMachineUiPrefs (doc, uiPrefs);
-    CHR (hr);
+    LoadMachineUiPrefs (doc, uiPrefs);
     BAIL_OUT_IF (uiPrefs == nullptr, S_OK);
 
     // Each key below is optional: a fresh machine omits it, which the
@@ -1161,7 +1158,7 @@ HRESULT EmulatorShell::ApplyPersistedChromePrefs()
     }
 
 Error:
-    return hr;
+    return;
 }
 
 
@@ -1290,7 +1287,7 @@ void EmulatorShell::InstallDragDropTarget()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT EmulatorShell::ApplyPersistedAudioPrefs()
+void EmulatorShell::ApplyPersistedAudioPrefs()
 {
     HRESULT            hr      = S_OK;
     HRESULT            hrOpt   = S_OK;
@@ -1306,8 +1303,7 @@ HRESULT EmulatorShell::ApplyPersistedAudioPrefs()
 
 
 
-    hr = LoadMachineUiPrefs (doc, uiPrefs);
-    CHR (hr);
+    LoadMachineUiPrefs (doc, uiPrefs);
     BAIL_OUT_IF (uiPrefs == nullptr, S_OK);
 
     hrOpt = uiPrefs->GetBool ("floppySoundEnabled", enabled);
@@ -1356,7 +1352,7 @@ HRESULT EmulatorShell::ApplyPersistedAudioPrefs()
     ApplyDefaultPointerForMachine();
 
 Error:
-    return hr;
+    return;
 }
 
 
