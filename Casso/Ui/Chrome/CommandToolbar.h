@@ -42,8 +42,30 @@ public:
     using DispatchFn = std::function<void (WORD)>;
     using VolumeFn   = std::function<void (float, bool)>;
 
+    // Responsive presentation, chosen from the window width (widest first):
+    // icon + label to the right, icon with the label stacked BELOW (ribbon
+    // style), then icon-only -- where tooltips carry the labels.
+    enum class Mode
+    {
+        LabelRight,
+        LabelBelow,
+        IconOnly,
+    };
+
     CommandToolbar  ();
     ~CommandToolbar () override = default;
+
+    // Pick the presentation mode for a client width and return the band
+    // thickness (dp) it needs -- the shell calls this BEFORE docking the
+    // chrome bands, since the stacked mode needs a taller strip.
+    int   PlanForWidth (int clientWidthPx, const DxuiDpiScaler & scaler);
+    int   BandDp       () const { return m_bandDp; }
+    Mode  CurrentMode  () const { return m_mode; }
+
+    // The hovered button's label for the shell's tooltip (icon-only mode has
+    // no labels, so tooltips are required there). Returns nullptr when no
+    // tooltip should show; fills `anchor` with the button rect otherwise.
+    const wchar_t *  TooltipAt (int x, int y, RECT & anchor) const;
 
     // The DWrite renderer used to measure labels during Layout (the shell's
     // chrome text renderer; must outlive this control).
@@ -105,7 +127,8 @@ private:
 
     RECT                  m_barRect        = {};
     UINT                  m_dpi            = 96;
-    bool                  m_compact        = false;   // icon-only: full labels don't fit the width
+    Mode                  m_mode           = Mode::LabelRight;
+    int                   m_bandDp         = 42;      // strip thickness for the current mode
     float                 m_volume01       = 1.0f;
     bool                  m_muted          = false;
     PrinterStatus         m_printerStatus  = PrinterStatus::Idle;

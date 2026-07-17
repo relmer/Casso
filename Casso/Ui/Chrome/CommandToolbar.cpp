@@ -19,10 +19,19 @@ static constexpr int      s_kGroupGapDp     = 18;   // between button groups
 static constexpr int      s_kIconGapDp      = 7;    // icon-to-label gap
 static constexpr int      s_kSliderWidthDp    = 120;
 static constexpr int      s_kSliderMinWidthDp = 60;   // narrowest the volume slider shrinks to
+static constexpr int      s_kSliderMaxHDp     = 30;   // slider stays this tall, centered in the band
 static constexpr int      s_kPrinterIconWDp   = 24;
 static constexpr float    s_kIconDip        = 15.0f;
 static constexpr float    s_kFontDip        = 13.0f;
+static constexpr float    s_kStackedFontDip = 11.0f;  // label under the icon (ribbon mode)
 static constexpr float    s_kFallbackCharPx = 7.5f;
+
+// Band thickness per presentation mode (see CommandToolbar::Mode): the
+// stacked ribbon needs the extra rows for icon-over-label.
+static constexpr int      s_kBandLabelRightDp = 42;
+static constexpr int      s_kBandLabelBelowDp = 56;
+static constexpr int      s_kBandIconOnlyDp   = 40;
+static constexpr int      s_kStackedPadXDp    = 8;    // tighter side padding in ribbon mode
 
 static constexpr const wchar_t * s_kFontFamily = DxuiTheme::kBodyFace;
 static constexpr const wchar_t * s_kIconFamily = L"Segoe MDL2 Assets";
@@ -160,29 +169,19 @@ uint32_t CommandToolbar::StatusCore (PrinterStatus status)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void CommandToolbar::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
+int CommandToolbar::PlanForWidth (int clientWidthPx, const DxuiDpiScaler & scaler)
 {
-    UINT   dpi      = (scaler.Dpi() == 0) ? (UINT) s_kBaseDpi : scaler.Dpi();
-    int    padX     = MulDiv (s_kBtnPadXDp,    (int) dpi, s_kBaseDpi);
-    int    marginY  = MulDiv (s_kBtnMarginYDp, (int) dpi, s_kBaseDpi);
-    int    btnGap   = MulDiv (s_kBtnGapDp,     (int) dpi, s_kBaseDpi);
-    int    groupGap = MulDiv (s_kGroupGapDp,   (int) dpi, s_kBaseDpi);
-    int    iconGap  = MulDiv (s_kIconGapDp,    (int) dpi, s_kBaseDpi);
-    int    sliderW  = MulDiv (s_kSliderWidthDp,(int) dpi, s_kBaseDpi);
-    float  fontDip  = s_kFontDip * (float) dpi / (float) s_kBaseDpi;
-    float  iconDip  = s_kIconDip * (float) dpi / (float) s_kBaseDpi;
-    int    x        = boundsDip.left + MulDiv (s_kBarPadXDp, (int) dpi, s_kBaseDpi);
-    int    top      = boundsDip.top + marginY;
-    int    bottom   = boundsDip.bottom - marginY;
+    UINT   dpi        = (scaler.Dpi() == 0) ? (UINT) s_kBaseDpi : scaler.Dpi();
+    int    padX       = MulDiv (s_kBtnPadXDp,     (int) dpi, s_kBaseDpi);
+    int    padXStack  = MulDiv (s_kStackedPadXDp, (int) dpi, s_kBaseDpi);
+    int    btnGap     = MulDiv (s_kBtnGapDp,      (int) dpi, s_kBaseDpi);
+    int    groupGap   = MulDiv (s_kGroupGapDp,    (int) dpi, s_kBaseDpi);
+    int    iconGap    = MulDiv (s_kIconGapDp,     (int) dpi, s_kBaseDpi);
+    int    sliderW    = MulDiv (s_kSliderWidthDp, (int) dpi, s_kBaseDpi);
+    float  iconDip    = s_kIconDip * (float) dpi / (float) s_kBaseDpi;
+    int    avail      = clientWidthPx - MulDiv (s_kBarPadXDp, (int) dpi, s_kBaseDpi) * 2;
 
-    int    sliderMinW = MulDiv (s_kSliderMinWidthDp, (int) dpi, s_kBaseDpi);
-    int    barPad     = MulDiv (s_kBarPadXDp, (int) dpi, s_kBaseDpi);
-    int    avail      = (boundsDip.right - boundsDip.left) - barPad * 2;
-
-    m_dpi     = dpi;
-    m_barRect = boundsDip;
-
-    auto  measure = [&] (const wchar_t * label) -> int
+    auto  measure = [&] (const wchar_t * label, float fontDip) -> int
     {
         float  w = 0.0f;
         float  h = 0.0f;
@@ -201,48 +200,137 @@ void CommandToolbar::Layout (const RECT & boundsDip, const DxuiDpiScaler & scale
                                 : (int) (iconDip + 0.5f);
     };
 
-    auto  buttonWidth = [&] (const Button & btn, bool labels) -> int
+    auto  buttonWidth = [&] (const Button & btn, Mode mode) -> int
     {
-        return labels ? padX * 2 + iconWidth (btn) + iconGap + measure (btn.label)
-                      : padX * 2 + iconWidth (btn);
+        switch (mode)
+        {
+        case Mode::LabelRight:
+            return padX * 2 + iconWidth (btn) + iconGap +
+                   measure (btn.label, s_kFontDip * (float) dpi / (float) s_kBaseDpi);
+        case Mode::LabelBelow:
+            return padXStack * 2 + (std::max) (iconWidth (btn),
+                   measure (btn.label, s_kStackedFontDip * (float) dpi / (float) s_kBaseDpi));
+        case Mode::IconOnly:
+        default:
+            return padX * 2 + iconWidth (btn);
+        }
     };
 
-    // Total width the toolbar wants, at a given label mode + slider width. Six
-    // command buttons + the mute button, three gaps between the groups.
-    auto  totalWidth = [&] (bool labels, int slider) -> int
+    // Total width a mode wants: six command buttons + the mute button + the
+    // slider, with group gaps between the three clusters.
+    auto  totalWidth = [&] (Mode mode) -> int
     {
         int  w = 0;
 
-        for (const Button & b : m_buttons) { w += buttonWidth (b, labels) + btnGap; }
-        w += buttonWidth (m_muteButton, labels) + slider;
-        w += (groupGap - btnGap) + groupGap + groupGap;   // Settings|Printer  Volume  right group
+        for (const Button & b : m_buttons) { w += buttonWidth (b, mode) + btnGap; }
+        w += buttonWidth (m_muteButton, mode) + sliderW;
+        w += (groupGap - btnGap) + groupGap + groupGap;
         return w;
     };
 
-    // Progressive collapse: prefer icon + label; drop labels to icon-only when
-    // they won't fit (a narrow window / low resolution); then shrink the volume
-    // slider toward a minimum before anything clips. Tooltips (follow-up) carry
-    // the label meaning in icon-only mode.
-    m_compact = (totalWidth (true, sliderW) > avail);
+    // Widest presentation that fits wins; icon-only additionally shrinks the
+    // slider in Layout when even it overflows.
+    if      (totalWidth (Mode::LabelRight) <= avail) { m_mode = Mode::LabelRight; m_bandDp = s_kBandLabelRightDp; }
+    else if (totalWidth (Mode::LabelBelow) <= avail) { m_mode = Mode::LabelBelow; m_bandDp = s_kBandLabelBelowDp; }
+    else                                             { m_mode = Mode::IconOnly;   m_bandDp = s_kBandIconOnlyDp;   }
 
+    // Stash the per-mode widths for Layout (recomputed there against the same
+    // width, but keeping the lambda results here would just duplicate state).
+    return m_bandDp;
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CommandToolbar::Layout
+//
+//  Places the buttons left-to-right in the current mode: [Settings] [Printer]
+//  | [Volume + slider] | [Screenshot] [Reset] [Power]. The mode is re-planned
+//  against this exact strip width so mode and layout can never disagree; in
+//  icon-only mode the volume slider then shrinks toward its minimum if even
+//  the icons overflow.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CommandToolbar::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
+{
+    PlanForWidth (boundsDip.right - boundsDip.left, scaler);
+
+    UINT   dpi        = (scaler.Dpi() == 0) ? (UINT) s_kBaseDpi : scaler.Dpi();
+    int    padX       = MulDiv (s_kBtnPadXDp,     (int) dpi, s_kBaseDpi);
+    int    padXStack  = MulDiv (s_kStackedPadXDp, (int) dpi, s_kBaseDpi);
+    int    marginY    = MulDiv (s_kBtnMarginYDp,  (int) dpi, s_kBaseDpi);
+    int    btnGap     = MulDiv (s_kBtnGapDp,      (int) dpi, s_kBaseDpi);
+    int    groupGap   = MulDiv (s_kGroupGapDp,    (int) dpi, s_kBaseDpi);
+    int    iconGap    = MulDiv (s_kIconGapDp,     (int) dpi, s_kBaseDpi);
+    int    sliderW    = MulDiv (s_kSliderWidthDp, (int) dpi, s_kBaseDpi);
+    int    sliderMinW = MulDiv (s_kSliderMinWidthDp, (int) dpi, s_kBaseDpi);
+    int    sliderMaxH = MulDiv (s_kSliderMaxHDp,  (int) dpi, s_kBaseDpi);
+    float  iconDip    = s_kIconDip * (float) dpi / (float) s_kBaseDpi;
+    int    barPad     = MulDiv (s_kBarPadXDp, (int) dpi, s_kBaseDpi);
+    int    avail      = (boundsDip.right - boundsDip.left) - barPad * 2;
+    int    x          = boundsDip.left + barPad;
+    int    top        = boundsDip.top + marginY;
+    int    bottom     = boundsDip.bottom - marginY;
+
+    m_dpi     = dpi;
+    m_barRect = boundsDip;
+
+    auto  measure = [&] (const wchar_t * label, float fontDip) -> int
     {
-        int  slider = sliderW;
+        float  w = 0.0f;
+        float  h = 0.0f;
 
-        if (m_compact)
+        if (m_textRenderer != nullptr &&
+            SUCCEEDED (m_textRenderer->MeasureString (label, fontDip, s_kFontFamily, w, h)) && w > 0.0f)
         {
-            int  overflow = totalWidth (false, sliderW) - avail;
-
-            if (overflow > 0)
-            {
-                slider = (std::max) (sliderMinW, sliderW - overflow);
-            }
+            return (int) (w + 0.5f);
         }
-        sliderW = slider;
+        return (int) ((float) wcslen (label) * s_kFallbackCharPx * (float) dpi / (float) s_kBaseDpi);
+    };
+
+    auto  iconWidth = [&] (const Button & btn) -> int
+    {
+        return btn.printerGlyph ? MulDiv (s_kPrinterIconWDp, (int) dpi, s_kBaseDpi)
+                                : (int) (iconDip + 0.5f);
+    };
+
+    auto  buttonWidth = [&] (const Button & btn) -> int
+    {
+        switch (m_mode)
+        {
+        case Mode::LabelRight:
+            return padX * 2 + iconWidth (btn) + iconGap +
+                   measure (btn.label, s_kFontDip * (float) dpi / (float) s_kBaseDpi);
+        case Mode::LabelBelow:
+            return padXStack * 2 + (std::max) (iconWidth (btn),
+                   measure (btn.label, s_kStackedFontDip * (float) dpi / (float) s_kBaseDpi));
+        case Mode::IconOnly:
+        default:
+            return padX * 2 + iconWidth (btn);
+        }
+    };
+
+    // Icon-only overflow: shrink the slider toward its minimum before
+    // anything clips off the right edge.
+    if (m_mode == Mode::IconOnly)
+    {
+        int  wanted = (groupGap - btnGap) + groupGap + groupGap + sliderW;
+
+        for (const Button & b : m_buttons) { wanted += buttonWidth (b) + btnGap; }
+        wanted += buttonWidth (m_muteButton);
+
+        if (wanted > avail)
+        {
+            sliderW = (std::max) (sliderMinW, sliderW - (wanted - avail));
+        }
     }
 
     auto  place = [&] (Button & btn)
     {
-        int  w = buttonWidth (btn, !m_compact);
+        int  w = buttonWidth (btn);
 
         btn.rc = RECT { x, top, x + w, bottom };
         x     += w + btnGap;
@@ -254,7 +342,12 @@ void CommandToolbar::Layout (const RECT & boundsDip, const DxuiDpiScaler & scale
 
     place (m_muteButton);                       // Volume (mute toggle)
     {
-        RECT  sliderRc = { x, top, x + sliderW, bottom };
+        // The slider stays a comfortable height, vertically centered -- in the
+        // taller ribbon band a full-height slider would look stretched.
+        int   bandH   = bottom - top;
+        int   sliderH = (std::min) (bandH, sliderMaxH);
+        int   sy      = top + (bandH - sliderH) / 2;
+        RECT  sliderRc = { x, sy, x + sliderW, sy + sliderH };
 
         m_volumeSlider.SetRect (sliderRc);
         m_volumeSlider.SetDpi  (dpi);
@@ -266,6 +359,44 @@ void CommandToolbar::Layout (const RECT & boundsDip, const DxuiDpiScaler & scale
     place (m_buttons[4]);                       // Power
 
     SetBounds (m_barRect);
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CommandToolbar::TooltipAt
+//
+//  Icon-only mode has no labels, so the hovered button's meaning surfaces as
+//  a tooltip (the shell owns the DxuiTooltip and its dwell timing). The mute
+//  button's tooltip reflects the action it would take.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const wchar_t * CommandToolbar::TooltipAt (int x, int y, RECT & anchor) const
+{
+    if (m_mode != Mode::IconOnly)
+    {
+        return nullptr;   // labels are visible; no tooltip needed
+    }
+
+    for (const Button & btn : m_buttons)
+    {
+        if (btn.enabled && PointIn (btn.rc, x, y))
+        {
+            anchor = btn.rc;
+            return btn.label;
+        }
+    }
+
+    if (PointIn (m_muteButton.rc, x, y))
+    {
+        anchor = m_muteButton.rc;
+        return m_muted ? L"Unmute" : L"Mute";
+    }
+
+    return nullptr;
 }
 
 
@@ -472,43 +603,88 @@ void CommandToolbar::PaintButton (Button & btn, IDxuiPainter & painter,
         painter.OutlineRect (bl, bt, bw, bh, 1.0f, theme.buttonBorder);
     }
 
-    if (btn.printerGlyph)
+    // Ribbon mode: icon centered over a small label. The icon gets the region
+    // above the label row; the label spans the button width, centered.
+    if (m_mode == Mode::LabelBelow)
     {
-        int   iconWi = MulDiv (s_kPrinterIconWDp, (int) m_dpi, s_kBaseDpi);
-        int   iconH  = (int) (bh * 0.62f);
-        RECT  icon   = { btn.rc.left + padX,
-                         btn.rc.top + ((int) bh - iconH) / 2,
-                         btn.rc.left + padX + iconWi,
-                         btn.rc.top + ((int) bh - iconH) / 2 + iconH };
+        float  stackedDip = s_kStackedFontDip * (float) m_dpi / (float) s_kBaseDpi;
+        float  labelH     = stackedDip + 4.0f;
+        float  iconRegH   = bh - labelH;
 
-        PaintMiniPrinter (icon, painter);
-        iconW = (float) iconWi;
-    }
-    else
-    {
-        wchar_t   glyph[2] = { btn.glyph, 0 };
+        if (btn.printerGlyph)
+        {
+            int   iconWi = MulDiv (s_kPrinterIconWDp, (int) m_dpi, s_kBaseDpi);
+            int   iconH  = (int) (iconRegH * 0.72f);
+            int   ix     = btn.rc.left + ((int) bw - iconWi) / 2;
+            int   iy     = btn.rc.top + ((int) iconRegH - iconH) / 2;
+            RECT  icon   = { ix, iy, ix + iconWi, iy + iconH };
 
-        hr = text.DrawString (glyph, bl + (float) padX, bt, iconDip + 2.0f, bh,
-                              ink, iconDip, s_kIconFamily,
-                              DxuiTextRenderer::HAlign::Left,
+            PaintMiniPrinter (icon, painter);
+        }
+        else
+        {
+            wchar_t   glyph[2] = { btn.glyph, 0 };
+
+            hr = text.DrawString (glyph, bl, bt, bw, iconRegH,
+                                  ink, iconDip, s_kIconFamily,
+                                  DxuiTextRenderer::HAlign::Center,
+                                  DxuiTextRenderer::VAlign::Center);
+            IGNORE_RETURN_VALUE (hr, S_OK);
+        }
+
+        hr = text.DrawString (btn.label, bl, bt + iconRegH - 2.0f, bw, labelH,
+                              ink, stackedDip, s_kFontFamily,
+                              DxuiTextRenderer::HAlign::Center,
                               DxuiTextRenderer::VAlign::Center);
         IGNORE_RETURN_VALUE (hr, S_OK);
-    }
-
-    // Compact mode (narrow window / low resolution): icon-only, no label.
-    if (m_compact)
-    {
         return;
     }
 
-    textX = bl + (float) padX + iconW + (float) iconGap;
+    // Icon-only mode centers the icon; LabelRight keeps it left-padded with
+    // the label beside it.
+    {
+        bool   centered = (m_mode == Mode::IconOnly);
+        float  iconX    = centered ? bl + (bw - iconDip) * 0.5f : bl + (float) padX;
 
-    hr = text.DrawString (btn.label, textX, bt,
-                          (float) btn.rc.right - textX, bh,
-                          ink, fontDip, s_kFontFamily,
-                          DxuiTextRenderer::HAlign::Left,
-                          DxuiTextRenderer::VAlign::CenterOnCapHeight);
-    IGNORE_RETURN_VALUE (hr, S_OK);
+        if (btn.printerGlyph)
+        {
+            int   iconWi = MulDiv (s_kPrinterIconWDp, (int) m_dpi, s_kBaseDpi);
+            int   iconH  = (int) (bh * 0.62f);
+            int   ix     = centered ? btn.rc.left + ((int) bw - iconWi) / 2
+                                    : btn.rc.left + padX;
+            RECT  icon   = { ix,
+                             btn.rc.top + ((int) bh - iconH) / 2,
+                             ix + iconWi,
+                             btn.rc.top + ((int) bh - iconH) / 2 + iconH };
+
+            PaintMiniPrinter (icon, painter);
+            iconW = (float) iconWi;
+        }
+        else
+        {
+            wchar_t   glyph[2] = { btn.glyph, 0 };
+
+            hr = text.DrawString (glyph, iconX, bt, iconDip + 2.0f, bh,
+                                  ink, iconDip, s_kIconFamily,
+                                  DxuiTextRenderer::HAlign::Left,
+                                  DxuiTextRenderer::VAlign::Center);
+            IGNORE_RETURN_VALUE (hr, S_OK);
+        }
+
+        if (m_mode == Mode::IconOnly)
+        {
+            return;   // tooltips carry the labels
+        }
+
+        textX = bl + (float) padX + iconW + (float) iconGap;
+
+        hr = text.DrawString (btn.label, textX, bt,
+                              (float) btn.rc.right - textX, bh,
+                              ink, fontDip, s_kFontFamily,
+                              DxuiTextRenderer::HAlign::Left,
+                              DxuiTextRenderer::VAlign::CenterOnCapHeight);
+        IGNORE_RETURN_VALUE (hr, S_OK);
+    }
 }
 
 

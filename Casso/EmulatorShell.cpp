@@ -1340,6 +1340,8 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     // Tick. SetTheme seeds the tooltip surface colours.
     m_joystickTooltip.SetPopupHost (m_host.get());
     m_joystickTooltip.SetTheme     (m_chromeTheme);
+    m_toolbarTooltip.SetPopupHost  (m_host.get());
+    m_toolbarTooltip.SetTheme      (m_chromeTheme);
 
     // Defer the size reconcile until after ShowWindow. The NC frame
     // (border carve-out from DefWindowProc + DWM rounded corners +
@@ -1523,7 +1525,7 @@ void EmulatorShell::SyncChromeBands ()
 
     m_titleBand.SetBounds   (RECT{ 0, 0, 0, m_scaler.Px (s_kTitleBarBandDp) });
     m_navBand.SetBounds     (RECT{ 0, 0, 0, m_scaler.Px (s_kNavStripBandDp) });
-    m_toolbarBand.SetBounds (RECT{ 0, 0, 0, m_scaler.Px (s_kToolbarBandDp) });
+    m_toolbarBand.SetBounds (RECT{ 0, 0, 0, m_scaler.Px (m_toolbar.BandDp()) });
     m_driveBand.SetBounds   (RECT{ 0, 0, 0, m_scaler.Px (driveBandDp) });
 }
 
@@ -1546,6 +1548,11 @@ RECT EmulatorShell::ComputeViewportRect (int widthPx, int heightPx)
     IDxuiControl *  kids[] = { &m_titleBand, &m_navBand, &m_toolbarBand, &m_driveBand, &m_centerBand };
 
 
+
+    // The toolbar's band thickness depends on its responsive mode (icon+label
+    // / ribbon / icon-only), which depends on the width -- plan it BEFORE the
+    // bands dock so the strip gets the right height for this window size.
+    m_toolbar.PlanForWidth (widthPx, m_scaler);
 
     SyncChromeBands();
     m_chromeDock.Arrange (RECT{ 0, 0, widthPx, heightPx }, m_scaler, kids);
@@ -3434,6 +3441,7 @@ bool EmulatorShell::PumpUiFrame()
                              std::chrono::steady_clock::now().time_since_epoch()).count();
 
         m_joystickTooltip.Tick (nowMs);
+        m_toolbarTooltip.Tick  (nowMs);
     }
 
     // Refresh the printer status LED; marks a redraw itself on a change so
@@ -4333,10 +4341,24 @@ DxuiMessageResult EmulatorShell::OnMouseMove (WPARAM wParam, LPARAM lParam)
         m_joystickTooltip.RequestHide (nowMs);
     }
 
-    // Command toolbar hover / slider drag (DCR-2).
+    // Command toolbar hover / slider drag (DCR-2). In icon-only mode the
+    // hovered button's label surfaces as a tooltip (no labels on the strip).
     if (m_toolbar.OnToolbarMouseMove (x, y, leftDown))
     {
         m_d3dRenderer.MarkRedrawNeeded ();
+    }
+    {
+        RECT             anchor = {};
+        const wchar_t *  tip    = m_toolbar.TooltipAt (x, y, anchor);
+
+        if (tip != nullptr)
+        {
+            m_toolbarTooltip.RequestShow (anchor, tip, nowMs);
+        }
+        else
+        {
+            m_toolbarTooltip.RequestHide (nowMs);
+        }
     }
 
     return DxuiMessageResult::NotHandled;
@@ -4374,6 +4396,7 @@ DxuiMessageResult EmulatorShell::OnMouseLeave ()
     m_joystickButton.SetPressed (false);
     m_joystickTooltip.RequestHide (nowMs);
     m_toolbar.OnToolbarMouseLeave ();
+    m_toolbarTooltip.RequestHide (nowMs);
 
     // //c Mouse mode: the cursor left the window entirely — release the
     // guest mouse target (non-capturing contract).

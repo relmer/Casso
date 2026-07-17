@@ -703,6 +703,7 @@ private:
     // hover tooltip.
     InputDeviceSelector   m_joystickButton;   // Segmented device selector
     DxuiTooltip               m_joystickTooltip;
+    DxuiTooltip               m_toolbarTooltip;   // labels for the toolbar's icon-only mode
 
     // Solid background for the bottom drive-bar band. The CRT composite
     // writes the whole back buffer (emulator frame + black), so the chrome
@@ -725,7 +726,8 @@ private:
     // thickness the theme mutates (compact vs full).
     static constexpr int  s_kTitleBarBandDp     = 32;
     static constexpr int  s_kNavStripBandDp     = 32;
-    static constexpr int  s_kToolbarBandDp      = 42;   // command toolbar (DCR-2)
+    // (The command toolbar band's thickness comes from m_toolbar.BandDp() --
+    // it varies with the responsive mode planned for the window width.)
     static constexpr int  s_kInitialDriveBandDp = 256;
 
     DxuiDockLayout           m_chromeDock;
