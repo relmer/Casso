@@ -127,14 +127,12 @@ private:
     // The cap fills its slot; a thin rim just seats it in the case. Depth is
     // carried by directional shading in PaintSlantCap, not a dark recess fill.
     static constexpr uint32_t  kSocketRim = 0xFF9A9484;   // thin rim around the cap
-    static constexpr uint32_t  kKeyFace   = 0xFFDED9CC;   // key top, out
-    static constexpr uint32_t  kKeyHi     = 0xFFF0ECE0;   // cap face top, out (proud)
-    static constexpr uint32_t  kKeyLo     = 0xFFBDB8AA;   // cap face bottom, out
+    // Raised caps (reset + OUT switches) share the cream kCap/kCapHi face; only
+    // the sunk (pressed-in) latching switch darkens.
     static constexpr uint32_t  kKeyFaceIn = 0xFFB2AD9F;   // cap face top, in (darkened)
     static constexpr uint32_t  kKeyLoIn   = 0xFF938E80;   // cap face bottom, in (darker still)
     static constexpr uint32_t  kShadeProud  = 0x4E000000; // bottom/right shading on a raised cap
     static constexpr uint32_t  kShadePushed = 0x84000000; // top/left shading on a sunk cap (dominant)
-    static constexpr uint32_t  kLitEdge     = 0x66FFFFFF; // top/left catchlight on a raised cap
     static constexpr uint32_t  kLitFoot     = 0x2AFFFFFF; // faint bottom/right catch on a sunk cap
     static constexpr uint32_t  kShadowNil   = 0x00000000; // transparent far edge
 

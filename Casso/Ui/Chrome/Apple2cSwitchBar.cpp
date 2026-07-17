@@ -301,20 +301,16 @@ void Apple2cSwitchBar::PaintResetButton (IDxuiPainter & p, IDxuiTextRenderer & t
 //
 //  The shared skeuomorphic cap: a right-leaning parallelogram lit from the
 //  top-left. The cap fills its whole slot (no gap); depth is carried purely by
-//  directional shading. It comes in two flavours:
+//  directional shading. Raised, every cap -- the momentary reset and the OUT
+//  latching switches alike -- paints the same flat cream face with a thin
+//  bottom + right shadow bevel and no highlights, so it reads as proud without
+//  doming or (on the narrow switches) drowning in shadow.
 //
-//    deepPress (the latching 80/40 + keyboard switches): out (proud) it is
-//    highlit along the top and left edges and shadowed toward the bottom-right;
-//    in (pressed) it darkens and takes a dominant top-left shadow that, on a
-//    thin switch, swallows most of the cap, with only a faint bottom-right
-//    catch -- so it reads as sunk below the surface.
-//
-//    shallow (the momentary reset): shadow-only -- thin bottom + right bevels
-//    when raised, flipping to top + left when pressed, with no highlights and a
-//    nearly-flat face, so it reads as a flat cap (not a domed button) and the
-//    label stays readable while the depth cue still flips on press.
-//
-//  Shadows and highlights are gradients that fade to clear, never flat blocks.
+//  Pressed splits on deepPress. The latching switches (deepPress) darken the
+//  face under a dominant top-left shadow -- a thin switch goes nearly all
+//  shadow -- with a faint bottom-right catch, reading as sunk. The momentary
+//  reset instead just flips its bevel to the top + left, keeping the face flat
+//  and the label readable. Bevels are gradients that fade to clear, not blocks.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -335,27 +331,21 @@ void Apple2cSwitchBar::PaintSlantCap (IDxuiPainter & p, const RECT & r, bool pre
     float  cy    = y + 1.0f;
     float  cw    = bodyW - 2.0f;             // cap face, inside a thin rim
     float  ch    = h - 2.0f;
-    float  band  = (cw < ch ? cw : ch) * 0.5f;   // switch edge-shadow thickness
-    float  edge  = h * 0.13f;                     // thin reset bevel (~3 px), matches the switch band
+    float  edge  = (h * 0.13f < cw * 0.32f ? h * 0.13f : cw * 0.32f);   // thin bevel (~3 px on the
+                                                                        // reset), kept slim relative
+                                                                        // to the narrow switch width
 
 
     // Thin molded rim, then the cap face fills the whole footprint.
     ShearFill (p, x, y, bodyW, h, tan, refB, kSocketRim);
     ShearGrad (p, cx, cy, cw, ch, tan, refB, faceHi, faceLo, kN);
 
-    if (!pressedIn && deepPress)
+    if (!pressedIn)
     {
-        // Raised latching switch: highlit top + left, shadowed bottom + right.
-        ShearFill  (p, cx, cy, cw, 1.2f, tan, refB, kLitEdge);                          // top highlight
-        ShearGradH (p, cx, cy, band, ch, tan, refB, kLitEdge, kShadowNil, kN);          // left highlight
-        ShearGrad  (p, cx, cy + ch - band, cw, band, tan, refB, kShadowNil, kShadeProud, kN); // bottom shadow
-        ShearGradH (p, cx + cw - band, cy, band, ch, tan, refB, kShadowNil, kShadeProud, kN);  // right shadow
-    }
-    else if (!pressedIn)
-    {
-        // Raised reset (shadow-only): thin bottom + right shadow bevels, like the
-        // switches' shadowed edges but without their highlights -- so the flat
-        // cap reads as proud without a full-height gradient that would dome it.
+        // Raised -- the momentary reset and the OUT latching switches alike: a flat
+        // cream face with a thin bottom + right shadow bevel and no highlights, so
+        // it reads as a proud cap rather than a domed button or, on the narrow
+        // switches, a sliver drowned in shadow.
         ShearGrad  (p, cx, cy + ch - edge, cw, edge, tan, refB, kShadowNil, kShadeProud, kN); // bottom shadow
         ShearGradH (p, cx + cw - edge, cy, edge, ch, tan, refB, kShadowNil, kShadeProud, kN); // right shadow
     }
@@ -396,9 +386,11 @@ void Apple2cSwitchBar::PaintSlantCap (IDxuiPainter & p, const RECT & r, bool pre
 
 void Apple2cSwitchBar::PaintKey (IDxuiPainter & p, const RECT & keyRect, bool pressedIn, bool hovered)
 {
+    // OUT shares the reset's flat cream face (kCapHi -> kCap); IN darkens to
+    // read as sunk below the case.
     PaintSlantCap (p, keyRect, pressedIn, /*deepPress*/ true, hovered,
-                   pressedIn ? kKeyFaceIn : kKeyHi,
-                   pressedIn ? kKeyLoIn   : kKeyLo);
+                   pressedIn ? kKeyFaceIn : kCapHi,
+                   pressedIn ? kKeyLoIn   : kCap);
 }
 
 
