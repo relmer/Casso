@@ -145,7 +145,12 @@ void DxuiWindow::Show (bool activate)
         {
             // Bring it on-screen at the top of the z-order but leave focus where
             // it is, so an auto-opened window never eats the guest's keystrokes.
-            ShowWindow (hwnd, SW_SHOWNOACTIVATE);
+            // SW_SHOWNA, not SW_SHOWNOACTIVATE: NOACTIVATE shows the window at
+            // its "most recent size and position", which RESTORES a maximized
+            // window -- the printer preview's auto-open re-fires during a live
+            // print and was quietly un-maximizing it. SHOWNA keeps the current
+            // state (maximized stays maximized) and still never steals focus.
+            ShowWindow (hwnd, SW_SHOWNA);
         }
     }
 }
