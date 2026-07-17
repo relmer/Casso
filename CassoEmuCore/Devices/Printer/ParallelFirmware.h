@@ -28,12 +28,12 @@ static constexpr Word   s_kParallelFirmwareOrigin = 0xC100;
 
 static constexpr Byte   s_kParallelFirmwareBytes[] =
 {
-    0x4C, 0x11, 0xC1, 0x00, 0x00, 0x38, 0x00, 0x18, 0x00, 0x00, 0x00, 0x01,
-    0x12, 0x41, 0x42, 0x44, 0x47, 0x48, 0x98, 0x48, 0x20, 0x17, 0xC1, 0x68,
-    0x68, 0x29, 0x0F, 0x0A, 0x0A, 0x0A, 0x0A, 0xAA, 0xBD, 0x81, 0xC0, 0x10,
-    0xFB, 0x68, 0xA8, 0x68, 0x9D, 0x80, 0xC0, 0xC9, 0x8D, 0xF0, 0x05, 0xC9,
-    0x0D, 0xF0, 0x01, 0x60, 0x48, 0xBD, 0x81, 0xC0, 0x10, 0xFB, 0xA9, 0x0A,
-    0x9D, 0x80, 0xC0, 0x68, 0x60, 0x60, 0x38, 0x60, 0x4C, 0x11, 0xC1, 0x60,
+    0x4C, 0x0D, 0xC1, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x48, 0x98, 0x48, 0x20, 0x13, 0xC1, 0x68, 0x68, 0x29, 0x0F, 0x0A,
+    0x0A, 0x0A, 0x0A, 0xAA, 0xBD, 0x81, 0xC0, 0x10, 0xFB, 0x68, 0xA8, 0x68,
+    0x9D, 0x80, 0xC0, 0xC9, 0x8D, 0xF0, 0x05, 0xC9, 0x0D, 0xF0, 0x01, 0x60,
+    0x48, 0xBD, 0x81, 0xC0, 0x10, 0xFB, 0xA9, 0x0A, 0x9D, 0x80, 0xC0, 0x68,
+    0x60,
 };
 
 static constexpr const char *   s_kParallelFirmwareSource = R"ASM(; ============================================================================
@@ -42,52 +42,46 @@ static constexpr const char *   s_kParallelFirmwareSource = R"ASM(; ============
 ;  byte output is embedded in ParallelFirmware.h and checked for parity by
 ;  FirmwareParityTests (source <-> bytes can never drift).
 ;
+;  A DUMB, output-only parallel card, exactly like the classic Apple Parallel
+;  Interface Card and the Grappler in transparent mode. It deliberately does
+;  NOT advertise the Pascal 1.1 "intelligent firmware" signature ($Cn05=$38 /
+;  $Cn07=$18 / $Cn0B=$01): a printer is output-only, and claiming that protocol
+;  makes the Apple IIe hook the card for INPUT too on PR#n -- its input path
+;  then reads this stub's (unsupported) read entry, gets garbage, and BASIC
+;  echoes it forever (a flood of stray characters into the printer). With no
+;  signature, PR#n simply points CSW at $Cn00 and every COUT character flows
+;  through OUTPUT, which is all a printer needs.
+;
 ;  Layout of the slot ROM page ($Cn00-$CnFF; shown for the default slot 1 =
 ;  $C100). The card installs these bytes at $Cn00 for its configured slot and
 ;  pads the remainder of the page.
 ;
 ;    $Cn00      JMP OUTPUT        -- CSW per-character entry (PR#n output)
-;    $Cn05 $38  \
-;    $Cn07 $18   > Pascal 1.1 firmware identification signature
-;    $Cn0B $01  /
-;    $Cn0C      device class byte (printer)
-;    $Cn0D-$Cn10  Pascal 1.1 entry offsets: init / read / write / status
+;    $Cn03-$Cn0C  zeroed -- NOT the Pascal 1.1 firmware signature (see above)
 ;    OUTPUT     per-character output routine
 ;
 ;  Slot-independent: the output routine discovers its own slot at runtime via
 ;  the return-address on the stack, so the same bytes work in any slot; only
 ;  the assembly origin is fixed (for the parity test).
 ;
-;  PROVISIONAL VALUES pending the Print Shop byte capture (spec 015 T011):
-;  the device-class byte and the exact status ready convention are best
-;  guesses from the ImageWriter / parallel-card conventions. Functional
-;  behavior (PR#1 + LIST, and Print Shop accepting the card as a valid
-;  "Apple II Parallel Interface") is validated at US6 / T011; this file's
-;  unit gate only proves the source assembles to the embedded bytes.
+;  Print Shop and other direct-hardware drivers ignore this firmware entirely:
+;  they drive the card's I/O locations ($C08n data / $C08n+1 status) themselves
+;  and probe the status byte, not the ROM -- so the dumb-card firmware serves
+;  BASIC / DOS listing (CSW output) while direct drivers are unaffected.
 ; ============================================================================
 
 ROMBASE = $C100          ; default slot-1 ROM page (assembly origin only)
 IODATA  = $C080          ; data latch base; runtime index = slot*16
 IOSTAT  = $C081          ; status base;     runtime index = slot*16
-PCLASS  = $12            ; Pascal device class: printer (provisional)
 
         .org ROMBASE
 
         jmp OUTPUT               ; $Cn00: CSW per-character entry point
-        .byte $00                ; $Cn03
-        .byte $00                ; $Cn04
-        .byte $38                ; $Cn05: Pascal 1.1 signature
-        .byte $00                ; $Cn06
-        .byte $18                ; $Cn07: Pascal 1.1 signature
-        .byte $00                ; $Cn08
-        .byte $00                ; $Cn09
-        .byte $00                ; $Cn0A
-        .byte $01                ; $Cn0B: Pascal 1.1 signature
-        .byte PCLASS             ; $Cn0C: device class byte
-        .byte PINIT - ROMBASE    ; $Cn0D: Pascal init  entry offset
-        .byte PREAD - ROMBASE    ; $Cn0E: Pascal read  entry offset
-        .byte PWRITE - ROMBASE   ; $Cn0F: Pascal write entry offset
-        .byte PSTATUS - ROMBASE  ; $Cn10: Pascal status entry offset
+
+        ; $Cn03-$Cn0C: deliberately blank. In particular $Cn05 / $Cn07 / $Cn0B
+        ; are NOT $38 / $18 / $01, so the IIe sees no Pascal 1.1 firmware card
+        ; and PR#n takes the simple set-CSW-to-$Cn00 path (output only).
+        .byte $00, $00, $00, $00, $00, $00, $00, $00, $00, $00
 
 ; ----------------------------------------------------------------------------
 ;  OUTPUT -- per-character output (char in A). Preserves A (returns the
@@ -141,19 +135,4 @@ LFWAIT:
         sta IODATA,x             ; line feed after CR (like Apple's card)
         pla
         rts
-
-; ----------------------------------------------------------------------------
-;  Pascal 1.1 entry stubs. The flagship path is CSW output (above) and Print
-;  Shop's direct slot I/O; these exist so the signature is honest and a
-;  Pascal caller does not crash. Full Pascal semantics are out of scope.
-; ----------------------------------------------------------------------------
-PINIT:
-        rts                      ; init: nothing to set up
-PREAD:
-        sec                      ; read: input not supported -> error
-        rts
-PWRITE:
-        jmp OUTPUT               ; write: identical to CSW output
-PSTATUS:
-        rts                      ; status: always ready
 )ASM";
