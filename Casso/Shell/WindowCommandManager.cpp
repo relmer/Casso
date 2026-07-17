@@ -266,6 +266,8 @@ bool WindowCommandManager::OnCommand (HWND hwnd, int id)
     else if (id == IDM_PRINTER_COPY)                                       { OnPrinterCommand (id); }
     else if (id == IDM_PRINTER_PRINT)                                      { OnPrinterCommand (id); }
     else if (id == IDM_PRINTER_SAVEAS)                                     { OnPrinterCommand (id); }
+    else if (id == IDM_PRINTER_MODERN_SENT)                                { OnModernPrintResult (true); }
+    else if (id == IDM_PRINTER_MODERN_FAILED)                              { OnModernPrintResult (false); }
     else if (id == IDM_PRINTER_PREVIEW)                                    { m_shell.ShowPrinterPanel (); }
     else if (id >= IDM_HELP_KEYMAP    && id <= IDM_HELP_ABOUT)              { OnHelpCommand (id); }
     else if (id == IDM_DRIVE_EXTERNAL_CONNECT ||
@@ -1364,6 +1366,21 @@ void WindowCommandManager::OnPrinterCommand (int id)
 
     if (print)
     {
+        // DCR-1: the modern OS print UI with a live preview. The session
+        // COPIES the strip, so the worker resumes immediately and the dialog
+        // runs async -- its completion posts IDM_PRINTER_MODERN_* back here
+        // for the result dialogs. If it cannot launch (older Windows,
+        // activation failure), the classic PrintDlg path below still works.
+        const GlobalUserPrefs &  prefs = m_shell.m_globalPrefs;
+
+        if (SUCCEEDED (m_modernPrint.ShowAsync (m_shell.m_hwnd, job->Raster (),
+                                                PrintDpiFromPrefs (prefs),
+                                                PrintDotStyleFromPrefs (prefs))))
+        {
+            m_shell.m_printerWorker.Start (m_shell.m_refs.printerCard->ByteRing (), job->Raster ());
+            return;
+        }
+
         hr = PrintToWindowsPrinter (job->Raster (), failedStage);
     }
     else
@@ -1411,6 +1428,38 @@ void WindowCommandManager::OnPrinterCommand (int id)
         // Keep the strip so the user can retry -- reseed the worker with it
         // (copied before the old job is replaced). It re-persists on exit.
         m_shell.m_printerWorker.Start (m_shell.m_refs.printerCard->ByteRing (), job->Raster ());
+    }
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnModernPrintResult
+//
+//  Posted back by the modern print session's completion callback (which runs
+//  on a print-system thread and must not raise UI itself). The strip was
+//  copied into the session and the worker already resumed, so there is
+//  nothing to reseed here -- just tell the user how it went. Cancel posts
+//  nothing, matching the classic dialog's silent S_FALSE.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void WindowCommandManager::OnModernPrintResult (bool succeeded)
+{
+    if (succeeded)
+    {
+        DxuiMessageBox (m_shell.PrinterDialogOwner (), &m_shell.m_chromeTheme,
+                        L"Sent the printout to the printer.",
+                        L"Casso Printer", MB_OK | MB_ICONINFORMATION);
+    }
+    else
+    {
+        DxuiMessageBox (m_shell.PrinterDialogOwner (), &m_shell.m_chromeTheme,
+                        L"Something went wrong while sending your printout, so it is still "
+                        L"waiting in the printer. Please try printing again.",
+                        L"Casso Printer", MB_OK | MB_ICONWARNING);
     }
 }
 

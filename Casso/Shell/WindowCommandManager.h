@@ -2,6 +2,8 @@
 
 #include "Pch.h"
 
+#include "ModernPrintDialog.h"
+
 
 class EmulatorShell;
 
@@ -59,10 +61,18 @@ private:
     // Returns S_FALSE if the user cancels the dialog. Pure Win32 GDI edge.
     HRESULT  PrintToWindowsPrinter (const class PrintRaster & raster, std::wstring & failedStage);
 
+    // Result dialog for the async modern print session (posted back as
+    // IDM_PRINTER_MODERN_SENT / _FAILED from its completion callback).
+    void     OnModernPrintResult   (bool succeeded);
+
     // Copies the strip to the clipboard as a bitmap (CF_DIB) and, when it fits,
     // a registered "PNG" blob, at the configured dpi / dot style. Does not
     // consume the strip. Pure Win32 clipboard edge (render/encode are core).
     HRESULT  CopyPrintoutToClipboard (const class PrintRaster & raster);
 
     EmulatorShell &  m_shell;
+
+    // The modern OS print dialog with live preview (DCR-1); falls back to the
+    // classic PrintDlg path when it cannot launch.
+    ModernPrintDialog  m_modernPrint;
 };
