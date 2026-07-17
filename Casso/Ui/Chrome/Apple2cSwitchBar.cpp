@@ -268,10 +268,12 @@ void Apple2cSwitchBar::PaintResetButton (IDxuiPainter & p, IDxuiTextRenderer & t
 {
     bool  dn = (m_pressedPart == Part::Reset);
 
-    // Shallow press: the face stays light (just the lighting flips top-left),
-    // so the ordinary armed/dormant label ink stays readable -- no darkening.
+    // A nearly-flat cream cap (faint top sheen, no strong vertical gradient that
+    // would dome it) with a thin bottom/right shadow bevel. Pressing just flips
+    // the bevel to the top/left, so the face stays put and the dark silk-screen
+    // label stays readable throughout.
     PaintSlantCap (p, r, dn, /*deepPress*/ false, m_hovered && m_hoverPart == Part::Reset,
-                   kCapHi, kCapLo);
+                   kCapHi, kCap);
 
     text.PushTextSkew (kSlantTan, (float) (r.top + r.bottom) * 0.5f);
 
@@ -280,7 +282,7 @@ void Apple2cSwitchBar::PaintResetButton (IDxuiPainter & p, IDxuiTextRenderer & t
                                    (float) r.top + (dn ? 1.0f : 0.0f),
                                    (float) (r.right - r.left),
                                    (float) (r.bottom - r.top),
-                                   m_resetArmed ? kCapText : kCapTextOff,
+                                   kCapText,
                                    kFontDip * (float) m_dpi / 96.0f, kFontFamily,
                                    DxuiTextHAlign::Center,
                                    DxuiTextVAlign::CenterOnCapHeight,
@@ -307,10 +309,10 @@ void Apple2cSwitchBar::PaintResetButton (IDxuiPainter & p, IDxuiTextRenderer & t
 //    thin switch, swallows most of the cap, with only a faint bottom-right
 //    catch -- so it reads as sunk below the surface.
 //
-//    shallow (the momentary reset): shadow-only -- a single soft band, at the
-//    bottom when raised and at the top when pressed, with no side edges and no
-//    highlights, so the face stays light and the label readable while the depth
-//    cue still flips on press.
+//    shallow (the momentary reset): shadow-only -- thin bottom + right bevels
+//    when raised, flipping to top + left when pressed, with no highlights and a
+//    nearly-flat face, so it reads as a flat cap (not a domed button) and the
+//    label stays readable while the depth cue still flips on press.
 //
 //  Shadows and highlights are gradients that fade to clear, never flat blocks.
 //
@@ -333,7 +335,8 @@ void Apple2cSwitchBar::PaintSlantCap (IDxuiPainter & p, const RECT & r, bool pre
     float  cy    = y + 1.0f;
     float  cw    = bodyW - 2.0f;             // cap face, inside a thin rim
     float  ch    = h - 2.0f;
-    float  band  = (cw < ch ? cw : ch) * 0.5f;   // even edge-shadow thickness
+    float  band  = (cw < ch ? cw : ch) * 0.5f;   // switch edge-shadow thickness
+    float  edge  = h * 0.13f;                     // thin reset bevel (~3 px), matches the switch band
 
 
     // Thin molded rim, then the cap face fills the whole footprint.
@@ -350,9 +353,11 @@ void Apple2cSwitchBar::PaintSlantCap (IDxuiPainter & p, const RECT & r, bool pre
     }
     else if (!pressedIn)
     {
-        // Raised reset (shadow-only): a single bottom shadow band reads the cap
-        // as proud, with no side edges and no highlights to clutter the label.
-        ShearGrad  (p, cx, cy + ch - band, cw, band, tan, refB, kShadowNil, kShadeProud, kN); // bottom shadow
+        // Raised reset (shadow-only): thin bottom + right shadow bevels, like the
+        // switches' shadowed edges but without their highlights -- so the flat
+        // cap reads as proud without a full-height gradient that would dome it.
+        ShearGrad  (p, cx, cy + ch - edge, cw, edge, tan, refB, kShadowNil, kShadeProud, kN); // bottom shadow
+        ShearGradH (p, cx + cw - edge, cy, edge, ch, tan, refB, kShadowNil, kShadeProud, kN); // right shadow
     }
     else if (deepPress)
     {
@@ -365,10 +370,10 @@ void Apple2cSwitchBar::PaintSlantCap (IDxuiPainter & p, const RECT & r, bool pre
     }
     else
     {
-        // Shallow press (momentary reset, shadow-only): the bottom band simply
-        // moves to the top, so the depth cue flips while the face stays light
-        // and the label readable -- no side edges, no highlights.
-        ShearGrad  (p, cx, cy, cw, band, tan, refB, kShadeProud, kShadowNil, kN);       // top shadow
+        // Shallow press (momentary reset, shadow-only): the bevels move to the
+        // top + left, so the depth cue flips while the face and label stay put.
+        ShearGrad  (p, cx, cy, cw, edge, tan, refB, kShadeProud, kShadowNil, kN);       // top shadow
+        ShearGradH (p, cx, cy, edge, ch, tan, refB, kShadeProud, kShadowNil, kN);       // left shadow
     }
 
     if (hovered)

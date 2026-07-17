@@ -2558,7 +2558,6 @@ void EmulatorShell::SyncSwitchBarState ()
 
     m_switchBar.SetDiskActive (diskOn);
     m_switchBar.SetPowerOn    (true);
-    m_switchBar.SetResetArmed ((GetKeyState (VK_CONTROL) & 0x8000) != 0);
 }
 
 
@@ -3900,15 +3899,14 @@ DxuiMessageResult EmulatorShell::OnMouseMove (WPARAM wParam, LPARAM lParam)
         m_joystickTooltip.RequestHide (nowMs);
     }
 
-    // //c switch strip: hover state, the Ctrl-armed reset cue, and a per-part
-    // tooltip (reset / 80/40 / keyboard). Inert on non-//c machines (hidden).
+    // //c switch strip: hover state and a per-part tooltip (reset / 80/40 /
+    // keyboard). Inert on non-//c machines (hidden).
     if (IsApple2c())
     {
         const wchar_t * tip = m_switchBar.TooltipTextAt (x, y);
 
         m_switchBar.SetHovered    (m_switchBar.HitTest (x, y));
         m_switchBar.SetHoverPoint (x, y);
-        m_switchBar.SetResetArmed ((GetKeyState (VK_CONTROL) & 0x8000) != 0);
 
         if (tip != nullptr)
         {

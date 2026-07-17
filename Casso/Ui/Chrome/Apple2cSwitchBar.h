@@ -68,11 +68,6 @@ public:
     void  SetDiskActive    (bool on) { m_diskActive    = on; }
     void  SetPowerOn       (bool on) { m_powerOn       = on; }
 
-    // The reset button is inert unless Ctrl is held (real Control-Reset). The
-    // shell sets this from the live modifier state so the button paints "armed"
-    // (able to fire) vs dormant.
-    void  SetResetArmed    (bool armed) { m_resetArmed = armed; }
-
     bool  IsEightyFortyIn  () const { return m_eightyFortyIn; }
     bool  IsKeyboardIn     () const { return m_keyboardIn; }
 
@@ -124,12 +119,10 @@ private:
     static constexpr uint32_t  kCaseEdge  = 0xFF8F8A7A;   // molded edge stroke
     static constexpr uint32_t  kLabel     = 0xFF6E6A5C;   // silk-screen gray-brown
 
-    static constexpr uint32_t  kCap       = 0xFFE8E3D6;   // reset cap (lighter cream)
-    static constexpr uint32_t  kCapHi     = 0xFFF4F0E5;
-    static constexpr uint32_t  kCapLo     = 0xFFCBC5B6;
+    static constexpr uint32_t  kCap       = 0xFFE8E3D6;   // reset cap face (flat cream)
+    static constexpr uint32_t  kCapHi     = 0xFFF4F0E5;   // faint top sheen on the cap
     static constexpr uint32_t  kCapEdge   = 0xFF98917F;
-    static constexpr uint32_t  kCapText   = 0xFF5A5647;
-    static constexpr uint32_t  kCapTextOff = 0xFF9A9484; // dormant (no Ctrl) reset label
+    static constexpr uint32_t  kCapText   = 0xFF5A5647;   // reset silk-screen ink (dark)
 
     // The cap fills its slot; a thin rim just seats it in the case. Depth is
     // carried by directional shading in PaintSlantCap, not a dark recess fill.
@@ -204,7 +197,6 @@ private:
     bool   m_keyboardIn    = false;
     bool   m_diskActive    = false;
     bool   m_powerOn       = true;
-    bool   m_resetArmed    = false;
     bool   m_hovered       = false;
     Part   m_hoverPart     = Part::None;
     Part   m_pressedPart   = Part::None;
