@@ -15,7 +15,7 @@ US1–US5 plus the Phase 11 preview redesign are implemented and unit-tested (fu
 - "Eject" (T021/T037): replaced by per-action, non-destructive Print/Save/Copy + Form Feed + tear-off Discard.
 - Audio (T038/T040): the BleuLlama sample set is **bundled** (committed, extracted by `AssetBootstrap::EnsureImageWriterSounds`), not fetched by the startup downloader; volume/mute wired to the Printing page.
 - Long-strip memory (T042): a dpi cap (`WholeStripDpi`, ~512 MB budget), not row-banding.
-Still open: T010 (dropped), US6 T046–T049, end-to-end sign-offs T026/T032/T041/T045/T072, polish / merge-gates T056–T060, and DCR-1/DCR-2. Dropped: US7 T050–T055 (→ #78). Post-ship bug fixes BUG-1/3/4 landed; BUG-2 (head fluidity) still under investigation.
+Still open: T010 (dropped), US6 T046–T049, end-to-end sign-offs T026/T032/T041/T045/T072, polish / merge-gates T056–T060, and DCR-1/DCR-2. Dropped: US7 T050–T055 (→ #78). Post-ship bug fixes BUG-1/2/3/4 all landed and user-confirmed.
 
 ## Format: `[ID] [P?] [Story] Description`
 
@@ -183,11 +183,23 @@ Shipped on this branch after real-hardware dogfooding:
   move/size loop starves the UI pump). Host-owned keep-alive `WM_TIMER` drives a new
   `IDxuiHostClient::OnModalLoopTick` → `EmulatorShell::PumpUiFrame`; render body factored out of
   `RunMessageLoop`. `Dxui/Window/*` + `Casso/EmulatorShell.*`.
-- [X] BUG-2 Print head fluidity — **open**, needs runtime observation. Added a temporary preview
-  FPS overlay (lower-right of the panel) to characterize the stutter. `Casso/Ui/PrinterPanel.*`.
-- [X] BUG-3 Carriage buzz cut out on every line feed (ink-gated hold decayed in the ink=false
-  gap). Lengthened `kPrintHoldSec` 0.05→0.25 s to bridge line feeds; a form feed / tear now cuts
-  the hold to stay clean. `CassoEmuCore/Audio/PrinterAudioSource.*` + tests.
+- [X] BUG-2 Print head fluidity — **closed** (user-confirmed) after a chain of video-forensics
+  iterations (frame-diff / carriage-tracking on user screen recordings). Root causes found and
+  fixed, in order: (a) row-reveal and column-sweep ran as two independent rates, dumping bands
+  full-width ~8.6× faster than the head could sweep (82f3f1db: one unified carriage clock — a
+  full-width sweep reveals exactly one pin band); (b) the head glyph traced the reveal column's
+  snap-to-full / reset-to-zero sawtooth (d09c44b6: ONE head clock — glyph, ink clip, and audio
+  all read the same swept column, which parks at its margin and resumes there); (c) the first
+  `Advance` after the loop's idle tick leapt a whole pass (33d6090b dt cap), which then throttled
+  slow frames (b9041472: resume-nudge only for genuine parks; slow frames unthrottled).
+  `CassoEmuCore/Devices/Printer/PrinterPacing.*` + `Casso/Ui/PrinterPanel.*` + tests.
+- [X] BUG-3 Print audio — **closed** (user-confirmed). Buzz starved: the ink sampler's fixed
+  0.3" lookback was narrower than the head's per-frame advance, skipping thin ink entirely
+  (044aeb5a: sample the full swept span `[prevCol, curCol]`). The interim 0.25 s hold that had
+  papered over the starvation then smeared a border-only line into a full-line buzz — at
+  carriage speed 0.25 s is 78% of a pass (5e38a996: restore the 0.05 s edge-trigger release;
+  strike / silence / strike on a border sign). A form feed / tear still cuts the hold clean.
+  `CassoEmuCore/Audio/PrinterAudioSource.*` + `Casso/Ui/PrinterPanel.cpp` + tests.
 - [X] BUG-4 Delivery-failure dialog was nerdspeak + a cancelled Print-to-PDF Save-As fired it.
   Cancel now silent (S_FALSE); message is plain-language with a `Details: 0x… — <system text>`
   trailer (CWRF captures the real GDI error). `Casso/Shell/WindowCommandManager.cpp`.
