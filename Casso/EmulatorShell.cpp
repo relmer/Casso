@@ -1409,6 +1409,7 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     });
     m_toolbar.SetVolume (m_globalPrefs.masterVolume, m_globalPrefs.masterMuted);
     m_wasapiAudio.SetMasterGain (m_globalPrefs.masterMuted ? 0.0f : m_globalPrefs.masterVolume);
+    ApplyToolbarMachineTint ();
     m_mainMenu.SetCheckQuery ([this] (WORD commandId) -> bool
     {
         switch (commandId)
@@ -2792,6 +2793,36 @@ void EmulatorShell::SnapshotStripToPanel ()
     // Forced refresh through the panel's viewport: snapshots and renders only
     // the visible ~1-page span (never the whole strip), same as the live path.
     m_printerPanel->RefreshLive (m_printerWorker, nowMs, true /* force */);
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::ApplyToolbarMachineTint
+//
+//  The toolbar strip wears the current machine's case color, matching the
+//  drive widgets' palette so the chrome reads as one piece of hardware:
+//  Disk ][ beige for the II / II+ / IIe family, Snow White platinum for the
+//  //c-era machines (enhanced //e, //c, and the IIgs to come).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::ApplyToolbarMachineTint ()
+{
+    bool  platinum = m_currentMachineName.find (L"Enhanced") != std::wstring::npos ||
+                     m_currentMachineName.find (L"2c")       != std::wstring::npos ||
+                     m_currentMachineName.find (L"2gs")      != std::wstring::npos;
+
+    if (platinum)
+    {
+        m_toolbar.SetMachineTint (0xFFEDE9DD, 0xFFCAC5B5);   // platinum (ImageWriter-era)
+    }
+    else
+    {
+        m_toolbar.SetMachineTint (0xFFE6D3AC, 0xFFCCB68B);   // Disk ][ case beige
+    }
 }
 
 

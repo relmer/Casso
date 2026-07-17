@@ -20,7 +20,6 @@ static constexpr int      s_kIconGapDp      = 7;    // icon-to-label gap
 static constexpr int      s_kSliderWidthDp    = 120;
 static constexpr int      s_kSliderMinWidthDp = 60;   // narrowest the volume slider shrinks to
 static constexpr int      s_kSliderMaxHDp     = 30;   // slider stays this tall, centered in the band
-static constexpr int      s_kPrinterIconWDp   = 24;
 static constexpr float    s_kIconDip        = 15.0f;
 static constexpr float    s_kFontDip        = 13.0f;
 static constexpr float    s_kStackedFontDip = 11.0f;  // label under the icon (ribbon mode)
@@ -43,13 +42,15 @@ static constexpr wchar_t  s_kGlyphReset      = L'\uE72C';   // refresh arrow
 static constexpr wchar_t  s_kGlyphPower      = L'\uE7E8';   // power symbol
 static constexpr wchar_t  s_kGlyphVolume     = L'\uE767';   // speaker
 static constexpr wchar_t  s_kGlyphMuted      = L'\uE74F';   // muted speaker
+static constexpr wchar_t  s_kGlyphPrint      = L'\uE749';   // printer (monoline, matches the set)
 
-// Mini ImageWriter II palette (from the retired PrinterIndicator).
-static constexpr uint32_t  s_kPlatTop  = 0xFFEDE9DD;
-static constexpr uint32_t  s_kPlatBot  = 0xFFCAC5B5;
-static constexpr uint32_t  s_kEdge     = 0xFF8C8879;
-static constexpr uint32_t  s_kSmoked   = 0xFF42454B;
-static constexpr uint32_t  s_kPaper    = 0xFFFBFBF6;
+// Ink + hover treatment over the machine-tinted (light case-color) strip;
+// the un-tinted fallback uses the theme's chrome colors instead.
+static constexpr uint32_t  s_kTintInk        = 0xFF3A3428;   // dark ink on beige / platinum
+static constexpr uint32_t  s_kTintHover      = 0x1E000000;
+static constexpr uint32_t  s_kTintPressed    = 0x33000000;
+static constexpr uint32_t  s_kTintBorder     = 0x50000000;
+static constexpr uint32_t  s_kTintHairline   = 0x5A46402F;   // strip's bottom edge shade
 
 
 
@@ -69,7 +70,7 @@ CommandToolbar::CommandToolbar ()
     m_focusable = false;
 
     m_buttons.push_back (Button { IDM_VIEW_SETTINGS,        s_kGlyphSettings,   L"Settings",   false });
-    m_buttons.push_back (Button { IDM_PRINTER_PREVIEW,      0,                  L"Printer",    true  });
+    m_buttons.push_back (Button { IDM_PRINTER_PREVIEW,      s_kGlyphPrint,      L"Printer",    true  });
     m_buttons.push_back (Button { IDM_EDIT_COPY_SCREENSHOT, s_kGlyphScreenshot, L"Screenshot", false });
     m_buttons.push_back (Button { IDM_MACHINE_RESET,        s_kGlyphReset,      L"Reset",      false });
     m_buttons.push_back (Button { IDM_MACHINE_POWERCYCLE,   s_kGlyphPower,      L"Power",      false });
@@ -156,6 +157,20 @@ uint32_t CommandToolbar::StatusCore (PrinterStatus status)
 }
 
 
+// A small status-light dot riding the printer glyph's corner (halo + core in
+// the PrinterStatus colour) -- the monoline glyph keeps the icon set uniform
+// while the LED keeps the at-a-glance printer state.
+static void PaintStatusLed (IDxuiPainter & painter, float cx, float cy, UINT dpi, uint32_t core)
+{
+    float     r    = 2.0f * (float) dpi / (float) s_kBaseDpi;
+    uint32_t  halo = (core & 0x00FFFFFFu) | 0x66000000u;
+
+    painter.FillCircleApprox (cx, cy, r * 1.8f, halo);
+    painter.FillCircleApprox (cx, cy, r,        core);
+}
+
+
+
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -196,8 +211,8 @@ int CommandToolbar::PlanForWidth (int clientWidthPx, const DxuiDpiScaler & scale
 
     auto  iconWidth = [&] (const Button & btn) -> int
     {
-        return btn.printerGlyph ? MulDiv (s_kPrinterIconWDp, (int) dpi, s_kBaseDpi)
-                                : (int) (iconDip + 0.5f);
+        (void) btn;   // uniform monoline glyphs: every icon is one MDL2 cell
+        return (int) (iconDip + 0.5f);
     };
 
     auto  buttonWidth = [&] (const Button & btn, Mode mode) -> int
@@ -293,8 +308,8 @@ void CommandToolbar::Layout (const RECT & boundsDip, const DxuiDpiScaler & scale
 
     auto  iconWidth = [&] (const Button & btn) -> int
     {
-        return btn.printerGlyph ? MulDiv (s_kPrinterIconWDp, (int) dpi, s_kBaseDpi)
-                                : (int) (iconDip + 0.5f);
+        (void) btn;   // uniform monoline glyphs: every icon is one MDL2 cell
+        return (int) (iconDip + 0.5f);
     };
 
     auto  buttonWidth = [&] (const Button & btn) -> int
@@ -514,60 +529,6 @@ bool CommandToolbar::OnToolbarLButtonUp (int x, int y)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  CommandToolbar::PaintMiniPrinter
-//
-//  The Printer button's icon: a compact skeuomorphic ImageWriter II (paper
-//  rising from the platen, platinum chassis, smoked hood) with the status
-//  light on the front panel -- the retired standalone indicator, shrunk to
-//  toolbar-icon size so the printer keeps its distinctive glyph and LED.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void CommandToolbar::PaintMiniPrinter (const RECT & rc, IDxuiPainter & painter)
-{
-    DxuiDpiScaler  scaler;
-    float          x = (float) rc.left;
-    float          y = (float) rc.top;
-    float          w = (float) (rc.right  - rc.left);
-    float          h = (float) (rc.bottom - rc.top);
-
-    scaler.SetDpi (m_dpi);
-
-    const float  bodyTop = y + h * 0.34f;
-    const float  bodyH   = y + h - bodyTop;
-
-    // Fanfold paper rising behind the chassis.
-    {
-        float  paperW = w * 0.52f;
-        float  paperX = x + (w - paperW) * 0.5f;
-
-        painter.FillRect (paperX, y, paperW, bodyTop + bodyH * 0.2f - y, s_kPaper);
-    }
-
-    // Platinum chassis + smoked hood.
-    painter.FillGradientRect (x, bodyTop, w, bodyH, s_kPlatTop, s_kPlatBot);
-    painter.OutlineRect      (x, bodyTop, w, bodyH, 1.0f, s_kEdge);
-    painter.FillRect         (x + scaler.Pxf (1.0f), bodyTop + scaler.Pxf (1.0f),
-                              w - scaler.Pxf (2.0f), bodyH * 0.32f, s_kSmoked);
-
-    // Status light on the front-right panel.
-    {
-        uint32_t  core = StatusCore (m_printerStatus);
-        uint32_t  halo = (core & 0x00FFFFFFu) | 0x66000000u;
-        float     r    = scaler.Pxf (1.6f);
-        float     cx   = x + w - scaler.Pxf (4.0f);
-        float     cy   = bodyTop + bodyH * 0.72f;
-
-        painter.FillCircleApprox (cx, cy, r * 1.9f, halo);
-        painter.FillCircleApprox (cx, cy, r,        core);
-    }
-}
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  CommandToolbar::PaintButton
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -585,7 +546,8 @@ void CommandToolbar::PaintButton (Button & btn, IDxuiPainter & painter,
     float     iconDip  = s_kIconDip * (float) m_dpi / (float) s_kBaseDpi;
     int       padX     = MulDiv (s_kBtnPadXDp, (int) m_dpi, s_kBaseDpi);
     int       iconGap  = MulDiv (s_kIconGapDp, (int) m_dpi, s_kBaseDpi);
-    uint32_t  ink      = theme.navItemText;
+    bool      tinted   = (m_tintTop != 0);
+    uint32_t  ink      = tinted ? s_kTintInk : theme.navItemText;
     float     iconW    = iconDip;
     float     textX    = 0.0f;
 
@@ -596,11 +558,12 @@ void CommandToolbar::PaintButton (Button & btn, IDxuiPainter & painter,
 
     if (active)
     {
-        uint32_t  fill = btn.pressed ? theme.buttonPressed
-                                     : (btn.hovered ? theme.buttonHover : theme.buttonIdle);
+        uint32_t  fill   = btn.pressed ? (tinted ? s_kTintPressed : theme.buttonPressed)
+                                       : (tinted ? s_kTintHover   : theme.buttonHover);
+        uint32_t  border = tinted ? s_kTintBorder : theme.buttonBorder;
 
         painter.FillRect    (bl, bt, bw, bh, fill);
-        painter.OutlineRect (bl, bt, bw, bh, 1.0f, theme.buttonBorder);
+        painter.OutlineRect (bl, bt, bw, bh, 1.0f, border);
     }
 
     // Ribbon mode: icon centered over a small label. The icon gets the region
@@ -611,17 +574,6 @@ void CommandToolbar::PaintButton (Button & btn, IDxuiPainter & painter,
         float  labelH     = stackedDip + 4.0f;
         float  iconRegH   = bh - labelH;
 
-        if (btn.printerGlyph)
-        {
-            int   iconWi = MulDiv (s_kPrinterIconWDp, (int) m_dpi, s_kBaseDpi);
-            int   iconH  = (int) (iconRegH * 0.72f);
-            int   ix     = btn.rc.left + ((int) bw - iconWi) / 2;
-            int   iy     = btn.rc.top + ((int) iconRegH - iconH) / 2;
-            RECT  icon   = { ix, iy, ix + iconWi, iy + iconH };
-
-            PaintMiniPrinter (icon, painter);
-        }
-        else
         {
             wchar_t   glyph[2] = { btn.glyph, 0 };
 
@@ -630,6 +582,13 @@ void CommandToolbar::PaintButton (Button & btn, IDxuiPainter & painter,
                                   DxuiTextRenderer::HAlign::Center,
                                   DxuiTextRenderer::VAlign::Center);
             IGNORE_RETURN_VALUE (hr, S_OK);
+        }
+
+        if (btn.statusLed)
+        {
+            PaintStatusLed (painter, bl + bw * 0.5f + iconDip * 0.62f,
+                            bt + (iconRegH - iconDip) * 0.5f + 2.0f, m_dpi,
+                            StatusCore (m_printerStatus));
         }
 
         hr = text.DrawString (btn.label, bl, bt + iconRegH - 2.0f, bw, labelH,
@@ -646,21 +605,6 @@ void CommandToolbar::PaintButton (Button & btn, IDxuiPainter & painter,
         bool   centered = (m_mode == Mode::IconOnly);
         float  iconX    = centered ? bl + (bw - iconDip) * 0.5f : bl + (float) padX;
 
-        if (btn.printerGlyph)
-        {
-            int   iconWi = MulDiv (s_kPrinterIconWDp, (int) m_dpi, s_kBaseDpi);
-            int   iconH  = (int) (bh * 0.62f);
-            int   ix     = centered ? btn.rc.left + ((int) bw - iconWi) / 2
-                                    : btn.rc.left + padX;
-            RECT  icon   = { ix,
-                             btn.rc.top + ((int) bh - iconH) / 2,
-                             ix + iconWi,
-                             btn.rc.top + ((int) bh - iconH) / 2 + iconH };
-
-            PaintMiniPrinter (icon, painter);
-            iconW = (float) iconWi;
-        }
-        else
         {
             wchar_t   glyph[2] = { btn.glyph, 0 };
 
@@ -669,6 +613,13 @@ void CommandToolbar::PaintButton (Button & btn, IDxuiPainter & painter,
                                   DxuiTextRenderer::HAlign::Left,
                                   DxuiTextRenderer::VAlign::Center);
             IGNORE_RETURN_VALUE (hr, S_OK);
+        }
+
+        if (btn.statusLed)
+        {
+            PaintStatusLed (painter, iconX + iconDip + 1.0f,
+                            bt + bh * 0.5f - iconDip * 0.48f, m_dpi,
+                            StatusCore (m_printerStatus));
         }
 
         if (m_mode == Mode::IconOnly)
@@ -706,14 +657,28 @@ void CommandToolbar::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
     const CassoTheme & theme = static_cast<const CassoTheme &> (dxuiTheme);
 
     float  bl = (float) m_barRect.left;
+    float  btTop = (float) m_barRect.top;
     float  bw = (float) (m_barRect.right - m_barRect.left);
+    float  bhAll = (float) (m_barRect.bottom - m_barRect.top);
 
     if (bw <= 0.0f)
     {
         return;
     }
 
-    painter.FillRect (bl, (float) m_barRect.bottom - 1.0f, bw, 1.0f, theme.buttonBorder);
+    // Machine-colored chrome: the strip wears the selected machine's case
+    // color (Disk ][ beige for the II family, platinum for //c-era machines),
+    // tying the toolbar to the hardware like the drive widgets. Without a
+    // tint it stays on the theme backdrop.
+    if (m_tintTop != 0)
+    {
+        painter.FillGradientRect (bl, btTop, bw, bhAll, m_tintTop, m_tintBot);
+        painter.FillRect (bl, (float) m_barRect.bottom - 1.0f, bw, 1.0f, s_kTintHairline);
+    }
+    else
+    {
+        painter.FillRect (bl, (float) m_barRect.bottom - 1.0f, bw, 1.0f, theme.buttonBorder);
+    }
 
     // The printer button follows card presence: no card, no printer button.
     m_buttons[1].enabled = m_printerPresent;

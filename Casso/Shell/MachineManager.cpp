@@ -1462,6 +1462,9 @@ HRESULT MachineManager::SwitchMachine (const std::wstring & machineName)
     m_shell.m_config             = newConfig;
     m_shell.m_cyclesPerFrame     = newConfig.cyclesPerFrame;
 
+    // The toolbar chrome wears the machine's case color; retint on switch.
+    m_shell.ApplyToolbarMachineTint ();
+
     hr = CreateMemoryDevices (newConfig);
     CHR (hr);
 

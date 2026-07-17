@@ -561,6 +561,12 @@ private:
     // repaints the LED on a transition).
     void    UpdatePrinterIndicator ();
 
+    // Machine-colored toolbar chrome: the strip wears the current machine's
+    // case color (Disk ][ beige for the II family, platinum for //c-era
+    // machines). Called after Initialize picks the machine and again on every
+    // SwitchMachine.
+    void    ApplyToolbarMachineTint ();
+
     // Per-frame: auto-open the preview when a new print begins (activity resuming
     // after an idle gap) and refresh the strip live as bytes flow, throttled by an
     // interval that grows with strip height so a busy print does not re-render the

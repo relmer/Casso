@@ -82,6 +82,16 @@ public:
     void  SetPrinterStatus  (PrinterStatus status)       { m_printerStatus = status; }
     void  SetPrinterPresent (bool present)               { m_printerPresent = present; }
 
+    // Machine-colored chrome: the strip paints this vertical case-color
+    // gradient (Disk ][ beige for the II family, platinum for //c-era
+    // machines) with dark ink for contrast. 0 falls back to the theme
+    // background with theme ink.
+    void  SetMachineTint    (uint32_t topArgb, uint32_t botArgb)
+    {
+        m_tintTop = topArgb;
+        m_tintBot = botArgb;
+    }
+
     // Shell-forwarded mouse input. Return true when the event was consumed
     // (over a button, or the slider is tracking a drag).
     bool  OnToolbarMouseMove   (int x, int y, bool leftDown);
@@ -95,19 +105,19 @@ public:
     void  Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
 
 private:
-    // One icon + label command button. `glyph` is a Segoe MDL2 codepoint;
-    // the printer button sets `printerGlyph` instead and paints the mini
-    // ImageWriter II with the status light.
+    // One icon + label command button. `glyph` is a Segoe MDL2 codepoint
+    // (monoline, matching the set); the printer button additionally sets
+    // `statusLed` so a status-light dot rides its glyph's corner.
     struct Button
     {
-        WORD             id           = 0;
-        wchar_t          glyph        = 0;
-        const wchar_t *  label        = nullptr;
-        bool             printerGlyph = false;
-        RECT             rc           = {};
-        bool             hovered      = false;
-        bool             pressed      = false;
-        bool             enabled      = true;
+        WORD             id        = 0;
+        wchar_t          glyph     = 0;
+        const wchar_t *  label     = nullptr;
+        bool             statusLed = false;
+        RECT             rc        = {};
+        bool             hovered   = false;
+        bool             pressed   = false;
+        bool             enabled   = true;
     };
 
     static bool      PointIn        (const RECT & rc, int x, int y);
@@ -115,7 +125,6 @@ private:
 
     void             PaintButton    (Button & btn, IDxuiPainter & painter,
                                      IDxuiTextRenderer & text, const struct CassoTheme & theme);
-    void             PaintMiniPrinter (const RECT & rc, IDxuiPainter & painter);
 
     std::vector<Button>   m_buttons;        // command buttons in visual order
     Button                m_muteButton;     // toggles mute (not a dispatch id)
@@ -133,4 +142,6 @@ private:
     bool                  m_muted          = false;
     PrinterStatus         m_printerStatus  = PrinterStatus::Idle;
     bool                  m_printerPresent = false;
+    uint32_t              m_tintTop        = 0;       // machine case tint (0 = theme background)
+    uint32_t              m_tintBot        = 0;
 };
