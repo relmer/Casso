@@ -127,14 +127,15 @@ public:
         src.SetLoopForTest (Quality::Draft, Const (64, 0.5f), 1000);
         src.SetVolume (1.0f);
 
-        // hold = kPrintHoldSec (0.25 s) * 1000 = 250 samples (long enough to
-        // bridge a line feed's ink=false gap so the buzz stays continuous).
+        // hold = kPrintHoldSec (0.05 s) * 1000 = 50 samples: a short RELEASE, not
+        // a sustain -- long enough to bridge one ink=false wrap frame, short
+        // enough that a blank stretch mid-pass goes silent (edge-triggered gate).
         src.PublishReveal (1000, 0);
-        Assert::IsTrue (Frame (src, 100) > 0.0f);   // still playing this frame
+        Assert::IsTrue (Frame (src, 40) > 0.0f);    // still inside the hold
 
         // Head stopped (same reveal, no re-arm): drain the rest of the hold. Once
-        // more than 250 samples have elapsed with no advance, the buzz is silent.
-        Frame (src, 200);                            // 100 + 200 = 300 > 250 -> drained
+        // more than 50 samples have elapsed with no advance, the buzz is silent.
+        Frame (src, 60);                             // 40 + 60 = 100 > 50 -> drained
         Assert::AreEqual (0.0f, Frame (src, 16), 0.0f);
         Assert::IsFalse  (src.IsPrinting());
     }
@@ -152,7 +153,7 @@ public:
         Assert::AreEqual (0.5f, Frame (src, 16), 0.0001f);
 
         // Line feed: reveal advances but ink=false for a short gap. The buzz must
-        // stay alive under the clack (it does not re-arm, but the 250-sample hold
+        // stay alive under the clack (it does not re-arm, but the 50-sample hold
         // outlasts this 16-sample feed frame) so printing sounds continuous
         // instead of cutting out between every line.
         src.PublishReveal (1100, 10, false /* inkActive */);
@@ -166,6 +167,34 @@ public:
 
 
 
+    TEST_METHOD (BorderOnlyLine_GoesSilentOverTheBlankMiddle)
+    {
+        PrinterAudioSource  src;
+        src.SetLoopForTest (Quality::Draft, Const (64, 0.5f), 1000);
+        src.SetVolume (1.0f);
+
+        // A sign line that is just a thin border at each margin: strike, a long
+        // blank middle, strike. The head keeps MOVING the whole way, but the gate
+        // is edge-triggered on ink -- so the buzz must release over the blank
+        // middle (~0.3 s of sweep, far past the 50-sample hold), not smear across
+        // it sounding like a full line of print.
+        src.PublishReveal (1040, 40, true /* left border strike */);
+        Assert::IsTrue (Frame (src, 16) > 0.0f);
+
+        src.PublishReveal (1400, 400, false /* crossing the blank middle */);
+        Frame (src, 100);                            // 16 + 100 > 50 -> hold drained
+        src.PublishReveal (1800, 800, false /* still blank, still moving */);
+        Assert::AreEqual (0.0f, Frame (src, 16), 0.0f);
+        Assert::IsFalse  (src.IsPrinting());
+
+        // Right border: ink returns under the head -> the buzz re-arms.
+        src.PublishReveal (2240, 1240, true /* right border strike */);
+        Assert::AreEqual (0.5f, Frame (src, 16), 0.0001f);
+        Assert::IsTrue   (src.IsPrinting());
+    }
+
+
+
     TEST_METHOD (FormFeed_CutsCarriageBuzz)
     {
         PrinterAudioSource  src;
@@ -174,8 +203,8 @@ public:
         src.SetVolume (1.0f);
 
         // Arm the buzz, then request a form feed. The action latch cuts the
-        // (now long) carriage hold so the page feed plays clean under its own
-        // grain rather than trailing the buzz across the advance.
+        // carriage hold so the page feed plays clean under its own grain
+        // rather than trailing the buzz across the advance.
         src.PublishReveal (1000, 1200, true /* inkActive */);
         Assert::IsTrue (Frame (src, 16) > 0.0f);
 

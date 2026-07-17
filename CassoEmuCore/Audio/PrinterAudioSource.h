@@ -45,13 +45,16 @@ public:
 
     // Carriage-loop hold after the last inked reveal advance (seconds). Long
     // enough to BRIDGE the brief ink=false gap of a line feed (carriage return +
-    // one-line paper advance) so the print buzz stays continuous UNDER the
-    // line-feed clacks instead of cutting out between every line -- the head is
-    // still mechanically moving through the return. A form feed / tear is a much
-    // longer, explicit action: its one-shot latch cuts this hold (GeneratePCM) so
-    // it feeds silently under its own grain. A silence longer than this = the head
-    // genuinely stopped.
-    static constexpr double  kPrintHoldSec       = 0.25;
+    // one-line paper advance). The buzz gate is edge-triggered: ink under the
+    // head arms it, ink ending releases it -- this hold is only the release
+    // time, sized to bridge frame quantization (an ink=false wrap frame between
+    // two inked lines) and nothing more. It must stay well under a carriage
+    // pass: a line that is just a thin border strike at each margin has to fall
+    // SILENT while the head crosses the blank middle (~0.3 s), or two columns of
+    // dots sound like a full line of print. A form feed / tear is an explicit
+    // action: its one-shot latch cuts this hold (GeneratePCM) so it feeds
+    // silently under its own grain.
+    static constexpr double  kPrintHoldSec       = 0.05;
 
     // Minimum spacing between line-feed one-shots, so a burst of column wraps (a
     // fast catch-up) cannot machine-gun the clack.
