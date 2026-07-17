@@ -17,8 +17,9 @@ static constexpr int      s_kBtnMarginYDp   = 5;    // button top/bottom inset i
 static constexpr int      s_kBtnGapDp       = 4;    // between buttons in a group
 static constexpr int      s_kGroupGapDp     = 18;   // between button groups
 static constexpr int      s_kIconGapDp      = 7;    // icon-to-label gap
-static constexpr int      s_kSliderWidthDp  = 120;
-static constexpr int      s_kPrinterIconWDp = 24;
+static constexpr int      s_kSliderWidthDp    = 120;
+static constexpr int      s_kSliderMinWidthDp = 60;   // narrowest the volume slider shrinks to
+static constexpr int      s_kPrinterIconWDp   = 24;
 static constexpr float    s_kIconDip        = 15.0f;
 static constexpr float    s_kFontDip        = 13.0f;
 static constexpr float    s_kFallbackCharPx = 7.5f;
@@ -174,6 +175,10 @@ void CommandToolbar::Layout (const RECT & boundsDip, const DxuiDpiScaler & scale
     int    top      = boundsDip.top + marginY;
     int    bottom   = boundsDip.bottom - marginY;
 
+    int    sliderMinW = MulDiv (s_kSliderMinWidthDp, (int) dpi, s_kBaseDpi);
+    int    barPad     = MulDiv (s_kBarPadXDp, (int) dpi, s_kBaseDpi);
+    int    avail      = (boundsDip.right - boundsDip.left) - barPad * 2;
+
     m_dpi     = dpi;
     m_barRect = boundsDip;
 
@@ -190,11 +195,54 @@ void CommandToolbar::Layout (const RECT & boundsDip, const DxuiDpiScaler & scale
         return (int) ((float) wcslen (label) * s_kFallbackCharPx * (float) dpi / (float) s_kBaseDpi);
     };
 
+    auto  iconWidth = [&] (const Button & btn) -> int
+    {
+        return btn.printerGlyph ? MulDiv (s_kPrinterIconWDp, (int) dpi, s_kBaseDpi)
+                                : (int) (iconDip + 0.5f);
+    };
+
+    auto  buttonWidth = [&] (const Button & btn, bool labels) -> int
+    {
+        return labels ? padX * 2 + iconWidth (btn) + iconGap + measure (btn.label)
+                      : padX * 2 + iconWidth (btn);
+    };
+
+    // Total width the toolbar wants, at a given label mode + slider width. Six
+    // command buttons + the mute button, three gaps between the groups.
+    auto  totalWidth = [&] (bool labels, int slider) -> int
+    {
+        int  w = 0;
+
+        for (const Button & b : m_buttons) { w += buttonWidth (b, labels) + btnGap; }
+        w += buttonWidth (m_muteButton, labels) + slider;
+        w += (groupGap - btnGap) + groupGap + groupGap;   // Settings|Printer  Volume  right group
+        return w;
+    };
+
+    // Progressive collapse: prefer icon + label; drop labels to icon-only when
+    // they won't fit (a narrow window / low resolution); then shrink the volume
+    // slider toward a minimum before anything clips. Tooltips (follow-up) carry
+    // the label meaning in icon-only mode.
+    m_compact = (totalWidth (true, sliderW) > avail);
+
+    {
+        int  slider = sliderW;
+
+        if (m_compact)
+        {
+            int  overflow = totalWidth (false, sliderW) - avail;
+
+            if (overflow > 0)
+            {
+                slider = (std::max) (sliderMinW, sliderW - overflow);
+            }
+        }
+        sliderW = slider;
+    }
+
     auto  place = [&] (Button & btn)
     {
-        int  iconW = btn.printerGlyph ? MulDiv (s_kPrinterIconWDp, (int) dpi, s_kBaseDpi)
-                                      : (int) (iconDip + 0.5f);
-        int  w     = padX * 2 + iconW + iconGap + measure (btn.label);
+        int  w = buttonWidth (btn, !m_compact);
 
         btn.rc = RECT { x, top, x + w, bottom };
         x     += w + btnGap;
@@ -445,6 +493,12 @@ void CommandToolbar::PaintButton (Button & btn, IDxuiPainter & painter,
                               DxuiTextRenderer::HAlign::Left,
                               DxuiTextRenderer::VAlign::Center);
         IGNORE_RETURN_VALUE (hr, S_OK);
+    }
+
+    // Compact mode (narrow window / low resolution): icon-only, no label.
+    if (m_compact)
+    {
+        return;
     }
 
     textX = bl + (float) padX + iconW + (float) iconGap;

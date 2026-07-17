@@ -105,6 +105,7 @@ private:
 
     RECT                  m_barRect        = {};
     UINT                  m_dpi            = 96;
+    bool                  m_compact        = false;   // icon-only: full labels don't fit the width
     float                 m_volume01       = 1.0f;
     bool                  m_muted          = false;
     PrinterStatus         m_printerStatus  = PrinterStatus::Idle;
