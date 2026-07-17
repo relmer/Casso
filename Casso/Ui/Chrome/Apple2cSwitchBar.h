@@ -130,7 +130,6 @@ private:
     static constexpr uint32_t  kCapEdge   = 0xFF98917F;
     static constexpr uint32_t  kCapText   = 0xFF5A5647;
     static constexpr uint32_t  kCapTextOff = 0xFF9A9484; // dormant (no Ctrl) reset label
-    static constexpr uint32_t  kCapTextDn = 0xFF14100A;  // pressed reset label (near-black, readable on the sunk cap)
 
     // The cap fills its slot; a thin rim just seats it in the case. Depth is
     // carried by directional shading in PaintSlantCap, not a dark recess fill.
@@ -178,11 +177,13 @@ private:
     void  PaintLed         (IDxuiPainter & p, const RECT & r, bool lit);
     void  PaintLabel       (IDxuiTextRenderer & text, const RECT & r, const wchar_t * s, float fontPx);
 
-    // Paints a slanted (parallelogram) cap seated in its case recess, riding
-    // proud of the surface when out and depressed below it when in -- the
-    // shared look for the reset button and both latching switches.
+    // Paints a slanted (parallelogram) cap lit from the top-left. Raised, it is
+    // highlit top-left / shadowed bottom-right. Pressed with deepPress (the
+    // latching switches) it darkens under a dominant top-left shadow; pressed
+    // without it (the momentary reset) the lighting simply flips to shadow
+    // top-left / highlight bottom-right, keeping the face light.
     void  PaintSlantCap    (IDxuiPainter & p, const RECT & r, bool pressedIn,
-                            bool hovered, uint32_t faceHi, uint32_t faceLo);
+                            bool deepPress, bool hovered, uint32_t faceHi, uint32_t faceLo);
 
     RECT                 m_bounds       = {};
     RECT                 m_resetRect    = {};

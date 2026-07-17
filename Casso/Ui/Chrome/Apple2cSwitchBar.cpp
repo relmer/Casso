@@ -266,13 +266,12 @@ void Apple2cSwitchBar::PaintLabel (IDxuiTextRenderer & text, const RECT & r, con
 
 void Apple2cSwitchBar::PaintResetButton (IDxuiPainter & p, IDxuiTextRenderer & text, const RECT & r)
 {
-    bool      dn      = (m_pressedPart == Part::Reset);
-    // Pressed, the cap darkens and takes the top-left shadow, so the muted /
-    // mid label washes out -- switch to near-black so it stays legible.
-    uint32_t  textCol = dn ? kCapTextDn : (m_resetArmed ? kCapText : kCapTextOff);
+    bool  dn = (m_pressedPart == Part::Reset);
 
-    PaintSlantCap (p, r, dn, m_hovered && m_hoverPart == Part::Reset,
-                   dn ? kCapLo : kCapHi, dn ? kKeyLoIn : kCapLo);
+    // Shallow press: the face stays light (just the lighting flips top-left),
+    // so the ordinary armed/dormant label ink stays readable -- no darkening.
+    PaintSlantCap (p, r, dn, /*deepPress*/ false, m_hovered && m_hoverPart == Part::Reset,
+                   kCapHi, kCapLo);
 
     text.PushTextSkew (kSlantTan, (float) (r.top + r.bottom) * 0.5f);
 
@@ -281,7 +280,7 @@ void Apple2cSwitchBar::PaintResetButton (IDxuiPainter & p, IDxuiTextRenderer & t
                                    (float) r.top + (dn ? 1.0f : 0.0f),
                                    (float) (r.right - r.left),
                                    (float) (r.bottom - r.top),
-                                   textCol,
+                                   m_resetArmed ? kCapText : kCapTextOff,
                                    kFontDip * (float) m_dpi / 96.0f, kFontFamily,
                                    DxuiTextHAlign::Center,
                                    DxuiTextVAlign::CenterOnCapHeight,
@@ -311,7 +310,7 @@ void Apple2cSwitchBar::PaintResetButton (IDxuiPainter & p, IDxuiTextRenderer & t
 ////////////////////////////////////////////////////////////////////////////////
 
 void Apple2cSwitchBar::PaintSlantCap (IDxuiPainter & p, const RECT & r, bool pressedIn,
-                                      bool hovered, uint32_t faceHi, uint32_t faceLo)
+                                      bool deepPress, bool hovered, uint32_t faceHi, uint32_t faceLo)
 {
     constexpr int  kN = 10;
 
@@ -327,6 +326,7 @@ void Apple2cSwitchBar::PaintSlantCap (IDxuiPainter & p, const RECT & r, bool pre
     float  cy    = y + 1.0f;
     float  cw    = bodyW - 2.0f;             // cap face, inside a thin rim
     float  ch    = h - 2.0f;
+    float  band  = (cw < ch ? cw : ch) * 0.5f;   // even edge-shadow thickness
 
 
     // Thin molded rim, then the cap face fills the whole footprint.
@@ -335,22 +335,30 @@ void Apple2cSwitchBar::PaintSlantCap (IDxuiPainter & p, const RECT & r, bool pre
 
     if (!pressedIn)
     {
-        // Raised: highlit top + left, shadowed bottom + right. The bottom and
-        // right shadows share one band thickness so they read as one even
-        // edge shadow rather than a fat bottom stripe on the tall thin caps.
-        float  band = (cw < ch ? cw : ch) * 0.5f;
-
+        // Raised: highlit top + left, shadowed bottom + right (one band width).
         ShearFill  (p, cx, cy, cw, 1.2f, tan, refB, kLitEdge);                          // top highlight
         ShearGradH (p, cx, cy, band, ch, tan, refB, kLitEdge, kShadowNil, kN);          // left highlight
         ShearGrad  (p, cx, cy + ch - band, cw, band, tan, refB, kShadowNil, kShadeProud, kN); // bottom shadow
         ShearGradH (p, cx + cw - band, cy, band, ch, tan, refB, kShadowNil, kShadeProud, kN);  // right shadow
     }
-    else
+    else if (deepPress)
     {
-        // Sunk: shadowed top + left (dominant), a faint catch bottom-right.
+        // Deep press (latching switch): darkened face under a dominant top-left
+        // shadow -- a thin switch goes nearly all shadow -- with a faint catch
+        // at the bottom-right.
         ShearGrad  (p, cx, cy, cw, ch * 0.62f, tan, refB, kShadePushed, kShadowNil, kN);     // top shadow
         ShearGradH (p, cx, cy, cw * 0.62f, ch, tan, refB, kShadePushed, kShadowNil, kN);     // left shadow
         ShearFill  (p, cx, cy + ch - 1.2f, cw, 1.2f, tan, refB, kLitFoot);                   // bottom-right catch
+    }
+    else
+    {
+        // Shallow press (momentary reset): the raised lighting simply flips --
+        // shadow to the top-left, highlight to the bottom-right -- so the face
+        // stays light and the label stays readable.
+        ShearFill  (p, cx, cy + ch - 1.2f, cw, 1.2f, tan, refB, kLitEdge);              // bottom highlight
+        ShearGradH (p, cx + cw - band, cy, band, ch, tan, refB, kShadowNil, kLitEdge, kN);   // right highlight
+        ShearGrad  (p, cx, cy, cw, band, tan, refB, kShadeProud, kShadowNil, kN);       // top shadow
+        ShearGradH (p, cx, cy, band, ch, tan, refB, kShadeProud, kShadowNil, kN);       // left shadow
     }
 
     if (hovered)
@@ -373,7 +381,7 @@ void Apple2cSwitchBar::PaintSlantCap (IDxuiPainter & p, const RECT & r, bool pre
 
 void Apple2cSwitchBar::PaintKey (IDxuiPainter & p, const RECT & keyRect, bool pressedIn, bool hovered)
 {
-    PaintSlantCap (p, keyRect, pressedIn, hovered,
+    PaintSlantCap (p, keyRect, pressedIn, /*deepPress*/ true, hovered,
                    pressedIn ? kKeyFaceIn : kKeyHi,
                    pressedIn ? kKeyLoIn   : kKeyLo);
 }
