@@ -6,6 +6,20 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 Versioned entries use `MAJOR.MINOR.PATCH` from [Version.h](CassoCore/Version.h).
 Entries before versioning was introduced use dates only.
 
+## [Unreleased]
+
+### Changed
+- **refactor(shell): harden emulator startup** — `EmulatorShell::Initialize`
+  (previously ~600 lines at 9+ levels of nesting) is decomposed into focused,
+  single-purpose steps with consistent EHM error handling. Genuine
+  infrastructure failures (window, renderer, CPU, and UI-shell bring-up) abort
+  startup and assert in debug builds; a corrupt or unreadable settings file
+  now recovers to defaults — asserting in debug so a developer can dig in —
+  instead of being silently swallowed; and `DiskImageStore` surfaces a failed
+  disk-flush through the shared error notifier itself rather than through a
+  reporter callback the shell had to wire up.
+
+
 ## [1.9.0] — Write-protect indicator
 
 ### Added
