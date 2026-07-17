@@ -169,7 +169,8 @@ rather than folded silently into the spec.
 - [ ] DCR-1 **Windows print dialog "doesn't support print preview".** The OS modern print UI
   advertises a preview pane we don't fill, which reads as broken even though Casso already
   shows its own live preview. Implement the OS print-preview affordance (or otherwise stop the
-  dialog advertising an empty one) so the experience doesn't look half-finished. Owner: TBD.
+  dialog advertising an empty one) so the experience doesn't look half-finished. IN SCOPE for
+  this spec (not deferred) — ships on this branch alongside DCR-2 before the merge gates.
 - [ ] DCR-2 **Replace the chrome printer indicator with a command toolbar.** The standalone
   printer widget in the main window doesn't match the rest of the UI. Prototype a toolbar row
   below the menu bar carrying the most-common commands (Settings, Print, Volume slider + Mute,
