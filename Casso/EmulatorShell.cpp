@@ -707,20 +707,18 @@ void EmulatorShell::PrimeChromeThemeEarly()
 
 
 
-    // A corrupt or unreadable UserPrefs.json must not block startup: reset
-    // to defaults and surface the loss to the user rather than aborting or
-    // silently swallowing it. (A missing file is not a failure -- LoadAll
-    // returns success with defaults on first run.) There is no "notify and
-    // continue" EHM macro -- the *N macros bail -- so notify directly.
+    // A missing UserPrefs.json (first run) is reported by LoadAll as success
+    // with defaults. A corrupt one means something is genuinely wrong, so
+    // CHRAF asserts -- a debug build breaks for a dev to dig in -- then resets
+    // to defaults so release still boots. The theme is applied from the
+    // loaded-or-default prefs at Error, reached on both paths.
     hr = m_userConfigStore->LoadAll (m_globalPrefs, m_uiFs);
-    if (FAILED (hr))
-    {
-        m_globalPrefs = GlobalUserPrefs {};
-        EhmNotifyUser (L"Casso couldn't read your settings file, so it was reset to defaults.");
-    }
+    CHRAF (hr, m_globalPrefs = GlobalUserPrefs {});
 
+Error:
     m_chromeTheme = CassoTheme::ForName (m_globalPrefs.activeTheme);
     ApplyThemeToChrome (m_chromeTheme);
+    return;
 }
 
 
@@ -825,11 +823,11 @@ Error:
 //
 //  Reads the active machine's JSON config and merges the user overrides via
 //  UserConfigStore, handing back the "$cassoUiPrefs" object in outUiPrefs.
-//  Any problem -- missing/unreadable/corrupt file, failed merge, or no such
-//  key (a fresh machine) -- collapses to outUiPrefs == nullptr so the caller
-//  keeps the built-in defaults; these cosmetic per-machine prefs never block
-//  startup. The returned pointer aliases into outDoc, so outDoc must outlive
-//  every use of it.
+//  Any problem collapses to outUiPrefs == nullptr so the caller keeps the
+//  built-in defaults, and these cosmetic per-machine prefs never block
+//  startup -- though corrupt content (as opposed to a simply-absent file or
+//  key) asserts first so a debug build catches it. The returned pointer
+//  aliases into outDoc, so outDoc must outlive every use of it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -855,12 +853,12 @@ void EmulatorShell::LoadMachineUiPrefs (
 
     outUiPrefs = nullptr;
 
-    // Every failure below recovers to "no persisted prefs" (outUiPrefs stays
-    // null -> caller keeps defaults) instead of aborting: a missing/unreadable
-    // file, malformed JSON, a failed override merge, an unexpected shape, or a
-    // missing "$cassoUiPrefs" key. Whole-file corruption is already surfaced
-    // to the user by PrimeChromeThemeEarly; these cosmetic prefs recover
-    // quietly.
+    // A missing file, or a missing "$cassoUiPrefs" key, is normal (first run
+    // for this machine): recover to null so the caller keeps defaults, no
+    // assert. Content that exists but is corrupt -- unparseable JSON or a
+    // failed override merge -- means something is wrong, so CHRA asserts (a
+    // debug build breaks for a dev to dig in) and then bails to that same
+    // null-prefs recovery.
     BAIL_OUT_IF (configPath.empty(), S_OK);
     configFile.open (configPath);
     BAIL_OUT_IF (!configFile.good(), S_OK);
@@ -869,10 +867,10 @@ void EmulatorShell::LoadMachineUiPrefs (
     jsonText = ss.str();
 
     hr = JsonParser::Parse (jsonText, defaultJson, parseErr);
-    BAIL_OUT_IF (FAILED (hr), S_OK);
+    CHRA (hr);
 
     hr = m_userConfigStore->Load (machineNameNarrow, defaultJson, m_uiFs, outDoc);
-    BAIL_OUT_IF (FAILED (hr), S_OK);
+    CHRA (hr);
 
     BAIL_OUT_IF (outDoc.GetType() != JsonType::Object, S_OK);
 

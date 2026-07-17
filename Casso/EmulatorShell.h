@@ -279,8 +279,9 @@ private:
     // Initialize() decomposition -- one single-purpose step each, called
     // in order from Initialize. HRESULT-returning steps propagate genuine
     // infrastructure failure and abort startup via CHR; the void ones have
-    // no failable work, or recover in place (e.g. corrupt user prefs reset
-    // to defaults) rather than abort.
+    // no failable work, or recover in place -- asserting in debug so a dev
+    // catches it -- (e.g. corrupt user prefs reset to defaults) rather than
+    // abort.
     void    RegisterChromeDock            ();
     void    InitAssetPathsAndStores       ();
     void    AllocateFramebuffers          ();
