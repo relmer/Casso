@@ -169,6 +169,44 @@ bool PrinterWorker::SnapshotStripSpan (int firstRow, int lastRow, PrintRaster & 
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  SpanHasInk
+//
+//  Any-ink probe over rows [firstRow, lastRow] under the raster lock. Bounded
+//  by a pin band in practice (~16 rows), so the scan cost is trivial.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool PrinterWorker::SpanHasInk (int firstRow, int lastRow)
+{
+    std::lock_guard<std::mutex>   lock (m_rasterMutex);
+
+    if (m_job == nullptr)
+    {
+        return false;
+    }
+
+    const PrintRaster &  raster = m_job->Raster();
+    int                  last   = (std::min) (lastRow, raster.RowsUsed() - 1);
+
+    for (int row = (std::max) (0, firstRow); row <= last; row++)
+    {
+        for (int col = 0; col < PrinterGrid::kDotsPerRow; col++)
+        {
+            if (raster.CellAt (col, row) != 0)
+            {
+                return true;
+            }
+        }
+    }
+
+    return false;
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  FormFeed
 //
 //  Host-initiated page advance through the job's own interpreter path, then

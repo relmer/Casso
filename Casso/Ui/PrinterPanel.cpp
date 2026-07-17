@@ -722,7 +722,23 @@ void PrinterPanel::RefreshLive (PrinterWorker & worker, int64_t nowMs, bool forc
     int  laggedRow = m_printingActive ? (std::max) (0, headRow - s_kBidiLagRows) : headRow;
 
     m_pacing.SetTargetPosition (laggedRow, PrinterGrid::kDotsPerRow);
-    m_pacing.Advance (nowSec);
+
+    {
+        // Tell the clock what is under the head: an inked live band reveals via
+        // the carriage sweep, a blank one (line / form feed) slews through with
+        // the head parked -- a form feed must never sweep the carriage across a
+        // page of empty bands. Only queried while behind (the answer is unused
+        // when the reveal is caught up).
+        bool  liveBandInk = true;
+        int   liveTop     = m_pacing.RevealedRows();
+
+        if (liveTop < laggedRow)
+        {
+            liveBandInk = worker.SpanHasInk (liveTop, liveTop + s_kPinBandRows - 1);
+        }
+
+        m_pacing.Advance (nowSec, liveBandInk);
+    }
 
     revealRow  = m_pacing.RevealedRows();
     bandBottom = (std::min) (revealRow + s_kPinBandRows - 1, rows - 1);

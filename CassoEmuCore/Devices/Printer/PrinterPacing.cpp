@@ -111,7 +111,7 @@ void PrinterPacing::RequestFastForward()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-int PrinterPacing::Advance (double nowSeconds)
+int PrinterPacing::Advance (double nowSeconds, bool liveBandHasInk)
 {
     double  dt          = 0.0;
     double  dotsPerRow  = (double) PrinterGrid::kDotsPerRow;
@@ -152,6 +152,18 @@ int PrinterPacing::Advance (double nowSeconds)
         m_revealed    = (double) m_target;
         m_revealedCol = 0.0;
         m_fastForward = false;
+        return RevealedRows();
+    }
+
+    // A BLANK live band is a paper feed, not a print: slew the rows through at
+    // the paper-feed rate with the head parked where it is -- no sweep, no
+    // direction flip. (A form feed used to sweep the carriage across every
+    // empty band of the page; the real machine just feeds.) When the feed
+    // reaches an inked band the caller reports ink and the sweep resumes from
+    // the parked column.
+    if (!liveBandHasInk)
+    {
+        m_revealed = (std::min) ((double) m_target, m_revealed + m_cfg.blankRowsPerSecond * dt);
         return RevealedRows();
     }
 

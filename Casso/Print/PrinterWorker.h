@@ -56,6 +56,12 @@ public:
     // per-refresh cost is bounded by the viewport, not the strip (FR-033).
     bool          SnapshotStripSpan (int firstRow, int lastRow, PrintRaster & out);
 
+    // Whether any cell in rows [firstRow, lastRow] carries ink, read under the
+    // raster lock. The panel's pacing asks this about the live pin band so a
+    // blank stretch (line / form feed) slews through with the head parked
+    // instead of sweeping the carriage across empty paper.
+    bool          SpanHasInk (int firstRow, int lastRow);
+
     // Host form feed (the preview's Form Feed button): advances the paper to
     // the top of the next page exactly as if the guest had sent $0C, under
     // the raster lock. The shell gates this on printer idleness so it never

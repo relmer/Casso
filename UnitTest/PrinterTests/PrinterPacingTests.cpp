@@ -280,6 +280,45 @@ namespace PrinterPacingTests
         }
 
 
+        TEST_METHOD (BlankBandFeedsWithTheHeadParked)
+        {
+            // A blank live band (line / form feed) is a paper SLEW, not a
+            // print: rows advance at blankRowsPerSecond while the head stays
+            // parked and the direction never flips. (A form feed used to sweep
+            // the carriage across ~99 empty bands of the page.)
+            PrinterPacing::Config   c = Cfg (1280.0, 16, 1.0e9);
+
+            c.blankRowsPerSecond = 480.0;
+
+            PrinterPacing   p (c);
+
+            p.Reset (0.0);
+            p.SetTargetRows (1000);
+
+            Assert::AreEqual (480, p.Advance (1.0, false));   // slewed a page-chunk in 1 s
+            Assert::AreEqual (0,   p.RevealedColDots());      // head parked at its margin
+            Assert::IsTrue   (p.SweepLeftToRight());          // no spurious direction flips
+        }
+
+
+        TEST_METHOD (InkAfterBlankFeedResumesTheSweep)
+        {
+            PrinterPacing::Config   c = Cfg (1280.0, 16, 1.0e9);
+
+            c.blankRowsPerSecond = 480.0;
+
+            PrinterPacing   p (c);
+
+            p.Reset (0.0);
+            p.SetTargetRows (1000);
+            p.Advance (1.0, false);                    // blank stretch slews through
+
+            Assert::AreEqual (480, p.RevealedRows());
+            Assert::AreEqual (480, p.Advance (1.25, true));   // inked band: back to sweeping...
+            Assert::AreEqual (320, p.RevealedColDots());      // ...from the parked margin
+        }
+
+
         TEST_METHOD (SweepDirectionReversesEachBand)
         {
             // The ImageWriter prints bidirectionally: the carriage direction flips

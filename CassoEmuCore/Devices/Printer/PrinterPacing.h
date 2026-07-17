@@ -57,6 +57,11 @@ public:
         int     rowsPerSweep  = PrinterGrid::kPinBandRows;  // rows revealed per full-width sweep
         double  coalesceRows  = 2000.0;                     // backlog beyond this -> jump-cut
 
+        // Paper-slew rate for BLANK stretches (line/form feeds): the real
+        // machine advances empty paper with the head PARKED -- it never sweeps
+        // a band nothing was printed on. ~11" page in ~3.3s.
+        double  blankRowsPerSecond = 480.0;
+
         // The panel's render loop drops to a coarse idle tick between the guest's
         // data bursts, so the first Advance after a gap carries a large dt.
         // Acting on it whole would leap a full carriage pass (or several) in one
@@ -91,7 +96,12 @@ public:
     void  RequestFastForward ();
 
     // Advance the reveal to `nowSeconds`; returns the rows now visible.
-    int   Advance (double nowSeconds);
+    // `liveBandHasInk` tells the clock what is under the head right now: an
+    // inked band reveals via the carriage sweep, a blank band (a line / form
+    // feed) slews through at blankRowsPerSecond with the head parked -- the
+    // real machine never sweeps paper nothing was printed on. Callers without
+    // ink knowledge (tests of the sweep math) default to inked.
+    int   Advance (double nowSeconds, bool liveBandHasInk = true);
 
     int   RevealedRows () const;
 
