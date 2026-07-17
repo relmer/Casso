@@ -99,7 +99,7 @@ private:
     static constexpr int  kResetWDp    = 52;   // reset button
     static constexpr int  kResetHDp    = 24;
     static constexpr int  kGroupGapDp  = 18;   // reset -> first switch
-    static constexpr int  kKeyWDp      = 11;   // latching-switch key
+    static constexpr int  kKeyWDp      = 8;    // latching-switch key (thin, near the LED width)
     static constexpr int  kKeyHDp      = 25;
     static constexpr int  kLabelGapDp  = 7;    // key/LED -> its label
     static constexpr int  kSwitchGapDp = 20;   // switch cluster -> switch cluster

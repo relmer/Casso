@@ -299,13 +299,20 @@ void Apple2cSwitchBar::PaintResetButton (IDxuiPainter & p, IDxuiTextRenderer & t
 //
 //  The shared skeuomorphic cap: a right-leaning parallelogram lit from the
 //  top-left. The cap fills its whole slot (no gap); depth is carried purely by
-//  directional shading. Out (proud) it is highlit along the top and left edges
-//  and shadowed toward the bottom-right, so it reads as standing above the
-//  surface. In (pressed) it is darkened and shadowed from the top and left --
-//  the two overlap in the top-left corner and, on a thin switch, swallow most
-//  of the cap -- with only a faint catch at the bottom-right, so it reads as
-//  sunk below the surface. Shadows and highlights are gradients that fade to
-//  clear, never flat blocks.
+//  directional shading. It comes in two flavours:
+//
+//    deepPress (the latching 80/40 + keyboard switches): out (proud) it is
+//    highlit along the top and left edges and shadowed toward the bottom-right;
+//    in (pressed) it darkens and takes a dominant top-left shadow that, on a
+//    thin switch, swallows most of the cap, with only a faint bottom-right
+//    catch -- so it reads as sunk below the surface.
+//
+//    shallow (the momentary reset): shadow-only -- a single soft band, at the
+//    bottom when raised and at the top when pressed, with no side edges and no
+//    highlights, so the face stays light and the label readable while the depth
+//    cue still flips on press.
+//
+//  Shadows and highlights are gradients that fade to clear, never flat blocks.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -333,13 +340,19 @@ void Apple2cSwitchBar::PaintSlantCap (IDxuiPainter & p, const RECT & r, bool pre
     ShearFill (p, x, y, bodyW, h, tan, refB, kSocketRim);
     ShearGrad (p, cx, cy, cw, ch, tan, refB, faceHi, faceLo, kN);
 
-    if (!pressedIn)
+    if (!pressedIn && deepPress)
     {
-        // Raised: highlit top + left, shadowed bottom + right (one band width).
+        // Raised latching switch: highlit top + left, shadowed bottom + right.
         ShearFill  (p, cx, cy, cw, 1.2f, tan, refB, kLitEdge);                          // top highlight
         ShearGradH (p, cx, cy, band, ch, tan, refB, kLitEdge, kShadowNil, kN);          // left highlight
         ShearGrad  (p, cx, cy + ch - band, cw, band, tan, refB, kShadowNil, kShadeProud, kN); // bottom shadow
         ShearGradH (p, cx + cw - band, cy, band, ch, tan, refB, kShadowNil, kShadeProud, kN);  // right shadow
+    }
+    else if (!pressedIn)
+    {
+        // Raised reset (shadow-only): a single bottom shadow band reads the cap
+        // as proud, with no side edges and no highlights to clutter the label.
+        ShearGrad  (p, cx, cy + ch - band, cw, band, tan, refB, kShadowNil, kShadeProud, kN); // bottom shadow
     }
     else if (deepPress)
     {
@@ -352,13 +365,10 @@ void Apple2cSwitchBar::PaintSlantCap (IDxuiPainter & p, const RECT & r, bool pre
     }
     else
     {
-        // Shallow press (momentary reset): the raised lighting simply flips --
-        // shadow to the top-left, highlight to the bottom-right -- so the face
-        // stays light and the label stays readable.
-        ShearFill  (p, cx, cy + ch - 1.2f, cw, 1.2f, tan, refB, kLitEdge);              // bottom highlight
-        ShearGradH (p, cx + cw - band, cy, band, ch, tan, refB, kShadowNil, kLitEdge, kN);   // right highlight
+        // Shallow press (momentary reset, shadow-only): the bottom band simply
+        // moves to the top, so the depth cue flips while the face stays light
+        // and the label readable -- no side edges, no highlights.
         ShearGrad  (p, cx, cy, cw, band, tan, refB, kShadeProud, kShadowNil, kN);       // top shadow
-        ShearGradH (p, cx, cy, band, ch, tan, refB, kShadeProud, kShadowNil, kN);       // left shadow
     }
 
     if (hovered)
@@ -395,7 +405,8 @@ void Apple2cSwitchBar::PaintKey (IDxuiPainter & p, const RECT & keyRect, bool pr
 //
 //  A thin indicator lamp, slanted to match the case switches. Lit LEDs carry a
 //  soft green glow with a specular catch; idle LEDs read as a dark recessed
-//  lamp. The glow halo stays radial (a diffuse bloom has no edge to slant).
+//  lamp. The glow halo echoes the lamp's own slanted-rectangle shape rather
+//  than a round bloom, so it reads as light off this rectangular LED.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -409,20 +420,20 @@ void Apple2cSwitchBar::PaintLed (IDxuiPainter & p, const RECT & r, bool lit)
     float  refB  = y + h;
     float  dx    = h * tan;
     float  bodyW = w - dx;                   // lamp body width (bbox minus overhang)
-    float  cx    = x + w * 0.5f;             // body centre at mid-height
-    float  cy    = y + h * 0.5f;
 
 
     if (lit)
     {
-        // Glow halo: a few translucent discs on a quadratic falloff.
+        // Glow halo: nested slanted rectangles echoing the lamp shape, on a
+        // quadratic alpha falloff (a rectangular bloom, not a round one).
         constexpr int  kRings = 6;
         for (int ring = kRings; ring >= 1; ring--)
         {
             float     t = (float) ring / (float) (kRings + 1);
-            uint32_t  a = (uint32_t) (110.0f * (1.0f - t) * (1.0f - t) + 0.5f);
-            p.FillCircleApprox (cx, cy, (bodyW * 0.5f) + (h * 0.55f) * t,
-                                (a << 24) | (kLedGreenGlow & 0x00FFFFFF));
+            uint32_t  a = (uint32_t) (95.0f * (1.0f - t) * (1.0f - t) + 0.5f);
+            float     e = (h * 0.5f) * t;                        // uniform expansion
+            ShearFill (p, x - e, y - e, bodyW + 2.0f * e, h + 2.0f * e,
+                       tan, refB, (a << 24) | (kLedGreenGlow & 0x00FFFFFF));
         }
     }
 
