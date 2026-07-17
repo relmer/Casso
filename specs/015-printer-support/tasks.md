@@ -168,9 +168,24 @@ rather than folded silently into the spec.
 
 - [ ] DCR-1 **Windows print dialog "doesn't support print preview".** The OS modern print UI
   advertises a preview pane we don't fill, which reads as broken even though Casso already
-  shows its own live preview. Implement the OS print-preview affordance (or otherwise stop the
-  dialog advertising an empty one) so the experience doesn't look half-finished. IN SCOPE for
-  this spec (not deferred) — ships on this branch alongside DCR-2 before the merge gates.
+  shows its own live preview. IN SCOPE for this spec (not deferred). IMPLEMENTATION PLAN
+  (investigated 2026-07-16; the codebase has no WinRT today — WRL ComPtr only — so this is
+  raw-ABI WRL work, no C++/WinRT dependency needed):
+  1. `Casso/Shell/ModernPrintDialog.{h,cpp}` (Win32 edge): activate
+     `Windows.Graphics.Printing.PrintManager` via `RoGetActivationFactory` →
+     `IPrintManagerInterop::GetForWindow(hwnd)` + `ShowPrintUIForWindowAsync(hwnd)`.
+  2. Handle `PrintTaskRequested`: create the `PrintTask` with an
+     `IPrintDocumentSource` implementing `IPrintPreviewPageCollection` (preview) +
+     `IPrintDocumentPageSource` (final print).
+  3. Preview pages: `MakePreviewPage(pageIx, w, h)` renders the page span via the existing
+     `PrintPagination` + `PaperRenderer` (bounded per page) into a D2D bitmap and draws it to
+     the `IPrintPreviewDxgiPackageTarget` — the pane fills with the real fanfold pages.
+  4. Final print: `MakeDocument(options, IPrintDocumentPackageTarget)` uses
+     `ID2D1Device::CreatePrintControl` (D2D print API — no hand-rolled XPS): render each page
+     bitmap, `DrawBitmap`, `AddPage`. Delivery-failure mapping mirrors `HrFromSpoolResult`.
+  5. `WindowCommandManager::OnPrinterCommand` routes Print through the modern path when the
+     activation succeeds; the classic `PrintDlg`/GDI path stays as the fallback (older
+     Windows, activation failure) — it already works and keeps its honest error reporting.
 - [X] DCR-2 **Replace the chrome printer indicator with a command toolbar.** BUILT (needs the
   user's visual pass): `CommandToolbar` (Ui/Chrome) docks a 42dp band below the menu bar with
   icon+label buttons -- Settings (MDL2 gear), Printer (miniature skeuomorphic ImageWriter II
