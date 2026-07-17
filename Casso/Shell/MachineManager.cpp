@@ -1289,7 +1289,13 @@ HRESULT MachineManager::SwitchMachine (const std::wstring & machineName)
 
                     if (colorCmd != 0)
                     {
-                        m_shell.HandleCommand (colorCmd);
+                        // SwitchMachine runs on the CPU thread: route through
+                        // the message loop, not HandleCommand directly -- the
+                        // command dispatcher is a UI-thread surface (today the
+                        // color handler is an atomic store, but anything added
+                        // to it would inherit this thread; see the
+                        // ApplyDefaultPointerForMachine assert).
+                        PostMessageW (m_shell.m_hwnd, WM_COMMAND, MAKEWPARAM (colorCmd, 0), 0);
                     }
                 }
 
@@ -1550,7 +1556,9 @@ HRESULT MachineManager::SwitchMachine (const std::wstring & machineName)
 
     if (speedCmd != 0)
     {
-        m_shell.HandleCommand (speedCmd);
+        // Same routing rule as the color command above: dispatch on the UI
+        // thread via the message loop, never directly from the CPU thread.
+        PostMessageW (m_shell.m_hwnd, WM_COMMAND, MAKEWPARAM (speedCmd, 0), 0);
     }
 
 Error:

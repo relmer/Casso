@@ -1628,6 +1628,8 @@ RECT EmulatorShell::EmulatorContentScreenRect ()
 
 void EmulatorShell::ReflowChromeForMachineChange ()
 {
+    DXUI_ASSERT_UI_THREAD();   // chrome layout: never from the CPU thread
+
     RECT  rcWindow = {};
 
     if (m_hwnd == nullptr || !GetWindowRect (m_hwnd, &rcWindow))
@@ -2497,6 +2499,8 @@ void EmulatorShell::LayoutJoystickButton (int clientW,
 
 void EmulatorShell::RelayoutJoystickButton ()
 {
+    DXUI_ASSERT_UI_THREAD();   // measures text through the Dxui renderer
+
     if (m_joyBtnClientW <= 0)
     {
         return;
@@ -2584,6 +2588,8 @@ void EmulatorShell::LayoutPrinterIndicator (int bottomInsetPx, int clientW, int 
 
 void EmulatorShell::ShowPrinterPanel (bool activate)
 {
+    DXUI_ASSERT_UI_THREAD();   // creates / shows a Dxui window
+
     HRESULT     hr        = S_OK;
     HINSTANCE   hInstance = nullptr;
 
@@ -2811,6 +2817,8 @@ void EmulatorShell::SnapshotStripToPanel ()
 
 void EmulatorShell::ApplyToolbarMachineTint ()
 {
+    DXUI_ASSERT_UI_THREAD();   // chrome state: never from the CPU thread
+
     bool  platinum = m_currentMachineName.find (L"Enhanced") != std::wstring::npos ||
                      m_currentMachineName.find (L"2c")       != std::wstring::npos ||
                      m_currentMachineName.find (L"2gs")      != std::wstring::npos;
