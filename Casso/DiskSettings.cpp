@@ -130,38 +130,31 @@ HRESULT DiskSettings::ReadSavedDiskPath (
 
     outPath.clear();
 
-    if (drive < 0 || drive > 1 || machineName.empty())
-    {
-        return S_FALSE;
-    }
+    BAIL_OUT_IF (drive < 0 || drive > 1 || machineName.empty(), E_INVALIDARG);
 
     hr = LoadMachineDefaultJson (machineName, defaultJson);
-    if (hr != S_OK)
-    {
-        return S_FALSE;
-    }
+    BAIL_OUT_IF (hr != S_OK, S_FALSE);
 
+    // A real load/parse failure propagates; only a non-object result (no saved
+    // config for this machine) is the soft "nothing to read" S_FALSE.
     hr = store.Load (WideToUtf8 (machineName), defaultJson, fs, mergedJson);
-    if (FAILED (hr) || mergedJson.GetType() != JsonType::Object)
-    {
-        return S_FALSE;
-    }
+    CHR (hr);
 
+    BAIL_OUT_IF (mergedJson.GetType() != JsonType::Object, S_FALSE);
+
+    // The remaining lookups are for optional keys; absent = nothing saved.
     hr = mergedJson.GetObject ("$cassoUiPrefs", uiPrefs);
-    if (FAILED (hr) || uiPrefs == nullptr)
-    {
-        return S_FALSE;
-    }
+    BAIL_OUT_IF (FAILED (hr) || uiPrefs == nullptr, S_FALSE);
     _Analysis_assume_ (uiPrefs != nullptr);
 
     hr = uiPrefs->GetString (keyName, pathNarrow);
-    if (FAILED (hr) || pathNarrow.empty())
-    {
-        return S_FALSE;
-    }
+    BAIL_OUT_IF (FAILED (hr) || pathNarrow.empty(), S_FALSE);
 
     outPath = PathResolver::ResolveExeRelativePath (Utf8ToWide (pathNarrow));
-    return S_OK;
+    hr      = S_OK;
+
+Error:
+    return hr;
 }
 
 

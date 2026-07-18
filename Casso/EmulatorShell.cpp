@@ -2152,10 +2152,8 @@ HRESULT EmulatorShell::ApplyAndPersistTheme (const std::string & themeName)
 
 
 
-    if (themeName.empty() || m_themeManager == nullptr)
-    {
-        return S_FALSE;
-    }
+    CBRA (m_themeManager);                       // null member = Casso bug
+    BAIL_OUT_IF (themeName.empty(), S_FALSE);     // no theme requested -> no-op
 
     hrActivate = m_themeManager->Activate (themeName);
     if (hrActivate != S_OK)
@@ -2201,10 +2199,8 @@ HRESULT EmulatorShell::ApplyThemeLive (const std::string & themeName)
     HRESULT  hrActivate = S_OK;
 
 
-    if (themeName.empty() || m_themeManager == nullptr)
-    {
-        return S_FALSE;
-    }
+    CBRA (m_themeManager);                       // null member = Casso bug
+    BAIL_OUT_IF (themeName.empty(), S_FALSE);     // no theme requested -> no-op
 
     hrActivate = m_themeManager->Activate (themeName);
     if (hrActivate != S_OK)
