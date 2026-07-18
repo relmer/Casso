@@ -859,8 +859,12 @@ void PrinterPanel::RefreshLive (PrinterWorker & worker, int64_t nowMs, bool forc
         // edge keeps a word buzzing across the blank gaps between glyphs (the
         // audio hold bridges the rest). On a line wrap the column jumps margin to
         // margin (the band advanced, or an implausibly wide step) -- there is no
-        // contiguous path to sample, so fall back to a lookback window at the new
-        // head rather than sampling the whole line.
+        // contiguous swept span to sample. At catch-up speed a WHOLE pass
+        // completes between two frames (every frame wraps), so a narrow window
+        // at the new head misses sparse text almost every time and the buzz
+        // never arms -- the missing pins-on-platen sound for a CATALOG. Sample
+        // the entire band instead: any ink means the pass the head just ran is
+        // a printing pass (buzz); a blank band (line / form feed) stays silent.
         {
             constexpr int  kInkBridgeDots = (PrinterGrid::kDotsPerInchH * 3) / 20;   // 0.15"
             int  prevCol = m_renderedRevealCol;
@@ -873,8 +877,8 @@ void PrinterPanel::RefreshLive (PrinterWorker & worker, int64_t nowMs, bool forc
 
             if (wrapped)
             {
-                sampleLo = sweepLtr ? (revealCol - kInkBridgeDots) : revealCol;
-                sampleHi = sweepLtr ? revealCol : (revealCol + kInkBridgeDots);
+                sampleLo = 0;
+                sampleHi = PrinterGrid::kDotsPerRow - 1;
             }
             else
             {
