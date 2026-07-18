@@ -209,6 +209,14 @@
       <AdditionalDependencies>ole32.lib;winhttp.lib;comctl32.lib;uxtheme.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
+  <!-- Resource compiler needs CassoCore on its include path so Casso.rc can
+       #include Version.h and source the app version from the single source of
+       truth (all configs). -->
+  <ItemDefinitionGroup>
+    <ResourceCompile>
+      <AdditionalIncludeDirectories>..\CassoCore;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ResourceCompile>
+  </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="Pch.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Create</PrecompiledHeader>
@@ -238,6 +246,7 @@
     <ClCompile Include="Ui\Chrome\MonitorFrame.cpp" />
     <ClCompile Include="Ui\Chrome\JoystickToggleButton.cpp" />
     <ClCompile Include="Ui\Chrome\InputDeviceSelector.cpp" />
+    <ClCompile Include="Ui\Chrome\Apple2cSwitchBar.cpp" />
     <ClCompile Include="Ui\Chrome\LedIndicator.cpp" />
     <ClCompile Include="Ui\DriveWidgetController.cpp" />
     <ClCompile Include="Ui\AutoMountResolver.cpp" />
@@ -310,6 +319,7 @@
     <ClInclude Include="Ui\Chrome\MonitorFrame.h" />
     <ClInclude Include="Ui\Chrome\JoystickToggleButton.h" />
     <ClInclude Include="Ui\Chrome\InputDeviceSelector.h" />
+    <ClInclude Include="Ui\Chrome\Apple2cSwitchBar.h" />
     <ClInclude Include="Ui\Chrome\LedIndicator.h" />
     <ClInclude Include="Ui\DriveWidgetState.h" />
     <ClInclude Include="Ui\DriveWidgetController.h" />

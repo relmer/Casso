@@ -130,38 +130,31 @@ HRESULT DiskSettings::ReadSavedDiskPath (
 
     outPath.clear();
 
-    if (drive < 0 || drive > 1 || machineName.empty())
-    {
-        return S_FALSE;
-    }
+    BAIL_OUT_IF (drive < 0 || drive > 1 || machineName.empty(), E_INVALIDARG);
 
     hr = LoadMachineDefaultJson (machineName, defaultJson);
-    if (hr != S_OK)
-    {
-        return S_FALSE;
-    }
+    BAIL_OUT_IF (hr != S_OK, S_FALSE);
 
+    // A real load/parse failure propagates; only a non-object result (no saved
+    // config for this machine) is the soft "nothing to read" S_FALSE.
     hr = store.Load (WideToUtf8 (machineName), defaultJson, fs, mergedJson);
-    if (FAILED (hr) || mergedJson.GetType() != JsonType::Object)
-    {
-        return S_FALSE;
-    }
+    CHR (hr);
 
+    BAIL_OUT_IF (mergedJson.GetType() != JsonType::Object, S_FALSE);
+
+    // The remaining lookups are for optional keys; absent = nothing saved.
     hr = mergedJson.GetObject ("$cassoUiPrefs", uiPrefs);
-    if (FAILED (hr) || uiPrefs == nullptr)
-    {
-        return S_FALSE;
-    }
+    BAIL_OUT_IF (FAILED (hr) || uiPrefs == nullptr, S_FALSE);
     _Analysis_assume_ (uiPrefs != nullptr);
 
     hr = uiPrefs->GetString (keyName, pathNarrow);
-    if (FAILED (hr) || pathNarrow.empty())
-    {
-        return S_FALSE;
-    }
+    BAIL_OUT_IF (FAILED (hr) || pathNarrow.empty(), S_FALSE);
 
     outPath = PathResolver::ResolveExeRelativePath (Utf8ToWide (pathNarrow));
-    return S_OK;
+    hr      = S_OK;
+
+Error:
+    return hr;
 }
 
 
@@ -195,24 +188,15 @@ HRESULT DiskSettings::WriteSavedDiskPath (
 
     
 
-    if (drive < 0 || drive > 1 || machineName.empty())
-    {
-        return E_INVALIDARG;
-    }
+    BAIL_OUT_IF (drive < 0 || drive > 1 || machineName.empty(), E_INVALIDARG);
 
     hr = LoadMachineDefaultJson (machineName, defaultJson);
-    if (hr != S_OK)
-    {
-        return S_FALSE;
-    }
+    BAIL_OUT_IF (hr != S_OK, S_FALSE);
 
     hr = store.Load (WideToUtf8 (machineName), defaultJson, fs, mergedJson);
     CHR (hr);
 
-    if (mergedJson.GetType() != JsonType::Object)
-    {
-        return S_FALSE;
-    }
+    BAIL_OUT_IF (mergedJson.GetType() != JsonType::Object, S_FALSE);
 
     stored       = PathResolver::MakeExeRelativePath (path);
     storedNarrow = WideToUtf8 (stored);
@@ -250,6 +234,97 @@ HRESULT DiskSettings::WriteSavedDiskPath (
         if (!replaced)
         {
             uiPrefsEntries.emplace_back (keyName, JsonValue (storedNarrow));
+        }
+    }
+
+    if (uiPrefsIdx < 0)
+    {
+        rootEntries.emplace_back ("$cassoUiPrefs", JsonValue (std::move (uiPrefsEntries)));
+    }
+    else
+    {
+        rootEntries[(size_t) uiPrefsIdx].second = JsonValue (std::move (uiPrefsEntries));
+    }
+
+    updatedJson = JsonValue (std::move (rootEntries));
+
+    hr = store.SaveDelta (WideToUtf8 (machineName), updatedJson, defaultJson, fs);
+    CHR (hr);
+
+Error:
+    return hr;
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WriteSavedUiPrefBool
+//
+//  Splice a boolean into the merged config's $cassoUiPrefs block and persist
+//  the delta. Mirrors WriteSavedDiskPath's read-modify-write, keyed on an
+//  arbitrary $cassoUiPrefs field name rather than diskNPath.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DiskSettings::WriteSavedUiPrefBool (
+    UserConfigStore    & store,
+    IFileSystem        & fs,
+    const std::string  & key,
+    const std::wstring & machineName,
+    bool                 value)
+{
+    HRESULT                                          hr             = S_OK;
+    JsonValue                                        defaultJson;
+    JsonValue                                        mergedJson;
+    JsonValue                                        updatedJson;
+    std::vector<std::pair<std::string, JsonValue>>   rootEntries;
+    std::vector<std::pair<std::string, JsonValue>>   uiPrefsEntries;
+    int                                              uiPrefsIdx     = -1;
+    int                                              i              = 0;
+
+
+
+    BAIL_OUT_IF (key.empty() || machineName.empty(), E_INVALIDARG);
+
+    hr = LoadMachineDefaultJson (machineName, defaultJson);
+    BAIL_OUT_IF (hr != S_OK, S_FALSE);
+
+    hr = store.Load (WideToUtf8 (machineName), defaultJson, fs, mergedJson);
+    CHR (hr);
+
+    BAIL_OUT_IF (mergedJson.GetType() != JsonType::Object, S_FALSE);
+
+    rootEntries = mergedJson.GetObjectEntries();
+
+    for (i = 0; i < (int) rootEntries.size(); ++i)
+    {
+        if (rootEntries[(size_t) i].first == "$cassoUiPrefs")
+        {
+            uiPrefsIdx = i;
+            if (rootEntries[(size_t) i].second.GetType() == JsonType::Object)
+            {
+                uiPrefsEntries = rootEntries[(size_t) i].second.GetObjectEntries();
+            }
+            break;
+        }
+    }
+
+    {
+        bool  replaced = false;
+        for (i = 0; i < (int) uiPrefsEntries.size(); ++i)
+        {
+            if (uiPrefsEntries[(size_t) i].first == key)
+            {
+                uiPrefsEntries[(size_t) i].second = JsonValue (value);
+                replaced = true;
+                break;
+            }
+        }
+        if (!replaced)
+        {
+            uiPrefsEntries.emplace_back (key, JsonValue (value));
         }
     }
 

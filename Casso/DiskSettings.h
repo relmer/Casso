@@ -10,11 +10,12 @@ class IFileSystem;
 //
 //  DiskSettings
 //
-//  Per-machine remembered disk-mount paths. Backed by the per-machine
-//  $cassoUiPrefs.disk1Path / disk2Path keys in the unified prefs JSON
-//  via UserConfigStore. Paths are stored exe-relative when possible
-//  (PathResolver::MakeExeRelativePath) so the casso.exe + Disks/ tree
-//  stays portable across moves.
+//  Per-machine remembered state, backed by the per-machine $cassoUiPrefs
+//  block in the unified prefs JSON via UserConfigStore: the disk1Path /
+//  disk2Path mount paths (stored exe-relative via
+//  PathResolver::MakeExeRelativePath so the casso.exe + Disks/ tree stays
+//  portable), plus arbitrary boolean UI flags such as the //c case-switch
+//  latches (eightyColumnSwitch / keyboardDvorak).
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -33,4 +34,12 @@ public:
                                         int                   drive,
                                         const std::wstring  & machineName,
                                         const std::wstring  & path);
+
+    // Persist a single boolean under $cassoUiPrefs.<key> for one machine.
+    // Used for the //c case-switch latches so they survive across runs.
+    static HRESULT  WriteSavedUiPrefBool (UserConfigStore    & store,
+                                          IFileSystem        & fs,
+                                          const std::string  & key,
+                                          const std::wstring & machineName,
+                                          bool                 value);
 };
