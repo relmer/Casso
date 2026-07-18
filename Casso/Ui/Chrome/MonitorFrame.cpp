@@ -427,12 +427,18 @@ void MonitorFrame::Paint (
 
             // Power lamp, lower-right: the slanted green lamp from the //c
             // case-switch strip -- the "/" power mark under the screen's right
-            // edge. Its slanted bbox right edge lands on the screen right.
-            float  lampH   = bandH * 0.60f;
-            float  lampBody = lampH * (7.0f / 19.0f);
-            float  lampBox = lampBody + lampH * 0.176f;
-            float  lampX   = sr - lampBox;
-            float  lampY   = bandTop + (bandH - lampH) * 0.5f;
+            // edge. Same dp dimensions as the strip's LED (8 x 25 dp): an LED
+            // lens is the same physical part on the monitor as on the case, so
+            // it must not scale up with the (much larger) bezel band. Clamped
+            // to the band on tiny layouts, preserving the 8:25 proportion.
+            float  lampH = (float) MulDiv (25, (int) m_dpi, s_kBaseDpi);
+
+            lampH = std::min (lampH, bandH * 0.7f);
+
+            float  lampBody = lampH * (8.0f / 25.0f);
+            float  lampBox  = lampBody + lampH * 0.176f;
+            float  lampX    = sr - lampBox;
+            float  lampY    = bandTop + (bandH - lampH) * 0.5f;
 
             PaintPowerLamp (painter, lampX, lampY, lampBox, lampH);
         }
