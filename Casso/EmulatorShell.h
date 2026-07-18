@@ -23,6 +23,7 @@
 #include "Shell/WindowManager.h"
 #include "Ui/Chrome/CassoTheme.h"
 #include "Ui/Chrome/DriveWidget.h"
+#include "Ui/Chrome/MonitorFrame.h"
 #include "Ui/Chrome/InputDeviceSelector.h"
 #include "Ui/Chrome/MainMenu.h"
 #include "Ui/ColorUtil.h"
@@ -648,6 +649,11 @@ private:
     MainMenu            m_mainMenu;
     CassoTheme         m_chromeTheme    = CassoTheme::Skeuomorphic();
     std::array<DriveWidget, 2> m_driveChrome;
+
+    // Skeuomorphic CRT monitor housing that frames the emulator display
+    // (skeuo theme only). Insets the viewport into its screen recess; the
+    // housing paints the ring around it. Phase 1: Apple Monitor //c.
+    MonitorFrame               m_monitorFrame;
 
     // DxuiHwndSource running in full-ownership mode. Owns the main
     // HWND (registers WNDCLASS "CassoWindow", calls CreateWindowExW,

@@ -1586,6 +1586,7 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     // (createSwapChain = true) now paints these adopted controls on top
     // of the Apple ][ framebuffer each frame. The title bar is NOT here:
     // the host owns the caption strip itself.
+    m_host->Root().Adopt (m_monitorFrame);
     m_host->Root().Adopt (m_mainMenu);
     m_host->Root().Adopt (m_driveBandSurface);
     m_host->Root().Adopt (m_driveChrome[0]);
@@ -1745,12 +1746,29 @@ Error:
 void EmulatorShell::UpdateViewportLayout (int widthPx, int heightPx)
 {
     HRESULT  hr           = S_OK;
+    RECT     center       = {};
     RECT     viewportRect = {};
 
 
     BAIL_OUT_IF (m_viewport == nullptr, S_OK);
 
-    viewportRect = ComputeViewportRect (widthPx, heightPx);
+    center = ComputeViewportRect (widthPx, heightPx);
+
+    // Skeuomorphic theme frames the display in a period CRT monitor: the
+    // MonitorFrame insets the viewport into its screen recess and paints the
+    // platinum housing in the ring around it. The compact themes keep the
+    // bare full-center display.
+    if (m_chromeTheme.compactDrives)
+    {
+        m_monitorFrame.Hide();
+        viewportRect = center;
+    }
+    else
+    {
+        m_monitorFrame.Layout (center, m_scaler);
+        viewportRect = m_monitorFrame.ScreenRect();
+    }
+
     m_viewport->Layout (viewportRect, m_scaler);
 
 Error:
@@ -1991,8 +2009,21 @@ SIZE EmulatorShell::ClientSizeForCenterPx (int centerWidthPx, int centerHeightPx
 
 SIZE EmulatorShell::ClientSizeForFramebufferPx (int framebufferWidthDp, int framebufferHeightDp)
 {
-    return ClientSizeForCenterPx (m_scaler.Px (framebufferWidthDp),
-                                  m_scaler.Px (framebufferHeightDp));
+    int  fbWpx = m_scaler.Px (framebufferWidthDp);
+    int  fbHpx = m_scaler.Px (framebufferHeightDp);
+
+    // Skeuomorphic theme frames the display in the CRT monitor: size the window
+    // so the monitor's screen RECESS -- not the bare center -- equals the
+    // framebuffer, i.e. the emulator image sits at 100% zoom inside the housing.
+    // The bezel, stand, desk margin and chrome bands all size around it. Compact
+    // themes have no housing, so the center is the framebuffer directly.
+    if (!m_chromeTheme.compactDrives)
+    {
+        SIZE  center = MonitorFrame::CenterSizeForScreenPx (fbWpx, fbHpx);
+        return ClientSizeForCenterPx (center.cx, center.cy);
+    }
+
+    return ClientSizeForCenterPx (fbWpx, fbHpx);
 }
 
 
