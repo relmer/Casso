@@ -24,7 +24,7 @@ class IDxuiTheme;
 //      [ reset ]   | 80/40   | keyboard          disk use | power |
 //        button      switch    switch               LED      LED
 //
-//  The bar body is painted in the //c's platinum case colour. The
+//  The bar body is painted in the //c's platinum case color. The
 //  reset button is momentary and only "live" while Ctrl is held (hardware
 //  Control-Reset); the 80/40 and keyboard buttons are LATCHING — each stays
 //  pressed in until clicked again, drawn sunk into the case (a shadowed, lowered
@@ -34,7 +34,7 @@ class IDxuiTheme;
 //  Like the other Casso chrome (DriveWidget, InputDeviceSelector), this control
 //  is manually hit-tested and actioned by EmulatorShell rather than through the
 //  Dxui auto-input path; it exposes PartAt/HitTest for that routing. It reads
-//  CassoTheme only for text colour fallbacks; the case palette is fixed so the
+//  CassoTheme only for text color fallbacks; the case palette is fixed so the
 //  strip always reads as the //c case regardless of the active UI theme.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -83,7 +83,7 @@ public:
     const wchar_t * TooltipTextAt (int x, int y) const;
 
     // IDxuiControl. boundsDip is the FULL band rect (left..right x top..bottom),
-    // unlike InputDeviceSelector's centre-anchor contract — the strip fills the
+    // unlike InputDeviceSelector's center-anchor contract — the strip fills the
     // whole band and anchors its two groups to the left and right edges.
     void  Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
     void  Paint  (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;
@@ -111,7 +111,7 @@ private:
     static constexpr float kSlantTan   = 0.176f;   // ~10 degrees
 
     // Case palette — fixed (theme-independent) so the strip always reads as the
-    // //c case. kCase is the //c's platinum case body colour.
+    // //c case. kCase is the //c's platinum case body color.
     static constexpr uint32_t  kCase      = 0xFFD8D3C6;   // //c platinum case body
     static constexpr uint32_t  kCaseHi    = 0xFFE7E2D5;   // top bevel highlight
     static constexpr uint32_t  kCaseLo    = 0xFFBAB5A6;   // bottom bevel shadow
@@ -177,7 +177,7 @@ private:
     // Low-level slanted-fill primitives shared by the cap/LED painters. Every
     // piece shares one shear field: a point at height y shifts right by
     // (refBottom - y) * tan. ShearFill draws one parallelogram strip; ShearGrad
-    // / ShearGradH stack strips with an interpolated colour for a gradient.
+    // / ShearGradH stack strips with an interpolated color for a gradient.
     static uint32_t  LerpArgb   (uint32_t a, uint32_t b, float t);
     static void      ShearFill  (IDxuiPainter & p, float xL, float yTop, float w, float h,
                                  float tan, float refBottom, uint32_t argb);

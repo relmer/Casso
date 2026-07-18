@@ -10,7 +10,7 @@
 //
 //  Apple2cSwitchBar::LerpArgb
 //
-//  Per-channel linear blend between two ARGB colours, clamped to 0..255.
+//  Per-channel linear blend between two ARGB colors, clamped to 0..255.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -66,7 +66,7 @@ void Apple2cSwitchBar::ShearFill (
 //
 //  Apple2cSwitchBar::ShearGrad
 //
-//  Stack ShearFill strips top-to-bottom with an interpolated colour for a
+//  Stack ShearFill strips top-to-bottom with an interpolated color for a
 //  top-lit gradient along the slant.
 //
 ////////////////////////////////////////////////////////////////////////////////

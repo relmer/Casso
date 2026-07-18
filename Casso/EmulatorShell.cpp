@@ -5191,7 +5191,7 @@ DxuiMessageResult EmulatorShell::OnKeyUp (WPARAM vk, LPARAM lParam)
 //  HostKeyboardLayoutIsDvorak
 //
 //  True when the host's active keyboard layout is a Dvorak variant. Probed
-//  behaviourally rather than by KLID string, so it catches every Dvorak layout
+//  behaviorally rather than by KLID string, so it catches every Dvorak layout
 //  (US, left/right-hand, third-party) without a hard-coded list: VkKeyScanEx
 //  reports which physical key (VK code) produces 'o'. On QWERTY that is VK 'O';
 //  on Dvorak 'o' lives on the physical 'S' key, so it reports VK 'S'. Unlike

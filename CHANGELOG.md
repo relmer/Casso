@@ -19,7 +19,7 @@ Entries before versioning was introduced use dates only.
   host OS layout is itself Dvorak (a Dvorak-host user types normally, so the
   received character is already correct), and paste is never remapped. A
   new skeuomorphic control strip — painted in the //c's platinum case
-  colour, between the emulator viewport and the joystick/paddle/mouse
+  color, between the emulator viewport and the joystick/paddle/mouse
   bar, //c-only — reproduces the case top: a **reset** button (inert unless
   Ctrl is held, mirroring the real Control-Reset key; Open/Closed-Apple ride
   it for cold boot), the two latching switches, and lit **disk-use** /
