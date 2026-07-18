@@ -333,6 +333,33 @@ namespace ImageWriterInterpreterTests
         }
 
 
+        TEST_METHOD (PitchMatrixEveryDocumentedDensity)
+        {
+            // T057 / SC-005: every documented pitch command sets the expected
+            // character cell width (native 160 dpi / cpi). One character is
+            // rendered after each selection and the head advance asserted.
+            static const struct { Byte cmd; int cpi; } s_kPitches[] =
+            {
+                { 'n',  9 },   // extended
+                { 'N', 10 },   // pica
+                { 'E', 12 },   // elite
+                { 'e', 13 },   // semicondensed
+                { 'q', 15 },   // condensed
+                { 'Q', 17 },   // ultracondensed
+            };
+
+            for (const auto & p : s_kPitches)
+            {
+                ImageWriterInterpreter   interp;
+                PrintRaster              raster;
+                vector<PrinterEvent>     events;
+
+                Feed (interp, raster, events, { 0x1B, p.cmd, 'M' });
+                Assert::AreEqual (PrinterGrid::kDotsPerInchH / p.cpi, interp.HeadColumnDots());
+            }
+        }
+
+
         TEST_METHOD (TextPitchSelectionChangesCellWidth)
         {
             // ESC Q (ultracondensed, 160/17 = 9 dots/char) then ESC N (pica, 16)
