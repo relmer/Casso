@@ -32,6 +32,8 @@ namespace
     constexpr int   s_kBitsPerByte      = 8;
     constexpr int   s_kBytesPerPixel    = 4;
     constexpr WORD  s_kDibBitCount      = 32;
+    constexpr Word  s_kRd80Vid          = 0xC01F;   // 80-column display status
+    constexpr int   s_kTextCols80       = 80;
 }
 
 
@@ -70,51 +72,86 @@ ClipboardManager::ClipboardManager (
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  CopyScreenText
+//  ClipboardManager::DecodeScreenByte
 //
-//  Read the 40x24 text screen via the memory bus rather than the
-//  CPU's internal memory[] buffer. On the //e the MMU owns its own
-//  RAM device(s), so writes from firmware land in the bus-side buffer
-//  while the CPU's mirror stays uninitialized. Trim trailing spaces
-//  per row and CRLF-terminate to match Windows clipboard conventions.
+//  Map one raw text-screen byte to a printable wchar. Normal, inverse, and
+//  flashing glyphs all live in the $80-$FF span, so strip the high bit and
+//  blank anything outside printable ASCII.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ClipboardManager::CopyScreenText (HWND hwnd) const
+wchar_t ClipboardManager::DecodeScreenByte (Byte ch)
 {
-    HGLOBAL    hMem  = nullptr;
-    wchar_t  * pDest = nullptr;
-    std::wstring text;
-    int        row   = 0;
-    int        col   = 0;
+    if (ch >= s_kInverseHighStart)
+    {
+        ch -= s_kHighBitMask;
+    }
+    else if (ch >= s_kHighBitMask)
+    {
+        ch -= s_kHighBitMask;
+    }
+
+    if (ch < s_kPrintableLow || ch > s_kPrintableHigh)
+    {
+        ch = ' ';
+    }
+
+    return static_cast<wchar_t> (ch);
+}
 
 
 
-    for (row = 0; row < s_kTextRows; row++)
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BuildScreenText
+//
+//  Read the 24-row text screen as Unicode, 40 or 80 columns wide. Trailing
+//  spaces are trimmed per row and rows are CRLF-terminated to match Windows
+//  clipboard conventions. Pure (no clipboard/HWND) so it is unit testable.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring ClipboardManager::BuildScreenText (const Byte * auxRam) const
+{
+    std::wstring  text;
+
+    // 80-column text interleaves auxiliary memory (even display columns) with
+    // main memory (odd columns). That layout is live only on a machine that
+    // has an aux bank AND currently has the 80-column display switched on
+    // (RD80VID, $C01F bit 7); otherwise the plain 40-column main page is read.
+    bool  eighty = (auxRam != nullptr)
+                && ((m_memoryBus.ReadByte (s_kRd80Vid) & s_kHighBitMask) != 0);
+    int   cols   = eighty ? s_kTextCols80 : s_kTextCols;
+
+
+
+    for (int row = 0; row < s_kTextRows; row++)
     {
         Word  base = static_cast<Word> (s_kTextBase
                                         + (row / s_kRowsPerGroup) * s_kRowGroupStride
                                         + (row % s_kRowsPerGroup) * s_kRowSubgroupStride);
 
-        for (col = 0; col < s_kTextCols; col++)
+        for (int col = 0; col < cols; col++)
         {
-            Byte  ch = m_memoryBus.ReadByte (static_cast<Word> (base + col));
+            Byte  ch = 0;
 
-            if (ch >= s_kInverseHighStart)
+            if (eighty)
             {
-                ch -= s_kHighBitMask;
+                Word  addr = static_cast<Word> (base + col / 2);
+
+                // Even columns come from aux memory, odd from main. The bus
+                // returns main at $0400-$07FF the same way the 40-column path
+                // relies on, so the aux read is the only new access.
+                ch = ((col & 1) == 0) ? auxRam[addr]
+                                      : m_memoryBus.ReadByte (addr);
             }
-            else if (ch >= s_kHighBitMask)
+            else
             {
-                ch -= s_kHighBitMask;
+                ch = m_memoryBus.ReadByte (static_cast<Word> (base + col));
             }
 
-            if (ch < s_kPrintableLow || ch > s_kPrintableHigh)
-            {
-                ch = ' ';
-            }
-
-            text += static_cast<wchar_t> (ch);
+            text += DecodeScreenByte (ch);
         }
 
         while (!text.empty() && text.back() == L' ')
@@ -124,6 +161,31 @@ void ClipboardManager::CopyScreenText (HWND hwnd) const
 
         text += L"\r\n";
     }
+
+    return text;
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CopyScreenText
+//
+//  Scrape the emulated text screen (BuildScreenText) and hand it to the host
+//  clipboard as Unicode. Reads via the memory bus rather than the CPU's
+//  internal memory[] buffer: on the //e the MMU owns its own RAM device(s), so
+//  firmware writes land in the bus-side buffer while the CPU mirror stays
+//  uninitialized.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ClipboardManager::CopyScreenText (HWND hwnd, const Byte * auxRam) const
+{
+    HGLOBAL       hMem  = nullptr;
+    wchar_t     * pDest = nullptr;
+    std::wstring  text  = BuildScreenText (auxRam);
+
 
     if (!OpenClipboard (hwnd))
     {

@@ -198,7 +198,7 @@ void WindowCommandManager::OnEditCommand (int id)
     {
         case IDM_EDIT_COPY_TEXT:
         {
-            m_shell.m_clipboardManager->CopyScreenText (m_shell.m_hwnd);
+            m_shell.m_clipboardManager->CopyScreenText (m_shell.m_hwnd, m_shell.AuxRamBuffer());
             break;
         }
 

@@ -21,6 +21,7 @@
 #include "Shell/MachineManager.h"
 #include "Shell/WindowCommandManager.h"
 #include "Shell/WindowManager.h"
+#include "Ui/Chrome/Apple2cSwitchBar.h"
 #include "Ui/Chrome/CassoTheme.h"
 #include "Ui/Chrome/DriveWidget.h"
 #include "Ui/Chrome/InputDeviceSelector.h"
@@ -400,6 +401,18 @@ private:
 private:
     void    SyncInputModeUi();
     void    SyncSelectorState();
+
+    // Apple //c case-switch strip. IsApple2c gates its chrome band + input;
+    // LayoutSwitchBar positions the strip in its band rect; SyncSwitchBarState
+    // pushes the live switch / indicator state onto the control each layout.
+    // HandleSwitchBarClick actions a release over one of its parts.
+    bool    IsApple2c              () const { return m_apple2cRomBank != nullptr; }
+    void    LayoutSwitchBar        (UINT dpi);
+    void    SyncSwitchBarState     ();
+    void    HandleSwitchBarClick   (Apple2cSwitchBar::Part part);
+    // Persist one case-switch latch ("eightyColumnSwitch" / "keyboardDvorak")
+    // into the current machine's $cassoUiPrefs so it survives across runs.
+    void    PersistSwitchState     (const char * key, bool value);
 public:
 
     // Radio-group toggle for the Machine-menu items: selects `target`, or
@@ -464,6 +477,10 @@ private:
     HRESULT SwitchMachine (const std::wstring & machineName);
     void    ShowMachinePicker();
     const std::wstring &  CurrentMachineName () const { return m_currentMachineName; }
+
+    // //e/c auxiliary 64 KiB RAM bank (nullptr on ][/][+). Used by the clipboard
+    // text scrape to read the aux half of an 80-column screen.
+    const Byte *  AuxRamBuffer() const;
 
     // Accessor used by the Settings → Theme preview to copy the live
     // emulator framebuffer into the mock window. The UI framebuffer is
@@ -688,6 +705,14 @@ private:
     InputDeviceSelector   m_joystickButton;   // Segmented device selector
     DxuiTooltip               m_joystickTooltip;
 
+    // Apple //c case-switch strip (reset button + 80/40 and keyboard latching
+    // switches + disk-use / power LEDs), painted in its own chrome band between
+    // the emulator viewport and the drive bar. Present only on the //c; its
+    // band collapses to zero height on every other machine. Manually
+    // hit-tested / actioned by the mouse handlers, like the other chrome.
+    Apple2cSwitchBar      m_switchBar;
+    DxuiTooltip               m_switchBarTooltip;
+
     // Hover tooltip for the drive widgets, surfaced when the pointer
     // rests over a write-protected drive. Explains that the disk is
     // write-protected and names the source(s) -- image flag, user
@@ -726,10 +751,16 @@ private:
     static constexpr int  s_kNavStripBandDp     = 32;
     static constexpr int  s_kInitialDriveBandDp = 256;
 
+    // //c switch strip band thickness (dp). Zero-height on non-//c machines
+    // (SyncChromeBands gates it on IsApple2c()); it docks below the drive band
+    // so it lands between the viewport and the joystick/paddle/mouse bar.
+    static constexpr int  s_kSwitchBandDp       = 40;
+
     DxuiDockLayout           m_chromeDock;
     ChromeBand               m_titleBand;
     ChromeBand               m_navBand;
     ChromeBand               m_driveBand;
+    ChromeBand               m_switchBand;
     ChromeBand               m_centerBand;
     int                      m_driveBarThicknessDp = s_kInitialDriveBandDp;
 
@@ -740,6 +771,12 @@ private:
     // (so the viewport keeps its size + the top-left stays put) rather than
     // re-centring inside a fixed window.
     bool                     m_chromeSizedForHasDisk = true;
+
+    // Companion to m_chromeSizedForHasDisk for the //c switch band: whether the
+    // current WINDOW height was sized with the switch strip present. Recorded by
+    // OnSize; ReflowChromeForMachineChange folds the switch-band delta into the
+    // window resize so switching to / from the //c keeps the viewport its size.
+    bool                     m_chromeSizedForApple2c = false;
 
     // //c only: whether the optional external drive is "connected". Mirrors
     // the per-machine $cassoUiPrefs.externalDriveConnected pref; seeded at

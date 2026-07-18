@@ -392,4 +392,54 @@ public:
                 L"reading the data register must clear RxFull");
         }
     }
+
+
+    // The //c 80/40 case switch is a SOFTWARE-read switch: it only sets bit 7
+    // of $C060 (RD80SW); a booting disk (PR#3) or an app reads it to pick the
+    // width. The bare no-disk ROM screen never consults it, so "Check Disk
+    // Drive." stays 40 columns either way. This boots the real ROM 4 with the
+    // switch both in and out and proves (a) the no-disk screen is unchanged and
+    // (b) $C060 reads back through the assembled //c bus with the documented
+    // polarity: switch in (down) => bit 7 set (80), switch out (up) => clear (40).
+    TEST_METHOD (EightyFortySwitchDrivesC060ButNotTheNoDiskScreen)
+    {
+        if (!Apple2cRomAvailable())
+        {
+            Logger::WriteMessage ("SKIPPED: no Apple2c.rom fixture");
+            return;
+        }
+
+        auto  bootWithSwitch = [] (bool switchIn, size_t & outCols, Byte & outC060)
+        {
+            HeadlessHost host; EmulatorCore core;
+            Assert::IsTrue (SUCCEEDED (host.BuildApple2c (core)), L"BuildApple2c");
+
+            core.keyboard->SetEightyColumnSwitchIn (switchIn);
+            core.PowerCycle();
+            core.RunCycles (15'000'000);
+
+            auto  rows = TextScreenScraper::Scrape (core);
+            Assert::IsFalse (rows.empty(), L"scrape must yield rows");
+            outCols = rows.front().size();
+            outC060 = core.bus->ReadByte (0xC060);
+        };
+
+        size_t  inCols  = 0, outCols = 0;
+        Byte    inC060  = 0, outC060 = 0;
+
+        bootWithSwitch (true,  inCols,  inC060);
+        bootWithSwitch (false, outCols, outC060);
+
+        // (a) The no-disk screen is 40 columns regardless of the switch.
+        Assert::AreEqual<size_t> (TextScreenScraper::kCols40, inCols,
+            L"no-disk boot stays 40 cols even with the 80/40 switch in");
+        Assert::AreEqual<size_t> (TextScreenScraper::kCols40, outCols,
+            L"no-disk boot stays 40 cols with the 80/40 switch out");
+
+        // (b) $C060 reads back live through the bus with the right polarity.
+        Assert::AreEqual<Byte> (0x80, static_cast<Byte> (inC060 & 0x80),
+            L"switch in (down) must set $C060 bit 7 (80-col select) through the bus");
+        Assert::AreEqual<Byte> (0x00, static_cast<Byte> (outC060 & 0x80),
+            L"switch out (up) must clear $C060 bit 7 (40-col select) through the bus");
+    }
 };

@@ -1,6 +1,7 @@
 #include "resource.h"
 #include "Shaders\\ShaderResourceIds.h"
 #include <windows.h>
+#include "Version.h"    // single source of truth for the app version
 
 // Application icons. The icon assigned the lowest numerical resource ID
 // (IDI_CASSO_SILHOUETTE) is what Windows Explorer displays for
@@ -76,8 +77,8 @@ END
 
 // Version Information
 VS_VERSION_INFO VERSIONINFO
-    FILEVERSION     0,9,0,0
-    PRODUCTVERSION  0,9,0,0
+    FILEVERSION     VERSION_MAJOR,VERSION_MINOR,VERSION_PATCH,0
+    PRODUCTVERSION  VERSION_MAJOR,VERSION_MINOR,VERSION_PATCH,0
     FILEFLAGSMASK   VS_FFI_FILEFLAGSMASK
 #ifdef _DEBUG
     FILEFLAGS       VS_FF_DEBUG
@@ -94,11 +95,11 @@ BEGIN
         BEGIN
             VALUE "CompanyName",      "\0"
             VALUE "FileDescription",  "Casso Apple ][ Emulator\0"
-            VALUE "FileVersion",      "0.9.0.0\0"
+            VALUE "FileVersion",      VERSION_STRING ".0\0"
             VALUE "InternalName",     "Casso\0"
             VALUE "OriginalFilename", "Casso.exe\0"
             VALUE "ProductName",      "Casso\0"
-            VALUE "ProductVersion",   "0.9.0.0\0"
+            VALUE "ProductVersion",   VERSION_STRING ".0\0"
         END
     END
     BLOCK "VarFileInfo"
