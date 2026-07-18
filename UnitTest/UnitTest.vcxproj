@@ -215,6 +215,7 @@
     </ClCompile>
     <ClCompile Include="CpuInitializationTests.cpp" />
     <ClCompile Include="CpuOperationTests.cpp" />
+    <ClCompile Include="UndocumentedOpcodeTests.cpp" />
     <ClCompile Include="Cpu6502InterfaceTests.cpp" />
     <ClCompile Include="CpuIrqTests.cpp" />
     <ClCompile Include="AddressingModeTests.cpp" />
