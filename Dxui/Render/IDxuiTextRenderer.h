@@ -63,6 +63,14 @@ public:
     virtual HRESULT  PushClipRect  (float xDip, float yDip, float widthDip, float heightDip) = 0;
     virtual HRESULT  PopClipRect   ()                                                        = 0;
 
+    // Shear subsequently-drawn text so vertical strokes lean right by tanX
+    // (the top edge kicks right relative to yPivotDip; nothing shifts at the
+    // pivot). Used to render labels at the //c case-switch slant. Defaulted to
+    // a no-op so test mocks and simple renderers ignore it; PopTextSkew undoes
+    // the most recent push. Not nestable.
+    virtual void     PushTextSkew  (float tanX, float yPivotDip) { (void) tanX; (void) yPivotDip; }
+    virtual void     PopTextSkew   ()                            {}
+
     // Font-handle convenience overloads: unpack a theme DxuiFontHandle into
     // the face / size / weight triple. Defaulted (not pure) so existing
     // mocks need not implement them.

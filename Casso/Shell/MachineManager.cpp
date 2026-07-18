@@ -461,6 +461,10 @@ HRESULT MachineManager::CreateMemoryDevices (const MachineConfig & config)
             if (iieKbd != nullptr)
             {
                 iieKbd->SetMouse (m_shell.m_mouse.get());
+
+                // Enable the //c case switches ($C060 80/40 read + the
+                // keyboard-layout remap). Dormant on the //e.
+                iieKbd->SetApple2cMode (true);
             }
             if (iieSw != nullptr)
             {
@@ -1031,10 +1035,13 @@ HRESULT MachineManager::CreateCpu (const MachineConfig & config)
 
     // Select the CPU strategy per the machine profile (65C02 for the
     // Enhanced //e and //c; NMOS 6502 for everything else). Building the
-    // wrong part silently is the exact defect this seam removes, so a
-    // strategy that cannot be built fails the machine build here.
+    // wrong part silently is the exact defect this seam removes; an
+    // unbuildable strategy means a broken machine profile (a shipped config
+    // naming a CPU we don't have), so CHRA asserts -- a debug build breaks
+    // for a dev to dig in -- before the machine build fails here. CpuFactory
+    // itself just returns E_INVALIDARG, so it stays a clean, testable validator.
     hr = CpuFactory::Create (config.cpu, m_shell.m_memoryBus, cpu);
-    CHR (hr);
+    CHRA (hr);
 
     m_shell.m_cpu = std::make_unique<EmuCpu> (m_shell.m_memoryBus, std::move (cpu));
 

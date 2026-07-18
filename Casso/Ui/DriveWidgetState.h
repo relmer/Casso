@@ -2,6 +2,8 @@
 
 #include "Pch.h"
 
+#include "Devices/Disk/IDiskImage.h"    // WriteProtectInfo
+
 
 
 
@@ -58,6 +60,12 @@ struct DriveWidgetState
     std::wstring      mountedImagePath;
     std::atomic<bool> motorOn              { false };
     std::atomic<bool> diskActive           { false };
+
+    // Write-protect state of the mounted image, sampled each UI frame
+    // from the DiskImage in DiskManager::UpdateDriveWidgets. Drives the
+    // padlock cue and the hover tooltip. UI-thread only.
+    WriteProtectInfo  writeProtect;
+
     // Default Open: an empty drive at rest shows the door open
     // (matches real Apple Disk II). Drives that auto-mount at boot
     // transition Open -> Closing via BeginInsert -- the brief 200 ms
@@ -186,4 +194,61 @@ inline bool IsSupportedDiskImageExtension (const std::wstring & path)
     }
 
     return false;
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ComposeWriteProtectTooltip
+//
+//  Builds the single-line hover-tooltip text for a write-protected
+//  drive, naming every active source so the user can tell a setting-
+//  driven lock from an image flag or an unwritable backing file. Returns
+//  an empty string when the disk is not protected (no tooltip shown).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+inline std::wstring ComposeWriteProtectTooltip (const WriteProtectInfo & wp)
+{
+    std::vector<std::wstring>  reasons;
+    std::wstring               msg;
+    size_t                     i = 0;
+
+
+    if (!wp.Any())
+    {
+        return std::wstring();
+    }
+
+    if (wp.userSetting)  { reasons.push_back (L"the write-protect setting"); }
+    if (wp.imageFlag)    { reasons.push_back (L"the image's write-protect flag"); }
+    if (wp.readOnlyFile) { reasons.push_back (L"a read-only file"); }
+    if (wp.noPermission) { reasons.push_back (L"no write permission for the file"); }
+
+    msg = L"Disk is write-protected by ";
+
+    for (i = 0; i < reasons.size(); ++i)
+    {
+        if (i > 0)
+        {
+            if (i + 1 == reasons.size())
+            {
+                // Final source: ", and " for a 3+ list (Oxford comma),
+                // a bare " and " for exactly two.
+                msg += (reasons.size() > 2) ? L", and " : L" and ";
+            }
+            else
+            {
+                msg += L", ";
+            }
+        }
+
+        msg += reasons[i];
+    }
+
+    msg += L".";
+
+    return msg;
 }

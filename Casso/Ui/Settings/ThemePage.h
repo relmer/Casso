@@ -36,6 +36,7 @@ public:
     using ThemeSelectFn      = std::function<void (const std::string & themeName)>;
     using FramebufferSourceFn = std::function<const uint32_t * (int & outWidthPx, int & outHeightPx)>;
     using MountedPathFn      = std::function<std::wstring (int driveIndex)>;
+    using WriteProtectFn     = std::function<WriteProtectInfo (int driveIndex)>;
     using HasDiskSourceFn    = std::function<bool ()>;
 
     void  SetThemes             (std::vector<std::string>  themeIds,
@@ -44,6 +45,7 @@ public:
     void  SetOnThemeSelected    (ThemeSelectFn       fn) { m_onThemeSelected   = std::move (fn); }
     void  SetFramebufferSource  (FramebufferSourceFn fn) { m_framebufferSource = std::move (fn); }
     void  SetMountedPathSource  (MountedPathFn       fn) { m_mountedPathSource = std::move (fn); }
+    void  SetWriteProtectSource (WriteProtectFn      fn) { m_writeProtectSource = std::move (fn); }
 
     // Reports whether the staged machine config has an ENABLED Disk ][
     // controller. When it returns false the preview drops the drive widgets
@@ -90,6 +92,7 @@ private:
     ThemeSelectFn                 m_onThemeSelected;
     FramebufferSourceFn           m_framebufferSource;
     MountedPathFn                 m_mountedPathSource;
+    WriteProtectFn                m_writeProtectSource;
     HasDiskSourceFn               m_hasDiskSource;
     ApplyThemeNowFn               m_onApplyThemeNow;
 

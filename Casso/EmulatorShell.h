@@ -23,6 +23,7 @@
 #include "Shell/MachineManager.h"
 #include "Shell/WindowCommandManager.h"
 #include "Shell/WindowManager.h"
+#include "Ui/Chrome/Apple2cSwitchBar.h"
 #include "Ui/Chrome/CassoTheme.h"
 #include "Ui/Chrome/DriveWidget.h"
 #include "Ui/Chrome/InputDeviceSelector.h"
@@ -54,6 +55,7 @@
 
 class DxuiHwndSource;
 class SettingsSheet;
+class JsonValue;
 
 
 
@@ -290,6 +292,39 @@ private:
     HRESULT CreateEmulatorWindow (HINSTANCE hInstance);
     void    ReconcileInitialClientSize ();
 
+    // Initialize() decomposition -- one single-purpose step each, called
+    // in order from Initialize. HRESULT-returning steps propagate genuine
+    // infrastructure failure and abort startup via CHR; the void ones have
+    // no failable work, or recover in place -- asserting in debug so a dev
+    // catches it -- (e.g. corrupt user prefs reset to defaults) rather than
+    // abort.
+    void    RegisterChromeDock            ();
+    void    InitAssetPathsAndStores       ();
+    void    AllocateFramebuffers          ();
+    void    PrimeChromeThemeEarly         ();
+    HRESULT BuildMachineDevices           (const MachineConfig & config);
+    HRESULT InitializeRenderer            ();
+    HRESULT InitializeUiShell             ();
+    HRESULT WireUiShellChromeAndThemes    ();
+    void    RestoreInputAndColorPrefs     ();
+    void    RecordActiveMachineSelection  ();
+    void    SubscribeAndActivateTheme     ();
+    HRESULT FinishUiShellLayout           ();
+    void    InstallDragDropTarget         ();
+
+    // Persisted per-machine $cassoUiPrefs. LoadMachineUiPrefs reads +
+    // merges the machine JSON, handing back the "$cassoUiPrefs" object in
+    // outUiPrefs -- or null when it is absent OR unreadable/corrupt, both
+    // recovered to defaults, never fatal. Each Apply* helper loads its own
+    // copy and seeds one subsystem (chrome vs audio).
+    void    LoadMachineUiPrefs            (JsonValue & outDoc, const JsonValue * & outUiPrefs);
+    void    ApplyPersistedChromePrefs     ();
+    void    ApplyPersistedAudioPrefs      ();
+
+    // Truncating wide->narrow of m_currentMachineName (machine config
+    // names are ASCII): the config-store key + lastSelectedMachine pref.
+    std::string CurrentMachineNameNarrow  () const;
+
     // Drives the host's root panel layout for the Apple ][ viewport
     // child. Computes the framebuffer rectangle (client minus chrome
     // bands) via the DxuiDockLayout and invokes m_viewport->Layout,
@@ -381,6 +416,18 @@ private:
 private:
     void    SyncInputModeUi();
     void    SyncSelectorState();
+
+    // Apple //c case-switch strip. IsApple2c gates its chrome band + input;
+    // LayoutSwitchBar positions the strip in its band rect; SyncSwitchBarState
+    // pushes the live switch / indicator state onto the control each layout.
+    // HandleSwitchBarClick actions a release over one of its parts.
+    bool    IsApple2c              () const { return m_apple2cRomBank != nullptr; }
+    void    LayoutSwitchBar        (UINT dpi);
+    void    SyncSwitchBarState     ();
+    void    HandleSwitchBarClick   (Apple2cSwitchBar::Part part);
+    // Persist one case-switch latch ("eightyColumnSwitch" / "keyboardDvorak")
+    // into the current machine's $cassoUiPrefs so it survives across runs.
+    void    PersistSwitchState     (const char * key, bool value);
 public:
 
     // Radio-group toggle for the Machine-menu items: selects `target`, or
@@ -446,6 +493,10 @@ private:
     void    ShowMachinePicker();
     const std::wstring &  CurrentMachineName () const { return m_currentMachineName; }
 
+    // //e/c auxiliary 64 KiB RAM bank (nullptr on ][/][+). Used by the clipboard
+    // text scrape to read the aux half of an 80-column screen.
+    const Byte *  AuxRamBuffer() const;
+
     // Accessor used by the Settings → Theme preview to copy the live
     // emulator framebuffer into the mock window. The UI framebuffer is
     // the post-CRT-effects pixel buffer the chrome composes on top of;
@@ -470,6 +521,20 @@ private:
         }
 
         return m_driveWidgetState[(size_t) driveIndex].mountedImagePath;
+    }
+
+    // Write-protect breakdown for a drive, read from the live per-drive
+    // widget state (refreshed each frame by DiskManager::UpdateDriveWidgets).
+    // Used by the Settings → Theme preview so its sample drive shows the
+    // padlock cue for whatever is actually mounted. Index 0 is drive 1.
+    WriteProtectInfo  DriveWriteProtect (int driveIndex) const
+    {
+        if (driveIndex < 0 || driveIndex >= (int) m_driveWidgetState.size())
+        {
+            return WriteProtectInfo();
+        }
+
+        return m_driveWidgetState[(size_t) driveIndex].writeProtect;
     }
 
     // Base directory for user preferences. SettingsPanel.CommitApply
@@ -497,6 +562,14 @@ private:
     // SetColorModeLive, the Settings panel calls this on hover / select so
     // the change shows on the next CPU frame, and on Cancel to restore.
     void  SetColorMonitorTextArgbLive (uint32_t argb);
+
+    // Records the user's per-drive write-protect preference and applies
+    // it to the currently mounted image (if any) so the change takes
+    // effect immediately. Called on the CPU thread from the
+    // IDM_DISK_WRITEPROTECT command handler, which the Settings apply
+    // path and the write-protect menu items post. The preference also
+    // survives an eject/remount because MountDiskInSlot6 re-applies it.
+    void  SetDriveUserWriteProtect (int drive, bool wp);
 
     // Activates the named theme in ThemeManager (which notifies the
     // chrome cache listener) and persists the choice into GlobalUserPrefs.
@@ -720,6 +793,29 @@ private:
     DxuiTooltip               m_joystickTooltip;
     DxuiTooltip               m_toolbarTooltip;   // labels for the toolbar's icon-only mode
 
+    // Apple //c case-switch strip (reset button + 80/40 and keyboard latching
+    // switches + disk-use / power LEDs), painted in its own chrome band between
+    // the emulator viewport and the drive bar. Present only on the //c; its
+    // band collapses to zero height on every other machine. Manually
+    // hit-tested / actioned by the mouse handlers, like the other chrome.
+    Apple2cSwitchBar      m_switchBar;
+    DxuiTooltip               m_switchBarTooltip;
+
+    // Hover tooltip for the drive widgets, surfaced when the pointer
+    // rests over a write-protected drive. Explains that the disk is
+    // write-protected and names the source(s) -- image flag, user
+    // setting, or an unwritable backing file. Shares the host popup pool
+    // with m_joystickTooltip (the hover regions are mutually exclusive).
+    DxuiTooltip               m_driveTooltip;
+
+    // Live per-drive user write-protect preference (Settings > Disk
+    // checkbox / write-protect menu). Seeded from $cassoUiPrefs at
+    // startup and re-applied to each freshly mounted image so the guest
+    // sees the disk as protected and dirty writes never flush. Distinct
+    // from the image's own embedded flag and from the backing file's
+    // read-only state; all three are surfaced independently in the UI.
+    std::array<bool, 2>   m_userWriteProtect { { false, false } };
+
     // Solid background for the bottom drive-bar band. The CRT composite
     // writes the whole back buffer (emulator frame + black), so the chrome
     // bands need an opaque surface painted on top; the title and menu bars
@@ -745,11 +841,17 @@ private:
     // it varies with the responsive mode planned for the window width.)
     static constexpr int  s_kInitialDriveBandDp = 256;
 
+    // //c switch strip band thickness (dp). Zero-height on non-//c machines
+    // (SyncChromeBands gates it on IsApple2c()); it docks below the drive band
+    // so it lands between the viewport and the joystick/paddle/mouse bar.
+    static constexpr int  s_kSwitchBandDp       = 40;
+
     DxuiDockLayout           m_chromeDock;
     ChromeBand               m_titleBand;
     ChromeBand               m_navBand;
     ChromeBand               m_toolbarBand;
     ChromeBand               m_driveBand;
+    ChromeBand               m_switchBand;
     ChromeBand               m_centerBand;
     int                      m_driveBarThicknessDp = s_kInitialDriveBandDp;
 
@@ -760,6 +862,12 @@ private:
     // (so the viewport keeps its size + the top-left stays put) rather than
     // re-centring inside a fixed window.
     bool                     m_chromeSizedForHasDisk = true;
+
+    // Companion to m_chromeSizedForHasDisk for the //c switch band: whether the
+    // current WINDOW height was sized with the switch strip present. Recorded by
+    // OnSize; ReflowChromeForMachineChange folds the switch-band delta into the
+    // window resize so switching to / from the //c keeps the viewport its size.
+    bool                     m_chromeSizedForApple2c = false;
 
     // //c only: whether the optional external drive is "connected". Mirrors
     // the per-machine $cassoUiPrefs.externalDriveConnected pref; seeded at

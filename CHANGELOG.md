@@ -6,7 +6,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 Versioned entries use `MAJOR.MINOR.PATCH` from [Version.h](CassoCore/Version.h).
 Entries before versioning was introduced use dates only.
 
-## [1.10.0] — Emulated ImageWriter II printer (spec 015)
+## [1.11.0] — Emulated ImageWriter II printer (spec 015)
 
 ### Added
 - **feat(printer): parallel printer card + original slot firmware** — a dumb,
@@ -70,6 +70,63 @@ Entries before versioning was introduced use dates only.
 - Print delivery destination is chosen per action (Print / Save / Copy), not
   a stored preference; Settings > Printing keeps output resolution + dot
   style and gains a Restore-defaults button.
+
+## [1.10.0] — Apple //c case-switch strip
+
+### Added
+- **feat(machine): //c case-switch strip** — the two latching switches on
+  the top of the //c case are now modeled and exposed. The **80/40 switch**
+  drives `$C060` (RD80SW) bit 7 — pressed in (down) selects 80-column
+  startup, out selects 40; it is a software-read switch (a booting disk's
+  `PR#3` acts on it), so the bare ROM screen is unaffected, matching real
+  hardware. The **keyboard switch** remaps the typed character stream to the
+  Dvorak layout while engaged (QWERTY when out); the remap is skipped when the
+  host OS layout is itself Dvorak (a Dvorak-host user types normally, so the
+  received character is already correct), and paste is never remapped. A
+  new skeuomorphic control strip — painted in the //c's platinum case
+  color, between the emulator viewport and the joystick/paddle/mouse
+  bar, //c-only — reproduces the case top: a **reset** button (inert unless
+  Ctrl is held, mirroring the real Control-Reset key; Open/Closed-Apple ride
+  it for cold boot), the two latching switches, and lit **disk-use** /
+  **power** indicator LEDs. The reset button and switches are drawn as the
+  real hardware's right-slanted parallelogram caps, sitting proud of the case
+  and depressing below its surface when clicked — an unmistakable pressed cue.
+  Both latching switch positions are remembered per machine across runs.
+
+### Changed
+- **refactor(shell): harden emulator startup** — `EmulatorShell::Initialize`
+  (previously ~600 lines at 9+ levels of nesting) is decomposed into focused,
+  single-purpose steps with consistent EHM error handling. Genuine
+  infrastructure failures (window, renderer, CPU, and UI-shell bring-up) abort
+  startup and assert in debug builds; a corrupt or unreadable settings file
+  now recovers to defaults — asserting in debug so a developer can dig in —
+  instead of being silently swallowed; and `DiskImageStore` surfaces a failed
+  disk-flush through the shared error notifier itself rather than through a
+  reporter callback the shell had to wire up.
+
+### Fixed
+- **fix(ui): Copy Text on 80-column screens** — Edit ▸ Copy Text now reads the
+  interleaved auxiliary + main text banks when the 80-column display is active,
+  instead of capturing only every other character.
+
+## [1.9.0] — Write-protect indicator
+
+### Added
+- **feat(disk): write-protect indicator** — a write-protected drive now
+  shows a small brass padlock on its face (both the skeuomorphic and
+  compact drive widgets), and hovering the drive raises a tooltip that
+  states the disk is write-protected and names the source(s): the
+  write-protect setting, the image's own flag (WOZ), a read-only backing
+  file, or missing write permission for the file.
+
+### Fixed
+- **fix(disk): honor the write-protect setting** — the Settings ▸ Disk
+  "Write protect" checkboxes previously did nothing. They now actually
+  protect the mounted disk (the guest sees the write-protect sense bit and
+  writes are rejected), the preference is re-applied across ejects/remounts
+  and restored on next launch, and a read-only or unwritable backing file
+  is likewise treated as write-protected so in-emulator writes can't be
+  silently lost.
 
 ## [1.8.0] — Apple //c and Apple //e Enhanced machines (spec 016 + #86)
 

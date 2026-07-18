@@ -31,6 +31,15 @@ The project includes:
 
 See [CHANGELOG.md](CHANGELOG.md) for the granular history.
 
+### Apple //c case-switch strip (v1.10.0)
+
+The two latching switches on the //c case are modeled on a skeuomorphic
+control strip in the //c's platinum case color: the **80/40**
+switch drives `$C060` (in = 80-column startup, read by a booting disk's
+`PR#3`), the **keyboard** switch flips the typed stream to Dvorak, and a
+**reset** button reproduces Control-Reset (inert without Ctrl), alongside
+disk-use / power indicator LEDs. Both switch positions persist per machine.
+
 ### Apple //c + //e Enhanced (v1.8.0)
 
 Casso now emulates the **Apple //c** (ROM 4, 5.25"/128K): a Rockwell
@@ -131,7 +140,7 @@ Casso's entire chrome moved from the legacy Win32 menu bar / Win32 dialogs to a 
 
 <p align="center"><img src="Assets/feat-themes.png" alt="Theme picker hot-swapping between Skeuomorphic, Dark Modern, and Retro Terminal" width="540" /></p>
 
-**Skeuomorphic drive widgets** with realistic Apple Disk II faceplates: perspective-projected case top with two indented lid panels that taper toward the back, nine vent slits down each side, beige case wrapping a black inset faceplate on all four sides, cantilever door hinged at the slot top that tilts up and back (tucking inside the case with a small flap visible when fully open) revealing a recessed finger-pull behind it, status LED, and the Cassowary rainbow logo. Click a drive to pick a disk image, or drag-and-drop a `.dsk` / `.do` / `.po` / `.nib` file onto it. Eject animates the door open even on an empty drive.
+**Skeuomorphic drive widgets** with realistic Apple Disk II faceplates: perspective-projected case top with two indented lid panels that taper toward the back, nine vent slits down each side, beige case wrapping a black inset faceplate on all four sides, cantilever door hinged at the slot top that tilts up and back (tucking inside the case with a small flap visible when fully open) revealing a recessed finger-pull behind it, status LED, and the Cassowary rainbow logo. Click a drive to pick a disk image, or drag-and-drop a `.dsk` / `.do` / `.po` / `.nib` file onto it. Eject animates the door open even on an empty drive. A write-protected disk shows a small brass padlock on the faceplate; hovering the drive explains why it is protected — the write-protect setting, the image's own flag, a read-only file, or missing write permission.
 
 <p align="center"><img src="Assets/feat-drive-widgets.png" alt="Skeuomorphic drive widgets: Drive 1 active with red IN USE LED, Drive 2 idle" width="540" /></p>
 

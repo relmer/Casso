@@ -605,4 +605,153 @@ public:
         Assert::IsTrue (kbd.IsStrobeClear (),
             L"Disarming auto-repeat must suppress further repeats");
     }
+
+
+    ////////////////////////////////////////////////////////////////////////
+    //
+    //  Apple //c case switches: the 80/40 column switch (read at $C060,
+    //  RD80SW, bit 7) and the keyboard-layout switch (Dvorak, applied to
+    //  the typed character stream via MapTypedChar). Both are gated on
+    //  SetApple2cMode — dormant on the //e.
+    //
+    ////////////////////////////////////////////////////////////////////////
+
+    TEST_METHOD (C060_OnIIe_ReadsFloatingZero)
+    {
+        // Without //c mode, $C060 is unowned — it reads the floating-bus 0,
+        // exactly as before, so the //e is unaffected.
+        Apple2eKeyboard kbd;
+
+        kbd.SetEightyColumnSwitchIn (true);   // ignored off the //c
+
+        Assert::AreEqual (static_cast<Byte> (0x00), kbd.Read (0xC060),
+            L"$C060 must stay 0 on a machine that is not a //c");
+    }
+
+    TEST_METHOD (C060_OnIIc_SwitchOut_Reads40Columns)
+    {
+        // Switch out (up) = 40 columns = bit 7 CLEAR (PEEK 49248 < 128).
+        Apple2eKeyboard kbd;
+
+        kbd.SetApple2cMode          (true);
+        kbd.SetEightyColumnSwitchIn (false);
+
+        Assert::AreEqual (static_cast<Byte> (0x00), kbd.Read (0xC060),
+            L"//c $C060 with the 80/40 switch out (40 cols) must read bit 7 clear");
+        Assert::IsFalse (kbd.IsEightyColumnSwitchIn(),
+            L"switch state accessor must report 'out'");
+    }
+
+    TEST_METHOD (C060_OnIIc_SwitchIn_Reads80Columns)
+    {
+        // Switch in (down) = 80 columns = bit 7 SET (PEEK 49248 >= 128).
+        Apple2eKeyboard kbd;
+
+        kbd.SetApple2cMode          (true);
+        kbd.SetEightyColumnSwitchIn (true);
+
+        Assert::AreEqual (static_cast<Byte> (0x80), kbd.Read (0xC060),
+            L"//c $C060 with the 80/40 switch in (80 cols) must read bit 7 set");
+        Assert::IsTrue (kbd.IsEightyColumnSwitchIn(),
+            L"switch state accessor must report 'in'");
+    }
+
+    TEST_METHOD (Dvorak_TableMapsRepresentativeKeys)
+    {
+        // Spot-check the QWERTY-position -> Dvorak-character map across all
+        // three letter rows plus the shifted punctuation and the bracket tail.
+        Assert::AreEqual<Byte> ('o', Apple2eKeyboard::QwertyToDvorak ('s'), L"s->o");
+        Assert::AreEqual<Byte> ('e', Apple2eKeyboard::QwertyToDvorak ('d'), L"d->e");
+        Assert::AreEqual<Byte> ('u', Apple2eKeyboard::QwertyToDvorak ('f'), L"f->u");
+        Assert::AreEqual<Byte> ('p', Apple2eKeyboard::QwertyToDvorak ('r'), L"r->p");
+        Assert::AreEqual<Byte> ('j', Apple2eKeyboard::QwertyToDvorak ('c'), L"c->j");
+        Assert::AreEqual<Byte> ('m', Apple2eKeyboard::QwertyToDvorak ('m'), L"m->m (unchanged)");
+        Assert::AreEqual<Byte> ('R', Apple2eKeyboard::QwertyToDvorak ('O'), L"O->R");
+        Assert::AreEqual<Byte> ('_', Apple2eKeyboard::QwertyToDvorak ('"'), L"double-quote->underscore");
+        Assert::AreEqual<Byte> ('[', Apple2eKeyboard::QwertyToDvorak ('-'), L"minus->left-bracket");
+        Assert::AreEqual<Byte> (']', Apple2eKeyboard::QwertyToDvorak ('='), L"equals->right-bracket");
+    }
+
+    TEST_METHOD (Dvorak_DigitsAndControlCodesPassThrough)
+    {
+        // Digits and control codes are in identical positions in both layouts.
+        for (Byte ch = '0'; ch <= '9'; ++ch)
+        {
+            Assert::AreEqual (ch, Apple2eKeyboard::QwertyToDvorak (ch),
+                L"digits must pass through the Dvorak map unchanged");
+        }
+
+        Assert::AreEqual<Byte> (0x0D, Apple2eKeyboard::QwertyToDvorak (0x0D), L"Return unchanged");
+        Assert::AreEqual<Byte> (0x1B, Apple2eKeyboard::QwertyToDvorak (0x1B), L"Escape unchanged");
+        Assert::AreEqual<Byte> (' ',  Apple2eKeyboard::QwertyToDvorak (' '),  L"Space unchanged");
+    }
+
+    TEST_METHOD (MapTypedChar_PassthroughWhenSwitchDisengaged)
+    {
+        // //c mode but the keyboard switch is out (QWERTY): no remap.
+        Apple2eKeyboard kbd;
+
+        kbd.SetApple2cMode          (true);
+        kbd.SetKeyboardSwitchDvorak (false);
+
+        Assert::AreEqual<Byte> ('s', kbd.MapTypedChar ('s'),
+            L"QWERTY (switch out) must not remap the typed character");
+    }
+
+    TEST_METHOD (MapTypedChar_PassthroughOnIIeEvenWithSwitchSet)
+    {
+        // The switch flag is meaningless off the //c: never remap.
+        Apple2eKeyboard kbd;
+
+        kbd.SetKeyboardSwitchDvorak (true);   // no //c mode
+
+        Assert::AreEqual<Byte> ('s', kbd.MapTypedChar ('s'),
+            L"a non-//c keyboard must never Dvorak-remap");
+    }
+
+    TEST_METHOD (MapTypedChar_RemapsWhenSwitchEngagedOnIIc)
+    {
+        Apple2eKeyboard kbd;
+
+        kbd.SetApple2cMode          (true);
+        kbd.SetKeyboardSwitchDvorak (true);
+
+        Assert::AreEqual<Byte> ('o', kbd.MapTypedChar ('s'),
+            L"//c with the keyboard switch in must remap 's' to Dvorak 'o'");
+    }
+
+    TEST_METHOD (MapTypedChar_PassthroughWhenHostIsDvorak)
+    {
+        // //c with the keyboard switch in, but the HOST layout is already
+        // Dvorak: the character we received is the one the user intended, so
+        // remapping would double-translate. Suppress it regardless of switch.
+        Apple2eKeyboard kbd;
+
+        kbd.SetApple2cMode          (true);
+        kbd.SetKeyboardSwitchDvorak (true);
+        kbd.SetHostKeyboardDvorak   (true);
+
+        Assert::AreEqual<Byte> ('s', kbd.MapTypedChar ('s'),
+            L"a Dvorak host must suppress the remap even with the switch in");
+
+        // Clearing the host flag (QWERTY host) re-enables the remap.
+        kbd.SetHostKeyboardDvorak (false);
+        Assert::AreEqual<Byte> ('o', kbd.MapTypedChar ('s'),
+            L"a QWERTY host with the switch in remaps 's' to Dvorak 'o'");
+    }
+
+    TEST_METHOD (Dvorak_TypedThroughLatch_ReadsRemappedCharacter)
+    {
+        // End-to-end: the shell would feed MapTypedChar's result to KeyPress.
+        // With the switch engaged, physically typing 'k' latches Dvorak 't'.
+        Apple2eKeyboard kbd;
+
+        kbd.SetApple2cMode          (true);
+        kbd.SetKeyboardSwitchDvorak (true);
+
+        kbd.KeyPress (kbd.MapTypedChar ('k'));
+
+        Assert::AreEqual<Byte> ('T', static_cast<Byte> (kbd.Read (0xC000) & 0x7F),
+            L"typing 'k' with the Dvorak switch in must latch 't' (upcased at $C000)");
+    }
 };

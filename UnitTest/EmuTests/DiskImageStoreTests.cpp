@@ -61,6 +61,38 @@ namespace
         WozLoader::BuildSyntheticV2 (1, writeProtected, bits, 51200, woz);
         return woz;
     }
+
+    // Captures EhmNotifyUser output for the flush-error tests. FlushEntry
+    // surfaces losses through the shared EHM notifier (CHRN/CBRN), so these
+    // route the global notifier to file-local counters for the span of one
+    // test. The notifier is a raw function pointer, hence a free function +
+    // static state rather than a capturing lambda.
+    int      s_flushNotifyCount = 0;
+    wstring  s_flushNotifyLast;
+
+    void CaptureFlushNotify (const wchar_t * message)
+    {
+        s_flushNotifyCount++;
+        s_flushNotifyLast = (message != nullptr) ? message : L"";
+    }
+
+    // RAII: routes EhmNotifyUser to the capture (resetting the counters)
+    // for the test's lifetime, then clears the global hook so the next test
+    // starts clean even if an assertion throws out of the body.
+    struct ScopedFlushNotifyCapture
+    {
+        ScopedFlushNotifyCapture ()
+        {
+            s_flushNotifyCount = 0;
+            s_flushNotifyLast.clear ();
+            SetNotifyFunction (CaptureFlushNotify);
+        }
+
+        ~ScopedFlushNotifyCapture ()
+        {
+            SetNotifyFunction (nullptr);
+        }
+    };
 }
 
 
@@ -210,26 +242,19 @@ public:
     ////////////////////////////////////////////////////////////////////////
     //
     //  Flush-error reporting. A dirty image that fails to persist used to
-    //  vanish (every flush caller drops the HRESULT). The reporter surfaces
-    //  the loss; a clean or successful flush must stay silent.
+    //  vanish (every flush caller drops the HRESULT). The store now surfaces
+    //  the loss through the EHM notifier; a clean or successful flush must
+    //  stay silent.
     //
     ////////////////////////////////////////////////////////////////////////
 
-    TEST_METHOD (FlushError_reporterFiresOnFailure_withPathAndHr)
+    TEST_METHOD (FlushError_notifiesOnFailure_namingThePath)
     {
-        DiskImageStore   store;
-        vector<Byte>     raw          = MakeDsk (0);
-        bool             reported     = false;
-        string           reportedPath;
-        HRESULT          reportedHr   = S_OK;
+        ScopedFlushNotifyCapture  capture;
+        DiskImageStore            store;
+        vector<Byte>              raw = MakeDsk (0);
 
-        store.SetFlushSink          ([] (const string &, const vector<Byte> &) { return E_FAIL; });
-        store.SetFlushErrorReporter ([&] (const string & p, HRESULT hr)
-        {
-            reported     = true;
-            reportedPath = p;
-            reportedHr   = hr;
-        });
+        store.SetFlushSink ([] (const string &, const vector<Byte> &) { return E_FAIL; });
 
         Assert::IsTrue (SUCCEEDED (store.MountFromBytes (kSlot, kDrive, "boom.dsk", DiskFormat::Dsk, raw)));
         store.GetImage (kSlot, kDrive)->WriteBit (0, 0, 1);   // dirty
@@ -237,48 +262,46 @@ public:
         HRESULT   hr = store.Flush (kSlot, kDrive);
 
         Assert::IsTrue   (FAILED (hr));
-        Assert::IsTrue   (reported, L"a failed flush must be reported, not swallowed");
-        Assert::AreEqual (string ("boom.dsk"), reportedPath);
-        Assert::IsTrue   (FAILED (reportedHr));
+        Assert::AreEqual (1, s_flushNotifyCount, L"a failed flush must be surfaced, not swallowed");
+        Assert::IsTrue   (s_flushNotifyLast.find (L"boom.dsk") != wstring::npos,
+            L"the notification must name the image that failed to save");
     }
 
     TEST_METHOD (FlushError_noReportOnCleanOrSuccessfulFlush)
     {
-        DiskImageStore   store;
-        vector<Byte>     raw      = MakeDsk (0);
-        bool             reported = false;
+        ScopedFlushNotifyCapture  capture;
+        DiskImageStore            store;
+        vector<Byte>              raw = MakeDsk (0);
 
-        store.SetFlushSink          ([] (const string &, const vector<Byte> &) { return S_OK; });
-        store.SetFlushErrorReporter ([&] (const string &, HRESULT) { reported = true; });
+        store.SetFlushSink ([] (const string &, const vector<Byte> &) { return S_OK; });
 
-        // Clean image ejected -> no flush -> no report.
+        // Clean image ejected -> no flush -> no notification.
         Assert::IsTrue (SUCCEEDED (store.MountFromBytes (kSlot, kDrive, "clean.dsk", DiskFormat::Dsk, raw)));
         store.Eject (kSlot, kDrive);
-        Assert::IsFalse (reported, L"clean image must not report");
+        Assert::AreEqual (0, s_flushNotifyCount, L"clean image must not notify");
 
-        // Dirty image that flushes successfully -> no report.
+        // Dirty image that flushes successfully -> no notification.
         Assert::IsTrue (SUCCEEDED (store.MountFromBytes (kSlot, kDrive, "ok.dsk", DiskFormat::Dsk, raw)));
         store.GetImage (kSlot, kDrive)->WriteBit (0, 0, 1);
-        Assert::IsTrue  (SUCCEEDED (store.Flush (kSlot, kDrive)));
-        Assert::IsFalse (reported, L"a successful flush must not report");
+        Assert::IsTrue   (SUCCEEDED (store.Flush (kSlot, kDrive)));
+        Assert::AreEqual (0, s_flushNotifyCount, L"a successful flush must not notify");
     }
 
     TEST_METHOD (FlushError_surfacesThroughVoidEjectPath)
     {
-        // Eject is void and drops FlushEntry's HRESULT; the reporter must
-        // still fire so an eject that loses writes isn't silent.
-        DiskImageStore   store;
-        vector<Byte>     raw      = MakeDsk (0);
-        int              reports  = 0;
+        // Eject is void and drops FlushEntry's HRESULT; the notification
+        // must still fire so an eject that loses writes isn't silent.
+        ScopedFlushNotifyCapture  capture;
+        DiskImageStore            store;
+        vector<Byte>              raw = MakeDsk (0);
 
-        store.SetFlushSink          ([] (const string &, const vector<Byte> &) { return E_FAIL; });
-        store.SetFlushErrorReporter ([&] (const string &, HRESULT) { reports++; });
+        store.SetFlushSink ([] (const string &, const vector<Byte> &) { return E_FAIL; });
 
         Assert::IsTrue (SUCCEEDED (store.MountFromBytes (kSlot, kDrive, "e.dsk", DiskFormat::Dsk, raw)));
         store.GetImage (kSlot, kDrive)->WriteBit (0, 0, 1);
         store.Eject (kSlot, kDrive);
 
-        Assert::AreEqual (1, reports, L"Eject flush failure must surface via the reporter");
+        Assert::AreEqual (1, s_flushNotifyCount, L"Eject flush failure must surface via the notifier");
     }
 
     TEST_METHOD (FlushAll_ClearsDirtyFlags)
@@ -450,19 +473,19 @@ public:
 
     ////////////////////////////////////////////////////////////////////////
     //
-    //  Flush-error reporting reaches through the bulk flush paths that also
-    //  drop the HRESULT (FlushAll / PowerCycle), once per failed dirty mount.
+    //  Flush-error notification reaches through the bulk flush paths that
+    //  also drop the HRESULT (FlushAll / PowerCycle), once per failed dirty
+    //  mount.
     //
     ////////////////////////////////////////////////////////////////////////
 
-    TEST_METHOD (FlushError_reporterFiresPerDirtyMount_viaFlushAll)
+    TEST_METHOD (FlushError_notifiesPerDirtyMount_viaFlushAll)
     {
-        DiskImageStore   store;
-        vector<Byte>     raw     = MakeDsk (0);
-        int              reports = 0;
+        ScopedFlushNotifyCapture  capture;
+        DiskImageStore            store;
+        vector<Byte>              raw = MakeDsk (0);
 
-        store.SetFlushSink          ([] (const string &, const vector<Byte> &) { return E_FAIL; });
-        store.SetFlushErrorReporter ([&] (const string &, HRESULT) { reports++; });
+        store.SetFlushSink ([] (const string &, const vector<Byte> &) { return E_FAIL; });
 
         Assert::IsTrue (SUCCEEDED (store.MountFromBytes (6, 0, "a.dsk", DiskFormat::Dsk, raw)));
         Assert::IsTrue (SUCCEEDED (store.MountFromBytes (6, 1, "b.dsk", DiskFormat::Dsk, raw)));
@@ -470,23 +493,22 @@ public:
         store.GetImage (6, 1)->WriteBit (0, 0, 1);
 
         store.FlushAll ();
-        Assert::AreEqual (2, reports, L"FlushAll must report each dirty mount that fails");
+        Assert::AreEqual (2, s_flushNotifyCount, L"FlushAll must notify for each dirty mount that fails");
     }
 
-    TEST_METHOD (FlushError_reporterFires_viaPowerCycle)
+    TEST_METHOD (FlushError_notifies_viaPowerCycle)
     {
-        DiskImageStore   store;
-        vector<Byte>     raw     = MakeDsk (0);
-        int              reports = 0;
+        ScopedFlushNotifyCapture  capture;
+        DiskImageStore            store;
+        vector<Byte>              raw = MakeDsk (0);
 
-        store.SetFlushSink          ([] (const string &, const vector<Byte> &) { return E_FAIL; });
-        store.SetFlushErrorReporter ([&] (const string &, HRESULT) { reports++; });
+        store.SetFlushSink ([] (const string &, const vector<Byte> &) { return E_FAIL; });
 
         Assert::IsTrue (SUCCEEDED (store.MountFromBytes (6, 0, "a.dsk", DiskFormat::Dsk, raw)));
         store.GetImage (6, 0)->WriteBit (0, 0, 1);   // (6,1) clean
 
         store.PowerCycle ();
-        Assert::AreEqual (1, reports, L"PowerCycle must report the dirty mount that fails");
+        Assert::AreEqual (1, s_flushNotifyCount, L"PowerCycle must notify for the dirty mount that fails");
     }
 
 

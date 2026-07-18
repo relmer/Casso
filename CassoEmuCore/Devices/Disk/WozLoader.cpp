@@ -354,8 +354,8 @@ HRESULT WozLoader::Load (const vector<Byte> & raw, DiskImage & out)
         goto Error;
     }
 
-    out.SetWriteProtected (writeProtected);
-    out.SetSourceFormat   (DiskFormat::Woz);
+    out.SetImageWriteProtected (writeProtected);
+    out.SetSourceFormat        (DiskFormat::Woz);
     out.ClearQuarterTrackMap ();
 
     {
@@ -638,7 +638,10 @@ HRESULT WozLoader::Serialize (const DiskImage & img, vector<Byte> & outBytes)
 
         info[0] = 2;                                            // INFO version 2
         info[1] = 1;                                            // disk type: 5.25"
-        info[2] = static_cast<Byte> (img.IsWriteProtected () ? 1 : 0);
+        // Persist only the image's OWN write-protect flag -- a transient
+        // user setting or a read-only backing file must not be baked into
+        // the serialized image bytes.
+        info[2] = static_cast<Byte> (img.IsImageWriteProtected () ? 1 : 0);
         info[3] = 0;                                            // synchronized
         info[4] = 1;                                            // cleaned
         memset (info + 5, ' ', 32);                             // creator: 32 bytes, space-padded

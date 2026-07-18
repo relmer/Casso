@@ -301,6 +301,10 @@ HRESULT SettingsSheet::OpenModeless (
     {
         return m_emuShell->MountedImagePath (driveIndex);
     });
+    m_themePage->SetWriteProtectSource ([this] (int driveIndex) -> WriteProtectInfo
+    {
+        return m_emuShell->DriveWriteProtect (driveIndex);
+    });
     // Drive the preview's disk presence off the STAGED config so toggling the
     // Disk ][ controller on the Machine tab updates the preview immediately --
     // dropping the drive widgets + collapsing the drive bar (#84 Phase C/D),

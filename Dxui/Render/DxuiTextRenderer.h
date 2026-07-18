@@ -73,6 +73,9 @@ public:
     HRESULT  PushClipRect     (float xDip, float yDip, float widthDip, float heightDip) override;
     HRESULT  PopClipRect      () override;
 
+    void     PushTextSkew     (float tanX, float yPivotDip) override;
+    void     PopTextSkew      () override;
+
     HRESULT  FillRect         (float    xDip,
                                float    yDip,
                                float    widthDip,
@@ -156,6 +159,7 @@ private:
     ComPtr<ID2D1Factory1>             m_d2dFactory;
     ComPtr<ID2D1Device>               m_d2dDevice;
     ComPtr<ID2D1DeviceContext>        m_d2dContext;
+    D2D1_MATRIX_3X2_F                 m_savedTransform = D2D1::Matrix3x2F::Identity();
     ComPtr<ID2D1Bitmap1>              m_target;
     ComPtr<ID2D1Bitmap1>              m_offscreen;
     UINT                              m_offscreenW = 0;
