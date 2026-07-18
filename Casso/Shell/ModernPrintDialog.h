@@ -58,6 +58,8 @@ private:
     Microsoft::WRL::ComPtr<IUnknown>  m_interop;      // IPrintManagerInterop
     Microsoft::WRL::ComPtr<IUnknown>  m_manager;      // IPrintManager (per window)
     Microsoft::WRL::ComPtr<IUnknown>  m_session;      // active document source
+    Microsoft::WRL::ComPtr<IUnknown>  m_showOp;       // ShowPrintUIForWindowAsync operation, held for the session
+    Microsoft::WRL::ComPtr<IUnknown>  m_dispatcherQueue;   // thread DispatcherQueue controller (kept alive)
     EventRegistrationToken            m_taskToken     = {};
     bool                              m_registered    = false;
     HWND                              m_hwnd          = nullptr;

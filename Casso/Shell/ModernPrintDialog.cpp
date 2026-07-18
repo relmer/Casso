@@ -15,6 +15,7 @@
 #include <documenttarget.h>
 #include <printpreview.h>
 #include <roapi.h>
+#include <DispatcherQueue.h>
 #include <wrl/event.h>
 #include <wrl/implements.h>
 #include <wrl/wrappers/corewrappers.h>
@@ -23,6 +24,7 @@
 #include <wincodec.h>
 
 #pragma comment (lib, "runtimeobject.lib")
+#pragma comment (lib, "CoreMessaging.lib")
 #pragma comment (lib, "d2d1.lib")
 #pragma comment (lib, "d3d11.lib")
 
@@ -109,6 +111,8 @@ public:
         {
             return E_INVALIDARG;
         }
+
+        LogModernPrint (L"GetPreviewPageCollection");
 
         hr = docPackageTarget->GetPackageTarget (ID_PREVIEWPACKAGETARGET_DXGI,
                                                  IID_PPV_ARGS (&m_previewTarget));
@@ -231,6 +235,8 @@ public:
         UNREFERENCED_PARAMETER (currentJobPage);
         UNREFERENCED_PARAMETER (docSettings);
 
+        LogModernPrint (std::format (L"Paginate -> {} page(s)", PageCount ()));
+
         if (m_previewTarget != nullptr)
         {
             m_previewTarget->SetJobPageCount (PageCountType::FinalPageCount, PageCount ());
@@ -248,6 +254,8 @@ public:
         ComPtr<IDXGISurface>     surface;
         ComPtr<ID2D1Bitmap1>     target;
         ComPtr<ID2D1Bitmap1>     pageBitmap;
+
+        LogModernPrint (std::format (L"MakePage {} at {}x{}", desiredJobPage, width, height));
 
         if (m_previewTarget == nullptr || width <= 1.0f || height <= 1.0f)
         {
@@ -475,6 +483,23 @@ HRESULT ModernPrintDialog::ShowAsync (HWND hwnd, const PrintRaster & raster, int
     ComPtr<PrintPageSource>              source;
     ComPtr<IInspectable>                 showOp;
 
+    // Newer Windows builds route the modern print experience's callbacks
+    // through a DispatcherQueue; without one on the calling thread the dialog
+    // can sit at "connecting" forever (PrintTaskRequested never raises).
+    // Create a thread-bound queue controller once and keep it alive.
+    if (m_dispatcherQueue == nullptr)
+    {
+        DispatcherQueueOptions  options = {};
+
+        options.dwSize        = sizeof (options);
+        options.threadType    = DQTYPE_THREAD_CURRENT;
+        options.apartmentType = DQTAT_COM_STA;
+
+        HRESULT  hrQueue = CreateDispatcherQueueController (options, (PDISPATCHERQUEUECONTROLLER *) m_dispatcherQueue.GetAddressOf ());
+
+        LogModernPrint (std::format (L"CreateDispatcherQueueController -> 0x{:08X}", (uint32_t) hrQueue));
+    }
+
     hr = Microsoft::WRL::MakeAndInitialize<PrintPageSource> (&source, raster, outputDpi, style);
     if (FAILED (hr))
     {
@@ -553,6 +578,8 @@ HRESULT ModernPrintDialog::ShowAsync (HWND hwnd, const PrintRaster & raster, int
                 ComPtr<awgp::IPrintTask>         task;
                 ComPtr<IUnknown>                 sessionUnk;
 
+                LogModernPrint (L"PrintTaskRequested fired");
+
                 {
                     std::lock_guard<std::mutex>  lock (s_kSessionLock);
 
@@ -560,6 +587,7 @@ HRESULT ModernPrintDialog::ShowAsync (HWND hwnd, const PrintRaster & raster, int
                 }
                 if (sessionUnk == nullptr)
                 {
+                    LogModernPrint (L"no session in flight; ignoring the request");
                     return S_OK;   // no Casso print in flight (stale event)
                 }
 
@@ -585,6 +613,8 @@ HRESULT ModernPrintDialog::ShowAsync (HWND hwnd, const PrintRaster & raster, int
                     LogModernPrint (std::format (L"CreatePrintTask failed 0x{:08X}", (uint32_t) hrCb));
                     return hrCb;
                 }
+
+                LogModernPrint (L"print task created");
 
                 // Completion -> post the result to the UI thread. Cancel /
                 // abandon post nothing (matches the classic S_FALSE path).
@@ -642,6 +672,11 @@ HRESULT ModernPrintDialog::ShowAsync (HWND hwnd, const PrintRaster & raster, int
         m_session.Reset ();
         return hr;
     }
+
+    // Hold the async operation for the session: releasing it immediately can
+    // tear down the print experience's connection back into the app on newer
+    // Windows builds (the dialog then spins at "connecting" forever).
+    m_showOp = showOp;
 
     LogModernPrint (std::format (L"print UI up: {} page(s)", source->PageCount ()));
     return S_OK;

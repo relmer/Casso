@@ -1369,19 +1369,28 @@ void WindowCommandManager::OnPrinterCommand (int id)
 
     if (print)
     {
-        // DCR-1: the modern OS print UI with a live preview. The session
-        // COPIES the strip, so the worker resumes immediately and the dialog
-        // runs async -- its completion posts IDM_PRINTER_MODERN_* back here
-        // for the result dialogs. If it cannot launch (older Windows,
-        // activation failure), the classic PrintDlg path below still works.
-        const GlobalUserPrefs &  prefs = m_shell.m_globalPrefs;
+        // DCR-1: the modern OS print UI with a live preview -- OPT-IN via the
+        // CASSO_MODERN_PRINT environment variable. The implementation follows
+        // the documented PrintManagerInterop contract and every setup call
+        // succeeds, but on current Windows builds (verified on 26200 with
+        // stage instrumentation) the print experience never raises
+        // PrintTaskRequested into an unpackaged Win32 app: the dialog sits at
+        // "connecting" forever. Until the OS contract works here, the classic
+        // dialog stays the default -- it prints correctly with honest error
+        // reporting; only its preview pane is unfilled.
+        wchar_t  modernOptIn[8] = {};
 
-        if (SUCCEEDED (m_modernPrint.ShowAsync (m_shell.m_hwnd, job->Raster (),
-                                                PrintDpiFromPrefs (prefs),
-                                                PrintDotStyleFromPrefs (prefs))))
+        if (GetEnvironmentVariableW (L"CASSO_MODERN_PRINT", modernOptIn, 8) > 0)
         {
-            m_shell.m_printerWorker.Start (m_shell.m_refs.printerCard->ByteRing (), job->Raster ());
-            return;
+            const GlobalUserPrefs &  prefs = m_shell.m_globalPrefs;
+
+            if (SUCCEEDED (m_modernPrint.ShowAsync (m_shell.m_hwnd, job->Raster (),
+                                                    PrintDpiFromPrefs (prefs),
+                                                    PrintDotStyleFromPrefs (prefs))))
+            {
+                m_shell.m_printerWorker.Start (m_shell.m_refs.printerCard->ByteRing (), job->Raster ());
+                return;
+            }
         }
 
         hr = PrintToWindowsPrinter (job->Raster (), failedStage);

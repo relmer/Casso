@@ -166,8 +166,16 @@ machinery; see the 2026-07-16 comment there. These tasks are not being implement
 Raised while dogfooding the shipped feature; larger than bug fixes, so tracked as DCRs
 rather than folded silently into the spec.
 
-- [X] DCR-1 **Windows print dialog "doesn't support print preview".** SHIPPED (needs the
-  user's live pass). `Casso/Shell/ModernPrintDialog.{h,cpp}` launches the Windows modern print
+- [X] DCR-1 **Windows print dialog "doesn't support print preview".** Implemented in full,
+  then OS-BLOCKED on live test: on Windows build 26200 the modern print experience opens but
+  NEVER raises `PrintTaskRequested` into an unpackaged Win32 app — the dialog spins at
+  "connecting" forever. Verified with stage instrumentation (all setup calls S_OK: activation,
+  `GetForWindow`, `add_PrintTaskRequested`, `ShowPrintUIForWindowAsync`; the handler never
+  enters); holding the async operation alive and creating a thread `DispatcherQueue` were
+  both tried and made no difference. The classic `PrintDlg` path is the DEFAULT again (prints
+  correctly, honest errors — only its preview pane is unfilled); the modern path remains
+  compiled and opt-in via `CASSO_MODERN_PRINT=1` for retesting on future Windows builds or
+  under package identity. Original implementation notes: `Casso/Shell/ModernPrintDialog.{h,cpp}` launches the Windows modern print
   UI via raw-ABI WRL (no C++/WinRT dependency): `RoGetActivationFactory` →
   `IPrintManagerInterop::GetForWindow` + `ShowPrintUIForWindowAsync`; `PrintTaskRequested`
   hands the task a `PrintPageSource` (WRL RuntimeClass: `IPrintDocumentSource` marker +
