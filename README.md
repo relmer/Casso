@@ -31,6 +31,15 @@ The project includes:
 
 See [CHANGELOG.md](CHANGELOG.md) for the granular history.
 
+### Apple //c case-switch strip (v1.10.0)
+
+The two latching switches on the //c case are modeled on a skeuomorphic
+control strip in the ImageWriter-platinum case colour: the **80/40**
+switch drives `$C060` (in = 80-column startup, read by a booting disk's
+`PR#3`), the **keyboard** switch flips the typed stream to Dvorak, and a
+**reset** button reproduces Control-Reset (inert without Ctrl), alongside
+disk-use / power indicator LEDs. Both switch positions persist per machine.
+
 ### Apple //c + //e Enhanced (v1.8.0)
 
 Casso now emulates the **Apple //c** (ROM 4, 5.25"/128K): a Rockwell
@@ -41,15 +50,10 @@ the built-in IWM disk drive (plus a connectable external drive), dual
 by the machine's real mouse firmware, with the host pointer mapping
 non-capturing onto the guest. Input mapping split into independent
 Keys (arrows→joystick) and Pointer (paddle/mouse) selections with a new
-segmented device selector drawing the real Apple peripherals. The two
-latching switches on the //c case are modeled too, on a skeuomorphic
-control strip in the ImageWriter-platinum case colour: the **80/40**
-switch drives `$C060` (in = 80-column startup, read by a booting disk's
-`PR#3`), the **keyboard** switch flips the typed stream to Dvorak, and a
-**reset** button reproduces Control-Reset (inert without Ctrl), alongside
-disk-use / power indicator LEDs. The same 65C02 also powers a new **Apple
-//e Enhanced** profile (issue #86) — the //e with the enhanced firmware +
-MouseText video ROM, for the CMOS titles that misbehave on the NMOS //e.
+segmented device selector drawing the real Apple peripherals. The same
+65C02 also powers a new **Apple //e Enhanced** profile (issue #86) — the
+//e with the enhanced firmware + MouseText video ROM, for the CMOS titles
+that misbehave on the NMOS //e.
 
 ### Mockingboard sound card (v1.7.0)
 
