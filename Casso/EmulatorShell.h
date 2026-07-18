@@ -26,7 +26,6 @@
 #include "Ui/Chrome/CassoTheme.h"
 #include "Ui/Chrome/DriveWidget.h"
 #include "Ui/Chrome/InputDeviceSelector.h"
-#include "Ui/Chrome/PrinterIndicator.h"
 #include "Ui/Chrome/CommandToolbar.h"
 #include "Ui/Chrome/MainMenu.h"
 #include "Ui/ColorUtil.h"
@@ -538,7 +537,6 @@ private:
     // Position the printer status indicator in the command-bar dead space to
     // the right of the centred drive widgets, or Hide() it when the machine
     // has no printer card. Does not affect drive centring.
-    void    LayoutPrinterIndicator (int bottomInsetPx, int clientW, int clientH, UINT dpi);
 
     // Open (creating if needed) the printer panel / print preview window, and
     // push it a fresh snapshot of the current strip. `activate` false shows it
@@ -559,7 +557,7 @@ private:
     // Per-frame: sample the worker's status signals, recompute the indicator
     // state, and mark a redraw only when it changes (so a static screen still
     // repaints the LED on a transition).
-    void    UpdatePrinterIndicator ();
+    void    UpdatePrinterStatus ();
 
     // Delivery outcome -> the printer status LED: failed=true lights the red
     // error state until a success / discard clears it or the guest prints
@@ -665,14 +663,15 @@ private:
 
     // The command toolbar (spec 015 DCR-2): the strip below the menu bar with
     // Settings / Printer (+status LED) / master Volume + Mute / Screenshot /
-    // Reset / Power. Carries the printer status light, retiring the standalone
-    // PrinterIndicator (whose instance below is no longer adopted or painted).
+    // Reset / Power. Its printer button carries the status light (the old
+    // standalone PrinterIndicator is deleted).
     CommandToolbar      m_toolbar;
 
-    // Chrome printer status indicator -- RETIRED by the toolbar's printer
-    // button (DCR-2); kept only until the class is deleted after sign-off.
-    PrinterIndicator    m_printerIndicator;
+    // The pure model deriving the printer LED state from the worker's live
+    // signals, plus the last state pushed to the toolbar so a transition
+    // repaints exactly once.
     PrinterStatusModel  m_printerStatus;
+    PrinterStatus       m_printerStatusShown = PrinterStatus::Idle;
 
     // Delivery-failure latch feeding the status model's error input (the
     // toolbar LED's red). Set by the delivery paths in WindowCommandManager;

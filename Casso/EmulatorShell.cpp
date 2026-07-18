@@ -1441,7 +1441,6 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
         int   bottomInsetPx = clientH - vr.bottom;
 
         LayoutDriveWidgetsInCommandBar (m_driveChrome, bottomInsetPx, clientW, clientH, dpi);
-        LayoutPrinterIndicator (bottomInsetPx, clientW, clientH, dpi);
         {
             int  bandTop    = clientH - bottomInsetPx;
             int  bandHeight = MulDiv (s_kJoystickButtonBandDp, static_cast<int> (dpi), s_kBaseDpi);
@@ -2511,66 +2510,8 @@ void EmulatorShell::RelayoutJoystickButton ()
 
 
 
-////////////////////////////////////////////////////////////////////////////////
-//
-//  EmulatorShell::LayoutPrinterIndicator
-//
-//  Anchors the printer status indicator in the command-bar dead space at the
-//  right edge, vertically centred in the band. Positioned independently of the
-//  centred drive widgets so it never shifts their layout. Hidden entirely when
-//  the machine has no printer card.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void EmulatorShell::LayoutPrinterIndicator (int bottomInsetPx, int clientW, int clientH, UINT dpi)
-{
-    DxuiDpiScaler  scaler;
-    int            desiredW      = 0;
-    int            desiredH      = 0;
-    int            driveRight    = 0;
-    int            rightPad      = 0;
-    int            avail         = 0;
-    int            w             = 0;
-    int            h             = 0;
-    int            commandBarTop = 0;
-    int            x             = 0;
-    int            y             = 0;
-
-    if (m_refs.printerCard == nullptr)
-    {
-        m_printerIndicator.Hide ();
-        return;
-    }
-
-    scaler.SetDpi (dpi);
-
-    desiredW = scaler.Px (76);
-    desiredH = scaler.Px (58);
-
-    // Fit inside the dead space to the right of the (centred) drive widgets so
-    // the printer never overlaps a drive or shifts their centring. When the
-    // drives are hidden the right edge is 0 and the full desired size is used.
-    rightPad   = scaler.Px (10);
-    driveRight = std::max (0, (int) m_driveChrome[1].OuterRect ().right);
-    avail      = clientW - rightPad - driveRight - scaler.Px (10);
-
-    w = std::min (desiredW, std::max (scaler.Px (40), avail));
-    h = (w * desiredH) / std::max (1, desiredW);   // keep the wide-low aspect
-
-    // Bottom-align to the same shelf as the drive bodies (their outer bottom is
-    // clientH - the label bottom gap), so the low printer sits beside the tall
-    // drives rather than floating.
-    x             = std::max (0, clientW - rightPad - w);
-    y             = (clientH - scaler.Px (s_kLabelBottomGapDp)) - h;
-    commandBarTop = std::max (0, clientH - bottomInsetPx);
-
-    if (y < commandBarTop)
-    {
-        y = commandBarTop;
-    }
-
-    m_printerIndicator.Layout (RECT{ x, y, x + w, y + h }, scaler);
-}
+// (LayoutPrinterIndicator deleted: the standalone printer indicator is
+// retired -- the toolbar's Printer button carries the status LED now.)
 
 
 
@@ -2805,15 +2746,16 @@ void EmulatorShell::SnapshotStripToPanel ()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  EmulatorShell::UpdatePrinterIndicator
+//  EmulatorShell::UpdatePrinterStatus
 //
-//  Samples the worker's thread-safe status signals, recomputes the indicator
-//  state through the pure PrinterStatusModel, and marks a redraw only on a
-//  change so a static screen still repaints the LED on a transition.
+//  Samples the worker's thread-safe status signals, recomputes the LED state
+//  through the pure PrinterStatusModel, feeds the toolbar's printer button,
+//  and marks a redraw only on a change so a static screen still repaints the
+//  LED on a transition.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::UpdatePrinterIndicator ()
+void EmulatorShell::UpdatePrinterStatus ()
 {
     int64_t        nowMs  = 0;
     PrinterStatus  status = PrinterStatus::Idle;
@@ -2846,11 +2788,11 @@ void EmulatorShell::UpdatePrinterIndicator ()
 
     status = m_printerStatus.Status ();
 
-    // The toolbar's printer button carries the status light now (DCR-2); the
-    // retired standalone indicator is no longer adopted or painted.
-    if (status != m_printerIndicator.Status ())
+    // The toolbar's printer button carries the status light (DCR-2); repaint
+    // only when the LED state actually changes.
+    if (status != m_printerStatusShown)
     {
-        m_printerIndicator.SetStatus (status);
+        m_printerStatusShown = status;
         m_toolbar.SetPrinterStatus (status);
         m_d3dRenderer.MarkRedrawNeeded ();
     }
@@ -3463,7 +3405,7 @@ bool EmulatorShell::PumpUiFrame()
 
     // Refresh the printer status LED; marks a redraw itself on a change so
     // a static screen (e.g. a pending page at the BASIC prompt) repaints.
-    UpdatePrinterIndicator ();
+    UpdatePrinterStatus ();
 
     // Auto-open the print preview when a print begins and stream the strip
     // into it live as the guest prints (non-destructive snapshot).
@@ -6232,8 +6174,6 @@ DxuiMessageResult EmulatorShell::OnSize (UINT widthPx, UINT heightPx)
                 m_driveChrome[0].Hide();
                 m_driveChrome[1].Hide();
             }
-
-            LayoutPrinterIndicator (bottomInsetPx, static_cast<int> (width), renderH, dpi);
 
             // OnSize is the authoritative layout (only fires on a real WM_SIZE,
             // never per-frame), so record the disk-presence this window size now

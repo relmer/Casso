@@ -70,6 +70,11 @@
 #define IDM_PRINTER_PRINT           40064
 #define IDM_PRINTER_SAVEAS          40065
 
+// Posted back by the modern (async) print session's completion callback so
+// result dialogs run on the UI thread (DCR-1). Not menu items.
+#define IDM_PRINTER_MODERN_SENT     40066
+#define IDM_PRINTER_MODERN_FAILED   40067
+
 #define IDM_HELP_KEYMAP             40040
 #define IDM_HELP_ABOUT              40042
 
