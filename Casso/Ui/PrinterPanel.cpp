@@ -649,6 +649,7 @@ void PrinterPanel::RefreshLive (PrinterWorker & worker, int64_t nowMs, bool forc
     int                     bandBottom  = 0;
     bool                    moved       = false;
     bool                    revealMoved = false;
+    bool                    revealBehind = false;
     PrinterViewport::Span   span;
     PrintRaster             spanRaster;
 
@@ -736,7 +737,8 @@ void PrinterPanel::RefreshLive (PrinterWorker & worker, int64_t nowMs, bool forc
         int   sweepWidth  = PrinterGrid::kDotsPerRow;
         int   liveTop     = m_pacing.RevealedRows();
 
-        if (liveTop < laggedRow)
+        revealBehind = (liveTop < laggedRow);
+        if (revealBehind)
         {
             int  extent = worker.SpanInkExtent (liveTop, liveTop + s_kPinBandRows - 1);
 
@@ -745,6 +747,15 @@ void PrinterPanel::RefreshLive (PrinterWorker & worker, int64_t nowMs, bool forc
             {
                 sweepWidth = (std::min) (PrinterGrid::kDotsPerRow, extent + s_kSweepOvertravelDots);
             }
+
+            // While catching up, the audio's ink gate IS the pacer's: the band
+            // the head is sweeping buzzes, a blank band feeds silently. The
+            // render-side span sample below cannot serve here -- at catch-up
+            // speed the reveal races ahead of the EASED viewport pan, so the
+            // live band is often outside the snapshotted span and sampling it
+            // reads blank paper (the missing CATALOG buzz). Assigned before the
+            // render throttle's early-outs so it stays fresh every frame.
+            m_revealInk = liveBandInk;
         }
 
         m_pacing.SetTargetPosition (laggedRow, sweepWidth);
@@ -850,21 +861,23 @@ void PrinterPanel::RefreshLive (PrinterWorker & worker, int64_t nowMs, bool forc
         RenderSpan (spanRaster, span.firstRow, span.lastRow, contentDirty, revealRow, revealLo, revealHi);
 
         // Tell the audio whether the head passed over ink (buzz) vs blank feed
-        // (silent). Sample the FULL column span the head swept SINCE THE LAST
-        // FRAME, not a fixed lookback: at carriage speed the head advances more
-        // dots per frame than a short window is wide, so a thin feature crossed
-        // between two frames (a border edge, a lone glyph) used to fall between
-        // the samples and drop the buzz -- exactly the "misses sometimes" and the
-        // silent borders on a whitespace line. A small bridge behind the leading
-        // edge keeps a word buzzing across the blank gaps between glyphs (the
-        // audio hold bridges the rest). On a line wrap the column jumps margin to
-        // margin (the band advanced, or an implausibly wide step) -- there is no
-        // contiguous swept span to sample. At catch-up speed a WHOLE pass
-        // completes between two frames (every frame wraps), so a narrow window
-        // at the new head misses sparse text almost every time and the buzz
-        // never arms -- the missing pins-on-platen sound for a CATALOG. Sample
-        // the entire band instead: any ink means the pass the head just ran is
-        // a printing pass (buzz); a blank band (line / form feed) stays silent.
+        // (silent) -- CAUGHT-UP frames only. While the reveal trails the guest,
+        // the pacing block above already set m_revealInk from the live band's
+        // WORKER-raster extent: this span snapshot cannot serve there, because
+        // at catch-up speed the reveal races ahead of the EASED viewport pan,
+        // the live band falls outside the snapshot, and CellAt reads blank --
+        // the missing CATALOG buzz. Caught up, the span IS the live region, so
+        // sample the FULL column span the head swept SINCE THE LAST FRAME, not
+        // a fixed lookback: at carriage speed the head advances more dots per
+        // frame than a short window is wide, so a thin feature crossed between
+        // two frames (a border edge, a lone glyph) used to fall between the
+        // samples and drop the buzz. A small bridge behind the leading edge
+        // keeps a word buzzing across the blank gaps between glyphs (the audio
+        // hold bridges the rest). On a line wrap the column jumps margin to
+        // margin -- no contiguous swept span exists, so sample the entire band:
+        // any ink means the pass the head just ran is a printing pass (buzz);
+        // a blank band (line / form feed) stays silent.
+        if (!revealBehind)
         {
             constexpr int  kInkBridgeDots = (PrinterGrid::kDotsPerInchH * 3) / 20;   // 0.15"
             int  prevCol = m_renderedRevealCol;

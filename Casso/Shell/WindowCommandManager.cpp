@@ -1005,7 +1005,8 @@ HRESULT WindowCommandManager::PrintToWindowsPrinter (const PrintRaster & raster,
     LogPrinter (std::format (L"printer='{}'", SelectedPrinterName (pd)));
     CBRFEx (pd.hDC != nullptr, E_FAIL,
             failedStage = L"PrintDlg (the chosen printer returned no device context)";
-            LogPrinter (L"PrintDlg returned a null DC"));
+            LogPrinter (std::format (L"PrintDlg returned a null DC (CommDlgExtendedError=0x{:X}, GetLastError={})",
+                                     CommDlgExtendedError (), GetLastError ())));
 
     di.cbSize      = sizeof (di);
     di.lpszDocName = L"Casso Printout";

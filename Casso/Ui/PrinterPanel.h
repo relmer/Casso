@@ -236,8 +236,12 @@ private:
 
 
     // Ink-under-head flag for the printer audio (see GetPacedReveal): true when
-    // the pin band at the paced reveal carries ink just behind the sweep column.
-    // Recomputed each render from the span raster; false on a blank sheet.
+    // the pin band at the paced reveal carries ink. Two sources, one clock:
+    // while the reveal trails the guest it is the live band's worker-raster
+    // extent (the very signal the pacer sweeps by -- the eased viewport span
+    // lags the reveal there, so snapshot sampling would read blank); caught up
+    // it is sampled from the span raster just behind the sweep column. False
+    // on a blank sheet.
     bool                    m_revealInk        = false;
 
     // Rendered-span cache: scrolling shifts the visible window over UNCHANGED
