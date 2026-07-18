@@ -22,12 +22,11 @@
 //  the same HandleCommand path as the menu, so the toolbar adds no new
 //  command semantics.
 //
-//  Icons are Segoe MDL2 Assets glyphs (the repo's established icon face),
-//  except the Printer button, which draws the miniature skeuomorphic
-//  ImageWriter II (lifted from PrinterIndicator) so the printer keeps its
-//  distinctive glyph; its front-panel light carries the PrinterStatus colour:
-//  dim green = powered + idle, bright green = receiving a print, amber = a
-//  finished page is waiting in the printer, red = delivery error.
+//  Icons are Segoe MDL2 Assets glyphs (the repo's established icon face);
+//  the Printer button additionally carries a status-LED dot on its glyph's
+//  corner. The light is EVENT-ONLY -- unlit while idle (no light = no
+//  problem): bright green = receiving a print, bright amber = a finished
+//  page is waiting in the printer, bright red = delivery error.
 //
 //  Input is hand-routed by EmulatorShell (like the joystick button): the
 //  shell forwards mouse events to OnMouseMove / OnLButtonDown / OnLButtonUp,

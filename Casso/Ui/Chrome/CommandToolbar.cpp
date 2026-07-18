@@ -138,24 +138,33 @@ bool CommandToolbar::HitTest (int x, int y) const
 
 uint32_t CommandToolbar::StatusCore (PrinterStatus status)
 {
+    // Event-only light: no LED at all while idle (no light = no problem), and
+    // the lit states run bright -- dim colors disappear against the themed
+    // strip. 0 == unlit.
     switch (status)
     {
-    case PrinterStatus::Receiving: return 0xFF3FD35A;   // green: printing now
-    case PrinterStatus::Pending:   return 0xFFF5A623;   // amber: page waiting
-    case PrinterStatus::Error:     return 0xFFE5484D;   // red:   failed
+    case PrinterStatus::Receiving: return 0xFF4CE96A;   // bright green: printing now
+    case PrinterStatus::Pending:   return 0xFFFFB938;   // bright amber: page waiting
+    case PrinterStatus::Error:     return 0xFFFF5257;   // bright red:   failed
     case PrinterStatus::Idle:
-    default:                       return 0xFF3B7A46;   // dim green: powered, idle
+    default:                       return 0;            // off: powered + idle
     }
 }
 
 
 // A small status-light dot riding the printer glyph's corner (halo + core in
 // the PrinterStatus colour) -- the monoline glyph keeps the icon set uniform
-// while the LED keeps the at-a-glance printer state.
+// while the LED keeps the at-a-glance printer state. core == 0 means unlit
+// (idle): paint nothing at all.
 static void PaintStatusLed (IDxuiPainter & painter, float cx, float cy, UINT dpi, uint32_t core)
 {
     float     r    = 2.0f * (float) dpi / (float) s_kBaseDpi;
-    uint32_t  halo = (core & 0x00FFFFFFu) | 0x66000000u;
+    uint32_t  halo = (core & 0x00FFFFFFu) | 0x80000000u;
+
+    if (core == 0)
+    {
+        return;
+    }
 
     painter.FillCircleApprox (cx, cy, r * 1.8f, halo);
     painter.FillCircleApprox (cx, cy, r,        core);
