@@ -60,9 +60,11 @@ public:
     // fast catch-up) cannot machine-gun the clack.
     static constexpr double  kFeedMinIntervalSec = 0.09;
 
-    // A revealed-column drop larger than this counts as a new-line wrap (the
-    // carriage returning to the left margin), which fires a line-feed clack.
-    static constexpr int     kLineWrapDropDots   = 400;
+    // A revealed-column drop larger than half the pass's sweep width (never
+    // less than this floor) counts as a new-line wrap, which fires a line-feed
+    // clack. Scaled, not fixed: a logic-seeking pass over a short line is
+    // narrower than any fixed full-width threshold.
+    static constexpr int     kLineWrapDropFloor  = 50;
 
     static constexpr int     kNumLineFeeds       = 3;
     static constexpr int     kNumPageFeeds       = 3;   // short, medium, long
@@ -89,7 +91,12 @@ public:
     // AND ink, so a form feed / blank line feed feeds silently under its own
     // one-shot instead of buzzing like a print. The line-feed clack still fires
     // on a column wrap regardless (that IS the feed sound).
-    void  PublishReveal (int64_t progressDots, int colDots, bool inkActive = true);
+    // `sweepWidthDots` is the current pass's span (logic seeking): the wrap
+    // detector scales its column-drop threshold to it, so a short catalog
+    // line's wrap still clacks even though its whole pass is narrower than a
+    // fixed full-width threshold.
+    void  PublishReveal (int64_t progressDots, int colDots, bool inkActive = true,
+                         int sweepWidthDots = 1280);
 
     // User-action one-shots (UI thread; consumed on the audio thread). Form Feed
     // picks the page-feed grain by how much of the page will feed (`unusedPage01`
@@ -155,7 +162,8 @@ private:
     // Sync channel: UI thread writes, audio thread reads.
     std::atomic<int64_t>  m_revealProgress { 0 };
     std::atomic<int32_t>  m_revealCol      { 0 };
-    std::atomic<int32_t>  m_revealInk      { 1 };   // 1 = head laying ink (buzz eligible)
+    std::atomic<int32_t>  m_revealInk      { 1 };      // 1 = head laying ink (buzz eligible)
+    std::atomic<int32_t>  m_revealSweepW   { 1280 };   // pass span for wrap detection
 
     // User-action request (UI thread writes, audio thread exchanges to 0):
     // 0 = none, 1..3 = page-feed short/medium/long, 4..8 = tear 0..4.

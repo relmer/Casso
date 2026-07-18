@@ -5,6 +5,13 @@
 
 
 
+// Floor on a pass's sweep width (logic seeking): even a single-dot line moves
+// the head a visible nudge rather than completing a zero-length "pass".
+static constexpr int   s_kMinSweepDots = 64;
+
+
+
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  PrinterPacing::PrinterPacing
@@ -61,25 +68,32 @@ void PrinterPacing::SetTargetRows (int targetRows)
 //
 //  PrinterPacing::SetTargetPosition
 //
-//  Sets how many rows the guest has produced (the carriage chases this). The
-//  column argument is retained for API / future head-column tracking, but the
-//  sweep runs the full carriage width every band (revealing ink IS the sweep),
-//  so it is not used to bound the sweep here.
+//  Sets how many rows the guest has produced (the carriage chases this) and
+//  the live band's sweep width -- the real machine's LOGIC SEEKING: the head
+//  travels only the printed span of each pass (plus overtravel the caller
+//  bakes in), so a short catalog line sweeps ~2 inches, not the whole platen.
+//  A mid-pass column already beyond a narrower new width clamps to it, so the
+//  pass completes instead of overshooting.
 //
-//  Crucially this does NOT touch the head column. When the carriage has caught
-//  the guest it parks at the margin its last pass ended on; fresh content simply
-//  lets Advance resume the sweep from that same margin. Resetting the column here
-//  (the old behavior) teleported the head back to an edge on every sub-chunk the
-//  guest fed a band in -- the forward/back/forward stutter. A target that shrinks
-//  below the reveal (a tear-off) rewinds onto the fresh sheet.
+//  Crucially this does NOT touch the head column otherwise. When the carriage
+//  has caught the guest it parks at the margin its last pass ended on; fresh
+//  content simply lets Advance resume the sweep from that same margin.
+//  Resetting the column here (the old behavior) teleported the head back to an
+//  edge on every sub-chunk the guest fed a band in -- the forward/back/forward
+//  stutter. A target that shrinks below the reveal (a tear-off) rewinds onto
+//  the fresh sheet.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void PrinterPacing::SetTargetPosition (int targetRows, int targetColDots)
 {
-    (void) targetColDots;
+    m_target         = (targetRows > 0) ? targetRows : 0;
+    m_sweepWidthDots = std::clamp (targetColDots, s_kMinSweepDots, PrinterGrid::kDotsPerRow);
 
-    m_target = (targetRows > 0) ? targetRows : 0;
+    if (m_revealedCol > (double) m_sweepWidthDots)
+    {
+        m_revealedCol = (double) m_sweepWidthDots;   // narrower band: finish the pass at its edge
+    }
 
     if (m_revealed > (double) m_target)
     {
@@ -113,8 +127,8 @@ void PrinterPacing::RequestFastForward()
 
 int PrinterPacing::Advance (double nowSeconds, bool liveBandHasInk)
 {
-    double  dt          = 0.0;
-    double  dotsPerRow  = (double) PrinterGrid::kDotsPerRow;
+    double  dt     = 0.0;
+    double  sweepW = (double) m_sweepWidthDots;   // this band's pass span (logic seeking)
 
     if (!m_started)
     {
@@ -167,15 +181,16 @@ int PrinterPacing::Advance (double nowSeconds, bool liveBandHasInk)
         return RevealedRows();
     }
 
-    // Sweep the carriage across the live band at the real ImageWriter rate. Each
-    // full-width pass reveals ONE pin band and steps the head down a band
-    // (reversing direction, bidirectional print) -- so revealing rows and the
+    // Sweep the carriage across the live band at the real ImageWriter rate.
+    // Each completed pass -- the band's SWEEP WIDTH, not the whole platen
+    // (logic seeking) -- reveals ONE pin band and steps the head down a band
+    // (reversing direction, bidirectional print), so revealing rows and the
     // head sweep are the same motion and neither can outrun the other.
     m_revealedCol += m_cfg.dotsPerSecond * dt;
 
-    while (m_revealedCol >= dotsPerRow && m_revealed < (double) m_target)
+    while (m_revealedCol >= sweepW && m_revealed < (double) m_target)
     {
-        m_revealedCol     -= dotsPerRow;
+        m_revealedCol     -= sweepW;
         m_revealed         = (std::min) ((double) m_target, m_revealed + (double) m_cfg.rowsPerSweep);
         m_sweepLeftToRight = !m_sweepLeftToRight;
     }
@@ -187,9 +202,9 @@ int PrinterPacing::Advance (double nowSeconds, bool liveBandHasInk)
     {
         m_revealed = (double) m_target;
     }
-    if (m_revealedCol > dotsPerRow)
+    if (m_revealedCol > sweepW)
     {
-        m_revealedCol = dotsPerRow;
+        m_revealedCol = sweepW;
     }
 
     return RevealedRows();
@@ -226,13 +241,14 @@ int PrinterPacing::RevealedRows() const
 int PrinterPacing::RevealedColDots() const
 {
     // The single source of truth for the head's column: the swept position within
-    // the live band while printing, or the margin the carriage is parked on when
-    // caught up. Never snaps to full width -- a parked head sits at its margin so
-    // the presenter can rest the glyph there and resume the next pass smoothly.
+    // the live band while printing (0..SweepWidthDots), or the margin the
+    // carriage is parked on when caught up. Never snaps to full width -- a
+    // parked head sits at its margin so the presenter can rest the glyph there
+    // and resume the next pass smoothly.
     int  col = (int) m_revealedCol;
 
-    if (col < 0)                        { col = 0; }
-    if (col > PrinterGrid::kDotsPerRow) { col = PrinterGrid::kDotsPerRow; }
+    if (col < 0)               { col = 0; }
+    if (col > m_sweepWidthDots) { col = m_sweepWidthDots; }
 
     return col;
 }

@@ -2926,11 +2926,12 @@ void EmulatorShell::UpdatePrinterPreview ()
     // line-feed clacks off this; a closed / hidden preview stops publishing, so
     // the loop naturally goes quiet.
     {
-        int64_t  progressDots = 0;
-        int      colDots      = 0;
-        bool     inkActive    = false;
-        m_printerPanel->GetPacedReveal (progressDots, colDots, inkActive);
-        m_printerAudio.PublishReveal (progressDots, colDots, inkActive);
+        int64_t  progressDots   = 0;
+        int      colDots        = 0;
+        bool     inkActive      = false;
+        int      sweepWidthDots = PrinterGrid::kDotsPerRow;
+        m_printerPanel->GetPacedReveal (progressDots, colDots, inkActive, sweepWidthDots);
+        m_printerAudio.PublishReveal (progressDots, colDots, inkActive, sweepWidthDots);
     }
 
     // Printer-sound volume + mute (Settings > Printing audio, FR-034). Read from

@@ -280,6 +280,40 @@ namespace PrinterPacingTests
         }
 
 
+        TEST_METHOD (ShortLineSweepsOnlyItsExtent)
+        {
+            // Logic seeking: the pass spans the live band's ink extent, not the
+            // whole platen. At 1280 dots/s a 320-dot line completes a band
+            // every quarter second -- 4x the full-width rate -- and the column
+            // never exceeds the sweep width.
+            PrinterPacing   p (Cfg (1280.0, 16, 1.0e9));
+
+            p.Reset (0.0);
+            p.SetTargetPosition (1000, 320);
+
+            Assert::AreEqual (320, p.SweepWidthDots());
+            Assert::AreEqual (16,  p.Advance (0.25));    // one short pass == one band
+            Assert::AreEqual (80,  p.Advance (1.25));    // four more passes in the next second
+            Assert::IsTrue   (p.RevealedColDots() <= 320);
+        }
+
+
+        TEST_METHOD (NarrowerBandClampsAMidPassColumn)
+        {
+            // Mid-pass, the guest's next band turns out narrower: the column
+            // clamps to the new sweep width (finishing the pass at its edge)
+            // instead of overshooting past it.
+            PrinterPacing   p (Cfg (1280.0, 16, 1.0e9));
+
+            p.Reset (0.0);
+            p.SetTargetPosition (1000, 1280);
+            p.Advance (0.5);                             // mid-pass at col 640
+
+            p.SetTargetPosition (1000, 320);             // narrower live band
+            Assert::AreEqual (320, p.RevealedColDots()); // clamped to the pass edge
+        }
+
+
         TEST_METHOD (BlankBandFeedsWithTheHeadParked)
         {
             // A blank live band (line / form feed) is a paper SLEW, not a

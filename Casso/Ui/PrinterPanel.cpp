@@ -68,6 +68,10 @@ static constexpr uint32_t  s_kArgbHoleRim    = 0xFFB8B8B8;   // sprocket hole ed
 // equal PrinterPacing's rowsPerSweep so a swept band tiles exactly onto the next.
 static constexpr int       s_kPinBandRows = PrinterGrid::kPinBandRows;
 
+// Overtravel past the live band's rightmost ink (logic seeking): the real
+// carriage coasts a touch beyond the last printed dot before reversing.
+static constexpr int       s_kSweepOvertravelDots = PrinterGrid::kDotsPerInchH / 4;   // 0.25"
+
 // Bidirectional reveal lag: the carriage prints alternate lines right-to-left
 // (real ImageWriter), but our interpreter fills each line's dots left-to-
 // right, so a right-to-left reveal is only correct on a COMPLETED line. Hold
@@ -721,22 +725,29 @@ void PrinterPanel::RefreshLive (PrinterWorker & worker, int64_t nowMs, bool forc
     // ink-gate keeps the buzz silent over the blank overtravel of a short line.
     int  laggedRow = m_printingActive ? (std::max) (0, headRow - s_kBidiLagRows) : headRow;
 
-    m_pacing.SetTargetPosition (laggedRow, PrinterGrid::kDotsPerRow);
-
     {
-        // Tell the clock what is under the head: an inked live band reveals via
-        // the carriage sweep, a blank one (line / form feed) slews through with
-        // the head parked -- a form feed must never sweep the carriage across a
-        // page of empty bands. Only queried while behind (the answer is unused
-        // when the reveal is caught up).
+        // Tell the clock what is under the head: a blank live band (line /
+        // form feed) slews through with the head parked -- never sweeping
+        // empty paper -- and an inked band's pass runs only its printed span
+        // plus a little overtravel (the real machine's logic seeking: a short
+        // catalog line sweeps ~2 inches, not the whole platen). Only queried
+        // while behind (the answer is unused when the reveal is caught up).
         bool  liveBandInk = true;
+        int   sweepWidth  = PrinterGrid::kDotsPerRow;
         int   liveTop     = m_pacing.RevealedRows();
 
         if (liveTop < laggedRow)
         {
-            liveBandInk = worker.SpanHasInk (liveTop, liveTop + s_kPinBandRows - 1);
+            int  extent = worker.SpanInkExtent (liveTop, liveTop + s_kPinBandRows - 1);
+
+            liveBandInk = (extent > 0);
+            if (liveBandInk)
+            {
+                sweepWidth = (std::min) (PrinterGrid::kDotsPerRow, extent + s_kSweepOvertravelDots);
+            }
         }
 
+        m_pacing.SetTargetPosition (laggedRow, sweepWidth);
         m_pacing.Advance (nowSec, liveBandInk);
     }
 
@@ -746,12 +757,15 @@ void PrinterPanel::RefreshLive (PrinterWorker & worker, int64_t nowMs, bool forc
 
     {
         // The head sweeps the live band whether or not it has caught the guest:
-        // revealing ink IS the sweep now (PrinterPacing), so a backlog drains as a
-        // visible carriage pass, not a full-width snap. progress == full width when
-        // caught up, so the live band then shows complete. Mirror for a R->L pass.
-        int  progress = m_pacing.RevealedColDots();   // 0..kDotsPerRow sweep distance
+        // revealing ink IS the sweep now (PrinterPacing), so a backlog drains
+        // as a visible carriage pass, not a full-width snap. The pass spans the
+        // band's sweep width (logic seeking); a R->L pass mirrors WITHIN that
+        // span, so the head zigzags continuously over the printed region --
+        // pass N ends where pass N+1 begins.
+        int  progress = m_pacing.RevealedColDots();     // 0..SweepWidthDots
+        int  sweepW   = m_pacing.SweepWidthDots();
 
-        revealCol = sweepLtr ? progress : (PrinterGrid::kDotsPerRow - progress);
+        revealCol = sweepLtr ? progress : (sweepW - progress);
         revealLo  = sweepLtr ? 0 : revealCol;
         revealHi  = sweepLtr ? revealCol : PrinterGrid::kDotsPerRow;
     }

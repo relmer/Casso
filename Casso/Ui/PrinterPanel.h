@@ -73,12 +73,14 @@ public:
     // keep the carriage BUZZ off during non-print motion. This reads the SAME
     // paced reveal the panel renders, so the mechanical sound follows what is
     // seen, not the raw guest byte stream. Valid after RefreshLive.
-    void     GetPacedReveal (int64_t & progressDots, int & colDots, bool & inkActive) const
+    void     GetPacedReveal (int64_t & progressDots, int & colDots, bool & inkActive,
+                             int & sweepWidthDots) const
     {
         int  rows = m_pacing.RevealedRows ();
-        colDots      = m_pacing.RevealedColDots ();
-        progressDots = (int64_t) rows * PrinterGrid::kDotsPerRow + colDots;
-        inkActive    = m_revealInk;
+        colDots        = m_pacing.RevealedColDots ();
+        progressDots   = (int64_t) rows * PrinterGrid::kDotsPerRow + colDots;
+        inkActive      = m_revealInk;
+        sweepWidthDots = m_pacing.SweepWidthDots ();   // pass span (logic seeking) for the audio's wrap detection
     }
 
     // Per-frame live update (FR-033): advance the viewport to the worker's

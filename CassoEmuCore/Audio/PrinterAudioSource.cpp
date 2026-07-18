@@ -235,11 +235,13 @@ void PrinterAudioSource::SetQuality (Quality quality)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void PrinterAudioSource::PublishReveal (int64_t progressDots, int colDots, bool inkActive)
+void PrinterAudioSource::PublishReveal (int64_t progressDots, int colDots, bool inkActive,
+                                        int sweepWidthDots)
 {
     m_revealProgress.store (progressDots, std::memory_order_relaxed);
     m_revealCol.store      ((int32_t) colDots, std::memory_order_relaxed);
     m_revealInk.store      (inkActive ? 1 : 0, std::memory_order_relaxed);
+    m_revealSweepW.store   ((int32_t) sweepWidthDots, std::memory_order_relaxed);
 }
 
 
@@ -340,10 +342,15 @@ void PrinterAudioSource::GeneratePCM (float * outMono, uint32_t numSamples)
         m_printHoldSamples = (int32_t) (kPrintHoldSec * (double) m_sampleRate);
     }
 
-    // Column wrapped back toward the left margin -> a new line began: clack. Each
-    // line rotates through the three recorded feed variants so repeats do not
-    // sound machine-stamped; empty variants are skipped.
-    if (col + kLineWrapDropDots < m_lastCol && m_feedThrottle <= 0)
+    // Column wrapped back toward the pass's start -> a new line began: clack.
+    // The drop threshold scales to the pass's sweep width (logic seeking: a
+    // short line's whole pass is narrower than any fixed full-width drop).
+    // Each line rotates through the three recorded feed variants so repeats do
+    // not sound machine-stamped; empty variants are skipped.
+    int32_t  sweepW   = m_revealSweepW.load (std::memory_order_relaxed);
+    int32_t  wrapDrop = (std::max) ((int32_t) kLineWrapDropFloor, sweepW / 2);
+
+    if (col + wrapDrop < m_lastCol && m_feedThrottle <= 0)
     {
         for (int tries = 0; tries < kNumLineFeeds; tries++)
         {

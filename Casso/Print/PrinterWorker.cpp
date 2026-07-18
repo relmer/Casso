@@ -169,20 +169,24 @@ bool PrinterWorker::SnapshotStripSpan (int firstRow, int lastRow, PrintRaster & 
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  SpanHasInk
+//  SpanInkExtent
 //
-//  Any-ink probe over rows [firstRow, lastRow] under the raster lock. Bounded
-//  by a pin band in practice (~16 rows), so the scan cost is trivial.
+//  Rightmost-ink probe over rows [firstRow, lastRow] under the raster lock:
+//  returns one past the rightmost inked dot (0 == blank span). Scans each row
+//  from the right and only past the best answer so far; bounded by a pin band
+//  in practice (~16 rows), so the cost is trivial.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool PrinterWorker::SpanHasInk (int firstRow, int lastRow)
+int PrinterWorker::SpanInkExtent (int firstRow, int lastRow)
 {
     std::lock_guard<std::mutex>   lock (m_rasterMutex);
 
+    int  extent = 0;
+
     if (m_job == nullptr)
     {
-        return false;
+        return 0;
     }
 
     const PrintRaster &  raster = m_job->Raster();
@@ -190,16 +194,22 @@ bool PrinterWorker::SpanHasInk (int firstRow, int lastRow)
 
     for (int row = (std::max) (0, firstRow); row <= last; row++)
     {
-        for (int col = 0; col < PrinterGrid::kDotsPerRow; col++)
+        for (int col = PrinterGrid::kDotsPerRow - 1; col >= extent; col--)
         {
             if (raster.CellAt (col, row) != 0)
             {
-                return true;
+                extent = col + 1;
+                break;
             }
+        }
+
+        if (extent == PrinterGrid::kDotsPerRow)
+        {
+            break;   // can't grow further
         }
     }
 
-    return false;
+    return extent;
 }
 
 

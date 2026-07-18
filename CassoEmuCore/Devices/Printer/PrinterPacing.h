@@ -89,7 +89,11 @@ public:
     void  SetTargetRows (int targetRows);
 
     // Head position target (FR-034): `targetRows` complete rows above the live
-    // line, plus the head's dot column within it.
+    // line; `targetColDots` is the live band's SWEEP WIDTH -- the rightmost
+    // inked dot plus a little overtravel, per the real machine's logic seeking
+    // (a short catalog line sweeps only its printed span, never the whole
+    // platen). SetTargetRows passes full width for callers without ink
+    // knowledge.
     void  SetTargetPosition (int targetRows, int targetColDots);
 
     // Reveal everything on the next Advance (user skips the animation).
@@ -115,6 +119,11 @@ public:
     int   TargetRows   () const;
     bool  IsCaughtUp   () const;   // no rows left to reveal (carriage parked at a margin)
 
+    // The live band's sweep width in dots (see SetTargetPosition): the span
+    // the head actually travels this pass. The presenter maps RevealedColDots
+    // (0..this) onto the platen, mirrored on right-to-left passes.
+    int   SweepWidthDots () const { return m_sweepWidthDots; }
+
     // The real ImageWriter prints bidirectionally: each line's carriage pass
     // runs opposite to the last. This flag flips every time a fresh line's sweep
     // begins (see Advance), so the presenter can drive the head + ink reveal
@@ -126,6 +135,7 @@ private:
     double  m_lastTime    = 0.0;
     double  m_revealed    = 0.0;   // top of the live (sweeping) band, in rows
     double  m_revealedCol = 0.0;   // head column within it; 0 == parked at the home margin
+    int     m_sweepWidthDots = PrinterGrid::kDotsPerRow;   // this band's pass span (logic seeking)
     int     m_target      = 0;
     bool    m_started     = false;
     bool    m_fastForward = false;
