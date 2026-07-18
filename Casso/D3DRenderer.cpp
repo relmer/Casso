@@ -554,23 +554,49 @@ Error:
 HRESULT D3DRenderer::ToggleFullscreen (HWND hwnd)
 {
     HRESULT     hr        = S_OK;
-    HMONITOR    hMon;
+    HMONITOR    hMon      = nullptr;
     MONITORINFO mi        = { sizeof (mi) };
+    LONG        style     = 0;
     BOOL        fSuccess  = FALSE;
 
 
 
+    // A modal loop opening mid-transition (assert dialog, message box) pumps
+    // messages and can dispatch a queued Alt+Enter into a NESTED toggle. A
+    // nested enter would capture the borderless fullscreen state as the
+    // "windowed" state to restore, stranding the user in an unescapable
+    // full-monitor popup that covers the taskbar and every other window.
+    // Ignore toggles while one is in flight.
+    BAIL_OUT_IF (m_fsTransition, S_OK);
+    m_fsTransition = true;
+
     if (!m_fullscreen)
     {
-        // Save windowed state
-        m_windowedStyle = GetWindowLong (hwnd, GWL_STYLE);
-        fSuccess = GetWindowRect (hwnd, &m_windowedRect);
+        // Belt and braces vs the same corruption arriving some other way:
+        // never capture a caption-less (borderless popup) state as the
+        // windowed state to restore.
+        style = GetWindowLong (hwnd, GWL_STYLE);
+        CBRAEx ((style & WS_CAPTION) == WS_CAPTION, E_UNEXPECTED);
+
+        // Save the full windowed placement (not just the current rect) so a
+        // maximized window round-trips back to maximized with its underlying
+        // normal size intact -- and a normal window gets its exact size back.
+        m_windowedStyle             = style;
+        m_windowedPlacement.length  = sizeof (m_windowedPlacement);
+        fSuccess = GetWindowPlacement (hwnd, &m_windowedPlacement);
         CWRA (fSuccess);
 
-        // Go borderless fullscreen
-        hMon      = MonitorFromWindow (hwnd, MONITOR_DEFAULTTONEAREST);
+        hMon     = MonitorFromWindow (hwnd, MONITOR_DEFAULTTONEAREST);
         fSuccess = GetMonitorInfo (hMon, &mi);
         CWRA (fSuccess);
+
+        // Flip the flag BEFORE touching the window: SetWindowPos delivers
+        // WM_SIZE synchronously, and the resize path consults IsFullscreen()
+        // to decide whether to persist window placement / auto-resize chrome.
+        // With the flag still false, entering fullscreen used to save the
+        // full-monitor rect as the user's windowed placement -- permanently
+        // stomping their real window size in prefs.
+        m_fullscreen = true;
 
         SetWindowLong (hwnd, GWL_STYLE, WS_POPUP | WS_VISIBLE);
         fSuccess = SetWindowPos (hwnd,
@@ -580,25 +606,27 @@ HRESULT D3DRenderer::ToggleFullscreen (HWND hwnd)
                                   mi.rcMonitor.bottom - mi.rcMonitor.top,
                                   SWP_FRAMECHANGED);
         CWRA (fSuccess);
-
-        m_fullscreen = true;
     }
     else
     {
-        // Restore windowed
+        // Restore the windowed style + placement. m_fullscreen stays true
+        // through the restore so the synchronous WM_SIZE does not persist a
+        // mid-transition rect; it drops only after the window is back.
         SetWindowLong (hwnd, GWL_STYLE, m_windowedStyle);
-        fSuccess = SetWindowPos (hwnd,
-                                  HWND_NOTOPMOST,
-                                  m_windowedRect.left, m_windowedRect.top,
-                                  m_windowedRect.right - m_windowedRect.left,
-                                  m_windowedRect.bottom - m_windowedRect.top,
-                                  SWP_FRAMECHANGED);
+
+        fSuccess = SetWindowPos (hwnd, HWND_NOTOPMOST, 0, 0, 0, 0,
+                                 SWP_NOMOVE | SWP_NOSIZE | SWP_FRAMECHANGED);
+        CWRA (fSuccess);
+
+        m_windowedPlacement.length = sizeof (m_windowedPlacement);
+        fSuccess = SetWindowPlacement (hwnd, &m_windowedPlacement);
         CWRA (fSuccess);
 
         m_fullscreen = false;
     }
 
 Error:
+    m_fsTransition = false;
     return hr;
 }
 

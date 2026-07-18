@@ -27,8 +27,11 @@ namespace
     constexpr int      s_kBaseDpi     = 96;
 
     // The composited framebuffer is 560x384; the recess is sized to that exact
-    // aspect so the display fills the glass with no bars inside the bezel.
-    constexpr float    s_kScreenAspect = 560.0f / 384.0f;
+    // aspect so the display fills the glass with no bars inside the bezel. The
+    // native height also anchors SceneScale: recess == Px(384) tall <=> the
+    // monitor is at its natural 100%-zoom size.
+    constexpr int      s_kScreenNativeHDp = 384;
+    constexpr float    s_kScreenAspect    = 560.0f / 384.0f;
 
     // Bezel thickness, even on all four sides. Expressed as a fraction of the
     // screen height and applied in pixels so top/bottom/left/right match
@@ -222,6 +225,8 @@ void MonitorFrame::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
     m_screenRect.right  = (int) (m_screenRect.left + screenW);
     m_screenRect.bottom = (int) (m_screenRect.top  + screenH);
 
+    m_sceneScale = screenH / (float) MulDiv (s_kScreenNativeHDp, (int) m_dpi, s_kBaseDpi);
+
     SetBounds (boundsDip);
 }
 
@@ -411,11 +416,10 @@ void MonitorFrame::Paint (
 
             // Power lamp, lower-right: the slanted green lamp from the //c
             // case-switch strip -- the "/" power mark under the screen's right
-            // edge. Same dp dimensions as the strip's LED (8 x 25 dp): an LED
-            // lens is the same physical part on the monitor as on the case, so
-            // it must not scale up with the (much larger) bezel band. Clamped
-            // to the band on tiny layouts, preserving the 8:25 proportion.
-            float  lampH = (float) MulDiv (25, (int) m_dpi, s_kBaseDpi);
+            // edge. The strip's LED dimensions (8 x 25 dp) at SceneScale, so
+            // the lamp zooms with the monitor it is mounted on. Clamped to the
+            // band on tiny layouts, preserving the 8:25 proportion.
+            float  lampH = (float) MulDiv (25, (int) m_dpi, s_kBaseDpi) * m_sceneScale;
 
             lampH = std::min (lampH, bandH * 0.7f);
 

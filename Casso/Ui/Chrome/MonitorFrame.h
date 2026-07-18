@@ -40,6 +40,13 @@ public:
     // the frame is hidden.
     RECT   ScreenRect () const { return m_screenRect; }
 
+    // How large the monitor is drawn relative to its natural (100%-zoom)
+    // size: 1.0 when the recess equals the native framebuffer, <1 when the
+    // window squeezes it, >1 when the window stretches it. The desk-scene
+    // peripherals (drive widgets, band heights, the bezel's power lamp)
+    // scale by this factor so the whole scene zooms together. 1.0 hidden.
+    float  SceneScale () const { return m_hidden ? 1.0f : m_sceneScale; }
+
     // Inverse of Layout, for the initial/reset window size: the center
     // (viewport-area) size in px whose Layout yields a screen recess of exactly
     // screenWpx x screenHpx -- so the default window can host the emulator image
@@ -60,5 +67,6 @@ private:
     RECT   m_housingRect = {};  // the monitor's outer platinum shell (bounded, ~4:3-ish)
     RECT   m_screenRect  = {};  // inset CRT recess inside the housing (viewport composites here)
     UINT   m_dpi         = 96;
+    float  m_sceneScale  = 1.0f;
     bool   m_hidden      = false;
 };

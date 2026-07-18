@@ -672,6 +672,12 @@ private:
     // housing paints the ring around it. Phase 1: Apple Monitor //c.
     MonitorFrame               m_monitorFrame;
 
+    // Desk-scene zoom: the monitor's SceneScale from the last layout. The
+    // drive widgets and the (scaled part of the) drive band follow it so the
+    // whole scene zooms together when the window resizes. 1.0 for compact
+    // themes and at the 100%-zoom default window size.
+    float                      m_chromeSceneScale = 1.0f;
+
     // DxuiHwndSource running in full-ownership mode. Owns the main
     // HWND (registers WNDCLASS "CassoWindow", calls CreateWindowExW,
     // and applies DwM rounded-corners / immersive-dark / extended
