@@ -520,11 +520,7 @@ HRESULT EmulatorShell::Initialize (
     const string        & disk1Path,
     const string        & disk2Path)
 {
-    HRESULT          hr           = S_OK;
-    size_t           fbSize       = 0;
-    fs::path         assetBaseDir;
-    fs::path         machinesDir;
-    fs::path         themesDir;
+    HRESULT  hr = S_OK;
 
 
 
@@ -532,418 +528,37 @@ HRESULT EmulatorShell::Initialize (
     m_config             = config;
     m_cyclesPerFrame     = config.cyclesPerFrame;
 
-    // Register the chrome bands + center with the dock layout once --
-    // their thicknesses are refreshed from DPI + live drive-bar state
-    // on every ComputeViewportRect / ClientSizeForCenterPx call.
-    m_chromeDock.SetDock (m_titleBand,  DxuiDock::Top);
-    m_chromeDock.SetDock (m_navBand,    DxuiDock::Top);
-    m_chromeDock.SetDock (m_driveBand,  DxuiDock::Bottom);
-    // Registered AFTER the drive band so the dock peels the drive bar off the
-    // very bottom first and the //c switch strip lands just above it (between
-    // the viewport and the joystick/paddle/mouse bar).
-    m_chromeDock.SetDock (m_switchBand, DxuiDock::Bottom);
-    m_chromeDock.SetDock (m_centerBand, DxuiDock::Fill);
+    RegisterChromeDock();
+    InitAssetPathsAndStores();
 
-    assetBaseDir = AssetBootstrap::GetAssetBaseDirectory();
-    machinesDir  = assetBaseDir / fs::path ("Machines") / fs::path (m_currentMachineName);
-    themesDir    = assetBaseDir / fs::path ("Themes");
-    m_assetBaseDir = assetBaseDir.wstring();
-    m_userConfigStore = std::make_unique<UserConfigStore> (assetBaseDir.wstring());
-
-    m_diskManager = std::make_unique<DiskManager> (m_ownedDevices,
-                                                    m_diskStore,
-                                                    m_diskAudioSources,
-                                                    m_wasapiAudio,
-                                                    m_driveWidgets,
-                                                    m_driveWidgetState,
-                                                    m_driveChrome,
-                                                    m_cpuManager,
-                                                    m_currentMachineName,
-                                                    *m_userConfigStore,
-                                                    m_uiFs);
-
-    // Surface disk-flush failures instead of silently losing writes. Every
-    // flush caller (Eject / PowerCycle are void; the exit path and SoftReset
-    // IGNORE_RETURN_VALUE) drops FlushEntry's HRESULT, so a failed write-back
-    // used to vanish. The store now reports genuine failures here; we log and
-    // warn the user via the shared EHM notifier. fs::path(narrow).wstring()
-    // is the exact inverse of the fs::path(wide).string() narrowing the mount
-    // path went through.
-    m_diskStore.SetFlushErrorReporter ([] (const std::string & path, HRESULT hr)
-    {
-        std::wstring  widePath = fs::path (path).wstring ();
-        wchar_t       msg[512] = {};
-
-        swprintf_s (msg,
-                    L"Casso could not save changes to the disk image:\n\n%s\n\n"
-                    L"Your recent writes were NOT persisted (error 0x%08X). The file "
-                    L"on disk is unchanged. If this is a .dsk, try a .woz image -- "
-                    L"WOZ round-trips writes reliably.",
-                    widePath.empty () ? L"(unknown path)" : widePath.c_str (),
-                    static_cast<unsigned> (hr));
-
-        OutputDebugStringW (msg);
-        OutputDebugStringW (L"\n");
-        EhmNotifyUser (msg);
-    });
-
-    // P6 -- bring up OLE on the UI thread before any RegisterDragDrop
-    // call lands; IFileDialog (click-to-browse, used by the drive
-    // widgets) also requires the apartment to be live. OleInitialize
-    // implies CoInitializeEx(STA) on this thread. Non-fatal on
-    // failure -- drag-drop and the file dialog will degrade quietly.
-    {
-        HRESULT  hrOle = OleInitialize (nullptr);
-
-        if (SUCCEEDED (hrOle))
-        {
-            m_fOleInitialized = true;
-        }
-        else
-        {
-            OutputDebugStringA ("[EmulatorShell] OleInitialize failed; drag-drop disabled.\n");
-        }
-    }
+    // Bring up OLE on the UI thread before any RegisterDragDrop / IFileDialog
+    // (drive-widget click-to-browse) needs the STA apartment. OleInitialize
+    // implies CoInitializeEx(STA); S_FALSE (already initialized) still owns a
+    // reference we pair with OleUninitialize at shutdown. A hard failure here
+    // means the UI thread's apartment was already claimed with a conflicting
+    // model -- a startup-ordering bug on our side, so assert.
+    hr = OleInitialize (nullptr);
+    CHRA (hr);
+    
+    m_fOleInitialized = true;
 
     // Register built-in device factories
     ComponentRegistry::RegisterBuiltinDevices (m_registry);
 
-    // Create framebuffers (CPU renders to one, UI reads the other)
-    fbSize = static_cast<size_t> (kFramebufferWidth) * kFramebufferHeight;
-    m_cpuFramebuffer.resize (fbSize, 0);
-    m_textOverlay.resize (fbSize, 0);
-    m_uiFramebuffer.resize (fbSize, 0);
-
-    // Prime the chrome-affecting theme state BEFORE creating the
-    // window so the initial ClientSizeForCenter inside
-    // CreateEmulatorWindow reads the right drive-bar thickness. Without
-    // this, a user whose persisted activeTheme is compact (DarkModern
-    // or RetroTerminal) would get a window sized for the full
-    // skeuomorphic strip on first paint, then immediately shrink as
-    // soon as ThemeManager::Activate fires its listener later in
-    // Initialize. UserConfigStore needs only assetBaseDir + the
-    // UI-thread filesystem, both of which are already live here.
-    {
-        HRESULT  hrPrefsEarly = m_userConfigStore->LoadAll (m_globalPrefs, m_uiFs);
-
-        IGNORE_RETURN_VALUE (hrPrefsEarly, S_OK);
-        m_chromeTheme = CassoTheme::ForName (m_globalPrefs.activeTheme);
-        ApplyThemeToChrome (m_chromeTheme);
-    }
+    AllocateFramebuffers();
+    PrimeChromeThemeEarly();
 
     hr = CreateEmulatorWindow (hInstance);
     CHR (hr);
 
-    hr = m_machineManager->CreateMemoryDevices (config);
+    hr = BuildMachineDevices (config);
     CHR (hr);
 
-    m_machineManager->WireLanguageCard();
-    // //c banked ROM: layer the $C028 bank-switch coordinator + no-slots
-    // $Cxxx routing on top of the flat bank-0 split WireLanguageCard just
-    // did. Without this the initial-launch //c has no ROM banking (and no
-    // SetNoExternalSlots), so $C800 floats and the firmware derails to a
-    // garbage screen. SwitchMachine already does this; the initial build
-    // path must match it. No-op for non-banked machines (romBankSize == 0).
-    m_machineManager->WireApple2cRomBank();
-    m_machineManager->CreateVideoModes();
-
-    // Validate memory bus for overlapping device address ranges
-    hr = m_memoryBus.Validate();
+    hr = InitializeRenderer();
     CHR (hr);
 
-    hr = m_machineManager->CreateCpu (config);
+    hr = InitializeUiShell();
     CHR (hr);
-
-    m_machineManager->WirePageTable();
-
-    // Initialize the Apple ][ framebuffer renderer against the host's
-    // D3D11 device + DXGI swap chain (full host ownership). The host
-    // owns Present; the renderer composites the framebuffer into the
-    // host back buffer from the before-present hook wired below. The
-    // initial target rect is the DxuiViewport bounds computed during
-    // CreateEmulatorWindow.
-    hr = m_d3dRenderer.Initialize (m_host->GetDevice(),
-                                   m_host->GetContext(),
-                                   m_host->GetSwapChain(),
-                                   kFramebufferWidth,
-                                   kFramebufferHeight,
-                                   m_viewportBoundsPx);
-    CHR (hr);
-
-    // Composite the Apple ][ framebuffer into the host's back buffer
-    // before the host paints chrome on top (DxuiHwndSource::PaintPump).
-    // m_pendingFramebuffer is staged each UI frame by RunMessageLoop;
-    // nullptr means "no new emulator frame" (re-composite last upload).
-    m_host->SetBeforePresentHook ([this] ()
-    {
-        HRESULT  hrComposite = m_d3dRenderer.UploadAndComposite (m_host->GetBackBufferRtv(),
-                                                                 m_pendingFramebuffer);
-
-        IGNORE_RETURN_VALUE (hrComposite, S_OK);
-    });
-
-    // Native UI runtime bootstrap. UiShell owns the painter, text
-    // renderer, hit-tester, focus manager, and input translator;
-    // wiring it onto the after-blit hook lets it composite chrome on
-    // top of the emulator frame without ever pausing the render loop.
-    {
-        HRESULT  hrUi       = m_uiShell.Initialize (&m_d3dRenderer);
-        HRESULT  hrTheme    = S_OK;
-        HRESULT  hrPrefs    = S_OK;
-
-
-
-        IGNORE_RETURN_VALUE (hrUi, S_OK);
-        // The caption is host-owned now, and chrome paints through the
-        // host panel tree; UiShell only routes input, hit-tests, and
-        // supplies the theme / viewport metrics the settings panel reads.
-        m_uiShell.SetMainMenu (&m_mainMenu);
-        m_uiShell.SetTheme    (&m_chromeTheme);
-
-        // Inject the shared text renderer into chrome controls that
-        // need to measure label strings during Layout. Mirrors the
-        // UiShell-owned painter / text renderer pair so the chrome
-        // controls participate in the standard IDxuiControl::Layout
-        // contract without needing the renderer passed as a Layout
-        // parameter on every call.
-        m_mainMenu.SetTextRendererForMeasure (&m_uiShell.Text());
-        m_joystickButton.SetTextRenderer     (&m_uiShell.Text());
-        m_switchBar.SetTextRenderer          (&m_uiShell.Text());
-
-        m_themeManager    = std::make_unique<ThemeManager> (m_uiFs, themesDir.wstring());
-        hrTheme           = m_themeManager->Discover();
-        IGNORE_RETURN_VALUE (hrTheme, S_OK);
-        hrPrefs = m_userConfigStore->LoadAll (m_globalPrefs, m_uiFs);
-        IGNORE_RETURN_VALUE (hrPrefs, S_OK);
-
-        // Restore the split input mappings. Keys (arrows->
-        // joystick) is a passive remap, safe to restore. Pointer: Paddle is
-        // an active mouse-capture mode, never restored on launch (it would
-        // light the LED while the mouse is NOT captured) -- falls back to
-        // Off; Mouse is non-capturing and restores safely.
-        m_arrowsJoystick = m_globalPrefs.arrowsToJoystick;
-        m_pointerMode    = (m_globalPrefs.pointerMapping == InputMappingMode::Paddle)
-                               ? InputMappingMode::Off
-                               : m_globalPrefs.pointerMapping;
-        m_globalPrefs.pointerMapping   = m_pointerMode;
-        m_globalPrefs.inputMappingMode = DisplayInputMode();
-        SyncSelectorState();
-
-        SetColorMonitorTextArgbLive (
-            ColorUtil::ResolveColorMonitorTextArgb (m_globalPrefs.colorMonitorTextMode,
-                                                    m_globalPrefs.colorMonitorTextCustomArgb));
-
-        // Record the currently-active machine so the next launch boots
-        // it by default (Main resolves the value via this same field).
-        {
-            std::string  narrow;
-
-            narrow.reserve (m_currentMachineName.size());
-            for (wchar_t c : m_currentMachineName)
-            {
-                narrow.push_back ((char) (unsigned char) c);
-            }
-            if (m_globalPrefs.lastSelectedMachine != narrow)
-            {
-                m_globalPrefs.lastSelectedMachine = narrow;
-                SaveGlobalPrefs();
-            }
-        }
-
-        // Subscribe the chrome theme cache to ThemeManager BEFORE we
-        // activate, so the initial Activate() fires the listener and
-        // primes m_chromeTheme from the persisted user choice. Without
-        // this the chrome would still paint Skeuomorphic until the
-        // user re-picked the theme in Settings.
-        m_themeManager->AddChangeListener ([this] (const LoadedTheme & t)
-        {
-            m_chromeTheme = CassoTheme::ForName (t.name);
-            ApplyThemeToChrome (m_chromeTheme);
-        });
-
-        // Tell the theme manager which machine is active BEFORE the
-        // first Activate so its listener notification carries the
-        // correctly-resolved (per-variant) theme.
-        m_themeManager->SetActiveMachineName (m_config.name);
-
-        HRESULT  hrActivate = m_themeManager->Activate (m_globalPrefs.activeTheme);
-        if (hrActivate != S_OK)
-        {
-            // Persisted theme name is unknown (renamed, deleted, or
-            // first-run with a stale default) -- fall back to the
-            // canonical built-in so the listener still fires.
-            hrActivate = m_themeManager->Activate ("Skeuomorphic");
-            IGNORE_RETURN_VALUE (hrActivate, S_OK);
-        }
-
-        // Apply the persisted per-machine colorMode (and any other
-        // live-effect settings) at boot. Without this the initial
-        // emulator state defaults to Color regardless of what the user
-        // last saved; the missing path was that MachineManager::
-        // SwitchMachine has the colorMode-apply logic but it only fires
-        // on USER-INITIATED machine switches, not the boot path.
-        {
-            std::string         machineNameNarrow;
-            JsonValue           defaultJson;
-            JsonValue           mergedJson;
-            JsonParseError      parseErr;
-            std::ifstream       configFile;
-            std::stringstream   ss;
-            std::string         jsonText;
-            std::wstring        configRelPath = std::wstring (L"Machines\\") + m_currentMachineName +
-                                                L"\\" + m_currentMachineName + L".json";
-            fs::path            configPath    = PathResolver::FindFile (PathResolver::BuildSearchPaths (
-                                                    PathResolver::GetExecutableDirectory(),
-                                                    PathResolver::GetWorkingDirectory()),
-                                                    configRelPath);
-
-            machineNameNarrow.reserve (m_currentMachineName.size());
-            for (wchar_t c : m_currentMachineName)
-            {
-                machineNameNarrow.push_back ((char) (unsigned char) c);
-            }
-
-            if (!configPath.empty())
-            {
-                configFile.open (configPath);
-                if (configFile.good())
-                {
-                    ss << configFile.rdbuf();
-                    jsonText = ss.str();
-
-                    if (SUCCEEDED (JsonParser::Parse (jsonText, defaultJson, parseErr)) &&
-                        SUCCEEDED (m_userConfigStore->Load (machineNameNarrow,
-                                                            defaultJson,
-                                                            m_uiFs,
-                                                            mergedJson)) &&
-                        mergedJson.GetType() == JsonType::Object)
-                    {
-                        const JsonValue *  uiPrefs   = nullptr;
-                        std::string        colorMode;
-
-                        if (SUCCEEDED (mergedJson.GetObject ("$cassoUiPrefs", uiPrefs)) &&
-                            uiPrefs != nullptr)
-                        {
-                            if (SUCCEEDED (uiPrefs->GetString ("colorMode", colorMode)))
-                            {
-                                int  modeIdx = -1;
-                                if      (colorMode == "color") { modeIdx = 0; }
-                                else if (colorMode == "green") { modeIdx = 1; }
-                                else if (colorMode == "amber") { modeIdx = 2; }
-                                else if (colorMode == "white") { modeIdx = 3; }
-
-                                if (modeIdx >= 0)
-                                {
-                                    SetColorModeLive (modeIdx);
-                                }
-                            }
-
-                            // //c external drive + mouse: seed the connected
-                            // states HERE -- before the drive-chrome layout below
-                            // gates on ShouldShowExternalDrive() -- so the first
-                            // paint matches the saved setup. Seeding them only in
-                            // the later mixer-prefs block left a persisted
-                            // "external drive connected" invisible until the user
-                            // re-toggled it in Settings. External drive defaults
-                            // not-connected; mouse defaults CONNECTED.
-                            bool  extConnected = false;
-                            if (SUCCEEDED (uiPrefs->GetBool ("externalDriveConnected", extConnected)))
-                            {
-                                m_externalDriveConnected = extConnected;
-                            }
-
-                            bool  mouseConn = true;
-                            if (SUCCEEDED (uiPrefs->GetBool ("mouseConnected", mouseConn)))
-                            {
-                                m_mouseConnected = mouseConn;
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        if (SUCCEEDED (hrUi))
-        {
-            UINT  initialDpi = GetDpiForWindow (m_hwnd);
-
-            // Propagate the live monitor DPI into UiShell so the first
-            // D2D BindBackBuffer uses the right DPI for text. Without
-            // this the initial paint binds at the m_dpi default (0->96)
-            // and chrome text renders tiny on high-DPI displays until
-            // the user resizes the window.
-            HRESULT  hrUiResize = m_uiShell.OnResize (m_d3dRenderer.GetBackBufferWidth(),
-                                                     m_d3dRenderer.GetBackBufferHeight(),
-                                                     initialDpi);
-            IGNORE_RETURN_VALUE (hrUiResize, S_OK);
-
-            // Chrome no longer composites via an after-blit hook: it
-            // paints through the host's panel-tree pump (the adopted
-            // chrome controls) on top of the Apple ][ framebuffer. The
-            // per-frame drive-widget tick + door-animation redraw that
-            // used to live in that hook now run in RunMessageLoop.
-
-            {
-                bool  fHasDisk = (m_diskManager != nullptr) && m_diskManager->HasSlot6Controller();
-
-                if (!fHasDisk)
-                {
-                    // No Slot 6 controller (stripped Apple II config) --
-                    // collapse the drive widgets so they paint nothing
-                    // and the bottom command bar is clear of drive UI.
-                    // The joystick-mode button still paints, since
-                    // joystick input is independent of disk presence.
-                    m_driveChrome[0].Hide();
-                    m_driveChrome[1].Hide();
-                }
-                else if (!ShouldShowExternalDrive())
-                {
-                    // //c with the optional external drive not connected: the
-                    // internal drive (widget 0) shows, the external (widget 1)
-                    // stays collapsed until the user connects it in Settings.
-                    m_driveChrome[1].Hide();
-                }
-
-                m_uiShell.HitTest().Clear();
-                if (fHasDisk)
-                {
-                    m_uiShell.HitTest().Register (DxuiHitRect { m_driveChrome[0].BodyRect(), DxuiHitSlot::Custom, 0 });
-                    if (ShouldShowExternalDrive())
-                    {
-                        m_uiShell.HitTest().Register (DxuiHitRect { m_driveChrome[1].BodyRect(), DxuiHitSlot::Custom, 1 });
-                    }
-                }
-            }
-
-            if (m_fOleInitialized)
-            {
-                HRESULT hrDrop = m_dragDropTarget.Initialize (m_hwnd, &m_uiShell.HitTest(), [this] (int tag, const std::wstring & path) { Mount (6, tag, path); }, IsSupportedDiskImageExtension);
-                IGNORE_RETURN_VALUE (hrDrop, S_OK);
-
-                // UIPI whitelist. When Casso runs at a higher integrity
-                // level than the source (e.g. user launched Casso
-                // elevated and is dragging from a non-elevated Explorer),
-                // UIPI silently blocks the messages OLE uses to marshal
-                // the dragged payload across the IL boundary. The fix
-                // is ChangeWindowMessageFilterEx for the three messages
-                // OLE actually uses for drop targets:
-                //   WM_DROPFILES       (0x0233)
-                //   WM_COPYDATA        (0x004A)
-                //   WM_COPYGLOBALDATA  (0x0049, undocumented but real)
-                // Allowing these lets Explorer -> elevated-Casso drag
-                // work without lowering Casso's IL. The window is now a
-                // single top-level HWND (the legacy CassoRenderSurface
-                // child is gone), so only m_hwnd needs the filter.
-                {
-                    const UINT  s_kWmCopyGlobalData = 0x0049;
-
-                    (void) ChangeWindowMessageFilterEx (m_hwnd, WM_DROPFILES,        MSGFLT_ALLOW, nullptr);
-                    (void) ChangeWindowMessageFilterEx (m_hwnd, WM_COPYDATA,         MSGFLT_ALLOW, nullptr);
-                    (void) ChangeWindowMessageFilterEx (m_hwnd, s_kWmCopyGlobalData, MSGFLT_ALLOW, nullptr);
-                }
-            }
-        }
-    }
 
     // Native-only bootstrap baseline: legacy chrome overlay retired
     // ahead of the native painter. Keep existing command/menu path active.
@@ -985,149 +600,811 @@ HRESULT EmulatorShell::Initialize (
     RecordRecentDisk (std::filesystem::path (disk2Path).wstring());
     RecordRecentDisk (std::filesystem::path (disk1Path).wstring());
 
-    // Seed the mixer state from the per-machine $cassoUiPrefs JSON
-    // before the audio thread first calls SetEnabled / SetMechanism.
-    // Default is enabled + Shugart when nothing has been persisted yet.
+    ApplyPersistedAudioPrefs();
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RegisterChromeDock
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::RegisterChromeDock()
+{
+    // Register the chrome bands + center with the dock layout once --
+    // their thicknesses are refreshed from DPI + live drive-bar state
+    // on every ComputeViewportRect / ClientSizeForCenterPx call.
+    m_chromeDock.SetDock (m_titleBand,  DxuiDock::Top);
+    m_chromeDock.SetDock (m_navBand,    DxuiDock::Top);
+    m_chromeDock.SetDock (m_driveBand,  DxuiDock::Bottom);
+    // Registered AFTER the drive band so the dock peels the drive bar off the
+    // very bottom first and the //c switch strip lands just above it (between
+    // the viewport and the joystick/paddle/mouse bar).
+    m_chromeDock.SetDock (m_switchBand, DxuiDock::Bottom);
+    m_chromeDock.SetDock (m_centerBand, DxuiDock::Fill);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  InitAssetPathsAndStores
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::InitAssetPathsAndStores()
+{
+    fs::path  assetBaseDir = AssetBootstrap::GetAssetBaseDirectory();
+
+
+
+    m_assetBaseDir    = assetBaseDir.wstring();
+    m_userConfigStore = std::make_unique<UserConfigStore> (assetBaseDir.wstring());
+
+    m_diskManager = std::make_unique<DiskManager> (m_ownedDevices,
+                                                   m_diskStore,
+                                                   m_diskAudioSources,
+                                                   m_wasapiAudio,
+                                                   m_driveWidgets,
+                                                   m_driveWidgetState,
+                                                   m_driveChrome,
+                                                   m_cpuManager,
+                                                   m_currentMachineName,
+                                                   *m_userConfigStore,
+                                                   m_uiFs,
+                                                   m_userWriteProtect);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AllocateFramebuffers
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::AllocateFramebuffers()
+{
+    size_t  fbSize = static_cast<size_t> (kFramebufferWidth) * kFramebufferHeight;
+
+
+
+    // Create framebuffers (CPU renders to one, UI reads the other)
+    m_cpuFramebuffer.resize (fbSize, 0);
+    m_textOverlay.resize (fbSize, 0);
+    m_uiFramebuffer.resize (fbSize, 0);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PrimeChromeThemeEarly
+//
+//  Primes the chrome-affecting theme state BEFORE creating the window so
+//  the initial ClientSizeForCenter inside CreateEmulatorWindow reads the
+//  right drive-bar thickness. Without this, a user whose persisted
+//  activeTheme is compact (DarkModern or RetroTerminal) would get a window
+//  sized for the full skeuomorphic strip on first paint, then immediately
+//  shrink as soon as ThemeManager::Activate fires its listener later in
+//  startup. UserConfigStore needs only assetBaseDir + the UI-thread
+//  filesystem, both of which are already live here.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::PrimeChromeThemeEarly()
+{
+    HRESULT  hr = S_OK;
+
+
+
+    // A missing UserPrefs.json (first run) is reported by LoadAll as success
+    // with defaults. A corrupt one means something is genuinely wrong, so
+    // CHRAF asserts -- a debug build breaks for a dev to dig in -- then resets
+    // to defaults so release still boots. The theme is applied from the
+    // loaded-or-default prefs at Error, reached on both paths.
+    hr = m_userConfigStore->LoadAll (m_globalPrefs, m_uiFs);
+    CHRAF (hr, m_globalPrefs = GlobalUserPrefs {});
+
+Error:
+    m_chromeTheme = CassoTheme::ForName (m_globalPrefs.activeTheme);
+    ApplyThemeToChrome (m_chromeTheme);
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BuildMachineDevices
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT EmulatorShell::BuildMachineDevices (const MachineConfig & config)
+{
+    HRESULT  hr = S_OK;
+
+
+
+    hr = m_machineManager->CreateMemoryDevices (config);
+    CHR (hr);
+
+    m_machineManager->WireLanguageCard();
+    // //c banked ROM: layer the $C028 bank-switch coordinator + no-slots
+    // $Cxxx routing on top of the flat bank-0 split WireLanguageCard just
+    // did. Without this the initial-launch //c has no ROM banking (and no
+    // SetNoExternalSlots), so $C800 floats and the firmware derails to a
+    // garbage screen. SwitchMachine already does this; the initial build
+    // path must match it. No-op for non-banked machines (romBankSize == 0).
+    m_machineManager->WireApple2cRomBank();
+    m_machineManager->CreateVideoModes();
+
+    // Validate memory bus for overlapping device address ranges
+    hr = m_memoryBus.Validate();
+    CHR (hr);
+
+    hr = m_machineManager->CreateCpu (config);
+    CHR (hr);
+
+    m_machineManager->WirePageTable();
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  InitializeRenderer
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT EmulatorShell::InitializeRenderer()
+{
+    HRESULT  hr = S_OK;
+
+
+
+    // Initialize the Apple ][ framebuffer renderer against the host's
+    // D3D11 device + DXGI swap chain (full host ownership). The host
+    // owns Present; the renderer composites the framebuffer into the
+    // host back buffer from the before-present hook wired below. The
+    // initial target rect is the DxuiViewport bounds computed during
+    // CreateEmulatorWindow.
+    hr = m_d3dRenderer.Initialize (m_host->GetDevice(),
+                                   m_host->GetContext(),
+                                   m_host->GetSwapChain(),
+                                   kFramebufferWidth,
+                                   kFramebufferHeight,
+                                   m_viewportBoundsPx);
+    CHR (hr);
+
+    // Composite the Apple ][ framebuffer into the host's back buffer
+    // before the host paints chrome on top (DxuiHwndSource::PaintPump).
+    // m_pendingFramebuffer is staged each UI frame by RunMessageLoop;
+    // nullptr means "no new emulator frame" (re-composite last upload).
+    m_host->SetBeforePresentHook ([this] ()
     {
-        std::string         machineNameNarrow;
-        JsonValue           defaultJson;
-        JsonValue           mergedJson;
-        JsonParseError      parseErr;
-        std::ifstream       configFile;
-        std::stringstream   ss;
-        std::string         jsonText;
-        std::wstring        configRelPath = std::wstring (L"Machines\\") + m_currentMachineName +
-                                            L"\\" + m_currentMachineName + L".json";
-        fs::path            configPath    = PathResolver::FindFile (PathResolver::BuildSearchPaths (
-                                                PathResolver::GetExecutableDirectory(),
-                                                PathResolver::GetWorkingDirectory()),
-                                                configRelPath);
+        HRESULT  hrComposite = m_d3dRenderer.UploadAndComposite (m_host->GetBackBufferRtv(),
+                                                                 m_pendingFramebuffer);
+
+        // Per-frame present hook with no return channel to propagate to.
+        // A transient composite failure self-corrects next frame; a
+        // persistent one (device lost) shows on screen and is handled by
+        // the renderer's own device-reset path, not from here.
+        IGNORE_RETURN_VALUE (hrComposite, S_OK);
+    });
+
+Error:
+    return hr;
+}
 
 
-        machineNameNarrow.reserve (m_currentMachineName.size());
-        for (wchar_t c : m_currentMachineName)
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  LoadMachineUiPrefs
+//
+//  Reads the active machine's JSON config and merges the user overrides via
+//  UserConfigStore, handing back the "$cassoUiPrefs" object in outUiPrefs.
+//  Any problem collapses to outUiPrefs == nullptr so the caller keeps the
+//  built-in defaults, and these cosmetic per-machine prefs never block
+//  startup -- though corrupt content (as opposed to a simply-absent file or
+//  key) asserts first so a debug build catches it. The returned pointer
+//  aliases into outDoc, so outDoc must outlive every use of it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::LoadMachineUiPrefs (
+    JsonValue         & outDoc,
+    const JsonValue * & outUiPrefs)
+{
+    HRESULT            hr                = S_OK;
+    std::string        machineNameNarrow = CurrentMachineNameNarrow();
+    JsonValue          defaultJson;
+    JsonParseError     parseErr;
+    std::ifstream      configFile;
+    std::stringstream  ss;
+    std::string        jsonText;
+    std::wstring       configRelPath     = std::wstring (L"Machines\\") + m_currentMachineName +
+                                           L"\\" + m_currentMachineName + L".json";
+    fs::path           configPath        = PathResolver::FindFile (PathResolver::BuildSearchPaths (
+                                               PathResolver::GetExecutableDirectory(),
+                                               PathResolver::GetWorkingDirectory()),
+                                               configRelPath);
+
+
+
+    outUiPrefs = nullptr;
+
+    // A missing file, or a missing "$cassoUiPrefs" key, is normal (first run
+    // for this machine): recover to null so the caller keeps defaults, no
+    // assert. Content that exists but is corrupt -- unparseable JSON or a
+    // failed override merge -- means something is wrong, so CHRA asserts (a
+    // debug build breaks for a dev to dig in) and then bails to that same
+    // null-prefs recovery.
+    BAIL_OUT_IF (configPath.empty(), S_OK);
+    configFile.open (configPath);
+    BAIL_OUT_IF (!configFile.good(), S_OK);
+
+    ss << configFile.rdbuf();
+    jsonText = ss.str();
+
+    hr = JsonParser::Parse (jsonText, defaultJson, parseErr);
+    CHRA (hr);
+
+    hr = m_userConfigStore->Load (machineNameNarrow, defaultJson, m_uiFs, outDoc);
+    CHRA (hr);
+
+    BAIL_OUT_IF (outDoc.GetType() != JsonType::Object, S_OK);
+
+    hr = outDoc.GetObject ("$cassoUiPrefs", outUiPrefs);
+    if (FAILED (hr))
+    {
+        outUiPrefs = nullptr;
+    }
+
+Error:
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  InitializeUiShell
+//
+//  Native UI runtime bootstrap. UiShell owns the painter, text renderer,
+//  hit-tester, focus manager, and input translator; the host panel-tree
+//  pump composites the chrome on top of the emulator frame. Infrastructure
+//  bring-up that genuinely fails -- D2D/text, theme enumeration -- aborts
+//  startup through CHR (Main surfaces it); corrupt user prefs recover to
+//  defaults rather than abort.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT EmulatorShell::InitializeUiShell()
+{
+    HRESULT  hr = S_OK;
+
+
+
+    hr = m_uiShell.Initialize (&m_d3dRenderer);
+    CHR (hr);
+
+    hr = WireUiShellChromeAndThemes();
+    CHR (hr);
+
+    RestoreInputAndColorPrefs();
+    RecordActiveMachineSelection();
+    SubscribeAndActivateTheme();
+    ApplyPersistedChromePrefs();
+
+    hr = FinishUiShellLayout();
+    CHR (hr);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WireUiShellChromeAndThemes
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT EmulatorShell::WireUiShellChromeAndThemes()
+{
+    HRESULT   hr        = S_OK;
+    fs::path  themesDir = fs::path (m_assetBaseDir) / fs::path ("Themes");
+
+
+
+    // The caption is host-owned now, and chrome paints through the
+    // host panel tree; UiShell only routes input, hit-tests, and
+    // supplies the theme / viewport metrics the settings panel reads.
+    m_uiShell.SetMainMenu (&m_mainMenu);
+    m_uiShell.SetTheme    (&m_chromeTheme);
+
+    // Inject the shared text renderer into chrome controls that
+    // need to measure label strings during Layout. Mirrors the
+    // UiShell-owned painter / text renderer pair so the chrome
+    // controls participate in the standard IDxuiControl::Layout
+    // contract without needing the renderer passed as a Layout
+    // parameter on every call.
+    m_mainMenu.SetTextRendererForMeasure (&m_uiShell.Text());
+    m_joystickButton.SetTextRenderer     (&m_uiShell.Text());
+    m_switchBar.SetTextRenderer          (&m_uiShell.Text());
+
+    // Global prefs are already loaded by PrimeChromeThemeEarly, so there is
+    // no second LoadAll here. Discover scans the themes directory (an empty
+    // or absent one returns S_OK -- the built-in themes still work), so only
+    // a genuine enumeration failure propagates.
+    m_themeManager = std::make_unique<ThemeManager> (m_uiFs, themesDir.wstring());
+    hr             = m_themeManager->Discover();
+    CHR (hr);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RestoreInputAndColorPrefs
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::RestoreInputAndColorPrefs()
+{
+    // Restore the split input mappings. Keys (arrows->
+    // joystick) is a passive remap, safe to restore. Pointer: Paddle is
+    // an active mouse-capture mode, never restored on launch (it would
+    // light the LED while the mouse is NOT captured) -- falls back to
+    // Off; Mouse is non-capturing and restores safely.
+    m_arrowsJoystick = m_globalPrefs.arrowsToJoystick;
+    m_pointerMode    = (m_globalPrefs.pointerMapping == InputMappingMode::Paddle)
+                           ? InputMappingMode::Off
+                           : m_globalPrefs.pointerMapping;
+    m_globalPrefs.pointerMapping   = m_pointerMode;
+    m_globalPrefs.inputMappingMode = DisplayInputMode();
+    SyncSelectorState();
+
+    SetColorMonitorTextArgbLive (
+        ColorUtil::ResolveColorMonitorTextArgb (m_globalPrefs.colorMonitorTextMode,
+                                                m_globalPrefs.colorMonitorTextCustomArgb));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RecordActiveMachineSelection
+//
+//  Records the currently-active machine so the next launch boots it by
+//  default (Main resolves the value via this same GlobalUserPrefs field).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::RecordActiveMachineSelection()
+{
+    std::string  narrow = CurrentMachineNameNarrow();
+
+
+
+    if (m_globalPrefs.lastSelectedMachine != narrow)
+    {
+        m_globalPrefs.lastSelectedMachine = narrow;
+        SaveGlobalPrefs();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SubscribeAndActivateTheme
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::SubscribeAndActivateTheme()
+{
+    HRESULT  hrActivate = S_OK;
+
+
+
+    // Subscribe the chrome theme cache to ThemeManager BEFORE we
+    // activate, so the initial Activate() fires the listener and
+    // primes m_chromeTheme from the persisted user choice. Without
+    // this the chrome would still paint Skeuomorphic until the
+    // user re-picked the theme in Settings.
+    m_themeManager->AddChangeListener ([this] (const LoadedTheme & t)
+    {
+        m_chromeTheme = CassoTheme::ForName (t.name);
+        ApplyThemeToChrome (m_chromeTheme);
+    });
+
+    // Tell the theme manager which machine is active BEFORE the
+    // first Activate so its listener notification carries the
+    // correctly-resolved (per-variant) theme.
+    m_themeManager->SetActiveMachineName (m_config.name);
+
+    hrActivate = m_themeManager->Activate (m_globalPrefs.activeTheme);
+    if (hrActivate != S_OK)
+    {
+        // Activate returns S_FALSE (not a failure) when the persisted theme
+        // name is unknown -- renamed, deleted, or a stale default. Fall back
+        // to the canonical built-in. If even that isn't in the discovered
+        // set, chrome keeps its constructed Skeuomorphic default, so the
+        // fallback's own S_FALSE is genuinely nothing to act on.
+        hrActivate = m_themeManager->Activate ("Skeuomorphic");
+        IGNORE_RETURN_VALUE (hrActivate, S_OK);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ApplyPersistedChromePrefs
+//
+//  Applies the persisted per-machine colorMode + //c peripheral state at
+//  boot. Without this the emulator defaults to Color regardless of what the
+//  user last saved (MachineManager::SwitchMachine carries the apply logic
+//  but only fires on user-initiated switches, not the boot path).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::ApplyPersistedChromePrefs()
+{
+    HRESULT            hr           = S_OK;
+    HRESULT            hrOpt        = S_OK;
+    JsonValue          doc;
+    const JsonValue *  uiPrefs      = nullptr;
+    const JsonValue *  wpArr        = nullptr;
+    std::string        colorMode;
+    bool               extConnected = false;
+    bool               mouseConn    = true;
+
+
+
+    LoadMachineUiPrefs (doc, uiPrefs);
+    BAIL_OUT_IF (uiPrefs == nullptr, S_OK);
+
+    // Each key below is optional: a fresh machine omits it, which the
+    // getter reports as a failing HRESULT while leaving the target
+    // untouched. We probe with hrOpt and apply only on success, so a
+    // missing key keeps the built-in default -- a genuine corrupt-file
+    // error already propagated out of LoadMachineUiPrefs above.
+    hrOpt = uiPrefs->GetString ("colorMode", colorMode);
+    if (SUCCEEDED (hrOpt))
+    {
+        int  modeIdx = -1;
+
+        if      (colorMode == "color") { modeIdx = 0; }
+        else if (colorMode == "green") { modeIdx = 1; }
+        else if (colorMode == "amber") { modeIdx = 2; }
+        else if (colorMode == "white") { modeIdx = 3; }
+
+        if (modeIdx >= 0)
         {
-            machineNameNarrow.push_back ((char) (unsigned char) c);
+            SetColorModeLive (modeIdx);
         }
+    }
 
-        if (!configPath.empty())
+    // //c external drive + mouse: seed the connected states HERE -- before
+    // FinishUiShellLayout gates on ShouldShowExternalDrive() -- so the first
+    // paint matches the saved setup. External drive defaults not-connected;
+    // mouse defaults CONNECTED.
+    hrOpt = uiPrefs->GetBool ("externalDriveConnected", extConnected);
+    if (SUCCEEDED (hrOpt))
+    {
+        m_externalDriveConnected = extConnected;
+    }
+
+    hrOpt = uiPrefs->GetBool ("mouseConnected", mouseConn);
+    if (SUCCEEDED (hrOpt))
+    {
+        m_mouseConnected = mouseConn;
+    }
+
+    // Seed the per-drive user write-protect preference BEFORE the
+    // command-line mount so the very first mount already re-asserts it
+    // onto the image.
+    hrOpt = uiPrefs->GetArray ("writeProtect", wpArr);
+    if (SUCCEEDED (hrOpt) && wpArr != nullptr)
+    {
+        for (size_t wi = 0; wi < wpArr->ArraySize() && wi < m_userWriteProtect.size(); ++wi)
         {
-            configFile.open (configPath);
-            if (configFile.good())
+            const JsonValue &  entry = wpArr->ArrayAt (wi);
+
+            if (entry.GetType() == JsonType::Bool)
             {
-                HRESULT  hrLoad;
-
-                ss << configFile.rdbuf();
-                jsonText = ss.str();
-
-                hrLoad = JsonParser::Parse (jsonText, defaultJson, parseErr);
-                if (SUCCEEDED (hrLoad))
-                {
-                    hrLoad = m_userConfigStore->Load (machineNameNarrow,
-                                                     defaultJson,
-                                                     m_uiFs,
-                                                     mergedJson);
-                }
-                if (SUCCEEDED (hrLoad) && mergedJson.GetType() == JsonType::Object)
-                {
-                    const JsonValue *  uiPrefs   = nullptr;
-
-                    if (SUCCEEDED (mergedJson.GetObject ("$cassoUiPrefs", uiPrefs)) &&
-                        uiPrefs != nullptr)
-                    {
-                        bool         enabled = true;
-                        std::string  mechNarrow;
-
-                        if (SUCCEEDED (uiPrefs->GetBool ("floppySoundEnabled", enabled)))
-                        {
-                            m_driveAudioMixer.SetEnabled (enabled);
-                        }
-                        if (SUCCEEDED (uiPrefs->GetString ("floppyMechanism", mechNarrow)) && !mechNarrow.empty())
-                        {
-                            // DriveAudioMixer matches mechanism names case-
-                            // insensitively, so the persisted lower-case token
-                            // ("alps"/"shugart") can be handed over as-is.
-                            std::wstring  mechWide (mechNarrow.begin(), mechNarrow.end());
-                            HRESULT       hrMech = m_driveAudioMixer.SetMechanism (mechWide);
-
-                            IGNORE_RETURN_VALUE (hrMech, S_OK);
-                        }
-
-                        // Seed the per-sound drive-audio gains. Missing keys
-                        // leave the defaults untouched (JsonValue getters do
-                        // not write the out-param on failure).
-                        {
-                            double   motorV = Disk2AudioSource::kMotorVolume;
-                            double   headV  = Disk2AudioSource::kHeadVolume;
-                            double   doorV  = Disk2AudioSource::kDoorVolume;
-                            HRESULT  hrVol  = S_OK;
-
-                            hrVol = uiPrefs->GetNumber ("driveMotorVolume", motorV);
-                            IGNORE_RETURN_VALUE (hrVol, S_OK);
-                            hrVol = uiPrefs->GetNumber ("driveHeadVolume",  headV);
-                            IGNORE_RETURN_VALUE (hrVol, S_OK);
-                            hrVol = uiPrefs->GetNumber ("driveDoorVolume",  doorV);
-                            IGNORE_RETURN_VALUE (hrVol, S_OK);
-
-                            SetDriveAudioVolumes ((float) motorV, (float) headV, (float) doorV);
-                        }
-
-                        // Seed the per-drive stereo pans. Missing keys
-                        // leave the defaults untouched.
-                        {
-                            double   pan0  = DriveAudioMixer::kDefaultDriveOnePan;
-                            double   pan1  = DriveAudioMixer::kDefaultDriveTwoPan;
-                            HRESULT  hrPan = S_OK;
-
-                            hrPan = uiPrefs->GetNumber ("driveOnePan", pan0);
-                            IGNORE_RETURN_VALUE (hrPan, S_OK);
-                            hrPan = uiPrefs->GetNumber ("driveTwoPan", pan1);
-                            IGNORE_RETURN_VALUE (hrPan, S_OK);
-
-                            SetDriveAudioPan (0, (float) pan0);
-                            SetDriveAudioPan (1, (float) pan1);
-                        }
-
-                        // //c case-switch latches: restore the 80/40 and
-                        // keyboard (Dvorak) switch positions onto the keyboard
-                        // device. Absent keys leave the hardware default (both
-                        // out), and only //c configs ever carry them, so this is
-                        // naturally a no-op elsewhere. The switch strip re-reads
-                        // the device on its next SyncSwitchBarState.
-                        {
-                            Apple2eKeyboard *  iieKbd =
-                                dynamic_cast<Apple2eKeyboard *> (m_refs.keyboard);
-
-                            if (iieKbd != nullptr)
-                            {
-                                bool  eightyIn = false;
-                                bool  dvorak   = false;
-
-                                if (SUCCEEDED (uiPrefs->GetBool ("eightyColumnSwitch", eightyIn)))
-                                {
-                                    iieKbd->SetEightyColumnSwitchIn (eightyIn);
-                                }
-                                if (SUCCEEDED (uiPrefs->GetBool ("keyboardDvorak", dvorak)))
-                                {
-                                    iieKbd->SetKeyboardSwitchDvorak (dvorak);
-                                }
-                            }
-                        }
-
-                        // //c: default Pointer -> Mouse when connected and
-                        // nothing else was chosen. (The external-drive + mouse
-                        // connected-states are seeded earlier, before the drive-
-                        // chrome layout, so the first paint reflects the saved
-                        // setup rather than the defaults.)
-                        ApplyDefaultPointerForMachine();
-                    }
-                }
+                m_userWriteProtect[wi] = entry.GetBool();
             }
         }
     }
 
 Error:
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FinishUiShellLayout
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT EmulatorShell::FinishUiShellLayout()
+{
+    HRESULT  hr         = S_OK;
+    UINT     initialDpi = GetDpiForWindow (m_hwnd);
+    bool     fHasDisk   = (m_diskManager != nullptr) && m_diskManager->HasSlot6Controller();
+
+
+
+    // Propagate the live monitor DPI into UiShell so the first
+    // D2D BindBackBuffer uses the right DPI for text. Without
+    // this the initial paint binds at the m_dpi default (0->96)
+    // and chrome text renders tiny on high-DPI displays until
+    // the user resizes the window.
+    hr = m_uiShell.OnResize (m_d3dRenderer.GetBackBufferWidth(),
+                             m_d3dRenderer.GetBackBufferHeight(),
+                             initialDpi);
+    CHR (hr);
+
+    // Chrome no longer composites via an after-blit hook: it
+    // paints through the host's panel-tree pump (the adopted
+    // chrome controls) on top of the Apple ][ framebuffer. The
+    // per-frame drive-widget tick + door-animation redraw that
+    // used to live in that hook now run in RunMessageLoop.
+    if (!fHasDisk)
+    {
+        // No Slot 6 controller (stripped Apple II config) --
+        // collapse the drive widgets so they paint nothing
+        // and the bottom command bar is clear of drive UI.
+        // The joystick-mode button still paints, since
+        // joystick input is independent of disk presence.
+        m_driveChrome[0].Hide();
+        m_driveChrome[1].Hide();
+    }
+    else if (!ShouldShowExternalDrive())
+    {
+        // //c with the optional external drive not connected: the
+        // internal drive (widget 0) shows, the external (widget 1)
+        // stays collapsed until the user connects it in Settings.
+        m_driveChrome[1].Hide();
+    }
+
+    m_uiShell.HitTest().Clear();
+    if (fHasDisk)
+    {
+        m_uiShell.HitTest().Register (DxuiHitRect { m_driveChrome[0].BodyRect(), DxuiHitSlot::Custom, 0 });
+        if (ShouldShowExternalDrive())
+        {
+            m_uiShell.HitTest().Register (DxuiHitRect { m_driveChrome[1].BodyRect(), DxuiHitSlot::Custom, 1 });
+        }
+    }
+
+    if (m_fOleInitialized)
+    {
+        InstallDragDropTarget();
+    }
+
+Error:
     return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  InstallDragDropTarget
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::InstallDragDropTarget()
+{
+    HRESULT     hrDrop            = S_OK;
+    const UINT  kWmCopyGlobalData = 0x0049;   // undocumented but real
+
+
+
+    // Drag-drop is an optional convenience -- File > Open and the drive
+    // widgets' click-to-browse cover the same mounts -- so a failed
+    // registration disables drop but must not prevent launch.
+    hrDrop = m_dragDropTarget.Initialize (m_hwnd, &m_uiShell.HitTest(), [this] (int tag, const std::wstring & path) { Mount (6, tag, path); }, IsSupportedDiskImageExtension);
+    IGNORE_RETURN_VALUE (hrDrop, S_OK);
+
+    // UIPI whitelist. When Casso runs at a higher integrity
+    // level than the source (e.g. user launched Casso
+    // elevated and is dragging from a non-elevated Explorer),
+    // UIPI silently blocks the messages OLE uses to marshal
+    // the dragged payload across the IL boundary. The fix
+    // is ChangeWindowMessageFilterEx for the three messages
+    // OLE actually uses for drop targets:
+    //   WM_DROPFILES       (0x0233)
+    //   WM_COPYDATA        (0x004A)
+    //   WM_COPYGLOBALDATA  (0x0049, undocumented but real)
+    // Allowing these lets Explorer -> elevated-Casso drag
+    // work without lowering Casso's IL. The window is now a
+    // single top-level HWND (the legacy CassoRenderSurface
+    // child is gone), so only m_hwnd needs the filter.
+    (void) ChangeWindowMessageFilterEx (m_hwnd, WM_DROPFILES,      MSGFLT_ALLOW, nullptr);
+    (void) ChangeWindowMessageFilterEx (m_hwnd, WM_COPYDATA,       MSGFLT_ALLOW, nullptr);
+    (void) ChangeWindowMessageFilterEx (m_hwnd, kWmCopyGlobalData, MSGFLT_ALLOW, nullptr);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ApplyPersistedAudioPrefs
+//
+//  Seeds the drive-audio mixer + //c default pointer from the per-machine
+//  $cassoUiPrefs JSON before the audio thread first calls SetEnabled /
+//  SetMechanism. Default is enabled + Shugart when nothing is persisted.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::ApplyPersistedAudioPrefs()
+{
+    HRESULT            hr      = S_OK;
+    HRESULT            hrOpt   = S_OK;
+    JsonValue          doc;
+    const JsonValue *  uiPrefs = nullptr;
+    bool               enabled = true;
+    std::string        mechNarrow;
+    double             motorV  = Disk2AudioSource::kMotorVolume;
+    double             headV   = Disk2AudioSource::kHeadVolume;
+    double             doorV   = Disk2AudioSource::kDoorVolume;
+    double             pan0    = DriveAudioMixer::kDefaultDriveOnePan;
+    double             pan1    = DriveAudioMixer::kDefaultDriveTwoPan;
+
+
+
+    LoadMachineUiPrefs (doc, uiPrefs);
+    BAIL_OUT_IF (uiPrefs == nullptr, S_OK);
+
+    hrOpt = uiPrefs->GetBool ("floppySoundEnabled", enabled);
+    if (SUCCEEDED (hrOpt))
+    {
+        m_driveAudioMixer.SetEnabled (enabled);
+    }
+
+    hrOpt = uiPrefs->GetString ("floppyMechanism", mechNarrow);
+    if (SUCCEEDED (hrOpt) && !mechNarrow.empty())
+    {
+        // DriveAudioMixer matches mechanism names case-insensitively, so
+        // the persisted lower-case token ("alps"/"shugart") can be handed
+        // over as-is. A stale/unknown name leaves the mixer on its default
+        // mechanism, which is fine -- not worth aborting startup for.
+        std::wstring  mechWide (mechNarrow.begin(), mechNarrow.end());
+
+        hrOpt = m_driveAudioMixer.SetMechanism (mechWide);
+        IGNORE_RETURN_VALUE (hrOpt, S_OK);
+    }
+
+    // Optional gains + pans: each value is pre-seeded to its built-in
+    // default, and GetNumber leaves that default in place when the key is
+    // absent, so the read result is intentionally discarded -- absence
+    // simply means "keep the default". SetDriveAudio* then applies the
+    // resolved values (default or persisted) uniformly.
+    hrOpt = uiPrefs->GetNumber ("driveMotorVolume", motorV);
+    IGNORE_RETURN_VALUE (hrOpt, S_OK);
+    hrOpt = uiPrefs->GetNumber ("driveHeadVolume",  headV);
+    IGNORE_RETURN_VALUE (hrOpt, S_OK);
+    hrOpt = uiPrefs->GetNumber ("driveDoorVolume",  doorV);
+    IGNORE_RETURN_VALUE (hrOpt, S_OK);
+    SetDriveAudioVolumes ((float) motorV, (float) headV, (float) doorV);
+
+    hrOpt = uiPrefs->GetNumber ("driveOnePan", pan0);
+    IGNORE_RETURN_VALUE (hrOpt, S_OK);
+    hrOpt = uiPrefs->GetNumber ("driveTwoPan", pan1);
+    IGNORE_RETURN_VALUE (hrOpt, S_OK);
+    SetDriveAudioPan (0, (float) pan0);
+    SetDriveAudioPan (1, (float) pan1);
+
+    // //c case-switch latches: restore the 80/40 and keyboard (Dvorak) switch
+    // positions onto the keyboard device. Absent keys leave the hardware
+    // default (both out), and only //c configs carry them, so this is a no-op
+    // elsewhere. The switch strip re-reads the device on its next
+    // SyncSwitchBarState.
+    {
+        Apple2eKeyboard *  iieKbd = dynamic_cast<Apple2eKeyboard *> (m_refs.keyboard);
+
+        if (iieKbd != nullptr)
+        {
+            bool  eightyIn = false;
+            bool  dvorak   = false;
+
+            if (SUCCEEDED (uiPrefs->GetBool ("eightyColumnSwitch", eightyIn)))
+            {
+                iieKbd->SetEightyColumnSwitchIn (eightyIn);
+            }
+            if (SUCCEEDED (uiPrefs->GetBool ("keyboardDvorak", dvorak)))
+            {
+                iieKbd->SetKeyboardSwitchDvorak (dvorak);
+            }
+        }
+    }
+
+    // //c: default Pointer -> Mouse when connected and nothing else was
+    // chosen. (The external-drive + mouse connected-states are seeded in
+    // ApplyPersistedChromePrefs, before the drive-chrome layout, so the
+    // first paint reflects the saved setup rather than the defaults.)
+    ApplyDefaultPointerForMachine();
+
+Error:
+    return;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CurrentMachineNameNarrow
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string EmulatorShell::CurrentMachineNameNarrow() const
+{
+    std::string  narrow;
+
+
+
+    narrow.reserve (m_currentMachineName.size());
+    for (wchar_t c : m_currentMachineName)
+    {
+        narrow.push_back ((char) (unsigned char) c);
+    }
+
+    return narrow;
 }
 
 
@@ -1367,6 +1644,11 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     // The //c switch strip shares the same deferred-tooltip pattern.
     m_switchBarTooltip.SetPopupHost (m_host.get());
     m_switchBarTooltip.SetTheme     (m_chromeTheme);
+    // The drive-widget write-protect tooltip shares the host popup pool.
+    // It surfaces on a dwell over a write-protected drive and names the
+    // protection source(s).
+    m_driveTooltip.SetPopupHost (m_host.get());
+    m_driveTooltip.SetTheme     (m_chromeTheme);
 
     // Defer the size reconcile until after ShowWindow. The NC frame
     // (border carve-out from DefWindowProc + DWM rounded corners +
@@ -2895,6 +3177,39 @@ void EmulatorShell::SetColorMonitorTextArgbLive (uint32_t argb)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  SetDriveUserWriteProtect
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::SetDriveUserWriteProtect (int drive, bool wp)
+{
+    DiskImage *  image = nullptr;
+
+
+    if (drive < 0 || drive >= (int) m_userWriteProtect.size())
+    {
+        return;
+    }
+
+    m_userWriteProtect[(size_t) drive] = wp;
+
+    // Apply to whatever is mounted right now so the toggle takes effect
+    // without a remount; a later mount re-applies the standing preference
+    // via DiskManager::MountDiskInSlot6.
+    image = m_diskStore.GetImage (6, drive);
+
+    if (image != nullptr)
+    {
+        image->SetUserWriteProtected (wp);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 // Posted (not sent) to the shell HWND to marshal a window-title refresh
 // onto the UI thread when UpdateWindowTitle is called from the CPU thread
 // (SwitchMachine). Drained by RunMessageLoop before DispatchMessage.
@@ -3096,6 +3411,7 @@ int EmulatorShell::RunMessageLoop()
 
             m_joystickTooltip.Tick (nowMs);
             m_switchBarTooltip.Tick (nowMs);
+            m_driveTooltip.Tick    (nowMs);
         }
         if (!m_d3dRenderer.NeedsPresent (fbDirtyThisFrame))
         {
@@ -3290,6 +3606,16 @@ void EmulatorShell::DispatchCpuCommand (const EmulatorCommand & cmd)
             int   drive = (cmd.id == IDM_DISK_EJECT1) ? 0 : 1;
 
             m_diskManager->EjectDiskInSlot6 (drive);
+            break;
+        }
+
+        case IDM_DISK_WRITEPROTECT1:
+        case IDM_DISK_WRITEPROTECT2:
+        {
+            int   drive = (cmd.id == IDM_DISK_WRITEPROTECT1) ? 0 : 1;
+            bool  wp    = (!cmd.payload.empty() && cmd.payload[0] == '1');
+
+            SetDriveUserWriteProtect (drive, wp);
             break;
         }
 
@@ -3913,12 +4239,13 @@ void EmulatorShell::OnDestroy ()
 
 DxuiMessageResult EmulatorShell::OnMouseMove (WPARAM wParam, LPARAM lParam)
 {
-    int      x        = ((int) (short) LOWORD (lParam));
-    int      y        = ((int) (short) HIWORD (lParam));
-    bool     leftDown = (wParam & MK_LBUTTON) != 0;
-    bool     overBtn  = false;
-    int64_t  nowMs    = (int64_t) std::chrono::duration_cast<std::chrono::milliseconds> (
-                            std::chrono::steady_clock::now().time_since_epoch()).count();
+    int            x        = ((int) (short) LOWORD (lParam));
+    int            y        = ((int) (short) HIWORD (lParam));
+    bool           leftDown = (wParam & MK_LBUTTON) != 0;
+    bool           overBtn  = false;
+    DriveWidget *  wpDrive  = nullptr;
+    int64_t        nowMs    = (int64_t) std::chrono::duration_cast<std::chrono::milliseconds> (
+                                  std::chrono::steady_clock::now().time_since_epoch()).count();
 
 
 
@@ -3941,7 +4268,8 @@ DxuiMessageResult EmulatorShell::OnMouseMove (WPARAM wParam, LPARAM lParam)
     }
 
     // A fresh hover over a drive widget replays its basename marquee, so
-    // the full filename can be re-read on demand.
+    // the full filename can be re-read on demand. The same pass notes a
+    // write-protected drive under the pointer so the WP tooltip can show.
     for (DriveWidget & drive : m_driveChrome)
     {
         RECT  outer  = drive.OuterRect();
@@ -3949,6 +4277,11 @@ DxuiMessageResult EmulatorShell::OnMouseMove (WPARAM wParam, LPARAM lParam)
                        y >= outer.top  && y < outer.bottom;
 
         drive.UpdateMarqueeHover (inside, nowMs);
+
+        if (inside && drive.IsWriteProtected())
+        {
+            wpDrive = &drive;
+        }
     }
 
     if (m_uiShell.OnMouseMove (x, y, leftDown))
@@ -3990,6 +4323,20 @@ DxuiMessageResult EmulatorShell::OnMouseMove (WPARAM wParam, LPARAM lParam)
         }
     }
 
+    // Write-protect tooltip: shown on a dwell over a protected drive,
+    // suppressed while the joystick button owns the hover (mutually
+    // exclusive bands, but be explicit).
+    if (wpDrive != nullptr && !overBtn)
+    {
+        m_driveTooltip.RequestShow (wpDrive->OuterRect(),
+                                    ComposeWriteProtectTooltip (wpDrive->WriteProtect()),
+                                    nowMs);
+    }
+    else
+    {
+        m_driveTooltip.RequestHide (nowMs);
+    }
+
     return DxuiMessageResult::NotHandled;
 }
 
@@ -4024,6 +4371,7 @@ DxuiMessageResult EmulatorShell::OnMouseLeave ()
     m_joystickButton.SetHovered (false);
     m_joystickButton.SetPressed (false);
     m_joystickTooltip.RequestHide (nowMs);
+    m_driveTooltip.RequestHide (nowMs);
 
     m_switchBar.SetHovered     (false);
     m_switchBar.SetPressedPart (Apple2cSwitchBar::Part::None);

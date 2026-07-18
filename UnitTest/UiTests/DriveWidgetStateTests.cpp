@@ -174,4 +174,54 @@ public:
                         L"re-inserting the same path while closed must not retrigger animation");
         Assert::AreEqual (std::wstring (L"same.dsk"), st.mountedImagePath);
     }
+
+    TEST_METHOD (WriteProtectTooltip_EmptyWhenNotProtected)
+    {
+        WriteProtectInfo  wp;
+
+        Assert::IsTrue (ComposeWriteProtectTooltip (wp).empty(),
+                        L"An unprotected disk yields no tooltip text");
+    }
+
+    TEST_METHOD (WriteProtectTooltip_NamesTheSingleSource)
+    {
+        WriteProtectInfo  wpSetting;
+        WriteProtectInfo  wpImage;
+        WriteProtectInfo  wpReadOnly;
+        WriteProtectInfo  wpNoPerm;
+
+        wpSetting.userSetting   = true;
+        wpImage.imageFlag       = true;
+        wpReadOnly.readOnlyFile = true;
+        wpNoPerm.noPermission   = true;
+
+        Assert::AreEqual (std::wstring (L"Disk is write-protected by the write-protect setting."),
+                          ComposeWriteProtectTooltip (wpSetting));
+        Assert::AreEqual (std::wstring (L"Disk is write-protected by the image's write-protect flag."),
+                          ComposeWriteProtectTooltip (wpImage));
+        Assert::AreEqual (std::wstring (L"Disk is write-protected by a read-only file."),
+                          ComposeWriteProtectTooltip (wpReadOnly));
+        Assert::AreEqual (std::wstring (L"Disk is write-protected by no write permission for the file."),
+                          ComposeWriteProtectTooltip (wpNoPerm));
+    }
+
+    TEST_METHOD (WriteProtectTooltip_JoinsMultipleSources)
+    {
+        WriteProtectInfo  wp;
+
+        wp.userSetting = true;
+        wp.imageFlag   = true;
+
+        Assert::AreEqual (
+            std::wstring (L"Disk is write-protected by the write-protect setting and the image's write-protect flag."),
+            ComposeWriteProtectTooltip (wp),
+            L"Two sources join with \" and \"");
+
+        wp.readOnlyFile = true;
+
+        Assert::AreEqual (
+            std::wstring (L"Disk is write-protected by the write-protect setting, the image's write-protect flag, and a read-only file."),
+            ComposeWriteProtectTooltip (wp),
+            L"Three sources use an Oxford-comma list");
+    }
 };

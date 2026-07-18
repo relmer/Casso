@@ -49,7 +49,25 @@ public:
     void             Eject               ();
     HRESULT          Flush               ();
     bool             IsLoaded            () const { return m_loaded; }
-    void             SetWriteProtected   (bool wp)        { m_writeProtected = wp; }
+
+    // Write-protect sources. The image flag comes from the loaded image
+    // (WOZ INFO chunk); the user flag from the Settings / menu toggle;
+    // the file-state flags from the host filesystem probe at mount. Any
+    // one of them protects the disk (IsWriteProtected == OR of all four).
+    // SetWriteProtected is retained as an alias for the image flag so the
+    // WOZ loader and legacy tests keep working.
+    void             SetWriteProtected      (bool wp) { m_imageWriteProtected = wp; }
+    void             SetImageWriteProtected (bool wp) { m_imageWriteProtected = wp; }
+    void             SetUserWriteProtected  (bool wp) { m_userWriteProtected  = wp; }
+    void             SetFileWriteProtect    (bool readOnly, bool noPermission)
+    {
+        m_fileReadOnly     = readOnly;
+        m_fileNoPermission = noPermission;
+    }
+    bool             IsImageWriteProtected  () const { return m_imageWriteProtected; }
+    bool             IsUserWriteProtected   () const { return m_userWriteProtected;  }
+    WriteProtectInfo GetWriteProtectInfo    () const;
+
     const string &   GetFilePath         () const { return m_filePath; }
     void             SetSourceFormat     (DiskFormat fmt) { m_format = fmt; }
     bool             IsTrackDirty        (int track) const;
@@ -95,6 +113,9 @@ private:
     DiskFormat               m_format         = DiskFormat::Dsk;
     bool                     m_loaded         = false;
     bool                     m_dirty          = false;
-    bool                     m_writeProtected = false;
+    bool                     m_imageWriteProtected = false;
+    bool                     m_userWriteProtected  = false;
+    bool                     m_fileReadOnly        = false;
+    bool                     m_fileNoPermission    = false;
     vector<Byte>             m_rawSourceBytes;
 };

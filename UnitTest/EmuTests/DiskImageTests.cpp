@@ -82,6 +82,68 @@ public:
             L"Write-protected disk must remain clean");
     }
 
+    TEST_METHOD (WriteProtectSourcesAreIndependent)
+    {
+        DiskImage   img;
+
+        Assert::IsFalse (img.IsWriteProtected (), L"Fresh image is writable");
+
+        img.SetImageWriteProtected (true);
+        Assert::IsTrue  (img.IsWriteProtected ());
+        Assert::IsTrue  (img.GetWriteProtectInfo ().imageFlag);
+        Assert::IsFalse (img.GetWriteProtectInfo ().userSetting);
+
+        img.SetImageWriteProtected (false);
+        img.SetUserWriteProtected  (true);
+        Assert::IsTrue  (img.IsWriteProtected (),
+            L"User setting alone protects the disk");
+        Assert::IsTrue  (img.GetWriteProtectInfo ().userSetting);
+        Assert::IsFalse (img.GetWriteProtectInfo ().imageFlag);
+
+        img.SetUserWriteProtected (false);
+        img.SetFileWriteProtect   (true, false);
+        Assert::IsTrue  (img.IsWriteProtected (),
+            L"Read-only backing file alone protects the disk");
+        Assert::IsTrue  (img.GetWriteProtectInfo ().readOnlyFile);
+        Assert::IsFalse (img.GetWriteProtectInfo ().noPermission);
+
+        img.SetFileWriteProtect (false, true);
+        Assert::IsTrue  (img.IsWriteProtected (),
+            L"No-permission backing file alone protects the disk");
+        Assert::IsTrue  (img.GetWriteProtectInfo ().noPermission);
+
+        img.SetFileWriteProtect (false, false);
+        Assert::IsFalse (img.IsWriteProtected (),
+            L"Clearing every source makes the disk writable again");
+    }
+
+    TEST_METHOD (WriteProtectInfoReportsAllActiveSources)
+    {
+        DiskImage         img;
+        WriteProtectInfo  info;
+
+        img.SetImageWriteProtected (true);
+        img.SetUserWriteProtected  (true);
+        info = img.GetWriteProtectInfo ();
+
+        Assert::IsTrue (info.imageFlag);
+        Assert::IsTrue (info.userSetting);
+        Assert::IsTrue (info.Any ());
+    }
+
+    TEST_METHOD (UserWriteProtectBlocksWriteBit)
+    {
+        DiskImage   img;
+
+        img.ResizeTrack (0, 8);
+        img.SetUserWriteProtected (true);
+        img.WriteBit (0, 0, 1);
+
+        Assert::AreEqual (uint8_t (0), img.ReadBit (0, 0),
+            L"A user-write-protected disk must reject WriteBit");
+        Assert::IsFalse (img.IsDirty ());
+    }
+
     TEST_METHOD (DefaultSourceFormatIsDsk)
     {
         DiskImage   img;

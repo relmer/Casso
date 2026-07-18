@@ -59,6 +59,17 @@ namespace
     constexpr int     s_kCompactCornerPx     = 4;
     constexpr float   s_kCompactFontDip      = 12.0f;
 
+    // Write-protect padlock badge. A small brass lock stamped on the
+    // drive face (skeuomorphic) or beside the status LED (compact)
+    // whenever the mounted disk is write-protected by any source. Kept
+    // deliberately understated -- it reads as "locked" without competing
+    // with the LED for attention.
+    constexpr int      s_kWpBadgeWidthPx   = 13;
+    constexpr int      s_kWpBadgeHeightPx  = 15;
+    constexpr uint32_t s_kWpBadgeFillArgb  = 0xFFD8B76A;   // warm brass body
+    constexpr uint32_t s_kWpBadgeShadeArgb = 0xFF7A6026;   // darker brass edge / shackle
+    constexpr uint32_t s_kWpBadgeHoleArgb  = 0xFF2A2109;   // keyhole
+
 
     bool RectContains (const RECT & rect, int x, int y)
     {
@@ -223,6 +234,38 @@ namespace
             }
         }
     }
+
+
+    // Draws a small padlock (shackle arch + body + keyhole) inside the
+    // given box using flat fills, matching the widget's primitive-drawn
+    // house style. Used as the write-protect indicator.
+    void DrawPadlock (IDxuiPainter & painter,
+                      float left, float top, float w, float h,
+                      uint32_t fill, uint32_t shade, uint32_t hole)
+    {
+        float  bodyTop   = top + h * 0.42f;
+        float  bodyH     = h - (bodyTop - top);
+        float  shackleW  = w * 0.62f;
+        float  shackleX  = left + (w - shackleW) * 0.5f;
+        float  thickness = std::max (1.0f, w * 0.16f);
+        float  shackleH  = bodyTop - top;
+        float  holeW     = std::max (1.0f, w * 0.20f);
+        float  holeX     = left + (w - holeW) * 0.5f;
+        float  holeY     = bodyTop + bodyH * 0.28f;
+
+        // Shackle: a squared arch (two posts + a top bar) open at the
+        // bottom where it disappears behind the lock body.
+        painter.FillRect (shackleX,                        top, shackleW,  thickness, shade);
+        painter.FillRect (shackleX,                        top, thickness, shackleH,  shade);
+        painter.FillRect (shackleX + shackleW - thickness, top, thickness, shackleH,  shade);
+
+        // Body with a 1px darker border so it reads on any faceplate.
+        painter.FillRect    (left, bodyTop, w, bodyH, fill);
+        painter.OutlineRect (left, bodyTop, w, bodyH, 1.0f, shade);
+
+        // Keyhole.
+        painter.FillRect (holeX, holeY, holeW, bodyH * 0.42f, hole);
+    }
 }
 
 
@@ -376,6 +419,7 @@ void DriveWidget::SyncFromState (const DriveWidgetState & state)
     m_state.doorState             = state.doorState;
     m_state.animationStartTimeMs  = state.animationStartTimeMs;
     m_state.lastSyncEventId       = state.lastSyncEventId;
+    m_state.writeProtect          = state.writeProtect;
     m_state.motorOn.store (motorOn, std::memory_order_relaxed);
     m_state.diskActive.store (active, std::memory_order_relaxed);
 
@@ -482,6 +526,18 @@ void DriveWidget::Paint (
         UNREFERENCED_PARAMETER (labelFontDip);
         UNREFERENCED_PARAMETER (inUseFontDip);
         UNREFERENCED_PARAMETER (doorOffset);
+
+        // Write-protect padlock, just left of the status LED.
+        if (m_state.writeProtect.Any())
+        {
+            int    badgeW = Scale (s_kWpBadgeWidthPx,  dpi);
+            int    badgeH = Scale (s_kWpBadgeHeightPx, dpi);
+            float  badgeX = (float) (m_bodyRect.right - pad - Scale (10, dpi) - badgeW - Scale (6, dpi));
+            float  badgeY = (float) (m_bodyRect.top + (bodyHcompact - badgeH) / 2);
+
+            DrawPadlock (painter, badgeX, badgeY, (float) badgeW, (float) badgeH,
+                         s_kWpBadgeFillArgb, s_kWpBadgeShadeArgb, s_kWpBadgeHoleArgb);
+        }
 
         m_led.Paint (painter, text, theme);
         PaintBasenameLabel (text, theme, dpi);
@@ -874,6 +930,26 @@ void DriveWidget::Paint (
         float  iconY   = (float) (m_faceRect.bottom - iconH - marginY);
 
         DrawCassowaryRainbow (painter, iconX, iconY, (float) iconW, (float) iconH);
+    }
+
+    // Write-protect padlock, top-right of the faceplate. Occupies a cell
+    // the same size and horizontal position as the Cassowary logo below,
+    // mirrored to the top edge, with the (smaller) padlock centered inside
+    // it so the two marks read as a balanced pair.
+    if (m_state.writeProtect.Any())
+    {
+        int    cellW  = Scale (s_kCassowaryWidthPx,  dpi);
+        int    cellH  = Scale (s_kCassowaryHeightPx, dpi);
+        int    margin = Scale (s_kCassowaryMarginPx, dpi);
+        int    badgeW = Scale (s_kWpBadgeWidthPx,    dpi);
+        int    badgeH = Scale (s_kWpBadgeHeightPx,   dpi);
+        float  cellX  = (float) (m_faceRect.right - cellW - margin);
+        float  cellY  = (float) (m_faceRect.top + margin);
+        float  badgeX = cellX + (float) (cellW - badgeW) / 2.0f;
+        float  badgeY = cellY + (float) (cellH - badgeH) / 2.0f;
+
+        DrawPadlock (painter, badgeX, badgeY, (float) badgeW, (float) badgeH,
+                     s_kWpBadgeFillArgb, s_kWpBadgeShadeArgb, s_kWpBadgeHoleArgb);
     }
 
     PaintBasenameLabel (text, theme, dpi);

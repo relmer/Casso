@@ -139,6 +139,7 @@ namespace
                              bool                                   hasDisk,
                              const std::function<const uint32_t * (int &, int &)> & framebufferSource,
                              const std::function<std::wstring (int)>              & mountedPathSource,
+                             const std::function<WriteProtectInfo (int)>          & writeProtectSource,
                              std::array<DriveWidget, 2>           & previewDrives,
                              JoystickToggleButton                 & previewButton)
     {
@@ -335,6 +336,12 @@ namespace
             {
                 mount0.mountedImagePath = mountedPathSource (0);
                 mount1.mountedImagePath = mountedPathSource (1);
+            }
+
+            if (writeProtectSource)
+            {
+                mount0.writeProtect = writeProtectSource (0);
+                mount1.writeProtect = writeProtectSource (1);
             }
 
             mount0.doorState = mount0.mountedImagePath.empty()
@@ -649,7 +656,7 @@ void ThemePage::Paint (IDxuiPainter & painterIf, IDxuiTextRenderer & textIf, con
 
         bool  hasDisk = m_hasDiskSource ? m_hasDiskSource () : true;
 
-        PaintPreviewWindow (painter, text, m_previewRect, preview, hasDisk, m_framebufferSource, m_mountedPathSource, m_previewDrives, m_previewJoystickButton);
+        PaintPreviewWindow (painter, text, m_previewRect, preview, hasDisk, m_framebufferSource, m_mountedPathSource, m_writeProtectSource, m_previewDrives, m_previewJoystickButton);
     }
 
     m_themeDropdown.PaintMenu   (painter, text);

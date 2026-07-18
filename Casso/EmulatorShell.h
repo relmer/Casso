@@ -52,6 +52,7 @@
 
 class DxuiHwndSource;
 class SettingsSheet;
+class JsonValue;
 
 
 
@@ -276,6 +277,39 @@ private:
     HRESULT CreateEmulatorWindow (HINSTANCE hInstance);
     void    ReconcileInitialClientSize ();
 
+    // Initialize() decomposition -- one single-purpose step each, called
+    // in order from Initialize. HRESULT-returning steps propagate genuine
+    // infrastructure failure and abort startup via CHR; the void ones have
+    // no failable work, or recover in place -- asserting in debug so a dev
+    // catches it -- (e.g. corrupt user prefs reset to defaults) rather than
+    // abort.
+    void    RegisterChromeDock            ();
+    void    InitAssetPathsAndStores       ();
+    void    AllocateFramebuffers          ();
+    void    PrimeChromeThemeEarly         ();
+    HRESULT BuildMachineDevices           (const MachineConfig & config);
+    HRESULT InitializeRenderer            ();
+    HRESULT InitializeUiShell             ();
+    HRESULT WireUiShellChromeAndThemes    ();
+    void    RestoreInputAndColorPrefs     ();
+    void    RecordActiveMachineSelection  ();
+    void    SubscribeAndActivateTheme     ();
+    HRESULT FinishUiShellLayout           ();
+    void    InstallDragDropTarget         ();
+
+    // Persisted per-machine $cassoUiPrefs. LoadMachineUiPrefs reads +
+    // merges the machine JSON, handing back the "$cassoUiPrefs" object in
+    // outUiPrefs -- or null when it is absent OR unreadable/corrupt, both
+    // recovered to defaults, never fatal. Each Apply* helper loads its own
+    // copy and seeds one subsystem (chrome vs audio).
+    void    LoadMachineUiPrefs            (JsonValue & outDoc, const JsonValue * & outUiPrefs);
+    void    ApplyPersistedChromePrefs     ();
+    void    ApplyPersistedAudioPrefs      ();
+
+    // Truncating wide->narrow of m_currentMachineName (machine config
+    // names are ASCII): the config-store key + lastSelectedMachine pref.
+    std::string CurrentMachineNameNarrow  () const;
+
     // Drives the host's root panel layout for the Apple ][ viewport
     // child. Computes the framebuffer rectangle (client minus chrome
     // bands) via the DxuiDockLayout and invokes m_viewport->Layout,
@@ -474,6 +508,20 @@ private:
         return m_driveWidgetState[(size_t) driveIndex].mountedImagePath;
     }
 
+    // Write-protect breakdown for a drive, read from the live per-drive
+    // widget state (refreshed each frame by DiskManager::UpdateDriveWidgets).
+    // Used by the Settings → Theme preview so its sample drive shows the
+    // padlock cue for whatever is actually mounted. Index 0 is drive 1.
+    WriteProtectInfo  DriveWriteProtect (int driveIndex) const
+    {
+        if (driveIndex < 0 || driveIndex >= (int) m_driveWidgetState.size())
+        {
+            return WriteProtectInfo();
+        }
+
+        return m_driveWidgetState[(size_t) driveIndex].writeProtect;
+    }
+
     // Base directory for user preferences. SettingsPanel.CommitApply
     // uses this as the fallback save path when the unified store is not
     // available.
@@ -492,6 +540,14 @@ private:
     // SetColorModeLive, the Settings panel calls this on hover / select so
     // the change shows on the next CPU frame, and on Cancel to restore.
     void  SetColorMonitorTextArgbLive (uint32_t argb);
+
+    // Records the user's per-drive write-protect preference and applies
+    // it to the currently mounted image (if any) so the change takes
+    // effect immediately. Called on the CPU thread from the
+    // IDM_DISK_WRITEPROTECT command handler, which the Settings apply
+    // path and the write-protect menu items post. The preference also
+    // survives an eject/remount because MountDiskInSlot6 re-applies it.
+    void  SetDriveUserWriteProtect (int drive, bool wp);
 
     // Activates the named theme in ThemeManager (which notifies the
     // chrome cache listener) and persists the choice into GlobalUserPrefs.
@@ -656,6 +712,21 @@ private:
     // hit-tested / actioned by the mouse handlers, like the other chrome.
     Apple2cSwitchBar      m_switchBar;
     DxuiTooltip               m_switchBarTooltip;
+
+    // Hover tooltip for the drive widgets, surfaced when the pointer
+    // rests over a write-protected drive. Explains that the disk is
+    // write-protected and names the source(s) -- image flag, user
+    // setting, or an unwritable backing file. Shares the host popup pool
+    // with m_joystickTooltip (the hover regions are mutually exclusive).
+    DxuiTooltip               m_driveTooltip;
+
+    // Live per-drive user write-protect preference (Settings > Disk
+    // checkbox / write-protect menu). Seeded from $cassoUiPrefs at
+    // startup and re-applied to each freshly mounted image so the guest
+    // sees the disk as protected and dirty writes never flush. Distinct
+    // from the image's own embedded flag and from the backing file's
+    // read-only state; all three are surfaced independently in the UI.
+    std::array<bool, 2>   m_userWriteProtect { { false, false } };
 
     // Solid background for the bottom drive-bar band. The CRT composite
     // writes the whole back buffer (emulator frame + black), so the chrome
