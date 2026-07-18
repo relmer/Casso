@@ -18,8 +18,8 @@ Entries before versioning was introduced use dates only.
   Dvorak layout while engaged (QWERTY when out); the remap is skipped when the
   host OS layout is itself Dvorak (a Dvorak-host user types normally, so the
   received character is already correct), and paste is never remapped. A
-  new skeuomorphic control strip — painted in the ImageWriter II platinum
-  case colour, between the emulator viewport and the joystick/paddle/mouse
+  new skeuomorphic control strip — painted in the //c's platinum case
+  colour, between the emulator viewport and the joystick/paddle/mouse
   bar, //c-only — reproduces the case top: a **reset** button (inert unless
   Ctrl is held, mirroring the real Control-Reset key; Open/Closed-Apple ride
   it for cold boot), the two latching switches, and lit **disk-use** /

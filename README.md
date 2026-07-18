@@ -34,7 +34,7 @@ See [CHANGELOG.md](CHANGELOG.md) for the granular history.
 ### Apple //c case-switch strip (v1.10.0)
 
 The two latching switches on the //c case are modeled on a skeuomorphic
-control strip in the ImageWriter-platinum case colour: the **80/40**
+control strip in the //c's platinum case colour: the **80/40**
 switch drives `$C060` (in = 80-column startup, read by a booting disk's
 `PR#3`), the **keyboard** switch flips the typed stream to Dvorak, and a
 **reset** button reproduces Control-Reset (inert without Ctrl), alongside

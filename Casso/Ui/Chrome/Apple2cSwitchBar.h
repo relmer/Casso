@@ -24,7 +24,7 @@ class IDxuiTheme;
 //      [ reset ]   | 80/40   | keyboard          disk use | power |
 //        button      switch    switch               LED      LED
 //
-//  The bar body is painted in the ImageWriter II platinum case colour. The
+//  The bar body is painted in the //c's platinum case colour. The
 //  reset button is momentary and only "live" while Ctrl is held (hardware
 //  Control-Reset); the 80/40 and keyboard buttons are LATCHING — each stays
 //  pressed in until clicked again, drawn sunk into the case (a shadowed, lowered
@@ -111,9 +111,8 @@ private:
     static constexpr float kSlantTan   = 0.176f;   // ~10 degrees
 
     // Case palette — fixed (theme-independent) so the strip always reads as the
-    // //c case. kCase is the ImageWriter II platinum body colour, matching the
-    // printer chrome so the two peripherals share a family.
-    static constexpr uint32_t  kCase      = 0xFFD8D3C6;   // ImageWriter platinum body
+    // //c case. kCase is the //c's platinum case body colour.
+    static constexpr uint32_t  kCase      = 0xFFD8D3C6;   // //c platinum case body
     static constexpr uint32_t  kCaseHi    = 0xFFE7E2D5;   // top bevel highlight
     static constexpr uint32_t  kCaseLo    = 0xFFBAB5A6;   // bottom bevel shadow
     static constexpr uint32_t  kCaseEdge  = 0xFF8F8A7A;   // molded edge stroke
