@@ -8,6 +8,18 @@ Entries before versioning was introduced use dates only.
 
 ## [Unreleased]
 
+### Added
+- **feat(cpu): stable undocumented NMOS 6502 opcodes** (#95) — the CPU now
+  executes the stable undocumented opcodes real Apple II software relies on —
+  SAX, LAX, DCP, ISC, SLO, RLA, SRE, RRA across their addressing modes, plus
+  the implied / 2-byte (DOP) / 3-byte (TOP) NOP family — instead of tripping
+  the illegal-opcode assert. Each is validated against the Tom Harte
+  SingleStepTests (10,000 vectors per opcode) and composes the existing ALU
+  primitives so flag and decimal-mode behavior is inherited. The unstable
+  "magic constant" opcodes (ANE, LXA, SHA, SHX, SHY, TAS) remain unimplemented
+  by design, and the undocumented opcodes are hidden from the assembler so
+  `NOP` still assembles to `$EA`.
+
 ### Fixed
 - **fix(chrome): resize the top-right window corner** (#98) — the diagonal
   resize grab is now a larger corner square than the straight edges, so the
