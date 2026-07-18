@@ -110,6 +110,16 @@ private:
     // positional gap (see PaintSlantCap).
     static constexpr float kSlantTan   = 0.176f;   // ~10 degrees
 
+    // Cap / LED paint tuning (fractions of the cap or lamp box unless noted).
+    static constexpr float  kRimDip            = 1.0f;   // molded cap rim / LED border, in dips
+    static constexpr float  kBevelHeightFrac   = 0.13f;  // shadow-bevel thickness, fraction of cap height
+    static constexpr float  kBevelWidthFrac    = 0.32f;  // ...capped to this fraction of the narrow cap width
+    static constexpr float  kLedGlowAlpha      = 95.0f;  // peak glow alpha (0..255) at the innermost ring
+    static constexpr float  kLedGlowExpandFrac = 0.5f;   // outermost glow-ring expansion, fraction of lamp height
+    static constexpr float  kLedSpecularFrac   = 0.4f;   // specular size, fraction of the lamp box
+    static constexpr float  kLedSpecularInset  = 1.5f;   // specular offset from the top-left, in dips
+    static constexpr int    kGlowRings         = 6;      // nested glow rectangles
+
     // Case palette — fixed (theme-independent) so the strip always reads as the
     // //c case. kCase is the //c's platinum case body color.
     static constexpr uint32_t  kCase      = 0xFFD8D3C6;   // //c platinum case body
@@ -138,6 +148,7 @@ private:
     static constexpr uint32_t  kLedGreen  = 0xFF3CE070;   // lit green (power / disk use)
     static constexpr uint32_t  kLedGreenGlow = 0xFF2FBF5F;
     static constexpr uint32_t  kLedRim    = 0xFF15140F;
+    static constexpr uint32_t  kLedSpecular = 0x66FFFFFF;  // white specular catch on a lit lamp
 
     static constexpr uint32_t  kHoverWash = 0x18FFFFFF;
 

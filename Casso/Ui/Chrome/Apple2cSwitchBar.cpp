@@ -380,13 +380,12 @@ void Apple2cSwitchBar::PaintSlantCap (IDxuiPainter & p, const RECT & r, bool pre
     float  refB  = y + h;
     float  dx    = h * tan;                  // top-edge overhang
     float  bodyW = w - dx;                   // cap body width (bbox minus overhang)
-    float  cx    = x + 1.0f;
-    float  cy    = y + 1.0f;
-    float  cw    = bodyW - 2.0f;             // cap face, inside a thin rim
-    float  ch    = h - 2.0f;
-    float  edge  = (h * 0.13f < cw * 0.32f ? h * 0.13f : cw * 0.32f);   // thin bevel (~3 px on the
-                                                                        // reset), kept slim relative
-                                                                        // to the narrow switch width
+    float  cx    = x + kRimDip;
+    float  cy    = y + kRimDip;
+    float  cw    = bodyW - 2.0f * kRimDip;   // cap face, inside a thin rim
+    float  ch    = h - 2.0f * kRimDip;
+    float  edge  = std::min (h * kBevelHeightFrac, cw * kBevelWidthFrac);   // thin bevel (~3 px), kept
+                                                                            // slim on the narrow switch
 
 
     // Thin molded rim, then the cap face fills the whole footprint.
@@ -471,23 +470,24 @@ void Apple2cSwitchBar::PaintLed (IDxuiPainter & p, const RECT & r, bool lit)
     {
         // Glow halo: nested slanted rectangles echoing the lamp shape, on a
         // quadratic alpha falloff (a rectangular bloom, not a round one).
-        constexpr int  kRings = 6;
-        for (int ring = kRings; ring >= 1; ring--)
+        for (int ring = kGlowRings; ring >= 1; ring--)
         {
-            float     t = (float) ring / (float) (kRings + 1);
-            uint32_t  a = (uint32_t) (95.0f * (1.0f - t) * (1.0f - t) + 0.5f);
-            float     e = (h * 0.5f) * t;                        // uniform expansion
+            float     t = (float) ring / (float) (kGlowRings + 1);
+            uint32_t  a = (uint32_t) (kLedGlowAlpha * (1.0f - t) * (1.0f - t) + 0.5f);
+            float     e = (h * kLedGlowExpandFrac) * t;          // uniform expansion
             ShearFill (p, x - e, y - e, bodyW + 2.0f * e, h + 2.0f * e,
                        tan, refB, (a << 24) | (kLedGreenGlow & 0x00FFFFFF));
         }
     }
 
-    ShearFill (p, x,        y,        bodyW,        h,        tan, refB, kLedRim);
-    ShearFill (p, x + 1.0f, y + 1.0f, bodyW - 2.0f, h - 2.0f, tan, refB, lit ? kLedGreen : kLedOff);
+    ShearFill (p, x, y, bodyW, h, tan, refB, kLedRim);
+    ShearFill (p, x + kRimDip, y + kRimDip, bodyW - 2.0f * kRimDip, h - 2.0f * kRimDip,
+               tan, refB, lit ? kLedGreen : kLedOff);
 
     if (lit)
     {
-        ShearFill (p, x + 1.5f, y + 1.5f, bodyW * 0.4f, h * 0.4f, tan, refB, 0x66FFFFFF);   // specular
+        ShearFill (p, x + kLedSpecularInset, y + kLedSpecularInset,
+                   bodyW * kLedSpecularFrac, h * kLedSpecularFrac, tan, refB, kLedSpecular);
     }
 }
 
