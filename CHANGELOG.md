@@ -6,6 +6,33 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 Versioned entries use `MAJOR.MINOR.PATCH` from [Version.h](CassoCore/Version.h).
 Entries before versioning was introduced use dates only.
 
+## [1.10.0] — Apple //c case-switch strip
+
+### Added
+- **feat(machine): //c case-switch strip** — the two latching switches on
+  the top of the //c case are now modeled and exposed. The **80/40 switch**
+  drives `$C060` (RD80SW) bit 7 — pressed in (down) selects 80-column
+  startup, out selects 40; it is a software-read switch (a booting disk's
+  `PR#3` acts on it), so the bare ROM screen is unaffected, matching real
+  hardware. The **keyboard switch** remaps the typed character stream to the
+  Dvorak layout while engaged (QWERTY when out); the remap is skipped when the
+  host OS layout is itself Dvorak (a Dvorak-host user types normally, so the
+  received character is already correct), and paste is never remapped. A
+  new skeuomorphic control strip — painted in the ImageWriter II platinum
+  case colour, between the emulator viewport and the joystick/paddle/mouse
+  bar, //c-only — reproduces the case top: a **reset** button (inert unless
+  Ctrl is held, mirroring the real Control-Reset key; Open/Closed-Apple ride
+  it for cold boot), the two latching switches, and lit **disk-use** /
+  **power** indicator LEDs. The reset button and switches are drawn as the
+  real hardware's right-slanted parallelogram caps, sitting proud of the case
+  and depressing below its surface when clicked — an unmistakable pressed cue.
+  Both latching switch positions are remembered per machine across runs.
+
+### Fixed
+- **fix(ui): Copy Text on 80-column screens** — Edit ▸ Copy Text now reads the
+  interleaved auxiliary + main text banks when the 80-column display is active,
+  instead of capturing only every other character.
+
 ## [1.8.0] — Apple //c and Apple //e Enhanced machines (spec 016 + #86)
 
 ### Added
@@ -47,23 +74,6 @@ Entries before versioning was introduced use dates only.
   mouse), replacing the single cycle mode, with a new segmented drive-bar
   selector drawing skeuomorphic glyphs of the real Apple peripherals
   (perspective on the skeuomorphic theme, top-down on DarkModern/retro).
-- **feat(machine): //c case-switch strip** — the two latching switches on
-  the top of the //c case are now modeled and exposed. The **80/40 switch**
-  drives `$C060` (RD80SW) bit 7 — pressed in (down) selects 80-column
-  startup, out selects 40; it is a software-read switch (a booting disk's
-  `PR#3` acts on it), so the bare ROM screen is unaffected, matching real
-  hardware. The **keyboard switch** remaps the typed character stream to the
-  Dvorak layout while engaged (QWERTY when out); the remap is skipped when the
-  host OS layout is itself Dvorak (a Dvorak-host user types normally, so the
-  received character is already correct), and paste is never remapped. A
-  new skeuomorphic control strip — painted in the ImageWriter II platinum
-  case colour, between the emulator viewport and the joystick/paddle/mouse
-  bar, //c-only — reproduces the case top: a **reset** button (inert unless
-  Ctrl is held, mirroring the real Control-Reset key; Open/Closed-Apple ride
-  it for cold boot), the two latching switches, and lit **disk-use** /
-  **power** indicator LEDs. The reset button and switches are drawn as the
-  real hardware's right-slanted parallelogram caps, sitting proud of the case
-  and depressing below its surface when clicked — an unmistakable pressed cue.
 - **feat(cpu): live hardware IRQ dispatch** — the CPU loop now services
   maskable interrupts from the shared interrupt controller (the //c mouse
   and VBL are the first sources); the 65C02 vector prologue is accounted

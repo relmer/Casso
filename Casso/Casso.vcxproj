@@ -209,6 +209,14 @@
       <AdditionalDependencies>ole32.lib;winhttp.lib;comctl32.lib;uxtheme.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
+  <!-- Resource compiler needs CassoCore on its include path so Casso.rc can
+       #include Version.h and source the app version from the single source of
+       truth (all configs). -->
+  <ItemDefinitionGroup>
+    <ResourceCompile>
+      <AdditionalIncludeDirectories>..\CassoCore;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ResourceCompile>
+  </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="Pch.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Create</PrecompiledHeader>
