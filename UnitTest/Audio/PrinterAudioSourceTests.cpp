@@ -113,9 +113,11 @@ public:
         src.PublishReveal (1000, 0);
         Assert::AreEqual (0.4f, Frame (src, 16), 0.0001f);
 
-        // Switch to NLQ: the NLQ loop now plays.
+        // Switch to NLQ: the NLQ loop now plays. (Progress stays inside the
+        // same pin band -- crossing a band mid-hold would trigger the
+        // line-articulation gap, which is its own test.)
         src.SetQuality (Quality::NLQ);
-        src.PublishReveal (2000, 0);
+        src.PublishReveal (1200, 0);
         Assert::AreEqual (0.9f, Frame (src, 16), 0.0001f);
     }
 
@@ -152,10 +154,11 @@ public:
         src.PublishReveal (1000, 1200, true /* inkActive */);
         Assert::AreEqual (0.5f, Frame (src, 16), 0.0001f);
 
-        // Line feed: reveal advances but ink=false for a short gap. The buzz must
-        // stay alive under the clack (it does not re-arm, but the 50-sample hold
-        // outlasts this 16-sample feed frame) so printing sounds continuous
-        // instead of cutting out between every line.
+        // A mid-pass ink=false frame (frame quantization while sweeping the SAME
+        // band): the buzz must stay alive under it (it does not re-arm, but the
+        // 50-sample hold outlasts this 16-sample frame) so one line's buzz is
+        // not chopped by sampling. BETWEEN lines the band-step articulation gap
+        // deliberately cuts it -- see LineBoundary_ArticulatesEachPass.
         src.PublishReveal (1100, 10, false /* inkActive */);
         Assert::AreEqual (0.5f, Frame (src, 16), 0.0001f);
         Assert::IsTrue   (src.IsPrinting());
@@ -189,6 +192,33 @@ public:
 
         // Right border: ink returns under the head -> the buzz re-arms.
         src.PublishReveal (2240, 1240, true /* right border strike */);
+        Assert::AreEqual (0.5f, Frame (src, 16), 0.0001f);
+        Assert::IsTrue   (src.IsPrinting());
+    }
+
+
+
+    TEST_METHOD (LineBoundary_ArticulatesEachPassAsItsOwnBurst)
+    {
+        PrinterAudioSource  src;
+        src.SetLoopForTest (Quality::Draft, Const (64, 0.5f), 1000);
+        src.SetVolume (1.0f);
+
+        // Line 1: an inked sweep in the first pin band arms the buzz.
+        src.PublishReveal (1000, 1000, true);
+        Assert::IsTrue (Frame (src, 16) > 0.0f);
+
+        // The pass completes and the reveal steps into the next band while the
+        // hold is still live. The real machine stops printing for the line feed
+        // between passes, so the buzz must CUT for the articulation gap -- this
+        // is what makes a 19-line catalog sound like 19 bursts, not one zip.
+        src.PublishReveal (1280 + 40, 40, true);
+        Assert::AreEqual (0.0f, Frame (src, 16), 0.0f);   // inside the 35-sample gap
+        Assert::IsFalse  (src.IsPrinting());
+
+        // ...and re-arm BY ITSELF once the gap expires (the new band is inked),
+        // even with no further publish -- a coarse frame must not eat line 2.
+        Frame (src, 40);                                  // 16 + 40 > 35: gap drained
         Assert::AreEqual (0.5f, Frame (src, 16), 0.0001f);
         Assert::IsTrue   (src.IsPrinting());
     }

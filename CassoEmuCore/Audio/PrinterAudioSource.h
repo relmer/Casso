@@ -56,6 +56,17 @@ public:
     // silently under its own grain.
     static constexpr double  kPrintHoldSec       = 0.05;
 
+    // Forced articulation gap at each completed pass (the reveal stepping into
+    // the next pin band while the buzz is live). The real machine stops
+    // printing for the line feed between passes, so each line must read as its
+    // own burst -- a 19-line CATALOG is nineteen distinct print noises, not one
+    // long zip (the hold above would otherwise bridge a text line's ~20 ms
+    // blank feed and fuse consecutive lines). The buzz is cut for this long
+    // and re-arms by itself when the next band is inked. Sized above a couple
+    // of mix buffers and well under a pass (~40-90 ms for a logic-seeking
+    // text line).
+    static constexpr double  kLineFeedGapSec     = 0.035;
+
     // Minimum spacing between line-feed one-shots, so a burst of column wraps (a
     // fast catch-up) cannot machine-gun the clack.
     static constexpr double  kFeedMinIntervalSec = 0.09;
@@ -172,7 +183,10 @@ private:
     // Audio-thread-local reveal tracking + gate timers (in samples).
     int64_t  m_lastProgress     = 0;
     int32_t  m_lastCol          = 0;
+    int64_t  m_lastRows         = 0;
     int32_t  m_printHoldSamples = 0;
+    int32_t  m_lineGapSamples   = 0;      // live pass-boundary articulation gap
+    bool     m_pendingBuzz      = false;  // re-arm the buzz when the gap ends
     int32_t  m_feedThrottle     = 0;
 
     // Random cursor for the tear pick (UI thread only).

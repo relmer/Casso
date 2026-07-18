@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Audio/PrinterAudioSource.h"
+#include "Devices/Printer/PrinterTypes.h"
 
 #pragma comment(lib, "mf.lib")
 #pragma comment(lib, "mfplat.lib")
@@ -332,14 +333,44 @@ void PrinterAudioSource::GeneratePCM (float * outMono, uint32_t numSamples)
     int32_t  col      = m_revealCol.load (std::memory_order_relaxed);
     bool     ink      = m_revealInk.load (std::memory_order_relaxed) != 0;
 
+    // A completed pass stepped the reveal into the next pin band while the buzz
+    // was live: the real machine stops printing for the line feed between
+    // passes, so cut the buzz for one short articulation gap -- each line reads
+    // as its own burst instead of consecutive lines fusing into one long zip
+    // (the hold below would otherwise bridge a text line's ~20 ms blank feed).
+    // The buzz re-arms by itself after the gap when the next band is inked.
+    int64_t  rows = progress / (int64_t) PrinterGrid::kDotsPerRow;
+
+    if (rows > m_lastRows && m_printHoldSamples > 0)
+    {
+        m_printHoldSamples = 0;
+        m_lineGapSamples   = (int32_t) (kLineFeedGapSec * (double) m_sampleRate);
+        m_pendingBuzz      = ink;
+    }
+    m_lastRows = rows;
+
     // Head advanced this frame AND is laying ink -> (re)arm the carriage buzz for
-    // one hold window. Gating on ink (not just motion) keeps a form feed / blank
-    // line feed / wide blank margin from buzzing like a print: those advance the
-    // reveal but publish ink=false, so the hold decays and the buzz falls silent
-    // while the one-shot feed grains carry the sound.
+    // one hold window (deferred until the articulation gap ends). Gating on ink
+    // (not just motion) keeps a form feed / blank line feed / wide blank margin
+    // from buzzing like a print: those advance the reveal but publish ink=false,
+    // so the hold decays and the buzz falls silent while the one-shot feed
+    // grains carry the sound.
     if (progress > m_lastProgress && ink)
     {
+        if (m_lineGapSamples > 0)
+        {
+            m_pendingBuzz = true;   // arm as soon as the gap ends
+        }
+        else
+        {
+            m_printHoldSamples = (int32_t) (kPrintHoldSec * (double) m_sampleRate);
+            m_pendingBuzz      = false;
+        }
+    }
+    else if (m_lineGapSamples <= 0 && m_pendingBuzz)
+    {
         m_printHoldSamples = (int32_t) (kPrintHoldSec * (double) m_sampleRate);
+        m_pendingBuzz      = false;
     }
 
     // Column wrapped back toward the pass's start -> a new line began: clack.
@@ -374,6 +405,7 @@ void PrinterAudioSource::GeneratePCM (float * outMono, uint32_t numSamples)
     if (action != 0)
     {
         m_printHoldSamples = 0;
+        m_pendingBuzz      = false;
     }
     if (action >= 1 && action <= kNumPageFeeds)
     {
@@ -402,6 +434,7 @@ void PrinterAudioSource::GeneratePCM (float * outMono, uint32_t numSamples)
     }
 
     m_printHoldSamples = (std::max) (0, m_printHoldSamples - (int32_t) numSamples);
+    m_lineGapSamples   = (std::max) (0, m_lineGapSamples   - (int32_t) numSamples);
     m_feedThrottle     = (std::max) (0, m_feedThrottle     - (int32_t) numSamples);
     m_lastProgress     = progress;
     m_lastCol          = col;
