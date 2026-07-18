@@ -172,10 +172,15 @@ rather than folded silently into the spec.
   "connecting" forever. Verified with stage instrumentation (all setup calls S_OK: activation,
   `GetForWindow`, `add_PrintTaskRequested`, `ShowPrintUIForWindowAsync`; the handler never
   enters); holding the async operation alive and creating a thread `DispatcherQueue` were
-  both tried and made no difference. The classic `PrintDlg` path is the DEFAULT again (prints
-  correctly, honest errors — only its preview pane is unfilled); the modern path remains
-  compiled and opt-in via `CASSO_MODERN_PRINT=1` for retesting on future Windows builds or
-  under package identity. Original implementation notes: `Casso/Shell/ModernPrintDialog.{h,cpp}` launches the Windows modern print
+  both tried and made no difference. PROVEN not Casso-specific: an 80-line minimal Win32 repro
+  app (plain window, DefWindowProc, standard pump, STA, the exact documented call sequence —
+  `scratchpad/printdbg/minprint.cpp`) shows identical behavior on this machine — all calls
+  S_OK, dialog opens, the event never raises. Apps where preview "works" are packaged or draw
+  their own preview; none use PrintManagerInterop unpackaged. The classic `PrintDlg` path is
+  the DEFAULT again (prints correctly, honest errors — only its preview pane is unfilled);
+  the modern path remains compiled and opt-in via `CASSO_MODERN_PRINT=1` for retesting on
+  future Windows builds or under package identity (MSIX would likely light it up). Casso's
+  own live preview panel remains the real WYSIWYG preview. Original implementation notes: `Casso/Shell/ModernPrintDialog.{h,cpp}` launches the Windows modern print
   UI via raw-ABI WRL (no C++/WinRT dependency): `RoGetActivationFactory` →
   `IPrintManagerInterop::GetForWindow` + `ShowPrintUIForWindowAsync`; `PrintTaskRequested`
   hands the task a `PrintPageSource` (WRL RuntimeClass: `IPrintDocumentSource` marker +
