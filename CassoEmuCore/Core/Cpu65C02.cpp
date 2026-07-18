@@ -176,21 +176,23 @@ void Cpu65C02::InstallBitOps()
 //
 //  ReclaimUndocumented
 //
-//  The 65C02 has none of the NMOS undocumented opcodes. Blank the ones the base
-//  Cpu::InitializeUndocumented() installed so that any the 65C02 redefines (e.g.
-//  $04 -> TSB) are re-installed by the leftovers pass, while the rest ($CF) fall
-//  through to the single-byte NOP fill. Keep this list in sync with
-//  Cpu::InitializeUndocumented().
+//  The 65C02 has none of the NMOS undocumented opcodes. Blank every slot the
+//  base Cpu::InitializeUndocumented() installed -- they are all flagged
+//  assemblerHidden and nothing else in the NMOS table is -- so the CMOS passes
+//  own those opcode-map holes: the ones the 65C02 redefines (e.g. $04 -> TSB)
+//  are re-installed by the leftovers pass, and the rest fall through to the
+//  single-byte NOP fill. This stays correct as InitializeUndocumented grows.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void Cpu65C02::ReclaimUndocumented()
 {
-    static constexpr Byte    s_kNmosUndocumented[] = { 0x04, 0xCF };
-
-    for (Byte opcode : s_kNmosUndocumented)
+    for (Microcode & mc : instructionSet)
     {
-        instructionSet[opcode] = Microcode();
+        if (mc.assemblerHidden)
+        {
+            mc = Microcode();
+        }
     }
 }
 

@@ -219,6 +219,171 @@ void CpuOperations::DecrementAndCompare (Cpu & cpu, Word effectiveAddress)
 
 
 
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  StoreAccumulatorAndX
+//
+//  NMOS undocumented SAX: stores A AND X to memory. Affects no flags.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CpuOperations::StoreAccumulatorAndX (Cpu & cpu, Word effectiveAddress)
+{
+    cpu.WriteByte (effectiveAddress, cpu.A & cpu.X);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  LoadAccumulatorAndX
+//
+//  NMOS undocumented LAX: loads the same fetched byte into both A and X,
+//  setting N/Z from it (LDA + LDX fused).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CpuOperations::LoadAccumulatorAndX (Cpu & cpu, Byte operand)
+{
+    Load (cpu, cpu.A, operand);
+    Load (cpu, cpu.X, operand);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShiftLeftAndOr
+//
+//  NMOS undocumented SLO: ASL the memory byte (carry from bit 7), write it
+//  back, then ORA it into A. ORA sets N/Z; the shift carry survives.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CpuOperations::ShiftLeftAndOr (Cpu & cpu, Word effectiveAddress)
+{
+    Byte value = cpu.ReadByte (effectiveAddress);
+
+    cpu.status.flags.carry = value >> 7;
+    value <<= 1;
+
+    cpu.WriteByte (effectiveAddress, value);
+
+    Or (cpu, value);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RotateLeftAndAnd
+//
+//  NMOS undocumented RLA: ROL the memory byte (carry from bit 7, old carry
+//  into bit 0), write it back, then AND it into A. AND sets N/Z.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CpuOperations::RotateLeftAndAnd (Cpu & cpu, Word effectiveAddress)
+{
+    Byte value   = cpu.ReadByte (effectiveAddress);
+    Byte carryIn = cpu.status.flags.carry;
+
+    cpu.status.flags.carry = value >> 7;
+    value <<= 1;
+    value  |= carryIn;
+
+    cpu.WriteByte (effectiveAddress, value);
+
+    And (cpu, value);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShiftRightAndXor
+//
+//  NMOS undocumented SRE: LSR the memory byte (carry from bit 0), write it
+//  back, then EOR it into A. EOR sets N/Z; the shift carry survives.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CpuOperations::ShiftRightAndXor (Cpu & cpu, Word effectiveAddress)
+{
+    Byte value = cpu.ReadByte (effectiveAddress);
+
+    cpu.status.flags.carry = value & 1;
+    value >>= 1;
+
+    cpu.WriteByte (effectiveAddress, value);
+
+    Xor (cpu, value);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RotateRightAndAdd
+//
+//  NMOS undocumented RRA: ROR the memory byte (carry from bit 0, old carry
+//  into bit 7), write it back, then ADC it into A. ADC (using the rotate's
+//  carry-out) owns N/V/Z/C and honors decimal mode.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CpuOperations::RotateRightAndAdd (Cpu & cpu, Word effectiveAddress)
+{
+    Byte value   = cpu.ReadByte (effectiveAddress);
+    Byte carryIn = cpu.status.flags.carry;
+
+    cpu.status.flags.carry = value & 1;
+    value >>= 1;
+    value  |= (Byte) (carryIn << 7);
+
+    cpu.WriteByte (effectiveAddress, value);
+
+    AddWithCarry (cpu, value);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  IncrementAndSubtract
+//
+//  NMOS undocumented ISC: increments the memory byte, writes it back, then
+//  SBC it from A. SBC owns N/V/Z/C and honors decimal mode.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void CpuOperations::IncrementAndSubtract (Cpu & cpu, Word effectiveAddress)
+{
+    Byte value = cpu.ReadByte (effectiveAddress);
+
+    value++;
+
+    cpu.WriteByte (effectiveAddress, value);
+
+    SubtractWithCarry (cpu, value);
+}
+
+
+
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  Increment
