@@ -520,6 +520,10 @@ private:
 
 
     static constexpr int     s_kMinResizeBorderPx    = 4;
+    // Corners get a bigger grab square than the straight edges so the diagonal
+    // resize is reliably hittable -- notably the top-right corner, whose thin
+    // edge sliver is otherwise swallowed by the close button sitting on it.
+    static constexpr int     s_kResizeCornerMult     = 2;
     static constexpr UINT    s_kDefaultDpi           = 96;
     static constexpr LONG    s_kExtendFrameInsetPx   = 1;
     static constexpr size_t  s_kPopupPoolInitialSize = 3;

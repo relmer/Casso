@@ -436,7 +436,6 @@
     <ClCompile Include="UiTests\DxuiModalScrimTests.cpp" />
     <ClCompile Include="UiTests\DxuiTooltipTests.cpp" />
     <ClCompile Include="UiTests\DxuiTabStripTests.cpp" />
-    <ClCompile Include="UiTests\TitleBarHitTestTests.cpp" />
     <ClCompile Include="UiTests\ChromeCommandRoutingTests.cpp" />
     <ClCompile Include="UiTests\ThemeLoaderTests.cpp" />
     <ClCompile Include="UiTests\ThemeManagerTests.cpp" />
@@ -459,7 +458,6 @@
     <ClCompile Include="UiTests\DpiScalerTests.cpp" />
     <ClCompile Include="UiTests\Win11DwmHelpersTests.cpp" />
     <ClCompile Include="UiTests\HitTesterTests.cpp" />
-    <ClCompile Include="UiTests\NcHitTestTests.cpp" />
     <ClCompile Include="UiTests\AnimationSyncTests.cpp" />
     <ClCompile Include="UiTests\DxuiPainterTests.cpp" />
     <ClCompile Include="Dxui\DxuiFocusManagerTests.cpp" />
