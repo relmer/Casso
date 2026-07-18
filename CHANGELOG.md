@@ -6,6 +6,71 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 Versioned entries use `MAJOR.MINOR.PATCH` from [Version.h](CassoCore/Version.h).
 Entries before versioning was introduced use dates only.
 
+## [1.10.0] — Emulated ImageWriter II printer (spec 015)
+
+### Added
+- **feat(printer): parallel printer card + original slot firmware** — a dumb,
+  output-only parallel interface card (default slot 1, optional per machine)
+  with firmware assembled from in-repo source (parity- and CPU-execution-
+  tested): honors the COUT contract (A/X/Y preserved), injects LF after CR
+  like Apple's real card, and deliberately claims no Pascal 1.1 signature.
+- **feat(printer): ImageWriter II interpreter** — the command subset locked
+  from real Print Shop byte captures: `ESC G` (native 160 dpi, LSB = top pin)
+  and `ESC L` (120 dpi, MSB = top pin) bit image, `ESC T`/`A`/`B` line
+  spacing, `ESC K` seven-color select with overprint composites, the
+  documented pitch family, and reset. Card status byte `$83` satisfies both
+  the Apple II Parallel and Grappler+ driver probes.
+- **feat(printer): draft text printing** — an original 95-glyph dot-matrix
+  font (5×7 body + descender row, designed in-repo): `PR#1` + `LIST` /
+  `CATALOG` print readable text at every documented pitch with 80-column
+  wrap and high-bit ASCII handling.
+- **feat(printer): live skeuomorphic preview** — a real-3D ImageWriter II
+  (the project's own CAD model via an OBJ import pipeline) with fanfold
+  paper, tractor strips and perforations, a one-page live viewport with
+  scrollback, and paper that reads through the smoked cover like the real
+  machine.
+- **feat(printer): one print-head clock** — carriage animation, ink reveal,
+  and audio share a single pacing model: bidirectional passes at real draft
+  speed, logic seeking (a pass spans only the printed region), blank feeds
+  slewing with the head parked, and jump-cut coalescing for huge backlogs.
+- **feat(printer): mechanical audio** — Scott Lawrence's CC BY 4.0
+  ImageWriter II recordings (bundled, attributed): quality-keyed carriage
+  loops gated by an edge-triggered ink detector, per-line feed clacks, page
+  feeds, and tear-offs; window-relative stereo auto-pan with a manual
+  override; printer volume + mute on Settings > Printing.
+- **feat(printer): delivery** — non-destructive Print / Save PNG / Copy (the
+  paper stays until Discard tears it off); the modern Windows print dialog
+  with a live preview of the real paginated pages (PrintManager interop +
+  Direct2D print control, classic dialog fallback); pending printouts
+  persist per machine across sessions.
+- **feat(chrome): command toolbar** — Settings, Printer (with an event-only
+  status LED: green printing, amber page waiting, red delivery error),
+  master volume + mute, Screenshot, Reset, and Power below the menu bar;
+  responsive three-tier presentation (icon+label → ribbon → icon-only with
+  tooltips); replaces the standalone printer indicator.
+- **feat(audio): master output volume** — one gain over the completed mix
+  (speaker, drives, printer, Mockingboard), persisted with mute.
+
+### Fixed
+- **fix(shell):** the OS modal move/size loop (title-bar hold, resize) no
+  longer freezes the preview and sound; a host keep-alive timer pumps the
+  UI frame.
+- **fix(shell):** machine switches no longer touch chrome from the CPU
+  thread (the //c → //e assert); thread-affinity guards added at the chrome
+  entry points.
+- **fix(dxui):** showing an already-visible window without activation keeps
+  it maximized (`SW_SHOWNA`).
+- **fix(printer):** honest Windows spool failure mapping — SP_* return codes
+  and mid-job Save-As cancels handled; failure dialogs name the failing
+  stage in plain language with the OS detail attached.
+- **fix(cpu):** unimplemented undocumented opcodes log instead of breaking
+  into the debugger (Space Quarks, GH #95).
+
+### Changed
+- Print delivery destination is chosen per action (Print / Save / Copy), not
+  a stored preference; Settings > Printing keeps output resolution + dot
+  style and gains a Restore-defaults button.
+
 ## [1.8.0] — Apple //c and Apple //e Enhanced machines (spec 016 + #86)
 
 ### Added
