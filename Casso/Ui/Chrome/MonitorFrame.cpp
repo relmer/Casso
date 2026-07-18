@@ -42,9 +42,6 @@ namespace
     constexpr float    s_kFitV        = 0.95f;
     constexpr float    s_kFitH        = 0.90f;
 
-    // Tilt/swivel stand below the housing, as a fraction of housing height.
-    constexpr float    s_kStandFrac   = 0.16f;
-
     // Curvature. The housing corners round but its SIDES stay straight (no
     // barrel). The glass opening keeps a slight convex bow, wrapping the CRT
     // face, with modestly rounded corners. Radii are a fraction of the shorter
@@ -192,11 +189,11 @@ void MonitorFrame::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
     m_centerRect = boundsDip;
 
     // Size the glass to the display aspect, then wrap it in an even bezel to
-    // get the housing, and reserve a stand below it. Fit the housing+stand to
-    // the available height (the usual wide-window bind); if that overflows the
-    // width (a tall / narrow window), rescale to the width instead. The whole
-    // monitor is centered in the available area with the desk behind it.
-    float  screenH  = (ch * s_kFitV) / ((1.0f + 2.0f * s_kBezFrac) * (1.0f + s_kStandFrac));
+    // get the housing. Fit the housing to the available height (the usual
+    // wide-window bind); if that overflows the width (a tall / narrow window),
+    // rescale to the width instead. The monitor is centered in the available
+    // area with the desk behind it, sitting flat -- no stand.
+    float  screenH  = (ch * s_kFitV) / (1.0f + 2.0f * s_kBezFrac);
     float  screenW  = screenH * s_kScreenAspect;
     float  bez      = screenH * s_kBezFrac;
     float  housingW = screenW + 2.0f * bez;
@@ -211,21 +208,14 @@ void MonitorFrame::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
         housingW *= k;
     }
     float  housingH = screenH + 2.0f * bez;
-    float  standH   = housingH * s_kStandFrac;
-    float  unitH    = housingH + standH;
 
     float  hx = (float) boundsDip.left + (cw - housingW) * 0.5f;
-    float  hy = (float) boundsDip.top  + (ch - unitH)   * 0.5f;
+    float  hy = (float) boundsDip.top  + (ch - housingH) * 0.5f;
 
     m_housingRect.left   = (int) hx;
     m_housingRect.top    = (int) hy;
     m_housingRect.right  = (int) (hx + housingW);
     m_housingRect.bottom = (int) (hy + housingH);
-
-    m_standRect.left     = (int) hx;
-    m_standRect.top      = m_housingRect.bottom;
-    m_standRect.right    = (int) (hx + housingW);
-    m_standRect.bottom   = (int) (hy + unitH);
 
     m_screenRect.left   = (int) (hx + bez);
     m_screenRect.top    = (int) (hy + bez);
@@ -255,9 +245,8 @@ SIZE MonitorFrame::CenterSizeForScreenPx (int screenWpx, int screenHpx)
     float  bez      = sh * s_kBezFrac;
     float  housingW = sw + 2.0f * bez;
     float  housingH = sh + 2.0f * bez;
-    float  unitH    = housingH * (1.0f + s_kStandFrac);
 
-    float  ch = unitH    / s_kFitV;
+    float  ch = housingH / s_kFitV;
     float  cw = housingW / s_kFitH + 2.0f;
 
     return SIZE{ (int) std::ceil (cw), (int) std::ceil (ch) };
@@ -317,10 +306,7 @@ void MonitorFrame::Paint (
     }
 
     // Soft contact shadow so the monitor sits on the desk rather than floating.
-    {
-        float  baseY = (m_standRect.bottom > m_standRect.top) ? (float) m_standRect.bottom : hb;
-        painter.FillEllipseApprox ((hl + hr) * 0.5f, baseY, (hr - hl) * 0.34f, (hb - ht) * 0.045f, 0x66000000);
-    }
+    painter.FillEllipseApprox ((hl + hr) * 0.5f, hb, (hr - hl) * 0.42f, (hb - ht) * 0.035f, 0x66000000);
 
     // The dark glass opening: a rounded, gently barrelled rectangle just
     // outside the display recess. The platinum wraps its convex outline and
@@ -404,8 +390,6 @@ void MonitorFrame::Paint (
         }
     }
 
-    PaintStand (painter);
-
     // Brand + power LED on the bottom bezel strip (the platinum below the
     // glass, now the same thickness as the other three sides). The rainbow
     // cassowary -- Casso's period-Apple analog of the rainbow logo -- sits
@@ -443,56 +427,4 @@ void MonitorFrame::Paint (
             PaintPowerLamp (painter, lampX, lampY, lampBox, lampH);
         }
     }
-}
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  PaintStand
-//
-//  The tilt/swivel foot the //c monitor sits in: a short tapered neck under
-//  the chin widening into a shallow stadium base. Drawn a touch darker than
-//  the housing since it sits lower and in the shell's shadow.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void MonitorFrame::PaintStand (IDxuiPainter & painter)
-{
-    if (m_standRect.bottom <= m_standRect.top)
-    {
-        return;
-    }
-
-    float  hl      = (float) m_housingRect.left;
-    float  hr      = (float) m_housingRect.right;
-    float  cx      = (hl + hr) * 0.5f;
-    float  houseW  = hr - hl;
-    float  standTop = (float) m_standRect.top;
-    float  standBot = (float) m_standRect.bottom;
-    float  standH   = standBot - standTop;
-
-    float  baseH    = standH * 0.55f;
-    float  baseCy   = standBot - baseH * 0.5f;
-    float  baseR    = baseH * 0.5f;
-    float  baseHalf = houseW * 0.24f;
-
-    // Neck: a short trapezoid from under the chin down to the base.
-    float  neckTopW = houseW * 0.30f;
-    float  neckBotW = houseW * 0.40f;
-    float  neckTop  = standTop - 1.0f;                 // tuck under the chin
-    float  neckBot  = baseCy;
-
-    painter.FillConvexQuad (cx - neckTopW * 0.5f, neckTop,
-                            cx + neckTopW * 0.5f, neckTop,
-                            cx + neckBotW * 0.5f, neckBot,
-                            cx - neckBotW * 0.5f, neckBot,
-                            s_kShellShadow);
-
-    // Base: a shallow stadium (rounded ends) reading as the swivel foot.
-    painter.FillRect        (cx - baseHalf, baseCy - baseR, baseHalf * 2.0f, baseR * 2.0f, s_kShellBase);
-    painter.FillCircleApprox (cx - baseHalf, baseCy, baseR, s_kShellBase);
-    painter.FillCircleApprox (cx + baseHalf, baseCy, baseR, s_kShellBase);
-
-    // A darker sliver along the base bottom so it reads as a rounded lip.
-    painter.FillRect        (cx - baseHalf, baseCy + baseR * 0.4f, baseHalf * 2.0f, baseR * 0.6f, s_kShellShadow);
 }

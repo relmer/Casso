@@ -53,16 +53,12 @@ public:
         m_hidden      = true;
         m_screenRect  = m_centerRect;
         m_housingRect = m_centerRect;
-        m_standRect   = {};
     }
 
 private:
-    void   PaintStand (IDxuiPainter & painter);
-
     RECT   m_centerRect  = {};  // full available area (== Layout bounds); desk backdrop fills it
     RECT   m_housingRect = {};  // the monitor's outer platinum shell (bounded, ~4:3-ish)
     RECT   m_screenRect  = {};  // inset CRT recess inside the housing (viewport composites here)
-    RECT   m_standRect   = {};  // tilt/swivel foot below the housing (neck + base drawn within)
     UINT   m_dpi         = 96;
     bool   m_hidden      = false;
 };

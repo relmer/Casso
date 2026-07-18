@@ -2715,14 +2715,14 @@ Error:
 
 void EmulatorShell::ApplyThemeToChrome (const CassoTheme & theme)
 {
-    // Drive-bar slot thickness. Skeuomorphic shows the full 3D drive
-    // body (160 px) plus ~30 px of vertical slack and the basename
     // Bottom drive-bar thickness, full and compact. Layout: drive widget
     // (body + label strip + 2 dp bottom margin) bottom-anchored, with a
     // ~43 dp band above for the joystick-mode toggle button (8 dp gap +
     // ~27 dp button + 8 dp gap). Drive widget total height is body 160 +
-    // label-strip gap 2 + label strip 18 = 180 dp (full) / 60 dp (compact).
-    constexpr int  s_kFullDriveBarDp    = 225;
+    // label-strip gap 2 + label strip 18 = 180 dp, rendered at the widget's
+    // 80% skeuo scale (DriveWidget s_kFullScalePct) = 144 dp (full);
+    // 60 dp (compact). Full band: 43 + 144 + 2 ~= 190.
+    constexpr int  s_kFullDriveBarDp    = 190;
     constexpr int  s_kCompactDriveBarDp = 105;
 
     int   desiredThicknessDp = theme.compactDrives ? s_kCompactDriveBarDp : s_kFullDriveBarDp;
