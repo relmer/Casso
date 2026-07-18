@@ -561,6 +561,15 @@ private:
     // repaints the LED on a transition).
     void    UpdatePrinterIndicator ();
 
+    // Delivery outcome -> the printer status LED: failed=true lights the red
+    // error state until a success / discard clears it or the guest prints
+    // something new. Called from the delivery paths (WindowCommandManager).
+    void    NotePrinterDeliveryResult (bool failed)
+    {
+        m_printerDeliveryError = failed;
+        m_printerErrorActivity = m_printerWorker.ActivityCount ();
+    }
+
     // Per-frame: auto-open the preview when a new print begins (activity resuming
     // after an idle gap) and refresh the strip live as bytes flow, throttled by an
     // interval that grows with strip height so a busy print does not re-render the
@@ -664,6 +673,13 @@ private:
     // button (DCR-2); kept only until the class is deleted after sign-off.
     PrinterIndicator    m_printerIndicator;
     PrinterStatusModel  m_printerStatus;
+
+    // Delivery-failure latch feeding the status model's error input (the
+    // toolbar LED's red). Set by the delivery paths in WindowCommandManager;
+    // cleared by a successful delivery, a discard, or fresh guest print
+    // activity (the user has moved on -- red must not mask the new print).
+    bool                m_printerDeliveryError = false;
+    uint64_t            m_printerErrorActivity = 0;
 
     // DxuiHwndSource running in full-ownership mode. Owns the main
     // HWND (registers WNDCLASS "CassoWindow", calls CreateWindowExW,

@@ -2829,10 +2829,20 @@ void EmulatorShell::UpdatePrinterIndicator ()
     nowMs = (int64_t) std::chrono::duration_cast<std::chrono::milliseconds> (
                 std::chrono::steady_clock::now ().time_since_epoch ()).count ();
 
+    // A latched delivery error clears itself when the guest prints something
+    // new -- red means "this page needs attention", and a fresh print means
+    // the user has moved on (Error outranks Receiving in the model, so a
+    // stale latch would otherwise mask the live print).
+    if (m_printerDeliveryError &&
+        m_printerWorker.ActivityCount () != m_printerErrorActivity)
+    {
+        m_printerDeliveryError = false;
+    }
+
     m_printerStatus.Update (m_printerWorker.ActivityCount (),
                             (double) nowMs,
                             m_printerWorker.HasContent (),
-                            false /* error state not surfaced yet */);
+                            m_printerDeliveryError);
 
     status = m_printerStatus.Status ();
 

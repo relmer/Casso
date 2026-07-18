@@ -1323,6 +1323,7 @@ void WindowCommandManager::OnPrinterCommand (int id)
 
         // Copy never consumes the strip: resume on the same page regardless.
         m_shell.m_printerWorker.Start (m_shell.m_refs.printerCard->ByteRing (), job->Raster ());
+        m_shell.NotePrinterDeliveryResult (FAILED (hr));
 
         if (FAILED (hr))
         {
@@ -1353,10 +1354,12 @@ void WindowCommandManager::OnPrinterCommand (int id)
         }
 
         // Confirmed: play the tear-off (a random paper-tear), start a fresh
-        // sheet, and drop the persisted pending copy.
+        // sheet, and drop the persisted pending copy. The problem page (if
+        // any) went with it, so a latched delivery error clears too.
         m_shell.m_printerAudio.PlayTearOff ();
         m_shell.m_printerWorker.Start (m_shell.m_refs.printerCard->ByteRing ());
         PrintJobStore::Clear (m_shell.PendingPrintDir ());
+        m_shell.NotePrinterDeliveryResult (false);
         return;
     }
 
@@ -1401,6 +1404,7 @@ void WindowCommandManager::OnPrinterCommand (int id)
                                  ? std::wstring (L"Sent the printout to the printer.")
                                  : (L"Saved printout to:\n" + file.wstring ());
 
+        m_shell.NotePrinterDeliveryResult (false);
         DxuiMessageBox (m_shell.PrinterDialogOwner (), &m_shell.m_chromeTheme, msg.c_str (), L"Casso Printer", MB_OK | MB_ICONINFORMATION);
 
         // Non-destructive: keep the paper so it can also be saved / printed.
@@ -1421,6 +1425,8 @@ void WindowCommandManager::OnPrinterCommand (int id)
             msg += failedStage + L"\n";
         }
         msg += FormatSystemError (hr);
+
+        m_shell.NotePrinterDeliveryResult (true);   // toolbar LED: red until resolved
 
         DxuiMessageBox (m_shell.PrinterDialogOwner (), &m_shell.m_chromeTheme, msg.c_str (),
                      L"Casso Printer", MB_OK | MB_ICONWARNING);
@@ -1448,6 +1454,8 @@ void WindowCommandManager::OnPrinterCommand (int id)
 
 void WindowCommandManager::OnModernPrintResult (bool succeeded)
 {
+    m_shell.NotePrinterDeliveryResult (!succeeded);   // toolbar LED tracks the outcome
+
     if (succeeded)
     {
         DxuiMessageBox (m_shell.PrinterDialogOwner (), &m_shell.m_chromeTheme,
