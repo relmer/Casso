@@ -122,11 +122,11 @@ machinery; see the 2026-07-16 comment there. These tasks are not being implement
 
 ## Phase 10: Polish & Cross-Cutting
 
-- [ ] T056 [P] FR-018 validation: sustained print burst with audio/video observation; confirm O(1) emu-thread cost (no allocation on write path)
-- [ ] T057 [P] SC-005 coverage audit: every supported command has a golden; SC-008 walkthrough (setup questions answerable from UI alone)
-- [ ] T058 Update `CHANGELOG.md` and `README.md` (feature, test counts, roadmap, and the documented paper-model defaults — 8.5″ stock / 8″ printable / 11″ page per FR-008) per merge gates
-- [ ] T059 Run `scripts\Build.ps1 -RunCodeAnalysis` both archs + full `scripts\RunTests.ps1`; fix all findings (merge gate)
-- [ ] T060 Workspace hygiene sweep: remove capture files, test PNGs, stray diagnostics; final quickstart full pass
+- [ ] T056 [P] FR-018 validation: sustained print burst with audio/video observation; confirm O(1) emu-thread cost (no allocation on write path) — needs a live user session
+- [X] T057 [P] SC-005 coverage audit: every supported command has a golden — audited; the pitch family (n/N/E/e/q/Q) was the one gap, closed by PitchMatrixEveryDocumentedDensity. SC-008 walkthrough (setup questions answerable from UI alone) — user pass pending
+- [X] T058 Update `CHANGELOG.md` and `README.md` — 1.10.0 entry, feature bullet, 2600+ test count, roadmap entry incl. the paper-model defaults (8.5″ stock / 8″ printable / 11″ page, FR-008). Version.h stamp = merge-time release commit (master is at 1.9.0)
+- [X] T059 `Build.ps1 -RunCodeAnalysis` x64 + ARM64 Release: clean (fixed the 14 C6262 findings — printer card/job tests stack-allocated the 64KB byte ring; heap-allocated). `RunTests.ps1`: x64 Debug 2628/2628 + x64 Release 2625/2625 green
+- [X] T060 Workspace hygiene sweep: no untracked strays, no capture files / stray PNGs / diagnostics in the tree (tracked .bin files are legitimate fixtures). Final quickstart full pass — user session item
 
 ## Phase 11: User Story 4 (cont.) — Live-Print Preview Redesign (P4)
 

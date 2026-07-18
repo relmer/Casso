@@ -39,12 +39,12 @@ namespace PrinterJobTests
 
         TEST_METHOD (DrainFeedsRasterFromRing)
         {
-            PrinterByteRing        ring;
-            PrinterJob             job (ring);
+            auto                   ring = std::make_unique<PrinterByteRing> ();   // heap: 64KB (C6262)
+            PrinterJob             job (*ring);
             vector<PrinterEvent>   events;
 
             // ESC G 0001 then one top-pin column (0x01 = LSB = top pin).
-            PushAll (ring, { 0x1B, 'G', '0', '0', '0', '1', 0x01 });
+            PushAll (*ring, { 0x1B, 'G', '0', '0', '0', '1', 0x01 });
 
             size_t   drained = job.Drain (events);
 
@@ -56,8 +56,8 @@ namespace PrinterJobTests
 
         TEST_METHOD (EmptyRingDrainsNothing)
         {
-            PrinterByteRing        ring;
-            PrinterJob             job (ring);
+            auto                   ring = std::make_unique<PrinterByteRing> ();   // heap: 64KB (C6262)
+            PrinterJob             job (*ring);
             vector<PrinterEvent>   events;
 
             Assert::AreEqual ((size_t) 0, job.Drain (events));
@@ -69,11 +69,11 @@ namespace PrinterJobTests
         {
             // The preview's Form Feed button: identical to the guest sending
             // $0C, through the same interpreter path.
-            PrinterByteRing        ring;
-            PrinterJob             job (ring);
+            auto                   ring = std::make_unique<PrinterByteRing> ();   // heap: 64KB (C6262)
+            PrinterJob             job (*ring);
             vector<PrinterEvent>   events;
 
-            PushAll (ring, { 0x1B, 'G', '0', '0', '0', '1', 0x01, 0x0A });
+            PushAll (*ring, { 0x1B, 'G', '0', '0', '0', '1', 0x01, 0x0A });
             job.Drain (events);
 
             int   before = job.HeadRow();
@@ -93,8 +93,8 @@ namespace PrinterJobTests
 
         TEST_METHOD (ObserverSeesEveryDrainedByte)
         {
-            PrinterByteRing        ring;
-            PrinterJob             job (ring);
+            auto                   ring = std::make_unique<PrinterByteRing> ();   // heap: 64KB (C6262)
+            PrinterJob             job (*ring);
             vector<PrinterEvent>   events;
             vector<Byte>           seen;
 
@@ -104,7 +104,7 @@ namespace PrinterJobTests
             });
 
             vector<Byte>   stream = { 0x1B, 'T', '1', '2', 0x0A, 0x0C };
-            PushAll (ring, stream);
+            PushAll (*ring, stream);
             job.Drain (events);
 
             Assert::AreEqual (stream.size(), seen.size());
@@ -117,17 +117,17 @@ namespace PrinterJobTests
 
         TEST_METHOD (CommandSplitAcrossDrainsCompletes)
         {
-            PrinterByteRing        ring;
-            PrinterJob             job (ring);
+            auto                   ring = std::make_unique<PrinterByteRing> ();   // heap: 64KB (C6262)
+            PrinterJob             job (*ring);
             vector<PrinterEvent>   events;
 
             // First drain gets the graphics header but no data byte yet.
-            PushAll (ring, { 0x1B, 'G', '0', '0', '0', '1' });
+            PushAll (*ring, { 0x1B, 'G', '0', '0', '0', '1' });
             job.Drain (events);
             Assert::IsFalse (job.HasContent());          // nothing struck yet
 
             // Second drain delivers the data byte; the run completes.
-            PushAll (ring, { 0x01 });
+            PushAll (*ring, { 0x01 });
             job.Drain (events);
             Assert::AreEqual ((Byte) InkPrimary::Black, job.Raster().CellAt (0, 0));
         }
@@ -135,11 +135,11 @@ namespace PrinterJobTests
 
         TEST_METHOD (ResetClearsStrip)
         {
-            PrinterByteRing        ring;
-            PrinterJob             job (ring);
+            auto                   ring = std::make_unique<PrinterByteRing> ();   // heap: 64KB (C6262)
+            PrinterJob             job (*ring);
             vector<PrinterEvent>   events;
 
-            PushAll (ring, { 0x1B, 'G', '0', '0', '0', '1', 0x80, 0x0A });
+            PushAll (*ring, { 0x1B, 'G', '0', '0', '0', '1', 0x80, 0x0A });
             job.Drain (events);
             Assert::IsTrue (job.HasContent());
 
