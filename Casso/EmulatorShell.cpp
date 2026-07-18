@@ -1521,6 +1521,13 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
 
     if (GetCursorMonitorWorkArea (work, activeMon))
     {
+        // The 100%-emulator + full monitor framing can want a window taller
+        // than the display; never open larger than the work area. The monitor
+        // frame then lays out its housing into whatever center it gets, so the
+        // emulator lands at 100% when it fits and the largest size that fits
+        // otherwise.
+        windowW = std::min (windowW, (int) (work.right  - work.left));
+        windowH = std::min (windowH, (int) (work.bottom - work.top));
         CenterInWorkArea (work, windowW, windowH, windowX, windowY);
     }
 
@@ -2164,21 +2171,32 @@ void EmulatorShell::ReconcileInitialClientSize()
     fixedW = desiredClientW + ncOverheadW;
     fixedH = desiredClientH + ncOverheadH;
 
+    // The 100%-emulator + full monitor framing can want a window bigger than
+    // the display; never size past the work area. When clamped, the monitor
+    // frame re-fits its housing into the smaller client (emulator drops below
+    // 100%), which beats a window whose menu/drives fall off-screen.
+    HMONITOR     hMon     = MonitorFromWindow (m_hwnd, MONITOR_DEFAULTTONEAREST);
+    MONITORINFO  mi       = { sizeof (mi) };
+    bool         haveWork = (hMon != nullptr && GetMonitorInfo (hMon, &mi));
+
+    if (haveWork)
+    {
+        fixedW = std::min (fixedW, (int) (mi.rcWork.right  - mi.rcWork.left));
+        fixedH = std::min (fixedH, (int) (mi.rcWork.bottom - mi.rcWork.top));
+    }
+
     if (fixedW != (rcActualWindow.right  - rcActualWindow.left) ||
         fixedH != (rcActualWindow.bottom - rcActualWindow.top))
     {
-        // Recenter on the current monitor's work area using the final
-        // size. The initial Create centered using a pre-reconcile size
-        // estimate; without this re-center the reconcile resize would
-        // grow the window from its top-left and leave it visually off
-        // center vs Ctrl+0 reset (which centers with the final size).
-        HMONITOR    hMon = MonitorFromWindow (m_hwnd, MONITOR_DEFAULTTONEAREST);
-        MONITORINFO mi   = { sizeof (mi) };
-        int         x    = 0;
-        int         y    = 0;
-        UINT        flags = SWP_NOZORDER | SWP_NOACTIVATE;
+        // Recenter on the current monitor's work area using the final size. The
+        // initial Create centered using a pre-reconcile estimate; without this
+        // re-center the reconcile resize would grow the window from its
+        // top-left and leave it off center vs the Ctrl+0 reset.
+        int   x     = 0;
+        int   y     = 0;
+        UINT  flags = SWP_NOZORDER | SWP_NOACTIVATE;
 
-        if (hMon != nullptr && GetMonitorInfo (hMon, &mi))
+        if (haveWork)
         {
             x = mi.rcWork.left + (mi.rcWork.right - mi.rcWork.left - fixedW) / 2;
             y = mi.rcWork.top  + (mi.rcWork.bottom - mi.rcWork.top - fixedH) / 2;

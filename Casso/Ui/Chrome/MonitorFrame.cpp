@@ -118,10 +118,12 @@ namespace
     // Power lamp: the //c case-switch strip's lit indicator (Apple2cSwitchBar::
     // PaintLed) -- a slanted green rectangular lamp with a rectangular glow and
     // a specular catch, which is also the "/" power mark on the real //c
-    // monitor's bezel. Replicated (not shared) because that strip is on an
-    // unmerged branch; fold into one helper when it lands. Always lit -- the
-    // monitor is powered whenever it is on screen. `bboxW` includes the slant
-    // overhang; the lamp body is `bboxW - h*tan` wide.
+    // monitor's bezel. Kept separate from that strip's lamp (now on master):
+    // the two diverge -- this one has a green lens rim for the light platinum
+    // bezel, the strip uses a near-black rim on its dark band -- so a shared,
+    // parameterized helper is a possible follow-up, not a drop-in. Always lit:
+    // the monitor is powered whenever it is on screen. `bboxW` includes the
+    // slant overhang; the lamp body is `bboxW - h*tan` wide.
     void PaintPowerLamp (IDxuiPainter & p, float x, float y, float bboxW, float h)
     {
         constexpr float    kTan   = 0.176f;         // ~10 degrees, matches the strip
