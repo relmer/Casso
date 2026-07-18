@@ -250,6 +250,12 @@ HRESULT PrinterPanel::Create (
     // frame and halving everyone's frame rate. DWM composes at vsync.
     params.presentSyncInterval = 0;
 
+    // This window auto-opens mid-print, often mid-KEYSTROKE (PR#1 + Enter):
+    // creation must not steal activation, or the guest's Enter key-up lands
+    // here and the latched key auto-repeats "]" forever. The menu-open path
+    // still focuses it via an activating Show() right after creation.
+    params.createNoActivate = true;
+
     hr = DxuiWindow::Create (params);
     CHR (hr);
 
@@ -307,7 +313,12 @@ HRESULT PrinterPanel::Create (
         }
     }
 
-    Show();
+    // Deliberately NOT shown here: showing (and whether to activate) is the
+    // caller's decision. This Create used to end with an activating Show(),
+    // which yanked foreground+focus off the main window even on the no-steal
+    // auto-open path -- a caller's later Show(false) came too late, the guest's
+    // in-flight key-up was already lost to this window, and the latched key
+    // auto-repeated into the guest forever (endless "]" lines after PR#1).
 
 Error:
     return hr;

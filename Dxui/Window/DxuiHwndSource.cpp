@@ -391,6 +391,10 @@ HRESULT DxuiHwndSource::Create (const CreateParams & params)
         style &= ~(WS_THICKFRAME | WS_MAXIMIZEBOX);
     }
     exStyle = WS_EX_APPWINDOW;
+    if (params.createNoActivate)
+    {
+        exStyle |= WS_EX_NOACTIVATE;   // stripped right after creation (see CreateParams)
+    }
 
     // Composited-transparent mode: the window blends per-pixel over
     // whatever is behind it via the desktop compositor, so it must opt
@@ -445,6 +449,15 @@ HRESULT DxuiHwndSource::Create (const CreateParams & params)
                               this);
     CWRA (m_hwnd);
     m_ownsHwnd = true;
+
+    // The NOACTIVATE bit exists only to keep CreateWindowEx from activating
+    // the newborn window (stealing focus mid-keystroke); strip it now so the
+    // window activates normally from here on (clicks, an activating Show()).
+    if (params.createNoActivate)
+    {
+        SetWindowLongPtrW (m_hwnd, GWL_EXSTYLE,
+                           GetWindowLongPtrW (m_hwnd, GWL_EXSTYLE) & ~(LONG_PTR) WS_EX_NOACTIVATE);
+    }
 
     // Re-seed scaler from the per-window DPI now that the HWND knows
     // which monitor it landed on.

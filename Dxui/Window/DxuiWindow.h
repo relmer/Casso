@@ -69,6 +69,13 @@ public:
         // per frame (DWM still composes at vsync, so windowed flip-model
         // presents do not tear).
         UINT                presentSyncInterval = 1;
+
+        // Create the window without stealing activation (CreateWindowEx
+        // activates a new top-level window even while it is hidden, yanking
+        // focus off the creator mid-keystroke). For windows that pop up on
+        // their own (the auto-opened print preview); an activating Show()
+        // still focuses them on demand.
+        bool                createNoActivate  = false;
     };
 
 

@@ -5385,7 +5385,35 @@ DxuiMessageResult EmulatorShell::OnActivateApp (bool active)
 DxuiMessageResult EmulatorShell::OnKillFocus ()
 {
     StopPaddleCapture();
+
+    // Losing keyboard focus means the matching WM_KEYUPs will never arrive
+    // here -- whatever window took focus gets them. Release the guest keyboard
+    // latch, its armed auto-repeat, and the modifier states, so a key held
+    // across a focus change (Enter while a window pops up, Alt-Tab mid-key)
+    // can never leave the emulated key repeating forever.
+    ReleaseGuestKeys();
     return DxuiMessageResult::NotHandled;
+}
+
+
+
+
+void EmulatorShell::ReleaseGuestKeys ()
+{
+    auto *  iieKbd = dynamic_cast<Apple2eKeyboard *> (m_refs.keyboard);
+
+    if (m_refs.keyboard != nullptr)
+    {
+        m_refs.keyboard->SetKeyDown (false);
+        m_refs.keyboard->BeginKeyRepeat (0);
+    }
+
+    if (iieKbd != nullptr)
+    {
+        iieKbd->SetOpenApple   (false);
+        iieKbd->SetClosedApple (false);
+        iieKbd->SetShift       (false);
+    }
 }
 
 

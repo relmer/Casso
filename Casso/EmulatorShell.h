@@ -244,6 +244,10 @@ private:
     DxuiMessageResult  OnSetCursor     (WORD hitTest) override;
     DxuiMessageResult  OnActivateApp   (bool active) override;
     DxuiMessageResult  OnKillFocus     () override;
+
+    // Release the guest keyboard latch + auto-repeat + modifiers. Called on
+    // focus loss: the matching key-ups will never arrive once focus moves.
+    void               ReleaseGuestKeys ();
     DxuiMessageResult  OnCancelMode    () override;
     DxuiMessageResult  OnMove          (int x, int y) override;
     DxuiMessageResult  OnNotify        (WPARAM wParam, LPARAM lParam) override;

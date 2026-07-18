@@ -171,6 +171,17 @@ public:
         // createSwapChain == true. Default false = the opaque
         // flip-discard CreateSwapChainForHwnd path.
         bool                     composited               = false;
+
+        // When true, the window is created WITHOUT stealing activation:
+        // CreateWindowEx activates a new top-level captioned window even
+        // when it is created hidden, which yanks keyboard focus off the
+        // creator mid-keystroke (the auto-opened print preview ate the
+        // guest's Enter key-UP, leaving the emulated key latched and
+        // auto-repeating forever). The window is created with
+        // WS_EX_NOACTIVATE and the bit is stripped right after creation,
+        // so it behaves like any normal window from then on; a caller
+        // that wants it focused shows it with an activating Show().
+        bool                     createNoActivate         = false;
     };
 
 
