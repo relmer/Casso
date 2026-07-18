@@ -6,6 +6,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 Versioned entries use `MAJOR.MINOR.PATCH` from [Version.h](CassoCore/Version.h).
 Entries before versioning was introduced use dates only.
 
+## [Unreleased]
+
+### Fixed
+- **fix(chrome): resize the top-right window corner** (#98) — the diagonal
+  resize grab is now a larger corner square than the straight edges, so the
+  top-right corner is draggable even though the close button sits on it. Every
+  Dxui-chromed window (main window + dialogs) is fixed at once.
+
 ## [1.10.0] — Apple //c case-switch strip
 
 ### Added
