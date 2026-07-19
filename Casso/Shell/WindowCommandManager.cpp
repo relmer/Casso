@@ -133,6 +133,50 @@ namespace
         return name;
     }
 
+    // Build a printer DC directly from the DEVNAMES + DEVMODE the print dialog
+    // returned. PD_RETURNDC is a convenience -- PrintDlg creates the DC for us --
+    // but on some machines its internal CreateDC flakes intermittently and hands
+    // back a null hDC with TRUE and no error code (observed with "Microsoft Print
+    // to PDF" in a long-lived process, while a bare CreateDC on the same printer
+    // in the same process succeeds). PrintDlg still fills hDevNames/hDevMode, so
+    // we make the DC ourselves from the documented lower-level path. Returns null
+    // only if the names are missing or CreateDC genuinely fails.
+    HDC  CreateDcFromDevNames (const PRINTDLGW & pd)
+    {
+        HDC               hdc = nullptr;
+        const DEVNAMES *  dn  = nullptr;
+        const DEVMODEW *  dm  = nullptr;
+
+        if (pd.hDevNames == nullptr)
+        {
+            return nullptr;
+        }
+
+        dn = (const DEVNAMES *) GlobalLock (pd.hDevNames);
+        if (dn != nullptr)
+        {
+            const wchar_t *  base   = (const wchar_t *) dn;
+            const wchar_t *  driver = base + dn->wDriverOffset;
+            const wchar_t *  device = base + dn->wDeviceOffset;
+            const wchar_t *  output = base + dn->wOutputOffset;
+
+            if (pd.hDevMode != nullptr)
+            {
+                dm = (const DEVMODEW *) GlobalLock (pd.hDevMode);
+            }
+
+            hdc = CreateDCW (driver, device, output, dm);
+
+            if (dm != nullptr)
+            {
+                GlobalUnlock (pd.hDevMode);
+            }
+            GlobalUnlock (pd.hDevNames);
+        }
+
+        return hdc;
+    }
+
     // Blit an R,G,B,A image onto a printer HDC. The strip is scaled to fit the
     // page WIDTH (uniform scale, aspect preserved) and top-aligned so the
     // fanfold continues downward across page breaks. Fitting to width -- not
@@ -1003,10 +1047,25 @@ HRESULT WindowCommandManager::PrintToWindowsPrinter (const PrintRaster & raster,
         goto Error;
     }
     LogPrinter (std::format (L"printer='{}'", SelectedPrinterName (pd)));
+
+    // PD_RETURNDC should have created the DC. When it flakes (TRUE + null hDC +
+    // no error -- seen intermittently with Print-to-PDF in a long-lived
+    // process), build the DC ourselves from the dialog's DEVNAMES/DEVMODE rather
+    // than surfacing a spurious failure. We own this DC exactly as we would the
+    // PrintDlg-created one (the Error cleanup DeleteDC's pd.hDC either way).
+    if (pd.hDC == nullptr)
+    {
+        DWORD   cderr = CommDlgExtendedError ();
+        DWORD   gle   = GetLastError ();
+
+        pd.hDC = CreateDcFromDevNames (pd);
+        LogPrinter (std::format (L"PrintDlg returned a null DC (CommDlgExtendedError=0x{:X}, GetLastError={}); "
+                                 L"CreateDC fallback {}",
+                                 cderr, gle, pd.hDC != nullptr ? L"succeeded" : L"also failed"));
+    }
+
     CBRFEx (pd.hDC != nullptr, E_FAIL,
-            failedStage = L"PrintDlg (the chosen printer returned no device context)";
-            LogPrinter (std::format (L"PrintDlg returned a null DC (CommDlgExtendedError=0x{:X}, GetLastError={})",
-                                     CommDlgExtendedError (), GetLastError ())));
+            failedStage = L"PrintDlg (the chosen printer returned no device context)");
 
     di.cbSize      = sizeof (di);
     di.lpszDocName = L"Casso Printout";
