@@ -27,12 +27,52 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  BuildTimeFromExe
+//
+//  The build time = the running .exe's own last-write (link) time, read at
+//  runtime. This is always accurate regardless of which translation units an
+//  incremental build recompiled -- unlike __DATE__/__TIME__, which only refresh
+//  when THIS file recompiles and so goes stale on an incremental relink. Local
+//  time, "YYYY-MM-DD HH:MM:SS"; empty on any failure.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+static std::wstring  BuildTimeFromExe ()
+{
+    wchar_t                       exePath[MAX_PATH] = {};
+    WIN32_FILE_ATTRIBUTE_DATA     fad               = {};
+    SYSTEMTIME                    utc               = {};
+    SYSTEMTIME                    local             = {};
+
+    if (GetModuleFileNameW (nullptr, exePath, MAX_PATH) == 0)
+    {
+        return L"";
+    }
+    if (!GetFileAttributesExW (exePath, GetFileExInfoStandard, &fad))
+    {
+        return L"";
+    }
+    if (!FileTimeToSystemTime (&fad.ftLastWriteTime, &utc) ||
+        !SystemTimeToTzSpecificLocalTime (nullptr, &utc, &local))
+    {
+        return L"";
+    }
+
+    return std::format (L"{:04}-{:02}-{:02} {:02}:{:02}:{:02}",
+                        local.wYear, local.wMonth, local.wDay,
+                        local.wHour, local.wMinute, local.wSecond);
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  CassoBuildInfo
 //
-//  Version + arch + flavor + compile timestamp, built once. The narrow compile
-//  macros (__DATE__, __TIME__, arch, flavor) are widened to match the wide
-//  caption; the version numbers come straight from Version.h. The timestamp is
-//  this TU's compile time -- refreshed on any build that recompiles it.
+//  Version + arch + flavor (from compile-time macros -- each is exact for this
+//  configuration's binary) + the exe's link time (read at runtime, so it always
+//  names the actual build the user is running).
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -43,8 +83,7 @@ const wchar_t *  CassoBuildInfo ()
         VERSION_MAJOR, VERSION_MINOR, VERSION_PATCH,
         std::wstring (BI_ARCH, BI_ARCH + sizeof (BI_ARCH) - 1),
         std::wstring (BI_FLAVOR, BI_FLAVOR + sizeof (BI_FLAVOR) - 1),
-        std::wstring (VERSION_BUILD_TIMESTAMP,
-                      VERSION_BUILD_TIMESTAMP + sizeof (VERSION_BUILD_TIMESTAMP) - 1));
+        BuildTimeFromExe ());
 
     return s.c_str ();
 }
