@@ -26,6 +26,10 @@ static constexpr int  s_kWidthDip        = 400;
 static constexpr int  s_kIconColDip      =  40;   // glyph column width
 static constexpr int  s_kIconTextGapDip  =  10;
 static constexpr int  s_kGlyphSizeDip    =  28;
+// The glyph's LINE box (ascent + descent) is taller than its em size, so the
+// content row must reserve more than s_kGlyphSizeDip or a short message centers
+// the glyph in too small a cell and clips the top of the icon.
+static constexpr int  s_kGlyphRowDip     =  44;
 static constexpr int  s_kLineHeightDip   =  20;
 static constexpr int  s_kChromeHeightDip = 104;   // caption + button row + content vpad
 static constexpr int  s_kMinHeightDip    = 128;
@@ -257,7 +261,7 @@ int DxuiMessageBox (HWND owner, const IDxuiTheme * theme, const wchar_t * text, 
 
     heightDip = std::clamp (s_kChromeHeightDip
                                 + (std::max) (DxuiMessageBoxWindow::EstimateTextHeightDip (body, glyph != 0),
-                                              (glyph != 0) ? s_kGlyphSizeDip : 0),
+                                              (glyph != 0) ? s_kGlyphRowDip : 0),
                             s_kMinHeightDip,
                             s_kMaxHeightDip);
 
