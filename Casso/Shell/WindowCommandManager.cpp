@@ -43,7 +43,41 @@ namespace
     // GetLastError into the log so a PDF / real-printer failure can be diagnosed.
     void  LogPrinter (const std::wstring & msg)
     {
-        OutputDebugStringW ((L"[Printer] " + msg + L"\n").c_str ());
+        std::wstring   line = L"[Printer] " + msg + L"\n";
+
+        OutputDebugStringW (line.c_str ());
+
+        // Also append to %LOCALAPPDATA%\Casso\printer-debug.log so the delivery
+        // diagnostics are capturable no matter how the app was launched -- DBWIN
+        // has a single reader (a stray listener or an attached debugger steals
+        // the messages) and mandatory integrity can block a normal-launched
+        // (Medium) app from writing to an elevated listener's buffer. Best
+        // effort; any failure here is silently ignored.
+        wchar_t   base[MAX_PATH] = {};
+        if (GetEnvironmentVariableW (L"LOCALAPPDATA", base, MAX_PATH) == 0)
+        {
+            return;
+        }
+
+        std::wstring   path = std::wstring (base) + L"\\Casso\\printer-debug.log";
+        HANDLE         h    = CreateFileW (path.c_str (), FILE_APPEND_DATA,
+                                           FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr,
+                                           OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
+        if (h == INVALID_HANDLE_VALUE)
+        {
+            return;
+        }
+
+        int   n = WideCharToMultiByte (CP_UTF8, 0, line.c_str (), -1, nullptr, 0, nullptr, nullptr);
+        if (n > 1)
+        {
+            std::string   utf8 ((size_t) (n - 1), '\0');
+            DWORD         written = 0;
+
+            WideCharToMultiByte (CP_UTF8, 0, line.c_str (), -1, utf8.data (), n, nullptr, nullptr);
+            WriteFile (h, utf8.data (), (DWORD) utf8.size (), &written, nullptr);
+        }
+        CloseHandle (h);
     }
 
     // Process mandatory integrity level as a short string, for diagnosing
