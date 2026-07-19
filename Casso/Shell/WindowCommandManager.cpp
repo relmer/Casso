@@ -196,72 +196,104 @@ namespace
         return name;
     }
 
-    // Build a printer DC directly from the DEVNAMES + DEVMODE the print dialog
-    // returned. PD_RETURNDC is a convenience -- PrintDlg creates the DC for us --
-    // but on some machines its internal CreateDC flakes intermittently and hands
-    // back a null hDC with TRUE and no error code (observed with "Microsoft Print
-    // to PDF" in a long-lived process, while a bare CreateDC on the same printer
-    // in the same process succeeds). PrintDlg still fills hDevNames/hDevMode, so
-    // we make the DC ourselves from the documented lower-level path. Returns null
-    // only if the names are missing or CreateDC genuinely fails.
+    // Load ("prime") the default printer's driver on a short-lived no-COM (MTA)
+    // thread. v4 / XPS print drivers -- notably Microsoft Print to PDF -- create
+    // their device context through cross-process COM that aborts with 995
+    // (ERROR_OPERATION_ABORTED) when first touched from our STA UI thread at
+    // Medium integrity, yet succeeds from an MTA thread. Doing one MTA CreateDC
+    // loads the driver so a subsequent PrintDlg on the UI thread creates its DC
+    // normally. PD_RETURNDEFAULT gives us the default printer with no UI and no
+    // DC of its own. Best-effort; any failure is ignored (the real path still
+    // has its own fallback).
+    void  PrimeDefaultPrinterDriver ()
+    {
+        PRINTDLGW   def = {};
+
+        def.lStructSize = sizeof (def);
+        def.Flags       = PD_RETURNDEFAULT | PD_NOPAGENUMS | PD_NOSELECTION;
+
+        if (PrintDlgW (&def) && def.hDevNames != nullptr)
+        {
+            std::wstring       driver;
+            std::wstring       device;
+            const DEVNAMES *   dnp = (const DEVNAMES *) GlobalLock (def.hDevNames);
+
+            if (dnp != nullptr)
+            {
+                const wchar_t *  b = (const wchar_t *) dnp;
+                driver = b + dnp->wDriverOffset;
+                device = b + dnp->wDeviceOffset;
+                GlobalUnlock (def.hDevNames);
+            }
+
+            std::thread ([driver, device] ()
+            {
+                HDC  h = CreateDCW (driver.c_str (), device.c_str (), nullptr, nullptr);
+                if (h != nullptr) { DeleteDC (h); }
+            }).join ();
+        }
+
+        if (def.hDevMode  != nullptr) { GlobalFree (def.hDevMode); }
+        if (def.hDevNames != nullptr) { GlobalFree (def.hDevNames); }
+    }
+
+    // Build a printer DC from the DEVNAMES + DEVMODE the print dialog returned,
+    // when PrintDlg's own PD_RETURNDC came back null (a v4 driver flaking on the
+    // STA UI thread). Created on a plain (no-COM / MTA) thread for the same
+    // reason priming works -- an STA CreateDC aborts (995) where an MTA one
+    // succeeds. NULL port: the Print-to-PDF file prompt belongs at StartDoc, not
+    // DC creation. Returns null only if the names are missing or CreateDC fails.
     HDC  CreateDcFromDevNames (const PRINTDLGW & pd)
     {
-        HDC               hdc = nullptr;
-        const DEVNAMES *  dn  = nullptr;
-        const DEVMODEW *  dm  = nullptr;
+        std::wstring                 driver;
+        std::wstring                 device;
+        std::vector<unsigned char>   devmode;
+        HDC                          hdc = nullptr;
 
         if (pd.hDevNames == nullptr)
         {
             return nullptr;
         }
 
-        dn = (const DEVNAMES *) GlobalLock (pd.hDevNames);
-        if (dn != nullptr)
         {
-            const wchar_t *  base   = (const wchar_t *) dn;
-            const wchar_t *  driver = base + dn->wDriverOffset;
-            const wchar_t *  device = base + dn->wDeviceOffset;
-            const wchar_t *  output = base + dn->wOutputOffset;
+            const DEVNAMES *  dn = (const DEVNAMES *) GlobalLock (pd.hDevNames);
 
-            if (pd.hDevMode != nullptr)
+            if (dn == nullptr)
             {
-                dm = (const DEVMODEW *) GlobalLock (pd.hDevMode);
+                LogPrinter (L"  CreateDcFromDevNames: GlobalLock(hDevNames) failed");
+                return nullptr;
             }
 
-            // Pass NULL for the port, NOT the DEVNAMES output ('PORTPROMPT:' for
-            // Microsoft Print to PDF). Handing an explicit PORTPROMPT: port to
-            // CreateDC makes GDI try to resolve the file-target prompt DURING DC
-            // creation, which aborts (ERROR_OPERATION_ABORTED, 995) at Medium
-            // integrity in our re-entrant print context. NULL lets the DC build
-            // cleanly; the driver then shows its Save dialog at StartDoc -- the
-            // documented Print-to-PDF flow, and the one that works elevated.
-            // Fall back to the explicit port only if NULL somehow fails.
-            const wchar_t *  attempts[2] = { nullptr, output };
+            const wchar_t *  base = (const wchar_t *) dn;
+            driver = base + dn->wDriverOffset;
+            device = base + dn->wDeviceOffset;
+            GlobalUnlock (pd.hDevNames);
+        }
 
-            for (const wchar_t * port : attempts)
-            {
-                SetLastError (0);
-                hdc = CreateDCW (driver, device, port, dm);
-                LogPrinter (std::format (L"  CreateDC driver='{}' device='{}' port='{}' devmode={} -> hDC={} gle={}",
-                                         driver, device, port != nullptr ? port : L"(null)",
-                                         dm != nullptr ? L"yes" : L"null",
-                                         hdc != nullptr ? L"ok" : L"NULL", GetLastError ()));
-                if (hdc != nullptr)
-                {
-                    break;
-                }
-            }
+        // Copy the (variable-length) DEVMODE so the worker thread owns stable
+        // memory independent of the caller's global handle lock.
+        if (pd.hDevMode != nullptr)
+        {
+            const DEVMODEW *  dm = (const DEVMODEW *) GlobalLock (pd.hDevMode);
 
             if (dm != nullptr)
             {
+                const unsigned char *  p  = (const unsigned char *) dm;
+                size_t                 sz = (size_t) dm->dmSize + dm->dmDriverExtra;
+                devmode.assign (p, p + sz);
                 GlobalUnlock (pd.hDevMode);
             }
-            GlobalUnlock (pd.hDevNames);
         }
-        else
+
+        std::thread ([&] ()
         {
-            LogPrinter (L"  CreateDcFromDevNames: GlobalLock(hDevNames) failed");
-        }
+            const DEVMODEW *  dmp = devmode.empty () ? nullptr : (const DEVMODEW *) devmode.data ();
+
+            SetLastError (0);
+            hdc = CreateDCW (driver.c_str (), device.c_str (), nullptr, dmp);
+            LogPrinter (std::format (L"  fallback CreateDC(device='{}') on worker -> hDC={} gle={}",
+                                     device, hdc != nullptr ? L"ok" : L"NULL", GetLastError ()));
+        }).join ();
 
         return hdc;
     }
@@ -1120,55 +1152,15 @@ HRESULT WindowCommandManager::PrintToWindowsPrinter (const PrintRaster & raster,
           failedStage = L"pagination (the page has no printable content)";
           LogPrinter (L"deliver: nothing to print (0 pages)"));
 
-    // TEMP DIAGNOSTIC: the fallback CreateDC aborts with 995 for Print-to-PDF
-    // in this process at Medium integrity, yet a standalone Medium probe (no
-    // COM) succeeds. Replicate that probe HERE (PD_RETURNDEFAULT for the default
-    // printer's DEVNAMES, then a plain CreateDC) on the UI thread (OleInitialize
-    // STA) AND on a fresh no-COM thread, to pin whether it's the STA apartment /
-    // process context vs the post-dialog state. Remove once diagnosed.
-    {
-        PRINTDLGW   probe = {};
-
-        probe.lStructSize = sizeof (probe);
-        probe.Flags       = PD_RETURNDEFAULT | PD_NOPAGENUMS | PD_NOSELECTION;
-
-        if (PrintDlgW (&probe) && probe.hDevNames != nullptr)
-        {
-            std::wstring       driver;
-            std::wstring       device;
-            const DEVNAMES *   dnp = (const DEVNAMES *) GlobalLock (probe.hDevNames);
-
-            if (dnp != nullptr)
-            {
-                const wchar_t *  b = (const wchar_t *) dnp;
-                driver = b + dnp->wDriverOffset;
-                device = b + dnp->wDeviceOffset;
-                GlobalUnlock (probe.hDevNames);
-            }
-
-            SetLastError (0);
-            HDC  t1 = CreateDCW (driver.c_str (), device.c_str (), nullptr, nullptr);
-            LogPrinter (std::format (L"probe UI/STA CreateDC(device='{}') -> {} gle={}",
-                                     device, t1 != nullptr ? L"ok" : L"NULL", GetLastError ()));
-            if (t1 != nullptr) { DeleteDC (t1); }
-
-            std::thread ([driver, device]()
-            {
-                SetLastError (0);
-                HDC  t2 = CreateDCW (driver.c_str (), device.c_str (), nullptr, nullptr);
-                LogPrinter (std::format (L"probe worker/no-COM CreateDC -> {} gle={}",
-                                         t2 != nullptr ? L"ok" : L"NULL", GetLastError ()));
-                if (t2 != nullptr) { DeleteDC (t2); }
-            }).join ();
-        }
-        else
-        {
-            LogPrinter (L"probe: PrintDlg(PD_RETURNDEFAULT) failed");
-        }
-
-        if (probe.hDevMode  != nullptr) { GlobalFree (probe.hDevMode); }
-        if (probe.hDevNames != nullptr) { GlobalFree (probe.hDevNames); }
-    }
+    // Microsoft Print to PDF (and other v4 / XPS print drivers) create their
+    // device context through cross-process COM that aborts with 995
+    // (ERROR_OPERATION_ABORTED) the first time it is touched from our STA UI
+    // thread (OleInitialize) at Medium integrity, but succeeds from a plain MTA
+    // thread. Loading the driver once on a short-lived no-COM thread lets the
+    // PrintDlg below then create its DC on the UI thread normally. Diagnosed
+    // live: the STA CreateDC fails 995, an MTA CreateDC succeeds, and the real
+    // PrintDlg then returns a valid DC and the job completes. Best-effort.
+    PrimeDefaultPrinterDriver ();
 
     pd.lStructSize = sizeof (pd);
     pd.hwndOwner   = m_shell.m_hwnd;
