@@ -553,11 +553,12 @@ Error:
 
 HRESULT D3DRenderer::ToggleFullscreen (HWND hwnd)
 {
-    HRESULT     hr        = S_OK;
-    HMONITOR    hMon      = nullptr;
-    MONITORINFO mi        = { sizeof (mi) };
-    LONG        style     = 0;
-    BOOL        fSuccess  = FALSE;
+    HRESULT     hr         = S_OK;
+    HMONITOR    hMon       = nullptr;
+    MONITORINFO mi         = { sizeof (mi) };
+    LONG        style      = 0;
+    bool        styleIsFs  = false;
+    BOOL        fSuccess   = FALSE;
 
 
 
@@ -566,18 +567,27 @@ HRESULT D3DRenderer::ToggleFullscreen (HWND hwnd)
     // nested enter would capture the borderless fullscreen state as the
     // "windowed" state to restore, stranding the user in an unescapable
     // full-monitor popup that covers the taskbar and every other window.
-    // Ignore toggles while one is in flight.
-    BAIL_OUT_IF (m_fsTransition, S_OK);
+    // Ignore toggles while one is in flight. Plain early return: the Error
+    // path below clears m_fsTransition, which belongs to the OUTER toggle
+    // still on the stack -- a bailed nested call must not disarm its guard.
+    if (m_fsTransition)
+    {
+        return S_OK;
+    }
     m_fsTransition = true;
 
-    if (!m_fullscreen)
-    {
-        // Belt and braces vs the same corruption arriving some other way:
-        // never capture a caption-less (borderless popup) state as the
-        // windowed state to restore.
-        style = GetWindowLong (hwnd, GWL_STYLE);
-        CBRAEx ((style & WS_CAPTION) == WS_CAPTION, E_UNEXPECTED);
+    // Decide direction from the flag AND the actual window state. A caption-
+    // less style IS fullscreen whatever the flag says; acting on a stale flag
+    // here is how a user ends up trapped behind a borderless full-monitor
+    // popup. Desync means a transition previously failed half-way (or someone
+    // else restyled the window) -- assert so a debug build surfaces it, then
+    // recover by restoring a windowed state.
+    style     = GetWindowLong (hwnd, GWL_STYLE);
+    styleIsFs = ((style & WS_CAPTION) != WS_CAPTION);
+    ASSERT (styleIsFs == m_fullscreen);
 
+    if (!m_fullscreen && !styleIsFs)
+    {
         // Save the full windowed placement (not just the current rect) so a
         // maximized window round-trips back to maximized with its underlying
         // normal size intact -- and a normal window gets its exact size back.
@@ -598,7 +608,8 @@ HRESULT D3DRenderer::ToggleFullscreen (HWND hwnd)
         // stomping their real window size in prefs.
         m_fullscreen = true;
 
-        SetWindowLong (hwnd, GWL_STYLE, WS_POPUP | WS_VISIBLE);
+        SetLastError (0);
+        CWRA (SetWindowLong (hwnd, GWL_STYLE, WS_POPUP | WS_VISIBLE) != 0);
         fSuccess = SetWindowPos (hwnd,
                                   HWND_TOP,
                                   mi.rcMonitor.left, mi.rcMonitor.top,
@@ -611,16 +622,38 @@ HRESULT D3DRenderer::ToggleFullscreen (HWND hwnd)
     {
         // Restore the windowed style + placement. m_fullscreen stays true
         // through the restore so the synchronous WM_SIZE does not persist a
-        // mid-transition rect; it drops only after the window is back.
-        SetWindowLong (hwnd, GWL_STYLE, m_windowedStyle);
+        // mid-transition rect; it drops only after the window is back. If the
+        // desync recovery is running before any successful entry captured a
+        // placement, fall back to a stock overlapped style + normal show so
+        // the user always gets a movable, closable window back.
+        LONG  restoreStyle = m_windowedStyle;
+
+        m_fullscreen = true;
+
+        if ((restoreStyle & WS_CAPTION) != WS_CAPTION)
+        {
+            restoreStyle = WS_OVERLAPPEDWINDOW | WS_CLIPCHILDREN | WS_VISIBLE;
+        }
+
+        SetLastError (0);
+        CWRA (SetWindowLong (hwnd, GWL_STYLE, restoreStyle) != 0);
 
         fSuccess = SetWindowPos (hwnd, HWND_NOTOPMOST, 0, 0, 0, 0,
                                  SWP_NOMOVE | SWP_NOSIZE | SWP_FRAMECHANGED);
         CWRA (fSuccess);
 
-        m_windowedPlacement.length = sizeof (m_windowedPlacement);
-        fSuccess = SetWindowPlacement (hwnd, &m_windowedPlacement);
-        CWRA (fSuccess);
+        if (m_windowedPlacement.length == sizeof (m_windowedPlacement))
+        {
+            fSuccess = SetWindowPlacement (hwnd, &m_windowedPlacement);
+            CWRA (fSuccess);
+        }
+        else
+        {
+            // No captured placement (desync recovery): un-fullscreen to a
+            // normal window without moving it; the user can take it from
+            // there now that the caption is back.
+            ShowWindow (hwnd, SW_SHOWNORMAL);
+        }
 
         m_fullscreen = false;
     }
