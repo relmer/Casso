@@ -31,7 +31,8 @@
 //
 //  Version + arch + flavor + compile timestamp, built once. The narrow compile
 //  macros (__DATE__, __TIME__, arch, flavor) are widened to match the wide
-//  caption; the version numbers come straight from Version.h.
+//  caption; the version numbers come straight from Version.h. The timestamp is
+//  this TU's compile time -- refreshed on any build that recompiles it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

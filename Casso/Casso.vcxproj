@@ -216,13 +216,6 @@
     <ResourceCompile>
       <AdditionalIncludeDirectories>..\CassoCore;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ResourceCompile>
-    <PreBuildEvent>
-      <!-- Drop BuildInfo's object so it recompiles every build: its __DATE__/
-           __TIME__ then always reflect the actual link, so the window caption
-           shows the true build time (not a stale incremental compile). -->
-      <Command>if exist "$(IntDir)BuildInfo.obj" del "$(IntDir)BuildInfo.obj"</Command>
-      <Message>Forcing BuildInfo recompile for a current build timestamp</Message>
-    </PreBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="Pch.cpp">
