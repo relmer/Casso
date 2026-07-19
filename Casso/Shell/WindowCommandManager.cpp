@@ -1120,6 +1120,56 @@ HRESULT WindowCommandManager::PrintToWindowsPrinter (const PrintRaster & raster,
           failedStage = L"pagination (the page has no printable content)";
           LogPrinter (L"deliver: nothing to print (0 pages)"));
 
+    // TEMP DIAGNOSTIC: the fallback CreateDC aborts with 995 for Print-to-PDF
+    // in this process at Medium integrity, yet a standalone Medium probe (no
+    // COM) succeeds. Replicate that probe HERE (PD_RETURNDEFAULT for the default
+    // printer's DEVNAMES, then a plain CreateDC) on the UI thread (OleInitialize
+    // STA) AND on a fresh no-COM thread, to pin whether it's the STA apartment /
+    // process context vs the post-dialog state. Remove once diagnosed.
+    {
+        PRINTDLGW   probe = {};
+
+        probe.lStructSize = sizeof (probe);
+        probe.Flags       = PD_RETURNDEFAULT | PD_NOPAGENUMS | PD_NOSELECTION;
+
+        if (PrintDlgW (&probe) && probe.hDevNames != nullptr)
+        {
+            std::wstring       driver;
+            std::wstring       device;
+            const DEVNAMES *   dnp = (const DEVNAMES *) GlobalLock (probe.hDevNames);
+
+            if (dnp != nullptr)
+            {
+                const wchar_t *  b = (const wchar_t *) dnp;
+                driver = b + dnp->wDriverOffset;
+                device = b + dnp->wDeviceOffset;
+                GlobalUnlock (probe.hDevNames);
+            }
+
+            SetLastError (0);
+            HDC  t1 = CreateDCW (driver.c_str (), device.c_str (), nullptr, nullptr);
+            LogPrinter (std::format (L"probe UI/STA CreateDC(device='{}') -> {} gle={}",
+                                     device, t1 != nullptr ? L"ok" : L"NULL", GetLastError ()));
+            if (t1 != nullptr) { DeleteDC (t1); }
+
+            std::thread ([driver, device]()
+            {
+                SetLastError (0);
+                HDC  t2 = CreateDCW (driver.c_str (), device.c_str (), nullptr, nullptr);
+                LogPrinter (std::format (L"probe worker/no-COM CreateDC -> {} gle={}",
+                                         t2 != nullptr ? L"ok" : L"NULL", GetLastError ()));
+                if (t2 != nullptr) { DeleteDC (t2); }
+            }).join ();
+        }
+        else
+        {
+            LogPrinter (L"probe: PrintDlg(PD_RETURNDEFAULT) failed");
+        }
+
+        if (probe.hDevMode  != nullptr) { GlobalFree (probe.hDevMode); }
+        if (probe.hDevNames != nullptr) { GlobalFree (probe.hDevNames); }
+    }
+
     pd.lStructSize = sizeof (pd);
     pd.hwndOwner   = m_shell.m_hwnd;
     pd.Flags       = PD_RETURNDC | PD_NOPAGENUMS | PD_NOSELECTION | PD_USEDEVMODECOPIESANDCOLLATE;
