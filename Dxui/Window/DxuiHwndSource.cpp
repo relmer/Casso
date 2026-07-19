@@ -1244,6 +1244,15 @@ HRESULT DxuiHwndSource::CreateDeviceAndSwapChain ()
                                                   nullptr,
                                                   m_swapChain.GetAddressOf());
         CHRA (hr);
+
+        // DXGI installs its own Alt+Enter handler on an HWND swap chain's
+        // window: a physical Alt+Enter gets double-handled -- DXGI restyles
+        // and resizes the window to frameless full-monitor on its own, racing
+        // the app's borderless-fullscreen toggle, which then finds a window
+        // state it never created. The app owns its fullscreen transition;
+        // tell DXGI to keep its hands off the keyboard.
+        hr = dxgiFactory->MakeWindowAssociation (m_hwnd, DXGI_MWA_NO_ALT_ENTER);
+        CHRA (hr);
     }
 
 Error:
