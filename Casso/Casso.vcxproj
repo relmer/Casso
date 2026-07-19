@@ -216,6 +216,13 @@
     <ResourceCompile>
       <AdditionalIncludeDirectories>..\CassoCore;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ResourceCompile>
+    <PreBuildEvent>
+      <!-- Drop BuildInfo's object so it recompiles every build: its __DATE__/
+           __TIME__ then always reflect the actual link, so the window caption
+           shows the true build time (not a stale incremental compile). -->
+      <Command>if exist "$(IntDir)BuildInfo.obj" del "$(IntDir)BuildInfo.obj"</Command>
+      <Message>Forcing BuildInfo recompile for a current build timestamp</Message>
+    </PreBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="Pch.cpp">
@@ -231,6 +238,7 @@
     <ClCompile Include="D3DRenderer.cpp" />
     <ClCompile Include="CrtPostProcess.cpp" />
     <ClCompile Include="PerfStats.cpp" />
+    <ClCompile Include="BuildInfo.cpp" />
     <ClCompile Include="EmulatorShell.cpp" />
     <ClCompile Include="Print\PrinterWorker.cpp" />
     <ClCompile Include="Print\PrintJobStore.cpp" />
@@ -297,6 +305,7 @@
     <ClInclude Include="CrtPostProcess.h" />
     <ClInclude Include="PerfStats.h" />
     <ClInclude Include="UiCommandTypes.h" />
+    <ClInclude Include="BuildInfo.h" />
     <ClInclude Include="EmulatorShell.h" />
     <ClInclude Include="Print\PrinterWorker.h" />
     <ClInclude Include="Print\PrintJobStore.h" />

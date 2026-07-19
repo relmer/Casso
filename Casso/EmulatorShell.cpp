@@ -8,6 +8,7 @@
 
 #include "Core/PathResolver.h"
 #include "Version.h"
+#include "BuildInfo.h"
 #include "resource.h"
 #include "Devices/RamDevice.h"
 #include "Devices/RomDevice.h"
@@ -7032,6 +7033,12 @@ void EmulatorShell::UpdateWindowTitle()
     {
         title += L" [Stopped]";
     }
+
+    // Build identity (version, arch, flavor, compile timestamp) so a running
+    // window always names the exact binary it is -- no guessing whether a
+    // rebuild took.
+    title += L"  \x2014  ";
+    title += CassoBuildInfo ();
 
     m_host->SetTitle (title);
 }
