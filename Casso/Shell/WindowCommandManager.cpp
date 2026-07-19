@@ -46,6 +46,35 @@ namespace
         OutputDebugStringW ((L"[Printer] " + msg + L"\n").c_str ());
     }
 
+    // Process mandatory integrity level as a short string, for diagnosing
+    // print-path failures that only appear at Medium (a normally-launched app)
+    // vs High (an elevated one).
+    const wchar_t *  ProcessIntegrity ()
+    {
+        HANDLE          tok  = nullptr;
+        DWORD           len  = 0;
+        const wchar_t * res  = L"?";
+        BYTE            buf[64];
+
+        if (!OpenProcessToken (GetCurrentProcess (), TOKEN_QUERY, &tok))
+        {
+            return L"open-fail";
+        }
+        if (GetTokenInformation (tok, TokenIntegrityLevel, buf, sizeof (buf), &len))
+        {
+            TOKEN_MANDATORY_LABEL *  tml = (TOKEN_MANDATORY_LABEL *) buf;
+            DWORD                    sub = *GetSidSubAuthorityCount (tml->Label.Sid);
+            DWORD                    rid = *GetSidSubAuthority (tml->Label.Sid, sub - 1);
+
+            res = rid <  SECURITY_MANDATORY_MEDIUM_RID ? L"Low"
+                : rid <  SECURITY_MANDATORY_HIGH_RID   ? L"Medium"
+                : rid <  SECURITY_MANDATORY_SYSTEM_RID ? L"High"
+                                                       : L"System";
+        }
+        CloseHandle (tok);
+        return res;
+    }
+
     // Turn a failure HRESULT into a "0xXXXXXXXX -- <system text>" detail line for
     // the error dialog: the friendly sentence is for humans; this trailer is the
     // hr + OS message for nerds (and bug reports). A Win32-wrapped code
@@ -165,13 +194,21 @@ namespace
                 dm = (const DEVMODEW *) GlobalLock (pd.hDevMode);
             }
 
+            SetLastError (0);
             hdc = CreateDCW (driver, device, output, dm);
+            LogPrinter (std::format (L"  CreateDC driver='{}' device='{}' output='{}' devmode={} -> hDC={} gle={}",
+                                     driver, device, output, dm != nullptr ? L"yes" : L"null",
+                                     hdc != nullptr ? L"ok" : L"NULL", GetLastError ()));
 
             if (dm != nullptr)
             {
                 GlobalUnlock (pd.hDevMode);
             }
             GlobalUnlock (pd.hDevNames);
+        }
+        else
+        {
+            LogPrinter (L"  CreateDcFromDevNames: GlobalLock(hDevNames) failed");
         }
 
         return hdc;
@@ -1046,7 +1083,12 @@ HRESULT WindowCommandManager::PrintToWindowsPrinter (const PrintRaster & raster,
         hr = S_FALSE;   // cancelled / closed
         goto Error;
     }
-    LogPrinter (std::format (L"printer='{}'", SelectedPrinterName (pd)));
+    LogPrinter (std::format (L"printer='{}' integrity={} hDC={} hDevNames={} hDevMode={} gdi={}",
+                             SelectedPrinterName (pd), ProcessIntegrity (),
+                             pd.hDC != nullptr ? L"ok" : L"NULL",
+                             pd.hDevNames != nullptr ? L"yes" : L"null",
+                             pd.hDevMode != nullptr ? L"yes" : L"null",
+                             GetGuiResources (GetCurrentProcess (), GR_GDIOBJECTS)));
 
     // PD_RETURNDC should have created the DC. When it flakes (TRUE + null hDC +
     // no error -- seen intermittently with Print-to-PDF in a long-lived
