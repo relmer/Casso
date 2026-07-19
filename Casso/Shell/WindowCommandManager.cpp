@@ -228,11 +228,29 @@ namespace
                 dm = (const DEVMODEW *) GlobalLock (pd.hDevMode);
             }
 
-            SetLastError (0);
-            hdc = CreateDCW (driver, device, output, dm);
-            LogPrinter (std::format (L"  CreateDC driver='{}' device='{}' output='{}' devmode={} -> hDC={} gle={}",
-                                     driver, device, output, dm != nullptr ? L"yes" : L"null",
-                                     hdc != nullptr ? L"ok" : L"NULL", GetLastError ()));
+            // Pass NULL for the port, NOT the DEVNAMES output ('PORTPROMPT:' for
+            // Microsoft Print to PDF). Handing an explicit PORTPROMPT: port to
+            // CreateDC makes GDI try to resolve the file-target prompt DURING DC
+            // creation, which aborts (ERROR_OPERATION_ABORTED, 995) at Medium
+            // integrity in our re-entrant print context. NULL lets the DC build
+            // cleanly; the driver then shows its Save dialog at StartDoc -- the
+            // documented Print-to-PDF flow, and the one that works elevated.
+            // Fall back to the explicit port only if NULL somehow fails.
+            const wchar_t *  attempts[2] = { nullptr, output };
+
+            for (const wchar_t * port : attempts)
+            {
+                SetLastError (0);
+                hdc = CreateDCW (driver, device, port, dm);
+                LogPrinter (std::format (L"  CreateDC driver='{}' device='{}' port='{}' devmode={} -> hDC={} gle={}",
+                                         driver, device, port != nullptr ? port : L"(null)",
+                                         dm != nullptr ? L"yes" : L"null",
+                                         hdc != nullptr ? L"ok" : L"NULL", GetLastError ()));
+                if (hdc != nullptr)
+                {
+                    break;
+                }
+            }
 
             if (dm != nullptr)
             {
