@@ -587,12 +587,24 @@ HRESULT ModernPrintDialog::ShowAsync (HWND hwnd, const PrintRaster & raster, int
 
     // The active session the next PrintTaskRequested hands to the task
     // (QI'd: the WRL class has multiple IUnknown bases, so no implicit cast).
+    // Build the new session into a temp, then swap it in under the lock: assign
+    // in one step so the slot is NEVER momentarily null. The old code used
+    // ReleaseAndGetAddressOf, which nulls m_session for the duration of the QI --
+    // if PrintTaskRequested fired in that window (a second Print click, the
+    // panel button double-firing), the handler read null and dropped the request
+    // and the dialog spun at "connecting" forever.
     {
-        std::lock_guard<std::mutex>  lock (s_kSessionLock);
+        ComPtr<IUnknown>  newSession;
 
-        hr = source.CopyTo (m_session.ReleaseAndGetAddressOf ());
+        hr = source.CopyTo (newSession.GetAddressOf ());
+        if (FAILED (hr)) { return hr; }
+
+        {
+            std::lock_guard<std::mutex>  lock (s_kSessionLock);
+            m_session = newSession;
+        }
+        LogModernPrint (std::format (L"session set: {}", (void *) m_session.Get ()));
     }
-    if (FAILED (hr)) { return hr; }
 
     if (!m_registered)
     {
@@ -617,6 +629,7 @@ HRESULT ModernPrintDialog::ShowAsync (HWND hwnd, const PrintRaster & raster, int
 
                     sessionUnk = *sessionSlot;
                 }
+                LogModernPrint (std::format (L"session read: {}", (void *) sessionUnk.Get ()));
                 if (sessionUnk == nullptr)
                 {
                     LogModernPrint (L"no session in flight; ignoring the request");
