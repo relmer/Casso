@@ -83,12 +83,6 @@ static void LogModernPrint (const std::wstring & msg)
     CloseHandle (h);
 }
 
-// Serializes the active-session slot: ShowAsync assigns it on the UI thread
-// while the task-requested / completed callbacks read + clear it on
-// print-system threads.
-static std::mutex  s_kSessionLock;
-
-
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -497,28 +491,124 @@ ModernPrintDialog::~ModernPrintDialog ()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  Modern print task handlers
+//
+//  Free functions so ShowAsync's registration stays flat. The document source
+//  is passed and captured BY VALUE, so it is owned by this show and cannot be
+//  nulled by another print -- the "connecting forever" hang came from a shared
+//  session member that a prior task's completion reset out from under the event.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+static HRESULT ModernSourceRequested (ComPtr<IUnknown> session,
+                                      awgp::IPrintTaskSourceRequestedArgs * srcArgs)
+{
+    HRESULT                             hr = S_OK;
+    ComPtr<awgp::IPrintDocumentSource>  docSource;
+
+    hr = session.CopyTo (docSource.GetAddressOf());
+    CHR (hr);
+
+    hr = srcArgs->SetSource (docSource.Get());
+    CHR (hr);
+
+Error:
+    return hr;
+}
+
+
+
+
+static HRESULT ModernTaskCompleted (HWND postHwnd, awgp::IPrintTaskCompletedEventArgs * done)
+{
+    awgp::PrintTaskCompletion  completion = awgp::PrintTaskCompletion_Abandoned;
+
+    done->get_Completion (&completion);
+    LogModernPrint (std::format (L"task completed: {}", (int) completion));
+
+    if (completion == awgp::PrintTaskCompletion_Submitted)
+    {
+        PostMessageW (postHwnd, WM_COMMAND, MAKEWPARAM (IDM_PRINTER_MODERN_SENT, 0), 0);
+    }
+    else if (completion == awgp::PrintTaskCompletion_Failed)
+    {
+        PostMessageW (postHwnd, WM_COMMAND, MAKEWPARAM (IDM_PRINTER_MODERN_FAILED, 0), 0);
+    }
+
+    return S_OK;
+}
+
+
+
+
+static HRESULT ModernTaskRequested (HWND postHwnd, ComPtr<IUnknown> session,
+                                    awgp::IPrintTaskRequestedEventArgs * args)
+{
+    HRESULT                          hr             = S_OK;
+    ComPtr<awgp::IPrintTaskRequest>  request;
+    ComPtr<awgp::IPrintTask>         task;
+    EventRegistrationToken           completedToken = {};
+
+    LogModernPrint (std::format (L"PrintTaskRequested fired; source={}", (void *) session.Get()));
+
+    hr = args->get_Request (&request);
+    CHR (hr);
+
+    hr = request->CreatePrintTask (
+             HStringReference (L"Casso Printout").Get(),
+             Callback<awgp::IPrintTaskSourceRequestedHandler> (
+                 [session] (awgp::IPrintTaskSourceRequestedArgs * srcArgs) -> HRESULT
+                 {
+                     return ModernSourceRequested (session, srcArgs);
+                 }).Get(),
+             &task);
+    CHRF (hr, LogModernPrint (std::format (L"CreatePrintTask failed 0x{:08X}", (uint32_t) hr)));
+    CBRA (task != nullptr);
+
+    LogModernPrint (L"print task created");
+
+    hr = task->add_Completed (
+             Callback<ABI::Windows::Foundation::ITypedEventHandler<
+                 awgp::PrintTask *, awgp::PrintTaskCompletedEventArgs *>> (
+                 [postHwnd] (awgp::IPrintTask *, awgp::IPrintTaskCompletedEventArgs * done) -> HRESULT
+                 {
+                     return ModernTaskCompleted (postHwnd, done);
+                 }).Get(),
+             &completedToken);
+    CHR (hr);
+
+Error:
+    return hr;
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ModernPrintDialog::ShowAsync
 //
 //  Builds the session document source (strip copy + pagination), lazily wires
-//  the per-window PrintManager + its PrintTaskRequested handler, and shows
-//  the OS print UI. Completion posts IDM_PRINTER_MODERN_SENT / _FAILED back
-//  to the window; cancel posts nothing. Every failure here returns FAILED so
-//  the caller can fall back to the classic dialog.
+//  the per-window PrintManager, registers a per-show PrintTaskRequested handler
+//  that owns this show's source, and shows the OS print UI. Completion posts
+//  IDM_PRINTER_MODERN_SENT / _FAILED back to the window; cancel posts nothing.
+//  Every failure returns FAILED so the caller can fall back to the classic dialog.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT ModernPrintDialog::ShowAsync (HWND hwnd, const PrintRaster & raster, int outputDpi, DotStyle style)
 {
-    HRESULT                              hr      = S_OK;
-    ComPtr<IPrintManagerInterop>         interop;
-    ComPtr<awgp::IPrintManager>          manager;
-    ComPtr<PrintPageSource>              source;
-    ComPtr<IInspectable>                 showOp;
+    HRESULT                       hr       = S_OK;
+    ComPtr<IPrintManagerInterop>  interop;
+    ComPtr<awgp::IPrintManager>   manager;
+    ComPtr<PrintPageSource>       source;
+    ComPtr<IInspectable>          showOp;
+    ComPtr<IUnknown>              session;
+    HWND                          postHwnd = hwnd;
 
-    // Newer Windows builds route the modern print experience's callbacks
-    // through a DispatcherQueue; without one on the calling thread the dialog
-    // can sit at "connecting" forever (PrintTaskRequested never raises).
-    // Create a thread-bound queue controller once and keep it alive.
+    // Newer Windows builds route the modern print callbacks through a
+    // DispatcherQueue; without one on the calling thread the dialog can sit at
+    // "connecting" forever. Create a thread-bound queue controller once.
     if (m_dispatcherQueue == nullptr)
     {
         DispatcherQueueOptions  options = {};
@@ -527,34 +617,26 @@ HRESULT ModernPrintDialog::ShowAsync (HWND hwnd, const PrintRaster & raster, int
         options.threadType    = DQTYPE_THREAD_CURRENT;
         options.apartmentType = DQTAT_COM_STA;
 
-        HRESULT  hrQueue = CreateDispatcherQueueController (options, (PDISPATCHERQUEUECONTROLLER *) m_dispatcherQueue.GetAddressOf ());
+        HRESULT  hrQueue = CreateDispatcherQueueController (options, (PDISPATCHERQUEUECONTROLLER *) m_dispatcherQueue.GetAddressOf());
 
         LogModernPrint (std::format (L"CreateDispatcherQueueController -> 0x{:08X}", (uint32_t) hrQueue));
     }
 
     hr = Microsoft::WRL::MakeAndInitialize<PrintPageSource> (&source, raster, outputDpi, style);
-    if (FAILED (hr))
-    {
-        LogModernPrint (L"no printable pages; falling back");
-        return hr;
-    }
+    CHRF (hr, LogModernPrint (L"no printable pages; falling back"));
 
     if (m_interop == nullptr)
     {
         hr = RoGetActivationFactory (
-                 HStringReference (RuntimeClass_Windows_Graphics_Printing_PrintManager).Get (),
+                 HStringReference (RuntimeClass_Windows_Graphics_Printing_PrintManager).Get(),
                  IID_PPV_ARGS (&interop));
-        if (FAILED (hr))
-        {
-            LogModernPrint (std::format (L"PrintManager activation failed 0x{:08X}; falling back", (uint32_t) hr));
-            return hr;
-        }
+        CHRF (hr, LogModernPrint (std::format (L"PrintManager activation failed 0x{:08X}; falling back", (uint32_t) hr)));
         m_interop = interop;
     }
     else
     {
         hr = m_interop.As (&interop);
-        if (FAILED (hr)) { return hr; }
+        CHR (hr);
     }
 
     if (m_manager == nullptr || m_hwnd != hwnd)
@@ -571,160 +653,56 @@ HRESULT ModernPrintDialog::ShowAsync (HWND hwnd, const PrintRaster & raster, int
         }
 
         hr = interop->GetForWindow (hwnd, IID_PPV_ARGS (&manager));
-        if (FAILED (hr))
-        {
-            LogModernPrint (std::format (L"GetForWindow failed 0x{:08X}; falling back", (uint32_t) hr));
-            return hr;
-        }
+        CHRF (hr, LogModernPrint (std::format (L"GetForWindow failed 0x{:08X}; falling back", (uint32_t) hr)));
         m_manager = manager;
         m_hwnd    = hwnd;
     }
     else
     {
         hr = m_manager.As (&manager);
-        if (FAILED (hr)) { return hr; }
+        CHR (hr);
     }
 
-    // The active session the next PrintTaskRequested hands to the task
-    // (QI'd: the WRL class has multiple IUnknown bases, so no implicit cast).
-    // Build the new session into a temp, then swap it in under the lock: assign
-    // in one step so the slot is NEVER momentarily null. The old code used
-    // ReleaseAndGetAddressOf, which nulls m_session for the duration of the QI --
-    // if PrintTaskRequested fired in that window (a second Print click, the
-    // panel button double-firing), the handler read null and dropped the request
-    // and the dialog spun at "connecting" forever.
+    // This print's document source, captured BY VALUE in the handler below --
+    // never stored in a shared member the event reads later. A shared slot let
+    // a prior print's task completion null it, so PrintTaskRequested read null,
+    // dropped the request, and the dialog spun at "connecting" forever.
+    hr = source.CopyTo (session.GetAddressOf());
+    CHR (hr);
+
+    // Re-register per show so handlers never accumulate on the per-window
+    // PrintManager; the new handler owns this show's source.
+    if (m_registered)
     {
-        ComPtr<IUnknown>  newSession;
+        ComPtr<awgp::IPrintManager>  mgr;
 
-        hr = source.CopyTo (newSession.GetAddressOf ());
-        if (FAILED (hr)) { return hr; }
-
+        if (SUCCEEDED (manager.As (&mgr)))
         {
-            std::lock_guard<std::mutex>  lock (s_kSessionLock);
-            m_session = newSession;
+            mgr->remove_PrintTaskRequested (m_taskToken);
         }
-        LogModernPrint (std::format (L"session set: {} this={} slot={}",
-                                     (void *) m_session.Get (), (void *) this, (void *) std::addressof (m_session)));
+        m_registered = false;
     }
 
-    if (!m_registered)
-    {
-        HWND                          postHwnd = hwnd;
-        ComPtr<IUnknown>            * sessionSlot = &m_session;
-
-        hr = manager->add_PrintTaskRequested (
-            Callback<ABI::Windows::Foundation::ITypedEventHandler<
-                awgp::PrintManager *, awgp::PrintTaskRequestedEventArgs *>> (
-            [postHwnd, sessionSlot] (awgp::IPrintManager *,
-                                     awgp::IPrintTaskRequestedEventArgs * args) -> HRESULT
-            {
-                HRESULT                          hrCb = S_OK;
-                ComPtr<awgp::IPrintTaskRequest>  request;
-                ComPtr<awgp::IPrintTask>         task;
-                ComPtr<IUnknown>                 sessionUnk;
-
-                LogModernPrint (L"PrintTaskRequested fired");
-
-                {
-                    std::lock_guard<std::mutex>  lock (s_kSessionLock);
-
-                    sessionUnk = *sessionSlot;
-                }
-                LogModernPrint (std::format (L"session read: {} slot={}",
-                                             (void *) sessionUnk.Get (), (void *) sessionSlot));
-                if (sessionUnk == nullptr)
-                {
-                    LogModernPrint (L"no session in flight; ignoring the request");
-                    return S_OK;   // no Casso print in flight (stale event)
-                }
-
-                hrCb = args->get_Request (&request);
-                if (FAILED (hrCb)) { return hrCb; }
-
-                // The source-requested delegate hands our document source to
-                // the task; capture the session so it outlives this scope.
-                hrCb = request->CreatePrintTask (
-                    HStringReference (L"Casso Printout").Get (),
-                    Callback<awgp::IPrintTaskSourceRequestedHandler> (
-                    [sessionUnk] (awgp::IPrintTaskSourceRequestedArgs * srcArgs) -> HRESULT
-                    {
-                        ComPtr<awgp::IPrintDocumentSource>  docSource;
-                        HRESULT  hrSrc = sessionUnk.CopyTo (docSource.GetAddressOf ());
-
-                        if (FAILED (hrSrc)) { return hrSrc; }
-                        return srcArgs->SetSource (docSource.Get ());
-                    }).Get (),
-                    &task);
-                if (FAILED (hrCb) || task == nullptr)
-                {
-                    LogModernPrint (std::format (L"CreatePrintTask failed 0x{:08X}", (uint32_t) hrCb));
-                    return hrCb;
-                }
-
-                LogModernPrint (L"print task created");
-
-                // Completion -> post the result to the UI thread. Cancel /
-                // abandon post nothing (matches the classic S_FALSE path).
-                {
-                    EventRegistrationToken  completedToken = {};
-
-                    task->add_Completed (
-                        Callback<ABI::Windows::Foundation::ITypedEventHandler<
-                            awgp::PrintTask *, awgp::PrintTaskCompletedEventArgs *>> (
-                        [postHwnd, sessionSlot] (awgp::IPrintTask *,
-                                                 awgp::IPrintTaskCompletedEventArgs * done) -> HRESULT
-                        {
-                            awgp::PrintTaskCompletion  completion =
-                                awgp::PrintTaskCompletion_Abandoned;
-
-                            done->get_Completion (&completion);
-                            LogModernPrint (std::format (L"task completed: {}", (int) completion));
-
-                            if (completion == awgp::PrintTaskCompletion_Submitted)
-                            {
-                                PostMessageW (postHwnd, WM_COMMAND,
-                                              MAKEWPARAM (IDM_PRINTER_MODERN_SENT, 0), 0);
-                            }
-                            else if (completion == awgp::PrintTaskCompletion_Failed)
-                            {
-                                PostMessageW (postHwnd, WM_COMMAND,
-                                              MAKEWPARAM (IDM_PRINTER_MODERN_FAILED, 0), 0);
-                            }
-
-                            {
-                                std::lock_guard<std::mutex>  lock (s_kSessionLock);
-
-                                sessionSlot->Reset ();   // session over: release the strip copy
-                            }
-                            return S_OK;
-                        }).Get (),
-                        &completedToken);
-                }
-
-                return S_OK;
-            }).Get (),
-            &m_taskToken);
-        if (FAILED (hr))
-        {
-            LogModernPrint (std::format (L"add_PrintTaskRequested failed 0x{:08X}; falling back", (uint32_t) hr));
-            return hr;
-        }
-        m_registered = true;
-    }
+    hr = manager->add_PrintTaskRequested (
+             Callback<ABI::Windows::Foundation::ITypedEventHandler<
+                 awgp::PrintManager *, awgp::PrintTaskRequestedEventArgs *>> (
+                 [postHwnd, session] (awgp::IPrintManager *, awgp::IPrintTaskRequestedEventArgs * args) -> HRESULT
+                 {
+                     return ModernTaskRequested (postHwnd, session, args);
+                 }).Get(),
+             &m_taskToken);
+    CHRF (hr, LogModernPrint (std::format (L"add_PrintTaskRequested failed 0x{:08X}; falling back", (uint32_t) hr)));
+    m_registered = true;
 
     hr = interop->ShowPrintUIForWindowAsync (hwnd, IID_PPV_ARGS (&showOp));
-    if (FAILED (hr))
-    {
-        LogModernPrint (std::format (L"ShowPrintUIForWindowAsync failed 0x{:08X}; falling back", (uint32_t) hr));
-        m_session.Reset ();
-        return hr;
-    }
+    CHRF (hr, LogModernPrint (std::format (L"ShowPrintUIForWindowAsync failed 0x{:08X}; falling back", (uint32_t) hr)));
 
     // Hold the async operation for the session: releasing it immediately can
-    // tear down the print experience's connection back into the app on newer
-    // Windows builds (the dialog then spins at "connecting" forever).
+    // tear down the print experience's connection back into the app (the dialog
+    // then spins at "connecting" forever).
     m_showOp = showOp;
+    LogModernPrint (std::format (L"print UI up: {} page(s)", source->PageCount()));
 
-    LogModernPrint (std::format (L"print UI up: {} page(s)", source->PageCount ()));
-    return S_OK;
+Error:
+    return hr;
 }
