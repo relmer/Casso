@@ -603,7 +603,8 @@ HRESULT ModernPrintDialog::ShowAsync (HWND hwnd, const PrintRaster & raster, int
             std::lock_guard<std::mutex>  lock (s_kSessionLock);
             m_session = newSession;
         }
-        LogModernPrint (std::format (L"session set: {}", (void *) m_session.Get ()));
+        LogModernPrint (std::format (L"session set: {} this={} slot={}",
+                                     (void *) m_session.Get (), (void *) this, (void *) &m_session));
     }
 
     if (!m_registered)
@@ -629,7 +630,8 @@ HRESULT ModernPrintDialog::ShowAsync (HWND hwnd, const PrintRaster & raster, int
 
                     sessionUnk = *sessionSlot;
                 }
-                LogModernPrint (std::format (L"session read: {}", (void *) sessionUnk.Get ()));
+                LogModernPrint (std::format (L"session read: {} slot={}",
+                                             (void *) sessionUnk.Get (), (void *) sessionSlot));
                 if (sessionUnk == nullptr)
                 {
                     LogModernPrint (L"no session in flight; ignoring the request");
