@@ -2943,12 +2943,13 @@ void EmulatorShell::ShowPrinterPanel (bool activate)
     // off the guest, so a print popping up the window never eats keystrokes.
     m_printerPanel->Show (activate);
 
-    // An already-open preview buried behind the main window must still pop
-    // forward when a new print starts: raise it in the z-order without
-    // activating (focus stays on the guest for Print Shop's next prompt).
+    // Auto-open sits the preview JUST BELOW the main window in the z-order, not
+    // on top: a print arriving while the user is working must never pop a window
+    // over what they are looking at (or steal focus from under them). The user
+    // clicks / Alt-Tabs it forward whenever they want to watch it.
     if (!activate && m_printerPanel->Hwnd () != nullptr)
     {
-        SetWindowPos (m_printerPanel->Hwnd (), HWND_TOP, 0, 0, 0, 0,
+        SetWindowPos (m_printerPanel->Hwnd (), m_hwnd, 0, 0, 0, 0,
                       SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
     }
 
