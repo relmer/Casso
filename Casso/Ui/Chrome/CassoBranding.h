@@ -14,16 +14,16 @@ class IDxuiPainter;
 //  (MonitorFrame). Drawn procedurally through IDxuiPainter from a baked
 //  silhouette so it stays crisp at any size and needs no image asset.
 //
-//  Fills the given box (host client px); the silhouette is letterboxed to the
-//  box's aspect by the caller choosing width/height.
-//
-//  borderArgb (default 0 = none): when opaque, a ~1px outline is drawn around
-//  the silhouette's exact shape (not a bounding box) in that color, so the mark
-//  reads against a same-tone background.
-//
-void DrawCassowaryRainbow (IDxuiPainter & painter,
-                           float          left,
-                           float          top,
-                           float          width,
-                           float          height,
-                           uint32_t       borderArgb = 0);
+class CassoBranding
+{
+public:
+    // Fill the given box (host client px) with the rainbow cassowary; the
+    // silhouette is letterboxed to the box's aspect. borderArgb (0 = none)
+    // draws a ~1px outline around the silhouette's exact shape in that color.
+    static void  DrawCassowaryRainbow (IDxuiPainter & painter,
+                                       float          left,
+                                       float          top,
+                                       float          width,
+                                       float          height,
+                                       uint32_t       borderArgb = 0);
+};

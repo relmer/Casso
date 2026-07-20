@@ -87,6 +87,11 @@ static constexpr int     s_kPaddleNoticeMs       = 8000;   // auto-dismiss for t
 // the monitor off returns the drives to their full classic size.
 static constexpr float   s_kDeskDriveScale       = 0.8f;
 
+// The desk band height and the monitor fit depend on each other (the band
+// scales with the monitor's SceneScale, which depends on the center the band
+// leaves). The dependency is a contraction, so a few relayout passes settle it.
+static constexpr int     s_kSceneScaleSettlePasses = 3;
+
 // Minimum emulator-viewport (center) the window must always host, plus a
 // small pad past the last menu title, so the bottom drive bar can never be
 // driven up into the menu strip / title (NC) area and menu titles never
@@ -1846,7 +1851,7 @@ void EmulatorShell::UpdateViewportLayout (int widthPx, int heightPx)
         // monitor fits into. Iterate a few passes -- the dependency is a
         // contraction (band delta is a small fraction of center height), so
         // this settles to within a pixel; the final pass wins.
-        for (int pass = 0; pass < 3; pass++)
+        for (int pass = 0; pass < s_kSceneScaleSettlePasses; pass++)
         {
             center = ComputeViewportRect (widthPx, heightPx);
             m_monitorFrame.Layout (center, m_scaler);
@@ -2879,6 +2884,7 @@ void EmulatorShell::SetSkeuoMonitorFrame (bool enabled)
 {
     HRESULT  hr       = S_OK;
     RECT     rcClient = {};
+
 
 
     BAIL_OUT_IF (m_globalPrefs.skeuoMonitorFrame == enabled, S_OK);

@@ -466,7 +466,7 @@ ThemePage::ThemePage(std::wstring title)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ThemePage::UpdateMonitorCheckboxEnabled ()
+void ThemePage::UpdateMonitorCheckboxEnabled()
 {
     std::string  selected = SelectedThemeId();
     bool         isSkeuo  = !selected.empty()

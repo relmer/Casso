@@ -19,12 +19,13 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DrawCassowaryRainbow (IDxuiPainter & painter,
-                           float          left,
-                           float          top,
-                           float          width,
-                           float          height,
-                           uint32_t       borderArgb)
+void CassoBranding::DrawCassowaryRainbow (
+    IDxuiPainter & painter,
+    float          left,
+    float          top,
+    float          width,
+    float          height,
+    uint32_t       borderArgb)
 {
     constexpr int         kGridW       = 36;
     constexpr int         kGridH       = 54;

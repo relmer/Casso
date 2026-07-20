@@ -846,7 +846,7 @@ void DriveWidget::Paint (
         float  iconX   = (float) (m_faceRect.right  - iconW - marginX);
         float  iconY   = (float) (m_faceRect.bottom - iconH - marginY);
 
-        DrawCassowaryRainbow (painter, iconX, iconY, (float) iconW, (float) iconH);
+        CassoBranding::DrawCassowaryRainbow (painter, iconX, iconY, (float) iconW, (float) iconH);
     }
 
     // Write-protect padlock, top-right of the faceplate. Occupies a cell

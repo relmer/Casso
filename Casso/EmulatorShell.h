@@ -681,7 +681,7 @@ private:
 
     // Skeuomorphic CRT monitor housing that frames the emulator display
     // (skeuo theme only). Insets the viewport into its screen recess; the
-    // housing paints the ring around it. Phase 1: Apple Monitor //c.
+    // housing paints the ring around it. Models the Apple Monitor //c.
     MonitorFrame               m_monitorFrame;
 
     // Desk-scene zoom: the monitor's SceneScale from the last layout. The

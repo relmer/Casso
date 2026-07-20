@@ -18,10 +18,10 @@
 //  the ring AROUND that recess (never over it, so the composited emulator
 //  frame reads through the hole).
 //
-//  Phase 1 models the Apple Monitor //c (snow-white/platinum, 9" mono). The
+//  Today it models the Apple Monitor //c (snow-white/platinum, 9" mono). The
 //  bezel bows slightly (convex) to wrap the CRT tube. Machine- and
-//  colour-mode-specific housings come later; today it draws the //c shell
-//  whenever the skeuomorphic theme is active.
+//  color-mode-specific housings come later; the //c shell draws whenever the
+//  skeuomorphic theme is active.
 //
 class MonitorFrame : public IDxuiControl
 {
@@ -40,17 +40,13 @@ public:
     // the frame is hidden.
     RECT   ScreenRect () const { return m_screenRect; }
 
-    // How large the monitor is drawn relative to its natural (100%-zoom)
-    // size: 1.0 when the recess equals the native framebuffer, <1 when the
-    // window squeezes it, >1 when the window stretches it. The desk-scene
-    // peripherals (drive widgets, band heights, the bezel's power lamp)
-    // scale by this factor so the whole scene zooms together. 1.0 hidden.
+    // Draw size relative to the native 100%-zoom size (1.0 == recess equals
+    // the native framebuffer); the desk-scene peripherals scale by this so the
+    // whole scene zooms together. 1.0 while hidden.
     float  SceneScale () const { return m_hidden ? 1.0f : m_sceneScale; }
 
-    // Inverse of Layout, for the initial/reset window size: the center
-    // (viewport-area) size in px whose Layout yields a screen recess of exactly
-    // screenWpx x screenHpx -- so the default window can host the emulator image
-    // at 100% zoom inside the housing, chrome + framing sized around it.
+    // Inverse of Layout: the center size whose Layout yields exactly this
+    // screen recess, for sizing the default/reset window to 100% zoom.
     static SIZE  CenterSizeForScreenPx (int screenWpx, int screenHpx);
 
     // Collapse the frame: no housing, and ScreenRect() falls back to the
@@ -63,6 +59,17 @@ public:
     }
 
 private:
+    static uint32_t  LerpArgb       (uint32_t a, uint32_t b, float t);
+    static float     EdgeInset      (float y, float top, float bottom,
+                                     float radius, float barrel);
+    static void      FillSpan       (IDxuiPainter & painter,
+                                     float xLeft, float xRight, float y, uint32_t argb);
+    static void      ShearFillQuad  (IDxuiPainter & painter,
+                                     float xLeft, float yTop, float w, float h,
+                                     float tan, float refBottom, uint32_t argb);
+    static void      PaintPowerLamp (IDxuiPainter & painter,
+                                     float x, float y, float bboxW, float h);
+
     RECT   m_centerRect  = {};  // full available area (== Layout bounds); desk backdrop fills it
     RECT   m_housingRect = {};  // the monitor's outer platinum shell (bounded, ~4:3-ish)
     RECT   m_screenRect  = {};  // inset CRT recess inside the housing (viewport composites here)

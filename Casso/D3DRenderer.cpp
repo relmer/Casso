@@ -558,6 +558,7 @@ HRESULT D3DRenderer::ToggleFullscreen (HWND hwnd)
     MONITORINFO mi         = { sizeof (mi) };
     LONG        style      = 0;
     bool        styleIsFs  = false;
+    bool        armed      = false;
     BOOL        fSuccess   = FALSE;
 
 
@@ -567,14 +568,11 @@ HRESULT D3DRenderer::ToggleFullscreen (HWND hwnd)
     // nested enter would capture the borderless fullscreen state as the
     // "windowed" state to restore, stranding the user in an unescapable
     // full-monitor popup that covers the taskbar and every other window.
-    // Ignore toggles while one is in flight. Plain early return: the Error
-    // path below clears m_fsTransition, which belongs to the OUTER toggle
-    // still on the stack -- a bailed nested call must not disarm its guard.
-    if (m_fsTransition)
-    {
-        return S_OK;
-    }
+    // Ignore toggles while one is in flight. `armed` gates the Error-path
+    // clear so a bailed nested call does not disarm the OUTER toggle's guard.
+    BAIL_OUT_IF (m_fsTransition, S_OK);
     m_fsTransition = true;
+    armed          = true;
 
     // Decide direction from the flag AND the actual window state. A caption-
     // less style IS fullscreen whatever the flag says; acting on a stale flag
@@ -659,7 +657,11 @@ HRESULT D3DRenderer::ToggleFullscreen (HWND hwnd)
     }
 
 Error:
-    m_fsTransition = false;
+    if (armed)
+    {
+        m_fsTransition = false;
+    }
+
     return hr;
 }
 
