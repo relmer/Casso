@@ -198,6 +198,15 @@ HRESULT SettingsSheet::OpenModeless (
         m_apply.ApplyThemeLive (m_themePage->SelectedThemeId());
     });
 
+    // Skeuo desk-scene opt-in: applies + persists immediately (the monitor
+    // framing appears/disappears on the live chrome behind the sheet), so
+    // there is no staged state to revert on Cancel.
+    m_themePage->SetMonitorFrameChecked (prefs.skeuoMonitorFrame);
+    m_themePage->SetOnMonitorFrameToggled ([this] (bool enabled)
+    {
+        m_emuShell->SetSkeuoMonitorFrame (enabled);
+    });
+
     // Live preview (#8): dragging / keyboard-editing a Display control blurs +
     // dims the sheet and reveals the running emulator through the overlap
     // region so the CRT edit is visible. Mouse gives a clean start/end; a

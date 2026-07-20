@@ -569,6 +569,18 @@ private:
     // emulator pixel grid. Called from the ThemeManager listener.
     void    ApplyThemeToChrome   (const CassoTheme & theme);
 
+    // Settings > Theme opt-in for the skeuomorphic desk scene (CRT monitor
+    // framing + drives scaled to sit under it). Applies live -- relays out
+    // the chrome in place -- and persists to GlobalUserPrefs.
+    void    SetSkeuoMonitorFrame (bool enabled);
+
+    // The desk scene draws only when the skeuo theme is active AND the user
+    // opted in; compact themes never draw it.
+    bool    MonitorFrameEnabled  () const
+    {
+        return !m_chromeTheme.compactDrives && m_globalPrefs.skeuoMonitorFrame;
+    }
+
     // Positions the joystick-mode toggle button vertically centered in the
     // empty band above the drive widgets (the top portion of the bottom
     // drive-bar inset) and centered horizontally in the window. bandTopPx

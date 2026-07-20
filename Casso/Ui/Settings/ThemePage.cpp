@@ -441,9 +441,38 @@ ThemePage::ThemePage(std::wstring title)
     Adopt (m_themeLabel);
     Adopt (m_themeDropdown);
     Adopt (m_applyNowButton);
+    Adopt (m_monitorFrameCheckbox);
 
     m_applyNowButton.SetLabel   (L"Apply now");
     m_applyNowButton.SetOnClick ([this] { if (m_onApplyThemeNow) { m_onApplyThemeNow (); } });
+
+    // Skeuo desk-scene opt-in. Applies live (the change is visible on the
+    // real chrome behind the sheet immediately); enabled only while a
+    // skeuomorphic theme is selected.
+    m_monitorFrameCheckbox.SetLabel (L"CRT monitor desk scene (uses more screen space)");
+    m_monitorFrameCheckbox.SetSingleLineLabel (true);
+    m_monitorFrameCheckbox.SetOnChange ([this] (bool checked)
+    {
+        if (m_onMonitorFrameToggled) { m_onMonitorFrameToggled (checked); }
+    });
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ThemePage::UpdateMonitorCheckboxEnabled
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ThemePage::UpdateMonitorCheckboxEnabled ()
+{
+    std::string  selected = SelectedThemeId();
+    bool         isSkeuo  = !selected.empty()
+                            && !CassoTheme::ForName (selected).compactDrives;
+
+    m_monitorFrameCheckbox.SetEnabled (isSkeuo);
 }
 
 
@@ -501,11 +530,14 @@ void ThemePage::SetThemes (std::vector<std::string>  themeIds,
             return;
         }
         m_activeIndex = idx;
+        UpdateMonitorCheckboxEnabled();
         if (m_onThemeSelected)
         {
             m_onThemeSelected (m_themeIds[(size_t) idx]);
         }
     });
+
+    UpdateMonitorCheckboxEnabled();
 }
 
 
@@ -527,8 +559,9 @@ void ThemePage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
     int    dropWidth  = scaler.Px (s_kDropdownWidthDp);
     int    x          = rect.left + pad;
     int    y          = rect.top  + pad;
+    int    rowGap     = scaler.Px (8);
     int    previewGap = scaler.Px (24);
-    int    previewTop = y + rowHeight + previewGap;
+    int    previewTop = y + 2 * rowHeight + rowGap + previewGap;
     RECT   rowBounds  = { x, y, x + labelWidth + dropWidth, y + rowHeight };
     auto   form       = std::make_unique<DxuiFormLayout> ((float) labelWidth,
                                                           (float) rowHeight,
@@ -574,6 +607,17 @@ void ThemePage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
     m_applyNowButton.Layout (MakeRect ((int) dropB.right + applyGap, (int) dropB.top,
                                        applyWidth, (int) (dropB.bottom - dropB.top)));
     m_applyNowButton.SetDpi (dpi);
+
+    // Desk-scene opt-in row directly under the theme row, spanning the
+    // label + dropdown + button width so the caption never truncates.
+    {
+        RECT  cbRect = MakeRect (x, y + rowHeight + rowGap,
+                                 labelWidth + dropWidth + applyGap + applyWidth,
+                                 rowHeight);
+
+        m_monitorFrameCheckbox.Layout (cbRect, scaler);
+        m_monitorFrameCheckbox.SetDpi (dpi);
+    }
 
     m_previewRect.left   = x;
     m_previewRect.top    = previewTop;
@@ -621,9 +665,10 @@ void ThemePage::Paint (IDxuiPainter & painterIf, IDxuiTextRenderer & textIf, con
 
     m_themeDropdown.SetTheme    (&theme);
 
-    m_themeLabel.Paint          (painter, text);
-    m_themeDropdown.PaintBase   (painter, text);
-    m_applyNowButton.Paint      (painter, text, theme);
+    m_themeLabel.Paint            (painter, text);
+    m_themeDropdown.PaintBase     (painter, text);
+    m_applyNowButton.Paint        (painter, text, theme);
+    m_monitorFrameCheckbox.Paint  (painter, text, theme);
 
     // Live preview tracks the dropdown's effective hovered/highlighted
     // item while open (so mouse hover and arrow-key nav both update

@@ -81,6 +81,12 @@ static constexpr int     s_kLabelBottomGapDp    = 2;
 static constexpr int     s_kJoystickButtonBandDp = 43;
 static constexpr int     s_kPaddleNoticeMs       = 8000;   // auto-dismiss for the paddle-mode tooltip
 
+// Desk-scene composition: with the CRT monitor framing on, the drive widgets
+// render at 80% of their design size so they sit in proportion under the
+// monitor. Folded into m_chromeSceneScale (NOT into DriveWidget) so switching
+// the monitor off returns the drives to their full classic size.
+static constexpr float   s_kDeskDriveScale       = 0.8f;
+
 // Minimum emulator-viewport (center) the window must always host, plus a
 // small pad past the last menu title, so the bottom drive bar can never be
 // driven up into the menu strip / title (NC) area and menu titles never
@@ -1821,11 +1827,12 @@ void EmulatorShell::UpdateViewportLayout (int widthPx, int heightPx)
 
     BAIL_OUT_IF (m_viewport == nullptr, S_OK);
 
-    // Skeuomorphic theme frames the display in a period CRT monitor: the
-    // MonitorFrame insets the viewport into its screen recess and paints the
-    // platinum housing in the ring around it. The compact themes keep the
-    // bare full-center display.
-    if (m_chromeTheme.compactDrives)
+    // Skeuomorphic desk scene (opt-in): the MonitorFrame insets the viewport
+    // into its CRT screen recess and paints the platinum housing in the ring
+    // around it, with the drives scaled to sit under it. When the scene is
+    // off (compact theme, or the skeuo user has not opted in) the bare
+    // display fills the center at classic sizes.
+    if (!MonitorFrameEnabled())
     {
         m_monitorFrame.Hide();
         m_chromeSceneScale = 1.0f;
@@ -1843,7 +1850,7 @@ void EmulatorShell::UpdateViewportLayout (int widthPx, int heightPx)
         {
             center = ComputeViewportRect (widthPx, heightPx);
             m_monitorFrame.Layout (center, m_scaler);
-            m_chromeSceneScale = m_monitorFrame.SceneScale();
+            m_chromeSceneScale = m_monitorFrame.SceneScale() * s_kDeskDriveScale;
         }
         viewportRect = m_monitorFrame.ScreenRect();
     }
@@ -2115,20 +2122,20 @@ SIZE EmulatorShell::ClientSizeForFramebufferPx (int framebufferWidthDp, int fram
     int  fbWpx = m_scaler.Px (framebufferWidthDp);
     int  fbHpx = m_scaler.Px (framebufferHeightDp);
 
-    // Skeuomorphic theme frames the display in the CRT monitor: size the window
-    // so the monitor's screen RECESS -- not the bare center -- equals the
-    // framebuffer, i.e. the emulator image sits at 100% zoom inside the housing.
-    // The bezel, desk margin and chrome bands all size around it. This inverse
-    // defines the size at which the desk scene is at scale 1.0, so the band
-    // math must run at 1.0 regardless of the current window's scale. Compact
-    // themes have no housing, so the center is the framebuffer directly.
-    if (!m_chromeTheme.compactDrives)
+    // With the desk scene on, size the window so the monitor's screen RECESS
+    // -- not the bare center -- equals the framebuffer, i.e. the emulator
+    // image sits at 100% zoom inside the housing, with the bezel, desk margin
+    // and chrome bands sized around it. This inverse defines the 100% scene,
+    // where the drives sit at s_kDeskDriveScale, so the band math must run at
+    // that scale regardless of the current window's. Scene off: the center is
+    // the framebuffer directly at classic sizes.
+    if (MonitorFrameEnabled())
     {
         SIZE   center     = MonitorFrame::CenterSizeForScreenPx (fbWpx, fbHpx);
         float  savedScale = m_chromeSceneScale;
         SIZE   client     = {};
 
-        m_chromeSceneScale = 1.0f;
+        m_chromeSceneScale = s_kDeskDriveScale;
         client             = ClientSizeForCenterPx (center.cx, center.cy);
         m_chromeSceneScale = savedScale;
 
@@ -2774,10 +2781,11 @@ void EmulatorShell::ApplyThemeToChrome (const CassoTheme & theme)
     // (body + label strip + 2 dp bottom margin) bottom-anchored, with a
     // ~43 dp band above for the joystick-mode toggle button (8 dp gap +
     // ~27 dp button + 8 dp gap). Drive widget total height is body 160 +
-    // label-strip gap 2 + label strip 18 = 180 dp, rendered at the widget's
-    // 80% skeuo scale (DriveWidget s_kFullScalePct) = 144 dp (full);
-    // 60 dp (compact). Full band: 43 + 144 + 2 ~= 190.
-    constexpr int  s_kFullDriveBarDp    = 190;
+    // label-strip gap 2 + label strip 18 = 180 dp (full) / 60 dp (compact).
+    // With the desk scene on, SyncChromeBands scales the widget portion by
+    // m_chromeSceneScale (s_kDeskDriveScale at 100%), so the band hugs the
+    // scaled drives without a separate constant.
+    constexpr int  s_kFullDriveBarDp    = 225;
     constexpr int  s_kCompactDriveBarDp = 105;
 
     int   desiredThicknessDp = theme.compactDrives ? s_kCompactDriveBarDp : s_kFullDriveBarDp;
@@ -2850,6 +2858,52 @@ void EmulatorShell::ApplyThemeToChrome (const CassoTheme & theme)
         SetWindowPos (m_hwnd, nullptr, 0, 0, newWindowW, newWindowH,
                       SWP_NOZORDER | SWP_NOMOVE | SWP_NOACTIVATE);
     }
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::SetSkeuoMonitorFrame
+//
+//  Settings > Theme opt-in for the skeuomorphic desk scene. Persists the
+//  choice, then re-runs the authoritative OnSize layout at the current client
+//  size so the monitor framing (and the drives' desk scale) appears or
+//  disappears in place -- the window itself does not resize; Ctrl+0 reaches
+//  the mode's 100% default.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::SetSkeuoMonitorFrame (bool enabled)
+{
+    HRESULT  hr       = S_OK;
+    RECT     rcClient = {};
+
+
+    BAIL_OUT_IF (m_globalPrefs.skeuoMonitorFrame == enabled, S_OK);
+
+    m_globalPrefs.skeuoMonitorFrame = enabled;
+
+    if (m_userConfigStore != nullptr)
+    {
+        hr = m_userConfigStore->SaveAll (m_globalPrefs, m_uiFs);
+    }
+    else
+    {
+        hr = m_globalPrefs.Save (m_assetBaseDir, m_uiFs);
+    }
+    IGNORE_RETURN_VALUE (hr, S_OK);
+
+    if (m_hwnd != nullptr && GetClientRect (m_hwnd, &rcClient))
+    {
+        (void) OnSize ((UINT) (rcClient.right - rcClient.left),
+                       (UINT) (rcClient.bottom - rcClient.top));
+        m_d3dRenderer.MarkRedrawNeeded();
+    }
+
+Error:
+    return;
 }
 
 

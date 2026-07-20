@@ -12,7 +12,6 @@
 namespace
 {
     constexpr int     s_kBaseDpi           = 96;
-    constexpr int     s_kFullScalePct      = 80;   // full-widget render scale (percent of true DPI)
     constexpr int     s_kBodyWidthPx       = 220;
     constexpr int     s_kBodyHeightPx      = 160;
     constexpr int     s_kFaceplateHeightPx = 104;
@@ -237,17 +236,11 @@ void DriveWidget::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
 
 
 
+    // The scaler's DPI carries the desk-scene zoom when the CRT monitor
+    // framing is active (EmulatorShell folds SceneScale * s_kDeskDriveScale
+    // into the effective DPI it hands LayoutDriveWidgetsInCommandBar), so
+    // geometry, fonts, and the probe-based band layout all scale together.
     m_dpi = (scaler.Dpi() == 0) ? (UINT) s_kBaseDpi : scaler.Dpi();
-
-    // The full (skeuo) widget renders at a reduced scale so the drives sit
-    // in proportion under the CRT monitor rather than competing with it.
-    // Applied as an effective-DPI reduction: geometry, fonts, and the
-    // probe-based command-bar layout all shrink together. Compact cards
-    // keep the true DPI.
-    if (!m_compact)
-    {
-        m_dpi = (UINT) MulDiv ((int) m_dpi, s_kFullScalePct, 100);
-    }
 
     UINT  dpi         = m_dpi;
     int   bodyW       = Scale (s_kBodyWidthPx, dpi);

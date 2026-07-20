@@ -7,6 +7,7 @@
 #include "../Chrome/JoystickToggleButton.h"
 #include "Window/DxuiPropertyPage.h"
 #include "Widgets/DxuiButton.h"
+#include "Widgets/DxuiCheckbox.h"
 #include "Widgets/DxuiDropdown.h"
 #include "Widgets/DxuiLabel.h"
 
@@ -60,6 +61,13 @@ public:
     using ApplyThemeNowFn = std::function<void ()>;
     void  SetOnApplyThemeNow    (ApplyThemeNowFn     fn) { m_onApplyThemeNow   = std::move (fn); }
 
+    // Skeuo desk-scene opt-in (CRT monitor framing). The checkbox applies
+    // live through the callback and is enabled only while a skeuomorphic
+    // (non-compact) theme is selected in the dropdown.
+    using MonitorFrameFn = std::function<void (bool enabled)>;
+    void  SetOnMonitorFrameToggled (MonitorFrameFn fn) { m_onMonitorFrameToggled = std::move (fn); }
+    void  SetMonitorFrameChecked   (bool checked)      { m_monitorFrameCheckbox.SetChecked (checked); }
+
     // The theme id the dropdown currently shows (may differ from the id
     // active at open once the user has changed the selection). Empty if
     // no themes are loaded.
@@ -89,16 +97,22 @@ public:
 private:
     std::vector<std::string>      m_themeIds;
     int                           m_activeIndex = -1;
+    // Enables the desk-scene checkbox only while the selected theme is
+    // skeuomorphic (compact themes never draw the monitor).
+    void  UpdateMonitorCheckboxEnabled ();
+
     ThemeSelectFn                 m_onThemeSelected;
     FramebufferSourceFn           m_framebufferSource;
     MountedPathFn                 m_mountedPathSource;
     WriteProtectFn                m_writeProtectSource;
     HasDiskSourceFn               m_hasDiskSource;
     ApplyThemeNowFn               m_onApplyThemeNow;
+    MonitorFrameFn                m_onMonitorFrameToggled;
 
     DxuiLabel                         m_themeLabel;
     DxuiDropdown                      m_themeDropdown;
     DxuiButton                        m_applyNowButton;
+    DxuiCheckbox                      m_monitorFrameCheckbox;
     RECT                          m_previewRect = {};
     DxuiDpiScaler                     m_scaler;
 

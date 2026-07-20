@@ -33,6 +33,13 @@ struct GlobalUserPrefs
     std::string  activeTheme         = "Skeuomorphic"; // FR-030 default
     std::string  lastSelectedMachine;                  // empty == none
 
+    // Skeuomorphic desk scene: frame the display in a period CRT monitor
+    // (with the drives scaled to sit under it). Opt-in from the Settings
+    // theme page because the scene trades a lot of screen real estate for
+    // the look; off renders the classic bare display. Skeuo themes only --
+    // compact themes never draw the monitor regardless.
+    bool         skeuoMonitorFrame   = false;
+
     // Disk II audio asset download consent. Tri-state string:
     //   "ask"     -- user has never been prompted (default)
     //   "allow"   -- silently re-fetch missing audio assets

@@ -38,6 +38,7 @@ static constexpr const char *  s_kpszCrtModeKeys[GlobalUserPrefs::kCrtModeCount]
 static const std::set<std::string>  s_kKnownTopLevel = {
     "$cassoGlobalPrefsVersion",
     "activeTheme",
+    "skeuoMonitorFrame",
     "lastSelectedMachine",
     "audioDownloadConsent",
     "inputMappingMode",
@@ -900,6 +901,7 @@ JsonValue GlobalUserPrefs::ToJson() const
     root.emplace_back (s_kpszVersionKey, JsonValue ((double) version));
 
     root.emplace_back ("activeTheme",          JsonValue (activeTheme));
+    root.emplace_back ("skeuoMonitorFrame",    JsonValue (skeuoMonitorFrame));
     root.emplace_back ("lastSelectedMachine",  JsonValue (lastSelectedMachine));
     root.emplace_back ("audioDownloadConsent", JsonValue (audioDownloadConsent));
     root.emplace_back ("inputMappingMode",     JsonValue (std::string (InputMappingModeToString (inputMappingMode))));
@@ -975,6 +977,7 @@ HRESULT GlobalUserPrefs::FromJson (const JsonValue & v)
 
     version              = GetIntOpt    (v, s_kpszVersionKey,        s_kCurrentVersion);
     activeTheme          = GetStringOpt (v, "activeTheme",            activeTheme);
+    skeuoMonitorFrame    = GetBoolOpt   (v, "skeuoMonitorFrame",      skeuoMonitorFrame);
     lastSelectedMachine  = GetStringOpt (v, "lastSelectedMachine",    lastSelectedMachine);
     audioDownloadConsent = GetStringOpt (v, "audioDownloadConsent",   audioDownloadConsent);
 
