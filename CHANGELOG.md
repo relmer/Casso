@@ -6,7 +6,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 Versioned entries use `MAJOR.MINOR.PATCH` from [Version.h](CassoCore/Version.h).
 Entries before versioning was introduced use dates only.
 
-## [1.11.0] — Emulated ImageWriter II printer (spec 015)
+## [1.12.0] — Emulated ImageWriter II printer (spec 015)
 
 ### Added
 - **feat(printer): parallel printer card + original slot firmware** — a dumb,
