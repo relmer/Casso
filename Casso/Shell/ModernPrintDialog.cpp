@@ -604,7 +604,7 @@ HRESULT ModernPrintDialog::ShowAsync (HWND hwnd, const PrintRaster & raster, int
             m_session = newSession;
         }
         LogModernPrint (std::format (L"session set: {} this={} slot={}",
-                                     (void *) m_session.Get (), (void *) this, (void *) &m_session));
+                                     (void *) m_session.Get (), (void *) this, (void *) std::addressof (m_session)));
     }
 
     if (!m_registered)
