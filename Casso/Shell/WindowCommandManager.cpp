@@ -1565,18 +1565,17 @@ void WindowCommandManager::OnPrinterCommand (int id)
 
     if (print)
     {
-        // DCR-1: the modern OS print UI with a live preview -- OPT-IN via the
-        // CASSO_MODERN_PRINT environment variable. The implementation follows
-        // the documented PrintManagerInterop contract and every setup call
-        // succeeds, but on current Windows builds (verified on 26200 with
-        // stage instrumentation) the print experience never raises
-        // PrintTaskRequested into an unpackaged Win32 app: the dialog sits at
-        // "connecting" forever. Until the OS contract works here, the classic
-        // dialog stays the default -- it prints correctly with honest error
-        // reporting; only its preview pane is unfilled.
-        wchar_t  modernOptIn[8] = {};
+        // DCR-1: the modern OS print UI with a live preview is the default --
+        // it follows the documented PrintManagerInterop contract and delivers a
+        // real paginated preview, then posts IDM_PRINTER_MODERN_SENT / _FAILED
+        // on completion. ShowAsync returns S_OK once the experience is up; a
+        // hard failure returns FAILED and we fall back to the classic dialog
+        // (which prints with honest error reporting, just no preview pane). The
+        // CASSO_CLASSIC_PRINT env var forces the classic path -- a support hatch
+        // for the rare machine whose print stack misbehaves.
+        wchar_t  forceClassic[8] = {};
 
-        if (GetEnvironmentVariableW (L"CASSO_MODERN_PRINT", modernOptIn, 8) > 0)
+        if (GetEnvironmentVariableW (L"CASSO_CLASSIC_PRINT", forceClassic, 8) == 0)
         {
             const GlobalUserPrefs &  prefs = m_shell.m_globalPrefs;
 
