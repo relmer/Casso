@@ -48,7 +48,39 @@ static constexpr float   s_kLetterHDips    = 1056.0f;
 
 static void LogModernPrint (const std::wstring & msg)
 {
-    OutputDebugStringW ((L"[Printer] modern: " + msg + L"\n").c_str ());
+    std::wstring   line = L"[Printer] modern: " + msg + L"\n";
+
+    OutputDebugStringW (line.c_str ());
+
+    // Also append to %LOCALAPPDATA%\Casso\printer-debug.log (same sink as the
+    // classic delivery path) -- DBWIN capture is unreliable (single reader;
+    // integrity blocks a normal-launched app writing to an elevated listener).
+    // Best-effort; failures ignored.
+    wchar_t   base[MAX_PATH] = {};
+    if (GetEnvironmentVariableW (L"LOCALAPPDATA", base, MAX_PATH) == 0)
+    {
+        return;
+    }
+
+    std::wstring   path = std::wstring (base) + L"\\Casso\\printer-debug.log";
+    HANDLE         h    = CreateFileW (path.c_str (), FILE_APPEND_DATA,
+                                       FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr,
+                                       OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
+    if (h == INVALID_HANDLE_VALUE)
+    {
+        return;
+    }
+
+    int   n = WideCharToMultiByte (CP_UTF8, 0, line.c_str (), -1, nullptr, 0, nullptr, nullptr);
+    if (n > 1)
+    {
+        std::string   utf8 ((size_t) (n - 1), '\0');
+        DWORD         written = 0;
+
+        WideCharToMultiByte (CP_UTF8, 0, line.c_str (), -1, utf8.data (), n, nullptr, nullptr);
+        WriteFile (h, utf8.data (), (DWORD) utf8.size (), &written, nullptr);
+    }
+    CloseHandle (h);
 }
 
 // Serializes the active-session slot: ShowAsync assigns it on the UI thread
