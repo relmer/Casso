@@ -150,12 +150,27 @@ int PrinterPacing::Advance (double nowSeconds, bool liveBandHasInk)
         dt = m_cfg.resumeNudgeSeconds;   // resuming from a parked loop: nudge to re-arm the sweep, don't leap the gap
     }
 
-    // Already at the newest content: the carriage rests where its last pass left
-    // it (a margin). Do NOT move the column -- parking in place is exactly what
-    // lets the next band resume the sweep from that margin instead of jumping.
+    // Already at the newest content. If the head stopped MID-PASS, keep sweeping
+    // to finish the pass and rest at the margin rather than freezing mid-page:
+    // Print Shop feeds a poster line-by-line (the Apple II computes between
+    // lines), so the reveal repeatedly catches up in the middle of a sweep, and
+    // parking there read as a visible mid-page hang. Completing the pass stays
+    // smooth (no teleport) and rests the carriage at a margin (home) between
+    // lines, like the real machine; the next line's data then sweeps back.
     if (m_revealed >= (double) m_target)
     {
         m_revealed = (double) m_target;
+
+        if (m_revealedCol > 0.0)
+        {
+            m_revealedCol += m_cfg.dotsPerSecond * dt;
+
+            if (m_revealedCol >= sweepW)
+            {
+                m_revealedCol      = 0.0;                   // pass complete -> rest at the margin
+                m_sweepLeftToRight = !m_sweepLeftToRight;   // the next pass reverses
+            }
+        }
         return RevealedRows();
     }
 
@@ -195,9 +210,10 @@ int PrinterPacing::Advance (double nowSeconds, bool liveBandHasInk)
         m_sweepLeftToRight = !m_sweepLeftToRight;
     }
 
-    // Reached the newest content mid-pass: the carriage parks at the column it
-    // got to. Produced ink up to here is shown; nothing lies beyond it yet, so
-    // there is no snap -- when more arrives the sweep continues from this column.
+    // Reached the newest content mid-pass. The revealed rows are pinned to the
+    // target; the caught-up branch above finishes the pass to the margin over
+    // the next frames, so this mid-pass column is only where the sweep is right
+    // now, not where it rests.
     if (m_revealed >= (double) m_target)
     {
         m_revealed = (double) m_target;

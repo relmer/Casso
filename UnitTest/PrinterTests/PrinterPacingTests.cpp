@@ -98,6 +98,33 @@ namespace PrinterPacingTests
         }
 
 
+        TEST_METHOD (CaughtUpMidPassFinishesToTheMargin)
+        {
+            // Print Shop feeds a poster line-by-line (the Apple II computes
+            // between lines), so the reveal repeatedly catches the guest in the
+            // MIDDLE of a sweep. The head must keep sweeping to finish the pass
+            // and rest at the margin, NOT freeze mid-page (the visible hang).
+            PrinterPacing   p (Cfg (1280.0, 16, 1.0e9));
+
+            p.Reset (0.0);
+            p.SetTargetRows (16);
+
+            p.Advance (1.5);                                // reveals the band, catches up mid-pass
+            Assert::AreEqual (16, p.RevealedRows());
+            Assert::IsTrue   (p.IsCaughtUp());
+            Assert::IsTrue   (p.RevealedColDots() > 0);     // stopped mid-page, not at a margin
+
+            bool  dirMidPass = p.SweepLeftToRight();
+
+            p.Advance (2.0);                                // no new data: finish the pass
+            Assert::AreEqual (0, p.RevealedColDots());       // rested at the margin, not mid-page
+            Assert::IsTrue   (dirMidPass != p.SweepLeftToRight());   // direction flipped at pass end
+
+            p.Advance (3.0);                                // then holds still there
+            Assert::AreEqual (0, p.RevealedColDots());
+        }
+
+
         TEST_METHOD (ResumesFromTheMarginWithoutBacktrack)
         {
             // The head jog (forward-halfway, back, forward) came from the column
