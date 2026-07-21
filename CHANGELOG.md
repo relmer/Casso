@@ -6,6 +6,35 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 Versioned entries use `MAJOR.MINOR.PATCH` from [Version.h](CassoCore/Version.h).
 Entries before versioning was introduced use dates only.
 
+## [1.11.0] — Skeuomorphic CRT monitor
+
+### Added
+- **feat(chrome): skeuomorphic CRT monitor desk scene** — an opt-in
+  "CRT monitor desk scene" checkbox on **Settings → Theme** (skeuo themes
+  only, default off) frames the emulator display in a procedurally-drawn
+  period **Apple Monitor //c** — snow-white/platinum shell with an even
+  chunky bezel, straight sides with rounded corners and a slightly bowed
+  glass, a recessed screen, the rainbow cassowary brand and a lit power lamp
+  on the chin. The display sits inside the glass at true 100% zoom by default
+  (the window sizes the whole scene around it), and the drive widgets scale
+  down to sit in proportion under the monitor. The whole scene zooms together
+  as the window resizes; toggling the checkbox applies live, and turning it
+  off restores the classic bare display at full drive sizes. Off by default
+  because the scene trades screen real estate for the look.
+
+### Fixed
+- **fix(window): Alt+Enter fullscreen** — several fullscreen defects are
+  resolved. DXGI's built-in Alt+Enter handler (installed on the HWND swap
+  chain) was double-handling the keystroke and racing the app's own
+  borderless toggle; it is now disabled via `DXGI_MWA_NO_ALT_ENTER` so the
+  app owns the transition. Entering fullscreen no longer stomps the user's
+  saved windowed placement (a synchronous resize used to persist the
+  full-monitor rect as the window size), a maximized window round-trips back
+  to maximized with its underlying size intact, and a mid-transition assert
+  dialog can no longer strand the window as an unescapable, taskbar-covering
+  borderless popup — the toggle self-heals from a state desync and always
+  hands back a movable, closable window.
+
 ## [1.10.0] — Apple //c case-switch strip
 
 ### Added
