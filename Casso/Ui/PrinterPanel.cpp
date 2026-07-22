@@ -565,10 +565,11 @@ void PrinterPanel::SyncTransform()
     m_panZoom.SetViewCenter ((float) (m_paperRectPx.left + m_paperRectPx.right) * 0.5f,
                              (float) (m_paperRectPx.top  + m_paperRectPx.bottom) * 0.5f);
 
-    // World overscroll: once the paper is pinned at a scroll limit, up to half a
-    // viewport of further pan slides the whole 3D world to a hard stop instead
-    // of hitting a wall. The scene takes a normalized -1..1 (edge = stop).
-    float   overMax = (float) m_viewport.ViewportRows() * 0.5f;
+    // The scroll bounds are hard-locked -- the bottom pinned to the last printed
+    // row, the top extended just enough to clear the curl -- so there is no
+    // world overscroll: hitting a scroll limit stops rather than sliding the 3D
+    // world past it. (Cursor zoom / drag pan still move the camera freely.)
+    float   overMax = 0.0f;
     m_panZoom.SetOverscrollYMax (overMax);
 
     if (m_scene != nullptr)
@@ -629,8 +630,6 @@ int64_t PrinterPanel::NowMs()
     return (int64_t) std::chrono::duration_cast<std::chrono::milliseconds> (
                std::chrono::steady_clock::now().time_since_epoch()).count();
 }
-
-
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -867,9 +866,17 @@ void PrinterPanel::RefreshLive (PrinterWorker & worker, int64_t nowMs, bool forc
     }
     else if (worker.SnapshotStripSpan (span.firstRow, span.lastRow, spanRaster))
     {
-        bool   contentDirty = (activity != m_renderedActivity) || !m_hasRendered;
+        // Ink only ever accretes in the live pin band(s) at the print frontier;
+        // every row above the band that was live at the last render is final.
+        // So the ink image and canvas need refreshing only from here down --
+        // the rest is reused via memmove -- which keeps per-frame render cost
+        // flat instead of O(page). The full-page redraw every frame (activity
+        // ticks each frame, forcing a whole-span re-render + recompose) was what
+        // made later rows print progressively slower as the sheet grew. A fresh
+        // panel (nothing rendered yet) marks everything dirty for a full render.
+        int   dirtyFromAbs = m_hasRendered ? (m_renderedRows - 3 * s_kPinBandRows) : -1;
 
-        RenderSpan (spanRaster, span.firstRow, span.lastRow, contentDirty, revealRow, revealLo, revealHi);
+        RenderSpan (spanRaster, span.firstRow, span.lastRow, dirtyFromAbs, revealRow, revealLo, revealHi);
 
         // Tell the audio whether the head passed over ink (buzz) vs blank feed
         // (silent) -- CAUGHT-UP frames only. While the reveal trails the guest,
@@ -927,6 +934,7 @@ void PrinterPanel::RefreshLive (PrinterWorker & worker, int64_t nowMs, bool forc
 
     m_renderedSpan      = span;
     m_renderedActivity  = activity;
+    m_renderedRows      = rows;
     m_renderedRevealRow = revealRow;
     m_renderedRevealCol = revealCol;
     m_lastRenderMs      = nowMs;
@@ -1021,9 +1029,10 @@ void PrinterPanel::SetStrip (const PrintRaster & raster)
     span.lastRow  = (int) std::lround (m_panZoom.PanY());
     span.firstRow = (std::max) (0, span.lastRow - m_viewport.ViewportRows() + 1);
     raster.CopyRowSpan (span.firstRow, span.lastRow, spanRaster);
-    RenderSpan (spanRaster, span.firstRow, span.lastRow, true, -1, 0, 0);   // no live head: show everything
+    RenderSpan (spanRaster, span.firstRow, span.lastRow, -1, -1, 0, 0);   // dirtyFromAbs -1: full render, no live head
 
     m_renderedSpan = span;
+    m_renderedRows = rows;
     m_hasRendered  = true;
 }
 
@@ -1041,7 +1050,7 @@ void PrinterPanel::SetStrip (const PrintRaster & raster)
 
 void PrinterPanel::ShowBlankSheet()
 {
-    ComposeCanvas (nullptr, 0, 0, -1, 0, 0);
+    ComposeCanvas (nullptr, 0, 0, -1, 0, 0, -1);
 }
 
 
@@ -1060,14 +1069,16 @@ void PrinterPanel::ShowBlankSheet()
 //  the live line; -1 disables.
 //
 //  The ink render is the expensive step, so it is cached by absolute row:
-//  scrolling shifts the window over UNCHANGED content, and only the newly
-//  exposed rows are rendered (the rest memmove within the cache). New bytes
-//  (`contentDirty`) or a span that stops lining up rebuild the whole image.
+//  scrolling shifts the window over UNCHANGED content and only the newly
+//  exposed rows are rendered (the rest memmove within the cache), while ink
+//  still accreting in the live band re-renders only from `dirtyFromAbs` down
+//  -- rows above are final. A span that stops lining up, or `dirtyFromAbs` at
+//  or above the span top (e.g. -1), rebuilds the whole image.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void PrinterPanel::RenderSpan (const PrintRaster & spanRaster, int firstAbsRow, int lastAbsRow,
-                               bool contentDirty, int revealBandTopAbs, int revealLoDots, int revealHiDots)
+                               int dirtyFromAbs, int revealBandTopAbs, int revealLoDots, int revealHiDots)
 {
     HRESULT                  hr       = S_OK;
     int                      spanRows = lastAbsRow - firstAbsRow + 1;
@@ -1078,46 +1089,77 @@ void PrinterPanel::RenderSpan (const PrintRaster & spanRaster, int firstAbsRow, 
     {
         // Degenerate span: blank paper, furniture still tracking the scroll.
         m_spanImgValid = false;
-        ComposeCanvas (nullptr, 0, lastAbsRow, -1, 0, 0);
+        ComposeCanvas (nullptr, 0, lastAbsRow, -1, 0, 0, -1);
         return;
     }
 
     opt.outputDpi = s_kPreviewDpi;
     opt.style     = DotStyle::Ink;
 
-    bool   haveImg = false;
+    bool     haveImg  = false;
+    size_t   rowBytes = (size_t) m_spanImg.width * 4;
 
-    if (!contentDirty && m_spanImgValid && m_spanImg.height == spanRows)
+    // Incremental update, keyed by absolute row. The cache already holds the
+    // ink for every row still on-screen; only two kinds of row need work: those
+    // scrolled newly into view, and the live pin band at the frontier
+    // (`dirtyFromAbs` down) whose ink is still accreting. Everything above is
+    // final and reused via memmove, so the per-frame render stays flat instead
+    // of O(page) -- the whole-span redraw every frame is what made later rows
+    // print progressively slower. `dirtyFromAbs` at/above the span top (e.g. -1)
+    // marks the whole span dirty, collapsing to a full re-render.
+    if (m_spanImgValid && m_spanImg.height == spanRows)
     {
         int   delta = firstAbsRow - m_spanImgFirstAbsRow;   // + = scrolled toward live
 
-        if (delta == 0)
+        if (delta >= 0 && delta < spanRows)
         {
-            haveImg = true;   // reveal-only update: the ink image is current
-        }
-        else if (std::abs (delta) < spanRows)
-        {
-            // Pure scroll: shift the overlap, render only the exposed edge.
-            int         keepRows = spanRows - std::abs (delta);
-            size_t      rowBytes = (size_t) m_spanImg.width * 4;
-            int         newFirst = (delta > 0) ? spanRows - delta : 0;   // exposed block, span-relative
-            int         newCount = std::abs (delta);
-            RgbaImage   edge;
-
             if (delta > 0)
             {
-                memmove (m_spanImg.PixelAt (0, 0), m_spanImg.PixelAt (0, delta), rowBytes * keepRows);
+                memmove (m_spanImg.PixelAt (0, 0), m_spanImg.PixelAt (0, delta),
+                         rowBytes * (spanRows - delta));   // shift retained rows up
+            }
+
+            int   dirtyFirst   = (dirtyFromAbs > firstAbsRow) ? (dirtyFromAbs - firstAbsRow) : 0;
+            int   exposedFirst = spanRows - delta;           // rows scrolled into view (spanRows when delta==0)
+            int   renderFirst  = (std::min) (dirtyFirst, exposedFirst);
+
+            if (renderFirst >= spanRows)
+            {
+                // Reveal-only frame (no scroll, nothing accreting on-screen):
+                // the cached ink is current; ComposeCanvas sweeps the reveal.
+                m_spanImgFirstAbsRow = firstAbsRow;
+                haveImg              = true;
             }
             else
             {
-                memmove (m_spanImg.PixelAt (0, -delta), m_spanImg.PixelAt (0, 0), rowBytes * keepRows);
-            }
+                int         tailRows = spanRows - renderFirst;
+                RgbaImage   tail;
 
-            hr = renderer.Render (spanRaster, newFirst, newFirst + newCount - 1, opt, edge);
+                hr = renderer.Render (spanRaster, renderFirst, spanRows - 1, opt, tail);
+
+                if (SUCCEEDED (hr) && tail.width == m_spanImg.width && tail.height == tailRows)
+                {
+                    memcpy (m_spanImg.PixelAt (0, renderFirst), tail.PixelAt (0, 0), rowBytes * tailRows);
+                    m_spanImgFirstAbsRow = firstAbsRow;
+                    haveImg              = true;
+                }
+            }
+        }
+        else if (delta < 0 && -delta < spanRows && dirtyFromAbs > lastAbsRow)
+        {
+            // Pure scroll back over finished content (user scrolled up; the
+            // accreting frontier is below the view, so nothing on-screen
+            // changes). Shift down and render the newly exposed top edge.
+            int         newCount = -delta;
+            RgbaImage   edge;
+
+            memmove (m_spanImg.PixelAt (0, newCount), m_spanImg.PixelAt (0, 0), rowBytes * (spanRows - newCount));
+
+            hr = renderer.Render (spanRaster, 0, newCount - 1, opt, edge);
 
             if (SUCCEEDED (hr) && edge.width == m_spanImg.width && edge.height == newCount)
             {
-                memcpy (m_spanImg.PixelAt (0, newFirst), edge.PixelAt (0, 0), rowBytes * newCount);
+                memcpy (m_spanImg.PixelAt (0, 0), edge.PixelAt (0, 0), rowBytes * newCount);
                 m_spanImgFirstAbsRow = firstAbsRow;
                 haveImg              = true;
             }
@@ -1136,7 +1178,7 @@ void PrinterPanel::RenderSpan (const PrintRaster & spanRaster, int firstAbsRow, 
 
         m_spanImgFirstAbsRow = firstAbsRow;
         m_spanImgValid       = true;
-        m_spanImgGen++;      // content pixels changed: the canvas cache must rebuild
+        m_spanImgGen++;      // full rebuild: force the canvas cache to rebuild wholesale
     }
 
     if (m_spanImg.height > m_viewport.ViewportRows())
@@ -1144,7 +1186,7 @@ void PrinterPanel::RenderSpan (const PrintRaster & spanRaster, int firstAbsRow, 
         return;   // span larger than the canvas: keep the previous frame
     }
 
-    ComposeCanvas (&m_spanImg, firstAbsRow, lastAbsRow, revealBandTopAbs, revealLoDots, revealHiDots);
+    ComposeCanvas (&m_spanImg, firstAbsRow, lastAbsRow, revealBandTopAbs, revealLoDots, revealHiDots, dirtyFromAbs);
 }
 
 
@@ -1173,7 +1215,7 @@ void PrinterPanel::RenderSpan (const PrintRaster & spanRaster, int firstAbsRow, 
 ////////////////////////////////////////////////////////////////////////////////
 
 void PrinterPanel::ComposeCanvas (const RgbaImage * content, int contentFirstAbsRow, int bottomAbsRow,
-                                  int revealBandTopAbs, int revealLoDots, int revealHiDots)
+                                  int revealBandTopAbs, int revealLoDots, int revealHiDots, int contentDirtyFromAbs)
 {
     HRESULT   hr        = S_OK;
     int       canvasW   = s_kStockWidthPx;
@@ -1318,50 +1360,51 @@ void PrinterPanel::ComposeCanvas (const RgbaImage * content, int contentFirstAbs
         }
     };
 
-    // Fast paths apply only while the SAME full-height content sits aligned
-    // under the canvas (no strip-start clamp, no new ink since the cache was
-    // composed): a scroll step memmoves and rebuilds the exposed edge; a
-    // reveal-sweep frame rebuilds just the pin-band rows.
+    // Fast path: the SAME full-height content still sits aligned under the
+    // canvas (no strip-start clamp, no wholesale ink re-render). Everything
+    // that can change this frame lives in the BOTTOM rows -- the scroll-exposed
+    // edge, the reveal band (old + new position), and the accreting ink tail
+    // (`contentDirtyFromAbs` down) -- so shift the retained rows and rebuild
+    // just the union of those. Rows above are reused. A whole-canvas rebuild
+    // every frame is what made later rows of a tall page compose ever slower.
     bool   aligned = m_canvasValid
                      && content != nullptr && m_canvasHasContent
                      && m_canvasSpanGen == m_spanImgGen
                      && content->height == canvasH
                      && contentFirstAbsRow == topAbsRow;
-    bool   revealSame = (revealBandTopAbs == m_canvasRevealTop
-                         && revealLoDots == m_canvasRevealLo
-                         && revealHiDots == m_canvasRevealHi);
-    int    delta      = topAbsRow - m_canvasTopAbs;
+    int    delta   = topAbsRow - m_canvasTopAbs;
 
-    if (aligned && delta == 0 && revealSame)
+    if (aligned && std::abs (delta) < canvasH)
     {
-        // Bit-identical frame; the caller's change detection normally
-        // prevents this, so just re-upload.
-    }
-    else if (aligned && delta == 0)
-    {
-        // Reveal sweep only: rebuild from the older of the two band tops
-        // down to the canvas bottom (the bands live in the last rows).
-        int   oldTop = (m_canvasRevealTop >= 0) ? m_canvasRevealTop - topAbsRow : canvasH;
-        int   newTop = (revealBandTopAbs  >= 0) ? revealBandTopAbs  - topAbsRow : canvasH;
-
-        RebuildRows ((std::min) (oldTop, newTop), canvasH - 1);
-    }
-    else if (aligned && revealSame && std::abs (delta) < canvasH)
-    {
-        // Scroll step: shift the finished canvas and rebuild the exposed
-        // edge (padded by the hole radius so straddling holes stay round).
-        int      keepRows = canvasH - std::abs (delta);
         size_t   rowBytes = (size_t) canvasW * 4;
 
         if (delta > 0)
         {
-            memmove (m_canvas.data(), m_canvas.data() + (size_t) delta * canvasW, rowBytes * keepRows);
-            RebuildRows (canvasH - delta - holeR - 1, canvasH - 1);
+            memmove (m_canvas.data(), m_canvas.data() + (size_t) delta * canvasW, rowBytes * (canvasH - delta));
         }
-        else
+        else if (delta < 0)
         {
-            memmove (m_canvas.data() + (size_t) (-delta) * canvasW, m_canvas.data(), rowBytes * keepRows);
-            RebuildRows (0, -delta + holeR);
+            memmove (m_canvas.data() + (size_t) (-delta) * canvasW, m_canvas.data(), rowBytes * (canvasH + delta));
+        }
+
+        // Union of the dirty regions, all anchored at the canvas bottom.
+        int   oldRevealTop = (m_canvasRevealTop >= 0) ? m_canvasRevealTop - topAbsRow : canvasH;
+        int   newRevealTop = (revealBandTopAbs  >= 0) ? revealBandTopAbs  - topAbsRow : canvasH;
+        int   contentTop   = (contentDirtyFromAbs > topAbsRow) ? (contentDirtyFromAbs - topAbsRow) : 0;
+        int   rebuildTop   = (std::min) (canvasH - 1, (std::min) (oldRevealTop, newRevealTop));
+
+        rebuildTop = (std::min) (rebuildTop, contentTop);
+
+        if (delta > 0)
+        {
+            rebuildTop = (std::min) (rebuildTop, canvasH - delta - holeR - 1);
+        }
+
+        RebuildRows (rebuildTop, canvasH - 1);
+
+        if (delta < 0)
+        {
+            RebuildRows (0, -delta + holeR);   // scroll-up exposes the top edge too
         }
     }
     else

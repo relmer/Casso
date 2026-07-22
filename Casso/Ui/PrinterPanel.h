@@ -133,9 +133,9 @@ private:
     static DxuiPanZoom::Config  PanZoomConfig ();
 
     void     RenderSpan     (const PrintRaster & spanRaster, int firstAbsRow, int lastAbsRow,
-                             bool contentDirty, int revealBandTopAbs, int revealLoDots, int revealHiDots);
+                             int dirtyFromAbs, int revealBandTopAbs, int revealLoDots, int revealHiDots);
     void     ComposeCanvas  (const RgbaImage * content, int contentFirstAbsRow, int bottomAbsRow,
-                             int revealBandTopAbs, int revealLoDots, int revealHiDots);
+                             int revealBandTopAbs, int revealLoDots, int revealHiDots, int contentDirtyFromAbs);
 
     // True when the pin band starting at absolute row `revealRow` carries ink in
     // columns [sampleLoCol, sampleHiCol], sampled from the span raster (whose row
@@ -201,6 +201,7 @@ private:
     PrinterViewport         m_viewport;
     PrinterViewport::Span   m_renderedSpan     = {};
     uint64_t                m_renderedActivity = 0;
+    int                     m_renderedRows     = 0;   // worker RowsUsed at the last render (print frontier)
     int64_t                 m_lastRenderMs     = 0;
     bool                    m_hasRendered      = false;
 
