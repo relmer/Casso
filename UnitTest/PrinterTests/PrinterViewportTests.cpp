@@ -11,15 +11,15 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 // pure follow/snap policy. Clock-injected so every transition is deterministic.
 namespace PrinterViewportTests
 {
-    // Small viewport (100 rows), short snap (2000 ms), small overscroll (25
+    // Small viewport (100 rows), short snap (2000 ms), small top clearance (25
     // rows) keep the arithmetic readable; the production defaults only
     // change the constants.
     static PrinterViewport::Config Cfg (int rows = 100, int64_t snapMs = 2000)
     {
         PrinterViewport::Config   c;
-        c.viewportRows   = rows;
-        c.snapDelayMs    = snapMs;
-        c.overscrollRows = 25;
+        c.viewportRows     = rows;
+        c.snapDelayMs      = snapMs;
+        c.topClearanceRows = 25;
         return c;
     }
 
@@ -63,27 +63,29 @@ namespace PrinterViewportTests
         }
 
 
-        TEST_METHOD (BoundsSpanFullPageOfScrollbackPlusOverscroll)
+        TEST_METHOD (BottomLocksToLiveRowTopExtendsToClearCurl)
         {
-            PrinterViewport   v (Cfg());   // 100-row viewport, 25 overscroll
+            PrinterViewport   v (Cfg());   // 100-row viewport, 25 top clearance
 
             v.Advance (500);
 
-            // Furthest back = a full viewport against the top of the strip
-            // (bottom row 99 -> first row 0); furthest forward = live + 25.
-            Assert::AreEqual (99,  v.MinBottomRow());
-            Assert::AreEqual (525, v.MaxBottomRow());
+            // Furthest back = a full viewport against the top of the strip plus
+            // topClearanceRows so row 0 clears the curl (bottom 99 - 25 = 74).
+            // Furthest forward = the live row itself: the bottom is LOCKED to
+            // the last printed row, no blank feed scrolls in past it.
+            Assert::AreEqual (74,  v.MinBottomRow());
+            Assert::AreEqual (500, v.MaxBottomRow());
         }
 
 
-        TEST_METHOD (ShortStripPinsMinBottomToLiveRow)
+        TEST_METHOD (ShortStripPinsBottomToLiveRow)
         {
             PrinterViewport   v (Cfg());
 
             v.Advance (30);   // strip shorter than the viewport: nowhere to scroll back
 
             Assert::AreEqual (30, v.MinBottomRow());   // == live row
-            Assert::AreEqual (55, v.MaxBottomRow());   // live + overscroll still allowed
+            Assert::AreEqual (30, v.MaxBottomRow());   // == live row (bottom locked)
         }
 
 

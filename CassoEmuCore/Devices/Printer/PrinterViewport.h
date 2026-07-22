@@ -28,10 +28,10 @@
 //     drives panZoom's panY target to LiveRow each frame.
 //   - Scrolled: the user panned away (NotifyUserScroll); the panel stops
 //     driving the target, so panZoom holds the parked position. The legal
-//     range spans from one viewport against the top of the paper
-//     (MinBottomRow) forward to overscrollRows past the live row
-//     (MaxBottomRow) -- the blank feed that lifts the just-printed tail out
-//     from behind the platen.
+//     range runs from topClearanceRows of blank feed past the top of the
+//     paper (MinBottomRow -- so row 0 clears the 3D curl and reads flat)
+//     forward to the live row itself (MaxBottomRow -- the bottom is LOCKED to
+//     the last printed row, never scrolling blank in past it).
 //
 //  Snap-to-live: after snapDelayMs of scroll idle the view returns to
 //  Following -- but only once the live row has ADVANCED past where it stood
@@ -45,9 +45,9 @@ class PrinterViewport
 public:
     struct Config
     {
-        int       viewportRows   = PrinterGrid::kPageRows;       // ~1 page tall (FR-033)
-        int64_t   snapDelayMs    = 2000;                         // idle gap before snap-to-live
-        int       overscrollRows = PrinterGrid::kPageRows / 4;   // blank feed allowed past live
+        int       viewportRows     = PrinterGrid::kPageRows;       // ~1 page tall (FR-033)
+        int64_t   snapDelayMs      = 2000;                         // idle gap before snap-to-live
+        int       topClearanceRows = PrinterGrid::kPageRows / 3;   // extra back-scroll so row 0 clears the 3D curl
     };
 
     // Bottom-anchored native-row span for the renderer (inclusive). The panel
@@ -76,12 +76,12 @@ public:
     int    ViewportRows  () const { return m_cfg.viewportRows; }
 
     // Legal scroll range for the bottom row, the bounds panZoom clamps panY to.
-    // MinBottomRow: furthest back -- one full viewport against the top of the
-    // paper, unless the strip is still shorter than a viewport (then there is
-    // nowhere to scroll and it pins to the live row). MaxBottomRow: furthest
-    // forward -- overscrollRows of blank feed past the live row.
+    // MinBottomRow: furthest back -- a full viewport against the top of the
+    // paper plus topClearanceRows so row 0 clears the 3D curl, unless the strip
+    // is still shorter than that (then it pins to the live row). MaxBottomRow:
+    // furthest forward -- the live row itself (the bottom is locked there).
     int    MinBottomRow  () const;
-    int    MaxBottomRow  () const { return m_liveRow + m_cfg.overscrollRows; }
+    int    MaxBottomRow  () const { return m_liveRow; }
 
     // Forget history (machine switch / discard): back to Following at row 0.
     void   Reset         ();

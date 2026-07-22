@@ -86,15 +86,18 @@ void PrinterViewport::Tick (int64_t nowMs)
 //
 //  PrinterViewport::MinBottomRow
 //
-//  The furthest back the bottom may scroll: a full viewport against the top
-//  of the paper -- unless the strip is still shorter than one viewport, in
-//  which case there is nowhere to scroll and the bottom pins to the live row.
+//  The furthest back the bottom may scroll: a full viewport against the top of
+//  the paper PLUS topClearanceRows of blank feed, so the top of page 1 (row 0)
+//  scrolls clear of the 3D curl and reads flat -- unless the strip is still
+//  shorter than that, in which case the bottom pins to the live row.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 int PrinterViewport::MinBottomRow() const
 {
-    return (std::min) (m_liveRow, m_cfg.viewportRows - 1);
+    int  furthestBack = (std::max) (0, m_cfg.viewportRows - 1 - m_cfg.topClearanceRows);
+
+    return (std::min) (m_liveRow, furthestBack);
 }
 
 
