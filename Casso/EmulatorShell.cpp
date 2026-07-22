@@ -1115,10 +1115,11 @@ void EmulatorShell::SubscribeAndActivateTheme()
 //
 //  ApplyPersistedChromePrefs
 //
-//  Applies the persisted per-machine colorMode + //c peripheral state at
-//  boot. Without this the emulator defaults to Color regardless of what the
-//  user last saved (MachineManager::SwitchMachine carries the apply logic
-//  but only fires on user-initiated switches, not the boot path).
+//  Applies the persisted per-machine colorMode + speed mode + //c peripheral
+//  state at boot. Without this the emulator defaults to Color / Authentic
+//  regardless of what the user last saved (MachineManager::SwitchMachine
+//  carries the apply logic but only fires on user-initiated switches, not the
+//  boot path).
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1130,6 +1131,7 @@ void EmulatorShell::ApplyPersistedChromePrefs()
     const JsonValue *  uiPrefs      = nullptr;
     const JsonValue *  wpArr        = nullptr;
     std::string        colorMode;
+    std::string        speedMode;
     bool               extConnected = false;
     bool               mouseConn    = true;
 
@@ -1157,6 +1159,19 @@ void EmulatorShell::ApplyPersistedChromePrefs()
         {
             SetColorModeLive (modeIdx);
         }
+    }
+
+    // Speed mode (authentic / double / maximum) lives in the same UI prefs and,
+    // like colorMode, must be pushed into CpuManager at boot. SwitchMachine
+    // applies it for runtime machine switches, but the cold-boot path otherwise
+    // leaves the CPU at its Authentic default while Settings shows the saved
+    // value -- so a saved "maximum" never actually runs fast until re-picked.
+    hrOpt = uiPrefs->GetString ("speedMode", speedMode);
+    if (SUCCEEDED (hrOpt))
+    {
+        if      (speedMode == "authentic") { m_cpuManager.SetSpeedMode (SpeedMode::Authentic); }
+        else if (speedMode == "double")    { m_cpuManager.SetSpeedMode (SpeedMode::Double);    }
+        else if (speedMode == "maximum")   { m_cpuManager.SetSpeedMode (SpeedMode::Maximum);   }
     }
 
     // //c external drive + mouse: seed the connected states HERE -- before
@@ -6727,27 +6742,6 @@ LRESULT EmulatorShell::OnDrawItem (HWND hwnd, UINT msg, WPARAM wParam, LPARAM lP
     // matches the legacy Window-base path (which returned `true` =
     // call DefWndProc).
     return DefWindowProc (hwnd, msg, wParam, lParam);
-}
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  OnTimer
-//
-//  Periodic refresh of the drive-activity indicators. Motor on/off and
-//  drive-select events are bursty (millisecond timescales); a 50 ms
-//  refresh is plenty for visible activity feedback without consuming
-//  noticeable UI cycles.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-DxuiMessageResult EmulatorShell::OnTimer (UINT_PTR timerId)
-{
-    UNREFERENCED_PARAMETER (timerId);
-
-    return DxuiMessageResult::NotHandled;
 }
 
 

@@ -35,6 +35,11 @@ Entries before versioning was introduced use dates only.
   animating through a disk load even behind an otherwise static screen.
 
 ### Fixed
+- **fix(shell): saved CPU speed now applies at startup** — a saved emulation
+  speed of Double or Maximum is applied when Casso launches, instead of only
+  showing in Settings while the CPU quietly ran at Authentic speed until the
+  setting was re-selected. The cold-boot path applied the saved color mode but
+  overlooked the speed mode.
 - **fix(window): Alt+Enter fullscreen** — several fullscreen defects are
   resolved. DXGI's built-in Alt+Enter handler (installed on the HWND swap
   chain) was double-handling the keystroke and racing the app's own
