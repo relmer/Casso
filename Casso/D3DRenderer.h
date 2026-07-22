@@ -191,9 +191,18 @@ private:
     bool    m_fullscreen       = false;
     bool    m_deviceRemoved    = false;
 
-    RECT    m_windowedRect                = {};
+    // Windowed state captured on fullscreen entry. Full WINDOWPLACEMENT (not
+    // just a rect) so a maximized window round-trips back to maximized with
+    // its underlying normal size intact. m_fsTransition guards against nested
+    // toggles: an assert/message-box modal loop pumping messages mid-
+    // transition can dispatch a queued Alt+Enter, and a nested enter would
+    // capture the borderless fullscreen state as the "windowed" state --
+    // leaving an unescapable full-monitor popup on exit.
+    WINDOWPLACEMENT  m_windowedPlacement  = {};
+    LONG             m_windowedStyle      = 0;
+    bool             m_fsTransition       = false;
+
     RECT    m_emulatorContentScreenRect   = {};
-    LONG    m_windowedStyle               = 0;
 };
 
 

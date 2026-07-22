@@ -1,6 +1,7 @@
 #include "Pch.h"
 #include "Theme/DxuiTheme.h"
 #include "DriveWidget.h"
+#include "CassoBranding.h"
 #include "../IDriveCommandSink.h"
 #include "Core/UnicodeSymbols.h"
 
@@ -142,98 +143,9 @@ namespace
     }
 
 
-    // Cassowary head + neck silhouette, baked from
-    // Resources/Branding/Cassowary.png at 36x54 resolution. Stored as
-    // a per-row 36-bit bitmask (bit 0 = leftmost column). Bitmask
-    // format preserves per-row concavities -- in particular the gap
-    // between the underside of the beak and the top of the neck --
-    // that a single (start, end) span per row would erroneously fill.
-    void DrawCassowaryRainbow (IDxuiPainter & painter,
-                               float left, float top,
-                               float width, float height)
-    {
-        constexpr int       kGridW             = 36;
-        constexpr int       kGridH             = 54;
-        constexpr int       kStripeCount       = 6;
-        static const uint64_t s_kSilhouette[kGridH] = {
-            0x0000000000ULL, 0x0000000000ULL, 0x0000000000ULL, 0x0000000000ULL, 0x0000000000ULL,
-            0x000000FE00ULL, 0x000001FF80ULL, 0x000003FFC0ULL, 0x000007FFE0ULL, 0x00000FFFC0ULL,
-            0x00000FFFC0ULL, 0x00001FFF80ULL, 0x00001FFF00ULL, 0x00003FFF00ULL, 0x00003FFF00ULL,
-            0x00007FFE00ULL, 0x00007FFE00ULL, 0x0000FFFE00ULL, 0x0000FFFC00ULL, 0x0000FFFC00ULL,
-            0x0000FFFC00ULL, 0x0001FFFC00ULL, 0x0001FFFC00ULL, 0x0001FFFC00ULL, 0x0001FFFC00ULL,
-            0x0003FFFE00ULL, 0x0003FFFE00ULL, 0x0003FFFF00ULL, 0x0003FFFF80ULL, 0x0003FFFFC0ULL,
-            0x0003FFFFC0ULL, 0x0007FFFFE0ULL, 0x0007FFFFE0ULL, 0x0007FFFFE0ULL, 0x000FFFFFF0ULL,
-            0x001FFFFFF0ULL, 0x003FFFFFF0ULL, 0x007FFFFFF0ULL, 0x00FFFFFFF0ULL, 0x01FFFFFFF8ULL,
-            0x01FFFFFFF8ULL, 0x03F007FFF8ULL, 0x038000FFF8ULL, 0x0200007FF8ULL, 0x0000007FF8ULL,
-            0x0000007FF8ULL, 0x0000007FF8ULL, 0x000000FFF8ULL, 0x000000FFF8ULL, 0x000001FFF8ULL,
-            0x000001FFF8ULL, 0x000001FFF8ULL, 0x000001FFF0ULL, 0x000003FFF0ULL
-        };
-        static const uint32_t s_kStripeColors[kStripeCount] = {
-            0xFF61BB46,  // green
-            0xFFFDB827,  // yellow
-            0xFFF5821F,  // orange
-            0xFFE03A3E,  // red
-            0xFF963D97,  // purple
-            0xFF009DDC,  // blue
-        };
-
-        // Find the first / last non-empty row so the rainbow bands
-        // span the actual silhouette extents rather than the full
-        // grid (which would waste stripes on the empty rows above).
-        int  firstRow = kGridH;
-        int  lastRow  = -1;
-        int  i        = 0;
-
-        for (i = 0; i < kGridH; i++)
-        {
-            if (s_kSilhouette[i] != 0)
-            {
-                if (i < firstRow) { firstRow = i; }
-                if (i > lastRow)  { lastRow  = i; }
-            }
-        }
-        if (lastRow < firstRow)
-        {
-            return;
-        }
-
-        int    silhouetteH = lastRow - firstRow + 1;
-        float  rowH        = height / (float) kGridH;
-        float  colW        = width  / (float) kGridW;
-
-        for (int row = firstRow; row <= lastRow; row++)
-        {
-            uint64_t  bits   = s_kSilhouette[row];
-            int       stripe = ((row - firstRow) * kStripeCount) / silhouetteH;
-            uint32_t  argb   = s_kStripeColors[stripe];
-            int       col    = 0;
-
-            // Walk this row and emit one FillRect per contiguous bit
-            // run, so per-row concavities render as actual daylight
-            // rather than being span-filled.
-            while (col < kGridW)
-            {
-                if ((bits & (1ULL << col)) == 0)
-                {
-                    col++;
-                    continue;
-                }
-
-                int  runStart = col;
-
-                while (col < kGridW && (bits & (1ULL << col)) != 0)
-                {
-                    col++;
-                }
-
-                float  x = left + (float) runStart * colW;
-                float  y = top  + (float) row      * rowH;
-                float  w = (float) (col - runStart) * colW;
-
-                painter.FillRect (x, y, w, rowH + 0.5f, argb);
-            }
-        }
-    }
+    // The rainbow cassowary brand mark lives in the shared CassoBranding
+    // helper (DrawCassowaryRainbow) so the Disk ][ faceplate and the CRT
+    // monitor chin stamp the identical logo.
 
 
     // Draws a small padlock (shackle arch + body + keyhole) inside the
@@ -319,9 +231,18 @@ void DriveWidget::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
     // screen again; clear any prior Hide() latch so Paint resumes.
     m_hidden = false;
 
-    int   x           = boundsDip.left;
-    int   y           = boundsDip.top;
-    UINT  dpi         = scaler.Dpi();
+    int   x = boundsDip.left;
+    int   y = boundsDip.top;
+
+
+
+    // The scaler's DPI carries the desk-scene zoom when the CRT monitor
+    // framing is active (EmulatorShell folds SceneScale * s_kDeskDriveScale
+    // into the effective DPI it hands LayoutDriveWidgetsInCommandBar), so
+    // geometry, fonts, and the probe-based band layout all scale together.
+    m_dpi = (scaler.Dpi() == 0) ? (UINT) s_kBaseDpi : scaler.Dpi();
+
+    UINT  dpi         = m_dpi;
     int   bodyW       = Scale (s_kBodyWidthPx, dpi);
     int   bodyH       = Scale (s_kBodyHeightPx, dpi);
     int   faceH       = Scale (s_kFaceplateHeightPx, dpi);
@@ -330,10 +251,6 @@ void DriveWidget::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
     int   slotCY      = Scale (s_kSlotCenterYPx, dpi);
     int   doorW       = Scale (s_kDoorWidthPx, dpi);
     int   doorH       = Scale (s_kDoorHeightPx, dpi);
-
-
-
-    m_dpi = (dpi == 0) ? (UINT) s_kBaseDpi : dpi;
 
     if (m_compact)
     {
@@ -929,7 +846,7 @@ void DriveWidget::Paint (
         float  iconX   = (float) (m_faceRect.right  - iconW - marginX);
         float  iconY   = (float) (m_faceRect.bottom - iconH - marginY);
 
-        DrawCassowaryRainbow (painter, iconX, iconY, (float) iconW, (float) iconH);
+        CassoBranding::DrawCassowaryRainbow (painter, iconX, iconY, (float) iconW, (float) iconH);
     }
 
     // Write-protect padlock, top-right of the faceplate. Occupies a cell

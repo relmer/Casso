@@ -119,6 +119,16 @@ void WindowManager::SaveWindowPlacement (HWND hwnd, bool fullscreen)
         return;
     }
 
+    // A caption-less window is the borderless-fullscreen popup (or some other
+    // transitional state), never the user's real windowed placement. The
+    // fullscreen flag above covers the steady state; this covers transitions,
+    // where a synchronous WM_SIZE once persisted the full-monitor rect as the
+    // windowed placement and permanently stomped the user's window size.
+    if ((GetWindowLong (hwnd, GWL_STYLE) & WS_CAPTION) != WS_CAPTION)
+    {
+        return;
+    }
+
     if (!GetWindowRect (hwnd, &wr))
     {
         return;

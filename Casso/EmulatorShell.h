@@ -24,6 +24,7 @@
 #include "Ui/Chrome/Apple2cSwitchBar.h"
 #include "Ui/Chrome/CassoTheme.h"
 #include "Ui/Chrome/DriveWidget.h"
+#include "Ui/Chrome/MonitorFrame.h"
 #include "Ui/Chrome/InputDeviceSelector.h"
 #include "Ui/Chrome/MainMenu.h"
 #include "Ui/ColorUtil.h"
@@ -568,6 +569,18 @@ private:
     // emulator pixel grid. Called from the ThemeManager listener.
     void    ApplyThemeToChrome   (const CassoTheme & theme);
 
+    // Settings > Theme opt-in for the skeuomorphic desk scene (CRT monitor
+    // framing + drives scaled to sit under it). Applies live -- relays out
+    // the chrome in place -- and persists to GlobalUserPrefs.
+    void    SetSkeuoMonitorFrame (bool enabled);
+
+    // The desk scene draws only when the skeuo theme is active AND the user
+    // opted in; compact themes never draw it.
+    bool    MonitorFrameEnabled  () const
+    {
+        return !m_chromeTheme.compactDrives && m_globalPrefs.skeuoMonitorFrame;
+    }
+
     // Positions the joystick-mode toggle button vertically centered in the
     // empty band above the drive widgets (the top portion of the bottom
     // drive-bar inset) and centered horizontally in the window. bandTopPx
@@ -665,6 +678,17 @@ private:
     MainMenu            m_mainMenu;
     CassoTheme         m_chromeTheme    = CassoTheme::Skeuomorphic();
     std::array<DriveWidget, 2> m_driveChrome;
+
+    // Skeuomorphic CRT monitor housing that frames the emulator display
+    // (skeuo theme only). Insets the viewport into its screen recess; the
+    // housing paints the ring around it. Models the Apple Monitor //c.
+    MonitorFrame               m_monitorFrame;
+
+    // Desk-scene zoom: the monitor's SceneScale from the last layout. The
+    // drive widgets and the (scaled part of the) drive band follow it so the
+    // whole scene zooms together when the window resizes. 1.0 for compact
+    // themes and at the 100%-zoom default window size.
+    float                      m_chromeSceneScale = 1.0f;
 
     // DxuiHwndSource running in full-ownership mode. Owns the main
     // HWND (registers WNDCLASS "CassoWindow", calls CreateWindowExW,

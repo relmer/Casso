@@ -30,6 +30,7 @@ public:
         Assert::AreEqual (1, prefs.version);
         Assert::AreEqual (string ("Skeuomorphic"), prefs.activeTheme);
         Assert::AreEqual (true,  prefs.activeTheme.size() > 0);
+        Assert::AreEqual (false, prefs.skeuoMonitorFrame);   // desk scene is opt-IN
         Assert::AreEqual (false, prefs.crtByMode[0].scanlinesEnabled);
         Assert::AreEqual (size_t (0), prefs.window.placements.size());
     }
@@ -55,6 +56,7 @@ public:
         HRESULT             hr;
 
         orig.activeTheme            = "Retro Terminal";
+        orig.skeuoMonitorFrame      = true;
         orig.lastSelectedMachine    = "Apple2e";
         orig.arrowsToJoystick       = true;
         orig.pointerMapping         = InputMappingMode::Mouse;
@@ -78,6 +80,7 @@ public:
         Assert::IsTrue (SUCCEEDED (hr));
 
         Assert::AreEqual (orig.activeTheme,         loaded.activeTheme);
+        Assert::AreEqual (orig.skeuoMonitorFrame,   loaded.skeuoMonitorFrame);
         Assert::AreEqual (orig.lastSelectedMachine, loaded.lastSelectedMachine);
         Assert::AreEqual (orig.arrowsToJoystick, loaded.arrowsToJoystick);
         Assert::IsTrue   (orig.pointerMapping == loaded.pointerMapping,

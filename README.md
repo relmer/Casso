@@ -31,6 +31,20 @@ The project includes:
 
 See [CHANGELOG.md](CHANGELOG.md) for the granular history.
 
+### Skeuomorphic CRT monitor (v1.12.0)
+
+An opt-in **CRT monitor desk scene** — a checkbox on **Settings → Theme**
+(skeuo themes only, off by default) — frames the emulator display in a
+procedurally-drawn period **Apple Monitor //c**: snow-white/platinum shell,
+chunky even bezel with straight sides and a slightly bowed glass, a recessed
+screen, and the rainbow cassowary brand and a lit power lamp on the chin. The
+display sits inside the glass at true 100% zoom, the drives scale to sit in
+proportion beneath it, and the whole scene zooms together as the window
+resizes. Off by default because the scene trades screen real estate for the
+look; toggling it applies live, and off restores the classic bare display.
+
+<p align="center"><img src="Assets/feat-monitor-chrome.png" alt="Skeuomorphic CRT monitor desk scene — the emulator display framed in an Apple Monitor //c, with the drive widgets scaled to sit beneath it" width="460" /></p>
+
 ### Apple //c case-switch strip (v1.10.0)
 
 The two latching switches on the //c case are modeled on a skeuomorphic

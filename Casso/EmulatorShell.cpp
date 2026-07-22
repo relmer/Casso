@@ -81,6 +81,17 @@ static constexpr int     s_kLabelBottomGapDp    = 2;
 static constexpr int     s_kJoystickButtonBandDp = 43;
 static constexpr int     s_kPaddleNoticeMs       = 8000;   // auto-dismiss for the paddle-mode tooltip
 
+// Desk-scene composition: with the CRT monitor framing on, the drive widgets
+// render at 80% of their design size so they sit in proportion under the
+// monitor. Folded into m_chromeSceneScale (NOT into DriveWidget) so switching
+// the monitor off returns the drives to their full classic size.
+static constexpr float   s_kDeskDriveScale       = 0.8f;
+
+// The desk band height and the monitor fit depend on each other (the band
+// scales with the monitor's SceneScale, which depends on the center the band
+// leaves). The dependency is a contraction, so a few relayout passes settle it.
+static constexpr int     s_kSceneScaleSettlePasses = 3;
+
 // Minimum emulator-viewport (center) the window must always host, plus a
 // small pad past the last menu title, so the bottom drive bar can never be
 // driven up into the menu strip / title (NC) area and menu titles never
@@ -152,8 +163,14 @@ namespace
         int                           bottomInsetPx,
         int                           clientW,
         int                           clientH,
-        UINT                          dpi)
+        UINT                          dpi,
+        float                         sceneScale)
     {
+        // Desk-scene zoom: the drives scale with the monitor. Fold the scale
+        // into the effective DPI so widget geometry, fonts, and the inter-
+        // widget gaps all zoom together.
+        dpi = (UINT) lroundf ((float) dpi * sceneScale);
+
         int            bottomInset   = bottomInsetPx;
         int            commandBarTop = std::max (0, clientH - bottomInset);
         int            gap           = MulDiv (s_kDriveWidgetGapDp, static_cast<int> (dpi), s_kBaseDpi);
@@ -1434,6 +1451,7 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     int                           windowW           = 0;
     int                           windowH           = 0;
     bool                          hadSavedPlacement = false;
+    bool                          haveWork          = false;
     int                           iconBigSize       = 0;
     int                           iconSmallSize     = 0;
     HICON                         hIconBig          = nullptr;
@@ -1519,12 +1537,33 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     windowW = rc.right - rc.left;
     windowH = rc.bottom - rc.top;
 
-    if (GetCursorMonitorWorkArea (work, activeMon))
+    haveWork = GetCursorMonitorWorkArea (work, activeMon);
+
+    if (haveWork)
     {
+        // The 100%-emulator + full monitor framing can want a window taller
+        // than the display; never open larger than the work area. The monitor
+        // frame then lays out its housing into whatever center it gets, so the
+        // emulator lands at 100% when it fits and the largest size that fits
+        // otherwise.
+        windowW = std::min (windowW, (int) (work.right  - work.left));
+        windowH = std::min (windowH, (int) (work.bottom - work.top));
         CenterInWorkArea (work, windowW, windowH, windowX, windowY);
     }
 
     hadSavedPlacement = m_windowManager.TryLoadSavedWindowPlacement (activeMon, windowX, windowY, windowW, windowH);
+
+    // Clamp a restored placement to the work area as well: prefs written by
+    // older builds could hold a full-monitor rect (a fullscreen transition
+    // once saved its rect as the windowed placement), which would restore a
+    // taskbar-covering "windowed" window. Pull it back onto the desktop.
+    if (hadSavedPlacement && haveWork)
+    {
+        windowW = std::min (windowW, (int) (work.right  - work.left));
+        windowH = std::min (windowH, (int) (work.bottom - work.top));
+        windowX = std::clamp (windowX, work.left, std::max (work.left, work.right  - windowW));
+        windowY = std::clamp (windowY, work.top,  std::max (work.top,  work.bottom - windowH));
+    }
 
     // Preload the app icons so DxuiHwndSource::Create can attach them
     // via WM_SETICON before the window is shown. The taskbar and
@@ -1615,6 +1654,7 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     // (createSwapChain = true) now paints these adopted controls on top
     // of the Apple ][ framebuffer each frame. The title bar is NOT here:
     // the host owns the caption strip itself.
+    m_host->Root().Adopt (m_monitorFrame);
     m_host->Root().Adopt (m_mainMenu);
     m_host->Root().Adopt (m_driveBandSurface);
     m_host->Root().Adopt (m_driveChrome[0]);
@@ -1730,13 +1770,19 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     }
     m_driveChrome[0].Initialize (6, 0, this);
     m_driveChrome[1].Initialize (6, 1, this);
+
+    // Settle the desk-scene scale (monitor fit + band heights) BEFORE laying
+    // the drive widgets, so they are born at the settled scale rather than
+    // the 1.0 default.
+    UpdateViewportLayout (clientW, clientH);
+
     {
         RECT  vr            = ComputeViewportRect (clientW, clientH);
         RECT  driveRect     = m_driveBand.Bounds();
         int   bottomInsetPx = clientH - driveRect.top;   // drive band height only
 
         (void) vr;                                        // dock side-effect: bands arranged
-        LayoutDriveWidgetsInCommandBar (m_driveChrome, bottomInsetPx, clientW, clientH, dpi);
+        LayoutDriveWidgetsInCommandBar (m_driveChrome, bottomInsetPx, clientW, clientH, dpi, m_chromeSceneScale);
         {
             int  bandTop    = driveRect.top;
             int  bandHeight = MulDiv (s_kJoystickButtonBandDp, static_cast<int> (dpi), s_kBaseDpi);
@@ -1747,8 +1793,6 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
 
         LayoutSwitchBar (dpi);
     }
-
-    UpdateViewportLayout (clientW, clientH);
 
     // Load accelerator table
     m_accelTable = LoadAccelerators (hInstance, MAKEINTRESOURCE (IDR_ACCELERATOR));
@@ -1782,12 +1826,40 @@ Error:
 void EmulatorShell::UpdateViewportLayout (int widthPx, int heightPx)
 {
     HRESULT  hr           = S_OK;
+    RECT     center       = {};
     RECT     viewportRect = {};
 
 
     BAIL_OUT_IF (m_viewport == nullptr, S_OK);
 
-    viewportRect = ComputeViewportRect (widthPx, heightPx);
+    // Skeuomorphic desk scene (opt-in): the MonitorFrame insets the viewport
+    // into its CRT screen recess and paints the platinum housing in the ring
+    // around it, with the drives scaled to sit under it. When the scene is
+    // off (compact theme, or the skeuo user has not opted in) the bare
+    // display fills the center at classic sizes.
+    if (!MonitorFrameEnabled())
+    {
+        m_monitorFrame.Hide();
+        m_chromeSceneScale = 1.0f;
+        center             = ComputeViewportRect (widthPx, heightPx);
+        viewportRect       = center;
+    }
+    else
+    {
+        // Desk-scene zoom is a fixed point: the drive band scales with the
+        // monitor's SceneScale, but the band height determines the center the
+        // monitor fits into. Iterate a few passes -- the dependency is a
+        // contraction (band delta is a small fraction of center height), so
+        // this settles to within a pixel; the final pass wins.
+        for (int pass = 0; pass < s_kSceneScaleSettlePasses; pass++)
+        {
+            center = ComputeViewportRect (widthPx, heightPx);
+            m_monitorFrame.Layout (center, m_scaler);
+            m_chromeSceneScale = m_monitorFrame.SceneScale() * s_kDeskDriveScale;
+        }
+        viewportRect = m_monitorFrame.ScreenRect();
+    }
+
     m_viewport->Layout (viewportRect, m_scaler);
 
 Error:
@@ -1818,7 +1890,18 @@ void EmulatorShell::SyncChromeBands ()
     // the emulator viewport grows into it. The widgets are already hidden and
     // un-hit-tested by the resize path when there is no controller.
     bool  hasDisk     = (m_diskManager != nullptr) && m_diskManager->HasSlot6Controller();
-    int   driveBandDp = hasDisk ? m_driveBarThicknessDp : s_kJoystickButtonBandDp;
+    int   driveBandDp = s_kJoystickButtonBandDp;
+
+    if (hasDisk)
+    {
+        // The joystick-selector portion is fixed UI; the drive-widget portion
+        // zooms with the desk scene (m_chromeSceneScale) so the band hugs the
+        // scaled widgets instead of leaving dead space around them.
+        int  widgetPortionDp = m_driveBarThicknessDp - s_kJoystickButtonBandDp;
+
+        driveBandDp = s_kJoystickButtonBandDp
+                    + (int) lroundf ((float) widgetPortionDp * m_chromeSceneScale);
+    }
 
     // The //c switch strip only exists on the //c; everywhere else the band
     // collapses to zero height so the dock leaves the viewport unchanged.
@@ -2041,8 +2124,30 @@ SIZE EmulatorShell::ClientSizeForCenterPx (int centerWidthPx, int centerHeightPx
 
 SIZE EmulatorShell::ClientSizeForFramebufferPx (int framebufferWidthDp, int framebufferHeightDp)
 {
-    return ClientSizeForCenterPx (m_scaler.Px (framebufferWidthDp),
-                                  m_scaler.Px (framebufferHeightDp));
+    int  fbWpx = m_scaler.Px (framebufferWidthDp);
+    int  fbHpx = m_scaler.Px (framebufferHeightDp);
+
+    // With the desk scene on, size the window so the monitor's screen RECESS
+    // -- not the bare center -- equals the framebuffer, i.e. the emulator
+    // image sits at 100% zoom inside the housing, with the bezel, desk margin
+    // and chrome bands sized around it. This inverse defines the 100% scene,
+    // where the drives sit at s_kDeskDriveScale, so the band math must run at
+    // that scale regardless of the current window's. Scene off: the center is
+    // the framebuffer directly at classic sizes.
+    if (MonitorFrameEnabled())
+    {
+        SIZE   center     = MonitorFrame::CenterSizeForScreenPx (fbWpx, fbHpx);
+        float  savedScale = m_chromeSceneScale;
+        SIZE   client     = {};
+
+        m_chromeSceneScale = s_kDeskDriveScale;
+        client             = ClientSizeForCenterPx (center.cx, center.cy);
+        m_chromeSceneScale = savedScale;
+
+        return client;
+    }
+
+    return ClientSizeForCenterPx (fbWpx, fbHpx);
 }
 
 
@@ -2133,21 +2238,32 @@ void EmulatorShell::ReconcileInitialClientSize()
     fixedW = desiredClientW + ncOverheadW;
     fixedH = desiredClientH + ncOverheadH;
 
+    // The 100%-emulator + full monitor framing can want a window bigger than
+    // the display; never size past the work area. When clamped, the monitor
+    // frame re-fits its housing into the smaller client (emulator drops below
+    // 100%), which beats a window whose menu/drives fall off-screen.
+    HMONITOR     hMon     = MonitorFromWindow (m_hwnd, MONITOR_DEFAULTTONEAREST);
+    MONITORINFO  mi       = { sizeof (mi) };
+    bool         haveWork = (hMon != nullptr && GetMonitorInfo (hMon, &mi));
+
+    if (haveWork)
+    {
+        fixedW = std::min (fixedW, (int) (mi.rcWork.right  - mi.rcWork.left));
+        fixedH = std::min (fixedH, (int) (mi.rcWork.bottom - mi.rcWork.top));
+    }
+
     if (fixedW != (rcActualWindow.right  - rcActualWindow.left) ||
         fixedH != (rcActualWindow.bottom - rcActualWindow.top))
     {
-        // Recenter on the current monitor's work area using the final
-        // size. The initial Create centered using a pre-reconcile size
-        // estimate; without this re-center the reconcile resize would
-        // grow the window from its top-left and leave it visually off
-        // center vs Ctrl+0 reset (which centers with the final size).
-        HMONITOR    hMon = MonitorFromWindow (m_hwnd, MONITOR_DEFAULTTONEAREST);
-        MONITORINFO mi   = { sizeof (mi) };
-        int         x    = 0;
-        int         y    = 0;
-        UINT        flags = SWP_NOZORDER | SWP_NOACTIVATE;
+        // Recenter on the current monitor's work area using the final size. The
+        // initial Create centered using a pre-reconcile estimate; without this
+        // re-center the reconcile resize would grow the window from its
+        // top-left and leave it off center vs the Ctrl+0 reset.
+        int   x     = 0;
+        int   y     = 0;
+        UINT  flags = SWP_NOZORDER | SWP_NOACTIVATE;
 
-        if (hMon != nullptr && GetMonitorInfo (hMon, &mi))
+        if (haveWork)
         {
             x = mi.rcWork.left + (mi.rcWork.right - mi.rcWork.left - fixedW) / 2;
             y = mi.rcWork.top  + (mi.rcWork.bottom - mi.rcWork.top - fixedH) / 2;
@@ -2666,13 +2782,14 @@ Error:
 
 void EmulatorShell::ApplyThemeToChrome (const CassoTheme & theme)
 {
-    // Drive-bar slot thickness. Skeuomorphic shows the full 3D drive
-    // body (160 px) plus ~30 px of vertical slack and the basename
     // Bottom drive-bar thickness, full and compact. Layout: drive widget
     // (body + label strip + 2 dp bottom margin) bottom-anchored, with a
     // ~43 dp band above for the joystick-mode toggle button (8 dp gap +
     // ~27 dp button + 8 dp gap). Drive widget total height is body 160 +
     // label-strip gap 2 + label strip 18 = 180 dp (full) / 60 dp (compact).
+    // With the desk scene on, SyncChromeBands scales the widget portion by
+    // m_chromeSceneScale (s_kDeskDriveScale at 100%), so the band hugs the
+    // scaled drives without a separate constant.
     constexpr int  s_kFullDriveBarDp    = 225;
     constexpr int  s_kCompactDriveBarDp = 105;
 
@@ -2746,6 +2863,53 @@ void EmulatorShell::ApplyThemeToChrome (const CassoTheme & theme)
         SetWindowPos (m_hwnd, nullptr, 0, 0, newWindowW, newWindowH,
                       SWP_NOZORDER | SWP_NOMOVE | SWP_NOACTIVATE);
     }
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::SetSkeuoMonitorFrame
+//
+//  Settings > Theme opt-in for the skeuomorphic desk scene. Persists the
+//  choice, then re-runs the authoritative OnSize layout at the current client
+//  size so the monitor framing (and the drives' desk scale) appears or
+//  disappears in place -- the window itself does not resize; Ctrl+0 reaches
+//  the mode's 100% default.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::SetSkeuoMonitorFrame (bool enabled)
+{
+    HRESULT  hr       = S_OK;
+    RECT     rcClient = {};
+
+
+
+    BAIL_OUT_IF (m_globalPrefs.skeuoMonitorFrame == enabled, S_OK);
+
+    m_globalPrefs.skeuoMonitorFrame = enabled;
+
+    if (m_userConfigStore != nullptr)
+    {
+        hr = m_userConfigStore->SaveAll (m_globalPrefs, m_uiFs);
+    }
+    else
+    {
+        hr = m_globalPrefs.Save (m_assetBaseDir, m_uiFs);
+    }
+    IGNORE_RETURN_VALUE (hr, S_OK);
+
+    if (m_hwnd != nullptr && GetClientRect (m_hwnd, &rcClient))
+    {
+        (void) OnSize ((UINT) (rcClient.right - rcClient.left),
+                       (UINT) (rcClient.bottom - rcClient.top));
+        m_d3dRenderer.MarkRedrawNeeded();
+    }
+
+Error:
+    return;
 }
 
 
@@ -6211,6 +6375,11 @@ DxuiMessageResult EmulatorShell::OnSize (UINT widthPx, UINT heightPx)
         IGNORE_RETURN_VALUE (hrUiR, S_OK);
         m_mainMenu.Layout (menuBarBounds, m_scaler);
 
+        // Settle the desk-scene scale (monitor fit + scaled band heights) for
+        // THIS size before laying the drive widgets, so widgets and band agree
+        // instead of the widgets lagging one resize behind.
+        UpdateViewportLayout (static_cast<int> (width), renderH);
+
         {
             RECT  vr            = ComputeViewportRect (static_cast<int> (width), renderH);
             RECT  driveRect     = m_driveBand.Bounds();
@@ -6221,7 +6390,7 @@ DxuiMessageResult EmulatorShell::OnSize (UINT widthPx, UINT heightPx)
 
             if (fHasDisk)
             {
-                LayoutDriveWidgetsInCommandBar (m_driveChrome, bottomInsetPx, static_cast<int> (width), renderH, dpi);
+                LayoutDriveWidgetsInCommandBar (m_driveChrome, bottomInsetPx, static_cast<int> (width), renderH, dpi, m_chromeSceneScale);
 
                 // LayoutDriveWidgetsInCommandBar lays out (and un-hides) BOTH
                 // widgets. Re-collapse the external one when it is an optional
@@ -6273,7 +6442,7 @@ DxuiMessageResult EmulatorShell::OnSize (UINT widthPx, UINT heightPx)
         }
     }
 
-    UpdateViewportLayout (static_cast<int> (width), renderH);
+    // (Viewport layout already settled above, before the drive widgets.)
 
     {
         lock_guard<mutex> lock (m_fbMutex);
