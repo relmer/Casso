@@ -692,8 +692,85 @@ namespace HarteTests
         //
         ////////////////////////////////////////////////////////////////////////////////
 
+        TEST_METHOD (Opcode_03_SLO_IndX)  { RunOpcodeTest (0x03); }
         TEST_METHOD (Opcode_04_DOP_ZP)    { RunOpcodeTest (0x04); }
+        TEST_METHOD (Opcode_07_SLO_ZP)    { RunOpcodeTest (0x07); }
+        TEST_METHOD (Opcode_0C_TOP_Abs)   { RunOpcodeTest (0x0C); }
+        TEST_METHOD (Opcode_0F_SLO_Abs)   { RunOpcodeTest (0x0F); }
+        TEST_METHOD (Opcode_13_SLO_IndY)  { RunOpcodeTest (0x13); }
+        TEST_METHOD (Opcode_14_DOP_ZPX)   { RunOpcodeTest (0x14); }
+        TEST_METHOD (Opcode_17_SLO_ZPX)   { RunOpcodeTest (0x17); }
+        TEST_METHOD (Opcode_1A_NOP_Impl)  { RunOpcodeTest (0x1A); }
+        TEST_METHOD (Opcode_1B_SLO_AbsY)  { RunOpcodeTest (0x1B); }
+        TEST_METHOD (Opcode_1C_TOP_AbsX)  { RunOpcodeTest (0x1C); }
+        TEST_METHOD (Opcode_1F_SLO_AbsX)  { RunOpcodeTest (0x1F); }
+        TEST_METHOD (Opcode_23_RLA_IndX)  { RunOpcodeTest (0x23); }
+        TEST_METHOD (Opcode_27_RLA_ZP)    { RunOpcodeTest (0x27); }
+        TEST_METHOD (Opcode_2F_RLA_Abs)   { RunOpcodeTest (0x2F); }
+        TEST_METHOD (Opcode_33_RLA_IndY)  { RunOpcodeTest (0x33); }
+        TEST_METHOD (Opcode_34_DOP_ZPX)   { RunOpcodeTest (0x34); }
+        TEST_METHOD (Opcode_37_RLA_ZPX)   { RunOpcodeTest (0x37); }
+        TEST_METHOD (Opcode_3A_NOP_Impl)  { RunOpcodeTest (0x3A); }
+        TEST_METHOD (Opcode_3B_RLA_AbsY)  { RunOpcodeTest (0x3B); }
+        TEST_METHOD (Opcode_3C_TOP_AbsX)  { RunOpcodeTest (0x3C); }
+        TEST_METHOD (Opcode_3F_RLA_AbsX)  { RunOpcodeTest (0x3F); }
+        TEST_METHOD (Opcode_43_SRE_IndX)  { RunOpcodeTest (0x43); }
+        TEST_METHOD (Opcode_44_DOP_ZP)    { RunOpcodeTest (0x44); }
+        TEST_METHOD (Opcode_47_SRE_ZP)    { RunOpcodeTest (0x47); }
+        TEST_METHOD (Opcode_4F_SRE_Abs)   { RunOpcodeTest (0x4F); }
+        TEST_METHOD (Opcode_53_SRE_IndY)  { RunOpcodeTest (0x53); }
+        TEST_METHOD (Opcode_54_DOP_ZPX)   { RunOpcodeTest (0x54); }
+        TEST_METHOD (Opcode_57_SRE_ZPX)   { RunOpcodeTest (0x57); }
+        TEST_METHOD (Opcode_5A_NOP_Impl)  { RunOpcodeTest (0x5A); }
+        TEST_METHOD (Opcode_5B_SRE_AbsY)  { RunOpcodeTest (0x5B); }
+        TEST_METHOD (Opcode_5C_TOP_AbsX)  { RunOpcodeTest (0x5C); }
+        TEST_METHOD (Opcode_5F_SRE_AbsX)  { RunOpcodeTest (0x5F); }
+        TEST_METHOD (Opcode_63_RRA_IndX)  { RunOpcodeTest (0x63); }
+        TEST_METHOD (Opcode_64_DOP_ZP)    { RunOpcodeTest (0x64); }
+        TEST_METHOD (Opcode_67_RRA_ZP)    { RunOpcodeTest (0x67); }
+        TEST_METHOD (Opcode_6F_RRA_Abs)   { RunOpcodeTest (0x6F); }
+        TEST_METHOD (Opcode_73_RRA_IndY)  { RunOpcodeTest (0x73); }
+        TEST_METHOD (Opcode_74_DOP_ZPX)   { RunOpcodeTest (0x74); }
+        TEST_METHOD (Opcode_77_RRA_ZPX)   { RunOpcodeTest (0x77); }
+        TEST_METHOD (Opcode_7A_NOP_Impl)  { RunOpcodeTest (0x7A); }
+        TEST_METHOD (Opcode_7B_RRA_AbsY)  { RunOpcodeTest (0x7B); }
+        TEST_METHOD (Opcode_7C_TOP_AbsX)  { RunOpcodeTest (0x7C); }
+        TEST_METHOD (Opcode_7F_RRA_AbsX)  { RunOpcodeTest (0x7F); }
+        TEST_METHOD (Opcode_80_DOP_Imm)   { RunOpcodeTest (0x80); }
+        TEST_METHOD (Opcode_82_DOP_Imm)   { RunOpcodeTest (0x82); }
+        TEST_METHOD (Opcode_83_SAX_IndX)  { RunOpcodeTest (0x83); }
+        TEST_METHOD (Opcode_87_SAX_ZP)    { RunOpcodeTest (0x87); }
+        TEST_METHOD (Opcode_89_DOP_Imm)   { RunOpcodeTest (0x89); }
+        TEST_METHOD (Opcode_8F_SAX_Abs)   { RunOpcodeTest (0x8F); }
+        TEST_METHOD (Opcode_97_SAX_ZPY)   { RunOpcodeTest (0x97); }
+        TEST_METHOD (Opcode_A3_LAX_IndX)  { RunOpcodeTest (0xA3); }
+        TEST_METHOD (Opcode_A7_LAX_ZP)    { RunOpcodeTest (0xA7); }
+        TEST_METHOD (Opcode_AF_LAX_Abs)   { RunOpcodeTest (0xAF); }
+        TEST_METHOD (Opcode_B3_LAX_IndY)  { RunOpcodeTest (0xB3); }
+        TEST_METHOD (Opcode_B7_LAX_ZPY)   { RunOpcodeTest (0xB7); }
+        TEST_METHOD (Opcode_BF_LAX_AbsY)  { RunOpcodeTest (0xBF); }
+        TEST_METHOD (Opcode_C2_DOP_Imm)   { RunOpcodeTest (0xC2); }
+        TEST_METHOD (Opcode_C3_DCP_IndX)  { RunOpcodeTest (0xC3); }
+        TEST_METHOD (Opcode_C7_DCP_ZP)    { RunOpcodeTest (0xC7); }
         TEST_METHOD (Opcode_CF_DCP_Abs)   { RunOpcodeTest (0xCF); }
+        TEST_METHOD (Opcode_D3_DCP_IndY)  { RunOpcodeTest (0xD3); }
+        TEST_METHOD (Opcode_D4_DOP_ZPX)   { RunOpcodeTest (0xD4); }
+        TEST_METHOD (Opcode_D7_DCP_ZPX)   { RunOpcodeTest (0xD7); }
+        TEST_METHOD (Opcode_DA_NOP_Impl)  { RunOpcodeTest (0xDA); }
+        TEST_METHOD (Opcode_DB_DCP_AbsY)  { RunOpcodeTest (0xDB); }
+        TEST_METHOD (Opcode_DC_TOP_AbsX)  { RunOpcodeTest (0xDC); }
+        TEST_METHOD (Opcode_DF_DCP_AbsX)  { RunOpcodeTest (0xDF); }
+        TEST_METHOD (Opcode_E2_DOP_Imm)   { RunOpcodeTest (0xE2); }
+        TEST_METHOD (Opcode_E3_ISC_IndX)  { RunOpcodeTest (0xE3); }
+        TEST_METHOD (Opcode_E7_ISC_ZP)    { RunOpcodeTest (0xE7); }
+        TEST_METHOD (Opcode_EF_ISC_Abs)   { RunOpcodeTest (0xEF); }
+        TEST_METHOD (Opcode_F3_ISC_IndY)  { RunOpcodeTest (0xF3); }
+        TEST_METHOD (Opcode_F4_DOP_ZPX)   { RunOpcodeTest (0xF4); }
+        TEST_METHOD (Opcode_F7_ISC_ZPX)   { RunOpcodeTest (0xF7); }
+        TEST_METHOD (Opcode_FA_NOP_Impl)  { RunOpcodeTest (0xFA); }
+        TEST_METHOD (Opcode_FB_ISC_AbsY)  { RunOpcodeTest (0xFB); }
+        TEST_METHOD (Opcode_FC_TOP_AbsX)  { RunOpcodeTest (0xFC); }
+        TEST_METHOD (Opcode_FF_ISC_AbsX)  { RunOpcodeTest (0xFF); }
     };
 
 

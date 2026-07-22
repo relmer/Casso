@@ -6,7 +6,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 Versioned entries use `MAJOR.MINOR.PATCH` from [Version.h](CassoCore/Version.h).
 Entries before versioning was introduced use dates only.
 
-## [1.11.0] — Skeuomorphic CRT monitor
+## [1.12.0] — Skeuomorphic CRT monitor
 
 ### Added
 - **feat(chrome): skeuomorphic CRT monitor desk scene** — an opt-in
@@ -34,6 +34,26 @@ Entries before versioning was introduced use dates only.
   dialog can no longer strand the window as an unescapable, taskbar-covering
   borderless popup — the toggle self-heals from a state desync and always
   hands back a movable, closable window.
+
+## [1.11.0] — Undocumented NMOS opcodes
+
+### Added
+- **feat(cpu): stable undocumented NMOS 6502 opcodes** (#95) — the CPU now
+  executes the stable undocumented opcodes real Apple II software relies on —
+  SAX, LAX, DCP, ISC, SLO, RLA, SRE, RRA across their addressing modes, plus
+  the implied / 2-byte (DOP) / 3-byte (TOP) NOP family — instead of tripping
+  the illegal-opcode assert. Each is validated against the Tom Harte
+  SingleStepTests (10,000 vectors per opcode) and composes the existing ALU
+  primitives so flag and decimal-mode behavior is inherited. The unstable
+  "magic constant" opcodes (ANE, LXA, SHA, SHX, SHY, TAS) remain unimplemented
+  by design, and the undocumented opcodes are hidden from the assembler so
+  `NOP` still assembles to `$EA`.
+
+### Fixed
+- **fix(chrome): resize the top-right window corner** (#98) — the diagonal
+  resize grab is now a larger corner square than the straight edges, so the
+  top-right corner is draggable even though the close button sits on it. Every
+  Dxui-chromed window (main window + dialogs) is fixed at once.
 
 ## [1.10.0] — Apple //c case-switch strip
 

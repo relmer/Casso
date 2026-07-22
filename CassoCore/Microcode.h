@@ -49,6 +49,17 @@ public:
         Transfer,
         Xor,
 
+        // NMOS undocumented combined opcodes. Each fuses a memory (or
+        // register) step with a following ALU primitive; the ALU step owns
+        // the final flags. DCP reuses DecrementAndCompare above.
+        StoreAccumulatorAndX,      // SAX = store (A & X); no flags
+        LoadAccumulatorAndX,       // LAX = LDA + LDX (same fetched value)
+        ShiftLeftAndOr,            // SLO = ASL mem + ORA
+        RotateLeftAndAnd,          // RLA = ROL mem + AND
+        ShiftRightAndXor,          // SRE = LSR mem + EOR
+        RotateRightAndAdd,         // RRA = ROR mem + ADC
+        IncrementAndSubtract,      // ISC = INC mem + SBC
+
         // 65C02 (CMOS) additions. Never referenced by the NMOS instruction
         // table, so NMOS dispatch is unaffected.
         StoreZero,          // STZ

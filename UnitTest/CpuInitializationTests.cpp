@@ -127,16 +127,21 @@ namespace CpuInitializationTests
 
         ////////////////////////////////////////////////////////////////////////////////
         //
-        //  STA_Immediate_IsNotLegal
+        //  Opcode89_IsHiddenUndocumentedNop
         //
         ////////////////////////////////////////////////////////////////////////////////
 
-        TEST_METHOD (STA_Immediate_IsNotLegal)
+        TEST_METHOD (Opcode89_IsHiddenUndocumentedNop)
         {
             TestCpu cpu;
             const Microcode & mc = cpu.GetMicrocode (0x89);
 
-            Assert::IsFalse (mc.isLegal);
+            // There is no STA #imm; on the NMOS 6502 $89 is the undocumented
+            // 2-byte NOP -- legal to execute but assembler-hidden, so the
+            // assembler still cannot encode "STA #$xx".
+            Assert::IsTrue (mc.isLegal);
+            Assert::IsTrue (mc.assemblerHidden);
+            Assert::AreEqual ((int) Microcode::NoOperation, (int) mc.operation);
         }
 
 

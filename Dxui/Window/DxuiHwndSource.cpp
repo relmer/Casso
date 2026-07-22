@@ -3175,9 +3175,11 @@ DxuiHitTestKind DxuiHwndSource::ClassifyHitInternal (POINT clientDip, RECT clien
 //
 //  ClassifyResizeEdge
 //
-//  Eight-edge resize hit test inside the client rect. Corner inset
-//  takes priority over edge inset so the diagonal cursors fire in
-//  the right places.
+//  Eight-edge resize hit test inside the client rect. Corners use a
+//  larger grab square (resizeBorderPx * s_kResizeCornerMult) than the
+//  straight edges and are checked first, so the diagonal resize stays
+//  reachable even where a caption button (e.g. close) overlaps the
+//  top-right corner.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -3185,21 +3187,30 @@ DxuiHitTestKind DxuiHwndSource::ClassifyResizeEdge (POINT clientDip,
                                                     RECT  clientBoundsDip,
                                                     int   resizeBorderPx)
 {
-    bool  left   = (clientDip.x >= clientBoundsDip.left   && clientDip.x <  clientBoundsDip.left   + resizeBorderPx);
-    bool  right  = (clientDip.x <  clientBoundsDip.right  && clientDip.x >= clientBoundsDip.right  - resizeBorderPx);
-    bool  top    = (clientDip.y >= clientBoundsDip.top    && clientDip.y <  clientBoundsDip.top    + resizeBorderPx);
-    bool  bottom = (clientDip.y <  clientBoundsDip.bottom && clientDip.y >= clientBoundsDip.bottom - resizeBorderPx);
+    int   cornerPx = resizeBorderPx * s_kResizeCornerMult;
+
+    bool  left    = (clientDip.x >= clientBoundsDip.left   && clientDip.x <  clientBoundsDip.left   + resizeBorderPx);
+    bool  right   = (clientDip.x <  clientBoundsDip.right  && clientDip.x >= clientBoundsDip.right  - resizeBorderPx);
+    bool  top     = (clientDip.y >= clientBoundsDip.top    && clientDip.y <  clientBoundsDip.top    + resizeBorderPx);
+    bool  bottom  = (clientDip.y <  clientBoundsDip.bottom && clientDip.y >= clientBoundsDip.bottom - resizeBorderPx);
+
+    // Corner zones extend cornerPx along each axis (larger than the thin edge
+    // border) so the diagonal grab reaches past a caption button sitting on it.
+    bool  cLeft   = (clientDip.x >= clientBoundsDip.left   && clientDip.x <  clientBoundsDip.left   + cornerPx);
+    bool  cRight  = (clientDip.x <  clientBoundsDip.right  && clientDip.x >= clientBoundsDip.right  - cornerPx);
+    bool  cTop    = (clientDip.y >= clientBoundsDip.top    && clientDip.y <  clientBoundsDip.top    + cornerPx);
+    bool  cBottom = (clientDip.y <  clientBoundsDip.bottom && clientDip.y >= clientBoundsDip.bottom - cornerPx);
 
 
 
-    if (top    && left)  { return DxuiHitTestKind::ResizeCornerTL; }
-    if (top    && right) { return DxuiHitTestKind::ResizeCornerTR; }
-    if (bottom && left)  { return DxuiHitTestKind::ResizeCornerBL; }
-    if (bottom && right) { return DxuiHitTestKind::ResizeCornerBR; }
-    if (top)             { return DxuiHitTestKind::ResizeEdgeTop;    }
-    if (bottom)          { return DxuiHitTestKind::ResizeEdgeBottom; }
-    if (left)            { return DxuiHitTestKind::ResizeEdgeLeft;   }
-    if (right)           { return DxuiHitTestKind::ResizeEdgeRight;  }
+    if (cTop    && cLeft)  { return DxuiHitTestKind::ResizeCornerTL; }
+    if (cTop    && cRight) { return DxuiHitTestKind::ResizeCornerTR; }
+    if (cBottom && cLeft)  { return DxuiHitTestKind::ResizeCornerBL; }
+    if (cBottom && cRight) { return DxuiHitTestKind::ResizeCornerBR; }
+    if (top)               { return DxuiHitTestKind::ResizeEdgeTop;    }
+    if (bottom)            { return DxuiHitTestKind::ResizeEdgeBottom; }
+    if (left)              { return DxuiHitTestKind::ResizeEdgeLeft;   }
+    if (right)             { return DxuiHitTestKind::ResizeEdgeRight;  }
 
     return DxuiHitTestKind::None;
 }
