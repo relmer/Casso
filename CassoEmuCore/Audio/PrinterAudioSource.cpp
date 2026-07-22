@@ -339,9 +339,10 @@ void PrinterAudioSource::GeneratePCM (float * outMono, uint32_t numSamples)
     // as its own burst instead of consecutive lines fusing into one long zip
     // (the hold below would otherwise bridge a text line's ~20 ms blank feed).
     // The buzz re-arms by itself after the gap when the next band is inked.
-    int64_t  rows = progress / (int64_t) PrinterGrid::kDotsPerRow;
+    int64_t  rows         = progress / (int64_t) PrinterGrid::kDotsPerRow;
+    bool     rowsAdvanced = (rows > m_lastRows);
 
-    if (rows > m_lastRows && m_printHoldSamples > 0)
+    if (rowsAdvanced && m_printHoldSamples > 0)
     {
         m_printHoldSamples = 0;
         m_lineGapSamples   = (int32_t) (kLineFeedGapSec * (double) m_sampleRate);
@@ -373,15 +374,23 @@ void PrinterAudioSource::GeneratePCM (float * outMono, uint32_t numSamples)
         m_pendingBuzz      = false;
     }
 
-    // Column wrapped back toward the pass's start -> a new line began: clack.
-    // The drop threshold scales to the pass's sweep width (logic seeking: a
-    // short line's whole pass is narrower than any fixed full-width drop).
-    // Each line rotates through the three recorded feed variants so repeats do
-    // not sound machine-stamped; empty variants are skipped.
-    int32_t  sweepW   = m_revealSweepW.load (std::memory_order_relaxed);
-    int32_t  wrapDrop = (std::max) ((int32_t) kLineWrapDropFloor, sweepW / 2);
+    // Fire the platen feed clack on either of the machine's two feed motions:
+    //  - an inked line's carriage returning: the column wraps back toward the
+    //    pass start (drop threshold scales to the pass's sweep width -- logic
+    //    seeking makes a short line's whole pass narrower than a full-width
+    //    drop), or
+    //  - a blank paper feed stepping rows with the carriage PARKED (a line or
+    //    form feed before / between print), where no wrap ever occurs. Without
+    //    this the paper's pre-print line feeds advanced in silence.
+    // The two never overlap for one motion (an inked wrap carries ink=true; a
+    // parked feed has no wrap), and the throttle keeps a fast slew from
+    // rattling. Each clack rotates through the three variants; empties skipped.
+    int32_t  sweepW      = m_revealSweepW.load (std::memory_order_relaxed);
+    int32_t  wrapDrop    = (std::max) ((int32_t) kLineWrapDropFloor, sweepW / 2);
+    bool     lineWrapped = (col + wrapDrop < m_lastCol);
+    bool     blankFeed   = (rowsAdvanced && !ink);
 
-    if (col + wrapDrop < m_lastCol && m_feedThrottle <= 0)
+    if ((lineWrapped || blankFeed) && m_feedThrottle <= 0)
     {
         for (int tries = 0; tries < kNumLineFeeds; tries++)
         {
