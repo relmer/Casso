@@ -153,6 +153,15 @@ public:
     void     SetOnDialogEnd (std::function<void (int)> fn) { m_onDialogEnd = std::move (fn); }
 
     //
+    //  Keep-alive callback fired on every OS modal move / size loop tick
+    //  (WM_ENTERSIZEMOVE..WM_EXITSIZEMOVE). While the user drags this
+    //  window's caption or border the OS owns the thread and a normal frame
+    //  never runs, so a live panel wires this to pump a frame (its own and
+    //  the host's) rather than freeze mid-animation. Left unset it is inert.
+    //
+    void     SetOnModalLoopTick (std::function<void ()> fn) { m_onModalLoopTick = std::move (fn); }
+
+    //
     //  Control to focus when the dialog is first shown (e.g. a picker's
     //  search box), so typing / Tab work immediately. Null = focus
     //  nothing, so Enter hits the default button. Call before
@@ -258,6 +267,7 @@ private:
     DxuiMessageResult  OnSetCursor   (WORD hitTest) override;
     DxuiMessageResult  OnGetMinMax   (MINMAXINFO * info) override;
     DxuiMessageResult  OnTimer       (UINT_PTR timerId) override;
+    void               OnModalLoopTick () override;
     DxuiMessageResult  OnClose       () override;
     void               OnDestroy     () override;
 
@@ -298,4 +308,5 @@ private:
     int                              m_defaultButtonId = 0;
     UINT                             m_dialogTickMs   = 250;   // dialog repaint / tick cadence (caret-blink default)
     std::function<void (int)>        m_onDialogEnd;            // modeless close callback
+    std::function<void ()>           m_onModalLoopTick;        // OS size/move-loop keep-alive tick
 };

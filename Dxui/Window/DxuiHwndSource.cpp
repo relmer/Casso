@@ -2123,7 +2123,10 @@ LRESULT DxuiHwndSource::WndProc (UINT msg, WPARAM wp, LPARAM lp)
             // The OS is about to run its own modal move / size loop, during which
             // our outer pump stops. Run a short internal timer so the client can
             // keep painting; fall through so the OS loop still starts normally.
+            // Also tick once right now so animation continues from the first
+            // frame of the drag instead of stalling until the first timer fires.
             ::SetTimer (m_hwnd, s_kModalLoopTimerId, USER_TIMER_MINIMUM, nullptr);
+            if (m_client != nullptr) { m_client->OnModalLoopTick(); }
             break;
 
         case WM_EXITSIZEMOVE:

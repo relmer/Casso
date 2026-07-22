@@ -2935,6 +2935,17 @@ void EmulatorShell::ShowPrinterPanel (bool activate)
 
             m_printerWorker.FormFeed ();
         });
+
+        // Dragging the preview's caption or edge enters the OS modal move/size
+        // loop, which owns the UI thread and would otherwise freeze the print
+        // mid-page (the carriage stops, the reveal stalls) until the drag ends.
+        // Pump a full host frame per loop tick so the emulator keeps running
+        // and the carriage keeps animating while the user repositions the
+        // window -- the same keep-alive the main window uses for its caption.
+        m_printerPanel->SetOnModalLoopTick ([this] ()
+        {
+            PumpUiFrame ();
+        });
     }
 
     SnapshotStripToPanel ();

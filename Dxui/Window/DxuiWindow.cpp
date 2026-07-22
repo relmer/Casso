@@ -806,6 +806,28 @@ DxuiMessageResult DxuiWindow::OnTimer (UINT_PTR timerId)
 
 
 
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnModalLoopTick
+//
+//  Fires while the OS runs its modal move / size loop for this window (the user
+//  is dragging the caption or a border). The host owns the thread there, so no
+//  ordinary frame runs; a panel that wires SetOnModalLoopTick keeps animating
+//  by pumping a frame from here instead of freezing until the drag ends.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiWindow::OnModalLoopTick ()
+{
+    if (m_onModalLoopTick)
+    {
+        m_onModalLoopTick();
+    }
+}
+
+
+
+
 
 ////////////////////////////////////////////////////////////////////////////////
 //
