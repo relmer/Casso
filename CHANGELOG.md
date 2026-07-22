@@ -6,7 +6,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 Versioned entries use `MAJOR.MINOR.PATCH` from [Version.h](CassoCore/Version.h).
 Entries before versioning was introduced use dates only.
 
-## [1.12.0] — Emulated ImageWriter II printer (spec 015)
+## [1.13.0] — Emulated ImageWriter II printer (spec 015)
 
 ### Added
 - **feat(printer): parallel printer card + original slot firmware** — a dumb,
@@ -70,6 +70,55 @@ Entries before versioning was introduced use dates only.
 - Print delivery destination is chosen per action (Print / Save / Copy), not
   a stored preference; Settings > Printing keeps output resolution + dot
   style and gains a Restore-defaults button.
+
+## [1.12.0] — Skeuomorphic CRT monitor
+
+### Added
+- **feat(chrome): skeuomorphic CRT monitor desk scene** — an opt-in
+  "CRT monitor desk scene" checkbox on **Settings → Theme** (skeuo themes
+  only, default off) frames the emulator display in a procedurally-drawn
+  period **Apple Monitor //c** — snow-white/platinum shell with an even
+  chunky bezel, straight sides with rounded corners and a slightly bowed
+  glass, a recessed screen, the rainbow cassowary brand and a lit power lamp
+  on the chin. The display sits inside the glass at true 100% zoom by default
+  (the window sizes the whole scene around it), and the drive widgets scale
+  down to sit in proportion under the monitor. The whole scene zooms together
+  as the window resizes; toggling the checkbox applies live, and turning it
+  off restores the classic bare display at full drive sizes. Off by default
+  because the scene trades screen real estate for the look.
+
+### Fixed
+- **fix(window): Alt+Enter fullscreen** — several fullscreen defects are
+  resolved. DXGI's built-in Alt+Enter handler (installed on the HWND swap
+  chain) was double-handling the keystroke and racing the app's own
+  borderless toggle; it is now disabled via `DXGI_MWA_NO_ALT_ENTER` so the
+  app owns the transition. Entering fullscreen no longer stomps the user's
+  saved windowed placement (a synchronous resize used to persist the
+  full-monitor rect as the window size), a maximized window round-trips back
+  to maximized with its underlying size intact, and a mid-transition assert
+  dialog can no longer strand the window as an unescapable, taskbar-covering
+  borderless popup — the toggle self-heals from a state desync and always
+  hands back a movable, closable window.
+
+## [1.11.0] — Undocumented NMOS opcodes
+
+### Added
+- **feat(cpu): stable undocumented NMOS 6502 opcodes** (#95) — the CPU now
+  executes the stable undocumented opcodes real Apple II software relies on —
+  SAX, LAX, DCP, ISC, SLO, RLA, SRE, RRA across their addressing modes, plus
+  the implied / 2-byte (DOP) / 3-byte (TOP) NOP family — instead of tripping
+  the illegal-opcode assert. Each is validated against the Tom Harte
+  SingleStepTests (10,000 vectors per opcode) and composes the existing ALU
+  primitives so flag and decimal-mode behavior is inherited. The unstable
+  "magic constant" opcodes (ANE, LXA, SHA, SHX, SHY, TAS) remain unimplemented
+  by design, and the undocumented opcodes are hidden from the assembler so
+  `NOP` still assembles to `$EA`.
+
+### Fixed
+- **fix(chrome): resize the top-right window corner** (#98) — the diagonal
+  resize grab is now a larger corner square than the straight edges, so the
+  top-right corner is draggable even though the close button sits on it. Every
+  Dxui-chromed window (main window + dialogs) is fixed at once.
 
 ## [1.10.0] — Apple //c case-switch strip
 

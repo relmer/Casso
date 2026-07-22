@@ -60,6 +60,15 @@ See the Constitution's Principle VI (Thin Executable, Testable Core) and Princip
   free function needs a very convincing justification.
 - **No magic numbers** — all numeric literals must be named constants with clear intent.
   Exceptions: 0, 1, -1, nullptr, and sizeof expressions.
+- **American spelling, ALWAYS.** Use American English everywhere — identifiers,
+  comments, log/UI strings, commit messages, CHANGELOG, README, and docs.
+  `color` / `center` / `behavior` / `gray` / `initialize` / `optimize` /
+  `analyze` / `canceled`, NEVER `colour` / `centre` / `behaviour` / `grey` /
+  `initialise` / `optimise` / `analyse` / `cancelled`. No exceptions — this
+  applies even when the surrounding pre-existing text uses British spelling
+  (fix your own added/modified lines regardless). Quick check on new/merged
+  code: `rg -in 'colour|behaviour|centre|grey|initialise|optimise|analyse|cancelled'`
+  should return zero hits in lines you authored.
 
 ### EHM (Error Handling Macros)
 - Every function that calls a failable API must use the EHM pattern:

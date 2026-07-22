@@ -106,7 +106,6 @@ struct IDCompositionVisual;
 #include "Core/DxuiHitTester.h"
 #include "Core/DxuiInput.h"
 #include "Core/DxuiThread.h"
-#include "Core/DxuiTitleBarHitTest.h"
 #include "Core/IDxuiControl.h"
 #include "Core/IDxuiLayout.h"
 #include "Core/IDxuiViewportInputSink.h"

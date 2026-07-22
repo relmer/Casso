@@ -57,18 +57,44 @@ LEGAL_6502_OPCODES = [
 # Undocumented NMOS 6502 opcodes that Casso actually implements (in
 # CassoCore Cpu::InitializeUndocumented()). Harte's upstream data covers
 # all 256 opcode bytes, but exercising an illegal opcode the CPU does not
-# model would correctly fail — so this is the deliberately-small mirror of
+# model would correctly fail -- so this is the deliberately-small mirror of
 # what Casso supports, and it grows as the CPU gains illegal opcodes.
 #
 # Keep in sync with BOTH:
 #   - CassoCore/Cpu.cpp             Cpu::InitializeUndocumented()  (the impl)
 #   - UnitTest/HarteTestRunner.cpp  the "Undocumented opcodes" TEST_METHODs
 #
-#   0x04  DOP zp   — double-NOP: read a zero-page byte and discard. 2B, 3c.
-#   0xCF  DCP abs  — DEC memory then CMP A with the result.         3B, 6c.
+# The stable combined ops (SLO/RLA/SRE/RRA/SAX/LAX/DCP/ISC) across their
+# addressing modes, plus the implied/DOP/TOP NOP family.
 IMPLEMENTED_ILLEGAL_6502_OPCODES = [
-    0x04,
-    0xCF,
+    # SLO (ASL+ORA)
+    0x03, 0x07, 0x0F, 0x13, 0x17, 0x1B, 0x1F,
+    # RLA (ROL+AND)
+    0x23, 0x27, 0x2F, 0x33, 0x37, 0x3B, 0x3F,
+    # SRE (LSR+EOR)
+    0x43, 0x47, 0x4F, 0x53, 0x57, 0x5B, 0x5F,
+    # RRA (ROR+ADC)
+    0x63, 0x67, 0x6F, 0x73, 0x77, 0x7B, 0x7F,
+    # SAX (store A&X)
+    0x83, 0x87, 0x8F, 0x97,
+    # LAX (LDA+LDX)
+    0xA3, 0xA7, 0xAF, 0xB3, 0xB7, 0xBF,
+    # DCP (DEC+CMP)
+    0xC3, 0xC7, 0xCF, 0xD3, 0xD7, 0xDB, 0xDF,
+    # ISC (INC+SBC)
+    0xE3, 0xE7, 0xEF, 0xF3, 0xF7, 0xFB, 0xFF,
+    # NOP (implied)
+    0x1A, 0x3A, 0x5A, 0x7A, 0xDA, 0xFA,
+    # DOP (NOP zp)
+    0x04, 0x44, 0x64,
+    # DOP (NOP zp,X)
+    0x14, 0x34, 0x54, 0x74, 0xD4, 0xF4,
+    # DOP (NOP #imm)
+    0x80, 0x82, 0x89, 0xC2, 0xE2,
+    # TOP (NOP abs)
+    0x0C,
+    # TOP (NOP abs,X)
+    0x1C, 0x3C, 0x5C, 0x7C, 0xDC, 0xFC,
 ]
 
 BASE_URL = "https://raw.githubusercontent.com/SingleStepTests/65x02/main"

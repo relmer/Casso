@@ -20,7 +20,7 @@ Two of the three built-in themes booting the [casso-rocks demo disk](Apple2/Demo
 The project includes:
 
 - **Apple II platform emulator** — GUI-based Apple II, II+, //e, //e Enhanced, and //c emulator with D3D11 rendering, WASAPI audio, Disk II controller with realistic mechanical sounds, Mockingboard sound card (dual 6522 VIA + AY-3-8910 PSG), an emulated ImageWriter II printer (parallel card, real-3D live preview with mechanical audio, PNG / clipboard / Windows-print delivery with print preview), analog game I/O (joystick/paddle via the PREAD timer), data-driven machine configs, 80-column text + Double Hi-Res, auxiliary RAM, audit-correct Language Card state machine, and cycle-accurate IRQ/NMI infrastructure.
-- **6502 CPU emulator** — passes [Klaus Dormann's functional test suite](https://github.com/Klaus2m5/6502_65C02_functional_tests) and all 151 legal-opcode sets from [Tom Harte's SingleStepTests](https://github.com/SingleStepTests/ProcessorTests) (10,000 vectors each).
+- **6502 CPU emulator** — passes [Klaus Dormann's functional test suite](https://github.com/Klaus2m5/6502_65C02_functional_tests) and [Tom Harte's SingleStepTests](https://github.com/SingleStepTests/ProcessorTests) for all 151 legal opcodes plus the stable undocumented NMOS opcodes (SAX, LAX, DCP, ISC, SLO, RLA, SRE, RRA and the NOP family) — 10,000 vectors each.
 - **AS65-compatible assembler** — a from-scratch reimplementation of Frank A. Kingswood's AS65, intended as a drop-in replacement. Supports the complete AS65 syntax: macros, conditional assembly (`if`/`ifdef`/`ifndef`/`else`/`endif`), the full expression evaluator (arithmetic, bitwise, logical, shift, `<`/`>` byte selectors, current-PC `*`), `equ`/`=` constants, `include`, three-segment model (`code`/`data`/`bss`), AS65-style listing output, and AS65 command-line flags (`-l`, `-t`, `-s`, `-s2`, `-z`, `-c`, `-w`, `-d`, `-g`, ...) including flag concatenation (`-tlfile`).
 - **CLI tool** — runs as an AS65-style assembler by default, or with the `run` subcommand to load and execute a binary or assembly source.
 - **First-run asset bootstrap** — Casso fetches the ROMs, sample disks, and Disk II audio samples it needs on first launch (with user consent), so a fresh `Casso.exe` boots to a usable //e BASIC prompt with no manual setup.
@@ -30,6 +30,20 @@ The project includes:
 ## What's New
 
 See [CHANGELOG.md](CHANGELOG.md) for the granular history.
+
+### Skeuomorphic CRT monitor (v1.12.0)
+
+An opt-in **CRT monitor desk scene** — a checkbox on **Settings → Theme**
+(skeuo themes only, off by default) — frames the emulator display in a
+procedurally-drawn period **Apple Monitor //c**: snow-white/platinum shell,
+chunky even bezel with straight sides and a slightly bowed glass, a recessed
+screen, and the rainbow cassowary brand and a lit power lamp on the chin. The
+display sits inside the glass at true 100% zoom, the drives scale to sit in
+proportion beneath it, and the whole scene zooms together as the window
+resizes. Off by default because the scene trades screen real estate for the
+look; toggling it applies live, and off restores the classic bare display.
+
+<p align="center"><img src="Assets/feat-monitor-chrome.png" alt="Skeuomorphic CRT monitor desk scene — the emulator display framed in an Apple Monitor //c, with the drive widgets scaled to sit beneath it" width="460" /></p>
 
 ### Apple //c case-switch strip (v1.10.0)
 
@@ -325,7 +339,8 @@ All 56 standard 6502 mnemonics are implemented. Validated against [Klaus Dormann
 
 ### Medium Priority
 
-- [ ] Undocumented / illegal opcode support ([#52](https://github.com/relmer/Casso/issues/52))
+- [x] Stable undocumented NMOS opcodes — SAX/LAX/DCP/ISC/SLO/RLA/SRE/RRA + NOP family ([#95](https://github.com/relmer/Casso/issues/95))
+- [ ] Remaining undocumented / illegal opcodes — unstable "magic constant" ops + JAM ([#52](https://github.com/relmer/Casso/issues/52))
 - [ ] Rockwell / WDC 65C02 variants ([#49](https://github.com/relmer/Casso/issues/49), [#50](https://github.com/relmer/Casso/issues/50))
 - [ ] *Choplifter* gameplay starts after the title screen (WOZ copy protection) ([#69](https://github.com/relmer/Casso/issues/69), [#72](https://github.com/relmer/Casso/issues/72))
 

@@ -45,6 +45,15 @@ public:
     static void Transfer             (Cpu & cpu, Byte * pSourceRegister, Byte * pDestinationRegister);
     static void Xor                  (Cpu & cpu, Byte operand);
 
+    // NMOS undocumented combined opcodes (DCP is DecrementAndCompare above).
+    static void StoreAccumulatorAndX (Cpu & cpu, Word effectiveAddress);
+    static void LoadAccumulatorAndX  (Cpu & cpu, Byte operand);
+    static void ShiftLeftAndOr       (Cpu & cpu, Word effectiveAddress);
+    static void RotateLeftAndAnd     (Cpu & cpu, Word effectiveAddress);
+    static void ShiftRightAndXor     (Cpu & cpu, Word effectiveAddress);
+    static void RotateRightAndAdd    (Cpu & cpu, Word effectiveAddress);
+    static void IncrementAndSubtract (Cpu & cpu, Word effectiveAddress);
+
     // 65C02 (CMOS) operations.
     static void StoreZero             (Cpu & cpu, Word effectiveAddress);
     static void TestAndSetBits        (Cpu & cpu, Word effectiveAddress);

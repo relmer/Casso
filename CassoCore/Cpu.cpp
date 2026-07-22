@@ -326,6 +326,12 @@ void Cpu::StepOne()
         microcode.operation != Microcode::Decrement          &&
         microcode.operation != Microcode::DecrementAndCompare &&
         microcode.operation != Microcode::Increment          &&
+        microcode.operation != Microcode::StoreAccumulatorAndX &&
+        microcode.operation != Microcode::ShiftLeftAndOr     &&
+        microcode.operation != Microcode::RotateLeftAndAnd   &&
+        microcode.operation != Microcode::ShiftRightAndXor   &&
+        microcode.operation != Microcode::RotateRightAndAdd  &&
+        microcode.operation != Microcode::IncrementAndSubtract &&
         microcode.operation != Microcode::StoreZero          &&
         microcode.operation != Microcode::TestAndSetBits     &&
         microcode.operation != Microcode::TestAndResetBits   &&
@@ -949,6 +955,14 @@ void Cpu::ExecuteInstruction (Microcode microcode, const OperandInfo & operandIn
     case Microcode::Transfer:             CpuOperations::Transfer             (*this, microcode.pSourceRegister, microcode.pDestinationRegister);    break;
     case Microcode::Xor:                  CpuOperations::Xor                  (*this, (Byte) operandInfo.operand);                                   break;
 
+    case Microcode::StoreAccumulatorAndX: CpuOperations::StoreAccumulatorAndX (*this, operandInfo.effectiveAddress);                                 break;
+    case Microcode::LoadAccumulatorAndX:  CpuOperations::LoadAccumulatorAndX  (*this, (Byte) operandInfo.operand);                                   break;
+    case Microcode::ShiftLeftAndOr:       CpuOperations::ShiftLeftAndOr       (*this, operandInfo.effectiveAddress);                                 break;
+    case Microcode::RotateLeftAndAnd:     CpuOperations::RotateLeftAndAnd     (*this, operandInfo.effectiveAddress);                                 break;
+    case Microcode::ShiftRightAndXor:     CpuOperations::ShiftRightAndXor     (*this, operandInfo.effectiveAddress);                                 break;
+    case Microcode::RotateRightAndAdd:    CpuOperations::RotateRightAndAdd    (*this, operandInfo.effectiveAddress);                                 break;
+    case Microcode::IncrementAndSubtract: CpuOperations::IncrementAndSubtract (*this, operandInfo.effectiveAddress);                                 break;
+
     // 65C02 (CMOS) operations.
     case Microcode::StoreZero:            CpuOperations::StoreZero            (*this, operandInfo.effectiveAddress);                                 break;
     case Microcode::TestAndSetBits:       CpuOperations::TestAndSetBits       (*this, operandInfo.effectiveAddress);                                 break;
@@ -1318,32 +1332,144 @@ void Cpu::InitializeMisc()
 //
 //  InitializeUndocumented
 //
-//  NMOS 6502 undocumented opcodes used by real Apple II software.
-//  Only those encountered in the wild are listed here.
-//
-//  $04  DOP zp  — Double-NOP: reads a zero-page byte and discards it.
-//                 2 bytes, 3 cycles.
-//  $CF  DCP abs — Decrement memory at absolute address then CMP A with
-//                 the decremented value.  3 bytes, 6 cycles.
+//  Registers the stable NMOS 6502 undocumented opcodes that real Apple II
+//  software relies on. Each combined opcode fuses a memory step with an ALU
+//  step and is dispatched to the matching CpuOperations method; the NOP
+//  family just consumes its operand bytes. The unstable "magic constant"
+//  opcodes (ANE, LXA, SHA, SHX, SHY, TAS) are deliberately left illegal.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void Cpu::InitializeUndocumented()
 {
-    static constexpr Byte  s_kDopBaseCycles = 3;
-    static constexpr Byte  s_kDcpBaseCycles = 6;
+    struct UndocumentedOpcode
+    {
+        Byte                                 opcode;
+        const char                         * name;
+        Microcode::Operation                 operation;
+        GlobalAddressingMode::AddressingMode mode;
+        Byte                                 cycles;
+    };
 
-    instructionSet[0x04] = Microcode (Instruction (0x04), "NOP",
-                                      Microcode::NoOperation,
-                                      GlobalAddressingMode::ZeroPage,
-                                      nullptr, nullptr);
-    instructionSet[0x04].baseCycles = s_kDopBaseCycles;
+    // Read-modify-write combos (SLO/RLA/SRE/RRA/DCP/ISC): standard 6502 RMW
+    // timing. The +1 page-cross penalty is never applied (see isReadOp).
+    static constexpr Byte s_kRmwZeroPage        = 5;
+    static constexpr Byte s_kRmwZeroPageX       = 6;
+    static constexpr Byte s_kRmwAbsolute        = 6;
+    static constexpr Byte s_kRmwAbsoluteIndexed = 7;   // abs,X and abs,Y
+    static constexpr Byte s_kRmwIndirect        = 8;   // (zp,X) and (zp),Y
 
-    instructionSet[0xCF] = Microcode (Instruction (0xCF), "DCP",
-                                      Microcode::DecrementAndCompare,
-                                      GlobalAddressingMode::Absolute,
-                                      nullptr, nullptr);
-    instructionSet[0xCF].baseCycles = s_kDcpBaseCycles;
+    // SAX store timing.
+    static constexpr Byte s_kSaxZeroPage  = 3;
+    static constexpr Byte s_kSaxZeroPageY = 4;
+    static constexpr Byte s_kSaxAbsolute  = 4;
+    static constexpr Byte s_kSaxIndirectX = 6;
+
+    // LAX load timing. abs,Y and (zp),Y add 1 on page cross at run time.
+    static constexpr Byte s_kLaxZeroPage  = 3;
+    static constexpr Byte s_kLaxZeroPageY = 4;
+    static constexpr Byte s_kLaxAbsolute  = 4;
+    static constexpr Byte s_kLaxAbsoluteY = 4;
+    static constexpr Byte s_kLaxIndirectX = 6;
+    static constexpr Byte s_kLaxIndirectY = 5;
+
+    // NOP family timing. abs,X adds 1 on page cross at run time.
+    static constexpr Byte s_kNopImplied   = 2;
+    static constexpr Byte s_kNopImmediate = 2;
+    static constexpr Byte s_kNopZeroPage  = 3;
+    static constexpr Byte s_kNopZeroPageX = 4;
+    static constexpr Byte s_kNopAbsolute  = 4;
+    static constexpr Byte s_kNopAbsoluteX = 4;
+
+    static constexpr UndocumentedOpcode s_kUndocumentedOpcodes[] =
+    {
+        { 0x03, "SLO", Microcode::ShiftLeftAndOr,       GlobalAddressingMode::ZeroPageXIndirect,   s_kRmwIndirect },
+        { 0x07, "SLO", Microcode::ShiftLeftAndOr,       GlobalAddressingMode::ZeroPage,            s_kRmwZeroPage },
+        { 0x0F, "SLO", Microcode::ShiftLeftAndOr,       GlobalAddressingMode::Absolute,            s_kRmwAbsolute },
+        { 0x13, "SLO", Microcode::ShiftLeftAndOr,       GlobalAddressingMode::ZeroPageIndirectY,   s_kRmwIndirect },
+        { 0x17, "SLO", Microcode::ShiftLeftAndOr,       GlobalAddressingMode::ZeroPageX,           s_kRmwZeroPageX },
+        { 0x1B, "SLO", Microcode::ShiftLeftAndOr,       GlobalAddressingMode::AbsoluteY,           s_kRmwAbsoluteIndexed },
+        { 0x1F, "SLO", Microcode::ShiftLeftAndOr,       GlobalAddressingMode::AbsoluteX,           s_kRmwAbsoluteIndexed },
+        { 0x23, "RLA", Microcode::RotateLeftAndAnd,     GlobalAddressingMode::ZeroPageXIndirect,   s_kRmwIndirect },
+        { 0x27, "RLA", Microcode::RotateLeftAndAnd,     GlobalAddressingMode::ZeroPage,            s_kRmwZeroPage },
+        { 0x2F, "RLA", Microcode::RotateLeftAndAnd,     GlobalAddressingMode::Absolute,            s_kRmwAbsolute },
+        { 0x33, "RLA", Microcode::RotateLeftAndAnd,     GlobalAddressingMode::ZeroPageIndirectY,   s_kRmwIndirect },
+        { 0x37, "RLA", Microcode::RotateLeftAndAnd,     GlobalAddressingMode::ZeroPageX,           s_kRmwZeroPageX },
+        { 0x3B, "RLA", Microcode::RotateLeftAndAnd,     GlobalAddressingMode::AbsoluteY,           s_kRmwAbsoluteIndexed },
+        { 0x3F, "RLA", Microcode::RotateLeftAndAnd,     GlobalAddressingMode::AbsoluteX,           s_kRmwAbsoluteIndexed },
+        { 0x43, "SRE", Microcode::ShiftRightAndXor,     GlobalAddressingMode::ZeroPageXIndirect,   s_kRmwIndirect },
+        { 0x47, "SRE", Microcode::ShiftRightAndXor,     GlobalAddressingMode::ZeroPage,            s_kRmwZeroPage },
+        { 0x4F, "SRE", Microcode::ShiftRightAndXor,     GlobalAddressingMode::Absolute,            s_kRmwAbsolute },
+        { 0x53, "SRE", Microcode::ShiftRightAndXor,     GlobalAddressingMode::ZeroPageIndirectY,   s_kRmwIndirect },
+        { 0x57, "SRE", Microcode::ShiftRightAndXor,     GlobalAddressingMode::ZeroPageX,           s_kRmwZeroPageX },
+        { 0x5B, "SRE", Microcode::ShiftRightAndXor,     GlobalAddressingMode::AbsoluteY,           s_kRmwAbsoluteIndexed },
+        { 0x5F, "SRE", Microcode::ShiftRightAndXor,     GlobalAddressingMode::AbsoluteX,           s_kRmwAbsoluteIndexed },
+        { 0x63, "RRA", Microcode::RotateRightAndAdd,    GlobalAddressingMode::ZeroPageXIndirect,   s_kRmwIndirect },
+        { 0x67, "RRA", Microcode::RotateRightAndAdd,    GlobalAddressingMode::ZeroPage,            s_kRmwZeroPage },
+        { 0x6F, "RRA", Microcode::RotateRightAndAdd,    GlobalAddressingMode::Absolute,            s_kRmwAbsolute },
+        { 0x73, "RRA", Microcode::RotateRightAndAdd,    GlobalAddressingMode::ZeroPageIndirectY,   s_kRmwIndirect },
+        { 0x77, "RRA", Microcode::RotateRightAndAdd,    GlobalAddressingMode::ZeroPageX,           s_kRmwZeroPageX },
+        { 0x7B, "RRA", Microcode::RotateRightAndAdd,    GlobalAddressingMode::AbsoluteY,           s_kRmwAbsoluteIndexed },
+        { 0x7F, "RRA", Microcode::RotateRightAndAdd,    GlobalAddressingMode::AbsoluteX,           s_kRmwAbsoluteIndexed },
+        { 0x83, "SAX", Microcode::StoreAccumulatorAndX, GlobalAddressingMode::ZeroPageXIndirect,   s_kSaxIndirectX },
+        { 0x87, "SAX", Microcode::StoreAccumulatorAndX, GlobalAddressingMode::ZeroPage,            s_kSaxZeroPage },
+        { 0x8F, "SAX", Microcode::StoreAccumulatorAndX, GlobalAddressingMode::Absolute,            s_kSaxAbsolute },
+        { 0x97, "SAX", Microcode::StoreAccumulatorAndX, GlobalAddressingMode::ZeroPageY,           s_kSaxZeroPageY },
+        { 0xA3, "LAX", Microcode::LoadAccumulatorAndX,  GlobalAddressingMode::ZeroPageXIndirect,   s_kLaxIndirectX },
+        { 0xA7, "LAX", Microcode::LoadAccumulatorAndX,  GlobalAddressingMode::ZeroPage,            s_kLaxZeroPage },
+        { 0xAF, "LAX", Microcode::LoadAccumulatorAndX,  GlobalAddressingMode::Absolute,            s_kLaxAbsolute },
+        { 0xB3, "LAX", Microcode::LoadAccumulatorAndX,  GlobalAddressingMode::ZeroPageIndirectY,   s_kLaxIndirectY },
+        { 0xB7, "LAX", Microcode::LoadAccumulatorAndX,  GlobalAddressingMode::ZeroPageY,           s_kLaxZeroPageY },
+        { 0xBF, "LAX", Microcode::LoadAccumulatorAndX,  GlobalAddressingMode::AbsoluteY,           s_kLaxAbsoluteY },
+        { 0xC3, "DCP", Microcode::DecrementAndCompare,  GlobalAddressingMode::ZeroPageXIndirect,   s_kRmwIndirect },
+        { 0xC7, "DCP", Microcode::DecrementAndCompare,  GlobalAddressingMode::ZeroPage,            s_kRmwZeroPage },
+        { 0xCF, "DCP", Microcode::DecrementAndCompare,  GlobalAddressingMode::Absolute,            s_kRmwAbsolute },
+        { 0xD3, "DCP", Microcode::DecrementAndCompare,  GlobalAddressingMode::ZeroPageIndirectY,   s_kRmwIndirect },
+        { 0xD7, "DCP", Microcode::DecrementAndCompare,  GlobalAddressingMode::ZeroPageX,           s_kRmwZeroPageX },
+        { 0xDB, "DCP", Microcode::DecrementAndCompare,  GlobalAddressingMode::AbsoluteY,           s_kRmwAbsoluteIndexed },
+        { 0xDF, "DCP", Microcode::DecrementAndCompare,  GlobalAddressingMode::AbsoluteX,           s_kRmwAbsoluteIndexed },
+        { 0xE3, "ISC", Microcode::IncrementAndSubtract, GlobalAddressingMode::ZeroPageXIndirect,   s_kRmwIndirect },
+        { 0xE7, "ISC", Microcode::IncrementAndSubtract, GlobalAddressingMode::ZeroPage,            s_kRmwZeroPage },
+        { 0xEF, "ISC", Microcode::IncrementAndSubtract, GlobalAddressingMode::Absolute,            s_kRmwAbsolute },
+        { 0xF3, "ISC", Microcode::IncrementAndSubtract, GlobalAddressingMode::ZeroPageIndirectY,   s_kRmwIndirect },
+        { 0xF7, "ISC", Microcode::IncrementAndSubtract, GlobalAddressingMode::ZeroPageX,           s_kRmwZeroPageX },
+        { 0xFB, "ISC", Microcode::IncrementAndSubtract, GlobalAddressingMode::AbsoluteY,           s_kRmwAbsoluteIndexed },
+        { 0xFF, "ISC", Microcode::IncrementAndSubtract, GlobalAddressingMode::AbsoluteX,           s_kRmwAbsoluteIndexed },
+        { 0x1A, "NOP", Microcode::NoOperation,          GlobalAddressingMode::SingleByteNoOperand, s_kNopImplied },
+        { 0x3A, "NOP", Microcode::NoOperation,          GlobalAddressingMode::SingleByteNoOperand, s_kNopImplied },
+        { 0x5A, "NOP", Microcode::NoOperation,          GlobalAddressingMode::SingleByteNoOperand, s_kNopImplied },
+        { 0x7A, "NOP", Microcode::NoOperation,          GlobalAddressingMode::SingleByteNoOperand, s_kNopImplied },
+        { 0xDA, "NOP", Microcode::NoOperation,          GlobalAddressingMode::SingleByteNoOperand, s_kNopImplied },
+        { 0xFA, "NOP", Microcode::NoOperation,          GlobalAddressingMode::SingleByteNoOperand, s_kNopImplied },
+        { 0x04, "NOP", Microcode::NoOperation,          GlobalAddressingMode::ZeroPage,            s_kNopZeroPage },
+        { 0x44, "NOP", Microcode::NoOperation,          GlobalAddressingMode::ZeroPage,            s_kNopZeroPage },
+        { 0x64, "NOP", Microcode::NoOperation,          GlobalAddressingMode::ZeroPage,            s_kNopZeroPage },
+        { 0x14, "NOP", Microcode::NoOperation,          GlobalAddressingMode::ZeroPageX,           s_kNopZeroPageX },
+        { 0x34, "NOP", Microcode::NoOperation,          GlobalAddressingMode::ZeroPageX,           s_kNopZeroPageX },
+        { 0x54, "NOP", Microcode::NoOperation,          GlobalAddressingMode::ZeroPageX,           s_kNopZeroPageX },
+        { 0x74, "NOP", Microcode::NoOperation,          GlobalAddressingMode::ZeroPageX,           s_kNopZeroPageX },
+        { 0xD4, "NOP", Microcode::NoOperation,          GlobalAddressingMode::ZeroPageX,           s_kNopZeroPageX },
+        { 0xF4, "NOP", Microcode::NoOperation,          GlobalAddressingMode::ZeroPageX,           s_kNopZeroPageX },
+        { 0x80, "NOP", Microcode::NoOperation,          GlobalAddressingMode::Immediate,           s_kNopImmediate },
+        { 0x82, "NOP", Microcode::NoOperation,          GlobalAddressingMode::Immediate,           s_kNopImmediate },
+        { 0x89, "NOP", Microcode::NoOperation,          GlobalAddressingMode::Immediate,           s_kNopImmediate },
+        { 0xC2, "NOP", Microcode::NoOperation,          GlobalAddressingMode::Immediate,           s_kNopImmediate },
+        { 0xE2, "NOP", Microcode::NoOperation,          GlobalAddressingMode::Immediate,           s_kNopImmediate },
+        { 0x0C, "NOP", Microcode::NoOperation,          GlobalAddressingMode::Absolute,            s_kNopAbsolute },
+        { 0x1C, "NOP", Microcode::NoOperation,          GlobalAddressingMode::AbsoluteX,           s_kNopAbsoluteX },
+        { 0x3C, "NOP", Microcode::NoOperation,          GlobalAddressingMode::AbsoluteX,           s_kNopAbsoluteX },
+        { 0x5C, "NOP", Microcode::NoOperation,          GlobalAddressingMode::AbsoluteX,           s_kNopAbsoluteX },
+        { 0x7C, "NOP", Microcode::NoOperation,          GlobalAddressingMode::AbsoluteX,           s_kNopAbsoluteX },
+        { 0xDC, "NOP", Microcode::NoOperation,          GlobalAddressingMode::AbsoluteX,           s_kNopAbsoluteX },
+        { 0xFC, "NOP", Microcode::NoOperation,          GlobalAddressingMode::AbsoluteX,           s_kNopAbsoluteX },
+    };
+
+    for (const UndocumentedOpcode & op : s_kUndocumentedOpcodes)
+    {
+        instructionSet[op.opcode]                 = Microcode (Instruction (op.opcode), op.name, op.operation, op.mode, nullptr, nullptr);
+        instructionSet[op.opcode].baseCycles      = op.cycles;
+        instructionSet[op.opcode].assemblerHidden = true;
+    }
 }
 
 

@@ -94,12 +94,12 @@ private:
     static constexpr int  kResetWDp    = 52;   // reset button
     static constexpr int  kResetHDp    = 24;
     static constexpr int  kGroupGapDp  = 18;   // reset -> first switch
-    static constexpr int  kKeyWDp      = 8;    // latching-switch key (thin, near the LED width)
+    static constexpr int  kKeyWDp      = 8;    // latching-switch key (thin; LEDs share this size)
     static constexpr int  kKeyHDp      = 25;
     static constexpr int  kLabelGapDp  = 7;    // key/LED -> its label
     static constexpr int  kSwitchGapDp = 20;   // switch cluster -> switch cluster
-    static constexpr int  kLedWDp      = 7;    // indicator LED
-    static constexpr int  kLedHDp      = 19;
+    static constexpr int  kLedWDp      = 8;    // indicator LED -- same size as the latching switches
+    static constexpr int  kLedHDp      = 25;
     static constexpr int  kIndGapDp    = 18;   // disk-use cluster -> power cluster
     static constexpr float kFontDip    = 12.5f;
     static constexpr float kFallbackCharPx = 6.6f;
@@ -114,8 +114,8 @@ private:
     static constexpr float  kRimDip            = 1.0f;   // molded cap rim / LED border, in dips
     static constexpr float  kBevelHeightFrac   = 0.13f;  // shadow-bevel thickness, fraction of cap height
     static constexpr float  kBevelWidthFrac    = 0.32f;  // ...capped to this fraction of the narrow cap width
-    static constexpr float  kLedGlowAlpha      = 95.0f;  // peak glow alpha (0..255) at the innermost ring
-    static constexpr float  kLedGlowExpandFrac = 0.5f;   // outermost glow-ring expansion, fraction of lamp height
+    static constexpr float  kLedGlowAlpha      = 60.0f;  // peak glow alpha (0..255) at the innermost ring; matches the monitor power lamp's attenuated bloom
+    static constexpr float  kLedGlowExpandFrac = 0.32f;  // outermost glow-ring expansion, fraction of lamp height
     static constexpr float  kLedSpecularFrac   = 0.4f;   // specular size, fraction of the lamp box
     static constexpr float  kLedSpecularInset  = 1.5f;   // specular offset from the top-left, in dips
     static constexpr int    kGlowRings         = 6;      // nested glow rectangles

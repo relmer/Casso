@@ -129,6 +129,29 @@ public:
     }
 
 
+    //
+    //  Regression (#98): the top-right resize corner must win over the close
+    //  button that overlaps it. A point 10 dip in from the top-right is inside
+    //  the enlarged corner grab (resizeBorderDip * s_kResizeCornerMult = 12)
+    //  but past the 6-dip straight edge, and lands squarely on the close button
+    //  rect -- it must classify as the diagonal resize corner, not HTCLOSE, so
+    //  the corner stays draggable.
+    //
+    TEST_METHOD (ResizeCorner_TopRightOverCloseButton_BeatsClose)
+    {
+        SyntheticHost   sh   = BuildSyntheticHost();
+        POINT           pt   = MakePoint (s_kClientWidthDip - 10, 10);
+
+        Assert::IsTrue (pt.x >= sh.closeRectDip.left && pt.x < sh.closeRectDip.right &&
+                        pt.y >= sh.closeRectDip.top  && pt.y < sh.closeRectDip.bottom,
+                        L"guard: the test point must lie within the close button rect");
+
+        DxuiHitTestKind kind = sh.host->ClassifyHitForTest (pt);
+
+        Assert::AreEqual ((int) HTTOPRIGHT, (int) DxuiHwndSource::KindToHt (kind));
+    }
+
+
     TEST_METHOD (ResizeEdges_BottomLeftCorner_ReturnsHtBottomLeft)
     {
         SyntheticHost  sh   = BuildSyntheticHost();

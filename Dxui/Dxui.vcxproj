@@ -158,7 +158,6 @@
     <ClCompile Include="Core\DxuiStackLayout.cpp" />
     <ClCompile Include="Core\DxuiThread.cpp" />
     <ClCompile Include="Core\DxuiViewport.cpp" />
-    <ClCompile Include="Core\DxuiTitleBarHitTest.cpp" />
     <ClCompile Include="Core\IDxuiControl.cpp" />
     <ClCompile Include="Render\Dxui3DRenderer.cpp" />
     <ClCompile Include="Render\DxuiPainter.cpp" />
@@ -214,7 +213,6 @@
     <ClInclude Include="Core\DxuiThread.h" />
     <ClInclude Include="Core\UnicodeSymbols.h" />
     <ClInclude Include="Core\DxuiViewport.h" />
-    <ClInclude Include="Core\DxuiTitleBarHitTest.h" />
     <ClInclude Include="Core\IDxuiControl.h" />
     <ClInclude Include="Core\IDxuiLayout.h" />
     <ClInclude Include="Core\IDxuiViewportInputSink.h" />
