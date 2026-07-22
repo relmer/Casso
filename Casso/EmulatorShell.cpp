@@ -81,6 +81,21 @@ static constexpr int     s_kLabelBottomGapDp    = 2;
 static constexpr int     s_kJoystickButtonBandDp = 43;
 static constexpr int     s_kPaddleNoticeMs       = 8000;   // auto-dismiss for the paddle-mode tooltip
 
+// Presentation pacing. At Maximum speed the CPU runs flat-out, but we only
+// rasterize + publish a framebuffer this often (wall clock), so the render
+// side stays ~60 Hz instead of chasing thousands of unseen frames a second.
+static constexpr int64_t s_kMaxSpeedPublishIntervalUs = 16667;   // ~60 Hz
+
+// Idle UI-loop wake cadence while a tooltip dwell timer is still pending.
+static constexpr DWORD   s_kIdleAnimationTickMs       = 16;      // ~60 Hz
+
+// Upper bound on how long the idle UI loop blocks between frames/messages.
+// Drive-activity indicators can only be sampled by running UpdateDriveWidgets
+// (it diffs nibble counters), so the loop must wake at least this often to
+// catch motor-on onset behind an otherwise static screen -- 50 ms matches the
+// long-standing drive-activity refresh target.
+static constexpr DWORD   s_kIdleUpkeepMs              = 50;      // ~20 Hz
+
 // Desk-scene composition: with the CRT monitor framing on, the drive widgets
 // render at 80% of their design size so they sit in proportion under the
 // monitor. Folded into m_chromeSceneScale (NOT into DriveWidget) so switching
@@ -3399,10 +3414,16 @@ int EmulatorShell::RunMessageLoop()
 
 
 
+    // Auto-reset wake signal the CPU thread raises after each published
+    // frame, so the idle UI loop can block on it instead of spin-polling.
+    // Must exist before the CPU thread starts publishing.
+    m_frameReadyEvent = CreateEventW (nullptr, FALSE, FALSE, nullptr);
+    CWRA (m_frameReadyEvent);
+
     hr = m_cpuManager.Start (
         [this] { OnCpuThreadStart(); },
         [this] (const EmulatorCommand & cmd) { DispatchCpuCommand (cmd); },
-        [this] { RunOneFrame(); PublishFramebuffer(); },
+        [this] { RunCpuThreadFrame(); },
         [this] { OnCpuThreadStop(); });
     CHRA (hr);
 
@@ -3430,6 +3451,7 @@ int EmulatorShell::RunMessageLoop()
             if (msg.message == WM_QUIT)
             {
                 m_cpuManager.Stop();
+                DestroyFrameReadyEvent();
                 return static_cast<int> (msg.wParam);
             }
 
@@ -3521,15 +3543,33 @@ int EmulatorShell::RunMessageLoop()
         {
             m_diskManager->UpdateDriveWidgets();
         }
+        bool  anyDriveLive = false;
+
         for (const DriveWidgetState & st : m_driveWidgetState)
         {
-            if (st.doorState == DriveWidgetState::Door::Opening ||
-                st.doorState == DriveWidgetState::Door::Closing)
+            bool  doorMoving = (st.doorState == DriveWidgetState::Door::Opening ||
+                                st.doorState == DriveWidgetState::Door::Closing);
+
+            anyDriveLive = anyDriveLive                              ||
+                           st.motorOn.load    (memory_order_relaxed) ||
+                           st.diskActive.load (memory_order_relaxed);
+
+            if (doorMoving)
             {
                 m_d3dRenderer.MarkRedrawNeeded();
-                break;
             }
         }
+
+        // Keep presenting while any drive is live, plus the one frame after it
+        // goes idle, so the spinning/activity LED both animates through a disk
+        // load and clears afterward even when the emulator framebuffer is
+        // static (the content gate would otherwise idle before it clears).
+        if (anyDriveLive || m_anyDriveLivePrev)
+        {
+            m_d3dRenderer.MarkRedrawNeeded();
+        }
+
+        m_anyDriveLivePrev = anyDriveLive;
 
         // //c switch strip: refresh the disk-use LED (drive activity) and the
         // Ctrl-armed reset cue every UI frame so they track live state.
@@ -3579,7 +3619,7 @@ int EmulatorShell::RunMessageLoop()
         }
         if (!m_d3dRenderer.NeedsPresent (fbDirtyThisFrame))
         {
-            Sleep (1);
+            WaitForFrameOrMessage();
             continue;
         }
 
@@ -3595,6 +3635,7 @@ int EmulatorShell::RunMessageLoop()
     m_cpuManager.Stop();
 
 Error:
+    DestroyFrameReadyEvent();
     return 0;
 }
 
@@ -4059,17 +4100,44 @@ void EmulatorShell::StepInstructionWhilePaused()
 //  PublishFramebuffer
 //
 //  Copies the freshly-rendered CPU framebuffer into the UI-visible
-//  framebuffer under m_fbMutex so the next UI message-loop iteration
-//  can pick it up and present.
+//  framebuffer under m_fbMutex and wakes the UI thread. Skips the whole
+//  handoff when the frame is byte-identical to the one last published, so a
+//  static screen stops driving the CRT post-process + Present at 60 Hz.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void EmulatorShell::PublishFramebuffer()
 {
-    lock_guard<mutex>  lock (m_fbMutex);
+    HRESULT   hr   = S_OK;
+    uint64_t  hash = HashFramebuffer (m_cpuFramebuffer);
+    BOOL      ok   = FALSE;
 
-    m_uiFramebuffer = m_cpuFramebuffer;
-    m_fbReady       = true;
+
+
+    // Identical to the last published frame: skip the copy, the UI wake, and
+    // the downstream present. No lock on the hash state -- the CPU thread and
+    // the paused single-step path (which parks the CPU thread first) never
+    // publish concurrently.
+    BAIL_OUT_IF (m_fbHashValid && hash == m_lastPublishedFbHash, S_OK);
+
+    {
+        lock_guard<mutex>  lock (m_fbMutex);
+
+        m_uiFramebuffer = m_cpuFramebuffer;
+        m_fbReady       = true;
+    }
+
+    m_lastPublishedFbHash = hash;
+    m_fbHashValid         = true;
+
+    if (m_frameReadyEvent != nullptr)
+    {
+        ok = SetEvent (m_frameReadyEvent);
+        CWRA (ok);
+    }
+
+Error:
+    return;
 }
 
 
@@ -4086,6 +4154,160 @@ void EmulatorShell::RunOneFrame()
 {
     ExecuteCpuSlices();
     RenderFramebuffer();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RunCpuThreadFrame
+//
+//  The CPU thread's per-frame callback. Always advances the emulation
+//  (ExecuteCpuSlices), but only rasterizes the video + publishes the
+//  framebuffer when ShouldPublishFrame allows -- at Maximum speed the CPU
+//  runs flat-out while the presentation side is sampled at ~60 Hz, so we
+//  don't rasterize + copy hundreds of frames a second the UI never shows.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::RunCpuThreadFrame()
+{
+    ExecuteCpuSlices();
+
+    if (ShouldPublishFrame())
+    {
+        RenderFramebuffer();
+        PublishFramebuffer();
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShouldPublishFrame
+//
+//  Presentation-side pacing. Below Maximum speed the CPU thread is already
+//  paced to one frame per vsync by its waitable timer, so every frame is
+//  published. At Maximum speed emulation is unthrottled, so gate the
+//  rasterize/publish to a ~60 Hz wall-clock cadence.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool EmulatorShell::ShouldPublishFrame()
+{
+    SpeedMode                         speed = m_cpuManager.GetSpeedMode();
+    chrono::steady_clock::time_point  now   = chrono::steady_clock::now();
+
+
+
+    if (speed != SpeedMode::Maximum)
+    {
+        m_lastPublishSteady = now;
+        return true;
+    }
+
+    if (now - m_lastPublishSteady >= chrono::microseconds (s_kMaxSpeedPublishIntervalUs))
+    {
+        m_lastPublishSteady = now;
+        return true;
+    }
+
+    return false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HashFramebuffer
+//
+//  64-bit FNV-1a over the framebuffer words. Feeds PublishFramebuffer's
+//  skip-identical-frame gate; a 1-in-2^64 collision merely drops one
+//  present, so the cheap hash is worth the vanishingly small risk.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+uint64_t EmulatorShell::HashFramebuffer (const vector<uint32_t> & fb)
+{
+    static constexpr uint64_t  s_kFnvOffsetBasis = 1469598103934665603ull;
+    static constexpr uint64_t  s_kFnvPrime       = 1099511628211ull;
+
+    uint64_t  hash = s_kFnvOffsetBasis;
+
+
+
+    for (uint32_t word : fb)
+    {
+        hash = (hash ^ word) * s_kFnvPrime;
+    }
+
+    return hash;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WaitForFrameOrMessage
+//
+//  Idle UI-loop block. Sleeps until the CPU thread signals a new frame OR a
+//  Windows message arrives, replacing the old Sleep(1) spin. Caps the wait at
+//  a bounded upkeep interval so drive-activity sampling stays live behind a
+//  static screen, and drops to a faster tick while a tooltip dwell is pending.
+//  Every other animated surface (persistence trail, drive doors, open menus,
+//  live Settings edits) forces a present through NeedsPresent and so never
+//  reaches this path.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::WaitForFrameOrMessage()
+{
+    DWORD  timeout = s_kIdleUpkeepMs;
+    DWORD  waited  = 0;
+
+
+
+    if (m_joystickTooltip.WantsTick()  ||
+        m_switchBarTooltip.WantsTick() ||
+        m_driveTooltip.WantsTick())
+    {
+        timeout = s_kIdleAnimationTickMs;
+    }
+
+    waited = MsgWaitForMultipleObjectsEx (1, &m_frameReadyEvent, timeout,
+                                          QS_ALLINPUT, MWMO_INPUTAVAILABLE);
+    IGNORE_RETURN_VALUE (waited, 0u);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DestroyFrameReadyEvent
+//
+//  Closes the frame-ready wake event. Idempotent; the caller must have
+//  stopped (joined) the CPU thread first so no SetEvent can race the close.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::DestroyFrameReadyEvent()
+{
+    if (m_frameReadyEvent != nullptr)
+    {
+        CloseHandle (m_frameReadyEvent);
+        m_frameReadyEvent = nullptr;
+    }
 }
 
 
