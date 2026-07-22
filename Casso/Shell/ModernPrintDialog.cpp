@@ -46,45 +46,6 @@ static constexpr int     s_kPreviewDpi     = 150;
 static constexpr float   s_kLetterWDips    = 816.0f;
 static constexpr float   s_kLetterHDips    = 1056.0f;
 
-static void LogModernPrint (const std::wstring & msg)
-{
-    std::wstring   line = L"[Printer] modern: " + msg + L"\n";
-
-    OutputDebugStringW (line.c_str ());
-
-    // Also append to %LOCALAPPDATA%\Casso\printer-debug.log (same sink as the
-    // classic delivery path) -- DBWIN capture is unreliable (single reader;
-    // integrity blocks a normal-launched app writing to an elevated listener).
-    // Best-effort; failures ignored.
-    wchar_t   base[MAX_PATH] = {};
-    if (GetEnvironmentVariableW (L"LOCALAPPDATA", base, MAX_PATH) == 0)
-    {
-        return;
-    }
-
-    std::wstring   path = std::wstring (base) + L"\\Casso\\printer-debug.log";
-    HANDLE         h    = CreateFileW (path.c_str (), FILE_APPEND_DATA,
-                                       FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr,
-                                       OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
-    if (h == INVALID_HANDLE_VALUE)
-    {
-        return;
-    }
-
-    int   n = WideCharToMultiByte (CP_UTF8, 0, line.c_str (), -1, nullptr, 0, nullptr, nullptr);
-    if (n > 1)
-    {
-        std::string   utf8 ((size_t) (n - 1), '\0');
-        DWORD         written = 0;
-
-        WideCharToMultiByte (CP_UTF8, 0, line.c_str (), -1, utf8.data (), n, nullptr, nullptr);
-        WriteFile (h, utf8.data (), (DWORD) utf8.size (), &written, nullptr);
-    }
-    CloseHandle (h);
-}
-
-
-
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  PrintPageSource
@@ -138,13 +99,10 @@ public:
             return E_INVALIDARG;
         }
 
-        LogModernPrint (L"GetPreviewPageCollection");
-
         hr = docPackageTarget->GetPackageTarget (ID_PREVIEWPACKAGETARGET_DXGI,
                                                  IID_PPV_ARGS (&m_previewTarget));
         if (FAILED (hr))
         {
-            LogModernPrint (std::format (L"GetPackageTarget(DXGI preview) failed 0x{:08X}", (uint32_t) hr));
             return hr;
         }
 
@@ -205,12 +163,8 @@ public:
         hr = m_d2dDevice->CreatePrintControl (wic.Get (), docPackageTarget, nullptr, &control);
         if (FAILED (hr))
         {
-            LogModernPrint (std::format (L"CreatePrintControl failed 0x{:08X}", (uint32_t) hr));
             return hr;
         }
-
-        LogModernPrint (std::format (L"spooling {} page(s) at {} dpi, page {}x{} DIPs",
-                                     m_pages.size (), m_outputDpi, pageSize.width, pageSize.height));
 
         for (size_t pageIx = 0; pageIx < m_pages.size (); pageIx++)
         {
@@ -237,7 +191,6 @@ public:
             hr = control->AddPage (list.Get (), pageSize, nullptr, nullptr, nullptr);
             if (FAILED (hr))
             {
-                LogModernPrint (std::format (L"AddPage {} failed 0x{:08X}", pageIx, (uint32_t) hr));
                 break;
             }
         }
@@ -248,7 +201,6 @@ public:
             if (SUCCEEDED (hr)) { hr = hrClose; }
         }
 
-        LogModernPrint (std::format (L"MakeDocument -> 0x{:08X}", (uint32_t) hr));
         return hr;
     }
 
@@ -260,8 +212,6 @@ public:
     {
         UNREFERENCED_PARAMETER (currentJobPage);
         UNREFERENCED_PARAMETER (docSettings);
-
-        LogModernPrint (std::format (L"Paginate -> {} page(s)", PageCount ()));
 
         if (m_previewTarget != nullptr)
         {
@@ -280,8 +230,6 @@ public:
         ComPtr<IDXGISurface>     surface;
         ComPtr<ID2D1Bitmap1>     target;
         ComPtr<ID2D1Bitmap1>     pageBitmap;
-
-        LogModernPrint (std::format (L"MakePage {} at {}x{}", desiredJobPage, width, height));
 
         if (m_previewTarget == nullptr || width <= 1.0f || height <= 1.0f)
         {
@@ -524,7 +472,6 @@ static HRESULT ModernTaskCompleted (HWND postHwnd, awgp::IPrintTaskCompletedEven
     awgp::PrintTaskCompletion  completion = awgp::PrintTaskCompletion_Abandoned;
 
     done->get_Completion (&completion);
-    LogModernPrint (std::format (L"task completed: {}", (int) completion));
 
     if (completion == awgp::PrintTaskCompletion_Submitted)
     {
@@ -549,8 +496,6 @@ static HRESULT ModernTaskRequested (HWND postHwnd, ComPtr<IUnknown> session,
     ComPtr<awgp::IPrintTask>         task;
     EventRegistrationToken           completedToken = {};
 
-    LogModernPrint (std::format (L"PrintTaskRequested fired; source={}", (void *) session.Get()));
-
     hr = args->get_Request (&request);
     CHR (hr);
 
@@ -562,10 +507,8 @@ static HRESULT ModernTaskRequested (HWND postHwnd, ComPtr<IUnknown> session,
                      return ModernSourceRequested (session, srcArgs);
                  }).Get(),
              &task);
-    CHRF (hr, LogModernPrint (std::format (L"CreatePrintTask failed 0x{:08X}", (uint32_t) hr)));
+    CHR (hr);
     CBRA (task != nullptr);
-
-    LogModernPrint (L"print task created");
 
     hr = task->add_Completed (
              Callback<ABI::Windows::Foundation::ITypedEventHandler<
@@ -617,20 +560,20 @@ HRESULT ModernPrintDialog::ShowAsync (HWND hwnd, const PrintRaster & raster, int
         options.threadType    = DQTYPE_THREAD_CURRENT;
         options.apartmentType = DQTAT_COM_STA;
 
-        HRESULT  hrQueue = CreateDispatcherQueueController (options, (PDISPATCHERQUEUECONTROLLER *) m_dispatcherQueue.GetAddressOf());
-
-        LogModernPrint (std::format (L"CreateDispatcherQueueController -> 0x{:08X}", (uint32_t) hrQueue));
+        // Best-effort: without a queue the modern dialog can hang, but there is
+        // no fallback if creation fails, so the result is not acted on.
+        (void) CreateDispatcherQueueController (options, (PDISPATCHERQUEUECONTROLLER *) m_dispatcherQueue.GetAddressOf());
     }
 
     hr = Microsoft::WRL::MakeAndInitialize<PrintPageSource> (&source, raster, outputDpi, style);
-    CHRF (hr, LogModernPrint (L"no printable pages; falling back"));
+    CHR (hr);
 
     if (m_interop == nullptr)
     {
         hr = RoGetActivationFactory (
                  HStringReference (RuntimeClass_Windows_Graphics_Printing_PrintManager).Get(),
                  IID_PPV_ARGS (&interop));
-        CHRF (hr, LogModernPrint (std::format (L"PrintManager activation failed 0x{:08X}; falling back", (uint32_t) hr)));
+        CHR (hr);
         m_interop = interop;
     }
     else
@@ -653,7 +596,7 @@ HRESULT ModernPrintDialog::ShowAsync (HWND hwnd, const PrintRaster & raster, int
         }
 
         hr = interop->GetForWindow (hwnd, IID_PPV_ARGS (&manager));
-        CHRF (hr, LogModernPrint (std::format (L"GetForWindow failed 0x{:08X}; falling back", (uint32_t) hr)));
+        CHR (hr);
         m_manager = manager;
         m_hwnd    = hwnd;
     }
@@ -691,17 +634,16 @@ HRESULT ModernPrintDialog::ShowAsync (HWND hwnd, const PrintRaster & raster, int
                      return ModernTaskRequested (postHwnd, session, args);
                  }).Get(),
              &m_taskToken);
-    CHRF (hr, LogModernPrint (std::format (L"add_PrintTaskRequested failed 0x{:08X}; falling back", (uint32_t) hr)));
+    CHR (hr);
     m_registered = true;
 
     hr = interop->ShowPrintUIForWindowAsync (hwnd, IID_PPV_ARGS (&showOp));
-    CHRF (hr, LogModernPrint (std::format (L"ShowPrintUIForWindowAsync failed 0x{:08X}; falling back", (uint32_t) hr)));
+    CHR (hr);
 
     // Hold the async operation for the session: releasing it immediately can
     // tear down the print experience's connection back into the app (the dialog
     // then spins at "connecting" forever).
     m_showOp = showOp;
-    LogModernPrint (std::format (L"print UI up: {} page(s)", source->PageCount()));
 
 Error:
     return hr;

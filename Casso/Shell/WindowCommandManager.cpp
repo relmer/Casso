@@ -37,78 +37,6 @@ namespace
 {
     using namespace ChromeMetrics;
 
-    // Trace the Windows-printer delivery path (visible in DebugView / the VS
-    // Output window). A "failed to deliver" is otherwise a black box -- this puts
-    // the chosen driver, page geometry, and the exact failing GDI call +
-    // GetLastError into the log so a PDF / real-printer failure can be diagnosed.
-    void  LogPrinter (const std::wstring & msg)
-    {
-        std::wstring   line = L"[Printer] " + msg + L"\n";
-
-        OutputDebugStringW (line.c_str ());
-
-        // Also append to %LOCALAPPDATA%\Casso\printer-debug.log so the delivery
-        // diagnostics are capturable no matter how the app was launched -- DBWIN
-        // has a single reader (a stray listener or an attached debugger steals
-        // the messages) and mandatory integrity can block a normal-launched
-        // (Medium) app from writing to an elevated listener's buffer. Best
-        // effort; any failure here is silently ignored.
-        wchar_t   base[MAX_PATH] = {};
-        if (GetEnvironmentVariableW (L"LOCALAPPDATA", base, MAX_PATH) == 0)
-        {
-            return;
-        }
-
-        std::wstring   path = std::wstring (base) + L"\\Casso\\printer-debug.log";
-        HANDLE         h    = CreateFileW (path.c_str (), FILE_APPEND_DATA,
-                                           FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr,
-                                           OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
-        if (h == INVALID_HANDLE_VALUE)
-        {
-            return;
-        }
-
-        int   n = WideCharToMultiByte (CP_UTF8, 0, line.c_str (), -1, nullptr, 0, nullptr, nullptr);
-        if (n > 1)
-        {
-            std::string   utf8 ((size_t) (n - 1), '\0');
-            DWORD         written = 0;
-
-            WideCharToMultiByte (CP_UTF8, 0, line.c_str (), -1, utf8.data (), n, nullptr, nullptr);
-            WriteFile (h, utf8.data (), (DWORD) utf8.size (), &written, nullptr);
-        }
-        CloseHandle (h);
-    }
-
-    // Process mandatory integrity level as a short string, for diagnosing
-    // print-path failures that only appear at Medium (a normally-launched app)
-    // vs High (an elevated one).
-    const wchar_t *  ProcessIntegrity ()
-    {
-        HANDLE          tok  = nullptr;
-        DWORD           len  = 0;
-        const wchar_t * res  = L"?";
-        BYTE            buf[64];
-
-        if (!OpenProcessToken (GetCurrentProcess (), TOKEN_QUERY, &tok))
-        {
-            return L"open-fail";
-        }
-        if (GetTokenInformation (tok, TokenIntegrityLevel, buf, sizeof (buf), &len))
-        {
-            TOKEN_MANDATORY_LABEL *  tml = (TOKEN_MANDATORY_LABEL *) buf;
-            DWORD                    sub = *GetSidSubAuthorityCount (tml->Label.Sid);
-            DWORD                    rid = *GetSidSubAuthority (tml->Label.Sid, sub - 1);
-
-            res = rid <  SECURITY_MANDATORY_MEDIUM_RID ? L"Low"
-                : rid <  SECURITY_MANDATORY_HIGH_RID   ? L"Medium"
-                : rid <  SECURITY_MANDATORY_SYSTEM_RID ? L"High"
-                                                       : L"System";
-        }
-        CloseHandle (tok);
-        return res;
-    }
-
     // Turn a failure HRESULT into a "0xXXXXXXXX -- <system text>" detail line for
     // the error dialog: the friendly sentence is for humans; this trailer is the
     // hr + OS message for nerds (and bug reports). A Win32-wrapped code
@@ -163,8 +91,6 @@ namespace
             return S_OK;
         }
 
-        LogPrinter (std::format (L"{} failed on page {}: ret={}, GetLastError={}", call, pageIx, ret, gle));
-
         if      (ret == SP_USERABORT)                                    { hr = S_FALSE;                              }
         else if (ret == SP_APPABORT)                                     { hr = E_ABORT;                              }
         else if (ret == SP_OUTOFDISK)                                    { hr = HRESULT_FROM_WIN32 (ERROR_DISK_FULL); }
@@ -174,26 +100,6 @@ namespace
         else                                                             { hr = E_FAIL;                               }
 
         return hr;
-    }
-
-    // The device the user picked in the print dialog (DEVNAMES holds it as an
-    // offset into its own block), for the delivery trace.
-    std::wstring  SelectedPrinterName (const PRINTDLGW & pd)
-    {
-        std::wstring   name;
-
-        if (pd.hDevNames != nullptr)
-        {
-            const DEVNAMES *  dn = (const DEVNAMES *) GlobalLock (pd.hDevNames);
-
-            if (dn != nullptr)
-            {
-                name = (const wchar_t *) dn + dn->wDeviceOffset;
-                GlobalUnlock (pd.hDevNames);
-            }
-        }
-
-        return name;
     }
 
     // Load ("prime") the default printer's driver on a short-lived no-COM (MTA)
@@ -260,7 +166,6 @@ namespace
 
             if (dn == nullptr)
             {
-                LogPrinter (L"  CreateDcFromDevNames: GlobalLock(hDevNames) failed");
                 return nullptr;
             }
 
@@ -289,10 +194,7 @@ namespace
         {
             const DEVMODEW *  dmp = devmode.empty () ? nullptr : (const DEVMODEW *) devmode.data ();
 
-            SetLastError (0);
             hdc = CreateDCW (driver.c_str (), device.c_str (), nullptr, dmp);
-            LogPrinter (std::format (L"  fallback CreateDC(device='{}') on worker -> hDC={} gle={}",
-                                     device, hdc != nullptr ? L"ok" : L"NULL", GetLastError ()));
         }).join ();
 
         return hdc;
@@ -318,10 +220,8 @@ namespace
         int            destH = 0;
         int            blit  = 0;
 
-        CBRF (img.width > 0 && img.height > 0,
-              LogPrinter (std::format (L"blit: page image is empty ({}x{})", img.width, img.height)));
-        CBRF (pageW > 0 && pageH > 0,
-              LogPrinter (std::format (L"blit: device reported a degenerate page ({}x{})", pageW, pageH)));
+        CBR (img.width > 0 && img.height > 0);
+        CBR (pageW > 0 && pageH > 0);
 
         count = (size_t) img.width * img.height;
         bgra.resize (count * 4);
@@ -362,8 +262,6 @@ namespace
         {
             DWORD   gle = ::GetLastError ();
 
-            LogPrinter (std::format (L"StretchDIBits failed (ret={}): src {}x{} -> dest {}x{} on page {}x{}, GetLastError={}",
-                                     blit, img.width, img.height, destW, destH, pageW, pageH, gle));
             hr = (gle != 0) ? HRESULT_FROM_WIN32 (gle) : E_FAIL;
             goto Error;
         }
@@ -1144,13 +1042,8 @@ HRESULT WindowCommandManager::PrintToWindowsPrinter (const PrintRaster & raster,
     int                                    pageH   = 0;
     int                                    pageIx  = 0;
 
-    LogPrinter (std::format (L"deliver: {} rows -> {} page(s), dpi={}, style={}",
-                             raster.RowsUsed (), pages.size (), PrintDpiFromPrefs (prefs),
-                             PrintDotStyleFromPrefs (prefs) == DotStyle::Ink ? L"ink" : L"plain"));
-
     CBRF (!pages.empty (),
-          failedStage = L"pagination (the page has no printable content)";
-          LogPrinter (L"deliver: nothing to print (0 pages)"));
+          failedStage = L"pagination (the page has no printable content)");
 
     // Microsoft Print to PDF (and other v4 / XPS print drivers) create their
     // device context through cross-process COM that aborts with 995
@@ -1169,20 +1062,10 @@ HRESULT WindowCommandManager::PrintToWindowsPrinter (const PrintRaster & raster,
 
     if (!PrintDlgW (&pd))
     {
-        // CommDlgExtendedError == 0 means the user simply cancelled the dialog.
-        DWORD   cderr = CommDlgExtendedError ();
-
-        LogPrinter (std::format (L"PrintDlg returned false (CommDlgExtendedError=0x{:X}){}",
-                                 cderr, cderr == 0 ? L" -- user cancelled" : L""));
+        // CommDlgExtendedError() == 0 means the user simply cancelled the dialog.
         hr = S_FALSE;   // cancelled / closed
         goto Error;
     }
-    LogPrinter (std::format (L"printer='{}' integrity={} hDC={} hDevNames={} hDevMode={} gdi={}",
-                             SelectedPrinterName (pd), ProcessIntegrity (),
-                             pd.hDC != nullptr ? L"ok" : L"NULL",
-                             pd.hDevNames != nullptr ? L"yes" : L"null",
-                             pd.hDevMode != nullptr ? L"yes" : L"null",
-                             GetGuiResources (GetCurrentProcess (), GR_GDIOBJECTS)));
 
     // PD_RETURNDC should have created the DC. When it flakes (TRUE + null hDC +
     // no error -- seen intermittently with Print-to-PDF in a long-lived
@@ -1191,13 +1074,7 @@ HRESULT WindowCommandManager::PrintToWindowsPrinter (const PrintRaster & raster,
     // PrintDlg-created one (the Error cleanup DeleteDC's pd.hDC either way).
     if (pd.hDC == nullptr)
     {
-        DWORD   cderr = CommDlgExtendedError ();
-        DWORD   gle   = GetLastError ();
-
         pd.hDC = CreateDcFromDevNames (pd);
-        LogPrinter (std::format (L"PrintDlg returned a null DC (CommDlgExtendedError=0x{:X}, GetLastError={}); "
-                                 L"CreateDC fallback {}",
-                                 cderr, gle, pd.hDC != nullptr ? L"succeeded" : L"also failed"));
     }
 
     CBRFEx (pd.hDC != nullptr, E_FAIL,
@@ -1221,9 +1098,6 @@ HRESULT WindowCommandManager::PrintToWindowsPrinter (const PrintRaster & raster,
 
     pageW = GetDeviceCaps (pd.hDC, HORZRES);
     pageH = GetDeviceCaps (pd.hDC, VERTRES);
-    LogPrinter (std::format (L"device page: {}x{} px, {}x{} dpi",
-                             pageW, pageH,
-                             GetDeviceCaps (pd.hDC, LOGPIXELSX), GetDeviceCaps (pd.hDC, LOGPIXELSY)));
 
     for (const PrintPagination::PageRange & pr : pages)
     {
@@ -1235,9 +1109,7 @@ HRESULT WindowCommandManager::PrintToWindowsPrinter (const PrintRaster & raster,
         opt.style     = PrintDotStyleFromPrefs (prefs);
 
         hr = renderer.Render (raster, pr.firstRow, pr.lastRow, opt, img);
-        CHRF (hr,
-              failedStage = std::format (L"rendering page {}", pageIx + 1);
-              LogPrinter (std::format (L"page {} render failed, hr=0x{:08X}", pageIx, (uint32_t) hr)));
+        CHRF (hr, failedStage = std::format (L"rendering page {}", pageIx + 1));
 
         // Every spool call routes through HrFromSpoolResult: SP_* return codes
         // and GetLastError map to honest HRESULTs, and a mid-job user abort
@@ -1251,9 +1123,7 @@ HRESULT WindowCommandManager::PrintToWindowsPrinter (const PrintRaster & raster,
         }
 
         hr = BlitRgbaToDc (pd.hDC, img, pageW, pageH);
-        CHRF (hr,
-              failedStage = std::format (L"drawing page {} onto the printer", pageIx + 1);
-              LogPrinter (std::format (L"page {} blit failed, hr=0x{:08X}", pageIx, (uint32_t) hr)));
+        CHRF (hr, failedStage = std::format (L"drawing page {} onto the printer", pageIx + 1));
 
         hr = HrFromSpoolResult (EndPage (pd.hDC), L"EndPage", pageIx);
         if (hr != S_OK)
@@ -1272,14 +1142,8 @@ HRESULT WindowCommandManager::PrintToWindowsPrinter (const PrintRaster & raster,
         goto Error;
     }
     started = false;
-    LogPrinter (std::format (L"deliver: success ({} page(s) sent)", pages.size ()));
 
 Error:
-    if (FAILED (hr))
-    {
-        LogPrinter (std::format (L"deliver: FAILED, hr=0x{:08X}", (uint32_t) hr));
-    }
-
     if (started && pd.hDC != nullptr)
     {
         AbortDoc (pd.hDC);
