@@ -255,10 +255,20 @@ float Ay8910::GenerateSample()
     float    result = 0.0f;
     int      ticks  = 0;
     int      i      = 0;
+    bool     silent = false;
 
 
 
     CBRAEx (m_sampleRate != 0, E_UNEXPECTED);
+
+    // Silence fast-path: with every channel amplitude register zero (fixed
+    // volume 0, envelope mode off) the mixed output is 0 regardless of the
+    // tone / noise / envelope phases, so skip advancing the generators and
+    // return silence (result is already 0). The frozen phases are unobservable
+    // while the whole chip is muted and resume on the next amplitude write; a
+    // single active channel disables the fast-path so real playback is exact.
+    silent = IsSilent();
+    BAIL_OUT_IF (silent, S_OK);
 
     m_tickAccum += m_ticksPerSample;
     ticks        = static_cast<int> (m_tickAccum);
@@ -483,6 +493,36 @@ float Ay8910::CurrentOutput () const
     }
 
     return out;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  IsSilent
+//
+//  True when every channel amplitude register is zero -- fixed volume 0 with
+//  envelope mode off -- so the mixed output is guaranteed silence regardless
+//  of the tone / noise / envelope phases.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool Ay8910::IsSilent () const
+{
+    int   c = 0;
+
+
+    for (c = 0; c < s_kChannelCount; c++)
+    {
+        if (m_regs[kRegAmpA + c] != 0)
+        {
+            return false;
+        }
+    }
+
+    return true;
 }
 
 
