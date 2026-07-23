@@ -47,6 +47,21 @@ Byte MemoryBusCpu::ReadByte (Word address)
 {
     UpdateBusCycle ();
 
+    // Fast path: inline the page-table read for $0000-$BFFF so RAM/ROM
+    // accesses -- every instruction fetch and most operands -- skip the
+    // out-of-line MemoryBus::ReadByte call. The page-hit read has no bus
+    // side effects; I/O ($C000+) and unmapped low pages fall through to the
+    // bus for device dispatch / floating-bus semantics.
+    if (address < 0xC000)
+    {
+        Byte * page = m_memoryBus.GetReadPage (address);
+
+        if (page != nullptr)
+        {
+            return page[address & 0xFF];
+        }
+    }
+
     return m_memoryBus.ReadByte (address);
 }
 
