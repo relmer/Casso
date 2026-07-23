@@ -89,12 +89,10 @@ void Apple80ColTextMode::Render (
     int fbWidth,
     int fbHeight)
 {
-    m_frameCount++;
-
-    // Flash toggles every ~16 frames (approximately 0.5 second at 60fps).
-    // ALTCHARSET=1 disables flash on the //e: only ALTCHARSET=0 mode flashes.
-    m_flashOn = ((m_frameCount / 16) & 1) == 0;
-
+    // Flash phase is driven externally via SetFlashState (from emulated
+    // time), not advanced here -- so the render loop can skip unchanged
+    // frames without freezing the flash blink. ALTCHARSET=1 still suppresses
+    // flash in RenderRowRange (only ALTCHARSET=0 mode blinks).
     RenderRowRange (0, kTextRows, videoRam, framebuffer, fbWidth, fbHeight);
 }
 

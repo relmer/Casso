@@ -102,11 +102,9 @@ void AppleTextMode::Render (
     int fbWidth,
     int fbHeight)
 {
-    m_frameCount++;
-
-    // Flash toggles every ~16 frames (approximately 0.5 second at 60fps)
-    m_flashOn = ((m_frameCount / 16) & 1) == 0;
-
+    // Flash phase is driven externally via SetFlashState (from emulated
+    // time), not advanced here -- so the render loop can skip unchanged
+    // frames without freezing the cursor/flash blink.
     RenderRowRange (0, kTextRows, videoRam, framebuffer, fbWidth, fbHeight);
 }
 

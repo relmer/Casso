@@ -586,6 +586,21 @@ HRESULT EmulatorShell::Initialize (
     hr = BuildMachineDevices (config);
     CHR (hr);
 
+    // Mark the display pages so a write into them raises the bus video-dirty
+    // flag that drives the render-skip gate: text pages 1/2 ($0400-$0BFF) and
+    // hi-res pages 1/2 ($2000-$5FFF). Aux writes share these page indices (the
+    // //e MMU re-points them), so watching the index covers main and aux.
+    // The page layout is identical across every Apple II variant, so this is
+    // set once and survives an in-session machine switch.
+    for (int page = 0x04; page <= 0x0B; page++)
+    {
+        m_memoryBus.SetVideoWatchPage (page, true);
+    }
+    for (int page = 0x20; page <= 0x5F; page++)
+    {
+        m_memoryBus.SetVideoWatchPage (page, true);
+    }
+
     hr = InitializeRenderer();
     CHR (hr);
 
@@ -4123,27 +4138,20 @@ void EmulatorShell::StepInstructionWhilePaused()
 
 void EmulatorShell::PublishFramebuffer()
 {
-    HRESULT   hr   = S_OK;
-    uint64_t  hash = HashFramebuffer (m_cpuFramebuffer);
-    BOOL      ok   = FALSE;
+    HRESULT  hr = S_OK;
+    BOOL     ok = FALSE;
 
 
 
-    // Identical to the last published frame: skip the copy, the UI wake, and
-    // the downstream present. No lock on the hash state -- the CPU thread and
-    // the paused single-step path (which parks the CPU thread first) never
-    // publish concurrently.
-    BAIL_OUT_IF (m_fbHashValid && hash == m_lastPublishedFbHash, S_OK);
-
+    // The render-skip gate in RunCpuThreadFrame already decided the frame
+    // changed, so this always publishes -- no per-frame hash. Copy under the
+    // mutex, then wake the UI thread.
     {
         lock_guard<mutex>  lock (m_fbMutex);
 
         m_uiFramebuffer = m_cpuFramebuffer;
         m_fbReady       = true;
     }
-
-    m_lastPublishedFbHash = hash;
-    m_fbHashValid         = true;
 
     if (m_frameReadyEvent != nullptr)
     {
@@ -4180,22 +4188,50 @@ void EmulatorShell::RunOneFrame()
 //  RunCpuThreadFrame
 //
 //  The CPU thread's per-frame callback. Always advances the emulation
-//  (ExecuteCpuSlices), but only rasterizes the video + publishes the
-//  framebuffer when ShouldPublishFrame allows -- at Maximum speed the CPU
-//  runs flat-out while the presentation side is sampled at ~60 Hz, so we
-//  don't rasterize + copy hundreds of frames a second the UI never shows.
+//  (ExecuteCpuSlices). Then, at most ~60 Hz (ShouldPublishFrame throttles
+//  Maximum speed), it renders + publishes ONLY when the picture can have
+//  changed: the bus raised video-dirty (a write into a display page or a
+//  banking change), or the video mode / flash phase / color signature moved.
+//  A steady screen re-rasterizes nothing -- just a few cheap comparisons.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void EmulatorShell::RunCpuThreadFrame()
 {
+    uint32_t  modeSig     = 0;
+    bool      flashOn     = false;
+    uint64_t  colorSig    = 0;
+    bool      needsRender = false;
+
+
+
     ExecuteCpuSlices();
 
-    if (ShouldPublishFrame())
+    if (!ShouldPublishFrame())
     {
-        RenderFramebuffer();
-        PublishFramebuffer();
+        return;
     }
+
+    modeSig     = ComputeVideoModeSig();
+    flashOn     = ComputeFlashOn();
+    colorSig    = ComputeColorSig();
+    needsRender = m_memoryBus.VideoDirty()
+                  || modeSig  != m_lastRenderModeSig
+                  || flashOn  != m_lastRenderFlashOn
+                  || colorSig != m_lastRenderColorSig;
+
+    if (!needsRender)
+    {
+        return;
+    }
+
+    RenderFramebuffer();
+    PublishFramebuffer();
+
+    m_memoryBus.ClearVideoDirty();
+    m_lastRenderModeSig  = modeSig;
+    m_lastRenderFlashOn  = flashOn;
+    m_lastRenderColorSig = colorSig;
 }
 
 
@@ -4241,29 +4277,92 @@ bool EmulatorShell::ShouldPublishFrame()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  HashFramebuffer
+//  ComputeVideoModeSig
 //
-//  64-bit FNV-1a over the framebuffer words. Feeds PublishFramebuffer's
-//  skip-identical-frame gate; a 1-in-2^64 collision merely drops one
-//  present, so the cheap hash is worth the vanishingly small risk.
+//  Packs every soft-switch that changes what the renderer produces into a
+//  small integer: the base graphics/mixed/page2/hi-res selects plus the //e
+//  80STORE / 80COL / ALTCHARSET / double-hi-res bits. Any change re-renders.
+//  Mirrors exactly the inputs MachineManager::SelectVideoMode reads.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-uint64_t EmulatorShell::HashFramebuffer (const vector<uint32_t> & fb)
+uint32_t EmulatorShell::ComputeVideoModeSig()
 {
-    static constexpr uint64_t  s_kFnvOffsetBasis = 1469598103934665603ull;
-    static constexpr uint64_t  s_kFnvPrime       = 1099511628211ull;
-
-    uint64_t  hash = s_kFnvOffsetBasis;
+    uint32_t                  sig = 0;
+    Apple2eSoftSwitchBank *   iie = nullptr;
 
 
-
-    for (uint32_t word : fb)
+    if (m_refs.softSwitches == nullptr)
     {
-        hash = (hash ^ word) * s_kFnvPrime;
+        return 0;
     }
 
-    return hash;
+    sig |= m_refs.softSwitches->IsGraphicsMode() ? 0x01u : 0u;
+    sig |= m_refs.softSwitches->IsMixedMode()    ? 0x02u : 0u;
+    sig |= m_refs.softSwitches->IsPage2()        ? 0x04u : 0u;
+    sig |= m_refs.softSwitches->IsHiresMode()    ? 0x08u : 0u;
+
+    iie = dynamic_cast<Apple2eSoftSwitchBank *> (m_refs.softSwitches);
+
+    if (iie != nullptr)
+    {
+        sig |= iie->Is80Store()     ? 0x10u : 0u;
+        sig |= iie->Is80ColMode()   ? 0x20u : 0u;
+        sig |= iie->IsAltCharSet()  ? 0x40u : 0u;
+        sig |= iie->IsDoubleHiRes() ? 0x80u : 0u;
+    }
+
+    return sig;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ComputeFlashOn
+//
+//  Derives the text flash/cursor-blink phase from emulated time (total CPU
+//  cycles), toggling every 16 emulated frames as the real VBL-driven blink
+//  does. Computed independently of rendering so the gate can re-render on a
+//  toggle without the flash freezing when frames are skipped.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool EmulatorShell::ComputeFlashOn()
+{
+    uint64_t  cyclesPerToggle = 16ull * m_cyclesPerFrame;
+
+
+    if (m_cpu == nullptr || cyclesPerToggle == 0)
+    {
+        return true;
+    }
+
+    return ((m_cpu->GetTotalCycles() / cyclesPerToggle) & 1ull) == 0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ComputeColorSig
+//
+//  Folds the monitor color mode and the color-monitor text color into one
+//  value so a live change (View menu / Settings) re-renders the frame.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+uint64_t EmulatorShell::ComputeColorSig()
+{
+    uint64_t  mode = (uint64_t) m_colorMode.load (memory_order_acquire);
+    uint64_t  argb = (uint64_t) m_colorMonitorTextArgb.load (memory_order_acquire);
+
+
+    return (mode << 32) | argb;
 }
 
 
@@ -4449,14 +4548,17 @@ void EmulatorShell::ExecuteCpuSlices()
 
 void EmulatorShell::RenderFramebuffer()
 {
-    ColorMode color = m_colorMode.load (memory_order_acquire);
+    ColorMode  color   = m_colorMode.load (memory_order_acquire);
+    bool       flashOn = ComputeFlashOn();
 
 
 
     // A color monitor renders text white; the monochrome monitors keep the
     // text renderer's green here and the post-render tint below recolors the
     // whole frame to the selected phosphor. m_videoModes[0] is the 40-col
-    // text mode and [4] (when present) the 80-col mode.
+    // text mode and [4] (when present) the 80-col mode. Flash state is pushed
+    // in from emulated time (Render no longer self-advances it) so the blink
+    // survives the render-skip gate.
     {
         uint32_t textOnColor = (color == ColorMode::Color)
                                    ? m_colorMonitorTextArgb.load (memory_order_acquire)
@@ -4464,12 +4566,18 @@ void EmulatorShell::RenderFramebuffer()
 
         if (!m_videoModes.empty())
         {
-            static_cast<AppleTextMode *> (m_videoModes[0].get())->SetOnColor (textOnColor);
+            AppleTextMode *  text40 = static_cast<AppleTextMode *> (m_videoModes[0].get());
+
+            text40->SetOnColor    (textOnColor);
+            text40->SetFlashState (flashOn);
         }
 
         if (m_videoModes.size() > 4)
         {
-            static_cast<Apple80ColTextMode *> (m_videoModes[4].get())->SetOnColor (textOnColor);
+            Apple80ColTextMode *  text80 = static_cast<Apple80ColTextMode *> (m_videoModes[4].get());
+
+            text80->SetOnColor    (textOnColor);
+            text80->SetFlashState (flashOn);
         }
     }
 

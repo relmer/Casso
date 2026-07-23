@@ -129,9 +129,10 @@ public:
 
     TEST_METHOD (Render_FlashChar_AlternatesAcrossFrames)
     {
-        // Flash 'A' = $41 should alternate between inverse and normal.
-        // Render() increments an internal frame counter and toggles flash
-        // every 16 frames, so we render 17 times to capture both states.
+        // Flash 'A' = $41 should alternate between inverse and normal as the
+        // externally-driven flash phase toggles. Render() no longer advances
+        // flash itself -- the caller sets it via SetFlashState -- so drive
+        // both phases explicitly.
         MemoryBus bus;
         RamDevice ram (0x0000, 0x0BFF);
         bus.AddDevice (&ram);
@@ -146,16 +147,15 @@ public:
         std::vector<uint32_t> fb1 (fbW * fbH, 0);
         std::vector<uint32_t> fb2 (fbW * fbH, 0);
 
-        // First render (frame 1, flash on = true -> inverse)
+        // Flash on -> inverse phase
+        textMode.SetFlashState (true);
         textMode.Render (nullptr, fb1.data (), fbW, fbH);
 
-        // Render 16 more times to toggle flash state
-        for (int i = 0; i < 16; i++)
-        {
-            textMode.Render (nullptr, fb2.data (), fbW, fbH);
-        }
+        // Flash off -> normal phase
+        textMode.SetFlashState (false);
+        textMode.Render (nullptr, fb2.data (), fbW, fbH);
 
-        // The first and last renders should differ since flash toggled
+        // The two phases should differ since flash toggled
         bool differs = false;
 
         for (int y = 0; y < 16 && !differs; y++)

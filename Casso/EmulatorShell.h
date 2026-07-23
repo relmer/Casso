@@ -252,11 +252,15 @@ private:
     void RenderFramebuffer();
     void DispatchCpuCommand (const EmulatorCommand & cmd);
 
-    // Presentation pacing + content-change gate (rationale in the .cpp).
+    // Presentation pacing + render-skip gate (rationale in the .cpp).
     // ShouldPublishFrame throttles rasterize/publish to ~60 Hz at Maximum
-    // speed; HashFramebuffer feeds the skip-identical-frame gate.
-    bool             ShouldPublishFrame ();
-    static uint64_t  HashFramebuffer    (const vector<uint32_t> & fb);
+    // speed; the Compute* signatures feed the dirty-tracked render gate that
+    // skips re-rasterizing an unchanged screen (video RAM dirty + mode +
+    // flash phase + color).
+    bool      ShouldPublishFrame  ();
+    uint32_t  ComputeVideoModeSig ();
+    bool      ComputeFlashOn      ();
+    uint64_t  ComputeColorSig     ();
 
     // Stores the live drive-audio gains and applies them to every
     // registered Disk2AudioSource. Must run on the CPU thread (the same
@@ -992,12 +996,14 @@ private:
     // polling with Sleep(1). Created/destroyed by RunMessageLoop.
     HANDLE                        m_frameReadyEvent = nullptr;
 
-    // Content-change gate: PublishFramebuffer hashes the freshly rendered CPU
-    // framebuffer and skips the copy + UI wake when it matches the last
-    // published frame, so a static screen stops re-running the CRT post-
-    // process at 60 Hz. CPU-thread-only (the thread is paused during a step).
-    uint64_t                      m_lastPublishedFbHash = 0;
-    bool                          m_fbHashValid         = false;
+    // Render-skip gate: the signatures of the last rendered frame's inputs
+    // (video mode/soft-switches, flash phase, color mode + text color). Each
+    // CPU-thread frame compares the live inputs plus the bus video-dirty flag
+    // against these and skips the whole rasterize + publish when nothing that
+    // affects the picture has changed. CPU-thread-only (paused during a step).
+    uint32_t                      m_lastRenderModeSig  = 0;
+    bool                          m_lastRenderFlashOn  = false;
+    uint64_t                      m_lastRenderColorSig = 0;
 
     // Wall-clock pacing for the presentation side at Maximum speed: the CPU
     // runs flat-out, but frames are rasterized + published only ~60x a second

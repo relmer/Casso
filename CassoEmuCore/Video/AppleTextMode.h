@@ -64,5 +64,4 @@ private:
     bool                     m_flashOn    = true;
     bool                     m_altCharSet = false;
     uint32_t                 m_onColor    = 0xFF00FF00;   // BGRA green (default)
-    uint32_t                 m_frameCount = 0;
 };

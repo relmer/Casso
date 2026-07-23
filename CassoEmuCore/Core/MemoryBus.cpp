@@ -77,7 +77,20 @@ void MemoryBus::WriteByte (Word address, Byte value)
 
         if (page != nullptr)
         {
-            page[address & 0xFF] = value;
+            Byte * cell = &page[address & 0xFF];
+
+            // Video-dirty raise: only a write that actually CHANGES a byte in a
+            // watched display page marks the frame for re-render. The watched
+            // check short-circuits for the common non-video write, so the hot
+            // path pays only a cached-array load; a same-value re-store (e.g. a
+            // cursor re-asserted on every keyboard poll) does not force a
+            // needless re-rasterize.
+            if (m_videoWatched[address >> 8] && *cell != value)
+            {
+                m_videoDirty = true;
+            }
+
+            *cell = value;
             return;
         }
 
@@ -220,6 +233,7 @@ void MemoryBus::Reset()
     }
 
     m_floatingBusValue = 0xFF;
+    m_videoDirty       = true;
 }
 
 

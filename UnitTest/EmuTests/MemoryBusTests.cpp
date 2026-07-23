@@ -365,3 +365,110 @@ public:
             L"Should return device value");
     }
 };
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MemoryBusVideoDirtyTests
+//
+//  Proves the render-skip dirty flag: a fresh bus starts dirty, a write into
+//  a watched display page (or a banking change, or a reset) raises it, a write
+//  elsewhere does not, and ClearVideoDirty resets it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+TEST_CLASS (MemoryBusVideoDirtyTests)
+{
+public:
+
+    TEST_METHOD (VideoDirty_StartsTrue_SoFirstFramePaints)
+    {
+        MemoryBus bus;
+
+        Assert::IsTrue (bus.VideoDirty (),
+            L"A fresh bus must start dirty so the first frame renders");
+    }
+
+    TEST_METHOD (WriteToWatchedPage_RaisesDirty)
+    {
+        MemoryBus  bus;
+        Byte       page[0x100] = {};
+
+        bus.SetWritePage     (0x04, page);   // $0400 text page
+        bus.SetVideoWatchPage (0x04, true);
+        bus.ClearVideoDirty  ();
+
+        bus.WriteByte (0x0400, 0x41);
+
+        Assert::IsTrue (bus.VideoDirty (),
+            L"Write into a watched display page must raise video-dirty");
+    }
+
+    TEST_METHOD (WriteToUnwatchedPage_LeavesClean)
+    {
+        MemoryBus  bus;
+        Byte       page[0x100] = {};
+
+        bus.SetWritePage    (0x60, page);    // $6000, not a display page
+        bus.ClearVideoDirty ();
+
+        bus.WriteByte (0x6000, 0x41);
+
+        Assert::IsFalse (bus.VideoDirty (),
+            L"Write outside any watched page must not raise video-dirty");
+    }
+
+    TEST_METHOD (SameValueRewriteToWatchedPage_LeavesClean)
+    {
+        MemoryBus  bus;
+        Byte       page[0x100] = {};
+
+        bus.SetWritePage     (0x04, page);
+        bus.SetVideoWatchPage (0x04, true);
+
+        bus.WriteByte       (0x0400, 0x41);   // first write changes 0x00 -> 0x41
+        bus.ClearVideoDirty ();
+
+        bus.WriteByte (0x0400, 0x41);         // same value re-stored
+
+        Assert::IsFalse (bus.VideoDirty (),
+            L"Re-storing the identical byte must not raise video-dirty");
+    }
+
+    TEST_METHOD (BankingChange_RaisesDirty)
+    {
+        MemoryBus  bus;
+
+        bus.ClearVideoDirty ();
+        bus.NotifyBankingChanged ();
+
+        Assert::IsTrue (bus.VideoDirty (),
+            L"A banking change can swap the displayed buffer, so it must "
+            L"raise video-dirty");
+    }
+
+    TEST_METHOD (Reset_RaisesDirty)
+    {
+        MemoryBus  bus;
+
+        bus.ClearVideoDirty ();
+        bus.Reset ();
+
+        Assert::IsTrue (bus.VideoDirty (),
+            L"Reset changes the screen, so it must raise video-dirty");
+    }
+
+    TEST_METHOD (ClearVideoDirty_Clears)
+    {
+        MemoryBus  bus;
+
+        bus.MarkVideoDirty ();
+        bus.ClearVideoDirty ();
+
+        Assert::IsFalse (bus.VideoDirty (),
+            L"ClearVideoDirty must reset the flag");
+    }
+};

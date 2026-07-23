@@ -23,16 +23,19 @@ Entries before versioning was introduced use dates only.
   because the scene trades screen real estate for the look.
 
 ### Changed
-- **perf(shell): idle CPU and GPU** — the emulator no longer re-runs the full
-  CRT post-process and Present every 60 Hz when nothing on screen has changed.
-  Each rendered frame is compared against the last one and the whole display
-  pipeline is skipped for byte-identical frames, so a static screen (a menu, a
-  BASIC prompt) drops render work to near zero instead of pinning the GPU at a
-  constant load. The UI thread now blocks until the next frame or input arrives
-  rather than spin-polling, and at Maximum speed the CPU runs flat-out while the
-  picture is still only rasterized and shown ~60 times a second — no more
-  burning cores rendering frames no one ever sees. Drive-activity lights keep
-  animating through a disk load even behind an otherwise static screen.
+- **perf(shell): idle CPU and GPU** — the emulator no longer re-rasterizes the
+  screen and re-runs the full CRT post-process + Present every 60 Hz when
+  nothing on screen has changed. The memory bus now tracks writes into the
+  display pages (dirty-tracking), so the video frame is regenerated only when
+  the picture's actual inputs move — a write that changes displayed memory, a
+  video mode / soft-switch change, the text flash phase, or the monitor color —
+  and a static screen (a menu, a BASIC prompt) drops render + present work
+  toward zero instead of pinning the GPU at a constant load. The UI thread now
+  blocks until the next frame or input arrives rather than spin-polling, and at
+  Maximum speed the CPU runs flat-out while the picture is still only shown ~60
+  times a second — no more burning cores on frames no one ever sees.
+  Drive-activity lights keep animating through a disk load even behind an
+  otherwise static screen.
 
 ### Fixed
 - **fix(shell): saved CPU speed now applies at startup** — a saved emulation
