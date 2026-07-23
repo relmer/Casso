@@ -6,6 +6,24 @@
 
 
 
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Constants
+//
+////////////////////////////////////////////////////////////////////////////////
+
+// Apple II display pages are addressed in 128-byte blocks whose last 8 bytes
+// ($78-$7F within the block) are "screen holes" -- undisplayed scratch RAM the
+// slot firmware and DOS hammer in poll loops. The pattern is identical across
+// text, lo-res, and hi-res pages (same low-7-bit video addressing), so a write
+// is displayed iff its block offset is below $78. Screen-hole writes must not
+// dirty the frame or an idle DOS prompt re-rasterizes needlessly.
+static constexpr Word  s_kScreenBlockMask     = 0x7F;
+static constexpr Word  s_kFirstScreenHoleByte = 0x78;
+
+
+
+
 
 ////////////////////////////////////////////////////////////////////////////////
 //
@@ -79,13 +97,15 @@ void MemoryBus::WriteByte (Word address, Byte value)
         {
             Byte * cell = &page[address & 0xFF];
 
-            // Video-dirty raise: only a write that actually CHANGES a byte in a
-            // watched display page marks the frame for re-render. The watched
-            // check short-circuits for the common non-video write, so the hot
-            // path pays only a cached-array load; a same-value re-store (e.g. a
-            // cursor re-asserted on every keyboard poll) does not force a
-            // needless re-rasterize.
-            if (m_videoWatched[address >> 8] && *cell != value)
+            // Video-dirty raise: only a write that actually CHANGES a
+            // *displayed* byte in a watched page marks the frame for re-render.
+            // The watched check short-circuits the common non-video write; the
+            // screen-hole check drops undisplayed scratch writes; and the
+            // value compare drops same-value re-stores -- so an idle screen
+            // whose firmware polls through the screen holes stops re-rendering.
+            if (m_videoWatched[address >> 8]                       &&
+                (address & s_kScreenBlockMask) < s_kFirstScreenHoleByte &&
+                *cell != value)
             {
                 m_videoDirty = true;
             }

@@ -438,6 +438,26 @@ public:
             L"Re-storing the identical byte must not raise video-dirty");
     }
 
+    TEST_METHOD (ScreenHoleWrite_LeavesClean_DisplayedWrite_Dirties)
+    {
+        MemoryBus  bus;
+        Byte       page[0x100] = {};
+
+        bus.SetWritePage     (0x04, page);
+        bus.SetVideoWatchPage (0x04, true);
+        bus.ClearVideoDirty ();
+
+        // $0478 is a screen hole (block offset $78) -- undisplayed scratch.
+        bus.WriteByte (0x0478, 0xAB);
+        Assert::IsFalse (bus.VideoDirty (),
+            L"A changing write to a screen-hole byte must not dirty the frame");
+
+        // $0477 is displayed (block offset $77) -- must dirty.
+        bus.WriteByte (0x0477, 0xCD);
+        Assert::IsTrue (bus.VideoDirty (),
+            L"A changing write to a displayed byte must dirty the frame");
+    }
+
     TEST_METHOD (BankingChange_RaisesDirty)
     {
         MemoryBus  bus;
