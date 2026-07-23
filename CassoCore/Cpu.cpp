@@ -276,9 +276,9 @@ bool Cpu::DumpTraceToFile (const std::wstring & path,
 void Cpu::StepOne()
 {
 
-    Byte        opcode      = ReadByte (PC);
-    Microcode   microcode   = instructionSet[opcode];
-    OperandInfo operandInfo = { 0 };
+    Byte              opcode      = ReadByte (PC);
+    const Microcode & microcode   = instructionSet[opcode];
+    OperandInfo       operandInfo = { 0 };
 
 
 
@@ -537,7 +537,7 @@ void Cpu::PrintOperandAndComment (Byte opcode, const OperandInfo & operandInfo)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void Cpu::FetchOperand (Microcode microcode, OperandInfo & operandInfo)
+void Cpu::FetchOperand (const Microcode & microcode, OperandInfo & operandInfo)
 {
     operandInfo.location         = 0;
     operandInfo.effectiveAddress = 0;
@@ -791,7 +791,7 @@ void Cpu::FetchOperandRelative (Cpu::OperandInfo & operandInfo)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void Cpu::FetchOperandAbsolute (Cpu::OperandInfo & operandInfo, Microcode & microcode)
+void Cpu::FetchOperandAbsolute (Cpu::OperandInfo & operandInfo, const Microcode & microcode)
 {
     operandInfo.location         = ReadWord (PC++);
     operandInfo.effectiveAddress = operandInfo.location;
@@ -910,7 +910,7 @@ void Cpu::FetchOperandAbsoluteX (Cpu::OperandInfo & operandInfo)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void Cpu::ExecuteInstruction (Microcode microcode, const OperandInfo & operandInfo)
+void Cpu::ExecuteInstruction (const Microcode & microcode, const OperandInfo & operandInfo)
 {
     Byte * pAccumulator = nullptr;
 

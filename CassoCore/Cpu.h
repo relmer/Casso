@@ -65,13 +65,13 @@ protected:
     void PrintSingleStepInfo           (Word initialPC, Byte opcode, const OperandInfo & operandInfo);
     void PrintOperandAndComment        (Byte opcode, const OperandInfo & operandInfo);
     void PrintOperandBytes             (Word initialPC, Byte opcode);
-    void FetchOperand                  (Microcode microcode, OperandInfo & operandInfo);
+    void FetchOperand                  (const Microcode & microcode, OperandInfo & operandInfo);
     void FetchOperandAbsoluteX         (Cpu::OperandInfo & operandInfo);
     void FetchOperandAbsoluteY         (Cpu::OperandInfo & operandInfo);
     void FetchOperandZeroPageX         (Cpu::OperandInfo & operandInfo);
     void FetchOperandZeroPageY         (Cpu::OperandInfo & operandInfo);
     void FetchOperandZeroPageIndirectY (Cpu::OperandInfo & operandInfo);
-    void FetchOperandAbsolute          (Cpu::OperandInfo & operandInfo, Microcode & microcode);
+    void FetchOperandAbsolute          (Cpu::OperandInfo & operandInfo, const Microcode & microcode);
     void FetchOperandImmediate         (Cpu::OperandInfo & operandInfo);
     void FetchOperandJumpAbsolute      (Cpu::OperandInfo & operandInfo);
     void FetchOperandJumpIndirect      (Cpu::OperandInfo & operandInfo);
@@ -87,7 +87,7 @@ protected:
     void FetchOperandZeroPageRelative  (Cpu::OperandInfo & operandInfo);
     void FetchOperandJumpIndirectCmos  (Cpu::OperandInfo & operandInfo);
 
-    void ExecuteInstruction            (Microcode microcode, const OperandInfo & operandInfo);
+    void ExecuteInstruction            (const Microcode & microcode, const OperandInfo & operandInfo);
 
     // Stack operations
     void PushByte (Byte value);
