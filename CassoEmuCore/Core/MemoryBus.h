@@ -107,33 +107,31 @@ public:
 private:
     MemoryDevice * FindDevice (Word address) const;
 
-    // Clear every dispatch-cache slot. Called from the constructor and whenever
-    // the device list changes (AddDevice / RemoveDevice), the only events that
-    // can alter which device an address resolves to.
-    void InvalidateDispatchCache ();
+    // Rebuild the I/O dispatch map from the current device list. Called from
+    // the constructor and after any AddDevice / RemoveDevice -- the only events
+    // that can change which device an address resolves to.
+    void BuildIoDeviceMap ();
 
     vector<BusEntry>        m_entries;
     Byte                    m_floatingBusValue = 0xFF;
 
-    // Dispatch cache. FindDevice's linear scan runs on every $C000+ read and
-    // write -- I/O plus ROM/language-card fetches, since only $0000-$BFFF is
-    // served inline by the CPU's page table. Tight loops hammer a small set of
-    // exact addresses: the ROM keyboard poll (KEYIN -- a handful of $Fxxx fetch
-    // bytes plus $C000), speaker clicks ($C030), paddle timing ($C064-$C070).
-    // This direct-mapped cache remembers address->device resolutions so repeat
-    // hits skip the scan.
+    // I/O dispatch map. FindDevice used to linear-scan the device list on every
+    // $C000+ read and write -- I/O plus ROM/language-card fetches, since only
+    // $0000-$BFFF is served inline by the CPU's page table, and the ROM/LC bank
+    // sits at the tail of the list so every fetched byte walked the whole scan.
     //
-    // Keyed on the exact address, never a range, so it stays correct under the
-    // bus's documented "first match wins" overlap contract: the //e keyboard
-    // ($C000-$C063) and soft-switch bank ($C050-$C07F) ranges overlap, and the
-    // scan's first-match result for a given address is exactly what a slot
-    // caches. Only a device add/remove can change a resolution, and both clear
-    // the cache. A nullptr result (unmapped $Cxxx -> floating bus) is cached
-    // too; the caller still applies the floating-bus fallback.
-    static constexpr int       kDispatchSlots   = 64;         // index = address & (kDispatchSlots - 1)
-    static constexpr uint32_t  kDispatchInvalid = 0xFFFFFFFF; // no real 16-bit address matches
-    mutable uint32_t           m_dispatchTag[kDispatchSlots]; // cached address, or kDispatchInvalid
-    mutable MemoryDevice *     m_dispatchDev[kDispatchSlots] = {};
+    // The address space is only 64 KiB, so we precompute the answer instead: a
+    // direct byte->device map over $C000-$FFFF, indexed by (address - $C000).
+    // A page-granular (address >> 8) map will not do -- page $C0 holds several
+    // overlapping sub-page devices (keyboard $C000-$C063, speaker $C030-$C03F,
+    // soft switches $C050-$C07F, ...), so byte granularity is required there.
+    // BuildIoDeviceMap paints ranges lowest-start-wins, reproducing the scan's
+    // "first match wins" overlap contract exactly; nullptr means unmapped
+    // (floating bus). RAM ($0000-$BFFF) is never in the map -- the page table
+    // serves it, and the rare null-low-page case keeps a linear-scan fallback.
+    static constexpr int    kIoMapBase = 0xC000;
+    static constexpr int    kIoMapSize = 0x10000 - kIoMapBase;  // $4000 = 16 KiB entries
+    vector<MemoryDevice *>  m_ioDeviceMap;
 
     // Per-page redirection for $0000-$BFFF. Index is high byte of address.
     // Only entries 0x00-0xBF are meaningful; $C0+ stays device-routed.

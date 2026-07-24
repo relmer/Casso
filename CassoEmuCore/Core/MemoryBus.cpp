@@ -33,7 +33,9 @@ static constexpr Word  s_kFirstScreenHoleByte = 0x78;
 
 MemoryBus::MemoryBus()
 {
-    InvalidateDispatchCache ();
+    // No devices yet: an all-null map correctly resolves every I/O address to
+    // "unmapped" until AddDevice rebuilds it.
+    m_ioDeviceMap.assign (kIoMapSize, nullptr);
 }
 
 
@@ -194,7 +196,7 @@ void MemoryBus::AddDevice (MemoryDevice * device)
 
     m_entries.insert (it, entry);
 
-    InvalidateDispatchCache ();
+    BuildIoDeviceMap ();
 }
 
 
@@ -219,7 +221,7 @@ void MemoryBus::RemoveDevice (MemoryDevice * device)
 
     m_entries.erase (it, m_entries.end());
 
-    InvalidateDispatchCache ();
+    BuildIoDeviceMap ();
 }
 
 
@@ -322,28 +324,23 @@ void MemoryBus::PowerCycleAll (Prng & prng)
 
 MemoryDevice * MemoryBus::FindDevice (Word address) const
 {
-    const int slot = address & (kDispatchSlots - 1);
-
-    if (m_dispatchTag[slot] == address)
+    if (address >= kIoMapBase)
     {
-        return m_dispatchDev[slot];
+        return m_ioDeviceMap[address - kIoMapBase];
     }
 
-    MemoryDevice * device = nullptr;
-
+    // Rare: a read/write to an unmapped low page. Production maps all of
+    // $0000-$BFFF through the page table, so this only happens on partial test
+    // buses; a linear scan of the handful of entries is fine here.
     for (const auto & entry : m_entries)
     {
         if (address >= entry.start && address <= entry.end)
         {
-            device = entry.device;
-            break;
+            return entry.device;
         }
     }
 
-    m_dispatchTag[slot] = address;
-    m_dispatchDev[slot] = device;
-
-    return device;
+    return nullptr;
 }
 
 
@@ -351,14 +348,27 @@ MemoryDevice * MemoryBus::FindDevice (Word address) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  InvalidateDispatchCache
+//  BuildIoDeviceMap
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void MemoryBus::InvalidateDispatchCache ()
+void MemoryBus::BuildIoDeviceMap ()
 {
-    for (int i = 0; i < kDispatchSlots; i++)
+    fill (m_ioDeviceMap.begin (), m_ioDeviceMap.end (), nullptr);
+
+    // Paint each device's footprint in $C000-$FFFF into the map. Walking the
+    // entries from highest start address down to lowest lets a lower-start
+    // device overwrite any overlap, so a lookup returns exactly what the
+    // linear "first match wins" scan would (m_entries is sorted ascending by
+    // start). Ranges below $C000 (main RAM) contribute nothing to the I/O map.
+    for (auto it = m_entries.rbegin (); it != m_entries.rend (); ++it)
     {
-        m_dispatchTag[i] = kDispatchInvalid;
+        int lo = max<int> (it->start, kIoMapBase);
+        int hi = it->end;
+
+        for (int address = lo; address <= hi; address++)
+        {
+            m_ioDeviceMap[address - kIoMapBase] = it->device;
+        }
     }
 }
