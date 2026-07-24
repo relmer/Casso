@@ -7,7 +7,6 @@
 #include "Core/InterruptController.h"
 #include "Video/VideoTiming.h"
 
-#include <fstream>
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 

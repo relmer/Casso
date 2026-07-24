@@ -30,7 +30,6 @@
 
 #ifdef _WINDOWS_
     // Windows path — full Win32 support
-    #include <strsafe.h>
 #else
     // Portable C++ path — define HRESULT and friends if not already present
 

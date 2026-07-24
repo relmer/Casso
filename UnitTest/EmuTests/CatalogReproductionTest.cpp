@@ -1,6 +1,4 @@
 #include "Pch.h"
-#include <filesystem>
-#include <fstream>
 
 #include "HeadlessHost.h"
 #include "KeystrokeInjector.h"

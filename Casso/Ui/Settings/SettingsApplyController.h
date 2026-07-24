@@ -6,7 +6,6 @@
 
 #include "../../Config/GlobalUserPrefs.h"
 
-#include <functional>
 
 
 class UserConfigStore;

@@ -1,6 +1,4 @@
 #include "Pch.h"
-#include <filesystem>
-#include <fstream>
 
 #include "Cpu.h"
 #include "Assembler.h"

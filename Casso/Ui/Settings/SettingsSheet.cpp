@@ -9,8 +9,8 @@
 #include "Window/DxuiButtonRow.h"
 #include "resource.h"
 
-#include <cmath>
-#include <cstdio>
+
+
 
 
 // Width is sized to the Display page, the widest page: its right-hand

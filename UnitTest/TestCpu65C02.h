@@ -1,7 +1,5 @@
 #pragma once
 
-#include <algorithm>
-
 #include "Core/Cpu65C02.h"
 #include "Core/MemoryBus.h"
 
