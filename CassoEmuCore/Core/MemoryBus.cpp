@@ -33,6 +33,7 @@ static constexpr Word  s_kFirstScreenHoleByte = 0x78;
 
 MemoryBus::MemoryBus()
 {
+    InvalidateDispatchCache ();
 }
 
 
@@ -192,6 +193,8 @@ void MemoryBus::AddDevice (MemoryDevice * device)
                            });
 
     m_entries.insert (it, entry);
+
+    InvalidateDispatchCache ();
 }
 
 
@@ -215,6 +218,8 @@ void MemoryBus::RemoveDevice (MemoryDevice * device)
         });
 
     m_entries.erase (it, m_entries.end());
+
+    InvalidateDispatchCache ();
 }
 
 
@@ -317,13 +322,43 @@ void MemoryBus::PowerCycleAll (Prng & prng)
 
 MemoryDevice * MemoryBus::FindDevice (Word address) const
 {
+    const int slot = address & (kDispatchSlots - 1);
+
+    if (m_dispatchTag[slot] == address)
+    {
+        return m_dispatchDev[slot];
+    }
+
+    MemoryDevice * device = nullptr;
+
     for (const auto & entry : m_entries)
     {
         if (address >= entry.start && address <= entry.end)
         {
-            return entry.device;
+            device = entry.device;
+            break;
         }
     }
 
-    return nullptr;
+    m_dispatchTag[slot] = address;
+    m_dispatchDev[slot] = device;
+
+    return device;
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  InvalidateDispatchCache
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MemoryBus::InvalidateDispatchCache ()
+{
+    for (int i = 0; i < kDispatchSlots; i++)
+    {
+        m_dispatchTag[i] = kDispatchInvalid;
+    }
 }
