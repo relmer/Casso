@@ -90,18 +90,20 @@ protected:
     Byte PopByte  ();
     Word PopWord  ();
 
-    // Memory operations. ReadByte is a non-virtual inline fast path: RAM/ROM
-    // reads ($0000-$BFFF) hit the page table directly with no indirect call --
-    // the overwhelming majority of reads (instruction fetches and most
-    // operands). Only I/O ($C000+) and unmapped low pages fall through the
-    // virtual ReadByteSlow hook, which a derived strategy (MemoryBusCpu)
-    // overrides to route through the emulator bus. m_readPages is null on the
-    // standalone base CPU, so it always takes the slow path into memory[].
+    // Memory operations. ReadByte is a non-virtual inline fast path: any page
+    // with a non-null page-table entry (RAM $0000-$BFFF and, once the language
+    // card wires them, ROM/LC RAM $D000-$FFFF) hits the table directly with no
+    // indirect call -- the overwhelming majority of reads (instruction fetches
+    // and most operands). Null pages -- I/O ($C000-$CFFF) and any unmapped
+    // region -- fall through the virtual ReadByteSlow hook, which a derived
+    // strategy (MemoryBusCpu) overrides to route through the emulator bus.
+    // m_readPages is null on the standalone base CPU, so it always takes the
+    // slow path into memory[].
     virtual void WriteByte     (Word address, Byte value);
     virtual void WriteWord     (Word address, Word value);
     Byte         ReadByte      (Word address)
     {
-        if (m_readPages != nullptr && address < 0xC000)
+        if (m_readPages != nullptr)
         {
             Byte * page = m_readPages[address >> 8];
 

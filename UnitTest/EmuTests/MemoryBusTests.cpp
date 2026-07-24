@@ -346,23 +346,42 @@ public:
         bus.NotifyBankingChanged ();
     }
 
-    TEST_METHOD (PageTable_HighAddressUsesDevice_NotPageTable)
+    TEST_METHOD (PageTable_UnmappedIoPage_UsesDevice)
     {
         MemoryBus  bus;
-        Byte       buffer[0x100] = {};
-        buffer[0x00] = 0xFF;
         MockDevice dev (0xC000, 0xC0FF);
         bus.AddDevice (&dev);
 
-        // Page table only applies to $0000-$BFFF; $C000+ goes to device
-        bus.SetReadPage (0xC0, buffer);
-
+        // I/O pages ($C000-$CFFF) are left unmapped in the page table, so a
+        // read dispatches to the device and its read side effects run.
         Byte val = bus.ReadByte (0xC042);
 
         Assert::AreEqual (1, dev.m_readCount,
-            L"$C000+ should always use device dispatch, not page table");
+            L"An unmapped $C0xx read should dispatch to the device");
         Assert::AreEqual (Byte (0x42), val,
-            L"Should return device value");
+            L"Should return the device value");
+    }
+
+    TEST_METHOD (PageTable_MappedHighPage_UsesPageTable)
+    {
+        MemoryBus  bus;
+        Byte       buffer[0x100] = {};
+        buffer[0x42] = 0xAB;
+        MockDevice dev (0xD000, 0xD0FF);
+        bus.AddDevice (&dev);
+
+        // A mapped high page -- e.g. the language card pointing its $D000
+        // window at ROM/LC RAM -- is served inline from the page table,
+        // bypassing device dispatch. (Page granularity is address >> 8, so any
+        // page with a non-null entry uses the table, not just $0000-$BFFF.)
+        bus.SetReadPage (0xD0, buffer);
+
+        Byte val = bus.ReadByte (0xD042);
+
+        Assert::AreEqual (0, dev.m_readCount,
+            L"A mapped $D0xx read should use the page table, not the device");
+        Assert::AreEqual (Byte (0xAB), val,
+            L"Should return the page-table value");
     }
 };
 

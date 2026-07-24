@@ -169,6 +169,13 @@ void Apple2eMmu::SetAltZp (bool v)
 
     m_altZp = v;
     ResolveZeroPage ();
+
+    // ALTZP also swaps the language card's $D000-$FFFF RAM between the main and
+    // aux banks, so re-point its read-page window to the new side.
+    if (m_lc != nullptr)
+    {
+        m_lc->RebindWindow ();
+    }
 }
 
 

@@ -137,6 +137,8 @@ void LanguageCard::ApplySwitch (Byte switchAddr, bool isWrite)
 
 
 
+    Word  readFlagsBefore = static_cast<Word> (m_flags & (kLcFlagBank2 | kLcFlagReadRam));
+
     m_flags &= static_cast<Word> (~(kLcFlagBank2 | kLcFlagReadRam));
 
     if (bank2)
@@ -147,6 +149,14 @@ void LanguageCard::ApplySwitch (Byte switchAddr, bool isWrite)
     if (readRam)
     {
         m_flags |= kLcFlagReadRam;
+    }
+
+    // A change to the bank or read-source selection re-points the $D000-$FFFF
+    // read pages. WRITERAM (decided below) only affects the device write path,
+    // so it needs no re-point.
+    if (static_cast<Word> (m_flags & (kLcFlagBank2 | kLcFlagReadRam)) != readFlagsBefore)
+    {
+        RebindWindow ();
     }
 
     if (!isOdd)
@@ -309,6 +319,8 @@ void LanguageCard::SoftReset ()
 {
     m_flags         = kLcFlagsPowerOn;
     m_preWriteCount = 0;
+
+    RebindWindow ();
 }
 
 
@@ -362,6 +374,49 @@ Byte LanguageCard::ReadRom (Word address) const
     }
 
     return 0xFF;
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RebindWindow
+//
+//  Maps the bus read-page table for $D000-$FFFF to the current byte source.
+//  See the header for the re-call contract. Only read pages are mapped; the
+//  LanguageCardBank device still owns writes (WRITERAM gating / write-protect).
+//  A null pointer (ROM not yet loaded during early construction) leaves the
+//  page device-routed, which is corrected by the explicit rebind at wire-up.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void LanguageCard::RebindWindow ()
+{
+    static constexpr int  kPageSize = 0x100;
+
+    bool    readRam = IsReadRam ();
+    Byte *  romBase = m_romData.empty () ? nullptr : m_romData.data ();
+    Byte *  bank4k  = SelectBank4K   (kLcWindowStart);   // $D000-$DFFF RAM (4 KiB)
+    Byte *  high8k  = SelectMainHigh (kLcHighStart);     // $E000-$FFFF RAM (8 KiB)
+
+    for (int page = 0xD0; page <= 0xFF; page++)
+    {
+        Byte *  readPtr = nullptr;
+
+        if (readRam)
+        {
+            readPtr = (page <= 0xDF)
+                    ? bank4k + ((page - 0xD0) * kPageSize)
+                    : high8k + ((page - 0xE0) * kPageSize);
+        }
+        else if (romBase != nullptr)
+        {
+            readPtr = romBase + ((page - 0xD0) * kPageSize);
+        }
+
+        m_bus.SetReadPage (page, readPtr);
+    }
 }
 
 

@@ -50,15 +50,15 @@ MemoryBus::MemoryBus()
 
 Byte MemoryBus::ReadByte (Word address)
 {
-    // Fast path: page table lookup for $0000-$BFFF
-    if (address < 0xC000)
-    {
-        Byte * page = m_readPage[address >> 8];
+    // Fast path: page-table lookup. RAM ($0000-$BFFF) and, once the language
+    // card wires them, ROM/LC RAM ($D000-$FFFF) have a mapped page; I/O
+    // ($C000-$CFFF) stays null and falls through to device dispatch so its
+    // read side effects run.
+    Byte * page = m_readPage[address >> 8];
 
-        if (page != nullptr)
-        {
-            return page[address & 0xFF];
-        }
+    if (page != nullptr)
+    {
+        return page[address & 0xFF];
     }
 
     MemoryDevice * device = FindDevice (address);

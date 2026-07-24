@@ -71,6 +71,15 @@ public:
     void SetRomData (const vector<Byte> & rom) { m_romData = rom; }
     Byte ReadRom    (Word address) const;
 
+    // Point the bus read-page table for $D000-$FFFF at the live byte source
+    // (LC RAM per bank/aux when READRAM, else ROM) so instruction fetches from
+    // the language-card window hit the inline fast path instead of the virtual
+    // LanguageCardBank::Read. Re-called whenever the read source can change:
+    // a $C08x bank/read switch (ApplySwitch), a reset, and -- for the aux
+    // side -- an ALTZP flip (the //e MMU calls this from SetAltZp). Writes stay
+    // on the LanguageCardBank device path, so only read pages are mapped.
+    void RebindWindow ();
+
     void SoftReset    ();
     void PowerCycle   (Prng & prng) override;
 

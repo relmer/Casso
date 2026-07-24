@@ -699,6 +699,9 @@ void MachineManager::WireLanguageCard()
     if (m_shell.m_mmu != nullptr)
     {
         lc->SetMmu (m_shell.m_mmu.get());
+
+        // Let ALTZP flips re-point the LC's $D000-$FFFF read window (aux/main).
+        m_shell.m_mmu->SetLanguageCard (lc);
     }
 
     auto * iieKbd = dynamic_cast<Apple2eKeyboard *> (m_shell.m_refs.keyboard);
@@ -714,6 +717,10 @@ void MachineManager::WireLanguageCard()
     {
         iieSw->SetLanguageCard (lc);
     }
+
+    // Seed the $D000-$FFFF read-page mapping now that the ROM image and MMU are
+    // wired. Thereafter it re-points on LC switches, reset, and ALTZP flips.
+    lc->RebindWindow ();
 }
 
 
