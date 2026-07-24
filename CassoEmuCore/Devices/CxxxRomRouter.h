@@ -71,4 +71,9 @@ private:
     vector<Byte>   m_slotRom[8];
     bool           m_noExternalSlots = false;
     MemoryDevice * m_slotIoDevice[8] = {};
+
+    // True while any slot has an I/O device registered (see SetSlotIoDevice).
+    // Lets the //c read fast path assert "no slot delegation possible" with a
+    // single bool test instead of scanning m_slotIoDevice on every access.
+    bool           m_hasSlotIoDevice = false;
 };

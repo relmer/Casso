@@ -153,6 +153,16 @@ void CxxxRomRouter::SetSlotIoDevice (int slot, MemoryDevice * device)
 
     m_slotIoDevice[slot] = device;
 
+    m_hasSlotIoDevice = false;
+    for (MemoryDevice * io : m_slotIoDevice)
+    {
+        if (io != nullptr)
+        {
+            m_hasSlotIoDevice = true;
+            break;
+        }
+    }
+
 Error:
     return;
 }
@@ -206,10 +216,25 @@ Error:
 
 Byte CxxxRomRouter::Read (Word address)
 {
-    MemoryDevice *  io    = SlotIoDeviceFor (address);
-    Byte            value = (io != nullptr) ? io->Read (address) : ResolveByte (address);
+    Byte  value;
 
-
+    if (m_noExternalSlots && !m_hasSlotIoDevice)
+    {
+        // Apple //c fast path: with no external slots the whole $C100-$CFFF
+        // window is internal firmware regardless of INTCXROM/SLOTC3ROM/INTC8ROM
+        // (see SetNoExternalSlots), and there is no slot device to delegate to.
+        // Resolve the internal byte directly -- this is the //c hot path, e.g.
+        // the mouse firmware executing from $C700 -- skipping SlotIoDeviceFor
+        // and ResolveByte's four MMU state pulls. The $C3xx/$CFFF side effects
+        // below still run for fidelity.
+        Word  off = static_cast<Word> (address - kCxxxRouterStart);
+        value = (off < m_internal.size ()) ? m_internal[off] : kFloatingBusByte;
+    }
+    else
+    {
+        MemoryDevice *  io = SlotIoDeviceFor (address);
+        value = (io != nullptr) ? io->Read (address) : ResolveByte (address);
+    }
 
     if (address >= kSlot3PageStart && address <= kSlot3PageEnd)
     {
