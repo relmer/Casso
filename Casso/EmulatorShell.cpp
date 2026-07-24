@@ -3495,6 +3495,14 @@ int EmulatorShell::RunMessageLoop()
             {
                 UpdateWindowTitle();
                 ReflowChromeForMachineChange();
+
+                // A switch may have changed the default pointer mode on the CPU
+                // thread (ApplyDefaultPointerForMachine defers its UI reflection
+                // here to stay off the CPU thread). Sync the selector state and
+                // relayout the joystick button on the UI thread; both are
+                // idempotent when nothing changed.
+                SyncSelectorState();
+                RelayoutJoystickButton();
                 continue;
             }
 
@@ -6271,6 +6279,21 @@ void EmulatorShell::ApplyDefaultPointerForMachine()
         && m_pointerMode == InputMappingMode::Off)
     {
         m_pointerMode = InputMappingMode::Mouse;
+
+        // SyncSelectorState / RelayoutJoystickButton touch Dxui (text
+        // measurement) and assert the UI thread. On a machine switch this runs
+        // on the CPU thread, so defer the chrome reflection to the post-switch
+        // handler on the UI thread (WM_APP_DXUI_UPDATE_TITLE, posted by the
+        // UpdateWindowTitle at the end of SwitchMachine). On the UI thread
+        // (launch, or before the window exists) reflect it immediately.
+        bool  offUiThread = (m_hwnd != nullptr) &&
+                            (GetWindowThreadProcessId (m_hwnd, nullptr) != GetCurrentThreadId ());
+
+        if (offUiThread)
+        {
+            return;
+        }
+
         SyncSelectorState();
 
         if (m_hwnd != nullptr)
