@@ -90,11 +90,31 @@ protected:
     Byte PopByte  ();
     Word PopWord  ();
 
-    // Memory operations
-    virtual void WriteByte (Word address, Byte value);
-    virtual void WriteWord (Word address, Word value);
-    virtual Byte ReadByte  (Word address);
-    virtual Word ReadWord  (Word address);
+    // Memory operations. ReadByte is a non-virtual inline fast path: RAM/ROM
+    // reads ($0000-$BFFF) hit the page table directly with no indirect call --
+    // the overwhelming majority of reads (instruction fetches and most
+    // operands). Only I/O ($C000+) and unmapped low pages fall through the
+    // virtual ReadByteSlow hook, which a derived strategy (MemoryBusCpu)
+    // overrides to route through the emulator bus. m_readPages is null on the
+    // standalone base CPU, so it always takes the slow path into memory[].
+    virtual void WriteByte     (Word address, Byte value);
+    virtual void WriteWord     (Word address, Word value);
+    Byte         ReadByte      (Word address)
+    {
+        if (m_readPages != nullptr && address < 0xC000)
+        {
+            Byte * page = m_readPages[address >> 8];
+
+            if (page != nullptr)
+            {
+                return page[address & 0xFF];
+            }
+        }
+
+        return ReadByteSlow (address);
+    }
+    virtual Byte ReadByteSlow  (Word address);
+    virtual Word ReadWord      (Word address);
 
     void InitializeInstructionSet ();
 
@@ -126,6 +146,12 @@ protected:
     // (otherwise every function that stack-allocates a Cpu blows past C6262's
     // 16 KB frame-size threshold during code analysis).
     std::vector<Byte>       memory {std::vector<Byte> (memSize, 0)};
+
+    // Optional read fast-path page table (null on the standalone base CPU). A
+    // derived strategy points this at its own 256-entry read-page map so RAM/
+    // ROM reads bypass the virtual ReadByteSlow dispatch. Entries update in
+    // place on banking changes; the pointer itself is set once at wire-up.
+    Byte * const *          m_readPages = nullptr;
 
     Byte                    SP = 0;
     Word                    PC = 0;

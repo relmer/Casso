@@ -66,6 +66,11 @@ public:
     void SetReadPage  (int pageIndex, Byte * page);
     void SetWritePage (int pageIndex, Byte * page);
 
+    // The 256-entry read-page table itself, for a CPU that wants to serve
+    // RAM/ROM reads inline (bypassing the virtual read dispatch). Entries are
+    // updated in place on banking changes, so the returned pointer stays valid.
+    Byte * const * GetReadPageTable () const { return m_readPage; }
+
     // Video-dirty tracking. Pages the renderer reads (text/hi-res, main +
     // aux, since aux is re-pointed at the same page index) are marked
     // "watched"; a write into any of them, or any banking change, raises

@@ -1078,11 +1078,16 @@ void Cpu::WriteWord (Word address, Word value)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ReadByte
+//  ReadByteSlow
+//
+//  Base (standalone) slow path: the built-in 64 KB memory[] array. A derived
+//  strategy (MemoryBusCpu) overrides this to route I/O and unmapped accesses
+//  through the emulator bus; RAM/ROM reads are served by the non-virtual
+//  ReadByte fast path in the header and never reach here on that CPU.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-Byte Cpu::ReadByte (Word address)
+Byte Cpu::ReadByteSlow (Word address)
 {
     return memory[address];
 }

@@ -46,7 +46,7 @@ public:
     TestCpu65C02() : TestCpu65C02Bus(), Cpu65C02 (m_testBus) {}
 
     // Flat-memory overrides: the whole 64K address space is Cpu::memory[].
-    Byte    ReadByte  (Word address) override             { return memory[address]; }
+    Byte    ReadByteSlow (Word address) override          { return memory[address]; }
     void    WriteByte (Word address, Byte value) override { memory[address] = value; }
     Word    ReadWord  (Word address) override             { return (Word) (memory[address] | (memory[(Word) (address + 1)] << 8)); }
     void    WriteWord (Word address, Word value) override { memory[address] = value & 0xFF; memory[(Word) (address + 1)] = (Byte) (value >> 8); }
