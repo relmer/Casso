@@ -132,6 +132,45 @@ Error:
 
 
 
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FastMapReadPtr
+//
+//  See the header. Passive internal-ROM pages on the //c return a pointer into
+//  m_internal; reactive pages ($C3, $CF) and all //e pages return null so the
+//  Read handler runs.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+Byte * CxxxRomRouter::FastMapReadPtr (int page)
+{
+    static constexpr int  kPageSize = 0x100;
+
+    if (!m_noExternalSlots || m_internal.empty ())
+    {
+        return nullptr;
+    }
+
+    // $C3xx latches INTC8ROM and $CFFF clears it -- keep those pages on the
+    // handler so the side effects run (inert on the //c, but modeled faithfully).
+    if (page == 0xC3 || page == 0xCF)
+    {
+        return nullptr;
+    }
+
+    size_t  offset = static_cast<size_t> ((page - 0xC1) * kPageSize);
+
+    if (offset + kPageSize > m_internal.size ())
+    {
+        return nullptr;
+    }
+
+    return m_internal.data () + offset;
+}
+
+
+
+
 
 ////////////////////////////////////////////////////////////////////////////////
 //

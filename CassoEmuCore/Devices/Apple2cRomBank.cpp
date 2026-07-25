@@ -64,6 +64,11 @@ void Apple2cRomBank::ApplyBank (int bank)
     m_mmu.AttachInternalCxxxRom (std::move (cxxx));
     m_lc.SetRomData             (lcRom);
 
+    // AttachInternalCxxxRom re-points the $C100-$CFFF page table; SetRomData
+    // swapped the LC ROM buffer, so re-point its $D000-$FFFF read window too
+    // (the page-table entries otherwise reference the previous bank's bytes).
+    m_lc.RebindWindow ();
+
     m_current = bank;
 }
 

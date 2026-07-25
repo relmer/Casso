@@ -82,7 +82,8 @@ public:
     void               SetLanguageCard       (LanguageCard * lc) { m_lc = lc; }
 
 private:
-    void   RebindPageTable     ();
+    void   RebindPageTable       ();
+    void   RebindCxxxInternalRom ();
     void   ResolveZeroPage     ();
     void   ResolveMain02_BF    ();
     void   ResolveText04_07    ();
