@@ -131,9 +131,16 @@ public:
         Assert::IsTrue (SUCCEEDED (mouse.AttachInterruptController (&ic)));
         mouse.SetVideoTiming (&vt);
 
+        // Video timing and the mouse both receive the same cycle count from
+        // AddCycles, so advance them in lockstep. The mouse samples the vblank
+        // line on a coarse cadence (kVblCheckIntervalCycles) rather than every
+        // tick, so it must be fed realistic cycle counts -- a Tick(1) probe is
+        // not guaranteed to land a sample. The vblank window (~4550 cycles)
+        // dwarfs that cadence, so the onset edge is always caught.
+        auto advance = [&] (uint32_t cyc) { vt.Tick (cyc); mouse.Tick (cyc); };
+
         // Masked VBL: tick into vblank -- flag latches, line stays low.
-        vt.Tick (VideoTiming::kVblankStartCycle + 1);
-        mouse.Tick (1);
+        advance (VideoTiming::kVblankStartCycle + 1);
         Assert::AreEqual<Byte> (0x80, mouse.ReadVblInterrupt (), L"latch sets at onset even when masked");
         Assert::IsFalse (ic.IsAnyAsserted (), L"DISVBL (default) masks the line");
 
@@ -151,11 +158,9 @@ public:
         // Next frame's onset latches again (edge, not level): tick through
         // the display period (so the mouse observes not-vblank) and into the
         // following vblank.
-        vt.Tick (VideoTiming::kCyclesPerFrame - 2000);   // wraps into display
-        mouse.Tick (1);                                   // observe display
+        advance (VideoTiming::kCyclesPerFrame - 2000);   // wraps into display
         Assert::AreEqual<Byte> (0x00, mouse.ReadVblInterrupt (), L"still clear during display");
-        vt.Tick (4000);                                   // next vblank onset
-        mouse.Tick (1);
+        advance (4000);                                   // next vblank onset
         Assert::AreEqual<Byte> (0x80, mouse.ReadVblInterrupt (), L"next onset re-latches");
         Assert::IsTrue (ic.IsAnyAsserted (), L"enabled + latched -> asserted");
     }

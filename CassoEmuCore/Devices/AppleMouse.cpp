@@ -93,17 +93,30 @@ void AppleMouse::Tick (uint32_t cpuCycles)
 
     bool  irqChanged = false;
 
-    // VBL onset edge.
+    // VBL onset edge. IsInVblank() is a virtual call into the video timing;
+    // paying it every instruction was a large slice of this device's cost.
+    // Sample it on the kVblCheckIntervalCycles cadence instead -- the vblank
+    // window is wide enough that the onset edge is still caught within a
+    // couple of scanlines (see the constant's note).
     if (m_videoTiming != nullptr)
     {
-        bool  inVblank = m_videoTiming->IsInVblank();
-
-        if (inVblank && !m_lastInVblank)
+        if (m_vblCheckCountdown <= cpuCycles)
         {
-            m_vblInt   = true;
-            irqChanged = true;
+            m_vblCheckCountdown = kVblCheckIntervalCycles;
+
+            bool  inVblank = m_videoTiming->IsInVblank();
+
+            if (inVblank && !m_lastInVblank)
+            {
+                m_vblInt   = true;
+                irqChanged = true;
+            }
+            m_lastInVblank = inVblank;
         }
-        m_lastInVblank = inVblank;
+        else
+        {
+            m_vblCheckCountdown -= cpuCycles;
+        }
     }
 
     // Drain host motion into the CPU-side queue. This runs every instruction,
@@ -364,6 +377,7 @@ void AppleMouse::Reset()
     m_y0EdgeFalling    = false;
     m_iouAccessEnabled = false;
     m_lastInVblank     = false;
+    m_vblCheckCountdown = 0;
 
     UpdateIrqLines();
 }
