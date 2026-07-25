@@ -444,13 +444,11 @@ void DxuiPainter::PushQuad (
     NdcFromPixel (xPx,           yPx + heightPx, bl.x, bl.y);
     NdcFromPixel (xPx + widthPx, yPx + heightPx, br.x, br.y);
 
-    // Two triangles per quad: (tl, tr, bl) and (bl, tr, br).
-    m_vertices.push_back (tl);
-    m_vertices.push_back (tr);
-    m_vertices.push_back (bl);
-    m_vertices.push_back (bl);
-    m_vertices.push_back (tr);
-    m_vertices.push_back (br);
+    // Two triangles per quad: (tl, tr, bl) and (bl, tr, br). Append all six in
+    // one insert so the vector grows/size-checks once rather than six times
+    // (the six 24-byte copies are the same either way; Vertex is a POD).
+    const Vertex  quad[6] = { tl, tr, bl, bl, tr, br };
+    m_vertices.insert (m_vertices.end(), quad, quad + 6);
 }
 
 
