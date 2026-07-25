@@ -3,6 +3,7 @@
 #include "Pch.h"
 
 #include "Devices/Printer/PrinterJob.h"
+#include "Devices/Printer/PrinterHead.h"
 
 class PrinterByteRing;
 
@@ -140,30 +141,10 @@ public:
     int           CarriageCol   () const { return m_carriageCol.load (std::memory_order_relaxed); }
 
 private:
-    enum Phase { Idle, Sweeping, Feeding };
-
     void          Run ();
 
-    // Append a drain's head-motion events (passes + feeds) to the timeline.
-    void          QueueMotion (const vector<PrinterEvent> & events);
-
-    // Replay `timeSec` of print time along the event timeline: sweep the current
-    // HeadBurst across its printed width at the draft carriage speed, then slew to
-    // the next paper feed at the feed speed, popping events as each completes.
-    void          AdvanceEventHead (double timeSec);
-
-    // Paint the current sweep's primary into the presented layer for the carriage
-    // travel between progress `fromP` and `toP` dots: for each cell the head just
-    // crossed, OR in the part of the built cell that this pass's colour struck, so
-    // overprints accrue into composites exactly as the ribbon lays them.
-    void          PaintPresented (double fromP, double toP);
-
-    // Seconds of print time still queued (current motion + all pending events).
-    // The drain is gated on this so the ring backs up and the guest throttles to
-    // the print rate (backpressure), exactly like a real printer's line buffer.
-    double        PendingMotionSeconds () const;
-
     unique_ptr<PrinterJob>   m_job;
+    PrinterHead              m_head;          // pure mechanical carriage + feed model (core, tested)
     PrintRaster              m_presented;     // "wet ink" layer the head paints (preview only)
     std::thread              m_thread;
     std::mutex               m_rasterMutex;   // guards raster mutation vs. UI-thread SnapshotStrip
@@ -182,25 +163,12 @@ private:
     // Cycle-paced, event-driven mechanical head (see SetCycleClock). The
     // interpreter emits the real carriage timeline -- a HeadBurst per printed
     // pass (its row + struck extent) and a LineFeed / FormFeed per paper advance.
-    // The head replays that timeline off the guest clock at the draft carriage /
-    // feed speed and the ring is drained only just ahead of it, so the ring backs
-    // up, the card de-asserts ready, and the guest throttles itself to the print
-    // rate. Running the emulator faster (max perf) replays proportionally faster.
+    // The head (m_head) replays that timeline off the guest clock at the draft
+    // carriage / feed speed and the ring is drained only just ahead of it, so the
+    // ring backs up, the card de-asserts ready, and the guest throttles itself to
+    // the print rate. Running the emulator faster (max perf) replays faster.
     const uint64_t *         m_guestCycles   = nullptr;   // CPU cycle accumulator (caps the print rate)
     uint64_t                 m_lastCycles    = 0;         // cycle count at the last head advance
     int64_t                  m_lastTickMs    = 0;         // wall-clock ms at the last head advance
     bool                     m_pacingSeeded  = false;     // seed the clocks on the first tick
-    std::deque<PrinterEvent> m_pending;                   // unplayed motion timeline (worker thread only)
-    Phase                    m_phase         = Idle;      // what the head is doing right now
-    double                   m_headRow       = 0.0;       // platen: paper row under the head
-    double                   m_headCol       = 0.0;       // sweep edge in dots (L>R-equivalent)
-    double                   m_sweepWidth    = 0.0;       // current burst's printed width
-    double                   m_feedTarget    = 0.0;       // paper row the current feed ends at
-    double                   m_feedRate      = 0.0;       // rows/s of the current feed (line vs form)
-    double                   m_frontier      = 0.0;       // furthest printed row -- monotonic, blank below it
-    double                   m_sweepMaskTop  = 0.0;       // reveal-mask top for the current sweep
-    double                   m_sweepPaintedTo = 0.0;      // sweep progress already painted into m_presented
-    Byte                     m_sweepColor    = 0;         // primary bits the current sweep lays
-    bool                     m_sweepLtr      = true;      // direction of the current sweep
-    bool                     m_nextLtr       = true;      // direction the next sweep will take
 };
