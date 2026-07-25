@@ -9,70 +9,6 @@
 
 static constexpr int   s_kIdleSleepMs = 4;   // loop period: paces the head in ~4 ms steps
 
-// The carriage / feed mechanics themselves live in the pure PrinterHead (core,
-// unit-tested). These are the worker-side pacing constants only.
-
-// The head moves at real draft speed off the WALL clock, so the carriage looks
-// right no matter how fast the emulator runs (under backpressure the guest spins
-// its ready-wait loop, burning emulated cycles far faster than real time -- a
-// cycle-paced head would then complete whole passes between preview frames and
-// read as no motion at all). The guest cycle delta only CAPS it: a paused CPU
-// freezes the printer, a slowed one prints slower, but neither prints faster than
-// the real machine's fixed carriage speed.
-static constexpr double   s_kGuestCyclesPerSec = 1020484.0;   // Apple II NTSC clock (the rate cap)
-
-// Cap one tick's advance so a scheduler stall (the worker starved for 100s of ms)
-// snaps the head forward a little, not across the whole buffered page.
-static constexpr double   s_kMaxTickSec = 0.1;
-
-// The interpreter is run only far enough ahead to keep this many seconds of
-// print time queued -- the real printer's small line buffer. Past it the drain
-// stops, the ring backs up, and the guest blocks on the ready line. A couple of
-// passes' worth: enough that the head never starves between drains, little
-// enough that backpressure stays tight.
-static constexpr double   s_kBufferSeconds = 0.75;
-
-// Bytes per gated drain slice while filling the buffer.
-static constexpr size_t   s_kDrainSliceBytes = 4096;
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  RasterInkExtent
-//
-//  Non-locking rightmost-ink probe over rows [firstRow, lastRow]: one past the
-//  rightmost inked dot, 0 for a blank span. The locking SpanInkExtent and the
-//  drain loop (which already holds the raster lock) share this.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-static int RasterInkExtent (const PrintRaster & raster, int firstRow, int lastRow)
-{
-    int  extent = 0;
-    int  last   = (std::min) (lastRow, raster.RowsUsed() - 1);
-
-    for (int row = (std::max) (0, firstRow); row <= last; row++)
-    {
-        for (int col = PrinterGrid::kDotsPerRow - 1; col >= extent; col--)
-        {
-            if (raster.CellAt (col, row) != 0)
-            {
-                extent = col + 1;
-                break;
-            }
-        }
-
-        if (extent == PrinterGrid::kDotsPerRow)
-        {
-            break;   // can't grow further
-        }
-    }
-
-    return extent;
-}
-
 
 
 
@@ -94,9 +30,9 @@ PrinterWorker::~PrinterWorker()
 //
 //  Start
 //
-//  Builds a fresh job over the card's ring and spawns the drain thread. A
-//  running worker is stopped first so Start is idempotent across machine
-//  rebuilds.
+//  Hands the ring (and any restored strip) to the engine, then spawns the drain
+//  thread. A running worker is stopped first so Start is idempotent across
+//  machine rebuilds.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -107,32 +43,7 @@ void PrinterWorker::Start (PrinterByteRing & ring, PrintRaster seed)
         Stop();
     }
 
-    m_job = make_unique<PrinterJob> (ring);
-
-    // Restore a persisted pending strip before the thread starts, so new
-    // strikes continue on the restored paper at its saved feed position.
-    if (seed.RowsUsed() > 0)
-    {
-        m_job->Raster() = std::move (seed);
-    }
-
-    // The presented layer starts as the restored strip fully laid (that paper is
-    // already printed); the head then paints only the new rows it sweeps.
-    m_presented = m_job->Raster();
-
-    // Reflect any restored strip so the indicator shows Pending immediately.
-    m_hasContent.store (m_job->HasContent(), std::memory_order_relaxed);
-    m_rowsUsed.store   (m_job->Raster().RowsUsed(), std::memory_order_relaxed);
-    m_headPos.store    (((uint64_t) (uint32_t) m_job->HeadRow() << 32)
-                        | (uint32_t) m_job->HeadColumnDots(), std::memory_order_relaxed);
-
-    // Re-seed the event head so the new strip starts throttled from cycle zero.
-    // Park it at the bottom of any restored strip so the head resumes below the
-    // restored paper rather than replaying it.
-    m_pacingSeeded = false;
-    m_head.Reset (m_job->Raster().RowsUsed());
-    m_carriageCol.store   (0, std::memory_order_relaxed);
-    m_hostFormFeeds.store (0, std::memory_order_relaxed);
+    m_engine.Start (ring, std::move (seed));
 
     m_stopRequested = false;
     m_running       = true;
@@ -146,7 +57,7 @@ void PrinterWorker::Start (PrinterByteRing & ring, PrintRaster seed)
 //
 //  Stop
 //
-//  Signals and joins the drain thread. The job (and its raster) remain valid
+//  Signals and joins the drain thread. The engine (and its raster) remain valid
 //  afterwards so the UI thread can render/persist the completed strip.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -173,276 +84,22 @@ void PrinterWorker::Stop()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  FlushNow
-//
-////////////////////////////////////////////////////////////////////////////////
-
-size_t PrinterWorker::FlushNow (vector<PrinterEvent> & events)
-{
-    if (m_job == nullptr)
-    {
-        return 0;
-    }
-
-    return m_job->Drain (events);
-}
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  SnapshotStrip
-//
-//  Copies the strip under the raster lock so the live preview reads a consistent
-//  image while the drain thread keeps running -- no Stop()/Start() and no new
-//  interpreter, so the guest's in-flight state (line feed, colour, head column)
-//  is never reset out from under it.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool PrinterWorker::SnapshotStrip (PrintRaster & out)
-{
-    std::lock_guard<std::mutex>   lock (m_rasterMutex);
-
-    if (m_job == nullptr)
-    {
-        return false;
-    }
-
-    out = m_job->Raster();   // copy under lock
-    return true;
-}
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  SnapshotStripSpan
-//
-//  Viewport-bounded variant of SnapshotStrip: copies only the requested rows
-//  under the raster lock, so the live preview's per-refresh cost stays flat
-//  no matter how long the banner grows.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool PrinterWorker::SnapshotStripSpan (int firstRow, int lastRow, PrintRaster & out)
-{
-    std::lock_guard<std::mutex>   lock (m_rasterMutex);
-
-    if (m_job == nullptr)
-    {
-        return false;
-    }
-
-    m_job->Raster().CopyRowSpan (firstRow, lastRow, out);
-    return true;
-}
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  SnapshotPresentedSpan
-//
-//  Same as SnapshotStripSpan but over the presented ("wet ink") layer the head
-//  paints -- what the live preview renders.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool PrinterWorker::SnapshotPresentedSpan (int firstRow, int lastRow, PrintRaster & out)
-{
-    std::lock_guard<std::mutex>   lock (m_rasterMutex);
-
-    if (m_job == nullptr)
-    {
-        return false;
-    }
-
-    m_presented.CopyRowSpan (firstRow, lastRow, out);
-    return true;
-}
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  SpanInkExtent
-//
-//  Rightmost-ink probe over rows [firstRow, lastRow] under the raster lock:
-//  returns one past the rightmost inked dot (0 == blank span). Scans each row
-//  from the right and only past the best answer so far; bounded by a pin band
-//  in practice (~16 rows), so the cost is trivial.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-int PrinterWorker::SpanInkExtent (int firstRow, int lastRow)
-{
-    std::lock_guard<std::mutex>   lock (m_rasterMutex);
-
-    if (m_job == nullptr)
-    {
-        return 0;
-    }
-
-    return RasterInkExtent (m_job->Raster(), firstRow, lastRow);
-}
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  FormFeed
-//
-//  Host-initiated page advance (the preview's Form Feed button). The UI thread
-//  only records the request; Run performs the actual feed on the drain thread so
-//  the interpreter, raster and event timeline all stay single-writer. The head
-//  then slews through the new blank page at feed speed, scrolling it into view
-//  with the paper-feed sound instead of snapping to a blank sheet.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-void PrinterWorker::FormFeed()
-{
-    m_hostFormFeeds.fetch_add (1, std::memory_order_relaxed);
-}
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  Run
 //
-//  The print loop. Each ~4 ms tick it (1) plays any host Form Feed request; (2)
-//  runs the interpreter far enough ahead to keep the line buffer full -- but no
-//  further, so the ring backs up and the guest throttles itself; (3) replays the
-//  emitted carriage timeline for the elapsed guest cycles at the real carriage /
-//  feed speed; (4) publishes the platen + reveal frontier + strip height for the
-//  preview, which follows the head 1:1. With no clock wired (tests) it drains
-//  freely and snaps the head to the raster.
+//  The platform edge: each ~4 ms it reads the wall clock and drives one engine
+//  Tick, which does all the drain / pacing / preview work. Nothing else lives
+//  here.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void PrinterWorker::Run()
 {
-    vector<PrinterEvent>   events;
-
     while (!m_stopRequested)
     {
-        size_t   drained    = 0;
-        int      platenRow  = 0;
-        int      maskCol    = 0;
-        int      carriage   = 0;
-        int      revealTop  = 0;
-        bool     sweepLtr   = true;
-        bool     moving     = false;
-        int      rasterRows = 0;
-        bool     content    = false;
+        int64_t   nowMs = (int64_t) std::chrono::duration_cast<std::chrono::milliseconds> (
+                              std::chrono::steady_clock::now().time_since_epoch()).count();
 
-        {
-            std::lock_guard<std::mutex>   lock (m_rasterMutex);
-
-            // Play any host Form Feed requests on this (the single writer) thread,
-            // enqueuing their feed motion for the head to slew through.
-            int   hostFeeds = m_hostFormFeeds.exchange (0, std::memory_order_relaxed);
-
-            for (int f = 0; f < hostFeeds; f++)
-            {
-                events.clear();
-                m_job->FormFeed (events);
-                m_head.Queue (events);
-            }
-
-            // 1. Keep the line buffer full: run the interpreter ahead until a
-            //    buffer's worth of print is queued, then stop (backpressure).
-            while (m_head.PendingSeconds() < s_kBufferSeconds)
-            {
-                size_t   got = 0;
-
-                events.clear();
-                got = m_job->Drain (events, s_kDrainSliceBytes);
-
-                if (got == 0)
-                {
-                    break;   // ring empty -- nothing more to queue yet
-                }
-
-                m_head.Queue (events);
-                drained += got;
-            }
-
-            // 2. Advance the head by real print time. Wall clock drives the draft
-            //    carriage speed; the guest cycle delta only caps it (paused CPU ->
-            //    frozen printer, slowed CPU -> slower, never faster than real).
-            {
-                int64_t   nowMs = (int64_t) std::chrono::duration_cast<std::chrono::milliseconds> (
-                                      std::chrono::steady_clock::now().time_since_epoch()).count();
-
-                if (!m_pacingSeeded)
-                {
-                    m_lastTickMs   = nowMs;
-                    m_lastCycles   = (m_guestCycles != nullptr) ? *m_guestCycles : 0;
-                    m_pacingSeeded = true;
-                }
-
-                double   timeSec = (double) (nowMs - m_lastTickMs) / 1000.0;
-
-                m_lastTickMs = nowMs;
-
-                if (m_guestCycles != nullptr)
-                {
-                    uint64_t   cyclesNow = *m_guestCycles;   // best-effort cross-thread read; only caps
-                    double     cycleSec  = (double) (cyclesNow - m_lastCycles) / s_kGuestCyclesPerSec;
-
-                    m_lastCycles = cyclesNow;
-
-                    if (cycleSec < timeSec) { timeSec = cycleSec; }   // guest paused / below 1x
-                }
-
-                if (timeSec > s_kMaxTickSec) { timeSec = s_kMaxTickSec; }
-                if (timeSec < 0.0)           { timeSec = 0.0; }
-
-                m_head.Advance (timeSec, m_job->Raster(), m_presented);
-            }
-
-            // Snapshot the head's published state under the lock. The platen is
-            // where the head sits (it slews through a feed); the reveal frontier is
-            // the pass being laid, held one band back through a feed so freshly fed
-            // paper reads blank; the carriage glyph parks where the last pass ended
-            // rather than snapping to the left margin.
-            platenRow  = m_head.PlatenRow();
-            maskCol    = m_head.MaskCol();
-            revealTop  = m_head.RevealTop();
-            sweepLtr   = m_head.SweepLtr();
-            moving     = m_head.Moving();
-            carriage   = m_head.CarriageCol();
-            rasterRows = m_job->Raster().RowsUsed();
-            content    = m_job->HasContent();
-        }
-
-        events.clear();
-
-        // Publish activity (guest bytes consumed) + content + platen + reveal
-        // frontier + strip height. RowsUsed stays the raster's real built height
-        // (the panel clamps the viewport and detects a tear against it).
-        if (drained > 0)
-        {
-            m_activity.fetch_add (drained, std::memory_order_relaxed);
-        }
-
-        m_hasContent.store (content,    std::memory_order_relaxed);
-        m_rowsUsed.store   (rasterRows, std::memory_order_relaxed);
-        m_headPos.store    (((uint64_t) (uint32_t) platenRow << 32) | (uint32_t) maskCol,
-                            std::memory_order_relaxed);
-        m_headLtr.store      (sweepLtr ? 1 : 0, std::memory_order_relaxed);
-        m_revealTop.store    (revealTop, std::memory_order_relaxed);
-        m_carriageCol.store  (carriage, std::memory_order_relaxed);
-        m_headMoving.store   (moving ? 1 : 0, std::memory_order_relaxed);
+        m_engine.Tick (nowMs);
 
         std::this_thread::sleep_for (std::chrono::milliseconds (s_kIdleSleepMs));
     }

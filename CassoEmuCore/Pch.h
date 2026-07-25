@@ -27,6 +27,7 @@
 #include <fstream>
 #include <functional>
 #include <memory>
+#include <mutex>
 #include <numbers>
 #include <random>
 #include <sstream>
