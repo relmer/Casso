@@ -34,4 +34,22 @@ public:
 
     // Ordered top-to-bottom; empty when the strip has no used rows.
     static vector<PageRange>  Paginate (const PrintRaster & raster);
+
+    struct PageFit
+    {
+        double  scale = 1.0;   // uniform source->destination scale
+        double  destW = 0.0;   // scaled content width  (source units * scale)
+        double  destH = 0.0;   // scaled content height (source units * scale)
+    };
+
+    // The uniform scale + destination size to draw one strip page of
+    // `contentW x contentH` into an `availW x availH` box so a FULL 11" page fits
+    // the box height, capped by the box width. Every page of a fanfold job shares
+    // this scale: a short last page is NOT enlarged to fill, so all pages keep the
+    // same horizontal scale and left edge and line up top-to-bottom. `boxUnitsPerInch`
+    // is the box's vertical unit (96 for DIPs, the output dpi for device pixels)
+    // so the full-page height lands in the box's own units.
+    static PageFit  FitFullPageToBox (double contentW, double contentH,
+                                      double availW,   double availH,
+                                      double boxUnitsPerInch);
 };

@@ -57,3 +57,40 @@ vector<PrintPagination::PageRange> PrintPagination::Paginate (const PrintRaster 
 
     return pages;
 }
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PrintPagination::FitFullPageToBox
+//
+//  Fit a FULL page to the box height, capped by the box width, at one uniform
+//  scale. The ImageWriter's 8"-wide content is a narrower aspect than Letter, so
+//  fitting to width alone scales an 11" page to ~11.7" and spills its bottom onto
+//  a second sheet; fitting the full page height prints it at true size, and the
+//  same scale on every page keeps the fanfold columns aligned page-to-page.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+PrintPagination::PageFit PrintPagination::FitFullPageToBox (double contentW, double contentH,
+                                                            double availW,   double availH,
+                                                            double boxUnitsPerInch)
+{
+    PageFit   fit;
+    double    fullPageH = (double) PrinterGrid::kPageRows / (double) PrinterGrid::kRowsPerInch * boxUnitsPerInch;
+    double    scaleW    = (contentW  > 0.0) ? (availW / contentW)  : 1.0;
+    double    scaleH    = (fullPageH > 0.0) ? (availH / fullPageH) : scaleW;
+
+    fit.scale = (std::min) (scaleW, scaleH);
+
+    if (fit.scale <= 0.0)
+    {
+        fit.scale = 1.0;
+    }
+
+    fit.destW = contentW * fit.scale;
+    fit.destH = contentH * fit.scale;
+
+    return fit;
+}

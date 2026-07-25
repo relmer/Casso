@@ -386,22 +386,17 @@ private:
 
     void DrawPageWidthFitInBox (ID2D1Bitmap1 * bitmap, const D2D1_RECT_F & box)
     {
-        D2D1_SIZE_F  sz    = bitmap->GetSize ();   // physical DIPs (bitmap carries its dpi)
-        float        boxW  = box.right - box.left;
-        float        boxH  = box.bottom - box.top;
+        D2D1_SIZE_F                sz    = bitmap->GetSize ();   // physical DIPs (bitmap carries its dpi)
+        float                      boxW  = box.right - box.left;
+        float                      boxH  = box.bottom - box.top;
 
-        // Scale so a FULL page (11") fits the box height, capped by the box
-        // width -- one uniform scale for every page. The ImageWriter's 8"-wide
-        // content is narrower-aspect than Letter, so fitting to width alone
-        // scales an 11" page to ~11.7" and spills its bottom onto a second
-        // sheet; fitting a full page to height prints it at true size, centered.
-        float        fullPageDips = (float) PrinterGrid::kPageRows / (float) PrinterGrid::kRowsPerInch * 96.0f;
-        float        scaleW = (sz.width  > 0.0f) ? (boxW / sz.width)     : 1.0f;
-        float        scaleH = (fullPageDips > 0.0f) ? (boxH / fullPageDips) : scaleW;
-        float        scale  = (std::min) (scaleW, scaleH);
-        float        destW  = sz.width  * scale;
-        float        destH  = sz.height * scale;
-        float        x      = box.left + (boxW - destW) * 0.5f;
+        // Fit a FULL page to the box height, capped by width, at the same scale on
+        // every page (DIP box, so 96 units/inch) -- the shared fanfold fit, so
+        // preview, modern print, and classic print all agree.
+        PrintPagination::PageFit   fit   = PrintPagination::FitFullPageToBox (sz.width, sz.height, boxW, boxH, 96.0);
+        float                      destW = (float) fit.destW;
+        float                      destH = (float) fit.destH;
+        float                      x     = box.left + (boxW - destW) * 0.5f;
 
         // Top-aligned within the box: the fanfold continues across page breaks.
         m_d2dContext->DrawBitmap (bitmap,
