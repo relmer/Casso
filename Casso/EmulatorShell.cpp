@@ -3809,10 +3809,9 @@ void EmulatorShell::DispatchCpuCommand (const EmulatorCommand & cmd)
         {
             if (m_cpu)
             {
-                if (!m_cpu->TryStepInterrupt())
-                {
-                    m_cpu->StepOne();
-                }
+                // StepOne dispatches a pending interrupt vector itself (see
+                // the slice loop) -- no separate TryStepInterrupt poll needed.
+                m_cpu->StepOne();
 
                 if (m_refs.diskController != nullptr)
                 {
@@ -4105,10 +4104,9 @@ void EmulatorShell::StepInstructionWhilePaused()
         return;
     }
 
-    if (!m_cpu->TryStepInterrupt())
-    {
-        m_cpu->StepOne();
-    }
+    // StepOne dispatches a pending interrupt vector itself (see the slice
+    // loop) -- no separate TryStepInterrupt poll needed.
+    m_cpu->StepOne();
 
     if (m_refs.diskController != nullptr)
     {
@@ -4487,10 +4485,13 @@ void EmulatorShell::ExecuteCpuSlices()
 
         while (sliceActual < sliceTarget)
         {
-            if (!m_cpu->TryStepInterrupt())
-            {
-                m_cpu->StepOne();
-            }
+            // StepOne polls the interrupt lines itself and dispatches a
+            // pending NMI/IRQ vector in place of the opcode fetch (see
+            // EmuCpu::StepOne), reporting the cost through
+            // GetLastInstructionCycles either way -- so a bare StepOne is the
+            // whole step. The former outer TryStepInterrupt was a second,
+            // redundant interrupt poll on every instruction.
+            m_cpu->StepOne();
 
             cycles = m_cpu->GetLastInstructionCycles();
 

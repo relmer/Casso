@@ -65,7 +65,33 @@ public:
     // last-instruction cost WITHOUT advancing m_totalCycles -- the host's
     // AddCycles rollup owns that, exactly as for a real instruction. Returns
     // true when an interrupt was dispatched (host skips StepOne that step).
-    bool                          TryStepInterrupt();
+    //
+    // Inlined: this runs once per instruction in the slice loop, and the
+    // common path (no pending interrupt) is two branch tests. Keeping it in
+    // the header lets it fold into EmuCpu::StepOne and the loop; only the rare
+    // dispatch path pays the out-of-line (virtual) DispatchVector call.
+    bool                          TryStepInterrupt()
+    {
+        if (m_nmiPending)
+        {
+            m_nmiPending = false;
+
+            DispatchVector (nmiVector, false);
+
+            m_lastCycles = 7;
+            return true;
+        }
+
+        if (m_irqLine && status.flags.interruptDisable == 0)
+        {
+            DispatchVector (irqVector, false);
+
+            m_lastCycles = 7;
+            return true;
+        }
+
+        return false;
+    }
 
 protected:
     // Returns true if a pending NMI or unmasked IRQ was dispatched. On
