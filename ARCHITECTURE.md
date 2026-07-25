@@ -285,7 +285,7 @@ runs the CRT post-process into the back buffer.
 **Chrome.** The drive band, `//c` switch bar, buttons, and letterbox are painted
 by the Dxui panel tree on the UI thread — immediate-mode, re-tessellated each
 presented frame (`DxuiPainter::PushQuad`). This is the current largest CPU render
-cost and the target of the deferred retained-mode initiative (see below).
+cost — the perf facet of the off-thread-compositing initiative (#100; see §9).
 
 ---
 
@@ -345,11 +345,18 @@ Decisions we deliberately did **not** make, so they aren't re-litigated:
   device-architecture change (new class, rewired switches, changed
   first-match-wins semantics, many tests), not a table merge. Left as a possible
   future initiative on its own branch.
-- **Deferred, still open:** chrome **retained-mode** rendering (cache the
-  tessellated geometry, rebuild per-panel on change — blocked by the
-  single-threaded panel tree) and CPU **dynarec / threaded dispatch** (the
-  interpreter's per-instruction overhead is the largest remaining CPU cluster,
-  but a major undertaking with self-modifying-code + cycle-accuracy constraints).
+- **Tracked, not started (#100):** move Dxui compositing **off the UI thread**
+  (retained-mode immutable-snapshot / commit-and-swap). The primary driver is
+  *correctness*, not perf: paint lives on the UI thread, so any modal loop (disk
+  picker, file dialog, window drag, `MessageBox`) freezes all rendering — which
+  cheaper frames cannot fix. It also folds in the perf win (the immediate-mode
+  `PushQuad` re-tessellation noted in §6). Blocked by the single-threaded panel
+  tree (~154 `DxuiAssertUiThread`); a UI-thread-only retained geometry cache
+  would buy the perf half but not the freeze fix.
+- **Deferred:** CPU **dynarec / threaded dispatch** — the interpreter's
+  per-instruction overhead is the largest remaining CPU cluster, but a major
+  undertaking (self-modifying code, exact cycle accuracy, undocumented-opcode
+  semantics).
 
 ---
 
