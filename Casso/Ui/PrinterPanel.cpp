@@ -64,8 +64,7 @@ static constexpr uint32_t  s_kArgbHoleRim    = 0xFFB8B8B8;   // sprocket hole ed
 
 // The live pin band (FR-034): a head pass strikes 8 pins spaced 1/72",
 // i.e. 2 native rows each -- 16 rows below the paper row. The reveal mask
-// clips this band at the paced head column; rows above it are complete. MUST
-// equal PrinterPacing's rowsPerSweep so a swept band tiles exactly onto the next.
+// clips this band at the live head column; rows above it are complete.
 static constexpr int       s_kPinBandRows = PrinterGrid::kPinBandRows;
 
 // Overtravel past the live band's rightmost ink (logic seeking): the real
@@ -705,105 +704,63 @@ void PrinterPanel::RefreshLive (PrinterWorker & worker, int64_t nowMs, bool forc
         if (m_formFeed != nullptr) { m_formFeed->SetEnabled (!printing);  }
     }
 
-    // A shrunk strip means eject/discard tore the paper off: rewind the view
-    // and the reveal to the fresh sheet instead of staring past its end.
+    // A shrunk strip means eject/discard tore the paper off: rewind the view to
+    // the fresh sheet instead of staring past its end.
     if (rows - 1 < m_viewport.LiveRow())
     {
         m_viewport.Reset();
-        m_pacing.Reset (nowSec, 0);
         m_spanImgValid = false;
         m_panYSeeded   = false;   // reseed onto the fresh sheet, don't glide across the tear
     }
 
-    // First refresh starts caught up at the head, so opening the panel over a
-    // restored pending strip never replays its history (only NEW ink animates).
-    if (!m_pacingPrimed)
-    {
-        m_pacing.Reset (nowSec, headRow);
-        m_pacingPrimed = true;
-    }
-
-    // The FR-034 reveal: pacing chases the head at ImageWriter speed. At
-    // authentic guest speed it stays caught up (the sweep IS the guest's own
-    // timing); at max speed it animates behind, jump-cutting past big backlogs.
+    // The worker replays the interpreter's real carriage timeline off the guest
+    // clock (a pass per printed line, a feed per paper advance) at draft speed.
+    // It publishes two rows: the PLATEN (HeadPosition row), where the head sits --
+    // it slews down through a feed, so the viewport follows it and the paper
+    // scrolls -- and the reveal FRONTIER (RevealBandTop), the line being laid,
+    // which holds one band back through a feed so freshly fed paper reads blank
+    // even though the raster already holds the next line (drained ahead to keep
+    // the buffer full). Ink at or below the frontier shows only within the swept
+    // column span; between passes the mask column is 0, so nothing below it shows.
     //
-    // Bidirectional carriage: the real ImageWriter prints each line in the
-    // opposite direction. Our interpreter lays every line's dots left-to-right,
-    // so a right-to-left REVEAL only looks correct once the line is COMPLETE in
-    // the raster -- hold the reveal one line behind the guest while it is
-    // actively printing (released to the live head the moment the print idles).
-    // The sweep runs the full carriage width in the alternating direction; the
-    // ink-gate keeps the buzz silent over the blank overtravel of a short line.
-    int  laggedRow = m_printingActive ? (std::max) (0, headRow - s_kBidiLagRows) : headRow;
+    // The ImageWriter II prints BIDIRECTIONALLY: one pin band left-to-right, feed,
+    // the next right-to-left. The worker owns direction and publishes the physical
+    // carriage column already mirrored around the LINE's printed width, so a short
+    // text line sweeps back over its own ink, not off to the right margin. The ink
+    // reveal itself is the wet-ink presented layer; the column here only drives the
+    // audio (which ink the head just crossed) and the re-render change detection.
+    int   platenRow = (std::max) (0, headRow);
 
-    {
-        // Tell the clock what is under the head: a blank live band (line /
-        // form feed) slews through with the head parked -- never sweeping
-        // empty paper -- and an inked band's pass runs only its printed span
-        // plus a little overtravel (the real machine's logic seeking: a short
-        // catalog line sweeps ~2 inches, not the whole platen). Only queried
-        // while behind (the answer is unused when the reveal is caught up).
-        bool  liveBandInk = true;
-        int   sweepWidth  = PrinterGrid::kDotsPerRow;
-        int   liveTop     = m_pacing.RevealedRows();
+    sweepLtr     = worker.HeadSweepLtr();
+    revealRow    = (std::max) (0, worker.RevealBandTop());   // print frontier (change-detect)
+    revealBehind = false;
+    bandBottom   = (std::min) (platenRow + s_kPinBandRows - 1, rows - 1);   // viewport follows the platen
 
-        revealBehind = (liveTop < laggedRow);
-        if (revealBehind)
-        {
-            int  extent = worker.SpanInkExtent (liveTop, liveTop + s_kPinBandRows - 1);
+    revealCol = worker.CarriageCol();   // physical carriage column, over the actual ink
+    revealLo  = sweepLtr ? 0 : revealCol;
+    revealHi  = sweepLtr ? revealCol : PrinterGrid::kDotsPerRow;
 
-            liveBandInk = (extent > 0);
-            if (liveBandInk)
-            {
-                sweepWidth = (std::min) (PrinterGrid::kDotsPerRow, extent + s_kSweepOvertravelDots);
-            }
+    // Audio follows the PRESENTATION (what is seen): the platen row and the head's
+    // column (which wraps to 0 each new line -- the line-feed clack). The buzz gate
+    // is whether the band under the head carries ink, so a blank paper feed slews
+    // silent under its own feed one-shot instead of buzzing.
+    m_liveRevealRow     = platenRow;
+    m_liveRevealColDots = headCol;
+    m_revealInk = worker.SpanInkExtent (platenRow, platenRow + s_kPinBandRows - 1) > 0;
 
-            // While catching up, the audio's ink gate IS the pacer's: the band
-            // the head is sweeping buzzes, a blank band feeds silently. The
-            // render-side span sample below cannot serve here -- at catch-up
-            // speed the reveal races ahead of the EASED viewport pan, so the
-            // live band is often outside the snapshotted span and sampling it
-            // reads blank paper (the missing CATALOG buzz). Assigned before the
-            // render throttle's early-outs so it stays fresh every frame.
-            m_revealInk = liveBandInk;
-        }
-
-        m_pacing.SetTargetPosition (laggedRow, sweepWidth);
-        m_pacing.Advance (nowSec, liveBandInk);
-    }
-
-    revealRow  = m_pacing.RevealedRows();
-    bandBottom = (std::min) (revealRow + s_kPinBandRows - 1, rows - 1);
-    sweepLtr   = m_pacing.SweepLeftToRight();
-
-    {
-        // The head sweeps the live band whether or not it has caught the guest:
-        // revealing ink IS the sweep now (PrinterPacing), so a backlog drains
-        // as a visible carriage pass, not a full-width snap. The pass spans the
-        // band's sweep width (logic seeking); a R->L pass mirrors WITHIN that
-        // span, so the head zigzags continuously over the printed region --
-        // pass N ends where pass N+1 begins.
-        int  progress = m_pacing.RevealedColDots();     // 0..SweepWidthDots
-        int  sweepW   = m_pacing.SweepWidthDots();
-
-        revealCol = sweepLtr ? progress : (sweepW - progress);
-        revealLo  = sweepLtr ? 0 : revealCol;
-        revealHi  = sweepLtr ? revealCol : PrinterGrid::kDotsPerRow;
-    }
-
-    // The carriage is animating whenever the reveal trails the lagged target or a
-    // sweep is mid-flight; m_printingActive additionally holds the present
-    // cadence hot across line boundaries (see NeedsAnimationFrame).
-    m_sweeping = (revealRow < laggedRow) || (revealLo > 0) || (revealHi < PrinterGrid::kDotsPerRow);
+    // Keep requesting animation frames while the carriage sweeps or the paper
+    // feeds (HeadMoving covers a host Form Feed, which does not bump activity);
+    // m_printingActive holds the cadence hot across the guest's brief byte gaps.
+    m_sweeping = m_printingActive || worker.HeadMoving();
 
     if (m_scene != nullptr)
     {
-        // One carriage, one clock. The head glyph rides the very same swept
-        // column that reveals the ink and drives the audio -- PrinterPacing owns
-        // it. That column is monotonic within a pass and parks at its margin when
-        // the carriage catches the guest, so the glyph sweeps smoothly and rests
-        // there without any separate oscillator or easing to drift out of sync.
-        m_scene->SetHeadColumn01 ((float) revealCol / (float) PrinterGrid::kDotsPerRow);
+        // The head glyph rides the physical carriage column, which tracks the
+        // sweep during a pass and PARKS where it finished between passes -- so it
+        // never snaps back to the left margin during a feed (the reveal mask does
+        // close to 0 there, to blank the paper scrolling in, but the carriage must
+        // not follow it).
+        m_scene->SetHeadColumn01 ((float) worker.CarriageCol() / (float) PrinterGrid::kDotsPerRow);
 
         // Front-panel status lamps carry fixed per-lamp meanings (see
         // Printer3DScene::LampRole): Power + Select sit steady-lit while the
@@ -846,6 +803,12 @@ void PrinterPanel::RefreshLive (PrinterWorker & worker, int64_t nowMs, bool forc
     span.lastRow  = (int) std::lround (m_panZoom.PanY());
     span.firstRow = (std::max) (0, span.lastRow - m_viewport.ViewportRows() + 1);
 
+    // The eased viewport pan lags a fast print (text catch-up), so the live band
+    // can sit BELOW the snapshotted span -- there the span-sample ink gate reads
+    // blank paper and drops the buzz (the missing CATALOG ink). When the head is
+    // ahead of the snapshot, keep the pacing block's worker-raster gate instead.
+    revealBehind = (platenRow + s_kPinBandRows - 1 > span.lastRow) || (platenRow < span.firstRow);
+
     moved       = (span.firstRow != m_renderedSpan.firstRow || span.lastRow != m_renderedSpan.lastRow);
     revealMoved = (revealRow != m_renderedRevealRow || revealCol != m_renderedRevealCol);
 
@@ -864,7 +827,7 @@ void PrinterPanel::RefreshLive (PrinterWorker & worker, int64_t nowMs, bool forc
         ShowBlankSheet();
         m_revealInk = false;
     }
-    else if (worker.SnapshotStripSpan (span.firstRow, span.lastRow, spanRaster))
+    else if (worker.SnapshotPresentedSpan (span.firstRow, span.lastRow, spanRaster))
     {
         // Ink only ever accretes in the live pin band(s) at the print frontier;
         // every row above the band that was live at the last render is final.
@@ -874,9 +837,19 @@ void PrinterPanel::RefreshLive (PrinterWorker & worker, int64_t nowMs, bool forc
         // ticks each frame, forcing a whole-span re-render + recompose) was what
         // made later rows print progressively slower as the sheet grew. A fresh
         // panel (nothing rendered yet) marks everything dirty for a full render.
-        int   dirtyFromAbs = m_hasRendered ? (m_renderedRows - 3 * s_kPinBandRows) : -1;
+        // The presented layer changed everywhere the head painted since the LAST
+        // render -- normally a band or two at the platen, but a whole run of rows
+        // if the UI was frozen (a modal disk picker blocks compositing while the
+        // background worker keeps printing). Dirty from the last-rendered platen,
+        // not just a fixed window, or those frozen-through rows keep their stale
+        // pixels (an overprint that finished during the freeze reads as its first
+        // pass only -- green shows as yellow). The reveal is baked into the
+        // presented pixels, so RenderSpan's mask stays off (-1).
+        int   dirtyFromAbs = m_hasRendered
+                           ? (std::min) (platenRow - 3 * s_kPinBandRows, m_renderedPlaten - s_kPinBandRows)
+                           : -1;
 
-        RenderSpan (spanRaster, span.firstRow, span.lastRow, dirtyFromAbs, revealRow, revealLo, revealHi);
+        RenderSpan (spanRaster, span.firstRow, span.lastRow, dirtyFromAbs, -1, revealLo, revealHi);
 
         // Tell the audio whether the head passed over ink (buzz) vs blank feed
         // (silent) -- CAUGHT-UP frames only. While the reveal trails the guest,
@@ -923,7 +896,12 @@ void PrinterPanel::RefreshLive (PrinterWorker & worker, int64_t nowMs, bool forc
             sampleLo = (std::max) (0, sampleLo);
             sampleHi = (std::min) (PrinterGrid::kDotsPerRow - 1, sampleHi);
 
-            m_revealInk = RevealBandHasInk (spanRaster, span.firstRow, revealRow, sampleLo, sampleHi);
+            // Sample where the HEAD physically is (platenRow), not the reveal
+            // frontier: an overprint pass (Print Shop lays a colour band L>R then
+            // re-strikes the SAME row R>L in the next primary) sits at row R while
+            // the monotonic frontier already advanced a band past it, so sampling
+            // the frontier would read the blank row below and drop the buzz.
+            m_revealInk = RevealBandHasInk (spanRaster, span.firstRow, platenRow, sampleLo, sampleHi);
         }
     }
     else
@@ -937,6 +915,7 @@ void PrinterPanel::RefreshLive (PrinterWorker & worker, int64_t nowMs, bool forc
     m_renderedRows      = rows;
     m_renderedRevealRow = revealRow;
     m_renderedRevealCol = revealCol;
+    m_renderedPlaten    = platenRow;
     m_lastRenderMs      = nowMs;
     m_hasRendered       = true;
     Invalidate();

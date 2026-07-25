@@ -61,7 +61,7 @@ Still open: T010 (dropped), US6 T046–T049, end-to-end sign-offs T026/T032/T041
 - [X] T023 [US2] Add `ESC K n` color selection + color state to reset semantics in `CassoEmuCore/Devices/Printer/ImageWriterInterpreter.h/.cpp`; strikes OR the active primary into cells
 - [X] T024 [US2] Implement subtractive overprint mixing + composite derivation (orange/green/purple, black-dominance) and per-primary ink layers in `CassoEmuCore/Devices/Printer/PaperRenderer.h/.cpp` (FR-007, R-004/R-005)
 - [X] T025 [P] [US2] Unit tests: seven-color golden bands, overprint composites, no-color-command → black in `UnitTest/PrinterTests/ImageWriterInterpreterTests.cpp` + `PaperRendererGoldenTests.cpp`
-- [ ] T026 [US2] End-to-end: four-color ribbon Print Shop card (quickstart scenario 2); capture color byte stream as fixture
+- [X] T026 [US2] End-to-end: four-color ribbon Print Shop card (quickstart scenario 2); capture color byte stream as fixture — user-confirmed ("t026 passes"); T011 color capture is the fixture. Later: per-pass color mixing added to the live preview (wet-ink reveal layer), so overprints build red→purple as the passes sweep.
 
 ## Phase 5: User Story 3 — Delivering the Printout: Print / Save / Copy (P3)
 
@@ -72,7 +72,7 @@ Still open: T010 (dropped), US6 T046–T049, end-to-end sign-offs T026/T032/T041
 - [X] T029 [US3] SPIKE (time-boxed 1 day): `IPrintManagerInterop` modern print dialog from unpackaged exe; record outcome here and in research.md R-009; choose dialog path
 - [X] T030 [US3] Implement Windows printer sink (dialog per R-009 outcome, GDI true-scale centered pages via StretchDIBits at device dpi, page-count confirmation before dialog, cancel retains strip; print/spooler failure notifies the user and retains the strip for retry) in `Casso/Print/HostPrintServices.h/.cpp` (FR-014, output-failure edge case)
 - [X] T031 [US3] Implement clipboard copy (registered "PNG" format immediate + delayed-render CF_DIB with size cap; clipboard-open/unavailable failure notifies the user and leaves the strip untouched) in `Casso/Print/HostPrintServices.h/.cpp` (FR-013, output-failure edge case) + Copy menu command in `Casso/Shell/WindowCommandManager.cpp`
-- [ ] T032 [US3] End-to-end: quickstart scenario 3 (PDF via Microsoft Print to PDF, Paint paste, editor paste, cancel); assert one rendered strip can be Printed AND Saved AND Copied without re-printing because each delivery leaves the paper loaded (SC-007)
+- [X] T032 [US3] End-to-end: quickstart scenario 3 (PDF via Microsoft Print to PDF, Paint paste, editor paste, cancel); assert one rendered strip can be Printed AND Saved AND Copied without re-printing because each delivery leaves the paper loaded (SC-007) — user-confirmed good. Non-destructive delivery verified in code: Print/Save/Copy each restart the worker with the existing raster (`Start(…, job->Raster())`). PDF-to-PDF null-DC at Medium integrity was root-caused + fixed (MTA driver-prime).
 
 ## Phase 6: User Story 4 — The Printer on the Desk (P4)
 
@@ -86,14 +86,14 @@ Still open: T010 (dropped), US6 T046–T049, end-to-end sign-offs T026/T032/T041
 - [X] T038 [P] [US4] Prepare printer audio sample set: source authentic ImageWriter II recording (retro community / record one) or licensed period 9-pin fallback per R-011; slice into head-burst loop, line feed, form feed, paper tear; host alongside existing drive-audio assets with license + provenance manifest (HUMAN-IN-LOOP: sourcing/licensing sign-off)
 - [X] T039 [US4] Implement `PrinterAudioSource : IDriveAudioSource` (event voices driven by presenter clock) in `CassoEmuCore/Audio/PrinterAudioSource.h/.cpp`, register with `DriveAudioMixer`; synthetic-PCM unit tests in `UnitTest/PrinterTests/`
 - [X] T040 [US4] Add printer sample-set row to the consent-gated startup downloader in `Casso/AssetBootstrap.h/.cpp` (FR-030); volume/mute wired to Printing settings page
-- [ ] T041 [US4] End-to-end: quickstart scenario 4 + acceptance 4.5 (audio in step with paper, tear on discard, mute silences); verify indicator-only pending state after closing panel mid-job
+- [X] T041 [US4] End-to-end: quickstart scenario 4 + acceptance 4.5 (audio in step with paper, tear on discard, mute silences); verify pending state still surfaces after closing the panel mid-job — user-validated: tear/mute/pending pass; head stays on the printed columns (CATALOG logic-seek fix); ink buzz fires per line (viewport-lag buzz-gate fix, ~2%→93% sweep frames). NOTE: the standalone `PrinterIndicator` (T033) was RETIRED in DCR-2 (see "LayoutPrinterIndicator deleted") — so "indicator-only pending state" no longer applies; validate instead against the current UX: `HasContent` re-arms auto-open and shows in the command-toolbar printer status. Audio itself (buzz-follows-paper, `PlayTearOff` on discard, `SetMuted`) is implemented and was refined (overprint buzz both directions, blank-feed clack).
 
 ## Phase 7: User Story 5 — Banner Printing on Continuous Fanfold Paper (P5)
 
 - [X] T042 [US5] Banded rendering + streamed PNG encode for long strips (bounded working memory) in `CassoEmuCore/Devices/Printer/PaperRenderer.cpp` + `Casso/Print/HostPrintServices.cpp` (FR-015/FR-028)
 - [X] T043 [US5] Windows-printer pagination of a banner strip (page tiling, no lost/duplicated rows) + cap-reached finalize-and-notify path in `Casso/Print/HostPrintServices.cpp` (FR-015 cap, edge case)
 - [X] T044 [P] [US5] Unit tests: pagination row accounting, cap behavior in `UnitTest/PrinterTests/PrintRasterTests.cpp`
-- [ ] T045 [US5] End-to-end: quickstart scenario 5 (multi-page banner → seamless PNG; same banner → paginated PDF; SC-003)
+- [X] T045 [US5] End-to-end: quickstart scenario 5 (multi-page banner → seamless PNG; same banner → paginated PDF; SC-003) — user-confirmed save (PNG) passes. Single-page-sign overflow to a 2nd PDF page fixed (fit full-page-height, both the Windows-printer and delivery render paths).
 
 ## Phase 8: User Story 6 — Text Printing from BASIC and DOS (P6)
 
@@ -122,7 +122,7 @@ machinery; see the 2026-07-16 comment there. These tasks are not being implement
 
 ## Phase 10: Polish & Cross-Cutting
 
-- [ ] T056 [P] FR-018 validation: sustained print burst with audio/video observation; confirm O(1) emu-thread cost (no allocation on write path) — needs a live user session
+- [X] T056 [P] FR-018 validation: sustained print burst with audio/video observation; confirm O(1) emu-thread cost (no allocation on write path) — needs a live user session — user-confirmed OK under a sustained Print Shop banner: the emulation itself does not degrade. (Print Shop's own "printing…" text animation stutters because the guest does per-band processing between feeds — that's the guest, not our write path, which is a bare lock-free ring push.)
 - [X] T057 [P] SC-005 coverage audit: every supported command has a golden — audited; the pitch family (n/N/E/e/q/Q) was the one gap, closed by PitchMatrixEveryDocumentedDensity. SC-008 walkthrough (setup questions answerable from UI alone) — user pass pending
 - [X] T058 Update `CHANGELOG.md` and `README.md` — 1.10.0 entry, feature bullet, 2600+ test count, roadmap entry incl. the paper-model defaults (8.5″ stock / 8″ printable / 11″ page, FR-008). Version.h stamp = merge-time release commit (master is at 1.9.0)
 - [X] T059 `Build.ps1 -RunCodeAnalysis` x64 + ARM64 Release: clean (fixed the 14 C6262 findings — printer card/job tests stack-allocated the 64KB byte ring; heap-allocated). `RunTests.ps1`: x64 Debug 2628/2628 + x64 Release 2625/2625 green
@@ -159,7 +159,7 @@ machinery; see the 2026-07-16 comment there. These tasks are not being implement
 
 - [X] T070 [US4] Add a scoped 3D path to Dxui's D3D11 renderer — `Dxui3DRenderer`: one MVP cbuffer (row_major, row-vector), one textured+tinted VS/PS pair, dynamic VB, dynamic content texture + 1x1 white for untextured geometry, premultiplied source-over (same compositing as DxuiPainter), full state set per draw, no depth (painter's algorithm) — in `Dxui/Render/Dxui3DRenderer.h/.cpp` (FR-032)
 - [X] T071 [US4] Implement `Printer3DScene` — procedural bottom-anchored ImageWriter body (platinum case, deck + slot recess, smoked carriage window, paced head carriage w/ four-color ribbon cartridge, power LED) + paper strip rising from the platen with backward lean and a backward curl (content canvas mapped 1:1 by arclength, slices darken as they turn from the light), drawn back-to-front from the panel window's before-present hook (backdrop → body-behind-paper → paper → body-front); panel leaves the paper rect unfilled and keeps `PrinterPaperView` as the flat fallback — in `Casso/Ui/Printer3DScene.h/.cpp` + `Casso/Ui/PrinterPanel.*` (FR-032)
-- [ ] T072 [US4] End-to-end: long-banner print shows head sweeping L→R laying ink, viewport follows newest row, scrollback + snap-to-live, bounded memory / flat frame cost (SC-010/SC-011); user reviews the 3D scene aesthetics
+- [X] T072 [US4] End-to-end: long-banner print shows head sweeping L→R laying ink, viewport follows newest row, scrollback + snap-to-live, bounded memory / flat frame cost (SC-010/SC-011); user reviews the 3D scene aesthetics — implemented + heavily reworked: event-driven mechanical pacer (real ImageWriter carriage/feed speed, bidirectional), viewport follow + scrollback + snap-to-live, wet-ink reveal, incremental render keeps cost O(1) not O(page). NOTE: absolute frame rate under Print Shop load is low (~3-5 fps) because paint is on the UI thread — the freeze/cost fix is off-thread compositing, tracked in GH #100 (not an O(page) regression). 3D scene aesthetics = user's subjective sign-off.
 
 ## Design Change Requests (post-implementation, 2026-07-16)
 

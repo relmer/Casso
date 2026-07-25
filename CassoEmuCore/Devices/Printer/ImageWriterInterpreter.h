@@ -58,6 +58,7 @@ private:
     void    ExecuteParamCommand (PrintRaster & raster, vector<PrinterEvent> & events);
     void    ConsumeGraphicsByte (Byte b, PrintRaster & raster, vector<PrinterEvent> & events);
     void    RenderTextChar      (Byte ch, PrintRaster & raster, vector<PrinterEvent> & events);
+    void    FlushTextPass       (vector<PrinterEvent> & events);
     void    EmitReset           (vector<PrinterEvent> & events);
 
     // Interpreter state (data-model: resets on printer-reset and machine start).
@@ -84,4 +85,13 @@ private:
     int         m_burstFromDot  = -1;
     int         m_burstToDot    = -1;
     int         m_burstRow      = 0;
+
+    // Text is line-buffered like the real mechanism: characters lay ink cell by
+    // cell, but the physical carriage pass is committed as one HeadBurst at the
+    // line boundary (CR / LF / FF / right-margin wrap). m_textPassOpen marks a
+    // line whose pass has not been emitted yet.
+    bool        m_textPassOpen  = false;
+    int         m_textFromDot   = 0;
+    int         m_textRow       = 0;
+    int         m_textInkTo     = -1;   // rightmost inked column on the current text line
 };

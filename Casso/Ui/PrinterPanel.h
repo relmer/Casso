@@ -5,7 +5,6 @@
 #include "Widgets/DxuiTooltip.h"
 #include "Core/DxuiPanZoom.h"
 
-#include "Devices/Printer/PrinterPacing.h"
 #include "Devices/Printer/PrinterViewport.h"
 #include "Devices/Printer/RgbaImage.h"
 #include "PrinterPaperView.h"
@@ -76,11 +75,10 @@ public:
     void     GetPacedReveal (int64_t & progressDots, int & colDots, bool & inkActive,
                              int & sweepWidthDots) const
     {
-        int  rows = m_pacing.RevealedRows ();
-        colDots        = m_pacing.RevealedColDots ();
-        progressDots   = (int64_t) rows * PrinterGrid::kDotsPerRow + colDots;
+        colDots        = m_liveRevealColDots;
+        progressDots   = (int64_t) m_liveRevealRow * PrinterGrid::kDotsPerRow + colDots;
         inkActive      = m_revealInk;
-        sweepWidthDots = m_pacing.SweepWidthDots ();   // pass span (logic seeking) for the audio's wrap detection
+        sweepWidthDots = PrinterGrid::kDotsPerRow;   // full carriage width for the audio's line-wrap detection
     }
 
     // Per-frame live update (FR-033): advance the viewport to the worker's
@@ -230,10 +228,11 @@ private:
     // position at ImageWriter speed; the rendered-reveal pair detects sweep
     // motion so the panel keeps animating between byte arrivals. Primed
     // caught-up on first refresh so a restored strip never replays history.
-    PrinterPacing           m_pacing;
-    bool                    m_pacingPrimed     = false;
+    int                     m_liveRevealRow     = 0;   // head row published to the audio (GetPacedReveal)
+    int                     m_liveRevealColDots = 0;   // head column published to the audio
     int                     m_renderedRevealRow = -1;
     int                     m_renderedRevealCol = -1;
+    int                     m_renderedPlaten    = -1;   // platen at the last render; dirties the gap the head painted while the UI was frozen
 
 
     // Ink-under-head flag for the printer audio (see GetPacedReveal): true when

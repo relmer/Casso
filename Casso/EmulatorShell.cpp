@@ -5935,7 +5935,6 @@ Error:
 
 
 
-
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  OnKeyUp
@@ -6281,10 +6280,20 @@ void EmulatorShell::UpdateJoystickButtonsFromKeys()
 
     BAIL_OUT_IF (iieKbd == nullptr && gamePort == nullptr, S_OK);
 
-    button0 = (GetAsyncKeyState (static_cast<int> (s_kJoystickButton0Vk)) & 0x8000) != 0 ||
-              (GetKeyState      (VK_LMENU)                                & 0x8000) != 0;
-    button1 = (GetAsyncKeyState (static_cast<int> (s_kJoystickButton1Vk)) & 0x8000) != 0 ||
-              (GetKeyState      (VK_RMENU)                                & 0x8000) != 0;
+    // Only read the physical keys while WE are the foreground app. The async
+    // key state is global, so a held Alt during the Alt-Tab switcher (or any
+    // time another app is active) would otherwise keep re-pressing Open-Apple /
+    // button 0 in the guest every frame -- e.g. re-triggering a Print Shop
+    // print on the way out. Foreground reads normally (no added latency); not
+    // foreground leaves the buttons released. Matches the input gate used
+    // elsewhere (GetForegroundWindow () != m_hwnd).
+    if (GetForegroundWindow () == m_hwnd)
+    {
+        button0 = (GetAsyncKeyState (static_cast<int> (s_kJoystickButton0Vk)) & 0x8000) != 0 ||
+                  (GetKeyState      (VK_LMENU)                                & 0x8000) != 0;
+        button1 = (GetAsyncKeyState (static_cast<int> (s_kJoystickButton1Vk)) & 0x8000) != 0 ||
+                  (GetKeyState      (VK_RMENU)                                & 0x8000) != 0;
+    }
 
     if (iieKbd != nullptr)
     {
@@ -6414,8 +6423,10 @@ void EmulatorShell::SetArrowsJoystick (bool on)
 
     if (iieKbd != nullptr)
     {
-        iieKbd->SetOpenApple   ((GetKeyState (VK_LMENU) & 0x8000) != 0);
-        iieKbd->SetClosedApple ((GetKeyState (VK_RMENU) & 0x8000) != 0);
+        bool  fg = (GetForegroundWindow () == m_hwnd);   // never latch Alt-as-Open-Apple while backgrounded
+
+        iieKbd->SetOpenApple   (fg && (GetKeyState (VK_LMENU) & 0x8000) != 0);
+        iieKbd->SetClosedApple (fg && (GetKeyState (VK_RMENU) & 0x8000) != 0);
     }
 }
 

@@ -333,6 +333,62 @@ namespace ImageWriterInterpreterTests
         }
 
 
+        TEST_METHOD (TextPassLogicSeeksToLastInkedColumn)
+        {
+            // A DOS CATALOG line is padded with trailing spaces; the carriage must
+            // logic-seek to the last INKED column, not sweep out over the blanks.
+            // 'A' + four spaces + CR advances the head 5 pica cells (80 dots), but
+            // the pass's struck extent must stay inside 'A's first cell (< 16).
+            ImageWriterInterpreter   interp;
+            PrintRaster              raster;
+            vector<PrinterEvent>     events;
+            const PrinterEvent *     burst = nullptr;
+
+            Feed (interp, raster, events, { 0xC1, 0xA0, 0xA0, 0xA0, 0xA0, 0x8D });   // 'A' + 4 spaces + CR
+
+            Assert::AreEqual (1, CountEvents (events, PrinterEventType::HeadBurst));
+
+            for (const PrinterEvent & e : events)
+            {
+                if (e.type == PrinterEventType::HeadBurst) { burst = &e; break; }
+            }
+            Assert::IsTrue (burst != nullptr);
+            Assert::IsTrue (burst->toDot > 0);    // 'A' laid ink
+            Assert::IsTrue (burst->toDot < 16);   // ...but the pass ends at the ink, not the padded 79
+        }
+
+
+        TEST_METHOD (TextBlankLineLaysNoCarriagePass)
+        {
+            // A line of only spaces inks nothing -- no carriage pass (no sweep, no
+            // buzz), just the feed when the line ends.
+            ImageWriterInterpreter   interp;
+            PrintRaster              raster;
+            vector<PrinterEvent>     events;
+
+            Feed (interp, raster, events, { 0xA0, 0xA0, 0xA0, 0x8D });   // 3 spaces + CR
+
+            Assert::AreEqual (0, CountEvents (events, PrinterEventType::HeadBurst));
+        }
+
+
+        TEST_METHOD (EachInkedTextLineEmitsOnePassAndOneFeed)
+        {
+            // One HeadBurst + one LineFeed per printed line -- the preview sweeps
+            // (and buzzes) once per line and clacks once per feed, never merging
+            // or dropping passes (audio-count == line-count).
+            ImageWriterInterpreter   interp;
+            PrintRaster              raster;
+            vector<PrinterEvent>     events;
+
+            //                                A    CR    LF    B    CR    LF    C    CR    LF
+            Feed (interp, raster, events, { 0xC1, 0x8D, 0x8A, 0xC2, 0x8D, 0x8A, 0xC3, 0x8D, 0x8A });
+
+            Assert::AreEqual (3, CountEvents (events, PrinterEventType::HeadBurst));
+            Assert::AreEqual (3, CountEvents (events, PrinterEventType::LineFeed));
+        }
+
+
         TEST_METHOD (PitchMatrixEveryDocumentedDensity)
         {
             // T057 / SC-005: every documented pitch command sets the expected

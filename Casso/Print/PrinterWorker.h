@@ -37,6 +37,16 @@ public:
     void          Stop     ();
     bool          Running  () const { return m_running; }
 
+    // Wire the guest's monotonic cycle accumulator so the drain runs at real
+    // ImageWriter speed in EMULATED time: the ring backs up, the card de-asserts
+    // ready, and the guest throttles itself (backpressure) -- exactly like the
+    // real parallel interface, so the strip is produced no faster than it
+    // "prints" and can never race ahead of the preview. Running the emulator
+    // faster (max perf) prints proportionally faster. Set once at machine build
+    // (the pointer is stable across worker restarts); null drains unthrottled
+    // (tests / no CPU). Read best-effort across threads -- it only paces.
+    void          SetCycleClock (const uint64_t * cycles) { m_guestCycles = cycles; }
+
     // Valid from Start() until the next Start()/dtor. Touch the raster only
     // after Stop().
     PrinterJob *  Job      () { return m_job.get (); }
@@ -55,6 +65,15 @@ public:
     // `out`). The live preview snapshots its ~1-page viewport through this so
     // per-refresh cost is bounded by the viewport, not the strip (FR-033).
     bool          SnapshotStripSpan (int firstRow, int lastRow, PrintRaster & out);
+
+    // Viewport-bounded snapshot of the PRESENTED ("wet ink") layer -- the strip
+    // as the mechanical head has physically laid it so far, one primary per pass,
+    // rather than the fully-composited strip the drain builds ahead. This is what
+    // the live preview renders, so an overprint (Print Shop lays red then re-
+    // strikes blue) shows the colour mixing to purple as the passes sweep, and
+    // freshly-fed paper reads blank until the head reaches it. Same locking /
+    // rebasing contract as SnapshotStripSpan; delivery still uses the real strip.
+    bool          SnapshotPresentedSpan (int firstRow, int lastRow, PrintRaster & out);
 
     // The ink extent of rows [firstRow, lastRow]: one past the rightmost inked
     // dot, or 0 when the span is blank. Read under the raster lock. The
@@ -95,16 +114,93 @@ public:
         colDots = (int) (packed & 0xFFFFFFFFu);
     }
 
+    // The carriage sweep direction of the live line (bidirectional print): the
+    // ImageWriter II lays one band left-to-right, feeds, then the next band
+    // right-to-left. The reveal mirrors accordingly. Safe from the UI thread.
+    bool          HeadSweepLtr  () const { return m_headLtr.load (std::memory_order_relaxed) != 0; }
+
+    // The top strip row of the reveal mask: ink at or below it shows only within
+    // the swept column span, so it is the print FRONTIER. During a sweep it is
+    // the pass being laid; during a paper feed it holds at the last finished pass
+    // while the platen (HeadPosition row) slews on, so freshly fed paper reads as
+    // blank even though the raster already holds the next line (drained ahead to
+    // keep the buffer full). Safe from the UI thread.
+    int           RevealBandTop () const { return m_revealTop.load (std::memory_order_relaxed); }
+
+    // True while the carriage is mid-pass or the paper is feeding (including a
+    // host Form Feed, which does not bump the guest-activity signal). The panel
+    // keeps requesting animation frames while this holds. Safe from the UI thread.
+    bool          HeadMoving    () const { return m_headMoving.load (std::memory_order_relaxed) != 0; }
+
+    // The physical carriage column in dots (0 = left margin), for the head glyph.
+    // Unlike the reveal mask -- which closes to 0 during a feed to blank the paper
+    // scrolling in below the frontier -- this HOLDS at the last sweep's end so the
+    // carriage parks between passes instead of snapping to the left edge. Safe
+    // from the UI thread.
+    int           CarriageCol   () const { return m_carriageCol.load (std::memory_order_relaxed); }
+
 private:
+    enum Phase { Idle, Sweeping, Feeding };
+
     void          Run ();
 
+    // Append a drain's head-motion events (passes + feeds) to the timeline.
+    void          QueueMotion (const vector<PrinterEvent> & events);
+
+    // Replay `timeSec` of print time along the event timeline: sweep the current
+    // HeadBurst across its printed width at the draft carriage speed, then slew to
+    // the next paper feed at the feed speed, popping events as each completes.
+    void          AdvanceEventHead (double timeSec);
+
+    // Paint the current sweep's primary into the presented layer for the carriage
+    // travel between progress `fromP` and `toP` dots: for each cell the head just
+    // crossed, OR in the part of the built cell that this pass's colour struck, so
+    // overprints accrue into composites exactly as the ribbon lays them.
+    void          PaintPresented (double fromP, double toP);
+
+    // Seconds of print time still queued (current motion + all pending events).
+    // The drain is gated on this so the ring backs up and the guest throttles to
+    // the print rate (backpressure), exactly like a real printer's line buffer.
+    double        PendingMotionSeconds () const;
+
     unique_ptr<PrinterJob>   m_job;
+    PrintRaster              m_presented;     // "wet ink" layer the head paints (preview only)
     std::thread              m_thread;
     std::mutex               m_rasterMutex;   // guards raster mutation vs. UI-thread SnapshotStrip
     std::atomic<bool>        m_stopRequested { false };
     std::atomic<uint64_t>    m_activity      { 0 };
     std::atomic<bool>        m_hasContent    { false };
-    std::atomic<int>         m_rowsUsed      { 0 };   // strip height for preview pacing
-    std::atomic<uint64_t>    m_headPos       { 0 };   // (row << 32) | colDots (FR-034)
+    std::atomic<int>         m_rowsUsed      { 0 };   // raster's real built height (preview clamp / tear)
+    std::atomic<uint64_t>    m_headPos       { 0 };   // platen: (row << 32) | maskColDots (FR-034)
+    std::atomic<int>         m_headLtr       { 1 };   // published carriage sweep direction (1 = L>R)
+    std::atomic<int>         m_revealTop     { 0 };   // reveal-mask top row (print frontier)
+    std::atomic<int>         m_carriageCol   { 0 };   // physical carriage column for the glyph (holds in feeds)
+    std::atomic<int>         m_headMoving    { 0 };   // carriage sweeping or paper feeding
+    std::atomic<int>         m_hostFormFeeds { 0 };   // UI-thread Form Feed requests, played by Run
     bool                     m_running       = false;
+
+    // Cycle-paced, event-driven mechanical head (see SetCycleClock). The
+    // interpreter emits the real carriage timeline -- a HeadBurst per printed
+    // pass (its row + struck extent) and a LineFeed / FormFeed per paper advance.
+    // The head replays that timeline off the guest clock at the draft carriage /
+    // feed speed and the ring is drained only just ahead of it, so the ring backs
+    // up, the card de-asserts ready, and the guest throttles itself to the print
+    // rate. Running the emulator faster (max perf) replays proportionally faster.
+    const uint64_t *         m_guestCycles   = nullptr;   // CPU cycle accumulator (caps the print rate)
+    uint64_t                 m_lastCycles    = 0;         // cycle count at the last head advance
+    int64_t                  m_lastTickMs    = 0;         // wall-clock ms at the last head advance
+    bool                     m_pacingSeeded  = false;     // seed the clocks on the first tick
+    std::deque<PrinterEvent> m_pending;                   // unplayed motion timeline (worker thread only)
+    Phase                    m_phase         = Idle;      // what the head is doing right now
+    double                   m_headRow       = 0.0;       // platen: paper row under the head
+    double                   m_headCol       = 0.0;       // sweep edge in dots (L>R-equivalent)
+    double                   m_sweepWidth    = 0.0;       // current burst's printed width
+    double                   m_feedTarget    = 0.0;       // paper row the current feed ends at
+    double                   m_feedRate      = 0.0;       // rows/s of the current feed (line vs form)
+    double                   m_frontier      = 0.0;       // furthest printed row -- monotonic, blank below it
+    double                   m_sweepMaskTop  = 0.0;       // reveal-mask top for the current sweep
+    double                   m_sweepPaintedTo = 0.0;      // sweep progress already painted into m_presented
+    Byte                     m_sweepColor    = 0;         // primary bits the current sweep lays
+    bool                     m_sweepLtr      = true;      // direction of the current sweep
+    bool                     m_nextLtr       = true;      // direction the next sweep will take
 };

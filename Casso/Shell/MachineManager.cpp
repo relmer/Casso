@@ -585,6 +585,15 @@ HRESULT MachineManager::CreateMemoryDevices (const MachineConfig & config)
             m_shell.m_refs.printerCard->ByteRing (),
             SUCCEEDED (hrLoad) ? std::move (pending) : PrintRaster ());
 
+        // Pace the drain off the guest clock so the card applies real
+        // backpressure -- the guest prints at ImageWriter speed (faster at max
+        // perf), never racing ahead of the preview. The cycle pointer is stable
+        // for this machine's CPU, so setting it once covers later restarts.
+        if (m_shell.m_cpu != nullptr)
+        {
+            m_shell.m_printerWorker.SetCycleClock (m_shell.m_cpu->GetCycleCounterPtr ());
+        }
+
         // Prime the live-preview auto-open baseline to the worker's current
         // activity so a page carried over from a previous session does not read as
         // a fresh print and auto-open the preview on boot -- only new printing does.

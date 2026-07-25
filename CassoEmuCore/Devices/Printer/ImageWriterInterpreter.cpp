@@ -159,6 +159,11 @@ void ImageWriterInterpreter::Reset()
     m_burstFromDot = -1;
     m_burstToDot   = -1;
     m_burstRow     = 0;
+
+    m_textPassOpen = false;
+    m_textFromDot  = 0;
+    m_textRow      = 0;
+    m_textInkTo    = -1;
 }
 
 
@@ -231,12 +236,16 @@ void ImageWriterInterpreter::ConsumeIdle (Byte b, PrintRaster & raster, vector<P
 
     if (b == s_kCR)
     {
+        // Carriage return prints the line buffer (commits the pass), then homes
+        // the head -- overprint follows if more text arrives before a feed.
+        FlushTextPass (events);
         m_headColumnDots = 0;
     }
     else if (b == s_kLF)
     {
         PrinterEvent   ev;
 
+        FlushTextPass (events);   // a bare LF still commits any pending line first
         raster.AdvanceRows (m_lineFeedRows);
         ev.type = PrinterEventType::LineFeed;
         ev.rows = m_lineFeedRows;
@@ -245,10 +254,13 @@ void ImageWriterInterpreter::ConsumeIdle (Byte b, PrintRaster & raster, vector<P
     else if (b == s_kFF)
     {
         PrinterEvent   ev;
+        int            before = raster.PaperRow();
 
+        FlushTextPass (events);
         raster.MarkFormFeed();
         m_headColumnDots = 0;
         ev.type = PrinterEventType::FormFeed;
+        ev.rows = raster.PaperRow() - before;   // feed distance, for the presenter's slew
         events.push_back (ev);
     }
     else if (b == s_kEsc)
@@ -295,11 +307,21 @@ void ImageWriterInterpreter::RenderTextChar (Byte ch, PrintRaster & raster, vect
     {
         PrinterEvent   ev;
 
+        FlushTextPass (events);   // print the full line before the implicit new line
         raster.AdvanceRows (m_lineFeedRows);
         m_headColumnDots = 0;
         ev.type = PrinterEventType::LineFeed;
         ev.rows = m_lineFeedRows;
         events.push_back (ev);
+    }
+
+    if (!m_textPassOpen)
+    {
+        // First character of a line: the carriage pass starts here.
+        m_textPassOpen = true;
+        m_textFromDot  = m_headColumnDots;
+        m_textRow      = raster.PaperRow();
+        m_textInkTo    = -1;   // no ink laid on this line yet
     }
 
     row = raster.PaperRow();
@@ -316,6 +338,11 @@ void ImageWriterInterpreter::RenderTextChar (Byte ch, PrintRaster & raster, vect
             if (colBits == 0)
             {
                 continue;
+            }
+
+            if (dot1 - 1 > m_textInkTo)
+            {
+                m_textInkTo = dot1 - 1;   // rightmost inked column, for logic-seek sweep width
             }
 
             for (bit = 0; bit < s_kGraphicsPins; bit++)
@@ -337,6 +364,45 @@ void ImageWriterInterpreter::RenderTextChar (Byte ch, PrintRaster & raster, vect
     }
 
     m_headColumnDots += cellDots;
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FlushTextPass
+//
+//  Commits the pending text line as one HeadBurst -- the carriage pass a real
+//  line-buffered printer performs on carriage return. The struck extent is the
+//  columns swept since the line began (m_textFromDot) to where the head now
+//  sits. A no-op when no text is pending (e.g. after a graphics run, which
+//  emits its own burst).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void ImageWriterInterpreter::FlushTextPass (vector<PrinterEvent> & events)
+{
+    PrinterEvent   ev;
+
+    if (!m_textPassOpen)
+    {
+        return;
+    }
+
+    m_textPassOpen = false;
+
+    if (m_textInkTo < m_textFromDot)
+    {
+        return;   // the line laid no ink (all spaces) -- no carriage pass, just the feed
+    }
+
+    ev.type    = PrinterEventType::HeadBurst;
+    ev.fromDot = m_textFromDot;
+    ev.toDot   = m_textInkTo;             // logic seek to the last INKED column, not the trailing spaces
+    ev.row     = m_textRow;
+    ev.color   = m_color;                // the primary this pass laid (usually black text)
+    events.push_back (ev);
 }
 
 
@@ -569,6 +635,7 @@ void ImageWriterInterpreter::ConsumeGraphicsByte (Byte b, PrintRaster & raster, 
         ev.fromDot = m_burstFromDot;
         ev.toDot   = m_burstToDot;
         ev.row     = m_burstRow;
+        ev.color   = m_color;   // the primary this pass laid, for the preview's per-pass reveal
         events.push_back (ev);
         m_state = EscState::Idle;
     }

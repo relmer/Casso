@@ -38,12 +38,25 @@ void PrinterJob::Reset()
 
 size_t PrinterJob::Drain (vector<PrinterEvent> & outEvents)
 {
+    return Drain (outEvents, (std::numeric_limits<size_t>::max) ());
+}
+
+
+uint32_t PrinterJob::Pending () const
+{
+    return m_ring.ApproxSize ();
+}
+
+
+size_t PrinterJob::Drain (vector<PrinterEvent> & outEvents, size_t maxBytes)
+{
     Byte     buffer[s_kDrainChunk];
     size_t   total = 0;
 
-    for (;;)
+    while (total < maxBytes)
     {
-        uint32_t   got = m_ring.Drain (buffer, s_kDrainChunk);
+        uint32_t   want = (uint32_t) (std::min) (maxBytes - total, (size_t) s_kDrainChunk);
+        uint32_t   got  = m_ring.Drain (buffer, want);
 
         if (got == 0)
         {

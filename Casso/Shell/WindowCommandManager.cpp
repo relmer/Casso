@@ -208,17 +208,20 @@ namespace
     // edge. A min() fit would height-limit full pages but width-limit the short
     // last page, scaling their columns differently and misaligning page-to-page.
     // GDI DIBs are BGRA, so the channels are swapped into a scratch buffer.
-    HRESULT BlitRgbaToDc (HDC hdc, const RgbaImage & img, int pageW, int pageH)
+    HRESULT BlitRgbaToDc (HDC hdc, const RgbaImage & img, int pageW, int pageH, int outputDpi)
     {
-        HRESULT        hr    = S_OK;
+        HRESULT        hr          = S_OK;
         vector<Byte>   bgra;
-        BITMAPINFO     bmi   = {};
-        size_t         count = 0;
-        size_t         i     = 0;
-        double         scale = 1.0;
-        int            destW = 0;
-        int            destH = 0;
-        int            blit  = 0;
+        BITMAPINFO     bmi         = {};
+        size_t         count       = 0;
+        size_t         i           = 0;
+        double         scale       = 1.0;
+        double         scaleW      = 0.0;
+        double         scaleH      = 0.0;
+        int            fullPageImgH = 0;
+        int            destW       = 0;
+        int            destH       = 0;
+        int            blit        = 0;
 
         CBR (img.width > 0 && img.height > 0);
         CBR (pageW > 0 && pageH > 0);
@@ -233,7 +236,16 @@ namespace
             bgra[i * 4 + 3] = img.rgba[i * 4 + 3];   // A
         }
 
-        scale = (double) pageW / img.width;   // fit width; identical scale on every page
+        // Scale so a FULL page fits the printable height, capped by the width;
+        // one uniform scale for every page. The ImageWriter's 8"-wide content is
+        // narrower-aspect than Letter, so fitting to width alone scales an 11"
+        // page to ~11.7" and spills its bottom onto a second sheet. Fitting a
+        // full page to height prints it at true size, centered, on one page.
+        fullPageImgH = PrinterGrid::kPageRows * outputDpi / PrinterGrid::kRowsPerInch;
+        scaleW       = (double) pageW / (double) img.width;
+        scaleH       = (fullPageImgH > 0) ? (double) pageH / (double) fullPageImgH : scaleW;
+
+        scale = (std::min) (scaleW, scaleH);   // identical scale on every page; fit within the sheet
         if (scale <= 0.0) { scale = 1.0; }
         destW = (std::max) (1, (int) (img.width  * scale));
         destH = (std::max) (1, (int) (img.height * scale));
@@ -1122,7 +1134,7 @@ HRESULT WindowCommandManager::PrintToWindowsPrinter (const PrintRaster & raster,
             goto Error;
         }
 
-        hr = BlitRgbaToDc (pd.hDC, img, pageW, pageH);
+        hr = BlitRgbaToDc (pd.hDC, img, pageW, pageH, opt.outputDpi);
         CHRF (hr, failedStage = std::format (L"drawing page {} onto the printer", pageIx + 1));
 
         hr = HrFromSpoolResult (EndPage (pd.hDC), L"EndPage", pageIx);

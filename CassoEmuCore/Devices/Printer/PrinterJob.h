@@ -42,6 +42,15 @@ public:
     // into the raster, appending presentation events. Returns bytes drained.
     size_t  Drain (vector<PrinterEvent> & outEvents);
 
+    // Same, but consumes at most `maxBytes` -- the worker paces this to real
+    // ImageWriter speed so the ring backs up and the card's ready line throttles
+    // the guest (backpressure). 0 consumes nothing; leftover bytes stay queued.
+    size_t  Drain (vector<PrinterEvent> & outEvents, size_t maxBytes);
+
+    // Approximate bytes still queued in the card's ring. The worker uses this to
+    // tell "printing" from "idle" so an idle gap never accrues a paced burst.
+    uint32_t  Pending () const;
+
     // Host-initiated form feed (the preview's Form Feed button): identical to
     // the guest sending $0C. The caller must only invoke this while the
     // printer is idle so it can't interleave with an in-flight command.

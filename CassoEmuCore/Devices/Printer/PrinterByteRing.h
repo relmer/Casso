@@ -64,7 +64,7 @@ public:
     uint32_t   FreeSpace  () const noexcept;
 
 private:
-    alignas(64) std::atomic<uint32_t>   m_head { 0 };   // consumer-owned
-    alignas(64) std::atomic<uint32_t>   m_tail { 0 };   // producer-owned
+    alignas(64) std::atomic<uint32_t>   m_head  { 0 };   // consumer-owned
+    alignas(64) std::atomic<uint32_t>   m_tail  { 0 };   // producer-owned
     Byte                                m_slots[kByteRingCapacity] {};
 };
