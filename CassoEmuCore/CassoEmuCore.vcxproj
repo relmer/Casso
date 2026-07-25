@@ -252,6 +252,7 @@
     <ClCompile Include="Devices\Printer\PrinterJob.cpp" />
     <ClCompile Include="Devices\Printer\PrinterHead.cpp" />
     <ClCompile Include="Devices\Printer\PrinterEngine.cpp" />
+    <ClCompile Include="Devices\Printer\PrinterPreviewModel.cpp" />
     <ClCompile Include="Devices\Printer\PngCodec.cpp" />
     <ClCompile Include="Devices\Printer\PrintJobPersistence.cpp" />
     <ClCompile Include="Devices\Printer\PrintFileNaming.cpp" />
@@ -360,6 +361,7 @@
     <ClInclude Include="Devices\Printer\PrinterJob.h" />
     <ClInclude Include="Devices\Printer\PrinterHead.h" />
     <ClInclude Include="Devices\Printer\PrinterEngine.h" />
+    <ClInclude Include="Devices\Printer\PrinterPreviewModel.h" />
     <ClInclude Include="Devices\Printer\PngCodec.h" />
     <ClInclude Include="Devices\Printer\PrintJobPersistence.h" />
     <ClInclude Include="Devices\Printer\PrintFileNaming.h" />

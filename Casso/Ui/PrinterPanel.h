@@ -135,14 +135,6 @@ private:
     void     ComposeCanvas  (const RgbaImage * content, int contentFirstAbsRow, int bottomAbsRow,
                              int revealBandTopAbs, int revealLoDots, int revealHiDots, int contentDirtyFromAbs);
 
-    // True when the pin band starting at absolute row `revealRow` carries ink in
-    // columns [sampleLoCol, sampleHiCol], sampled from the span raster (whose row
-    // 0 == absolute `spanFirstRow`). Drives m_revealInk / the audio buzz gate;
-    // the caller picks the range (a short window behind the head in the sweep
-    // direction while printing, or the whole row while feeding).
-    bool     RevealBandHasInk (const PrintRaster & spanRaster, int spanFirstRow,
-                               int revealRow, int sampleLoCol, int sampleHiCol) const;
-
     static int64_t  NowMs ();
 
     // Fanfold-paper furniture helpers (panel-only): the hole / perforation

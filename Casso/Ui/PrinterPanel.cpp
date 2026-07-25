@@ -9,6 +9,7 @@
 #include "Render/IDxuiTextRenderer.h"
 #include "Devices/Printer/PaperRenderer.h"
 #include "Devices/Printer/PrintRaster.h"
+#include "Devices/Printer/PrinterPreviewModel.h"
 #include "Devices/Printer/RgbaImage.h"
 #include "Print/PrinterWorker.h"
 
@@ -706,7 +707,7 @@ void PrinterPanel::RefreshLive (PrinterWorker & worker, int64_t nowMs, bool forc
 
     // A shrunk strip means eject/discard tore the paper off: rewind the view to
     // the fresh sheet instead of staring past its end.
-    if (rows - 1 < m_viewport.LiveRow())
+    if (PrinterPreviewModel::StripTornOff (rows, m_viewport.LiveRow()))
     {
         m_viewport.Reset();
         m_spanImgValid = false;
@@ -737,8 +738,13 @@ void PrinterPanel::RefreshLive (PrinterWorker & worker, int64_t nowMs, bool forc
     bandBottom   = (std::min) (platenRow + s_kPinBandRows - 1, rows - 1);   // viewport follows the platen
 
     revealCol = worker.CarriageCol();   // physical carriage column, over the actual ink
-    revealLo  = sweepLtr ? 0 : revealCol;
-    revealHi  = sweepLtr ? revealCol : PrinterGrid::kDotsPerRow;
+
+    {
+        PrinterPreviewModel::RevealSpan   rs = PrinterPreviewModel::RevealColumnSpan (sweepLtr, revealCol);
+
+        revealLo = rs.loDots;
+        revealHi = rs.hiDots;
+    }
 
     // Audio follows the PRESENTATION (what is seen): the platen row and the head's
     // column (which wraps to 0 each new line -- the line-feed clack). The buzz gate
@@ -807,10 +813,12 @@ void PrinterPanel::RefreshLive (PrinterWorker & worker, int64_t nowMs, bool forc
     // can sit BELOW the snapshotted span -- there the span-sample ink gate reads
     // blank paper and drops the buzz (the missing CATALOG ink). When the head is
     // ahead of the snapshot, keep the pacing block's worker-raster gate instead.
-    revealBehind = (platenRow + s_kPinBandRows - 1 > span.lastRow) || (platenRow < span.firstRow);
+    revealBehind = PrinterPreviewModel::LiveBandOutsideSpan (platenRow, span.firstRow, span.lastRow);
 
-    moved       = (span.firstRow != m_renderedSpan.firstRow || span.lastRow != m_renderedSpan.lastRow);
-    revealMoved = (revealRow != m_renderedRevealRow || revealCol != m_renderedRevealCol);
+    moved       = PrinterPreviewModel::SpanMoved (span.firstRow, span.lastRow,
+                                                  m_renderedSpan.firstRow, m_renderedSpan.lastRow);
+    revealMoved = PrinterPreviewModel::RevealMoved (revealRow, revealCol,
+                                                    m_renderedRevealRow, m_renderedRevealCol);
 
     if (!force && !moved && !revealMoved && m_hasRendered && activity == m_renderedActivity)
     {
@@ -845,9 +853,7 @@ void PrinterPanel::RefreshLive (PrinterWorker & worker, int64_t nowMs, bool forc
         // pixels (an overprint that finished during the freeze reads as its first
         // pass only -- green shows as yellow). The reveal is baked into the
         // presented pixels, so RenderSpan's mask stays off (-1).
-        int   dirtyFromAbs = m_hasRendered
-                           ? (std::min) (platenRow - 3 * s_kPinBandRows, m_renderedPlaten - s_kPinBandRows)
-                           : -1;
+        int   dirtyFromAbs = PrinterPreviewModel::DirtyFromRow (m_hasRendered, platenRow, m_renderedPlaten);
 
         RenderSpan (spanRaster, span.firstRow, span.lastRow, dirtyFromAbs, -1, revealLo, revealHi);
 
@@ -870,38 +876,16 @@ void PrinterPanel::RefreshLive (PrinterWorker & worker, int64_t nowMs, bool forc
         // a blank band (line / form feed) stays silent.
         if (!revealBehind)
         {
-            constexpr int  kInkBridgeDots = (PrinterGrid::kDotsPerInchH * 3) / 20;   // 0.15"
-            int  prevCol = m_renderedRevealCol;
-            int  colJump = (revealCol > prevCol) ? (revealCol - prevCol) : (prevCol - revealCol);
-            bool wrapped = (revealRow != m_renderedRevealRow)
-                           || (prevCol < 0)
-                           || (colJump > PrinterGrid::kDotsPerRow / 2);
-            int  sampleLo;
-            int  sampleHi;
-
-            if (wrapped)
-            {
-                sampleLo = 0;
-                sampleHi = PrinterGrid::kDotsPerRow - 1;
-            }
-            else
-            {
-                int  lo = (std::min) (prevCol, revealCol);
-                int  hi = (std::max) (prevCol, revealCol);
-
-                sampleLo = sweepLtr ? (lo - kInkBridgeDots) : lo;                 // bridge behind the head
-                sampleHi = sweepLtr ? hi : (hi + kInkBridgeDots);
-            }
-
-            sampleLo = (std::max) (0, sampleLo);
-            sampleHi = (std::min) (PrinterGrid::kDotsPerRow - 1, sampleHi);
+            PrinterPreviewModel::InkSample   sample = PrinterPreviewModel::AudioSampleWindow (
+                sweepLtr, m_renderedRevealCol, revealCol, revealRow, m_renderedRevealRow);
 
             // Sample where the HEAD physically is (platenRow), not the reveal
             // frontier: an overprint pass (Print Shop lays a colour band L>R then
             // re-strikes the SAME row R>L in the next primary) sits at row R while
             // the monotonic frontier already advanced a band past it, so sampling
             // the frontier would read the blank row below and drop the buzz.
-            m_revealInk = RevealBandHasInk (spanRaster, span.firstRow, platenRow, sampleLo, sampleHi);
+            m_revealInk = PrinterPreviewModel::BandHasInk (spanRaster, span.firstRow, platenRow,
+                                                           sample.loCol, sample.hiCol);
         }
     }
     else
@@ -919,43 +903,6 @@ void PrinterPanel::RefreshLive (PrinterWorker & worker, int64_t nowMs, bool forc
     m_lastRenderMs      = nowMs;
     m_hasRendered       = true;
     Invalidate();
-}
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  PrinterPanel::RevealBandHasInk
-//
-//  Whether the pin band at the reveal row carries any ink within the column
-//  range [sampleLoCol, sampleHiCol], sampled from the span raster. The caller
-//  picks the range: a short window just behind the head in the sweep direction
-//  while printing a live line (bridges inter-character gaps so a word buzzes as
-//  one, but goes silent over a wide margin), or the whole row while rows are
-//  still feeding. Drives the audio buzz gate -- inked rows buzz, blank feed /
-//  form-feed rows stay silent.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool PrinterPanel::RevealBandHasInk (const PrintRaster & spanRaster, int spanFirstRow,
-                                     int revealRow, int sampleLoCol, int sampleHiCol) const
-{
-    int   topRow = (std::max) (0, revealRow - spanFirstRow);   // span-relative
-    int   botRow = revealRow - spanFirstRow + s_kPinBandRows - 1;
-
-    for (int r = topRow; r <= botRow; r++)
-    {
-        for (int c = sampleLoCol; c <= sampleHiCol; c++)
-        {
-            if (spanRaster.CellAt (c, r) != 0)
-            {
-                return true;
-            }
-        }
-    }
-
-    return false;
 }
 
 
