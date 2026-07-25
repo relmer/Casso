@@ -5,7 +5,7 @@
 **Status**: Draft
 **Input**: User description: "Deliver a fully correct, architecturally sound emulation of the Apple //e (non-Enhanced) such that the Casso emulator can boot the //e ROM, drive all internal devices and ROMs correctly, run real //e software (including disk-based software with copy protection), and pass a comprehensive automated test suite."
 
-**Authoritative Requirements Input**: [`docs/iie-audit.md`](../../docs/iie-audit.md) — full gap analysis and desired-correct-behavior reference for every //e subsystem touched by this feature. Every [CRITICAL] and [MAJOR] finding in that document is in scope here unless explicitly listed under "Out of Scope" below.
+**Authoritative Requirements Input**: [`iie-audit.md`](iie-audit.md) — full gap analysis and desired-correct-behavior reference for every //e subsystem touched by this feature. Every [CRITICAL] and [MAJOR] finding in that document is in scope here unless explicitly listed under "Out of Scope" below.
 
 ## Clarifications
 
@@ -139,7 +139,7 @@ A user running the Casso //e on a modern host system observes that the emulator 
 
 ## Requirements *(mandatory)*
 
-> The functional requirements below are organized by subsystem and trace back to sections of `docs/iie-audit.md`. Every [CRITICAL] and [MAJOR] finding in that audit is covered by at least one FR (excluding items listed under "Out of Scope").
+> The functional requirements below are organized by subsystem and trace back to sections of `iie-audit.md`. Every [CRITICAL] and [MAJOR] finding in that audit is covered by at least one FR (excluding items listed under "Out of Scope").
 
 ### Functional Requirements
 
@@ -271,7 +271,7 @@ A user running the Casso //e on a modern host system observes that the emulator 
 
 ### Measurable Outcomes
 
-- **SC-001**: 100% of [CRITICAL] and [MAJOR] findings in `docs/iie-audit.md` are addressed (excluding the items explicitly listed under "Out of Scope" in this spec), with each addressed finding traceable to one or more functional requirements and one or more passing tests.
+- **SC-001**: 100% of [CRITICAL] and [MAJOR] findings in `iie-audit.md` are addressed (excluding the items explicitly listed under "Out of Scope" in this spec), with each addressed finding traceable to one or more functional requirements and one or more passing tests.
 - **SC-002**: From a cold start, the emulated //e reaches the Applesoft BASIC `]` prompt and accepts keyboard input within the equivalent of one real //e boot cycle, verified by the headless harness.
 - **SC-003**: All four disk-format scenarios in User Story 2 (DOS 3.3, ProDOS, WOZ, copy-protected) boot to their expected post-boot state in the headless harness, and a write-then-eject cycle on a writable image produces a byte-equal modified image relative to the expected reference.
 - **SC-004**: The pre-existing Apple ][ and ][+ test suite continues to pass at 100% with no modifications to its assertions.
@@ -304,7 +304,7 @@ A user running the Casso //e on a modern host system observes that the emulator 
 
 ## References
 
-- `docs/iie-audit.md` — authoritative gap analysis and desired-correct-behavior reference (cited per subsystem in the FRs above).
+- `iie-audit.md` — authoritative gap analysis and desired-correct-behavior reference (cited per subsystem in the FRs above).
 - AppleWin — https://github.com/AppleWin/AppleWin — primary implementation reference for behaviors observed on real //e hardware.
 - Jim Sather, *Understanding the Apple IIe* — primary documentary reference for //e MMU, soft switches, video, and Disk II behavior.
 - Existing Casso specs: `specs/001-assembler`, `specs/002-as65-assembler-compat`, `specs/003-apple2-platform-emulator` — for project conventions and prior context.

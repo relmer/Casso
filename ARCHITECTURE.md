@@ -9,8 +9,8 @@ relevant section first; the performance model is load-bearing, not incidental.
 For code style, EHM conventions, and build/merge gates see
 [`.github/copilot-instructions.md`](.github/copilot-instructions.md). For the
 per-feature design history see `specs/`. For the //e hardware-fidelity rationale
-see [`docs/iie-audit.md`](docs/iie-audit.md) (historical — the work it drove is
-done; the code cites it by section number).
+see [`specs/004-apple-iie-fidelity/iie-audit.md`](specs/004-apple-iie-fidelity/iie-audit.md)
+(historical — the work it drove is done; the code cites it by section number).
 
 ---
 

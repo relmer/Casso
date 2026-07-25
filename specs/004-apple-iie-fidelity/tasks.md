@@ -6,7 +6,7 @@ description: "Apple //e Fidelity — actionable, dependency-ordered tasks"
 
 **Input**: Design documents from `/specs/004-apple-iie-fidelity/`
 **Prerequisites**: plan.md, spec.md (clarified Session 2026-05-05), research.md, data-model.md, contracts/, quickstart.md
-**Authoritative requirements source**: [`docs/iie-audit.md`](../../docs/iie-audit.md)
+**Authoritative requirements source**: [`iie-audit.md`](iie-audit.md)
 **Constitution**: `.specify/memory/constitution.md` Phase 12.4.0
 
 **Tests**: Required throughout — every production-code task has a paired test task; every test task honors constitution §II Test Isolation. The harness uses the `IFixtureProvider` plumbing introduced in Phase 0; no test reads or writes host state outside `UnitTest/Fixtures/`.

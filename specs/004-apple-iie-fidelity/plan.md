@@ -2,7 +2,7 @@
 
 **Branch**: `004-apple-iie-fidelity` | **Date**: 2026-05-05 | **Spec**: [spec.md](./spec.md)
 **Input**: Feature specification at `specs/004-apple-iie-fidelity/spec.md`
-**Authoritative requirements source**: [`docs/iie-audit.md`](../../docs/iie-audit.md)
+**Authoritative requirements source**: [`iie-audit.md`](iie-audit.md)
 **Constitution**: `.specify/memory/constitution.md` Phase 12.4.0
 
 ## Summary
