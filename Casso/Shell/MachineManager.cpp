@@ -366,13 +366,39 @@ HRESULT MachineManager::CreateMemoryDevices (const MachineConfig & config)
 
         // The parallel printer card ships embedded firmware (no rom file), so
         // its slot ROM is installed here from the checked-in byte array rather
-        // than loaded from disk. SetSlotRom pads the page.
-        if (slot.device == "parallel-printer" && m_shell.m_mmu != nullptr)
+        // than loaded from disk.
+        if (slot.device == "parallel-printer")
         {
             std::vector<Byte>  firmware (s_kParallelFirmwareBytes,
                                          s_kParallelFirmwareBytes + sizeof (s_kParallelFirmwareBytes));
 
-            m_shell.m_mmu->AttachSlotRom (slot.slot, std::move (firmware));
+            if (m_shell.m_mmu != nullptr)
+            {
+                // //e: the MMU's $C100-$CFFF router owns the page (INTCXROM /
+                // SLOTCXROM switching) and pads the short firmware to a full
+                // page with the floating-bus byte.
+                m_shell.m_mmu->AttachSlotRom (slot.slot, std::move (firmware));
+            }
+            else
+            {
+                // ][/][+: no INTCXROM router, so the firmware is bus-resident at
+                // $Cs00 exactly like the disk-ii slot ROM -- WITHOUT this the card
+                // is present but PR#s jumps into an empty page and nothing prints.
+                // Pad the short firmware to a full page with the floating-bus byte
+                // so the RomDevice spans the whole $Cs00-$CsFF page.
+                constexpr Byte   kFloatFill = 0xFF;
+
+                Word   romStart = static_cast<Word> (0xC000 + slot.slot * 0x100);
+                Word   romEnd   = static_cast<Word> (romStart + 0xFF);
+
+                firmware.resize (0x100, kFloatFill);
+
+                auto device = RomDevice::CreateFromData (romStart, romEnd,
+                                                         firmware.data(), firmware.size());
+
+                m_shell.m_memoryBus.AddDevice (device.get());
+                m_shell.m_ownedDevices.push_back (std::move (device));
+            }
         }
 
         // Slot ROM at $Cs00-$CsFF
