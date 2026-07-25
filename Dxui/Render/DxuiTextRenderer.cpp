@@ -134,6 +134,8 @@ void DxuiTextRenderer::Shutdown ()
     m_iconBitmap.Reset();
     m_iconBitmapW = 0;
     m_iconBitmapH = 0;
+    m_brushCache.clear();
+    m_layoutCache.clear();
     m_formatCache.clear();
     m_dwriteFactory.Reset();
     m_d2dContext.Reset();
@@ -490,6 +492,167 @@ Error:
 
 
 
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EnsureBrush
+//
+//  Returns a solid-color brush for `argb`, cached so DrawString does not
+//  allocate a D2D brush per call. The caller sets opacity per use (global
+//  alpha), so the cached color carries only the ARGB alpha.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DxuiTextRenderer::EnsureBrush (uint32_t argb, ID2D1SolidColorBrush ** outBrush)
+{
+    HRESULT  hr = S_OK;
+
+
+    CBRAEx (outBrush, E_INVALIDARG);
+    CBRA (m_d2dContext);
+
+    *outBrush = nullptr;
+
+    {
+        auto  it = m_brushCache.find (argb);
+
+        if (it != m_brushCache.end())
+        {
+            *outBrush = it->second.Get();
+            (*outBrush)->AddRef();
+            return S_OK;
+        }
+    }
+
+    {
+        ComPtr<ID2D1SolidColorBrush>  brush;
+
+        hr = m_d2dContext->CreateSolidColorBrush (ColorFromArgb (argb), &brush);
+        CHRA (hr);
+
+        m_brushCache[argb] = brush;
+        *outBrush = brush.Get();
+        (*outBrush)->AddRef();
+    }
+
+Error:
+    return hr;
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EnsureLayout
+//
+//  Returns a shaped DirectWrite text layout for the given text + format +
+//  alignment + box, cached so repeated frames of unchanged chrome re-draw via
+//  DrawTextLayout with no font-fallback / shaping (the allocation-heavy part).
+//  Alignment and wrapping are set on the layout, never on the shared format.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT DxuiTextRenderer::EnsureLayout (
+    const wchar_t      *  text,
+    const wchar_t      *  family,
+    float                 fontSizeDip,
+    DxuiFontWeight        weight,
+    DxuiTextHAlign        hAlign,
+    DxuiTextVAlign        vAlign,
+    bool                  wrap,
+    float                 maxWidthDip,
+    float                 maxHeightDip,
+    IDWriteTextLayout  ** outLayout)
+{
+    // Bound so a scrolling debug panel with many distinct strings cannot grow
+    // the cache without limit. Chrome's working set is a few dozen entries; the
+    // cap only trips under pathological churn, where a rebuild is cheap.
+    static constexpr size_t  s_kMaxLayoutCache = 512;
+
+    HRESULT                    hr        = S_OK;
+    LayoutCacheKey             key;
+    const wchar_t            * useFamily = (family != nullptr) ? family : L"Segoe UI";
+    IDWriteTextFormat        * rawFmt    = nullptr;
+    ComPtr<IDWriteTextFormat>  format;
+    ComPtr<IDWriteTextLayout>  layout;
+    DWRITE_TEXT_ALIGNMENT      dwH       = DWRITE_TEXT_ALIGNMENT_LEADING;
+    DWRITE_PARAGRAPH_ALIGNMENT dwV       = DWRITE_PARAGRAPH_ALIGNMENT_NEAR;
+
+
+    CBRAEx (outLayout, E_INVALIDARG);
+    CBRAEx (text, E_INVALIDARG);
+    CBRA (m_dwriteFactory);
+
+    *outLayout = nullptr;
+
+    key.text    = text;
+    key.family  = useFamily;
+    key.sizeDip = fontSizeDip;
+    key.weight  = weight;
+    key.hAlign  = static_cast<int> (hAlign);
+    key.vAlign  = static_cast<int> (vAlign);
+    key.wrap    = wrap;
+    key.maxW    = maxWidthDip;
+    key.maxH    = maxHeightDip;
+
+    {
+        auto  it = m_layoutCache.find (key);
+
+        if (it != m_layoutCache.end())
+        {
+            *outLayout = it->second.Get();
+            (*outLayout)->AddRef();
+            return S_OK;
+        }
+    }
+
+    hr = EnsureTextFormat (useFamily, fontSizeDip, weight, &rawFmt);
+    CHRA (hr);
+    format.Attach (rawFmt);
+
+    hr = m_dwriteFactory->CreateTextLayout (text,
+                                            (UINT32) wcslen (text),
+                                            format.Get(),
+                                            maxWidthDip,
+                                            maxHeightDip,
+                                            &layout);
+    CHRA (hr);
+
+    switch (hAlign)
+    {
+        case DxuiTextHAlign::Left:   dwH = DWRITE_TEXT_ALIGNMENT_LEADING;  break;
+        case DxuiTextHAlign::Center: dwH = DWRITE_TEXT_ALIGNMENT_CENTER;   break;
+        case DxuiTextHAlign::Right:  dwH = DWRITE_TEXT_ALIGNMENT_TRAILING; break;
+    }
+
+    switch (vAlign)
+    {
+        case DxuiTextVAlign::Top:                dwV = DWRITE_PARAGRAPH_ALIGNMENT_NEAR;   break;
+        case DxuiTextVAlign::Center:             dwV = DWRITE_PARAGRAPH_ALIGNMENT_CENTER; break;
+        case DxuiTextVAlign::Bottom:             dwV = DWRITE_PARAGRAPH_ALIGNMENT_FAR;    break;
+        case DxuiTextVAlign::CenterOnCapHeight:  dwV = DWRITE_PARAGRAPH_ALIGNMENT_NEAR;   break;
+    }
+
+    layout->SetTextAlignment      (dwH);
+    layout->SetParagraphAlignment (dwV);
+    layout->SetWordWrapping       (wrap ? DWRITE_WORD_WRAPPING_WRAP : DWRITE_WORD_WRAPPING_NO_WRAP);
+
+    if (m_layoutCache.size() >= s_kMaxLayoutCache)
+    {
+        m_layoutCache.clear();
+    }
+
+    m_layoutCache[key] = layout;
+    *outLayout = layout.Get();
+    (*outLayout)->AddRef();
+
+Error:
+    return hr;
+}
+
+
+
+
 
 ////////////////////////////////////////////////////////////////////////////////
 //
@@ -615,9 +778,9 @@ HRESULT DxuiTextRenderer::DrawString (
     IDWriteTextFormat                * rawFmt  = nullptr;
     ComPtr<ID2D1SolidColorBrush>       brush;
     D2D1_RECT_F                        layoutRect;
-    UINT32                             textLen = 0;
-    DWRITE_TEXT_ALIGNMENT              dwH     = DWRITE_TEXT_ALIGNMENT_LEADING;
-    DWRITE_PARAGRAPH_ALIGNMENT         dwV     = DWRITE_PARAGRAPH_ALIGNMENT_NEAR;
+    ComPtr<IDWriteTextLayout>          layout;
+    IDWriteTextLayout                * rawLayout = nullptr;
+    ID2D1SolidColorBrush             * rawBrush  = nullptr;
 
 
 
@@ -632,33 +795,16 @@ HRESULT DxuiTextRenderer::DrawString (
 
     format.Attach (rawFmt);
 
-    switch (hAlign)
-    {
-        case HAlign::Left:   dwH = DWRITE_TEXT_ALIGNMENT_LEADING;  break;
-        case HAlign::Center: dwH = DWRITE_TEXT_ALIGNMENT_CENTER;   break;
-        case HAlign::Right:  dwH = DWRITE_TEXT_ALIGNMENT_TRAILING; break;
-    }
+    // Alignment / wrapping are configured on the cached layout (EnsureLayout),
+    // never on the shared format.
 
-    switch (vAlign)
-    {
-        case VAlign::Top:                dwV = DWRITE_PARAGRAPH_ALIGNMENT_NEAR;   break;
-        case VAlign::Center:             dwV = DWRITE_PARAGRAPH_ALIGNMENT_CENTER; break;
-        case VAlign::Bottom:             dwV = DWRITE_PARAGRAPH_ALIGNMENT_FAR;    break;
-        case VAlign::CenterOnCapHeight:  dwV = DWRITE_PARAGRAPH_ALIGNMENT_NEAR;   break;
-    }
-
-    format->SetTextAlignment      (dwH);
-    format->SetParagraphAlignment (dwV);
-    format->SetWordWrapping       (wrap ? DWRITE_WORD_WRAPPING_WRAP : DWRITE_WORD_WRAPPING_NO_WRAP);
-
-    hr = m_d2dContext->CreateSolidColorBrush (ColorFromArgb (argbColor), &brush);
+    hr = EnsureBrush (argbColor, &rawBrush);
     CHRA (hr);
-    if (m_globalAlpha < 1.0f)
-    {
-        D2D1_COLOR_F  scaled = brush->GetColor();
-        scaled.a *= m_globalAlpha;
-        brush->SetColor (scaled);
-    }
+    brush.Attach (rawBrush);
+
+    // Global alpha multiplies the brush's ARGB alpha via opacity, re-applied
+    // per use since the brush is shared across draws.
+    brush->SetOpacity (m_globalAlpha);
 
     layoutRect.left   = xDip;
     layoutRect.top    = yDip;
@@ -688,14 +834,18 @@ HRESULT DxuiTextRenderer::DrawString (
         // place and use NEAR alignment.
     }
 
-    textLen = (UINT32) wcslen (text);
+    hr = EnsureLayout (text, fontFamily, fontSizeDip, weight,
+                       hAlign, vAlign, wrap, widthDip, heightDip, &rawLayout);
+    CHRA (hr);
+    layout.Attach (rawLayout);
 
     {
-        // No-wrap means single-line clipped to the layout box, so a
-        // value wider than its column is truncated horizontally instead
-        // of spilling into the neighbour (wrap already keeps it on one
-        // line; CLIP stops the overflow). Wrapped text keeps the legacy
-        // unclipped behaviour.
+        // No-wrap means single-line clipped to the layout box, so a value wider
+        // than its column is truncated horizontally instead of spilling into
+        // the neighbour (CLIP stops the overflow). Wrapped text keeps the
+        // legacy unclipped behaviour. The layout owns the box (widthDip x
+        // heightDip); the origin carries any cap-height vertical shift applied
+        // to layoutRect above.
         D2D1_DRAW_TEXT_OPTIONS  opts = D2D1_DRAW_TEXT_OPTIONS_ENABLE_COLOR_FONT;
 
         if (!wrap)
@@ -703,13 +853,10 @@ HRESULT DxuiTextRenderer::DrawString (
             opts |= D2D1_DRAW_TEXT_OPTIONS_CLIP;
         }
 
-        m_d2dContext->DrawText (text,
-                                textLen,
-                                format.Get(),
-                                &layoutRect,
-                                brush.Get(),
-                                opts,
-                                DWRITE_MEASURING_MODE_NATURAL);
+        m_d2dContext->DrawTextLayout (D2D1::Point2F (layoutRect.left, layoutRect.top),
+                                      layout.Get(),
+                                      brush.Get(),
+                                      opts);
     }
 
 Error:
@@ -1044,12 +1191,10 @@ HRESULT DxuiTextRenderer::MeasureString (
     float          & outWidthDip,
     float          & outHeightDip)
 {
-    HRESULT                            hr      = S_OK;
-    ComPtr<IDWriteTextFormat>          format;
-    IDWriteTextFormat                * rawFmt  = nullptr;
+    HRESULT                            hr        = S_OK;
     ComPtr<IDWriteTextLayout>          layout;
-    DWRITE_TEXT_METRICS                metrics = {};
-    UINT32                             textLen = 0;
+    IDWriteTextLayout                * rawLayout = nullptr;
+    DWRITE_TEXT_METRICS                metrics   = {};
     // A literal FLT_MAX layout box makes DirectWrite report width 0 on
     // some D2D targets; use a large FINITE sentinel instead.
     constexpr float                    s_kUnboundedDip = 1.0e6f;
@@ -1070,20 +1215,15 @@ HRESULT DxuiTextRenderer::MeasureString (
     // re-measures on the next Layout pass once Initialize is done.
     CBR (m_dwriteFactory);
 
-    hr = EnsureTextFormat (fontFamily, fontSizeDip, DxuiFontWeight::Normal, &rawFmt);
+    // Same cached, shaped layout the draw path uses -- keyed here with an
+    // unbounded box and default alignment -- so repeated measurements of an
+    // unchanged label do no re-shaping.
+    hr = EnsureLayout (text, fontFamily, fontSizeDip, DxuiFontWeight::Normal,
+                       DxuiTextHAlign::Left, DxuiTextVAlign::Top, false,
+                       s_kUnboundedDip, s_kUnboundedDip, &rawLayout);
     CHRA (hr);
 
-    format.Attach (rawFmt);
-
-    textLen = (UINT32) wcslen (text);
-
-    hr = m_dwriteFactory->CreateTextLayout (text,
-                                            textLen,
-                                            format.Get(),
-                                            s_kUnboundedDip,
-                                            s_kUnboundedDip,
-                                            &layout);
-    CHRA (hr);
+    layout.Attach (rawLayout);
 
     hr = layout->GetMetrics (&metrics);
     CHRA (hr);
