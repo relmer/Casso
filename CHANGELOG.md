@@ -18,10 +18,10 @@ Entries before versioning was introduced use dates only.
   //c mouse tick shed redundant per-instruction work (the mouse's vertical-blank
   edge is now sampled on a coarse cadence rather than checked every
   instruction). Net: lower steady-state emulation CPU, most visibly on the //c.
-- **perf(video): dirty-row text rendering** — the 40-column text screen
-  re-rasterizes only the rows whose characters changed since the last frame
-  (plus, on the flash blink, the rows holding a flashing glyph) instead of
-  redrawing all 24 rows every frame — so a scrolling catalog or a blinking
+- **perf(video): dirty-row text rendering** — the 40- and 80-column text
+  screens re-rasterize only the rows whose characters changed since the last
+  frame (plus, on the flash blink, the rows holding a flashing glyph) instead
+  of redrawing all 24 rows every frame — so a scrolling catalog or a blinking
   cursor no longer repaints the whole screen.
 - **perf(render): cached text shaping and geometry** — the UI chrome caches its
   shaped text layouts and solid brushes instead of re-shaping every label each

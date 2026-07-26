@@ -4606,6 +4606,11 @@ void EmulatorShell::RenderFramebuffer()
         if (forceFullText)
         {
             static_cast<AppleTextMode *> (m_videoModes[0].get())->InvalidateCache();
+
+            if (m_videoModes.size() > 4)
+            {
+                static_cast<Apple80ColTextMode *> (m_videoModes[4].get())->InvalidateCache();
+            }
         }
     }
     m_prevActiveVideoMode = m_refs.activeVideoMode;

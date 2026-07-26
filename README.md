@@ -42,9 +42,9 @@ map instead of scanning the device list, the language-card (`$D000–$FFFF`) and
 //c internal-ROM (`$C100–$CFFF`) windows are page-mapped, and the interrupt
 poll, video-timing tick, and //c mouse tick shed redundant per-instruction
 work — so a steady machine idles at noticeably lower CPU, most visibly on the
-//c. On the render side, the 40-column text screen repaints only the rows that
-actually changed — a scrolling catalog or a blinking cursor no longer redraws
-all 24 rows — the UI chrome caches its shaped text and geometry instead of
+//c. On the render side, the 40- and 80-column text screens repaint only the
+rows that actually changed — a scrolling catalog or a blinking cursor no longer
+redraws all 24 rows — the UI chrome caches its shaped text and geometry instead of
 re-shaping every label each frame, and the Mockingboard skips synthesis while
 fully muted.
 
