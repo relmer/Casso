@@ -6,6 +6,34 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 Versioned entries use `MAJOR.MINOR.PATCH` from [Version.h](CassoCore/Version.h).
 Entries before versioning was introduced use dates only.
 
+## [1.13.0] — Emulation and render performance
+
+### Changed
+- **perf(emulation): per-instruction hot path** — a sweep of the work that runs
+  on every emulated instruction. RAM/ROM reads now serve inline from a page
+  table instead of a virtual dispatch; I/O ($C000–$FFFF) resolves through a
+  direct device map instead of scanning the device list; the language-card
+  ($D000–$FFFF) and the //c internal ($C100–$CFFF) ROM windows are page-mapped
+  so they read inline; and the interrupt poll, the video-timing tick, and the
+  //c mouse tick shed redundant per-instruction work (the mouse's vertical-blank
+  edge is now sampled on a coarse cadence rather than checked every
+  instruction). Net: lower steady-state emulation CPU, most visibly on the //c.
+- **perf(video): dirty-row text rendering** — the 40-column text screen
+  re-rasterizes only the rows whose characters changed since the last frame
+  (plus, on the flash blink, the rows holding a flashing glyph) instead of
+  redrawing all 24 rows every frame — so a scrolling catalog or a blinking
+  cursor no longer repaints the whole screen.
+- **perf(render): cached text shaping and geometry** — the UI chrome caches its
+  shaped text layouts and solid brushes instead of re-shaping every label each
+  frame, and appends quad geometry in bulk.
+- **perf(audio): idle Mockingboard** — AY-3-8910 tone/noise synthesis is skipped
+  while the chip is fully muted.
+
+### Fixed
+- **fix(shell): machine switch** — switching machine model (e.g. //c → //e) from
+  the menu no longer trips a UI-thread assertion; the pointer and joystick
+  controls are re-synced on the UI thread once the switch completes.
+
 ## [1.12.0] — Skeuomorphic CRT monitor
 
 ### Added

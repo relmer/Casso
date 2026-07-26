@@ -29,7 +29,9 @@ The project includes:
 
 ## What's New
 
-See [CHANGELOG.md](CHANGELOG.md) for the granular history.
+See [CHANGELOG.md](CHANGELOG.md) for the granular history, and
+[ARCHITECTURE.md](ARCHITECTURE.md) for a technical overview of the emulator's
+internals (projects, threading, the memory model, and the optimization log).
 
 ### Skeuomorphic CRT monitor (v1.12.0)
 
