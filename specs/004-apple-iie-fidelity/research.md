@@ -113,7 +113,7 @@ Rationale / Alternatives considered**.
 - **Decision**: Implement `SplitMix64` in `Core/Prng.{h,cpp}`. Production
   default seed is `time(nullptr) ^ pid`-derived; the headless harness
   pins seed = `0xCA550001`. RAM bytes are filled by streaming the PRNG.
-- **Rationale**: Real DRAM is indeterminate; modelling it as zero hides
+- **Rationale**: Real DRAM is indeterminate; modeling it as zero hides
   bugs that depend on uninitialized memory. Determinism in tests is
   required by FR-038 + SC-005.
 - **Alternatives considered**: Zero (current). Rejected — masks bugs.

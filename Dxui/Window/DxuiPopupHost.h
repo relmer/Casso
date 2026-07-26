@@ -39,7 +39,7 @@
 //  Test mode (InitializeForTest):
 //      No HWND, no device, no swap chain. All placement, dismiss-
 //      policy classification, chain bookkeeping, and pool acquire /
-//      release behaviour is exercised through pure state mutation
+//      release behavior is exercised through pure state mutation
 //      and the static ComputePlacementForTest / ShouldDismissForTest
 //      seams.
 //

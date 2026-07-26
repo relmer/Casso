@@ -27,7 +27,7 @@ static constexpr Byte  s_kPaperB = 0xFF;
 //
 //  Ink palette
 //
-//  4-bit cell bitfield -> ribbon colour. Overprint composites (orange, green,
+//  4-bit cell bitfield -> ribbon color. Overprint composites (orange, green,
 //  purple) and black-dominance (any black bit, or three primaries) are baked
 //  in per R-004.
 //
@@ -95,7 +95,7 @@ void PaperRenderer::BuildWeaveTile()
 //  BuildDiscKernels
 //
 //  Precomputes an antialiased pin-dot coverage kernel for each horizontal
-//  subpixel phase (rem of the 1/320" centre grid). Vertical centres land on
+//  subpixel phase (rem of the 1/320" center grid). Vertical centers land on
 //  exact pixels for the supported 288/576 dpi, so no vertical phase is needed.
 //  Coverage is supersampled once here (deterministic) into integer tables;
 //  the per-pixel compositing that follows is pure integer.
@@ -170,7 +170,7 @@ void PaperRenderer::BuildDiscKernels (int outputDpi)
 //
 //  BlendPixel
 //
-//  Alpha-composites an ink colour onto a paper pixel. Integer only; the
+//  Alpha-composites an ink color onto a paper pixel. Integer only; the
 //  paper stays fully opaque.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -203,7 +203,7 @@ void PaperRenderer::BlendPixel (RgbaImage & img, int x, int y, int alpha,
 //
 //  StampDisc
 //
-//  Stamps one antialiased pin dot centred on a cell, modulated by the weave.
+//  Stamps one antialiased pin dot centered on a cell, modulated by the weave.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

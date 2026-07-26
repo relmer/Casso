@@ -9,7 +9,7 @@
 
 namespace
 {
-    // Glyph metrics. The glyph is a fixed-size square centred in the
+    // Glyph metrics. The glyph is a fixed-size square centered in the
     // button (Win11 chrome), with a thin stroke and a small offset for
     // the restore (double-square) glyph.
     constexpr float  s_kGlyphSizeDip       = 10.0f;
@@ -83,7 +83,7 @@ void DxuiSystemButton::Layout (const RECT & boundsDip, const DxuiDpiScaler & sca
 //  Paint
 //
 //  Hover / pressed background, then a vector glyph appropriate for
-//  the button kind. Close uses a distinct hover colour
+//  the button kind. Close uses a distinct hover color
 //  (SystemCloseHover) per Win11 chrome guidelines.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -147,7 +147,7 @@ void DxuiSystemButton::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, 
         strokePx = 1.0f;
     }
 
-    // Win11 caption glyphs are a small fixed square centred in the
+    // Win11 caption glyphs are a small fixed square centered in the
     // button -- NOT scaled to the button bounds. A ~10 DIP glyph in a
     // 46x32 DIP button matches the system chrome.
     glyphSizePx = m_scaler.Pxf (s_kGlyphSizeDip);

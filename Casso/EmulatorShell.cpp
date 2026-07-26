@@ -1732,7 +1732,7 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
 
     // The joystick-button hover tooltip renders through the host popup
     // pool too; its dwell timer is driven from the main frame loop's
-    // Tick. SetTheme seeds the tooltip surface colours.
+    // Tick. SetTheme seeds the tooltip surface colors.
     m_joystickTooltip.SetPopupHost (m_host.get());
     m_joystickTooltip.SetTheme     (m_chromeTheme);
     m_toolbarTooltip.SetPopupHost  (m_host.get());
@@ -2073,7 +2073,7 @@ RECT EmulatorShell::EmulatorContentScreenRect()
 //  drive-band thickness (Phase D), the drive-widget visibility, and the hit-test
 //  map. When disk presence changes, grow/shrink the WINDOW by the band delta so
 //  the emulator viewport keeps its size and the top-left corner stays put -- NOT
-//  hold the window size and re-centre the viewport. The resulting WM_SIZE drives
+//  hold the window size and re-center the viewport. The resulting WM_SIZE drives
 //  OnSize, which re-lays the bands / widgets / hit rects. When presence is
 //  unchanged (e.g. a swap between two controller-equipped machines) there is no
 //  band delta, so just re-run OnSize at the current size to refresh the widgets.
@@ -2894,7 +2894,7 @@ void EmulatorShell::ApplyThemeToChrome (const CassoTheme & theme)
 
     // Push the nav/dropdown palette onto the menu bar so both the
     // in-window strip and the popup-backed dropdown render with chrome
-    // colours (the old per-frame apply path is dead post-T129).
+    // colors (the old per-frame apply path is dead post-T129).
     m_mainMenu.ApplyChromeColors (theme);
 
     if (m_hwnd == nullptr || desiredThicknessDp == priorThicknessDp)
@@ -3114,7 +3114,7 @@ void EmulatorShell::ShowPrinterPanel (bool activate)
         m_printerPanel->SetOnDiscard ([this] ()
         {
             // The tear-off sound fires from the confirmed branch of the discard
-            // handler (WindowCommandManager), NOT here -- so cancelling the
+            // handler (WindowCommandManager), NOT here -- so canceling the
             // confirmation dialog does not rip a page we are keeping.
             m_windowCommandManager->HandleCommand (IDM_PRINTER_DISCARD);
             SnapshotStripToPanel();
@@ -3990,7 +3990,7 @@ int EmulatorShell::RunMessageLoop()
             }
 
             // Suppress the emulator's accelerators while the settings sheet is
-            // the active window, so keystrokes meant for it (the colour-picker
+            // the active window, so keystrokes meant for it (the color-picker
             // hex field, Ctrl chords) never leak into emulator menu commands.
             bool  settingsActive = (m_settingsSheet != nullptr &&
                                     m_settingsSheet->Hwnd() == GetActiveWindow());
@@ -6526,7 +6526,7 @@ bool EmulatorShell::OnViewportKey (const DxuiKeyEvent & ev)
 //  IDxuiViewportInputSink. The Apple ][ has no viewport-rect mouse mapping
 //  in the current build: paddle input is a captured relative-motion mode
 //  driven directly from OnMouseMove (SetCapture snaps the cursor to
-//  centre), and the joystick maps to arrow keys -- neither fits the
+//  center), and the joystick maps to arrow keys -- neither fits the
 //  viewport's absolute-rect forwarding. Returns false so any future
 //  in-viewport click continues to bubble to the chrome hit-testing that
 //  owns it today.
@@ -6557,7 +6557,7 @@ bool EmulatorShell::OnViewportMouse (const DxuiMouseEvent & ev)
 //  per-thread GetKeyState table, which can desync (and leave an axis stuck)
 //  if a key-up is lost to a focus change. Opposing keys resolve
 //  last-pressed-wins so a rolling reversal flips the axis instead of
-//  cancelling to center.
+//  canceling to center.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

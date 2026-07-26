@@ -18,7 +18,7 @@ class PrintRaster;
 //  so the composition is unit-tested; the shell's sinks add only the
 //  destination-specific edge (file write, clipboard, dialog).
 //
-//  The caller must have COM initialised on the thread (PngCodec uses WIC).
+//  The caller must have COM initialized on the thread (PngCodec uses WIC).
 //
 ////////////////////////////////////////////////////////////////////////////////
 

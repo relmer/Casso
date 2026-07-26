@@ -626,9 +626,9 @@ void DxuiPainter::FillEllipseApprox (
 //
 //  Fill one horizontal scanline span with coverage anti-aliasing on the
 //  fractional left/right edges: the interior whole-pixel columns get full
-//  colour, and the boundary pixel columns get the colour at partial alpha =
+//  color, and the boundary pixel columns get the color at partial alpha =
 //  fractional coverage. A plain FillRect hard-snaps its edges to pixel
-//  centres, so a stack of them approximating an oblique edge stair-steps;
+//  centers, so a stack of them approximating an oblique edge stair-steps;
 //  feathering the end columns turns that staircase into a smooth ramp.
 //
 ////////////////////////////////////////////////////////////////////////////////

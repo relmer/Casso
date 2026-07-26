@@ -497,7 +497,7 @@ std::vector<DxuiTreeNode> HardwarePage::BuildNodes (const std::vector<HardwareEn
         out.push_back (std::move (slotsGroup));
     }
 
-    // //c external drive: a top-level checkable node modelling the optional
+    // //c external drive: a top-level checkable node modeling the optional
     // 5.25" drive on the disk port. Optional (interactive), so the user can
     // connect/disconnect it; checked mirrors the persisted connected state.
     // Unlike the hardware rows this is not a config device -- toggling it is

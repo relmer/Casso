@@ -74,7 +74,7 @@ void PrinterPaperView::Layout (const RECT & boundsDip, const DxuiDpiScaler & sca
 //
 //  PrinterPaperView::Paint
 //
-//  Dark mat fill, then the printout blitted scale-to-fit and centred (with a
+//  Dark mat fill, then the printout blitted scale-to-fit and centered (with a
 //  soft shadow + edge). Empty state is just the mat.
 //
 ////////////////////////////////////////////////////////////////////////////////

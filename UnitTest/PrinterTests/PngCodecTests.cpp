@@ -46,7 +46,7 @@ namespace PngCodecTests
             RgbaImage      back;
             vector<Byte>   png;
 
-            // 2x2 with channel-distinct colours so a R<->B swap would show.
+            // 2x2 with channel-distinct colors so a R<->B swap would show.
             src.Allocate (2, 2, 0, 0, 0);
             SetPixel (src, 0, 0, 0xFF, 0x00, 0x00, 0xFF);   // red
             SetPixel (src, 1, 0, 0x00, 0x00, 0xFF, 0xFF);   // blue
@@ -94,7 +94,7 @@ namespace PngCodecTests
 
             for (i = 0; i < 16; i++)
             {
-                palette[i] = 0xFF000000u | (uint32_t) (i * 0x101010);   // opaque grey ramp
+                palette[i] = 0xFF000000u | (uint32_t) (i * 0x101010);   // opaque gray ramp
                 indices.push_back ((Byte) i);                          // one cell per index 0..15
             }
 

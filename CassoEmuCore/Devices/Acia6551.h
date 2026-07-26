@@ -26,7 +26,7 @@ struct DeviceConfig;
 //      +2  Command  DTR, receiver-IRQ enable, transmitter-IRQ control, parity
 //      +3  Control  baud rate, word length, stop bits
 //
-//  Transmit is modelled as instantaneous: a byte written to the data register
+//  Transmit is modeled as instantaneous: a byte written to the data register
 //  is handed to the attached endpoint immediately and TDRE stays set. The IRQ
 //  status bit (bit 7) is an event latch — set when a byte is received or the
 //  transmitter empties (subject to the command-register enables) and cleared

@@ -44,7 +44,7 @@ void SettingsPreviewController::EndPreview()
 //  Reset
 //
 //  Wipes alphas + timers along with focus. Called when the panel is
-//  shown or cancelled so a previous session's mid-drag interaction
+//  shown or canceled so a previous session's mid-drag interaction
 //  state can't bleed into the next one.
 //
 ////////////////////////////////////////////////////////////////////////////////

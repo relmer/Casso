@@ -49,7 +49,7 @@ enum class StartupDownloadDialog::EntryStatus
     Downloading,
     Done,
     Failed,
-    Cancelled,
+    Canceled,
     Skipped
 };
 
@@ -129,7 +129,7 @@ void StartupDownloadDialog::WorkerThreadProc (DialogState * state, size_t index)
 
     if (hr == E_ABORT || state->cancelFlag.load (std::memory_order_relaxed))
     {
-        rt.status.store ((int) EntryStatus::Cancelled, std::memory_order_relaxed);
+        rt.status.store ((int) EntryStatus::Canceled, std::memory_order_relaxed);
     }
     else if (FAILED (hr))
     {
@@ -251,7 +251,7 @@ std::wstring StartupDownloadDialog::StatusText (const EntryRuntime & rt, std::ui
         case EntryStatus::Skipped:     return L"";
         case EntryStatus::Done:        return L"Done";
         case EntryStatus::Failed:      return L"Failed";
-        case EntryStatus::Cancelled:   return L"Cancelled";
+        case EntryStatus::Canceled:    return L"Canceled";
         case EntryStatus::Downloading:
             break;
     }

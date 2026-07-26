@@ -259,7 +259,7 @@ void PrinterHead::Advance (double timeSec, const PrintRaster & built, PrintRaste
 //
 //  Lays the current sweep's primary into the presented ("wet ink") layer across
 //  the carriage travel [fromP, toP] (progress dots). The band is struck only
-//  where the built strip already carries this pass's colour, so an overprint
+//  where the built strip already carries this pass's color, so an overprint
 //  accrues into a composite (red pass -> red; blue return -> red|blue = purple)
 //  and the same render-time mixing that produces the finished image plays out
 //  live.

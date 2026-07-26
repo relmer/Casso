@@ -18,7 +18,7 @@
 //  All accessors are `const`, allocation-free, and state-free. Theme
 //  objects are effectively immutable; a "theme change" swaps the
 //  pointer / reference and broadcasts to listeners (Phase 6 wires the
-//  broadcast). Colours are packed ARGB (UINT32) for Direct2D friendliness;
+//  broadcast). Colors are packed ARGB (UINT32) for Direct2D friendliness;
 //  fonts are returned as opaque `DxuiFontHandle` values that consumers
 //  hand to the text renderer without unwrapping.
 //
@@ -41,8 +41,8 @@ enum class DxuiFontWeight : int
 
 
 //
-//  Packed 32-bit ARGB colour (FR-127). A thin, implicitly-convertible
-//  wrapper over the uint32_t the render facades speak: colour-typed APIs
+//  Packed 32-bit ARGB color (FR-127). A thin, implicitly-convertible
+//  wrapper over the uint32_t the render facades speak: color-typed APIs
 //  read as `DxuiArgb`, yet the value still flows into Direct2D-friendly
 //  packed uint32_t with no per-call-site churn.
 //
@@ -117,7 +117,7 @@ public:
     virtual uint32_t  PressedBackground   () const = 0;  // pressed-state fill
     virtual uint32_t  SelectionBackground () const = 0;  // selected text / row highlight
 
-    // Foreground / text colours.
+    // Foreground / text colors.
     virtual uint32_t  Foreground          () const = 0;  // primary body text
     virtual uint32_t  ForegroundMuted     () const = 0;  // secondary / accelerator text
     virtual uint32_t  ForegroundDisabled  () const = 0;  // disabled-state text

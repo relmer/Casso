@@ -15,7 +15,7 @@ class PrintRaster;
 //  edge around the unit-tested core serializer (PrintJobPersistence). Reads and
 //  writes <machine-state>/PendingPrint/{strip.png,strip.json}; the caller owns
 //  the directory path (<assetBase>/Machines/<name>/PendingPrint). The strip.png
-//  is a lossless indexed-colour native-grid image, strip.json its feed/boundary
+//  is a lossless indexed-color native-grid image, strip.json its feed/boundary
 //  metadata. COM must be live on the calling thread (the codec uses WIC).
 //
 ////////////////////////////////////////////////////////////////////////////////

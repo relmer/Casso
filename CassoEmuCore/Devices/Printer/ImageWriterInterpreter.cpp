@@ -23,7 +23,7 @@ static constexpr Byte   s_kCmdGraphicsBin = 'L';  // bit-image, 2 BINARY count b
 static constexpr Byte   s_kCmdLineSpace  = 'T';   // n/144" line feed, 2 ASCII digits
 static constexpr Byte   s_kCmdLineSpace72 = 'A';  // n/72" line feed, 1 BINARY byte (Print Shop capture)
 static constexpr Byte   s_kCmd8Lpi       = 'B';   // 1/8" line feed
-static constexpr Byte   s_kCmdColor      = 'K';   // seven-colour select (acted on in US2)
+static constexpr Byte   s_kCmdColor      = 'K';   // seven-color select (acted on in US2)
 static constexpr Byte   s_kCmdReset      = 'c';   // software reset
 
 // Recognized-but-inert preamble Print Shop sends before every graphics pass.
@@ -110,7 +110,7 @@ static bool IsPitchCommand (Byte cmd)
 
 
 
-// ESC K colour select: one ASCII digit 0..6 per the ImageWriter II ribbon
+// ESC K color select: one ASCII digit 0..6 per the ImageWriter II ribbon
 // table (0 black, 1 yellow, 2 red, 3 blue, 4 orange, 5 green, 6 purple). The
 // composites are the OR of their primaries, matching how two overprinted
 // passes accumulate in a cell -- Print Shop Color drives only the 1/2/3

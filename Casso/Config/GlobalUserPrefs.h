@@ -166,10 +166,10 @@ struct GlobalUserPrefs
     JsonValue   ToJson   () const;
     HRESULT     FromJson (const JsonValue & v);
 
-    // Revert the Color-monitor text colour to its default (White). The
+    // Revert the Color-monitor text color to its default (White). The
     // custom ARGB is intentionally left intact so re-selecting "Custom"
-    // restores the user's last-picked colour. Used by the Display page's
-    // Restore-defaults action; keeping it here makes the durable behaviour
+    // restores the user's last-picked color. Used by the Display page's
+    // Restore-defaults action; keeping it here makes the durable behavior
     // unit-testable without the (D3D-bound) Settings UI.
     void        ResetColorMonitorTextToDefault ();
 

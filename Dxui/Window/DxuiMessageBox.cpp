@@ -12,7 +12,7 @@
 
 
 
-// Icon glyphs (Segoe MDL2 Assets) + accent colours -- same set the shell's
+// Icon glyphs (Segoe MDL2 Assets) + accent colors -- same set the shell's
 // task-dialog path uses, so a Dxui message box reads identically.
 static constexpr wchar_t   s_kGlyphInfo     = L'\uE946';   // MDL2 Info
 static constexpr wchar_t   s_kGlyphWarning  = L'\uE7BA';   // MDL2 Warning

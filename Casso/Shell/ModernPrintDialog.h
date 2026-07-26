@@ -34,7 +34,7 @@ class PrintRaster;
 //  (the caller resumes the printer worker right away; Print is
 //  non-destructive). Completion is posted back to the window as a WM_COMMAND
 //  (IDM_PRINTER_MODERN_SENT / _FAILED) so result dialogs run on the UI
-//  thread; a cancelled dialog posts nothing, matching the classic S_FALSE.
+//  thread; a canceled dialog posts nothing, matching the classic S_FALSE.
 //  Any launch failure returns FAILED so the caller falls back to the classic
 //  dialog -- older Windows keeps working unchanged.
 //

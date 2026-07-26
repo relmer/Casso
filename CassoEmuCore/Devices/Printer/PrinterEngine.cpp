@@ -137,7 +137,7 @@ size_t PrinterEngine::FlushNow (vector<PrinterEvent> & events)
 //
 //  Copies the strip under the raster lock so the live preview reads a consistent
 //  image while the drain thread keeps Ticking -- no Stop()/Start() and no new
-//  interpreter, so the guest's in-flight state (line feed, colour, head column)
+//  interpreter, so the guest's in-flight state (line feed, color, head column)
 //  is never reset out from under it.
 //
 ////////////////////////////////////////////////////////////////////////////////

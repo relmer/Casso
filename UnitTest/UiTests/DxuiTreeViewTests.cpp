@@ -13,7 +13,7 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //  TreeViewTests
 //
 //  Pure-logic coverage for hit-testing, keyboard navigation, and the
-//  capability-flag driven checkbox behaviour. Rendering is not
+//  capability-flag driven checkbox behavior. Rendering is not
 //  exercised (Paint would require a GPU). The hardware-tree-shape
 //  tests in HardwareTreeTests build on top of these primitives.
 //

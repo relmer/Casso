@@ -65,7 +65,7 @@ public:
 
     // Replay `timeSec` of print time along the timeline: sweep the current burst
     // across its printed width at the carriage speed -- painting its ink into
-    // `presented` wherever `built` already carries this pass's colour -- slew a
+    // `presented` wherever `built` already carries this pass's color -- slew a
     // feed at the feed rate, and pop the next event as each completes. `built` is
     // the fully-composited strip the drain builds ahead; `presented` is the wet-
     // ink preview layer the head lays one pass at a time. Both are supplied (and
@@ -111,7 +111,7 @@ private:
 
     // Lay the current sweep's primary into `presented` across the carriage travel
     // [fromP, toP] (progress dots), struck only where `built` already carries this
-    // pass's colour so overprints accrue into composites (red -> red|blue purple).
+    // pass's color so overprints accrue into composites (red -> red|blue purple).
     void      PaintPresented (double fromP, double toP,
                               const PrintRaster & built, PrintRaster & presented);
 

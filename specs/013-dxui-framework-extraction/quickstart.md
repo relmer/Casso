@@ -157,7 +157,7 @@ For each of the 11 migration phases listed in `plan.md`:
 4. `scripts\Build.ps1 -Configuration Release -Platform ARM64` — DPI / ARM64-specific stuff sometimes bites here first.
 5. `scripts\RunTests.ps1` — must pass.
 6. `scripts\Build.ps1 -RunCodeAnalysis` — must pass clean.
-7. For phases that move existing functionality (2, 3, 4, 7, 11), verify the user-visible behaviour manually — open the app, exercise the affected surface, compare side-by-side with the previous build if visual.
+7. For phases that move existing functionality (2, 3, 4, 7, 11), verify the user-visible behavior manually — open the app, exercise the affected surface, compare side-by-side with the previous build if visual.
 8. Commit with `<type>(dxui): <description>` Conventional Commits format (scope = `dxui` for framework work, `casso/ui` for consumer migration). Include `Co-authored-by: Copilot <…>` trailer if the AI authored material.
 9. Merge to master with `--no-ff` (never squash).
 10. Move to the next phase.

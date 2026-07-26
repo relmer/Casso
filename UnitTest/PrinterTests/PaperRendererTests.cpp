@@ -13,7 +13,7 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //  PaperRendererTests
 //
 //  Output geometry, square-pixel fidelity (SC-009), deterministic bytes,
-//  overprint composite colours, dot roundness, and the Plain style.
+//  overprint composite colors, dot roundness, and the Plain style.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -52,7 +52,7 @@ namespace PaperRendererTests
     }
 
 
-    // The output pixel a cell's dot is centred on, mirroring the renderer's maths.
+    // The output pixel a cell's dot is centered on, mirroring the renderer's maths.
     static void CellCenter (int col, int rowLocal, int dpi, int & cx, int & cy)
     {
         cx = (2 * col + 1) * dpi / 320;
@@ -140,7 +140,7 @@ namespace PaperRendererTests
             Assert::IsTrue (SUCCEEDED (renderer.Render (raster, 16, 24, opt, img)));
 
             CellCenter (100, 20 - 16, 576, cx, cy);
-            Assert::IsTrue (IsInked (img, cx, cy));            // centre struck
+            Assert::IsTrue (IsInked (img, cx, cy));            // center struck
 
             // A pixel well outside the ~8px dot is clean paper.
             Assert::IsFalse (IsInked (img, cx + 20, cy));

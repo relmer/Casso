@@ -349,7 +349,7 @@ void DxuiTabStrip::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
 
 
     // Underline-style strip: the "selected" slot carries the accent used for
-    // the active-tab underline (the theme selection colour), hover is a subtle
+    // the active-tab underline (the theme selection color), hover is a subtle
     // fill hint, idle is unused (idle tabs blend with the page).
     PaintInternal (painter, text,
                    DxuiColor::Scale (hover, s_kIdleScale),

@@ -50,7 +50,7 @@ public:
 
     // Drive-audio preview hook. Invoked when a play button is clicked;
     // (drive 0/1, kind 0=motor 1=head 2=door, centered = play the test
-    // sound panned to centre so the volume is judged without bias).
+    // sound panned to center so the volume is judged without bias).
     using TestSoundFn = std::function<void (int drive, int kind, bool centered)>;
     void  SetOnTestSound        (TestSoundFn fn) { m_onTestSound = std::move (fn); }
 

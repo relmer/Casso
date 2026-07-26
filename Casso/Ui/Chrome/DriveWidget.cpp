@@ -411,7 +411,7 @@ void DriveWidget::Paint (
         uint32_t bezelEdge     = theme.driveBezel;
         uint32_t labelArgb     = theme.driveLabel;
 
-        // Flat card body with a single bezel-coloured outline.
+        // Flat card body with a single bezel-colored outline.
         painter.FillRect    ((float) m_bodyRect.left, (float) m_bodyRect.top,
                              (float) bodyWcompact, (float) bodyHcompact, bodyFill);
         painter.OutlineRect ((float) m_bodyRect.left, (float) m_bodyRect.top,
@@ -764,7 +764,7 @@ void DriveWidget::Paint (
         farY    = hingeY + visibleH - depthBack;
 
         // Front face (closed) is the darkest; underside (visible as
-        // the door tilts) lerps toward a slightly lighter grey so the
+        // the door tilts) lerps toward a slightly lighter gray so the
         // tilt reads visually.
         shade     = (uint8_t) (0x1F + (uint32_t) (sinA * (float) (0x4A - 0x1F)));
         doorArgb  = 0xFF000000u | ((uint32_t) shade << 16) | ((uint32_t) shade << 8) | (uint32_t) shade;

@@ -52,7 +52,7 @@ Input: bytes. Output: calls into `PrintRaster` (strike cells) and an ordered
 Lifecycle (state transitions): `Empty → Printing (first strike) → Pending
 (guest idle, un-delivered) → Empty (discard only)`. Print / Save / Copy
 deliver the strip non-destructively and leave it `Pending` (the paper stays
-loaded); only Discard clears to `Empty`. Cancelled delivery: `Pending`
+loaded); only Discard clears to `Empty`. Canceled delivery: `Pending`
 unchanged. Guest reset: no transition.
 
 ### PrinterViewport (pure, clock-injected — FR-033)

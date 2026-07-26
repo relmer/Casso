@@ -26,7 +26,7 @@ A new user launches Casso for the first time without the Apple II ROM images (an
 
 ### User Story 2 — Boot disk picker with MRU (Priority: P1)
 
-When the user launches a machine that has a Disk II controller in slot 6, drive 1 is empty, and the per-machine config did not pin a disk image (or pinned one that no longer exists on disk), the user sees a themed picker that lists their previously-mounted disk images at the top and the two downloadable system disks (DOS 3.3 System Master, ProDOS Users Disk) inline below. Picking an MRU entry mounts it; picking a download entry downloads then mounts; cancelling lets the machine boot with no disk just as today.
+When the user launches a machine that has a Disk II controller in slot 6, drive 1 is empty, and the per-machine config did not pin a disk image (or pinned one that no longer exists on disk), the user sees a themed picker that lists their previously-mounted disk images at the top and the two downloadable system disks (DOS 3.3 System Master, ProDOS Users Disk) inline below. Picking an MRU entry mounts it; picking a download entry downloads then mounts; canceling lets the machine boot with no disk just as today.
 
 **Why this priority**: Disk II is the primary way users get software into the emulator, and the current `PromptBootDisk` is one of only two remaining native TaskDialogs. Adding the MRU also delivers visible day-to-day workflow value beyond pure cosmetic conversion — users stop re-navigating to the same `.dsk` files via the file picker.
 

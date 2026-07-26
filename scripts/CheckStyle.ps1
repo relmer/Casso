@@ -89,7 +89,10 @@ $checks = @(
     @{
         Id      = 'CS0003'
         Globs   = @('*.cpp', '*.h', '*.md')
-        Pattern = '(?i)\b(colour|behaviour|centre|grey|initialise|optimise|analyse|cancelled|honour|favour|licence|modelled|labelled|signalled|catalogue|programme)\w*'
+        # `programme` is spelled out as `programmes?` on purpose: a trailing
+        # \w* would swallow "programmed" and "programmer", which are correct
+        # American English (from "program", not "programme").
+        Pattern = '(?i)\b(?:(?:colour|behaviour|centre|grey|initialise|optimise|cancelled|honour|favour|licence|modelled|labelled|signalled|catalogue)\w*|programmes?|analyse[drs]?)\b'
         Message = 'British spelling -- American spelling is required everywhere'
         # The standards document has to spell the forbidden words out to
         # forbid them, so it can never satisfy its own rule.

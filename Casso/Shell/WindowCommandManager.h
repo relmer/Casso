@@ -53,7 +53,7 @@ private:
     // Renders the strip to a PNG the user picks through IFileSaveDialog
     // (defaulting to <Pictures>\Casso Prints and a timestamped name), at the
     // configured dpi / dot style. Returns S_FALSE when the dialog is
-    // cancelled.
+    // canceled.
     HRESULT  SavePrintoutAs (const class PrintRaster & raster, fs::path & outFile);
 
     // Delivers the strip to a Windows printer via the standard print dialog:

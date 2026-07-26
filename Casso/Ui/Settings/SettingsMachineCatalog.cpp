@@ -214,7 +214,7 @@ void SettingsMachineCatalog::PopulateMachineList()
 //
 //  Walks the ThemeManager's discovered themes, builds parallel id +
 //  display-name vectors, and hands them to the theme page so the user
-//  can pick from the live catalogue rather than a hardcoded list.
+//  can pick from the live catalog rather than a hardcoded list.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

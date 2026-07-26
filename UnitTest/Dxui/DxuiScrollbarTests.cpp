@@ -14,7 +14,7 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 //  DxuiScrollbarTests
 //
-//  Behaviour coverage for the orientation-parameterized scrollbar: model
+//  Behavior coverage for the orientation-parameterized scrollbar: model
 //  clamping, derived geometry (track / arrows / thumb), hit-testing, the
 //  arrow / track / thumb interaction notifications, and painting. All
 //  units are widget-relative pixels; no device is required.

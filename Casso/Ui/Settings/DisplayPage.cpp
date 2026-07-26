@@ -422,7 +422,7 @@ void DisplayPage::Rebuild()
         RefreshTextColorEnabled();
     });
     // Highlight changes (mouse hover + keyboard arrows while open) feed
-    // the same live channel so the user sees the colour treatment as
+    // the same live channel so the user sees the color treatment as
     // they browse the list, not just on commit.
     m_monitor.SetOnHighlightChange ([this] (int idx)
     {
@@ -716,7 +716,7 @@ void DisplayPage::SetFadeState (int   focusedControlId,
 void DisplayPage::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text,
                          const IDxuiTheme & theme)
 {
-    constexpr uint32_t  s_kFocusedBackingArgb = 0xFF202830;   // dark grey, near-opaque
+    constexpr uint32_t  s_kFocusedBackingArgb = 0xFF202830;   // dark gray, near-opaque
     constexpr int       s_kIndicatorFontDp    = 12;
     constexpr int       s_kIndicatorWidthDp   = 140;
     constexpr const wchar_t * s_kFont             = DxuiTheme::kBodyFace;

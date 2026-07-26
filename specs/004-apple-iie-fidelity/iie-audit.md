@@ -655,7 +655,7 @@ All gaps consolidated by severity, highest priority first.
 | M15 | $C800–$CFFF peripheral expansion ROM (INTC8ROM) not implemented | Not found |
 | M16 | Shift key ($C063) not implemented | Not found |
 
-### MINOR — Behavioural Differences
+### MINOR — Behavioral Differences
 
 | # | Gap | Source File(s) |
 |---|-----|----------------|

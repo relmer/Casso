@@ -240,7 +240,7 @@ HRESULT SettingsSheet::OpenModeless (
     m_crt.WireDisplayPageCallbacks();
 
     // "Restore defaults" reverts the CRT block AND the Color-monitor text
-    // colour; both live in the bridge's own restore handler (installed by
+    // color; both live in the bridge's own restore handler (installed by
     // WireDisplayPageCallbacks above) so the single handler stays authoritative
     // -- an earlier attempt to re-wire it here was silently superseded.
 
@@ -508,7 +508,7 @@ void SettingsSheet::RefreshOkLabel()
 //
 //  Layout / modal-overlay overrides (custom text-color picker, list #8)
 //
-//  The picker is centred in the same sheet bounds the pages use, painted last
+//  The picker is centered in the same sheet bounds the pages use, painted last
 //  of all, and -- while open -- grabs every mouse / key / char event so the
 //  page beneath stays inert. Each routed event invalidates so the picker's
 //  sliders / hex field / copy flash animate.
@@ -711,7 +711,7 @@ void SettingsSheet::AuditionDriveSound (int drive, int kind, bool centered)
                             prefs.floppyMechanism);
 
     // The push above changed the live engine mixer; remember to undo it if the
-    // dialog is cancelled without persisting.
+    // dialog is canceled without persisting.
     m_driveAuditionDirty = true;
 
     sprintf_s (test, "%d,%d", drive, kind);

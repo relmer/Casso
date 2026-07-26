@@ -78,7 +78,7 @@ namespace
     // HRESULT_FROM_WIN32(0) == S_OK, a silent false success). Map the result to
     // an honest HRESULT: a user abort (the Print-to-PDF Save-As cancel can
     // surface mid-job on modern Windows, not just at StartDoc) becomes S_FALSE
-    // exactly like a cancelled dialog; disk-full / out-of-memory get their real
+    // exactly like a canceled dialog; disk-full / out-of-memory get their real
     // codes; anything else uses GetLastError when present and only degrades to
     // E_FAIL when the driver reported nothing at all.
     HRESULT HrFromSpoolResult (int ret, const wchar_t * call, int pageIx)
@@ -915,7 +915,7 @@ static int WholeStripDpi (const GlobalUserPrefs & prefs, int rows)
 //  The user picks the destination through IFileSaveDialog (seeded with the
 //  default folder <Pictures>\Casso Prints and a timestamped name), and the
 //  strip renders to that exact path at the configured dpi + dot style.
-//  Returns S_FALSE when the dialog is cancelled.
+//  Returns S_FALSE when the dialog is canceled.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1065,8 +1065,8 @@ HRESULT WindowCommandManager::PrintToWindowsPrinter (const PrintRaster & raster,
 
     if (!PrintDlgW (&pd))
     {
-        // CommDlgExtendedError() == 0 means the user simply cancelled the dialog.
-        hr = S_FALSE;   // cancelled / closed
+        // CommDlgExtendedError() == 0 means the user simply canceled the dialog.
+        hr = S_FALSE;   // canceled / closed
         goto Error;
     }
 
@@ -1087,8 +1087,8 @@ HRESULT WindowCommandManager::PrintToWindowsPrinter (const PrintRaster & raster,
     di.lpszDocName = L"Casso Printout";
 
     // "Microsoft Print to PDF" (and some drivers) pop a Save-As prompt inside
-    // StartDoc; cancelling it is a user cancel, not a delivery failure -- so it
-    // reports exactly like a cancelled print dialog (S_FALSE: keep the page, no
+    // StartDoc; canceling it is a user cancel, not a delivery failure -- so it
+    // reports exactly like a canceled print dialog (S_FALSE: keep the page, no
     // scary "could not deliver" popup). HrFromSpoolResult owns that mapping,
     // including the SP_* codes and the GetLastError()==0 case.
     hr = HrFromSpoolResult (StartDocW (pd.hDC, &di), L"StartDoc", 0);
@@ -1411,7 +1411,7 @@ void WindowCommandManager::OnPrinterCommand (int id)
 
         if (choice != IDYES)
         {
-            // Cancelled: keep the strip and resume on the same page.
+            // Canceled: keep the strip and resume on the same page.
             m_shell.m_printerWorker.Start (m_shell.m_refs.printerCard->ByteRing(), job->Raster());
             return;
         }
@@ -1464,7 +1464,7 @@ void WindowCommandManager::OnPrinterCommand (int id)
 
     if (hr == S_FALSE)
     {
-        // User cancelled the print / save dialog: keep the strip, no clear.
+        // User canceled the print / save dialog: keep the strip, no clear.
         m_shell.m_printerWorker.Start (m_shell.m_refs.printerCard->ByteRing(), job->Raster());
         return;
     }

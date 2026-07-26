@@ -843,7 +843,7 @@ HRESULT DxuiTextRenderer::DrawString (
         // No-wrap means single-line clipped to the layout box, so a value wider
         // than its column is truncated horizontally instead of spilling into
         // the neighbour (CLIP stops the overflow). Wrapped text keeps the
-        // legacy unclipped behaviour. The layout owns the box (widthDip x
+        // legacy unclipped behavior. The layout owns the box (widthDip x
         // heightDip); the origin carries any cap-height vertical shift applied
         // to layoutRect above.
         D2D1_DRAW_TEXT_OPTIONS  opts = D2D1_DRAW_TEXT_OPTIONS_ENABLE_COLOR_FONT;

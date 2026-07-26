@@ -20,14 +20,14 @@ class IDxuiTheme
 public:
     virtual ~IDxuiTheme() = default;
 
-    // Surface colours (ARGB packed UINT32)
+    // Surface colors (ARGB packed UINT32)
     virtual UINT32 Background           () const = 0;
     virtual UINT32 BackgroundElevated   () const = 0;
     virtual UINT32 HoverBackground      () const = 0;
     virtual UINT32 PressedBackground    () const = 0;
     virtual UINT32 SelectionBackground  () const = 0;
 
-    // Foreground / text colours
+    // Foreground / text colors
     virtual UINT32 Foreground           () const = 0;
     virtual UINT32 ForegroundMuted      () const = 0;
     virtual UINT32 ForegroundDisabled   () const = 0;
@@ -63,6 +63,6 @@ public:
 ## Contract notes
 
 - Casso's existing `ChromeTheme` (under `Casso/Ui/Chrome/ChromeTheme.h`) becomes the concrete implementation in Phase 5 (FR-092). Skeuomorphic palette + scanline tint stay in `ChromeTheme`; `IDxuiTheme` exposes only what widgets need.
-- Colours are `UINT32` ARGB to keep the interface allocation-free and Direct2D-friendly.
+- Colors are `UINT32` ARGB to keep the interface allocation-free and Direct2D-friendly.
 - `DxuiFontHandle` is intentionally opaque — widgets pass it to `IDxuiTextRenderer::DrawText` / `Measure` and don't poke at its internals.
 - All methods are `const`. Theme objects are effectively immutable; theme **changes** = swap the theme pointer and broadcast `OnThemeChanged` via `IDxuiControl` (FR-033).

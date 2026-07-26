@@ -327,7 +327,7 @@ static HICON DefaultAppIcon (bool big)
 //  WS_OVERLAPPEDWINDOW (so the OS still gives us proper resize-frame
 //  math + Aero Snap + caption-double-click-to-maximize) even though
 //  we collapse the NC area into the client rect in WM_NCCALCSIZE.
-//  Then builds the D3D11 device + DXGI swap chain, initialises the
+//  Then builds the D3D11 device + DXGI swap chain, initializes the
 //  painter / text renderer, and applies the requested DwM bits.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -1120,7 +1120,7 @@ Error:
 //  KillTimer
 //
 //  Thin convenience wrapper around `::KillTimer`. Returns true iff
-//  the timer was found and cancelled; no-ops in release when the
+//  the timer was found and canceled; no-ops in release when the
 //  host has no HWND.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -2418,7 +2418,7 @@ LRESULT DxuiHwndSource::HandleNcHitTest (LPARAM lp)
 //  HandleNcMouse
 //
 //  Routes NC mouse state to custom system-button controls and lets
-//  DefWindowProc keep the standard caption / resize behaviours for
+//  DefWindowProc keep the standard caption / resize behaviors for
 //  everything else.
 //
 ////////////////////////////////////////////////////////////////////////////////

@@ -488,7 +488,7 @@ public:
         bar.Open (0, true);
         bar.PaintDropdown (painter, text, theme, 96);
 
-        // A separator paints a divider-coloured FillRect with very thin height (~1 dip).
+        // A separator paints a divider-colored FillRect with very thin height (~1 dip).
         bool  foundDivider = false;
         for (const RecordedPaintCall & call : painter.Calls())
         {

@@ -88,7 +88,7 @@ void Ay8910::SetClock (double clockHz)
 //
 //  A data write reaches the register selected by the last latched address.
 //  Addresses outside 0..15 select no register, so the write is inert -- the
-//  documented AY behaviour, not a bug.
+//  documented AY behavior, not a bug.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

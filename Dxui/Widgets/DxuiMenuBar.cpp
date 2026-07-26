@@ -1066,7 +1066,7 @@ void DxuiMenuBar::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const
 {
     DXUI_ASSERT_UI_THREAD();
 
-    // Keep the popup's colours fresh: its render hook gets no theme, so
+    // Keep the popup's colors fresh: its render hook gets no theme, so
     // the resolved palette is cached here every frame (the strip always
     // paints, even while the dropdown is popup-backed).
     m_cachedPalette = ResolveDropdownPalette (theme);

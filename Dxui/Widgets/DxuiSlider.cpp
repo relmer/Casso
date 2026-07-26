@@ -360,7 +360,7 @@ bool DxuiSlider::OnKey (WPARAM vk)
 //
 //  PaintInternal
 //
-//  Shared body for both Paint overloads. accentArgb colours the filled
+//  Shared body for both Paint overloads. accentArgb colors the filled
 //  track and the puck core -- the theme accent, or the default blue for
 //  the non-themed overload.
 //
@@ -429,7 +429,7 @@ void DxuiSlider::PaintInternal (IDxuiPainter & painter, IDxuiTextRenderer & text
     trackMid  = trackLeft + trackAvailW * 0.5f;
 
     // Bipolar sliders (e.g. pan) grow the accent fill from the track
-    // centre toward the puck rather than from the left edge.
+    // center toward the puck rather than from the left edge.
     if (m_centerOriginFill)
     {
         fillLeft  = std::min  (trackMid, puckCx);
@@ -464,8 +464,8 @@ void DxuiSlider::PaintInternal (IDxuiPainter & painter, IDxuiTextRenderer & text
         }
     }
 
-    // ----- Fluent 2 puck: white outer circle with thin grey ring,
-    // accent-coloured inner dot. Outer diameter grows on hover/focus.
+    // ----- Fluent 2 puck: white outer circle with thin gray ring,
+    // accent-colored inner dot. Outer diameter grows on hover/focus.
     painter.FillCircleApprox (puckCx, centerY, puckR,           s_kPuckBody);
     painter.FillCircleApprox (puckCx, centerY, puckR,           s_kPuckRing); // ring underlay
     painter.FillCircleApprox (puckCx, centerY, puckR - 1.0f,    s_kPuckBody); // white fill, leaving 1px ring

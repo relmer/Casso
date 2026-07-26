@@ -15,7 +15,7 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 //  Two flavours of test:
 //
-//    1. Behavioural: every Apply* method is a safe no-op when given a
+//    1. Behavioral: every Apply* method is a safe no-op when given a
 //       null HWND (proving the version gate path doesn't dereference
 //       the handle first). These run on any OS.
 //
@@ -105,7 +105,7 @@ TEST_CLASS (Win11DwmHelpersTests)
 {
 public:
 
-    // -------- Behavioural: nullptr HWND is always a safe no-op. -----------
+    // -------- Behavioral: nullptr HWND is always a safe no-op. -----------
 
     TEST_METHOD (ApplyRoundedCorners_NullHwnd_NoCrash)
     {

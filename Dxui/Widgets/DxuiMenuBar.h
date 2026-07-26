@@ -21,7 +21,7 @@ class DxuiPopupHost;
 //  query callbacks, enabled flags, checkable flags, and separator
 //  rows.
 //
-//  Behaviour mirrors the Windows desktop convention plus modern Win11
+//  Behavior mirrors the Windows desktop convention plus modern Win11
 //  hover semantics:
 //      * Click a top-level title to toggle its submenu open / closed.
 //      * Once any submenu is open, hovering an adjacent title swaps
@@ -34,10 +34,10 @@ class DxuiPopupHost;
 //        same title that opened it dismisses it.
 //
 //  The widget paints via `IDxuiPainter` + `IDxuiTextRenderer` and
-//  theme-colours through `IDxuiTheme`. The host application can
+//  theme-colors through `IDxuiTheme`. The host application can
 //  override the strip / dropdown palette via `SetStripColors` /
 //  `SetDropdownColors` when the default `IDxuiTheme` mapping is too
-//  generic (Casso's chrome supplies legacy nav-specific colours so
+//  generic (Casso's chrome supplies legacy nav-specific colors so
 //  the menu surface keeps visual parity with the rest of the shell).
 //
 //  Derives from `IDxuiControl` so it slots into `DxuiPanel` trees.
@@ -167,7 +167,7 @@ public:
 
 private:
     //
-    //  Resolved dropdown colours. The in-window paint resolves these
+    //  Resolved dropdown colors. The in-window paint resolves these
     //  from the theme (or the SetDropdownColors overrides) every frame;
     //  the popup render path reuses the cached copy because its render
     //  hook gets no theme.

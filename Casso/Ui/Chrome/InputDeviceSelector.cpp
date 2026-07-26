@@ -327,7 +327,7 @@ void InputDeviceSelector::Paint (IDxuiPainter & painter, IDxuiTextRenderer & tex
 struct InputDeviceSelector::GlyphMap
 {
     float  bx, by, s;
-    // scale < 1 shrinks the glyph about the box centre (96-grid 48,48) so
+    // scale < 1 shrinks the glyph about the box center (96-grid 48,48) so
     // it gains uniform whitespace inside the icon box -- used to balance
     // the joystick (which otherwise fills edge-to-edge) against the
     // paddle/mouse.
@@ -347,7 +347,7 @@ struct InputDeviceSelector::GlyphMap
 void InputDeviceSelector::PaintJoystickGlyph (IDxuiPainter & p, const RECT & box, bool skeuo)
 {
     // The 3/4 joystick fills its box edge-to-edge (stick to the top, case to
-    // the bottom); shrink it about centre so it carries whitespace like the
+    // the bottom); shrink it about center so it carries whitespace like the
     // paddle and mouse glyphs. The top-down glyph is left at full size.
     GlyphMap  g (box, skeuo ? 0.86f : 1.0f);
 

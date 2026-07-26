@@ -555,7 +555,7 @@ void DxuiDropdown::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) cons
 //
 //  ResolveColors
 //
-//  Resolves the box / menu / text / edge / focus colours from the active
+//  Resolves the box / menu / text / edge / focus colors from the active
 //  theme (set via SetTheme or the themed Paint override). With no theme
 //  set the hardcoded dark defaults stand in, so a dropdown painted before
 //  a theme is supplied still renders sensibly.

@@ -10,7 +10,7 @@
 //
 //  Deterministic, in-memory `IDxuiTheme` implementation for unit tests.
 //  Every accessor returns a canned ARGB or metric value so widget tests
-//  can assert against fixed colours without depending on Casso's
+//  can assert against fixed colors without depending on Casso's
 //  CassoTheme palette evolution.
 //
 //  Font handles return a null `DxuiFontHandle{}`; tests that need real

@@ -13,7 +13,7 @@
 //
 //  A bounded, bordered notice strip: a leading info glyph and a run of body text
 //  that wraps within the banner. Distinct from a button (not clickable, no raised
-//  surface) and from a tooltip (inline, not a popup). Colours come from the
+//  surface) and from a tooltip (inline, not a popup). Colors come from the
 //  theme's InfoBanner* accessors -- a subtle accent-tinted fill, an accent border
 //  that stands out, and readable body text -- so it stays themed everywhere.
 //

@@ -20,7 +20,7 @@ struct   DialogPaintContext;
 //  unified user experience. The caller assembles a `StartupDownloadSet`
 //  describing each missing asset and a closure that knows how to fetch
 //  it; the dialog drives the downloads on a worker thread, paints live
-//  per-asset progress, and lets the user Exit cleanly (cancelling any
+//  per-asset progress, and lets the user Exit cleanly (canceling any
 //  in-flight work and removing partial files) at any point.
 //
 //  DxuiButton policy:

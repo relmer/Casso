@@ -1293,7 +1293,7 @@ static HRESULT DownloadHttp (
 
         if (cancelRequested != nullptr && cancelRequested->load (std::memory_order_relaxed))
         {
-            outError = format ("{} cancelled", displayName);
+            outError = format ("{} canceled", displayName);
             hr = E_ABORT;
             goto Error;
         }
@@ -2822,7 +2822,7 @@ HRESULT AssetBootstrap::PromptInsertDiskMru (
     }
     else if (chosen == s_kCloseBoxResult || chosen == s_kCancelResult)
     {
-        // user cancelled; outDiskPath stays empty
+        // user canceled; outDiskPath stays empty
     }
     else if (chosen >= 0 && chosen < mruCount)
     {

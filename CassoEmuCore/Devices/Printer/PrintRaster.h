@@ -13,7 +13,7 @@
 //
 //  The native-grid fanfold strip: one byte per dot cell (kDotsPerRow cells
 //  per row), the low four bits an InkPrimary bitfield. Overprinting simply
-//  ORs the struck primary into the cell, so composite colours (orange, green,
+//  ORs the struck primary into the cell, so composite colors (orange, green,
 //  purple) and black-dominance fall out at render time exactly as on paper --
 //  strike history is never lost.
 //

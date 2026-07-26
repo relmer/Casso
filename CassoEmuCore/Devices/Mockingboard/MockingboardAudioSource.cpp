@@ -11,7 +11,7 @@
 //  GeneratePCM
 //
 //  Pulls one PSG sample per output frame, DC-blocks the unipolar DAC
-//  output into an AC-coupled signal centred on zero, and scales by the
+//  output into an AC-coupled signal centered on zero, and scales by the
 //  master gain. The mixer has already zeroed the buffer, so an unbound
 //  source contributes silence.
 //

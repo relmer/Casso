@@ -490,9 +490,9 @@ void SettingsDisplayCrtBridge::WireDisplayPageCallbacks()
         ReseedFromActiveMode();
 
         // The CRT block above doesn't know about the Color-monitor text
-        // colour, so also revert it to its White default across all three
+        // color, so also revert it to its White default across all three
         // views -- staged pref, the dropdown control, and the live emulator
-        // -- otherwise a previously-picked colour survives the reset and the
+        // -- otherwise a previously-picked color survives the reset and the
         // controls and the emulator disagree (#8 follow-up).
         uint32_t  custom = (m_prefs != nullptr) ? m_prefs->colorMonitorTextCustomArgb
                                                 : 0xFFFFFFFFu;

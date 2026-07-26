@@ -18,7 +18,7 @@ class PrintRaster;
 //  true square-pixel ink imagery (FR-027/FR-028). Each struck cell stamps a
 //  round pin impression (diameter 1/72", wider than the grid pitch so
 //  adjacent dots merge as on paper); the cell's 4-bit ink field maps to one
-//  of the seven ribbon colours via overprint composition; a fixed tileable
+//  of the seven ribbon colors via overprint composition; a fixed tileable
 //  ribbon-weave modulates ink opacity. The Plain style swaps the disc for a
 //  cell-sized square.
 //
@@ -47,7 +47,7 @@ public:
 private:
     struct DiscKernel
     {
-        int             offX = 0;      // top-left pixel offset from the dot's integer centre
+        int             offX = 0;      // top-left pixel offset from the dot's integer center
         int             offY = 0;
         int             w    = 0;
         int             h    = 0;

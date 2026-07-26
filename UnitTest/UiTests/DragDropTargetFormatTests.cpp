@@ -173,7 +173,7 @@ public:
     TEST_METHOD (ExtractFirstHDropPath_RoundTrips_UnicodePath)
     {
         // Wide-string fidelity matters; force a non-ASCII codepoint
-        // through the pipe to prove fWide=TRUE is being honoured.
+        // through the pipe to prove fWide=TRUE is being honored.
         ExpectRoundTrip (L"C:\\Disks\\\u00C5pple\\caf\u00E9.dsk");
     }
 

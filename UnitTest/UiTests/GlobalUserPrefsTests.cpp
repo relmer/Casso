@@ -121,9 +121,9 @@ public:
     TEST_METHOD (ResetColorMonitorText_RevertsModeToWhite_KeepsCustomArgb)
     {
         // Regression (013 #8): "Restore defaults" left a previously-picked
-        // custom text colour active -- the control read White but the
-        // emulator kept the old colour. The reset must revert the mode to
-        // White (so the resolved colour is white) while remembering the
+        // custom text color active -- the control read White but the
+        // emulator kept the old color. The reset must revert the mode to
+        // White (so the resolved color is white) while remembering the
         // custom ARGB for the next time the user re-selects "Custom".
         GlobalUserPrefs  prefs;
         prefs.colorMonitorTextMode       = ColorMonitorTextMode::Custom;
@@ -141,10 +141,10 @@ public:
 
     TEST_METHOD (ColorMonitorText_PersistsAcrossSaveLoad_AndRestoreClearsIt)
     {
-        // The reported bug booted magenta because a custom text colour
+        // The reported bug booted magenta because a custom text color
         // round-tripped through UserPrefs.json and survived a Restore. Pin
-        // both halves: (1) a custom colour persists, and (2) after a reset +
-        // save the next load is White (not the stale custom colour).
+        // both halves: (1) a custom color persists, and (2) after a reset +
+        // save the next load is White (not the stale custom color).
         InMemoryFileSystem  fs;
         GlobalUserPrefs     orig;
 

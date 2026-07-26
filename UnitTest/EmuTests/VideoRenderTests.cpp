@@ -33,12 +33,12 @@ static const uint32_t kExpectedLoRes[16] =
     0xFF000099,   //  2: Dark Blue
     0xFFDD0044,   //  3: Purple
     0xFF002200,   //  4: Dark Green
-    0xFF555555,   //  5: Grey 1
+    0xFF555555,   //  5: Gray 1
     0xFF0022CC,   //  6: Medium Blue
     0xFF66AAFF,   //  7: Light Blue
     0xFF885500,   //  8: Brown
     0xFFFF4400,   //  9: Orange
-    0xFFAAAAAA,   // 10: Grey 2
+    0xFFAAAAAA,   // 10: Gray 2
     0xFFFF8888,   // 11: Pink
     0xFF00DD00,   // 12: Light Green
     0xFFFFFF00,   // 13: Yellow

@@ -147,7 +147,7 @@ public:
     // leaves the slot untouched.
     //
     // On return:
-    //   outDiskPath  = path to mount, or empty if the user cancelled
+    //   outDiskPath  = path to mount, or empty if the user canceled
     //                  or chose Browse (caller then runs IFileOpenDialog)
     //   outBrowse    = true if the user clicked Browse... (caller
     //                  should fall through to its file-picker path)

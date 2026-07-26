@@ -131,7 +131,7 @@ bool CommandToolbar::HitTest (int x, int y) const
 //
 //  CommandToolbar::StatusCore
 //
-//  PrinterStatus -> LED core colour (same mapping the standalone indicator
+//  PrinterStatus -> LED core color (same mapping the standalone indicator
 //  used, so the light keeps its meaning across the move into the toolbar).
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -153,7 +153,7 @@ uint32_t CommandToolbar::StatusCore (PrinterStatus status)
 
 
 // A small status-light dot riding the printer glyph's corner (halo + core in
-// the PrinterStatus colour) -- the monoline glyph keeps the icon set uniform
+// the PrinterStatus color) -- the monoline glyph keeps the icon set uniform
 // while the LED keeps the at-a-glance printer state. core == 0 means unlit
 // (idle): paint nothing at all.
 static void PaintStatusLed (IDxuiPainter & painter, float cx, float cy, UINT dpi, uint32_t core)

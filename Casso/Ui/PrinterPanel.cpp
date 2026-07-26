@@ -880,7 +880,7 @@ void PrinterPanel::RefreshLive (PrinterWorker & worker, int64_t nowMs, bool forc
                 sweepLtr, m_renderedRevealCol, revealCol, revealRow, m_renderedRevealRow);
 
             // Sample where the HEAD physically is (platenRow), not the reveal
-            // frontier: an overprint pass (Print Shop lays a colour band L>R then
+            // frontier: an overprint pass (Print Shop lays a color band L>R then
             // re-strikes the SAME row R>L in the next primary) sits at row R while
             // the monotonic frontier already advanced a band past it, so sampling
             // the frontier would read the blank row below and drop the buzz.

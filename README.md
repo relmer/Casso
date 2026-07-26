@@ -184,7 +184,7 @@ so navigating chrome can't drop stray letters into a //e prompt.
 
 ### Themed startup experience (v1.5.1395)
 
-The first-run asset bootstrap — ROMs, sample disks, and Disk II audio samples — now downloads through a single themed progress dialog that fetches every asset concurrently rather than serial-prompting through three separate Win32 dialogs. The boot-disk MRU picker that appears when no disk is configured also paints through the same DirectWrite pipeline as the rest of the chrome, so the entire first-launch path honours the active theme (Skeuomorphic / Dark Modern / Retro Terminal) instead of dropping back to native gray.
+The first-run asset bootstrap — ROMs, sample disks, and Disk II audio samples — now downloads through a single themed progress dialog that fetches every asset concurrently rather than serial-prompting through three separate Win32 dialogs. The boot-disk MRU picker that appears when no disk is configured also paints through the same DirectWrite pipeline as the rest of the chrome, so the entire first-launch path honors the active theme (Skeuomorphic / Dark Modern / Retro Terminal) instead of dropping back to native gray.
 
 ### Copy-protected games boot (v1.5.1289)
 

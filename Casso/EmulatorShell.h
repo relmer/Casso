@@ -573,7 +573,7 @@ private:
 
     // Live channel for the Settings → Display monitor dropdown. The
     // dropdown calls this on every selection so the user sees the
-    // colour-treatment change as they hover/select; Cancel restores
+    // color-treatment change as they hover/select; Cancel restores
     // the baseline by calling this again with the entry-state value.
     // Bypasses the IDM command queue so the change is visible on the
     // next CPU frame rather than waiting for queue drain.
@@ -642,8 +642,8 @@ private:
     void    RelayoutJoystickButton ();
 
     // Position the printer status indicator in the command-bar dead space to
-    // the right of the centred drive widgets, or Hide() it when the machine
-    // has no printer card. Does not affect drive centring.
+    // the right of the centered drive widgets, or Hide() it when the machine
+    // has no printer card. Does not affect drive centering.
 
     // Open (creating if needed) the printer panel / print preview window, and
     // push it a fresh snapshot of the current strip. `activate` false shows it
@@ -905,7 +905,7 @@ private:
     // to the disk-presence it just laid out; ReflowChromeForMachineChange reads
     // this pre-switch value to grow/shrink the window by the drive-band delta
     // (so the viewport keeps its size + the top-left stays put) rather than
-    // re-centring inside a fixed window.
+    // re-centering inside a fixed window.
     bool                     m_chromeSizedForHasDisk = true;
 
     // Companion to m_chromeSizedForHasDisk for the //c switch band: whether the
@@ -1137,7 +1137,7 @@ private:
 
     // Last arrow key pressed for each emulated joystick axis pair (0 if
     // none). Lets opposing directions resolve last-pressed-wins so a
-    // rolling reversal flips the axis instead of cancelling to center.
+    // rolling reversal flips the axis instead of canceling to center.
     WPARAM          m_lastHorizontalArrowVk = 0;
     WPARAM          m_lastVerticalArrowVk   = 0;
 

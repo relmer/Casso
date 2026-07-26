@@ -12,7 +12,7 @@
 //  CreateFactory
 //
 //  Instantiates the WIC imaging factory. The caller must already have COM
-//  initialised on this thread.
+//  initialized on this thread.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

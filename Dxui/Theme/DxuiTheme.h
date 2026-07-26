@@ -18,7 +18,7 @@
 //  this with its own derived theme (e.g. CassoTheme adds drive / LED
 //  tokens) and supplies presets; widgets depend only on IDxuiTheme.
 //
-//  Tokens are public so a host widget can read a specific named colour
+//  Tokens are public so a host widget can read a specific named color
 //  (link, navHover, …) directly while generic Dxui widgets stay on
 //  the interface accessors. Dark() / Light() give a neutral starting set
 //  any host can tweak.
