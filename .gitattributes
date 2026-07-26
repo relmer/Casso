@@ -4,6 +4,13 @@
 * text=auto
 
 ###############################################################################
+# Git hooks are run through sh, which rejects a CRLF shebang line with
+# "bad interpreter: /bin/sh^M". They must keep LF endings on checkout even
+# on Windows, so they are exempt from the text=auto normalization above.
+###############################################################################
+.githooks/* text eol=lf
+
+###############################################################################
 # Set default behavior for command prompt diff.
 #
 # This is need for earlier builds of msysgit that does not have it on by
