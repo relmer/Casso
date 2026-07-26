@@ -353,6 +353,7 @@ namespace ImageWriterInterpreterTests
                 if (e.type == PrinterEventType::HeadBurst) { burst = &e; break; }
             }
             Assert::IsTrue (burst != nullptr);
+            if (burst == nullptr) { return; }     // guard so code analysis sees the deref below is safe
             Assert::IsTrue (burst->toDot > 0);    // 'A' laid ink
             Assert::IsTrue (burst->toDot < 16);   // ...but the pass ends at the ink, not the padded 79
         }
