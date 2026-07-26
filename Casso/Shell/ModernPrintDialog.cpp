@@ -8,21 +8,6 @@
 #include "../../CassoEmuCore/Devices/Printer/PrintRaster.h"
 #include "../../CassoEmuCore/Devices/Printer/RgbaImage.h"
 
-#include <windows.foundation.h>
-#include <windows.graphics.printing.h>
-#include <printmanagerinterop.h>
-#include <documentsource.h>
-#include <documenttarget.h>
-#include <printpreview.h>
-#include <roapi.h>
-#include <DispatcherQueue.h>
-#include <wrl/event.h>
-#include <wrl/implements.h>
-#include <wrl/wrappers/corewrappers.h>
-#include <d2d1_1.h>
-#include <d3d11.h>
-#include <wincodec.h>
-
 #pragma comment (lib, "runtimeobject.lib")
 #pragma comment (lib, "CoreMessaging.lib")
 #pragma comment (lib, "d2d1.lib")

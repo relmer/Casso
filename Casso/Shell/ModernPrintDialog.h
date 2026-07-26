@@ -4,8 +4,6 @@
 
 #include "../../CassoEmuCore/Devices/Printer/PrinterTypes.h"   // DotStyle
 
-#include <eventtoken.h>   // EventRegistrationToken (WinRT event cookie)
-
 class PrintRaster;
 
 
