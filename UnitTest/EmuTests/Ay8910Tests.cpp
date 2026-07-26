@@ -35,7 +35,7 @@ namespace Ay8910TestNs
                 Assert::AreEqual<Byte> (0, ay.ReadRegister (r));
             }
 
-            Assert::AreEqual (0, ay.GetEnvLevel ());
+            Assert::AreEqual (0, ay.GetEnvLevel());
         }
 
 
@@ -48,11 +48,11 @@ namespace Ay8910TestNs
             ay.LatchAddress (Ay8910::kRegAmpA);
             ay.WriteData (0x0C);
 
-            Assert::AreEqual<Byte> (Ay8910::kRegAmpA, ay.GetLatchedAddress ());
+            Assert::AreEqual<Byte> (Ay8910::kRegAmpA, ay.GetLatchedAddress());
             Assert::AreEqual<Byte> (0x0C, ay.ReadRegister (Ay8910::kRegAmpA));
 
             ay.LatchAddress (Ay8910::kRegAmpA);
-            Assert::AreEqual<Byte> (0x0C, ay.ReadData ());
+            Assert::AreEqual<Byte> (0x0C, ay.ReadData());
         }
 
 
@@ -66,7 +66,7 @@ namespace Ay8910TestNs
             ay.LatchAddress (0x20);
             ay.WriteData (0x55);
 
-            Assert::AreEqual<Byte> (0xFF, ay.ReadData ());
+            Assert::AreEqual<Byte> (0xFF, ay.ReadData());
         }
 
 
@@ -98,7 +98,7 @@ namespace Ay8910TestNs
             // Generate exactly one second and count the square-wave toggles.
             for (i = 0; i < kSampleRate; i++)
             {
-                ay.GenerateSample ();
+                ay.GenerateSample();
 
                 if (ay.GetToneState (0) != prevState)
                 {
@@ -129,7 +129,7 @@ namespace Ay8910TestNs
             // amplitude is 0, so the DAC output is silence.
             for (i = 0; i < 1000; i++)
             {
-                sum += ay.GenerateSample ();
+                sum += ay.GenerateSample();
             }
 
             Assert::AreEqual (0.0f, sum, L"Zero amplitude must yield pure silence");
@@ -155,7 +155,7 @@ namespace Ay8910TestNs
 
             for (i = 0; i < 2000; i++)
             {
-                sum += ay.GenerateSample ();
+                sum += ay.GenerateSample();
             }
 
             Assert::AreEqual (0.0f, sum, L"Muted chip must be silent");
@@ -166,7 +166,7 @@ namespace Ay8910TestNs
 
             for (i = 0; i < 5000; i++)
             {
-                float  s = ay.GenerateSample ();
+                float  s = ay.GenerateSample();
 
                 if (s > peak)
                 {
@@ -197,7 +197,7 @@ namespace Ay8910TestNs
 
             for (i = 0; i < 5000; i++)
             {
-                float  s = ay.GenerateSample ();
+                float  s = ay.GenerateSample();
 
                 if (s > peak)
                 {
@@ -228,7 +228,7 @@ namespace Ay8910TestNs
 
             for (i = 0; i < 5000; i++)
             {
-                float  s = ay.GenerateSample ();
+                float  s = ay.GenerateSample();
 
                 minv = (s < minv) ? s : minv;
                 maxv = (s > maxv) ? s : maxv;
@@ -236,7 +236,7 @@ namespace Ay8910TestNs
 
             Assert::IsTrue (maxv > minv,
                             L"Noise must produce a varying output");
-            Assert::AreNotEqual<uint32_t> (1u, ay.GetNoiseLfsr (),
+            Assert::AreNotEqual<uint32_t> (1u, ay.GetNoiseLfsr(),
                                            L"LFSR must have advanced from its seed");
         }
 
@@ -260,9 +260,9 @@ namespace Ay8910TestNs
 
             for (i = 0; i < 4000; i++)
             {
-                ay.GenerateSample ();
+                ay.GenerateSample();
 
-                int  level = ay.GetEnvLevel ();
+                int  level = ay.GetEnvLevel();
 
                 maxLevel = (level > maxLevel) ? level : maxLevel;
 
@@ -278,7 +278,7 @@ namespace Ay8910TestNs
             Assert::AreEqual (Ay8910::kMaxEnvLevel, maxLevel,
                               L"Sawtooth-up envelope must reach full level");
             Assert::IsTrue (dropped, L"Repeating sawtooth must restart from the bottom");
-            Assert::IsFalse (ay.IsEnvHolding ());
+            Assert::IsFalse (ay.IsEnvHolding());
         }
 
 
@@ -298,12 +298,12 @@ namespace Ay8910TestNs
 
             for (i = 0; i < 4000; i++)
             {
-                ay.GenerateSample ();
+                ay.GenerateSample();
             }
 
-            Assert::AreEqual (0, ay.GetEnvLevel (),
+            Assert::AreEqual (0, ay.GetEnvLevel(),
                               L"One-shot decay must settle at 0");
-            Assert::IsTrue (ay.IsEnvHolding (),
+            Assert::IsTrue (ay.IsEnvHolding(),
                             L"One-shot envelope must hold when complete");
         }
 
@@ -324,12 +324,12 @@ namespace Ay8910TestNs
 
             for (i = 0; i < 4000; i++)
             {
-                ay.GenerateSample ();
+                ay.GenerateSample();
             }
 
-            Assert::AreEqual (Ay8910::kMaxEnvLevel, ay.GetEnvLevel (),
+            Assert::AreEqual (Ay8910::kMaxEnvLevel, ay.GetEnvLevel(),
                               L"Attack-hold envelope must hold at full level");
-            Assert::IsTrue (ay.IsEnvHolding ());
+            Assert::IsTrue (ay.IsEnvHolding());
         }
 
 
@@ -354,7 +354,7 @@ namespace Ay8910TestNs
             // streams -- the "reference render" reproducibility guarantee.
             for (i = 0; i < 8000; i++)
             {
-                Assert::AreEqual (a.GenerateSample (), b.GenerateSample ());
+                Assert::AreEqual (a.GenerateSample(), b.GenerateSample());
             }
         }
 

@@ -47,7 +47,7 @@ void SettingsDisplayCrtBridge::Bind (
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-int SettingsDisplayCrtBridge::ActiveModeIdx () const
+int SettingsDisplayCrtBridge::ActiveModeIdx() const
 {
     int  idx = 0;
 
@@ -85,7 +85,7 @@ int SettingsDisplayCrtBridge::ActiveModeIdx () const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void SettingsDisplayCrtBridge::ReseedFromActiveMode ()
+void SettingsDisplayCrtBridge::ReseedFromActiveMode()
 {
     GlobalUserPrefsCrtSnapshot  snap;
     int                         idx = ActiveModeIdx();
@@ -192,7 +192,7 @@ void SettingsDisplayCrtBridge::ReseedFromActiveMode ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void SettingsDisplayCrtBridge::PublishDefaultsHint ()
+void SettingsDisplayCrtBridge::PublishDefaultsHint()
 {
     DisplayDefaultsHint  hint;
 
@@ -292,7 +292,7 @@ void SettingsDisplayCrtBridge::PublishDefaultsHint ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void SettingsDisplayCrtBridge::PromoteActiveToOverride ()
+void SettingsDisplayCrtBridge::PromoteActiveToOverride()
 {
     if (m_prefs == nullptr)
     {
@@ -321,7 +321,7 @@ void SettingsDisplayCrtBridge::PromoteActiveToOverride ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void SettingsDisplayCrtBridge::ResetActiveToDefaults ()
+void SettingsDisplayCrtBridge::ResetActiveToDefaults()
 {
     if (m_prefs == nullptr)
     {
@@ -388,7 +388,7 @@ void SettingsDisplayCrtBridge::ResetActiveToDefaults ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void SettingsDisplayCrtBridge::WireDisplayPageCallbacks ()
+void SettingsDisplayCrtBridge::WireDisplayPageCallbacks()
 {
     if (m_displayPage == nullptr)
     {

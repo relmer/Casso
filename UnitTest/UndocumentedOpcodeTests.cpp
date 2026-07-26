@@ -41,15 +41,15 @@ namespace CpuOperationTests
         {
             TestCpu cpu;
 
-            cpu.InitForTest ();
-            cpu.RegA () = 0xF0;
-            cpu.RegX () = 0x3C;
+            cpu.InitForTest();
+            cpu.RegA() = 0xF0;
+            cpu.RegX() = 0x3C;
             cpu.WriteBytes (0x8000, { 0x87, 0x10 });    // SAX $10
-            cpu.Step ();
+            cpu.Step();
 
             Assert::AreEqual ((Byte) 0x30, cpu.Peek (0x10));    // 0xF0 & 0x3C
-            Assert::IsFalse (cpu.Status ().flags.zero);
-            Assert::IsFalse (cpu.Status ().flags.negative);
+            Assert::IsFalse (cpu.Status().flags.zero);
+            Assert::IsFalse (cpu.Status().flags.negative);
         }
 
 
@@ -63,15 +63,15 @@ namespace CpuOperationTests
         {
             TestCpu cpu;
 
-            cpu.InitForTest ();
+            cpu.InitForTest();
             cpu.WriteBytes (0x8000, { 0xA7, 0x10 });    // LAX $10
             cpu.WriteBytes (0x10,   { 0x80 });
-            cpu.Step ();
+            cpu.Step();
 
-            Assert::AreEqual ((Byte) 0x80, cpu.RegA ());
-            Assert::AreEqual ((Byte) 0x80, cpu.RegX ());
-            Assert::IsTrue  (cpu.Status ().flags.negative);
-            Assert::IsFalse (cpu.Status ().flags.zero);
+            Assert::AreEqual ((Byte) 0x80, cpu.RegA());
+            Assert::AreEqual ((Byte) 0x80, cpu.RegX());
+            Assert::IsTrue  (cpu.Status().flags.negative);
+            Assert::IsFalse (cpu.Status().flags.zero);
         }
 
 
@@ -85,16 +85,16 @@ namespace CpuOperationTests
         {
             TestCpu cpu;
 
-            cpu.InitForTest ();
-            cpu.RegA () = 0x01;
+            cpu.InitForTest();
+            cpu.RegA() = 0x01;
             cpu.WriteBytes (0x8000, { 0x07, 0x10 });    // SLO $10
             cpu.WriteBytes (0x10,   { 0x40 });
-            cpu.Step ();
+            cpu.Step();
 
             Assert::AreEqual ((Byte) 0x80, cpu.Peek (0x10));    // ASL $40
-            Assert::AreEqual ((Byte) 0x81, cpu.RegA ());        // 0x01 | 0x80
-            Assert::IsFalse (cpu.Status ().flags.carry);        // bit 7 of $40 was 0
-            Assert::IsTrue  (cpu.Status ().flags.negative);
+            Assert::AreEqual ((Byte) 0x81, cpu.RegA());        // 0x01 | 0x80
+            Assert::IsFalse (cpu.Status().flags.carry);        // bit 7 of $40 was 0
+            Assert::IsTrue  (cpu.Status().flags.negative);
         }
 
 
@@ -108,15 +108,15 @@ namespace CpuOperationTests
         {
             TestCpu cpu;
 
-            cpu.InitForTest ();
-            cpu.RegA () = 0x01;
+            cpu.InitForTest();
+            cpu.RegA() = 0x01;
             cpu.WriteBytes (0x8000, { 0x07, 0x10 });
             cpu.WriteBytes (0x10,   { 0x80 });
-            cpu.Step ();
+            cpu.Step();
 
             Assert::AreEqual ((Byte) 0x00, cpu.Peek (0x10));    // ASL $80
-            Assert::AreEqual ((Byte) 0x01, cpu.RegA ());        // 0x01 | 0x00
-            Assert::IsTrue (cpu.Status ().flags.carry);         // bit 7 of $80 was 1
+            Assert::AreEqual ((Byte) 0x01, cpu.RegA());        // 0x01 | 0x00
+            Assert::IsTrue (cpu.Status().flags.carry);         // bit 7 of $80 was 1
         }
 
 
@@ -130,16 +130,16 @@ namespace CpuOperationTests
         {
             TestCpu cpu;
 
-            cpu.InitForTest ();
-            cpu.RegA () = 0xFF;
-            cpu.Status ().flags.carry = 1;
+            cpu.InitForTest();
+            cpu.RegA() = 0xFF;
+            cpu.Status().flags.carry = 1;
             cpu.WriteBytes (0x8000, { 0x27, 0x10 });    // RLA $10
             cpu.WriteBytes (0x10,   { 0x80 });
-            cpu.Step ();
+            cpu.Step();
 
             Assert::AreEqual ((Byte) 0x01, cpu.Peek (0x10));    // ROL $80 with carry in
-            Assert::AreEqual ((Byte) 0x01, cpu.RegA ());        // 0xFF & 0x01
-            Assert::IsTrue (cpu.Status ().flags.carry);         // bit 7 of $80 was 1
+            Assert::AreEqual ((Byte) 0x01, cpu.RegA());        // 0xFF & 0x01
+            Assert::IsTrue (cpu.Status().flags.carry);         // bit 7 of $80 was 1
         }
 
 
@@ -153,16 +153,16 @@ namespace CpuOperationTests
         {
             TestCpu cpu;
 
-            cpu.InitForTest ();
-            cpu.RegA () = 0xFF;
+            cpu.InitForTest();
+            cpu.RegA() = 0xFF;
             cpu.WriteBytes (0x8000, { 0x47, 0x10 });    // SRE $10
             cpu.WriteBytes (0x10,   { 0x03 });
-            cpu.Step ();
+            cpu.Step();
 
             Assert::AreEqual ((Byte) 0x01, cpu.Peek (0x10));    // LSR $03
-            Assert::AreEqual ((Byte) 0xFE, cpu.RegA ());        // 0xFF ^ 0x01
-            Assert::IsTrue (cpu.Status ().flags.carry);         // bit 0 of $03 was 1
-            Assert::IsTrue (cpu.Status ().flags.negative);
+            Assert::AreEqual ((Byte) 0xFE, cpu.RegA());        // 0xFF ^ 0x01
+            Assert::IsTrue (cpu.Status().flags.carry);         // bit 0 of $03 was 1
+            Assert::IsTrue (cpu.Status().flags.negative);
         }
 
 
@@ -176,15 +176,15 @@ namespace CpuOperationTests
         {
             TestCpu cpu;
 
-            cpu.InitForTest ();
-            cpu.RegA () = 0x10;
-            cpu.Status ().flags.carry = 0;
+            cpu.InitForTest();
+            cpu.RegA() = 0x10;
+            cpu.Status().flags.carry = 0;
             cpu.WriteBytes (0x8000, { 0x67, 0x10 });    // RRA $10
             cpu.WriteBytes (0x10,   { 0x02 });
-            cpu.Step ();
+            cpu.Step();
 
             Assert::AreEqual ((Byte) 0x01, cpu.Peek (0x10));    // ROR $02
-            Assert::AreEqual ((Byte) 0x11, cpu.RegA ());        // 0x10 + 0x01 + carry 0
+            Assert::AreEqual ((Byte) 0x11, cpu.RegA());        // 0x10 + 0x01 + carry 0
         }
 
 
@@ -202,16 +202,16 @@ namespace CpuOperationTests
         {
             TestCpu cpu;
 
-            cpu.InitForTest ();
-            cpu.Status ().flags.decimal = 1;
-            cpu.RegA () = 0x09;
-            cpu.Status ().flags.carry = 0;
+            cpu.InitForTest();
+            cpu.Status().flags.decimal = 1;
+            cpu.RegA() = 0x09;
+            cpu.Status().flags.carry = 0;
             cpu.WriteBytes (0x8000, { 0x67, 0x10 });
             cpu.WriteBytes (0x10,   { 0x04 });
-            cpu.Step ();
+            cpu.Step();
 
             Assert::AreEqual ((Byte) 0x02, cpu.Peek (0x10));    // ROR $04
-            Assert::AreEqual ((Byte) 0x11, cpu.RegA ());        // BCD 0x09 + 0x02
+            Assert::AreEqual ((Byte) 0x11, cpu.RegA());        // BCD 0x09 + 0x02
         }
 
 
@@ -225,16 +225,16 @@ namespace CpuOperationTests
         {
             TestCpu cpu;
 
-            cpu.InitForTest ();
-            cpu.RegA () = 0x20;
-            cpu.Status ().flags.carry = 1;              // no borrow in
+            cpu.InitForTest();
+            cpu.RegA() = 0x20;
+            cpu.Status().flags.carry = 1;              // no borrow in
             cpu.WriteBytes (0x8000, { 0xE7, 0x10 });    // ISC $10
             cpu.WriteBytes (0x10,   { 0x0F });
-            cpu.Step ();
+            cpu.Step();
 
             Assert::AreEqual ((Byte) 0x10, cpu.Peek (0x10));    // INC $0F
-            Assert::AreEqual ((Byte) 0x10, cpu.RegA ());        // 0x20 - 0x10
-            Assert::IsTrue (cpu.Status ().flags.carry);         // no borrow out
+            Assert::AreEqual ((Byte) 0x10, cpu.RegA());        // 0x20 - 0x10
+            Assert::IsTrue (cpu.Status().flags.carry);         // no borrow out
         }
 
 
@@ -248,16 +248,16 @@ namespace CpuOperationTests
         {
             TestCpu cpu;
 
-            cpu.InitForTest ();
-            cpu.RegA () = 0x10;
+            cpu.InitForTest();
+            cpu.RegA() = 0x10;
             cpu.WriteBytes (0x8000, { 0xC7, 0x10 });    // DCP $10
             cpu.WriteBytes (0x10,   { 0x10 });
-            cpu.Step ();
+            cpu.Step();
 
             Assert::AreEqual ((Byte) 0x0F, cpu.Peek (0x10));    // DEC $10
-            Assert::IsTrue  (cpu.Status ().flags.carry);        // A >= decremented value
-            Assert::IsFalse (cpu.Status ().flags.zero);
-            Assert::IsFalse (cpu.Status ().flags.negative);
+            Assert::IsTrue  (cpu.Status().flags.carry);        // A >= decremented value
+            Assert::IsFalse (cpu.Status().flags.zero);
+            Assert::IsFalse (cpu.Status().flags.negative);
         }
 
 
@@ -271,13 +271,13 @@ namespace CpuOperationTests
         {
             TestCpu cpu;
 
-            cpu.InitForTest ();
-            cpu.RegA () = 0x42;
+            cpu.InitForTest();
+            cpu.RegA() = 0x42;
             cpu.WriteBytes (0x8000, { 0x1A });          // NOP (implied)
-            cpu.Step ();
+            cpu.Step();
 
-            Assert::AreEqual ((Word) 0x8001, cpu.RegPC ());
-            Assert::AreEqual ((Byte) 0x42,   cpu.RegA ());
+            Assert::AreEqual ((Word) 0x8001, cpu.RegPC());
+            Assert::AreEqual ((Byte) 0x42,   cpu.RegA());
         }
 
 
@@ -291,11 +291,11 @@ namespace CpuOperationTests
         {
             TestCpu cpu;
 
-            cpu.InitForTest ();
+            cpu.InitForTest();
             cpu.WriteBytes (0x8000, { 0x04, 0x10 });    // DOP $10
-            cpu.Step ();
+            cpu.Step();
 
-            Assert::AreEqual ((Word) 0x8002, cpu.RegPC ());
+            Assert::AreEqual ((Word) 0x8002, cpu.RegPC());
         }
 
 
@@ -309,11 +309,11 @@ namespace CpuOperationTests
         {
             TestCpu cpu;
 
-            cpu.InitForTest ();
+            cpu.InitForTest();
             cpu.WriteBytes (0x8000, { 0x0C, 0x34, 0x12 });  // TOP $1234
-            cpu.Step ();
+            cpu.Step();
 
-            Assert::AreEqual ((Word) 0x8003, cpu.RegPC ());
+            Assert::AreEqual ((Word) 0x8003, cpu.RegPC());
         }
     };
 
@@ -410,7 +410,7 @@ namespace CpuOperationTests
         TEST_METHOD (Assembler_CannotEmitUndocumented_ButNopStaysCanonical)
         {
             TestCpu     cpu;
-            OpcodeTable table (cpu.GetInstructionSet ());
+            OpcodeTable table (cpu.GetInstructionSet());
             OpcodeEntry entry = {};
 
             Assert::IsFalse (table.Lookup ("SLO", GlobalAddressingMode::ZeroPage, entry));

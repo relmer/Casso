@@ -190,7 +190,7 @@ void Disk2NibbleEngine::SetCurrentTrack (int track)
         // error. Cap to the new track's bit length so we don't end
         // up past the wrap.
         m_currentTrack = clamped;
-        newBits        = CurrentTrackBits ();
+        newBits        = CurrentTrackBits();
 
         if (newBits > 0)
         {
@@ -217,7 +217,7 @@ void Disk2NibbleEngine::SetCurrentTrack (int track)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-size_t Disk2NibbleEngine::CurrentTrackBits () const
+size_t Disk2NibbleEngine::CurrentTrackBits() const
 {
     int   slot = (m_disk != nullptr) ? m_disk->ResolveQuarterTrack (m_currentTrack) : -1;
 

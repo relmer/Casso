@@ -39,7 +39,7 @@ namespace
     //
     ////////////////////////////////////////////////////////////////////////////
 
-    int64_t QpcFrequencyHz ()
+    int64_t QpcFrequencyHz()
     {
         LARGE_INTEGER   freq = {};
 
@@ -91,17 +91,17 @@ namespace
         hr = host.BuildApple2e (core);
         CHRA (hr);
 
-        if (!core.HasApple2e ())
+        if (!core.HasApple2e())
         {
             hr = E_UNEXPECTED;
             CHRA (hr);
         }
 
-        core.PowerCycle ();
+        core.PowerCycle();
         core.RunCycles  (kColdBootCycles);
         core.RunCycles  (kPerfWarmupCycles);
 
-        freqHz = QpcFrequencyHz ();
+        freqHz = QpcFrequencyHz();
         if (freqHz <= 0)
         {
             hr = E_UNEXPECTED;
@@ -131,8 +131,8 @@ namespace
         std::vector<double>   sorted = samples;
         size_t                n      = 0;
 
-        std::sort (sorted.begin (), sorted.end ());
-        n = sorted.size ();
+        std::sort (sorted.begin(), sorted.end());
+        n = sorted.size();
         return sorted[n / 2];
     }
 
@@ -145,7 +145,7 @@ namespace
 
     double WorstOf (const std::vector<double> & samples)
     {
-        return *std::max_element (samples.begin (), samples.end ());
+        return *std::max_element (samples.begin(), samples.end());
     }
 }
 

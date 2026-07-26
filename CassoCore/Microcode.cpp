@@ -12,7 +12,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-Microcode::Microcode () :
+Microcode::Microcode() :
     isLegal              (false),
     group                (Group::Invalid), 
     instructionName      ("Illegal instruction"),

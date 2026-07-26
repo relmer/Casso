@@ -22,7 +22,7 @@ public:
 
     TEST_METHOD (Load_ValidJson_ParsesAllFields)
     {
-        std::string   json = MinimalJson ();
+        std::string   json = MinimalJson();
         MachineConfig config;
         std::string   error;
 
@@ -32,14 +32,14 @@ public:
 
         Assert::IsTrue (SUCCEEDED (hr),
             std::format (L"Load should succeed: {}",
-                std::wstring (error.begin (), error.end ())).c_str ());
+                std::wstring (error.begin(), error.end())).c_str());
         Assert::AreEqual (std::string ("TestMachine"), config.name,
             L"Name must be 'TestMachine'");
         Assert::AreEqual (std::string ("6502"), config.cpu,
             L"CPU must be '6502'");
         Assert::AreEqual (1023000u, config.clockSpeed,
             L"Clock speed must be 1023000");
-        Assert::AreEqual (size_t (1), config.ram.size (),
+        Assert::AreEqual (size_t (1), config.ram.size(),
             L"Should have 1 RAM region");
         Assert::AreEqual (Word (0x0000), config.ram[0].address,
             L"First RAM address must be 0x0000");
@@ -49,7 +49,7 @@ public:
 
     TEST_METHOD (Load_SystemRomResolved)
     {
-        std::string   json = MinimalJson ();
+        std::string   json = MinimalJson();
         MachineConfig config;
         std::string   error;
 
@@ -60,7 +60,7 @@ public:
         Assert::IsTrue (SUCCEEDED (hr),
             L"Load should succeed with valid ROM");
 
-        Assert::IsFalse (config.systemRom.resolvedPath.empty (),
+        Assert::IsFalse (config.systemRom.resolvedPath.empty(),
             L"systemRom resolvedPath must be populated");
         Assert::AreEqual (Word (0xD000), config.systemRom.address,
             L"systemRom address must be 0xD000");
@@ -68,7 +68,7 @@ public:
 
     TEST_METHOD (Load_MissingRom_ReturnsClearError)
     {
-        std::string   json = MinimalJson ();
+        std::string   json = MinimalJson();
         MachineConfig config;
         std::string   error;
 
@@ -224,7 +224,7 @@ public:
 
     TEST_METHOD (Load_AuxRamRegion_Preserved)
     {
-        std::string   json = JsonWithAuxRam ();
+        std::string   json = JsonWithAuxRam();
         MachineConfig config;
         std::string   error;
 
@@ -234,9 +234,9 @@ public:
 
         Assert::IsTrue (SUCCEEDED (hr),
             std::format (L"aux ram config should load: {}",
-                std::wstring (error.begin (), error.end ())).c_str ());
+                std::wstring (error.begin(), error.end())).c_str());
 
-        Assert::AreEqual (size_t (2), config.ram.size (),
+        Assert::AreEqual (size_t (2), config.ram.size(),
             L"Should have 2 RAM regions");
         Assert::AreEqual (std::string ("aux"), config.ram[1].bank,
             L"Second RAM bank must be 'aux'");
@@ -244,7 +244,7 @@ public:
 
     TEST_METHOD (Load_InternalDevices_Parsed)
     {
-        std::string   json = MinimalJson ();
+        std::string   json = MinimalJson();
         MachineConfig config;
         std::string   error;
 
@@ -253,7 +253,7 @@ public:
                                                 config, error);
 
         Assert::IsTrue (SUCCEEDED (hr));
-        Assert::AreEqual (size_t (3), config.internalDevices.size (),
+        Assert::AreEqual (size_t (3), config.internalDevices.size(),
             L"Should have 3 internal devices");
         Assert::AreEqual (std::string ("apple2-keyboard"), config.internalDevices[0].type,
             L"First internal device should be apple2-keyboard");
@@ -325,7 +325,7 @@ public:
 
     TEST_METHOD (Load_KeyboardType_Parsed)
     {
-        std::string   json = MinimalJson ();
+        std::string   json = MinimalJson();
         MachineConfig config;
         std::string   error;
 
@@ -340,7 +340,7 @@ public:
 
     TEST_METHOD (Load_VideoConfig_Parsed)
     {
-        std::string   json = MinimalJson ();
+        std::string   json = MinimalJson();
         MachineConfig config;
         std::string   error;
 
@@ -349,7 +349,7 @@ public:
                                                 config, error);
 
         Assert::IsTrue (SUCCEEDED (hr));
-        Assert::AreEqual (size_t (3), config.videoConfig.modes.size (),
+        Assert::AreEqual (size_t (3), config.videoConfig.modes.size(),
             L"Should have 3 video modes");
     }
 
@@ -366,7 +366,7 @@ public:
 
     TEST_METHOD (CollectRomFiles_SystemRomOnly_ReturnsOneFile)
     {
-        std::string              json = MinimalJson ();
+        std::string              json = MinimalJson();
         std::vector<std::string> files;
         std::string              error;
 
@@ -374,8 +374,8 @@ public:
 
         Assert::IsTrue (SUCCEEDED (hr),
             std::format (L"CollectRomFiles should succeed: {}",
-                std::wstring (error.begin (), error.end ())).c_str ());
-        Assert::AreEqual (size_t (1), files.size (),
+                std::wstring (error.begin(), error.end())).c_str());
+        Assert::AreEqual (size_t (1), files.size(),
             L"Minimal config has only systemRom");
         Assert::AreEqual (std::string ("Apple2Plus.rom"), files[0],
             L"systemRom.file must be returned");
@@ -383,14 +383,14 @@ public:
 
     TEST_METHOD (CollectRomFiles_WithCharacterRom_ReturnsBoth)
     {
-        std::string              json  = JsonWithCharRom ();
+        std::string              json  = JsonWithCharRom();
         std::vector<std::string> files;
         std::string              error;
 
         HRESULT hr = MachineConfigLoader::CollectRomFiles (json, files, error);
 
         Assert::IsTrue (SUCCEEDED (hr));
-        Assert::AreEqual (size_t (2), files.size (),
+        Assert::AreEqual (size_t (2), files.size(),
             L"systemRom + characterRom = 2 files");
         Assert::AreEqual (std::string ("Apple2.rom"),       files[0]);
         Assert::AreEqual (std::string ("Apple2_Video.rom"), files[1]);
@@ -398,14 +398,14 @@ public:
 
     TEST_METHOD (CollectRomFiles_WithSlotRoms_IncludesAll)
     {
-        std::string              json  = JsonWithSlotRom ();
+        std::string              json  = JsonWithSlotRom();
         std::vector<std::string> files;
         std::string              error;
 
         HRESULT hr = MachineConfigLoader::CollectRomFiles (json, files, error);
 
         Assert::IsTrue (SUCCEEDED (hr));
-        Assert::AreEqual (size_t (3), files.size (),
+        Assert::AreEqual (size_t (3), files.size(),
             L"system + character + 1 slot ROM = 3 files");
         Assert::AreEqual (std::string ("Apple2e.rom"),       files[0]);
         Assert::AreEqual (std::string ("Apple2e_Video.rom"), files[1]);
@@ -422,7 +422,7 @@ public:
 
         Assert::IsTrue (FAILED (hr),
             L"Malformed JSON must surface as an error");
-        Assert::IsTrue (files.empty (),
+        Assert::IsTrue (files.empty(),
             L"On parse failure no files should be reported");
     }
 
@@ -469,13 +469,13 @@ public:
 
         Assert::IsTrue (SUCCEEDED (hr),
             std::format (L"Load should succeed: {}",
-                std::wstring (error.begin (), error.end ())).c_str ());
+                std::wstring (error.begin(), error.end())).c_str());
 
-        Assert::AreEqual (size_t (1), config.internalDevices.size ());
+        Assert::AreEqual (size_t (1), config.internalDevices.size());
         Assert::IsTrue (config.internalDevices[0].capabilityFlag == CapabilityFlag::Required,
             L"Internal device without explicit capabilityFlag must default to Required.");
 
-        Assert::AreEqual (size_t (1), config.slots.size ());
+        Assert::AreEqual (size_t (1), config.slots.size());
         Assert::IsTrue (config.slots[0].capabilityFlag == CapabilityFlag::Optional,
             L"Slot entry without explicit capabilityFlag must default to Optional.");
     }
@@ -604,7 +604,7 @@ private:
         UNREFERENCED_PARAMETER (searchPaths);
 
         // Determine expected size from filename
-        std::string filename = relativePath.filename ().string ();
+        std::string filename = relativePath.filename().string();
         size_t      expectedSize = 0;
 
         if (filename == "Apple2Plus.rom" || filename == "Apple2.rom")
@@ -637,7 +637,7 @@ private:
         }
 
         // Create temp file with the expected size if not already present
-        fs::path tempPath = fs::temp_directory_path () / ("casso_test_" + filename);
+        fs::path tempPath = fs::temp_directory_path() / ("casso_test_" + filename);
 
         bool needCreate = !fs::exists (tempPath);
 
@@ -657,9 +657,9 @@ private:
         {
             std::vector<Byte> buffer (expectedSize, 0);
             std::ofstream     out (tempPath, std::ios::binary | std::ios::trunc);
-            out.write (reinterpret_cast<const char *> (buffer.data ()), expectedSize);
-            out.flush ();
-            out.close ();
+            out.write (reinterpret_cast<const char *> (buffer.data()), expectedSize);
+            out.flush();
+            out.close();
         }
 
         return tempPath;
@@ -672,7 +672,7 @@ private:
         return {};
     }
 
-    static std::string MinimalJson ()
+    static std::string MinimalJson()
     {
         return R"({
             "name": "TestMachine",
@@ -696,7 +696,7 @@ private:
         })";
     }
 
-    static std::string JsonWithAuxRam ()
+    static std::string JsonWithAuxRam()
     {
         return R"({
             "name": "TestIIe",
@@ -717,7 +717,7 @@ private:
         })";
     }
 
-    static std::string JsonWithCharRom ()
+    static std::string JsonWithCharRom()
     {
         return R"({
             "name": "TestII",
@@ -736,7 +736,7 @@ private:
         })";
     }
 
-    static std::string JsonWithSlotRom ()
+    static std::string JsonWithSlotRom()
     {
         return R"({
             "name": "TestIIeWithDisk",

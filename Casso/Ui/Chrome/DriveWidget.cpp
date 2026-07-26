@@ -205,7 +205,7 @@ void DriveWidget::Initialize (int slot, int drive, IDriveCommandSink * pSink)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-DriveWidget::DriveWidget ()
+DriveWidget::DriveWidget()
 {
     m_focusable = false;
 }

@@ -167,12 +167,12 @@ namespace
 
     size_t  FindSubsequence (const std::vector<Byte> & hay, const std::vector<Byte> & needle)
     {
-        if (needle.empty () || hay.size () < needle.size ()) { return std::string::npos; }
+        if (needle.empty() || hay.size() < needle.size()) { return std::string::npos; }
 
-        for (size_t i = 0; i + needle.size () <= hay.size (); i++)
+        for (size_t i = 0; i + needle.size() <= hay.size(); i++)
         {
             bool  match = true;
-            for (size_t j = 0; j < needle.size (); j++)
+            for (size_t j = 0; j < needle.size(); j++)
             {
                 if (hay[i + j] != needle[j]) { match = false; break; }
             }
@@ -222,7 +222,7 @@ public:
         }
 
         // Rewind and read the written flux back through the LSS reader.
-        eng.Reset ();
+        eng.Reset();
         eng.SetDiskImage (&img);
         eng.SetMotorOn   (true);
         eng.SetCurrentTrack (0);
@@ -253,7 +253,7 @@ public:
         HRESULT  hr = host.BuildApple2eWithDisk2 (core);
         Assert::IsTrue (SUCCEEDED (hr), L"BuildApple2eWithDisk2 must succeed");
 
-        core.PowerCycle ();
+        core.PowerCycle();
 
         // Mount a synthetic blank .dsk (nibblizes to a formatted track 0).
         std::vector<Byte>  blank (NibblizationLayer::kImageByteSize, 0);
@@ -266,30 +266,30 @@ public:
         core.diskController->SetExternalDisk (kDrive1, img);
 
         // Poke the payload nibble table into RAM at $7000.
-        for (size_t i = 0; i < s_kPayload.size (); i++)
+        for (size_t i = 0; i < s_kPayload.size(); i++)
         {
             core.bus->WriteByte (static_cast<Word> (kPayloadAddr + i), s_kPayload[i]);
         }
 
         // Assemble + load the write routine. PLEN in kWriteSource is
         // hardcoded to the payload length; keep the two in step.
-        Assert::AreEqual (size_t (26), s_kPayload.size (),
+        Assert::AreEqual (size_t (26), s_kPayload.size(),
             L"kWriteSource hardcodes PLEN = 26; update both together");
 
         Cpu             asmCpu;
-        Assembler       assembler (asmCpu.GetInstructionSet ());
+        Assembler       assembler (asmCpu.GetInstructionSet());
         AssemblyResult  r = assembler.Assemble (kWriteSource);
 
         if (!r.success)
         {
-            const char *  e = r.errors.empty () ? "(none)" : r.errors[0].message.c_str ();
+            const char *  e = r.errors.empty() ? "(none)" : r.errors[0].message.c_str();
             wchar_t  msg[256] = {};
             swprintf_s (msg, L"write routine must assemble. First error: %hs", e);
             Assert::Fail (msg);
         }
         Assert::AreEqual (Word (kCodeOrg), r.startAddress, L"routine must .org $6000");
 
-        for (size_t i = 0; i < r.bytes.size (); i++)
+        for (size_t i = 0; i < r.bytes.size(); i++)
         {
             core.bus->WriteByte (static_cast<Word> (kCodeOrg + i), r.bytes[i]);
         }

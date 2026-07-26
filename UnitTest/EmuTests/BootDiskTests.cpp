@@ -65,26 +65,26 @@ namespace
     {
         std::error_code ec;
         fs::path        cursor = fs::current_path (ec);
-        if (ec) return fs::path ();
+        if (ec) return fs::path();
 
         for (int i = 0; i < kMaxAncestorWalk; i++)
         {
             fs::path candidate = cursor / relPath;
             if (fs::exists (candidate, ec)) return candidate;
-            if (!cursor.has_parent_path () || cursor == cursor.parent_path ())
+            if (!cursor.has_parent_path() || cursor == cursor.parent_path())
             {
                 break;
             }
-            cursor = cursor.parent_path ();
+            cursor = cursor.parent_path();
         }
-        return fs::path ();
+        return fs::path();
     }
 
 
     std::string ReadFileText (const fs::path & path)
     {
         std::ifstream f (path);
-        if (!f) return std::string ();
+        if (!f) return std::string();
         return std::string ((std::istreambuf_iterator<char> (f)),
                             std::istreambuf_iterator<char> ());
     }
@@ -114,10 +114,10 @@ public:
         fs::path  dhgrAuxPath   = FindRepoFile ("Apple2/Demos/dhgr-cassowary-aux.bin");
         fs::path  dhgrMainPath  = FindRepoFile ("Apple2/Demos/dhgr-cassowary-main.bin");
 
-        if (src.empty () || stage2Src.empty () ||
-            hgrPath.empty () || bandsPath.empty () ||
-            loresPath.empty () ||
-            dhgrAuxPath.empty () || dhgrMainPath.empty ())
+        if (src.empty() || stage2Src.empty() ||
+            hgrPath.empty() || bandsPath.empty() ||
+            loresPath.empty() ||
+            dhgrAuxPath.empty() || dhgrMainPath.empty())
         {
             Logger::WriteMessage ("SKIPPED: one or more demo-disk source "
                                   "files (casso-rocks*.a65, cassowary.hgr, "
@@ -129,8 +129,8 @@ public:
 
         std::string source       = ReadFileText (src);
         std::string stage2Source = ReadFileText (stage2Src);
-        Assert::IsFalse (source.empty (), L"casso-rocks.a65 must not be empty");
-        Assert::IsFalse (stage2Source.empty (),
+        Assert::IsFalse (source.empty(), L"casso-rocks.a65 must not be empty");
+        Assert::IsFalse (stage2Source.empty(),
             L"casso-rocks-stage2.a65 must not be empty");
 
         std::vector<Byte>  hgrPayload      = ReadFileBytes (hgrPath);
@@ -138,27 +138,27 @@ public:
         std::vector<Byte>  loresPayload    = ReadFileBytes (loresPath);
         std::vector<Byte>  dhgrAuxPayload  = ReadFileBytes (dhgrAuxPath);
         std::vector<Byte>  dhgrMainPayload = ReadFileBytes (dhgrMainPath);
-        Assert::AreEqual (kHgrPayloadSize, hgrPayload.size (),
+        Assert::AreEqual (kHgrPayloadSize, hgrPayload.size(),
             L"cassowary.hgr must be exactly 8192 bytes");
-        Assert::AreEqual (kHgrPayloadSize, bandsPayload.size (),
+        Assert::AreEqual (kHgrPayloadSize, bandsPayload.size(),
             L"test-bands.hgr must be exactly 8192 bytes");
-        Assert::AreEqual (kLoresPayloadSize, loresPayload.size (),
+        Assert::AreEqual (kLoresPayloadSize, loresPayload.size(),
             L"lores-bars.lores must be exactly 1024 bytes");
-        Assert::AreEqual (kHgrPayloadSize, dhgrAuxPayload.size (),
+        Assert::AreEqual (kHgrPayloadSize, dhgrAuxPayload.size(),
             L"dhgr-cassowary-aux.bin must be exactly 8192 bytes");
-        Assert::AreEqual (kHgrPayloadSize, dhgrMainPayload.size (),
+        Assert::AreEqual (kHgrPayloadSize, dhgrMainPayload.size(),
             L"dhgr-cassowary-main.bin must be exactly 8192 bytes");
 
         Cpu             cpu;
-        Assembler       assembler (cpu.GetInstructionSet ());
+        Assembler       assembler (cpu.GetInstructionSet());
 
         AssemblyResult  asmResult = assembler.Assemble (source);
         if (!asmResult.success)
         {
             wchar_t  msg[256] = {};
-            const char *  firstError = asmResult.errors.empty ()
+            const char *  firstError = asmResult.errors.empty()
                 ? "(no error message)"
-                : asmResult.errors[0].message.c_str ();
+                : asmResult.errors[0].message.c_str();
             swprintf_s (msg, L"casso-rocks.a65 must assemble cleanly. First "
                              L"error: %hs", firstError);
             Assert::Fail (msg);
@@ -168,9 +168,9 @@ public:
         if (!stage2Result.success)
         {
             wchar_t  msg[256] = {};
-            const char *  firstError = stage2Result.errors.empty ()
+            const char *  firstError = stage2Result.errors.empty()
                 ? "(no error message)"
-                : stage2Result.errors[0].message.c_str ();
+                : stage2Result.errors[0].message.c_str();
             swprintf_s (msg, L"casso-rocks-stage2.a65 must assemble cleanly. "
                              L"First error: %hs", firstError);
             Assert::Fail (msg);
@@ -178,13 +178,13 @@ public:
 
         Assert::AreEqual (Word (kDemoEntry), asmResult.startAddress,
             L"Stage 1 must be assembled with .org $0801 (boot ROM JMP target)");
-        Assert::IsTrue (asmResult.bytes.size () > 0 &&
-                        asmResult.bytes.size () <= kSectorByteSize - 1,
+        Assert::IsTrue (asmResult.bytes.size() > 0 &&
+                        asmResult.bytes.size() <= kSectorByteSize - 1,
             L"Stage 1 code must fit in the remainder of sector 0 ($0801-$08FF)");
         Assert::AreEqual (Word (kStage2Entry), stage2Result.startAddress,
             L"Stage 2 must be assembled with .org $0A00");
-        Assert::IsTrue (stage2Result.bytes.size () > 0 &&
-                        stage2Result.bytes.size () <= kSectorByteSize,
+        Assert::IsTrue (stage2Result.bytes.size() > 0 &&
+                        stage2Result.bytes.size() <= kSectorByteSize,
             L"Stage 2 code must fit in a single 256-byte sector");
 
         // Build a 143360-byte raw .dsk image:
@@ -222,7 +222,7 @@ public:
 
         std::vector<Byte>  raw (NibblizationLayer::kImageByteSize, 0);
 
-        for (size_t i = 0; i < asmResult.bytes.size (); i++)
+        for (size_t i = 0; i < asmResult.bytes.size(); i++)
         {
             raw[1 + i] = asmResult.bytes[i];
         }
@@ -244,12 +244,12 @@ public:
             }
         };
 
-        StampTrack3Sector (0, stage2Result.bytes.data (),
-                              stage2Result.bytes.size ());
+        StampTrack3Sector (0, stage2Result.bytes.data(),
+                              stage2Result.bytes.size());
         for (int sector = 0; sector < 4; sector++)
         {
             StampTrack3Sector (1 + sector,
-                               loresPayload.data () + sector * kSectorByteSize,
+                               loresPayload.data() + sector * kSectorByteSize,
                                kSectorByteSize);
         }
 
@@ -289,7 +289,7 @@ public:
         HRESULT  hr = host.BuildApple2eWithDisk2 (core);
         Assert::IsTrue (SUCCEEDED (hr), L"BuildApple2eWithDisk2 must succeed");
 
-        core.PowerCycle ();
+        core.PowerCycle();
 
         hr = core.diskStore->MountFromBytes (6, 0, "casso-rocks.dsk",
                                              DiskFormat::Dsk, raw);
@@ -306,16 +306,16 @@ public:
         core.RunCycles (kDemoCycleBudget);
 
         // ----- Verify boot landing soft-switch state (mode 0 = DHGR) -----
-        Apple2eSoftSwitchBank *   ss = core.softSwitches.get ();
+        Apple2eSoftSwitchBank *   ss = core.softSwitches.get();
 
         Assert::IsNotNull (ss, L"Apple2eSoftSwitchBank must be present");
-        Assert::IsTrue (ss->IsGraphicsMode (),
+        Assert::IsTrue (ss->IsGraphicsMode(),
             L"Demo must leave the //e in graphics mode (TEXT off)");
-        Assert::IsFalse (ss->IsMixedMode (),
+        Assert::IsFalse (ss->IsMixedMode(),
             L"Demo must leave MIXED off (full-screen graphics)");
-        Assert::IsFalse (ss->IsPage2 (),
+        Assert::IsFalse (ss->IsPage2(),
             L"Mode 0 (DHGR) must select PAGE1 before any keystroke");
-        Assert::IsTrue (ss->IsHiresMode (),
+        Assert::IsTrue (ss->IsHiresMode(),
             L"Mode 0 (DHGR) must enable HIRES");
 
         // ----- Verify framebuffer contents at boot landing -----
@@ -382,7 +382,7 @@ public:
             L"Stashed HGR1 cassowary (main $A000)");
 
         // The DHGR aux half is at aux $2000 — read via MMU aux buffer.
-        Byte *  auxBuf = core.mmu->GetAuxBuffer ();
+        Byte *  auxBuf = core.mmu->GetAuxBuffer();
         Assert::IsNotNull (auxBuf, L"MMU aux buffer must be available");
         {
             size_t  m = 0;
@@ -395,16 +395,16 @@ public:
         }
 
         // ----- Cycle through the 4 display modes with keystrokes -----
-        Assert::IsNotNull (core.keyboard.get (), L"AppleKeyboard must be present");
+        Assert::IsNotNull (core.keyboard.get(), L"AppleKeyboard must be present");
 
         // Keystroke 1 -> mode 1 (HGR1 cassowary). Restores cassowary
         // from main $A000 stash to main $2000, disables DHGR-specific
         // soft switches, returns to vanilla HGR.
         core.keyboard->KeyPressRaw (' ');
         core.RunCycles (300'000ULL);
-        Assert::IsTrue (ss->IsHiresMode (),
+        Assert::IsTrue (ss->IsHiresMode(),
             L"Mode 1 (HGR1) must keep HIRES on");
-        Assert::IsFalse (ss->IsPage2 (),
+        Assert::IsFalse (ss->IsPage2(),
             L"Mode 1 (HGR1) must select PAGE1");
         VerifyMemRange (0x2000, hgrPayload,
             L"HGR1 cassowary restored to main $2000 in mode 1");
@@ -412,19 +412,19 @@ public:
         // Keystroke 2 -> mode 2 (HGR2 bands).
         core.keyboard->KeyPressRaw (' ');
         core.RunCycles (200'000ULL);
-        Assert::IsTrue (ss->IsPage2 (),
+        Assert::IsTrue (ss->IsPage2(),
             L"Mode 2 (HGR2) must enable PAGE2");
-        Assert::IsTrue (ss->IsHiresMode (),
+        Assert::IsTrue (ss->IsHiresMode(),
             L"Mode 2 (HGR2) must keep HIRES on");
 
         // Keystroke 3 -> mode 3 (LoRes).
         core.keyboard->KeyPressRaw (' ');
         core.RunCycles (200'000ULL);
-        Assert::IsFalse (ss->IsHiresMode (),
+        Assert::IsFalse (ss->IsHiresMode(),
             L"Mode 3 (LoRes) must clear HIRES");
-        Assert::IsTrue (ss->IsGraphicsMode (),
+        Assert::IsTrue (ss->IsGraphicsMode(),
             L"Mode 3 (LoRes) must keep TEXT off");
-        Assert::IsFalse (ss->IsPage2 (),
+        Assert::IsFalse (ss->IsPage2(),
             L"Mode 3 (LoRes) must clear PAGE2");
 
         // Spot-check the LoRes pattern landed in text page 1.
@@ -449,19 +449,19 @@ public:
         // -> Applesoft. Just assert we're executing in ROM.
         core.keyboard->KeyPressRaw (' ');
         core.RunCycles (50'000ULL);
-        Assert::IsTrue (core.cpu->GetPC () >= 0xD000,
+        Assert::IsTrue (core.cpu->GetPC() >= 0xD000,
             L"After cycling past last mode, demo must JMP into ROM "
             L"($D000+, typically the Applesoft cold start at $E000)");
 
         // Side effect: emit the .dsk alongside the source so the demo can
         // also be booted in the GUI without re-running the test. Best-
         // effort -- silent failure on read-only checkouts (CI).
-        fs::path  dskOut = src.parent_path () / "casso-rocks.dsk";
+        fs::path  dskOut = src.parent_path() / "casso-rocks.dsk";
         std::ofstream  out (dskOut, std::ios::binary);
         if (out)
         {
-            out.write (reinterpret_cast<const char *> (raw.data ()),
-                       static_cast<std::streamsize> (raw.size ()));
+            out.write (reinterpret_cast<const char *> (raw.data()),
+                       static_cast<std::streamsize> (raw.size()));
         }
     }
 

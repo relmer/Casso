@@ -18,11 +18,11 @@ namespace
     // Find the directory containing `Machines/` by walking up from CWD.
     // Mirrors the resolver pattern in BackwardsCompatTests so these
     // tests stay filesystem-independent across CI vs local builds.
-    fs::path FindRepoRoot ()
+    fs::path FindRepoRoot()
     {
         std::error_code ec;
         fs::path        cursor = fs::current_path (ec);
-        if (ec) return fs::path ();
+        if (ec) return fs::path();
 
         for (int i = 0; i < kMaxAncestorWalk; i++)
         {
@@ -31,20 +31,20 @@ namespace
             {
                 return cursor;
             }
-            if (!cursor.has_parent_path () || cursor == cursor.parent_path ())
+            if (!cursor.has_parent_path() || cursor == cursor.parent_path())
             {
                 break;
             }
-            cursor = cursor.parent_path ();
+            cursor = cursor.parent_path();
         }
-        return fs::path ();
+        return fs::path();
     }
 
 
     fs::path FindRomPath (const std::string & relPath)
     {
-        fs::path root = FindRepoRoot ();
-        if (root.empty ()) return fs::path ();
+        fs::path root = FindRepoRoot();
+        if (root.empty()) return fs::path();
         return root / relPath;
     }
 }
@@ -87,7 +87,7 @@ public:
     TEST_METHOD (RealCharRom_Decodes_SpaceAsBlank_AltSet)
     {
         fs::path romPath = FindRomPath ("ROMs/Apple2e_Video.rom");
-        if (romPath.empty () || !fs::exists (romPath))
+        if (romPath.empty() || !fs::exists (romPath))
         {
             Logger::WriteMessage ("SKIPPED: ROMs/Apple2e_Video.rom "
                                   "not present (CI runners do not provision "
@@ -96,7 +96,7 @@ public:
         }
 
         CharacterRomData rom;
-        HRESULT hr = rom.LoadFromFile (romPath.string ());
+        HRESULT hr = rom.LoadFromFile (romPath.string());
         Assert::IsTrue (SUCCEEDED (hr), L"Must load Apple2e_Video.rom");
 
         for (int y = 0; y < 8; y++)
@@ -129,13 +129,13 @@ public:
         HRESULT  hr = host.BuildApple2e (core);
         Assert::IsTrue (SUCCEEDED (hr));
 
-        core.PowerCycle ();
+        core.PowerCycle();
         core.RunCycles (kColdBootCycles);
 
         size_t  consumed = KeystrokeInjector::InjectLine (core, "PR#3", kAfterCommand);
         Assert::AreEqual (size_t (5), consumed);
 
-        Byte * auxBuf = core.mmu->GetAuxBuffer ();
+        Byte * auxBuf = core.mmu->GetAuxBuffer();
         Assert::IsNotNull (auxBuf);
 
         wchar_t  msg[1024] = {};

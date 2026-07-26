@@ -27,7 +27,7 @@ namespace OutputFormatTests
 
 
             OutputFormats::WriteSRecord (data, 0x1000, 0x1001, 0x1000, oss);
-            std::string output = oss.str ();
+            std::string output = oss.str();
 
             Assert::IsTrue (output.find ("S0") == 0, L"Should start with S0");
         }
@@ -44,7 +44,7 @@ namespace OutputFormatTests
 
 
             OutputFormats::WriteSRecord (data, 0x1000, 0x1002, 0x1000, oss);
-            std::string output = oss.str ();
+            std::string output = oss.str();
 
             Assert::IsTrue (output.find ("S1") != std::string::npos, L"Should have S1 record");
         }
@@ -61,7 +61,7 @@ namespace OutputFormatTests
 
 
             OutputFormats::WriteSRecord (data, 0x1000, 0x1001, 0x1000, oss);
-            std::string output = oss.str ();
+            std::string output = oss.str();
 
             Assert::IsTrue (output.find ("S9") != std::string::npos, L"Should have S9 record");
         }
@@ -78,7 +78,7 @@ namespace OutputFormatTests
 
 
             OutputFormats::WriteSRecord (data, 0x1000, 0x1002, 0x1000, oss);
-            std::string output = oss.str ();
+            std::string output = oss.str();
 
             // S1 record should contain "A942"
             Assert::IsTrue (output.find ("A942") != std::string::npos, L"Should contain data bytes");
@@ -101,7 +101,7 @@ namespace OutputFormatTests
 
 
             OutputFormats::WriteIntelHex (data, 0x1000, 0x1001, 0x1000, oss);
-            std::string output = oss.str ();
+            std::string output = oss.str();
 
             Assert::IsTrue (output[0] == ':', L"Should start with colon");
         }
@@ -118,7 +118,7 @@ namespace OutputFormatTests
 
 
             OutputFormats::WriteIntelHex (data, 0x1000, 0x1001, 0x1000, oss);
-            std::string output = oss.str ();
+            std::string output = oss.str();
 
             Assert::IsTrue (output.find (":00000001FF") != std::string::npos, L"Should have EOF record");
         }
@@ -135,7 +135,7 @@ namespace OutputFormatTests
 
 
             OutputFormats::WriteIntelHex (data, 0x1000, 0x1002, 0x1000, oss);
-            std::string output = oss.str ();
+            std::string output = oss.str();
 
             Assert::IsTrue (output.find ("A942") != std::string::npos, L"Should contain data bytes");
         }
@@ -152,7 +152,7 @@ namespace OutputFormatTests
 
 
             OutputFormats::WriteIntelHex (data, 0x2000, 0x2001, 0x2000, oss);
-            std::string output = oss.str ();
+            std::string output = oss.str();
 
             // Record should contain address 2000
             Assert::IsTrue (output.find ("200000") != std::string::npos, L"Should contain address");
@@ -170,7 +170,7 @@ namespace OutputFormatTests
 
 
             OutputFormats::WriteIntelHex (data, 0x1000, 0x1003, 0x1000, oss);
-            std::string output = oss.str ();
+            std::string output = oss.str();
 
             // Should have data record starting with colon and EOF record
             Assert::IsTrue (output[0] == ':', L"First record should start with colon");

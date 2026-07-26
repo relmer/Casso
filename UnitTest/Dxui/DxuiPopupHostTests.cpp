@@ -508,7 +508,7 @@ public:
 
 namespace
 {
-    std::unique_ptr<DxuiHwndSource>  BuildSyntheticHostForPool ()
+    std::unique_ptr<DxuiHwndSource>  BuildSyntheticHostForPool()
     {
         RECT  bounds = MakeRect (0, 0, 1024, 768);
 

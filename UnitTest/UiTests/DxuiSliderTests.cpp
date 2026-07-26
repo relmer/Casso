@@ -23,7 +23,7 @@ namespace
     }
 
 
-    DxuiSlider  MakeUnitSlider ()
+    DxuiSlider  MakeUnitSlider()
     {
         DxuiSlider  s;
         s.SetRect (MakeRect (0, 0, 100, 16));

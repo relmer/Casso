@@ -44,7 +44,7 @@ namespace
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-DxuiPainter::~DxuiPainter ()
+DxuiPainter::~DxuiPainter()
 {
     Shutdown();
 }
@@ -97,7 +97,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiPainter::Shutdown ()
+void DxuiPainter::Shutdown()
 {
     DXUI_ASSERT_UI_THREAD();
 
@@ -125,7 +125,7 @@ void DxuiPainter::Shutdown ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT DxuiPainter::OnDeviceLost ()
+HRESULT DxuiPainter::OnDeviceLost()
 {
     DXUI_ASSERT_UI_THREAD();
 
@@ -162,7 +162,7 @@ HRESULT DxuiPainter::OnDeviceRestored (
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT DxuiPainter::CreateShaders ()
+HRESULT DxuiPainter::CreateShaders()
 {
     HRESULT             hr     = S_OK;
     ComPtr<ID3DBlob>    vsBlob;
@@ -236,7 +236,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT DxuiPainter::CreatePipelineState ()
+HRESULT DxuiPainter::CreatePipelineState()
 {
     HRESULT                   hr      = S_OK;
     D3D11_BLEND_DESC          blend   = {};

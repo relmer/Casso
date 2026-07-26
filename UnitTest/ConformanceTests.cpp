@@ -21,11 +21,11 @@ namespace ConformanceTests
     //
     ////////////////////////////////////////////////////////////////////////////////
 
-    static Assembler BuildAssembler ()
+    static Assembler BuildAssembler()
     {
         TestCpu cpu;
-        cpu.InitForTest ();
-        return Assembler (cpu.GetInstructionSet ());
+        cpu.InitForTest();
+        return Assembler (cpu.GetInstructionSet());
     }
 
 
@@ -38,7 +38,7 @@ namespace ConformanceTests
     //
     ////////////////////////////////////////////////////////////////////////////////
 
-    static std::string GetTestDataDir ()
+    static std::string GetTestDataDir()
     {
         // __FILE__ points to UnitTest/ConformanceTests.cpp
         // Navigate up to repo root, then into testdata/conformance
@@ -66,14 +66,14 @@ namespace ConformanceTests
     {
         std::ifstream file (path);
 
-        if (!file.is_open ())
+        if (!file.is_open())
         {
             return {};
         }
 
         std::ostringstream ss;
-        ss << file.rdbuf ();
-        return ss.str ();
+        ss << file.rdbuf();
+        return ss.str();
     }
 
 
@@ -90,16 +90,16 @@ namespace ConformanceTests
     {
         std::ifstream file (path, std::ios::binary | std::ios::ate);
 
-        if (!file.is_open ())
+        if (!file.is_open())
         {
             return {};
         }
 
-        auto size = file.tellg ();
+        auto size = file.tellg();
         file.seekg (0, std::ios::beg);
 
         std::vector<Byte> data ((size_t) size);
-        file.read (reinterpret_cast<char *> (data.data ()), size);
+        file.read (reinterpret_cast<char *> (data.data()), size);
         return data;
     }
 
@@ -117,7 +117,7 @@ namespace ConformanceTests
     {
         std::ostringstream ss;
 
-        for (size_t i = 0; i < bytes.size (); i++)
+        for (size_t i = 0; i < bytes.size(); i++)
         {
             if (i > 0)
             {
@@ -129,7 +129,7 @@ namespace ConformanceTests
             ss << buf;
         }
 
-        return ss.str ();
+        return ss.str();
     }
 
 
@@ -148,15 +148,15 @@ namespace ConformanceTests
     {
         std::string source = ReadTextFile (a65Path);
 
-        Assert::IsFalse (source.empty (),
-            (L"Cannot read source: " + std::wstring (testName.begin (), testName.end ())).c_str ());
+        Assert::IsFalse (source.empty(),
+            (L"Cannot read source: " + std::wstring (testName.begin(), testName.end())).c_str());
 
         std::vector<Byte> expected = ReadBinaryFile (binPath);
 
-        Assert::IsFalse (expected.empty (),
-            (L"Cannot read expected: " + std::wstring (testName.begin (), testName.end ())).c_str ());
+        Assert::IsFalse (expected.empty(),
+            (L"Cannot read expected: " + std::wstring (testName.begin(), testName.end())).c_str());
 
-        Assembler         asm6502 = BuildAssembler ();
+        Assembler         asm6502 = BuildAssembler();
         AssemblyResult    result  = asm6502.Assemble (source);
 
         if (!result.success)
@@ -168,21 +168,21 @@ namespace ConformanceTests
                 errMsg += "\n  Line " + std::to_string (e.lineNumber) + ": " + e.message;
             }
 
-            Assert::Fail (std::wstring (errMsg.begin (), errMsg.end ()).c_str ());
+            Assert::Fail (std::wstring (errMsg.begin(), errMsg.end()).c_str());
         }
 
-        if (result.bytes.size () != expected.size ())
+        if (result.bytes.size() != expected.size())
         {
             std::string msg = testName + " size mismatch: expected "
-                              + std::to_string (expected.size ()) + " bytes, got "
-                              + std::to_string (result.bytes.size ())
+                              + std::to_string (expected.size()) + " bytes, got "
+                              + std::to_string (result.bytes.size())
                               + "\n  Expected: " + FormatBytes (expected)
                               + "\n  Actual:   " + FormatBytes (result.bytes);
 
-            Assert::Fail (std::wstring (msg.begin (), msg.end ()).c_str ());
+            Assert::Fail (std::wstring (msg.begin(), msg.end()).c_str());
         }
 
-        for (size_t i = 0; i < expected.size (); i++)
+        for (size_t i = 0; i < expected.size(); i++)
         {
             if (result.bytes[i] != expected[i])
             {
@@ -191,7 +191,7 @@ namespace ConformanceTests
                                   + "\n  Expected: " + FormatBytes (expected)
                                   + "\n  Actual:   " + FormatBytes (result.bytes);
 
-                Assert::Fail (std::wstring (msg.begin (), msg.end ()).c_str ());
+                Assert::Fail (std::wstring (msg.begin(), msg.end()).c_str());
             }
         }
     }
@@ -219,7 +219,7 @@ namespace ConformanceTests
 
         TEST_METHOD (Conformance_ExprBasic)
         {
-            std::string dir = GetTestDataDir ();
+            std::string dir = GetTestDataDir();
             RunOneConformanceTest (dir + "\\expr_basic.a65",
                                   dir + "\\expr_basic.expected.bin",
                                   "expr_basic");
@@ -237,7 +237,7 @@ namespace ConformanceTests
 
         TEST_METHOD (Conformance_ExprLoHi)
         {
-            std::string dir = GetTestDataDir ();
+            std::string dir = GetTestDataDir();
             RunOneConformanceTest (dir + "\\expr_lohi.a65",
                                   dir + "\\expr_lohi.expected.bin",
                                   "expr_lohi");
@@ -255,7 +255,7 @@ namespace ConformanceTests
 
         TEST_METHOD (Conformance_Constants)
         {
-            std::string dir = GetTestDataDir ();
+            std::string dir = GetTestDataDir();
             RunOneConformanceTest (dir + "\\constants.a65",
                                   dir + "\\constants.expected.bin",
                                   "constants");
@@ -273,7 +273,7 @@ namespace ConformanceTests
 
         TEST_METHOD (Conformance_Conditionals)
         {
-            std::string dir = GetTestDataDir ();
+            std::string dir = GetTestDataDir();
             RunOneConformanceTest (dir + "\\conditionals.a65",
                                   dir + "\\conditionals.expected.bin",
                                   "conditionals");
@@ -291,7 +291,7 @@ namespace ConformanceTests
 
         TEST_METHOD (Conformance_MacrosBasic)
         {
-            std::string dir = GetTestDataDir ();
+            std::string dir = GetTestDataDir();
             RunOneConformanceTest (dir + "\\macros_basic.a65",
                                   dir + "\\macros_basic.expected.bin",
                                   "macros_basic");
@@ -309,7 +309,7 @@ namespace ConformanceTests
 
         TEST_METHOD (Conformance_LabelsColonless)
         {
-            std::string dir = GetTestDataDir ();
+            std::string dir = GetTestDataDir();
             RunOneConformanceTest (dir + "\\labels_colonless.a65",
                                   dir + "\\labels_colonless.expected.bin",
                                   "labels_colonless");
@@ -327,7 +327,7 @@ namespace ConformanceTests
 
         TEST_METHOD (Conformance_DirectivesDs)
         {
-            std::string dir = GetTestDataDir ();
+            std::string dir = GetTestDataDir();
             RunOneConformanceTest (dir + "\\directives_ds.a65",
                                   dir + "\\directives_ds.expected.bin",
                                   "directives_ds");
@@ -345,7 +345,7 @@ namespace ConformanceTests
 
         TEST_METHOD (Conformance_DirectivesAlign)
         {
-            std::string dir = GetTestDataDir ();
+            std::string dir = GetTestDataDir();
             RunOneConformanceTest (dir + "\\directives_align.a65",
                                   dir + "\\directives_align.expected.bin",
                                   "directives_align");
@@ -363,7 +363,7 @@ namespace ConformanceTests
 
         TEST_METHOD (Conformance_AddressingModes)
         {
-            std::string dir = GetTestDataDir ();
+            std::string dir = GetTestDataDir();
             RunOneConformanceTest (dir + "\\addressing_modes.a65",
                                   dir + "\\addressing_modes.expected.bin",
                                   "addressing_modes");
@@ -381,7 +381,7 @@ namespace ConformanceTests
 
         TEST_METHOD (Conformance_ForwardRef)
         {
-            std::string dir = GetTestDataDir ();
+            std::string dir = GetTestDataDir();
             RunOneConformanceTest (dir + "\\forward_ref.a65",
                                   dir + "\\forward_ref.expected.bin",
                                   "forward_ref");

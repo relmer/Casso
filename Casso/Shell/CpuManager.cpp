@@ -29,7 +29,7 @@ namespace
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-CpuManager::CpuManager ()
+CpuManager::CpuManager()
 {
 }
 
@@ -46,7 +46,7 @@ CpuManager::CpuManager ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-CpuManager::~CpuManager ()
+CpuManager::~CpuManager()
 {
     Stop();
 }
@@ -103,7 +103,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void CpuManager::Stop ()
+void CpuManager::Stop()
 {
     m_running.store (false, std::memory_order_release);
     m_pauseCV.notify_all();
@@ -141,7 +141,7 @@ void CpuManager::PostCommand (WORD id, const std::string & payload)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool CpuManager::IsRunning () const noexcept
+bool CpuManager::IsRunning() const noexcept
 {
     return m_running.load (std::memory_order_acquire);
 }
@@ -156,7 +156,7 @@ bool CpuManager::IsRunning () const noexcept
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool CpuManager::IsPaused () const noexcept
+bool CpuManager::IsPaused() const noexcept
 {
     return m_paused.load (std::memory_order_acquire);
 }
@@ -191,7 +191,7 @@ void CpuManager::SetPaused (bool paused) noexcept
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool CpuManager::TogglePaused () noexcept
+bool CpuManager::TogglePaused() noexcept
 {
     bool  next = !m_paused.load (std::memory_order_acquire);
 
@@ -211,7 +211,7 @@ bool CpuManager::TogglePaused () noexcept
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-SpeedMode CpuManager::GetSpeedMode () const noexcept
+SpeedMode CpuManager::GetSpeedMode() const noexcept
 {
     return m_speedMode.load (std::memory_order_acquire);
 }
@@ -245,7 +245,7 @@ void CpuManager::SetSpeedMode (SpeedMode mode) noexcept
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void CpuManager::DrainCommandQueue ()
+void CpuManager::DrainCommandQueue()
 {
     std::vector<EmulatorCommand>  cmds;
 
@@ -279,7 +279,7 @@ void CpuManager::DrainCommandQueue ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void CpuManager::ThreadProc ()
+void CpuManager::ThreadProc()
 {
     HRESULT        hr              = S_OK;
     HANDLE         hTimer          = nullptr;

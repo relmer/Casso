@@ -25,7 +25,7 @@ namespace
     }
 
 
-    std::vector<DxuiRadioOption> MakeTwoOptions ()
+    std::vector<DxuiRadioOption> MakeTwoOptions()
     {
         std::vector<DxuiRadioOption>  opts;
         opts.push_back (MakeOpt (  0, 0,  90, 20, L"A"));

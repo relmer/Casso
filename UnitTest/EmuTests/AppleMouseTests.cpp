@@ -36,7 +36,7 @@ namespace
     {
         FixtureProvider        fp;
         std::vector<uint8_t>   bytes;
-        return SUCCEEDED (fp.OpenFixture ("Apple2c.rom", bytes)) && bytes.size () == kRomSize;
+        return SUCCEEDED (fp.OpenFixture ("Apple2c.rom", bytes)) && bytes.size() == kRomSize;
     }
 
     // IOU switch addresses ($C058-$C05F while access is enabled).
@@ -74,24 +74,24 @@ public:
 
         mouse.MoveBy (2, 0);
         mouse.Tick (1);
-        Assert::IsTrue  (ic.IsAnyAsserted (), L"first unit must assert the line");
-        Assert::AreEqual<Byte> (0x80, mouse.ReadXInterruptStatus (), L"$C015 bit 7 pending");
+        Assert::IsTrue  (ic.IsAnyAsserted(), L"first unit must assert the line");
+        Assert::AreEqual<Byte> (0x80, mouse.ReadXInterruptStatus(), L"$C015 bit 7 pending");
 
         // Level-held, not pulsed: many ticks later it is still asserted and
         // still the SAME single unit (no second latch before the ack).
         for (int i = 0; i < 100; ++i) { mouse.Tick (1); }
-        Assert::IsTrue (ic.IsAnyAsserted (), L"line must hold until acknowledged");
+        Assert::IsTrue (ic.IsAnyAsserted(), L"line must hold until acknowledged");
 
         mouse.AccessRstXY();
-        Assert::IsFalse (ic.IsAnyAsserted (),          L"$C048 ack must drop the line");
-        Assert::AreEqual<Byte> (0x00, mouse.ReadXInterruptStatus (), L"ack clears the pending flag");
+        Assert::IsFalse (ic.IsAnyAsserted(),          L"$C048 ack must drop the line");
+        Assert::AreEqual<Byte> (0x00, mouse.ReadXInterruptStatus(), L"ack clears the pending flag");
 
         mouse.Tick (1);
-        Assert::IsTrue (ic.IsAnyAsserted (), L"second queued unit re-asserts after ack");
+        Assert::IsTrue (ic.IsAnyAsserted(), L"second queued unit re-asserts after ack");
 
         mouse.AccessRstXY();
         mouse.Tick (1);
-        Assert::IsFalse (ic.IsAnyAsserted (), L"queue drained: no third interrupt");
+        Assert::IsFalse (ic.IsAnyAsserted(), L"queue drained: no third interrupt");
     }
 
 
@@ -108,14 +108,14 @@ public:
 
         mouse.MoveBy (+1, +1);
         mouse.Tick (1);
-        Assert::AreEqual<Byte> (0x80, mouse.ReadMouX1 (), L"+X (right) -> MOUX1 bit 7 set");
-        Assert::AreEqual<Byte> (0x00, mouse.ReadMouY1 (), L"+Y (down)  -> MOUY1 bit 7 clear");
+        Assert::AreEqual<Byte> (0x80, mouse.ReadMouX1(), L"+X (right) -> MOUX1 bit 7 set");
+        Assert::AreEqual<Byte> (0x00, mouse.ReadMouY1(), L"+Y (down)  -> MOUY1 bit 7 clear");
 
         mouse.AccessRstXY();
         mouse.MoveBy (-1, -1);
         mouse.Tick (1);
-        Assert::AreEqual<Byte> (0x00, mouse.ReadMouX1 (), L"-X (left) -> MOUX1 bit 7 clear");
-        Assert::AreEqual<Byte> (0x80, mouse.ReadMouY1 (), L"-Y (up)   -> MOUY1 bit 7 set");
+        Assert::AreEqual<Byte> (0x00, mouse.ReadMouX1(), L"-X (left) -> MOUX1 bit 7 clear");
+        Assert::AreEqual<Byte> (0x80, mouse.ReadMouY1(), L"-Y (up)   -> MOUY1 bit 7 set");
     }
 
 
@@ -141,28 +141,28 @@ public:
 
         // Masked VBL: tick into vblank -- flag latches, line stays low.
         advance (VideoTiming::kVblankStartCycle + 1);
-        Assert::AreEqual<Byte> (0x80, mouse.ReadVblInterrupt (), L"latch sets at onset even when masked");
-        Assert::IsFalse (ic.IsAnyAsserted (), L"DISVBL (default) masks the line");
+        Assert::AreEqual<Byte> (0x80, mouse.ReadVblInterrupt(), L"latch sets at onset even when masked");
+        Assert::IsFalse (ic.IsAnyAsserted(), L"DISVBL (default) masks the line");
 
         // Enable: pending latch surfaces on the line immediately.
         mouse.WriteIouAccess (true);
         mouse.AccessIouSwitch (kEnbVbl);
         mouse.WriteIouAccess (false);
-        Assert::IsTrue (ic.IsAnyAsserted (), L"ENVBL with a pending latch asserts");
+        Assert::IsTrue (ic.IsAnyAsserted(), L"ENVBL with a pending latch asserts");
 
         // $C070 acknowledge.
         mouse.AccessPtrig();
-        Assert::AreEqual<Byte> (0x00, mouse.ReadVblInterrupt (), L"$C070 clears the latch");
-        Assert::IsFalse (ic.IsAnyAsserted (), L"ack drops the line");
+        Assert::AreEqual<Byte> (0x00, mouse.ReadVblInterrupt(), L"$C070 clears the latch");
+        Assert::IsFalse (ic.IsAnyAsserted(), L"ack drops the line");
 
         // Next frame's onset latches again (edge, not level): tick through
         // the display period (so the mouse observes not-vblank) and into the
         // following vblank.
         advance (VideoTiming::kCyclesPerFrame - 2000);   // wraps into display
-        Assert::AreEqual<Byte> (0x00, mouse.ReadVblInterrupt (), L"still clear during display");
+        Assert::AreEqual<Byte> (0x00, mouse.ReadVblInterrupt(), L"still clear during display");
         advance (4000);                                   // next vblank onset
-        Assert::AreEqual<Byte> (0x80, mouse.ReadVblInterrupt (), L"next onset re-latches");
-        Assert::IsTrue (ic.IsAnyAsserted (), L"enabled + latched -> asserted");
+        Assert::AreEqual<Byte> (0x80, mouse.ReadVblInterrupt(), L"next onset re-latches");
+        Assert::IsTrue (ic.IsAnyAsserted(), L"enabled + latched -> asserted");
     }
 
 
@@ -171,11 +171,11 @@ public:
     {
         AppleMouse  mouse;
 
-        Assert::AreEqual<Byte> (0x80, mouse.ReadButton (), L"released idles high");
+        Assert::AreEqual<Byte> (0x80, mouse.ReadButton(), L"released idles high");
         mouse.SetButton (true);
-        Assert::AreEqual<Byte> (0x00, mouse.ReadButton (), L"pressed pulls low");
+        Assert::AreEqual<Byte> (0x00, mouse.ReadButton(), L"pressed pulls low");
         mouse.SetButton (false);
-        Assert::AreEqual<Byte> (0x80, mouse.ReadButton (), L"release restores high");
+        Assert::AreEqual<Byte> (0x80, mouse.ReadButton(), L"release restores high");
     }
 
 
@@ -195,12 +195,12 @@ public:
 
         mouse.WriteIouAccess (true);
         mouse.AccessIouSwitch (kDisXy);
-        Assert::IsFalse (ic.IsAnyAsserted (),           L"DISXY masks the line");
-        Assert::AreEqual<Byte> (0x80, mouse.ReadXInterruptStatus (), L"flag survives the mask");
+        Assert::IsFalse (ic.IsAnyAsserted(),           L"DISXY masks the line");
+        Assert::AreEqual<Byte> (0x80, mouse.ReadXInterruptStatus(), L"flag survives the mask");
 
         mouse.AccessIouSwitch (kEnbXy);
         mouse.WriteIouAccess (false);
-        Assert::IsTrue (ic.IsAnyAsserted (), L"re-enable surfaces the pending flag");
+        Assert::IsTrue (ic.IsAnyAsserted(), L"re-enable surfaces the pending flag");
     }
 };
 
@@ -425,7 +425,7 @@ public:
         }
         const char *  kDiskPath = "C:\\Users\\relmer\\AppData\\Local\\Casso\\Disks\\DOS 3.3 Writable.woz";
         std::ifstream f (kDiskPath, std::ios::binary);
-        if (!f.good ()) { Logger::WriteMessage ("SKIPPED: disk absent"); return; }
+        if (!f.good()) { Logger::WriteMessage ("SKIPPED: disk absent"); return; }
         std::vector<uint8_t>  bytes ((std::istreambuf_iterator<char> (f)), std::istreambuf_iterator<char> ());
 
         HeadlessHost  host;
@@ -524,13 +524,13 @@ public:
                        (img != nullptr && img->IsWriteProtected()) ? 1 : 0);
             Logger::WriteMessage (diag);
 
-            Assert::IsTrue (SUCCEEDED (core.diskStore->FlushAll ()), L"flush WOZ back to file");
+            Assert::IsTrue (SUCCEEDED (core.diskStore->FlushAll()), L"flush WOZ back to file");
         }
 
         // ---- Pass 2: fresh core, mount the WRITTEN file, LOAD + LIST ----
         {
             std::ifstream f2 (kDiskPath, std::ios::binary);
-            Assert::IsTrue (f2.good (), L"written file must exist");
+            Assert::IsTrue (f2.good(), L"written file must exist");
             std::vector<uint8_t>  bytes2 ((std::istreambuf_iterator<char> (f2)), std::istreambuf_iterator<char> ());
 
             HeadlessHost  host;

@@ -26,8 +26,8 @@ namespace DormannIntegrationTests
     static Assembler BuildAssembler (AssemblerOptions opts = {})
     {
         TestCpu cpu;
-        cpu.InitForTest ();
-        return Assembler (cpu.GetInstructionSet (), opts);
+        cpu.InitForTest();
+        return Assembler (cpu.GetInstructionSet(), opts);
     }
 
 
@@ -85,7 +85,7 @@ namespace DormannIntegrationTests
         // Win10 1803+ / Win11 and avoids the heuristic.
         std::string cmd = "curl.exe -sSL -o \"" + destPath + "\" \"" + url + "\"";
 
-        return system (cmd.c_str ()) == 0;
+        return system (cmd.c_str()) == 0;
     }
 
 
@@ -102,16 +102,16 @@ namespace DormannIntegrationTests
     {
         std::ifstream file (path, std::ios::binary | std::ios::ate);
 
-        if (!file.is_open ())
+        if (!file.is_open())
         {
             return {};
         }
 
-        auto size = file.tellg ();
+        auto size = file.tellg();
         file.seekg (0, std::ios::beg);
 
         std::vector<Byte> data ((size_t) size);
-        file.read (reinterpret_cast<char *> (data.data ()), size);
+        file.read (reinterpret_cast<char *> (data.data()), size);
         return data;
     }
 
@@ -129,14 +129,14 @@ namespace DormannIntegrationTests
     {
         std::ifstream file (path);
 
-        if (!file.is_open ())
+        if (!file.is_open())
         {
             return {};
         }
 
         std::ostringstream ss;
-        ss << file.rdbuf ();
-        return ss.str ();
+        ss << file.rdbuf();
+        return ss.str();
     }
 
 
@@ -162,7 +162,7 @@ namespace DormannIntegrationTests
 
         BEGIN_TEST_METHOD_ATTRIBUTE (DormannAssemblesSuccessfully)
             TEST_METHOD_ATTRIBUTE (L"TestCategory", L"Integration")
-        END_TEST_METHOD_ATTRIBUTE ()
+        END_TEST_METHOD_ATTRIBUTE()
 
         TEST_METHOD (DormannAssemblesSuccessfully)
         {
@@ -180,9 +180,9 @@ namespace DormannIntegrationTests
 
             // Read source
             std::string source = ReadTextFile (sourceFile);
-            remove (sourceFile.c_str ());
+            remove (sourceFile.c_str());
 
-            Assert::IsFalse (source.empty (), L"Source file is empty");
+            Assert::IsFalse (source.empty(), L"Source file is empty");
 
             // Assemble
             AssemblerOptions opts;
@@ -196,23 +196,23 @@ namespace DormannIntegrationTests
             {
                 std::wstring msg = L"Assembly failed with errors:";
 
-                for (size_t i = 0; i < result.errors.size () && i < 10; i++)
+                for (size_t i = 0; i < result.errors.size() && i < 10; i++)
                 {
                     msg += L"\n  Line " + std::to_wstring (result.errors[i].lineNumber)
-                         + L": " + std::wstring (result.errors[i].message.begin (), result.errors[i].message.end ());
+                         + L": " + std::wstring (result.errors[i].message.begin(), result.errors[i].message.end());
                 }
 
-                Assert::Fail (msg.c_str ());
+                Assert::Fail (msg.c_str());
             }
 
             // Verify output covers expected address range
-            Assert::IsTrue (result.bytes.size () > 60000, L"Output should be close to 64KB");
+            Assert::IsTrue (result.bytes.size() > 60000, L"Output should be close to 64KB");
             Assert::AreEqual ((Word) 0x000A, result.startAddress, L"Start address should be $000A");
 
             // Verify vectors are present at $FFFA
             // NMI, RESET, IRQ vectors should be at the end of the output
             uint32_t vectorOffset = 0xFFFA - result.startAddress;
-            Assert::IsTrue (vectorOffset < result.bytes.size (), L"Vectors should be within output");
+            Assert::IsTrue (vectorOffset < result.bytes.size(), L"Vectors should be within output");
         }
     };
 
@@ -239,7 +239,7 @@ namespace DormannIntegrationTests
 
         BEGIN_TEST_METHOD_ATTRIBUTE (DormannRunsInCpu)
             TEST_METHOD_ATTRIBUTE (L"TestCategory", L"Integration")
-        END_TEST_METHOD_ATTRIBUTE ()
+        END_TEST_METHOD_ATTRIBUTE()
 
         TEST_METHOD (DormannRunsInCpu)
         {
@@ -256,9 +256,9 @@ namespace DormannIntegrationTests
             }
 
             std::string source = ReadTextFile (sourceFile);
-            remove (sourceFile.c_str ());
+            remove (sourceFile.c_str());
 
-            if (source.empty ())
+            if (source.empty())
             {
                 Logger::WriteMessage ("SKIPPED: Source file is empty");
                 return;
@@ -281,13 +281,13 @@ namespace DormannIntegrationTests
             TestCpu cpu;
             cpu.InitForTest (0x0400);
 
-            for (size_t i = 0; i < result.bytes.size (); i++)
+            for (size_t i = 0; i < result.bytes.size(); i++)
             {
                 cpu.Poke ((Word) (result.startAddress + i), result.bytes[i]);
             }
 
             // The Dormann test starts at $0400
-            cpu.RegPC () = 0x0400;
+            cpu.RegPC() = 0x0400;
 
             // Run with a cycle limit — informational only
             const int    maxInstructions = 100000000;
@@ -298,7 +298,7 @@ namespace DormannIntegrationTests
 
             for (int i = 0; i < maxInstructions; i++)
             {
-                Word currentPC = cpu.RegPC ();
+                Word currentPC = cpu.RegPC();
 
                 if (currentPC == successTrap)
                 {
@@ -329,7 +329,7 @@ namespace DormannIntegrationTests
                 }
 
                 prevPC = currentPC;
-                cpu.Step ();
+                cpu.Step();
                 executed++;
             }
 
@@ -339,7 +339,7 @@ namespace DormannIntegrationTests
                       L"hitting the success trap at $%04X. CPU is at $%04X. Either "
                       L"the limit needs raising or the CPU is making progress but "
                       L"no longer converges.",
-                      maxInstructions, successTrap, cpu.RegPC ());
+                      maxInstructions, successTrap, cpu.RegPC());
             Assert::Fail (msg);
         }
     };
@@ -388,7 +388,7 @@ namespace DormannIntegrationTests
             std::string source = ReadTextFile (sourceFile);
             remove (sourceFile.c_str());
 
-            Assert::IsFalse (source.empty (), L"Source file is empty");
+            Assert::IsFalse (source.empty(), L"Source file is empty");
 
             source = SelectDormannOpcodeSubset (source);
 
@@ -405,13 +405,13 @@ namespace DormannIntegrationTests
                 for (size_t i = 0; i < result.errors.size() && i < 15; i++)
                 {
                     msg += L"\n  Line " + std::to_wstring (result.errors[i].lineNumber)
-                         + L": " + std::wstring (result.errors[i].message.begin (), result.errors[i].message.end ());
+                         + L": " + std::wstring (result.errors[i].message.begin(), result.errors[i].message.end());
                 }
 
                 Assert::Fail (msg.c_str());
             }
 
-            Assert::IsTrue (result.bytes.size () > 8000, L"Output should span the 10K code segment");
+            Assert::IsTrue (result.bytes.size() > 8000, L"Output should span the 10K code segment");
         }
 
 

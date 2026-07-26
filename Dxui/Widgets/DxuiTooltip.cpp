@@ -161,7 +161,7 @@ void DxuiTooltip::Tick (int64_t nowMs)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiTooltip::HideImmediate ()
+void DxuiTooltip::HideImmediate()
 {
     m_pending  = false;
     m_visible  = false;
@@ -181,7 +181,7 @@ void DxuiTooltip::HideImmediate ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiTooltip::ShowPopup ()
+void DxuiTooltip::ShowPopup()
 {
     DxuiPopupHost::ShowParams  showParams;
     POINT                      topLeft  = {};
@@ -266,7 +266,7 @@ void DxuiTooltip::ShowPopup ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiTooltip::ReleaseActivePopup ()
+void DxuiTooltip::ReleaseActivePopup()
 {
     DxuiPopupHost *  popup = m_activePopup;
 

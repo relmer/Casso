@@ -144,7 +144,7 @@ bool DxuiPanel::RemoveAdopted (IDxuiControl & child)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiPanel::ClearAdopted ()
+void DxuiPanel::ClearAdopted()
 {
     DXUI_ASSERT_UI_THREAD();
 

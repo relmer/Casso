@@ -90,7 +90,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-DxuiWindow::~DxuiWindow ()
+DxuiWindow::~DxuiWindow()
 {
     DestroyBackend();
 }
@@ -109,7 +109,7 @@ DxuiWindow::~DxuiWindow ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiWindow::DestroyBackend ()
+void DxuiWindow::DestroyBackend()
 {
     if (m_source != nullptr)
     {
@@ -166,7 +166,7 @@ void DxuiWindow::Show (bool activate)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiWindow::Hide ()
+void DxuiWindow::Hide()
 {
     HWND  hwnd = Hwnd();
 
@@ -188,7 +188,7 @@ void DxuiWindow::Hide ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiWindow::Close ()
+void DxuiWindow::Close()
 {
     DestroyBackend();
 }
@@ -430,7 +430,7 @@ void DxuiWindow::SetComposedOpacity (float opacity)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiWindow::Invalidate ()
+void DxuiWindow::Invalidate()
 {
     HWND  hwnd = Hwnd();
 
@@ -817,7 +817,7 @@ DxuiMessageResult DxuiWindow::OnTimer (UINT_PTR timerId)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiWindow::OnModalLoopTick ()
+void DxuiWindow::OnModalLoopTick()
 {
     if (m_onModalLoopTick)
     {
@@ -835,7 +835,7 @@ void DxuiWindow::OnModalLoopTick ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-DxuiMessageResult DxuiWindow::OnClose ()
+DxuiMessageResult DxuiWindow::OnClose()
 {
     if (m_dialogActive)
     {
@@ -862,7 +862,7 @@ DxuiMessageResult DxuiWindow::OnClose ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiWindow::OnDestroy ()
+void DxuiWindow::OnDestroy()
 {
     OnWindowDestroy();
 }
@@ -1062,7 +1062,7 @@ void DxuiWindow::BeginDialogMode (int defaultButtonId, bool modal)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiWindow::WireDialogButtons ()
+void DxuiWindow::WireDialogButtons()
 {
     int  defaultId = m_defaultButtonId;
 

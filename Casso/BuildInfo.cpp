@@ -37,7 +37,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-static std::wstring  BuildTimeFromExe ()
+static std::wstring  BuildTimeFromExe()
 {
     wchar_t                       exePath[MAX_PATH] = {};
     WIN32_FILE_ATTRIBUTE_DATA     fad               = {};
@@ -76,14 +76,14 @@ static std::wstring  BuildTimeFromExe ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-const wchar_t *  CassoBuildInfo ()
+const wchar_t *  CassoBuildInfo()
 {
     static const std::wstring   s = std::format (
         L"v{}.{}.{} {} {} ({})",
         VERSION_MAJOR, VERSION_MINOR, VERSION_PATCH,
         std::wstring (BI_ARCH, BI_ARCH + sizeof (BI_ARCH) - 1),
         std::wstring (BI_FLAVOR, BI_FLAVOR + sizeof (BI_FLAVOR) - 1),
-        BuildTimeFromExe ());
+        BuildTimeFromExe());
 
-    return s.c_str ();
+    return s.c_str();
 }

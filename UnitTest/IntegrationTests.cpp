@@ -37,7 +37,7 @@ namespace IntegrationTests
         TEST_METHOD (Assemble_DefaultAddress_WritesToMemory)
         {
             TestCpu cpu;
-            cpu.InitForTest ();
+            cpu.InitForTest();
 
             auto result = cpu.Assemble (
                 R"(                 LDA #$42
@@ -49,7 +49,7 @@ namespace IntegrationTests
             Assert::AreEqual ((Byte) 0x42, cpu.Peek (0x8001));
             Assert::AreEqual ((Byte) 0x85, cpu.Peek (0x8002));
             Assert::AreEqual ((Byte) 0x10, cpu.Peek (0x8003));
-            Assert::AreEqual ((Word) 0x8000, cpu.RegPC ());
+            Assert::AreEqual ((Word) 0x8000, cpu.RegPC());
         }
 
 
@@ -65,13 +65,13 @@ namespace IntegrationTests
         TEST_METHOD (Assemble_ExplicitAddress_WritesToCorrectLocation)
         {
             TestCpu cpu;
-            cpu.InitForTest ();
+            cpu.InitForTest();
 
             auto result = cpu.Assemble ("NOP", 0xC000);
 
             Assert::IsTrue (result.success);
             Assert::AreEqual ((Byte) 0xEA, cpu.Peek (0xC000));
-            Assert::AreEqual ((Word) 0xC000, cpu.RegPC ());
+            Assert::AreEqual ((Word) 0xC000, cpu.RegPC());
         }
 
 
@@ -87,7 +87,7 @@ namespace IntegrationTests
         TEST_METHOD (Assemble_WithErrors_MemoryUnchanged)
         {
             TestCpu cpu;
-            cpu.InitForTest ();
+            cpu.InitForTest();
 
             // Write sentinel bytes to verify memory is unchanged
             cpu.Poke (0x8000, 0xAA);
@@ -125,7 +125,7 @@ namespace IntegrationTests
         TEST_METHOD (RunUntil_ExecutesAndStopsAtTarget)
         {
             TestCpu cpu;
-            cpu.InitForTest ();
+            cpu.InitForTest();
 
             auto result = cpu.Assemble 
                 (R"(                LDA #$42
@@ -140,7 +140,7 @@ namespace IntegrationTests
             auto stop     = cpu.RunUntil (doneAddr);
 
             Assert::AreEqual ((int) TestCpu::StopReason::ReachedTarget, (int) stop);
-            Assert::AreEqual ((Byte) 0x42, cpu.RegA ());
+            Assert::AreEqual ((Byte) 0x42, cpu.RegA());
             Assert::AreEqual ((Byte) 0x42, cpu.Peek (0x10));
         }
 
@@ -157,7 +157,7 @@ namespace IntegrationTests
         TEST_METHOD (RunUntil_CycleLimit_Timeout)
         {
             TestCpu cpu;
-            cpu.InitForTest ();
+            cpu.InitForTest();
 
             auto result = cpu.Assemble (
                 R"(
@@ -188,7 +188,7 @@ namespace IntegrationTests
         TEST_METHOD (RunUntil_IllegalOpcode_Stops)
         {
             TestCpu cpu;
-            cpu.InitForTest ();
+            cpu.InitForTest();
 
             // JMP to uninitialized memory ($FF = illegal opcode)
             auto result = cpu.Assemble ("JMP $0200");
@@ -228,7 +228,7 @@ namespace IntegrationTests
         TEST_METHOD (LabelAddress_ReturnsCorrectAddresses)
         {
             TestCpu cpu;
-            cpu.InitForTest ();
+            cpu.InitForTest();
 
             auto result = cpu.Assemble (
                 R"(         start:  NOP
@@ -265,7 +265,7 @@ namespace IntegrationTests
         TEST_METHOD (BRK_PushesStatusAndPC_LoadsIRQVector)
         {
             TestCpu cpu;
-            cpu.InitForTest ();
+            cpu.InitForTest();
 
             // Set up IRQ vector at $FFFE/$FFFF pointing to handler at $C000
             cpu.PokeWord (0xFFFE, 0xC000);
@@ -285,11 +285,11 @@ namespace IntegrationTests
             cpu.StepN (2);
 
             // PC should be loaded from IRQ vector
-            Assert::AreEqual ((Word) 0xC000, cpu.RegPC ());
+            Assert::AreEqual ((Word) 0xC000, cpu.RegPC());
 
             // Stack should have pushed: PChi, PClo, status (with B flag set)
             // SP started at 0xFF, pushed 3 bytes → SP = 0xFC
-            Assert::AreEqual ((Byte) 0xFC, cpu.RegSP ());
+            Assert::AreEqual ((Byte) 0xFC, cpu.RegSP());
 
             // Status byte on stack should have B flag (bit 4) set
             Byte pushedStatus = cpu.Peek (0x01FD);
@@ -321,7 +321,7 @@ namespace IntegrationTests
         TEST_METHOD (PushWord_AtMaxSP_StaysWithinStackPage)
         {
             TestCpu cpu;
-            cpu.InitForTest ();
+            cpu.InitForTest();
 
             // SP starts at 0xFF; push should write hi byte to 0x01FF, lo byte to 0x01FE
             cpu.DoPushWord (0xABCD);
@@ -329,7 +329,7 @@ namespace IntegrationTests
             Assert::AreEqual ((Byte) 0xAB, cpu.Peek (0x01FF), L"High byte at 0x01FF");
             Assert::AreEqual ((Byte) 0xCD, cpu.Peek (0x01FE), L"Low byte at 0x01FE");
             Assert::AreEqual ((Byte) 0x00, cpu.Peek (0x0200), L"No write outside stack page");
-            Assert::AreEqual ((Byte) 0xFD, cpu.RegSP ());
+            Assert::AreEqual ((Byte) 0xFD, cpu.RegSP());
         }
 
 
@@ -345,13 +345,13 @@ namespace IntegrationTests
         TEST_METHOD (PopWord_AfterPushWord_ReturnsOriginalValue)
         {
             TestCpu cpu;
-            cpu.InitForTest ();
+            cpu.InitForTest();
 
             cpu.DoPushWord (0xABCD);
-            Word value = cpu.DoPopWord ();
+            Word value = cpu.DoPopWord();
 
             Assert::AreEqual ((Word) 0xABCD, value);
-            Assert::AreEqual ((Byte) 0xFF, cpu.RegSP ());
+            Assert::AreEqual ((Byte) 0xFF, cpu.RegSP());
         }
 
 
@@ -367,7 +367,7 @@ namespace IntegrationTests
         TEST_METHOD (BRK_AtMaxSP_DoesNotWriteOutsideStackPage)
         {
             TestCpu cpu;
-            cpu.InitForTest ();
+            cpu.InitForTest();
 
             // Set up IRQ vector
             cpu.PokeWord (0xFFFE, 0xC000);
@@ -405,7 +405,7 @@ namespace IntegrationTests
         TEST_METHOD (QuickstartExample_AssemblesAndRuns)
         {
             TestCpu cpu;
-            cpu.InitForTest ();
+            cpu.InitForTest();
 
             auto result = cpu.Assemble (
                 R"(         ; Multiply A by 2 using shifts
@@ -426,7 +426,7 @@ namespace IntegrationTests
             Assert::AreEqual ((int) TestCpu::StopReason::ReachedTarget, (int) stop);
 
             // LDA #$15 (21), ASL A (shift left = 42 = 0x2A), STA $10
-            Assert::AreEqual ((Byte) 0x2A, cpu.RegA ());
+            Assert::AreEqual ((Byte) 0x2A, cpu.RegA());
             Assert::AreEqual ((Byte) 0x2A, cpu.Peek (0x10));
         }
     };
@@ -456,7 +456,7 @@ namespace IntegrationTests
         {
             // Assemble a program
             TestCpu cpuAsm;
-            cpuAsm.InitForTest ();
+            cpuAsm.InitForTest();
 
             auto result = cpuAsm.Assemble (
                 R"(                 LDA #$42
@@ -472,7 +472,7 @@ namespace IntegrationTests
 
             // Write the same raw bytes manually
             TestCpu cpuRaw;
-            cpuRaw.InitForTest ();
+            cpuRaw.InitForTest();
 
             cpuRaw.WriteBytes (0x8000, {
                 0xA9, 0x42,       // LDA #$42
@@ -483,10 +483,10 @@ namespace IntegrationTests
             cpuRaw.RunUntil (0x8004); // done = 0x8004
 
             // Both CPUs should have identical state
-            Assert::AreEqual (cpuAsm.RegA (),     cpuRaw.RegA ());
+            Assert::AreEqual (cpuAsm.RegA(),     cpuRaw.RegA());
             Assert::AreEqual (cpuAsm.Peek (0x10), cpuRaw.Peek (0x10));
-            Assert::AreEqual (cpuAsm.RegX (),     cpuRaw.RegX ());
-            Assert::AreEqual (cpuAsm.RegY (),     cpuRaw.RegY ());
+            Assert::AreEqual (cpuAsm.RegX(),     cpuRaw.RegX());
+            Assert::AreEqual (cpuAsm.RegY(),     cpuRaw.RegY());
         }
     };
 
@@ -507,7 +507,7 @@ namespace IntegrationTests
         // Build an in-memory binary stream from a list of bytes.
         static std::istringstream MakeStream (std::initializer_list<Byte> bytes)
         {
-            std::string data (reinterpret_cast<const char *>(bytes.begin ()), bytes.size ());
+            std::string data (reinterpret_cast<const char *>(bytes.begin()), bytes.size());
             return std::istringstream (data, std::ios::binary);
         }
 
@@ -524,7 +524,7 @@ namespace IntegrationTests
         TEST_METHOD (LoadBinary_ValidStream_LoadsBytesAtAddress)
         {
             TestCpu cpu;
-            cpu.InitForTest ();
+            cpu.InitForTest();
 
             auto bin = MakeStream ({ 0xA9, 0x42, 0x85, 0x10, 0x00 });
 
@@ -555,17 +555,17 @@ namespace IntegrationTests
         TEST_METHOD (LoadBinary_LoadedProgram_Executes)
         {
             TestCpu cpu;
-            cpu.InitForTest ();
+            cpu.InitForTest();
 
             // LDA #$42 ; STA $10 ; BRK
             auto bin = MakeStream ({ 0xA9, 0x42, 0x85, 0x10, 0x00 });
 
             Assert::IsTrue (cpu.LoadBinary (bin, (Word) 0x8000));
 
-            cpu.RegPC () = 0x8000;
+            cpu.RegPC() = 0x8000;
             cpu.StepN (2); // LDA, STA
 
-            Assert::AreEqual ((Byte) 0x42, cpu.RegA ());
+            Assert::AreEqual ((Byte) 0x42, cpu.RegA());
             Assert::AreEqual ((Byte) 0x42, cpu.Peek (0x10));
         }
 
@@ -582,7 +582,7 @@ namespace IntegrationTests
         TEST_METHOD (LoadBinary_TooLargeForAddress_ReturnsFalse)
         {
             TestCpu cpu;
-            cpu.InitForTest ();
+            cpu.InitForTest();
 
             // 3-byte stream, but loading at 0xFFFE would need address 0x10000 (overflow).
             auto bin = MakeStream ({ 0x11, 0x22, 0x33 });
@@ -611,7 +611,7 @@ namespace IntegrationTests
         TEST_METHOD (LoadBinary_FitsExactlyAtEnd_Succeeds)
         {
             TestCpu cpu;
-            cpu.InitForTest ();
+            cpu.InitForTest();
 
             // 2-byte stream loaded at 0xFFFE fills the last two bytes of the address space.
             auto bin = MakeStream ({ 0xAA, 0xBB });
@@ -636,7 +636,7 @@ namespace IntegrationTests
         TEST_METHOD (LoadBinary_EmptyStream_Succeeds)
         {
             TestCpu cpu;
-            cpu.InitForTest ();
+            cpu.InitForTest();
 
             auto bin = MakeStream ({});
 

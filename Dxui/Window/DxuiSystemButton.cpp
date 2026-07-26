@@ -332,7 +332,7 @@ DxuiHitTestKind DxuiSystemButton::ClassifyHit (POINT clientDip) const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::wstring DxuiSystemButton::AccessibleName () const
+std::wstring DxuiSystemButton::AccessibleName() const
 {
     switch (m_kind)
     {
@@ -356,7 +356,7 @@ std::wstring DxuiSystemButton::AccessibleName () const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiSystemButton::DispatchClick ()
+void DxuiSystemButton::DispatchClick()
 {
     if (m_hwnd == nullptr)
     {

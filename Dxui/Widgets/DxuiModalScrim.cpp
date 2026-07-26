@@ -29,7 +29,7 @@ void DxuiModalScrim::Show (ActionFn onConfirm, ActionFn onCancel)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiModalScrim::Hide ()
+void DxuiModalScrim::Hide()
 {
     m_visible = false;
     m_onConfirm = nullptr;
@@ -46,7 +46,7 @@ void DxuiModalScrim::Hide ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiModalScrim::Confirm ()
+void DxuiModalScrim::Confirm()
 {
     ActionFn  cb;
 
@@ -78,7 +78,7 @@ void DxuiModalScrim::Confirm ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiModalScrim::Cancel ()
+void DxuiModalScrim::Cancel()
 {
     ActionFn  cb;
 

@@ -67,7 +67,7 @@ void Apple2cRomBank::ApplyBank (int bank)
     // AttachInternalCxxxRom re-points the $C100-$CFFF page table; SetRomData
     // swapped the LC ROM buffer, so re-point its $D000-$FFFF read window too
     // (the page-table entries otherwise reference the previous bank's bytes).
-    m_lc.RebindWindow ();
+    m_lc.RebindWindow();
 
     m_current = bank;
 }

@@ -577,7 +577,7 @@ POINT DxuiHwndSource::ClampToWorkArea (const RECT & windowRect, const RECT & wor
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiHwndSource::Destroy ()
+void DxuiHwndSource::Destroy()
 {
     DXUI_ASSERT_UI_THREAD();
 
@@ -1153,7 +1153,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT DxuiHwndSource::CreateDeviceAndSwapChain ()
+HRESULT DxuiHwndSource::CreateDeviceAndSwapChain()
 {
     HRESULT                hr            = S_OK;
     UINT                   createFlags   = D3D11_CREATE_DEVICE_BGRA_SUPPORT;
@@ -1376,7 +1376,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT DxuiHwndSource::CreateRenderResources ()
+HRESULT DxuiHwndSource::CreateRenderResources()
 {
     HRESULT  hr  = S_OK;
 
@@ -1409,7 +1409,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiHwndSource::ReleaseRenderResources ()
+void DxuiHwndSource::ReleaseRenderResources()
 {
     ReleaseBackBufferRtv();
 
@@ -1440,7 +1440,7 @@ void DxuiHwndSource::ReleaseRenderResources ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT DxuiHwndSource::CreateBackBufferRtv ()
+HRESULT DxuiHwndSource::CreateBackBufferRtv()
 {
     HRESULT                   hr           = S_OK;
     DXGI_SWAP_CHAIN_DESC1     scd          = {};
@@ -1498,7 +1498,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-ComPtr<IDXGISurface> DxuiHwndSource::BackBufferSurface () const
+ComPtr<IDXGISurface> DxuiHwndSource::BackBufferSurface() const
 {
     ComPtr<ID3D11Texture2D>  backBuffer;
     ComPtr<IDXGISurface>     surface;
@@ -1533,7 +1533,7 @@ ComPtr<IDXGISurface> DxuiHwndSource::BackBufferSurface () const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiHwndSource::ReleaseBackBufferRtv ()
+void DxuiHwndSource::ReleaseBackBufferRtv()
 {
     if (m_textRenderer != nullptr)
     {
@@ -1562,7 +1562,7 @@ void DxuiHwndSource::ReleaseBackBufferRtv ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-SIZE DxuiHwndSource::BackBufferSizePx () const
+SIZE DxuiHwndSource::BackBufferSizePx() const
 {
     DXGI_SWAP_CHAIN_DESC1  scd = {};
 
@@ -1695,7 +1695,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiHwndSource::PresentFrame ()
+void DxuiHwndSource::PresentFrame()
 {
     HRESULT  hr = S_OK;
 
@@ -1732,7 +1732,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiHwndSource::PaintPump ()
+void DxuiHwndSource::PaintPump()
 {
     DXUI_ASSERT_UI_THREAD();
     RenderFrame (m_theme);
@@ -1752,7 +1752,7 @@ void DxuiHwndSource::PaintPump ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiHwndSource::ApplyDwmConfiguration ()
+void DxuiHwndSource::ApplyDwmConfiguration()
 {
     bool  wantMica = false;
 
@@ -2698,7 +2698,7 @@ void DxuiHwndSource::HandleSize (WPARAM wp, LPARAM lp)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiHwndSource::HandleThemeChange ()
+void DxuiHwndSource::HandleThemeChange()
 {
     ApplyDwmConfiguration();
 
@@ -2776,7 +2776,7 @@ void DxuiHwndSource::MaybeRelayoutRoot (const RECT & clientPx)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiHwndSource::BuildCaption ()
+void DxuiHwndSource::BuildCaption()
 {
     RECT  clientPx  = {};
     RECT  clientDip = {};
@@ -2905,7 +2905,7 @@ void DxuiHwndSource::SetCaptionIcon (std::vector<uint32_t> bgraPremul, int width
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-int DxuiHwndSource::CaptionHeightPx () const
+int DxuiHwndSource::CaptionHeightPx() const
 {
     if (!m_caption)
     {
@@ -3402,7 +3402,7 @@ LRESULT DxuiHwndSource::KindToHt (DxuiHitTestKind kind)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-DxuiPopupHost * DxuiHwndSource::AcquirePopup ()
+DxuiPopupHost * DxuiHwndSource::AcquirePopup()
 {
     DxuiPopupHost  *  popup  = nullptr;
 

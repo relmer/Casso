@@ -747,7 +747,7 @@ std::wstring GlobalUserPrefs::FilePath (const std::wstring & baseDir)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void GlobalUserPrefs::ResetColorMonitorTextToDefault ()
+void GlobalUserPrefs::ResetColorMonitorTextToDefault()
 {
     // White is the shipped default (matches the field initialiser). Leave
     // colorMonitorTextCustomArgb untouched so re-picking "Custom" restores

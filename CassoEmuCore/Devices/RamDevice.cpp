@@ -60,9 +60,9 @@ void RamDevice::Write (Word address, Byte value)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void RamDevice::Reset ()
+void RamDevice::Reset()
 {
-    fill (m_data.begin (), m_data.end (), Byte (0));
+    fill (m_data.begin(), m_data.end(), Byte (0));
 }
 
 
@@ -78,7 +78,7 @@ void RamDevice::Reset ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void RamDevice::SoftReset ()
+void RamDevice::SoftReset()
 {
 }
 
@@ -98,7 +98,7 @@ void RamDevice::SoftReset ()
 
 void RamDevice::PowerCycle (Prng & prng)
 {
-    prng.Fill (m_data.data (), m_data.size ());
+    prng.Fill (m_data.data(), m_data.size());
 }
 
 

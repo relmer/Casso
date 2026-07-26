@@ -108,7 +108,7 @@ namespace
         hr = host.BuildApple2eWithDisk2 (core);
         Assert::IsTrue (SUCCEEDED (hr), L"BuildApple2eWithDisk2 must succeed");
 
-        core.PowerCycle ();
+        core.PowerCycle();
 
         hr = core.diskStore->MountFromBytes (kSlot6, kDrive1,
                                              "boot-rom-decoder.dsk",
@@ -165,7 +165,7 @@ namespace
 
         while (cyc < kBudget)
         {
-            Word pc = core.cpu->GetPC ();
+            Word pc = core.cpu->GetPC();
 
             if (pc >= 0xC600 && pc < 0xC700)
             {
@@ -178,8 +178,8 @@ namespace
                 break;
             }
 
-            core.cpu->StepOne ();
-            uint32_t cycles = core.cpu->GetLastInstructionCycles ();
+            core.cpu->StepOne();
+            uint32_t cycles = core.cpu->GetLastInstructionCycles();
             core.cpu->AddCycles (cycles);
             if (core.diskController != nullptr)
             {
@@ -192,10 +192,10 @@ namespace
                 fprintf (fp,
                     "cyc=%llu PC=$%04X X=$%02X A=$%02X bp=%zu trk=%d latch=$%02X\n",
                     (unsigned long long) cyc, pc,
-                    core.cpu->GetX (), core.cpu->GetA (),
-                    core.diskController->GetEngine (kDrive1).GetBitPosition (),
-                    core.diskController->GetCurrentTrack (),
-                    core.diskController->GetEngine (kDrive1).PeekReadLatch ());
+                    core.cpu->GetX(), core.cpu->GetA(),
+                    core.diskController->GetEngine (kDrive1).GetBitPosition(),
+                    core.diskController->GetCurrentTrack(),
+                    core.diskController->GetEngine (kDrive1).PeekReadLatch());
             }
         }
 

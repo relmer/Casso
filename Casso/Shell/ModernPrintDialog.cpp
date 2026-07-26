@@ -80,10 +80,10 @@ public:
         m_style     = style;
         m_pages     = PrintPagination::Paginate (m_raster);
 
-        return m_pages.empty () ? E_FAIL : S_OK;
+        return m_pages.empty() ? E_FAIL : S_OK;
     }
 
-    UINT32 PageCount () const { return (UINT32) m_pages.size (); }
+    UINT32 PageCount() const { return (UINT32) m_pages.size(); }
 
     //
     // IPrintDocumentPageSource
@@ -153,20 +153,20 @@ public:
 
         std::lock_guard<std::mutex>  lock (m_renderLock);
 
-        hr = EnsureDeviceLocked ();
+        hr = EnsureDeviceLocked();
         if (FAILED (hr)) { return hr; }
 
         hr = CoCreateInstance (CLSID_WICImagingFactory2, nullptr, CLSCTX_INPROC_SERVER,
                                IID_PPV_ARGS (&wic));
         if (FAILED (hr)) { return hr; }
 
-        hr = m_d2dDevice->CreatePrintControl (wic.Get (), docPackageTarget, nullptr, &control);
+        hr = m_d2dDevice->CreatePrintControl (wic.Get(), docPackageTarget, nullptr, &control);
         if (FAILED (hr))
         {
             return hr;
         }
 
-        for (size_t pageIx = 0; pageIx < m_pages.size (); pageIx++)
+        for (size_t pageIx = 0; pageIx < m_pages.size(); pageIx++)
         {
             ComPtr<ID2D1CommandList>  list;
             ComPtr<ID2D1Bitmap1>      bitmap;
@@ -177,18 +177,18 @@ public:
             hr = m_d2dContext->CreateCommandList (&list);
             if (FAILED (hr)) { break; }
 
-            m_d2dContext->SetTarget (list.Get ());
-            m_d2dContext->BeginDraw ();
+            m_d2dContext->SetTarget (list.Get());
+            m_d2dContext->BeginDraw();
             m_d2dContext->Clear (D2D1::ColorF (D2D1::ColorF::White));
-            DrawPageWidthFitInBox (bitmap.Get (), box);
-            hr = m_d2dContext->EndDraw ();
+            DrawPageWidthFitInBox (bitmap.Get(), box);
+            hr = m_d2dContext->EndDraw();
             m_d2dContext->SetTarget (nullptr);
             if (FAILED (hr)) { break; }
 
-            hr = list->Close ();
+            hr = list->Close();
             if (FAILED (hr)) { break; }
 
-            hr = control->AddPage (list.Get (), pageSize, nullptr, nullptr, nullptr);
+            hr = control->AddPage (list.Get(), pageSize, nullptr, nullptr, nullptr);
             if (FAILED (hr))
             {
                 break;
@@ -196,7 +196,7 @@ public:
         }
 
         {
-            HRESULT  hrClose = control->Close ();
+            HRESULT  hrClose = control->Close();
 
             if (SUCCEEDED (hr)) { hr = hrClose; }
         }
@@ -215,7 +215,7 @@ public:
 
         if (m_previewTarget != nullptr)
         {
-            m_previewTarget->SetJobPageCount (PageCountType::FinalPageCount, PageCount ());
+            m_previewTarget->SetJobPageCount (PageCountType::FinalPageCount, PageCount());
         }
         return S_OK;
     }
@@ -240,14 +240,14 @@ public:
         {
             jobPage = 1;
         }
-        if (jobPage < 1 || jobPage > PageCount ())
+        if (jobPage < 1 || jobPage > PageCount())
         {
             return E_INVALIDARG;
         }
 
         std::lock_guard<std::mutex>  lock (m_renderLock);
 
-        hr = EnsureDeviceLocked ();
+        hr = EnsureDeviceLocked();
         if (FAILED (hr)) { return hr; }
 
         // The preview target composites at 96 DPI: surface pixels == DIPs.
@@ -278,28 +278,28 @@ public:
                 D2D1_BITMAP_OPTIONS_TARGET | D2D1_BITMAP_OPTIONS_CANNOT_DRAW,
                 D2D1::PixelFormat (DXGI_FORMAT_B8G8R8A8_UNORM, D2D1_ALPHA_MODE_PREMULTIPLIED));
 
-            hr = m_d2dContext->CreateBitmapFromDxgiSurface (surface.Get (), &bp, &target);
+            hr = m_d2dContext->CreateBitmapFromDxgiSurface (surface.Get(), &bp, &target);
             if (FAILED (hr)) { return hr; }
         }
 
         hr = RenderPageBitmapLocked (jobPage - 1, s_kPreviewDpi, &pageBitmap);
         if (FAILED (hr)) { return hr; }
 
-        m_d2dContext->SetTarget (target.Get ());
-        m_d2dContext->BeginDraw ();
+        m_d2dContext->SetTarget (target.Get());
+        m_d2dContext->BeginDraw();
         m_d2dContext->Clear (D2D1::ColorF (D2D1::ColorF::White));
-        DrawPageWidthFit (pageBitmap.Get (), width, height);
-        hr = m_d2dContext->EndDraw ();
+        DrawPageWidthFit (pageBitmap.Get(), width, height);
+        hr = m_d2dContext->EndDraw();
         m_d2dContext->SetTarget (nullptr);
         if (FAILED (hr)) { return hr; }
 
-        return m_previewTarget->DrawPage (jobPage, surface.Get (), 96.0f, 96.0f);
+        return m_previewTarget->DrawPage (jobPage, surface.Get(), 96.0f, 96.0f);
     }
 
 private:
     // Create the session's private D3D device + D2D device context (lazy;
     // under m_renderLock). WARP fallback keeps preview working without GPU.
-    HRESULT EnsureDeviceLocked ()
+    HRESULT EnsureDeviceLocked()
     {
         HRESULT               hr       = S_OK;
         ComPtr<IDXGIDevice>   dxgi;
@@ -326,10 +326,10 @@ private:
         if (FAILED (hr)) { return hr; }
 
         hr = D2D1CreateFactory (D2D1_FACTORY_TYPE_MULTI_THREADED,
-                                __uuidof (ID2D1Factory1), nullptr, (void **) factory.GetAddressOf ());
+                                __uuidof (ID2D1Factory1), nullptr, (void **) factory.GetAddressOf());
         if (FAILED (hr)) { return hr; }
 
-        hr = factory->CreateDevice (dxgi.Get (), &device);
+        hr = factory->CreateDevice (dxgi.Get(), &device);
         if (FAILED (hr)) { return hr; }
 
         m_d2dDevice = device;
@@ -370,7 +370,7 @@ private:
                 (FLOAT) dpi, (FLOAT) dpi);
 
             hr = m_d2dContext->CreateBitmap (D2D1::SizeU ((UINT32) img.width, (UINT32) img.height),
-                                             bgra.data (), (UINT32) img.width * 4, &bp, out);
+                                             bgra.data(), (UINT32) img.width * 4, &bp, out);
         }
 
         return hr;
@@ -386,7 +386,7 @@ private:
 
     void DrawPageWidthFitInBox (ID2D1Bitmap1 * bitmap, const D2D1_RECT_F & box)
     {
-        D2D1_SIZE_F                sz    = bitmap->GetSize ();   // physical DIPs (bitmap carries its dpi)
+        D2D1_SIZE_F                sz    = bitmap->GetSize();   // physical DIPs (bitmap carries its dpi)
         float                      boxW  = box.right - box.left;
         float                      boxH  = box.bottom - box.top;
 
@@ -426,7 +426,7 @@ private:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-ModernPrintDialog::~ModernPrintDialog ()
+ModernPrintDialog::~ModernPrintDialog()
 {
     if (m_registered && m_manager != nullptr)
     {

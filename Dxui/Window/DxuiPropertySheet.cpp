@@ -26,7 +26,7 @@ static constexpr int  s_kContentPadDip     = DxuiButtonRow::kEdgePadDip;   // pa
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiPropertySheet::OnCreate ()
+void DxuiPropertySheet::OnCreate()
 {
     std::vector<DxuiTabStrip::Tab>  tabs;
 
@@ -82,19 +82,19 @@ void DxuiPropertySheet::OnCreate ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT DxuiPropertySheet::OnApply ()
+HRESULT DxuiPropertySheet::OnApply()
 {
     return ApplyAllDirtyPages() ? S_OK : S_FALSE;
 }
 
 
-HRESULT DxuiPropertySheet::OnOk ()
+HRESULT DxuiPropertySheet::OnOk()
 {
     return OnApply();
 }
 
 
-void DxuiPropertySheet::OnCancel ()
+void DxuiPropertySheet::OnCancel()
 {
 }
 
@@ -243,7 +243,7 @@ int DxuiPropertySheet::IndexOfPage (const DxuiPropertyPage * page) const
 }
 
 
-int DxuiPropertySheet::FirstPresentPage () const
+int DxuiPropertySheet::FirstPresentPage() const
 {
     int  i = 0;
 
@@ -355,7 +355,7 @@ bool DxuiPropertySheet::OnDialogTabSwitch (bool backward)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiPropertySheet::RefreshApplyEnabled ()
+void DxuiPropertySheet::RefreshApplyEnabled()
 {
     bool  anyDirty = false;
 
@@ -390,7 +390,7 @@ void DxuiPropertySheet::RefreshApplyEnabled ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool DxuiPropertySheet::ApplyAllDirtyPages ()
+bool DxuiPropertySheet::ApplyAllDirtyPages()
 {
     bool    ok = true;
     size_t  i  = 0;

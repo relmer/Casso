@@ -71,7 +71,7 @@ static std::string ToUpperCase (const char * name)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-OpcodeTable::OpcodeTable ()
+OpcodeTable::OpcodeTable()
 {
 }
 
@@ -161,7 +161,7 @@ OpcodeTable::OpcodeTable (const Microcode instructionSet[256])
     {
         auto it = m_table.find (syn.target);
 
-        if (it != m_table.end ())
+        if (it != m_table.end())
         {
             m_table[syn.alias] = it->second;
         }
@@ -182,14 +182,14 @@ bool OpcodeTable::Lookup (const std::string & mnemonic, GlobalAddressingMode::Ad
 {
     auto mnemonicIt = m_table.find (mnemonic);
 
-    if (mnemonicIt == m_table.end ())
+    if (mnemonicIt == m_table.end())
     {
         return false;
     }
 
     auto modeIt = mnemonicIt->second.find ((int) mode);
 
-    if (modeIt == mnemonicIt->second.end ())
+    if (modeIt == mnemonicIt->second.end())
     {
         return false;
     }
@@ -210,7 +210,7 @@ bool OpcodeTable::Lookup (const std::string & mnemonic, GlobalAddressingMode::Ad
 
 bool OpcodeTable::IsMnemonic (const std::string & name) const
 {
-    return m_table.find (name) != m_table.end ();
+    return m_table.find (name) != m_table.end();
 }
 
 
@@ -227,10 +227,10 @@ bool OpcodeTable::HasMode (const std::string & mnemonic, GlobalAddressingMode::A
 {
     auto mnemonicIt = m_table.find (mnemonic);
 
-    if (mnemonicIt == m_table.end ())
+    if (mnemonicIt == m_table.end())
     {
         return false;
     }
 
-    return mnemonicIt->second.find ((int) mode) != mnemonicIt->second.end ();
+    return mnemonicIt->second.find ((int) mode) != mnemonicIt->second.end();
 }

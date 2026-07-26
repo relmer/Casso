@@ -34,7 +34,7 @@ namespace
     //
     ////////////////////////////////////////////////////////////////////////////
 
-    vector<Byte> BuildSyntheticDsk ()
+    vector<Byte> BuildSyntheticDsk()
     {
         vector<Byte>   raw (NibblizationLayer::kImageByteSize, 0);
 
@@ -49,7 +49,7 @@ namespace
     }
 
 
-    vector<Byte> BuildSyntheticPo ()
+    vector<Byte> BuildSyntheticPo()
     {
         vector<Byte>   raw (NibblizationLayer::kImageByteSize, 0);
 
@@ -88,7 +88,7 @@ namespace
 
         Assert::IsTrue (SUCCEEDED (hr), L"BuildApple2eWithDisk2 must succeed");
 
-        core.PowerCycle ();
+        core.PowerCycle();
 
         hr = core.diskStore->MountFromBytes (kSlot6, kDrive1, virtualPath, fmt, bytes);
         Assert::IsTrue (SUCCEEDED (hr), L"MountFromBytes must succeed");
@@ -133,7 +133,7 @@ public:
     {
         HeadlessHost   host;
         EmulatorCore   core;
-        vector<Byte>   raw        = BuildSyntheticDsk ();
+        vector<Byte>   raw        = BuildSyntheticDsk();
         DiskImage   *  external   = nullptr;
         size_t         bitsBefore = 0;
         size_t         bitsAfter  = 0;
@@ -144,13 +144,13 @@ public:
         Assert::IsTrue (external->GetTrackBitCount (0) > 0,
             L"DOS 3.3 .dsk mount must produce a nibblized track 0");
 
-        bitsBefore = core.diskController->GetEngine (kDrive1).GetBitPosition ();
+        bitsBefore = core.diskController->GetEngine (kDrive1).GetBitPosition();
 
         core.RunCycles (kBootCycleBudget);
 
-        bitsAfter = core.diskController->GetEngine (kDrive1).GetBitPosition ();
+        bitsAfter = core.diskController->GetEngine (kDrive1).GetBitPosition();
 
-        Assert::IsTrue (core.diskController->IsMotorOn (),
+        Assert::IsTrue (core.diskController->IsMotorOn(),
             L"Boot ROM must turn the motor on (FR-021, audit §7)");
         Assert::IsTrue (bitsAfter != bitsBefore,
             L"Boot ROM must read at least one bit from track 0 of the .dsk");
@@ -161,21 +161,21 @@ public:
     {
         HeadlessHost   host;
         EmulatorCore   core;
-        vector<Byte>   raw       = BuildSyntheticPo ();
+        vector<Byte>   raw       = BuildSyntheticPo();
         DiskImage   *  external  = nullptr;
         size_t         bitsAfter = 0;
 
         external = MountAndJumpToSlot6Boot (host, core,
             "synthetic.po", DiskFormat::Po, raw);
 
-        Assert::IsTrue (external->GetSourceFormat () == DiskFormat::Po,
+        Assert::IsTrue (external->GetSourceFormat() == DiskFormat::Po,
             L"ProDOS .po mount must record source format");
 
         core.RunCycles (kBootCycleBudget);
 
-        bitsAfter = core.diskController->GetEngine (kDrive1).GetBitPosition ();
+        bitsAfter = core.diskController->GetEngine (kDrive1).GetBitPosition();
 
-        Assert::IsTrue (core.diskController->IsMotorOn (),
+        Assert::IsTrue (core.diskController->IsMotorOn(),
             L"Boot ROM must spin up the drive on a .po mount");
         Assert::IsTrue (bitsAfter > 0,
             L"Boot ROM must read at least one bit from a ProDOS-interleave disk");
@@ -197,14 +197,14 @@ public:
         external = MountAndJumpToSlot6Boot (host, core,
             "synthetic.woz", DiskFormat::Woz, woz);
 
-        Assert::IsTrue (external->GetSourceFormat () == DiskFormat::Woz,
+        Assert::IsTrue (external->GetSourceFormat() == DiskFormat::Woz,
             L"WOZ mount must record native bit-stream format (no nibblization)");
         Assert::AreEqual (kWozTrackBitCount, external->GetTrackBitCount (0),
             L"WOZ track 0 must preserve the synthetic 51200-bit length");
 
         core.RunCycles (kShortRunCycles);
 
-        bitsAfter = core.diskController->GetEngine (kDrive1).GetBitPosition ();
+        bitsAfter = core.diskController->GetEngine (kDrive1).GetBitPosition();
 
         Assert::IsTrue (bitsAfter > 0,
             L"Nibble engine must advance through the WOZ bit stream (FR-022)");
@@ -240,7 +240,7 @@ public:
 
         core.RunCycles (kShortRunCycles);
 
-        Assert::IsTrue (core.diskController->GetEngine (kDrive1).GetBitPosition () > 0,
+        Assert::IsTrue (core.diskController->GetEngine (kDrive1).GetBitPosition() > 0,
             L"Engine must advance through the variable-length CP track (FR-024)");
     }
 
@@ -248,7 +248,7 @@ public:
     TEST_METHOD (Phase11_WriteThenEject_ProducesByteEqualImage)
     {
         DiskImageStore   store;
-        vector<Byte>     raw          = BuildSyntheticDsk ();
+        vector<Byte>     raw          = BuildSyntheticDsk();
         vector<Byte>     captured;
         string           capturedPath;
         bool             invoked      = false;
@@ -269,14 +269,14 @@ public:
         // (FR-025): a write through the engine API marks the track
         // dirty so the post-eject flush serializes the modified image.
         store.GetImage (kSlot6, kDrive1)->WriteBit (0, 0, 1);
-        Assert::IsTrue (store.GetImage (kSlot6, kDrive1)->IsDirty (),
+        Assert::IsTrue (store.GetImage (kSlot6, kDrive1)->IsDirty(),
             L"WriteBit must mark the disk dirty");
 
         store.Eject (kSlot6, kDrive1);
 
         Assert::IsTrue  (invoked,                   L"Eject must auto-flush dirty image");
         Assert::AreEqual (string ("writable.dsk"),  capturedPath);
-        Assert::AreEqual (size_t (NibblizationLayer::kImageByteSize), captured.size (),
+        Assert::AreEqual (size_t (NibblizationLayer::kImageByteSize), captured.size(),
             L"Flushed payload must be 143360 bytes for a .dsk write-back");
         Assert::IsFalse (store.IsMounted (kSlot6, kDrive1),
             L"Eject must remove the mount entry");
@@ -286,7 +286,7 @@ public:
     TEST_METHOD (Phase11_AutoFlush_OnPowerCycle)
     {
         DiskImageStore   store;
-        vector<Byte>     raw     = BuildSyntheticDsk ();
+        vector<Byte>     raw     = BuildSyntheticDsk();
         int              flushes = 0;
         HRESULT          hr      = S_OK;
 
@@ -305,7 +305,7 @@ public:
         store.GetImage (kSlot6, kDrive1)->WriteBit (0, 0, 1);
         // (kDrive2) intentionally clean.
 
-        store.PowerCycle ();
+        store.PowerCycle();
 
         Assert::AreEqual (1, flushes,
             L"FR-035: PowerCycle must auto-flush only the dirty mount");

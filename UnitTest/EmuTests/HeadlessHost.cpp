@@ -137,7 +137,7 @@ HRESULT HeadlessHost::BuildApple2e (EmulatorCore & outCore)
         goto Error;
     }
 
-    if (romBytes.size () != kSystemRomSize)
+    if (romBytes.size() != kSystemRomSize)
     {
         hr = E_UNEXPECTED;
         goto Error;
@@ -147,33 +147,33 @@ HRESULT HeadlessHost::BuildApple2e (EmulatorCore & outCore)
     outCore.mainRam      = std::make_unique<RamDevice> (0x0000, kRamEnd);
     outCore.videoTiming  = std::make_unique<VideoTiming> ();
     outCore.mmu          = std::make_unique<Apple2eMmu> ();
-    outCore.keyboard     = std::make_unique<Apple2eKeyboard> (outCore.bus.get ());
-    outCore.softSwitches = std::make_unique<Apple2eSoftSwitchBank> (outCore.bus.get ());
+    outCore.keyboard     = std::make_unique<Apple2eKeyboard> (outCore.bus.get());
+    outCore.softSwitches = std::make_unique<Apple2eSoftSwitchBank> (outCore.bus.get());
     outCore.speaker      = std::make_unique<AppleSpeaker> ();
     outCore.languageCard = std::make_unique<LanguageCard> (*outCore.bus);
     outCore.lcBank       = std::make_unique<LanguageCardBank> (*outCore.languageCard);
 
-    outCore.bus->AddDevice (outCore.mainRam.get ());
-    outCore.bus->AddDevice (outCore.keyboard.get ());
-    outCore.bus->AddDevice (outCore.speaker.get ());
-    outCore.bus->AddDevice (outCore.softSwitches.get ());
-    outCore.bus->AddDevice (outCore.languageCard.get ());
+    outCore.bus->AddDevice (outCore.mainRam.get());
+    outCore.bus->AddDevice (outCore.keyboard.get());
+    outCore.bus->AddDevice (outCore.speaker.get());
+    outCore.bus->AddDevice (outCore.softSwitches.get());
+    outCore.bus->AddDevice (outCore.languageCard.get());
 
-    outCore.keyboard->SetSoftSwitchSibling (outCore.softSwitches.get ());
-    outCore.softSwitches->SetKeyboard      (outCore.keyboard.get ());
-    outCore.keyboard->SetSpeakerSibling    (outCore.speaker.get ());
-    outCore.keyboard->SetMmu               (outCore.mmu.get ());
-    outCore.keyboard->SetVideoTiming       (outCore.videoTiming.get ());
-    outCore.softSwitches->SetVideoTiming   (outCore.videoTiming.get ());
-    outCore.softSwitches->SetMmu           (outCore.mmu.get ());
+    outCore.keyboard->SetSoftSwitchSibling (outCore.softSwitches.get());
+    outCore.softSwitches->SetKeyboard      (outCore.keyboard.get());
+    outCore.keyboard->SetSpeakerSibling    (outCore.speaker.get());
+    outCore.keyboard->SetMmu               (outCore.mmu.get());
+    outCore.keyboard->SetVideoTiming       (outCore.videoTiming.get());
+    outCore.softSwitches->SetVideoTiming   (outCore.videoTiming.get());
+    outCore.softSwitches->SetMmu           (outCore.mmu.get());
 
     hr = outCore.mmu->Initialize (
-        outCore.bus.get (),
-        outCore.mainRam.get (),
+        outCore.bus.get(),
+        outCore.mainRam.get(),
         nullptr,
         nullptr,
         nullptr,
-        outCore.softSwitches.get ());
+        outCore.softSwitches.get());
     if (FAILED (hr))
     {
         goto Error;
@@ -183,35 +183,35 @@ HRESULT HeadlessHost::BuildApple2e (EmulatorCore & outCore)
         std::vector<Byte>   cxxxData (kCxxxRomSize);
         std::vector<Byte>   lcRom    (kLcRomSize);
 
-        std::copy (romBytes.begin () + kCxxxRomOffset,
-                   romBytes.begin () + kCxxxRomOffset + kCxxxRomSize,
-                   cxxxData.begin ());
-        std::copy (romBytes.begin () + kLcRomOffset,
-                   romBytes.begin () + kLcRomOffset + kLcRomSize,
-                   lcRom.begin ());
+        std::copy (romBytes.begin() + kCxxxRomOffset,
+                   romBytes.begin() + kCxxxRomOffset + kCxxxRomSize,
+                   cxxxData.begin());
+        std::copy (romBytes.begin() + kLcRomOffset,
+                   romBytes.begin() + kLcRomOffset + kLcRomSize,
+                   lcRom.begin());
 
         outCore.mmu->AttachInternalCxxxRom (std::move (cxxxData));
         outCore.languageCard->SetRomData    (lcRom);
     }
 
-    outCore.bus->AddDevice (outCore.lcBank.get ());
+    outCore.bus->AddDevice (outCore.lcBank.get());
 
-    outCore.languageCard->SetMmu  (outCore.mmu.get ());
-    outCore.keyboard->SetLanguageCard     (outCore.languageCard.get ());
-    outCore.softSwitches->SetLanguageCard (outCore.languageCard.get ());
+    outCore.languageCard->SetMmu  (outCore.mmu.get());
+    outCore.keyboard->SetLanguageCard     (outCore.languageCard.get());
+    outCore.softSwitches->SetLanguageCard (outCore.languageCard.get());
 
     outCore.cpu = std::make_unique<EmuCpu> (*outCore.bus);
-    outCore.cpu->SetVideoTiming (outCore.videoTiming.get ());
-    outCore.speaker->SetCycleCounter (outCore.cpu->GetCycleCounterPtr ());
+    outCore.cpu->SetVideoTiming (outCore.videoTiming.get());
+    outCore.speaker->SetCycleCounter (outCore.cpu->GetCycleCounterPtr());
 
-    for (size_t i = 0; i < romBytes.size (); i++)
+    for (size_t i = 0; i < romBytes.size(); i++)
     {
         outCore.cpu->PokeByte (
             static_cast<Word> (kSystemRomStart + i),
             romBytes[i]);
     }
 
-    mainRamBase = const_cast<Byte *> (outCore.cpu->GetMemory ());
+    mainRamBase = const_cast<Byte *> (outCore.cpu->GetMemory());
 
     for (page = 0; page < kRamPageCount; page++)
     {
@@ -396,7 +396,7 @@ HRESULT HeadlessHost::BuildApple2eWithDisk2 (EmulatorCore & outCore)
     outCore.diskController = std::make_unique<Disk2Controller> (6);
     outCore.diskStore      = std::make_unique<DiskImageStore> ();
 
-    outCore.bus->AddDevice (outCore.diskController.get ());
+    outCore.bus->AddDevice (outCore.diskController.get());
 
     // Issue #67: drive Disk2Controller bit-stream catch-up off the CPU
     // cycle counter so $C0Ex reads/writes resync the engine to elapsed
@@ -404,7 +404,7 @@ HRESULT HeadlessHost::BuildApple2eWithDisk2 (EmulatorCore & outCore)
     // of-handler pattern). DiskReadbackTests that pump Tick(N) manually
     // without running the CPU MUST detach this pointer via
     // SetCpuCycleSource(nullptr) after spin-up.
-    outCore.diskController->SetCpuCycleSource (outCore.cpu->GetBusCyclePtr ());
+    outCore.diskController->SetCpuCycleSource (outCore.cpu->GetBusCyclePtr());
 
 Error:
     return hr;
@@ -608,9 +608,9 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorCore::PowerCycle ()
+void EmulatorCore::PowerCycle()
 {
-    if (!HasApple2e ())
+    if (!HasApple2e())
     {
         return;
     }
@@ -650,19 +650,19 @@ void EmulatorCore::PowerCycle ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorCore::SoftReset ()
+void EmulatorCore::SoftReset()
 {
-    if (!HasApple2e ())
+    if (!HasApple2e())
     {
         return;
     }
 
-    bus->SoftResetAll ();
+    bus->SoftResetAll();
     mmu->OnSoftReset  ();
 
     if (videoTiming != nullptr)
     {
-        videoTiming->SoftReset ();
+        videoTiming->SoftReset();
     }
 
     if (interruptController != nullptr)
@@ -674,7 +674,7 @@ void EmulatorCore::SoftReset ()
         mouse->Reset();
     }
 
-    cpu->SoftReset ();
+    cpu->SoftReset();
 }
 
 
@@ -697,19 +697,19 @@ void EmulatorCore::RunCycles (uint64_t cycleBudget)
     int        i;
     uint32_t   stepCycles;
 
-    if (!HasApple2e ())
+    if (!HasApple2e())
     {
         return;
     }
 
-    target = cpu->GetTotalCycles () + cycleBudget;
+    target = cpu->GetTotalCycles() + cycleBudget;
 
-    while (cpu->GetTotalCycles () < target)
+    while (cpu->GetTotalCycles() < target)
     {
         for (i = 0; i < kCpuStepBatch; i++)
         {
-            cpu->StepOne ();
-            stepCycles = cpu->GetLastInstructionCycles ();
+            cpu->StepOne();
+            stepCycles = cpu->GetLastInstructionCycles();
             cpu->AddCycles (stepCycles);
 
             if (diskController != nullptr)

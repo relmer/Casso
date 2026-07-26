@@ -183,7 +183,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiPopupHost::InitializeForTest ()
+void DxuiPopupHost::InitializeForTest()
 {
     DXUI_ASSERT_UI_THREAD();
 
@@ -205,7 +205,7 @@ void DxuiPopupHost::InitializeForTest ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiPopupHost::Shutdown ()
+void DxuiPopupHost::Shutdown()
 {
     DXUI_ASSERT_UI_THREAD();
 
@@ -357,7 +357,7 @@ Error:
 
 void DxuiPopupHost::Close (int resultCode)
 {
-    std::function<void ()>  onClosed;
+    std::function<void()>  onClosed;
 
 
     DXUI_ASSERT_UI_THREAD();
@@ -416,7 +416,7 @@ void DxuiPopupHost::Close (int resultCode)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::future<int> DxuiPopupHost::Completion ()
+std::future<int> DxuiPopupHost::Completion()
 {
     DXUI_ASSERT_UI_THREAD();
     return m_completionPromise.get_future();
@@ -780,7 +780,7 @@ LRESULT DxuiPopupHost::WndProc (UINT msg, WPARAM wp, LPARAM lp)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT DxuiPopupHost::EnsureWindowClass ()
+HRESULT DxuiPopupHost::EnsureWindowClass()
 {
     HRESULT      hr               = S_OK;
     WNDCLASSEXW  wc               = {};
@@ -954,7 +954,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiPopupHost::DestroyHwndAndComposition ()
+void DxuiPopupHost::DestroyHwndAndComposition()
 {
     ReleaseBackBufferRtv();
     m_compVisual.Reset();
@@ -986,7 +986,7 @@ void DxuiPopupHost::DestroyHwndAndComposition ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT DxuiPopupHost::CreateBackBufferRtv ()
+HRESULT DxuiPopupHost::CreateBackBufferRtv()
 {
     HRESULT                   hr          = S_OK;
     DXGI_SWAP_CHAIN_DESC1     scd         = {};
@@ -1045,7 +1045,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiPopupHost::ReleaseBackBufferRtv ()
+void DxuiPopupHost::ReleaseBackBufferRtv()
 {
     if (m_renderReady)
     {
@@ -1121,7 +1121,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiPopupHost::RenderNow ()
+void DxuiPopupHost::RenderNow()
 {
     HRESULT   hr           = S_OK;
     uint32_t  argb         = 0u;
@@ -1197,7 +1197,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiPopupHost::MarkDirty ()
+void DxuiPopupHost::MarkDirty()
 {
     DXUI_ASSERT_UI_THREAD();
     RenderNow();

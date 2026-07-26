@@ -12,7 +12,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-JoystickToggleButton::JoystickToggleButton ()
+JoystickToggleButton::JoystickToggleButton()
 {
     m_focusable = false;
 }
@@ -54,7 +54,7 @@ static constexpr wchar_t  s_kMouseTooltip[] =
 
 
 
-const wchar_t * JoystickToggleButton::Label () const
+const wchar_t * JoystickToggleButton::Label() const
 {
     switch (m_mode)
     {
@@ -250,7 +250,7 @@ void JoystickToggleButton::Paint (IDxuiPainter & painter, IDxuiTextRenderer & te
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-const wchar_t * JoystickToggleButton::TooltipText () const
+const wchar_t * JoystickToggleButton::TooltipText() const
 {
     switch (m_mode)
     {

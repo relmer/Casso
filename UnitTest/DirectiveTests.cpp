@@ -24,8 +24,8 @@ namespace DirectiveTests
     static Assembler BuildAssembler (AssemblerOptions opts = {})
     {
         TestCpu cpu;
-        cpu.InitForTest ();
-        return Assembler (cpu.GetInstructionSet (), opts);
+        cpu.InitForTest();
+        return Assembler (cpu.GetInstructionSet(), opts);
     }
 
 
@@ -51,11 +51,11 @@ namespace DirectiveTests
 
         TEST_METHOD (Db_EmitsByte)
         {
-            Assembler a = BuildAssembler ();
+            Assembler a = BuildAssembler();
             auto r = a.Assemble ("db $42");
 
             Assert::IsTrue (r.success);
-            Assert::AreEqual ((size_t) 1, r.bytes.size ());
+            Assert::AreEqual ((size_t) 1, r.bytes.size());
             Assert::AreEqual ((Byte) 0x42, r.bytes[0]);
         }
 
@@ -71,11 +71,11 @@ namespace DirectiveTests
 
         TEST_METHOD (Byt_EmitsByte)
         {
-            Assembler a = BuildAssembler ();
+            Assembler a = BuildAssembler();
             auto r = a.Assemble ("byt $FF");
 
             Assert::IsTrue (r.success);
-            Assert::AreEqual ((size_t) 1, r.bytes.size ());
+            Assert::AreEqual ((size_t) 1, r.bytes.size());
             Assert::AreEqual ((Byte) 0xFF, r.bytes[0]);
         }
 
@@ -91,11 +91,11 @@ namespace DirectiveTests
 
         TEST_METHOD (Byte_EmitsByte)
         {
-            Assembler a = BuildAssembler ();
+            Assembler a = BuildAssembler();
             auto r = a.Assemble ("byte $AB");
 
             Assert::IsTrue (r.success);
-            Assert::AreEqual ((size_t) 1, r.bytes.size ());
+            Assert::AreEqual ((size_t) 1, r.bytes.size());
             Assert::AreEqual ((Byte) 0xAB, r.bytes[0]);
         }
 
@@ -111,11 +111,11 @@ namespace DirectiveTests
 
         TEST_METHOD (Fcb_EmitsByte)
         {
-            Assembler a = BuildAssembler ();
+            Assembler a = BuildAssembler();
             auto r = a.Assemble ("fcb $10, $20");
 
             Assert::IsTrue (r.success);
-            Assert::AreEqual ((size_t) 2, r.bytes.size ());
+            Assert::AreEqual ((size_t) 2, r.bytes.size());
             Assert::AreEqual ((Byte) 0x10, r.bytes[0]);
             Assert::AreEqual ((Byte) 0x20, r.bytes[1]);
         }
@@ -132,11 +132,11 @@ namespace DirectiveTests
 
         TEST_METHOD (Fcc_EmitsString)
         {
-            Assembler a = BuildAssembler ();
+            Assembler a = BuildAssembler();
             auto r = a.Assemble ("fcc \"AB\"");
 
             Assert::IsTrue (r.success);
-            Assert::AreEqual ((size_t) 2, r.bytes.size ());
+            Assert::AreEqual ((size_t) 2, r.bytes.size());
             Assert::AreEqual ((Byte) 0x41, r.bytes[0]);
             Assert::AreEqual ((Byte) 0x42, r.bytes[1]);
         }
@@ -153,11 +153,11 @@ namespace DirectiveTests
 
         TEST_METHOD (Dw_EmitsWord)
         {
-            Assembler a = BuildAssembler ();
+            Assembler a = BuildAssembler();
             auto r = a.Assemble ("dw $1234");
 
             Assert::IsTrue (r.success);
-            Assert::AreEqual ((size_t) 2, r.bytes.size ());
+            Assert::AreEqual ((size_t) 2, r.bytes.size());
             Assert::AreEqual ((Byte) 0x34, r.bytes[0]);
             Assert::AreEqual ((Byte) 0x12, r.bytes[1]);
         }
@@ -174,11 +174,11 @@ namespace DirectiveTests
 
         TEST_METHOD (Word_EmitsWord)
         {
-            Assembler a = BuildAssembler ();
+            Assembler a = BuildAssembler();
             auto r = a.Assemble ("word $ABCD");
 
             Assert::IsTrue (r.success);
-            Assert::AreEqual ((size_t) 2, r.bytes.size ());
+            Assert::AreEqual ((size_t) 2, r.bytes.size());
             Assert::AreEqual ((Byte) 0xCD, r.bytes[0]);
             Assert::AreEqual ((Byte) 0xAB, r.bytes[1]);
         }
@@ -195,11 +195,11 @@ namespace DirectiveTests
 
         TEST_METHOD (Fcw_EmitsWord)
         {
-            Assembler a = BuildAssembler ();
+            Assembler a = BuildAssembler();
             auto r = a.Assemble ("fcw $BEEF");
 
             Assert::IsTrue (r.success);
-            Assert::AreEqual ((size_t) 2, r.bytes.size ());
+            Assert::AreEqual ((size_t) 2, r.bytes.size());
             Assert::AreEqual ((Byte) 0xEF, r.bytes[0]);
             Assert::AreEqual ((Byte) 0xBE, r.bytes[1]);
         }
@@ -216,11 +216,11 @@ namespace DirectiveTests
 
         TEST_METHOD (Fdb_EmitsWord)
         {
-            Assembler a = BuildAssembler ();
+            Assembler a = BuildAssembler();
             auto r = a.Assemble ("fdb $CAFE");
 
             Assert::IsTrue (r.success);
-            Assert::AreEqual ((size_t) 2, r.bytes.size ());
+            Assert::AreEqual ((size_t) 2, r.bytes.size());
             Assert::AreEqual ((Byte) 0xFE, r.bytes[0]);
             Assert::AreEqual ((Byte) 0xCA, r.bytes[1]);
         }
@@ -237,7 +237,7 @@ namespace DirectiveTests
 
         TEST_METHOD (Org_SetsOrigin)
         {
-            Assembler a = BuildAssembler ();
+            Assembler a = BuildAssembler();
             auto r = a.Assemble ("org $8000\nNOP");
 
             Assert::IsTrue (r.success);
@@ -268,11 +268,11 @@ namespace DirectiveTests
 
         TEST_METHOD (Ds_ReservesZeroFilledBytes)
         {
-            Assembler a = BuildAssembler ();
+            Assembler a = BuildAssembler();
             auto r = a.Assemble ("ds 4");
 
             Assert::IsTrue (r.success);
-            Assert::AreEqual ((size_t) 4, r.bytes.size ());
+            Assert::AreEqual ((size_t) 4, r.bytes.size());
 
             for (size_t i = 0; i < 4; i++)
             {
@@ -292,11 +292,11 @@ namespace DirectiveTests
 
         TEST_METHOD (Ds_WithFillValue)
         {
-            Assembler a = BuildAssembler ();
+            Assembler a = BuildAssembler();
             auto r = a.Assemble ("ds 3, $AA");
 
             Assert::IsTrue (r.success);
-            Assert::AreEqual ((size_t) 3, r.bytes.size ());
+            Assert::AreEqual ((size_t) 3, r.bytes.size());
             Assert::AreEqual ((Byte) 0xAA, r.bytes[0]);
             Assert::AreEqual ((Byte) 0xAA, r.bytes[1]);
             Assert::AreEqual ((Byte) 0xAA, r.bytes[2]);
@@ -314,11 +314,11 @@ namespace DirectiveTests
 
         TEST_METHOD (Dsb_Synonym)
         {
-            Assembler a = BuildAssembler ();
+            Assembler a = BuildAssembler();
             auto r = a.Assemble ("dsb 2, $FF");
 
             Assert::IsTrue (r.success);
-            Assert::AreEqual ((size_t) 2, r.bytes.size ());
+            Assert::AreEqual ((size_t) 2, r.bytes.size());
             Assert::AreEqual ((Byte) 0xFF, r.bytes[0]);
             Assert::AreEqual ((Byte) 0xFF, r.bytes[1]);
         }
@@ -335,11 +335,11 @@ namespace DirectiveTests
 
         TEST_METHOD (Rmb_Synonym)
         {
-            Assembler a = BuildAssembler ();
+            Assembler a = BuildAssembler();
             auto r = a.Assemble ("rmb 5");
 
             Assert::IsTrue (r.success);
-            Assert::AreEqual ((size_t) 5, r.bytes.size ());
+            Assert::AreEqual ((size_t) 5, r.bytes.size());
         }
 
 
@@ -354,11 +354,11 @@ namespace DirectiveTests
 
         TEST_METHOD (DotDs_Synonym)
         {
-            Assembler a = BuildAssembler ();
+            Assembler a = BuildAssembler();
             auto r = a.Assemble (".ds 2");
 
             Assert::IsTrue (r.success);
-            Assert::AreEqual ((size_t) 2, r.bytes.size ());
+            Assert::AreEqual ((size_t) 2, r.bytes.size());
         }
 
 
@@ -373,11 +373,11 @@ namespace DirectiveTests
 
         TEST_METHOD (Ds_AdvancesPC)
         {
-            Assembler a = BuildAssembler ();
+            Assembler a = BuildAssembler();
             auto r = a.Assemble (".org $100\nds 4\nNOP");
 
             Assert::IsTrue (r.success);
-            Assert::AreEqual ((size_t) 5, r.bytes.size ());
+            Assert::AreEqual ((size_t) 5, r.bytes.size());
             Assert::AreEqual ((Byte) 0xEA, r.bytes[4]);  // NOP at offset 4
         }
     };
@@ -405,11 +405,11 @@ namespace DirectiveTests
 
         TEST_METHOD (Dd_EmitsLittleEndian32)
         {
-            Assembler a = BuildAssembler ();
+            Assembler a = BuildAssembler();
             auto r = a.Assemble ("dd $12345678");
 
             Assert::IsTrue (r.success);
-            Assert::AreEqual ((size_t) 4, r.bytes.size ());
+            Assert::AreEqual ((size_t) 4, r.bytes.size());
             Assert::AreEqual ((Byte) 0x78, r.bytes[0]);
             Assert::AreEqual ((Byte) 0x56, r.bytes[1]);
             Assert::AreEqual ((Byte) 0x34, r.bytes[2]);
@@ -428,11 +428,11 @@ namespace DirectiveTests
 
         TEST_METHOD (DotDd_Synonym)
         {
-            Assembler a = BuildAssembler ();
+            Assembler a = BuildAssembler();
             auto r = a.Assemble (".dd $AABBCCDD");
 
             Assert::IsTrue (r.success);
-            Assert::AreEqual ((size_t) 4, r.bytes.size ());
+            Assert::AreEqual ((size_t) 4, r.bytes.size());
             Assert::AreEqual ((Byte) 0xDD, r.bytes[0]);
             Assert::AreEqual ((Byte) 0xCC, r.bytes[1]);
             Assert::AreEqual ((Byte) 0xBB, r.bytes[2]);
@@ -451,11 +451,11 @@ namespace DirectiveTests
 
         TEST_METHOD (Dd_MultipleValues)
         {
-            Assembler a = BuildAssembler ();
+            Assembler a = BuildAssembler();
             auto r = a.Assemble ("dd $01, $02");
 
             Assert::IsTrue (r.success);
-            Assert::AreEqual ((size_t) 8, r.bytes.size ());
+            Assert::AreEqual ((size_t) 8, r.bytes.size());
             Assert::AreEqual ((Byte) 0x01, r.bytes[0]);
             Assert::AreEqual ((Byte) 0x00, r.bytes[1]);
             Assert::AreEqual ((Byte) 0x00, r.bytes[2]);
@@ -487,11 +487,11 @@ namespace DirectiveTests
 
         TEST_METHOD (End_StopsAssembly)
         {
-            Assembler a = BuildAssembler ();
+            Assembler a = BuildAssembler();
             auto r = a.Assemble ("NOP\nend\nLDA #$42");
 
             Assert::IsTrue (r.success);
-            Assert::AreEqual ((size_t) 1, r.bytes.size ());
+            Assert::AreEqual ((size_t) 1, r.bytes.size());
             Assert::AreEqual ((Byte) 0xEA, r.bytes[0]);
         }
 
@@ -507,11 +507,11 @@ namespace DirectiveTests
 
         TEST_METHOD (DotEnd_StopsAssembly)
         {
-            Assembler a = BuildAssembler ();
+            Assembler a = BuildAssembler();
             auto r = a.Assemble ("NOP\n.end\nLDA #$42");
 
             Assert::IsTrue (r.success);
-            Assert::AreEqual ((size_t) 1, r.bytes.size ());
+            Assert::AreEqual ((size_t) 1, r.bytes.size());
         }
 
 
@@ -526,11 +526,11 @@ namespace DirectiveTests
 
         TEST_METHOD (End_WithExpression_Accepted)
         {
-            Assembler a = BuildAssembler ();
+            Assembler a = BuildAssembler();
             auto r = a.Assemble (".org $1000\nNOP\nend $1000");
 
             Assert::IsTrue (r.success);
-            Assert::AreEqual ((size_t) 1, r.bytes.size ());
+            Assert::AreEqual ((size_t) 1, r.bytes.size());
         }
     };
 
@@ -557,12 +557,12 @@ namespace DirectiveTests
 
         TEST_METHOD (Align_PadsToAlignment)
         {
-            Assembler a = BuildAssembler ();
+            Assembler a = BuildAssembler();
             // 1 byte NOP at address 0, then align 4 → should pad 3 bytes
             auto r = a.Assemble ("NOP\nalign 4");
 
             Assert::IsTrue (r.success);
-            Assert::AreEqual ((size_t) 4, r.bytes.size ());
+            Assert::AreEqual ((size_t) 4, r.bytes.size());
             Assert::AreEqual ((Byte) 0xEA, r.bytes[0]);
         }
 
@@ -578,12 +578,12 @@ namespace DirectiveTests
 
         TEST_METHOD (Align_NoArg_PadsToEven)
         {
-            Assembler a = BuildAssembler ();
+            Assembler a = BuildAssembler();
             // 1 byte NOP at address 0 (odd PC=1), align → pad 1 byte to reach 2
             auto r = a.Assemble ("NOP\nalign");
 
             Assert::IsTrue (r.success);
-            Assert::AreEqual ((size_t) 2, r.bytes.size ());
+            Assert::AreEqual ((size_t) 2, r.bytes.size());
         }
 
 
@@ -598,12 +598,12 @@ namespace DirectiveTests
 
         TEST_METHOD (Align_AlreadyAligned_NoPad)
         {
-            Assembler a = BuildAssembler ();
+            Assembler a = BuildAssembler();
             // 2 NOPs → PC=2, align to 2 → no padding needed
             auto r = a.Assemble ("NOP\nNOP\nalign 2");
 
             Assert::IsTrue (r.success);
-            Assert::AreEqual ((size_t) 2, r.bytes.size ());
+            Assert::AreEqual ((size_t) 2, r.bytes.size());
         }
 
 
@@ -618,11 +618,11 @@ namespace DirectiveTests
 
         TEST_METHOD (DotAlign_Works)
         {
-            Assembler a = BuildAssembler ();
+            Assembler a = BuildAssembler();
             auto r = a.Assemble ("NOP\n.align 4\nNOP");
 
             Assert::IsTrue (r.success);
-            Assert::AreEqual ((size_t) 5, r.bytes.size ());
+            Assert::AreEqual ((size_t) 5, r.bytes.size());
             Assert::AreEqual ((Byte) 0xEA, r.bytes[0]);
             Assert::AreEqual ((Byte) 0xEA, r.bytes[4]);
         }
@@ -646,7 +646,7 @@ namespace DirectiveTests
             auto r = a.Assemble ("NOP\nalign 4");
 
             Assert::IsTrue (r.success);
-            Assert::AreEqual ((size_t) 4, r.bytes.size ());
+            Assert::AreEqual ((size_t) 4, r.bytes.size());
             Assert::AreEqual ((Byte) 0xCC, r.bytes[1]);
             Assert::AreEqual ((Byte) 0xCC, r.bytes[2]);
             Assert::AreEqual ((Byte) 0xCC, r.bytes[3]);
@@ -676,11 +676,11 @@ namespace DirectiveTests
 
         TEST_METHOD (Error_CausesFailure)
         {
-            Assembler a = BuildAssembler ();
+            Assembler a = BuildAssembler();
             auto r = a.Assemble ("error \"Something went wrong\"");
 
             Assert::IsFalse (r.success);
-            Assert::AreEqual ((size_t) 1, r.errors.size ());
+            Assert::AreEqual ((size_t) 1, r.errors.size());
         }
 
 
@@ -695,7 +695,7 @@ namespace DirectiveTests
 
         TEST_METHOD (Error_MessagePreserved)
         {
-            Assembler a = BuildAssembler ();
+            Assembler a = BuildAssembler();
             auto r = a.Assemble ("error \"Custom message\"");
 
             Assert::IsFalse (r.success);
@@ -714,7 +714,7 @@ namespace DirectiveTests
 
         TEST_METHOD (DotError_Works)
         {
-            Assembler a = BuildAssembler ();
+            Assembler a = BuildAssembler();
             auto r = a.Assemble (".error \"fail\"");
 
             Assert::IsFalse (r.success);
@@ -732,11 +732,11 @@ namespace DirectiveTests
 
         TEST_METHOD (Error_SkippedInFalseConditional)
         {
-            Assembler a = BuildAssembler ();
+            Assembler a = BuildAssembler();
             auto r = a.Assemble ("if 0\nerror \"should not fire\"\nendif\nNOP");
 
             Assert::IsTrue (r.success);
-            Assert::AreEqual ((size_t) 1, r.bytes.size ());
+            Assert::AreEqual ((size_t) 1, r.bytes.size());
         }
     };
 
@@ -763,11 +763,11 @@ namespace DirectiveTests
 
         TEST_METHOD (Newline_Escape)
         {
-            Assembler a = BuildAssembler ();
+            Assembler a = BuildAssembler();
             auto r = a.Assemble ("db \"\\n\"");
 
             Assert::IsTrue (r.success);
-            Assert::AreEqual ((size_t) 1, r.bytes.size ());
+            Assert::AreEqual ((size_t) 1, r.bytes.size());
             Assert::AreEqual ((Byte) 0x0A, r.bytes[0]);
         }
 
@@ -783,11 +783,11 @@ namespace DirectiveTests
 
         TEST_METHOD (Tab_Escape)
         {
-            Assembler a = BuildAssembler ();
+            Assembler a = BuildAssembler();
             auto r = a.Assemble ("db \"\\t\"");
 
             Assert::IsTrue (r.success);
-            Assert::AreEqual ((size_t) 1, r.bytes.size ());
+            Assert::AreEqual ((size_t) 1, r.bytes.size());
             Assert::AreEqual ((Byte) 0x09, r.bytes[0]);
         }
 
@@ -803,11 +803,11 @@ namespace DirectiveTests
 
         TEST_METHOD (CarriageReturn_Escape)
         {
-            Assembler a = BuildAssembler ();
+            Assembler a = BuildAssembler();
             auto r = a.Assemble ("db \"\\r\"");
 
             Assert::IsTrue (r.success);
-            Assert::AreEqual ((size_t) 1, r.bytes.size ());
+            Assert::AreEqual ((size_t) 1, r.bytes.size());
             Assert::AreEqual ((Byte) 0x0D, r.bytes[0]);
         }
 
@@ -823,11 +823,11 @@ namespace DirectiveTests
 
         TEST_METHOD (Backslash_Escape)
         {
-            Assembler a = BuildAssembler ();
+            Assembler a = BuildAssembler();
             auto r = a.Assemble ("db \"\\\\\"");
 
             Assert::IsTrue (r.success);
-            Assert::AreEqual ((size_t) 1, r.bytes.size ());
+            Assert::AreEqual ((size_t) 1, r.bytes.size());
             Assert::AreEqual ((Byte) 0x5C, r.bytes[0]);
         }
 
@@ -843,11 +843,11 @@ namespace DirectiveTests
 
         TEST_METHOD (Bell_Escape)
         {
-            Assembler a = BuildAssembler ();
+            Assembler a = BuildAssembler();
             auto r = a.Assemble ("db \"\\a\"");
 
             Assert::IsTrue (r.success);
-            Assert::AreEqual ((size_t) 1, r.bytes.size ());
+            Assert::AreEqual ((size_t) 1, r.bytes.size());
             Assert::AreEqual ((Byte) 0x07, r.bytes[0]);
         }
 
@@ -863,11 +863,11 @@ namespace DirectiveTests
 
         TEST_METHOD (Backspace_Escape)
         {
-            Assembler a = BuildAssembler ();
+            Assembler a = BuildAssembler();
             auto r = a.Assemble ("db \"\\b\"");
 
             Assert::IsTrue (r.success);
-            Assert::AreEqual ((size_t) 1, r.bytes.size ());
+            Assert::AreEqual ((size_t) 1, r.bytes.size());
             Assert::AreEqual ((Byte) 0x08, r.bytes[0]);
         }
 
@@ -883,11 +883,11 @@ namespace DirectiveTests
 
         TEST_METHOD (MultipleEscapes_InString)
         {
-            Assembler a = BuildAssembler ();
+            Assembler a = BuildAssembler();
             auto r = a.Assemble ("db \"A\\nB\"");
 
             Assert::IsTrue (r.success);
-            Assert::AreEqual ((size_t) 3, r.bytes.size ());
+            Assert::AreEqual ((size_t) 3, r.bytes.size());
             Assert::AreEqual ((Byte) 0x41, r.bytes[0]);  // 'A'
             Assert::AreEqual ((Byte) 0x0A, r.bytes[1]);  // \n
             Assert::AreEqual ((Byte) 0x42, r.bytes[2]);  // 'B'
@@ -917,11 +917,11 @@ namespace DirectiveTests
 
         TEST_METHOD (Code_Assembles)
         {
-            Assembler a = BuildAssembler ();
+            Assembler a = BuildAssembler();
             auto r = a.Assemble ("code\nNOP");
 
             Assert::IsTrue (r.success);
-            Assert::AreEqual ((size_t) 1, r.bytes.size ());
+            Assert::AreEqual ((size_t) 1, r.bytes.size());
             Assert::AreEqual ((Byte) 0xEA, r.bytes[0]);
         }
 
@@ -937,11 +937,11 @@ namespace DirectiveTests
 
         TEST_METHOD (Data_Assembles)
         {
-            Assembler a = BuildAssembler ();
+            Assembler a = BuildAssembler();
             auto r = a.Assemble ("data\ndb $42");
 
             Assert::IsTrue (r.success);
-            Assert::AreEqual ((size_t) 1, r.bytes.size ());
+            Assert::AreEqual ((size_t) 1, r.bytes.size());
             Assert::AreEqual ((Byte) 0x42, r.bytes[0]);
         }
 
@@ -957,11 +957,11 @@ namespace DirectiveTests
 
         TEST_METHOD (Bss_Assembles)
         {
-            Assembler a = BuildAssembler ();
+            Assembler a = BuildAssembler();
             auto r = a.Assemble ("bss\nds 2");
 
             Assert::IsTrue (r.success);
-            Assert::AreEqual ((size_t) 2, r.bytes.size ());
+            Assert::AreEqual ((size_t) 2, r.bytes.size());
         }
 
 
@@ -976,7 +976,7 @@ namespace DirectiveTests
 
         TEST_METHOD (Segment_DefaultIsCode)
         {
-            Assembler a = BuildAssembler ();
+            Assembler a = BuildAssembler();
             auto r = a.Assemble (".org $0400\nNOP\ncode\nNOP");
 
             Assert::IsTrue (r.success);
@@ -997,7 +997,7 @@ namespace DirectiveTests
 
         TEST_METHOD (Segment_CodeDataSwitch_IndependentPCs)
         {
-            Assembler a = BuildAssembler ();
+            Assembler a = BuildAssembler();
             auto r = a.Assemble (
                 "    code\n"
                 "    org $0400\n"
@@ -1031,7 +1031,7 @@ namespace DirectiveTests
 
         TEST_METHOD (Segment_BssReservesZeroFilled)
         {
-            Assembler a = BuildAssembler ();
+            Assembler a = BuildAssembler();
             auto r = a.Assemble (
                 "    code\n"
                 "    org $0400\n"
@@ -1065,7 +1065,7 @@ namespace DirectiveTests
 
         TEST_METHOD (Segment_ResumeAfterSwitch)
         {
-            Assembler a = BuildAssembler ();
+            Assembler a = BuildAssembler();
             auto r = a.Assemble (
                 "    code\n"
                 "    org $1000\n"
@@ -1117,11 +1117,11 @@ namespace DirectiveTests
 
         TEST_METHOD (Column0_Identifier_IsLabel)
         {
-            Assembler a = BuildAssembler ();
+            Assembler a = BuildAssembler();
             auto r = a.Assemble ("myLabel\n    NOP");
 
             Assert::IsTrue (r.success);
-            Assert::AreEqual ((size_t) 1, r.bytes.size ());
+            Assert::AreEqual ((size_t) 1, r.bytes.size());
             Assert::AreEqual ((Byte) 0xEA, r.bytes[0]);
             Assert::IsTrue (r.symbols.count ("myLabel") > 0);
         }
@@ -1138,11 +1138,11 @@ namespace DirectiveTests
 
         TEST_METHOD (Column0_Label_WithIndentedMnemonic)
         {
-            Assembler a = BuildAssembler ();
+            Assembler a = BuildAssembler();
             auto r = a.Assemble ("org $1000\nmyLabel\n    LDA #$42");
 
             Assert::IsTrue (r.success);
-            Assert::AreEqual ((size_t) 2, r.bytes.size ());
+            Assert::AreEqual ((size_t) 2, r.bytes.size());
             Assert::AreEqual ((Word) 0x1000, r.symbols.at ("myLabel"));
         }
 
@@ -1158,11 +1158,11 @@ namespace DirectiveTests
 
         TEST_METHOD (Column0_Label_WithSameLineDirective)
         {
-            Assembler a = BuildAssembler ();
+            Assembler a = BuildAssembler();
             auto r = a.Assemble ("org $2000\nmyLabel  ds 2");
 
             Assert::IsTrue (r.success);
-            Assert::AreEqual ((size_t) 2, r.bytes.size ());
+            Assert::AreEqual ((size_t) 2, r.bytes.size());
             Assert::AreEqual ((Word) 0x2000, r.symbols.at ("myLabel"));
         }
 
@@ -1178,11 +1178,11 @@ namespace DirectiveTests
 
         TEST_METHOD (IndentedMnemonic_IsNotLabel)
         {
-            Assembler a = BuildAssembler ();
+            Assembler a = BuildAssembler();
             auto r = a.Assemble ("    NOP");
 
             Assert::IsTrue (r.success);
-            Assert::AreEqual ((size_t) 1, r.bytes.size ());
+            Assert::AreEqual ((size_t) 1, r.bytes.size());
             Assert::AreEqual ((Byte) 0xEA, r.bytes[0]);
 
             // NOP should not appear as a symbol
@@ -1201,11 +1201,11 @@ namespace DirectiveTests
 
         TEST_METHOD (Column0_Label_WithSameLineInstruction)
         {
-            Assembler a = BuildAssembler ();
+            Assembler a = BuildAssembler();
             auto r = a.Assemble ("org $3000\nstart  LDA #$42");
 
             Assert::IsTrue (r.success);
-            Assert::AreEqual ((size_t) 2, r.bytes.size ());
+            Assert::AreEqual ((size_t) 2, r.bytes.size());
             Assert::AreEqual ((Byte) 0xA9, r.bytes[0]);
             Assert::AreEqual ((Byte) 0x42, r.bytes[1]);
             Assert::AreEqual ((Word) 0x3000, r.symbols.at ("start"));

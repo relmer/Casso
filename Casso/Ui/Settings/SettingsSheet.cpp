@@ -34,7 +34,7 @@ static constexpr int    s_kSheetHeightDip    = 760;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-SettingsSheet::~SettingsSheet ()
+SettingsSheet::~SettingsSheet()
 {
     if (PopupHost() != nullptr)
     {
@@ -56,7 +56,7 @@ SettingsSheet::~SettingsSheet ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void SettingsSheet::OnBuildPages ()
+void SettingsSheet::OnBuildPages()
 {
     m_hardwarePage = CreatePage<HardwarePage> (L"Machine");   // machine + CPU + hardware
     m_diskPage     = CreatePage<DiskPage>     (L"Disk");
@@ -386,14 +386,14 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT SettingsSheet::OnOk ()
+HRESULT SettingsSheet::OnOk()
 {
     m_apply.CommitApply();
     return S_OK;
 }
 
 
-void SettingsSheet::OnCancel ()
+void SettingsSheet::OnCancel()
 {
     m_apply.Cancel (m_preview);
     RevertDriveAuditionIfDirty();
@@ -413,7 +413,7 @@ void SettingsSheet::OnCancel ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void SettingsSheet::OnDialogTick ()
+void SettingsSheet::OnDialogTick()
 {
     RefreshOkLabel();
     UpdateRestartNotice();
@@ -448,7 +448,7 @@ void SettingsSheet::OnDialogTick ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void SettingsSheet::UpdatePreviewCompose ()
+void SettingsSheet::UpdatePreviewCompose()
 {
     if (!m_compositor.IsInitialized())
     {
@@ -489,7 +489,7 @@ void SettingsSheet::UpdatePreviewCompose ()
 }
 
 
-void SettingsSheet::RefreshOkLabel ()
+void SettingsSheet::RefreshOkLabel()
 {
     bool          reboot = m_apply.WillMachineChange() || m_apply.IsResetRequired();
     std::wstring  want   = reboot ? L"OK (reboot)" : L"OK";
@@ -552,7 +552,7 @@ void SettingsSheet::Layout (const RECT & boundsPx, const DxuiDpiScaler & scaler)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void SettingsSheet::UpdateRestartNotice ()
+void SettingsSheet::UpdateRestartNotice()
 {
     std::wstring  notice;
 
@@ -593,7 +593,7 @@ void SettingsSheet::UpdateRestartNotice ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void SettingsSheet::UpdateDiskTabVisibility ()
+void SettingsSheet::UpdateDiskTabVisibility()
 {
     bool  want = m_state.HasDiskIIController();
 
@@ -608,7 +608,7 @@ void SettingsSheet::UpdateDiskTabVisibility ()
 }
 
 
-bool SettingsSheet::HasModalOverlay () const
+bool SettingsSheet::HasModalOverlay() const
 {
     return m_colorPicker.IsOpen();
 }
@@ -733,7 +733,7 @@ void SettingsSheet::AuditionDriveSound (int drive, int kind, bool centered)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void SettingsSheet::SnapshotDriveAudioBaseline ()
+void SettingsSheet::SnapshotDriveAudioBaseline()
 {
     const SettingsUiPrefs &  prefs = m_state.Prefs();
 
@@ -747,7 +747,7 @@ void SettingsSheet::SnapshotDriveAudioBaseline ()
 }
 
 
-void SettingsSheet::RevertDriveAuditionIfDirty ()
+void SettingsSheet::RevertDriveAuditionIfDirty()
 {
     if (!m_driveAuditionDirty)
     {

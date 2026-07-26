@@ -18,10 +18,10 @@ FileReadResult DefaultFileReader::ReadFile (const std::string & filename, const 
 {
     FileReadResult result = {};
 
-    std::string fullPath = baseDir.empty () ? filename : baseDir + "/" + filename;
+    std::string fullPath = baseDir.empty() ? filename : baseDir + "/" + filename;
     std::ifstream file (fullPath);
 
-    if (!file.is_open ())
+    if (!file.is_open())
     {
         result.success = false;
         result.error   = "Cannot open file: " + fullPath;
@@ -29,9 +29,9 @@ FileReadResult DefaultFileReader::ReadFile (const std::string & filename, const 
     }
 
     std::ostringstream ss;
-    ss << file.rdbuf ();
+    ss << file.rdbuf();
     result.success  = true;
-    result.contents = ss.str ();
+    result.contents = ss.str();
     return result;
 }
 
@@ -145,7 +145,7 @@ std::string Assembler::FormatListingLine (const AssemblyLine & line, bool showCy
     // Bytes column (cols 14-22, up to 3 hex bytes, padded to 9 chars)
     std::string bytesStr;
 
-    for (size_t i = 0; i < line.bytes.size () && i < 3; i++)
+    for (size_t i = 0; i < line.bytes.size() && i < 3; i++)
     {
         if (i > 0)
         {
@@ -155,7 +155,7 @@ std::string Assembler::FormatListingLine (const AssemblyLine & line, bool showCy
         bytesStr += std::format ("{:02X}", line.bytes[i]);
     }
 
-    while (bytesStr.size () < 9)
+    while (bytesStr.size() < 9)
     {
         bytesStr += " ";
     }
@@ -190,9 +190,9 @@ std::string Assembler::FormatSymbolTable (const std::unordered_map<std::string, 
                                            const std::unordered_map<std::string, SymbolKind> & symbolKinds)
 {
     // Sort symbols alphabetically
-    std::vector<std::pair<std::string, Word>> sorted (symbols.begin (), symbols.end ());
+    std::vector<std::pair<std::string, Word>> sorted (symbols.begin(), symbols.end());
 
-    std::sort (sorted.begin (), sorted.end (),
+    std::sort (sorted.begin(), sorted.end(),
         [] (const auto & a, const auto & b) { return a.first < b.first; });
 
     std::string output;
@@ -200,7 +200,7 @@ std::string Assembler::FormatSymbolTable (const std::unordered_map<std::string, 
     for (const auto & pair : sorted)
     {
         auto kindIt = symbolKinds.find (pair.first);
-        bool isRedefinable = (kindIt != symbolKinds.end () && kindIt->second == SymbolKind::Set);
+        bool isRedefinable = (kindIt != symbolKinds.end() && kindIt->second == SymbolKind::Set);
 
         std::string fullName = (isRedefinable ? "*" : "") + pair.first;
         output += std::format ("{:<16s}${:04X}\n", fullName, pair.second);
@@ -222,9 +222,9 @@ std::string Assembler::FormatSymbolTable (const std::unordered_map<std::string, 
 std::string Assembler::FormatDebugInfo (const std::unordered_map<std::string, Word> & symbols)
 {
     // Sort symbols by address for deterministic output
-    std::vector<std::pair<std::string, Word>> sorted (symbols.begin (), symbols.end ());
+    std::vector<std::pair<std::string, Word>> sorted (symbols.begin(), symbols.end());
 
-    std::sort (sorted.begin (), sorted.end (),
+    std::sort (sorted.begin(), sorted.end(),
         [] (const auto & a, const auto & b) { return a.second < b.second; });
 
     std::string output;

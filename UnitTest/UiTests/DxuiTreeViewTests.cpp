@@ -35,7 +35,7 @@ namespace
     }
 
 
-    DxuiTreeView  MakeFlatTree ()
+    DxuiTreeView  MakeFlatTree()
     {
         DxuiTreeView                  tv;
         std::vector<DxuiTreeNode>     nodes;

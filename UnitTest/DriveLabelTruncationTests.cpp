@@ -17,7 +17,7 @@ namespace DriveLabelTruncationTests
 
 
 
-    static auto FixedWidthMeasure ()
+    static auto FixedWidthMeasure()
     {
         return [] (std::wstring_view v) { return (float) v.size() * s_kCharWidthPx; };
     }

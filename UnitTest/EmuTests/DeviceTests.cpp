@@ -48,7 +48,7 @@ public:
     {
         RamDevice ram (0x0000, 0x00FF);
         ram.Write (0x0050, 0xFF);
-        ram.Reset ();
+        ram.Reset();
 
         Assert::AreEqual (static_cast<Byte> (0), ram.Read (0x0050));
     }
@@ -76,8 +76,8 @@ public:
     {
         RamDevice ram (0x2000, 0x3FFF);
 
-        Assert::AreEqual (static_cast<Word> (0x2000), ram.GetStart ());
-        Assert::AreEqual (static_cast<Word> (0x3FFF), ram.GetEnd ());
+        Assert::AreEqual (static_cast<Word> (0x2000), ram.GetStart());
+        Assert::AreEqual (static_cast<Word> (0x3FFF), ram.GetEnd());
     }
 
     TEST_METHOD (RomDevice_CreateFromFile_MissingFile_ReturnsNull)
@@ -85,8 +85,8 @@ public:
         std::string error;
         auto rom = RomDevice::CreateFromFile (0xD000, 0xFFFF, "nonexistent_rom.bin", error);
 
-        Assert::IsNull (rom.get ());
-        Assert::IsFalse (error.empty ());
+        Assert::IsNull (rom.get());
+        Assert::IsFalse (error.empty());
     }
 
     TEST_METHOD (Disk2Controller_Slot6_RespondsAtC0E0)
@@ -95,8 +95,8 @@ public:
         MemoryBus bus;
         bus.AddDevice (&disk);
 
-        Assert::AreEqual (static_cast<Word> (0xC0E0), disk.GetStart ());
-        Assert::AreEqual (static_cast<Word> (0xC0EF), disk.GetEnd ());
+        Assert::AreEqual (static_cast<Word> (0xC0E0), disk.GetStart());
+        Assert::AreEqual (static_cast<Word> (0xC0EF), disk.GetEnd());
 
         // Reading $C0EC (Q6=false) should not crash
         Byte val = bus.ReadByte (0xC0EC);

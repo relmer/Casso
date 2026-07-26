@@ -1951,7 +1951,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::SyncChromeBands ()
+void EmulatorShell::SyncChromeBands()
 {
     // When the machine has no Disk ][ controller, remove the drive-widget area
     // entirely (#84 Phase D): the drive band collapses to just the joystick-mode
@@ -2034,7 +2034,7 @@ RECT EmulatorShell::ComputeViewportRect (int widthPx, int heightPx)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-RECT EmulatorShell::EmulatorContentScreenRect ()
+RECT EmulatorShell::EmulatorContentScreenRect()
 {
     RECT   result = {};
     POINT  tl     = {};
@@ -2080,7 +2080,7 @@ RECT EmulatorShell::EmulatorContentScreenRect ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::ReflowChromeForMachineChange ()
+void EmulatorShell::ReflowChromeForMachineChange()
 {
     DXUI_ASSERT_UI_THREAD();   // chrome layout: never from the CPU thread
 
@@ -3036,7 +3036,7 @@ void EmulatorShell::LayoutJoystickButton (int clientW,
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::RelayoutJoystickButton ()
+void EmulatorShell::RelayoutJoystickButton()
 {
     DXUI_ASSERT_UI_THREAD();   // measures text through the Dxui renderer
 
@@ -3074,7 +3074,7 @@ void EmulatorShell::ShowPrinterPanel (bool activate)
     HRESULT     hr        = S_OK;
     HINSTANCE   hInstance = nullptr;
 
-    if (m_printerPanel == nullptr || m_printerPanel->Hwnd () == nullptr)
+    if (m_printerPanel == nullptr || m_printerPanel->Hwnd() == nullptr)
     {
         hInstance      = reinterpret_cast<HINSTANCE> (GetWindowLongPtr (m_hwnd, GWLP_HINSTANCE));
         m_printerPanel = std::make_unique<PrinterPanel> ();
@@ -3084,12 +3084,12 @@ void EmulatorShell::ShowPrinterPanel (bool activate)
         // (always-on-top of Casso); a peer can be sent behind Casso normally.
         hr = m_printerPanel->Create (hInstance,
                                      nullptr,
-                                     m_d3dRenderer.GetDevice (),
-                                     m_d3dRenderer.GetContext (),
+                                     m_d3dRenderer.GetDevice(),
+                                     m_d3dRenderer.GetContext(),
                                      &m_chromeTheme);
-        CHRF (hr, m_printerPanel.reset ());
+        CHRF (hr, m_printerPanel.reset());
 
-        ApplyAppIconToWindow (m_printerPanel->Hwnd ());
+        ApplyAppIconToWindow (m_printerPanel->Hwnd());
 
         // Toolbar actions route through the existing command path (which
         // quiesces the worker, delivers/clears, and resumes), then re-snapshot.
@@ -3099,17 +3099,17 @@ void EmulatorShell::ShowPrinterPanel (bool activate)
         m_printerPanel->SetOnPrint ([this] ()
         {
             m_windowCommandManager->HandleCommand (IDM_PRINTER_PRINT);
-            SnapshotStripToPanel ();
+            SnapshotStripToPanel();
         });
         m_printerPanel->SetOnSaveAs ([this] ()
         {
             m_windowCommandManager->HandleCommand (IDM_PRINTER_SAVEAS);
-            SnapshotStripToPanel ();
+            SnapshotStripToPanel();
         });
         m_printerPanel->SetOnCopy ([this] ()
         {
             m_windowCommandManager->HandleCommand (IDM_PRINTER_COPY);
-            SnapshotStripToPanel ();
+            SnapshotStripToPanel();
         });
         m_printerPanel->SetOnDiscard ([this] ()
         {
@@ -3117,7 +3117,7 @@ void EmulatorShell::ShowPrinterPanel (bool activate)
             // handler (WindowCommandManager), NOT here -- so cancelling the
             // confirmation dialog does not rip a page we are keeping.
             m_windowCommandManager->HandleCommand (IDM_PRINTER_DISCARD);
-            SnapshotStripToPanel ();
+            SnapshotStripToPanel();
         });
         m_printerPanel->SetOnFormFeed ([this] ()
         {
@@ -3128,7 +3128,7 @@ void EmulatorShell::ShowPrinterPanel (bool activate)
             static constexpr int64_t   s_kFormFeedIdleMs = 1200;
 
             int64_t   nowMs = (int64_t) std::chrono::duration_cast<std::chrono::milliseconds> (
-                                  std::chrono::steady_clock::now ().time_since_epoch ()).count ();
+                                  std::chrono::steady_clock::now().time_since_epoch()).count();
 
             if (nowMs - m_printerActiveLastMs < s_kFormFeedIdleMs)
             {
@@ -3138,11 +3138,11 @@ void EmulatorShell::ShowPrinterPanel (bool activate)
             // Scale the form-feed sound by how much of the current page will
             // feed to the tear bar (less unused -> shorter feed -> shorter
             // grain). A page that just wrapped feeds a full sheet (unused ~1).
-            int    rowsOnPage = m_printerWorker.RowsUsed () % PrinterGrid::kPageRows;
+            int    rowsOnPage = m_printerWorker.RowsUsed() % PrinterGrid::kPageRows;
             float  unused     = 1.0f - (float) rowsOnPage / (float) PrinterGrid::kPageRows;
             m_printerAudio.PlayFormFeed (unused);
 
-            m_printerWorker.FormFeed ();
+            m_printerWorker.FormFeed();
         });
 
         // Dragging the preview's caption or edge enters the OS modal move/size
@@ -3153,11 +3153,11 @@ void EmulatorShell::ShowPrinterPanel (bool activate)
         // window -- the same keep-alive the main window uses for its caption.
         m_printerPanel->SetOnModalLoopTick ([this] ()
         {
-            PumpUiFrame ();
+            PumpUiFrame();
         });
     }
 
-    SnapshotStripToPanel ();
+    SnapshotStripToPanel();
 
     // activate=false (auto-open path) shows the preview without pulling focus
     // off the guest, so a print popping up the window never eats keystrokes.
@@ -3167,9 +3167,9 @@ void EmulatorShell::ShowPrinterPanel (bool activate)
     // on top: a print arriving while the user is working must never pop a window
     // over what they are looking at (or steal focus from under them). The user
     // clicks / Alt-Tabs it forward whenever they want to watch it.
-    if (!activate && m_printerPanel->Hwnd () != nullptr)
+    if (!activate && m_printerPanel->Hwnd() != nullptr)
     {
-        SetWindowPos (m_printerPanel->Hwnd (), m_hwnd, 0, 0, 0, 0,
+        SetWindowPos (m_printerPanel->Hwnd(), m_hwnd, 0, 0, 0, 0,
                       SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
     }
 
@@ -3193,14 +3193,14 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HWND EmulatorShell::PrinterDialogOwner () const
+HWND EmulatorShell::PrinterDialogOwner() const
 {
     if (m_printerPanel != nullptr
-        && m_printerPanel->IsOpen ()
-        && m_printerPanel->Hwnd () != nullptr
-        && IsWindowVisible (m_printerPanel->Hwnd ()))
+        && m_printerPanel->IsOpen()
+        && m_printerPanel->Hwnd() != nullptr
+        && IsWindowVisible (m_printerPanel->Hwnd()))
     {
-        return m_printerPanel->Hwnd ();
+        return m_printerPanel->Hwnd();
     }
 
     return m_hwnd;
@@ -3269,11 +3269,11 @@ void EmulatorShell::ApplyAppIconToWindow (HWND target)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::SnapshotStripToPanel ()
+void EmulatorShell::SnapshotStripToPanel()
 {
     int64_t   nowMs = 0;
 
-    if (m_printerPanel == nullptr || !m_printerPanel->IsOpen ())
+    if (m_printerPanel == nullptr || !m_printerPanel->IsOpen())
     {
         return;
     }
@@ -3287,7 +3287,7 @@ void EmulatorShell::SnapshotStripToPanel ()
     }
 
     nowMs = (int64_t) std::chrono::duration_cast<std::chrono::milliseconds> (
-                std::chrono::steady_clock::now ().time_since_epoch ()).count ();
+                std::chrono::steady_clock::now().time_since_epoch()).count();
 
     // Forced refresh through the panel's viewport: snapshots and renders only
     // the visible ~1-page span (never the whole strip), same as the live path.
@@ -3308,7 +3308,7 @@ void EmulatorShell::SnapshotStripToPanel ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::UpdatePrinterStatus ()
+void EmulatorShell::UpdatePrinterStatus()
 {
     int64_t        nowMs  = 0;
     PrinterStatus  status = PrinterStatus::Idle;
@@ -3322,24 +3322,24 @@ void EmulatorShell::UpdatePrinterStatus ()
     m_toolbar.SetPrinterPresent (true);
 
     nowMs = (int64_t) std::chrono::duration_cast<std::chrono::milliseconds> (
-                std::chrono::steady_clock::now ().time_since_epoch ()).count ();
+                std::chrono::steady_clock::now().time_since_epoch()).count();
 
     // A latched delivery error clears itself when the guest prints something
     // new -- red means "this page needs attention", and a fresh print means
     // the user has moved on (Error outranks Receiving in the model, so a
     // stale latch would otherwise mask the live print).
     if (m_printerDeliveryError &&
-        m_printerWorker.ActivityCount () != m_printerErrorActivity)
+        m_printerWorker.ActivityCount() != m_printerErrorActivity)
     {
         m_printerDeliveryError = false;
     }
 
-    m_printerStatus.Update (m_printerWorker.ActivityCount (),
+    m_printerStatus.Update (m_printerWorker.ActivityCount(),
                             (double) nowMs,
-                            m_printerWorker.HasContent (),
+                            m_printerWorker.HasContent(),
                             m_printerDeliveryError);
 
-    status = m_printerStatus.Status ();
+    status = m_printerStatus.Status();
 
     // The toolbar's printer button carries the status light (DCR-2); repaint
     // only when the LED state actually changes.
@@ -3347,7 +3347,7 @@ void EmulatorShell::UpdatePrinterStatus ()
     {
         m_printerStatusShown = status;
         m_toolbar.SetPrinterStatus (status);
-        m_d3dRenderer.MarkRedrawNeeded ();
+        m_d3dRenderer.MarkRedrawNeeded();
     }
 }
 
@@ -3364,7 +3364,7 @@ void EmulatorShell::UpdatePrinterStatus ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::UpdatePrinterPreview ()
+void EmulatorShell::UpdatePrinterPreview()
 {
     static constexpr int64_t   s_kAutoOpenIdleMs = 1200;   // activity gap that re-arms auto-open
 
@@ -3376,9 +3376,9 @@ void EmulatorShell::UpdatePrinterPreview ()
         return;   // machine has no printer card
     }
 
-    activity = m_printerWorker.ActivityCount ();
+    activity = m_printerWorker.ActivityCount();
     nowMs    = (int64_t) std::chrono::duration_cast<std::chrono::milliseconds> (
-                   std::chrono::steady_clock::now ().time_since_epoch ()).count ();
+                   std::chrono::steady_clock::now().time_since_epoch()).count();
 
     // Auto-open on a NEW print session: activity advancing after an idle gap.
     // Arm while idle, fire once (without stealing focus) when bytes resume, then
@@ -3404,11 +3404,11 @@ void EmulatorShell::UpdatePrinterPreview ()
     // Live refresh while the preview is genuinely visible. The panel's viewport
     // does its own change detection and renders at most the visible ~1-page span
     // (FR-033), so this per-frame call is flat-cost regardless of strip length.
-    if (m_printerPanel == nullptr || !m_printerPanel->IsOpen ())
+    if (m_printerPanel == nullptr || !m_printerPanel->IsOpen())
     {
         return;
     }
-    if (!IsWindowVisible (m_printerPanel->Hwnd ()))
+    if (!IsWindowVisible (m_printerPanel->Hwnd()))
     {
         return;   // user closed (hid) it -- skip off-screen rendering
     }
@@ -3454,7 +3454,7 @@ void EmulatorShell::UpdatePrinterPreview ()
             RECT  printerR = {};
 
             if (GetWindowRect (m_hwnd, &mainR) &&
-                GetWindowRect (m_printerPanel->Hwnd (), &printerR))
+                GetWindowRect (m_printerPanel->Hwnd(), &printerR))
             {
                 float  mainCenter    = (float) (mainR.left    + mainR.right)    * 0.5f;
                 float  printerCenter = (float) (printerR.left + printerR.right) * 0.5f;
@@ -3479,9 +3479,9 @@ void EmulatorShell::UpdatePrinterPreview ()
     // is easing. Without this the loop drops to Sleep(1) whenever the emulator
     // framebuffer is static (a guest that prints without touching the screen),
     // and that coarse, jittery tick makes the head step across the platen.
-    if (m_printerPanel->NeedsAnimationFrame ())
+    if (m_printerPanel->NeedsAnimationFrame())
     {
-        m_d3dRenderer.MarkRedrawNeeded ();
+        m_d3dRenderer.MarkRedrawNeeded();
     }
 }
 
@@ -3664,7 +3664,7 @@ void EmulatorShell::UpdateChromeFocusVisuals()
     }
     else
     {
-        m_mainMenu.ClearFocus ();
+        m_mainMenu.ClearFocus();
     }
 
     m_joystickButton.SetFocused (index == s_kChromeFocusButton);
@@ -4171,11 +4171,11 @@ bool EmulatorShell::PumpUiFrame()
 
     // Refresh the printer status LED; marks a redraw itself on a change so
     // a static screen (e.g. a pending page at the BASIC prompt) repaints.
-    UpdatePrinterStatus ();
+    UpdatePrinterStatus();
 
     // Auto-open the print preview when a print begins and stream the strip
     // into it live as the guest prints (non-destructive snapshot).
-    UpdatePrinterPreview ();
+    UpdatePrinterPreview();
 
     if (!m_d3dRenderer.NeedsPresent (fbDirtyThisFrame))
     {
@@ -5298,7 +5298,7 @@ DxuiMessageResult EmulatorShell::OnCommand (WORD commandId)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::OnDestroy ()
+void EmulatorShell::OnDestroy()
 {
     m_windowManager.SaveWindowPlacement (m_hwnd, m_d3dRenderer.IsFullscreen());
 
@@ -5307,22 +5307,22 @@ void EmulatorShell::OnDestroy ()
     m_dragDropTarget.Shutdown();
 
     // Join the printer drain thread before teardown frees the card.
-    m_printerWorker.Stop ();
+    m_printerWorker.Stop();
 
     // Persist the pending strip on clean exit (FR-026); empty clears any stale
     // sidecar. Loss on abnormal termination is acceptable per the spec.
-    if (!m_currentMachineName.empty ())
+    if (!m_currentMachineName.empty())
     {
-        PrinterJob *   printJob = m_printerWorker.Job ();
+        PrinterJob *   printJob = m_printerWorker.Job();
 
-        if (printJob != nullptr && printJob->HasContent ())
+        if (printJob != nullptr && printJob->HasContent())
         {
-            HRESULT   hrSave = PrintJobStore::Save (PendingPrintDir (), printJob->Raster ());
+            HRESULT   hrSave = PrintJobStore::Save (PendingPrintDir(), printJob->Raster());
             IGNORE_RETURN_VALUE (hrSave, S_OK);
         }
         else
         {
-            PrintJobStore::Clear (PendingPrintDir ());
+            PrintJobStore::Clear (PendingPrintDir());
         }
     }
 
@@ -5415,7 +5415,7 @@ DxuiMessageResult EmulatorShell::OnMouseMove (WPARAM wParam, LPARAM lParam)
     // hovered button's label surfaces as a tooltip (no labels on the strip).
     if (m_toolbar.OnToolbarMouseMove (x, y, leftDown))
     {
-        m_d3dRenderer.MarkRedrawNeeded ();
+        m_d3dRenderer.MarkRedrawNeeded();
     }
     {
         RECT             anchor = {};
@@ -5481,7 +5481,7 @@ DxuiMessageResult EmulatorShell::OnMouseMove (WPARAM wParam, LPARAM lParam)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-DxuiMessageResult EmulatorShell::OnMouseLeave ()
+DxuiMessageResult EmulatorShell::OnMouseLeave()
 {
     int64_t  nowMs = (int64_t) std::chrono::duration_cast<std::chrono::milliseconds> (
                          std::chrono::steady_clock::now().time_since_epoch()).count();
@@ -5498,7 +5498,7 @@ DxuiMessageResult EmulatorShell::OnMouseLeave ()
     m_joystickButton.SetHovered (false);
     m_joystickButton.SetPressed (false);
     m_joystickTooltip.RequestHide (nowMs);
-    m_toolbar.OnToolbarMouseLeave ();
+    m_toolbar.OnToolbarMouseLeave();
     m_toolbarTooltip.RequestHide (nowMs);
     m_driveTooltip.RequestHide (nowMs);
 
@@ -5698,7 +5698,7 @@ DxuiMessageResult EmulatorShell::OnLButtonDown (WPARAM wParam, LPARAM lParam)
     // Command toolbar press (button press states + slider drag start).
     if (m_toolbar.OnToolbarLButtonDown (x, y))
     {
-        m_d3dRenderer.MarkRedrawNeeded ();
+        m_d3dRenderer.MarkRedrawNeeded();
     }
 
     if (IsApple2c())
@@ -5761,7 +5761,7 @@ DxuiMessageResult EmulatorShell::OnLButtonUp (WPARAM wParam, LPARAM lParam)
     // Command toolbar release: click dispatch / mute toggle / slider drop.
     if (m_toolbar.OnToolbarLButtonUp (x, y))
     {
-        m_d3dRenderer.MarkRedrawNeeded ();
+        m_d3dRenderer.MarkRedrawNeeded();
         return DxuiMessageResult::NotHandled;
     }
 
@@ -5937,7 +5937,7 @@ DxuiMessageResult EmulatorShell::OnActivateApp (bool active)
 
 
 
-DxuiMessageResult EmulatorShell::OnKillFocus ()
+DxuiMessageResult EmulatorShell::OnKillFocus()
 {
     StopPaddleCapture();
 
@@ -5953,7 +5953,7 @@ DxuiMessageResult EmulatorShell::OnKillFocus ()
 
 
 
-void EmulatorShell::ReleaseGuestKeys ()
+void EmulatorShell::ReleaseGuestKeys()
 {
     auto *  iieKbd = dynamic_cast<Apple2eKeyboard *> (m_refs.keyboard);
 
@@ -5975,7 +5975,7 @@ void EmulatorShell::ReleaseGuestKeys ()
 
 
 
-DxuiMessageResult EmulatorShell::OnCancelMode ()
+DxuiMessageResult EmulatorShell::OnCancelMode()
 {
     StopPaddleCapture();
     return DxuiMessageResult::NotHandled;
@@ -6061,7 +6061,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::OpenSettings ()
+void EmulatorShell::OpenSettings()
 {
     HINSTANCE  hInst = (HINSTANCE) GetWindowLongPtrW (m_hwnd, GWLP_HINSTANCE);
 
@@ -6664,8 +6664,8 @@ void EmulatorShell::UpdateJoystickButtonsFromKeys()
     // button 0 in the guest every frame -- e.g. re-triggering a Print Shop
     // print on the way out. Foreground reads normally (no added latency); not
     // foreground leaves the buttons released. Matches the input gate used
-    // elsewhere (GetForegroundWindow () != m_hwnd).
-    if (GetForegroundWindow () == m_hwnd)
+    // elsewhere (GetForegroundWindow() != m_hwnd).
+    if (GetForegroundWindow() == m_hwnd)
     {
         button0 = (GetAsyncKeyState (static_cast<int> (s_kJoystickButton0Vk)) & 0x8000) != 0 ||
                   (GetKeyState      (VK_LMENU)                                & 0x8000) != 0;
@@ -6801,7 +6801,7 @@ void EmulatorShell::SetArrowsJoystick (bool on)
 
     if (iieKbd != nullptr)
     {
-        bool  fg = (GetForegroundWindow () == m_hwnd);   // never latch Alt-as-Open-Apple while backgrounded
+        bool  fg = (GetForegroundWindow() == m_hwnd);   // never latch Alt-as-Open-Apple while backgrounded
 
         iieKbd->SetOpenApple   (fg && (GetKeyState (VK_LMENU) & 0x8000) != 0);
         iieKbd->SetClosedApple (fg && (GetKeyState (VK_RMENU) & 0x8000) != 0);
@@ -6963,7 +6963,7 @@ void EmulatorShell::ApplyDefaultPointerForMachine()
         // UpdateWindowTitle at the end of SwitchMachine). On the UI thread
         // (launch, or before the window exists) reflect it immediately.
         bool  offUiThread = (m_hwnd != nullptr) &&
-                            (GetWindowThreadProcessId (m_hwnd, nullptr) != GetCurrentThreadId ());
+                            (GetWindowThreadProcessId (m_hwnd, nullptr) != GetCurrentThreadId());
 
         if (offUiThread)
         {
@@ -6990,7 +6990,7 @@ void EmulatorShell::ApplyDefaultPointerForMachine()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::CycleInputMappingMode ()
+void EmulatorShell::CycleInputMappingMode()
 {
     InputMappingMode  next    = InputMappingMode::Off;
     InputMappingMode  current = DisplayInputMode();
@@ -7081,7 +7081,7 @@ void EmulatorShell::ToggleInputMappingMode (InputMappingMode target)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::StartPaddleCapture ()
+void EmulatorShell::StartPaddleCapture()
 {
     HRESULT  hr      = S_OK;
     RECT     client  = {};
@@ -7147,7 +7147,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::StopPaddleCapture ()
+void EmulatorShell::StopPaddleCapture()
 {
     HRESULT  hr = S_OK;
 
@@ -7250,7 +7250,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void EmulatorShell::PushPaddlePosition ()
+void EmulatorShell::PushPaddlePosition()
 {
     auto * iieSw    = dynamic_cast<Apple2eSoftSwitchBank *> (m_refs.softSwitches);
     auto * gamePort = m_refs.gamePort;
@@ -7633,7 +7633,7 @@ void EmulatorShell::UpdateWindowTitle()
     }
 
     title += L"  \x2014  ";
-    title += CassoBuildInfo ();
+    title += CassoBuildInfo();
 #endif
 
     m_host->SetTitle (title);
@@ -7652,7 +7652,7 @@ void EmulatorShell::UpdateWindowTitle()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::wstring EmulatorShell::PrinterBannerMessage () const
+std::wstring EmulatorShell::PrinterBannerMessage() const
 {
     if (m_config.HasEnabledSlotDevice ("parallel-printer"))
     {

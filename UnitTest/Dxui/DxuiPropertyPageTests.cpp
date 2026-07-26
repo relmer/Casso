@@ -16,12 +16,12 @@ namespace
     class TestPage : public DxuiPropertyPage
     {
     public:
-        TestPage () : DxuiPropertyPage (L"Test") {}
+        TestPage() : DxuiPropertyPage (L"Test") {}
 
         int   applyCalls  = 0;
         bool  applyResult = true;
 
-        bool  OnApply () override { ++applyCalls; return applyResult; }
+        bool  OnApply() override { ++applyCalls; return applyResult; }
     };
 }
 

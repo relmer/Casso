@@ -28,7 +28,7 @@ void AudioGenerator::GeneratePCM (
 
 
 
-    if (toggleTimestamps.empty () || totalCyclesThisFrame == 0)
+    if (toggleTimestamps.empty() || totalCyclesThisFrame == 0)
     {
         // No toggles this frame — output silence (not DC) to avoid
         // constant buzzing from a non-zero speaker state
@@ -49,7 +49,7 @@ void AudioGenerator::GeneratePCM (
                 static_cast<uint64_t> (i) * totalCyclesThisFrame / numSamples);
 
             // Process any toggles up to this sample
-            while (toggleIdx < toggleTimestamps.size () &&
+            while (toggleIdx < toggleTimestamps.size() &&
                    toggleTimestamps[toggleIdx] <= sampleCycle)
             {
                 state = -state;

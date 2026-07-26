@@ -1519,22 +1519,22 @@ void Disk2DebugPanel::RequestResetAnchor (std::chrono::steady_clock::time_point 
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void Disk2DebugPanel::OnMotorCommandOn ()
+void Disk2DebugPanel::OnMotorCommandOn()
 {
     Disk2Event  e = MakeStampedEvent (EventCategory::Controller, Disk2EventType::MotorCommandOn);
     PublishToRing (e);
 }
-void Disk2DebugPanel::OnMotorEngaged ()
+void Disk2DebugPanel::OnMotorEngaged()
 {
     Disk2Event  e = MakeStampedEvent (EventCategory::Controller, Disk2EventType::MotorEngaged);
     PublishToRing (e);
 }
-void Disk2DebugPanel::OnMotorCommandOff ()
+void Disk2DebugPanel::OnMotorCommandOff()
 {
     Disk2Event  e = MakeStampedEvent (EventCategory::Controller, Disk2EventType::MotorCommandOff);
     PublishToRing (e);
 }
-void Disk2DebugPanel::OnMotorDisengaged ()
+void Disk2DebugPanel::OnMotorDisengaged()
 {
     Disk2Event  e = MakeStampedEvent (EventCategory::Controller, Disk2EventType::MotorDisengaged);
     PublishToRing (e);

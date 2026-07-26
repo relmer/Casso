@@ -13,10 +13,10 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-DxuiRenderTarget::DxuiRenderTarget () = default;
+DxuiRenderTarget::DxuiRenderTarget() = default;
 
 
-DxuiRenderTarget::~DxuiRenderTarget ()
+DxuiRenderTarget::~DxuiRenderTarget()
 {
     // m_painter / m_textRenderer / m_device / m_context are torn down by the
     // subclass (it created them and knows the ordering vs. its swap chain);
@@ -123,7 +123,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiRenderTarget::ReleaseComposeTarget ()
+void DxuiRenderTarget::ReleaseComposeTarget()
 {
     m_contentSrv.Reset();
     m_contentRtv.Reset();

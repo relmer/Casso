@@ -35,7 +35,7 @@ static constexpr uint32_t  s_kFallbackBorder   = 0xFF445566;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-DxuiSearchBox::DxuiSearchBox ()
+DxuiSearchBox::DxuiSearchBox()
 {
     m_focusable = true;
     m_input.SetChromeless (true);
@@ -101,7 +101,7 @@ void DxuiSearchBox::SetText (const std::wstring & text)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiSearchBox::Clear ()
+void DxuiSearchBox::Clear()
 {
     m_input.SetText (L"");
     m_clearHover   = false;
@@ -467,7 +467,7 @@ bool DxuiSearchBox::OnKey (const DxuiKeyEvent & ev)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiSearchBox::RelayoutInput ()
+void DxuiSearchBox::RelayoutInput()
 {
     int   pad       = m_scaler.Px (s_kPadDip);
     int   glyphSlot = m_scaler.Px (s_kGlyphSlotDip);
@@ -496,7 +496,7 @@ void DxuiSearchBox::RelayoutInput ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool DxuiSearchBox::IsClearVisible () const
+bool DxuiSearchBox::IsClearVisible() const
 {
     return m_focused && !m_input.Text().empty();
 }
@@ -513,7 +513,7 @@ bool DxuiSearchBox::IsClearVisible () const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-RECT DxuiSearchBox::ClearGlyphRect () const
+RECT DxuiSearchBox::ClearGlyphRect() const
 {
     int  pad       = m_scaler.Px (s_kPadDip);
     int  glyphSlot = m_scaler.Px (s_kGlyphSlotDip);
@@ -549,7 +549,7 @@ bool DxuiSearchBox::HitTestClear (int x, int y) const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiSearchBox::FireChange ()
+void DxuiSearchBox::FireChange()
 {
     if (m_change)
     {

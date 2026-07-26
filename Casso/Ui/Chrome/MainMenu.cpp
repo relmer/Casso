@@ -54,7 +54,7 @@ namespace
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-MainMenu::MainMenu ()
+MainMenu::MainMenu()
 {
     Rebuild();
 }
@@ -68,7 +68,7 @@ MainMenu::MainMenu ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-MainMenu::~MainMenu ()
+MainMenu::~MainMenu()
 {
 }
 
@@ -111,7 +111,7 @@ void MainMenu::SetCheckQuery (CheckFn query)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::span<const MainMenuCommandEntry> MainMenu::GetCommandEntries ()
+std::span<const MainMenuCommandEntry> MainMenu::GetCommandEntries()
 {
     return std::span<const MainMenuCommandEntry> (s_kEntries, std::size (s_kEntries));
 }
@@ -150,7 +150,7 @@ const wchar_t * MainMenu::GetMenuName (MainMenuId menu)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::string MainMenu::EmitParityMarkdown ()
+std::string MainMenu::EmitParityMarkdown()
 {
     std::ostringstream  os;
 
@@ -219,7 +219,7 @@ bool MainMenu::IsSeparator (const MainMenuCommandEntry & entry)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void MainMenu::Show ()
+void MainMenu::Show()
 {
 }
 
@@ -306,7 +306,7 @@ void MainMenu::PaintDropdown (
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void MainMenu::Rebuild ()
+void MainMenu::Rebuild()
 {
     std::vector<DxuiMenuBarItem>  items;
 

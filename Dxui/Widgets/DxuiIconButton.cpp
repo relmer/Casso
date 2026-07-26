@@ -76,7 +76,7 @@ void DxuiIconButton::SetMouse (int x, int y, bool down)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiIconButton::Click ()
+void DxuiIconButton::Click()
 {
     if (m_visible && m_enabled && m_click)
     {

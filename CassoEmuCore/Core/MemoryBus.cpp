@@ -196,7 +196,7 @@ void MemoryBus::AddDevice (MemoryDevice * device)
 
     m_entries.insert (it, entry);
 
-    BuildIoDeviceMap ();
+    BuildIoDeviceMap();
 }
 
 
@@ -221,7 +221,7 @@ void MemoryBus::RemoveDevice (MemoryDevice * device)
 
     m_entries.erase (it, m_entries.end());
 
-    BuildIoDeviceMap ();
+    BuildIoDeviceMap();
 }
 
 
@@ -277,11 +277,11 @@ void MemoryBus::Reset()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void MemoryBus::SoftResetAll ()
+void MemoryBus::SoftResetAll()
 {
     for (auto & entry : m_entries)
     {
-        entry.device->SoftReset ();
+        entry.device->SoftReset();
     }
 
     m_floatingBusValue = 0xFF;
@@ -352,16 +352,16 @@ MemoryDevice * MemoryBus::FindDevice (Word address) const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void MemoryBus::BuildIoDeviceMap ()
+void MemoryBus::BuildIoDeviceMap()
 {
-    fill (m_ioDeviceMap.begin (), m_ioDeviceMap.end (), nullptr);
+    fill (m_ioDeviceMap.begin(), m_ioDeviceMap.end(), nullptr);
 
     // Paint each device's footprint in $C000-$FFFF into the map. Walking the
     // entries from highest start address down to lowest lets a lower-start
     // device overwrite any overlap, so a lookup returns exactly what the
     // linear "first match wins" scan would (m_entries is sorted ascending by
     // start). Ranges below $C000 (main RAM) contribute nothing to the I/O map.
-    for (auto it = m_entries.rbegin (); it != m_entries.rend (); ++it)
+    for (auto it = m_entries.rbegin(); it != m_entries.rend(); ++it)
     {
         int lo = max<int> (it->start, kIoMapBase);
         int hi = it->end;

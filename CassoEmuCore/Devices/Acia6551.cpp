@@ -41,11 +41,11 @@ Byte Acia6551::Read (Word address)
     switch (reg)
     {
     case kRegData:
-        result = ReadData ();
+        result = ReadData();
         break;
 
     case kRegStatus:
-        result = ReadStatus ();
+        result = ReadStatus();
         break;
 
     case kRegCommand:
@@ -87,20 +87,20 @@ void Acia6551::Write (Word address, Byte value)
         break;
 
     case kRegStatus:
-        ProgrammedReset ();
+        ProgrammedReset();
         break;
 
     case kRegCommand:
         m_command = value;
 
-        if (TxIrqEnabled () && (m_status & kStatusTxEmpty))
+        if (TxIrqEnabled() && (m_status & kStatusTxEmpty))
         {
-            RaiseIrq ();
+            RaiseIrq();
         }
 
-        if (RxIrqEnabled () && (m_status & kStatusRxFull))
+        if (RxIrqEnabled() && (m_status & kStatusRxFull))
         {
-            RaiseIrq ();
+            RaiseIrq();
         }
         break;
 
@@ -122,7 +122,7 @@ void Acia6551::Write (Word address, Byte value)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void Acia6551::Reset ()
+void Acia6551::Reset()
 {
     ResetState (true);
 }
@@ -139,7 +139,7 @@ void Acia6551::Reset ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void Acia6551::SoftReset ()
+void Acia6551::SoftReset()
 {
     ResetState (true);
 }
@@ -207,9 +207,9 @@ void Acia6551::ReceiveByte (Byte value)
     m_rxData  = value;
     m_status |= kStatusRxFull;
 
-    if (RxIrqEnabled ())
+    if (RxIrqEnabled())
     {
-        RaiseIrq ();
+        RaiseIrq();
     }
 }
 
@@ -224,7 +224,7 @@ void Acia6551::ReceiveByte (Byte value)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-int Acia6551::GetWordLengthBits () const
+int Acia6551::GetWordLengthBits() const
 {
     int   selector = (m_control & kControlWordLenMask) >> kControlWordLenShift;
 
@@ -259,7 +259,7 @@ void Acia6551::ResetState (bool hardware)
         m_command &= kCommandParityMask;
     }
 
-    LowerIrq ();
+    LowerIrq();
 }
 
 
@@ -271,7 +271,7 @@ void Acia6551::ResetState (bool hardware)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void Acia6551::ProgrammedReset ()
+void Acia6551::ProgrammedReset()
 {
     ResetState (false);
 }
@@ -285,7 +285,7 @@ void Acia6551::ProgrammedReset ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-Byte Acia6551::ReadData ()
+Byte Acia6551::ReadData()
 {
     m_status &= ~kStatusRxFull;
 
@@ -303,11 +303,11 @@ Byte Acia6551::ReadData ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-Byte Acia6551::ReadStatus ()
+Byte Acia6551::ReadStatus()
 {
     Byte   snapshot = m_status;
 
-    LowerIrq ();
+    LowerIrq();
 
     return snapshot;
 }
@@ -334,9 +334,9 @@ void Acia6551::WriteData (Byte value)
 
     m_status |= kStatusTxEmpty;
 
-    if (TxIrqEnabled ())
+    if (TxIrqEnabled())
     {
-        RaiseIrq ();
+        RaiseIrq();
     }
 }
 
@@ -349,7 +349,7 @@ void Acia6551::WriteData (Byte value)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void Acia6551::RaiseIrq ()
+void Acia6551::RaiseIrq()
 {
     m_status |= kStatusIrq;
 
@@ -368,7 +368,7 @@ void Acia6551::RaiseIrq ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void Acia6551::LowerIrq ()
+void Acia6551::LowerIrq()
 {
     m_status &= ~kStatusIrq;
 
@@ -389,7 +389,7 @@ void Acia6551::LowerIrq ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool Acia6551::RxIrqEnabled () const
+bool Acia6551::RxIrqEnabled() const
 {
     return (m_command & kCommandDtr) && !(m_command & kCommandRxIrqDisable);
 }
@@ -406,7 +406,7 @@ bool Acia6551::RxIrqEnabled () const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool Acia6551::TxIrqEnabled () const
+bool Acia6551::TxIrqEnabled() const
 {
     return (m_command & kCommandDtr) && ((m_command & kCommandTicMask) == kCommandTicTxIrqOn);
 }

@@ -316,15 +316,15 @@ static HRESULT LoadMachineConfig (
         JsonParseError   parseErr;
 
         if (SUCCEEDED (JsonParser::Parse (jsonText, defaultJson, parseErr)) &&
-            SUCCEEDED (storeMerge.Load (fs::path (machineName).string (), defaultJson, fsMerge, mergedJson)) &&
-            mergedJson.GetType () == JsonType::Object)
+            SUCCEEDED (storeMerge.Load (fs::path (machineName).string(), defaultJson, fsMerge, mergedJson)) &&
+            mergedJson.GetType() == JsonType::Object)
         {
             jsonText = JsonWriter::Write (mergedJson);
         }
     }
 
     hr = MachineConfigLoader::Load (jsonText,
-                                    fs::path (machineName).string (),
+                                    fs::path (machineName).string(),
                                     romSearchPaths,
                                     outConfig,
                                     error);

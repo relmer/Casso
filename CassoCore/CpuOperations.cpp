@@ -535,7 +535,7 @@ void CpuOperations::Push (Cpu & cpu, Byte * pSourceRegister)
 
 void CpuOperations::Pull (Cpu & cpu, Byte * pDestinationRegister)
 {
-    Byte value = cpu.PopByte ();
+    Byte value = cpu.PopByte();
 
     if (pDestinationRegister == &cpu.status.status)
     {
@@ -564,11 +564,11 @@ void CpuOperations::Pull (Cpu & cpu, Byte * pDestinationRegister)
 
 void CpuOperations::ReturnFromInterrupt (Cpu & cpu)
 {
-    Byte pulled      = cpu.PopByte ();
+    Byte pulled      = cpu.PopByte();
     Byte preserved   = cpu.status.status & 0x30;
     cpu.status.status = (pulled & ~0x30) | preserved;
 
-    cpu.PC = cpu.PopWord ();
+    cpu.PC = cpu.PopWord();
 }
 
 
@@ -583,7 +583,7 @@ void CpuOperations::ReturnFromInterrupt (Cpu & cpu)
 
 void CpuOperations::ReturnFromSubroutine (Cpu & cpu)
 {
-    cpu.PC = cpu.PopWord () + 1;
+    cpu.PC = cpu.PopWord() + 1;
 }
 
 

@@ -136,7 +136,7 @@ bool DxuiTextInput::OnKey (WPARAM vk)
 {
     bool  consumed = false;
     bool  shift    = Shift   ();
-    bool  ctrl     = Control ();
+    bool  ctrl     = Control();
 
 
     if (!m_focused || !m_enabled)
@@ -468,7 +468,7 @@ void DxuiTextInput::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) con
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiTextInput::ClampCaret ()
+void DxuiTextInput::ClampCaret()
 {
     if (m_caret > m_text.size())
     {
@@ -535,7 +535,7 @@ size_t DxuiTextInput::CaretFromX (IDxuiTextRenderer & text, int xPx) const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiTextInput::DeleteSelection ()
+void DxuiTextInput::DeleteSelection()
 {
     size_t  selStart = std::min (m_caret, m_anchor);
     size_t  selEnd   = std::max (m_caret, m_anchor);
@@ -594,7 +594,7 @@ void DxuiTextInput::InsertText (const std::wstring & ins)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiTextInput::CopyToClipboard () const
+void DxuiTextInput::CopyToClipboard() const
 {
     size_t        selStart = std::min (m_caret, m_anchor);
     size_t        selEnd   = std::max (m_caret, m_anchor);
@@ -659,7 +659,7 @@ void DxuiTextInput::CopyToClipboard () const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiTextInput::PasteFromClipboard ()
+void DxuiTextInput::PasteFromClipboard()
 {
     HANDLE        hData = nullptr;
     wchar_t     * pBuf  = nullptr;
@@ -713,7 +713,7 @@ void DxuiTextInput::PasteFromClipboard ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiTextInput::FireChange ()
+void DxuiTextInput::FireChange()
 {
     if (m_change)
     {

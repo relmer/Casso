@@ -24,8 +24,8 @@ public:
         HRESULT hr = JsonParser::Parse ("\"hello\"", value, error);
 
         Assert::IsTrue (SUCCEEDED (hr));
-        Assert::IsTrue (value.GetType () == JsonType::String);
-        Assert::AreEqual (std::string ("hello"), value.GetString ());
+        Assert::IsTrue (value.GetType() == JsonType::String);
+        Assert::AreEqual (std::string ("hello"), value.GetString());
     }
 
     TEST_METHOD (Parse_Number_Integer)
@@ -35,8 +35,8 @@ public:
         HRESULT hr = JsonParser::Parse ("42", value, error);
 
         Assert::IsTrue (SUCCEEDED (hr));
-        Assert::IsTrue (value.GetType () == JsonType::Number);
-        Assert::AreEqual (42, value.GetInt ());
+        Assert::IsTrue (value.GetType() == JsonType::Number);
+        Assert::AreEqual (42, value.GetInt());
     }
 
     TEST_METHOD (Parse_Number_Hex)
@@ -46,7 +46,7 @@ public:
         HRESULT hr = JsonParser::Parse ("0xC000", value, error);
 
         Assert::IsTrue (SUCCEEDED (hr));
-        Assert::AreEqual (0xC000, value.GetInt ());
+        Assert::AreEqual (0xC000, value.GetInt());
     }
 
     TEST_METHOD (Parse_Boolean_True)
@@ -56,8 +56,8 @@ public:
         HRESULT hr = JsonParser::Parse ("true", value, error);
 
         Assert::IsTrue (SUCCEEDED (hr));
-        Assert::IsTrue (value.GetType () == JsonType::Bool);
-        Assert::IsTrue (value.GetBool ());
+        Assert::IsTrue (value.GetType() == JsonType::Bool);
+        Assert::IsTrue (value.GetBool());
     }
 
     TEST_METHOD (Parse_Boolean_False)
@@ -67,7 +67,7 @@ public:
         HRESULT hr = JsonParser::Parse ("false", value, error);
 
         Assert::IsTrue (SUCCEEDED (hr));
-        Assert::IsFalse (value.GetBool ());
+        Assert::IsFalse (value.GetBool());
     }
 
     TEST_METHOD (Parse_Null)
@@ -77,7 +77,7 @@ public:
         HRESULT hr = JsonParser::Parse ("null", value, error);
 
         Assert::IsTrue (SUCCEEDED (hr));
-        Assert::IsTrue (value.GetType () == JsonType::Null);
+        Assert::IsTrue (value.GetType() == JsonType::Null);
     }
 
     TEST_METHOD (Parse_EmptyObject)
@@ -87,7 +87,7 @@ public:
         HRESULT hr = JsonParser::Parse ("{}", value, error);
 
         Assert::IsTrue (SUCCEEDED (hr));
-        Assert::IsTrue (value.GetType () == JsonType::Object);
+        Assert::IsTrue (value.GetType() == JsonType::Object);
     }
 
     TEST_METHOD (Parse_EmptyArray)
@@ -97,8 +97,8 @@ public:
         HRESULT hr = JsonParser::Parse ("[]", value, error);
 
         Assert::IsTrue (SUCCEEDED (hr));
-        Assert::IsTrue (value.GetType () == JsonType::Array);
-        Assert::AreEqual (size_t (0), value.ArraySize ());
+        Assert::IsTrue (value.GetType() == JsonType::Array);
+        Assert::AreEqual (size_t (0), value.ArraySize());
     }
 
     TEST_METHOD (Parse_NestedObject)
@@ -117,7 +117,7 @@ public:
             "{\"name\": \"test\", \"count\": 5, \"nested\": {\"a\": 1}}", value, error);
 
         Assert::IsTrue (SUCCEEDED (hr));
-        Assert::IsTrue (value.GetType () == JsonType::Object);
+        Assert::IsTrue (value.GetType() == JsonType::Object);
 
         Assert::IsTrue (SUCCEEDED (value.GetString ("name", name)));
         Assert::AreEqual (std::string ("test"), name);
@@ -137,10 +137,10 @@ public:
         HRESULT hr = JsonParser::Parse ("[1, \"two\", true]", value, error);
 
         Assert::IsTrue (SUCCEEDED (hr));
-        Assert::AreEqual (size_t (3), value.ArraySize ());
-        Assert::AreEqual (1, value.ArrayAt (0).GetInt ());
-        Assert::AreEqual (std::string ("two"), value.ArrayAt (1).GetString ());
-        Assert::IsTrue (value.ArrayAt (2).GetBool ());
+        Assert::AreEqual (size_t (3), value.ArraySize());
+        Assert::AreEqual (1, value.ArrayAt (0).GetInt());
+        Assert::AreEqual (std::string ("two"), value.ArrayAt (1).GetString());
+        Assert::IsTrue (value.ArrayAt (2).GetBool());
     }
 
     TEST_METHOD (Parse_EscapedString)
@@ -150,7 +150,7 @@ public:
         HRESULT hr = JsonParser::Parse ("\"hello\\nworld\"", value, error);
 
         Assert::IsTrue (SUCCEEDED (hr));
-        Assert::AreEqual (std::string ("hello\nworld"), value.GetString ());
+        Assert::AreEqual (std::string ("hello\nworld"), value.GetString());
     }
 
     TEST_METHOD (Parse_MalformedJSON_ReportsError)

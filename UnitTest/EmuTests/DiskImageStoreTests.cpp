@@ -40,7 +40,7 @@ namespace
     {
         vector<Byte>  raw (NibblizationLayer::kImageByteSize);
 
-        for (size_t i = 0; i < raw.size (); i++)
+        for (size_t i = 0; i < raw.size(); i++)
         {
             raw[i] = static_cast<Byte> ((i * 31u + seed) & 0xFF);
         }
@@ -81,14 +81,14 @@ namespace
     // starts clean even if an assertion throws out of the body.
     struct ScopedFlushNotifyCapture
     {
-        ScopedFlushNotifyCapture ()
+        ScopedFlushNotifyCapture()
         {
             s_flushNotifyCount = 0;
-            s_flushNotifyLast.clear ();
+            s_flushNotifyLast.clear();
             SetNotifyFunction (CaptureFlushNotify);
         }
 
-        ~ScopedFlushNotifyCapture ()
+        ~ScopedFlushNotifyCapture()
         {
             SetNotifyFunction (nullptr);
         }
@@ -158,7 +158,7 @@ public:
         DiskImage *  img = store.GetImage (kSlot, kDrive);
 
         Assert::IsNotNull (img);
-        Assert::IsTrue   (img->GetSourceFormat () == DiskFormat::Woz);
+        Assert::IsTrue   (img->GetSourceFormat() == DiskFormat::Woz);
         Assert::AreEqual (size_t (51200), img->GetTrackBitCount (0));
     }
 
@@ -182,7 +182,7 @@ public:
 
         // Mark dirty by writing a bit through the public API.
         store.GetImage (kSlot, kDrive)->WriteBit (0, 0, 1);
-        Assert::IsTrue (store.GetImage (kSlot, kDrive)->IsDirty ());
+        Assert::IsTrue (store.GetImage (kSlot, kDrive)->IsDirty());
 
         store.Eject (kSlot, kDrive);
 
@@ -229,7 +229,7 @@ public:
         store.GetImage (5, 0)->WriteBit (0, 0, 1);
         // (6,1) intentionally clean.
 
-        Assert::IsTrue (SUCCEEDED (store.FlushAll ()));
+        Assert::IsTrue (SUCCEEDED (store.FlushAll()));
         Assert::AreEqual (2, flushCount, L"FlushAll must flush exactly the dirty mounts");
 
         // Mounts persist after FlushAll.
@@ -314,10 +314,10 @@ public:
         Assert::IsTrue (SUCCEEDED (store.MountFromBytes (kSlot, kDrive, "x.dsk", DiskFormat::Dsk, raw)));
 
         store.GetImage (kSlot, kDrive)->WriteBit (0, 0, 1);
-        Assert::IsTrue (store.GetImage (kSlot, kDrive)->IsDirty ());
+        Assert::IsTrue (store.GetImage (kSlot, kDrive)->IsDirty());
 
-        Assert::IsTrue (SUCCEEDED (store.FlushAll ()));
-        Assert::IsFalse (store.GetImage (kSlot, kDrive)->IsDirty (),
+        Assert::IsTrue (SUCCEEDED (store.FlushAll()));
+        Assert::IsFalse (store.GetImage (kSlot, kDrive)->IsDirty(),
             L"FlushAll must clear dirty bits after successful sink write");
     }
 
@@ -336,7 +336,7 @@ public:
         Assert::IsTrue (SUCCEEDED (store.MountFromBytes (kSlot, kDrive, "x.dsk", DiskFormat::Dsk, raw)));
         store.GetImage (kSlot, kDrive)->WriteBit (0, 0, 1);
 
-        store.SoftReset ();
+        store.SoftReset();
 
         Assert::IsTrue (invoked,            L"FR-034: SoftReset must flush dirty images");
         Assert::IsTrue (store.IsMounted (kSlot, kDrive),
@@ -360,7 +360,7 @@ public:
 
         store.GetImage (6, 0)->WriteBit (0, 0, 1);
 
-        store.PowerCycle ();
+        store.PowerCycle();
 
         Assert::AreEqual (1, flushed, L"FR-035: PowerCycle must flush only dirty mounts");
         Assert::IsFalse (store.IsMounted (6, 0));
@@ -385,7 +385,7 @@ public:
         store.GetImage (kSlot, kDrive)->WriteBit (0, 0, 1);
 
         Assert::IsTrue (SUCCEEDED (store.Flush (kSlot, kDrive)));
-        Assert::AreEqual (size_t (NibblizationLayer::kImageByteSize), captured.size (),
+        Assert::AreEqual (size_t (NibblizationLayer::kImageByteSize), captured.size(),
             L"Flushed payload must be 143360 bytes for DSK");
     }
 
@@ -450,7 +450,7 @@ public:
     TEST_METHOD (Flush_WozGuestWriteSurvivesReloadThroughStore)
     {
         DiskImageStore   store;
-        vector<Byte>     woz        = MakeWoz ();
+        vector<Byte>     woz        = MakeWoz();
         vector<Byte>     captured;
         const size_t     flippedBit = 200;
 
@@ -492,7 +492,7 @@ public:
         store.GetImage (6, 0)->WriteBit (0, 0, 1);
         store.GetImage (6, 1)->WriteBit (0, 0, 1);
 
-        store.FlushAll ();
+        store.FlushAll();
         Assert::AreEqual (2, s_flushNotifyCount, L"FlushAll must notify for each dirty mount that fails");
     }
 
@@ -507,7 +507,7 @@ public:
         Assert::IsTrue (SUCCEEDED (store.MountFromBytes (6, 0, "a.dsk", DiskFormat::Dsk, raw)));
         store.GetImage (6, 0)->WriteBit (0, 0, 1);   // (6,1) clean
 
-        store.PowerCycle ();
+        store.PowerCycle();
         Assert::AreEqual (1, s_flushNotifyCount, L"PowerCycle must notify for the dirty mount that fails");
     }
 
@@ -523,7 +523,7 @@ public:
     TEST_METHOD (MotorOffFlush_persistsDirtyWozThroughStore)
     {
         DiskImageStore   store;
-        vector<Byte>     woz        = MakeWoz ();
+        vector<Byte>     woz        = MakeWoz();
         vector<Byte>     captured;
         bool             flushed    = false;
         const size_t     flippedBit = 200;
@@ -539,7 +539,7 @@ public:
         store.GetImage (6, 0)->WriteBit (0, flippedBit, 0);   // dirty guest write
 
         Disk2Controller  ctrl (6);
-        ctrl.SetMotorOffFlushCallback ([&] () { store.FlushAll (); });
+        ctrl.SetMotorOffFlushCallback ([&] () { store.FlushAll(); });
 
         ctrl.Write (0xC0E9, 0x00);    // motor on
         ctrl.Write (0xC0E8, 0x00);    // motor off (arm spindown)

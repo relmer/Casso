@@ -358,7 +358,7 @@ void ClipboardManager::PasteFromClipboard (HWND hwnd)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ClipboardManager::DrainPasteBuffer ()
+void ClipboardManager::DrainPasteBuffer()
 {
     AppleKeyboard  * keyboard = nullptr;
     Byte             ch       = 0;

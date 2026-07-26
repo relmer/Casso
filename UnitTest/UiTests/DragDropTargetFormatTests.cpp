@@ -59,12 +59,12 @@ namespace
             return E_NOINTERFACE;
         }
 
-        STDMETHODIMP_(ULONG) AddRef () override
+        STDMETHODIMP_(ULONG) AddRef() override
         {
             return m_ref.fetch_add (1, std::memory_order_acq_rel) + 1;
         }
 
-        STDMETHODIMP_(ULONG) Release () override
+        STDMETHODIMP_(ULONG) Release() override
         {
             return m_ref.fetch_sub (1, std::memory_order_acq_rel) - 1;
         }

@@ -60,7 +60,7 @@ HRESULT MockAudioSink::PushSamples (const float * samples, size_t count)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void MockAudioSink::Clear ()
+void MockAudioSink::Clear()
 {
     m_toggleCount = 0;
     m_sampleCount = 0;

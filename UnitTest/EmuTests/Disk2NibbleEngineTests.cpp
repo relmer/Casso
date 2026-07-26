@@ -365,7 +365,7 @@ public:
             // PeekReadLatch reflects the latest assembled state.
             // We count by sampling the latch's LSB each cell -- a
             // proxy for the most-recently-shifted-in bit.
-            if ((eng.PeekReadLatch () & 0x01) != 0)
+            if ((eng.PeekReadLatch() & 0x01) != 0)
             {
                 onesCount++;
             }
@@ -406,7 +406,7 @@ public:
             engA.Tick (Disk2NibbleEngine::kCyclesPerBit);
             engB.Tick (Disk2NibbleEngine::kCyclesPerBit);
 
-            Assert::AreEqual ((int) engA.PeekReadLatch (), (int) engB.PeekReadLatch (),
+            Assert::AreEqual ((int) engA.PeekReadLatch(), (int) engB.PeekReadLatch(),
                 L"Formatted-track latch sequence must be deterministic across engines");
         }
     }
@@ -580,7 +580,7 @@ public:
             }
         }
 
-        for (b = 0; b + 2 < (int) harvested.size (); b++)
+        for (b = 0; b + 2 < (int) harvested.size(); b++)
         {
             if (harvested[b] == 0xD5 && harvested[b + 1] == 0xAA && harvested[b + 2] == 0x96)
             {

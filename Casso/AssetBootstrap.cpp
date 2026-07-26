@@ -165,7 +165,7 @@ static std::wstring MachineDisplayName (std::string_view machineId)
     if (machineId == "Apple2e")         return L"Apple //e";
     if (machineId == "Apple2eEnhanced") return L"Apple //e Enhanced";
     if (machineId == "Apple2c")         return L"Apple //c";
-    return std::wstring (machineId.begin (), machineId.end ());
+    return std::wstring (machineId.begin(), machineId.end());
 }
 
 
@@ -1190,7 +1190,7 @@ static const RomSpec * FindRomSpec (string_view machineName, string_view cassoNa
     {
         for (const RomSpec & spec : s_kRomCatalog)
         {
-            if (spec.cassoName == cassoName && spec.machineName.empty ())
+            if (spec.cassoName == cassoName && spec.machineName.empty())
             {
                 result = &spec;
                 break;
@@ -1340,7 +1340,7 @@ static HRESULT DownloadHttp (
     }
     else
     {
-        CBRF (!outBytes.empty (),
+        CBRF (!outBytes.empty(),
               outError = format ("Downloaded {} was empty", displayName));
     }
 
@@ -2352,7 +2352,7 @@ namespace
             m_closeBoxResult = closeBoxResult;
         }
 
-        int  DefaultCommandId () const { return m_defaultCommandId; }
+        int  DefaultCommandId() const { return m_defaultCommandId; }
 
         int  MapResult (int dialogResult) const
         {
@@ -2385,7 +2385,7 @@ namespace
 
 
     protected:
-        void  OnCreate () override
+        void  OnCreate() override
         {
             size_t  i = 0;
 
@@ -2876,7 +2876,7 @@ HRESULT AssetBootstrap::FetchAndDecodeOgg (
 
 
 
-    outPcm.clear ();
+    outPcm.clear();
 
     CBRF (urlPath != nullptr,
           outError = "FetchAndDecodeOgg: null URL path");
@@ -2891,7 +2891,7 @@ HRESULT AssetBootstrap::FetchAndDecodeOgg (
         size_t   slash = wUrl.find_last_of (L'/');
         wstring  tail  = (slash == wstring::npos) ? wUrl : wUrl.substr (slash + 1);
 
-        narrowName.reserve (tail.size ());
+        narrowName.reserve (tail.size());
 
         for (wchar_t wch : tail)
         {
@@ -2911,8 +2911,8 @@ HRESULT AssetBootstrap::FetchAndDecodeOgg (
     CHR (hr);
 
     hr = StbVorbisWrapper::DecodeOggToInterleavedShort (
-        oggBytes.data (),
-        oggBytes.size (),
+        oggBytes.data(),
+        oggBytes.size(),
         shortPcm,
         srcRate,
         channels,
@@ -2922,14 +2922,14 @@ HRESULT AssetBootstrap::FetchAndDecodeOgg (
     // The raw OGG bytes are not needed past this point; release them
     // before allocating the float buffer (NFR-006 -- no `.ogg` files
     // on disk, no in-memory hold past decode).
-    oggBytes.clear ();
-    oggBytes.shrink_to_fit ();
+    oggBytes.clear();
+    oggBytes.shrink_to_fit();
 
     CBRF (channels >= 1 && channels <= 2,
           outError = format ("Unsupported channel count {} (only mono and stereo handled)",
                              channels));
 
-    srcFrames = shortPcm.size () / channels;
+    srcFrames = shortPcm.size() / channels;
 
     CBRF (srcFrames > 0,
           outError = "OGG decoded to zero frames");
@@ -2955,8 +2955,8 @@ HRESULT AssetBootstrap::FetchAndDecodeOgg (
             monoSrc[i] = (float) sum / (32768.0f * (float) channels);
         }
 
-        shortPcm.clear ();
-        shortPcm.shrink_to_fit ();
+        shortPcm.clear();
+        shortPcm.shrink_to_fit();
 
         // Linear-interp resample (A-001: drive noise is broadband,
         // not pitch-critical, so we accept the cheap algorithm).
@@ -2988,7 +2988,7 @@ HRESULT AssetBootstrap::FetchAndDecodeOgg (
 Error:
     if (FAILED (hr))
     {
-        outPcm.clear ();
+        outPcm.clear();
     }
 
     return hr;
@@ -3016,7 +3016,7 @@ HRESULT AssetBootstrap::WritePcmAsWav (
     HRESULT     hr            = S_OK;
     ofstream    out;
     error_code  ec;
-    size_t      sampleCount   = pcm.size ();
+    size_t      sampleCount   = pcm.size();
     uint32_t    dataBytes     = static_cast<uint32_t> (sampleCount * sizeof (int16_t));
     uint32_t    fileSize      = 36 + dataBytes;     // RIFF chunk-content size: 4 + (8 + 16) + (8 + dataBytes)
     uint16_t    numChannels   = 1;
@@ -3035,11 +3035,11 @@ HRESULT AssetBootstrap::WritePcmAsWav (
     CBRF (sampleRate > 0,
           outError = "WritePcmAsWav: sample rate must be > 0");
 
-    fs::create_directories (outPath.parent_path (), ec);
+    fs::create_directories (outPath.parent_path(), ec);
 
     out.open (outPath, ios::binary | ios::trunc);
-    CBRF (out.good (),
-          outError = format ("Cannot open {} for writing", outPath.string ()));
+    CBRF (out.good(),
+          outError = format ("Cannot open {} for writing", outPath.string()));
 
     out.write ("RIFF", 4);
     out.write (reinterpret_cast<const char *> (&fileSize), sizeof (fileSize));
@@ -3068,10 +3068,10 @@ HRESULT AssetBootstrap::WritePcmAsWav (
         out.write (reinterpret_cast<const char *> (&sampleI16), sizeof (sampleI16));
     }
 
-    CBRF (out.good (),
-          outError = format ("Write error on {}", outPath.string ()));
+    CBRF (out.good(),
+          outError = format ("Write error on {}", outPath.string()));
 
-    out.close ();
+    out.close();
 
     // `fmtSizeWord` is unused on Windows builds; silence the analyzer
     // by referencing it.
@@ -3117,7 +3117,7 @@ HRESULT AssetBootstrap::RunStartupDownloader (
 
     UNREFERENCED_PARAMETER (hInstance);
 
-    narrowMachine.reserve (machineName.size ());
+    narrowMachine.reserve (machineName.size());
 
     for (wchar_t wch : machineName)
     {
@@ -3137,12 +3137,12 @@ HRESULT AssetBootstrap::RunStartupDownloader (
         CBRF (spec != nullptr,
               outError = format ("ROM '{}' is missing and Casso has no download "
                                  "URL for it. Place the file under {} and try again.",
-                                 romFile, assetBaseDir.string ()));
+                                 romFile, assetBaseDir.string()));
 
         relPath = fs::path (string (spec->localRelDir)) / spec->cassoName;
         found   = PathResolver::FindFile (searchPaths, relPath);
 
-        if (!found.empty ())
+        if (!found.empty())
         {
             continue;
         }
@@ -3185,7 +3185,7 @@ HRESULT AssetBootstrap::RunStartupDownloader (
 
             hr = DownloadHttp (hSes,
                                     wHost.c_str(),
-                                    wPath.c_str (),
+                                    wPath.c_str(),
                                     spec->expectedSize,
                                     spec->cassoName,
                                     payload,
@@ -3194,9 +3194,9 @@ HRESULT AssetBootstrap::RunStartupDownloader (
                                     &cancel);
             CHR (hr);
 
-            fs::create_directories (destPath.parent_path (), ecLocal);
+            fs::create_directories (destPath.parent_path(), ecLocal);
             hr = WriteFileBytes (destPath, payload);
-            CHRF (hr, err = format ("Cannot write {}", destPath.string ()));
+            CHRF (hr, err = format ("Cannot write {}", destPath.string()));
 
         Error:
             if (hSes != nullptr)
@@ -3215,7 +3215,7 @@ HRESULT AssetBootstrap::RunStartupDownloader (
         {
             StartupAssetEntry  entry;
             string             mechStr   (mechanism);
-            wstring            mechW     (mechanism.begin (), mechanism.end ());
+            wstring            mechW     (mechanism.begin(), mechanism.end());
             size_t             missingCount = 0;
 
             for (const DiskAudioSpec & spec : s_kDiskAudioCatalog)
@@ -3292,7 +3292,7 @@ HRESULT AssetBootstrap::RunStartupDownloader (
                     }
 
                     urlPath  = s_kpszOpenEmulatorPathFmt;
-                    urlPath += wstring (spec.mechanism.begin (), spec.mechanism.end ());
+                    urlPath += wstring (spec.mechanism.begin(), spec.mechanism.end());
                     urlPath += L"/";
 
                     for (char ch : spec.oggBasename)
@@ -3308,7 +3308,7 @@ HRESULT AssetBootstrap::RunStartupDownloader (
                     }
 
                     hr = AssetBootstrap::FetchAndDecodeOgg (hSes,
-                                                            urlPath.c_str (),
+                                                            urlPath.c_str(),
                                                             44100,
                                                             pcm,
                                                             err,
@@ -3324,9 +3324,9 @@ HRESULT AssetBootstrap::RunStartupDownloader (
                     if (FAILED (hr))
                     {
                         DEBUGMSG (L"Drive audio: skipping %S (%s)\n",
-                                  spec.oggBasename.data (),
-                                  wstring (err.begin (), err.end ()).c_str ());
-                        err.clear ();
+                                  spec.oggBasename.data(),
+                                  wstring (err.begin(), err.end()).c_str());
+                        err.clear();
                         hr = S_OK;
                         continue;
                     }
@@ -3338,9 +3338,9 @@ HRESULT AssetBootstrap::RunStartupDownloader (
                     if (FAILED (hr))
                     {
                         DEBUGMSG (L"Drive audio: write failed for %S (%s)\n",
-                                  spec.wavBasename.data (),
-                                  wstring (err.begin (), err.end ()).c_str ());
-                        err.clear ();
+                                  spec.wavBasename.data(),
+                                  wstring (err.begin(), err.end()).c_str());
+                        err.clear();
                         hr = S_OK;
                         continue;
                     }
@@ -3362,7 +3362,7 @@ HRESULT AssetBootstrap::RunStartupDownloader (
         }
     }
 
-    BAIL_OUT_IF (set.entries.empty (), S_OK);
+    BAIL_OUT_IF (set.entries.empty(), S_OK);
 
     result = StartupDownloadDialog::Show (hInstance, hwndParent, prefs.activeTheme,
                                           MachineDisplayName (narrowMachine), set);

@@ -61,13 +61,13 @@ namespace Apple2eFidelity
 
             cpu.InitForTest (kStartPc);
             SeedVectors (cpu);
-            cpu.Status ().flags.interruptDisable = 0;
+            cpu.Status().flags.interruptDisable = 0;
 
             iface.SetInterruptLine (CpuInterruptKind::kMaskable, true);
 
             hr = iface.Step (cycles);
             Assert::AreEqual (S_OK, hr);
-            Assert::AreEqual (kIrqHandler, cpu.RegPC (),
+            Assert::AreEqual (kIrqHandler, cpu.RegPC(),
                               L"PC should be loaded from $FFFE/$FFFF");
             Assert::AreEqual (static_cast<uint32_t> (7), cycles,
                               L"IRQ dispatch should consume 7 cycles");
@@ -86,14 +86,14 @@ namespace Apple2eFidelity
             cpu.InitForTest (kStartPc);
             SeedVectors (cpu);
             cpu.Poke (kStartPc, 0xEA);  // NOP
-            cpu.Status ().flags.interruptDisable = 1;
+            cpu.Status().flags.interruptDisable = 1;
 
             iface.SetInterruptLine (CpuInterruptKind::kMaskable, true);
 
             hr = iface.Step (cycles);
             Assert::AreEqual (S_OK, hr);
 
-            Assert::AreEqual (static_cast<Word> (kStartPc + 1), cpu.RegPC (),
+            Assert::AreEqual (static_cast<Word> (kStartPc + 1), cpu.RegPC(),
                               L"With I=1, IRQ must be ignored and NOP must run");
         }
 
@@ -114,14 +114,14 @@ namespace Apple2eFidelity
             cpu.InitForTest (kStartPc);
             SeedVectors (cpu);
 
-            cpu.RegSP () = 0xFF;
-            cpu.Status ().status               = 0;
-            cpu.Status ().flags.alwaysOne      = 1;
-            cpu.Status ().flags.carry          = 1;
-            cpu.Status ().flags.zero           = 1;
-            cpu.Status ().flags.interruptDisable = 0;
+            cpu.RegSP() = 0xFF;
+            cpu.Status().status               = 0;
+            cpu.Status().flags.alwaysOne      = 1;
+            cpu.Status().flags.carry          = 1;
+            cpu.Status().flags.zero           = 1;
+            cpu.Status().flags.interruptDisable = 0;
 
-            spBefore = cpu.RegSP ();
+            spBefore = cpu.RegSP();
 
             iface.SetInterruptLine (CpuInterruptKind::kMaskable, true);
 
@@ -137,7 +137,7 @@ namespace Apple2eFidelity
                               L"PCH must be pushed first");
             Assert::AreEqual (static_cast<Byte> (kStartPc & 0xFF), pushedLo,
                               L"PCL must be pushed second");
-            Assert::AreEqual (static_cast<Byte> (spBefore - 3), cpu.RegSP (),
+            Assert::AreEqual (static_cast<Byte> (spBefore - 3), cpu.RegSP(),
                               L"SP should drop by 3 (PCH + PCL + P)");
 
             // B (0x10) cleared on hardware IRQ; U (0x20) always set on push;
@@ -164,7 +164,7 @@ namespace Apple2eFidelity
 
             cpu.InitForTest (kStartPc);
             SeedVectors (cpu);
-            cpu.Status ().flags.interruptDisable = 0;
+            cpu.Status().flags.interruptDisable = 0;
 
             iface.SetInterruptLine (CpuInterruptKind::kMaskable, true);
 
@@ -172,7 +172,7 @@ namespace Apple2eFidelity
             Assert::AreEqual (S_OK, hr);
 
             Assert::AreEqual (static_cast<Byte> (1),
-                              static_cast<Byte> (cpu.Status ().flags.interruptDisable),
+                              static_cast<Byte> (cpu.Status().flags.interruptDisable),
                               L"I flag must be set after IRQ entry");
         }
 
@@ -189,7 +189,7 @@ namespace Apple2eFidelity
             cpu.InitForTest (kStartPc);
             SeedVectors (cpu);
             cpu.Poke (kStartPc, 0xEA);  // NOP
-            cpu.Status ().flags.interruptDisable = 0;
+            cpu.Status().flags.interruptDisable = 0;
 
             iface.SetInterruptLine (CpuInterruptKind::kMaskable, true);
             iface.SetInterruptLine (CpuInterruptKind::kMaskable, false);
@@ -197,7 +197,7 @@ namespace Apple2eFidelity
             hr = iface.Step (cycles);
             Assert::AreEqual (S_OK, hr);
 
-            Assert::AreEqual (static_cast<Word> (kStartPc + 1), cpu.RegPC (),
+            Assert::AreEqual (static_cast<Word> (kStartPc + 1), cpu.RegPC(),
                               L"Cleared IRQ must not dispatch — NOP must execute");
         }
 
@@ -213,14 +213,14 @@ namespace Apple2eFidelity
 
             cpu.InitForTest (kStartPc);
             SeedVectors (cpu);
-            cpu.Status ().flags.interruptDisable = 1;
+            cpu.Status().flags.interruptDisable = 1;
 
             iface.SetInterruptLine (CpuInterruptKind::kNonMaskable, true);
 
             hr = iface.Step (cycles);
             Assert::AreEqual (S_OK, hr);
 
-            Assert::AreEqual (kNmiHandler, cpu.RegPC (),
+            Assert::AreEqual (kNmiHandler, cpu.RegPC(),
                               L"NMI must dispatch via $FFFA regardless of I flag");
             Assert::AreEqual (static_cast<uint32_t> (7), cycles,
                               L"NMI dispatch should consume 7 cycles");

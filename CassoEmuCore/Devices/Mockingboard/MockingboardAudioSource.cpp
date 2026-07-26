@@ -30,7 +30,7 @@ void MockingboardAudioSource::GeneratePCM (float * outMono, uint32_t numSamples)
 
     for (i = 0; i < numSamples; i++)
     {
-        raw      = m_psg->GenerateSample ();
+        raw      = m_psg->GenerateSample();
         filtered = raw - m_dcPrevIn + kDcBlockPole * m_dcPrevOut;
 
         m_dcPrevIn  = raw;

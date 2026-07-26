@@ -42,9 +42,9 @@ size_t PrinterJob::Drain (vector<PrinterEvent> & outEvents)
 }
 
 
-uint32_t PrinterJob::Pending () const
+uint32_t PrinterJob::Pending() const
 {
-    return m_ring.ApproxSize ();
+    return m_ring.ApproxSize();
 }
 
 

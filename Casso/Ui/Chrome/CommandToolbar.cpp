@@ -57,7 +57,7 @@ static constexpr wchar_t  s_kGlyphPrint      = L'\uE749';   // printer (monoline
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-CommandToolbar::CommandToolbar ()
+CommandToolbar::CommandToolbar()
 {
     m_focusable = false;
 
@@ -452,7 +452,7 @@ bool CommandToolbar::OnToolbarMouseMove (int x, int y, bool leftDown)
 }
 
 
-void CommandToolbar::OnToolbarMouseLeave ()
+void CommandToolbar::OnToolbarMouseLeave()
 {
     for (Button & btn : m_buttons)
     {

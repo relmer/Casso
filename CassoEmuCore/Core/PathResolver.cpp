@@ -117,14 +117,14 @@ fs::path PathResolver::FindOrCreateAssetDir (
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-fs::path PathResolver::GetExecutableDirectory ()
+fs::path PathResolver::GetExecutableDirectory()
 {
     wchar_t buf[MAX_PATH] = {};
 
 
 
     GetModuleFileNameW (nullptr, buf, MAX_PATH);
-    return fs::path (buf).parent_path ();
+    return fs::path (buf).parent_path();
 }
 
 
@@ -137,9 +137,9 @@ fs::path PathResolver::GetExecutableDirectory ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-fs::path PathResolver::GetWorkingDirectory ()
+fs::path PathResolver::GetWorkingDirectory()
 {
-    return fs::current_path ();
+    return fs::current_path();
 }
 
 

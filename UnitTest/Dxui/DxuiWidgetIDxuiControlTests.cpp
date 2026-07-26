@@ -57,7 +57,7 @@ namespace
 
 
     template <class TWidget>
-    void  VerifyLayoutSetsBounds ()
+    void  VerifyLayoutSetsBounds()
     {
         TWidget        widget;
         DxuiDpiScaler  scaler;
@@ -75,7 +75,7 @@ namespace
 
 
     template <class TWidget>
-    void  VerifyPaintIsCallable ()
+    void  VerifyPaintIsCallable()
     {
         TWidget              widget;
         DxuiDpiScaler        scaler;
@@ -95,7 +95,7 @@ namespace
 
 
     template <class TWidget>
-    void  VerifyAddsIntoPanel ()
+    void  VerifyAddsIntoPanel()
     {
         DxuiPanel   panel;
         TWidget &   child = panel.Add<TWidget>();

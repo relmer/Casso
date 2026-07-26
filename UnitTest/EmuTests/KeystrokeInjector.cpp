@@ -27,23 +27,23 @@ namespace
         uint64_t   target;
         int        i;
 
-        target = core.cpu->GetTotalCycles () + cycleBudget;
+        target = core.cpu->GetTotalCycles() + cycleBudget;
 
-        while (core.cpu->GetTotalCycles () < target)
+        while (core.cpu->GetTotalCycles() < target)
         {
-            if (core.keyboard->IsStrobeClear ())
+            if (core.keyboard->IsStrobeClear())
             {
                 return true;
             }
 
             for (i = 0; i < kPumpBatchSize; i++)
             {
-                core.cpu->StepOne ();
-                core.cpu->AddCycles (core.cpu->GetLastInstructionCycles ());
+                core.cpu->StepOne();
+                core.cpu->AddCycles (core.cpu->GetLastInstructionCycles());
             }
         }
 
-        return core.keyboard->IsStrobeClear ();
+        return core.keyboard->IsStrobeClear();
     }
 }
 
@@ -62,7 +62,7 @@ bool KeystrokeInjector::InjectKey (
     Byte             ch,
     uint64_t         cycleBudget)
 {
-    if (!core.HasApple2e ())
+    if (!core.HasApple2e())
     {
         return false;
     }
@@ -95,7 +95,7 @@ size_t KeystrokeInjector::InjectString (
     size_t   consumed = 0;
     size_t   i;
 
-    for (i = 0; i < text.size (); i++)
+    for (i = 0; i < text.size(); i++)
     {
         if (!InjectKey (core, static_cast<Byte> (text[i]), keyCycles))
         {
@@ -127,7 +127,7 @@ size_t KeystrokeInjector::InjectLine (
 
     consumed = InjectString (core, text, kPerKeyCycleBudget);
 
-    if (consumed != text.size ())
+    if (consumed != text.size())
     {
         return consumed;
     }

@@ -44,7 +44,7 @@ namespace Apple2eFidelityIc
 
         bool        IrqAsserted    () const { return m_irqAsserted; }
         bool        NmiAsserted    () const { return m_nmiAsserted; }
-        int         IrqUpdateCount () const { return m_irqUpdateCount; }
+        int         IrqUpdateCount() const { return m_irqUpdateCount; }
 
     private:
         bool    m_irqAsserted    = false;
@@ -77,13 +77,13 @@ namespace Apple2eFidelityIc
             hr = ic.RegisterSource (id);
             Assert::AreEqual (S_OK, hr);
 
-            Assert::IsFalse (cpu.IrqAsserted (), L"Pre-assert: line clear");
+            Assert::IsFalse (cpu.IrqAsserted(), L"Pre-assert: line clear");
 
             ic.Assert (id);
-            Assert::IsTrue  (cpu.IrqAsserted (), L"Assert should drive line");
+            Assert::IsTrue  (cpu.IrqAsserted(), L"Assert should drive line");
 
             ic.Clear (id);
-            Assert::IsFalse (cpu.IrqAsserted (), L"Clear should drop line");
+            Assert::IsFalse (cpu.IrqAsserted(), L"Clear should drop line");
         }
 
 
@@ -106,8 +106,8 @@ namespace Apple2eFidelityIc
             ic.Assert (b);
             ic.Assert (c);
 
-            Assert::IsTrue (cpu.IrqAsserted ());
-            Assert::IsTrue (ic.IsAnyAsserted ());
+            Assert::IsTrue (cpu.IrqAsserted());
+            Assert::IsTrue (ic.IsAnyAsserted());
         }
 
 
@@ -126,14 +126,14 @@ namespace Apple2eFidelityIc
 
             ic.Assert (a);
             ic.Assert (b);
-            Assert::IsTrue (cpu.IrqAsserted ());
+            Assert::IsTrue (cpu.IrqAsserted());
 
             ic.Clear (a);
-            Assert::IsTrue (cpu.IrqAsserted (),
+            Assert::IsTrue (cpu.IrqAsserted(),
                             L"Line must remain asserted while another source is asserting");
 
             ic.Clear (b);
-            Assert::IsFalse (cpu.IrqAsserted (),
+            Assert::IsFalse (cpu.IrqAsserted(),
                              L"Line drops only when all sources are clear");
         }
 
@@ -163,7 +163,7 @@ namespace Apple2eFidelityIc
 
             // Asserting an out-of-range / never-registered token is a no-op.
             ic.Assert (200);
-            Assert::IsFalse (cpu.IrqAsserted (),
+            Assert::IsFalse (cpu.IrqAsserted(),
                              L"Unregistered source must not drive the line");
         }
 
@@ -177,16 +177,16 @@ namespace Apple2eFidelityIc
 
 
 
-            hr = asserter.Bind ();
+            hr = asserter.Bind();
             Assert::AreEqual (S_OK, hr);
-            Assert::IsTrue (asserter.IsBound ());
+            Assert::IsTrue (asserter.IsBound());
 
-            asserter.Assert ();
-            Assert::IsTrue (cpu.IrqAsserted (),
+            asserter.Assert();
+            Assert::IsTrue (cpu.IrqAsserted(),
                             L"MockIrqAsserter::Assert must drive the line");
 
-            asserter.Clear ();
-            Assert::IsFalse (cpu.IrqAsserted (),
+            asserter.Clear();
+            Assert::IsFalse (cpu.IrqAsserted(),
                              L"MockIrqAsserter::Clear must drop the line");
         }
     };

@@ -120,7 +120,7 @@ HRESULT MachineConfigLoader::ParseCapabilityFlag (
 
 
 
-    if (str.empty ())
+    if (str.empty())
     {
         outFlag = defaultFlag;
     }
@@ -229,16 +229,16 @@ static HRESULT ResolveRomFile (
 
 
 
-    CBRF (!found.empty (),
+    CBRF (!found.empty(),
           outError = format ("ROM file not found: {}. "
                              "Place the file under the appropriate per-machine or per-device folder.",
-                             romRelPath.string ()));
+                             romRelPath.string()));
 
     sz = fs::file_size (found);
     CBRF (sz > 0,
-          outError = format ("ROM file is empty: {}", romRelPath.string ()));
+          outError = format ("ROM file is empty: {}", romRelPath.string()));
 
-    outResolvedPath = found.string ();
+    outResolvedPath = found.string();
     outFileSize     = static_cast<size_t> (sz);
 
 
@@ -269,7 +269,7 @@ HRESULT MachineConfigLoader::LoadRam (
 
 
 
-    for (idx = 0; idx < ramArray.ArraySize (); idx++)
+    for (idx = 0; idx < ramArray.ArraySize(); idx++)
     {
         const JsonValue & entry = ramArray.ArrayAt (idx);
         RamRegion         region;
@@ -451,7 +451,7 @@ HRESULT MachineConfigLoader::LoadInternalDevices (
 
 
 
-    for (idx = 0; idx < devArray.ArraySize (); idx++)
+    for (idx = 0; idx < devArray.ArraySize(); idx++)
     {
         const JsonValue & entry = devArray.ArrayAt (idx);
         InternalDevice    dev;
@@ -514,7 +514,7 @@ HRESULT MachineConfigLoader::LoadSlots (
 
 
 
-    for (idx = 0; idx < slotsArray.ArraySize (); idx++)
+    for (idx = 0; idx < slotsArray.ArraySize(); idx++)
     {
         const JsonValue & entry = slotsArray.ArrayAt (idx);
         SlotConfig        slot;
@@ -532,12 +532,12 @@ HRESULT MachineConfigLoader::LoadSlots (
         // Optional: device (don't pollute hr with the lookup result)
         HRESULT hrDev = entry.GetString ("device", slot.device);
         IGNORE_RETURN_VALUE (hrDev, S_OK);
-        hasDev = !slot.device.empty ();
+        hasDev = !slot.device.empty();
 
         // Optional: rom (don't pollute hr with the lookup result)
         HRESULT hrRom = entry.GetString ("rom", slot.rom);
         IGNORE_RETURN_VALUE (hrRom, S_OK);
-        hasRom = !slot.rom.empty ();
+        hasRom = !slot.rom.empty();
 
         CBRF (hasDev || hasRom,
               outError = format ("slots[{}]: must specify 'device' and/or 'rom'", idx));
@@ -905,11 +905,11 @@ void MachineConfigLoader::LoadVideoConfig (const JsonValue & video, MachineConfi
     hr = video.GetArray ("modes", pModes);
     if (SUCCEEDED (hr))
     {
-        for (size_t i = 0; i < pModes->ArraySize (); i++)
+        for (size_t i = 0; i < pModes->ArraySize(); i++)
         {
-            if (pModes->ArrayAt (i).GetType () == JsonType::String)
+            if (pModes->ArrayAt (i).GetType() == JsonType::String)
             {
-                outConfig.videoConfig.modes.push_back (pModes->ArrayAt (i).GetString ());
+                outConfig.videoConfig.modes.push_back (pModes->ArrayAt (i).GetString());
             }
         }
     }

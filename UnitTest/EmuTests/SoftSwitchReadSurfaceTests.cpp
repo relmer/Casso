@@ -42,7 +42,7 @@ namespace
         LanguageCard           lc;
         VideoTiming            vt;
 
-        SurfaceFixture ()
+        SurfaceFixture()
             : bus      (),
               mainRam  (0x0000, 0xBFFF),
               mmu      (),
@@ -91,7 +91,7 @@ namespace
                 // flag=true => display => not in vblank => cycle low.
                 if (flag)
                 {
-                    f.vt.Reset ();
+                    f.vt.Reset();
                 }
                 else
                 {
@@ -124,7 +124,7 @@ public:
         // Latch a known key (bits 0-6 = 'X' & 0x7F = $58) so we can
         // verify the floating-bus low 7 bits and the strobe isolation.
         f.keyboard.KeyPress ('X');
-        Assert::IsFalse (f.keyboard.IsStrobeClear (), label);
+        Assert::IsFalse (f.keyboard.IsStrobeClear(), label);
 
         // Flag = false. (a) bit 7 = 0 expected, (b) bits 0-6 = 'X'.
         SetCanonical (f, address, false);
@@ -138,7 +138,7 @@ public:
             L"Bits 0-6 must mirror keyboard latch (floating bus)");
 
         // (c) read did not clear strobe.
-        Assert::IsFalse (f.keyboard.IsStrobeClear (),
+        Assert::IsFalse (f.keyboard.IsStrobeClear(),
             L"Status read must NOT clear keyboard strobe (audit §1.2)");
 
         // Flag = true. (a) bit 7 = 1 expected.
@@ -155,10 +155,10 @@ public:
         // (d) issuing the read multiple times does not perturb keyboard.
         f.bank.Read (address);
         f.bank.Read (address);
-        Assert::IsFalse (f.keyboard.IsStrobeClear (),
+        Assert::IsFalse (f.keyboard.IsStrobeClear(),
             L"Repeated status reads must not perturb keyboard state");
         Assert::AreEqual (static_cast<Byte> ('X'),
-            f.keyboard.GetLatchedKeyDataBits (),
+            f.keyboard.GetLatchedKeyDataBits(),
             L"Keyboard latch data bits unchanged after status reads");
     }
 

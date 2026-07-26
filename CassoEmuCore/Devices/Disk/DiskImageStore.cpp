@@ -14,7 +14,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-DiskImageStore::DiskImageStore ()
+DiskImageStore::DiskImageStore()
 {
 }
 
@@ -61,7 +61,7 @@ HRESULT DiskImageStore::DetectFormatByExtension (const string & path, DiskFormat
 
     pos = path.find_last_of ('.');
 
-    if (pos == string::npos || pos + 1 >= path.size ())
+    if (pos == string::npos || pos + 1 >= path.size())
     {
         hr = E_FAIL;
         goto Error;
@@ -69,7 +69,7 @@ HRESULT DiskImageStore::DetectFormatByExtension (const string & path, DiskFormat
 
     ext = path.substr (pos + 1);
 
-    for (i = 0; i < ext.size (); i++)
+    for (i = 0; i < ext.size(); i++)
     {
         ext[i] = static_cast<char> (tolower (static_cast<unsigned char> (ext[i])));
     }
@@ -144,10 +144,10 @@ HRESULT DiskImageStore::MountFromBytes (
 
         entry.image->LoadFromBytes (fmt, bytes, virtualPath);
 
-        if (!entry.image->IsLoaded ())
+        if (!entry.image->IsLoaded())
         {
-            entry.image.reset ();
-            entry.path.clear ();
+            entry.image.reset();
+            entry.path.clear();
             entry.mounted = false;
             hr = E_FAIL;
             goto Error;
@@ -185,17 +185,17 @@ HRESULT DiskImageStore::Mount (int slot, int drive, const string & path)
         ifstream  file (path, ios::binary | ios::ate);
         streamsize  size = 0;
 
-        fileOk = file.good ();
+        fileOk = file.good();
         CBREx (fileOk, E_FAIL);
 
-        size = file.tellg ();
+        size = file.tellg();
         file.seekg (0, ios::beg);
 
         bytes.resize (static_cast<size_t> (size));
 
         if (size > 0)
         {
-            file.read (reinterpret_cast<char *> (bytes.data ()),
+            file.read (reinterpret_cast<char *> (bytes.data()),
                        static_cast<streamsize> (size));
         }
     }
@@ -222,11 +222,11 @@ Error:
 
 wstring DiskImageStore::FormatFlushLossMessage (const string & path)
 {
-    wstring  widePath = fs::path (path).wstring ();
+    wstring  widePath = fs::path (path).wstring();
 
 
 
-    if (widePath.empty ())
+    if (widePath.empty())
     {
         widePath = L"(unknown path)";
     }
@@ -263,11 +263,11 @@ HRESULT DiskImageStore::FlushEntry (Entry & entry)
 
     // No-op cases -- nothing dirty to persist -- succeed silently.
     BAIL_OUT_IF (!entry.mounted || entry.image == nullptr, S_OK);
-    BAIL_OUT_IF (!entry.image->IsDirty (), S_OK);
+    BAIL_OUT_IF (!entry.image->IsDirty(), S_OK);
 
-    if (entry.image->IsWriteProtected ())
+    if (entry.image->IsWriteProtected())
     {
-        entry.image->ClearDirty ();
+        entry.image->ClearDirty();
         BAIL_OUT_IF (true, S_OK);
     }
 
@@ -278,25 +278,25 @@ HRESULT DiskImageStore::FlushEntry (Entry & entry)
     // checks. The image keeps its dirty bit on failure so a later flush
     // can retry.
     hr = entry.image->Serialize (bytes);
-    CHRN (hr, FormatFlushLossMessage (entry.path).c_str ());
+    CHRN (hr, FormatFlushLossMessage (entry.path).c_str());
 
     if (m_flushSink)
     {
         hr = m_flushSink (entry.path, bytes);
-        CHRN (hr, FormatFlushLossMessage (entry.path).c_str ());
+        CHRN (hr, FormatFlushLossMessage (entry.path).c_str());
     }
-    else if (!entry.path.empty ())
+    else if (!entry.path.empty())
     {
         ofstream  file (entry.path, ios::binary);
 
-        fileOk = file.good ();
-        CBRN (fileOk, FormatFlushLossMessage (entry.path).c_str ());
+        fileOk = file.good();
+        CBRN (fileOk, FormatFlushLossMessage (entry.path).c_str());
 
-        file.write (reinterpret_cast<const char *> (bytes.data ()),
-                    static_cast<streamsize> (bytes.size ()));
+        file.write (reinterpret_cast<const char *> (bytes.data()),
+                    static_cast<streamsize> (bytes.size()));
     }
 
-    entry.image->ClearDirty ();
+    entry.image->ClearDirty();
 
 Error:
     return hr;
@@ -329,7 +329,7 @@ Error:
 }
 
 
-HRESULT DiskImageStore::FlushAll ()
+HRESULT DiskImageStore::FlushAll()
 {
     HRESULT   hr      = S_OK;
     HRESULT   hrFirst = S_OK;
@@ -384,8 +384,8 @@ void DiskImageStore::Eject (int slot, int drive)
         hr = FlushEntry (entry);
         IGNORE_RETURN_VALUE (hr, S_OK);
 
-        entry.image.reset ();
-        entry.path.clear ();
+        entry.image.reset();
+        entry.path.clear();
         entry.mounted = false;
     }
 }
@@ -403,9 +403,9 @@ void DiskImageStore::Eject (int slot, int drive)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DiskImageStore::SoftReset ()
+void DiskImageStore::SoftReset()
 {
-    HRESULT   hr = FlushAll ();
+    HRESULT   hr = FlushAll();
 
     IGNORE_RETURN_VALUE (hr, S_OK);
 }
@@ -422,7 +422,7 @@ void DiskImageStore::SoftReset ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DiskImageStore::PowerCycle ()
+void DiskImageStore::PowerCycle()
 {
     int   slot  = 0;
     int   drive = 0;
@@ -453,7 +453,7 @@ DiskImage * DiskImageStore::GetImage (int slot, int drive)
         return nullptr;
     }
 
-    return At (slot, drive).image.get ();
+    return At (slot, drive).image.get();
 }
 
 

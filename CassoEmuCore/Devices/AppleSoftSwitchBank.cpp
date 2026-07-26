@@ -12,7 +12,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-AppleSoftSwitchBank::AppleSoftSwitchBank ()
+AppleSoftSwitchBank::AppleSoftSwitchBank()
 {
 }
 
@@ -97,7 +97,7 @@ void AppleSoftSwitchBank::Write (Word address, Byte value)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void AppleSoftSwitchBank::Reset ()
+void AppleSoftSwitchBank::Reset()
 {
     m_graphicsMode = false;
     m_mixedMode    = false;
@@ -119,9 +119,9 @@ void AppleSoftSwitchBank::Reset ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void AppleSoftSwitchBank::SoftReset ()
+void AppleSoftSwitchBank::SoftReset()
 {
-    Reset ();
+    Reset();
 }
 
 

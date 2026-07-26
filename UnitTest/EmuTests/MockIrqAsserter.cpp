@@ -28,7 +28,7 @@ MockIrqAsserter::MockIrqAsserter (IInterruptController * ic)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT MockIrqAsserter::Bind ()
+HRESULT MockIrqAsserter::Bind()
 {
     HRESULT     hr = S_OK;
 
@@ -65,7 +65,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void MockIrqAsserter::Assert ()
+void MockIrqAsserter::Assert()
 {
     if (m_bound && m_ic != nullptr)
     {
@@ -83,7 +83,7 @@ void MockIrqAsserter::Assert ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void MockIrqAsserter::Clear ()
+void MockIrqAsserter::Clear()
 {
     if (m_bound && m_ic != nullptr)
     {

@@ -14,10 +14,10 @@
 ////////////////////////////////////////////////////////////////////////////////
 
 MemoryBusCpu::MemoryBusCpu (MemoryBus & memoryBus)
-    : Cpu6502 (),
+    : Cpu6502(),
       m_memoryBus (memoryBus)
 {
-    Byte * pBase = memory.data ();
+    Byte * pBase = memory.data();
     int    page  = 0;
 
     // Register this CPU's 64 KB memory[] as the default page-table backing
@@ -37,7 +37,7 @@ MemoryBusCpu::MemoryBusCpu (MemoryBus & memoryBus)
     // entries the MMU re-points on banking changes, so the pointer stays
     // valid). I/O ($C000+) and unmapped low pages still fall through the
     // virtual ReadByteSlow into the bus.
-    m_readPages = m_memoryBus.GetReadPageTable ();
+    m_readPages = m_memoryBus.GetReadPageTable();
 }
 
 
@@ -57,7 +57,7 @@ MemoryBusCpu::MemoryBusCpu (MemoryBus & memoryBus)
 
 Byte MemoryBusCpu::ReadByteSlow (Word address)
 {
-    UpdateBusCycle ();
+    UpdateBusCycle();
 
     return m_memoryBus.ReadByte (address);
 }
@@ -74,7 +74,7 @@ Byte MemoryBusCpu::ReadByteSlow (Word address)
 
 void MemoryBusCpu::WriteByte (Word address, Byte value)
 {
-    UpdateBusCycle ();
+    UpdateBusCycle();
 
     m_memoryBus.WriteByte (address, value);
 }
@@ -128,7 +128,7 @@ void MemoryBusCpu::InitForEmulation (Prng & prng)
     // simulate real DRAM power-on state -- the same source PowerCycle draws
     // from, so a pinned seed reproduces cold boot byte-for-byte and the
     // per-boot seed log describes what actually landed in RAM.
-    prng.Fill (memory.data (), 0xC000);
+    prng.Fill (memory.data(), 0xC000);
 
     SP = 0xFD;
 
@@ -159,7 +159,7 @@ void MemoryBusCpu::InitForEmulation (Prng & prng)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void MemoryBusCpu::SoftReset ()
+void MemoryBusCpu::SoftReset()
 {
     SP = 0xFD;
 
@@ -188,7 +188,7 @@ void MemoryBusCpu::SoftReset ()
 
 void MemoryBusCpu::PowerCycle (Prng & prng)
 {
-    prng.Fill (memory.data (), 0xC000);
+    prng.Fill (memory.data(), 0xC000);
 
     A             = 0;
     X             = 0;
@@ -199,5 +199,5 @@ void MemoryBusCpu::PowerCycle (Prng & prng)
     status.flags.alwaysOne        = 1;
     status.flags.interruptDisable = 1;
 
-    SoftReset ();
+    SoftReset();
 }

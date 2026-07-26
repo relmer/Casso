@@ -48,7 +48,7 @@ public:
 
         auto result = registry.Create ("nonexistent", cfg, bus);
 
-        Assert::IsNull (result.get ());
+        Assert::IsNull (result.get());
     }
 
     TEST_METHOD (IsRegistered_ReturnsTrueForKnown)
@@ -74,9 +74,9 @@ public:
         registry.Register ("type-b",
             [] (const DeviceConfig &, MemoryBus &) { return std::unique_ptr<MemoryDevice> (); });
 
-        auto types = registry.GetRegisteredTypes ();
+        auto types = registry.GetRegisteredTypes();
 
-        Assert::IsTrue (types.size () >= 2);
+        Assert::IsTrue (types.size() >= 2);
     }
 
     TEST_METHOD (BuiltinDevices_AreRegistered)

@@ -83,7 +83,7 @@ void SettingsMachineCatalog::Bind (
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void SettingsMachineCatalog::LoadCurrentMachineIntoState ()
+void SettingsMachineCatalog::LoadCurrentMachineIntoState()
 {
     std::wstring                        machineNameW;
     std::string                         machineName;
@@ -155,7 +155,7 @@ void SettingsMachineCatalog::LoadCurrentMachineIntoState ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void SettingsMachineCatalog::PopulateMachineList ()
+void SettingsMachineCatalog::PopulateMachineList()
 {
     std::vector<std::filesystem::path>  searchPaths;
     std::vector<MachineInfo>            machinesInfo;
@@ -218,7 +218,7 @@ void SettingsMachineCatalog::PopulateMachineList ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void SettingsMachineCatalog::PopulateThemeList ()
+void SettingsMachineCatalog::PopulateThemeList()
 {
     std::vector<std::string>   themeIds;
     std::vector<std::wstring>  displayNames;

@@ -23,7 +23,7 @@ int main (int argc, char * argv[])
 
     if (options.showVersion || options.subcommand == CommandLineOptions::Subcommand::Version)
     {
-        PrintVersion ();
+        PrintVersion();
         return 0;
     }
 

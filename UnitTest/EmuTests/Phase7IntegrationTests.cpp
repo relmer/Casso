@@ -49,9 +49,9 @@ public:
 
         hr = host.BuildApple2e (core);
         Assert::IsTrue (SUCCEEDED (hr), L"BuildApple2e must succeed");
-        Assert::IsTrue (core.HasApple2e (), L"//e wiring must be complete");
+        Assert::IsTrue (core.HasApple2e(), L"//e wiring must be complete");
 
-        core.PowerCycle ();
+        core.PowerCycle();
         core.RunCycles  (kColdBootCycles);
     }
 
@@ -67,7 +67,7 @@ public:
     {
         size_t   i;
 
-        for (i = 0; i < rows.size (); i++)
+        for (i = 0; i < rows.size(); i++)
         {
             if (rows[i].find (needle) != std::string::npos)
             {
@@ -95,7 +95,7 @@ public:
 
         std::vector<std::string>   rows = TextScreenScraper::Scrape (core);
 
-        Assert::AreEqual (size_t (TextScreenScraper::kRows), rows.size (),
+        Assert::AreEqual (size_t (TextScreenScraper::kRows), rows.size(),
             L"Scraper must produce 24 rows");
 
         promptRow = FindRowContaining (rows, "]");
@@ -126,9 +126,9 @@ public:
         std::vector<std::string>   rowsA = TextScreenScraper::Scrape (coreA);
         std::vector<std::string>   rowsB = TextScreenScraper::Scrape (coreB);
 
-        Assert::AreEqual (rowsA.size (), rowsB.size ());
+        Assert::AreEqual (rowsA.size(), rowsB.size());
 
-        for (size_t i = 0; i < rowsA.size (); i++)
+        for (size_t i = 0; i < rowsA.size(); i++)
         {
             Assert::IsTrue (rowsA[i] == rowsB[i],
                 L"Two cold boots with the pinned seed must produce identical scrapes");
@@ -173,7 +173,7 @@ public:
 
         promptRow = -1;
 
-        for (size_t i = static_cast<size_t> (helloRow + 1); i < rows.size (); i++)
+        for (size_t i = static_cast<size_t> (helloRow + 1); i < rows.size(); i++)
         {
             if (rows[i].find (']') != std::string::npos)
             {
@@ -209,7 +209,7 @@ public:
 
         core.RunCycles (kAfterCommandCycles);
 
-        Assert::IsTrue (core.softSwitches->Is80ColMode (),
+        Assert::IsTrue (core.softSwitches->Is80ColMode(),
             L"PR#3 must engage 80-col mode (Is80ColMode==true)");
 
         rd80Vid   = core.bus->ReadByte (kRd80Vid);
@@ -244,7 +244,7 @@ public:
 
         core.RunCycles (kAfterCommandCycles);
 
-        Assert::IsTrue (core.softSwitches->Is80ColMode (),
+        Assert::IsTrue (core.softSwitches->Is80ColMode(),
             L"80-col must be active before the long PRINT");
 
         consumed = KeystrokeInjector::InjectLine (
@@ -258,7 +258,7 @@ public:
 
         std::vector<std::string>   rows = TextScreenScraper::Scrape (core);
 
-        Assert::AreEqual (size_t (TextScreenScraper::kCols80), rows[0].size (),
+        Assert::AreEqual (size_t (TextScreenScraper::kCols80), rows[0].size(),
             L"80-col scrape rows must be 80 chars wide");
 
         row = FindRowContaining (rows, needle);

@@ -175,7 +175,7 @@ int DxuiCaptionBar::PreferredHeightPx (const DxuiDpiScaler & scaler) const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-int DxuiCaptionBar::PreferredHeightDip () const
+int DxuiCaptionBar::PreferredHeightDip() const
 {
     return kCaptionHeightDip;
 }

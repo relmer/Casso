@@ -16,7 +16,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiTreeView::RebuildFlatRows ()
+void DxuiTreeView::RebuildFlatRows()
 {
     std::vector<int>  path;
     size_t            i = 0;

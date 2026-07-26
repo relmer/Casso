@@ -45,5 +45,5 @@ void VideoTiming::PowerCycle (Prng & prng)
 {
     UNREFERENCED_PARAMETER (prng);
 
-    SoftReset ();
+    SoftReset();
 }

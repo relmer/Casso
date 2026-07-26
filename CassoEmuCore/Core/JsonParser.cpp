@@ -154,14 +154,14 @@ HRESULT JsonParser::ParseString (string & outStr)
 
 
 
-    CBR (Peek () == '"');
-    Advance ();
+    CBR (Peek() == '"');
+    Advance();
 
-    outStr.clear ();
+    outStr.clear();
 
-    while (!AtEnd () && !done)
+    while (!AtEnd() && !done)
     {
-        ch = Advance ();
+        ch = Advance();
 
         // Closing quote — done
         if (ch == '"')
@@ -178,9 +178,9 @@ HRESULT JsonParser::ParseString (string & outStr)
         }
 
         // Escape sequence
-        CBR (!AtEnd ());
+        CBR (!AtEnd());
 
-        esc = Advance ();
+        esc = Advance();
 
         switch (esc)
         {
@@ -194,15 +194,15 @@ HRESULT JsonParser::ParseString (string & outStr)
             case 't':  outStr += '\t'; break;
             case 'u':
             {
-                hex.clear ();
+                hex.clear();
 
                 for (int i = 0; i < 4; i++)
                 {
-                    CBR (!AtEnd ());
-                    hex += Advance ();
+                    CBR (!AtEnd());
+                    hex += Advance();
                 }
 
-                code = strtoul (hex.c_str (), nullptr, 16);
+                code = strtoul (hex.c_str(), nullptr, 16);
 
                 if (code < 0x80)
                 {

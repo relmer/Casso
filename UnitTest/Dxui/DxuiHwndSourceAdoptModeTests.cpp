@@ -11,7 +11,7 @@ namespace
     constexpr LONG  s_kFakeHwndValue   = 0x12345678;
 
 
-    DxuiHwndSource::CreateParams  MakeAdoptParams ()
+    DxuiHwndSource::CreateParams  MakeAdoptParams()
     {
         DxuiHwndSource::CreateParams  cp;
 

@@ -444,7 +444,7 @@ ThemePage::ThemePage(std::wstring title)
     Adopt (m_monitorFrameCheckbox);
 
     m_applyNowButton.SetLabel   (L"Apply now");
-    m_applyNowButton.SetOnClick ([this] { if (m_onApplyThemeNow) { m_onApplyThemeNow (); } });
+    m_applyNowButton.SetOnClick ([this] { if (m_onApplyThemeNow) { m_onApplyThemeNow(); } });
 
     // Skeuo desk-scene opt-in. Applies live (the change is visible on the
     // real chrome behind the sheet immediately); enabled only while a
@@ -484,7 +484,7 @@ void ThemePage::UpdateMonitorCheckboxEnabled()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::string ThemePage::SelectedThemeId () const
+std::string ThemePage::SelectedThemeId() const
 {
     if (m_activeIndex < 0 || m_activeIndex >= (int) m_themeIds.size())
     {
@@ -699,7 +699,7 @@ void ThemePage::Paint (IDxuiPainter & painterIf, IDxuiTextRenderer & textIf, con
             m_previewDrivesInitialized = true;
         }
 
-        bool  hasDisk = m_hasDiskSource ? m_hasDiskSource () : true;
+        bool  hasDisk = m_hasDiskSource ? m_hasDiskSource() : true;
 
         PaintPreviewWindow (painter, text, m_previewRect, preview, hasDisk, m_framebufferSource, m_mountedPathSource, m_writeProtectSource, m_previewDrives, m_previewJoystickButton);
     }

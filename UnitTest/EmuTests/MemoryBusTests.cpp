@@ -331,8 +331,8 @@ public:
 
         bus.SetBankingChangedCallback ([&] () { callCount++; });
 
-        bus.NotifyBankingChanged ();
-        bus.NotifyBankingChanged ();
+        bus.NotifyBankingChanged();
+        bus.NotifyBankingChanged();
 
         Assert::AreEqual (2, callCount,
             L"NotifyBankingChanged should invoke registered callback");
@@ -343,7 +343,7 @@ public:
         MemoryBus bus;
 
         // No callback registered -- should be safe to call
-        bus.NotifyBankingChanged ();
+        bus.NotifyBankingChanged();
     }
 
     TEST_METHOD (PageTable_UnmappedIoPage_UsesDevice)
@@ -407,7 +407,7 @@ public:
     {
         MemoryBus bus;
 
-        Assert::IsTrue (bus.VideoDirty (),
+        Assert::IsTrue (bus.VideoDirty(),
             L"A fresh bus must start dirty so the first frame renders");
     }
 
@@ -422,7 +422,7 @@ public:
 
         bus.WriteByte (0x0400, 0x41);
 
-        Assert::IsTrue (bus.VideoDirty (),
+        Assert::IsTrue (bus.VideoDirty(),
             L"Write into a watched display page must raise video-dirty");
     }
 
@@ -432,11 +432,11 @@ public:
         Byte       page[0x100] = {};
 
         bus.SetWritePage    (0x60, page);    // $6000, not a display page
-        bus.ClearVideoDirty ();
+        bus.ClearVideoDirty();
 
         bus.WriteByte (0x6000, 0x41);
 
-        Assert::IsFalse (bus.VideoDirty (),
+        Assert::IsFalse (bus.VideoDirty(),
             L"Write outside any watched page must not raise video-dirty");
     }
 
@@ -449,11 +449,11 @@ public:
         bus.SetVideoWatchPage (0x04, true);
 
         bus.WriteByte       (0x0400, 0x41);   // first write changes 0x00 -> 0x41
-        bus.ClearVideoDirty ();
+        bus.ClearVideoDirty();
 
         bus.WriteByte (0x0400, 0x41);         // same value re-stored
 
-        Assert::IsFalse (bus.VideoDirty (),
+        Assert::IsFalse (bus.VideoDirty(),
             L"Re-storing the identical byte must not raise video-dirty");
     }
 
@@ -464,16 +464,16 @@ public:
 
         bus.SetWritePage     (0x04, page);
         bus.SetVideoWatchPage (0x04, true);
-        bus.ClearVideoDirty ();
+        bus.ClearVideoDirty();
 
         // $0478 is a screen hole (block offset $78) -- undisplayed scratch.
         bus.WriteByte (0x0478, 0xAB);
-        Assert::IsFalse (bus.VideoDirty (),
+        Assert::IsFalse (bus.VideoDirty(),
             L"A changing write to a screen-hole byte must not dirty the frame");
 
         // $0477 is displayed (block offset $77) -- must dirty.
         bus.WriteByte (0x0477, 0xCD);
-        Assert::IsTrue (bus.VideoDirty (),
+        Assert::IsTrue (bus.VideoDirty(),
             L"A changing write to a displayed byte must dirty the frame");
     }
 
@@ -481,10 +481,10 @@ public:
     {
         MemoryBus  bus;
 
-        bus.ClearVideoDirty ();
-        bus.NotifyBankingChanged ();
+        bus.ClearVideoDirty();
+        bus.NotifyBankingChanged();
 
-        Assert::IsTrue (bus.VideoDirty (),
+        Assert::IsTrue (bus.VideoDirty(),
             L"A banking change can swap the displayed buffer, so it must "
             L"raise video-dirty");
     }
@@ -493,10 +493,10 @@ public:
     {
         MemoryBus  bus;
 
-        bus.ClearVideoDirty ();
-        bus.Reset ();
+        bus.ClearVideoDirty();
+        bus.Reset();
 
-        Assert::IsTrue (bus.VideoDirty (),
+        Assert::IsTrue (bus.VideoDirty(),
             L"Reset changes the screen, so it must raise video-dirty");
     }
 
@@ -504,10 +504,10 @@ public:
     {
         MemoryBus  bus;
 
-        bus.MarkVideoDirty ();
-        bus.ClearVideoDirty ();
+        bus.MarkVideoDirty();
+        bus.ClearVideoDirty();
 
-        Assert::IsFalse (bus.VideoDirty (),
+        Assert::IsFalse (bus.VideoDirty(),
             L"ClearVideoDirty must reset the flag");
     }
 };

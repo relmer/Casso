@@ -562,7 +562,7 @@ void DxuiDropdown::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) cons
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-DxuiDropdown::ResolvedColors DxuiDropdown::ResolveColors () const
+DxuiDropdown::ResolvedColors DxuiDropdown::ResolveColors() const
 {
     ResolvedColors  c = { s_kBoxIdleArgb,  s_kBoxHoverArgb,     s_kBoxPressedArgb,
                           s_kBoxDisabledArgb, s_kMenuArgb,      s_kMenuHoverArgb,
@@ -905,7 +905,7 @@ bool DxuiDropdown::OnKey (const DxuiKeyEvent & ev)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::wstring DxuiDropdown::AccessibleName () const
+std::wstring DxuiDropdown::AccessibleName() const
 {
     if (m_selected < 0 || m_selected >= (int) m_items.size())
     {

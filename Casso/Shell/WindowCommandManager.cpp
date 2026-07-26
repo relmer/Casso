@@ -60,12 +60,12 @@ namespace
             std::wstring   sys (text);
 
             // Trim the trailing ". \r\n" the system appends.
-            while (!sys.empty () &&
-                   (sys.back () == L'\r' || sys.back () == L'\n' || sys.back () == L'.' || sys.back () == L' '))
+            while (!sys.empty() &&
+                   (sys.back() == L'\r' || sys.back() == L'\n' || sys.back() == L'.' || sys.back() == L' '))
             {
-                sys.pop_back ();
+                sys.pop_back();
             }
-            if (!sys.empty ()) { detail += L" -- " + sys; }
+            if (!sys.empty()) { detail += L" -- " + sys; }
         }
         if (text != nullptr) { LocalFree (text); }
 
@@ -84,7 +84,7 @@ namespace
     HRESULT HrFromSpoolResult (int ret, const wchar_t * call, int pageIx)
     {
         HRESULT   hr  = S_OK;
-        DWORD     gle = ::GetLastError ();   // capture before logging can clobber it
+        DWORD     gle = ::GetLastError();   // capture before logging can clobber it
 
         if (ret > 0)
         {
@@ -111,7 +111,7 @@ namespace
     // normally. PD_RETURNDEFAULT gives us the default printer with no UI and no
     // DC of its own. Best-effort; any failure is ignored (the real path still
     // has its own fallback).
-    void  PrimeDefaultPrinterDriver ()
+    void  PrimeDefaultPrinterDriver()
     {
         PRINTDLGW   def = {};
 
@@ -134,9 +134,9 @@ namespace
 
             std::thread ([driver, device] ()
             {
-                HDC  h = CreateDCW (driver.c_str (), device.c_str (), nullptr, nullptr);
+                HDC  h = CreateDCW (driver.c_str(), device.c_str(), nullptr, nullptr);
                 if (h != nullptr) { DeleteDC (h); }
-            }).join ();
+            }).join();
         }
 
         if (def.hDevMode  != nullptr) { GlobalFree (def.hDevMode); }
@@ -192,10 +192,10 @@ namespace
 
         std::thread ([&] ()
         {
-            const DEVMODEW *  dmp = devmode.empty () ? nullptr : (const DEVMODEW *) devmode.data ();
+            const DEVMODEW *  dmp = devmode.empty() ? nullptr : (const DEVMODEW *) devmode.data();
 
-            hdc = CreateDCW (driver.c_str (), device.c_str (), nullptr, dmp);
-        }).join ();
+            hdc = CreateDCW (driver.c_str(), device.c_str(), nullptr, dmp);
+        }).join();
 
         return hdc;
     }
@@ -260,10 +260,10 @@ namespace
         blit = StretchDIBits (hdc,
                               (pageW - destW) / 2, 0, destW, destH,
                               0, 0, img.width, img.height,
-                              bgra.data (), &bmi, DIB_RGB_COLORS, SRCCOPY);
+                              bgra.data(), &bmi, DIB_RGB_COLORS, SRCCOPY);
         if (blit <= 0)
         {
-            DWORD   gle = ::GetLastError ();
+            DWORD   gle = ::GetLastError();
 
             hr = (gle != 0) ? HRESULT_FROM_WIN32 (gle) : E_FAIL;
             goto Error;
@@ -334,7 +334,7 @@ bool WindowCommandManager::OnCommand (HWND hwnd, int id)
     else if (id == IDM_PRINTER_SAVEAS)                                     { OnPrinterCommand (id); }
     else if (id == IDM_PRINTER_MODERN_SENT)                                { OnModernPrintResult (true); }
     else if (id == IDM_PRINTER_MODERN_FAILED)                              { OnModernPrintResult (false); }
-    else if (id == IDM_PRINTER_PREVIEW)                                    { m_shell.ShowPrinterPanel (); }
+    else if (id == IDM_PRINTER_PREVIEW)                                    { m_shell.ShowPrinterPanel(); }
     else if (id >= IDM_HELP_KEYMAP    && id <= IDM_HELP_ABOUT)              { OnHelpCommand (id); }
     else if (id == IDM_DRIVE_EXTERNAL_CONNECT ||
              id == IDM_DRIVE_EXTERNAL_DISCONNECT)                          { OnExternalDriveCommand (id); }
@@ -955,14 +955,14 @@ HRESULT WindowCommandManager::SavePrintoutAs (const PrintRaster & raster, fs::pa
         folder = fs::path (picturesRaw) / L"Casso Prints";
     }
 
-    if (!folder.empty ())
+    if (!folder.empty())
     {
         fs::create_directories (folder, ec);
 
-        if (SUCCEEDED (SHCreateItemFromParsingName (folder.c_str (), nullptr,
+        if (SUCCEEDED (SHCreateItemFromParsingName (folder.c_str(), nullptr,
                                                     IID_PPV_ARGS (&folderItem))))
         {
-            IGNORE_RETURN_VALUE (hr, dialog->SetFolder (folderItem.Get ()));
+            IGNORE_RETURN_VALUE (hr, dialog->SetFolder (folderItem.Get()));
         }
     }
 
@@ -970,10 +970,10 @@ HRESULT WindowCommandManager::SavePrintoutAs (const PrintRaster & raster, fs::pa
     suggested = PrintFileNaming::ComposePngPath (folder, now,
                     [] (const fs::path & p) { std::error_code e; return fs::exists (p, e); });
 
-    hr = dialog->SetFileName (suggested.filename ().c_str ());
+    hr = dialog->SetFileName (suggested.filename().c_str());
     CHR (hr);
 
-    hr = dialog->Show (m_shell.PrinterDialogOwner ());
+    hr = dialog->Show (m_shell.PrinterDialogOwner());
 
     if (hr == HRESULT_FROM_WIN32 (ERROR_CANCELLED))
     {
@@ -990,17 +990,17 @@ HRESULT WindowCommandManager::SavePrintoutAs (const PrintRaster & raster, fs::pa
 
     outFile = fs::path (pszPath);
 
-    hr = PrintDelivery::RenderToPng (raster, 0, raster.RowsUsed () - 1,
-                                     WholeStripDpi (prefs, raster.RowsUsed ()),
+    hr = PrintDelivery::RenderToPng (raster, 0, raster.RowsUsed() - 1,
+                                     WholeStripDpi (prefs, raster.RowsUsed()),
                                      PrintDotStyleFromPrefs (prefs), png);
     CHR (hr);
 
     {
         std::ofstream   out (outFile, std::ios::binary | std::ios::trunc);
 
-        CBREx (out.is_open (), E_FAIL);
-        out.write ((const char *) png.data (), (std::streamsize) png.size ());
-        CBREx (out.good (), E_FAIL);
+        CBREx (out.is_open(), E_FAIL);
+        out.write ((const char *) png.data(), (std::streamsize) png.size());
+        CBREx (out.good(), E_FAIL);
     }
 
 Error:
@@ -1045,7 +1045,7 @@ HRESULT WindowCommandManager::PrintToWindowsPrinter (const PrintRaster & raster,
     int                                    pageH   = 0;
     int                                    pageIx  = 0;
 
-    CBRF (!pages.empty (),
+    CBRF (!pages.empty(),
           failedStage = L"pagination (the page has no printable content)");
 
     // Microsoft Print to PDF (and other v4 / XPS print drivers) create their
@@ -1056,7 +1056,7 @@ HRESULT WindowCommandManager::PrintToWindowsPrinter (const PrintRaster & raster,
     // PrintDlg below then create its DC on the UI thread normally. Diagnosed
     // live: the STA CreateDC fails 995, an MTA CreateDC succeeds, and the real
     // PrintDlg then returns a valid DC and the job completes. Best-effort.
-    PrimeDefaultPrinterDriver ();
+    PrimeDefaultPrinterDriver();
 
     pd.lStructSize = sizeof (pd);
     pd.hwndOwner   = m_shell.m_hwnd;
@@ -1202,10 +1202,10 @@ HRESULT WindowCommandManager::CopyPrintoutToClipboard (const PrintRaster & raste
     // Render the whole strip exactly once, capping dpi for very tall banners so
     // neither the DIB below nor the PNG blob materializes gigabytes. The source
     // is only 160x144 dpi, so the cap is effectively lossless.
-    opt.outputDpi = WholeStripDpi (prefs, raster.RowsUsed ());
+    opt.outputDpi = WholeStripDpi (prefs, raster.RowsUsed());
     opt.style     = PrintDotStyleFromPrefs (prefs);
 
-    hr = renderer.Render (raster, 0, raster.RowsUsed () - 1, opt, img);
+    hr = renderer.Render (raster, 0, raster.RowsUsed() - 1, opt, img);
     CHR (hr);
     CBREx (img.width > 0 && img.height > 0, E_FAIL);
 
@@ -1255,11 +1255,11 @@ HRESULT WindowCommandManager::CopyPrintoutToClipboard (const PrintRaster & raste
 
     // Encode the PNG from the image we already rendered rather than rendering
     // the strip a second time (the old path doubled peak memory on big banners).
-    if (SUCCEEDED (PngCodec::EncodeRgba (img, opt.outputDpi, png)) && !png.empty ())
+    if (SUCCEEDED (PngCodec::EncodeRgba (img, opt.outputDpi, png)) && !png.empty())
     {
         Byte *   dest = nullptr;
 
-        hPng = GlobalAlloc (GMEM_MOVEABLE, png.size ());
+        hPng = GlobalAlloc (GMEM_MOVEABLE, png.size());
 
         if (hPng != nullptr)
         {
@@ -1267,7 +1267,7 @@ HRESULT WindowCommandManager::CopyPrintoutToClipboard (const PrintRaster & raste
 
             if (dest != nullptr)
             {
-                memcpy (dest, png.data (), png.size ());
+                memcpy (dest, png.data(), png.size());
                 GlobalUnlock (hPng);
             }
             else
@@ -1282,7 +1282,7 @@ HRESULT WindowCommandManager::CopyPrintoutToClipboard (const PrintRaster & raste
 
     CBREx (OpenClipboard (m_shell.m_hwnd), E_FAIL);
     opened = true;
-    CBREx (EmptyClipboard (), E_FAIL);
+    CBREx (EmptyClipboard(), E_FAIL);
 
     // On success the clipboard takes ownership, so null the handle to keep the
     // cleanup path from freeing it out from under the clipboard.
@@ -1302,7 +1302,7 @@ HRESULT WindowCommandManager::CopyPrintoutToClipboard (const PrintRaster & raste
     }
 
 Error:
-    if (opened)          { CloseClipboard (); }
+    if (opened)          { CloseClipboard(); }
     if (hDib != nullptr) { GlobalFree (hDib); }
     if (hPng != nullptr) { GlobalFree (hPng); }
     return hr;
@@ -1347,50 +1347,50 @@ void WindowCommandManager::OnPrinterCommand (int id)
     // Take ownership of the strip: stop the worker, then flush any tail bytes.
     // Every strip-level command acts on the whole page, so we drain first and
     // read the job's raster from a quiesced worker (no concurrent mutation).
-    m_shell.m_printerWorker.Stop ();
+    m_shell.m_printerWorker.Stop();
 
     {
         vector<PrinterEvent>   events;
         m_shell.m_printerWorker.FlushNow (events);
     }
 
-    job = m_shell.m_printerWorker.Job ();
+    job = m_shell.m_printerWorker.Job();
 
     // "No page" also covers a strip whose drained bytes left nothing on the
     // paper (no ink AND no feed -- e.g. a bare escape preamble): HasContent is
     // true but RowsUsed is 0, which would otherwise reach delivery, paginate to
     // zero pages, and surface as a scary "something went wrong".
-    if (job == nullptr || !job->HasContent () || job->Raster ().RowsUsed () <= 0)
+    if (job == nullptr || !job->HasContent() || job->Raster().RowsUsed() <= 0)
     {
         const wchar_t * emptyMsg = copy    ? L"The printer has no page to copy yet."
                                  : discard ? L"The printer has no page to discard."
                                  : print   ? L"The printer has no page to print yet."
                                            : L"The printer has no page to save yet.";
 
-        DxuiMessageBox (m_shell.PrinterDialogOwner (), &m_shell.m_chromeTheme, emptyMsg, L"Casso Printer", MB_OK | MB_ICONINFORMATION);
+        DxuiMessageBox (m_shell.PrinterDialogOwner(), &m_shell.m_chromeTheme, emptyMsg, L"Casso Printer", MB_OK | MB_ICONINFORMATION);
 
         if (job != nullptr)
         {
-            m_shell.m_printerWorker.Start (m_shell.m_refs.printerCard->ByteRing (), job->Raster ());
+            m_shell.m_printerWorker.Start (m_shell.m_refs.printerCard->ByteRing(), job->Raster());
         }
         else
         {
-            m_shell.m_printerWorker.Start (m_shell.m_refs.printerCard->ByteRing ());
+            m_shell.m_printerWorker.Start (m_shell.m_refs.printerCard->ByteRing());
         }
         return;
     }
 
     if (copy)
     {
-        hr = CopyPrintoutToClipboard (job->Raster ());
+        hr = CopyPrintoutToClipboard (job->Raster());
 
         // Copy never consumes the strip: resume on the same page regardless.
-        m_shell.m_printerWorker.Start (m_shell.m_refs.printerCard->ByteRing (), job->Raster ());
+        m_shell.m_printerWorker.Start (m_shell.m_refs.printerCard->ByteRing(), job->Raster());
         m_shell.NotePrinterDeliveryResult (FAILED (hr));
 
         if (FAILED (hr))
         {
-            DxuiMessageBox (m_shell.PrinterDialogOwner (), &m_shell.m_chromeTheme, L"Could not copy the printout to the clipboard.",
+            DxuiMessageBox (m_shell.PrinterDialogOwner(), &m_shell.m_chromeTheme, L"Could not copy the printout to the clipboard.",
                          L"Casso Printer", MB_OK | MB_ICONWARNING);
         }
         return;
@@ -1402,7 +1402,7 @@ void WindowCommandManager::OnPrinterCommand (int id)
         // there is no undo -- and default the dialog to "No" so a stray Enter
         // never destroys a page.
         int   choice = DxuiMessageBox (
-            m_shell.PrinterDialogOwner (),
+            m_shell.PrinterDialogOwner(),
             &m_shell.m_chromeTheme,
             L"Tear off and discard the current printout?\n\n"
             L"The page in the printer will be thrown away without saving. "
@@ -1412,16 +1412,16 @@ void WindowCommandManager::OnPrinterCommand (int id)
         if (choice != IDYES)
         {
             // Cancelled: keep the strip and resume on the same page.
-            m_shell.m_printerWorker.Start (m_shell.m_refs.printerCard->ByteRing (), job->Raster ());
+            m_shell.m_printerWorker.Start (m_shell.m_refs.printerCard->ByteRing(), job->Raster());
             return;
         }
 
         // Confirmed: play the tear-off (a random paper-tear), start a fresh
         // sheet, and drop the persisted pending copy. The problem page (if
         // any) went with it, so a latched delivery error clears too.
-        m_shell.m_printerAudio.PlayTearOff ();
-        m_shell.m_printerWorker.Start (m_shell.m_refs.printerCard->ByteRing ());
-        PrintJobStore::Clear (m_shell.PendingPrintDir ());
+        m_shell.m_printerAudio.PlayTearOff();
+        m_shell.m_printerWorker.Start (m_shell.m_refs.printerCard->ByteRing());
+        PrintJobStore::Clear (m_shell.PendingPrintDir());
         m_shell.NotePrinterDeliveryResult (false);
         return;
     }
@@ -1446,26 +1446,26 @@ void WindowCommandManager::OnPrinterCommand (int id)
         {
             const GlobalUserPrefs &  prefs = m_shell.m_globalPrefs;
 
-            if (SUCCEEDED (m_modernPrint.ShowAsync (m_shell.m_hwnd, job->Raster (),
+            if (SUCCEEDED (m_modernPrint.ShowAsync (m_shell.m_hwnd, job->Raster(),
                                                     PrintDpiFromPrefs (prefs),
                                                     PrintDotStyleFromPrefs (prefs))))
             {
-                m_shell.m_printerWorker.Start (m_shell.m_refs.printerCard->ByteRing (), job->Raster ());
+                m_shell.m_printerWorker.Start (m_shell.m_refs.printerCard->ByteRing(), job->Raster());
                 return;
             }
         }
 
-        hr = PrintToWindowsPrinter (job->Raster (), failedStage);
+        hr = PrintToWindowsPrinter (job->Raster(), failedStage);
     }
     else
     {
-        hr = SavePrintoutAs (job->Raster (), file);
+        hr = SavePrintoutAs (job->Raster(), file);
     }
 
     if (hr == S_FALSE)
     {
         // User cancelled the print / save dialog: keep the strip, no clear.
-        m_shell.m_printerWorker.Start (m_shell.m_refs.printerCard->ByteRing (), job->Raster ());
+        m_shell.m_printerWorker.Start (m_shell.m_refs.printerCard->ByteRing(), job->Raster());
         return;
     }
 
@@ -1473,13 +1473,13 @@ void WindowCommandManager::OnPrinterCommand (int id)
     {
         std::wstring   msg = print
                                  ? std::wstring (L"Sent the printout to the printer.")
-                                 : (L"Saved printout to:\n" + file.wstring ());
+                                 : (L"Saved printout to:\n" + file.wstring());
 
         m_shell.NotePrinterDeliveryResult (false);
-        DxuiMessageBox (m_shell.PrinterDialogOwner (), &m_shell.m_chromeTheme, msg.c_str (), L"Casso Printer", MB_OK | MB_ICONINFORMATION);
+        DxuiMessageBox (m_shell.PrinterDialogOwner(), &m_shell.m_chromeTheme, msg.c_str(), L"Casso Printer", MB_OK | MB_ICONINFORMATION);
 
         // Non-destructive: keep the paper so it can also be saved / printed.
-        m_shell.m_printerWorker.Start (m_shell.m_refs.printerCard->ByteRing (), job->Raster ());
+        m_shell.m_printerWorker.Start (m_shell.m_refs.printerCard->ByteRing(), job->Raster());
     }
     else
     {
@@ -1491,7 +1491,7 @@ void WindowCommandManager::OnPrinterCommand (int id)
                                  : std::wstring (L"Something went wrong while saving your printout, so it is still waiting in the printer. Please try again.");
 
         msg += L"\n\nDetails: ";
-        if (!failedStage.empty ())
+        if (!failedStage.empty())
         {
             msg += failedStage + L"\n";
         }
@@ -1499,12 +1499,12 @@ void WindowCommandManager::OnPrinterCommand (int id)
 
         m_shell.NotePrinterDeliveryResult (true);   // toolbar LED: red until resolved
 
-        DxuiMessageBox (m_shell.PrinterDialogOwner (), &m_shell.m_chromeTheme, msg.c_str (),
+        DxuiMessageBox (m_shell.PrinterDialogOwner(), &m_shell.m_chromeTheme, msg.c_str(),
                      L"Casso Printer", MB_OK | MB_ICONWARNING);
 
         // Keep the strip so the user can retry -- reseed the worker with it
         // (copied before the old job is replaced). It re-persists on exit.
-        m_shell.m_printerWorker.Start (m_shell.m_refs.printerCard->ByteRing (), job->Raster ());
+        m_shell.m_printerWorker.Start (m_shell.m_refs.printerCard->ByteRing(), job->Raster());
     }
 }
 
@@ -1529,13 +1529,13 @@ void WindowCommandManager::OnModernPrintResult (bool succeeded)
 
     if (succeeded)
     {
-        DxuiMessageBox (m_shell.PrinterDialogOwner (), &m_shell.m_chromeTheme,
+        DxuiMessageBox (m_shell.PrinterDialogOwner(), &m_shell.m_chromeTheme,
                         L"Sent the printout to the printer.",
                         L"Casso Printer", MB_OK | MB_ICONINFORMATION);
     }
     else
     {
-        DxuiMessageBox (m_shell.PrinterDialogOwner (), &m_shell.m_chromeTheme,
+        DxuiMessageBox (m_shell.PrinterDialogOwner(), &m_shell.m_chromeTheme,
                         L"Something went wrong while sending your printout, so it is still "
                         L"waiting in the printer. Please try printing again.",
                         L"Casso Printer", MB_OK | MB_ICONWARNING);

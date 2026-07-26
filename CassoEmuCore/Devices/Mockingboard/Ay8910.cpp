@@ -113,7 +113,7 @@ void Ay8910::WriteData (Byte value)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-Byte Ay8910::ReadData () const
+Byte Ay8910::ReadData() const
 {
     Byte   result = 0xFF;
 
@@ -468,7 +468,7 @@ void Ay8910::RestartEnvelope (Byte shape)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-float Ay8910::CurrentOutput () const
+float Ay8910::CurrentOutput() const
 {
     Byte    mixer = m_regs[kRegMixer];
     float   out   = 0.0f;
@@ -509,7 +509,7 @@ float Ay8910::CurrentOutput () const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool Ay8910::IsSilent () const
+bool Ay8910::IsSilent() const
 {
     int   c = 0;
 
@@ -554,7 +554,7 @@ int Ay8910::TonePeriod (int channel) const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-int Ay8910::NoisePeriod () const
+int Ay8910::NoisePeriod() const
 {
     int   period = m_regs[kRegNoisePeriod] & s_kNoisePeriodMask;
 
@@ -571,7 +571,7 @@ int Ay8910::NoisePeriod () const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-int Ay8910::EnvPeriod () const
+int Ay8910::EnvPeriod() const
 {
     int   period = (m_regs[kRegEnvCoarse] << s_kByteShift) | m_regs[kRegEnvFine];
 

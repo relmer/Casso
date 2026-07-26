@@ -170,12 +170,12 @@ static void ParseV1Track (
         vector<Byte>  &  buf       = out.GetTrackBitsForWrite (destTrack);
         size_t           byteCount = (bitCount + 7) / 8;
 
-        if (byteCount > buf.size ())
+        if (byteCount > buf.size())
         {
-            byteCount = buf.size ();
+            byteCount = buf.size();
         }
 
-        memcpy (buf.data (), trackPtr, byteCount);
+        memcpy (buf.data(), trackPtr, byteCount);
     }
 
     out.SetTrackBitCount (destTrack, bitCount);
@@ -207,7 +207,7 @@ static HRESULT ParseV2Track (
     byteOffset = static_cast<size_t> (startBlock) * WozLoader::kV2BlockSize;
     byteCount  = (bitCount + 7) / 8;
 
-    if (byteOffset + byteCount > raw.size ())
+    if (byteOffset + byteCount > raw.size())
     {
         hr = E_FAIL;
         goto Error;
@@ -218,12 +218,12 @@ static HRESULT ParseV2Track (
     {
         vector<Byte>  &  buf = out.GetTrackBitsForWrite (destTrack);
 
-        if (byteCount > buf.size ())
+        if (byteCount > buf.size())
         {
-            byteCount = buf.size ();
+            byteCount = buf.size();
         }
 
-        memcpy (buf.data (), raw.data () + byteOffset, byteCount);
+        memcpy (buf.data(), raw.data() + byteOffset, byteCount);
     }
 
     out.SetTrackBitCount (destTrack, bitCount);
@@ -265,17 +265,17 @@ HRESULT WozLoader::Load (const vector<Byte> & raw, DiskImage & out)
     Byte           trackIndex           = 0;
     int            trackI               = 0;
 
-    if (raw.size () < kHeaderSize)
+    if (raw.size() < kHeaderSize)
     {
         hr = E_FAIL;
         goto Error;
     }
 
-    if (MatchSig (raw.data (), kSigV2))
+    if (MatchSig (raw.data(), kSigV2))
     {
         isV2 = true;
     }
-    else if (MatchSig (raw.data (), kSigV1))
+    else if (MatchSig (raw.data(), kSigV1))
     {
         isV2 = false;
     }
@@ -287,9 +287,9 @@ HRESULT WozLoader::Load (const vector<Byte> & raw, DiskImage & out)
 
     pos = kSigLen + kCrcLen;
 
-    while (pos + 8 <= raw.size ())
+    while (pos + 8 <= raw.size())
     {
-        const Byte *   id        = raw.data () + pos;
+        const Byte *   id        = raw.data() + pos;
         uint32_t       chunkSize = 0;
         bool           known     = false;
 
@@ -305,10 +305,10 @@ HRESULT WozLoader::Load (const vector<Byte> & raw, DiskImage & out)
             break;
         }
 
-        chunkSize = Read32LE (raw.data () + pos + 4);
+        chunkSize = Read32LE (raw.data() + pos + 4);
         chunkPos  = pos + 8;
 
-        if (chunkPos + chunkSize > raw.size ())
+        if (chunkPos + chunkSize > raw.size())
         {
             hr = E_FAIL;
             goto Error;
@@ -331,12 +331,12 @@ HRESULT WozLoader::Load (const vector<Byte> & raw, DiskImage & out)
                 hr = E_FAIL;
                 goto Error;
             }
-            memcpy (tmap, raw.data () + chunkPos, kTmapChunkSize);
+            memcpy (tmap, raw.data() + chunkPos, kTmapChunkSize);
             sawTmap = true;
         }
         else if (MatchMagic (id, kTrksMagic))
         {
-            trksData = raw.data () + chunkPos;
+            trksData = raw.data() + chunkPos;
             trksSize = chunkSize;
             sawTrks  = true;
         }
@@ -356,7 +356,7 @@ HRESULT WozLoader::Load (const vector<Byte> & raw, DiskImage & out)
 
     out.SetImageWriteProtected (writeProtected);
     out.SetSourceFormat        (DiskFormat::Woz);
-    out.ClearQuarterTrackMap ();
+    out.ClearQuarterTrackMap();
 
     {
         int   maxSlot = -1;
@@ -442,7 +442,7 @@ HRESULT WozLoader::Load (const vector<Byte> & raw, DiskImage & out)
         }
     }
 
-    out.ClearDirty ();
+    out.ClearDirty();
 
     UNREFERENCED_PARAMETER (trackI);
 
@@ -501,13 +501,13 @@ HRESULT WozLoader::BuildSyntheticV2 (
 
     outBytes.assign (fileBytes, 0);
 
-    memcpy (outBytes.data (), kSigV2, kSigLen);
-    Write32LE (outBytes.data () + kSigLen, 0);
+    memcpy (outBytes.data(), kSigV2, kSigLen);
+    Write32LE (outBytes.data() + kSigLen, 0);
 
     pos = kHeaderSize;
 
-    memcpy (outBytes.data () + pos, kInfoMagic, 4);
-    Write32LE (outBytes.data () + pos + 4, static_cast<uint32_t> (kInfoChunkSize));
+    memcpy (outBytes.data() + pos, kInfoMagic, 4);
+    Write32LE (outBytes.data() + pos + 4, static_cast<uint32_t> (kInfoChunkSize));
     outBytes[pos + 8 + 0] = 2;                                    // version
     outBytes[pos + 8 + 1] = diskType;                              // 1 = 5.25
     outBytes[pos + 8 + 2] = static_cast<Byte> (writeProtected ? 1 : 0);
@@ -515,8 +515,8 @@ HRESULT WozLoader::BuildSyntheticV2 (
     outBytes[pos + 8 + 4] = 1;                                    // cleaned
     pos += 8 + kInfoChunkSize;
 
-    memcpy (outBytes.data () + pos, kTmapMagic, 4);
-    Write32LE (outBytes.data () + pos + 4, static_cast<uint32_t> (kTmapChunkSize));
+    memcpy (outBytes.data() + pos, kTmapMagic, 4);
+    Write32LE (outBytes.data() + pos + 4, static_cast<uint32_t> (kTmapChunkSize));
 
     for (qt = 0; qt < static_cast<int> (kTmapChunkSize); qt++)
     {
@@ -529,18 +529,18 @@ HRESULT WozLoader::BuildSyntheticV2 (
 
     pos += 8 + kTmapChunkSize;
 
-    memcpy (outBytes.data () + pos, kTrksMagic, 4);
-    Write32LE (outBytes.data () + pos + 4, static_cast<uint32_t> (trksRecBytes));
+    memcpy (outBytes.data() + pos, kTrksMagic, 4);
+    Write32LE (outBytes.data() + pos + 4, static_cast<uint32_t> (trksRecBytes));
 
     bitStreamStart = 3 * kV2BlockSize;
 
-    Write16LE (outBytes.data () + pos + trksHdr,                  static_cast<uint16_t> (3));
-    Write16LE (outBytes.data () + pos + trksHdr + 2,              static_cast<uint16_t> (blocks));
-    Write32LE (outBytes.data () + pos + trksHdr + 4,              static_cast<uint32_t> (trackZeroBitCount));
+    Write16LE (outBytes.data() + pos + trksHdr,                  static_cast<uint16_t> (3));
+    Write16LE (outBytes.data() + pos + trksHdr + 2,              static_cast<uint16_t> (blocks));
+    Write32LE (outBytes.data() + pos + trksHdr + 4,              static_cast<uint32_t> (trackZeroBitCount));
 
-    if (payloadBytes > 0 && payloadBytes <= trackZeroBitStream.size ())
+    if (payloadBytes > 0 && payloadBytes <= trackZeroBitStream.size())
     {
-        memcpy (outBytes.data () + bitStreamStart, trackZeroBitStream.data (), payloadBytes);
+        memcpy (outBytes.data() + bitStreamStart, trackZeroBitStream.data(), payloadBytes);
     }
 
     return hr;
@@ -581,7 +581,7 @@ HRESULT WozLoader::Serialize (const DiskImage & img, vector<Byte> & outBytes)
     };
 
     HRESULT             hr           = S_OK;
-    int                 slotCount    = img.GetTrackCount ();
+    int                 slotCount    = img.GetTrackCount();
     uint16_t            nextBlock    = 3;                 // blocks 0..2 hold the chunks
     uint16_t            largestTrack = 0;
     size_t              trksRecBytes = kV2TrkRecordCount * kV2TrkRecordSize;
@@ -625,15 +625,15 @@ HRESULT WozLoader::Serialize (const DiskImage & img, vector<Byte> & outBytes)
     outBytes.assign (static_cast<size_t> (nextBlock) * kV2BlockSize, 0);
 
     // Header (CRC filled in last).
-    memcpy (outBytes.data (), kSigV2, kSigLen);
+    memcpy (outBytes.data(), kSigV2, kSigLen);
 
     pos = kHeaderSize;
 
     // INFO chunk.
-    memcpy    (outBytes.data () + pos, kInfoMagic, 4);
-    Write32LE (outBytes.data () + pos + 4, static_cast<uint32_t> (kInfoChunkSize));
+    memcpy    (outBytes.data() + pos, kInfoMagic, 4);
+    Write32LE (outBytes.data() + pos + 4, static_cast<uint32_t> (kInfoChunkSize));
     {
-        Byte *        info      = outBytes.data () + pos + 8;
+        Byte *        info      = outBytes.data() + pos + 8;
         const char    creator[] = "Casso";
 
         info[0] = 2;                                            // INFO version 2
@@ -641,7 +641,7 @@ HRESULT WozLoader::Serialize (const DiskImage & img, vector<Byte> & outBytes)
         // Persist only the image's OWN write-protect flag -- a transient
         // user setting or a read-only backing file must not be baked into
         // the serialized image bytes.
-        info[2] = static_cast<Byte> (img.IsImageWriteProtected () ? 1 : 0);
+        info[2] = static_cast<Byte> (img.IsImageWriteProtected() ? 1 : 0);
         info[3] = 0;                                            // synchronized
         info[4] = 1;                                            // cleaned
         memset (info + 5, ' ', 32);                             // creator: 32 bytes, space-padded
@@ -655,10 +655,10 @@ HRESULT WozLoader::Serialize (const DiskImage & img, vector<Byte> & outBytes)
     pos += 8 + kInfoChunkSize;
 
     // TMAP chunk: one slot index (or 0xFF) per quarter-track phase.
-    memcpy    (outBytes.data () + pos, kTmapMagic, 4);
-    Write32LE (outBytes.data () + pos + 4, static_cast<uint32_t> (kTmapChunkSize));
+    memcpy    (outBytes.data() + pos, kTmapMagic, 4);
+    Write32LE (outBytes.data() + pos + 4, static_cast<uint32_t> (kTmapChunkSize));
     {
-        Byte *   tmap = outBytes.data () + pos + 8;
+        Byte *   tmap = outBytes.data() + pos + 8;
 
         for (qt = 0; qt < static_cast<int> (kTmapChunkSize); qt++)
         {
@@ -673,10 +673,10 @@ HRESULT WozLoader::Serialize (const DiskImage & img, vector<Byte> & outBytes)
 
     // TRKS chunk: 160 fixed 8-byte records; populated slots reference their
     // block-aligned bit stream, the rest stay zero (empty).
-    memcpy    (outBytes.data () + pos, kTrksMagic, 4);
-    Write32LE (outBytes.data () + pos + 4, static_cast<uint32_t> (trksRecBytes));
+    memcpy    (outBytes.data() + pos, kTrksMagic, 4);
+    Write32LE (outBytes.data() + pos + 4, static_cast<uint32_t> (trksRecBytes));
     {
-        Byte *   trks = outBytes.data () + pos + 8;
+        Byte *   trks = outBytes.data() + pos + 8;
 
         for (slot = 0; slot < static_cast<int> (kV2TrkRecordCount); slot++)
         {
@@ -704,17 +704,17 @@ HRESULT WozLoader::Serialize (const DiskImage & img, vector<Byte> & outBytes)
         byteCount = (geom[slot].bitCount + 7) / 8;
         dstOff    = static_cast<size_t> (geom[slot].startBlock) * kV2BlockSize;
 
-        if (byteCount > bits->size ())
+        if (byteCount > bits->size())
         {
-            byteCount = bits->size ();
+            byteCount = bits->size();
         }
 
-        memcpy (outBytes.data () + dstOff, bits->data (), byteCount);
+        memcpy (outBytes.data() + dstOff, bits->data(), byteCount);
     }
 
     // Header CRC32 over everything after the 12-byte header.
-    Write32LE (outBytes.data () + kSigLen,
-               Crc32 (outBytes.data () + kHeaderSize, outBytes.size () - kHeaderSize));
+    Write32LE (outBytes.data() + kSigLen,
+               Crc32 (outBytes.data() + kHeaderSize, outBytes.size() - kHeaderSize));
 
     return hr;
 }

@@ -29,7 +29,7 @@ namespace
     //
     ////////////////////////////////////////////////////////////////////////////
 
-    fs::path WalkUpForRepoRoot ()
+    fs::path WalkUpForRepoRoot()
     {
         std::error_code   ec;
         fs::path          cursor;
@@ -39,7 +39,7 @@ namespace
         cursor = fs::current_path (ec);
         if (ec)
         {
-            return fs::path ();
+            return fs::path();
         }
 
         for (steps = 0; steps < kMaxAncestorWalk; steps++)
@@ -51,15 +51,15 @@ namespace
                 return cursor;
             }
 
-            if (!cursor.has_parent_path () || cursor == cursor.parent_path ())
+            if (!cursor.has_parent_path() || cursor == cursor.parent_path())
             {
                 break;
             }
 
-            cursor = cursor.parent_path ();
+            cursor = cursor.parent_path();
         }
 
-        return fs::path ();
+        return fs::path();
     }
 
 
@@ -75,24 +75,24 @@ namespace
 
     std::string ReadMachineJson (const std::string & filename)
     {
-        fs::path        repoRoot = WalkUpForRepoRoot ();
+        fs::path        repoRoot = WalkUpForRepoRoot();
         fs::path        full;
         std::string     stem;
         std::ifstream   stream;
         std::string     content;
 
-        if (repoRoot.empty ())
+        if (repoRoot.empty())
         {
-            return std::string ();
+            return std::string();
         }
 
-        stem = fs::path (filename).stem ().string ();
+        stem = fs::path (filename).stem().string();
         full = repoRoot / "Resources" / "Machines" / stem / filename;
 
         stream.open (full, std::ios::binary);
-        if (!stream.is_open ())
+        if (!stream.is_open())
         {
-            return std::string ();
+            return std::string();
         }
 
         content.assign (
@@ -116,7 +116,7 @@ namespace
         const std::vector<fs::path> & searchPaths,
         const fs::path              & relativePath)
     {
-        std::string         filename = relativePath.filename ().string ();
+        std::string         filename = relativePath.filename().string();
         size_t              expectedSize;
         fs::path            tempPath;
         bool                needCreate;
@@ -149,7 +149,7 @@ namespace
             expectedSize = kEnhancedCharRomSize;
         }
 
-        tempPath   = fs::temp_directory_path () / ("casso_bc_" + filename);
+        tempPath   = fs::temp_directory_path() / ("casso_bc_" + filename);
         needCreate = !fs::exists (tempPath, ec);
 
         if (!needCreate)
@@ -168,10 +168,10 @@ namespace
         {
             buffer.assign (expectedSize, 0);
             out.open (tempPath, std::ios::binary | std::ios::trunc);
-            out.write (reinterpret_cast<const char *> (buffer.data ()),
+            out.write (reinterpret_cast<const char *> (buffer.data()),
                        static_cast<std::streamsize> (expectedSize));
-            out.flush ();
-            out.close ();
+            out.flush();
+            out.close();
         }
 
         return tempPath;
@@ -190,7 +190,7 @@ namespace
     {
         size_t   i;
 
-        for (i = 0; i < cfg.internalDevices.size (); i++)
+        for (i = 0; i < cfg.internalDevices.size(); i++)
         {
             if (cfg.internalDevices[i].type == needle)
             {
@@ -212,7 +212,7 @@ namespace
     {
         size_t   i;
 
-        for (i = 0; i < cfg.slots.size (); i++)
+        for (i = 0; i < cfg.slots.size(); i++)
         {
             if (cfg.slots[i].slot == slot && cfg.slots[i].device == device)
             {
@@ -284,7 +284,7 @@ public:
         HRESULT                 hr;
 
         json = ReadMachineJson ("Apple2.json");
-        Assert::IsFalse (json.empty (),
+        Assert::IsFalse (json.empty(),
             L"Resources/Machines/Apple2/Apple2.json must be reachable from the test cwd");
 
         searchPaths.push_back (fs::path ("/mock"));
@@ -316,7 +316,7 @@ public:
         HRESULT                 hr;
 
         json = ReadMachineJson ("Apple2Plus.json");
-        Assert::IsFalse (json.empty (),
+        Assert::IsFalse (json.empty(),
             L"Resources/Machines/Apple2Plus/Apple2Plus.json must be reachable from the test cwd");
 
         searchPaths.push_back (fs::path ("/mock"));
@@ -424,7 +424,7 @@ public:
                                         config, error);
         Assert::IsTrue (SUCCEEDED (hr));
 
-        Assert::AreEqual (size_t (1), config.ram.size (),
+        Assert::AreEqual (size_t (1), config.ram.size(),
             L"Apple2.json must declare exactly one RAM region (no aux bank)");
         Assert::AreEqual (Word (0x0000), config.ram[0].address,
             L"Apple2.json RAM region 0 must start at $0000");
@@ -433,10 +433,10 @@ public:
         Assert::AreEqual (kAppleIISystemRomAt, config.systemRom.address,
             L"Apple2.json system ROM must remain at $D000");
 
-        Assert::AreEqual (kAppleIIVideoModes, config.videoConfig.modes.size (),
+        Assert::AreEqual (kAppleIIVideoModes, config.videoConfig.modes.size(),
             L"Apple2.json must list exactly 3 video modes (text40/lores/hires)");
 
-        for (i = 0; i < config.videoConfig.modes.size (); i++)
+        for (i = 0; i < config.videoConfig.modes.size(); i++)
         {
             Assert::AreNotEqual (std::string ("apple2-text80"),
                 config.videoConfig.modes[i],
@@ -470,16 +470,16 @@ public:
                                         config, error);
         Assert::IsTrue (SUCCEEDED (hr));
 
-        Assert::AreEqual (size_t (1), config.ram.size (),
+        Assert::AreEqual (size_t (1), config.ram.size(),
             L"Apple2Plus.json must declare exactly one RAM region");
         Assert::AreEqual (kAppleIIRamSize, config.ram[0].size,
             L"Apple2Plus.json RAM region must be $C000 bytes");
         Assert::AreEqual (kAppleIISystemRomAt, config.systemRom.address,
             L"Apple2Plus.json system ROM must remain at $D000");
-        Assert::AreEqual (kAppleIIVideoModes, config.videoConfig.modes.size (),
+        Assert::AreEqual (kAppleIIVideoModes, config.videoConfig.modes.size(),
             L"Apple2Plus.json must list exactly 3 video modes");
 
-        for (i = 0; i < config.videoConfig.modes.size (); i++)
+        for (i = 0; i < config.videoConfig.modes.size(); i++)
         {
             Assert::AreNotEqual (std::string ("apple2-text80"),
                 config.videoConfig.modes[i],
@@ -526,9 +526,9 @@ public:
         Assert::IsTrue  (HasInternalDeviceType (config, "apple2-gameport"),
             L"Apple2.json must include apple2-gameport");
 
-        Assert::AreEqual (size_t (4), config.internalDevices.size (),
+        Assert::AreEqual (size_t (4), config.internalDevices.size(),
             L"Apple2.json internalDevices count must remain exactly 4");
-        Assert::AreEqual (size_t (2), config.slots.size (),
+        Assert::AreEqual (size_t (2), config.slots.size(),
             L"Apple2.json declares two slots: parallel printer (slot 1), Disk II (slot 6)");
     }
 
@@ -566,9 +566,9 @@ public:
         Assert::IsTrue (HasInternalDeviceType (config, "apple2-gameport"),
             L"Apple2Plus.json must include apple2-gameport");
 
-        Assert::AreEqual (size_t (4), config.internalDevices.size (),
+        Assert::AreEqual (size_t (4), config.internalDevices.size(),
             L"Apple2Plus.json internalDevices count must remain exactly 4");
-        Assert::AreEqual (size_t (3), config.slots.size (),
+        Assert::AreEqual (size_t (3), config.slots.size(),
             L"Apple2Plus.json declares three slots: parallel printer (slot 1), Mockingboard (slot 4), Disk II (slot 6)");
         Assert::IsTrue (HasSlotDevice (config, 1, "parallel-printer"),
             L"Apple2Plus.json must install the parallel printer in slot 1");
@@ -602,24 +602,24 @@ public:
         Assert::IsTrue (core.machineKind == HeadlessMachineKind::AppleII,
             L"machineKind must remain AppleII");
 
-        Assert::IsNotNull (core.prng.get (),     L"][ harness must wire a Prng");
-        Assert::IsNotNull (core.host.get (),     L"][ harness must wire MockHostShell");
-        Assert::IsNotNull (core.fixtures.get (), L"][ harness must wire FixtureProvider");
+        Assert::IsNotNull (core.prng.get(),     L"][ harness must wire a Prng");
+        Assert::IsNotNull (core.host.get(),     L"][ harness must wire MockHostShell");
+        Assert::IsNotNull (core.fixtures.get(), L"][ harness must wire FixtureProvider");
 
-        Assert::IsNull (core.mmu.get (),
+        Assert::IsNull (core.mmu.get(),
             L"][ harness must NOT pull in Apple2eMmu (composition pin)");
-        Assert::IsNull (core.cpu.get (),
+        Assert::IsNull (core.cpu.get(),
             L"][ harness must NOT pull in EmuCpu (][ build path stays minimal)");
-        Assert::IsNull (core.bus.get (),
+        Assert::IsNull (core.bus.get(),
             L"][ harness must NOT pull in MemoryBus");
-        Assert::IsNull (core.mainRam.get (),
+        Assert::IsNull (core.mainRam.get(),
             L"][ harness must NOT pull in RamDevice");
-        Assert::IsNull (core.languageCard.get (),
+        Assert::IsNull (core.languageCard.get(),
             L"][ harness must NOT pull in LanguageCard by default");
-        Assert::IsNull (core.diskController.get (),
+        Assert::IsNull (core.diskController.get(),
             L"][ harness must NOT pull in Disk2Controller by default");
 
-        Assert::IsFalse (core.HasApple2e (),
+        Assert::IsFalse (core.HasApple2e(),
             L"][ harness must NOT report HasApple2e");
     }
 
@@ -643,20 +643,20 @@ public:
         Assert::IsTrue (core.machineKind == HeadlessMachineKind::AppleIIPlus,
             L"machineKind must remain AppleIIPlus");
 
-        Assert::IsNotNull (core.prng.get ());
-        Assert::IsNotNull (core.host.get ());
-        Assert::IsNotNull (core.fixtures.get ());
+        Assert::IsNotNull (core.prng.get());
+        Assert::IsNotNull (core.host.get());
+        Assert::IsNotNull (core.fixtures.get());
 
-        Assert::IsNull (core.mmu.get (),
+        Assert::IsNull (core.mmu.get(),
             L"][+ harness must NOT pull in Apple2eMmu");
-        Assert::IsNull (core.cpu.get (),
+        Assert::IsNull (core.cpu.get(),
             L"][+ harness must NOT pull in EmuCpu");
-        Assert::IsNull (core.bus.get ());
-        Assert::IsNull (core.mainRam.get ());
-        Assert::IsNull (core.languageCard.get ());
-        Assert::IsNull (core.diskController.get ());
+        Assert::IsNull (core.bus.get());
+        Assert::IsNull (core.mainRam.get());
+        Assert::IsNull (core.languageCard.get());
+        Assert::IsNull (core.diskController.get());
 
-        Assert::IsFalse (core.HasApple2e ());
+        Assert::IsFalse (core.HasApple2e());
     }
 
 
@@ -687,7 +687,7 @@ public:
 
         for (i = 0; i < kPrngSampleCount; i++)
         {
-            Assert::AreEqual (coreA.prng->Next64 (), coreB.prng->Next64 (),
+            Assert::AreEqual (coreA.prng->Next64(), coreB.prng->Next64(),
                 L"][ harness with the pinned seed must be deterministic");
         }
     }
@@ -716,7 +716,7 @@ public:
 
         for (i = 0; i < kPrngSampleCount; i++)
         {
-            Assert::AreEqual (coreA.prng->Next64 (), coreB.prng->Next64 (),
+            Assert::AreEqual (coreA.prng->Next64(), coreB.prng->Next64(),
                 L"][+ harness with the pinned seed must be deterministic");
         }
     }
@@ -756,11 +756,11 @@ public:
         Assert::IsTrue (coreIIPlus.machineKind != coreIIe.machineKind);
         Assert::IsTrue (coreII.machineKind     != coreIIe.machineKind);
 
-        Assert::IsTrue  (coreIIe.HasApple2e (),
+        Assert::IsTrue  (coreIIe.HasApple2e(),
             L"//e build path must produce a fully wired //e core");
-        Assert::IsFalse (coreII.HasApple2e (),
+        Assert::IsFalse (coreII.HasApple2e(),
             L"][ build path must NOT produce a //e core");
-        Assert::IsFalse (coreIIPlus.HasApple2e (),
+        Assert::IsFalse (coreIIPlus.HasApple2e(),
             L"][+ build path must NOT produce a //e core");
     }
 };

@@ -167,7 +167,7 @@ HRESULT DriveAudioMixer::SetMechanism (const wstring & mechanism)
     // No asset context yet (the host hasn't called SetSampleLoadContext,
     // typically because WASAPI hasn't started). Remember the mechanism so
     // the eventual first load uses the right subdir.
-    BAIL_OUT_IF (m_devicesDir.empty () || m_loadSampleRate == 0, S_OK);
+    BAIL_OUT_IF (m_devicesDir.empty() || m_loadSampleRate == 0, S_OK);
 
     for (IDriveAudioSource * src : m_sources)
     {
@@ -178,8 +178,8 @@ HRESULT DriveAudioMixer::SetMechanism (const wstring & mechanism)
             continue;
         }
 
-        HRESULT  hrLoad = disk->LoadSamples (m_devicesDir.c_str (),
-                                             m_mechanism.c_str (),
+        HRESULT  hrLoad = disk->LoadSamples (m_devicesDir.c_str(),
+                                             m_mechanism.c_str(),
                                              m_loadSampleRate);
 
         // FR-009: a per-source load failure mutes that source but

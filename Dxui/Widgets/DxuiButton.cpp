@@ -80,7 +80,7 @@ void DxuiButton::SetMouse (int x, int y, bool down)
 }
 
 
-void DxuiButton::Click ()
+void DxuiButton::Click()
 {
     if (!m_visible || !m_enabled)
     {

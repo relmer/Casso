@@ -45,7 +45,7 @@ namespace UnitTestHelpers
     //
     ////////////////////////////////////////////////////////////////////////////////
 
-    static void SuppressCrtAssertDialogs ()
+    static void SuppressCrtAssertDialogs()
     {
         // Redirect CRT assert/error/warning to stderr instead of showing dialog boxes
         _CrtSetReportMode (_CRT_ASSERT, _CRTDBG_MODE_FILE);
@@ -71,9 +71,9 @@ namespace UnitTestHelpers
     //
     ////////////////////////////////////////////////////////////////////////////////
 
-    void SetupForUnitTests ()
+    void SetupForUnitTests()
     {
         SetBreakpointFunction (EhmBreakpointHandler);
-        SuppressCrtAssertDialogs ();
+        SuppressCrtAssertDialogs();
     }
 }

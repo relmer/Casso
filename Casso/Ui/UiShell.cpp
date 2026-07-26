@@ -14,7 +14,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-UiShell::~UiShell ()
+UiShell::~UiShell()
 {
     Shutdown();
 }
@@ -73,7 +73,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void UiShell::Shutdown ()
+void UiShell::Shutdown()
 {
     m_hitTest.Clear();
     m_text.Shutdown();
@@ -110,7 +110,7 @@ HRESULT UiShell::OnResize (int viewportWidthPx, int viewportHeightPx, UINT dpi)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT UiShell::OnDeviceLost ()
+HRESULT UiShell::OnDeviceLost()
 {
     return m_text.OnDeviceLost();
 }
@@ -125,7 +125,7 @@ HRESULT UiShell::OnDeviceLost ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT UiShell::OnDeviceRestored ()
+HRESULT UiShell::OnDeviceRestored()
 {
     HRESULT                hr      = S_OK;
     ID3D11Device         * device  = nullptr;
@@ -183,7 +183,7 @@ bool UiShell::OnMouseMove (int x, int y, bool leftDown)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void UiShell::OnMouseLeave ()
+void UiShell::OnMouseLeave()
 {
     m_leftDown = false;
 
@@ -282,7 +282,7 @@ bool UiShell::HandleKey (WPARAM vk)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool UiShell::IsCapturingInput () const
+bool UiShell::IsCapturingInput() const
 {
     if (m_mainMenu != nullptr && m_mainMenu->IsOpen())
     {

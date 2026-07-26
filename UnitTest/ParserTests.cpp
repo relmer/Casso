@@ -38,7 +38,7 @@ namespace ParserTests
         {
             auto lines = Parser::SplitLines ("LDA #$42\nSTA $10\nNOP");
 
-            Assert::AreEqual ((size_t) 3, lines.size ());
+            Assert::AreEqual ((size_t) 3, lines.size());
             Assert::AreEqual (std::string ("LDA #$42"), lines[0]);
             Assert::AreEqual (std::string ("STA $10"),  lines[1]);
             Assert::AreEqual (std::string ("NOP"),      lines[2]);
@@ -58,7 +58,7 @@ namespace ParserTests
         {
             auto lines = Parser::SplitLines ("");
 
-            Assert::AreEqual ((size_t) 1, lines.size ());
+            Assert::AreEqual ((size_t) 1, lines.size());
         }
 
 
@@ -75,7 +75,7 @@ namespace ParserTests
         {
             auto lines = Parser::SplitLines ("LDA #$42\r\nSTA $10");
 
-            Assert::AreEqual ((size_t) 2, lines.size ());
+            Assert::AreEqual ((size_t) 2, lines.size());
             Assert::AreEqual (std::string ("LDA #$42"), lines[0]);
             Assert::AreEqual (std::string ("STA $10"),  lines[1]);
         }
@@ -94,7 +94,7 @@ namespace ParserTests
         {
             auto lines = Parser::SplitLines ("        lda #\\\n        $42");
 
-            Assert::AreEqual ((size_t) 1, lines.size ());
+            Assert::AreEqual ((size_t) 1, lines.size());
             Assert::AreEqual (std::string ("        lda #        $42"), lines[0]);
         }
 
@@ -112,7 +112,7 @@ namespace ParserTests
         {
             auto lines = Parser::SplitLines ("line with \\\\\nnext line");
 
-            Assert::AreEqual ((size_t) 2, lines.size ());
+            Assert::AreEqual ((size_t) 2, lines.size());
             Assert::AreEqual (std::string ("line with \\\\"), lines[0]);
             Assert::AreEqual (std::string ("next line"),      lines[1]);
         }
@@ -131,7 +131,7 @@ namespace ParserTests
         {
             auto lines = Parser::SplitLines ("part1 \\\npart2 \\\npart3");
 
-            Assert::AreEqual ((size_t) 1, lines.size ());
+            Assert::AreEqual ((size_t) 1, lines.size());
             Assert::AreEqual (std::string ("part1 part2 part3"), lines[0]);
         }
     };
@@ -286,7 +286,7 @@ namespace ParserTests
             auto parsed = Parser::ParseLine ("start:", 1);
 
             Assert::AreEqual (std::string ("start"), parsed.label);
-            Assert::IsTrue (parsed.mnemonic.empty ());
+            Assert::IsTrue (parsed.mnemonic.empty());
             Assert::IsFalse (parsed.isEmpty);
         }
     };

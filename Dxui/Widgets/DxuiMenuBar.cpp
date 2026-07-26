@@ -61,7 +61,7 @@ namespace
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-DxuiMenuBar::DxuiMenuBar ()
+DxuiMenuBar::DxuiMenuBar()
 {
 }
 
@@ -74,7 +74,7 @@ DxuiMenuBar::DxuiMenuBar ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-DxuiMenuBar::~DxuiMenuBar ()
+DxuiMenuBar::~DxuiMenuBar()
 {
     Close();
 }
@@ -311,7 +311,7 @@ void DxuiMenuBar::Layout (int x, int y, int width, UINT dpi, IDxuiTextRenderer *
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiMenuBar::Hide ()
+void DxuiMenuBar::Hide()
 {
     DXUI_ASSERT_UI_THREAD();
 
@@ -373,7 +373,7 @@ void DxuiMenuBar::Open (int menuIndex, bool keyboardActivated)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiMenuBar::Close ()
+void DxuiMenuBar::Close()
 {
     DXUI_ASSERT_UI_THREAD();
 
@@ -392,7 +392,7 @@ void DxuiMenuBar::Close ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiMenuBar::CloseAll ()
+void DxuiMenuBar::CloseAll()
 {
     DXUI_ASSERT_UI_THREAD();
 
@@ -430,7 +430,7 @@ void DxuiMenuBar::SetFocusedMenu (int menuIndex)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiMenuBar::ClearFocus ()
+void DxuiMenuBar::ClearFocus()
 {
     DXUI_ASSERT_UI_THREAD();
 
@@ -657,7 +657,7 @@ bool DxuiMenuBar::HandleMouseMove (int x, int y)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiMenuBar::ClearHover ()
+void DxuiMenuBar::ClearHover()
 {
     DXUI_ASSERT_UI_THREAD();
 
@@ -1165,7 +1165,7 @@ RECT DxuiMenuBar::MenuRect (int menuIndex) const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-int DxuiMenuBar::MenuStripContentWidthPx () const
+int DxuiMenuBar::MenuStripContentWidthPx() const
 {
     return m_titleRects.empty() ? 0 : m_titleRects.back().right;
 }
@@ -1179,7 +1179,7 @@ int DxuiMenuBar::MenuStripContentWidthPx () const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-RECT DxuiMenuBar::DropdownRect () const
+RECT DxuiMenuBar::DropdownRect() const
 {
     RECT  rect          = {};
     RECT  title         = {};
@@ -1568,7 +1568,7 @@ DxuiMenuBar::DropdownPalette DxuiMenuBar::ResolveDropdownPalette (const IDxuiThe
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiMenuBar::ShowDropdownPopup ()
+void DxuiMenuBar::ShowDropdownPopup()
 {
     DxuiPopupHost::ShowParams  showParams;
     POINT                      topLeft      = {};
@@ -1647,7 +1647,7 @@ void DxuiMenuBar::ShowDropdownPopup ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiMenuBar::ReleaseActivePopup ()
+void DxuiMenuBar::ReleaseActivePopup()
 {
     DxuiPopupHost *  popup = m_activePopup;
 

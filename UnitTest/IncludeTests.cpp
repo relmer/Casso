@@ -34,7 +34,7 @@ namespace IncludeTests
 
             auto it = files.find (filename);
 
-            if (it != files.end ())
+            if (it != files.end())
             {
                 result.success  = true;
                 result.contents = it->second;
@@ -66,7 +66,7 @@ namespace IncludeTests
             AssemblerOptions opts = {};
             opts.fileReader = &reader;
 
-            Assembler assembler (cpu.GetInstructionSet (), opts);
+            Assembler assembler (cpu.GetInstructionSet(), opts);
             auto result = assembler.Assemble (
                 "    .org $1000\n"
                 "    include \"defs.a65\"\n"
@@ -75,7 +75,7 @@ namespace IncludeTests
 
             Assert::IsTrue (result.success, L"Assembly should succeed");
             // LDA #$42 = A9 42
-            Assert::AreEqual ((size_t) 2, result.bytes.size ());
+            Assert::AreEqual ((size_t) 2, result.bytes.size());
             Assert::AreEqual ((Byte) 0xA9, result.bytes[0]);
             Assert::AreEqual ((Byte) 0x42, result.bytes[1]);
         }
@@ -93,7 +93,7 @@ namespace IncludeTests
             AssemblerOptions opts = {};
             opts.fileReader = &reader;
 
-            Assembler assembler (cpu.GetInstructionSet (), opts);
+            Assembler assembler (cpu.GetInstructionSet(), opts);
             auto result = assembler.Assemble (
                 "    .org $1000\n"
                 "    .include \"defs.a65\"\n"
@@ -118,7 +118,7 @@ namespace IncludeTests
             AssemblerOptions opts = {};
             opts.fileReader = &reader;
 
-            Assembler assembler (cpu.GetInstructionSet (), opts);
+            Assembler assembler (cpu.GetInstructionSet(), opts);
             auto result = assembler.Assemble (
                 "    .org $1000\n"
                 "    include \"outer.a65\"\n"
@@ -141,14 +141,14 @@ namespace IncludeTests
             AssemblerOptions opts = {};
             opts.fileReader = &reader;
 
-            Assembler assembler (cpu.GetInstructionSet (), opts);
+            Assembler assembler (cpu.GetInstructionSet(), opts);
             auto result = assembler.Assemble (
                 "    .org $1000\n"
                 "    include \"missing.a65\"\n"
             );
 
             Assert::IsFalse (result.success, L"Should fail for missing file");
-            Assert::IsTrue (result.errors.size () > 0, L"Should have error");
+            Assert::IsTrue (result.errors.size() > 0, L"Should have error");
         }
 
 
@@ -159,7 +159,7 @@ namespace IncludeTests
         {
             TestCpu cpu;
 
-            Assembler assembler (cpu.GetInstructionSet ());
+            Assembler assembler (cpu.GetInstructionSet());
             auto result = assembler.Assemble (
                 "    .org $1000\n"
                 "    include \"file.a65\"\n"
@@ -188,14 +188,14 @@ namespace IncludeTests
             AssemblerOptions opts = {};
             opts.fileReader = &reader;
 
-            Assembler assembler (cpu.GetInstructionSet (), opts);
+            Assembler assembler (cpu.GetInstructionSet(), opts);
             auto result = assembler.Assemble (
                 "    .org $1000\n"
                 "    include \"data.bin\"\n"
             );
 
             Assert::IsTrue (result.success, L"Assembly should succeed");
-            Assert::AreEqual ((size_t) 4, result.bytes.size ());
+            Assert::AreEqual ((size_t) 4, result.bytes.size());
             Assert::AreEqual ((Byte) 0xDE, result.bytes[0]);
             Assert::AreEqual ((Byte) 0xAD, result.bytes[1]);
             Assert::AreEqual ((Byte) 0xBE, result.bytes[2]);
@@ -220,7 +220,7 @@ namespace IncludeTests
             AssemblerOptions opts = {};
             opts.fileReader = &reader;
 
-            Assembler assembler (cpu.GetInstructionSet (), opts);
+            Assembler assembler (cpu.GetInstructionSet(), opts);
             auto result = assembler.Assemble (
                 "    .org $1000\n"
                 "    include \"data.s19\"\n"
@@ -230,7 +230,7 @@ namespace IncludeTests
             // Data should start at byte offset 2 (after 2-byte address 0x0000)
             // Actually S1: count=07, addr(2)=0000, data(4)=DEADBEEF, cksum(1)
             // dataBytes = 07 - 2 - 1 = 4
-            Assert::AreEqual ((size_t) 4, result.bytes.size ());
+            Assert::AreEqual ((size_t) 4, result.bytes.size());
             Assert::AreEqual ((Byte) 0xDE, result.bytes[0]);
             Assert::AreEqual ((Byte) 0xAD, result.bytes[1]);
             Assert::AreEqual ((Byte) 0xBE, result.bytes[2]);
@@ -254,14 +254,14 @@ namespace IncludeTests
             AssemblerOptions opts = {};
             opts.fileReader = &reader;
 
-            Assembler assembler (cpu.GetInstructionSet (), opts);
+            Assembler assembler (cpu.GetInstructionSet(), opts);
             auto result = assembler.Assemble (
                 "    .org $1000\n"
                 "    include \"data.hex\"\n"
             );
 
             Assert::IsTrue (result.success, L"Assembly should succeed");
-            Assert::AreEqual ((size_t) 4, result.bytes.size ());
+            Assert::AreEqual ((size_t) 4, result.bytes.size());
             Assert::AreEqual ((Byte) 0xDE, result.bytes[0]);
             Assert::AreEqual ((Byte) 0xAD, result.bytes[1]);
             Assert::AreEqual ((Byte) 0xBE, result.bytes[2]);
@@ -286,7 +286,7 @@ namespace IncludeTests
             AssemblerOptions opts = {};
             opts.fileReader = &reader;
 
-            Assembler assembler (cpu.GetInstructionSet (), opts);
+            Assembler assembler (cpu.GetInstructionSet(), opts);
             auto result = assembler.Assemble (
                 "    .org $1000\n"
                 "    include \"data.bin\"\n"
@@ -295,7 +295,7 @@ namespace IncludeTests
 
             Assert::IsTrue (result.success, L"Assembly should succeed");
             // 3 bytes of binary data + 1 byte NOP
-            Assert::AreEqual ((size_t) 4, result.bytes.size ());
+            Assert::AreEqual ((size_t) 4, result.bytes.size());
             Assert::AreEqual ((Byte) 0x01, result.bytes[0]);
             Assert::AreEqual ((Byte) 0x02, result.bytes[1]);
             Assert::AreEqual ((Byte) 0x03, result.bytes[2]);
@@ -315,7 +315,7 @@ namespace IncludeTests
             AssemblerOptions opts = {};
             opts.fileReader = &reader;
 
-            Assembler assembler (cpu.GetInstructionSet (), opts);
+            Assembler assembler (cpu.GetInstructionSet(), opts);
             auto result = assembler.Assemble (
                 "    .org $1000\n"
                 "    include \"empty.bin\"\n"
@@ -323,7 +323,7 @@ namespace IncludeTests
             );
 
             Assert::IsTrue (result.success, L"Assembly should succeed");
-            Assert::AreEqual ((size_t) 1, result.bytes.size ());
+            Assert::AreEqual ((size_t) 1, result.bytes.size());
             Assert::AreEqual ((Byte) 0xEA, result.bytes[0]); // NOP
         }
     };

@@ -44,7 +44,7 @@ namespace
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-DxuiTextRenderer::~DxuiTextRenderer ()
+DxuiTextRenderer::~DxuiTextRenderer()
 {
     Shutdown();
 }
@@ -119,7 +119,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiTextRenderer::Shutdown ()
+void DxuiTextRenderer::Shutdown()
 {
     DXUI_ASSERT_UI_THREAD();
 
@@ -197,7 +197,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiTextRenderer::UnbindBackBuffer ()
+void DxuiTextRenderer::UnbindBackBuffer()
 {
     DXUI_ASSERT_UI_THREAD();
 
@@ -220,7 +220,7 @@ void DxuiTextRenderer::UnbindBackBuffer ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT DxuiTextRenderer::BeginDraw ()
+HRESULT DxuiTextRenderer::BeginDraw()
 {
     HRESULT  hr = S_OK;
 
@@ -248,7 +248,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT DxuiTextRenderer::EndDraw ()
+HRESULT DxuiTextRenderer::EndDraw()
 {
     HRESULT  hr   = S_OK;
     HRESULT  hrEnd = S_OK;
@@ -311,7 +311,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT DxuiTextRenderer::BeginDrawOffscreen ()
+HRESULT DxuiTextRenderer::BeginDrawOffscreen()
 {
     HRESULT                  hr    = S_OK;
     D2D1_SIZE_U              size  = {};
@@ -367,7 +367,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT DxuiTextRenderer::EndDrawComposite ()
+HRESULT DxuiTextRenderer::EndDrawComposite()
 {
     HRESULT      hr     = S_OK;
     HRESULT      hrEnd  = S_OK;
@@ -955,7 +955,7 @@ Error:
 }
 
 
-HRESULT DxuiTextRenderer::PopClipRect ()
+HRESULT DxuiTextRenderer::PopClipRect()
 {
     DXUI_ASSERT_UI_THREAD();
 
@@ -1245,7 +1245,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT DxuiTextRenderer::OnDeviceLost ()
+HRESULT DxuiTextRenderer::OnDeviceLost()
 {
     DXUI_ASSERT_UI_THREAD();
 

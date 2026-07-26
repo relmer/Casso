@@ -31,9 +31,9 @@ namespace EmuTests
         {
             AppleGamePort  port;
 
-            Assert::AreEqual (static_cast<Word> (0xC061), port.GetStart (),
+            Assert::AreEqual (static_cast<Word> (0xC061), port.GetStart(),
                 L"Game port must start at PB0 ($C061)");
-            Assert::AreEqual (static_cast<Word> (0xC070), port.GetEnd (),
+            Assert::AreEqual (static_cast<Word> (0xC070), port.GetEnd(),
                 L"Game port must end at PTRIG ($C070)");
         }
 
@@ -42,7 +42,7 @@ namespace EmuTests
         {
             AppleGamePort  port;
 
-            port.Reset ();
+            port.Reset();
 
             Assert::AreEqual (static_cast<Byte> (0x00), static_cast<Byte> (port.Read (0xC061) & 0x80),
                 L"Released PB0 must read bit 7 clear");
@@ -61,7 +61,7 @@ namespace EmuTests
         {
             AppleGamePort  port;
 
-            port.Reset ();
+            port.Reset();
             port.SetButton (1, true);
 
             Assert::AreEqual (static_cast<Byte> (0x00), static_cast<Byte> (port.Read (0xC061) & 0x80),
@@ -77,7 +77,7 @@ namespace EmuTests
         {
             AppleGamePort  port;
 
-            port.Reset ();
+            port.Reset();
             port.SetPaddle (0, 200);
 
             // With no cycle source the timer is modeled as already expired so
@@ -92,7 +92,7 @@ namespace EmuTests
             AppleGamePort  port;
             uint64_t       cycles = 0;
 
-            port.Reset ();
+            port.Reset();
             port.SetCpuCycleSource (&cycles);
             port.SetPaddle (0, 100);     // full span = 100 * 11 = 1100 cycles
 
@@ -115,7 +115,7 @@ namespace EmuTests
             AppleGamePort  port;
             uint64_t       cycles = 0;
 
-            port.Reset ();
+            port.Reset();
             port.SetCpuCycleSource (&cycles);
 
             cycles = 0;
@@ -139,8 +139,8 @@ namespace EmuTests
 
             auto device = registry.Create ("apple2-gameport", cfg, bus);
 
-            Assert::IsNotNull (device.get (), L"Registry must create an apple2-gameport device");
-            Assert::AreEqual (static_cast<Word> (0xC061), device->GetStart (),
+            Assert::IsNotNull (device.get(), L"Registry must create an apple2-gameport device");
+            Assert::AreEqual (static_cast<Word> (0xC061), device->GetStart(),
                 L"Created device must claim the game-port range");
         }
     };

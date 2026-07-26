@@ -59,7 +59,7 @@ namespace
 
         if (ec)
         {
-            return fs::path ();
+            return fs::path();
         }
 
         for (i = 0; i < kMaxAncestorWalk; i++)
@@ -71,15 +71,15 @@ namespace
                 return candidate;
             }
 
-            if (!cursor.has_parent_path () || cursor == cursor.parent_path ())
+            if (!cursor.has_parent_path() || cursor == cursor.parent_path())
             {
                 break;
             }
 
-            cursor = cursor.parent_path ();
+            cursor = cursor.parent_path();
         }
 
-        return fs::path ();
+        return fs::path();
     }
 
 
@@ -113,7 +113,7 @@ namespace
     {
         uint64_t   spent = 0;
 
-        outTracksVisited.insert (core.diskController->GetCurrentTrack ());
+        outTracksVisited.insert (core.diskController->GetCurrentTrack());
 
         while (spent < totalBudget)
         {
@@ -122,9 +122,9 @@ namespace
             core.RunCycles (chunk);
             spent += chunk;
 
-            outTracksVisited.insert (core.diskController->GetCurrentTrack ());
+            outTracksVisited.insert (core.diskController->GetCurrentTrack());
 
-            if (outTracksVisited.size () >= static_cast<size_t> (earlyExitThreshold))
+            if (outTracksVisited.size() >= static_cast<size_t> (earlyExitThreshold))
             {
                 return;
             }
@@ -147,10 +147,10 @@ namespace
     {
         fs::path   wozPath = FindRepoFile (relPath);
 
-        if (wozPath.empty ())
+        if (wozPath.empty())
         {
             Logger::WriteMessage ("SKIPPED: WOZ file not found: ");
-            Logger::WriteMessage (relPath.c_str ());
+            Logger::WriteMessage (relPath.c_str());
             Logger::WriteMessage ("\n");
             return;
         }
@@ -164,15 +164,15 @@ namespace
         size_t              bitsAfter    = 0;
         wchar_t             failMsg[256] = {};
 
-        Assert::IsFalse (bytes.empty (), L"WOZ file must not be empty");
+        Assert::IsFalse (bytes.empty(), L"WOZ file must not be empty");
 
         hr = host.BuildApple2eWithDisk2 (core);
         Assert::IsTrue (SUCCEEDED (hr), L"BuildApple2eWithDisk2 must succeed");
 
-        core.PowerCycle ();
+        core.PowerCycle();
 
         hr = core.diskStore->MountFromBytes (kSlot6, kDrive1,
-            wozPath.string (), DiskFormat::Woz, bytes);
+            wozPath.string(), DiskFormat::Woz, bytes);
         Assert::IsTrue (SUCCEEDED (hr), L"MountFromBytes must succeed for real WOZ");
 
         external = core.diskStore->GetImage (kSlot6, kDrive1);
@@ -186,24 +186,24 @@ namespace
 
         RunAndSampleTracks (core, kBootCycleBudget, tracksVisited, minTracks);
 
-        bitsAfter = core.diskController->GetEngine (kDrive1).GetBitPosition ();
+        bitsAfter = core.diskController->GetEngine (kDrive1).GetBitPosition();
 
-        Assert::IsTrue (core.diskController->IsMotorOn (),
+        Assert::IsTrue (core.diskController->IsMotorOn(),
             L"Boot ROM must turn the motor on");
 
         // Either the bit cursor advanced OR the head walked off track 0.
         // Bit cursor wraps at the end of each track, so a sample exactly
         // on a track boundary can read 0 even after millions of bits
         // were consumed -- multi-track movement is a wrap-proof signal.
-        Assert::IsTrue (bitsAfter > 0 || tracksVisited.size () > 1,
+        Assert::IsTrue (bitsAfter > 0 || tracksVisited.size() > 1,
             L"Boot ROM must drive the controller (bit cursor advanced or head moved)");
 
         swprintf_s (failMsg,
             L"%ls: head only visited %zu distinct tracks (need >= %d); "
             L"boot loader likely stuck on copy-protection check",
-            label, tracksVisited.size (), minTracks);
+            label, tracksVisited.size(), minTracks);
         Assert::IsTrue (
-            tracksVisited.size () >= static_cast<size_t> (minTracks),
+            tracksVisited.size() >= static_cast<size_t> (minTracks),
             failMsg);
     }
 
@@ -260,7 +260,7 @@ namespace
         std::set<int>       tracksVisited;
         wchar_t             failMsg[256]  = {};
 
-        Assert::IsFalse (bytes.empty (), L"WOZ file must not be empty");
+        Assert::IsFalse (bytes.empty(), L"WOZ file must not be empty");
 
         hr = host.BuildApple2c (core);
         Assert::IsTrue (SUCCEEDED (hr), L"BuildApple2c must succeed");

@@ -102,7 +102,7 @@ ThemeManager::ThemeManager (
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT ThemeManager::Discover ()
+HRESULT ThemeManager::Discover()
 {
     HRESULT                    hr      = S_OK;
     std::vector<std::wstring>  candidates;
@@ -204,7 +204,7 @@ HRESULT ThemeManager::ActivateByFamilyVariant (
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT ThemeManager::ReloadCurrent ()
+HRESULT ThemeManager::ReloadCurrent()
 {
     HRESULT      hr             = S_OK;
     std::string  previousActive = m_activeName;
@@ -233,7 +233,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-const LoadedTheme * ThemeManager::GetActiveTheme () const
+const LoadedTheme * ThemeManager::GetActiveTheme() const
 {
     if (m_activeName.empty())
     {
@@ -291,7 +291,7 @@ void ThemeManager::SetActiveMachineName (const std::string & machineDisplayName)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-LoadedTheme ThemeManager::GetActiveResolvedTheme () const
+LoadedTheme ThemeManager::GetActiveResolvedTheme() const
 {
     const LoadedTheme *  active = GetActiveTheme();
 

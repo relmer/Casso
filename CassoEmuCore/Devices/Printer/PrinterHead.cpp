@@ -37,7 +37,7 @@ double PrinterHead::FormFeedDurationSec (int rows)
 
 void PrinterHead::Reset (int parkRow)
 {
-    m_pending.clear ();
+    m_pending.clear();
     m_phase          = Phase::Idle;
     m_headRow        = (double) parkRow;
     m_headCol        = 0.0;
@@ -90,7 +90,7 @@ void PrinterHead::Queue (const vector<PrinterEvent> & events)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-double PrinterHead::PendingSeconds () const
+double PrinterHead::PendingSeconds() const
 {
     double   seconds = 0.0;
 
@@ -198,13 +198,13 @@ void PrinterHead::Advance (double timeSec, const PrintRaster & built, PrintRaste
         {
             PrinterEvent   ev;
 
-            if (m_pending.empty ())
+            if (m_pending.empty())
             {
                 break;   // nothing queued -- head parked
             }
 
-            ev = m_pending.front ();
-            m_pending.pop_front ();
+            ev = m_pending.front();
+            m_pending.pop_front();
 
             if (ev.type == PrinterEventType::HeadBurst)
             {

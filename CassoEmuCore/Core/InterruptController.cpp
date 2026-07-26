@@ -83,7 +83,7 @@ void InterruptController::Assert (IrqSourceId source)
 
     m_aggregate |= mask;
 
-    UpdateLine ();
+    UpdateLine();
 }
 
 
@@ -111,7 +111,7 @@ void InterruptController::Clear (IrqSourceId source)
 
     m_aggregate &= ~mask;
 
-    UpdateLine ();
+    UpdateLine();
 }
 
 
@@ -128,7 +128,7 @@ void InterruptController::Clear (IrqSourceId source)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void InterruptController::UpdateLine ()
+void InterruptController::UpdateLine()
 {
     if (m_cpu == nullptr)
     {
@@ -152,11 +152,11 @@ void InterruptController::UpdateLine ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void InterruptController::SoftReset ()
+void InterruptController::SoftReset()
 {
     m_aggregate = 0;
 
-    UpdateLine ();
+    UpdateLine();
 }
 
 
@@ -173,9 +173,9 @@ void InterruptController::SoftReset ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void InterruptController::PowerCycle ()
+void InterruptController::PowerCycle()
 {
-    SoftReset ();
+    SoftReset();
 }
 
 
@@ -191,10 +191,10 @@ void InterruptController::PowerCycle ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void InterruptController::ResetSources ()
+void InterruptController::ResetSources()
 {
     m_aggregate  = 0;
     m_nextSource = 0;
 
-    UpdateLine ();
+    UpdateLine();
 }

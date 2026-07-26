@@ -315,7 +315,7 @@ static HRESULT NibblizeWithMap (
     int       logical   = 0;
     size_t    offset    = 0;
 
-    if (raw.size () != NibblizationLayer::kImageByteSize)
+    if (raw.size() != NibblizationLayer::kImageByteSize)
     {
         hr = E_INVALIDARG;
         goto Error;
@@ -345,7 +345,7 @@ static HRESULT NibblizeWithMap (
         out.SetTrackBitCount (track, bitOffset);
     }
 
-    out.ClearDirty ();
+    out.ClearDirty();
 
 Error:
     return hr;
@@ -674,7 +674,7 @@ HRESULT NibblizationLayer::Denibblize (const DiskImage & img, DiskFormat fmt, ve
 
     for (track = 0; track < kTrackCount; track++)
     {
-        if (track >= img.GetTrackCount ())
+        if (track >= img.GetTrackCount())
         {
             break;
         }

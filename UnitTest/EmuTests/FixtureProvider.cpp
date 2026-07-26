@@ -22,14 +22,14 @@ namespace
     //
     ////////////////////////////////////////////////////////////////////////
 
-    std::string ResolveFixturesRoot ()
+    std::string ResolveFixturesRoot()
     {
         std::string   baked = CASSO_FIXTURES_DIR;
         fs::path      cursor;
         fs::path      candidate;
         int           steps;
 
-        if (!baked.empty ())
+        if (!baked.empty())
         {
             return baked;
         }
@@ -39,7 +39,7 @@ namespace
         cursor = fs::current_path (ec);
         if (ec)
         {
-            return std::string ();
+            return std::string();
         }
 
         for (steps = 0; steps < kMaxAncestorWalk; steps++)
@@ -48,25 +48,25 @@ namespace
 
             if (fs::exists (candidate, ec) && fs::is_directory (candidate, ec))
             {
-                return candidate.string ();
+                return candidate.string();
             }
 
             candidate = cursor / "Fixtures";
 
             if (fs::exists (candidate, ec) && fs::is_directory (candidate, ec))
             {
-                return candidate.string ();
+                return candidate.string();
             }
 
-            if (!cursor.has_parent_path () || cursor == cursor.parent_path ())
+            if (!cursor.has_parent_path() || cursor == cursor.parent_path())
             {
                 break;
             }
 
-            cursor = cursor.parent_path ();
+            cursor = cursor.parent_path();
         }
 
-        return std::string ();
+        return std::string();
     }
 }
 
@@ -80,8 +80,8 @@ namespace
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-FixtureProvider::FixtureProvider ()
-    : m_root (ResolveFixturesRoot ())
+FixtureProvider::FixtureProvider()
+    : m_root (ResolveFixturesRoot())
 {
 }
 
@@ -115,7 +115,7 @@ FixtureProvider::FixtureProvider (const std::string & rootOverride)
 
 bool FixtureProvider::IsRejectedPath (const std::string & relativePath)
 {
-    if (relativePath.empty ())
+    if (relativePath.empty())
     {
         return true;
     }
@@ -130,7 +130,7 @@ bool FixtureProvider::IsRejectedPath (const std::string & relativePath)
         return true;
     }
 
-    if (relativePath.size () >= 2 && relativePath[1] == ':')
+    if (relativePath.size() >= 2 && relativePath[1] == ':')
     {
         return true;
     }
@@ -157,7 +157,7 @@ HRESULT FixtureProvider::OpenFixture (
     std::ifstream       stream;
     std::streamsize     size;
 
-    outBytes.clear ();
+    outBytes.clear();
 
     if (IsRejectedPath (relativePath))
     {
@@ -165,7 +165,7 @@ HRESULT FixtureProvider::OpenFixture (
         goto Error;
     }
 
-    if (m_root.empty ())
+    if (m_root.empty())
     {
         hr = E_FAIL;
         goto Error;
@@ -174,19 +174,19 @@ HRESULT FixtureProvider::OpenFixture (
     full = fs::path (m_root) / relativePath;
 
     stream.open (full, std::ios::binary | std::ios::ate);
-    if (!stream.is_open ())
+    if (!stream.is_open())
     {
         hr = E_FAIL;
         goto Error;
     }
 
-    size = stream.tellg ();
+    size = stream.tellg();
     stream.seekg (0, std::ios::beg);
 
     outBytes.resize (static_cast<size_t> (size));
     if (size > 0)
     {
-        stream.read (reinterpret_cast<char *> (outBytes.data ()), size);
+        stream.read (reinterpret_cast<char *> (outBytes.data()), size);
     }
 
 Error:

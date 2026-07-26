@@ -36,7 +36,7 @@ namespace MacroTests
             );
 
             Assert::IsTrue (result.success, L"Assembly should succeed");
-            Assert::IsTrue (result.bytes.size () > 0, L"Should emit bytes");
+            Assert::IsTrue (result.bytes.size() > 0, L"Should emit bytes");
         }
 
 
@@ -87,7 +87,7 @@ namespace MacroTests
 
             Assert::IsTrue (result.success, L"Assembly should succeed");
             // Should have only NOP ($EA), not BRK ($00)
-            Assert::AreEqual ((size_t) 1, result.bytes.size (), L"Should emit only 1 byte (NOP)");
+            Assert::AreEqual ((size_t) 1, result.bytes.size(), L"Should emit only 1 byte (NOP)");
             Assert::AreEqual ((Byte) 0xEA, result.bytes[0], L"Should be NOP");
         }
     };
@@ -113,7 +113,7 @@ namespace MacroTests
             );
 
             Assert::IsTrue (result.success, L"Assembly should succeed");
-            Assert::AreEqual ((size_t) 1, result.bytes.size (), L"Should emit 1 byte");
+            Assert::AreEqual ((size_t) 1, result.bytes.size(), L"Should emit 1 byte");
             Assert::AreEqual ((Byte) 3, result.bytes[0], L"Arg count should be 3");
         }
 
@@ -134,7 +134,7 @@ namespace MacroTests
             );
 
             Assert::IsTrue (result.success, L"Assembly should succeed");
-            Assert::AreEqual ((size_t) 1, result.bytes.size (), L"Should emit 1 byte");
+            Assert::AreEqual ((size_t) 1, result.bytes.size(), L"Should emit 1 byte");
             Assert::AreEqual ((Byte) 0, result.bytes[0], L"Arg count should be 0");
         }
     };
@@ -162,7 +162,7 @@ namespace MacroTests
 
             Assert::IsTrue (result.success, L"Assembly should succeed");
             // LDA #$42 = A9 42, STA $80 = 85 80
-            Assert::AreEqual ((size_t) 4, result.bytes.size ());
+            Assert::AreEqual ((size_t) 4, result.bytes.size());
             Assert::AreEqual ((Byte) 0xA9, result.bytes[0]);
             Assert::AreEqual ((Byte) 0x42, result.bytes[1]);
             Assert::AreEqual ((Byte) 0x85, result.bytes[2]);
@@ -186,7 +186,7 @@ namespace MacroTests
             );
 
             Assert::IsTrue (result.success, L"Assembly should succeed");
-            Assert::AreEqual ((size_t) 1, result.bytes.size ());
+            Assert::AreEqual ((size_t) 1, result.bytes.size());
             Assert::AreEqual ((Byte) 0x55, result.bytes[0]);
         }
     };
@@ -219,7 +219,7 @@ namespace MacroTests
             );
 
             Assert::IsTrue (result.success, L"Assembly should succeed");
-            Assert::AreEqual ((size_t) 2, result.bytes.size (), L"LDA imm = 2 bytes");
+            Assert::AreEqual ((size_t) 2, result.bytes.size(), L"LDA imm = 2 bytes");
             Assert::AreEqual ((Byte) 0xA9, result.bytes[0], L"LDA opcode");
             Assert::AreEqual ((Byte) 0x42, result.bytes[1], L"Operand $42");
         }

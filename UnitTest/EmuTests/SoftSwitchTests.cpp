@@ -33,10 +33,10 @@ public:
     {
         AppleSoftSwitchBank sw;
 
-        Assert::IsFalse (sw.IsGraphicsMode (), L"Default should be text mode");
-        Assert::IsFalse (sw.IsHiresMode (), L"Default should not be hires");
-        Assert::IsFalse (sw.IsMixedMode (), L"Default should not be mixed");
-        Assert::IsFalse (sw.IsPage2 (), L"Default should be page 1");
+        Assert::IsFalse (sw.IsGraphicsMode(), L"Default should be text mode");
+        Assert::IsFalse (sw.IsHiresMode(), L"Default should not be hires");
+        Assert::IsFalse (sw.IsMixedMode(), L"Default should not be mixed");
+        Assert::IsFalse (sw.IsPage2(), L"Default should be page 1");
     }
 
     TEST_METHOD (ReadC050_SetsGraphicsMode)
@@ -44,7 +44,7 @@ public:
         AppleSoftSwitchBank sw;
         sw.Read (0xC050);
 
-        Assert::IsTrue (sw.IsGraphicsMode (),
+        Assert::IsTrue (sw.IsGraphicsMode(),
             L"Reading $C050 must enable graphics mode");
     }
 
@@ -54,7 +54,7 @@ public:
         sw.Read (0xC050);
         sw.Read (0xC051);
 
-        Assert::IsFalse (sw.IsGraphicsMode (),
+        Assert::IsFalse (sw.IsGraphicsMode(),
             L"Reading $C051 must disable graphics mode");
     }
 
@@ -64,7 +64,7 @@ public:
         sw.Read (0xC053);  // Enable mixed first
         sw.Read (0xC052);  // Clear mixed
 
-        Assert::IsFalse (sw.IsMixedMode (),
+        Assert::IsFalse (sw.IsMixedMode(),
             L"Reading $C052 must disable mixed mode");
     }
 
@@ -73,7 +73,7 @@ public:
         AppleSoftSwitchBank sw;
         sw.Read (0xC053);
 
-        Assert::IsTrue (sw.IsMixedMode (),
+        Assert::IsTrue (sw.IsMixedMode(),
             L"Reading $C053 must enable mixed mode");
     }
 
@@ -83,7 +83,7 @@ public:
         sw.Read (0xC055);  // Set page 2 first
         sw.Read (0xC054);  // Set page 1
 
-        Assert::IsFalse (sw.IsPage2 (),
+        Assert::IsFalse (sw.IsPage2(),
             L"Reading $C054 must select page 1");
     }
 
@@ -92,7 +92,7 @@ public:
         AppleSoftSwitchBank sw;
         sw.Read (0xC055);
 
-        Assert::IsTrue (sw.IsPage2 (),
+        Assert::IsTrue (sw.IsPage2(),
             L"Reading $C055 must select page 2");
     }
 
@@ -102,7 +102,7 @@ public:
         sw.Read (0xC057);  // Enable hires first
         sw.Read (0xC056);  // Clear hires
 
-        Assert::IsFalse (sw.IsHiresMode (),
+        Assert::IsFalse (sw.IsHiresMode(),
             L"Reading $C056 must disable hires mode");
     }
 
@@ -111,7 +111,7 @@ public:
         AppleSoftSwitchBank sw;
         sw.Read (0xC057);
 
-        Assert::IsTrue (sw.IsHiresMode (),
+        Assert::IsTrue (sw.IsHiresMode(),
             L"Reading $C057 must enable hires mode");
     }
 
@@ -122,7 +122,7 @@ public:
         AppleSoftSwitchBank sw;
         sw.Write (0xC050, 0x00);
 
-        Assert::IsTrue (sw.IsGraphicsMode (),
+        Assert::IsTrue (sw.IsGraphicsMode(),
             L"Writing $C050 should also trigger the switch");
     }
 
@@ -137,9 +137,9 @@ public:
         sw.Read (0xC050);  // Read graphics again
         sw.Read (0xC050);
 
-        Assert::IsTrue (sw.IsGraphicsMode (), L"Graphics should persist");
-        Assert::IsTrue (sw.IsMixedMode (), L"Mixed should persist");
-        Assert::IsTrue (sw.IsHiresMode (), L"Hires should persist");
+        Assert::IsTrue (sw.IsGraphicsMode(), L"Graphics should persist");
+        Assert::IsTrue (sw.IsMixedMode(), L"Mixed should persist");
+        Assert::IsTrue (sw.IsHiresMode(), L"Hires should persist");
     }
 
     TEST_METHOD (Reset_ClearsAllFlags)
@@ -150,12 +150,12 @@ public:
         sw.Read (0xC055);
         sw.Read (0xC057);
 
-        sw.Reset ();
+        sw.Reset();
 
-        Assert::IsFalse (sw.IsGraphicsMode (), L"Reset must clear graphics");
-        Assert::IsFalse (sw.IsMixedMode (), L"Reset must clear mixed");
-        Assert::IsFalse (sw.IsPage2 (), L"Reset must clear page2");
-        Assert::IsFalse (sw.IsHiresMode (), L"Reset must clear hires");
+        Assert::IsFalse (sw.IsGraphicsMode(), L"Reset must clear graphics");
+        Assert::IsFalse (sw.IsMixedMode(), L"Reset must clear mixed");
+        Assert::IsFalse (sw.IsPage2(), L"Reset must clear page2");
+        Assert::IsFalse (sw.IsHiresMode(), L"Reset must clear hires");
     }
 
     TEST_METHOD (SoftSwitch_ViaBus_Works)
@@ -167,7 +167,7 @@ public:
 
         bus.ReadByte (0xC050);  // Graphics on via bus
 
-        Assert::IsTrue (sw.IsGraphicsMode (),
+        Assert::IsTrue (sw.IsGraphicsMode(),
             L"Soft switch via bus read must work");
     }
 
@@ -236,13 +236,13 @@ public:
         AppleSoftSwitchBank sw;
 
         sw.Read (0xC050);
-        Assert::IsTrue (sw.IsGraphicsMode ());
+        Assert::IsTrue (sw.IsGraphicsMode());
 
         sw.Read (0xC051);
-        Assert::IsFalse (sw.IsGraphicsMode ());
+        Assert::IsFalse (sw.IsGraphicsMode());
 
         sw.Read (0xC050);
-        Assert::IsTrue (sw.IsGraphicsMode (),
+        Assert::IsTrue (sw.IsGraphicsMode(),
             L"Toggle G->T->G should restore graphics mode");
     }
 
@@ -283,11 +283,11 @@ public:
         Apple2eSoftSwitchBank  sw (&bus);
 
         sw.Read (0xC05E);
-        Assert::IsTrue (sw.IsDoubleHiRes (),
+        Assert::IsTrue (sw.IsDoubleHiRes(),
             L"$C05E should enable double hi-res");
 
         sw.Read (0xC05F);
-        Assert::IsFalse (sw.IsDoubleHiRes (),
+        Assert::IsFalse (sw.IsDoubleHiRes(),
             L"$C05F should disable double hi-res");
     }
 
@@ -314,7 +314,7 @@ public:
 
         bus.ReadByte (0xC00D);
 
-        Assert::IsTrue (sw.Is80ColMode (),
+        Assert::IsTrue (sw.Is80ColMode(),
             L"Read of $C00D through bus should enable 80COL mode");
     }
 
@@ -331,7 +331,7 @@ public:
         bus.ReadByte (0xC00D);   // turn on
         bus.ReadByte (0xC00C);   // turn off
 
-        Assert::IsFalse (sw.Is80ColMode (),
+        Assert::IsFalse (sw.Is80ColMode(),
             L"Read of $C00C through bus should disable 80COL mode");
     }
 
@@ -347,7 +347,7 @@ public:
 
         bus.ReadByte (0xC00F);
 
-        Assert::IsTrue (sw.IsAltCharSet (),
+        Assert::IsTrue (sw.IsAltCharSet(),
             L"Read of $C00F through bus should enable alt char set");
     }
 
@@ -378,7 +378,7 @@ public:
         Apple2eMmu             mmu;
         sw.SetMmu (&mmu);
 
-        Assert::IsFalse (sw.Is80Store (),
+        Assert::IsFalse (sw.Is80Store(),
             L"80STORE should default to off");
     }
 
@@ -390,7 +390,7 @@ public:
 
         sw.Write (0xC001, 0);
 
-        Assert::IsTrue (sw.Is80Store (),
+        Assert::IsTrue (sw.Is80Store(),
             L"Write to $C001 should enable 80STORE");
     }
 
@@ -403,7 +403,7 @@ public:
         sw.Write (0xC001, 0);
         sw.Write (0xC000, 0);
 
-        Assert::IsFalse (sw.Is80Store (),
+        Assert::IsFalse (sw.Is80Store(),
             L"Write to $C000 should disable 80STORE");
     }
 
@@ -431,7 +431,7 @@ public:
         // the MMU correctly handles redundant writes.
         Assert::AreEqual (0, callCount,
             L"$C000/$C001 writes flow through MMU (no bus banking-changed callback)");
-        Assert::IsFalse (sw.Is80Store ());
+        Assert::IsFalse (sw.Is80Store());
     }
 
     TEST_METHOD (BusDispatch_C001_Write_Enables80Store)
@@ -448,7 +448,7 @@ public:
 
         bus.WriteByte (0xC001, 0);
 
-        Assert::IsTrue (sw.Is80Store (),
+        Assert::IsTrue (sw.Is80Store(),
             L"Bus write of $C001 should reach softswitch via keyboard forwarding");
     }
 
@@ -463,7 +463,7 @@ public:
 
         bus.WriteByte (0xC00D, 0);
 
-        Assert::IsTrue (sw.Is80ColMode (),
+        Assert::IsTrue (sw.Is80ColMode(),
             L"Bus write of $C00D should reach softswitch via keyboard forwarding");
     }
 };

@@ -23,7 +23,7 @@ namespace
 {
     static constexpr size_t  kTestBitCount = 51200;   // ~6400 bytes / track 0
 
-    vector<Byte> MakeBitStream ()
+    vector<Byte> MakeBitStream()
     {
         vector<Byte>   bits ((kTestBitCount + 7) / 8, 0xFF);
 
@@ -65,7 +65,7 @@ namespace
         vector<Byte> &  buf       = img.GetTrackBitsForWrite (slot);
         size_t          byteCount = (bitCount + 7) / 8;
 
-        for (size_t i = 0; i < byteCount && i < buf.size (); i++)
+        for (size_t i = 0; i < byteCount && i < buf.size(); i++)
         {
             buf[i] = static_cast<Byte> (fill + (i & 0x1F));
         }
@@ -119,17 +119,17 @@ namespace
 
         out.assign (12 + (8 + 60) + (8 + 160) + (8 + kTrks), 0);
 
-        memcpy (out.data (), sig, 8);                                // header (CRC left 0)
+        memcpy (out.data(), sig, 8);                                // header (CRC left 0)
         pos = 12;
 
-        memcpy (out.data () + pos, "INFO", 4);
+        memcpy (out.data() + pos, "INFO", 4);
         out[pos + 4]     = 60;                                       // chunk size (LE)
         out[pos + 8 + 0] = 1;                                        // INFO version 1
         out[pos + 8 + 1] = 1;                                        // disk type 5.25"
         out[pos + 8 + 2] = 0;                                        // not write protected
         pos += 8 + 60;
 
-        memcpy (out.data () + pos, "TMAP", 4);
+        memcpy (out.data() + pos, "TMAP", 4);
         out[pos + 4] = 160;                                          // chunk size (LE)
         for (int qt = 0; qt < 160; qt++) { out[pos + 8 + qt] = 0xFF; }
         out[pos + 8 + 0] = 0;                                        // qt 0,1,3 -> whole track 0
@@ -137,11 +137,11 @@ namespace
         out[pos + 8 + 3] = 0;
         pos += 8 + 160;
 
-        memcpy (out.data () + pos, "TRKS", 4);
+        memcpy (out.data() + pos, "TRKS", 4);
         out[pos + 4] = static_cast<Byte> (kTrks & 0xFF);             // chunk size (LE16 fits)
         out[pos + 5] = static_cast<Byte> ((kTrks >> 8) & 0xFF);
         trk = pos + 8;
-        for (size_t i = 0; i < nbytes && i < trackZeroBits.size (); i++)
+        for (size_t i = 0; i < nbytes && i < trackZeroBits.size(); i++)
         {
             out[trk + i] = trackZeroBits[i];
         }
@@ -195,7 +195,7 @@ public:
     TEST_METHOD (LoadAcceptsSyntheticV2)
     {
         DiskImage     img;
-        vector<Byte>  bitStream = MakeBitStream ();
+        vector<Byte>  bitStream = MakeBitStream();
         vector<Byte>  woz;
 
         Assert::IsTrue (SUCCEEDED (WozLoader::BuildSyntheticV2 (
@@ -204,7 +204,7 @@ public:
         HRESULT   hr = WozLoader::Load (woz, img);
 
         Assert::IsTrue (SUCCEEDED (hr), L"Synthetic v2 WOZ must load");
-        Assert::IsTrue (img.GetSourceFormat () == DiskFormat::Woz);
+        Assert::IsTrue (img.GetSourceFormat() == DiskFormat::Woz);
         Assert::AreEqual (kTestBitCount, img.GetTrackBitCount (0),
             L"Track 0 bit count must match TRK record");
     }
@@ -212,21 +212,21 @@ public:
     TEST_METHOD (LoadHonorsWriteProtectFlagInInfoChunk)
     {
         DiskImage     img;
-        vector<Byte>  bitStream = MakeBitStream ();
+        vector<Byte>  bitStream = MakeBitStream();
         vector<Byte>  woz;
 
         Assert::IsTrue (SUCCEEDED (WozLoader::BuildSyntheticV2 (
             1, true, bitStream, kTestBitCount, woz)));
 
         Assert::IsTrue (SUCCEEDED (WozLoader::Load (woz, img)));
-        Assert::IsTrue (img.IsWriteProtected (),
+        Assert::IsTrue (img.IsWriteProtected(),
             L"INFO chunk write_protected=1 must surface on the DiskImage");
     }
 
     TEST_METHOD (LoadCopiesBitStreamFaithfully)
     {
         DiskImage     img;
-        vector<Byte>  bitStream = MakeBitStream ();
+        vector<Byte>  bitStream = MakeBitStream();
         vector<Byte>  woz;
         size_t        i         = 0;
         size_t        byteCount = (kTestBitCount + 7) / 8;
@@ -260,7 +260,7 @@ public:
     TEST_METHOD (LoadRejectsMalformedChunkSize)
     {
         DiskImage     img;
-        vector<Byte>  bitStream = MakeBitStream ();
+        vector<Byte>  bitStream = MakeBitStream();
         vector<Byte>  woz;
 
         Assert::IsTrue (SUCCEEDED (WozLoader::BuildSyntheticV2 (
@@ -282,7 +282,7 @@ public:
         // Append a META chunk after the build helper output — the loader
         // must silently ignore it (not fail).
         DiskImage     img;
-        vector<Byte>  bitStream = MakeBitStream ();
+        vector<Byte>  bitStream = MakeBitStream();
         vector<Byte>  woz;
 
         Assert::IsTrue (SUCCEEDED (WozLoader::BuildSyntheticV2 (
@@ -308,7 +308,7 @@ public:
         vector<Byte>  woz;
 
         Assert::IsTrue (SUCCEEDED (WozLoader::BuildSyntheticV2 (1, false, bitStream, 64, woz)));
-        Assert::IsTrue (woz.size () >= 4 * WozLoader::kV2BlockSize);
+        Assert::IsTrue (woz.size() >= 4 * WozLoader::kV2BlockSize);
 
         // Signature bytes intact.
         Assert::AreEqual (static_cast<Byte> ('W'), woz[0]);
@@ -336,7 +336,7 @@ public:
         vector<Byte>  reserialized;
 
         Assert::IsTrue (SUCCEEDED (WozLoader::BuildSyntheticV2 (
-            1, false, MakeBitStream (), kTestBitCount, woz)));
+            1, false, MakeBitStream(), kTestBitCount, woz)));
         Assert::IsTrue (SUCCEEDED (WozLoader::Load (woz, src)));
 
         Assert::IsTrue (SUCCEEDED (WozLoader::Serialize (src, reserialized)));
@@ -357,7 +357,7 @@ public:
         const size_t  flippedBit = 200;   // inside track 0, clear of the sync marker
 
         Assert::IsTrue (SUCCEEDED (WozLoader::BuildSyntheticV2 (
-            1, false, MakeBitStream (), kTestBitCount, woz)));
+            1, false, MakeBitStream(), kTestBitCount, woz)));
         Assert::IsTrue (SUCCEEDED (WozLoader::Load (woz, src)));
 
         // Bit starts at 1 (0xFF fill); the guest writes a 0.
@@ -385,8 +385,8 @@ public:
         vector<Byte>  wpOut;
         vector<Byte>  rwOut;
 
-        Assert::IsTrue (SUCCEEDED (WozLoader::BuildSyntheticV2 (1, true,  MakeBitStream (), kTestBitCount, wpWoz)));
-        Assert::IsTrue (SUCCEEDED (WozLoader::BuildSyntheticV2 (1, false, MakeBitStream (), kTestBitCount, rwWoz)));
+        Assert::IsTrue (SUCCEEDED (WozLoader::BuildSyntheticV2 (1, true,  MakeBitStream(), kTestBitCount, wpWoz)));
+        Assert::IsTrue (SUCCEEDED (WozLoader::BuildSyntheticV2 (1, false, MakeBitStream(), kTestBitCount, rwWoz)));
         Assert::IsTrue (SUCCEEDED (WozLoader::Load (wpWoz, wp)));
         Assert::IsTrue (SUCCEEDED (WozLoader::Load (rwWoz, rw)));
 
@@ -395,8 +395,8 @@ public:
         Assert::IsTrue (SUCCEEDED (WozLoader::Load (wpOut, wpReloaded)));
         Assert::IsTrue (SUCCEEDED (WozLoader::Load (rwOut, rwReloaded)));
 
-        Assert::IsTrue  (wpReloaded.IsWriteProtected (), L"write-protect must survive serialization");
-        Assert::IsFalse (rwReloaded.IsWriteProtected (), L"a writable disk must not gain protection");
+        Assert::IsTrue  (wpReloaded.IsWriteProtected(), L"write-protect must survive serialization");
+        Assert::IsFalse (rwReloaded.IsWriteProtected(), L"a writable disk must not gain protection");
     }
 
 
@@ -407,7 +407,7 @@ public:
         vector<Byte>  out;
 
         Assert::IsTrue (SUCCEEDED (WozLoader::BuildSyntheticV2 (
-            1, false, MakeBitStream (), kTestBitCount, woz)));
+            1, false, MakeBitStream(), kTestBitCount, woz)));
         Assert::IsTrue (SUCCEEDED (WozLoader::Load (woz, src)));
         Assert::IsTrue (SUCCEEDED (WozLoader::Serialize (src, out)));
 
@@ -415,8 +415,8 @@ public:
                             | (static_cast<uint32_t> (out[9])  << 8)
                             | (static_cast<uint32_t> (out[10]) << 16)
                             | (static_cast<uint32_t> (out[11]) << 24);
-        uint32_t   expected = Crc32Ref (out.data () + WozLoader::kHeaderSize,
-                                        out.size () - WozLoader::kHeaderSize);
+        uint32_t   expected = Crc32Ref (out.data() + WozLoader::kHeaderSize,
+                                        out.size() - WozLoader::kHeaderSize);
 
         Assert::AreEqual (expected, stored, L"Header CRC32 must cover all post-header bytes");
         Assert::AreNotEqual (uint32_t (0), stored, L"A populated image must not emit a zero CRC");
@@ -431,7 +431,7 @@ public:
         const size_t  bits = 4096;
 
         src.SetSourceFormat  (DiskFormat::Woz);
-        src.ClearQuarterTrackMap ();
+        src.ClearQuarterTrackMap();
         src.EnsureTrackSlots (3);
         FillTrack (src, 0, bits, 0x10);
         FillTrack (src, 1, bits, 0x40);
@@ -462,15 +462,15 @@ public:
         const size_t  bits = 2048;
 
         src.SetSourceFormat  (DiskFormat::Woz);
-        src.ClearQuarterTrackMap ();
+        src.ClearQuarterTrackMap();
         src.EnsureTrackSlots (2);
 
         src.ResizeTrack (0, bits);
-        { vector<Byte> & b = src.GetTrackBitsForWrite (0); for (size_t i = 0; i < b.size (); i++) { b[i] = static_cast<Byte> (0x10 + (i & 0x1F)); } }
+        { vector<Byte> & b = src.GetTrackBitsForWrite (0); for (size_t i = 0; i < b.size(); i++) { b[i] = static_cast<Byte> (0x10 + (i & 0x1F)); } }
         src.SetTrackBitCount (0, bits);
 
         src.ResizeTrack (1, bits);
-        { vector<Byte> & b = src.GetTrackBitsForWrite (1); for (size_t i = 0; i < b.size (); i++) { b[i] = static_cast<Byte> (0x50 + (i & 0x1F)); } }
+        { vector<Byte> & b = src.GetTrackBitsForWrite (1); for (size_t i = 0; i < b.size(); i++) { b[i] = static_cast<Byte> (0x50 + (i & 0x1F)); } }
         src.SetTrackBitCount (1, bits);
 
         src.SetQuarterTrackSlot (0, 0);
@@ -497,7 +497,7 @@ public:
         const size_t  bits = 2048;
 
         src.SetSourceFormat  (DiskFormat::Woz);
-        src.ClearQuarterTrackMap ();
+        src.ClearQuarterTrackMap();
         src.EnsureTrackSlots (3);
         FillTrack (src, 0, bits, 0x10);
         FillTrack (src, 2, bits, 0x90);   // slot 1 intentionally left empty
@@ -523,7 +523,7 @@ public:
         vector<Byte>  out;
 
         Assert::IsTrue (SUCCEEDED (WozLoader::BuildSyntheticV2 (
-            1, false, MakeBitStream (), kTestBitCount, woz)));
+            1, false, MakeBitStream(), kTestBitCount, woz)));
         Assert::IsTrue (SUCCEEDED (WozLoader::Load (woz, src)));
 
         Assert::IsTrue (SUCCEEDED (src.Serialize (out)));
@@ -543,7 +543,7 @@ public:
         vector<Byte>  v1;
         vector<Byte>  out;
 
-        BuildSyntheticV1 (MakeBitStream (), kTestBitCount, v1);
+        BuildSyntheticV1 (MakeBitStream(), kTestBitCount, v1);
         Assert::IsTrue (SUCCEEDED (WozLoader::Load (v1, src)));
         Assert::AreEqual (kTestBitCount, src.GetTrackBitCount (0), L"v1 source must load");
 

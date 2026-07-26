@@ -398,7 +398,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-int DxuiListView::GetTotalMeasuredWidthPx () const
+int DxuiListView::GetTotalMeasuredWidthPx() const
 {
     int  sum = 0;
 
@@ -492,7 +492,7 @@ void DxuiListView::MeasureColumnsPx (IDxuiTextRenderer & text) const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiListView::ResetAutoFit ()
+void DxuiListView::ResetAutoFit()
 {
     m_autoMaxChars.clear();
 }
@@ -512,7 +512,7 @@ void DxuiListView::ResetAutoFit ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiListView::UpdateAutoFitFromRows ()
+void DxuiListView::UpdateAutoFitFromRows()
 {
     if (m_autoMaxChars.size() != m_columns.size())
     {
@@ -557,7 +557,7 @@ void DxuiListView::UpdateAutoFitFromRows ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-int DxuiListView::GetVisibleColumnCount () const
+int DxuiListView::GetVisibleColumnCount() const
 {
     return (int) std::count_if (m_columns.begin(), m_columns.end(),
                                 [] (const Column & c)
@@ -774,7 +774,7 @@ int DxuiListView::ColumnNaturalWidthPx (size_t c) const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-int DxuiListView::GetContentWidthPx () const
+int DxuiListView::GetContentWidthPx() const
 {
     int  total = 0;
 
@@ -804,7 +804,7 @@ int DxuiListView::GetContentWidthPx () const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-DxuiListView::ScrollLayout DxuiListView::ComputeScrollLayout () const
+DxuiListView::ScrollLayout DxuiListView::ComputeScrollLayout() const
 {
     ScrollLayout  layout;
     int           fullW = m_boundsDip.right  - m_boundsDip.left;
@@ -849,7 +849,7 @@ DxuiListView::ScrollLayout DxuiListView::ComputeScrollLayout () const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-int DxuiListView::GetVisibleRowCapacity () const
+int DxuiListView::GetVisibleRowCapacity() const
 {
     return ComputeScrollLayout().rowCap;
 }
@@ -867,7 +867,7 @@ int DxuiListView::GetVisibleRowCapacity () const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-int DxuiListView::GetMaxLeftPx () const
+int DxuiListView::GetMaxLeftPx() const
 {
     ScrollLayout  layout = ComputeScrollLayout();
     int           excess = layout.contentW - layout.viewportW;
@@ -955,7 +955,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-int DxuiListView::GetMaxTopRow () const
+int DxuiListView::GetMaxTopRow() const
 {
     int  cap  = GetVisibleRowCapacity();
     int  rows = RowCount();
@@ -1050,7 +1050,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool DxuiListView::IsScrollbarVisible () const
+bool DxuiListView::IsScrollbarVisible() const
 {
     int  cap = GetVisibleRowCapacity();
 
@@ -1074,7 +1074,7 @@ bool DxuiListView::IsScrollbarVisible () const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiListView::SyncVertScroll () const
+void DxuiListView::SyncVertScroll() const
 {
     ScrollLayout    layout  = ComputeScrollLayout();
     int             fullW   = m_boundsDip.right - m_boundsDip.left;
@@ -1115,7 +1115,7 @@ void DxuiListView::SyncVertScroll () const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-DxuiListView::ScrollbarMetrics DxuiListView::GetScrollbarGeometry () const
+DxuiListView::ScrollbarMetrics DxuiListView::GetScrollbarGeometry() const
 {
     HRESULT                 hr = S_OK;
     ScrollbarMetrics        m;
@@ -1356,7 +1356,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool DxuiListView::IsHorzScrollbarVisible () const
+bool DxuiListView::IsHorzScrollbarVisible() const
 {
     return ComputeScrollLayout().hBar;
 }
@@ -1387,7 +1387,7 @@ bool DxuiListView::IsHorzScrollbarVisible () const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiListView::SyncHorzScroll () const
+void DxuiListView::SyncHorzScroll() const
 {
     ScrollLayout    layout = ComputeScrollLayout();
     int             fullH  = m_boundsDip.bottom - m_boundsDip.top;
@@ -1421,7 +1421,7 @@ void DxuiListView::SyncHorzScroll () const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-DxuiListView::HorzScrollbarMetrics DxuiListView::GetHorzScrollbarGeometry () const
+DxuiListView::HorzScrollbarMetrics DxuiListView::GetHorzScrollbarGeometry() const
 {
     HRESULT                 hr = S_OK;
     HorzScrollbarMetrics       m;
@@ -1696,7 +1696,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-int DxuiListView::GetRequiredHeightPx () const
+int DxuiListView::GetRequiredHeightPx() const
 {
     int  rows    = RowCount();
     int  rowH    = m_scaler.Px (s_kRowHeightDip);
@@ -1994,7 +1994,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-DxuiListView::Palette DxuiListView::MakePalette () const
+DxuiListView::Palette DxuiListView::MakePalette() const
 {
     Palette  pal = {};
 
@@ -2957,7 +2957,7 @@ void DxuiListView::OnFocusChanged (bool focused)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiListView::ApplyKeyboardColumnFocus ()
+void DxuiListView::ApplyKeyboardColumnFocus()
 {
     int  n    = GetVisibleColumnCount();
     int  body = (2 * n) - 1;
@@ -3302,7 +3302,7 @@ bool DxuiListView::OnKeyBodyHeaderNav (const DxuiKeyEvent & ev)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiListView::ApplyBodyHeaderFocus ()
+void DxuiListView::ApplyBodyHeaderFocus()
 {
     SetFocusedDividerColumn (-1);
 

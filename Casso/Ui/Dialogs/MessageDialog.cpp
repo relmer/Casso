@@ -66,7 +66,7 @@ void MessageDialog::Configure (std::unique_ptr<DxuiPanel>  content,
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void MessageDialog::OnCreate ()
+void MessageDialog::OnCreate()
 {
     int  i = 0;
 

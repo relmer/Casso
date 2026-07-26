@@ -17,12 +17,12 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-DiskImage::DiskImage ()
+DiskImage::DiskImage()
 {
     m_trackBits.resize      (kDefaultTrackCount);
     m_trackBitCounts.resize (kDefaultTrackCount, 0);
     m_trackDirty.resize     (kDefaultTrackCount, false);
-    InitWholeTrackMap ();
+    InitWholeTrackMap();
 }
 
 
@@ -39,7 +39,7 @@ DiskImage::DiskImage ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DiskImage::InitWholeTrackMap ()
+void DiskImage::InitWholeTrackMap()
 {
     int   qt = 0;
 
@@ -68,14 +68,14 @@ int DiskImage::ResolveQuarterTrack (int quarterTrack) const
 {
     int   slot = 0;
 
-    if (quarterTrack < 0 || quarterTrack >= static_cast<int> (m_quarterTrackMap.size ()))
+    if (quarterTrack < 0 || quarterTrack >= static_cast<int> (m_quarterTrackMap.size()))
     {
         return -1;
     }
 
     slot = m_quarterTrackMap[quarterTrack];
 
-    if (slot < 0 || slot >= static_cast<int> (m_trackBitCounts.size ()))
+    if (slot < 0 || slot >= static_cast<int> (m_trackBitCounts.size()))
     {
         return -1;
     }
@@ -102,7 +102,7 @@ int DiskImage::ResolveQuarterTrack (int quarterTrack) const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DiskImage::ClearQuarterTrackMap ()
+void DiskImage::ClearQuarterTrackMap()
 {
     m_quarterTrackMap.assign (kQuarterTrackCount, -1);
 }
@@ -110,7 +110,7 @@ void DiskImage::ClearQuarterTrackMap ()
 
 void DiskImage::SetQuarterTrackSlot (int quarterTrack, int slot)
 {
-    if (quarterTrack < 0 || quarterTrack >= static_cast<int> (m_quarterTrackMap.size ()))
+    if (quarterTrack < 0 || quarterTrack >= static_cast<int> (m_quarterTrackMap.size()))
     {
         return;
     }
@@ -121,7 +121,7 @@ void DiskImage::SetQuarterTrackSlot (int quarterTrack, int slot)
 
 void DiskImage::EnsureTrackSlots (int slotCount)
 {
-    if (slotCount <= static_cast<int> (m_trackBits.size ()))
+    if (slotCount <= static_cast<int> (m_trackBits.size()))
     {
         return;
     }
@@ -141,9 +141,9 @@ void DiskImage::EnsureTrackSlots (int slotCount)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-int DiskImage::GetTrackCount () const
+int DiskImage::GetTrackCount() const
 {
-    return static_cast<int> (m_trackBits.size ());
+    return static_cast<int> (m_trackBits.size());
 }
 
 
@@ -158,7 +158,7 @@ int DiskImage::GetTrackCount () const
 
 size_t DiskImage::GetTrackBitCount (int track) const
 {
-    if (track < 0 || track >= static_cast<int> (m_trackBitCounts.size ()))
+    if (track < 0 || track >= static_cast<int> (m_trackBitCounts.size()))
     {
         return 0;
     }
@@ -182,7 +182,7 @@ uint8_t DiskImage::ReadBit (int track, size_t bitIndex) const
     size_t   byteIdx   = 0;
     int      shift     = 0;
 
-    if (track < 0 || track >= static_cast<int> (m_trackBits.size ()))
+    if (track < 0 || track >= static_cast<int> (m_trackBits.size()))
     {
         return 0;
     }
@@ -217,12 +217,12 @@ void DiskImage::WriteBit (int track, size_t bitIndex, uint8_t bit)
     int      shift     = 0;
     Byte     mask      = 0;
 
-    if (track < 0 || track >= static_cast<int> (m_trackBits.size ()))
+    if (track < 0 || track >= static_cast<int> (m_trackBits.size()))
     {
         return;
     }
 
-    if (IsWriteProtected ())
+    if (IsWriteProtected())
     {
         return;
     }
@@ -262,13 +262,13 @@ void DiskImage::WriteBit (int track, size_t bitIndex, uint8_t bit)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool DiskImage::IsDirty () const
+bool DiskImage::IsDirty() const
 {
     return m_dirty;
 }
 
 
-bool DiskImage::IsWriteProtected () const
+bool DiskImage::IsWriteProtected() const
 {
     return m_imageWriteProtected
         || m_userWriteProtected
@@ -277,7 +277,7 @@ bool DiskImage::IsWriteProtected () const
 }
 
 
-WriteProtectInfo DiskImage::GetWriteProtectInfo () const
+WriteProtectInfo DiskImage::GetWriteProtectInfo() const
 {
     WriteProtectInfo  info;
 
@@ -290,7 +290,7 @@ WriteProtectInfo DiskImage::GetWriteProtectInfo () const
 }
 
 
-DiskFormat DiskImage::GetSourceFormat () const
+DiskFormat DiskImage::GetSourceFormat() const
 {
     return m_format;
 }
@@ -298,7 +298,7 @@ DiskFormat DiskImage::GetSourceFormat () const
 
 bool DiskImage::IsTrackDirty (int track) const
 {
-    if (track < 0 || track >= static_cast<int> (m_trackDirty.size ()))
+    if (track < 0 || track >= static_cast<int> (m_trackDirty.size()))
     {
         return false;
     }
@@ -307,13 +307,13 @@ bool DiskImage::IsTrackDirty (int track) const
 }
 
 
-void DiskImage::ClearDirty ()
+void DiskImage::ClearDirty()
 {
     size_t   i = 0;
 
     m_dirty = false;
 
-    for (i = 0; i < m_trackDirty.size (); i++)
+    for (i = 0; i < m_trackDirty.size(); i++)
     {
         m_trackDirty[i] = false;
     }
@@ -372,7 +372,7 @@ void DiskImage::ResizeTrack (int track, size_t bitCount)
 {
     size_t   bytesNeeded = 0;
 
-    if (track < 0 || track >= static_cast<int> (m_trackBits.size ()))
+    if (track < 0 || track >= static_cast<int> (m_trackBits.size()))
     {
         return;
     }
@@ -400,7 +400,7 @@ void DiskImage::ResizeTrack (int track, size_t bitCount)
 
 void DiskImage::SetTrackBitCount (int track, size_t bitCount)
 {
-    if (track < 0 || track >= static_cast<int> (m_trackBitCounts.size ()))
+    if (track < 0 || track >= static_cast<int> (m_trackBitCounts.size()))
     {
         return;
     }
@@ -448,7 +448,7 @@ void DiskImage::LoadFromBytes (DiskFormat fmt, const vector<Byte> & raw, const s
     m_loaded         = false;
     m_dirty          = false;
     m_rawSourceBytes = raw;
-    InitWholeTrackMap ();
+    InitWholeTrackMap();
 
     switch (fmt)
     {
@@ -498,12 +498,12 @@ HRESULT DiskImage::Load (const string & filePath)
 
     {
         ifstream file (filePath, ios::binary);
-        fileOk = file.good ();
+        fileOk = file.good();
         CBREx (fileOk, E_FAIL);
 
         raw.resize (kDos33ImageSize);
-        file.read (reinterpret_cast<char *> (raw.data ()), kDos33ImageSize);
-        bytesRead = file.gcount ();
+        file.read (reinterpret_cast<char *> (raw.data()), kDos33ImageSize);
+        bytesRead = file.gcount();
         CBREx (bytesRead == kDos33ImageSize, E_FAIL);
     }
 
@@ -515,7 +515,7 @@ HRESULT DiskImage::Load (const string & filePath)
     m_dirty          = false;
     m_format         = DiskFormat::Dsk;
     m_rawSourceBytes = move (raw);
-    InitWholeTrackMap ();
+    InitWholeTrackMap();
 
 Error:
     return hr;
@@ -548,22 +548,22 @@ HRESULT DiskImage::LoadDsk (const vector<Byte> & raw)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DiskImage::Eject ()
+void DiskImage::Eject()
 {
     HRESULT   hr = S_OK;
 
-    if (m_dirty && !IsWriteProtected ())
+    if (m_dirty && !IsWriteProtected())
     {
-        hr = Flush ();
+        hr = Flush();
         IGNORE_RETURN_VALUE (hr, S_OK);
     }
 
-    m_filePath.clear ();
-    m_rawSourceBytes.clear ();
+    m_filePath.clear();
+    m_rawSourceBytes.clear();
     m_trackBits.assign      (kDefaultTrackCount, vector<Byte> ());
     m_trackBitCounts.assign (kDefaultTrackCount, 0);
     m_trackDirty.assign     (kDefaultTrackCount, false);
-    InitWholeTrackMap ();
+    InitWholeTrackMap();
     m_loaded              = false;
     m_dirty               = false;
     m_imageWriteProtected = false;
@@ -586,7 +586,7 @@ void DiskImage::Eject ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT DiskImage::Flush ()
+HRESULT DiskImage::Flush()
 {
     HRESULT       hr      = S_OK;
     bool          fileOk  = false;
@@ -597,10 +597,10 @@ HRESULT DiskImage::Flush ()
         goto Error;
     }
 
-    if (m_filePath.empty ())
+    if (m_filePath.empty())
     {
         m_dirty = false;
-        ClearDirty ();
+        ClearDirty();
         goto Error;
     }
 
@@ -608,7 +608,7 @@ HRESULT DiskImage::Flush ()
 
     if (FAILED (hr))
     {
-        if (m_rawSourceBytes.empty ())
+        if (m_rawSourceBytes.empty())
         {
             goto Error;
         }
@@ -618,15 +618,15 @@ HRESULT DiskImage::Flush ()
 
     {
         ofstream file (m_filePath, ios::binary);
-        fileOk = file.good ();
+        fileOk = file.good();
         CBREx (fileOk, E_FAIL);
 
-        file.write (reinterpret_cast<const char *> (bytes.data ()),
-                    static_cast<streamsize> (bytes.size ()));
+        file.write (reinterpret_cast<const char *> (bytes.data()),
+                    static_cast<streamsize> (bytes.size()));
     }
 
     m_dirty = false;
-    ClearDirty ();
+    ClearDirty();
 
 Error:
     return hr;

@@ -425,7 +425,7 @@ bool DxuiTabStrip::OnKey (const DxuiKeyEvent & ev)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::wstring DxuiTabStrip::AccessibleName () const
+std::wstring DxuiTabStrip::AccessibleName() const
 {
     if (m_selected < 0 || m_selected >= (int) m_tabs.size())
     {

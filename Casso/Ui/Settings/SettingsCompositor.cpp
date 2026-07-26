@@ -95,7 +95,7 @@ namespace
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-SettingsCompositor::~SettingsCompositor ()
+SettingsCompositor::~SettingsCompositor()
 {
     Shutdown();
 }
@@ -147,7 +147,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void SettingsCompositor::Shutdown ()
+void SettingsCompositor::Shutdown()
 {
     ReleaseBlurTextures();
 
@@ -233,7 +233,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT SettingsCompositor::CreateResources ()
+HRESULT SettingsCompositor::CreateResources()
 {
     HRESULT                 hr       = S_OK;
     ComPtr<ID3DBlob>        vsBlob;
@@ -328,7 +328,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void SettingsCompositor::ReleaseBlurTextures ()
+void SettingsCompositor::ReleaseBlurTextures()
 {
     ID3D11ShaderResourceView * nullSrvs[s_kMaxBoundPsSrvSlots] = {};
 

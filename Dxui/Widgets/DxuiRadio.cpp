@@ -357,7 +357,7 @@ bool DxuiRadioGroup::OnKey (const DxuiKeyEvent & ev)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::wstring DxuiRadioGroup::AccessibleName () const
+std::wstring DxuiRadioGroup::AccessibleName() const
 {
     if (m_selected < 0 || m_selected >= (int) m_options.size())
     {

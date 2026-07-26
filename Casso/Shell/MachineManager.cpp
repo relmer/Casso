@@ -605,11 +605,11 @@ HRESULT MachineManager::CreateMemoryDevices (const MachineConfig & config)
     if (m_shell.m_refs.printerCard != nullptr)
     {
         PrintRaster   pending;
-        HRESULT       hrLoad = PrintJobStore::Load (m_shell.PendingPrintDir (), pending);
+        HRESULT       hrLoad = PrintJobStore::Load (m_shell.PendingPrintDir(), pending);
 
         m_shell.m_printerWorker.Start (
-            m_shell.m_refs.printerCard->ByteRing (),
-            SUCCEEDED (hrLoad) ? std::move (pending) : PrintRaster ());
+            m_shell.m_refs.printerCard->ByteRing(),
+            SUCCEEDED (hrLoad) ? std::move (pending) : PrintRaster());
 
         // Pace the drain off the guest clock so the card applies real
         // backpressure -- the guest prints at ImageWriter speed (faster at max
@@ -617,13 +617,13 @@ HRESULT MachineManager::CreateMemoryDevices (const MachineConfig & config)
         // for this machine's CPU, so setting it once covers later restarts.
         if (m_shell.m_cpu != nullptr)
         {
-            m_shell.m_printerWorker.SetCycleClock (m_shell.m_cpu->GetCycleCounterPtr ());
+            m_shell.m_printerWorker.SetCycleClock (m_shell.m_cpu->GetCycleCounterPtr());
         }
 
         // Prime the live-preview auto-open baseline to the worker's current
         // activity so a page carried over from a previous session does not read as
         // a fresh print and auto-open the preview on boot -- only new printing does.
-        m_shell.m_printerAutoOpenActivity = m_shell.m_printerWorker.ActivityCount ();
+        m_shell.m_printerAutoOpenActivity = m_shell.m_printerWorker.ActivityCount();
     }
 
     // Mockingboard wiring. Cache the card (if the active config installs
@@ -802,7 +802,7 @@ void MachineManager::WireLanguageCard()
 
     // Seed the $D000-$FFFF read-page mapping now that the ROM image and MMU are
     // wired. Thereafter it re-points on LC switches, reset, and ALTZP flips.
-    lc->RebindWindow ();
+    lc->RebindWindow();
 }
 
 
@@ -1203,7 +1203,7 @@ HRESULT MachineManager::CreateCpu (const MachineConfig & config)
         // skips clean images and the flush-error reporter surfaces failures.
         m_shell.m_refs.diskController->SetMotorOffFlushCallback ([this] ()
         {
-            m_shell.m_diskStore.FlushAll ();
+            m_shell.m_diskStore.FlushAll();
         });
     }
 
@@ -1472,23 +1472,23 @@ HRESULT MachineManager::SwitchMachine (const std::wstring & machineName)
     //
     // Stop the printer drain thread first: its job holds a reference into the
     // card's ring, which m_ownedDevices.clear() is about to free.
-    m_shell.m_printerWorker.Stop ();
+    m_shell.m_printerWorker.Stop();
 
     // Persist the outgoing machine's pending strip before its card is freed --
     // m_currentMachineName is still the outgoing machine here (FR-026). An empty
     // strip clears any stale sidecar.
-    if (!m_shell.m_currentMachineName.empty ())
+    if (!m_shell.m_currentMachineName.empty())
     {
-        PrinterJob *   printJob = m_shell.m_printerWorker.Job ();
+        PrinterJob *   printJob = m_shell.m_printerWorker.Job();
 
-        if (printJob != nullptr && printJob->HasContent ())
+        if (printJob != nullptr && printJob->HasContent())
         {
-            HRESULT   hrSave = PrintJobStore::Save (m_shell.PendingPrintDir (), printJob->Raster ());
+            HRESULT   hrSave = PrintJobStore::Save (m_shell.PendingPrintDir(), printJob->Raster());
             IGNORE_RETURN_VALUE (hrSave, S_OK);
         }
         else
         {
-            PrintJobStore::Clear (m_shell.PendingPrintDir ());
+            PrintJobStore::Clear (m_shell.PendingPrintDir());
         }
     }
 

@@ -106,7 +106,7 @@ namespace
     }
 
 
-    vector<Byte> BuildSentinelDisk ()
+    vector<Byte> BuildSentinelDisk()
     {
         vector<Byte>   raw (NibblizationLayer::kImageByteSize, 0);
         int            track  = 0;
@@ -140,7 +140,7 @@ namespace
         hr = host.BuildApple2eWithDisk2 (core);
         Assert::IsTrue (SUCCEEDED (hr), L"BuildApple2eWithDisk2");
 
-        core.PowerCycle ();
+        core.PowerCycle();
 
         hr = core.diskStore->MountFromBytes (kSlot6, kDrive1,
                                              "readback.dsk",
@@ -184,11 +184,11 @@ namespace
     // previous" sequence.
     void SeekToTrack (EmulatorCore & core, int targetTrack)
     {
-        int currentTrack = core.diskController->GetCurrentTrack ();
+        int currentTrack = core.diskController->GetCurrentTrack();
 
         while (currentTrack != targetTrack)
         {
-            int currentQt   = core.diskController->GetQuarterTrack ();
+            int currentQt   = core.diskController->GetQuarterTrack();
             int targetQt    = targetTrack * 4;
             int direction   = (targetQt > currentQt) ? +1 : -1;
 
@@ -204,7 +204,7 @@ namespace
             // the next pulse.
             core.diskController->Tick (16);
 
-            currentTrack = core.diskController->GetCurrentTrack ();
+            currentTrack = core.diskController->GetCurrentTrack();
 
             // Safety: don't loop forever.
             if (currentTrack == targetTrack) break;
@@ -419,7 +419,7 @@ public:
     {
         HeadlessHost   host;
         EmulatorCore   core;
-        vector<Byte>   raw = BuildSentinelDisk ();
+        vector<Byte>   raw = BuildSentinelDisk();
 
         MountAndSpinUp (host, core, raw);
 
@@ -460,7 +460,7 @@ public:
     {
         HeadlessHost   host;
         EmulatorCore   core;
-        vector<Byte>   raw = BuildSentinelDisk ();
+        vector<Byte>   raw = BuildSentinelDisk();
 
         MountAndSpinUp (host, core, raw);
 
@@ -502,14 +502,14 @@ public:
             successCount++;
         }
 
-        if (!failures.empty ())
+        if (!failures.empty())
         {
             wchar_t  banner[128] = {};
             swprintf_s (banner, L"%d/%d sector reads succeeded. Failures: ",
                         successCount, kSectorsPerTrack);
             wstring full = banner;
             full += failures;
-            Assert::Fail (full.c_str ());
+            Assert::Fail (full.c_str());
         }
     }
 
@@ -554,13 +554,13 @@ public:
                 swprintf_s (msg, L"byte[%d] expected $%02X got $%02X. ",
                             i, expected, decoded[i]);
                 failures += msg;
-                if (failures.size () > 800) { failures += L"...truncated"; break; }
+                if (failures.size() > 800) { failures += L"...truncated"; break; }
             }
         }
 
-        if (!failures.empty ())
+        if (!failures.empty())
         {
-            Assert::Fail (failures.c_str ());
+            Assert::Fail (failures.c_str());
         }
     }
 
@@ -577,7 +577,7 @@ public:
     {
         HeadlessHost   host;
         EmulatorCore   core;
-        vector<Byte>   raw = BuildSentinelDisk ();
+        vector<Byte>   raw = BuildSentinelDisk();
 
         MountAndSpinUp (host, core, raw);
 
@@ -588,7 +588,7 @@ public:
         {
             SeekToTrack (core, trk);
 
-            int actualTrack = core.diskController->GetCurrentTrack ();
+            int actualTrack = core.diskController->GetCurrentTrack();
             if (actualTrack != trk)
             {
                 wchar_t  msg[128] = {};
@@ -632,14 +632,14 @@ public:
             }
         }
 
-        if (!failures.empty ())
+        if (!failures.empty())
         {
             wchar_t  banner[128] = {};
             swprintf_s (banner, L"%d/%d sector reads succeeded. Failures: ",
                         successCount, kTrackCount * kSectorsPerTrack);
             wstring full = banner;
             full += failures;
-            Assert::Fail (full.c_str ());
+            Assert::Fail (full.c_str());
         }
     }
 
@@ -661,7 +661,7 @@ public:
     {
         HeadlessHost   host;
         EmulatorCore   core;
-        vector<Byte>   raw      = BuildSentinelDisk ();
+        vector<Byte>   raw      = BuildSentinelDisk();
         uint64_t       cpuCycle = 0;
         DiskImage *    external = nullptr;
         HRESULT        hr       = S_OK;
@@ -669,7 +669,7 @@ public:
         hr = host.BuildApple2eWithDisk2 (core);
         Assert::IsTrue (SUCCEEDED (hr), L"BuildApple2eWithDisk2");
 
-        core.PowerCycle ();
+        core.PowerCycle();
 
         hr = core.diskStore->MountFromBytes (kSlot6, kDrive1, "rewind.dsk",
                                              DiskFormat::Dsk, raw);
@@ -699,7 +699,7 @@ public:
         // the controller's anchor still holds the large value.
         cpuCycle = 0;
 
-        size_t  bitBefore = core.diskController->GetEngine (kDrive1).GetBitPosition ();
+        size_t  bitBefore = core.diskController->GetEngine (kDrive1).GetBitPosition();
 
         // A handful of post-rewind accesses, each a few bit-cells apart.
         for (int i = 0; i < 8; i++)
@@ -708,7 +708,7 @@ public:
             core.bus->ReadByte (kReadLatch);
         }
 
-        size_t  bitAfter = core.diskController->GetEngine (kDrive1).GetBitPosition ();
+        size_t  bitAfter = core.diskController->GetEngine (kDrive1).GetBitPosition();
 
         Assert::IsTrue (bitAfter != bitBefore,
                         L"Bit cursor frozen after cycle-counter rewind "

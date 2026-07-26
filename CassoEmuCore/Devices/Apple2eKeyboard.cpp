@@ -17,7 +17,7 @@
 ////////////////////////////////////////////////////////////////////////////////
 
 Apple2eKeyboard::Apple2eKeyboard (MemoryBus * bus)
-    : AppleKeyboard (),
+    : AppleKeyboard(),
       m_bus         (bus)
 {
 }
@@ -151,7 +151,7 @@ Byte Apple2eKeyboard::Read (Word address)
 
 void Apple2eKeyboard::EmitButtonRead (Word address, Byte value)
 {
-    IInputEventSink * sink = InputSink ();
+    IInputEventSink * sink = InputSink();
     int               idx  = static_cast<int> (address - kFirstButtonAddress);
 
     if (sink == nullptr)
@@ -215,7 +215,7 @@ void Apple2eKeyboard::SetClosedApple (bool pressed)
 
 void Apple2eKeyboard::EmitHostButton (int index, bool pressed)
 {
-    IInputEventSink * sink  = InputSink ();
+    IInputEventSink * sink  = InputSink();
     int               value = pressed ? 1 : 0;
 
 
@@ -422,9 +422,9 @@ void Apple2eKeyboard::Write (Word address, Byte value)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void Apple2eKeyboard::Reset ()
+void Apple2eKeyboard::Reset()
 {
-    AppleKeyboard::Reset ();
+    AppleKeyboard::Reset();
 
     m_openApple.store   (false, memory_order_release);
     m_closedApple.store (false, memory_order_release);
@@ -455,12 +455,12 @@ void Apple2eKeyboard::Reset ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void Apple2eKeyboard::SoftReset ()
+void Apple2eKeyboard::SoftReset()
 {
     // Bypass the virtual chain: AppleKeyboard::SoftReset -> Reset() would
     // dispatch to Apple2eKeyboard::Reset and clobber the modifiers we
     // need to preserve. Just clear the latched-character byte directly.
-    AppleKeyboard::Reset ();
+    AppleKeyboard::Reset();
 }
 
 

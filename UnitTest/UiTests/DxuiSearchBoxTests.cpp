@@ -21,7 +21,7 @@ public:
     static constexpr int  s_kBoxH = 28;
 
 
-    static DxuiSearchBox MakeSearchBox ()
+    static DxuiSearchBox MakeSearchBox()
     {
         DxuiSearchBox  s;
         RECT           rc = { 0, 0, s_kBoxW, s_kBoxH };
@@ -35,7 +35,7 @@ public:
     // Mirrors the search box's own pad / glyph-slot geometry so the test
     // can click the trailing clear glyph. Kept in sync with the constants
     // in DxuiSearchBox.cpp (pad 6, slot 20 at 96 DPI).
-    static POINT ClearGlyphCenter ()
+    static POINT ClearGlyphCenter()
     {
         constexpr int  kPad  = 6;
         constexpr int  kSlot = 20;

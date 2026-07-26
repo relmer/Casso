@@ -401,7 +401,7 @@ void DisplayPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DisplayPage::Rebuild ()
+void DisplayPage::Rebuild()
 {
     SettingsPanelState * state = m_state;
 
@@ -621,7 +621,7 @@ void DisplayPage::SetTextColor (ColorMonitorTextMode mode, uint32_t customArgb)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool DisplayPage::TextColorActive () const
+bool DisplayPage::TextColorActive() const
 {
     return m_state != nullptr && m_state->Prefs().colorMode == SettingsColorMode::Color;
 }
@@ -636,7 +636,7 @@ bool DisplayPage::TextColorActive () const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DisplayPage::RefreshTextColorEnabled ()
+void DisplayPage::RefreshTextColorEnabled()
 {
     m_textColor.SetEnabled (TextColorActive());
 }

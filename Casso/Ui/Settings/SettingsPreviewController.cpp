@@ -29,7 +29,7 @@ void SettingsPreviewController::StartPreview (Focus focus, bool keyboardMode)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void SettingsPreviewController::EndPreview ()
+void SettingsPreviewController::EndPreview()
 {
     m_focus     = Focus::None;
     m_keyboard  = false;
@@ -49,7 +49,7 @@ void SettingsPreviewController::EndPreview ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void SettingsPreviewController::Reset ()
+void SettingsPreviewController::Reset()
 {
     m_focus            = Focus::None;
     m_keyboard         = false;

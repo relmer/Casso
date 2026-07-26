@@ -50,7 +50,7 @@ namespace
     };
 
 
-    SyntheticHost  BuildSyntheticHost ()
+    SyntheticHost  BuildSyntheticHost()
     {
         SyntheticHost            result;
         std::unique_ptr<DxuiPanel>     root        = std::make_unique<DxuiPanel>();

@@ -84,11 +84,11 @@ public:
                         std::istreambuf_iterator<char> ());
                 }
             }
-            if (!cursor.has_parent_path () || cursor == cursor.parent_path ())
+            if (!cursor.has_parent_path() || cursor == cursor.parent_path())
             {
                 break;
             }
-            cursor = cursor.parent_path ();
+            cursor = cursor.parent_path();
         }
         return {};
     }
@@ -97,7 +97,7 @@ public:
     TEST_METHOD (DOS33_CATALOG_DoesNotErrorOnMasterDisk)
     {
         std::vector<Byte>  raw = ReadDskOrEmpty ("Disks/Apple/dos33-master.dsk");
-        if (raw.empty ())
+        if (raw.empty())
         {
             Logger::WriteMessage ("SKIPPED: Disks/Apple/dos33-master.dsk not "
                                   "available in this checkout (typical for CI "
@@ -106,7 +106,7 @@ public:
             return;
         }
 
-        Assert::AreEqual (size_t (143360), raw.size (),
+        Assert::AreEqual (size_t (143360), raw.size(),
             L"DOS 3.3 master disk must be 143360 bytes");
 
         HeadlessHost   host;
@@ -115,7 +115,7 @@ public:
         HRESULT  hr = host.BuildApple2eWithDisk2 (core);
         Assert::IsTrue (SUCCEEDED (hr), L"BuildApple2eWithDisk2 must succeed");
 
-        core.PowerCycle ();
+        core.PowerCycle();
 
         hr = core.diskStore->MountFromBytes (kSlot6, kDrive1,
             "dos33-master.dsk", DiskFormat::Dsk, raw);
@@ -190,14 +190,14 @@ public:
     TEST_METHOD (DOS33_SAVE_RoundTripsToDsk)
     {
         std::vector<Byte>  raw = ReadDskOrEmpty ("Disks/Apple/dos33-master.dsk");
-        if (raw.empty ())
+        if (raw.empty())
         {
             Logger::WriteMessage ("SKIPPED: Disks/Apple/dos33-master.dsk not "
                                   "available in this checkout.\n");
             return;
         }
 
-        Assert::AreEqual (size_t (143360), raw.size (),
+        Assert::AreEqual (size_t (143360), raw.size(),
             L"DOS 3.3 master disk must be 143360 bytes");
 
         HeadlessHost   host;
@@ -206,7 +206,7 @@ public:
         HRESULT  hr = host.BuildApple2eWithDisk2 (core);
         Assert::IsTrue (SUCCEEDED (hr), L"BuildApple2eWithDisk2 must succeed");
 
-        core.PowerCycle ();
+        core.PowerCycle();
 
         hr = core.diskStore->MountFromBytes (kSlot6, kDrive1,
             "dos33-master.dsk", DiskFormat::Dsk, raw);
@@ -230,13 +230,13 @@ public:
             return joined;
         };
 
-        Assert::IsTrue (Screen ().find (']') != std::string::npos,
+        Assert::IsTrue (Screen().find (']') != std::string::npos,
             L"DOS 3.3 must reach the ] prompt within the cold-boot budget.");
 
         // Enter a one-line program and SAVE it.
         KeystrokeInjector::InjectLine (core, "10 REM TEST PROGRAM", kCatalogCycles);
         KeystrokeInjector::InjectLine (core, "SAVE TEST", kCatalogCycles);
-        std::string  afterSave = Screen ();
+        std::string  afterSave = Screen();
 
         // Clear the program, LOAD it back, clear the screen, and LIST so
         // the recovered text is unambiguous (not a SAVE echo left onscreen).
@@ -244,7 +244,7 @@ public:
         KeystrokeInjector::InjectLine (core, "LOAD TEST", kCatalogCycles);
         KeystrokeInjector::InjectLine (core, "HOME", kCatalogCycles);
         KeystrokeInjector::InjectLine (core, "LIST", kCatalogCycles);
-        std::string  afterList = Screen ();
+        std::string  afterList = Screen();
 
         Assert::IsTrue (afterSave.find ("I/O ERROR") == std::string::npos &&
                         afterList.find ("I/O ERROR") == std::string::npos,

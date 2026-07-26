@@ -43,7 +43,7 @@ static constexpr int  kMain02_BFLast      = 0xBF;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-Apple2eMmu::Apple2eMmu ()
+Apple2eMmu::Apple2eMmu()
     : m_auxRam     (kAuxRamSize, 0),
       m_cxxxRouter (*this)
 {
@@ -83,12 +83,12 @@ HRESULT Apple2eMmu::Initialize (
     CBR (mainRam != nullptr);
 
     m_bus        = bus;
-    m_mainRamPtr = mainRam->GetData ();
+    m_mainRamPtr = mainRam->GetData();
     m_ssBank     = ssBank;
 
     m_bus->AddDevice (&m_cxxxRouter);
 
-    RebindPageTable ();
+    RebindPageTable();
 
 Error:
     return hr;
@@ -115,7 +115,7 @@ void Apple2eMmu::AttachInternalCxxxRom (vector<Byte> data)
 
     // SetInternalRom move-reassigns the router's buffer (e.g. a //c $C028 bank
     // flip), so re-point the page table at the new bytes.
-    RebindCxxxInternalRom ();
+    RebindCxxxInternalRom();
 }
 
 
@@ -146,7 +146,7 @@ void Apple2eMmu::SetRamRd (bool v)
     }
 
     m_ramRd = v;
-    ResolveMain02_BF ();
+    ResolveMain02_BF();
 }
 
 
@@ -159,7 +159,7 @@ void Apple2eMmu::SetRamWrt (bool v)
     }
 
     m_ramWrt = v;
-    ResolveMain02_BF ();
+    ResolveMain02_BF();
 }
 
 
@@ -172,13 +172,13 @@ void Apple2eMmu::SetAltZp (bool v)
     }
 
     m_altZp = v;
-    ResolveZeroPage ();
+    ResolveZeroPage();
 
     // ALTZP also swaps the language card's $D000-$FFFF RAM between the main and
     // aux banks, so re-point its read-page window to the new side.
     if (m_lc != nullptr)
     {
-        m_lc->RebindWindow ();
+        m_lc->RebindWindow();
     }
 }
 
@@ -194,7 +194,7 @@ void Apple2eMmu::Set80Store (bool v)
     m_store80 = v;
 
     ResolveText04_07  ();
-    ResolveHires20_3F ();
+    ResolveHires20_3F();
     ResolveMain02_BF  ();
 }
 
@@ -214,7 +214,7 @@ void Apple2eMmu::SetSlotC3Rom (bool v)
 
 
 
-void Apple2eMmu::ResetIntC8Rom ()
+void Apple2eMmu::ResetIntC8Rom()
 {
     m_intC8Rom = false;
 }
@@ -234,10 +234,10 @@ void Apple2eMmu::ResetIntC8Rom ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void Apple2eMmu::OnSoftSwitchChanged ()
+void Apple2eMmu::OnSoftSwitchChanged()
 {
     ResolveText04_07  ();
-    ResolveHires20_3F ();
+    ResolveHires20_3F();
 }
 
 
@@ -253,7 +253,7 @@ void Apple2eMmu::OnSoftSwitchChanged ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void Apple2eMmu::OnSoftReset ()
+void Apple2eMmu::OnSoftReset()
 {
     m_ramRd     = false;
     m_ramWrt    = false;
@@ -263,7 +263,7 @@ void Apple2eMmu::OnSoftReset ()
     m_slotC3Rom = false;
     m_intC8Rom  = false;
 
-    RebindPageTable ();
+    RebindPageTable();
 }
 
 
@@ -282,9 +282,9 @@ void Apple2eMmu::OnSoftReset ()
 
 void Apple2eMmu::OnPowerCycle (Prng & prng)
 {
-    OnSoftReset ();
+    OnSoftReset();
 
-    prng.Fill (m_auxRam.data (), m_auxRam.size ());
+    prng.Fill (m_auxRam.data(), m_auxRam.size());
 }
 
 
@@ -300,12 +300,12 @@ void Apple2eMmu::OnPowerCycle (Prng & prng)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void Apple2eMmu::RebindPageTable ()
+void Apple2eMmu::RebindPageTable()
 {
     ResolveZeroPage   ();
     ResolveMain02_BF  ();
     ResolveText04_07  ();
-    ResolveHires20_3F ();
+    ResolveHires20_3F();
 }
 
 
@@ -323,7 +323,7 @@ void Apple2eMmu::RebindPageTable ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void Apple2eMmu::RebindCxxxInternalRom ()
+void Apple2eMmu::RebindCxxxInternalRom()
 {
     if (m_bus == nullptr)
     {
@@ -349,9 +349,9 @@ void Apple2eMmu::RebindCxxxInternalRom ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void Apple2eMmu::ResolveZeroPage ()
+void Apple2eMmu::ResolveZeroPage()
 {
-    Byte *  base = m_altZp ? m_auxRam.data () : m_mainRamPtr;
+    Byte *  base = m_altZp ? m_auxRam.data() : m_mainRamPtr;
 
     if (m_bus == nullptr || base == nullptr)
     {
@@ -382,7 +382,7 @@ void Apple2eMmu::ResolveZeroPage ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void Apple2eMmu::ResolveMain02_BF ()
+void Apple2eMmu::ResolveMain02_BF()
 {
     if (m_bus == nullptr || m_mainRamPtr == nullptr)
     {
@@ -422,7 +422,7 @@ void Apple2eMmu::ResolveMain02_BF ()
 
 Byte * Apple2eMmu::SelectMainRead (int page)
 {
-    Byte *  base = m_ramRd ? m_auxRam.data () : m_mainRamPtr;
+    Byte *  base = m_ramRd ? m_auxRam.data() : m_mainRamPtr;
     return base + (page * kPageSize);
 }
 
@@ -430,7 +430,7 @@ Byte * Apple2eMmu::SelectMainRead (int page)
 
 Byte * Apple2eMmu::SelectMainWrite (int page)
 {
-    Byte *  base = m_ramWrt ? m_auxRam.data () : m_mainRamPtr;
+    Byte *  base = m_ramWrt ? m_auxRam.data() : m_mainRamPtr;
     return base + (page * kPageSize);
 }
 
@@ -449,7 +449,7 @@ Byte * Apple2eMmu::SelectMainWrite (int page)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void Apple2eMmu::ResolveText04_07 ()
+void Apple2eMmu::ResolveText04_07()
 {
     if (m_bus == nullptr || m_mainRamPtr == nullptr)
     {
@@ -471,10 +471,10 @@ void Apple2eMmu::ResolveText04_07 ()
     bool   page2 = false;
     if (m_ssBank != nullptr)
     {
-        page2 = m_ssBank->IsPage2 ();
+        page2 = m_ssBank->IsPage2();
     }
 
-    Byte *  base = page2 ? m_auxRam.data () : m_mainRamPtr;
+    Byte *  base = page2 ? m_auxRam.data() : m_mainRamPtr;
 
     for (int page = kText04_07First; page <= kText04_07Last; page++)
     {
@@ -498,7 +498,7 @@ void Apple2eMmu::ResolveText04_07 ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void Apple2eMmu::ResolveHires20_3F ()
+void Apple2eMmu::ResolveHires20_3F()
 {
     if (m_bus == nullptr || m_mainRamPtr == nullptr)
     {
@@ -510,8 +510,8 @@ void Apple2eMmu::ResolveHires20_3F ()
 
     if (m_ssBank != nullptr)
     {
-        page2 = m_ssBank->IsPage2 ();
-        hires = m_ssBank->IsHiresMode ();
+        page2 = m_ssBank->IsPage2();
+        hires = m_ssBank->IsHiresMode();
     }
 
     bool  banked = m_store80 && hires;
@@ -528,7 +528,7 @@ void Apple2eMmu::ResolveHires20_3F ()
         return;
     }
 
-    Byte *  base = page2 ? m_auxRam.data () : m_mainRamPtr;
+    Byte *  base = page2 ? m_auxRam.data() : m_mainRamPtr;
 
     for (int page = kHires20_3FFirst; page <= kHires20_3FLast; page++)
     {

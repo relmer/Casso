@@ -300,7 +300,7 @@ void HardwarePage::SetPopupHost (DxuiHwndSource * host)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void HardwarePage::Rebuild ()
+void HardwarePage::Rebuild()
 {
     std::vector<HardwareEntry>   entries;
     std::vector<DxuiTreeNode>        nodes;

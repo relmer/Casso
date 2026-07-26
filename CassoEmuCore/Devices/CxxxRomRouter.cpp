@@ -146,7 +146,7 @@ Byte * CxxxRomRouter::FastMapReadPtr (int page)
 {
     static constexpr int  kPageSize = 0x100;
 
-    if (!m_noExternalSlots || m_internal.empty ())
+    if (!m_noExternalSlots || m_internal.empty())
     {
         return nullptr;
     }
@@ -160,12 +160,12 @@ Byte * CxxxRomRouter::FastMapReadPtr (int page)
 
     size_t  offset = static_cast<size_t> ((page - 0xC1) * kPageSize);
 
-    if (offset + kPageSize > m_internal.size ())
+    if (offset + kPageSize > m_internal.size())
     {
         return nullptr;
     }
 
-    return m_internal.data () + offset;
+    return m_internal.data() + offset;
 }
 
 
@@ -267,7 +267,7 @@ Byte CxxxRomRouter::Read (Word address)
         // and ResolveByte's four MMU state pulls. The $C3xx/$CFFF side effects
         // below still run for fidelity.
         Word  off = static_cast<Word> (address - kCxxxRouterStart);
-        value = (off < m_internal.size ()) ? m_internal[off] : kFloatingBusByte;
+        value = (off < m_internal.size()) ? m_internal[off] : kFloatingBusByte;
     }
     else
     {

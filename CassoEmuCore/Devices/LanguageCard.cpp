@@ -156,7 +156,7 @@ void LanguageCard::ApplySwitch (Byte switchAddr, bool isWrite)
     // so it needs no re-point.
     if (static_cast<Word> (m_flags & (kLcFlagBank2 | kLcFlagReadRam)) != readFlagsBefore)
     {
-        RebindWindow ();
+        RebindWindow();
     }
 
     if (!isOdd)
@@ -198,7 +198,7 @@ void LanguageCard::ApplySwitch (Byte switchAddr, bool isWrite)
 
 Byte * LanguageCard::SelectBank4K (Word address)
 {
-    bool  altZp = m_mmu != nullptr && m_mmu->GetAltZp ();
+    bool  altZp = m_mmu != nullptr && m_mmu->GetAltZp();
     bool  bank2 = (m_flags & kLcFlagBank2) != 0;
 
 
@@ -207,10 +207,10 @@ Byte * LanguageCard::SelectBank4K (Word address)
 
     if (altZp)
     {
-        return bank2 ? m_ramBank2Aux.data () : m_ramBank1Aux.data ();
+        return bank2 ? m_ramBank2Aux.data() : m_ramBank1Aux.data();
     }
 
-    return bank2 ? m_ramBank2Main.data () : m_ramBank1Main.data ();
+    return bank2 ? m_ramBank2Main.data() : m_ramBank1Main.data();
 }
 
 
@@ -228,13 +228,13 @@ Byte * LanguageCard::SelectBank4K (Word address)
 
 Byte * LanguageCard::SelectMainHigh (Word address)
 {
-    bool  altZp = m_mmu != nullptr && m_mmu->GetAltZp ();
+    bool  altZp = m_mmu != nullptr && m_mmu->GetAltZp();
 
 
 
     UNREFERENCED_PARAMETER (address);
 
-    return altZp ? m_ramAuxHigh.data () : m_ramMainHigh.data ();
+    return altZp ? m_ramAuxHigh.data() : m_ramMainHigh.data();
 }
 
 
@@ -308,19 +308,19 @@ void LanguageCard::WriteRam (Word address, Byte value)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void LanguageCard::Reset ()
+void LanguageCard::Reset()
 {
-    SoftReset ();
+    SoftReset();
 }
 
 
 
-void LanguageCard::SoftReset ()
+void LanguageCard::SoftReset()
 {
     m_flags         = kLcFlagsPowerOn;
     m_preWriteCount = 0;
 
-    RebindWindow ();
+    RebindWindow();
 }
 
 
@@ -339,10 +339,10 @@ void LanguageCard::SoftReset ()
 
 void LanguageCard::PowerCycle (Prng & prng)
 {
-    SoftReset ();
+    SoftReset();
 
-    prng.Fill (m_ramBank1Main.data (), m_ramBank1Main.size ());
-    prng.Fill (m_ramBank2Main.data (), m_ramBank2Main.size ());
+    prng.Fill (m_ramBank1Main.data(), m_ramBank1Main.size());
+    prng.Fill (m_ramBank2Main.data(), m_ramBank2Main.size());
     prng.Fill (m_ramMainHigh.data  (), m_ramMainHigh.size  ());
     prng.Fill (m_ramBank1Aux.data  (), m_ramBank1Aux.size  ());
     prng.Fill (m_ramBank2Aux.data  (), m_ramBank2Aux.size  ());
@@ -361,14 +361,14 @@ void LanguageCard::PowerCycle (Prng & prng)
 
 Byte LanguageCard::ReadRom (Word address) const
 {
-    if (m_romData.empty () || address < kLcWindowStart)
+    if (m_romData.empty() || address < kLcWindowStart)
     {
         return 0xFF;
     }
 
     size_t  offset = static_cast<size_t> (address - kLcWindowStart);
 
-    if (offset < m_romData.size ())
+    if (offset < m_romData.size())
     {
         return m_romData[offset];
     }
@@ -391,12 +391,12 @@ Byte LanguageCard::ReadRom (Word address) const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void LanguageCard::RebindWindow ()
+void LanguageCard::RebindWindow()
 {
     static constexpr int  kPageSize = 0x100;
 
-    bool    readRam = IsReadRam ();
-    Byte *  romBase = m_romData.empty () ? nullptr : m_romData.data ();
+    bool    readRam = IsReadRam();
+    Byte *  romBase = m_romData.empty() ? nullptr : m_romData.data();
     Byte *  bank4k  = SelectBank4K   (kLcWindowStart);   // $D000-$DFFF RAM (4 KiB)
     Byte *  high8k  = SelectMainHigh (kLcHighStart);     // $E000-$FFFF RAM (8 KiB)
 
@@ -463,7 +463,7 @@ LanguageCardBank::LanguageCardBank (LanguageCard & lc)
 
 Byte LanguageCardBank::Read (Word address)
 {
-    if (m_lc.IsReadRam ())
+    if (m_lc.IsReadRam())
     {
         return m_lc.ReadRam (address);
     }
@@ -496,6 +496,6 @@ void LanguageCardBank::Write (Word address, Byte value)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void LanguageCardBank::Reset ()
+void LanguageCardBank::Reset()
 {
 }

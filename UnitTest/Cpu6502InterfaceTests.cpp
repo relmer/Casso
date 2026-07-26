@@ -56,7 +56,7 @@ namespace Apple2eFidelity
 
 
 
-            cpu.InitForTest ();
+            cpu.InitForTest();
 
             expected.pc = 0x1234;
             expected.a  = 0x55;
@@ -67,7 +67,7 @@ namespace Apple2eFidelity
 
             static_cast<I6502DebugInfo &> (cpu).SetRegisters (expected);
 
-            actual = static_cast<I6502DebugInfo &> (cpu).GetRegisters ();
+            actual = static_cast<I6502DebugInfo &> (cpu).GetRegisters();
 
             Assert::AreEqual (expected.pc, actual.pc, L"PC round-trip");
             Assert::AreEqual (expected.a,  actual.a,  L"A round-trip");
@@ -86,7 +86,7 @@ namespace Apple2eFidelity
 
 
 
-            cpu.InitForTest ();
+            cpu.InitForTest();
 
             // Drive a couple of NOPs through ICpu::Step to accumulate cycles.
             cpu.Poke (0x8000, 0xEA);
@@ -98,12 +98,12 @@ namespace Apple2eFidelity
             hr = iface.Step (cycles);
             Assert::AreEqual (S_OK, hr);
 
-            Assert::IsTrue (iface.GetCycleCount () > 0,
+            Assert::IsTrue (iface.GetCycleCount() > 0,
                             L"Step should accumulate cycles");
 
-            hr = iface.Reset ();
+            hr = iface.Reset();
             Assert::AreEqual (S_OK, hr);
-            Assert::AreEqual (static_cast<uint64_t> (0), iface.GetCycleCount (),
+            Assert::AreEqual (static_cast<uint64_t> (0), iface.GetCycleCount(),
                               L"Reset should zero the cycle counter");
         }
 
@@ -116,10 +116,10 @@ namespace Apple2eFidelity
 
 
             iface.SetInterruptLine (CpuInterruptKind::kMaskable, true);
-            Assert::IsTrue (cpu.IsIrqLineAsserted ());
+            Assert::IsTrue (cpu.IsIrqLineAsserted());
 
             iface.SetInterruptLine (CpuInterruptKind::kMaskable, false);
-            Assert::IsFalse (cpu.IsIrqLineAsserted ());
+            Assert::IsFalse (cpu.IsIrqLineAsserted());
         }
 
 
@@ -132,13 +132,13 @@ namespace Apple2eFidelity
 
             // Rising edge latches a pending dispatch.
             iface.SetInterruptLine (CpuInterruptKind::kNonMaskable, true);
-            Assert::IsTrue (cpu.IsNmiLineAsserted ());
-            Assert::IsTrue (cpu.IsNmiPending ());
+            Assert::IsTrue (cpu.IsNmiLineAsserted());
+            Assert::IsTrue (cpu.IsNmiPending());
 
             // Falling edge does not clear the pending latch.
             iface.SetInterruptLine (CpuInterruptKind::kNonMaskable, false);
-            Assert::IsFalse (cpu.IsNmiLineAsserted ());
-            Assert::IsTrue (cpu.IsNmiPending ());
+            Assert::IsFalse (cpu.IsNmiLineAsserted());
+            Assert::IsTrue (cpu.IsNmiPending());
         }
     };
 }

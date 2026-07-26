@@ -240,7 +240,7 @@ void DiskPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DiskPage::Rebuild ()
+void DiskPage::Rebuild()
 {
     SettingsPanelState  * state = m_state;
 
@@ -431,7 +431,7 @@ void DiskPage::ConfigurePanSlider (DxuiSlider & slider, const RECT & rect)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DiskPage::ResetDriveAudioToDefaults ()
+void DiskPage::ResetDriveAudioToDefaults()
 {
     HRESULT  hr = S_OK;
 

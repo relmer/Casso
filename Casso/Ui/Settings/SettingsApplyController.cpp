@@ -129,9 +129,9 @@ namespace
             PostMessageW (m_shell.GetHwnd(), WM_COMMAND, MAKEWPARAM (id, 0), 0);
         }
 
-        void QueueMachineReset ()                              override { m_resetQueued = true; }
+        void QueueMachineReset()                              override { m_resetQueued = true; }
 
-        bool  ResetQueued () const { return m_resetQueued; }
+        bool  ResetQueued() const { return m_resetQueued; }
 
     private:
         EmulatorShell & m_shell;
@@ -182,7 +182,7 @@ void SettingsApplyController::Bind (
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void SettingsApplyController::SnapshotBaselines ()
+void SettingsApplyController::SnapshotBaselines()
 {
     if (m_prefs != nullptr)
     {
@@ -228,7 +228,7 @@ void SettingsApplyController::SnapshotBaselines ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void SettingsApplyController::ClearPending ()
+void SettingsApplyController::ClearPending()
 {
     m_pendingMachine.clear();
     m_pendingTheme.clear();
@@ -312,7 +312,7 @@ void SettingsApplyController::ApplyThemeLive (const std::string & name)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool SettingsApplyController::WillMachineChange () const
+bool SettingsApplyController::WillMachineChange() const
 {
     std::wstring  current;
     std::string   currentNarrow;
@@ -343,7 +343,7 @@ bool SettingsApplyController::WillMachineChange () const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool SettingsApplyController::IsResetRequired () const
+bool SettingsApplyController::IsResetRequired() const
 {
     return (m_state != nullptr) && m_state->RequiresReset();
 }
@@ -367,7 +367,7 @@ bool SettingsApplyController::IsResetRequired () const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void SettingsApplyController::CommitApply ()
+void SettingsApplyController::CommitApply()
 {
     SettingsApplyAdapter  adapter (*m_emuShell);
     JsonValue             currentJson;

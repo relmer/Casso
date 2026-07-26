@@ -20,7 +20,7 @@
 ////////////////////////////////////////////////////////////////////////////////
 
 Apple2eSoftSwitchBank::Apple2eSoftSwitchBank (MemoryBus * bus)
-    : AppleSoftSwitchBank (),
+    : AppleSoftSwitchBank(),
       m_bus               (bus)
 {
     for (atomic<Byte> & axis : m_paddlePosition)
@@ -41,9 +41,9 @@ Apple2eSoftSwitchBank::Apple2eSoftSwitchBank (MemoryBus * bus)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool Apple2eSoftSwitchBank::Is80Store () const
+bool Apple2eSoftSwitchBank::Is80Store() const
 {
-    return m_mmu != nullptr && m_mmu->Get80Store ();
+    return m_mmu != nullptr && m_mmu->Get80Store();
 }
 
 
@@ -84,7 +84,7 @@ Byte Apple2eSoftSwitchBank::ReadStatusRegister (Word address)
 
     if (m_keyboard != nullptr)
     {
-        kbdBits = m_keyboard->GetLatchedKeyDataBits ();
+        kbdBits = m_keyboard->GetLatchedKeyDataBits();
     }
 
     // //c IOU mouse overrides: with no slots, the //c repurposes
@@ -113,8 +113,8 @@ Byte Apple2eSoftSwitchBank::ReadStatusRegister (Word address)
         case 0xC016: flag = m_mmu         != nullptr && m_mmu->GetAltZp        (); break;
         case 0xC017: flag = m_mmu         != nullptr && m_mmu->GetSlotC3Rom    (); break;
         case 0xC018: flag = m_mmu         != nullptr && m_mmu->Get80Store      (); break;
-        case 0xC019: flag = m_videoTiming != nullptr && !m_videoTiming->IsInVblank (); break;
-        case 0xC01A: flag = !IsGraphicsMode (); break;
+        case 0xC019: flag = m_videoTiming != nullptr && !m_videoTiming->IsInVblank(); break;
+        case 0xC01A: flag = !IsGraphicsMode(); break;
         case 0xC01B: flag = IsMixedMode    (); break;
         case 0xC01C: flag = IsPage2        (); break;
         case 0xC01D: flag = IsHiresMode    (); break;
@@ -228,7 +228,7 @@ void Apple2eSoftSwitchBank::EmitHostPaddle (int axis, Byte value)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void Apple2eSoftSwitchBank::EmitPaddleTrigger ()
+void Apple2eSoftSwitchBank::EmitPaddleTrigger()
 {
     if (m_inputSink == nullptr)
     {
@@ -313,7 +313,7 @@ Byte Apple2eSoftSwitchBank::Read (Word address)
             m_mouse->AccessPtrig();
         }
 
-        EmitPaddleTrigger ();
+        EmitPaddleTrigger();
     }
     else if (m_mouse != nullptr && (address == 0xC066 || address == 0xC067))
     {
@@ -405,12 +405,12 @@ Byte Apple2eSoftSwitchBank::Read (Word address)
         {
             if (m_mmu != nullptr)
             {
-                m_mmu->OnSoftSwitchChanged ();
+                m_mmu->OnSoftSwitchChanged();
             }
 
             if (m_bus != nullptr)
             {
-                m_bus->NotifyBankingChanged ();
+                m_bus->NotifyBankingChanged();
             }
         }
     }
@@ -480,9 +480,9 @@ void Apple2eSoftSwitchBank::Write (Word address, Byte value)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void Apple2eSoftSwitchBank::Reset ()
+void Apple2eSoftSwitchBank::Reset()
 {
-    AppleSoftSwitchBank::Reset ();
+    AppleSoftSwitchBank::Reset();
     m_80colMode   = false;
     m_doubleHiRes = false;
     m_altCharSet  = false;
@@ -526,9 +526,9 @@ void Apple2eSoftSwitchBank::Reset ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void Apple2eSoftSwitchBank::SoftReset ()
+void Apple2eSoftSwitchBank::SoftReset()
 {
-    Reset ();
+    Reset();
 }
 
 

@@ -134,7 +134,7 @@ void DialogBodyContent::SetGlyphIcon (wchar_t glyph, uint32_t argb, int sizeDip)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-int DialogBodyContent::PreferredHeightDip () const
+int DialogBodyContent::PreferredHeightDip() const
 {
     int  iconTop = 0;
     int  runs    = 0;

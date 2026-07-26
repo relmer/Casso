@@ -13,8 +13,8 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-Cpu6502::Cpu6502 ()
-    : Cpu ()
+Cpu6502::Cpu6502()
+    : Cpu()
 {
 }
 
@@ -32,13 +32,13 @@ Cpu6502::Cpu6502 ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT Cpu6502::Reset ()
+HRESULT Cpu6502::Reset()
 {
     HRESULT     hr = S_OK;
 
 
 
-    Cpu::Reset ();
+    Cpu::Reset();
 
     m_irqLine     = false;
     m_nmiLine     = false;
@@ -76,7 +76,7 @@ HRESULT Cpu6502::Step (uint32_t & outCycles)
 
     if (!dispatched)
     {
-        StepOne ();
+        StepOne();
 
         outCycles      = static_cast<uint32_t> (m_lastCycles);
         m_totalCycles += outCycles;
@@ -106,7 +106,7 @@ HRESULT Cpu6502::Step (uint32_t & outCycles)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void Cpu6502::UpdateBusCycle ()
+void Cpu6502::UpdateBusCycle()
 {
     uint64_t  offset = (m_lastCycles > 0) ? static_cast<uint64_t> (m_lastCycles - 1) : 0;
 
@@ -157,7 +157,7 @@ void Cpu6502::SetInterruptLine (CpuInterruptKind kind, bool asserted)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-Cpu6502Registers Cpu6502::GetRegisters () const
+Cpu6502Registers Cpu6502::GetRegisters() const
 {
     Cpu6502Registers    regs = {};
 

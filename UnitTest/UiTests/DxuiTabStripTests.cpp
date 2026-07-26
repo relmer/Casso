@@ -25,7 +25,7 @@ namespace
     }
 
 
-    std::vector<DxuiTabStrip::Tab>  MakeThreeTabs ()
+    std::vector<DxuiTabStrip::Tab>  MakeThreeTabs()
     {
         std::vector<DxuiTabStrip::Tab>  tabs;
         tabs.push_back (MakeTab (  0, 0,  80, 24, L"Machine"));

@@ -18,7 +18,7 @@ std::vector<std::string> Parser::SplitLines (const std::string & source)
     std::vector<std::string> lines;
     std::string              line;
 
-    for (size_t i = 0; i < source.size (); i++)
+    for (size_t i = 0; i < source.size(); i++)
     {
         char c = source[i];
 
@@ -26,15 +26,15 @@ std::vector<std::string> Parser::SplitLines (const std::string & source)
         {
             // LF or the LF of a CRLF — end of line
             lines.push_back (line);
-            line.clear ();
+            line.clear();
         }
         else if (c == '\r')
         {
             // CR — end of line (peek ahead for CRLF)
             lines.push_back (line);
-            line.clear ();
+            line.clear();
 
-            if (i + 1 < source.size () && source[i + 1] == '\n')
+            if (i + 1 < source.size() && source[i + 1] == '\n')
             {
                 i++;  // consume the LF of CRLF
             }
@@ -48,7 +48,7 @@ std::vector<std::string> Parser::SplitLines (const std::string & source)
     // Push remaining content (last line without trailing newline)
     lines.push_back (line);
 
-    if (lines.empty ())
+    if (lines.empty())
     {
         lines.push_back ("");
     }
@@ -68,7 +68,7 @@ std::vector<std::string> Parser::SplitLines (const std::string & source)
             {
                 current += raw;
                 joined.push_back (current);
-                current.clear ();
+                current.clear();
             }
             else
             {
@@ -79,11 +79,11 @@ std::vector<std::string> Parser::SplitLines (const std::string & source)
         {
             current += raw;
             joined.push_back (current);
-            current.clear ();
+            current.clear();
         }
     }
 
-    if (!current.empty ())
+    if (!current.empty())
     {
         joined.push_back (current);
     }
@@ -180,7 +180,7 @@ ParsedLine Parser::ParseLine (const std::string & line, int lineNumber)
     std::string stripped = StripComments (line);
     std::string trimmed  = Trim (stripped);
 
-    if (trimmed.empty ())
+    if (trimmed.empty())
     {
         return result;
     }
@@ -189,7 +189,7 @@ ParsedLine Parser::ParseLine (const std::string & line, int lineNumber)
     std::string remainder = trimmed;
 
     // Check for colon-less label: line starts at column 0 with an identifier
-    bool startsAtColumn0 = !stripped.empty () && !isspace ((unsigned char) stripped[0]);
+    bool startsAtColumn0 = !stripped.empty() && !isspace ((unsigned char) stripped[0]);
 
     // Check for label (contains ':')
     size_t colonPos = remainder.find (':');
@@ -199,14 +199,14 @@ ParsedLine Parser::ParseLine (const std::string & line, int lineNumber)
         result.label = Trim (remainder.substr (0, colonPos));
         remainder    = Trim (remainder.substr (colonPos + 1));
 
-        if (remainder.empty ())
+        if (remainder.empty())
         {
             return result;
         }
     }
 
     // Check for directive (starts with '.')
-    if (!remainder.empty () && remainder[0] == '.')
+    if (!remainder.empty() && remainder[0] == '.')
     {
         result.isDirective = true;
 
@@ -237,7 +237,7 @@ ParsedLine Parser::ParseLine (const std::string & line, int lineNumber)
         std::string afterEq  = Trim (remainder.substr (eqPos + 1));
 
         // Ensure beforeEq is a valid identifier (not a mnemonic)
-        if (!beforeEq.empty () && (isalpha ((unsigned char) beforeEq[0]) || beforeEq[0] == '_'))
+        if (!beforeEq.empty() && (isalpha ((unsigned char) beforeEq[0]) || beforeEq[0] == '_'))
         {
             bool validId = true;
 
@@ -250,7 +250,7 @@ ParsedLine Parser::ParseLine (const std::string & line, int lineNumber)
                 }
             }
 
-            if (validId && !afterEq.empty ())
+            if (validId && !afterEq.empty())
             {
                 result.isConstant   = true;
                 result.constantName = beforeEq;
@@ -275,7 +275,7 @@ ParsedLine Parser::ParseLine (const std::string & line, int lineNumber)
         {
             std::string expr = (sp2 == std::string::npos) ? "" : Trim (afterFirst.substr (sp2 + 1));
 
-            if (!firstWord.empty () && (isalpha ((unsigned char) firstWord[0]) || firstWord[0] == '_'))
+            if (!firstWord.empty() && (isalpha ((unsigned char) firstWord[0]) || firstWord[0] == '_'))
             {
                 result.isConstant   = true;
                 result.constantName = firstWord;
@@ -341,7 +341,7 @@ ParsedLine Parser::ParseLine (const std::string & line, int lineNumber)
     // as65 also spells the Rockwell "reset memory bit" instruction as
     // `rmb <bit>,<zp>`. The two-operand comma form is the instruction and must
     // reach the mnemonic path; a bare count stays the directive.
-    if (canonicalDirective.empty () && firstWordUpper == "RMB")
+    if (canonicalDirective.empty() && firstWordUpper == "RMB")
     {
         std::string rmbArg = (spacePos == std::string::npos) ? "" : remainder.substr (spacePos + 1);
 
@@ -351,7 +351,7 @@ ParsedLine Parser::ParseLine (const std::string & line, int lineNumber)
         }
     }
 
-    if (!canonicalDirective.empty ())
+    if (!canonicalDirective.empty())
     {
         result.isDirective = true;
         result.directive   = canonicalDirective;
@@ -442,11 +442,11 @@ static size_t FindMatchingClose (const std::string & s, size_t openPos)
 
 
 
-    for (size_t i = openPos + 1; i < s.size (); i++)
+    for (size_t i = openPos + 1; i < s.size(); i++)
     {
         char c = s[i];
 
-        if (c == '\'' && i + 2 < s.size () && s[i + 2] == '\'')
+        if (c == '\'' && i + 2 < s.size() && s[i + 2] == '\'')
         {
             i += 2;  // skip char literal
         }
@@ -474,7 +474,7 @@ static size_t FindMatchingClose (const std::string & s, size_t openPos)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  FindTopLevelComma — find ',' not inside () [] or ''
+//  FindTopLevelComma — find ',' not inside() [] or ''
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -484,11 +484,11 @@ static size_t FindTopLevelComma (const std::string & s, size_t start = 0)
 
 
 
-    for (size_t i = start; i < s.size (); i++)
+    for (size_t i = start; i < s.size(); i++)
     {
         char c = s[i];
 
-        if (c == '\'' && i + 2 < s.size () && s[i + 2] == '\'')
+        if (c == '\'' && i + 2 < s.size() && s[i + 2] == '\'')
         {
             i += 2;  // skip char literal
         }
@@ -526,7 +526,7 @@ ClassifiedOperand Parser::ClassifyOperand (const std::string & operand)
 
     std::string op = TrimOperand (operand);
 
-    if (op.empty ())
+    if (op.empty())
     {
         return result;
     }
@@ -579,7 +579,7 @@ ClassifiedOperand Parser::ClassifyOperand (const std::string & operand)
         }
 
         // Check for (expr),Y — IndirectY
-        if (!after.empty () && after[0] == ',')
+        if (!after.empty() && after[0] == ',')
         {
             std::string reg = ToUpperStr (TrimOperand (after.substr (1)));
 
@@ -647,7 +647,7 @@ ClassifiedOperand Parser::ClassifyOperand (const std::string & operand)
 
 bool Parser::ParseValue (const std::string & text, int & value)
 {
-    if (text.empty ())
+    if (text.empty())
     {
         return false;
     }
@@ -657,13 +657,13 @@ bool Parser::ParseValue (const std::string & text, int & value)
     {
         std::string hex = text.substr (1);
 
-        if (hex.empty ())
+        if (hex.empty())
         {
             return false;
         }
 
         char * endPtr = nullptr;
-        long   parsed = strtol (hex.c_str (), &endPtr, 16);
+        long   parsed = strtol (hex.c_str(), &endPtr, 16);
 
         if (*endPtr != '\0')
         {
@@ -679,13 +679,13 @@ bool Parser::ParseValue (const std::string & text, int & value)
     {
         std::string bin = text.substr (1);
 
-        if (bin.empty ())
+        if (bin.empty())
         {
             return false;
         }
 
         char * endPtr = nullptr;
-        long   parsed = strtol (bin.c_str (), &endPtr, 2);
+        long   parsed = strtol (bin.c_str(), &endPtr, 2);
 
         if (*endPtr != '\0')
         {
@@ -698,7 +698,7 @@ bool Parser::ParseValue (const std::string & text, int & value)
 
     // Decimal
     char * endPtr = nullptr;
-    long   parsed = strtol (text.c_str (), &endPtr, 10);
+    long   parsed = strtol (text.c_str(), &endPtr, 10);
 
     if (*endPtr != '\0')
     {
@@ -743,7 +743,7 @@ static std::string ToUpperValidate (const std::string & s)
 
 bool Parser::ValidateLabel (const std::string & label, const OpcodeTable & opcodeTable, std::string & errorMessage)
 {
-    if (label.empty ())
+    if (label.empty())
     {
         errorMessage = "Empty label name";
         return false;
@@ -793,7 +793,7 @@ bool Parser::ValidateLabel (const std::string & label, const OpcodeTable & opcod
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  SplitArgList — split comma-separated list respecting () [] '' nesting
+//  SplitArgList — split comma-separated list respecting() [] '' nesting
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -804,7 +804,7 @@ std::vector<std::string> Parser::SplitArgList (const std::string & text)
 
 
 
-    while (start <= text.size ())
+    while (start <= text.size())
     {
         size_t commaPos = FindTopLevelComma (text, start);
 
@@ -812,7 +812,7 @@ std::vector<std::string> Parser::SplitArgList (const std::string & text)
         {
             std::string arg = TrimOperand (text.substr (start));
 
-            if (!arg.empty ())
+            if (!arg.empty())
             {
                 args.push_back (arg);
             }
@@ -822,7 +822,7 @@ std::vector<std::string> Parser::SplitArgList (const std::string & text)
 
         std::string arg = TrimOperand (text.substr (start, commaPos - start));
 
-        if (!arg.empty ())
+        if (!arg.empty())
         {
             args.push_back (arg);
         }
@@ -847,10 +847,10 @@ std::string Parser::ParseQuotedString (const std::string & text)
 {
     std::string trimmed = TrimOperand (text);
 
-    if (trimmed.size () < 2 || trimmed.front () != '"' || trimmed.back () != '"')
+    if (trimmed.size() < 2 || trimmed.front() != '"' || trimmed.back() != '"')
     {
         return "";
     }
 
-    return trimmed.substr (1, trimmed.size () - 2);
+    return trimmed.substr (1, trimmed.size() - 2);
 }

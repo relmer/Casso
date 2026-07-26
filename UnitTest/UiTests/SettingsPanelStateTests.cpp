@@ -72,7 +72,7 @@ namespace
             lastMouseConnected = connected;
             ++applyCount;
         }
-        void QueueMachineReset () override { ++queuedResetCount; }
+        void QueueMachineReset() override { ++queuedResetCount; }
     };
 
 

@@ -36,7 +36,7 @@ HRESULT AciaFileEndpoint::Open (const string & path)
 
     m_file.open (path, ios::binary | ios::out | ios::app);
 
-    opened = m_file.is_open ();
+    opened = m_file.is_open();
     CBR (opened);
 
 Error:
@@ -52,11 +52,11 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void AciaFileEndpoint::Close ()
+void AciaFileEndpoint::Close()
 {
-    if (m_file.is_open ())
+    if (m_file.is_open())
     {
-        m_file.close ();
+        m_file.close();
     }
 }
 
@@ -71,9 +71,9 @@ void AciaFileEndpoint::Close ()
 
 void AciaFileEndpoint::OnByteTransmitted (Byte value)
 {
-    if (m_file.is_open ())
+    if (m_file.is_open())
     {
         m_file.put (static_cast<char> (value));
-        m_file.flush ();
+        m_file.flush();
     }
 }

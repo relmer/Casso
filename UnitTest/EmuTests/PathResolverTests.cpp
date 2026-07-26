@@ -34,7 +34,7 @@ public:
         // The single element is %LOCALAPPDATA%\Casso\, which depends on
         // the test host. We only assert that the legacy fallback dirs
         // do NOT appear.
-        Assert::AreEqual ((size_t) 1, paths.size (),
+        Assert::AreEqual ((size_t) 1, paths.size(),
             L"BuildSearchPaths now returns exactly one entry (localappdata)");
         for (const auto & p : paths)
         {
@@ -52,9 +52,9 @@ public:
     TEST_METHOD (FindFile_FoundInFirstPath)
     {
         // Use the repo's own machines/ directory as test data
-        fs::path repoRoot = FindRepoRoot ();
+        fs::path repoRoot = FindRepoRoot();
 
-        if (repoRoot.empty ())
+        if (repoRoot.empty())
         {
             return;  // Skip if repo root not found
         }
@@ -62,7 +62,7 @@ public:
         std::vector<fs::path> paths = { repoRoot, fs::path ("C:/nonexistent") };
         fs::path result = PathResolver::FindFile (paths, "Resources/Machines/Apple2Plus/Apple2Plus.json");
 
-        Assert::IsFalse (result.empty ());
+        Assert::IsFalse (result.empty());
         Assert::IsTrue (fs::exists (result));
     }
 
@@ -74,9 +74,9 @@ public:
 
     TEST_METHOD (FindFile_FoundInSecondPath)
     {
-        fs::path repoRoot = FindRepoRoot ();
+        fs::path repoRoot = FindRepoRoot();
 
-        if (repoRoot.empty ())
+        if (repoRoot.empty())
         {
             return;
         }
@@ -84,7 +84,7 @@ public:
         std::vector<fs::path> paths = { fs::path ("C:/nonexistent"), repoRoot };
         fs::path result = PathResolver::FindFile (paths, "Resources/Machines/Apple2Plus/Apple2Plus.json");
 
-        Assert::IsFalse (result.empty ());
+        Assert::IsFalse (result.empty());
         Assert::IsTrue (fs::exists (result));
     }
 
@@ -99,7 +99,7 @@ public:
         std::vector<fs::path> paths = { fs::path ("C:/nonexistent1"), fs::path ("C:/nonexistent2") };
         fs::path result = PathResolver::FindFile (paths, "nosuchfile.xyz");
 
-        Assert::IsTrue (result.empty ());
+        Assert::IsTrue (result.empty());
     }
 
     ////////////////////////////////////////////////////////////////////////////
@@ -112,9 +112,9 @@ public:
     {
         // Verify that machines/ and ROMs/ can be searched independently —
         // both should resolve from the same search paths
-        fs::path repoRoot = FindRepoRoot ();
+        fs::path repoRoot = FindRepoRoot();
 
-        if (repoRoot.empty ())
+        if (repoRoot.empty())
         {
             return;
         }
@@ -122,7 +122,7 @@ public:
         std::vector<fs::path> paths = { repoRoot };
 
         fs::path configFound = PathResolver::FindFile (paths, "Resources/Machines/Apple2Plus/Apple2Plus.json");
-        Assert::IsFalse (configFound.empty ());
+        Assert::IsFalse (configFound.empty());
 
         // ROMs/ may or may not exist in the test environment,
         // but the search itself should not crash
@@ -136,7 +136,7 @@ private:
     // is the repo root regardless of which build configuration the
     // test DLL was loaded from. Independent of BuildSearchPaths so it
     // keeps working after that API collapsed to localappdata-only.
-    static fs::path FindRepoRoot ()
+    static fs::path FindRepoRoot()
     {
         fs::path  cursor = PathResolver::GetExecutableDirectory();
         fs::path  marker = fs::path ("Resources") / "Machines" /

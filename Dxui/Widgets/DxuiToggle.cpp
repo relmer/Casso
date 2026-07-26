@@ -142,7 +142,7 @@ bool DxuiToggle::OnKey (WPARAM vk)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiToggle::Flip ()
+void DxuiToggle::Flip()
 {
     m_checked = !m_checked;
 

@@ -37,7 +37,7 @@ namespace
         vector<Byte>   img (kImageSize, 0);
         size_t         i   = 0;
 
-        for (i = 0; i < img.size (); i++)
+        for (i = 0; i < img.size(); i++)
         {
             img[i] = ((i & 1) == 0) ? a : b;
         }
@@ -51,7 +51,7 @@ namespace
         uint32_t       state = seed;
         size_t         i     = 0;
 
-        for (i = 0; i < img.size (); i++)
+        for (i = 0; i < img.size(); i++)
         {
             state = state * 1664525u + 1013904223u;
             img[i] = static_cast<Byte> ((state >> 24) & 0xFF);
@@ -75,7 +75,7 @@ public:
         HRESULT   hr = NibblizationLayer::NibblizeDsk (raw, img);
 
         Assert::IsTrue (SUCCEEDED (hr), L"DSK nibblization must accept 143360-byte image");
-        Assert::AreEqual (DiskImage::kDefaultTrackCount, img.GetTrackCount ());
+        Assert::AreEqual (DiskImage::kDefaultTrackCount, img.GetTrackCount());
         Assert::IsTrue (img.GetTrackBitCount (0) > 0,
             L"Track 0 must have bit data after nibblization");
     }
@@ -103,7 +103,7 @@ public:
         hrSave = NibblizationLayer::Denibblize (img, DiskFormat::Dsk, recovered);
 
         Assert::IsTrue (SUCCEEDED (hrSave));
-        Assert::AreEqual (raw.size (), recovered.size ());
+        Assert::AreEqual (raw.size(), recovered.size());
         Assert::IsTrue   (raw == recovered, L"DSK round-trip identity (zeros)");
     }
 
@@ -150,7 +150,7 @@ public:
         vector<Byte>   recovered;
 
         Assert::IsTrue (SUCCEEDED (NibblizationLayer::NibblizeDo (raw, img)));
-        Assert::IsTrue (img.GetSourceFormat () == DiskFormat::Do);
+        Assert::IsTrue (img.GetSourceFormat() == DiskFormat::Do);
         Assert::IsTrue (SUCCEEDED (NibblizationLayer::Denibblize (img, DiskFormat::Do, recovered)));
 
         Assert::IsTrue (raw == recovered, L".DO round-trip identity");
@@ -163,7 +163,7 @@ public:
         vector<Byte>   recovered;
 
         Assert::IsTrue (SUCCEEDED (NibblizationLayer::NibblizePo (raw, img)));
-        Assert::IsTrue (img.GetSourceFormat () == DiskFormat::Po);
+        Assert::IsTrue (img.GetSourceFormat() == DiskFormat::Po);
         Assert::IsTrue (SUCCEEDED (NibblizationLayer::Denibblize (img, DiskFormat::Po, recovered)));
 
         Assert::IsTrue (raw == recovered, L".PO round-trip identity");
@@ -310,7 +310,7 @@ public:
         img.ResizeTrack (wiped, DiskImage::kDefaultTrackByteSize * 8);
         {
             vector<Byte> & b = img.GetTrackBitsForWrite (wiped);
-            std::fill (b.begin (), b.end (), static_cast<Byte> (0));
+            std::fill (b.begin(), b.end(), static_cast<Byte> (0));
         }
         img.SetTrackBitCount (wiped, DiskImage::kDefaultTrackByteSize * 8);
 

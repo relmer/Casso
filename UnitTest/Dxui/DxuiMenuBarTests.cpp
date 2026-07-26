@@ -20,7 +20,7 @@ namespace
     constexpr UINT  s_kTestDpi           = 96;
 
 
-    std::vector<DxuiMenuBarItem>  MakeTestItems ()
+    std::vector<DxuiMenuBarItem>  MakeTestItems()
     {
         std::vector<DxuiMenuBarItem>  items;
 

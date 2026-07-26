@@ -91,7 +91,7 @@ PerfStats::Stat PerfStats::Get (const char * label) const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::unordered_map<std::string, PerfStats::Stat> PerfStats::GetAll () const
+std::unordered_map<std::string, PerfStats::Stat> PerfStats::GetAll() const
 {
     std::lock_guard<std::mutex>  lock (m_mutex);
     return m_stats;

@@ -13,7 +13,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-AppleKeyboard::AppleKeyboard ()
+AppleKeyboard::AppleKeyboard()
 {
 }
 
@@ -91,7 +91,7 @@ void AppleKeyboard::Write (Word address, Byte value)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void AppleKeyboard::Reset ()
+void AppleKeyboard::Reset()
 {
     m_latchedKey.store (0, memory_order_release);
     m_anyKeyDown.store (false, memory_order_release);
@@ -118,9 +118,9 @@ void AppleKeyboard::Reset ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void AppleKeyboard::SoftReset ()
+void AppleKeyboard::SoftReset()
 {
-    Reset ();
+    Reset();
 }
 
 

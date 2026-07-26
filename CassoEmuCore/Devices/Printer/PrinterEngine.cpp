@@ -243,7 +243,7 @@ int PrinterEngine::SpanInkExtent (int firstRow, int lastRow)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void PrinterEngine::FormFeed ()
+void PrinterEngine::FormFeed()
 {
     m_hostFormFeeds.fetch_add (1, std::memory_order_relaxed);
 }

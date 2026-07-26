@@ -50,7 +50,7 @@ Prng::Prng (uint64_t seed)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-uint64_t Prng::Next64 ()
+uint64_t Prng::Next64()
 {
     uint64_t    z;
 
@@ -73,9 +73,9 @@ uint64_t Prng::Next64 ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-uint8_t Prng::NextByte ()
+uint8_t Prng::NextByte()
 {
-    uint64_t    word = Next64 ();
+    uint64_t    word = Next64();
 
     return static_cast<uint8_t> (word >> kByteShift);
 }
@@ -96,6 +96,6 @@ void Prng::Fill (uint8_t * dst, size_t count)
 
     for (i = 0; i < count; i++)
     {
-        dst[i] = NextByte ();
+        dst[i] = NextByte();
     }
 }

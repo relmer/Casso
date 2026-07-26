@@ -136,7 +136,7 @@ public:
             L"Drain must not write more than maxCount entries");
         Assert::AreEqual (static_cast<uint8_t> (0), batch[0].payload.io.value,
             L"Partial drain must start at the oldest event");
-        Assert::AreEqual (static_cast<uint32_t> (6), ring.ApproxSize (),
+        Assert::AreEqual (static_cast<uint32_t> (6), ring.ApproxSize(),
             L"Six events must remain after a partial drain of four");
     }
 
@@ -185,7 +185,7 @@ public:
                 L"After freeing half the ring, half a capacity of pushes must succeed");
         }
 
-        Assert::AreEqual (InputEventRing::kEventRingCapacity, ring.ApproxSize (),
+        Assert::AreEqual (InputEventRing::kEventRingCapacity, ring.ApproxSize(),
             L"The ring must again be full after the refill");
     }
 };
