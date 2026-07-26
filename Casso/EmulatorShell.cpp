@@ -7213,22 +7213,24 @@ void EmulatorShell::UpdateWindowTitle()
         title += wideName;
     }
 
-#if defined (_DEBUG)
-    // Dev builds carry the run state plus the exact binary identity (version,
-    // arch, flavor, compile timestamp) so a running window is never mistaken for
-    // a stale rebuild. The retail (Release) caption stays clean --
-    // "Casso - <machine>" -- for screenshots and shipping.
+    // Flag a paused / stopped emulator in every build -- that state is worth
+    // surfacing. The normal running state stays implicit so the retail caption
+    // reads a clean "Casso - <machine>".
     if (m_cpuManager.IsPaused())
     {
         title += L" [Paused]";
     }
-    else if (m_cpuManager.IsRunning())
-    {
-        title += L" [Running]";
-    }
-    else
+    else if (!m_cpuManager.IsRunning())
     {
         title += L" [Stopped]";
+    }
+#if defined (_DEBUG)
+    // Dev builds also tag the running state and stamp the exact binary identity
+    // (version, arch, flavor, compile timestamp), so a running window is never
+    // mistaken for a stale rebuild.
+    else
+    {
+        title += L" [Running]";
     }
 
     title += L"  \x2014  ";
