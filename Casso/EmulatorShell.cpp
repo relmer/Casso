@@ -7213,6 +7213,11 @@ void EmulatorShell::UpdateWindowTitle()
         title += wideName;
     }
 
+#if defined (_DEBUG)
+    // Dev builds carry the run state plus the exact binary identity (version,
+    // arch, flavor, compile timestamp) so a running window is never mistaken for
+    // a stale rebuild. The retail (Release) caption stays clean --
+    // "Casso - <machine>" -- for screenshots and shipping.
     if (m_cpuManager.IsPaused())
     {
         title += L" [Paused]";
@@ -7226,11 +7231,9 @@ void EmulatorShell::UpdateWindowTitle()
         title += L" [Stopped]";
     }
 
-    // Build identity (version, arch, flavor, compile timestamp) so a running
-    // window always names the exact binary it is -- no guessing whether a
-    // rebuild took.
     title += L"  \x2014  ";
     title += CassoBuildInfo ();
+#endif
 
     m_host->SetTitle (title);
 }
