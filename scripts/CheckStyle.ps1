@@ -238,28 +238,59 @@ function Get-AddedLines
 #
 ####################################################################
 
-function Get-TreeLines
+function Get-ApplicableChecks
 {
-    $results = @()
-    $tracked = git -C $repoRoot ls-files -- '*.cpp' '*.h' '*.md' ':(exclude)*External/*' 2>$null
+    param([string]$Path)
 
-    foreach ($rel in $tracked)
+    $applicable = @()
+
+    foreach ($check in $checks)
     {
-        $full = Join-Path $repoRoot $rel
-        if (-not (Test-Path -LiteralPath $full)) { continue }
+        if (-not (Test-GlobMatch -Path $Path -Globs $check.Globs)) { continue }
+        if (Test-Excluded -Path $Path -Exclude $check.Exclude)     { continue }
 
-        $lines = Get-Content -LiteralPath $full
-        for ($i = 0; $i -lt $lines.Length; $i++)
+        $applicable += $check
+    }
+
+    return $applicable
+}
+
+
+####################################################################
+#
+#  Invoke-FileChecks
+#
+#  Runs the checks that apply to one file over a set of lines.
+#
+#  Glob and exclusion matching depend only on the PATH, so they are
+#  resolved once per file rather than once per line -- the tree carries
+#  ~400k lines, and re-deriving the applicable check list for each of
+#  them dominated the run time.
+#
+####################################################################
+
+function Invoke-FileChecks
+{
+    param([string]$Path, [object[]]$Lines, [System.Collections.Generic.List[object]]$Sink)
+
+    if ($Path -like '*External/*') { return }
+
+    $applicable = Get-ApplicableChecks -Path $Path
+    if ($applicable.Count -eq 0) { return }
+
+    foreach ($entry in $Lines)
+    {
+        foreach ($check in $applicable)
         {
-            $results += [pscustomobject]@{
-                File = $rel
-                Line = $i + 1
-                Text = $lines[$i]
+            if ($entry.Text -match $check.Pattern)
+            {
+                $Sink.Add([pscustomobject]@{
+                    Id   = $check.Id
+                    Text = "$Path`:$($entry.Line) -- $($check.Message)"
+                })
             }
         }
     }
-
-    return $results
 }
 
 
@@ -370,50 +401,55 @@ if ($Mode -eq 'Diff')
     }
 }
 
+$sink = [System.Collections.Generic.List[object]]::new()
+
 if ($Mode -eq 'Diff')
 {
-    $candidates    = Get-AddedLines -Base $Against -Tip $Revision
-    $touchedFiles  = $candidates | Select-Object -ExpandProperty File -Unique
-    $scopeLabel    = "lines added between $Against and $Revision"
+    $added        = Get-AddedLines -Base $Against -Tip $Revision
+    $touchedFiles = @($added | Select-Object -ExpandProperty File -Unique)
+    $scopeLabel   = "lines added between $Against and $Revision"
+
+    foreach ($group in ($added | Group-Object File))
+    {
+        Invoke-FileChecks -Path $group.Name -Lines $group.Group -Sink $sink
+    }
 }
 else
 {
-    $candidates    = Get-TreeLines
-    $touchedFiles  = $candidates | Select-Object -ExpandProperty File -Unique
-    $scopeLabel    = 'every tracked source file'
-}
+    $touchedFiles = @(git -C $repoRoot ls-files -- '*.cpp' '*.h' '*.md' ':(exclude)*External/*' 2>$null)
+    $scopeLabel   = 'every tracked source file'
 
-foreach ($c in $candidates)
-{
-    if ($c.File -like '*External/*') { continue }
-
-    foreach ($check in $checks)
+    foreach ($rel in $touchedFiles)
     {
-        if (-not (Test-GlobMatch -Path $c.File -Globs $check.Globs))    { continue }
-        if (Test-Excluded -Path $c.File -Exclude $check.Exclude)        { continue }
+        $full = Join-Path $repoRoot $rel
+        if (-not (Test-Path -LiteralPath $full)) { continue }
 
-        if ($c.Text -match $check.Pattern)
+        $raw   = @(Get-Content -LiteralPath $full)
+        $lines = [System.Collections.Generic.List[object]]::new()
+
+        for ($i = 0; $i -lt $raw.Length; $i++)
         {
-            $violations += [pscustomobject]@{
-                Id      = $check.Id
-                Text    = "$($c.File):$($c.Line) -- $($check.Message)"
-            }
+            $lines.Add([pscustomobject]@{ Line = $i + 1; Text = $raw[$i] })
         }
+
+        Invoke-FileChecks -Path $rel -Lines $lines -Sink $sink
     }
 }
 
 foreach ($b in (Test-PchFirst -Files $touchedFiles))
 {
-    $violations += [pscustomobject]@{ Id = 'CS0005'; Text = $b }
+    $sink.Add([pscustomobject]@{ Id = 'CS0005'; Text = $b })
 }
 
 if (-not $SkipCommitCheck -and $Mode -eq 'Diff')
 {
     foreach ($b in (Test-CommitMessages -Base $Against -Tip $Revision))
     {
-        $violations += [pscustomobject]@{ Id = 'CS0008'; Text = $b }
+        $sink.Add([pscustomobject]@{ Id = 'CS0008'; Text = $b })
     }
 }
+
+$violations = $sink
 
 if ($violations.Count -gt 0)
 {
