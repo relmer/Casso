@@ -1,0 +1,16 @@
+ImageWriter II printer sounds
+=============================
+
+  print_draft_loop.mp3, print_medium_loop.mp3, print_nlq_loop.mp3
+  line_feed_01.mp3, line_feed_02.mp3, line_feed_03.mp3
+  page_feed_short.mp3, page_feed_medium.mp3, page_feed_long.mp3
+  paper_tear_01.mp3 .. paper_tear_05.mp3
+
+"ImageWriter-Sounds" (c) by Scott Lawrence, recorded from a real Apple
+ImageWriter II.
+
+Licensed under a Creative Commons Attribution 4.0 International License
+(CC BY 4.0). To view a copy of this license, visit
+https://creativecommons.org/licenses/by/4.0/
+
+Source: https://github.com/BleuLlama/ImageWriterIISimulator (Sounds/)

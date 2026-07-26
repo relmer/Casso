@@ -178,6 +178,30 @@ public:
     virtual uint32_t  TooltipBorder       () const = 0;
     virtual uint32_t  TooltipForeground   () const = 0;
 
+    //
+    //  Info-banner surface (a bounded, bordered notice strip -- NOT a button or
+    //  tooltip). The defaults derive from the theme's OWN accent + foreground so
+    //  the banner is themed and aligned in every theme automatically: a subtle
+    //  accent tint over the panel (unobtrusive but distinct), a full-strength
+    //  accent border that stands out, and body-strength text that stays readable.
+    //  A theme may override any of these for a bespoke look.
+    //
+    virtual uint32_t  InfoBannerBackground () const
+    {
+        constexpr uint32_t  kTintAlpha = 0x16u << 24;   // ~9% accent tint: a subtle callout, not a button fill
+
+        return (Accent() & 0x00FFFFFFu) | kTintAlpha;
+    }
+
+    virtual uint32_t  InfoBannerBorder     () const
+    {
+        constexpr uint32_t  kBorderAlpha = 0x99u << 24;   // muted accent edge, not a bright button border
+
+        return (Accent() & 0x00FFFFFFu) | kBorderAlpha;
+    }
+
+    virtual uint32_t  InfoBannerForeground () const { return Foreground(); }
+
     // Typography. Returned handles are opaque to widgets.
     virtual DxuiFontHandle  BodyFont      () const = 0;
     virtual DxuiFontHandle  BodyBoldFont  () const = 0;

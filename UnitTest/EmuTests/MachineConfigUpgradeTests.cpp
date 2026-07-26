@@ -125,7 +125,7 @@ public:
     {
         auto priors = MakePriors();
         auto action = MachineConfigUpgrade::Plan (
-            "Apple2", 2,
+            "Apple2", 2, MakeHashHex ('e'),
             nullptr, "",
             span<const MachineConfigPriorHash> (priors));
 
@@ -141,11 +141,12 @@ public:
 
     TEST_METHOD (Plan_StampEqualsEmbedded_Skip)
     {
+        // Equal stamp AND matching content: genuinely up to date.
         string  content   = "{ \"$cassoDefault\": 2 }";
         string  hashHex   = MakeHashHex ('1');
         auto    priors    = MakePriors();
         auto    action    = MachineConfigUpgrade::Plan (
-            "Apple2", 2,
+            "Apple2", 2, hashHex,
             &content, hashHex,
             span<const MachineConfigPriorHash> (priors));
 
@@ -154,15 +155,54 @@ public:
 
     TEST_METHOD (Plan_StampNewerThanEmbedded_Skip)
     {
+        // Strictly newer stamp skips regardless of content: no downgrade.
         string  content   = "{ \"$cassoDefault\": 5 }";
         string  hashHex   = MakeHashHex ('1');
         auto    priors    = MakePriors();
         auto    action    = MachineConfigUpgrade::Plan (
-            "Apple2", 2,
+            "Apple2", 2, MakeHashHex ('e'),
             &content, hashHex,
             span<const MachineConfigPriorHash> (priors));
 
         Assert::IsTrue (action == MachineConfigUpgradeAction::Skip);
+    }
+
+
+    ////////////////////////////////////////////////////////////////////////////
+    //
+    //  Plan — equal stamp, different content (version collision across
+    //  feature branches: two builds each shipped a different config
+    //  claiming the same version number)
+    //
+    ////////////////////////////////////////////////////////////////////////////
+
+    TEST_METHOD (Plan_StampCollisionUnknownContent_BackupAndReplace)
+    {
+        // The on-disk file wears this build's stamp but carries foreign
+        // content (sibling-branch extract or hand edit): rename it aside
+        // and install this build's default.
+        string  content   = "{ \"$cassoDefault\": 2, \"slots\": [] }";
+        auto    priors    = MakePriors();
+        auto    action    = MachineConfigUpgrade::Plan (
+            "Apple2", 2, MakeHashHex ('e'),
+            &content, MakeHashHex ('f'),
+            span<const MachineConfigPriorHash> (priors));
+
+        Assert::IsTrue (action == MachineConfigUpgradeAction::BackupAndReplace);
+    }
+
+    TEST_METHOD (Plan_StampCollisionKnownPrior_OverwriteSilent)
+    {
+        // Same collision, but the content matches a known historical
+        // default: an untouched extract, safe to refresh silently.
+        string  content   = "{ \"$cassoDefault\": 2 }";
+        auto    priors    = MakePriors();
+        auto    action    = MachineConfigUpgrade::Plan (
+            "Apple2", 2, MakeHashHex ('e'),
+            &content, MakeHashHex ('a'),
+            span<const MachineConfigPriorHash> (priors));
+
+        Assert::IsTrue (action == MachineConfigUpgradeAction::OverwriteSilent);
     }
 
 
@@ -178,7 +218,7 @@ public:
         string  hashHex = MakeHashHex ('1');
         auto    priors  = MakePriors();
         auto    action  = MachineConfigUpgrade::Plan (
-            "Apple2", 3,
+            "Apple2", 3, MakeHashHex ('e'),
             &content, hashHex,
             span<const MachineConfigPriorHash> (priors));
 
@@ -198,7 +238,7 @@ public:
         string  hashHex = MakeHashHex ('a');
         auto    priors  = MakePriors();
         auto    action  = MachineConfigUpgrade::Plan (
-            "Apple2", 2,
+            "Apple2", 2, MakeHashHex ('e'),
             &content, hashHex,
             span<const MachineConfigPriorHash> (priors));
 
@@ -218,7 +258,7 @@ public:
         string  hashHex = MakeHashHex ('c');
         auto    priors  = MakePriors();
         auto    action  = MachineConfigUpgrade::Plan (
-            "Apple2", 2,
+            "Apple2", 2, MakeHashHex ('e'),
             &content, hashHex,
             span<const MachineConfigPriorHash> (priors));
 
@@ -239,7 +279,7 @@ public:
         string  hashHex = MakeHashHex ('a');
         auto    priors  = MakePriors();
         auto    action  = MachineConfigUpgrade::Plan (
-            "Apple2Plus", 2,
+            "Apple2Plus", 2, MakeHashHex ('e'),
             &content, hashHex,
             span<const MachineConfigPriorHash> (priors));
 
@@ -260,7 +300,7 @@ public:
         string  content = "{ \"name\": \"x\" }";
         auto    priors  = MakePriors();
         auto    action  = MachineConfigUpgrade::Plan (
-            "Apple2", 2,
+            "Apple2", 2, MakeHashHex ('e'),
             &content, "",
             span<const MachineConfigPriorHash> (priors));
 
@@ -279,7 +319,7 @@ public:
         string  content = "{ \"name\": \"x\" }";
         string  hashHex = MakeHashHex ('a');
         auto    action  = MachineConfigUpgrade::Plan (
-            "Apple2", 2,
+            "Apple2", 2, MakeHashHex ('e'),
             &content, hashHex,
             span<const MachineConfigPriorHash> ());
 
@@ -461,6 +501,57 @@ public:
     }
 
 
+    TEST_METHOD (MigrateUserConfig_AddsParallelPrinterWhenSlot1Free)
+    {
+        string   input    = "{ \"$cassoMachineVersion\": 7,"
+                            "  \"slots\": ["
+                            "    { \"slot\": 6, \"device\": \"disk-ii\", \"capabilityFlag\": \"optional\" }"
+                            "  ] }";
+        string   migrated;
+        HRESULT  hr       = MachineConfigUpgrade::MigrateUserConfig (input, migrated);
+
+        Assert::IsTrue (hr == S_OK,
+            L"A config with slot 1 free must gain the parallel printer.");
+        Assert::IsTrue (migrated.find ("\"parallel-printer\"") != string::npos,
+            L"The injected slot-1 device must be the parallel printer.");
+    }
+
+
+    TEST_METHOD (MigrateUserConfig_LeavesOccupiedSlot1Alone)
+    {
+        string   input    = "{ \"$cassoMachineVersion\": 7,"
+                            "  \"slots\": ["
+                            "    { \"slot\": 1, \"device\": \"disk-ii\", \"capabilityFlag\": \"optional\" }"
+                            "  ] }";
+        string   migrated;
+        HRESULT  hr       = MachineConfigUpgrade::MigrateUserConfig (input, migrated);
+
+        Assert::IsTrue (hr == S_FALSE,
+            L"An occupied slot 1 with a canonical schema needs no change.");
+        Assert::IsTrue (migrated.find ("\"parallel-printer\"") == string::npos,
+            L"Slot 1 already occupied -- must not inject a printer.");
+    }
+
+
+    TEST_METHOD (MigrateUserConfig_NeverResurrectsDisabledPrinter)
+    {
+        string   input    = "{ \"$cassoMachineVersion\": 7,"
+                            "  \"slots\": ["
+                            "    { \"slot\": 1, \"device\": \"parallel-printer\", \"capabilityFlag\": \"optional\", \"enabled\": false }"
+                            "  ] }";
+        string   migrated;
+        HRESULT  hr       = MachineConfigUpgrade::MigrateUserConfig (input, migrated);
+        size_t   first    = migrated.find ("\"parallel-printer\"");
+        size_t   second   = (first == string::npos) ? string::npos
+                                                     : migrated.find ("\"parallel-printer\"", first + 1);
+
+        Assert::IsTrue (hr == S_FALSE,
+            L"A fully-populated slot-1 printer entry needs no change.");
+        Assert::IsTrue (second == string::npos,
+            L"A disabled slot-1 printer must not be duplicated or re-enabled.");
+    }
+
+
     TEST_METHOD (MigrateUserConfig_BothKeysAndMissingFlags_AppliesAllChanges)
     {
         string   input    = "{ \"$cassoMachineVersion\": 3,"
@@ -533,7 +624,7 @@ public:
         string                          content = "{\"$cassoMachineVersion\":1,\"speed\":\"2x\"}";
         vector<MachineConfigPriorHash>  priors  = MakePriors();
         MachineConfigUpgradeAction      action  = MachineConfigUpgrade::Plan (
-            "Apple2e", 4, &content, "", priors);
+            "Apple2e", 4, MakeHashHex ('e'), &content, "", priors);
 
         Assert::IsTrue (action == MachineConfigUpgradeAction::OverwriteSilent,
             L"v1 -> v4 must OverwriteSilent (file is stamped, so user customizations live in a separate user JSON that survives independently)");
@@ -547,7 +638,7 @@ public:
         string                          content = "{\"$cassoDefault\":1,\"slots\":[]}";
         vector<MachineConfigPriorHash>  priors  = MakePriors();
         MachineConfigUpgradeAction      action  = MachineConfigUpgrade::Plan (
-            "Apple2", 5, &content, "", priors);
+            "Apple2", 5, MakeHashHex ('e'), &content, "", priors);
 
         Assert::IsTrue (action == MachineConfigUpgradeAction::OverwriteSilent,
             L"legacy-keyed v1 file must still upgrade cleanly across multiple version bumps");
@@ -560,7 +651,7 @@ public:
         string                          content = "{\"$cassoMachineVersion\":4}";
         vector<MachineConfigPriorHash>  priors  = MakePriors();
         MachineConfigUpgradeAction      action  = MachineConfigUpgrade::Plan (
-            "Apple2e", 2, &content, "", priors);
+            "Apple2e", 2, MakeHashHex ('e'), &content, "", priors);
 
         Assert::IsTrue (action == MachineConfigUpgradeAction::Skip,
             L"disk newer than embedded must Skip (no downgrade)");

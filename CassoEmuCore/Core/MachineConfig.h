@@ -238,6 +238,22 @@ struct MachineConfig
     vector<SlotConfig>          slots;
     VideoConfig                 videoConfig;
     string                      keyboardType;
+
+    // True when an enabled slot hosts the given device type -- e.g. a query for
+    // "parallel-printer" tells the UI whether this machine can print. A slot the
+    // user disabled in Settings > Hardware does not count.
+    bool  HasEnabledSlotDevice (const string & device) const
+    {
+        for (const SlotConfig & entry : slots)
+        {
+            if (entry.enabled && entry.device == device)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
 };
 
 

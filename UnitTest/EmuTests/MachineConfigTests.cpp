@@ -548,6 +548,51 @@ public:
             L"Error message must mention the bad field.");
     }
 
+
+    static SlotConfig MakeSlot (int slot, const std::string & device, bool enabled)
+    {
+        SlotConfig  s;
+
+        s.slot    = slot;
+        s.device  = device;
+        s.enabled = enabled;
+        return s;
+    }
+
+
+    TEST_METHOD (HasEnabledSlotDevice_MatchesEnabledOnly)
+    {
+        MachineConfig  config;
+
+        config.slots.push_back (MakeSlot (1, "parallel-printer", true));
+        config.slots.push_back (MakeSlot (6, "disk-ii",          true));
+
+        Assert::IsTrue  (config.HasEnabledSlotDevice ("parallel-printer"), L"an enabled slot matches");
+        Assert::IsTrue  (config.HasEnabledSlotDevice ("disk-ii"),          L"other enabled slots match too");
+        Assert::IsFalse (config.HasEnabledSlotDevice ("mockingboard"),     L"an absent device does not match");
+    }
+
+
+    TEST_METHOD (HasEnabledSlotDevice_IgnoresDisabledSlot)
+    {
+        MachineConfig  config;
+
+        // A slot the user disabled in Settings > Hardware must not count.
+        config.slots.push_back (MakeSlot (1, "parallel-printer", false));
+
+        Assert::IsFalse (config.HasEnabledSlotDevice ("parallel-printer"),
+                         L"a disabled slot does not count as connected");
+    }
+
+
+    TEST_METHOD (HasEnabledSlotDevice_EmptyConfigHasNone)
+    {
+        MachineConfig  config;   // slotless (like the //c)
+
+        Assert::IsFalse (config.HasEnabledSlotDevice ("parallel-printer"),
+                         L"a slotless machine has no printer");
+    }
+
 private:
 
     // Mock resolver that creates a temporary file of the expected size for the

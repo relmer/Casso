@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug|Win32">
@@ -231,7 +231,10 @@
     <ClCompile Include="D3DRenderer.cpp" />
     <ClCompile Include="CrtPostProcess.cpp" />
     <ClCompile Include="PerfStats.cpp" />
+    <ClCompile Include="BuildInfo.cpp" />
     <ClCompile Include="EmulatorShell.cpp" />
+    <ClCompile Include="Print\PrinterWorker.cpp" />
+    <ClCompile Include="Print\PrintJobStore.cpp" />
     <ClCompile Include="DiskSettings.cpp" />
     <ClCompile Include="AssetBootstrap.cpp" />
     <ClCompile Include="Config\Win32FileSystem.cpp" />
@@ -243,6 +246,7 @@
     <ClCompile Include="Ui\ThemeManager.cpp" />
     <ClCompile Include="Ui\Chrome\CassoBranding.cpp" />
     <ClCompile Include="Ui\Chrome\DriveWidget.cpp" />
+    <ClCompile Include="Ui\Chrome\CommandToolbar.cpp" />
     <ClCompile Include="Ui\Chrome\MonitorFrame.cpp" />
     <ClCompile Include="Ui\Chrome\JoystickToggleButton.cpp" />
     <ClCompile Include="Ui\Chrome\InputDeviceSelector.cpp" />
@@ -261,11 +265,13 @@
     <ClCompile Include="Ui\Settings\SettingsSheet.cpp" />
     <ClCompile Include="Ui\Settings\SettingsPanelState.cpp" />
     <ClCompile Include="Ui\Settings\SettingsPreviewController.cpp" />
+    <ClCompile Include="Ui\Settings\PrintingPage.cpp" />
     <ClCompile Include="Ui\Settings\ThemePage.cpp" />
     <ClCompile Include="Shell\ClipboardManager.cpp" />
     <ClCompile Include="Shell\CpuManager.cpp" />
     <ClCompile Include="Shell\DiskManager.cpp" />
     <ClCompile Include="Shell\MachineManager.cpp" />
+    <ClCompile Include="Shell\ModernPrintDialog.cpp" />
     <ClCompile Include="Shell\WindowCommandManager.cpp" />
     <ClCompile Include="Shell\WindowManager.cpp" />
     <ClCompile Include="Ui\UiShell.cpp" />
@@ -280,6 +286,9 @@
     <ClCompile Include="Disk2DebugDialogState.cpp" />
     <ClCompile Include="InputDebugDialogState.cpp" />
     <ClCompile Include="Ui\Disk2DebugPanel.cpp" />
+    <ClCompile Include="Ui\Printer3DScene.cpp" />
+    <ClCompile Include="Ui\PrinterPanel.cpp" />
+    <ClCompile Include="Ui\PrinterPaperView.cpp" />
     <ClCompile Include="Ui\InputDebugPanel.cpp" />
     <ClCompile Include="Ui\Disk2DebugPanelLayout.cpp" />
     <ClCompile Include="Ui\InputDebugPanelLayout.cpp" />
@@ -291,7 +300,10 @@
     <ClInclude Include="CrtPostProcess.h" />
     <ClInclude Include="PerfStats.h" />
     <ClInclude Include="UiCommandTypes.h" />
+    <ClInclude Include="BuildInfo.h" />
     <ClInclude Include="EmulatorShell.h" />
+    <ClInclude Include="Print\PrinterWorker.h" />
+    <ClInclude Include="Print\PrintJobStore.h" />
     <ClInclude Include="Disk2EventDisplay.h" />
     <ClInclude Include="InputEventDisplay.h" />
     <ClInclude Include="DiskSettings.h" />
@@ -316,6 +328,7 @@
     <ClInclude Include="Ui\Chrome\CassoTheme.h" />
     <ClInclude Include="Ui\Chrome\CassoBranding.h" />
     <ClInclude Include="Ui\Chrome\DriveWidget.h" />
+    <ClInclude Include="Ui\Chrome\CommandToolbar.h" />
     <ClInclude Include="Ui\Chrome\MonitorFrame.h" />
     <ClInclude Include="Ui\Chrome\JoystickToggleButton.h" />
     <ClInclude Include="Ui\Chrome\InputDeviceSelector.h" />
@@ -336,11 +349,13 @@
     <ClInclude Include="Ui\Settings\SettingsSheet.h" />
     <ClInclude Include="Ui\Settings\SettingsPanelState.h" />
     <ClInclude Include="Ui\Settings\SettingsPreviewController.h" />
+    <ClInclude Include="Ui\Settings\PrintingPage.h" />
     <ClInclude Include="Ui\Settings\ThemePage.h" />
     <ClInclude Include="Shell\ClipboardManager.h" />
     <ClInclude Include="Shell\CpuManager.h" />
     <ClInclude Include="Shell\DiskManager.h" />
     <ClInclude Include="Shell\MachineManager.h" />
+    <ClInclude Include="Shell\ModernPrintDialog.h" />
     <ClInclude Include="Shell\WindowCommandManager.h" />
     <ClInclude Include="Shell\WindowManager.h" />
     <ClInclude Include="Ui\UiShell.h" />
@@ -350,6 +365,9 @@
     <ClInclude Include="Disk2DebugDialogState.h" />
     <ClInclude Include="InputDebugDialogState.h" />
     <ClInclude Include="Ui\Disk2DebugPanel.h" />
+    <ClInclude Include="Ui\Printer3DScene.h" />
+    <ClInclude Include="Ui\PrinterPanel.h" />
+    <ClInclude Include="Ui\PrinterPaperView.h" />
     <ClInclude Include="Ui\InputDebugPanel.h" />
     <ClInclude Include="Ui\Disk2DebugPanelLayout.h" />
     <ClInclude Include="Ui\InputDebugPanelLayout.h" />

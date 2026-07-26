@@ -28,6 +28,10 @@
 #include "Devices/Apple2eMmu.h"
 #include "Devices/Apple2cRomBank.h"
 #include "Devices/AppleMouse.h"
+#include "Devices/Printer/ParallelFirmware.h"
+#include "Devices/Printer/PrinterCard.h"
+#include "Devices/Printer/PrintRaster.h"
+#include "Print/PrintJobStore.h"
 #include "Video/AppleTextMode.h"
 #include "Video/Apple80ColTextMode.h"
 #include "Video/AppleLoResMode.h"
@@ -348,6 +352,50 @@ HRESULT MachineManager::CreateMemoryDevices (const MachineConfig & config)
             }
             else
             {
+                // Cache the printer card so the background drain worker can
+                // reach its ring once the machine is built.
+                if (slot.device == "parallel-printer")
+                {
+                    m_shell.m_refs.printerCard = static_cast<PrinterCard *> (device.get());
+                }
+
+                m_shell.m_memoryBus.AddDevice (device.get());
+                m_shell.m_ownedDevices.push_back (std::move (device));
+            }
+        }
+
+        // The parallel printer card ships embedded firmware (no rom file), so
+        // its slot ROM is installed here from the checked-in byte array rather
+        // than loaded from disk.
+        if (slot.device == "parallel-printer")
+        {
+            std::vector<Byte>  firmware (s_kParallelFirmwareBytes,
+                                         s_kParallelFirmwareBytes + sizeof (s_kParallelFirmwareBytes));
+
+            if (m_shell.m_mmu != nullptr)
+            {
+                // //e: the MMU's $C100-$CFFF router owns the page (INTCXROM /
+                // SLOTCXROM switching) and pads the short firmware to a full
+                // page with the floating-bus byte.
+                m_shell.m_mmu->AttachSlotRom (slot.slot, std::move (firmware));
+            }
+            else
+            {
+                // ][/][+: no INTCXROM router, so the firmware is bus-resident at
+                // $Cs00 exactly like the disk-ii slot ROM -- WITHOUT this the card
+                // is present but PR#s jumps into an empty page and nothing prints.
+                // Pad the short firmware to a full page with the floating-bus byte
+                // so the RomDevice spans the whole $Cs00-$CsFF page.
+                constexpr Byte   kFloatFill = 0xFF;
+
+                Word   romStart = static_cast<Word> (0xC000 + slot.slot * 0x100);
+                Word   romEnd   = static_cast<Word> (romStart + 0xFF);
+
+                firmware.resize (0x100, kFloatFill);
+
+                auto device = RomDevice::CreateFromData (romStart, romEnd,
+                                                         firmware.data(), firmware.size());
+
                 m_shell.m_memoryBus.AddDevice (device.get());
                 m_shell.m_ownedDevices.push_back (std::move (device));
             }
@@ -537,11 +585,45 @@ HRESULT MachineManager::CreateMemoryDevices (const MachineConfig & config)
         }
     }
 
+    // The emulated ImageWriter shares the generic drive-audio bus (FR-016). It
+    // is a single persistent shell-owned source; the UnregisterAllSources above
+    // dropped it along with the disk sources, so re-register it here on every
+    // machine build. Silent until the live preview publishes a paced reveal.
+    m_shell.m_driveAudioMixer.RegisterSource (&m_shell.m_printerAudio);
+
     // Feed real disk head / motor / door events to drive 0's source only when
     // the machine actually has the Disk ][ controller realized.
     if (m_shell.m_refs.diskController != nullptr && !m_shell.m_diskAudioSources.empty())
     {
         m_shell.m_refs.diskController->SetAudioSink (m_shell.m_diskAudioSources[0].get());
+    }
+
+    // Start the background printer drain once the card exists, seeding it with
+    // this machine's persisted pending strip if one exists (FR-026). A missing
+    // or corrupt sidecar falls back to empty paper. Symmetric save is in
+    // SwitchMachine teardown and OnDestroy.
+    if (m_shell.m_refs.printerCard != nullptr)
+    {
+        PrintRaster   pending;
+        HRESULT       hrLoad = PrintJobStore::Load (m_shell.PendingPrintDir (), pending);
+
+        m_shell.m_printerWorker.Start (
+            m_shell.m_refs.printerCard->ByteRing (),
+            SUCCEEDED (hrLoad) ? std::move (pending) : PrintRaster ());
+
+        // Pace the drain off the guest clock so the card applies real
+        // backpressure -- the guest prints at ImageWriter speed (faster at max
+        // perf), never racing ahead of the preview. The cycle pointer is stable
+        // for this machine's CPU, so setting it once covers later restarts.
+        if (m_shell.m_cpu != nullptr)
+        {
+            m_shell.m_printerWorker.SetCycleClock (m_shell.m_cpu->GetCycleCounterPtr ());
+        }
+
+        // Prime the live-preview auto-open baseline to the worker's current
+        // activity so a page carried over from a previous session does not read as
+        // a fresh print and auto-open the preview on boot -- only new printing does.
+        m_shell.m_printerAutoOpenActivity = m_shell.m_printerWorker.ActivityCount ();
     }
 
     // Mockingboard wiring. Cache the card (if the active config installs
@@ -1256,7 +1338,13 @@ HRESULT MachineManager::SwitchMachine (const std::wstring & machineName)
 
                     if (colorCmd != 0)
                     {
-                        m_shell.HandleCommand (colorCmd);
+                        // SwitchMachine runs on the CPU thread: route through
+                        // the message loop, not HandleCommand directly -- the
+                        // command dispatcher is a UI-thread surface (today the
+                        // color handler is an atomic store, but anything added
+                        // to it would inherit this thread; see the
+                        // ApplyDefaultPointerForMachine assert).
+                        PostMessageW (m_shell.m_hwnd, WM_COMMAND, MAKEWPARAM (colorCmd, 0), 0);
                     }
                 }
 
@@ -1381,6 +1469,29 @@ HRESULT MachineManager::SwitchMachine (const std::wstring & machineName)
     // reassigned when the new config carries an apple2e-mmu device;
     // it must be explicitly reset here or it'll keep its stale
     // RamDevice pointer alive across a //e -> ][ switch.
+    //
+    // Stop the printer drain thread first: its job holds a reference into the
+    // card's ring, which m_ownedDevices.clear() is about to free.
+    m_shell.m_printerWorker.Stop ();
+
+    // Persist the outgoing machine's pending strip before its card is freed --
+    // m_currentMachineName is still the outgoing machine here (FR-026). An empty
+    // strip clears any stale sidecar.
+    if (!m_shell.m_currentMachineName.empty ())
+    {
+        PrinterJob *   printJob = m_shell.m_printerWorker.Job ();
+
+        if (printJob != nullptr && printJob->HasContent ())
+        {
+            HRESULT   hrSave = PrintJobStore::Save (m_shell.PendingPrintDir (), printJob->Raster ());
+            IGNORE_RETURN_VALUE (hrSave, S_OK);
+        }
+        else
+        {
+            PrintJobStore::Clear (m_shell.PendingPrintDir ());
+        }
+    }
+
     // The Mockingboard's PSG audio sources are owned by the card device
     // in m_ownedDevices, so the mixer's borrowed pointers must be dropped
     // before that collection is cleared below (CreateMemoryDevices
@@ -1491,7 +1602,9 @@ HRESULT MachineManager::SwitchMachine (const std::wstring & machineName)
 
     if (speedCmd != 0)
     {
-        m_shell.HandleCommand (speedCmd);
+        // Same routing rule as the color command above: dispatch on the UI
+        // thread via the message loop, never directly from the CPU thread.
+        PostMessageW (m_shell.m_hwnd, WM_COMMAND, MAKEWPARAM (speedCmd, 0), 0);
     }
 
 Error:

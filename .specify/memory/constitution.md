@@ -2,6 +2,27 @@
 ================================================================================
 SYNC IMPACT REPORT
 ================================================================================
+Version change: 1.7.0 -> 1.8.0 (MINOR -- added Core Principle VI: Thin
+  Executable, Testable Core)
+Modified principles: N/A
+Modified sections:
+  - Core Principles: added "VI. Thin Executable, Testable Core
+    (NON-NEGOTIABLE)" -- the application executable MUST be a trivially thin
+    shim over a rich core library that both the exe and the UnitTest project
+    link, so essentially all logic is unit-testable. Reinforces the existing
+    II. Testing Discipline / Test Isolation rule (mock all system state).
+Added sections: Core Principles / VI. Thin Executable, Testable Core
+Removed sections: N/A
+Templates requiring updates:
+  ✅ plan-template.md - Constitution Check still aligned
+  ✅ spec-template.md - No template change required
+  ✅ tasks-template.md - No template change required
+Follow-up TODOs: None
+================================================================================
+
+================================================================================
+SYNC IMPACT REPORT (PRIOR)
+================================================================================
 Version change: 1.6.0 -> 1.7.0 (MINOR -- materially expanded Code Quality
   formatting/structure guidance with two new normative rules)
 Modified principles: I. Code Quality (NON-NEGOTIABLE) -- added two bullets
@@ -145,6 +166,17 @@ Complexity MUST be justified:
 
 **Rationale**: Simple code is easier to understand, test, and maintain over time.
 
+### VI. Thin Executable, Testable Core (NON-NEGOTIABLE)
+
+Essentially all logic MUST live in a linked core library, not the application executable:
+
+- **Trivially Thin Shell**: The application `.exe` MUST be a minimal shim — process entry point, window/message-loop creation, and object wiring only. Emulation, parsing, rendering, device models, persistence, and lifecycle/orchestration MUST live in a core static library that BOTH the executable AND the `UnitTest` project link.
+- **Testability Litmus (NON-NEGOTIABLE)**: Any new logic MUST be reachable and exercised from the `UnitTest` project. If a piece of logic can only be tested by running the `.exe`, it is in the wrong place or the wrong shape (entangled with an `HWND`, device context, COM apartment, or menu id). Factor it into core as data-in/data-out functions or interface seams. The exe carries no test coverage by design, so it MUST carry no logic worth testing.
+- **Irreducible Platform Edge Only**: Only the unavoidable platform boundary stays in the exe — thread creation, file/registry I/O, clipboard, print/file dialogs, menu registration. Each such edge MUST be a thin call into core; the decision-making and data transformation behind it belong in the library. System APIs that are pure computation over in-memory buffers (e.g. an image codec over WIC) belong in core, where they remain testable per Principle II.
+- **Do Not Imitate Existing Divergence**: Where an executable has already accreted logic that belongs in core, that is debt to be extracted — NEVER a template for new code. New code follows this principle regardless of the surrounding exe's current state.
+
+**Rationale**: A thin shell over a rich, linked core is the structural precondition for Principle II — thorough unit testing and mocking are only possible when the logic lives where tests can reach it. Untestable code is, most often, merely code placed where tests cannot link to it.
+
 ## Technology Constraints
 
 **Language/Version**: stdcpplatest (MSVC v145+)
@@ -219,4 +251,4 @@ This constitution supersedes all ad-hoc practices. All code changes MUST verify 
 
 **Guidance Reference**: See `.github/copilot-instructions.md` for detailed runtime development guidance and code style rules.
 
-**Version**: 1.7.0 | **Ratified**: 2026-01-24 | **Last Amended**: 2026-06-27
+**Version**: 1.8.0 | **Ratified**: 2026-01-24 | **Last Amended**: 2026-07-08

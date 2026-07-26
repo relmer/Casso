@@ -1,0 +1,136 @@
+#include "Pch.h"
+
+#include "Widgets/DxuiInfoBanner.h"
+
+#include "Render/IDxuiPainter.h"
+#include "Render/IDxuiTextRenderer.h"
+#include "Theme/IDxuiTheme.h"
+
+
+
+
+static constexpr uint32_t   s_kBadgeInkArgb = 0xFFF7F9FCu;   // near-white "i" on the accent disc
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiInfoBanner::EstimateLines
+//
+//  Renderer-free wrapped-line estimate: how many lines the text takes at
+//  `textWidthPx`, from an average glyph width. Deliberately generous (a wide
+//  average) so the count rounds up and the caller never sizes the banner too
+//  short to show every line.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiInfoBanner::EstimateLines (float textWidthPx, const DxuiDpiScaler & scaler) const
+{
+    float   glyphPx = scaler.Pxf (s_kFontDip) * s_kEstGlyphEm;
+    float   perLine = (glyphPx > 0.0f) ? (textWidthPx / glyphPx) : 1.0f;
+    int     chars   = (int) m_text.size();
+    int     lines   = 1;
+
+    if (perLine >= 1.0f)
+    {
+        lines = (int) std::ceil ((float) chars / perLine);
+    }
+
+    if (lines < 1)
+    {
+        lines = 1;
+    }
+
+    return lines;
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiInfoBanner::PreferredHeightPx
+//
+////////////////////////////////////////////////////////////////////////////////
+
+float DxuiInfoBanner::PreferredHeightPx (float widthPx, const DxuiDpiScaler & scaler) const
+{
+    float   padX      = scaler.Pxf (s_kPadXDip);
+    float   padY      = scaler.Pxf (s_kPadYDip);
+    float   iconCol   = scaler.Pxf (s_kIconBoxDip) + scaler.Pxf (s_kIconGapDip);
+    float   textWidth = widthPx - padX * 2.0f - iconCol;
+    float   lineH     = scaler.Pxf (s_kFontDip) * s_kLineHeightEm;
+    int     lines     = EstimateLines ((textWidth > 1.0f) ? textWidth : 1.0f, scaler);
+    float   textH     = lineH * (float) lines;
+    float   iconH     = scaler.Pxf (s_kIconBoxDip);
+
+    // The content is the taller of the wrapped text and the icon, plus padding.
+    return ((textH > iconH) ? textH : iconH) + padY * 2.0f;
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiInfoBanner::Paint
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiInfoBanner::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
+{
+    HRESULT  hr       = S_OK;
+    float    left     = (float) m_boundsDip.left;
+    float    top      = (float) m_boundsDip.top;
+    float    width    = (float) (m_boundsDip.right  - m_boundsDip.left);
+    float    height   = (float) (m_boundsDip.bottom - m_boundsDip.top);
+    float    padX     = m_scaler.Pxf (s_kPadXDip);
+    float    padY     = m_scaler.Pxf (s_kPadYDip);
+    float    borderPx = m_scaler.Pxf (s_kBorderDip);
+    float    iconBox  = m_scaler.Pxf (s_kIconBoxDip);
+    float    iconGap  = m_scaler.Pxf (s_kIconGapDip);
+    float    fontPx   = m_scaler.Pxf (s_kFontDip);
+    float    textX    = left + padX + iconBox + iconGap;
+    float    textW    = width - padX * 2.0f - iconBox - iconGap;
+    float    iconR    = iconBox * 0.5f;
+    float    iconCx   = left + padX + iconR;
+    float    iconCy   = top + height * 0.5f;   // vertically centered in the bordered area
+
+    if (!m_visible)
+    {
+        return;
+    }
+
+    // Themed surface: a subtle accent-tinted fill inside a muted accent border,
+    // so the banner reads as a notice, not a button.
+    painter.FillRect    (left, top, width, height, theme.InfoBannerBackground());
+    painter.OutlineRect (left, top, width, height, borderPx, theme.InfoBannerBorder());
+
+    // Info badge, drawn from primitives (no icon-font dependency, exact centering):
+    // a full-accent disc with a light "i" -- a dot over a stem, symmetric about the
+    // disc center both ways.
+    {
+        float  dotR  = iconR * 0.17f;
+        float  stemW = iconR * 0.24f;
+        float  stemH = iconR * 0.62f;
+
+        painter.FillCircleApprox (iconCx, iconCy, iconR, theme.Accent());
+        painter.FillCircleApprox (iconCx, iconCy - iconR * 0.38f, dotR, s_kBadgeInkArgb);
+        painter.FillRect         (iconCx - stemW * 0.5f, iconCy - iconR * 0.07f, stemW, stemH, s_kBadgeInkArgb);
+    }
+
+    // Wrapping body text.
+    IGNORE_RETURN_VALUE (hr, text.DrawString (m_text.c_str(),
+                                              textX,
+                                              top + padY,
+                                              (textW > 1.0f) ? textW : 1.0f,
+                                              height - padY * 2.0f,
+                                              theme.InfoBannerForeground(),
+                                              fontPx,
+                                              DxuiTheme::kBodyFace,
+                                              DxuiTextHAlign::Left,
+                                              DxuiTextVAlign::Top,
+                                              DxuiFontWeight::Normal,
+                                              true));
+}

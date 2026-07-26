@@ -337,6 +337,21 @@ public:
         return DxuiMessageResult::NotHandled;
     }
 
+    // Fired repeatedly by the host WHILE the OS runs its own modal move /
+    // size loop (the user grabbed the caption or a resize edge). Between
+    // WM_ENTERSIZEMOVE and WM_EXITSIZEMOVE the OS owns the thread and the
+    // client's outer message pump does NOT iterate, so a client whose
+    // rendering / animation is driven by that pump would freeze until the
+    // drag ends. The host runs a short internal timer for the duration of
+    // the loop and calls this each tick; the client does one frame's worth
+    // of upkeep (present the latest content, advance any paced audio) so it
+    // keeps moving. A held-still drag produces no WM_MOVING / WM_SIZING at
+    // all, so this timer tick is the only signal during it. The host owns
+    // the timer entirely -- the client just supplies the per-frame work.
+    virtual void  OnModalLoopTick    ()
+    {
+    }
+
     // WM_TIMER. timerId is the UINT_PTR identifier the client
     // passed to SetTimer. Return ``Handled`` if your override
     // fully processed the tick; ``NotHandled`` to let

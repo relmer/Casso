@@ -125,6 +125,13 @@ public:
         HICON                    appIconBig               = nullptr;
         HICON                    appIconSmall             = nullptr;
 
+        // DXGI present sync interval (default 1 = wait for vblank).
+        // An animating window sharing the UI thread with another
+        // vsynced present should use 0 so the thread doesn't stack
+        // two vblank waits per frame; windowed flip-model presents
+        // are composed by DWM at vsync either way, so 0 doesn't tear.
+        UINT                     presentSyncInterval      = 1;
+
         // When true (the default), Create() stands up a D3D11 device
         // + DXGI flip-discard swap chain on the host HWND so the
         // internal panel tree paints through GetSwapChain() /
@@ -164,6 +171,17 @@ public:
         // createSwapChain == true. Default false = the opaque
         // flip-discard CreateSwapChainForHwnd path.
         bool                     composited               = false;
+
+        // When true, the window is created WITHOUT stealing activation:
+        // CreateWindowEx activates a new top-level captioned window even
+        // when it is created hidden, which yanks keyboard focus off the
+        // creator mid-keystroke (the auto-opened print preview ate the
+        // guest's Enter key-UP, leaving the emulated key latched and
+        // auto-repeating forever). The window is created with
+        // WS_EX_NOACTIVATE and the bit is stripped right after creation,
+        // so it behaves like any normal window from then on; a caller
+        // that wants it focused shows it with an activating Show().
+        bool                     createNoActivate         = false;
     };
 
 
@@ -306,6 +324,18 @@ public:
     //  nullptr clears any previously-installed client.
     //
     void          SetClient     (IDxuiHostClient * client);
+
+    //
+    //  Externally-driven windows (repainted every frame by an owning
+    //  render loop, e.g. the printer preview) can suppress the
+    //  auto-InvalidateRect the wheel handlers issue on a handled scroll.
+    //  A precision-touchpad scroll floods the queue with wheel messages;
+    //  invalidating per message spawns a WM_PAINT per message and lets the
+    //  paint work starve the loop's own frame pump. With this set the owner
+    //  is responsible for repainting (it already does, every frame).
+    //
+    void          SetSuppressInputInvalidate (bool suppress) { m_suppressInputInvalidate = suppress; }
+
     void          SetDefaultProcForTest      (std::function<LRESULT (HWND, UINT, WPARAM, LPARAM)> defaultProc);
     void          SetTrackMouseEventForTest  (std::function<BOOL (TRACKMOUSEEVENT *)> trackMouseEvent);
 
@@ -564,6 +594,7 @@ private:
 
     bool                              m_ownsHwnd           = false;
     bool                              m_ownsPaintPump      = false;
+    bool                              m_suppressInputInvalidate = false;
     bool                              m_synthetic          = false;
     bool                              m_adoptMode          = false;
     bool                              m_classRegistered    = false;

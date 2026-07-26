@@ -85,11 +85,17 @@ public:
     // The decision. `diskContent == nullptr` means the file is
     // missing on disk; `diskNormalizedHashHex` empty means the
     // caller didn't precompute a hash (only valid alongside
-    // diskContent == nullptr). `priorHashes` is the table of
-    // historical embedded-default digests for any machine.
+    // diskContent == nullptr). `embeddedNormalizedHashHex` is the
+    // digest of THIS build's embedded default: a same-or-newer
+    // version stamp alone does not prove the on-disk file matches,
+    // because parallel feature branches can ship different content
+    // under one version number -- content equality is what "up to
+    // date" means. `priorHashes` is the table of historical
+    // embedded-default digests for any machine.
     static MachineConfigUpgradeAction Plan (
         string_view                                machineName,
         int                                        embeddedVersion,
+        string_view                                embeddedNormalizedHashHex,
         const string                             * diskContent,
         string_view                                diskNormalizedHashHex,
         span<const MachineConfigPriorHash>         priorHashes);
