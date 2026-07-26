@@ -72,6 +72,14 @@ public:
         orig.window.placements["topology-A"] = { 100, 50, 1280, 720 };
         orig.window.placements["topology-B"] = { 200, 75, 1920, 1080 };
         orig.window.fullscreen      = true;
+        orig.printOutputDpi         = 288;
+        orig.printDotStyle          = "plain";
+        orig.printerAudioEnabled          = false;
+        orig.printerAudioVolume           = 0.35f;
+        orig.printerAudioPanOverride      = true;
+        orig.printerAudioPan              = -0.5f;
+        orig.masterVolume                 = 0.65f;
+        orig.masterMuted                  = true;
 
         hr = orig.Save (L"C:\\Casso", fs);
         Assert::IsTrue (SUCCEEDED (hr));
@@ -99,6 +107,14 @@ public:
         Assert::AreEqual (720, loaded.window.placements["topology-A"].h);
         Assert::AreEqual (1920, loaded.window.placements["topology-B"].w);
         Assert::AreEqual (orig.window.fullscreen,       loaded.window.fullscreen);
+        Assert::AreEqual (orig.printOutputDpi,   loaded.printOutputDpi);
+        Assert::AreEqual (orig.printDotStyle,    loaded.printDotStyle);
+        Assert::AreEqual (orig.printerAudioEnabled,     loaded.printerAudioEnabled);
+        Assert::AreEqual (orig.printerAudioVolume,      loaded.printerAudioVolume);
+        Assert::AreEqual (orig.printerAudioPanOverride, loaded.printerAudioPanOverride);
+        Assert::AreEqual (orig.printerAudioPan,         loaded.printerAudioPan);
+        Assert::AreEqual (orig.masterVolume,            loaded.masterVolume);
+        Assert::AreEqual (orig.masterMuted,             loaded.masterMuted);
     }
 
 

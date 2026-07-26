@@ -242,6 +242,25 @@
     <ClCompile Include="Audio\AudioGenerator.cpp" />
     <ClCompile Include="Audio\DriveAudioMixer.cpp" />
     <ClCompile Include="Audio\Disk2AudioSource.cpp" />
+    <ClCompile Include="Audio\PrinterAudioSource.cpp" />
+    <ClCompile Include="Devices\Printer\PrinterByteRing.cpp" />
+    <ClCompile Include="Devices\Printer\PrinterCard.cpp" />
+    <ClCompile Include="Devices\Printer\PrintRaster.cpp" />
+    <ClCompile Include="Devices\Printer\PaperRenderer.cpp" />
+    <ClCompile Include="Devices\Printer\PrintJobSerializer.cpp" />
+    <ClCompile Include="Devices\Printer\ImageWriterInterpreter.cpp" />
+    <ClCompile Include="Devices\Printer\PrinterJob.cpp" />
+    <ClCompile Include="Devices\Printer\PrinterHead.cpp" />
+    <ClCompile Include="Devices\Printer\PrinterEngine.cpp" />
+    <ClCompile Include="Devices\Printer\PrinterPreviewModel.cpp" />
+    <ClCompile Include="Devices\Printer\PngCodec.cpp" />
+    <ClCompile Include="Devices\Printer\PrintJobPersistence.cpp" />
+    <ClCompile Include="Devices\Printer\PrintFileNaming.cpp" />
+    <ClCompile Include="Devices\Printer\PrintDelivery.cpp" />
+    <ClCompile Include="Devices\Printer\PrintPagination.cpp" />
+    <ClCompile Include="Devices\Printer\ObjMeshParser.cpp" />
+    <ClCompile Include="Devices\Printer\PrinterStatusModel.cpp" />
+    <ClCompile Include="Devices\Printer\PrinterViewport.cpp" />
     <ClCompile Include="External\StbVorbisWrapper.cpp">
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <EnableCodeAnalysis>false</EnableCodeAnalysis>
@@ -328,8 +347,34 @@
     <ClInclude Include="Audio\IDriveAudioSource.h" />
     <ClInclude Include="Audio\DriveAudioMixer.h" />
     <ClInclude Include="Audio\Disk2AudioSource.h" />
+    <ClInclude Include="Audio\PrinterAudioSource.h" />
+    <ClInclude Include="Devices\Printer\PrinterTypes.h" />
+    <ClInclude Include="Devices\Printer\PrinterByteRing.h" />
+    <ClInclude Include="Devices\Printer\PrinterCard.h" />
+    <ClInclude Include="Devices\Printer\ParallelFirmware.h" />
+    <ClInclude Include="Devices\Printer\PrintRaster.h" />
+    <ClInclude Include="Devices\Printer\PaperRenderer.h" />
+    <ClInclude Include="Devices\Printer\RgbaImage.h" />
+    <ClInclude Include="Devices\Printer\PrintJobSerializer.h" />
+    <ClInclude Include="Devices\Printer\DraftFont.h" />
+    <ClInclude Include="Devices\Printer\ImageWriterInterpreter.h" />
+    <ClInclude Include="Devices\Printer\PrinterJob.h" />
+    <ClInclude Include="Devices\Printer\PrinterHead.h" />
+    <ClInclude Include="Devices\Printer\PrinterEngine.h" />
+    <ClInclude Include="Devices\Printer\PrinterPreviewModel.h" />
+    <ClInclude Include="Devices\Printer\PngCodec.h" />
+    <ClInclude Include="Devices\Printer\PrintJobPersistence.h" />
+    <ClInclude Include="Devices\Printer\PrintFileNaming.h" />
+    <ClInclude Include="Devices\Printer\PrintDelivery.h" />
+    <ClInclude Include="Devices\Printer\PrintPagination.h" />
+    <ClInclude Include="Devices\Printer\ObjMeshParser.h" />
+    <ClInclude Include="Devices\Printer\PrinterStatusModel.h" />
+    <ClInclude Include="Devices\Printer\PrinterViewport.h" />
     <ClInclude Include="External\StbVorbisWrapper.h" />
     <ClInclude Include="External\stb_vorbis.c" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="Devices\Printer\ParallelFirmware.a65" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\CassoCore\CassoCore.vcxproj">

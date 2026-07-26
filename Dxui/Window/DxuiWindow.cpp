@@ -52,6 +52,8 @@ HRESULT DxuiWindow::Create (const CreateParams & params)
     hostParams.insetRootBelowCaption = params.insetContentBelowCaption;
     hostParams.appIconBig            = params.appIconBig;
     hostParams.appIconSmall          = params.appIconSmall;
+    hostParams.presentSyncInterval   = params.presentSyncInterval;
+    hostParams.createNoActivate      = params.createNoActivate;
 
     m_source = std::make_unique<DxuiHwndSource>();
     m_source->SetClient (this);
@@ -127,7 +129,7 @@ void DxuiWindow::DestroyBackend ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiWindow::Show ()
+void DxuiWindow::Show (bool activate)
 {
     HWND  hwnd = Hwnd();
 
@@ -135,8 +137,22 @@ void DxuiWindow::Show ()
 
     if (hwnd != nullptr)
     {
-        ShowWindow (hwnd, IsIconic (hwnd) ? SW_RESTORE : SW_SHOW);
-        SetForegroundWindow (hwnd);
+        if (activate)
+        {
+            ShowWindow (hwnd, IsIconic (hwnd) ? SW_RESTORE : SW_SHOW);
+            SetForegroundWindow (hwnd);
+        }
+        else
+        {
+            // Bring it on-screen at the top of the z-order but leave focus where
+            // it is, so an auto-opened window never eats the guest's keystrokes.
+            // SW_SHOWNA, not SW_SHOWNOACTIVATE: NOACTIVATE shows the window at
+            // its "most recent size and position", which RESTORES a maximized
+            // window -- the printer preview's auto-open re-fires during a live
+            // print and was quietly un-maximizing it. SHOWNA keeps the current
+            // state (maximized stays maximized) and still never steals focus.
+            ShowWindow (hwnd, SW_SHOWNA);
+        }
     }
 }
 
@@ -785,6 +801,28 @@ DxuiMessageResult DxuiWindow::OnTimer (UINT_PTR timerId)
     }
 
     return result;
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnModalLoopTick
+//
+//  Fires while the OS runs its modal move / size loop for this window (the user
+//  is dragging the caption or a border). The host owns the thread there, so no
+//  ordinary frame runs; a panel that wires SetOnModalLoopTick keeps animating
+//  by pumping a frame from here instead of freezing until the drag ends.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiWindow::OnModalLoopTick ()
+{
+    if (m_onModalLoopTick)
+    {
+        m_onModalLoopTick();
+    }
 }
 
 

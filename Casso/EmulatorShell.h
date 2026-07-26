@@ -4,6 +4,7 @@
 
 #include "Audio/Disk2AudioSource.h"
 #include "Audio/DriveAudioMixer.h"
+#include "Audio/PrinterAudioSource.h"
 #include "Config/GlobalUserPrefs.h"
 #include "Config/UserConfigStore.h"
 #include "Config/Win32FileSystem.h"
@@ -15,6 +16,7 @@
 #include "D3DRenderer.h"
 #include "Devices/Disk/DiskImageStore.h"
 #include "Devices/IAciaEndpoint.h"
+#include "Print/PrinterWorker.h"
 #include "Shell/ClipboardManager.h"
 #include "Shell/CpuManager.h"
 #include "Shell/DiskManager.h"
@@ -26,6 +28,7 @@
 #include "Ui/Chrome/DriveWidget.h"
 #include "Ui/Chrome/MonitorFrame.h"
 #include "Ui/Chrome/InputDeviceSelector.h"
+#include "Ui/Chrome/CommandToolbar.h"
 #include "Ui/Chrome/MainMenu.h"
 #include "Ui/ColorUtil.h"
 #include "Ui/Dialogs/DialogDefinition.h"
@@ -113,6 +116,17 @@ public:
         const string    & disk2Path);
 
     int RunMessageLoop();
+
+    // Runs ONE UI-thread render cycle: latch the newest emulator framebuffer,
+    // push CRT params, advance chrome / panel animation, refresh the printer
+    // indicator + live preview (which also paces the printer audio), and -- if
+    // anything needs presenting -- drive a synchronous WM_PAINT. Returns true iff
+    // it presented (caller idle-sleeps when false). Factored out of RunMessageLoop
+    // so the host's OnModalLoopTick can pump it while the OS modal move / size
+    // loop owns the thread (otherwise the preview + sound freeze on a title-bar
+    // hold, then jump on release). The host owns the keep-alive timer; the shell
+    // only supplies this per-frame work.
+    bool PumpUiFrame();
 
     void HandleCommand (WORD commandId);
 
@@ -231,11 +245,17 @@ private:
     DxuiMessageResult  OnSetCursor     (WORD hitTest) override;
     DxuiMessageResult  OnActivateApp   (bool active) override;
     DxuiMessageResult  OnKillFocus     () override;
+
+    // Release the guest keyboard latch + auto-repeat + modifiers. Called on
+    // focus loss: the matching key-ups will never arrive once focus moves.
+    void               ReleaseGuestKeys ();
     DxuiMessageResult  OnCancelMode    () override;
     DxuiMessageResult  OnMove          (int x, int y) override;
     DxuiMessageResult  OnNotify        (WPARAM wParam, LPARAM lParam) override;
     DxuiMessageResult  OnSize          (UINT widthPx, UINT heightPx) override;
     DxuiMessageResult  OnGetMinMax     (MINMAXINFO * info) override;
+    DxuiMessageResult  OnTimer         (UINT_PTR timerId) override;
+    void               OnModalLoopTick () override;
     DxuiMessageResult  OnInitMenuPopup (HMENU hMenu, UINT itemIndex, bool isWindowMenu) override;
     DxuiMessageResult  OnNcMouseMove   (LRESULT hitTest, int xScreen, int yScreen) override;
     DxuiMessageResult  OnNcMouseLeave() override;
@@ -491,6 +511,10 @@ private:
     void    ShowMachinePicker();
     const std::wstring &  CurrentMachineName () const { return m_currentMachineName; }
 
+    // One-line printer summary for the Settings > Printing info banner: what
+    // printer this machine emulates and how it connects, or that it has none.
+    std::wstring  PrinterBannerMessage () const;
+
     // //e/c auxiliary 64 KiB RAM bank (nullptr on ][/][+). Used by the clipboard
     // text scrape to read the aux half of an 80-column screen.
     const Byte *  AuxRamBuffer() const;
@@ -539,6 +563,13 @@ private:
     // uses this as the fallback save path when the unified store is not
     // available.
     const std::wstring &  AssetBaseDir () const { return m_assetBaseDir; }
+
+    // Per-machine pending-strip directory (FR-026):
+    // <assetBase>/Machines/<current machine>/PendingPrint.
+    fs::path  PendingPrintDir () const
+    {
+        return fs::path (m_assetBaseDir) / L"Machines" / fs::path (m_currentMachineName) / L"PendingPrint";
+    }
 
     // Live channel for the Settings → Display monitor dropdown. The
     // dropdown calls this on every selection so the user sees the
@@ -609,6 +640,52 @@ private:
     // width) changes between resize / DPI events. No-op until the first
     // LayoutJoystickButton has cached valid geometry.
     void    RelayoutJoystickButton ();
+
+    // Position the printer status indicator in the command-bar dead space to
+    // the right of the centred drive widgets, or Hide() it when the machine
+    // has no printer card. Does not affect drive centring.
+
+    // Open (creating if needed) the printer panel / print preview window, and
+    // push it a fresh snapshot of the current strip. `activate` false shows it
+    // without stealing focus from the guest (used by the auto-open path).
+    void    ShowPrinterPanel (bool activate = true);
+
+    // Owner HWND for printer confirmation / notice message boxes: the preview
+    // panel when it is open and visible (so the box centers on the dialog the
+    // user is acting in), otherwise the main window.
+    HWND    PrinterDialogOwner () const;
+
+    // Force-refresh the printer panel from the drain worker (race-free, without
+    // stopping it): the panel snapshots and renders only its visible ~1-page
+    // viewport span. Non-destructive: the live interpreter keeps running, so
+    // refreshing mid-print can never disturb the job's state or the output.
+    void    SnapshotStripToPanel ();
+
+    // Per-frame: sample the worker's status signals, recompute the indicator
+    // state, and mark a redraw only when it changes (so a static screen still
+    // repaints the LED on a transition).
+    void    UpdatePrinterStatus ();
+
+    // Delivery outcome -> the printer status LED: failed=true lights the red
+    // error state until a success / discard clears it or the guest prints
+    // something new. Called from the delivery paths (WindowCommandManager).
+    void    NotePrinterDeliveryResult (bool failed)
+    {
+        m_printerDeliveryError = failed;
+        m_printerErrorActivity = m_printerWorker.ActivityCount ();
+    }
+
+    // Per-frame: auto-open the preview when a new print begins (activity resuming
+    // after an idle gap) and refresh the strip live as bytes flow, throttled by an
+    // interval that grows with strip height so a busy print does not re-render the
+    // whole strip every frame (nor O(rows^2) over a long banner).
+    void    UpdatePrinterPreview ();
+
+    // Attach the Casso app icon (IDI_CASSO) to a child DxuiWindow so it shows the
+    // Casso motif in Alt-Tab / the taskbar. The borderless Dxui panels do not
+    // inherit the WNDCLASS icon, and Alt-Tab reads WM_GETICON, so the big+small
+    // icons are handed over explicitly (as the main window does).
+    void    ApplyAppIconToWindow (HWND target);
 
     // Keyboard chrome-focus ring (see m_chromeFocusIndex). SetChromeFocusIndex
     // updates the index and refreshes which widget paints its focus visual;
@@ -691,6 +768,25 @@ private:
     CassoTheme         m_chromeTheme    = CassoTheme::Skeuomorphic();
     std::array<DriveWidget, 2> m_driveChrome;
 
+    // The command toolbar (spec 015 DCR-2): the strip below the menu bar with
+    // Settings / Printer (+status LED) / master Volume + Mute / Screenshot /
+    // Reset / Power. Its printer button carries the status light (the old
+    // standalone PrinterIndicator is deleted).
+    CommandToolbar      m_toolbar;
+
+    // The pure model deriving the printer LED state from the worker's live
+    // signals, plus the last state pushed to the toolbar so a transition
+    // repaints exactly once.
+    PrinterStatusModel  m_printerStatus;
+    PrinterStatus       m_printerStatusShown = PrinterStatus::Idle;
+
+    // Delivery-failure latch feeding the status model's error input (the
+    // toolbar LED's red). Set by the delivery paths in WindowCommandManager;
+    // cleared by a successful delivery, a discard, or fresh guest print
+    // activity (the user has moved on -- red must not mask the new print).
+    bool                m_printerDeliveryError = false;
+    uint64_t            m_printerErrorActivity = 0;
+
     // Skeuomorphic CRT monitor housing that frames the emulator display
     // (skeuo theme only). Insets the viewport into its screen recess; the
     // housing paints the ring around it. Models the Apple Monitor //c.
@@ -740,6 +836,7 @@ private:
     // hover tooltip.
     InputDeviceSelector   m_joystickButton;   // Segmented device selector
     DxuiTooltip               m_joystickTooltip;
+    DxuiTooltip               m_toolbarTooltip;   // labels for the toolbar's icon-only mode
 
     // Apple //c case-switch strip (reset button + 80/40 and keyboard latching
     // switches + disk-use / power LEDs), painted in its own chrome band between
@@ -785,6 +882,8 @@ private:
     // thickness the theme mutates (compact vs full).
     static constexpr int  s_kTitleBarBandDp     = 32;
     static constexpr int  s_kNavStripBandDp     = 32;
+    // (The command toolbar band's thickness comes from m_toolbar.BandDp() --
+    // it varies with the responsive mode planned for the window width.)
     static constexpr int  s_kInitialDriveBandDp = 256;
 
     // //c switch strip band thickness (dp). Zero-height on non-//c machines
@@ -795,6 +894,7 @@ private:
     DxuiDockLayout           m_chromeDock;
     ChromeBand               m_titleBand;
     ChromeBand               m_navBand;
+    ChromeBand               m_toolbarBand;
     ChromeBand               m_driveBand;
     ChromeBand               m_switchBand;
     ChromeBand               m_centerBand;
@@ -873,6 +973,12 @@ private:
     DriveAudioMixer                      m_driveAudioMixer;
     vector<unique_ptr<Disk2AudioSource>> m_diskAudioSources;
 
+    // Emulated ImageWriter II mechanical audio (Option A: driven by the paced
+    // on-screen carriage, not the raw guest stream). A single persistent source
+    // on the shared drive-audio bus (FR-016), re-registered by MachineManager on
+    // every build. Its grains load once in OnCpuThreadStart.
+    PrinterAudioSource                   m_printerAudio;
+
     // Mockingboard audio. Its own mixer so the "Mockingboard" Options
     // toggle is independent of the Drive Audio toggle. The PSG audio
     // sources are owned by the MockingboardCard device; the mixer holds
@@ -936,9 +1042,15 @@ private:
         class Disk2Controller *       diskController   = nullptr;
         class MockingboardCard *      mockingboard     = nullptr;
         class VideoOutput *           activeVideoMode  = nullptr;
+        class PrinterCard *           printerCard      = nullptr;
     };
 
     MachineRefs                   m_refs;
+
+    // Background printer drain (ring -> interpreter -> raster). Declared after
+    // m_ownedDevices so it is torn down (thread joined) before the card it
+    // drains.
+    PrinterWorker                 m_printerWorker;
 
     unique_ptr<class Apple2eMmu>  m_mmu;
     // Apple //c firmware-bank coordinator ($C028). Null on every other
@@ -1058,6 +1170,16 @@ private:
     // re-zero it even while the panel is closed.
     std::unique_ptr<class Disk2DebugPanel>    m_disk2DebugPanel;
     std::unique_ptr<class InputDebugPanel>    m_inputDebugPanel;
+    std::unique_ptr<class PrinterPanel>       m_printerPanel;
+
+    // Live-preview bookkeeping (UpdatePrinterPreview). Auto-open fires once when a
+    // *new* print begins -- activity resuming after an idle gap -- so it opens even
+    // when a prior pending strip is still loaded, yet a mid-print manual close does
+    // not fight a re-open (activity never goes idle mid-print). Refresh pacing and
+    // change detection live in the panel's viewport (PrinterPanel::RefreshLive).
+    bool                                      m_printerAutoOpenArmed    = true;
+    uint64_t                                  m_printerAutoOpenActivity = 0;
+    int64_t                                   m_printerActiveLastMs     = 0;
     std::chrono::steady_clock::time_point     m_uptimeAnchor { std::chrono::steady_clock::now() };
 
     // Extracted shell-side managers. WindowManager owns the per-monitor

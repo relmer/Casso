@@ -15,6 +15,7 @@
 #include "DiskPage.h"
 #include "ThemePage.h"
 #include "DisplayPage.h"
+#include "PrintingPage.h"
 
 
 class UserConfigStore;
@@ -179,6 +180,7 @@ private:
     DiskPage     * m_diskPage     = nullptr;
     ThemePage    * m_themePage    = nullptr;
     DisplayPage  * m_displayPage  = nullptr;
+    PrintingPage * m_printingPage = nullptr;
 
     // Registration index of the Disk page, so OnDialogTick can show / hide its
     // tab as the staged Disk ][ controller is toggled (#84 Phase B). -1 until

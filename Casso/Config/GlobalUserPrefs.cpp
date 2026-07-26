@@ -50,7 +50,16 @@ static const std::set<std::string>  s_kKnownTopLevel = {
     "recentDisks",
     "recentDiskLoadedAt",
     "crt",
-    "window"
+    "window",
+    "printOutputDpi",
+    "printDotStyle",
+    "printerAudioEnabled",
+    "printerAudioMuted",          // legacy (pre-toggle); consumed, no longer emitted
+    "printerAudioVolume",
+    "printerAudioPanOverride",
+    "printerAudioPan",
+    "masterVolume",
+    "masterMuted"
 };
 
 
@@ -932,6 +941,20 @@ JsonValue GlobalUserPrefs::ToJson() const
     root.emplace_back ("recentDisks", RecentDisksToJson (recentDisks));
     root.emplace_back ("recentDiskLoadedAt", RecentDiskTimesToJson (recentDiskLoadedAt));
 
+    // Printing (host print services, FR-011).
+    root.emplace_back ("printOutputDpi",   JsonValue ((double) printOutputDpi));
+    root.emplace_back ("printDotStyle",    JsonValue (printDotStyle));
+
+    // Printer mechanical-audio prefs (FR-034).
+    root.emplace_back ("printerAudioEnabled",     JsonValue (printerAudioEnabled));
+    root.emplace_back ("printerAudioVolume",      JsonValue ((double) printerAudioVolume));
+    root.emplace_back ("printerAudioPanOverride", JsonValue (printerAudioPanOverride));
+    root.emplace_back ("printerAudioPan",         JsonValue ((double) printerAudioPan));
+
+    // Master output volume (chrome toolbar).
+    root.emplace_back ("masterVolume", JsonValue ((double) masterVolume));
+    root.emplace_back ("masterMuted",  JsonValue (masterMuted));
+
     // Round-trip unknown keys verbatim.
     for (const auto & kv : unknownPassthrough)
     {
@@ -1062,6 +1085,26 @@ HRESULT GlobalUserPrefs::FromJson (const JsonValue & v)
     {
         RecentDiskTimesFromJson (*loadedArr, recentDiskLoadedAt);
     }
+
+    // Printing (host print services, FR-011); absent keys keep struct defaults.
+    printOutputDpi   = GetIntOpt    (v, "printOutputDpi",   printOutputDpi);
+    printDotStyle    = GetStringOpt (v, "printDotStyle",    printDotStyle);
+
+    // Printer mechanical-audio prefs (FR-034); absent keys keep struct defaults.
+    // Legacy pre-toggle files stored the inverse `printerAudioMuted`; fall back
+    // to it (inverted) so an older mute survives the rename to `enabled`.
+    printerAudioEnabled     = GetBoolOpt   (v, "printerAudioEnabled",
+                                            !GetBoolOpt (v, "printerAudioMuted", !printerAudioEnabled));
+    printerAudioVolume      = (float) GetNumberOpt (v, "printerAudioVolume",      printerAudioVolume);
+    printerAudioPanOverride = GetBoolOpt   (v, "printerAudioPanOverride", printerAudioPanOverride);
+    printerAudioPan         = (float) GetNumberOpt (v, "printerAudioPan",         printerAudioPan);
+    printerAudioVolume      = std::clamp (printerAudioVolume, 0.0f, 1.0f);
+    printerAudioPan         = std::clamp (printerAudioPan,   -1.0f, 1.0f);
+
+    // Master output volume (chrome toolbar); absent keys keep struct defaults.
+    masterVolume = (float) GetNumberOpt (v, "masterVolume", masterVolume);
+    masterMuted  = GetBoolOpt (v, "masterMuted", masterMuted);
+    masterVolume = std::clamp (masterVolume, 0.0f, 1.0f);
 
     // Capture unknown top-level keys for round-tripping.
     for (const auto & entry : v.GetObjectEntries())

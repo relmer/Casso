@@ -2,9 +2,13 @@
 
 #include "EmulatorShell.h"
 #include "AssetBootstrap.h"
+#include "Print/PrintJobStore.h"
+#include "Devices/Printer/PrinterCard.h"
+#include "Ui/PrinterPanel.h"
 
 #include "Core/PathResolver.h"
 #include "Version.h"
+#include "BuildInfo.h"
 #include "resource.h"
 #include "Devices/RamDevice.h"
 #include "Devices/RomDevice.h"
@@ -501,6 +505,9 @@ EmulatorShell::~EmulatorShell()
         m_inputDebugPanel.reset();
     }
 
+    // The printer panel holds no machine sinks -- just close its window.
+    m_printerPanel.reset();
+
     // / T097 / FR-025. Final auto-flush of any dirty disks on
     // process shutdown — matches the "graceful exit" requirement from
     // audit §7 so a crash-free quit never loses user writes.
@@ -571,7 +578,7 @@ HRESULT EmulatorShell::Initialize (
     // model -- a startup-ordering bug on our side, so assert.
     hr = OleInitialize (nullptr);
     CHRA (hr);
-    
+
     m_fOleInitialized = true;
 
     // Register built-in device factories
@@ -668,14 +675,15 @@ void EmulatorShell::RegisterChromeDock()
     // Register the chrome bands + center with the dock layout once --
     // their thicknesses are refreshed from DPI + live drive-bar state
     // on every ComputeViewportRect / ClientSizeForCenterPx call.
-    m_chromeDock.SetDock (m_titleBand,  DxuiDock::Top);
-    m_chromeDock.SetDock (m_navBand,    DxuiDock::Top);
-    m_chromeDock.SetDock (m_driveBand,  DxuiDock::Bottom);
+    m_chromeDock.SetDock (m_titleBand,   DxuiDock::Top);
+    m_chromeDock.SetDock (m_navBand,     DxuiDock::Top);
+    m_chromeDock.SetDock (m_toolbarBand, DxuiDock::Top);
+    m_chromeDock.SetDock (m_driveBand,   DxuiDock::Bottom);
     // Registered AFTER the drive band so the dock peels the drive bar off the
     // very bottom first and the //c switch strip lands just above it (between
     // the viewport and the joystick/paddle/mouse bar).
-    m_chromeDock.SetDock (m_switchBand, DxuiDock::Bottom);
-    m_chromeDock.SetDock (m_centerBand, DxuiDock::Fill);
+    m_chromeDock.SetDock (m_switchBand,  DxuiDock::Bottom);
+    m_chromeDock.SetDock (m_centerBand,  DxuiDock::Fill);
 }
 
 
@@ -1008,6 +1016,7 @@ HRESULT EmulatorShell::WireUiShellChromeAndThemes()
     m_mainMenu.SetTextRendererForMeasure (&m_uiShell.Text());
     m_joystickButton.SetTextRenderer     (&m_uiShell.Text());
     m_switchBar.SetTextRenderer          (&m_uiShell.Text());
+    m_toolbar.SetTextRenderer            (&m_uiShell.Text());
 
     // Global prefs are already loaded by PrimeChromeThemeEarly, so there is
     // no second LoadAll here. Discover scans the themes directory (an empty
@@ -1704,6 +1713,7 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     m_host->Root().Adopt (m_driveBandSurface);
     m_host->Root().Adopt (m_driveChrome[0]);
     m_host->Root().Adopt (m_driveChrome[1]);
+    m_host->Root().Adopt (m_toolbar);
     m_host->Root().Adopt (m_joystickButton);
     m_host->Root().Adopt (m_switchBar);
 
@@ -1725,6 +1735,8 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     // Tick. SetTheme seeds the tooltip surface colours.
     m_joystickTooltip.SetPopupHost (m_host.get());
     m_joystickTooltip.SetTheme     (m_chromeTheme);
+    m_toolbarTooltip.SetPopupHost  (m_host.get());
+    m_toolbarTooltip.SetTheme      (m_chromeTheme);
 
     // The //c switch strip shares the same deferred-tooltip pattern.
     m_switchBarTooltip.SetPopupHost (m_host.get());
@@ -1788,6 +1800,19 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
         m_mainMenu.Layout (menuBarBounds, m_scaler);
     }
     m_mainMenu.SetDispatch ([this] (WORD commandId) { HandleCommand (commandId); });
+
+    // Command toolbar (DCR-2): commands route through the same HandleCommand
+    // path as the menu; the volume group drives the master output gain and
+    // persists in GlobalUserPrefs (saved with the rest on exit).
+    m_toolbar.SetDispatch ([this] (WORD commandId) { HandleCommand (commandId); });
+    m_toolbar.SetVolumeSink ([this] (float volume01, bool muted)
+    {
+        m_globalPrefs.masterVolume = volume01;
+        m_globalPrefs.masterMuted  = muted;
+        m_wasapiAudio.SetMasterGain (muted ? 0.0f : volume01);
+    });
+    m_toolbar.SetVolume (m_globalPrefs.masterVolume, m_globalPrefs.masterMuted);
+    m_wasapiAudio.SetMasterGain (m_globalPrefs.masterMuted ? 0.0f : m_globalPrefs.masterVolume);
     m_mainMenu.SetCheckQuery ([this] (WORD commandId) -> bool
     {
         switch (commandId)
@@ -1952,10 +1977,11 @@ void EmulatorShell::SyncChromeBands ()
     // collapses to zero height so the dock leaves the viewport unchanged.
     int  switchBandDp = IsApple2c() ? s_kSwitchBandDp : 0;
 
-    m_titleBand.SetBounds  (RECT{ 0, 0, 0, m_scaler.Px (s_kTitleBarBandDp) });
-    m_navBand.SetBounds    (RECT{ 0, 0, 0, m_scaler.Px (s_kNavStripBandDp) });
-    m_driveBand.SetBounds  (RECT{ 0, 0, 0, m_scaler.Px (driveBandDp) });
-    m_switchBand.SetBounds (RECT{ 0, 0, 0, m_scaler.Px (switchBandDp) });
+    m_titleBand.SetBounds   (RECT{ 0, 0, 0, m_scaler.Px (s_kTitleBarBandDp) });
+    m_navBand.SetBounds     (RECT{ 0, 0, 0, m_scaler.Px (s_kNavStripBandDp) });
+    m_toolbarBand.SetBounds (RECT{ 0, 0, 0, m_scaler.Px (m_toolbar.BandDp()) });
+    m_driveBand.SetBounds   (RECT{ 0, 0, 0, m_scaler.Px (driveBandDp) });
+    m_switchBand.SetBounds  (RECT{ 0, 0, 0, m_scaler.Px (switchBandDp) });
 }
 
 
@@ -1974,12 +2000,21 @@ void EmulatorShell::SyncChromeBands ()
 
 RECT EmulatorShell::ComputeViewportRect (int widthPx, int heightPx)
 {
-    IDxuiControl *  kids[] = { &m_titleBand, &m_navBand, &m_driveBand, &m_switchBand, &m_centerBand };
+    IDxuiControl *  kids[] = { &m_titleBand, &m_navBand, &m_toolbarBand, &m_driveBand, &m_switchBand, &m_centerBand };
 
 
+
+    // The toolbar's band thickness depends on its responsive mode (icon+label
+    // / ribbon / icon-only), which depends on the width -- plan it BEFORE the
+    // bands dock so the strip gets the right height for this window size.
+    m_toolbar.PlanForWidth (widthPx, m_scaler);
 
     SyncChromeBands();
     m_chromeDock.Arrange (RECT{ 0, 0, widthPx, heightPx }, m_scaler, kids);
+
+    // The command toolbar rides its band: re-lay it every viewport pass so a
+    // resize / DPI change reflows the buttons with the strip.
+    m_toolbar.Layout (m_toolbarBand.Bounds(), m_scaler);
 
     return m_centerBand.Bounds();
 }
@@ -2047,6 +2082,8 @@ RECT EmulatorShell::EmulatorContentScreenRect ()
 
 void EmulatorShell::ReflowChromeForMachineChange ()
 {
+    DXUI_ASSERT_UI_THREAD();   // chrome layout: never from the CPU thread
+
     RECT  rcWindow = {};
 
     if (m_hwnd == nullptr || !GetWindowRect (m_hwnd, &rcWindow))
@@ -2143,7 +2180,7 @@ bool EmulatorShell::ShouldShowExternalDrive() const
 
 SIZE EmulatorShell::ClientSizeForCenterPx (int centerWidthPx, int centerHeightPx)
 {
-    IDxuiControl *  bands[] = { &m_titleBand, &m_navBand, &m_driveBand, &m_switchBand };
+    IDxuiControl *  bands[] = { &m_titleBand, &m_navBand, &m_toolbarBand, &m_driveBand, &m_switchBand };
 
 
 
@@ -3001,12 +3038,451 @@ void EmulatorShell::LayoutJoystickButton (int clientW,
 
 void EmulatorShell::RelayoutJoystickButton ()
 {
+    DXUI_ASSERT_UI_THREAD();   // measures text through the Dxui renderer
+
     if (m_joyBtnClientW <= 0)
     {
         return;
     }
 
     LayoutJoystickButton (m_joyBtnClientW, m_joyBtnBandTop, m_joyBtnBandHeight, m_joyBtnDpi);
+}
+
+
+
+
+// (LayoutPrinterIndicator deleted: the standalone printer indicator is
+// retired -- the toolbar's Printer button carries the status LED now.)
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::ShowPrinterPanel
+//
+//  Lazily creates the printer panel / print preview window, wires its toolbar
+//  callbacks to the existing delivery commands, pushes a fresh strip snapshot,
+//  and brings it to the foreground. Mirrors ShowDisk2Debug's create pattern.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::ShowPrinterPanel (bool activate)
+{
+    DXUI_ASSERT_UI_THREAD();   // creates / shows a Dxui window
+
+    HRESULT     hr        = S_OK;
+    HINSTANCE   hInstance = nullptr;
+
+    if (m_printerPanel == nullptr || m_printerPanel->Hwnd () == nullptr)
+    {
+        hInstance      = reinterpret_cast<HINSTANCE> (GetWindowLongPtr (m_hwnd, GWLP_HINSTANCE));
+        m_printerPanel = std::make_unique<PrinterPanel> ();
+
+        // No owner window: the preview is a peer of the main window, not an
+        // owned popup. An owned window is permanently z-locked above its owner
+        // (always-on-top of Casso); a peer can be sent behind Casso normally.
+        hr = m_printerPanel->Create (hInstance,
+                                     nullptr,
+                                     m_d3dRenderer.GetDevice (),
+                                     m_d3dRenderer.GetContext (),
+                                     &m_chromeTheme);
+        CHRF (hr, m_printerPanel.reset ());
+
+        ApplyAppIconToWindow (m_printerPanel->Hwnd ());
+
+        // Toolbar actions route through the existing command path (which
+        // quiesces the worker, delivers/clears, and resumes), then re-snapshot.
+        // Print / Save / Copy are non-destructive: they deliver the strip and
+        // leave the paper in the printer, so one printout can be printed AND
+        // saved AND copied. Discard is the one tear-off.
+        m_printerPanel->SetOnPrint ([this] ()
+        {
+            m_windowCommandManager->HandleCommand (IDM_PRINTER_PRINT);
+            SnapshotStripToPanel ();
+        });
+        m_printerPanel->SetOnSaveAs ([this] ()
+        {
+            m_windowCommandManager->HandleCommand (IDM_PRINTER_SAVEAS);
+            SnapshotStripToPanel ();
+        });
+        m_printerPanel->SetOnCopy ([this] ()
+        {
+            m_windowCommandManager->HandleCommand (IDM_PRINTER_COPY);
+            SnapshotStripToPanel ();
+        });
+        m_printerPanel->SetOnDiscard ([this] ()
+        {
+            // The tear-off sound fires from the confirmed branch of the discard
+            // handler (WindowCommandManager), NOT here -- so cancelling the
+            // confirmation dialog does not rip a page we are keeping.
+            m_windowCommandManager->HandleCommand (IDM_PRINTER_DISCARD);
+            SnapshotStripToPanel ();
+        });
+        m_printerPanel->SetOnFormFeed ([this] ()
+        {
+            // The real ImageWriter's FORM FEED button, honored only while
+            // the printer is idle -- pressing it mid-print would interleave
+            // a page break into the guest's own stream, so it is ignored
+            // (same idle signal that re-arms the auto-open logic).
+            static constexpr int64_t   s_kFormFeedIdleMs = 1200;
+
+            int64_t   nowMs = (int64_t) std::chrono::duration_cast<std::chrono::milliseconds> (
+                                  std::chrono::steady_clock::now ().time_since_epoch ()).count ();
+
+            if (nowMs - m_printerActiveLastMs < s_kFormFeedIdleMs)
+            {
+                return;   // an actual print is streaming: ignore the button
+            }
+
+            // Scale the form-feed sound by how much of the current page will
+            // feed to the tear bar (less unused -> shorter feed -> shorter
+            // grain). A page that just wrapped feeds a full sheet (unused ~1).
+            int    rowsOnPage = m_printerWorker.RowsUsed () % PrinterGrid::kPageRows;
+            float  unused     = 1.0f - (float) rowsOnPage / (float) PrinterGrid::kPageRows;
+            m_printerAudio.PlayFormFeed (unused);
+
+            m_printerWorker.FormFeed ();
+        });
+
+        // Dragging the preview's caption or edge enters the OS modal move/size
+        // loop, which owns the UI thread and would otherwise freeze the print
+        // mid-page (the carriage stops, the reveal stalls) until the drag ends.
+        // Pump a full host frame per loop tick so the emulator keeps running
+        // and the carriage keeps animating while the user repositions the
+        // window -- the same keep-alive the main window uses for its caption.
+        m_printerPanel->SetOnModalLoopTick ([this] ()
+        {
+            PumpUiFrame ();
+        });
+    }
+
+    SnapshotStripToPanel ();
+
+    // activate=false (auto-open path) shows the preview without pulling focus
+    // off the guest, so a print popping up the window never eats keystrokes.
+    m_printerPanel->Show (activate);
+
+    // Auto-open sits the preview JUST BELOW the main window in the z-order, not
+    // on top: a print arriving while the user is working must never pop a window
+    // over what they are looking at (or steal focus from under them). The user
+    // clicks / Alt-Tabs it forward whenever they want to watch it.
+    if (!activate && m_printerPanel->Hwnd () != nullptr)
+    {
+        SetWindowPos (m_printerPanel->Hwnd (), m_hwnd, 0, 0, 0, 0,
+                      SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+    }
+
+Error:
+    return;
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::PrinterDialogOwner
+//
+//  Owner HWND for the printer's confirmation / notice boxes. When the preview
+//  panel is open the user is acting inside it (its Finish / Copy / Discard
+//  buttons, or a menu command while watching it), so own the box by the panel
+//  -- the modal box then centers on the panel and disables it while up. With
+//  the panel closed the command came from the main menu, so own it by the main
+//  window.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HWND EmulatorShell::PrinterDialogOwner () const
+{
+    if (m_printerPanel != nullptr
+        && m_printerPanel->IsOpen ()
+        && m_printerPanel->Hwnd () != nullptr
+        && IsWindowVisible (m_printerPanel->Hwnd ()))
+    {
+        return m_printerPanel->Hwnd ();
+    }
+
+    return m_hwnd;
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::ApplyAppIconToWindow
+//
+//  Give a child DxuiWindow the Casso icon so Alt-Tab / the taskbar show the
+//  Casso motif rather than a generic window icon. The borderless Dxui panels do
+//  not inherit the WNDCLASS icon and Alt-Tab reads the window's WM_GETICON, so
+//  the big + small icons are attached explicitly. LR_SHARED handles are managed
+//  by the system, so there is nothing to free.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::ApplyAppIconToWindow (HWND target)
+{
+    HINSTANCE   hInstance = nullptr;
+    HICON       iconBig   = nullptr;
+    HICON       iconSmall = nullptr;
+
+    if (target == nullptr)
+    {
+        return;
+    }
+
+    hInstance = reinterpret_cast<HINSTANCE> (GetWindowLongPtr (m_hwnd, GWLP_HINSTANCE));
+
+    iconBig   = (HICON) LoadImageW (hInstance, MAKEINTRESOURCEW (IDI_CASSO), IMAGE_ICON,
+                                    GetSystemMetrics (SM_CXICON), GetSystemMetrics (SM_CYICON),
+                                    LR_DEFAULTCOLOR | LR_SHARED);
+    iconSmall = (HICON) LoadImageW (hInstance, MAKEINTRESOURCEW (IDI_CASSO), IMAGE_ICON,
+                                    GetSystemMetrics (SM_CXSMICON), GetSystemMetrics (SM_CYSMICON),
+                                    LR_DEFAULTCOLOR | LR_SHARED);
+
+    if (iconBig != nullptr)
+    {
+        SendMessageW (target, WM_SETICON, ICON_BIG, (LPARAM) iconBig);
+    }
+    if (iconSmall != nullptr)
+    {
+        SendMessageW (target, WM_SETICON, ICON_SMALL, (LPARAM) iconSmall);
+    }
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::SnapshotStripToPanel
+//
+//  Force-refreshes the panel from the drain worker WITHOUT stopping it: the
+//  panel snapshots only its visible viewport span under the worker's raster
+//  lock while the same interpreter keeps running. Fully non-destructive --
+//  previewing (or refreshing) mid-print can never reset the guest's in-flight
+//  state, so it cannot distort the output. (The original path stopped and
+//  re-Start()ed the worker, which rebuilt the interpreter and reset its line
+//  feed from Print Shop's ESC T back to the default, stretching everything
+//  printed after a mid-print preview.)
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::SnapshotStripToPanel ()
+{
+    int64_t   nowMs = 0;
+
+    if (m_printerPanel == nullptr || !m_printerPanel->IsOpen ())
+    {
+        return;
+    }
+
+    if (m_refs.printerCard == nullptr)
+    {
+        PrintRaster   empty;
+
+        m_printerPanel->SetStrip (empty);   // blank sheet
+        return;
+    }
+
+    nowMs = (int64_t) std::chrono::duration_cast<std::chrono::milliseconds> (
+                std::chrono::steady_clock::now ().time_since_epoch ()).count ();
+
+    // Forced refresh through the panel's viewport: snapshots and renders only
+    // the visible ~1-page span (never the whole strip), same as the live path.
+    m_printerPanel->RefreshLive (m_printerWorker, nowMs, true /* force */);
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::UpdatePrinterStatus
+//
+//  Samples the worker's thread-safe status signals, recomputes the LED state
+//  through the pure PrinterStatusModel, feeds the toolbar's printer button,
+//  and marks a redraw only on a change so a static screen still repaints the
+//  LED on a transition.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::UpdatePrinterStatus ()
+{
+    int64_t        nowMs  = 0;
+    PrinterStatus  status = PrinterStatus::Idle;
+
+    if (m_refs.printerCard == nullptr)
+    {
+        m_toolbar.SetPrinterPresent (false);
+        return;   // no card: the toolbar's printer button disables
+    }
+
+    m_toolbar.SetPrinterPresent (true);
+
+    nowMs = (int64_t) std::chrono::duration_cast<std::chrono::milliseconds> (
+                std::chrono::steady_clock::now ().time_since_epoch ()).count ();
+
+    // A latched delivery error clears itself when the guest prints something
+    // new -- red means "this page needs attention", and a fresh print means
+    // the user has moved on (Error outranks Receiving in the model, so a
+    // stale latch would otherwise mask the live print).
+    if (m_printerDeliveryError &&
+        m_printerWorker.ActivityCount () != m_printerErrorActivity)
+    {
+        m_printerDeliveryError = false;
+    }
+
+    m_printerStatus.Update (m_printerWorker.ActivityCount (),
+                            (double) nowMs,
+                            m_printerWorker.HasContent (),
+                            m_printerDeliveryError);
+
+    status = m_printerStatus.Status ();
+
+    // The toolbar's printer button carries the status light (DCR-2); repaint
+    // only when the LED state actually changes.
+    if (status != m_printerStatusShown)
+    {
+        m_printerStatusShown = status;
+        m_toolbar.SetPrinterStatus (status);
+        m_d3dRenderer.MarkRedrawNeeded ();
+    }
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmulatorShell::UpdatePrinterPreview
+//
+//  Per-frame: auto-open the preview the moment the guest starts printing, then
+//  refresh the strip live as bytes flow. The read is non-destructive (see
+//  SnapshotStripToPanel), so watching a print in progress never perturbs it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::UpdatePrinterPreview ()
+{
+    static constexpr int64_t   s_kAutoOpenIdleMs = 1200;   // activity gap that re-arms auto-open
+
+    uint64_t   activity = 0;
+    int64_t    nowMs    = 0;
+
+    if (m_refs.printerCard == nullptr)
+    {
+        return;   // machine has no printer card
+    }
+
+    activity = m_printerWorker.ActivityCount ();
+    nowMs    = (int64_t) std::chrono::duration_cast<std::chrono::milliseconds> (
+                   std::chrono::steady_clock::now ().time_since_epoch ()).count ();
+
+    // Auto-open on a NEW print session: activity advancing after an idle gap.
+    // Arm while idle, fire once (without stealing focus) when bytes resume, then
+    // stay disarmed until idle again. This opens for a fresh print even when a
+    // prior pending strip is still loaded (no HasContent edge to ride), yet
+    // closing the window mid-print never fights a re-open -- activity keeps
+    // advancing through the print, so the edge does not re-arm until it finishes.
+    if (activity != m_printerAutoOpenActivity)
+    {
+        if (m_printerAutoOpenArmed)
+        {
+            ShowPrinterPanel (false /* activate */);
+            m_printerAutoOpenArmed = false;
+        }
+        m_printerAutoOpenActivity = activity;
+        m_printerActiveLastMs     = nowMs;
+    }
+    else if (!m_printerAutoOpenArmed && nowMs - m_printerActiveLastMs > s_kAutoOpenIdleMs)
+    {
+        m_printerAutoOpenArmed = true;   // print settled: re-arm for the next one
+    }
+
+    // Live refresh while the preview is genuinely visible. The panel's viewport
+    // does its own change detection and renders at most the visible ~1-page span
+    // (FR-033), so this per-frame call is flat-cost regardless of strip length.
+    if (m_printerPanel == nullptr || !m_printerPanel->IsOpen ())
+    {
+        return;
+    }
+    if (!IsWindowVisible (m_printerPanel->Hwnd ()))
+    {
+        return;   // user closed (hid) it -- skip off-screen rendering
+    }
+
+    m_printerPanel->RefreshLive (m_printerWorker, nowMs);
+
+    // Feed the paced carriage position to the printer audio so the mechanical
+    // sound tracks the on-screen head (Option A), sharing the exact reveal the
+    // panel just advanced. The audio thread gates its carriage loop + fires the
+    // line-feed clacks off this; a closed / hidden preview stops publishing, so
+    // the loop naturally goes quiet.
+    {
+        int64_t  progressDots   = 0;
+        int      colDots        = 0;
+        bool     inkActive      = false;
+        int      sweepWidthDots = PrinterGrid::kDotsPerRow;
+        m_printerPanel->GetPacedReveal (progressDots, colDots, inkActive, sweepWidthDots);
+        m_printerAudio.PublishReveal (progressDots, colDots, inkActive, sweepWidthDots);
+    }
+
+    // Printer-sound volume + mute (Settings > Printing audio, FR-034). Read from
+    // prefs each frame so an OK / Cancel in Settings binds on the next update
+    // without any live-apply plumbing; the shared "Drive Audio" master still
+    // gates the whole bus above this.
+    m_printerAudio.SetVolume (m_globalPrefs.printerAudioVolume);
+    m_printerAudio.SetMuted  (!m_globalPrefs.printerAudioEnabled);
+
+    // Position the printer sound in the stereo field. Manual override (Settings >
+    // Printing) pins a fixed pan; otherwise it auto-follows where the preview
+    // window sits relative to the main Casso window -- center-to-center X offset,
+    // normalized so the two windows just touching side by side is a hard pan and
+    // a fully overlapping (co-centered) window is dead center.
+    {
+        float  pan = 0.0f;
+
+        if (m_globalPrefs.printerAudioPanOverride)
+        {
+            pan = std::clamp (m_globalPrefs.printerAudioPan, -1.0f, 1.0f);
+        }
+        else
+        {
+            RECT  mainR    = {};
+            RECT  printerR = {};
+
+            if (GetWindowRect (m_hwnd, &mainR) &&
+                GetWindowRect (m_printerPanel->Hwnd (), &printerR))
+            {
+                float  mainCenter    = (float) (mainR.left    + mainR.right)    * 0.5f;
+                float  printerCenter = (float) (printerR.left + printerR.right) * 0.5f;
+                float  mainHalf      = (float) (mainR.right    - mainR.left)    * 0.5f;
+                float  printerHalf   = (float) (printerR.right - printerR.left) * 0.5f;
+                float  reference     = mainHalf + printerHalf;   // touching side by side
+
+                if (reference > 1.0f)
+                {
+                    pan = std::clamp ((printerCenter - mainCenter) / reference, -1.0f, 1.0f);
+                }
+            }
+        }
+
+        float  panL = 0.0f;
+        float  panR = 0.0f;
+        DriveAudioMixer::PanToStereo (pan, panL, panR);
+        m_printerAudio.SetPan (panL, panR);
+    }
+
+    // Hold a smooth present cadence while the carriage is sweeping or a pan/zoom
+    // is easing. Without this the loop drops to Sleep(1) whenever the emulator
+    // framebuffer is static (a guest that prints without touching the screen),
+    // and that coarse, jittery tick makes the head step across the platen.
+    if (m_printerPanel->NeedsAnimationFrame ())
+    {
+        m_d3dRenderer.MarkRedrawNeeded ();
+    }
 }
 
 
@@ -3528,146 +4004,16 @@ int EmulatorShell::RunMessageLoop()
             }
         }
 
-        // Copy latest framebuffer under lock, then present with vsync
-        bool  fbDirtyThisFrame = false;
-        {
-            lock_guard<mutex> lock (m_fbMutex);
-
-            if (m_fbReady)
-            {
-                m_fbReady        = false;
-                fbDirtyThisFrame = true;
-            }
-        }
-
-        // / FR-038. Push the latest CRT params (brightness slider,
-        // scanlines/bloom/color-bleed toggles + magnitudes) to the
-        // renderer every UI frame so user edits land on the very next
-        // present. The active theme's `crtDefaults` only apply when the
-        // user hasn't customised anything yet (see MakeCrtParams).
-        {
-            const ThemeCrtDefaults *  themeDefaults = nullptr;
-            if (m_themeManager != nullptr)
-            {
-                const LoadedTheme *  active = m_themeManager->GetActiveTheme();
-                if (active != nullptr)
-                {
-                    themeDefaults = &active->crtDefaults;
-                }
-            }
-            CrtParams  params = MakeCrtParams (m_globalPrefs.crtByMode[(int) m_colorMode.load(std::memory_order_acquire)],
-                                               (size_t) m_colorMode.load(std::memory_order_acquire),
-                                               themeDefaults,
-                                               (float) m_d3dRenderer.GetBackBufferWidth(),
-                                               (float) m_d3dRenderer.GetBackBufferHeight());
-            m_d3dRenderer.SetCrtParams (params);
-        }
-
-        // Skip the entire upload + 9-pass post-process when neither the
-        // emulator framebuffer nor any CRT param changed (and the
-        // persistence trail isn't still decaying). Saves ~20%% GPU at a
-        // BASIC prompt. PeekMessage above still drains messages; the
-        // brief sleep keeps this thread from spinning.
-        //
-        // FORCE PRESENT when the nav layer has an open menu so menu
-        // hover / open / close transitions paint. Without this, a
-        // paused machine produces no fb changes -> no Present -> menus
-        // open in state-only and never repaint, looking dead.
-        // Per-UI-frame chrome upkeep that used to live in the after-blit
-        // hook: advance drive-door animations and force a present while a
-        // door is mid-transition so the chrome keeps repainting even when
-        // the emulator framebuffer is static.
-        if (m_diskManager != nullptr)
-        {
-            m_diskManager->UpdateDriveWidgets();
-        }
-        bool  anyDriveLive = false;
-
-        for (const DriveWidgetState & st : m_driveWidgetState)
-        {
-            bool  doorMoving = (st.doorState == DriveWidgetState::Door::Opening ||
-                                st.doorState == DriveWidgetState::Door::Closing);
-
-            anyDriveLive = anyDriveLive                              ||
-                           st.motorOn.load    (memory_order_relaxed) ||
-                           st.diskActive.load (memory_order_relaxed);
-
-            if (doorMoving)
-            {
-                m_d3dRenderer.MarkRedrawNeeded();
-            }
-        }
-
-        // Keep presenting while any drive is live, plus the one frame after it
-        // goes idle, so the spinning/activity LED both animates through a disk
-        // load and clears afterward even when the emulator framebuffer is
-        // static (the content gate would otherwise idle before it clears).
-        if (anyDriveLive || m_anyDriveLivePrev)
-        {
-            m_d3dRenderer.MarkRedrawNeeded();
-        }
-
-        m_anyDriveLivePrev = anyDriveLive;
-
-        // //c switch strip: refresh the disk-use LED (drive activity) and the
-        // Ctrl-armed reset cue every UI frame so they track live state.
-        if (IsApple2c())
-        {
-            SyncSwitchBarState();
-        }
-
-        if (m_disk2DebugPanel != nullptr)
-        {
-            hr = m_disk2DebugPanel->RenderFrame();
-            IGNORE_RETURN_VALUE (hr, S_OK);
-        }
-        if (m_inputDebugPanel != nullptr)
-        {
-            hr = m_inputDebugPanel->RenderFrame();
-            IGNORE_RETURN_VALUE (hr, S_OK);
-        }
-        if (m_mainMenu.IsOpen())
-        {
-            m_d3dRenderer.MarkRedrawNeeded();
-        }
-
-        // While the modeless Settings sheet is open, force a present every UI
-        // frame so live Display edits (brightness / contrast / scanlines / text
-        // color) reflect in the emulator instantly. The retired SettingsWindow
-        // was rendered inline in this loop each frame, which coupled the
-        // emulator's present cadence to the settings edits; the standalone
-        // sheet decoupled it, so between framebuffer changes (e.g. a cursor
-        // blink) a CRT-param edit would otherwise wait for the next
-        // NeedsPresent trigger and appear laggy.
-        if (m_settingsSheet != nullptr)
-        {
-            m_d3dRenderer.MarkRedrawNeeded();
-        }
-
-        // Drive the joystick-button + //c switch-strip tooltip dwell timers;
-        // each shows / hides its popup once the open / close delay elapses
-        // after a hover.
-        {
-            int64_t  nowMs = (int64_t) std::chrono::duration_cast<std::chrono::milliseconds> (
-                                 std::chrono::steady_clock::now().time_since_epoch()).count();
-
-            m_joystickTooltip.Tick (nowMs);
-            m_switchBarTooltip.Tick (nowMs);
-            m_driveTooltip.Tick    (nowMs);
-        }
-        if (!m_d3dRenderer.NeedsPresent (fbDirtyThisFrame))
+        // One UI render cycle (framebuffer latch + chrome + printer preview /
+        // audio + present). PumpUiFrame is ALSO driven off a WM_TIMER during an
+        // OS modal move / size loop (OnModalLoopTick) so the preview + printer
+        // sound keep running while the user holds the title bar. When nothing
+        // needs presenting, WaitForFrameOrMessage parks the thread until a frame
+        // event or a message arrives instead of spin-sleeping.
+        if (!PumpUiFrame())
         {
             WaitForFrameOrMessage();
-            continue;
         }
-
-        // Drive the host paint pump for this frame. Stage the emulator
-        // framebuffer for the before-present hook, then request a
-        // synchronous WM_PAINT: the host clears, the hook composites the
-        // framebuffer, the chrome paints on top, and the host presents.
-        m_pendingFramebuffer = fbDirtyThisFrame ? m_uiFramebuffer.data() : nullptr;
-        InvalidateRect (m_hwnd, nullptr, FALSE);
-        UpdateWindow   (m_hwnd);
     }
 
     m_cpuManager.Stop();
@@ -3675,6 +4021,195 @@ int EmulatorShell::RunMessageLoop()
 Error:
     DestroyFrameReadyEvent();
     return 0;
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PumpUiFrame
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool EmulatorShell::PumpUiFrame()
+{
+    HRESULT  hr = S_OK;
+
+    // Copy latest framebuffer under lock, then present with vsync
+    bool  fbDirtyThisFrame = false;
+    {
+        lock_guard<mutex> lock (m_fbMutex);
+
+        if (m_fbReady)
+        {
+            m_fbReady        = false;
+            fbDirtyThisFrame = true;
+        }
+    }
+
+    // / FR-038. Push the latest CRT params (brightness slider,
+    // scanlines/bloom/color-bleed toggles + magnitudes) to the
+    // renderer every UI frame so user edits land on the very next
+    // present. The active theme's `crtDefaults` only apply when the
+    // user hasn't customised anything yet (see MakeCrtParams).
+    {
+        const ThemeCrtDefaults *  themeDefaults = nullptr;
+        if (m_themeManager != nullptr)
+        {
+            const LoadedTheme *  active = m_themeManager->GetActiveTheme();
+            if (active != nullptr)
+            {
+                themeDefaults = &active->crtDefaults;
+            }
+        }
+        CrtParams  params = MakeCrtParams (m_globalPrefs.crtByMode[(int) m_colorMode.load(std::memory_order_acquire)],
+                                           (size_t) m_colorMode.load(std::memory_order_acquire),
+                                           themeDefaults,
+                                           (float) m_d3dRenderer.GetBackBufferWidth(),
+                                           (float) m_d3dRenderer.GetBackBufferHeight());
+        m_d3dRenderer.SetCrtParams (params);
+    }
+
+    // Skip the entire upload + 9-pass post-process when neither the
+    // emulator framebuffer nor any CRT param changed (and the
+    // persistence trail isn't still decaying). Saves ~20%% GPU at a
+    // BASIC prompt. PeekMessage above still drains messages; the
+    // brief sleep keeps this thread from spinning.
+    //
+    // FORCE PRESENT when the nav layer has an open menu so menu
+    // hover / open / close transitions paint. Without this, a
+    // paused machine produces no fb changes -> no Present -> menus
+    // open in state-only and never repaint, looking dead.
+    // Per-UI-frame chrome upkeep that used to live in the after-blit
+    // hook: advance drive-door animations and force a present while a
+    // door is mid-transition so the chrome keeps repainting even when
+    // the emulator framebuffer is static.
+    if (m_diskManager != nullptr)
+    {
+        m_diskManager->UpdateDriveWidgets();
+    }
+    bool  anyDriveLive = false;
+
+    for (const DriveWidgetState & st : m_driveWidgetState)
+    {
+        bool  doorMoving = (st.doorState == DriveWidgetState::Door::Opening ||
+                            st.doorState == DriveWidgetState::Door::Closing);
+
+        anyDriveLive = anyDriveLive                              ||
+                       st.motorOn.load    (memory_order_relaxed) ||
+                       st.diskActive.load (memory_order_relaxed);
+
+        if (doorMoving)
+        {
+            m_d3dRenderer.MarkRedrawNeeded();
+        }
+    }
+
+    // Keep presenting while any drive is live, plus the one frame after it goes
+    // idle, so the spinning / activity LED both animates through a disk load and
+    // clears afterward even when the emulator framebuffer is static (the content
+    // gate would otherwise idle before it clears).
+    if (anyDriveLive || m_anyDriveLivePrev)
+    {
+        m_d3dRenderer.MarkRedrawNeeded();
+    }
+
+    m_anyDriveLivePrev = anyDriveLive;
+
+    // //c switch strip: refresh the disk-use LED (drive activity) and the
+    // Ctrl-armed reset cue every UI frame so they track live state.
+    if (IsApple2c())
+    {
+        SyncSwitchBarState();
+    }
+
+    if (m_disk2DebugPanel != nullptr)
+    {
+        hr = m_disk2DebugPanel->RenderFrame();
+        IGNORE_RETURN_VALUE (hr, S_OK);
+    }
+    if (m_inputDebugPanel != nullptr)
+    {
+        hr = m_inputDebugPanel->RenderFrame();
+        IGNORE_RETURN_VALUE (hr, S_OK);
+    }
+    if (m_printerPanel != nullptr)
+    {
+        IGNORE_RETURN_VALUE (hr, m_printerPanel->RenderFrame());
+    }
+    if (m_mainMenu.IsOpen())
+    {
+        m_d3dRenderer.MarkRedrawNeeded();
+    }
+
+    // While the modeless Settings sheet is open, force a present every UI
+    // frame so live Display edits (brightness / contrast / scanlines / text
+    // color) reflect in the emulator instantly. The retired SettingsWindow
+    // was rendered inline in this loop each frame, which coupled the
+    // emulator's present cadence to the settings edits; the standalone
+    // sheet decoupled it, so between framebuffer changes (e.g. a cursor
+    // blink) a CRT-param edit would otherwise wait for the next
+    // NeedsPresent trigger and appear laggy.
+    if (m_settingsSheet != nullptr)
+    {
+        m_d3dRenderer.MarkRedrawNeeded();
+    }
+
+    // Drive the chrome tooltip dwell timers (joystick button, toolbar,
+    // //c switch strip, drive widgets); each shows / hides its popup once
+    // the open / close delay elapses after a hover.
+    {
+        int64_t  nowMs = (int64_t) std::chrono::duration_cast<std::chrono::milliseconds> (
+                             std::chrono::steady_clock::now().time_since_epoch()).count();
+
+        m_joystickTooltip.Tick  (nowMs);
+        m_toolbarTooltip.Tick   (nowMs);
+        m_switchBarTooltip.Tick (nowMs);
+        m_driveTooltip.Tick     (nowMs);
+    }
+
+    // Refresh the printer status LED; marks a redraw itself on a change so
+    // a static screen (e.g. a pending page at the BASIC prompt) repaints.
+    UpdatePrinterStatus ();
+
+    // Auto-open the print preview when a print begins and stream the strip
+    // into it live as the guest prints (non-destructive snapshot).
+    UpdatePrinterPreview ();
+
+    if (!m_d3dRenderer.NeedsPresent (fbDirtyThisFrame))
+    {
+        return false;
+    }
+
+    // Drive the host paint pump for this frame. Stage the emulator
+    // framebuffer for the before-present hook, then request a
+    // synchronous WM_PAINT: the host clears, the hook composites the
+    // framebuffer, the chrome paints on top, and the host presents.
+    m_pendingFramebuffer = fbDirtyThisFrame ? m_uiFramebuffer.data() : nullptr;
+    InvalidateRect (m_hwnd, nullptr, FALSE);
+    UpdateWindow   (m_hwnd);
+    return true;
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnModalLoopTick
+//
+//  Called by the host on its keep-alive timer WHILE the OS runs a modal move /
+//  size loop (a title-bar hold or resize-edge drag). RunMessageLoop is not
+//  iterating during that loop, so without this the live printer preview freezes
+//  and its paced audio falls silent (the reveal stops advancing) until the drag
+//  ends -- then it jumps. The host owns the timer; we just render one frame.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::OnModalLoopTick()
+{
+    PumpUiFrame();
 }
 
 
@@ -3722,6 +4257,17 @@ void EmulatorShell::OnCpuThreadStart()
 
         HRESULT  hrLoad = m_driveAudioMixer.SetMechanism (m_driveAudioMixer.GetMechanism());
         IGNORE_RETURN_VALUE (hrLoad, S_OK);
+    }
+
+    // Load the ImageWriter mechanical sound set (embedded CC BY 4.0 grains that
+    // EnsureImageWriterSounds extracted to the asset base). Decodes MP3 via the
+    // same Media Foundation path as the Disk II WAVs; a missing grain is silent.
+    if (m_wasapiAudio.IsInitialized())
+    {
+        fs::path  soundsDir = AssetBootstrap::GetAssetBaseDirectory() / L"ImageWriter II Sounds";
+        HRESULT   hrSnd     = m_printerAudio.LoadSounds (soundsDir.wstring().c_str(),
+                                                         m_wasapiAudio.GetSampleRate());
+        IGNORE_RETURN_VALUE (hrSnd, S_OK);
     }
 
     // The initial machine is built before WASAPI comes up, so its PSGs
@@ -4606,6 +5152,11 @@ void EmulatorShell::RenderFramebuffer()
         if (forceFullText)
         {
             static_cast<AppleTextMode *> (m_videoModes[0].get())->InvalidateCache();
+
+            if (m_videoModes.size() > 4)
+            {
+                static_cast<Apple80ColTextMode *> (m_videoModes[4].get())->InvalidateCache();
+            }
         }
     }
     m_prevActiveVideoMode = m_refs.activeVideoMode;
@@ -4755,6 +5306,26 @@ void EmulatorShell::OnDestroy ()
     // RevokeDragDrop requires a valid window handle.
     m_dragDropTarget.Shutdown();
 
+    // Join the printer drain thread before teardown frees the card.
+    m_printerWorker.Stop ();
+
+    // Persist the pending strip on clean exit (FR-026); empty clears any stale
+    // sidecar. Loss on abnormal termination is acceptable per the spec.
+    if (!m_currentMachineName.empty ())
+    {
+        PrinterJob *   printJob = m_printerWorker.Job ();
+
+        if (printJob != nullptr && printJob->HasContent ())
+        {
+            HRESULT   hrSave = PrintJobStore::Save (PendingPrintDir (), printJob->Raster ());
+            IGNORE_RETURN_VALUE (hrSave, S_OK);
+        }
+        else
+        {
+            PrintJobStore::Clear (PendingPrintDir ());
+        }
+    }
+
     m_cpuManager.Stop();
 
     // IDxuiHostClient::OnDestroy is notification-only — the host
@@ -4840,6 +5411,26 @@ DxuiMessageResult EmulatorShell::OnMouseMove (WPARAM wParam, LPARAM lParam)
         m_joystickTooltip.RequestHide (nowMs);
     }
 
+    // Command toolbar hover / slider drag (DCR-2). In icon-only mode the
+    // hovered button's label surfaces as a tooltip (no labels on the strip).
+    if (m_toolbar.OnToolbarMouseMove (x, y, leftDown))
+    {
+        m_d3dRenderer.MarkRedrawNeeded ();
+    }
+    {
+        RECT             anchor = {};
+        const wchar_t *  tip    = m_toolbar.TooltipAt (x, y, anchor);
+
+        if (tip != nullptr)
+        {
+            m_toolbarTooltip.RequestShow (anchor, tip, nowMs);
+        }
+        else
+        {
+            m_toolbarTooltip.RequestHide (nowMs);
+        }
+    }
+
     // //c switch strip: hover state and a per-part tooltip (reset / 80/40 /
     // keyboard). Inert on non-//c machines (hidden).
     if (IsApple2c())
@@ -4907,6 +5498,8 @@ DxuiMessageResult EmulatorShell::OnMouseLeave ()
     m_joystickButton.SetHovered (false);
     m_joystickButton.SetPressed (false);
     m_joystickTooltip.RequestHide (nowMs);
+    m_toolbar.OnToolbarMouseLeave ();
+    m_toolbarTooltip.RequestHide (nowMs);
     m_driveTooltip.RequestHide (nowMs);
 
     m_switchBar.SetHovered     (false);
@@ -5102,6 +5695,12 @@ DxuiMessageResult EmulatorShell::OnLButtonDown (WPARAM wParam, LPARAM lParam)
 
     m_joystickButton.SetPressed (m_joystickButton.HitTest (x, y));
 
+    // Command toolbar press (button press states + slider drag start).
+    if (m_toolbar.OnToolbarLButtonDown (x, y))
+    {
+        m_d3dRenderer.MarkRedrawNeeded ();
+    }
+
     if (IsApple2c())
     {
         m_switchBar.SetPressedPart (m_switchBar.PartAt (x, y));
@@ -5158,6 +5757,13 @@ DxuiMessageResult EmulatorShell::OnLButtonUp (WPARAM wParam, LPARAM lParam)
 
     ReleaseCapture();
     m_joystickButton.SetPressed (false);
+
+    // Command toolbar release: click dispatch / mute toggle / slider drop.
+    if (m_toolbar.OnToolbarLButtonUp (x, y))
+    {
+        m_d3dRenderer.MarkRedrawNeeded ();
+        return DxuiMessageResult::NotHandled;
+    }
 
     // //c switch strip: latch the switch / fire the (Ctrl-gated) reset on
     // release over a part. Captured before the pressed-part is cleared.
@@ -5225,6 +5831,9 @@ DxuiMessageResult EmulatorShell::OnLButtonUp (WPARAM wParam, LPARAM lParam)
             return DxuiMessageResult::NotHandled;
         }
     }
+
+    // (The standalone printer indicator's click-to-open is retired: the
+    // toolbar's Printer button dispatches IDM_PRINTER_PREVIEW instead, DCR-2.)
 
     // A bare left-click on the emulator screen (no chrome / widget / drive
     // hit) in Paddle mode re-grabs the pointer after an Esc release.
@@ -5331,7 +5940,35 @@ DxuiMessageResult EmulatorShell::OnActivateApp (bool active)
 DxuiMessageResult EmulatorShell::OnKillFocus ()
 {
     StopPaddleCapture();
+
+    // Losing keyboard focus means the matching WM_KEYUPs will never arrive
+    // here -- whatever window took focus gets them. Release the guest keyboard
+    // latch, its armed auto-repeat, and the modifier states, so a key held
+    // across a focus change (Enter while a window pops up, Alt-Tab mid-key)
+    // can never leave the emulated key repeating forever.
+    ReleaseGuestKeys();
     return DxuiMessageResult::NotHandled;
+}
+
+
+
+
+void EmulatorShell::ReleaseGuestKeys ()
+{
+    auto *  iieKbd = dynamic_cast<Apple2eKeyboard *> (m_refs.keyboard);
+
+    if (m_refs.keyboard != nullptr)
+    {
+        m_refs.keyboard->SetKeyDown (false);
+        m_refs.keyboard->BeginKeyRepeat (0);
+    }
+
+    if (iieKbd != nullptr)
+    {
+        iieKbd->SetOpenApple   (false);
+        iieKbd->SetClosedApple (false);
+        iieKbd->SetShift       (false);
+    }
 }
 
 
@@ -5672,7 +6309,6 @@ DxuiMessageResult EmulatorShell::OnKeyDown (WPARAM vk, LPARAM lParam)
 Error:
     return DxuiMessageResult::Handled;
 }
-
 
 
 
@@ -6022,10 +6658,20 @@ void EmulatorShell::UpdateJoystickButtonsFromKeys()
 
     BAIL_OUT_IF (iieKbd == nullptr && gamePort == nullptr, S_OK);
 
-    button0 = (GetAsyncKeyState (static_cast<int> (s_kJoystickButton0Vk)) & 0x8000) != 0 ||
-              (GetKeyState      (VK_LMENU)                                & 0x8000) != 0;
-    button1 = (GetAsyncKeyState (static_cast<int> (s_kJoystickButton1Vk)) & 0x8000) != 0 ||
-              (GetKeyState      (VK_RMENU)                                & 0x8000) != 0;
+    // Only read the physical keys while WE are the foreground app. The async
+    // key state is global, so a held Alt during the Alt-Tab switcher (or any
+    // time another app is active) would otherwise keep re-pressing Open-Apple /
+    // button 0 in the guest every frame -- e.g. re-triggering a Print Shop
+    // print on the way out. Foreground reads normally (no added latency); not
+    // foreground leaves the buttons released. Matches the input gate used
+    // elsewhere (GetForegroundWindow () != m_hwnd).
+    if (GetForegroundWindow () == m_hwnd)
+    {
+        button0 = (GetAsyncKeyState (static_cast<int> (s_kJoystickButton0Vk)) & 0x8000) != 0 ||
+                  (GetKeyState      (VK_LMENU)                                & 0x8000) != 0;
+        button1 = (GetAsyncKeyState (static_cast<int> (s_kJoystickButton1Vk)) & 0x8000) != 0 ||
+                  (GetKeyState      (VK_RMENU)                                & 0x8000) != 0;
+    }
 
     if (iieKbd != nullptr)
     {
@@ -6155,8 +6801,10 @@ void EmulatorShell::SetArrowsJoystick (bool on)
 
     if (iieKbd != nullptr)
     {
-        iieKbd->SetOpenApple   ((GetKeyState (VK_LMENU) & 0x8000) != 0);
-        iieKbd->SetClosedApple ((GetKeyState (VK_RMENU) & 0x8000) != 0);
+        bool  fg = (GetForegroundWindow () == m_hwnd);   // never latch Alt-as-Open-Apple while backgrounded
+
+        iieKbd->SetOpenApple   (fg && (GetKeyState (VK_LMENU) & 0x8000) != 0);
+        iieKbd->SetClosedApple (fg && (GetKeyState (VK_RMENU) & 0x8000) != 0);
     }
 }
 
@@ -6297,6 +6945,15 @@ void EmulatorShell::ApplyDefaultPointerForMachine()
     if (m_mouse != nullptr && m_mouseConnected
         && m_pointerMode == InputMappingMode::Off)
     {
+        // State only -- NO chrome work here. This runs on the CPU thread
+        // during SwitchMachine, and the selector sync / joystick-button
+        // relayout measure text through the Dxui renderer, which is
+        // UI-thread-only (DxuiAssertUiThread fired on a //c -> //e switch).
+        // Both paths already relayout on the UI thread afterwards: a machine
+        // switch posts WM_APP_DXUI_UPDATE_TITLE, whose handler runs
+        // ReflowChromeForMachineChange -> OnSize -> LayoutJoystickButton
+        // (which SyncSelectorState()s itself), and the launch path lays out
+        // the chrome later in Initialize.
         m_pointerMode = InputMappingMode::Mouse;
 
         // SyncSelectorState / RelayoutJoystickButton touch Dxui (text
@@ -6900,6 +7557,27 @@ LRESULT EmulatorShell::OnDrawItem (HWND hwnd, UINT msg, WPARAM wParam, LPARAM lP
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  OnTimer
+//
+//  Periodic refresh of the drive-activity indicators. Motor on/off and
+//  drive-select events are bursty (millisecond timescales); a 50 ms
+//  refresh is plenty for visible activity feedback without consuming
+//  noticeable UI cycles.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiMessageResult EmulatorShell::OnTimer (UINT_PTR timerId)
+{
+    UNREFERENCED_PARAMETER (timerId);
+
+    return DxuiMessageResult::NotHandled;
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  UpdateWindowTitle
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -6934,22 +7612,55 @@ void EmulatorShell::UpdateWindowTitle()
         title += wideName;
     }
 
+    // Flag a paused / stopped emulator in every build -- that state is worth
+    // surfacing. The normal running state stays implicit so the retail caption
+    // reads a clean "Casso - <machine>".
     if (m_cpuManager.IsPaused())
     {
         title += L" [Paused]";
     }
-    else if (m_cpuManager.IsRunning())
-    {
-        title += L" [Running]";
-    }
-    else
+    else if (!m_cpuManager.IsRunning())
     {
         title += L" [Stopped]";
     }
+#if defined (_DEBUG)
+    // Dev builds also tag the running state and stamp the exact binary identity
+    // (version, arch, flavor, compile timestamp), so a running window is never
+    // mistaken for a stale rebuild.
+    else
+    {
+        title += L" [Running]";
+    }
+
+    title += L"  \x2014  ";
+    title += CassoBuildInfo ();
+#endif
 
     m_host->SetTitle (title);
 }
 
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PrinterBannerMessage
+//
+//  One-line printer summary for the Settings > Printing info banner. The
+//  machine-can-print fact comes from the config's enabled slots (core, tested);
+//  the wording is host UI copy. //c is slotless, so it reads as no printer.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring EmulatorShell::PrinterBannerMessage () const
+{
+    if (m_config.HasEnabledSlotDevice ("parallel-printer"))
+    {
+        return L"Emulating an Apple ImageWriter II connected via parallel interface.";
+    }
+
+    return L"No printer is connected to this " + fs::path (m_config.name).wstring() + L".";
+}
 
 
 
@@ -7347,6 +8058,8 @@ void EmulatorShell::OpenDisk2DebugDialog()
                                          &m_chromeTheme);
         CHRF (hr, m_disk2DebugPanel.reset());
 
+        ApplyAppIconToWindow (m_disk2DebugPanel->Hwnd());
+
         m_disk2DebugPanel->SetUptimeAnchor (m_uptimeAnchor);
         m_disk2DebugPanel->SetMultiControllerHint (Disk2Count > 1);
 
@@ -7407,6 +8120,8 @@ void EmulatorShell::OpenInputDebugDialog()
                                          m_d3dRenderer.GetContext(),
                                          &m_chromeTheme);
         CHRF (hr, m_inputDebugPanel.reset());
+
+        ApplyAppIconToWindow (m_inputDebugPanel->Hwnd());
 
         m_inputDebugPanel->SetUptimeAnchor (m_uptimeAnchor);
 

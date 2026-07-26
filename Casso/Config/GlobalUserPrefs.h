@@ -128,6 +128,32 @@ struct GlobalUserPrefs
     // so every recent disk starts with an unknown (0) load time.
     std::vector<std::int64_t>  recentDiskLoadedAt;
 
+    // Host print-service preferences (Settings > Printing, FR-011). Global --
+    // host print services are shared by every machine. The delivery
+    // destination is no longer a stored preference: Print always targets a
+    // Windows printer and Save always writes a PNG through the file dialog
+    // (default folder <Pictures>\Casso Prints). Dot style is stored as the
+    // contract's string token (like audioDownloadConsent).
+    int          printOutputDpi   = 576;          // 288 | 576 (FR-028)
+    std::string  printDotStyle    = "ink";        // "ink" | "plain" (FR-027)
+
+    // ImageWriter II mechanical-sound preferences (Settings > Printing audio,
+    // FR-034). `enabled` is the printer-sound master toggle (on by default);
+    // when off the printer bus is silent (the shared "Drive Audio" master
+    // enable still gates it above this). Volume 0..1 (default matches
+    // PrinterAudioSource::kDefaultVolume). By default the sound auto-pans to
+    // follow the preview window; panOverride pins a fixed pan (-1 left .. +1).
+    bool         printerAudioEnabled      = true;
+    float        printerAudioVolume       = 0.80f;
+    bool         printerAudioPanOverride  = false;
+    float        printerAudioPan          = 0.0f;   // -1 .. +1, used when override is on
+
+    // Master output volume (the chrome toolbar's slider + mute): one gain over
+    // the completed audio mix, so speaker, drives, printer, and Mockingboard
+    // scale together. Mute keeps the slider value; the mix just gets gain 0.
+    float        masterVolume             = 1.0f;   // 0 .. 1
+    bool         masterMuted              = false;
+
     // Unknown JSON keys round-trip back to disk untouched.
     std::vector<std::pair<std::string, JsonValue>>  unknownPassthrough;
 

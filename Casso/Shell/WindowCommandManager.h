@@ -2,6 +2,8 @@
 
 #include "Pch.h"
 
+#include "ModernPrintDialog.h"
+
 
 class EmulatorShell;
 
@@ -37,6 +39,7 @@ public:
     void  OnMachineCommand     (int id);
     void  OnViewCommand        (int id);
     void  OnDiskCommand        (int id);
+    void  OnPrinterCommand     (int id);
     void  OnHelpCommand        (int id);
     void  OnExternalDriveCommand (int id);
     void  OnMouseConnectCommand  (int id);
@@ -47,5 +50,29 @@ public:
     HRESULT  PromptInsertDiskMru  (int drive);
 
 private:
+    // Renders the strip to a PNG the user picks through IFileSaveDialog
+    // (defaulting to <Pictures>\Casso Prints and a timestamped name), at the
+    // configured dpi / dot style. Returns S_FALSE when the dialog is
+    // cancelled.
+    HRESULT  SavePrintoutAs (const class PrintRaster & raster, fs::path & outFile);
+
+    // Delivers the strip to a Windows printer via the standard print dialog:
+    // paginates (PrintPagination) and StretchDIBits each page's rendered span.
+    // Returns S_FALSE if the user cancels the dialog. Pure Win32 GDI edge.
+    HRESULT  PrintToWindowsPrinter (const class PrintRaster & raster, std::wstring & failedStage);
+
+    // Result dialog for the async modern print session (posted back as
+    // IDM_PRINTER_MODERN_SENT / _FAILED from its completion callback).
+    void     OnModernPrintResult   (bool succeeded);
+
+    // Copies the strip to the clipboard as a bitmap (CF_DIB) and, when it fits,
+    // a registered "PNG" blob, at the configured dpi / dot style. Does not
+    // consume the strip. Pure Win32 clipboard edge (render/encode are core).
+    HRESULT  CopyPrintoutToClipboard (const class PrintRaster & raster);
+
     EmulatorShell &  m_shell;
+
+    // The modern OS print dialog with live preview (DCR-1); falls back to the
+    // classic PrintDlg path when it cannot launch.
+    ModernPrintDialog  m_modernPrint;
 };

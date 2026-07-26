@@ -247,11 +247,19 @@ static const MachineConfigPriorHash s_kPriorDefaultHashes[] =
     // v6 Apple2Plus.json (before adding apple2-gameport device).
     { "Apple2Plus", "a8796968d56185daf6a03bdebebdecc776dfc004003447a78f0bcc5dafaac3e1" },
 
-    // v6 Apple2e.json (master, before the slot-4 Mockingboard).
+    // v6 Apple2e.json (before the slot-4 Mockingboard / slot-1 printer).
     { "Apple2e",    "8593a47d87db9090ce001e439fea318854bdc6b255fa328f8ac2dabee1eb9f63" },
 
     // v7 Apple2Plus.json (master, before the slot-4 Mockingboard).
     { "Apple2Plus", "99824c2f34e40c9411d46d17c5a34d78b1bbd2a29e4487fc0326457b18986236" },
+
+    // v7 Apple2e.json (master Mockingboard slot 4; superseded by v8, which
+    // carries both the Mockingboard and the slot-1 parallel printer).
+    { "Apple2e",    "294312b9acc832c022b14c9d2e38946b13f7baab9d149760f79a8ee75ec3178a" },
+
+    // v8 Apple2Plus.json (master Mockingboard slot 4; superseded by v9, which
+    // carries both the Mockingboard and the slot-1 parallel printer).
+    { "Apple2Plus", "c3b3222ddfd2c08b65afb80ece15fa5fee87fa487e5e3f4ed661931ba323a9c4" },
 };
 
 
@@ -568,6 +576,7 @@ HRESULT AssetBootstrap::EnsureMachineConfigs (
         bool                          diskExists      = false;
         string                        diskContent;
         string                        diskHashHex;
+        string                        embeddedHashHex;
         MachineConfigUpgradeAction    action          = MachineConfigUpgradeAction::Skip;
 
 
@@ -593,9 +602,29 @@ HRESULT AssetBootstrap::EnsureMachineConfigs (
             diskHashHex = MachineConfigUpgrade::BytesToHex (diskHash);
         }
 
+        // Digest of THIS build's embedded default: version stamps can
+        // collide across feature branches, so Plan treats content
+        // equality (not the stamp) as the up-to-date test.
+        bytes = ExtractResource (hInstance, cfg.resourceId);
+
+        if (bytes.empty())
+        {
+            hr = E_FAIL;
+            continue;
+        }
+
+        {
+            string              embeddedContent (reinterpret_cast<const char *> (bytes.data()), bytes.size());
+            array<uint8_t, 32>  embeddedHash =
+                ComputeSha256 (MachineConfigUpgrade::NormalizeBytes (embeddedContent));
+
+            embeddedHashHex = MachineConfigUpgrade::BytesToHex (embeddedHash);
+        }
+
         action = MachineConfigUpgrade::Plan (
             cfg.machineName,
             cfg.currentVersion,
+            embeddedHashHex,
             diskExists ? &diskContent : nullptr,
             diskHashHex,
             span<const MachineConfigPriorHash> (s_kPriorDefaultHashes));
@@ -617,14 +646,6 @@ HRESULT AssetBootstrap::EnsureMachineConfigs (
                 hr = hrBak;
                 continue;
             }
-        }
-
-        bytes = ExtractResource (hInstance, cfg.resourceId);
-
-        if (bytes.empty())
-        {
-            hr = E_FAIL;
-            continue;
         }
 
         hrItem = WriteFileBytes (target, bytes);
@@ -829,6 +850,81 @@ HRESULT AssetBootstrap::EnsureThemes (
             {
                 hr = hrItem;
             }
+        }
+    }
+
+    return hr;
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EnsureImageWriterSounds
+//
+//  Extract the embedded ImageWriter II mechanical sound grains to
+//  %LOCALAPPDATA%\Casso\ImageWriter II Sounds\ so PrinterAudioSource can decode
+//  them by path (Media Foundation needs a file). Unlike machine configs /
+//  themes there is no user-edit or versioning story: the grains are read-only
+//  assets, so a missing file is (re)written and an existing one is left alone.
+//  Best-effort throughout -- a failed write leaves that grain silent.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT AssetBootstrap::EnsureImageWriterSounds (HINSTANCE hInstance)
+{
+    struct SoundAsset { int resourceId; const wchar_t * fileName; };
+
+    static const SoundAsset  s_kSounds[] =
+    {
+        { IDR_SOUND_PRINT_DRAFT,       L"print_draft_loop.mp3"  },
+        { IDR_SOUND_PRINT_MEDIUM,      L"print_medium_loop.mp3" },
+        { IDR_SOUND_PRINT_NLQ,         L"print_nlq_loop.mp3"    },
+        { IDR_SOUND_LINE_FEED_1,       L"line_feed_01.mp3"      },
+        { IDR_SOUND_LINE_FEED_2,       L"line_feed_02.mp3"      },
+        { IDR_SOUND_LINE_FEED_3,       L"line_feed_03.mp3"      },
+        { IDR_SOUND_PAGE_FEED_SHORT,   L"page_feed_short.mp3"   },
+        { IDR_SOUND_PAGE_FEED_MEDIUM,  L"page_feed_medium.mp3"  },
+        { IDR_SOUND_PAGE_FEED_LONG,    L"page_feed_long.mp3"    },
+        { IDR_SOUND_PAPER_TEAR_1,      L"paper_tear_01.mp3"     },
+        { IDR_SOUND_PAPER_TEAR_2,      L"paper_tear_02.mp3"     },
+        { IDR_SOUND_PAPER_TEAR_3,      L"paper_tear_03.mp3"     },
+        { IDR_SOUND_PAPER_TEAR_4,      L"paper_tear_04.mp3"     },
+        { IDR_SOUND_PAPER_TEAR_5,      L"paper_tear_05.mp3"     },
+    };
+
+    HRESULT     hr        = S_OK;
+    fs::path    soundsDir;
+    error_code  ec;
+
+    soundsDir = GetAssetBaseDirectory() / L"ImageWriter II Sounds";
+    fs::create_directories (soundsDir, ec);
+
+    for (const SoundAsset & asset : s_kSounds)
+    {
+        fs::path          target = soundsDir / asset.fileName;
+        span<const Byte>  bytes;
+        HRESULT           hrItem;
+
+        if (fs::exists (target, ec))
+        {
+            continue;   // already extracted; grains are immutable
+        }
+
+        bytes = ExtractResource (hInstance, asset.resourceId);
+
+        if (bytes.empty())
+        {
+            hr = E_FAIL;   // resource missing from this build
+            continue;
+        }
+
+        hrItem = WriteFileBytes (target, bytes);
+
+        if (FAILED (hrItem))
+        {
+            hr = hrItem;
         }
     }
 

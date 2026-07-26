@@ -294,6 +294,21 @@ HRESULT WasapiAudio::SubmitFrame (
             DriveAudioMixer::MixDriveIntoSpeakerStereo (
                 stereoPtr, m_driveScratch.data(), numSamplesToGenerate);
         }
+
+        // Master volume: one gain over the completed mix so every source
+        // scales together (mute == 0). Applied at generation, not drain, so
+        // pending samples keep the gain they were produced under.
+        {
+            float  gain = m_masterGain.load (std::memory_order_relaxed);
+
+            if (gain != 1.0f)
+            {
+                for (i = 0; i < numSamplesToGenerate * 2; i++)
+                {
+                    stereoPtr[i] *= gain;
+                }
+            }
+        }
     }
 
     // Drain as many pending frames as WASAPI can accept.

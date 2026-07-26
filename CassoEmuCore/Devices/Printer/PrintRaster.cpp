@@ -1,0 +1,281 @@
+#include "Pch.h"
+
+#include "Devices/Printer/PrintRaster.h"
+
+
+
+
+static constexpr int   s_kColumns     = PrinterGrid::kDotsPerRow;
+static constexpr int   s_kPageRows    = PrinterGrid::kPageRows;
+static constexpr int   s_kMaxRows     = PrinterGrid::kMaxStripRows;
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EnsureRowAllocated
+//
+//  Grows the cell store so `row` is addressable. Growth is chunked to whole
+//  form lengths to keep striking amortised O(1).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void PrintRaster::EnsureRowAllocated (int row)
+{
+    int   neededRows = 0;
+    int   chunkRows  = 0;
+
+    if ((size_t) (row + 1) * s_kColumns <= m_cells.size())
+    {
+        return;
+    }
+
+    neededRows = row + 1;
+    chunkRows  = ((neededRows + s_kPageRows - 1) / s_kPageRows) * s_kPageRows;
+
+    m_cells.resize ((size_t) chunkRows * s_kColumns, 0);
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Strike
+//
+//  ORs an ink primary into a cell. Out-of-range columns are ignored; a row at
+//  or beyond the 60-page cap is dropped and latches CapReached.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void PrintRaster::Strike (int columnDot, int row, InkPrimary ink)
+{
+    if (columnDot < 0 || columnDot >= s_kColumns || row < 0)
+    {
+        return;
+    }
+
+    if (row >= s_kMaxRows)
+    {
+        m_capReached = true;
+        return;
+    }
+
+    EnsureRowAllocated (row);
+
+    m_cells[(size_t) row * s_kColumns + columnDot] |= (Byte) ink;
+
+    if (row + 1 > m_rowsUsed)
+    {
+        m_rowsUsed = row + 1;
+    }
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AdvanceRows
+//
+//  Feeds the paper, extending the used extent even when the advanced-over rows
+//  are never struck (blank line feeds must survive to the delivered page).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void PrintRaster::AdvanceRows (int rows)
+{
+    if (rows <= 0)
+    {
+        return;
+    }
+
+    m_paperRow += rows;
+
+    if (m_paperRow >= s_kMaxRows)
+    {
+        m_paperRow   = s_kMaxRows;
+        m_capReached = true;
+    }
+
+    if (m_paperRow > m_rowsUsed)
+    {
+        m_rowsUsed = m_paperRow;
+    }
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MarkFormFeed
+//
+//  Advances the paper to the next form-length boundary and records it so the
+//  Windows-printer path can paginate and the panel can draw perforations.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void PrintRaster::MarkFormFeed()
+{
+    int   nextTop = ((m_paperRow / s_kPageRows) + 1) * s_kPageRows;
+
+    if (nextTop >= s_kMaxRows)
+    {
+        nextTop      = s_kMaxRows;
+        m_capReached = true;
+    }
+
+    m_paperRow = nextTop;
+
+    if (m_paperRow > m_rowsUsed)
+    {
+        m_rowsUsed = m_paperRow;
+    }
+
+    m_pageBoundaryRows.push_back (nextTop);
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Clear
+//
+//  Resets to an empty strip (eject / discard delivered the old one).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void PrintRaster::Clear()
+{
+    m_cells.clear();
+    m_pageBoundaryRows.clear();
+    m_paperRow   = 0;
+    m_rowsUsed   = 0;
+    m_capReached = false;
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RestoreFromIndexed
+//
+//  Rebuilds the strip from a persisted native-grid index plane and feed state.
+//  The plane is exactly `rows` rows of s_kColumns cells; any surplus/short
+//  input is clamped to that shape so a malformed load can never over-read.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void PrintRaster::RestoreFromIndexed (int rows, const vector<Byte> & cells,
+                                      int paperRow, const vector<int> & boundaries,
+                                      bool capReached)
+{
+    size_t   need = (size_t) (rows > 0 ? rows : 0) * s_kColumns;
+    size_t   copy = need < cells.size() ? need : cells.size();
+    size_t   i    = 0;
+
+    m_cells.assign (need, 0);
+
+    for (i = 0; i < copy; i++)
+    {
+        m_cells[i] = (Byte) (cells[i] & 0x0F);
+    }
+
+    m_rowsUsed         = rows > 0 ? rows : 0;
+    m_paperRow         = paperRow;
+    m_pageBoundaryRows = boundaries;
+    m_capReached       = capReached;
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CopyRowSpan
+//
+//  Rebased bounded copy for the live preview: out's row 0 is this strip's
+//  firstRow. Rows past the allocated store are blank (all paper white), so a
+//  span reaching into advanced-but-unstruck paper copies zeros, not garbage.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void PrintRaster::CopyRowSpan (int firstRow, int lastRow, PrintRaster & out) const
+{
+    int      spanRows  = 0;
+    size_t   available = m_cells.size() / s_kColumns;
+
+    out.Clear();
+
+    if (firstRow < 0)
+    {
+        firstRow = 0;
+    }
+    if (lastRow >= m_rowsUsed)
+    {
+        lastRow = m_rowsUsed - 1;
+    }
+    if (lastRow < firstRow)
+    {
+        return;
+    }
+
+    spanRows = lastRow - firstRow + 1;
+
+    out.m_cells.assign ((size_t) spanRows * s_kColumns, 0);
+
+    for (int row = firstRow; row <= lastRow; row++)
+    {
+        if ((size_t) row >= available)
+        {
+            break;   // beyond the allocated store: rest of the span is blank
+        }
+
+        memcpy (&out.m_cells[(size_t) (row - firstRow) * s_kColumns],
+                &m_cells[(size_t) row * s_kColumns],
+                s_kColumns);
+    }
+
+    out.m_rowsUsed = spanRows;
+    out.m_paperRow = spanRows;
+
+    for (int boundary : m_pageBoundaryRows)
+    {
+        if (boundary > firstRow && boundary <= lastRow + 1)
+        {
+            out.m_pageBoundaryRows.push_back (boundary - firstRow);
+        }
+    }
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CellAt
+//
+////////////////////////////////////////////////////////////////////////////////
+
+Byte PrintRaster::CellAt (int columnDot, int row) const
+{
+    size_t   index = 0;
+
+    if (columnDot < 0 || columnDot >= s_kColumns || row < 0)
+    {
+        return 0;
+    }
+
+    index = (size_t) row * s_kColumns + columnDot;
+
+    if (index >= m_cells.size())
+    {
+        return 0;
+    }
+
+    return m_cells[index];
+}

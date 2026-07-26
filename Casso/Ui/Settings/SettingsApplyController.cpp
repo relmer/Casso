@@ -205,6 +205,17 @@ void SettingsApplyController::SnapshotBaselines ()
     // applied yet at Show time.
     m_baselineTheme    = (m_prefs != nullptr) ? m_prefs->activeTheme : std::string();
     m_themeAppliedLive = false;
+
+    // Printing prefs baseline (global host-service prefs) for Cancel / save.
+    if (m_prefs != nullptr)
+    {
+        m_baselinePrintOutputDpi   = m_prefs->printOutputDpi;
+        m_baselinePrintDotStyle    = m_prefs->printDotStyle;
+        m_baselinePrinterAudioEnabled     = m_prefs->printerAudioEnabled;
+        m_baselinePrinterAudioVolume      = m_prefs->printerAudioVolume;
+        m_baselinePrinterAudioPanOverride = m_prefs->printerAudioPanOverride;
+        m_baselinePrinterAudioPan         = m_prefs->printerAudioPan;
+    }
 }
 
 
@@ -396,8 +407,17 @@ void SettingsApplyController::CommitApply ()
     // whole file atomically.
     if (m_prefs != nullptr)
     {
-        bool    anyCrtChanged = false;
-        size_t  i             = 0;
+        bool    anyCrtChanged   = false;
+        bool    anyPrintChanged = false;
+        size_t  i               = 0;
+
+        anyPrintChanged =
+            m_prefs->printOutputDpi          != m_baselinePrintOutputDpi          ||
+            m_prefs->printDotStyle           != m_baselinePrintDotStyle           ||
+            m_prefs->printerAudioEnabled     != m_baselinePrinterAudioEnabled     ||
+            m_prefs->printerAudioVolume      != m_baselinePrinterAudioVolume      ||
+            m_prefs->printerAudioPanOverride != m_baselinePrinterAudioPanOverride ||
+            m_prefs->printerAudioPan         != m_baselinePrinterAudioPan;
 
         for (i = 0; i < GlobalUserPrefs::kCrtModeCount; i++)
         {
@@ -421,7 +441,7 @@ void SettingsApplyController::CommitApply ()
             }
         }
 
-        if (anyCrtChanged)
+        if (anyCrtChanged || anyPrintChanged)
         {
             HRESULT  hrSave = S_OK;
 
@@ -443,6 +463,13 @@ void SettingsApplyController::CommitApply ()
         {
             m_baselineCrt[i] = m_prefs->crtByMode[i];
         }
+
+        m_baselinePrintOutputDpi   = m_prefs->printOutputDpi;
+        m_baselinePrintDotStyle    = m_prefs->printDotStyle;
+        m_baselinePrinterAudioEnabled     = m_prefs->printerAudioEnabled;
+        m_baselinePrinterAudioVolume      = m_prefs->printerAudioVolume;
+        m_baselinePrinterAudioPanOverride = m_prefs->printerAudioPanOverride;
+        m_baselinePrinterAudioPan         = m_prefs->printerAudioPan;
     }
     m_baselineColorMode = (int) m_state->Prefs().colorMode;
 
@@ -523,6 +550,15 @@ void SettingsApplyController::Cancel (SettingsPreviewController & preview)
         {
             m_prefs->crtByMode[i] = m_baselineCrt[i];
         }
+
+        // Revert Printing edits (no live effect; they only bind at the next
+        // delivery / printer sound, so this simply un-does the staged writes).
+        m_prefs->printOutputDpi   = m_baselinePrintOutputDpi;
+        m_prefs->printDotStyle    = m_baselinePrintDotStyle;
+        m_prefs->printerAudioEnabled     = m_baselinePrinterAudioEnabled;
+        m_prefs->printerAudioVolume      = m_baselinePrinterAudioVolume;
+        m_prefs->printerAudioPanOverride = m_baselinePrinterAudioPanOverride;
+        m_prefs->printerAudioPan         = m_baselinePrinterAudioPan;
     }
     if (m_emuShell != nullptr && m_baselineColorMode >= 0)
     {

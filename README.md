@@ -19,13 +19,13 @@ Two of the three built-in themes booting the [casso-rocks demo disk](Apple2/Demo
 
 The project includes:
 
-- **Apple II platform emulator** — GUI-based Apple II, II+, //e, //e Enhanced, and //c emulator with D3D11 rendering, WASAPI audio, Disk II controller with realistic mechanical sounds, Mockingboard sound card (dual 6522 VIA + AY-3-8910 PSG), analog game I/O (joystick/paddle via the PREAD timer), data-driven machine configs, 80-column text + Double Hi-Res, auxiliary RAM, audit-correct Language Card state machine, and cycle-accurate IRQ/NMI infrastructure.
+- **Apple II platform emulator** — GUI-based Apple II, II+, //e, //e Enhanced, and //c emulator with D3D11 rendering, WASAPI audio, Disk II controller with realistic mechanical sounds, Mockingboard sound card (dual 6522 VIA + AY-3-8910 PSG), an emulated ImageWriter II printer (parallel card, real-3D live preview with mechanical audio, PNG / clipboard / Windows-print delivery with print preview), analog game I/O (joystick/paddle via the PREAD timer), data-driven machine configs, 80-column text + Double Hi-Res, auxiliary RAM, audit-correct Language Card state machine, and cycle-accurate IRQ/NMI infrastructure.
 - **6502 CPU emulator** — passes [Klaus Dormann's functional test suite](https://github.com/Klaus2m5/6502_65C02_functional_tests) and [Tom Harte's SingleStepTests](https://github.com/SingleStepTests/ProcessorTests) for all 151 legal opcodes plus the stable undocumented NMOS opcodes (SAX, LAX, DCP, ISC, SLO, RLA, SRE, RRA and the NOP family) — 10,000 vectors each.
 - **AS65-compatible assembler** — a from-scratch reimplementation of Frank A. Kingswood's AS65, intended as a drop-in replacement. Supports the complete AS65 syntax: macros, conditional assembly (`if`/`ifdef`/`ifndef`/`else`/`endif`), the full expression evaluator (arithmetic, bitwise, logical, shift, `<`/`>` byte selectors, current-PC `*`), `equ`/`=` constants, `include`, three-segment model (`code`/`data`/`bss`), AS65-style listing output, and AS65 command-line flags (`-l`, `-t`, `-s`, `-s2`, `-z`, `-c`, `-w`, `-d`, `-g`, ...) including flag concatenation (`-tlfile`).
 - **CLI tool** — runs as an AS65-style assembler by default, or with the `run` subcommand to load and execute a binary or assembly source.
 - **First-run asset bootstrap** — Casso fetches the ROMs, sample disks, and Disk II audio samples it needs on first launch (with user consent), so a fresh `Casso.exe` boots to a usable //e BASIC prompt with no manual setup.
 - **Headless test harness** — `HeadlessHost` drives the emulator with no Win32 window, enabling deterministic integration tests for cold boot, disk boot, video framebuffer hashing, and reset semantics.
-- **2000+ unit tests** — comprehensive coverage of CPU instruction encoding, addressing modes, arithmetic, branching, assembler features, audio pipeline (speaker + drive + Mockingboard), 6522 VIA timers/IRQ + AY-3-8910 synthesis, //e MMU + Language Card, video timing, Disk II nibble engine, WOZ + nibblized image formats, 80-col + DHGR video, reset semantics, perf budget, and backwards-compat for ][ and ][ plus machines.
+- **2700+ unit tests** — comprehensive coverage of CPU instruction encoding, addressing modes, arithmetic, branching, assembler features, audio pipeline (speaker + drive + printer + Mockingboard), 6522 VIA timers/IRQ + AY-3-8910 synthesis, //e MMU + Language Card, video timing, Disk II nibble engine, WOZ + nibblized image formats, 80-col + DHGR video, the printer pipeline (interpreter, renderer, pagination, pacing, head mechanics + drain engine, preview model, persistence, slot firmware), reset semantics, perf budget, and backwards-compat for ][ and ][ plus machines.
 
 ## What's New
 
@@ -42,11 +42,42 @@ map instead of scanning the device list, the language-card (`$D000–$FFFF`) and
 //c internal-ROM (`$C100–$CFFF`) windows are page-mapped, and the interrupt
 poll, video-timing tick, and //c mouse tick shed redundant per-instruction
 work — so a steady machine idles at noticeably lower CPU, most visibly on the
-//c. On the render side, the 40-column text screen repaints only the rows that
-actually changed — a scrolling catalog or a blinking cursor no longer redraws
-all 24 rows — the UI chrome caches its shaped text and geometry instead of
+//c. On the render side, the 40- and 80-column text screens repaint only the
+rows that actually changed — a scrolling catalog or a blinking cursor no longer
+redraws all 24 rows — the UI chrome caches its shaped text and geometry instead of
 re-shaping every label each frame, and the Mockingboard skips synthesis while
 fully muted.
+
+### Emulated ImageWriter II printer (v1.14.0)
+
+<p align="center"><img src="Assets/printer-preview.png" alt="Casso printing a Print Shop sign on an emulated Apple //e Enhanced, with the live 3D ImageWriter II preview feeding fanfold paper" width="100%" /></p>
+
+Casso now emulates a full **Apple ImageWriter II** dot-matrix printer, end to
+end — a parallel printer card sits in slot 1 (default on ][, ][+, //e, and //e
+Enhanced) and the guest can print for real. `PR#1` lists a BASIC program or
+`CATALOG`s a disk in an original 95-glyph dot-matrix font; The Print Shop prints
+its banners, signs, and greeting cards in full four-color glory, its command set
+locked from real Print Shop byte captures (ESC-G / ESC-L bit image, seven-color
+ribbon with overprint composites, and the documented pitch and line-spacing
+family).
+
+Print output appears in a **live skeuomorphic preview** — a real-3D ImageWriter
+II (the project's own CAD model) with fanfold paper, tractor-feed holes, and
+perforations, feeding out of the platen as you watch. A single print-head clock
+drives the whole illusion: the carriage sweeps bidirectionally at true draft
+speed laying ink column by column, the paper feeds with the head parked, and the
+**mechanical sound** (authentic ImageWriter II recordings by Scott Lawrence) is
+gated to what the head is actually doing — a carriage buzz over ink, line-feed
+clacks, page feeds, and tear-offs, stereo-panned to the window. A one-page
+viewport follows the newest rows; scroll back to review earlier pages and it
+snaps to the live row once printing idles.
+
+Any printout delivers three ways without re-printing — **Save** as a PNG, **Copy**
+to the clipboard, or **Print** to a real Windows printer (with a paginated print
+preview) — and the paper stays loaded until you tear it off, so a pending
+printout even survives across sessions. A command toolbar below the menu bar
+carries the printer status LED and a preview button, and **Settings → Printing**
+states what printer the current machine emulates and how it connects.
 
 ### Skeuomorphic CRT monitor (v1.12.0)
 
@@ -352,6 +383,7 @@ All 56 standard 6502 mnemonics are implemented. Validated against [Klaus Dormann
 - [x] Boot *Lode Runner* from its WOZ image (copy protection) ([#70](https://github.com/relmer/Casso/issues/70))
 - [x] Play *Space Quarks* on the Apple ][ and ][ plus — required Apple ][ and ][ plus game-port emulation (paddles, buttons, PTRIG) plus an inverse-text character-ROM fix
 - [x] 65C02 extended instruction support (Rockwell R65C02 core), with assembler `--cpu 65c02` flag ([#9](https://github.com/relmer/Casso/issues/9))
+- [x] Emulated ImageWriter II printer — parallel card + original slot firmware, command interpreter locked from real Print Shop captures, draft text font, real-3D live preview (fanfold paper, one print-head clock driving carriage + ink + audio), mechanical sound set, and non-destructive PNG / clipboard / Windows-print delivery with a live print preview. The classic banner: The Print Shop prints end-to-end. The paper model: 8.5″ stock, 8″ printable width, 11″ pages
 
 ### Medium Priority
 
@@ -379,6 +411,8 @@ I thus present to you our regal namesake—revel in his splendor!
 </p>
 
 *Cassowary photo by [Mr. Smiley / BunyipCo](https://bunyipco.blogspot.com/2015/04/cassowary-update.html), licensed under [CC BY-NC-SA 3.0](https://creativecommons.org/licenses/by-nc-sa/3.0/).*
+
+*ImageWriter II printer sounds by [Scott Lawrence](https://github.com/BleuLlama/ImageWriterIISimulator) (recorded from a real ImageWriter II), licensed under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/).*
 
 ## Acknowledgments
 

@@ -62,6 +62,7 @@ void SettingsSheet::OnBuildPages ()
     m_diskPage     = CreatePage<DiskPage>     (L"Disk");
     m_themePage    = CreatePage<ThemePage>    (L"Theme");
     m_displayPage  = CreatePage<DisplayPage>  (L"Display");
+    m_printingPage = CreatePage<PrintingPage> (L"Printing");
 
     // Amber "press OK to reboot" notice that fills the bottom-bar space left of
     // the OK / Cancel buttons whenever committing would power-cycle the machine
@@ -328,6 +329,13 @@ HRESULT SettingsSheet::OpenModeless (
     m_diskPage->SetPopupHost     (PopupHost());
     m_themePage->SetPopupHost    (PopupHost());
     m_displayPage->SetPopupHost  (PopupHost());
+    m_printingPage->SetPopupHost (PopupHost());
+
+    // Printing page: bind global prefs (resolution + dot style). Edits persist
+    // / revert through the apply controller (SnapshotBaselines captures the
+    // printing prefs too).
+    m_printingPage->SetPrefs (&prefs);
+    m_printingPage->SetPrinterInfo (m_emuShell->PrinterBannerMessage());
 
     // Pull the running machine + discovered themes into the pages.
     m_catalog.LoadCurrentMachineIntoState();
