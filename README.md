@@ -33,6 +33,8 @@ See [CHANGELOG.md](CHANGELOG.md) for the granular history.
 
 ### Emulated ImageWriter II printer (v1.14.0)
 
+<p align="center"><img src="Assets/printer-preview.png" alt="Casso printing a Print Shop sign on an emulated Apple //e Enhanced, with the live 3D ImageWriter II preview feeding fanfold paper" width="100%" /></p>
+
 Casso now emulates a full **Apple ImageWriter II** dot-matrix printer, end to
 end — a parallel printer card sits in slot 1 (default on ][, ][+, //e, and //e
 Enhanced) and the guest can print for real. `PR#1` lists a BASIC program or
