@@ -4,7 +4,6 @@
 #include "Window/DxuiButtonRow.h"
 #include "Core/DxuiDpiScaler.h"
 
-#include <array>
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 

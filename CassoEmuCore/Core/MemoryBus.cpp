@@ -6,6 +6,24 @@
 
 
 
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Constants
+//
+////////////////////////////////////////////////////////////////////////////////
+
+// Apple II display pages are addressed in 128-byte blocks whose last 8 bytes
+// ($78-$7F within the block) are "screen holes" -- undisplayed scratch RAM the
+// slot firmware and DOS hammer in poll loops. The pattern is identical across
+// text, lo-res, and hi-res pages (same low-7-bit video addressing), so a write
+// is displayed iff its block offset is below $78. Screen-hole writes must not
+// dirty the frame or an idle DOS prompt re-rasterizes needlessly.
+static constexpr Word  s_kScreenBlockMask     = 0x7F;
+static constexpr Word  s_kFirstScreenHoleByte = 0x78;
+
+
+
+
 
 ////////////////////////////////////////////////////////////////////////////////
 //
@@ -15,6 +33,9 @@
 
 MemoryBus::MemoryBus()
 {
+    // No devices yet: an all-null map correctly resolves every I/O address to
+    // "unmapped" until AddDevice rebuilds it.
+    m_ioDeviceMap.assign (kIoMapSize, nullptr);
 }
 
 
@@ -29,15 +50,15 @@ MemoryBus::MemoryBus()
 
 Byte MemoryBus::ReadByte (Word address)
 {
-    // Fast path: page table lookup for $0000-$BFFF
-    if (address < 0xC000)
-    {
-        Byte * page = m_readPage[address >> 8];
+    // Fast path: page-table lookup. RAM ($0000-$BFFF) and, once the language
+    // card wires them, ROM/LC RAM ($D000-$FFFF) have a mapped page; I/O
+    // ($C000-$CFFF) stays null and falls through to device dispatch so its
+    // read side effects run.
+    Byte * page = m_readPage[address >> 8];
 
-        if (page != nullptr)
-        {
-            return page[address & 0xFF];
-        }
+    if (page != nullptr)
+    {
+        return page[address & 0xFF];
     }
 
     MemoryDevice * device = FindDevice (address);
@@ -77,7 +98,22 @@ void MemoryBus::WriteByte (Word address, Byte value)
 
         if (page != nullptr)
         {
-            page[address & 0xFF] = value;
+            Byte * cell = &page[address & 0xFF];
+
+            // Video-dirty raise: only a write that actually CHANGES a
+            // *displayed* byte in a watched page marks the frame for re-render.
+            // The watched check short-circuits the common non-video write; the
+            // screen-hole check drops undisplayed scratch writes; and the
+            // value compare drops same-value re-stores -- so an idle screen
+            // whose firmware polls through the screen holes stops re-rendering.
+            if (m_videoWatched[address >> 8]                       &&
+                (address & s_kScreenBlockMask) < s_kFirstScreenHoleByte &&
+                *cell != value)
+            {
+                m_videoDirty = true;
+            }
+
+            *cell = value;
             return;
         }
 
@@ -159,6 +195,8 @@ void MemoryBus::AddDevice (MemoryDevice * device)
                            });
 
     m_entries.insert (it, entry);
+
+    BuildIoDeviceMap ();
 }
 
 
@@ -182,6 +220,8 @@ void MemoryBus::RemoveDevice (MemoryDevice * device)
         });
 
     m_entries.erase (it, m_entries.end());
+
+    BuildIoDeviceMap ();
 }
 
 
@@ -220,6 +260,7 @@ void MemoryBus::Reset()
     }
 
     m_floatingBusValue = 0xFF;
+    m_videoDirty       = true;
 }
 
 
@@ -283,6 +324,14 @@ void MemoryBus::PowerCycleAll (Prng & prng)
 
 MemoryDevice * MemoryBus::FindDevice (Word address) const
 {
+    if (address >= kIoMapBase)
+    {
+        return m_ioDeviceMap[address - kIoMapBase];
+    }
+
+    // Rare: a read/write to an unmapped low page. Production maps all of
+    // $0000-$BFFF through the page table, so this only happens on partial test
+    // buses; a linear scan of the handful of entries is fine here.
     for (const auto & entry : m_entries)
     {
         if (address >= entry.start && address <= entry.end)
@@ -292,4 +341,34 @@ MemoryDevice * MemoryBus::FindDevice (Word address) const
     }
 
     return nullptr;
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BuildIoDeviceMap
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void MemoryBus::BuildIoDeviceMap ()
+{
+    fill (m_ioDeviceMap.begin (), m_ioDeviceMap.end (), nullptr);
+
+    // Paint each device's footprint in $C000-$FFFF into the map. Walking the
+    // entries from highest start address down to lowest lets a lower-start
+    // device overwrite any overlap, so a lookup returns exactly what the
+    // linear "first match wins" scan would (m_entries is sorted ascending by
+    // start). Ranges below $C000 (main RAM) contribute nothing to the I/O map.
+    for (auto it = m_entries.rbegin (); it != m_entries.rend (); ++it)
+    {
+        int lo = max<int> (it->start, kIoMapBase);
+        int hi = it->end;
+
+        for (int address = lo; address <= hi; address++)
+        {
+            m_ioDeviceMap[address - kIoMapBase] = it->device;
+        }
+    }
 }

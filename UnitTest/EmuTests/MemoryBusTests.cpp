@@ -346,22 +346,168 @@ public:
         bus.NotifyBankingChanged ();
     }
 
-    TEST_METHOD (PageTable_HighAddressUsesDevice_NotPageTable)
+    TEST_METHOD (PageTable_UnmappedIoPage_UsesDevice)
     {
         MemoryBus  bus;
-        Byte       buffer[0x100] = {};
-        buffer[0x00] = 0xFF;
         MockDevice dev (0xC000, 0xC0FF);
         bus.AddDevice (&dev);
 
-        // Page table only applies to $0000-$BFFF; $C000+ goes to device
-        bus.SetReadPage (0xC0, buffer);
-
+        // I/O pages ($C000-$CFFF) are left unmapped in the page table, so a
+        // read dispatches to the device and its read side effects run.
         Byte val = bus.ReadByte (0xC042);
 
         Assert::AreEqual (1, dev.m_readCount,
-            L"$C000+ should always use device dispatch, not page table");
+            L"An unmapped $C0xx read should dispatch to the device");
         Assert::AreEqual (Byte (0x42), val,
-            L"Should return device value");
+            L"Should return the device value");
+    }
+
+    TEST_METHOD (PageTable_MappedHighPage_UsesPageTable)
+    {
+        MemoryBus  bus;
+        Byte       buffer[0x100] = {};
+        buffer[0x42] = 0xAB;
+        MockDevice dev (0xD000, 0xD0FF);
+        bus.AddDevice (&dev);
+
+        // A mapped high page -- e.g. the language card pointing its $D000
+        // window at ROM/LC RAM -- is served inline from the page table,
+        // bypassing device dispatch. (Page granularity is address >> 8, so any
+        // page with a non-null entry uses the table, not just $0000-$BFFF.)
+        bus.SetReadPage (0xD0, buffer);
+
+        Byte val = bus.ReadByte (0xD042);
+
+        Assert::AreEqual (0, dev.m_readCount,
+            L"A mapped $D0xx read should use the page table, not the device");
+        Assert::AreEqual (Byte (0xAB), val,
+            L"Should return the page-table value");
+    }
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MemoryBusVideoDirtyTests
+//
+//  Proves the render-skip dirty flag: a fresh bus starts dirty, a write into
+//  a watched display page (or a banking change, or a reset) raises it, a write
+//  elsewhere does not, and ClearVideoDirty resets it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+TEST_CLASS (MemoryBusVideoDirtyTests)
+{
+public:
+
+    TEST_METHOD (VideoDirty_StartsTrue_SoFirstFramePaints)
+    {
+        MemoryBus bus;
+
+        Assert::IsTrue (bus.VideoDirty (),
+            L"A fresh bus must start dirty so the first frame renders");
+    }
+
+    TEST_METHOD (WriteToWatchedPage_RaisesDirty)
+    {
+        MemoryBus  bus;
+        Byte       page[0x100] = {};
+
+        bus.SetWritePage     (0x04, page);   // $0400 text page
+        bus.SetVideoWatchPage (0x04, true);
+        bus.ClearVideoDirty  ();
+
+        bus.WriteByte (0x0400, 0x41);
+
+        Assert::IsTrue (bus.VideoDirty (),
+            L"Write into a watched display page must raise video-dirty");
+    }
+
+    TEST_METHOD (WriteToUnwatchedPage_LeavesClean)
+    {
+        MemoryBus  bus;
+        Byte       page[0x100] = {};
+
+        bus.SetWritePage    (0x60, page);    // $6000, not a display page
+        bus.ClearVideoDirty ();
+
+        bus.WriteByte (0x6000, 0x41);
+
+        Assert::IsFalse (bus.VideoDirty (),
+            L"Write outside any watched page must not raise video-dirty");
+    }
+
+    TEST_METHOD (SameValueRewriteToWatchedPage_LeavesClean)
+    {
+        MemoryBus  bus;
+        Byte       page[0x100] = {};
+
+        bus.SetWritePage     (0x04, page);
+        bus.SetVideoWatchPage (0x04, true);
+
+        bus.WriteByte       (0x0400, 0x41);   // first write changes 0x00 -> 0x41
+        bus.ClearVideoDirty ();
+
+        bus.WriteByte (0x0400, 0x41);         // same value re-stored
+
+        Assert::IsFalse (bus.VideoDirty (),
+            L"Re-storing the identical byte must not raise video-dirty");
+    }
+
+    TEST_METHOD (ScreenHoleWrite_LeavesClean_DisplayedWrite_Dirties)
+    {
+        MemoryBus  bus;
+        Byte       page[0x100] = {};
+
+        bus.SetWritePage     (0x04, page);
+        bus.SetVideoWatchPage (0x04, true);
+        bus.ClearVideoDirty ();
+
+        // $0478 is a screen hole (block offset $78) -- undisplayed scratch.
+        bus.WriteByte (0x0478, 0xAB);
+        Assert::IsFalse (bus.VideoDirty (),
+            L"A changing write to a screen-hole byte must not dirty the frame");
+
+        // $0477 is displayed (block offset $77) -- must dirty.
+        bus.WriteByte (0x0477, 0xCD);
+        Assert::IsTrue (bus.VideoDirty (),
+            L"A changing write to a displayed byte must dirty the frame");
+    }
+
+    TEST_METHOD (BankingChange_RaisesDirty)
+    {
+        MemoryBus  bus;
+
+        bus.ClearVideoDirty ();
+        bus.NotifyBankingChanged ();
+
+        Assert::IsTrue (bus.VideoDirty (),
+            L"A banking change can swap the displayed buffer, so it must "
+            L"raise video-dirty");
+    }
+
+    TEST_METHOD (Reset_RaisesDirty)
+    {
+        MemoryBus  bus;
+
+        bus.ClearVideoDirty ();
+        bus.Reset ();
+
+        Assert::IsTrue (bus.VideoDirty (),
+            L"Reset changes the screen, so it must raise video-dirty");
+    }
+
+    TEST_METHOD (ClearVideoDirty_Clears)
+    {
+        MemoryBus  bus;
+
+        bus.MarkVideoDirty ();
+        bus.ClearVideoDirty ();
+
+        Assert::IsFalse (bus.VideoDirty (),
+            L"ClearVideoDirty must reset the flag");
     }
 };

@@ -4,10 +4,6 @@
 
 #include "../Casso/Ui/DriveWidgetState.h"
 
-#include <atomic>
-#include <cstring>
-#include <string>
-#include <vector>
 
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;

@@ -267,9 +267,20 @@ private:
 
     // CPU thread entry point and helpers
     void RunOneFrame();
+    void RunCpuThreadFrame();
     void ExecuteCpuSlices();
     void RenderFramebuffer();
     void DispatchCpuCommand (const EmulatorCommand & cmd);
+
+    // Presentation pacing + render-skip gate (rationale in the .cpp).
+    // ShouldPublishFrame throttles rasterize/publish to ~60 Hz at Maximum
+    // speed; the Compute* signatures feed the dirty-tracked render gate that
+    // skips re-rasterizing an unchanged screen (video RAM dirty + mode +
+    // flash phase + color).
+    bool      ShouldPublishFrame  ();
+    uint32_t  ComputeVideoModeSig ();
+    bool      ComputeFlashOn      ();
+    uint64_t  ComputeColorSig     ();
 
     // Stores the live drive-audio gains and applies them to every
     // registered Disk2AudioSource. Must run on the CPU thread (the same
@@ -291,6 +302,8 @@ private:
     void OnCpuThreadStart();
     void OnCpuThreadStop();
     void PublishFramebuffer();
+    void WaitForFrameOrMessage();
+    void DestroyFrameReadyEvent();
     void UpdateWindowTitle();
 
     // Initialization helpers
@@ -1089,6 +1102,35 @@ private:
     vector<uint32_t>              m_textOverlay;
     vector<uint32_t>              m_uiFramebuffer;
     bool                          m_fbReady = false;
+
+    // Auto-reset event the CPU thread signals after publishing a new frame so
+    // the idle UI loop blocks on MsgWaitForMultipleObjects instead of spin-
+    // polling with Sleep(1). Created/destroyed by RunMessageLoop.
+    HANDLE                        m_frameReadyEvent = nullptr;
+
+    // Render-skip gate: the signatures of the last rendered frame's inputs
+    // (video mode/soft-switches, flash phase, color mode + text color). Each
+    // CPU-thread frame compares the live inputs plus the bus video-dirty flag
+    // against these and skips the whole rasterize + publish when nothing that
+    // affects the picture has changed. CPU-thread-only (paused during a step).
+    uint32_t                      m_lastRenderModeSig  = 0;
+    bool                          m_lastRenderFlashOn  = false;
+    uint64_t                      m_lastRenderColorSig = 0;
+
+    // Which video mode composed the previous frame. AppleTextMode's dirty-row
+    // cache may only reuse a row when the framebuffer still holds that row's
+    // text -- so a change of active mode (the buffer last held graphics or
+    // another mode) forces a full text re-raster on the next frame.
+    class VideoOutput *           m_prevActiveVideoMode = nullptr;
+
+    // Wall-clock pacing for the presentation side at Maximum speed: the CPU
+    // runs flat-out, but frames are rasterized + published only ~60x a second
+    // so we don't burn cores rendering frames no one will ever see.
+    chrono::steady_clock::time_point  m_lastPublishSteady = {};
+
+    // Previous UI frame's "any drive live" state, so the loop can force one
+    // final present on the live->idle edge and clear the activity LED.
+    bool                          m_anyDriveLivePrev = false;
 
     uint32_t                      m_cyclesPerFrame  = 17050;
     double                        m_sampleRemainder = 0.0;

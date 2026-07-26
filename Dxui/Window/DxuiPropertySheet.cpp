@@ -6,7 +6,6 @@
 #include "Widgets/DxuiButton.h"
 #include "Window/DxuiButtonRow.h"
 
-#include <algorithm>
 
 
 static constexpr int  s_kTabStripHeightDip = 36;

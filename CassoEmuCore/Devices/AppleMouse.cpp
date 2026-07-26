@@ -91,22 +91,45 @@ void AppleMouse::Tick (uint32_t cpuCycles)
         m_retargetCountdown -= cpuCycles;
     }
 
-    // VBL onset edge.
+    bool  irqChanged = false;
+
+    // VBL onset edge. IsInVblank() is a virtual call into the video timing;
+    // paying it every instruction was a large slice of this device's cost.
+    // Sample it on the kVblCheckIntervalCycles cadence instead -- the vblank
+    // window is wide enough that the onset edge is still caught within a
+    // couple of scanlines (see the constant's note).
     if (m_videoTiming != nullptr)
     {
-        bool  inVblank = m_videoTiming->IsInVblank();
-
-        if (inVblank && !m_lastInVblank)
+        if (m_vblCheckCountdown <= cpuCycles)
         {
-            m_vblInt = true;
+            m_vblCheckCountdown = kVblCheckIntervalCycles;
+
+            bool  inVblank = m_videoTiming->IsInVblank();
+
+            if (inVblank && !m_lastInVblank)
+            {
+                m_vblInt   = true;
+                irqChanged = true;
+            }
+            m_lastInVblank = inVblank;
         }
-        m_lastInVblank = inVblank;
+        else
+        {
+            m_vblCheckCountdown -= cpuCycles;
+        }
     }
 
-    // Drain host motion into the CPU-side queue. Clamp the backlog to the
-    // firmware's maximum clamp span: real hardware doesn't queue at all
-    // (unserviced pulses are simply lost), so an unbounded backlog while
-    // the guest has interrupts masked would replay a stale burst later.
+    // Drain host motion into the CPU-side queue. This runs every instruction,
+    // but host motion arrives at most at pointer-poll rate, so almost every
+    // tick has nothing to drain. A relaxed load is a plain move on x86; gate
+    // the atomic exchange behind it so the (common) idle tick pays no locked
+    // read-modify-write -- doing two per instruction unconditionally was this
+    // device's single largest CPU cost. Clamp the backlog to the firmware's
+    // maximum clamp span: real hardware doesn't queue at all (unserviced
+    // pulses are simply lost), so an unbounded backlog while the guest has
+    // interrupts masked would replay a stale burst later.
+    if (m_hostDx.load (std::memory_order_relaxed) != 0 ||
+        m_hostDy.load (std::memory_order_relaxed) != 0)
     {
         constexpr int  kMaxPending = 1023;
 
@@ -125,6 +148,7 @@ void AppleMouse::Tick (uint32_t cpuCycles)
         m_mouX1     = (m_pendingX > 0) ? 0x80 : 0x00;
         m_pendingX += (m_pendingX > 0) ? -1 : +1;
         m_xInt      = true;
+        irqChanged  = true;
     }
 
     if (!m_yInt && m_pendingY != 0)
@@ -132,9 +156,19 @@ void AppleMouse::Tick (uint32_t cpuCycles)
         m_mouY1     = (m_pendingY > 0) ? 0x00 : 0x80;
         m_pendingY += (m_pendingY > 0) ? -1 : +1;
         m_yInt      = true;
+        irqChanged  = true;
     }
 
-    UpdateIrqLines();
+    // The only IRQ-line inputs that change inside Tick are the VBL and X/Y
+    // latches set above; acknowledges ($C048/$C070) and mask changes
+    // ($C058-$C05F) drive UpdateIrqLines from their own handlers. So refresh
+    // the lines only when this tick actually latched something -- skipping the
+    // call on the common no-change tick avoids two interrupt-controller calls
+    // per instruction.
+    if (irqChanged)
+    {
+        UpdateIrqLines();
+    }
 }
 
 
@@ -343,6 +377,7 @@ void AppleMouse::Reset()
     m_y0EdgeFalling    = false;
     m_iouAccessEnabled = false;
     m_lastInVblank     = false;
+    m_vblCheckCountdown = 0;
 
     UpdateIrqLines();
 }

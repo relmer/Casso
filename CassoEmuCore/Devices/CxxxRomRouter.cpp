@@ -132,6 +132,45 @@ Error:
 
 
 
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FastMapReadPtr
+//
+//  See the header. Passive internal-ROM pages on the //c return a pointer into
+//  m_internal; reactive pages ($C3, $CF) and all //e pages return null so the
+//  Read handler runs.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+Byte * CxxxRomRouter::FastMapReadPtr (int page)
+{
+    static constexpr int  kPageSize = 0x100;
+
+    if (!m_noExternalSlots || m_internal.empty ())
+    {
+        return nullptr;
+    }
+
+    // $C3xx latches INTC8ROM and $CFFF clears it -- keep those pages on the
+    // handler so the side effects run (inert on the //c, but modeled faithfully).
+    if (page == 0xC3 || page == 0xCF)
+    {
+        return nullptr;
+    }
+
+    size_t  offset = static_cast<size_t> ((page - 0xC1) * kPageSize);
+
+    if (offset + kPageSize > m_internal.size ())
+    {
+        return nullptr;
+    }
+
+    return m_internal.data () + offset;
+}
+
+
+
+
 
 ////////////////////////////////////////////////////////////////////////////////
 //
@@ -152,6 +191,16 @@ void CxxxRomRouter::SetSlotIoDevice (int slot, MemoryDevice * device)
     CBRAEx (slot >= kMinSlot && slot <= kMaxSlot, E_INVALIDARG);
 
     m_slotIoDevice[slot] = device;
+
+    m_hasSlotIoDevice = false;
+    for (MemoryDevice * io : m_slotIoDevice)
+    {
+        if (io != nullptr)
+        {
+            m_hasSlotIoDevice = true;
+            break;
+        }
+    }
 
 Error:
     return;
@@ -206,10 +255,25 @@ Error:
 
 Byte CxxxRomRouter::Read (Word address)
 {
-    MemoryDevice *  io    = SlotIoDeviceFor (address);
-    Byte            value = (io != nullptr) ? io->Read (address) : ResolveByte (address);
+    Byte  value;
 
-
+    if (m_noExternalSlots && !m_hasSlotIoDevice)
+    {
+        // Apple //c fast path: with no external slots the whole $C100-$CFFF
+        // window is internal firmware regardless of INTCXROM/SLOTC3ROM/INTC8ROM
+        // (see SetNoExternalSlots), and there is no slot device to delegate to.
+        // Resolve the internal byte directly -- this is the //c hot path, e.g.
+        // the mouse firmware executing from $C700 -- skipping SlotIoDeviceFor
+        // and ResolveByte's four MMU state pulls. The $C3xx/$CFFF side effects
+        // below still run for fidelity.
+        Word  off = static_cast<Word> (address - kCxxxRouterStart);
+        value = (off < m_internal.size ()) ? m_internal[off] : kFloatingBusByte;
+    }
+    else
+    {
+        MemoryDevice *  io = SlotIoDeviceFor (address);
+        value = (io != nullptr) ? io->Read (address) : ResolveByte (address);
+    }
 
     if (address >= kSlot3PageStart && address <= kSlot3PageEnd)
     {

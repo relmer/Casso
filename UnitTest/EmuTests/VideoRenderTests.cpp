@@ -1,5 +1,4 @@
 #include "Pch.h"
-#include <filesystem>
 
 #include "Core/MemoryBus.h"
 #include "Core/EmuCpu.h"
@@ -48,6 +47,14 @@ static const uint32_t kExpectedLoRes[16] =
 };
 
 
+// Interleaved text-page address for (row, col) on page 1 -- mirrors
+// AppleTextMode::RowBaseAddress (private) for the dirty-row tests below.
+static Word TextAddr (int row, int col)
+{
+    return static_cast<Word> (0x0400 + 128 * (row % 8) + 40 * (row / 8) + col);
+}
+
+
 
 
 
@@ -92,6 +99,226 @@ public:
 
         Assert::IsTrue (hasNonBlack,
             L"Rendering with memory pointer should produce non-black output");
+    }
+
+
+    // ---- Dirty-row rendering -------------------------------------------------
+
+    // Oracle: incremental dirty-row rendering into a reused framebuffer must be
+    // pixel-identical to a from-scratch full render of the final screen.
+    TEST_METHOD (TextMode_DirtyRow_MatchesFullRender_AfterEdits)
+    {
+        MemoryBus bus;
+        RamDevice ram (0x0000, 0x0BFF);
+        bus.AddDevice (&ram);
+
+        std::vector<Byte> mem (0x10000, 0xA0);
+
+        // A screenful of distinct normal-range glyphs ($80-$FF, no flash).
+        for (int row = 0; row < 24; row++)
+        {
+            for (int col = 0; col < 40; col++)
+            {
+                mem[TextAddr (row, col)] =
+                    static_cast<Byte> (0xA0 + ((row * 40 + col) % 0x40));
+            }
+        }
+
+        AppleTextMode         incr (bus);
+        std::vector<uint32_t> fbIncr (kFbW * kFbH, kBlack);
+
+        incr.Render (mem.data (), fbIncr.data (), kFbW, kFbH);   // first = full
+
+        // Edits on three separate rows; every other row is unchanged.
+        mem[TextAddr (0, 0)]   = 0xC1;
+        mem[TextAddr (5, 20)]  = 0xC2;
+        mem[TextAddr (23, 39)] = 0xC3;
+
+        incr.Render (mem.data (), fbIncr.data (), kFbW, kFbH);   // dirty rows only
+
+        // Oracle: a fresh instance renders the final memory in one full pass.
+        AppleTextMode         oracle (bus);
+        std::vector<uint32_t> fbOracle (kFbW * kFbH, kBlack);
+
+        oracle.Render (mem.data (), fbOracle.data (), kFbW, kFbH);
+
+        Assert::IsTrue (fbIncr == fbOracle,
+            L"dirty-row render must equal a full render pixel-for-pixel");
+    }
+
+
+    // A flash-phase flip must re-raster a row that holds a flashing glyph
+    // ($40-$7F), even though no memory byte changed.
+    TEST_METHOD (TextMode_DirtyRow_FlashFlipRerastersFlashingRow)
+    {
+        MemoryBus bus;
+        RamDevice ram (0x0000, 0x0BFF);
+        bus.AddDevice (&ram);
+
+        std::vector<Byte> mem (0x10000, 0xA0);   // normal spaces
+        mem[TextAddr (2, 0)] = 0x60;             // flashing glyph on row 2
+
+        AppleTextMode         tm (bus);
+        std::vector<uint32_t> fb (kFbW * kFbH, kBlack);
+
+        tm.SetFlashState (true);
+        tm.Render (mem.data (), fb.data (), kFbW, kFbH);         // full
+        uint32_t flashOnPixel = fb[(2 * 8 * 2) * kFbW + 0];      // row 2, first pixel
+
+        tm.SetFlashState (false);
+        tm.Render (mem.data (), fb.data (), kFbW, kFbH);         // flip: row 2 re-rasters
+        uint32_t flashOffPixel = fb[(2 * 8 * 2) * kFbW + 0];
+
+        Assert::AreNotEqual (flashOnPixel, flashOffPixel,
+            L"flash flip must re-raster the flashing glyph's row");
+    }
+
+
+    // An unchanged screen skips every row (cache hit); InvalidateCache forces a
+    // full repaint that overwrites the whole framebuffer.
+    TEST_METHOD (TextMode_DirtyRow_InvalidateForcesFullRepaint)
+    {
+        MemoryBus bus;
+        RamDevice ram (0x0000, 0x0BFF);
+        bus.AddDevice (&ram);
+
+        std::vector<Byte> mem (0x10000, 0xC1);   // all normal 'A'
+
+        AppleTextMode         tm (bus);
+        std::vector<uint32_t> fb (kFbW * kFbH, kBlack);
+
+        tm.Render (mem.data (), fb.data (), kFbW, kFbH);   // full
+
+        // Corrupt the framebuffer, then re-render the SAME screen: with the
+        // cache valid and the target unchanged, every row is a cache hit, so
+        // the corruption survives untouched.
+        const uint32_t kJunk = 0xDEADBEEFu;
+        for (auto & p : fb) { p = kJunk; }
+
+        tm.Render (mem.data (), fb.data (), kFbW, kFbH);
+
+        bool anyTouched = false;
+        for (auto p : fb) { if (p != kJunk) { anyTouched = true; break; } }
+        Assert::IsFalse (anyTouched, L"unchanged screen must skip all rows");
+
+        // Invalidate -> next render fully repaints (the text grid covers the
+        // whole 560x384 frame), so no junk remains.
+        tm.InvalidateCache ();
+        tm.Render (mem.data (), fb.data (), kFbW, kFbH);
+
+        bool anyJunkLeft = false;
+        for (auto p : fb) { if (p == kJunk) { anyJunkLeft = true; break; } }
+        Assert::IsFalse (anyJunkLeft, L"InvalidateCache must force a full repaint");
+    }
+
+
+    // ---- Dirty-row rendering (80-col: aux + main interleave) -----------------
+
+    TEST_METHOD (Text80_DirtyRow_MatchesFullRender_AfterEdits)
+    {
+        MemoryBus bus;
+        RamDevice ram (0x0000, 0x0BFF);
+        bus.AddDevice (&ram);
+
+        std::vector<Byte> aux (0x10000, 0xA0);
+
+        // Even columns come from aux, odd from main -- write both.
+        auto put80 = [&] (int row, int col, Byte v)
+        {
+            Word rowBase = TextAddr (row, 0);
+            int  memCol  = col / 2;
+            if (col % 2 == 0) { aux[rowBase + memCol] = v; }
+            else              { bus.WriteByte (static_cast<Word> (rowBase + memCol), v); }
+        };
+
+        for (int row = 0; row < 24; row++)
+        {
+            for (int col = 0; col < 80; col++)
+            {
+                put80 (row, col, static_cast<Byte> (0xA0 + ((row * 80 + col) % 0x40)));
+            }
+        }
+
+        Apple80ColTextMode    incr (bus);
+        incr.SetAuxMemory (aux.data ());
+        std::vector<uint32_t> fbIncr (kFbW * kFbH, kBlack);
+
+        incr.Render (nullptr, fbIncr.data (), kFbW, kFbH);   // first = full
+
+        // Edits on separate rows, touching both an aux (even) and main (odd) cell.
+        put80 (0, 0, 0xC1);     // aux
+        put80 (5, 21, 0xC2);    // main
+        put80 (23, 79, 0xC3);   // main
+
+        incr.Render (nullptr, fbIncr.data (), kFbW, kFbH);   // dirty rows only
+
+        Apple80ColTextMode    oracle (bus);
+        oracle.SetAuxMemory (aux.data ());
+        std::vector<uint32_t> fbOracle (kFbW * kFbH, kBlack);
+
+        oracle.Render (nullptr, fbOracle.data (), kFbW, kFbH);
+
+        Assert::IsTrue (fbIncr == fbOracle,
+            L"80-col dirty-row render must equal a full render pixel-for-pixel");
+    }
+
+
+    TEST_METHOD (Text80_DirtyRow_FlashFlipRerastersFlashingRow)
+    {
+        MemoryBus bus;
+        RamDevice ram (0x0000, 0x0BFF);
+        bus.AddDevice (&ram);
+
+        std::vector<Byte> aux (0x10000, 0xA0);
+        aux[TextAddr (2, 0)] = 0x60;   // flashing glyph, aux column 0 of row 2
+
+        Apple80ColTextMode    tm (bus);
+        tm.SetAuxMemory (aux.data ());
+        std::vector<uint32_t> fb (kFbW * kFbH, kBlack);
+
+        tm.SetFlashState (true);
+        tm.Render (nullptr, fb.data (), kFbW, kFbH);
+        uint32_t onPixel = fb[(2 * 8 * 2) * kFbW + 0];
+
+        tm.SetFlashState (false);
+        tm.Render (nullptr, fb.data (), kFbW, kFbH);
+        uint32_t offPixel = fb[(2 * 8 * 2) * kFbW + 0];
+
+        Assert::AreNotEqual (onPixel, offPixel,
+            L"flash flip must re-raster the 80-col flashing glyph's row");
+    }
+
+
+    TEST_METHOD (Text80_DirtyRow_InvalidateForcesFullRepaint)
+    {
+        MemoryBus bus;
+        RamDevice ram (0x0000, 0x0BFF);
+        bus.AddDevice (&ram);
+
+        std::vector<Byte> aux (0x10000, 0xC1);   // all normal 'A' in aux
+        for (Word a = 0x0400; a <= 0x07FF; a++) { bus.WriteByte (a, 0xC1); }
+
+        Apple80ColTextMode    tm (bus);
+        tm.SetAuxMemory (aux.data ());
+        std::vector<uint32_t> fb (kFbW * kFbH, kBlack);
+
+        tm.Render (nullptr, fb.data (), kFbW, kFbH);
+
+        const uint32_t kJunk = 0xDEADBEEFu;
+        for (auto & p : fb) { p = kJunk; }
+
+        tm.Render (nullptr, fb.data (), kFbW, kFbH);   // unchanged -> skip all
+
+        bool anyTouched = false;
+        for (auto p : fb) { if (p != kJunk) { anyTouched = true; break; } }
+        Assert::IsFalse (anyTouched, L"unchanged 80-col screen must skip all rows");
+
+        tm.InvalidateCache ();
+        tm.Render (nullptr, fb.data (), kFbW, kFbH);
+
+        bool anyJunkLeft = false;
+        for (auto p : fb) { if (p == kJunk) { anyJunkLeft = true; break; } }
+        Assert::IsFalse (anyJunkLeft, L"InvalidateCache must force a full 80-col repaint");
     }
 
     TEST_METHOD (TextMode_RenderWithNullMemory_FallsBackToBus)

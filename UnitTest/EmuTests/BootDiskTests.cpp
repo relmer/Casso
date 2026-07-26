@@ -1,16 +1,16 @@
 #include "Pch.h"
-#include <filesystem>
-#include <fstream>
 
 #include "Cpu.h"
 #include "Assembler.h"
 #include "AssemblerTypes.h"
 
 #include "HeadlessHost.h"
+#include "KeystrokeInjector.h"
 #include "Devices/Disk/DiskImageStore.h"
 #include "Devices/Disk/NibblizationLayer.h"
 #include "Devices/Disk2Controller.h"
 #include "Devices/Apple2eSoftSwitchBank.h"
+#include "Video/AppleHiResMode.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 namespace fs = std::filesystem;
@@ -463,5 +463,569 @@ public:
             out.write (reinterpret_cast<const char *> (raw.data ()),
                        static_cast<std::streamsize> (raw.size ()));
         }
+    }
+
+
+    ////////////////////////////////////////////////////////////////////////////
+    //
+    //  Applesoft hi-res color-mask sweep
+    //
+    //  Companion gate to the demo-disk boot test above, covering the far
+    //  end of the same hi-res pipeline: the Applesoft ROM's own hi-res
+    //  package rather than a hand-written RWTS.
+    //
+    //  The Applesoft one-liner
+    //
+    //      HGR : FOR J=0 TO 255 : POKE 228,J : HPLOT 0,0 : CALL -3082 : NEXT
+    //
+    //  walks all 256 raw color masks. `HCOLOR=` can only reach the eight
+    //  masks in the ROM table at $F6F6 (00 2A 55 7F 80 AA D5 FF); poking
+    //  228 ($E4) reaches every one, which makes the sweep an exhaustive
+    //  pass over the hi-res renderer's whole input space -- each 7-bit
+    //  pixel pattern against both palette (high-bit) states -- presented
+    //  as stable, full-screen, uniform fields where a wrong artifact
+    //  color is unmissable.
+    //
+    //  Two ROM details the sweep depends on, both asserted below:
+    //
+    //    - $F450 is the ONLY read of location 228 in the entire 16 KB
+    //      ROM. It copies $E4 into the working color at $1C, and the
+    //      fill routine paints from $1C. The HPLOT is therefore not
+    //      decorative -- it is the sole bridge from the poke to the
+    //      screen. Without it the sweep paints 256 identical black
+    //      frames.
+    //    - x = 0 lands in byte 0 of the scanline, an even byte, so the
+    //      phase-advance branch at $F454 is not taken and $1C receives
+    //      the mask verbatim instead of phase-flipped.
+    //
+    ////////////////////////////////////////////////////////////////////////////
+
+    // Applesoft hi-res ROM entry points (Apple //e ROM image, $C000-$FFFF).
+    static constexpr Word      kRomHgr              = 0xF3E2;   // HGR: page 1, MIXED on
+    static constexpr Word      kRomHplot0           = 0xF457;   // plot (X/Y, A) using $E4
+    static constexpr Word      kRomBkgnd            = 0xF3F6;   // CALL -3082: fill from $1C
+
+    // Applesoft hi-res zero page.
+    static constexpr Word      kZpWorkColor         = 0x001C;   // the byte BKGND paints
+    static constexpr Word      kZpColorMask         = 0x00E4;   // 228: what HCOLOR= writes
+    static constexpr Word      kZpHiresPage         = 0x00E6;   // $20 page 1, $40 page 2
+
+    static constexpr Word      kHiresPage1Base      = 0x2000;
+    static constexpr Word      kHiresPage1LastByte  = 0x3FFF;
+    static constexpr Byte      kHiresPage1High      = 0x20;
+    static constexpr size_t    kHiresPageBytes      = 8192;
+    static constexpr size_t    kColorMaskCount      = 256;
+    static constexpr Byte      kLastColorMask       = 0xFF;
+
+    // The phase-advance helper at $F47C/$F47E inverts the seven pixel
+    // bits between bytes only when the mask's pixel bits land in this
+    // range -- exactly the masks whose pattern does not tile evenly
+    // across a 7-pixel byte. The range is symmetric under 7-bit
+    // complement, so a qualifying mask toggles stably rather than
+    // drifting.
+    static constexpr Byte      kMaskPixelBits       = 0x7F;
+    static constexpr Byte      kFlipRangeFirst      = 0x20;
+    static constexpr Byte      kFlipRangeLast       = 0x5F;
+
+    // Harness stubs, planted in the $0300 free space below the //e's
+    // page-3 vectors.
+    static constexpr Word      kSweepStubBase       = 0x0300;
+    static constexpr Word      kSweepStubMaskAt     = 0x0301;   // patched per mask
+    static constexpr Word      kSweepStubDone       = 0x0310;
+    static constexpr Word      kHgrStubBase         = 0x0320;
+    static constexpr Word      kHgrStubDone         = 0x0323;
+
+    static constexpr Byte      kOpLdaImm            = 0xA9;
+    static constexpr Byte      kOpStaZp             = 0x85;
+    static constexpr Byte      kOpLdxImm            = 0xA2;
+    static constexpr Byte      kOpLdyImm            = 0xA0;
+    static constexpr Byte      kOpJsrAbs            = 0x20;
+    static constexpr Byte      kOpJmpAbs            = 0x4C;
+
+    static constexpr Word      kByteMask            = 0x00FF;
+    static constexpr int       kByteShift           = 8;
+
+    // 1.0205 MHz: the //e's effective CPU rate once the long-cycle
+    // stretch is folded in. Used only to report the sweep in seconds.
+    static constexpr double    kCpuClockHz          = 1020484.0;
+
+    static constexpr uint64_t  kSweepColdBootCycles = 5'000'000ULL;
+    static constexpr uint64_t  kOneFillCycleBudget  = 500'000ULL;
+    static constexpr uint64_t  kSweepPollChunk      = 100'000ULL;
+    static constexpr uint64_t  kSweepCycleCeiling   = 200'000'000ULL;
+
+    static constexpr int       kFbWidth             = 560;
+    static constexpr int       kFbHeight            = 384;
+
+    // Golden hash over all 256 rendered color fields, captured from the
+    // first deterministic run. Any change to NtscColorTable, the hi-res
+    // scanline walk, or the framebuffer pixel layout moves it.
+    static constexpr uint64_t  kSweepRenderHash     = 0xD883834A016C9325ULL;
+
+    static constexpr const char *  kSweepOneLiner =
+        "HGR : FOR J=0 TO 255 : POKE 228,J : HPLOT 0,0 : CALL -3082 : NEXT";
+
+
+    ////////////////////////////////////////////////////////////////////////////
+    //
+    //  ExpectedFillByte
+    //
+    //  Independent model of what BKGND ($F3F6) paints, derived from the
+    //  routine rather than captured from it. BKGND writes the working
+    //  color at every byte of the 8 KB page and calls the phase-advance
+    //  helper after each one, so a mask whose pixel bits fall in
+    //  $20-$5F alternates mask / mask^$7F down the page and every other
+    //  mask paints uniformly. Byte 0 always gets the mask itself.
+    //
+    ////////////////////////////////////////////////////////////////////////////
+
+    static Byte ExpectedFillByte (Byte mask, size_t byteIndex)
+    {
+        Byte   pixelBits  = static_cast<Byte> (mask & kMaskPixelBits);
+        bool   alternates = (pixelBits >= kFlipRangeFirst) &&
+                            (pixelBits <= kFlipRangeLast);
+
+
+
+        if (alternates && ((byteIndex & 1) != 0))
+        {
+            return static_cast<Byte> (mask ^ kMaskPixelBits);
+        }
+
+        return mask;
+    }
+
+
+    ////////////////////////////////////////////////////////////////////////////
+    //
+    //  RunUntilPc
+    //
+    //  Steps the CPU until the program counter reaches `stopPc` or the
+    //  cycle budget is exhausted, mirroring EmulatorCore::RunCycles'
+    //  step/accumulate pairing. Returns the cycles actually consumed so
+    //  callers can time an individual ROM call.
+    //
+    ////////////////////////////////////////////////////////////////////////////
+
+    static uint64_t RunUntilPc (EmulatorCore & core, Word stopPc, uint64_t cycleBudget)
+    {
+        uint64_t   startCycles = core.cpu->GetTotalCycles();
+        uint64_t   spent       = 0;
+        uint32_t   stepCycles  = 0;
+
+
+
+        while (spent < cycleBudget)
+        {
+            if (core.cpu->GetPC() == stopPc)
+            {
+                break;
+            }
+
+            core.cpu->StepOne();
+            stepCycles = core.cpu->GetLastInstructionCycles();
+            core.cpu->AddCycles (stepCycles);
+            spent = core.cpu->GetTotalCycles() - startCycles;
+        }
+
+        return spent;
+    }
+
+
+    ////////////////////////////////////////////////////////////////////////////
+    //
+    //  PlantBytes
+    //
+    ////////////////////////////////////////////////////////////////////////////
+
+    static void PlantBytes (EmulatorCore & core, Word base, const Byte * code, size_t len)
+    {
+        size_t   i = 0;
+
+
+
+        for (i = 0; i < len; i++)
+        {
+            core.bus->WriteByte (static_cast<Word> (base + i), code[i]);
+        }
+    }
+
+
+    ////////////////////////////////////////////////////////////////////////////
+    //
+    //  LowByte / HighByte
+    //
+    ////////////////////////////////////////////////////////////////////////////
+
+    static Byte LowByte  (Word value) { return static_cast<Byte> (value & kByteMask); }
+    static Byte HighByte (Word value) { return static_cast<Byte> (value >> kByteShift); }
+
+
+    ////////////////////////////////////////////////////////////////////////////
+    //
+    //  PlantHgrStub — JSR $F3E2 then park on a self-JMP the test can poll.
+    //
+    ////////////////////////////////////////////////////////////////////////////
+
+    static void PlantHgrStub (EmulatorCore & core)
+    {
+        const Byte   code[] =
+        {
+            kOpJsrAbs, LowByte (kRomHgr),      HighByte (kRomHgr),
+            kOpJmpAbs, LowByte (kHgrStubDone), HighByte (kHgrStubDone)
+        };
+
+
+
+        PlantBytes (core, kHgrStubBase, code, sizeof (code));
+    }
+
+
+    ////////////////////////////////////////////////////////////////////////////
+    //
+    //  PlantSweepStub
+    //
+    //  One iteration of the Applesoft loop body, in 6502: store the mask
+    //  into 228, HPLOT 0,0 (A = Y coordinate, X/Y = 16-bit X coordinate),
+    //  then CALL -3082. Parks on a self-JMP so the test can detect the
+    //  return without guessing a cycle count.
+    //
+    ////////////////////////////////////////////////////////////////////////////
+
+    static void PlantSweepStub (EmulatorCore & core)
+    {
+        const Byte   code[] =
+        {
+            kOpLdaImm, 0,                                           // patched per mask
+            kOpStaZp,  LowByte (kZpColorMask),
+            kOpLdaImm, 0,                                           // hi-res Y coordinate
+            kOpLdxImm, 0,                                           // X coordinate low
+            kOpLdyImm, 0,                                           // X coordinate high
+            kOpJsrAbs, LowByte (kRomHplot0),     HighByte (kRomHplot0),
+            kOpJsrAbs, LowByte (kRomBkgnd),      HighByte (kRomBkgnd),
+            kOpJmpAbs, LowByte (kSweepStubDone), HighByte (kSweepStubDone)
+        };
+
+
+
+        PlantBytes (core, kSweepStubBase, code, sizeof (code));
+    }
+
+
+    ////////////////////////////////////////////////////////////////////////////
+    //
+    //  Fnv1a64 — stable framebuffer hash for the golden-render gate.
+    //
+    ////////////////////////////////////////////////////////////////////////////
+
+    static uint64_t Fnv1a64 (uint64_t seed, const uint32_t * data, size_t count)
+    {
+        uint64_t   h = seed;
+        size_t     i = 0;
+        int        b = 0;
+        uint32_t   v = 0;
+
+
+
+        for (i = 0; i < count; i++)
+        {
+            v = data[i];
+
+            for (b = 0; b < 4; b++)
+            {
+                h ^= static_cast<uint8_t> ((v >> (b * 8)) & kByteMask);
+                h *= 0x100000001b3ULL;
+            }
+        }
+
+        return h;
+    }
+
+
+    ////////////////////////////////////////////////////////////////////////////
+    //
+    //  VerifySweptPage — compares the whole hi-res page against the model
+    //  for one mask, failing once with a located diff rather than 8192
+    //  times.
+    //
+    ////////////////////////////////////////////////////////////////////////////
+
+    static void VerifySweptPage (EmulatorCore & core, Byte mask)
+    {
+        size_t   byteIndex       = 0;
+        size_t   mismatchCount   = 0;
+        size_t   firstMismatch   = 0;
+        Byte     expected        = 0;
+        Byte     actual          = 0;
+        Byte     expectedAtFirst = 0;
+        Byte     actualAtFirst   = 0;
+        wchar_t  msg[256]        = {};
+
+
+
+        for (byteIndex = 0; byteIndex < kHiresPageBytes; byteIndex++)
+        {
+            expected = ExpectedFillByte (mask, byteIndex);
+            actual   = core.bus->ReadByte (
+                static_cast<Word> (kHiresPage1Base + byteIndex));
+
+            if (actual == expected)
+            {
+                continue;
+            }
+
+            if (mismatchCount == 0)
+            {
+                firstMismatch   = byteIndex;
+                expectedAtFirst = expected;
+                actualAtFirst   = actual;
+            }
+
+            mismatchCount++;
+        }
+
+        if (mismatchCount != 0)
+        {
+            swprintf_s (msg, L"Mask $%02X: %zu of %zu page bytes differ from "
+                             L"the BKGND model. First at $%04X: expected "
+                             L"$%02X, got $%02X.",
+                        static_cast<unsigned> (mask),
+                        mismatchCount,
+                        kHiresPageBytes,
+                        static_cast<unsigned> (kHiresPage1Base + firstMismatch),
+                        static_cast<unsigned> (expectedAtFirst),
+                        static_cast<unsigned> (actualAtFirst));
+            Assert::Fail (msg);
+        }
+    }
+
+
+    ////////////////////////////////////////////////////////////////////////////
+    //
+    //  Drives the real ROM routines over all 256 color masks and checks
+    //  every byte of the hi-res page against the independent model.
+    //
+    //  Exercises: Apple2e.rom Applesoft hi-res package -> 6502 CPU ->
+    //  Apple2eMmu page-1 writes -> Apple2eSoftSwitchBank mode latching.
+    //
+    ////////////////////////////////////////////////////////////////////////////
+
+    TEST_METHOD (Applesoft_HgrColorSweep_AllMasksMatchRomFill)
+    {
+        HeadlessHost   host;
+        EmulatorCore   core;
+        uint64_t       fillCycles      = 0;
+        uint64_t       totalFillCycles = 0;
+        uint64_t       minFillCycles   = UINT64_MAX;
+        uint64_t       maxFillCycles   = 0;
+        size_t         maskIndex       = 0;
+        Byte           mask            = 0;
+
+        HRESULT   hr = host.BuildApple2e (core);
+
+
+
+        Assert::IsTrue (SUCCEEDED (hr), L"BuildApple2e must succeed");
+        Assert::IsTrue (core.HasApple2e(), L"//e wiring must be complete");
+
+        core.PowerCycle();
+        core.RunCycles  (kSweepColdBootCycles);
+
+        // ----- HGR: select page 1, clear it, latch the display mode -----
+        PlantHgrStub (core);
+        core.cpu->SetPC (kHgrStubBase);
+        fillCycles = RunUntilPc (core, kHgrStubDone, kOneFillCycleBudget);
+
+        Assert::AreEqual (Word (kHgrStubDone), core.cpu->GetPC(),
+            L"HGR ($F3E2) must return within the cycle budget");
+        Assert::AreEqual (kHiresPage1High, core.bus->ReadByte (kZpHiresPage),
+            L"HGR must set HPAG ($E6) to $20 (hi-res page 1)");
+        Assert::IsTrue  (core.softSwitches->IsGraphicsMode(),
+            L"HGR must clear TEXT");
+        Assert::IsTrue  (core.softSwitches->IsHiresMode(),
+            L"HGR must set HIRES");
+        Assert::IsTrue  (core.softSwitches->IsMixedMode(),
+            L"HGR (unlike HGR2) must leave MIXED on -- $F3E7 touches $C053, "
+            L"so the bottom four text rows stay visible");
+        Assert::IsFalse (core.softSwitches->IsPage2(),
+            L"HGR must select PAGE1");
+
+        // ----- Sweep every raw color mask -----
+        PlantSweepStub (core);
+
+        for (maskIndex = 0; maskIndex < kColorMaskCount; maskIndex++)
+        {
+            mask = static_cast<Byte> (maskIndex);
+
+            core.bus->WriteByte (kSweepStubMaskAt, mask);
+            core.cpu->SetPC (kSweepStubBase);
+
+            fillCycles = RunUntilPc (core, kSweepStubDone, kOneFillCycleBudget);
+
+            Assert::AreEqual (Word (kSweepStubDone), core.cpu->GetPC(),
+                L"HPLOT + BKGND must return within the cycle budget");
+
+            totalFillCycles += fillCycles;
+
+            if (fillCycles < minFillCycles) { minFillCycles = fillCycles; }
+            if (fillCycles > maxFillCycles) { maxFillCycles = fillCycles; }
+
+            // HPLOT copies 228 into the working color; 8192 phase flips
+            // is an even number, so $1C lands back on the mask itself.
+            Assert::AreEqual (mask, core.bus->ReadByte (kZpColorMask),
+                L"The fill must not disturb the poked mask at 228 ($E4)");
+            Assert::AreEqual (mask, core.bus->ReadByte (kZpWorkColor),
+                L"HPLOT 0,0 must copy 228 into the working color at $1C "
+                L"verbatim (byte 0 is even, so no phase flip)");
+
+            VerifySweptPage (core, mask);
+        }
+
+        Logger::WriteMessage (std::format (
+            "HGR color sweep: {} masks, {} ROM cycles total "
+            "({:.2f} s emulated), per fill min {} / max {} cycles "
+            "({:.3f} / {:.3f} s).\n",
+            kColorMaskCount,
+            totalFillCycles,
+            static_cast<double> (totalFillCycles) / kCpuClockHz,
+            minFillCycles,
+            maxFillCycles,
+            static_cast<double> (minFillCycles) / kCpuClockHz,
+            static_cast<double> (maxFillCycles) / kCpuClockHz).c_str());
+    }
+
+
+    ////////////////////////////////////////////////////////////////////////////
+    //
+    //  Renders all 256 modeled color-mask fields through AppleHiResMode
+    //  and folds every frame into one FNV-1a-64 hash. The fields come
+    //  from the model (validated against the real ROM by the test above),
+    //  so this isolates the NTSC artifact renderer: any palette
+    //  inversion, half-dot-shift error, or byte-boundary phase bug moves
+    //  the hash.
+    //
+    ////////////////////////////////////////////////////////////////////////////
+
+    TEST_METHOD (Applesoft_HgrColorSweep_RendersDeterministicFrames)
+    {
+        HeadlessHost            host;
+        EmulatorCore            core;
+        std::vector<uint32_t>   fb (static_cast<size_t> (kFbWidth) * kFbHeight, 0);
+        uint64_t                hash      = 0xcbf29ce484222325ULL;
+        size_t                  maskIndex = 0;
+        size_t                  byteIndex = 0;
+        Byte                    mask      = 0;
+
+        HRESULT   hr = host.BuildApple2e (core);
+
+
+
+        Assert::IsTrue (SUCCEEDED (hr), L"BuildApple2e must succeed");
+        Assert::IsTrue (core.HasApple2e(), L"//e wiring must be complete");
+
+        core.PowerCycle();
+        core.RunCycles  (kSweepColdBootCycles);
+
+        AppleHiResMode   hires (*core.bus);
+
+        hires.SetPage2 (false);
+
+        for (maskIndex = 0; maskIndex < kColorMaskCount; maskIndex++)
+        {
+            mask = static_cast<Byte> (maskIndex);
+
+            for (byteIndex = 0; byteIndex < kHiresPageBytes; byteIndex++)
+            {
+                core.bus->WriteByte (
+                    static_cast<Word> (kHiresPage1Base + byteIndex),
+                    ExpectedFillByte (mask, byteIndex));
+            }
+
+            hires.Render (nullptr, fb.data(), kFbWidth, kFbHeight);
+            hash = Fnv1a64 (hash, fb.data(), fb.size());
+        }
+
+        Logger::WriteMessage (std::format (
+            "HGR color sweep render hash: 0x{:016X}\n", hash).c_str());
+
+        Assert::AreEqual (kSweepRenderHash, hash, std::format (
+            L"Color-sweep render hash mismatch: got 0x{:016X}", hash).c_str());
+    }
+
+
+    ////////////////////////////////////////////////////////////////////////////
+    //
+    //  Types the actual Applesoft one-liner at the `]` prompt and runs it
+    //  to completion, measuring how long the full 256-step sweep takes on
+    //  a real //e. Covers the path the ROM-driven test above skips:
+    //  Applesoft tokenizing, FOR/NEXT, POKE and CALL argument
+    //  evaluation, and the HPLOT statement handler.
+    //
+    ////////////////////////////////////////////////////////////////////////////
+
+    TEST_METHOD (Applesoft_HgrColorSweep_OneLinerRunsToCompletion)
+    {
+        HeadlessHost   host;
+        EmulatorCore   core;
+        size_t         consumed    = 0;
+        bool           returnTaken = false;
+        uint64_t       startCycles = 0;
+        uint64_t       elapsed     = 0;
+
+        HRESULT   hr = host.BuildApple2e (core);
+
+
+
+        Assert::IsTrue (SUCCEEDED (hr), L"BuildApple2e must succeed");
+        Assert::IsTrue (core.HasApple2e(), L"//e wiring must be complete");
+
+        core.PowerCycle();
+        core.RunCycles  (kSweepColdBootCycles);
+
+        consumed = KeystrokeInjector::InjectString (core, kSweepOneLiner);
+        Assert::AreEqual (strlen (kSweepOneLiner), consumed,
+            L"The whole one-liner must be consumed by the ROM input routine");
+
+        returnTaken = KeystrokeInjector::InjectKey (
+            core, KeystrokeInjector::kAppleReturn);
+        Assert::IsTrue (returnTaken, L"Return must be consumed");
+
+        startCycles = core.cpu->GetTotalCycles();
+
+        // Completion signal: the loop has reached its last mask AND that
+        // mask's fill has written the final byte of the page. $FF at an
+        // odd page byte is unique to mask $FF -- the only other mask that
+        // could place it there is $80, whose pixel bits are $00 and so
+        // never phase-flips.
+        while (elapsed < kSweepCycleCeiling)
+        {
+            core.RunCycles (kSweepPollChunk);
+            elapsed = core.cpu->GetTotalCycles() - startCycles;
+
+            if (core.bus->ReadByte (kZpColorMask) == kLastColorMask &&
+                core.bus->ReadByte (kHiresPage1LastByte) == kLastColorMask)
+            {
+                break;
+            }
+        }
+
+        Assert::IsTrue (elapsed < kSweepCycleCeiling,
+            L"The one-liner must finish all 256 steps within the ceiling");
+
+        Assert::IsTrue (core.softSwitches->IsHiresMode(),
+            L"The sweep must leave the //e in hi-res");
+        Assert::IsTrue (core.softSwitches->IsMixedMode(),
+            L"HGR leaves MIXED on, so the text window stays visible");
+
+        VerifySweptPage (core, kLastColorMask);
+
+        Logger::WriteMessage (std::format (
+            "Applesoft one-liner: 256 steps in {} cycles "
+            "({:.2f} s emulated at {:.4f} MHz, {:.2f} fills/sec).\n",
+            elapsed,
+            static_cast<double> (elapsed) / kCpuClockHz,
+            kCpuClockHz / 1e6,
+            static_cast<double> (kColorMaskCount) /
+                (static_cast<double> (elapsed) / kCpuClockHz)).c_str());
     }
 };

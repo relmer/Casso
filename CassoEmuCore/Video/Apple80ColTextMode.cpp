@@ -89,13 +89,98 @@ void Apple80ColTextMode::Render (
     int fbWidth,
     int fbHeight)
 {
-    m_frameCount++;
+    static_assert (kGridCols == kTextCols && kGridRows == kTextRows,
+                   "dirty-row cache grid must match the render grid");
 
-    // Flash toggles every ~16 frames (approximately 0.5 second at 60fps).
-    // ALTCHARSET=1 disables flash on the //e: only ALTCHARSET=0 mode flashes.
-    m_flashOn = ((m_frameCount / 16) & 1) == 0;
+    // Flash phase is driven externally via SetFlashState (from emulated time),
+    // not advanced here. Dirty-row rendering: redraw only the rows whose 80
+    // effective char codes changed since the last render into THIS framebuffer
+    // (plus, on a flash flip, rows holding a flashing glyph). A full redraw is
+    // forced when reuse is unsafe -- first render, a different target buffer, a
+    // change of aux pointer / charset / on-color. See AppleTextMode::Render.
+    // 80-col always uses page 1.
+    Word pageBase = static_cast<Word> (0x0400);
 
-    RenderRowRange (0, kTextRows, videoRam, framebuffer, fbWidth, fbHeight);
+    bool full = !m_cacheValid
+             || framebuffer  != m_prevFramebuffer
+             || m_auxMem     != m_prevAuxMem
+             || m_altCharSet != m_prevAltChar
+             || m_onColor    != m_prevOnColor;
+
+    bool flashFlip = m_flashOn != m_prevFlashOn;
+
+    for (int row = 0; row < kTextRows; row++)
+    {
+        Word   rowAddr  = static_cast<Word> (pageBase + 128 * (row % 8) + 40 * (row / 8));
+        Byte * cacheRow = &m_prevBytes[row * kTextCols];
+        Byte   rowBytes[kTextCols];
+        bool   changed  = false;
+
+        for (int col = 0; col < kTextCols; col++)
+        {
+            int  memCol  = col / 2;
+            bool fromAux = (col % 2) == 0;
+            Word addr    = static_cast<Word> (rowAddr + memCol);
+            Byte c       = 0;
+
+            // Mirror RenderRowRange's read order exactly so the diff matches
+            // what gets rasterized (aux even columns, main odd; bus fallback).
+            if (fromAux && m_auxMem != nullptr) { c = m_auxMem[addr];       }
+            else if (videoRam != nullptr)       { c = videoRam[addr];       }
+            else                                { c = m_bus.ReadByte (addr); }
+
+            rowBytes[col] = c;
+            changed      |= (c != cacheRow[col]);
+        }
+
+        bool dirty = full || changed || (flashFlip && RowHasFlashChar (rowBytes));
+
+        if (dirty)
+        {
+            RenderRowRange (row, row + 1, videoRam, framebuffer, fbWidth, fbHeight);
+        }
+
+        for (int col = 0; col < kTextCols; col++)
+        {
+            cacheRow[col] = rowBytes[col];
+        }
+    }
+
+    m_prevFramebuffer = framebuffer;
+    m_prevAuxMem      = m_auxMem;
+    m_prevAltChar     = m_altCharSet;
+    m_prevOnColor     = m_onColor;
+    m_prevFlashOn     = m_flashOn;
+    m_cacheValid      = true;
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RowHasFlashChar
+//
+//  As AppleTextMode::RowHasFlashChar, over the 80 interleaved char codes.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool Apple80ColTextMode::RowHasFlashChar (const Byte * rowBytes) const
+{
+    if (m_altCharSet)
+    {
+        return false;
+    }
+
+    for (int col = 0; col < kTextCols; col++)
+    {
+        if (rowBytes[col] >= 0x40 && rowBytes[col] < 0x80)
+        {
+            return true;
+        }
+    }
+
+    return false;
 }
 
 

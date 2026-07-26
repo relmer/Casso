@@ -112,6 +112,10 @@ Error:
 void Apple2eMmu::AttachInternalCxxxRom (vector<Byte> data)
 {
     m_cxxxRouter.SetInternalRom (move (data));
+
+    // SetInternalRom move-reassigns the router's buffer (e.g. a //c $C028 bank
+    // flip), so re-point the page table at the new bytes.
+    RebindCxxxInternalRom ();
 }
 
 
@@ -169,6 +173,13 @@ void Apple2eMmu::SetAltZp (bool v)
 
     m_altZp = v;
     ResolveZeroPage ();
+
+    // ALTZP also swaps the language card's $D000-$FFFF RAM between the main and
+    // aux banks, so re-point its read-page window to the new side.
+    if (m_lc != nullptr)
+    {
+        m_lc->RebindWindow ();
+    }
 }
 
 
@@ -295,6 +306,34 @@ void Apple2eMmu::RebindPageTable ()
     ResolveMain02_BF  ();
     ResolveText04_07  ();
     ResolveHires20_3F ();
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RebindCxxxInternalRom
+//
+//  Point the read-page table at the router's internal $C100-$CFFF ROM for the
+//  pages it serves as static internal ROM (the //c). Passive pages become
+//  inline reads; reactive/arbitrated pages (and every page on the //e) resolve
+//  to null and stay on the router's Read handler. Called after any internal-ROM
+//  attach, including a //c bank flip.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void Apple2eMmu::RebindCxxxInternalRom ()
+{
+    if (m_bus == nullptr)
+    {
+        return;
+    }
+
+    for (int page = 0xC1; page <= 0xCF; page++)
+    {
+        m_bus->SetReadPage (page, m_cxxxRouter.FastMapReadPtr (page));
+    }
 }
 
 

@@ -1,6 +1,5 @@
 #include "Pch.h"
 
-#include <regex>
 
 #include "Assembler.h"
 #include "TestHelpers.h"

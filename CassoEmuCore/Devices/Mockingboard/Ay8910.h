@@ -110,6 +110,7 @@ private:
     void    EnvelopeStep     ();
     void    RestartEnvelope  (Byte shape);
     float   CurrentOutput    () const;
+    bool    IsSilent         () const;
 
     int     TonePeriod  (int channel) const;
     int     NoisePeriod () const;

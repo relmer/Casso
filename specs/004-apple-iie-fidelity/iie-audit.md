@@ -1,5 +1,13 @@
 # Apple //e Emulator Fidelity Audit — Casso vs. Real Hardware
 
+> _Historical (2025-07). This audit drove the //e-fidelity feature in this
+> directory (spec 004); all of its CRITICAL/MAJOR findings are implemented, and
+> the code cites it by section (`audit §N`, `audit C7`, …). Class and file names
+> below predate the later rewrites — e.g. `AuxRamCard` → `Apple2eMmu`,
+> `AppleIIeKeyboard` → `Apple2eKeyboard`, `EmulatorShell::RebuildBankingPages` →
+> `Apple2eMmu::RebindPageTable`. Kept as this spec's requirements reference, not
+> a live action list._
+
 **Scope:** Casso at `C:\Users\relmer\source\repos\relmer\Casso\`  
 **Reference revision:** AppleWin `master` SHA `65d0467c` (Memory.cpp) / `2904816e` (LanguageCard.cpp)  
 **Date:** 2025-07

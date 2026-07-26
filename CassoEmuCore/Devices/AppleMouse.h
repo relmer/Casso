@@ -133,6 +133,14 @@ private:
     // rather than per instruction (12 bus reads per pass).
     static constexpr uint32_t kRetargetIntervalCycles = 2048;
 
+    // VBL-poll cadence: sample IsInVblank() (a virtual call into the video
+    // timing) at this interval rather than every instruction. The vblank
+    // window is ~4550 cycles, so 128 cycles still lands dozens of samples
+    // inside it -- the onset edge is caught within ~2 scanlines, and the
+    // latch is sticky until a $C070 read, so a slightly late set only delays
+    // assertion; it never misses or double-fires an edge.
+    static constexpr uint32_t kVblCheckIntervalCycles = 128;
+
     // Host-thread accumulator (drained by Tick on the CPU thread).
     std::atomic<int>          m_hostDx      { 0 };
     std::atomic<int>          m_hostDy      { 0 };
@@ -165,6 +173,7 @@ private:
     // VBL edge detection.
     IVideoTiming *            m_videoTiming = nullptr;
     bool                      m_lastInVblank = false;
+    uint32_t                  m_vblCheckCountdown = 0;
 
     IInterruptController *    m_ic          = nullptr;
     IrqSourceId               m_xySource    = 0;

@@ -1,5 +1,4 @@
 #include "Pch.h"
-#include <thread>
 
 #include "Devices/Disk2EventRing.h"
 

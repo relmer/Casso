@@ -18,5 +18,7 @@
 #undef BitTestAndComplement
 
 #include <cstdlib>
+#include <cstring>
+#include <regex>
 
 #include <CppUnitTest.h>

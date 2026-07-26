@@ -102,12 +102,96 @@ void AppleTextMode::Render (
     int fbWidth,
     int fbHeight)
 {
-    m_frameCount++;
+    static_assert (kGridCols == kTextCols && kGridRows == kTextRows,
+                   "dirty-row cache grid must match the render grid");
 
-    // Flash toggles every ~16 frames (approximately 0.5 second at 60fps)
-    m_flashOn = ((m_frameCount / 16) & 1) == 0;
+    // Flash phase is driven externally via SetFlashState (from emulated time),
+    // not advanced here -- so a steady screen can skip re-rasterizing without
+    // freezing the cursor/flash blink.
+    //
+    // Dirty-row rendering: the framebuffer persists between frames, so redraw
+    // only the rows whose text bytes changed since the last Render() into THIS
+    // framebuffer. A full redraw is forced when the cache can't be trusted --
+    // first render, a different target framebuffer (the shell always reuses
+    // one; tests may not), or a change to page / charset / on-color (which
+    // re-shapes every row). On a flash-phase flip only the rows that actually
+    // contain a flashing glyph need redrawing.
+    Word pageBase = GetActivePageAddress (m_page2);
 
-    RenderRowRange (0, kTextRows, videoRam, framebuffer, fbWidth, fbHeight);
+    bool full = !m_cacheValid
+             || framebuffer  != m_prevFramebuffer
+             || m_page2      != m_prevPage2
+             || m_altCharSet != m_prevAltChar
+             || m_onColor    != m_prevOnColor;
+
+    bool flashFlip = m_flashOn != m_prevFlashOn;
+
+    for (int row = 0; row < kTextRows; row++)
+    {
+        Word   rowAddr  = RowBaseAddress (row, pageBase);
+        Byte * cacheRow = &m_prevBytes[row * kTextCols];
+        Byte   rowBytes[kTextCols];
+        bool   changed  = false;
+
+        for (int col = 0; col < kTextCols; col++)
+        {
+            Word addr    = static_cast<Word> (rowAddr + col);
+            Byte b       = videoRam ? videoRam[addr] : m_bus.ReadByte (addr);
+            rowBytes[col] = b;
+            changed      |= (b != cacheRow[col]);
+        }
+
+        bool dirty = full || changed || (flashFlip && RowHasFlashChar (rowBytes));
+
+        if (dirty)
+        {
+            RenderRowRange (row, row + 1, videoRam, framebuffer, fbWidth, fbHeight);
+        }
+
+        for (int col = 0; col < kTextCols; col++)
+        {
+            cacheRow[col] = rowBytes[col];
+        }
+    }
+
+    m_prevFramebuffer = framebuffer;
+    m_prevPage2       = m_page2;
+    m_prevAltChar     = m_altCharSet;
+    m_prevOnColor     = m_onColor;
+    m_prevFlashOn     = m_flashOn;
+    m_cacheValid      = true;
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RowHasFlashChar
+//
+//  A glyph flashes with the flash clock only for char codes $40-$7F, and only
+//  when ALTCHARSET is off (the //e enhanced ROM remaps that range to MouseText
+//  under ALTCHARSET, which does not blink). Inverse ($00-$3F) and normal
+//  ($80-$FF) glyphs are unaffected by the flash phase.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool AppleTextMode::RowHasFlashChar (const Byte * rowBytes) const
+{
+    if (m_altCharSet)
+    {
+        return false;
+    }
+
+    for (int col = 0; col < kTextCols; col++)
+    {
+        if (rowBytes[col] >= 0x40 && rowBytes[col] < 0x80)
+        {
+            return true;
+        }
+    }
+
+    return false;
 }
 
 

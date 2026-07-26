@@ -1,10 +1,5 @@
 #pragma once
 
-#include <array>
-#include <functional>
-#include <string>
-#include <vector>
-
 #include "CpuStatus.h"
 #include "Microcode.h"
 
@@ -65,13 +60,13 @@ protected:
     void PrintSingleStepInfo           (Word initialPC, Byte opcode, const OperandInfo & operandInfo);
     void PrintOperandAndComment        (Byte opcode, const OperandInfo & operandInfo);
     void PrintOperandBytes             (Word initialPC, Byte opcode);
-    void FetchOperand                  (Microcode microcode, OperandInfo & operandInfo);
+    void FetchOperand                  (const Microcode & microcode, OperandInfo & operandInfo);
     void FetchOperandAbsoluteX         (Cpu::OperandInfo & operandInfo);
     void FetchOperandAbsoluteY         (Cpu::OperandInfo & operandInfo);
     void FetchOperandZeroPageX         (Cpu::OperandInfo & operandInfo);
     void FetchOperandZeroPageY         (Cpu::OperandInfo & operandInfo);
     void FetchOperandZeroPageIndirectY (Cpu::OperandInfo & operandInfo);
-    void FetchOperandAbsolute          (Cpu::OperandInfo & operandInfo, Microcode & microcode);
+    void FetchOperandAbsolute          (Cpu::OperandInfo & operandInfo, const Microcode & microcode);
     void FetchOperandImmediate         (Cpu::OperandInfo & operandInfo);
     void FetchOperandJumpAbsolute      (Cpu::OperandInfo & operandInfo);
     void FetchOperandJumpIndirect      (Cpu::OperandInfo & operandInfo);
@@ -87,7 +82,7 @@ protected:
     void FetchOperandZeroPageRelative  (Cpu::OperandInfo & operandInfo);
     void FetchOperandJumpIndirectCmos  (Cpu::OperandInfo & operandInfo);
 
-    void ExecuteInstruction            (Microcode microcode, const OperandInfo & operandInfo);
+    void ExecuteInstruction            (const Microcode & microcode, const OperandInfo & operandInfo);
 
     // Stack operations
     void PushByte (Byte value);
@@ -95,11 +90,33 @@ protected:
     Byte PopByte  ();
     Word PopWord  ();
 
-    // Memory operations
-    virtual void WriteByte (Word address, Byte value);
-    virtual void WriteWord (Word address, Word value);
-    virtual Byte ReadByte  (Word address);
-    virtual Word ReadWord  (Word address);
+    // Memory operations. ReadByte is a non-virtual inline fast path: any page
+    // with a non-null page-table entry (RAM $0000-$BFFF and, once the language
+    // card wires them, ROM/LC RAM $D000-$FFFF) hits the table directly with no
+    // indirect call -- the overwhelming majority of reads (instruction fetches
+    // and most operands). Null pages -- I/O ($C000-$CFFF) and any unmapped
+    // region -- fall through the virtual ReadByteSlow hook, which a derived
+    // strategy (MemoryBusCpu) overrides to route through the emulator bus.
+    // m_readPages is null on the standalone base CPU, so it always takes the
+    // slow path into memory[].
+    virtual void WriteByte     (Word address, Byte value);
+    virtual void WriteWord     (Word address, Word value);
+    Byte         ReadByte      (Word address)
+    {
+        if (m_readPages != nullptr)
+        {
+            Byte * page = m_readPages[address >> 8];
+
+            if (page != nullptr)
+            {
+                return page[address & 0xFF];
+            }
+        }
+
+        return ReadByteSlow (address);
+    }
+    virtual Byte ReadByteSlow  (Word address);
+    virtual Word ReadWord      (Word address);
 
     void InitializeInstructionSet ();
 
@@ -131,6 +148,12 @@ protected:
     // (otherwise every function that stack-allocates a Cpu blows past C6262's
     // 16 KB frame-size threshold during code analysis).
     std::vector<Byte>       memory {std::vector<Byte> (memSize, 0)};
+
+    // Optional read fast-path page table (null on the standalone base CPU). A
+    // derived strategy points this at its own 256-entry read-page map so RAM/
+    // ROM reads bypass the virtual ReadByteSlow dispatch. Entries update in
+    // place on banking changes; the pointer itself is set once at wire-up.
+    Byte * const *          m_readPages = nullptr;
 
     Byte                    SP = 0;
     Word                    PC = 0;

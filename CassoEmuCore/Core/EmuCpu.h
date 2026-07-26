@@ -8,8 +8,6 @@
 #include "Video/IVideoTiming.h"
 #include "ICycleSink.h"
 
-#include <memory>
-
 class Prng;
 
 

@@ -85,6 +85,21 @@ static constexpr int     s_kLabelBottomGapDp    = 2;
 static constexpr int     s_kJoystickButtonBandDp = 43;
 static constexpr int     s_kPaddleNoticeMs       = 8000;   // auto-dismiss for the paddle-mode tooltip
 
+// Presentation pacing. At Maximum speed the CPU runs flat-out, but we only
+// rasterize + publish a framebuffer this often (wall clock), so the render
+// side stays ~60 Hz instead of chasing thousands of unseen frames a second.
+static constexpr int64_t s_kMaxSpeedPublishIntervalUs = 16667;   // ~60 Hz
+
+// Idle UI-loop wake cadence while a tooltip dwell timer is still pending.
+static constexpr DWORD   s_kIdleAnimationTickMs       = 16;      // ~60 Hz
+
+// Upper bound on how long the idle UI loop blocks between frames/messages.
+// Drive-activity indicators can only be sampled by running UpdateDriveWidgets
+// (it diffs nibble counters), so the loop must wake at least this often to
+// catch motor-on onset behind an otherwise static screen -- 50 ms matches the
+// long-standing drive-activity refresh target.
+static constexpr DWORD   s_kIdleUpkeepMs              = 50;      // ~20 Hz
+
 // Desk-scene composition: with the CRT monitor framing on, the drive widgets
 // render at 80% of their design size so they sit in proportion under the
 // monitor. Folded into m_chromeSceneScale (NOT into DriveWidget) so switching
@@ -577,6 +592,21 @@ HRESULT EmulatorShell::Initialize (
 
     hr = BuildMachineDevices (config);
     CHR (hr);
+
+    // Mark the display pages so a write into them raises the bus video-dirty
+    // flag that drives the render-skip gate: text pages 1/2 ($0400-$0BFF) and
+    // hi-res pages 1/2 ($2000-$5FFF). Aux writes share these page indices (the
+    // //e MMU re-points them), so watching the index covers main and aux.
+    // The page layout is identical across every Apple II variant, so this is
+    // set once and survives an in-session machine switch.
+    for (int page = 0x04; page <= 0x0B; page++)
+    {
+        m_memoryBus.SetVideoWatchPage (page, true);
+    }
+    for (int page = 0x20; page <= 0x5F; page++)
+    {
+        m_memoryBus.SetVideoWatchPage (page, true);
+    }
 
     hr = InitializeRenderer();
     CHR (hr);
@@ -1109,10 +1139,11 @@ void EmulatorShell::SubscribeAndActivateTheme()
 //
 //  ApplyPersistedChromePrefs
 //
-//  Applies the persisted per-machine colorMode + //c peripheral state at
-//  boot. Without this the emulator defaults to Color regardless of what the
-//  user last saved (MachineManager::SwitchMachine carries the apply logic
-//  but only fires on user-initiated switches, not the boot path).
+//  Applies the persisted per-machine colorMode + speed mode + //c peripheral
+//  state at boot. Without this the emulator defaults to Color / Authentic
+//  regardless of what the user last saved (MachineManager::SwitchMachine
+//  carries the apply logic but only fires on user-initiated switches, not the
+//  boot path).
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1124,6 +1155,7 @@ void EmulatorShell::ApplyPersistedChromePrefs()
     const JsonValue *  uiPrefs      = nullptr;
     const JsonValue *  wpArr        = nullptr;
     std::string        colorMode;
+    std::string        speedMode;
     bool               extConnected = false;
     bool               mouseConn    = true;
 
@@ -1151,6 +1183,19 @@ void EmulatorShell::ApplyPersistedChromePrefs()
         {
             SetColorModeLive (modeIdx);
         }
+    }
+
+    // Speed mode (authentic / double / maximum) lives in the same UI prefs and,
+    // like colorMode, must be pushed into CpuManager at boot. SwitchMachine
+    // applies it for runtime machine switches, but the cold-boot path otherwise
+    // leaves the CPU at its Authentic default while Settings shows the saved
+    // value -- so a saved "maximum" never actually runs fast until re-picked.
+    hrOpt = uiPrefs->GetString ("speedMode", speedMode);
+    if (SUCCEEDED (hrOpt))
+    {
+        if      (speedMode == "authentic") { m_cpuManager.SetSpeedMode (SpeedMode::Authentic); }
+        else if (speedMode == "double")    { m_cpuManager.SetSpeedMode (SpeedMode::Double);    }
+        else if (speedMode == "maximum")   { m_cpuManager.SetSpeedMode (SpeedMode::Maximum);   }
     }
 
     // //c external drive + mouse: seed the connected states HERE -- before
@@ -3875,10 +3920,16 @@ int EmulatorShell::RunMessageLoop()
 
 
 
+    // Auto-reset wake signal the CPU thread raises after each published
+    // frame, so the idle UI loop can block on it instead of spin-polling.
+    // Must exist before the CPU thread starts publishing.
+    m_frameReadyEvent = CreateEventW (nullptr, FALSE, FALSE, nullptr);
+    CWRA (m_frameReadyEvent);
+
     hr = m_cpuManager.Start (
         [this] { OnCpuThreadStart(); },
         [this] (const EmulatorCommand & cmd) { DispatchCpuCommand (cmd); },
-        [this] { RunOneFrame(); PublishFramebuffer(); },
+        [this] { RunCpuThreadFrame(); },
         [this] { OnCpuThreadStop(); });
     CHRA (hr);
 
@@ -3906,6 +3957,7 @@ int EmulatorShell::RunMessageLoop()
             if (msg.message == WM_QUIT)
             {
                 m_cpuManager.Stop();
+                DestroyFrameReadyEvent();
                 return static_cast<int> (msg.wParam);
             }
 
@@ -3919,6 +3971,14 @@ int EmulatorShell::RunMessageLoop()
             {
                 UpdateWindowTitle();
                 ReflowChromeForMachineChange();
+
+                // A switch may have changed the default pointer mode on the CPU
+                // thread (ApplyDefaultPointerForMachine defers its UI reflection
+                // here to stay off the CPU thread). Sync the selector state and
+                // relayout the joystick button on the UI thread; both are
+                // idempotent when nothing changed.
+                SyncSelectorState();
+                RelayoutJoystickButton();
                 continue;
             }
 
@@ -3945,19 +4005,21 @@ int EmulatorShell::RunMessageLoop()
         }
 
         // One UI render cycle (framebuffer latch + chrome + printer preview /
-        // audio + present). Idle-sleep when there was nothing to present so this
-        // thread does not spin. PumpUiFrame is ALSO driven off a WM_TIMER during
-        // an OS modal move / size loop (OnEnterSizeMove) so the preview + printer
-        // sound keep running while the user holds the title bar.
+        // audio + present). PumpUiFrame is ALSO driven off a WM_TIMER during an
+        // OS modal move / size loop (OnModalLoopTick) so the preview + printer
+        // sound keep running while the user holds the title bar. When nothing
+        // needs presenting, WaitForFrameOrMessage parks the thread until a frame
+        // event or a message arrives instead of spin-sleeping.
         if (!PumpUiFrame())
         {
-            Sleep (1);
+            WaitForFrameOrMessage();
         }
     }
 
     m_cpuManager.Stop();
 
 Error:
+    DestroyFrameReadyEvent();
     return 0;
 }
 
@@ -4027,15 +4089,33 @@ bool EmulatorShell::PumpUiFrame()
     {
         m_diskManager->UpdateDriveWidgets();
     }
+    bool  anyDriveLive = false;
+
     for (const DriveWidgetState & st : m_driveWidgetState)
     {
-        if (st.doorState == DriveWidgetState::Door::Opening ||
-            st.doorState == DriveWidgetState::Door::Closing)
+        bool  doorMoving = (st.doorState == DriveWidgetState::Door::Opening ||
+                            st.doorState == DriveWidgetState::Door::Closing);
+
+        anyDriveLive = anyDriveLive                              ||
+                       st.motorOn.load    (memory_order_relaxed) ||
+                       st.diskActive.load (memory_order_relaxed);
+
+        if (doorMoving)
         {
             m_d3dRenderer.MarkRedrawNeeded();
-            break;
         }
     }
+
+    // Keep presenting while any drive is live, plus the one frame after it goes
+    // idle, so the spinning / activity LED both animates through a disk load and
+    // clears afterward even when the emulator framebuffer is static (the content
+    // gate would otherwise idle before it clears).
+    if (anyDriveLive || m_anyDriveLivePrev)
+    {
+        m_d3dRenderer.MarkRedrawNeeded();
+    }
+
+    m_anyDriveLivePrev = anyDriveLive;
 
     // //c switch strip: refresh the disk-use LED (drive activity) and the
     // Ctrl-armed reset cue every UI frame so they track live state.
@@ -4275,10 +4355,9 @@ void EmulatorShell::DispatchCpuCommand (const EmulatorCommand & cmd)
         {
             if (m_cpu)
             {
-                if (!m_cpu->TryStepInterrupt())
-                {
-                    m_cpu->StepOne();
-                }
+                // StepOne dispatches a pending interrupt vector itself (see
+                // the slice loop) -- no separate TryStepInterrupt poll needed.
+                m_cpu->StepOne();
 
                 if (m_refs.diskController != nullptr)
                 {
@@ -4571,10 +4650,9 @@ void EmulatorShell::StepInstructionWhilePaused()
         return;
     }
 
-    if (!m_cpu->TryStepInterrupt())
-    {
-        m_cpu->StepOne();
-    }
+    // StepOne dispatches a pending interrupt vector itself (see the slice
+    // loop) -- no separate TryStepInterrupt poll needed.
+    m_cpu->StepOne();
 
     if (m_refs.diskController != nullptr)
     {
@@ -4604,17 +4682,37 @@ void EmulatorShell::StepInstructionWhilePaused()
 //  PublishFramebuffer
 //
 //  Copies the freshly-rendered CPU framebuffer into the UI-visible
-//  framebuffer under m_fbMutex so the next UI message-loop iteration
-//  can pick it up and present.
+//  framebuffer under m_fbMutex and wakes the UI thread. Skips the whole
+//  handoff when the frame is byte-identical to the one last published, so a
+//  static screen stops driving the CRT post-process + Present at 60 Hz.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void EmulatorShell::PublishFramebuffer()
 {
-    lock_guard<mutex>  lock (m_fbMutex);
+    HRESULT  hr = S_OK;
+    BOOL     ok = FALSE;
 
-    m_uiFramebuffer = m_cpuFramebuffer;
-    m_fbReady       = true;
+
+
+    // The render-skip gate in RunCpuThreadFrame already decided the frame
+    // changed, so this always publishes -- no per-frame hash. Copy under the
+    // mutex, then wake the UI thread.
+    {
+        lock_guard<mutex>  lock (m_fbMutex);
+
+        m_uiFramebuffer = m_cpuFramebuffer;
+        m_fbReady       = true;
+    }
+
+    if (m_frameReadyEvent != nullptr)
+    {
+        ok = SetEvent (m_frameReadyEvent);
+        CWRA (ok);
+    }
+
+Error:
+    return;
 }
 
 
@@ -4631,6 +4729,251 @@ void EmulatorShell::RunOneFrame()
 {
     ExecuteCpuSlices();
     RenderFramebuffer();
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RunCpuThreadFrame
+//
+//  The CPU thread's per-frame callback. Always advances the emulation
+//  (ExecuteCpuSlices). Then, at most ~60 Hz (ShouldPublishFrame throttles
+//  Maximum speed), it renders + publishes ONLY when the picture can have
+//  changed: the bus raised video-dirty (a write into a display page or a
+//  banking change), or the video mode / flash phase / color signature moved.
+//  A steady screen re-rasterizes nothing -- just a few cheap comparisons.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::RunCpuThreadFrame()
+{
+    uint32_t  modeSig     = 0;
+    bool      flashOn     = false;
+    uint64_t  colorSig    = 0;
+    bool      needsRender = false;
+
+
+
+    ExecuteCpuSlices();
+
+    if (!ShouldPublishFrame())
+    {
+        return;
+    }
+
+    modeSig     = ComputeVideoModeSig();
+    flashOn     = ComputeFlashOn();
+    colorSig    = ComputeColorSig();
+    needsRender = m_memoryBus.VideoDirty()
+                  || modeSig  != m_lastRenderModeSig
+                  || flashOn  != m_lastRenderFlashOn
+                  || colorSig != m_lastRenderColorSig;
+
+    if (!needsRender)
+    {
+        return;
+    }
+
+    RenderFramebuffer();
+    PublishFramebuffer();
+
+    m_memoryBus.ClearVideoDirty();
+    m_lastRenderModeSig  = modeSig;
+    m_lastRenderFlashOn  = flashOn;
+    m_lastRenderColorSig = colorSig;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ShouldPublishFrame
+//
+//  Presentation-side pacing. Below Maximum speed the CPU thread is already
+//  paced to one frame per vsync by its waitable timer, so every frame is
+//  published. At Maximum speed emulation is unthrottled, so gate the
+//  rasterize/publish to a ~60 Hz wall-clock cadence.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool EmulatorShell::ShouldPublishFrame()
+{
+    SpeedMode                         speed = m_cpuManager.GetSpeedMode();
+    chrono::steady_clock::time_point  now   = chrono::steady_clock::now();
+
+
+
+    if (speed != SpeedMode::Maximum)
+    {
+        m_lastPublishSteady = now;
+        return true;
+    }
+
+    if (now - m_lastPublishSteady >= chrono::microseconds (s_kMaxSpeedPublishIntervalUs))
+    {
+        m_lastPublishSteady = now;
+        return true;
+    }
+
+    return false;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ComputeVideoModeSig
+//
+//  Packs every soft-switch that changes what the renderer produces into a
+//  small integer: the base graphics/mixed/page2/hi-res selects plus the //e
+//  80STORE / 80COL / ALTCHARSET / double-hi-res bits. Any change re-renders.
+//  Mirrors exactly the inputs MachineManager::SelectVideoMode reads.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+uint32_t EmulatorShell::ComputeVideoModeSig()
+{
+    uint32_t                  sig = 0;
+    Apple2eSoftSwitchBank *   iie = nullptr;
+
+
+    if (m_refs.softSwitches == nullptr)
+    {
+        return 0;
+    }
+
+    sig |= m_refs.softSwitches->IsGraphicsMode() ? 0x01u : 0u;
+    sig |= m_refs.softSwitches->IsMixedMode()    ? 0x02u : 0u;
+    sig |= m_refs.softSwitches->IsPage2()        ? 0x04u : 0u;
+    sig |= m_refs.softSwitches->IsHiresMode()    ? 0x08u : 0u;
+
+    iie = dynamic_cast<Apple2eSoftSwitchBank *> (m_refs.softSwitches);
+
+    if (iie != nullptr)
+    {
+        sig |= iie->Is80Store()     ? 0x10u : 0u;
+        sig |= iie->Is80ColMode()   ? 0x20u : 0u;
+        sig |= iie->IsAltCharSet()  ? 0x40u : 0u;
+        sig |= iie->IsDoubleHiRes() ? 0x80u : 0u;
+    }
+
+    return sig;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ComputeFlashOn
+//
+//  Derives the text flash/cursor-blink phase from emulated time (total CPU
+//  cycles), toggling every 16 emulated frames as the real VBL-driven blink
+//  does. Computed independently of rendering so the gate can re-render on a
+//  toggle without the flash freezing when frames are skipped.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool EmulatorShell::ComputeFlashOn()
+{
+    uint64_t  cyclesPerToggle = 16ull * m_cyclesPerFrame;
+
+
+    if (m_cpu == nullptr || cyclesPerToggle == 0)
+    {
+        return true;
+    }
+
+    return ((m_cpu->GetTotalCycles() / cyclesPerToggle) & 1ull) == 0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ComputeColorSig
+//
+//  Folds the monitor color mode and the color-monitor text color into one
+//  value so a live change (View menu / Settings) re-renders the frame.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+uint64_t EmulatorShell::ComputeColorSig()
+{
+    uint64_t  mode = (uint64_t) m_colorMode.load (memory_order_acquire);
+    uint64_t  argb = (uint64_t) m_colorMonitorTextArgb.load (memory_order_acquire);
+
+
+    return (mode << 32) | argb;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WaitForFrameOrMessage
+//
+//  Idle UI-loop block. Sleeps until the CPU thread signals a new frame OR a
+//  Windows message arrives, replacing the old Sleep(1) spin. Caps the wait at
+//  a bounded upkeep interval so drive-activity sampling stays live behind a
+//  static screen, and drops to a faster tick while a tooltip dwell is pending.
+//  Every other animated surface (persistence trail, drive doors, open menus,
+//  live Settings edits) forces a present through NeedsPresent and so never
+//  reaches this path.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::WaitForFrameOrMessage()
+{
+    DWORD  timeout = s_kIdleUpkeepMs;
+    DWORD  waited  = 0;
+
+
+
+    if (m_joystickTooltip.WantsTick()  ||
+        m_switchBarTooltip.WantsTick() ||
+        m_driveTooltip.WantsTick())
+    {
+        timeout = s_kIdleAnimationTickMs;
+    }
+
+    waited = MsgWaitForMultipleObjectsEx (1, &m_frameReadyEvent, timeout,
+                                          QS_ALLINPUT, MWMO_INPUTAVAILABLE);
+    IGNORE_RETURN_VALUE (waited, 0u);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DestroyFrameReadyEvent
+//
+//  Closes the frame-ready wake event. Idempotent; the caller must have
+//  stopped (joined) the CPU thread first so no SetEvent can race the close.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void EmulatorShell::DestroyFrameReadyEvent()
+{
+    if (m_frameReadyEvent != nullptr)
+    {
+        CloseHandle (m_frameReadyEvent);
+        m_frameReadyEvent = nullptr;
+    }
 }
 
 
@@ -4688,10 +5031,13 @@ void EmulatorShell::ExecuteCpuSlices()
 
         while (sliceActual < sliceTarget)
         {
-            if (!m_cpu->TryStepInterrupt())
-            {
-                m_cpu->StepOne();
-            }
+            // StepOne polls the interrupt lines itself and dispatches a
+            // pending NMI/IRQ vector in place of the opcode fetch (see
+            // EmuCpu::StepOne), reporting the cost through
+            // GetLastInstructionCycles either way -- so a bare StepOne is the
+            // whole step. The former outer TryStepInterrupt was a second,
+            // redundant interrupt poll on every instruction.
+            m_cpu->StepOne();
 
             cycles = m_cpu->GetLastInstructionCycles();
 
@@ -4757,14 +5103,17 @@ void EmulatorShell::ExecuteCpuSlices()
 
 void EmulatorShell::RenderFramebuffer()
 {
-    ColorMode color = m_colorMode.load (memory_order_acquire);
+    ColorMode  color   = m_colorMode.load (memory_order_acquire);
+    bool       flashOn = ComputeFlashOn();
 
 
 
     // A color monitor renders text white; the monochrome monitors keep the
     // text renderer's green here and the post-render tint below recolors the
     // whole frame to the selected phosphor. m_videoModes[0] is the 40-col
-    // text mode and [4] (when present) the 80-col mode.
+    // text mode and [4] (when present) the 80-col mode. Flash state is pushed
+    // in from emulated time (Render no longer self-advances it) so the blink
+    // survives the render-skip gate.
     {
         uint32_t textOnColor = (color == ColorMode::Color)
                                    ? m_colorMonitorTextArgb.load (memory_order_acquire)
@@ -4772,16 +5121,45 @@ void EmulatorShell::RenderFramebuffer()
 
         if (!m_videoModes.empty())
         {
-            static_cast<AppleTextMode *> (m_videoModes[0].get())->SetOnColor (textOnColor);
+            AppleTextMode *  text40 = static_cast<AppleTextMode *> (m_videoModes[0].get());
+
+            text40->SetOnColor    (textOnColor);
+            text40->SetFlashState (flashOn);
         }
 
         if (m_videoModes.size() > 4)
         {
-            static_cast<Apple80ColTextMode *> (m_videoModes[4].get())->SetOnColor (textOnColor);
+            Apple80ColTextMode *  text80 = static_cast<Apple80ColTextMode *> (m_videoModes[4].get());
+
+            text80->SetOnColor    (textOnColor);
+            text80->SetFlashState (flashOn);
         }
     }
 
     m_machineManager->SelectVideoMode();
+
+    // Dirty-row text cache: force a full re-raster when reusing last frame's
+    // rows would be unsafe. (1) A monochrome color mode applies a
+    // non-idempotent tint over the whole framebuffer below, so a row we skipped
+    // would darken every frame. (2) A change of active mode means the buffer
+    // last held graphics / another mode, so no text row can be trusted. Steady
+    // color text hits neither and lets AppleTextMode redraw only changed rows.
+    if (!m_videoModes.empty())
+    {
+        bool forceFullText = (color != ColorMode::Color)
+                          || (m_refs.activeVideoMode != m_prevActiveVideoMode);
+
+        if (forceFullText)
+        {
+            static_cast<AppleTextMode *> (m_videoModes[0].get())->InvalidateCache();
+
+            if (m_videoModes.size() > 4)
+            {
+                static_cast<Apple80ColTextMode *> (m_videoModes[4].get())->InvalidateCache();
+            }
+        }
+    }
+    m_prevActiveVideoMode = m_refs.activeVideoMode;
 
     if (m_refs.activeVideoMode != nullptr)
     {
@@ -6577,6 +6955,27 @@ void EmulatorShell::ApplyDefaultPointerForMachine()
         // (which SyncSelectorState()s itself), and the launch path lays out
         // the chrome later in Initialize.
         m_pointerMode = InputMappingMode::Mouse;
+
+        // SyncSelectorState / RelayoutJoystickButton touch Dxui (text
+        // measurement) and assert the UI thread. On a machine switch this runs
+        // on the CPU thread, so defer the chrome reflection to the post-switch
+        // handler on the UI thread (WM_APP_DXUI_UPDATE_TITLE, posted by the
+        // UpdateWindowTitle at the end of SwitchMachine). On the UI thread
+        // (launch, or before the window exists) reflect it immediately.
+        bool  offUiThread = (m_hwnd != nullptr) &&
+                            (GetWindowThreadProcessId (m_hwnd, nullptr) != GetCurrentThreadId ());
+
+        if (offUiThread)
+        {
+            return;
+        }
+
+        SyncSelectorState();
+
+        if (m_hwnd != nullptr)
+        {
+            RelayoutJoystickButton();
+        }
     }
 }
 
@@ -7155,6 +7554,7 @@ LRESULT EmulatorShell::OnDrawItem (HWND hwnd, UINT msg, WPARAM wParam, LPARAM lP
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  OnTimer
@@ -7172,7 +7572,6 @@ DxuiMessageResult EmulatorShell::OnTimer (UINT_PTR timerId)
 
     return DxuiMessageResult::NotHandled;
 }
-
 
 
 

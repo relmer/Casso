@@ -30,7 +30,7 @@ class MemoryBusCpu : public Cpu6502
 public:
     explicit MemoryBusCpu (MemoryBus & memoryBus);
 
-    Byte    ReadByte         (Word address) override;
+    Byte    ReadByteSlow     (Word address) override;
     void    WriteByte        (Word address, Byte value) override;
     Word    ReadWord         (Word address) override;
     void    WriteWord        (Word address, Word value) override;

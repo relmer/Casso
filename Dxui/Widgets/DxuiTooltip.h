@@ -66,6 +66,11 @@ public:
     void  HideImmediate   ();
 
     bool                 IsVisible () const { return m_visible; }
+
+    // True while a dwell timer (deferred open or timed close) is still
+    // pending, so a host that idle-blocks knows to keep calling Tick on a
+    // timeout rather than sleeping until the next input/frame.
+    bool                 WantsTick () const { return m_pending || (m_visible && m_hideAtMs != 0); }
     const std::wstring & Text      () const { return m_text;    }
     const RECT         & Anchor    () const { return m_anchor;  }
 

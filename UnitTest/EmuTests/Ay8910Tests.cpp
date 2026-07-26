@@ -88,6 +88,11 @@ namespace Ay8910TestNs
             ay.WriteRegister (Ay8910::kRegToneAFine, static_cast<Byte> (period & 0xFF));
             ay.WriteRegister (Ay8910::kRegToneACoarse, static_cast<Byte> ((period >> 8) & 0x0F));
 
+            // Give channel A a non-zero amplitude so the chip is audible: a
+            // fully muted chip freezes its generators as an inaudible fast-path,
+            // and this test measures the running generator via GetToneState.
+            ay.WriteRegister (Ay8910::kRegAmpA, 0x0F);
+
             prevState = ay.GetToneState (0);
 
             // Generate exactly one second and count the square-wave toggles.
@@ -128,6 +133,49 @@ namespace Ay8910TestNs
             }
 
             Assert::AreEqual (0.0f, sum, L"Zero amplitude must yield pure silence");
+        }
+
+
+        TEST_METHOD (MutedThenUnmuted_ResumesOutput)
+        {
+            Ay8910    ay (kClockHz);
+            uint32_t  i    = 0;
+            float     sum  = 0.0f;
+            float     peak = 0.0f;
+
+
+
+            ay.SetSampleRate (kSampleRate);
+
+            // Audible tone configured, but amplitude 0 (muted): the silence
+            // fast-path skips synthesis and the output is pure silence.
+            ay.WriteRegister (Ay8910::kRegToneAFine, 0xFF);
+            ay.WriteRegister (Ay8910::kRegToneACoarse, 0x01);
+            ay.WriteRegister (Ay8910::kRegMixer, 0x3E);   // tone A only
+
+            for (i = 0; i < 2000; i++)
+            {
+                sum += ay.GenerateSample ();
+            }
+
+            Assert::AreEqual (0.0f, sum, L"Muted chip must be silent");
+
+            // Un-mute: a non-zero amplitude must re-engage synthesis and resume
+            // audible output -- the fast-path must not permanently freeze the chip.
+            ay.WriteRegister (Ay8910::kRegAmpA, 0x0F);
+
+            for (i = 0; i < 5000; i++)
+            {
+                float  s = ay.GenerateSample ();
+
+                if (s > peak)
+                {
+                    peak = s;
+                }
+            }
+
+            Assert::IsTrue (peak > 0.0f,
+                            L"Un-muting after a silent stretch must resume output");
         }
 
 

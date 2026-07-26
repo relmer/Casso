@@ -276,9 +276,9 @@ bool Cpu::DumpTraceToFile (const std::wstring & path,
 void Cpu::StepOne()
 {
 
-    Byte        opcode      = ReadByte (PC);
-    Microcode   microcode   = instructionSet[opcode];
-    OperandInfo operandInfo = { 0 };
+    Byte              opcode      = ReadByte (PC);
+    const Microcode & microcode   = instructionSet[opcode];
+    OperandInfo       operandInfo = { 0 };
 
 
 
@@ -543,7 +543,7 @@ void Cpu::PrintOperandAndComment (Byte opcode, const OperandInfo & operandInfo)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void Cpu::FetchOperand (Microcode microcode, OperandInfo & operandInfo)
+void Cpu::FetchOperand (const Microcode & microcode, OperandInfo & operandInfo)
 {
     operandInfo.location         = 0;
     operandInfo.effectiveAddress = 0;
@@ -797,7 +797,7 @@ void Cpu::FetchOperandRelative (Cpu::OperandInfo & operandInfo)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void Cpu::FetchOperandAbsolute (Cpu::OperandInfo & operandInfo, Microcode & microcode)
+void Cpu::FetchOperandAbsolute (Cpu::OperandInfo & operandInfo, const Microcode & microcode)
 {
     operandInfo.location         = ReadWord (PC++);
     operandInfo.effectiveAddress = operandInfo.location;
@@ -916,7 +916,7 @@ void Cpu::FetchOperandAbsoluteX (Cpu::OperandInfo & operandInfo)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void Cpu::ExecuteInstruction (Microcode microcode, const OperandInfo & operandInfo)
+void Cpu::ExecuteInstruction (const Microcode & microcode, const OperandInfo & operandInfo)
 {
     Byte * pAccumulator = nullptr;
 
@@ -1084,11 +1084,16 @@ void Cpu::WriteWord (Word address, Word value)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ReadByte
+//  ReadByteSlow
+//
+//  Base (standalone) slow path: the built-in 64 KB memory[] array. A derived
+//  strategy (MemoryBusCpu) overrides this to route I/O and unmapped accesses
+//  through the emulator bus; RAM/ROM reads are served by the non-virtual
+//  ReadByte fast path in the header and never reach here on that CPU.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-Byte Cpu::ReadByte (Word address)
+Byte Cpu::ReadByteSlow (Word address)
 {
     return memory[address];
 }

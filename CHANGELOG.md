@@ -79,6 +79,34 @@ Entries before versioning was introduced use dates only.
   builds; the run-state tag and build-identity stamp are kept in Debug only,
   and a paused / stopped emulator is still flagged in every build.
 
+## [1.13.0] — Emulation and render performance
+
+### Changed
+- **perf(emulation): per-instruction hot path** — a sweep of the work that runs
+  on every emulated instruction. RAM/ROM reads now serve inline from a page
+  table instead of a virtual dispatch; I/O ($C000–$FFFF) resolves through a
+  direct device map instead of scanning the device list; the language-card
+  ($D000–$FFFF) and the //c internal ($C100–$CFFF) ROM windows are page-mapped
+  so they read inline; and the interrupt poll, the video-timing tick, and the
+  //c mouse tick shed redundant per-instruction work (the mouse's vertical-blank
+  edge is now sampled on a coarse cadence rather than checked every
+  instruction). Net: lower steady-state emulation CPU, most visibly on the //c.
+- **perf(video): dirty-row text rendering** — the 40- and 80-column text
+  screens re-rasterize only the rows whose characters changed since the last
+  frame (plus, on the flash blink, the rows holding a flashing glyph) instead
+  of redrawing all 24 rows every frame — so a scrolling catalog or a blinking
+  cursor no longer repaints the whole screen.
+- **perf(render): cached text shaping and geometry** — the UI chrome caches its
+  shaped text layouts and solid brushes instead of re-shaping every label each
+  frame, and appends quad geometry in bulk.
+- **perf(audio): idle Mockingboard** — AY-3-8910 tone/noise synthesis is skipped
+  while the chip is fully muted.
+
+### Fixed
+- **fix(shell): machine switch** — switching machine model (e.g. //c → //e) from
+  the menu no longer trips a UI-thread assertion; the pointer and joystick
+  controls are re-synced on the UI thread once the switch completes.
+
 ## [1.12.0] — Skeuomorphic CRT monitor
 
 ### Added
@@ -95,7 +123,27 @@ Entries before versioning was introduced use dates only.
   off restores the classic bare display at full drive sizes. Off by default
   because the scene trades screen real estate for the look.
 
+### Changed
+- **perf(shell): idle CPU and GPU** — the emulator no longer re-rasterizes the
+  screen and re-runs the full CRT post-process + Present every 60 Hz when
+  nothing on screen has changed. The memory bus now tracks writes into the
+  display pages (dirty-tracking), so the video frame is regenerated only when
+  the picture's actual inputs move — a write that changes displayed memory, a
+  video mode / soft-switch change, the text flash phase, or the monitor color —
+  and a static screen (a menu, a BASIC prompt) drops render + present work
+  toward zero instead of pinning the GPU at a constant load. The UI thread now
+  blocks until the next frame or input arrives rather than spin-polling, and at
+  Maximum speed the CPU runs flat-out while the picture is still only shown ~60
+  times a second — no more burning cores on frames no one ever sees.
+  Drive-activity lights keep animating through a disk load even behind an
+  otherwise static screen.
+
 ### Fixed
+- **fix(shell): saved CPU speed now applies at startup** — a saved emulation
+  speed of Double or Maximum is applied when Casso launches, instead of only
+  showing in Settings while the CPU quietly ran at Authentic speed until the
+  setting was re-selected. The cold-boot path applied the saved color mode but
+  overlooked the speed mode.
 - **fix(window): Alt+Enter fullscreen** — several fullscreen defects are
   resolved. DXGI's built-in Alt+Enter handler (installed on the HWND swap
   chain) was double-handling the keystroke and racing the app's own

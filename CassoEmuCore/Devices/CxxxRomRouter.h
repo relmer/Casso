@@ -49,6 +49,17 @@ public:
     void SetSlotRom     (int slot, vector<Byte> data);
     bool HasSlotRom     (int slot) const;
 
+    // Page-table read pointer for a $C100-$CFFF page ($C1-$CF), or null if the
+    // page must stay on the Read handler. Only the //c (no external slots)
+    // serves the whole window as static internal ROM, so only there is a
+    // pointer returned -- and even then the reactive pages ($C3xx latches
+    // INTC8ROM, $CFFF clears it) return null so their read side effects still
+    // run. On the //e the window is arbitrated per access, so every page is
+    // null (handler). The pointer is into m_internal, which SetInternalRom
+    // move-reassigns on a //c $C028 bank flip, so the MMU must re-query after
+    // any AttachInternalCxxxRom.
+    Byte * FastMapReadPtr (int page);
+
     // Apple //c: there are no external card slots, so the whole $C100-$CFFF
     // window (including the $C800 expansion space) is always the internal
     // firmware regardless of the INTCXROM/SLOTC3ROM/INTC8ROM switches -- the
@@ -71,4 +82,9 @@ private:
     vector<Byte>   m_slotRom[8];
     bool           m_noExternalSlots = false;
     MemoryDevice * m_slotIoDevice[8] = {};
+
+    // True while any slot has an I/O device registered (see SetSlotIoDevice).
+    // Lets the //c read fast path assert "no slot delegation possible" with a
+    // single bool test instead of scanning m_slotIoDevice on every access.
+    bool           m_hasSlotIoDevice = false;
 };

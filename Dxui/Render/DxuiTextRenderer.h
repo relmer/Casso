@@ -143,6 +143,37 @@ private:
     };
 
 
+    // Key for the shaped-text-layout cache. A DirectWrite text layout owns the
+    // font-fallback + shaping work, which is expensive and allocation-heavy;
+    // caching one per distinct (text, format, alignment, box) lets repeated
+    // frames re-draw unchanged chrome via DrawTextLayout with no re-shaping.
+    struct LayoutCacheKey
+    {
+        std::wstring        text;
+        std::wstring        family;
+        float               sizeDip = 0.0f;
+        DxuiFontWeight      weight  = DxuiFontWeight::Normal;
+        int                 hAlign  = 0;
+        int                 vAlign  = 0;
+        bool                wrap    = false;
+        float               maxW    = 0.0f;
+        float               maxH    = 0.0f;
+
+        bool operator < (const LayoutCacheKey & o) const
+        {
+            if (text    != o.text)    { return text    < o.text;    }
+            if (family  != o.family)  { return family  < o.family;  }
+            if (sizeDip != o.sizeDip) { return sizeDip < o.sizeDip; }
+            if (weight  != o.weight)  { return weight  < o.weight;  }
+            if (hAlign  != o.hAlign)  { return hAlign  < o.hAlign;  }
+            if (vAlign  != o.vAlign)  { return vAlign  < o.vAlign;  }
+            if (wrap    != o.wrap)    { return wrap    < o.wrap;    }
+            if (maxW    != o.maxW)    { return maxW    < o.maxW;    }
+            return maxH < o.maxH;
+        }
+    };
+
+
     HRESULT  EnsureTextFormat (const wchar_t                * family,
                                float                          fontSizeDip,
                                DxuiFontWeight                 weight,
@@ -154,6 +185,25 @@ private:
                                DxuiFontWeight                 weight,
                                IDWriteTextFormat            * format,
                                float                        & outCapMidY);
+
+
+    // Cached solid-color brush keyed by ARGB (opacity re-applied per use).
+    HRESULT  EnsureBrush      (uint32_t                       argb,
+                               ID2D1SolidColorBrush        ** outBrush);
+
+
+    // Cached shaped text layout (see LayoutCacheKey). Alignment / wrapping are
+    // set on the layout itself so the shared format is never mutated.
+    HRESULT  EnsureLayout     (const wchar_t                * text,
+                               const wchar_t                * family,
+                               float                          fontSizeDip,
+                               DxuiFontWeight                 weight,
+                               DxuiTextHAlign                 hAlign,
+                               DxuiTextVAlign                 vAlign,
+                               bool                           wrap,
+                               float                          maxWidthDip,
+                               float                          maxHeightDip,
+                               IDWriteTextLayout           ** outLayout);
 
 
     ComPtr<ID2D1Factory1>             m_d2dFactory;
@@ -177,6 +227,12 @@ private:
              ComPtr<IDWriteTextFormat>>  m_formatCache;
 
     std::map<TextFormatKey, float>       m_capMidCache;
+
+    std::map<uint32_t,
+             ComPtr<ID2D1SolidColorBrush>>  m_brushCache;
+
+    std::map<LayoutCacheKey,
+             ComPtr<IDWriteTextLayout>>     m_layoutCache;
 
     bool                              m_targetBound = false;
     bool                              m_drawing     = false;

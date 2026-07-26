@@ -31,6 +31,13 @@ MemoryBusCpu::MemoryBusCpu (MemoryBus & memoryBus)
         m_memoryBus.SetReadPage  (page, pBase + (page * 0x100));
         m_memoryBus.SetWritePage (page, pBase + (page * 0x100));
     }
+
+    // Serve RAM/ROM reads through the base Cpu's inline fast path instead of
+    // the virtual read dispatch: point it at the bus's read-page table (whose
+    // entries the MMU re-points on banking changes, so the pointer stays
+    // valid). I/O ($C000+) and unmapped low pages still fall through the
+    // virtual ReadByteSlow into the bus.
+    m_readPages = m_memoryBus.GetReadPageTable ();
 }
 
 
@@ -39,11 +46,16 @@ MemoryBusCpu::MemoryBusCpu (MemoryBus & memoryBus)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ReadByte
+//  ReadByteSlow
+//
+//  Slow path for I/O ($C000+) and unmapped low pages. RAM/ROM reads never
+//  reach here -- the base Cpu's non-virtual ReadByte serves them inline from
+//  the read-page table wired up in the constructor. UpdateBusCycle refreshes
+//  the sub-instruction cycle estimate the disk controller samples at $C0Ex.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-Byte MemoryBusCpu::ReadByte (Word address)
+Byte MemoryBusCpu::ReadByteSlow (Word address)
 {
     UpdateBusCycle ();
 
