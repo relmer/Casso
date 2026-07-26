@@ -1,0 +1,73 @@
+#!/bin/sh
+#
+#  Casso pre-push style gate.
+#
+#  Runs scripts/CheckStyle.ps1 over the commits being pushed and refuses
+#  the push if they ADD violations of the mechanically-checkable coding
+#  standards. Pre-existing violations elsewhere in the tree are ignored --
+#  see the CheckStyle.ps1 header for why the gate is diff-scoped.
+#
+#  Enable once per clone (shared by all worktrees):
+#
+#      git config core.hooksPath .githooks
+#
+#  git supplies one line per ref being pushed on stdin:
+#      <local ref> <local sha> <remote ref> <remote sha>
+#
+
+repo_root=$(git rev-parse --show-toplevel)
+status=0
+
+# Locate a PowerShell. Absent one, decline to block the push rather than
+# wedge the repo -- a gate nobody can bypass gets deleted.
+if command -v pwsh >/dev/null 2>&1; then
+    ps_exe=pwsh
+elif command -v powershell.exe >/dev/null 2>&1; then
+    ps_exe=powershell.exe
+else
+    echo "pre-push: no PowerShell found; skipping the style gate." >&2
+    exit 0
+fi
+
+is_zero_sha() {
+    [ -z "$(printf '%s' "$1" | tr -d '0')" ]
+}
+
+while read -r local_ref local_sha remote_ref remote_sha
+do
+    # Strip stray CR: this repo is Windows-first and the hook can be fed
+    # CRLF by tooling other than git itself. A trailing CR silently breaks
+    # the all-zero-sha comparisons below.
+    local_sha=$(printf '%s' "$local_sha" | tr -d '\r\n')
+    remote_sha=$(printf '%s' "$remote_sha" | tr -d '\r\n')
+
+    # Deleting a remote branch pushes an all-zero local sha; nothing to check.
+    if is_zero_sha "$local_sha"; then
+        continue
+    fi
+
+    # A brand-new remote branch has an all-zero remote sha, so there is no
+    # "previously pushed" point to diff from -- fall back to master.
+    if is_zero_sha "$remote_sha"; then
+        base=$(git rev-parse --verify --quiet origin/master 2>/dev/null \
+               || git rev-parse --verify --quiet master 2>/dev/null)
+    else
+        base="$remote_sha"
+    fi
+
+    if [ -z "$base" ]; then
+        continue
+    fi
+
+    "$ps_exe" -NoProfile -NonInteractive \
+        -File "$repo_root/scripts/CheckStyle.ps1" \
+        -Against "$base" -Revision "$local_sha" || status=1
+done
+
+if [ "$status" -ne 0 ]; then
+    echo "" >&2
+    echo "pre-push: style gate failed -- push rejected." >&2
+    echo "Fix the lines above, or re-run with --no-verify if you must." >&2
+fi
+
+exit $status

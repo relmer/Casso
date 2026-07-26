@@ -343,6 +343,29 @@ void Function2()
 - Supported platforms: x64, ARM64
 - Toolset: v145 (VS 2026)
 
+### Style Gate (pre-push)
+
+`scripts/CheckStyle.ps1` mechanically enforces the subset of the style rules
+above that reduce to a regex: empty-paren spacing, anonymous namespaces,
+American spelling, angle-bracket includes, `Pch.h`-first, bare `goto Error`,
+cast spacing, and Claude attribution in commit messages. Rules that need
+judgment — column alignment, the blank-line counts, magic numbers, EHM
+single-exit — are **not** covered and remain review's job.
+
+Enable the hook once per clone (shared by all worktrees):
+
+```powershell
+git config core.hooksPath .githooks
+```
+
+- The gate is **diff-scoped**: it inspects only the lines a push *adds*. The
+  tree carries a large pre-existing backlog, so a whole-tree gate would fail
+  on the first push and be switched off the same day.
+- Audit the full backlog with `scripts/CheckStyle.ps1 -Mode Tree`.
+- Check your branch by hand any time with `scripts/CheckStyle.ps1`.
+- Once a rule has been swept to zero tree-wide it can be promoted to a
+  whole-tree check in CI.
+
 ### Merge-to-Master Gates
 These gates apply to **`master`** — i.e. every commit that lands on `master`
 (directly or via merge/PR) MUST satisfy them. They do **NOT** apply to every
