@@ -6,7 +6,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 Versioned entries use `MAJOR.MINOR.PATCH` from [Version.h](CassoCore/Version.h).
 Entries before versioning was introduced use dates only.
 
-## [1.13.0] — Emulated ImageWriter II printer (spec 015)
+## [1.14.0] — Emulated ImageWriter II printer (spec 015)
 
 ### Added
 - **feat(printer): parallel printer card + original slot firmware** — a dumb,
@@ -50,6 +50,11 @@ Entries before versioning was introduced use dates only.
   tooltips); replaces the standalone printer indicator.
 - **feat(audio): master output volume** — one gain over the completed mix
   (speaker, drives, printer, Mockingboard), persisted with mute.
+- **feat(printer): Settings > Printing info banner** — a themed banner at the
+  top of the Printing tab states what printer the current machine emulates and
+  how it connects ("Apple ImageWriter II ... parallel interface"), or that a
+  slotless machine (//c) has none; built on a new reusable `DxuiInfoBanner`
+  control with theme-derived colors.
 
 ### Fixed
 - **fix(shell):** the OS modal move/size loop (title-bar hold, resize) no
@@ -70,6 +75,9 @@ Entries before versioning was introduced use dates only.
 - Print delivery destination is chosen per action (Print / Save / Copy), not
   a stored preference; Settings > Printing keeps output resolution + dot
   style and gains a Restore-defaults button.
+- The window caption reads a clean "Casso - &lt;machine&gt;" in retail (Release)
+  builds; the run-state tag and build-identity stamp are kept in Debug only,
+  and a paused / stopped emulator is still flagged in every build.
 
 ## [1.12.0] — Skeuomorphic CRT monitor
 

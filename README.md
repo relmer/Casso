@@ -25,11 +25,40 @@ The project includes:
 - **CLI tool** — runs as an AS65-style assembler by default, or with the `run` subcommand to load and execute a binary or assembly source.
 - **First-run asset bootstrap** — Casso fetches the ROMs, sample disks, and Disk II audio samples it needs on first launch (with user consent), so a fresh `Casso.exe` boots to a usable //e BASIC prompt with no manual setup.
 - **Headless test harness** — `HeadlessHost` drives the emulator with no Win32 window, enabling deterministic integration tests for cold boot, disk boot, video framebuffer hashing, and reset semantics.
-- **2600+ unit tests** — comprehensive coverage of CPU instruction encoding, addressing modes, arithmetic, branching, assembler features, audio pipeline (speaker + drive + printer + Mockingboard), 6522 VIA timers/IRQ + AY-3-8910 synthesis, //e MMU + Language Card, video timing, Disk II nibble engine, WOZ + nibblized image formats, 80-col + DHGR video, the printer pipeline (interpreter, renderer, pagination, pacing, persistence, slot firmware), reset semantics, perf budget, and backwards-compat for ][ and ][ plus machines.
+- **2700+ unit tests** — comprehensive coverage of CPU instruction encoding, addressing modes, arithmetic, branching, assembler features, audio pipeline (speaker + drive + printer + Mockingboard), 6522 VIA timers/IRQ + AY-3-8910 synthesis, //e MMU + Language Card, video timing, Disk II nibble engine, WOZ + nibblized image formats, 80-col + DHGR video, the printer pipeline (interpreter, renderer, pagination, pacing, head mechanics + drain engine, preview model, persistence, slot firmware), reset semantics, perf budget, and backwards-compat for ][ and ][ plus machines.
 
 ## What's New
 
 See [CHANGELOG.md](CHANGELOG.md) for the granular history.
+
+### Emulated ImageWriter II printer (v1.14.0)
+
+Casso now emulates a full **Apple ImageWriter II** dot-matrix printer, end to
+end — a parallel printer card sits in slot 1 (default on ][, ][+, //e, and //e
+Enhanced) and the guest can print for real. `PR#1` lists a BASIC program or
+`CATALOG`s a disk in an original 95-glyph dot-matrix font; The Print Shop prints
+its banners, signs, and greeting cards in full four-color glory, its command set
+locked from real Print Shop byte captures (ESC-G / ESC-L bit image, seven-color
+ribbon with overprint composites, and the documented pitch and line-spacing
+family).
+
+Print output appears in a **live skeuomorphic preview** — a real-3D ImageWriter
+II (the project's own CAD model) with fanfold paper, tractor-feed holes, and
+perforations, feeding out of the platen as you watch. A single print-head clock
+drives the whole illusion: the carriage sweeps bidirectionally at true draft
+speed laying ink column by column, the paper feeds with the head parked, and the
+**mechanical sound** (authentic ImageWriter II recordings by Scott Lawrence) is
+gated to what the head is actually doing — a carriage buzz over ink, line-feed
+clacks, page feeds, and tear-offs, stereo-panned to the window. A one-page
+viewport follows the newest rows; scroll back to review earlier pages and it
+snaps to the live row once printing idles.
+
+Any printout delivers three ways without re-printing — **Save** as a PNG, **Copy**
+to the clipboard, or **Print** to a real Windows printer (with a paginated print
+preview) — and the paper stays loaded until you tear it off, so a pending
+printout even survives across sessions. A command toolbar below the menu bar
+carries the printer status LED and a preview button, and **Settings → Printing**
+states what printer the current machine emulates and how it connects.
 
 ### Skeuomorphic CRT monitor (v1.12.0)
 
