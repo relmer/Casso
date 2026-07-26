@@ -33,6 +33,21 @@ See [CHANGELOG.md](CHANGELOG.md) for the granular history, and
 [ARCHITECTURE.md](ARCHITECTURE.md) for a technical overview of the emulator's
 internals (projects, threading, the memory model, and the optimization log).
 
+### Emulation and render performance (v1.13.0)
+
+A performance pass across the hot paths that run on every emulated instruction
+and every drawn frame. On the CPU side, memory reads serve RAM/ROM inline from
+a page table instead of a virtual dispatch, I/O decodes through a direct device
+map instead of scanning the device list, the language-card (`$D000–$FFFF`) and
+//c internal-ROM (`$C100–$CFFF`) windows are page-mapped, and the interrupt
+poll, video-timing tick, and //c mouse tick shed redundant per-instruction
+work — so a steady machine idles at noticeably lower CPU, most visibly on the
+//c. On the render side, the 40-column text screen repaints only the rows that
+actually changed — a scrolling catalog or a blinking cursor no longer redraws
+all 24 rows — the UI chrome caches its shaped text and geometry instead of
+re-shaping every label each frame, and the Mockingboard skips synthesis while
+fully muted.
+
 ### Skeuomorphic CRT monitor (v1.12.0)
 
 An opt-in **CRT monitor desk scene** — a checkbox on **Settings → Theme**
