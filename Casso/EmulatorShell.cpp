@@ -7243,6 +7243,28 @@ void EmulatorShell::UpdateWindowTitle()
 
 
 
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PrinterBannerMessage
+//
+//  One-line printer summary for the Settings > Printing info banner. The
+//  machine-can-print fact comes from the config's enabled slots (core, tested);
+//  the wording is host UI copy. //c is slotless, so it reads as no printer.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring EmulatorShell::PrinterBannerMessage () const
+{
+    if (m_config.HasEnabledSlotDevice ("parallel-printer"))
+    {
+        return L"Emulating an Apple ImageWriter II connected via parallel interface.";
+    }
+
+    return L"No printer is connected to this " + fs::path (m_config.name).wstring() + L".";
+}
+
+
+
 
 ////////////////////////////////////////////////////////////////////////////////
 //

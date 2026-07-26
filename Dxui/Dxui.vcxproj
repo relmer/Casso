@@ -168,6 +168,7 @@
     <ClCompile Include="Widgets\DxuiCheckbox.cpp" />
     <ClCompile Include="Widgets\DxuiDropdown.cpp" />
     <ClCompile Include="Widgets\DxuiIconButton.cpp" />
+    <ClCompile Include="Widgets\DxuiInfoBanner.cpp" />
     <ClCompile Include="Widgets\DxuiListView.cpp" />
     <ClCompile Include="Widgets\DxuiMenuBar.cpp" />
     <ClCompile Include="Widgets\DxuiModalScrim.cpp" />
@@ -231,6 +232,7 @@
     <ClInclude Include="Widgets\DxuiDropdown.h" />
     <ClInclude Include="Widgets\DxuiLabel.h" />
     <ClInclude Include="Widgets\DxuiIconButton.h" />
+    <ClInclude Include="Widgets\DxuiInfoBanner.h" />
     <ClInclude Include="Widgets\DxuiListView.h" />
     <ClInclude Include="Widgets\DxuiMenuBar.h" />
     <ClInclude Include="Widgets\DxuiModalScrim.h" />

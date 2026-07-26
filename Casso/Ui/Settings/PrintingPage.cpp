@@ -61,6 +61,7 @@ int PrintingPage::DotStyleToIndex (const std::string & token)
 PrintingPage::PrintingPage (std::wstring title)
     : DxuiPropertyPage (std::move (title))
 {
+    Adopt (m_printerBanner);
     Adopt (m_dpiLabel);
     Adopt (m_dpi);
     Adopt (m_styleLabel);
@@ -129,6 +130,15 @@ void PrintingPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
     int  y           = rect.top  + pad;
     int  controlsX   = x + labelWidth;
 
+    // Printer info banner across the top: as wide as the page minus the control
+    // margin, its height driven by how far the message wraps -- so a long message
+    // pushes every control below it down (reflow) instead of clipping.
+    int    bannerWidth  = (rect.right - rect.left) - pad * 2;
+    int    bannerHeight = (int) std::ceil (m_printerBanner.PreferredHeightPx ((float) bannerWidth, scaler));
+
+    m_printerBanner.SetRect (MakeRect (x, y, bannerWidth, bannerHeight));
+    m_printerBanner.SetDpi  (dpi);
+    y += bannerHeight + sectionGap;
 
     m_dpiLabel.SetRect  (MakeRect (x, y, labelWidth, rowHeight));
     m_dpiLabel.SetText  (L"Output resolution:");

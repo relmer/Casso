@@ -7,6 +7,7 @@
 #include "Window/DxuiPropertyPage.h"
 #include "Widgets/DxuiButton.h"
 #include "Widgets/DxuiDropdown.h"
+#include "Widgets/DxuiInfoBanner.h"
 #include "Widgets/DxuiLabel.h"
 #include "Widgets/DxuiCheckbox.h"
 #include "Widgets/DxuiToggle.h"
@@ -59,6 +60,11 @@ public:
     // Backing store; seeds the controls and wires their change callbacks.
     void  SetPrefs             (GlobalUserPrefs * prefs);
 
+    // The current machine's printer summary, shown in the info banner at the top
+    // of the page (e.g. "Emulating an Apple ImageWriter II ..." or "No printer is
+    // connected to this <machine>."). Set by the sheet when it opens the page.
+    void  SetPrinterInfo       (const std::wstring & message) { m_printerBanner.SetText (message); }
+
     void  SetPopupHost         (DxuiHwndSource * host);
 
     void  Layout               (const RECT & rect, const DxuiDpiScaler & scaler) override;
@@ -93,6 +99,8 @@ private:
     void  ResetToDefaults       ();
 
     GlobalUserPrefs *  m_prefs = nullptr;
+
+    DxuiInfoBanner  m_printerBanner;
 
     DxuiLabel     m_dpiLabel;
     DxuiDropdown  m_dpi;

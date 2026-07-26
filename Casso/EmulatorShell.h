@@ -498,6 +498,10 @@ private:
     void    ShowMachinePicker();
     const std::wstring &  CurrentMachineName () const { return m_currentMachineName; }
 
+    // One-line printer summary for the Settings > Printing info banner: what
+    // printer this machine emulates and how it connects, or that it has none.
+    std::wstring  PrinterBannerMessage () const;
+
     // //e/c auxiliary 64 KiB RAM bank (nullptr on ][/][+). Used by the clipboard
     // text scrape to read the aux half of an 80-column screen.
     const Byte *  AuxRamBuffer() const;

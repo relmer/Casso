@@ -335,6 +335,7 @@ HRESULT SettingsSheet::OpenModeless (
     // / revert through the apply controller (SnapshotBaselines captures the
     // printing prefs too).
     m_printingPage->SetPrefs (&prefs);
+    m_printingPage->SetPrinterInfo (m_emuShell->PrinterBannerMessage());
 
     // Pull the running machine + discovered themes into the pages.
     m_catalog.LoadCurrentMachineIntoState();
