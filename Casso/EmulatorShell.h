@@ -1005,6 +1005,12 @@ private:
     bool                          m_lastRenderFlashOn  = false;
     uint64_t                      m_lastRenderColorSig = 0;
 
+    // Which video mode composed the previous frame. AppleTextMode's dirty-row
+    // cache may only reuse a row when the framebuffer still holds that row's
+    // text -- so a change of active mode (the buffer last held graphics or
+    // another mode) forces a full text re-raster on the next frame.
+    class VideoOutput *           m_prevActiveVideoMode = nullptr;
+
     // Wall-clock pacing for the presentation side at Maximum speed: the CPU
     // runs flat-out, but frames are rasterized + published only ~60x a second
     // so we don't burn cores rendering frames no one will ever see.

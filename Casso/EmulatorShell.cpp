@@ -4592,6 +4592,24 @@ void EmulatorShell::RenderFramebuffer()
 
     m_machineManager->SelectVideoMode();
 
+    // Dirty-row text cache: force a full re-raster when reusing last frame's
+    // rows would be unsafe. (1) A monochrome color mode applies a
+    // non-idempotent tint over the whole framebuffer below, so a row we skipped
+    // would darken every frame. (2) A change of active mode means the buffer
+    // last held graphics / another mode, so no text row can be trusted. Steady
+    // color text hits neither and lets AppleTextMode redraw only changed rows.
+    if (!m_videoModes.empty())
+    {
+        bool forceFullText = (color != ColorMode::Color)
+                          || (m_refs.activeVideoMode != m_prevActiveVideoMode);
+
+        if (forceFullText)
+        {
+            static_cast<AppleTextMode *> (m_videoModes[0].get())->InvalidateCache();
+        }
+    }
+    m_prevActiveVideoMode = m_refs.activeVideoMode;
+
     if (m_refs.activeVideoMode != nullptr)
     {
         // Pass nullptr for videoRam so the renderer reads through MemoryBus.
