@@ -46,12 +46,25 @@ do
         continue
     fi
 
-    # A brand-new remote branch has an all-zero remote sha, so there is no
-    # "previously pushed" point to diff from -- fall back to master.
-    if is_zero_sha "$remote_sha"; then
-        base=$(git rev-parse --verify --quiet origin/master 2>/dev/null \
-               || git rev-parse --verify --quiet master 2>/dev/null)
-    else
+    # Always diff against master, never against the branch's previously
+    # pushed tip.
+    #
+    # CheckStyle uses three-dot (merge-base) semantics, so "master...HEAD"
+    # is exactly what this branch CONTRIBUTES over master. Using the last
+    # pushed sha instead looks equivalent -- and is, right up until you
+    # merge master into your branch, at which point every violation already
+    # sitting on master gets attributed to your push and the gate rejects
+    # you for other people's backlog. (Observed: a routine upstream merge
+    # produced 272 such false accusations.)
+    #
+    # Diffing from master is also idempotent: re-pushing a branch checks
+    # the same set of lines every time.
+    base=$(git rev-parse --verify --quiet origin/master 2>/dev/null \
+           || git rev-parse --verify --quiet master 2>/dev/null)
+
+    # No master to compare against (fresh clone, detached setup): fall back
+    # to the previously pushed tip if there is one.
+    if [ -z "$base" ] && ! is_zero_sha "$remote_sha"; then
         base="$remote_sha"
     fi
 
