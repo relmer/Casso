@@ -229,11 +229,11 @@ STDMETHODIMP_(ULONG) DxuiDragDropTarget::Release()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ExtractFirstHDropPath
+//  TryExtractFirstHDropPath
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool DxuiDragDropTarget::ExtractFirstHDropPath (IDataObject * pData, std::wstring & outPath)
+bool DxuiDragDropTarget::TryExtractFirstHDropPath (IDataObject * pData, std::wstring & outPath)
 {
     bool      fGotPath   = false;
     FORMATETC fmt        = { CF_HDROP, nullptr, DVASPECT_CONTENT, -1, TYMED_HGLOBAL };
@@ -318,7 +318,7 @@ STDMETHODIMP DxuiDragDropTarget::DragEnter (
     m_fDragHasSupportedFile = false;
     m_dragPath.clear();
 
-    fGotPath = ExtractFirstHDropPath (pData, path);
+    fGotPath = TryExtractFirstHDropPath (pData, path);
     if (fGotPath && (!m_filter || m_filter (path)))
     {
         m_fDragHasSupportedFile = true;

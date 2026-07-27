@@ -17,12 +17,12 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //  DragDropTargetFormatTests
 //
 //  Verifies the testable subset of T141: that DxuiDragDropTarget::
-//  ExtractFirstHDropPath round-trips each of the five supported disk
+//  TryExtractFirstHDropPath round-trips each of the five supported disk
 //  image extensions (.dsk, .do, .nib, .woz, .po) through a CF_HDROP /
 //  HGLOBAL pipe identical to what Explorer hands us.
 //
 //  Format acceptance / rejection by the mount path itself lives in
-//  the mount adapter and is out of scope here -- ExtractFirstHDropPath
+//  the mount adapter and is out of scope here -- TryExtractFirstHDropPath
 //  is extension-agnostic, but we still want regression coverage that
 //  each extension survives the HDROP encode/decode dance.
 //
@@ -134,9 +134,9 @@ namespace
     {
         MockHDropDataObject  obj (input);
         std::wstring         got;
-        bool                 fGotPath = DxuiDragDropTarget::ExtractFirstHDropPath (&obj, got);
+        bool                 fGotPath = DxuiDragDropTarget::TryExtractFirstHDropPath (&obj, got);
 
-        Assert::IsTrue (fGotPath, L"ExtractFirstHDropPath must report it found a path");
+        Assert::IsTrue (fGotPath, L"TryExtractFirstHDropPath must report it found a path");
         Assert::AreEqual (input.c_str(), got.c_str(),
             L"Path round-trip must preserve the original wide string verbatim");
     }
@@ -180,7 +180,7 @@ public:
     TEST_METHOD (ExtractFirstHDropPath_NullDataObject_ReturnsFalse)
     {
         std::wstring  got = L"sentinel";
-        bool          fGotPath = DxuiDragDropTarget::ExtractFirstHDropPath (nullptr, got);
+        bool          fGotPath = DxuiDragDropTarget::TryExtractFirstHDropPath (nullptr, got);
 
         Assert::IsFalse (fGotPath);
         Assert::IsTrue   (got.empty(), L"outPath must be cleared on failure");

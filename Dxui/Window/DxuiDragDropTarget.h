@@ -53,7 +53,7 @@ public:
                                                  POINTL        pt,
                                                  DWORD       * pdwEffect) override;
 
-    static bool          ExtractFirstHDropPath  (IDataObject   * pData,
+    static bool       TryExtractFirstHDropPath  (IDataObject   * pData,
                                                  std::wstring  & outPath);
     static int           PickAtClient           (const DxuiHitTester & hitTester,
                                                  int                   xClient,
