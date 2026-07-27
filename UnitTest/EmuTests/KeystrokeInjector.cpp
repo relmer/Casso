@@ -2,10 +2,6 @@
 #include "KeystrokeInjector.h"
 
 
-namespace
-{
-    static constexpr int    kPumpBatchSize    = 64;
-}
 
 
 
@@ -20,31 +16,32 @@ namespace
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace
+bool KeystrokeInjector::WaitForStrobeClear (EmulatorCore & core, uint64_t cycleBudget)
 {
-    bool WaitForStrobeClear (EmulatorCore & core, uint64_t cycleBudget)
+    constexpr int  kPumpBatchSize = 64;
+
+    uint64_t   target;
+    int        i;
+
+
+
+    target = core.cpu->GetTotalCycles() + cycleBudget;
+
+    while (core.cpu->GetTotalCycles() < target)
     {
-        uint64_t   target;
-        int        i;
-
-        target = core.cpu->GetTotalCycles() + cycleBudget;
-
-        while (core.cpu->GetTotalCycles() < target)
+        if (core.keyboard->IsStrobeClear())
         {
-            if (core.keyboard->IsStrobeClear())
-            {
-                return true;
-            }
-
-            for (i = 0; i < kPumpBatchSize; i++)
-            {
-                core.cpu->StepOne();
-                core.cpu->AddCycles (core.cpu->GetLastInstructionCycles());
-            }
+            return true;
         }
 
-        return core.keyboard->IsStrobeClear();
+        for (i = 0; i < kPumpBatchSize; i++)
+        {
+            core.cpu->StepOne();
+            core.cpu->AddCycles (core.cpu->GetLastInstructionCycles());
+        }
     }
+
+    return core.keyboard->IsStrobeClear();
 }
 
 

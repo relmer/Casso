@@ -56,4 +56,9 @@ public:
         EmulatorCore  &  core,
         Byte               ch,
         uint64_t           cycleBudget = kPerKeyCycleBudget);
+
+private:
+    // Pumps CPU cycles in small batches until the keyboard strobe is
+    // consumed by the ROM polling loop, or the budget is exhausted.
+    static bool     WaitForStrobeClear (EmulatorCore & core, uint64_t cycleBudget);
 };

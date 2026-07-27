@@ -2,16 +2,6 @@
 #include "TextScreenScraper.h"
 
 
-namespace
-{
-    static constexpr int   kRowGroupSize       = 8;
-    static constexpr int   kRowGroupCount      = 3;
-    static constexpr int   kRowsPerGroupBytes  = 0x80;
-    static constexpr int   kSubRowStride       = 0x28;
-    static constexpr Byte  kInverseUpper       = 0x40;
-    static constexpr Byte  kPrintableMin       = 0x20;
-    static constexpr Byte  kPrintableMax       = 0x7E;
-}
 
 
 
@@ -30,6 +20,10 @@ namespace
 
 Word TextScreenScraper::RowBaseAddress (Word pageBase, int row)
 {
+    constexpr int  kRowGroupSize      = 8;
+    constexpr int  kRowsPerGroupBytes = 0x80;
+    constexpr int  kSubRowStride      = 0x28;
+
     int   group = row / kRowGroupSize;
     int   sub   = row % kRowGroupSize;
 
@@ -53,6 +47,10 @@ Word TextScreenScraper::RowBaseAddress (Word pageBase, int row)
 
 char TextScreenScraper::Glyph (Byte screenByte)
 {
+    constexpr Byte  kInverseUpper = 0x40;
+    constexpr Byte  kPrintableMin = 0x20;
+    constexpr Byte  kPrintableMax = 0x7E;
+
     Byte   ch;
 
     ch = static_cast<Byte> (screenByte & 0x7F);

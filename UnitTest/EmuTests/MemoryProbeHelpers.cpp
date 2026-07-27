@@ -2,14 +2,6 @@
 #include "MemoryProbeHelpers.h"
 
 
-namespace
-{
-    // LC soft-switch addresses chosen to land in {ReadRam, WriteRam}
-    // for each bank. Two odd-address reads enable WriteRam via the
-    // pre-write state machine (audit M6 / Sather UTAIIe §5-23).
-    static constexpr Word   kLcBank2OddRead   = 0xC083;
-    static constexpr Word   kLcBank1OddRead   = 0xC08B;
-}
 
 
 
