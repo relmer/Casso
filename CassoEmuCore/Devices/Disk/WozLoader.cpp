@@ -199,19 +199,12 @@ static HRESULT ParseV2Track (
     blockCount = Read16LE (trkRecord + 2);
     bitCount   = Read32LE (trkRecord + 4);
 
-    if (startBlock == 0 || blockCount == 0 || bitCount == 0)
-    {
-        goto Error;
-    }
+    BAIL_OUT_IF (startBlock == 0 || blockCount == 0 || bitCount == 0, S_OK);
 
     byteOffset = static_cast<size_t> (startBlock) * WozLoader::kV2BlockSize;
     byteCount  = (bitCount + 7) / 8;
 
-    if (byteOffset + byteCount > raw.size())
-    {
-        hr = E_FAIL;
-        goto Error;
-    }
+    CBREx (byteOffset + byteCount <= raw.size(), E_FAIL);
 
     out.ResizeTrack (destTrack, bitCount);
 
@@ -264,26 +257,19 @@ HRESULT WozLoader::Load (const vector<Byte> & raw, DiskImage & out)
     int            qt                   = 0;
     Byte           trackIndex           = 0;
     int            trackI               = 0;
+    bool           sigV2                = false;
+    bool           sigV1                = false;
 
-    if (raw.size() < kHeaderSize)
-    {
-        hr = E_FAIL;
-        goto Error;
-    }
+    CBREx (raw.size() >= kHeaderSize, E_FAIL);
 
-    if (MatchSig (raw.data(), kSigV2))
-    {
-        isV2 = true;
-    }
-    else if (MatchSig (raw.data(), kSigV1))
-    {
-        isV2 = false;
-    }
-    else
-    {
-        hr = E_FAIL;
-        goto Error;
-    }
+    // Signature match is captured into locals first so the guard below tests a
+    // plain variable rather than calling MatchSig from inside the macro.
+    sigV2 = MatchSig (raw.data(), kSigV2);
+    sigV1 = MatchSig (raw.data(), kSigV1);
+
+    CBREx (sigV2 || sigV1, E_FAIL);
+
+    isV2 = sigV2;
 
     pos = kSigLen + kCrcLen;
 
@@ -308,29 +294,17 @@ HRESULT WozLoader::Load (const vector<Byte> & raw, DiskImage & out)
         chunkSize = Read32LE (raw.data() + pos + 4);
         chunkPos  = pos + 8;
 
-        if (chunkPos + chunkSize > raw.size())
-        {
-            hr = E_FAIL;
-            goto Error;
-        }
+        CBREx (chunkPos + chunkSize <= raw.size(), E_FAIL);
 
         if (MatchMagic (id, kInfoMagic))
         {
-            if (chunkSize < kInfoChunkSize)
-            {
-                hr = E_FAIL;
-                goto Error;
-            }
+            CBREx (chunkSize >= kInfoChunkSize, E_FAIL);
             writeProtected = (raw[chunkPos + 2] != 0);
             sawInfo        = true;
         }
         else if (MatchMagic (id, kTmapMagic))
         {
-            if (chunkSize < kTmapChunkSize)
-            {
-                hr = E_FAIL;
-                goto Error;
-            }
+            CBREx (chunkSize >= kTmapChunkSize, E_FAIL);
             memcpy (tmap, raw.data() + chunkPos, kTmapChunkSize);
             sawTmap = true;
         }
@@ -348,11 +322,7 @@ HRESULT WozLoader::Load (const vector<Byte> & raw, DiskImage & out)
         pos = chunkPos + chunkSize;
     }
 
-    if (!sawInfo || !sawTmap || !sawTrks)
-    {
-        hr = E_FAIL;
-        goto Error;
-    }
+    CBREx (sawInfo && sawTmap && sawTrks, E_FAIL);
 
     out.SetImageWriteProtected (writeProtected);
     out.SetSourceFormat        (DiskFormat::Woz);
@@ -376,11 +346,7 @@ HRESULT WozLoader::Load (const vector<Byte> & raw, DiskImage & out)
     {
         vector<bool>   parsed (kV2TrkRecordCount, false);
 
-        if (trksSize < kV2TrkRecordCount * kV2TrkRecordSize)
-        {
-            hr = E_FAIL;
-            goto Error;
-        }
+        CBREx (trksSize >= kV2TrkRecordCount * kV2TrkRecordSize, E_FAIL);
 
         for (qt = 0; qt < static_cast<int> (kTmapChunkSize); qt++)
         {
@@ -398,11 +364,7 @@ HRESULT WozLoader::Load (const vector<Byte> & raw, DiskImage & out)
                     trackIndex,
                     out);
 
-                if (FAILED (hrTrack))
-                {
-                    hr = hrTrack;
-                    goto Error;
-                }
+                CHR (hrTrack);
 
                 parsed[trackIndex] = true;
             }
@@ -425,11 +387,7 @@ HRESULT WozLoader::Load (const vector<Byte> & raw, DiskImage & out)
             {
                 size_t   recOffset = static_cast<size_t> (trackIndex) * kV1TrackRecordSize;
 
-                if (recOffset + kV1TrackRecordSize > trksSize)
-                {
-                    hr = E_FAIL;
-                    goto Error;
-                }
+                CBREx (recOffset + kV1TrackRecordSize <= trksSize, E_FAIL);
 
                 if (!parsed[trackIndex])
                 {
