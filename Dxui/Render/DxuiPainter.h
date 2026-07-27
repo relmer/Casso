@@ -95,17 +95,6 @@ private:
     static constexpr size_t  kInitialVertexCapacity = 1024;
 
 
-    // Declared here, defined in the .cpp. HLSL source is bulk implementation
-    // detail: every translation unit including this header would otherwise
-    // carry it, and the shaders would be recompiled into each of them.
-    //
-    // Array type, NOT `const char *`: the call sites pass
-    // `sizeof (kVertexShaderSrc) - 1` as the source length. On a pointer that
-    // silently becomes sizeof(void*) - 1 == 7, which compiles clean and hands
-    // D3DCompile a 7-character shader.
-    static const char  kVertexShaderSrc[];
-    static const char  kPixelShaderSrc[];
-
     struct Vertex
     {
         float  x;

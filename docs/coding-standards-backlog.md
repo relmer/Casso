@@ -33,6 +33,14 @@ Rules settled: constants split by usage (single-use → function-local
 `constexpr`, multi-use → private `static constexpr` member); helpers → class
 statics; types → nested private types.
 
+**File-scope statics are the right answer for bulk file-local data.** A class
+member has to be declared in the header, which drags implementation detail into
+every including translation unit and forces a declaration/definition split.
+`DxuiPainter`'s HLSL shader sources stay file-scope `static constexpr` arrays
+for exactly that reason — and the split had already introduced a silent bug,
+because `sizeof (ptr) - 1` at the call site compiles clean and yields 7. Keep
+the `s_k` prefix on these; they really are file-scope statics.
+
 Heaviest: `UserConfigStore.cpp` (621-line block), `ThemePage.cpp` (395),
 `AssetBootstrap.cpp` (209).
 

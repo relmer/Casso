@@ -5,7 +5,16 @@
 
 
 
-const char  DxuiPainter::kVertexShaderSrc[] =
+// Shader source stays a file-scope static rather than a class member: it is
+// bulk implementation detail read only by CreateShaders in this file, and a
+// class member would have to be declared in the header -- putting HLSL into
+// every translation unit that includes DxuiPainter.h.
+//
+// The array type is load-bearing. CreateShaders passes
+// `sizeof (s_kVertexShaderSrc) - 1` as the source length; against a
+// `const char *` that silently becomes sizeof(void*) - 1 == 7, compiling
+// clean while handing D3DCompile a 7-character shader.
+static constexpr char  s_kVertexShaderSrc[] =
     "struct VSIn  { float2 pos : POSITION; float4 col : COLOR; };\n"
     "struct VSOut { float4 pos : SV_POSITION; float4 col : COLOR; };\n"
     "VSOut main (VSIn input)\n"
@@ -17,7 +26,7 @@ const char  DxuiPainter::kVertexShaderSrc[] =
     "}\n";
 
 
-const char  DxuiPainter::kPixelShaderSrc[] =
+static constexpr char  s_kPixelShaderSrc[] =
     "struct PSIn { float4 pos : SV_POSITION; float4 col : COLOR; };\n"
     "float4 main (PSIn input) : SV_TARGET\n"
     "{\n"
@@ -174,8 +183,8 @@ HRESULT DxuiPainter::CreateShaders()
 
 
 
-    hr = D3DCompile (kVertexShaderSrc,
-                     sizeof (kVertexShaderSrc) - 1,
+    hr = D3DCompile (s_kVertexShaderSrc,
+                     sizeof (s_kVertexShaderSrc) - 1,
                      "DxuiPainter.vs",
                      nullptr,
                      nullptr,
@@ -187,8 +196,8 @@ HRESULT DxuiPainter::CreateShaders()
                      &errors);
     CHRA (hr);
 
-    hr = D3DCompile (kPixelShaderSrc,
-                     sizeof (kPixelShaderSrc) - 1,
+    hr = D3DCompile (s_kPixelShaderSrc,
+                     sizeof (s_kPixelShaderSrc) - 1,
                      "DxuiPainter.ps",
                      nullptr,
                      nullptr,
