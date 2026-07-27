@@ -768,23 +768,25 @@ void EmulatorShell::PrimeChromeThemeEarly()
 
 
     // A missing UserPrefs.json (first run) is reported by LoadAll as success
-    // with defaults. A corrupt one means something is genuinely wrong, so
-    // CHRAF asserts -- a debug build breaks for a dev to dig in -- then TELLS
-    // THE USER where the file broke and resets to defaults so release still
-    // boots. Silently starting over just reads as "Casso lost my settings".
+    // with defaults. A corrupt one is the user's file being unreadable, so we
+    // tell them where it broke and reset to defaults so Casso still boots --
+    // silently starting over just reads as "Casso lost my settings".
     //
-    // CHRAF rather than CHRN: the -N family is CHRF with the action fixed to
-    // EhmNotifyUser, and it is non-asserting and single-action. This site
-    // needs all three -- assert, notify, reset -- so it calls EhmNotifyUser
-    // from an -F action, which is what -N does anyway.
-    // EhmNotifyUser rather than a themed dialog: this runs before the chrome
-    // theme or the main window exist, and it auto-detects GUI vs console.
+    // Non-asserting on purpose. A malformed prefs file is bad DATA, not a
+    // coding error: there is no bug for a developer to break into, and it
+    // would stop the debugger every time someone hand-edits their JSON.
+    // Assert or notify -- not both.
+    //
+    // CHRF rather than CHRN because this needs two actions, notify AND reset,
+    // and the -N family is CHRF with its action fixed to one EhmNotifyUser
+    // call. EhmNotifyUser rather than a themed dialog: this runs before the
+    // chrome theme or main window exist, and it auto-detects GUI vs console.
     hr = m_userConfigStore->LoadAll (m_globalPrefs, m_uiFs, parseDetail);
-    CHRAF (hr,
-           EhmNotifyUser ((L"Casso could not read your settings and has started "
-                           L"with defaults. Your file was left untouched.\n\n" +
-                           parseDetail).c_str());
-           m_globalPrefs = GlobalUserPrefs {});
+    CHRF (hr,
+          EhmNotifyUser ((L"Casso could not read your settings and has started "
+                          L"with defaults. Your file was left untouched.\n\n" +
+                          parseDetail).c_str());
+          m_globalPrefs = GlobalUserPrefs {});
 
 Error:
     m_chromeTheme = CassoTheme::ForName (m_globalPrefs.activeTheme);
