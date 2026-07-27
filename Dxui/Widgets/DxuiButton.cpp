@@ -320,6 +320,28 @@ bool DxuiButton::OnMouse (const DxuiMouseEvent & ev)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DxuiButton::CursorForPoint  (IDxuiControl override)
+//
+//  A link-styled button reads as a hyperlink, so advertise the hand cursor
+//  while the pointer is over it. Other variants keep the default arrow.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+LPCWSTR DxuiButton::CursorForPoint (POINT clientPx) const
+{
+    if (m_variant == Variant::Link && HitTest (clientPx.x, clientPx.y))
+    {
+        return IDC_HAND;
+    }
+
+    return nullptr;
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DxuiButton::OnKey  (IDxuiControl override)
 //
 ////////////////////////////////////////////////////////////////////////////////
