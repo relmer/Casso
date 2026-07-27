@@ -40,11 +40,7 @@ HRESULT InterruptController::RegisterSource (IrqSourceId & outId)
 
     outId = 0;
 
-    if (m_nextSource >= kMaxSources)
-    {
-        hr = E_OUTOFMEMORY;
-        goto Error;
-    }
+    CBREx (m_nextSource < kMaxSources, E_OUTOFMEMORY);
 
     outId = m_nextSource;
     ++m_nextSource;

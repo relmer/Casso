@@ -268,8 +268,9 @@ HRESULT Win32FileSystem::EnumerateFiles (
         CBRF (err == ERROR_FILE_NOT_FOUND,
               hr = HRESULT_FROM_WIN32 (err));
 
-        // Empty directory — fall through with empty outFilenames.
-        goto Error;
+        // Empty directory -- fall through with empty outFilenames.
+
+        BAIL_OUT_IF (true, S_OK);
     }
 
     do

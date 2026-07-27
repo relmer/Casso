@@ -3285,11 +3285,7 @@ HRESULT AssetBootstrap::RunStartupDownloader (
                         continue;
                     }
 
-                    if (cancel.load (std::memory_order_relaxed))
-                    {
-                        hr = E_ABORT;
-                        goto Error;
-                    }
+                    BAIL_OUT_IF (cancel.load (std::memory_order_relaxed), E_ABORT);
 
                     urlPath  = s_kpszOpenEmulatorPathFmt;
                     urlPath += wstring (spec.mechanism.begin(), spec.mechanism.end());
