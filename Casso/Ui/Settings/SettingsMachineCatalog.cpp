@@ -21,21 +21,18 @@
 namespace fs = std::filesystem;
 
 
-namespace
+std::string SettingsMachineCatalog::NarrowMachineName (const std::wstring & wideName)
 {
-    std::string NarrowMachineName (const std::wstring & wideName)
+    std::string  narrowName;
+
+
+
+    narrowName.reserve (wideName.size());
+    for (wchar_t c : wideName)
     {
-        std::string  narrowName;
-
-
-
-        narrowName.reserve (wideName.size());
-        for (wchar_t c : wideName)
-        {
-            narrowName.push_back ((char) (unsigned char) c);
-        }
-        return narrowName;
+        narrowName.push_back ((char) (unsigned char) c);
     }
+    return narrowName;
 }
 
 

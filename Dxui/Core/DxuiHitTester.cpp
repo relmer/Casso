@@ -6,12 +6,9 @@
 
 
 
-namespace
+bool DxuiHitTester::RectContains (const RECT & r, int x, int y)
 {
-    inline bool RectContains (const RECT & r, int x, int y)
-    {
-        return (x >= r.left) && (x < r.right) && (y >= r.top) && (y < r.bottom);
-    }
+    return (x >= r.left) && (x < r.right) && (y >= r.top) && (y < r.bottom);
 }
 
 

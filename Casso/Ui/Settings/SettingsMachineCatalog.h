@@ -58,6 +58,8 @@ public:
 
 
 private:
+    static std::string  NarrowMachineName (const std::wstring & wideName);
+
     EmulatorShell      * m_emuShell    = nullptr;
     UserConfigStore    * m_ucs         = nullptr;
     GlobalUserPrefs    * m_prefs       = nullptr;
