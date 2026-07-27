@@ -69,11 +69,11 @@ HRESULT PrintJobSerializer::ReadMetaJson (const string & json, StripMeta & outMe
 
     hr = JsonParser::Parse (json, root, err);
     CHR (hr);
-    CBREx (root.GetType() == JsonType::Object, E_FAIL);
+    CBR (root.GetType() == JsonType::Object);
 
     hr = root.GetInt (s_kszFormatVersion, meta.formatVersion);
     CHR (hr);
-    CBREx (meta.formatVersion == kFormatVersion, E_FAIL);
+    CBR (meta.formatVersion == kFormatVersion);
 
     hr = root.GetInt (s_kszRowsUsed, meta.rowsUsed);
     CHR (hr);

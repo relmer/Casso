@@ -186,7 +186,7 @@ HRESULT DiskImageStore::Mount (int slot, int drive, const string & path)
         streamsize  size = 0;
 
         fileOk = file.good();
-        CBREx (fileOk, E_FAIL);
+        CBR (fileOk);
 
         size = file.tellg();
         file.seekg (0, ios::beg);

@@ -1006,9 +1006,9 @@ HRESULT WindowCommandManager::SavePrintoutAs (const PrintRaster & raster, fs::pa
     {
         std::ofstream   out (outFile, std::ios::binary | std::ios::trunc);
 
-        CBREx (out.is_open(), E_FAIL);
+        CBR (out.is_open());
         out.write ((const char *) png.data(), (std::streamsize) png.size());
-        CBREx (out.good(), E_FAIL);
+        CBR (out.good());
     }
 
 Error:
@@ -1091,7 +1091,7 @@ HRESULT WindowCommandManager::PrintToWindowsPrinter (const PrintRaster & raster,
         pd.hDC = CreateDcFromDevNames (pd);
     }
 
-    CBRFEx (pd.hDC != nullptr, E_FAIL,
+    CBRF (pd.hDC != nullptr,
             failedStage = L"PrintDlg (the chosen printer returned no device context)");
 
     di.cbSize      = sizeof (di);
@@ -1250,7 +1250,7 @@ HRESULT WindowCommandManager::CopyPrintoutToClipboard (const PrintRaster & raste
 
     hr = renderer.Render (raster, 0, raster.RowsUsed() - 1, opt, img);
     CHR (hr);
-    CBREx (img.width > 0 && img.height > 0, E_FAIL);
+    CBR (img.width > 0 && img.height > 0);
 
     px       = (size_t) img.width * img.height;
     dibBytes = sizeof (BITMAPINFOHEADER) + px * 4;
@@ -1321,11 +1321,11 @@ HRESULT WindowCommandManager::CopyPrintoutToClipboard (const PrintRaster & raste
         }
     }
 
-    CBREx (hDib != nullptr || hPng != nullptr, E_FAIL);
+    CBR (hDib != nullptr || hPng != nullptr);
 
-    CBREx (OpenClipboard (m_shell.m_hwnd), E_FAIL);
+    CBR (OpenClipboard (m_shell.m_hwnd));
     opened = true;
-    CBREx (EmptyClipboard(), E_FAIL);
+    CBR (EmptyClipboard());
 
     // On success the clipboard takes ownership, so null the handle to keep the
     // cleanup path from freeing it out from under the clipboard.

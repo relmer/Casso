@@ -223,7 +223,7 @@ HRESULT PngCodec::EncodeIndexed (
 
     hr = frame->SetPixelFormat (&format);
     CHR (hr);
-    CBREx (format == GUID_WICPixelFormat8bppIndexed, E_FAIL);
+    CBR (format == GUID_WICPixelFormat8bppIndexed);
 
     hr = factory->CreatePalette (&wicPalette);
     CHR (hr);
@@ -326,7 +326,7 @@ HRESULT PngCodec::DecodeIndexed (
 
     hr = frame->GetPixelFormat (&format);
     CHR (hr);
-    CBREx (format == GUID_WICPixelFormat8bppIndexed, E_FAIL);
+    CBR (format == GUID_WICPixelFormat8bppIndexed);
 
     hr = frame->GetSize (&width, &height);
     CHR (hr);

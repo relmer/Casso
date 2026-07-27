@@ -499,12 +499,12 @@ HRESULT DiskImage::Load (const string & filePath)
     {
         ifstream file (filePath, ios::binary);
         fileOk = file.good();
-        CBREx (fileOk, E_FAIL);
+        CBR (fileOk);
 
         raw.resize (kDos33ImageSize);
         file.read (reinterpret_cast<char *> (raw.data()), kDos33ImageSize);
         bytesRead = file.gcount();
-        CBREx (bytesRead == kDos33ImageSize, E_FAIL);
+        CBR (bytesRead == kDos33ImageSize);
     }
 
     hr = LoadDsk (raw);
@@ -619,7 +619,7 @@ HRESULT DiskImage::Flush()
     {
         ofstream file (m_filePath, ios::binary);
         fileOk = file.good();
-        CBREx (fileOk, E_FAIL);
+        CBR (fileOk);
 
         file.write (reinterpret_cast<const char *> (bytes.data()),
                     static_cast<streamsize> (bytes.size()));

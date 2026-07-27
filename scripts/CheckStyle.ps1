@@ -126,6 +126,16 @@ $checks = @(
         Suppress = 'EHM-ALLOW-SFALSE'
     },
     @{
+        # An -Ex variant exists to REPLACE the family's default hr. Passing the
+        # default back in says nothing the base macro does not already say:
+        # CBREx (x, E_FAIL) is CBR (x), CPREx (p, E_OUTOFMEMORY) is CPR (p).
+        Id      = 'CS0010'
+        Globs   = @('*.cpp', '*.h')
+        Pattern = 'CB[RW]?A?F?Ex\s*\(.*,\s*E_FAIL\s*[,)]|CPRA?F?Ex\s*\(.*,\s*E_OUTOFMEMORY\s*[,)]'
+        Message = 'redundant -Ex: that is the family default, so use the base macro'
+        Exclude = @('CassoCore/Ehm.h')
+    },
+    @{
         Id      = 'CS0007'
         Globs   = @('*.cpp', '*.h')
         Pattern = '\((?:int|unsigned|float|double|char|bool|size_t|Word|Byte|SByte|u?int(?:8|16|32|64)_t)\)[A-Za-z_(]'

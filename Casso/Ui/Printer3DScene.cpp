@@ -322,7 +322,7 @@ HRESULT Printer3DScene::SetModel (const std::string & objText, const std::string
         { 0.6549f, 0.6784f, 0.6941f, s_kArgbButton   },   // gray: control caps
     };
 
-    CBREx (ObjMeshParser::Parse (objText, mtlText, tris) && !tris.empty(), E_FAIL);
+    CBR (ObjMeshParser::Parse (objText, mtlText, tris) && !tris.empty());
 
     m_mesh.clear();
     m_meshGlass.clear();
@@ -340,7 +340,7 @@ HRESULT Printer3DScene::SetModel (const std::string & objText, const std::string
             maxAbsX = (std::max) (maxAbsX, std::abs (p[0]));
         }
     }
-    CBREx (maxAbsX > 0.0f, E_FAIL);
+    CBR (maxAbsX > 0.0f);
 
     {
         float   scale   = 0.95f / maxAbsX;               // overall width, with side margins in frame

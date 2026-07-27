@@ -204,7 +204,7 @@ static HRESULT ParseV2Track (
     byteOffset = static_cast<size_t> (startBlock) * WozLoader::kV2BlockSize;
     byteCount  = (bitCount + 7) / 8;
 
-    CBREx (byteOffset + byteCount <= raw.size(), E_FAIL);
+    CBR (byteOffset + byteCount <= raw.size());
 
     out.ResizeTrack (destTrack, bitCount);
 
@@ -260,14 +260,14 @@ HRESULT WozLoader::Load (const vector<Byte> & raw, DiskImage & out)
     bool           sigV2                = false;
     bool           sigV1                = false;
 
-    CBREx (raw.size() >= kHeaderSize, E_FAIL);
+    CBR (raw.size() >= kHeaderSize);
 
     // Signature match is captured into locals first so the guard below tests a
     // plain variable rather than calling MatchSig from inside the macro.
     sigV2 = MatchSig (raw.data(), kSigV2);
     sigV1 = MatchSig (raw.data(), kSigV1);
 
-    CBREx (sigV2 || sigV1, E_FAIL);
+    CBR (sigV2 || sigV1);
 
     isV2 = sigV2;
 
@@ -294,17 +294,17 @@ HRESULT WozLoader::Load (const vector<Byte> & raw, DiskImage & out)
         chunkSize = Read32LE (raw.data() + pos + 4);
         chunkPos  = pos + 8;
 
-        CBREx (chunkPos + chunkSize <= raw.size(), E_FAIL);
+        CBR (chunkPos + chunkSize <= raw.size());
 
         if (MatchMagic (id, kInfoMagic))
         {
-            CBREx (chunkSize >= kInfoChunkSize, E_FAIL);
+            CBR (chunkSize >= kInfoChunkSize);
             writeProtected = (raw[chunkPos + 2] != 0);
             sawInfo        = true;
         }
         else if (MatchMagic (id, kTmapMagic))
         {
-            CBREx (chunkSize >= kTmapChunkSize, E_FAIL);
+            CBR (chunkSize >= kTmapChunkSize);
             memcpy (tmap, raw.data() + chunkPos, kTmapChunkSize);
             sawTmap = true;
         }
@@ -322,7 +322,7 @@ HRESULT WozLoader::Load (const vector<Byte> & raw, DiskImage & out)
         pos = chunkPos + chunkSize;
     }
 
-    CBREx (sawInfo && sawTmap && sawTrks, E_FAIL);
+    CBR (sawInfo && sawTmap && sawTrks);
 
     out.SetImageWriteProtected (writeProtected);
     out.SetSourceFormat        (DiskFormat::Woz);
@@ -346,7 +346,7 @@ HRESULT WozLoader::Load (const vector<Byte> & raw, DiskImage & out)
     {
         vector<bool>   parsed (kV2TrkRecordCount, false);
 
-        CBREx (trksSize >= kV2TrkRecordCount * kV2TrkRecordSize, E_FAIL);
+        CBR (trksSize >= kV2TrkRecordCount * kV2TrkRecordSize);
 
         for (qt = 0; qt < static_cast<int> (kTmapChunkSize); qt++)
         {
@@ -387,7 +387,7 @@ HRESULT WozLoader::Load (const vector<Byte> & raw, DiskImage & out)
             {
                 size_t   recOffset = static_cast<size_t> (trackIndex) * kV1TrackRecordSize;
 
-                CBREx (recOffset + kV1TrackRecordSize <= trksSize, E_FAIL);
+                CBR (recOffset + kV1TrackRecordSize <= trksSize);
 
                 if (!parsed[trackIndex])
                 {
