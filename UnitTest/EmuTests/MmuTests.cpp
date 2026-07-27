@@ -34,8 +34,10 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace
+TEST_CLASS (MmuTests)
 {
+public:
+
     struct MmuFixture
     {
         MemoryBus              bus;
@@ -87,13 +89,7 @@ namespace
         Word m_lastWriteAddr  = 0;
         Byte m_lastWriteValue = 0;
     };
-}
 
-
-
-TEST_CLASS (MmuTests)
-{
-public:
 
     TEST_METHOD (Default_AllFlagsClear)
     {

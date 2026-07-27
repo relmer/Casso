@@ -10,9 +10,11 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
 
 
-namespace
+TEST_CLASS (DxuiViewportTests)
 {
-    RECT  MakeRect (LONG l, LONG t, LONG r, LONG b)
+public:
+
+    static RECT  MakeRect (LONG l, LONG t, LONG r, LONG b)
     {
         RECT  out = {};
         out.left = l; out.top = t; out.right = r; out.bottom = b;
@@ -45,15 +47,7 @@ namespace
             return consumeKey;
         }
     };
-}
 
-
-
-
-
-TEST_CLASS (DxuiViewportTests)
-{
-public:
 
     TEST_METHOD (Defaults_LeafWithGenericViewportRole)
     {
