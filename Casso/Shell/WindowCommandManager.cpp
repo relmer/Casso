@@ -17,6 +17,7 @@
 #include "Devices/Printer/RgbaImage.h"
 #include "Print/PrintJobStore.h"
 #include "Version.h"
+#include "Core/UnicodeSymbols.h"
 #include "Ui/Chrome/ChromeMetrics.h"
 #include "Ui/Chrome/DriveWidget.h"
 #include "Shell/CpuManager.h"
@@ -1588,18 +1589,30 @@ void WindowCommandManager::OnHelpCommand (int id)
             def.title = L"About Casso";
             def.icon  = DialogIcon::AppPhotoreal;
             def.iconSizeOverrideDp = 128.0f;
-            def.body.push_back ({ L"Casso Emulator\n\nVersion " _CRT_WIDE (VERSION_STRING)
+            def.body.push_back ({ L"Casso Emulator\nCopyright (C) by Robert Elmer"
+                                  L"\n\nVersion " _CRT_WIDE (VERSION_STRING)
                                   L"\nBuilt " _CRT_WIDE (VERSION_BUILD_TIMESTAMP)
-                                  L"\n\nAn Apple ][, Apple ][ plus, and Apple //e platform emulator "
-                                  L"built on the Casso 6502 assembler/emulator project.\n\n",
+                                  L"\n\nAn Apple 2 family emulator.",
                                   false, L"" });
-            def.body.push_back ({ L"https://github.com/relmer/Casso",
+
+            // Body runs flow at the body line height with no inter-run gap, so
+            // links stack like text lines and an empty run is one blank line.
+            // Links: GitHub + Log a bug tight; blank line; MIT + attribution tight.
+            std::wstring githubBlurb = L"Casso on GitHub ";
+            githubBlurb += s_kchEmDash;
+            githubBlurb += L" ";
+            githubBlurb += s_kpszStar;
+            githubBlurb += L" stars welcome";
+
+            def.body.push_back ({ L"", false, L"" });
+            def.body.push_back ({ githubBlurb,
                                   true, L"https://github.com/relmer/Casso" });
-            def.body.push_back ({ L"\nCopyright (C) by Robert Elmer\n",
-                                  false, L"" });
+            def.body.push_back ({ L"Log a bug",
+                                  true, L"https://github.com/relmer/Casso/issues/new?template=bug_report.yml" });
+            def.body.push_back ({ L"", false, L"" });
             def.body.push_back ({ L"MIT License",
                                   true, L"https://github.com/relmer/Casso/blob/master/LICENSE" });
-            def.body.push_back ({ L"\n\nImageWriter II printer sounds by Scott Lawrence (CC BY 4.0)",
+            def.body.push_back ({ L"ImageWriter II sounds by Scott Lawrence (CC BY 4.0)",
                                   true, L"https://github.com/BleuLlama/ImageWriterIISimulator" });
             def.buttons.push_back ({ L"OK", 0, true, true });
             (void) m_shell.ShowModalDialog (def);

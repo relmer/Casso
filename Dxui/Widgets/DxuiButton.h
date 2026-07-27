@@ -60,6 +60,7 @@ public:
     //
     void                Layout         (const RECT & boundsDip, const DxuiDpiScaler & scaler) override;
     bool                OnMouse        (const DxuiMouseEvent & ev) override;
+    LPCWSTR             CursorForPoint (POINT clientPx) const override;
     bool                OnKey          (const DxuiKeyEvent   & ev) override;
     void                OnFocusChanged (bool focused) override { SetFocused (focused); }
     std::wstring        AccessibleName () const override { return m_label; }
