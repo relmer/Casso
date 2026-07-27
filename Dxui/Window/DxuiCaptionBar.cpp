@@ -7,15 +7,6 @@
 
 
 
-namespace
-{
-    constexpr int      s_kBaseDpi          = 96;
-    constexpr int      s_kButtonWidthDip   = 46;
-    constexpr float    s_kTitleFontDip     = 14.0f;
-    constexpr float    s_kTitlePadDip      = 14.0f;
-    constexpr float    s_kIconPadFraction  = 0.18f;
-    constexpr wchar_t  s_kTitleFamily[]    = L"Segoe UI";
-}
 
 
 
@@ -192,7 +183,9 @@ int DxuiCaptionBar::PreferredHeightDip() const
 
 int DxuiCaptionBar::HeightPxForDpi (UINT dpi)
 {
-    return MulDiv (kCaptionHeightDip, (int) dpi, s_kBaseDpi);
+    constexpr int      kBaseDpi          = 96;
+
+    return MulDiv (kCaptionHeightDip, (int) dpi, kBaseDpi);
 }
 
 
@@ -230,21 +223,21 @@ void DxuiCaptionBar::Layout (const RECT & boundsDip, const DxuiDpiScaler & scale
 
     if (m_closeBtn)
     {
-        rc = { right - s_kButtonWidthDip, top, right, bottom };
+        rc = { right - kButtonWidthDip, top, right, bottom };
         m_closeBtn->Layout (rc, scaler);
-        right -= s_kButtonWidthDip;
+        right -= kButtonWidthDip;
     }
     if (m_maxBtn)
     {
-        rc = { right - s_kButtonWidthDip, top, right, bottom };
+        rc = { right - kButtonWidthDip, top, right, bottom };
         m_maxBtn->Layout (rc, scaler);
-        right -= s_kButtonWidthDip;
+        right -= kButtonWidthDip;
     }
     if (m_minBtn)
     {
-        rc = { right - s_kButtonWidthDip, top, right, bottom };
+        rc = { right - kButtonWidthDip, top, right, bottom };
         m_minBtn->Layout (rc, scaler);
-        right -= s_kButtonWidthDip;
+        right -= kButtonWidthDip;
     }
 }
 
@@ -265,6 +258,10 @@ void DxuiCaptionBar::Layout (const RECT & boundsDip, const DxuiDpiScaler & scale
 
 void DxuiCaptionBar::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
 {
+    constexpr float    kTitleFontDip     = 14.0f;
+    constexpr float    kTitlePadDip      = 14.0f;
+    constexpr float    kIconPadFraction  = 0.18f;
+
     RECT     b            = {};
     float    xPx          = 0.0f;
     float    yPx          = 0.0f;
@@ -297,9 +294,9 @@ void DxuiCaptionBar::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
 
     painter.FillGradientRect (xPx, yPx, wPx, hPx, theme.TitleBarTop(), theme.TitleBarBottom());
 
-    iconPadPx    = hPx * s_kIconPadFraction;
+    iconPadPx    = hPx * kIconPadFraction;
     iconSizePx   = hPx - iconPadPx * 2.0f;
-    textOffsetPx = m_scaler.Pxf (s_kTitlePadDip);
+    textOffsetPx = m_scaler.Pxf (kTitlePadDip);
 
     if (iconSizePx > 0.0f && !m_iconPixels.empty() && m_iconW > 0 && m_iconH > 0)
     {
@@ -309,20 +306,20 @@ void DxuiCaptionBar::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
                                                yPx + iconPadPx,
                                                iconSizePx, iconSizePx);
         IGNORE_RETURN_VALUE (hrIcon, S_OK);
-        textOffsetPx = m_scaler.Pxf (s_kTitlePadDip) + iconSizePx + iconPadPx;
+        textOffsetPx = m_scaler.Pxf (kTitlePadDip) + iconSizePx + iconPadPx;
     }
 
     buttonCount   = (m_buttons == Buttons::MinMaxClose) ? 3 : (m_buttons == Buttons::CloseOnly ? 1 : 0);
-    buttonStripPx = (float) buttonCount * m_scaler.Pxf ((float) s_kButtonWidthDip);
+    buttonStripPx = (float) buttonCount * m_scaler.Pxf ((float) kButtonWidthDip);
 
     textLeftPx   = xPx + textOffsetPx;
-    titleWidthPx = wPx - textOffsetPx - buttonStripPx - m_scaler.Pxf (s_kTitlePadDip);
+    titleWidthPx = wPx - textOffsetPx - buttonStripPx - m_scaler.Pxf (kTitlePadDip);
     if (titleWidthPx < 0.0f)
     {
         titleWidthPx = 0.0f;
     }
 
-    fontPx = m_scaler.Pxf (s_kTitleFontDip);
+    fontPx = m_scaler.Pxf (kTitleFontDip);
 
     {
         HRESULT  hrText = text.DrawString (m_title.c_str(),
@@ -332,7 +329,7 @@ void DxuiCaptionBar::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
                                            hPx,
                                            theme.CaptionForeground(),
                                            fontPx,
-                                           s_kTitleFamily,
+                                           kTitleFamily,
                                            DxuiTextHAlign::Left,
                                            DxuiTextVAlign::Center);
         IGNORE_RETURN_VALUE (hrText, S_OK);
@@ -392,3 +389,5 @@ DxuiHitTestKind DxuiCaptionBar::ClassifyHit (POINT clientDip) const
 
     return DxuiHitTestKind::Caption;
 }
+
+

@@ -55,6 +55,12 @@ public:
     std::wstring  BuildScreenText (const Byte * auxRam) const;
 
 private:
+    static constexpr Byte  kHighBitMask      = 0x80;
+    static constexpr Byte  kPrintableLow     = 0x20;
+    static constexpr Byte  kPrintableHigh    = 0x7E;
+    static constexpr int   kBitsPerByte      = 8;
+    static constexpr Word  kRd80Vid          = 0xC01F;   // 80-column display status
+
     // Map one raw text-screen byte to a printable wchar (high bit stripped,
     // non-printables blanked).
     static wchar_t  DecodeScreenByte (Byte ch);

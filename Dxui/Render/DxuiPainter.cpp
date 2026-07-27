@@ -2,37 +2,34 @@
 
 #include "DxuiPainter.h"
 
+
+
+
+const char  DxuiPainter::kVertexShaderSrc[] =
+    "struct VSIn  { float2 pos : POSITION; float4 col : COLOR; };\n"
+    "struct VSOut { float4 pos : SV_POSITION; float4 col : COLOR; };\n"
+    "VSOut main (VSIn input)\n"
+    "{\n"
+    "    VSOut output;\n"
+    "    output.pos = float4 (input.pos, 0.0f, 1.0f);\n"
+    "    output.col = input.col;\n"
+    "    return output;\n"
+    "}\n";
+
+
+const char  DxuiPainter::kPixelShaderSrc[] =
+    "struct PSIn { float4 pos : SV_POSITION; float4 col : COLOR; };\n"
+    "float4 main (PSIn input) : SV_TARGET\n"
+    "{\n"
+    "    return input.col;\n"
+    "}\n";
+
 #pragma comment(lib, "d3dcompiler.lib")
 
 
 
 
 
-namespace
-{
-    constexpr size_t  s_kInitialVertexCapacity = 1024;
-    constexpr float   s_kByteToUnit            = 1.0f / 255.0f;
-
-
-    static const char s_kVertexShaderSrc[] =
-        "struct VSIn  { float2 pos : POSITION; float4 col : COLOR; };\n"
-        "struct VSOut { float4 pos : SV_POSITION; float4 col : COLOR; };\n"
-        "VSOut main (VSIn input)\n"
-        "{\n"
-        "    VSOut output;\n"
-        "    output.pos = float4 (input.pos, 0.0f, 1.0f);\n"
-        "    output.col = input.col;\n"
-        "    return output;\n"
-        "}\n";
-
-
-    static const char s_kPixelShaderSrc[] =
-        "struct PSIn { float4 pos : SV_POSITION; float4 col : COLOR; };\n"
-        "float4 main (PSIn input) : SV_TARGET\n"
-        "{\n"
-        "    return input.col;\n"
-        "}\n";
-}
 
 
 
@@ -80,7 +77,7 @@ HRESULT DxuiPainter::Initialize (
     hr = CreatePipelineState();
     CHRA (hr);
 
-    hr = EnsureVertexBuffer (s_kInitialVertexCapacity);
+    hr = EnsureVertexBuffer (kInitialVertexCapacity);
     CHRA (hr);
 
 Error:
@@ -177,8 +174,8 @@ HRESULT DxuiPainter::CreateShaders()
 
 
 
-    hr = D3DCompile (s_kVertexShaderSrc,
-                     sizeof (s_kVertexShaderSrc) - 1,
+    hr = D3DCompile (kVertexShaderSrc,
+                     sizeof (kVertexShaderSrc) - 1,
                      "DxuiPainter.vs",
                      nullptr,
                      nullptr,
@@ -190,8 +187,8 @@ HRESULT DxuiPainter::CreateShaders()
                      &errors);
     CHRA (hr);
 
-    hr = D3DCompile (s_kPixelShaderSrc,
-                     sizeof (s_kPixelShaderSrc) - 1,
+    hr = D3DCompile (kPixelShaderSrc,
+                     sizeof (kPixelShaderSrc) - 1,
                      "DxuiPainter.ps",
                      nullptr,
                      nullptr,
@@ -304,7 +301,7 @@ HRESULT DxuiPainter::EnsureVertexBuffer (size_t requiredVerts)
         return S_OK;
     }
 
-    newCap = m_vertexBufferCapacity > 0 ? m_vertexBufferCapacity : s_kInitialVertexCapacity;
+    newCap = m_vertexBufferCapacity > 0 ? m_vertexBufferCapacity : kInitialVertexCapacity;
 
     while (newCap < requiredVerts)
     {
@@ -368,11 +365,13 @@ Error:
 
 DxuiPainter::Vertex DxuiPainter::MakeVertex (uint32_t argbColor, float alphaMultiplier)
 {
+    constexpr float   kByteToUnit            = 1.0f / 255.0f;
+
     Vertex  v;
-    float   a = ((argbColor >> 24) & 0xFF) * s_kByteToUnit;
-    float   r = ((argbColor >> 16) & 0xFF) * s_kByteToUnit;
-    float   g = ((argbColor >>  8) & 0xFF) * s_kByteToUnit;
-    float   b = ((argbColor      ) & 0xFF) * s_kByteToUnit;
+    float   a = ((argbColor >> 24) & 0xFF) * kByteToUnit;
+    float   r = ((argbColor >> 16) & 0xFF) * kByteToUnit;
+    float   g = ((argbColor >>  8) & 0xFF) * kByteToUnit;
+    float   b = ((argbColor      ) & 0xFF) * kByteToUnit;
 
 
 
@@ -838,3 +837,5 @@ HRESULT DxuiPainter::End (ID3D11RenderTargetView * pRtv)
 Error:
     return hr;
 }
+
+

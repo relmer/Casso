@@ -87,6 +87,12 @@ public:
     DxuiAccessibleRole  AccessibleRole () const override { return DxuiAccessibleRole::Dropdown; }
 
 private:
+    static constexpr int    kItemHeightDip    = 26;
+    static constexpr int    kItemPadLeftDip   = 28;
+    static constexpr int    kItemPadRightDip  = 16;
+    static constexpr int    kBorderDip        =  1;
+    static constexpr float  kFontDip          = 13.0f;
+
     int   HitTestIndex    (int x, int y) const;
     void  PaintBody       (IDxuiPainter & painter, IDxuiTextRenderer & text, int originLeft, int originTop) const;
     void  RenderPopupMenu (IDxuiPainter & painter, IDxuiTextRenderer & text) const;

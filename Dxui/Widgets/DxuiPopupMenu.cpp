@@ -8,16 +8,6 @@
 #include "Core/UnicodeSymbols.h"
 
 
-namespace
-{
-    constexpr int    s_kItemHeightDip    = 26;
-    constexpr int    s_kItemPadLeftDip   = 28;
-    constexpr int    s_kItemPadRightDip  = 16;
-    constexpr int    s_kCheckGlyphOffDip = 10;
-    constexpr int    s_kBorderDip        =  1;
-    constexpr int    s_kMinWidthDip      = 140;
-    constexpr float  s_kFontDip          = 13.0f;
-}
 
 
 
@@ -40,6 +30,8 @@ void DxuiPopupMenu::Show (
     IDxuiTextRenderer & text,
     const RECT          & hostClient)
 {
+    constexpr int    kMinWidthDip      = 140;
+
     HRESULT  hr        = S_OK;
     float    fontDip   = 0.0f;
     int      itemH     = 0;
@@ -66,12 +58,12 @@ void DxuiPopupMenu::Show (
         m_scaler.SetDpi (m_popupHost->Scaler().Dpi());
     }
 
-    fontDip = (float) m_scaler.Pxf (s_kFontDip);
-    itemH   = m_scaler.Px (s_kItemHeightDip);
-    padL    = m_scaler.Px (s_kItemPadLeftDip);
-    padR    = m_scaler.Px (s_kItemPadRightDip);
-    border  = m_scaler.Px (s_kBorderDip);
-    minW    = m_scaler.Px (s_kMinWidthDip);
+    fontDip = (float) m_scaler.Pxf (kFontDip);
+    itemH   = m_scaler.Px (kItemHeightDip);
+    padL    = m_scaler.Px (kItemPadLeftDip);
+    padR    = m_scaler.Px (kItemPadRightDip);
+    border  = m_scaler.Px (kBorderDip);
+    minW    = m_scaler.Px (kMinWidthDip);
 
     for (const auto & it : m_items)
     {
@@ -205,8 +197,8 @@ bool DxuiPopupMenu::HitTest (int x, int y) const
 
 int DxuiPopupMenu::HitTestIndex (int x, int y) const
 {
-    int  border = m_scaler.Px (s_kBorderDip);
-    int  itemH  = m_scaler.Px (s_kItemHeightDip);
+    int  border = m_scaler.Px (kBorderDip);
+    int  itemH  = m_scaler.Px (kItemHeightDip);
     int  relY   = y - (m_boundsDip.top + border);
 
     if (!HitTest (x, y))   { return -1; }
@@ -401,13 +393,15 @@ void DxuiPopupMenu::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) con
 
 void DxuiPopupMenu::PaintBody (IDxuiPainter & painter, IDxuiTextRenderer & text, int originLeft, int originTop) const
 {
+    constexpr int    kCheckGlyphOffDip = 10;
+
     HRESULT   hr       = S_OK;
-    int       border   = m_scaler.Px (s_kBorderDip);
-    int       itemH    = m_scaler.Px (s_kItemHeightDip);
-    int       padL     = m_scaler.Px (s_kItemPadLeftDip);
-    int       padR     = m_scaler.Px (s_kItemPadRightDip);
-    int       glyphX   = m_scaler.Px (s_kCheckGlyphOffDip);
-    float     fontDip  = (float) m_scaler.Pxf (s_kFontDip);
+    int       border   = m_scaler.Px (kBorderDip);
+    int       itemH    = m_scaler.Px (kItemHeightDip);
+    int       padL     = m_scaler.Px (kItemPadLeftDip);
+    int       padR     = m_scaler.Px (kItemPadRightDip);
+    int       glyphX   = m_scaler.Px (kCheckGlyphOffDip);
+    float     fontDip  = (float) m_scaler.Pxf (kFontDip);
     uint32_t  bgArgb   = 0;
     uint32_t  bgHover  = 0;
     uint32_t  fgArgb   = 0;
@@ -504,8 +498,8 @@ void DxuiPopupMenu::RenderPopupMenu (IDxuiPainter & painter, IDxuiTextRenderer &
 
 void DxuiPopupMenu::OnPopupMove (POINT localPx)
 {
-    int  border = m_scaler.Px (s_kBorderDip);
-    int  itemH  = m_scaler.Px (s_kItemHeightDip);
+    int  border = m_scaler.Px (kBorderDip);
+    int  itemH  = m_scaler.Px (kItemHeightDip);
     int  relY   = localPx.y - border;
     int  row    = -1;
 
@@ -546,8 +540,8 @@ void DxuiPopupMenu::OnPopupMove (POINT localPx)
 
 void DxuiPopupMenu::OnPopupClick (POINT localPx)
 {
-    int       border = m_scaler.Px (s_kBorderDip);
-    int       itemH  = m_scaler.Px (s_kItemHeightDip);
+    int       border = m_scaler.Px (kBorderDip);
+    int       itemH  = m_scaler.Px (kItemHeightDip);
     int       relY   = localPx.y - border;
     int       row    = -1;
     SelectFn  cb     = m_onSelect;
@@ -662,3 +656,5 @@ bool DxuiPopupMenu::OnKey (const DxuiKeyEvent & ev)
 
     return OnKey (ev.vk);
 }
+
+

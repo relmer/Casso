@@ -81,6 +81,9 @@ public:
     DxuiAccessibleRole  AccessibleRole () const          override { return DxuiAccessibleRole::CaptionBar; }
 
 private:
+    static constexpr int      kButtonWidthDip   = 46;
+    static constexpr wchar_t  kTitleFamily[]    = L"Segoe UI";
+
     bool                               m_renderCaption = false;
     Buttons                            m_buttons       = Buttons::None;
     std::wstring                       m_title;
