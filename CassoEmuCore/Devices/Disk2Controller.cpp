@@ -624,11 +624,7 @@ HRESULT Disk2Controller::MountDisk (int drive, const string & path)
 {
     HRESULT   hr = S_OK;
 
-    if (drive < 0 || drive >= kDriveCount)
-    {
-        hr = E_INVALIDARG;
-        goto Error;
-    }
+    CBRAEx (drive >= 0 && drive < kDriveCount, E_INVALIDARG);
 
     hr = m_disks[drive].Load (path);
     CHR (hr);

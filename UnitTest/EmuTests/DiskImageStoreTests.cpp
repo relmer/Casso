@@ -1,4 +1,5 @@
 #include "Pch.h"
+#include "../EhmTestHelper.h"
 #include "Devices/Disk/DiskImage.h"
 #include "Devices/Disk/DiskImageStore.h"
 #include "Devices/Disk/NibblizationLayer.h"
@@ -405,10 +406,20 @@ public:
     TEST_METHOD (MountFromBytes_RejectsBadSlotOrDrive)
     {
         DiskImageStore   store;
-        vector<Byte>     raw = MakeDsk (0);
+        vector<Byte>     raw     = MakeDsk (0);
+        HRESULT          hrSlot  = S_OK;
+        HRESULT          hrDrive = S_OK;
 
-        Assert::IsTrue (FAILED (store.MountFromBytes (-1, 0, "x.dsk", DiskFormat::Dsk, raw)));
-        Assert::IsTrue (FAILED (store.MountFromBytes ( 0, 5, "x.dsk", DiskFormat::Dsk, raw)));
+        {
+            // Out-of-range slot / drive are caller bugs, so both assert.
+            UnitTestHelpers::ExpectedEhmAssert   expect;
+
+            hrSlot  = store.MountFromBytes (-1, 0, "x.dsk", DiskFormat::Dsk, raw);
+            hrDrive = store.MountFromBytes ( 0, 5, "x.dsk", DiskFormat::Dsk, raw);
+        }
+
+        Assert::IsTrue (FAILED (hrSlot));
+        Assert::IsTrue (FAILED (hrDrive));
     }
 
 

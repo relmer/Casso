@@ -32,22 +32,12 @@ HRESULT MockIrqAsserter::Bind()
 {
     HRESULT     hr = S_OK;
 
-    if (m_ic == nullptr)
-    {
-        hr = E_INVALIDARG;
-        goto Error;
-    }
+    CBRAEx (m_ic != nullptr, E_INVALIDARG);
 
-    if (m_bound)
-    {
-        goto Error;
-    }
+    BAIL_OUT_IF (m_bound, S_OK);
 
     hr = m_ic->RegisterSource (m_sourceId);
-    if (FAILED (hr))
-    {
-        goto Error;
-    }
+    BAIL_OUT_IF (FAILED (hr), S_OK);
 
     m_bound = true;
 

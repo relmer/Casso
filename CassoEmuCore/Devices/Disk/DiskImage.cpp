@@ -592,10 +592,7 @@ HRESULT DiskImage::Flush()
     bool          fileOk  = false;
     vector<Byte>  bytes;
 
-    if (!m_dirty)
-    {
-        goto Error;
-    }
+    BAIL_OUT_IF (!m_dirty, S_OK);
 
     if (m_filePath.empty())
     {
@@ -608,10 +605,7 @@ HRESULT DiskImage::Flush()
 
     if (FAILED (hr))
     {
-        if (m_rawSourceBytes.empty())
-        {
-            goto Error;
-        }
+        BAIL_OUT_IF (m_rawSourceBytes.empty(), S_OK);
         bytes = m_rawSourceBytes;
         hr    = S_OK;
     }

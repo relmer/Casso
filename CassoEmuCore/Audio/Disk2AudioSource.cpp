@@ -209,11 +209,7 @@ HRESULT Disk2AudioSource::LoadSamples (
     fs::path        fullPath;
     vector<float>   slots[s_kcSampleFiles];
 
-    if (devicesDir == nullptr || mechanism == nullptr || targetSampleRate == 0)
-    {
-        hr = E_INVALIDARG;
-        goto Error;
-    }
+    CBRAEx (devicesDir != nullptr && mechanism != nullptr && targetSampleRate != 0, E_INVALIDARG);
 
     baseDir = fs::path (devicesDir);
     mechDir = baseDir / mechanism;

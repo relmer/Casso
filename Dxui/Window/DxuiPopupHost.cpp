@@ -788,10 +788,7 @@ HRESULT DxuiPopupHost::EnsureWindowClass()
     uint32_t     serial           = 0;
 
 
-    if (m_classRegistered)
-    {
-        goto Error;
-    }
+    BAIL_OUT_IF (m_classRegistered, S_OK);
 
     serial = s_classSerial.fetch_add (1);
     (void) swprintf_s (classNameBuf, L"DxuiPopupHost_%u_%p", serial, (void *) this);

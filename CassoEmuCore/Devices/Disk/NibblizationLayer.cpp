@@ -315,11 +315,7 @@ static HRESULT NibblizeWithMap (
     int       logical   = 0;
     size_t    offset    = 0;
 
-    if (raw.size() != NibblizationLayer::kImageByteSize)
-    {
-        hr = E_INVALIDARG;
-        goto Error;
-    }
+    CBRAEx (raw.size() == NibblizationLayer::kImageByteSize, E_INVALIDARG);
 
     for (track = 0; track < NibblizationLayer::kTrackCount; track++)
     {
@@ -514,11 +510,7 @@ static HRESULT DecodeOneSector (
     size_t    startBitPos               = bitPos;
     size_t    bitsConsumed              = 0;
 
-    if (trackBits == 0)
-    {
-        hr = E_FAIL;
-        goto Error;
-    }
+    CBR (trackBits != 0);
 
     foundProlog = 0;
 
@@ -528,11 +520,7 @@ static HRESULT DecodeOneSector (
         if (n0 != kAddrProlog0)
         {
             bitsConsumed = (bitPos - startBitPos);
-            if (bitsConsumed > trackBits + 8)
-            {
-                hr = E_FAIL;
-                goto Error;
-            }
+            CBR (bitsConsumed <= trackBits + 8);
             continue;
         }
 
@@ -571,11 +559,7 @@ static HRESULT DecodeOneSector (
         if (n0 != kAddrProlog0)
         {
             bitsConsumed = (bitPos - startBitPos);
-            if (bitsConsumed > trackBits + 8)
-            {
-                hr = E_FAIL;
-                goto Error;
-            }
+            CBR (bitsConsumed <= trackBits + 8);
             continue;
         }
 

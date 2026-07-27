@@ -486,11 +486,7 @@ HRESULT DiskManager::Mount (int slot, int drive, const std::wstring & path)
     WORD     command = 0;
 
 
-    if (slot != 6)
-    {
-        hr = E_INVALIDARG;
-        goto Error;
-    }
+    CBRAEx (slot == 6, E_INVALIDARG);
 
     if (drive == 0)
     {

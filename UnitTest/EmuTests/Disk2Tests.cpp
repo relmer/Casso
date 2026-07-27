@@ -1,4 +1,5 @@
 #include "Pch.h"
+#include "../EhmTestHelper.h"
 #include "Core/MemoryBus.h"
 #include "Devices/Disk2Controller.h"
 
@@ -498,8 +499,14 @@ public:
     TEST_METHOD (MountDisk_InvalidDrive_ReturnsError)
     {
         unique_ptr<Disk2Controller>   disk = make_unique<Disk2Controller> (6);
+        HRESULT                       hr   = S_OK;
 
-        HRESULT   hr = disk->MountDisk (3, "nonexistent.dsk");
+        {
+            // Drive 3 is out of range: a caller bug, so the guard asserts.
+            UnitTestHelpers::ExpectedEhmAssert   expect;
+
+            hr = disk->MountDisk (3, "nonexistent.dsk");
+        }
 
         Assert::IsTrue (FAILED (hr));
     }

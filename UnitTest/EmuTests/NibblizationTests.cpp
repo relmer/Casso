@@ -1,4 +1,5 @@
 #include "Pch.h"
+#include "../EhmTestHelper.h"
 #include "Devices/Disk/DiskImage.h"
 #include "Devices/Disk/NibblizationLayer.h"
 
@@ -82,8 +83,14 @@ public:
     {
         DiskImage      img;
         vector<Byte>   raw (1024, 0);
+        HRESULT        hr  = S_OK;
 
-        HRESULT   hr = NibblizationLayer::NibblizeDsk (raw, img);
+        {
+            // A wrong-sized image is a caller bug, so the guard asserts.
+            UnitTestHelpers::ExpectedEhmAssert   expect;
+
+            hr = NibblizationLayer::NibblizeDsk (raw, img);
+        }
 
         Assert::IsTrue (FAILED (hr));
     }

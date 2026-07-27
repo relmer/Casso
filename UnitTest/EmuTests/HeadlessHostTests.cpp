@@ -1,4 +1,5 @@
 #include "Pch.h"
+#include "../EhmTestHelper.h"
 #include "HeadlessHost.h"
 #include "FixtureProvider.h"
 
@@ -93,23 +94,35 @@ public:
         hr = host.BuildApple2e (core);
         Assert::IsTrue (SUCCEEDED (hr));
 
-        hr = core.fixtures->OpenFixture ("../escape.bin", bytes);
-        Assert::AreEqual (E_INVALIDARG, hr, L"'..' traversal must be rejected");
+        // Every rejection below trips the same asserting guard: asking the
+        // fixture provider to escape its root is a caller bug, so a dev
+        // running Debug should break on it. The scope both permits that and
+        // proves the assert is still wired -- a rejection that stopped
+        // asserting would otherwise pass silently on the HRESULT alone.
+        {
+            UnitTestHelpers::ExpectedEhmAssert   expect;
 
-        hr = core.fixtures->OpenFixture ("subdir/../../escape.bin", bytes);
-        Assert::AreEqual (E_INVALIDARG, hr, L"embedded '..' must be rejected");
+            hr = core.fixtures->OpenFixture ("../escape.bin", bytes);
+            Assert::AreEqual (E_INVALIDARG, hr, L"'..' traversal must be rejected");
 
-        hr = core.fixtures->OpenFixture ("/etc/passwd", bytes);
-        Assert::AreEqual (E_INVALIDARG, hr, L"absolute root must be rejected");
+            hr = core.fixtures->OpenFixture ("subdir/../../escape.bin", bytes);
+            Assert::AreEqual (E_INVALIDARG, hr, L"embedded '..' must be rejected");
 
-        hr = core.fixtures->OpenFixture ("\\windows\\system32", bytes);
-        Assert::AreEqual (E_INVALIDARG, hr, L"backslash root must be rejected");
+            hr = core.fixtures->OpenFixture ("/etc/passwd", bytes);
+            Assert::AreEqual (E_INVALIDARG, hr, L"absolute root must be rejected");
 
-        hr = core.fixtures->OpenFixture ("C:\\windows", bytes);
-        Assert::AreEqual (E_INVALIDARG, hr, L"drive letter must be rejected");
+            hr = core.fixtures->OpenFixture ("\\windows\\system32", bytes);
+            Assert::AreEqual (E_INVALIDARG, hr, L"backslash root must be rejected");
 
-        hr = core.fixtures->OpenFixture ("", bytes);
-        Assert::AreEqual (E_INVALIDARG, hr, L"empty path must be rejected");
+            hr = core.fixtures->OpenFixture ("C:\\windows", bytes);
+            Assert::AreEqual (E_INVALIDARG, hr, L"drive letter must be rejected");
+
+            hr = core.fixtures->OpenFixture ("", bytes);
+            Assert::AreEqual (E_INVALIDARG, hr, L"empty path must be rejected");
+
+            Assert::AreEqual (6, expect.Count(),
+                L"all six rejections must assert, not just some");
+        }
     }
 
     TEST_METHOD (DeterministicAcrossTwoBuilds)

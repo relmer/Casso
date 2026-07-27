@@ -61,11 +61,7 @@ HRESULT DiskImageStore::DetectFormatByExtension (const string & path, DiskFormat
 
     pos = path.find_last_of ('.');
 
-    if (pos == string::npos || pos + 1 >= path.size())
-    {
-        hr = E_FAIL;
-        goto Error;
-    }
+    CBR (pos != string::npos && pos + 1 < path.size());
 
     ext = path.substr (pos + 1);
 
@@ -122,11 +118,7 @@ HRESULT DiskImageStore::MountFromBytes (
 {
     HRESULT   hr = S_OK;
 
-    if (slot < 0 || slot >= kSlotCount || drive < 0 || drive >= kDriveCount)
-    {
-        hr = E_INVALIDARG;
-        goto Error;
-    }
+    CBRAEx (slot >= 0 && slot < kSlotCount && drive >= 0 && drive < kDriveCount, E_INVALIDARG);
 
     {
         Entry &   entry = At (slot, drive);
@@ -316,11 +308,7 @@ HRESULT DiskImageStore::Flush (int slot, int drive)
 {
     HRESULT   hr = S_OK;
 
-    if (slot < 0 || slot >= kSlotCount || drive < 0 || drive >= kDriveCount)
-    {
-        hr = E_INVALIDARG;
-        goto Error;
-    }
+    CBRAEx (slot >= 0 && slot < kSlotCount && drive >= 0 && drive < kDriveCount, E_INVALIDARG);
 
     hr = FlushEntry (At (slot, drive));
 

@@ -159,26 +159,14 @@ HRESULT FixtureProvider::OpenFixture (
 
     outBytes.clear();
 
-    if (IsRejectedPath (relativePath))
-    {
-        hr = E_INVALIDARG;
-        goto Error;
-    }
+    CBRAEx (!IsRejectedPath (relativePath), E_INVALIDARG);
 
-    if (m_root.empty())
-    {
-        hr = E_FAIL;
-        goto Error;
-    }
+    CBR (!m_root.empty());
 
     full = fs::path (m_root) / relativePath;
 
     stream.open (full, std::ios::binary | std::ios::ate);
-    if (!stream.is_open())
-    {
-        hr = E_FAIL;
-        goto Error;
-    }
+    CBR (stream.is_open());
 
     size = stream.tellg();
     stream.seekg (0, std::ios::beg);
