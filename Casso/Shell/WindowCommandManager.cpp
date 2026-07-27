@@ -1608,7 +1608,7 @@ void WindowCommandManager::OnHelpCommand (int id)
             def.body.push_back ({ githubBlurb,
                                   true, L"https://github.com/relmer/Casso" });
             def.body.push_back ({ L"Log a bug",
-                                  true, L"https://github.com/relmer/Casso/issues/new" });
+                                  true, L"https://github.com/relmer/Casso/issues/new?template=bug_report.yml" });
             def.body.push_back ({ L"", false, L"" });
             def.body.push_back ({ L"MIT License",
                                   true, L"https://github.com/relmer/Casso/blob/master/LICENSE" });

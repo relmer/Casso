@@ -1,0 +1,67 @@
+name: Bug report
+description: Report a problem with the Casso emulator
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a bug! Please fill in the sections below so it can be reproduced and fixed.
+  - type: textarea
+    id: summary
+    attributes:
+      label: What happened?
+      description: Describe the problem, and what you expected to happen instead.
+      placeholder: |
+        When I ..., Casso ...
+        I expected ...
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      description: The exact steps to trigger it. If a specific disk image or program is involved, name it (and attach it below if you can).
+      placeholder: |
+        1. Launch Casso as ...
+        2. Boot / load ...
+        3. ...
+        4. See the problem
+    validations:
+      required: true
+  - type: dropdown
+    id: machine
+    attributes:
+      label: Emulated machine
+      description: Which machine were you emulating? (Shown in the title bar, or Settings → Hardware.)
+      options:
+        - "Apple //e Enhanced"
+        - "Apple //e"
+        - "Apple ][+"
+        - "Apple ]["
+        - "Apple //c"
+        - "Not sure / more than one"
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Casso version
+      description: Copy the Version and Built lines from Help → About Casso.
+      placeholder: "Version 1.14.0 (Built Jul 26 2026 21:15:47)"
+    validations:
+      required: true
+  - type: input
+    id: os
+    attributes:
+      label: Windows version
+      placeholder: "Windows 11 Pro 24H2"
+    validations:
+      required: false
+  - type: textarea
+    id: context
+    attributes:
+      label: Screenshots, recordings, logs, or disk images
+      description: Drag in anything that helps — a screenshot or screen recording of the problem, and the disk image that triggers it if applicable.
+    validations:
+      required: false
