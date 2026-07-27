@@ -7,15 +7,6 @@
 
 
 
-namespace
-{
-    // Glyph metrics. The glyph is a fixed-size square centered in the
-    // button (Win11 chrome), with a thin stroke and a small offset for
-    // the restore (double-square) glyph.
-    constexpr float  s_kGlyphSizeDip       = 10.0f;
-    constexpr float  s_kGlyphThicknessDip  = 1.0f;
-    constexpr float  s_kRestoreOffsetDip   = 2.5f;
-}
 
 
 
@@ -90,6 +81,10 @@ void DxuiSystemButton::Layout (const RECT & boundsDip, const DxuiDpiScaler & sca
 
 void DxuiSystemButton::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
 {
+    constexpr float  kGlyphSizeDip       = 10.0f;
+    constexpr float  kGlyphThicknessDip  = 1.0f;
+    constexpr float  kRestoreOffsetDip   = 2.5f;
+
     RECT     bounds      = {};
     float    xPx         = 0.0f;
     float    yPx         = 0.0f;
@@ -141,7 +136,7 @@ void DxuiSystemButton::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, 
         fg = 0xFFFFFFFF;
     }
 
-    strokePx    = m_scaler.Pxf (s_kGlyphThicknessDip);
+    strokePx    = m_scaler.Pxf (kGlyphThicknessDip);
     if (strokePx < 1.0f)
     {
         strokePx = 1.0f;
@@ -150,14 +145,14 @@ void DxuiSystemButton::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, 
     // Win11 caption glyphs are a small fixed square centered in the
     // button -- NOT scaled to the button bounds. A ~10 DIP glyph in a
     // 46x32 DIP button matches the system chrome.
-    glyphSizePx = m_scaler.Pxf (s_kGlyphSizeDip);
+    glyphSizePx = m_scaler.Pxf (kGlyphSizeDip);
     midX        = xPx + widthPx  * 0.5f;
     midY        = yPx + heightPx * 0.5f;
     glyphLeft   = midX - glyphSizePx * 0.5f;
     glyphTop    = midY - glyphSizePx * 0.5f;
     glyphRight      = midX + glyphSizePx * 0.5f;
     glyphBottom     = midY + glyphSizePx * 0.5f;
-    restoreOffsetPx = m_scaler.Pxf (s_kRestoreOffsetDip);
+    restoreOffsetPx = m_scaler.Pxf (kRestoreOffsetDip);
 
     switch (m_kind)
     {

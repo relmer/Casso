@@ -14,10 +14,6 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace
-{
-    constexpr LONGLONG  s_kHundredNsPerSecond = 10000000LL;
-}
 
 
 
@@ -281,6 +277,8 @@ void CpuManager::DrainCommandQueue()
 
 void CpuManager::ThreadProc()
 {
+    constexpr LONGLONG  kHundredNsPerSecond = 10000000LL;
+
     HRESULT        hr              = S_OK;
     HANDLE         hTimer          = nullptr;
     LARGE_INTEGER  dueTime         = {};
@@ -316,7 +314,7 @@ void CpuManager::ThreadProc()
 
         DrainCommandQueue();
 
-        dueTime.QuadPart = -(s_kHundredNsPerSecond * kAppleCyclesPerFrame / kAppleCpuClock);
+        dueTime.QuadPart = -(kHundredNsPerSecond * kAppleCyclesPerFrame / kAppleCpuClock);
         fSuccess = SetWaitableTimer (hTimer, &dueTime, 0, nullptr, nullptr, FALSE);
         CWRA (fSuccess);
 
