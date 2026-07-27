@@ -299,18 +299,35 @@ Byte Apple2eSoftSwitchBank::Read (Word address)
     {
         result = ReadStatusRegister (address);
     }
-    else if (address == s_kwPaddleTimerStrobe)
+    else if ((address & 0xFFF0) == s_kwPaddleTimerStrobe)
     {
-        // $C070 (any access) strobes the analog game-port timers: latch the
-        // current CPU cycle so subsequent $C064-$C067 reads measure the
+        // $C070-$C07F (PTRIG): the paddle-timer trigger is only partially
+        // decoded -- ANY access across the whole $C07x page strobes it. Latch
+        // the current CPU cycle so subsequent $C064-$C067 reads measure the
         // resistor-capacitor countdown.
         m_paddleTriggerCycle = (m_cpuCycleSource != nullptr) ? *m_cpuCycleSource : 0;
 
-        // //c: a $C070 access also clears the VBL interrupt latch (the
-        // firmware's VBL acknowledge -- bank-0 IRQ path reads $C070).
         if (m_mouse != nullptr)
         {
+            // //c: the same partial decode means ANY $C07x access clears the
+            // VBL interrupt latch. The mouse firmware's IRQ handler
+            // acknowledges VBL as a side effect of its IOU-access toggle
+            // (MousePaint does STA $C079 each interrupt); honoring only $C070
+            // left the latch stuck asserted, re-firing the IRQ every time
+            // interrupts were enabled and starving the guest's main loop.
             m_mouse->AccessPtrig();
+
+            // $C078/$C079 additionally toggle //c IOU access (IOUDIS): $C078
+            // reverts $C058-$C05F to annunciator/DHIRES, $C079 makes them the
+            // mouse/VBL interrupt switches.
+            if (address == 0xC078)
+            {
+                m_mouse->WriteIouAccess (false);
+            }
+            else if (address == 0xC079)
+            {
+                m_mouse->WriteIouAccess (true);
+            }
         }
 
         EmitPaddleTrigger ();
@@ -373,20 +390,9 @@ Byte Apple2eSoftSwitchBank::Read (Word address)
                 m_doubleHiRes = false;
                 bankingChange = true;
                 break;
-            case 0xC078:
-                // //c IOUDIS on: $C058-$C05F revert to annunciator/DHIRES.
-                if (m_mouse != nullptr)
-                {
-                    m_mouse->WriteIouAccess (false);
-                }
-                break;
-            case 0xC079:
-                // //c IOUDIS off: $C058-$C05F program the IOU mouse switches.
-                if (m_mouse != nullptr)
-                {
-                    m_mouse->WriteIouAccess (true);
-                }
-                break;
+            // $C078/$C079 (//c IOU access toggle) are handled in the
+            // $C070-$C07F PTRIG branch above, since any $C07x access must
+            // also strobe the paddle timer / clear the VBL interrupt latch.
             default:
                 break;
         }
