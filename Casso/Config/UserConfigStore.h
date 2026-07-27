@@ -50,8 +50,13 @@ class UserConfigStore
 public:
     explicit UserConfigStore (const std::wstring & userDir);
 
+    // outParseDetail is empty unless the prefs file exists but does not
+    // parse, in which case it carries a human-readable location ("line 12,
+    // column 5: ...") so the caller can tell the user WHERE their JSON
+    // broke rather than silently discarding their settings.
     HRESULT      LoadAll           (GlobalUserPrefs  & prefs,
-                                    IFileSystem      & fs);
+                                    IFileSystem      & fs,
+                                    std::wstring     & outParseDetail);
     HRESULT      SaveAll           (const GlobalUserPrefs & prefs,
                                     IFileSystem           & fs) const;
     HRESULT      Load              (const std::string & machineName,

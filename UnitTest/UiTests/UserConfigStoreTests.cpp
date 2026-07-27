@@ -563,6 +563,59 @@ public:
     }
 
 
+    TEST_METHOD (LoadAll_CorruptPrefs_ReportsWhereTheParseBroke)
+    {
+        InMemoryFileSystem  fs;
+        UserConfigStore     store (L"C:\\Casso");
+        GlobalUserPrefs     prefs;
+        HRESULT             hr = S_OK;
+        std::wstring        parseDetail;
+
+
+
+        // Valid up to the third line, then a bare word where a value belongs.
+        hr = fs.WriteAllText (store.UserPrefsFilePath(),
+                              "{\n"
+                              "    \"activeTheme\": \"Retro Terminal\",\n"
+                              "    \"speedMode\": oops\n"
+                              "}\n");
+        Assert::IsTrue (SUCCEEDED (hr));
+
+        hr = store.LoadAll (prefs, fs, parseDetail);
+
+        Assert::IsTrue (FAILED (hr),
+            L"A prefs file that exists but does not parse must fail, not "
+            L"silently fall back to defaults");
+        Assert::IsFalse (parseDetail.empty(),
+            L"The caller needs somewhere to point the user -- an empty detail "
+            L"leaves them with 'Casso lost my settings' and no reason");
+        Assert::IsTrue (parseDetail.find (L"line 3") != std::wstring::npos,
+            L"The detail must name the line the parse broke on");
+        Assert::IsTrue (parseDetail.find (store.UserPrefsFilePath()) != std::wstring::npos,
+            L"The detail must name the file, so the user can go fix it");
+    }
+
+
+    TEST_METHOD (LoadAll_MissingPrefs_ReportsNoParseDetail)
+    {
+        InMemoryFileSystem  fs;
+        UserConfigStore     store (L"C:\\Casso");
+        GlobalUserPrefs     prefs;
+        HRESULT             hr = S_OK;
+        std::wstring        parseDetail;
+
+
+
+        // First run: no file at all is normal, not a corruption to report.
+        hr = store.LoadAll (prefs, fs, parseDetail);
+
+        Assert::IsTrue (parseDetail.empty(),
+            L"A missing file is a first run, not a broken one -- warning the "
+            L"user here would be crying wolf");
+        UNREFERENCED_PARAMETER (hr);
+    }
+
+
     TEST_METHOD (UnifiedPrefs_RoundTrip_GlobalAndMachineValuesStick)
     {
         InMemoryFileSystem  fs;
@@ -574,9 +627,10 @@ public:
         JsonValue           currentJson = ParseOrFail ("{\"$cassoMachineVersion\":2,\"speedMode\":\"maximum\"}");
         JsonValue           merged;
         HRESULT             hr = S_OK;
+        std::wstring        parseDetail;
 
 
-        hr = store.LoadAll (prefs, fs);
+        hr = store.LoadAll (prefs, fs, parseDetail);
         Assert::IsTrue (hr == S_FALSE);
 
         prefs.activeTheme = "Retro Terminal";
@@ -585,7 +639,7 @@ public:
         hr = store.SaveAll (prefs, fs);
         Assert::IsTrue (SUCCEEDED (hr));
 
-        hr = reloadedStore.LoadAll (reloadedPrefs, fs);
+        hr = reloadedStore.LoadAll (reloadedPrefs, fs, parseDetail);
         Assert::IsTrue (SUCCEEDED (hr));
         Assert::AreEqual (std::string ("Retro Terminal"), reloadedPrefs.activeTheme);
 
@@ -602,6 +656,7 @@ public:
         UserConfigStore     store (baseDir);
         GlobalUserPrefs     prefs;
         HRESULT             hr = S_OK;
+        std::wstring        parseDetail;
         JsonValue           foo;
         JsonValue           bar;
 
@@ -616,7 +671,7 @@ public:
                               "{\"colorMode\":\"green\"}");
         Assert::IsTrue (SUCCEEDED (hr));
 
-        hr = store.LoadAll (prefs, fs);
+        hr = store.LoadAll (prefs, fs, parseDetail);
         Assert::IsTrue (SUCCEEDED (hr));
         Assert::AreEqual (std::string ("DarkModern"), prefs.activeTheme);
         Assert::IsTrue (fs.Exists (store.UserPrefsFilePath()));
@@ -641,6 +696,7 @@ public:
         GlobalUserPrefs     prefs;
         GlobalUserPrefs     secondPrefs;
         HRESULT             hr = S_OK;
+        std::wstring        parseDetail;
         std::string         firstText;
         std::string         secondText;
 
@@ -649,11 +705,11 @@ public:
                               "{\"$cassoMachineVersion\":2,\"speedMode\":\"maximum\"}");
         Assert::IsTrue (SUCCEEDED (hr));
 
-        hr = store.LoadAll (prefs, fs);
+        hr = store.LoadAll (prefs, fs, parseDetail);
         Assert::IsTrue (SUCCEEDED (hr));
         firstText = fs.PeekContent (store.UserPrefsFilePath());
 
-        hr = secondStore.LoadAll (secondPrefs, fs);
+        hr = secondStore.LoadAll (secondPrefs, fs, parseDetail);
         Assert::IsTrue (SUCCEEDED (hr));
         secondText = fs.PeekContent (secondStore.UserPrefsFilePath());
 

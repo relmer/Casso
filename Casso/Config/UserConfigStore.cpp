@@ -714,7 +714,8 @@ std::wstring UserConfigStore::UserFilePath (const std::string & machineName) con
 
 HRESULT UserConfigStore::LoadAll (
     GlobalUserPrefs  & prefs,
-    IFileSystem      & fs)
+    IFileSystem      & fs,
+    std::wstring     & outParseDetail)
 {
     HRESULT          hr     = S_OK;
     std::wstring     path   = UserPrefsFilePath();
@@ -726,6 +727,7 @@ HRESULT UserConfigStore::LoadAll (
 
     m_prefs = &prefs;
     m_machinePrefs.clear();
+    outParseDetail.clear();
 
     if (!fs.Exists (path))
     {
@@ -740,8 +742,16 @@ HRESULT UserConfigStore::LoadAll (
     hr = fs.ReadAllText (path, text);
     CHR (hr);
 
+    // A file that exists but will not parse is the case worth explaining:
+    // the user still has settings, we just cannot read them. Capture where
+    // the parse broke so the caller can say so instead of quietly starting
+    // over with defaults.
     hr = JsonParser::Parse (text, root, err);
-    CHR (hr);
+    CHRF (hr, outParseDetail = std::format (L"{}\n\nline {}, column {}: {}",
+                                            path,
+                                            err.line,
+                                            err.column,
+                                            std::wstring (err.message.begin(), err.message.end())));
 
     hr = LoadCombinedJson (root, prefs);
     CHR (hr);
