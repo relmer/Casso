@@ -5,8 +5,29 @@
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
 
-namespace
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Phase8IntegrationTests
+//
+//  User Story 3 (P1). Drives deterministic //e-specific scenarios across
+//  the headless //e built by HeadlessHost::BuildApple2e — proves the
+//  MMU + Language Card rewrites from Phases 2-3 land the right bytes in
+//  the right buffers end-to-end.
+//
+//  Constitution §II: every test uses HeadlessHost + IFixtureProvider
+//  only; no host filesystem, no Win32, no audio device.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+TEST_CLASS (Phase8IntegrationTests)
 {
+public:
+
     static constexpr uint64_t   kColdBootCycles      = 5000000ULL;
     static constexpr Word       kProbeAddrMain       = 0x4000;
     static constexpr Word       kProbeAddrZp         = 0x0080;
@@ -40,29 +61,6 @@ namespace
     static constexpr Word   kLcReadEvenBank1    = 0xC088;
     static constexpr Word   kLcOddBank1A        = 0xC089;
     static constexpr Word   kLcOddBank1B        = 0xC08B;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  Phase8IntegrationTests
-//
-//  User Story 3 (P1). Drives deterministic //e-specific scenarios across
-//  the headless //e built by HeadlessHost::BuildApple2e — proves the
-//  MMU + Language Card rewrites from Phases 2-3 land the right bytes in
-//  the right buffers end-to-end.
-//
-//  Constitution §II: every test uses HeadlessHost + IFixtureProvider
-//  only; no host filesystem, no Win32, no audio device.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-TEST_CLASS (Phase8IntegrationTests)
-{
-public:
 
     ////////////////////////////////////////////////////////////////////////
     //
@@ -406,3 +404,4 @@ public:
             L"LC aux high $E100 must survive");
     }
 };
+

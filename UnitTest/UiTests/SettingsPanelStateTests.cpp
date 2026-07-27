@@ -17,10 +17,23 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SettingsPanelStateTests
+//
+////////////////////////////////////////////////////////////////////////////////
+
+TEST_CLASS (SettingsPanelStateTests)
 {
-    constexpr uint32_t  s_kFixtureClockSpeedHz    = 1023000;
-    constexpr size_t    s_kFixtureDevices         = 4;
+public:
+
+    static constexpr uint32_t  s_kFixtureClockSpeedHz    = 1023000;
+    static constexpr size_t    s_kFixtureDevices         = 4;
 
     class RecordingSink : public ISettingsApplySink
     {
@@ -124,21 +137,6 @@ namespace
             "writeProtect": [ true, false ]
         }
     })JSON";
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  SettingsPanelStateTests
-//
-////////////////////////////////////////////////////////////////////////////////
-
-TEST_CLASS (SettingsPanelStateTests)
-{
-public:
 
     TEST_METHOD (Load_Defaults_NotDirty_NoResetRequired)
     {
@@ -809,4 +807,5 @@ public:
         Assert::AreEqual (0, sink.queuedResetCount);
     }
 };
+
 

@@ -22,17 +22,6 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace
-{
-    JsonValue ParseOrFail (const std::string & text)
-    {
-        JsonValue        v;
-        JsonParseError   e;
-        HRESULT          hr = JsonParser::Parse (text, v, e);
-        Assert::IsTrue (SUCCEEDED (hr));
-        return v;
-    }
-}
 
 
 
@@ -41,6 +30,15 @@ namespace
 TEST_CLASS (HardwareTreeTests)
 {
 public:
+
+    JsonValue ParseOrFail (const std::string & text)
+    {
+        JsonValue        v;
+        JsonParseError   e;
+        HRESULT          hr = JsonParser::Parse (text, v, e);
+        Assert::IsTrue (SUCCEEDED (hr));
+        return v;
+    }
 
     TEST_METHOD (Extract_DefaultCapabilities_PerFR015)
     {
@@ -183,3 +181,4 @@ public:
         Assert::AreEqual (std::string ("Slot 6: Disk ]["), out[0].displayName);
     }
 };
+

@@ -11,8 +11,25 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
 
 
-namespace
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  InputEventCoalescingTests
+//
+//  Verifies the producer-side coalescing the keyboard devices perform
+//  before notifying an attached IInputEventSink: a tight poll loop must
+//  collapse to one event per observed transition, and detaching the sink
+//  must silence all emits (the no-sink fast path).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+TEST_CLASS (InputEventCoalescingTests)
 {
+public:
+
     ////////////////////////////////////////////////////////////////////////////////
     //
     //  RecordingInputSink
@@ -114,25 +131,6 @@ namespace
             lastDown        = down;
         }
     };
-}
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  InputEventCoalescingTests
-//
-//  Verifies the producer-side coalescing the keyboard devices perform
-//  before notifying an attached IInputEventSink: a tight poll loop must
-//  collapse to one event per observed transition, and detaching the sink
-//  must silence all emits (the no-sink fast path).
-//
-////////////////////////////////////////////////////////////////////////////////
-
-TEST_CLASS (InputEventCoalescingTests)
-{
-public:
 
     TEST_METHOD (DataRead_CoalescesIdenticalPolls)
     {
@@ -419,3 +417,4 @@ public:
             L"The host button event must carry the changed button index");
     }
 };
+

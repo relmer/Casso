@@ -19,8 +19,15 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 ////////////////////////////////////////////////////////////////////////////////
 
 
-namespace
+
+
+
+
+
+TEST_CLASS (DxuiHwndSourceClientTests)
 {
+public:
+
     DxuiHwndSource::CreateParams  MakeAdoptParams()
     {
         DxuiHwndSource::CreateParams  cp;
@@ -152,15 +159,6 @@ namespace
             DxuiPanel::Layout (boundsDip, scaler);
         }
     };
-}
-
-
-
-
-
-TEST_CLASS (DxuiHwndSourceClientTests)
-{
-public:
 
     TEST_METHOD_INITIALIZE (Setup)
     {
@@ -594,3 +592,4 @@ public:
         Assert::AreEqual ((LRESULT) TRUE,       result);
     }
 };
+

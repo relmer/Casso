@@ -25,11 +25,18 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace
+
+
+
+
+
+TEST_CLASS (DiskAudioFetchTests)
 {
-    constexpr uint32_t  s_kTestSampleRate = 44100;
-    constexpr size_t    s_kSineFrames     = 4410;          // 100 ms
-    constexpr float     s_kTwoPi          = (float) (2.0 * std::numbers::pi);
+public:
+
+    static constexpr uint32_t  s_kTestSampleRate = 44100;
+    static constexpr size_t    s_kSineFrames     = 4410;          // 100 ms
+    static constexpr float     s_kTwoPi          = (float) (2.0 * std::numbers::pi);
 
 
     static void WriteMonoPcm16Wav (
@@ -92,15 +99,6 @@ namespace
 
         return dir;
     }
-}
-
-
-
-
-
-TEST_CLASS (DiskAudioFetchTests)
-{
-public:
 
     TEST_METHOD (DecodeOggToInterleavedShort_nullBuffer_returnsInvalidArg)
     {
@@ -305,3 +303,4 @@ public:
         fs::remove_all (devicesDir.parent_path(), ec);
     }
 };
+

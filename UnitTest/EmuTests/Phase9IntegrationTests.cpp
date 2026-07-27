@@ -4,13 +4,6 @@
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
 
-namespace
-{
-    static constexpr Word   kSlot6RomBase     = 0xC600;
-    static constexpr Word   kIntCxRomOff      = 0xC006;
-    static constexpr Word   kIntCxRomOn       = 0xC007;
-    static constexpr Byte   kDisk2RomFirst    = 0xA2;     // first byte of Disk2.rom: LDX #$20
-}
 
 
 
@@ -35,6 +28,11 @@ namespace
 TEST_CLASS (Phase9IntegrationTests)
 {
 public:
+
+    static constexpr Word   kSlot6RomBase     = 0xC600;
+    static constexpr Word   kIntCxRomOff      = 0xC006;
+    static constexpr Word   kIntCxRomOn       = 0xC007;
+    static constexpr Byte   kDisk2RomFirst    = 0xA2;     // first byte of Disk2.rom: LDX #$20
 
     static HRESULT BuildAndAttachSlot6 (HeadlessHost & host, EmulatorCore & core)
     {
@@ -101,4 +99,5 @@ public:
             L"INTCXROM=1 must hide slot 6 ROM and reveal internal ROM");
     }
 };
+
 

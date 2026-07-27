@@ -19,11 +19,18 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace
-{
-    constexpr const wchar_t * kThemesBase = L"C:\\Casso\\Themes";
 
-    constexpr const char * kHappyJson = R"({
+
+
+
+
+TEST_CLASS (ThemeLoaderTests)
+{
+public:
+
+    static constexpr const wchar_t * kThemesBase = L"C:\\Casso\\Themes";
+
+    static constexpr const char * kHappyJson = R"({
         "$cassoThemeVersion": 1,
         "name": "Skeuomorphic",
         "familyId": "apple2",
@@ -45,15 +52,6 @@ namespace
     {
         fs.WriteAllText (dir + L"\\theme.json", kHappyJson);
     }
-}
-
-
-
-
-
-TEST_CLASS (ThemeLoaderTests)
-{
-public:
 
     TEST_METHOD (HappyPath_LoadsMetadata)
     {
@@ -390,3 +388,4 @@ public:
             L"ResolveForMachine must return a copy; base theme must remain untouched");
     }
 };
+

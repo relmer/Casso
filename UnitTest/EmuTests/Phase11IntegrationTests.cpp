@@ -6,8 +6,29 @@
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
 
-namespace
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Phase11IntegrationTests
+//
+//  Phase 11 / User Story 2 (P1). Each scenario mounts a deterministic
+//  in-memory disk image through DiskImageStore (FR-023, FR-025), points
+//  the //e CPU at the slot 6 boot ROM, and asserts the controller's
+//  nibble engine actually consumes bits from the mounted track. End-to-
+//  end "boots to Applesoft prompt" with copyrighted DOS 3.3 / ProDOS
+//  ROMs is intentionally out of scope for this suite — the tests prove
+//  the wiring (audit §7 / §8) without bundling any third-party software.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+TEST_CLASS (Phase11IntegrationTests)
 {
+public:
+
     static constexpr Word       kBootRomEntry        = 0xC600;
     static constexpr Word       kIntCxRomOff         = 0xC006;
     static constexpr int        kSlot6               = 6;
@@ -105,29 +126,6 @@ namespace
         core.cpu->SetPC (kBootRomEntry);
         return external;
     }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  Phase11IntegrationTests
-//
-//  Phase 11 / User Story 2 (P1). Each scenario mounts a deterministic
-//  in-memory disk image through DiskImageStore (FR-023, FR-025), points
-//  the //e CPU at the slot 6 boot ROM, and asserts the controller's
-//  nibble engine actually consumes bits from the mounted track. End-to-
-//  end "boots to Applesoft prompt" with copyrighted DOS 3.3 / ProDOS
-//  ROMs is intentionally out of scope for this suite — the tests prove
-//  the wiring (audit §7 / §8) without bundling any third-party software.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-TEST_CLASS (Phase11IntegrationTests)
-{
-public:
 
     TEST_METHOD (Phase11_DOS33_Boots_And_Catalog_Works)
     {
@@ -314,3 +312,4 @@ public:
         Assert::IsFalse (store.IsMounted (kSlot6, kDrive2));
     }
 };
+

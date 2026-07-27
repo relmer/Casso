@@ -47,8 +47,12 @@ namespace fs = std::filesystem;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace
+
+
+TEST_CLASS (BootDiskTests)
 {
+public:
+
     static constexpr int     kMaxAncestorWalk     = 10;
     static constexpr size_t  kHgrPayloadSize      = 8192;
     static constexpr size_t  kLoresPayloadSize    = 1024;
@@ -97,12 +101,6 @@ namespace
         return std::vector<Byte> ((std::istreambuf_iterator<char> (f)),
                                   std::istreambuf_iterator<char> ());
     }
-}
-
-
-TEST_CLASS (BootDiskTests)
-{
-public:
 
     TEST_METHOD (CassoRocks_DemoDisk_DisplaysHgrCassowary)
     {
@@ -1029,3 +1027,4 @@ public:
                 (static_cast<double> (elapsed) / kCpuClockHz)).c_str());
     }
 };
+

@@ -37,8 +37,15 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace
+
+
+
+
+
+TEST_CLASS (BootRomDecoderTests)
 {
+public:
+
     static constexpr Word       kBootRomEntry        = 0xC600;
     static constexpr Word       kIntCxRomOff         = 0xC006;
     static constexpr Word       kBootLoadAddress     = 0x0800;
@@ -75,7 +82,7 @@ namespace
     }
 
 
-    Byte PatternIdentity (size_t index)
+    static Byte PatternIdentity (size_t index)
     {
         return static_cast<Byte> (index & 0xFF);
     }
@@ -87,7 +94,7 @@ namespace
     }
 
 
-    Byte PatternMixed (size_t index)
+    static Byte PatternMixed (size_t index)
     {
         // Mix high and low bits to exercise the 6+2 group splitting:
         // bits 0..1 land in the "third group" nibbles; bits 2..7 land
@@ -263,15 +270,6 @@ namespace
             Assert::Fail (msg);
         }
     }
-}
-
-
-
-
-
-TEST_CLASS (BootRomDecoderTests)
-{
-public:
 
     ////////////////////////////////////////////////////////////////////////////
     //
@@ -320,3 +318,4 @@ public:
         AssertBootRomReadsSector0 (PatternMixed, L"mixed (i*A5 ^ i>>3)");
     }
 };
+

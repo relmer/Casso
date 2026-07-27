@@ -8,8 +8,42 @@
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 namespace fs = std::filesystem;
 
-namespace
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Pr3AuxClearTest
+//
+//  Gates the //e enhanced-video-ROM Decode4K alt-set fix. Before the
+//  fix, the alt set was loaded from the wrong half of the 4 KB ROM
+//  file, so PR#3 (which engages ALTCHARSET=1) rendered every character
+//  cell as garbage glyphs. Now PR#3 produces a clean blank screen.
+//
+//  The fix matches the //e enhanced video ROM layout documented in
+//  UTAIIe ch. 8 (Sather): the alt set's 256 chars all live in the
+//  FIRST 2 KB of the file (chars $00-$7F as inverse, $80-$FF reusing
+//  the primary set's normal text). The second 2 KB of the ROM file
+//  isn't used by the standard //e enhanced ROM at all.
+//
+//  Also documents the //e PR#3 cursor visibility model (originally
+//  filed as a "cursor blink loop never runs" bug, but on a stock //e
+//  without a mouse card the PR#3 cursor is *static*, not blinking --
+//  the firmware in $C800-$CFFF never polls $C019 / RDVBLBAR and never
+//  XORs the inverse bit into the cursor cell, both of which we
+//  verified by scanning the ROM end-to-end). The cursor cell is
+//  written *once* on entry to BASICIN with $20 (inverse-space, which
+//  with ALTCHARSET=1 renders as a solid block) and stays solid until
+//  the user types a key. This is the same behavior a real Apple //e
+//  exhibits in stock-no-mouse-card mode. The originally observed
+//  "invisible cursor" was a side-effect of the Decode4K alt-set bug
+//  rendering $20 as a garbage glyph instead of a solid block.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+TEST_CLASS (Pr3AuxClearTest)
 {
+public:
+
     static constexpr uint64_t  kColdBootCycles = 5'000'000ULL;
     static constexpr uint64_t  kAfterCommand   = 2'000'000ULL;
     static constexpr int       kMaxAncestorWalk = 10;
@@ -47,42 +81,6 @@ namespace
         if (root.empty()) return fs::path();
         return root / relPath;
     }
-}
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  Pr3AuxClearTest
-//
-//  Gates the //e enhanced-video-ROM Decode4K alt-set fix. Before the
-//  fix, the alt set was loaded from the wrong half of the 4 KB ROM
-//  file, so PR#3 (which engages ALTCHARSET=1) rendered every character
-//  cell as garbage glyphs. Now PR#3 produces a clean blank screen.
-//
-//  The fix matches the //e enhanced video ROM layout documented in
-//  UTAIIe ch. 8 (Sather): the alt set's 256 chars all live in the
-//  FIRST 2 KB of the file (chars $00-$7F as inverse, $80-$FF reusing
-//  the primary set's normal text). The second 2 KB of the ROM file
-//  isn't used by the standard //e enhanced ROM at all.
-//
-//  Also documents the //e PR#3 cursor visibility model (originally
-//  filed as a "cursor blink loop never runs" bug, but on a stock //e
-//  without a mouse card the PR#3 cursor is *static*, not blinking --
-//  the firmware in $C800-$CFFF never polls $C019 / RDVBLBAR and never
-//  XORs the inverse bit into the cursor cell, both of which we
-//  verified by scanning the ROM end-to-end). The cursor cell is
-//  written *once* on entry to BASICIN with $20 (inverse-space, which
-//  with ALTCHARSET=1 renders as a solid block) and stays solid until
-//  the user types a key. This is the same behavior a real Apple //e
-//  exhibits in stock-no-mouse-card mode. The originally observed
-//  "invisible cursor" was a side-effect of the Decode4K alt-set bug
-//  rendering $20 as a garbage glyph instead of a solid block.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-TEST_CLASS (Pr3AuxClearTest)
-{
-public:
 
     TEST_METHOD (RealCharRom_Decodes_SpaceAsBlank_AltSet)
     {
@@ -211,3 +209,4 @@ public:
         Assert::AreEqual (Byte (0x01), cv,     L"$25 (CV) must be row 1");
     }
 };
+

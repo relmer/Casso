@@ -8,8 +8,15 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
 
 
-namespace
+
+
+
+
+
+TEST_CLASS (DxuiStackLayoutTests)
 {
+public:
+
     RECT  MakeRect (LONG l, LONG t, LONG r, LONG b)
     {
         RECT  out = {};
@@ -20,15 +27,6 @@ namespace
 
     LONG  Width  (const RECT & r) { return r.right  - r.left; }
     LONG  Height (const RECT & r) { return r.bottom - r.top;  }
-}
-
-
-
-
-
-TEST_CLASS (DxuiStackLayoutTests)
-{
-public:
 
     TEST_METHOD (HorizontalNoWeights_StacksAtNaturalWidths)
     {
@@ -143,3 +141,4 @@ public:
         Assert::AreEqual ((LONG) 80, Height (a.Bounds()));
     }
 };
+

@@ -14,8 +14,12 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace
+
+
+TEST_CLASS (TabStripTests)
 {
+public:
+
     DxuiTabStrip::Tab MakeTab (int l, int t, int r, int b, const wchar_t * label)
     {
         DxuiTabStrip::Tab  tab;
@@ -33,12 +37,6 @@ namespace
         tabs.push_back (MakeTab (160, 0, 240, 24, L"Display"));
         return tabs;
     }
-}
-
-
-TEST_CLASS (TabStripTests)
-{
-public:
 
     TEST_METHOD (HitTest_ReturnsIndex)
     {
@@ -105,3 +103,4 @@ public:
         Assert::IsFalse (ts.OnKey (VK_RIGHT));
     }
 };
+

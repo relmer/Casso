@@ -4,8 +4,29 @@
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
 
-namespace
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PerformanceTests
+//
+//  Phase 15 (User Story 6, FR-042 / SC-007). These tests are meaningful
+//  only against the optimized build: in Debug builds the EmuCpu / bus /
+//  device dispatch is unoptimized and the measurements have no relation
+//  to shipping performance. The whole class is conditionally compiled
+//  on NDEBUG (set by Release configurations of UnitTest.vcxproj). In
+//  Debug builds the class still exists with a single sentinel method so
+//  CppUnitTestFramework discovery doesn't complain — it reports
+//  Inconclusive.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+TEST_CLASS (PerformanceTests)
 {
+public:
+
     ////////////////////////////////////////////////////////////////////////////
     //
     //  Performance budget constants
@@ -147,29 +168,6 @@ namespace
     {
         return *std::max_element (samples.begin(), samples.end());
     }
-}
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  PerformanceTests
-//
-//  Phase 15 (User Story 6, FR-042 / SC-007). These tests are meaningful
-//  only against the optimized build: in Debug builds the EmuCpu / bus /
-//  device dispatch is unoptimized and the measurements have no relation
-//  to shipping performance. The whole class is conditionally compiled
-//  on NDEBUG (set by Release configurations of UnitTest.vcxproj). In
-//  Debug builds the class still exists with a single sentinel method so
-//  CppUnitTestFramework discovery doesn't complain — it reports
-//  Inconclusive.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-TEST_CLASS (PerformanceTests)
-{
-public:
 
 #ifdef NDEBUG
 
@@ -266,3 +264,4 @@ public:
 
 #endif // NDEBUG
 };
+

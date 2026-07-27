@@ -10,8 +10,35 @@
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
 
-namespace
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EmuValidationSuiteTests
+//
+//  Phase 13 / User Story 4. The consolidated FR-045 acceptance suite.
+//  Every scenario runs deterministically through HeadlessHost +
+//  IFixtureProvider only — constitution §II compliant, no Win32, no
+//  audio device, no host filesystem outside UnitTest/Fixtures/.
+//
+//  Scope mapping:
+//    T114 — `GR`  reaches lo-res mixed-mode state (FR-045 acceptance).
+//    T115 — `HGR` reaches hi-res page 1 (FR-045 acceptance).
+//    T116 — `HGR2` reaches hi-res page 2 (FR-045 acceptance).
+//    T117 — Mixed-mode + 80COL golden framebuffer hash (FR-017a / Q1).
+//    T118 — DOS 3.3, ProDOS, WOZ, copy-protected disk boot end-to-end.
+//    T113/orchestrator — `RunsAllScenarios` invokes the full FR-045 set
+//                        and asserts every sub-scenario reports green.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+TEST_CLASS (EmuValidationSuiteTests)
 {
+public:
+
     static constexpr uint64_t   kColdBootCycles      = 5000000ULL;
     static constexpr uint64_t   kAfterCommandCycles  = 1000000ULL;
     static constexpr uint64_t   kBootDiskCycles      = 2000000ULL;
@@ -213,35 +240,6 @@ namespace
 
         return -1;
     }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  EmuValidationSuiteTests
-//
-//  Phase 13 / User Story 4. The consolidated FR-045 acceptance suite.
-//  Every scenario runs deterministically through HeadlessHost +
-//  IFixtureProvider only — constitution §II compliant, no Win32, no
-//  audio device, no host filesystem outside UnitTest/Fixtures/.
-//
-//  Scope mapping:
-//    T114 — `GR`  reaches lo-res mixed-mode state (FR-045 acceptance).
-//    T115 — `HGR` reaches hi-res page 1 (FR-045 acceptance).
-//    T116 — `HGR2` reaches hi-res page 2 (FR-045 acceptance).
-//    T117 — Mixed-mode + 80COL golden framebuffer hash (FR-017a / Q1).
-//    T118 — DOS 3.3, ProDOS, WOZ, copy-protected disk boot end-to-end.
-//    T113/orchestrator — `RunsAllScenarios` invokes the full FR-045 set
-//                        and asserts every sub-scenario reports green.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-TEST_CLASS (EmuValidationSuiteTests)
-{
-public:
 
     ////////////////////////////////////////////////////////////////////////
     //
@@ -645,3 +643,4 @@ public:
             L"Text screen must remain scrape-able through the CP boot attempt");
     }
 };
+

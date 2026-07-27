@@ -21,20 +21,18 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace
-{
-    constexpr const char *  s_kpszKeyA = "AAAAAAAAAAAAAAAA";
-    constexpr const char *  s_kpszKeyB = "BBBBBBBBBBBBBBBB";
-    constexpr int           s_kSavedX  = 120;
-    constexpr int           s_kSavedY  = 96;
-    constexpr int           s_kSavedW  = 1280;
-    constexpr int           s_kSavedH  = 720;
-}
 
 
 TEST_CLASS (WindowPlacementProfileTests)
 {
 public:
+
+    static constexpr const char *  s_kpszKeyA = "AAAAAAAAAAAAAAAA";
+    static constexpr const char *  s_kpszKeyB = "BBBBBBBBBBBBBBBB";
+    static constexpr int           s_kSavedX  = 120;
+    static constexpr int           s_kSavedY  = 96;
+    static constexpr int           s_kSavedW  = 1280;
+    static constexpr int           s_kSavedH  = 720;
 
     TEST_METHOD (TryLoad_EmptyStore_ReturnsFalse)
     {
@@ -132,3 +130,4 @@ public:
         Assert::AreEqual (400, loaded.h);
     }
 };
+

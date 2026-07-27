@@ -22,8 +22,12 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace
+
+
+TEST_CLASS (InputDeviceSelectorTests)
 {
+public:
+
     InputDeviceSelector MakeLaidOut (bool mouseAvailable)
     {
         InputDeviceSelector  sel;
@@ -35,12 +39,6 @@ namespace
         sel.Layout (anchor, scaler);
         return sel;
     }
-}
-
-
-TEST_CLASS (InputDeviceSelectorTests)
-{
-public:
 
     TEST_METHOD (Layout_CentersOnAnchor_AndSizesPerSegmentCount)
     {
@@ -179,3 +177,4 @@ public:
         check (&InputDeviceSelector::PaintMouseGlyph,    true,  L"mouse skeuo emits");
     }
 };
+

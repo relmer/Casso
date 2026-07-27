@@ -21,8 +21,13 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace
+
+
+
+TEST_CLASS (NibblizationTests)
 {
+public:
+
     static constexpr int      kImageSize = NibblizationLayer::kImageByteSize;
     static constexpr int      kPattern1  = 0x55;
     static constexpr int      kPattern2  = 0xAA;
@@ -59,13 +64,6 @@ namespace
 
         return img;
     }
-}
-
-
-
-TEST_CLASS (NibblizationTests)
-{
-public:
 
     TEST_METHOD (NibblizeDsk_AcceptsCorrectSizedImage)
     {
@@ -331,3 +329,4 @@ public:
         Assert::IsTrue (neighborOk, L"a formatted neighbor track must be unaffected");
     }
 };
+

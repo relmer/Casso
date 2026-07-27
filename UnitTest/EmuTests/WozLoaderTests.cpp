@@ -19,8 +19,13 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace
+
+
+
+TEST_CLASS (WozLoaderTests)
 {
+public:
+
     static constexpr size_t  kTestBitCount = 51200;   // ~6400 bytes / track 0
 
     vector<Byte> MakeBitStream()
@@ -148,13 +153,6 @@ namespace
         out[trk + 6648] = static_cast<Byte> (bitCount & 0xFF);       // bit count (LE16)
         out[trk + 6649] = static_cast<Byte> ((bitCount >> 8) & 0xFF);
     }
-}
-
-
-
-TEST_CLASS (WozLoaderTests)
-{
-public:
 
     TEST_METHOD (LoadRejectsTruncatedFile)
     {
@@ -556,3 +554,4 @@ public:
             L"v1 -> v2 serialize must preserve the track bit stream");
     }
 };
+

@@ -28,8 +28,15 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace
+
+
+
+
+
+TEST_CLASS (DebugDialogProjectionTests)
 {
+public:
+
     static bool LooksLikeWallClock (const wchar_t * s)
     {
         // Shape: HH:MM:SS.mmm  (12 chars + null)
@@ -77,15 +84,6 @@ namespace
 
         return e;
     }
-}
-
-
-
-
-
-TEST_CLASS (DebugDialogProjectionTests)
-{
-public:
 
     TEST_METHOD (FormatEvent_HeadStep_detailMatchesQtArrow)
     {
@@ -1026,3 +1024,4 @@ public:
         Assert::AreEqual (L'.', uptimeText[5]);
     }
 };
+

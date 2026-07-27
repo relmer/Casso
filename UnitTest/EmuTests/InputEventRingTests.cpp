@@ -13,22 +13,6 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
 
 
-namespace
-{
-    InputEvent MakeGuestRead (Word address, Byte value, uint64_t cycle)
-    {
-        InputEvent  e = {};
-
-        e.category        = InputEventCategory::Guest;
-        e.type            = InputEventType::KbdDataRead;
-        e.cycle           = cycle;
-        e.payload.io.address = address;
-        e.payload.io.value   = value;
-        e.payload.io.flags   = (value & 0x80) != 0 ? InputEvent::kFlagStrobe : 0;
-
-        return e;
-    }
-}
 
 
 
@@ -47,6 +31,20 @@ namespace
 TEST_CLASS (InputEventRingTests)
 {
 public:
+
+    InputEvent MakeGuestRead (Word address, Byte value, uint64_t cycle)
+    {
+        InputEvent  e = {};
+
+        e.category        = InputEventCategory::Guest;
+        e.type            = InputEventType::KbdDataRead;
+        e.cycle           = cycle;
+        e.payload.io.address = address;
+        e.payload.io.value   = value;
+        e.payload.io.flags   = (value & 0x80) != 0 ? InputEvent::kFlagStrobe : 0;
+
+        return e;
+    }
 
     TEST_METHOD (PushThenPop_RoundTripsOneEvent)
     {
@@ -189,3 +187,4 @@ public:
             L"The ring must again be full after the refill");
     }
 };
+

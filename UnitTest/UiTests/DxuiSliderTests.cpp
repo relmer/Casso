@@ -14,8 +14,12 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace
+
+
+TEST_CLASS (SliderTests)
 {
+public:
+
     RECT MakeRect (int l, int t, int r, int b)
     {
         RECT  rc = { l, t, r, b };
@@ -38,12 +42,6 @@ namespace
     {
         return std::fabs (a - b) < 1e-4f;
     }
-}
-
-
-TEST_CLASS (SliderTests)
-{
-public:
 
     TEST_METHOD (SetValue_QuantizesAndClamps)
     {
@@ -143,3 +141,4 @@ public:
             L"Stepping below min must not fire OnChange once value is already at min.");
     }
 };
+

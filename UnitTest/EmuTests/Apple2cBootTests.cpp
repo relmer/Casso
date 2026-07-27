@@ -41,8 +41,12 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace
+
+
+TEST_CLASS (Apple2cBootTests)
 {
+public:
+
     static constexpr size_t     kRomSize = 0x8000;      // 32K, two 16K banks
     static constexpr Word       kMonitorReset = 0xFA62; // ROM 4 RESET vector target
 
@@ -52,12 +56,6 @@ namespace
         std::vector<uint8_t>   bytes;
         return SUCCEEDED (fp.OpenFixture ("Apple2c.rom", bytes)) && bytes.size() == kRomSize;
     }
-}
-
-
-TEST_CLASS (Apple2cBootTests)
-{
-public:
 
     // The //c cold-boots its firmware end-to-end. With no disk inserted it
     // clears the screen, prints the "Apple //c" banner, probes the built-in IWM
@@ -443,3 +441,4 @@ public:
             L"switch out (up) must clear $C060 bit 7 (40-col select) through the bus");
     }
 };
+

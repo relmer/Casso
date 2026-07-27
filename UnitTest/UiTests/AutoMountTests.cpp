@@ -22,8 +22,24 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AutoMountTests
+//
+//  Exercises the pure-logic auto-mount resolver + the sink
+//  routing path. Avoids touching real disk via IFileSystem injection.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+TEST_CLASS (AutoMountTests)
 {
+public:
+
     struct RecordedMount
     {
         int           slot;
@@ -54,24 +70,6 @@ namespace
             ejects.push_back ({ slot, drive });
         }
     };
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  AutoMountTests
-//
-//  Exercises the pure-logic auto-mount resolver + the sink
-//  routing path. Avoids touching real disk via IFileSystem injection.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-TEST_CLASS (AutoMountTests)
-{
-public:
 
     TEST_METHOD (Resolve_EmptyPath_LeavesEmpty)
     {
@@ -163,3 +161,4 @@ public:
         Assert::AreEqual (0, sink.ejects[0].drive);
     }
 };
+

@@ -29,8 +29,14 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace
+
+
+
+
+TEST_CLASS (DxuiListViewVirtualTests)
 {
+public:
+
     RECT  MakeRect (LONG l, LONG t, LONG r, LONG b)
     {
         RECT  out = {};
@@ -69,14 +75,6 @@ namespace
         }
         return rows;
     }
-}
-
-
-
-
-TEST_CLASS (DxuiListViewVirtualTests)
-{
-public:
 
     ////////////////////////////////////////////////////////////////////////
     //  Count / flag plumbing
@@ -355,3 +353,4 @@ public:
         Assert::AreEqual (-1, list.GetSelectedRow());
     }
 };
+

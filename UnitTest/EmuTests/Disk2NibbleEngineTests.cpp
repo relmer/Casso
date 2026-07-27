@@ -5,11 +5,6 @@
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
 
-namespace
-{
-    static constexpr size_t   kSyntheticTrackBytes = 64;
-    static constexpr int      kBitsPerNibble       = 8;
-}
 
 
 
@@ -27,6 +22,9 @@ namespace
 TEST_CLASS (Disk2NibbleEngineTests)
 {
 public:
+
+    static constexpr size_t   kSyntheticTrackBytes = 64;
+    static constexpr int      kBitsPerNibble       = 8;
 
     TEST_METHOD (BitTimingMatches4uSPerBit)
     {
@@ -596,3 +594,4 @@ public:
             L"LSS must re-lock self-sync framing after a long zero/weak gap");
     }
 };
+

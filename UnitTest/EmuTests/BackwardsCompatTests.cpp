@@ -5,8 +5,50 @@
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
 
-namespace
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BackwardsCompatTests — Phase 14 / User Story 5.
+//
+//  Consolidates the explicit ][/][+ regression gate. The whole point of
+//  the //e fidelity feature is that it MUST NOT regress original Apple
+//  ][ or Apple ][+ behavior (FR-039) and MUST be implemented through
+//  composition rather than branching the existing ][/][+ machine
+//  configurations or the existing devices (FR-040).
+//
+//  Two distinct surfaces are pinned here:
+//
+//    1. JSON pin — `Machines/Apple2.json` and `Machines/Apple2Plus.json`
+//       remain byte-identical to their pre-feature shape; their device
+//       lists contain ONLY the original ][/][+ device types and explicitly
+//       NONE of the //e-specific types (apple2e-keyboard,
+//       apple2e-softswitches, apple2e-mmu, language-card). Their RAM map
+//       is single-bank ($0000-$BFFF) with no `aux` bank. Their video-mode
+//       list contains exactly text40/lores/hires (no text80/dhgr).
+//
+//    2. Composition pin — HeadlessHost::BuildAppleII /
+//       BuildAppleIIPlus continue to compose only the deterministic
+//       harness primitives (Prng, MockHostShell, FixtureProvider) and
+//       MUST NOT pull in the //e wiring (no Apple2eMmu, no EmuCpu,
+//       no aux RAM, no LanguageCardBank). This is the architectural
+//       proof that the //e build path is a *separate* composition, not
+//       a branch of the ][/][+ build path.
+//
+//  Together, these tests serve as the "must never change byte-exactly"
+//  baseline. If any assertion in this file would have to change for a
+//  later-phase change to compile or pass, that's a regression — the fix
+//  belongs in the production code, never in this file.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+TEST_CLASS (BackwardsCompatTests)
 {
+public:
+
     static constexpr int       kMaxAncestorWalk     = 8;
     static constexpr size_t    kRom12K              = 12288;
     static constexpr size_t    kRom16K              = 16384;
@@ -112,7 +154,7 @@ namespace
     //
     ////////////////////////////////////////////////////////////////////////////
 
-    fs::path MockResolveAll (
+    static fs::path MockResolveAll (
         const std::vector<fs::path> & searchPaths,
         const fs::path              & relativePath)
     {
@@ -222,50 +264,6 @@ namespace
 
         return false;
     }
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  BackwardsCompatTests — Phase 14 / User Story 5.
-//
-//  Consolidates the explicit ][/][+ regression gate. The whole point of
-//  the //e fidelity feature is that it MUST NOT regress original Apple
-//  ][ or Apple ][+ behavior (FR-039) and MUST be implemented through
-//  composition rather than branching the existing ][/][+ machine
-//  configurations or the existing devices (FR-040).
-//
-//  Two distinct surfaces are pinned here:
-//
-//    1. JSON pin — `Machines/Apple2.json` and `Machines/Apple2Plus.json`
-//       remain byte-identical to their pre-feature shape; their device
-//       lists contain ONLY the original ][/][+ device types and explicitly
-//       NONE of the //e-specific types (apple2e-keyboard,
-//       apple2e-softswitches, apple2e-mmu, language-card). Their RAM map
-//       is single-bank ($0000-$BFFF) with no `aux` bank. Their video-mode
-//       list contains exactly text40/lores/hires (no text80/dhgr).
-//
-//    2. Composition pin — HeadlessHost::BuildAppleII /
-//       BuildAppleIIPlus continue to compose only the deterministic
-//       harness primitives (Prng, MockHostShell, FixtureProvider) and
-//       MUST NOT pull in the //e wiring (no Apple2eMmu, no EmuCpu,
-//       no aux RAM, no LanguageCardBank). This is the architectural
-//       proof that the //e build path is a *separate* composition, not
-//       a branch of the ][/][+ build path.
-//
-//  Together, these tests serve as the "must never change byte-exactly"
-//  baseline. If any assertion in this file would have to change for a
-//  later-phase change to compile or pass, that's a regression — the fix
-//  belongs in the production code, never in this file.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-TEST_CLASS (BackwardsCompatTests)
-{
-public:
 
     ////////////////////////////////////////////////////////////////////////
     //
@@ -764,3 +762,4 @@ public:
             L"][+ build path must NOT produce a //e core");
     }
 };
+

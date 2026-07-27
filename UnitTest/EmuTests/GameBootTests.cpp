@@ -27,8 +27,12 @@ namespace fs = std::filesystem;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace
+
+
+TEST_CLASS (GameBootTests)
 {
+public:
+
     static constexpr int        kMaxAncestorWalk = 10;
     static constexpr int        kSlot6           = 6;
     static constexpr int        kDrive1          = 0;
@@ -293,12 +297,6 @@ namespace
             tracksVisited.size() >= static_cast<size_t> (minTracks),
             failMsg);
     }
-}
-
-
-TEST_CLASS (GameBootTests)
-{
-public:
 
     ////////////////////////////////////////////////////////////////////////
     //  Choplifter (1982, Broderbund). Standard DOS 3.3 boot with light
@@ -363,3 +361,4 @@ public:
         AssertApple2cGameBoots ("Apple2/Demos/Choplifter.woz", L"Choplifter (//c)", 10);
     }
 };
+

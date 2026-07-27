@@ -19,8 +19,12 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace
+
+
+TEST_CLASS (TreeViewTests)
 {
+public:
+
     DxuiTreeNode MakeNode (const wchar_t * label,
                        DxuiTreeCapabilityFlag flag,
                        bool checked,
@@ -50,12 +54,6 @@ namespace
         tv.SetNodes (std::move (nodes));
         return tv;
     }
-}
-
-
-TEST_CLASS (TreeViewTests)
-{
-public:
 
     TEST_METHOD (Flatten_VisibleCountMatchesNodeCount)
     {
@@ -190,3 +188,4 @@ public:
             L"Left-arrow on an expanded parent must collapse it.");
     }
 };
+

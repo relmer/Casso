@@ -31,8 +31,20 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskWritePathTests
+//
+////////////////////////////////////////////////////////////////////////////////
+
+TEST_CLASS (DiskWritePathTests)
 {
+public:
+
     static constexpr int    kSlot6   = 6;
     static constexpr int    kDrive1  = 0;
     static constexpr Word   kCodeOrg = 0x6000;
@@ -41,7 +53,7 @@ namespace
     // Distinct, valid 6-and-2 nibbles (all MSB-set, no illegal double-zero
     // bit runs) forming a signature unlikely to occur in the surrounding
     // synthesized zero-data track.
-    static const std::vector<Byte>  s_kPayload =
+    static inline const std::vector<Byte>  s_kPayload =
     {
         0xD5, 0xAA, 0xAD,                    // data-field prologue
         0x96, 0x97, 0x9A, 0x9B, 0x9D, 0x9E, 0x9F,
@@ -57,7 +69,7 @@ namespace
     // cycles/nibble for self-sync $FF (10 bit cells) and 32 cycles/nibble
     // for the payload (8 bit cells). PLEN is the payload length; the test
     // asserts it stays in step with s_kPayload before running the routine.
-    constexpr char  kWriteSource[] = R"(
+    static constexpr char  kWriteSource[] = R"(
                     .org $6000
         MOTOR = $C089
         Q6L   = $C08C
@@ -180,20 +192,6 @@ namespace
         }
         return std::string::npos;
     }
-}
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DiskWritePathTests
-//
-////////////////////////////////////////////////////////////////////////////////
-
-TEST_CLASS (DiskWritePathTests)
-{
-public:
 
     // Engine-level round trip (no CPU, no controller): write a run of 0xFF
     // through the LSS write path, then read the deposited flux back through
@@ -305,3 +303,4 @@ public:
             L"Nibbles written through the LSS must frame back to the payload (GH #89).");
     }
 };
+

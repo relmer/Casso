@@ -24,8 +24,13 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace
+
+
+
+TEST_CLASS (DiskImageStoreTests)
 {
+public:
+
     static constexpr int   kSlot  = 6;
     static constexpr int   kDrive = 0;
 
@@ -67,10 +72,10 @@ namespace
     // route the global notifier to file-local counters for the span of one
     // test. The notifier is a raw function pointer, hence a free function +
     // static state rather than a capturing lambda.
-    int      s_flushNotifyCount = 0;
-    wstring  s_flushNotifyLast;
+    static inline int      s_flushNotifyCount = 0;
+    static inline wstring  s_flushNotifyLast;
 
-    void CaptureFlushNotify (const wchar_t * message)
+    static void CaptureFlushNotify (const wchar_t * message)
     {
         s_flushNotifyCount++;
         s_flushNotifyLast = (message != nullptr) ? message : L"";
@@ -93,13 +98,6 @@ namespace
             SetNotifyFunction (nullptr);
         }
     };
-}
-
-
-
-TEST_CLASS (DiskImageStoreTests)
-{
-public:
 
     TEST_METHOD (DetectFormatByExtension_KnownTypes)
     {
@@ -554,3 +552,4 @@ public:
             L"the write persisted at motor-off must survive reload");
     }
 };
+

@@ -37,16 +37,14 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace
-{
-    static constexpr uint64_t   kPinnedSeed = 0xCA550001ULL;
-}
 
 
 
 TEST_CLASS (ResetSemanticsTests)
 {
 public:
+
+    static constexpr uint64_t   kPinnedSeed = 0xCA550001ULL;
 
     ////////////////////////////////////////////////////////////////////////////
     //
@@ -381,3 +379,4 @@ public:
             L"FR-035: PowerCycle must eject drive 1");
     }
 };
+

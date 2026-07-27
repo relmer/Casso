@@ -14,8 +14,12 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace
+
+
+TEST_CLASS (RadioGroupTests)
 {
+public:
+
     DxuiRadioOption MakeOpt (int l, int t, int r, int b, const wchar_t * label)
     {
         DxuiRadioOption  o;
@@ -32,12 +36,6 @@ namespace
         opts.push_back (MakeOpt (100, 0, 190, 20, L"B"));
         return opts;
     }
-}
-
-
-TEST_CLASS (RadioGroupTests)
-{
-public:
 
     TEST_METHOD (HitTest_ReturnsIndex)
     {
@@ -139,3 +137,4 @@ public:
         Assert::IsFalse (g.OnLButtonDown (10, 10));
     }
 };
+

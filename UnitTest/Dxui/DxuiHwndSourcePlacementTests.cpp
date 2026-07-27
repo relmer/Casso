@@ -4,8 +4,15 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
 
 
-namespace
+
+
+
+
+
+TEST_CLASS (DxuiHwndSourcePlacementTests)
 {
+public:
+
     // 1920x1080 primary with a 40px bottom taskbar (rcWork bottom = 1040).
     const RECT  s_kWork = { 0, 0, 1920, 1040 };
 
@@ -22,15 +29,6 @@ namespace
         Assert::AreEqual (expX, actual.x, what);
         Assert::AreEqual (expY, actual.y, what);
     }
-}
-
-
-
-
-
-TEST_CLASS (DxuiHwndSourcePlacementTests)
-{
-public:
 
     //
     //  A window already fully within the work area keeps its position: the
@@ -108,3 +106,4 @@ public:
         AssertPoint (-1920, 100, p, L"clamped to the left monitor's left edge");
     }
 };
+

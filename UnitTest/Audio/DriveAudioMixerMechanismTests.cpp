@@ -26,9 +26,16 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace
+
+
+
+
+
+TEST_CLASS (DriveAudioMixerMechanismTests)
 {
-    constexpr uint32_t  s_kTestSampleRate = 44100;
+public:
+
+    static constexpr uint32_t  s_kTestSampleRate = 44100;
 
 
     static void WriteSquareWav (const fs::path & path, float amplitude, size_t frames)
@@ -115,15 +122,6 @@ namespace
         src.OnDiskEjected();
         return peak;
     }
-}
-
-
-
-
-
-TEST_CLASS (DriveAudioMixerMechanismTests)
-{
-public:
 
     TEST_METHOD (SetMechanism_invalidName_returnsFailureNoStateChange)
     {
@@ -255,3 +253,4 @@ public:
             L"Mechanism must be stored canonical mixed-case");
     }
 };
+

@@ -6,16 +6,6 @@
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
 
-namespace
-{
-    static constexpr uint64_t   kColdBootCycles      = 5000000ULL;
-    static constexpr uint64_t   kAfterCommandCycles  = 1000000ULL;
-    static constexpr int        kBasicPromptRow      = 23;
-    static constexpr Word       kRdVblBar            = 0xC019;
-    static constexpr Word       kRd80Vid             = 0xC01F;
-    static constexpr Word       kRd80Store           = 0xC018;
-    static constexpr Byte       kBitSeven            = 0x80;
-}
 
 
 
@@ -36,6 +26,14 @@ namespace
 TEST_CLASS (EmuIntegrationTests)
 {
 public:
+
+    static constexpr uint64_t   kColdBootCycles      = 5000000ULL;
+    static constexpr uint64_t   kAfterCommandCycles  = 1000000ULL;
+    static constexpr int        kBasicPromptRow      = 23;
+    static constexpr Word       kRdVblBar            = 0xC019;
+    static constexpr Word       kRd80Vid             = 0xC01F;
+    static constexpr Word       kRd80Store           = 0xC018;
+    static constexpr Byte       kBitSeven            = 0x80;
 
     ////////////////////////////////////////////////////////////////////////
     //
@@ -318,3 +316,4 @@ public:
             static_cast<Byte> (core.bus->ReadByte (0xC063) & kBitSeven));
     }
 };
+

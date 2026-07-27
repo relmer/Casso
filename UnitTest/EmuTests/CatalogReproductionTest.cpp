@@ -33,8 +33,15 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace
+
+
+
+
+
+TEST_CLASS (CatalogReproductionTest)
 {
+public:
+
     static constexpr Word        kBootRomEntry        = 0xC600;
     static constexpr Word        kIntCxRomOff         = 0xC006;
     static constexpr int         kSlot6               = 6;
@@ -49,15 +56,6 @@ namespace
     // CATALOG seeks to track 17 (VTOC), reads VTOC, walks the catalog
     // chain printing each entry. Real-disk timing in cycle units.
     static constexpr uint64_t    kCatalogCycles       = 60'000'000ULL;
-}
-
-
-
-
-
-TEST_CLASS (CatalogReproductionTest)
-{
-public:
 
     static std::vector<Byte> ReadDskOrEmpty (const std::string & relPath)
     {
@@ -258,3 +256,4 @@ public:
             L"LOAD+LIST must recover the saved program text (write round-trip).");
     }
 };
+

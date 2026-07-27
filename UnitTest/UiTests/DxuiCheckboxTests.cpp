@@ -14,19 +14,17 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace
-{
-    RECT MakeRect (int l, int t, int r, int b)
-    {
-        RECT  rc = { l, t, r, b };
-        return rc;
-    }
-}
 
 
 TEST_CLASS (CheckboxTests)
 {
 public:
+
+    RECT MakeRect (int l, int t, int r, int b)
+    {
+        RECT  rc = { l, t, r, b };
+        return rc;
+    }
 
     TEST_METHOD (HitTest_InsideRect_True)
     {
@@ -134,3 +132,4 @@ public:
         Assert::IsFalse (cb.Hover());
     }
 };
+

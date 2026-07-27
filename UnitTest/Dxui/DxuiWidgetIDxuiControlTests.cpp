@@ -25,8 +25,15 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
 
 
-namespace
+
+
+
+
+
+TEST_CLASS (DxuiWidgetIDxuiControlTests)
 {
+public:
+
     RECT  MakeRect (LONG l, LONG t, LONG r, LONG b)
     {
         RECT  out = {};
@@ -105,15 +112,6 @@ namespace
         Assert::AreEqual (static_cast<void *> (&child), static_cast<void *> (panel.Child (0)));
         Assert::AreEqual (static_cast<void *> (&panel), static_cast<void *> (child.Parent()));
     }
-}
-
-
-
-
-
-TEST_CLASS (DxuiWidgetIDxuiControlTests)
-{
-public:
 
     TEST_METHOD (DxuiButton_DerivesFromIDxuiControl)
     {
@@ -299,3 +297,4 @@ public:
         Assert::IsFalse (list.IsInteracting());
     }
 };
+

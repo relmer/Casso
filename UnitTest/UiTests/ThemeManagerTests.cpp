@@ -26,11 +26,18 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace
-{
-    constexpr const wchar_t * kThemesBase = L"C:\\Casso\\Themes";
 
-    constexpr const char * kSkeuoJson = R"({
+
+
+
+
+TEST_CLASS (ThemeManagerTests)
+{
+public:
+
+    static constexpr const wchar_t * kThemesBase = L"C:\\Casso\\Themes";
+
+    static constexpr const char * kSkeuoJson = R"({
         "$cassoThemeVersion": 1,
         "$cassoBuiltIn":      true,
         "name":               "Skeuomorphic",
@@ -42,7 +49,7 @@ namespace
         "useMicaBackdrop":    false
     })";
 
-    constexpr const char * kDarkJson = R"({
+    static constexpr const char * kDarkJson = R"({
         "$cassoThemeVersion": 1,
         "$cassoBuiltIn":      true,
         "name":               "DarkModern",
@@ -54,7 +61,7 @@ namespace
         "useMicaBackdrop":    true
     })";
 
-    constexpr const char * kBadJson  = R"({ "name": "no version", "familyId":"apple2", "variantId":"ii", "uiTokens":{}, "driveVisualProfile":{"style":"disk2","colorway":"beige","doorAnimation":"x","syncChannel":"drive-door"} })";
+    static constexpr const char * kBadJson  = R"({ "name": "no version", "familyId":"apple2", "variantId":"ii", "uiTokens":{}, "driveVisualProfile":{"style":"disk2","colorway":"beige","doorAnimation":"x","syncChannel":"drive-door"} })";
 
 
     // Write a complete minimal theme that ThemeLoader will accept
@@ -66,15 +73,6 @@ namespace
     {
         fs.WriteAllText (dir + L"\\theme.json", themeJson);
     }
-}
-
-
-
-
-
-TEST_CLASS (ThemeManagerTests)
-{
-public:
 
     TEST_METHOD (Discover_IncludesValidExcludesInvalid)
     {
@@ -244,3 +242,4 @@ public:
                         == ThemeBootstrapAction::InstallBuiltIn);
     }
 };
+

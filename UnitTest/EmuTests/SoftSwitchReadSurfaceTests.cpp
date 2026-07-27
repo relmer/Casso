@@ -30,8 +30,13 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace
+
+
+
+TEST_CLASS (SoftSwitchReadSurfaceTests)
 {
+public:
+
     struct SurfaceFixture
     {
         MemoryBus              bus;
@@ -107,13 +112,6 @@ namespace
             default:     break;
         }
     }
-}
-
-
-
-TEST_CLASS (SoftSwitchReadSurfaceTests)
-{
-public:
 
     void AssertStatusRead (Word address, const wchar_t * label)
     {
@@ -178,3 +176,4 @@ public:
     TEST_METHOD (RDALTCHAR_C01E)   { AssertStatusRead (0xC01E, L"$C01E"); }
     TEST_METHOD (RD80VID_C01F)     { AssertStatusRead (0xC01F, L"$C01F"); }
 };
+
