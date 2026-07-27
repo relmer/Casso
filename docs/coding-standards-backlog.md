@@ -33,13 +33,25 @@ Rules settled: constants split by usage (single-use → function-local
 `constexpr`, multi-use → private `static constexpr` member); helpers → class
 statics; types → nested private types.
 
-**File-scope statics are the right answer for bulk file-local data.** A class
-member has to be declared in the header, which drags implementation detail into
-every including translation unit and forces a declaration/definition split.
-`DxuiPainter`'s HLSL shader sources stay file-scope `static constexpr` arrays
-for exactly that reason — and the split had already introduced a silent bug,
-because `sizeof (ptr) - 1` at the call site compiles clean and yields 7. Keep
-the `s_k` prefix on these; they really are file-scope statics.
+**The 3-line exception.** A constant whose declaration spans 3 or more lines
+stays a file-scope `static constexpr` with its `s_k` prefix, even when only one
+function reads it. See `copilot-instructions.md` for the full placement order.
+
+The threshold is measured rather than asserted. Of 1,466 constant declarations
+in the tree:
+
+| Span | Count |
+|---|---|
+| 1 line | 1,411 (96%) |
+| 2 lines | 8 |
+| 3+ lines | 47 |
+
+The distribution is bimodal, and every member of the 3+ group is a table or
+payload — `s_kUndocumentedOpcodes` (82 lines), `s_kEntries` (30),
+`s_kRomCatalog` (22), `s_kInkPalette` (19), `s_kReservedNops` (17),
+`kWriteTranslate` (11), the two HLSL shader sources. None is a tuning
+parameter. Below the line you have a value the logic hinges on and it belongs
+next to that logic; at or above it you have data the function merely consults.
 
 Heaviest: `UserConfigStore.cpp` (621-line block), `ThemePage.cpp` (395),
 `AssetBootstrap.cpp` (209).

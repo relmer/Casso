@@ -53,11 +53,29 @@ See the Constitution's Principle VI (Thin Executable, Testable Core) and Princip
   `ch` = char (narrow OR wide), no special wide marker. E.g.
   `s_kpszHost` (LPCWSTR), `s_kchBullet` (wchar_t),
   `s_kRomCatalog` (constant array).
-- **No anonymous namespaces.** NEVER use `namespace {}`. Declare file-local
-  constants as file-scope `static constexpr` (with the `s_k` Hungarian naming
-  above); put file-local helpers as class `static` members, not free functions.
-  More broadly, strongly prefer class members over free/global functions — a
-  free function needs a very convincing justification.
+- **No anonymous namespaces.** NEVER use `namespace {}`. Put file-local
+  helpers as class `static` members, not free functions. More broadly,
+  strongly prefer class members over free/global functions — a free function
+  needs a very convincing justification.
+- **Where a file-local constant goes**, in order:
+  1. **Used by one function, declaration fits on 1-2 lines** → move it *into*
+     that function as a local `constexpr`. Nothing leaves the function, and
+     nothing reaches the header. Drop the `s_` prefix: it marks a file-scope
+     static, and this is not one.
+  2. **Used by several functions** → private `static constexpr` member of the
+     class the `.cpp` implements. Also drop the `s_`.
+  3. **Declaration spans 3+ lines** → leave it as a file-scope
+     `static constexpr`, keeping the `s_k` prefix. This is the deliberate
+     exception. At that size it is a *table or payload* — an opcode table, a
+     palette, a ROM catalog, shader source — not a parameter the logic hinges
+     on. Moving it into the function buries the logic under a wall of data,
+     and hoisting it to the class forces a header declaration plus a
+     declaration/definition split, which is how `DxuiPainter` briefly ended up
+     passing `sizeof (ptr) - 1 == 7` as a shader length.
+
+  The 3-line cut is measured, not guessed: of 1,466 constant declarations in
+  the tree, 1,411 (96%) are a single line, and essentially everything at 3+
+  lines is a table or blob.
 - **No magic numbers** — all numeric literals must be named constants with clear intent.
   Exceptions: 0, 1, -1, nullptr, and sizeof expressions.
 - **American spelling, ALWAYS.** Use American English everywhere — identifiers,
