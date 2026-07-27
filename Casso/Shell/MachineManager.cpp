@@ -54,39 +54,36 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace
+WORD  MachineManager::ResolveMachineSpeedCommand (const JsonValue & mergedJson)
 {
-    WORD  ResolveMachineSpeedCommand (const JsonValue & mergedJson)
+    HRESULT            hr      = S_OK;
+    const JsonValue *  uiPrefs = nullptr;
+    std::string        speed;
+
+
+    if (mergedJson.GetType() != JsonType::Object)
     {
-        HRESULT            hr      = S_OK;
-        const JsonValue *  uiPrefs = nullptr;
-        std::string        speed;
-
-
-        if (mergedJson.GetType() != JsonType::Object)
-        {
-            return 0;
-        }
-
-        hr = mergedJson.GetObject ("$cassoUiPrefs", uiPrefs);
-        if (FAILED (hr) || uiPrefs == nullptr)
-        {
-            return 0;
-        }
-        _Analysis_assume_ (uiPrefs != nullptr);
-
-        hr = uiPrefs->GetString ("speedMode", speed);
-        if (FAILED (hr))
-        {
-            return 0;
-        }
-
-        if (speed == "authentic") return IDM_MACHINE_SPEED_1X;
-        if (speed == "double")    return IDM_MACHINE_SPEED_2X;
-        if (speed == "maximum")   return IDM_MACHINE_SPEED_MAX;
-
         return 0;
     }
+
+    hr = mergedJson.GetObject ("$cassoUiPrefs", uiPrefs);
+    if (FAILED (hr) || uiPrefs == nullptr)
+    {
+        return 0;
+    }
+    _Analysis_assume_ (uiPrefs != nullptr);
+
+    hr = uiPrefs->GetString ("speedMode", speed);
+    if (FAILED (hr))
+    {
+        return 0;
+    }
+
+    if (speed == "authentic") return IDM_MACHINE_SPEED_1X;
+    if (speed == "double")    return IDM_MACHINE_SPEED_2X;
+    if (speed == "maximum")   return IDM_MACHINE_SPEED_MAX;
+
+    return 0;
 }
 
 
@@ -1818,3 +1815,4 @@ void MachineManager::SelectVideoMode()
         static_cast<Apple80ColTextMode *> (m_shell.m_videoModes[4].get())->SetAltCharSet (altCharSet);
     }
 }
+

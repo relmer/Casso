@@ -166,6 +166,9 @@ public:
                                  wchar_t            & outLower);
 
 private:
+    static bool  RectContains (const RECT & rect, int x, int y);
+    static int   ScaleDpi     (int dipValue, UINT dpi);
+
     //
     //  Resolved dropdown colors. The in-window paint resolves these
     //  from the theme (or the SetDropdownColors overrides) every frame;

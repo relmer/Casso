@@ -3,44 +3,41 @@
 #include "Disk2DebugPanelLayout.h"
 
 
-namespace
+static constexpr int  kMargin96             = 8;
+static constexpr int  kRowHeight96          = 22;
+static constexpr int  kRowGap96             = 4;
+static constexpr int  kRowVGap96            = 14;
+static constexpr int  kCheckWidth96         = 104;
+static constexpr int  kRadioWidth96         = 78;
+static constexpr int  kEditWidth96          = 140;
+static constexpr int  kFilterLabelWidth96   = 110;
+static constexpr int  kRawQtCheckWidth96    = 170;
+static constexpr int  kIgnoredLabelHeight96 = 18;
+// Matches kRowLabelWidth96 so the first drive radio aligns under the
+// first checkbox column on the two rows above (both start at
+// margin + label width + gap).
+static constexpr int  kDriveLabelWidth96    = 92;
+static constexpr int  kRowLabelWidth96      = 92;
+static constexpr int  kButtonWidth96        = 90;
+static constexpr int  kButtonHeight96       = 26;
+
+
+
+static int Scale (int dipValue, UINT dpi) noexcept
 {
-    constexpr int  kMargin96             = 8;
-    constexpr int  kRowHeight96          = 22;
-    constexpr int  kRowGap96             = 4;
-    constexpr int  kRowVGap96            = 14;
-    constexpr int  kCheckWidth96         = 104;
-    constexpr int  kRadioWidth96         = 78;
-    constexpr int  kEditWidth96          = 140;
-    constexpr int  kFilterLabelWidth96   = 110;
-    constexpr int  kRawQtCheckWidth96    = 170;
-    constexpr int  kIgnoredLabelHeight96 = 18;
-    // Matches kRowLabelWidth96 so the first drive radio aligns under the
-    // first checkbox column on the two rows above (both start at
-    // margin + label width + gap).
-    constexpr int  kDriveLabelWidth96    = 92;
-    constexpr int  kRowLabelWidth96      = 92;
-    constexpr int  kButtonWidth96        = 90;
-    constexpr int  kButtonHeight96       = 26;
+    return MulDiv (dipValue, (int) dpi, 96);
+}
 
 
 
-    int Scale (int dipValue, UINT dpi) noexcept
-    {
-        return MulDiv (dipValue, (int) dpi, 96);
-    }
-
-
-
-    RECT MakeRect (int x, int y, int w, int h) noexcept
-    {
-        RECT r;
-        r.left   = x;
-        r.top    = y;
-        r.right  = x + w;
-        r.bottom = y + h;
-        return r;
-    }
+static RECT MakeRect (int x, int y, int w, int h) noexcept
+{
+    RECT r;
+    r.left   = x;
+    r.top    = y;
+    r.right  = x + w;
+    r.bottom = y + h;
+    return r;
 }
 
 
@@ -162,3 +159,4 @@ PanelLayoutSlots ComputeDisk2DebugPanelLayout (
 
     return slots;
 }
+

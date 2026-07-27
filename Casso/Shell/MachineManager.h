@@ -4,6 +4,7 @@
 
 
 class EmulatorShell;
+class JsonValue;
 struct MachineConfig;
 
 
@@ -55,5 +56,7 @@ public:
     void     SelectVideoMode      ();
 
 private:
+    static WORD  ResolveMachineSpeedCommand (const JsonValue & mergedJson);
+
     EmulatorShell &  m_shell;
 };

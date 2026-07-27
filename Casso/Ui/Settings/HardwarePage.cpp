@@ -13,58 +13,55 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace
+static constexpr int     s_kPagePadDp        = 16;        // matches Disk / Display / Theme pages
+static constexpr int     s_kInfoLabelWidthDp = 140;
+static constexpr int     s_kInfoRowHeightDp  = 28;
+static constexpr int     s_kInfoValueGapDp   = 8;
+static constexpr int     s_kBigSectionGapDp  = 14;
+static constexpr int     s_kDropdownWidthDp  = 200;
+static constexpr size_t  s_kCpuRow           = 0;
+static constexpr size_t  s_kClockRow         = 1;
+static constexpr size_t  s_kMemoryRow        = 2;
+
+// Label of the synthetic Hardware-tree node for the //c optional external
+// drive. Not backed by a HardwareEntry (the //c drive is built-in, not a
+// config slot), so the tree's toggle handler matches this label to route
+// it to SetExternalDriveConnected instead of SetHardwareEnabled.
+static constexpr wchar_t s_kExternalDriveLabel[] = L"External drive";
+
+// Synthetic node for the //c mouse peripheral -- same pattern.
+static constexpr wchar_t s_kMouseLabel[]         = L"Mouse";
+
+
+RECT HardwarePage::MakeRect (int l, int t, int w, int h)
 {
-    constexpr int     s_kPagePadDp        = 16;        // matches Disk / Display / Theme pages
-    constexpr int     s_kInfoLabelWidthDp = 140;
-    constexpr int     s_kInfoRowHeightDp  = 28;
-    constexpr int     s_kInfoValueGapDp   = 8;
-    constexpr int     s_kBigSectionGapDp  = 14;
-    constexpr int     s_kDropdownWidthDp  = 200;
-    constexpr size_t  s_kCpuRow           = 0;
-    constexpr size_t  s_kClockRow         = 1;
-    constexpr size_t  s_kMemoryRow        = 2;
-
-    // Label of the synthetic Hardware-tree node for the //c optional external
-    // drive. Not backed by a HardwareEntry (the //c drive is built-in, not a
-    // config slot), so the tree's toggle handler matches this label to route
-    // it to SetExternalDriveConnected instead of SetHardwareEnabled.
-    constexpr wchar_t s_kExternalDriveLabel[] = L"External drive";
-
-    // Synthetic node for the //c mouse peripheral -- same pattern.
-    constexpr wchar_t s_kMouseLabel[]         = L"Mouse";
+    RECT  rc = { l, t, l + w, t + h };
+    return rc;
+}
 
 
-    RECT MakeRect (int l, int t, int w, int h)
+DxuiTreeCapabilityFlag HardwarePage::MapFlag (CapabilityFlag flag)
+{
+    switch (flag)
     {
-        RECT  rc = { l, t, l + w, t + h };
-        return rc;
+        case CapabilityFlag::Optional:        return DxuiTreeCapabilityFlag::Optional;
+        case CapabilityFlag::Required:        return DxuiTreeCapabilityFlag::Required;
+        case CapabilityFlag::PlatformLocked:  return DxuiTreeCapabilityFlag::PlatformLocked;
     }
+    return DxuiTreeCapabilityFlag::Required;
+}
 
 
-    DxuiTreeCapabilityFlag MapFlag (CapabilityFlag flag)
+std::wstring HardwarePage::Widen (const std::string & narrow)
+{
+    std::wstring  w;
+
+    w.reserve (narrow.size());
+    for (char c : narrow)
     {
-        switch (flag)
-        {
-            case CapabilityFlag::Optional:        return DxuiTreeCapabilityFlag::Optional;
-            case CapabilityFlag::Required:        return DxuiTreeCapabilityFlag::Required;
-            case CapabilityFlag::PlatformLocked:  return DxuiTreeCapabilityFlag::PlatformLocked;
-        }
-        return DxuiTreeCapabilityFlag::Required;
+        w.push_back ((wchar_t) (unsigned char) c);
     }
-
-
-    std::wstring Widen (const std::string & narrow)
-    {
-        std::wstring  w;
-
-        w.reserve (narrow.size());
-        for (char c : narrow)
-        {
-            w.push_back ((wchar_t) (unsigned char) c);
-        }
-        return w;
-    }
+    return w;
 }
 
 
@@ -523,3 +520,4 @@ std::vector<DxuiTreeNode> HardwarePage::BuildNodes (const std::vector<HardwareEn
 
     return out;
 }
+

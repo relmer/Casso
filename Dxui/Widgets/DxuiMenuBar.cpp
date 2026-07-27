@@ -13,43 +13,40 @@
 
 
 
-namespace
+static constexpr int      s_kBaseDpi                = 96;
+static constexpr int      s_kNavHeightDip           = 32;
+static constexpr int      s_kItemInternalPaddingDip = 8;
+static constexpr int      s_kInterItemPaddingDip    = 4;
+static constexpr int      s_kRowHeightDip           = 26;
+static constexpr int      s_kSeparatorHeightDip     = 10;
+static constexpr int      s_kSeparatorInsetDip      = 10;
+static constexpr int      s_kMidpointDivisor        = 2;
+static constexpr int      s_kDropdownWidthDip       = 300;
+static constexpr int      s_kAccelOffsetDip         = 190;
+static constexpr int      s_kRowPadLeftDip          = 10;
+static constexpr int      s_kRowPadTopDip           = 5;
+static constexpr int      s_kCheckGutterDip         = 18;
+static constexpr float    s_kFontDip                = 14.0f;
+static constexpr float    s_kUnderlineThicknessDip  = 1.0f;
+static constexpr const wchar_t * s_kFontFamily           = DxuiTheme::kBodyFace;
+static constexpr wchar_t  s_kpszCheckMark[]         = L"\u2713";
+
+static constexpr int  s_kFallbackGlyphWidthDip = 8;
+
+
+bool DxuiMenuBar::RectContains (const RECT & rect, int x, int y)
 {
-    constexpr int      s_kBaseDpi                = 96;
-    constexpr int      s_kNavHeightDip           = 32;
-    constexpr int      s_kItemInternalPaddingDip = 8;
-    constexpr int      s_kInterItemPaddingDip    = 4;
-    constexpr int      s_kRowHeightDip           = 26;
-    constexpr int      s_kSeparatorHeightDip     = 10;
-    constexpr int      s_kSeparatorInsetDip      = 10;
-    constexpr int      s_kMidpointDivisor        = 2;
-    constexpr int      s_kDropdownWidthDip       = 300;
-    constexpr int      s_kAccelOffsetDip         = 190;
-    constexpr int      s_kRowPadLeftDip          = 10;
-    constexpr int      s_kRowPadTopDip           = 5;
-    constexpr int      s_kCheckGutterDip         = 18;
-    constexpr float    s_kFontDip                = 14.0f;
-    constexpr float    s_kUnderlineThicknessDip  = 1.0f;
-    constexpr const wchar_t * s_kFontFamily           = DxuiTheme::kBodyFace;
-    constexpr wchar_t  s_kpszCheckMark[]         = L"\u2713";
-
-    constexpr int  s_kFallbackGlyphWidthDip = 8;
+    return x >= rect.left && x < rect.right && y >= rect.top && y < rect.bottom;
+}
 
 
-    bool RectContains (const RECT & rect, int x, int y)
-    {
-        return x >= rect.left && x < rect.right && y >= rect.top && y < rect.bottom;
-    }
-
-
-    int ScaleDpi (int dipValue, UINT dpi)
-    {
-        UINT  effectiveDpi = (dpi == 0) ? (UINT) s_kBaseDpi : dpi;
+int DxuiMenuBar::ScaleDpi (int dipValue, UINT dpi)
+{
+    UINT  effectiveDpi = (dpi == 0) ? (UINT) s_kBaseDpi : dpi;
 
 
 
-        return MulDiv (dipValue, (int) effectiveDpi, s_kBaseDpi);
-    }
+    return MulDiv (dipValue, (int) effectiveDpi, s_kBaseDpi);
 }
 
 
@@ -1796,3 +1793,4 @@ void DxuiMenuBar::OnPopupClick (POINT localPx)
         dispatch();
     }
 }
+
