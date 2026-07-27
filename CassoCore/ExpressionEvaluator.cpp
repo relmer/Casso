@@ -12,23 +12,9 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace
-{
 
-enum class TokType
-{
-    Number, Ident,
-    Plus, Minus, Star, Slash, Percent,
-    Amp, Pipe, Caret, Tilde, Bang,
-    AmpAmp, PipePipe,
-    LShift, RShift,
-    Lt, Le, Gt, Ge, Eq, Ne,
-    LParen, RParen, LBracket, RBracket,
-    PlusPlus, MinusMinus,
-    End, Error
-};
 
-struct Token
+struct ExpressionEvaluator::Token
 {
     TokType     type   = TokType::End;
     int32_t     numVal = 0;
@@ -45,7 +31,7 @@ struct Token
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-class Tokenizer
+class ExpressionEvaluator::Tokenizer
 {
 public:
     Tokenizer (const std::string & text) : m_text (text), m_pos (0), m_hasPeeked (false), m_lastWasValue (false) { }
@@ -112,7 +98,7 @@ private:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-Token Tokenizer::ReadHexNumber()
+ExpressionEvaluator::Token ExpressionEvaluator::Tokenizer::ReadHexNumber()
 {
     size_t start = m_pos;
 
@@ -136,7 +122,7 @@ Token Tokenizer::ReadHexNumber()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-Token Tokenizer::ReadBinaryNumber()
+ExpressionEvaluator::Token ExpressionEvaluator::Tokenizer::ReadBinaryNumber()
 {
     size_t start = m_pos;
 
@@ -160,7 +146,7 @@ Token Tokenizer::ReadBinaryNumber()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-Token Tokenizer::ReadCharConstant()
+ExpressionEvaluator::Token ExpressionEvaluator::Tokenizer::ReadCharConstant()
 {
     if (m_pos >= m_text.size())
         return { TokType::Error, 0, "Unterminated character constant" };
@@ -201,7 +187,7 @@ Token Tokenizer::ReadCharConstant()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-Token Tokenizer::ReadDecimalNumber()
+ExpressionEvaluator::Token ExpressionEvaluator::Tokenizer::ReadDecimalNumber()
 {
     size_t start = m_pos;
 
@@ -277,7 +263,7 @@ Token Tokenizer::ReadDecimalNumber()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-Token Tokenizer::ReadIdentifier()
+ExpressionEvaluator::Token ExpressionEvaluator::Tokenizer::ReadIdentifier()
 {
     size_t start = m_pos;
 
@@ -298,7 +284,7 @@ Token Tokenizer::ReadIdentifier()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-Token Tokenizer::ReadNext()
+ExpressionEvaluator::Token ExpressionEvaluator::Tokenizer::ReadNext()
 {
     SkipSpaces();
 
@@ -417,20 +403,8 @@ Token Tokenizer::ReadNext()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-static bool ParseLogOr      (Tokenizer & tok, const ExprContext & ctx, int32_t & result, std::string & error);
-static bool ParseLogAnd     (Tokenizer & tok, const ExprContext & ctx, int32_t & result, std::string & error);
-static bool ParseBitOr      (Tokenizer & tok, const ExprContext & ctx, int32_t & result, std::string & error);
-static bool ParseBitXor     (Tokenizer & tok, const ExprContext & ctx, int32_t & result, std::string & error);
-static bool ParseBitAnd     (Tokenizer & tok, const ExprContext & ctx, int32_t & result, std::string & error);
-static bool ParseEquality   (Tokenizer & tok, const ExprContext & ctx, int32_t & result, std::string & error);
-static bool ParseComparison (Tokenizer & tok, const ExprContext & ctx, int32_t & result, std::string & error);
-static bool ParseShift      (Tokenizer & tok, const ExprContext & ctx, int32_t & result, std::string & error);
-static bool ParseAddSub     (Tokenizer & tok, const ExprContext & ctx, int32_t & result, std::string & error);
-static bool ParseMulDiv     (Tokenizer & tok, const ExprContext & ctx, int32_t & result, std::string & error);
-static bool ParseUnary      (Tokenizer & tok, const ExprContext & ctx, int32_t & result, std::string & error);
-static bool ParsePrimary    (Tokenizer & tok, const ExprContext & ctx, int32_t & result, std::string & error);
 
-static std::string ToUpperIdent (const std::string & s)
+std::string ExpressionEvaluator::ToUpperIdent (const std::string & s)
 {
     std::string r = s;
 
@@ -450,7 +424,7 @@ static std::string ToUpperIdent (const std::string & s)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-static bool ParsePrimary (Tokenizer & tok, const ExprContext & ctx, int32_t & result, std::string & error)
+bool ExpressionEvaluator::ParsePrimary (Tokenizer & tok, const ExprContext & ctx, int32_t & result, std::string & error)
 {
     Token t = tok.Peek();
 
@@ -530,7 +504,7 @@ static bool ParsePrimary (Tokenizer & tok, const ExprContext & ctx, int32_t & re
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-static bool ParseUnary (Tokenizer & tok, const ExprContext & ctx, int32_t & result, std::string & error)
+bool ExpressionEvaluator::ParseUnary (Tokenizer & tok, const ExprContext & ctx, int32_t & result, std::string & error)
 {
     Token t = tok.Peek();
 
@@ -564,7 +538,7 @@ static bool ParseUnary (Tokenizer & tok, const ExprContext & ctx, int32_t & resu
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-static bool ParseMulDiv (Tokenizer & tok, const ExprContext & ctx, int32_t & result, std::string & error)
+bool ExpressionEvaluator::ParseMulDiv (Tokenizer & tok, const ExprContext & ctx, int32_t & result, std::string & error)
 {
     if (!ParseUnary (tok, ctx, result, error))
         return false;
@@ -617,7 +591,7 @@ static bool ParseMulDiv (Tokenizer & tok, const ExprContext & ctx, int32_t & res
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-static bool ParseAddSub (Tokenizer & tok, const ExprContext & ctx, int32_t & result, std::string & error)
+bool ExpressionEvaluator::ParseAddSub (Tokenizer & tok, const ExprContext & ctx, int32_t & result, std::string & error)
 {
     if (!ParseMulDiv (tok, ctx, result, error))
         return false;
@@ -644,7 +618,7 @@ static bool ParseAddSub (Tokenizer & tok, const ExprContext & ctx, int32_t & res
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-static bool ParseShift (Tokenizer & tok, const ExprContext & ctx, int32_t & result, std::string & error)
+bool ExpressionEvaluator::ParseShift (Tokenizer & tok, const ExprContext & ctx, int32_t & result, std::string & error)
 {
     if (!ParseAddSub (tok, ctx, result, error))
         return false;
@@ -671,7 +645,7 @@ static bool ParseShift (Tokenizer & tok, const ExprContext & ctx, int32_t & resu
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-static bool ParseComparison (Tokenizer & tok, const ExprContext & ctx, int32_t & result, std::string & error)
+bool ExpressionEvaluator::ParseComparison (Tokenizer & tok, const ExprContext & ctx, int32_t & result, std::string & error)
 {
     if (!ParseShift (tok, ctx, result, error))
         return false;
@@ -700,7 +674,7 @@ static bool ParseComparison (Tokenizer & tok, const ExprContext & ctx, int32_t &
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-static bool ParseEquality (Tokenizer & tok, const ExprContext & ctx, int32_t & result, std::string & error)
+bool ExpressionEvaluator::ParseEquality (Tokenizer & tok, const ExprContext & ctx, int32_t & result, std::string & error)
 {
     if (!ParseComparison (tok, ctx, result, error))
         return false;
@@ -727,7 +701,7 @@ static bool ParseEquality (Tokenizer & tok, const ExprContext & ctx, int32_t & r
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-static bool ParseBitAnd (Tokenizer & tok, const ExprContext & ctx, int32_t & result, std::string & error)
+bool ExpressionEvaluator::ParseBitAnd (Tokenizer & tok, const ExprContext & ctx, int32_t & result, std::string & error)
 {
     if (!ParseEquality (tok, ctx, result, error))
         return false;
@@ -754,7 +728,7 @@ static bool ParseBitAnd (Tokenizer & tok, const ExprContext & ctx, int32_t & res
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-static bool ParseBitXor (Tokenizer & tok, const ExprContext & ctx, int32_t & result, std::string & error)
+bool ExpressionEvaluator::ParseBitXor (Tokenizer & tok, const ExprContext & ctx, int32_t & result, std::string & error)
 {
     if (!ParseBitAnd (tok, ctx, result, error))
         return false;
@@ -781,7 +755,7 @@ static bool ParseBitXor (Tokenizer & tok, const ExprContext & ctx, int32_t & res
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-static bool ParseBitOr (Tokenizer & tok, const ExprContext & ctx, int32_t & result, std::string & error)
+bool ExpressionEvaluator::ParseBitOr (Tokenizer & tok, const ExprContext & ctx, int32_t & result, std::string & error)
 {
     if (!ParseBitXor (tok, ctx, result, error))
         return false;
@@ -808,7 +782,7 @@ static bool ParseBitOr (Tokenizer & tok, const ExprContext & ctx, int32_t & resu
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-static bool ParseLogAnd (Tokenizer & tok, const ExprContext & ctx, int32_t & result, std::string & error)
+bool ExpressionEvaluator::ParseLogAnd (Tokenizer & tok, const ExprContext & ctx, int32_t & result, std::string & error)
 {
     if (!ParseBitOr (tok, ctx, result, error))
         return false;
@@ -835,7 +809,7 @@ static bool ParseLogAnd (Tokenizer & tok, const ExprContext & ctx, int32_t & res
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-static bool ParseLogOr (Tokenizer & tok, const ExprContext & ctx, int32_t & result, std::string & error)
+bool ExpressionEvaluator::ParseLogOr (Tokenizer & tok, const ExprContext & ctx, int32_t & result, std::string & error)
 {
     if (!ParseLogAnd (tok, ctx, result, error))
         return false;
@@ -852,7 +826,6 @@ static bool ParseLogOr (Tokenizer & tok, const ExprContext & ctx, int32_t & resu
     return true;
 }
 
-}  // anonymous namespace
 
 
 
