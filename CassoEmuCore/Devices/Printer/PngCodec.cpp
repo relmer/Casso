@@ -149,7 +149,7 @@ HRESULT PngCodec::EncodeRgba (const RgbaImage & image, int dpi, vector<Byte> & o
 
     size   = GlobalSize (handle);
     memory = GlobalLock (handle);
-    CPREx (memory, E_FAIL);
+    CWRA (memory);
     outPng.assign ((Byte *) memory, (Byte *) memory + size);
     GlobalUnlock (handle);
 
@@ -249,7 +249,7 @@ HRESULT PngCodec::EncodeIndexed (
 
     size   = GlobalSize (handle);
     memory = GlobalLock (handle);
-    CPREx (memory, E_FAIL);
+    CWRA (memory);
     outPng.assign ((Byte *) memory, (Byte *) memory + size);
     GlobalUnlock (handle);
 

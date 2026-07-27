@@ -128,10 +128,13 @@ $checks = @(
     @{
         # An -Ex variant exists to REPLACE the family's default hr. Passing the
         # default back in says nothing the base macro does not already say:
-        # CBREx (x, E_FAIL) is CBR (x), CPREx (p, E_OUTOFMEMORY) is CPR (p).
+        # CBREx (x, E_FAIL) is CBR (x).
+        #
+        # CPR needs no rule here: its -Ex variants no longer exist, so the
+        # compiler rejects them outright, which beats a style check.
         Id      = 'CS0010'
         Globs   = @('*.cpp', '*.h')
-        Pattern = 'CB[RW]?A?F?Ex\s*\(.*,\s*E_FAIL\s*[,)]|CPRA?F?Ex\s*\(.*,\s*E_OUTOFMEMORY\s*[,)]'
+        Pattern = 'CB[RW]?A?F?Ex\s*\(.*,\s*E_FAIL\s*[,)]'
         Message = 'redundant -Ex: that is the family default, so use the base macro'
         Exclude = @('CassoCore/Ehm.h')
     },
