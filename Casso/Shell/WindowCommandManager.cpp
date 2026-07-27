@@ -78,10 +78,11 @@ namespace
     // print failure used to degrade to "Unspecified error" (or worse: CWRF's
     // HRESULT_FROM_WIN32(0) == S_OK, a silent false success). Map the result to
     // an honest HRESULT: a user abort (the Print-to-PDF Save-As cancel can
-    // surface mid-job on modern Windows, not just at StartDoc) becomes S_FALSE
-    // exactly like a canceled dialog; disk-full / out-of-memory get their real
-    // codes; anything else uses GetLastError when present and only degrades to
-    // E_FAIL when the driver reported nothing at all.
+    // surface mid-job on modern Windows, not just at StartDoc) becomes
+    // HRESULT_FROM_WIN32 (ERROR_CANCELLED), which names itself at the call
+    // site; disk-full / out-of-memory get their real codes; anything else uses
+    // GetLastError when present and only degrades to E_FAIL when the driver
+    // reported nothing at all.
     HRESULT HrFromSpoolResult (int ret, const wchar_t * call, int pageIx)
     {
         HRESULT   hr  = S_OK;
@@ -92,11 +93,11 @@ namespace
             return S_OK;
         }
 
-        if      (ret == SP_USERABORT)                                    { hr = S_FALSE;                              }
+        if      (ret == SP_USERABORT)                                    { hr = HRESULT_FROM_WIN32 (ERROR_CANCELLED); }
         else if (ret == SP_APPABORT)                                     { hr = E_ABORT;                              }
         else if (ret == SP_OUTOFDISK)                                    { hr = HRESULT_FROM_WIN32 (ERROR_DISK_FULL); }
         else if (ret == SP_OUTOFMEMORY)                                  { hr = E_OUTOFMEMORY;                        }
-        else if (gle == ERROR_CANCELLED || gle == ERROR_PRINT_CANCELLED) { hr = S_FALSE;                              }
+        else if (gle == ERROR_CANCELLED || gle == ERROR_PRINT_CANCELLED) { hr = HRESULT_FROM_WIN32 (ERROR_CANCELLED); }
         else if (gle != 0)                                               { hr = HRESULT_FROM_WIN32 (gle);             }
         else                                                             { hr = E_FAIL;                               }
 
@@ -738,7 +739,10 @@ HRESULT WindowCommandManager::PromptForDiskImage (int drive)
     hr = dialog->Show (m_shell.m_hwnd);
     if (hr == HRESULT_FROM_WIN32 (ERROR_CANCELLED))
     {
-        hr = S_FALSE;
+        // Backing out of the file picker means there is nothing to mount --
+        // not an error, and nothing for a caller to distinguish: the sole
+        // caller only checks FAILED, so the old S_FALSE told no one anything.
+        hr = S_OK;
         goto Error;
     }
     CHR (hr);
@@ -916,11 +920,11 @@ static int WholeStripDpi (const GlobalUserPrefs & prefs, int rows)
 //  The user picks the destination through IFileSaveDialog (seeded with the
 //  default folder <Pictures>\Casso Prints and a timestamped name), and the
 //  strip renders to that exact path at the configured dpi + dot style.
-//  Returns S_FALSE when the dialog is canceled.
+//  Cancellation is reported through outOutcome, not the result code.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT WindowCommandManager::SavePrintoutAs (const PrintRaster & raster, fs::path & outFile)
+HRESULT WindowCommandManager::SavePrintoutAs (const PrintRaster & raster, fs::path & outFile, PrintOutcome & outOutcome)
 {
     HRESULT                   hr          = S_OK;
     ComPtr<IFileSaveDialog>   dialog;
@@ -934,6 +938,8 @@ HRESULT WindowCommandManager::SavePrintoutAs (const PrintRaster & raster, fs::pa
     SYSTEMTIME                now         = {};
     std::error_code           ec;
     const GlobalUserPrefs &   prefs       = m_shell.m_globalPrefs;
+
+    outOutcome = PrintOutcome::Delivered;
 
     static const COMDLG_FILTERSPEC   s_kFilters[] =
     {
@@ -978,7 +984,8 @@ HRESULT WindowCommandManager::SavePrintoutAs (const PrintRaster & raster, fs::pa
 
     if (hr == HRESULT_FROM_WIN32 (ERROR_CANCELLED))
     {
-        hr = S_FALSE;
+        outOutcome = PrintOutcome::Canceled;
+        hr         = S_OK;
         goto Error;
     }
     CHR (hr);
@@ -1027,14 +1034,14 @@ Error:
 //  The strip is paginated (PrintPagination -- core, unit-tested) and each
 //  page's row span is rendered (PaperRenderer -- core) and StretchDIBits'd onto
 //  the printer DC. Only the dialog + GDI job are here (the untestable Win32
-//  edge). Returns S_FALSE if the user cancels -- the dialog, the Save-As
+//  edge). Cancellation -- of the dialog, the Save-As
 //  prompt inside StartDoc, or (modern Print-to-PDF) an abort surfacing at a
 //  later spool call. On failure `failedStage` names the call that failed so
 //  the error dialog's Details line pinpoints it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT WindowCommandManager::PrintToWindowsPrinter (const PrintRaster & raster, std::wstring & failedStage)
+HRESULT WindowCommandManager::PrintToWindowsPrinter (const PrintRaster & raster, std::wstring & failedStage, PrintOutcome & outOutcome)
 {
     HRESULT                                hr      = S_OK;
     const GlobalUserPrefs &                prefs   = m_shell.m_globalPrefs;
@@ -1045,6 +1052,8 @@ HRESULT WindowCommandManager::PrintToWindowsPrinter (const PrintRaster & raster,
     int                                    pageW   = 0;
     int                                    pageH   = 0;
     int                                    pageIx  = 0;
+
+    outOutcome = PrintOutcome::Delivered;
 
     CBRF (!pages.empty(),
           failedStage = L"pagination (the page has no printable content)");
@@ -1067,7 +1076,8 @@ HRESULT WindowCommandManager::PrintToWindowsPrinter (const PrintRaster & raster,
     if (!PrintDlgW (&pd))
     {
         // CommDlgExtendedError() == 0 means the user simply canceled the dialog.
-        hr = S_FALSE;   // canceled / closed
+        outOutcome = PrintOutcome::Canceled;
+        hr         = S_OK;   // the user chose not to print; not a failure
         goto Error;
     }
 
@@ -1089,13 +1099,21 @@ HRESULT WindowCommandManager::PrintToWindowsPrinter (const PrintRaster & raster,
 
     // "Microsoft Print to PDF" (and some drivers) pop a Save-As prompt inside
     // StartDoc; canceling it is a user cancel, not a delivery failure -- so it
-    // reports exactly like a canceled print dialog (S_FALSE: keep the page, no
+    // reports exactly like a canceled print dialog (outOutcome = Canceled: keep the page, no
     // scary "could not deliver" popup). HrFromSpoolResult owns that mapping,
     // including the SP_* codes and the GetLastError()==0 case.
     hr = HrFromSpoolResult (StartDocW (pd.hDC, &di), L"StartDoc", 0);
-    if (hr != S_OK)
+    if (FAILED (hr))
     {
-        if (FAILED (hr)) { failedStage = L"StartDoc (starting the print job)"; }
+        if (hr == HRESULT_FROM_WIN32 (ERROR_CANCELLED))
+        {
+            outOutcome = PrintOutcome::Canceled;
+            hr         = S_OK;
+        }
+        else
+        {
+            failedStage = L"StartDoc (starting the print job)";
+        }
         goto Error;
     }
     started = true;
@@ -1117,12 +1135,20 @@ HRESULT WindowCommandManager::PrintToWindowsPrinter (const PrintRaster & raster,
 
         // Every spool call routes through HrFromSpoolResult: SP_* return codes
         // and GetLastError map to honest HRESULTs, and a mid-job user abort
-        // (Print-to-PDF Save-As cancel on modern Windows) comes back S_FALSE --
+        // (Print-to-PDF Save-As cancel on modern Windows) surfaces as ERROR_CANCELLED --
         // exit quietly, keep the page, no failure dialog.
         hr = HrFromSpoolResult (StartPage (pd.hDC), L"StartPage", pageIx);
-        if (hr != S_OK)
+        if (FAILED (hr))
         {
-            if (FAILED (hr)) { failedStage = std::format (L"StartPage (page {})", pageIx + 1); }
+            if (hr == HRESULT_FROM_WIN32 (ERROR_CANCELLED))
+            {
+                outOutcome = PrintOutcome::Canceled;
+                hr         = S_OK;
+            }
+            else
+            {
+                failedStage = std::format (L"StartPage (page {})", pageIx + 1);
+            }
             goto Error;
         }
 
@@ -1130,9 +1156,17 @@ HRESULT WindowCommandManager::PrintToWindowsPrinter (const PrintRaster & raster,
         CHRF (hr, failedStage = std::format (L"drawing page {} onto the printer", pageIx + 1));
 
         hr = HrFromSpoolResult (EndPage (pd.hDC), L"EndPage", pageIx);
-        if (hr != S_OK)
+        if (FAILED (hr))
         {
-            if (FAILED (hr)) { failedStage = std::format (L"EndPage (page {})", pageIx + 1); }
+            if (hr == HRESULT_FROM_WIN32 (ERROR_CANCELLED))
+            {
+                outOutcome = PrintOutcome::Canceled;
+                hr         = S_OK;
+            }
+            else
+            {
+                failedStage = std::format (L"EndPage (page {})", pageIx + 1);
+            }
             goto Error;
         }
 
@@ -1140,9 +1174,17 @@ HRESULT WindowCommandManager::PrintToWindowsPrinter (const PrintRaster & raster,
     }
 
     hr = HrFromSpoolResult (EndDoc (pd.hDC), L"EndDoc", pageIx);
-    if (hr != S_OK)
+    if (FAILED (hr))
     {
-        if (FAILED (hr)) { failedStage = L"EndDoc (finishing the print job)"; }
+        if (hr == HRESULT_FROM_WIN32 (ERROR_CANCELLED))
+        {
+            outOutcome = PrintOutcome::Canceled;
+            hr         = S_OK;
+        }
+        else
+        {
+            failedStage = L"EndDoc (finishing the print job)";
+        }
         goto Error;
     }
     started = false;
@@ -1329,9 +1371,10 @@ Error:
 
 void WindowCommandManager::OnPrinterCommand (int id)
 {
-    HRESULT        hr   = S_OK;
-    PrinterJob *   job  = nullptr;
+    HRESULT        hr      = S_OK;
+    PrinterJob *   job     = nullptr;
     fs::path       file;
+    PrintOutcome   outcome = PrintOutcome::Delivered;
 
     if ((id != IDM_PRINTER_DISCARD && id != IDM_PRINTER_COPY &&
          id != IDM_PRINTER_PRINT && id != IDM_PRINTER_SAVEAS) ||
@@ -1456,14 +1499,14 @@ void WindowCommandManager::OnPrinterCommand (int id)
             }
         }
 
-        hr = PrintToWindowsPrinter (job->Raster(), failedStage);
+        hr = PrintToWindowsPrinter (job->Raster(), failedStage, outcome);
     }
     else
     {
-        hr = SavePrintoutAs (job->Raster(), file);
+        hr = SavePrintoutAs (job->Raster(), file, outcome);
     }
 
-    if (hr == S_FALSE)
+    if (outcome == PrintOutcome::Canceled)
     {
         // User canceled the print / save dialog: keep the strip, no clear.
         m_shell.m_printerWorker.Start (m_shell.m_refs.printerCard->ByteRing(), job->Raster());
@@ -1520,7 +1563,7 @@ void WindowCommandManager::OnPrinterCommand (int id)
 //  on a print-system thread and must not raise UI itself). The strip was
 //  copied into the session and the worker already resumed, so there is
 //  nothing to reseed here -- just tell the user how it went. Cancel posts
-//  nothing, matching the classic dialog's silent S_FALSE.
+//  nothing, matching the classic dialog's silent cancellation.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
