@@ -49,10 +49,7 @@ HRESULT HeadlessHost::BuildCommon (HeadlessMachineKind kind, EmulatorCore & outC
     outCore.audioSink   = nullptr;
 
     hr = outCore.host->OpenAudioDevice (outCore.audioSink);
-    if (FAILED (hr))
-    {
-        goto Error;
-    }
+    CHRA (hr);
 
 Error:
     return hr;
@@ -126,22 +123,12 @@ HRESULT HeadlessHost::BuildApple2e (EmulatorCore & outCore)
     int                    page;
 
     hr = BuildCommon (HeadlessMachineKind::Apple2e, outCore);
-    if (FAILED (hr))
-    {
-        goto Error;
-    }
+    CHRA (hr);
 
     hr = outCore.fixtures->OpenFixture ("Apple2e.rom", romBytes);
-    if (FAILED (hr))
-    {
-        goto Error;
-    }
+    CHR (hr);
 
-    if (romBytes.size() != kSystemRomSize)
-    {
-        hr = E_UNEXPECTED;
-        goto Error;
-    }
+    CBREx (romBytes.size() == kSystemRomSize, E_UNEXPECTED);
 
     outCore.bus          = std::make_unique<MemoryBus> ();
     outCore.mainRam      = std::make_unique<RamDevice> (0x0000, kRamEnd);
@@ -174,10 +161,7 @@ HRESULT HeadlessHost::BuildApple2e (EmulatorCore & outCore)
         nullptr,
         nullptr,
         outCore.softSwitches.get());
-    if (FAILED (hr))
-    {
-        goto Error;
-    }
+    CHRA (hr);
 
     {
         std::vector<Byte>   cxxxData (kCxxxRomSize);
@@ -252,22 +236,12 @@ HRESULT HeadlessHost::BuildApple2eEnhanced (EmulatorCore & outCore)
     int                    page;
 
     hr = BuildCommon (HeadlessMachineKind::Apple2eEnhanced, outCore);
-    if (FAILED (hr))
-    {
-        goto Error;
-    }
+    CHRA (hr);
 
     hr = outCore.fixtures->OpenFixture ("Apple2eEnhanced.rom", romBytes);
-    if (FAILED (hr))
-    {
-        goto Error;
-    }
+    CHR (hr);
 
-    if (romBytes.size() != kSystemRomSize)
-    {
-        hr = E_UNEXPECTED;
-        goto Error;
-    }
+    CBREx (romBytes.size() == kSystemRomSize, E_UNEXPECTED);
 
     outCore.bus          = std::make_unique<MemoryBus> ();
     outCore.mainRam      = std::make_unique<RamDevice> (0x0000, kRamEnd);
@@ -300,10 +274,7 @@ HRESULT HeadlessHost::BuildApple2eEnhanced (EmulatorCore & outCore)
         nullptr,
         nullptr,
         outCore.softSwitches.get());
-    if (FAILED (hr))
-    {
-        goto Error;
-    }
+    CHRA (hr);
 
     {
         std::vector<Byte>   cxxxData (kCxxxRomSize);
@@ -327,10 +298,7 @@ HRESULT HeadlessHost::BuildApple2eEnhanced (EmulatorCore & outCore)
     outCore.softSwitches->SetLanguageCard (outCore.languageCard.get());
 
     hr = CpuFactory::Create ("65C02", *outCore.bus, cpuStrategy);
-    if (FAILED (hr))
-    {
-        goto Error;
-    }
+    CHRA (hr);
 
     outCore.cpu = std::make_unique<EmuCpu> (*outCore.bus, std::move (cpuStrategy));
     outCore.cpu->SetVideoTiming (outCore.videoTiming.get());
@@ -380,16 +348,10 @@ HRESULT HeadlessHost::BuildApple2eWithDisk2 (EmulatorCore & outCore)
     std::vector<uint8_t>   slot6Rom;
 
     hr = BuildApple2e (outCore);
-    if (FAILED (hr))
-    {
-        goto Error;
-    }
+    CHRA (hr);
 
     hr = outCore.fixtures->OpenFixture ("Disk2.rom", slot6Rom);
-    if (FAILED (hr))
-    {
-        goto Error;
-    }
+    CHR (hr);
 
     outCore.mmu->AttachSlotRom (6, std::move (slot6Rom));
 
@@ -445,22 +407,12 @@ HRESULT HeadlessHost::BuildApple2c (EmulatorCore & outCore)
     static constexpr size_t  kTwoBankSize = 0x8000;   // 32 KiB Apple2c.rom
 
     hr = BuildCommon (HeadlessMachineKind::Apple2c, outCore);
-    if (FAILED (hr))
-    {
-        goto Error;
-    }
+    CHRA (hr);
 
     hr = outCore.fixtures->OpenFixture ("Apple2c.rom", romBytes);
-    if (FAILED (hr))
-    {
-        goto Error;
-    }
+    CHR (hr);
 
-    if (romBytes.size() != kTwoBankSize)
-    {
-        hr = E_UNEXPECTED;
-        goto Error;
-    }
+    CBREx (romBytes.size() == kTwoBankSize, E_UNEXPECTED);
 
     outCore.bus          = std::make_unique<MemoryBus> ();
     outCore.mainRam      = std::make_unique<RamDevice> (0x0000, kRamEnd);
@@ -493,10 +445,7 @@ HRESULT HeadlessHost::BuildApple2c (EmulatorCore & outCore)
         nullptr,
         nullptr,
         outCore.softSwitches.get());
-    if (FAILED (hr))
-    {
-        goto Error;
-    }
+    CHRA (hr);
 
     // //c: no card slots -> $C100-$CFFF is always the internal firmware.
     outCore.mmu->GetCxxxRouter()->SetNoExternalSlots (true);
@@ -549,10 +498,7 @@ HRESULT HeadlessHost::BuildApple2c (EmulatorCore & outCore)
     }
 
     hr = CpuFactory::Create ("65C02", *outCore.bus, cpuStrategy);
-    if (FAILED (hr))
-    {
-        goto Error;
-    }
+    CHRA (hr);
 
     outCore.cpu = std::make_unique<EmuCpu> (*outCore.bus, std::move (cpuStrategy));
     outCore.cpu->SetVideoTiming (outCore.videoTiming.get());
