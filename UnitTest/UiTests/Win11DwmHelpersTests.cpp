@@ -27,8 +27,15 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace
+
+
+namespace UiTests
 {
+
+TEST_CLASS (Win11DwmHelpersTests)
+{
+public:
+
     // Locate DxuiDwm.cpp relative to the test DLL's source tree.
     // The test runs from x64/Debug/ so the project root is three levels
     // up; the source file lives at Dxui/Theme/DxuiDwm.cpp.
@@ -95,15 +102,6 @@ namespace
 
         return std::string();
     }
-}
-
-
-namespace UiTests
-{
-
-TEST_CLASS (Win11DwmHelpersTests)
-{
-public:
 
     // -------- Behavioral: nullptr HWND is always a safe no-op. -----------
 
@@ -204,3 +202,4 @@ public:
 };
 
 }   // namespace UiTests
+

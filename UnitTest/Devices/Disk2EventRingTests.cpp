@@ -20,21 +20,6 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace
-{
-    Disk2Event MakeEvent (uint64_t cycle)
-    {
-        Disk2Event  e {};
-
-        e.category               = EventCategory::Controller;
-        e.type                   = Disk2EventType::HeadStep;
-        e.cycle                  = cycle;
-        e.payload.step.prevQt    = 0;
-        e.payload.step.newQt     = (int) (cycle & 0xFF);
-
-        return e;
-    }
-}
 
 
 
@@ -55,6 +40,19 @@ namespace Disk2EventRingTests
     TEST_CLASS (Disk2EventRingTests)
     {
     public:
+
+        Disk2Event MakeEvent (uint64_t cycle)
+        {
+            Disk2Event  e {};
+
+            e.category               = EventCategory::Controller;
+            e.type                   = Disk2EventType::HeadStep;
+            e.cycle                  = cycle;
+            e.payload.step.prevQt    = 0;
+            e.payload.step.newQt     = (int) (cycle & 0xFF);
+
+            return e;
+        }
 
         TEST_METHOD (EmptyPopReturnsFalse)
         {
@@ -251,3 +249,4 @@ namespace Disk2EventRingTests
         }
     };
 }
+
