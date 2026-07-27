@@ -18,88 +18,85 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace
+// Load the per-machine default JSON (the on-disk Machines/<Name>/
+// <Name>.json) into `outDefault`. Returns S_FALSE when the file
+// isn't found, S_OK on a clean parse, error HRESULT otherwise.
+HRESULT DiskSettings::LoadMachineDefaultJson (const std::wstring  & machineName,
+                                JsonValue           & outDefault)
 {
-    // Load the per-machine default JSON (the on-disk Machines/<Name>/
-    // <Name>.json) into `outDefault`. Returns S_FALSE when the file
-    // isn't found, S_OK on a clean parse, error HRESULT otherwise.
-    HRESULT LoadMachineDefaultJson (const std::wstring  & machineName,
-                                    JsonValue           & outDefault)
+    std::vector<fs::path> searchPaths;
+    fs::path              configRelPath;
+    fs::path              configPath;
+    std::ifstream         configFile;
+    std::stringstream     ss;
+    std::string           jsonText;
+    JsonParseError        parseErr;
+    HRESULT               hr            = S_OK;
+
+
+    searchPaths   = PathResolver::BuildSearchPaths (PathResolver::GetExecutableDirectory(),
+                                                      PathResolver::GetWorkingDirectory());
+    configRelPath = fs::path ("Machines") / fs::path (machineName).string()
+                                          / (fs::path (machineName).string() + ".json");
+    configPath    = PathResolver::FindFile (searchPaths, configRelPath);
+
+    if (configPath.empty())
     {
-        std::vector<fs::path> searchPaths;
-        fs::path              configRelPath;
-        fs::path              configPath;
-        std::ifstream         configFile;
-        std::stringstream     ss;
-        std::string           jsonText;
-        JsonParseError        parseErr;
-        HRESULT               hr            = S_OK;
-
-
-        searchPaths   = PathResolver::BuildSearchPaths (PathResolver::GetExecutableDirectory(),
-                                                          PathResolver::GetWorkingDirectory());
-        configRelPath = fs::path ("Machines") / fs::path (machineName).string()
-                                              / (fs::path (machineName).string() + ".json");
-        configPath    = PathResolver::FindFile (searchPaths, configRelPath);
-
-        if (configPath.empty())
-        {
-            return S_FALSE;
-        }
-
-        configFile.open (configPath);
-        if (!configFile.good())
-        {
-            return S_FALSE;
-        }
-
-        ss << configFile.rdbuf();
-        jsonText = ss.str();
-        hr = JsonParser::Parse (jsonText, outDefault, parseErr);
-        return hr;
+        return S_FALSE;
     }
 
-
-    std::string  WideToUtf8 (const std::wstring & w)
+    configFile.open (configPath);
+    if (!configFile.good())
     {
-        HRESULT      hr   = S_OK;
-        std::string  utf8;
-        int          len  = 0;
-
-        BAIL_OUT_IF (w.empty(), S_OK);
-
-        len = WideCharToMultiByte (CP_UTF8, 0, w.c_str(), static_cast<int> (w.size()), nullptr, 0, nullptr, nullptr);
-        CWRA (len);
-
-        utf8.resize (static_cast<size_t> (len));
-
-        len = WideCharToMultiByte (CP_UTF8, 0, w.c_str(), static_cast<int> (w.size()), utf8.data(), len, nullptr, nullptr);
-        CWRA (len);
-
-    Error:
-        return utf8;
+        return S_FALSE;
     }
 
+    ss << configFile.rdbuf();
+    jsonText = ss.str();
+    hr = JsonParser::Parse (jsonText, outDefault, parseErr);
+    return hr;
+}
 
-    std::wstring Utf8ToWide (const std::string & s)
-    {
-        HRESULT       hr   = S_OK;
-        std::wstring  wide;
-        int           len  = 0;
 
-        BAIL_OUT_IF (s.empty(), S_OK);
+std::string  DiskSettings::WideToUtf8 (const std::wstring & w)
+{
+    HRESULT      hr   = S_OK;
+    std::string  utf8;
+    int          len  = 0;
 
-        len = MultiByteToWideChar (CP_UTF8, 0, s.c_str(), static_cast<int> (s.size()), nullptr, 0);
-        CWRA (len);
+    BAIL_OUT_IF (w.empty(), S_OK);
 
-        wide.resize (static_cast<size_t> (len));
+    len = WideCharToMultiByte (CP_UTF8, 0, w.c_str(), static_cast<int> (w.size()), nullptr, 0, nullptr, nullptr);
+    CWRA (len);
 
-        len = MultiByteToWideChar (CP_UTF8, 0, s.c_str(), static_cast<int> (s.size()), wide.data(), len);
-        CWRA (len);
+    utf8.resize (static_cast<size_t> (len));
 
-    Error:
-        return wide;
-    }
+    len = WideCharToMultiByte (CP_UTF8, 0, w.c_str(), static_cast<int> (w.size()), utf8.data(), len, nullptr, nullptr);
+    CWRA (len);
+
+Error:
+    return utf8;
+}
+
+
+std::wstring DiskSettings::Utf8ToWide (const std::string & s)
+{
+    HRESULT       hr   = S_OK;
+    std::wstring  wide;
+    int           len  = 0;
+
+    BAIL_OUT_IF (s.empty(), S_OK);
+
+    len = MultiByteToWideChar (CP_UTF8, 0, s.c_str(), static_cast<int> (s.size()), nullptr, 0);
+    CWRA (len);
+
+    wide.resize (static_cast<size_t> (len));
+
+    len = MultiByteToWideChar (CP_UTF8, 0, s.c_str(), static_cast<int> (s.size()), wide.data(), len);
+    CWRA (len);
+
+Error:
+    return wide;
 }
 
 
@@ -345,3 +342,4 @@ HRESULT DiskSettings::WriteSavedUiPrefBool (
 Error:
     return hr;
 }
+

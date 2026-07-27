@@ -10,86 +10,83 @@
 
 
 
-namespace
+static constexpr UINT     s_kDefaultDpi          = 96;
+static constexpr LONG     s_kShadowInsetPx       = 1;
+
+std::atomic<uint32_t>  s_classSerial { 0 };
+
+
+//
+//  Returns the monitor work-area rect (excludes the taskbar) for
+//  the monitor that contains the supplied rect. Falls back to a
+//  giant synthetic work area if the multi-monitor lookup fails so
+//  callers always get a usable rect.
+//
+RECT  DxuiPopupHost::WorkAreaForRect (const RECT & rectScreenPx)
 {
-    constexpr UINT     s_kDefaultDpi          = 96;
-    constexpr LONG     s_kShadowInsetPx       = 1;
+    RECT          work     = { 0, 0, 1920, 1080 };
+    HMONITOR      monitor  = nullptr;
+    MONITORINFO   info     = {};
 
-    std::atomic<uint32_t>  s_classSerial { 0 };
 
-
-    //
-    //  Returns the monitor work-area rect (excludes the taskbar) for
-    //  the monitor that contains the supplied rect. Falls back to a
-    //  giant synthetic work area if the multi-monitor lookup fails so
-    //  callers always get a usable rect.
-    //
-    RECT  WorkAreaForRect (const RECT & rectScreenPx)
+    monitor = MonitorFromRect (&rectScreenPx, MONITOR_DEFAULTTONEAREST);
+    if (monitor == nullptr)
     {
-        RECT          work     = { 0, 0, 1920, 1080 };
-        HMONITOR      monitor  = nullptr;
-        MONITORINFO   info     = {};
-
-
-        monitor = MonitorFromRect (&rectScreenPx, MONITOR_DEFAULTTONEAREST);
-        if (monitor == nullptr)
-        {
-            return work;
-        }
-
-        info.cbSize = sizeof (info);
-        if (GetMonitorInfoW (monitor, &info))
-        {
-            work = info.rcWork;
-        }
         return work;
     }
 
-
-    //
-    //  Position a rect of the supplied size on the chosen edge of an
-    //  anchor without any work-area clamping. Helper for placement.
-    //
-    RECT  PlaceOnEdge (const RECT          & anchor,
-                       DxuiPopupPlacement    edge,
-                       SIZE                  popupSizePx)
+    info.cbSize = sizeof (info);
+    if (GetMonitorInfoW (monitor, &info))
     {
-        RECT  out = {};
-
-
-        switch (edge)
-        {
-            case DxuiPopupPlacement::Below:
-                out.left   = anchor.left;
-                out.top    = anchor.bottom;
-                break;
-
-            case DxuiPopupPlacement::Above:
-                out.left   = anchor.left;
-                out.top    = anchor.top - popupSizePx.cy;
-                break;
-
-            case DxuiPopupPlacement::Right:
-                out.left   = anchor.right;
-                out.top    = anchor.top;
-                break;
-
-            case DxuiPopupPlacement::Left:
-                out.left   = anchor.left - popupSizePx.cx;
-                out.top    = anchor.top;
-                break;
-
-            case DxuiPopupPlacement::AtCursor:
-                // Anchor's (left, top) is treated as the cursor point.
-                out.left   = anchor.left;
-                out.top    = anchor.top;
-                break;
-        }
-
-        out.right  = out.left + popupSizePx.cx;
-        out.bottom = out.top  + popupSizePx.cy;
-        return out;
+        work = info.rcWork;
     }
+    return work;
+}
+
+
+//
+//  Position a rect of the supplied size on the chosen edge of an
+//  anchor without any work-area clamping. Helper for placement.
+//
+RECT  DxuiPopupHost::PlaceOnEdge (const RECT          & anchor,
+                   DxuiPopupPlacement    edge,
+                   SIZE                  popupSizePx)
+{
+    RECT  out = {};
+
+
+    switch (edge)
+    {
+        case DxuiPopupPlacement::Below:
+            out.left   = anchor.left;
+            out.top    = anchor.bottom;
+            break;
+
+        case DxuiPopupPlacement::Above:
+            out.left   = anchor.left;
+            out.top    = anchor.top - popupSizePx.cy;
+            break;
+
+        case DxuiPopupPlacement::Right:
+            out.left   = anchor.right;
+            out.top    = anchor.top;
+            break;
+
+        case DxuiPopupPlacement::Left:
+            out.left   = anchor.left - popupSizePx.cx;
+            out.top    = anchor.top;
+            break;
+
+        case DxuiPopupPlacement::AtCursor:
+            // Anchor's (left, top) is treated as the cursor point.
+            out.left   = anchor.left;
+            out.top    = anchor.top;
+            break;
+    }
+
+    out.right  = out.left + popupSizePx.cx;
+    out.bottom = out.top  + popupSizePx.cy;
+    return out;
 }
 
 
@@ -1232,3 +1229,4 @@ HRESULT DxuiPopupHost::MeasureText (const wchar_t  * text,
 Error:
     return hr;
 }
+

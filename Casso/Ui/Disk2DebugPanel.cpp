@@ -7,115 +7,112 @@
 #include "../DebugDialogProjection.h"
 
 
-namespace
+static constexpr LPCWSTR  s_kpszClassName  = L"Casso.Disk2Debug.Panel";
+static constexpr LPCWSTR  s_kpszWindowTitle = L"Casso - Disk ][ debug";
+
+static constexpr int      s_kPreferredWidthDip  = 960;
+static constexpr int      s_kPreferredHeightDip = 600;
+
+static constexpr LPCWSTR  s_kpszTrackFilterLabel  = L"Track:";
+static constexpr LPCWSTR  s_kpszSectorFilterLabel = L"Sector:";
+static constexpr LPCWSTR  s_kpszTrackQtFilterLabel = L"Quarter-track:";
+
+static constexpr LPCWSTR  s_kpszEventCheckLabels[kEventTypeCheckCount] =
 {
-    constexpr LPCWSTR  s_kpszClassName  = L"Casso.Disk2Debug.Panel";
-    constexpr LPCWSTR  s_kpszWindowTitle = L"Casso - Disk ][ debug";
+    L"Motor", L"HeadStep", L"HeadBump", L"AddrMark",
+    L"Read",  L"Write",    L"Door",     L"DriveSel",
+};
 
-    constexpr int      s_kPreferredWidthDip  = 960;
-    constexpr int      s_kPreferredHeightDip = 600;
+static constexpr LPCWSTR  s_kpszAudioSubLabels[kAudioSubCheckCount] =
+{
+    L"Started", L"Restarted", L"Continued", L"Silent",
+};
 
-    constexpr LPCWSTR  s_kpszTrackFilterLabel  = L"Track:";
-    constexpr LPCWSTR  s_kpszSectorFilterLabel = L"Sector:";
-    constexpr LPCWSTR  s_kpszTrackQtFilterLabel = L"Quarter-track:";
+static constexpr LPCWSTR  s_kpszDriveOptionLabels[kDriveRadioCount] =
+{
+    L"All", L"Drive 1", L"Drive 2",
+};
 
-    constexpr LPCWSTR  s_kpszEventCheckLabels[kEventTypeCheckCount] =
+static constexpr LPCWSTR  s_kpszRawQtLabel    = L"Quarter-track steps";
+static constexpr LPCWSTR  s_kpszPauseLabel    = L"Pause";
+static constexpr LPCWSTR  s_kpszResumeLabel   = L"Resume";
+static constexpr LPCWSTR  s_kpszClearLabel    = L"Clear";
+static constexpr LPCWSTR  s_kpszAudioLabel    = L"All";
+static constexpr LPCWSTR  s_kpszInvalidLabel  = L"Invalid";
+static constexpr LPCWSTR  s_kpszTrackInvalidPrefix  = L"Invalid track: ";
+static constexpr LPCWSTR  s_kpszSectorInvalidPrefix = L"Invalid sector: ";
+static constexpr LPCWSTR  s_kpszDriveFilterLabel    = L"Drive:";
+static constexpr LPCWSTR  s_kpszDiskEventsLabel     = L"Disk events:";
+static constexpr LPCWSTR  s_kpszAudioEventsLabel    = L"Audio events:";
+
+static constexpr LPCWSTR  s_kpszEventCheckTips[kEventTypeCheckCount] =
+{
+    L"Motor spin-up / spin-down transitions",
+    L"Stepper head moves between tracks",
+    L"Head bumps against track 0 stop",
+    L"Address-field reads (track / sector / volume)",
+    L"Data-field sector reads",
+    L"Data-field sector writes",
+    L"Disk-inserted / disk-ejected events",
+    L"Soft-switch drive selection (Drive 1 vs Drive 2)",
+};
+
+static constexpr LPCWSTR  s_kpszAudioSubTips[kAudioSubCheckCount] =
+{
+    L"Audio loop started",
+    L"Audio loop restarted with new parameters",
+    L"Audio loop continued without retrigger",
+    L"Audio loop silenced (with reason)",
+};
+
+static constexpr LPCWSTR  s_kpszDriveRadioTips[kDriveRadioCount] =
+{
+    L"Show events from all drives",
+    L"Show only events targeting Drive 1",
+    L"Show only events targeting Drive 2",
+};
+
+static constexpr LPCWSTR  s_kpszAudioMasterTip = L"Master toggle for all audio-event categories below";
+static constexpr LPCWSTR  s_kpszRawQtTip       = L"Show every quarter-track head step (verbose)";
+static constexpr LPCWSTR  s_kpszTrackEditTip   = L"Filter rows to a single track (blank = all)";
+static constexpr LPCWSTR  s_kpszSectorEditTip  = L"Filter rows to a single sector (blank = all)";
+
+
+void Disk2DebugPanel::ArgbToFloat4 (uint32_t argb, float (& outRgba)[4]) noexcept
+{
+    outRgba[0] = (float) ((argb >> 16) & 0xFFu) / 255.0f;
+    outRgba[1] = (float) ((argb >>  8) & 0xFFu) / 255.0f;
+    outRgba[2] = (float) ((argb      ) & 0xFFu) / 255.0f;
+    outRgba[3] = (float) ((argb >> 24) & 0xFFu) / 255.0f;
+}
+
+
+
+// Builds the "Invalid track: tok1, tok2" detail label by slicing
+// the rejected UTF-16 spans out of the original expression. If the
+// edit parsed cleanly, returns an empty string. Defensive about
+// bad spans so an out-of-range index can't crash the dialog.
+std::wstring Disk2DebugPanel::BuildInvalidLabel (
+    LPCWSTR                                                  prefix,
+    const std::wstring                                     & expr,
+    const std::vector<TrackSectorPredicate::RejectedSpan> & spans)
+{
+    std::wstring  result;
+
+    if (spans.empty()) { return result; }
+
+    result = prefix;
+    for (size_t i = 0; i < spans.size(); ++i)
     {
-        L"Motor", L"HeadStep", L"HeadBump", L"AddrMark",
-        L"Read",  L"Write",    L"Door",     L"DriveSel",
-    };
-
-    constexpr LPCWSTR  s_kpszAudioSubLabels[kAudioSubCheckCount] =
-    {
-        L"Started", L"Restarted", L"Continued", L"Silent",
-    };
-
-    constexpr LPCWSTR  s_kpszDriveOptionLabels[kDriveRadioCount] =
-    {
-        L"All", L"Drive 1", L"Drive 2",
-    };
-
-    constexpr LPCWSTR  s_kpszRawQtLabel    = L"Quarter-track steps";
-    constexpr LPCWSTR  s_kpszPauseLabel    = L"Pause";
-    constexpr LPCWSTR  s_kpszResumeLabel   = L"Resume";
-    constexpr LPCWSTR  s_kpszClearLabel    = L"Clear";
-    constexpr LPCWSTR  s_kpszAudioLabel    = L"All";
-    constexpr LPCWSTR  s_kpszInvalidLabel  = L"Invalid";
-    constexpr LPCWSTR  s_kpszTrackInvalidPrefix  = L"Invalid track: ";
-    constexpr LPCWSTR  s_kpszSectorInvalidPrefix = L"Invalid sector: ";
-    constexpr LPCWSTR  s_kpszDriveFilterLabel    = L"Drive:";
-    constexpr LPCWSTR  s_kpszDiskEventsLabel     = L"Disk events:";
-    constexpr LPCWSTR  s_kpszAudioEventsLabel    = L"Audio events:";
-
-    constexpr LPCWSTR  s_kpszEventCheckTips[kEventTypeCheckCount] =
-    {
-        L"Motor spin-up / spin-down transitions",
-        L"Stepper head moves between tracks",
-        L"Head bumps against track 0 stop",
-        L"Address-field reads (track / sector / volume)",
-        L"Data-field sector reads",
-        L"Data-field sector writes",
-        L"Disk-inserted / disk-ejected events",
-        L"Soft-switch drive selection (Drive 1 vs Drive 2)",
-    };
-
-    constexpr LPCWSTR  s_kpszAudioSubTips[kAudioSubCheckCount] =
-    {
-        L"Audio loop started",
-        L"Audio loop restarted with new parameters",
-        L"Audio loop continued without retrigger",
-        L"Audio loop silenced (with reason)",
-    };
-
-    constexpr LPCWSTR  s_kpszDriveRadioTips[kDriveRadioCount] =
-    {
-        L"Show events from all drives",
-        L"Show only events targeting Drive 1",
-        L"Show only events targeting Drive 2",
-    };
-
-    constexpr LPCWSTR  s_kpszAudioMasterTip = L"Master toggle for all audio-event categories below";
-    constexpr LPCWSTR  s_kpszRawQtTip       = L"Show every quarter-track head step (verbose)";
-    constexpr LPCWSTR  s_kpszTrackEditTip   = L"Filter rows to a single track (blank = all)";
-    constexpr LPCWSTR  s_kpszSectorEditTip  = L"Filter rows to a single sector (blank = all)";
-
-
-    void ArgbToFloat4 (uint32_t argb, float (& outRgba)[4]) noexcept
-    {
-        outRgba[0] = (float) ((argb >> 16) & 0xFFu) / 255.0f;
-        outRgba[1] = (float) ((argb >>  8) & 0xFFu) / 255.0f;
-        outRgba[2] = (float) ((argb      ) & 0xFFu) / 255.0f;
-        outRgba[3] = (float) ((argb >> 24) & 0xFFu) / 255.0f;
+        int  beginIdx = spans[i].beginUtf16;
+        int  endIdx   = spans[i].endUtf16;
+        if (beginIdx < 0)                       { beginIdx = 0; }
+        if (endIdx   > (int) expr.size())       { endIdx   = (int) expr.size(); }
+        if (endIdx  <= beginIdx)                { continue; }
+        if (i > 0)                              { result += L", "; }
+        result.append (expr, (size_t) beginIdx, (size_t) (endIdx - beginIdx));
     }
-
-
-
-    // Builds the "Invalid track: tok1, tok2" detail label by slicing
-    // the rejected UTF-16 spans out of the original expression. If the
-    // edit parsed cleanly, returns an empty string. Defensive about
-    // bad spans so an out-of-range index can't crash the dialog.
-    std::wstring BuildInvalidLabel (
-        LPCWSTR                                                  prefix,
-        const std::wstring                                     & expr,
-        const std::vector<TrackSectorPredicate::RejectedSpan> & spans)
-    {
-        std::wstring  result;
-
-        if (spans.empty()) { return result; }
-
-        result = prefix;
-        for (size_t i = 0; i < spans.size(); ++i)
-        {
-            int  beginIdx = spans[i].beginUtf16;
-            int  endIdx   = spans[i].endUtf16;
-            if (beginIdx < 0)                       { beginIdx = 0; }
-            if (endIdx   > (int) expr.size())       { endIdx   = (int) expr.size(); }
-            if (endIdx  <= beginIdx)                { continue; }
-            if (i > 0)                              { result += L", "; }
-            result.append (expr, (size_t) beginIdx, (size_t) (endIdx - beginIdx));
-        }
-        return result;
-    }
+    return result;
 }
 
 
@@ -1770,3 +1767,4 @@ void Disk2DebugPanel::UpdateTooltip (int x, int y)
 
     m_tooltip.RequestHide (now);
 }
+

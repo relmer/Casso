@@ -283,6 +283,9 @@ public:
                                           DxuiPopupDismissReason  reason);
 
 private:
+    static RECT  WorkAreaForRect (const RECT & rectScreenPx);
+    static RECT  PlaceOnEdge     (const RECT & anchor, DxuiPopupPlacement edge, SIZE popupSizePx);
+
     static LRESULT CALLBACK  s_WndProcThunk  (HWND, UINT, WPARAM, LPARAM);
     LRESULT                  WndProc         (UINT msg, WPARAM wp, LPARAM lp);
 

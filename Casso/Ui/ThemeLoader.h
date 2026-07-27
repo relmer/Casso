@@ -146,4 +146,11 @@ public:
                                                 ThemeLoadError             & outError);
     static std::wstring JoinPath               (const std::wstring         & dir,
                                                 const std::wstring         & leaf);
+
+private:
+    static std::wstring  Utf8ToWide       (const std::string & s);
+    static std::wstring  StripTrailingSep (const std::wstring & p);
+    static bool          GetBoolOpt       (const JsonValue & obj, const std::string & key, bool fallback);
+    static double        GetNumberOpt     (const JsonValue & obj, const std::string & key, double fallback);
+    static std::string   GetStringOpt     (const JsonValue & obj, const std::string & key, const std::string & fallback);
 };

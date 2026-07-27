@@ -128,6 +128,9 @@ protected:
     void    OnCreate ()                                             override;
 
 private:
+    static void          ArgbToFloat4      (uint32_t argb, float (& outRgba)[4]) noexcept;
+    static std::wstring  BuildInvalidLabel (LPCWSTR prefix, const std::wstring & expr, const std::vector<TrackSectorPredicate::RejectedSpan> & spans);
+
     void    RecomputeLayout      ();
     void    LayoutWidgets        ();
     void    UpdateDynamicLabels  ();

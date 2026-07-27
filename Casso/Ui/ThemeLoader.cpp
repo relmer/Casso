@@ -16,75 +16,72 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace
+static constexpr const char *  s_kpszVersionKey  = "$cassoThemeVersion";
+static constexpr const char *  s_kpszBuiltInKey  = "$cassoBuiltIn";
+
+
+std::wstring  ThemeLoader::Utf8ToWide (const std::string & s)
 {
-    constexpr const char *  s_kpszVersionKey  = "$cassoThemeVersion";
-    constexpr const char *  s_kpszBuiltInKey  = "$cassoBuiltIn";
+    // Theme paths in theme.json are ASCII by spec (filename
+    // restrictions). A naive widen is fine for the relative
+    // names we deal with here.
+    return std::wstring (s.begin(), s.end());
+}
 
 
-    std::wstring  Utf8ToWide (const std::string & s)
+bool  ThemeLoader::GetBoolOpt (
+    const JsonValue   & obj,
+    const std::string & key,
+    bool                fallback)
+{
+    bool      result = fallback;
+    HRESULT   hr     = obj.GetBool (key, result);
+    if (FAILED (hr))
     {
-        // Theme paths in theme.json are ASCII by spec (filename
-        // restrictions). A naive widen is fine for the relative
-        // names we deal with here.
-        return std::wstring (s.begin(), s.end());
+        return fallback;
     }
+    return result;
+}
 
 
-    bool  GetBoolOpt (
-        const JsonValue   & obj,
-        const std::string & key,
-        bool                fallback)
+double  ThemeLoader::GetNumberOpt (
+    const JsonValue   & obj,
+    const std::string & key,
+    double              fallback)
+{
+    double    result = fallback;
+    HRESULT   hr     = obj.GetNumber (key, result);
+    if (FAILED (hr))
     {
-        bool      result = fallback;
-        HRESULT   hr     = obj.GetBool (key, result);
-        if (FAILED (hr))
-        {
-            return fallback;
-        }
-        return result;
+        return fallback;
     }
+    return result;
+}
 
 
-    double  GetNumberOpt (
-        const JsonValue   & obj,
-        const std::string & key,
-        double              fallback)
+std::string  ThemeLoader::GetStringOpt (
+    const JsonValue   & obj,
+    const std::string & key,
+    const std::string & fallback)
+{
+    std::string  result = fallback;
+    HRESULT      hr     = obj.GetString (key, result);
+    if (FAILED (hr))
     {
-        double    result = fallback;
-        HRESULT   hr     = obj.GetNumber (key, result);
-        if (FAILED (hr))
-        {
-            return fallback;
-        }
-        return result;
+        return fallback;
     }
+    return result;
+}
 
 
-    std::string  GetStringOpt (
-        const JsonValue   & obj,
-        const std::string & key,
-        const std::string & fallback)
+std::wstring  ThemeLoader::StripTrailingSep (const std::wstring & p)
+{
+    std::wstring  r = p;
+    while (!r.empty() && (r.back() == L'\\' || r.back() == L'/'))
     {
-        std::string  result = fallback;
-        HRESULT      hr     = obj.GetString (key, result);
-        if (FAILED (hr))
-        {
-            return fallback;
-        }
-        return result;
+        r.pop_back();
     }
-
-
-    std::wstring  StripTrailingSep (const std::wstring & p)
-    {
-        std::wstring  r = p;
-        while (!r.empty() && (r.back() == L'\\' || r.back() == L'/'))
-        {
-            r.pop_back();
-        }
-        return r;
-    }
+    return r;
 }
 
 
@@ -547,3 +544,4 @@ HRESULT ThemeLoader::Load (
 
     return S_OK;
 }
+
