@@ -233,9 +233,9 @@ STDMETHODIMP_(ULONG) DxuiDragDropTarget::Release()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT DxuiDragDropTarget::ExtractFirstHDropPath (IDataObject * pData, std::wstring & outPath)
+bool DxuiDragDropTarget::ExtractFirstHDropPath (IDataObject * pData, std::wstring & outPath)
 {
-    HRESULT   hr         = S_OK;
+    bool      fGotPath   = false;
     FORMATETC fmt        = { CF_HDROP, nullptr, DVASPECT_CONTENT, -1, TYMED_HGLOBAL };
     STGMEDIUM medium     = { };
     HDROP     hDrop      = nullptr;
@@ -250,14 +250,11 @@ HRESULT DxuiDragDropTarget::ExtractFirstHDropPath (IDataObject * pData, std::wst
 
     if (pData == nullptr)
     {
-        hr = S_FALSE;
         goto Cleanup;
     }
 
-    hr = pData->GetData (&fmt, &medium);
-    if (FAILED (hr))
+    if (FAILED (pData->GetData (&fmt, &medium)))
     {
-        hr = S_FALSE;
         goto Cleanup;
     }
 
@@ -265,7 +262,6 @@ HRESULT DxuiDragDropTarget::ExtractFirstHDropPath (IDataObject * pData, std::wst
     hDrop      = static_cast<HDROP> (GlobalLock (medium.hGlobal));
     if (hDrop == nullptr)
     {
-        hr = S_FALSE;
         goto Cleanup;
     }
 
@@ -273,18 +269,16 @@ HRESULT DxuiDragDropTarget::ExtractFirstHDropPath (IDataObject * pData, std::wst
     cFiles  = DragQueryFileW (hDrop, 0xFFFFFFFF, nullptr, 0);
     if (cFiles == 0)
     {
-        hr = S_FALSE;
         goto Cleanup;
     }
 
     if (DragQueryFileW (hDrop, 0, buffer, MAX_PATH) == 0)
     {
-        hr = S_FALSE;
         goto Cleanup;
     }
 
-    outPath = buffer;
-    hr      = S_OK;
+    outPath  = buffer;
+    fGotPath = true;
 
 Cleanup:
     if (fLocked)
@@ -297,7 +291,7 @@ Cleanup:
         ReleaseStgMedium (&medium);
     }
 
-    return hr;
+    return fGotPath;
 }
 
 
@@ -316,7 +310,7 @@ STDMETHODIMP DxuiDragDropTarget::DragEnter (
     DWORD       * pdwEffect)
 {
     std::wstring  path;
-    HRESULT       hr = S_OK;
+    bool          fGotPath = false;
 
 
 
@@ -324,8 +318,8 @@ STDMETHODIMP DxuiDragDropTarget::DragEnter (
     m_fDragHasSupportedFile = false;
     m_dragPath.clear();
 
-    hr = ExtractFirstHDropPath (pData, path);
-    if (hr == S_OK && (!m_filter || m_filter (path)))
+    fGotPath = ExtractFirstHDropPath (pData, path);
+    if (fGotPath && (!m_filter || m_filter (path)))
     {
         m_fDragHasSupportedFile = true;
         m_dragPath              = path;

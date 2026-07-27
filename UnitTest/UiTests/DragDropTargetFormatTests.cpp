@@ -134,9 +134,9 @@ namespace
     {
         MockHDropDataObject  obj (input);
         std::wstring         got;
-        HRESULT              hr = DxuiDragDropTarget::ExtractFirstHDropPath (&obj, got);
+        bool                 fGotPath = DxuiDragDropTarget::ExtractFirstHDropPath (&obj, got);
 
-        Assert::AreEqual (S_OK, hr, L"ExtractFirstHDropPath should return S_OK");
+        Assert::IsTrue (fGotPath, L"ExtractFirstHDropPath must report it found a path");
         Assert::AreEqual (input.c_str(), got.c_str(),
             L"Path round-trip must preserve the original wide string verbatim");
     }
@@ -180,9 +180,9 @@ public:
     TEST_METHOD (ExtractFirstHDropPath_NullDataObject_ReturnsFalse)
     {
         std::wstring  got = L"sentinel";
-        HRESULT       hr  = DxuiDragDropTarget::ExtractFirstHDropPath (nullptr, got);
+        bool          fGotPath = DxuiDragDropTarget::ExtractFirstHDropPath (nullptr, got);
 
-        Assert::AreEqual (S_FALSE, hr);
+        Assert::IsFalse (fGotPath);
         Assert::IsTrue   (got.empty(), L"outPath must be cleared on failure");
     }
 };
