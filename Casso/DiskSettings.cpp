@@ -130,7 +130,7 @@ HRESULT DiskSettings::ReadSavedDiskPath (
 
     outPath.clear();
 
-    BAIL_OUT_IF (drive < 0 || drive > 1 || machineName.empty(), E_INVALIDARG);
+    CBRAEx (drive >= 0 && drive <= 1 && !machineName.empty(), E_INVALIDARG);
 
     hr = LoadMachineDefaultJson (machineName, defaultJson);
     BAIL_OUT_IF (hr != S_OK, S_FALSE);
@@ -188,7 +188,7 @@ HRESULT DiskSettings::WriteSavedDiskPath (
 
     
 
-    BAIL_OUT_IF (drive < 0 || drive > 1 || machineName.empty(), E_INVALIDARG);
+    CBRAEx (drive >= 0 && drive <= 1 && !machineName.empty(), E_INVALIDARG);
 
     hr = LoadMachineDefaultJson (machineName, defaultJson);
     BAIL_OUT_IF (hr != S_OK, S_FALSE);
@@ -286,7 +286,7 @@ HRESULT DiskSettings::WriteSavedUiPrefBool (
 
 
 
-    BAIL_OUT_IF (key.empty() || machineName.empty(), E_INVALIDARG);
+    CBRAEx (!key.empty() && !machineName.empty(), E_INVALIDARG);
 
     hr = LoadMachineDefaultJson (machineName, defaultJson);
     BAIL_OUT_IF (hr != S_OK, S_FALSE);

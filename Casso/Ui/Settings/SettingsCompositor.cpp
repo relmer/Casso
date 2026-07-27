@@ -364,7 +364,7 @@ HRESULT SettingsCompositor::EnsureBlurTextures (int widthPx, int heightPx)
     D3D11_TEXTURE2D_DESC  td = {};
 
 
-    BAIL_OUT_IF (widthPx <= 0 || heightPx <= 0, E_INVALIDARG);
+    CBRAEx (widthPx > 0 && heightPx > 0, E_INVALIDARG);
     BAIL_OUT_IF (m_blurWidthPx == widthPx && m_blurHeightPx == heightPx && m_blurHTex != nullptr, S_OK);
 
     ReleaseBlurTextures();

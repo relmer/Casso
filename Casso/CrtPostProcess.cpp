@@ -520,7 +520,7 @@ HRESULT CrtPostProcess::EnsureSize (int width, int height)
     int                  i   = 0;
 
 
-    BAIL_OUT_IF (width <= 0 || height <= 0, E_INVALIDARG);
+    CBRAEx (width > 0 && height > 0, E_INVALIDARG);
 
     if (width == m_width && height == m_height && m_ppMainTex[0])
     {
