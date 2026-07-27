@@ -11,36 +11,33 @@
 
 
 
-namespace
+static constexpr uint32_t  s_kFocusRingArgb   = 0xFFAACCFF;
+static constexpr float     s_kFocusRingPx     = 1.5f;
+static constexpr float     s_kFocusInsetPx    = -2.0f;
+static constexpr int       s_kRowHeightDip     = 28;
+static constexpr int       s_kTextInsetDip     = 8;
+static constexpr int       s_kChevronWidthDip  = 10;
+static constexpr int       s_kChevronHeightDip = 5;
+static constexpr int       s_kChevronRightDip  = 10;
+static constexpr uint32_t  s_kBoxIdleArgb     = 0xFF263241;
+static constexpr uint32_t  s_kBoxHoverArgb    = 0xFF33475C;
+static constexpr uint32_t  s_kBoxPressedArgb  = 0xFF1E2733;
+static constexpr uint32_t  s_kBoxDisabledArgb = 0xFF1C242F;
+static constexpr uint32_t  s_kMenuArgb        = 0xFF202A35;
+static constexpr uint32_t  s_kMenuHoverArgb   = 0xFF34475F;
+static constexpr uint32_t  s_kTextArgb        = 0xFFE8EEF4;
+static constexpr uint32_t  s_kTextDisabledArgb = 0xFF6A7585;
+static constexpr uint32_t  s_kEdgeArgb        = 0xFF5C7088;
+static constexpr uint32_t  s_kEdgeDisabledArgb = 0xFF364252;
+static constexpr float     s_kEdgePx          = 1.0f;
+static constexpr float     s_kFontDip         = 13.0f;
+static constexpr float     s_kDisabledScale   = 0.7f;   // darken themed box fill for the disabled state
+static constexpr const wchar_t * s_kFontFamily    = DxuiTheme::kBodyFace;
+
+
+bool DxuiDropdown::RectContains (const RECT & rect, int x, int y)
 {
-    constexpr uint32_t  s_kFocusRingArgb   = 0xFFAACCFF;
-    constexpr float     s_kFocusRingPx     = 1.5f;
-    constexpr float     s_kFocusInsetPx    = -2.0f;
-    constexpr int       s_kRowHeightDip     = 28;
-    constexpr int       s_kTextInsetDip     = 8;
-    constexpr int       s_kChevronWidthDip  = 10;
-    constexpr int       s_kChevronHeightDip = 5;
-    constexpr int       s_kChevronRightDip  = 10;
-    constexpr uint32_t  s_kBoxIdleArgb     = 0xFF263241;
-    constexpr uint32_t  s_kBoxHoverArgb    = 0xFF33475C;
-    constexpr uint32_t  s_kBoxPressedArgb  = 0xFF1E2733;
-    constexpr uint32_t  s_kBoxDisabledArgb = 0xFF1C242F;
-    constexpr uint32_t  s_kMenuArgb        = 0xFF202A35;
-    constexpr uint32_t  s_kMenuHoverArgb   = 0xFF34475F;
-    constexpr uint32_t  s_kTextArgb        = 0xFFE8EEF4;
-    constexpr uint32_t  s_kTextDisabledArgb = 0xFF6A7585;
-    constexpr uint32_t  s_kEdgeArgb        = 0xFF5C7088;
-    constexpr uint32_t  s_kEdgeDisabledArgb = 0xFF364252;
-    constexpr float     s_kEdgePx          = 1.0f;
-    constexpr float     s_kFontDip         = 13.0f;
-    constexpr float     s_kDisabledScale   = 0.7f;   // darken themed box fill for the disabled state
-    constexpr const wchar_t * s_kFontFamily    = DxuiTheme::kBodyFace;
-
-
-    bool RectContains (const RECT & rect, int x, int y)
-    {
-        return x >= rect.left && x < rect.right && y >= rect.top && y < rect.bottom;
-    }
+    return x >= rect.left && x < rect.right && y >= rect.top && y < rect.bottom;
 }
 
 
@@ -914,3 +911,4 @@ std::wstring DxuiDropdown::AccessibleName() const
 
     return m_items[(size_t) m_selected];
 }
+

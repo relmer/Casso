@@ -74,6 +74,8 @@ public:
     const DxuiDropdown    & MechanismDropdown    () const { return m_mechanism; }
 
 private:
+    static RECT  MakeRect (int l, int t, int w, int h);
+
     void  ApplyDriveAudioChildEnabled (bool enabled);
     void  ConfigureVolumeSlider       (DxuiSlider & slider, const RECT & rect);
     void  ConfigurePanSlider          (DxuiSlider & slider, const RECT & rect);

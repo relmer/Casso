@@ -9,27 +9,24 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  Anonymous helpers
+//  File-local helpers
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace
+static constexpr int    s_kRowHeightDp     = 28;
+static constexpr int    s_kLabelWidthDp    = 140;
+static constexpr int    s_kCheckWidthDp    = 140;
+static constexpr int    s_kDropdownWidthDp = 200;
+static constexpr int    s_kSectionGapDp    = 14;
+static constexpr int    s_kPagePadDp       = 16;
+static constexpr int    s_kPlayGapDp       = 8;
+static constexpr int    s_kResetWidthDp    = 130;
+
+
+RECT DiskPage::MakeRect (int l, int t, int w, int h)
 {
-    constexpr int    s_kRowHeightDp     = 28;
-    constexpr int    s_kLabelWidthDp    = 140;
-    constexpr int    s_kCheckWidthDp    = 140;
-    constexpr int    s_kDropdownWidthDp = 200;
-    constexpr int    s_kSectionGapDp    = 14;
-    constexpr int    s_kPagePadDp       = 16;
-    constexpr int    s_kPlayGapDp       = 8;
-    constexpr int    s_kResetWidthDp    = 130;
-
-
-    RECT MakeRect (int l, int t, int w, int h)
-    {
-        RECT  rc = { l, t, l + w, t + h };
-        return rc;
-    }
+    RECT  rc = { l, t, l + w, t + h };
+    return rc;
 }
 
 
@@ -454,3 +451,4 @@ void DiskPage::ResetDriveAudioToDefaults()
 Error:
     return;
 }
+

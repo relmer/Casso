@@ -16,22 +16,19 @@ static_assert ((int) DxuiFontWeight::Bold     == DWRITE_FONT_WEIGHT_BOLD,      "
 
 
 
-namespace
+static constexpr float  s_kByteToUnit = 1.0f / 255.0f;
+
+
+D2D1_COLOR_F  DxuiTextRenderer::ColorFromArgb (uint32_t argbColor)
 {
-    constexpr float  s_kByteToUnit = 1.0f / 255.0f;
+    D2D1_COLOR_F  c;
 
+    c.a = ((argbColor >> 24) & 0xFF) * s_kByteToUnit;
+    c.r = ((argbColor >> 16) & 0xFF) * s_kByteToUnit;
+    c.g = ((argbColor >>  8) & 0xFF) * s_kByteToUnit;
+    c.b = ((argbColor      ) & 0xFF) * s_kByteToUnit;
 
-    inline D2D1_COLOR_F  ColorFromArgb (uint32_t argbColor)
-    {
-        D2D1_COLOR_F  c;
-
-        c.a = ((argbColor >> 24) & 0xFF) * s_kByteToUnit;
-        c.r = ((argbColor >> 16) & 0xFF) * s_kByteToUnit;
-        c.g = ((argbColor >>  8) & 0xFF) * s_kByteToUnit;
-        c.b = ((argbColor      ) & 0xFF) * s_kByteToUnit;
-
-        return c;
-    }
+    return c;
 }
 
 
@@ -1269,3 +1266,4 @@ HRESULT DxuiTextRenderer::OnDeviceRestored (ID3D11Device * pDevice)
 
     return Initialize (pDevice);
 }
+

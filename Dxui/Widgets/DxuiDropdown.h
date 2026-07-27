@@ -100,6 +100,8 @@ public:
     void  SetTheme       (const IDxuiTheme * theme) const;
 
 private:
+    static bool  RectContains (const RECT & rect, int x, int y);
+
     struct ResolvedColors
     {
         uint32_t  boxIdle;

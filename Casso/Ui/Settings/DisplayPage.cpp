@@ -10,28 +10,25 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  Anonymous helpers
+//  File-local helpers
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace
+// Match MachinePage's row spacing exactly so the two pages feel
+// consistent when the user tabs between them.
+static constexpr int    s_kRowHeightDp     = 28;
+static constexpr int    s_kLabelWidthDp    = 140;
+static constexpr int    s_kDropdownWidthDp = 220;
+static constexpr int    s_kSliderWidthDp   = 280;
+static constexpr int    s_kSectionGapDp    = 14;       // gap between adjacent rows
+static constexpr int    s_kBigSectionGapDp = 22;       // gap between distinct "sections"
+static constexpr int    s_kPagePadDp       = 16;
+
+
+RECT DisplayPage::MakeRect (int l, int t, int w, int h)
 {
-    // Match MachinePage's row spacing exactly so the two pages feel
-    // consistent when the user tabs between them.
-    constexpr int    s_kRowHeightDp     = 28;
-    constexpr int    s_kLabelWidthDp    = 140;
-    constexpr int    s_kDropdownWidthDp = 220;
-    constexpr int    s_kSliderWidthDp   = 280;
-    constexpr int    s_kSectionGapDp    = 14;       // gap between adjacent rows
-    constexpr int    s_kBigSectionGapDp = 22;       // gap between distinct "sections"
-    constexpr int    s_kPagePadDp       = 16;
-
-
-    RECT MakeRect (int l, int t, int w, int h)
-    {
-        RECT  rc = { l, t, l + w, t + h };
-        return rc;
-    }
+    RECT  rc = { l, t, l + w, t + h };
+    return rc;
 }
 
 
@@ -900,3 +897,4 @@ void DisplayPage::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text,
     text.SetGlobalAlpha    (1.0f);
     m_textColor.PaintMenu   (painter, text);
 }
+

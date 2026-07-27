@@ -10,39 +10,36 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  Anonymous helpers
+//  File-local helpers
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace
+static constexpr float     s_kEpsilon           = 1e-6f;
+
+
+float  DxuiSlider::Clamp (float v, float lo, float hi)
 {
-    constexpr float     s_kEpsilon           = 1e-6f;
+    if (v < lo) { return lo; }
+    if (v > hi) { return hi; }
+    return v;
+}
 
 
-    float  Clamp (float v, float lo, float hi)
+float  DxuiSlider::QuantizeToStep (float value, float minValue, float step)
+{
+    float  raw = 0.0f;
+    float  q   = 0.0f;
+
+
+
+    if (step <= s_kEpsilon)
     {
-        if (v < lo) { return lo; }
-        if (v > hi) { return hi; }
-        return v;
+        return value;
     }
 
-
-    float  QuantizeToStep (float value, float minValue, float step)
-    {
-        float  raw = 0.0f;
-        float  q   = 0.0f;
-
-
-
-        if (step <= s_kEpsilon)
-        {
-            return value;
-        }
-
-        raw = (value - minValue) / step;
-        q   = std::round (raw) * step + minValue;
-        return q;
-    }
+    raw = (value - minValue) / step;
+    q   = std::round (raw) * step + minValue;
+    return q;
 }
 
 
@@ -597,3 +594,4 @@ bool DxuiSlider::OnKey (const DxuiKeyEvent & ev)
 
     return OnKey (ev.vk);
 }
+

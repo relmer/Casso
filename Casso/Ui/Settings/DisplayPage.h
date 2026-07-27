@@ -189,6 +189,8 @@ public:
     DxuiButton   & RestoreButton      () { return m_restore;          }
 
 private:
+    static RECT  MakeRect (int l, int t, int w, int h);
+
     void  RefreshTextColorEnabled ();
     bool  TextColorActive () const;
 
