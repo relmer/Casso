@@ -359,9 +359,18 @@ void Function2()
 `scripts/CheckStyle.ps1` mechanically enforces the subset of the style rules
 above that reduce to a regex: empty-paren spacing, anonymous namespaces,
 American spelling, angle-bracket includes, `Pch.h`-first, bare `goto Error`,
-cast spacing, and Claude attribution in commit messages. Rules that need
-judgment — column alignment, the blank-line counts, magic numbers, EHM
-single-exit — are **not** covered and remain review's job.
+cast spacing, producing `S_FALSE`, and Claude attribution in commit messages.
+Rules that need judgment — column alignment, the blank-line counts, magic
+numbers, EHM single-exit — are **not** covered and remain review's job.
+
+**`S_FALSE` (CS0009).** Do not *produce* `S_FALSE` without explicit
+approval. Returning it overloads the result with a second, private meaning —
+"succeeded, but not the way you'd assume" — that a caller can only decode by
+reading the callee. Model the second outcome explicitly instead, with a
+status enum or an out-param, and leave `hr` meaning only success or failure.
+*Testing* for `S_FALSE` is not flagged: when an external API returns it you
+have no choice. Where producing it is genuinely unavoidable, mark the line
+`// EHM-ALLOW-SFALSE: <reason>`.
 
 Enable the hook once per clone (shared by all worktrees):
 

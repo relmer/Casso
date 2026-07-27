@@ -113,6 +113,19 @@ $checks = @(
         Exclude = @('CassoCore/Ehm.h', 'CassoCore/Ehm.cpp', 'UnitTest/EhmTestHelper.h', 'UnitTest/EhmTestHelper.cpp')
     },
     @{
+        # Producing S_FALSE overloads the return with a second, private
+        # meaning -- "succeeded, but not the way you'd assume" -- which the
+        # caller can only decode by reading the callee. Prefer an explicit
+        # out-param or enum. TESTING for S_FALSE is not flagged: consuming an
+        # external API that returns it leaves no choice.
+        Id       = 'CS0009'
+        Globs    = @('*.cpp', '*.h')
+        Pattern  = '\breturn\s+S_FALSE\b|(?<![=!<>])=\s*S_FALSE\b|,\s*S_FALSE\s*\)'
+        Message  = 'producing S_FALSE -- use an explicit status enum/out-param, or mark the line // EHM-ALLOW-SFALSE: <reason>'
+        Exclude  = @('CassoCore/Ehm.h')
+        Suppress = 'EHM-ALLOW-SFALSE'
+    },
+    @{
         Id      = 'CS0007'
         Globs   = @('*.cpp', '*.h')
         Pattern = '\((?:int|unsigned|float|double|char|bool|size_t|Word|Byte|SByte|u?int(?:8|16|32|64)_t)\)[A-Za-z_(]'
@@ -285,6 +298,14 @@ function Invoke-FileChecks
     {
         foreach ($check in $applicable)
         {
+            # A per-line opt-out, for checks that gate a judgment call rather
+            # than a defect. Requires the author to write the marker on the
+            # line, which is the "explicit approval" the rule is asking for.
+            if ($check.Suppress -and $entry.Text -match $check.Suppress)
+            {
+                continue
+            }
+
             if ($entry.Text -match $check.Pattern)
             {
                 $Sink.Add([pscustomobject]@{
