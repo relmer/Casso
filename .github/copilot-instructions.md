@@ -363,6 +363,13 @@ cast spacing, producing `S_FALSE`, and Claude attribution in commit messages.
 Rules that need judgment — column alignment, the blank-line counts, magic
 numbers, EHM single-exit — are **not** covered and remain review's job.
 
+**`bool` returns must be self-describing.** Return `bool` only when the
+function's name makes `true` / `false` obvious: `IsXxx`, `HasXxx`, `TryXxx`,
+`CanXxx`. `ExtractFirstHDropPath` returning `false` could mean no data object,
+no path, or a failed read; `TryExtractFirstHDropPath` says which. When
+converting a function away from `HRESULT`, rename it to suit. Not gated yet —
+see `docs/coding-standards-backlog.md`.
+
 **`S_FALSE` (CS0009).** Do not *produce* `S_FALSE` without explicit
 approval. Returning it overloads the result with a second, private meaning —
 "succeeded, but not the way you'd assume" — that a caller can only decode by
