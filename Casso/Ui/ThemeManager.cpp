@@ -113,11 +113,6 @@ HRESULT ThemeManager::Discover()
 
     hr = ThemeLoader::EnumerateCandidateDirs (m_fs, m_themesBaseDir, candidates);
 
-    if (hr == S_FALSE)
-    {
-        return S_OK;
-    }
-
     CHRA (hr);
 
     for (const std::wstring & name : candidates)
@@ -147,7 +142,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT ThemeManager::Activate (const std::string & themeName)
+bool ThemeManager::TryActivate (const std::string & themeName)
 {
     for (const LoadedTheme & t : m_available)
     {
@@ -162,11 +157,11 @@ HRESULT ThemeManager::Activate (const std::string & themeName)
                 LoadedTheme  resolved = t.ResolveForMachine (m_activeMachine);
                 NotifyListeners (resolved);
             }
-            return S_OK;
+            return true;
         }
     }
 
-    return S_FALSE;
+    return false;
 }
 
 
@@ -175,11 +170,11 @@ HRESULT ThemeManager::Activate (const std::string & themeName)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ActivateByFamilyVariant
+//  TryActivateByFamilyVariant
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT ThemeManager::ActivateByFamilyVariant (
+bool ThemeManager::TryActivateByFamilyVariant (
     const std::string & familyId,
     const std::string & variantId)
 {
@@ -187,11 +182,11 @@ HRESULT ThemeManager::ActivateByFamilyVariant (
     {
         if (t.familyId == familyId && t.variantId == variantId)
         {
-            return Activate (t.name);
+            return TryActivate (t.name);
         }
     }
 
-    return S_FALSE;
+    return false;
 }
 
 
@@ -216,7 +211,10 @@ HRESULT ThemeManager::ReloadCurrent()
 
     if (!previousActive.empty())
     {
-        hr = Activate (previousActive);
+        // Best-effort: the reload itself succeeded. Whether the previously
+        // active theme still exists is reported by GetActiveThemeName, not
+        // by failing the reload.
+        TryActivate (previousActive);
     }
 
 Error:

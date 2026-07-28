@@ -123,7 +123,7 @@ std::wstring ThemeLoader::JoinPath (
 //  Walks `<themesBaseDir>` and returns the subset of sub-directory
 //  names that look like candidate themes (theme.json exists). The
 //  returned names are bare directory names — caller composes the
-//  absolute path. Returns S_FALSE (with empty list) if
+//  absolute path. Returns S_OK with an empty list if
 //  `themesBaseDir` itself doesn't exist.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -145,8 +145,10 @@ HRESULT ThemeLoader::EnumerateCandidateDirs (
 
     if (FAILED (hr))
     {
-        // Base directory missing → S_FALSE with empty list.
-        return S_FALSE;
+        // Base directory missing: no themes to enumerate. outNames is already
+        // cleared, and that emptiness is the whole answer -- no second result
+        // code needed.
+        return S_OK;
     }
 
     for (i = 0; i < dirs.size(); ++i)

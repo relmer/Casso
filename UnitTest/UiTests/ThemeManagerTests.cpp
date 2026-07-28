@@ -120,9 +120,9 @@ public:
         WriteValidTheme (fs, std::wstring (kThemesBase) + L"\\Skeuomorphic", kSkeuoJson);
         mgr.Discover();
 
-        HRESULT hr = mgr.Activate ("NoSuchTheme");
+        bool fActivated = mgr.TryActivate ("NoSuchTheme");
 
-        Assert::IsTrue (hr == S_FALSE);
+        Assert::IsFalse (fActivated, L"An unknown theme name must report failure to activate");
         Assert::IsTrue (mgr.GetActiveThemeName().empty());
     }
 
@@ -144,9 +144,9 @@ public:
             ++hits;
         });
 
-        HRESULT hr = mgr.Activate ("DarkModern");
+        bool fActivated = mgr.TryActivate ("DarkModern");
 
-        Assert::IsTrue (SUCCEEDED (hr));
+        Assert::IsTrue (fActivated, L"A known theme name must activate");
         Assert::AreEqual (string ("DarkModern"), mgr.GetActiveThemeName());
         Assert::AreEqual (string ("DarkModern"), observed);
         Assert::AreEqual (1, hits);
@@ -164,9 +164,9 @@ public:
         WriteValidTheme (fs, std::wstring (kThemesBase) + L"\\DarkModern",   kDarkJson);
         mgr.Discover();
 
-        HRESULT hr = mgr.ActivateByFamilyVariant ("apple2", "ii");
+        bool fActivated = mgr.TryActivateByFamilyVariant ("apple2", "ii");
 
-        Assert::IsTrue (SUCCEEDED (hr));
+        Assert::IsTrue (fActivated, L"A known family/variant pair must activate");
         Assert::AreEqual (string ("Skeuomorphic"), mgr.GetActiveThemeName());
     }
 

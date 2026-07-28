@@ -102,8 +102,8 @@ public:
 
     HRESULT                          Discover                  ();
     const std::vector<LoadedTheme> & GetAvailableThemes        () const { return m_available; }
-    HRESULT                          Activate                  (const std::string & themeName);
-    HRESULT                          ActivateByFamilyVariant   (const std::string & familyId,
+    bool                             TryActivate               (const std::string & themeName);
+    bool                             TryActivateByFamilyVariant (const std::string & familyId,
                                                                 const std::string & variantId);
     HRESULT                          ReloadCurrent             ();
     const std::string              & GetActiveThemeName        () const { return m_activeName; }

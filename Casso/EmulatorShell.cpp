@@ -1112,7 +1112,6 @@ void EmulatorShell::RecordActiveMachineSelection()
 
 void EmulatorShell::SubscribeAndActivateTheme()
 {
-    HRESULT  hrActivate = S_OK;
 
 
 
@@ -1132,16 +1131,13 @@ void EmulatorShell::SubscribeAndActivateTheme()
     // correctly-resolved (per-variant) theme.
     m_themeManager->SetActiveMachineName (m_config.name);
 
-    hrActivate = m_themeManager->Activate (m_globalPrefs.activeTheme);
-    if (hrActivate != S_OK)
+    if (!m_themeManager->TryActivate (m_globalPrefs.activeTheme))
     {
-        // Activate returns S_FALSE (not a failure) when the persisted theme
-        // name is unknown -- renamed, deleted, or a stale default. Fall back
-        // to the canonical built-in. If even that isn't in the discovered
-        // set, chrome keeps its constructed Skeuomorphic default, so the
-        // fallback's own S_FALSE is genuinely nothing to act on.
-        hrActivate = m_themeManager->Activate ("Skeuomorphic");
-        IGNORE_RETURN_VALUE (hrActivate, S_OK);
+        // The persisted theme name is unknown -- renamed, deleted, or a stale
+        // default. Fall back to the canonical built-in. If even that is not in
+        // the discovered set, chrome keeps its constructed Skeuomorphic
+        // default, so a failed fallback is genuinely nothing to act on.
+        m_themeManager->TryActivate ("Skeuomorphic");
     }
 }
 
@@ -2640,22 +2636,23 @@ void EmulatorShell::ShowMachinePicker()
 HRESULT EmulatorShell::ApplyAndPersistTheme (const std::string & themeName)
 {
     HRESULT  hr           = S_OK;
-    HRESULT  hrActivate   = S_OK;
     HRESULT  hrSave       = S_OK;
     std::string  resolved = themeName;
 
 
 
     CBRA (m_themeManager);                       // null member = Casso bug
-    BAIL_OUT_IF (themeName.empty(), S_FALSE);     // no theme requested -> no-op
+    BAIL_OUT_IF (themeName.empty(), S_OK);        // no theme requested -> no-op
 
-    hrActivate = m_themeManager->Activate (themeName);
-    if (hrActivate != S_OK)
+    // Best-effort, matching the previous behavior: CHR never bailed here,
+    // because the old Activate reported "no such theme" as S_FALSE, which
+    // CHR treats as success. A wholly failed activation therefore still
+    // persists `resolved` below -- see the note in ApplyThemeLive.
+    if (!m_themeManager->TryActivate (themeName))
     {
-        resolved   = "Skeuomorphic";
-        hrActivate = m_themeManager->Activate (resolved);
+        resolved = "Skeuomorphic";
+        m_themeManager->TryActivate (resolved);
     }
-    CHR (hrActivate);
 
     m_globalPrefs.activeTheme = resolved;
     if (m_userConfigStore != nullptr)
@@ -2690,18 +2687,20 @@ Error:
 HRESULT EmulatorShell::ApplyThemeLive (const std::string & themeName)
 {
     HRESULT  hr         = S_OK;
-    HRESULT  hrActivate = S_OK;
 
 
     CBRA (m_themeManager);                       // null member = Casso bug
-    BAIL_OUT_IF (themeName.empty(), S_FALSE);     // no theme requested -> no-op
+    BAIL_OUT_IF (themeName.empty(), S_OK);        // no theme requested -> no-op
 
-    hrActivate = m_themeManager->Activate (themeName);
-    if (hrActivate != S_OK)
+    // Best-effort. Behavior is unchanged from the S_FALSE era: CHR treated
+    // "no such theme" as success, so neither activation failing was already
+    // not an error here. Worth revisiting -- ApplyAndPersistTheme will
+    // persist a theme name that never activated -- but that is a behavior
+    // change, not a style one.
+    if (!m_themeManager->TryActivate (themeName))
     {
-        hrActivate = m_themeManager->Activate ("Skeuomorphic");
+        m_themeManager->TryActivate ("Skeuomorphic");
     }
-    CHR (hrActivate);
 
 Error:
     return hr;
