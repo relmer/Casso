@@ -186,15 +186,31 @@ protected:
         Byte    y;
         Byte    sp;
         Byte    p;
+        Byte    intr;   // kTraceIntr*: this instruction is a handler entry
     };
 
     static constexpr size_t  kTraceDefaultLookback = 256;
+
+    // Interrupt-dispatch tags for the trace. The dispatch path stamps the
+    // pending kind before the vector is taken; the next TracePush moves it
+    // onto that entry (the handler's first instruction). This lets the dump
+    // flag interrupt entries and summarize the rate -- an interrupt storm
+    // (stuck IRQ line, unacknowledged source, ISR that never returns) is
+    // otherwise invisible in a flat instruction trace.
+    static constexpr Byte    kTraceIntrNone = 0;
+    static constexpr Byte    kTraceIntrIrq  = 1;
+    static constexpr Byte    kTraceIntrNmi  = 2;
 
     std::vector<TraceEntry>  m_trace;                  // sized by EnableTrace
     size_t                   m_traceCapacity = 0;
     size_t                   m_traceHead     = 0;      // next slot to write
     uint64_t                 m_traceCount    = 0;      // total entries pushed
     bool                     m_traceEnabled  = false;
+    Byte                     m_pendingTraceIntr = kTraceIntrNone;
+
+    // Called from the interrupt-dispatch path just before the vector is taken.
+    // Cheap no-op while tracing is off (the common case).
+    void MarkTraceInterrupt (Byte kind) { if (m_traceEnabled) m_pendingTraceIntr = kind; }
 
 public:
     // Enable execution tracing with the given ring capacity (in entries).

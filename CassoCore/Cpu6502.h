@@ -76,6 +76,7 @@ public:
         {
             m_nmiPending = false;
 
+            MarkTraceInterrupt (kTraceIntrNmi);
             DispatchVector (nmiVector, false);
 
             m_lastCycles = 7;
@@ -84,6 +85,7 @@ public:
 
         if (m_irqLine && status.flags.interruptDisable == 0)
         {
+            MarkTraceInterrupt (kTraceIntrIrq);
             DispatchVector (irqVector, false);
 
             m_lastCycles = 7;
