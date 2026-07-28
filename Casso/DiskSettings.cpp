@@ -19,8 +19,10 @@
 ////////////////////////////////////////////////////////////////////////////////
 
 // Load the per-machine default JSON (the on-disk Machines/<Name>/
-// <Name>.json) into `outDefault`. Returns S_FALSE when the file
-// isn't found, S_OK on a clean parse, error HRESULT otherwise.
+// <Name>.json) into `outDefault`. S_OK on a clean parse;
+// HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND) when there is no such file,
+// which callers treat as "this machine has no saved config" rather than a
+// failure; any other error HRESULT is a real load/parse failure.
 HRESULT DiskSettings::LoadMachineDefaultJson (const std::wstring  & machineName,
                                 JsonValue           & outDefault)
 {
@@ -42,13 +44,13 @@ HRESULT DiskSettings::LoadMachineDefaultJson (const std::wstring  & machineName,
 
     if (configPath.empty())
     {
-        return S_FALSE;
+        return HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND);
     }
 
     configFile.open (configPath);
     if (!configFile.good())
     {
-        return S_FALSE;
+        return HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND);
     }
 
     ss << configFile.rdbuf();
@@ -130,22 +132,25 @@ HRESULT DiskSettings::ReadSavedDiskPath (
     CBRAEx (drive >= 0 && drive <= 1 && !machineName.empty(), E_INVALIDARG);
 
     hr = LoadMachineDefaultJson (machineName, defaultJson);
-    BAIL_OUT_IF (hr != S_OK, S_FALSE);
+    BAIL_OUT_IF (hr == HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND), S_OK);
+    CHR (hr);
 
-    // A real load/parse failure propagates; only a non-object result (no saved
-    // config for this machine) is the soft "nothing to read" S_FALSE.
+    // A real load/parse failure propagates (CHR above); a missing file or a
+    // non-object result just means this machine has nothing saved, and that
+    // is reported by leaving outPath empty rather than by a second result
+    // code -- which is what every caller already tests.
     hr = store.Load (WideToUtf8 (machineName), defaultJson, fs, mergedJson);
     CHR (hr);
 
-    BAIL_OUT_IF (mergedJson.GetType() != JsonType::Object, S_FALSE);
+    BAIL_OUT_IF (mergedJson.GetType() != JsonType::Object, S_OK);
 
     // The remaining lookups are for optional keys; absent = nothing saved.
     hr = mergedJson.GetObject ("$cassoUiPrefs", uiPrefs);
-    BAIL_OUT_IF (FAILED (hr) || uiPrefs == nullptr, S_FALSE);
+    BAIL_OUT_IF (FAILED (hr) || uiPrefs == nullptr, S_OK);
     _Analysis_assume_ (uiPrefs != nullptr);
 
     hr = uiPrefs->GetString (keyName, pathNarrow);
-    BAIL_OUT_IF (FAILED (hr) || pathNarrow.empty(), S_FALSE);
+    BAIL_OUT_IF (FAILED (hr) || pathNarrow.empty(), S_OK);
 
     outPath = PathResolver::ResolveExeRelativePath (Utf8ToWide (pathNarrow));
     hr      = S_OK;
@@ -188,12 +193,13 @@ HRESULT DiskSettings::WriteSavedDiskPath (
     CBRAEx (drive >= 0 && drive <= 1 && !machineName.empty(), E_INVALIDARG);
 
     hr = LoadMachineDefaultJson (machineName, defaultJson);
-    BAIL_OUT_IF (hr != S_OK, S_FALSE);
+    BAIL_OUT_IF (hr == HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND), S_OK);
+    CHR (hr);
 
     hr = store.Load (WideToUtf8 (machineName), defaultJson, fs, mergedJson);
     CHR (hr);
 
-    BAIL_OUT_IF (mergedJson.GetType() != JsonType::Object, S_FALSE);
+    BAIL_OUT_IF (mergedJson.GetType() != JsonType::Object, S_OK);
 
     stored       = PathResolver::MakeExeRelativePath (path);
     storedNarrow = WideToUtf8 (stored);
@@ -286,12 +292,13 @@ HRESULT DiskSettings::WriteSavedUiPrefBool (
     CBRAEx (!key.empty() && !machineName.empty(), E_INVALIDARG);
 
     hr = LoadMachineDefaultJson (machineName, defaultJson);
-    BAIL_OUT_IF (hr != S_OK, S_FALSE);
+    BAIL_OUT_IF (hr == HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND), S_OK);
+    CHR (hr);
 
     hr = store.Load (WideToUtf8 (machineName), defaultJson, fs, mergedJson);
     CHR (hr);
 
-    BAIL_OUT_IF (mergedJson.GetType() != JsonType::Object, S_FALSE);
+    BAIL_OUT_IF (mergedJson.GetType() != JsonType::Object, S_OK);
 
     rootEntries = mergedJson.GetObjectEntries();
 
