@@ -275,6 +275,51 @@ private:
     static bool HardwareEqual (const std::vector<HardwareEntry> & a,
                                const std::vector<HardwareEntry> & b);
 
+    // JSON accessors and enum<->string mapping for the settings document.
+    // Every reader is a SettingsPanelState method, so the block belongs to
+    // the class. FindKey in particular collided by name with
+    // MachineConfigUpgrade's, which is what the anonymous namespaces were
+    // hiding.
+    static constexpr const char *  kpszUiPrefsKey = "$cassoUiPrefs";
+    static constexpr const char *  kpszVersionKey = "$cassoMachineVersion";
+
+    static int  FindKey (
+        const std::vector<std::pair<std::string, JsonValue>> & entries,
+        const std::string                                    & key);
+
+    static bool  GetBoolOpt (
+        const JsonValue   & obj,
+        const std::string & key,
+        bool                fallback);
+
+    static std::string  GetStringOpt (
+        const JsonValue   & obj,
+        const std::string & key,
+        const std::string & fallback);
+
+    static int  GetIntOpt (
+        const JsonValue   & obj,
+        const std::string & key,
+        int                 fallback);
+
+    static double  GetNumberOpt (
+        const JsonValue   & obj,
+        const std::string & key,
+        double              fallback);
+
+    static CapabilityFlag  ParseCapability (
+        const std::string & str,
+        CapabilityFlag      fallback);
+
+    static const char *        SpeedToString     (SettingsSpeedMode s);
+    static SettingsSpeedMode   SpeedFromString   (const std::string & s, SettingsSpeedMode fallback);
+    static const char *        ColorToString     (SettingsColorMode c);
+    static SettingsColorMode   ColorFromString   (const std::string & s, SettingsColorMode fallback);
+    static const char *        WriteModeToString (SettingsWriteMode mode);
+    static SettingsWriteMode   WriteModeFromString (const std::string & s, SettingsWriteMode fallback);
+
+    static JsonValue  CloneJson (const JsonValue & v);
+
 
     std::string          m_machineName;
     SettingsMachineInfo  m_machineInfo;

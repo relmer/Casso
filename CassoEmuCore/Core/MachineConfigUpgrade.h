@@ -2,6 +2,10 @@
 
 #include "Pch.h"
 
+// The private JSON-rewriting helpers below name JsonValue in their
+// signatures; only their definitions in the .cpp need the full type.
+class JsonValue;
+
 
 
 
@@ -123,4 +127,41 @@ public:
         const string & content,
         string       & outMigrated,
         bool         & outChanged);
+
+private:
+    // Schema keys and the JSON-rewriting helpers that consume them.
+    // Every reader is MigrateUserConfig, directly or through another of
+    // these, so the block belongs to the class rather than to the
+    // translation unit -- SettingsPanelState.cpp declares its own
+    // kpszVersionKey and FindKey, which is exactly the collision the
+    // anonymous namespaces were papering over.
+    static constexpr const char *  kpszVersionKey         = "$cassoMachineVersion";
+    static constexpr const char *  kpszLegacyVersionKey   = "$cassoDefault";
+    static constexpr const char *  kpszCapabilityFlagKey  = "capabilityFlag";
+    static constexpr const char *  kpszInternalDevicesKey = "internalDevices";
+    static constexpr const char *  kpszSlotsKey           = "slots";
+    static constexpr const char *  kpszInternalDefault    = "required";
+    static constexpr const char *  kpszSlotDefault        = "optional";
+    static constexpr const char *  kpszSlotNumberKey      = "slot";
+    static constexpr const char *  kpszDeviceKey          = "device";
+    static constexpr const char *  kpszPrinterDevice      = "parallel-printer";
+    static constexpr int           kPrinterDefaultSlot    = 1;
+
+    static int  FindKey (
+        const vector<pair<string, JsonValue>> & entries,
+        const string                          & key);
+
+    static bool  EntryHasKey (
+        const JsonValue & entry,
+        const string    & key);
+
+    static bool  InjectCapabilityFlag (
+        JsonValue   & arr,
+        const char  * defaultFlag);
+
+    static bool  InjectPrinterSlot (JsonValue & arr);
+
+    static JsonValue  RewriteTopLevel (
+        const JsonValue & root,
+        bool            & outChanged);
 };

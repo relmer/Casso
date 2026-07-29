@@ -94,6 +94,36 @@ public:
     bool                              IsMatchAll() const noexcept   { return m_matchAll; }
 
 private:
+    // Expression-parsing helpers. Every reader is Parse (directly or via
+    // another of these), so they belong to the class rather than to the
+    // translation unit.
+
+    // Whitespace test that does NOT depend on the C locale. Mirrors
+    // the FR-014a "tolerate surrounding whitespace" rule.
+    static bool  IsAsciiSpace (wchar_t ch) noexcept;
+
+    // Parses `whole '.' frac` into an integer quarter-track count
+    // (whole * 4 + quarterIndex). Only the four exact fractional
+    // forms "0", "25", "5", and "75" are accepted; anything else
+    // rejects the whole token. Returns true on success.
+    static bool  ParseDecimalQt  (std::wstring_view tok, int & outQt)  noexcept;
+    static bool  ParseDecimalInt (std::wstring_view tok, int & outVal) noexcept;
+
+    static bool  ParseValue (std::wstring_view tok,
+                             bool               rawQt,
+                             int &              outVal,
+                             bool &             outIsQt) noexcept;
+
+    // Trims leading / trailing whitespace from [begin, end) and
+    // returns the trimmed substring view into `expr`. Updates the
+    // in/out offsets to reflect the trimmed half-open range so the
+    // caller can record a RejectedSpan covering exactly the token
+    // text (FR-014e: the span MUST cover only the token, not the
+    // surrounding whitespace or comma separators).
+    static std::wstring_view  TrimSpan (std::wstring_view expr, int & ioBegin, int & ioEnd);
+
+    static int   ValueCap (Mode mode, bool isQt) noexcept;
+
     std::vector<Range>          m_ranges;
     std::vector<RejectedSpan>   m_rejected;
     bool                        m_matchAll = true;

@@ -17,202 +17,195 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace
+int  SettingsPanelState::FindKey (
+    const std::vector<std::pair<std::string, JsonValue>> & entries,
+    const std::string                                    & key)
 {
-    constexpr const char *  s_kpszUiPrefsKey      = "$cassoUiPrefs";
-    constexpr const char *  s_kpszVersionKey      = "$cassoMachineVersion";
-
-
-    int  FindKey (
-        const std::vector<std::pair<std::string, JsonValue>> & entries,
-        const std::string                                    & key)
+    int  i = 0;
+    for (i = 0; i < (int) entries.size(); ++i)
     {
-        int  i = 0;
-        for (i = 0; i < (int) entries.size(); ++i)
+        if (entries[(size_t) i].first == key)
         {
-            if (entries[(size_t) i].first == key)
-            {
-                return i;
-            }
+            return i;
         }
-        return -1;
     }
+    return -1;
+}
 
 
-    bool  GetBoolOpt (
-        const JsonValue   & obj,
-        const std::string & key,
-        bool                fallback)
+bool  SettingsPanelState::GetBoolOpt (
+    const JsonValue   & obj,
+    const std::string & key,
+    bool                fallback)
+{
+    bool      out = fallback;
+    HRESULT   hr  = obj.GetBool (key, out);
+    if (FAILED (hr))
     {
-        bool      out = fallback;
-        HRESULT   hr  = obj.GetBool (key, out);
-        if (FAILED (hr))
-        {
-            return fallback;
-        }
-        return out;
-    }
-
-
-    std::string  GetStringOpt (
-        const JsonValue   & obj,
-        const std::string & key,
-        const std::string & fallback)
-    {
-        std::string  out = fallback;
-        HRESULT      hr  = obj.GetString (key, out);
-        if (FAILED (hr))
-        {
-            return fallback;
-        }
-        return out;
-    }
-
-
-    int  GetIntOpt (
-        const JsonValue   & obj,
-        const std::string & key,
-        int                 fallback)
-    {
-        int      out = fallback;
-        HRESULT  hr  = obj.GetInt (key, out);
-        if (FAILED (hr))
-        {
-            return fallback;
-        }
-        return out;
-    }
-
-
-    double  GetNumberOpt (
-        const JsonValue   & obj,
-        const std::string & key,
-        double              fallback)
-    {
-        double   out = fallback;
-        HRESULT  hr  = obj.GetNumber (key, out);
-        if (FAILED (hr))
-        {
-            return fallback;
-        }
-        return out;
-    }
-
-
-    CapabilityFlag  ParseCapability (
-        const std::string & str,
-        CapabilityFlag      fallback)
-    {
-        if (str == "optional")        return CapabilityFlag::Optional;
-        if (str == "required")        return CapabilityFlag::Required;
-        if (str == "platform-locked") return CapabilityFlag::PlatformLocked;
         return fallback;
     }
+    return out;
+}
 
 
-    [[maybe_unused]] const char *  CapabilityToString (CapabilityFlag c)
+std::string  SettingsPanelState::GetStringOpt (
+    const JsonValue   & obj,
+    const std::string & key,
+    const std::string & fallback)
+{
+    std::string  out = fallback;
+    HRESULT      hr  = obj.GetString (key, out);
+    if (FAILED (hr))
     {
-        switch (c)
-        {
-            case CapabilityFlag::Optional:       return "optional";
-            case CapabilityFlag::Required:       return "required";
-            case CapabilityFlag::PlatformLocked: return "platform-locked";
-        }
-        return "optional";
-    }
-
-
-    const char *  SpeedToString (SettingsSpeedMode s)
-    {
-        switch (s)
-        {
-            case SettingsSpeedMode::Authentic: return "authentic";
-            case SettingsSpeedMode::Double:    return "double";
-            case SettingsSpeedMode::Maximum:   return "maximum";
-        }
-        return "authentic";
-    }
-
-
-    SettingsSpeedMode  SpeedFromString (
-        const std::string & s,
-        SettingsSpeedMode   fallback)
-    {
-        if (s == "authentic") return SettingsSpeedMode::Authentic;
-        if (s == "double")    return SettingsSpeedMode::Double;
-        if (s == "maximum")   return SettingsSpeedMode::Maximum;
         return fallback;
     }
+    return out;
+}
 
 
-    const char *  ColorToString (SettingsColorMode c)
+int  SettingsPanelState::GetIntOpt (
+    const JsonValue   & obj,
+    const std::string & key,
+    int                 fallback)
+{
+    int      out = fallback;
+    HRESULT  hr  = obj.GetInt (key, out);
+    if (FAILED (hr))
     {
-        switch (c)
-        {
-            case SettingsColorMode::Color: return "color";
-            case SettingsColorMode::Green: return "green";
-            case SettingsColorMode::Amber: return "amber";
-            case SettingsColorMode::White: return "white";
-        }
-        return "color";
-    }
-
-
-    SettingsColorMode  ColorFromString (
-        const std::string & s,
-        SettingsColorMode   fallback)
-    {
-        if (s == "color") return SettingsColorMode::Color;
-        if (s == "green") return SettingsColorMode::Green;
-        if (s == "amber") return SettingsColorMode::Amber;
-        if (s == "white") return SettingsColorMode::White;
         return fallback;
     }
+    return out;
+}
 
 
-    const char *  WriteModeToString (SettingsWriteMode mode)
+double  SettingsPanelState::GetNumberOpt (
+    const JsonValue   & obj,
+    const std::string & key,
+    double              fallback)
+{
+    double   out = fallback;
+    HRESULT  hr  = obj.GetNumber (key, out);
+    if (FAILED (hr))
     {
-        switch (mode)
-        {
-            case SettingsWriteMode::BufferAndFlush: return "buffer-and-flush";
-            case SettingsWriteMode::CopyOnWrite:    return "copy-on-write";
-        }
-        return "buffer-and-flush";
-    }
-
-
-    SettingsWriteMode  WriteModeFromString (
-        const std::string & s,
-        SettingsWriteMode  fallback)
-    {
-        if (s == "buffer-and-flush") return SettingsWriteMode::BufferAndFlush;
-        if (s == "copy-on-write")    return SettingsWriteMode::CopyOnWrite;
         return fallback;
     }
+    return out;
+}
 
 
-    // Deep-copy a JsonValue by writing+re-parsing. Cheap enough for the
-    // settings panel snapshot (one-time at Show()) and avoids needing
-    // a public clone API on JsonValue.
-    JsonValue  CloneJson (const JsonValue & v)
+CapabilityFlag  SettingsPanelState::ParseCapability (
+    const std::string & str,
+    CapabilityFlag      fallback)
+{
+    if (str == "optional")        return CapabilityFlag::Optional;
+    if (str == "required")        return CapabilityFlag::Required;
+    if (str == "platform-locked") return CapabilityFlag::PlatformLocked;
+    return fallback;
+}
+
+
+[[maybe_unused]] const char *  CapabilityToString (CapabilityFlag c)
+{
+    switch (c)
     {
-        std::string          text;
-        JsonWriter::Options  opts;
-        JsonParseError       err;
-        JsonValue            out;
-
-        opts.fPretty = false;
-
-        if (FAILED (JsonWriter::Write (v, opts, text)))
-        {
-            return JsonValue();
-        }
-        if (FAILED (JsonParser::Parse (text, out, err)))
-        {
-            return JsonValue();
-        }
-        return out;
+        case CapabilityFlag::Optional:       return "optional";
+        case CapabilityFlag::Required:       return "required";
+        case CapabilityFlag::PlatformLocked: return "platform-locked";
     }
+    return "optional";
+}
+
+
+const char *  SettingsPanelState::SpeedToString (SettingsSpeedMode s)
+{
+    switch (s)
+    {
+        case SettingsSpeedMode::Authentic: return "authentic";
+        case SettingsSpeedMode::Double:    return "double";
+        case SettingsSpeedMode::Maximum:   return "maximum";
+    }
+    return "authentic";
+}
+
+
+SettingsSpeedMode  SettingsPanelState::SpeedFromString (
+    const std::string & s,
+    SettingsSpeedMode   fallback)
+{
+    if (s == "authentic") return SettingsSpeedMode::Authentic;
+    if (s == "double")    return SettingsSpeedMode::Double;
+    if (s == "maximum")   return SettingsSpeedMode::Maximum;
+    return fallback;
+}
+
+
+const char *  SettingsPanelState::ColorToString (SettingsColorMode c)
+{
+    switch (c)
+    {
+        case SettingsColorMode::Color: return "color";
+        case SettingsColorMode::Green: return "green";
+        case SettingsColorMode::Amber: return "amber";
+        case SettingsColorMode::White: return "white";
+    }
+    return "color";
+}
+
+
+SettingsColorMode  SettingsPanelState::ColorFromString (
+    const std::string & s,
+    SettingsColorMode   fallback)
+{
+    if (s == "color") return SettingsColorMode::Color;
+    if (s == "green") return SettingsColorMode::Green;
+    if (s == "amber") return SettingsColorMode::Amber;
+    if (s == "white") return SettingsColorMode::White;
+    return fallback;
+}
+
+
+const char *  SettingsPanelState::WriteModeToString (SettingsWriteMode mode)
+{
+    switch (mode)
+    {
+        case SettingsWriteMode::BufferAndFlush: return "buffer-and-flush";
+        case SettingsWriteMode::CopyOnWrite:    return "copy-on-write";
+    }
+    return "buffer-and-flush";
+}
+
+
+SettingsWriteMode  SettingsPanelState::WriteModeFromString (
+    const std::string & s,
+    SettingsWriteMode  fallback)
+{
+    if (s == "buffer-and-flush") return SettingsWriteMode::BufferAndFlush;
+    if (s == "copy-on-write")    return SettingsWriteMode::CopyOnWrite;
+    return fallback;
+}
+
+
+// Deep-copy a JsonValue by writing+re-parsing. Cheap enough for the
+// settings panel snapshot (one-time at Show()) and avoids needing
+// a public clone API on JsonValue.
+JsonValue  SettingsPanelState::CloneJson (const JsonValue & v)
+{
+    std::string          text;
+    JsonWriter::Options  opts;
+    JsonParseError       err;
+    JsonValue            out;
+
+    opts.fPretty = false;
+
+    if (FAILED (JsonWriter::Write (v, opts, text)))
+    {
+        return JsonValue();
+    }
+    if (FAILED (JsonParser::Parse (text, out, err)))
+    {
+        return JsonValue();
+    }
+    return out;
 }
 
 
@@ -646,7 +639,7 @@ HRESULT SettingsPanelState::ExtractUiPrefs (
 
     outPrefs = SettingsUiPrefs {};
 
-    hr = mergedJson.GetObject (s_kpszUiPrefsKey, uiObj);
+    hr = mergedJson.GetObject (kpszUiPrefsKey, uiObj);
     if (FAILED (hr) || uiObj == nullptr)
     {
         // No $cassoUiPrefs in the file -- struct defaults stand.
@@ -1151,7 +1144,7 @@ JsonValue SettingsPanelState::BuildJson (
         const std::string & key = (*entries)[i].first;
         const JsonValue   & val = (*entries)[i].second;
 
-        if (key == "internalDevices" || key == "slots" || key == s_kpszUiPrefsKey)
+        if (key == "internalDevices" || key == "slots" || key == kpszUiPrefsKey)
         {
             continue;
         }
@@ -1277,7 +1270,7 @@ JsonValue SettingsPanelState::BuildJson (
     wpArr.emplace_back (JsonValue (prefs.writeProtect[1]));
     uiObj.emplace_back ("writeProtect", JsonValue (std::move (wpArr)));
 
-    root.emplace_back (s_kpszUiPrefsKey, JsonValue (std::move (uiObj)));
+    root.emplace_back (kpszUiPrefsKey, JsonValue (std::move (uiObj)));
 
     return JsonValue (std::move (root));
 }

@@ -4,208 +4,205 @@
 
 
 
-namespace
+////////////////////////////////////////////////////////////////////////////
+//
+//  IsAsciiSpace
+//
+//  Whitespace test that does NOT depend on the C locale. Mirrors
+//  the FR-014a "tolerate surrounding whitespace" rule.
+//
+////////////////////////////////////////////////////////////////////////////
+
+bool TrackSectorPredicate::IsAsciiSpace (wchar_t ch) noexcept
 {
-    ////////////////////////////////////////////////////////////////////////////
-    //
-    //  IsAsciiSpace
-    //
-    //  Whitespace test that does NOT depend on the C locale. Mirrors
-    //  the FR-014a "tolerate surrounding whitespace" rule.
-    //
-    ////////////////////////////////////////////////////////////////////////////
+    return ch == L' '  ||
+           ch == L'\t' ||
+           ch == L'\r' ||
+           ch == L'\n';
+}
 
-    bool IsAsciiSpace (wchar_t ch) noexcept
+
+
+////////////////////////////////////////////////////////////////////////////
+//
+//  ParseDecimalQt
+//
+//  Parses `whole '.' frac` into an integer quarter-track count
+//  (whole * 4 + quarterIndex). Only the four exact fractional
+//  forms "0", "25", "5", and "75" are accepted; anything else
+//  rejects the whole token. Returns true on success.
+//
+////////////////////////////////////////////////////////////////////////////
+
+bool TrackSectorPredicate::ParseDecimalQt (std::wstring_view tok, int & outQt) noexcept
+{
+    HRESULT            hr      = S_OK;
+    size_t             dot     = 0;
+    int                whole   = 0;
+    int                qtIndex = -1;
+    size_t             i       = 0;
+    wchar_t            c       = 0;
+    std::wstring_view  frac;
+    bool               ok      = false;
+
+    dot = tok.find (L'.');
+    CBR (dot != std::wstring_view::npos && dot != 0);
+
+    for (i = 0; i < dot; i++)
     {
-        return ch == L' '  ||
-               ch == L'\t' ||
-               ch == L'\r' ||
-               ch == L'\n';
+        c = tok[i];
+        CBR (c >= L'0' && c <= L'9');
+
+        whole = whole * 10 + (int) (c - L'0');
     }
 
+    frac = tok.substr (dot + 1);
+
+    if      (frac == L"0")  { qtIndex = 0; }
+    else if (frac == L"25") { qtIndex = 1; }
+    else if (frac == L"5")  { qtIndex = 2; }
+    else if (frac == L"75") { qtIndex = 3; }
+    else                    { CBR (false); }
+
+    outQt = whole * TrackSectorPredicate::kQuarterTracksPerTrack + qtIndex;
+    ok    = true;
+
+Error:
+    return ok;
+}
 
 
-    ////////////////////////////////////////////////////////////////////////////
-    //
-    //  ParseDecimalQt
-    //
-    //  Parses `whole '.' frac` into an integer quarter-track count
-    //  (whole * 4 + quarterIndex). Only the four exact fractional
-    //  forms "0", "25", "5", and "75" are accepted; anything else
-    //  rejects the whole token. Returns true on success.
-    //
-    ////////////////////////////////////////////////////////////////////////////
 
-    bool ParseDecimalQt (std::wstring_view tok, int & outQt) noexcept
+////////////////////////////////////////////////////////////////////////////
+//
+//  ParseDecimalInt
+//
+//  Strict non-negative decimal integer. Returns true on success.
+//
+////////////////////////////////////////////////////////////////////////////
+
+bool TrackSectorPredicate::ParseDecimalInt (std::wstring_view tok, int & outVal) noexcept
+{
+    HRESULT  hr = S_OK;
+    int      v  = 0;
+    size_t   i  = 0;
+    wchar_t  c  = 0;
+    bool     ok = false;
+
+    CBR (!tok.empty());
+
+    for (i = 0; i < tok.size(); i++)
     {
-        HRESULT            hr      = S_OK;
-        size_t             dot     = 0;
-        int                whole   = 0;
-        int                qtIndex = -1;
-        size_t             i       = 0;
-        wchar_t            c       = 0;
-        std::wstring_view  frac;
-        bool               ok      = false;
+        c = tok[i];
+        CBR (c >= L'0' && c <= L'9');
 
-        dot = tok.find (L'.');
-        CBR (dot != std::wstring_view::npos && dot != 0);
-
-        for (i = 0; i < dot; i++)
-        {
-            c = tok[i];
-            CBR (c >= L'0' && c <= L'9');
-
-            whole = whole * 10 + (int) (c - L'0');
-        }
-
-        frac = tok.substr (dot + 1);
-
-        if      (frac == L"0")  { qtIndex = 0; }
-        else if (frac == L"25") { qtIndex = 1; }
-        else if (frac == L"5")  { qtIndex = 2; }
-        else if (frac == L"75") { qtIndex = 3; }
-        else                    { CBR (false); }
-
-        outQt = whole * TrackSectorPredicate::kQuarterTracksPerTrack + qtIndex;
-        ok    = true;
-
-    Error:
-        return ok;
+        v = v * 10 + (int) (c - L'0');
     }
 
+    outVal = v;
+    ok     = true;
+
+Error:
+    return ok;
+}
 
 
-    ////////////////////////////////////////////////////////////////////////////
-    //
-    //  ParseDecimalInt
-    //
-    //  Strict non-negative decimal integer. Returns true on success.
-    //
-    ////////////////////////////////////////////////////////////////////////////
 
-    bool ParseDecimalInt (std::wstring_view tok, int & outVal) noexcept
+////////////////////////////////////////////////////////////////////////////
+//
+//  ParseValue
+//
+//  Parses either a bare integer or a decimal quarter-track value.
+//  Output is in quarter-track units when `isQt` comes back true,
+//  otherwise in the natural units of the surrounding token.
+//
+////////////////////////////////////////////////////////////////////////////
+
+bool TrackSectorPredicate::ParseValue (std::wstring_view tok,
+                                       bool               rawQt,
+                                       int &              outVal,
+                                       bool &             outIsQt) noexcept
+{
+    int   qt  = 0;
+    int   val = 0;
+    bool  ok  = false;
+
+    if (ParseDecimalQt (tok, qt))
     {
-        HRESULT  hr = S_OK;
-        int      v  = 0;
-        size_t   i  = 0;
-        wchar_t  c  = 0;
-        bool     ok = false;
-
-        CBR (!tok.empty());
-
-        for (i = 0; i < tok.size(); i++)
-        {
-            c = tok[i];
-            CBR (c >= L'0' && c <= L'9');
-
-            v = v * 10 + (int) (c - L'0');
-        }
-
-        outVal = v;
-        ok     = true;
-
-    Error:
-        return ok;
+        outVal  = qt;
+        outIsQt = true;
+        ok      = true;
+    }
+    else if (ParseDecimalInt (tok, val))
+    {
+        outVal  = val;
+        outIsQt = rawQt;
+        ok      = true;
     }
 
+    return ok;
+}
 
 
-    ////////////////////////////////////////////////////////////////////////////
-    //
-    //  ParseValue
-    //
-    //  Parses either a bare integer or a decimal quarter-track value.
-    //  Output is in quarter-track units when `isQt` comes back true,
-    //  otherwise in the natural units of the surrounding token.
-    //
-    ////////////////////////////////////////////////////////////////////////////
 
-    bool ParseValue (std::wstring_view tok,
-                     bool               rawQt,
-                     int &              outVal,
-                     bool &             outIsQt) noexcept
+////////////////////////////////////////////////////////////////////////////
+//
+//  TrimSpan
+//
+//  Trims leading / trailing whitespace from [begin, end) and
+//  returns the trimmed substring view into `expr`. Updates the
+//  in/out offsets to reflect the trimmed half-open range so the
+//  caller can record a RejectedSpan covering exactly the token
+//  text (FR-014e: the span MUST cover only the token, not the
+//  surrounding whitespace or comma separators).
+//
+////////////////////////////////////////////////////////////////////////////
+
+std::wstring_view TrackSectorPredicate::TrimSpan (std::wstring_view expr, int & ioBegin, int & ioEnd)
+{
+    while (ioBegin < ioEnd && IsAsciiSpace (expr[(size_t) ioBegin]))
     {
-        int   qt  = 0;
-        int   val = 0;
-        bool  ok  = false;
-
-        if (ParseDecimalQt (tok, qt))
-        {
-            outVal  = qt;
-            outIsQt = true;
-            ok      = true;
-        }
-        else if (ParseDecimalInt (tok, val))
-        {
-            outVal  = val;
-            outIsQt = rawQt;
-            ok      = true;
-        }
-
-        return ok;
+        ioBegin++;
     }
 
-
-
-    ////////////////////////////////////////////////////////////////////////////
-    //
-    //  TrimSpan
-    //
-    //  Trims leading / trailing whitespace from [begin, end) and
-    //  returns the trimmed substring view into `expr`. Updates the
-    //  in/out offsets to reflect the trimmed half-open range so the
-    //  caller can record a RejectedSpan covering exactly the token
-    //  text (FR-014e: the span MUST cover only the token, not the
-    //  surrounding whitespace or comma separators).
-    //
-    ////////////////////////////////////////////////////////////////////////////
-
-    std::wstring_view TrimSpan (std::wstring_view expr, int & ioBegin, int & ioEnd)
+    while (ioEnd > ioBegin && IsAsciiSpace (expr[(size_t) (ioEnd - 1)]))
     {
-        while (ioBegin < ioEnd && IsAsciiSpace (expr[(size_t) ioBegin]))
-        {
-            ioBegin++;
-        }
-
-        while (ioEnd > ioBegin && IsAsciiSpace (expr[(size_t) (ioEnd - 1)]))
-        {
-            ioEnd--;
-        }
-
-        return expr.substr ((size_t) ioBegin, (size_t) (ioEnd - ioBegin));
+        ioEnd--;
     }
 
+    return expr.substr ((size_t) ioBegin, (size_t) (ioEnd - ioBegin));
+}
 
 
-    ////////////////////////////////////////////////////////////////////////////
-    //
-    //  ValueCap
-    //
-    //  Returns the exclusive upper bound for a parsed value given the
-    //  parser mode and whether the value is a quarter-track. Sector
-    //  mode caps at 16 (DOS 3.3); track mode caps at 40 whole or 160
-    //  quarter-tracks. Spec-006 bug fix: any value >= the cap is
-    //  rejected (RejectedSpan recorded) so the dialog can squiggle it.
-    //
-    ////////////////////////////////////////////////////////////////////////////
 
-    int ValueCap (TrackSectorPredicate::Mode mode, bool isQt) noexcept
+////////////////////////////////////////////////////////////////////////////
+//
+//  ValueCap
+//
+//  Returns the exclusive upper bound for a parsed value given the
+//  parser mode and whether the value is a quarter-track. Sector
+//  mode caps at 16 (DOS 3.3); track mode caps at 40 whole or 160
+//  quarter-tracks. Spec-006 bug fix: any value >= the cap is
+//  rejected (RejectedSpan recorded) so the dialog can squiggle it.
+//
+////////////////////////////////////////////////////////////////////////////
+
+int TrackSectorPredicate::ValueCap (TrackSectorPredicate::Mode mode, bool isQt) noexcept
+{
+    int  cap = 0;
+
+    if (mode == TrackSectorPredicate::Mode::Sector)
     {
-        int  cap = 0;
-
-        if (mode == TrackSectorPredicate::Mode::Sector)
-        {
-            cap = TrackSectorPredicate::kMaxSectorExclusive;
-        }
-        else
-        {
-            cap = isQt
-                      ? TrackSectorPredicate::kMaxQuarterTrackExclusive
-                      : TrackSectorPredicate::kMaxWholeTrackExclusive;
-        }
-
-        return cap;
+        cap = TrackSectorPredicate::kMaxSectorExclusive;
     }
+    else
+    {
+        cap = isQt
+                  ? TrackSectorPredicate::kMaxQuarterTrackExclusive
+                  : TrackSectorPredicate::kMaxWholeTrackExclusive;
+    }
+
+    return cap;
 }
 
 
