@@ -229,58 +229,56 @@ STDMETHODIMP_(ULONG) DxuiDragDropTarget::Release()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  TryExtractFirstHDropPath
+//  ExtractFirstHDropPath
+//
+//  Pulls the first file path out of a CF_HDROP data object. outPath is
+//  cleared up front and only assigned on success, so a caller that ignores
+//  the HRESULT still sees an empty string on every failure path.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool DxuiDragDropTarget::TryExtractFirstHDropPath (IDataObject * pData, std::wstring & outPath)
+HRESULT DxuiDragDropTarget::ExtractFirstHDropPath (IDataObject * pData, std::wstring & outPath)
 {
-    bool      fGotPath   = false;
-    FORMATETC fmt        = { CF_HDROP, nullptr, DVASPECT_CONTENT, -1, TYMED_HGLOBAL };
-    STGMEDIUM medium     = { };
-    HDROP     hDrop      = nullptr;
-    UINT      cFiles     = 0;
-    bool      fLocked    = false;
-    bool      fGotMedium = false;
-    wchar_t   buffer[MAX_PATH] = { };
+    HRESULT    hr         = S_OK;
+    FORMATETC  fmt        = { CF_HDROP, nullptr, DVASPECT_CONTENT, -1, TYMED_HGLOBAL };
+    STGMEDIUM  medium     = { };
+    HDROP      hDrop      = nullptr;
+    UINT       cFiles     = 0;
+    UINT       cchCopied  = 0;
+    bool       fLocked    = false;
+    bool       fGotMedium = false;
+    wchar_t    buffer[MAX_PATH] = { };
 
 
 
     outPath.clear();
 
-    if (pData == nullptr)
-    {
-        goto Cleanup;
-    }
+    // A null data object from OLE is a caller bug, not a drag without files.
+    CBRAEx (pData != nullptr, E_INVALIDARG);
 
-    if (FAILED (pData->GetData (&fmt, &medium)))
-    {
-        goto Cleanup;
-    }
+    // Not a CF_HDROP drag (text, a URL, anything else) -- an expected miss,
+    // so this does not assert.
+    hr = pData->GetData (&fmt, &medium);
+    CHR (hr);
 
     fGotMedium = true;
-    hDrop      = static_cast<HDROP> (GlobalLock (medium.hGlobal));
-    if (hDrop == nullptr)
-    {
-        goto Cleanup;
-    }
+
+    // GlobalLock documents GetLastError, so CWRA keeps the real code rather
+    // than flattening it.
+    hDrop = static_cast<HDROP> (GlobalLock (medium.hGlobal));
+    CWRA (hDrop);
 
     fLocked = true;
-    cFiles  = DragQueryFileW (hDrop, 0xFFFFFFFF, nullptr, 0);
-    if (cFiles == 0)
-    {
-        goto Cleanup;
-    }
 
-    if (DragQueryFileW (hDrop, 0, buffer, MAX_PATH) == 0)
-    {
-        goto Cleanup;
-    }
+    cFiles = DragQueryFileW (hDrop, 0xFFFFFFFF, nullptr, 0);
+    CBR (cFiles != 0);
 
-    outPath  = buffer;
-    fGotPath = true;
+    cchCopied = DragQueryFileW (hDrop, 0, buffer, MAX_PATH);
+    CBR (cchCopied != 0);
 
-Cleanup:
+    outPath = buffer;
+
+Error:
     if (fLocked)
     {
         GlobalUnlock (medium.hGlobal);
@@ -291,7 +289,7 @@ Cleanup:
         ReleaseStgMedium (&medium);
     }
 
-    return fGotPath;
+    return hr;
 }
 
 
@@ -310,7 +308,7 @@ STDMETHODIMP DxuiDragDropTarget::DragEnter (
     DWORD       * pdwEffect)
 {
     std::wstring  path;
-    bool          fGotPath = false;
+    HRESULT       hrExtract = S_OK;
 
 
 
@@ -318,8 +316,10 @@ STDMETHODIMP DxuiDragDropTarget::DragEnter (
     m_fDragHasSupportedFile = false;
     m_dragPath.clear();
 
-    fGotPath = TryExtractFirstHDropPath (pData, path);
-    if (fGotPath && (!m_filter || m_filter (path)))
+    // A drag carrying something other than files is routine, so a failed
+    // extract is not propagated -- it just means there is nothing to accept.
+    hrExtract = ExtractFirstHDropPath (pData, path);
+    if (SUCCEEDED (hrExtract) && (!m_filter || m_filter (path)))
     {
         m_fDragHasSupportedFile = true;
         m_dragPath              = path;

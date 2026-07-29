@@ -1,4 +1,5 @@
 #include "Pch.h"
+#include "../EhmTestHelper.h"
 
 #include "CppUnitTest.h"
 
@@ -17,12 +18,12 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //  DragDropTargetFormatTests
 //
 //  Verifies the testable subset of T141: that DxuiDragDropTarget::
-//  TryExtractFirstHDropPath round-trips each of the five supported disk
+//  ExtractFirstHDropPath round-trips each of the five supported disk
 //  image extensions (.dsk, .do, .nib, .woz, .po) through a CF_HDROP /
 //  HGLOBAL pipe identical to what Explorer hands us.
 //
 //  Format acceptance / rejection by the mount path itself lives in
-//  the mount adapter and is out of scope here -- TryExtractFirstHDropPath
+//  the mount adapter and is out of scope here -- ExtractFirstHDropPath
 //  is extension-agnostic, but we still want regression coverage that
 //  each extension survives the HDROP encode/decode dance.
 //
@@ -134,9 +135,9 @@ namespace
     {
         MockHDropDataObject  obj (input);
         std::wstring         got;
-        bool                 fGotPath = DxuiDragDropTarget::TryExtractFirstHDropPath (&obj, got);
+        HRESULT              hr = DxuiDragDropTarget::ExtractFirstHDropPath (&obj, got);
 
-        Assert::IsTrue (fGotPath, L"TryExtractFirstHDropPath must report it found a path");
+        Assert::IsTrue (SUCCEEDED (hr), L"ExtractFirstHDropPath must succeed on a CF_HDROP object");
         Assert::AreEqual (input.c_str(), got.c_str(),
             L"Path round-trip must preserve the original wide string verbatim");
     }
@@ -177,13 +178,21 @@ public:
         ExpectRoundTrip (L"C:\\Disks\\\u00C5pple\\caf\u00E9.dsk");
     }
 
-    TEST_METHOD (ExtractFirstHDropPath_NullDataObject_ReturnsFalse)
+    TEST_METHOD (ExtractFirstHDropPath_NullDataObject_ReturnsInvalidArg)
     {
         std::wstring  got = L"sentinel";
-        bool          fGotPath = DxuiDragDropTarget::TryExtractFirstHDropPath (nullptr, got);
+        HRESULT       hr  = S_OK;
 
-        Assert::IsFalse (fGotPath);
-        Assert::IsTrue   (got.empty(), L"outPath must be cleared on failure");
+        {
+            // A null data object is a caller bug, so the guard asserts.
+            UnitTestHelpers::ExpectedEhmAssert   expect;
+
+            hr = DxuiDragDropTarget::ExtractFirstHDropPath (nullptr, got);
+        }
+
+        Assert::AreEqual (E_INVALIDARG, hr,
+            L"A null data object is an argument error, not an empty drag");
+        Assert::IsTrue (got.empty(), L"outPath must be cleared on failure");
     }
 };
 
@@ -293,7 +302,15 @@ public:
         DxuiDragDropTarget  t;
         POINTL          pt     = { 100, 100 };
         DWORD           effect = DROPEFFECT_COPY;
-        HRESULT         hr     = t.DragEnter (nullptr, 0, pt, &effect);
+        HRESULT         hr     = S_OK;
+
+        {
+            // OLE never hands DragEnter a null data object, so the extract
+            // asserts. The drag state still has to stay coherent.
+            UnitTestHelpers::ExpectedEhmAssert   expect;
+
+            hr = t.DragEnter (nullptr, 0, pt, &effect);
+        }
 
         Assert::AreEqual (S_OK, hr);
         Assert::IsTrue   (t.IsDragInProgress(),
