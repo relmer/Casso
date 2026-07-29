@@ -2319,37 +2319,37 @@ HRESULT AssemblySession::Pass1Ignored (const PendingLine & /*current*/, LineInfo
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-const AssemblySession::Pass1DirectiveRow * AssemblySession::Pass1DirectiveTable()
+const AssemblySession::DirectiveRow * AssemblySession::DirectiveRows()
 {
-    static constexpr Pass1DirectiveRow  s_kRows[] =
+    static constexpr DirectiveRow  s_kRows[] =
 {
-    { Directive::None,        nullptr                                       },
-    { Directive::Align,       &AssemblySession::Pass1Align                  },
-    { Directive::Byte,        &AssemblySession::HandlePass1DataDirectives   },
-    { Directive::Cmap,        &AssemblySession::HandleCmapDirective         },
-    { Directive::Dd,          &AssemblySession::Pass1Dd                     },
-    { Directive::Ds,          &AssemblySession::Pass1Ds                     },
-    { Directive::Else,        nullptr                                       },
-    { Directive::End,         &AssemblySession::Pass1End                    },
-    { Directive::Endif,       nullptr                                       },
-    { Directive::Error,       &AssemblySession::Pass1Error                  },
-    { Directive::If,          nullptr                                       },
-    { Directive::Ifdef,       nullptr                                       },
-    { Directive::Ifndef,      nullptr                                       },
-    { Directive::Include,     &AssemblySession::HandleIncludeDirective      },
-    { Directive::List,        &AssemblySession::Pass1List                   },
-    { Directive::MultiNop,    nullptr                                       },
-    { Directive::Nolist,      &AssemblySession::Pass1Nolist                 },
-    { Directive::OptNoop,     &AssemblySession::Pass1Ignored                },
-    { Directive::Org,         nullptr                                       },
-    { Directive::Page,        &AssemblySession::Pass1Ignored                },
-    { Directive::SegmentBss,  nullptr                                       },
-    { Directive::SegmentCode, nullptr                                       },
-    { Directive::SegmentData, nullptr                                       },
-    { Directive::Struct,      &AssemblySession::StartStructDefinition       },
-    { Directive::Text,        &AssemblySession::Pass1Text                   },
-    { Directive::Title,       &AssemblySession::Pass1Title                  },
-    { Directive::Word,        &AssemblySession::Pass1Word                   },
+    { Directive::None,        nullptr,                                      nullptr                                  },
+    { Directive::Align,       &AssemblySession::Pass1Align,                 &AssemblySession::EmitAlignDirective     },
+    { Directive::Byte,        &AssemblySession::HandlePass1DataDirectives,  &AssemblySession::EmitByteDirective      },
+    { Directive::Cmap,        &AssemblySession::HandleCmapDirective,        nullptr                                  },
+    { Directive::Dd,          &AssemblySession::Pass1Dd,                    &AssemblySession::EmitDdDirective        },
+    { Directive::Ds,          &AssemblySession::Pass1Ds,                    &AssemblySession::EmitDsDirective        },
+    { Directive::Else,        nullptr,                                      nullptr                                  },
+    { Directive::End,         &AssemblySession::Pass1End,                   nullptr                                  },
+    { Directive::Endif,       nullptr,                                      nullptr                                  },
+    { Directive::Error,       &AssemblySession::Pass1Error,                 nullptr                                  },
+    { Directive::If,          nullptr,                                      nullptr                                  },
+    { Directive::Ifdef,       nullptr,                                      nullptr                                  },
+    { Directive::Ifndef,      nullptr,                                      nullptr                                  },
+    { Directive::Include,     &AssemblySession::HandleIncludeDirective,     nullptr                                  },
+    { Directive::List,        &AssemblySession::Pass1List,                  nullptr                                  },
+    { Directive::MultiNop,    nullptr,                                      &AssemblySession::EmitMultiNopDirective  },
+    { Directive::Nolist,      &AssemblySession::Pass1Nolist,                nullptr                                  },
+    { Directive::OptNoop,     &AssemblySession::Pass1Ignored,               nullptr                                  },
+    { Directive::Org,         nullptr,                                      nullptr                                  },
+    { Directive::Page,        &AssemblySession::Pass1Ignored,               nullptr                                  },
+    { Directive::SegmentBss,  nullptr,                                      nullptr                                  },
+    { Directive::SegmentCode, nullptr,                                      nullptr                                  },
+    { Directive::SegmentData, nullptr,                                      nullptr                                  },
+    { Directive::Struct,      &AssemblySession::StartStructDefinition,      nullptr                                  },
+    { Directive::Text,        &AssemblySession::Pass1Text,                  &AssemblySession::EmitTextDirective      },
+    { Directive::Title,       &AssemblySession::Pass1Title,                 nullptr                                  },
+    { Directive::Word,        &AssemblySession::Pass1Word,                  &AssemblySession::EmitWordDirective      },
     };
 
     // Adding a Directive without adding its row fails the build here. Row
@@ -2378,10 +2378,10 @@ HRESULT AssemblySession::HandlePass1Directives (const PendingLine & current, Lin
 
     if (token > Directive::None && token < Directive::Count)
     {
-        const Pass1DirectiveRow &  row = Pass1DirectiveTable()[(size_t) token];
+        const DirectiveRow &  row = DirectiveRows()[(size_t) token];
 
         ASSERT (row.token == token);   // the table drifted out of enum order
-        handler = row.handler;
+        handler = row.pass1;
     }
 
     // A directive with no pass-1 row is not ours: an unknown dotted spelling,
@@ -3702,59 +3702,78 @@ HRESULT AssemblySession::ReportUnresolvedEqus()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
+HRESULT AssemblySession::EmitTextDirective (const LineInfo & info, Word & emitPC)
+{
+    std::string  text = Parser::ParseQuotedString (info.parsed.directiveArg);
+
+    for (char c : text)
+    {
+        EmitByte (m_charMap.table[(unsigned char) c], emitPC);
+    }
+
+    return S_OK;
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AssemblySession::EmitMultiNopDirective
+//
+//  `nop <count>` collapses to that many $EA bytes. The count is re-evaluated
+//  in pass 2 because it may reference a label only resolved by then.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT AssemblySession::EmitMultiNopDirective (const LineInfo & info, Word & emitPC)
+{
+    ExprResult  er = ExpressionEvaluator::Evaluate (info.parsed.directiveArg, m_pass2Ctx);
+    int32_t     j  = 0;
+
+    if (er.success && er.value > 0)
+    {
+        for (j = 0; j < er.value; j++)
+        {
+            EmitByte (0xEA, emitPC);
+        }
+    }
+
+    return S_OK;
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AssemblySession::EmitDirectiveBytes
+//
+////////////////////////////////////////////////////////////////////////////////
+
 HRESULT AssemblySession::EmitDirectiveBytes (const LineInfo & info, Word & emitPC)
 {
     HRESULT hr = S_OK;
 
-    const std::string & dir = info.parsed.directive;
+    Directive         token   = info.parsed.directiveToken;
+    Pass2DirectiveFn  emitter = nullptr;
 
 
 
-    if (dir == ".ORG")
+    if (token > Directive::None && token < Directive::Count)
     {
-        // Nothing to emit
-    }
-    else if (dir == ".BYTE")
-    {
-        CHR (EmitByteDirective (info, emitPC));
-    }
-    else if (dir == ".WORD")
-    {
-        CHR (EmitWordDirective (info, emitPC));
-    }
-    else if (dir == ".TEXT")
-    {
-        std::string text = Parser::ParseQuotedString (info.parsed.directiveArg);
+        const DirectiveRow &  row = DirectiveRows()[(size_t) token];
 
-        for (char c : text)
-        {
-            EmitByte (m_charMap.table[(unsigned char) c], emitPC);
-        }
+        ASSERT (row.token == token);   // the table drifted out of enum order
+        emitter = row.pass2;
     }
-    else if (dir == ".DD")
-    {
-        CHR (EmitDdDirective (info, emitPC));
-    }
-    else if (dir == ".DS")
-    {
-        CHR (EmitDsDirective (info, emitPC));
-    }
-    else if (dir == ".ALIGN")
-    {
-        CHR (EmitAlignDirective (info, emitPC));
-    }
-    else if (dir == ".MULTINOP")
-    {
-        ExprResult er = ExpressionEvaluator::Evaluate (info.parsed.directiveArg, m_pass2Ctx);
 
-        if (er.success && er.value > 0)
-        {
-            for (int32_t j = 0; j < er.value; j++)
-            {
-                EmitByte (0xEA, emitPC);
-            }
-        }
-    }
+    // A null pass-2 column means the directive emits nothing: it either did
+    // all its work in pass 1 (.ORG, .LIST, .STRUCT) or never produces bytes.
+    BAIL_OUT_IF (emitter == nullptr, S_OK);
+
+    hr = (this->*emitter) (info, emitPC);
+    CHR (hr);
 
 Error:
     return hr;

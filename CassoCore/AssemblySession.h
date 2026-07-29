@@ -84,19 +84,24 @@ private:
     HRESULT StartStructDefinition      (const PendingLine & current, LineInfo & info);
     HRESULT HandleCmapDirective        (const PendingLine & current, LineInfo & info);
 
-    // Every pass-1 directive handler has this shape, which is what lets the
-    // dispatch be an array indexed by token rather than a chain.
+    // Each pass has one handler shape, which is what lets dispatch be an
+    // array indexed by token rather than a chain.
     using Pass1DirectiveFn = HRESULT (AssemblySession::*) (const PendingLine & current, LineInfo & info);
+    using Pass2DirectiveFn = HRESULT (AssemblySession::*) (const LineInfo & info, Word & emitPC);
 
-    struct Pass1DirectiveRow
+    // One row per directive, spanning both passes. Deliberately not two
+    // tables: pass 1 and pass 2 previously kept independent lists of which
+    // directives exist, and could disagree about it.
+    struct DirectiveRow
     {
-        Directive         token;     // must equal its own index
-        Pass1DirectiveFn  handler;   // nullptr = not a pass-1 directive
+        Directive         token;   // must equal its own index
+        Pass1DirectiveFn  pass1;   // nullptr = nothing to do in pass 1
+        Pass2DirectiveFn  pass2;   // nullptr = emits no bytes
     };
 
     // The table lives inside a function rather than at file scope because a
     // file-scope initializer cannot name private members.
-    static const Pass1DirectiveRow * Pass1DirectiveTable();
+    static const DirectiveRow * DirectiveRows();
 
     HRESULT Pass1Word    (const PendingLine & current, LineInfo & info);
     HRESULT Pass1Text    (const PendingLine & current, LineInfo & info);
@@ -112,6 +117,9 @@ private:
     // Recognized, and deliberately does nothing in pass 1 (.OPT_NOOP is
     // accepted for as65 source compatibility; .PAGE acts at listing time).
     HRESULT Pass1Ignored (const PendingLine & current, LineInfo & info);
+
+    HRESULT EmitTextDirective     (const LineInfo & info, Word & emitPC);
+    HRESULT EmitMultiNopDirective (const LineInfo & info, Word & emitPC);
     HRESULT ExpandMacro                (const PendingLine & current, LineInfo & info, bool & handled);
     HRESULT SubstituteMacroParams      (const MacroDefinition & macroDef,
                                         const std::vector<std::string> & args,
