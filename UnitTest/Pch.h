@@ -2,6 +2,7 @@
 
 
 
+#include "../CassoCore/Ehm.h"
 #include "../CassoEmuCore/Pch.h"
 #include "../CassoCore/Pch.h"
 #include "../Casso/Pch.h"

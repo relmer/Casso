@@ -21,6 +21,8 @@ it only stops *new* violations.
 | `CS0009` | do not *produce* `S_FALSE` | 0 |
 | `CS0002` | no anonymous namespaces | 0 |
 | `CS0006` | no bare `goto Error` | **11** |
+| `CS0011` | no call as a `CHR` argument | 0 |
+| `CS0012` | `Ehm.h` comes from `Pch.h`, never directly | 0 |
 
 ## Queue
 
@@ -234,6 +236,34 @@ throwaway `TEST_CLASS` in `UnitTest/` — write it, capture the baseline from
 the previous commit, apply the change, compare, delete it. It is deliberately
 not kept: `casso-rocks` is already assembled and booted by `BootDiskTests`, so
 a permanent version would add no coverage.
+
+### 2c. `CS0011` — calls as EHM macro arguments — gated at 0, half by judgment
+
+The gate covers the `CHR` family only, and is at zero: `CHR` tests an
+`HRESULT`, so an argument that is a call always means "this did work and
+returned a code", and the operation that failed is exactly what the macro
+hides. All 28 instances (all in `AssemblySession.cpp`) are converted.
+
+**The `CBR`/`CWR` half is deliberately not gated**, and that is a finding
+rather than a shortcut. Attempting it flagged 52 sites, and inspection showed
+the pattern cannot make the distinction that matters:
+
+| Site | Verdict |
+|---|---|
+| `CBR (OpenClipboard (hwnd))` | hides an operation — should be hoisted |
+| `CBR (EmptyClipboard())` | same |
+| `CBR (!tok.empty())` | pure query, reads fine inline |
+| `CBR (out.good())` | pure query |
+| `CBRAEx (raw.size() == kFoo, E_INVALIDARG)` | query inside a comparison |
+
+A regex cannot tell "does work" from "asks a question", and flagging all of
+them produced far more noise than signal — which is exactly how a check gets
+switched off. The rule stays in the standards text for review to apply.
+
+Worth noting the gate caught this itself: adding the broad version blocked a
+push on 15 sites in files this branch had merely *moved*, which is the
+baseline problem any new rule has on a dirty tree, and the signal that the
+rule was wrong rather than the code.
 
 ### 3. `CS0009` — producing `S_FALSE` — DONE
 

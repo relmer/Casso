@@ -144,6 +144,32 @@ $checks = @(
         Pattern = '\((?:int|unsigned|float|double|char|bool|size_t|Word|Byte|SByte|u?int(?:8|16|32|64)_t)\)[A-Za-z_(]'
         Message = 'missing space after C-style cast -- write (int) value not (int)value'
         Exclude = @()
+    },
+    @{
+        # A macro that wraps the call hides what failed, and buries a side
+        # effect inside something that may not evaluate its argument once.
+        # Assign to a local first, then check the local. Deliberately does not
+        # match a bare identifier -- CHR (hr) is the whole point.
+        # Only flags the shape where the macro's argument IS the call, so the
+        # thing that failed is the thing being hidden. A call appearing inside
+        # a larger condition -- raw.size() == kFoo, Peek() == '"' -- is left
+        # alone: the condition still reads as a condition, and hoisting it
+        # would cost clarity rather than buy any.
+        Id      = 'CS0011'
+        Globs   = @('*.cpp', '*.h')
+        Pattern = '\bCHR[AFN]*(?:Ex)?\s*\(\s*[A-Za-z_][A-Za-z0-9_:]*(?:(?:\.|->)[A-Za-z0-9_]+)?\s*\('
+        Message = 'CHR wraps a call -- hoist it into hr, then CHR (hr)'
+        Exclude = @('CassoCore/Ehm.h')
+    },
+    @{
+        # Ehm.h reaches every translation unit through its project's Pch, so a
+        # direct include is redundant and drifts out of sync. Ehm.cpp
+        # implements it and the Pch files are where it belongs.
+        Id      = 'CS0012'
+        Globs   = @('*.cpp', '*.h')
+        Pattern = '#include\s*"(?:\.\./)*(?:CassoCore/)?Ehm\.h"'
+        Message = 'Ehm.h comes from Pch.h -- do not include it directly'
+        Exclude = @('CassoCore/Ehm.cpp', 'Pch.h')
     }
 )
 

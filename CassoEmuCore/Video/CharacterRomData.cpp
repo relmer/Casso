@@ -2,7 +2,6 @@
 
 #include "CharacterRomData.h"
 #include "CharacterRom.h"
-#include "Ehm.h"
 
 
 static constexpr size_t k2KBytes = 2048;
