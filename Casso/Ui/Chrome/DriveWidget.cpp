@@ -9,175 +9,103 @@
 
 
 
-namespace
+bool DriveWidget::RectContains (const RECT & rect, int x, int y)
 {
-    constexpr int     s_kBaseDpi           = 96;
-    constexpr int     s_kBodyWidthPx       = 220;
-    constexpr int     s_kBodyHeightPx      = 160;
-    constexpr int     s_kFaceplateHeightPx = 104;
-    constexpr int     s_kCaseBackInsetPx   = 30;
-    constexpr int     s_kLabelPadPx        = 10;
-    constexpr float   s_kLabelFontDip      = 13.0f;
-    constexpr float   s_kInUseFontDip      = 10.0f;
-    constexpr int     s_kSlotInsetPx       = 22;
-    constexpr int     s_kSlotHeightPx      = 6;
-    constexpr int     s_kSlotCenterYPx     = 50;
-    constexpr int     s_kDoorWidthPx       = 72;
-    constexpr int     s_kDoorHeightPx      = 44;
-    constexpr int     s_kDoorTravelPx      = 32;
-    constexpr int     s_kNotchWidthPx      = 28;
-    constexpr int     s_kNotchHeightPx     = 8;
-    constexpr int     s_kLedCenterYPx      = 84;
-    constexpr int     s_kInUseGapPx        = 4;
-    constexpr int     s_kInUseWidthPx      = 56;
-    constexpr int     s_kRidgeCountPx      = 2;
-    constexpr int     s_kVentCountPx       = 9;        // matches real Disk II side-vent count
-    constexpr int     s_kVentSlotHeightPx  = 1;        // each vent is 1 px tall (scaled by DPI)
-    constexpr int     s_kVentSlotGapPx     = 2;        // vertical gap between vents
-    constexpr int     s_kCassowaryWidthPx  = 28;
-    constexpr int     s_kCassowaryHeightPx = 42;
-    constexpr int     s_kCassowaryMarginPx = 6;
-    constexpr int     s_kLabelStripHeightPx = 18;
-    constexpr int     s_kLabelStripGapPx    = 2;
-    constexpr float   s_kBasenameFontDip    = 11.0f;
-    constexpr const wchar_t * s_kFontFamily      = DxuiTheme::kBodyFace;
-
-    // Marquee timing for an overflowing basename label. The hold delay is
-    // both the lead-in before a freshly mounted disk first scrolls and the
-    // pause between replays while the pointer lingers over the widget.
-    constexpr int64_t s_kMarqueeHoldMs         = 2000;
-    constexpr float   s_kMarqueeSpeedDipPerSec = 45.0f;
-    constexpr float   s_kMarqueeGapDip         = 25.0f;
-
-    // Compact paint-path dimensions. The compact widget is a flat
-    // rounded card with "DRIVE N" on the left and the status LED on
-    // the right -- no 3D case top, no door, no cassowary. Total
-    // height is sized so the drive bar can shrink the bottom inset
-    // dramatically when the active theme requests compact drives.
-    constexpr int     s_kCompactBodyWidthPx  = 140;
-    constexpr int     s_kCompactBodyHeightPx = 40;
-    constexpr int     s_kCompactPadPx        = 10;
-    constexpr int     s_kCompactCornerPx     = 4;
-    constexpr float   s_kCompactFontDip      = 12.0f;
-
-    // Write-protect padlock badge. A small brass lock stamped on the
-    // drive face (skeuomorphic) or beside the status LED (compact)
-    // whenever the mounted disk is write-protected by any source. Kept
-    // deliberately understated -- it reads as "locked" without competing
-    // with the LED for attention.
-    constexpr int      s_kWpBadgeWidthPx   = 13;
-    constexpr int      s_kWpBadgeHeightPx  = 15;
-    constexpr uint32_t s_kWpBadgeFillArgb  = 0xFFD8B76A;   // warm brass body
-    constexpr uint32_t s_kWpBadgeShadeArgb = 0xFF7A6026;   // darker brass edge / shackle
-    constexpr uint32_t s_kWpBadgeHoleArgb  = 0xFF2A2109;   // keyhole
+    return x >= rect.left && x < rect.right && y >= rect.top && y < rect.bottom;
+}
 
 
-    bool RectContains (const RECT & rect, int x, int y)
+int DriveWidget::Scale (int value, UINT dpi)
+{
+    UINT  effectiveDpi = (dpi == 0) ? kBaseDpi : dpi;
+
+
+
+    return MulDiv (value, (int) effectiveDpi, kBaseDpi);
+}
+
+
+float DriveWidget::Clamp01 (float v)
+{
+    if (v < 0.0f) { return 0.0f; }
+    if (v > 1.0f) { return 1.0f; }
+    return v;
+}
+
+
+void DriveWidget::FillTrapezoidApprox (IDxuiPainter & painter,
+                                      float frontLeft,  float frontRight,
+                                      float backLeft,   float backRight,
+                                      float frontY,     float backY,
+                                      uint32_t argb)
+{
+    int    height = (int) (frontY - backY);
+    int    i      = 0;
+    float  denom  = (float) ((height > 1) ? (height - 1) : 1);
+
+    if (height <= 0)
     {
-        return x >= rect.left && x < rect.right && y >= rect.top && y < rect.bottom;
+        return;
     }
 
-
-    int Scale (int value, UINT dpi)
+    for (i = 0; i < height; i++)
     {
-        UINT  effectiveDpi = (dpi == 0) ? s_kBaseDpi : dpi;
+        float  t     = (float) i / denom;
+        float  left  = frontLeft  + (backLeft  - frontLeft)  * t;
+        float  right = frontRight + (backRight - frontRight) * t;
+        float  y     = frontY - 1.0f - (float) i;
 
-
-
-        return MulDiv (value, (int) effectiveDpi, s_kBaseDpi);
+        painter.FillRect (left, y, right - left, 1.0f, argb);
     }
+}
 
 
-    float Clamp01 (float v)
-    {
-        if (v < 0.0f) { return 0.0f; }
-        if (v > 1.0f) { return 1.0f; }
-        return v;
-    }
+void DriveWidget::DrawCaseRidge (DxuiPainter & painter,
+                                float frontLeft, float frontRight,
+                                float backLeft,  float backRight,
+                                float frontY,    float backY,
+                                float depthT,
+                                uint32_t argb)
+{
+    float  y     = frontY + (backY - frontY) * depthT;
+    float  left  = frontLeft  + (backLeft  - frontLeft)  * depthT;
+    float  right = frontRight + (backRight - frontRight) * depthT;
+
+    painter.FillRect (left + 2.0f, y, right - left - 4.0f, 1.0f, argb);
+}
 
 
-    // Fills a trapezoid with parallel horizontal front and back edges
-    // by stacking 1-px horizontal scanlines whose widths interpolate
-    // linearly from front to back. Used for the receding case top.
-    void FillTrapezoidApprox (IDxuiPainter & painter,
-                              float frontLeft,  float frontRight,
-                              float backLeft,   float backRight,
-                              float frontY,     float backY,
-                              uint32_t argb)
-    {
-        int    height = (int) (frontY - backY);
-        int    i      = 0;
-        float  denom  = (float) ((height > 1) ? (height - 1) : 1);
-
-        if (height <= 0)
-        {
-            return;
-        }
-
-        for (i = 0; i < height; i++)
-        {
-            float  t     = (float) i / denom;
-            float  left  = frontLeft  + (backLeft  - frontLeft)  * t;
-            float  right = frontRight + (backRight - frontRight) * t;
-            float  y     = frontY - 1.0f - (float) i;
-
-            painter.FillRect (left, y, right - left, 1.0f, argb);
-        }
-    }
+// The rainbow cassowary brand mark lives in the shared CassoBranding
+// helper (DrawCassowaryRainbow) so the Disk ][ faceplate and the CRT
+// monitor chin stamp the identical logo.
 
 
-    // Draws a horizontal ridge line on the case top at fractional depth
-    // (0=front, 1=back), respecting the trapezoid's perspective taper.
-    void DrawCaseRidge (DxuiPainter & painter,
-                        float frontLeft, float frontRight,
-                        float backLeft,  float backRight,
-                        float frontY,    float backY,
-                        float depthT,
-                        uint32_t argb)
-    {
-        float  y     = frontY + (backY - frontY) * depthT;
-        float  left  = frontLeft  + (backLeft  - frontLeft)  * depthT;
-        float  right = frontRight + (backRight - frontRight) * depthT;
+void DriveWidget::DrawPadlock (IDxuiPainter & painter,
+                              float left, float top, float w, float h,
+                              uint32_t fill, uint32_t shade, uint32_t hole)
+{
+    float  bodyTop   = top + h * 0.42f;
+    float  bodyH     = h - (bodyTop - top);
+    float  shackleW  = w * 0.62f;
+    float  shackleX  = left + (w - shackleW) * 0.5f;
+    float  thickness = std::max (1.0f, w * 0.16f);
+    float  shackleH  = bodyTop - top;
+    float  holeW     = std::max (1.0f, w * 0.20f);
+    float  holeX     = left + (w - holeW) * 0.5f;
+    float  holeY     = bodyTop + bodyH * 0.28f;
 
-        painter.FillRect (left + 2.0f, y, right - left - 4.0f, 1.0f, argb);
-    }
+    // Shackle: a squared arch (two posts + a top bar) open at the
+    // bottom where it disappears behind the lock body.
+    painter.FillRect (shackleX,                        top, shackleW,  thickness, shade);
+    painter.FillRect (shackleX,                        top, thickness, shackleH,  shade);
+    painter.FillRect (shackleX + shackleW - thickness, top, thickness, shackleH,  shade);
 
+    // Body with a 1px darker border so it reads on any faceplate.
+    painter.FillRect    (left, bodyTop, w, bodyH, fill);
+    painter.OutlineRect (left, bodyTop, w, bodyH, 1.0f, shade);
 
-    // The rainbow cassowary brand mark lives in the shared CassoBranding
-    // helper (DrawCassowaryRainbow) so the Disk ][ faceplate and the CRT
-    // monitor chin stamp the identical logo.
-
-
-    // Draws a small padlock (shackle arch + body + keyhole) inside the
-    // given box using flat fills, matching the widget's primitive-drawn
-    // house style. Used as the write-protect indicator.
-    void DrawPadlock (IDxuiPainter & painter,
-                      float left, float top, float w, float h,
-                      uint32_t fill, uint32_t shade, uint32_t hole)
-    {
-        float  bodyTop   = top + h * 0.42f;
-        float  bodyH     = h - (bodyTop - top);
-        float  shackleW  = w * 0.62f;
-        float  shackleX  = left + (w - shackleW) * 0.5f;
-        float  thickness = std::max (1.0f, w * 0.16f);
-        float  shackleH  = bodyTop - top;
-        float  holeW     = std::max (1.0f, w * 0.20f);
-        float  holeX     = left + (w - holeW) * 0.5f;
-        float  holeY     = bodyTop + bodyH * 0.28f;
-
-        // Shackle: a squared arch (two posts + a top bar) open at the
-        // bottom where it disappears behind the lock body.
-        painter.FillRect (shackleX,                        top, shackleW,  thickness, shade);
-        painter.FillRect (shackleX,                        top, thickness, shackleH,  shade);
-        painter.FillRect (shackleX + shackleW - thickness, top, thickness, shackleH,  shade);
-
-        // Body with a 1px darker border so it reads on any faceplate.
-        painter.FillRect    (left, bodyTop, w, bodyH, fill);
-        painter.OutlineRect (left, bodyTop, w, bodyH, 1.0f, shade);
-
-        // Keyhole.
-        painter.FillRect (holeX, holeY, holeW, bodyH * 0.42f, hole);
-    }
+    // Keyhole.
+    painter.FillRect (holeX, holeY, holeW, bodyH * 0.42f, hole);
 }
 
 
@@ -237,20 +165,20 @@ void DriveWidget::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
 
 
     // The scaler's DPI carries the desk-scene zoom when the CRT monitor
-    // framing is active (EmulatorShell folds SceneScale * s_kDeskDriveScale
+    // framing is active (EmulatorShell folds SceneScale * kDeskDriveScale
     // into the effective DPI it hands LayoutDriveWidgetsInCommandBar), so
     // geometry, fonts, and the probe-based band layout all scale together.
-    m_dpi = (scaler.Dpi() == 0) ? (UINT) s_kBaseDpi : scaler.Dpi();
+    m_dpi = (scaler.Dpi() == 0) ? (UINT) kBaseDpi : scaler.Dpi();
 
     UINT  dpi         = m_dpi;
-    int   bodyW       = Scale (s_kBodyWidthPx, dpi);
-    int   bodyH       = Scale (s_kBodyHeightPx, dpi);
-    int   faceH       = Scale (s_kFaceplateHeightPx, dpi);
-    int   slotInset   = Scale (s_kSlotInsetPx, dpi);
-    int   slotH       = Scale (s_kSlotHeightPx, dpi);
-    int   slotCY      = Scale (s_kSlotCenterYPx, dpi);
-    int   doorW       = Scale (s_kDoorWidthPx, dpi);
-    int   doorH       = Scale (s_kDoorHeightPx, dpi);
+    int   bodyW       = Scale (kBodyWidthPx, dpi);
+    int   bodyH       = Scale (kBodyHeightPx, dpi);
+    int   faceH       = Scale (kFaceplateHeightPx, dpi);
+    int   slotInset   = Scale (kSlotInsetPx, dpi);
+    int   slotH       = Scale (kSlotHeightPx, dpi);
+    int   slotCY      = Scale (kSlotCenterYPx, dpi);
+    int   doorW       = Scale (kDoorWidthPx, dpi);
+    int   doorH       = Scale (kDoorHeightPx, dpi);
 
     if (m_compact)
     {
@@ -258,9 +186,9 @@ void DriveWidget::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
         // the LED sits on the right edge with the label filling the
         // remainder. Slot/eject rects collapse to zero since the
         // compact widget has no door affordance.
-        int  cBodyW = Scale (s_kCompactBodyWidthPx,  dpi);
-        int  cBodyH = Scale (s_kCompactBodyHeightPx, dpi);
-        int  pad    = Scale (s_kCompactPadPx,        dpi);
+        int  cBodyW = Scale (kCompactBodyWidthPx,  dpi);
+        int  cBodyH = Scale (kCompactBodyHeightPx, dpi);
+        int  pad    = Scale (kCompactPadPx,        dpi);
 
         m_bodyRect.left   = x;
         m_bodyRect.top    = y;
@@ -272,9 +200,9 @@ void DriveWidget::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
         m_ejectRect = {};
 
         m_labelRect.left   = m_bodyRect.left;
-        m_labelRect.top    = m_bodyRect.bottom + Scale (s_kLabelStripGapPx, dpi);
+        m_labelRect.top    = m_bodyRect.bottom + Scale (kLabelStripGapPx, dpi);
         m_labelRect.right  = m_bodyRect.right;
-        m_labelRect.bottom = m_labelRect.top + Scale (s_kLabelStripHeightPx, dpi);
+        m_labelRect.bottom = m_labelRect.top + Scale (kLabelStripHeightPx, dpi);
 
         m_led.PositionAt (m_bodyRect.right - pad - Scale (10, dpi),
                           m_bodyRect.top   + cBodyH / 2 - Scale (3, dpi),
@@ -306,12 +234,12 @@ void DriveWidget::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
     m_ejectRect.bottom = m_ejectRect.top + doorH;
 
     m_labelRect.left   = m_bodyRect.left;
-    m_labelRect.top    = m_bodyRect.bottom + Scale (s_kLabelStripGapPx, dpi);
+    m_labelRect.top    = m_bodyRect.bottom + Scale (kLabelStripGapPx, dpi);
     m_labelRect.right  = m_bodyRect.right;
-    m_labelRect.bottom = m_labelRect.top + Scale (s_kLabelStripHeightPx, dpi);
+    m_labelRect.bottom = m_labelRect.top + Scale (kLabelStripHeightPx, dpi);
 
-    m_led.PositionAt (m_faceRect.left + Scale (s_kLabelPadPx + s_kInUseWidthPx + s_kInUseGapPx, dpi),
-                      m_faceRect.top + Scale (s_kLedCenterYPx, dpi) - Scale (3, dpi),
+    m_led.PositionAt (m_faceRect.left + Scale (kLabelPadPx + kInUseWidthPx + kInUseGapPx, dpi),
+                      m_faceRect.top + Scale (kLedCenterYPx, dpi) - Scale (3, dpi),
                       dpi);
     SetBounds (OuterRect());
 }
@@ -375,14 +303,14 @@ void DriveWidget::Paint (
     int      slotW        = m_slotRect.right - m_slotRect.left;
     int      slotH        = m_slotRect.bottom - m_slotRect.top;
     int      doorH        = m_ejectRect.bottom - m_ejectRect.top;
-    UINT     dpi          = (m_dpi == 0) ? (UINT) s_kBaseDpi : m_dpi;
-    int      notchW       = Scale (s_kNotchWidthPx, dpi);
-    int      notchH       = Scale (s_kNotchHeightPx, dpi);
-    int      labelPad     = Scale (s_kLabelPadPx, dpi);
-    int      inUseW       = Scale (s_kInUseWidthPx, dpi);
-    int      caseBackInset = Scale (s_kCaseBackInsetPx, dpi);
-    float    labelFontDip = s_kLabelFontDip * (float) dpi / (float) s_kBaseDpi;
-    float    inUseFontDip = s_kInUseFontDip * (float) dpi / (float) s_kBaseDpi;
+    UINT     dpi          = (m_dpi == 0) ? (UINT) kBaseDpi : m_dpi;
+    int      notchW       = Scale (kNotchWidthPx, dpi);
+    int      notchH       = Scale (kNotchHeightPx, dpi);
+    int      labelPad     = Scale (kLabelPadPx, dpi);
+    int      inUseW       = Scale (kInUseWidthPx, dpi);
+    int      caseBackInset = Scale (kCaseBackInsetPx, dpi);
+    float    labelFontDip = kLabelFontDip * (float) dpi / (float) kBaseDpi;
+    float    inUseFontDip = kInUseFontDip * (float) dpi / (float) kBaseDpi;
     float    doorOffset   = 0.0f;
     wchar_t  label[32]    = {};
 
@@ -405,8 +333,8 @@ void DriveWidget::Paint (
     {
         int      bodyWcompact  = m_bodyRect.right  - m_bodyRect.left;
         int      bodyHcompact  = m_bodyRect.bottom - m_bodyRect.top;
-        int      pad           = Scale (s_kCompactPadPx, dpi);
-        float    fontDip       = s_kCompactFontDip * (float) dpi / (float) s_kBaseDpi;
+        int      pad           = Scale (kCompactPadPx, dpi);
+        float    fontDip       = kCompactFontDip * (float) dpi / (float) kBaseDpi;
         uint32_t bodyFill      = theme.driveBody;
         uint32_t bezelEdge     = theme.driveBezel;
         uint32_t labelArgb     = theme.driveLabel;
@@ -425,7 +353,7 @@ void DriveWidget::Paint (
                                                   (float) bodyHcompact,
                                                   labelArgb,
                                                   fontDip,
-                                                  s_kFontFamily,
+                                                  kFontFamily,
                                                   DxuiTextRenderer::HAlign::Left,
                                                   DxuiTextRenderer::VAlign::Center));
 
@@ -447,13 +375,13 @@ void DriveWidget::Paint (
         // Write-protect padlock, just left of the status LED.
         if (m_state.writeProtect.Any())
         {
-            int    badgeW = Scale (s_kWpBadgeWidthPx,  dpi);
-            int    badgeH = Scale (s_kWpBadgeHeightPx, dpi);
+            int    badgeW = Scale (kWpBadgeWidthPx,  dpi);
+            int    badgeH = Scale (kWpBadgeHeightPx, dpi);
             float  badgeX = (float) (m_bodyRect.right - pad - Scale (10, dpi) - badgeW - Scale (6, dpi));
             float  badgeY = (float) (m_bodyRect.top + (bodyHcompact - badgeH) / 2);
 
             DrawPadlock (painter, badgeX, badgeY, (float) badgeW, (float) badgeH,
-                         s_kWpBadgeFillArgb, s_kWpBadgeShadeArgb, s_kWpBadgeHoleArgb);
+                         kWpBadgeFillArgb, kWpBadgeShadeArgb, kWpBadgeHoleArgb);
         }
 
         m_led.Paint (painter, text, theme);
@@ -585,12 +513,12 @@ void DriveWidget::Paint (
         // the rear lid-panel y-range. Matches the real Disk II which
         // has vents on both side faces of the case.
         {
-            int      ventCount  = s_kVentCountPx;
+            int      ventCount  = kVentCountPx;
             float    ventTop    = panelInsetTop;
             float    ventBottom = panelInsetBottom;
             float    span       = ventBottom - ventTop;
             float    spacing    = span / (float) (ventCount + 1);
-            float    slitH      = (float) Scale (s_kVentSlotHeightPx, dpi);
+            float    slitH      = (float) Scale (kVentSlotHeightPx, dpi);
             float    slitInset  = 6.0f;
             uint32_t ventArgb   = 0xFF4A3F2A;
             int      v          = 0;
@@ -819,7 +747,7 @@ void DriveWidget::Paint (
                                               labelFontDip + 4.0f,
                                               theme.driveLabel,
                                               labelFontDip,
-                                              s_kFontFamily));
+                                              kFontFamily));
 
     // "IN USE >" label bottom-left of faceplate, LED to its right.
     swprintf_s (label, L"IN USE %s", s_kpszTriangleRight);
@@ -830,7 +758,7 @@ void DriveWidget::Paint (
                                               inUseFontDip + 4.0f,
                                               theme.driveLabel,
                                               inUseFontDip,
-                                              s_kFontFamily));
+                                              kFontFamily));
 
     UNREFERENCED_PARAMETER (bodyW);
     m_led.Paint (painter, text, theme);
@@ -839,10 +767,10 @@ void DriveWidget::Paint (
     // Apple logo lives on the real Disk II). Silhouette is left-facing
     // so the bird "watches" the drive slot.
     {
-        int    iconW   = Scale (s_kCassowaryWidthPx,  dpi);
-        int    iconH   = Scale (s_kCassowaryHeightPx, dpi);
-        int    marginX = Scale (s_kCassowaryMarginPx, dpi);
-        int    marginY = Scale (s_kCassowaryMarginPx, dpi);
+        int    iconW   = Scale (kCassowaryWidthPx,  dpi);
+        int    iconH   = Scale (kCassowaryHeightPx, dpi);
+        int    marginX = Scale (kCassowaryMarginPx, dpi);
+        int    marginY = Scale (kCassowaryMarginPx, dpi);
         float  iconX   = (float) (m_faceRect.right  - iconW - marginX);
         float  iconY   = (float) (m_faceRect.bottom - iconH - marginY);
 
@@ -855,18 +783,18 @@ void DriveWidget::Paint (
     // it so the two marks read as a balanced pair.
     if (m_state.writeProtect.Any())
     {
-        int    cellW  = Scale (s_kCassowaryWidthPx,  dpi);
-        int    cellH  = Scale (s_kCassowaryHeightPx, dpi);
-        int    margin = Scale (s_kCassowaryMarginPx, dpi);
-        int    badgeW = Scale (s_kWpBadgeWidthPx,    dpi);
-        int    badgeH = Scale (s_kWpBadgeHeightPx,   dpi);
+        int    cellW  = Scale (kCassowaryWidthPx,  dpi);
+        int    cellH  = Scale (kCassowaryHeightPx, dpi);
+        int    margin = Scale (kCassowaryMarginPx, dpi);
+        int    badgeW = Scale (kWpBadgeWidthPx,    dpi);
+        int    badgeH = Scale (kWpBadgeHeightPx,   dpi);
         float  cellX  = (float) (m_faceRect.right - cellW - margin);
         float  cellY  = (float) (m_faceRect.top + margin);
         float  badgeX = cellX + (float) (cellW - badgeW) / 2.0f;
         float  badgeY = cellY + (float) (cellH - badgeH) / 2.0f;
 
         DrawPadlock (painter, badgeX, badgeY, (float) badgeW, (float) badgeH,
-                     s_kWpBadgeFillArgb, s_kWpBadgeShadeArgb, s_kWpBadgeHoleArgb);
+                     kWpBadgeFillArgb, kWpBadgeShadeArgb, kWpBadgeHoleArgb);
     }
 
     PaintBasenameLabel (text, theme, dpi);
@@ -895,13 +823,13 @@ void DriveWidget::PaintBasenameLabel (
     HRESULT                hr             = S_OK;
     int64_t                nowMs          = (int64_t) std::chrono::duration_cast<std::chrono::milliseconds> (
                                                 std::chrono::steady_clock::now().time_since_epoch()).count();
-    float                  basenameDip    = s_kBasenameFontDip * (float) dpi / (float) s_kBaseDpi;
+    float                  basenameDip    = kBasenameFontDip * (float) dpi / (float) kBaseDpi;
     float                  labelLeft      = (float) m_labelRect.left;
     float                  labelTop       = (float) m_labelRect.top;
     float                  labelW         = (float) (m_labelRect.right  - m_labelRect.left);
     float                  labelH         = (float) (m_labelRect.bottom - m_labelRect.top);
-    float                  speedPxPerSec  = s_kMarqueeSpeedDipPerSec * (float) dpi / (float) s_kBaseDpi;
-    float                  gap            = s_kMarqueeGapDip * (float) dpi / (float) s_kBaseDpi;
+    float                  speedPxPerSec  = kMarqueeSpeedDipPerSec * (float) dpi / (float) kBaseDpi;
+    float                  gap            = kMarqueeGapDip * (float) dpi / (float) kBaseDpi;
     std::filesystem::path  imagePath;
     std::wstring           basename;
     float                  textW          = 0.0f;
@@ -928,10 +856,10 @@ void DriveWidget::PaintBasenameLabel (
     if (m_state.mountedImagePath != m_marqueePath)
     {
         m_marqueePath    = m_state.mountedImagePath;
-        m_marqueeStartMs = nowMs + s_kMarqueeHoldMs;
+        m_marqueeStartMs = nowMs + kMarqueeHoldMs;
     }
 
-    hr = text.MeasureString (basename.c_str(), basenameDip, s_kFontFamily, textW, textH);
+    hr = text.MeasureString (basename.c_str(), basenameDip, kFontFamily, textW, textH);
     IGNORE_RETURN_VALUE (hr, S_OK);
 
     // Confine all drawing to the drive's label strip so a long name never
@@ -949,7 +877,7 @@ void DriveWidget::PaintBasenameLabel (
                                                   labelH,
                                                   theme.driveLabel,
                                                   basenameDip,
-                                                  s_kFontFamily,
+                                                  kFontFamily,
                                                   DxuiTextRenderer::HAlign::Center,
                                                   DxuiTextRenderer::VAlign::Center));
     }
@@ -967,7 +895,7 @@ void DriveWidget::PaintBasenameLabel (
                                             labelH,
                                             theme.driveLabel,
                                             basenameDip,
-                                            s_kFontFamily,
+                                            kFontFamily,
                                             DxuiTextRenderer::HAlign::Left,
                                             DxuiTextRenderer::VAlign::Center);
             IGNORE_RETURN_VALUE (dhr, S_OK);
@@ -998,7 +926,7 @@ void DriveWidget::PaintBasenameLabel (
             // While the pointer lingers over the widget, replay the scroll
             // after the inter-scroll delay (the lead-in delay only applies
             // here, between repeats -- the initial hover scroll is instant).
-            if (m_marqueeHovered && (nowMs - scrollEnd) >= s_kMarqueeHoldMs)
+            if (m_marqueeHovered && (nowMs - scrollEnd) >= kMarqueeHoldMs)
             {
                 m_marqueeStartMs = nowMs;
             }
