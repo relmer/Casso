@@ -20,7 +20,7 @@ it only stops *new* violations.
 | `CS0010` | no `-Ex` macro passing its family's default hr | 0 |
 | `CS0009` | do not *produce* `S_FALSE` | 0 |
 | `CS0002` | no anonymous namespaces | 0 |
-| `CS0006` | no bare `goto Error` | **45** |
+| `CS0006` | no bare `goto Error` | **29** |
 
 ## Queue
 
@@ -79,19 +79,44 @@ next to that logic; at or above it you have data the function merely consults.
 Heaviest: `UserConfigStore.cpp` (621-line block), `ThemePage.cpp` (395),
 `AssetBootstrap.cpp` (209).
 
-### 2. `CS0006` — bare `goto Error` (45)
+### 2. `CS0006` — bare `goto Error` (29)
 
-The mechanical shapes are converted. What remains needs restructuring:
+Everything outside `AssemblySession` is converted. What is left is **29 in
+`AssemblySession::ProcessPass1Line`** — early *exits* ("handled this line,
+record it and leave"), not error checks, each running
+`m_lineInfos.push_back (info)` on the way out. `BAIL_OUT_IF` has no action
+slot, so a mechanical conversion would read worse than the `if` it replaces.
+The function wants a state machine or switch first — the EHM question mostly
+dissolves once it does. Well covered for a rewrite: 253 assembler unit tests,
+15 in-repo `.a65` sources, plus Dormann (which assembles *and* executes).
 
-- **29 in `AssemblySession::ProcessPass1Line`.** These are early *exits*
-  ("handled this line, record it and leave"), not error checks, and each runs
-  `m_lineInfos.push_back (info)` on the way out. `BAIL_OUT_IF` has no action
-  slot, so a mechanical conversion would read worse than the `if` it replaces.
-  The function wants a state machine or switch first — the EHM question mostly
-  dissolves once it does. Well covered for a rewrite: 253 assembler unit tests,
-  15 in-repo `.a65` sources, plus Dormann (which assembles *and* executes).
-- **~19 others** are `else`-branch or action-then-exit shapes, each needing a
-  local decision.
+Shapes that did convert, and what each turned into:
+
+| Shape | Conversion |
+|---|---|
+| jump to the label on the next line | delete it — it was already a fall-through |
+| set `hr`, exit | `BAIL_OUT_IF (cond, hr)` |
+| set state + `hr`, exit | keep the `if` for the state, follow with `BAIL_OUT_IF` |
+| set `hr` + a message, exit | `CBRFEx (cond, hr, msg = ...)` |
+| `else` branch of a dispatch | hoist to a `CBRAEx` guard, then a ternary |
+| `default:` in a switch | assign `hr` and `break`, then `CHR (hr)` after |
+| the same mapping at N exits | do it once at the `Error:` label |
+
+That last row is the one worth reaching for. `PrintToWindowsPrinter` repeated
+an identical "was this a user cancel?" block at four spool calls; moving it to
+the label left each call site as a single `CHRF` and gave the rule one owner.
+
+**A condition that calls a function must be hoisted to a local first** — the
+macro hides the call otherwise. `PrintDlgW`, `IsLoaded`, and two
+`atomic::load`s each needed a named local before the guard could read them.
+
+One near-miss worth recording: `SavePrintoutAs` and `PrintToWindowsPrinter`
+preset `outOutcome = Delivered` and correct it to `Canceled` at each exit,
+which looks backwards — until you notice the caller tests
+`outcome == Canceled` *before* `SUCCEEDED (hr)`. Flipping the default so
+"canceled" is the safe fallback would route genuine failures down the
+cancel branch and suppress the error dialog. The optimistic default is load-
+bearing; check the consumer before inverting one.
 
 ### 3. `CS0009` — producing `S_FALSE` — DONE
 

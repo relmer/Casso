@@ -594,23 +594,20 @@ HRESULT DiskImage::Flush()
 
     BAIL_OUT_IF (!m_dirty, S_OK);
 
-    if (m_filePath.empty())
+    // A synthesized image with no backing file has nothing to write, so it
+    // skips straight to the shared "no longer dirty" tail below rather than
+    // repeating it on its own exit path.
+    if (!m_filePath.empty())
     {
-        m_dirty = false;
-        ClearDirty();
-        goto Error;
-    }
+        hr = Serialize (bytes);
 
-    hr = Serialize (bytes);
+        if (FAILED (hr))
+        {
+            BAIL_OUT_IF (m_rawSourceBytes.empty(), S_OK);
+            bytes = m_rawSourceBytes;
+            hr    = S_OK;
+        }
 
-    if (FAILED (hr))
-    {
-        BAIL_OUT_IF (m_rawSourceBytes.empty(), S_OK);
-        bytes = m_rawSourceBytes;
-        hr    = S_OK;
-    }
-
-    {
         ofstream file (m_filePath, ios::binary);
         fileOk = file.good();
         CBR (fileOk);

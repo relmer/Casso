@@ -289,13 +289,10 @@ HRESULT DxuiPopupHost::Show (ShowParams params)
     m_open               = true;
     m_resultCode         = 0;
 
-    if (m_testMode)
-    {
-        // Test mode: no HWND, no swap chain. State above is the
-        // entire deliverable; tests inspect Params(),
-        // PlacedRectScreenPx(), and Completion() directly.
-        goto Error;
-    }
+    // Test mode: no HWND, no swap chain. The state set above is the entire
+    // deliverable; tests inspect Params(), PlacedRectScreenPx(), and
+    // Completion() directly.
+    BAIL_OUT_IF (m_testMode, S_OK);
 
     hr = EnsureWindowClass();
     CHRA (hr);

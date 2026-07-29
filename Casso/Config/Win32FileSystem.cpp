@@ -332,10 +332,12 @@ HRESULT Win32FileSystem::EnumerateDirectories (
     {
         err = GetLastError();
 
+        // No matches at all means an empty directory, which is a valid answer
+        // (outDirNames is already cleared). Anything else is a real failure.
         CBRF (err == ERROR_FILE_NOT_FOUND,
               hr = HRESULT_FROM_WIN32 (err));
 
-        goto Error;
+        BAIL_OUT_IF (true, S_OK);
     }
 
     do

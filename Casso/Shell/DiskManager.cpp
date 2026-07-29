@@ -488,19 +488,9 @@ HRESULT DiskManager::Mount (int slot, int drive, const std::wstring & path)
 
     CBRAEx (slot == 6, E_INVALIDARG);
 
-    if (drive == 0)
-    {
-        command = IDM_DISK_INSERT1;
-    }
-    else if (drive == 1)
-    {
-        command = IDM_DISK_INSERT2;
-    }
-    else
-    {
-        hr = E_INVALIDARG;
-        goto Error;
-    }
+    CBRAEx (drive == 0 || drive == 1, E_INVALIDARG);
+
+    command = (drive == 0) ? IDM_DISK_INSERT1 : IDM_DISK_INSERT2;
 
     m_cpuManager.PostCommand (command, fs::path (path).string());
 

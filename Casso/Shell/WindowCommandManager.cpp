@@ -733,14 +733,11 @@ HRESULT WindowCommandManager::PromptForDiskImage (int drive)
     CHR (hr);
 
     hr = dialog->Show (m_shell.m_hwnd);
-    if (hr == HRESULT_FROM_WIN32 (ERROR_CANCELLED))
-    {
-        // Backing out of the file picker means there is nothing to mount --
-        // not an error, and nothing for a caller to distinguish: the sole
-        // caller only checks FAILED, so the old S_FALSE told no one anything.
-        hr = S_OK;
-        goto Error;
-    }
+
+    // Backing out of the file picker means there is nothing to mount -- not an
+    // error, and nothing for a caller to distinguish: the sole caller only
+    // checks FAILED, so the old S_FALSE told no one anything.
+    BAIL_OUT_IF (hr == HRESULT_FROM_WIN32 (ERROR_CANCELLED), S_OK);
     CHR (hr);
 
     hr = dialog->GetResult (&item);
@@ -978,12 +975,6 @@ HRESULT WindowCommandManager::SavePrintoutAs (const PrintRaster & raster, fs::pa
 
     hr = dialog->Show (m_shell.PrinterDialogOwner());
 
-    if (hr == HRESULT_FROM_WIN32 (ERROR_CANCELLED))
-    {
-        outOutcome = PrintOutcome::Canceled;
-        hr         = S_OK;
-        goto Error;
-    }
     CHR (hr);
 
     hr = dialog->GetResult (&item);
@@ -1008,6 +999,14 @@ HRESULT WindowCommandManager::SavePrintoutAs (const PrintRaster & raster, fs::pa
     }
 
 Error:
+    // A user cancel is not a delivery failure. Mapping it here rather than at
+    // the exit itself keeps one owner for the rule.
+    if (hr == HRESULT_FROM_WIN32 (ERROR_CANCELLED))
+    {
+        outOutcome = PrintOutcome::Canceled;
+        hr         = S_OK;
+    }
+
     if (pszPath != nullptr)
     {
         CoTaskMemFree (pszPath);
@@ -1045,6 +1044,7 @@ HRESULT WindowCommandManager::PrintToWindowsPrinter (const PrintRaster & raster,
     PRINTDLGW                              pd      = {};
     DOCINFOW                               di      = {};
     bool                                   started = false;
+    BOOL                                   dlgOk   = FALSE;
     int                                    pageW   = 0;
     int                                    pageH   = 0;
     int                                    pageIx  = 0;
@@ -1069,13 +1069,11 @@ HRESULT WindowCommandManager::PrintToWindowsPrinter (const PrintRaster & raster,
     pd.Flags       = PD_RETURNDC | PD_NOPAGENUMS | PD_NOSELECTION | PD_USEDEVMODECOPIESANDCOLLATE;
     pd.nCopies     = 1;
 
-    if (!PrintDlgW (&pd))
-    {
-        // CommDlgExtendedError() == 0 means the user simply canceled the dialog.
-        outOutcome = PrintOutcome::Canceled;
-        hr         = S_OK;   // the user chose not to print; not a failure
-        goto Error;
-    }
+    // A false return is overwhelmingly the user closing the dialog
+    // (CommDlgExtendedError() == 0); the Error label turns ERROR_CANCELLED
+    // into outOutcome = Canceled with a success code.
+    dlgOk = PrintDlgW (&pd);
+    BAIL_OUT_IF (!dlgOk, HRESULT_FROM_WIN32 (ERROR_CANCELLED));
 
     // PD_RETURNDC should have created the DC. When it flakes (TRUE + null hDC +
     // no error -- seen intermittently with Print-to-PDF in a long-lived
@@ -1099,19 +1097,8 @@ HRESULT WindowCommandManager::PrintToWindowsPrinter (const PrintRaster & raster,
     // scary "could not deliver" popup). HrFromSpoolResult owns that mapping,
     // including the SP_* codes and the GetLastError()==0 case.
     hr = HrFromSpoolResult (StartDocW (pd.hDC, &di), L"StartDoc", 0);
-    if (FAILED (hr))
-    {
-        if (hr == HRESULT_FROM_WIN32 (ERROR_CANCELLED))
-        {
-            outOutcome = PrintOutcome::Canceled;
-            hr         = S_OK;
-        }
-        else
-        {
-            failedStage = L"StartDoc (starting the print job)";
-        }
-        goto Error;
-    }
+    CHRF (hr, failedStage = L"StartDoc (starting the print job)");
+
     started = true;
 
     pageW = GetDeviceCaps (pd.hDC, HORZRES);
@@ -1134,58 +1121,35 @@ HRESULT WindowCommandManager::PrintToWindowsPrinter (const PrintRaster & raster,
         // (Print-to-PDF Save-As cancel on modern Windows) surfaces as ERROR_CANCELLED --
         // exit quietly, keep the page, no failure dialog.
         hr = HrFromSpoolResult (StartPage (pd.hDC), L"StartPage", pageIx);
-        if (FAILED (hr))
-        {
-            if (hr == HRESULT_FROM_WIN32 (ERROR_CANCELLED))
-            {
-                outOutcome = PrintOutcome::Canceled;
-                hr         = S_OK;
-            }
-            else
-            {
-                failedStage = std::format (L"StartPage (page {})", pageIx + 1);
-            }
-            goto Error;
-        }
+        CHRF (hr, failedStage = std::format (L"StartPage (page {})", pageIx + 1));
 
         hr = BlitRgbaToDc (pd.hDC, img, pageW, pageH, opt.outputDpi);
         CHRF (hr, failedStage = std::format (L"drawing page {} onto the printer", pageIx + 1));
 
         hr = HrFromSpoolResult (EndPage (pd.hDC), L"EndPage", pageIx);
-        if (FAILED (hr))
-        {
-            if (hr == HRESULT_FROM_WIN32 (ERROR_CANCELLED))
-            {
-                outOutcome = PrintOutcome::Canceled;
-                hr         = S_OK;
-            }
-            else
-            {
-                failedStage = std::format (L"EndPage (page {})", pageIx + 1);
-            }
-            goto Error;
-        }
+        CHRF (hr, failedStage = std::format (L"EndPage (page {})", pageIx + 1));
 
         pageIx++;
     }
 
     hr = HrFromSpoolResult (EndDoc (pd.hDC), L"EndDoc", pageIx);
-    if (FAILED (hr))
-    {
-        if (hr == HRESULT_FROM_WIN32 (ERROR_CANCELLED))
-        {
-            outOutcome = PrintOutcome::Canceled;
-            hr         = S_OK;
-        }
-        else
-        {
-            failedStage = L"EndDoc (finishing the print job)";
-        }
-        goto Error;
-    }
+    CHRF (hr, failedStage = L"EndDoc (finishing the print job)");
+
     started = false;
 
 Error:
+    // A user cancel anywhere in the job -- the print dialog up front, or the
+    // Print-to-PDF Save-As prompt that surfaces mid-job -- is not a delivery
+    // failure. Every stage reports it the same way, so the mapping lives here
+    // once rather than being repeated at each spool call. failedStage is
+    // cleared because there is no failing stage to name.
+    if (hr == HRESULT_FROM_WIN32 (ERROR_CANCELLED))
+    {
+        outOutcome = PrintOutcome::Canceled;
+        failedStage.clear();
+        hr         = S_OK;
+    }
+
     if (started && pd.hDC != nullptr)
     {
         AbortDoc (pd.hDC);

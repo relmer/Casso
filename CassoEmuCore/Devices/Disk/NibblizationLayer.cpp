@@ -651,10 +651,10 @@ HRESULT NibblizationLayer::Denibblize (const DiskImage & img, DiskFormat fmt, ve
         case DiskFormat::Dsk: interleave = kDsk_LtoP;             break;
         case DiskFormat::Do:  interleave = kDsk_LtoP;             break;
         case DiskFormat::Po:  interleave = kPo_DosLogicalToFile;  break;
-        default:
-            hr = E_INVALIDARG;
-            goto Error;
+        default:              hr         = E_INVALIDARG;          break;
     }
+
+    CHR (hr);
 
     for (track = 0; track < kTrackCount; track++)
     {

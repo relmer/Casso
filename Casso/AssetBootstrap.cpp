@@ -1235,6 +1235,7 @@ static HRESULT DownloadHttp (
     DWORD        statusSize   = sizeof (statusCode);
     DWORD        bytesAvail   = 0;
     DWORD        bytesRead    = 0;
+    bool         fCanceled    = false;
     string       narrowHost;
 
 
@@ -1293,12 +1294,9 @@ static HRESULT DownloadHttp (
     {
         vector<Byte>  chunk;
 
-        if (cancelRequested != nullptr && cancelRequested->load (std::memory_order_relaxed))
-        {
-            outError = format ("{} canceled", displayName);
-            hr = E_ABORT;
-            goto Error;
-        }
+        fCanceled = (cancelRequested != nullptr) &&
+                    cancelRequested->load (std::memory_order_relaxed);
+        CBRFEx (!fCanceled, E_ABORT, outError = format ("{} canceled", displayName));
 
         bytesAvail = 0;
         fOk = WinHttpQueryDataAvailable (hRequest, &bytesAvail);
@@ -3068,6 +3066,7 @@ HRESULT AssetBootstrap::RunStartupDownloader (
                     fs::path                     wavPath = mechDir / string (spec.wavBasename);
                     vector<float>                pcm;
                     wstring                      urlPath;
+                    bool                         fAborted = false;
                     std::atomic<std::uint64_t>   perFileBytes{0};
 
                     if (spec.mechanism != mechStr)
@@ -3106,11 +3105,11 @@ HRESULT AssetBootstrap::RunStartupDownloader (
                                                             &perFileBytes,
                                                             &cancel);
 
-                    if (hr == E_ABORT || cancel.load (std::memory_order_relaxed))
-                    {
-                        hr = E_ABORT;
-                        goto Error;
-                    }
+                    // Either the fetch reported an abort or the dialog's
+                    // cancel flag went up mid-download; both end this entry.
+                    fAborted = (hr == E_ABORT) ||
+                               cancel.load (std::memory_order_relaxed);
+                    BAIL_OUT_IF (fAborted, E_ABORT);
 
                     if (FAILED (hr))
                     {

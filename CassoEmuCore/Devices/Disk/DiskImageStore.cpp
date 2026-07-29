@@ -136,13 +136,14 @@ HRESULT DiskImageStore::MountFromBytes (
 
         entry.image->LoadFromBytes (fmt, bytes, virtualPath);
 
+        // A format the loader rejects leaves the slot empty rather than
+        // half-mounted.
         if (!entry.image->IsLoaded())
         {
             entry.image.reset();
             entry.path.clear();
             entry.mounted = false;
             hr = E_FAIL;
-            goto Error;
         }
     }
 

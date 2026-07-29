@@ -309,11 +309,13 @@ HRESULT PaperRenderer::Render (
 
     CBRAEx (dpi > 0, E_INVALIDARG);
 
+    // An empty row span is a valid request: hand back a zero-sized sheet
+    // rather than failing.
     if (numRows <= 0)
     {
         outImage.Allocate (0, 0, s_kPaperR, s_kPaperG, s_kPaperB);
-        goto Error;
     }
+    BAIL_OUT_IF (numRows <= 0, S_OK);
 
     BuildWeaveTile();
     BuildDiscKernels (dpi);
