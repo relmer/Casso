@@ -20,7 +20,7 @@ it only stops *new* violations.
 | `CS0010` | no `-Ex` macro passing its family's default hr | 0 |
 | `CS0009` | do not *produce* `S_FALSE` | 0 |
 | `CS0002` | no anonymous namespaces | 0 |
-| `CS0006` | no bare `goto Error` | **29** |
+| `CS0006` | no bare `goto Error` | **16** |
 
 ## Queue
 
@@ -79,16 +79,36 @@ next to that logic; at or above it you have data the function merely consults.
 Heaviest: `UserConfigStore.cpp` (621-line block), `ThemePage.cpp` (395),
 `AssetBootstrap.cpp` (209).
 
-### 2. `CS0006` — bare `goto Error` (29)
+### 2. `CS0006` — bare `goto Error` (16)
 
-Everything outside `AssemblySession` is converted. What is left is **29 in
-`AssemblySession::ProcessPass1Line`** — early *exits* ("handled this line,
-record it and leave"), not error checks, each running
-`m_lineInfos.push_back (info)` on the way out. `BAIL_OUT_IF` has no action
-slot, so a mechanical conversion would read worse than the `if` it replaces.
-The function wants a state machine or switch first — the EHM question mostly
-dissolves once it does. Well covered for a rewrite: 253 assembler unit tests,
-15 in-repo `.a65` sources, plus Dormann (which assembles *and* executes).
+All 16 remaining are in `AssemblySession.cpp`, spread over 11 functions —
+`HandleIncludeDirective` (3), `BuildListingEntry` / `DetectMacroDefinition` /
+`ExpandMacro` (2 each), and one apiece in seven more.
+
+**`ProcessPass1Line` is done** (was 13 of these). Earlier notes here said all
+29 were in that one function; they were not — it held 13 and the rest were
+scattered through the same file.
+
+The fix was not a state machine. Pass 1 is a **chain of responsibility**: the
+stages run in order and the first to claim the line wins. It resisted a switch
+because the order is not derived from any one mode value — three stages are
+modal short-circuits (collecting a struct body, collecting a macro body,
+skipping an inactive conditional) but the rest are a priority list, and two
+deliberately run *while* skipping so `.ENDIF` / `.ELSE` and macro-definition
+starts are still seen.
+
+What removed the gotos was noticing that all 13 exits did the same two things:
+`m_lineInfos.push_back (info); goto Error;`. Hoisting that push into a wrapper
+left each stage needing only an exit, which is plain `BAIL_OUT_IF`. The
+invariant — record the line exactly once, and never on a failure path — now
+lives in one place instead of being retyped 13 times.
+
+Verified byte-for-byte, not just by the suite: a throwaway harness assembled
+all 15 in-repo `.a65` sources before and after and compared an FNV-1a-64
+digest of the emitted bytes plus the diagnostic shape. All 15 identical. Worth
+the detour on an assembler — the unit suite is good (253 assembler tests plus
+Dormann, which assembles *and* executes) but a reordering bug hides in exactly
+the corner no test covers.
 
 Shapes that did convert, and what each turned into:
 

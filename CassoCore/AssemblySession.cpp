@@ -867,9 +867,8 @@ Error:
 
 HRESULT AssemblySession::ProcessPass1Line (const PendingLine & current)
 {
-    HRESULT hr = S_OK;
-
-    LineInfo info          = {};
+    HRESULT   hr   = S_OK;
+    LineInfo  info = {};
 
 
 
@@ -886,158 +885,152 @@ HRESULT AssemblySession::ProcessPass1Line (const PendingLine & current)
     info.conditionalSkip   = false;
     info.listingSuppressed = (m_listingLevel <= 0);
 
-    // Struct definition collection
+    hr = RunPass1Stages (current, info);
+    CHR (hr);
+
+    // Every stage that claims the line leaves through here, so the record is
+    // written in exactly one place. A stage that FAILS records nothing --
+    // pass 2 must not see a half-processed line.
+    m_lineInfos.push_back (info);
+
+Error:
+    return hr;
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AssemblySession::RunPass1Stages
+//
+//  Pass 1 is a chain of responsibility, not a state machine: the stages below
+//  run in order and the first one to claim the line wins. It is not modeled
+//  as a switch because the order is not derived from any single mode value --
+//  three of the stages are modal short-circuits (collecting a struct body,
+//  collecting a macro body, skipping an inactive conditional) but the rest are
+//  a priority list, and two of them deliberately run *while* skipping so that
+//  .ENDIF / .ELSE and macro-definition starts are still seen.
+//
+//  The order below is the semantics. Moving a stage changes what the assembler
+//  accepts, so each one says what it must come before or after.
+//
+//  `outClaimed` reports that a stage consumed the line; the caller records
+//  `info` and stops. Stages that only annotate `info` (RecordLabel) leave it
+//  false and fall through to the next stage.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT AssemblySession::RunPass1Stages (const PendingLine & current, LineInfo & info)
+{
+    HRESULT      hr      = S_OK;
+    bool         claimed = false;
+    std::string  operandUpper;
+
+    // A struct body swallows every line until .ENDSTRUCT, so it outranks
+    // everything. HandleStructCollection can clear m_collectingStruct on the
+    // way out, which is why the claim is unconditional rather than a re-test.
     if (m_collectingStruct)
     {
-        CHR (HandleStructCollection (current, info));
-        m_lineInfos.push_back (info);
-        goto Error;
+        hr = HandleStructCollection (current, info);
+        CHR (hr);
+        BAIL_OUT_IF (true, S_OK);
     }
 
-    // Macro definition collection
+    // Same for a macro body, for the same reason.
     if (m_collectingMacro)
     {
-        CHR (CollectMacroBody (current, info));
-        m_lineInfos.push_back (info);
-        goto Error;
+        hr = CollectMacroBody (current, info);
+        CHR (hr);
+        BAIL_OUT_IF (true, S_OK);
     }
 
-    // Check for macro definition start
+    // Macro definition start. Runs before the IsAssembling gate so a .MACRO
+    // inside an inactive block still opens collection.
+    if (!info.parsed.operand.empty())
     {
-        std::string operandUpper;
+        operandUpper = info.parsed.operand;
 
-        if (!info.parsed.operand.empty())
+        for (auto & c : operandUpper)
         {
-            operandUpper = info.parsed.operand;
-
-            for (auto & c : operandUpper)
-            {
-                c = (char) toupper ((unsigned char) c);
-            }
-        }
-
-        bool macroDefHandled = false;
-        CHR (DetectMacroDefinition (current, info, operandUpper, macroDefHandled));
-
-        if (macroDefHandled)
-        {
-            m_lineInfos.push_back (info);
-            goto Error;
+            c = (char) toupper ((unsigned char) c);
         }
     }
 
-    // Conditional assembly directives
-    {
-        bool condHandled = false;
-        CHR (HandleConditionalDirective (current, info, condHandled));
+    hr = DetectMacroDefinition (current, info, operandUpper, claimed);
+    CHR (hr);
+    BAIL_OUT_IF (claimed, S_OK);
 
-        if (condHandled)
-        {
-            m_lineInfos.push_back (info);
-            goto Error;
-        }
-    }
+    // Conditional directives MUST precede the IsAssembling gate -- otherwise a
+    // skipped block could never see its own .ELSE / .ENDIF and would run to EOF.
+    hr = HandleConditionalDirective (current, info, claimed);
+    CHR (hr);
+    BAIL_OUT_IF (claimed, S_OK);
 
-    // Skip lines in non-assembling conditional blocks
+    // Everything past this point is real assembly, so an inactive conditional
+    // block stops here.
     if (!IsAssembling())
     {
         info.conditionalSkip = true;
-        m_lineInfos.push_back (info);
-        goto Error;
+        BAIL_OUT_IF (true, S_OK);
     }
 
-    // Handle .ORG before recording label
+    // .ORG and segment switches move the PC, so they run before RecordLabel --
+    // a label on the same line must bind to the NEW address, not the old one.
     if (info.parsed.isDirective && info.parsed.directive == ".ORG")
     {
-        CHR (HandleOrgDirective (current, info));
+        hr = HandleOrgDirective (current, info);
+        CHR (hr);
+
         info.isDirective = true;
-        m_lineInfos.push_back (info);
-        goto Error;
+        BAIL_OUT_IF (true, S_OK);
     }
 
-    // Handle segment switches before recording label
     if (info.parsed.isDirective)
     {
-        bool segHandled = false;
-        CHR (HandleSegmentSwitch (info, segHandled));
-
-        if (segHandled)
-        {
-            m_lineInfos.push_back (info);
-            goto Error;
-        }
+        hr = HandleSegmentSwitch (info, claimed);
+        CHR (hr);
+        BAIL_OUT_IF (claimed, S_OK);
     }
 
-    // Record label
-    CHR (RecordLabel (current, info));
+    // Annotates info and defines the label at the now-final PC. Claims nothing.
+    hr = RecordLabel (current, info);
+    CHR (hr);
 
-    // Handle constant definitions
     if (info.parsed.isConstant)
     {
-        CHR (HandleConstantDefinition (current, info));
-        m_lineInfos.push_back (info);
-        goto Error;
+        hr = HandleConstantDefinition (current, info);
+        CHR (hr);
+        BAIL_OUT_IF (true, S_OK);
     }
 
-    // Handle directives
     if (info.parsed.isDirective)
     {
-        bool dirHandled = false;
-        CHR (HandlePass1Directives (current, info, dirHandled));
-
-        if (dirHandled)
-        {
-            m_lineInfos.push_back (info);
-            goto Error;
-        }
+        hr = HandlePass1Directives (current, info, claimed);
+        CHR (hr);
+        BAIL_OUT_IF (claimed, S_OK);
     }
 
-    // Skip empty lines
-    if (info.parsed.mnemonic.empty())
-    {
-        m_lineInfos.push_back (info);
-        goto Error;
-    }
+    // A label-only or blank line has nothing left to classify.
+    BAIL_OUT_IF (info.parsed.mnemonic.empty(), S_OK);
 
-    // Multi-NOP
-    {
-        bool nopHandled = false;
-        CHR (HandleMultiNop (current, info, nopHandled));
+    hr = HandleMultiNop (current, info, claimed);
+    CHR (hr);
+    BAIL_OUT_IF (claimed, S_OK);
 
-        if (nopHandled)
-        {
-            m_lineInfos.push_back (info);
-            goto Error;
-        }
-    }
+    hr = ExpandMacro (current, info, claimed);
+    CHR (hr);
+    BAIL_OUT_IF (claimed, S_OK);
 
-    // Macro invocation
-    {
-        bool macroHandled = false;
-        CHR (ExpandMacro (current, info, macroHandled));
+    // Last chance to reinterpret the "mnemonic" as a colon-less label, so it
+    // runs after every real mnemonic form has had its turn.
+    hr = HandleColonlessLabel (current, info, claimed);
+    CHR (hr);
+    BAIL_OUT_IF (claimed, S_OK);
 
-        if (macroHandled)
-        {
-            m_lineInfos.push_back (info);
-            goto Error;
-        }
-    }
-
-    // Colon-less label detection
-    {
-        bool colonlessHandled = false;
-        CHR (HandleColonlessLabel (current, info, colonlessHandled));
-
-        if (colonlessHandled)
-        {
-            m_lineInfos.push_back (info);
-            goto Error;
-        }
-    }
-
-    // Classify operand and resolve addressing mode
-    CHR (ClassifyAndResolve (current, info));
-    m_lineInfos.push_back (info);
+    // Nothing claimed it: it is an instruction.
+    hr = ClassifyAndResolve (current, info);
+    CHR (hr);
 
 Error:
     return hr;

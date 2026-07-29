@@ -101,6 +101,10 @@ private:
 
 
     HRESULT ProcessPass1Line           (const PendingLine & current);
+
+    // The ordered pass-1 stage chain. The first stage to claim `current` wins;
+    // ProcessPass1Line owns recording the result exactly once.
+    HRESULT RunPass1Stages             (const PendingLine & current, LineInfo & info);
     HRESULT HandleMultiNop             (const PendingLine & current, LineInfo & info, bool & handled);
     HRESULT CountExitmIfDepth          (const std::vector<std::string> & expandedLines, int & ifDepth);
 
