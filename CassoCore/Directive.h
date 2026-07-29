@@ -59,6 +59,8 @@ enum class Directive
     Text,
     Title,
     Word,
+
+    Count,          // sentinel: sizes token-indexed tables
 };
 
 

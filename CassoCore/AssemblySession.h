@@ -4,6 +4,7 @@
 #include "Ehm.h"
 #include "ExpressionEvaluator.h"
 #include "OpcodeTable.h"
+#include "Directive.h"
 #include "Parser.h"
 
 
@@ -81,7 +82,36 @@ private:
     HRESULT HandlePass1DataDirectives  (const PendingLine & current, LineInfo & info);
     HRESULT HandleIncludeDirective     (const PendingLine & current, LineInfo & info);
     HRESULT StartStructDefinition      (const PendingLine & current, LineInfo & info);
-    HRESULT HandleCmapDirective        (LineInfo & info);
+    HRESULT HandleCmapDirective        (const PendingLine & current, LineInfo & info);
+
+    // Every pass-1 directive handler has this shape, which is what lets the
+    // dispatch be an array indexed by token rather than a chain.
+    using Pass1DirectiveFn = HRESULT (AssemblySession::*) (const PendingLine & current, LineInfo & info);
+
+    struct Pass1DirectiveRow
+    {
+        Directive         token;     // must equal its own index
+        Pass1DirectiveFn  handler;   // nullptr = not a pass-1 directive
+    };
+
+    // The table lives inside a function rather than at file scope because a
+    // file-scope initializer cannot name private members.
+    static const Pass1DirectiveRow * Pass1DirectiveTable();
+
+    HRESULT Pass1Word    (const PendingLine & current, LineInfo & info);
+    HRESULT Pass1Text    (const PendingLine & current, LineInfo & info);
+    HRESULT Pass1Dd      (const PendingLine & current, LineInfo & info);
+    HRESULT Pass1Ds      (const PendingLine & current, LineInfo & info);
+    HRESULT Pass1Align   (const PendingLine & current, LineInfo & info);
+    HRESULT Pass1End     (const PendingLine & current, LineInfo & info);
+    HRESULT Pass1Error   (const PendingLine & current, LineInfo & info);
+    HRESULT Pass1List    (const PendingLine & current, LineInfo & info);
+    HRESULT Pass1Nolist  (const PendingLine & current, LineInfo & info);
+    HRESULT Pass1Title   (const PendingLine & current, LineInfo & info);
+
+    // Recognized, and deliberately does nothing in pass 1 (.OPT_NOOP is
+    // accepted for as65 source compatibility; .PAGE acts at listing time).
+    HRESULT Pass1Ignored (const PendingLine & current, LineInfo & info);
     HRESULT ExpandMacro                (const PendingLine & current, LineInfo & info, bool & handled);
     HRESULT SubstituteMacroParams      (const MacroDefinition & macroDef,
                                         const std::vector<std::string> & args,

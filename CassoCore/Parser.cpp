@@ -326,6 +326,7 @@ ParsedLine Parser::ParseLine (const std::string & line, int lineNumber)
         if (rmbArg.find (',') == std::string::npos)
         {
             canonicalDirective = ".DS";
+            directiveToken     = Directive::Ds;
         }
     }
 
