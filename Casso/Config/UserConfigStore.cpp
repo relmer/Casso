@@ -18,627 +18,617 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace
+std::wstring UserConfigStore::Widen (const std::string & narrow)
 {
-    constexpr const char * s_kpszVersionKey       = "$cassoMachineVersion";
-    constexpr const char * s_kpszLegacyVersionKey = "$cassoDefault";
-    constexpr const char * s_kpszUiPrefsKey       = "$cassoUiPrefs";
-    constexpr const char * s_kpszGlobalKey        = "global";
-    constexpr const char * s_kpszMachinesKey      = "machines";
+    std::wstring  out;
 
 
-    std::wstring Widen (const std::string & narrow)
+    out.reserve (narrow.size());
+    for (char c : narrow)
     {
-        std::wstring  out;
+        out.push_back ((wchar_t) (unsigned char) c);
+    }
+    return out;
+}
 
 
-        out.reserve (narrow.size());
-        for (char c : narrow)
+std::string UserConfigStore::Narrow (const std::wstring & wide)
+{
+    std::string  out;
+
+
+    out.reserve (wide.size());
+    for (wchar_t c : wide)
+    {
+        out.push_back ((char) (unsigned char) c);
+    }
+    return out;
+}
+
+
+std::wstring UserConfigStore::JoinPath (
+    const std::wstring & baseDir,
+    const std::wstring & filename)
+{
+    std::wstring  result = baseDir;
+
+
+    if (!result.empty() &&
+        result.back() != L'\\' &&
+        result.back() != L'/')
+    {
+        result += L'\\';
+    }
+
+    result += filename;
+    return result;
+}
+
+
+std::wstring UserConfigStore::UserPrefsFilename()
+{
+    return std::wstring (L"User") + L"Prefs" + L".json";
+}
+
+
+std::wstring UserConfigStore::LegacyGlobalPrefsFilename()
+{
+    return std::wstring (L"Global") + L"User" + L"Prefs" + L".json";
+}
+
+
+std::wstring UserConfigStore::LegacyUserSuffix()
+{
+    return std::wstring (L"_") + L"user" + L".json";
+}
+
+
+bool UserConfigStore::EndsWith (
+    const std::wstring & text,
+    const std::wstring & suffix)
+{
+    if (text.size() < suffix.size())
+    {
+        return false;
+    }
+
+    return text.compare (text.size() - suffix.size(), suffix.size(), suffix) == 0;
+}
+
+
+std::wstring UserConfigStore::StripSuffix (
+    const std::wstring & text,
+    const std::wstring & suffix)
+{
+    return text.substr (0, text.size() - suffix.size());
+}
+
+
+int  UserConfigStore::FindObjectKey (
+    const std::vector<std::pair<std::string, JsonValue>> & entries,
+    const std::string                                    & key)
+{
+    int  i = 0;
+
+
+    for (i = 0; i < (int) entries.size(); ++i)
+    {
+        if (entries[(size_t) i].first == key)
         {
-            out.push_back ((wchar_t) (unsigned char) c);
+            return i;
         }
-        return out;
+    }
+    return -1;
+}
+
+
+const JsonValue * UserConfigStore::FindObjectValue (
+    const JsonValue   & obj,
+    const std::string & key)
+{
+    int  idx = -1;
+
+
+    if (obj.GetType() != JsonType::Object)
+    {
+        return nullptr;
     }
 
-
-    std::string Narrow (const std::wstring & wide)
+    idx = FindObjectKey (obj.GetObjectEntries(), key);
+    if (idx < 0)
     {
-        std::string  out;
+        return nullptr;
+    }
+
+    return &obj.GetObjectEntries()[(size_t) idx].second;
+}
+
+int  UserConfigStore::ExtractVersion (const JsonValue & v)
+{
+    const std::vector<std::pair<std::string, JsonValue>> * entries = nullptr;
+    int                                                    found   = -1;
+
+    if (v.GetType() != JsonType::Object)
+    {
+        return 0;
+    }
+
+    entries = &v.GetObjectEntries();
+    found   = FindObjectKey (*entries, kpszVersionKey);
+    if (found < 0)
+    {
+        return 0;
+    }
+
+    if ((*entries)[(size_t) found].second.GetType() != JsonType::Number)
+    {
+        return 0;
+    }
+
+    return (int) (*entries)[(size_t) found].second.GetNumber();
+}
 
 
-        out.reserve (wide.size());
-        for (wchar_t c : wide)
+int  UserConfigStore::ExtractVersionForKey (
+    const JsonValue   & v,
+    const std::string & key)
+{
+    const std::vector<std::pair<std::string, JsonValue>> * entries = nullptr;
+    int                                                    found   = -1;
+
+
+    if (v.GetType() != JsonType::Object)
+    {
+        return 0;
+    }
+
+    entries = &v.GetObjectEntries();
+    found   = FindObjectKey (*entries, key);
+    if (found < 0)
+    {
+        return 0;
+    }
+
+    if ((*entries)[(size_t) found].second.GetType() != JsonType::Number)
+    {
+        return 0;
+    }
+
+    return (int) (*entries)[(size_t) found].second.GetNumber();
+}
+
+
+bool UserConfigStore::HasLegacyVersionAlias (const JsonValue & v)
+{
+    if (v.GetType() != JsonType::Object)
+    {
+        return false;
+    }
+
+    return FindObjectKey (v.GetObjectEntries(), kpszLegacyVersionKey) >= 0;
+}
+
+
+JsonValue UserConfigStore::CanonicalizeVersionStamp (
+    const JsonValue & userJson,
+    int               fallbackVersion)
+{
+    std::vector<std::pair<std::string, JsonValue>>  out;
+    int                                              canonicalVersion = 0;
+    bool                                             fWroteVersion    = false;
+
+
+    if (userJson.GetType() != JsonType::Object)
+    {
+        return userJson;
+    }
+
+    canonicalVersion = ExtractVersionForKey (userJson, kpszVersionKey);
+    if (canonicalVersion <= 0)
+    {
+        canonicalVersion = ExtractVersionForKey (userJson, kpszLegacyVersionKey);
+    }
+    if (fallbackVersion > 0 && canonicalVersion < fallbackVersion)
+    {
+        canonicalVersion = fallbackVersion;
+    }
+
+    out.reserve (userJson.GetObjectEntries().size() + 1);
+
+    for (const auto & kv : userJson.GetObjectEntries())
+    {
+        if (kv.first == kpszVersionKey)
         {
-            out.push_back ((char) (unsigned char) c);
-        }
-        return out;
-    }
-
-
-    std::wstring JoinPath (
-        const std::wstring & baseDir,
-        const std::wstring & filename)
-    {
-        std::wstring  result = baseDir;
-
-
-        if (!result.empty() &&
-            result.back() != L'\\' &&
-            result.back() != L'/')
-        {
-            result += L'\\';
-        }
-
-        result += filename;
-        return result;
-    }
-
-
-    std::wstring UserPrefsFilename()
-    {
-        return std::wstring (L"User") + L"Prefs" + L".json";
-    }
-
-
-    std::wstring LegacyGlobalPrefsFilename()
-    {
-        return std::wstring (L"Global") + L"User" + L"Prefs" + L".json";
-    }
-
-
-    std::wstring LegacyUserSuffix()
-    {
-        return std::wstring (L"_") + L"user" + L".json";
-    }
-
-
-    bool EndsWith (
-        const std::wstring & text,
-        const std::wstring & suffix)
-    {
-        if (text.size() < suffix.size())
-        {
-            return false;
-        }
-
-        return text.compare (text.size() - suffix.size(), suffix.size(), suffix) == 0;
-    }
-
-
-    std::wstring StripSuffix (
-        const std::wstring & text,
-        const std::wstring & suffix)
-    {
-        return text.substr (0, text.size() - suffix.size());
-    }
-
-
-    int  FindObjectKey (
-        const std::vector<std::pair<std::string, JsonValue>> & entries,
-        const std::string                                    & key)
-    {
-        int  i = 0;
-
-
-        for (i = 0; i < (int) entries.size(); ++i)
-        {
-            if (entries[(size_t) i].first == key)
+            if (!fWroteVersion && canonicalVersion > 0)
             {
-                return i;
+                out.emplace_back (kpszVersionKey, JsonValue ((double) canonicalVersion));
+                fWroteVersion = true;
             }
+            continue;
         }
+
+        if (kv.first == kpszLegacyVersionKey)
+        {
+            continue;
+        }
+
+        out.emplace_back (kv.first, kv.second);
+    }
+
+    if (!fWroteVersion && canonicalVersion > 0)
+    {
+        out.insert (out.begin(),
+                    std::make_pair (std::string (kpszVersionKey),
+                                    JsonValue ((double) canonicalVersion)));
+    }
+
+    return JsonValue (std::move (out));
+}
+
+
+bool UserConfigStore::TryGetBoolField (
+    const JsonValue   & obj,
+    const std::string & key,
+    bool              & out)
+{
+    int idx = -1;
+
+
+    if (obj.GetType() != JsonType::Object)
+    {
+        return false;
+    }
+
+    idx = FindObjectKey (obj.GetObjectEntries(), key);
+    if (idx < 0)
+    {
+        return false;
+    }
+
+    if (obj.GetObjectEntries()[(size_t) idx].second.GetType() != JsonType::Bool)
+    {
+        return false;
+    }
+
+    out = obj.GetObjectEntries()[(size_t) idx].second.GetBool();
+    return true;
+}
+
+
+bool UserConfigStore::TryGetIntField (
+    const JsonValue   & obj,
+    const std::string & key,
+    int               & out)
+{
+    int idx = -1;
+
+
+    if (obj.GetType() != JsonType::Object)
+    {
+        return false;
+    }
+
+    idx = FindObjectKey (obj.GetObjectEntries(), key);
+    if (idx < 0)
+    {
+        return false;
+    }
+
+    if (obj.GetObjectEntries()[(size_t) idx].second.GetType() != JsonType::Number)
+    {
+        return false;
+    }
+
+    out = (int) obj.GetObjectEntries()[(size_t) idx].second.GetNumber();
+    return true;
+}
+
+
+bool UserConfigStore::TryGetStringField (
+    const JsonValue   & obj,
+    const std::string & key,
+    std::string       & out)
+{
+    int idx = -1;
+
+
+    if (obj.GetType() != JsonType::Object)
+    {
+        return false;
+    }
+
+    idx = FindObjectKey (obj.GetObjectEntries(), key);
+    if (idx < 0)
+    {
+        return false;
+    }
+
+    if (obj.GetObjectEntries()[(size_t) idx].second.GetType() != JsonType::String)
+    {
+        return false;
+    }
+
+    out = obj.GetObjectEntries()[(size_t) idx].second.GetString();
+    return true;
+}
+
+
+JsonValue UserConfigStore::BuildObjectWithEnabled (
+    const JsonValue & src,
+    bool              enabled)
+{
+    std::vector<std::pair<std::string, JsonValue>> rebuilt;
+    const auto * entries = &src.GetObjectEntries();
+
+
+    rebuilt.reserve (entries->size() + 1);
+    for (size_t i = 0; i < entries->size(); ++i)
+    {
+        if ((*entries)[i].first == "enabled")
+        {
+            continue;
+        }
+        rebuilt.emplace_back ((*entries)[i].first, (*entries)[i].second);
+    }
+    rebuilt.emplace_back ("enabled", JsonValue (enabled));
+
+    return JsonValue (std::move (rebuilt));
+}
+
+
+JsonValue UserConfigStore::BuildUiPrefsDefaults()
+{
+    std::vector<std::pair<std::string, JsonValue>> uiObj;
+    std::vector<JsonValue>                         wp;
+
+
+    uiObj.emplace_back ("speedMode",          JsonValue (std::string ("authentic")));
+    uiObj.emplace_back ("colorMode",          JsonValue (std::string ("color")));
+    uiObj.emplace_back ("writeMode",          JsonValue (std::string ("buffer-and-flush")));
+    uiObj.emplace_back ("floppySoundEnabled", JsonValue (true));
+    uiObj.emplace_back ("floppyMechanism",    JsonValue (std::string ("shugart")));
+    wp.emplace_back (JsonValue (false));
+    wp.emplace_back (JsonValue (false));
+    uiObj.emplace_back ("writeProtect", JsonValue (std::move (wp)));
+
+    return JsonValue (std::move (uiObj));
+}
+
+
+int UserConfigStore::FindInternalByType (
+    const JsonValue   & arr,
+    const std::string & type)
+{
+    std::string candidate;
+
+
+    if (arr.GetType() != JsonType::Array)
+    {
         return -1;
     }
 
-
-    const JsonValue * FindObjectValue (
-        const JsonValue   & obj,
-        const std::string & key)
+    for (size_t i = 0; i < arr.ArraySize(); ++i)
     {
-        int  idx = -1;
-
-
-        if (obj.GetType() != JsonType::Object)
+        const JsonValue & e = arr.ArrayAt (i);
+        if (e.GetType() != JsonType::Object)
         {
-            return nullptr;
+            continue;
         }
 
-        idx = FindObjectKey (obj.GetObjectEntries(), key);
-        if (idx < 0)
+        candidate.clear();
+        if (TryGetStringField (e, "type", candidate) && candidate == type)
         {
-            return nullptr;
+            return (int) i;
         }
-
-        return &obj.GetObjectEntries()[(size_t) idx].second;
     }
 
-    int  ExtractVersion (const JsonValue & v)
+    return -1;
+}
+
+
+int UserConfigStore::FindSlotByNumber (
+    const JsonValue & arr,
+    int               slot)
+{
+    int candidate = -1;
+
+
+    if (arr.GetType() != JsonType::Array)
     {
-        const std::vector<std::pair<std::string, JsonValue>> * entries = nullptr;
-        int                                                    found   = -1;
-
-        if (v.GetType() != JsonType::Object)
-        {
-            return 0;
-        }
-
-        entries = &v.GetObjectEntries();
-        found   = FindObjectKey (*entries, s_kpszVersionKey);
-        if (found < 0)
-        {
-            return 0;
-        }
-
-        if ((*entries)[(size_t) found].second.GetType() != JsonType::Number)
-        {
-            return 0;
-        }
-
-        return (int) (*entries)[(size_t) found].second.GetNumber();
-    }
-
-
-    int  ExtractVersionForKey (
-        const JsonValue   & v,
-        const std::string & key)
-    {
-        const std::vector<std::pair<std::string, JsonValue>> * entries = nullptr;
-        int                                                    found   = -1;
-
-
-        if (v.GetType() != JsonType::Object)
-        {
-            return 0;
-        }
-
-        entries = &v.GetObjectEntries();
-        found   = FindObjectKey (*entries, key);
-        if (found < 0)
-        {
-            return 0;
-        }
-
-        if ((*entries)[(size_t) found].second.GetType() != JsonType::Number)
-        {
-            return 0;
-        }
-
-        return (int) (*entries)[(size_t) found].second.GetNumber();
-    }
-
-
-    bool HasLegacyVersionAlias (const JsonValue & v)
-    {
-        if (v.GetType() != JsonType::Object)
-        {
-            return false;
-        }
-
-        return FindObjectKey (v.GetObjectEntries(), s_kpszLegacyVersionKey) >= 0;
-    }
-
-
-    JsonValue CanonicalizeVersionStamp (
-        const JsonValue & userJson,
-        int               fallbackVersion)
-    {
-        std::vector<std::pair<std::string, JsonValue>>  out;
-        int                                              canonicalVersion = 0;
-        bool                                             fWroteVersion    = false;
-
-
-        if (userJson.GetType() != JsonType::Object)
-        {
-            return userJson;
-        }
-
-        canonicalVersion = ExtractVersionForKey (userJson, s_kpszVersionKey);
-        if (canonicalVersion <= 0)
-        {
-            canonicalVersion = ExtractVersionForKey (userJson, s_kpszLegacyVersionKey);
-        }
-        if (fallbackVersion > 0 && canonicalVersion < fallbackVersion)
-        {
-            canonicalVersion = fallbackVersion;
-        }
-
-        out.reserve (userJson.GetObjectEntries().size() + 1);
-
-        for (const auto & kv : userJson.GetObjectEntries())
-        {
-            if (kv.first == s_kpszVersionKey)
-            {
-                if (!fWroteVersion && canonicalVersion > 0)
-                {
-                    out.emplace_back (s_kpszVersionKey, JsonValue ((double) canonicalVersion));
-                    fWroteVersion = true;
-                }
-                continue;
-            }
-
-            if (kv.first == s_kpszLegacyVersionKey)
-            {
-                continue;
-            }
-
-            out.emplace_back (kv.first, kv.second);
-        }
-
-        if (!fWroteVersion && canonicalVersion > 0)
-        {
-            out.insert (out.begin(),
-                        std::make_pair (std::string (s_kpszVersionKey),
-                                        JsonValue ((double) canonicalVersion)));
-        }
-
-        return JsonValue (std::move (out));
-    }
-
-
-    bool TryGetBoolField (
-        const JsonValue   & obj,
-        const std::string & key,
-        bool              & out)
-    {
-        int idx = -1;
-
-
-        if (obj.GetType() != JsonType::Object)
-        {
-            return false;
-        }
-
-        idx = FindObjectKey (obj.GetObjectEntries(), key);
-        if (idx < 0)
-        {
-            return false;
-        }
-
-        if (obj.GetObjectEntries()[(size_t) idx].second.GetType() != JsonType::Bool)
-        {
-            return false;
-        }
-
-        out = obj.GetObjectEntries()[(size_t) idx].second.GetBool();
-        return true;
-    }
-
-
-    bool TryGetIntField (
-        const JsonValue   & obj,
-        const std::string & key,
-        int               & out)
-    {
-        int idx = -1;
-
-
-        if (obj.GetType() != JsonType::Object)
-        {
-            return false;
-        }
-
-        idx = FindObjectKey (obj.GetObjectEntries(), key);
-        if (idx < 0)
-        {
-            return false;
-        }
-
-        if (obj.GetObjectEntries()[(size_t) idx].second.GetType() != JsonType::Number)
-        {
-            return false;
-        }
-
-        out = (int) obj.GetObjectEntries()[(size_t) idx].second.GetNumber();
-        return true;
-    }
-
-
-    bool TryGetStringField (
-        const JsonValue   & obj,
-        const std::string & key,
-        std::string       & out)
-    {
-        int idx = -1;
-
-
-        if (obj.GetType() != JsonType::Object)
-        {
-            return false;
-        }
-
-        idx = FindObjectKey (obj.GetObjectEntries(), key);
-        if (idx < 0)
-        {
-            return false;
-        }
-
-        if (obj.GetObjectEntries()[(size_t) idx].second.GetType() != JsonType::String)
-        {
-            return false;
-        }
-
-        out = obj.GetObjectEntries()[(size_t) idx].second.GetString();
-        return true;
-    }
-
-
-    JsonValue BuildObjectWithEnabled (
-        const JsonValue & src,
-        bool              enabled)
-    {
-        std::vector<std::pair<std::string, JsonValue>> rebuilt;
-        const auto * entries = &src.GetObjectEntries();
-
-
-        rebuilt.reserve (entries->size() + 1);
-        for (size_t i = 0; i < entries->size(); ++i)
-        {
-            if ((*entries)[i].first == "enabled")
-            {
-                continue;
-            }
-            rebuilt.emplace_back ((*entries)[i].first, (*entries)[i].second);
-        }
-        rebuilt.emplace_back ("enabled", JsonValue (enabled));
-
-        return JsonValue (std::move (rebuilt));
-    }
-
-
-    JsonValue BuildUiPrefsDefaults()
-    {
-        std::vector<std::pair<std::string, JsonValue>> uiObj;
-        std::vector<JsonValue>                         wp;
-
-
-        uiObj.emplace_back ("speedMode",          JsonValue (std::string ("authentic")));
-        uiObj.emplace_back ("colorMode",          JsonValue (std::string ("color")));
-        uiObj.emplace_back ("writeMode",          JsonValue (std::string ("buffer-and-flush")));
-        uiObj.emplace_back ("floppySoundEnabled", JsonValue (true));
-        uiObj.emplace_back ("floppyMechanism",    JsonValue (std::string ("shugart")));
-        wp.emplace_back (JsonValue (false));
-        wp.emplace_back (JsonValue (false));
-        uiObj.emplace_back ("writeProtect", JsonValue (std::move (wp)));
-
-        return JsonValue (std::move (uiObj));
-    }
-
-
-    int FindInternalByType (
-        const JsonValue   & arr,
-        const std::string & type)
-    {
-        std::string candidate;
-
-
-        if (arr.GetType() != JsonType::Array)
-        {
-            return -1;
-        }
-
-        for (size_t i = 0; i < arr.ArraySize(); ++i)
-        {
-            const JsonValue & e = arr.ArrayAt (i);
-            if (e.GetType() != JsonType::Object)
-            {
-                continue;
-            }
-
-            candidate.clear();
-            if (TryGetStringField (e, "type", candidate) && candidate == type)
-            {
-                return (int) i;
-            }
-        }
-
         return -1;
     }
 
-
-    int FindSlotByNumber (
-        const JsonValue & arr,
-        int               slot)
+    for (size_t i = 0; i < arr.ArraySize(); ++i)
     {
-        int candidate = -1;
-
-
-        if (arr.GetType() != JsonType::Array)
+        const JsonValue & e = arr.ArrayAt (i);
+        if (e.GetType() != JsonType::Object)
         {
-            return -1;
+            continue;
         }
 
-        for (size_t i = 0; i < arr.ArraySize(); ++i)
+        candidate = -1;
+        if (TryGetIntField (e, "slot", candidate) && candidate == slot)
         {
-            const JsonValue & e = arr.ArrayAt (i);
-            if (e.GetType() != JsonType::Object)
-            {
-                continue;
-            }
-
-            candidate = -1;
-            if (TryGetIntField (e, "slot", candidate) && candidate == slot)
-            {
-                return (int) i;
-            }
+            return (int) i;
         }
-
-        return -1;
     }
 
+    return -1;
+}
 
-    JsonValue MergeHardwareArray (
-        const JsonValue & defaultArr,
-        const JsonValue & userArr,
-        bool              slotArray)
+
+JsonValue UserConfigStore::MergeHardwareArray (
+    const JsonValue & defaultArr,
+    const JsonValue & userArr,
+    bool              slotArray)
+{
+    std::vector<JsonValue> merged;
+    std::vector<bool>      userMatched;
+
+
+    if (defaultArr.GetType() != JsonType::Array ||
+        userArr.GetType()    != JsonType::Array)
     {
-        std::vector<JsonValue> merged;
-        std::vector<bool>      userMatched;
-
-
-        if (defaultArr.GetType() != JsonType::Array ||
-            userArr.GetType()    != JsonType::Array)
-        {
-            return userArr;
-        }
-
-        userMatched.resize (userArr.ArraySize(), false);
-        merged.reserve (defaultArr.ArraySize() + userArr.ArraySize());
-
-        for (size_t i = 0; i < defaultArr.ArraySize(); ++i)
-        {
-            const JsonValue & defEntry = defaultArr.ArrayAt (i);
-            int               userIdx  = -1;
-            bool              enabled  = true;
-
-            if (defEntry.GetType() == JsonType::Object)
-            {
-                if (slotArray)
-                {
-                    int slot = -1;
-                    if (TryGetIntField (defEntry, "slot", slot))
-                    {
-                        userIdx = FindSlotByNumber (userArr, slot);
-                    }
-                }
-                else
-                {
-                    std::string type;
-                    if (TryGetStringField (defEntry, "type", type))
-                    {
-                        userIdx = FindInternalByType (userArr, type);
-                    }
-                }
-            }
-
-            if (userIdx >= 0)
-            {
-                const JsonValue & userEntry = userArr.ArrayAt ((size_t) userIdx);
-                userMatched[(size_t) userIdx] = true;
-
-                if (TryGetBoolField (userEntry, "enabled", enabled) &&
-                    defEntry.GetType() == JsonType::Object)
-                {
-                    merged.emplace_back (BuildObjectWithEnabled (defEntry, enabled));
-                }
-                else
-                {
-                    merged.emplace_back (userEntry);
-                }
-            }
-            else
-            {
-                merged.emplace_back (defEntry);
-            }
-        }
-
-        for (size_t i = 0; i < userArr.ArraySize(); ++i)
-        {
-            if (!userMatched[i])
-            {
-                merged.emplace_back (userArr.ArrayAt (i));
-            }
-        }
-
-        return JsonValue (std::move (merged));
+        return userArr;
     }
 
+    userMatched.resize (userArr.ArraySize(), false);
+    merged.reserve (defaultArr.ArraySize() + userArr.ArraySize());
 
-    JsonValue BuildHardwareDeltaArray (
-        const JsonValue & currentArr,
-        const JsonValue & defaultArr,
-        bool              slotArray)
+    for (size_t i = 0; i < defaultArr.ArraySize(); ++i)
     {
-        std::vector<JsonValue> delta;
+        const JsonValue & defEntry = defaultArr.ArrayAt (i);
+        int               userIdx  = -1;
+        bool              enabled  = true;
 
-
-        if (currentArr.GetType() != JsonType::Array ||
-            defaultArr.GetType() != JsonType::Array)
+        if (defEntry.GetType() == JsonType::Object)
         {
-            return currentArr;
-        }
-
-        for (size_t i = 0; i < currentArr.ArraySize(); ++i)
-        {
-            const JsonValue & curEntry = currentArr.ArrayAt (i);
-            int               defIdx   = -1;
-            bool              curEn    = true;
-            bool              defEn    = true;
-
-            if (curEntry.GetType() != JsonType::Object)
-            {
-                continue;
-            }
-
             if (slotArray)
             {
                 int slot = -1;
-                if (TryGetIntField (curEntry, "slot", slot))
+                if (TryGetIntField (defEntry, "slot", slot))
                 {
-                    defIdx = FindSlotByNumber (defaultArr, slot);
+                    userIdx = FindSlotByNumber (userArr, slot);
                 }
             }
             else
             {
                 std::string type;
-                if (TryGetStringField (curEntry, "type", type))
+                if (TryGetStringField (defEntry, "type", type))
                 {
-                    defIdx = FindInternalByType (defaultArr, type);
+                    userIdx = FindInternalByType (userArr, type);
                 }
-            }
-
-            (void) TryGetBoolField (curEntry, "enabled", curEn);
-            if (defIdx >= 0 && defaultArr.ArrayAt ((size_t) defIdx).GetType() == JsonType::Object)
-            {
-                (void) TryGetBoolField (defaultArr.ArrayAt ((size_t) defIdx), "enabled", defEn);
-            }
-
-            if (curEn != defEn)
-            {
-                std::vector<std::pair<std::string, JsonValue>> obj;
-                std::string type;
-                int slot = -1;
-
-                if (slotArray)
-                {
-                    if (TryGetIntField (curEntry, "slot", slot))
-                    {
-                        obj.emplace_back ("slot", JsonValue ((double) slot));
-                    }
-                }
-                else
-                {
-                    if (TryGetStringField (curEntry, "type", type))
-                    {
-                        obj.emplace_back ("type", JsonValue (type));
-                    }
-                }
-
-                obj.emplace_back ("enabled", JsonValue (curEn));
-                delta.emplace_back (JsonValue (std::move (obj)));
             }
         }
 
-        return JsonValue (std::move (delta));
+        if (userIdx >= 0)
+        {
+            const JsonValue & userEntry = userArr.ArrayAt ((size_t) userIdx);
+            userMatched[(size_t) userIdx] = true;
+
+            if (TryGetBoolField (userEntry, "enabled", enabled) &&
+                defEntry.GetType() == JsonType::Object)
+            {
+                merged.emplace_back (BuildObjectWithEnabled (defEntry, enabled));
+            }
+            else
+            {
+                merged.emplace_back (userEntry);
+            }
+        }
+        else
+        {
+            merged.emplace_back (defEntry);
+        }
     }
 
-
-    bool IsObjectArray (const JsonValue & v)
+    for (size_t i = 0; i < userArr.ArraySize(); ++i)
     {
-        if (v.GetType() != JsonType::Array)
+        if (!userMatched[i])
+        {
+            merged.emplace_back (userArr.ArrayAt (i));
+        }
+    }
+
+    return JsonValue (std::move (merged));
+}
+
+
+JsonValue UserConfigStore::BuildHardwareDeltaArray (
+    const JsonValue & currentArr,
+    const JsonValue & defaultArr,
+    bool              slotArray)
+{
+    std::vector<JsonValue> delta;
+
+
+    if (currentArr.GetType() != JsonType::Array ||
+        defaultArr.GetType() != JsonType::Array)
+    {
+        return currentArr;
+    }
+
+    for (size_t i = 0; i < currentArr.ArraySize(); ++i)
+    {
+        const JsonValue & curEntry = currentArr.ArrayAt (i);
+        int               defIdx   = -1;
+        bool              curEn    = true;
+        bool              defEn    = true;
+
+        if (curEntry.GetType() != JsonType::Object)
+        {
+            continue;
+        }
+
+        if (slotArray)
+        {
+            int slot = -1;
+            if (TryGetIntField (curEntry, "slot", slot))
+            {
+                defIdx = FindSlotByNumber (defaultArr, slot);
+            }
+        }
+        else
+        {
+            std::string type;
+            if (TryGetStringField (curEntry, "type", type))
+            {
+                defIdx = FindInternalByType (defaultArr, type);
+            }
+        }
+
+        (void) TryGetBoolField (curEntry, "enabled", curEn);
+        if (defIdx >= 0 && defaultArr.ArrayAt ((size_t) defIdx).GetType() == JsonType::Object)
+        {
+            (void) TryGetBoolField (defaultArr.ArrayAt ((size_t) defIdx), "enabled", defEn);
+        }
+
+        if (curEn != defEn)
+        {
+            std::vector<std::pair<std::string, JsonValue>> obj;
+            std::string type;
+            int slot = -1;
+
+            if (slotArray)
+            {
+                if (TryGetIntField (curEntry, "slot", slot))
+                {
+                    obj.emplace_back ("slot", JsonValue ((double) slot));
+                }
+            }
+            else
+            {
+                if (TryGetStringField (curEntry, "type", type))
+                {
+                    obj.emplace_back ("type", JsonValue (type));
+                }
+            }
+
+            obj.emplace_back ("enabled", JsonValue (curEn));
+            delta.emplace_back (JsonValue (std::move (obj)));
+        }
+    }
+
+    return JsonValue (std::move (delta));
+}
+
+
+bool UserConfigStore::IsObjectArray (const JsonValue & v)
+{
+    if (v.GetType() != JsonType::Array)
+    {
+        return false;
+    }
+
+    for (size_t i = 0; i < v.ArraySize(); ++i)
+    {
+        if (v.ArrayAt (i).GetType() != JsonType::Object)
         {
             return false;
         }
-
-        for (size_t i = 0; i < v.ArraySize(); ++i)
-        {
-            if (v.ArrayAt (i).GetType() != JsonType::Object)
-            {
-                return false;
-            }
-        }
-
-        return true;
     }
+
+    return true;
 }
 
 
@@ -828,7 +818,7 @@ HRESULT UserConfigStore::Load (
         hr = JsonParser::Parse (userContent, root, parseErr);
         CHR (hr);
 
-        if (FindObjectValue (root, s_kpszMachinesKey) != nullptr)
+        if (FindObjectValue (root, kpszMachinesKey) != nullptr)
         {
             hr = LoadCombinedJson (root, fallbackPrefs);
             CHR (hr);
@@ -1015,7 +1005,7 @@ JsonValue UserConfigStore::BuildCombinedJson (
             hr = JsonParser::Parse (existingText, existing, err);
             if (SUCCEEDED (hr))
             {
-                existingMachines = FindObjectValue (existing, s_kpszMachinesKey);
+                existingMachines = FindObjectValue (existing, kpszMachinesKey);
                 if (existingMachines != nullptr && existingMachines->GetType() == JsonType::Object)
                 {
                     for (const auto & kv : existingMachines->GetObjectEntries())
@@ -1042,8 +1032,8 @@ JsonValue UserConfigStore::BuildCombinedJson (
         machines.emplace_back (kv.first, kv.second);
     }
 
-    root.emplace_back (s_kpszGlobalKey,   prefs.ToJson());
-    root.emplace_back (s_kpszMachinesKey, JsonValue (std::move (machines)));
+    root.emplace_back (kpszGlobalKey,   prefs.ToJson());
+    root.emplace_back (kpszMachinesKey, JsonValue (std::move (machines)));
 
     return JsonValue (std::move (root));
 }
@@ -1074,7 +1064,7 @@ HRESULT UserConfigStore::LoadCombinedJson (
         CHR (hr);
     }
 
-    global = FindObjectValue (root, s_kpszGlobalKey);
+    global = FindObjectValue (root, kpszGlobalKey);
     if (global != nullptr)
     {
         hr = prefs.FromJson (*global);
@@ -1085,7 +1075,7 @@ HRESULT UserConfigStore::LoadCombinedJson (
         prefs = GlobalUserPrefs {};
     }
 
-    machines = FindObjectValue (root, s_kpszMachinesKey);
+    machines = FindObjectValue (root, kpszMachinesKey);
     if (machines != nullptr && machines->GetType() == JsonType::Object)
     {
         for (const auto & kv : machines->GetObjectEntries())
@@ -1235,8 +1225,8 @@ HRESULT UserConfigStore::MigrateLegacyFiles (
         machines.emplace_back (kv.first, kv.second);
     }
 
-    rootEntries.emplace_back (s_kpszGlobalKey,   legacyGlobalJson);
-    rootEntries.emplace_back (s_kpszMachinesKey, JsonValue (std::move (machines)));
+    rootEntries.emplace_back (kpszGlobalKey,   legacyGlobalJson);
+    rootEntries.emplace_back (kpszMachinesKey, JsonValue (std::move (machines)));
 
     opts.fPretty = true;
     hr = JsonWriter::Write (JsonValue (std::move (rootEntries)), opts, combinedText);
@@ -1405,7 +1395,7 @@ JsonValue UserConfigStore::DiffJson (
         const std::string & key = (*curEntries)[i].first;
         const JsonValue   & cv  = (*curEntries)[i].second;
 
-        fIsVersionKey = (key == s_kpszVersionKey);
+        fIsVersionKey = (key == kpszVersionKey);
 
         if (defEntries == nullptr)
         {
@@ -1418,7 +1408,7 @@ JsonValue UserConfigStore::DiffJson (
 
         if (idx < 0)
         {
-            if (key == s_kpszUiPrefsKey && cv.GetType() == JsonType::Object)
+            if (key == kpszUiPrefsKey && cv.GetType() == JsonType::Object)
             {
                 JsonValue uiDiff = DiffJson (cv, BuildUiPrefsDefaults());
                 if (!uiDiff.GetObjectEntries().empty())
@@ -1468,7 +1458,7 @@ JsonValue UserConfigStore::DiffJson (
             continue;
         }
 
-        if (key == s_kpszUiPrefsKey && cv.GetType() == JsonType::Object)
+        if (key == kpszUiPrefsKey && cv.GetType() == JsonType::Object)
         {
             JsonValue uiDiff = DiffJson (cv, BuildUiPrefsDefaults());
             if (!uiDiff.GetObjectEntries().empty())

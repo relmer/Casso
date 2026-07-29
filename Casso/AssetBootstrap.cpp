@@ -1837,6 +1837,218 @@ private:
     static constexpr std::uint64_t  s_kFiletimeTicksPerSec = 10000000ULL;
     static constexpr std::uint64_t  s_kUnixEpochFiletime   = 116444736000000000ULL;
 
+    // The two panel types Run() assembles. Nested rather than file-scope:
+    // a class defined in a .cpp has external linkage, so two translation
+    // units defining different types under one name is an ODR violation the
+    // linker will not report.
+    ////////////////////////////////////////////////////////////////////////////////
+    //
+    //  PickerBodyPanel
+    //
+    //  Dxui content panel for the boot-disk picker: a search box docked at
+    //  the top, a list filling the rest. Lays out in physical pixels (the
+    //  hosted dialog passes a px content rect) so the fixed search-strip
+    //  height scales with DPI.
+    //
+    ////////////////////////////////////////////////////////////////////////////////
+
+    class PickerBodyPanel : public DxuiPanel
+    {
+    public:
+        void  Init (DxuiSearchBox * search, DxuiListView * list, int searchHeightDip, int gapDip)
+        {
+            m_search          = search;
+            m_list            = list;
+            m_searchHeightDip = searchHeightDip;
+            m_gapDip          = gapDip;
+
+            Adopt (*search);
+            Adopt (*list);
+        }
+
+        void  Layout (const RECT & boundsPx, const DxuiDpiScaler & scaler) override
+        {
+            int  sh  = scaler.Px (m_searchHeightDip);
+            int  gap = scaler.Px (m_gapDip);
+
+
+            SetBounds (boundsPx);
+
+            if (m_search != nullptr)
+            {
+                RECT  r = { boundsPx.left, boundsPx.top, boundsPx.right, boundsPx.top + sh };
+
+                m_search->Layout (r, scaler);
+            }
+
+            if (m_list != nullptr)
+            {
+                RECT  r = { boundsPx.left, boundsPx.top + sh + gap, boundsPx.right, boundsPx.bottom };
+
+                m_list->Layout (r, scaler);
+            }
+        }
+
+        //
+        //  DxuiListView::OnMouse expects widget-LOCAL (0-based) coordinates,
+        //  but the panel fan-out delivers absolute client-px, so a plain
+        //  DxuiPanel::OnMouse would hand the list mis-offset points (wrong
+        //  row selected, column-resize divider never hit). Translate to
+        //  list-local and dispatch to the list first (it owns scroll / drag
+        //  / resize / select + consumes any press inside itself); anything
+        //  the list declines falls through to the search box, which hit-
+        //  tests against its own absolute bounds.
+        //
+        bool  OnMouse (const DxuiMouseEvent & ev) override
+        {
+            DxuiMouseEvent  listEv  = ev;
+            bool            handled = false;
+
+
+            if (m_list != nullptr)
+            {
+                RECT  lb = m_list->Bounds();
+
+                listEv.positionDip = { ev.positionDip.x - lb.left, ev.positionDip.y - lb.top };
+                handled            = m_list->OnMouse (listEv);
+            }
+
+            if (!handled && m_search != nullptr)
+            {
+                handled = m_search->OnMouse (ev);
+            }
+
+            return handled;
+        }
+
+        LPCWSTR  CursorForPoint (POINT clientPx) const override
+        {
+            LPCWSTR  cursor = nullptr;
+
+
+            if (m_list != nullptr)
+            {
+                RECT   lb    = m_list->Bounds();
+                POINT  local = { clientPx.x - lb.left, clientPx.y - lb.top };
+
+                cursor = m_list->CursorForPoint (local);
+            }
+
+            return cursor;
+        }
+
+
+    private:
+        DxuiSearchBox *  m_search          = nullptr;
+        DxuiListView  *  m_list            = nullptr;
+        int              m_searchHeightDip = 0;
+        int              m_gapDip          = 0;
+    };
+
+
+
+
+    ////////////////////////////////////////////////////////////////////////////////
+    //
+    //  PickerDialog
+    //
+    //  DxuiDialogWindow hosting a pre-built picker body (search + list) and
+    //  its action buttons. Non-cancel buttons carry their real (negative)
+    //  result codes as command ids (so a click ends the modal with that
+    //  code directly); the cancel button maps to IDCANCEL so Escape / the
+    //  close-box fire it. Row activation ends the modal with the row result
+    //  offset past s_kRowResultBase; MapResult un-offsets it and translates
+    //  IDCANCEL back to the cancel button's real code (or the close-box
+    //  result when no cancel button exists).
+    //
+    ////////////////////////////////////////////////////////////////////////////////
+
+    class PickerDialog : public DxuiDialogWindow
+    {
+    public:
+        static constexpr int  s_kRowResultBase = 100000;   // row results offset past button / IDCANCEL codes
+
+
+        void  ConfigurePicker (std::unique_ptr<DxuiPanel>          content,
+                               IDxuiControl *                     initialFocus,
+                               const std::vector<DialogButton> &  buttons,
+                               int                                closeBoxResult)
+        {
+            m_pendingContent = std::move (content);
+            m_pendingFocus   = initialFocus;
+            m_buttons        = buttons;
+            m_closeBoxResult = closeBoxResult;
+        }
+
+        int  DefaultCommandId() const { return m_defaultCommandId; }
+
+        int  MapResult (int dialogResult) const
+        {
+            int     result = m_closeBoxResult;
+            size_t  idx    = 0;
+
+
+            if (dialogResult >= s_kRowResultBase)
+            {
+                result = dialogResult - s_kRowResultBase;
+            }
+            else if (dialogResult == IDCANCEL)
+            {
+                for (idx = 0; idx < m_buttons.size(); ++idx)
+                {
+                    if (m_buttons[idx].isCancel)
+                    {
+                        result = m_buttons[idx].resultCode;
+                        break;
+                    }
+                }
+            }
+            else
+            {
+                result = dialogResult;
+            }
+
+            return result;
+        }
+
+
+    protected:
+        void  OnCreate() override
+        {
+            size_t  i = 0;
+
+
+            if (m_pendingContent != nullptr)
+            {
+                SetDialogContentOwned (std::move (m_pendingContent));
+            }
+
+            for (i = 0; i < m_buttons.size(); ++i)
+            {
+                int                    commandId = m_buttons[i].isCancel ? IDCANCEL : m_buttons[i].resultCode;
+                DxuiButtonRow::Anchor  anchor    = m_buttons[i].anchorLeft ? DxuiButtonRow::Anchor::Left
+                                                                           : DxuiButtonRow::Anchor::Right;
+
+                AddDialogButton (m_buttons[i].label, commandId, anchor);
+
+                if (m_buttons[i].isDefault)
+                {
+                    m_defaultCommandId = commandId;
+                }
+            }
+
+            SetInitialFocus (m_pendingFocus);
+        }
+
+
+    private:
+        std::unique_ptr<DxuiPanel>  m_pendingContent;
+        IDxuiControl *              m_pendingFocus     = nullptr;
+        std::vector<DialogButton>   m_buttons;
+        int                         m_closeBoxResult   = -1;
+        int                         m_defaultCommandId = 0;
+    };
+
     HINSTANCE                  m_hInstance       = nullptr;
     HWND                       m_hwndParent      = nullptr;
     std::string                m_themeName;
@@ -2211,216 +2423,6 @@ int DiskMruPickerSession::ChosenResultAt (int visibleRow) const
 
 
 
-namespace
-{
-    ////////////////////////////////////////////////////////////////////////////////
-    //
-    //  PickerBodyPanel
-    //
-    //  Dxui content panel for the boot-disk picker: a search box docked at
-    //  the top, a list filling the rest. Lays out in physical pixels (the
-    //  hosted dialog passes a px content rect) so the fixed search-strip
-    //  height scales with DPI.
-    //
-    ////////////////////////////////////////////////////////////////////////////////
-
-    class PickerBodyPanel : public DxuiPanel
-    {
-    public:
-        void  Init (DxuiSearchBox * search, DxuiListView * list, int searchHeightDip, int gapDip)
-        {
-            m_search          = search;
-            m_list            = list;
-            m_searchHeightDip = searchHeightDip;
-            m_gapDip          = gapDip;
-
-            Adopt (*search);
-            Adopt (*list);
-        }
-
-        void  Layout (const RECT & boundsPx, const DxuiDpiScaler & scaler) override
-        {
-            int  sh  = scaler.Px (m_searchHeightDip);
-            int  gap = scaler.Px (m_gapDip);
-
-
-            SetBounds (boundsPx);
-
-            if (m_search != nullptr)
-            {
-                RECT  r = { boundsPx.left, boundsPx.top, boundsPx.right, boundsPx.top + sh };
-
-                m_search->Layout (r, scaler);
-            }
-
-            if (m_list != nullptr)
-            {
-                RECT  r = { boundsPx.left, boundsPx.top + sh + gap, boundsPx.right, boundsPx.bottom };
-
-                m_list->Layout (r, scaler);
-            }
-        }
-
-        //
-        //  DxuiListView::OnMouse expects widget-LOCAL (0-based) coordinates,
-        //  but the panel fan-out delivers absolute client-px, so a plain
-        //  DxuiPanel::OnMouse would hand the list mis-offset points (wrong
-        //  row selected, column-resize divider never hit). Translate to
-        //  list-local and dispatch to the list first (it owns scroll / drag
-        //  / resize / select + consumes any press inside itself); anything
-        //  the list declines falls through to the search box, which hit-
-        //  tests against its own absolute bounds.
-        //
-        bool  OnMouse (const DxuiMouseEvent & ev) override
-        {
-            DxuiMouseEvent  listEv  = ev;
-            bool            handled = false;
-
-
-            if (m_list != nullptr)
-            {
-                RECT  lb = m_list->Bounds();
-
-                listEv.positionDip = { ev.positionDip.x - lb.left, ev.positionDip.y - lb.top };
-                handled            = m_list->OnMouse (listEv);
-            }
-
-            if (!handled && m_search != nullptr)
-            {
-                handled = m_search->OnMouse (ev);
-            }
-
-            return handled;
-        }
-
-        LPCWSTR  CursorForPoint (POINT clientPx) const override
-        {
-            LPCWSTR  cursor = nullptr;
-
-
-            if (m_list != nullptr)
-            {
-                RECT   lb    = m_list->Bounds();
-                POINT  local = { clientPx.x - lb.left, clientPx.y - lb.top };
-
-                cursor = m_list->CursorForPoint (local);
-            }
-
-            return cursor;
-        }
-
-
-    private:
-        DxuiSearchBox *  m_search          = nullptr;
-        DxuiListView  *  m_list            = nullptr;
-        int              m_searchHeightDip = 0;
-        int              m_gapDip          = 0;
-    };
-
-
-
-
-    ////////////////////////////////////////////////////////////////////////////////
-    //
-    //  PickerDialog
-    //
-    //  DxuiDialogWindow hosting a pre-built picker body (search + list) and
-    //  its action buttons. Non-cancel buttons carry their real (negative)
-    //  result codes as command ids (so a click ends the modal with that
-    //  code directly); the cancel button maps to IDCANCEL so Escape / the
-    //  close-box fire it. Row activation ends the modal with the row result
-    //  offset past s_kRowResultBase; MapResult un-offsets it and translates
-    //  IDCANCEL back to the cancel button's real code (or the close-box
-    //  result when no cancel button exists).
-    //
-    ////////////////////////////////////////////////////////////////////////////////
-
-    class PickerDialog : public DxuiDialogWindow
-    {
-    public:
-        static constexpr int  s_kRowResultBase = 100000;   // row results offset past button / IDCANCEL codes
-
-
-        void  ConfigurePicker (std::unique_ptr<DxuiPanel>          content,
-                               IDxuiControl *                     initialFocus,
-                               const std::vector<DialogButton> &  buttons,
-                               int                                closeBoxResult)
-        {
-            m_pendingContent = std::move (content);
-            m_pendingFocus   = initialFocus;
-            m_buttons        = buttons;
-            m_closeBoxResult = closeBoxResult;
-        }
-
-        int  DefaultCommandId() const { return m_defaultCommandId; }
-
-        int  MapResult (int dialogResult) const
-        {
-            int     result = m_closeBoxResult;
-            size_t  idx    = 0;
-
-
-            if (dialogResult >= s_kRowResultBase)
-            {
-                result = dialogResult - s_kRowResultBase;
-            }
-            else if (dialogResult == IDCANCEL)
-            {
-                for (idx = 0; idx < m_buttons.size(); ++idx)
-                {
-                    if (m_buttons[idx].isCancel)
-                    {
-                        result = m_buttons[idx].resultCode;
-                        break;
-                    }
-                }
-            }
-            else
-            {
-                result = dialogResult;
-            }
-
-            return result;
-        }
-
-
-    protected:
-        void  OnCreate() override
-        {
-            size_t  i = 0;
-
-
-            if (m_pendingContent != nullptr)
-            {
-                SetDialogContentOwned (std::move (m_pendingContent));
-            }
-
-            for (i = 0; i < m_buttons.size(); ++i)
-            {
-                int                    commandId = m_buttons[i].isCancel ? IDCANCEL : m_buttons[i].resultCode;
-                DxuiButtonRow::Anchor  anchor    = m_buttons[i].anchorLeft ? DxuiButtonRow::Anchor::Left
-                                                                           : DxuiButtonRow::Anchor::Right;
-
-                AddDialogButton (m_buttons[i].label, commandId, anchor);
-
-                if (m_buttons[i].isDefault)
-                {
-                    m_defaultCommandId = commandId;
-                }
-            }
-
-            SetInitialFocus (m_pendingFocus);
-        }
-
-
-    private:
-        std::unique_ptr<DxuiPanel>  m_pendingContent;
-        IDxuiControl *              m_pendingFocus     = nullptr;
-        std::vector<DialogButton>   m_buttons;
-        int                         m_closeBoxResult   = -1;
-        int                         m_defaultCommandId = 0;
-    };
-}
 
 
 

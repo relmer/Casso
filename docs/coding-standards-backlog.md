@@ -19,19 +19,42 @@ it only stops *new* violations.
 | `CS0008` | no Claude attribution in commit messages | 0 |
 | `CS0010` | no `-Ex` macro passing its family's default hr | 0 |
 | `CS0009` | do not *produce* `S_FALSE` | 0 |
-| `CS0002` | no anonymous namespaces | **32** |
-| `CS0006` | no bare `goto Error` | **46** |
+| `CS0002` | no anonymous namespaces | 0 |
+| `CS0006` | no bare `goto Error` | **45** |
 
 ## Queue
 
-### 1. `CS0002` — anonymous namespaces (32)
+### 1. `CS0002` — anonymous namespaces — DONE
 
-All test files are done. What remains is production code, where moving a
-helper onto its implementing class means editing the header.
+Placement settled, and it held for all 53: constants split by usage
+(single-use → function-local `constexpr`, multi-use → private
+`static constexpr` member); helpers → class statics; types → nested private
+types. Where several `TEST_CLASS`es in one file shared a helper, no single
+class owned it, so it became a file-scope `static` — the same "inventing a
+class would be worse than the rule it satisfies" call as `82a96037`.
 
-Rules settled: constants split by usage (single-use → function-local
-`constexpr`, multi-use → private `static constexpr` member); helpers → class
-statics; types → nested private types.
+**The types were the real hazard, not the helpers.** Most file-local
+functions were already `static`, which is all the internal linkage they
+need. A bare `struct` or `class` in a `.cpp` has external linkage and there
+is nothing you can write in the `.cpp` to change that — `static` does not
+apply to types. The sweep turned up four genuine duplicate-name pairs living
+one `#include` apart:
+
+| Name | Declared in |
+|---|---|
+| `ShaderSource` + `LoadShaderSource` | `CrtPostProcess.cpp`, `SettingsCompositor.cpp` |
+| `FindKey` | `MachineConfigUpgrade.cpp`, `SettingsPanelState.cpp`, `UserConfigStore.cpp` |
+| `kpszVersionKey` | `MachineConfigUpgrade.cpp`, `SettingsPanelState.cpp`, `UserConfigStore.cpp` |
+| `MakeRect` | five UI/test files |
+
+Identical layouts today, so nothing was broken — but that is luck, not
+design, and the linker reports none of it.
+
+One conversion cost something worth recording: `StartupDownloadDialog.h` was
+deliberately kept to forward declarations, and nesting its three panel
+classes forced `DxuiPanel.h` / `DxuiDialogWindow.h` into it. Three files
+include that header and two already depended on Dxui, so it was worth
+paying; a file with a wider include fan-out might not be.
 
 **The 3-line exception.** A constant whose declaration spans 3 or more lines
 stays a file-scope `static constexpr` with its `s_k` prefix, even when only one
@@ -56,7 +79,7 @@ next to that logic; at or above it you have data the function merely consults.
 Heaviest: `UserConfigStore.cpp` (621-line block), `ThemePage.cpp` (395),
 `AssetBootstrap.cpp` (209).
 
-### 2. `CS0006` — bare `goto Error` (46)
+### 2. `CS0006` — bare `goto Error` (45)
 
 The mechanical shapes are converted. What remains needs restructuring:
 

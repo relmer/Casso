@@ -82,6 +82,81 @@ public:
                                    const JsonValue & b);
 
 private:
+    // Schema keys, string/path plumbing, and the JSON merge/delta helpers.
+    // Every reader is a UserConfigStore method. These names in particular
+    // -- Widen, Narrow, JoinPath, EndsWith, FindObjectKey -- are the kind
+    // that collide across translation units, which is precisely what the
+    // anonymous namespace was papering over rather than solving.
+    static constexpr const char *  kpszVersionKey       = "$cassoMachineVersion";
+    static constexpr const char *  kpszLegacyVersionKey = "$cassoDefault";
+    static constexpr const char *  kpszUiPrefsKey       = "$cassoUiPrefs";
+    static constexpr const char *  kpszGlobalKey        = "global";
+    static constexpr const char *  kpszMachinesKey      = "machines";
+
+    static std::wstring  Widen  (const std::string & narrow);
+    static std::string   Narrow (const std::wstring & wide);
+
+    static std::wstring  JoinPath (
+        const std::wstring & baseDir,
+        const std::wstring & filename);
+
+    static std::wstring  UserPrefsFilename         ();
+    static std::wstring  LegacyGlobalPrefsFilename ();
+    static std::wstring  LegacyUserSuffix          ();
+
+    static bool  EndsWith (
+        const std::wstring & text,
+        const std::wstring & suffix);
+
+    static std::wstring  StripSuffix (
+        const std::wstring & text,
+        const std::wstring & suffix);
+
+    static int  FindObjectKey (
+        const std::vector<std::pair<std::string, JsonValue>> & entries,
+        const std::string                                    & key);
+
+    static const JsonValue *  FindObjectValue (
+        const JsonValue   & obj,
+        const std::string & key);
+
+    static int  ExtractVersion (const JsonValue & v);
+
+    static int  ExtractVersionForKey (
+        const JsonValue   & v,
+        const std::string & key);
+
+    static bool  HasLegacyVersionAlias (const JsonValue & v);
+
+    static JsonValue  CanonicalizeVersionStamp (
+        const JsonValue & userJson,
+        int               fallbackVersion);
+
+    static bool  TryGetBoolField   (const JsonValue & obj, const std::string & key, bool & out);
+    static bool  TryGetIntField    (const JsonValue & obj, const std::string & key, int & out);
+    static bool  TryGetStringField (const JsonValue & obj, const std::string & key, std::string & out);
+
+    static JsonValue  BuildObjectWithEnabled (
+        const JsonValue & src,
+        bool              enabled);
+
+    static JsonValue  BuildUiPrefsDefaults ();
+
+    static int  FindInternalByType (const JsonValue & arr, const std::string & type);
+    static int  FindSlotByNumber   (const JsonValue & arr, int slot);
+
+    static JsonValue  MergeHardwareArray (
+        const JsonValue & defaultArr,
+        const JsonValue & userArr,
+        bool              slotArray);
+
+    static JsonValue  BuildHardwareDeltaArray (
+        const JsonValue & currentArr,
+        const JsonValue & defaultArr,
+        bool              slotArray);
+
+    static bool  IsObjectArray (const JsonValue & v);
+
     // `outFoundLegacy` is false when there was nothing from an older
     // layout to pull forward -- a first run, not a migration failure.
     HRESULT      MigrateLegacyFiles  (GlobalUserPrefs & prefs,
