@@ -14,12 +14,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace
-{
-    constexpr uint32_t  s_kDefaultAccentArgb = 0xFF2D7CDB;   // "on" pill
-    constexpr uint32_t  s_kDefaultFocusArgb  = 0xFFAACCFF;   // focus ring
-    constexpr float     s_kHoverLighten      = 1.15f;        // "on" pill hover brighten
-}
+// The palette constants are private members of DxuiToggle.
 
 
 
@@ -213,7 +208,7 @@ void DxuiToggle::PaintInternal (IDxuiPainter & painter, IDxuiTextRenderer & text
     }
     else if (m_checked)
     {
-        pillColor = m_hover ? DxuiColor::Scale (accentBase, s_kHoverLighten) : accentBase;
+        pillColor = m_hover ? DxuiColor::Scale (accentBase, kHoverLighten) : accentBase;
     }
     else
     {
@@ -296,7 +291,7 @@ void DxuiToggle::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
 
 void DxuiToggle::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) const
 {
-    PaintInternal (painter, text, s_kDefaultAccentArgb, s_kDefaultFocusArgb);
+    PaintInternal (painter, text, kDefaultAccentArgb, kDefaultFocusArgb);
 }
 
 

@@ -17,73 +17,42 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace
+bool DxuiDwm::GetOsBuild (DWORD & outMajor, DWORD & outBuild)
 {
-    struct DxuiDwmOsVersion
+    HMODULE              hNtDll  = nullptr;
+    PFN_RtlGetVersion    pfn     = nullptr;
+    OsVersion            ovi     = {};
+    LONG                 status  = 0;
+
+
+    outMajor = 0;
+    outBuild = 0;
+
+    hNtDll = GetModuleHandleW (L"ntdll.dll");
+
+    if (hNtDll == nullptr)
     {
-        DWORD    dwOSVersionInfoSize;
-        DWORD    dwMajorVersion;
-        DWORD    dwMinorVersion;
-        DWORD    dwBuildNumber;
-        DWORD    dwPlatformId;
-        WCHAR    szCSDVersion[128];
-    };
-
-
-    typedef LONG (WINAPI * PFN_RtlGetVersion) (DxuiDwmOsVersion *);
-
-
-    bool GetOsBuild (DWORD & outMajor, DWORD & outBuild)
-    {
-        HMODULE              hNtDll  = nullptr;
-        PFN_RtlGetVersion    pfn     = nullptr;
-        DxuiDwmOsVersion      ovi     = {};
-        LONG                 status  = 0;
-
-
-        outMajor = 0;
-        outBuild = 0;
-
-        hNtDll = GetModuleHandleW (L"ntdll.dll");
-
-        if (hNtDll == nullptr)
-        {
-            return false;
-        }
-
-        pfn = (PFN_RtlGetVersion) GetProcAddress (hNtDll, "RtlGetVersion");
-
-        if (pfn == nullptr)
-        {
-            return false;
-        }
-
-        ovi.dwOSVersionInfoSize = sizeof (ovi);
-        status = pfn (&ovi);
-
-        if (status != 0)
-        {
-            return false;
-        }
-
-        outMajor = ovi.dwMajorVersion;
-        outBuild = ovi.dwBuildNumber;
-        return true;
+        return false;
     }
 
+    pfn = (PFN_RtlGetVersion) GetProcAddress (hNtDll, "RtlGetVersion");
 
-    // DWMWA_* values that are not always declared in older SDK headers.
-    constexpr DWORD kDwmwaUseImmersiveDarkMode       = 20;
-    constexpr DWORD kDwmwaWindowCornerPreference     = 33;
-    constexpr DWORD kDwmwaSystemBackdropType         = 38;
+    if (pfn == nullptr)
+    {
+        return false;
+    }
 
-    constexpr DWORD kDwmwcpDefault                   = 0;
-    constexpr DWORD kDwmwcpDoNotRound                = 1;
-    constexpr DWORD kDwmwcpRound                     = 2;
+    ovi.dwOSVersionInfoSize = sizeof (ovi);
+    status = pfn (&ovi);
 
-    constexpr DWORD kDwmsbtAuto                      = 0;
-    constexpr DWORD kDwmsbtNone                      = 1;
-    constexpr DWORD kDwmsbtMainWindow                = 2;   // Mica.
+    if (status != 0)
+    {
+        return false;
+    }
+
+    outMajor = ovi.dwMajorVersion;
+    outBuild = ovi.dwBuildNumber;
+    return true;
 }
 
 

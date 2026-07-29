@@ -27,45 +27,34 @@ static constexpr UINT_PTR  s_kModalLoopTimerId = 0xDCE1;
 
 
 
-namespace
+void  DxuiHwndSource::NudgeWindowOnScreen (HWND hwnd)
 {
-    //
-    //  Nudge a freshly-created, still-hidden CW_USEDEFAULT window the
-    //  minimum needed so its whole frame sits within its monitor's work
-    //  area — fixing a cascade that would open the bottom edge (and its
-    //  command-button row) beneath the taskbar — without otherwise moving
-    //  it (position only, no re-centering over the owner). rcWork already
-    //  excludes the taskbar.
-    //
-    void  NudgeWindowOnScreen (HWND hwnd)
+    RECT         rect    = {};
+    HMONITOR     monitor = nullptr;
+    MONITORINFO  info    = { sizeof (info) };
+    RECT         work    = { 0, 0, 1920, 1080 };
+    POINT        placed  = {};
+
+
+
+    if (hwnd != nullptr && GetWindowRect (hwnd, &rect) != FALSE)
     {
-        RECT         rect    = {};
-        HMONITOR     monitor = nullptr;
-        MONITORINFO  info    = { sizeof (info) };
-        RECT         work    = { 0, 0, 1920, 1080 };
-        POINT        placed  = {};
-
-
-
-        if (hwnd != nullptr && GetWindowRect (hwnd, &rect) != FALSE)
+        monitor = MonitorFromWindow (hwnd, MONITOR_DEFAULTTONEAREST);
+        if (monitor != nullptr && GetMonitorInfoW (monitor, &info) != FALSE)
         {
-            monitor = MonitorFromWindow (hwnd, MONITOR_DEFAULTTONEAREST);
-            if (monitor != nullptr && GetMonitorInfoW (monitor, &info) != FALSE)
-            {
-                work = info.rcWork;
-            }
-            else if (SystemParametersInfoW (SPI_GETWORKAREA, 0, &work, 0) == FALSE)
-            {
-                work = { 0, 0, 1920, 1080 };
-            }
+            work = info.rcWork;
+        }
+        else if (SystemParametersInfoW (SPI_GETWORKAREA, 0, &work, 0) == FALSE)
+        {
+            work = { 0, 0, 1920, 1080 };
+        }
 
-            placed = DxuiHwndSource::ClampToWorkArea (rect, work);
+        placed = DxuiHwndSource::ClampToWorkArea (rect, work);
 
-            if (placed.x != rect.left || placed.y != rect.top)
-            {
-                SetWindowPos (hwnd, nullptr, placed.x, placed.y, 0, 0,
-                              SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE);
-            }
+        if (placed.x != rect.left || placed.y != rect.top)
+        {
+            SetWindowPos (hwnd, nullptr, placed.x, placed.y, 0, 0,
+                          SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE);
         }
     }
 }
@@ -258,17 +247,8 @@ DxuiHwndSource::~DxuiHwndSource()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace
-{
-    struct FirstIconGroup
-    {
-        bool      found     = false;
-        wchar_t   nameBuf[256] = {};
-        LPCWSTR   id        = nullptr;
-    };
-}
 
-static BOOL CALLBACK FirstIconGroupProc (HMODULE, LPCWSTR, LPWSTR name, LONG_PTR param)
+BOOL CALLBACK DxuiHwndSource::FirstIconGroupProc (HMODULE, LPCWSTR, LPWSTR name, LONG_PTR param)
 {
     FirstIconGroup * out = (FirstIconGroup *) param;
 
@@ -286,7 +266,7 @@ static BOOL CALLBACK FirstIconGroupProc (HMODULE, LPCWSTR, LPWSTR name, LONG_PTR
     return FALSE;   // first group only
 }
 
-static HICON DefaultAppIcon (bool big)
+HICON DxuiHwndSource::DefaultAppIcon (bool big)
 {
     static HICON   s_big    = nullptr;
     static HICON   s_small  = nullptr;

@@ -502,6 +502,27 @@ public:
 private:
     static LRESULT CALLBACK  s_WndProcThunk   (HWND, UINT, WPARAM, LPARAM);
 
+    // What EnumResourceNamesW hands back for the exe's first RT_GROUP_ICON.
+    // Nested rather than file-scope so the type itself has internal linkage
+    // -- a bare struct in a .cpp does not.
+    struct FirstIconGroup
+    {
+        bool      found        = false;
+        wchar_t   nameBuf[256] = {};
+        LPCWSTR   id           = nullptr;
+    };
+
+    static BOOL CALLBACK  FirstIconGroupProc  (HMODULE, LPCWSTR, LPWSTR name, LONG_PTR param);
+    static HICON          DefaultAppIcon      (bool big);
+
+    // Nudge a freshly-created, still-hidden CW_USEDEFAULT window the
+    // minimum needed so its whole frame sits within its monitor's work
+    // area -- fixing a cascade that would open the bottom edge (and its
+    // command-button row) beneath the taskbar -- without otherwise moving
+    // it (position only, no re-centering over the owner). rcWork already
+    // excludes the taskbar.
+    static void           NudgeWindowOnScreen (HWND hwnd);
+
     HRESULT  CreateDeviceAndSwapChain  ();
     HRESULT  CreateRenderResources     ();
     void     ReleaseRenderResources    ();

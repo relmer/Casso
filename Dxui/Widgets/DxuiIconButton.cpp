@@ -5,13 +5,6 @@
 
 
 
-namespace
-{
-    constexpr wchar_t  s_kMdl2Family[]  = L"Segoe MDL2 Assets";
-}
-
-
-
 
 ////////////////////////////////////////////////////////////////////////////////
 //
@@ -188,6 +181,7 @@ bool DxuiIconButton::OnKey (const DxuiKeyEvent & ev)
 
 void DxuiIconButton::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
 {
+    constexpr wchar_t  kMdl2Family[]  = L"Segoe MDL2 Assets";
     constexpr float    kGlyphFontDip  = 12.0f;
     constexpr float    kFocusRingPx   = 1.5f;
     constexpr float    kFocusInsetPx  = -2.0f;
@@ -220,7 +214,7 @@ void DxuiIconButton::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
                           h,
                           glyphArgb,
                           glyphDip,
-                          s_kMdl2Family,
+                          kMdl2Family,
                           DxuiTextHAlign::Center,
                           DxuiTextVAlign::Center);
     IGNORE_RETURN_VALUE (hr, S_OK);
