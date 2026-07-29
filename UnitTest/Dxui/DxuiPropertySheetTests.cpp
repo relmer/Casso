@@ -9,17 +9,17 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
 
 
-namespace
-{
-    RECT  MakeRect (int l, int t, int r, int b) { return RECT{ l, t, r, b }; }
+// Shared by both TEST_CLASSes below, so these live at file scope rather than
+// on either one. `static` supplies the internal linkage the anonymous
+// namespace was there for.
+static RECT  MakeRect (int l, int t, int r, int b) { return RECT{ l, t, r, b }; }
 
-    void  AssertRect (const RECT & expected, const RECT & actual, const wchar_t * msg)
-    {
-        Assert::AreEqual (expected.left,   actual.left,   msg);
-        Assert::AreEqual (expected.top,    actual.top,    msg);
-        Assert::AreEqual (expected.right,  actual.right,  msg);
-        Assert::AreEqual (expected.bottom, actual.bottom, msg);
-    }
+static void  AssertRect (const RECT & expected, const RECT & actual, const wchar_t * msg)
+{
+    Assert::AreEqual (expected.left,   actual.left,   msg);
+    Assert::AreEqual (expected.top,    actual.top,    msg);
+    Assert::AreEqual (expected.right,  actual.right,  msg);
+    Assert::AreEqual (expected.bottom, actual.bottom, msg);
 }
 
 

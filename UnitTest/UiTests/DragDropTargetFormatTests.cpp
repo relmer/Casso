@@ -33,11 +33,15 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace
+namespace UiTests
 {
+
     // Minimal IDataObject that serves one CF_HDROP global containing a
     // single wide path. Everything else returns DV_E_FORMATETC, which is
     // exactly how the real Explorer object behaves for unknown formats.
+    //
+    // Shared by both TEST_CLASSes below. UiTests already gives it a unique
+    // qualified name, so it needs no anonymous namespace on top.
     class MockHDropDataObject : public IDataObject
     {
     public:
@@ -131,7 +135,13 @@ namespace
     };
 
 
-    void ExpectRoundTrip (const std::wstring & input)
+
+TEST_CLASS (DragDropTargetFormatTests)
+{
+public:
+
+    // Only this TEST_CLASS round-trips, so the helper belongs to it.
+    static void ExpectRoundTrip (const std::wstring & input)
     {
         MockHDropDataObject  obj (input);
         std::wstring         got;
@@ -141,15 +151,6 @@ namespace
         Assert::AreEqual (input.c_str(), got.c_str(),
             L"Path round-trip must preserve the original wide string verbatim");
     }
-}
-
-
-namespace UiTests
-{
-
-TEST_CLASS (DragDropTargetFormatTests)
-{
-public:
 
     TEST_METHOD (ExtractFirstHDropPath_RoundTrips_Dsk)
     {

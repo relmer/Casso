@@ -4,30 +4,30 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
 
 
-namespace
+// Shared by all five TEST_CLASSes below, so these live at file scope rather
+// than on any one of them. `static` supplies the internal linkage the
+// anonymous namespace was there for.
+static constexpr LONG  s_kMonLeft      = 0;
+static constexpr LONG  s_kMonTop       = 0;
+static constexpr LONG  s_kMonRight     = 1920;
+static constexpr LONG  s_kMonBottom    = 1080;
+static constexpr LONG  s_kPopupW       = 200;
+static constexpr LONG  s_kPopupH       = 150;
+
+
+static RECT  MakeRect (LONG l, LONG t, LONG r, LONG b)
 {
-    constexpr LONG  s_kMonLeft      = 0;
-    constexpr LONG  s_kMonTop       = 0;
-    constexpr LONG  s_kMonRight     = 1920;
-    constexpr LONG  s_kMonBottom    = 1080;
-    constexpr LONG  s_kPopupW       = 200;
-    constexpr LONG  s_kPopupH       = 150;
+    RECT  out = {};
+    out.left = l; out.top = t; out.right = r; out.bottom = b;
+    return out;
+}
 
 
-    RECT  MakeRect (LONG l, LONG t, LONG r, LONG b)
-    {
-        RECT  out = {};
-        out.left = l; out.top = t; out.right = r; out.bottom = b;
-        return out;
-    }
-
-
-    SIZE  MakeSize (LONG cx, LONG cy)
-    {
-        SIZE  out = {};
-        out.cx = cx; out.cy = cy;
-        return out;
-    }
+static SIZE  MakeSize (LONG cx, LONG cy)
+{
+    SIZE  out = {};
+    out.cx = cx; out.cy = cy;
+    return out;
 }
 
 
@@ -506,17 +506,14 @@ public:
 
 #ifdef _DEBUG
 
-namespace
+static std::unique_ptr<DxuiHwndSource>  BuildSyntheticHostForPool()
 {
-    std::unique_ptr<DxuiHwndSource>  BuildSyntheticHostForPool()
-    {
-        RECT  bounds = MakeRect (0, 0, 1024, 768);
+    RECT  bounds = MakeRect (0, 0, 1024, 768);
 
 
-        return std::make_unique<DxuiHwndSource> (bounds,
-                                                 6.0f,
-                                                 std::make_unique<DxuiPanel>());
-    }
+    return std::make_unique<DxuiHwndSource> (bounds,
+                                             6.0f,
+                                             std::make_unique<DxuiPanel>());
 }
 
 

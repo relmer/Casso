@@ -6,22 +6,8 @@
 #include "Devices/RomDevice.h"
 
 
-namespace
-{
-    static constexpr Word    kSystemRomStart   = 0xC000;
-    static constexpr Word    kCxxxRomStart     = 0xC100;
-    static constexpr Word    kCxxxRomEnd       = 0xCFFF;
-    static constexpr Word    kLcRomStart       = 0xD000;
-    static constexpr Word    kRamEnd           = 0xBFFF;
-    static constexpr size_t  kSystemRomSize    = 0x4000;     // 16 KiB Apple2e.rom
-    static constexpr size_t  kCxxxRomSize      = 0x0F00;     // $C100-$CFFF (3840 bytes)
-    static constexpr size_t  kLcRomSize        = 0x3000;     // $D000-$FFFF (12 KiB)
-    static constexpr size_t  kCxxxRomOffset    = kCxxxRomStart - kSystemRomStart;
-    static constexpr size_t  kLcRomOffset      = kLcRomStart   - kSystemRomStart;
-    static constexpr int     kRamPageCount     = 0xC0;       // pages $00-$BF
-    static constexpr int     kPageSize         = 0x100;
-    static constexpr int     kCpuStepBatch     = 64;
-}
+// The layout constants these functions read are now private members of
+// HeadlessHost (ROM/RAM geometry) and EmulatorCore (kCpuStepBatch).
 
 
 

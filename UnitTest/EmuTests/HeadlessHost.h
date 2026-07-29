@@ -107,6 +107,9 @@ struct EmulatorCore
     std::unique_ptr<InterruptController>       interruptController;
     std::unique_ptr<AppleMouse>                mouse;
 
+    // Instructions RunCycles steps between budget checks.
+    static constexpr int  kCpuStepBatch = 64;
+
     // Cycle-pumped helpers used by Phase 7 integration tests.
     void   PowerCycle    ();
     void   SoftReset     ();
@@ -143,5 +146,20 @@ public:
     HRESULT             BuildApple2c             (EmulatorCore & outCore);
 
 private:
+    // Apple2e.rom's internal layout, and the RAM geometry the builders
+    // page in against it. Read only by the Build* methods below.
+    static constexpr Word    kSystemRomStart   = 0xC000;
+    static constexpr Word    kCxxxRomStart     = 0xC100;
+    static constexpr Word    kCxxxRomEnd       = 0xCFFF;
+    static constexpr Word    kLcRomStart       = 0xD000;
+    static constexpr Word    kRamEnd           = 0xBFFF;
+    static constexpr size_t  kSystemRomSize    = 0x4000;     // 16 KiB Apple2e.rom
+    static constexpr size_t  kCxxxRomSize      = 0x0F00;     // $C100-$CFFF (3840 bytes)
+    static constexpr size_t  kLcRomSize        = 0x3000;     // $D000-$FFFF (12 KiB)
+    static constexpr size_t  kCxxxRomOffset    = kCxxxRomStart - kSystemRomStart;
+    static constexpr size_t  kLcRomOffset      = kLcRomStart   - kSystemRomStart;
+    static constexpr int     kRamPageCount     = 0xC0;       // pages $00-$BF
+    static constexpr int     kPageSize         = 0x100;
+
     HRESULT             BuildCommon (HeadlessMachineKind kind, EmulatorCore & outCore);
 };

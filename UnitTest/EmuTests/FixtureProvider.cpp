@@ -6,68 +6,65 @@
 #endif
 
 
-namespace
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ResolveFixturesRoot
+//
+//  Locates `UnitTest/Fixtures` relative to the running test DLL by
+//  walking up the executable's directory tree. The CASSO_FIXTURES_DIR
+//  preprocessor define wins when set; otherwise we search ancestor
+//  directories. Returns "" on failure (callers fail OpenFixture with
+//  E_FAIL, matching the documented contract).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string FixtureProvider::ResolveFixturesRoot()
 {
-    static constexpr int   kMaxAncestorWalk = 8;
+    constexpr int     kMaxAncestorWalk = 8;
 
-    ////////////////////////////////////////////////////////////////////////
-    //
-    //  ResolveFixturesRoot
-    //
-    //  Locates `UnitTest/Fixtures` relative to the running test DLL by
-    //  walking up the executable's directory tree. The CASSO_FIXTURES_DIR
-    //  preprocessor define wins when set; otherwise we search ancestor
-    //  directories. Returns "" on failure (callers fail OpenFixture with
-    //  E_FAIL, matching the documented contract).
-    //
-    ////////////////////////////////////////////////////////////////////////
+    std::string   baked = CASSO_FIXTURES_DIR;
+    fs::path      cursor;
+    fs::path      candidate;
+    int           steps;
 
-    std::string ResolveFixturesRoot()
+    if (!baked.empty())
     {
-        std::string   baked = CASSO_FIXTURES_DIR;
-        fs::path      cursor;
-        fs::path      candidate;
-        int           steps;
+        return baked;
+    }
 
-        if (!baked.empty())
-        {
-            return baked;
-        }
+    std::error_code   ec;
 
-        std::error_code   ec;
-
-        cursor = fs::current_path (ec);
-        if (ec)
-        {
-            return std::string();
-        }
-
-        for (steps = 0; steps < kMaxAncestorWalk; steps++)
-        {
-            candidate = cursor / "UnitTest" / "Fixtures";
-
-            if (fs::exists (candidate, ec) && fs::is_directory (candidate, ec))
-            {
-                return candidate.string();
-            }
-
-            candidate = cursor / "Fixtures";
-
-            if (fs::exists (candidate, ec) && fs::is_directory (candidate, ec))
-            {
-                return candidate.string();
-            }
-
-            if (!cursor.has_parent_path() || cursor == cursor.parent_path())
-            {
-                break;
-            }
-
-            cursor = cursor.parent_path();
-        }
-
+    cursor = fs::current_path (ec);
+    if (ec)
+    {
         return std::string();
     }
+
+    for (steps = 0; steps < kMaxAncestorWalk; steps++)
+    {
+        candidate = cursor / "UnitTest" / "Fixtures";
+
+        if (fs::exists (candidate, ec) && fs::is_directory (candidate, ec))
+        {
+            return candidate.string();
+        }
+
+        candidate = cursor / "Fixtures";
+
+        if (fs::exists (candidate, ec) && fs::is_directory (candidate, ec))
+        {
+            return candidate.string();
+        }
+
+        if (!cursor.has_parent_path() || cursor == cursor.parent_path())
+        {
+            break;
+        }
+
+        cursor = cursor.parent_path();
+    }
+
+    return std::string();
 }
 
 

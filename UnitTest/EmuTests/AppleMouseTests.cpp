@@ -28,31 +28,31 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace
+// Shared by both TEST_CLASSes below, so these live at file scope rather than
+// on either one. `static` supplies the internal linkage the anonymous
+// namespace was there for.
+static constexpr size_t   s_kRomSize = 0x8000;
+
+static bool Apple2cRomAvailable()
 {
-    static constexpr size_t   kRomSize = 0x8000;
+    FixtureProvider        fp;
+    std::vector<uint8_t>   bytes;
+    return SUCCEEDED (fp.OpenFixture ("Apple2c.rom", bytes)) && bytes.size() == s_kRomSize;
+}
 
-    bool Apple2cRomAvailable()
-    {
-        FixtureProvider        fp;
-        std::vector<uint8_t>   bytes;
-        return SUCCEEDED (fp.OpenFixture ("Apple2c.rom", bytes)) && bytes.size() == kRomSize;
-    }
+// IOU switch addresses ($C058-$C05F while access is enabled).
+static constexpr Word  s_kDisXy  = 0xC058;
+static constexpr Word  s_kEnbXy  = 0xC059;
+static constexpr Word  s_kDisVbl = 0xC05A;
+static constexpr Word  s_kEnbVbl = 0xC05B;
 
-    // IOU switch addresses ($C058-$C05F while access is enabled).
-    constexpr Word  kDisXy  = 0xC058;
-    constexpr Word  kEnbXy  = 0xC059;
-    constexpr Word  kDisVbl = 0xC05A;
-    constexpr Word  kEnbVbl = 0xC05B;
-
-    // Enable movement interrupts through the front door: IOU access on,
-    // ENBXY, IOU access off (the same bracket the firmware uses).
-    void EnableXyInterrupts (AppleMouse & mouse)
-    {
-        mouse.WriteIouAccess (true);
-        mouse.AccessIouSwitch (kEnbXy);
-        mouse.WriteIouAccess (false);
-    }
+// Enable movement interrupts through the front door: IOU access on,
+// ENBXY, IOU access off (the same bracket the firmware uses).
+static void EnableXyInterrupts (AppleMouse & mouse)
+{
+    mouse.WriteIouAccess (true);
+    mouse.AccessIouSwitch (s_kEnbXy);
+    mouse.WriteIouAccess (false);
 }
 
 
@@ -146,7 +146,7 @@ public:
 
         // Enable: pending latch surfaces on the line immediately.
         mouse.WriteIouAccess (true);
-        mouse.AccessIouSwitch (kEnbVbl);
+        mouse.AccessIouSwitch (s_kEnbVbl);
         mouse.WriteIouAccess (false);
         Assert::IsTrue (ic.IsAnyAsserted(), L"ENVBL with a pending latch asserts");
 
@@ -194,11 +194,11 @@ public:
         Assert::IsTrue (ic.IsAnyAsserted());
 
         mouse.WriteIouAccess (true);
-        mouse.AccessIouSwitch (kDisXy);
+        mouse.AccessIouSwitch (s_kDisXy);
         Assert::IsFalse (ic.IsAnyAsserted(),           L"DISXY masks the line");
         Assert::AreEqual<Byte> (0x80, mouse.ReadXInterruptStatus(), L"flag survives the mask");
 
-        mouse.AccessIouSwitch (kEnbXy);
+        mouse.AccessIouSwitch (s_kEnbXy);
         mouse.WriteIouAccess (false);
         Assert::IsTrue (ic.IsAnyAsserted(), L"re-enable surfaces the pending flag");
     }

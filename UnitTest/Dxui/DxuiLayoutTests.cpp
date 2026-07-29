@@ -8,14 +8,14 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
 
 
-namespace
+// Shared by both TEST_CLASSes below, so it lives at file scope rather than
+// on either one. `static` supplies the internal linkage the anonymous
+// namespace was there for.
+static RECT  MakeRect (LONG l, LONG t, LONG r, LONG b)
 {
-    RECT  MakeRect (LONG l, LONG t, LONG r, LONG b)
-    {
-        RECT  out = {};
-        out.left = l; out.top = t; out.right = r; out.bottom = b;
-        return out;
-    }
+    RECT  out = {};
+    out.left = l; out.top = t; out.right = r; out.bottom = b;
+    return out;
 }
 
 
