@@ -235,9 +235,9 @@ private:
     static std::vector<Byte>        ParseSRecord            (const std::string & content);
     static std::vector<Byte>        ParseIntelHex           (const std::string & content);
     static std::vector<std::string> GenerateByteDirectives  (const std::vector<Byte> & data);
-    static bool                     IsBranchMnemonic        (const std::string & mnemonic);
+    bool                            IsBranchMnemonic        (const std::string & mnemonic) const;
     static bool                     IsBitOpMnemonic         (const std::string & mnemonic);
-    static Byte                     EstimateInstructionSize (OperandSyntax syntax, const std::string & mnemonic);
+    Byte                            EstimateInstructionSize (OperandSyntax syntax, const std::string & mnemonic) const;
     static std::string              ProcessEscapeSequences  (const std::string & str);
     static bool                     EvaluateDirectiveArgs   (const std::string & argText,
                                                              const ExprContext & ctx,

@@ -274,13 +274,9 @@ std::vector<std::string> AssemblySession::GenerateByteDirectives (const std::vec
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool AssemblySession::IsBranchMnemonic (const std::string & mnemonic)
+bool AssemblySession::IsBranchMnemonic (const std::string & mnemonic) const
 {
-    return mnemonic == "BPL" || mnemonic == "BMI" ||
-           mnemonic == "BVC" || mnemonic == "BVS" ||
-           mnemonic == "BCC" || mnemonic == "BCS" ||
-           mnemonic == "BNE" || mnemonic == "BEQ" ||
-           mnemonic == "BRA";   // 65C02 unconditional branch (base tier)
+    return m_opcodeTable.HasMode (mnemonic, GlobalAddressingMode::Relative);
 }
 
 
@@ -427,7 +423,7 @@ GlobalAddressingMode::AddressingMode AssemblySession::ResolveAddressingMode (
                 return AM::Relative;
             }
 
-            if (mnemonic == "JMP" || mnemonic == "JSR")
+            if (m_opcodeTable.HasMode (mnemonic, AM::JumpAbsolute))
             {
                 return AM::JumpAbsolute;
             }
@@ -459,7 +455,7 @@ GlobalAddressingMode::AddressingMode AssemblySession::ResolveAddressingMode (
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-Byte AssemblySession::EstimateInstructionSize (OperandSyntax syntax, const std::string & mnemonic)
+Byte AssemblySession::EstimateInstructionSize (OperandSyntax syntax, const std::string & mnemonic) const
 {
     switch (syntax)
     {
