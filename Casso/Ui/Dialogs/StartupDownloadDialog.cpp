@@ -506,198 +506,148 @@ std::optional<int> StartupDownloadDialog::HandleBodyInput (const DialogInputEven
 
 
 
-namespace
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DownloadBodyPanel
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void StartupDownloadDialog::DownloadBodyPanel::Layout (const RECT & boundsPx, const DxuiDpiScaler & scaler)
 {
-    //
-    //  DownloadBodyPanel -- paint/input bridge that renders the asset rows
-    //  via the existing PaintBody callback and forwards mouse events to the
-    //  per-row checkboxes via HandleBodyInput. It draws through the concrete
-    //  DxuiPainter / DxuiTextRenderer / CassoTheme (the modal host's actual
-    //  types) that the legacy DialogPaintContext expects.
-    //
-    class DownloadBodyPanel : public DxuiPanel
+    SetBounds  (boundsPx);
+    m_dpiScale = (float) scaler.Dpi() / (float) DxuiDpiScaler::kBaseDpi;
+}
+
+
+void StartupDownloadDialog::DownloadBodyPanel::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
+{
+    DialogPaintContext  ctx;
+
+    ctx.painter        = static_cast<DxuiPainter *> (&painter);
+    ctx.text           = static_cast<DxuiTextRenderer *> (&text);
+    ctx.theme          = static_cast<const CassoTheme *> (&theme);
+    ctx.customBodyRect = Bounds();
+    ctx.dpiScale       = m_dpiScale;
+
+    if (m_paint)
     {
-    public:
-        void  SetPaintFn (std::function<void (DialogPaintContext &)>     fn) { m_paint = std::move (fn); }
-        void  SetInputFn (std::function<void (const DialogInputEvent &)> fn) { m_input = std::move (fn); }
-
-        void  Layout (const RECT & boundsPx, const DxuiDpiScaler & scaler) override
-        {
-            SetBounds  (boundsPx);
-            m_dpiScale = (float) scaler.Dpi() / (float) DxuiDpiScaler::kBaseDpi;
-        }
-
-        void  Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override
-        {
-            DialogPaintContext  ctx;
-
-            ctx.painter        = static_cast<DxuiPainter *> (&painter);
-            ctx.text           = static_cast<DxuiTextRenderer *> (&text);
-            ctx.theme          = static_cast<const CassoTheme *> (&theme);
-            ctx.customBodyRect = Bounds();
-            ctx.dpiScale       = m_dpiScale;
-
-            if (m_paint)
-            {
-                m_paint (ctx);
-            }
-        }
-
-        bool  OnMouse (const DxuiMouseEvent & ev) override
-        {
-            DialogInputEvent  die;
-            RECT              b        = Bounds();
-            bool              consumed = true;
+        m_paint (ctx);
+    }
+}
 
 
-            die.xPx = ev.positionDip.x - b.left;
-            die.yPx = ev.positionDip.y - b.top;
-
-            switch (ev.kind)
-            {
-            case DxuiMouseEventKind::Down: die.kind = DialogInputEvent::Kind::LeftButtonDown; break;
-            case DxuiMouseEventKind::Up:   die.kind = DialogInputEvent::Kind::LeftButtonUp;   break;
-            case DxuiMouseEventKind::Move: die.kind = DialogInputEvent::Kind::MouseMove;      break;
-            default:                       consumed = false;                                  break;
-            }
-
-            if (consumed && m_input)
-            {
-                m_input (die);
-            }
-
-            return consumed;
-        }
+bool StartupDownloadDialog::DownloadBodyPanel::OnMouse (const DxuiMouseEvent & ev)
+{
+    DialogInputEvent  die;
+    RECT              b        = Bounds();
+    bool              consumed = true;
 
 
-    private:
-        std::function<void (DialogPaintContext &)>      m_paint;
-        std::function<void (const DialogInputEvent &)>  m_input;
-        float                                           m_dpiScale = 1.0f;
-    };
+    die.xPx = ev.positionDip.x - b.left;
+    die.yPx = ev.positionDip.y - b.top;
 
-
-
-    //
-    //  DownloadContentPanel -- stacks the intro label above the asset-row
-    //  body, laid out in physical pixels.
-    //
-    class DownloadContentPanel : public DxuiPanel
+    switch (ev.kind)
     {
-    public:
-        void  Init (DxuiLabel * intro, DownloadBodyPanel * body, int introHeightDip)
-        {
-            m_intro          = intro;
-            m_body           = body;
-            m_introHeightDip = introHeightDip;
+    case DxuiMouseEventKind::Down: die.kind = DialogInputEvent::Kind::LeftButtonDown; break;
+    case DxuiMouseEventKind::Up:   die.kind = DialogInputEvent::Kind::LeftButtonUp;   break;
+    case DxuiMouseEventKind::Move: die.kind = DialogInputEvent::Kind::MouseMove;      break;
+    default:                       consumed = false;                                  break;
+    }
 
-            Adopt (*intro);
-            Adopt (*body);
-        }
-
-        void  Layout (const RECT & boundsPx, const DxuiDpiScaler & scaler) override
-        {
-            int  ih = scaler.Px (m_introHeightDip);
-
-
-            SetBounds (boundsPx);
-
-            if (m_intro != nullptr)
-            {
-                RECT  r = { boundsPx.left, boundsPx.top, boundsPx.right, boundsPx.top + ih };
-
-                m_intro->Layout (r, scaler);
-            }
-
-            if (m_body != nullptr)
-            {
-                RECT  r = { boundsPx.left, boundsPx.top + ih, boundsPx.right, boundsPx.bottom };
-
-                m_body->Layout (r, scaler);
-            }
-        }
-
-
-    private:
-        DxuiLabel          *  m_intro          = nullptr;
-        DownloadBodyPanel  *  m_body           = nullptr;
-        int                   m_introHeightDip = 0;
-    };
-
-
-
-
-    ////////////////////////////////////////////////////////////////////////////////
-    //
-    //  DownloadDialog
-    //
-    //  DxuiDialogWindow hosting the intro + asset-row content and the
-    //  Download / Skip / Exit buttons. Download carries a custom click
-    //  handler (start workers, relabel -- it must NOT close); Skip auto-
-    //  closes (leaving the default Skipped result); Exit is the IDCANCEL
-    //  button (Escape / close-box) with a custom handler that records the
-    //  Exit result. A fast tick polls the workers via the OnPoll hook.
-    //
-    ////////////////////////////////////////////////////////////////////////////////
-
-    class DownloadDialog : public DxuiDialogWindow
+    if (consumed && m_input)
     {
-    public:
-        void  ConfigureDownload (std::unique_ptr<DxuiPanel> content, bool requiresRoms, unsigned tickMs)
-        {
-            m_pendingContent = std::move (content);
-            m_requiresRoms   = requiresRoms;
-            m_tickMs         = tickMs;
-        }
+        m_input (die);
+    }
 
-        void  SetOnDownloadClick (std::function<void()> fn) { m_onDownloadClick = std::move (fn); }
-        void  SetOnPoll          (std::function<void()> fn) { m_onPoll          = std::move (fn); }
-
-        DxuiButton *  DownloadButton() const { return m_downloadBtn; }
-        DxuiButton *  SkipButton     () const { return m_skipBtn; }
-        DxuiButton *  ExitButton     () const { return m_exitBtn; }
+    return consumed;
+}
 
 
-    protected:
-        void  OnCreate() override
-        {
-            if (m_pendingContent != nullptr)
-            {
-                SetDialogContentOwned (std::move (m_pendingContent));
-            }
-
-            m_downloadBtn = AddDialogButton (L"Download", s_kIdDownload);
-            m_downloadBtn->SetOnClick ([this] () { if (m_onDownloadClick) { m_onDownloadClick(); } });
-
-            if (!m_requiresRoms)
-            {
-                m_skipBtn = AddDialogButton (L"Skip", s_kIdSkip);
-            }
-
-            m_exitBtn = AddDialogButton (L"Exit", IDCANCEL);
-
-            SetDialogTickIntervalMs (m_tickMs);
-        }
-
-        void  OnDialogTick() override
-        {
-            if (m_onPoll)
-            {
-                m_onPoll();
-            }
-        }
 
 
-    private:
-        std::unique_ptr<DxuiPanel>  m_pendingContent;
-        bool                        m_requiresRoms    = false;
-        unsigned                    m_tickMs          = 100;
-        std::function<void()>       m_onDownloadClick;
-        std::function<void()>       m_onPoll;
-        DxuiButton  *               m_downloadBtn     = nullptr;
-        DxuiButton  *               m_skipBtn         = nullptr;
-        DxuiButton  *               m_exitBtn         = nullptr;
-    };
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DownloadContentPanel
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void StartupDownloadDialog::DownloadContentPanel::Init (DxuiLabel * intro, DownloadBodyPanel * body, int introHeightDip)
+{
+    m_intro          = intro;
+    m_body           = body;
+    m_introHeightDip = introHeightDip;
+
+    Adopt (*intro);
+    Adopt (*body);
+}
+
+
+void StartupDownloadDialog::DownloadContentPanel::Layout (const RECT & boundsPx, const DxuiDpiScaler & scaler)
+{
+    int  ih = scaler.Px (m_introHeightDip);
+
+
+    SetBounds (boundsPx);
+
+    if (m_intro != nullptr)
+    {
+        RECT  r = { boundsPx.left, boundsPx.top, boundsPx.right, boundsPx.top + ih };
+
+        m_intro->Layout (r, scaler);
+    }
+
+    if (m_body != nullptr)
+    {
+        RECT  r = { boundsPx.left, boundsPx.top + ih, boundsPx.right, boundsPx.bottom };
+
+        m_body->Layout (r, scaler);
+    }
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DownloadDialog
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void StartupDownloadDialog::DownloadDialog::ConfigureDownload (std::unique_ptr<DxuiPanel> content, bool requiresRoms, unsigned tickMs)
+{
+    m_pendingContent = std::move (content);
+    m_requiresRoms   = requiresRoms;
+    m_tickMs         = tickMs;
+}
+
+
+void StartupDownloadDialog::DownloadDialog::OnCreate()
+{
+    if (m_pendingContent != nullptr)
+    {
+        SetDialogContentOwned (std::move (m_pendingContent));
+    }
+
+    m_downloadBtn = AddDialogButton (L"Download", s_kIdDownload);
+    m_downloadBtn->SetOnClick ([this] () { if (m_onDownloadClick) { m_onDownloadClick(); } });
+
+    if (!m_requiresRoms)
+    {
+        m_skipBtn = AddDialogButton (L"Skip", s_kIdSkip);
+    }
+
+    m_exitBtn = AddDialogButton (L"Exit", IDCANCEL);
+
+    SetDialogTickIntervalMs (m_tickMs);
+}
+
+
+void StartupDownloadDialog::DownloadDialog::OnDialogTick()
+{
+    if (m_onPoll)
+    {
+        m_onPoll();
+    }
 }
 
 

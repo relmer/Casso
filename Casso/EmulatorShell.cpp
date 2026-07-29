@@ -175,211 +175,208 @@ static constexpr int     s_kChromeFocusCount         = 10;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace
+void EmulatorShell::LayoutDriveWidgetsInCommandBar (
+    std::array<DriveWidget, 2>  & driveChrome,
+    int                           bottomInsetPx,
+    int                           clientW,
+    int                           clientH,
+    UINT                          dpi,
+    float                         sceneScale)
 {
-    void LayoutDriveWidgetsInCommandBar (
-        std::array<DriveWidget, 2>  & driveChrome,
-        int                           bottomInsetPx,
-        int                           clientW,
-        int                           clientH,
-        UINT                          dpi,
-        float                         sceneScale)
+    // Desk-scene zoom: the drives scale with the monitor. Fold the scale
+    // into the effective DPI so widget geometry, fonts, and the inter-
+    // widget gaps all zoom together.
+    dpi = (UINT) lroundf ((float) dpi * sceneScale);
+
+    int            bottomInset   = bottomInsetPx;
+    int            commandBarTop = std::max (0, clientH - bottomInset);
+    int            gap           = MulDiv (s_kDriveWidgetGapDp, static_cast<int> (dpi), s_kBaseDpi);
+    int            bottomGap     = 0;
+    RECT           probe         = {};
+    int            widgetW       = 0;
+    int            widgetH       = 0;
+    int            totalW        = 0;
+    int            x             = 0;
+    int            y             = 0;
+    size_t         i             = 0;
+    DxuiDpiScaler  scaler;
+    RECT           anchor        = {};
+
+
+
+    scaler.SetDpi (dpi);
+    anchor = { 0, 0, 0, 0 };
+    driveChrome[0].Layout (anchor, scaler);
+    probe   = driveChrome[0].OuterRect();
+    widgetW = probe.right  - probe.left;
+    widgetH = probe.bottom - probe.top;
+    totalW  = widgetW * static_cast<int> (driveChrome.size()) + gap * (static_cast<int> (driveChrome.size()) - 1);
+    x       = std::max (0, (clientW - totalW) / 2);
+    // Anchor the widget to the bottom so the margin between the
+    // basename label and the window edge mirrors the gap between
+    // the drive body and the label (s_kLabelStripGapPx, scaled).
+    bottomGap = MulDiv (s_kLabelBottomGapDp, static_cast<int> (dpi), s_kBaseDpi);
+    y         = std::max (commandBarTop, clientH - widgetH - bottomGap);
+
+    for (i = 0; i < driveChrome.size(); i++)
     {
-        // Desk-scene zoom: the drives scale with the monitor. Fold the scale
-        // into the effective DPI so widget geometry, fonts, and the inter-
-        // widget gaps all zoom together.
-        dpi = (UINT) lroundf ((float) dpi * sceneScale);
+        int   widgetX       = x + static_cast<int> (i) * (widgetW + gap);
+        int   widgetCenterX = widgetX + widgetW / 2;
+        int   vanishingX    = clientW / 2;
+        // Shrink factor matches the case-top depth ratio (back
+        // edge is ~20% narrower than the front, so back center
+        // shifts ~20% of the way toward the shared vanishing
+        // point). Numerator chosen to match s_kCaseBackInsetPx
+        // ratio in DriveWidget.cpp.
+        int   skewPx        = MulDiv (vanishingX - widgetCenterX, 27, 100);
+        RECT  widgetAnchor  = { widgetX, y, widgetX, y };
 
-        int            bottomInset   = bottomInsetPx;
-        int            commandBarTop = std::max (0, clientH - bottomInset);
-        int            gap           = MulDiv (s_kDriveWidgetGapDp, static_cast<int> (dpi), s_kBaseDpi);
-        int            bottomGap     = 0;
-        RECT           probe         = {};
-        int            widgetW       = 0;
-        int            widgetH       = 0;
-        int            totalW        = 0;
-        int            x             = 0;
-        int            y             = 0;
-        size_t         i             = 0;
-        DxuiDpiScaler  scaler;
-        RECT           anchor        = {};
+        driveChrome[i].SetPerspectiveSkewPx (skewPx);
+        driveChrome[i].Layout (widgetAnchor, scaler);
+    }
+}
 
 
+bool EmulatorShell::GetCursorMonitorWorkArea (RECT & outWork, HMONITOR & outMonitor)
+{
+    POINT          pt       = {};
+    HMONITOR       hMon     = nullptr;
+    MONITORINFOEXW mi       = { sizeof (mi) };
 
-        scaler.SetDpi (dpi);
-        anchor = { 0, 0, 0, 0 };
-        driveChrome[0].Layout (anchor, scaler);
-        probe   = driveChrome[0].OuterRect();
-        widgetW = probe.right  - probe.left;
-        widgetH = probe.bottom - probe.top;
-        totalW  = widgetW * static_cast<int> (driveChrome.size()) + gap * (static_cast<int> (driveChrome.size()) - 1);
-        x       = std::max (0, (clientW - totalW) / 2);
-        // Anchor the widget to the bottom so the margin between the
-        // basename label and the window edge mirrors the gap between
-        // the drive body and the label (s_kLabelStripGapPx, scaled).
-        bottomGap = MulDiv (s_kLabelBottomGapDp, static_cast<int> (dpi), s_kBaseDpi);
-        y         = std::max (commandBarTop, clientH - widgetH - bottomGap);
 
-        for (i = 0; i < driveChrome.size(); i++)
-        {
-            int   widgetX       = x + static_cast<int> (i) * (widgetW + gap);
-            int   widgetCenterX = widgetX + widgetW / 2;
-            int   vanishingX    = clientW / 2;
-            // Shrink factor matches the case-top depth ratio (back
-            // edge is ~20% narrower than the front, so back center
-            // shifts ~20% of the way toward the shared vanishing
-            // point). Numerator chosen to match s_kCaseBackInsetPx
-            // ratio in DriveWidget.cpp.
-            int   skewPx        = MulDiv (vanishingX - widgetCenterX, 27, 100);
-            RECT  widgetAnchor  = { widgetX, y, widgetX, y };
 
-            driveChrome[i].SetPerspectiveSkewPx (skewPx);
-            driveChrome[i].Layout (widgetAnchor, scaler);
-        }
+    if (!GetCursorPos (&pt))
+    {
+        pt.x = 0;
+        pt.y = 0;
     }
 
-
-    bool GetCursorMonitorWorkArea (RECT & outWork, HMONITOR & outMonitor)
+    hMon = MonitorFromPoint (pt, MONITOR_DEFAULTTONEAREST);
+    if (hMon == nullptr)
     {
-        POINT          pt       = {};
-        HMONITOR       hMon     = nullptr;
-        MONITORINFOEXW mi       = { sizeof (mi) };
-
-
-
-        if (!GetCursorPos (&pt))
-        {
-            pt.x = 0;
-            pt.y = 0;
-        }
-
-        hMon = MonitorFromPoint (pt, MONITOR_DEFAULTTONEAREST);
-        if (hMon == nullptr)
-        {
-            return false;
-        }
-
-        if (!GetMonitorInfoW (hMon, &mi))
-        {
-            return false;
-        }
-
-        outWork    = mi.rcWork;
-        outMonitor = hMon;
-        return true;
+        return false;
     }
 
-
-    void CenterInWorkArea (
-        const RECT & work,
-        int          windowW,
-        int          windowH,
-        LONG       & outX,
-        LONG       & outY)
+    if (!GetMonitorInfoW (hMon, &mi))
     {
-        outX = work.left + (work.right - work.left - windowW) / 2;
-        outY = work.top  + (work.bottom - work.top - windowH) / 2;
+        return false;
     }
 
+    outWork    = mi.rcWork;
+    outMonitor = hMon;
+    return true;
+}
 
-    // Loads an HICON resource into a CPU-side premultiplied BGRA8
-    // pixel buffer suitable for the DxuiTextRenderer::DrawIconBitmap
-    // path. Uses a GDI memory DC + 32-bit DIB section to capture the
-    // icon's alpha-channelled pixels (LoadImageW preserves alpha when
-    // LR_DEFAULTCOLOR is set on a Vista+ icon). Premultiplies the
-    // pixels in place because D2D's DrawBitmap expects premultiplied
-    // sources.
-    bool LoadIconAsPremulBgra (
-        HINSTANCE             hInstance,
-        int                   iconResourceId,
-        int                   sizePx,
-        std::vector<uint32_t> & outPixels,
-        int                  & outW,
-        int                  & outH)
+
+void EmulatorShell::CenterInWorkArea (
+    const RECT & work,
+    int          windowW,
+    int          windowH,
+    LONG       & outX,
+    LONG       & outY)
+{
+    outX = work.left + (work.right - work.left - windowW) / 2;
+    outY = work.top  + (work.bottom - work.top - windowH) / 2;
+}
+
+
+// Loads an HICON resource into a CPU-side premultiplied BGRA8
+// pixel buffer suitable for the DxuiTextRenderer::DrawIconBitmap
+// path. Uses a GDI memory DC + 32-bit DIB section to capture the
+// icon's alpha-channelled pixels (LoadImageW preserves alpha when
+// LR_DEFAULTCOLOR is set on a Vista+ icon). Premultiplies the
+// pixels in place because D2D's DrawBitmap expects premultiplied
+// sources.
+bool EmulatorShell::LoadIconAsPremulBgra (
+    HINSTANCE               hInstance,
+    int                     iconResourceId,
+    int                     sizePx,
+    std::vector<uint32_t> & outPixels,
+    int                   & outW,
+    int                   & outH)
+{
+    HICON       hIcon       = nullptr;
+    HDC         screenDc    = nullptr;
+    HDC         memDc       = nullptr;
+    HBITMAP     dib         = nullptr;
+    HBITMAP     oldBitmap   = nullptr;
+    void      * dibBits     = nullptr;
+    BITMAPINFO  bmi         = {};
+    bool        success     = false;
+    size_t      pixelCount  = (size_t) sizePx * (size_t) sizePx;
+
+
+
+    hIcon = (HICON) LoadImageW (hInstance,
+                                MAKEINTRESOURCEW (iconResourceId),
+                                IMAGE_ICON,
+                                sizePx, sizePx,
+                                LR_DEFAULTCOLOR);
+    if (hIcon == nullptr)
     {
-        HICON       hIcon       = nullptr;
-        HDC         screenDc    = nullptr;
-        HDC         memDc       = nullptr;
-        HBITMAP     dib         = nullptr;
-        HBITMAP     oldBitmap   = nullptr;
-        void      * dibBits     = nullptr;
-        BITMAPINFO  bmi         = {};
-        bool        success     = false;
-        size_t      pixelCount  = (size_t) sizePx * (size_t) sizePx;
+        return false;
+    }
 
+    screenDc = GetDC (nullptr);
+    memDc    = CreateCompatibleDC (screenDc);
 
+    bmi.bmiHeader.biSize        = sizeof (BITMAPINFOHEADER);
+    bmi.bmiHeader.biWidth       = sizePx;
+    bmi.bmiHeader.biHeight      = -sizePx;   // top-down DIB
+    bmi.bmiHeader.biPlanes      = 1;
+    bmi.bmiHeader.biBitCount    = 32;
+    bmi.bmiHeader.biCompression = BI_RGB;
 
-        hIcon = (HICON) LoadImageW (hInstance,
-                                    MAKEINTRESOURCEW (iconResourceId),
-                                    IMAGE_ICON,
-                                    sizePx, sizePx,
-                                    LR_DEFAULTCOLOR);
-        if (hIcon == nullptr)
+    dib = CreateDIBSection (memDc, &bmi, DIB_RGB_COLORS, &dibBits, nullptr, 0);
+
+    if (dib != nullptr && dibBits != nullptr)
+    {
+        oldBitmap = (HBITMAP) SelectObject (memDc, dib);
+
+        // Clear the DIB to transparent so the icon's alpha channel
+        // composites against zero instead of the screen DC's
+        // garbage contents.
+        memset (dibBits, 0, pixelCount * sizeof (uint32_t));
+
+        if (DrawIconEx (memDc, 0, 0, hIcon, sizePx, sizePx, 0, nullptr, DI_NORMAL))
         {
-            return false;
-        }
+            uint32_t  * src  = (uint32_t *) dibBits;
+            size_t      i    = 0;
 
-        screenDc = GetDC (nullptr);
-        memDc    = CreateCompatibleDC (screenDc);
+            outPixels.assign (pixelCount, 0);
 
-        bmi.bmiHeader.biSize        = sizeof (BITMAPINFOHEADER);
-        bmi.bmiHeader.biWidth       = sizePx;
-        bmi.bmiHeader.biHeight      = -sizePx;   // top-down DIB
-        bmi.bmiHeader.biPlanes      = 1;
-        bmi.bmiHeader.biBitCount    = 32;
-        bmi.bmiHeader.biCompression = BI_RGB;
-
-        dib = CreateDIBSection (memDc, &bmi, DIB_RGB_COLORS, &dibBits, nullptr, 0);
-
-        if (dib != nullptr && dibBits != nullptr)
-        {
-            oldBitmap = (HBITMAP) SelectObject (memDc, dib);
-
-            // Clear the DIB to transparent so the icon's alpha channel
-            // composites against zero instead of the screen DC's
-            // garbage contents.
-            memset (dibBits, 0, pixelCount * sizeof (uint32_t));
-
-            if (DrawIconEx (memDc, 0, 0, hIcon, sizePx, sizePx, 0, nullptr, DI_NORMAL))
+            // Premultiply each BGRA pixel. DIB layout is 0xAARRGGBB
+            // in little-endian uint32 (B,G,R,A in memory order).
+            for (i = 0; i < pixelCount; i++)
             {
-                uint32_t  * src  = (uint32_t *) dibBits;
-                size_t      i    = 0;
+                uint32_t  px = src[i];
+                uint8_t   a  = (uint8_t) ((px >> 24) & 0xFF);
+                uint8_t   r  = (uint8_t) ((px >> 16) & 0xFF);
+                uint8_t   g  = (uint8_t) ((px >>  8) & 0xFF);
+                uint8_t   b  = (uint8_t) ( px        & 0xFF);
 
-                outPixels.assign (pixelCount, 0);
+                r = (uint8_t) ((r * a) / 255);
+                g = (uint8_t) ((g * a) / 255);
+                b = (uint8_t) ((b * a) / 255);
 
-                // Premultiply each BGRA pixel. DIB layout is 0xAARRGGBB
-                // in little-endian uint32 (B,G,R,A in memory order).
-                for (i = 0; i < pixelCount; i++)
-                {
-                    uint32_t  px = src[i];
-                    uint8_t   a  = (uint8_t) ((px >> 24) & 0xFF);
-                    uint8_t   r  = (uint8_t) ((px >> 16) & 0xFF);
-                    uint8_t   g  = (uint8_t) ((px >>  8) & 0xFF);
-                    uint8_t   b  = (uint8_t) ( px        & 0xFF);
-
-                    r = (uint8_t) ((r * a) / 255);
-                    g = (uint8_t) ((g * a) / 255);
-                    b = (uint8_t) ((b * a) / 255);
-
-                    outPixels[i] = ((uint32_t) a << 24) | ((uint32_t) r << 16) |
-                                   ((uint32_t) g <<  8) |  (uint32_t) b;
-                }
-
-                outW    = sizePx;
-                outH    = sizePx;
-                success = true;
+                outPixels[i] = ((uint32_t) a << 24) | ((uint32_t) r << 16) |
+                               ((uint32_t) g <<  8) |  (uint32_t) b;
             }
 
-            SelectObject (memDc, oldBitmap);
+            outW    = sizePx;
+            outH    = sizePx;
+            success = true;
         }
 
-        if (dib != nullptr)      { DeleteObject (dib); }
-        if (memDc != nullptr)    { DeleteDC (memDc); }
-        if (screenDc != nullptr) { ReleaseDC (nullptr, screenDc); }
-        DestroyIcon (hIcon);
-
-        return success;
+        SelectObject (memDc, oldBitmap);
     }
+
+    if (dib != nullptr)      { DeleteObject (dib); }
+    if (memDc != nullptr)    { DeleteDC (memDc); }
+    if (screenDc != nullptr) { ReleaseDC (nullptr, screenDc); }
+    DestroyIcon (hIcon);
+
+    return success;
 }
 
 

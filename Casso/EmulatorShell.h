@@ -432,6 +432,34 @@ private:
     void    ApplyDefaultPointerForMachine();
 
 private:
+    // Window-placement and chrome-layout helpers. Every reader is an
+    // EmulatorShell method, so they belong to the class rather than to
+    // the translation unit.
+    static void  LayoutDriveWidgetsInCommandBar (
+        std::array<DriveWidget, 2>  & driveChrome,
+        int                           bottomInsetPx,
+        int                           clientW,
+        int                           clientH,
+        UINT                          dpi,
+        float                         sceneScale);
+
+    static bool  GetCursorMonitorWorkArea (RECT & outWork, HMONITOR & outMonitor);
+
+    static void  CenterInWorkArea (
+        const RECT & work,
+        int          windowW,
+        int          windowH,
+        LONG       & outX,
+        LONG       & outY);
+
+    static bool  LoadIconAsPremulBgra (
+        HINSTANCE               hInstance,
+        int                     iconResourceId,
+        int                     sizePx,
+        std::vector<uint32_t> & outPixels,
+        int                   & outW,
+        int                   & outH);
+
     void    SyncInputModeUi();
     void    SyncSelectorState();
 
