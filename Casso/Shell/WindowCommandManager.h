@@ -81,6 +81,21 @@ private:
     // consume the strip. Pure Win32 clipboard edge (render/encode are core).
     HRESULT  CopyPrintoutToClipboard (const class PrintRaster & raster);
 
+    // Print-path helpers. Every reader is a WindowCommandManager method, so
+    // they belong to the class rather than to the translation unit.
+
+    // Turn a failure HRESULT into a "0xXXXXXXXX -- <system text>" detail line
+    // for the error dialog: the friendly sentence is for humans; this trailer
+    // is the hr + OS message for nerds (and bug reports). A Win32-wrapped code
+    // (HRESULT_FROM_WIN32) resolves to its GetLastError text; other HRESULTs
+    // resolve where the system has a message and degrade to just the hex code.
+    static std::wstring  FormatSystemError (HRESULT hr);
+
+    static HRESULT  HrFromSpoolResult (int ret, const wchar_t * call, int pageIx);
+    static void     PrimeDefaultPrinterDriver ();
+    static HDC      CreateDcFromDevNames (const PRINTDLGW & pd);
+    static HRESULT  BlitRgbaToDc (HDC hdc, const struct RgbaImage & img, int pageW, int pageH, int outputDpi);
+
     EmulatorShell &  m_shell;
 
     // The modern OS print dialog with live preview (DCR-1); falls back to the

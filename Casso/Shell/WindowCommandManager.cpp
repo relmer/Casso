@@ -34,246 +34,242 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace
+using namespace ChromeMetrics;
+
+// Turn a failure HRESULT into a "0xXXXXXXXX -- <system text>" detail line for
+// the error dialog: the friendly sentence is for humans; this trailer is the
+// hr + OS message for nerds (and bug reports). A Win32-wrapped code
+// (HRESULT_FROM_WIN32) resolves to its GetLastError text; other HRESULTs
+// resolve where the system has a message and degrade to just the hex code.
+std::wstring  WindowCommandManager::FormatSystemError (HRESULT hr)
 {
-    using namespace ChromeMetrics;
+    std::wstring   detail = std::format (L"0x{:08X}", (uint32_t) hr);
+    DWORD          code   = (HRESULT_FACILITY (hr) == FACILITY_WIN32)
+                                ? (DWORD) HRESULT_CODE (hr)
+                                : (DWORD) hr;
+    LPWSTR         text   = nullptr;
 
-    // Turn a failure HRESULT into a "0xXXXXXXXX -- <system text>" detail line for
-    // the error dialog: the friendly sentence is for humans; this trailer is the
-    // hr + OS message for nerds (and bug reports). A Win32-wrapped code
-    // (HRESULT_FROM_WIN32) resolves to its GetLastError text; other HRESULTs
-    // resolve where the system has a message and degrade to just the hex code.
-    std::wstring  FormatSystemError (HRESULT hr)
+    DWORD  n = FormatMessageW (
+        FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
+        nullptr, code, MAKELANGID (LANG_NEUTRAL, SUBLANG_DEFAULT),
+        (LPWSTR) &text, 0, nullptr);
+
+    if (n != 0 && text != nullptr)
     {
-        std::wstring   detail = std::format (L"0x{:08X}", (uint32_t) hr);
-        DWORD          code   = (HRESULT_FACILITY (hr) == FACILITY_WIN32)
-                                    ? (DWORD) HRESULT_CODE (hr)
-                                    : (DWORD) hr;
-        LPWSTR         text   = nullptr;
+        std::wstring   sys (text);
 
-        DWORD  n = FormatMessageW (
-            FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
-            nullptr, code, MAKELANGID (LANG_NEUTRAL, SUBLANG_DEFAULT),
-            (LPWSTR) &text, 0, nullptr);
-
-        if (n != 0 && text != nullptr)
+        // Trim the trailing ". \r\n" the system appends.
+        while (!sys.empty() &&
+               (sys.back() == L'\r' || sys.back() == L'\n' || sys.back() == L'.' || sys.back() == L' '))
         {
-            std::wstring   sys (text);
-
-            // Trim the trailing ". \r\n" the system appends.
-            while (!sys.empty() &&
-                   (sys.back() == L'\r' || sys.back() == L'\n' || sys.back() == L'.' || sys.back() == L' '))
-            {
-                sys.pop_back();
-            }
-            if (!sys.empty()) { detail += L" -- " + sys; }
+            sys.pop_back();
         }
-        if (text != nullptr) { LocalFree (text); }
+        if (!sys.empty()) { detail += L" -- " + sys; }
+    }
+    if (text != nullptr) { LocalFree (text); }
 
-        return detail;
+    return detail;
+}
+
+// StartPage / EndPage / EndDoc report failure as a return value <= 0 using
+// the SP_* family, and frequently do NOT set GetLastError -- which is how a
+// print failure used to degrade to "Unspecified error" (or worse: CWRF's
+// HRESULT_FROM_WIN32(0) == S_OK, a silent false success). Map the result to
+// an honest HRESULT: a user abort (the Print-to-PDF Save-As cancel can
+// surface mid-job on modern Windows, not just at StartDoc) becomes
+// HRESULT_FROM_WIN32 (ERROR_CANCELLED), which names itself at the call
+// site; disk-full / out-of-memory get their real codes; anything else uses
+// GetLastError when present and only degrades to E_FAIL when the driver
+// reported nothing at all.
+HRESULT WindowCommandManager::HrFromSpoolResult (int ret, const wchar_t * call, int pageIx)
+{
+    HRESULT   hr  = S_OK;
+    DWORD     gle = ::GetLastError();   // capture before logging can clobber it
+
+    if (ret > 0)
+    {
+        return S_OK;
     }
 
-    // StartPage / EndPage / EndDoc report failure as a return value <= 0 using
-    // the SP_* family, and frequently do NOT set GetLastError -- which is how a
-    // print failure used to degrade to "Unspecified error" (or worse: CWRF's
-    // HRESULT_FROM_WIN32(0) == S_OK, a silent false success). Map the result to
-    // an honest HRESULT: a user abort (the Print-to-PDF Save-As cancel can
-    // surface mid-job on modern Windows, not just at StartDoc) becomes
-    // HRESULT_FROM_WIN32 (ERROR_CANCELLED), which names itself at the call
-    // site; disk-full / out-of-memory get their real codes; anything else uses
-    // GetLastError when present and only degrades to E_FAIL when the driver
-    // reported nothing at all.
-    HRESULT HrFromSpoolResult (int ret, const wchar_t * call, int pageIx)
-    {
-        HRESULT   hr  = S_OK;
-        DWORD     gle = ::GetLastError();   // capture before logging can clobber it
+    if      (ret == SP_USERABORT)                                    { hr = HRESULT_FROM_WIN32 (ERROR_CANCELLED); }
+    else if (ret == SP_APPABORT)                                     { hr = E_ABORT;                              }
+    else if (ret == SP_OUTOFDISK)                                    { hr = HRESULT_FROM_WIN32 (ERROR_DISK_FULL); }
+    else if (ret == SP_OUTOFMEMORY)                                  { hr = E_OUTOFMEMORY;                        }
+    else if (gle == ERROR_CANCELLED || gle == ERROR_PRINT_CANCELLED) { hr = HRESULT_FROM_WIN32 (ERROR_CANCELLED); }
+    else if (gle != 0)                                               { hr = HRESULT_FROM_WIN32 (gle);             }
+    else                                                             { hr = E_FAIL;                               }
 
-        if (ret > 0)
+    return hr;
+}
+
+// Load ("prime") the default printer's driver on a short-lived no-COM (MTA)
+// thread. v4 / XPS print drivers -- notably Microsoft Print to PDF -- create
+// their device context through cross-process COM that aborts with 995
+// (ERROR_OPERATION_ABORTED) when first touched from our STA UI thread at
+// Medium integrity, yet succeeds from an MTA thread. Doing one MTA CreateDC
+// loads the driver so a subsequent PrintDlg on the UI thread creates its DC
+// normally. PD_RETURNDEFAULT gives us the default printer with no UI and no
+// DC of its own. Best-effort; any failure is ignored (the real path still
+// has its own fallback).
+void  WindowCommandManager::PrimeDefaultPrinterDriver()
+{
+    PRINTDLGW   def = {};
+
+    def.lStructSize = sizeof (def);
+    def.Flags       = PD_RETURNDEFAULT | PD_NOPAGENUMS | PD_NOSELECTION;
+
+    if (PrintDlgW (&def) && def.hDevNames != nullptr)
+    {
+        std::wstring       driver;
+        std::wstring       device;
+        const DEVNAMES *   dnp = (const DEVNAMES *) GlobalLock (def.hDevNames);
+
+        if (dnp != nullptr)
         {
-            return S_OK;
+            const wchar_t *  b = (const wchar_t *) dnp;
+            driver = b + dnp->wDriverOffset;
+            device = b + dnp->wDeviceOffset;
+            GlobalUnlock (def.hDevNames);
         }
 
-        if      (ret == SP_USERABORT)                                    { hr = HRESULT_FROM_WIN32 (ERROR_CANCELLED); }
-        else if (ret == SP_APPABORT)                                     { hr = E_ABORT;                              }
-        else if (ret == SP_OUTOFDISK)                                    { hr = HRESULT_FROM_WIN32 (ERROR_DISK_FULL); }
-        else if (ret == SP_OUTOFMEMORY)                                  { hr = E_OUTOFMEMORY;                        }
-        else if (gle == ERROR_CANCELLED || gle == ERROR_PRINT_CANCELLED) { hr = HRESULT_FROM_WIN32 (ERROR_CANCELLED); }
-        else if (gle != 0)                                               { hr = HRESULT_FROM_WIN32 (gle);             }
-        else                                                             { hr = E_FAIL;                               }
-
-        return hr;
-    }
-
-    // Load ("prime") the default printer's driver on a short-lived no-COM (MTA)
-    // thread. v4 / XPS print drivers -- notably Microsoft Print to PDF -- create
-    // their device context through cross-process COM that aborts with 995
-    // (ERROR_OPERATION_ABORTED) when first touched from our STA UI thread at
-    // Medium integrity, yet succeeds from an MTA thread. Doing one MTA CreateDC
-    // loads the driver so a subsequent PrintDlg on the UI thread creates its DC
-    // normally. PD_RETURNDEFAULT gives us the default printer with no UI and no
-    // DC of its own. Best-effort; any failure is ignored (the real path still
-    // has its own fallback).
-    void  PrimeDefaultPrinterDriver()
-    {
-        PRINTDLGW   def = {};
-
-        def.lStructSize = sizeof (def);
-        def.Flags       = PD_RETURNDEFAULT | PD_NOPAGENUMS | PD_NOSELECTION;
-
-        if (PrintDlgW (&def) && def.hDevNames != nullptr)
+        std::thread ([driver, device] ()
         {
-            std::wstring       driver;
-            std::wstring       device;
-            const DEVNAMES *   dnp = (const DEVNAMES *) GlobalLock (def.hDevNames);
-
-            if (dnp != nullptr)
-            {
-                const wchar_t *  b = (const wchar_t *) dnp;
-                driver = b + dnp->wDriverOffset;
-                device = b + dnp->wDeviceOffset;
-                GlobalUnlock (def.hDevNames);
-            }
-
-            std::thread ([driver, device] ()
-            {
-                HDC  h = CreateDCW (driver.c_str(), device.c_str(), nullptr, nullptr);
-                if (h != nullptr) { DeleteDC (h); }
-            }).join();
-        }
-
-        if (def.hDevMode  != nullptr) { GlobalFree (def.hDevMode); }
-        if (def.hDevNames != nullptr) { GlobalFree (def.hDevNames); }
+            HDC  h = CreateDCW (driver.c_str(), device.c_str(), nullptr, nullptr);
+            if (h != nullptr) { DeleteDC (h); }
+        }).join();
     }
 
-    // Build a printer DC from the DEVNAMES + DEVMODE the print dialog returned,
-    // when PrintDlg's own PD_RETURNDC came back null (a v4 driver flaking on the
-    // STA UI thread). Created on a plain (no-COM / MTA) thread for the same
-    // reason priming works -- an STA CreateDC aborts (995) where an MTA one
-    // succeeds. NULL port: the Print-to-PDF file prompt belongs at StartDoc, not
-    // DC creation. Returns null only if the names are missing or CreateDC fails.
-    HDC  CreateDcFromDevNames (const PRINTDLGW & pd)
-    {
-        std::wstring                 driver;
-        std::wstring                 device;
-        std::vector<unsigned char>   devmode;
-        HDC                          hdc = nullptr;
+    if (def.hDevMode  != nullptr) { GlobalFree (def.hDevMode); }
+    if (def.hDevNames != nullptr) { GlobalFree (def.hDevNames); }
+}
 
-        if (pd.hDevNames == nullptr)
+// Build a printer DC from the DEVNAMES + DEVMODE the print dialog returned,
+// when PrintDlg's own PD_RETURNDC came back null (a v4 driver flaking on the
+// STA UI thread). Created on a plain (no-COM / MTA) thread for the same
+// reason priming works -- an STA CreateDC aborts (995) where an MTA one
+// succeeds. NULL port: the Print-to-PDF file prompt belongs at StartDoc, not
+// DC creation. Returns null only if the names are missing or CreateDC fails.
+HDC  WindowCommandManager::CreateDcFromDevNames (const PRINTDLGW & pd)
+{
+    std::wstring                 driver;
+    std::wstring                 device;
+    std::vector<unsigned char>   devmode;
+    HDC                          hdc = nullptr;
+
+    if (pd.hDevNames == nullptr)
+    {
+        return nullptr;
+    }
+
+    {
+        const DEVNAMES *  dn = (const DEVNAMES *) GlobalLock (pd.hDevNames);
+
+        if (dn == nullptr)
         {
             return nullptr;
         }
 
-        {
-            const DEVNAMES *  dn = (const DEVNAMES *) GlobalLock (pd.hDevNames);
-
-            if (dn == nullptr)
-            {
-                return nullptr;
-            }
-
-            const wchar_t *  base = (const wchar_t *) dn;
-            driver = base + dn->wDriverOffset;
-            device = base + dn->wDeviceOffset;
-            GlobalUnlock (pd.hDevNames);
-        }
-
-        // Copy the (variable-length) DEVMODE so the worker thread owns stable
-        // memory independent of the caller's global handle lock.
-        if (pd.hDevMode != nullptr)
-        {
-            const DEVMODEW *  dm = (const DEVMODEW *) GlobalLock (pd.hDevMode);
-
-            if (dm != nullptr)
-            {
-                const unsigned char *  p  = (const unsigned char *) dm;
-                size_t                 sz = (size_t) dm->dmSize + dm->dmDriverExtra;
-                devmode.assign (p, p + sz);
-                GlobalUnlock (pd.hDevMode);
-            }
-        }
-
-        std::thread ([&] ()
-        {
-            const DEVMODEW *  dmp = devmode.empty() ? nullptr : (const DEVMODEW *) devmode.data();
-
-            hdc = CreateDCW (driver.c_str(), device.c_str(), nullptr, dmp);
-        }).join();
-
-        return hdc;
+        const wchar_t *  base = (const wchar_t *) dn;
+        driver = base + dn->wDriverOffset;
+        device = base + dn->wDeviceOffset;
+        GlobalUnlock (pd.hDevNames);
     }
 
-    // Blit an R,G,B,A image onto a printer HDC. The strip is scaled to fit the
-    // page WIDTH (uniform scale, aspect preserved) and top-aligned so the
-    // fanfold continues downward across page breaks. Fitting to width -- not
-    // min(width,height) -- is deliberate: the strip width is identical on every
-    // page, so a width fit gives every page the same horizontal scale and left
-    // edge. A min() fit would height-limit full pages but width-limit the short
-    // last page, scaling their columns differently and misaligning page-to-page.
-    // GDI DIBs are BGRA, so the channels are swapped into a scratch buffer.
-    HRESULT BlitRgbaToDc (HDC hdc, const RgbaImage & img, int pageW, int pageH, int outputDpi)
+    // Copy the (variable-length) DEVMODE so the worker thread owns stable
+    // memory independent of the caller's global handle lock.
+    if (pd.hDevMode != nullptr)
     {
-        HRESULT                    hr    = S_OK;
-        vector<Byte>               bgra;
-        BITMAPINFO                 bmi   = {};
-        size_t                     count = 0;
-        size_t                     i     = 0;
-        PrintPagination::PageFit   fit;
-        int                        destW = 0;
-        int                        destH = 0;
-        int                        blit  = 0;
+        const DEVMODEW *  dm = (const DEVMODEW *) GlobalLock (pd.hDevMode);
 
-        CBR (img.width > 0 && img.height > 0);
-        CBR (pageW > 0 && pageH > 0);
-
-        count = (size_t) img.width * img.height;
-        bgra.resize (count * 4);
-        for (i = 0; i < count; i++)
+        if (dm != nullptr)
         {
-            bgra[i * 4 + 0] = img.rgba[i * 4 + 2];   // B
-            bgra[i * 4 + 1] = img.rgba[i * 4 + 1];   // G
-            bgra[i * 4 + 2] = img.rgba[i * 4 + 0];   // R
-            bgra[i * 4 + 3] = img.rgba[i * 4 + 3];   // A
+            const unsigned char *  p  = (const unsigned char *) dm;
+            size_t                 sz = (size_t) dm->dmSize + dm->dmDriverExtra;
+            devmode.assign (p, p + sz);
+            GlobalUnlock (pd.hDevMode);
         }
-
-        // Fit a FULL page to the printable height, capped by width, at one uniform
-        // scale (device pixels, so the output dpi is the box's vertical unit). The
-        // shared fanfold fit, so classic print, modern print and preview all agree.
-        fit   = PrintPagination::FitFullPageToBox ((double) img.width, (double) img.height,
-                                                   (double) pageW, (double) pageH, (double) outputDpi);
-        destW = (std::max) (1, (int) (img.width  * fit.scale));
-        destH = (std::max) (1, (int) (img.height * fit.scale));
-
-        bmi.bmiHeader.biSize        = sizeof (BITMAPINFOHEADER);
-        bmi.bmiHeader.biWidth       = img.width;
-        bmi.bmiHeader.biHeight      = -img.height;   // negative == top-down
-        bmi.bmiHeader.biPlanes      = 1;
-        bmi.bmiHeader.biBitCount    = 32;
-        bmi.bmiHeader.biCompression = BI_RGB;
-
-        SetStretchBltMode (hdc, HALFTONE);
-        SetBrushOrgEx     (hdc, 0, 0, nullptr);
-
-        // Failure is GDI_ERROR (-1 as an int) *or* zero scan lines copied (the
-        // destination always spans >= 1 line, so a genuine success copies at
-        // least one) -- blit <= 0 covers both. GDI often reports these with
-        // GetLastError()==0; CWRF would turn that into HRESULT_FROM_WIN32(0)
-        // == S_OK -- a silent false success -- so fall back to E_FAIL
-        // explicitly when there is no error code to keep.
-        blit = StretchDIBits (hdc,
-                              (pageW - destW) / 2, 0, destW, destH,
-                              0, 0, img.width, img.height,
-                              bgra.data(), &bmi, DIB_RGB_COLORS, SRCCOPY);
-        if (blit <= 0)
-        {
-            DWORD   gle = ::GetLastError();
-
-            hr = (gle != 0) ? HRESULT_FROM_WIN32 (gle) : E_FAIL;
-            goto Error;
-        }
-
-    Error:
-        return hr;
     }
+
+    std::thread ([&] ()
+    {
+        const DEVMODEW *  dmp = devmode.empty() ? nullptr : (const DEVMODEW *) devmode.data();
+
+        hdc = CreateDCW (driver.c_str(), device.c_str(), nullptr, dmp);
+    }).join();
+
+    return hdc;
+}
+
+// Blit an R,G,B,A image onto a printer HDC. The strip is scaled to fit the
+// page WIDTH (uniform scale, aspect preserved) and top-aligned so the
+// fanfold continues downward across page breaks. Fitting to width -- not
+// min(width,height) -- is deliberate: the strip width is identical on every
+// page, so a width fit gives every page the same horizontal scale and left
+// edge. A min() fit would height-limit full pages but width-limit the short
+// last page, scaling their columns differently and misaligning page-to-page.
+// GDI DIBs are BGRA, so the channels are swapped into a scratch buffer.
+HRESULT WindowCommandManager::BlitRgbaToDc (HDC hdc, const RgbaImage & img, int pageW, int pageH, int outputDpi)
+{
+    HRESULT                    hr    = S_OK;
+    vector<Byte>               bgra;
+    BITMAPINFO                 bmi   = {};
+    size_t                     count = 0;
+    size_t                     i     = 0;
+    PrintPagination::PageFit   fit;
+    int                        destW = 0;
+    int                        destH = 0;
+    int                        blit  = 0;
+
+    CBR (img.width > 0 && img.height > 0);
+    CBR (pageW > 0 && pageH > 0);
+
+    count = (size_t) img.width * img.height;
+    bgra.resize (count * 4);
+    for (i = 0; i < count; i++)
+    {
+        bgra[i * 4 + 0] = img.rgba[i * 4 + 2];   // B
+        bgra[i * 4 + 1] = img.rgba[i * 4 + 1];   // G
+        bgra[i * 4 + 2] = img.rgba[i * 4 + 0];   // R
+        bgra[i * 4 + 3] = img.rgba[i * 4 + 3];   // A
+    }
+
+    // Fit a FULL page to the printable height, capped by width, at one uniform
+    // scale (device pixels, so the output dpi is the box's vertical unit). The
+    // shared fanfold fit, so classic print, modern print and preview all agree.
+    fit   = PrintPagination::FitFullPageToBox ((double) img.width, (double) img.height,
+                                               (double) pageW, (double) pageH, (double) outputDpi);
+    destW = (std::max) (1, (int) (img.width  * fit.scale));
+    destH = (std::max) (1, (int) (img.height * fit.scale));
+
+    bmi.bmiHeader.biSize        = sizeof (BITMAPINFOHEADER);
+    bmi.bmiHeader.biWidth       = img.width;
+    bmi.bmiHeader.biHeight      = -img.height;   // negative == top-down
+    bmi.bmiHeader.biPlanes      = 1;
+    bmi.bmiHeader.biBitCount    = 32;
+    bmi.bmiHeader.biCompression = BI_RGB;
+
+    SetStretchBltMode (hdc, HALFTONE);
+    SetBrushOrgEx     (hdc, 0, 0, nullptr);
+
+    // Failure is GDI_ERROR (-1 as an int) *or* zero scan lines copied (the
+    // destination always spans >= 1 line, so a genuine success copies at
+    // least one) -- blit <= 0 covers both. GDI often reports these with
+    // GetLastError()==0; CWRF would turn that into HRESULT_FROM_WIN32(0)
+    // == S_OK -- a silent false success -- so fall back to E_FAIL
+    // explicitly when there is no error code to keep.
+    blit = StretchDIBits (hdc,
+                          (pageW - destW) / 2, 0, destW, destH,
+                          0, 0, img.width, img.height,
+                          bgra.data(), &bmi, DIB_RGB_COLORS, SRCCOPY);
+    if (blit <= 0)
+    {
+        DWORD   gle = ::GetLastError();
+
+        hr = (gle != 0) ? HRESULT_FROM_WIN32 (gle) : E_FAIL;
+    }
+
+Error:
+    return hr;
 }
 
 
