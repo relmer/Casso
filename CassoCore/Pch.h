@@ -14,6 +14,7 @@
 #include <iostream>
 #include <print>
 #include <memory>
+#include <span>
 #include <sstream>
 #include <string>
 #include <unordered_map>

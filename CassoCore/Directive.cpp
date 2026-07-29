@@ -115,6 +115,20 @@ Directive DirectiveTable::FromSpelling (const std::string & word)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DirectiveTable::AllSpellings
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::span<const DirectiveTable::Spelling> DirectiveTable::AllSpellings()
+{
+    return std::span<const Spelling> (s_kSpellings, std::size (s_kSpellings));
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DirectiveTable::CanonicalName
 //
 //  The first dotted spelling that maps to the token. Segment tokens list
