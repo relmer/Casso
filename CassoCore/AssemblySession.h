@@ -102,43 +102,61 @@ private:
 
     HRESULT ProcessPass1Line           (const PendingLine & current);
 
-    // What a pass-1 line turns out to be. Listed in the order the classifier
-    // tests them, because that order IS the language: a line inside a struct
-    // body is a struct member no matter what else it looks like, and .ORG has
-    // to move the PC before any label on the same line binds to it.
-    enum class Pass1LineKind
+    // Pass 1 runs in three phases, in this order, and the order is the
+    // language. Each phase is a switch; RunPass1Stages sequences them.
+    //
+    //   1. Collecting  -- a .STRUCT or macro body swallows the line whole.
+    //   2. Prelude     -- directives that decide whether the line assembles
+    //                     at all, or that move the PC.
+    //   3. Content     -- the line's actual payload, at the settled PC.
+    //
+    // RecordLabel sits between 2 and 3 because that is exactly when the
+    // address a label binds to stops moving.
+
+    // The one mode the parse is in. Replaces a pair of independent bools that
+    // between them could represent "collecting a struct AND a macro", which is
+    // not a thing.
+    enum class Pass1State
     {
-        StructBody,             // inside .STRUCT ... .ENDSTRUCT
-        MacroBody,              // inside NAME macro ... .ENDM
-        MacroDefinition,        // "NAME macro [params]" opens a definition
-        ConditionalDirective,   // .IF / .IFDEF / .IFNDEF / .ELSE / .ENDIF
-        SkippedByConditional,   // inactive block, and not one of the above
-        OrgDirective,           // .ORG
-        SegmentSwitch,          // .CODE / .DATA / .BSS / .SEGMENT_*
-        ConstantDefinition,     // NAME = expr, NAME .EQU expr
-        Pass1Directive,         // every other directive
-        Empty,                  // label-only or blank
-        Instruction,            // a mnemonic -- possibly a multi-NOP, a macro
-                                // call, or a colon-less label; only evaluating
-                                // it can tell, so those stay a probe chain
+        Normal,
+        CollectingStruct,   // inside .STRUCT ... .ENDSTRUCT
+        CollectingMacro,    // inside NAME macro ... .ENDM
     };
 
-    // Pure: reads `info` and the session's mode flags, changes nothing.
-    Pass1LineKind ClassifyPass1Line (const LineInfo & info, const std::string & operandUpper) const;
+    enum class Pass1Prelude
+    {
+        None,               // nothing here claims the line; go on to Content
+        MacroDefinition,    // "NAME macro [params]" opens a definition
+        Conditional,        // .IF / .IFDEF / .IFNDEF / .ELSE / .ENDIF
+        Skipped,            // inactive block, and not a conditional directive
+        Org,                // .ORG
+        SegmentSwitch,      // .CODE / .DATA / .BSS / .SEGMENT_*
+    };
 
-    // True for the kinds that sit at the final PC, so a label on the line
-    // binds there. False for the kinds handled before the PC settles.
-    static bool   BindsLabel (Pass1LineKind kind);
+    enum class Pass1Content
+    {
+        ConstantDefinition, // NAME = expr, NAME .EQU expr
+        Directive,          // every directive not already claimed
+        Empty,              // label-only or blank
+        Instruction,        // a mnemonic -- possibly a multi-NOP, a macro call
+                            // or a colon-less label; only trying can tell
+    };
 
-    // Shared by ClassifyPass1Line and the handler each one guards, so the two
-    // cannot drift apart.
-    static bool   IsMacroDefinitionStart (const ParsedLine & parsed, const std::string & operandUpper);
-    static bool   IsConditionalLine      (const ParsedLine & parsed);
-    static bool   IsSegmentDirective     (const std::string & dir);
-    static std::string UpperOperand      (const std::string & operand);
+    // Both pure: read the line and the mode, change nothing.
+    Pass1Prelude ClassifyPrelude (const LineInfo & info, const std::string & operandUpper) const;
+    static Pass1Content ClassifyContent (const LineInfo & info);
 
-    // Acts on the classification. ProcessPass1Line owns recording the result.
-    HRESULT RunPass1Stages       (const PendingLine & current, LineInfo & info);
+    // Shared by each classifier and the handler it routes to, so the two
+    // cannot drift apart about what a line is.
+    static bool        IsMacroDefinitionStart (const ParsedLine & parsed, const std::string & operandUpper);
+    static bool        IsConditionalLine      (const ParsedLine & parsed);
+    static bool        IsSegmentDirective     (const std::string & dir);
+    static std::string UpperOperand           (const std::string & operand);
+
+    HRESULT RunPass1Stages         (const PendingLine & current, LineInfo & info);
+    HRESULT RunCollectingState     (const PendingLine & current, LineInfo & info, bool & outClaimed);
+    HRESULT RunPreludeDirectives   (const PendingLine & current, LineInfo & info, bool & outClaimed);
+    HRESULT RunContentStages       (const PendingLine & current, LineInfo & info);
 
     // The Instruction tail: stages that can only decide by trying.
     HRESULT ResolveInstructionLine (const PendingLine & current, LineInfo & info);
@@ -215,7 +233,7 @@ private:
     Word                                                m_segmentPC[3]       = { 0, 0, 0 };
     std::vector<ConditionalState>                       m_condStack;
     std::unordered_map<std::string, MacroDefinition>    m_macros;
-    bool                                                m_collectingMacro    = false;
+    Pass1State                                          m_pass1State         = Pass1State::Normal;
     std::string                                         m_currentMacroName;
     int                                                 m_currentMacroLine   = 0;
     std::vector<std::string>                            m_currentMacroBody;
@@ -224,7 +242,6 @@ private:
     int                                                 m_macroUniqueCounter = 0;
     int                                                 m_listingLevel;
     std::unordered_map<std::string, StructDefinition>   m_structs;
-    bool                                                m_collectingStruct   = false;
     StructDefinition                                    m_currentStruct      = {};
     CharacterMap                                        m_charMap;
     std::deque<PendingLine>                             m_pendingLines;

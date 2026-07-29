@@ -925,24 +925,19 @@ std::string AssemblySession::UpperOperand (const std::string & operand)
 //
 //  AssemblySession::IsMacroDefinitionStart
 //
-//  "NAME macro [params]" -- the operand, upper-cased, starts with MACRO
-//  followed by end-of-operand or whitespace.
+//  "NAME macro [params]" -- the operand, upper-cased, is MACRO followed by
+//  end-of-operand or whitespace.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool AssemblySession::IsMacroDefinitionStart (const ParsedLine & parsed, const std::string & operandUpper)
 {
-    if (parsed.mnemonic.empty() || parsed.isEmpty)
-    {
-        return false;
-    }
+    bool  looksLikeMacro = (operandUpper.substr (0, 5) == "MACRO") &&
+                           (operandUpper.size() <= 5 ||
+                            operandUpper[5] == ' '  ||
+                            operandUpper[5] == '\t');
 
-    if (operandUpper.substr (0, 5) != "MACRO")
-    {
-        return false;
-    }
-
-    return operandUpper.size() <= 5 || operandUpper[5] == ' ' || operandUpper[5] == '\t';
+    return !parsed.mnemonic.empty() && !parsed.isEmpty && looksLikeMacro;
 }
 
 
@@ -952,24 +947,19 @@ bool AssemblySession::IsMacroDefinitionStart (const ParsedLine & parsed, const s
 //
 //  AssemblySession::IsConditionalLine
 //
-//  Both spellings are accepted: the dotted directive form and the bare
+//  Both spellings are accepted: the dotted directive form, and the bare
 //  mnemonic form as65 also allows.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool AssemblySession::IsConditionalLine (const ParsedLine & parsed)
 {
-    if (parsed.isDirective)
-    {
-        const std::string & dir = parsed.directive;
+    const std::string &  word = parsed.isDirective ? parsed.directive : parsed.mnemonic;
 
-        return dir == ".IF" || dir == ".IFDEF" || dir == ".IFNDEF" ||
-               dir == ".ELSE" || dir == ".ENDIF";
-    }
-
-    return parsed.mnemonic == "IF"   || parsed.mnemonic == "IFDEF" ||
-           parsed.mnemonic == "IFNDEF" || parsed.mnemonic == "ELSE" ||
-           parsed.mnemonic == "ENDIF";
+    return word == ".IF"   || word == ".IFDEF" || word == ".IFNDEF" ||
+           word == ".ELSE" || word == ".ENDIF" ||
+           word == "IF"    || word == "IFDEF"  || word == "IFNDEF"  ||
+           word == "ELSE"  || word == "ENDIF";
 }
 
 
@@ -992,48 +982,48 @@ bool AssemblySession::IsSegmentDirective (const std::string & dir)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  AssemblySession::ClassifyPass1Line
+//  AssemblySession::ClassifyPrelude
 //
-//  Decides what the line is, without doing anything about it. The tests run
-//  in the order the enum lists them, and that order is load-bearing:
+//  Which prelude directive, if any, owns this line. Order is load-bearing:
 //
-//    * A struct or macro body swallows the line whole, so those come first.
-//    * A macro definition is only recognized while assembling -- a .MACRO
+//    * A macro definition is only recognized while assembling, so a .MACRO
 //      inside an inactive conditional is skipped like any other line.
 //    * Conditional directives MUST be recognized while skipping, otherwise a
 //      false block could never see its own .ELSE / .ENDIF and would swallow
-//      the rest of the file.
-//    * .ORG and segment switches move the PC, so they are decided before
-//      BindsLabel starts returning true.
+//      the rest of the file. So they are tested before the skip.
+//    * .ORG and the segment switches move the PC, which is why the whole
+//      prelude runs before RecordLabel.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-AssemblySession::Pass1LineKind AssemblySession::ClassifyPass1Line (
+AssemblySession::Pass1Prelude AssemblySession::ClassifyPrelude (
     const LineInfo    & info,
     const std::string & operandUpper) const
 {
-    if (m_collectingStruct)                             { return Pass1LineKind::StructBody;           }
-    if (m_collectingMacro)                              { return Pass1LineKind::MacroBody;            }
+    Pass1Prelude  kind = Pass1Prelude::None;
 
     if (IsAssembling() && IsMacroDefinitionStart (info.parsed, operandUpper))
     {
-        return Pass1LineKind::MacroDefinition;
+        kind = Pass1Prelude::MacroDefinition;
     }
-
-    if (IsConditionalLine (info.parsed))                { return Pass1LineKind::ConditionalDirective; }
-    if (!IsAssembling())                                { return Pass1LineKind::SkippedByConditional; }
-
-    if (info.parsed.isDirective)
+    else if (IsConditionalLine (info.parsed))
     {
-        if (info.parsed.directive == ".ORG")            { return Pass1LineKind::OrgDirective;         }
-        if (IsSegmentDirective (info.parsed.directive)) { return Pass1LineKind::SegmentSwitch;        }
+        kind = Pass1Prelude::Conditional;
+    }
+    else if (!IsAssembling())
+    {
+        kind = Pass1Prelude::Skipped;
+    }
+    else if (info.parsed.isDirective && info.parsed.directive == ".ORG")
+    {
+        kind = Pass1Prelude::Org;
+    }
+    else if (info.parsed.isDirective && IsSegmentDirective (info.parsed.directive))
+    {
+        kind = Pass1Prelude::SegmentSwitch;
     }
 
-    if (info.parsed.isConstant)                         { return Pass1LineKind::ConstantDefinition;   }
-    if (info.parsed.isDirective)                        { return Pass1LineKind::Pass1Directive;       }
-    if (info.parsed.mnemonic.empty())                   { return Pass1LineKind::Empty;                }
-
-    return Pass1LineKind::Instruction;
+    return kind;
 }
 
 
@@ -1041,31 +1031,28 @@ AssemblySession::Pass1LineKind AssemblySession::ClassifyPass1Line (
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  AssemblySession::BindsLabel
+//  AssemblySession::ClassifyContent
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool AssemblySession::BindsLabel (Pass1LineKind kind)
+AssemblySession::Pass1Content AssemblySession::ClassifyContent (const LineInfo & info)
 {
-    switch (kind)
-    {
-    case Pass1LineKind::ConstantDefinition:
-    case Pass1LineKind::Pass1Directive:
-    case Pass1LineKind::Empty:
-    case Pass1LineKind::Instruction:
-        return true;
+    Pass1Content  kind = Pass1Content::Instruction;
 
-    case Pass1LineKind::StructBody:
-    case Pass1LineKind::MacroBody:
-    case Pass1LineKind::MacroDefinition:
-    case Pass1LineKind::ConditionalDirective:
-    case Pass1LineKind::SkippedByConditional:
-    case Pass1LineKind::OrgDirective:
-    case Pass1LineKind::SegmentSwitch:
-        return false;
+    if (info.parsed.isConstant)
+    {
+        kind = Pass1Content::ConstantDefinition;
+    }
+    else if (info.parsed.isDirective)
+    {
+        kind = Pass1Content::Directive;
+    }
+    else if (info.parsed.mnemonic.empty())
+    {
+        kind = Pass1Content::Empty;
     }
 
-    return false;
+    return kind;
 }
 
 
@@ -1073,66 +1060,123 @@ bool AssemblySession::BindsLabel (Pass1LineKind kind)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  AssemblySession::RunPass1Stages
+//  AssemblySession::RunCollectingState
+//
+//  Phase 1. A struct or macro body swallows the line whole, so this outranks
+//  everything -- including conditionals. The handlers can end collection on
+//  the way out, which is why the claim is read from the state on entry.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT AssemblySession::RunPass1Stages (const PendingLine & current, LineInfo & info)
+HRESULT AssemblySession::RunCollectingState (const PendingLine & current, LineInfo & info, bool & outClaimed)
 {
-    HRESULT        hr           = S_OK;
-    bool           claimed      = false;
-    std::string    operandUpper = UpperOperand (info.parsed.operand);
-    Pass1LineKind  kind         = ClassifyPass1Line (info, operandUpper);
+    HRESULT  hr = S_OK;
 
-    if (BindsLabel (kind))
-    {
-        hr = RecordLabel (current, info);
-        CHR (hr);
-    }
+    outClaimed = (m_pass1State != Pass1State::Normal);
 
-    switch (kind)
+    switch (m_pass1State)
     {
-    case Pass1LineKind::StructBody:
+    case Pass1State::CollectingStruct:
         hr = HandleStructCollection (current, info);
         break;
 
-    case Pass1LineKind::MacroBody:
+    case Pass1State::CollectingMacro:
         hr = CollectMacroBody (current, info);
         break;
 
-    case Pass1LineKind::MacroDefinition:
-        hr = DetectMacroDefinition (current, info, operandUpper, claimed);
+    case Pass1State::Normal:
+        break;
+    }
+
+    CHR (hr);
+
+Error:
+    return hr;
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AssemblySession::RunPreludeDirectives
+//
+//  Phase 2. Everything that decides whether the line assembles at all, or
+//  that moves the PC. Runs before a label can bind.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT AssemblySession::RunPreludeDirectives (const PendingLine & current, LineInfo & info, bool & outClaimed)
+{
+    HRESULT       hr           = S_OK;
+    std::string   operandUpper = UpperOperand (info.parsed.operand);
+    Pass1Prelude  kind         = ClassifyPrelude (info, operandUpper);
+
+    outClaimed = (kind != Pass1Prelude::None);
+
+    switch (kind)
+    {
+    case Pass1Prelude::MacroDefinition:
+        hr = DetectMacroDefinition (current, info, operandUpper, outClaimed);
         break;
 
-    case Pass1LineKind::ConditionalDirective:
-        hr = HandleConditionalDirective (current, info, claimed);
+    case Pass1Prelude::Conditional:
+        hr = HandleConditionalDirective (current, info, outClaimed);
         break;
 
-    case Pass1LineKind::SkippedByConditional:
+    case Pass1Prelude::Skipped:
         info.conditionalSkip = true;
         break;
 
-    case Pass1LineKind::OrgDirective:
+    case Pass1Prelude::Org:
         hr = HandleOrgDirective (current, info);
         info.isDirective = true;
         break;
 
-    case Pass1LineKind::SegmentSwitch:
-        hr = HandleSegmentSwitch (info, claimed);
+    case Pass1Prelude::SegmentSwitch:
+        hr = HandleSegmentSwitch (info, outClaimed);
         break;
 
-    case Pass1LineKind::ConstantDefinition:
+    case Pass1Prelude::None:
+        break;
+    }
+
+    CHR (hr);
+
+Error:
+    return hr;
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AssemblySession::RunContentStages
+//
+//  Phase 3. The line's payload, at the settled PC.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT AssemblySession::RunContentStages (const PendingLine & current, LineInfo & info)
+{
+    HRESULT  hr      = S_OK;
+    bool     claimed = false;
+
+    switch (ClassifyContent (info))
+    {
+    case Pass1Content::ConstantDefinition:
         hr = HandleConstantDefinition (current, info);
         break;
 
-    case Pass1LineKind::Pass1Directive:
+    case Pass1Content::Directive:
         hr = HandlePass1Directives (current, info, claimed);
         break;
 
-    case Pass1LineKind::Empty:
+    case Pass1Content::Empty:
         break;
 
-    case Pass1LineKind::Instruction:
+    case Pass1Content::Instruction:
         hr = ResolveInstructionLine (current, info);
         break;
     }
@@ -1148,14 +1192,47 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  AssemblySession::RunPass1Stages
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT AssemblySession::RunPass1Stages (const PendingLine & current, LineInfo & info)
+{
+    HRESULT  hr      = S_OK;
+    bool     claimed = false;
+
+    hr = RunCollectingState (current, info, claimed);
+    CHR (hr);
+    BAIL_OUT_IF (claimed, S_OK);
+
+    hr = RunPreludeDirectives (current, info, claimed);
+    CHR (hr);
+    BAIL_OUT_IF (claimed, S_OK);
+
+    // The PC has stopped moving, so a label on this line binds here.
+    hr = RecordLabel (current, info);
+    CHR (hr);
+
+    hr = RunContentStages (current, info);
+    CHR (hr);
+
+Error:
+    return hr;
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  AssemblySession::ResolveInstructionLine
 //
-//  The tail the classifier cannot decide. Each of these three can only tell
+//  The tail no classifier can decide. Each of these three can only tell
 //  whether it owns the line by starting work on it -- a multi-NOP has to
-//  evaluate its operand and declines when it is not a positive count, a macro
+//  evaluate its operand and declines when the count is not positive, a macro
 //  call has to be found in the table, and a colon-less label is whatever is
-//  left once every real mnemonic form has had its turn. So this stays a probe
-//  chain, and the order is the precedence.
+//  left once every real mnemonic form has had its turn. The order is the
+//  precedence.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1185,33 +1262,43 @@ Error:
 
 
 
+
+////////////////////////////////////////////////////////////////////////////////
 //
 //  AssemblySession::HandleStructCollection
+//
+//  One line of a .STRUCT body. .ENDSTRUCT closes the definition and publishes
+//  the struct's total size as an EQU symbol under its own name; anything else
+//  non-blank is a member declaration.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT AssemblySession::HandleStructCollection (const PendingLine & current, LineInfo & info)
 {
-    HRESULT hr = S_OK;
+    HRESULT  hr          = S_OK;
+    bool     isEndStruct = false;
+    int32_t  structSize  = 0;
 
-    bool isEndStruct = false;
 
 
-
-    CHR (CheckEndStruct (current, info, isEndStruct));
+    hr = CheckEndStruct (current, info, isEndStruct);
+    CHR (hr);
 
     if (isEndStruct)
     {
-        int32_t structSize = m_currentStruct.currentOffset - m_currentStruct.startOffset;
+        structSize = m_currentStruct.currentOffset - m_currentStruct.startOffset;
+
         m_symbols[m_currentStruct.name]     = (Word) structSize;
         m_symbolKinds[m_currentStruct.name] = SymbolKind::Equ;
         m_exprSymbols[m_currentStruct.name] = structSize;
         m_structs[m_currentStruct.name]     = m_currentStruct;
-        m_collectingStruct = false;
+
+        m_pass1State = Pass1State::Normal;
     }
     else if (!info.parsed.isEmpty)
     {
-        CHR (ParseStructMember (current, info));
+        hr = ParseStructMember (current, info);
+        CHR (hr);
     }
 
 Error:
@@ -1417,7 +1504,7 @@ HRESULT AssemblySession::CollectMacroBody (const PendingLine & current, LineInfo
         def.localLabels = m_currentMacroLocals;
         def.lineNumber = m_currentMacroLine;
         m_macros[m_currentMacroName] = def;
-        m_collectingMacro = false;
+        m_pass1State = Pass1State::Normal;
     }
     else
     {
@@ -1484,7 +1571,7 @@ HRESULT AssemblySession::DetectMacroDefinition (const PendingLine & current, Lin
         RecordError (current.sourceLineNumber, "Macro name conflicts with mnemonic: " + info.parsed.mnemonic);
     }
 
-    m_collectingMacro  = true;
+    m_pass1State = Pass1State::CollectingMacro;
     m_currentMacroName = info.parsed.mnemonic;
     m_currentMacroLine = current.sourceLineNumber;
     m_currentMacroBody.clear();
@@ -2387,7 +2474,7 @@ HRESULT AssemblySession::StartStructDefinition (const PendingLine & current, Lin
         }
 
         m_currentStruct.currentOffset = m_currentStruct.startOffset;
-        m_collectingStruct = true;
+        m_pass1State = Pass1State::CollectingStruct;
     }
 
 Error:
@@ -3261,7 +3348,7 @@ HRESULT AssemblySession::ValidateAssemblyCompletion()
 
 
 
-    if (m_collectingMacro)
+    if (m_pass1State == Pass1State::CollectingMacro)
     {
         RecordError (m_currentMacroLine, "Unclosed macro definition: " + m_currentMacroName);
     }
