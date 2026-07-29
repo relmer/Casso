@@ -223,6 +223,10 @@ ParsedLine Parser::ParseLine (const std::string & line, int lineNumber)
             result.directiveArg = Trim (remainder.substr (spacePos + 1));
         }
 
+        // Unknown dotted spellings resolve to None and stay a string; the
+        // pass-1 dispatch reports them as unhandled exactly as before.
+        result.directiveToken = DirectiveTable::FromSpelling (result.directive);
+
         return result;
     }
 
@@ -327,8 +331,9 @@ ParsedLine Parser::ParseLine (const std::string & line, int lineNumber)
 
     if (!canonicalDirective.empty())
     {
-        result.isDirective = true;
-        result.directive   = canonicalDirective;
+        result.isDirective    = true;
+        result.directive      = canonicalDirective;
+        result.directiveToken = directiveToken;
 
         if (spacePos != std::string::npos)
         {

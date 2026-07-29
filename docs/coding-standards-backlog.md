@@ -138,6 +138,77 @@ which looks backwards — until you notice the caller tests
 cancel branch and suppress the error dialog. The optimistic default is load-
 bearing; check the consumer before inverting one.
 
+### 2b. Assembler: tokenize, then drive from tables
+
+Not a style rule — an architecture item that subsumes several of them. The
+directive layer is where `AssemblySession.cpp` degenerated: 29 directives
+dispatched by *name* across five `else if` chains (`HandlePass1Directives` 16
+branches, `EmitDirectiveBytes` 8, `HandleConditionalDirective` 5,
+`HandleSegmentSwitch` / `IsSegmentDirective` 2 each), with no single place
+listing the vocabulary. Adding a directive means editing three chains and
+hoping.
+
+**Why this ordering matters beyond tidiness.** Casso intends more 6502
+assembler dialects and more CPUs. The CPU seam already exists — `OpcodeTable`
+is injected, so a new instruction set is tractable today. The *dialect* seam
+does not: a second syntax currently means editing ~84 scattered string
+compares. Tokenizing moves a dialect's whole vocabulary into one table and
+leaves the semantics shared.
+
+```
+DirectiveTable   spelling -> token      <- the DIALECT varies here
+DirectiveInfo    token    -> { pass1, pass2, flags }   (array, indexed by token)
+OpcodeTable      mnemonic -> encoding   <- the CPU varies here (already exists)
+AssemblySession  shared
+```
+
+Stages, each verifiable byte-for-byte (see below):
+
+1. **DONE** — `enum class Directive` + `DirectiveTable` (spelling -> token),
+   covering dotted canonical names and as65's bare synonyms. Replaced a
+   35-line if/else chain in `Parser.cpp`; its literal string compares went
+   32 -> 9.
+2. **DONE** — `ParsedLine::directiveToken`, set on both parser paths.
+   Unknown dotted spellings resolve to `Directive::None`, which is what
+   pass-1 dispatch already treats as unhandled.
+3. **NEXT** — `HandlePass1Directives` -> array indexed by token. All 16 arms
+   take `(current, info)` plus `this`, so the row is uniform:
+   `HRESULT (AssemblySession::*)(const PendingLine &, LineInfo &)`. Four
+   handlers already exist (`HandlePass1DataDirectives`,
+   `HandleIncludeDirective`, `StartStructDefinition`, `HandleCmapDirective` —
+   the last needs `current` added for signature uniformity); the other twelve
+   become small named members, which is what removes the calls-inside-EHM-
+   macros rather than a separate cleanup pass. A `static_assert` that the
+   array length equals the enum count makes a missing row a build error.
+4. `EmitDirectiveBytes` -> the pass-2 column of the same row. Today pass 1 and
+   pass 2 each carry their own copy of "which directives exist" and can
+   disagree.
+5. `HandleConditionalDirective` -> switch on the token; its bare mnemonic
+   forms (`IF` / `ELSE` / `ENDIF`) join the spelling table.
+6. Put the spelling table behind a dialect interface.
+
+**Not solved by this**, so do not expect them to fall out: `ParseStructMember`
+(101 lines, ~80-line `if`) is a field-declaration parser wanting its own small
+type-size table; `ResolveAddressingMode` (140 lines, 21 returns) is a
+*matrix* — syntax x mnemonic class -> mode — so it wants a 2-D lookup, a
+different table than the directive one; `ExpandMacro`'s scope is a
+decomposition problem.
+
+**Caveat on table-driving everything:** a table earns its place when the rows
+are uniform. Where handlers need genuinely different arguments you get a
+struct of mostly-null function pointers, which reads worse than the switch it
+replaced. The directive rows are uniform; check each new one before assuming.
+
+**How to verify a stage.** The unit suite (253 assembler tests plus Dormann,
+which assembles *and* executes) is good but cannot see a reordering bug in an
+untested corner. Every stage above was checked by assembling all 15 in-repo
+`.a65` sources and comparing an FNV-1a-64 digest of the emitted bytes *and*
+the diagnostic shape against a pre-change baseline. The harness is a
+throwaway `TEST_CLASS` in `UnitTest/` — write it, capture the baseline from
+the previous commit, apply the change, compare, delete it. It is deliberately
+not kept: `casso-rocks` is already assembled and booted by `BootDiskTests`, so
+a permanent version would add no coverage.
+
 ### 3. `CS0009` — producing `S_FALSE` — DONE
 
 Every site asked the same question: what does the second outcome *mean*? Three
