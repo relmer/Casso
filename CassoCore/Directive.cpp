@@ -92,11 +92,16 @@ static constexpr DirectiveTable::Spelling  s_kSpellings[] =
 //
 //  DirectiveTable::FromSpelling
 //
+//  Linear scan rather than a hash: the table is ~60 rows and this runs once
+//  per source line, so the constant factor beats hashing a short string.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 Directive DirectiveTable::FromSpelling (const std::string & word)
 {
     Directive  token = Directive::None;
+
+
 
     for (const Spelling & entry : s_kSpellings)
     {
@@ -113,13 +118,17 @@ Directive DirectiveTable::FromSpelling (const std::string & word)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DirectiveTable::AllSpellings
+//  DirectiveTable::GetAllSpellings
+//
+//  Exposes the vocabulary so tests can assert over all of it, and so a second
+//  dialect can be diffed against this one rather than eyeballed.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::span<const DirectiveTable::Spelling> DirectiveTable::AllSpellings()
+std::span<const DirectiveTable::Spelling> DirectiveTable::GetAllSpellings()
 {
     return std::span<const Spelling> (s_kSpellings, std::size (s_kSpellings));
 }
@@ -127,18 +136,21 @@ std::span<const DirectiveTable::Spelling> DirectiveTable::AllSpellings()
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DirectiveTable::CanonicalName
+//  DirectiveTable::GetCanonicalName
 //
 //  The first dotted spelling that maps to the token. Segment tokens list
 //  their long form first, so that is what a listing shows.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-const char * DirectiveTable::CanonicalName (Directive directive)
+const char * DirectiveTable::GetCanonicalName (Directive directive)
 {
     const char *  name = "";
+
+
 
     for (const Spelling & entry : s_kSpellings)
     {

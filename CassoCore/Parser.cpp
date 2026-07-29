@@ -312,7 +312,7 @@ ParsedLine Parser::ParseLine (const std::string & line, int lineNumber)
 
     if (directiveToken != Directive::None)
     {
-        canonicalDirective = DirectiveTable::CanonicalName (directiveToken);
+        canonicalDirective = DirectiveTable::GetCanonicalName (directiveToken);
     }
 
     // RMB is dual-purpose: `rmb <count>` reserves storage (a .DS synonym), but

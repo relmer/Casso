@@ -92,10 +92,10 @@ public:
     static Directive  FromSpelling (const std::string & word);
 
     // The canonical dotted spelling, for diagnostics and listings.
-    static const char * CanonicalName (Directive directive);
+    static const char * GetCanonicalName (Directive directive);
 
     // Every accepted spelling, so tests can assert over the whole vocabulary
     // rather than a hand-picked sample, and so a future dialect can be
     // diffed against this one.
-    static std::span<const Spelling> AllSpellings();
+    static std::span<const Spelling> GetAllSpellings();
 };

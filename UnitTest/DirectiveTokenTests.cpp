@@ -66,7 +66,7 @@ public:
 
     TEST_METHOD (EverySpelling_ParsesToItsOwnToken)
     {
-        for (const DirectiveTable::Spelling & entry : DirectiveTable::AllSpellings())
+        for (const DirectiveTable::Spelling & entry : DirectiveTable::GetAllSpellings())
         {
             std::string  line   = std::string (entry.name) + " " + SampleArgFor (entry.token);
             ParsedLine   parsed = Parser::ParseLine (line, 1);
@@ -102,7 +102,7 @@ public:
         // Skips None; every real token must round-trip name -> token -> name.
         for (token = 1; token < (int) Directive::Count; token++)
         {
-            const char *  name = DirectiveTable::CanonicalName ((Directive) token);
+            const char *  name = DirectiveTable::GetCanonicalName ((Directive) token);
 
             Assert::IsTrue (name[0] == '.',
                 L"every Directive needs a canonical dotted spelling");

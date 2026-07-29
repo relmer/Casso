@@ -101,22 +101,22 @@ private:
 
     // The table lives inside a function rather than at file scope because a
     // file-scope initializer cannot name private members.
-    static const DirectiveRow * DirectiveRows();
+    static const DirectiveRow * GetDirectiveRows();
 
-    HRESULT Pass1Word    (const PendingLine & current, LineInfo & info);
-    HRESULT Pass1Text    (const PendingLine & current, LineInfo & info);
-    HRESULT Pass1Dd      (const PendingLine & current, LineInfo & info);
-    HRESULT Pass1Ds      (const PendingLine & current, LineInfo & info);
-    HRESULT Pass1Align   (const PendingLine & current, LineInfo & info);
-    HRESULT Pass1End     (const PendingLine & current, LineInfo & info);
-    HRESULT Pass1Error   (const PendingLine & current, LineInfo & info);
-    HRESULT Pass1List    (const PendingLine & current, LineInfo & info);
-    HRESULT Pass1Nolist  (const PendingLine & current, LineInfo & info);
-    HRESULT Pass1Title   (const PendingLine & current, LineInfo & info);
+    HRESULT HandlePass1Word    (const PendingLine & current, LineInfo & info);
+    HRESULT HandlePass1Text    (const PendingLine & current, LineInfo & info);
+    HRESULT HandlePass1Dd      (const PendingLine & current, LineInfo & info);
+    HRESULT HandlePass1Ds      (const PendingLine & current, LineInfo & info);
+    HRESULT HandlePass1Align   (const PendingLine & current, LineInfo & info);
+    HRESULT HandlePass1End     (const PendingLine & current, LineInfo & info);
+    HRESULT HandlePass1Error   (const PendingLine & current, LineInfo & info);
+    HRESULT HandlePass1List    (const PendingLine & current, LineInfo & info);
+    HRESULT HandlePass1Nolist  (const PendingLine & current, LineInfo & info);
+    HRESULT HandlePass1Title   (const PendingLine & current, LineInfo & info);
 
     // Recognized, and deliberately does nothing in pass 1 (.OPT_NOOP is
     // accepted for as65 source compatibility; .PAGE acts at listing time).
-    HRESULT Pass1Ignored (const PendingLine & current, LineInfo & info);
+    HRESULT IgnorePass1Directive (const PendingLine & current, LineInfo & info);
 
     HRESULT EmitTextDirective     (const LineInfo & info, Word & emitPC);
     HRESULT EmitMultiNopDirective (const LineInfo & info, Word & emitPC);
@@ -189,7 +189,7 @@ private:
     static bool        IsMacroDefinitionStart (const ParsedLine & parsed, const std::string & operandUpper);
     static bool        IsConditionalLine      (const ParsedLine & parsed);
     static bool        IsSegmentDirective     (const std::string & dir);
-    static std::string UpperOperand           (const std::string & operand);
+    static std::string GetUpperOperand           (const std::string & operand);
 
     HRESULT RunPass1Stages         (const PendingLine & current, LineInfo & info);
     HRESULT RunCollectingState     (const PendingLine & current, LineInfo & info, bool & outClaimed);

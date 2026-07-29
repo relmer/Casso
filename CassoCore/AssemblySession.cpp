@@ -900,15 +900,18 @@ Error:
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  AssemblySession::UpperOperand
+//  AssemblySession::GetUpperOperand
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::string AssemblySession::UpperOperand (const std::string & operand)
+std::string AssemblySession::GetUpperOperand (const std::string & operand)
 {
     std::string  upper = operand;
+
+
 
     for (auto & c : upper)
     {
@@ -917,6 +920,7 @@ std::string AssemblySession::UpperOperand (const std::string & operand)
 
     return upper;
 }
+
 
 
 
@@ -943,6 +947,7 @@ bool AssemblySession::IsMacroDefinitionStart (const ParsedLine & parsed, const s
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  AssemblySession::IsConditionalLine
@@ -965,6 +970,7 @@ bool AssemblySession::IsConditionalLine (const ParsedLine & parsed)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  AssemblySession::IsSegmentDirective
@@ -976,6 +982,7 @@ bool AssemblySession::IsSegmentDirective (const std::string & dir)
     return dir == ".SEGMENT_CODE" || dir == ".SEGMENT_DATA" || dir == ".SEGMENT_BSS" ||
            dir == ".CODE"         || dir == ".DATA"         || dir == ".BSS";
 }
+
 
 
 
@@ -1001,6 +1008,8 @@ AssemblySession::Pass1Prelude AssemblySession::ClassifyPrelude (
     const std::string & operandUpper) const
 {
     Pass1Prelude  kind = Pass1Prelude::None;
+
+
 
     if (IsAssembling() && IsMacroDefinitionStart (info.parsed, operandUpper))
     {
@@ -1029,6 +1038,7 @@ AssemblySession::Pass1Prelude AssemblySession::ClassifyPrelude (
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  AssemblySession::ClassifyContent
@@ -1038,6 +1048,8 @@ AssemblySession::Pass1Prelude AssemblySession::ClassifyPrelude (
 AssemblySession::Pass1Content AssemblySession::ClassifyContent (const LineInfo & info)
 {
     Pass1Content  kind = Pass1Content::Instruction;
+
+
 
     if (info.parsed.isConstant)
     {
@@ -1058,6 +1070,7 @@ AssemblySession::Pass1Content AssemblySession::ClassifyContent (const LineInfo &
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  AssemblySession::RunCollectingState
@@ -1071,6 +1084,8 @@ AssemblySession::Pass1Content AssemblySession::ClassifyContent (const LineInfo &
 HRESULT AssemblySession::RunCollectingState (const PendingLine & current, LineInfo & info, bool & outClaimed)
 {
     HRESULT  hr = S_OK;
+
+
 
     outClaimed = (m_pass1State != Pass1State::Normal);
 
@@ -1097,6 +1112,7 @@ Error:
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  AssemblySession::RunPreludeDirectives
@@ -1109,8 +1125,10 @@ Error:
 HRESULT AssemblySession::RunPreludeDirectives (const PendingLine & current, LineInfo & info, bool & outClaimed)
 {
     HRESULT       hr           = S_OK;
-    std::string   operandUpper = UpperOperand (info.parsed.operand);
+    std::string   operandUpper = GetUpperOperand (info.parsed.operand);
     Pass1Prelude  kind         = ClassifyPrelude (info, operandUpper);
+
+
 
     outClaimed = (kind != Pass1Prelude::None);
 
@@ -1150,6 +1168,7 @@ Error:
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  AssemblySession::RunContentStages
@@ -1162,6 +1181,8 @@ HRESULT AssemblySession::RunContentStages (const PendingLine & current, LineInfo
 {
     HRESULT  hr      = S_OK;
     bool     claimed = false;
+
+
 
     switch (ClassifyContent (info))
     {
@@ -1190,6 +1211,7 @@ Error:
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  AssemblySession::RunPass1Stages
@@ -1200,6 +1222,8 @@ HRESULT AssemblySession::RunPass1Stages (const PendingLine & current, LineInfo &
 {
     HRESULT  hr      = S_OK;
     bool     claimed = false;
+
+
 
     hr = RunCollectingState (current, info, claimed);
     CHR (hr);
@@ -1223,6 +1247,7 @@ Error:
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  AssemblySession::ResolveInstructionLine
@@ -1240,6 +1265,8 @@ HRESULT AssemblySession::ResolveInstructionLine (const PendingLine & current, Li
 {
     HRESULT  hr      = S_OK;
     bool     claimed = false;
+
+
 
     hr = HandleMultiNop (current, info, claimed);
     CHR (hr);
@@ -2143,45 +2170,90 @@ HRESULT AssemblySession::HandleEquConstant (const PendingLine & current, LineInf
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  Pass-1 directive handlers
+//  AssemblySession::HandlePass1Word
 //
-//  One small function per directive, all with the same shape so the dispatch
-//  table below can be indexed by token. Pass 1 only has to move the PC and
-//  record session state; the bytes are emitted in pass 2.
+//  Two bytes per argument. Pass 2 evaluates them; pass 1 only needs the size.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT AssemblySession::Pass1Word (const PendingLine & /*current*/, LineInfo & info)
+HRESULT AssemblySession::HandlePass1Word (const PendingLine & /*current*/, LineInfo & info)
 {
     std::vector<std::string>  args = Parser::SplitArgList (info.parsed.directiveArg);
 
+
+
     m_pc += (Word) (args.size() * 2);
+
     return S_OK;
 }
 
 
-HRESULT AssemblySession::Pass1Text (const PendingLine & /*current*/, LineInfo & info)
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AssemblySession::HandlePass1Text
+//
+//  One byte per character of the quoted string, before character mapping --
+//  .CMAP substitutes bytes one-for-one, so the length is the same either way.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT AssemblySession::HandlePass1Text (const PendingLine & /*current*/, LineInfo & info)
 {
     std::string  text = Parser::ParseQuotedString (info.parsed.directiveArg);
 
+
+
     m_pc += (Word) text.size();
+
     return S_OK;
 }
 
 
-HRESULT AssemblySession::Pass1Dd (const PendingLine & /*current*/, LineInfo & info)
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AssemblySession::HandlePass1Dd
+//
+//  Four bytes per argument.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT AssemblySession::HandlePass1Dd (const PendingLine & /*current*/, LineInfo & info)
 {
     std::vector<std::string>  args = Parser::SplitArgList (info.parsed.directiveArg);
 
+
+
     m_pc += (Word) (args.size() * 4);
+
     return S_OK;
 }
 
 
-HRESULT AssemblySession::Pass1Ds (const PendingLine & current, LineInfo & info)
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AssemblySession::HandlePass1Ds
+//
+//  Reserves storage. The size must resolve in pass 1 because every later
+//  address depends on it, so an unresolvable expression is an error here
+//  rather than something pass 2 could still fix up.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT AssemblySession::HandlePass1Ds (const PendingLine & current, LineInfo & info)
 {
     std::vector<std::string>  args;
     ExprResult                er;
+
+
 
     m_pass1Ctx.currentPC = (int32_t) m_pc;
     args                 = Parser::SplitArgList (info.parsed.directiveArg);
@@ -2204,11 +2276,25 @@ HRESULT AssemblySession::Pass1Ds (const PendingLine & current, LineInfo & info)
 }
 
 
-HRESULT AssemblySession::Pass1Align (const PendingLine & current, LineInfo & info)
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AssemblySession::HandlePass1Align
+//
+//  Advances the PC to the next multiple of the alignment, defaulting to 2.
+//  Like .DS this has to resolve in pass 1, for the same reason.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT AssemblySession::HandlePass1Align (const PendingLine & current, LineInfo & info)
 {
     int         alignment = 2;
     int         overshoot = 0;
     ExprResult  er;
+
+
 
     m_pass1Ctx.currentPC = (int32_t) m_pc;
 
@@ -2240,48 +2326,103 @@ HRESULT AssemblySession::Pass1Align (const PendingLine & current, LineInfo & inf
 }
 
 
-HRESULT AssemblySession::Pass1End (const PendingLine & /*current*/, LineInfo & /*info*/)
-{
 
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AssemblySession::HandlePass1End
+//
+//  Stops assembly at this line; the rest of the source is not processed.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT AssemblySession::HandlePass1End (const PendingLine & /*current*/, LineInfo & /*info*/)
+{
     m_endAssembly = true;
+
     return S_OK;
 }
 
 
-HRESULT AssemblySession::Pass1Error (const PendingLine & current, LineInfo & info)
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AssemblySession::HandlePass1Error
+//
+//  Records a user-authored diagnostic. An unquoted argument is taken
+//  verbatim, so `.error out of space` reads naturally.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT AssemblySession::HandlePass1Error (const PendingLine & current, LineInfo & info)
 {
     std::string  msg = Parser::ParseQuotedString (info.parsed.directiveArg);
 
-    // An unquoted argument is taken verbatim, so `.error out of space` works.
+
+
     if (msg.empty() && !info.parsed.directiveArg.empty())
     {
         msg = info.parsed.directiveArg;
     }
 
     RecordError (current.sourceLineNumber, msg.empty() ? "User error directive" : msg);
+
     return S_OK;
 }
 
 
-HRESULT AssemblySession::Pass1List (const PendingLine & /*current*/, LineInfo & /*info*/)
-{
 
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AssemblySession::HandlePass1List
+//
+//  Listing output nests, so this is a depth counter rather than a flag.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT AssemblySession::HandlePass1List (const PendingLine & /*current*/, LineInfo & /*info*/)
+{
     m_listingLevel++;
+
     return S_OK;
 }
 
 
-HRESULT AssemblySession::Pass1Nolist (const PendingLine & /*current*/, LineInfo & /*info*/)
-{
 
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AssemblySession::HandlePass1Nolist
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT AssemblySession::HandlePass1Nolist (const PendingLine & /*current*/, LineInfo & /*info*/)
+{
     m_listingLevel--;
+
     return S_OK;
 }
 
 
-HRESULT AssemblySession::Pass1Title (const PendingLine & /*current*/, LineInfo & info)
-{
 
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AssemblySession::HandlePass1Title
+//
+//  Sets the listing title. Unquoted arguments are taken verbatim, as .ERROR.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT AssemblySession::HandlePass1Title (const PendingLine & /*current*/, LineInfo & info)
+{
     m_result.listingTitle = Parser::ParseQuotedString (info.parsed.directiveArg);
 
     if (m_result.listingTitle.empty() && !info.parsed.directiveArg.empty())
@@ -2293,21 +2434,29 @@ HRESULT AssemblySession::Pass1Title (const PendingLine & /*current*/, LineInfo &
 }
 
 
-HRESULT AssemblySession::Pass1Ignored (const PendingLine & /*current*/, LineInfo & /*info*/)
-{
 
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AssemblySession::IgnorePass1Directive
+//
+//  Recognized and deliberately does nothing: .OPT_NOOP is accepted only for
+//  as65 source compatibility, and .PAGE acts at listing time. They still need
+//  a non-null row so the dispatch reports them as handled rather than as an
+//  unknown directive.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT AssemblySession::IgnorePass1Directive (const PendingLine & /*current*/, LineInfo & /*info*/)
+{
     return S_OK;
 }
 
 
 
 
-////////////////////////////////////////////////////////////////////////////////
-//
-//  s_kPass1Directives
-//
-//  Indexed by Directive, so dispatch is a lookup rather than a search. A null
-//  handler means the token is not a pass-1 directive: either it was already
+
 //  claimed by an earlier phase (.ORG, the segments, the conditionals) or it
 //  has nothing to do until pass 2 (.MULTINOP).
 //
@@ -2319,37 +2468,37 @@ HRESULT AssemblySession::Pass1Ignored (const PendingLine & /*current*/, LineInfo
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-const AssemblySession::DirectiveRow * AssemblySession::DirectiveRows()
+const AssemblySession::DirectiveRow * AssemblySession::GetDirectiveRows()
 {
     static constexpr DirectiveRow  s_kRows[] =
 {
     { Directive::None,        nullptr,                                      nullptr                                  },
-    { Directive::Align,       &AssemblySession::Pass1Align,                 &AssemblySession::EmitAlignDirective     },
+    { Directive::Align,       &AssemblySession::HandlePass1Align,                 &AssemblySession::EmitAlignDirective     },
     { Directive::Byte,        &AssemblySession::HandlePass1DataDirectives,  &AssemblySession::EmitByteDirective      },
     { Directive::Cmap,        &AssemblySession::HandleCmapDirective,        nullptr                                  },
-    { Directive::Dd,          &AssemblySession::Pass1Dd,                    &AssemblySession::EmitDdDirective        },
-    { Directive::Ds,          &AssemblySession::Pass1Ds,                    &AssemblySession::EmitDsDirective        },
+    { Directive::Dd,          &AssemblySession::HandlePass1Dd,                    &AssemblySession::EmitDdDirective        },
+    { Directive::Ds,          &AssemblySession::HandlePass1Ds,                    &AssemblySession::EmitDsDirective        },
     { Directive::Else,        nullptr,                                      nullptr                                  },
-    { Directive::End,         &AssemblySession::Pass1End,                   nullptr                                  },
+    { Directive::End,         &AssemblySession::HandlePass1End,                   nullptr                                  },
     { Directive::Endif,       nullptr,                                      nullptr                                  },
-    { Directive::Error,       &AssemblySession::Pass1Error,                 nullptr                                  },
+    { Directive::Error,       &AssemblySession::HandlePass1Error,                 nullptr                                  },
     { Directive::If,          nullptr,                                      nullptr                                  },
     { Directive::Ifdef,       nullptr,                                      nullptr                                  },
     { Directive::Ifndef,      nullptr,                                      nullptr                                  },
     { Directive::Include,     &AssemblySession::HandleIncludeDirective,     nullptr                                  },
-    { Directive::List,        &AssemblySession::Pass1List,                  nullptr                                  },
+    { Directive::List,        &AssemblySession::HandlePass1List,                  nullptr                                  },
     { Directive::MultiNop,    nullptr,                                      &AssemblySession::EmitMultiNopDirective  },
-    { Directive::Nolist,      &AssemblySession::Pass1Nolist,                nullptr                                  },
-    { Directive::OptNoop,     &AssemblySession::Pass1Ignored,               nullptr                                  },
+    { Directive::Nolist,      &AssemblySession::HandlePass1Nolist,                nullptr                                  },
+    { Directive::OptNoop,     &AssemblySession::IgnorePass1Directive,               nullptr                                  },
     { Directive::Org,         nullptr,                                      nullptr                                  },
-    { Directive::Page,        &AssemblySession::Pass1Ignored,               nullptr                                  },
+    { Directive::Page,        &AssemblySession::IgnorePass1Directive,               nullptr                                  },
     { Directive::SegmentBss,  nullptr,                                      nullptr                                  },
     { Directive::SegmentCode, nullptr,                                      nullptr                                  },
     { Directive::SegmentData, nullptr,                                      nullptr                                  },
     { Directive::Struct,      &AssemblySession::StartStructDefinition,      nullptr                                  },
-    { Directive::Text,        &AssemblySession::Pass1Text,                  &AssemblySession::EmitTextDirective      },
-    { Directive::Title,       &AssemblySession::Pass1Title,                 nullptr                                  },
-    { Directive::Word,        &AssemblySession::Pass1Word,                  &AssemblySession::EmitWordDirective      },
+    { Directive::Text,        &AssemblySession::HandlePass1Text,                  &AssemblySession::EmitTextDirective      },
+    { Directive::Title,       &AssemblySession::HandlePass1Title,                 nullptr                                  },
+    { Directive::Word,        &AssemblySession::HandlePass1Word,                  &AssemblySession::EmitWordDirective      },
     };
 
     // Adding a Directive without adding its row fails the build here. Row
@@ -2378,7 +2527,7 @@ HRESULT AssemblySession::HandlePass1Directives (const PendingLine & current, Lin
 
     if (token > Directive::None && token < Directive::Count)
     {
-        const DirectiveRow &  row = DirectiveRows()[(size_t) token];
+        const DirectiveRow &  row = GetDirectiveRows()[(size_t) token];
 
         ASSERT (row.token == token);   // the table drifted out of enum order
         handler = row.pass1;
@@ -3706,6 +3855,8 @@ HRESULT AssemblySession::EmitTextDirective (const LineInfo & info, Word & emitPC
 {
     std::string  text = Parser::ParseQuotedString (info.parsed.directiveArg);
 
+
+
     for (char c : text)
     {
         EmitByte (m_charMap.table[(unsigned char) c], emitPC);
@@ -3713,6 +3864,7 @@ HRESULT AssemblySession::EmitTextDirective (const LineInfo & info, Word & emitPC
 
     return S_OK;
 }
+
 
 
 
@@ -3730,6 +3882,8 @@ HRESULT AssemblySession::EmitMultiNopDirective (const LineInfo & info, Word & em
 {
     ExprResult  er = ExpressionEvaluator::Evaluate (info.parsed.directiveArg, m_pass2Ctx);
     int32_t     j  = 0;
+
+
 
     if (er.success && er.value > 0)
     {
@@ -3762,7 +3916,7 @@ HRESULT AssemblySession::EmitDirectiveBytes (const LineInfo & info, Word & emitP
 
     if (token > Directive::None && token < Directive::Count)
     {
-        const DirectiveRow &  row = DirectiveRows()[(size_t) token];
+        const DirectiveRow &  row = GetDirectiveRows()[(size_t) token];
 
         ASSERT (row.token == token);   // the table drifted out of enum order
         emitter = row.pass2;
