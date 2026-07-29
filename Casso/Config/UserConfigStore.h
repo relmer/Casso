@@ -82,8 +82,11 @@ public:
                                    const JsonValue & b);
 
 private:
+    // `outFoundLegacy` is false when there was nothing from an older
+    // layout to pull forward -- a first run, not a migration failure.
     HRESULT      MigrateLegacyFiles  (GlobalUserPrefs & prefs,
-                                      IFileSystem     & fs) const;
+                                      IFileSystem     & fs,
+                                      bool            & outFoundLegacy) const;
     HRESULT      SaveCombinedJson    (const GlobalUserPrefs & prefs,
                                       IFileSystem           & fs) const;
     JsonValue    BuildCombinedJson   (const GlobalUserPrefs & prefs,

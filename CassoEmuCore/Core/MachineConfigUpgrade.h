@@ -115,10 +115,12 @@ public:
     // the new schema is returned unchanged. Operates as a textual
     // transform over the source bytes — comments, whitespace, and key
     // ordering are preserved everywhere outside the rewritten regions.
-    // Returns S_FALSE if no migration was needed, S_OK otherwise; any
+    // `outChanged` reports whether anything was actually rewritten;
+    // when false, outMigrated holds the input bytes verbatim. Any
     // failure (malformed JSON detected by the inserter) leaves
     // outMigrated empty and returns E_INVALIDARG.
     static HRESULT MigrateUserConfig (
         const string & content,
-        string       & outMigrated);
+        string       & outMigrated,
+        bool         & outChanged);
 };

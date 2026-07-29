@@ -630,8 +630,9 @@ public:
         std::wstring        parseDetail;
 
 
+        // Nothing on disk yet: a first run succeeds with struct defaults.
         hr = store.LoadAll (prefs, fs, parseDetail);
-        Assert::IsTrue (hr == S_FALSE);
+        Assert::IsTrue (SUCCEEDED (hr));
 
         prefs.activeTheme = "Retro Terminal";
         hr = store.SaveDelta ("Apple //e Enhanced", currentJson, defaultJson, fs);

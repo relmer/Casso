@@ -18,13 +18,13 @@ it only stops *new* violations.
 | `CS0007` | space after a C-style cast | 0 |
 | `CS0008` | no Claude attribution in commit messages | 0 |
 | `CS0010` | no `-Ex` macro passing its family's default hr | 0 |
-| `CS0002` | no anonymous namespaces | **53** |
-| `CS0006` | no bare `goto Error` | **48** |
-| `CS0009` | do not *produce* `S_FALSE` | **22** |
+| `CS0009` | do not *produce* `S_FALSE` | 0 |
+| `CS0002` | no anonymous namespaces | **32** |
+| `CS0006` | no bare `goto Error` | **46** |
 
 ## Queue
 
-### 1. `CS0002` — anonymous namespaces (53)
+### 1. `CS0002` — anonymous namespaces (32)
 
 All test files are done. What remains is production code, where moving a
 helper onto its implementing class means editing the header.
@@ -56,7 +56,7 @@ next to that logic; at or above it you have data the function merely consults.
 Heaviest: `UserConfigStore.cpp` (621-line block), `ThemePage.cpp` (395),
 `AssetBootstrap.cpp` (209).
 
-### 2. `CS0006` — bare `goto Error` (48)
+### 2. `CS0006` — bare `goto Error` (46)
 
 The mechanical shapes are converted. What remains needs restructuring:
 
@@ -70,21 +70,28 @@ The mechanical shapes are converted. What remains needs restructuring:
 - **~19 others** are `else`-branch or action-then-exit shapes, each needing a
   local decision.
 
-### 3. `CS0009` — producing `S_FALSE` (22)
+### 3. `CS0009` — producing `S_FALSE` — DONE
 
-Each site needs the same question answered: what does the second outcome
-*mean*? Then model it explicitly.
+Every site asked the same question: what does the second outcome *mean*? Three
+answers covered all 22, and they are the precedents for anything new:
 
-Precedents set:
-- print path → `PrintOutcome { Delivered, Canceled }` out-param
-- `TryExtractFirstHDropPath` → plain `bool`, because it had exactly two
-  outcomes and the name was made to say so
-- `PromptForDiskImage` → `S_OK`, because nothing ever tested the `S_FALSE`
+- **"the thing isn't there."** Report `HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND)`
+  or `ERROR_NOT_FOUND`. Callers that treat absence as normal test for that exact
+  code, which is what makes the change worth doing: a read or parse failure can
+  no longer be silently mistaken for "nothing saved yet."
+  (`DiskSettings::LoadMachineDefaultJson`, `GlobalUserPrefs::Load`,
+  `PrintJobStore::Load`, `ThemeManager::Activate`)
+- **"the user said no."** A `bool &` out-param, because a dismissed dialog is
+  not a result code at all. (`RunStartupDownloader`'s `outUserExited`, threaded
+  through `LoadMachineConfig` to `wWinMain` and to `DoMachineSelect`;
+  `PromptBootDiskMru` already worked this way and set the pattern.)
+- **"nothing needed doing."** A `bool &` out-param alongside the real output.
+  (`MigrateUserConfig`'s `outChanged`, `MigrateLegacyFiles`' `outFoundLegacy`)
 
-Largest cluster: `DiskSettings.cpp` (10). `MigrateLegacyFiles`' "nothing to
-migrate" wants a `LegacyMigration { Migrated, NothingToMigrate }` enum, and six
-`MachineConfigUpgradeTests` assertions pin `S_FALSE` as contract, so that one
-changes tests too.
+Three real defects fell out of the sweep, all of the same shape — a failure
+flattened into "nothing to do": a discarded config parse error, `DiskSettings`
+reporting parse failures as "nothing saved", and `ApplyAndPersistTheme`
+persisting a theme name that never activated.
 
 ### 4. Multiple return statements
 

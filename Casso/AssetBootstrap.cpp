@@ -3104,6 +3104,7 @@ HRESULT AssetBootstrap::RunStartupDownloader (
     const fs::path         & assetBaseDir,
     bool                     considerDiskAudio,
     GlobalUserPrefs        & prefs,
+    bool                   & outUserExited,
     string                 & outError)
 {
     HRESULT                hr             = S_OK;
@@ -3116,6 +3117,8 @@ HRESULT AssetBootstrap::RunStartupDownloader (
     error_code             ec;
 
     UNREFERENCED_PARAMETER (hInstance);
+
+    outUserExited = false;
 
     narrowMachine.reserve (machineName.size());
 
@@ -3384,7 +3387,10 @@ HRESULT AssetBootstrap::RunStartupDownloader (
         break;
 
     case StartupDownloadResult::Exit:
-        hr = S_FALSE;
+        // The user asked to quit rather than download. Nothing failed,
+        // so the caller shuts down without an error box.
+        outUserExited = true;
+        hr            = S_OK;
         break;
     }
 

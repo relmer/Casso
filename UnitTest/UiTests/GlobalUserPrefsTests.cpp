@@ -43,7 +43,8 @@ public:
         HRESULT             hr;
 
         hr = prefs.Load (L"C:\\Casso", fs);
-        Assert::IsTrue (hr == S_FALSE);
+        Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND), hr,
+            L"First run must name the reason -- there is no prefs file yet");
         Assert::AreEqual (string ("Skeuomorphic"), prefs.activeTheme);
     }
 

@@ -118,8 +118,10 @@ HRESULT PrintJobStore::Load (const fs::path & dir, PrintRaster & outRaster)
     vector<Byte>      pngBytes;
     string            jsonText;
 
+    // No pending strip -- a clean first-run open, not a load failure, but
+    // it still is not a raster the caller can use.
     have = fs::exists (png, ec) && fs::exists (json, ec);
-    CBRF (have, hr = S_FALSE);   // no pending strip -- clean first-run open
+    BAIL_OUT_IF (!have, HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND));
 
     hr = ReadAllBytes (png, pngBytes);
     CHR (hr);

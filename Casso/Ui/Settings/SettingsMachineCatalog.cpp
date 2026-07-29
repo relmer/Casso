@@ -280,6 +280,7 @@ bool SettingsMachineCatalog::DoMachineSelect (const std::string & machineName)
     std::vector<fs::path>  searchPaths;
     fs::path          assetBaseDir;
     std::string       bootstrapError;
+    bool              userExited  = false;
 
 
 
@@ -308,7 +309,7 @@ bool SettingsMachineCatalog::DoMachineSelect (const std::string & machineName)
         // user explicitly picks the disk via File menu / settings.
         hr = AssetBootstrap::RunStartupDownloader (hInstance, wideName, hwndParent,
                                                    searchPaths, assetBaseDir, hasDisk,
-                                                   *m_prefs, bootstrapError);
+                                                   *m_prefs, userExited, bootstrapError);
 
         // Audio consent may have been updated; flush prefs regardless.
         if (m_ucs != nullptr && m_fs != nullptr)
@@ -318,7 +319,7 @@ bool SettingsMachineCatalog::DoMachineSelect (const std::string & machineName)
         }
     }
 
-    if (hr == S_FALSE)
+    if (userExited)
     {
         // User chose Exit; leave the active machine alone.
         return false;

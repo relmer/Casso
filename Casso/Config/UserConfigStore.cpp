@@ -731,12 +731,19 @@ HRESULT UserConfigStore::LoadAll (
 
     if (!fs.Exists (path))
     {
-        hr = MigrateLegacyFiles (prefs, fs);
-        if (hr == S_FALSE)
+        bool  fFoundLegacy = false;
+
+        hr = MigrateLegacyFiles (prefs, fs, fFoundLegacy);
+        CHR (hr);
+
+        // No unified file and nothing legacy to carry forward: a genuine
+        // first run, so start from struct defaults.
+        if (!fFoundLegacy)
         {
             prefs = GlobalUserPrefs {};
         }
-        BAIL_OUT_IF (true, hr);
+
+        BAIL_OUT_IF (true, S_OK);
     }
 
     hr = fs.ReadAllText (path, text);
@@ -803,6 +810,7 @@ HRESULT UserConfigStore::Load (
     int              defaultVer    = 0;
     int              userVer       = 0;
     bool             fNeedMigrate  = false;
+    bool             fRewritten    = false;
     bool             fHasLegacyKey = false;
     auto             found         = m_machinePrefs.find (machineName);
 
@@ -854,7 +862,9 @@ HRESULT UserConfigStore::Load (
         CHR (hr);
 
         migrated = userContent;
-        hr = MachineConfigUpgrade::MigrateUserConfig (userContent, migrated);
+        // Whether anything actually moved does not change what happens
+        // next -- the canonicalize/save below is idempotent either way.
+        hr = MachineConfigUpgrade::MigrateUserConfig (userContent, migrated, fRewritten);
         if (FAILED (hr))
         {
             migrated = userContent;
@@ -1135,7 +1145,8 @@ Error:
 
 HRESULT UserConfigStore::MigrateLegacyFiles (
     GlobalUserPrefs & prefs,
-    IFileSystem     & fs) const
+    IFileSystem     & fs,
+    bool            & outFoundLegacy) const
 {
     HRESULT                   hr                = S_OK;
     std::wstring              legacyGlobalPath  = JoinPath (m_userDir, LegacyGlobalPrefsFilename());
@@ -1158,6 +1169,7 @@ HRESULT UserConfigStore::MigrateLegacyFiles (
 
 
 
+    outFoundLegacy    = false;
     fHaveLegacyGlobal = fs.Exists (legacyGlobalPath);
 
     hr = fs.EnumerateFiles (m_userDir, filenames);
@@ -1175,12 +1187,13 @@ HRESULT UserConfigStore::MigrateLegacyFiles (
         }
     }
 
+    // Nothing from an older layout to pull forward. That is a first run,
+    // not a failure, so it leaves via outFoundLegacy rather than a
+    // second success code.
     fHaveLegacyUsers = !legacyUserFiles.empty();
-    if (!fHaveLegacyGlobal && !fHaveLegacyUsers)
-    {
-        hr = S_FALSE;
-        BAIL_OUT_IF (true, hr);
-    }
+    BAIL_OUT_IF (!fHaveLegacyGlobal && !fHaveLegacyUsers, S_OK);
+
+    outFoundLegacy = true;
 
     if (fHaveLegacyGlobal)
     {

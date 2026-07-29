@@ -169,11 +169,13 @@ public:
     // live per-asset progress; the user can Exit at any point and
     // partial files are removed before this returns.
     //
-    // Returns:
-    //   S_OK       -> everything required is present (some optional
-    //                 items may have failed or been skipped)
-    //   S_FALSE    -> user chose Exit
-    //   <0 HRESULT -> hard failure
+    // Returns S_OK once everything required is present (some optional
+    // items may have failed or been skipped), or a failure HRESULT.
+    //
+    // `outUserExited` is set when the user chose Exit in the dialog.
+    // That is not a failure -- the caller is expected to shut down
+    // quietly rather than report an error -- so it travels as an
+    // out-param instead of riding on the result code.
     //
     // `prefs.audioDownloadConsent` is read AND updated to reflect the
     // user's choice (allow / decline). The caller is responsible for
@@ -186,5 +188,6 @@ public:
                                            const fs::path         & assetBaseDir,
                                            bool                     considerDiskAudio,
                                            struct GlobalUserPrefs & prefs,
+                                           bool                   & outUserExited,
                                            string                 & outError);
 };

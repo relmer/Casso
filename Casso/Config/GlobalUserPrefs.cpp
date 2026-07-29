@@ -764,8 +764,10 @@ void GlobalUserPrefs::ResetColorMonitorTextToDefault()
 //  GlobalUserPrefs::Load
 //
 //  Read the unified preferences file under `baseDir`. If absent, leaves
-//  `*this` at struct defaults and returns S_FALSE so the caller can treat
-//  it as first run.
+//  `*this` at struct defaults and reports
+//  HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND) -- callers that treat first
+//  run as normal test for exactly that code, so a genuine read or parse
+//  failure can no longer be mistaken for "no prefs yet."
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -781,11 +783,8 @@ HRESULT GlobalUserPrefs::Load (
 
 
 
-    if (!fs.Exists (path))
-    {
-        // File absent — keep struct defaults.
-        return S_FALSE;
-    }
+    // File absent -- keep struct defaults and say so precisely.
+    BAIL_OUT_IF (!fs.Exists (path), HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND));
 
     hr = fs.ReadAllText (path, text);
     CHR (hr);

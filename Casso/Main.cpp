@@ -135,11 +135,16 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
+// `outUserExited` reports that the user dismissed one of the startup
+// dialogs (declined the ROM download, or closed the boot-disk picker).
+// That is a clean shutdown request rather than a failure, so it travels
+// separately from the result code.
 static HRESULT LoadMachineConfig (
     HINSTANCE           hInstance,
     const wstring     & machineName,
     wstring           & inoutDisk1Path,
     HWND                hwndParent,
+    bool              & outUserExited,
     MachineConfig     & outConfig)
 {
     HRESULT             hr             = S_OK;
@@ -157,6 +162,8 @@ static HRESULT LoadMachineConfig (
     HRESULT             hrSaved        = S_OK;
     string              error;
 
+
+    outUserExited = false;
 
     // Build search paths and find machine config
     searchPaths    = PathResolver::BuildSearchPaths (PathResolver::GetExecutableDirectory(),
@@ -213,14 +220,17 @@ static HRESULT LoadMachineConfig (
         // is owned solely by the boot-disk picker below.
         hr = AssetBootstrap::RunStartupDownloader (hInstance, machineName, hwndParent,
                                                    romSearchPaths, romDir, hasDisk,
-                                                   prefs, error);
+                                                   prefs, outUserExited, error);
 
         hrSave = prefs.Save (assetBase, fs_io);
         IGNORE_RETURN_VALUE (hrSave, S_OK);
 
-        BAIL_OUT_IF (hr == S_FALSE, S_FALSE);
         CHRN (hr, format (L"Asset download failed:\n{}",
                           wstring (error.begin(), error.end())).c_str());
+
+        // User chose Exit rather than downloading. Stop here with no
+        // config; wWinMain shuts down quietly.
+        BAIL_OUT_IF (outUserExited, S_OK);
     }
 
     // Boot-disk pre-flight: if the user didn't pass --disk1 and there's
@@ -279,11 +289,10 @@ static HRESULT LoadMachineConfig (
             CHRN (hr, format (L"Boot disk download failed:\n{}",
                               wstring (error.begin(), error.end())).c_str());
 
-            if (userClosed)
-            {
-                hr = S_FALSE;
-                goto Error;
-            }
+            // Closing the boot-disk picker is the same clean-shutdown
+            // request as choosing Exit above.
+            outUserExited = userClosed;
+            BAIL_OUT_IF (userClosed, S_OK);
 
             if (!downloaded.empty())
             {
@@ -403,6 +412,7 @@ int WINAPI wWinMain (
     wstring                          disk2Path;
     size_t                           traceCapacity = 0;
     int                              exitCode      = 0;
+    bool                             userExited    = false;
     MachineConfig                    config;
     std::unique_ptr<EmulatorShell>   shell = std::make_unique<EmulatorShell>();
 
@@ -543,12 +553,12 @@ int WINAPI wWinMain (
             discovered, machineName, s_kPreferredDefaultMachine);
     }
 
-    // Load machine configuration. S_FALSE here means the user
-    // declined the missing-ROM download prompt — exit cleanly
-    // without a follow-up error MessageBox.
-    hr = LoadMachineConfig (hInstance, machineName, disk1Path, nullptr, config);
+    // Load machine configuration. A user who dismissed one of the
+    // startup dialogs wants out, so exit cleanly without a follow-up
+    // error MessageBox.
+    hr = LoadMachineConfig (hInstance, machineName, disk1Path, nullptr, userExited, config);
     CHR (hr);
-    BAIL_OUT_IF (hr == S_FALSE, S_OK);
+    BAIL_OUT_IF (userExited, S_OK);
 
     // Initialize emulator. EmulatorShell::Initialize records the
     // chosen machine into GlobalUserPrefs.lastSelectedMachine and

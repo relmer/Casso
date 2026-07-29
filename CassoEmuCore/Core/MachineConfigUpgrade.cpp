@@ -404,7 +404,8 @@ namespace
 
 HRESULT MachineConfigUpgrade::MigrateUserConfig (
     const string & content,
-    string       & outMigrated)
+    string       & outMigrated,
+    bool         & outChanged)
 {
     HRESULT              hr           = S_OK;
     JsonValue            root;
@@ -419,6 +420,7 @@ HRESULT MachineConfigUpgrade::MigrateUserConfig (
 
 
     outMigrated.clear();
+    outChanged = false;
 
     hr = JsonParser::Parse (content, root, err);
     BAIL_OUT_IF (FAILED (hr), E_INVALIDARG);
@@ -464,11 +466,10 @@ HRESULT MachineConfigUpgrade::MigrateUserConfig (
 
     if (!fChanged)
     {
-        // No-op: hand the input bytes back verbatim so callers can
-        // detect "unchanged" via byte equality.
+        // No-op: hand the input bytes back verbatim, and say so through
+        // outChanged rather than through the result code.
         outMigrated = content;
-        hr          = S_FALSE;
-        goto Error;
+        BAIL_OUT_IF (true, S_OK);
     }
 
     opts.fPretty = true;
@@ -476,6 +477,7 @@ HRESULT MachineConfigUpgrade::MigrateUserConfig (
     CHR (hr);
 
     outMigrated = std::move (serialized);
+    outChanged  = true;
     hr          = S_OK;
 
 Error:
