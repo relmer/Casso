@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Parser.h"
+#include "Directive.h"
 #include "OpcodeTable.h"
 
 
@@ -298,44 +299,17 @@ ParsedLine Parser::ParseLine (const std::string & line, int lineNumber)
         firstWordUpper = ToUpper (remainder.substr (0, spacePos));
     }
 
-    // Check for AS65 directive synonyms (without leading dot)
-    std::string canonicalDirective;
+    // as65 spells its directives without a leading dot (DB / FCB / FCC for
+    // .BYTE, and so on). DirectiveTable holds every accepted spelling, so
+    // this is one lookup rather than a chain -- and that table is the seam a
+    // second assembler dialect plugs into.
+    Directive    directiveToken     = DirectiveTable::FromSpelling (firstWordUpper);
+    std::string  canonicalDirective;
 
-    if      (firstWordUpper == "ORG")                                                                    { canonicalDirective = ".ORG";   }
-    else if (firstWordUpper == "DB"  || firstWordUpper == "BYT" || firstWordUpper == "BYTE" ||
-             firstWordUpper == "FCB" || firstWordUpper == "FCC")                                         { canonicalDirective = ".BYTE";  }
-    else if (firstWordUpper == "DW"  || firstWordUpper == "WORD" ||
-             firstWordUpper == "FCW" || firstWordUpper == "FDB")                                         { canonicalDirective = ".WORD";  }
-    else if (firstWordUpper == "DD")                                                                     { canonicalDirective = ".DD";    }
-    else if (firstWordUpper == "END")                                                                    { canonicalDirective = ".END";   }
-    else if (firstWordUpper == "DS"  || firstWordUpper == "DSB")                                         { canonicalDirective = ".DS";    }
-    else if (firstWordUpper == "ALIGN")                                                                  { canonicalDirective = ".ALIGN"; }
-    else if (firstWordUpper == "ERROR")                                                                  { canonicalDirective = ".ERROR"; }
-
-    // Segment keywords
-    else if (firstWordUpper == "CODE")                                                                   { canonicalDirective = ".SEGMENT_CODE"; }
-    else if (firstWordUpper == "DATA")                                                                   { canonicalDirective = ".SEGMENT_DATA"; }
-    else if (firstWordUpper == "BSS")                                                                    { canonicalDirective = ".SEGMENT_BSS";  }
-    else if (firstWordUpper == "NOOPT" || firstWordUpper == "OPT")                                      { canonicalDirective = ".OPT_NOOP"; }
-
-    // Include
-    else if (firstWordUpper == "INCLUDE")                                                                { canonicalDirective = ".INCLUDE"; }
-
-    // Struct
-    else if (firstWordUpper == "STRUCT")                                                                 { canonicalDirective = ".STRUCT"; }
-
-    // Cmap
-    else if (firstWordUpper == "CMAP")                                                                   { canonicalDirective = ".CMAP"; }
-
-    // Conditional directives
-    else if (firstWordUpper == "IFDEF")                                                                  { canonicalDirective = ".IFDEF";  }
-    else if (firstWordUpper == "IFNDEF")                                                                 { canonicalDirective = ".IFNDEF"; }
-
-    // Listing directives
-    else if (firstWordUpper == "LIST")                                                                   { canonicalDirective = ".LIST";   }
-    else if (firstWordUpper == "NOLIST")                                                                 { canonicalDirective = ".NOLIST"; }
-    else if (firstWordUpper == "PAGE")                                                                   { canonicalDirective = ".PAGE";   }
-    else if (firstWordUpper == "TITLE")                                                                  { canonicalDirective = ".TITLE";  }
+    if (directiveToken != Directive::None)
+    {
+        canonicalDirective = DirectiveTable::CanonicalName (directiveToken);
+    }
 
     // RMB is dual-purpose: `rmb <count>` reserves storage (a .DS synonym), but
     // as65 also spells the Rockwell "reset memory bit" instruction as
