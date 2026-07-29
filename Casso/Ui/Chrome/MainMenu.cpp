@@ -8,42 +8,42 @@
 
 
 
-namespace
+// Label syntax: `&X` marks `X` as the menu mnemonic (Win32
+// convention). The `&` is stripped before rendering; the marked
+// glyph is underlined when mnemonic cues should be shown.
+//
+// A 30-line table, so it stays a file-scope `static constexpr` under the
+// documented 3+ line exception rather than moving onto MainMenu.
+static constexpr MainMenuCommandEntry  s_kEntries[] =
 {
-    // Label syntax: `&X` marks `X` as the menu mnemonic (Win32
-    // convention). The `&` is stripped before rendering; the marked
-    // glyph is underlined when mnemonic cues should be shown.
-    constexpr MainMenuCommandEntry  s_kEntries[] =
-    {
-        { IDM_PRINTER_PREVIEW,          MainMenuId::File,    L"Show &Printer Preview",  nullptr          },
-        { IDM_PRINTER_COPY,             MainMenuId::File,    L"&Copy Printout to Clipboard",    nullptr   },
-        { IDM_PRINTER_DISCARD,          MainMenuId::File,    L"&Discard Printout (Tear Off)",   nullptr   },
-        { 0,                            MainMenuId::File,    nullptr,                   nullptr          },
-        { IDM_FILE_EXIT,                MainMenuId::File,    L"E&xit",                  nullptr          },
-        { IDM_EDIT_COPY_TEXT,           MainMenuId::Edit,    L"&Copy text",             L"Ctrl+Shift+C"  },
-        { IDM_EDIT_COPY_SCREENSHOT,     MainMenuId::Edit,    L"Copy &screenshot",       L"Ctrl+Alt+C"    },
-        { IDM_EDIT_PASTE,               MainMenuId::Edit,    L"&Paste",                 L"Ctrl+V"        },
-        { IDM_MACHINE_RESET,            MainMenuId::Machine, L"&Reset",                 L"Ctrl+Shift+R"  },
-        { IDM_MACHINE_POWERCYCLE,       MainMenuId::Machine, L"Po&wer cycle",           L"Ctrl+Shift+P"  },
-        { IDM_MACHINE_ARROWS_JOYSTICK,  MainMenuId::Machine, L"Map Arrows to &Joystick", L"Ctrl+Shift+J",  true   },
-        { IDM_MACHINE_ARROWS_PADDLE,    MainMenuId::Machine, L"Map Mouse to &Paddle",   nullptr,          true   },
-        { IDM_DISK_INSERT1,             MainMenuId::Disk,    L"&Insert drive 1...",     L"Ctrl+1"        },
-        { IDM_DISK_EJECT1,              MainMenuId::Disk,    L"&Eject drive 1",         L"Ctrl+Shift+1"  },
-        { 0,                            MainMenuId::Disk,    nullptr,                   nullptr          },
-        { IDM_DISK_INSERT2,             MainMenuId::Disk,    L"Insert drive &2...",     L"Ctrl+2"        },
-        { IDM_DISK_EJECT2,              MainMenuId::Disk,    L"Eje&ct drive 2",         L"Ctrl+Shift+2"  },
-        { IDM_VIEW_FULLSCREEN,          MainMenuId::View,    L"&Fullscreen",            L"Alt+Enter"     },
-        { IDM_VIEW_RESET_SIZE,          MainMenuId::View,    L"&Reset window size",     L"Ctrl+0"        },
-        { 0,                            MainMenuId::View,    nullptr,                   nullptr          },
-        { IDM_VIEW_SETTINGS,            MainMenuId::View,    L"Se&ttings...",           L"Ctrl+,"        },
-        { IDM_HELP_KEYMAP,              MainMenuId::Help,    L"&Keyboard map",          L"F1"            },
-        { IDM_HELP_ABOUT,               MainMenuId::Help,    L"&About Casso...",        nullptr          },
-        { IDM_MACHINE_PAUSE,            MainMenuId::Debug,   L"&Pause",                 L"Pause"         },
-        { IDM_MACHINE_STEP,             MainMenuId::Debug,   L"&Step",                  L"F11"           },
-        { IDM_VIEW_DISK2_DEBUG,         MainMenuId::Debug,   L"Disk ][ Debug...",       L"Ctrl+Shift+D"  },
-        { IDM_VIEW_INPUT_DEBUG,         MainMenuId::Debug,   L"Input Debug...",         L"Ctrl+Shift+I"  },
-    };
-}
+    { IDM_PRINTER_PREVIEW,          MainMenuId::File,    L"Show &Printer Preview",  nullptr          },
+    { IDM_PRINTER_COPY,             MainMenuId::File,    L"&Copy Printout to Clipboard",    nullptr   },
+    { IDM_PRINTER_DISCARD,          MainMenuId::File,    L"&Discard Printout (Tear Off)",   nullptr   },
+    { 0,                            MainMenuId::File,    nullptr,                   nullptr          },
+    { IDM_FILE_EXIT,                MainMenuId::File,    L"E&xit",                  nullptr          },
+    { IDM_EDIT_COPY_TEXT,           MainMenuId::Edit,    L"&Copy text",             L"Ctrl+Shift+C"  },
+    { IDM_EDIT_COPY_SCREENSHOT,     MainMenuId::Edit,    L"Copy &screenshot",       L"Ctrl+Alt+C"    },
+    { IDM_EDIT_PASTE,               MainMenuId::Edit,    L"&Paste",                 L"Ctrl+V"        },
+    { IDM_MACHINE_RESET,            MainMenuId::Machine, L"&Reset",                 L"Ctrl+Shift+R"  },
+    { IDM_MACHINE_POWERCYCLE,       MainMenuId::Machine, L"Po&wer cycle",           L"Ctrl+Shift+P"  },
+    { IDM_MACHINE_ARROWS_JOYSTICK,  MainMenuId::Machine, L"Map Arrows to &Joystick", L"Ctrl+Shift+J",  true   },
+    { IDM_MACHINE_ARROWS_PADDLE,    MainMenuId::Machine, L"Map Mouse to &Paddle",   nullptr,          true   },
+    { IDM_DISK_INSERT1,             MainMenuId::Disk,    L"&Insert drive 1...",     L"Ctrl+1"        },
+    { IDM_DISK_EJECT1,              MainMenuId::Disk,    L"&Eject drive 1",         L"Ctrl+Shift+1"  },
+    { 0,                            MainMenuId::Disk,    nullptr,                   nullptr          },
+    { IDM_DISK_INSERT2,             MainMenuId::Disk,    L"Insert drive &2...",     L"Ctrl+2"        },
+    { IDM_DISK_EJECT2,              MainMenuId::Disk,    L"Eje&ct drive 2",         L"Ctrl+Shift+2"  },
+    { IDM_VIEW_FULLSCREEN,          MainMenuId::View,    L"&Fullscreen",            L"Alt+Enter"     },
+    { IDM_VIEW_RESET_SIZE,          MainMenuId::View,    L"&Reset window size",     L"Ctrl+0"        },
+    { 0,                            MainMenuId::View,    nullptr,                   nullptr          },
+    { IDM_VIEW_SETTINGS,            MainMenuId::View,    L"Se&ttings...",           L"Ctrl+,"        },
+    { IDM_HELP_KEYMAP,              MainMenuId::Help,    L"&Keyboard map",          L"F1"            },
+    { IDM_HELP_ABOUT,               MainMenuId::Help,    L"&About Casso...",        nullptr          },
+    { IDM_MACHINE_PAUSE,            MainMenuId::Debug,   L"&Pause",                 L"Pause"         },
+    { IDM_MACHINE_STEP,             MainMenuId::Debug,   L"&Step",                  L"F11"           },
+    { IDM_VIEW_DISK2_DEBUG,         MainMenuId::Debug,   L"Disk ][ Debug...",       L"Ctrl+Shift+D"  },
+    { IDM_VIEW_INPUT_DEBUG,         MainMenuId::Debug,   L"Input Debug...",         L"Ctrl+Shift+I"  },
+};
 
 
 

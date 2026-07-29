@@ -8,82 +8,63 @@
 
 
 
-namespace
+// A 10-line payload, so it stays a file-scope `static constexpr` under the
+// documented 3+ line exception rather than moving onto SettingsCompositor.
+static constexpr const char *  s_kpszVertexShaderSrc =
+    "struct VSInput  { float2 pos : POSITION; float2 uv : TEXCOORD; };\n"
+    "struct VSOutput { float4 pos : SV_POSITION; float2 uv : TEXCOORD; };\n"
+    "VSOutput main (VSInput i)\n"
+    "{\n"
+    "    VSOutput o;\n"
+    "    o.pos = float4 (i.pos, 0.0f, 1.0f);\n"
+    "    o.uv  = i.uv;\n"
+    "    return o;\n"
+    "}\n";
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  LoadShaderSource
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT SettingsCompositor::LoadShaderSource (int resourceId, ShaderSource * outSource)
 {
-    constexpr UINT          s_kMaxBoundPsSrvSlots    = 2;
-    constexpr UINT          s_kFullscreenIndexCount  = 6;
-    constexpr UINT          s_kTexCoordOffsetBytes   = sizeof (float) * 2;
-    constexpr float         s_kGaussianRadiusPx      = 8.0f;
-    constexpr float         s_kDimFactor             = 0.25f;
-    // Feather the focused-control sharp pop-out by this many pixels beyond the
-    // control's row rect so the boundary against the blurred backdrop reads as a
-    // soft halo, not a harsh edge.
-    constexpr float         s_kFocusFeatherPx        = 24.0f;
-
-    constexpr const char *  s_kpszVertexShaderSrc =
-        "struct VSInput  { float2 pos : POSITION; float2 uv : TEXCOORD; };\n"
-        "struct VSOutput { float4 pos : SV_POSITION; float2 uv : TEXCOORD; };\n"
-        "VSOutput main (VSInput i)\n"
-        "{\n"
-        "    VSOutput o;\n"
-        "    o.pos = float4 (i.pos, 0.0f, 1.0f);\n"
-        "    o.uv  = i.uv;\n"
-        "    return o;\n"
-        "}\n";
+    HRESULT    hr        = S_OK;
+    HINSTANCE  hInstance = nullptr;
+    HRSRC      hRes      = nullptr;
+    HGLOBAL    hMem      = nullptr;
+    DWORD      cbData    = 0;
+    void     * pData     = nullptr;
 
 
-    struct ShaderSource
-    {
-        const void * pData  = nullptr;
-        size_t       cbData = 0;
-    };
+    CBRAEx (outSource, E_INVALIDARG);
 
+    outSource->pData  = nullptr;
+    outSource->cbData = 0;
 
-    struct SettingsVertex
-    {
-        float x;
-        float y;
-        float u;
-        float v;
-    };
+    hInstance = GetModuleHandleW (nullptr);
+    CBRA (hInstance);
 
+    hRes = FindResourceW (hInstance, MAKEINTRESOURCEW (resourceId), RT_RCDATA);
+    CWRA (hRes);
 
-    HRESULT LoadShaderSource (int resourceId, ShaderSource * outSource)
-    {
-        HRESULT    hr        = S_OK;
-        HINSTANCE  hInstance = nullptr;
-        HRSRC      hRes      = nullptr;
-        HGLOBAL    hMem      = nullptr;
-        DWORD      cbData    = 0;
-        void     * pData     = nullptr;
+    cbData = SizeofResource (hInstance, hRes);
+    CBRA (cbData > 0);
 
+    hMem = LoadResource (hInstance, hRes);
+    CWRA (hMem);
 
-        CBRAEx (outSource, E_INVALIDARG);
+    pData = LockResource (hMem);
+    CWRA (pData);
 
-        outSource->pData  = nullptr;
-        outSource->cbData = 0;
+    outSource->pData  = pData;
+    outSource->cbData = static_cast<size_t> (cbData);
 
-        hInstance = GetModuleHandleW (nullptr);
-        CBRA (hInstance);
-
-        hRes = FindResourceW (hInstance, MAKEINTRESOURCEW (resourceId), RT_RCDATA);
-        CWRA (hRes);
-
-        cbData = SizeofResource (hInstance, hRes);
-        CBRA (cbData > 0);
-
-        hMem = LoadResource (hInstance, hRes);
-        CWRA (hMem);
-
-        pData = LockResource (hMem);
-        CWRA (pData);
-
-        outSource->pData  = pData;
-        outSource->cbData = static_cast<size_t> (cbData);
-
-    Error:
-        return hr;
-    }
+Error:
+    return hr;
 }
 
 
@@ -256,7 +237,7 @@ HRESULT SettingsCompositor::CreateResources()
     D3D11_INPUT_ELEMENT_DESC layout[] =
     {
         { "POSITION", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 0,                      D3D11_INPUT_PER_VERTEX_DATA, 0 },
-        { "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, s_kTexCoordOffsetBytes, D3D11_INPUT_PER_VERTEX_DATA, 0 },
+        { "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, kTexCoordOffsetBytes, D3D11_INPUT_PER_VERTEX_DATA, 0 },
     };
 
 
@@ -330,13 +311,13 @@ Error:
 
 void SettingsCompositor::ReleaseBlurTextures()
 {
-    ID3D11ShaderResourceView * nullSrvs[s_kMaxBoundPsSrvSlots] = {};
+    ID3D11ShaderResourceView * nullSrvs[kMaxBoundPsSrvSlots] = {};
 
 
     if (m_context != nullptr)
     {
         m_context->OMSetRenderTargets   (0, nullptr, nullptr);
-        m_context->PSSetShaderResources (0, s_kMaxBoundPsSrvSlots, nullSrvs);
+        m_context->PSSetShaderResources (0, kMaxBoundPsSrvSlots, nullSrvs);
     }
 
     m_blurVSrv.Reset();
@@ -480,8 +461,8 @@ void SettingsCompositor::DrawFullscreen (
     float                      clearColor[4]  = { 0.0f, 0.0f, 0.0f, 0.0f };
     float                      blendFactor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
     D3D11_VIEWPORT             vp             = {};
-    ID3D11ShaderResourceView * srvs[s_kMaxBoundPsSrvSlots]     = { srv0, srv1 };
-    ID3D11ShaderResourceView * nullSrvs[s_kMaxBoundPsSrvSlots] = {};
+    ID3D11ShaderResourceView * srvs[kMaxBoundPsSrvSlots]     = { srv0, srv1 };
+    ID3D11ShaderResourceView * nullSrvs[kMaxBoundPsSrvSlots] = {};
     ID3D11Buffer             * cbs[1]         = { constantBuffer };
 
 
@@ -502,12 +483,12 @@ void SettingsCompositor::DrawFullscreen (
     m_context->VSSetShader            (m_vs.Get(), nullptr, 0);
     m_context->PSSetShader            (ps,         nullptr, 0);
     m_context->PSSetSamplers          (0, 1, m_sampler.GetAddressOf());
-    m_context->PSSetShaderResources   (0, s_kMaxBoundPsSrvSlots, srvs);
+    m_context->PSSetShaderResources   (0, kMaxBoundPsSrvSlots, srvs);
     m_context->PSSetConstantBuffers   (0, 1, cbs);
 
-    m_context->DrawIndexed (s_kFullscreenIndexCount, 0, 0);
+    m_context->DrawIndexed (kFullscreenIndexCount, 0, 0);
 
-    m_context->PSSetShaderResources (0, s_kMaxBoundPsSrvSlots, nullSrvs);
+    m_context->PSSetShaderResources (0, kMaxBoundPsSrvSlots, nullSrvs);
 }
 
 
@@ -548,7 +529,7 @@ void SettingsCompositor::Compose (
     {
         SettingsBlurParams  blurParams = {};
 
-        blurParams.radiusPx = s_kGaussianRadiusPx;
+        blurParams.radiusPx = kGaussianRadiusPx;
         blurParams.outputW  = (float) widthPx;
         blurParams.outputH  = (float) heightPx;
         (void) UploadBlurParams (blurParams);
@@ -566,8 +547,8 @@ void SettingsCompositor::Compose (
         composeParams.focusRectClient[1] = (float) m_focusRectClient.top;
         composeParams.focusRectClient[2] = (float) m_focusRectClient.right;
         composeParams.focusRectClient[3] = (float) m_focusRectClient.bottom;
-        composeParams.dimFactor          = s_kDimFactor;
-        composeParams.featherPx          = s_kFocusFeatherPx;
+        composeParams.dimFactor          = kDimFactor;
+        composeParams.featherPx          = kFocusFeatherPx;
         (void) UploadComposeParams (composeParams);
 
         DrawFullscreen (backBufferRtv, contentSrv, m_blurVSrv.Get(), m_psCompose.Get(), m_composeConstantBuffer.Get(), widthPx, heightPx);

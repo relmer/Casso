@@ -114,6 +114,28 @@ public:
 
 private:
 
+    static constexpr UINT  kMaxBoundPsSrvSlots = 2;
+
+    // Nested rather than file-scope: a bare struct in a .cpp has external
+    // linkage, so two translation units defining different types under one
+    // name is an ODR violation the linker will not report. SettingsCompositor
+    // declares its own ShaderSource, which is exactly that collision.
+    struct ShaderSource
+    {
+        const void * pData  = nullptr;
+        size_t       cbData = 0;
+    };
+
+    struct CrtVertex
+    {
+        float x;
+        float y;
+        float u;
+        float v;
+    };
+
+    static HRESULT  LoadShaderSource (int resourceId, ShaderSource * outSource);
+
     HRESULT  EnsureSize         (int width, int height);
     HRESULT  CompilePixelShader (int                  resourceId,
                                   const char         * sourceName,

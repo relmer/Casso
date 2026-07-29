@@ -12,95 +12,78 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace
+uint64_t  WindowPlacementProfile::HashFNV1a64 (const std::wstring & text)
 {
-    constexpr uint64_t  s_kFnvOffset    = 1469598103934665603ull;
-    constexpr uint64_t  s_kFnvPrime     = 1099511628211ull;
-    constexpr int       s_kHashHexChars = 16;
+    uint64_t  hash = kFnvOffset;
+    size_t    i    = 0;
 
 
-    struct MonitorSnapshot
+
+    for (i = 0; i < text.size(); ++i)
     {
-        std::wstring  device;
-        RECT          rcMonitor = {};
-        RECT          rcWork    = {};
-        DWORD         flags     = 0;
-    };
+        uint64_t  code = static_cast<uint64_t> (text[i]);
 
-
-    uint64_t  HashFNV1a64 (const std::wstring & text)
-    {
-        uint64_t  hash = s_kFnvOffset;
-        size_t    i    = 0;
-
-
-
-        for (i = 0; i < text.size(); ++i)
-        {
-            uint64_t  code = static_cast<uint64_t> (text[i]);
-
-            hash ^= (code & 0xFFu);
-            hash *= s_kFnvPrime;
-            hash ^= ((code >> 8) & 0xFFu);
-            hash *= s_kFnvPrime;
-        }
-
-        return hash;
+        hash ^= (code & 0xFFu);
+        hash *= kFnvPrime;
+        hash ^= ((code >> 8) & 0xFFu);
+        hash *= kFnvPrime;
     }
 
+    return hash;
+}
 
-    bool  TryParseLong (const std::wstring & text, LONG & outValue)
+
+bool  WindowPlacementProfile::TryParseLong (const std::wstring & text, LONG & outValue)
+{
+    wchar_t * end    = nullptr;
+    long      parsed = 0;
+
+
+
+    if (text.empty())
     {
-        wchar_t * end    = nullptr;
-        long      parsed = 0;
-
-
-
-        if (text.empty())
-        {
-            return false;
-        }
-
-        parsed = wcstol (text.c_str(), &end, 10);
-        if (end == nullptr || *end != L'\0')
-        {
-            return false;
-        }
-
-        outValue = static_cast<LONG> (parsed);
-        return true;
+        return false;
     }
 
-
-    BOOL CALLBACK CollectMonitorsProc (HMONITOR hMon, HDC hdc, LPRECT prc, LPARAM lParam)
+    parsed = wcstol (text.c_str(), &end, 10);
+    if (end == nullptr || *end != L'\0')
     {
-        std::vector<MonitorSnapshot> *  list = reinterpret_cast<std::vector<MonitorSnapshot> *> (lParam);
-        MONITORINFOEXW                  mi   = { sizeof (mi) };
-        MonitorSnapshot                 snap;
+        return false;
+    }
+
+    outValue = static_cast<LONG> (parsed);
+    return true;
+}
+
+
+BOOL CALLBACK WindowPlacementProfile::CollectMonitorsProc (HMONITOR hMon, HDC hdc, LPRECT prc, LPARAM lParam)
+{
+    std::vector<MonitorSnapshot> *  list = reinterpret_cast<std::vector<MonitorSnapshot> *> (lParam);
+    MONITORINFOEXW                  mi   = { sizeof (mi) };
+    MonitorSnapshot                 snap;
 
 
 
-        UNREFERENCED_PARAMETER (hdc);
-        UNREFERENCED_PARAMETER (prc);
+    UNREFERENCED_PARAMETER (hdc);
+    UNREFERENCED_PARAMETER (prc);
 
-        if (list == nullptr)
-        {
-            return FALSE;
-        }
+    if (list == nullptr)
+    {
+        return FALSE;
+    }
 
-        if (!GetMonitorInfoW (hMon, &mi))
-        {
-            return TRUE;
-        }
-
-        snap.device    = mi.szDevice;
-        snap.rcMonitor = mi.rcMonitor;
-        snap.rcWork    = mi.rcWork;
-        snap.flags     = mi.dwFlags;
-
-        list->push_back (snap);
+    if (!GetMonitorInfoW (hMon, &mi))
+    {
         return TRUE;
     }
+
+    snap.device    = mi.szDevice;
+    snap.rcMonitor = mi.rcMonitor;
+    snap.rcWork    = mi.rcWork;
+    snap.flags     = mi.dwFlags;
+
+    list->push_back (snap);
+    return TRUE;
 }
 
 
@@ -139,7 +122,7 @@ std::string WindowPlacementProfile::BuildTopologyKey (HMONITOR activeMonitor)
     MONITORINFOEXW                activeInfo  = { sizeof (activeInfo) };
     std::wstring                  canonical;
     uint64_t                      hash        = 0;
-    char                          hashHex[s_kHashHexChars + 1] = {};
+    char                          hashHex[kHashHexChars + 1] = {};
     size_t                        i           = 0;
 
 

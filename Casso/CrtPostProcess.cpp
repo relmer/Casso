@@ -21,38 +21,18 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace
-{
-    constexpr UINT          s_kMaxBoundPsSrvSlots = 2;
-
-    constexpr const char *  s_kpszVertexShaderSrc =
-        "struct VSInput  { float2 pos : POSITION; float2 uv : TEXCOORD; };\n"
-        "struct VSOutput { float4 pos : SV_POSITION; float2 uv : TEXCOORD; };\n"
-        "VSOutput main (VSInput i)\n"
-        "{\n"
-        "    VSOutput o;\n"
-        "    o.pos = float4 (i.pos, 0.0f, 1.0f);\n"
-        "    o.uv  = i.uv;\n"
-        "    return o;\n"
-        "}\n";
-
-
-    struct ShaderSource
-    {
-        const void * pData  = nullptr;
-        size_t       cbData = 0;
-    };
-
-
-    struct CrtVertex
-    {
-        float x;
-        float y;
-        float u;
-        float v;
-    };
-
-
+// A 10-line payload, so it stays a file-scope `static constexpr` under the
+// documented 3+ line exception rather than moving onto CrtPostProcess.
+static constexpr const char *  s_kpszVertexShaderSrc =
+    "struct VSInput  { float2 pos : POSITION; float2 uv : TEXCOORD; };\n"
+    "struct VSOutput { float4 pos : SV_POSITION; float2 uv : TEXCOORD; };\n"
+    "VSOutput main (VSInput i)\n"
+    "{\n"
+    "    VSOutput o;\n"
+    "    o.pos = float4 (i.pos, 0.0f, 1.0f);\n"
+    "    o.uv  = i.uv;\n"
+    "    return o;\n"
+    "}\n";
 
 
 
@@ -63,7 +43,7 @@ namespace
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT LoadShaderSource (int resourceId, ShaderSource * outSource)
+HRESULT CrtPostProcess::LoadShaderSource (int resourceId, ShaderSource * outSource)
 {
     HRESULT    hr        = S_OK;
     HINSTANCE  hInstance = nullptr;
@@ -99,7 +79,6 @@ HRESULT LoadShaderSource (int resourceId, ShaderSource * outSource)
 
 Error:
     return hr;
-}
 }
 
 
@@ -537,10 +516,10 @@ HRESULT CrtPostProcess::EnsureSize (int width, int height)
     // ensures the Reset()s below actually free the GPU memory.
     if (m_context != nullptr)
     {
-        ID3D11ShaderResourceView *  nullSrvs[s_kMaxBoundPsSrvSlots] = {};
+        ID3D11ShaderResourceView *  nullSrvs[kMaxBoundPsSrvSlots] = {};
 
         m_context->OMSetRenderTargets   (0, nullptr, nullptr);
-        m_context->PSSetShaderResources (0, s_kMaxBoundPsSrvSlots, nullSrvs);
+        m_context->PSSetShaderResources (0, kMaxBoundPsSrvSlots, nullSrvs);
     }
 
     for (i = 0; i < 2; ++i)
@@ -653,8 +632,8 @@ void CrtPostProcess::DrawFullscreen (
     UINT                       offset        = 0;
     float                      clearColor[4] = { 0.0f, 0.0f, 0.0f, 1.0f };
     D3D11_VIEWPORT             vp            = {};
-    ID3D11ShaderResourceView * srvs[s_kMaxBoundPsSrvSlots]     = { srv0, srv1 };
-    ID3D11ShaderResourceView * nullSrvs[s_kMaxBoundPsSrvSlots] = {};
+    ID3D11ShaderResourceView * srvs[kMaxBoundPsSrvSlots]     = { srv0, srv1 };
+    ID3D11ShaderResourceView * nullSrvs[kMaxBoundPsSrvSlots] = {};
     ID3D11Buffer             * cbs[1]        = { m_constantBuffer.Get() };
     float                      blendFactor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
 
@@ -688,14 +667,14 @@ void CrtPostProcess::DrawFullscreen (
     m_context->VSSetShader            (m_vs.Get(), nullptr, 0);
     m_context->PSSetShader            (ps,         nullptr, 0);
     m_context->PSSetSamplers          (0, 1, m_sampler.GetAddressOf());
-    m_context->PSSetShaderResources   (0, s_kMaxBoundPsSrvSlots, srvs);
+    m_context->PSSetShaderResources   (0, kMaxBoundPsSrvSlots, srvs);
     m_context->PSSetConstantBuffers   (0, 1, cbs);
 
     m_context->DrawIndexed (6, 0, 0);
 
     // Detach SRVs so the just-written RT can be bound as an input on the
     // next pass without a D3D11 hazard warning.
-    m_context->PSSetShaderResources (0, s_kMaxBoundPsSrvSlots, nullSrvs);
+    m_context->PSSetShaderResources (0, kMaxBoundPsSrvSlots, nullSrvs);
 }
 
 
