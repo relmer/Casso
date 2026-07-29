@@ -1,7 +1,6 @@
 #include "Pch.h"
 
 #include "AssemblySession.h"
-#include "Ehm.h"
 #include "ExpressionEvaluator.h"
 #include "Parser.h"
 
@@ -808,10 +807,17 @@ AssemblyResult AssemblySession::Run (const std::string & sourceText)
 
 
 
-    CHR (Initialize (sourceText));
-    CHR (RunPass1());
-    CHR (RunPass2());
-    CHR (DetectUnusedLabels());
+    hr = Initialize (sourceText);
+    CHR (hr);
+
+    hr = RunPass1();
+    CHR (hr);
+
+    hr = RunPass2();
+    CHR (hr);
+
+    hr = DetectUnusedLabels();
+    CHR (hr);
 
 Error:
     return m_result;
@@ -841,11 +847,13 @@ HRESULT AssemblySession::RunPass1()
 
         if (!m_endAssembly)
         {
-            CHR (ProcessPass1Line (current));
+            hr = ProcessPass1Line (current);
+            CHR (hr);
         }
     }
 
-    CHR (ValidateAssemblyCompletion());
+    hr = ValidateAssemblyCompletion();
+    CHR (hr);
 
 Error:
     return hr;
@@ -1696,19 +1704,23 @@ HRESULT AssemblySession::HandleConditionalDirective (const PendingLine & current
 
     if (token == Directive::If)
     {
-        CHR (HandleIfDirective (current, condArg));
+        hr = HandleIfDirective (current, condArg);
+        CHR (hr);
     }
     else if (token == Directive::Ifdef || token == Directive::Ifndef)
     {
-        CHR (HandleIfdefDirective (current, token, condArg));
+        hr = HandleIfdefDirective (current, token, condArg);
+        CHR (hr);
     }
     else if (token == Directive::Else)
     {
-        CHR (HandleElseDirective (current));
+        hr = HandleElseDirective (current);
+        CHR (hr);
     }
     else if (token == Directive::Endif)
     {
-        CHR (HandleEndifDirective (current));
+        hr = HandleEndifDirective (current);
+        CHR (hr);
     }
 
     info.isDirective = true;
@@ -2054,11 +2066,13 @@ HRESULT AssemblySession::HandleConstantDefinition (const PendingLine & current, 
 
     if (info.parsed.constantKind == SymbolKind::Set)
     {
-        CHR (HandleSetConstant (current, info));
+        hr = HandleSetConstant (current, info);
+        CHR (hr);
     }
     else
     {
-        CHR (HandleEquConstant (current, info));
+        hr = HandleEquConstant (current, info);
+        CHR (hr);
     }
 
 Error:
@@ -2793,7 +2807,8 @@ HRESULT AssemblySession::HandleCmapDirective (const PendingLine & /*current*/, L
     }
     else if (arg.size() >= 5 && arg[0] == '\'')
     {
-        CHR (ParseCmapMapping (arg));
+        hr = ParseCmapMapping (arg);
+        CHR (hr);
     }
 
 Error:
@@ -2928,7 +2943,8 @@ HRESULT AssemblySession::ExpandMacro (const PendingLine & current, LineInfo & in
         std::string uniqueSuffix = std::format ("{:04d}", m_macroUniqueCounter);
 
         std::vector<std::string> expandedLines;
-        CHR (SubstituteMacroParams (macroIt->second, args, uniqueSuffix, expandedLines));
+        hr = SubstituteMacroParams (macroIt->second, args, uniqueSuffix, expandedLines);
+        CHR (hr);
 
         // Insert expanded lines at the FRONT of the queue (reverse order)
         for (int bi = (int) expandedLines.size() - 1; bi >= 0; bi--)
@@ -2973,12 +2989,14 @@ HRESULT AssemblySession::SubstituteMacroParams (const MacroDefinition & macroDef
 
         // Check for exitm
         bool isExitm = false;
-        CHR (CheckForExitm (expanded, isExitm));
+        hr = CheckForExitm (expanded, isExitm);
+        CHR (hr);
 
         if (isExitm)
         {
             int ifDepth = 0;
-            CHR (CountExitmIfDepth (expandedLines, ifDepth));
+            hr = CountExitmIfDepth (expandedLines, ifDepth);
+            CHR (hr);
 
             for (int ed = 0; ed < ifDepth; ed++)
             {
@@ -3010,8 +3028,11 @@ HRESULT AssemblySession::SubstituteMacroParams (const MacroDefinition & macroDef
             continue;
         }
 
-        CHR (ApplyMacroSubstitutions (expanded, macroDef, args, uniqueSuffix));
-        CHR (StripForcedSubstitution (expanded));
+        hr = ApplyMacroSubstitutions (expanded, macroDef, args, uniqueSuffix);
+        CHR (hr);
+
+        hr = StripForcedSubstitution (expanded);
+        CHR (hr);
 
         expandedLines.push_back (expanded);
     }
@@ -3329,7 +3350,8 @@ HRESULT AssemblySession::HandleColonlessLabel (const PendingLine & current, Line
         std::string labelName;
         std::string labelError;
 
-        CHR (ExtractColonlessLabelName (current, labelName));
+        hr = ExtractColonlessLabelName (current, labelName);
+        CHR (hr);
 
         if (!Parser::ValidateLabel (labelName, m_opcodeTable, labelError))
         {
@@ -3519,7 +3541,8 @@ HRESULT AssemblySession::ClassifyAndResolve (const PendingLine & current, LineIn
     info.valueResolved = exprResolved;
     info.resolvedValue = exprValue;
 
-    CHR (ResolveAddressingAndSize (current, info, exprValue, exprResolved));
+    hr = ResolveAddressingAndSize (current, info, exprValue, exprResolved);
+    CHR (hr);
 
 Error:
     return hr;
@@ -3702,8 +3725,11 @@ HRESULT AssemblySession::RunPass2()
         m_fullSymbols[sym.first] = (int32_t) sym.second;
     }
 
-    CHR (ResolveEquConstants());
-    CHR (ReportUnresolvedEqus());
+    hr = ResolveEquConstants();
+    CHR (hr);
+
+    hr = ReportUnresolvedEqus();
+    CHR (hr);
 
     for (const auto & info : m_lineInfos)
     {
@@ -3719,23 +3745,27 @@ HRESULT AssemblySession::RunPass2()
         {
             lineHasAddress = true;
             m_pass2Ctx.currentPC = (int32_t) info.pc;
-            CHR (EmitDirectiveBytes (info, emitPC));
+            hr = EmitDirectiveBytes (info, emitPC);
+            CHR (hr);
         }
         else if (info.isInstruction)
         {
             lineHasAddress = true;
             m_pass2Ctx.currentPC = (int32_t) info.pc;
-            CHR (EmitInstruction (info, emitPC));
+            hr = EmitInstruction (info, emitPC);
+            CHR (hr);
         }
         else if (!info.parsed.label.empty())
         {
             lineHasAddress = true;
         }
 
-        CHR (BuildListingEntry (info, emitPCStart, emitPC, lineHasAddress));
+        hr = BuildListingEntry (info, emitPCStart, emitPC, lineHasAddress);
+        CHR (hr);
     }
 
-    CHR (ExtractImage());
+    hr = ExtractImage();
+    CHR (hr);
 
     m_result.symbols     = m_symbols;
     m_result.symbolKinds = m_symbolKinds;
@@ -4234,11 +4264,13 @@ HRESULT AssemblySession::EmitInstruction (const LineInfo & info, Word & emitPC)
 
 
 
-    CHR (ResolveInstructionValue (info, value, emit));
+    hr = ResolveInstructionValue (info, value, emit);
+    CHR (hr);
 
     if (emit)
     {
-        CHR (EmitInstructionBytes (info, value, emitPC));
+        hr = EmitInstructionBytes (info, value, emitPC);
+        CHR (hr);
     }
 
 Error:

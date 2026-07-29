@@ -1,7 +1,6 @@
 #pragma once
 
 #include "AssemblerTypes.h"
-#include "Ehm.h"
 #include "ExpressionEvaluator.h"
 #include "OpcodeTable.h"
 #include "Directive.h"
