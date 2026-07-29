@@ -108,47 +108,4 @@ private:
     float        m_baselinePrinterAudioVolume      = 0.0f;
     bool         m_baselinePrinterAudioPanOverride = false;
     float        m_baselinePrinterAudioPan         = 0.0f;
-
-    ////////////////////////////////////////////////////////////////////////////
-    //
-    //  SettingsApplyAdapter
-    //
-    //  Bridges the pure-logic ISettingsApplySink contract into the
-    //  EmulatorShell command queue. Live-effect fields post commands so
-    //  the audio mixer / CRT pipeline picks them up on the next CPU
-    //  tick; QueueMachineReset is recorded and consumed by the modal
-    //  confirm path in SettingsPanel.
-    //
-    //  Nested rather than file-scope: a class defined in a .cpp has
-    //  external linkage, so two translation units defining different
-    //  types under one name is an ODR violation the linker will not
-    //  report. CommitApply is the only reader.
-    //
-    ////////////////////////////////////////////////////////////////////////////
-
-    class SettingsApplyAdapter : public ISettingsApplySink
-    {
-    public:
-        explicit SettingsApplyAdapter (EmulatorShell & shell)
-            : m_shell (shell)
-        {
-        }
-
-        void ApplySpeedMode              (SettingsSpeedMode mode)            override;
-        void ApplyColorMode              (SettingsColorMode mode)            override;
-        void ApplyFloppySound            (bool enabled)                      override;
-        void ApplyMechanism              (const std::string & mechanism)     override;
-        void ApplyDriveVolumes           (float motor, float head, float door) override;
-        void ApplyDrivePan               (float driveOnePan, float driveTwoPan) override;
-        void ApplyWriteProtect           (int drive, bool wp)                override;
-        void ApplyExternalDriveConnected (bool connected)                    override;
-        void ApplyMouseConnected         (bool connected)                    override;
-        void QueueMachineReset           ()                                  override { m_resetQueued = true; }
-
-        bool ResetQueued () const { return m_resetQueued; }
-
-    private:
-        EmulatorShell & m_shell;
-        bool            m_resetQueued = false;
-    };
 };

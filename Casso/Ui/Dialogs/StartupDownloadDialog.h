@@ -119,15 +119,6 @@ private:
     struct      DialogState;
     struct      RowMetrics;
 
-    // The three panel types Show() assembles, declared here and defined
-    // in the .cpp like the four above. Nested rather than file-scope: a
-    // class defined in a .cpp has external linkage, so two translation
-    // units defining different types under one name is an ODR violation
-    // the linker will not report. Declaring rather than defining keeps
-    // their Dxui base classes out of this header.
-    class       DownloadBodyPanel;
-    class       DownloadContentPanel;
-    class       DownloadDialog;
 
     static void                WorkerThreadProc      (DialogState * state, size_t index);
     static void                StartWorkers          (DialogState & state);

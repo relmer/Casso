@@ -243,6 +243,8 @@
     <ClCompile Include="Config\GlobalUserPrefs.cpp" />
     <ClCompile Include="Ui\Chrome\MainMenu.cpp" />
     <ClCompile Include="Ui\ThemeLoader.cpp" />
+    <ClCompile Include="Ui\PickerBodyPanel.cpp" />
+    <ClCompile Include="Ui\PickerDialog.cpp" />
     <ClCompile Include="Ui\ThemeManager.cpp" />
     <ClCompile Include="Ui\Chrome\CassoBranding.cpp" />
     <ClCompile Include="Ui\Chrome\DriveWidget.cpp" />
@@ -258,6 +260,7 @@
     <ClCompile Include="Ui\Settings\DisplayPage.cpp" />
     <ClCompile Include="Ui\Settings\HardwarePage.cpp" />
     <ClCompile Include="Ui\Settings\DiskPage.cpp" />
+    <ClCompile Include="Ui\Settings\SettingsApplyAdapter.cpp" />
     <ClCompile Include="Ui\Settings\SettingsApplyController.cpp" />
     <ClCompile Include="Ui\Settings\SettingsDisplayCrtBridge.cpp" />
     <ClCompile Include="Ui\Settings\SettingsCompositor.cpp" />
@@ -279,6 +282,9 @@
     <ClCompile Include="Ui\Chrome\DriveLabelTruncation.cpp" />
     <ClCompile Include="Ui\Dialogs\DialogBodyContent.cpp" />
     <ClCompile Include="Ui\Dialogs\MessageDialog.cpp" />
+    <ClCompile Include="Ui\Dialogs\DownloadBodyPanel.cpp" />
+    <ClCompile Include="Ui\Dialogs\DownloadContentPanel.cpp" />
+    <ClCompile Include="Ui\Dialogs\DownloadDialog.cpp" />
     <ClCompile Include="Ui\Dialogs\StartupDownloadDialog.cpp" />
     <ClCompile Include="Shell\DiskMru.cpp" />
     <ClCompile Include="TrackSectorPredicate.cpp" />
@@ -319,11 +325,16 @@
     <ClInclude Include="Ui\Dialogs\DialogDefinition.h" />
     <ClInclude Include="Ui\Dialogs\DialogBodyContent.h" />
     <ClInclude Include="Ui\Dialogs\MessageDialog.h" />
+    <ClInclude Include="Ui\Dialogs\DownloadBodyPanel.h" />
+    <ClInclude Include="Ui\Dialogs\DownloadContentPanel.h" />
+    <ClInclude Include="Ui\Dialogs\DownloadDialog.h" />
     <ClInclude Include="Ui\Dialogs\StartupDownloadDialog.h" />
     <ClInclude Include="Shell\DiskMru.h" />
     <ClInclude Include="Shell\RepoCheckout.h" />
     <ClInclude Include="Ui\Chrome\MainMenu.h" />
     <ClInclude Include="Ui\ThemeLoader.h" />
+    <ClInclude Include="Ui\PickerBodyPanel.h" />
+    <ClInclude Include="Ui\PickerDialog.h" />
     <ClInclude Include="Ui\ThemeManager.h" />
     <ClInclude Include="Ui\Chrome\CassoTheme.h" />
     <ClInclude Include="Ui\Chrome\CassoBranding.h" />
@@ -342,6 +353,7 @@
     <ClInclude Include="Ui\Settings\DisplayPage.h" />
     <ClInclude Include="Ui\Settings\HardwarePage.h" />
     <ClInclude Include="Ui\Settings\DiskPage.h" />
+    <ClInclude Include="Ui\Settings\SettingsApplyAdapter.h" />
     <ClInclude Include="Ui\Settings\SettingsApplyController.h" />
     <ClInclude Include="Ui\Settings\SettingsDisplayCrtBridge.h" />
     <ClInclude Include="Ui\Settings\SettingsMachineCatalog.h" />

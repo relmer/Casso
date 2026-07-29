@@ -57,6 +57,29 @@ See the Constitution's Principle VI (Thin Executable, Testable Core) and Princip
   helpers as class `static` members, not free functions. More broadly,
   strongly prefer class members over free/global functions — a free function
   needs a very convincing justification.
+- **Where a file-local *type* goes**, by what it is:
+  1. **A class — anything with methods** → its own `.h` / `.cpp` pair, one
+     class per pair, named for the class. Behavior deserves a translation
+     unit and a name it owns; burying it inside another class's files hides
+     it from everyone who might reuse it. A *null* implementation of an
+     interface is the exception to the pair rule only — it belongs in the
+     interface's own header, since it is a property of the contract.
+  2. **A plain-data struct with no methods, used only as a member or a
+     parameter** → nest it in the class that uses it and let it ride along
+     in that header. It has nothing to define out of line.
+  3. **A type that is part of the API** — what callers pass in or get back —
+     stays a free type in the header, not a member. Nesting it only adds
+     `Owner::` to every use, and API types are often testable on their own.
+
+  Note what is *not* a reason to nest: a bare `struct` or `class` in a `.cpp`
+  has external linkage and no keyword can change that (`static` applies to
+  functions and objects, not types). That makes duplicate type names across
+  translation units an ODR violation the linker never reports — but the fix
+  is to give the type a proper home per the order above, not to hide it.
+- **Declare in the header, define in the `.cpp`.** A nested type declared
+  (`struct Foo;`) rather than defined needs none of its own dependencies in
+  the header — including base classes. Defining it inline instead drags those
+  includes along for every file that touches the header.
 - **Where a file-local constant goes**, in order:
   1. **Used by one function, declaration fits on 1-2 lines** → move it *into*
      that function as a local `constexpr`. Nothing leaves the function, and

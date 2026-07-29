@@ -119,15 +119,6 @@ private:
     static RECT      MakeRect (int l, int t, int w, int h);
     static uint32_t  LerpArgb (uint32_t a, uint32_t b, float t);
 
-    // Stands in for a live drive-command sink so the preview's DriveWidgets
-    // can be painted without wiring them to a real machine. Nested rather
-    // than file-scope: a class defined in a .cpp has external linkage.
-    class NullDriveSink : public IDriveCommandSink
-    {
-    public:
-        HRESULT  Mount (int /*slot*/, int /*drive*/, const std::wstring & /*path*/) override { return S_OK; }
-        void     Eject (int /*slot*/, int /*drive*/)                                override { }
-    };
 
     // Computes the actual preview rect inside availRect that matches
     // the 100%-zoom window's aspect ratio (which depends on the bottom

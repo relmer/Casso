@@ -609,7 +609,7 @@ void ThemePage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
 
 void ThemePage::Paint (IDxuiPainter & painterIf, IDxuiTextRenderer & textIf, const IDxuiTheme & theme)
 {
-    static NullDriveSink  s_kNullSink;
+    static NullDriveCommandSink  s_kNullSink;
 
     // The host always paints through the concrete Dxui renderers; the
     // theme-preview window (mock chrome + framebuffer blit) needs their
