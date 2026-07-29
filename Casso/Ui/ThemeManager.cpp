@@ -142,7 +142,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool ThemeManager::TryActivate (const std::string & themeName)
+HRESULT ThemeManager::Activate (const std::string & themeName)
 {
     for (const LoadedTheme & t : m_available)
     {
@@ -157,11 +157,11 @@ bool ThemeManager::TryActivate (const std::string & themeName)
                 LoadedTheme  resolved = t.ResolveForMachine (m_activeMachine);
                 NotifyListeners (resolved);
             }
-            return true;
+            return S_OK;
         }
     }
 
-    return false;
+    return HRESULT_FROM_WIN32 (ERROR_NOT_FOUND);
 }
 
 
@@ -170,11 +170,11 @@ bool ThemeManager::TryActivate (const std::string & themeName)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  TryActivateByFamilyVariant
+//  ActivateByFamilyVariant
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool ThemeManager::TryActivateByFamilyVariant (
+HRESULT ThemeManager::ActivateByFamilyVariant (
     const std::string & familyId,
     const std::string & variantId)
 {
@@ -182,11 +182,11 @@ bool ThemeManager::TryActivateByFamilyVariant (
     {
         if (t.familyId == familyId && t.variantId == variantId)
         {
-            return TryActivate (t.name);
+            return Activate (t.name);
         }
     }
 
-    return false;
+    return HRESULT_FROM_WIN32 (ERROR_NOT_FOUND);
 }
 
 
@@ -211,10 +211,15 @@ HRESULT ThemeManager::ReloadCurrent()
 
     if (!previousActive.empty())
     {
-        // Best-effort: the reload itself succeeded. Whether the previously
-        // active theme still exists is reported by GetActiveThemeName, not
-        // by failing the reload.
-        TryActivate (previousActive);
+        // A theme that vanished across a reload is not a reload failure, so
+        // ERROR_NOT_FOUND is swallowed deliberately -- GetActiveThemeName
+        // reports what is active. Any OTHER failure propagates.
+        hr = Activate (previousActive);
+        if (hr == HRESULT_FROM_WIN32 (ERROR_NOT_FOUND))
+        {
+            hr = S_OK;
+        }
+        CHR (hr);
     }
 
 Error:
