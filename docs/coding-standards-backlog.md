@@ -20,7 +20,7 @@ it only stops *new* violations.
 | `CS0010` | no `-Ex` macro passing its family's default hr | 0 |
 | `CS0009` | do not *produce* `S_FALSE` | 0 |
 | `CS0002` | no anonymous namespaces | 0 |
-| `CS0006` | no bare `goto Error` | **16** |
+| `CS0006` | no bare `goto Error` | **13** |
 
 ## Queue
 
@@ -79,7 +79,7 @@ next to that logic; at or above it you have data the function merely consults.
 Heaviest: `UserConfigStore.cpp` (621-line block), `ThemePage.cpp` (395),
 `AssetBootstrap.cpp` (209).
 
-### 2. `CS0006` — bare `goto Error` (16)
+### 2. `CS0006` — bare `goto Error` (13)
 
 All 16 remaining are in `AssemblySession.cpp`, spread over 11 functions —
 `HandleIncludeDirective` (3), `BuildListingEntry` / `DetectMacroDefinition` /

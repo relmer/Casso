@@ -102,9 +102,46 @@ private:
 
     HRESULT ProcessPass1Line           (const PendingLine & current);
 
-    // The ordered pass-1 stage chain. The first stage to claim `current` wins;
-    // ProcessPass1Line owns recording the result exactly once.
-    HRESULT RunPass1Stages             (const PendingLine & current, LineInfo & info);
+    // What a pass-1 line turns out to be. Listed in the order the classifier
+    // tests them, because that order IS the language: a line inside a struct
+    // body is a struct member no matter what else it looks like, and .ORG has
+    // to move the PC before any label on the same line binds to it.
+    enum class Pass1LineKind
+    {
+        StructBody,             // inside .STRUCT ... .ENDSTRUCT
+        MacroBody,              // inside NAME macro ... .ENDM
+        MacroDefinition,        // "NAME macro [params]" opens a definition
+        ConditionalDirective,   // .IF / .IFDEF / .IFNDEF / .ELSE / .ENDIF
+        SkippedByConditional,   // inactive block, and not one of the above
+        OrgDirective,           // .ORG
+        SegmentSwitch,          // .CODE / .DATA / .BSS / .SEGMENT_*
+        ConstantDefinition,     // NAME = expr, NAME .EQU expr
+        Pass1Directive,         // every other directive
+        Empty,                  // label-only or blank
+        Instruction,            // a mnemonic -- possibly a multi-NOP, a macro
+                                // call, or a colon-less label; only evaluating
+                                // it can tell, so those stay a probe chain
+    };
+
+    // Pure: reads `info` and the session's mode flags, changes nothing.
+    Pass1LineKind ClassifyPass1Line (const LineInfo & info, const std::string & operandUpper) const;
+
+    // True for the kinds that sit at the final PC, so a label on the line
+    // binds there. False for the kinds handled before the PC settles.
+    static bool   BindsLabel (Pass1LineKind kind);
+
+    // Shared by ClassifyPass1Line and the handler each one guards, so the two
+    // cannot drift apart.
+    static bool   IsMacroDefinitionStart (const ParsedLine & parsed, const std::string & operandUpper);
+    static bool   IsConditionalLine      (const ParsedLine & parsed);
+    static bool   IsSegmentDirective     (const std::string & dir);
+    static std::string UpperOperand      (const std::string & operand);
+
+    // Acts on the classification. ProcessPass1Line owns recording the result.
+    HRESULT RunPass1Stages       (const PendingLine & current, LineInfo & info);
+
+    // The Instruction tail: stages that can only decide by trying.
+    HRESULT ResolveInstructionLine (const PendingLine & current, LineInfo & info);
     HRESULT HandleMultiNop             (const PendingLine & current, LineInfo & info, bool & handled);
     HRESULT CountExitmIfDepth          (const std::vector<std::string> & expandedLines, int & ifDepth);
 
