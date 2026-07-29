@@ -77,8 +77,15 @@ static constexpr DirectiveTable::Spelling  s_kSpellings[] =
     { "INCLUDE",       Directive::Include     },
     { "STRUCT",        Directive::Struct      },
     { "CMAP",          Directive::Cmap        },
+    // as65 accepts the conditional keywords bare as well. The pre-token
+    // parser only listed IFDEF/IFNDEF here and let IF/ELSE/ENDIF fall through
+    // to be recognized later by mnemonic; now that recognition reads the
+    // token, all five have to resolve from this table.
+    { "IF",            Directive::If          },
     { "IFDEF",         Directive::Ifdef       },
     { "IFNDEF",        Directive::Ifndef      },
+    { "ELSE",          Directive::Else        },
+    { "ENDIF",         Directive::Endif       },
     { "LIST",          Directive::List        },
     { "NOLIST",        Directive::Nolist      },
     { "PAGE",          Directive::Page        },

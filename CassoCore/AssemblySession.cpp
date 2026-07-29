@@ -946,21 +946,44 @@ bool AssemblySession::IsMacroDefinitionStart (const ParsedLine & parsed, const s
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  AssemblySession::IsConditionalDirective
+//
+//  The five tokens that steer conditional assembly. Shared by the classifier
+//  and the handler, so the two cannot disagree about what a conditional is.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool AssemblySession::IsConditionalDirective (Directive token)
+{
+    return token == Directive::If     || token == Directive::Ifdef ||
+           token == Directive::Ifndef || token == Directive::Else  ||
+           token == Directive::Endif;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  AssemblySession::IsConditionalLine
 //
 //  Both spellings are accepted: the dotted directive form, and the bare
-//  mnemonic form as65 also allows.
+//  mnemonic form as65 also allows. The bare form never takes the parser's
+//  directive path and so carries no token, which is why it is resolved from
+//  the spelling table here rather than read off ParsedLine.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool AssemblySession::IsConditionalLine (const ParsedLine & parsed)
 {
-    const std::string &  word = parsed.isDirective ? parsed.directive : parsed.mnemonic;
+    Directive  token = parsed.isDirective
+                           ? parsed.directiveToken
+                           : DirectiveTable::FromSpelling (parsed.mnemonic);
 
-    return word == ".IF"   || word == ".IFDEF" || word == ".IFNDEF" ||
-           word == ".ELSE" || word == ".ENDIF" ||
-           word == "IF"    || word == "IFDEF"  || word == "IFNDEF"  ||
-           word == "ELSE"  || word == "ENDIF";
+
+
+    return IsConditionalDirective (token);
 }
 
 
@@ -1647,52 +1670,43 @@ Error:
 HRESULT AssemblySession::HandleConditionalDirective (const PendingLine & current, LineInfo & info,
                                                       bool & handled)
 {
-    HRESULT hr = S_OK;
-
-    std::string condDirective;
-    std::string condArg;
+    HRESULT      hr      = S_OK;
+    Directive    token   = Directive::None;
+    std::string  condArg;
 
     handled = false;
 
 
 
+    // The dotted form carries its token from the parser; the bare mnemonic
+    // form does not take the directive path, so it resolves here. Either way
+    // the argument comes from wherever that spelling puts it.
     if (info.parsed.isDirective)
     {
-        const std::string & dir = info.parsed.directive;
-
-        if (dir == ".IF")          { condDirective = "IF";     condArg = info.parsed.directiveArg; }
-        else if (dir == ".IFDEF")  { condDirective = "IFDEF";  condArg = info.parsed.directiveArg; }
-        else if (dir == ".IFNDEF") { condDirective = "IFNDEF"; condArg = info.parsed.directiveArg; }
-        else if (dir == ".ELSE")   { condDirective = "ELSE"; }
-        else if (dir == ".ENDIF")  { condDirective = "ENDIF"; }
+        token   = info.parsed.directiveToken;
+        condArg = info.parsed.directiveArg;
     }
     else if (!info.parsed.mnemonic.empty())
     {
-        if (info.parsed.mnemonic == "IF")          { condDirective = "IF";     condArg = info.parsed.operand; }
-        else if (info.parsed.mnemonic == "IFDEF")  { condDirective = "IFDEF";  condArg = info.parsed.operand; }
-        else if (info.parsed.mnemonic == "IFNDEF") { condDirective = "IFNDEF"; condArg = info.parsed.operand; }
-        else if (info.parsed.mnemonic == "ELSE")   { condDirective = "ELSE"; }
-        else if (info.parsed.mnemonic == "ENDIF")  { condDirective = "ENDIF"; }
+        token   = DirectiveTable::FromSpelling (info.parsed.mnemonic);
+        condArg = info.parsed.operand;
     }
 
-    if (condDirective.empty())
-    {
-        goto Error;
-    }
+    BAIL_OUT_IF (!IsConditionalDirective (token), S_OK);
 
-    if (condDirective == "IF")
+    if (token == Directive::If)
     {
         CHR (HandleIfDirective (current, condArg));
     }
-    else if (condDirective == "IFDEF" || condDirective == "IFNDEF")
+    else if (token == Directive::Ifdef || token == Directive::Ifndef)
     {
-        CHR (HandleIfdefDirective (current, condDirective, condArg));
+        CHR (HandleIfdefDirective (current, token, condArg));
     }
-    else if (condDirective == "ELSE")
+    else if (token == Directive::Else)
     {
         CHR (HandleElseDirective (current));
     }
-    else if (condDirective == "ENDIF")
+    else if (token == Directive::Endif)
     {
         CHR (HandleEndifDirective (current));
     }
@@ -1762,7 +1776,7 @@ HRESULT AssemblySession::HandleIfDirective (const PendingLine & current, const s
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT AssemblySession::HandleIfdefDirective (const PendingLine & current,
-                                                const std::string & condDirective,
+                                                Directive           token,
                                                 const std::string & condArg)
 {
     HRESULT hr = S_OK;
@@ -1786,7 +1800,7 @@ HRESULT AssemblySession::HandleIfdefDirective (const PendingLine & current,
         }
 
         bool defined = (m_exprSymbols.find (symName) != m_exprSymbols.end());
-        state.assembling = (condDirective == "IFDEF") ? defined : !defined;
+        state.assembling = (token == Directive::Ifdef) ? defined : !defined;
     }
     else
     {
@@ -1981,10 +1995,8 @@ HRESULT AssemblySession::RecordLabel (const PendingLine & current, LineInfo & in
 
 
 
-    if (info.parsed.label.empty())
-    {
-        goto Error;
-    }
+    // Most lines carry no label; that is not a failure, just nothing to record.
+    BAIL_OUT_IF (info.parsed.label.empty(), S_OK);
 
     {
         std::string labelError;

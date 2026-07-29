@@ -188,6 +188,7 @@ private:
     // cannot drift apart about what a line is.
     static bool        IsMacroDefinitionStart (const ParsedLine & parsed, const std::string & operandUpper);
     static bool        IsConditionalLine      (const ParsedLine & parsed);
+    static bool        IsConditionalDirective (Directive token);
     static bool        IsSegmentDirective     (const std::string & dir);
     static std::string GetUpperOperand           (const std::string & operand);
 
@@ -205,7 +206,7 @@ private:
     HRESULT CheckEndStruct            (const PendingLine & current, LineInfo & info, bool & isEnd);
     HRESULT ParseStructMember         (const PendingLine & current, LineInfo & info);
     HRESULT HandleIfDirective         (const PendingLine & current, const std::string & condArg);
-    HRESULT HandleIfdefDirective      (const PendingLine & current, const std::string & condDirective,
+    HRESULT HandleIfdefDirective      (const PendingLine & current, Directive token,
                                        const std::string & condArg);
     HRESULT HandleElseDirective       (const PendingLine & current);
     HRESULT HandleEndifDirective      (const PendingLine & current);

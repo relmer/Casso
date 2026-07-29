@@ -20,7 +20,7 @@ it only stops *new* violations.
 | `CS0010` | no `-Ex` macro passing its family's default hr | 0 |
 | `CS0009` | do not *produce* `S_FALSE` | 0 |
 | `CS0002` | no anonymous namespaces | 0 |
-| `CS0006` | no bare `goto Error` | **13** |
+| `CS0006` | no bare `goto Error` | **11** |
 
 ## Queue
 
@@ -79,7 +79,7 @@ next to that logic; at or above it you have data the function merely consults.
 Heaviest: `UserConfigStore.cpp` (621-line block), `ThemePage.cpp` (395),
 `AssetBootstrap.cpp` (209).
 
-### 2. `CS0006` — bare `goto Error` (13)
+### 2. `CS0006` — bare `goto Error` (11)
 
 All 16 remaining are in `AssemblySession.cpp`, spread over 11 functions —
 `HandleIncludeDirective` (3), `BuildListingEntry` / `DetectMacroDefinition` /
@@ -186,6 +186,32 @@ Stages, each verifiable byte-for-byte (see below):
 5. `HandleConditionalDirective` -> switch on the token; its bare mnemonic
    forms (`IF` / `ELSE` / `ENDIF`) join the spelling table.
 6. Put the spelling table behind a dialect interface.
+
+7. **Mnemonics get a token too.** Same argument as directives, and the
+   objection I first raised against it was wrong. I claimed a `Mnemonic` enum
+   would have to be "the union across every CPU, with holes per CPU" — but the
+   *code that acts on the comparison* is already that union
+   (`IsBitOpMnemonic` naming Rockwell ops, the `JMP`/`JSR` size cases). Paying
+   it in string literals instead of enum values is strictly worse: a
+   misspelled literal silently never matches, a misspelled enum will not
+   compile. The `Directive` enum has the same shape and nobody minds — it
+   lists all 27, and a dialect's spelling table populates a subset.
+
+   The real constraint is different and bigger: mnemonic names originate as
+   `const char * instructionName` inside `Microcode`, populated by string
+   literal across `Group00/01/10/Cmos/Misc.h` (64 distinct mnemonics), and
+   `Microcode` is shared with the **emulator's** CPU — `Cpu65C02`,
+   `Cpu65C02Table`, `Cpu.cpp` and their tests all consume it. So adding the
+   token is a change to the CPU instruction definitions, not just to the
+   assembler.
+
+   Do it additively, exactly as `ParsedLine::directiveToken` was done: add
+   `Mnemonic mnemonic` to `Microcode` alongside the existing name, key
+   `OpcodeTable` on the enum, resolve it once in the parser via a
+   spelling table (which is also where the bare Rockwell forms belong — see
+   below), and convert consumers one at a time. Per-CPU variance needs
+   nothing new: a CPU simply has no `Microcode` row for a mnemonic it lacks,
+   which is what `IsMnemonic()` already reports.
 
 **Not solved by this**, so do not expect them to fall out: `ParseStructMember`
 (101 lines, ~80-line `if`) is a field-declaration parser wanting its own small
