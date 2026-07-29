@@ -47,6 +47,16 @@ See [CHANGELOG.md](CHANGELOG.md) for the granular history, and
 [ARCHITECTURE.md](ARCHITECTURE.md) for a technical overview of the emulator's
 internals (projects, threading, the memory model, and the optimization log).
 
+### Apple //c mouse: MousePaint works again (v1.15.0)
+
+Fixed a //c mouse-interrupt bug that made **MousePaint**'s main app unusable —
+menus and tools ignored every click and the cursor lagged. The //c only
+partially decodes its paddle-timer strobe, so *any* `$C070`–`$C07F` access
+clears the VBL interrupt; Casso recognized only the literal `$C070`. Mouse apps
+that acknowledge the VBL via a `$C07x` write (MousePaint writes `$C079` each
+interrupt) therefore never cleared it, and the resulting interrupt storm starved
+the app of CPU. Also trimmed the per-instruction //c mouse tick cost (~31%).
+
 ### Emulated ImageWriter II printer (v1.14.0)
 
 <p align="center"><img src="Assets/printer-preview.png" alt="Casso printing a Print Shop sign on an emulated Apple //e Enhanced, with the live 3D ImageWriter II preview feeding fanfold paper" width="100%" /></p>
