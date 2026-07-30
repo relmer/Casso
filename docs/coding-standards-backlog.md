@@ -265,7 +265,7 @@ push on 15 sites in files this branch had merely *moved*, which is the
 baseline problem any new rule has on a dirty tree, and the signal that the
 rule was wrong rather than the code.
 
-### 2d. Files that mention `HRESULT` but use no EHM at all (8)
+### 2d. Files that mention `HRESULT` but use no EHM at all (8) — NOT SCHEDULED
 
 Posited as "any .cpp not using EHM is non-compliant". Measured: 303 of 414
 `.cpp` files use no EHM, but that number is not the finding — most have no
@@ -296,11 +296,17 @@ indistinguishable from an oversight. `CpuFactory.cpp` hand-rolls
 `hr = E_INVALIDARG; return hr;` where `CBRAEx` is the sanctioned form.
 `DriveWidgetController::LoadDocument` returns `HRESULT` with no EHM at all.
 
-**Gateable as a file-level check** rather than a line regex: file matches
-`HRESULT` and matches no EHM macro. That is a different shape from every
-existing rule in `CheckStyle.ps1` (all of which are per-line), so it needs a
-second pass mode -- worth adding, since it is exactly the class of drift no
-line rule can see.
+**Deliberately not scheduled.** The owner's call: the other rules will surface
+these files as they are worked. Item 4 (multiple returns) covers the
+`CpuFactory.cpp` shape directly -- `hr = E_INVALIDARG; return hr;` is a
+multi-return -- and CS0006 catches hand-rolled control flow.
+
+One gap to be aware of rather than to act on: nothing planned catches
+`DxuiDwm.cpp`'s pattern, where a result is ignored by *comment* instead of by
+`IGNORE_RETURN_VALUE`. There is no line to flag -- the tell is the absence of
+a macro. If that ever matters, the check is file-level (matches `HRESULT`,
+matches no EHM), which needs a second pass mode since every rule in
+`CheckStyle.ps1` today is per-line. The list above is the starting set.
 
 ### 3. `CS0009` — producing `S_FALSE` — DONE
 
