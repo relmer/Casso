@@ -1004,10 +1004,10 @@ bool AssemblySession::IsConditionalLine (const ParsedLine & parsed)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool AssemblySession::IsSegmentDirective (const std::string & dir)
+bool AssemblySession::IsSegmentDirective (Directive token)
 {
-    return dir == ".SEGMENT_CODE" || dir == ".SEGMENT_DATA" || dir == ".SEGMENT_BSS" ||
-           dir == ".CODE"         || dir == ".DATA"         || dir == ".BSS";
+    return token == Directive::SegmentCode || token == Directive::SegmentData ||
+           token == Directive::SegmentBss;
 }
 
 
@@ -1054,7 +1054,7 @@ AssemblySession::Pass1Prelude AssemblySession::ClassifyPrelude (
     {
         kind = Pass1Prelude::Org;
     }
-    else if (info.parsed.isDirective && IsSegmentDirective (info.parsed.directive))
+    else if (info.parsed.isDirective && IsSegmentDirective (info.parsed.directiveToken))
     {
         kind = Pass1Prelude::SegmentSwitch;
     }
@@ -1952,25 +1952,26 @@ HRESULT AssemblySession::HandleOrgDirective (const PendingLine & current, LineIn
 
 HRESULT AssemblySession::HandleSegmentSwitch (LineInfo & info, bool & handled)
 {
-    HRESULT hr = S_OK;
+    HRESULT    hr    = S_OK;
+    Directive  token = info.parsed.directiveToken;
+
+
 
     handled = false;
 
-    const std::string & dir = info.parsed.directive;
-
-
-
-    BAIL_OUT_IF (!IsSegmentDirective (dir), S_OK);
+    BAIL_OUT_IF (!IsSegmentDirective (token), S_OK);
 
     // Save current PC to current segment
     m_segmentPC[(int) m_currentSegment] = m_pc;
 
-    // Switch segment
-    if (dir == ".SEGMENT_CODE" || dir == ".CODE")
+    // The long and short spellings share a token, so each segment is one
+    // comparison rather than two -- and .CODE can no longer drift from
+    // .SEGMENT_CODE by being added to one list and not the other.
+    if (token == Directive::SegmentCode)
     {
         m_currentSegment = Segment::Code;
     }
-    else if (dir == ".SEGMENT_DATA" || dir == ".DATA")
+    else if (token == Directive::SegmentData)
     {
         m_currentSegment = Segment::Data;
     }

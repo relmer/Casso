@@ -188,7 +188,7 @@ private:
     static bool        IsMacroDefinitionStart (const ParsedLine & parsed, const std::string & operandUpper);
     static bool        IsConditionalLine      (const ParsedLine & parsed);
     static bool        IsConditionalDirective (Directive token);
-    static bool        IsSegmentDirective     (const std::string & dir);
+    static bool        IsSegmentDirective     (Directive token);
     static std::string GetUpperOperand           (const std::string & operand);
 
     HRESULT RunPass1Stages         (const PendingLine & current, LineInfo & info);

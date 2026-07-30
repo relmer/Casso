@@ -138,6 +138,43 @@ public:
     }
 
 
+    // .CODE / .DATA / .BSS share a token with their .SEGMENT_* long forms, so
+    // the two spellings must assemble identically. Before segment dispatch
+    // read the token, each pair was two string comparisons in two separate
+    // lists, and one list could gain a spelling the other lacked.
+    TEST_METHOD (SegmentSpellings_LongAndShort_AssembleIdentically)
+    {
+        static const char *  s_kPairs[][2] =
+        {
+            { ".segment_code", ".code" },
+            { ".segment_data", ".data" },
+            { ".segment_bss",  ".bss"  },
+        };
+
+        for (const auto & pair : s_kPairs)
+        {
+            TestCpu  cpu;
+            cpu.InitForTest();
+
+            Assembler  asm6502 (cpu.GetInstructionSet());
+            Assembler  asmShort (cpu.GetInstructionSet());
+
+            std::string  srcLong  = std::string ("        org $800\n        ") + pair[0] + "\n        .byte $ff\n";
+            std::string  srcShort = std::string ("        org $800\n        ") + pair[1] + "\n        .byte $ff\n";
+
+            AssemblyResult  resLong  = asm6502.Assemble (srcLong);
+            AssemblyResult  resShort = asmShort.Assemble (srcShort);
+            std::string     what     = std::string (pair[0]) + " vs " + pair[1];
+            std::wstring    msg (what.begin(), what.end());
+
+            Assert::IsTrue (resLong.success,  (L"long form must assemble: "  + msg).c_str());
+            Assert::IsTrue (resShort.success, (L"short form must assemble: " + msg).c_str());
+            Assert::IsTrue (resLong.bytes == resShort.bytes,
+                (L"both spellings are one token, so both must emit the same bytes: " + msg).c_str());
+        }
+    }
+
+
     // The end-to-end shape of the same bug: if the token is missing, the
     // reservation silently does not happen.
     TEST_METHOD (Rmb_CountForm_ActuallyReservesStorage)
