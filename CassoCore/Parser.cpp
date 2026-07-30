@@ -319,6 +319,9 @@ ParsedLine Parser::ParseLine (const std::string & line, int lineNumber)
     // as65 also spells the Rockwell "reset memory bit" instruction as
     // `rmb <bit>,<zp>`. The two-operand comma form is the instruction and must
     // reach the mnemonic path; a bare count stays the directive.
+    //
+    // The dialect's other dual-purpose mnemonic, `nop <count>`, cannot be
+    // decided here -- see AssemblySession::HandleMultiNop.
     if (canonicalDirective.empty() && firstWordUpper == "RMB")
     {
         std::string rmbArg = (spacePos == std::string::npos) ? "" : remainder.substr (spacePos + 1);

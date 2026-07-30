@@ -193,11 +193,22 @@ Stages, each verifiable byte-for-byte (see below):
    objection I first raised against it was wrong. I claimed a `Mnemonic` enum
    would have to be "the union across every CPU, with holes per CPU" — but the
    *code that acts on the comparison* is already that union
-   (`IsBitOpMnemonic` naming Rockwell ops, the `JMP`/`JSR` size cases). Paying
+   (`IsBitOpMnemonic` naming Rockwell ops, the `JMP` size cases). Paying
    it in string literals instead of enum values is strictly worse: a
    misspelled literal silently never matches, a misspelled enum will not
    compile. The `Directive` enum has the same shape and nobody minds — it
    lists all 27, and a dialect's spelling table populates a subset.
+
+   The mnemonic compares that motivated this are now gone, but they went two
+   different ways, which is the useful part. `IsBranchMnemonic` and both
+   `EstimateInstructionSize` cases became opcode-table questions, because what
+   they wanted was a *CPU* fact the table already held — no enum needed.
+   `IsBitOpMnemonic` and the `nop <count>` guard stayed as literals, because
+   they are *dialect* facts the CPU table cannot answer: the table holds
+   `RMB0..RMB7`, and the bare `RMB` spelling exists only because as65 writes
+   the bit as an operand. So a `Mnemonic` enum is worth less than it looked —
+   ask which seam a compare belongs to first; several turn out to be table
+   lookups already available.
 
    The real constraint is different and bigger: mnemonic names originate as
    `const char * instructionName` inside `Microcode`, populated by string
@@ -236,6 +247,28 @@ throwaway `TEST_CLASS` in `UnitTest/` — write it, capture the baseline from
 the previous commit, apply the change, compare, delete it. It is deliberately
 not kept: `casso-rocks` is already assembled and booted by `BootDiskTests`, so
 a permanent version would add no coverage.
+
+**A green digest is necessary, not sufficient**, and the failure mode is
+specific: the 15 sources are all *valid* programs, so no digest run touches an
+error-recovery path, and none of them spells `.DS` as `rmb <count>`. Both gaps
+have now produced a real bug or a false confidence claim. Ask what the change
+touches before trusting the digest, and where it is a path the corpus cannot
+reach, add a unit test *and check that it fails against the old code* — two of
+the three tests written for the `EstimateInstructionSize` change passed on both
+versions until the assertions were re-aimed.
+
+**A finding worth keeping from that change.** `EstimateInstructionSize` is
+named and was commented as though it sized forward references. It does not:
+its single caller is inside the `else if (!info.hasError)` arm, *after*
+`RecordError`, so it runs only when `ResolveAddressingMode` named a mode the
+opcode table does not carry. It is error recovery — how far to skip an
+instruction that cannot be encoded so the following labels stay close enough
+for the remaining diagnostics to be useful. A forward reference the table *can*
+encode is sized from the `OpcodeEntry` the caller already has. The comment now
+says so. Replacing its two `mnemonic == "JMP"` compares with opcode-table
+questions changed behavior on NMOS (where `JMP (abs,X)` exists at no width):
+the estimate now agrees with the mode the resolver actually picked instead of
+contradicting it. Pinned by `IndirectErrorRecoverySizingTests`.
 
 ### 2c. `CS0011` — calls as EHM macro arguments — gated at 0, half by judgment
 

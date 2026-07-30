@@ -2334,4 +2334,87 @@ namespace AssemblerTests
             Assert::AreEqual ((size_t) 5, r.bytes.size());   // reserved 5 bytes, not an opcode
         }
     };
+
+
+
+
+
+    ////////////////////////////////////////////////////////////////////////////////
+    //
+    //  IndirectErrorRecoverySizingTests
+    //
+    //  EstimateInstructionSize runs on exactly one path: after RecordError, when
+    //  ResolveAddressingMode named a mode the opcode table does not carry. The
+    //  assembly has already failed, so the width it returns cannot be right or
+    //  wrong -- it only decides where the labels on the following lines land, and
+    //  therefore whether the rest of the diagnostics stay useful or cascade.
+    //
+    //  Nothing else calls it, so the success path below is covered by the
+    //  ordinary encoding tests, not by these. What these pin is the recovery
+    //  width for the two `(...)` syntaxes whose size depends on the mnemonic,
+    //  which used to be decided by comparing against "JMP" and is now asked of
+    //  the opcode table -- the same question the resolver just asked, so the
+    //  estimate agrees with the mode that was actually chosen instead of
+    //  contradicting it.
+    //
+    //  A failed assembly still publishes its symbol table, which is what makes
+    //  the advance observable.
+    //
+    ////////////////////////////////////////////////////////////////////////////////
+
+    TEST_CLASS (IndirectErrorRecoverySizingTests)
+    {
+    public:
+
+        //  `JMP (abs,X)` does not exist on NMOS at any width, so the resolver
+        //  falls back to ZeroPageXIndirect -- 2 bytes -- and the recovery advance
+        //  now matches it. The mnemonic compare said 3 here, disagreeing with the
+        //  mode its own resolver had just picked.
+
+        TEST_METHOD (JmpIndirectX_UnencodableOnNmos_AdvancesToMatchResolvedMode)
+        {
+            Assembler a = BuildAssembler();
+
+            AssemblyResult  r = a.Assemble (".org $0800\nJMP (target,X)\nhere: .word here\n");
+
+            Assert::IsFalse (r.success, L"JMP (abs,X) is a 65C02-only mode");
+            Assert::AreEqual ((Word) 0x0802, r.symbols["here"],
+                L"recovery must advance 2 bytes, matching the ZeroPageXIndirect "
+                L"the resolver fell back to");
+        }
+
+
+        //  The same shape for plain `(...)`: LDA has no indirect form on NMOS, so
+        //  the resolver falls back to JumpIndirect -- 3 bytes. The mnemonic
+        //  compare said 2 for anything that was not JMP.
+
+        TEST_METHOD (LdaIndirect_UnencodableOnNmos_AdvancesToMatchResolvedMode)
+        {
+            Assembler a = BuildAssembler();
+
+            AssemblyResult  r = a.Assemble (".org $0800\nLDA (target)\nhere: .word here\n");
+
+            Assert::IsFalse (r.success, L"LDA (zp) is a 65C02-only mode");
+            Assert::AreEqual ((Word) 0x0803, r.symbols["here"],
+                L"recovery must advance 3 bytes, matching the JumpIndirect the "
+                L"resolver fell back to");
+        }
+
+
+        //  On the CMOS table LDA does have `(zp)`, so the recovery width drops to
+        //  2 -- the point being that the answer tracks the instruction set rather
+        //  than a mnemonic spelling. This line still fails, because a forward
+        //  reference cannot be proven zero-page-sized on pass 1.
+
+        TEST_METHOD (LdaIndirect_ForwardRefOn65C02_AdvancesTwoBytes)
+        {
+            Assembler a = BuildAssembler65C02();
+
+            AssemblyResult  r = a.Assemble (".org $0800\nLDA (target)\nhere: .word here\n");
+
+            Assert::IsFalse (r.success, L"a forward (zp) operand is not zp-provable on pass 1");
+            Assert::AreEqual ((Word) 0x0802, r.symbols["here"],
+                L"the CMOS table carries LDA (zp), so recovery advances 2");
+        }
+    };
 }

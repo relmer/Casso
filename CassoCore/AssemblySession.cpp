@@ -468,7 +468,22 @@ GlobalAddressingMode::AddressingMode AssemblySession::ResolveAddressingMode (
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  EstimateInstructionSize — conservative size for unresolved expressions
+//  EstimateInstructionSize — how far to advance the PC past an instruction that
+//  could not be encoded
+//
+//  Error recovery only. The single caller reaches this after RecordError, once
+//  ResolveAddressingMode has named a mode the opcode table does not carry, so
+//  the assembly has already failed and there is no correct answer -- the goal is
+//  only to keep the labels on the following lines close enough to their true
+//  addresses that the remaining diagnostics stay useful instead of cascading.
+//
+//  It is NOT the forward-reference sizing path, despite what an earlier version
+//  of this comment said. A forward reference that the table can encode is sized
+//  from the OpcodeEntry the caller already looked up; nothing routes here.
+//
+//  The best available guess is therefore whatever width ResolveAddressingMode
+//  just chose, which is why the (…) cases ask the opcode table the same question
+//  it asked rather than testing the mnemonic against "JMP".
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -485,12 +500,17 @@ Byte AssemblySession::EstimateInstructionSize (OperandSyntax syntax, const std::
             return 2;
 
         case OperandSyntax::IndirectX:
-            // (zp,X) is 2 bytes; JMP (abs,X) is 3.
-            return (mnemonic == "JMP") ? 3 : 2;
+            // (zp,X) is 2 bytes; (abs,X) is 3. Asking the table which one this
+            // mnemonic offers is the same question ResolveAddressingMode asks on
+            // the unresolved path, so the two agree by construction -- naming JMP
+            // here only agreed by coincidence, and stopped agreeing on an
+            // instruction set that lacks the 65C02 (abs,X) form.
+            return m_opcodeTable.HasMode (mnemonic, GlobalAddressingMode::AbsoluteXIndirect) ? 3 : 2;
 
         case OperandSyntax::Indirect:
-            // (abs) JMP indirect is 3 bytes; 65C02 (zp) indirect is 2.
-            return (mnemonic == "JMP") ? 3 : 2;
+            // The 65C02 (zp) indirect is 2 bytes; every other (…) form -- the
+            // NMOS JMP indirect and its page-fixed 65C02 variant -- is 3.
+            return m_opcodeTable.HasMode (mnemonic, GlobalAddressingMode::ZeroPageIndirect) ? 2 : 3;
 
         case OperandSyntax::IndexedX:
         case OperandSyntax::IndexedY:
@@ -3681,6 +3701,14 @@ HRESULT AssemblySession::HandleMultiNop (const PendingLine & current, LineInfo &
 
 
     // Only "nop <count>" is a multi-NOP; a bare NOP is an ordinary opcode.
+    //
+    // This is the second dual-purpose as65 mnemonic, the other being the RMB
+    // branch in Parser::ParseLine. They stay apart rather than sharing a table
+    // because the table could not hold what separates them: RMB splits on the
+    // operand's *shape* (a comma means the Rockwell instruction), which the
+    // parser can see, while NOP splits on the operand's *value*, which needs the
+    // expression evaluator and the pass-1 symbol table. Both spellings are
+    // dialect facts -- a second dialect replaces this pair.
     BAIL_OUT_IF (info.parsed.mnemonic != "NOP" || info.parsed.operand.empty(), S_OK);
 
     {
@@ -3689,11 +3717,11 @@ HRESULT AssemblySession::HandleMultiNop (const PendingLine & current, LineInfo &
 
         if (er.success && er.value > 0)
         {
-            info.isDirective         = true;
-            info.parsed.isDirective  = true;
+            info.isDirective           = true;
+            info.parsed.isDirective    = true;
             info.parsed.directive      = ".MULTINOP";
-                info.parsed.directiveToken = Directive::MultiNop;
-            info.parsed.directiveArg = info.parsed.operand;
+            info.parsed.directiveToken = Directive::MultiNop;
+            info.parsed.directiveArg   = info.parsed.operand;
             m_pc += (Word) er.value;
         }
 
