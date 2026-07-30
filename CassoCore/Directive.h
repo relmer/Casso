@@ -109,8 +109,8 @@ public:
     // The canonical dotted spelling, for diagnostics and listings.
     static const char * GetCanonicalName (Directive directive);
 
-    // Every accepted spelling, so tests can assert over the whole vocabulary
-    // rather than a hand-picked sample, and so a future dialect can be
-    // diffed against this one.
+    // Every accepted spelling, so DirectiveTokenTests can sweep the whole
+    // vocabulary instead of a hand-picked sample -- a spelling added to the
+    // table is covered without anyone editing a test.
     static std::span<const Spelling> GetAllSpellings();
 };

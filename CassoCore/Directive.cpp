@@ -204,8 +204,10 @@ Directive DirectiveTable::FromStorageSpelling (const std::string & word)
 //
 //  DirectiveTable::GetAllSpellings
 //
-//  Exposes the vocabulary so tests can assert over all of it, and so a second
-//  dialect can be diffed against this one rather than eyeballed.
+//  Exposes the vocabulary so DirectiveTokenTests can sweep all of it rather
+//  than a hand-picked sample, which is what makes a newly added spelling
+//  covered without editing a test. A second dialect gets the same sweep over
+//  its own table -- the two are never compared to each other.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
