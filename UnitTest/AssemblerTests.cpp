@@ -2343,22 +2343,24 @@ namespace AssemblerTests
     //
     //  IndirectErrorRecoverySizingTests
     //
-    //  EstimateInstructionSize runs on exactly one path: after RecordError, when
-    //  ResolveAddressingMode named a mode the opcode table does not carry. The
-    //  assembly has already failed, so the width it returns cannot be right or
-    //  wrong -- it only decides where the labels on the following lines land, and
-    //  therefore whether the rest of the diagnostics stay useful or cascade.
+    //  EstimateErrorRecoverySize runs on exactly one path: after RecordError,
+    //  when ResolveAddressingMode named a mode the opcode table does not carry.
+    //  The assembly has already failed, so no output depends on the width -- it
+    //  only decides where the labels on the following lines land, and therefore
+    //  whether the rest of the diagnostics stay useful or cascade into noise.
     //
-    //  Nothing else calls it, so the success path below is covered by the
-    //  ordinary encoding tests, not by these. What these pin is the recovery
-    //  width for the two `(...)` syntaxes whose size depends on the mnemonic,
-    //  which used to be decided by comparing against "JMP" and is now asked of
-    //  the opcode table -- the same question the resolver just asked, so the
-    //  estimate agrees with the mode that was actually chosen instead of
-    //  contradicting it.
+    //  Nothing else calls it. The success path is covered by the ordinary
+    //  encoding tests, not by these.
+    //
+    //  What these pin is that the recovery width is the width the *mnemonic*
+    //  actually has: a jump is 3 bytes in every form it possesses, everything
+    //  else parenthesized is 2. The tempting alternative -- size whatever mode
+    //  the resolver returned -- is wrong, because when nothing matches it
+    //  returns a default the mnemonic does not have, which is how a JMP ends up
+    //  sized at 2 despite having no 2-byte encoding on any 6502.
     //
     //  A failed assembly still publishes its symbol table, which is what makes
-    //  the advance observable.
+    //  the advance observable at all.
     //
     ////////////////////////////////////////////////////////////////////////////////
 
@@ -2366,45 +2368,40 @@ namespace AssemblerTests
     {
     public:
 
-        //  `JMP (abs,X)` does not exist on NMOS at any width, so the resolver
-        //  falls back to ZeroPageXIndirect -- 2 bytes -- and the recovery advance
-        //  now matches it. The mnemonic compare said 3 here, disagreeing with the
-        //  mode its own resolver had just picked.
+        //  `JMP (abs,X)` is 65C02-only, so this fails on NMOS -- but JMP is a
+        //  3-byte instruction there too (abs and (abs) both), so 3 is the right
+        //  skip. Sizing the resolver's ZeroPageXIndirect fallback would say 2.
 
-        TEST_METHOD (JmpIndirectX_UnencodableOnNmos_AdvancesToMatchResolvedMode)
+        TEST_METHOD (JmpIndirectX_UnencodableOnNmos_AdvancesJumpWidth)
         {
             Assembler a = BuildAssembler();
 
             AssemblyResult  r = a.Assemble (".org $0800\nJMP (target,X)\nhere: .word here\n");
 
             Assert::IsFalse (r.success, L"JMP (abs,X) is a 65C02-only mode");
-            Assert::AreEqual ((Word) 0x0802, r.symbols["here"],
-                L"recovery must advance 2 bytes, matching the ZeroPageXIndirect "
-                L"the resolver fell back to");
+            Assert::AreEqual ((Word) 0x0803, r.symbols["here"],
+                L"JMP has no 2-byte form on any 6502, so recovery skips 3");
         }
 
 
-        //  The same shape for plain `(...)`: LDA has no indirect form on NMOS, so
-        //  the resolver falls back to JumpIndirect -- 3 bytes. The mnemonic
-        //  compare said 2 for anything that was not JMP.
+        //  The mirror case: LDA has no plain `(...)` form on NMOS, and every
+        //  indirect LDA that does exist -- (zp,X), (zp),Y -- is 2 bytes.
 
-        TEST_METHOD (LdaIndirect_UnencodableOnNmos_AdvancesToMatchResolvedMode)
+        TEST_METHOD (LdaIndirect_UnencodableOnNmos_AdvancesTwoBytes)
         {
             Assembler a = BuildAssembler();
 
             AssemblyResult  r = a.Assemble (".org $0800\nLDA (target)\nhere: .word here\n");
 
             Assert::IsFalse (r.success, L"LDA (zp) is a 65C02-only mode");
-            Assert::AreEqual ((Word) 0x0803, r.symbols["here"],
-                L"recovery must advance 3 bytes, matching the JumpIndirect the "
-                L"resolver fell back to");
+            Assert::AreEqual ((Word) 0x0802, r.symbols["here"],
+                L"every indirect LDA is 2 bytes, so recovery skips 2");
         }
 
 
-        //  On the CMOS table LDA does have `(zp)`, so the recovery width drops to
-        //  2 -- the point being that the answer tracks the instruction set rather
-        //  than a mnemonic spelling. This line still fails, because a forward
-        //  reference cannot be proven zero-page-sized on pass 1.
+        //  Unchanged by instruction set: a forward `(zp)` operand cannot be
+        //  proven zero-page-sized on pass 1, so this fails on the CMOS table too,
+        //  and LDA is still 2 bytes wide.
 
         TEST_METHOD (LdaIndirect_ForwardRefOn65C02_AdvancesTwoBytes)
         {
@@ -2413,8 +2410,23 @@ namespace AssemblerTests
             AssemblyResult  r = a.Assemble (".org $0800\nLDA (target)\nhere: .word here\n");
 
             Assert::IsFalse (r.success, L"a forward (zp) operand is not zp-provable on pass 1");
-            Assert::AreEqual ((Word) 0x0802, r.symbols["here"],
-                L"the CMOS table carries LDA (zp), so recovery advances 2");
+            Assert::AreEqual ((Word) 0x0802, r.symbols["here"], L"LDA is 2 bytes here as well");
+        }
+
+
+        //  JSR is the case the old `mnemonic == "JMP"` compare got wrong: it is
+        //  every bit as much a 3-byte instruction, but the compare sized it at 2.
+        //  Asking for JumpAbsolute covers both mnemonics that carry it.
+
+        TEST_METHOD (JsrIndirect_Unencodable_AdvancesJumpWidth)
+        {
+            Assembler a = BuildAssembler();
+
+            AssemblyResult  r = a.Assemble (".org $0800\nJSR (target)\nhere: .word here\n");
+
+            Assert::IsFalse (r.success, L"JSR has no indirect form");
+            Assert::AreEqual ((Word) 0x0803, r.symbols["here"],
+                L"JSR is 3 bytes, so recovery skips 3 -- the old JMP-only compare said 2");
         }
     };
 }

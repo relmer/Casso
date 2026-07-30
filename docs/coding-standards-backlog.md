@@ -201,7 +201,7 @@ Stages, each verifiable byte-for-byte (see below):
 
    The mnemonic compares that motivated this are now gone, but they went two
    different ways, which is the useful part. `IsBranchMnemonic` and both
-   `EstimateInstructionSize` cases became opcode-table questions, because what
+   `EstimateErrorRecoverySize` cases became opcode-table questions, because what
    they wanted was a *CPU* fact the table already held — no enum needed.
    `IsBitOpMnemonic` and the `nop <count>` guard stayed as literals, because
    they are *dialect* facts the CPU table cannot answer: the table holds
@@ -253,22 +253,43 @@ specific: the 15 sources are all *valid* programs, so no digest run touches an
 error-recovery path, and none of them spells `.DS` as `rmb <count>`. Both gaps
 have now produced a real bug or a false confidence claim. Ask what the change
 touches before trusting the digest, and where it is a path the corpus cannot
-reach, add a unit test *and check that it fails against the old code* — two of
-the three tests written for the `EstimateInstructionSize` change passed on both
-versions until the assertions were re-aimed.
+reach, add a unit test *and check that it fails against the old code* — the
+first draft of `IndirectErrorRecoverySizingTests` passed on both versions and
+covered nothing, which was only visible once the assertions were re-aimed at
+the path that actually changed.
 
-**A finding worth keeping from that change.** `EstimateInstructionSize` is
-named and was commented as though it sized forward references. It does not:
-its single caller is inside the `else if (!info.hasError)` arm, *after*
-`RecordError`, so it runs only when `ResolveAddressingMode` named a mode the
-opcode table does not carry. It is error recovery — how far to skip an
-instruction that cannot be encoded so the following labels stay close enough
-for the remaining diagnostics to be useful. A forward reference the table *can*
-encode is sized from the `OpcodeEntry` the caller already has. The comment now
-says so. Replacing its two `mnemonic == "JMP"` compares with opcode-table
-questions changed behavior on NMOS (where `JMP (abs,X)` exists at no width):
-the estimate now agrees with the mode the resolver actually picked instead of
-contradicting it. Pinned by `IndirectErrorRecoverySizingTests`.
+**A finding worth keeping from that change**, in two parts — the second one is
+a mistake I shipped and had to back out.
+
+*What the function is.* `EstimateInstructionSize` was named and commented as
+though it sized forward references. It does not: its single caller is inside
+the `else if (!info.hasError)` arm, *after* `RecordError`, so it runs only when
+`ResolveAddressingMode` named a mode the opcode table does not carry. It is
+error recovery — how far to skip an instruction that cannot be encoded so the
+following labels stay close enough for the remaining diagnostics to be useful.
+A forward reference the table *can* encode is sized from the `OpcodeEntry` the
+caller already has. Renamed to `EstimateErrorRecoverySize`.
+
+*Which table question to ask.* First attempt replaced `mnemonic == "JMP"` with
+"does the mnemonic carry the CMOS mode this syntax suggests"
+(`AbsoluteXIndirect` / `ZeroPageIndirect`), justified as agreeing with the mode
+the resolver had just picked. That was wrong, and being table-driven did not
+make it right. When nothing matches, `ResolveAddressingMode` returns a
+*default* the mnemonic does not possess — `ZeroPageXIndirect` for
+`JMP (foo,X)` on NMOS — so the estimate became consistent with a fiction and
+advanced 2 bytes for an instruction with no 2-byte encoding on any 6502. The
+crude string compare had been encoding a real fact all along: jumps are 3
+bytes, other parenthesized forms are 2.
+
+The correct question is `HasMode (mnemonic, JumpAbsolute)`, which is exactly
+`{JMP, JSR}` on both instruction sets — table-driven, no literal, restores the
+original widths, and fixes `JSR` besides, which the old compare sized at 2
+despite JSR being 3 bytes. Pinned by `IndirectErrorRecoverySizingTests`.
+
+**The transferable lesson:** replacing a literal with a table lookup is only an
+improvement if the lookup asks the question the literal was answering. Ask what
+fact the constant encoded before deciding what to look up — "derived from a
+table" is not self-justifying.
 
 ### 2c. `CS0011` — calls as EHM macro arguments — gated at 0, half by judgment
 

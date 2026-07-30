@@ -468,26 +468,33 @@ GlobalAddressingMode::AddressingMode AssemblySession::ResolveAddressingMode (
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  EstimateInstructionSize — how far to advance the PC past an instruction that
-//  could not be encoded
+//  EstimateErrorRecoverySize — how far to advance the PC past an instruction
+//  that could not be encoded
 //
 //  Error recovery only. The single caller reaches this after RecordError, once
 //  ResolveAddressingMode has named a mode the opcode table does not carry, so
-//  the assembly has already failed and there is no correct answer -- the goal is
-//  only to keep the labels on the following lines close enough to their true
-//  addresses that the remaining diagnostics stay useful instead of cascading.
+//  the assembly has already failed. The goal is only to keep the labels on the
+//  following lines close enough to their true addresses that the remaining
+//  diagnostics stay useful instead of cascading.
 //
-//  It is NOT the forward-reference sizing path, despite what an earlier version
-//  of this comment said. A forward reference that the table can encode is sized
-//  from the OpcodeEntry the caller already looked up; nothing routes here.
+//  It is NOT the forward-reference sizing path, despite what this function was
+//  called and commented for. A forward reference the table *can* encode is
+//  sized from the OpcodeEntry the caller already looked up; nothing routes here.
 //
-//  The best available guess is therefore whatever width ResolveAddressingMode
-//  just chose, which is why the (…) cases ask the opcode table the same question
-//  it asked rather than testing the mnemonic against "JMP".
+//  The best guess is the width the mnemonic actually has. For the (…) syntaxes
+//  that means asking whether this is a jump: JMP and JSR are the only mnemonics
+//  carrying JumpAbsolute, and both are 3 bytes in every form they have, while
+//  every other indirect form on either instruction set is 2.
+//
+//  Deliberately NOT "the size of the mode ResolveAddressingMode returned". That
+//  looks more principled and is worse: when nothing matches, the resolver
+//  returns a default -- ZeroPageXIndirect for `JMP (foo,X)` on NMOS -- that the
+//  mnemonic does not possess, and sizing it would advance 2 for an instruction
+//  with no 2-byte encoding anywhere.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-Byte AssemblySession::EstimateInstructionSize (OperandSyntax syntax, const std::string & mnemonic) const
+Byte AssemblySession::EstimateErrorRecoverySize (OperandSyntax syntax, const std::string & mnemonic) const
 {
     switch (syntax)
     {
@@ -500,17 +507,10 @@ Byte AssemblySession::EstimateInstructionSize (OperandSyntax syntax, const std::
             return 2;
 
         case OperandSyntax::IndirectX:
-            // (zp,X) is 2 bytes; (abs,X) is 3. Asking the table which one this
-            // mnemonic offers is the same question ResolveAddressingMode asks on
-            // the unresolved path, so the two agree by construction -- naming JMP
-            // here only agreed by coincidence, and stopped agreeing on an
-            // instruction set that lacks the 65C02 (abs,X) form.
-            return m_opcodeTable.HasMode (mnemonic, GlobalAddressingMode::AbsoluteXIndirect) ? 3 : 2;
-
         case OperandSyntax::Indirect:
-            // The 65C02 (zp) indirect is 2 bytes; every other (…) form -- the
-            // NMOS JMP indirect and its page-fixed 65C02 variant -- is 3.
-            return m_opcodeTable.HasMode (mnemonic, GlobalAddressingMode::ZeroPageIndirect) ? 2 : 3;
+            // A jump is 3 bytes -- JMP (abs), JMP (abs,X), JSR abs -- and every
+            // other parenthesized form is 2, on both instruction sets.
+            return m_opcodeTable.HasMode (mnemonic, GlobalAddressingMode::JumpAbsolute) ? 3 : 2;
 
         case OperandSyntax::IndexedX:
         case OperandSyntax::IndexedY:
@@ -3641,7 +3641,7 @@ HRESULT AssemblySession::ResolveAddressingAndSize (const PendingLine & current, 
                 }
 
                 info.hasError = true;
-                m_pc += EstimateInstructionSize (info.classified.syntax, info.parsed.mnemonic);
+                m_pc += EstimateErrorRecoverySize (info.classified.syntax, info.parsed.mnemonic);
             }
         }
     }

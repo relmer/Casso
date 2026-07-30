@@ -229,21 +229,21 @@ private:
     HRESULT ParseCmapMapping          (const std::string & arg);
 
     // Helpers moved from file-scope statics
-    static std::string              GetLowerExtension       (const std::string & filename);
-    static int                      HexCharToNibble         (char c);
-    static int                      HexByte                 (const std::string & s, size_t offset);
-    static std::vector<Byte>        ParseSRecord            (const std::string & content);
-    static std::vector<Byte>        ParseIntelHex           (const std::string & content);
-    static std::vector<std::string> GenerateByteDirectives  (const std::vector<Byte> & data);
-    bool                            IsBranchMnemonic        (const std::string & mnemonic) const;
-    static bool                     IsBitOpMnemonic         (const std::string & mnemonic);
-    Byte                            EstimateInstructionSize (OperandSyntax syntax, const std::string & mnemonic) const;
-    static std::string              ProcessEscapeSequences  (const std::string & str);
-    static bool                     EvaluateDirectiveArgs   (const std::string & argText,
-                                                             const ExprContext & ctx,
-                                                             std::vector<int32_t> & values,
-                                                             int lineNumber,
-                                                             std::vector<AssemblyError> & errors);
+    static std::string              GetLowerExtension         (const std::string & filename);
+    static int                      HexCharToNibble           (char c);
+    static int                      HexByte                   (const std::string & s, size_t offset);
+    static std::vector<Byte>        ParseSRecord              (const std::string & content);
+    static std::vector<Byte>        ParseIntelHex             (const std::string & content);
+    static std::vector<std::string> GenerateByteDirectives    (const std::vector<Byte> & data);
+    bool                            IsBranchMnemonic          (const std::string & mnemonic) const;
+    static bool                     IsBitOpMnemonic           (const std::string & mnemonic);
+    Byte                            EstimateErrorRecoverySize (OperandSyntax syntax, const std::string & mnemonic) const;
+    static std::string              ProcessEscapeSequences    (const std::string & str);
+    static bool                     EvaluateDirectiveArgs     (const std::string & argText,
+                                                               const ExprContext & ctx,
+                                                               std::vector<int32_t> & values,
+                                                               int lineNumber,
+                                                               std::vector<AssemblyError> & errors);
     GlobalAddressingMode::AddressingMode ResolveAddressingMode (OperandSyntax syntax,
                                                                  const std::string & mnemonic,
                                                                  int32_t value, bool resolved);
