@@ -331,7 +331,7 @@ flattened into "nothing to do": a discarded config parse error, `DiskSettings`
 reporting parse failures as "nothing saved", and `ApplyAndPersistTheme`
 persisting a theme name that never activated.
 
-### 4. Multiple return statements
+### 4. Multiple return statements — SCHEDULED LAST (largest scope)
 
 Not yet gated. **535 of 2,466 functions** have more than one `return`; **45 of
 those return `HRESULT`** and so violate the written rule outright ("Functions

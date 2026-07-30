@@ -294,8 +294,26 @@ bool AssemblySession::IsBranchMnemonic (const std::string & mnemonic) const
 
 bool AssemblySession::IsBitOpMnemonic (const std::string & mnemonic)
 {
-    return mnemonic == "RMB" || mnemonic == "SMB" ||
-           mnemonic == "BBR" || mnemonic == "BBS";
+    // A dialect fact, not a CPU one, which is why it cannot be answered from
+    // the opcode table the way IsBranchMnemonic now is: the table holds
+    // RMB0..RMB7, and these bare names exist only because as65 spells the bit
+    // as an operand. A second dialect supplies a different list here.
+    static constexpr std::string_view  s_kBareBitOps[] = { "RMB", "SMB", "BBR", "BBS" };
+
+    bool  found = false;
+
+
+
+    for (std::string_view name : s_kBareBitOps)
+    {
+        if (mnemonic == name)
+        {
+            found = true;
+            break;
+        }
+    }
+
+    return found;
 }
 
 
