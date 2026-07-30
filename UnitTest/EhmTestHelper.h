@@ -33,6 +33,12 @@ namespace UnitTestHelpers
     //      }
     //      Assert::IsTrue (FAILED (hr));
     //
+    //  Only Debug builds can be held to that, because Release compiles
+    //  EHM_BREAKPOINT down to ((void) 0) -- no handler runs, so nothing is
+    //  counted and "none arrived" carries no information. The scope still does
+    //  its job there: the guarded call runs and the test's own assertions on
+    //  the returned HRESULT still hold.
+    //
     ////////////////////////////////////////////////////////////////////////
 
     class ExpectedEhmAssert
@@ -44,9 +50,16 @@ namespace UnitTestHelpers
         ExpectedEhmAssert  (const ExpectedEhmAssert &) = delete;
         ExpectedEhmAssert & operator= (const ExpectedEhmAssert &) = delete;
 
-        // Live count, readable while the scope is still open -- so a test can
-        // assert "all six rejections asserted", not merely "at least one did".
-        int  Count () const;
+        // Live count, readable while the scope is still open. Always 0 where
+        // asserts are compiled out, so compare it with RequireCount rather
+        // than asserting on it directly.
+        int   Count () const;
+
+        // Asserts the guard fired exactly `expected` times -- "all six
+        // rejections asserted", not merely "at least one did". Does nothing
+        // where asserts are compiled out, which keeps that knowledge here
+        // instead of in every test that counts.
+        void  RequireCount (int expected) const;
 
     private:
         int   m_count = 0;

@@ -117,6 +117,18 @@ namespace UnitTestHelpers
     }
 
 
+    void ExpectedEhmAssert::RequireCount (int expected) const
+    {
+#if defined(DBG) || defined(DEBUG) || defined(_DEBUG)
+        Assert::AreEqual (expected, Count(),
+            L"ExpectedEhmAssert fired a different number of times than the "
+            L"test expects: a guard was added, removed, or stopped asserting");
+#else
+        (void) expected;
+#endif
+    }
+
+
     ExpectedEhmAssert::~ExpectedEhmAssert()
     {
         m_count      = s_expectedCount;
@@ -125,8 +137,26 @@ namespace UnitTestHelpers
         // A validation guard that stops firing is a silent regression: the
         // test would still pass on the return value while the assert -- the
         // thing that tells a developer they have a bug -- had quietly gone.
-        Assert::IsTrue (m_count > 0,
-            L"ExpectedEhmAssert saw no assertion: the guard it was written "
-            L"for is gone or no longer asserts");
+        //
+        // Two conditions on saying so, both learned the hard way.
+        //
+        // Release compiles EHM_BREAKPOINT to ((void) 0), so no assertion can
+        // arrive and a zero count means nothing. Checking anyway failed every
+        // one of these scopes in Release.
+        //
+        // And Assert::IsTrue reports by throwing. Throwing from a destructor
+        // while another exception is already unwinding calls std::terminate --
+        // a __fastfail, which kills the whole test host rather than failing one
+        // test. That is what turned the above into a 0xC0000409 that ended the
+        // Release run at test 1368 of 2804, with no summary and no named
+        // failure. Never report from here while an exception is in flight.
+#if defined(DBG) || defined(DEBUG) || defined(_DEBUG)
+        if (std::uncaught_exceptions() == 0)
+        {
+            Assert::IsTrue (m_count > 0,
+                L"ExpectedEhmAssert saw no assertion: the guard it was written "
+                L"for is gone or no longer asserts");
+        }
+#endif
     }
 }

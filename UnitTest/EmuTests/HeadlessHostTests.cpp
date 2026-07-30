@@ -120,8 +120,7 @@ public:
             hr = core.fixtures->OpenFixture ("", bytes);
             Assert::AreEqual (E_INVALIDARG, hr, L"empty path must be rejected");
 
-            Assert::AreEqual (6, expect.Count(),
-                L"all six rejections must assert, not just some");
+            expect.RequireCount (6);
         }
     }
 

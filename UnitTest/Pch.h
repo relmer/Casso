@@ -20,6 +20,7 @@
 
 #include <cstdlib>
 #include <cstring>
+#include <exception>
 #include <regex>
 
 #include <CppUnitTest.h>
