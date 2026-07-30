@@ -2629,18 +2629,14 @@ HRESULT AssemblySession::HandleIncludeDirective (const PendingLine & current, Li
 
 
 
-    if (m_options.fileReader == nullptr)
-    {
-        RecordError (current.sourceLineNumber, "No file reader configured for include");
-        goto Error;
-    }
+    // A user-facing diagnostic, not an infrastructure failure: the error goes
+    // into the result and assembly carries on, so hr stays S_OK.
+    CBRFEx (m_options.fileReader != nullptr, S_OK,
+            RecordError (current.sourceLineNumber, "No file reader configured for include"));
 
-    if (current.includeDepth >= kMaxIncludeDepth)
-    {
-        RecordError (current.sourceLineNumber,
-            "Include nesting depth exceeded (max " + std::to_string (kMaxIncludeDepth) + ")");
-        goto Error;
-    }
+    CBRFEx (current.includeDepth < kMaxIncludeDepth, S_OK,
+            RecordError (current.sourceLineNumber,
+                "Include nesting depth exceeded (max " + std::to_string (kMaxIncludeDepth) + ")"));
 
     {
         std::string filename = Parser::ParseQuotedString (info.parsed.directiveArg);
@@ -2659,11 +2655,7 @@ HRESULT AssemblySession::HandleIncludeDirective (const PendingLine & current, Li
 
         FileReadResult fr = m_options.fileReader->ReadFile (filename, m_options.baseDir);
 
-        if (!fr.success)
-        {
-            RecordError (current.sourceLineNumber, fr.error);
-            goto Error;
-        }
+        CBRFEx (fr.success, S_OK, RecordError (current.sourceLineNumber, fr.error));
 
         std::string ext = GetLowerExtension (filename);
         std::vector<std::string> synthLines;
@@ -2737,11 +2729,7 @@ HRESULT AssemblySession::StartStructDefinition (const PendingLine & current, Lin
     {
         auto args = Parser::SplitArgList (info.parsed.directiveArg);
 
-        if (args.empty())
-        {
-            RecordError (current.sourceLineNumber, "struct requires a name");
-            goto Error;
-        }
+        CBRFEx (!args.empty(), S_OK, RecordError (current.sourceLineNumber, "struct requires a name"));
 
         m_currentStruct             = {};
         m_currentStruct.name        = args[0];
@@ -2835,10 +2823,8 @@ HRESULT AssemblySession::ParseCmapMapping (const std::string & arg)
 
 
 
-    if (eqPos == std::string::npos)
-    {
-        goto Error;
-    }
+    // No '=' means this is not a constant definition after all.
+    BAIL_OUT_IF (eqPos == std::string::npos, S_OK);
 
     {
         std::string lhs = arg.substr (0, eqPos);
@@ -2919,18 +2905,15 @@ HRESULT AssemblySession::ExpandMacro (const PendingLine & current, LineInfo & in
 
 
 
-    if (macroIt == m_macros.end())
-    {
-        goto Error;
-    }
+    // Not a macro call; the line belongs to a later stage.
+    BAIL_OUT_IF (macroIt == m_macros.end(), S_OK);
 
-    if (current.macroDepth >= kMaxMacroDepth)
-    {
-        RecordError (current.sourceLineNumber,
-            "Macro nesting depth exceeded (max " + std::to_string (kMaxMacroDepth) + ")");
-        handled = true;
-        goto Error;
-    }
+    // Claimed even though it failed: the line was a macro call, so no later
+    // stage should try to reinterpret it.
+    CBRFEx (current.macroDepth < kMaxMacroDepth, S_OK,
+            RecordError (current.sourceLineNumber,
+                "Macro nesting depth exceeded (max " + std::to_string (kMaxMacroDepth) + ")");
+            handled = true);
 
     {
         std::vector<std::string> args;
@@ -3333,19 +3316,23 @@ HRESULT AssemblySession::StripForcedSubstitution (std::string & expanded)
 
 HRESULT AssemblySession::HandleColonlessLabel (const PendingLine & current, LineInfo & info, bool & handled)
 {
-    HRESULT hr = S_OK;
+    HRESULT  hr              = S_OK;
+    bool     fLooksLikeLabel = false;
 
     handled = false;
 
 
 
-    if (!info.parsed.startsAtColumn0 || !info.parsed.label.empty() ||
-        m_opcodeTable.IsMnemonic (info.parsed.mnemonic) ||
-        IsBitOpMnemonic (info.parsed.mnemonic) ||
-        m_macros.find (info.parsed.mnemonic) != m_macros.end())
-    {
-        goto Error;
-    }
+    // A colon-less label is whatever is left once every real mnemonic form
+    // has had its turn: it must start at column 0, carry no explicit label,
+    // and not be an opcode, a bit-op, or a macro name.
+    fLooksLikeLabel = info.parsed.startsAtColumn0 &&
+                      info.parsed.label.empty() &&
+                      !m_opcodeTable.IsMnemonic (info.parsed.mnemonic) &&
+                      !IsBitOpMnemonic (info.parsed.mnemonic) &&
+                      (m_macros.find (info.parsed.mnemonic) == m_macros.end());
+
+    BAIL_OUT_IF (!fLooksLikeLabel, S_OK);
 
     {
         std::string labelName;
@@ -3675,10 +3662,8 @@ HRESULT AssemblySession::HandleMultiNop (const PendingLine & current, LineInfo &
 
 
 
-    if (info.parsed.mnemonic != "NOP" || info.parsed.operand.empty())
-    {
-        goto Error;
-    }
+    // Only "nop <count>" is a multi-NOP; a bare NOP is an ordinary opcode.
+    BAIL_OUT_IF (info.parsed.mnemonic != "NOP" || info.parsed.operand.empty(), S_OK);
 
     {
         m_pass1Ctx.currentPC = (int32_t) m_pc;
@@ -4477,15 +4462,11 @@ HRESULT AssemblySession::BuildListingEntry (const LineInfo & info, Word emitPCSt
 
 
 
-    if (!m_options.generateListing)
-    {
-        goto Error;
-    }
+    BAIL_OUT_IF (!m_options.generateListing, S_OK);
 
-    if (info.listingSuppressed && !info.conditionalSkip)
-    {
-        goto Error;
-    }
+    // A suppressed line still lists when it was skipped by a conditional, so
+    // the listing shows which branch was taken.
+    BAIL_OUT_IF (info.listingSuppressed && !info.conditionalSkip, S_OK);
 
     {
         AssemblyLine listLine = {};
