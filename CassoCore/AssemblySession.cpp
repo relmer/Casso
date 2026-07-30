@@ -10,6 +10,60 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  AssemblySession::ToUpperCase
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string AssemblySession::ToUpperCase (const std::string & text)
+{
+    std::string  upper = text;
+
+
+
+    for (char & c : upper)
+    {
+        c = (char) toupper ((unsigned char) c);
+    }
+
+    return upper;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AssemblySession::GetLeadingWord
+//
+//  The first whitespace-delimited word, ignoring any indentation before it.
+//  Returns an empty string for text that is blank or whitespace only.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string AssemblySession::GetLeadingWord (const std::string & text)
+{
+    std::string  word;
+    size_t       start = text.find_first_not_of (" \t");
+    size_t       end   = 0;
+
+
+
+    if (start != std::string::npos)
+    {
+        end  = text.find_first_of (" \t", start);
+        word = (end == std::string::npos) ? text.substr (start) : text.substr (start, end - start);
+    }
+
+    return word;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  GetLowerExtension
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -1469,102 +1523,163 @@ HRESULT AssemblySession::CheckEndStruct (const PendingLine & current, LineInfo &
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  AssemblySession::GetStructMemberTypes
+//
+//  The storage directives a struct member may be declared with, and how wide
+//  one element of each is. Only the *widths* live here -- the spellings do not,
+//  because DirectiveTable already owns those. Before this was a token table it
+//  was an if/else chain naming DS/DSB/RMB/DB/BYT/BYTE/FCB/DW/WORD/FCW/FDB/DD, a
+//  second copy of the vocabulary that a dialect adding a synonym would not have
+//  reached; struct members would silently have stopped recognizing it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::span<const AssemblySession::StructMemberType> AssemblySession::GetStructMemberTypes()
+{
+    static constexpr StructMemberType  s_kTypes[] =
+    {
+        { Directive::Ds,   kSizeFromOperand },
+        { Directive::Byte, 1                },
+        { Directive::Word, 2                },
+        { Directive::Dd,   4                },
+    };
+
+    return std::span<const StructMemberType> (s_kTypes, std::size (s_kTypes));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AssemblySession::GetStructMemberSize
+//
+//  Splits a member declaration's operand -- `<directive> [count]` -- and
+//  returns the number of bytes it reserves, or 0 when the leading word is not a
+//  storage directive at all.
+//
+//  FromStorageSpelling rather than FromSpelling: inside a .STRUCT body there is
+//  no instruction to be ambiguous with, so `count rmb 4` is unambiguously four
+//  reserved bytes.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT AssemblySession::GetStructMemberSize (const std::string & operand, int32_t & outSize)
+{
+    HRESULT                   hr        = S_OK;
+    size_t                    split     = operand.find_first_of (" \t");
+    Directive                 token     = DirectiveTable::FromStorageSpelling (ToUpperCase (operand.substr (0, split)));
+    std::string               countExpr = (split == std::string::npos) ? "" : operand.substr (split);
+    size_t                    exprStart = countExpr.find_first_not_of (" \t");
+    const StructMemberType *  match     = nullptr;
+
+    outSize   = 0;
+    countExpr = (exprStart == std::string::npos) ? countExpr : countExpr.substr (exprStart);
+
+
+
+    for (const StructMemberType & type : GetStructMemberTypes())
+    {
+        if (type.token == token)
+        {
+            match = &type;
+            break;
+        }
+    }
+
+    // No match leaves outSize at 0, and the caller drops the line.
+    if (match != nullptr)
+    {
+        if (match->elementSize == kSizeFromOperand)
+        {
+            // `.DS <count>` -- the operand carries the width. An expression that
+            // does not evaluate falls back to one byte rather than dropping the
+            // member, so offsets after it stay plausible for the rest of pass 1.
+            m_pass1Ctx.currentPC = (int32_t) m_pc;
+
+            ExprResult  er = ExpressionEvaluator::Evaluate (countExpr, m_pass1Ctx);
+
+            outSize = er.success ? er.value : 1;
+        }
+        else
+        {
+            outSize = match->elementSize;
+        }
+    }
+
+// Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AssemblySession::RecordStructMember
+//
+//  Publishes one member as `<Struct>.<member>` and advances the running offset.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT AssemblySession::RecordStructMember (const std::string & name, int32_t size)
+{
+    HRESULT       hr      = S_OK;
+    StructMember  member  = {};
+    std::string   symName = m_currentStruct.name + "." + name;
+
+
+
+    member.name   = name;
+    member.offset = m_currentStruct.currentOffset;
+    member.size   = size;
+    m_currentStruct.members.push_back (member);
+
+    m_symbols[symName]     = (Word) m_currentStruct.currentOffset;
+    m_symbolKinds[symName] = SymbolKind::Equ;
+    m_exprSymbols[symName] = m_currentStruct.currentOffset;
+
+    m_currentStruct.currentOffset += size;
+
+// Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  AssemblySession::ParseStructMember
+//
+//  One `<name> <directive> [count]` line inside a .STRUCT body. The name comes
+//  from the raw text rather than the parsed mnemonic so it keeps its original
+//  case; the parser has already upper-cased its copy.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT AssemblySession::ParseStructMember (const PendingLine & current, LineInfo & info)
 {
-    HRESULT hr = S_OK;
-
-    std::string mnUpper    = info.parsed.mnemonic;
-    std::string memberName;
-    int32_t     memberSize = 0;
+    HRESULT      hr         = S_OK;
+    std::string  memberName = GetLeadingWord (current.text);
+    int32_t      memberSize = 0;
 
 
 
-    if (!mnUpper.empty() && !info.parsed.operand.empty())
-    {
-        std::string opStr   = info.parsed.operand;
-        std::string opUpper = opStr;
+    BAIL_OUT_IF (info.parsed.mnemonic.empty() || info.parsed.operand.empty(), S_OK);
 
-        for (auto & c : opUpper)
-        {
-            c = (char) toupper ((unsigned char) c);
-        }
+    hr = GetStructMemberSize (info.parsed.operand, memberSize);
+    CHR (hr);
 
-        size_t sp = opUpper.find_first_of (" \t");
-        std::string directive = (sp == std::string::npos) ? opUpper : opUpper.substr (0, sp);
-        std::string sizeExpr;
+    BAIL_OUT_IF (memberName.empty() || memberSize <= 0, S_OK);
 
-        if (sp != std::string::npos)
-        {
-            sizeExpr = opStr.substr (sp);
-            size_t ss = sizeExpr.find_first_not_of (" \t");
+    hr = RecordStructMember (memberName, memberSize);
+    CHR (hr);
 
-            if (ss != std::string::npos)
-            {
-                sizeExpr = sizeExpr.substr (ss);
-            }
-        }
-
-        // Recover original-case member name from raw text
-        std::string rawTrimmed = current.text;
-        size_t rs = rawTrimmed.find_first_not_of (" \t");
-
-        if (rs != std::string::npos)
-        {
-            rawTrimmed = rawTrimmed.substr (rs);
-        }
-
-        size_t re = rawTrimmed.find_first_of (" \t");
-
-        if (re != std::string::npos)
-        {
-            memberName = rawTrimmed.substr (0, re);
-        }
-        else
-        {
-            memberName = rawTrimmed;
-        }
-
-        if (directive == "DS" || directive == "DSB" || directive == "RMB")
-        {
-            m_pass1Ctx.currentPC = (int32_t) m_pc;
-            ExprResult er = ExpressionEvaluator::Evaluate (sizeExpr, m_pass1Ctx);
-            memberSize = er.success ? er.value : 1;
-        }
-        else if (directive == "DB" || directive == "BYT" || directive == "BYTE" || directive == "FCB")
-        {
-            memberSize = 1;
-        }
-        else if (directive == "DW" || directive == "WORD" || directive == "FCW" || directive == "FDB")
-        {
-            memberSize = 2;
-        }
-        else if (directive == "DD")
-        {
-            memberSize = 4;
-        }
-    }
-
-    if (!memberName.empty() && memberSize > 0)
-    {
-        StructMember member = {};
-        member.name   = memberName;
-        member.offset = m_currentStruct.currentOffset;
-        member.size   = memberSize;
-        m_currentStruct.members.push_back (member);
-
-        std::string symName = m_currentStruct.name + "." + memberName;
-        m_symbols[symName]     = (Word) m_currentStruct.currentOffset;
-        m_symbolKinds[symName] = SymbolKind::Equ;
-        m_exprSymbols[symName] = m_currentStruct.currentOffset;
-
-        m_currentStruct.currentOffset += memberSize;
-    }
-
-// Error:
+Error:
     return hr;
 }
 

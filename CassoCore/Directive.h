@@ -91,6 +91,21 @@ public:
     // Returns Directive::None when the spelling is not a directive.
     static Directive  FromSpelling (const std::string & word);
 
+    // Only the spellings that are ambiguous with an instruction and so cannot
+    // sit in the main table -- today just as65's RMB, which is .DS given one
+    // operand and the Rockwell bit instruction given two. Returns None for
+    // everything else, ordinary directives included, so a caller that has
+    // already missed in FromSpelling can check here without rescanning.
+    //
+    // The caller owns the disambiguation: resolving RMB without first ruling
+    // the instruction out would turn `rmb 3,$20` into storage.
+    static Directive  FromAmbiguousSpelling (const std::string & word);
+
+    // FromSpelling, falling back to FromAmbiguousSpelling. For callers whose
+    // context rules the instruction out outright -- inside a .STRUCT body every
+    // member declaration names a storage directive, so nothing is ambiguous.
+    static Directive  FromStorageSpelling (const std::string & word);
+
     // The canonical dotted spelling, for diagnostics and listings.
     static const char * GetCanonicalName (Directive directive);
 

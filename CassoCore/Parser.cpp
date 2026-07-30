@@ -315,21 +315,28 @@ ParsedLine Parser::ParseLine (const std::string & line, int lineNumber)
         canonicalDirective = DirectiveTable::GetCanonicalName (directiveToken);
     }
 
-    // RMB is dual-purpose: `rmb <count>` reserves storage (a .DS synonym), but
-    // as65 also spells the Rockwell "reset memory bit" instruction as
-    // `rmb <bit>,<zp>`. The two-operand comma form is the instruction and must
-    // reach the mnemonic path; a bare count stays the directive.
+    // A spelling the table rejected may still be one of the dual-purpose forms
+    // that cannot live in it -- today only RMB, where `rmb <count>` reserves
+    // storage but `rmb <bit>,<zp>` is the Rockwell instruction. The comma is
+    // what separates them, so once it is absent the instruction is ruled out
+    // and DirectiveTable can resolve the rest.
     //
     // The dialect's other dual-purpose mnemonic, `nop <count>`, cannot be
     // decided here -- see AssemblySession::HandleMultiNop.
-    if (canonicalDirective.empty() && firstWordUpper == "RMB")
+    if (directiveToken == Directive::None)
     {
-        std::string rmbArg = (spacePos == std::string::npos) ? "" : remainder.substr (spacePos + 1);
+        Directive ambiguous = DirectiveTable::FromAmbiguousSpelling (firstWordUpper);
 
-        if (rmbArg.find (',') == std::string::npos)
+        if (ambiguous != Directive::None)
         {
-            canonicalDirective = ".DS";
-            directiveToken     = Directive::Ds;
+            std::string operandText = (spacePos == std::string::npos) ? "" : remainder.substr (spacePos + 1);
+
+            // The comma is what rules the instruction out.
+            if (operandText.find (',') == std::string::npos)
+            {
+                directiveToken     = ambiguous;
+                canonicalDirective = DirectiveTable::GetCanonicalName (ambiguous);
+            }
         }
     }
 

@@ -226,12 +226,42 @@ Stages, each verifiable byte-for-byte (see below):
    nothing new: a CPU simply has no `Microcode` row for a mnemonic it lacks,
    which is what `IsMnemonic()` already reports.
 
-**Not solved by this**, so do not expect them to fall out: `ParseStructMember`
-(101 lines, ~80-line `if`) is a field-declaration parser wanting its own small
-type-size table; `ResolveAddressingMode` (140 lines, 21 returns) is a
-*matrix* — syntax x mnemonic class -> mode — so it wants a 2-D lookup, a
-different table than the directive one; `ExpandMacro`'s scope is a
-decomposition problem.
+**Not solved by this**, so do not expect them to fall out:
+`ResolveAddressingMode` (140 lines, 21 returns) is a *matrix* — syntax x
+mnemonic class -> mode — so it wants a 2-D lookup, a different table than the
+directive one; `ExpandMacro`'s scope is a decomposition problem.
+
+**8. `ParseStructMember` — DONE.** Filed above as wanting "its own small
+type-size table", which turned out to be half right and half backwards. The
+~80-line `if` was naming `DS/DSB/RMB`, `DB/BYT/BYTE/FCB`, `DW/WORD/FCW/FDB`,
+`DD` — a **second copy of the spelling vocabulary**, one that a dialect adding
+a synonym would never have reached, so struct members would silently have
+stopped recognizing it. Only the *widths* are local knowledge. So the spellings
+went to `DirectiveTable` and the table here holds four rows keyed by token,
+with `kSizeFromOperand` marking the one that reads its count from the operand.
+94 lines became a 15-line orchestrator plus `GetStructMemberSize` and
+`RecordStructMember`.
+
+`RMB` was the wrinkle: it is deliberately *not* in `s_kSpellings`, because
+`rmb <count>` is storage while `rmb <bit>,<zp>` is the Rockwell instruction,
+and a flat name->token table cannot say that. It now sits in its own
+`s_kAmbiguousSpellings` beside the main one, reached by
+`FromAmbiguousSpelling` (only the ambiguous forms, for a caller that already
+missed in `FromSpelling`) and `FromStorageSpelling` (both, for a caller whose
+context rules the instruction out — inside a `.STRUCT` body nothing is
+ambiguous). That deletes the last `== "RMB"` literal from `Parser.cpp`.
+
+Note the shape of the first draft: routing the parser through
+`FromStorageSpelling` was correct but made every non-directive line rescan all
+68 rows to re-derive a miss the caller already knew about. Splitting the
+one-row ambiguous table out fixed it. A shared helper is not free just because
+it is shared — check what the hot caller already knows.
+
+Coverage was the usual story: only `ds`/`db`/`dw` were tested, so nine of the
+twelve spellings had none. `StructMemberSpellingTests` now sweeps all of them,
+plus case-insensitivity, an unknown type word, and — guarding the direction
+this change could have broken — that `rmb 3,$20` outside a struct is still the
+Rockwell instruction.
 
 **Caveat on table-driving everything:** a table earns its place when the rows
 are uniform. Where handlers need genuinely different arguments you get a

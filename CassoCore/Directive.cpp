@@ -128,6 +128,80 @@ Directive DirectiveTable::FromSpelling (const std::string & word)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  s_kAmbiguousSpellings
+//
+//  Spellings that cannot live in s_kSpellings because they also name an
+//  instruction. as65 writes `rmb <count>` for reserved storage and
+//  `rmb <bit>,<zp>` for the Rockwell instruction, so which one it is depends on
+//  the operand -- something a flat name->token table cannot express. Listing
+//  RMB above would silently turn every Rockwell RMB into a .DS.
+//
+//  A table of one, kept a table anyway: it is the place a second dialect
+//  declares its own ambiguous forms, and it keeps the exception beside the rule
+//  it is an exception to instead of scattered across the callers that need it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+static constexpr DirectiveTable::Spelling  s_kAmbiguousSpellings[] =
+{
+    { "RMB", Directive::Ds },
+};
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DirectiveTable::FromAmbiguousSpelling
+//
+////////////////////////////////////////////////////////////////////////////////
+
+Directive DirectiveTable::FromAmbiguousSpelling (const std::string & word)
+{
+    Directive  token = Directive::None;
+
+
+
+    for (const Spelling & entry : s_kAmbiguousSpellings)
+    {
+        if (word == entry.name)
+        {
+            token = entry.token;
+            break;
+        }
+    }
+
+    return token;
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DirectiveTable::FromStorageSpelling
+//
+////////////////////////////////////////////////////////////////////////////////
+
+Directive DirectiveTable::FromStorageSpelling (const std::string & word)
+{
+    Directive  token = FromSpelling (word);
+
+
+
+    if (token == Directive::None)
+    {
+        token = FromAmbiguousSpelling (word);
+    }
+
+    return token;
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DirectiveTable::GetAllSpellings
 //
 //  Exposes the vocabulary so tests can assert over all of it, and so a second

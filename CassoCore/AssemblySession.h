@@ -204,6 +204,8 @@ private:
     // Phase 5 sub-helpers
     HRESULT CheckEndStruct            (const PendingLine & current, LineInfo & info, bool & isEnd);
     HRESULT ParseStructMember         (const PendingLine & current, LineInfo & info);
+    HRESULT GetStructMemberSize       (const std::string & operand, int32_t & outSize);
+    HRESULT RecordStructMember        (const std::string & name, int32_t size);
     HRESULT HandleIfDirective         (const PendingLine & current, const std::string & condArg);
     HRESULT HandleIfdefDirective      (const PendingLine & current, Directive token,
                                        const std::string & condArg);
@@ -229,6 +231,21 @@ private:
     HRESULT ParseCmapMapping          (const std::string & arg);
 
     // Helpers moved from file-scope statics
+    // How wide one element of a struct member is, keyed by the directive that
+    // declared it. `elementSize` is kSizeFromOperand when the operand supplies
+    // the count instead (`.DS`), and a member type absent from the table is not
+    // a storage directive at all.
+    struct StructMemberType
+    {
+        Directive  token;
+        int32_t    elementSize;
+    };
+
+    static constexpr int32_t        kSizeFromOperand = -1;
+
+    static std::span<const StructMemberType> GetStructMemberTypes();
+    static std::string              GetLeadingWord            (const std::string & text);
+    static std::string              ToUpperCase               (const std::string & text);
     static std::string              GetLowerExtension         (const std::string & filename);
     static int                      HexCharToNibble           (char c);
     static int                      HexByte                   (const std::string & s, size_t offset);
