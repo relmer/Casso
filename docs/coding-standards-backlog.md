@@ -265,6 +265,43 @@ push on 15 sites in files this branch had merely *moved*, which is the
 baseline problem any new rule has on a dirty tree, and the signal that the
 rule was wrong rather than the code.
 
+### 2d. Files that mention `HRESULT` but use no EHM at all (8)
+
+Posited as "any .cpp not using EHM is non-compliant". Measured: 303 of 414
+`.cpp` files use no EHM, but that number is not the finding — most have no
+`HRESULT` anywhere (pure `void`/value code with no failure path), and 60 of
+the 68 that do are unit tests, where `Assert::` is the correct idiom.
+
+The sharp version of the rule is **a file that mentions `HRESULT` and uses no
+EHM macro**, which is 8 production files:
+
+| File | Lines |
+|---|---:|
+| `Casso/Ui/Dialogs/StartupDownloadDialog.cpp` | 710 |
+| `Casso/Ui/ThemeLoader.cpp` | 549 |
+| `CassoEmuCore/Core/MemoryBus.cpp` | 374 |
+| `CassoEmuCore/Core/PathResolver.cpp` | 276 |
+| `CassoCore/Cpu6502.cpp` | 267 |
+| `Dxui/Theme/DxuiDwm.cpp` | 234 |
+| `Casso/Ui/DriveWidgetController.cpp` | 161 |
+| `CassoEmuCore/Core/CpuFactory.cpp` | 44 |
+
+(`CassoCore/Ehm.cpp` also matches and is exempt — it implements the macros.)
+
+Spot-checking three confirms the concern is real, and `DxuiDwm.cpp` shows why
+it matters: its only `HRESULT` mention is the comment *"Best-effort: ignore
+HRESULT"*. It ignores results **by prose rather than by
+`IGNORE_RETURN_VALUE`**, so a deliberate decision is invisible to grep and
+indistinguishable from an oversight. `CpuFactory.cpp` hand-rolls
+`hr = E_INVALIDARG; return hr;` where `CBRAEx` is the sanctioned form.
+`DriveWidgetController::LoadDocument` returns `HRESULT` with no EHM at all.
+
+**Gateable as a file-level check** rather than a line regex: file matches
+`HRESULT` and matches no EHM macro. That is a different shape from every
+existing rule in `CheckStyle.ps1` (all of which are per-line), so it needs a
+second pass mode -- worth adding, since it is exactly the class of drift no
+line rule can see.
+
 ### 3. `CS0009` — producing `S_FALSE` — DONE
 
 Every site asked the same question: what does the second outcome *mean*? Three
