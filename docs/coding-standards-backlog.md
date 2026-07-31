@@ -493,6 +493,26 @@ and notify are mutually exclusive. And `Cpu65C02Tests.cpp:342` deliberately
 calls `CpuFactory::Create ("z80", ...)` expecting failure, unwrapped by
 `ExpectedEhmAssert`, so adding the assert would break a passing test.
 
+**The first pass at `ThemeLoader` stopped too early**, and the reasoning is
+worth keeping because it is a tempting mistake. I converted the *error* paths
+and left 26 optional reads written as
+`if (SUCCEEDED (crtObj->GetNumber ("brightness", d)))`, on the grounds that
+CS0011 governs EHM conditions and this is a plain `if`. True of the gate,
+false of the rule: the standards say the ban applies to **all** macros, and
+`SUCCEEDED (...)` is a macro with a call — an out-param call at that — inside
+it. "The gate does not flag it" is not the same as "the rule allows it".
+
+The fix was not 26 hoisted `hr` locals. Four presence helpers — `HasBool`,
+`HasNumber`, `HasString`, `HasObject` — turn each site into an ordinary call
+in an ordinary `if`, which no rule objects to, and `HasObject` folds in the
+`&& ptr != nullptr` that all nine object sites repeated. They are file-scope
+statics because `ThemeLoader` and `LoadedTheme` both use them, so no single
+class owns them — the same call as the shared-test-helper exception above.
+
+**Worth noting the gate cannot see this class of violation at all.** CS0011
+scans EHM macros only. Extending it to `SUCCEEDED`/`FAILED` would be easy and
+is probably right; it is not done, so for now this one is review-only.
+
 **Coverage note.** The `ThemeLoader` tests asserted `FAILED (hr)` and the
 structured `ThemeLoadResult`, but never the returned `HRESULT` — exactly the
 logic the rewrite touched. Three tests added pinning `E_NOTIMPL` for a

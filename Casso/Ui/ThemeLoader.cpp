@@ -29,6 +29,72 @@ std::wstring  ThemeLoader::Utf8ToWide (const std::string & s)
 }
 
 
+//  Presence tests for optional members. Every caller used to write
+//  SUCCEEDED (obj.GetNumber (key, out)) inline, which puts a call inside a
+//  macro argument -- forbidden for the same reason it is in an EHM condition,
+//  and doubly awkward because the macro hid a call with an out param. Wrapping
+//  it turns each site into an ordinary call in an ordinary `if`, which the
+//  rule has no quarrel with.
+
+static bool  HasBool (const JsonValue & obj, const std::string & key, bool & out)
+{
+    HRESULT  hr     = S_OK;
+    bool     result = false;
+
+
+
+    hr     = obj.GetBool (key, out);
+    result = SUCCEEDED (hr);
+
+    return result;
+}
+
+
+static bool  HasNumber (const JsonValue & obj, const std::string & key, double & out)
+{
+    HRESULT  hr     = S_OK;
+    bool     result = false;
+
+
+
+    hr     = obj.GetNumber (key, out);
+    result = SUCCEEDED (hr);
+
+    return result;
+}
+
+
+static bool  HasString (const JsonValue & obj, const std::string & key, std::string & out)
+{
+    HRESULT  hr     = S_OK;
+    bool     result = false;
+
+
+
+    hr     = obj.GetString (key, out);
+    result = SUCCEEDED (hr);
+
+    return result;
+}
+
+
+//  Folds in the null check every caller repeated after the SUCCEEDED test.
+
+static bool  HasObject (const JsonValue & obj, const std::string & key, const JsonValue * & out)
+{
+    HRESULT  hr     = S_OK;
+    bool     result = false;
+
+
+
+    out    = nullptr;
+    hr     = obj.GetObject (key, out);
+    result = SUCCEEDED (hr) && out != nullptr;
+
+    return result;
+}
+
+
 //  The three optional getters below swallow failure by contract -- absent or
 //  wrong-typed means "use the fallback", not an error to report. They still
 //  call a failable API, so they take the documented non-HRESULT EHM shape: a
@@ -205,7 +271,6 @@ HRESULT ThemeLoader::ParseMetadata (
     const JsonValue *   bleedObj      = nullptr;
     int                 themeVersion  = 0;
     JsonType            rootType      = JsonType::Null;
-    HRESULT             hrObject      = S_OK;
     bool                present       = false;
 
 
@@ -290,70 +355,65 @@ HRESULT ThemeLoader::ParseMetadata (
 
     // ---- required: uiTokens + driveVisualProfile --------------------------
 
-    // These five report E_INVALIDARG whatever the getter said, so the getter's
-    // own code is folded into a presence flag rather than carried.
+    // These six report E_INVALIDARG whatever the getter said, so the getter's
+    // own code never has to be carried -- a presence flag says it all. Missing
+    // and present-but-empty are the same answer to the caller.
 
-    hrObject = root.GetObject ("uiTokens", uiTokensObj);
-    present  = SUCCEEDED (hrObject) && uiTokensObj != nullptr;
-
+    present = HasObject (root, "uiTokens", uiTokensObj);
     CBRFEx (present, E_INVALIDARG,
             outError.code    = ThemeLoadResult::MetadataInvalid;
             outError.message = "theme.json missing required `uiTokens` object");
 
     outTheme.uiTokens = *uiTokensObj;
 
-    hrObject = root.GetObject ("driveVisualProfile", driveProfile);
-    present  = SUCCEEDED (hrObject) && driveProfile != nullptr;
-
+    present = HasObject (root, "driveVisualProfile", driveProfile);
     CBRFEx (present, E_INVALIDARG,
             outError.code    = ThemeLoadResult::MetadataInvalid;
             outError.message = "theme.json missing required `driveVisualProfile` object");
 
-    hrObject = driveProfile->GetString ("style", outTheme.driveVisualProfile.style);
-    present  = SUCCEEDED (hrObject) && !outTheme.driveVisualProfile.style.empty();
-
+    present = HasString (*driveProfile, "style", outTheme.driveVisualProfile.style)
+              && !outTheme.driveVisualProfile.style.empty();
     CBRFEx (present, E_INVALIDARG,
             outError.code    = ThemeLoadResult::MetadataInvalid;
             outError.message = "driveVisualProfile.style is required");
 
-    hrObject = driveProfile->GetString ("colorway", outTheme.driveVisualProfile.colorway);
-    present  = SUCCEEDED (hrObject) && !outTheme.driveVisualProfile.colorway.empty();
-
+    present = HasString (*driveProfile, "colorway", outTheme.driveVisualProfile.colorway)
+              && !outTheme.driveVisualProfile.colorway.empty();
     CBRFEx (present, E_INVALIDARG,
             outError.code    = ThemeLoadResult::MetadataInvalid;
             outError.message = "driveVisualProfile.colorway is required");
 
-    hrObject = driveProfile->GetString ("doorAnimation", outTheme.driveVisualProfile.doorAnimation);
-    present  = SUCCEEDED (hrObject) && !outTheme.driveVisualProfile.doorAnimation.empty();
-
+    present = HasString (*driveProfile, "doorAnimation", outTheme.driveVisualProfile.doorAnimation)
+              && !outTheme.driveVisualProfile.doorAnimation.empty();
     CBRFEx (present, E_INVALIDARG,
             outError.code    = ThemeLoadResult::MetadataInvalid;
             outError.message = "driveVisualProfile.doorAnimation is required");
 
-    hrObject = driveProfile->GetString ("syncChannel", outTheme.driveVisualProfile.syncChannel);
-    present  = SUCCEEDED (hrObject) && !outTheme.driveVisualProfile.syncChannel.empty();
-
+    present = HasString (*driveProfile, "syncChannel", outTheme.driveVisualProfile.syncChannel)
+              && !outTheme.driveVisualProfile.syncChannel.empty();
     CBRFEx (present, E_INVALIDARG,
             outError.code    = ThemeLoadResult::MetadataInvalid;
             outError.message = "driveVisualProfile.syncChannel is required");
 
     // ---- crtDefaults (all optional; clamped to schema bounds) -------------
 
-    if (SUCCEEDED (root.GetObject ("crtDefaults", crtObj)) && crtObj != nullptr)
+    if (HasObject (root, "crtDefaults", crtObj))
     {
         double  d = 0.0;
-        if (SUCCEEDED (crtObj->GetNumber ("brightness", d)))
+
+        if (HasNumber (*crtObj, "brightness", d))
         {
             outTheme.crtDefaults.brightness    = (float) d;
             outTheme.crtDefaults.hasBrightness = true;
         }
-        if (SUCCEEDED (crtObj->GetNumber ("contrast", d)))
+
+        if (HasNumber (*crtObj, "contrast", d))
         {
             outTheme.crtDefaults.contrast    = (float) d;
             outTheme.crtDefaults.hasContrast = true;
         }
 
-        if (SUCCEEDED (crtObj->GetObject ("scanlines", scanObj)) && scanObj != nullptr)
+        if (HasObject (*crtObj, "scanlines", scanObj))
         {
             outTheme.crtDefaults.scanlinesEnabled   = GetBoolOpt   (*scanObj, "enabled",
                                                                     outTheme.crtDefaults.scanlinesEnabled);
@@ -361,7 +421,8 @@ HRESULT ThemeLoader::ParseMetadata (
                                                                             outTheme.crtDefaults.scanlinesIntensity);
             outTheme.crtDefaults.hasScanlines       = true;
         }
-        if (SUCCEEDED (crtObj->GetObject ("bloom", bloomObj)) && bloomObj != nullptr)
+
+        if (HasObject (*crtObj, "bloom", bloomObj))
         {
             outTheme.crtDefaults.bloomEnabled  = GetBoolOpt (*bloomObj, "enabled",
                                                              outTheme.crtDefaults.bloomEnabled);
@@ -371,7 +432,8 @@ HRESULT ThemeLoader::ParseMetadata (
                                                                        outTheme.crtDefaults.bloomStrength);
             outTheme.crtDefaults.hasBloom      = true;
         }
-        if (SUCCEEDED (crtObj->GetObject ("colorBleed", bleedObj)) && bleedObj != nullptr)
+
+        if (HasObject (*crtObj, "colorBleed", bleedObj))
         {
             outTheme.crtDefaults.colorBleedEnabled = GetBoolOpt (*bleedObj, "enabled",
                                                                  outTheme.crtDefaults.colorBleedEnabled);
@@ -386,7 +448,7 @@ HRESULT ThemeLoader::ParseMetadata (
     {
         const JsonValue *  overridesObj = nullptr;
 
-        if (SUCCEEDED (root.GetObject ("variantOverrides", overridesObj)) && overridesObj != nullptr)
+        if (HasObject (root, "variantOverrides", overridesObj))
         {
             const auto &  entries = overridesObj->GetObjectEntries();
             size_t        i       = 0;
@@ -456,46 +518,56 @@ LoadedTheme LoadedTheme::ResolveForMachine (const std::string & machineDisplayNa
         const JsonValue *  driveObj = nullptr;
         bool               mica     = false;
 
-        if (SUCCEEDED (override_->GetObject ("crtDefaults", crtObj)) && crtObj != nullptr)
+        if (HasObject (*override_, "crtDefaults", crtObj))
         {
             double  d = 0.0;
-            if (SUCCEEDED (crtObj->GetNumber ("brightness", d))) { result.crtDefaults.brightness = (float) d; result.crtDefaults.hasBrightness = true; }
-            if (SUCCEEDED (crtObj->GetNumber ("contrast",   d))) { result.crtDefaults.contrast   = (float) d; result.crtDefaults.hasContrast   = true; }
 
-            if (SUCCEEDED (crtObj->GetObject ("scanlines", scanObj)) && scanObj != nullptr)
+            if (HasNumber (*crtObj, "brightness", d)) { result.crtDefaults.brightness = (float) d; result.crtDefaults.hasBrightness = true; }
+            if (HasNumber (*crtObj, "contrast",   d)) { result.crtDefaults.contrast   = (float) d; result.crtDefaults.hasContrast   = true; }
+
+            if (HasObject (*crtObj, "scanlines", scanObj))
             {
                 bool  b = false;
-                if (SUCCEEDED (scanObj->GetBool   ("enabled",   b))) { result.crtDefaults.scanlinesEnabled   = b; }
-                if (SUCCEEDED (scanObj->GetNumber ("intensity", d))) { result.crtDefaults.scanlinesIntensity = (float) d; }
+
+                if (HasBool   (*scanObj, "enabled",   b)) { result.crtDefaults.scanlinesEnabled   = b; }
+                if (HasNumber (*scanObj, "intensity", d)) { result.crtDefaults.scanlinesIntensity = (float) d; }
+
                 result.crtDefaults.hasScanlines = true;
             }
-            if (SUCCEEDED (crtObj->GetObject ("bloom", bloomObj)) && bloomObj != nullptr)
+
+            if (HasObject (*crtObj, "bloom", bloomObj))
             {
                 bool  b = false;
-                if (SUCCEEDED (bloomObj->GetBool   ("enabled",  b))) { result.crtDefaults.bloomEnabled  = b; }
-                if (SUCCEEDED (bloomObj->GetNumber ("radius",   d))) { result.crtDefaults.bloomRadius   = (float) d; }
-                if (SUCCEEDED (bloomObj->GetNumber ("strength", d))) { result.crtDefaults.bloomStrength = (float) d; }
+
+                if (HasBool   (*bloomObj, "enabled",  b)) { result.crtDefaults.bloomEnabled  = b; }
+                if (HasNumber (*bloomObj, "radius",   d)) { result.crtDefaults.bloomRadius   = (float) d; }
+                if (HasNumber (*bloomObj, "strength", d)) { result.crtDefaults.bloomStrength = (float) d; }
+
                 result.crtDefaults.hasBloom = true;
             }
-            if (SUCCEEDED (crtObj->GetObject ("colorBleed", bleedObj)) && bleedObj != nullptr)
+
+            if (HasObject (*crtObj, "colorBleed", bleedObj))
             {
                 bool  b = false;
-                if (SUCCEEDED (bleedObj->GetBool   ("enabled", b))) { result.crtDefaults.colorBleedEnabled = b; }
-                if (SUCCEEDED (bleedObj->GetNumber ("width",   d))) { result.crtDefaults.colorBleedWidth   = (float) d; }
+
+                if (HasBool   (*bleedObj, "enabled", b)) { result.crtDefaults.colorBleedEnabled = b; }
+                if (HasNumber (*bleedObj, "width",   d)) { result.crtDefaults.colorBleedWidth   = (float) d; }
+
                 result.crtDefaults.hasColorBleed = true;
             }
         }
 
-        if (SUCCEEDED (override_->GetObject ("driveVisualProfile", driveObj)) && driveObj != nullptr)
+        if (HasObject (*override_, "driveVisualProfile", driveObj))
         {
             std::string  s;
-            if (SUCCEEDED (driveObj->GetString ("style",         s)) && !s.empty()) { result.driveVisualProfile.style         = s; }
-            if (SUCCEEDED (driveObj->GetString ("colorway",      s)) && !s.empty()) { result.driveVisualProfile.colorway      = s; }
-            if (SUCCEEDED (driveObj->GetString ("doorAnimation", s)) && !s.empty()) { result.driveVisualProfile.doorAnimation = s; }
-            if (SUCCEEDED (driveObj->GetString ("syncChannel",   s)) && !s.empty()) { result.driveVisualProfile.syncChannel   = s; }
+
+            if (HasString (*driveObj, "style",         s) && !s.empty()) { result.driveVisualProfile.style         = s; }
+            if (HasString (*driveObj, "colorway",      s) && !s.empty()) { result.driveVisualProfile.colorway      = s; }
+            if (HasString (*driveObj, "doorAnimation", s) && !s.empty()) { result.driveVisualProfile.doorAnimation = s; }
+            if (HasString (*driveObj, "syncChannel",   s) && !s.empty()) { result.driveVisualProfile.syncChannel   = s; }
         }
 
-        if (SUCCEEDED (override_->GetBool ("useMicaBackdrop", mica)))
+        if (HasBool (*override_, "useMicaBackdrop", mica))
         {
             result.useMicaBackdrop = mica;
         }
