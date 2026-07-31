@@ -597,4 +597,37 @@ public:
     }
 };
 
+#else // !_DEBUG
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Release build sentinel — every pool test above asserts on PopupHits() or
+//  PopupMisses(), and those counters are deliberately Debug-only (see the
+//  #ifdef around m_popupHits++ in DxuiHwndSource::AcquirePopup). The pooling
+//  logic itself is not conditional, so Debug already proves it; exposing the
+//  counters in Release purely to even up a test count would be changing
+//  production code to serve a metric.
+//
+//  This exists so the gap is named in the Release run rather than showing up
+//  only as a smaller number. An unexplained count is exactly how a crash hid
+//  once already -- the run stopped at 1368 of 2804 and read as "fewer tests".
+//
+//  Deliberately not four stub tests that pass: a green
+//  FirstAcquire_SeedsPoolToInitialSize3 in Release would claim pool coverage
+//  that is not there, which is worse than the honest absence.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+TEST_CLASS (DxuiPopupHostPoolTests)
+{
+public:
+
+    TEST_METHOD (PoolInstrumentation_SkippedInRelease)
+    {
+        Logger::WriteMessage (
+            L"DxuiPopupHostPoolTests are Debug-only: they assert on PopupHits()/"
+            L"PopupMisses(), which are #ifdef _DEBUG. Four tests do not run here.");
+    }
+};
+
 #endif // _DEBUG

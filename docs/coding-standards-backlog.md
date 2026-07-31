@@ -24,6 +24,29 @@ it only stops *new* violations.
 | `CS0011` | no call as a `CHR` argument | 0 |
 | `CS0012` | `Ehm.h` comes from `Pch.h`, never directly | 0 |
 
+## Test counts differ by config, on purpose
+
+Debug **2804**, Release **2802**. Both must report `Test Run Successful` — a
+count on its own proves nothing, which is the whole point of this section.
+
+| Only in | Tests | Why |
+|---|---|---|
+| Debug | 4 × `DxuiPopupHostPoolTests` | assert on `PopupHits()`/`PopupMisses()`, which are `#ifdef _DEBUG` |
+| Debug | `CycleEmulation_SkippedInDebug` | sentinel |
+| Release | `CycleEmulation_MeetsBudget`, `CycleEmulation_StableRunToRun` | perf assertions are meaningless unoptimized |
+| Release | `PoolInstrumentation_SkippedInRelease` | sentinel |
+
+Each side names what it is not covering, so the delta reads from the run output
+instead of needing a bisect. That is deliberate: Release once aborted at 1368 of
+2804 and the low count read as "fewer tests in this config" rather than "the
+host crashed" — see the `ExpectedEhmAssert` entry below.
+
+The counts are *not* evened up by stubbing the missing tests to pass. A green
+`FirstAcquire_SeedsPoolToInitialSize3` in Release would claim pool coverage that
+does not exist, and the alternative — making `m_popupHits` unconditional — is
+changing production code to serve a metric. The pooling logic is not itself
+conditional, so Debug already proves it.
+
 ## Queue
 
 ### 1. `CS0002` — anonymous namespaces — DONE
