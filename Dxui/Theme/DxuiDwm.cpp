@@ -125,22 +125,28 @@ bool DxuiDwm::IsWindows10_1809OrGreater()
 
 void DxuiDwm::ApplyRoundedCorners (HWND hwnd, bool round)
 {
-    DWORD  pref = round ? kDwmwcpRound : kDwmwcpDoNotRound;
+    HRESULT  hr        = S_OK;
+    HRESULT  hrAttrib  = S_OK;
+    DWORD    pref      = round ? kDwmwcpRound : kDwmwcpDoNotRound;
+    bool     supported = false;
 
 
 
-    if (hwnd == nullptr || !IsWindows11OrGreater())
-    {
-        return;
-    }
+    supported = IsWindows11OrGreater();
+    BAIL_OUT_IF (hwnd == nullptr || !supported, S_OK);
 
-    // Best-effort: ignore HRESULT — failure means the OS doesn't
-    // recognize the attribute, which is exactly the case the version
-    // gate above already filters for. Logging would be noise.
-    (void) DwmSetWindowAttribute (hwnd,
-                                  kDwmwaWindowCornerPreference,
-                                  &pref,
-                                  sizeof (pref));
+    // Best-effort: failure means the OS does not recognize the attribute,
+    // which is exactly the case the version gate above already filters for.
+    // Logging would be noise. IGNORE_RETURN_VALUE rather than a (void) cast
+    // so the decision is greppable instead of only being readable in prose.
+    hrAttrib = DwmSetWindowAttribute (hwnd,
+                                      kDwmwaWindowCornerPreference,
+                                      &pref,
+                                      sizeof (pref));
+    IGNORE_RETURN_VALUE (hrAttrib, S_OK);
+
+Error:
+    return;
 }
 
 
@@ -160,19 +166,25 @@ void DxuiDwm::ApplyRoundedCorners (HWND hwnd, bool round)
 
 void DxuiDwm::ApplyMicaBackdrop (HWND hwnd, bool mica)
 {
-    DWORD  type = mica ? kDwmsbtMainWindow : kDwmsbtNone;
+    HRESULT  hr        = S_OK;
+    HRESULT  hrAttrib  = S_OK;
+    DWORD    type      = mica ? kDwmsbtMainWindow : kDwmsbtNone;
+    bool     supported = false;
 
 
 
-    if (hwnd == nullptr || !IsWindows11OrGreater())
-    {
-        return;
-    }
+    supported = IsWindows11OrGreater();
+    BAIL_OUT_IF (hwnd == nullptr || !supported, S_OK);
 
-    (void) DwmSetWindowAttribute (hwnd,
-                                  kDwmwaSystemBackdropType,
-                                  &type,
-                                  sizeof (type));
+    // Best-effort, same as ApplyRoundedCorners.
+    hrAttrib = DwmSetWindowAttribute (hwnd,
+                                      kDwmwaSystemBackdropType,
+                                      &type,
+                                      sizeof (type));
+    IGNORE_RETURN_VALUE (hrAttrib, S_OK);
+
+Error:
+    return;
 }
 
 
@@ -190,19 +202,25 @@ void DxuiDwm::ApplyMicaBackdrop (HWND hwnd, bool mica)
 
 void DxuiDwm::ApplyImmersiveDarkMode (HWND hwnd, bool dark)
 {
-    BOOL  flag = dark ? TRUE : FALSE;
+    HRESULT  hr        = S_OK;
+    HRESULT  hrAttrib  = S_OK;
+    BOOL     flag      = dark ? TRUE : FALSE;
+    bool     supported = false;
 
 
 
-    if (hwnd == nullptr || !IsWindows10_1809OrGreater())
-    {
-        return;
-    }
+    supported = IsWindows10_1809OrGreater();
+    BAIL_OUT_IF (hwnd == nullptr || !supported, S_OK);
 
-    (void) DwmSetWindowAttribute (hwnd,
-                                  kDwmwaUseImmersiveDarkMode,
-                                  &flag,
-                                  sizeof (flag));
+    // Best-effort, same as ApplyRoundedCorners.
+    hrAttrib = DwmSetWindowAttribute (hwnd,
+                                      kDwmwaUseImmersiveDarkMode,
+                                      &flag,
+                                      sizeof (flag));
+    IGNORE_RETURN_VALUE (hrAttrib, S_OK);
+
+Error:
+    return;
 }
 
 
@@ -221,14 +239,19 @@ void DxuiDwm::ApplyImmersiveDarkMode (HWND hwnd, bool dark)
 
 void DxuiDwm::ExtendFrameIntoClientArea (HWND hwnd, int inset)
 {
-    MARGINS  m = { inset, inset, inset, inset };
+    HRESULT  hr       = S_OK;
+    HRESULT  hrExtend = S_OK;
+    MARGINS  m        = { inset, inset, inset, inset };
 
 
 
-    if (hwnd == nullptr)
-    {
-        return;
-    }
+    BAIL_OUT_IF (hwnd == nullptr, S_OK);
 
-    (void) DwmExtendFrameIntoClientArea (hwnd, &m);
+    // Best-effort: a compositor that refuses the extension costs a drop
+    // shadow, not correctness, and there is no fallback worth taking.
+    hrExtend = DwmExtendFrameIntoClientArea (hwnd, &m);
+    IGNORE_RETURN_VALUE (hrExtend, S_OK);
+
+Error:
+    return;
 }

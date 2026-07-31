@@ -26,7 +26,7 @@ it only stops *new* violations.
 
 ## Test counts differ by config, on purpose
 
-Debug **2806**, Release **2804**. Both must report `Test Run Successful` — a
+Debug **2809**, Release **2807**. Both must report `Test Run Successful` — a
 count on its own proves nothing, which is the whole point of this section.
 
 | Only in | Tests | Why |
@@ -450,7 +450,57 @@ push on 15 sites in files this branch had merely *moved*, which is the
 baseline problem any new rule has on a dirty tree, and the signal that the
 rule was wrong rather than the code.
 
-### 2d. Files that mention `HRESULT` but use no EHM at all (8) — NOT SCHEDULED
+### 2d. Files that mention `HRESULT` but use no EHM at all — DONE (2 of 8 were real)
+
+Worked through all eight. **Two were genuine and are fixed; the other six are
+correct as they stand**, and the entry below that called the concern
+"real" over-generalized from a three-file sample.
+
+**The test is "calls a failable API", not "mentions `HRESULT`".** That is what
+the standards actually say, and it is what the grep could not see.
+
+*Fixed — `ThemeLoader.cpp`.* The real one: 549 lines, 31 returns, 17
+`if (FAILED (...))` blocks. `ParseMetadata` was a validation chain that
+hand-rolled EHM at every step, each ending
+`return FAILED (hr) ? hr : E_INVALIDARG`. Now `CHRF` / `CBRFEx` with one exit
+apiece. The two-ways-to-fail sites fold the "succeeded but unusable" case into
+`hr` first, so the choice of code is stated once instead of at fourteen sites.
+The three optional getters took the documented non-`HRESULT` shape — vestigial
+`hr`, normal result returned at `Error:`.
+
+*Fixed — `DxuiDwm.cpp`.* **Four** sites, not the one this entry named. The file
+only surfaced in a `HRESULT` grep because one of the four had a comment saying
+"ignore HRESULT"; the other three ignored results just as silently with a
+`(void)` cast and no comment at all. All four now use `IGNORE_RETURN_VALUE`, so
+the decision is greppable rather than merely readable.
+
+**Correct as they stand (6).** A function that returns `HRESULT`, cannot fail,
+and calls nothing failable is *participating* in EHM — it honors the contract
+so callers can `CHR` it. That is the point of the pattern, not a violation of
+it. `Cpu6502.cpp` (`Reset`/`Step` call nothing failable), `MemoryBus::Validate`
+(documented hook, always `S_OK`), `DriveWidgetController::LoadDocument` (stub),
+`CpuFactory::Create` (single exit already), `PathResolver::GetLocalAppDataDir`
+(three fallback strategies — failure falls through to the next, so there is
+nothing to bail to and EHM would be actively wrong), and
+`StartupDownloadDialog::WorkerThreadProc` (`void`, on a worker thread, maps the
+result into a status enum — handling, not propagating).
+
+**This entry was wrong about `CpuFactory.cpp`**, which it said "hand-rolls
+`hr = E_INVALIDARG; return hr;` where `CBRAEx` is the sanctioned form". Twice
+wrong: `config.cpu` comes from user-editable machine JSON, so an unknown CPU is
+a *user* error and `CBRAEx` asserts — which collides with the rule that assert
+and notify are mutually exclusive. And `Cpu65C02Tests.cpp:342` deliberately
+calls `CpuFactory::Create ("z80", ...)` expecting failure, unwrapped by
+`ExpectedEhmAssert`, so adding the assert would break a passing test.
+
+**Coverage note.** The `ThemeLoader` tests asserted `FAILED (hr)` and the
+structured `ThemeLoadResult`, but never the returned `HRESULT` — exactly the
+logic the rewrite touched. Three tests added pinning `E_NOTIMPL` for a
+too-new schema and `E_INVALIDARG` for missing/empty required fields, and all
+three were confirmed to pass **against the pre-change code** as well, which is
+what makes them evidence of equivalence rather than of the new shape.
+
+#### Superseded: the original survey
 
 Posited as "any .cpp not using EHM is non-compliant". Measured: 303 of 414
 `.cpp` files use no EHM, but that number is not the finding — most have no

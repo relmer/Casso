@@ -29,17 +29,25 @@ std::wstring  ThemeLoader::Utf8ToWide (const std::string & s)
 }
 
 
+//  The three optional getters below swallow failure by contract -- absent or
+//  wrong-typed means "use the fallback", not an error to report. They still
+//  call a failable API, so they take the documented non-HRESULT EHM shape: a
+//  vestigial `hr` for the macro, and the normal result returned at `Error:`.
+
 bool  ThemeLoader::GetBoolOpt (
     const JsonValue   & obj,
     const std::string & key,
     bool                fallback)
 {
-    bool      result = fallback;
-    HRESULT   hr     = obj.GetBool (key, result);
-    if (FAILED (hr))
-    {
-        return fallback;
-    }
+    HRESULT  hr     = S_OK;
+    bool     result = fallback;
+
+
+
+    hr = obj.GetBool (key, result);
+    CHRF (hr, result = fallback);
+
+Error:
     return result;
 }
 
@@ -49,12 +57,15 @@ double  ThemeLoader::GetNumberOpt (
     const std::string & key,
     double              fallback)
 {
-    double    result = fallback;
-    HRESULT   hr     = obj.GetNumber (key, result);
-    if (FAILED (hr))
-    {
-        return fallback;
-    }
+    HRESULT  hr     = S_OK;
+    double   result = fallback;
+
+
+
+    hr = obj.GetNumber (key, result);
+    CHRF (hr, result = fallback);
+
+Error:
     return result;
 }
 
@@ -64,12 +75,15 @@ std::string  ThemeLoader::GetStringOpt (
     const std::string & key,
     const std::string & fallback)
 {
+    HRESULT      hr     = S_OK;
     std::string  result = fallback;
-    HRESULT      hr     = obj.GetString (key, result);
-    if (FAILED (hr))
-    {
-        return fallback;
-    }
+
+
+
+    hr = obj.GetString (key, result);
+    CHRF (hr, result = fallback);
+
+Error:
     return result;
 }
 
@@ -143,13 +157,10 @@ HRESULT ThemeLoader::EnumerateCandidateDirs (
 
     hr = fs.EnumerateDirectories (themesBaseDir, dirs);
 
-    if (FAILED (hr))
-    {
-        // Base directory missing: no themes to enumerate. outNames is already
-        // cleared, and that emptiness is the whole answer -- no second result
-        // code needed.
-        return S_OK;
-    }
+    // Base directory missing: no themes to enumerate. outNames is already
+    // cleared, and that emptiness is the whole answer -- no second result
+    // code needed, so this reports success rather than propagating.
+    BAIL_OUT_IF (FAILED (hr), S_OK);
 
     for (i = 0; i < dirs.size(); ++i)
     {
@@ -161,7 +172,8 @@ HRESULT ThemeLoader::EnumerateCandidateDirs (
         }
     }
 
-    return S_OK;
+Error:
+    return hr;
 }
 
 
@@ -192,75 +204,82 @@ HRESULT ThemeLoader::ParseMetadata (
     const JsonValue *   bloomObj      = nullptr;
     const JsonValue *   bleedObj      = nullptr;
     int                 themeVersion  = 0;
+    JsonType            rootType      = JsonType::Null;
+    HRESULT             hrObject      = S_OK;
+    bool                present       = false;
 
 
 
     outTheme = LoadedTheme {};
 
     hr = JsonParser::Parse (jsonText, root, perr);
+    CHRF (hr,
+          outError.code       = ThemeLoadResult::MetadataInvalid;
+          outError.message    = perr.message;
+          outError.jsonLine   = perr.line;
+          outError.jsonColumn = perr.column);
 
-    if (FAILED (hr))
-    {
-        outError.code       = ThemeLoadResult::MetadataInvalid;
-        outError.message    = perr.message;
-        outError.jsonLine   = perr.line;
-        outError.jsonColumn = perr.column;
-        return hr;
-    }
-
-    if (root.GetType() != JsonType::Object)
-    {
-        outError.code    = ThemeLoadResult::MetadataInvalid;
-        outError.message = "theme.json root is not a JSON object";
-        return E_INVALIDARG;
-    }
+    rootType = root.GetType();
+    CBRFEx (rootType == JsonType::Object, E_INVALIDARG,
+            outError.code    = ThemeLoadResult::MetadataInvalid;
+            outError.message = "theme.json root is not a JSON object");
 
     // ---- required: $cassoThemeVersion + name + family/variant ids ---------
+    //
+    // Each of these can fail two ways -- the getter failed, or it succeeded
+    // and produced something unusable. The original returned
+    // `FAILED (hr) ? hr : E_INVALIDARG` at every one of them; folding the
+    // second case into hr first says the same thing once.
 
     hr = root.GetInt (s_kpszVersionKey, themeVersion);
 
-    if (FAILED (hr) || themeVersion < 1)
+    if (SUCCEEDED (hr) && themeVersion < 1)
     {
-        outError.code    = ThemeLoadResult::MetadataInvalid;
-        outError.message = "theme.json missing or invalid $cassoThemeVersion";
-        return FAILED (hr) ? hr : E_INVALIDARG;
+        hr = E_INVALIDARG;
     }
 
-    if (themeVersion > kCurrentThemeSchemaVersion)
-    {
-        outError.code    = ThemeLoadResult::VersionTooNew;
-        outError.message = "theme.json $cassoThemeVersion is newer than this build supports";
-        return E_NOTIMPL;
-    }
+    CHRF (hr,
+          outError.code    = ThemeLoadResult::MetadataInvalid;
+          outError.message = "theme.json missing or invalid $cassoThemeVersion");
+
+    CBRFEx (themeVersion <= kCurrentThemeSchemaVersion, E_NOTIMPL,
+            outError.code    = ThemeLoadResult::VersionTooNew;
+            outError.message = "theme.json $cassoThemeVersion is newer than this build supports");
 
     outTheme.version = themeVersion;
 
     hr = root.GetString ("name", outTheme.name);
 
-    if (FAILED (hr) || outTheme.name.empty())
+    if (SUCCEEDED (hr) && outTheme.name.empty())
     {
-        outError.code    = ThemeLoadResult::MetadataInvalid;
-        outError.message = "theme.json missing or empty `name`";
-        return FAILED (hr) ? hr : E_INVALIDARG;
+        hr = E_INVALIDARG;
     }
+
+    CHRF (hr,
+          outError.code    = ThemeLoadResult::MetadataInvalid;
+          outError.message = "theme.json missing or empty `name`");
 
     hr = root.GetString ("familyId", outTheme.familyId);
 
-    if (FAILED (hr) || outTheme.familyId.empty())
+    if (SUCCEEDED (hr) && outTheme.familyId.empty())
     {
-        outError.code    = ThemeLoadResult::MetadataInvalid;
-        outError.message = "theme.json missing or empty `familyId`";
-        return FAILED (hr) ? hr : E_INVALIDARG;
+        hr = E_INVALIDARG;
     }
+
+    CHRF (hr,
+          outError.code    = ThemeLoadResult::MetadataInvalid;
+          outError.message = "theme.json missing or empty `familyId`");
 
     hr = root.GetString ("variantId", outTheme.variantId);
 
-    if (FAILED (hr) || outTheme.variantId.empty())
+    if (SUCCEEDED (hr) && outTheme.variantId.empty())
     {
-        outError.code    = ThemeLoadResult::MetadataInvalid;
-        outError.message = "theme.json missing or empty `variantId`";
-        return FAILED (hr) ? hr : E_INVALIDARG;
+        hr = E_INVALIDARG;
     }
+
+    CHRF (hr,
+          outError.code    = ThemeLoadResult::MetadataInvalid;
+          outError.message = "theme.json missing or empty `variantId`");
 
     // ---- optional scalars --------------------------------------------------
 
@@ -271,48 +290,52 @@ HRESULT ThemeLoader::ParseMetadata (
 
     // ---- required: uiTokens + driveVisualProfile --------------------------
 
-    if (FAILED (root.GetObject ("uiTokens", uiTokensObj)) || uiTokensObj == nullptr)
-    {
-        outError.code    = ThemeLoadResult::MetadataInvalid;
-        outError.message = "theme.json missing required `uiTokens` object";
-        return E_INVALIDARG;
-    }
+    // These five report E_INVALIDARG whatever the getter said, so the getter's
+    // own code is folded into a presence flag rather than carried.
+
+    hrObject = root.GetObject ("uiTokens", uiTokensObj);
+    present  = SUCCEEDED (hrObject) && uiTokensObj != nullptr;
+
+    CBRFEx (present, E_INVALIDARG,
+            outError.code    = ThemeLoadResult::MetadataInvalid;
+            outError.message = "theme.json missing required `uiTokens` object");
+
     outTheme.uiTokens = *uiTokensObj;
 
-    if (FAILED (root.GetObject ("driveVisualProfile", driveProfile)) || driveProfile == nullptr)
-    {
-        outError.code    = ThemeLoadResult::MetadataInvalid;
-        outError.message = "theme.json missing required `driveVisualProfile` object";
-        return E_INVALIDARG;
-    }
-    if (FAILED (driveProfile->GetString ("style", outTheme.driveVisualProfile.style)) ||
-        outTheme.driveVisualProfile.style.empty())
-    {
-        outError.code    = ThemeLoadResult::MetadataInvalid;
-        outError.message = "driveVisualProfile.style is required";
-        return E_INVALIDARG;
-    }
-    if (FAILED (driveProfile->GetString ("colorway", outTheme.driveVisualProfile.colorway)) ||
-        outTheme.driveVisualProfile.colorway.empty())
-    {
-        outError.code    = ThemeLoadResult::MetadataInvalid;
-        outError.message = "driveVisualProfile.colorway is required";
-        return E_INVALIDARG;
-    }
-    if (FAILED (driveProfile->GetString ("doorAnimation", outTheme.driveVisualProfile.doorAnimation)) ||
-        outTheme.driveVisualProfile.doorAnimation.empty())
-    {
-        outError.code    = ThemeLoadResult::MetadataInvalid;
-        outError.message = "driveVisualProfile.doorAnimation is required";
-        return E_INVALIDARG;
-    }
-    if (FAILED (driveProfile->GetString ("syncChannel", outTheme.driveVisualProfile.syncChannel)) ||
-        outTheme.driveVisualProfile.syncChannel.empty())
-    {
-        outError.code    = ThemeLoadResult::MetadataInvalid;
-        outError.message = "driveVisualProfile.syncChannel is required";
-        return E_INVALIDARG;
-    }
+    hrObject = root.GetObject ("driveVisualProfile", driveProfile);
+    present  = SUCCEEDED (hrObject) && driveProfile != nullptr;
+
+    CBRFEx (present, E_INVALIDARG,
+            outError.code    = ThemeLoadResult::MetadataInvalid;
+            outError.message = "theme.json missing required `driveVisualProfile` object");
+
+    hrObject = driveProfile->GetString ("style", outTheme.driveVisualProfile.style);
+    present  = SUCCEEDED (hrObject) && !outTheme.driveVisualProfile.style.empty();
+
+    CBRFEx (present, E_INVALIDARG,
+            outError.code    = ThemeLoadResult::MetadataInvalid;
+            outError.message = "driveVisualProfile.style is required");
+
+    hrObject = driveProfile->GetString ("colorway", outTheme.driveVisualProfile.colorway);
+    present  = SUCCEEDED (hrObject) && !outTheme.driveVisualProfile.colorway.empty();
+
+    CBRFEx (present, E_INVALIDARG,
+            outError.code    = ThemeLoadResult::MetadataInvalid;
+            outError.message = "driveVisualProfile.colorway is required");
+
+    hrObject = driveProfile->GetString ("doorAnimation", outTheme.driveVisualProfile.doorAnimation);
+    present  = SUCCEEDED (hrObject) && !outTheme.driveVisualProfile.doorAnimation.empty();
+
+    CBRFEx (present, E_INVALIDARG,
+            outError.code    = ThemeLoadResult::MetadataInvalid;
+            outError.message = "driveVisualProfile.doorAnimation is required");
+
+    hrObject = driveProfile->GetString ("syncChannel", outTheme.driveVisualProfile.syncChannel);
+    present  = SUCCEEDED (hrObject) && !outTheme.driveVisualProfile.syncChannel.empty();
+
+    CBRFEx (present, E_INVALIDARG,
+            outError.code    = ThemeLoadResult::MetadataInvalid;
+            outError.message = "driveVisualProfile.syncChannel is required");
 
     // ---- crtDefaults (all optional; clamped to schema bounds) -------------
 
@@ -378,7 +401,8 @@ HRESULT ThemeLoader::ParseMetadata (
         }
     }
 
-    return S_OK;
+Error:
+    return hr;
 }
 
 
@@ -509,6 +533,7 @@ HRESULT ThemeLoader::Load (
     HRESULT       hr        = S_OK;
     std::wstring  themePath = JoinPath (themeDir, L"theme.json");
     std::string   text;
+    bool          exists    = false;
 
 
 
@@ -516,34 +541,26 @@ HRESULT ThemeLoader::Load (
     outError.themeDir = themeDir;
     outTheme = LoadedTheme {};
 
-    if (!fs.Exists (themePath))
-    {
-        outError.code          = ThemeLoadResult::MetadataMissing;
-        outError.offendingPath = themePath;
-        outError.message       = "theme.json not found in theme directory";
-        return HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND);
-    }
+    exists = fs.Exists (themePath);
+    CBRFEx (exists, HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND),
+            outError.code          = ThemeLoadResult::MetadataMissing;
+            outError.offendingPath = themePath;
+            outError.message       = "theme.json not found in theme directory");
 
     hr = fs.ReadAllText (themePath, text);
+    CHRF (hr,
+          outError.code          = ThemeLoadResult::MetadataInvalid;
+          outError.offendingPath = themePath;
+          outError.message       = "failed to read theme.json");
 
-    if (FAILED (hr))
-    {
-        outError.code          = ThemeLoadResult::MetadataInvalid;
-        outError.offendingPath = themePath;
-        outError.message       = "failed to read theme.json";
-        return hr;
-    }
-
+    // ParseMetadata has already filled outError; only the path is missing,
+    // because it is the one thing that function does not know.
     hr = ParseMetadata (text, outTheme, outError);
-
-    if (FAILED (hr))
-    {
-        outError.offendingPath = themePath;
-        return hr;
-    }
+    CHRF (hr, outError.offendingPath = themePath);
 
     outTheme.directoryPath = StripTrailingSep (themeDir);
 
-    return S_OK;
+Error:
+    return hr;
 }
 

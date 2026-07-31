@@ -110,6 +110,78 @@ public:
     }
 
 
+    ////////////////////////////////////////////////////////////////////////////
+    //
+    //  Which HRESULT comes back, not merely that one failed.
+    //
+    //  Every rejection above asserted FAILED (hr) and the structured code, so
+    //  the returned HRESULT itself was uncovered -- and the validation chain
+    //  used to pick it per site with `FAILED (hr) ? hr : E_INVALIDARG`. These
+    //  pin the two distinct codes so a future rewrite of that selection cannot
+    //  quietly collapse them.
+    //
+    ////////////////////////////////////////////////////////////////////////////
+
+    TEST_METHOD (FutureVersion_ReturnsNotImpl)
+    {
+        InMemoryFileSystem  fs;
+        LoadedTheme         theme;
+        ThemeLoadError      err;
+        HRESULT             hr;
+
+        std::wstring  dir = std::wstring (kThemesBase) + L"\\FutureCode";
+        fs.WriteAllText (dir + L"\\theme.json",
+                         R"({"$cassoThemeVersion": 999, "name": "x", "familyId": "apple2", "variantId": "ii", "uiTokens": {}, "driveVisualProfile": {"style":"disk2","colorway":"beige","doorAnimation":"x","syncChannel":"drive-door"}})");
+
+        hr = ThemeLoader::Load (fs, dir, theme, err);
+
+        Assert::AreEqual (E_NOTIMPL, hr,
+                          L"a schema newer than this build is E_NOTIMPL, not a generic failure");
+    }
+
+
+    TEST_METHOD (MissingRequiredField_ReturnsInvalidArg)
+    {
+        InMemoryFileSystem  fs;
+        LoadedTheme         theme;
+        ThemeLoadError      err;
+        HRESULT             hr;
+
+        // Present and well-formed, but `variantId` is empty -- the getter
+        // succeeds and the value is unusable, which is the branch that used to
+        // choose E_INVALIDARG over the getter's own S_OK.
+        std::wstring  dir = std::wstring (kThemesBase) + L"\\EmptyVariant";
+        fs.WriteAllText (dir + L"\\theme.json",
+                         R"({"$cassoThemeVersion": 1, "name": "x", "familyId": "apple2", "variantId": "", "uiTokens": {}, "driveVisualProfile": {"style":"disk2","colorway":"beige","doorAnimation":"x","syncChannel":"drive-door"}})");
+
+        hr = ThemeLoader::Load (fs, dir, theme, err);
+
+        Assert::AreEqual (E_INVALIDARG, hr,
+                          L"a present-but-empty required field is E_INVALIDARG");
+        Assert::IsTrue (err.code == ThemeLoadResult::MetadataInvalid);
+    }
+
+
+    TEST_METHOD (MissingUiTokens_ReturnsInvalidArg)
+    {
+        InMemoryFileSystem  fs;
+        LoadedTheme         theme;
+        ThemeLoadError      err;
+        HRESULT             hr;
+
+        // uiTokens absent entirely -- the getter fails, and this site reports
+        // E_INVALIDARG regardless of what the getter said.
+        std::wstring  dir = std::wstring (kThemesBase) + L"\\NoTokens";
+        fs.WriteAllText (dir + L"\\theme.json",
+                         R"({"$cassoThemeVersion": 1, "name": "x", "familyId": "apple2", "variantId": "ii", "driveVisualProfile": {"style":"disk2","colorway":"beige","doorAnimation":"x","syncChannel":"drive-door"}})");
+
+        hr = ThemeLoader::Load (fs, dir, theme, err);
+
+        Assert::AreEqual (E_INVALIDARG, hr, L"a missing required object is E_INVALIDARG");
+        Assert::IsTrue (err.code == ThemeLoadResult::MetadataInvalid);
+    }
+
+
     TEST_METHOD (MalformedJson_ProducesStructuredError)
     {
         InMemoryFileSystem  fs;
