@@ -26,7 +26,7 @@ it only stops *new* violations.
 
 ## Test counts differ by config, on purpose
 
-Debug **2804**, Release **2802**. Both must report `Test Run Successful` — a
+Debug **2806**, Release **2804**. Both must report `Test Run Successful` — a
 count on its own proves nothing, which is the whole point of this section.
 
 | Only in | Tests | Why |
@@ -249,10 +249,47 @@ Stages, each verifiable byte-for-byte (see below):
    nothing new: a CPU simply has no `Microcode` row for a mnemonic it lacks,
    which is what `IsMnemonic()` already reports.
 
-**Not solved by this**, so do not expect them to fall out:
-`ResolveAddressingMode` (140 lines, 21 returns) is a *matrix* — syntax x
-mnemonic class -> mode — so it wants a 2-D lookup, a different table than the
-directive one; `ExpandMacro`'s scope is a decomposition problem.
+**9. `ResolveAddressingMode` — DONE.** Filed as wanting a 2-D syntax x
+mnemonic-class matrix. It did not need one. Every arm had the same shape:
+try a short list of candidate modes in priority order, take the first the
+mnemonic carries, else a per-syntax fallback. That is one row per
+`OperandSyntax` — 15 lines for the whole policy — plus a 9-line loop. The
+21 returns collapsed to 1 as a side effect, not as multi-return work.
+
+Two things the switch had hidden. `IsBranchMnemonic` was only a separate
+concept because it predated the opcode table answering it; it is exactly the
+ungated `Relative` candidate. And every arm built an `OpcodeEntry` it never
+read, because `Lookup` was standing in for `HasMode`.
+
+**10. `ExpandMacro` — nothing to do; the queue entry was stale.** It is already
+50 lines of straight EHM. The mess had moved into `SubstituteMacroParams`,
+`CheckForExitm` and `CountExitmIfDepth`, and it was the same duplication as
+everywhere else rather than a scope problem:
+
+* `CountExitmIfDepth` wrote out `IF/.IF/IFDEF/.IFDEF/IFNDEF/.IFNDEF` and
+  `ENDIF/.ENDIF` by hand — the **third** copy of the vocabulary, after the
+  parser and `ParseStructMember`. Now `DirectiveTable::FromSpelling` plus a
+  test of which tokens open a block and which closes one.
+* Eight hand-rolled `toupper` loops across the file, plus two copies of
+  "trim, cut at `;`, trim" and three of "first word of the line". Now
+  `ToUpperCase` / `StripCommentAndTrim` / `GetLeadingWord`. One `toupper`
+  remains, inside `ToUpperCase`.
+* `GetUpperOperand` was a duplicate of `ToUpperCase` that I added without
+  noticing the existing one. Deleted; it had a single caller.
+
+`EXITM` and `LOCAL` stay string compares on purpose. `DirectiveTable` feeds
+`Parser::ParseLine`, so adding them would tokenize those words on every line
+in the file rather than only inside a macro body being expanded.
+
+**Coverage this exposed.** The only `exitm` test had no `IF` around it, so
+`CountExitmIfDepth` always counted zero and the loop never ran — the function
+was called but the part that does the work was untested. Two tests added, and
+both confirmed to fail against a mutation that drops the upper-casing (the
+realistic bug, since the table is upper-case) while the pre-existing test
+still passed.
+
+**Not solved by any of this:** nothing outstanding in `AssemblySession.cpp`
+except the multiple-return sweep, which stays parked.
 
 **8. `ParseStructMember` — DONE.** Filed above as wanting "its own small
 type-size table", which turned out to be half right and half backwards. The

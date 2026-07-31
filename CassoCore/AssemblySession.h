@@ -189,7 +189,6 @@ private:
     static bool        IsConditionalLine      (const ParsedLine & parsed);
     static bool        IsConditionalDirective (Directive token);
     static bool        IsSegmentDirective     (Directive token);
-    static std::string GetUpperOperand           (const std::string & operand);
 
     HRESULT RunPass1Stages         (const PendingLine & current, LineInfo & info);
     HRESULT RunCollectingState     (const PendingLine & current, LineInfo & info, bool & outClaimed);
@@ -268,6 +267,7 @@ private:
     static std::span<const StructMemberType> GetStructMemberTypes();
     static std::string              GetLeadingWord            (const std::string & text);
     static std::string              ToUpperCase               (const std::string & text);
+    static std::string              StripCommentAndTrim       (const std::string & text);
     static std::string              GetLowerExtension         (const std::string & filename);
     static int                      HexCharToNibble           (char c);
     static int                      HexByte                   (const std::string & s, size_t offset);

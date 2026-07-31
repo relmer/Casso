@@ -34,6 +34,51 @@ std::string AssemblySession::ToUpperCase (const std::string & text)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  AssemblySession::StripCommentAndTrim
+//
+//  The code part of a line: indentation removed, anything from the first ';'
+//  dropped, trailing blanks removed. Deliberately naive about ';' inside a
+//  string literal, which is what the two callers already assumed.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string AssemblySession::StripCommentAndTrim (const std::string & text)
+{
+    std::string  code    = text;
+    size_t       start   = code.find_first_not_of (" \t");
+    size_t       comment = 0;
+    size_t       end     = 0;
+
+
+
+    if (start != std::string::npos)
+    {
+        code = code.substr (start);
+    }
+
+    comment = code.find (';');
+
+    if (comment != std::string::npos)
+    {
+        code = code.substr (0, comment);
+    }
+
+    end = code.find_last_not_of (" \t");
+
+    if (end != std::string::npos)
+    {
+        code = code.substr (0, end + 1);
+    }
+
+    return code;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  AssemblySession::GetLeadingWord
 //
 //  The first whitespace-delimited word, ignoring any indentation before it.
@@ -972,30 +1017,6 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  AssemblySession::GetUpperOperand
-//
-////////////////////////////////////////////////////////////////////////////////
-
-std::string AssemblySession::GetUpperOperand (const std::string & operand)
-{
-    std::string  upper = operand;
-
-
-
-    for (auto & c : upper)
-    {
-        c = (char) toupper ((unsigned char) c);
-    }
-
-    return upper;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  AssemblySession::IsMacroDefinitionStart
 //
 //  "NAME macro [params]" -- the operand, upper-cased, is MACRO followed by
@@ -1217,7 +1238,7 @@ Error:
 HRESULT AssemblySession::RunPreludeDirectives (const PendingLine & current, LineInfo & info, bool & outClaimed)
 {
     HRESULT       hr           = S_OK;
-    std::string   operandUpper = GetUpperOperand (info.parsed.operand);
+    std::string   operandUpper = ToUpperCase (info.parsed.operand);
     Pass1Prelude  kind         = ClassifyPrelude (info, operandUpper);
 
 
@@ -1436,55 +1457,26 @@ Error:
 
 HRESULT AssemblySession::CheckEndStruct (const PendingLine & current, LineInfo & info, bool & isEnd)
 {
-    HRESULT hr = S_OK;
-
-    std::string mnUpper = info.parsed.mnemonic;
+    HRESULT      hr       = S_OK;
+    std::string  endsWhat;
 
     isEnd = false;
 
 
 
+    // `.END STRUCT` reaches this as a directive with an argument; bare
+    // `end struct` reaches it as a mnemonic with an operand. Both name what
+    // they close in the first word of what follows.
     if (info.parsed.isDirective && info.parsed.directive == ".END")
     {
-        std::string endArgUpper = info.parsed.directiveArg;
-
-        for (auto & c : endArgUpper)
-        {
-            c = (char) toupper ((unsigned char) c);
-        }
-
-        size_t sp = endArgUpper.find_first_not_of (" \t");
-
-        if (sp != std::string::npos)
-        {
-            endArgUpper = endArgUpper.substr (sp);
-        }
-
-        size_t ep = endArgUpper.find_first_of (" \t");
-        std::string firstWord = (ep == std::string::npos) ? endArgUpper : endArgUpper.substr (0, ep);
-
-        if (firstWord == "STRUCT")
-        {
-            isEnd = true;
-        }
+        endsWhat = info.parsed.directiveArg;
     }
-    else if (mnUpper == "END" && !info.parsed.operand.empty())
+    else if (info.parsed.mnemonic == "END")
     {
-        std::string opUpper = info.parsed.operand;
-
-        for (auto & c : opUpper)
-        {
-            c = (char) toupper ((unsigned char) c);
-        }
-
-        size_t sp = opUpper.find_first_of (" \t");
-        std::string first = (sp == std::string::npos) ? opUpper : opUpper.substr (0, sp);
-
-        if (first == "STRUCT")
-        {
-            isEnd = true;
-        }
+        endsWhat = info.parsed.operand;
     }
+
+    isEnd = (GetLeadingWord (ToUpperCase (endsWhat)) == "STRUCT");
 
 // Error:
     return hr;
@@ -2155,12 +2147,7 @@ HRESULT AssemblySession::RecordLabel (const PendingLine & current, LineInfo & in
             m_exprSymbols[info.parsed.label] = (int32_t) m_pc;
 
             // Warn if label resembles mnemonic by case
-            std::string upper = info.parsed.label;
-
-            for (auto & c : upper)
-            {
-                c = (char) toupper ((unsigned char) c);
-            }
+            std::string  upper = ToUpperCase (info.parsed.label);
 
             if (upper != info.parsed.label && m_opcodeTable.IsMnemonic (upper))
             {
@@ -3116,24 +3103,14 @@ HRESULT AssemblySession::SubstituteMacroParams (const MacroDefinition & macroDef
             break;
         }
 
-        // Skip local directive lines
-        std::string exUpper = expanded;
-        size_t exStart = exUpper.find_first_not_of (" \t");
+        // `local` declares macro-local labels, which uniqueSuffix has already
+        // taken care of, so the declaration itself never reaches the output.
+        // Left as a string compare for the same reason as EXITM: it is a
+        // macro-body keyword, and putting it in DirectiveTable would tokenize
+        // it on every line in the file.
+        std::string  firstWord = GetLeadingWord (ToUpperCase (expanded));
 
-        if (exStart != std::string::npos)
-        {
-            exUpper = exUpper.substr (exStart);
-        }
-
-        for (auto & ec : exUpper)
-        {
-            ec = (char) toupper ((unsigned char) ec);
-        }
-
-        size_t lsp = exUpper.find_first_of (" \t");
-        std::string localFirst = (lsp == std::string::npos) ? exUpper : exUpper.substr (0, lsp);
-
-        if (localFirst == "LOCAL" || localFirst == ".LOCAL")
+        if (firstWord == "LOCAL" || firstWord == ".LOCAL")
         {
             continue;
         }
@@ -3163,43 +3140,13 @@ Error:
 
 HRESULT AssemblySession::CheckForExitm (const std::string & line, bool & isExitm)
 {
-    HRESULT hr = S_OK;
+    HRESULT      hr   = S_OK;
+    std::string  code = ToUpperCase (StripCommentAndTrim (line));
 
-    isExitm = false;
-
-    std::string trimmed = line;
-
-
-
-    {
-        size_t s = trimmed.find_first_not_of (" \t");
-
-        if (s != std::string::npos)
-        {
-            trimmed = trimmed.substr (s);
-        }
-
-        size_t sc = trimmed.find (';');
-
-        if (sc != std::string::npos)
-        {
-            trimmed = trimmed.substr (0, sc);
-        }
-
-        size_t e = trimmed.find_last_not_of (" \t");
-
-        if (e != std::string::npos)
-        {
-            trimmed = trimmed.substr (0, e + 1);
-        }
-    }
-
-    for (auto & c : trimmed)
-    {
-        c = (char) toupper ((unsigned char) c);
-    }
-
-    isExitm = (trimmed == "EXITM" || trimmed == ".EXITM");
+    // EXITM stays a string compare rather than joining DirectiveTable: the
+    // table feeds Parser::ParseLine, so adding it there would tokenize EXITM on
+    // every line in the file, not just inside a macro body being expanded.
+    isExitm = (code == "EXITM" || code == ".EXITM");
 
 // Error:
     return hr;
@@ -3223,47 +3170,21 @@ HRESULT AssemblySession::CountExitmIfDepth (const std::vector<std::string> & exp
 
 
 
-    for (const auto & el : expandedLines)
+    // The spellings were written out here -- IF/.IF/IFDEF/.IFDEF/IFNDEF/
+    // .IFNDEF and ENDIF/.ENDIF -- which made this the third place in the
+    // assembler holding a copy of the vocabulary. DirectiveTable owns all
+    // eight, so this only has to know which tokens open a block and which
+    // closes one.
+    for (const std::string & line : expandedLines)
     {
-        std::string elTrimmed = el;
-        size_t elStart = elTrimmed.find_first_not_of (" \t");
+        Directive  token = DirectiveTable::FromSpelling (
+                               GetLeadingWord (ToUpperCase (StripCommentAndTrim (line))));
 
-        if (elStart != std::string::npos)
-        {
-            elTrimmed = elTrimmed.substr (elStart);
-        }
-
-        size_t elSemi = elTrimmed.find (';');
-
-        if (elSemi != std::string::npos)
-        {
-            elTrimmed = elTrimmed.substr (0, elSemi);
-        }
-
-        size_t elEnd2 = elTrimmed.find_last_not_of (" \t");
-
-        if (elEnd2 != std::string::npos)
-        {
-            elTrimmed = elTrimmed.substr (0, elEnd2 + 1);
-        }
-
-        std::string elUpper2 = elTrimmed;
-
-        for (auto & c2 : elUpper2)
-        {
-            c2 = (char) toupper ((unsigned char) c2);
-        }
-
-        size_t sp2 = elUpper2.find_first_of (" \t");
-        std::string firstWord = (sp2 == std::string::npos) ? elUpper2 : elUpper2.substr (0, sp2);
-
-        if (firstWord == "IF" || firstWord == ".IF" ||
-            firstWord == "IFDEF" || firstWord == ".IFDEF" ||
-            firstWord == "IFNDEF" || firstWord == ".IFNDEF")
+        if (token == Directive::If || token == Directive::Ifdef || token == Directive::Ifndef)
         {
             ifDepth++;
         }
-        else if (firstWord == "ENDIF" || firstWord == ".ENDIF")
+        else if (token == Directive::Endif)
         {
             ifDepth--;
         }
