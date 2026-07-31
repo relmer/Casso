@@ -29,6 +29,150 @@ std::wstring  ThemeLoader::Utf8ToWide (const std::string & s)
 }
 
 
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Required-key schema
+//
+//  What theme.json must contain, as data. Presence and type are settled once
+//  from these tables, which is what lets every check further down be about the
+//  *value* alone -- the messages used to all read "missing or invalid X"
+//  because each site was answering two questions at once and could not say
+//  which one had failed.
+//
+//  `$cassoThemeVersion` is deliberately absent from the root table. It is
+//  handled before the sweep runs, because a schema newer than this build may
+//  legitimately rename or drop keys listed here; reporting those as malformed
+//  would bury the answer the user actually needs, which is that their Casso is
+//  too old. Version first, then contents.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+struct RequiredKey
+{
+    const char *  name;
+    JsonType      type;
+    bool          mustBeNonEmpty;   // strings only: "" is present but useless
+};
+
+static constexpr RequiredKey  s_kRequiredRootKeys[] =
+{
+    { "name",               JsonType::String, true  },
+    { "familyId",           JsonType::String, true  },
+    { "variantId",          JsonType::String, true  },
+    { "uiTokens",           JsonType::Object, false },
+    { "driveVisualProfile", JsonType::Object, false },
+};
+
+static constexpr RequiredKey  s_kRequiredDriveKeys[] =
+{
+    { "style",         JsonType::String, true },
+    { "colorway",      JsonType::String, true },
+    { "doorAnimation", JsonType::String, true },
+    { "syncChannel",   JsonType::String, true },
+};
+
+// Indexed by JsonType, for the "must be a string" half of the message.
+static constexpr const char *  s_kJsonTypeNames[] =
+{
+    "null", "a boolean", "a number", "a string", "an array", "an object",
+};
+
+static_assert (std::size (s_kJsonTypeNames) == (size_t) JsonType::Object + 1,
+               "every JsonType needs a name for diagnostics");
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FindMember
+//
+//  JsonValue::Find is private, and the typed getters cannot tell "absent"
+//  from "wrong type" -- which is the distinction the messages need.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+static const JsonValue * FindMember (const JsonValue & obj, const std::string & key)
+{
+    const JsonValue *  found = nullptr;
+
+
+
+    for (const std::pair<std::string, JsonValue> & entry : obj.GetObjectEntries())
+    {
+        if (entry.first == key)
+        {
+            found = &entry.second;
+            break;
+        }
+    }
+
+    return found;
+}
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HasRequiredKeys
+//
+//  True when every listed key is present with the listed type. On failure
+//  `outProblem` names the first offender and says which of the two things went
+//  wrong with it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+static bool HasRequiredKeys (const JsonValue              & obj,
+                             const char                   * context,
+                             std::span<const RequiredKey>   required,
+                             std::string                  & outProblem)
+{
+    bool  result  = true;
+    bool  isEmpty = false;
+
+    outProblem.clear();
+
+
+
+    for (const RequiredKey & key : required)
+    {
+        const JsonValue *  member = FindMember (obj, key.name);
+
+        if (member == nullptr)
+        {
+            outProblem = std::format ("{} is missing required key `{}`", context, key.name);
+            result     = false;
+            break;
+        }
+
+        if (member->GetType() != key.type)
+        {
+            outProblem = std::format ("{} key `{}` must be {}",
+                                      context, key.name, s_kJsonTypeNames[(size_t) key.type]);
+            result     = false;
+            break;
+        }
+
+        // Present and correctly typed is not the same as usable. Folding this
+        // in here is what lets the caller stop re-testing every field it just
+        // read -- and what keeps a `.empty()` call out of seven EHM guards.
+        isEmpty = key.mustBeNonEmpty && member->GetString().empty();
+
+        if (isEmpty)
+        {
+            outProblem = std::format ("{} key `{}` must not be empty", context, key.name);
+            result     = false;
+            break;
+        }
+    }
+
+    return result;
+}
+
+
+
+
 //  Presence tests for optional members. Every caller used to write
 //  SUCCEEDED (obj.GetNumber (key, out)) inline, which puts a call inside a
 //  macro argument -- forbidden for the same reason it is in an EHM condition,
@@ -270,8 +414,10 @@ HRESULT ThemeLoader::ParseMetadata (
     const JsonValue *   bloomObj      = nullptr;
     const JsonValue *   bleedObj      = nullptr;
     int                 themeVersion  = 0;
+    double              versionValue  = 0.0;
     JsonType            rootType      = JsonType::Null;
     bool                present       = false;
+    std::string         problem;
 
 
 
@@ -289,23 +435,24 @@ HRESULT ThemeLoader::ParseMetadata (
             outError.code    = ThemeLoadResult::MetadataInvalid;
             outError.message = "theme.json root is not a JSON object");
 
-    // ---- required: $cassoThemeVersion + name + family/variant ids ---------
+    // ---- the version gate, before anything else is judged -----------------
     //
-    // Each of these can fail two ways -- the getter failed, or it succeeded
-    // and produced something unusable. The original returned
-    // `FAILED (hr) ? hr : E_INVALIDARG` at every one of them; folding the
-    // second case into hr first says the same thing once.
+    // A theme written for a newer schema may legitimately not look like one
+    // this build understands, so "your Casso is too old" has to be decided
+    // before its contents are called malformed.
 
-    hr = root.GetInt (s_kpszVersionKey, themeVersion);
+    present = HasNumber (root, s_kpszVersionKey, versionValue);
+    CBRFEx (present, E_INVALIDARG,
+            outError.code    = ThemeLoadResult::MetadataInvalid;
+            outError.message = std::format ("theme.json is missing required key `{}`",
+                                            s_kpszVersionKey));
 
-    if (SUCCEEDED (hr) && themeVersion < 1)
-    {
-        hr = E_INVALIDARG;
-    }
+    themeVersion = (int) versionValue;
 
-    CHRF (hr,
-          outError.code    = ThemeLoadResult::MetadataInvalid;
-          outError.message = "theme.json missing or invalid $cassoThemeVersion");
+    CBRFEx (themeVersion >= 1, E_INVALIDARG,
+            outError.code    = ThemeLoadResult::MetadataInvalid;
+            outError.message = std::format ("theme.json `{}` must be 1 or greater",
+                                            s_kpszVersionKey));
 
     CBRFEx (themeVersion <= kCurrentThemeSchemaVersion, E_NOTIMPL,
             outError.code    = ThemeLoadResult::VersionTooNew;
@@ -313,38 +460,27 @@ HRESULT ThemeLoader::ParseMetadata (
 
     outTheme.version = themeVersion;
 
-    hr = root.GetString ("name", outTheme.name);
+    // ---- presence and type, settled once from the schema tables -----------
+    //
+    // Everything below this point is a question about a *value*. That is the
+    // whole reason for doing it here: each message used to read "missing or
+    // invalid X" because the site was answering two questions at once and had
+    // no way to say which had failed.
 
-    if (SUCCEEDED (hr) && outTheme.name.empty())
-    {
-        hr = E_INVALIDARG;
-    }
+    present = HasRequiredKeys (root, "theme.json", s_kRequiredRootKeys, problem);
+    CBRFEx (present, E_INVALIDARG,
+            outError.code    = ThemeLoadResult::MetadataInvalid;
+            outError.message = problem);
 
-    CHRF (hr,
-          outError.code    = ThemeLoadResult::MetadataInvalid;
-          outError.message = "theme.json missing or empty `name`");
+    // Guaranteed by the sweep above; CBRA because dereferencing it needs that
+    // guarantee, and a failure here means the table drifted from the reads.
+    present = HasObject (root, "driveVisualProfile", driveProfile);
+    CBRA (present);
 
-    hr = root.GetString ("familyId", outTheme.familyId);
-
-    if (SUCCEEDED (hr) && outTheme.familyId.empty())
-    {
-        hr = E_INVALIDARG;
-    }
-
-    CHRF (hr,
-          outError.code    = ThemeLoadResult::MetadataInvalid;
-          outError.message = "theme.json missing or empty `familyId`");
-
-    hr = root.GetString ("variantId", outTheme.variantId);
-
-    if (SUCCEEDED (hr) && outTheme.variantId.empty())
-    {
-        hr = E_INVALIDARG;
-    }
-
-    CHRF (hr,
-          outError.code    = ThemeLoadResult::MetadataInvalid;
-          outError.message = "theme.json missing or empty `variantId`");
+    present = HasRequiredKeys (*driveProfile, "driveVisualProfile", s_kRequiredDriveKeys, problem);
+    CBRFEx (present, E_INVALIDARG,
+            outError.code    = ThemeLoadResult::MetadataInvalid;
+            outError.message = problem);
 
     // ---- optional scalars --------------------------------------------------
 
@@ -353,47 +489,26 @@ HRESULT ThemeLoader::ParseMetadata (
     outTheme.useMicaBackdrop = GetBoolOpt   (root, "useMicaBackdrop", false);
     outTheme.isBuiltIn       = GetBoolOpt   (root, s_kpszBuiltInKey,  false);
 
-    // ---- required: uiTokens + driveVisualProfile --------------------------
-
-    // These six report E_INVALIDARG whatever the getter said, so the getter's
-    // own code never has to be carried -- a presence flag says it all. Missing
-    // and present-but-empty are the same answer to the caller.
+    // ---- reads -------------------------------------------------------------
+    //
+    // Nothing below can fail. The sweep proved every key is present, correctly
+    // typed and non-empty, so these are plain reads through the *Opt getters
+    // whose fallback is unreachable. There is no guard here because there is
+    // no longer a question to ask.
 
     present = HasObject (root, "uiTokens", uiTokensObj);
-    CBRFEx (present, E_INVALIDARG,
-            outError.code    = ThemeLoadResult::MetadataInvalid;
-            outError.message = "theme.json missing required `uiTokens` object");
+    CBRA (present);
 
     outTheme.uiTokens = *uiTokensObj;
 
-    present = HasObject (root, "driveVisualProfile", driveProfile);
-    CBRFEx (present, E_INVALIDARG,
-            outError.code    = ThemeLoadResult::MetadataInvalid;
-            outError.message = "theme.json missing required `driveVisualProfile` object");
+    outTheme.name      = GetStringOpt (root, "name",      "");
+    outTheme.familyId  = GetStringOpt (root, "familyId",  "");
+    outTheme.variantId = GetStringOpt (root, "variantId", "");
 
-    present = HasString (*driveProfile, "style", outTheme.driveVisualProfile.style)
-              && !outTheme.driveVisualProfile.style.empty();
-    CBRFEx (present, E_INVALIDARG,
-            outError.code    = ThemeLoadResult::MetadataInvalid;
-            outError.message = "driveVisualProfile.style is required");
-
-    present = HasString (*driveProfile, "colorway", outTheme.driveVisualProfile.colorway)
-              && !outTheme.driveVisualProfile.colorway.empty();
-    CBRFEx (present, E_INVALIDARG,
-            outError.code    = ThemeLoadResult::MetadataInvalid;
-            outError.message = "driveVisualProfile.colorway is required");
-
-    present = HasString (*driveProfile, "doorAnimation", outTheme.driveVisualProfile.doorAnimation)
-              && !outTheme.driveVisualProfile.doorAnimation.empty();
-    CBRFEx (present, E_INVALIDARG,
-            outError.code    = ThemeLoadResult::MetadataInvalid;
-            outError.message = "driveVisualProfile.doorAnimation is required");
-
-    present = HasString (*driveProfile, "syncChannel", outTheme.driveVisualProfile.syncChannel)
-              && !outTheme.driveVisualProfile.syncChannel.empty();
-    CBRFEx (present, E_INVALIDARG,
-            outError.code    = ThemeLoadResult::MetadataInvalid;
-            outError.message = "driveVisualProfile.syncChannel is required");
+    outTheme.driveVisualProfile.style         = GetStringOpt (*driveProfile, "style",         "");
+    outTheme.driveVisualProfile.colorway      = GetStringOpt (*driveProfile, "colorway",      "");
+    outTheme.driveVisualProfile.doorAnimation = GetStringOpt (*driveProfile, "doorAnimation", "");
+    outTheme.driveVisualProfile.syncChannel   = GetStringOpt (*driveProfile, "syncChannel",   "");
 
     // ---- crtDefaults (all optional; clamped to schema bounds) -------------
 

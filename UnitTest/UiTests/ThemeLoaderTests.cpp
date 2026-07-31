@@ -162,6 +162,93 @@ public:
     }
 
 
+    ////////////////////////////////////////////////////////////////////////////
+    //
+    //  The three ways a required field can be wrong are now distinguishable.
+    //
+    //  Every message used to read "theme.json missing or invalid X", because
+    //  each site asked two questions at once -- did the getter fail, and was
+    //  the value usable -- and could not report which had failed. Presence and
+    //  type are settled once from a schema table, so each message below says
+    //  exactly one thing.
+    //
+    ////////////////////////////////////////////////////////////////////////////
+
+    static std::string LoadAndGetMessage (const char * json, const wchar_t * dirName)
+    {
+        InMemoryFileSystem  fs;
+        LoadedTheme         theme;
+        ThemeLoadError      err;
+        std::wstring        dir = std::wstring (kThemesBase) + L"\\" + dirName;
+
+        fs.WriteAllText (dir + L"\\theme.json", json);
+        ThemeLoader::Load (fs, dir, theme, err);
+
+        return err.message;
+    }
+
+
+    TEST_METHOD (AbsentKey_SaysMissing_NotAmbiguous)
+    {
+        std::string  msg = LoadAndGetMessage (
+            R"({"$cassoThemeVersion": 1, "familyId": "apple2", "variantId": "ii", "uiTokens": {}, "driveVisualProfile": {"style":"disk2","colorway":"beige","doorAnimation":"x","syncChannel":"drive-door"}})",
+            L"AbsentName");
+
+        Assert::IsTrue (msg.find ("missing required key") != std::string::npos,
+                        L"an absent key must say so plainly");
+        Assert::IsTrue (msg.find ("name") != std::string::npos, L"and must name the key");
+    }
+
+
+    TEST_METHOD (WrongTypedKey_SaysWhatTypeItNeeds)
+    {
+        std::string  msg = LoadAndGetMessage (
+            R"({"$cassoThemeVersion": 1, "name": 5, "familyId": "apple2", "variantId": "ii", "uiTokens": {}, "driveVisualProfile": {"style":"disk2","colorway":"beige","doorAnimation":"x","syncChannel":"drive-door"}})",
+            L"NumberName");
+
+        Assert::IsTrue (msg.find ("must be a string") != std::string::npos,
+                        L"a wrong-typed key is a different failure from an absent one");
+    }
+
+
+    TEST_METHOD (EmptyValue_SaysEmpty_NotMissing)
+    {
+        std::string  msg = LoadAndGetMessage (
+            R"({"$cassoThemeVersion": 1, "name": "", "familyId": "apple2", "variantId": "ii", "uiTokens": {}, "driveVisualProfile": {"style":"disk2","colorway":"beige","doorAnimation":"x","syncChannel":"drive-door"}})",
+            L"EmptyName");
+
+        Assert::IsTrue (msg.find ("must not be empty") != std::string::npos,
+                        L"a present-but-empty value is not a missing one");
+        Assert::IsTrue (msg.find ("missing") == std::string::npos,
+                        L"and must not claim the key is missing");
+    }
+
+
+    //  The ordering that makes the version gate meaningful: a theme written
+    //  for a newer schema may legitimately lack a key this build requires, so
+    //  "your Casso is too old" has to win over "your theme is malformed".
+    //  Sweeping for required keys first would bury it.
+
+    TEST_METHOD (FutureVersion_WithMissingKey_StillReportsVersionTooNew)
+    {
+        InMemoryFileSystem  fs;
+        LoadedTheme         theme;
+        ThemeLoadError      err;
+        HRESULT             hr;
+
+        // Newer schema AND no `name` -- the version verdict must come first.
+        std::wstring  dir = std::wstring (kThemesBase) + L"\\FutureNoName";
+        fs.WriteAllText (dir + L"\\theme.json",
+                         R"({"$cassoThemeVersion": 999, "familyId": "apple2", "variantId": "ii", "uiTokens": {}})");
+
+        hr = ThemeLoader::Load (fs, dir, theme, err);
+
+        Assert::AreEqual (E_NOTIMPL, hr);
+        Assert::IsTrue (err.code == ThemeLoadResult::VersionTooNew,
+                        L"a too-new schema outranks any complaint about its contents");
+    }
+
+
     TEST_METHOD (MissingUiTokens_ReturnsInvalidArg)
     {
         InMemoryFileSystem  fs;
