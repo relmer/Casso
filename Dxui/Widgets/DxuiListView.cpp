@@ -274,11 +274,13 @@ void DxuiListView::AppendRows (std::vector<std::vector<Cell>> rows)
 
 void DxuiListView::SetColumnVisible (size_t idx, bool visible)
 {
-    HRESULT  hr = S_OK;
+    HRESULT  hr         = S_OK;
+    size_t   columnCount = 0;
 
 
 
-    CBRAEx (idx < m_columns.size(), E_INVALIDARG);
+    columnCount = m_columns.size();
+    CBRAEx (idx < columnCount, E_INVALIDARG);
 
     m_columns[idx].visible = visible;
 
@@ -302,11 +304,13 @@ Error:
 
 void DxuiListView::SetColumnOverrideWidthPx (size_t idx, int px)
 {
-    HRESULT hr = S_OK;
+    HRESULT  hr         = S_OK;
+    size_t   columnCount = 0;
 
 
 
-    CBRAEx (idx < m_columns.size(), E_INVALIDARG);
+    columnCount = m_columns.size();
+    CBRAEx (idx < columnCount, E_INVALIDARG);
 
     if (m_overrideWPx.size() < m_columns.size())
     {
@@ -336,12 +340,14 @@ Error:
 
 int DxuiListView::GetColumnOverrideWidthPx (size_t idx) const
 {
-    HRESULT  hr     = S_OK;
-    int      result = -1;
+    HRESULT  hr            = S_OK;
+    int      result        = -1;
+    size_t   overrideCount = 0;
 
 
 
-    CBRAEx (idx < m_overrideWPx.size(), E_INVALIDARG);
+    overrideCount = m_overrideWPx.size();
+    CBRAEx (idx < overrideCount, E_INVALIDARG);
 
     result = m_overrideWPx[idx];
 
@@ -365,17 +371,19 @@ Error:
 
 int DxuiListView::GetColumnEffectiveWidthPx (size_t idx) const
 {
-    HRESULT           hr      = S_OK;
-    int               width   = -1;
+    HRESULT           hr            = S_OK;
+    int               width         = -1;
     std::vector<int>  xs;
     std::vector<int>  ws;
-    int               cap     = 0;
-    bool              needBar = false;
-    int               fullW   = 0;
+    int               cap           = 0;
+    bool              needBar       = false;
+    int               fullW         = 0;
+    size_t            overrideCount = 0;
 
 
 
-    CBRAEx (idx < m_overrideWPx.size(), E_INVALIDARG);
+    overrideCount = m_overrideWPx.size();
+    CBRAEx (idx < overrideCount, E_INVALIDARG);
 
     cap     = GetVisibleRowCapacity();
     needBar = (RowCount() > cap) && (cap > 0);
@@ -619,13 +627,15 @@ int DxuiListView::GetNthVisibleColumnIndex (int n) const
 
 int DxuiListView::GetVisibleIndexOfColumn (size_t absCol) const
 {
-    HRESULT  hr     = S_OK;
-    int      result = -1;
-    int      seen   = 0;
+    HRESULT  hr          = S_OK;
+    int      result      = -1;
+    int      seen        = 0;
+    size_t   columnCount = 0;
 
 
 
-    CBRAEx      (absCol < m_columns.size(), E_INVALIDARG);
+    columnCount = m_columns.size();
+    CBRAEx      (absCol < columnCount, E_INVALIDARG);
     BAIL_OUT_IF (!m_columns[absCol].visible, S_OK);
 
     for (auto col : m_columns)

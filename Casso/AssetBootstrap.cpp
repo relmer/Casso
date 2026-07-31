@@ -449,16 +449,21 @@ Error:
 
 static HRESULT WriteFileBytes (const fs::path & path, span<const Byte> bytes)
 {
-    HRESULT     hr  = S_OK;
+    HRESULT     hr        = S_OK;
     ofstream    out;
+    bool        wroteWell = false;
 
 
 
     out.open (path, ios::binary | ios::trunc);
-    CBRA (out.good());
+
+    wroteWell = out.good();
+    CBRA (wroteWell);
 
     out.write (reinterpret_cast<const char *> (bytes.data()), static_cast<streamsize> (bytes.size()));
-    CBRA (out.good());
+
+    wroteWell = out.good();
+    CBRA (wroteWell);
 
 Error:
     return hr;
@@ -1236,6 +1241,8 @@ static HRESULT DownloadHttp (
     DWORD        bytesAvail   = 0;
     DWORD        bytesRead    = 0;
     bool         fCanceled    = false;
+    size_t       receivedSize = 0;
+    bool         hasBytes     = false;
     string       narrowHost;
 
 
@@ -1332,15 +1339,18 @@ static HRESULT DownloadHttp (
     // ahead of time). Pass 0 to skip the size check -- used for the
     // OpenEmulator OGG fetch where the upstream file size is not
     // pinned (T134).
+    receivedSize = outBytes.size();
+    hasBytes     = !outBytes.empty();
+
     if (expectedSize > 0)
     {
-        CBRF (outBytes.size() == expectedSize,
+        CBRF (receivedSize == expectedSize,
               outError = format ("Downloaded {} has wrong size: got {}, expected {}",
-                                 displayName, outBytes.size(), expectedSize));
+                                 displayName, receivedSize, expectedSize));
     }
     else
     {
-        CBRF (!outBytes.empty(),
+        CBRF (hasBytes,
               outError = format ("Downloaded {} was empty", displayName));
     }
 
@@ -1413,8 +1423,9 @@ static HRESULT LoadEmbeddedJson (
     string          & outNarrowName,
     string          & outError)
 {
-    HRESULT                 hr    = S_OK;
-    const EmbeddedConfig  * cfg   = nullptr;
+    HRESULT                 hr       = S_OK;
+    const EmbeddedConfig  * cfg      = nullptr;
+    bool                    hasBytes = false;
     span<const Byte>        bytes;
 
 
@@ -1432,8 +1443,10 @@ static HRESULT LoadEmbeddedJson (
     CBRF (cfg != nullptr,
           outError = format ("No embedded config for machine '{}'", outNarrowName));
 
-    bytes = ExtractResource (hInstance, cfg->resourceId);
-    CBRF (!bytes.empty(),
+    bytes    = ExtractResource (hInstance, cfg->resourceId);
+    hasBytes = !bytes.empty();
+
+    CBRF (hasBytes,
           outError = format ("Embedded config resource for '{}' is empty",
                              string (cfg->machineName)));
 
@@ -2819,6 +2832,7 @@ HRESULT AssetBootstrap::WritePcmAsWav (
     size_t      i             = 0;
     int16_t     sampleI16     = 0;
     float       sampleF       = 0.0f;
+    bool        wroteWell     = false;
 
 
 
@@ -2828,7 +2842,9 @@ HRESULT AssetBootstrap::WritePcmAsWav (
     fs::create_directories (outPath.parent_path(), ec);
 
     out.open (outPath, ios::binary | ios::trunc);
-    CBRF (out.good(),
+
+    wroteWell = out.good();
+    CBRF (wroteWell,
           outError = format ("Cannot open {} for writing", outPath.string()));
 
     out.write ("RIFF", 4);
@@ -2858,7 +2874,8 @@ HRESULT AssetBootstrap::WritePcmAsWav (
         out.write (reinterpret_cast<const char *> (&sampleI16), sizeof (sampleI16));
     }
 
-    CBRF (out.good(),
+    wroteWell = out.good();
+    CBRF (wroteWell,
           outError = format ("Write error on {}", outPath.string()));
 
     out.close();

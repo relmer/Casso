@@ -244,11 +244,16 @@ HRESULT SettingsPanelState::LoadFromMachine (
     const JsonValue    & defaultJson,
     const JsonValue    & mergedJson)
 {
-    HRESULT  hr = S_OK;
+    HRESULT   hr              = S_OK;
+    JsonType  defaultRootType = JsonType::Null;
+    JsonType  mergedRootType  = JsonType::Null;
 
 
-    CBR (defaultJson.GetType() == JsonType::Object);
-    CBR (mergedJson .GetType() == JsonType::Object);
+    defaultRootType = defaultJson.GetType();
+    mergedRootType  = mergedJson.GetType();
+
+    CBR (defaultRootType == JsonType::Object);
+    CBR (mergedRootType  == JsonType::Object);
 
     m_machineName = machineName;
     m_defaultJson = CloneJson (defaultJson);
@@ -543,11 +548,13 @@ void SettingsPanelState::SetMouseConnected (bool connected)
 
 HRESULT SettingsPanelState::SetHardwareEnabled (size_t index, bool enabled)
 {
-    HRESULT  hr = S_OK;
+    HRESULT  hr            = S_OK;
+    size_t   hardwareCount = 0;
 
 
 
-    CBR (index < m_current.hardware.size());
+    hardwareCount = m_current.hardware.size();
+    CBR (index < hardwareCount);
 
     if (! enabled)
     {
@@ -629,13 +636,15 @@ HRESULT SettingsPanelState::ExtractUiPrefs (
     const JsonValue   & mergedJson,
     SettingsUiPrefs   & outPrefs)
 {
-    HRESULT             hr     = S_OK;
-    const JsonValue *   uiObj  = nullptr;
-    const JsonValue *   wpArr  = nullptr;
-    size_t              i      = 0;
+    HRESULT             hr             = S_OK;
+    const JsonValue *   uiObj          = nullptr;
+    const JsonValue *   wpArr          = nullptr;
+    size_t              i              = 0;
+    JsonType            mergedRootType = JsonType::Null;
 
 
-    CBR (mergedJson.GetType() == JsonType::Object);
+    mergedRootType = mergedJson.GetType();
+    CBR (mergedRootType == JsonType::Object);
 
     outPrefs = SettingsUiPrefs {};
 
@@ -713,6 +722,7 @@ HRESULT SettingsPanelState::ExtractMachineInfo (
     const JsonValue  * slots           = nullptr;
     bool               hasAux          = false;
     uint32_t           totalRamBytes   = 0;
+    JsonType           mergedRootType  = JsonType::Null;
 
     auto ParseHex = [] (const std::string & str) -> uint32_t
     {
@@ -770,7 +780,8 @@ HRESULT SettingsPanelState::ExtractMachineInfo (
 
 
 
-    CBR (mergedJson.GetType() == JsonType::Object);
+    mergedRootType = mergedJson.GetType();
+    CBR (mergedRootType == JsonType::Object);
 
     outInfo = SettingsMachineInfo {};
 
@@ -1007,14 +1018,16 @@ HRESULT SettingsPanelState::ExtractHardware (
         { "apple2e-mmu",             "Memory Management Unit" },
     };
 
-    HRESULT             hr       = S_OK;
-    const JsonValue *   devArr   = nullptr;
-    const JsonValue *   slotArr  = nullptr;
-    size_t              i        = 0;
-    size_t              j        = 0;
+    HRESULT             hr             = S_OK;
+    const JsonValue *   devArr         = nullptr;
+    const JsonValue *   slotArr        = nullptr;
+    size_t              i              = 0;
+    size_t              j              = 0;
+    JsonType            mergedRootType = JsonType::Null;
 
 
-    CBR (mergedJson.GetType() == JsonType::Object);
+    mergedRootType = mergedJson.GetType();
+    CBR (mergedRootType == JsonType::Object);
 
     outEntries.clear();
 
