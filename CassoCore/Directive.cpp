@@ -99,8 +99,15 @@ static constexpr DirectiveTable::Spelling  s_kSpellings[] =
 //
 //  DirectiveTable::FromSpelling
 //
-//  Linear scan rather than a hash: the table is ~60 rows and this runs once
-//  per source line, so the constant factor beats hashing a short string.
+//  Linear scan over 63 rows. It is not the fast option and does not claim to
+//  be -- measured against this same table, an unordered_map is ~46x quicker
+//  per lookup and a std::string_view row (which skips the strlen this does per
+//  row, per call) ~3.6x. It stays linear because assembling is not a hot path:
+//  a 1,500-line source takes single-digit milliseconds end to end, of which
+//  spelling lookup is a few percent.
+//
+//  An earlier version of this comment claimed the constant factor beat
+//  hashing. It does not; nobody had measured it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -376,144 +376,117 @@ bool AssemblySession::IsBitOpMnemonic (const std::string & mnemonic)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  AssemblySession::GetAddressingRules
+//
+//  The syntax -> mode policy, whole, in one place. Every case of the switch
+//  this replaced had the same shape once the noise came off: try a short list
+//  of candidate modes in priority order, take the first the mnemonic actually
+//  carries, and otherwise fall back to what the syntax means on its own.
+//
+//  Two things the old form hid. `IsBranchMnemonic` was a separate concept only
+//  because it predated the opcode table answering it -- it is now exactly the
+//  ungated Relative candidate, so Bare's three-way decision is a plain list.
+//  And each case built an OpcodeEntry it never read, because Lookup was being
+//  used as an existence test; that is HasMode.
+//
+//  Indexed by OperandSyntax, so the rows must stay in enum order. The `syntax`
+//  field is what catches it if they do not.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::span<const AssemblySession::AddressingRule> AssemblySession::GetAddressingRules()
+{
+    using AM = GlobalAddressingMode::AddressingMode;
+
+    // `expr` alone: a branch target, a jump target, then zero page if it fits.
+    static constexpr ModeCandidate  s_kBare[] =
+    {
+        { AM::Relative,          false },
+        { AM::JumpAbsolute,      false },
+        { AM::ZeroPage,          true  },
+    };
+
+    static constexpr ModeCandidate  s_kIndexedX[] = { { AM::ZeroPageX, true } };
+    static constexpr ModeCandidate  s_kIndexedY[] = { { AM::ZeroPageY, true } };
+
+    // (expr,X): the common (zp,X), or the 65C02 (abs,X) that only JMP carries.
+    static constexpr ModeCandidate  s_kIndirectX[] =
+    {
+        { AM::ZeroPageXIndirect, true  },
+        { AM::AbsoluteXIndirect, false },
+    };
+
+    // (expr): the 65C02 (zp) indirect when it fits and the mnemonic has it,
+    // else the (abs) JMP indirect -- NMOS, or the page-fixed CMOS variant that
+    // carries its own mode.
+    static constexpr ModeCandidate  s_kIndirect[] =
+    {
+        { AM::ZeroPageIndirect,  true  },
+        { AM::JumpIndirect,      false },
+        { AM::JumpIndirectCmos,  false },
+    };
+
+    static constexpr AddressingRule  s_kRules[] =
+    {
+        { OperandSyntax::None,             {},             AM::SingleByteNoOperand },
+        { OperandSyntax::Immediate,        {},             AM::Immediate           },
+        { OperandSyntax::Bare,             s_kBare,        AM::Absolute            },
+        { OperandSyntax::IndexedX,         s_kIndexedX,    AM::AbsoluteX           },
+        { OperandSyntax::IndexedY,         s_kIndexedY,    AM::AbsoluteY           },
+        { OperandSyntax::IndirectX,        s_kIndirectX,   AM::ZeroPageXIndirect   },
+        { OperandSyntax::IndirectY,        {},             AM::ZeroPageIndirectY   },
+        { OperandSyntax::Indirect,         s_kIndirect,    AM::JumpIndirect        },
+        { OperandSyntax::Accumulator,      {},             AM::Accumulator         },
+        // BBRn/BBSn only; a mnemonic lacking the mode fails the caller's lookup.
+        { OperandSyntax::ZeroPageRelative, {},             AM::ZeroPageRelative    },
+    };
+
+    static_assert (std::size (s_kRules) == (size_t) OperandSyntax::Count,
+                   "every OperandSyntax needs an addressing rule");
+
+    return std::span<const AddressingRule> (s_kRules, std::size (s_kRules));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ResolveAddressingMode — derive final 6502 addressing mode from syntax,
 //  mnemonic, and resolved value
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 GlobalAddressingMode::AddressingMode AssemblySession::ResolveAddressingMode (
-    OperandSyntax    syntax,
+    OperandSyntax       syntax,
     const std::string & mnemonic,
-    int32_t          value,
-    bool             resolved)
+    int32_t             value,
+    bool                resolved) const
 {
-    using AM = GlobalAddressingMode::AddressingMode;
+    const AddressingRule &                rule       = GetAddressingRules()[(size_t) syntax];
+    bool                                  fitsInPage = resolved && value >= 0 && value <= 0xFF;
+    GlobalAddressingMode::AddressingMode  mode       = rule.fallback;
+
+    ASSERT (rule.syntax == syntax);
 
 
 
-    switch (syntax)
+    for (const ModeCandidate & candidate : rule.candidates)
     {
-        case OperandSyntax::None:
-            return AM::SingleByteNoOperand;
-
-        case OperandSyntax::Accumulator:
-            return AM::Accumulator;
-
-        case OperandSyntax::Immediate:
-            return AM::Immediate;
-
-        case OperandSyntax::IndirectX:
+        if (candidate.needsZeroPage && !fitsInPage)
         {
-            // (zp,X) is the common form; JMP (abs,X) is the 65C02 absolute
-            // indexed indirect (JMP only). Prefer zp when it is zp-sized and the
-            // mnemonic supports it, else fall to (abs,X) if supported.
-            OpcodeEntry entry = {};
-
-            if (resolved && value >= 0 && value <= 0xFF &&
-                m_opcodeTable.Lookup (mnemonic, AM::ZeroPageXIndirect, entry))
-            {
-                return AM::ZeroPageXIndirect;
-            }
-
-            if (m_opcodeTable.Lookup (mnemonic, AM::AbsoluteXIndirect, entry))
-            {
-                return AM::AbsoluteXIndirect;
-            }
-
-            return AM::ZeroPageXIndirect;
+            continue;
         }
 
-        case OperandSyntax::IndirectY:
-            return AM::ZeroPageIndirectY;
-
-        case OperandSyntax::Indirect:
+        if (m_opcodeTable.HasMode (mnemonic, candidate.mode))
         {
-            OpcodeEntry entry = {};
-
-            // (zp) is the 65C02 zero-page indirect when zp-sized and supported
-            // (LDA/STA/ORA/AND/…); otherwise it is the (abs) JMP indirect.
-            if (resolved && value >= 0 && value <= 0xFF &&
-                m_opcodeTable.Lookup (mnemonic, AM::ZeroPageIndirect, entry))
-            {
-                return AM::ZeroPageIndirect;
-            }
-
-            // (abs) JMP indirect: NMOS JumpIndirect, or the 65C02 page-fixed
-            // variant which carries its own mode enum.
-            if (m_opcodeTable.Lookup (mnemonic, AM::JumpIndirect, entry))
-            {
-                return AM::JumpIndirect;
-            }
-
-            if (m_opcodeTable.Lookup (mnemonic, AM::JumpIndirectCmos, entry))
-            {
-                return AM::JumpIndirectCmos;
-            }
-
-            return AM::JumpIndirect;
-        }
-
-        case OperandSyntax::IndexedX:
-        {
-            if (resolved && value >= 0 && value <= 0xFF)
-            {
-                OpcodeEntry entry = {};
-
-                if (m_opcodeTable.Lookup (mnemonic, AM::ZeroPageX, entry))
-                {
-                    return AM::ZeroPageX;
-                }
-            }
-
-            return AM::AbsoluteX;
-        }
-
-        case OperandSyntax::IndexedY:
-        {
-            if (resolved && value >= 0 && value <= 0xFF)
-            {
-                OpcodeEntry entry = {};
-
-                if (m_opcodeTable.Lookup (mnemonic, AM::ZeroPageY, entry))
-                {
-                    return AM::ZeroPageY;
-                }
-            }
-
-            return AM::AbsoluteY;
-        }
-
-        case OperandSyntax::ZeroPageRelative:
-            // 65C02 BBRn/BBSn only; a mnemonic lacking this mode fails the lookup.
-            return AM::ZeroPageRelative;
-
-        case OperandSyntax::Bare:
-        {
-            if (IsBranchMnemonic (mnemonic))
-            {
-                return AM::Relative;
-            }
-
-            if (m_opcodeTable.HasMode (mnemonic, AM::JumpAbsolute))
-            {
-                return AM::JumpAbsolute;
-            }
-
-            if (resolved && value >= 0 && value <= 0xFF)
-            {
-                OpcodeEntry entry = {};
-
-                if (m_opcodeTable.Lookup (mnemonic, AM::ZeroPage, entry))
-                {
-                    return AM::ZeroPage;
-                }
-            }
-
-            return AM::Absolute;
+            mode = candidate.mode;
+            break;
         }
     }
 
-    return AM::SingleByteNoOperand;
+    return mode;
 }
 
 

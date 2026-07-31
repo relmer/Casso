@@ -231,6 +231,28 @@ private:
     HRESULT ParseCmapMapping          (const std::string & arg);
 
     // Helpers moved from file-scope statics
+    // One addressing mode an operand syntax may resolve to. `needsZeroPage`
+    // marks the candidates that are only eligible once the operand is known to
+    // fit in page zero -- which pass 1 often cannot know yet.
+    struct ModeCandidate
+    {
+        GlobalAddressingMode::AddressingMode  mode;
+        bool                                  needsZeroPage;
+    };
+
+    // The whole syntax -> mode policy, one row per OperandSyntax. Candidates
+    // are tried in order and the first the mnemonic actually carries wins;
+    // `fallback` is what the syntax means when it carries none of them, which
+    // is also what an unencodable line resolves to before it is reported.
+    struct AddressingRule
+    {
+        OperandSyntax                         syntax;
+        std::span<const ModeCandidate>        candidates;
+        GlobalAddressingMode::AddressingMode  fallback;
+    };
+
+    static std::span<const AddressingRule> GetAddressingRules();
+
     // How wide one element of a struct member is, keyed by the directive that
     // declared it. `elementSize` is kSizeFromOperand when the operand supplies
     // the count instead (`.DS`), and a member type absent from the table is not
@@ -263,7 +285,7 @@ private:
                                                                std::vector<AssemblyError> & errors);
     GlobalAddressingMode::AddressingMode ResolveAddressingMode (OperandSyntax syntax,
                                                                  const std::string & mnemonic,
-                                                                 int32_t value, bool resolved);
+                                                                 int32_t value, bool resolved) const;
 
     void RecordError   (int lineNumber, const std::string & message);
     void RecordWarning (int lineNumber, const std::string & message);

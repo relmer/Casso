@@ -54,6 +54,8 @@ enum class OperandSyntax
     Indirect,      // (expr)  — used for JMP ($addr)
     Accumulator,   // A
     ZeroPageRelative, // expr,expr — 65C02 BBRn/BBSn bit-branch (zp,target)
+
+    Count,         // sentinel: sizes syntax-indexed tables
 };
 
 
