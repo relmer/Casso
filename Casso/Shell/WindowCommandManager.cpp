@@ -929,6 +929,8 @@ HRESULT WindowCommandManager::SavePrintoutAs (const PrintRaster & raster, fs::pa
     fs::path                  suggested;
     vector<Byte>              png;
     SYSTEMTIME                now         = {};
+    bool                      isOpen      = false;
+    bool                      wroteWell   = false;
     std::error_code           ec;
     const GlobalUserPrefs &   prefs       = m_shell.m_globalPrefs;
 
@@ -993,9 +995,13 @@ HRESULT WindowCommandManager::SavePrintoutAs (const PrintRaster & raster, fs::pa
     {
         std::ofstream   out (outFile, std::ios::binary | std::ios::trunc);
 
-        CBR (out.is_open());
+        isOpen = out.is_open();
+        CBR (isOpen);
+
         out.write ((const char *) png.data(), (std::streamsize) png.size());
-        CBR (out.good());
+
+        wroteWell = out.good();
+        CBR (wroteWell);
     }
 
 Error:
@@ -1048,10 +1054,12 @@ HRESULT WindowCommandManager::PrintToWindowsPrinter (const PrintRaster & raster,
     int                                    pageW   = 0;
     int                                    pageH   = 0;
     int                                    pageIx  = 0;
+    bool                                   hasPages = false;
 
     outOutcome = PrintOutcome::Delivered;
 
-    CBRF (!pages.empty(),
+    hasPages = !pages.empty();
+    CBRF (hasPages,
           failedStage = L"pagination (the page has no printable content)");
 
     // Microsoft Print to PDF (and other v4 / XPS print drivers) create their
@@ -1195,6 +1203,8 @@ HRESULT WindowCommandManager::CopyPrintoutToClipboard (const PrintRaster & raste
     HGLOBAL                  hDib     = nullptr;
     HGLOBAL                  hPng     = nullptr;
     bool                     opened   = false;
+    bool                     didOpen  = false;
+    bool                     didEmpty = false;
     size_t                   px       = 0;
     size_t                   dibBytes = 0;
     // A 32bpp DIB of the whole strip must stay bounded so a huge multi-page
@@ -1283,9 +1293,13 @@ HRESULT WindowCommandManager::CopyPrintoutToClipboard (const PrintRaster & raste
 
     CBR (hDib != nullptr || hPng != nullptr);
 
-    CBR (OpenClipboard (m_shell.m_hwnd));
+    didOpen = OpenClipboard (m_shell.m_hwnd);
+    CBR (didOpen);
+
     opened = true;
-    CBR (EmptyClipboard());
+
+    didEmpty = EmptyClipboard();
+    CBR (didEmpty);
 
     // On success the clipboard takes ownership, so null the handle to keep the
     // cleanup path from freeing it out from under the clipboard.

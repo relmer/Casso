@@ -107,6 +107,7 @@ MachineConfigUpgradeAction MachineConfigUpgrade::Plan (
     HRESULT                     hr          = S_OK;
     MachineConfigUpgradeAction  action      = MachineConfigUpgradeAction::BackupAndReplace;
     int                         diskVersion = 0;
+    bool                        hasDiskHash = false;
 
 
 
@@ -135,7 +136,8 @@ MachineConfigUpgradeAction MachineConfigUpgrade::Plan (
     // Unstamped or stamp-collided: hash-match against known historical
     // defaults; any match means the file is an untouched extract and is
     // safe to refresh.
-    CBR (!diskNormalizedHashHex.empty());
+    hasDiskHash = !diskNormalizedHashHex.empty();
+    CBR (hasDiskHash);
 
     for (const MachineConfigPriorHash & p : priorHashes)
     {

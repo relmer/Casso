@@ -34,8 +34,9 @@ JsonParser::JsonParser (const string & input)
 
 HRESULT JsonParser::Parse (const string & input, JsonValue & outValue, JsonParseError & outError)
 {
-    HRESULT    hr     = S_OK;
-    JsonParser parser   (input);
+    HRESULT    hr           = S_OK;
+    JsonParser parser         (input);
+    bool       consumedAll   = false;
 
 
 
@@ -44,7 +45,8 @@ HRESULT JsonParser::Parse (const string & input, JsonValue & outValue, JsonParse
 
     parser.SkipWhitespace();
 
-    CBRF (parser.AtEnd(), parser.SetError ("Unexpected content after JSON value"));
+    consumedAll = parser.AtEnd();
+    CBRF (consumedAll, parser.SetError ("Unexpected content after JSON value"));
 
 Error:
     if (FAILED (hr))

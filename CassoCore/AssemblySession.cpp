@@ -2835,14 +2835,16 @@ Error:
 
 HRESULT AssemblySession::StartStructDefinition (const PendingLine & current, LineInfo & info)
 {
-    HRESULT hr = S_OK;
+    HRESULT hr      = S_OK;
+    bool    hasName = false;
 
 
 
     {
         auto args = Parser::SplitArgList (info.parsed.directiveArg);
 
-        CBRFEx (!args.empty(), S_OK, RecordError (current.sourceLineNumber, "struct requires a name"));
+        hasName = !args.empty();
+        CBRFEx (hasName, S_OK, RecordError (current.sourceLineNumber, "struct requires a name"));
 
         m_currentStruct             = {};
         m_currentStruct.name        = args[0];

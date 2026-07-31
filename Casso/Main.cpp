@@ -160,6 +160,7 @@ static HRESULT LoadMachineConfig (
     fs::path            diskDir;
     wstring             savedDisk;
     HRESULT             hrSaved        = S_OK;
+    bool                foundConfig    = false;
     string              error;
 
 
@@ -172,7 +173,8 @@ static HRESULT LoadMachineConfig (
                                            / (fs::path (machineName).string() + ".json");
     configPath     = PathResolver::FindFile (searchPaths, configRelPath);
 
-    CBRN (!configPath.empty(),
+    foundConfig = !configPath.empty();
+    CBRN (foundConfig,
           format (L"Unknown machine '{}'. Config file not found.\n"
                   L"Searched for '{}' in exe directory, current directory, and parent directories.",
                   machineName,

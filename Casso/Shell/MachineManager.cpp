@@ -1275,6 +1275,7 @@ HRESULT MachineManager::SwitchMachine (const std::wstring & machineName)
     JsonValue              mergedJson;
     JsonParseError         parseErr;
     WORD                   speedCmd = 0;
+    bool                   foundConfig = false;
     std::string            carryDisk1;
     std::string            carryDisk2;
 
@@ -1290,7 +1291,8 @@ HRESULT MachineManager::SwitchMachine (const std::wstring & machineName)
                                           / (machineNameNarrow + ".json");
     configPath    = PathResolver::FindFile (searchPaths, configRelPath);
 
-    CBRN (!configPath.empty(),
+    foundConfig = !configPath.empty();
+    CBRN (foundConfig,
           std::format (L"Machine config not found: {}", machineName).c_str());
 
     configFile.open (configPath);

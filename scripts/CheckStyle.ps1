@@ -146,22 +146,6 @@ $checks = @(
         Exclude = @()
     },
     @{
-        # A macro that wraps the call hides what failed, and buries a side
-        # effect inside something that may not evaluate its argument once.
-        # Assign to a local first, then check the local. Deliberately does not
-        # match a bare identifier -- CHR (hr) is the whole point.
-        # Only flags the shape where the macro's argument IS the call, so the
-        # thing that failed is the thing being hidden. A call appearing inside
-        # a larger condition -- raw.size() == kFoo, Peek() == '"' -- is left
-        # alone: the condition still reads as a condition, and hoisting it
-        # would cost clarity rather than buy any.
-        Id      = 'CS0011'
-        Globs   = @('*.cpp', '*.h')
-        Pattern = '\bCHR[AFN]*(?:Ex)?\s*\(\s*[A-Za-z_][A-Za-z0-9_:]*(?:(?:\.|->)[A-Za-z0-9_]+)?\s*\('
-        Message = 'CHR wraps a call -- hoist it into hr, then CHR (hr)'
-        Exclude = @('CassoCore/Ehm.h')
-    },
-    @{
         # Ehm.h reaches every translation unit through its project's Pch, so a
         # direct include is redundant and drifts out of sync. Ehm.cpp
         # implements it and the Pch files are where it belongs.
@@ -400,6 +384,119 @@ function Test-PchFirst
 
 ####################################################################
 #
+#  Test-EhmConditionCalls  (CS0011)
+#
+#  An EHM macro's CONDITION may not contain a call. The macro hides
+#  what failed, and buries a side effect inside something that may
+#  not evaluate its argument once -- so the guard tests a named local
+#  saying what is being checked, and the bail names the condition.
+#
+#  The ban is absolute, including .empty() / .size() / .good(). That
+#  is deliberate: the judgment version ("only calls that do work")
+#  cannot be expressed as a check, sat unenforced in the standards
+#  text, and had drifted to 88 sites before anyone counted.
+#
+#  Only the condition is checked. An ACTION argument is normally a
+#  call and stays exempt -- CBRF (isComma, SetError ("...")).
+#
+#  Not a regex rule: the condition ends at the first TOP-LEVEL comma,
+#  which means tracking paren depth and skipping string/char literals.
+#  CBRF (Peek() == ',', SetError (...)) has a comma inside a literal
+#  and a line pattern gets it wrong.
+#
+####################################################################
+
+# Function-like macros that expand to a comparison, not a call.
+$script:EhmAllowedMacros = @('BCRYPT_SUCCESS', 'NT_SUCCESS')
+
+# Keywords and casts that take parens but are not calls.
+$script:EhmNotCalls = @('sizeof', 'return', 'if', 'while', 'for', 'switch', 'defined',
+                        'static_cast', 'reinterpret_cast', 'const_cast', 'dynamic_cast')
+
+function Get-EhmConditionSpan
+{
+    param([string] $Text, [int] $OpenParenIndex)
+
+    $depth = 0
+    $i     = $OpenParenIndex
+    $start = $OpenParenIndex + 1
+    $inStr = $false
+    $inChr = $false
+
+    while ($i -lt $Text.Length)
+    {
+        $c    = $Text[$i]
+        $prev = if ($i -gt 0) { $Text[$i - 1] } else { [char]0 }
+        $esc  = ($prev -eq '\')
+
+        if     ($inStr)     { if ($c -eq '"' -and -not $esc) { $inStr = $false } }
+        elseif ($inChr)     { if ($c -eq "'" -and -not $esc) { $inChr = $false } }
+        elseif ($c -eq '"') { $inStr = $true }
+        elseif ($c -eq "'") { $inChr = $true }
+        elseif ($c -eq '(') { $depth++ }
+        elseif ($c -eq ')')
+        {
+            $depth--
+            if ($depth -eq 0) { return $Text.Substring($start, $i - $start) }
+        }
+        elseif ($c -eq ',' -and $depth -eq 1)
+        {
+            return $Text.Substring($start, $i - $start)
+        }
+
+        $i++
+    }
+
+    return ''
+}
+
+function Test-EhmConditionCalls
+{
+    param([string[]]$Files)
+
+    $bad = @()
+
+    foreach ($rel in $Files)
+    {
+        if ($rel -notlike '*.cpp' -and $rel -notlike '*.h') { continue }
+        if ($rel -like '*External/*')                       { continue }
+        if ($rel -like '*CassoCore/Ehm.h')                  { continue }
+
+        $full = Join-Path $repoRoot $rel
+        if (-not (Test-Path -LiteralPath $full)) { continue }
+
+        $text = [IO.File]::ReadAllText($full)
+
+        foreach ($m in [regex]::Matches($text, '\bC[BWPH]R[AFN]*(?:Ex)?\s*\('))
+        {
+            $open = $text.IndexOf('(', $m.Index)
+            if ($open -lt 0) { continue }
+
+            $cond = Get-EhmConditionSpan -Text $text -OpenParenIndex $open
+            if ([string]::IsNullOrWhiteSpace($cond)) { continue }
+
+            foreach ($call in [regex]::Matches($cond, '\b([A-Za-z_][A-Za-z0-9_]*(?:(?:::|\.|->)[A-Za-z0-9_]+)*)\s*\('))
+            {
+                $name = $call.Groups[1].Value
+                $leaf = ($name -split '::|\.|->')[-1]
+
+                if ($script:EhmNotCalls      -contains $leaf) { continue }
+                if ($script:EhmAllowedMacros -contains $leaf) { continue }
+
+                $line   = ($text.Substring(0, $m.Index) -split "`n").Count
+                $macro  = $m.Value.TrimEnd(" ", "(")
+                $bad   += "${rel}:${line} -- $macro condition calls $name -- hoist it into a named local, then test the local"
+                break
+            }
+        }
+    }
+
+    return $bad
+}
+
+
+####################################################################
+#
 #  Test-CommitMessages
 #
 #  The repo forbids Claude / Claude Code attribution in commit
@@ -502,6 +599,11 @@ else
 foreach ($b in (Test-PchFirst -Files $touchedFiles))
 {
     $sink.Add([pscustomobject]@{ Id = 'CS0005'; Text = $b })
+}
+
+foreach ($b in (Test-EhmConditionCalls -Files $touchedFiles))
+{
+    $sink.Add([pscustomobject]@{ Id = 'CS0011'; Text = $b })
 }
 
 if (-not $SkipCommitCheck -and $Mode -eq 'Diff')

@@ -780,6 +780,7 @@ HRESULT DxuiPopupHost::EnsureWindowClass()
     WNDCLASSEXW  wc               = {};
     wchar_t      classNameBuf[64] = {};
     uint32_t     serial           = 0;
+    ATOM         classAtom        = 0;
 
 
     BAIL_OUT_IF (m_classRegistered, S_OK);
@@ -796,7 +797,9 @@ HRESULT DxuiPopupHost::EnsureWindowClass()
     wc.hbrBackground = nullptr;
     wc.lpszClassName = m_className.c_str();
 
-    CWRA (RegisterClassExW (&wc));
+    classAtom = RegisterClassExW (&wc);
+    CWRA (classAtom);
+
     m_classRegistered = true;
 
 Error:

@@ -54,14 +54,16 @@ const DiskImageStore::Entry & DiskImageStore::At (int slot, int drive) const
 
 HRESULT DiskImageStore::DetectFormatByExtension (const string & path, DiskFormat & outFmt)
 {
-    HRESULT   hr   = S_OK;
-    size_t    pos  = 0;
+    HRESULT   hr       = S_OK;
+    size_t    pos      = 0;
     string    ext;
-    size_t    i    = 0;
+    size_t    i        = 0;
+    size_t    pathLen  = 0;
 
-    pos = path.find_last_of ('.');
+    pos     = path.find_last_of ('.');
+    pathLen = path.size();
 
-    CBR (pos != string::npos && pos + 1 < path.size());
+    CBR (pos != string::npos && pos + 1 < pathLen);
 
     ext = path.substr (pos + 1);
 

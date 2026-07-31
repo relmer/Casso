@@ -139,11 +139,13 @@ Error:
 
 void DxuiPropertySheet::SetActivePage (int index)
 {
-    HRESULT  hr = S_OK;
-    size_t   i  = 0;
+    HRESULT  hr        = S_OK;
+    size_t   i         = 0;
+    int      pageCount = 0;
 
 
-    CBRA (index >= 0 && index < (int) m_pages.size());
+    pageCount = (int) m_pages.size();
+    CBRA (index >= 0 && index < pageCount);
 
     m_active = index;
 

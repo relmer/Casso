@@ -21,7 +21,7 @@ it only stops *new* violations.
 | `CS0009` | do not *produce* `S_FALSE` | 0 |
 | `CS0002` | no anonymous namespaces | 0 |
 | `CS0006` | no bare `goto Error` | 0 |
-| `CS0011` | no call as a `CHR` argument | 0 |
+| `CS0011` | no call of any kind in an EHM condition | 0 |
 | `CS0012` | `Ehm.h` comes from `Pch.h`, never directly | 0 |
 
 ## Test counts differ by config, on purpose
@@ -381,7 +381,48 @@ improvement if the lookup asks the question the literal was answering. Ask what
 fact the constant encoded before deciding what to look up — "derived from a
 table" is not self-justifying.
 
-### 2c. `CS0011` — calls as EHM macro arguments — gated at 0, half by judgment
+### 2c. `CS0011` — calls in EHM conditions — DONE, and the rule got wider
+
+**Now absolute: an EHM condition may not contain a call of any kind**, including
+`.empty()` / `.size()` / `.good()`. 88 sites across 33 files converted; the gate
+holds it at 0.
+
+The earlier version of this entry (kept below, because the reasoning was sound
+and the conclusion still wrong) gated only the `CHR` family and left `CBR`/`CWR`
+to human judgment, on the grounds that a pattern cannot tell "does work" from
+"asks a question". True — but the consequence is that the rule was **never
+applied**. It sat in the standards text and drifted to 88 sites without anyone
+noticing, which is a worse outcome than a rule that occasionally asks for a
+pointless local.
+
+Measuring it also corrected two of my own numbers. I first reported 51 sites
+from a regex that only matched a call as the *first* token, missing `!AtEnd()`
+and `a && b.Foo()` — a 42% undercount. And ~81 of the 88 turned out to be pure
+state queries rather than the operation-hiding cases the rule was written for,
+which is worth knowing before quoting effort.
+
+Shape of the fix: hoist to a local **named for what is tested** (`isOpen`,
+`hasBytes`, `rawSize`, `mergedRootType`), declared at function top per the
+declarations rule, with the **comparison left inside the macro** — hoist the
+value, not the predicate. A reused generic `ok` was rejected: a name that never
+says what it holds defeats the purpose, which is that the bail point names the
+condition.
+
+**Not a line rule.** The condition ends at the first *top-level* comma, so the
+check tracks paren depth and skips string/char literals — `CBRF (Peek() == ',',
+SetError (...))` has a comma inside a literal that a line pattern gets wrong.
+Implemented as `Test-EhmConditionCalls`, following the `Test-PchFirst`
+precedent for non-regex checks. Verified by reintroducing a violation and
+confirming the gate names the file, line, macro and call.
+
+Exempt: `BCRYPT_SUCCESS` / `NT_SUCCESS`, which are function-like macros
+expanding to a comparison (4 sites). `SUCCEEDED`/`FAILED` are deliberately *not*
+on that list — inside a `CBR` they are wrong anyway, because testing an HRESULT
+means the macro should be `CHR`. There are currently zero of those.
+
+Action arguments stay exempt by construction; `CBRF`'s action is normally a call.
+
+#### Superseded: the original half-gated entry
 
 The gate covers the `CHR` family only, and is at zero: `CHR` tests an
 `HRESULT`, so an argument that is a call always means "this did work and

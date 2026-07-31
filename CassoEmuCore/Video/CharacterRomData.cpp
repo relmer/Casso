@@ -36,6 +36,7 @@ HRESULT CharacterRomData::LoadFromFile (const string & filePath)
     bool          fileOk  = false;
     auto          rawSize = streamsize {0};
     vector<Byte>  raw;
+    std::streamsize  bytesRead = 0;
 
 
 
@@ -50,7 +51,8 @@ HRESULT CharacterRomData::LoadFromFile (const string & filePath)
     raw.resize (static_cast<size_t> (rawSize));
     file.read (reinterpret_cast<char *> (raw.data()), rawSize);
 
-    CBRA (file.gcount() == rawSize);
+    bytesRead = file.gcount();
+    CBRA (bytesRead == rawSize);
 
     if (rawSize == k2KBytes)
     {

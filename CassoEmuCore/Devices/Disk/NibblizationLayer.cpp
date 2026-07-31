@@ -314,8 +314,10 @@ static HRESULT NibblizeWithMap (
     int       track     = 0;
     int       logical   = 0;
     size_t    offset    = 0;
+    size_t    rawSize   = 0;
 
-    CBRAEx (raw.size() == NibblizationLayer::kImageByteSize, E_INVALIDARG);
+    rawSize = raw.size();
+    CBRAEx (rawSize == NibblizationLayer::kImageByteSize, E_INVALIDARG);
 
     for (track = 0; track < NibblizationLayer::kTrackCount; track++)
     {

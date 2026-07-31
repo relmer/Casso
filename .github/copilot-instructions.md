@@ -121,20 +121,43 @@ See the Constitution's Principle VI (Thin Executable, Testable Core) and Princip
 - Functions returning `HRESULT` MUST have exactly one exit point (`Error:` -> `return hr;`).
   Do not use early `return` statements in those functions.
 - **NEVER** use bare `goto Error` — always use EHM macros (CHR, CBR, CWRA, CHRF, etc.)
-- EHM macros must only contain **trivial expressions** — no function calls with side effects
-  or out params. Store the result first, then pass it to the macro:
+- An EHM macro's **condition may not contain a call of any kind** — not even
+  `.size()`, `.empty()`, `.good()` or `.is_open()`. Hoist it to a local **named for
+  what is being tested**, then test the local. Gated by `CS0011`.
   ```cpp
   // WRONG:
   CHRF (root.GetString ("name", outConfig.name), outError = "...");
+  CBR  (out.is_open());
+  CBR  (!bytes.empty());
 
   // RIGHT:
   hr = root.GetString ("name", outConfig.name);
   CHRF (hr, outError = "...");
+
+  isOpen = out.is_open();
+  CBR (isOpen);
+
+  hasBytes = !bytes.empty();
+  CBR (hasBytes);
   ```
+  Two reasons the ban is absolute rather than "no calls that do work". The macro
+  hides what failed, so the bail point should name the condition. And the
+  narrower rule cannot be checked — a pattern cannot tell "does work" from "asks
+  a question", so it sat in this document unenforced and drifted to 88 sites
+  before anyone counted.
+- The **comparison stays in the macro**; only the call moves out. Hoist the value,
+  not the predicate: `rawSize = raw.size();` then `CBRAEx (rawSize == kFoo, E_INVALIDARG)`.
+- The name must say what is tested. `ok` is not a name — it tells you nothing at
+  the bail, which is the whole point of hoisting. Same principle as the
+  `bool`-returning function rule.
+- **Action arguments are exempt** and normally are calls:
+  `CBRF (isComma, SetError ("Expected ',' or ']'"))`. Only the condition — the
+  first argument, up to the first top-level comma — is covered.
+- `SUCCEEDED (hr)` / `FAILED (hr)` inside a `CBR` is wrong for a second reason:
+  testing an HRESULT means the macro should be `CHR`, which keeps the actual
+  error code instead of substituting a generic failure.
 - The same rule applies to **all** macros (not just EHM): never call non-trivial functions
-  inside macro arguments. Trivial: `.size()`, `.count()`, `.bad()`, `.empty()`, `.load()`,
-  and member access.
-  Non-trivial: anything with side effects, allocations, or out params.
+  inside macro arguments. Non-trivial: anything with side effects, allocations, or out params.
 - When intentionally ignoring an HRESULT return value, use the `IGNORE_RETURN_VALUE`
   macro. Its second argument is ALWAYS a plain reset value (`S_OK`, `false`, `0`, …),
   NEVER a call — not even a trivial one. Capture the result into a variable FIRST,

@@ -264,13 +264,15 @@ vector<fs::path> MachineScanner::ListDirectory (const fs::path & dir)
 
 HRESULT MachineScanner::ReadFile (const fs::path & file, string & outText)
 {
-    HRESULT       hr = S_OK;
+    HRESULT       hr       = S_OK;
     ifstream      stream (file);
     stringstream  ss;
+    bool          readWell = false;
 
 
 
-    CBR (stream.good());
+    readWell = stream.good();
+    CBR (readWell);
 
     ss << stream.rdbuf();
     outText = ss.str();

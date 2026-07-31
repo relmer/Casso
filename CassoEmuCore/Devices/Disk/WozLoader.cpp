@@ -194,6 +194,7 @@ static HRESULT ParseV2Track (
     uint32_t   bitCount      = 0;
     size_t     byteOffset    = 0;
     size_t     byteCount     = 0;
+    size_t     rawSize       = 0;
 
     startBlock = Read16LE (trkRecord);
     blockCount = Read16LE (trkRecord + 2);
@@ -203,8 +204,9 @@ static HRESULT ParseV2Track (
 
     byteOffset = static_cast<size_t> (startBlock) * WozLoader::kV2BlockSize;
     byteCount  = (bitCount + 7) / 8;
+    rawSize    = raw.size();
 
-    CBR (byteOffset + byteCount <= raw.size());
+    CBR (byteOffset + byteCount <= rawSize);
 
     out.ResizeTrack (destTrack, bitCount);
 
@@ -259,8 +261,10 @@ HRESULT WozLoader::Load (const vector<Byte> & raw, DiskImage & out)
     int            trackI               = 0;
     bool           sigV2                = false;
     bool           sigV1                = false;
+    size_t         rawSize              = 0;
 
-    CBR (raw.size() >= kHeaderSize);
+    rawSize = raw.size();
+    CBR (rawSize >= kHeaderSize);
 
     // Signature match is captured into locals first so the guard below tests a
     // plain variable rather than calling MatchSig from inside the macro.
@@ -294,7 +298,7 @@ HRESULT WozLoader::Load (const vector<Byte> & raw, DiskImage & out)
         chunkSize = Read32LE (raw.data() + pos + 4);
         chunkPos  = pos + 8;
 
-        CBR (chunkPos + chunkSize <= raw.size());
+        CBR (chunkPos + chunkSize <= rawSize);
 
         if (MatchMagic (id, kInfoMagic))
         {

@@ -124,12 +124,14 @@ HRESULT DiskSettings::ReadSavedDiskPath (
     const JsonValue * uiPrefs       = nullptr;
     std::string       pathNarrow;
     const char      * keyName       = (drive == 0) ? "disk1Path" : "disk2Path";
+    bool              hasMachine    = false;
 
 
 
     outPath.clear();
 
-    CBRAEx (drive >= 0 && drive <= 1 && !machineName.empty(), E_INVALIDARG);
+    hasMachine = !machineName.empty();
+    CBRAEx (drive >= 0 && drive <= 1 && hasMachine, E_INVALIDARG);
 
     hr = LoadMachineDefaultJson (machineName, defaultJson);
     BAIL_OUT_IF (hr == HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND), S_OK);
@@ -187,10 +189,12 @@ HRESULT DiskSettings::WriteSavedDiskPath (
     std::vector<std::pair<std::string, JsonValue>>   uiPrefsEntries;
     int                                              uiPrefsIdx     = -1;
     int                                              i              = 0;
+    bool                                             hasMachine     = false;
 
-    
 
-    CBRAEx (drive >= 0 && drive <= 1 && !machineName.empty(), E_INVALIDARG);
+
+    hasMachine = !machineName.empty();
+    CBRAEx (drive >= 0 && drive <= 1 && hasMachine, E_INVALIDARG);
 
     hr = LoadMachineDefaultJson (machineName, defaultJson);
     BAIL_OUT_IF (hr == HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND), S_OK);
@@ -286,10 +290,15 @@ HRESULT DiskSettings::WriteSavedUiPrefBool (
     std::vector<std::pair<std::string, JsonValue>>   uiPrefsEntries;
     int                                              uiPrefsIdx     = -1;
     int                                              i              = 0;
+    bool                                             hasKey         = false;
+    bool                                             hasMachine     = false;
 
 
 
-    CBRAEx (!key.empty() && !machineName.empty(), E_INVALIDARG);
+    hasKey     = !key.empty();
+    hasMachine = !machineName.empty();
+
+    CBRAEx (hasKey && hasMachine, E_INVALIDARG);
 
     hr = LoadMachineDefaultJson (machineName, defaultJson);
     BAIL_OUT_IF (hr == HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND), S_OK);

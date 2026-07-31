@@ -309,6 +309,8 @@ HRESULT Printer3DScene::SetModel (const std::string & objText, const std::string
     float                      maxAbsX = 0.0f;
     float                      preMinY = 0.0f, preMaxY = 0.0f, preMaxZ = 0.0f;
     bool                       first   = true;
+    bool                       parsed  = false;
+    bool                       hasTris = false;
 
     // Tinkercad's five part-identification colors (MTL Kd values) -> the real
     // machine's palette. Matched by value with a wide epsilon.
@@ -322,7 +324,10 @@ HRESULT Printer3DScene::SetModel (const std::string & objText, const std::string
         { 0.6549f, 0.6784f, 0.6941f, s_kArgbButton   },   // gray: control caps
     };
 
-    CBR (ObjMeshParser::Parse (objText, mtlText, tris) && !tris.empty());
+    parsed  = ObjMeshParser::Parse (objText, mtlText, tris);
+    hasTris = !tris.empty();
+
+    CBR (parsed && hasTris);
 
     m_mesh.clear();
     m_meshGlass.clear();

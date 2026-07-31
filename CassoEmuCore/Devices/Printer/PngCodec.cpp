@@ -45,11 +45,13 @@ HRESULT PngCodec::DecodeFirstFrame (
     ComPtr<IWICImagingFactory> &    outFactory,
     ComPtr<IWICBitmapFrameDecode> & outFrame)
 {
-    HRESULT                     hr = S_OK;
+    HRESULT                     hr       = S_OK;
     ComPtr<IWICStream>          stream;
     ComPtr<IWICBitmapDecoder>   decoder;
+    bool                        hasBytes = false;
 
-    CBREx (!png.empty(), E_INVALIDARG);
+    hasBytes = !png.empty();
+    CBREx (hasBytes, E_INVALIDARG);
 
     hr = CreateFactory (outFactory);
     CHR (hr);
@@ -98,9 +100,12 @@ HRESULT PngCodec::EncodeRgba (const RgbaImage & image, int dpi, vector<Byte> & o
     void *                          memory = nullptr;
     SIZE_T                          size   = 0;
     double                          res    = 0.0;
+    size_t                          rgbaLen = 0;
 
     CBREx (image.width > 0 && image.height > 0, E_INVALIDARG);
-    CBREx (image.rgba.size() >= (size_t) image.width * image.height * 4, E_INVALIDARG);
+
+    rgbaLen = image.rgba.size();
+    CBREx (rgbaLen >= (size_t) image.width * image.height * 4, E_INVALIDARG);
 
     hr = CreateFactory (factory);
     CHR (hr);
@@ -190,11 +195,14 @@ HRESULT PngCodec::EncodeIndexed (
     void *                          memory = nullptr;
     SIZE_T                          size   = 0;
     double                          res    = 0.0;
+    size_t                          indexCount = 0;
 
     CBREx (width > 0 && height > 0, E_INVALIDARG);
     CBREx (paletteCount > 0 && paletteCount <= 256, E_INVALIDARG);
     CBREx (palette != nullptr, E_INVALIDARG);
-    CBREx (indices.size() >= (size_t) width * height, E_INVALIDARG);
+
+    indexCount = indices.size();
+    CBREx (indexCount >= (size_t) width * height, E_INVALIDARG);
 
     hr = CreateFactory (factory);
     CHR (hr);

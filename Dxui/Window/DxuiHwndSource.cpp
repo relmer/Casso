@@ -326,6 +326,7 @@ HRESULT DxuiHwndSource::Create (const CreateParams & params)
     int          windowY        = 0;
     int          widthPx        = 0;
     int          heightPx       = 0;
+    ATOM         classAtom      = 0;
 
 
 
@@ -361,7 +362,9 @@ HRESULT DxuiHwndSource::Create (const CreateParams & params)
     wc.hbrBackground = nullptr;
     wc.lpszClassName = m_className.c_str();
 
-    CWRA (RegisterClassExW (&wc));
+    classAtom = RegisterClassExW (&wc);
+    CWRA (classAtom);
+
     m_classRegistered = true;
 
     style   = params.borderless ? (WS_OVERLAPPEDWINDOW | WS_CLIPCHILDREN)
@@ -614,16 +617,18 @@ HRESULT DxuiHwndSource::CreateInAdoptMode (
     const CreateParams              & params,
     std::unique_ptr<DxuiHwndSource> & outHost)
 {
-    HRESULT                          hr   = S_OK;
+    HRESULT                          hr       = S_OK;
     std::unique_ptr<DxuiHwndSource>  host;
-    UINT                             dpi  = 0;
+    UINT                             dpi      = 0;
+    DxuiHwndSource *                 rawHost  = nullptr;
 
 
 
     DXUI_ASSERT_UI_THREAD();
 
-    host = std::unique_ptr<DxuiHwndSource> (new DxuiHwndSource());
-    CPRA (host.get());
+    host    = std::unique_ptr<DxuiHwndSource> (new DxuiHwndSource());
+    rawHost = host.get();
+    CPRA (rawHost);
 
     host->m_params      = params;
     host->m_hwnd        = existingHwnd;

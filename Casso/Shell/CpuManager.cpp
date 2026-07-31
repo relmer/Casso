@@ -68,10 +68,12 @@ HRESULT CpuManager::Start (
     FrameFn        onFrame,
     ThreadExitFn   onThreadExit)
 {
-    HRESULT  hr = S_OK;
+    HRESULT  hr     = S_OK;
+    bool     isIdle = false;
 
 
-    CBRA (!m_thread.joinable());
+    isIdle = !m_thread.joinable();
+    CBRA (isIdle);
 
     m_onThreadEnter = std::move (onThreadEnter);
     m_onCommand     = std::move (onCommand);

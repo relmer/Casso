@@ -149,21 +149,28 @@ HRESULT FixtureProvider::OpenFixture (
     const std::string          &  relativePath,
     std::vector<uint8_t>       &  outBytes)
 {
-    HRESULT             hr = S_OK;
+    HRESULT             hr          = S_OK;
     fs::path            full;
     std::ifstream       stream;
     std::streamsize     size;
+    bool                pathIsSafe  = false;
+    bool                hasRoot     = false;
+    bool                isOpen      = false;
 
     outBytes.clear();
 
-    CBRAEx (!IsRejectedPath (relativePath), E_INVALIDARG);
+    pathIsSafe = !IsRejectedPath (relativePath);
+    CBRAEx (pathIsSafe, E_INVALIDARG);
 
-    CBR (!m_root.empty());
+    hasRoot = !m_root.empty();
+    CBR (hasRoot);
 
     full = fs::path (m_root) / relativePath;
 
     stream.open (full, std::ios::binary | std::ios::ate);
-    CBR (stream.is_open());
+
+    isOpen = stream.is_open();
+    CBR (isOpen);
 
     size = stream.tellg();
     stream.seekg (0, std::ios::beg);

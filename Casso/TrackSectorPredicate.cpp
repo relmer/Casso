@@ -83,13 +83,15 @@ Error:
 
 bool TrackSectorPredicate::ParseDecimalInt (std::wstring_view tok, int & outVal) noexcept
 {
-    HRESULT  hr = S_OK;
-    int      v  = 0;
-    size_t   i  = 0;
-    wchar_t  c  = 0;
-    bool     ok = false;
+    HRESULT  hr       = S_OK;
+    int      v        = 0;
+    size_t   i        = 0;
+    wchar_t  c        = 0;
+    bool     ok       = false;
+    bool     hasToken = false;
 
-    CBR (!tok.empty());
+    hasToken = !tok.empty();
+    CBR (hasToken);
 
     for (i = 0; i < tok.size(); i++)
     {

@@ -107,6 +107,7 @@ HRESULT HeadlessHost::BuildApple2e (EmulatorCore & outCore)
     std::vector<uint8_t>   romBytes;
     Byte                 * mainRamBase = nullptr;
     int                    page;
+    size_t                 romSize     = 0;
 
     hr = BuildCommon (HeadlessMachineKind::Apple2e, outCore);
     CHRA (hr);
@@ -114,7 +115,8 @@ HRESULT HeadlessHost::BuildApple2e (EmulatorCore & outCore)
     hr = outCore.fixtures->OpenFixture ("Apple2e.rom", romBytes);
     CHR (hr);
 
-    CBREx (romBytes.size() == kSystemRomSize, E_UNEXPECTED);
+    romSize = romBytes.size();
+    CBREx (romSize == kSystemRomSize, E_UNEXPECTED);
 
     outCore.bus          = std::make_unique<MemoryBus> ();
     outCore.mainRam      = std::make_unique<RamDevice> (0x0000, kRamEnd);
@@ -220,6 +222,7 @@ HRESULT HeadlessHost::BuildApple2eEnhanced (EmulatorCore & outCore)
     std::unique_ptr<ICpu>  cpuStrategy;
     Byte                 * mainRamBase = nullptr;
     int                    page;
+    size_t                 romSize     = 0;
 
     hr = BuildCommon (HeadlessMachineKind::Apple2eEnhanced, outCore);
     CHRA (hr);
@@ -227,7 +230,8 @@ HRESULT HeadlessHost::BuildApple2eEnhanced (EmulatorCore & outCore)
     hr = outCore.fixtures->OpenFixture ("Apple2eEnhanced.rom", romBytes);
     CHR (hr);
 
-    CBREx (romBytes.size() == kSystemRomSize, E_UNEXPECTED);
+    romSize = romBytes.size();
+    CBREx (romSize == kSystemRomSize, E_UNEXPECTED);
 
     outCore.bus          = std::make_unique<MemoryBus> ();
     outCore.mainRam      = std::make_unique<RamDevice> (0x0000, kRamEnd);
@@ -388,6 +392,7 @@ HRESULT HeadlessHost::BuildApple2c (EmulatorCore & outCore)
     std::unique_ptr<ICpu>  cpuStrategy;
     Byte                 * mainRamBase = nullptr;
     int                    page;
+    size_t                 romSize     = 0;
 
     static constexpr size_t  kBankSize    = 0x4000;   // 16 KiB per bank
     static constexpr size_t  kTwoBankSize = 0x8000;   // 32 KiB Apple2c.rom
@@ -398,7 +403,8 @@ HRESULT HeadlessHost::BuildApple2c (EmulatorCore & outCore)
     hr = outCore.fixtures->OpenFixture ("Apple2c.rom", romBytes);
     CHR (hr);
 
-    CBREx (romBytes.size() == kTwoBankSize, E_UNEXPECTED);
+    romSize = romBytes.size();
+    CBREx (romSize == kTwoBankSize, E_UNEXPECTED);
 
     outCore.bus          = std::make_unique<MemoryBus> ();
     outCore.mainRam      = std::make_unique<RamDevice> (0x0000, kRamEnd);

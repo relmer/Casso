@@ -226,10 +226,12 @@ static HRESULT ResolveRomFile (
     fs::path  romRelPath = relDirPrefix / file;
     fs::path  found      = resolver (searchPaths, romRelPath);
     auto      sz         = std::uintmax_t {0};
+    bool      wasFound   = false;
 
 
 
-    CBRF (!found.empty(),
+    wasFound = !found.empty();
+    CBRF (wasFound,
           outError = format ("ROM file not found: {}. "
                              "Place the file under the appropriate per-machine or per-device folder.",
                              romRelPath.string()));

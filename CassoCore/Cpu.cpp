@@ -1555,8 +1555,10 @@ bool Cpu::LoadBinary (const std::string & filename, Word address)
     HRESULT       hr      = S_OK;
     std::ifstream file      (filename, std::ios::binary);
     bool          fLoaded = false;
+    bool          isOpen  = false;
 
-    CBRA (file.is_open());
+    isOpen = file.is_open();
+    CBRA (isOpen);
 
     fLoaded = LoadBinary (file, address);
     CBR  (fLoaded);
@@ -1577,20 +1579,23 @@ Error:
 
 bool Cpu::LoadBinary (std::istream & stream, Word address)
 {
-    HRESULT hr = S_OK;
+    HRESULT hr      = S_OK;
+    bool    readWell = false;
 
     // Determine stream size
     stream.seekg (0, std::ios::end);
     auto size = stream.tellg();
     stream.seekg (0, std::ios::beg);
 
-    CBRA (!stream.bad());
+    readWell = !stream.bad();
+    CBRA (readWell);
     CBR  (size >= 0 && (size_t) size <= memSize - address);
 
     // Read directly into CPU memory — no intermediate buffer
     stream.read (reinterpret_cast<char *>(memory.data() + address), size);
 
-    CBRA (!stream.bad());
+    readWell = !stream.bad();
+    CBRA (readWell);
 
 Error:
     return SUCCEEDED (hr);

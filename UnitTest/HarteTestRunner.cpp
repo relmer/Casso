@@ -131,10 +131,12 @@ bool LoadHarteTestFile (const std::string & path, HarteTestFile & outFile)
     Word          count;
     Byte          reserved;
     bool          fOk;
+    bool          isOpen = false;
 
 
 
-    CBR (f.is_open());
+    isOpen = f.is_open();
+    CBR (isOpen);
 
     // Header: vector_count (uint16), opcode (uint8), reserved (uint8)
     fOk = ReadWord (f, count);             CBR (fOk);

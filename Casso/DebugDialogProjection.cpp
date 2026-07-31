@@ -551,11 +551,13 @@ int DebugDialogProjection::PreservedFocusItem (
     uint32_t                       priorDequeIdx,
     const std::vector<uint32_t> &  newFilteredIndices) noexcept
 {
-    HRESULT hr     = S_OK;
-    int     result = -1;
-    auto    it     = newFilteredIndices.begin();
+    HRESULT hr        = S_OK;
+    int     result    = -1;
+    bool    hasFilter = false;
+    auto    it        = newFilteredIndices.begin();
 
-    CBR (!newFilteredIndices.empty());
+    hasFilter = !newFilteredIndices.empty();
+    CBR (hasFilter);
 
     it = std::lower_bound (newFilteredIndices.begin(),
                            newFilteredIndices.end(),
