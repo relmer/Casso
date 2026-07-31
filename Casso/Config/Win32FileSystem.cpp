@@ -105,6 +105,7 @@ HRESULT Win32FileSystem::WriteAllText (
     std::wstring     tempPath;
     std::wstring     parentDir;
     size_t           lastSep        = 0;
+    size_t           contentSize    = 0;
     std::error_code  ec;
 
 
@@ -141,7 +142,9 @@ HRESULT Win32FileSystem::WriteAllText (
                             nullptr);
 
         CWR (fWrote);
-        CBR (bytesWritten == content.size());
+
+        contentSize = content.size();
+        CBR (bytesWritten == contentSize);
     }
 
     CloseHandle (hTemp);

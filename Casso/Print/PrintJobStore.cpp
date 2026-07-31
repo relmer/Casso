@@ -22,12 +22,20 @@ static const wchar_t   s_kszStripJson[] = L"strip.json";
 
 static HRESULT ReadAllBytes (const fs::path & path, vector<Byte> & out)
 {
-    HRESULT         hr = S_OK;
+    HRESULT         hr       = S_OK;
     std::ifstream   in (path, std::ios::binary);
+    bool            isOpen   = false;
+    bool            readWell = false;
 
-    CBR (in.is_open());
+
+
+    isOpen = in.is_open();
+    CBR (isOpen);
+
     out.assign ((std::istreambuf_iterator<char> (in)), std::istreambuf_iterator<char> ());
-    CBR (in.good() || in.eof());
+
+    readWell = in.good() || in.eof();
+    CBR (readWell);
 
 Error:
     return hr;
@@ -44,12 +52,20 @@ Error:
 
 static HRESULT ReadAllText (const fs::path & path, string & out)
 {
-    HRESULT         hr = S_OK;
+    HRESULT         hr       = S_OK;
     std::ifstream   in (path, std::ios::binary);
+    bool            isOpen   = false;
+    bool            readWell = false;
 
-    CBR (in.is_open());
+
+
+    isOpen = in.is_open();
+    CBR (isOpen);
+
     out.assign ((std::istreambuf_iterator<char> (in)), std::istreambuf_iterator<char> ());
-    CBR (in.good() || in.eof());
+
+    readWell = in.good() || in.eof();
+    CBR (readWell);
 
 Error:
     return hr;
@@ -66,12 +82,20 @@ Error:
 
 static HRESULT WriteAllBytes (const fs::path & path, const vector<Byte> & bytes)
 {
-    HRESULT         hr = S_OK;
+    HRESULT         hr        = S_OK;
     std::ofstream   out (path, std::ios::binary | std::ios::trunc);
+    bool            isOpen    = false;
+    bool            wroteWell = false;
 
-    CBR (out.is_open());
+
+
+    isOpen = out.is_open();
+    CBR (isOpen);
+
     out.write ((const char *) bytes.data(), (std::streamsize) bytes.size());
-    CBR (out.good());
+
+    wroteWell = out.good();
+    CBR (wroteWell);
 
 Error:
     return hr;
@@ -88,12 +112,20 @@ Error:
 
 static HRESULT WriteAllText (const fs::path & path, const string & text)
 {
-    HRESULT         hr = S_OK;
+    HRESULT         hr        = S_OK;
     std::ofstream   out (path, std::ios::binary | std::ios::trunc);
+    bool            isOpen    = false;
+    bool            wroteWell = false;
 
-    CBR (out.is_open());
+
+
+    isOpen = out.is_open();
+    CBR (isOpen);
+
     out.write (text.data(), (std::streamsize) text.size());
-    CBR (out.good());
+
+    wroteWell = out.good();
+    CBR (wroteWell);
 
 Error:
     return hr;

@@ -557,6 +557,7 @@ HRESULT D3DRenderer::ToggleFullscreen (HWND hwnd)
     HMONITOR    hMon       = nullptr;
     MONITORINFO mi         = { sizeof (mi) };
     LONG        style      = 0;
+    LONG        priorStyle = 0;
     bool        styleIsFs  = false;
     bool        armed      = false;
     BOOL        fSuccess   = FALSE;
@@ -607,7 +608,9 @@ HRESULT D3DRenderer::ToggleFullscreen (HWND hwnd)
         m_fullscreen = true;
 
         SetLastError (0);
-        CWRA (SetWindowLong (hwnd, GWL_STYLE, WS_POPUP | WS_VISIBLE) != 0);
+        priorStyle = SetWindowLong (hwnd, GWL_STYLE, WS_POPUP | WS_VISIBLE);
+        CWRA (priorStyle != 0);
+
         fSuccess = SetWindowPos (hwnd,
                                   HWND_TOP,
                                   mi.rcMonitor.left, mi.rcMonitor.top,
@@ -634,7 +637,8 @@ HRESULT D3DRenderer::ToggleFullscreen (HWND hwnd)
         }
 
         SetLastError (0);
-        CWRA (SetWindowLong (hwnd, GWL_STYLE, restoreStyle) != 0);
+        priorStyle = SetWindowLong (hwnd, GWL_STYLE, restoreStyle);
+        CWRA (priorStyle != 0);
 
         fSuccess = SetWindowPos (hwnd, HWND_NOTOPMOST, 0, 0, 0, 0,
                                  SWP_NOMOVE | SWP_NOSIZE | SWP_FRAMECHANGED);

@@ -67,15 +67,17 @@ Error:
 
 HRESULT JsonParser::ParseValue (JsonValue & outValue)
 {
-    HRESULT hr  = S_OK;
-    char    ch  = 0;
+    HRESULT hr       = S_OK;
+    char    ch       = 0;
+    bool    hasInput = false;
     string  str;
 
 
 
     SkipWhitespace();
 
-    CBR (!AtEnd());
+    hasInput = !AtEnd();
+    CBR (hasInput);
 
     ch = Peek();
     switch (ch)
@@ -145,16 +147,20 @@ Error:
 
 HRESULT JsonParser::ParseString (string & outStr)
 {
-    HRESULT       hr   = S_OK;
-    char          ch   = 0;
-    char          esc  = 0;
+    HRESULT       hr        = S_OK;
+    char          ch        = 0;
+    char          esc       = 0;
     string        hex;
-    unsigned long code = 0;
-    bool          done = false;
+    unsigned long code      = 0;
+    bool          done      = false;
+    bool          hasInput  = false;
+    bool          isQuote   = false;
 
 
 
-    CBR (Peek() == '"');
+    isQuote = (Peek() == '"');
+    CBR (isQuote);
+
     Advance();
 
     outStr.clear();
@@ -178,7 +184,8 @@ HRESULT JsonParser::ParseString (string & outStr)
         }
 
         // Escape sequence
-        CBR (!AtEnd());
+        hasInput = !AtEnd();
+        CBR (hasInput);
 
         esc = Advance();
 
@@ -198,7 +205,9 @@ HRESULT JsonParser::ParseString (string & outStr)
 
                 for (int i = 0; i < 4; i++)
                 {
-                    CBR (!AtEnd());
+                    hasInput = !AtEnd();
+                    CBR (hasInput);
+
                     hex += Advance();
                 }
 
@@ -318,9 +327,18 @@ HRESULT JsonParser::ParseNumber (JsonValue & outValue)
 
 HRESULT JsonParser::ParseObject (JsonValue & outValue)
 {
-    HRESULT hr = S_OK;
+    HRESULT hr        = S_OK;
+    bool    isBrace   = false;
+    bool    hasInput  = false;
+    bool    isQuote   = false;
+    bool    hasColon  = false;
+    bool    isComma   = false;
 
-    CBR (Peek() == '{');
+
+
+    isBrace = (Peek() == '{');
+    CBR (isBrace);
+
     Advance();
 
     {
@@ -338,16 +356,22 @@ HRESULT JsonParser::ParseObject (JsonValue & outValue)
         while (true)
         {
             SkipWhitespace();
-            CBR (!AtEnd());
 
-            CBRF (Peek() == '"', SetError ("Expected string key in object"));
+            hasInput = !AtEnd();
+            CBR (hasInput);
+
+            isQuote = (Peek() == '"');
+            CBRF (isQuote, SetError ("Expected string key in object"));
 
             string key;
             hr = ParseString (key);
             CHR (hr);
 
             SkipWhitespace();
-            CBR (!AtEnd() && Peek() == ':');
+
+            hasColon = !AtEnd() && Peek() == ':';
+            CBR (hasColon);
+
             Advance();
 
             JsonValue val;
@@ -357,7 +381,9 @@ HRESULT JsonParser::ParseObject (JsonValue & outValue)
             entries.emplace_back (move (key), move (val));
 
             SkipWhitespace();
-            CBR (!AtEnd());
+
+            hasInput = !AtEnd();
+            CBR (hasInput);
 
             if (Peek() == '}')
             {
@@ -365,7 +391,8 @@ HRESULT JsonParser::ParseObject (JsonValue & outValue)
                 break;
             }
 
-            CBRF (Peek() == ',', SetError ("Expected ',' or '}' in object"));
+            isComma = (Peek() == ',');
+            CBRF (isComma, SetError ("Expected ',' or '}' in object"));
 
             Advance();
         }
@@ -389,9 +416,16 @@ Error:
 
 HRESULT JsonParser::ParseArray (JsonValue & outValue)
 {
-    HRESULT hr = S_OK;
+    HRESULT hr        = S_OK;
+    bool    isBracket = false;
+    bool    hasInput  = false;
+    bool    isComma   = false;
 
-    CBR (Peek() == '[');
+
+
+    isBracket = (Peek() == '[');
+    CBR (isBracket);
+
     Advance();
 
     {
@@ -415,7 +449,9 @@ HRESULT JsonParser::ParseArray (JsonValue & outValue)
             elements.push_back (move (val));
 
             SkipWhitespace();
-            CBR (!AtEnd());
+
+            hasInput = !AtEnd();
+            CBR (hasInput);
 
             if (Peek() == ']')
             {
@@ -423,7 +459,8 @@ HRESULT JsonParser::ParseArray (JsonValue & outValue)
                 break;
             }
 
-            CBRF (Peek() == ',', SetError ("Expected ',' or ']' in array"));
+            isComma = (Peek() == ',');
+            CBRF (isComma, SetError ("Expected ',' or ']' in array"));
 
             Advance();
         }
@@ -447,15 +484,20 @@ Error:
 
 HRESULT JsonParser::ParseKeyword (const char * keyword, JsonValue & outValue)
 {
-    HRESULT hr = S_OK;
+    HRESULT hr        = S_OK;
+    size_t  len       = 0;
+    bool    matchesCh = false;
 
     UNREFERENCED_PARAMETER (outValue);
 
-    size_t len = strlen (keyword);
+
+
+    len = strlen (keyword);
 
     for (size_t i = 0; i < len; i++)
     {
-        CBRF (!AtEnd() && Peek() == keyword[i], SetError (format ("Expected '{}'", keyword)));
+        matchesCh = !AtEnd() && Peek() == keyword[i];
+        CBRF (matchesCh, SetError (format ("Expected '{}'", keyword)));
 
         Advance();
     }
