@@ -85,20 +85,17 @@ bool TrackSectorPredicate::ParseDecimalInt (std::wstring_view tok, int & outVal)
 {
     HRESULT  hr       = S_OK;
     int      v        = 0;
-    size_t   i        = 0;
-    wchar_t  c        = 0;
     bool     ok       = false;
     bool     hasToken = false;
 
     hasToken = !tok.empty();
     CBR (hasToken);
 
-    for (i = 0; i < tok.size(); i++)
+    for (wchar_t ch : tok)
     {
-        c = tok[i];
-        CBR (c >= L'0' && c <= L'9');
+        CBR (ch >= L'0' && ch <= L'9');
 
-        v = v * 10 + (int) (c - L'0');
+        v = v * 10 + (int) (ch - L'0');
     }
 
     outVal = v;

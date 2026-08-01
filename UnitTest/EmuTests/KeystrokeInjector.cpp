@@ -90,11 +90,10 @@ size_t KeystrokeInjector::InjectString (
     uint64_t              keyCycles)
 {
     size_t   consumed = 0;
-    size_t   i;
 
-    for (i = 0; i < text.size(); i++)
+    for (char ch : text)
     {
-        if (!InjectKey (core, static_cast<Byte> (text[i]), keyCycles))
+        if (!InjectKey (core, static_cast<Byte> (ch), keyCycles))
         {
             return consumed;
         }

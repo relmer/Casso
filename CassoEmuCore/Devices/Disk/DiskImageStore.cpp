@@ -57,7 +57,6 @@ HRESULT DiskImageStore::DetectFormatByExtension (const string & path, DiskFormat
     HRESULT   hr       = S_OK;
     size_t    pos      = 0;
     string    ext;
-    size_t    i        = 0;
     size_t    pathLen  = 0;
 
     pos     = path.find_last_of ('.');
@@ -67,9 +66,9 @@ HRESULT DiskImageStore::DetectFormatByExtension (const string & path, DiskFormat
 
     ext = path.substr (pos + 1);
 
-    for (i = 0; i < ext.size(); i++)
+    for (char & ch : ext)
     {
-        ext[i] = static_cast<char> (tolower (static_cast<unsigned char> (ext[i])));
+        ch = static_cast<char> (tolower (static_cast<unsigned char> (ch)));
     }
 
     if (ext == "dsk")

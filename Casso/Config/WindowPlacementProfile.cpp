@@ -15,13 +15,12 @@
 uint64_t  WindowPlacementProfile::HashFNV1a64 (const std::wstring & text)
 {
     uint64_t  hash = kFnvOffset;
-    size_t    i    = 0;
 
 
 
-    for (i = 0; i < text.size(); ++i)
+    for (wchar_t ch : text)
     {
-        uint64_t  code = static_cast<uint64_t> (text[i]);
+        uint64_t  code = static_cast<uint64_t> (ch);
 
         hash ^= (code & 0xFFu);
         hash *= kFnvPrime;
