@@ -64,7 +64,7 @@ public:
         Byte              firstByte;
 
         hr = BuildAndAttachSlot6 (host, core);
-        Assert::IsTrue (SUCCEEDED (hr), L"BuildApple2e + slot 6 ROM attach must succeed");
+        AssertSucceeded (hr, L"BuildApple2e + slot 6 ROM attach must succeed");
 
         core.bus->WriteByte (kIntCxRomOff, 0);
 
@@ -85,7 +85,7 @@ public:
         Byte              internalByte;
 
         hr = BuildAndAttachSlot6 (host, core);
-        Assert::IsTrue (SUCCEEDED (hr), L"BuildApple2e + slot 6 ROM attach must succeed");
+        AssertSucceeded (hr, L"BuildApple2e + slot 6 ROM attach must succeed");
 
         core.bus->WriteByte (kIntCxRomOff, 0);
         slotByte = core.bus->ReadByte (kSlot6RomBase);

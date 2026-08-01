@@ -113,14 +113,14 @@ public:
         DiskImage *  external  = nullptr;
 
         hr = host.BuildApple2eWithDisk2 (core);
-        Assert::IsTrue (SUCCEEDED (hr), L"BuildApple2eWithDisk2 must succeed");
+        AssertSucceeded (hr, L"BuildApple2eWithDisk2 must succeed");
 
         core.PowerCycle();
 
         hr = core.diskStore->MountFromBytes (kSlot6, kDrive1,
                                              "boot-rom-decoder.dsk",
                                              DiskFormat::Dsk, raw);
-        Assert::IsTrue (SUCCEEDED (hr), L"MountFromBytes must succeed");
+        AssertSucceeded (hr, L"MountFromBytes must succeed");
 
         external = core.diskStore->GetImage (kSlot6, kDrive1);
         Assert::IsNotNull (external, L"Store must yield a DiskImage after mount");

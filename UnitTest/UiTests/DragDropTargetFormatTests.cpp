@@ -147,7 +147,7 @@ public:
         std::wstring         got;
         HRESULT              hr = DxuiDragDropTarget::ExtractFirstHDropPath (&obj, got);
 
-        Assert::IsTrue (SUCCEEDED (hr), L"ExtractFirstHDropPath must succeed on a CF_HDROP object");
+        AssertSucceeded (hr, L"ExtractFirstHDropPath must succeed on a CF_HDROP object");
         Assert::AreEqual (input.c_str(), got.c_str(),
             L"Path round-trip must preserve the original wide string verbatim");
     }

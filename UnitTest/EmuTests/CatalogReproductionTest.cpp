@@ -111,13 +111,13 @@ public:
         EmulatorCore   core;
 
         HRESULT  hr = host.BuildApple2eWithDisk2 (core);
-        Assert::IsTrue (SUCCEEDED (hr), L"BuildApple2eWithDisk2 must succeed");
+        AssertSucceeded (hr, L"BuildApple2eWithDisk2 must succeed");
 
         core.PowerCycle();
 
         hr = core.diskStore->MountFromBytes (kSlot6, kDrive1,
             "dos33-master.dsk", DiskFormat::Dsk, raw);
-        Assert::IsTrue (SUCCEEDED (hr), L"MountFromBytes must succeed");
+        AssertSucceeded (hr, L"MountFromBytes must succeed");
 
         DiskImage *  img = core.diskStore->GetImage (kSlot6, kDrive1);
         Assert::IsNotNull (img, L"Mounted DiskImage must be present");
@@ -202,13 +202,13 @@ public:
         EmulatorCore   core;
 
         HRESULT  hr = host.BuildApple2eWithDisk2 (core);
-        Assert::IsTrue (SUCCEEDED (hr), L"BuildApple2eWithDisk2 must succeed");
+        AssertSucceeded (hr, L"BuildApple2eWithDisk2 must succeed");
 
         core.PowerCycle();
 
         hr = core.diskStore->MountFromBytes (kSlot6, kDrive1,
             "dos33-master.dsk", DiskFormat::Dsk, raw);
-        Assert::IsTrue (SUCCEEDED (hr), L"MountFromBytes must succeed");
+        AssertSucceeded (hr, L"MountFromBytes must succeed");
 
         DiskImage *  img = core.diskStore->GetImage (kSlot6, kDrive1);
         Assert::IsNotNull (img, L"Mounted DiskImage must be present");

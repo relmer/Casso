@@ -91,7 +91,7 @@ public:
 
         hr = mgr.Discover();
 
-        Assert::IsTrue (SUCCEEDED (hr));
+        AssertSucceeded (hr);
         Assert::AreEqual (size_t (2), mgr.GetAvailableThemes().size());
     }
 
@@ -107,7 +107,7 @@ public:
         // EnumerateDirectories returns S_FALSE through Discover().
         // Either S_OK or S_FALSE is acceptable; what matters is that
         // the list is empty and we did not crash.
-        Assert::IsTrue (SUCCEEDED (hr));
+        AssertSucceeded (hr);
         Assert::AreEqual (size_t (0), mgr.GetAvailableThemes().size());
     }
 
@@ -147,7 +147,7 @@ public:
 
         HRESULT hr = mgr.Activate ("DarkModern");
 
-        Assert::IsTrue (SUCCEEDED (hr));
+        AssertSucceeded (hr);
         Assert::AreEqual (string ("DarkModern"), mgr.GetActiveThemeName());
         Assert::AreEqual (string ("DarkModern"), observed);
         Assert::AreEqual (1, hits);
@@ -167,7 +167,7 @@ public:
 
         HRESULT hr = mgr.ActivateByFamilyVariant ("apple2", "ii");
 
-        Assert::IsTrue (SUCCEEDED (hr));
+        AssertSucceeded (hr);
         Assert::AreEqual (string ("Skeuomorphic"), mgr.GetActiveThemeName());
     }
 

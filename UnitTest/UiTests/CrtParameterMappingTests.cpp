@@ -54,10 +54,10 @@ public:
         HRESULT             hr;
 
         hr = JsonParser::Parse (json, parsed, err);
-        Assert::IsTrue (SUCCEEDED (hr));
+        AssertSucceeded (hr);
 
         hr = prefs.FromJson (parsed);
-        Assert::IsTrue (SUCCEEDED (hr));
+        AssertSucceeded (hr);
 
         Assert::AreEqual (2.0f,  prefs.crtByMode[0].brightness);
         Assert::AreEqual (1.0f,  prefs.crtByMode[0].scanlinesIntensity);
@@ -225,10 +225,10 @@ public:
         HRESULT             hr;
 
         hr = JsonParser::Parse (json, parsed, err);
-        Assert::IsTrue (SUCCEEDED (hr));
+        AssertSucceeded (hr);
 
         hr = prefs.FromJson (parsed);
-        Assert::IsTrue (SUCCEEDED (hr));
+        AssertSucceeded (hr);
 
         Assert::IsFalse  (prefs.crtByMode[0].userOverride);
         Assert::AreEqual (1.0f,  prefs.crtByMode[0].brightness);

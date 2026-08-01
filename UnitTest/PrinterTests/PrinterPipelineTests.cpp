@@ -81,8 +81,7 @@ namespace PrinterPipelineTests
                 int                      x = 0, y = 0;
 
                 opt.outputDpi = 288;
-                Assert::IsTrue (SUCCEEDED (
-                    renderer.Render (raster, 0, raster.RowsUsed() - 1, opt, img)));
+                AssertSucceeded (renderer.Render (raster, 0, raster.RowsUsed() - 1, opt, img));
 
                 for (y = 0; y < img.height; y++)
                 {
@@ -115,8 +114,8 @@ namespace PrinterPipelineTests
             PrintJobSerializer::ExtractIndexPlane (original, w, h, plane);
             string   json = PrintJobSerializer::WriteMetaJson (original);
 
-            Assert::IsTrue (SUCCEEDED (PrintJobSerializer::ReadMetaJson (json, meta)));
-            Assert::IsTrue (SUCCEEDED (PrintJobSerializer::RebuildRaster (w, h, plane, meta, reloaded)));
+            AssertSucceeded (PrintJobSerializer::ReadMetaJson (json, meta));
+            AssertSucceeded (PrintJobSerializer::RebuildRaster (w, h, plane, meta, reloaded));
 
             Assert::AreEqual (original.RowsUsed(),        reloaded.RowsUsed());
             Assert::AreEqual (original.CellAt (0, 0),      reloaded.CellAt (0, 0));

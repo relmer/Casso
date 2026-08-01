@@ -75,7 +75,7 @@ public:
         HRESULT   hr;
 
         hr = host.BuildApple2e (core);
-        Assert::IsTrue (SUCCEEDED (hr), L"BuildApple2e must succeed");
+        AssertSucceeded (hr, L"BuildApple2e must succeed");
         Assert::IsTrue (core.HasApple2e(), L"//e wiring must be complete");
 
         core.PowerCycle();
@@ -199,7 +199,7 @@ public:
         HRESULT        hr;
 
         hr = host.BuildApple2e (core);
-        Assert::IsTrue (SUCCEEDED (hr));
+        AssertSucceeded (hr);
 
         core.PowerCycle();
 

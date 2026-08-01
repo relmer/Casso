@@ -65,7 +65,7 @@ public:
 
         hr = ThemeLoader::Load (fs, dir, theme, err);
 
-        Assert::IsTrue (SUCCEEDED (hr), L"Load failed");
+        AssertSucceeded (hr, L"Load failed");
         Assert::AreEqual (string ("Skeuomorphic"), theme.name);
         Assert::AreEqual (string ("apple2"), theme.familyId);
         Assert::AreEqual (string ("ii"), theme.variantId);
@@ -87,7 +87,7 @@ public:
 
         hr = ThemeLoader::Load (fs, dir, theme, err);
 
-        Assert::IsTrue (FAILED (hr));
+        AssertFailed (hr);
         Assert::IsTrue (err.code == ThemeLoadResult::MetadataInvalid);
     }
 
@@ -105,7 +105,7 @@ public:
 
         hr = ThemeLoader::Load (fs, dir, theme, err);
 
-        Assert::IsTrue (FAILED (hr));
+        AssertFailed (hr);
         Assert::IsTrue (err.code == ThemeLoadResult::VersionTooNew);
     }
 
@@ -281,7 +281,7 @@ public:
 
         hr = ThemeLoader::Load (fs, dir, theme, err);
 
-        Assert::IsTrue (FAILED (hr));
+        AssertFailed (hr);
         Assert::IsTrue (err.code == ThemeLoadResult::MetadataInvalid);
         Assert::IsFalse (err.message.empty());
     }
@@ -299,7 +299,7 @@ public:
                                 theme,
                                 err);
 
-        Assert::IsTrue (FAILED (hr));
+        AssertFailed (hr);
         Assert::IsTrue (err.code == ThemeLoadResult::MetadataMissing);
     }
 
@@ -316,7 +316,7 @@ public:
 
         hr = ThemeLoader::EnumerateCandidateDirs (fs, kThemesBase, found);
 
-        Assert::IsTrue (SUCCEEDED (hr));
+        AssertSucceeded (hr);
         Assert::AreEqual (size_t (2), found.size());
         // InMemoryFileSystem normalizes keys to lowercase + forward
         // slashes; the enumerator returns whatever normalized
@@ -339,7 +339,7 @@ public:
 
         hr = ThemeLoader::Load (fs, dir, theme, err);
 
-        Assert::IsTrue (FAILED (hr));
+        AssertFailed (hr);
         Assert::IsTrue (err.code == ThemeLoadResult::MetadataInvalid);
     }
 
@@ -357,7 +357,7 @@ public:
 
         hr = ThemeLoader::Load (fs, dir, theme, err);
 
-        Assert::IsTrue (SUCCEEDED (hr));
+        AssertSucceeded (hr);
         Assert::AreEqual (string ("commodore64"), theme.familyId);
         Assert::AreEqual (string ("c64c"), theme.variantId);
     }
@@ -390,7 +390,7 @@ public:
         fs.WriteAllText (dir + L"\\theme.json", kJson);
         hr = ThemeLoader::Load (fs, dir, theme, err);
 
-        Assert::IsTrue   (SUCCEEDED (hr));
+        AssertSucceeded (hr);
         Assert::AreEqual ((size_t) 2, theme.variantOverrides.size(),
             L"Two variant overrides expected (Apple //e, Apple //c)");
 
@@ -414,7 +414,7 @@ public:
 
         WriteHappyTheme (fs, dir);
         hr = ThemeLoader::Load (fs, dir, theme, err);
-        Assert::IsTrue (SUCCEEDED (hr));
+        AssertSucceeded (hr);
 
         // Brightness from kHappyJson defaults; no overrides exist.
         resolved = theme.ResolveForMachine ("Apple //e");
@@ -447,7 +447,7 @@ public:
 
         fs.WriteAllText (dir + L"\\theme.json", kJson);
         hr = ThemeLoader::Load (fs, dir, theme, err);
-        Assert::IsTrue (SUCCEEDED (hr));
+        AssertSucceeded (hr);
 
         {
             LoadedTheme  resolved = theme.ResolveForMachine ("Commodore 64");
@@ -494,7 +494,7 @@ public:
 
         fs.WriteAllText (dir + L"\\theme.json", kJson);
         hr = ThemeLoader::Load (fs, dir, theme, err);
-        Assert::IsTrue (SUCCEEDED (hr));
+        AssertSucceeded (hr);
 
         {
             LoadedTheme  resolved = theme.ResolveForMachine ("Apple //c");
@@ -535,7 +535,7 @@ public:
 
         fs.WriteAllText (dir + L"\\theme.json", kJson);
         hr = ThemeLoader::Load (fs, dir, theme, err);
-        Assert::IsTrue (SUCCEEDED (hr));
+        AssertSucceeded (hr);
 
         float  baseBefore = theme.crtDefaults.brightness;
         {

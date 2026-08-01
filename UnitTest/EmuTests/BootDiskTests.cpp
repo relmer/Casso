@@ -285,13 +285,13 @@ public:
         EmulatorCore  core;
 
         HRESULT  hr = host.BuildApple2eWithDisk2 (core);
-        Assert::IsTrue (SUCCEEDED (hr), L"BuildApple2eWithDisk2 must succeed");
+        AssertSucceeded (hr, L"BuildApple2eWithDisk2 must succeed");
 
         core.PowerCycle();
 
         hr = core.diskStore->MountFromBytes (6, 0, "casso-rocks.dsk",
                                              DiskFormat::Dsk, raw);
-        Assert::IsTrue (SUCCEEDED (hr), L"MountFromBytes must succeed");
+        AssertSucceeded (hr, L"MountFromBytes must succeed");
 
         DiskImage *  img = core.diskStore->GetImage (6, 0);
         Assert::IsNotNull (img);
@@ -823,7 +823,7 @@ public:
 
 
 
-        Assert::IsTrue (SUCCEEDED (hr), L"BuildApple2e must succeed");
+        AssertSucceeded (hr, L"BuildApple2e must succeed");
         Assert::IsTrue (core.HasApple2e(), L"//e wiring must be complete");
 
         core.PowerCycle();
@@ -918,7 +918,7 @@ public:
 
 
 
-        Assert::IsTrue (SUCCEEDED (hr), L"BuildApple2e must succeed");
+        AssertSucceeded (hr, L"BuildApple2e must succeed");
         Assert::IsTrue (core.HasApple2e(), L"//e wiring must be complete");
 
         core.PowerCycle();
@@ -974,7 +974,7 @@ public:
 
 
 
-        Assert::IsTrue (SUCCEEDED (hr), L"BuildApple2e must succeed");
+        AssertSucceeded (hr, L"BuildApple2e must succeed");
         Assert::IsTrue (core.HasApple2e(), L"//e wiring must be complete");
 
         core.PowerCycle();

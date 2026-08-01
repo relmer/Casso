@@ -138,7 +138,7 @@ public:
         HRESULT  hr = StbVorbisWrapper::DecodeOggToInterleavedShort (
             junk.data(), junk.size(), pcm, rate, channels, err);
 
-        Assert::IsTrue (FAILED (hr),
+        AssertFailed (hr ,
             L"Garbage input must return a failure HRESULT");
         Assert::IsTrue (pcm.empty(), L"PCM buffer must be empty on failure");
         Assert::IsFalse (err.empty(), L"Error string must be set on failure");
@@ -185,7 +185,7 @@ public:
                                         L"Shugart",
                                         s_kTestSampleRate);
 
-        Assert::IsTrue (SUCCEEDED (hr),
+        AssertSucceeded (hr ,
             L"LoadSamples must succeed when at least MediaFoundation is reachable");
 
         // We can't directly inspect the source's internal buffer
@@ -245,7 +245,7 @@ public:
         HRESULT  hr = src.LoadSamples (devicesDir.wstring().c_str(),
                                        L"Shugart",
                                        s_kTestSampleRate);
-        Assert::IsTrue (SUCCEEDED (hr), L"LoadSamples must succeed");
+        AssertSucceeded (hr, L"LoadSamples must succeed");
 
         src.OnDiskInserted();
         src.OnMotorEngaged();
@@ -282,7 +282,7 @@ public:
         HRESULT  hr = src.LoadSamples (devicesDir.wstring().c_str(),
                                        L"Alps",
                                        s_kTestSampleRate);
-        Assert::IsTrue (SUCCEEDED (hr), L"LoadSamples must succeed");
+        AssertSucceeded (hr, L"LoadSamples must succeed");
 
         // The door one-shot must play the Shugart copy rather than be muted.
         src.PlayTestSound (Disk2AudioSource::TestSoundKind::Door);

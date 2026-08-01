@@ -74,7 +74,7 @@ namespace PaperRendererTests
             RgbaImage                img;
 
             opt.outputDpi = 576;
-            Assert::IsTrue (SUCCEEDED (renderer.Render (raster, 0, 0, opt, img)));
+            AssertSucceeded (renderer.Render (raster, 0, 0, opt, img));
 
             Assert::AreEqual (1280 * 576 / 160, img.width);    // 4608
             Assert::AreEqual (1 * 576 / 144, img.height);      // 4
@@ -89,7 +89,7 @@ namespace PaperRendererTests
             RgbaImage                img;
 
             opt.outputDpi = 288;
-            Assert::IsTrue (SUCCEEDED (renderer.Render (raster, 0, 143, opt, img)));
+            AssertSucceeded (renderer.Render (raster, 0, 143, opt, img));
 
             Assert::AreEqual (1280 * 288 / 160, img.width);    // 2304
             Assert::AreEqual (144 * 288 / 144, img.height);    // 288
@@ -104,7 +104,7 @@ namespace PaperRendererTests
             RgbaImage                img;
             int                      minX = 0, minY = 0, maxX = 0, maxY = 0;
 
-            Assert::IsTrue (SUCCEEDED (renderer.Render (raster, 0, 3, opt, img)));
+            AssertSucceeded (renderer.Render (raster, 0, 3, opt, img));
 
             InkBounds (img, minX, minY, maxX, maxY);
             Assert::AreEqual (-1, maxX);                        // nothing inked
@@ -118,7 +118,7 @@ namespace PaperRendererTests
             PaperRenderer::Options   opt;
             RgbaImage                img;
 
-            Assert::IsTrue (SUCCEEDED (renderer.Render (raster, 10, 5, opt, img)));
+            AssertSucceeded (renderer.Render (raster, 10, 5, opt, img));
 
             Assert::AreEqual (0, img.width);
             Assert::AreEqual (0, img.height);
@@ -137,7 +137,7 @@ namespace PaperRendererTests
             opt.outputDpi = 576;
 
             // Render a band tall enough to contain the whole dot.
-            Assert::IsTrue (SUCCEEDED (renderer.Render (raster, 16, 24, opt, img)));
+            AssertSucceeded (renderer.Render (raster, 16, 24, opt, img));
 
             CellCenter (100, 20 - 16, 576, cx, cy);
             Assert::IsTrue (IsInked (img, cx, cy));            // center struck
@@ -161,8 +161,8 @@ namespace PaperRendererTests
             raster.Strike (11, 0, InkPrimary::Blue);
             raster.Strike (12, 1, InkPrimary::Yellow);
 
-            Assert::IsTrue (SUCCEEDED (r1.Render (raster, 0, 3, opt, a)));
-            Assert::IsTrue (SUCCEEDED (r2.Render (raster, 0, 3, opt, b)));
+            AssertSucceeded (r1.Render (raster, 0, 3, opt, a));
+            AssertSucceeded (r2.Render (raster, 0, 3, opt, b));
 
             Assert::AreEqual (a.rgba.size(), b.rgba.size());
             for (i = 0; i < (int) a.rgba.size(); i++)
@@ -189,7 +189,7 @@ namespace PaperRendererTests
             raster.Strike (30, 0, InkPrimary::Red);
             raster.Strike (30, 0, InkPrimary::Blue);                       // purple
 
-            Assert::IsTrue (SUCCEEDED (renderer.Render (raster, 0, 0, opt, img)));
+            AssertSucceeded (renderer.Render (raster, 0, 0, opt, img));
 
             {
                 const Byte *   yellow = nullptr;
@@ -231,7 +231,7 @@ namespace PaperRendererTests
                 {
                     raster.Strike (col, 0, InkPrimary::Black);
                 }
-                Assert::IsTrue (SUCCEEDED (renderer.Render (raster, 0, 0, opt, img)));
+                AssertSucceeded (renderer.Render (raster, 0, 0, opt, img));
                 InkBounds (img, minX, minY, maxX, maxY);
                 inkW = maxX - minX + 1;
             }
@@ -247,7 +247,7 @@ namespace PaperRendererTests
                 {
                     raster.Strike (0, row, InkPrimary::Black);
                 }
-                Assert::IsTrue (SUCCEEDED (renderer.Render (raster, 0, 143, opt, img)));
+                AssertSucceeded (renderer.Render (raster, 0, 143, opt, img));
                 InkBounds (img, minX, minY, maxX, maxY);
                 inkH = maxY - minY + 1;
             }
@@ -272,7 +272,7 @@ namespace PaperRendererTests
             opt.style     = DotStyle::Plain;
             raster.Strike (50, 0, InkPrimary::Black);
 
-            Assert::IsTrue (SUCCEEDED (renderer.Render (raster, 0, 0, opt, img)));
+            AssertSucceeded (renderer.Render (raster, 0, 0, opt, img));
 
             // The cell's top-left output pixel is filled (square, not a disc).
             {

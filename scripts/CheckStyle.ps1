@@ -550,7 +550,6 @@ function Test-EhmConditionCalls
         if ($rel -notlike '*.cpp' -and $rel -notlike '*.h') { continue }
         if ($rel -like '*External/*')                       { continue }
         if ($rel -like '*CassoCore/Ehm.h')                  { continue }
-        if ($rel -like 'UnitTest/*')                        { continue }
 
         $full = Join-Path $repoRoot $rel
         if (-not (Test-Path -LiteralPath $full)) { continue }
@@ -560,10 +559,13 @@ function Test-EhmConditionCalls
         # SUCCEEDED / FAILED / IGNORE_RETURN_VALUE join the EHM families here.
         # They are result-testing macros too, so wrapping a call in one hides
         # exactly what the EHM rule exists to keep visible -- and with an out
-        # param it hides where the result landed as well. Unit tests are
-        # exempt: `Assert::IsTrue (SUCCEEDED (Foo()))` makes the call the
-        # subject of the assertion, which is the sanctioned idiom there, the
-        # same call the backlog makes for HRESULT-without-EHM in tests.
+        # param it hides where the result landed as well.
+        #
+        # Unit tests are NOT exempt, though the first cut of this rule excused
+        # them. `Assert::IsTrue (SUCCEEDED (Foo()))` looked like the sanctioned
+        # test idiom until the fix turned out to be better than the exemption:
+        # AssertSucceeded (Foo()) reads the same and prints the HRESULT, which
+        # Assert::IsTrue could not -- it only ever saw a bool.
         foreach ($m in [regex]::Matches($text, '\b(?:C[BWPH]R[AFN]*(?:Ex)?|SUCCEEDED|FAILED|IGNORE_RETURN_VALUE)\s*\('))
         {
             $open = $text.IndexOf('(', $m.Index)

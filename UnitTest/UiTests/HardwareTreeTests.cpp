@@ -36,7 +36,7 @@ public:
         JsonValue        v;
         JsonParseError   e;
         HRESULT          hr = JsonParser::Parse (text, v, e);
-        Assert::IsTrue (SUCCEEDED (hr));
+        AssertSucceeded (hr);
         return v;
     }
 
@@ -49,8 +49,7 @@ public:
         })JSON";
 
         std::vector<HardwareEntry>  out;
-        Assert::IsTrue (SUCCEEDED (
-            SettingsPanelState::ExtractHardware (ParseOrFail (j), out)));
+        AssertSucceeded (SettingsPanelState::ExtractHardware (ParseOrFail (j), out));
 
         Assert::AreEqual<size_t> (2u, out.size());
 

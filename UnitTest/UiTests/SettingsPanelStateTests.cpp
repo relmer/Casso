@@ -94,7 +94,7 @@ public:
         JsonValue        v;
         JsonParseError   e;
         HRESULT          hr = JsonParser::Parse (text, v, e);
-        Assert::IsTrue (SUCCEEDED (hr), L"test fixture JSON must parse");
+        AssertSucceeded (hr, L"test fixture JSON must parse");
         return v;
     }
 
@@ -144,7 +144,7 @@ public:
         JsonValue           v  = ParseOrFail (kFixtureJson);
         HRESULT             hr = st.LoadFromMachine ("TestMachine", v, v);
 
-        Assert::IsTrue (SUCCEEDED (hr));
+        AssertSucceeded (hr);
         Assert::IsFalse (st.IsDirty(),       L"fresh load -> not dirty");
         Assert::IsFalse (st.RequiresReset(), L"fresh load -> no reset needed");
         Assert::AreEqual (std::string ("TestMachine"), st.MachineName());
@@ -190,7 +190,7 @@ public:
 
         SettingsPanelState  cSt;
         JsonValue           cv = ParseOrFail (cJson);
-        Assert::IsTrue (SUCCEEDED (cSt.LoadFromMachine ("Apple //c", cv, cv)));
+        AssertSucceeded (cSt.LoadFromMachine ("Apple //c", cv, cv));
         SettingsMemoryRegion  cRom = romRegion (cSt.MachineInfo());
         Assert::AreEqual (std::string ("System ROM (2 banks)"), cRom.name,         L"//c ROM name");
         Assert::AreEqual (std::string ("32K"),                  cRom.size,         L"//c ROM = 2x16K = 32K");
@@ -207,7 +207,7 @@ public:
 
         SettingsPanelState  eSt;
         JsonValue           ev = ParseOrFail (eJson);
-        Assert::IsTrue (SUCCEEDED (eSt.LoadFromMachine ("Apple //e", ev, ev)));
+        AssertSucceeded (eSt.LoadFromMachine ("Apple //e", ev, ev));
         SettingsMemoryRegion  eRom = romRegion (eSt.MachineInfo());
         Assert::AreEqual (std::string ("System ROM"),  eRom.name,         L"//e ROM name unchanged");
         Assert::AreEqual (std::string ("16K"),         eRom.size,         L"//e ROM = 16K");
@@ -224,7 +224,7 @@ public:
 
         SettingsPanelState  twoSt;
         JsonValue           tv = ParseOrFail (twoJson);
-        Assert::IsTrue (SUCCEEDED (twoSt.LoadFromMachine ("Apple ][", tv, tv)));
+        AssertSucceeded (twoSt.LoadFromMachine ("Apple ][", tv, tv));
         SettingsMemoryRegion  twoRom = romRegion (twoSt.MachineInfo());
         Assert::AreEqual (std::string ("System ROM"),  twoRom.name,         L"][ ROM name unchanged");
         Assert::AreEqual (std::string ("12K"),         twoRom.size,         L"][ ROM = 12K");
@@ -253,7 +253,7 @@ public:
 
         SettingsPanelState  cSt;
         JsonValue           cv = ParseOrFail (cJson);
-        Assert::IsTrue (SUCCEEDED (cSt.LoadFromMachine ("Apple //c", cv, cv)));
+        AssertSucceeded (cSt.LoadFromMachine ("Apple //c", cv, cv));
         Assert::AreEqual (std::string ("128K RAM"), cSt.MachineInfo().ramSummary,
             L"48+48+16+16 = 128K; the 32K ROM must not be counted");
 
@@ -268,7 +268,7 @@ public:
 
         SettingsPanelState  twoSt;
         JsonValue           tv = ParseOrFail (twoJson);
-        Assert::IsTrue (SUCCEEDED (twoSt.LoadFromMachine ("Apple ][", tv, tv)));
+        AssertSucceeded (twoSt.LoadFromMachine ("Apple ][", tv, tv));
         Assert::AreEqual (std::string ("48K RAM"), twoSt.MachineInfo().ramSummary,
             L"single 48K main bank");
     }
@@ -282,10 +282,10 @@ public:
         HRESULT             hr;
 
         hr = st.LoadFromMachine ("X", arr, obj);
-        Assert::IsTrue (FAILED (hr), L"non-object default should fail");
+        AssertFailed (hr, L"non-object default should fail");
 
         hr = st.LoadFromMachine ("X", obj, arr);
-        Assert::IsTrue (FAILED (hr), L"non-object merged should fail");
+        AssertFailed (hr, L"non-object merged should fail");
     }
 
 
@@ -362,7 +362,7 @@ public:
 
         HRESULT  hr = st.SetHardwareEnabled (kbdIdx, false);
 
-        Assert::IsTrue  (FAILED (hr),  L"required entry cannot be disabled");
+        AssertFailed (hr,  L"required entry cannot be disabled");
         Assert::IsTrue  (st.Hardware()[kbdIdx].enabled);
         Assert::IsFalse (st.IsDirty());
     }
@@ -386,7 +386,7 @@ public:
 
         HRESULT  hr = st.SetHardwareEnabled (lockedIdx, false);
 
-        Assert::IsTrue  (FAILED (hr), L"platform-locked entry cannot be disabled");
+        AssertFailed (hr, L"platform-locked entry cannot be disabled");
         Assert::IsTrue  (st.Hardware()[lockedIdx].enabled);
     }
 
@@ -409,7 +409,7 @@ public:
 
         HRESULT  hr = st.SetHardwareEnabled (mbIdx, false);
 
-        Assert::IsTrue (SUCCEEDED (hr));
+        AssertSucceeded (hr);
         Assert::IsTrue (st.IsDirty());
         Assert::IsTrue (st.RequiresReset(), L"hardware enable change forces reset");
     }
@@ -431,7 +431,7 @@ public:
         JsonValue      outJson;
         HRESULT        hr = st.Apply (sink, outJson);
 
-        Assert::IsTrue (SUCCEEDED (hr));
+        AssertSucceeded (hr);
         Assert::IsTrue  (sink.lastSpeed         == SettingsSpeedMode::Maximum);
         Assert::IsTrue  (sink.lastColor         == SettingsColorMode::Amber);
         Assert::IsFalse (sink.lastFloppySound);
@@ -451,12 +451,12 @@ public:
         JsonValue      outJson;
 
         st.SetSpeedMode (SettingsSpeedMode::Double);
-        Assert::IsTrue (SUCCEEDED (st.Apply (sink, outJson)));
+        AssertSucceeded (st.Apply (sink, outJson));
         Assert::AreEqual (0, sink.queuedResetCount,
                           L"Live edits must not require reset/pause semantics.");
 
         st.SetSpeedMode (SettingsSpeedMode::Maximum);
-        Assert::IsTrue (SUCCEEDED (st.Apply (sink, outJson)));
+        AssertSucceeded (st.Apply (sink, outJson));
         Assert::AreEqual (0, sink.queuedResetCount,
                           L"Repeated applies while panel remains open must stay non-blocking.");
     }
@@ -481,7 +481,7 @@ public:
         JsonValue      outJson;
         HRESULT        hr = st.Apply (sink, outJson);
 
-        Assert::IsTrue (SUCCEEDED (hr));
+        AssertSucceeded (hr);
         Assert::AreEqual (1, sink.queuedResetCount, L"hw change -> reset queued");
     }
 
@@ -503,7 +503,7 @@ public:
         std::string         text;
         JsonWriter::Options opts;
         opts.fPretty = false;
-        Assert::IsTrue (SUCCEEDED (JsonWriter::Write (outJson, opts, text)));
+        AssertSucceeded (JsonWriter::Write (outJson, opts, text));
         Assert::IsTrue (text.find ("\"$cassoUiPrefs\"") != std::string::npos);
         Assert::IsTrue (text.find ("\"speedMode\":\"double\"") != std::string::npos);
         Assert::IsTrue (text.find ("\"writeMode\":\"copy-on-write\"") != std::string::npos);
@@ -531,14 +531,14 @@ public:
 
         RecordingSink  sink;
         JsonValue      outJson;
-        Assert::IsTrue (SUCCEEDED (st.Apply (sink, outJson)));
+        AssertSucceeded (st.Apply (sink, outJson));
         Assert::IsTrue (sink.lastExternalDriveConnected, L"pushed live through sink");
         Assert::AreEqual (0, sink.queuedResetCount, L"connect toggle never queues a reset");
 
         // The connected state persists into the emitted $cassoUiPrefs, and
         // re-loading that JSON restores it.
         SettingsUiPrefs  reloaded;
-        Assert::IsTrue (SUCCEEDED (SettingsPanelState::ExtractUiPrefs (outJson, reloaded)));
+        AssertSucceeded (SettingsPanelState::ExtractUiPrefs (outJson, reloaded));
         Assert::IsTrue (reloaded.externalDriveConnected, L"externalDriveConnected round-trips");
     }
 
@@ -566,12 +566,12 @@ public:
 
         SettingsPanelState  cSt;
         JsonValue           cv = ParseOrFail (cJson);
-        Assert::IsTrue (SUCCEEDED (cSt.LoadFromMachine ("Apple //c", cv, cv)));
+        AssertSucceeded (cSt.LoadFromMachine ("Apple //c", cv, cv));
         Assert::IsTrue (cSt.MachineInfo().supportsExternalDrive, L"//c has optional external drive");
 
         SettingsPanelState  eSt;
         JsonValue           ev = ParseOrFail (eJson);
-        Assert::IsTrue (SUCCEEDED (eSt.LoadFromMachine ("Apple //e", ev, ev)));
+        AssertSucceeded (eSt.LoadFromMachine ("Apple //e", ev, ev));
         Assert::IsFalse (eSt.MachineInfo().supportsExternalDrive, L"//e second drive is fixed hardware");
     }
 
@@ -592,7 +592,7 @@ public:
 
         SettingsPanelState  st;
         JsonValue           v = ParseOrFail (cJson);
-        Assert::IsTrue (SUCCEEDED (st.LoadFromMachine ("Apple //c", v, v)));
+        AssertSucceeded (st.LoadFromMachine ("Apple //c", v, v));
         Assert::IsTrue (st.HasDiskIIController(),
             L"//c built-in IWM (no disk-ii slot) must still yield a Disk tab");
     }
@@ -613,12 +613,12 @@ public:
 
         RecordingSink  sink;
         JsonValue      outJson;
-        Assert::IsTrue (SUCCEEDED (st.Apply (sink, outJson)));
+        AssertSucceeded (st.Apply (sink, outJson));
         Assert::IsFalse (sink.lastMouseConnected, L"pushed live");
         Assert::AreEqual (0, sink.queuedResetCount);
 
         SettingsUiPrefs  reloaded;
-        Assert::IsTrue (SUCCEEDED (SettingsPanelState::ExtractUiPrefs (outJson, reloaded)));
+        AssertSucceeded (SettingsPanelState::ExtractUiPrefs (outJson, reloaded));
         Assert::IsFalse (reloaded.mouseConnected, L"mouseConnected round-trips");
     }
 
@@ -654,7 +654,7 @@ public:
 
         st.LoadFromMachine ("machineA", machineA, machineA);
         st.SetSpeedMode (SettingsSpeedMode::Maximum);
-        Assert::IsTrue (SUCCEEDED (st.Apply (sink, outA)));
+        AssertSucceeded (st.Apply (sink, outA));
 
         // Rebind to machineB merged data that still carries "double".
         st.LoadFromMachine ("machineB", machineB, machineB);
@@ -733,13 +733,13 @@ public:
         Assert::IsTrue (diskIdx < hw.size(), L"Fixture must expose a disk-ii entry.");
 
         HRESULT  hr = st.SetHardwareEnabled (diskIdx, false);
-        Assert::IsTrue  (SUCCEEDED (hr));
+        AssertSucceeded (hr);
         Assert::IsFalse (st.HasDiskIIController(),
             L"Disabling the disk-ii slot must clear the controller.");
 
         // Re-enabling restores it.
         hr = st.SetHardwareEnabled (diskIdx, true);
-        Assert::IsTrue (SUCCEEDED (hr));
+        AssertSucceeded (hr);
         Assert::IsTrue (st.HasDiskIIController(),
             L"Re-enabling the disk-ii slot must restore the controller.");
     }
@@ -790,7 +790,7 @@ public:
         JsonValue           v   = ParseOrFail (kFixtureJson);
         HRESULT             hr  = st.LoadFromMachine ("TestMachine", v, v);
 
-        Assert::IsTrue (SUCCEEDED (hr));
+        AssertSucceeded (hr);
 
         // No mutations applied: the sink should remain untouched
         // because nothing has called Apply().

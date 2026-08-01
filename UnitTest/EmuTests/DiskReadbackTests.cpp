@@ -145,14 +145,14 @@ public:
         DiskImage *  external  = nullptr;
 
         hr = host.BuildApple2eWithDisk2 (core);
-        Assert::IsTrue (SUCCEEDED (hr), L"BuildApple2eWithDisk2");
+        AssertSucceeded (hr, L"BuildApple2eWithDisk2");
 
         core.PowerCycle();
 
         hr = core.diskStore->MountFromBytes (kSlot6, kDrive1,
                                              "readback.dsk",
                                              DiskFormat::Dsk, raw);
-        Assert::IsTrue (SUCCEEDED (hr), L"MountFromBytes");
+        AssertSucceeded (hr, L"MountFromBytes");
 
         external = core.diskStore->GetImage (kSlot6, kDrive1);
         Assert::IsNotNull (external, L"GetImage");
@@ -665,13 +665,13 @@ public:
         HRESULT        hr       = S_OK;
 
         hr = host.BuildApple2eWithDisk2 (core);
-        Assert::IsTrue (SUCCEEDED (hr), L"BuildApple2eWithDisk2");
+        AssertSucceeded (hr, L"BuildApple2eWithDisk2");
 
         core.PowerCycle();
 
         hr = core.diskStore->MountFromBytes (kSlot6, kDrive1, "rewind.dsk",
                                              DiskFormat::Dsk, raw);
-        Assert::IsTrue (SUCCEEDED (hr), L"MountFromBytes");
+        AssertSucceeded (hr, L"MountFromBytes");
 
         external = core.diskStore->GetImage (kSlot6, kDrive1);
         Assert::IsNotNull (external, L"GetImage");

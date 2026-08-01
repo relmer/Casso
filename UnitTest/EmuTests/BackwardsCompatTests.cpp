@@ -290,7 +290,7 @@ public:
         hr = MachineConfigLoader::Load (json, "TestMachine", searchPaths, MockResolveAll,
                                         config, error);
 
-        Assert::IsTrue (SUCCEEDED (hr),
+        AssertSucceeded (hr ,
             L"Apple2.json must parse cleanly through the production loader");
         Assert::AreEqual (std::string ("Apple ]["), config.name,
             L"Apple2.json name must remain 'Apple ]['");
@@ -322,7 +322,7 @@ public:
         hr = MachineConfigLoader::Load (json, "TestMachine", searchPaths, MockResolveAll,
                                         config, error);
 
-        Assert::IsTrue (SUCCEEDED (hr),
+        AssertSucceeded (hr ,
             L"Apple2Plus.json must parse cleanly through the production loader");
         Assert::AreEqual (std::string ("Apple ][ plus"), config.name,
             L"Apple2Plus.json name must remain 'Apple ][ plus'");
@@ -352,7 +352,7 @@ public:
 
         hr = MachineConfigLoader::Load (json, "TestMachine", searchPaths, MockResolveAll,
                                         config, error);
-        Assert::IsTrue (SUCCEEDED (hr));
+        AssertSucceeded (hr);
 
         Assert::IsFalse (HasInternalDeviceType (config, "apple2e-mmu"),
             L"Apple2.json must NOT include apple2e-mmu (composition pin)");
@@ -384,7 +384,7 @@ public:
 
         hr = MachineConfigLoader::Load (json, "TestMachine", searchPaths, MockResolveAll,
                                         config, error);
-        Assert::IsTrue (SUCCEEDED (hr));
+        AssertSucceeded (hr);
 
         Assert::IsFalse (HasInternalDeviceType (config, "apple2e-mmu"),
             L"Apple2Plus.json must NOT include apple2e-mmu");
@@ -420,7 +420,7 @@ public:
 
         hr = MachineConfigLoader::Load (json, "TestMachine", searchPaths, MockResolveAll,
                                         config, error);
-        Assert::IsTrue (SUCCEEDED (hr));
+        AssertSucceeded (hr);
 
         Assert::AreEqual (size_t (1), config.ram.size(),
             L"Apple2.json must declare exactly one RAM region (no aux bank)");
@@ -466,7 +466,7 @@ public:
 
         hr = MachineConfigLoader::Load (json, "TestMachine", searchPaths, MockResolveAll,
                                         config, error);
-        Assert::IsTrue (SUCCEEDED (hr));
+        AssertSucceeded (hr);
 
         Assert::AreEqual (size_t (1), config.ram.size(),
             L"Apple2Plus.json must declare exactly one RAM region");
@@ -510,7 +510,7 @@ public:
 
         hr = MachineConfigLoader::Load (json, "TestMachine", searchPaths, MockResolveAll,
                                         config, error);
-        Assert::IsTrue (SUCCEEDED (hr));
+        AssertSucceeded (hr);
 
         Assert::AreEqual (std::string ("apple2-uppercase"), config.keyboardType,
             L"Apple2.json keyboard type must remain apple2-uppercase");
@@ -550,7 +550,7 @@ public:
 
         hr = MachineConfigLoader::Load (json, "TestMachine", searchPaths, MockResolveAll,
                                         config, error);
-        Assert::IsTrue (SUCCEEDED (hr));
+        AssertSucceeded (hr);
 
         Assert::AreEqual (std::string ("apple2-uppercase"), config.keyboardType,
             L"Apple2Plus.json keyboard type must remain apple2-uppercase");
@@ -595,7 +595,7 @@ public:
 
         hr = host.BuildAppleII (core);
 
-        Assert::IsTrue (SUCCEEDED (hr),
+        AssertSucceeded (hr ,
             L"HeadlessHost::BuildAppleII must succeed");
         Assert::IsTrue (core.machineKind == HeadlessMachineKind::AppleII,
             L"machineKind must remain AppleII");
@@ -636,7 +636,7 @@ public:
 
         hr = host.BuildAppleIIPlus (core);
 
-        Assert::IsTrue (SUCCEEDED (hr),
+        AssertSucceeded (hr ,
             L"HeadlessHost::BuildAppleIIPlus must succeed");
         Assert::IsTrue (core.machineKind == HeadlessMachineKind::AppleIIPlus,
             L"machineKind must remain AppleIIPlus");
@@ -678,10 +678,10 @@ public:
         HRESULT        hr;
 
         hr = hostA.BuildAppleII (coreA);
-        Assert::IsTrue (SUCCEEDED (hr));
+        AssertSucceeded (hr);
 
         hr = hostB.BuildAppleII (coreB);
-        Assert::IsTrue (SUCCEEDED (hr));
+        AssertSucceeded (hr);
 
         for (i = 0; i < kPrngSampleCount; i++)
         {
@@ -707,10 +707,10 @@ public:
         HRESULT        hr;
 
         hr = hostA.BuildAppleIIPlus (coreA);
-        Assert::IsTrue (SUCCEEDED (hr));
+        AssertSucceeded (hr);
 
         hr = hostB.BuildAppleIIPlus (coreB);
-        Assert::IsTrue (SUCCEEDED (hr));
+        AssertSucceeded (hr);
 
         for (i = 0; i < kPrngSampleCount; i++)
         {
@@ -738,13 +738,13 @@ public:
         HRESULT        hr;
 
         hr = host.BuildAppleII (coreII);
-        Assert::IsTrue (SUCCEEDED (hr));
+        AssertSucceeded (hr);
 
         hr = host.BuildAppleIIPlus (coreIIPlus);
-        Assert::IsTrue (SUCCEEDED (hr));
+        AssertSucceeded (hr);
 
         hr = host.BuildApple2e (coreIIe);
-        Assert::IsTrue (SUCCEEDED (hr));
+        AssertSucceeded (hr);
 
         Assert::IsTrue (coreII.machineKind     == HeadlessMachineKind::AppleII);
         Assert::IsTrue (coreIIPlus.machineKind == HeadlessMachineKind::AppleIIPlus);

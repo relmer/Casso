@@ -186,7 +186,7 @@ public:
         wchar_t     msg[256]  = {};
 
         hr = MeasureMillionCycles (elapsedMs);
-        Assert::IsTrue (SUCCEEDED (hr),
+        AssertSucceeded (hr ,
             L"MeasureMillionCycles must succeed");
 
         swprintf_s (msg, L"1M cycles took %.2f ms (ceiling %.2f ms)",
@@ -223,7 +223,7 @@ public:
         for (i = 0; i < kStabilityRunCount; i++)
         {
             hr = MeasureMillionCycles (sample);
-            Assert::IsTrue (SUCCEEDED (hr),
+            AssertSucceeded (hr ,
                 L"MeasureMillionCycles must succeed for every stability sample");
 
             swprintf_s (msg, L"  run %d: %.2f ms", i + 1, sample);

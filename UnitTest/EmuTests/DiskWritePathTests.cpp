@@ -249,7 +249,7 @@ public:
         EmulatorCore   core;
 
         HRESULT  hr = host.BuildApple2eWithDisk2 (core);
-        Assert::IsTrue (SUCCEEDED (hr), L"BuildApple2eWithDisk2 must succeed");
+        AssertSucceeded (hr, L"BuildApple2eWithDisk2 must succeed");
 
         core.PowerCycle();
 
@@ -257,7 +257,7 @@ public:
         std::vector<Byte>  blank (NibblizationLayer::kImageByteSize, 0);
         hr = core.diskStore->MountFromBytes (kSlot6, kDrive1, "blank.dsk",
                                              DiskFormat::Dsk, blank);
-        Assert::IsTrue (SUCCEEDED (hr), L"MountFromBytes must succeed");
+        AssertSucceeded (hr, L"MountFromBytes must succeed");
 
         DiskImage *  img = core.diskStore->GetImage (kSlot6, kDrive1);
         Assert::IsNotNull (img);

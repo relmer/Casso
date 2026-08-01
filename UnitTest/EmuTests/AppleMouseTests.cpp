@@ -37,7 +37,9 @@ static bool Apple2cRomAvailable()
 {
     FixtureProvider        fp;
     std::vector<uint8_t>   bytes;
-    return SUCCEEDED (fp.OpenFixture ("Apple2c.rom", bytes)) && bytes.size() == s_kRomSize;
+    HRESULT                hrOpen = fp.OpenFixture ("Apple2c.rom", bytes);
+
+    return SUCCEEDED (hrOpen) && bytes.size() == s_kRomSize;
 }
 
 // IOU switch addresses ($C058-$C05F while access is enabled).
@@ -69,7 +71,7 @@ public:
         InterruptController  ic;         // no CPU: observe via IsAnyAsserted
         AppleMouse           mouse;
 
-        Assert::IsTrue (SUCCEEDED (mouse.AttachInterruptController (&ic)));
+        AssertSucceeded (mouse.AttachInterruptController (&ic));
         EnableXyInterrupts (mouse);
 
         mouse.MoveBy (2, 0);
@@ -103,7 +105,7 @@ public:
         InterruptController  ic;
         AppleMouse           mouse;
 
-        Assert::IsTrue (SUCCEEDED (mouse.AttachInterruptController (&ic)));
+        AssertSucceeded (mouse.AttachInterruptController (&ic));
         EnableXyInterrupts (mouse);
 
         mouse.MoveBy (+1, +1);
@@ -128,7 +130,7 @@ public:
         AppleMouse           mouse;
         VideoTiming          vt;
 
-        Assert::IsTrue (SUCCEEDED (mouse.AttachInterruptController (&ic)));
+        AssertSucceeded (mouse.AttachInterruptController (&ic));
         mouse.SetVideoTiming (&vt);
 
         // Video timing and the mouse both receive the same cycle count from
@@ -186,7 +188,7 @@ public:
         InterruptController  ic;
         AppleMouse           mouse;
 
-        Assert::IsTrue (SUCCEEDED (mouse.AttachInterruptController (&ic)));
+        AssertSucceeded (mouse.AttachInterruptController (&ic));
         EnableXyInterrupts (mouse);
 
         mouse.MoveBy (1, 0);
@@ -224,7 +226,7 @@ public:
         HeadlessHost   host;
         EmulatorCore   core;
 
-        Assert::IsTrue (SUCCEEDED (host.BuildApple2c (core)));
+        AssertSucceeded (host.BuildApple2c (core));
         core.PowerCycle();
 
         Assert::AreEqual<Byte> (0x38, core.bus->ReadByte (0xC705), L"$C705 signature");
@@ -255,7 +257,7 @@ public:
         HeadlessHost   host;
         EmulatorCore   core;
 
-        Assert::IsTrue (SUCCEEDED (host.BuildApple2c (core)));
+        AssertSucceeded (host.BuildApple2c (core));
         core.PowerCycle();
 
         // Let the reset firmware initialize (screen, zero page) and run
@@ -374,9 +376,9 @@ public:
 
         HeadlessHost  host;
         EmulatorCore  core;
-        Assert::IsTrue (SUCCEEDED (host.BuildApple2c (core)));
+        AssertSucceeded (host.BuildApple2c (core));
         core.PowerCycle();
-        Assert::IsTrue (SUCCEEDED (core.diskStore->MountFromBytes (6, 0, kDiskPath, DiskFormat::Woz, bytes)));
+        AssertSucceeded (core.diskStore->MountFromBytes (6, 0, kDiskPath, DiskFormat::Woz, bytes));
         core.diskController->SetExternalDisk (0, core.diskStore->GetImage (6, 0));
 
         core.RunCycles (60'000'000);                       // boot DOS 3.3 to ]
@@ -430,10 +432,10 @@ public:
 
         HeadlessHost  host;
         EmulatorCore  core;
-        Assert::IsTrue (SUCCEEDED (host.BuildApple2eWithDisk2 (core)));
+        AssertSucceeded (host.BuildApple2eWithDisk2 (core));
         core.diskController->SetIwmMode (true);   // discriminator: IWM vs 65C02
         core.PowerCycle();
-        Assert::IsTrue (SUCCEEDED (core.diskStore->MountFromBytes (6, 0, "control.woz", DiskFormat::Woz, bytes)));
+        AssertSucceeded (core.diskStore->MountFromBytes (6, 0, "control.woz", DiskFormat::Woz, bytes));
         core.diskController->SetExternalDisk (0, core.diskStore->GetImage (6, 0));
         core.RunCycles (60'000'000);
 
@@ -499,9 +501,9 @@ public:
         {
             HeadlessHost  host;
             EmulatorCore  core;
-            Assert::IsTrue (SUCCEEDED (host.BuildApple2c (core)));
+            AssertSucceeded (host.BuildApple2c (core));
             core.PowerCycle();
-            Assert::IsTrue (SUCCEEDED (core.diskStore->MountFromBytes (6, 0, kDiskPath, DiskFormat::Woz, bytes)));
+            AssertSucceeded (core.diskStore->MountFromBytes (6, 0, kDiskPath, DiskFormat::Woz, bytes));
             core.diskController->SetExternalDisk (0, core.diskStore->GetImage (6, 0));
             core.RunCycles (60'000'000);                   // boot DOS 3.3 to ]
 
@@ -524,7 +526,7 @@ public:
                        (img != nullptr && img->IsWriteProtected()) ? 1 : 0);
             Logger::WriteMessage (diag);
 
-            Assert::IsTrue (SUCCEEDED (core.diskStore->FlushAll()), L"flush WOZ back to file");
+            AssertSucceeded (core.diskStore->FlushAll(), L"flush WOZ back to file");
         }
 
         // Pass 2: fresh core, mount the WRITTEN file, LOAD + LIST
@@ -535,9 +537,9 @@ public:
 
             HeadlessHost  host;
             EmulatorCore  core;
-            Assert::IsTrue (SUCCEEDED (host.BuildApple2c (core)));
+            AssertSucceeded (host.BuildApple2c (core));
             core.PowerCycle();
-            Assert::IsTrue (SUCCEEDED (core.diskStore->MountFromBytes (6, 0, kDiskPath, DiskFormat::Woz, bytes2)));
+            AssertSucceeded (core.diskStore->MountFromBytes (6, 0, kDiskPath, DiskFormat::Woz, bytes2));
             core.diskController->SetExternalDisk (0, core.diskStore->GetImage (6, 0));
             core.RunCycles (60'000'000);
 

@@ -25,6 +25,23 @@ it only stops *new* violations.
 | `CS0012` | `Ehm.h` comes from `Pch.h`, never directly | 0 |
 | `CS0013` | no dash-decorated section comments | 0 |
 
+`CS0011` now covers `SUCCEEDED` / `FAILED` / `IGNORE_RETURN_VALUE` as well as
+the `CHR`/`CBR`/`CWR`/`CPR` families — 246 sites, production and tests, all
+converted. Two notes on how it got there:
+
+**The test exemption was wrong and got withdrawn.** 196 of the 246 were
+`Assert::IsTrue (SUCCEEDED (Foo()))`, which looked like the sanctioned test
+idiom, so the first cut of the rule skipped `UnitTest/`. Then the fix turned
+out to be better than the exemption: `AssertSucceeded (Foo())` reads the same
+and **prints the HRESULT**, which `Assert::IsTrue` never could — it only sees
+a bool, so a failing fixture path reported "Expected: 1, Actual: 0" instead of
+`0x80070002`. Verified by injecting `E_ACCESSDENIED` and reading the message.
+`UnitTest/HResultAssert.h`, reachable from the test `Pch`.
+
+**The scanner ignores comments now.** It had flagged the doc comment on
+`JsonValue::HasString`, which quotes the pattern it exists to replace. A
+checker that fails a file for *describing* the rule is one people switch off.
+
 ## Documented but NOT gated — formatting
 
 Three rules from `copilot-instructions.md` that the gate does not check, with

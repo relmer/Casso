@@ -390,7 +390,7 @@ public:
         bool     changed  = false;
         HRESULT  hr       = MachineConfigUpgrade::MigrateUserConfig (input, migrated, changed);
 
-        Assert::IsTrue (SUCCEEDED (hr));
+        AssertSucceeded (hr);
         Assert::IsTrue (changed,
             L"Renaming the legacy key is a change.");
         Assert::IsTrue (migrated.find ("\"$cassoMachineVersion\"") != string::npos,
@@ -411,8 +411,8 @@ public:
         HRESULT  hrFirst  = MachineConfigUpgrade::MigrateUserConfig (input, first, chFirst);
         HRESULT  hrSecond = MachineConfigUpgrade::MigrateUserConfig (first, second, chSecond);
 
-        Assert::IsTrue (SUCCEEDED (hrFirst));
-        Assert::IsTrue (SUCCEEDED (hrSecond));
+        AssertSucceeded (hrFirst);
+        AssertSucceeded (hrSecond);
         Assert::IsTrue  (chFirst,  L"First pass must report changes applied.");
         Assert::IsFalse (chSecond, L"Second pass must report no-op.");
         Assert::AreEqual (first, second,
@@ -426,7 +426,7 @@ public:
         bool     changed  = false;
         HRESULT  hr       = MachineConfigUpgrade::MigrateUserConfig (input, migrated, changed);
 
-        Assert::IsTrue (SUCCEEDED (hr));
+        AssertSucceeded (hr);
         Assert::IsFalse (changed,
             L"Already-migrated content needs no rewrite.");
         Assert::AreEqual (input, migrated,
@@ -440,7 +440,7 @@ public:
         bool     changed  = false;
         HRESULT  hr       = MachineConfigUpgrade::MigrateUserConfig (input, migrated, changed);
 
-        Assert::IsTrue (SUCCEEDED (hr));
+        AssertSucceeded (hr);
         Assert::IsTrue (changed,
             L"Presence of legacy alias should trigger rewrite.");
         Assert::IsTrue (migrated.find ("\"$cassoDefault\"") == string::npos,
@@ -460,7 +460,7 @@ public:
         bool     changed  = false;
         HRESULT  hr       = MachineConfigUpgrade::MigrateUserConfig (input, migrated, changed);
 
-        Assert::IsTrue (SUCCEEDED (hr));
+        AssertSucceeded (hr);
         Assert::IsFalse (changed,
             L"Token used as a value (not a key) must not trigger migration.");
         Assert::AreEqual (input, migrated,
@@ -540,7 +540,7 @@ public:
         bool     changed  = false;
         HRESULT  hr       = MachineConfigUpgrade::MigrateUserConfig (input, migrated, changed);
 
-        Assert::IsTrue (SUCCEEDED (hr));
+        AssertSucceeded (hr);
         Assert::IsFalse (changed,
             L"An occupied slot 1 with a canonical schema needs no change.");
         Assert::IsTrue (migrated.find ("\"parallel-printer\"") == string::npos,
@@ -561,7 +561,7 @@ public:
         size_t   second   = (first == string::npos) ? string::npos
                                                      : migrated.find ("\"parallel-printer\"", first + 1);
 
-        Assert::IsTrue (SUCCEEDED (hr));
+        AssertSucceeded (hr);
         Assert::IsFalse (changed,
             L"A fully-populated slot-1 printer entry needs no change.");
         Assert::IsTrue (second == string::npos,
@@ -599,8 +599,8 @@ public:
         HRESULT  hr1      = MachineConfigUpgrade::MigrateUserConfig (input, first, chFirst);
         HRESULT  hr2      = MachineConfigUpgrade::MigrateUserConfig (first, second, chSecond);
 
-        Assert::IsTrue (SUCCEEDED (hr1));
-        Assert::IsTrue (SUCCEEDED (hr2));
+        AssertSucceeded (hr1);
+        AssertSucceeded (hr2);
         Assert::IsTrue  (chFirst,  L"First pass injects the missing flag.");
         Assert::IsFalse (chSecond, L"Second pass must report no-op once flag is present.");
         Assert::AreEqual (first, second,
@@ -692,7 +692,7 @@ public:
         for (pass = 0; pass < 5; pass++)
         {
             HRESULT  hr = MachineConfigUpgrade::MigrateUserConfig (cur, next, changed);
-            Assert::IsTrue (SUCCEEDED (hr), L"chain pass must succeed");
+            AssertSucceeded (hr, L"chain pass must succeed");
             if (pass == 0)
             {
                 Assert::IsTrue (changed, L"first pass must rewrite legacy key");

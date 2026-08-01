@@ -23,7 +23,7 @@ public:
         JsonParseError error;
         HRESULT hr = JsonParser::Parse ("\"hello\"", value, error);
 
-        Assert::IsTrue (SUCCEEDED (hr));
+        AssertSucceeded (hr);
         Assert::IsTrue (value.GetType() == JsonType::String);
         Assert::AreEqual (std::string ("hello"), value.GetString());
     }
@@ -34,7 +34,7 @@ public:
         JsonParseError error;
         HRESULT hr = JsonParser::Parse ("42", value, error);
 
-        Assert::IsTrue (SUCCEEDED (hr));
+        AssertSucceeded (hr);
         Assert::IsTrue (value.GetType() == JsonType::Number);
         Assert::AreEqual (42, value.GetInt());
     }
@@ -45,7 +45,7 @@ public:
         JsonParseError error;
         HRESULT hr = JsonParser::Parse ("0xC000", value, error);
 
-        Assert::IsTrue (SUCCEEDED (hr));
+        AssertSucceeded (hr);
         Assert::AreEqual (0xC000, value.GetInt());
     }
 
@@ -55,7 +55,7 @@ public:
         JsonParseError error;
         HRESULT hr = JsonParser::Parse ("true", value, error);
 
-        Assert::IsTrue (SUCCEEDED (hr));
+        AssertSucceeded (hr);
         Assert::IsTrue (value.GetType() == JsonType::Bool);
         Assert::IsTrue (value.GetBool());
     }
@@ -66,7 +66,7 @@ public:
         JsonParseError error;
         HRESULT hr = JsonParser::Parse ("false", value, error);
 
-        Assert::IsTrue (SUCCEEDED (hr));
+        AssertSucceeded (hr);
         Assert::IsFalse (value.GetBool());
     }
 
@@ -76,7 +76,7 @@ public:
         JsonParseError error;
         HRESULT hr = JsonParser::Parse ("null", value, error);
 
-        Assert::IsTrue (SUCCEEDED (hr));
+        AssertSucceeded (hr);
         Assert::IsTrue (value.GetType() == JsonType::Null);
     }
 
@@ -86,7 +86,7 @@ public:
         JsonParseError error;
         HRESULT hr = JsonParser::Parse ("{}", value, error);
 
-        Assert::IsTrue (SUCCEEDED (hr));
+        AssertSucceeded (hr);
         Assert::IsTrue (value.GetType() == JsonType::Object);
     }
 
@@ -96,7 +96,7 @@ public:
         JsonParseError error;
         HRESULT hr = JsonParser::Parse ("[]", value, error);
 
-        Assert::IsTrue (SUCCEEDED (hr));
+        AssertSucceeded (hr);
         Assert::IsTrue (value.GetType() == JsonType::Array);
         Assert::AreEqual (size_t (0), value.ArraySize());
     }
@@ -116,17 +116,17 @@ public:
         hr = JsonParser::Parse (
             "{\"name\": \"test\", \"count\": 5, \"nested\": {\"a\": 1}}", value, error);
 
-        Assert::IsTrue (SUCCEEDED (hr));
+        AssertSucceeded (hr);
         Assert::IsTrue (value.GetType() == JsonType::Object);
 
-        Assert::IsTrue (SUCCEEDED (value.GetString ("name", name)));
+        AssertSucceeded (value.GetString ("name", name));
         Assert::AreEqual (std::string ("test"), name);
 
-        Assert::IsTrue (SUCCEEDED (value.GetInt ("count", count)));
+        AssertSucceeded (value.GetInt ("count", count));
         Assert::AreEqual (5, count);
 
-        Assert::IsTrue (SUCCEEDED (value.GetObject ("nested", nested)));
-        Assert::IsTrue (SUCCEEDED (nested->GetInt ("a", a)));
+        AssertSucceeded (value.GetObject ("nested", nested));
+        AssertSucceeded (nested->GetInt ("a", a));
         Assert::AreEqual (1, a);
     }
 
@@ -136,7 +136,7 @@ public:
         JsonParseError error;
         HRESULT hr = JsonParser::Parse ("[1, \"two\", true]", value, error);
 
-        Assert::IsTrue (SUCCEEDED (hr));
+        AssertSucceeded (hr);
         Assert::AreEqual (size_t (3), value.ArraySize());
         Assert::AreEqual (1, value.ArrayAt (0).GetInt());
         Assert::AreEqual (std::string ("two"), value.ArrayAt (1).GetString());
@@ -149,7 +149,7 @@ public:
         JsonParseError error;
         HRESULT hr = JsonParser::Parse ("\"hello\\nworld\"", value, error);
 
-        Assert::IsTrue (SUCCEEDED (hr));
+        AssertSucceeded (hr);
         Assert::AreEqual (std::string ("hello\nworld"), value.GetString());
     }
 
@@ -159,7 +159,7 @@ public:
         JsonParseError error;
         HRESULT hr = JsonParser::Parse ("{\"key\":", value, error);
 
-        Assert::IsTrue (FAILED (hr));
+        AssertFailed (hr);
     }
 
     TEST_METHOD (Parse_UnterminatedString_ReportsError)
@@ -168,6 +168,6 @@ public:
         JsonParseError error;
         HRESULT hr = JsonParser::Parse ("\"unterminated", value, error);
 
-        Assert::IsTrue (FAILED (hr));
+        AssertFailed (hr);
     }
 };

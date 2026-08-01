@@ -53,9 +53,9 @@ namespace PngCodecTests
             SetPixel (src, 0, 1, 0x10, 0x80, 0xF0, 0xFF);   // R<G<B gradient
             SetPixel (src, 1, 1, 0x20, 0x40, 0x60, 0x80);   // partial alpha
 
-            Assert::IsTrue (SUCCEEDED (PngCodec::EncodeRgba (src, 576, png)));
+            AssertSucceeded (PngCodec::EncodeRgba (src, 576, png));
             Assert::IsTrue (png.size() > 8);
-            Assert::IsTrue (SUCCEEDED (PngCodec::DecodeRgba (png, back)));
+            AssertSucceeded (PngCodec::DecodeRgba (png, back));
 
             Assert::AreEqual (src.width,  back.width);
             Assert::AreEqual (src.height, back.height);
@@ -73,8 +73,8 @@ namespace PngCodecTests
             int            dpi = 0;
 
             src.Allocate (4, 4, 0xFF, 0xFF, 0xFF);
-            Assert::IsTrue (SUCCEEDED (PngCodec::EncodeRgba (src, 576, png)));
-            Assert::IsTrue (SUCCEEDED (PngCodec::ReadDpi (png, dpi)));
+            AssertSucceeded (PngCodec::EncodeRgba (src, 576, png));
+            AssertSucceeded (PngCodec::ReadDpi (png, dpi));
 
             Assert::AreEqual (576, dpi);
         }
@@ -98,10 +98,8 @@ namespace PngCodecTests
                 indices.push_back ((Byte) i);                          // one cell per index 0..15
             }
 
-            Assert::IsTrue (SUCCEEDED (
-                PngCodec::EncodeIndexed (w, h, indices, palette, 16, 576, png)));
-            Assert::IsTrue (SUCCEEDED (
-                PngCodec::DecodeIndexed (png, outW, outH, back)));
+            AssertSucceeded (PngCodec::EncodeIndexed (w, h, indices, palette, 16, 576, png));
+            AssertSucceeded (PngCodec::DecodeIndexed (png, outW, outH, back));
 
             Assert::AreEqual (w, outW);
             Assert::AreEqual (h, outH);
@@ -118,7 +116,7 @@ namespace PngCodecTests
             vector<Byte>   empty;
             RgbaImage      img;
 
-            Assert::IsFalse (SUCCEEDED (PngCodec::DecodeRgba (empty, img)));
+            AssertFailed (PngCodec::DecodeRgba (empty, img));
         }
 
 

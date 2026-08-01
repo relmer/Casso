@@ -176,7 +176,7 @@ public:
 
         HRESULT hr = bus.Validate();
 
-        Assert::IsTrue (SUCCEEDED (hr),
+        AssertSucceeded (hr ,
             L"Overlapping devices should warn but not fail (first match wins)");
     }
 
@@ -190,7 +190,7 @@ public:
 
         HRESULT hr = bus.Validate();
 
-        Assert::IsTrue (SUCCEEDED (hr),
+        AssertSucceeded (hr ,
             L"Non-overlapping devices should validate successfully");
     }
 

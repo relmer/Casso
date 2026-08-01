@@ -54,7 +54,9 @@ public:
     {
         FixtureProvider        fp;
         std::vector<uint8_t>   bytes;
-        return SUCCEEDED (fp.OpenFixture ("Apple2c.rom", bytes)) && bytes.size() == kRomSize;
+        HRESULT                hrOpen = fp.OpenFixture ("Apple2c.rom", bytes);
+
+        return SUCCEEDED (hrOpen) && bytes.size() == kRomSize;
     }
 
     // The //c cold-boots its firmware end-to-end. With no disk inserted it
@@ -72,7 +74,7 @@ public:
         }
 
         HeadlessHost host; EmulatorCore core;
-        Assert::IsTrue (SUCCEEDED (host.BuildApple2c (core)), L"BuildApple2c");
+        AssertSucceeded (host.BuildApple2c (core), L"BuildApple2c");
         core.PowerCycle();
         core.RunCycles (15'000'000);
 
@@ -105,7 +107,7 @@ public:
         }
 
         HeadlessHost host; EmulatorCore core;
-        Assert::IsTrue (SUCCEEDED (host.BuildApple2c (core)), L"BuildApple2c");
+        AssertSucceeded (host.BuildApple2c (core), L"BuildApple2c");
         core.PowerCycle();
 
         Assert::AreEqual (0, core.romBank->CurrentBank(), L"reset selects bank 0");
@@ -170,7 +172,7 @@ public:
         }
 
         HeadlessHost host; EmulatorCore core;
-        Assert::IsTrue (SUCCEEDED (host.BuildApple2c (core)), L"BuildApple2c");
+        AssertSucceeded (host.BuildApple2c (core), L"BuildApple2c");
 
         // PowerCycle first (it re-seeds DRAM + rebinds the drive to its empty
         // internal disk), THEN mount -- matching the production ordering.
@@ -178,7 +180,7 @@ public:
 
         HRESULT hrMount = core.diskStore->MountFromBytes (6, 0, "iwm-boot.dsk",
                                                           DiskFormat::Dsk, raw);
-        Assert::IsTrue (SUCCEEDED (hrMount), L"MountFromBytes must succeed");
+        AssertSucceeded (hrMount, L"MountFromBytes must succeed");
 
         DiskImage * img = core.diskStore->GetImage (6, 0);
         Assert::IsNotNull (img, L"mounted image must be retrievable");
@@ -221,12 +223,12 @@ public:
         raw[1] = 0xEA;
 
         HeadlessHost host; EmulatorCore core;
-        Assert::IsTrue (SUCCEEDED (host.BuildApple2c (core)), L"BuildApple2c");
+        AssertSucceeded (host.BuildApple2c (core), L"BuildApple2c");
         core.PowerCycle();
 
         HRESULT hrMount = core.diskStore->MountFromBytes (6, 1, "ext.dsk",
                                                           DiskFormat::Dsk, raw);
-        Assert::IsTrue (SUCCEEDED (hrMount), L"external MountFromBytes must succeed");
+        AssertSucceeded (hrMount, L"external MountFromBytes must succeed");
         DiskImage * img = core.diskStore->GetImage (6, 1);
         Assert::IsNotNull (img, L"external image must be retrievable");
         core.diskController->SetExternalDisk (1, img);   // drive 2 = external
@@ -272,7 +274,7 @@ public:
         HeadlessHost   host;
         EmulatorCore   core;
 
-        Assert::IsTrue (SUCCEEDED (host.BuildApple2c (core)),
+        AssertSucceeded (host.BuildApple2c (core) ,
             L"BuildApple2c must succeed when the ROM is present");
         Assert::IsTrue (core.HasApple2e(),
             L"//c wiring (65C02 + MMU) must be complete");
@@ -314,11 +316,11 @@ public:
 
         FixtureProvider        fp;
         std::vector<uint8_t>   rom;
-        Assert::IsTrue (SUCCEEDED (fp.OpenFixture ("Apple2c.rom", rom)));
+        AssertSucceeded (fp.OpenFixture ("Apple2c.rom", rom));
 
         HeadlessHost   host;
         EmulatorCore   core;
-        Assert::IsTrue (SUCCEEDED (host.BuildApple2c (core)));
+        AssertSucceeded (host.BuildApple2c (core));
         core.PowerCycle();
 
         // Pascal firmware ID at each phantom firmware page.
@@ -368,7 +370,7 @@ public:
         HeadlessHost   host;
         EmulatorCore   core;
 
-        Assert::IsTrue (SUCCEEDED (host.BuildApple2c (core)),
+        AssertSucceeded (host.BuildApple2c (core) ,
             L"BuildApple2c must succeed when the ROM is present");
         core.PowerCycle();
 
@@ -410,7 +412,7 @@ public:
         auto  bootWithSwitch = [] (bool switchIn, size_t & outCols, Byte & outC060)
         {
             HeadlessHost host; EmulatorCore core;
-            Assert::IsTrue (SUCCEEDED (host.BuildApple2c (core)), L"BuildApple2c");
+            AssertSucceeded (host.BuildApple2c (core), L"BuildApple2c");
 
             core.keyboard->SetEightyColumnSwitchIn (switchIn);
             core.PowerCycle();

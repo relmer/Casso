@@ -987,7 +987,7 @@ public:
 
         CharacterRomData rom;
         HRESULT          hrLoad = rom.LoadFromFile (romPath.string());
-        Assert::IsTrue (SUCCEEDED (hrLoad), L"Must load Apple2e_Video.rom");
+        AssertSucceeded (hrLoad, L"Must load Apple2e_Video.rom");
         Assert::IsTrue (rom.HasAltCharSet(),
             L"4K //e ROM must register as having alt-set");
 
@@ -1033,7 +1033,7 @@ public:
 
         CharacterRomData rom;
         HRESULT          hrLoad = rom.LoadFromFile (romPath.string());
-        Assert::IsTrue (SUCCEEDED (hrLoad), L"Must load Apple2e_Video.rom");
+        AssertSucceeded (hrLoad, L"Must load Apple2e_Video.rom");
 
         // Mirror the //e PR#3 cursor placement: prompt ']' ($DD) at
         // aux $0480 (col 0 of row 1), inverse-space cursor ($20) at

@@ -95,7 +95,7 @@ public:
 
         CharacterRomData rom;
         HRESULT hr = rom.LoadFromFile (romPath.string());
-        Assert::IsTrue (SUCCEEDED (hr), L"Must load Apple2e_Video.rom");
+        AssertSucceeded (hr, L"Must load Apple2e_Video.rom");
 
         for (int y = 0; y < 8; y++)
         {
@@ -125,7 +125,7 @@ public:
         EmulatorCore   core;
 
         HRESULT  hr = host.BuildApple2e (core);
-        Assert::IsTrue (SUCCEEDED (hr));
+        AssertSucceeded (hr);
 
         core.PowerCycle();
         core.RunCycles (kColdBootCycles);
@@ -187,7 +187,7 @@ public:
         EmulatorCore   core;
 
         HRESULT  hr = host.BuildApple2e (core);
-        Assert::IsTrue (SUCCEEDED (hr));
+        AssertSucceeded (hr);
 
         core.PowerCycle();
         core.RunCycles (kColdBootCycles);

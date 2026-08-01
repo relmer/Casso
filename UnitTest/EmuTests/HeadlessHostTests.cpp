@@ -32,7 +32,7 @@ public:
 
         hr = host.BuildApple2e (core);
 
-        Assert::IsTrue (SUCCEEDED (hr));
+        AssertSucceeded (hr);
         Assert::IsNotNull (core.host.get());
         Assert::IsFalse (core.host->WasWindowOpened(),
             L"HeadlessHost MUST NOT open a Win32 window before tests ask");
@@ -52,9 +52,9 @@ public:
         {
             FixtureProvider       fp;
             std::vector<uint8_t>  probe;
+            HRESULT               hrProbe = fp.OpenFixture ("Apple2eEnhanced.rom", probe);
 
-            if (FAILED (fp.OpenFixture ("Apple2eEnhanced.rom", probe)) ||
-                probe.size() != 0x4000)
+            if (FAILED (hrProbe) || probe.size() != 0x4000)
             {
                 Logger::WriteMessage (
                     "SKIPPED: UnitTest/Fixtures/Apple2eEnhanced.rom absent "
@@ -66,7 +66,7 @@ public:
         HeadlessHost   host;
         EmulatorCore   core;
 
-        Assert::IsTrue (SUCCEEDED (host.BuildApple2eEnhanced (core)),
+        AssertSucceeded (host.BuildApple2eEnhanced (core) ,
             L"BuildApple2eEnhanced must succeed when the ROM is present");
 
         Word resetVec = static_cast<Word> (core.cpu->ReadByte (0xFFFC)) |
@@ -92,7 +92,7 @@ public:
         HRESULT                 hr;
 
         hr = host.BuildApple2e (core);
-        Assert::IsTrue (SUCCEEDED (hr));
+        AssertSucceeded (hr);
 
         // Every rejection below trips the same asserting guard: asking the
         // fixture provider to escape its root is a caller bug, so a dev
@@ -134,10 +134,10 @@ public:
         size_t           i;
 
         hr = hostA.BuildApple2e (coreA);
-        Assert::IsTrue (SUCCEEDED (hr));
+        AssertSucceeded (hr);
 
         hr = hostB.BuildApple2e (coreB);
-        Assert::IsTrue (SUCCEEDED (hr));
+        AssertSucceeded (hr);
 
         for (i = 0; i < 256; i++)
         {
@@ -156,17 +156,17 @@ public:
         HRESULT          hr;
 
         hr   = host.BuildApple2e (core);
-        Assert::IsTrue (SUCCEEDED (hr));
+        AssertSucceeded (hr);
 
         sink = &core.host->GetAudioSink();
 
         hr = sink->PushSamples (samples1, 3);
-        Assert::IsTrue (SUCCEEDED (hr));
+        AssertSucceeded (hr);
         Assert::AreEqual (uint64_t (2), sink->GetToggleCount(),
             L"Sign flips +,-,+ produce 2 toggles");
 
         hr = sink->PushSamples (samples2, 2);
-        Assert::IsTrue (SUCCEEDED (hr));
+        AssertSucceeded (hr);
         Assert::AreEqual (uint64_t (3), sink->GetToggleCount(),
             L"+ -> - is one more flip; - -> - adds none");
 

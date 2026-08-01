@@ -508,7 +508,7 @@ public:
             hr = disk->MountDisk (3, "nonexistent.dsk");
         }
 
-        Assert::IsTrue (FAILED (hr));
+        AssertFailed (hr);
     }
 
     TEST_METHOD (MountDisk_MissingFile_ReturnsError)
@@ -517,7 +517,7 @@ public:
 
         HRESULT   hr = disk->MountDisk (0, "this_file_does_not_exist.dsk");
 
-        Assert::IsTrue (FAILED (hr));
+        AssertFailed (hr);
     }
 
     ////////////////////////////////////////////////////////////////////////////////

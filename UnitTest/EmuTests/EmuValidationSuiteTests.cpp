@@ -126,7 +126,7 @@ public:
         HRESULT   hr;
 
         hr = host.BuildApple2e (core);
-        Assert::IsTrue (SUCCEEDED (hr), L"BuildApple2e must succeed");
+        AssertSucceeded (hr, L"BuildApple2e must succeed");
         Assert::IsTrue (core.HasApple2e(), L"//e wiring must be complete");
 
         core.PowerCycle();
@@ -201,12 +201,12 @@ public:
         DiskImage *  external  = nullptr;
 
         hr = host.BuildApple2eWithDisk2 (core);
-        Assert::IsTrue (SUCCEEDED (hr), L"BuildApple2eWithDisk2 must succeed");
+        AssertSucceeded (hr, L"BuildApple2eWithDisk2 must succeed");
 
         core.PowerCycle();
 
         hr = core.diskStore->MountFromBytes (kSlot6, kDrive1, virtualPath, fmt, bytes);
-        Assert::IsTrue (SUCCEEDED (hr), L"MountFromBytes must succeed");
+        AssertSucceeded (hr, L"MountFromBytes must succeed");
 
         external = core.diskStore->GetImage (kSlot6, kDrive1);
         Assert::IsNotNull (external, L"Store must yield a DiskImage after mount");
@@ -400,7 +400,7 @@ public:
         uint64_t       hash;
 
         HRESULT   hr = host.BuildApple2e (core);
-        Assert::IsTrue (SUCCEEDED (hr), L"BuildApple2e must succeed");
+        AssertSucceeded (hr, L"BuildApple2e must succeed");
 
         core.PowerCycle();
         core.RunCycles  (kColdBootCycles);
@@ -580,7 +580,7 @@ public:
         HRESULT        hr        = S_OK;
 
         hr = BuildSyntheticWoz (kWozTrackBitCount, kWozTrackByteCount, woz);
-        Assert::IsTrue (SUCCEEDED (hr), L"BuildSyntheticV2 must succeed");
+        AssertSucceeded (hr, L"BuildSyntheticV2 must succeed");
 
         external = MountAndJumpToSlot6Boot (host, core,
             "sample.woz", DiskFormat::Woz, woz);
@@ -621,7 +621,7 @@ public:
         HRESULT        hr        = S_OK;
 
         hr = BuildSyntheticWoz (kCpTrackBitCount, kCpTrackByteCount, woz);
-        Assert::IsTrue (SUCCEEDED (hr), L"CP-style synthetic WOZ build must succeed");
+        AssertSucceeded (hr, L"CP-style synthetic WOZ build must succeed");
 
         external = MountAndJumpToSlot6Boot (host, core,
             "copyprotected.woz", DiskFormat::Woz, woz);

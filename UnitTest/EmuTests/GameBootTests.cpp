@@ -171,13 +171,13 @@ public:
         Assert::IsFalse (bytes.empty(), L"WOZ file must not be empty");
 
         hr = host.BuildApple2eWithDisk2 (core);
-        Assert::IsTrue (SUCCEEDED (hr), L"BuildApple2eWithDisk2 must succeed");
+        AssertSucceeded (hr, L"BuildApple2eWithDisk2 must succeed");
 
         core.PowerCycle();
 
         hr = core.diskStore->MountFromBytes (kSlot6, kDrive1,
             wozPath.string(), DiskFormat::Woz, bytes);
-        Assert::IsTrue (SUCCEEDED (hr), L"MountFromBytes must succeed for real WOZ");
+        AssertSucceeded (hr, L"MountFromBytes must succeed for real WOZ");
 
         external = core.diskStore->GetImage (kSlot6, kDrive1);
         Assert::IsNotNull (external, L"Store must yield a DiskImage after mount");
@@ -216,8 +216,9 @@ public:
     {
         FixtureProvider        fp;
         std::vector<uint8_t>   bytes;
-        return SUCCEEDED (fp.OpenFixture ("Apple2c.rom", bytes)) &&
-               bytes.size() == kApple2cRomSize;
+        HRESULT                hrOpen = fp.OpenFixture ("Apple2c.rom", bytes);
+
+        return SUCCEEDED (hrOpen) && bytes.size() == kApple2cRomSize;
     }
 
 
@@ -267,7 +268,7 @@ public:
         Assert::IsFalse (bytes.empty(), L"WOZ file must not be empty");
 
         hr = host.BuildApple2c (core);
-        Assert::IsTrue (SUCCEEDED (hr), L"BuildApple2c must succeed");
+        AssertSucceeded (hr, L"BuildApple2c must succeed");
 
         // PowerCycle first (re-seeds DRAM + rebinds the drive to its empty
         // internal disk), THEN mount -- matching the production ordering.
@@ -275,7 +276,7 @@ public:
 
         hr = core.diskStore->MountFromBytes (kSlot6, kDrive1,
             wozPath.string(), DiskFormat::Woz, bytes);
-        Assert::IsTrue (SUCCEEDED (hr), L"MountFromBytes must succeed for real WOZ");
+        AssertSucceeded (hr, L"MountFromBytes must succeed for real WOZ");
 
         internal = core.diskStore->GetImage (kSlot6, kDrive1);
         Assert::IsNotNull (internal, L"Store must yield a DiskImage after mount");
