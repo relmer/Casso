@@ -486,7 +486,7 @@ void DisplayPage::Rebuild()
 
     m_restore.SetOnClick ([this] { if (m_onRestore) { m_onRestore(); } });
 
-    // --- Effect toggles ---------------------------------------------------
+    // Effect toggles
     m_scanlinesEn.SetOnChange ([this] (bool on)
     {
         m_scanlinesInt.SetEnabled (on);
@@ -504,7 +504,7 @@ void DisplayPage::Rebuild()
         if (m_onColorBleedEn) { m_onColorBleedEn (on); }
     });
 
-    // --- Effect parameter sliders ----------------------------------------
+    // Effect parameter sliders
     m_scanlinesInt.SetOnChange  ([this] (float v) { if (m_onScanlinesInt)  { m_onScanlinesInt  (v); } });
     m_bloomRadius.SetOnChange   ([this] (float v) { if (m_onBloomRadius)   { m_onBloomRadius   (v); } });
     m_bloomStrength.SetOnChange ([this] (float v) { if (m_onBloomStrength) { m_onBloomStrength (v); } });

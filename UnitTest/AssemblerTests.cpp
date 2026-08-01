@@ -1667,7 +1667,7 @@ namespace AssemblerTests
             return Assembler (cpu.GetInstructionSet(), options);
         }
 
-        // --- Unused label warning ---
+        // Unused label warning
         ////////////////////////////////////////////////////////////////////////////////
         //
         //  UnusedLabel_WarnMode_RecordedAsWarning
@@ -1731,7 +1731,7 @@ namespace AssemblerTests
             Assert::AreEqual ((size_t) 0, result.warnings.size());
         }
 
-        // --- Redundant .org warning ---
+        // Redundant .org warning
         ////////////////////////////////////////////////////////////////////////////////
         //
         //  RedundantOrg_WarnMode_RecordedAsWarning
@@ -1796,7 +1796,7 @@ namespace AssemblerTests
             Assert::AreEqual ((size_t) 0, result.warnings.size());
         }
 
-        // --- Label differing from mnemonic only by case (FR-033a) ---
+        // Label differing from mnemonic only by case (FR-033a)
         ////////////////////////////////////////////////////////////////////////////////
         //
         //  LabelSimilarToMnemonic_WarnMode_RecordedAsWarning
@@ -1859,7 +1859,7 @@ namespace AssemblerTests
             Assert::AreEqual ((size_t) 0, result.warnings.size());
         }
 
-        // --- Used label should not warn ---
+        // Used label should not warn
         ////////////////////////////////////////////////////////////////////////////////
         //
         //  UsedLabel_NoWarning

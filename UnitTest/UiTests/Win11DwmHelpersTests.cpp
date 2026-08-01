@@ -103,7 +103,7 @@ public:
         return std::string();
     }
 
-    // -------- Behavioral: nullptr HWND is always a safe no-op. -----------
+    // Behavioral: nullptr HWND is always a safe no-op.
 
     TEST_METHOD (ApplyRoundedCorners_NullHwnd_NoCrash)
     {
@@ -145,7 +145,7 @@ public:
     }
 
 
-    // -------- Structural: each Apply method contains its version gate. -----
+    // Structural: each Apply method contains its version gate.
 
     TEST_METHOD (ApplyRoundedCorners_GatedOnWin11)
     {

@@ -437,13 +437,13 @@ void DxuiSlider::PaintInternal (IDxuiPainter & painter, IDxuiTextRenderer & text
     else if (m_hover ||
              m_dragging) { puckR = m_scaler.Pxf (s_kPuckRadiusHovDip); }
 
-    // ----- Track (background + filled portion). -----
+    // Track (background + filled portion).
     painter.FillRect (trackLeft, centerY - trackHeight * 0.5f,
                       trackAvailW, trackHeight, s_kTrack);
     painter.FillRect (fillLeft, centerY - trackHeight * 0.5f,
                       fillWidth, trackHeight, accentArgb);
 
-    // ----- Tick marks below the track. -----
+    // Tick marks below the track.
     float  tickStep = (m_tickInterval > s_kEpsilon) ? m_tickInterval : m_step;
 
     if (m_showTicks && tickStep > s_kEpsilon && trackAvailW > 0.0f)
@@ -461,14 +461,14 @@ void DxuiSlider::PaintInternal (IDxuiPainter & painter, IDxuiTextRenderer & text
         }
     }
 
-    // ----- Fluent 2 puck: white outer circle with thin gray ring,
+    // Fluent 2 puck: white outer circle with thin gray ring,
     // accent-colored inner dot. Outer diameter grows on hover/focus.
     painter.FillCircleApprox (puckCx, centerY, puckR,           s_kPuckBody);
     painter.FillCircleApprox (puckCx, centerY, puckR,           s_kPuckRing); // ring underlay
     painter.FillCircleApprox (puckCx, centerY, puckR - 1.0f,    s_kPuckBody); // white fill, leaving 1px ring
     painter.FillCircleApprox (puckCx, centerY, puckR * s_kPuckCoreShare, coreColor);
 
-    // ----- Value readout to the right of the track. -----
+    // Value readout to the right of the track.
     if (showValue)
     {
         wchar_t  buf[32] = {};

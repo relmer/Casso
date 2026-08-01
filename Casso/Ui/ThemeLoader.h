@@ -139,7 +139,7 @@ public:
                                                 ThemeLoadError             & outError);
 
 
-    // ---- Pure helpers (exposed for testing) ----------------------------
+    // Pure helpers (exposed for testing)
 
     static HRESULT      ParseMetadata          (const std::string          & jsonText,
                                                 LoadedTheme                & outTheme,

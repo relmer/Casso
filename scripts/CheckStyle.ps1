@@ -146,6 +146,30 @@ $checks = @(
         Exclude = @()
     },
     @{
+        # Section headers decorated with dashes -- // ---- foo ---------- or
+        # // foo ------------- -- are not a sanctioned comment style. The one
+        # block-comment form is the 80-slash banner; anything a banner is too
+        # heavy for is a plain // comment.
+        #
+        # Deliberately matches only a dash-DECORATED LABEL, never a bare run of
+        # dashes. A line that is nothing but dashes is usually prose inside a
+        # banner -- a heading underline, or the rule under an ASCII table
+        # header (DxuiTreeView.h) -- and banning those would be wrong.
+        Id      = 'CS0013'
+        Globs   = @('*.cpp', '*.h')
+        # THREE dashes minimum, never two. `--` is this codebase's em-dash and
+        # opens many a wrapped comment line ("-- the caller treats absent
+        # ..."), and `--trace` / `--disk2` name real command-line flags. A
+        # two-dash rule mangles all of those.
+        #
+        # The text class excludes dashes on purpose: with a bare \S the
+        # [-=]{3,} run backtracks by one and the final dash matches as "text",
+        # so every heading underline gets flagged.
+        Pattern = '^\s*//\s*[-=]{3,}\s*[^-=\s].*$|^\s*//\s*[^-=\s].*\s[-=]{4,}\s*$'
+        Message = 'dash-decorated section comment -- use a plain // comment, or an 80-slash banner'
+        Exclude = @()
+    },
+    @{
         # Ehm.h reaches every translation unit through its project's Pch, so a
         # direct include is redundant and drifts out of sync. Ehm.cpp
         # implements it and the Pch files are where it belongs.

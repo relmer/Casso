@@ -203,7 +203,7 @@ public:
     bool IsDirty       () const;
     bool RequiresReset () const;          // true iff any hardware enable changed
 
-    // ---- Live (current) accessors / mutators ---------------------------
+    // Live (current) accessors / mutators
 
     const std::string                & MachineName () const { return m_machineName; }
     const SettingsMachineInfo        & MachineInfo() const { return m_machineInfo; }
@@ -246,12 +246,12 @@ public:
     void    SetMouseConnected         (bool connected);
     HRESULT SetHardwareEnabled (size_t index, bool enabled);
 
-    // ---- Apply ---------------------------------------------------------
+    // Apply
 
     HRESULT Apply (ISettingsApplySink & sink,
                    JsonValue          & outCurrentJson) const;
 
-    // ---- Pure helpers (exposed for tests) ------------------------------
+    // Pure helpers (exposed for tests)
 
     static HRESULT ExtractHardware    (const JsonValue            & mergedJson,
                                        std::vector<HardwareEntry> & outEntries);

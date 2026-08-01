@@ -135,7 +135,7 @@ public:
     }
 
 
-    // ---- Test-only helpers --------------------------------------------
+    // Test-only helpers
 
     size_t      FileCount   ()
     {

@@ -77,7 +77,7 @@ public:
     // on this so the ring backs up and the guest throttles to the print rate.
     double    PendingSeconds () const;
 
-    // ---- Published state (mirrors the PrinterWorker's atomics) -------------
+    // Published state (mirrors the PrinterWorker's atomics)
 
     // True while nothing is moving and nothing is queued (head parked).
     bool      Idle        () const { return m_phase == Phase::Idle && m_pending.empty (); }

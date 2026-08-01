@@ -9,7 +9,6 @@
 
 
 
-
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  Anonymous helpers
@@ -27,6 +26,9 @@ std::wstring  ThemeLoader::Utf8ToWide (const std::string & s)
     // names we deal with here.
     return std::wstring (s.begin(), s.end());
 }
+
+
+
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -83,6 +85,7 @@ static_assert (std::size (s_kJsonTypeNames) == (size_t) JsonType::Object + 1,
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  FindMember
@@ -109,6 +112,7 @@ static const JsonValue * FindMember (const JsonValue & obj, const std::string & 
 
     return found;
 }
+
 
 
 
@@ -435,7 +439,7 @@ HRESULT ThemeLoader::ParseMetadata (
             outError.code    = ThemeLoadResult::MetadataInvalid;
             outError.message = "theme.json root is not a JSON object");
 
-    // ---- the version gate, before anything else is judged -----------------
+    // the version gate, before anything else is judged
     //
     // A theme written for a newer schema may legitimately not look like one
     // this build understands, so "your Casso is too old" has to be decided
@@ -460,7 +464,7 @@ HRESULT ThemeLoader::ParseMetadata (
 
     outTheme.version = themeVersion;
 
-    // ---- presence and type, settled once from the schema tables -----------
+    // presence and type, settled once from the schema tables
     //
     // Everything below this point is a question about a *value*. That is the
     // whole reason for doing it here: each message used to read "missing or
@@ -482,14 +486,14 @@ HRESULT ThemeLoader::ParseMetadata (
             outError.code    = ThemeLoadResult::MetadataInvalid;
             outError.message = problem);
 
-    // ---- optional scalars --------------------------------------------------
+    // optional scalars
 
     outTheme.author          = GetStringOpt (root, "author",      "");
     outTheme.description     = GetStringOpt (root, "description", "");
     outTheme.useMicaBackdrop = GetBoolOpt   (root, "useMicaBackdrop", false);
     outTheme.isBuiltIn       = GetBoolOpt   (root, s_kpszBuiltInKey,  false);
 
-    // ---- reads -------------------------------------------------------------
+    // reads
     //
     // Nothing below can fail. The sweep proved every key is present, correctly
     // typed and non-empty, so these are plain reads through the *Opt getters
@@ -510,7 +514,7 @@ HRESULT ThemeLoader::ParseMetadata (
     outTheme.driveVisualProfile.doorAnimation = GetStringOpt (*driveProfile, "doorAnimation", "");
     outTheme.driveVisualProfile.syncChannel   = GetStringOpt (*driveProfile, "syncChannel",   "");
 
-    // ---- crtDefaults (all optional; clamped to schema bounds) -------------
+    // crtDefaults (all optional; clamped to schema bounds)
 
     if (HasObject (root, "crtDefaults", crtObj))
     {
@@ -558,7 +562,7 @@ HRESULT ThemeLoader::ParseMetadata (
         }
     }
 
-    // ---- optional: variantOverrides (per-machine sparse overlays) --------
+    // optional: variantOverrides (per-machine sparse overlays)
 
     {
         const JsonValue *  overridesObj = nullptr;
@@ -581,6 +585,7 @@ HRESULT ThemeLoader::ParseMetadata (
 Error:
     return hr;
 }
+
 
 
 

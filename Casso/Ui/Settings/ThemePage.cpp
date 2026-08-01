@@ -132,7 +132,7 @@ void ThemePage::PaintPreviewWindow (DxuiPainter                          & paint
     painter.OutlineRect ((float) prevRect.left, (float) prevRect.top,
                          (float) prevW, (float) prevH, 1.0f, 0xFF101010);
 
-    // ----- Title bar gradient. -----
+    // Title bar gradient.
     {
         int  bandSteps = std::max (1, titleH);
         int  i         = 0;
@@ -204,7 +204,7 @@ void ThemePage::PaintPreviewWindow (DxuiPainter                          & paint
                           theme.titleText);
     }
 
-    // ----- Nav strip. -----
+    // Nav strip.
     {
         int    navTop = prevRect.top + titleH;
         float  navDip = (float) kPrevNavFontDp * scale;
@@ -224,7 +224,7 @@ void ThemePage::PaintPreviewWindow (DxuiPainter                          & paint
                                                   DxuiTextRenderer::VAlign::Center));
     }
 
-    // ----- Screen area: live emulator framebuffer, aspect-fit. -----
+    // Screen area: live emulator framebuffer, aspect-fit.
     {
         int  screenTop = prevRect.top + titleH + navH;
 
@@ -264,7 +264,7 @@ void ThemePage::PaintPreviewWindow (DxuiPainter                          & paint
         }
     }
 
-    // ----- Drive bar: real DriveWidget instances at preview scale. -----
+    // Drive bar: real DriveWidget instances at preview scale.
     {
         int       driveTop  = prevRect.bottom - driveBarH;
         int       gap       = std::max (1, ScalePx (16));

@@ -227,7 +227,6 @@ namespace Apple2eFidelity
         }
 
 
-        // -------------------------------------------------------------------
         // Host-loop dispatch (TryStepInterrupt + StepOne).
         //
         // The shell run loop drives the CPU with StepOne -- which does NOT
@@ -235,7 +234,6 @@ namespace Apple2eFidelity
         // that gating directly. Without it the loop silently dropped every
         // maskable IRQ, the regression that hid until the Mockingboard became
         // the first device in Casso to assert one.
-        // -------------------------------------------------------------------
 
         TEST_METHOD (HostStepLoopServicesAssertedIrq)
         {

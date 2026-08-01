@@ -81,7 +81,7 @@ public:
     // and timeline stay single-writer. Safe to call from another thread.
     void          FormFeed ();
 
-    // ---- Published state (lock-free reads for the UI thread) ---------------
+    // Published state (lock-free reads for the UI thread)
 
     uint64_t      ActivityCount () const { return m_activity.load    (std::memory_order_relaxed); }
     bool          HasContent    () const { return m_hasContent.load (std::memory_order_relaxed); }

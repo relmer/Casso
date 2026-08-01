@@ -102,7 +102,7 @@ public:
     }
 
 
-    // ---- Dirty-row rendering -------------------------------------------------
+    // Dirty-row rendering
 
     // Oracle: incremental dirty-row rendering into a reused framebuffer must be
     // pixel-identical to a from-scratch full render of the final screen.
@@ -212,7 +212,7 @@ public:
     }
 
 
-    // ---- Dirty-row rendering (80-col: aux + main interleave) -----------------
+    // Dirty-row rendering (80-col: aux + main interleave)
 
     TEST_METHOD (Text80_DirtyRow_MatchesFullRender_AfterEdits)
     {

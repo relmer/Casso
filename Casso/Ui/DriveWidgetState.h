@@ -75,7 +75,7 @@ struct DriveWidgetState
     int64_t           animationStartTimeMs = 0;
     uint64_t          lastSyncEventId      = 0;
 
-    // ---- UI-thread mutators (pure logic) ----------------------------
+    // UI-thread mutators (pure logic)
 
     // Records a new mount and starts close-door animation if needed.
     void BeginInsert       (const std::wstring & path, int64_t nowMs)

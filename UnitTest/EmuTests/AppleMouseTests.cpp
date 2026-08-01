@@ -333,7 +333,7 @@ public:
         Byte  status = core.cpu->ReadByte (0x077F);
         Assert::IsTrue ((status & 0x80) != 0, L"$077F bit 7: button currently down");
 
-        // ---- Absolute targeting (the GUI path) ---------------------
+        // Absolute targeting (the GUI path)
         // Publish a mid-viewport fraction; the DEVICE must project it into
         // the firmware's live clamp window (read from the screen holes on
         // the CPU thread) and march the firmware there one interrupt per
@@ -495,7 +495,7 @@ public:
             }
         };
 
-        // ---- Pass 1: boot, type the fixed program, SAVE, flush ----------
+        // Pass 1: boot, type the fixed program, SAVE, flush
         {
             HeadlessHost  host;
             EmulatorCore  core;
@@ -527,7 +527,7 @@ public:
             Assert::IsTrue (SUCCEEDED (core.diskStore->FlushAll()), L"flush WOZ back to file");
         }
 
-        // ---- Pass 2: fresh core, mount the WRITTEN file, LOAD + LIST ----
+        // Pass 2: fresh core, mount the WRITTEN file, LOAD + LIST
         {
             std::ifstream f2 (kDiskPath, std::ios::binary);
             Assert::IsTrue (f2.good(), L"written file must exist");

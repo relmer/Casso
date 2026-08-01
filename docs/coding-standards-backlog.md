@@ -23,6 +23,31 @@ it only stops *new* violations.
 | `CS0006` | no bare `goto Error` | 0 |
 | `CS0011` | no call of any kind in an EHM condition | 0 |
 | `CS0012` | `Ehm.h` comes from `Pch.h`, never directly | 0 |
+| `CS0013` | no dash-decorated section comments | 0 |
+
+## Documented but NOT gated — formatting
+
+Three rules from `copilot-instructions.md` that the gate does not check, with
+measured backlogs. They are line-oriented in the document and *structural* in
+reality, which is why they are not in the table above: the checker is per-line,
+and a whole-file structural check would fail a push for pre-existing
+violations in any file the diff happens to touch — the baseline problem that
+made the first CS0011 unusable.
+
+| Rule | Approx. backlog | Of |
+|---|---:|---|
+| function in a `.cpp` has an 80-slash banner | ~240 | 2,478 definitions |
+| exactly 5 blank lines between top-level constructs | ~440 | — |
+| exactly 3 blank lines after a declaration block | ~813 | — |
+
+Counts are from a heuristic scanner, so treat them as order-of-magnitude. The
+first draft of it double-counted every banner — a banner is two lines of
+slashes, and the closing one always has zero blank lines before it — which
+turned ~440 into ~879. Any future scanner needs to match only the opening
+line.
+
+Gating these needs a second checker mode that scores only the *lines the diff
+added*, not the file. Until then they are review-only.
 
 ## Test counts differ by config, on purpose
 

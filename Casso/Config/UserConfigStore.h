@@ -72,7 +72,7 @@ public:
     std::wstring UserFilePath      (const std::string & machineName) const;
     std::wstring UserPrefsFilePath () const;
 
-    // ---- Pure helpers (exposed for testing) ----------------------------
+    // Pure helpers (exposed for testing)
 
     static JsonValue MergeJson    (const JsonValue & defaultV,
                                    const JsonValue & userV);

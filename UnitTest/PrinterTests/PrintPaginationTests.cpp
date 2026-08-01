@@ -111,7 +111,7 @@ namespace PrintPaginationTests
         }
 
 
-        //  ---- FitFullPageToBox -----------------------------------------------
+        // FitFullPageToBox
 
         TEST_METHOD (FullPageFitsToHeightNotWidth)
         {

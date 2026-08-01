@@ -303,7 +303,7 @@ public:
 
         core.RunCycles (kDemoCycleBudget);
 
-        // ----- Verify boot landing soft-switch state (mode 0 = DHGR) -----
+        // Verify boot landing soft-switch state (mode 0 = DHGR)
         Apple2eSoftSwitchBank *   ss = core.softSwitches.get();
 
         Assert::IsNotNull (ss, L"Apple2eSoftSwitchBank must be present");
@@ -316,7 +316,7 @@ public:
         Assert::IsTrue (ss->IsHiresMode(),
             L"Mode 0 (DHGR) must enable HIRES");
 
-        // ----- Verify framebuffer contents at boot landing -----
+        // Verify framebuffer contents at boot landing
         // Stage 2 init reads HGR2 bands -> $4000, DHGR aux scratch
         // -> $6000, DHGR main scratch -> $8000, then memcpys
         // cassowary $2000 -> $A000 (stash), then enters DHGR mode
@@ -392,7 +392,7 @@ public:
                 L"DHGR aux half at boot landing must match payload");
         }
 
-        // ----- Cycle through the 4 display modes with keystrokes -----
+        // Cycle through the 4 display modes with keystrokes
         Assert::IsNotNull (core.keyboard.get(), L"AppleKeyboard must be present");
 
         // Keystroke 1 -> mode 1 (HGR1 cassowary). Restores cassowary
@@ -829,7 +829,7 @@ public:
         core.PowerCycle();
         core.RunCycles  (kSweepColdBootCycles);
 
-        // ----- HGR: select page 1, clear it, latch the display mode -----
+        // HGR: select page 1, clear it, latch the display mode
         PlantHgrStub (core);
         core.cpu->SetPC (kHgrStubBase);
         fillCycles = RunUntilPc (core, kHgrStubDone, kOneFillCycleBudget);
@@ -848,7 +848,7 @@ public:
         Assert::IsFalse (core.softSwitches->IsPage2(),
             L"HGR must select PAGE1");
 
-        // ----- Sweep every raw color mask -----
+        // Sweep every raw color mask
         PlantSweepStub (core);
 
         for (maskIndex = 0; maskIndex < kColorMaskCount; maskIndex++)

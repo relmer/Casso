@@ -136,7 +136,7 @@ public:
     }
 
 
-    // ---- Merge / Diff pure-logic tests ----------------------------------
+    // Merge / Diff pure-logic tests
 
     TEST_METHOD (Merge_Empty_User_Returns_Default)
     {
@@ -228,7 +228,7 @@ public:
     }
 
 
-    // ---- Full Load / SaveDelta / Reset round-trips ----------------------
+    // Full Load / SaveDelta / Reset round-trips
 
     TEST_METHOD (Load_NoUserFile_ReturnsDefault)
     {

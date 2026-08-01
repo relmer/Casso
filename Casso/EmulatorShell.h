@@ -207,7 +207,7 @@ public:
         return m_uptimeAnchor;
     }
 
-    // ---- IDriveCommandSink --------------------------------------
+    // IDriveCommandSink
     // UI-thread entry points the drive widgets call into when the user
     // drops a file, clicks-to-browse, or clicks the eject affordance.
     // Both forms route through the existing IDM_DISK_* command queue so

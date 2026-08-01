@@ -50,7 +50,7 @@ namespace UiTests
         {
         }
 
-        // -------- IUnknown --------
+        // IUnknown
         STDMETHODIMP QueryInterface (REFIID riid, void ** ppv) override
         {
             if (ppv == nullptr) { return E_POINTER; }
@@ -74,7 +74,7 @@ namespace UiTests
             return m_ref.fetch_sub (1, std::memory_order_acq_rel) - 1;
         }
 
-        // -------- IDataObject --------
+        // IDataObject
         STDMETHODIMP GetData (FORMATETC * pFormat, STGMEDIUM * pMedium) override
         {
             size_t      cbStruct = 0;

@@ -21,7 +21,7 @@
 //  CapabilityFlag rendering rules (FR-004 .. FR-008):
 //
 //      capabilityFlag      checkbox visible?  interactive?     visual
-//      --------------      -----------------  --------------   ------------------
+// -----------------  --------------
 //      Optional            yes                yes              normal
 //      Required            yes                no  (checked)    gray checkbox
 //      PlatformLocked      yes                no  (checked)    gray + tooltip on

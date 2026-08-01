@@ -80,7 +80,7 @@ protected:
     //  subclass calls this on resize so RenderFrame reallocates at the new size.
     void     ReleaseComposeTarget ();
 
-    //  ---- Subclass surface contract -------------------------------------
+    // Subclass surface contract
     //  The subclass owns the concrete output; RenderFrame drives these.
 
     //  The RTV the finished frame must land on (the swap-chain back buffer),
