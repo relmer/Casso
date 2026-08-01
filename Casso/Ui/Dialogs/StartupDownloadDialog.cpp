@@ -549,6 +549,7 @@ StartupDownloadResult StartupDownloadDialog::Show (HINSTANCE                hIns
     int                                    headerCount  = 0;
     int                                    introLines   = 1;
     int                                    heightDip    = 0;
+    HRESULT                                hrCreate     = S_OK;
 
 
     if (set.Empty())
@@ -635,7 +636,9 @@ StartupDownloadResult StartupDownloadDialog::Show (HINSTANCE                hIns
     params.insetContentBelowCaption = true;
     params.captionStyle             = DxuiCaptionStyle::CloseOnly;
 
-    if (FAILED (dlg.Create (params)))
+    hrCreate = dlg.Create (params);
+
+    if (FAILED (hrCreate))
     {
         return StartupDownloadResult::Exit;
     }

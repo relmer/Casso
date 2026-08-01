@@ -113,13 +113,21 @@ public:
         // clips the fanfold edge (Print-to-PDF images the whole sheet anyway).
         {
             ComPtr<awgp::IPrintTaskOptionsCore>  options;
+            HRESULT                              hrQuery = E_FAIL;
 
-            if (docSettings != nullptr &&
-                SUCCEEDED (docSettings->QueryInterface (IID_PPV_ARGS (&options))))
+            if (docSettings != nullptr)
             {
-                awgp::PrintPageDescription  desc = {};
+                hrQuery = docSettings->QueryInterface (IID_PPV_ARGS (&options));
+            }
 
-                if (SUCCEEDED (options->GetPageDescription (1, &desc)) &&
+            if (SUCCEEDED (hrQuery))
+            {
+                awgp::PrintPageDescription  desc     = {};
+                HRESULT                     hrPageEx = S_OK;
+
+                hrPageEx = options->GetPageDescription (1, &desc);
+
+                if (SUCCEEDED (hrPageEx) &&
                     desc.PageSize.Width > 0.0f && desc.PageSize.Height > 0.0f)
                 {
                     pageSize = D2D1::SizeF (desc.PageSize.Width, desc.PageSize.Height);
@@ -416,8 +424,11 @@ ModernPrintDialog::~ModernPrintDialog()
     if (m_registered && m_manager != nullptr)
     {
         ComPtr<awgp::IPrintManager>  manager;
+        HRESULT                      hrAs = S_OK;
 
-        if (SUCCEEDED (m_manager.As (&manager)))
+        hrAs = m_manager.As (&manager);
+
+        if (SUCCEEDED (hrAs))
         {
             manager->remove_PrintTaskRequested (m_taskToken);
         }
@@ -577,8 +588,11 @@ HRESULT ModernPrintDialog::ShowAsync (HWND hwnd, const PrintRaster & raster, int
         if (m_registered && m_manager != nullptr)
         {
             ComPtr<awgp::IPrintManager>  old;
+            HRESULT                      hrAs = S_OK;
 
-            if (SUCCEEDED (m_manager.As (&old)))
+            hrAs = m_manager.As (&old);
+
+            if (SUCCEEDED (hrAs))
             {
                 old->remove_PrintTaskRequested (m_taskToken);
             }
@@ -608,8 +622,11 @@ HRESULT ModernPrintDialog::ShowAsync (HWND hwnd, const PrintRaster & raster, int
     if (m_registered)
     {
         ComPtr<awgp::IPrintManager>  mgr;
+        HRESULT                      hrAs = S_OK;
 
-        if (SUCCEEDED (manager.As (&mgr)))
+        hrAs = manager.As (&mgr);
+
+        if (SUCCEEDED (hrAs))
         {
             mgr->remove_PrintTaskRequested (m_taskToken);
         }

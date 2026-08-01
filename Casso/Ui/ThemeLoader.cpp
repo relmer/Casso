@@ -177,72 +177,6 @@ static bool HasRequiredKeys (const JsonValue              & obj,
 
 
 
-//  Presence tests for optional members. Every caller used to write
-//  SUCCEEDED (obj.GetNumber (key, out)) inline, which puts a call inside a
-//  macro argument -- forbidden for the same reason it is in an EHM condition,
-//  and doubly awkward because the macro hid a call with an out param. Wrapping
-//  it turns each site into an ordinary call in an ordinary `if`, which the
-//  rule has no quarrel with.
-
-static bool  HasBool (const JsonValue & obj, const std::string & key, bool & out)
-{
-    HRESULT  hr     = S_OK;
-    bool     result = false;
-
-
-
-    hr     = obj.GetBool (key, out);
-    result = SUCCEEDED (hr);
-
-    return result;
-}
-
-
-static bool  HasNumber (const JsonValue & obj, const std::string & key, double & out)
-{
-    HRESULT  hr     = S_OK;
-    bool     result = false;
-
-
-
-    hr     = obj.GetNumber (key, out);
-    result = SUCCEEDED (hr);
-
-    return result;
-}
-
-
-static bool  HasString (const JsonValue & obj, const std::string & key, std::string & out)
-{
-    HRESULT  hr     = S_OK;
-    bool     result = false;
-
-
-
-    hr     = obj.GetString (key, out);
-    result = SUCCEEDED (hr);
-
-    return result;
-}
-
-
-//  Folds in the null check every caller repeated after the SUCCEEDED test.
-
-static bool  HasObject (const JsonValue & obj, const std::string & key, const JsonValue * & out)
-{
-    HRESULT  hr     = S_OK;
-    bool     result = false;
-
-
-
-    out    = nullptr;
-    hr     = obj.GetObject (key, out);
-    result = SUCCEEDED (hr) && out != nullptr;
-
-    return result;
-}
-
-
 //  The three optional getters below swallow failure by contract -- absent or
 //  wrong-typed means "use the fallback", not an error to report. They still
 //  call a failable API, so they take the documented non-HRESULT EHM shape: a
@@ -445,7 +379,7 @@ HRESULT ThemeLoader::ParseMetadata (
     // this build understands, so "your Casso is too old" has to be decided
     // before its contents are called malformed.
 
-    present = HasNumber (root, s_kpszVersionKey, versionValue);
+    present = root.HasNumber (s_kpszVersionKey, versionValue);
     CBRFEx (present, E_INVALIDARG,
             outError.code    = ThemeLoadResult::MetadataInvalid;
             outError.message = std::format ("theme.json is missing required key `{}`",
@@ -478,7 +412,7 @@ HRESULT ThemeLoader::ParseMetadata (
 
     // Guaranteed by the sweep above; CBRA because dereferencing it needs that
     // guarantee, and a failure here means the table drifted from the reads.
-    present = HasObject (root, "driveVisualProfile", driveProfile);
+    present = root.HasObject ("driveVisualProfile", driveProfile);
     CBRA (present);
 
     present = HasRequiredKeys (*driveProfile, "driveVisualProfile", s_kRequiredDriveKeys, problem);
@@ -500,7 +434,7 @@ HRESULT ThemeLoader::ParseMetadata (
     // whose fallback is unreachable. There is no guard here because there is
     // no longer a question to ask.
 
-    present = HasObject (root, "uiTokens", uiTokensObj);
+    present = root.HasObject ("uiTokens", uiTokensObj);
     CBRA (present);
 
     outTheme.uiTokens = *uiTokensObj;
@@ -516,23 +450,23 @@ HRESULT ThemeLoader::ParseMetadata (
 
     // crtDefaults (all optional; clamped to schema bounds)
 
-    if (HasObject (root, "crtDefaults", crtObj))
+    if (root.HasObject ("crtDefaults", crtObj))
     {
         double  d = 0.0;
 
-        if (HasNumber (*crtObj, "brightness", d))
+        if (crtObj->HasNumber ("brightness", d))
         {
             outTheme.crtDefaults.brightness    = (float) d;
             outTheme.crtDefaults.hasBrightness = true;
         }
 
-        if (HasNumber (*crtObj, "contrast", d))
+        if (crtObj->HasNumber ("contrast", d))
         {
             outTheme.crtDefaults.contrast    = (float) d;
             outTheme.crtDefaults.hasContrast = true;
         }
 
-        if (HasObject (*crtObj, "scanlines", scanObj))
+        if (crtObj->HasObject ("scanlines", scanObj))
         {
             outTheme.crtDefaults.scanlinesEnabled   = GetBoolOpt   (*scanObj, "enabled",
                                                                     outTheme.crtDefaults.scanlinesEnabled);
@@ -541,7 +475,7 @@ HRESULT ThemeLoader::ParseMetadata (
             outTheme.crtDefaults.hasScanlines       = true;
         }
 
-        if (HasObject (*crtObj, "bloom", bloomObj))
+        if (crtObj->HasObject ("bloom", bloomObj))
         {
             outTheme.crtDefaults.bloomEnabled  = GetBoolOpt (*bloomObj, "enabled",
                                                              outTheme.crtDefaults.bloomEnabled);
@@ -552,7 +486,7 @@ HRESULT ThemeLoader::ParseMetadata (
             outTheme.crtDefaults.hasBloom      = true;
         }
 
-        if (HasObject (*crtObj, "colorBleed", bleedObj))
+        if (crtObj->HasObject ("colorBleed", bleedObj))
         {
             outTheme.crtDefaults.colorBleedEnabled = GetBoolOpt (*bleedObj, "enabled",
                                                                  outTheme.crtDefaults.colorBleedEnabled);
@@ -564,7 +498,7 @@ HRESULT ThemeLoader::ParseMetadata (
 
     // optional: variantOverrides (per-machine sparse overlays)
 
-    if (HasObject (root, "variantOverrides", overridesObj))
+    if (root.HasObject ("variantOverrides", overridesObj))
     {
         for (const std::pair<std::string, JsonValue> & entry : overridesObj->GetObjectEntries())
         {
@@ -632,56 +566,56 @@ LoadedTheme LoadedTheme::ResolveForMachine (const std::string & machineDisplayNa
         const JsonValue *  driveObj = nullptr;
         bool               mica     = false;
 
-        if (HasObject (*override_, "crtDefaults", crtObj))
+        if (override_->HasObject ("crtDefaults", crtObj))
         {
             double  d = 0.0;
 
-            if (HasNumber (*crtObj, "brightness", d)) { result.crtDefaults.brightness = (float) d; result.crtDefaults.hasBrightness = true; }
-            if (HasNumber (*crtObj, "contrast",   d)) { result.crtDefaults.contrast   = (float) d; result.crtDefaults.hasContrast   = true; }
+            if (crtObj->HasNumber ("brightness", d)) { result.crtDefaults.brightness = (float) d; result.crtDefaults.hasBrightness = true; }
+            if (crtObj->HasNumber ("contrast",   d)) { result.crtDefaults.contrast   = (float) d; result.crtDefaults.hasContrast   = true; }
 
-            if (HasObject (*crtObj, "scanlines", scanObj))
+            if (crtObj->HasObject ("scanlines", scanObj))
             {
                 bool  b = false;
 
-                if (HasBool   (*scanObj, "enabled",   b)) { result.crtDefaults.scanlinesEnabled   = b; }
-                if (HasNumber (*scanObj, "intensity", d)) { result.crtDefaults.scanlinesIntensity = (float) d; }
+                if (scanObj->HasBool   ("enabled",   b)) { result.crtDefaults.scanlinesEnabled   = b; }
+                if (scanObj->HasNumber ("intensity", d)) { result.crtDefaults.scanlinesIntensity = (float) d; }
 
                 result.crtDefaults.hasScanlines = true;
             }
 
-            if (HasObject (*crtObj, "bloom", bloomObj))
+            if (crtObj->HasObject ("bloom", bloomObj))
             {
                 bool  b = false;
 
-                if (HasBool   (*bloomObj, "enabled",  b)) { result.crtDefaults.bloomEnabled  = b; }
-                if (HasNumber (*bloomObj, "radius",   d)) { result.crtDefaults.bloomRadius   = (float) d; }
-                if (HasNumber (*bloomObj, "strength", d)) { result.crtDefaults.bloomStrength = (float) d; }
+                if (bloomObj->HasBool   ("enabled",  b)) { result.crtDefaults.bloomEnabled  = b; }
+                if (bloomObj->HasNumber ("radius",   d)) { result.crtDefaults.bloomRadius   = (float) d; }
+                if (bloomObj->HasNumber ("strength", d)) { result.crtDefaults.bloomStrength = (float) d; }
 
                 result.crtDefaults.hasBloom = true;
             }
 
-            if (HasObject (*crtObj, "colorBleed", bleedObj))
+            if (crtObj->HasObject ("colorBleed", bleedObj))
             {
                 bool  b = false;
 
-                if (HasBool   (*bleedObj, "enabled", b)) { result.crtDefaults.colorBleedEnabled = b; }
-                if (HasNumber (*bleedObj, "width",   d)) { result.crtDefaults.colorBleedWidth   = (float) d; }
+                if (bleedObj->HasBool   ("enabled", b)) { result.crtDefaults.colorBleedEnabled = b; }
+                if (bleedObj->HasNumber ("width",   d)) { result.crtDefaults.colorBleedWidth   = (float) d; }
 
                 result.crtDefaults.hasColorBleed = true;
             }
         }
 
-        if (HasObject (*override_, "driveVisualProfile", driveObj))
+        if (override_->HasObject ("driveVisualProfile", driveObj))
         {
             std::string  s;
 
-            if (HasString (*driveObj, "style",         s) && !s.empty()) { result.driveVisualProfile.style         = s; }
-            if (HasString (*driveObj, "colorway",      s) && !s.empty()) { result.driveVisualProfile.colorway      = s; }
-            if (HasString (*driveObj, "doorAnimation", s) && !s.empty()) { result.driveVisualProfile.doorAnimation = s; }
-            if (HasString (*driveObj, "syncChannel",   s) && !s.empty()) { result.driveVisualProfile.syncChannel   = s; }
+            if (driveObj->HasString ("style",         s) && !s.empty()) { result.driveVisualProfile.style         = s; }
+            if (driveObj->HasString ("colorway",      s) && !s.empty()) { result.driveVisualProfile.colorway      = s; }
+            if (driveObj->HasString ("doorAnimation", s) && !s.empty()) { result.driveVisualProfile.doorAnimation = s; }
+            if (driveObj->HasString ("syncChannel",   s) && !s.empty()) { result.driveVisualProfile.syncChannel   = s; }
         }
 
-        if (HasBool (*override_, "useMicaBackdrop", mica))
+        if (override_->HasBool ("useMicaBackdrop", mica))
         {
             result.useMicaBackdrop = mica;
         }

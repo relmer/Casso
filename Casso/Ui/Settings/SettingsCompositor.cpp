@@ -511,13 +511,17 @@ void SettingsCompositor::Compose (
     int                        heightPx)
 {
     SettingsComposeParams  composeParams = {};
+    HRESULT                hrTextures    = S_OK;
 
 
     if (!m_initialized || contentSrv == nullptr || backBufferRtv == nullptr || widthPx <= 0 || heightPx <= 0)
     {
         return;
     }
-    if (FAILED (EnsureBlurTextures (widthPx, heightPx)))
+
+    hrTextures = EnsureBlurTextures (widthPx, heightPx);
+
+    if (FAILED (hrTextures))
     {
         return;
     }

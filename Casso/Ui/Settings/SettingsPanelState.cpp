@@ -194,14 +194,21 @@ JsonValue  SettingsPanelState::CloneJson (const JsonValue & v)
     JsonWriter::Options  opts;
     JsonParseError       err;
     JsonValue            out;
+    HRESULT              hrWrite = S_OK;
+    HRESULT              hrParse = S_OK;
 
     opts.fPretty = false;
 
-    if (FAILED (JsonWriter::Write (v, opts, text)))
+    hrWrite = JsonWriter::Write (v, opts, text);
+
+    if (FAILED (hrWrite))
     {
         return JsonValue();
     }
-    if (FAILED (JsonParser::Parse (text, out, err)))
+
+    hrParse = JsonParser::Parse (text, out, err);
+
+    if (FAILED (hrParse))
     {
         return JsonValue();
     }

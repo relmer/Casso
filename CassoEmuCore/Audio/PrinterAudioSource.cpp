@@ -173,8 +173,10 @@ HRESULT PrinterAudioSource::LoadSounds (const wchar_t * dir, uint32_t targetSamp
     // Declared before the first CHR so its goto cannot skip the initialization.
     auto  decode = [&] (const wchar_t * name, vector<float> & dst)
     {
-        wstring  path = wstring (dir) + L"\\" + name;
-        if (FAILED (DecodeToMonoFloat (path.c_str(), targetSampleRate, dst)))
+        wstring  path     = wstring (dir) + L"\\" + name;
+        HRESULT  hrDecode = DecodeToMonoFloat (path.c_str(), targetSampleRate, dst);
+
+        if (FAILED (hrDecode))
         {
             dst.clear();
         }

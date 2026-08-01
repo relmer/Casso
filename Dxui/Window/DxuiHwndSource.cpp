@@ -773,6 +773,7 @@ void DxuiHwndSource::SetOverlayHooks (std::function<bool()> isActive,
 void DxuiHwndSource::SetComposedOpacity (float opacity)
 {
     ComPtr<IDCompositionVisual3>  visual3;
+    HRESULT                       hrAs = S_OK;
 
 
     DXUI_ASSERT_UI_THREAD();
@@ -785,7 +786,9 @@ void DxuiHwndSource::SetComposedOpacity (float opacity)
     // The visual is created from a v2 (desktop) device, so it exposes
     // IDCompositionVisual3::SetOpacity -- the canonical per-visual opacity that
     // blends the whole composited window over whatever is behind it.
-    if (SUCCEEDED (m_compVisual.As (&visual3)))
+    hrAs = m_compVisual.As (&visual3);
+
+    if (SUCCEEDED (hrAs))
     {
         (void) visual3->SetOpacity (opacity);
     }
@@ -1487,17 +1490,25 @@ ComPtr<IDXGISurface> DxuiHwndSource::BackBufferSurface() const
 {
     ComPtr<ID3D11Texture2D>  backBuffer;
     ComPtr<IDXGISurface>     surface;
+    HRESULT                  hrBuffer = S_OK;
+    HRESULT                  hrAs     = S_OK;
 
 
     if (m_swapChain == nullptr)
     {
         return nullptr;
     }
-    if (FAILED (m_swapChain->GetBuffer (0, IID_PPV_ARGS (backBuffer.GetAddressOf()))))
+
+    hrBuffer = m_swapChain->GetBuffer (0, IID_PPV_ARGS (backBuffer.GetAddressOf()));
+
+    if (FAILED (hrBuffer))
     {
         return nullptr;
     }
-    if (FAILED (backBuffer.As (&surface)))
+
+    hrAs = backBuffer.As (&surface);
+
+    if (FAILED (hrAs))
     {
         return nullptr;
     }
@@ -1549,10 +1560,16 @@ void DxuiHwndSource::ReleaseBackBufferRtv()
 
 SIZE DxuiHwndSource::BackBufferSizePx() const
 {
-    DXGI_SWAP_CHAIN_DESC1  scd = {};
+    DXGI_SWAP_CHAIN_DESC1  scd    = {};
+    HRESULT                hrDesc = E_FAIL;
 
 
-    if (m_swapChain == nullptr || FAILED (m_swapChain->GetDesc1 (&scd)))
+    if (m_swapChain != nullptr)
+    {
+        hrDesc = m_swapChain->GetDesc1 (&scd);
+    }
+
+    if (FAILED (hrDesc))
     {
         return SIZE{ 0, 0 };
     }
