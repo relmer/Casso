@@ -144,9 +144,9 @@ std::string WindowPlacementProfile::BuildTopologyKey (HMONITOR activeMonitor)
         activeDevice = activeInfo.szDevice;
     }
 
-    for (i = 0; i < monitors.size(); ++i)
+    for (auto & monitor : monitors)
     {
-        const MonitorSnapshot & m = monitors[i];
+        const MonitorSnapshot & m = monitor;
 
         canonical += m.device;
         canonical += L"|";

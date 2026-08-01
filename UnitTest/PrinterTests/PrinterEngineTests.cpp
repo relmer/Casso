@@ -26,9 +26,9 @@ namespace PrinterEngineTests
     {
         size_t   i = 0;
 
-        for (i = 0; i < bytes.size(); i++)
+        for (auto & byte : bytes)
         {
-            Assert::IsTrue (ring.TryPush (bytes[i]), L"ring push failed (test overran the ring)");
+            Assert::IsTrue (ring.TryPush (byte), L"ring push failed (test overran the ring)");
         }
     }
 

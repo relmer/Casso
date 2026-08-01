@@ -470,11 +470,11 @@ EmulatorShell::~EmulatorShell()
             controller->SetEventSink (nullptr);
         }
 
-        for (size_t i = 0; i < m_diskAudioSources.size(); i++)
+        for (auto & diskAudioSource : m_diskAudioSources)
         {
-            if (m_diskAudioSources[i] != nullptr)
+            if (diskAudioSource != nullptr)
             {
-                m_diskAudioSources[i]->SetAudioEventSink (nullptr);
+                diskAudioSource->SetAudioEventSink (nullptr);
             }
         }
 
@@ -8088,11 +8088,11 @@ void EmulatorShell::OpenDisk2DebugDialog()
 
         controller->SetEventSink (m_disk2DebugPanel.get());
 
-        for (i = 0; i < m_diskAudioSources.size(); i++)
+        for (auto & diskAudioSource : m_diskAudioSources)
         {
-            if (m_diskAudioSources[i] != nullptr)
+            if (diskAudioSource != nullptr)
             {
-                m_diskAudioSources[i]->SetAudioEventSink (m_disk2DebugPanel.get());
+                diskAudioSource->SetAudioEventSink (m_disk2DebugPanel.get());
             }
         }
     }
@@ -8203,11 +8203,11 @@ void EmulatorShell::AttachDebugSinksIfOpen()
         controller->SetEventSink (m_disk2DebugPanel.get());
     }
 
-    for (i = 0; i < m_diskAudioSources.size(); i++)
+    for (auto & diskAudioSource : m_diskAudioSources)
     {
-        if (m_diskAudioSources[i] != nullptr)
+        if (diskAudioSource != nullptr)
         {
-            m_diskAudioSources[i]->SetAudioEventSink (m_disk2DebugPanel.get());
+            diskAudioSource->SetAudioEventSink (m_disk2DebugPanel.get());
         }
     }
 

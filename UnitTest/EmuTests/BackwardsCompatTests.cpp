@@ -230,11 +230,10 @@ public:
 
     bool HasInternalDeviceType (const MachineConfig & cfg, const std::string & needle)
     {
-        size_t   i;
 
-        for (i = 0; i < cfg.internalDevices.size(); i++)
+        for (auto & internalDevice : cfg.internalDevices)
         {
-            if (cfg.internalDevices[i].type == needle)
+            if (internalDevice.type == needle)
             {
                 return true;
             }
@@ -252,11 +251,10 @@ public:
 
     bool HasSlotDevice (const MachineConfig & cfg, int slot, const std::string & device)
     {
-        size_t   i;
 
-        for (i = 0; i < cfg.slots.size(); i++)
+        for (auto & slotCfg : cfg.slots)
         {
-            if (cfg.slots[i].slot == slot && cfg.slots[i].device == device)
+            if (slotCfg.slot == slot && slotCfg.device == device)
             {
                 return true;
             }
@@ -412,7 +410,6 @@ public:
         MachineConfig           config;
         std::string             error;
         std::vector<fs::path>   searchPaths;
-        size_t                  i;
         HRESULT                 hr;
 
         json = ReadMachineJson ("Apple2.json");
@@ -434,13 +431,13 @@ public:
         Assert::AreEqual (kAppleIIVideoModes, config.videoConfig.modes.size(),
             L"Apple2.json must list exactly 3 video modes (text40/lores/hires)");
 
-        for (i = 0; i < config.videoConfig.modes.size(); i++)
+        for (auto & mode : config.videoConfig.modes)
         {
             Assert::AreNotEqual (std::string ("apple2-text80"),
-                config.videoConfig.modes[i],
+                mode,
                 L"Apple2.json must NOT include 80-col text mode");
             Assert::AreNotEqual (std::string ("apple2-doublehires"),
-                config.videoConfig.modes[i],
+                mode,
                 L"Apple2.json must NOT include double-hires mode");
         }
     }
@@ -458,7 +455,6 @@ public:
         MachineConfig           config;
         std::string             error;
         std::vector<fs::path>   searchPaths;
-        size_t                  i;
         HRESULT                 hr;
 
         json = ReadMachineJson ("Apple2Plus.json");
@@ -477,13 +473,13 @@ public:
         Assert::AreEqual (kAppleIIVideoModes, config.videoConfig.modes.size(),
             L"Apple2Plus.json must list exactly 3 video modes");
 
-        for (i = 0; i < config.videoConfig.modes.size(); i++)
+        for (auto & mode : config.videoConfig.modes)
         {
             Assert::AreNotEqual (std::string ("apple2-text80"),
-                config.videoConfig.modes[i],
+                mode,
                 L"Apple2Plus.json must NOT include 80-col text mode");
             Assert::AreNotEqual (std::string ("apple2-doublehires"),
-                config.videoConfig.modes[i],
+                mode,
                 L"Apple2Plus.json must NOT include double-hires mode");
         }
     }

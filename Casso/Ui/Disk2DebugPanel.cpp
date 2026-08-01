@@ -570,11 +570,11 @@ bool Disk2DebugPanel::OnMouse (const DxuiMouseEvent & ev)
                 // reports whether it consumed the press. The focus manager
                 // records the consuming widget so keyboard traversal resumes
                 // from the last-clicked control.
-                for (size_t i = 0; i < m_eventChecks.size(); ++i)
+                for (auto & eventCheck : m_eventChecks)
                 {
-                    if (m_eventChecks[i]->OnMouse (ev))
+                    if (eventCheck->OnMouse (ev))
                     {
-                        m_focusMgr.SetFocused (m_eventChecks[i]);
+                        m_focusMgr.SetFocused (eventCheck);
                         handled = true;
                         break;
                     }
@@ -586,11 +586,11 @@ bool Disk2DebugPanel::OnMouse (const DxuiMouseEvent & ev)
                 }
                 if (!handled)
                 {
-                    for (size_t i = 0; i < m_audioSubChecks.size(); ++i)
+                    for (auto & audioSubCheck : m_audioSubChecks)
                     {
-                        if (m_audioSubChecks[i]->OnMouse (ev))
+                        if (audioSubCheck->OnMouse (ev))
                         {
-                            m_focusMgr.SetFocused (m_audioSubChecks[i]);
+                            m_focusMgr.SetFocused (audioSubCheck);
                             handled = true;
                             break;
                         }

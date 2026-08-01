@@ -104,11 +104,11 @@ int MessageDialog::TranslateResult (int dialogResult) const
     }
     else
     {
-        for (idx = 0; idx < m_buttons.size(); ++idx)
+        for (auto & button : m_buttons)
         {
-            if (m_buttons[idx].isCancel)
+            if (button.isCancel)
             {
-                result = m_buttons[idx].resultCode;
+                result = button.resultCode;
                 break;
             }
         }

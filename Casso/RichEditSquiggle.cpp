@@ -253,10 +253,10 @@ void ApplyRejectedTokenSquiggles (
     waveFmt.bUnderlineType  = CFU_UNDERLINEWAVE;
     waveFmt.bUnderlineColor = kSquiggleUnderlineColor;
 
-    for (i = 0; i < spans.size(); i++)
+    for (auto & span : spans)
     {
-        range.cpMin = spans[i].beginUtf16;
-        range.cpMax = spans[i].endUtf16;
+        range.cpMin = span.beginUtf16;
+        range.cpMax = span.endUtf16;
 
         SendMessageW (hRichEdit, EM_EXSETSEL, 0, reinterpret_cast<LPARAM> (&range));
         SendMessageW (hRichEdit, EM_SETCHARFORMAT, SCF_SELECTION, reinterpret_cast<LPARAM> (&waveFmt));

@@ -462,9 +462,9 @@ std::vector<DxuiTreeNode> HardwarePage::BuildNodes (const std::vector<HardwareEn
     slotsGroup.checked           = true;
     slotsGroup.expanded          = true;
 
-    for (i = 0; i < entries.size(); ++i)
+    for (auto & entry : entries)
     {
-        const HardwareEntry & e = entries[i];
+        const HardwareEntry & e = entry;
         DxuiTreeNode              row;
 
         row.label          = Widen (e.displayName);

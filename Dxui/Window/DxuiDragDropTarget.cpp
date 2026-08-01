@@ -145,11 +145,11 @@ void DxuiDragDropTarget::RevokeAllRegistrations()
 
 
 
-    for (i = 0; i < m_registeredHwnds.size(); i++)
+    for (auto & registeredHwnd : m_registeredHwnds)
     {
-        if (m_registeredHwnds[i] != nullptr)
+        if (registeredHwnd != nullptr)
         {
-            hr = RevokeDragDrop (m_registeredHwnds[i]);
+            hr = RevokeDragDrop (registeredHwnd);
             IGNORE_RETURN_VALUE (hr, S_OK);
         }
     }

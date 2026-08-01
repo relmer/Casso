@@ -1208,13 +1208,13 @@ JsonValue SettingsPanelState::BuildJson (
                 std::vector<std::pair<std::string, JsonValue>>  rebuilt;
                 const auto &  srcEntries = src.GetObjectEntries();
                 size_t        j          = 0;
-                for (j = 0; j < srcEntries.size(); ++j)
+                for (auto & srcEntry : srcEntries)
                 {
-                    if (srcEntries[j].first == "enabled")
+                    if (srcEntry.first == "enabled")
                     {
                         continue;
                     }
-                    rebuilt.emplace_back (srcEntries[j].first, CloneJson (srcEntries[j].second));
+                    rebuilt.emplace_back (srcEntry.first, CloneJson (srcEntry.second));
                 }
                 rebuilt.emplace_back ("enabled", JsonValue (enabledFlag));
                 devArr.emplace_back (JsonValue (std::move (rebuilt)));
@@ -1247,13 +1247,13 @@ JsonValue SettingsPanelState::BuildJson (
                 std::vector<std::pair<std::string, JsonValue>>  rebuilt;
                 const auto &  srcEntries = src.GetObjectEntries();
                 size_t        j          = 0;
-                for (j = 0; j < srcEntries.size(); ++j)
+                for (auto & srcEntry : srcEntries)
                 {
-                    if (srcEntries[j].first == "enabled")
+                    if (srcEntry.first == "enabled")
                     {
                         continue;
                     }
-                    rebuilt.emplace_back (srcEntries[j].first, CloneJson (srcEntries[j].second));
+                    rebuilt.emplace_back (srcEntry.first, CloneJson (srcEntry.second));
                 }
                 rebuilt.emplace_back ("enabled", JsonValue (enabledFlag));
                 slotArr.emplace_back (JsonValue (std::move (rebuilt)));

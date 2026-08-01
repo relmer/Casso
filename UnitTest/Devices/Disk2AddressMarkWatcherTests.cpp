@@ -182,9 +182,9 @@ namespace Disk2AddressMarkWatcherTests
         {
             size_t   i = 0;
 
-            for (i = 0; i < nibbles.size(); i++)
+            for (auto & nibble : nibbles)
             {
-                w.ObserveNibble (nibbles[i]);
+                w.ObserveNibble (nibble);
             }
         }
 

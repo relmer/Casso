@@ -45,11 +45,11 @@ int PickerDialog::MapResult (int dialogResult) const
     }
     else if (dialogResult == IDCANCEL)
     {
-        for (idx = 0; idx < m_buttons.size(); ++idx)
+        for (auto & button : m_buttons)
         {
-            if (m_buttons[idx].isCancel)
+            if (button.isCancel)
             {
-                result = m_buttons[idx].resultCode;
+                result = button.resultCode;
                 break;
             }
         }
@@ -81,15 +81,15 @@ void PickerDialog::OnCreate()
         SetDialogContentOwned (std::move (m_pendingContent));
     }
 
-    for (i = 0; i < m_buttons.size(); ++i)
+    for (auto & button : m_buttons)
     {
-        int                    commandId = m_buttons[i].isCancel ? IDCANCEL : m_buttons[i].resultCode;
-        DxuiButtonRow::Anchor  anchor    = m_buttons[i].anchorLeft ? DxuiButtonRow::Anchor::Left
+        int                    commandId = button.isCancel ? IDCANCEL : button.resultCode;
+        DxuiButtonRow::Anchor  anchor    = button.anchorLeft ? DxuiButtonRow::Anchor::Left
                                                                    : DxuiButtonRow::Anchor::Right;
 
-        AddDialogButton (m_buttons[i].label, commandId, anchor);
+        AddDialogButton (button.label, commandId, anchor);
 
-        if (m_buttons[i].isDefault)
+        if (button.isDefault)
         {
             m_defaultCommandId = commandId;
         }
