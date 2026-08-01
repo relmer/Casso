@@ -1537,11 +1537,14 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     // the destination monitor's DPI up front and pre-scale.
     if (GetCursorMonitorWorkArea (work, activeMon))
     {
-        UINT  dpiX = 0;
-        UINT  dpiY = 0;
+        UINT     dpiX  = 0;
+        UINT     dpiY  = 0;
+        HRESULT  hrDpi = S_OK;
 
 
-        if (SUCCEEDED (GetDpiForMonitor (activeMon, MDT_EFFECTIVE_DPI, &dpiX, &dpiY)) && dpiX > 0)
+        hrDpi = GetDpiForMonitor (activeMon, MDT_EFFECTIVE_DPI, &dpiX, &dpiY);
+
+        if (SUCCEEDED (hrDpi) && dpiX > 0)
         {
             dpi = dpiX;
         }

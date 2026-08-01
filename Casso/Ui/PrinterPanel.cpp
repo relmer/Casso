@@ -279,10 +279,15 @@ HRESULT PrinterPanel::Create (
     // deliberately leaves the paper rect unfilled. Failure falls back to the
     // flat PrinterPaperView silently.
     {
-        std::unique_ptr<Printer3DScene>   scene = std::make_unique<Printer3DScene> ();
+        std::unique_ptr<Printer3DScene>   scene   = std::make_unique<Printer3DScene> ();
+        HRESULT                           hrScene = E_FAIL;
 
-        if (PopupHost() != nullptr &&
-            SUCCEEDED (scene->Initialize (PopupHost()->GetDevice(), PopupHost()->GetContext())))
+        if (PopupHost() != nullptr)
+        {
+            hrScene = scene->Initialize (PopupHost()->GetDevice(), PopupHost()->GetContext());
+        }
+
+        if (SUCCEEDED (hrScene))
         {
             m_scene = std::move (scene);
 

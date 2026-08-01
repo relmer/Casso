@@ -199,11 +199,16 @@ int CommandToolbar::PlanForWidth (int clientWidthPx, const DxuiDpiScaler & scale
 
     auto  measure = [&] (const wchar_t * label, float fontDip) -> int
     {
-        float  w = 0.0f;
-        float  h = 0.0f;
+        float    w         = 0.0f;
+        float    h         = 0.0f;
+        HRESULT  hrMeasure = E_FAIL;
 
-        if (m_textRenderer != nullptr &&
-            SUCCEEDED (m_textRenderer->MeasureString (label, fontDip, s_kFontFamily, w, h)) && w > 0.0f)
+        if (m_textRenderer != nullptr)
+        {
+            hrMeasure = m_textRenderer->MeasureString (label, fontDip, s_kFontFamily, w, h);
+        }
+
+        if (SUCCEEDED (hrMeasure) && w > 0.0f)
         {
             return (int) (w + 0.5f);
         }
@@ -296,11 +301,16 @@ void CommandToolbar::Layout (const RECT & boundsDip, const DxuiDpiScaler & scale
 
     auto  measure = [&] (const wchar_t * label, float fontDip) -> int
     {
-        float  w = 0.0f;
-        float  h = 0.0f;
+        float    w         = 0.0f;
+        float    h         = 0.0f;
+        HRESULT  hrMeasure = E_FAIL;
 
-        if (m_textRenderer != nullptr &&
-            SUCCEEDED (m_textRenderer->MeasureString (label, fontDip, s_kFontFamily, w, h)) && w > 0.0f)
+        if (m_textRenderer != nullptr)
+        {
+            hrMeasure = m_textRenderer->MeasureString (label, fontDip, s_kFontFamily, w, h);
+        }
+
+        if (SUCCEEDED (hrMeasure) && w > 0.0f)
         {
             return (int) (w + 0.5f);
         }

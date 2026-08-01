@@ -884,9 +884,11 @@ void MachineManager::WireApple2cRomBank()
 
     std::vector<Byte>   fileBytes;
     size_t              twoBanks = static_cast<size_t> (sysRom.romBankSize) * 2;
+    HRESULT             hrRead   = S_OK;
 
-    if (FAILED (ReadRomFileBytes (sysRom.resolvedPath, fileBytes)) ||
-        fileBytes.size() < twoBanks)
+    hrRead = ReadRomFileBytes (sysRom.resolvedPath, fileBytes);
+
+    if (FAILED (hrRead) || fileBytes.size() < twoBanks)
     {
         DEBUGMSG (L"WireApple2cRomBank: cannot read both ROM banks; banking disabled\n");
         return;
@@ -1276,6 +1278,8 @@ HRESULT MachineManager::SwitchMachine (const std::wstring & machineName)
     JsonParseError         parseErr;
     WORD                   speedCmd = 0;
     bool                   foundConfig = false;
+    HRESULT                hrParse     = S_OK;
+    HRESULT                hrMerge     = S_OK;
     std::string            carryDisk1;
     std::string            carryDisk2;
 
@@ -1303,13 +1307,16 @@ HRESULT MachineManager::SwitchMachine (const std::wstring & machineName)
     ss << configFile.rdbuf();
     jsonText = ss.str();
 
-    if (SUCCEEDED (JsonParser::Parse (jsonText, defaultJson, parseErr)) &&
-        m_shell.m_userConfigStore != nullptr)
+    hrParse = JsonParser::Parse (jsonText, defaultJson, parseErr);
+
+    if (SUCCEEDED (hrParse) && m_shell.m_userConfigStore != nullptr)
     {
-        if (SUCCEEDED (m_shell.m_userConfigStore->Load (machineNameNarrow,
-                                                         defaultJson,
-                                                         m_shell.m_uiFs,
-                                                         mergedJson)))
+        hrMerge = m_shell.m_userConfigStore->Load (machineNameNarrow,
+                                                   defaultJson,
+                                                   m_shell.m_uiFs,
+                                                   mergedJson);
+
+        if (SUCCEEDED (hrMerge))
         {
             speedCmd = ResolveMachineSpeedCommand (mergedJson);
 

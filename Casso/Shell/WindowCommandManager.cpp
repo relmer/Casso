@@ -931,6 +931,9 @@ HRESULT WindowCommandManager::SavePrintoutAs (const PrintRaster & raster, fs::pa
     SYSTEMTIME                now         = {};
     bool                      isOpen      = false;
     bool                      wroteWell   = false;
+    HRESULT                   hrPictures  = S_OK;
+    HRESULT                   hrItem      = S_OK;
+    HRESULT                   hrFolder    = S_OK;
     std::error_code           ec;
     const GlobalUserPrefs &   prefs       = m_shell.m_globalPrefs;
 
@@ -952,7 +955,9 @@ HRESULT WindowCommandManager::SavePrintoutAs (const PrintRaster & raster, fs::pa
     CHR (hr);
 
     // Seed the default folder <Pictures>\Casso Prints + a timestamped name.
-    if (SUCCEEDED (SHGetKnownFolderPath (FOLDERID_Pictures, 0, nullptr, &picturesRaw)))
+    hrPictures = SHGetKnownFolderPath (FOLDERID_Pictures, 0, nullptr, &picturesRaw);
+
+    if (SUCCEEDED (hrPictures))
     {
         folder = fs::path (picturesRaw) / L"Casso Prints";
     }
@@ -961,10 +966,15 @@ HRESULT WindowCommandManager::SavePrintoutAs (const PrintRaster & raster, fs::pa
     {
         fs::create_directories (folder, ec);
 
-        if (SUCCEEDED (SHCreateItemFromParsingName (folder.c_str(), nullptr,
-                                                    IID_PPV_ARGS (&folderItem))))
+        hrItem = SHCreateItemFromParsingName (folder.c_str(), nullptr,
+                                              IID_PPV_ARGS (&folderItem));
+
+        if (SUCCEEDED (hrItem))
         {
-            IGNORE_RETURN_VALUE (hr, dialog->SetFolder (folderItem.Get()));
+            // Best-effort: an unsettable start folder just means the dialog
+            // opens wherever the shell last left it.
+            hrFolder = dialog->SetFolder (folderItem.Get());
+            IGNORE_RETURN_VALUE (hrFolder, S_OK);
         }
     }
 
@@ -1205,6 +1215,7 @@ HRESULT WindowCommandManager::CopyPrintoutToClipboard (const PrintRaster & raste
     bool                     opened   = false;
     bool                     didOpen  = false;
     bool                     didEmpty = false;
+    HRESULT                  hrEncode = S_OK;
     size_t                   px       = 0;
     size_t                   dibBytes = 0;
     // A 32bpp DIB of the whole strip must stay bounded so a huge multi-page
@@ -1268,7 +1279,9 @@ HRESULT WindowCommandManager::CopyPrintoutToClipboard (const PrintRaster & raste
 
     // Encode the PNG from the image we already rendered rather than rendering
     // the strip a second time (the old path doubled peak memory on big banners).
-    if (SUCCEEDED (PngCodec::EncodeRgba (img, opt.outputDpi, png)) && !png.empty())
+    hrEncode = PngCodec::EncodeRgba (img, opt.outputDpi, png);
+
+    if (SUCCEEDED (hrEncode) && !png.empty())
     {
         Byte *   dest = nullptr;
 
@@ -1462,11 +1475,14 @@ void WindowCommandManager::OnPrinterCommand (int id)
 
         if (GetEnvironmentVariableW (L"CASSO_CLASSIC_PRINT", forceClassic, 8) == 0)
         {
-            const GlobalUserPrefs &  prefs = m_shell.m_globalPrefs;
+            const GlobalUserPrefs &  prefs   = m_shell.m_globalPrefs;
+            HRESULT                  hrShow  = S_OK;
 
-            if (SUCCEEDED (m_modernPrint.ShowAsync (m_shell.m_hwnd, job->Raster(),
-                                                    PrintDpiFromPrefs (prefs),
-                                                    PrintDotStyleFromPrefs (prefs))))
+            hrShow = m_modernPrint.ShowAsync (m_shell.m_hwnd, job->Raster(),
+                                              PrintDpiFromPrefs (prefs),
+                                              PrintDotStyleFromPrefs (prefs));
+
+            if (SUCCEEDED (hrShow))
             {
                 m_shell.m_printerWorker.Start (m_shell.m_refs.printerCard->ByteRing(), job->Raster());
                 return;

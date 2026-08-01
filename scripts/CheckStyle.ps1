@@ -431,11 +431,76 @@ function Test-PchFirst
 ####################################################################
 
 # Function-like macros that expand to a comparison, not a call.
-$script:EhmAllowedMacros = @('BCRYPT_SUCCESS', 'NT_SUCCESS')
+$script:EhmAllowedMacros = @('BCRYPT_SUCCESS', 'NT_SUCCESS', 'HRESULT_FROM_WIN32', 'IID_PPV_ARGS')
 
 # Keywords and casts that take parens but are not calls.
 $script:EhmNotCalls = @('sizeof', 'return', 'if', 'while', 'for', 'switch', 'defined',
                         'static_cast', 'reinterpret_cast', 'const_cast', 'dynamic_cast')
+
+####################################################################
+#
+#  Hide-Comments
+#
+#  Blanks comment bodies with spaces, preserving length and newlines
+#  so offsets and line numbers still line up.
+#
+#  Needed because the scanner reads whole-file text: without this it
+#  flagged the doc comment on JsonValue::HasString, which quotes the
+#  very pattern it exists to replace. A checker that fails a file for
+#  describing the rule is one people switch off.
+#
+####################################################################
+
+function Hide-Comments
+{
+    param([string] $Text)
+
+    $sb    = New-Object System.Text.StringBuilder $Text.Length
+    $i     = 0
+    $inStr = $false
+    $inChr = $false
+
+    while ($i -lt $Text.Length)
+    {
+        $c    = $Text[$i]
+        $next = if ($i + 1 -lt $Text.Length) { $Text[$i + 1] } else { [char]0 }
+        $prev = if ($i -gt 0) { $Text[$i - 1] } else { [char]0 }
+        $esc  = ($prev -eq '\')
+
+        if ($inStr)     { [void] $sb.Append($c); if ($c -eq '"' -and -not $esc) { $inStr = $false }; $i++; continue }
+        if ($inChr)     { [void] $sb.Append($c); if ($c -eq "'" -and -not $esc) { $inChr = $false }; $i++; continue }
+        if ($c -eq '"') { $inStr = $true; [void] $sb.Append($c); $i++; continue }
+        if ($c -eq "'") { $inChr = $true; [void] $sb.Append($c); $i++; continue }
+
+        if ($c -eq '/' -and $next -eq '/')
+        {
+            while ($i -lt $Text.Length -and $Text[$i] -ne "`n") { [void] $sb.Append(' '); $i++ }
+            continue
+        }
+
+        if ($c -eq '/' -and $next -eq '*')
+        {
+            while ($i -lt $Text.Length)
+            {
+                if ($Text[$i] -eq "`n") { [void] $sb.Append("`n") }
+                else                    { [void] $sb.Append(' ')  }
+
+                if ($Text[$i] -eq '*' -and $i + 1 -lt $Text.Length -and $Text[$i + 1] -eq '/')
+                {
+                    [void] $sb.Append(' '); $i += 2; break
+                }
+                $i++
+            }
+            continue
+        }
+
+        [void] $sb.Append($c)
+        $i++
+    }
+
+    return $sb.ToString()
+}
+
 
 function Get-EhmConditionSpan
 {
@@ -485,13 +550,21 @@ function Test-EhmConditionCalls
         if ($rel -notlike '*.cpp' -and $rel -notlike '*.h') { continue }
         if ($rel -like '*External/*')                       { continue }
         if ($rel -like '*CassoCore/Ehm.h')                  { continue }
+        if ($rel -like 'UnitTest/*')                        { continue }
 
         $full = Join-Path $repoRoot $rel
         if (-not (Test-Path -LiteralPath $full)) { continue }
 
-        $text = [IO.File]::ReadAllText($full)
+        $text = Hide-Comments -Text ([IO.File]::ReadAllText($full))
 
-        foreach ($m in [regex]::Matches($text, '\bC[BWPH]R[AFN]*(?:Ex)?\s*\('))
+        # SUCCEEDED / FAILED / IGNORE_RETURN_VALUE join the EHM families here.
+        # They are result-testing macros too, so wrapping a call in one hides
+        # exactly what the EHM rule exists to keep visible -- and with an out
+        # param it hides where the result landed as well. Unit tests are
+        # exempt: `Assert::IsTrue (SUCCEEDED (Foo()))` makes the call the
+        # subject of the assertion, which is the sanctioned idiom there, the
+        # same call the backlog makes for HRESULT-without-EHM in tests.
+        foreach ($m in [regex]::Matches($text, '\b(?:C[BWPH]R[AFN]*(?:Ex)?|SUCCEEDED|FAILED|IGNORE_RETURN_VALUE)\s*\('))
         {
             $open = $text.IndexOf('(', $m.Index)
             if ($open -lt 0) { continue }

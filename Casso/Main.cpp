@@ -325,10 +325,19 @@ static HRESULT LoadMachineConfig (
         JsonValue        defaultJson;
         JsonValue        mergedJson;
         JsonParseError   parseErr;
+        HRESULT          hrParse = S_OK;
+        HRESULT          hrMerge = E_FAIL;
 
-        if (SUCCEEDED (JsonParser::Parse (jsonText, defaultJson, parseErr)) &&
-            SUCCEEDED (storeMerge.Load (fs::path (machineName).string(), defaultJson, fsMerge, mergedJson)) &&
-            mergedJson.GetType() == JsonType::Object)
+        // The merge only runs when the parse produced something to merge, so
+        // hrMerge starts failed rather than being tested unconditionally.
+        hrParse = JsonParser::Parse (jsonText, defaultJson, parseErr);
+
+        if (SUCCEEDED (hrParse))
+        {
+            hrMerge = storeMerge.Load (fs::path (machineName).string(), defaultJson, fsMerge, mergedJson);
+        }
+
+        if (SUCCEEDED (hrMerge) && mergedJson.GetType() == JsonType::Object)
         {
             jsonText = JsonWriter::Write (mergedJson);
         }

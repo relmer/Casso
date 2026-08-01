@@ -59,11 +59,19 @@ void InputDeviceSelector::Layout (const RECT & boundsDip, const DxuiDpiScaler & 
         // narrower than the label in practice, so this is a no-op on width.
         if (i == kPaddleSegIndex)
         {
-            float  hw    = 0.0f;
-            float  hh    = 0.0f;
-            float  hFont = fontPx * kSubLabelScale;
-            bool   ok    = m_textRenderer != nullptr
-                        && SUCCEEDED (m_textRenderer->MeasureString (kPaddleEscHint, hFont, kFontFamily, hw, hh));
+            float    hw        = 0.0f;
+            float    hh        = 0.0f;
+            float    hFont     = fontPx * kSubLabelScale;
+            HRESULT  hrMeasure = E_FAIL;
+            bool     ok        = false;
+
+            if (m_textRenderer != nullptr)
+            {
+                hrMeasure = m_textRenderer->MeasureString (kPaddleEscHint, hFont, kFontFamily, hw, hh);
+            }
+
+            ok = SUCCEEDED (hrMeasure);
+
             if (!ok)
             {
                 hw = (float) wcslen (kPaddleEscHint) * kFallbackCharPx * kSubLabelScale * (float) eDpi / 96.0f;
