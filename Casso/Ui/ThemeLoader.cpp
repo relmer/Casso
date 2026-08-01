@@ -363,7 +363,6 @@ HRESULT ThemeLoader::EnumerateCandidateDirs (
 {
     HRESULT                     hr     = S_OK;
     std::vector<std::wstring>   dirs;
-    size_t                      i      = 0;
 
 
 
@@ -376,13 +375,13 @@ HRESULT ThemeLoader::EnumerateCandidateDirs (
     // code needed, so this reports success rather than propagating.
     BAIL_OUT_IF (FAILED (hr), S_OK);
 
-    for (i = 0; i < dirs.size(); ++i)
+    for (const std::wstring & dir : dirs)
     {
-        std::wstring  themeJson = JoinPath (JoinPath (themesBaseDir, dirs[i]),
-                                            L"theme.json");
+        std::wstring  themeJson = JoinPath (JoinPath (themesBaseDir, dir), L"theme.json");
+
         if (fs.Exists (themeJson))
         {
-            outNames.push_back (dirs[i]);
+            outNames.push_back (dir);
         }
     }
 
@@ -417,6 +416,7 @@ HRESULT ThemeLoader::ParseMetadata (
     const JsonValue *   scanObj       = nullptr;
     const JsonValue *   bloomObj      = nullptr;
     const JsonValue *   bleedObj      = nullptr;
+    const JsonValue *   overridesObj  = nullptr;
     int                 themeVersion  = 0;
     double              versionValue  = 0.0;
     JsonType            rootType      = JsonType::Null;
@@ -564,20 +564,13 @@ HRESULT ThemeLoader::ParseMetadata (
 
     // optional: variantOverrides (per-machine sparse overlays)
 
+    if (HasObject (root, "variantOverrides", overridesObj))
     {
-        const JsonValue *  overridesObj = nullptr;
-
-        if (HasObject (root, "variantOverrides", overridesObj))
+        for (const std::pair<std::string, JsonValue> & entry : overridesObj->GetObjectEntries())
         {
-            const auto &  entries = overridesObj->GetObjectEntries();
-            size_t        i       = 0;
-
-            for (i = 0; i < entries.size(); i++)
+            if (entry.second.GetType() == JsonType::Object)
             {
-                if (entries[i].second.GetType() == JsonType::Object)
-                {
-                    outTheme.variantOverrides.emplace_back (entries[i].first, entries[i].second);
-                }
+                outTheme.variantOverrides.emplace_back (entry.first, entry.second);
             }
         }
     }
@@ -614,13 +607,14 @@ LoadedTheme LoadedTheme::ResolveForMachine (const std::string & machineDisplayNa
 {
     LoadedTheme         result    = *this;
     const JsonValue *   override_ = nullptr;
-    size_t              i         = 0;
 
-    for (i = 0; i < variantOverrides.size(); i++)
+
+
+    for (const std::pair<std::string, JsonValue> & entry : variantOverrides)
     {
-        if (variantOverrides[i].first == machineDisplayName)
+        if (entry.first == machineDisplayName)
         {
-            override_ = &variantOverrides[i].second;
+            override_ = &entry.second;
             break;
         }
     }
