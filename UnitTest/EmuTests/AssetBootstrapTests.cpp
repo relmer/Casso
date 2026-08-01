@@ -185,11 +185,11 @@ public:
 
 
             hrParse = JsonParser::Parse (jsonText, root, parseError);
-            AssertSucceeded (hrParse ,
+            AssertSucceeded (hrParse,
                 std::format (L"{} embedded JSON must parse", machine).c_str());
 
             hrVer = root.GetInt ("$cassoMachineVersion", version);
-            AssertSucceeded (hrVer ,
+            AssertSucceeded (hrVer,
                 std::format (L"{} embedded JSON must carry $cassoMachineVersion", machine).c_str());
 
             Assert::AreEqual (cfg.currentVersion, version,
@@ -221,7 +221,7 @@ private:
 
         hr = MachineConfigLoader::CollectRomFiles (jsonText, outFiles, error);
 
-        AssertSucceeded (hr ,
+        AssertSucceeded (hr,
             std::format (L"CollectRomFiles failed on embedded JSON: {}",
                          std::wstring (error.begin(), error.end())).c_str());
     }
@@ -250,7 +250,7 @@ private:
 
 
         hrParse = JsonParser::Parse (jsonText, root, parseError);
-        AssertSucceeded (hrParse ,
+        AssertSucceeded (hrParse,
             L"Embedded JSON must parse cleanly");
 
         hrSlots = root.GetArray ("slots", pSlots);

@@ -274,7 +274,7 @@ public:
         HeadlessHost   host;
         EmulatorCore   core;
 
-        AssertSucceeded (host.BuildApple2c (core) ,
+        AssertSucceeded (host.BuildApple2c (core),
             L"BuildApple2c must succeed when the ROM is present");
         Assert::IsTrue (core.HasApple2e(),
             L"//c wiring (65C02 + MMU) must be complete");
@@ -370,7 +370,7 @@ public:
         HeadlessHost   host;
         EmulatorCore   core;
 
-        AssertSucceeded (host.BuildApple2c (core) ,
+        AssertSucceeded (host.BuildApple2c (core),
             L"BuildApple2c must succeed when the ROM is present");
         core.PowerCycle();
 

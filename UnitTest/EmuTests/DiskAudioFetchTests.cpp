@@ -138,7 +138,7 @@ public:
         HRESULT  hr = StbVorbisWrapper::DecodeOggToInterleavedShort (
             junk.data(), junk.size(), pcm, rate, channels, err);
 
-        AssertFailed (hr ,
+        AssertFailed (hr,
             L"Garbage input must return a failure HRESULT");
         Assert::IsTrue (pcm.empty(), L"PCM buffer must be empty on failure");
         Assert::IsFalse (err.empty(), L"Error string must be set on failure");
@@ -185,7 +185,7 @@ public:
                                         L"Shugart",
                                         s_kTestSampleRate);
 
-        AssertSucceeded (hr ,
+        AssertSucceeded (hr,
             L"LoadSamples must succeed when at least MediaFoundation is reachable");
 
         // We can't directly inspect the source's internal buffer

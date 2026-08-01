@@ -189,7 +189,7 @@ public:
 
         HRESULT   hr = img.Serialize (bytes);
 
-        AssertSucceeded (hr ,
+        AssertSucceeded (hr,
             L"Phase 10: Serialize routes DSK through NibblizationLayer::Denibblize");
         Assert::AreEqual (size_t (143360), bytes.size(),
             L"Phase 10: a default 35-track DSK serializes to 143360 bytes");

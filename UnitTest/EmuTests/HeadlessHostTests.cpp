@@ -66,7 +66,7 @@ public:
         HeadlessHost   host;
         EmulatorCore   core;
 
-        AssertSucceeded (host.BuildApple2eEnhanced (core) ,
+        AssertSucceeded (host.BuildApple2eEnhanced (core),
             L"BuildApple2eEnhanced must succeed when the ROM is present");
 
         Word resetVec = static_cast<Word> (core.cpu->ReadByte (0xFFFC)) |

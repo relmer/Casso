@@ -583,7 +583,7 @@ public:
 
         hr = store.LoadAll (prefs, fs, parseDetail);
 
-        AssertFailed (hr ,
+        AssertFailed (hr,
             L"A prefs file that exists but does not parse must fail, not "
             L"silently fall back to defaults");
         Assert::IsFalse (parseDetail.empty(),

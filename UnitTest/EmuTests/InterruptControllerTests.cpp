@@ -158,7 +158,7 @@ namespace Apple2eFidelityIc
 
             // 33rd registration must fail.
             hr = ic.RegisterSource (id);
-            AssertFailed (hr ,
+            AssertFailed (hr,
                             L"Registration past kMaxSources must fail");
 
             // Asserting an out-of-range / never-registered token is a no-op.

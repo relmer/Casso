@@ -290,7 +290,7 @@ public:
         hr = MachineConfigLoader::Load (json, "TestMachine", searchPaths, MockResolveAll,
                                         config, error);
 
-        AssertSucceeded (hr ,
+        AssertSucceeded (hr,
             L"Apple2.json must parse cleanly through the production loader");
         Assert::AreEqual (std::string ("Apple ]["), config.name,
             L"Apple2.json name must remain 'Apple ]['");
@@ -322,7 +322,7 @@ public:
         hr = MachineConfigLoader::Load (json, "TestMachine", searchPaths, MockResolveAll,
                                         config, error);
 
-        AssertSucceeded (hr ,
+        AssertSucceeded (hr,
             L"Apple2Plus.json must parse cleanly through the production loader");
         Assert::AreEqual (std::string ("Apple ][ plus"), config.name,
             L"Apple2Plus.json name must remain 'Apple ][ plus'");
@@ -595,7 +595,7 @@ public:
 
         hr = host.BuildAppleII (core);
 
-        AssertSucceeded (hr ,
+        AssertSucceeded (hr,
             L"HeadlessHost::BuildAppleII must succeed");
         Assert::IsTrue (core.machineKind == HeadlessMachineKind::AppleII,
             L"machineKind must remain AppleII");
@@ -636,7 +636,7 @@ public:
 
         hr = host.BuildAppleIIPlus (core);
 
-        AssertSucceeded (hr ,
+        AssertSucceeded (hr,
             L"HeadlessHost::BuildAppleIIPlus must succeed");
         Assert::IsTrue (core.machineKind == HeadlessMachineKind::AppleIIPlus,
             L"machineKind must remain AppleIIPlus");

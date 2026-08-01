@@ -30,7 +30,7 @@ public:
         HRESULT hr = MachineConfigLoader::Load (json, "TestMachine", paths, MockResolveAll,
                                                 config, error);
 
-        AssertSucceeded (hr ,
+        AssertSucceeded (hr,
             std::format (L"Load should succeed: {}",
                 std::wstring (error.begin(), error.end())).c_str());
         Assert::AreEqual (std::string ("TestMachine"), config.name,
@@ -57,7 +57,7 @@ public:
         HRESULT hr = MachineConfigLoader::Load (json, "TestMachine", paths, MockResolveAll,
                                                 config, error);
 
-        AssertSucceeded (hr ,
+        AssertSucceeded (hr,
             L"Load should succeed with valid ROM");
 
         Assert::IsFalse (config.systemRom.resolvedPath.empty(),
@@ -76,7 +76,7 @@ public:
         HRESULT hr = MachineConfigLoader::Load (json, "TestMachine", paths, MockResolveNone,
                                                 config, error);
 
-        AssertFailed (hr ,
+        AssertFailed (hr,
             L"Load should fail when ROM not found");
         Assert::IsTrue (error.find ("ROM file not found") != std::string::npos,
             L"Error message must mention 'ROM file not found'");
@@ -91,7 +91,7 @@ public:
         std::vector<fs::path> paths;
         HRESULT hr = MachineConfigLoader::Load (json, "TestMachine", paths, config, error);
 
-        AssertFailed (hr ,
+        AssertFailed (hr,
             L"Missing 'name' field should cause failure");
         Assert::IsTrue (error.find ("name") != std::string::npos,
             L"Error should mention 'name'");
@@ -120,7 +120,7 @@ public:
         std::vector<fs::path> paths;
         HRESULT hr = MachineConfigLoader::Load (json, "TestMachine", paths, config, error);
 
-        AssertFailed (hr ,
+        AssertFailed (hr,
             L"Invalid CPU 'z80' should cause failure");
         Assert::IsTrue (error.find ("z80") != std::string::npos,
             L"Error should mention the invalid CPU type");
@@ -150,7 +150,7 @@ public:
         HRESULT hr = MachineConfigLoader::Load (json, "TestMachine", paths, MockResolveAll,
                                                 config, error);
 
-        AssertSucceeded (hr ,
+        AssertSucceeded (hr,
             std::format (L"65C02 profile should load: {}",
                 std::wstring (error.begin(), error.end())).c_str());
         Assert::AreEqual (std::string ("65C02"), config.cpu,
@@ -184,7 +184,7 @@ public:
         HRESULT hr = MachineConfigLoader::Load (json, "TestMachine", paths, MockResolveAll,
                                                 config, error);
 
-        AssertSucceeded (hr ,
+        AssertSucceeded (hr,
             std::format (L"Banked //c ROM should load: {}",
                 std::wstring (error.begin(), error.end())).c_str());
         Assert::AreEqual (Word (0x4000), config.systemRom.romBankSize,
@@ -216,7 +216,7 @@ public:
         HRESULT hr = MachineConfigLoader::Load (json, "TestMachine", paths, MockResolveAll,
                                                 config, error);
 
-        AssertFailed (hr ,
+        AssertFailed (hr,
             L"romBankSize without romBankSelect must fail");
         Assert::IsTrue (error.find ("romBankSelect") != std::string::npos,
             L"Error must name the missing romBankSelect field");
@@ -232,7 +232,7 @@ public:
         HRESULT hr = MachineConfigLoader::Load (json, "TestMachine", paths, MockResolveAll,
                                                 config, error);
 
-        AssertSucceeded (hr ,
+        AssertSucceeded (hr,
             std::format (L"aux ram config should load: {}",
                 std::wstring (error.begin(), error.end())).c_str());
 
@@ -286,7 +286,7 @@ public:
         HRESULT hr = MachineConfigLoader::Load (json, "TestMachine", paths, MockResolveAll,
                                                 config, error);
 
-        AssertFailed (hr ,
+        AssertFailed (hr,
             L"Slot 8 should fail validation (must be 1-7)");
         Assert::IsTrue (error.find ("slot must be") != std::string::npos,
             L"Error should mention slot range constraint");
@@ -319,7 +319,7 @@ public:
         HRESULT hr = MachineConfigLoader::Load (json, "TestMachine", paths, MockResolveAll,
                                                 config, error);
 
-        AssertFailed (hr ,
+        AssertFailed (hr,
             L"Slot with neither device nor rom should fail");
     }
 
@@ -372,7 +372,7 @@ public:
 
         HRESULT hr = MachineConfigLoader::CollectRomFiles (json, files, error);
 
-        AssertSucceeded (hr ,
+        AssertSucceeded (hr,
             std::format (L"CollectRomFiles should succeed: {}",
                 std::wstring (error.begin(), error.end())).c_str());
         Assert::AreEqual (size_t (1), files.size(),
@@ -420,7 +420,7 @@ public:
 
         HRESULT hr = MachineConfigLoader::CollectRomFiles (json, files, error);
 
-        AssertFailed (hr ,
+        AssertFailed (hr,
             L"Malformed JSON must surface as an error");
         Assert::IsTrue (files.empty(),
             L"On parse failure no files should be reported");
@@ -467,7 +467,7 @@ public:
         HRESULT hr = MachineConfigLoader::Load (json, "TestMachine", paths, MockResolveAll,
                                                 config, error);
 
-        AssertSucceeded (hr ,
+        AssertSucceeded (hr,
             std::format (L"Load should succeed: {}",
                 std::wstring (error.begin(), error.end())).c_str());
 
@@ -542,7 +542,7 @@ public:
         HRESULT hr = MachineConfigLoader::Load (json, "TestMachine", paths, MockResolveAll,
                                                 config, error);
 
-        AssertFailed (hr ,
+        AssertFailed (hr,
             L"Unknown capabilityFlag value must surface as an error.");
         Assert::IsTrue (error.find ("capabilityFlag") != std::string::npos,
             L"Error message must mention the bad field.");
