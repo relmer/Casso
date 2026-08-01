@@ -76,6 +76,43 @@ public:
     HRESULT GetObject (const string & key, const JsonValue *& outValue) const { return GetValue (key, JsonType::Object, outValue); }
     HRESULT GetArray  (const string & key, const JsonValue *& outValue) const { return GetValue (key, JsonType::Array,  outValue); }
 
+    // Presence tests -- the same lookups, answered as a bool.
+    //
+    // Callers reading an OPTIONAL member kept writing
+    // `if (SUCCEEDED (obj.GetString (key, out)))`, which buries a call inside
+    // a macro argument -- and one with an out param, so the macro hides both
+    // the operation and where its result went. These make an optional read an
+    // ordinary call in an ordinary `if`.
+    //
+    // The object/array forms also fold in the `&& ptr != nullptr` that every
+    // caller had to repeat, and clear the out pointer first so a failed probe
+    // cannot leave a stale one behind.
+    bool HasString (const string & key, string &   outValue) const { HRESULT hr = GetString (key, outValue); return SUCCEEDED (hr); }
+    bool HasNumber (const string & key, double &   outValue) const { HRESULT hr = GetNumber (key, outValue); return SUCCEEDED (hr); }
+    bool HasInt    (const string & key, int &      outValue) const { HRESULT hr = GetInt    (key, outValue); return SUCCEEDED (hr); }
+    bool HasUint32 (const string & key, uint32_t & outValue) const { HRESULT hr = GetUint32 (key, outValue); return SUCCEEDED (hr); }
+    bool HasBool   (const string & key, bool &     outValue) const { HRESULT hr = GetBool   (key, outValue); return SUCCEEDED (hr); }
+
+    bool HasObject (const string & key, const JsonValue *& outValue) const
+    {
+        HRESULT  hr = S_OK;
+
+        outValue = nullptr;
+        hr       = GetObject (key, outValue);
+
+        return SUCCEEDED (hr) && outValue != nullptr;
+    }
+
+    bool HasArray (const string & key, const JsonValue *& outValue) const
+    {
+        HRESULT  hr = S_OK;
+
+        outValue = nullptr;
+        hr       = GetArray (key, outValue);
+
+        return SUCCEEDED (hr) && outValue != nullptr;
+    }
+
     const vector<pair<string, JsonValue>> & GetObjectEntries () const { return m_object; }
 
 private:

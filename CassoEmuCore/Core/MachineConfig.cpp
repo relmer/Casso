@@ -355,7 +355,7 @@ HRESULT MachineConfigLoader::LoadSystemRom (
         string  bankSizeStr;
         string  bankSelectStr;
 
-        if (SUCCEEDED (sysRomObj.GetString ("romBankSize", bankSizeStr)))
+        if (sysRomObj.HasString ("romBankSize", bankSizeStr))
         {
             hr = ParseHexAddress (bankSizeStr, outConfig.systemRom.romBankSize, outError);
             CHR (hr);

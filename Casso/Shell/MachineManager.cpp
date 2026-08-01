@@ -1326,9 +1326,9 @@ HRESULT MachineManager::SwitchMachine (const std::wstring & machineName)
                 std::string        colorMode;
                 WORD               colorCmd  = 0;
 
-                if (SUCCEEDED (mergedJson.GetObject ("$cassoUiPrefs", uiPrefs)) &&
+                if (mergedJson.HasObject ("$cassoUiPrefs", uiPrefs) &&
                     uiPrefs != nullptr &&
-                    SUCCEEDED (uiPrefs->GetString ("colorMode", colorMode)))
+                    uiPrefs->HasString ("colorMode", colorMode))
                 {
                     if      (colorMode == "color")  { colorCmd = IDM_VIEW_COLOR; }
                     else if (colorMode == "green")  { colorCmd = IDM_VIEW_GREEN; }
@@ -1357,7 +1357,7 @@ HRESULT MachineManager::SwitchMachine (const std::wstring & machineName)
                     const JsonValue *  extPrefs  = nullptr;
                     bool               connected = false;
 
-                    if (SUCCEEDED (mergedJson.GetObject ("$cassoUiPrefs", extPrefs)) &&
+                    if (mergedJson.HasObject ("$cassoUiPrefs", extPrefs) &&
                         extPrefs != nullptr)
                     {
                         HRESULT  hrExt = extPrefs->GetBool ("externalDriveConnected", connected);

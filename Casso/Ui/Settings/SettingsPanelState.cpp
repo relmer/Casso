@@ -683,7 +683,7 @@ HRESULT SettingsPanelState::ExtractUiPrefs (
     outPrefs.diskPath[0] = GetStringOpt (*uiObj, "disk1Path", "");
     outPrefs.diskPath[1] = GetStringOpt (*uiObj, "disk2Path", "");
 
-    if (SUCCEEDED (uiObj->GetArray ("writeProtect", wpArr)) && wpArr != nullptr)
+    if (uiObj->HasArray ("writeProtect", wpArr))
     {
         for (i = 0; i < wpArr->ArraySize() && i < 2; ++i)
         {
@@ -921,7 +921,7 @@ HRESULT SettingsPanelState::ExtractMachineInfo (
             std::string        type;
 
             if (dev.GetType() == JsonType::Object &&
-                SUCCEEDED (dev.GetString ("type", type)) &&
+                dev.HasString ("type", type) &&
                 type == "language-card")
             {
                 hasLanguageCard = true;
@@ -1031,7 +1031,7 @@ HRESULT SettingsPanelState::ExtractHardware (
 
     outEntries.clear();
 
-    if (SUCCEEDED (mergedJson.GetArray ("internalDevices", devArr)) && devArr != nullptr)
+    if (mergedJson.HasArray ("internalDevices", devArr))
     {
         for (i = 0; i < devArr->ArraySize(); ++i)
         {
@@ -1069,7 +1069,7 @@ HRESULT SettingsPanelState::ExtractHardware (
         }
     }
 
-    if (SUCCEEDED (mergedJson.GetArray ("slots", slotArr)) && slotArr != nullptr)
+    if (mergedJson.HasArray ("slots", slotArr))
     {
         for (i = 0; i < slotArr->ArraySize(); ++i)
         {
@@ -1171,7 +1171,7 @@ JsonValue SettingsPanelState::BuildJson (
         const JsonValue *  devSrc  = nullptr;
         const JsonValue *  slotSrc = nullptr;
 
-        if (SUCCEEDED (mergedJson.GetArray ("internalDevices", devSrc)) && devSrc != nullptr)
+        if (mergedJson.HasArray ("internalDevices", devSrc))
         {
             for (i = 0; i < devSrc->ArraySize(); ++i)
             {
@@ -1214,7 +1214,7 @@ JsonValue SettingsPanelState::BuildJson (
             }
         }
 
-        if (SUCCEEDED (mergedJson.GetArray ("slots", slotSrc)) && slotSrc != nullptr)
+        if (mergedJson.HasArray ("slots", slotSrc))
         {
             for (i = 0; i < slotSrc->ArraySize(); ++i)
             {

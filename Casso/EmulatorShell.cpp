@@ -1443,11 +1443,11 @@ void EmulatorShell::ApplyPersistedAudioPrefs()
             bool  eightyIn = false;
             bool  dvorak   = false;
 
-            if (SUCCEEDED (uiPrefs->GetBool ("eightyColumnSwitch", eightyIn)))
+            if (uiPrefs->HasBool ("eightyColumnSwitch", eightyIn))
             {
                 iieKbd->SetEightyColumnSwitchIn (eightyIn);
             }
-            if (SUCCEEDED (uiPrefs->GetBool ("keyboardDvorak", dvorak)))
+            if (uiPrefs->HasBool ("keyboardDvorak", dvorak))
             {
                 iieKbd->SetKeyboardSwitchDvorak (dvorak);
             }

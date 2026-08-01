@@ -303,7 +303,7 @@ bool  MachineConfigUpgrade::InjectPrinterSlot (JsonValue & arr)
         int               slot = 0;
 
         if (elem.GetType() == JsonType::Object &&
-            SUCCEEDED (elem.GetInt (kpszSlotNumberKey, slot)) &&
+            elem.HasInt (kpszSlotNumberKey, slot) &&
             slot == kPrinterDefaultSlot)
         {
             return false;

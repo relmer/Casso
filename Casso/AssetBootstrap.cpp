@@ -1624,7 +1624,7 @@ static wstring GetEmbeddedDisplayName (HINSTANCE hInstance, const wstring & mach
         hr = JsonParser::Parse (jsonText, root, parseError);
     }
 
-    if (SUCCEEDED (hr) && SUCCEEDED (root.GetString ("name", name)) && !name.empty())
+    if (SUCCEEDED (hr) && root.HasString ("name", name) && !name.empty())
     {
         result.assign (name.begin(), name.end());
     }

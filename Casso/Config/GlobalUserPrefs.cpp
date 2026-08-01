@@ -797,7 +797,7 @@ HRESULT GlobalUserPrefs::Load (
         const JsonValue *  global = nullptr;
 
 
-        if (SUCCEEDED (root.GetObject ("global", global)) && global != nullptr)
+        if (root.HasObject ("global", global))
         {
             hr = FromJson (*global);
             CHR (hr);
@@ -1047,22 +1047,22 @@ HRESULT GlobalUserPrefs::FromJson (const JsonValue & v)
         0xFF000000u | ((uint32_t) GetIntOpt (v, "colorMonitorTextCustom",
                                              (int) (colorMonitorTextCustomArgb & 0x00FFFFFFu)) & 0x00FFFFFFu);
 
-    if (SUCCEEDED (v.GetObject ("crt", crtSub)) && crtSub != nullptr)
+    if (v.HasObject ("crt", crtSub))
     {
         for (i = 0; i < GlobalUserPrefs::kCrtModeCount; i++)
         {
             const JsonValue *  modeObj = nullptr;
 
-            if (SUCCEEDED (crtSub->GetObject (s_kpszCrtModeKeys[i], modeObj)) && modeObj != nullptr)
+            if (crtSub->HasObject (s_kpszCrtModeKeys[i], modeObj))
             {
                 CrtModeFromJson (*modeObj, crtByMode[i]);
             }
         }
     }
 
-    if (SUCCEEDED (v.GetObject ("window", windowSub)) && windowSub != nullptr)
+    if (v.HasObject ("window", windowSub))
     {
-        if (SUCCEEDED (windowSub->GetObject ("placements", placementsObj)) && placementsObj != nullptr)
+        if (windowSub->HasObject ("placements", placementsObj))
         {
             PlacementsFromJson (*placementsObj, window.placements);
         }
@@ -1072,7 +1072,7 @@ HRESULT GlobalUserPrefs::FromJson (const JsonValue & v)
     // recentDisks: drop non-string and empty entries silently per
     // data-model.md §1; cap is enforced by DiskMru on use.
     recentDisks.clear();
-    if (SUCCEEDED (v.GetArray ("recentDisks", recentArr)) && recentArr != nullptr)
+    if (v.HasArray ("recentDisks", recentArr))
     {
         RecentDisksFromJson (*recentArr, recentDisks);
     }
@@ -1080,7 +1080,7 @@ HRESULT GlobalUserPrefs::FromJson (const JsonValue & v)
     // recentDiskLoadedAt: parallel Unix-second load times. Absent in a
     // legacy prefs file, leaving every recent disk with an unknown time.
     recentDiskLoadedAt.clear();
-    if (SUCCEEDED (v.GetArray ("recentDiskLoadedAt", loadedArr)) && loadedArr != nullptr)
+    if (v.HasArray ("recentDiskLoadedAt", loadedArr))
     {
         RecentDiskTimesFromJson (*loadedArr, recentDiskLoadedAt);
     }
