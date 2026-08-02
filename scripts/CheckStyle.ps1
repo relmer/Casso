@@ -61,7 +61,18 @@ param(
 
     [string]$Revision = 'HEAD',
 
-    [switch]$SkipCommitCheck
+    [switch]$SkipCommitCheck,
+
+    # Enables the structural rules (CS0014/15/16). Off by default because
+    # their backlog is not yet worked: 1,882 tree-wide, and 260 of those sit
+    # on lines this branch itself added, so switching them on now would block
+    # every push rather than only new violations. The diff scoping is real --
+    # 1,882 -> 260 is the mechanism doing its job -- but scoping cannot help
+    # when the branch is what introduced them.
+    #
+    # Run `-Mode Tree -Structural` for the audit; flip the default once the
+    # backlog is at zero.
+    [switch]$Structural
 )
 
 $ErrorActionPreference = 'Stop'
@@ -596,6 +607,151 @@ function Test-EhmConditionCalls
 
 ####################################################################
 #
+#  Test-Structure  (CS0014 / CS0015 / CS0016)
+#
+#  The three formatting rules that a per-line regex cannot see:
+#
+#    CS0014  a function definition in a .cpp has an 80-slash banner
+#    CS0015  a top-level banner is preceded by EXACTLY 5 blank lines
+#    CS0016  a declaration block is followed by EXACTLY 3 blank lines
+#
+#  These need whole-file context, which is why they sat un-gated: a
+#  file-scoped check fails a push for violations the diff never touched,
+#  and that is what made the first cut of CS0011 unusable.
+#
+#  The fix is to keep the ANALYSIS whole-file and scope the REPORTING.
+#  Every finding carries the line range it is about; in Diff mode a
+#  finding is reported only when the diff added a line inside that
+#  range. Editing the body of an old function stays silent; adding a
+#  function, or moving a banner, does not.
+#
+#  Ranges rather than single lines because the evidence spans lines: a
+#  wrong banner gap is as much about the blank run as the banner, and a
+#  reader who adds blanks above an existing banner has changed the thing
+#  the rule is about without touching the banner itself.
+#
+####################################################################
+
+function Test-Structure
+{
+    param([string[]] $Files, $AddedIndex)
+
+    $bad = @()
+
+    foreach ($rel in $Files)
+    {
+        if ($rel -notlike '*.cpp' -and $rel -notlike '*.h') { continue }
+        if ($rel -like '*External/*')                       { continue }
+
+        $full = Join-Path $repoRoot $rel
+        if (-not (Test-Path -LiteralPath $full)) { continue }
+
+        $lines    = [IO.File]::ReadAllLines($full)
+        $findings = @()
+
+        # ---- CS0015: blank run before an OPENING banner line -----------
+        # Only the opening line: a banner is two rows of slashes and the
+        # closing one always has zero blanks before it.
+        $run = 0
+        for ($i = 0; $i -lt $lines.Length; $i++)
+        {
+            if ($lines[$i].Trim() -eq '') { $run++; continue }
+
+            $isBanner = ($lines[$i] -match '^/{60,}')
+            $isOpener = $isBanner -and ($i + 1 -lt $lines.Length) -and ($lines[$i + 1] -match '^\s*//')
+
+            if ($isOpener -and $i -gt 0 -and $run -ne 5)
+            {
+                $findings += [pscustomobject]@{
+                    Id    = 'CS0015'
+                    First = [Math]::Max(1, $i + 1 - $run)
+                    Last  = $i + 1
+                    Text  = "$($run) blank line(s) before a top-level banner -- exactly 5 required"
+                }
+            }
+            $run = 0
+        }
+
+        # ---- CS0014 / CS0016: per function definition -------------------
+        if ($rel -like '*.cpp')
+        {
+            for ($i = 1; $i -lt $lines.Length; $i++)
+            {
+                if ($lines[$i] -ne '{') { continue }
+
+                $sig = $lines[$i - 1]
+                if ($sig -notmatch '^[A-Za-z_~][A-Za-z0-9_:<>,&*\s]*\(')                                  { continue }
+                if ($sig -match '^\s*(if|for|while|switch|else|do|struct|class|enum|namespace|union)\b')   { continue }
+
+                # CS0014 -- banner anywhere in the 12 lines above
+                $hasBanner = $false
+                for ($k = [Math]::Max(0, $i - 12); $k -lt $i; $k++)
+                {
+                    if ($lines[$k] -match '^/{60,}') { $hasBanner = $true; break }
+                }
+
+                if (-not $hasBanner)
+                {
+                    $findings += [pscustomobject]@{
+                        Id    = 'CS0014'
+                        First = $i
+                        Last  = $i + 1
+                        Text  = 'function definition has no //// comment banner'
+                    }
+                }
+
+                # CS0016 -- declaration block then exactly 3 blank lines
+                $d       = $i + 1
+                $sawDecl = $false
+                while ($d -lt $lines.Length -and
+                       $lines[$d] -match '^\s{4}[A-Za-z_][A-Za-z0-9_:<>,\s\*&\[\]]*\s+\w+\s*(=[^;]*)?;\s*$' -and
+                       $lines[$d] -notmatch '\breturn\b|\bdelete\b|\+\+|--')
+                {
+                    $sawDecl = $true; $d++
+                }
+
+                if ($sawDecl)
+                {
+                    $blanks = 0
+                    while ($d + $blanks -lt $lines.Length -and $lines[$d + $blanks].Trim() -eq '') { $blanks++ }
+
+                    # 0 blanks is the "declarations only, no body" shape.
+                    if ($blanks -ne 3 -and $blanks -ne 0)
+                    {
+                        $findings += [pscustomobject]@{
+                            Id    = 'CS0016'
+                            First = $d
+                            Last  = $d + $blanks + 1
+                            Text  = "$blanks blank line(s) after the declaration block -- exactly 3 required"
+                        }
+                    }
+                }
+            }
+        }
+
+        # ---- report, scoped ---------------------------------------------
+        foreach ($f in $findings)
+        {
+            if ($null -ne $AddedIndex)
+            {
+                $touched = $false
+                for ($n = $f.First; $n -le $f.Last; $n++)
+                {
+                    if ($AddedIndex.Contains("$rel|$n")) { $touched = $true; break }
+                }
+                if (-not $touched) { continue }
+            }
+
+            $bad += [pscustomobject]@{ Id = $f.Id; Text = "${rel}:$($f.Last) -- $($f.Text)" }
+        }
+    }
+
+    return $bad
+}
+
+
+####################################################################
+#
 #  Test-CommitMessages
 #
 #  The repo forbids Claude / Claude Code attribution in commit
@@ -703,6 +859,25 @@ foreach ($b in (Test-PchFirst -Files $touchedFiles))
 foreach ($b in (Test-EhmConditionCalls -Files $touchedFiles))
 {
     $sink.Add([pscustomobject]@{ Id = 'CS0011'; Text = $b })
+}
+
+# Structural rules analyse the whole file but report only where the diff
+# reached, so a pre-existing violation in a file you merely touched cannot
+# block a push. Tree mode passes $null and reports everything.
+$addedIndex = $null
+
+if ($Mode -eq 'Diff')
+{
+    $addedIndex = [System.Collections.Generic.HashSet[string]]::new()
+    foreach ($a in $added) { [void] $addedIndex.Add("$($a.File)|$($a.Line)") }
+}
+
+if ($Structural)
+{
+    foreach ($b in (Test-Structure -Files $touchedFiles -AddedIndex $addedIndex))
+    {
+        $sink.Add([pscustomobject]@{ Id = $b.Id; Text = $b.Text })
+    }
 }
 
 if (-not $SkipCommitCheck -and $Mode -eq 'Diff')

@@ -42,6 +42,44 @@ a bool, so a failing fixture path reported "Expected: 1, Actual: 0" instead of
 `JsonValue::HasString`, which quotes the pattern it exists to replace. A
 checker that fails a file for *describing* the rule is one people switch off.
 
+## Structural rules — checker built, gate not yet armed
+
+`scripts/CheckStyle.ps1 -Mode Tree -Structural` now audits the three
+formatting rules a per-line regex cannot see. They are **off by default**;
+`-Structural` turns them on.
+
+| ID | Rule | Backlog |
+|----|------|--------:|
+| `CS0014` | a `.cpp` function definition has an 80-slash banner | 236 |
+| `CS0015` | a top-level banner is preceded by exactly 5 blank lines | 1,056 |
+| `CS0016` | a declaration block is followed by exactly 3 blank lines | 590 |
+
+**How the diff scoping works, and why it is not enough here.** The analysis is
+whole-file; the *reporting* is scoped. Each finding carries the line range it
+is about, and in `Diff` mode it is reported only when the diff added a line
+inside that range — so editing the body of an old function stays silent while
+adding a function does not. Ranges rather than single lines, because the
+evidence spans lines: a wrong banner gap is as much about the blank run as the
+banner.
+
+That mechanism works — 1,882 tree-wide scopes down to 260 on this branch. But
+those 260 sit on lines **this branch itself added**, and scoping cannot help
+when the branch is what introduced them. Arming the gate today would block
+every push instead of only new violations, which is the failure that made the
+first cut of CS0011 unusable. So the switch exists, defaults off, and flips
+once the backlog is worked.
+
+**One measurement correction worth keeping.** An earlier estimate put CS0015 at
+~440. It is 1,056. The first scanner counted every banner twice — a banner is
+two rows of slashes and the closing row always has zero blanks before it — and
+"fixing" that by halving was wrong too; the real check is to count only the
+*opening* row, which is the one followed by a `//` line.
+
+Also worth knowing before working CS0015: the overwhelmingly common wrong value
+is **4**, not 3 or 6. The rule says 5, and the standards' own example does show
+5 blank lines, so 4 is a genuine and near-universal drift rather than a
+misreading of the rule.
+
 ## Documented but NOT gated — formatting
 
 Three rules from `copilot-instructions.md` that the gate does not check, with
