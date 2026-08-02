@@ -756,7 +756,8 @@ function Test-Structure
 #  Test-CommitMessages
 #
 #  The repo forbids Claude / Claude Code attribution in commit
-#  messages and PR bodies. Checked over the commits being pushed.
+#  messages and PR bodies, and requires American spelling everywhere --
+#  which includes the message, not just the files it carries.
 #
 ####################################################################
 
@@ -764,17 +765,52 @@ function Test-CommitMessages
 {
     param([string]$Base, [string]$Tip)
 
-    $bad     = @()
-    $shas    = git -C $repoRoot rev-list "$Base..$Tip" 2>$null
+    $bad = @()
+
+    # The CS0003 word list, reused rather than restated: a commit message is
+    # prose the project ships. The file rules only ever looked at *.cpp / *.h /
+    # *.md, which is how a "Behaviour" reached origin in 7c18ea45.
+    $britishRule = $checks | Where-Object { $_.Id -eq 'CS0003' } | Select-Object -First 1
+
+    # A silent miss would be worse than no check: looking the rule up by id
+    # means a rename turns the gate off without failing anything.
+    if ($null -eq $britishRule)
+    {
+        return @('CheckStyle internal error -- CS0003 rule not found for the commit-message scan')
+    }
+
+    # Messages are gated over UNPUSHED commits only, unlike the file rules which
+    # span the branch. A message is effectively immutable once pushed -- fixing
+    # one means rewriting history -- so branch-wide scoping would leave the gate
+    # permanently red on anything already out there, which is exactly the
+    # baseline problem that gets a check switched off. The remote tracking ref
+    # is the honest base, falling back to $Base on a never-pushed branch.
+    $upstream = git -C $repoRoot rev-parse --abbrev-ref '@{upstream}' 2>$null
+
+    if ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrWhiteSpace($upstream))
+    {
+        $Base = $upstream.Trim()
+    }
+
+    $shas = git -C $repoRoot rev-list "$Base..$Tip" 2>$null
 
     foreach ($sha in $shas)
     {
-        $body = git -C $repoRoot log -1 --format=%B $sha 2>$null | Out-String
+        $body  = git -C $repoRoot log -1 --format=%B $sha 2>$null | Out-String
+        $short = $sha.Substring(0, 8)
 
         if ($body -imatch 'Co-Authored-By:\s*Claude|Generated with \[Claude Code\]|noreply@anthropic\.com')
         {
-            $short = $sha.Substring(0, 8)
-            $bad  += "commit ${short} -- Claude attribution is not permitted in commit messages"
+            $bad += "commit ${short} -- Claude attribution is not permitted in commit messages"
+        }
+
+        # STYLE-ALLOW-BRITISH opts a message out, following the per-line
+        # Suppress precedent above. A spelling-sweep commit has to name the
+        # words it is replacing, exactly as copilot-instructions.md does, and a
+        # rule that cannot describe itself is one people route around.
+        if ($body -match $britishRule.Pattern -and $body -notmatch 'STYLE-ALLOW-BRITISH')
+        {
+            $bad += "commit ${short} -- $($britishRule.Message) (found '$($Matches[0])')"
         }
     }
 
