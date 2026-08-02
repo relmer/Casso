@@ -66,12 +66,15 @@ void DxuiButton::SetLabel (const std::wstring & label)
 
 bool DxuiButton::HitTest (int x, int y) const
 {
-    if (!m_visible || !m_enabled)
-    {
-        return false;
-    }
+    bool  isHit = false;
 
-    return x >= m_boundsDip.left && x < m_boundsDip.right && y >= m_boundsDip.top && y < m_boundsDip.bottom;
+
+
+    isHit = m_visible && m_enabled &&
+            x >= m_boundsDip.left && x < m_boundsDip.right &&
+            y >= m_boundsDip.top  && y < m_boundsDip.bottom;
+
+    return isHit;
 }
 
 
@@ -132,18 +135,19 @@ void DxuiButton::Click()
 
 bool DxuiButton::OnKey (WPARAM vk)
 {
-    if (!m_visible || !m_enabled || !m_focused)
-    {
-        return false;
-    }
+    bool  isActivateKey = false;
 
-    if (vk == VK_RETURN || vk == VK_SPACE)
+
+
+    isActivateKey = m_visible && m_enabled && m_focused &&
+                    (vk == VK_RETURN || vk == VK_SPACE);
+
+    if (isActivateKey)
     {
         Click();
-        return true;
     }
 
-    return false;
+    return isActivateKey;
 }
 
 
@@ -179,19 +183,18 @@ void DxuiButton::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const 
     uint32_t color        = 0;
     float    fontDip      = m_scaler.Pxf (13.0f);
     float    autoBorderPx = m_scaler.Pxf (1.0f);
+    bool     isLink       = (m_variant == Variant::Link);
 
 
 
-    if (!m_visible)
-    {
-        return;
-    }
+    BAIL_OUT_IF (!m_visible, S_OK);
 
     //
     //  Link variant: accent-colored text, no fill / border, left-aligned
     //  (a clickable hyperlink). The consumer wires SetOnClick to open the URL.
+    //  It paints nothing else, so this is the whole job when it applies.
     //
-    if (m_variant == Variant::Link)
+    if (isLink)
     {
         uint32_t  linkColor = theme.Accent();
 
@@ -225,9 +228,9 @@ void DxuiButton::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const 
                                  m_scaler.Pxf (s_kFocusRingPx),
                                  theme.FocusRing());
         }
-
-        return;
     }
+
+    BAIL_OUT_IF (isLink, S_OK);
 
     if (m_variant == Variant::Primary)
     {
@@ -298,6 +301,9 @@ void DxuiButton::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const 
                              focusThick,
                              theme.FocusRing());
     }
+
+Error:
+    return;
 }
 
 
@@ -330,6 +336,8 @@ bool DxuiButton::OnMouse (const DxuiMouseEvent & ev)
 {
     bool  prevHover   = m_hover;
     bool  prevPressed = m_pressed;
+    bool  handled     = false;
+    bool  fire        = false;
 
 
 
@@ -337,29 +345,32 @@ bool DxuiButton::OnMouse (const DxuiMouseEvent & ev)
     {
     case DxuiMouseEventKind::Move:
         SetMouse (ev.positionDip.x, ev.positionDip.y, m_pressed);
-        return m_hover != prevHover || m_pressed != prevPressed;
+        handled = m_hover != prevHover || m_pressed != prevPressed;
+        break;
     case DxuiMouseEventKind::Down:
         if (ev.button == DxuiMouseButton::Left)
         {
             SetMouse (ev.positionDip.x, ev.positionDip.y, true);
-            return m_pressed;
+            handled = m_pressed;
         }
-        return false;
+        break;
     case DxuiMouseEventKind::Up:
         if (ev.button == DxuiMouseButton::Left)
         {
-            bool  fire = m_pressed && HitTest (ev.positionDip.x, ev.positionDip.y);
+            fire = m_pressed && HitTest (ev.positionDip.x, ev.positionDip.y);
             SetMouse (ev.positionDip.x, ev.positionDip.y, false);
             if (fire)
             {
                 Click();
             }
-            return fire;
+            handled = fire;
         }
-        return false;
+        break;
     default:
-        return false;
+        break;
     }
+
+    return handled;
 }
 
 
@@ -377,12 +388,16 @@ bool DxuiButton::OnMouse (const DxuiMouseEvent & ev)
 
 LPCWSTR DxuiButton::CursorForPoint (POINT clientPx) const
 {
+    LPCWSTR  cursor = nullptr;
+
+
+
     if (m_variant == Variant::Link && HitTest (clientPx.x, clientPx.y))
     {
-        return IDC_HAND;
+        cursor = IDC_HAND;
     }
 
-    return nullptr;
+    return cursor;
 }
 
 
@@ -397,10 +412,14 @@ LPCWSTR DxuiButton::CursorForPoint (POINT clientPx) const
 
 bool DxuiButton::OnKey (const DxuiKeyEvent & ev)
 {
-    if (ev.kind != DxuiKeyEventKind::Down)
+    bool  handled = false;
+
+
+
+    if (ev.kind == DxuiKeyEventKind::Down)
     {
-        return false;
+        handled = OnKey (ev.vk);
     }
 
-    return OnKey (ev.vk);
+    return handled;
 }
