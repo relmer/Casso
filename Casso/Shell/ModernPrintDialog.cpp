@@ -31,6 +31,10 @@ static constexpr int     s_kPreviewDpi     = 150;
 static constexpr float   s_kLetterWDips    = 816.0f;
 static constexpr float   s_kLetterHDips    = 1056.0f;
 
+
+
+
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  PrintPageSource
@@ -428,6 +432,7 @@ Error:
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  ModernPrintDialog::~ModernPrintDialog
@@ -449,6 +454,7 @@ ModernPrintDialog::~ModernPrintDialog()
         }
     }
 }
+
 
 
 
@@ -486,6 +492,8 @@ Error:
 static HRESULT ModernTaskCompleted (HWND postHwnd, awgp::IPrintTaskCompletedEventArgs * done)
 {
     awgp::PrintTaskCompletion  completion = awgp::PrintTaskCompletion_Abandoned;
+
+
 
     done->get_Completion (&completion);
 
@@ -543,6 +551,7 @@ Error:
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  ModernPrintDialog::ShowAsync
@@ -564,6 +573,8 @@ HRESULT ModernPrintDialog::ShowAsync (HWND hwnd, const PrintRaster & raster, int
     ComPtr<IInspectable>          showOp;
     ComPtr<IUnknown>              session;
     HWND                          postHwnd = hwnd;
+
+
 
     // Newer Windows builds route the modern print callbacks through a
     // DispatcherQueue; without one on the calling thread the dialog can sit at

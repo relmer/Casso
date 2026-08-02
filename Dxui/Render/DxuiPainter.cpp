@@ -39,11 +39,6 @@ static constexpr char  s_kPixelShaderSrc[] =
 
 
 
-
-
-
-
-
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  ~DxuiPainter
@@ -174,6 +169,8 @@ HRESULT DxuiPainter::CreateShaders()
     ComPtr<ID3DBlob>    vsBlob;
     ComPtr<ID3DBlob>    psBlob;
     ComPtr<ID3DBlob>    errors;
+
+
 
     D3D11_INPUT_ELEMENT_DESC  inputElements[] =
     {
@@ -345,6 +342,7 @@ HRESULT DxuiPainter::Begin (int viewportWidthPx, int viewportHeightPx)
     HRESULT  hr = S_OK;
 
 
+
     DXUI_ASSERT_UI_THREAD();
 
     CBRA (m_device);
@@ -372,6 +370,8 @@ Error:
 DxuiPainter::Vertex DxuiPainter::MakeVertex (uint32_t argbColor, float alphaMultiplier)
 {
     constexpr float   kByteToUnit            = 1.0f / 255.0f;
+
+
 
     Vertex  v;
     float   a = ((argbColor >> 24) & 0xFF) * kByteToUnit;
@@ -584,6 +584,7 @@ void DxuiPainter::FillCircleApprox (
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  FillEllipseApprox
@@ -621,6 +622,7 @@ void DxuiPainter::FillEllipseApprox (
         FillSpanAA (cxPx - half, cxPx + half, y0, y1 - y0, argbColor);
     }
 }
+
 
 
 
@@ -670,6 +672,7 @@ void DxuiPainter::FillSpanAA (float x0, float x1, float y, float h, uint32_t arg
     if (rightCov > 0.004f)
         FillRect (xr, y, 1.0f, h, withA (rightCov));
 }
+
 
 
 
@@ -738,6 +741,7 @@ void DxuiPainter::FillConvexQuad (
         }
     }
 }
+
 
 
 

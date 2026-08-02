@@ -8,6 +8,7 @@
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  ConfigureDownload
@@ -20,6 +21,7 @@ void DownloadDialog::ConfigureDownload (std::unique_ptr<DxuiPanel> content, bool
     m_requiresRoms   = requiresRoms;
     m_tickMs         = tickMs;
 }
+
 
 
 
@@ -50,6 +52,7 @@ void DownloadDialog::OnCreate()
 
     SetDialogTickIntervalMs (m_tickMs);
 }
+
 
 
 

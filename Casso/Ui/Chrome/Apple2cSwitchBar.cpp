@@ -6,6 +6,7 @@
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  Apple2cSwitchBar::LerpArgb
@@ -25,6 +26,7 @@ uint32_t Apple2cSwitchBar::LerpArgb (uint32_t a, uint32_t b, float t)
 
     return (mix (24) << 24) | (mix (16) << 16) | (mix (8) << 8) | mix (0);
 }
+
 
 
 
@@ -62,6 +64,7 @@ void Apple2cSwitchBar::ShearFill (
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  Apple2cSwitchBar::ShearGrad
@@ -92,6 +95,7 @@ void Apple2cSwitchBar::ShearGrad (
                    tan, refBottom, LerpArgb (top, bot, (t0 + t1) * 0.5f));
     }
 }
+
 
 
 
@@ -131,6 +135,7 @@ void Apple2cSwitchBar::ShearGradH (
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  MeasureLabel
@@ -147,6 +152,7 @@ float Apple2cSwitchBar::MeasureLabel (const wchar_t * text, float fontPx) const
     float  th = 0.0f;
 
 
+
     if (m_textRenderer != nullptr)
     {
         HRESULT  hrM = m_textRenderer->MeasureString (text, fontPx, kFontFamily, tw, th);
@@ -160,6 +166,7 @@ float Apple2cSwitchBar::MeasureLabel (const wchar_t * text, float fontPx) const
 
     return tw;
 }
+
 
 
 
@@ -243,6 +250,7 @@ void Apple2cSwitchBar::Layout (const RECT & boundsDip, const DxuiDpiScaler & sca
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  PartAt / TooltipTextAt
@@ -278,6 +286,7 @@ const wchar_t * Apple2cSwitchBar::TooltipTextAt (int x, int y) const
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  PaintLabel
@@ -305,6 +314,7 @@ void Apple2cSwitchBar::PaintLabel (IDxuiTextRenderer & text, const RECT & r, con
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  PaintResetButton
@@ -320,6 +330,8 @@ void Apple2cSwitchBar::PaintLabel (IDxuiTextRenderer & text, const RECT & r, con
 void Apple2cSwitchBar::PaintResetButton (IDxuiPainter & p, IDxuiTextRenderer & text, const RECT & r)
 {
     bool  dn = (m_pressedPart == Part::Reset);
+
+
 
     // A nearly-flat cream cap (faint top sheen, no strong vertical gradient that
     // would dome it) with a thin bottom/right shadow bevel. Pressing just flips
@@ -344,6 +356,7 @@ void Apple2cSwitchBar::PaintResetButton (IDxuiPainter & p, IDxuiTextRenderer & t
 
     text.PopTextSkew();
 }
+
 
 
 
@@ -422,6 +435,7 @@ void Apple2cSwitchBar::PaintSlantCap (IDxuiPainter & p, const RECT & r, bool pre
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  PaintKey
@@ -439,6 +453,7 @@ void Apple2cSwitchBar::PaintKey (IDxuiPainter & p, const RECT & keyRect, bool pr
                    pressedIn ? kKeyFaceIn : kCapHi,
                    pressedIn ? kKeyLoIn   : kCap);
 }
+
 
 
 
@@ -490,6 +505,7 @@ void Apple2cSwitchBar::PaintLed (IDxuiPainter & p, const RECT & r, bool lit)
                    bodyW * kLedSpecularFrac, h * kLedSpecularFrac, tan, refB, kLedSpecular);
     }
 }
+
 
 
 

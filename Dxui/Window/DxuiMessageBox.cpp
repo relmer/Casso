@@ -38,6 +38,7 @@ static constexpr int  s_kMaxHeightDip    = 560;
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  DxuiMessageBoxBody -- the content control: an optional semantic glyph in a
@@ -121,6 +122,7 @@ private:
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  DxuiMessageBoxWindow -- the modal dialog: builds the body + buttons in
@@ -175,6 +177,7 @@ private:
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  DxuiMessageBoxWindow::EstimateTextHeightDip
@@ -211,6 +214,7 @@ int DxuiMessageBoxWindow::EstimateTextHeightDip (const std::wstring & text, bool
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  DxuiMessageBox
@@ -220,6 +224,8 @@ int DxuiMessageBoxWindow::EstimateTextHeightDip (const std::wstring & text, bool
 int DxuiMessageBox (HWND owner, const IDxuiTheme * theme, const wchar_t * text, const wchar_t * caption, UINT uType)
 {
     using ButtonSpec = DxuiMessageBoxWindow::ButtonSpec;
+
+
 
     std::vector<ButtonSpec>   buttons;
     std::wstring              body       = (text != nullptr) ? text : L"";

@@ -19,6 +19,8 @@ void CpuOperations::AddWithCarry (Cpu & cpu, Byte operand)
     Byte originalA = cpu.A;
     Word sum       = cpu.A + operand + carryIn;
 
+
+
     if (cpu.status.flags.decimal)
     {
         // BCD add: adjust low nibble then high nibble (NMOS 6502 algorithm).
@@ -87,6 +89,8 @@ void CpuOperations::And (Cpu & cpu, Byte operand)
 void CpuOperations::BitTest (Cpu & cpu, Byte operand)
 {
     Byte test = cpu.A & operand;
+
+
 
     cpu.status.flags.zero     = test == 0;
     cpu.status.flags.overflow = (bool) (operand & 0x40);
@@ -158,6 +162,8 @@ void CpuOperations::Compare (Cpu & cpu, Byte & registerAffected, Byte operand)
 {
     Word cmp = registerAffected - operand;
 
+
+
     cpu.status.flags.carry    = cmp < 0x100; // NB:  C functions as C' during subtraction (no borrow = carry set)
     cpu.status.flags.zero     = cmp == 0;
     cpu.status.flags.negative = (bool) (cmp & 0x80);
@@ -176,6 +182,8 @@ void CpuOperations::Compare (Cpu & cpu, Byte & registerAffected, Byte operand)
 void CpuOperations::Decrement (Cpu & cpu, Byte * pRegisterAffected, Word effectiveAddress)
 {
     Byte value = pRegisterAffected ? *pRegisterAffected : cpu.ReadByte (effectiveAddress);
+
+
 
     value--;
 
@@ -208,6 +216,8 @@ void CpuOperations::Decrement (Cpu & cpu, Byte * pRegisterAffected, Word effecti
 void CpuOperations::DecrementAndCompare (Cpu & cpu, Word effectiveAddress)
 {
     Byte value = cpu.ReadByte (effectiveAddress);
+
+
 
     value--;
 
@@ -269,6 +279,8 @@ void CpuOperations::ShiftLeftAndOr (Cpu & cpu, Word effectiveAddress)
 {
     Byte value = cpu.ReadByte (effectiveAddress);
 
+
+
     cpu.status.flags.carry = value >> 7;
     value <<= 1;
 
@@ -295,6 +307,8 @@ void CpuOperations::RotateLeftAndAnd (Cpu & cpu, Word effectiveAddress)
     Byte value   = cpu.ReadByte (effectiveAddress);
     Byte carryIn = cpu.status.flags.carry;
 
+
+
     cpu.status.flags.carry = value >> 7;
     value <<= 1;
     value  |= carryIn;
@@ -320,6 +334,8 @@ void CpuOperations::RotateLeftAndAnd (Cpu & cpu, Word effectiveAddress)
 void CpuOperations::ShiftRightAndXor (Cpu & cpu, Word effectiveAddress)
 {
     Byte value = cpu.ReadByte (effectiveAddress);
+
+
 
     cpu.status.flags.carry = value & 1;
     value >>= 1;
@@ -348,6 +364,8 @@ void CpuOperations::RotateRightAndAdd (Cpu & cpu, Word effectiveAddress)
     Byte value   = cpu.ReadByte (effectiveAddress);
     Byte carryIn = cpu.status.flags.carry;
 
+
+
     cpu.status.flags.carry = value & 1;
     value >>= 1;
     value  |= (Byte) (carryIn << 7);
@@ -374,12 +392,15 @@ void CpuOperations::IncrementAndSubtract (Cpu & cpu, Word effectiveAddress)
 {
     Byte value = cpu.ReadByte (effectiveAddress);
 
+
+
     value++;
 
     cpu.WriteByte (effectiveAddress, value);
 
     SubtractWithCarry (cpu, value);
 }
+
 
 
 
@@ -393,6 +414,8 @@ void CpuOperations::IncrementAndSubtract (Cpu & cpu, Word effectiveAddress)
 void CpuOperations::Increment (Cpu & cpu, Byte * pRegisterAffected, Word effectiveAddress)
 {
     Byte value = pRegisterAffected ? *pRegisterAffected : cpu.ReadByte (effectiveAddress);
+
+
 
     value++;
 
@@ -514,6 +537,8 @@ void CpuOperations::Push (Cpu & cpu, Byte * pSourceRegister)
 {
     Byte value = *pSourceRegister;
 
+
+
     // PHP pushes the status register with the Break and AlwaysOne bits set.
     if (pSourceRegister == &cpu.status.status)
     {
@@ -536,6 +561,8 @@ void CpuOperations::Push (Cpu & cpu, Byte * pSourceRegister)
 void CpuOperations::Pull (Cpu & cpu, Byte * pDestinationRegister)
 {
     Byte value = cpu.PopByte();
+
+
 
     if (pDestinationRegister == &cpu.status.status)
     {
@@ -648,6 +675,8 @@ void CpuOperations::RotateLeft (Cpu & cpu, Byte * pRegisterAffected, Word effect
     Byte value         = pRegisterAffected ? *pRegisterAffected : cpu.ReadByte (effectiveAddress);
     Byte originalValue = value;
 
+
+
     value <<= 1;
     value  |= cpu.status.flags.carry;
 
@@ -679,6 +708,8 @@ void CpuOperations::RotateRight (Cpu & cpu, Byte * pRegisterAffected, Word effec
 {
     Byte value         = pRegisterAffected ? *pRegisterAffected : cpu.ReadByte (effectiveAddress);
     Byte originalValue = value;
+
+
 
     value >>= 1;
     value  |= cpu.status.flags.carry << 7;
@@ -761,6 +792,8 @@ void CpuOperations::SubtractWithCarry (Cpu & cpu, Byte operand)
     Byte borrowIn   = !cpu.status.flags.carry;
     Word difference = cpu.A - operand - borrowIn;
 
+
+
     // On NMOS 6502, V, N, Z, C are all from the binary subtraction,
     // even in decimal mode. Only the result (A) is BCD-adjusted.
     cpu.status.flags.overflow =
@@ -817,6 +850,7 @@ void CpuOperations::Xor (Cpu & cpu, Byte operand)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  StoreZero
@@ -833,6 +867,7 @@ void CpuOperations::StoreZero (Cpu & cpu, Word effectiveAddress)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  TestAndSetBits
@@ -845,10 +880,13 @@ void CpuOperations::TestAndSetBits (Cpu & cpu, Word effectiveAddress)
 {
     Byte value = cpu.ReadByte (effectiveAddress);
 
+
+
     cpu.status.flags.zero = (cpu.A & value) == 0;
 
     cpu.WriteByte (effectiveAddress, static_cast<Byte> (value | cpu.A));
 }
+
 
 
 
@@ -865,10 +903,13 @@ void CpuOperations::TestAndResetBits (Cpu & cpu, Word effectiveAddress)
 {
     Byte value = cpu.ReadByte (effectiveAddress);
 
+
+
     cpu.status.flags.zero = (cpu.A & value) == 0;
 
     cpu.WriteByte (effectiveAddress, static_cast<Byte> (value & ~cpu.A));
 }
+
 
 
 
@@ -886,10 +927,13 @@ void CpuOperations::ResetMemoryBit (Cpu & cpu, Instruction instruction, Word eff
     Byte bit   = (instruction.asByte >> 4) & 0x07;
     Byte value = cpu.ReadByte (effectiveAddress);
 
+
+
     value &= static_cast<Byte> (~(1 << bit));
 
     cpu.WriteByte (effectiveAddress, value);
 }
+
 
 
 
@@ -907,10 +951,13 @@ void CpuOperations::SetMemoryBit (Cpu & cpu, Instruction instruction, Word effec
     Byte bit   = (instruction.asByte >> 4) & 0x07;
     Byte value = cpu.ReadByte (effectiveAddress);
 
+
+
     value |= static_cast<Byte> (1 << bit);
 
     cpu.WriteByte (effectiveAddress, value);
 }
+
 
 
 
@@ -927,11 +974,14 @@ void CpuOperations::BitBranchReset (Cpu & cpu, Instruction instruction, Byte val
 {
     Byte bit = (instruction.asByte >> 4) & 0x07;
 
+
+
     if ((value & (1 << bit)) == 0)
     {
         cpu.PC = target;
     }
 }
+
 
 
 
@@ -948,11 +998,14 @@ void CpuOperations::BitBranchSet (Cpu & cpu, Instruction instruction, Byte value
 {
     Byte bit = (instruction.asByte >> 4) & 0x07;
 
+
+
     if ((value & (1 << bit)) != 0)
     {
         cpu.PC = target;
     }
 }
+
 
 
 
@@ -969,6 +1022,7 @@ void CpuOperations::BranchAlways (Cpu & cpu, Word target)
 {
     cpu.PC = target;
 }
+
 
 
 
@@ -990,6 +1044,7 @@ void CpuOperations::BitTestImmediate (Cpu & cpu, Byte operand)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  AddWithCarryCmos
@@ -1004,6 +1059,8 @@ void CpuOperations::AddWithCarryCmos (Cpu & cpu, Byte operand)
     Byte carryIn   = cpu.status.flags.carry;
     Byte originalA = cpu.A;
     Word sum       = cpu.A + operand + carryIn;
+
+
 
     if (cpu.status.flags.decimal)
     {
@@ -1044,6 +1101,7 @@ void CpuOperations::AddWithCarryCmos (Cpu & cpu, Byte operand)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  SubtractWithCarryCmos
@@ -1057,6 +1115,8 @@ void CpuOperations::SubtractWithCarryCmos (Cpu & cpu, Byte operand)
 {
     Byte borrowIn   = !cpu.status.flags.carry;
     Word difference = cpu.A - operand - borrowIn;
+
+
 
     cpu.status.flags.overflow =
         ((cpu.A ^ difference) & 0x80) &&
@@ -1095,6 +1155,7 @@ void CpuOperations::SubtractWithCarryCmos (Cpu & cpu, Byte operand)
         cpu.status.flags.negative = (bool) (difference & 0x80);
     }
 }
+
 
 
 

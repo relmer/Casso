@@ -213,6 +213,8 @@ void DxuiRadioGroup::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
     constexpr float     s_kLabelGapDip   = 6.0f;
     constexpr float     s_kFontDip      = 13.0f;
 
+
+
     HRESULT  hr         = S_OK;
     int      i          = 0;
     size_t   n          = m_options.size();
@@ -274,6 +276,7 @@ void DxuiRadioGroup::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  DxuiRadioGroup::Layout  (IDxuiControl override)
@@ -295,6 +298,11 @@ void DxuiRadioGroup::Layout (const RECT & boundsDip, const DxuiDpiScaler & scale
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+
+
+
+
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  DxuiRadioGroup::OnMouse  (IDxuiControl override)

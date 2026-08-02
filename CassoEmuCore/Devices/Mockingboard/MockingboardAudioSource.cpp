@@ -6,6 +6,7 @@
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  GeneratePCM
@@ -22,6 +23,8 @@ void MockingboardAudioSource::GeneratePCM (float * outMono, uint32_t numSamples)
     uint32_t   i        = 0;
     float      raw      = 0.0f;
     float      filtered = 0.0f;
+
+
 
     if (m_psg == nullptr || outMono == nullptr)
     {

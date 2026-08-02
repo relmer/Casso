@@ -182,6 +182,8 @@ bool OpcodeTable::Lookup (const std::string & mnemonic, GlobalAddressingMode::Ad
 {
     auto mnemonicIt = m_table.find (mnemonic);
 
+
+
     if (mnemonicIt == m_table.end())
     {
         return false;
@@ -226,6 +228,8 @@ bool OpcodeTable::IsMnemonic (const std::string & name) const
 bool OpcodeTable::HasMode (const std::string & mnemonic, GlobalAddressingMode::AddressingMode mode) const
 {
     auto mnemonicIt = m_table.find (mnemonic);
+
+
 
     if (mnemonicIt == m_table.end())
     {

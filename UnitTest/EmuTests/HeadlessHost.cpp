@@ -28,6 +28,8 @@ HRESULT HeadlessHost::BuildCommon (HeadlessMachineKind kind, EmulatorCore & outC
 {
     HRESULT     hr = S_OK;
 
+
+
     outCore.machineKind = kind;
     outCore.prng        = std::make_unique<Prng> (kPinnedSeed);
     outCore.host        = std::make_unique<MockHostShell> ();
@@ -108,6 +110,8 @@ HRESULT HeadlessHost::BuildApple2e (EmulatorCore & outCore)
     Byte                 * mainRamBase = nullptr;
     int                    page;
     size_t                 romSize     = 0;
+
+
 
     hr = BuildCommon (HeadlessMachineKind::Apple2e, outCore);
     CHRA (hr);
@@ -224,6 +228,8 @@ HRESULT HeadlessHost::BuildApple2eEnhanced (EmulatorCore & outCore)
     int                    page;
     size_t                 romSize     = 0;
 
+
+
     hr = BuildCommon (HeadlessMachineKind::Apple2eEnhanced, outCore);
     CHRA (hr);
 
@@ -319,6 +325,7 @@ Error:
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  HeadlessHost::BuildApple2eWithDisk2
@@ -336,6 +343,8 @@ HRESULT HeadlessHost::BuildApple2eWithDisk2 (EmulatorCore & outCore)
 {
     HRESULT                hr = S_OK;
     std::vector<uint8_t>   slot6Rom;
+
+
 
     hr = BuildApple2e (outCore);
     CHRA (hr);
@@ -393,6 +402,8 @@ HRESULT HeadlessHost::BuildApple2c (EmulatorCore & outCore)
     Byte                 * mainRamBase = nullptr;
     int                    page;
     size_t                 romSize     = 0;
+
+
 
     static constexpr size_t  kBankSize    = 0x4000;   // 16 KiB per bank
     static constexpr size_t  kTwoBankSize = 0x8000;   // 32 KiB Apple2c.rom
@@ -536,6 +547,7 @@ Error:
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  EmulatorCore::PowerCycle
@@ -634,6 +646,8 @@ void EmulatorCore::RunCycles (uint64_t cycleBudget)
     uint64_t   target;
     int        i;
     uint32_t   stepCycles;
+
+
 
     if (!HasApple2e())
     {

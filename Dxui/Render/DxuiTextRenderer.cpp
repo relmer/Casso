@@ -23,6 +23,8 @@ D2D1_COLOR_F  DxuiTextRenderer::ColorFromArgb (uint32_t argbColor)
 {
     D2D1_COLOR_F  c;
 
+
+
     c.a = ((argbColor >> 24) & 0xFF) * s_kByteToUnit;
     c.r = ((argbColor >> 16) & 0xFF) * s_kByteToUnit;
     c.g = ((argbColor >>  8) & 0xFF) * s_kByteToUnit;
@@ -489,6 +491,7 @@ Error:
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  EnsureBrush
@@ -502,6 +505,7 @@ Error:
 HRESULT DxuiTextRenderer::EnsureBrush (uint32_t argb, ID2D1SolidColorBrush ** outBrush)
 {
     HRESULT  hr = S_OK;
+
 
 
     CBRAEx (outBrush, E_INVALIDARG);
@@ -534,6 +538,7 @@ HRESULT DxuiTextRenderer::EnsureBrush (uint32_t argb, ID2D1SolidColorBrush ** ou
 Error:
     return hr;
 }
+
 
 
 
@@ -971,6 +976,9 @@ HRESULT DxuiTextRenderer::PopClipRect()
 Error:
     return hr;
 }
+
+
+
 
 
 ////////////////////////////////////////////////////////////////////////////////

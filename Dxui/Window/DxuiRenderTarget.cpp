@@ -7,6 +7,7 @@
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  DxuiRenderTarget::DxuiRenderTarget / ~DxuiRenderTarget
@@ -27,6 +28,7 @@ DxuiRenderTarget::~DxuiRenderTarget()
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  DxuiRenderTarget::SetComposeHook
@@ -36,6 +38,7 @@ DxuiRenderTarget::~DxuiRenderTarget()
 void DxuiRenderTarget::SetComposeHook (ComposeHook hook)
 {
     bool  wasComposing = static_cast<bool> (m_composeHook);
+
 
 
     m_composeHook = std::move (hook);
@@ -50,6 +53,7 @@ void DxuiRenderTarget::SetComposeHook (ComposeHook hook)
         ReleaseComposeTarget();
     }
 }
+
 
 
 
@@ -71,6 +75,7 @@ HRESULT DxuiRenderTarget::BindTextTarget (bool offscreen)
     HRESULT               hr  = S_OK;
     UINT                  dpi = 0;
     ComPtr<IDXGISurface>  surface;
+
 
 
     BAIL_OUT_IF (m_textRenderer == nullptr, S_OK);
@@ -111,6 +116,7 @@ Error:
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  DxuiRenderTarget::ReleaseComposeTarget
@@ -125,6 +131,7 @@ void DxuiRenderTarget::ReleaseComposeTarget()
     m_contentWidthPx  = 0;
     m_contentHeightPx = 0;
 }
+
 
 
 
@@ -144,6 +151,7 @@ HRESULT DxuiRenderTarget::EnsureComposeTarget (int widthPx, int heightPx, bool &
 {
     HRESULT               hr   = S_OK;
     D3D11_TEXTURE2D_DESC  td   = {};
+
 
 
     recreated = false;
@@ -188,6 +196,7 @@ Error:
     }
     return hr;
 }
+
 
 
 

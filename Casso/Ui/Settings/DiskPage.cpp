@@ -7,6 +7,7 @@
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  File-local helpers
@@ -28,6 +29,7 @@ RECT DiskPage::MakeRect (int l, int t, int w, int h)
     RECT  rc = { l, t, l + w, t + h };
     return rc;
 }
+
 
 
 
@@ -90,6 +92,7 @@ DiskPage::DiskPage (std::wstring title)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  DiskPage::SetState
@@ -101,6 +104,7 @@ void DiskPage::SetState (SettingsPanelState * state)
     m_state = state;
     Rebuild();
 }
+
 
 
 
@@ -227,6 +231,7 @@ void DiskPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  DiskPage::Rebuild
@@ -288,6 +293,7 @@ void DiskPage::Rebuild()
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  DiskPage::SetPopupHost
@@ -303,6 +309,7 @@ void DiskPage::SetPopupHost (DxuiHwndSource * host)
     m_writeMode.SetPopupHost       (host);
     m_mechanism.SetPopupHost       (host);
 }
+
 
 
 
@@ -346,6 +353,7 @@ void DiskPage::ApplyDriveAudioChildEnabled (bool enabled)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  DiskPage::ConfigureVolumeSlider
@@ -368,6 +376,7 @@ void DiskPage::ConfigureVolumeSlider (DxuiSlider & slider, const RECT & rect)
     slider.SetShowTicks (true);
     slider.SetTickInterval (10.0f);   // ticks every 10%, not per step-1
 }
+
 
 
 
@@ -414,6 +423,7 @@ void DiskPage::ConfigurePanSlider (DxuiSlider & slider, const RECT & rect)
         return result;
     });
 }
+
 
 
 

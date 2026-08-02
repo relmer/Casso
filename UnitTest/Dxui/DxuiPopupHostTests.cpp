@@ -511,6 +511,7 @@ static std::unique_ptr<DxuiHwndSource>  BuildSyntheticHostForPool()
     RECT  bounds = MakeRect (0, 0, 1024, 768);
 
 
+
     return std::make_unique<DxuiHwndSource> (bounds,
                                              6.0f,
                                              std::make_unique<DxuiPanel>());
@@ -598,6 +599,10 @@ public:
 };
 
 #else // !_DEBUG
+
+
+
+
 
 ////////////////////////////////////////////////////////////////////////////////
 //

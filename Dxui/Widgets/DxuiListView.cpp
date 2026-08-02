@@ -7,6 +7,8 @@
 
 
 
+
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  SetRect
@@ -79,6 +81,8 @@ void DxuiListView::SetRows (std::vector<std::vector<Cell>> rows)
 {
     bool  wasSticky = m_stickyTail;
 
+
+
     // A pushed row set leaves provider (virtual) mode.
     m_virtual     = false;
     m_rowProvider = nullptr;
@@ -92,6 +96,7 @@ void DxuiListView::SetRows (std::vector<std::vector<Cell>> rows)
 
     ClampTopAfterCountChange (wasSticky);
 }
+
 
 
 
@@ -110,6 +115,8 @@ void DxuiListView::ClampTopAfterCountChange (bool wasSticky)
 {
     int  maxTop = GetMaxTopRow();
 
+
+
     if (wasSticky || m_topRow > maxTop)
     {
         m_topRow = maxTop;
@@ -122,6 +129,7 @@ void DxuiListView::ClampTopAfterCountChange (bool wasSticky)
 
     m_stickyTail = (m_topRow >= maxTop);
 }
+
 
 
 
@@ -142,6 +150,8 @@ void DxuiListView::SetRowProvider (int rowCount, RowProvider provider)
 {
     bool  wasSticky = m_stickyTail;
 
+
+
     m_virtual      = true;
     m_rowProvider  = std::move (provider);
     m_virtualCount = (rowCount > 0) ? rowCount : 0;
@@ -155,11 +165,16 @@ void DxuiListView::SetVirtualRowCount (int rowCount)
 {
     bool  wasSticky = m_stickyTail;
 
+
+
     m_virtual      = true;
     m_virtualCount = (rowCount > 0) ? rowCount : 0;
 
     ClampTopAfterCountChange (wasSticky);
 }
+
+
+
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -236,6 +251,8 @@ void DxuiListView::NoteAutoFitRow (const std::vector<Cell> & cells) const
 void DxuiListView::AppendRows (std::vector<std::vector<Cell>> rows)
 {
     bool  wasSticky = m_stickyTail;
+
+
 
     if (rows.empty())
     {
@@ -669,6 +686,8 @@ void DxuiListView::SetSelectedRow (int r)
 {
     int  rows = RowCount();
 
+
+
     if (r >= rows)
     {
         r = rows - 1;
@@ -687,6 +706,7 @@ void DxuiListView::SetSelectedRow (int r)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  EnsureVisible
@@ -700,6 +720,8 @@ void DxuiListView::SetSelectedRow (int r)
 void DxuiListView::EnsureVisible (int row)
 {
     int  cap = GetVisibleRowCapacity();
+
+
 
     if (row < 0 || row >= RowCount() || cap <= 0)
     {
@@ -774,6 +796,7 @@ int DxuiListView::ColumnNaturalWidthPx (size_t c) const
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  GetContentWidthPx
@@ -797,6 +820,7 @@ int DxuiListView::GetContentWidthPx() const
 
     return total;
 }
+
 
 
 
@@ -850,6 +874,7 @@ DxuiListView::ScrollLayout DxuiListView::ComputeScrollLayout() const
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  GetVisibleRowCapacity
@@ -863,6 +888,7 @@ int DxuiListView::GetVisibleRowCapacity() const
 {
     return ComputeScrollLayout().rowCap;
 }
+
 
 
 
@@ -886,6 +912,7 @@ int DxuiListView::GetMaxLeftPx() const
 
     return (excess > 0) ? excess : 0;
 }
+
 
 
 
@@ -916,6 +943,7 @@ void DxuiListView::SetLeftPx (int leftPx)
 
     m_leftPx = leftPx;
 }
+
 
 
 
@@ -1387,6 +1415,10 @@ bool DxuiListView::IsHorzScrollbarVisible() const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
+
+
+
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  SyncHorzScroll
@@ -1804,6 +1836,7 @@ LPCWSTR DxuiListView::CursorForPoint (POINT localPx) const
 {
     LPCWSTR  cursor  = nullptr;
     int      grabTol = m_scaler.Px (s_kResizeGrabDip);
+
 
 
     if (HitTestColumnResize (localPx.x, localPx.y, grabTol) >= 0)
@@ -2486,7 +2519,6 @@ void DxuiListView::ComputeColumnLayout (float fullW, std::vector<int> & xs, std:
 
 
 
-
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  DxuiListView::Layout  (IDxuiControl override)
@@ -2656,6 +2688,7 @@ bool DxuiListView::DispatchScrollbarPress (int lx, int ly)
 {
     bool  handled = true;
     int   hStep   = m_scaler.Px (s_kHScrollStepDip);
+
 
 
     // A press on an arrow or the track does its one-shot scroll now and

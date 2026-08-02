@@ -5,6 +5,7 @@
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  MarkDirty
@@ -17,6 +18,7 @@
 void DxuiPropertyPage::MarkDirty (bool dirty)
 {
     bool  changed = (dirty != m_dirty);
+
 
 
     m_dirty = dirty;

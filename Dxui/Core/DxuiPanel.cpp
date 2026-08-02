@@ -81,6 +81,7 @@ void DxuiPanel::Adopt (IDxuiControl & nonOwnedChild)
     ChildSlot  slot;
 
 
+
     DXUI_ASSERT_UI_THREAD();
 
     for (const auto & existing : m_children)
@@ -312,6 +313,7 @@ void DxuiPanel::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
     std::vector<IDxuiControl *>  visibleRaw;
 
 
+
     DXUI_ASSERT_UI_THREAD();
 
     SetBounds (boundsDip);
@@ -451,6 +453,7 @@ LPCWSTR DxuiPanel::CursorForPoint (POINT clientPx) const
     LPCWSTR  cursor = nullptr;
 
 
+
     DXUI_ASSERT_UI_THREAD();
 
     for (auto it = m_children.rbegin(); it != m_children.rend(); ++it)
@@ -557,6 +560,7 @@ void DxuiPanel::Tick (int64_t nowMs)
 void DxuiPanel::OnVisibilityChanged()
 {
     DxuiPanel *  parentPanel = dynamic_cast<DxuiPanel *> (Parent());
+
 
 
     MarkDirty();

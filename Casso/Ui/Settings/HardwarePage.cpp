@@ -7,6 +7,7 @@
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  Anonymous helpers
@@ -56,6 +57,8 @@ std::wstring HardwarePage::Widen (const std::string & narrow)
 {
     std::wstring  w;
 
+
+
     w.reserve (narrow.size());
     for (char c : narrow)
     {
@@ -63,6 +66,7 @@ std::wstring HardwarePage::Widen (const std::string & narrow)
     }
     return w;
 }
+
 
 
 
@@ -103,6 +107,7 @@ HardwarePage::HardwarePage(std::wstring title)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  HardwarePage::SetMachineList
@@ -133,6 +138,7 @@ void HardwarePage::SetMachineList (std::vector<std::string>  machineIds,
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  HardwarePage::Layout
@@ -143,6 +149,7 @@ void HardwarePage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
 {
     SetRect (rect, scaler);
 }
+
 
 
 
@@ -256,6 +263,7 @@ void HardwarePage::SetRect (const RECT & rect, const DxuiDpiScaler & scaler)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  HardwarePage::SetState
@@ -271,6 +279,7 @@ void HardwarePage::SetState (SettingsPanelState * state)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  HardwarePage::SetPopupHost
@@ -282,6 +291,7 @@ void HardwarePage::SetPopupHost (DxuiHwndSource * host)
     m_machineDropdown.SetPopupHost (host);
     m_speed.SetPopupHost           (host);
 }
+
 
 
 
@@ -428,6 +438,7 @@ void HardwarePage::Rebuild()
         }
     });
 }
+
 
 
 

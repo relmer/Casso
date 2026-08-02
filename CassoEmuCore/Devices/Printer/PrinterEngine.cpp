@@ -33,6 +33,7 @@ static constexpr size_t   s_kDrainSliceBytes = 4096;
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  RasterInkExtent
@@ -46,6 +47,8 @@ int PrinterEngine::RasterInkExtent (const PrintRaster & raster, int firstRow, in
 {
     int  extent = 0;
     int  last   = (std::min) (lastRow, raster.RowsUsed() - 1);
+
+
 
     for (int row = (std::max) (0, firstRow); row <= last; row++)
     {
@@ -66,6 +69,7 @@ int PrinterEngine::RasterInkExtent (const PrintRaster & raster, int firstRow, in
 
     return extent;
 }
+
 
 
 
@@ -112,6 +116,7 @@ void PrinterEngine::Start (PrinterByteRing & ring, PrintRaster seed)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  FlushNow
@@ -127,6 +132,7 @@ size_t PrinterEngine::FlushNow (vector<PrinterEvent> & events)
 
     return m_job->Drain (events);
 }
+
 
 
 
@@ -158,6 +164,7 @@ bool PrinterEngine::SnapshotStrip (PrintRaster & out)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  SnapshotStripSpan
@@ -180,6 +187,7 @@ bool PrinterEngine::SnapshotStripSpan (int firstRow, int lastRow, PrintRaster & 
     m_job->Raster().CopyRowSpan (firstRow, lastRow, out);
     return true;
 }
+
 
 
 
@@ -209,6 +217,7 @@ bool PrinterEngine::SnapshotPresentedSpan (int firstRow, int lastRow, PrintRaste
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  SpanInkExtent
@@ -233,6 +242,7 @@ int PrinterEngine::SpanInkExtent (int firstRow, int lastRow)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  FormFeed
@@ -247,6 +257,7 @@ void PrinterEngine::FormFeed()
 {
     m_hostFormFeeds.fetch_add (1, std::memory_order_relaxed);
 }
+
 
 
 
@@ -277,6 +288,8 @@ void PrinterEngine::Tick (int64_t nowMs)
     bool                   moving     = false;
     int                    rasterRows = 0;
     bool                   content    = false;
+
+
 
     if (m_job == nullptr)
     {

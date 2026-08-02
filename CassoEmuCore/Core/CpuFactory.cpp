@@ -11,6 +11,7 @@ static constexpr const char *    s_kpszCpu65C02 = "65C02";
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  Create
@@ -24,6 +25,8 @@ static constexpr const char *    s_kpszCpu65C02 = "65C02";
 HRESULT CpuFactory::Create (const string & cpuType, MemoryBus & bus, unique_ptr<ICpu> & outCpu)
 {
     HRESULT   hr = S_OK;
+
+
 
     outCpu.reset();
 

@@ -4,6 +4,8 @@
 
 
 
+
+
 ////////////////////////////////////////////////////////////////////////////
 //
 //  IsAsciiSpace
@@ -20,6 +22,8 @@ bool TrackSectorPredicate::IsAsciiSpace (wchar_t ch) noexcept
            ch == L'\r' ||
            ch == L'\n';
 }
+
+
 
 
 
@@ -44,6 +48,8 @@ bool TrackSectorPredicate::ParseDecimalQt (std::wstring_view tok, int & outQt) n
     wchar_t            c       = 0;
     std::wstring_view  frac;
     bool               ok      = false;
+
+
 
     dot = tok.find (L'.');
     CBR (dot != std::wstring_view::npos && dot != 0);
@@ -73,6 +79,8 @@ Error:
 
 
 
+
+
 ////////////////////////////////////////////////////////////////////////////
 //
 //  ParseDecimalInt
@@ -87,6 +95,8 @@ bool TrackSectorPredicate::ParseDecimalInt (std::wstring_view tok, int & outVal)
     int      v        = 0;
     bool     ok       = false;
     bool     hasToken = false;
+
+
 
     hasToken = !tok.empty();
     CBR (hasToken);
@@ -104,6 +114,8 @@ bool TrackSectorPredicate::ParseDecimalInt (std::wstring_view tok, int & outVal)
 Error:
     return ok;
 }
+
+
 
 
 
@@ -144,6 +156,8 @@ bool TrackSectorPredicate::ParseValue (std::wstring_view tok,
 
 
 
+
+
 ////////////////////////////////////////////////////////////////////////////
 //
 //  TrimSpan
@@ -174,6 +188,8 @@ std::wstring_view TrackSectorPredicate::TrimSpan (std::wstring_view expr, int & 
 
 
 
+
+
 ////////////////////////////////////////////////////////////////////////////
 //
 //  ValueCap
@@ -189,6 +205,8 @@ std::wstring_view TrackSectorPredicate::TrimSpan (std::wstring_view expr, int & 
 int TrackSectorPredicate::ValueCap (TrackSectorPredicate::Mode mode, bool isQt) noexcept
 {
     int  cap = 0;
+
+
 
     if (mode == TrackSectorPredicate::Mode::Sector)
     {
@@ -235,6 +253,8 @@ TrackSectorPredicate TrackSectorPredicate::Parse (std::wstring_view expr, Mode m
     int                    hiVal        = 0;
     size_t                 dashPos      = 0;
     int                    cap          = 0;
+
+
 
     while (cursor <= exprEnd)
     {
@@ -351,6 +371,8 @@ bool TrackSectorPredicate::Matches (int value) const noexcept
     size_t  i       = 0;
     bool    matched = false;
 
+
+
     if (m_matchAll)
     {
         matched = true;
@@ -389,6 +411,8 @@ bool TrackSectorPredicate::MatchesQuarterTrack (int qt) const noexcept
     size_t  i        = 0;
     int     trackIdx = 0;
     bool    matched  = false;
+
+
 
     if (m_matchAll)
     {

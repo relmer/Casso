@@ -74,6 +74,7 @@ HRESULT MockDxuiTextRenderer::PushClipRect (float xDip, float yDip, float widthD
     RecordedTextCall  call;
 
 
+
     call.kind   = RecordedTextKind::PushClipRect;
     call.x      = xDip;
     call.y      = yDip;
@@ -99,6 +100,7 @@ HRESULT MockDxuiTextRenderer::PopClipRect()
     RecordedTextCall  call;
 
 
+
     call.kind = RecordedTextKind::PopClipRect;
     m_calls.push_back (call);
 
@@ -118,6 +120,7 @@ HRESULT MockDxuiTextRenderer::PopClipRect()
 HRESULT MockDxuiTextRenderer::FillRect (float xDip, float yDip, float widthDip, float heightDip, uint32_t argbColor)
 {
     RecordedTextCall  call;
+
 
 
     call.kind   = RecordedTextKind::FillRect;

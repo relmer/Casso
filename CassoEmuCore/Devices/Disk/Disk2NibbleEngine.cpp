@@ -7,9 +7,6 @@
 
 
 
-
-
-
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  Disk2NibbleEngine
@@ -19,6 +16,7 @@
 Disk2NibbleEngine::Disk2NibbleEngine()
 {
 }
+
 
 
 
@@ -42,6 +40,7 @@ void Disk2NibbleEngine::SetDiskImage (DiskImage * disk)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  SetMotorOn
@@ -56,6 +55,7 @@ void Disk2NibbleEngine::SetMotorOn (bool on)
 {
     m_motorOn = on;
 }
+
 
 
 
@@ -80,6 +80,7 @@ void Disk2NibbleEngine::SetShiftLoadMode (bool q6)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  SetCurrentTrack
@@ -96,6 +97,8 @@ void Disk2NibbleEngine::SetCurrentTrack (int track)
 {
     int      clamped = track;
     size_t   newBits = 0;
+
+
 
     if (clamped < kMinTrack)
     {
@@ -137,6 +140,7 @@ void Disk2NibbleEngine::SetCurrentTrack (int track)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  CurrentTrackBits
@@ -151,6 +155,8 @@ void Disk2NibbleEngine::SetCurrentTrack (int track)
 size_t Disk2NibbleEngine::CurrentTrackBits() const
 {
     int   slot = (m_disk != nullptr) ? m_disk->ResolveQuarterTrack (m_currentTrack) : -1;
+
+
 
     if (m_disk == nullptr)
     {
@@ -168,6 +174,7 @@ size_t Disk2NibbleEngine::CurrentTrackBits() const
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  Reset
@@ -177,6 +184,8 @@ size_t Disk2NibbleEngine::CurrentTrackBits() const
 void Disk2NibbleEngine::Reset()
 {
     constexpr uint8_t    kLssInitialState      = 2;
+
+
 
     m_motorOn        = false;
     m_writeMode      = false;
@@ -196,6 +205,7 @@ void Disk2NibbleEngine::Reset()
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  Tick
@@ -209,6 +219,8 @@ void Disk2NibbleEngine::Reset()
 void Disk2NibbleEngine::Tick (uint32_t cpuCycles)
 {
     constexpr uint32_t   kLssClocksPerCpuCycle = 2;
+
+
 
     uint32_t   lssClocks = 0;
     uint32_t   i         = 0;
@@ -225,6 +237,7 @@ void Disk2NibbleEngine::Tick (uint32_t cpuCycles)
         StepLss();
     }
 }
+
 
 
 
@@ -253,6 +266,8 @@ void Disk2NibbleEngine::StepLss()
     constexpr uint8_t    kLssCommandMask  = 0x0F;
     constexpr int        kLssStateShift   = 4;
     constexpr uint8_t    kLssStateMask    = 0x0F;
+
+
 
     uint8_t   pulse      = 0;
     uint8_t   idx        = 0;
@@ -365,6 +380,7 @@ void Disk2NibbleEngine::StepLss()
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  ReadLatch
@@ -385,6 +401,7 @@ uint8_t Disk2NibbleEngine::ReadLatch()
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  WriteLatch
@@ -400,6 +417,7 @@ void Disk2NibbleEngine::WriteLatch (uint8_t value)
     m_bus = value;
     m_writeNibbles++;
 }
+
 
 
 
@@ -440,6 +458,7 @@ bool Disk2NibbleEngine::ConsumeFreshNibble (uint8_t & outNibble)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  ApplyHeadWindow
@@ -471,6 +490,8 @@ uint8_t Disk2NibbleEngine::ApplyHeadWindow (uint8_t inBit)
 {
     uint8_t   outBit = 0;
 
+
+
     m_headWindow = static_cast<uint8_t> (((m_headWindow << 1) | (inBit & 1)) & 0x0F);
 
     if ((m_headWindow & 0x0F) != 0)
@@ -484,6 +505,7 @@ uint8_t Disk2NibbleEngine::ApplyHeadWindow (uint8_t inBit)
 
     return outBit;
 }
+
 
 
 

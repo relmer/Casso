@@ -23,6 +23,7 @@ static constexpr Byte  s_kPaperB = 0xFF;
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  Ink palette
@@ -56,6 +57,7 @@ static constexpr Byte  s_kPalette[16][3] =
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  BuildWeaveTile
@@ -69,6 +71,8 @@ void PaperRenderer::BuildWeaveTile()
 {
     int   x = 0;
     int   y = 0;
+
+
 
     if (!m_weave.empty())
     {
@@ -86,6 +90,7 @@ void PaperRenderer::BuildWeaveTile()
         }
     }
 }
+
 
 
 
@@ -166,6 +171,7 @@ void PaperRenderer::BuildDiscKernels (int outputDpi)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  BlendPixel
@@ -195,6 +201,7 @@ void PaperRenderer::BlendPixel (RgbaImage & img, int x, int y, int alpha,
     p[1] = (Byte) ((p[1] * (255 - alpha) + g * alpha) / 255);
     p[2] = (Byte) ((p[2] * (255 - alpha) + b * alpha) / 255);
 }
+
 
 
 
@@ -247,6 +254,7 @@ void PaperRenderer::StampDisc (RgbaImage & img, int xpx, int ypx, int phase,
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  StampSquare
@@ -280,6 +288,7 @@ void PaperRenderer::StampSquare (RgbaImage & img, int x0, int y0, int x1, int y1
         }
     }
 }
+
 
 
 

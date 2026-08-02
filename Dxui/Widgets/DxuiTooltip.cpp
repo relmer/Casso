@@ -24,6 +24,7 @@ static constexpr float     s_kEstLineHeightEm = 1.4f;
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  RequestShow
@@ -81,6 +82,8 @@ void DxuiTooltip::RequestShow (const RECT & anchor, const std::wstring & text, i
 void DxuiTooltip::ShowTimed (const RECT & anchor, const std::wstring & text, int64_t nowMs, int durationMs)
 {
     bool  changed = !m_visible || text != m_text;
+
+
 
     m_anchor   = anchor;
     m_text     = text;
@@ -271,6 +274,7 @@ void DxuiTooltip::ReleaseActivePopup()
     DxuiPopupHost *  popup = m_activePopup;
 
 
+
     // Null the pointer first so the popup's onClosed callback (which
     // routes back here) is a no-op and cannot double-release.
     m_activePopup = nullptr;
@@ -294,6 +298,8 @@ void DxuiTooltip::ReleaseActivePopup()
 void DxuiTooltip::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) const
 {
     constexpr float     s_kAnchorGapDip = 4.0f;
+
+
 
     HRESULT  hr        = S_OK;
     float    fontPx    = m_scaler.Pxf (m_fontDip);
@@ -361,6 +367,7 @@ void DxuiTooltip::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) const
                                               fontPx,
                                               s_kFontFamily));
 }
+
 
 
 

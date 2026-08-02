@@ -32,6 +32,8 @@ HRESULT MockIrqAsserter::Bind()
 {
     HRESULT     hr = S_OK;
 
+
+
     CBRAEx (m_ic != nullptr, E_INVALIDARG);
 
     BAIL_OUT_IF (m_bound, S_OK);

@@ -5,6 +5,7 @@
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  s_kSpellings
@@ -95,6 +96,7 @@ static constexpr DirectiveTable::Spelling  s_kSpellings[] =
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  DirectiveTable::FromSpelling
@@ -157,6 +159,7 @@ static constexpr DirectiveTable::Spelling  s_kAmbiguousSpellings[] =
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  DirectiveTable::FromAmbiguousSpelling
@@ -184,6 +187,7 @@ Directive DirectiveTable::FromAmbiguousSpelling (const std::string & word)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  DirectiveTable::FromStorageSpelling
@@ -203,6 +207,7 @@ Directive DirectiveTable::FromStorageSpelling (const std::string & word)
 
     return token;
 }
+
 
 
 

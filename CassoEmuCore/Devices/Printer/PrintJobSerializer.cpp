@@ -19,6 +19,7 @@ static const char   s_kszCapReached[]    = "capReached";
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  WriteMetaJson
@@ -30,6 +31,8 @@ string PrintJobSerializer::WriteMetaJson (const PrintRaster & raster)
     vector<JsonValue>                 boundaries;
     vector<pair<string, JsonValue>>   root;
     size_t                            i = 0;
+
+
 
     for (i = 0; i < raster.PageBoundaryRows().size(); i++)
     {
@@ -44,6 +47,7 @@ string PrintJobSerializer::WriteMetaJson (const PrintRaster & raster)
 
     return JsonWriter::Write (JsonValue (move (root)));
 }
+
 
 
 
@@ -67,6 +71,8 @@ HRESULT PrintJobSerializer::ReadMetaJson (const string & json, StripMeta & outMe
     const JsonValue *   arr    = nullptr;
     JsonType            rootType = JsonType::Null;
     StripMeta           meta;
+
+
 
     hr = JsonParser::Parse (json, root, err);
     CHR (hr);
@@ -107,6 +113,7 @@ Error:
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  ExtractIndexPlane
@@ -136,6 +143,7 @@ void PrintJobSerializer::ExtractIndexPlane (
         }
     }
 }
+
 
 
 

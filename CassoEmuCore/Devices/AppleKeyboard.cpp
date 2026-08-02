@@ -271,6 +271,8 @@ void AppleKeyboard::Tick (uint32_t cpuCycles)
     bool      keyHeld   = m_anyKeyDown.load (memory_order_acquire);
     uint32_t  threshold = 0;
 
+
+
     // No armed key, or the physical key was released: stand down and reset
     // the cadence so the next press starts a fresh delay window.
     if (key == 0 || !keyHeld)

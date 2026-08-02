@@ -26,6 +26,8 @@ static int FindHighestPhase (uint8_t phases)
     int   i      = 0;
     int   result = -1;
 
+
+
     for (i = 0; i < Disk2Controller::kPhaseCount; i++)
     {
         if (phases & (1 << i))
@@ -74,6 +76,8 @@ Byte Disk2Controller::Read (Word address)
 {
     int   offset = (address - m_ioStart) & 0x0F;
 
+
+
     CatchUpToCpu();
 
     HandleSwitch (offset);
@@ -97,6 +101,8 @@ Byte Disk2Controller::Read (Word address)
 void Disk2Controller::Write (Word address, Byte value)
 {
     int   offset = (address - m_ioStart) & 0x0F;
+
+
 
     CatchUpToCpu();
 
@@ -277,6 +283,8 @@ Byte Disk2Controller::HandleReadDispatch()
 {
     Byte     nibble = 0;
     uint8_t  fresh  = 0;
+
+
 
     if (!m_q6 && !m_q7)
     {
@@ -465,6 +473,8 @@ void Disk2Controller::UpdateEngineSelection()
 {
     int   other = m_activeDrive ^ 1;
 
+
+
     m_engine[other].SetMotorOn (false);
     m_engine[m_activeDrive].SetMotorOn (m_motorOn);
     m_engine[m_activeDrive].SetCurrentTrack (m_quarterTrack);
@@ -582,6 +592,7 @@ void Disk2Controller::CatchUpToCpu()
     uint64_t  delta = 0;
 
 
+
     if (m_cpuCycleSource == nullptr)
     {
         return;
@@ -623,6 +634,8 @@ void Disk2Controller::CatchUpToCpu()
 HRESULT Disk2Controller::MountDisk (int drive, const string & path)
 {
     HRESULT   hr = S_OK;
+
+
 
     CBRAEx (drive >= 0 && drive < kDriveCount, E_INVALIDARG);
 
@@ -768,6 +781,8 @@ void Disk2Controller::Reset()
 {
     int   i = 0;
 
+
+
     m_phases       = 0;
     m_phase        = 0;
     m_quarterTrack = 0;
@@ -804,6 +819,8 @@ void Disk2Controller::SoftReset()
     HRESULT   hrFlush = S_OK;
     int       drive   = 0;
 
+
+
     Reset();
 
     for (drive = 0; drive < kDriveCount; drive++)
@@ -833,6 +850,8 @@ void Disk2Controller::PowerCycle (Prng & prng)
 {
     int   drive = 0;
 
+
+
     UNREFERENCED_PARAMETER (prng);
 
     Reset();
@@ -858,6 +877,8 @@ void Disk2Controller::PowerCycle (Prng & prng)
 unique_ptr<MemoryDevice> Disk2Controller::Create (const DeviceConfig & config, MemoryBus & bus)
 {
     int   slot = config.hasSlot ? config.slot : 6;
+
+
 
     UNREFERENCED_PARAMETER (bus);
 

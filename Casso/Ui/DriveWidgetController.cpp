@@ -6,7 +6,6 @@
 
 
 
-
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  DriveWidgetController
@@ -154,6 +153,8 @@ uint64_t DriveWidgetController::PublishSyncEvent (
 std::vector<DriveWidgetController::DriveSyncEvent> DriveWidgetController::ConsumeSyncEvents()
 {
     std::vector<DriveSyncEvent>  out;
+
+
 
     out.swap (m_syncEvents);
 

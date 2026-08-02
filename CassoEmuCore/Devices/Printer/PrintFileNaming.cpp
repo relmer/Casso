@@ -10,6 +10,7 @@ static constexpr int   s_kMaxOrdinal = 100000;   // guard against a pathological
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  CandidateName
@@ -28,6 +29,7 @@ wstring PrintFileNaming::CandidateName (const wstring & base, int ordinal)
 
     return base + L" (" + to_wstring (ordinal) + L").png";
 }
+
 
 
 

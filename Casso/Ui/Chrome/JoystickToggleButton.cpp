@@ -6,6 +6,7 @@
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  JoystickToggleButton
@@ -63,6 +64,7 @@ const wchar_t * JoystickToggleButton::Label() const
         default:                        return s_kLabel;
     }
 }
+
 
 
 
@@ -155,6 +157,7 @@ void JoystickToggleButton::Layout (const RECT & boundsDip, const DxuiDpiScaler &
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  HitTest
@@ -166,6 +169,7 @@ bool JoystickToggleButton::HitTest (int x, int y) const
     return x >= m_bounds.left && x < m_bounds.right &&
            y >= m_bounds.top  && y < m_bounds.bottom;
 }
+
 
 
 
@@ -240,6 +244,7 @@ void JoystickToggleButton::Paint (IDxuiPainter & painter, IDxuiTextRenderer & te
                           DxuiTextRenderer::VAlign::CenterOnCapHeight);
     IGNORE_RETURN_VALUE (hr, S_OK);
 }
+
 
 
 

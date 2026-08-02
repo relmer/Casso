@@ -18,6 +18,7 @@ static constexpr int    s_kPagePadDp       = 16;
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  PrintingPage::MakeRect
@@ -29,6 +30,7 @@ RECT PrintingPage::MakeRect (int l, int t, int w, int h)
     RECT  rc = { l, t, l + w, t + h };
     return rc;
 }
+
 
 
 
@@ -45,6 +47,7 @@ int PrintingPage::DotStyleToIndex (const std::string & token)
 {
     return token == "plain" ? 1 : 0;
 }
+
 
 
 
@@ -79,6 +82,7 @@ PrintingPage::PrintingPage (std::wstring title)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  PrintingPage::SetPrefs
@@ -94,6 +98,7 @@ void PrintingPage::SetPrefs (GlobalUserPrefs * prefs)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  PrintingPage::SetPopupHost
@@ -105,6 +110,7 @@ void PrintingPage::SetPopupHost (DxuiHwndSource * host)
     m_dpi.SetPopupHost      (host);
     m_dotStyle.SetPopupHost (host);
 }
+
 
 
 
@@ -129,6 +135,8 @@ void PrintingPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
     int  x           = rect.left + pad;
     int  y           = rect.top  + pad;
     int  controlsX   = x + labelWidth;
+
+
 
     // Printer info banner across the top: as wide as the page minus the control
     // margin, its height driven by how far the message wraps -- so a long message
@@ -197,6 +205,7 @@ void PrintingPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  PrintingPage::Rebuild
@@ -209,6 +218,7 @@ void PrintingPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
 void PrintingPage::Rebuild()
 {
     GlobalUserPrefs *  prefs = m_prefs;
+
 
 
     if (prefs == nullptr)
@@ -268,6 +278,7 @@ void PrintingPage::Rebuild()
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  PrintingPage::ResetToDefaults
@@ -283,6 +294,7 @@ void PrintingPage::Rebuild()
 void PrintingPage::ResetToDefaults()
 {
     GlobalUserPrefs   defaults;
+
 
 
     if (m_prefs == nullptr)
@@ -311,6 +323,7 @@ void PrintingPage::ResetToDefaults()
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  PrintingPage::ConfigureVolumeSlider
@@ -324,6 +337,7 @@ void PrintingPage::ConfigureVolumeSlider (DxuiSlider & slider, const RECT & rect
     constexpr float  s_kVolumeMax = 100.0f;
 
 
+
     slider.SetRect      (rect);
     slider.SetRange     (0.0f, s_kVolumeMax);
     slider.SetStep      (1.0f);
@@ -332,6 +346,7 @@ void PrintingPage::ConfigureVolumeSlider (DxuiSlider & slider, const RECT & rect
     slider.SetShowTicks (true);
     slider.SetTickInterval (10.0f);
 }
+
 
 
 
@@ -347,6 +362,7 @@ void PrintingPage::ConfigureVolumeSlider (DxuiSlider & slider, const RECT & rect
 void PrintingPage::ConfigurePanSlider (DxuiSlider & slider, const RECT & rect)
 {
     constexpr float  s_kPanMax = 100.0f;
+
 
 
     slider.SetRect      (rect);
@@ -379,6 +395,7 @@ void PrintingPage::ConfigurePanSlider (DxuiSlider & slider, const RECT & rect)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  PrintingPage::ApplyEnabledState
@@ -394,6 +411,8 @@ void PrintingPage::ApplyEnabledState()
 {
     bool  soundsOn = (m_prefs != nullptr) && m_prefs->printerAudioEnabled;
     bool  panLive  = soundsOn && (m_prefs != nullptr) && m_prefs->printerAudioPanOverride;
+
+
 
     DxuiTextRole  childRole = soundsOn ? DxuiTextRole::Body : DxuiTextRole::Disabled;
     DxuiTextRole  panRole   = panLive  ? DxuiTextRole::Body : DxuiTextRole::Disabled;

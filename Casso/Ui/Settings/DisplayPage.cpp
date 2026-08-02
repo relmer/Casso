@@ -403,6 +403,7 @@ void DisplayPage::Rebuild()
     SettingsPanelState * state = m_state;
 
 
+
     if (state == nullptr)
     {
         return;

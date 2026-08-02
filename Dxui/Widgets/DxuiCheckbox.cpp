@@ -8,6 +8,7 @@
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  DxuiCheckbox::EllipsizeToWidth
@@ -215,6 +216,8 @@ void DxuiCheckbox::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
     constexpr float     s_kFocusThickDip = 1.0f;
     constexpr float     s_kLabelGapDip   = 6.0f;
     constexpr float     s_kFontDip      = 13.0f;
+
+
 
     HRESULT  hr          = S_OK;
     float    boxSize     = m_scaler.Pxf (s_kBoxSizeDip);

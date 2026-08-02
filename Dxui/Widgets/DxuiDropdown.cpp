@@ -43,6 +43,7 @@ bool DxuiDropdown::RectContains (const RECT & rect, int x, int y)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  SetItems
@@ -58,6 +59,7 @@ void DxuiDropdown::SetItems (const std::vector<std::wstring> & items)
         m_selected = m_items.empty() ? -1 : 0;
     }
 }
+
 
 
 
@@ -82,6 +84,7 @@ void DxuiDropdown::SetSelected (int index)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  Open
@@ -95,6 +98,7 @@ void DxuiDropdown::Open()
     POINT                      br     = {};
     HWND                       owner  = nullptr;
     HRESULT                    hr     = S_OK;
+
 
 
     m_open      = true;
@@ -161,6 +165,7 @@ Error:
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  Close
@@ -170,6 +175,7 @@ Error:
 void DxuiDropdown::Close()
 {
     DxuiPopupHost *  popup  = m_activePopup;
+
 
 
     // Clear m_activePopup BEFORE releasing so the popup's onClosed
@@ -183,6 +189,7 @@ void DxuiDropdown::Close()
         m_popupHost->ReleasePopup (popup);
     }
 }
+
 
 
 
@@ -201,6 +208,7 @@ void DxuiDropdown::OnPopupMove (POINT localPx)
 {
     int  rowHeight  = m_scaler.Px (s_kRowHeightDip);
     int  row        = -1;
+
 
 
     if (rowHeight <= 0 || m_items.empty())
@@ -231,6 +239,7 @@ void DxuiDropdown::OnPopupMove (POINT localPx)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  OnPopupClick
@@ -244,6 +253,7 @@ void DxuiDropdown::OnPopupClick (POINT localPx)
 {
     int  rowHeight  = m_scaler.Px (s_kRowHeightDip);
     int  row        = -1;
+
 
 
     if (rowHeight <= 0 || m_items.empty())
@@ -264,6 +274,7 @@ void DxuiDropdown::OnPopupClick (POINT localPx)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  HitTest
@@ -274,6 +285,7 @@ bool DxuiDropdown::HitTest (int x, int y) const
 {
     return RectContains (m_boundsDip, x, y);
 }
+
 
 
 
@@ -317,6 +329,7 @@ int DxuiDropdown::ItemHitTest (int x, int y) const
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  SetMouseHover
@@ -347,6 +360,7 @@ void DxuiDropdown::SetMouseHover (int x, int y)
         }
     }
 }
+
 
 
 
@@ -382,6 +396,7 @@ bool DxuiDropdown::OnLButtonDown (int x, int y)
 
     return false;
 }
+
 
 
 
@@ -428,6 +443,7 @@ bool DxuiDropdown::OnLButtonUp (int x, int y)
 
     return false;
 }
+
 
 
 
@@ -500,6 +516,7 @@ bool DxuiDropdown::HandleKey (WPARAM vk)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  Commit
@@ -524,6 +541,7 @@ void DxuiDropdown::Commit (int index)
         m_select (index);
     }
 }
+
 
 
 
@@ -720,6 +738,7 @@ void DxuiDropdown::PaintMenu (IDxuiPainter & painter, IDxuiTextRenderer & text) 
     ResolvedColors  c         = ResolveColors();
 
 
+
     (void) painter;
 
     if (!m_open || m_activePopup != nullptr)
@@ -756,6 +775,7 @@ void DxuiDropdown::PaintMenu (IDxuiPainter & painter, IDxuiTextRenderer & text) 
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  RenderPopupMenu
@@ -778,6 +798,7 @@ void DxuiDropdown::RenderPopupMenu (IDxuiPainter & painter, IDxuiTextRenderer & 
     int             width     = m_boundsDip.right - m_boundsDip.left;
     float           fontPx    = m_scaler.Pxf (s_kFontDip);
     ResolvedColors  c         = ResolveColors();
+
 
 
     (void) painter;
@@ -804,6 +825,7 @@ void DxuiDropdown::RenderPopupMenu (IDxuiPainter & painter, IDxuiTextRenderer & 
                                                   DxuiTextVAlign::Center, DxuiFontWeight::Normal, false));
     }
 }
+
 
 
 

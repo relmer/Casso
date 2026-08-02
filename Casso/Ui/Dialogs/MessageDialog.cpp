@@ -7,6 +7,7 @@
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  MessageDialog::CommandIdFor
@@ -71,6 +72,7 @@ void MessageDialog::OnCreate()
     int  i = 0;
 
 
+
     if (m_pendingContent != nullptr)
     {
         SetDialogContentOwned (std::move (m_pendingContent));
@@ -96,6 +98,7 @@ int MessageDialog::TranslateResult (int dialogResult) const
 {
     int     result = m_closeBoxResult;
     size_t  idx    = 0;
+
 
 
     if (dialogResult >= s_kCommandBase && dialogResult < s_kCommandBase + (int) m_buttons.size())

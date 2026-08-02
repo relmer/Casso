@@ -165,6 +165,8 @@ HRESULT D3DRenderer::CreateRenderResources (int texWidth, int texHeight)
     D3D11_BUFFER_DESC        bd        = {};
     D3D11_SUBRESOURCE_DATA   initData  = {};
 
+
+
     Vertex vertices[] =
     {
         { -1.0f,  1.0f, 0.0f, 0.0f },  // Top-left
@@ -246,6 +248,8 @@ HRESULT D3DRenderer::InitializeShaders()
     ComPtr<ID3DBlob>   vsBlob;
     ComPtr<ID3DBlob>   psBlob;
     ComPtr<ID3DBlob>   errors;
+
+
 
     static const char kVertexShaderSrc[] =
         "struct VSInput  { float2 pos : POSITION; float2 uv : TEXCOORD; };\n"

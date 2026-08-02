@@ -159,6 +159,7 @@ void DxuiModalScrim::Paint (IDxuiPainter & painter) const
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  DxuiModalScrim::Layout  (IDxuiControl override)

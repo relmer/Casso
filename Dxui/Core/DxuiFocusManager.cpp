@@ -88,6 +88,7 @@ float DxuiFocusManager::RowEpsilonDip() const
     constexpr float  s_kDefaultRowEpsilonDip = 16.0f;
 
 
+
     if (m_rowEpsilonOverridden)
     {
         return m_rowEpsilonOverrideDip;
@@ -157,6 +158,7 @@ void DxuiFocusManager::Rebuild()
     std::vector<IDxuiControl *>  raw;
     IDxuiControl *               scopeRoot = nullptr;
     float                        eps       = 1.0f;
+
 
 
     DXUI_ASSERT_UI_THREAD();
@@ -246,6 +248,7 @@ void DxuiFocusManager::SetFocused (IDxuiControl * ctl)
     IDxuiControl *  prior = m_focused;
 
 
+
     DXUI_ASSERT_UI_THREAD();
 
     if (prior == ctl)
@@ -284,6 +287,7 @@ bool DxuiFocusManager::MoveFocus (int direction)
     size_t  idx   = 0;
     size_t  cur   = count;
     size_t  next  = 0;
+
 
 
     if (count == 0)
@@ -340,6 +344,7 @@ bool DxuiFocusManager::MoveFocusSpatial (DxuiFocusKey arrow)
     RECT            curR     = {};
     long            curCx    = 0;
     long            curCy    = 0;
+
 
 
     if (m_focused == nullptr)
@@ -457,6 +462,7 @@ void DxuiFocusManager::PushScope (IDxuiControl * scopeRoot)
     Scope  scope;
 
 
+
     DXUI_ASSERT_UI_THREAD();
 
     scope.root       = scopeRoot;
@@ -479,6 +485,7 @@ void DxuiFocusManager::PushScope (IDxuiControl * scopeRoot)
 void DxuiFocusManager::PopScope()
 {
     Scope  scope;
+
 
 
     DXUI_ASSERT_UI_THREAD();

@@ -63,6 +63,8 @@ static int DecodeAsciiDigits (const Byte * digits, int count)
     int   value = 0;
     int   i     = 0;
 
+
+
     for (i = 0; i < count; i++)
     {
         Byte   d = (Byte) (digits[i] & 0x7F);   // ASCII digits by definition: BASIC sends them high-bit set
@@ -121,6 +123,8 @@ static InkPrimary ColorForCode (Byte digit)
     Byte   red    = (Byte) InkPrimary::Red;
     Byte   blue   = (Byte) InkPrimary::Blue;
 
+
+
     switch (digit)
     {
     case '0':   return InkPrimary::Black;
@@ -133,6 +137,7 @@ static InkPrimary ColorForCode (Byte digit)
     default:    return InkPrimary::Black;
     }
 }
+
 
 
 
@@ -165,6 +170,7 @@ void ImageWriterInterpreter::Reset()
     m_textRow      = 0;
     m_textInkTo    = -1;
 }
+
 
 
 
@@ -211,6 +217,7 @@ void ImageWriterInterpreter::Consume (
         }
     }
 }
+
 
 
 
@@ -276,6 +283,7 @@ void ImageWriterInterpreter::ConsumeIdle (Byte b, PrintRaster & raster, vector<P
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  RenderTextChar
@@ -297,6 +305,8 @@ void ImageWriterInterpreter::RenderTextChar (Byte ch, PrintRaster & raster, vect
     int   row      = 0;
     int   sub      = 0;
     int   bit      = 0;
+
+
 
     if (cellDots <= 0)
     {
@@ -369,6 +379,7 @@ void ImageWriterInterpreter::RenderTextChar (Byte ch, PrintRaster & raster, vect
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  FlushTextPass
@@ -384,6 +395,8 @@ void ImageWriterInterpreter::RenderTextChar (Byte ch, PrintRaster & raster, vect
 void ImageWriterInterpreter::FlushTextPass (vector<PrinterEvent> & events)
 {
     PrinterEvent   ev;
+
+
 
     if (!m_textPassOpen)
     {
@@ -404,6 +417,7 @@ void ImageWriterInterpreter::FlushTextPass (vector<PrinterEvent> & events)
     ev.color   = m_color;                // the primary this pass laid (usually black text)
     events.push_back (ev);
 }
+
 
 
 
@@ -481,6 +495,7 @@ void ImageWriterInterpreter::ConsumeEsc (Byte b, PrintRaster & raster, vector<Pr
         m_state = EscState::Idle;
     }
 }
+
 
 
 
@@ -567,6 +582,7 @@ void ImageWriterInterpreter::ExecuteParamCommand (PrintRaster & raster, vector<P
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  ConsumeGraphicsByte
@@ -588,6 +604,8 @@ void ImageWriterInterpreter::ConsumeGraphicsByte (Byte b, PrintRaster & raster, 
     int   dot0  = m_headColumnDots;
     int   dot1  = m_headColumnDots + 1;
     int   bit   = 0;
+
+
 
     // ESC G columns are native 160-dpi dots. ESC L columns are 120 dpi:
     // column i of the burst spans native dots [i*4/3, (i+1)*4/3) from the
@@ -644,6 +662,7 @@ void ImageWriterInterpreter::ConsumeGraphicsByte (Byte b, PrintRaster & raster, 
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  EmitReset
@@ -656,6 +675,8 @@ void ImageWriterInterpreter::ConsumeGraphicsByte (Byte b, PrintRaster & raster, 
 void ImageWriterInterpreter::EmitReset (vector<PrinterEvent> & events)
 {
     PrinterEvent   ev;
+
+
 
     Reset();
     ev.type = PrinterEventType::ResetSeen;

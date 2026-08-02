@@ -8,7 +8,6 @@
 
 
 
-
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  DriveWidgetState
@@ -195,6 +194,7 @@ inline bool IsSupportedDiskImageExtension (const std::wstring & path)
 
     return false;
 }
+
 
 
 

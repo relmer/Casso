@@ -76,6 +76,8 @@ Byte LanguageCard::Read (Word address)
 {
     Byte  switchAddr = static_cast<Byte> (address & 0x0F);
 
+
+
     ApplySwitch (switchAddr, false);
 
     return 0;
@@ -379,6 +381,7 @@ Byte LanguageCard::ReadRom (Word address) const
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  RebindWindow
@@ -394,6 +397,8 @@ Byte LanguageCard::ReadRom (Word address) const
 void LanguageCard::RebindWindow()
 {
     static constexpr int  kPageSize = 0x100;
+
+
 
     bool    readRam = IsReadRam();
     Byte *  romBase = m_romData.empty() ? nullptr : m_romData.data();

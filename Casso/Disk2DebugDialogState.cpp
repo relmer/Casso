@@ -52,6 +52,8 @@ void SeedDefaultColumns (std::array<LogicalColumn, kColumnCount> & columns) noex
 {
     int  i = 0;
 
+
+
     for (i = 0; i < kColumnCount; i++)
     {
         columns[i].id            = i;
@@ -183,6 +185,8 @@ static bool MatchesAudioSubToggle (Disk2EventType type, const FilterState & f) n
 bool MatchesFilter (const Disk2EventDisplay & e, const FilterState & f) noexcept
 {
     uint32_t  catBit = 0;
+
+
 
     if (e.type == Disk2EventType::EventsLost)
     {

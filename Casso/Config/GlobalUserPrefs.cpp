@@ -741,6 +741,7 @@ std::wstring GlobalUserPrefs::FilePath (const std::wstring & baseDir)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  GlobalUserPrefs::ResetColorMonitorTextToDefault

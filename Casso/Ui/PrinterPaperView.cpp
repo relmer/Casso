@@ -15,6 +15,7 @@ static constexpr uint32_t  s_kBorder = 0xFF14161A;   // thin paper edge
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  PrinterPaperView::SetImage
@@ -37,6 +38,7 @@ void PrinterPaperView::SetImage (std::vector<uint32_t> && bgra, int srcW, int sr
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  PrinterPaperView::Clear
@@ -49,6 +51,7 @@ void PrinterPaperView::Clear()
     m_srcW = 0;
     m_srcH = 0;
 }
+
 
 
 
@@ -66,6 +69,7 @@ void PrinterPaperView::Layout (const RECT & boundsDip, const DxuiDpiScaler & sca
 
     SetBounds (boundsDip);
 }
+
 
 
 

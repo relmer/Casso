@@ -98,6 +98,8 @@ vector<string> ComponentRegistry::GetRegisteredTypes() const
 {
     vector<string> types;
 
+
+
     for (const auto & pair : s_factories)
     {
         types.push_back (pair.first);

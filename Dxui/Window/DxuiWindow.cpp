@@ -11,6 +11,7 @@ static constexpr UINT_PTR  s_kDialogTimerId   = 1;      // dialog caret-blink / 
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  Create
@@ -325,6 +326,8 @@ bool DxuiWindow::ProcessDialogMessage (const MSG & msg)
     bool  isHandled = false;
     HWND  hwnd      = Hwnd();
 
+
+
     // Only intercept the dialog-navigation keys while a dialog is active and the
     // message targets this window; otherwise fall through to normal dispatch.
     // Plain early returns (not BAIL_OUT_IF): this returns bool, not HRESULT.
@@ -402,6 +405,7 @@ void DxuiWindow::EndDialog (int result)
         }
     }
 }
+
 
 
 
@@ -645,6 +649,7 @@ DxuiMessageResult DxuiWindow::OnKeyDown (WPARAM vk, LPARAM lParam)
     DxuiMessageResult  result = DxuiMessageResult::NotHandled;
 
 
+
     UNREFERENCED_PARAMETER (lParam);
 
     // A modal overlay swallows every key (routing the ones it wants to its own
@@ -676,6 +681,7 @@ DxuiMessageResult DxuiWindow::OnChar (WPARAM ch, LPARAM lParam)
     DxuiMessageResult  result    = DxuiMessageResult::NotHandled;
     IDxuiControl *     focused   = nullptr;
     bool               isHandled = false;
+
 
 
     UNREFERENCED_PARAMETER (lParam);
@@ -793,6 +799,7 @@ DxuiMessageResult DxuiWindow::OnTimer (UINT_PTR timerId)
     DxuiMessageResult  result = DxuiMessageResult::NotHandled;
 
 
+
     if (m_dialogActive && timerId == s_kDialogTimerId)
     {
         OnDialogTick();
@@ -802,6 +809,7 @@ DxuiMessageResult DxuiWindow::OnTimer (UINT_PTR timerId)
 
     return result;
 }
+
 
 
 

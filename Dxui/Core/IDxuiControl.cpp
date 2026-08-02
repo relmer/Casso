@@ -45,6 +45,7 @@ void IDxuiControl::SetVisible (bool visible)
     DxuiPanel *  parentPnl  = nullptr;
 
 
+
     DXUI_ASSERT_UI_THREAD();
 
     prior     = m_visible;

@@ -9,7 +9,6 @@
 
 
 
-
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  ThemeBootstrapPlanner::Plan
@@ -148,6 +147,7 @@ HRESULT ThemeManager::Activate (const std::string & themeName)
     const LoadedTheme *  match = nullptr;
 
 
+
     for (const LoadedTheme & t : m_available)
     {
         if (t.name == themeName)
@@ -278,6 +278,7 @@ const LoadedTheme * ThemeManager::GetActiveTheme() const
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  SetActiveMachineName
@@ -287,6 +288,8 @@ const LoadedTheme * ThemeManager::GetActiveTheme() const
 void ThemeManager::SetActiveMachineName (const std::string & machineDisplayName)
 {
     const LoadedTheme *  active = nullptr;
+
+
 
     if (m_activeMachine == machineDisplayName)
     {
@@ -309,6 +312,7 @@ void ThemeManager::SetActiveMachineName (const std::string & machineDisplayName)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  GetActiveResolvedTheme
@@ -318,6 +322,8 @@ void ThemeManager::SetActiveMachineName (const std::string & machineDisplayName)
 LoadedTheme ThemeManager::GetActiveResolvedTheme() const
 {
     const LoadedTheme *  active = GetActiveTheme();
+
+
 
     if (active == nullptr)
     {

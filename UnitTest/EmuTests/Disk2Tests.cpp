@@ -44,6 +44,8 @@ static void WriteNibbleToImage (DiskImage & img, int track, size_t & bitOffset, 
 {
     int   i = 0;
 
+
+
     for (i = 7; i >= 0; i--)
     {
         Byte   b = static_cast<Byte> ((nibble >> i) & 1);
@@ -69,6 +71,8 @@ static size_t WriteBytesThroughLss (Disk2Controller & disk, const Byte * data, i
     size_t   startBit = 0;
     int      i        = 0;
     int      b        = 0;
+
+
 
     disk.Read (s_kMotorOn);
     disk.Tick (Disk2Controller::kMotorSpinupCycles);

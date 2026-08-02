@@ -563,6 +563,8 @@ void Disk2AudioSource::OnHeadBump()
     uint32_t  slot                 = 0;
     uint32_t  headLen              = 0;
 
+
+
     if (m_headBuf != nullptr)
     {
         headLen              = static_cast<uint32_t> (m_headBuf->size());
@@ -607,6 +609,7 @@ void Disk2AudioSource::OnHeadBump()
         TriggerHeadShot (SoundKind::HeadStep, &m_stepBuf, previousStillPlaying);
     }
 }
+
 
 
 
@@ -671,6 +674,8 @@ void Disk2AudioSource::OnDiskInserted()
 {
     bool  wasPresent = m_diskPresent;
 
+
+
     m_diskPresent = true;
     m_doorBuf     = &m_doorCloseBuf;
     m_doorPos     = 0;
@@ -698,6 +703,8 @@ void Disk2AudioSource::OnDiskInserted()
 void Disk2AudioSource::OnDiskEjected()
 {
     bool  wasPresent = m_diskPresent;
+
+
 
     m_diskPresent = false;
     m_doorBuf     = &m_doorOpenBuf;
@@ -772,6 +779,8 @@ void Disk2AudioSource::MixMotor (float * out, uint32_t n)
     uint32_t  len = static_cast<uint32_t> (m_motorBuf.size());
     uint32_t  i   = 0;
 
+
+
     if (!m_motorRunning || !m_diskPresent || len == 0)
     {
         return;
@@ -806,6 +815,8 @@ void Disk2AudioSource::MixHead (float * out, uint32_t n)
 {
     uint32_t  len = 0;
     uint32_t  i   = 0;
+
+
 
     if (m_headBuf == nullptr)
     {
@@ -848,6 +859,8 @@ void Disk2AudioSource::MixDoor (float * out, uint32_t n)
     uint32_t  len = 0;
     uint32_t  i   = 0;
 
+
+
     if (m_doorBuf == nullptr)
     {
         return;
@@ -871,6 +884,7 @@ void Disk2AudioSource::MixDoor (float * out, uint32_t n)
         m_doorPos++;
     }
 }
+
 
 
 

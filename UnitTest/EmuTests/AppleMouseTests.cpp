@@ -13,6 +13,7 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  AppleMouseTests
@@ -38,6 +39,8 @@ static bool Apple2cRomAvailable()
     FixtureProvider        fp;
     std::vector<uint8_t>   bytes;
     HRESULT                hrOpen = fp.OpenFixture ("Apple2c.rom", bytes);
+
+
 
     return SUCCEEDED (hrOpen) && bytes.size() == s_kRomSize;
 }

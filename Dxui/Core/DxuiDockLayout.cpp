@@ -80,6 +80,8 @@ DxuiDock DxuiDockLayout::LookupDock (const IDxuiControl * child) const
 {
     auto  it = m_docks.find (child);
 
+
+
     if (it == m_docks.end())
     {
         return DxuiDock::Fill;

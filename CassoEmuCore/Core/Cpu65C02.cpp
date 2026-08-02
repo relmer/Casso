@@ -7,6 +7,9 @@
 static constexpr Byte    s_kOneByteNopCycles = 1;
 
 
+
+
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  ReservedNop
@@ -46,6 +49,7 @@ static constexpr ReservedNop    s_kReservedNops[] =
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  Cpu65C02
@@ -57,6 +61,7 @@ Cpu65C02::Cpu65C02 (MemoryBus & memoryBus)
 {
     InitializeCmos();
 }
+
 
 
 
@@ -77,6 +82,7 @@ void Cpu65C02::DispatchVector (Word vector, bool fromBrk)
 
     status.flags.decimal = 0;
 }
+
 
 
 
@@ -102,6 +108,7 @@ void Cpu65C02::SetOpcode (Byte                                  opcode,
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  InitializeCmos
@@ -123,6 +130,7 @@ void Cpu65C02::InitializeCmos()
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  InstallBitOps
@@ -140,6 +148,8 @@ void Cpu65C02::InstallBitOps()
 {
     static constexpr Byte    s_kBitOpCycles       = 5;
     static constexpr Byte    s_kBitBranchCycles   = 5;
+
+
 
     // The bit index is baked into the mnemonic (RMB0..RMB7 etc.), exactly as the
     // instructions are written in assembly, as well as into the opcode
@@ -172,6 +182,7 @@ void Cpu65C02::InstallBitOps()
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  ReclaimUndocumented
@@ -199,6 +210,7 @@ void Cpu65C02::ReclaimUndocumented()
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  InitializeArithmetic
@@ -215,6 +227,8 @@ void Cpu65C02::ReclaimUndocumented()
 void Cpu65C02::InitializeArithmetic()
 {
     int    i = 0;
+
+
 
     for (i = 0; i <= 0xFF; ++i)
     {
@@ -237,6 +251,7 @@ void Cpu65C02::InitializeArithmetic()
         }
     }
 }
+
 
 
 
@@ -319,6 +334,7 @@ void Cpu65C02::InitializeCmosLeftovers()
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  InitializeNops
@@ -339,6 +355,8 @@ void Cpu65C02::InitializeCmosLeftovers()
 void Cpu65C02::InitializeNops()
 {
     int    i = 0;
+
+
 
     // These reserved / undefined-opcode slots execute and disassemble as NOPs
     // (real CMOS behavior), but they are opcode-map fill, not instructions anyone

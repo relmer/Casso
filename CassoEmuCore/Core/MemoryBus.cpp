@@ -6,6 +6,7 @@
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  Constants
@@ -342,6 +343,7 @@ MemoryDevice * MemoryBus::FindDevice (Word address) const
 
     return nullptr;
 }
+
 
 
 

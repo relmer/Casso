@@ -153,6 +153,8 @@ float DxuiSlider::ValueFromX (int x) const
     constexpr int  s_kValueGapDip   = 8;
     constexpr int  s_kValueWidthDip = 56;
 
+
+
     // Must match the showValue logic in Paint() exactly, otherwise the
     // puck draw position and the click-to-value mapping disagree and
     // a click on the puck snaps to a different value.
@@ -216,6 +218,7 @@ bool DxuiSlider::OnLButtonDown (int x, int y)
     bool  startedDrag = false;
 
 
+
     if (!HitTest (x, y))
     {
         return false;
@@ -246,6 +249,7 @@ bool DxuiSlider::OnLButtonUp (int x, int y)
 {
     bool  consumed = m_dragging;
     bool  endedDrag = m_dragging;
+
 
 
     UNREFERENCED_PARAMETER (x);
@@ -503,6 +507,7 @@ void DxuiSlider::PaintInternal (IDxuiPainter & painter, IDxuiTextRenderer & text
                                                   DxuiTextVAlign::Center));
     }
 }
+
 
 
 

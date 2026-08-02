@@ -122,6 +122,8 @@ static void PackNibbleBits (vector<Byte> & dst, size_t & bitOffset, Byte nibble)
     Byte   b    = 0;
     Byte   mask = 0;
 
+
+
     for (bit = 7; bit >= 0; bit--)
     {
         b    = static_cast<Byte> ((nibble >> bit) & 1);
@@ -363,6 +365,8 @@ HRESULT NibblizationLayer::NibblizeDsk (const vector<Byte> & raw, DiskImage & ou
 {
     HRESULT   hr = NibblizeWithMap (raw, kDsk_LtoP, out);
 
+
+
     if (SUCCEEDED (hr))
     {
         out.SetSourceFormat (DiskFormat::Dsk);
@@ -375,6 +379,8 @@ HRESULT NibblizationLayer::NibblizeDsk (const vector<Byte> & raw, DiskImage & ou
 HRESULT NibblizationLayer::NibblizeDo (const vector<Byte> & raw, DiskImage & out)
 {
     HRESULT   hr = NibblizeWithMap (raw, kDsk_LtoP, out);
+
+
 
     if (SUCCEEDED (hr))
     {
@@ -389,6 +395,8 @@ HRESULT NibblizationLayer::NibblizePo (const vector<Byte> & raw, DiskImage & out
 {
     HRESULT   hr = NibblizeWithMap (raw, kPo_DosLogicalToFile, out);
 
+
+
     if (SUCCEEDED (hr))
     {
         out.SetSourceFormat (DiskFormat::Po);
@@ -401,6 +409,8 @@ HRESULT NibblizationLayer::NibblizePo (const vector<Byte> & raw, DiskImage & out
 HRESULT NibblizationLayer::Nibblize (const vector<Byte> & raw, DiskFormat fmt, DiskImage & out)
 {
     HRESULT  hr = S_OK;
+
+
 
     switch (fmt)
     {
@@ -429,6 +439,8 @@ static Byte ReadNibbleAt (const DiskImage & img, int track, size_t & bitPos)
     Byte     value     = 0;
     Byte     bit       = 0;
     size_t   start     = bitPos;
+
+
 
     if (trackBits == 0)
     {
@@ -460,6 +472,8 @@ static Byte Decode44 (Byte odd, Byte even)
 static Byte InverseTranslate (Byte nib)
 {
     int   i = 0;
+
+
 
     for (i = 0; i < 64; i++)
     {

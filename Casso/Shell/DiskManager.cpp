@@ -72,6 +72,8 @@ int64_t DiskManager::NowMs()
 {
     auto  duration = std::chrono::steady_clock::now().time_since_epoch();
 
+
+
     return std::chrono::duration_cast<std::chrono::milliseconds> (duration).count();
 }
 
@@ -186,6 +188,7 @@ void DiskManager::ApplyExternalWriteProtect (
 Disk2Controller * DiskManager::FindSlot6Controller()
 {
     Disk2Controller *  result = nullptr;
+
 
 
     for (auto & dev : m_ownedDevices)
@@ -311,6 +314,7 @@ HRESULT DiskManager::MountDiskInSlot6 (int drive, const std::string & path)
     DiskImage         *  external   = nullptr;
 
 
+
     CBR (controller != nullptr);
 
     hr = m_diskStore.Mount (6, drive, path);
@@ -385,6 +389,7 @@ Error:
 void DiskManager::EjectDiskInSlot6 (int drive)
 {
     Disk2Controller *  controller = FindSlot6Controller();
+
 
 
     m_diskStore.Eject (6, drive);
@@ -486,6 +491,7 @@ HRESULT DiskManager::Mount (int slot, int drive, const std::wstring & path)
     WORD     command = 0;
 
 
+
     CBRAEx (slot == 6, E_INVALIDARG);
 
     CBRAEx (drive == 0 || drive == 1, E_INVALIDARG);
@@ -511,6 +517,7 @@ Error:
 void DiskManager::Eject (int slot, int drive)
 {
     WORD  command = 0;
+
 
 
     if (slot != 6)
@@ -563,6 +570,7 @@ void DiskManager::UpdateDriveWidgets()
     int64_t             nowMs      = NowMs();
     std::vector<DriveWidgetController::DriveSyncEvent>  syncEvents = m_driveWidgets.ConsumeSyncEvents();
     int                 drive      = 0;
+
 
 
     for (drive = 0; drive < static_cast<int> (m_driveWidgetState.size()); drive++)

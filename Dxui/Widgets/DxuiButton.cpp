@@ -25,6 +25,7 @@ void DxuiButton::SetLabel (const std::wstring & label)
     size_t        i     = 0;
 
 
+
     out.reserve (label.size());
 
     while (i < label.size())
@@ -122,6 +123,8 @@ void DxuiButton::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const 
     constexpr float     s_kPrimaryHover     = 0.12f;
     constexpr float     s_kPrimaryPressed   = 0.82f;
     constexpr float     s_kLinkHover        = 0.25f;
+
+
 
     HRESULT  hr           = S_OK;
     uint32_t idle         = theme.ButtonIdle();
@@ -285,6 +288,7 @@ bool DxuiButton::OnMouse (const DxuiMouseEvent & ev)
     bool  prevPressed = m_pressed;
 
 
+
     switch (ev.kind)
     {
     case DxuiMouseEventKind::Move:
@@ -336,6 +340,7 @@ LPCWSTR DxuiButton::CursorForPoint (POINT clientPx) const
 
     return nullptr;
 }
+
 
 
 

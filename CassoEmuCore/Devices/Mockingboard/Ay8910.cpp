@@ -367,6 +367,8 @@ void Ay8910::StepLfsr()
 {
     uint32_t   feedback = (m_lfsr ^ (m_lfsr >> s_kLfsrFeedbackTap)) & 1u;
 
+
+
     m_lfsr = (m_lfsr >> 1) | (feedback << s_kLfsrHighBit);
 }
 
@@ -513,6 +515,7 @@ bool Ay8910::IsSilent() const
     int   c = 0;
 
 
+
     for (c = 0; c < s_kChannelCount; c++)
     {
         if (m_regs[kRegAmpA + c] != 0)
@@ -540,6 +543,8 @@ int Ay8910::TonePeriod (int channel) const
     Byte   coarse = m_regs[kRegToneACoarse + channel * 2];
     int    period = ((coarse & s_kToneCoarseMask) << s_kByteShift) | fine;
 
+
+
     return (period == 0) ? 1 : period;
 }
 
@@ -557,6 +562,8 @@ int Ay8910::NoisePeriod() const
 {
     int   period = m_regs[kRegNoisePeriod] & s_kNoisePeriodMask;
 
+
+
     return (period == 0) ? 1 : period;
 }
 
@@ -573,6 +580,8 @@ int Ay8910::NoisePeriod() const
 int Ay8910::EnvPeriod() const
 {
     int   period = (m_regs[kRegEnvCoarse] << s_kByteShift) | m_regs[kRegEnvFine];
+
+
 
     return (period == 0) ? 1 : period;
 }

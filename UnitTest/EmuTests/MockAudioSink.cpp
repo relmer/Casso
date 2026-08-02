@@ -24,6 +24,7 @@ HRESULT MockAudioSink::PushSamples (const float * samples, size_t count)
     bool        curSign;
 
 
+
     CBREx (samples != nullptr || count == 0, E_INVALIDARG);
 
     for (i = 0; i < count; i++)

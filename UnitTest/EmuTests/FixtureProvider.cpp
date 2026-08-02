@@ -6,6 +6,9 @@
 #endif
 
 
+
+
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  ResolveFixturesRoot
@@ -21,6 +24,8 @@
 std::string FixtureProvider::ResolveFixturesRoot()
 {
     constexpr int     kMaxAncestorWalk = 8;
+
+
 
     std::string   baked = CASSO_FIXTURES_DIR;
     fs::path      cursor;

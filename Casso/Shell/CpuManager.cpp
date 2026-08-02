@@ -18,7 +18,6 @@
 
 
 
-
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  CpuManager
@@ -194,6 +193,7 @@ bool CpuManager::TogglePaused() noexcept
     bool  next = !m_paused.load (std::memory_order_acquire);
 
 
+
     m_paused.store (next, std::memory_order_release);
     m_pauseCV.notify_all();
     return next;
@@ -248,6 +248,7 @@ void CpuManager::DrainCommandQueue()
     std::vector<EmulatorCommand>  cmds;
 
 
+
     {
         std::lock_guard<std::mutex>  lock (m_cmdMutex);
 
@@ -280,6 +281,8 @@ void CpuManager::DrainCommandQueue()
 void CpuManager::ThreadProc()
 {
     constexpr LONGLONG  kHundredNsPerSecond = 10000000LL;
+
+
 
     HRESULT        hr              = S_OK;
     HANDLE         hTimer          = nullptr;

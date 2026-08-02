@@ -6,6 +6,7 @@
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  AciaLoopbackEndpoint::OnByteTransmitted
@@ -23,6 +24,7 @@ void AciaLoopbackEndpoint::OnByteTransmitted (Byte value)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  AciaFileEndpoint::Open
@@ -34,6 +36,8 @@ HRESULT AciaFileEndpoint::Open (const string & path)
     HRESULT   hr     = S_OK;
     bool      opened = false;
 
+
+
     m_file.open (path, ios::binary | ios::out | ios::app);
 
     opened = m_file.is_open();
@@ -42,6 +46,7 @@ HRESULT AciaFileEndpoint::Open (const string & path)
 Error:
     return hr;
 }
+
 
 
 
@@ -59,6 +64,7 @@ void AciaFileEndpoint::Close()
         m_file.close();
     }
 }
+
 
 
 

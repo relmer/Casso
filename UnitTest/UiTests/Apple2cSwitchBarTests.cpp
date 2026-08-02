@@ -10,6 +10,7 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  Apple2cSwitchBarTests
@@ -29,6 +30,8 @@ static Apple2cSwitchBar MakeLaidOutBar (MockDxuiTextRenderer & text)
 {
     Apple2cSwitchBar  bar;
     DxuiDpiScaler     scaler;
+
+
 
     scaler.SetDpi (96);
     bar.SetTextRenderer (&text);

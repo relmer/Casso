@@ -11,8 +11,6 @@
 
 
 
-
-
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  Show
@@ -155,6 +153,7 @@ void DxuiPopupMenu::Hide()
     DxuiPopupHost *  popup  = m_activePopup;
 
 
+
     // Clear m_activePopup BEFORE releasing so the popup's onClosed
     // callback (which routes back here) is a no-op — no double release.
     m_visible     = false;
@@ -200,6 +199,8 @@ int DxuiPopupMenu::HitTestIndex (int x, int y) const
     int  border = m_scaler.Px (kBorderDip);
     int  itemH  = m_scaler.Px (kItemHeightDip);
     int  relY   = y - (m_boundsDip.top + border);
+
+
 
     if (!HitTest (x, y))   { return -1; }
     if (itemH <= 0)        { return -1; }
@@ -275,6 +276,7 @@ bool DxuiPopupMenu::OnLButtonUp (int x, int y)
     int       idx     = HitTestIndex (x, y);
     SelectFn  cb      = m_onSelect;
     int       commit  = -1;
+
 
 
     if (!m_visible) { return false; }
@@ -395,6 +397,8 @@ void DxuiPopupMenu::PaintBody (IDxuiPainter & painter, IDxuiTextRenderer & text,
 {
     constexpr int    kCheckGlyphOffDip = 10;
 
+
+
     HRESULT   hr       = S_OK;
     int       border   = m_scaler.Px (kBorderDip);
     int       itemH    = m_scaler.Px (kItemHeightDip);
@@ -504,6 +508,7 @@ void DxuiPopupMenu::OnPopupMove (POINT localPx)
     int  row    = -1;
 
 
+
     if (itemH <= 0 || m_items.empty() || relY < 0)
     {
         return;
@@ -547,6 +552,7 @@ void DxuiPopupMenu::OnPopupClick (POINT localPx)
     SelectFn  cb     = m_onSelect;
 
 
+
     if (itemH <= 0 || m_items.empty() || relY < 0)
     {
         return;
@@ -564,6 +570,7 @@ void DxuiPopupMenu::OnPopupClick (POINT localPx)
         cb (row);
     }
 }
+
 
 
 

@@ -9,9 +9,6 @@
 
 
 
-
-
-
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  DxuiCaptionBar
@@ -185,6 +182,8 @@ int DxuiCaptionBar::HeightPxForDpi (UINT dpi)
 {
     constexpr int      kBaseDpi          = 96;
 
+
+
     return MulDiv (kCaptionHeightDip, (int) dpi, kBaseDpi);
 }
 
@@ -261,6 +260,8 @@ void DxuiCaptionBar::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
     constexpr float    kTitleFontDip     = 14.0f;
     constexpr float    kTitlePadDip      = 14.0f;
     constexpr float    kIconPadFraction  = 0.18f;
+
+
 
     RECT     b            = {};
     float    xPx          = 0.0f;

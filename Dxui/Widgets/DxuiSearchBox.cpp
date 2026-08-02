@@ -24,6 +24,7 @@ static constexpr uint32_t  s_kFallbackBorder   = 0xFF445566;
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  DxuiSearchBox  (constructor)
@@ -44,6 +45,7 @@ DxuiSearchBox::DxuiSearchBox()
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  SetDpi
@@ -56,6 +58,7 @@ void DxuiSearchBox::SetDpi (UINT dpi)
     m_input.SetDpi (dpi);
     RelayoutInput();
 }
+
 
 
 
@@ -75,6 +78,7 @@ void DxuiSearchBox::SetRect (const RECT & rect)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  SetText
@@ -89,6 +93,7 @@ void DxuiSearchBox::SetText (const std::wstring & text)
     m_input.SetText (text);
     RelayoutInput();
 }
+
 
 
 
@@ -113,6 +118,7 @@ void DxuiSearchBox::Clear()
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  SetFocused
@@ -130,6 +136,7 @@ void DxuiSearchBox::SetFocused (bool focused)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  OnLButtonDown
@@ -142,6 +149,7 @@ void DxuiSearchBox::SetFocused (bool focused)
 bool DxuiSearchBox::OnLButtonDown (int x, int y)
 {
     bool  consumed = false;
+
 
 
     if (IsClearVisible() && HitTestClear (x, y))
@@ -161,6 +169,7 @@ bool DxuiSearchBox::OnLButtonDown (int x, int y)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  OnLButtonUp
@@ -172,6 +181,7 @@ bool DxuiSearchBox::OnLButtonUp (int x, int y)
     m_clearPressed = false;
     return m_input.OnLButtonUp (x, y);
 }
+
 
 
 
@@ -191,6 +201,7 @@ void DxuiSearchBox::OnMouseMove (int x, int y)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  OnKey
@@ -203,6 +214,7 @@ bool DxuiSearchBox::OnKey (WPARAM vk)
     bool          consumed = m_input.OnKey (vk);
 
 
+
     if (m_input.Text() != before)
     {
         FireChange();
@@ -210,6 +222,7 @@ bool DxuiSearchBox::OnKey (WPARAM vk)
 
     return consumed;
 }
+
 
 
 
@@ -226,6 +239,7 @@ bool DxuiSearchBox::OnChar (wchar_t ch)
     bool          consumed = m_input.OnChar (ch);
 
 
+
     if (m_input.Text() != before)
     {
         FireChange();
@@ -233,6 +247,7 @@ bool DxuiSearchBox::OnChar (wchar_t ch)
 
     return consumed;
 }
+
 
 
 
@@ -310,6 +325,7 @@ void DxuiSearchBox::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) con
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  DxuiSearchBox::Layout  (IDxuiControl override)
@@ -323,6 +339,7 @@ void DxuiSearchBox::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler
     m_input.SetDpi (scaler.Dpi());
     RelayoutInput();
 }
+
 
 
 
@@ -343,6 +360,7 @@ void DxuiSearchBox::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, con
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  DxuiSearchBox::Tick  (IDxuiControl override)
@@ -359,6 +377,7 @@ void DxuiSearchBox::Tick (int64_t nowMs)
     int64_t  dt     = 0;
     float    step   = 0.0f;
     float    prev   = m_glyphShown;
+
 
 
     if (m_lastTickMs == 0)
@@ -401,6 +420,7 @@ void DxuiSearchBox::Tick (int64_t nowMs)
 bool DxuiSearchBox::OnMouse (const DxuiMouseEvent & ev)
 {
     bool  consumed = false;
+
 
 
     switch (ev.kind)
@@ -447,6 +467,7 @@ bool DxuiSearchBox::OnKey (const DxuiKeyEvent & ev)
     bool  consumed = false;
 
 
+
     if (ev.kind == DxuiKeyEventKind::Down)
     {
         consumed = OnKey (static_cast<WPARAM> (ev.vk));
@@ -454,6 +475,7 @@ bool DxuiSearchBox::OnKey (const DxuiKeyEvent & ev)
 
     return consumed;
 }
+
 
 
 
@@ -490,6 +512,7 @@ void DxuiSearchBox::RelayoutInput()
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  IsClearVisible
@@ -500,6 +523,7 @@ bool DxuiSearchBox::IsClearVisible() const
 {
     return m_focused && !m_input.Text().empty();
 }
+
 
 
 
@@ -518,11 +542,14 @@ RECT DxuiSearchBox::ClearGlyphRect() const
     int  pad       = m_scaler.Px (s_kPadDip);
     int  glyphSlot = m_scaler.Px (s_kGlyphSlotDip);
 
+
+
     return RECT { m_boundsDip.right - pad - glyphSlot,
                   m_boundsDip.top,
                   m_boundsDip.right - pad,
                   m_boundsDip.bottom };
 }
+
 
 
 
@@ -537,8 +564,11 @@ bool DxuiSearchBox::HitTestClear (int x, int y) const
 {
     RECT  r = ClearGlyphRect();
 
+
+
     return x >= r.left && x < r.right && y >= r.top && y < r.bottom;
 }
+
 
 
 

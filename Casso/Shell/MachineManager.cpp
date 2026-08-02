@@ -61,6 +61,7 @@ WORD  MachineManager::ResolveMachineSpeedCommand (const JsonValue & mergedJson)
     std::string        speed;
 
 
+
     if (mergedJson.GetType() != JsonType::Object)
     {
         return 0;
@@ -115,6 +116,8 @@ HRESULT MachineManager::CreateMemoryDevices (const MachineConfig & config)
 {
     HRESULT  hr      = S_OK;
     bool     romOk   = false;
+
+
 
     std::wstring  wideError;
     std::string   error;
@@ -846,6 +849,7 @@ Error:
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  WireApple2cRomBank
@@ -861,6 +865,8 @@ Error:
 void MachineManager::WireApple2cRomBank()
 {
     const RomReference &  sysRom = m_shell.m_config.systemRom;
+
+
 
     if (sysRom.romBankSize == 0)
     {
@@ -909,6 +915,7 @@ void MachineManager::WireApple2cRomBank()
     // //c: no card slots -> $C100-$CFFF is always the internal firmware.
     mmu->GetCxxxRouter()->SetNoExternalSlots (true);
 }
+
 
 
 

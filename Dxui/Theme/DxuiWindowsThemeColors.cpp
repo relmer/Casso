@@ -20,7 +20,6 @@
 
 
 
-
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  ReadAppsUseLightTheme
@@ -80,6 +79,8 @@ bool DxuiWindowsThemeColors::ReadAppsUseLightTheme()
 DxuiWindowsThemeColors & DxuiWindowsThemeColors::Instance()
 {
     static DxuiWindowsThemeColors  s_instance;
+
+
 
     return s_instance;
 }

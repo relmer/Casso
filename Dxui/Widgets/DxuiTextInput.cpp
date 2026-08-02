@@ -139,6 +139,7 @@ bool DxuiTextInput::OnKey (WPARAM vk)
     bool  ctrl     = Control();
 
 
+
     if (!m_focused || !m_enabled)
     {
         return false;
@@ -293,6 +294,7 @@ bool DxuiTextInput::OnChar (wchar_t ch)
     std::wstring  ins;
 
 
+
     if (!m_focused || !m_enabled)
     {
         return false;
@@ -344,6 +346,7 @@ void DxuiTextInput::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) con
     std::wstring before;
     std::wstring sel;
     std::wstring caretPrefix;
+
 
 
     if (m_theme != nullptr)
@@ -504,6 +507,7 @@ size_t DxuiTextInput::CaretFromX (IDxuiTextRenderer & text, int xPx) const
     float         bestDist = 1e9f;
 
 
+
     if (target <= 0.0f)
     {
         return 0;
@@ -539,6 +543,7 @@ void DxuiTextInput::DeleteSelection()
 {
     size_t  selStart = std::min (m_caret, m_anchor);
     size_t  selEnd   = std::max (m_caret, m_anchor);
+
 
 
     if (selStart == selEnd)
@@ -604,6 +609,7 @@ void DxuiTextInput::CopyToClipboard() const
     BOOL          opened   = FALSE;
 
 
+
     if (selStart == selEnd)
     {
         return;
@@ -667,6 +673,7 @@ void DxuiTextInput::PasteFromClipboard()
     std::wstring  ins;
 
 
+
     opened = OpenClipboard (m_hwnd);
     if (!opened)
     {
@@ -720,6 +727,7 @@ void DxuiTextInput::FireChange()
         m_change (m_text);
     }
 }
+
 
 
 

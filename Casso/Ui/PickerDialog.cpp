@@ -7,6 +7,7 @@
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  ConfigurePicker
@@ -27,6 +28,7 @@ void PickerDialog::ConfigurePicker (std::unique_ptr<DxuiPanel>          content,
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  MapResult
@@ -37,6 +39,7 @@ int PickerDialog::MapResult (int dialogResult) const
 {
     int     result = m_closeBoxResult;
     size_t  idx    = 0;
+
 
 
     if (dialogResult >= kRowResultBase)
@@ -65,6 +68,7 @@ int PickerDialog::MapResult (int dialogResult) const
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  OnCreate
@@ -74,6 +78,7 @@ int PickerDialog::MapResult (int dialogResult) const
 void PickerDialog::OnCreate()
 {
     size_t  i = 0;
+
 
 
     if (m_pendingContent != nullptr)

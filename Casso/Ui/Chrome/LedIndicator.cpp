@@ -5,6 +5,7 @@
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  LedIndicator
@@ -15,9 +16,6 @@ LedIndicator::LedIndicator()
 {
     m_focusable = false;
 }
-
-
-
 
 
 
@@ -34,6 +32,8 @@ void LedIndicator::PositionAt (int x, int y, UINT dpi)
     constexpr int  kBaseDpi       = 96;
     constexpr int  kCorePx        = 7;
     constexpr int  kHaloPaddingPx = 2;
+
+
 
     int  effectiveDpi = (dpi == 0) ? kBaseDpi : (int) dpi;
     int  core         = MulDiv (kCorePx, effectiveDpi, kBaseDpi);
@@ -65,6 +65,7 @@ void LedIndicator::PositionAt (int x, int y, UINT dpi)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  Layout
@@ -79,6 +80,7 @@ void LedIndicator::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
 {
     PositionAt (boundsDip.left, boundsDip.top, scaler.Dpi());
 }
+
 
 
 
@@ -107,6 +109,7 @@ uint32_t LedIndicator::CoreArgb (const CassoTheme & theme) const
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  HaloArgb
@@ -122,6 +125,7 @@ uint32_t LedIndicator::HaloArgb (const CassoTheme & theme) const
 
     return 0;
 }
+
 
 
 
@@ -152,6 +156,7 @@ void LedIndicator::Paint (IDxuiPainter & painter, IDxuiTextRenderer & /*text*/, 
 
     painter.FillCircleApprox (cx, cy, coreR, CoreArgb (theme));
 }
+
 
 
 

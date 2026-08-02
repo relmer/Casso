@@ -22,6 +22,8 @@ static constexpr int    s_kSheetHeightDip    = 760;
 
 
 
+
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  ~SettingsSheet
@@ -42,6 +44,7 @@ SettingsSheet::~SettingsSheet()
     }
     m_compositor.Shutdown();
 }
+
 
 
 
@@ -72,6 +75,7 @@ void SettingsSheet::OnBuildPages()
     m_restartNotice->SetTextAlign (DxuiTextHAlign::Left, DxuiTextVAlign::Center);
     m_restartNotice->SetVisible   (false);
 }
+
 
 
 
@@ -375,6 +379,7 @@ Error:
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  OnOk / OnCancel
@@ -398,6 +403,7 @@ void SettingsSheet::OnCancel()
     m_apply.Cancel (m_preview);
     RevertDriveAuditionIfDirty();
 }
+
 
 
 
@@ -432,6 +438,7 @@ void SettingsSheet::OnDialogTick()
     }
     UpdatePreviewCompose();
 }
+
 
 
 
@@ -494,12 +501,15 @@ void SettingsSheet::RefreshOkLabel()
     bool          reboot = m_apply.WillMachineChange() || m_apply.IsResetRequired();
     std::wstring  want   = reboot ? L"OK (reboot)" : L"OK";
 
+
+
     if (OkText() != want)   // only reflow on an actual change, not every tick
     {
         SetOkText (std::move (want));
         SetOkWidthDip (reboot ? 132 : 0);   // 0 => standard width, == Cancel
     }
 }
+
 
 
 
@@ -542,6 +552,9 @@ void SettingsSheet::Layout (const RECT & boundsPx, const DxuiDpiScaler & scaler)
 }
 
 
+
+
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  UpdateRestartNotice
@@ -555,6 +568,7 @@ void SettingsSheet::Layout (const RECT & boundsPx, const DxuiDpiScaler & scaler)
 void SettingsSheet::UpdateRestartNotice()
 {
     std::wstring  notice;
+
 
 
     if (m_apply.WillMachineChange())
@@ -581,6 +595,7 @@ void SettingsSheet::UpdateRestartNotice()
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  UpdateDiskTabVisibility
@@ -596,6 +611,7 @@ void SettingsSheet::UpdateRestartNotice()
 void SettingsSheet::UpdateDiskTabVisibility()
 {
     bool  want = m_state.HasDiskIIController();
+
 
 
     if (m_diskPageIndex < 0 || want == m_diskTabVisible)
@@ -648,6 +664,8 @@ bool SettingsSheet::OnOverlayChar (wchar_t ch)
 {
     bool  handled = m_colorPicker.IsOpen() && m_colorPicker.OnChar (ch);
 
+
+
     if (m_colorPicker.IsOpen())
     {
         Invalidate();
@@ -660,12 +678,15 @@ bool SettingsSheet::OnOverlayKey (WPARAM vk)
 {
     bool  handled = m_colorPicker.IsOpen() && m_colorPicker.OnKey (vk);
 
+
+
     if (m_colorPicker.IsOpen())
     {
         Invalidate();
     }
     return handled;
 }
+
 
 
 
@@ -721,6 +742,7 @@ void SettingsSheet::AuditionDriveSound (int drive, int kind, bool centered)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  SnapshotDriveAudioBaseline / RevertDriveAuditionIfDirty
@@ -736,6 +758,8 @@ void SettingsSheet::AuditionDriveSound (int drive, int kind, bool centered)
 void SettingsSheet::SnapshotDriveAudioBaseline()
 {
     const SettingsUiPrefs &  prefs = m_state.Prefs();
+
+
 
     m_baselineDriveMotorVol = prefs.driveMotorVolume;
     m_baselineDriveHeadVol  = prefs.driveHeadVolume;
@@ -762,6 +786,7 @@ void SettingsSheet::RevertDriveAuditionIfDirty()
                             m_baselineMechanism);
     m_driveAuditionDirty = false;
 }
+
 
 
 

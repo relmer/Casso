@@ -113,6 +113,8 @@ void  WindowCommandManager::PrimeDefaultPrinterDriver()
 {
     PRINTDLGW   def = {};
 
+
+
     def.lStructSize = sizeof (def);
     def.Flags       = PD_RETURNDEFAULT | PD_NOPAGENUMS | PD_NOSELECTION;
 
@@ -153,6 +155,8 @@ HDC  WindowCommandManager::CreateDcFromDevNames (const PRINTDLGW & pd)
     std::wstring                 device;
     std::vector<unsigned char>   devmode;
     HDC                          hdc = nullptr;
+
+
 
     if (pd.hDevNames == nullptr)
     {
@@ -217,6 +221,8 @@ HRESULT WindowCommandManager::BlitRgbaToDc (HDC hdc, const RgbaImage & img, int 
     int                        destW = 0;
     int                        destH = 0;
     int                        blit  = 0;
+
+
 
     CBR (img.width > 0 && img.height > 0);
     CBR (pageW > 0 && pageH > 0);
@@ -343,6 +349,7 @@ bool WindowCommandManager::OnCommand (HWND hwnd, int id)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  OnExternalDriveCommand
@@ -395,6 +402,8 @@ void WindowCommandManager::OnMouseConnectCommand (int id)
 void WindowCommandManager::OnExternalDriveCommand (int id)
 {
     bool  connected = (id == IDM_DRIVE_EXTERNAL_CONNECT);
+
+
 
     if (connected != m_shell.m_externalDriveConnected)
     {
@@ -782,6 +791,7 @@ HRESULT WindowCommandManager::PromptInsertDiskMru (int drive)
     bool                         userBrowsed = false;
 
 
+
     diskDir   = AssetBootstrap::GetDiskDirectory();
     mru       = DiskMru::FromUtf8 (m_shell.m_globalPrefs.recentDisks,
                                    m_shell.m_globalPrefs.recentDiskLoadedAt);
@@ -904,6 +914,7 @@ static int WholeStripDpi (const GlobalUserPrefs & prefs, int rows)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  SavePrintoutAs
@@ -934,6 +945,8 @@ HRESULT WindowCommandManager::SavePrintoutAs (const PrintRaster & raster, fs::pa
     HRESULT                   hrFolder    = S_OK;
     std::error_code           ec;
     const GlobalUserPrefs &   prefs       = m_shell.m_globalPrefs;
+
+
 
     outOutcome = PrintOutcome::Delivered;
 
@@ -1035,6 +1048,7 @@ Error:
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  PrintToWindowsPrinter
@@ -1063,6 +1077,8 @@ HRESULT WindowCommandManager::PrintToWindowsPrinter (const PrintRaster & raster,
     int                                    pageH   = 0;
     int                                    pageIx  = 0;
     bool                                   hasPages = false;
+
+
 
     outOutcome = PrintOutcome::Delivered;
 
@@ -1184,6 +1200,7 @@ Error:
     }
     return hr;
 }
+
 
 
 
@@ -1339,6 +1356,7 @@ Error:
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  OnPrinterCommand
@@ -1360,6 +1378,8 @@ void WindowCommandManager::OnPrinterCommand (int id)
     PrinterJob *   job     = nullptr;
     fs::path       file;
     PrintOutcome   outcome = PrintOutcome::Delivered;
+
+
 
     if ((id != IDM_PRINTER_DISCARD && id != IDM_PRINTER_COPY &&
          id != IDM_PRINTER_PRINT && id != IDM_PRINTER_SAVEAS) ||
@@ -1543,6 +1563,7 @@ void WindowCommandManager::OnPrinterCommand (int id)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  OnModernPrintResult
@@ -1573,6 +1594,7 @@ void WindowCommandManager::OnModernPrintResult (bool succeeded)
                         L"Casso Printer", MB_OK | MB_ICONWARNING);
     }
 }
+
 
 
 

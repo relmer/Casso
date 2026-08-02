@@ -311,6 +311,7 @@ void Apple2eMmu::RebindPageTable()
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  RebindCxxxInternalRom
@@ -352,6 +353,8 @@ void Apple2eMmu::RebindCxxxInternalRom()
 void Apple2eMmu::ResolveZeroPage()
 {
     Byte *  base = m_altZp ? m_auxRam.data() : m_mainRamPtr;
+
+
 
     if (m_bus == nullptr || base == nullptr)
     {

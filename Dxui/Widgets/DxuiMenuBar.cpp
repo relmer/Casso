@@ -52,6 +52,7 @@ int DxuiMenuBar::ScaleDpi (int dipValue, UINT dpi)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  DxuiMenuBar::DxuiMenuBar
@@ -61,6 +62,7 @@ int DxuiMenuBar::ScaleDpi (int dipValue, UINT dpi)
 DxuiMenuBar::DxuiMenuBar()
 {
 }
+
 
 
 
@@ -75,6 +77,7 @@ DxuiMenuBar::~DxuiMenuBar()
 {
     Close();
 }
+
 
 
 
@@ -125,6 +128,7 @@ void DxuiMenuBar::SetItems (std::vector<DxuiMenuBarItem> items)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  DxuiMenuBar::SetPopupHost
@@ -155,6 +159,7 @@ void DxuiMenuBar::SetPopupHost (DxuiHwndSource * host)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  DxuiMenuBar::SetStripColors
@@ -170,6 +175,7 @@ void DxuiMenuBar::SetStripColors (uint32_t stripArgb, uint32_t hoverArgb, uint32
     m_stripHoverOverride = hoverArgb;
     m_stripTextOverride  = textArgb;
 }
+
 
 
 
@@ -202,6 +208,7 @@ void DxuiMenuBar::SetDropdownColors (
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  DxuiMenuBar::Layout
@@ -222,6 +229,7 @@ void DxuiMenuBar::Layout (int x, int y, int width, UINT dpi, IDxuiTextRenderer *
     int    height   = ScaleDpi (s_kNavHeightDip, dpi);
     UINT   eDpi     = (dpi == 0) ? (UINT) s_kBaseDpi : dpi;
     float  fontDip  = s_kFontDip * (float) eDpi / (float) s_kBaseDpi;
+
 
 
     DXUI_ASSERT_UI_THREAD();
@@ -302,6 +310,7 @@ void DxuiMenuBar::Layout (int x, int y, int width, UINT dpi, IDxuiTextRenderer *
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  DxuiMenuBar::Hide
@@ -314,6 +323,7 @@ void DxuiMenuBar::Hide()
 
     Close();
 }
+
 
 
 
@@ -364,6 +374,7 @@ void DxuiMenuBar::Open (int menuIndex, bool keyboardActivated)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  DxuiMenuBar::Close
@@ -383,6 +394,7 @@ void DxuiMenuBar::Close()
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  DxuiMenuBar::CloseAll
@@ -395,6 +407,7 @@ void DxuiMenuBar::CloseAll()
 
     Close();
 }
+
 
 
 
@@ -421,6 +434,7 @@ void DxuiMenuBar::SetFocusedMenu (int menuIndex)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  DxuiMenuBar::ClearFocus
@@ -437,6 +451,7 @@ void DxuiMenuBar::ClearFocus()
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  DxuiMenuBar::HandleAltKey
@@ -446,6 +461,7 @@ void DxuiMenuBar::ClearFocus()
 bool DxuiMenuBar::HandleAltKey (wchar_t ch)
 {
     wchar_t  lower = (wchar_t) towlower (ch);
+
 
 
     DXUI_ASSERT_UI_THREAD();
@@ -461,6 +477,7 @@ bool DxuiMenuBar::HandleAltKey (wchar_t ch)
 
     return false;
 }
+
 
 
 
@@ -485,6 +502,7 @@ bool DxuiMenuBar::HandleKey (WPARAM vk)
 {
     int  count       = VisibleRowCount (m_openIndex);
     int  menuCount   = (int) m_items.size();
+
 
 
     DXUI_ASSERT_UI_THREAD();
@@ -591,6 +609,7 @@ bool DxuiMenuBar::HandleKey (WPARAM vk)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  DxuiMenuBar::HandleMouseMove
@@ -601,6 +620,7 @@ bool DxuiMenuBar::HandleMouseMove (int x, int y)
 {
     int  hitTitle = 0;
     int  hitEntry = 0;
+
 
 
     DXUI_ASSERT_UI_THREAD();
@@ -643,6 +663,7 @@ bool DxuiMenuBar::HandleMouseMove (int x, int y)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  DxuiMenuBar::ClearHover
@@ -666,6 +687,7 @@ void DxuiMenuBar::ClearHover()
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  DxuiMenuBar::HandleMouseDown
@@ -675,6 +697,7 @@ void DxuiMenuBar::ClearHover()
 bool DxuiMenuBar::HandleMouseDown (int x, int y)
 {
     int  hitTitle = HitTitleIndex (x, y);
+
 
 
     DXUI_ASSERT_UI_THREAD();
@@ -703,6 +726,7 @@ bool DxuiMenuBar::HandleMouseDown (int x, int y)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  DxuiMenuBar::HandleMouseUp
@@ -713,6 +737,7 @@ bool DxuiMenuBar::HandleMouseUp (int x, int y)
 {
     int                          hitEntry = HitEntryIndex (x, y);
     const DxuiMenuBarSubitem  *  entry    = nullptr;
+
 
 
     DXUI_ASSERT_UI_THREAD();
@@ -730,6 +755,7 @@ bool DxuiMenuBar::HandleMouseUp (int x, int y)
 
     return false;
 }
+
 
 
 
@@ -835,6 +861,7 @@ void DxuiMenuBar::PaintStrip (
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  DxuiMenuBar::PaintDropdown
@@ -856,6 +883,7 @@ void DxuiMenuBar::PaintDropdown (
 
     PaintDropdownRows (painter, text, DropdownRect(), ResolveDropdownPalette (theme), dpi);
 }
+
 
 
 
@@ -1024,6 +1052,7 @@ void DxuiMenuBar::PaintDropdownRows (
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  DxuiMenuBar::Layout (IDxuiControl override)
@@ -1033,6 +1062,7 @@ void DxuiMenuBar::PaintDropdownRows (
 void DxuiMenuBar::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
 {
     RECT  controlBounds = boundsDip;
+
 
 
     DXUI_ASSERT_UI_THREAD();
@@ -1049,6 +1079,7 @@ void DxuiMenuBar::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
     }
     SetBounds (controlBounds);
 }
+
 
 
 
@@ -1081,6 +1112,7 @@ void DxuiMenuBar::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  DxuiMenuBar::OnKey (IDxuiControl override)
@@ -1098,6 +1130,7 @@ bool DxuiMenuBar::OnKey (const DxuiKeyEvent & ev)
 
     return HandleKey (ev.vk);
 }
+
 
 
 
@@ -1136,6 +1169,7 @@ bool DxuiMenuBar::OnMouse (const DxuiMouseEvent & ev)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  DxuiMenuBar::MenuRect
@@ -1170,6 +1204,7 @@ int DxuiMenuBar::MenuStripContentWidthPx() const
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  DxuiMenuBar::DropdownRect
@@ -1200,6 +1235,7 @@ RECT DxuiMenuBar::DropdownRect() const
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  DxuiMenuBar::HitTitleIndex
@@ -1218,6 +1254,7 @@ int DxuiMenuBar::HitTitleIndex (int x, int y) const
 
     return -1;
 }
+
 
 
 
@@ -1264,6 +1301,7 @@ int DxuiMenuBar::HitEntryIndex (int x, int y) const
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  DxuiMenuBar::EntryHeightPx
@@ -1279,6 +1317,7 @@ int DxuiMenuBar::EntryHeightPx (const DxuiMenuBarSubitem & sub) const
 
     return m_rowHeightPx;
 }
+
 
 
 
@@ -1311,6 +1350,7 @@ int DxuiMenuBar::DropdownHeightPx (int menuIndex) const
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  DxuiMenuBar::VisibleRowCount
@@ -1338,6 +1378,7 @@ int DxuiMenuBar::VisibleRowCount (int menuIndex) const
 
     return count;
 }
+
 
 
 
@@ -1375,6 +1416,7 @@ int DxuiMenuBar::FirstEnabledRow (int menuIndex) const
 
     return (row > 0) ? 0 : -1;
 }
+
 
 
 
@@ -1419,6 +1461,7 @@ int DxuiMenuBar::NextEnabledRow (int menuIndex, int startRow, int direction) con
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  DxuiMenuBar::EntryAt
@@ -1452,6 +1495,7 @@ const DxuiMenuBarSubitem * DxuiMenuBar::EntryAt (int menuIndex, int rowIndex) co
 
     return nullptr;
 }
+
 
 
 
@@ -1504,6 +1548,7 @@ void DxuiMenuBar::ParseMnemonic (
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  DxuiMenuBar::ShouldShowMnemonicCues
@@ -1541,6 +1586,7 @@ DxuiMenuBar::DropdownPalette DxuiMenuBar::ResolveDropdownPalette (const IDxuiThe
     DropdownPalette  pal;
 
 
+
     pal.bg       = m_dropdownColorsSet ? m_dropBgOverride      : theme.BackgroundElevated();
     pal.hover    = m_dropdownColorsSet ? m_dropHoverOverride   : theme.HoverBackground();
     pal.text     = m_dropdownColorsSet ? m_dropTextOverride    : theme.Foreground();
@@ -1576,6 +1622,7 @@ void DxuiMenuBar::ShowDropdownPopup()
     UINT                       eDpi         = (m_dpi == 0) ? (UINT) s_kBaseDpi : m_dpi;
     int                        dropWidthPx  = 0;
     int                        dropHeightPx = 0;
+
 
 
     DXUI_ASSERT_UI_THREAD();
@@ -1649,6 +1696,7 @@ void DxuiMenuBar::ReleaseActivePopup()
     DxuiPopupHost *  popup = m_activePopup;
 
 
+
     // Null first so the popup's onClosed callback is a no-op and cannot
     // double-release.
     m_activePopup = nullptr;
@@ -1676,6 +1724,7 @@ void DxuiMenuBar::RenderDropdownPopup (IDxuiPainter & painter, IDxuiTextRenderer
 {
     RECT  placed = {};
     RECT  local  = {};
+
 
 
     if (m_activePopup == nullptr)
@@ -1709,6 +1758,7 @@ int DxuiMenuBar::PopupRowAtLocalY (int localYPx) const
 {
     int  row      = 0;
     int  currentY = 0;
+
 
 
     if (m_openIndex < 0 || m_openIndex >= (int) m_items.size())
@@ -1748,6 +1798,7 @@ int DxuiMenuBar::PopupRowAtLocalY (int localYPx) const
 void DxuiMenuBar::OnPopupMove (POINT localPx)
 {
     int  row = PopupRowAtLocalY (localPx.y);
+
 
 
     if (row >= 0 && row != m_highlightIndex)

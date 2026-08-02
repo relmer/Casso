@@ -12,9 +12,6 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
 
 
-
-
-
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  InputEventCoalescingTests

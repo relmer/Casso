@@ -12,6 +12,10 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
+
+
+
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  BuildSearchPaths
@@ -145,6 +149,7 @@ fs::path PathResolver::GetWorkingDirectory()
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  GetLocalAppDataDir
@@ -227,6 +232,7 @@ std::wstring PathResolver::MakeExeRelativePath (const std::wstring & absolutePat
     std::wstring first;
 
 
+
     if (input.empty() || input.is_relative())
     {
         return absolutePath;
@@ -265,6 +271,7 @@ std::wstring PathResolver::MakeExeRelativePath (const std::wstring & absolutePat
 std::wstring PathResolver::ResolveExeRelativePath (const std::wstring & storedPath)
 {
     fs::path  stored = fs::path (storedPath);
+
 
 
     if (storedPath.empty() || stored.is_absolute())

@@ -18,7 +18,6 @@
 
 
 
-
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  ClipboardManager
@@ -63,6 +62,8 @@ wchar_t ClipboardManager::DecodeScreenByte (Byte ch)
 {
     constexpr Byte  kInverseHighStart = 0xA0;
 
+
+
     if (ch >= kInverseHighStart)
     {
         ch -= kHighBitMask;
@@ -79,6 +80,7 @@ wchar_t ClipboardManager::DecodeScreenByte (Byte ch)
 
     return static_cast<wchar_t> (ch);
 }
+
 
 
 
@@ -102,6 +104,8 @@ std::wstring ClipboardManager::BuildScreenText (const Byte * auxRam) const
     constexpr Word  kRowSubgroupStride = 0x80;
     constexpr int   kRowsPerGroup     = 8;
     constexpr int   kTextCols80       = 80;
+
+
 
     std::wstring  text;
 
@@ -157,6 +161,7 @@ std::wstring ClipboardManager::BuildScreenText (const Byte * auxRam) const
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  CopyScreenText
@@ -174,6 +179,7 @@ void ClipboardManager::CopyScreenText (HWND hwnd, const Byte * auxRam) const
     HGLOBAL       hMem  = nullptr;
     wchar_t     * pDest = nullptr;
     std::wstring  text  = BuildScreenText (auxRam);
+
 
 
     if (!OpenClipboard (hwnd))
@@ -214,6 +220,8 @@ void ClipboardManager::CopyScreenshot (HWND hwnd)
 {
     constexpr int   kBytesPerPixel    = 4;
     constexpr WORD  kDibBitCount      = 32;
+
+
 
     HGLOBAL          hMem      = nullptr;
     BITMAPINFOHEADER bih       = {};
@@ -296,6 +304,8 @@ void ClipboardManager::PasteFromClipboard (HWND hwnd)
     constexpr Byte  kCarriageReturn   = 0x0D;
     constexpr wchar_t  kNewline       = L'\n';
     constexpr wchar_t  kReturn        = L'\r';
+
+
 
     HANDLE     hData = nullptr;
     wchar_t  * pText = nullptr;

@@ -20,6 +20,7 @@ DxuiIconButton::DxuiIconButton()
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  HitTest
@@ -32,6 +33,7 @@ bool DxuiIconButton::HitTest (int x, int y) const
            x >= m_boundsDip.left && x < m_boundsDip.right &&
            y >= m_boundsDip.top  && y < m_boundsDip.bottom;
 }
+
 
 
 
@@ -59,6 +61,7 @@ void DxuiIconButton::SetMouse (int x, int y, bool down)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  Click
@@ -76,6 +79,7 @@ void DxuiIconButton::Click()
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  Layout  (IDxuiControl override)
@@ -87,6 +91,7 @@ void DxuiIconButton::Layout (const RECT & boundsDip, const DxuiDpiScaler & scale
     SetBounds (boundsDip);
     m_scaler.SetDpi (scaler.Dpi());
 }
+
 
 
 
@@ -143,6 +148,7 @@ bool DxuiIconButton::OnMouse (const DxuiMouseEvent & ev)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  OnKey  (IDxuiControl override)
@@ -169,6 +175,7 @@ bool DxuiIconButton::OnKey (const DxuiKeyEvent & ev)
 
     return false;
 }
+
 
 
 

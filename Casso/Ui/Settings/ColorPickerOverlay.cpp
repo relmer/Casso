@@ -53,6 +53,7 @@ static constexpr wchar_t  s_kpszMdl2Family[]      = L"Segoe MDL2 Assets";
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  ColorPickerOverlay::MakeRect

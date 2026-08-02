@@ -9,9 +9,6 @@
 
 
 
-
-
-
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  DxuiSystemButton
@@ -84,6 +81,8 @@ void DxuiSystemButton::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, 
     constexpr float  kGlyphSizeDip       = 10.0f;
     constexpr float  kGlyphThicknessDip  = 1.0f;
     constexpr float  kRestoreOffsetDip   = 2.5f;
+
+
 
     RECT     bounds      = {};
     float    xPx         = 0.0f;

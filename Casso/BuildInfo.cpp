@@ -25,6 +25,7 @@
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  BuildTimeFromExe
@@ -62,6 +63,7 @@ static std::wstring  BuildTimeFromExe()
                         local.wYear, local.wMonth, local.wDay,
                         local.wHour, local.wMinute, local.wSecond);
 }
+
 
 
 

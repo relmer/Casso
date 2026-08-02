@@ -121,6 +121,8 @@ void EmuCpu::InitForEmulation (Prng & prng)
 {
     MemoryBusCpu * pBusCpu = dynamic_cast<MemoryBusCpu *> (m_cpu.get());
 
+
+
     if (pBusCpu)
     {
         pBusCpu->InitForEmulation (prng);
@@ -146,6 +148,8 @@ void EmuCpu::SoftReset()
 {
     MemoryBusCpu * pBusCpu = dynamic_cast<MemoryBusCpu *> (m_cpu.get());
 
+
+
     if (pBusCpu)
     {
         pBusCpu->SoftReset();
@@ -168,6 +172,8 @@ void EmuCpu::SoftReset()
 void EmuCpu::PowerCycle (Prng & prng)
 {
     MemoryBusCpu * pBusCpu = dynamic_cast<MemoryBusCpu *> (m_cpu.get());
+
+
 
     if (pBusCpu)
     {

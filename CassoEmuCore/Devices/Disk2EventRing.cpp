@@ -28,6 +28,8 @@ bool Disk2EventRing::TryPush (const Disk2Event & e) noexcept
     uint32_t  head     = m_head.load (std::memory_order_acquire);
     uint32_t  inFlight = tail - head;
 
+
+
     if (inFlight >= kEventRingCapacity)
     {
         return false;
@@ -58,6 +60,8 @@ bool Disk2EventRing::TryPop (Disk2Event & out) noexcept
 {
     uint32_t  head = m_head.load (std::memory_order_relaxed);
     uint32_t  tail = m_tail.load (std::memory_order_acquire);
+
+
 
     if (head == tail)
     {
@@ -93,6 +97,8 @@ uint32_t Disk2EventRing::Drain (Disk2Event * out, uint32_t maxCount) noexcept
     uint32_t  toCopy   = (inFlight < maxCount) ? inFlight : maxCount;
     uint32_t  i        = 0;
 
+
+
     for (i = 0; i < toCopy; i++)
     {
         out[i] = m_slots[(head + i) & kRingMask];
@@ -124,6 +130,8 @@ uint32_t Disk2EventRing::ApproxSize() const noexcept
 {
     uint32_t  tail = m_tail.load (std::memory_order_relaxed);
     uint32_t  head = m_head.load (std::memory_order_relaxed);
+
+
 
     return tail - head;
 }

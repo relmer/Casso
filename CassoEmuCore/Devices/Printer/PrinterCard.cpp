@@ -26,6 +26,7 @@ PrinterCard::PrinterCard (int slot)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  Create
@@ -39,10 +40,13 @@ unique_ptr<MemoryDevice> PrinterCard::Create (const DeviceConfig & config, Memor
 {
     int   slot = config.hasSlot ? config.slot : 1;
 
+
+
     (void) bus;
 
     return make_unique<PrinterCard> (slot);
 }
+
 
 
 
@@ -68,6 +72,7 @@ Byte PrinterCard::Read (Word address)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  Write
@@ -84,6 +89,8 @@ void PrinterCard::Write (Word address, Byte value)
     Word   offset = (Word) (address - m_ioStart);
     bool   pushed = false;
 
+
+
     if (offset != kDataOffset)
     {
         return;
@@ -93,6 +100,7 @@ void PrinterCard::Write (Word address, Byte value)
     pushed        = m_ring.TryPush (value);
     ASSERT (pushed);
 }
+
 
 
 
@@ -111,6 +119,7 @@ void PrinterCard::Reset()
 {
     m_everTouched = false;
 }
+
 
 
 

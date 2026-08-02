@@ -188,6 +188,7 @@ bool SettingsApplyController::WillMachineChange() const
     std::string   currentNarrow;
 
 
+
     if (m_pendingMachine.empty() || m_emuShell == nullptr)
     {
         return false;

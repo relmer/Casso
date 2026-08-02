@@ -5,8 +5,6 @@
 
 
 
-
-
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  RowBaseAddress
@@ -23,6 +21,8 @@ Word TextScreenScraper::RowBaseAddress (Word pageBase, int row)
     constexpr int  kRowGroupSize      = 8;
     constexpr int  kRowsPerGroupBytes = 0x80;
     constexpr int  kSubRowStride      = 0x28;
+
+
 
     int   group = row / kRowGroupSize;
     int   sub   = row % kRowGroupSize;
@@ -50,6 +50,8 @@ char TextScreenScraper::Glyph (Byte screenByte)
     constexpr Byte  kInverseUpper = 0x40;
     constexpr Byte  kPrintableMin = 0x20;
     constexpr Byte  kPrintableMax = 0x7E;
+
+
 
     Byte   ch;
 
@@ -86,6 +88,8 @@ std::vector<std::string> TextScreenScraper::Scrape40 (MemoryBus & bus, Word page
     std::vector<std::string>   rows;
     int                        row;
     int                        col;
+
+
 
     rows.reserve (kRows);
 
@@ -174,6 +178,8 @@ std::vector<std::string> TextScreenScraper::Scrape (const EmulatorCore & core)
     Word           pageBase;
     bool           col80;
     bool           page2;
+
+
 
     auxRam  = core.mmu->GetAuxBuffer();
 

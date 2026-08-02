@@ -131,6 +131,7 @@ Error:
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  FastMapReadPtr
@@ -144,6 +145,8 @@ Error:
 Byte * CxxxRomRouter::FastMapReadPtr (int page)
 {
     static constexpr int  kPageSize = 0x100;
+
+
 
     if (!m_noExternalSlots || m_internal.empty())
     {
@@ -255,6 +258,8 @@ Error:
 Byte CxxxRomRouter::Read (Word address)
 {
     Byte  value;
+
+
 
     if (m_noExternalSlots && !m_hasSlotIoDevice)
     {

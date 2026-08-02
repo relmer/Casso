@@ -11,6 +11,7 @@ static constexpr uint32_t   s_kDrainChunk = 4096;
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  Reset
@@ -22,6 +23,7 @@ void PrinterJob::Reset()
     m_interpreter.Reset();
     m_raster.Clear();
 }
+
 
 
 
@@ -78,6 +80,7 @@ size_t PrinterJob::Drain (vector<PrinterEvent> & outEvents, size_t maxBytes)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  FormFeed
@@ -91,6 +94,8 @@ size_t PrinterJob::Drain (vector<PrinterEvent> & outEvents, size_t maxBytes)
 void PrinterJob::FormFeed (vector<PrinterEvent> & outEvents)
 {
     Byte   ff = 0x0C;
+
+
 
     m_interpreter.Consume (&ff, 1, m_raster, outEvents);
 }

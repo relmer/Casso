@@ -86,6 +86,7 @@ static constexpr wchar_t   s_kpszScrollHint [] =
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  PrinterPanel::FloorMod
@@ -99,6 +100,7 @@ int PrinterPanel::FloorMod (int a, int m)
 {
     return ((a % m) + m) % m;
 }
+
 
 
 
@@ -120,8 +122,11 @@ void PrinterPanel::DarkenPerf (uint32_t & px)
     uint32_t  g = ((px >>  8) & 0xFF) * 210 / 255;
     uint32_t  b = ( px        & 0xFF) * 210 / 255;
 
+
+
     px = a | (r << 16) | (g << 8) | b;
 }
+
 
 
 
@@ -144,6 +149,8 @@ std::string PrinterPanel::LoadTextResource (int resourceId)
     DWORD       cbData    = 0;
     void      * pData     = nullptr;
 
+
+
     hRes = FindResourceW (hInstance, MAKEINTRESOURCEW (resourceId), RT_RCDATA);
     if (hRes == nullptr) { return {}; }
 
@@ -156,6 +163,7 @@ std::string PrinterPanel::LoadTextResource (int resourceId)
 
     return std::string ((const char *) pData, cbData);
 }
+
 
 
 
@@ -179,6 +187,7 @@ PrinterPanel::~PrinterPanel() = default;
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  PrinterPanel::PanZoomConfig
@@ -194,6 +203,8 @@ DxuiPanZoom::Config PrinterPanel::PanZoomConfig()
 {
     DxuiPanZoom::Config   cfg;
 
+
+
     cfg.zoomMin        = s_kZoomMin;
     cfg.zoomMax        = s_kZoomMax;
     cfg.zoomStep       = s_kZoomStep;
@@ -205,6 +216,7 @@ DxuiPanZoom::Config PrinterPanel::PanZoomConfig()
 
     return cfg;
 }
+
 
 
 
@@ -332,6 +344,7 @@ Error:
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  PrinterPanel::OnCreate
@@ -389,6 +402,7 @@ void PrinterPanel::OnCreate()
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  PrinterPanel::SetTheme
@@ -404,6 +418,7 @@ void PrinterPanel::SetTheme (const CassoTheme * theme)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  PrinterPanel::RenderFrame
@@ -414,6 +429,7 @@ HRESULT PrinterPanel::RenderFrame()
 {
     HRESULT  hr        = S_OK;
     bool     isCreated = false;
+
 
 
     isCreated = IsCreated();
@@ -438,6 +454,7 @@ Error:
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  PrinterPanel::UpdateTooltip
@@ -450,6 +467,8 @@ Error:
 void PrinterPanel::UpdateTooltip (int x, int y)
 {
     int64_t   now = NowMs();
+
+
 
     if (m_print != nullptr && m_print->HitTest (x, y))
     {
@@ -527,6 +546,7 @@ void PrinterPanel::UpdateTooltip (int x, int y)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  PrinterPanel::SyncTransform
@@ -542,6 +562,8 @@ void PrinterPanel::UpdateTooltip (int x, int y)
 void PrinterPanel::SyncTransform()
 {
     float   zoom = m_panZoom.Zoom();
+
+
 
     // Framing is only possible once zoomed in. Horizontal: at zoom Z the paper
     // is Z times wider than the view, so panX may slide +/- half the hidden
@@ -610,6 +632,7 @@ void PrinterPanel::SyncTransform()
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  PrinterPanel::PaperHit
@@ -629,6 +652,7 @@ bool PrinterPanel::PaperHit (int x, int y) const
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  PrinterPanel::NowMs
@@ -640,6 +664,9 @@ int64_t PrinterPanel::NowMs()
     return (int64_t) std::chrono::duration_cast<std::chrono::milliseconds> (
                std::chrono::steady_clock::now().time_since_epoch()).count();
 }
+
+
+
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -672,6 +699,8 @@ void PrinterPanel::RefreshLive (PrinterWorker & worker, int64_t nowMs, bool forc
     bool                    revealBehind = false;
     PrinterViewport::Span   span;
     PrintRaster             spanRaster;
+
+
 
     if (m_paper == nullptr)
     {
@@ -918,6 +947,7 @@ void PrinterPanel::RefreshLive (PrinterWorker & worker, int64_t nowMs, bool forc
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  PrinterPanel::SetStrip
@@ -932,6 +962,8 @@ void PrinterPanel::SetStrip (const PrintRaster & raster)
     int                     rows = raster.RowsUsed();
     PrinterViewport::Span   span;
     PrintRaster             spanRaster;
+
+
 
     if (m_paper == nullptr)
     {
@@ -975,6 +1007,7 @@ void PrinterPanel::SetStrip (const PrintRaster & raster)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  PrinterPanel::ShowBlankSheet
@@ -988,6 +1021,7 @@ void PrinterPanel::ShowBlankSheet()
 {
     ComposeCanvas (nullptr, 0, 0, -1, 0, 0, -1);
 }
+
 
 
 
@@ -1124,6 +1158,7 @@ void PrinterPanel::RenderSpan (const PrintRaster & spanRaster, int firstAbsRow, 
 
     ComposeCanvas (&m_spanImg, firstAbsRow, lastAbsRow, revealBandTopAbs, revealLoDots, revealHiDots, dirtyFromAbs);
 }
+
 
 
 
@@ -1380,6 +1415,7 @@ void PrinterPanel::ComposeCanvas (const RgbaImage * content, int contentFirstAbs
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  PrinterPanel::OnMouse
@@ -1438,6 +1474,7 @@ bool PrinterPanel::OnMouse (const DxuiMouseEvent & ev)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  PrinterPanel::OnKey
@@ -1485,6 +1522,7 @@ bool PrinterPanel::OnKey (const DxuiKeyEvent & ev)
 
     return DxuiWindow::OnKey (ev);
 }
+
 
 
 
@@ -1602,6 +1640,7 @@ void PrinterPanel::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  PrinterPanel::Paint
@@ -1616,6 +1655,8 @@ void PrinterPanel::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
 {
     HRESULT  hr = S_OK;
     RECT     b  = Bounds();
+
+
 
     // Matches the 3D scene's mat color (Printer3DScene s_kArgbMat) so the
     // frame and the scene backdrop read as one surface.

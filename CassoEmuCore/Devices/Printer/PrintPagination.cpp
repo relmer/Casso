@@ -8,6 +8,7 @@
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  PrintPagination::Paginate
@@ -19,6 +20,8 @@ vector<PrintPagination::PageRange> PrintPagination::Paginate (const PrintRaster 
     vector<PageRange>   pages;
     vector<int>         breaks;
     int                 rowsUsed = raster.RowsUsed();
+
+
 
     if (rowsUsed <= 0)
     {
@@ -57,6 +60,7 @@ vector<PrintPagination::PageRange> PrintPagination::Paginate (const PrintRaster 
 
     return pages;
 }
+
 
 
 

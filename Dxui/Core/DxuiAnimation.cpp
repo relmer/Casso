@@ -152,6 +152,8 @@ std::vector<DxuiDriveSyncBrokerEvent> DxuiAnimation::ConsumePendingEvents()
 {
     std::vector<DxuiDriveSyncBrokerEvent>  out = std::move (m_pendingSync);
 
+
+
     m_pendingSync.clear();
     return out;
 }

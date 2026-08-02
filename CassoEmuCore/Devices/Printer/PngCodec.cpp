@@ -7,6 +7,7 @@
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  CreateFactory
@@ -20,6 +21,8 @@ HRESULT PngCodec::CreateFactory (ComPtr<IWICImagingFactory> & outFactory)
 {
     HRESULT   hr = S_OK;
 
+
+
     hr = CoCreateInstance (CLSID_WICImagingFactory, nullptr, CLSCTX_INPROC_SERVER,
                            IID_PPV_ARGS (&outFactory));
     CHR (hr);
@@ -27,6 +30,7 @@ HRESULT PngCodec::CreateFactory (ComPtr<IWICImagingFactory> & outFactory)
 Error:
     return hr;
 }
+
 
 
 
@@ -76,6 +80,7 @@ Error:
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  EncodeRgba
@@ -101,6 +106,8 @@ HRESULT PngCodec::EncodeRgba (const RgbaImage & image, int dpi, vector<Byte> & o
     SIZE_T                          size   = 0;
     double                          res    = 0.0;
     size_t                          rgbaLen = 0;
+
+
 
     CBREx (image.width > 0 && image.height > 0, E_INVALIDARG);
 
@@ -161,6 +168,7 @@ HRESULT PngCodec::EncodeRgba (const RgbaImage & image, int dpi, vector<Byte> & o
 Error:
     return hr;
 }
+
 
 
 
@@ -268,6 +276,7 @@ Error:
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  DecodeRgba
@@ -284,6 +293,8 @@ HRESULT PngCodec::DecodeRgba (const vector<Byte> & png, RgbaImage & outImage)
     ComPtr<IWICBitmapSource>        converted;
     UINT                            width     = 0;
     UINT                            height    = 0;
+
+
 
     hr = DecodeFirstFrame (png, factory, frame);
     CHR (hr);
@@ -302,6 +313,7 @@ HRESULT PngCodec::DecodeRgba (const vector<Byte> & png, RgbaImage & outImage)
 Error:
     return hr;
 }
+
 
 
 
@@ -354,6 +366,7 @@ Error:
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  ReadDpi
@@ -370,6 +383,8 @@ HRESULT PngCodec::ReadDpi (const vector<Byte> & png, int & outDpi)
     ComPtr<IWICBitmapFrameDecode>   frame;
     double                          dx     = 0.0;
     double                          dy     = 0.0;
+
+
 
     hr = DecodeFirstFrame (png, factory, frame);
     CHR (hr);

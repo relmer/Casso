@@ -856,6 +856,7 @@ void InputDebugPanel::ConfigureWidgets()
     int  p = 0;
 
 
+
     SeedDefaultColumns (m_columnsModel);
 
     m_allCheck->SetChecked          (true);
@@ -971,6 +972,7 @@ void InputDebugPanel::LayoutWidgets()
     int  p = 0;
 
 
+
     m_emuLabel->Layout          (m_layout.emuLabel,          m_scaler);
     m_hostLabel->Layout         (m_layout.hostLabel,         m_scaler);
     m_allCheck->Layout          (m_layout.allCheck,          m_scaler);
@@ -1012,6 +1014,7 @@ InputEvent InputDebugPanel::MakeStampedEvent (InputEventCategory cat, InputEvent
     InputEvent  e = {};
 
 
+
     e.category = cat;
     e.type     = type;
     e.cycle    = (m_cycleCounter != nullptr) ? *m_cycleCounter : 0;
@@ -1031,6 +1034,7 @@ InputEvent InputDebugPanel::MakeStampedEvent (InputEventCategory cat, InputEvent
 void InputDebugPanel::PublishToRing (const InputEvent & e)
 {
     bool  pushed = false;
+
 
 
     pushed = m_ring.TryPush (e);
@@ -1060,6 +1064,7 @@ void InputDebugPanel::DrainAndProject()
     bool                                       trimmed   = false;
     InputEvent                                 lostEvent = {};
     int64_t                                    ticks     = 0;
+
 
 
     if (m_resetAnchorPending.exchange (false, std::memory_order_acq_rel))
@@ -1158,6 +1163,7 @@ void InputDebugPanel::RebuildFilteredIndices()
     size_t  i = 0;
 
 
+
     m_filteredIndices.clear();
     m_filteredIndices.reserve (m_events.size());
 
@@ -1189,6 +1195,7 @@ void InputDebugPanel::AppendNewEventRows (size_t startIndex)
 {
     std::vector<std::vector<DxuiListView::Cell>>  rows;
     size_t                                    i = 0;
+
 
 
     // Caller guarantees no eviction happened this frame, so deque indices in
@@ -1236,6 +1243,7 @@ void InputDebugPanel::PushListViewRows()
     int                                       oldSelected = m_eventList->GetSelectedRow();
 
 
+
     rows.reserve (m_filteredIndices.size());
     for (size_t eventIndex : m_filteredIndices)
     {
@@ -1270,6 +1278,7 @@ void InputDebugPanel::PushListViewRows()
 void InputDebugPanel::ClearEvents()
 {
     std::array<InputEvent, s_kClearDrainBatchSize>  scratch = {};
+
 
 
     m_events.clear();
@@ -1379,6 +1388,7 @@ void InputDebugPanel::SyncAllCheck()
     bool  all = m_emuKeyboardCheck->Checked();
 
 
+
     if (m_joystickVisible) { all = all && m_joystickCheck->Checked(); }
     if (m_paddleVisible)   { all = all && m_paddleCheck->Checked(); }
 
@@ -1398,6 +1408,7 @@ void InputDebugPanel::SyncAllCheck()
 void InputDebugPanel::ApplyAllToggle()
 {
     bool  newState = m_allCheck->Checked();
+
 
 
     m_emuKeyboardCheck->SetChecked (newState);
@@ -1438,6 +1449,7 @@ void InputDebugPanel::CopyEventsToClipboard()
     std::wstring                            text;
     HGLOBAL                                 hGlobal = nullptr;
     void                                  * pBuf    = nullptr;
+
 
 
     rows.reserve (m_filteredIndices.size());
@@ -1571,6 +1583,7 @@ void InputDebugPanel::ApplyListSelection()
     int  selected = m_eventList->GetSelectedRow();
 
 
+
     if (selected >= 0 && selected < (int) m_filteredIndices.size())
     {
         m_listSelectedEventIndex = (int) m_filteredIndices[(size_t) selected];
@@ -1611,6 +1624,7 @@ void InputDebugPanel::OnListSelectionMoved()
 bool InputDebugPanel::ForwardMouseToList (DxuiMouseEventKind kind, DxuiMouseButton button, int x, int y, float wheelDelta)
 {
     DxuiMouseEvent  ev;
+
 
 
     ev.kind        = kind;
@@ -1827,6 +1841,7 @@ bool InputDebugPanel::OnKey (const DxuiKeyEvent & ev)
     IDxuiControl *  focused  = nullptr;
 
 
+
     // Char events carry no panel semantics (no text entry surface); only
     // key-down drives focus traversal, activation and list navigation.
     if (ev.kind != DxuiKeyEventKind::Down)
@@ -1892,6 +1907,7 @@ void InputDebugPanel::UpdateTooltip (int x, int y)
     RECT     anchor = {};
 
 
+
     if (m_allCheck->HitTest (x, y))                               { text = s_kpszAllTip;      anchor = m_allCheck->Bounds();         }
     else if (m_emuKeyboardCheck->HitTest (x, y))                  { text = s_kpszEmuKbdTip;   anchor = m_emuKeyboardCheck->Bounds(); }
     else if (m_joystickVisible && m_joystickCheck->HitTest (x, y)) { text = s_kpszJoystickTip; anchor = m_joystickCheck->Bounds();    }
@@ -1941,6 +1957,7 @@ void InputDebugPanel::ShowColumnMenu (int anchorX, int anchorY)
     IDxuiTextRenderer          *  textRenderer = TextRenderer();
     RECT                         hostRect = { 0, 0, m_widthPx, m_heightPx };
     int                          i        = 0;
+
 
 
     // Bail rather than dereference a null renderer -- the shared text
@@ -2031,6 +2048,7 @@ void InputDebugPanel::OnKbdDataRead (Word address, Byte value, bool strobeSet)
     InputEvent  e = MakeStampedEvent (InputEventCategory::Guest, InputEventType::KbdDataRead);
 
 
+
     e.payload.io.address = address;
     e.payload.io.value   = value;
     e.payload.io.flags   = strobeSet ? InputEvent::kFlagStrobe : 0;
@@ -2050,6 +2068,7 @@ void InputDebugPanel::OnKbdDataRead (Word address, Byte value, bool strobeSet)
 void InputDebugPanel::OnKbdStrobe (Word address, Byte value, bool clearedStrobe)
 {
     InputEvent  e = MakeStampedEvent (InputEventCategory::Guest, InputEventType::KbdStrobe);
+
 
 
     e.payload.io.address = address;
@@ -2081,6 +2100,7 @@ void InputDebugPanel::OnButtonRead (Word address, Byte value)
     InputEvent  e = MakeStampedEvent (InputEventCategory::Guest, InputEventType::ButtonRead);
 
 
+
     e.payload.io.address = address;
     e.payload.io.value   = value;
     e.payload.io.flags   = 0;
@@ -2100,6 +2120,7 @@ void InputDebugPanel::OnButtonRead (Word address, Byte value)
 void InputDebugPanel::OnPaddleTrigger (Word address)
 {
     InputEvent  e = MakeStampedEvent (InputEventCategory::Guest, InputEventType::PaddleTrigger);
+
 
 
     e.payload.io.address = address;
@@ -2123,6 +2144,7 @@ void InputDebugPanel::OnPaddleRead (Word address, Byte value)
     InputEvent  e = MakeStampedEvent (InputEventCategory::Guest, InputEventType::PaddleRead);
 
 
+
     e.payload.io.address = address;
     e.payload.io.value   = value;
     e.payload.io.flags   = 0;
@@ -2144,6 +2166,7 @@ void InputDebugPanel::OnHostAutoRepeat (Byte asciiChar)
     InputEvent  e = MakeStampedEvent (InputEventCategory::Host, InputEventType::HostAutoRepeat);
 
 
+
     e.payload.key.ascii = asciiChar;
     PublishToRing (e);
 }
@@ -2161,6 +2184,7 @@ void InputDebugPanel::OnHostAutoRepeat (Byte asciiChar)
 void InputDebugPanel::OnHostKeyDown (Byte asciiChar)
 {
     InputEvent  e = MakeStampedEvent (InputEventCategory::Host, InputEventType::HostKeyDown);
+
 
 
     e.cycle = 0;
@@ -2181,6 +2205,7 @@ void InputDebugPanel::OnHostKeyDown (Byte asciiChar)
 void InputDebugPanel::OnHostKeyUp (Byte asciiChar)
 {
     InputEvent  e = MakeStampedEvent (InputEventCategory::Host, InputEventType::HostKeyUp);
+
 
 
     e.cycle = 0;

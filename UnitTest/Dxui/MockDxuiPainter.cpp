@@ -17,6 +17,7 @@ void MockDxuiPainter::FillRect (float xPx, float yPx, float widthPx, float heigh
     RecordedPaintCall  call;
 
 
+
     call.kind   = RecordedPaintKind::FillRect;
     call.x      = xPx;
     call.y      = yPx;
@@ -39,6 +40,7 @@ void MockDxuiPainter::FillRect (float xPx, float yPx, float widthPx, float heigh
 void MockDxuiPainter::FillGradientRect (float xPx, float yPx, float widthPx, float heightPx, uint32_t argbTop, uint32_t argbBottom)
 {
     RecordedPaintCall  call;
+
 
 
     call.kind       = RecordedPaintKind::FillGradientRect;
@@ -66,6 +68,7 @@ void MockDxuiPainter::OutlineRect (float xPx, float yPx, float widthPx, float he
     RecordedPaintCall  call;
 
 
+
     call.kind      = RecordedPaintKind::OutlineRect;
     call.x         = xPx;
     call.y         = yPx;
@@ -91,6 +94,7 @@ void MockDxuiPainter::FillCircleApprox (float cxPx, float cyPx, float radiusPx, 
     RecordedPaintCall  call;
 
 
+
     call.kind   = RecordedPaintKind::FillCircleApprox;
     call.x      = cxPx;
     call.y      = cyPx;
@@ -99,6 +103,7 @@ void MockDxuiPainter::FillCircleApprox (float cxPx, float cyPx, float radiusPx, 
     call.argb   = argbColor;
     m_calls.push_back (call);
 }
+
 
 
 
@@ -133,6 +138,8 @@ void MockDxuiPainter::FillEllipseApprox (float cxPx, float cyPx, float radiusXPx
 {
     RecordedPaintCall  call;
 
+
+
     call.kind   = RecordedPaintKind::FillEllipseApprox;
     call.x      = cxPx - radiusXPx;
     call.y      = cyPx - radiusYPx;
@@ -146,6 +153,8 @@ void MockDxuiPainter::FillEllipseApprox (float cxPx, float cyPx, float radiusXPx
 void MockDxuiPainter::DrawLineApprox (float x0, float y0, float x1, float y1, float thicknessPx, uint32_t argbColor)
 {
     RecordedPaintCall  call;
+
+
 
     call.kind      = RecordedPaintKind::DrawLineApprox;
     call.x         = std::min (x0, x1);

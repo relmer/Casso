@@ -65,6 +65,9 @@ static void Write32LE (Byte * p, uint32_t v)
 }
 
 
+
+
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  Crc32
@@ -81,6 +84,8 @@ static uint32_t Crc32 (const Byte * data, size_t len)
     uint32_t   crc = 0xFFFFFFFFu;
     size_t     i   = 0;
     int        b   = 0;
+
+
 
     for (i = 0; i < len; i++)
     {
@@ -109,6 +114,8 @@ static bool MatchSig (const Byte * p, const Byte * sig)
 {
     size_t   i = 0;
 
+
+
     for (i = 0; i < kSigLen; i++)
     {
         if (p[i] != sig[i])
@@ -124,6 +131,8 @@ static bool MatchSig (const Byte * p, const Byte * sig)
 static bool MatchMagic (const Byte * p, const Byte * magic)
 {
     size_t   i = 0;
+
+
 
     for (i = 0; i < 4; i++)
     {
@@ -507,6 +516,7 @@ HRESULT WozLoader::BuildSyntheticV2 (
 
     return hr;
 }
+
 
 
 

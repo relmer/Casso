@@ -42,6 +42,8 @@ uint32_t ThemePage::LerpArgb (uint32_t a, uint32_t b, float t)
     uint8_t  gOut = (uint8_t) (gA + (int) ((gB - (int) gA) * t));
     uint8_t  bOut = (uint8_t) (bA + (int) ((bB - (int) bA) * t));
 
+
+
     return ((uint32_t) aOut << 24) | ((uint32_t) rOut << 16) |
            ((uint32_t) gOut <<  8) |  (uint32_t) bOut;
 }
@@ -415,6 +417,7 @@ ThemePage::ThemePage(std::wstring title)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  ThemePage::UpdateMonitorCheckboxEnabled
@@ -429,6 +432,7 @@ void ThemePage::UpdateMonitorCheckboxEnabled()
 
     m_monitorFrameCheckbox.SetEnabled (isSkeuo);
 }
+
 
 
 
@@ -610,6 +614,8 @@ void ThemePage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
 void ThemePage::Paint (IDxuiPainter & painterIf, IDxuiTextRenderer & textIf, const IDxuiTheme & theme)
 {
     static NullDriveCommandSink  s_kNullSink;
+
+
 
     // The host always paints through the concrete Dxui renderers; the
     // theme-preview window (mock chrome + framebuffer blit) needs their

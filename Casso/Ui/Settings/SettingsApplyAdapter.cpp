@@ -7,6 +7,8 @@
 
 
 
+
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  SettingsApplyAdapter  -- ISettingsApplySink over the EmulatorShell queue
@@ -16,6 +18,8 @@
 void SettingsApplyAdapter::ApplySpeedMode (SettingsSpeedMode mode)
 {
     WORD  id = IDM_MACHINE_SPEED_1X;
+
+
 
     switch (mode)
     {
@@ -30,6 +34,8 @@ void SettingsApplyAdapter::ApplySpeedMode (SettingsSpeedMode mode)
 void SettingsApplyAdapter::ApplyColorMode (SettingsColorMode mode)
 {
     WORD  id = IDM_VIEW_COLOR;
+
+
 
     switch (mode)
     {

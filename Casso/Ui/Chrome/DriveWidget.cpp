@@ -111,6 +111,7 @@ void DriveWidget::DrawPadlock (IDxuiPainter & painter,
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  Initialize
@@ -127,6 +128,7 @@ void DriveWidget::Initialize (int slot, int drive, IDriveCommandSink * pSink)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  DriveWidget
@@ -137,6 +139,7 @@ DriveWidget::DriveWidget()
 {
     m_focusable = false;
 }
+
 
 
 
@@ -247,6 +250,7 @@ void DriveWidget::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  SyncFromState
@@ -270,6 +274,7 @@ void DriveWidget::SyncFromState (const DriveWidgetState & state)
 
     m_led.SetState (active ? LedState::Active : LedState::Idle);
 }
+
 
 
 
@@ -950,6 +955,7 @@ void DriveWidget::PaintBasenameLabel (
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  HitTest
@@ -970,6 +976,7 @@ DriveWidgetRegion DriveWidget::HitTest (int x, int y) const
 
     return DriveWidgetRegion::None;
 }
+
 
 
 

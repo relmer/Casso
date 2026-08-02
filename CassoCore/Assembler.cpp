@@ -18,6 +18,8 @@ FileReadResult DefaultFileReader::ReadFile (const std::string & filename, const 
 {
     FileReadResult result = {};
 
+
+
     std::string fullPath = baseDir.empty() ? filename : baseDir + "/" + filename;
     std::ifstream file (fullPath);
 
@@ -34,10 +36,6 @@ FileReadResult DefaultFileReader::ReadFile (const std::string & filename, const 
     result.contents = ss.str();
     return result;
 }
-
-
-
-
 
 
 
@@ -93,7 +91,6 @@ void Assembler::RecordWarning (AssemblyResult & result, int lineNumber, const st
             break;
     }
 }
-
 
 
 

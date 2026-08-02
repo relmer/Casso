@@ -59,6 +59,8 @@ HRESULT DiskImageStore::DetectFormatByExtension (const string & path, DiskFormat
     string    ext;
     size_t    pathLen  = 0;
 
+
+
     pos     = path.find_last_of ('.');
     pathLen = path.size();
 
@@ -171,6 +173,8 @@ HRESULT DiskImageStore::Mount (int slot, int drive, const string & path)
     DiskFormat    fmt       = DiskFormat::Dsk;
     vector<Byte>  bytes;
     bool          fileOk    = false;
+
+
 
     hr = DetectFormatByExtension (path, fmt);
     CHR (hr);
@@ -310,6 +314,8 @@ HRESULT DiskImageStore::Flush (int slot, int drive)
 {
     HRESULT   hr = S_OK;
 
+
+
     CBRAEx (slot >= 0 && slot < kSlotCount && drive >= 0 && drive < kDriveCount, E_INVALIDARG);
 
     hr = FlushEntry (At (slot, drive));
@@ -325,6 +331,8 @@ HRESULT DiskImageStore::FlushAll()
     HRESULT   hrFirst = S_OK;
     int       slot    = 0;
     int       drive   = 0;
+
+
 
     for (slot = 0; slot < kSlotCount; slot++)
     {
@@ -357,6 +365,8 @@ HRESULT DiskImageStore::FlushAll()
 void DiskImageStore::Eject (int slot, int drive)
 {
     HRESULT   hr = S_OK;
+
+
 
     if (slot < 0 || slot >= kSlotCount || drive < 0 || drive >= kDriveCount)
     {
@@ -397,6 +407,8 @@ void DiskImageStore::SoftReset()
 {
     HRESULT   hr = FlushAll();
 
+
+
     IGNORE_RETURN_VALUE (hr, S_OK);
 }
 
@@ -416,6 +428,8 @@ void DiskImageStore::PowerCycle()
 {
     int   slot  = 0;
     int   drive = 0;
+
+
 
     for (slot = 0; slot < kSlotCount; slot++)
     {

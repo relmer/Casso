@@ -5,6 +5,7 @@
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  PrinterStatusModel::PrinterStatusModel
@@ -19,6 +20,7 @@ PrinterStatusModel::PrinterStatusModel (const Config & cfg)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  PrinterStatusModel::Update
@@ -28,6 +30,8 @@ PrinterStatusModel::PrinterStatusModel (const Config & cfg)
 void PrinterStatusModel::Update (uint64_t activityCount, double nowMs, bool hasContent, bool hasError)
 {
     bool   receiving = false;
+
+
 
     if (!m_primed)
     {
@@ -54,6 +58,7 @@ void PrinterStatusModel::Update (uint64_t activityCount, double nowMs, bool hasC
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  PrinterStatusModel::Status
@@ -64,6 +69,7 @@ PrinterStatus PrinterStatusModel::Status() const
 {
     return m_status;
 }
+
 
 
 

@@ -5,6 +5,7 @@
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  ColorMonitorTextMode
@@ -22,6 +23,7 @@ enum class ColorMonitorTextMode
     Amber  = 2,
     Custom = 3,
 };
+
 
 
 

@@ -257,6 +257,7 @@ HRESULT JsonParser::ParseNumber (JsonValue & outValue)
     double   value = 0.0;
 
 
+
     isHex = m_pos + 2 < m_input.size() &&
             m_input[m_pos] == '0' &&
             (m_input[m_pos + 1] == 'x' || m_input[m_pos + 1] == 'X');
@@ -497,6 +498,8 @@ HRESULT JsonParser::ParseKeyword (const char * keyword, JsonValue & outValue)
     HRESULT hr        = S_OK;
     size_t  len       = 0;
     bool    matchesCh = false;
+
+
 
     UNREFERENCED_PARAMETER (outValue);
 

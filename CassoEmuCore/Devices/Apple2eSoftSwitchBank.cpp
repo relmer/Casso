@@ -82,6 +82,8 @@ Byte Apple2eSoftSwitchBank::ReadStatusRegister (Word address)
     Byte  kbdBits = 0;
     bool  flag    = false;
 
+
+
     if (m_keyboard != nullptr)
     {
         kbdBits = m_keyboard->GetLatchedKeyDataBits();
@@ -256,6 +258,8 @@ void Apple2eSoftSwitchBank::EmitPaddleTrigger()
 void Apple2eSoftSwitchBank::EmitPaddleRead (Word address, Byte value)
 {
     int  idx = static_cast<int> (address - s_kwPaddle0Address);
+
+
 
     if (m_inputSink == nullptr)
     {

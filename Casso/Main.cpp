@@ -59,6 +59,7 @@ static size_t ParseTraceSize (const wstring & text)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  ParseCommandLine
@@ -401,6 +402,7 @@ static LONG WINAPI TraceCrashFilter (EXCEPTION_POINTERS * info)
 
     return EXCEPTION_EXECUTE_HANDLER;
 }
+
 
 
 

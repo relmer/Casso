@@ -355,6 +355,8 @@ void DxuiPanZoom::NudgePanY (double deltaContent, bool user)
     double  prevPanY = m_panY.target;
     double  prevOver = m_overscrollY.target;
 
+
+
     SpillPanY (deltaContent);
 
     bool  changed = (m_panY.target != prevPanY) || (m_overscrollY.target != prevOver);
@@ -380,6 +382,7 @@ void DxuiPanZoom::NudgePanY (double deltaContent, bool user)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  DxuiPanZoom::SpillPanY
@@ -396,6 +399,8 @@ void DxuiPanZoom::NudgePanY (double deltaContent, bool user)
 void DxuiPanZoom::SpillPanY (double deltaContent)
 {
     double  base = m_panY.target + m_overscrollY.target;
+
+
 
     if (m_panYhi < m_panYlo)   // bounds unset: free pan, no overscroll
     {
@@ -415,6 +420,7 @@ void DxuiPanZoom::SpillPanY (double deltaContent)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  DxuiPanZoom::NudgePanYCam
@@ -429,6 +435,8 @@ void DxuiPanZoom::SpillPanY (double deltaContent)
 void DxuiPanZoom::NudgePanYCam (double deltaContent)
 {
     double  target = m_panYCam.target + deltaContent;
+
+
 
     if (m_panYCamHi >= m_panYCamLo)
     {

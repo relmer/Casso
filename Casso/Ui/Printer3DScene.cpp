@@ -7,6 +7,7 @@
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  Scene constants -- world units; the printer body is ~1.76 wide. Modeled on
@@ -159,6 +160,9 @@ static constexpr float     s_kLogoWidth  = 0.075f;
 static constexpr float     s_kLogoTopY   = 0.19f;
 
 
+
+
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  Printer3DScene -- row-vector matrix helpers (clip = v * view * proj),
@@ -217,6 +221,8 @@ void Printer3DScene::PerspectiveFovRH (float fovY, float aspect, float zn, float
     float   ys = 1.0f / std::tan (fovY * 0.5f);
     float   xs = ys / aspect;
 
+
+
     memset (out, 0, 16 * sizeof (float));
     out[0]  = xs;
     out[5]  = ys;
@@ -241,6 +247,8 @@ void Printer3DScene::TiltAboutFrontBottom (float tiltRad, float pivotZ, float ou
     float   c = std::cos (tiltRad);
     float   s = std::sin (tiltRad);
 
+
+
     memset (out, 0, 16 * sizeof (float));
     out[0]  = 1.0f;
     out[5]  = c;
@@ -251,6 +259,7 @@ void Printer3DScene::TiltAboutFrontBottom (float tiltRad, float pivotZ, float ou
     out[14] = pivotZ * (1.0f - c);
     out[15] = 1.0f;
 }
+
 
 
 
@@ -273,6 +282,7 @@ HRESULT Printer3DScene::Initialize (ID3D11Device * device, ID3D11DeviceContext *
 
     return m_renderer.Initialize (device, context);
 }
+
 
 
 
@@ -311,6 +321,8 @@ HRESULT Printer3DScene::SetModel (const std::string & objText, const std::string
     bool                       first   = true;
     bool                       parsed  = false;
     bool                       hasTris = false;
+
+
 
     // Tinkercad's five part-identification colors (MTL Kd values) -> the real
     // machine's palette. Matched by value with a wide epsilon.
@@ -730,6 +742,7 @@ Error:
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  Printer3DScene::SetContent
@@ -740,6 +753,8 @@ HRESULT Printer3DScene::SetContent (const uint32_t * bgra, int width, int height
 {
     HRESULT   hr = m_renderer.UpdateContentTexture (bgra, width, height);
 
+
+
     if (SUCCEEDED (hr))
     {
         m_contentWidth  = width;
@@ -748,6 +763,7 @@ HRESULT Printer3DScene::SetContent (const uint32_t * bgra, int width, int height
 
     return hr;
 }
+
 
 
 
@@ -766,6 +782,7 @@ void Printer3DScene::SetHeadColumn01 (float x01)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  Printer3DScene::SetPaperFeed01
@@ -776,6 +793,7 @@ void Printer3DScene::SetPaperFeed01 (float feed01)
 {
     m_paperFeed01 = std::clamp (feed01, 0.0f, 1.0f);
 }
+
 
 
 
@@ -794,6 +812,7 @@ void Printer3DScene::SetZoom (float zoom)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  Printer3DScene::SetPanX
@@ -808,6 +827,7 @@ void Printer3DScene::SetPanX (float panXNorm)
 {
     m_panX = std::clamp (panXNorm, -1.0f, 1.0f) * s_kPaperHalfW;
 }
+
 
 
 
@@ -836,6 +856,7 @@ void Printer3DScene::SetWorldPanY (float panYNorm)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  Printer3DScene::SetCameraPanY
@@ -855,6 +876,7 @@ void Printer3DScene::SetCameraPanY (float panYNorm)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  Printer3DScene::SetLeds
@@ -866,6 +888,7 @@ void Printer3DScene::SetLeds (bool online, bool error)
     m_ledOnline = online;
     m_ledError  = error;
 }
+
 
 
 
@@ -887,6 +910,7 @@ float Printer3DScene::RoleIntensity (LampRole role) const
     }
     return 0.0f;
 }
+
 
 
 
@@ -928,6 +952,7 @@ void Printer3DScene::AppendQuad (std::vector<Vertex> & out,
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  Printer3DScene::AppendFaceQuad
@@ -947,6 +972,7 @@ void Printer3DScene::AppendFaceQuad (std::vector<Vertex> & out,
 
     AppendQuad (out, p00, p10, p01, p11, 0, 0, 1, 1, argb, shade);
 }
+
 
 
 
@@ -988,6 +1014,7 @@ void Printer3DScene::AppendLatheX (std::vector<Vertex> & out,
         prevZ = zPos;
     }
 }
+
 
 
 
@@ -1037,6 +1064,7 @@ void Printer3DScene::AppendDiscX (std::vector<Vertex> & out,
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  Printer3DScene::AppendGlowZ
@@ -1076,6 +1104,7 @@ void Printer3DScene::AppendGlowZ (std::vector<Vertex> & out,
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  Printer3DScene::AppendLed
@@ -1105,6 +1134,7 @@ void Printer3DScene::AppendLed (std::vector<Vertex> & out,
 
     AppendFaceQuad (out, cx - halfW, cx + halfW, cy - halfH, cy + halfH, z + 0.0006f, argb, shade);
 }
+
 
 
 
@@ -1145,6 +1175,7 @@ void Printer3DScene::BuildLedBatches()
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  Printer3DScene::BuildBackdrop
@@ -1164,6 +1195,7 @@ void Printer3DScene::BuildBackdrop (std::vector<Vertex> & out) const
 
     AppendQuad (out, tl, tr, bl, br, 0, 0, 1, 1, s_kArgbMat, 1.0f);
 }
+
 
 
 
@@ -1262,6 +1294,7 @@ void Printer3DScene::BuildBodyBack (std::vector<Vertex> & out) const
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  Printer3DScene::BuildPaper
@@ -1273,6 +1306,10 @@ void Printer3DScene::BuildBodyBack (std::vector<Vertex> & out) const
 //  from the frontal light.
 //
 ////////////////////////////////////////////////////////////////////////////////
+
+
+
+
 
 ////////////////////////////////////////////////////////////////////////////////
 //
@@ -1490,6 +1527,7 @@ void Printer3DScene::BuildPaper (std::vector<Vertex> & out) const
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  Printer3DScene::BuildBodyFront
@@ -1688,6 +1726,7 @@ void Printer3DScene::BuildBodyFront (std::vector<Vertex> & out) const
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  Printer3DScene::BuildControls
@@ -1758,6 +1797,7 @@ void Printer3DScene::BuildControls (std::vector<Vertex> & out) const
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  Printer3DScene::BuildCassoLogo
@@ -1778,6 +1818,8 @@ void Printer3DScene::BuildCassoLogo (std::vector<Vertex> & out, float faceZ) con
     float   topY   = m_logoTopY;
     int     first  = -1;
     int     last   = -1;
+
+
 
     for (int row = 0; row < s_kLogoGridH; row++)
     {
@@ -1826,6 +1868,7 @@ void Printer3DScene::BuildCassoLogo (std::vector<Vertex> & out, float faceZ) con
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  Printer3DScene::BuildHeadOverlay
@@ -1843,6 +1886,8 @@ void Printer3DScene::BuildHeadOverlay (std::vector<Vertex> & out) const
     float   zH     = m_platenZ + m_platenR + 0.015f;
     float   yTop   = m_platenY + m_platenR * 0.35f;
     float   yBot   = m_platenY - m_platenR * 0.85f;
+
+
 
     float   p00[3] = { cx - 0.075f, yTop, zH };
     float   p10[3] = { cx + 0.075f, yTop, zH };
@@ -1863,6 +1908,7 @@ void Printer3DScene::BuildHeadOverlay (std::vector<Vertex> & out) const
         AppendQuad (out, r00, r10, r01, r11, 0, 0, 1, 1, s_kArgbRibbon[i], 1.0f);
     }
 }
+
 
 
 

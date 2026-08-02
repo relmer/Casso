@@ -5,6 +5,7 @@
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  FormFeedDurationSec
@@ -20,8 +21,11 @@ double PrinterHead::FormFeedDurationSec (int rows)
     double   frac = (double) rows / (double) PrinterGrid::kPageRows;
     int      slot = (frac < 1.0 / 3.0) ? 0 : (frac < 2.0 / 3.0) ? 1 : 2;
 
+
+
     return kPageFeedGrainSec[slot];
 }
+
 
 
 
@@ -56,6 +60,7 @@ void PrinterHead::Reset (int parkRow)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  Queue
@@ -81,6 +86,7 @@ void PrinterHead::Queue (const vector<PrinterEvent> & events)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  PendingSeconds
@@ -93,6 +99,8 @@ void PrinterHead::Queue (const vector<PrinterEvent> & events)
 double PrinterHead::PendingSeconds() const
 {
     double   seconds = 0.0;
+
+
 
     if (m_phase == Phase::Sweeping)
     {
@@ -125,6 +133,7 @@ double PrinterHead::PendingSeconds() const
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  Advance
@@ -142,6 +151,8 @@ double PrinterHead::PendingSeconds() const
 void PrinterHead::Advance (double timeSec, const PrintRaster & built, PrintRaster & presented)
 {
     int   guard = 0;
+
+
 
     while (timeSec > 0.0 && guard++ < 8192)
     {
@@ -249,6 +260,7 @@ void PrinterHead::Advance (double timeSec, const PrintRaster & built, PrintRaste
         }
     }
 }
+
 
 
 

@@ -10,6 +10,7 @@
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  Embedded shader plumbing. Pixel shader source lives in Casso/Shaders/CRT
@@ -33,6 +34,7 @@ static constexpr const char *  s_kpszVertexShaderSrc =
     "    o.uv  = i.uv;\n"
     "    return o;\n"
     "}\n";
+
 
 
 
@@ -497,6 +499,7 @@ HRESULT CrtPostProcess::EnsureSize (int width, int height)
     HRESULT              hr  = S_OK;
     D3D11_TEXTURE2D_DESC td  = {};
     int                  i   = 0;
+
 
 
     CBRAEx (width > 0 && height > 0, E_INVALIDARG);

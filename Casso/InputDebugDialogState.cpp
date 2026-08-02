@@ -41,6 +41,7 @@ void SeedDefaultColumns (std::array<InputLogicalColumn, kInputColumnCount> & col
     int  i = 0;
 
 
+
     for (i = 0; i < kInputColumnCount; i++)
     {
         columns[i].id           = i;
@@ -66,6 +67,8 @@ void SeedDefaultColumns (std::array<InputLogicalColumn, kInputColumnCount> & col
 bool MatchesFilter (const InputEventDisplay & e, const InputFilterState & f) noexcept
 {
     bool  pairIsJoystick = true;
+
+
 
     switch (e.category)
     {

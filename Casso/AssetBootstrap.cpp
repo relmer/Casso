@@ -43,6 +43,7 @@ static constexpr int           s_kBootMruBodyWidthDp = 520;
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  RomSpec
@@ -111,6 +112,7 @@ static constexpr RomSpec s_kRomCatalog[] =
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  BootDiskSpec
@@ -173,6 +175,7 @@ static std::wstring MachineDisplayName (std::string_view machineId)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  EmbeddedConfig / s_kEmbeddedConfigs
@@ -182,6 +185,7 @@ static std::wstring MachineDisplayName (std::string_view machineId)
 //  its embedded JSON's $cassoMachineVersion.
 //
 ////////////////////////////////////////////////////////////////////////////////
+
 
 
 
@@ -267,6 +271,7 @@ static const MachineConfigPriorHash s_kPriorDefaultHashes[] =
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  DiskAudioSpec
@@ -320,6 +325,7 @@ static constexpr string_view s_kDiskAudioMechanisms[] = { "Shugart", "Alps" };
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  AsciiToWide
@@ -334,6 +340,7 @@ static wstring AsciiToWide (string_view s)
 {
     return wstring (s.begin(), s.end());
 }
+
 
 
 
@@ -379,11 +386,16 @@ Error:
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  NormalizeConfigBytes — moved to MachineConfigUpgrade::NormalizeBytes.
 //  Kept locally only for the BCrypt wrapper below; ComputeSha256 expects
 //  already-normalized input from the caller.
+
+
+
+
 
 ////////////////////////////////////////////////////////////////////////////////
 //
@@ -441,6 +453,7 @@ Error:
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  WriteFileBytes
@@ -468,6 +481,7 @@ static HRESULT WriteFileBytes (const fs::path & path, span<const Byte> bytes)
 Error:
     return hr;
 }
+
 
 
 
@@ -508,6 +522,7 @@ static HRESULT BackupUserEditedConfig (const fs::path & target)
 Error:
     return hr;
 }
+
 
 
 
@@ -669,6 +684,7 @@ HRESULT AssetBootstrap::EnsureMachineConfigs (
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  EmbeddedThemeFile / EmbeddedTheme
@@ -745,6 +761,7 @@ static const EmbeddedTheme s_kEmbeddedThemes[] =
     { "DarkModern",    1, span<const EmbeddedThemeFile> (s_kDarkModernFiles)    },
     { "RetroTerminal", 1, span<const EmbeddedThemeFile> (s_kRetroTerminalFiles) },
 };
+
 
 
 
@@ -866,6 +883,7 @@ HRESULT AssetBootstrap::EnsureThemes (
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  EnsureImageWriterSounds
@@ -941,6 +959,7 @@ HRESULT AssetBootstrap::EnsureImageWriterSounds (HINSTANCE hInstance)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  GetAssetBaseDirectory
@@ -968,6 +987,7 @@ fs::path AssetBootstrap::GetAssetBaseDirectory()
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  GetDiskDirectory
@@ -984,9 +1004,12 @@ fs::path AssetBootstrap::GetDiskDirectory()
     fs::path     disks  = base / L"Disks";
     error_code   ec;
 
+
+
     fs::create_directories (disks, ec);
     return disks;
 }
+
 
 
 
@@ -1015,6 +1038,8 @@ bool AssetBootstrap::IsForeignCheckoutDisk (const fs::path & p)
 
 
 
+
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  AppendBundledDemoDisks
@@ -1025,6 +1050,8 @@ void AssetBootstrap::AppendBundledDemoDisks (std::vector<DiskMru::Entry> & mount
 {
     std::vector<fs::path>  demos;
     error_code             ec;
+
+
 
     // Locate Apple2/Demos ONCE per process. It ships in the source tree, not
     // an installed layout, so its location is purely a function of the exe
@@ -1105,6 +1132,7 @@ void AssetBootstrap::AppendBundledDemoDisks (std::vector<DiskMru::Entry> & mount
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  AppendSiblingDisksFromMruFolders
@@ -1115,6 +1143,8 @@ void AssetBootstrap::AppendSiblingDisksFromMruFolders (std::vector<DiskMru::Entr
 {
     std::vector<fs::path>  folders = DiskMru::DistinctFolders (mountable);
     std::vector<fs::path>  discovered;
+
+
 
     // Enumerate each recent-disk folder fresh on every open: the user can
     // drop a new image next to a recent one (or hand one back from a tool)
@@ -1167,6 +1197,7 @@ void AssetBootstrap::AppendSiblingDisksFromMruFolders (std::vector<DiskMru::Entr
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  FindRomSpec
@@ -1207,6 +1238,7 @@ static const RomSpec * FindRomSpec (string_view machineName, string_view cassoNa
 
     return result;
 }
+
 
 
 
@@ -1371,6 +1403,7 @@ Error:
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  FindEmbeddedConfig
@@ -1402,6 +1435,7 @@ static const EmbeddedConfig * FindEmbeddedConfig (const wstring & machineName)
 
     return result;
 }
+
 
 
 
@@ -1460,6 +1494,7 @@ Error:
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  GetRequiredRoms
@@ -1496,6 +1531,7 @@ HRESULT AssetBootstrap::GetRequiredRoms (
 Error:
     return hr;
 }
+
 
 
 
@@ -1594,6 +1630,7 @@ Error:
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  GetEmbeddedDisplayName
@@ -1631,6 +1668,7 @@ static wstring GetEmbeddedDisplayName (HINSTANCE hInstance, const wstring & mach
 
     return result;
 }
+
 
 
 
@@ -1705,6 +1743,7 @@ Error:
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  FilesHaveSameContent
@@ -1726,6 +1765,8 @@ Error:
 static bool FilesHaveSameContent (const fs::path & a, const fs::path & b)
 {
     constexpr std::streamsize  kChunk = 64 * 1024;
+
+
 
     std::error_code  ec;
     uintmax_t        sizeA   = fs::file_size (a, ec);
@@ -1775,6 +1816,7 @@ static bool FilesHaveSameContent (const fs::path & a, const fs::path & b)
 
     return true;
 }
+
 
 
 
@@ -1877,6 +1919,7 @@ private:
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  DiskMruPickerSession::FileMtimeUnix
@@ -1906,6 +1949,7 @@ std::int64_t DiskMruPickerSession::FileMtimeUnix (const fs::path & path)
 Error:
     return result;
 }
+
 
 
 
@@ -1963,6 +2007,7 @@ Error:
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  DiskMruPickerSession::ConfigureWidgets
@@ -2002,6 +2047,7 @@ void DiskMruPickerSession::ConfigureWidgets()
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  DiskMruPickerSession::RebuildView
@@ -2016,6 +2062,8 @@ void DiskMruPickerSession::RebuildView()
 {
     std::vector<std::vector<DxuiListView::Cell>>  rows;
     int                                           selected = -1;
+
+
 
     // Tokenize the filter: whitespace-separated, lowercased. A row passes
     // when EVERY token appears in some field (name / location / last-loaded);
@@ -2160,6 +2208,7 @@ void DiskMruPickerSession::RebuildView()
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  DiskMruPickerSession::ApplySort
@@ -2198,6 +2247,7 @@ Error:
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  DiskMruPickerSession::ChosenResultAt
@@ -2225,9 +2275,6 @@ int DiskMruPickerSession::ChosenResultAt (int visibleRow) const
 
 
 
-
-
-
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  DiskMruPickerSession::Run
@@ -2248,6 +2295,7 @@ int DiskMruPickerSession::Run()
     DxuiWindow::CreateParams          params;
     int                               chosen  = -1;
     int                               raw     = 0;
+
 
 
     m_dpi = (m_hwndParent != nullptr) ? GetDpiForWindow (m_hwndParent) : GetDpiForSystem();
@@ -2294,6 +2342,7 @@ int DiskMruPickerSession::Run()
 Error:
     return chosen;
 }
+
 
 
 
@@ -2477,6 +2526,7 @@ Error:
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  PromptInsertDiskMru
@@ -2645,6 +2695,7 @@ Error:
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  FetchAndDecodeOgg
@@ -2800,6 +2851,7 @@ Error:
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  WritePcmAsWav
@@ -2887,6 +2939,7 @@ HRESULT AssetBootstrap::WritePcmAsWav (
 Error:
     return hr;
 }
+
 
 
 

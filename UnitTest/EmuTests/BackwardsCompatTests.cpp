@@ -8,8 +8,6 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
 
 
-
-
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  BackwardsCompatTests — Phase 14 / User Story 5.

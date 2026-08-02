@@ -28,6 +28,7 @@ DiskImage::DiskImage()
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  InitWholeTrackMap
@@ -43,6 +44,8 @@ void DiskImage::InitWholeTrackMap()
 {
     int   qt = 0;
 
+
+
     m_quarterTrackMap.assign (kQuarterTrackCount, -1);
 
     for (qt = 0; qt < kQuarterTrackCount; qt++)
@@ -50,6 +53,7 @@ void DiskImage::InitWholeTrackMap()
         m_quarterTrackMap[qt] = qt / kQuarterTracksPerWholeTrack;
     }
 }
+
 
 
 
@@ -67,6 +71,8 @@ void DiskImage::InitWholeTrackMap()
 int DiskImage::ResolveQuarterTrack (int quarterTrack) const
 {
     int   slot = 0;
+
+
 
     if (quarterTrack < 0 || quarterTrack >= static_cast<int> (m_quarterTrackMap.size()))
     {
@@ -87,6 +93,7 @@ int DiskImage::ResolveQuarterTrack (int quarterTrack) const
 
     return slot;
 }
+
 
 
 
@@ -182,6 +189,8 @@ uint8_t DiskImage::ReadBit (int track, size_t bitIndex) const
     size_t   byteIdx   = 0;
     int      shift     = 0;
 
+
+
     if (track < 0 || track >= static_cast<int> (m_trackBits.size()))
     {
         return 0;
@@ -216,6 +225,8 @@ void DiskImage::WriteBit (int track, size_t bitIndex, uint8_t bit)
     size_t   byteIdx   = 0;
     int      shift     = 0;
     Byte     mask      = 0;
+
+
 
     if (track < 0 || track >= static_cast<int> (m_trackBits.size()))
     {
@@ -281,6 +292,8 @@ WriteProtectInfo DiskImage::GetWriteProtectInfo() const
 {
     WriteProtectInfo  info;
 
+
+
     info.imageFlag    = m_imageWriteProtected;
     info.userSetting  = m_userWriteProtected;
     info.readOnlyFile = m_fileReadOnly;
@@ -337,6 +350,8 @@ HRESULT DiskImage::Serialize (vector<Byte> & outBytes) const
 {
     HRESULT   hr = S_OK;
 
+
+
     switch (m_format)
     {
         case DiskFormat::Dsk:
@@ -370,6 +385,8 @@ HRESULT DiskImage::Serialize (vector<Byte> & outBytes) const
 void DiskImage::ResizeTrack (int track, size_t bitCount)
 {
     size_t   bytesNeeded = 0;
+
+
 
     if (track < 0 || track >= static_cast<int> (m_trackBits.size()))
     {
@@ -442,6 +459,8 @@ void DiskImage::LoadFromBytes (DiskFormat fmt, const vector<Byte> & raw, const s
 {
     HRESULT   hr = S_OK;
 
+
+
     m_filePath       = sourcePath;
     m_format         = fmt;
     m_loaded         = false;
@@ -494,6 +513,8 @@ HRESULT DiskImage::Load (const string & filePath)
     streamsize    bytesRead = 0;
     bool          fileOk    = false;
     vector<Byte>  raw;
+
+
 
     {
         ifstream file (filePath, ios::binary);
@@ -551,6 +572,8 @@ void DiskImage::Eject()
 {
     HRESULT   hr = S_OK;
 
+
+
     if (m_dirty && !IsWriteProtected())
     {
         hr = Flush();
@@ -590,6 +613,8 @@ HRESULT DiskImage::Flush()
     HRESULT       hr      = S_OK;
     bool          fileOk  = false;
     vector<Byte>  bytes;
+
+
 
     BAIL_OUT_IF (!m_dirty, S_OK);
 

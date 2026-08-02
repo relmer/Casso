@@ -6,6 +6,7 @@
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  Layout
@@ -120,6 +121,7 @@ void InputDeviceSelector::Layout (const RECT & boundsDip, const DxuiDpiScaler & 
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  Hit testing
@@ -169,6 +171,7 @@ const wchar_t * InputDeviceSelector::SegmentLabel (int index) const
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  Tooltips
@@ -194,6 +197,7 @@ const wchar_t * InputDeviceSelector::TooltipTextAt (int x, int y) const
         default:                return TooltipText();
     }
 }
+
 
 
 
@@ -320,6 +324,7 @@ void InputDeviceSelector::Paint (IDxuiPainter & painter, IDxuiTextRenderer & tex
                           (float) (m_bounds.bottom - m_bounds.top), 0x28000000);
     }
 }
+
 
 
 

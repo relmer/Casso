@@ -16,7 +16,6 @@
 
 
 
-
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  Prng::Prng
@@ -49,6 +48,8 @@ uint64_t Prng::Next64()
     constexpr int        kShiftB       = 27;
     constexpr int        kShiftC       = 31;
 
+
+
     uint64_t    z;
 
     m_state += kStateAdvance;
@@ -74,6 +75,8 @@ uint8_t Prng::NextByte()
 {
     constexpr int        kByteShift    = 56;
 
+
+
     uint64_t    word = Next64();
 
     return static_cast<uint8_t> (word >> kByteShift);
@@ -92,6 +95,8 @@ uint8_t Prng::NextByte()
 void Prng::Fill (uint8_t * dst, size_t count)
 {
     size_t      i;
+
+
 
     for (i = 0; i < count; i++)
     {

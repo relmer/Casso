@@ -24,6 +24,8 @@ bool PrinterByteRing::TryPush (Byte value) noexcept
     uint32_t  head     = m_head.load (std::memory_order_acquire);
     uint32_t  inFlight = tail - head;
 
+
+
     if (inFlight >= kByteRingCapacity)
     {
         return false;
@@ -34,6 +36,7 @@ bool PrinterByteRing::TryPush (Byte value) noexcept
 
     return true;
 }
+
 
 
 
@@ -54,6 +57,8 @@ bool PrinterByteRing::TryPop (Byte & out) noexcept
     uint32_t  head = m_head.load (std::memory_order_relaxed);
     uint32_t  tail = m_tail.load (std::memory_order_acquire);
 
+
+
     if (head == tail)
     {
         return false;
@@ -64,6 +69,7 @@ bool PrinterByteRing::TryPop (Byte & out) noexcept
 
     return true;
 }
+
 
 
 
@@ -86,6 +92,8 @@ uint32_t PrinterByteRing::Drain (Byte * out, uint32_t maxCount) noexcept
     uint32_t  toCopy   = (inFlight < maxCount) ? inFlight : maxCount;
     uint32_t  i        = 0;
 
+
+
     for (i = 0; i < toCopy; i++)
     {
         out[i] = m_slots[(head + i) & kRingMask];
@@ -98,6 +106,7 @@ uint32_t PrinterByteRing::Drain (Byte * out, uint32_t maxCount) noexcept
 
     return toCopy;
 }
+
 
 
 
@@ -117,8 +126,11 @@ uint32_t PrinterByteRing::ApproxSize() const noexcept
     uint32_t  tail = m_tail.load (std::memory_order_relaxed);
     uint32_t  head = m_head.load (std::memory_order_relaxed);
 
+
+
     return tail - head;
 }
+
 
 
 
@@ -139,6 +151,8 @@ uint32_t PrinterByteRing::FreeSpace() const noexcept
     uint32_t  tail     = m_tail.load (std::memory_order_relaxed);
     uint32_t  head     = m_head.load (std::memory_order_acquire);
     uint32_t  inFlight = tail - head;
+
+
 
     return kByteRingCapacity - inFlight;
 }

@@ -7,6 +7,7 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  PrinterAudioSourceTests
@@ -22,6 +23,8 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 TEST_CLASS (PrinterAudioSourceTests)
 {
     using Quality = PrinterAudioSource::Quality;
+
+
 
     static vector<float>  Const (size_t n, float v)
     {

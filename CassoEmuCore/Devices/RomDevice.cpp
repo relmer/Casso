@@ -33,6 +33,8 @@ Byte RomDevice::Read (Word address)
 {
     size_t offset = address - m_start;
 
+
+
     if (offset < m_data.size())
     {
         return m_data[offset];

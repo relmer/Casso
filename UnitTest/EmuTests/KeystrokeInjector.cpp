@@ -5,8 +5,6 @@
 
 
 
-
-
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  WaitForStrobeClear
@@ -19,6 +17,8 @@
 bool KeystrokeInjector::WaitForStrobeClear (EmulatorCore & core, uint64_t cycleBudget)
 {
     constexpr int  kPumpBatchSize = 64;
+
+
 
     uint64_t   target;
     int        i;

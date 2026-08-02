@@ -25,6 +25,7 @@ bool DxuiDwm::GetOsBuild (DWORD & outMajor, DWORD & outBuild)
     LONG                 status  = 0;
 
 
+
     outMajor = 0;
     outBuild = 0;
 

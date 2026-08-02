@@ -14,6 +14,7 @@ static const wchar_t   s_kszStripJson[] = L"strip.json";
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  ReadAllBytes
@@ -40,6 +41,7 @@ static HRESULT ReadAllBytes (const fs::path & path, vector<Byte> & out)
 Error:
     return hr;
 }
+
 
 
 
@@ -74,6 +76,7 @@ Error:
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  WriteAllBytes
@@ -100,6 +103,7 @@ static HRESULT WriteAllBytes (const fs::path & path, const vector<Byte> & bytes)
 Error:
     return hr;
 }
+
 
 
 
@@ -134,6 +138,7 @@ Error:
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  Load
@@ -149,6 +154,8 @@ HRESULT PrintJobStore::Load (const fs::path & dir, PrintRaster & outRaster)
     bool              have  = false;
     vector<Byte>      pngBytes;
     string            jsonText;
+
+
 
     // No pending strip -- a clean first-run open, not a load failure, but
     // it still is not a raster the caller can use.
@@ -171,6 +178,7 @@ Error:
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  Save
@@ -183,6 +191,8 @@ HRESULT PrintJobStore::Save (const fs::path & dir, const PrintRaster & raster)
     std::error_code   ec;
     vector<Byte>      png;
     string            json;
+
+
 
     hr = PrintJobPersistence::Save (raster, png, json);
     CHR (hr);
@@ -202,6 +212,7 @@ Error:
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  Clear
@@ -211,6 +222,8 @@ Error:
 void PrintJobStore::Clear (const fs::path & dir)
 {
     std::error_code   ec;
+
+
 
     fs::remove (dir / s_kszStripPng, ec);
     fs::remove (dir / s_kszStripJson, ec);

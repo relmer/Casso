@@ -48,6 +48,7 @@ static constexpr MainMenuCommandEntry  s_kEntries[] =
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  MainMenu::MainMenu
@@ -62,6 +63,7 @@ MainMenu::MainMenu()
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  MainMenu::~MainMenu
@@ -71,6 +73,7 @@ MainMenu::MainMenu()
 MainMenu::~MainMenu()
 {
 }
+
 
 
 
@@ -90,6 +93,7 @@ void MainMenu::SetDispatch (DispatchFn dispatch)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  MainMenu::SetCheckQuery
@@ -105,6 +109,7 @@ void MainMenu::SetCheckQuery (CheckFn query)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  MainMenu::GetCommandEntries
@@ -115,6 +120,7 @@ std::span<const MainMenuCommandEntry> MainMenu::GetCommandEntries()
 {
     return std::span<const MainMenuCommandEntry> (s_kEntries, std::size (s_kEntries));
 }
+
 
 
 
@@ -140,6 +146,7 @@ const wchar_t * MainMenu::GetMenuName (MainMenuId menu)
 
     return L"?";
 }
+
 
 
 
@@ -199,6 +206,7 @@ std::string MainMenu::EmitParityMarkdown()
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  MainMenu::IsSeparator
@@ -213,6 +221,7 @@ bool MainMenu::IsSeparator (const MainMenuCommandEntry & entry)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  MainMenu::Show
@@ -222,6 +231,7 @@ bool MainMenu::IsSeparator (const MainMenuCommandEntry & entry)
 void MainMenu::Show()
 {
 }
+
 
 
 
@@ -243,6 +253,7 @@ void MainMenu::Dispatch (WORD commandId) const
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  MainMenu::Open
@@ -253,6 +264,7 @@ void MainMenu::Open (MainMenuId menu, bool openedByKeyboard)
 {
     DxuiMenuBar::Open ((int) menu, openedByKeyboard);
 }
+
 
 
 
@@ -276,6 +288,7 @@ void MainMenu::PaintStrip (
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  MainMenu::PaintDropdown
@@ -291,6 +304,7 @@ void MainMenu::PaintDropdown (
     ApplyChromeColors (theme);
     DxuiMenuBar::PaintDropdown (painter, text, theme, visual.dpi);
 }
+
 
 
 
@@ -365,6 +379,7 @@ void MainMenu::Rebuild()
 
     SetItems (std::move (items));
 }
+
 
 
 

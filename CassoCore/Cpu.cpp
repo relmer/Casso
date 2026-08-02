@@ -57,6 +57,7 @@ void Cpu::Reset()
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  EnableTrace
@@ -88,6 +89,7 @@ void Cpu::EnableTrace (size_t capacity)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  TracePush
@@ -112,6 +114,8 @@ void Cpu::TracePush (Byte opcode)
 {
     TraceEntry &  e = m_trace[m_traceHead];
 
+
+
     e.pc     = PC;
     e.opcode = opcode;
     e.op1    = memory[(Word) (PC + 1)];
@@ -125,6 +129,7 @@ void Cpu::TracePush (Byte opcode)
     m_traceHead = (m_traceHead + 1) % m_traceCapacity;
     m_traceCount++;
 }
+
 
 
 
@@ -186,6 +191,7 @@ void Cpu::DumpInstructionTrace (Byte faultOpcode, Word faultPC) const
 
     DEBUGMSG (L"[Casso] === end trace ===\n");
 }
+
 
 
 
@@ -263,6 +269,7 @@ bool Cpu::DumpTraceToFile (const std::wstring & path,
 
     return out.good();
 }
+
 
 
 
@@ -603,6 +610,8 @@ void Cpu::FetchOperandZeroPageXIndirect (Cpu::OperandInfo & operandInfo)
     Byte zpBase = ReadByte (PC);
     Byte zpAddr = (zpBase + X) & 0xFF;
 
+
+
     // Zero page word read wraps within zero page
     operandInfo.location         = zpBase;
     operandInfo.effectiveAddress = ReadByte (zpAddr) | (ReadByte ((zpAddr + 1) & 0xFF) << 8);
@@ -709,6 +718,7 @@ void Cpu::FetchOperandJumpIndirectCmos (Cpu::OperandInfo & operandInfo)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  FetchOperandZeroPageIndirect
@@ -722,10 +732,13 @@ void Cpu::FetchOperandZeroPageIndirect (Cpu::OperandInfo & operandInfo)
 {
     Byte zpAddr = ReadByte (PC);
 
+
+
     operandInfo.location         = zpAddr;
     operandInfo.effectiveAddress = ReadByte (zpAddr) | (ReadByte ((zpAddr + 1) & 0xFF) << 8);
     operandInfo.operand          = ReadByte (operandInfo.effectiveAddress);
 }
+
 
 
 
@@ -751,6 +764,7 @@ void Cpu::FetchOperandAbsoluteXIndirect (Cpu::OperandInfo & operandInfo)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  FetchOperandZeroPageRelative
@@ -769,6 +783,7 @@ void Cpu::FetchOperandZeroPageRelative (Cpu::OperandInfo & operandInfo)
     operandInfo.operand          = ReadByte (zpAddr);
     operandInfo.effectiveAddress = static_cast<Word> ((PC + 1) + (SByte) rel);
 }
+
 
 
 
@@ -827,6 +842,8 @@ void Cpu::FetchOperandAbsolute (Cpu::OperandInfo & operandInfo, const Microcode 
 void Cpu::FetchOperandZeroPageIndirectY (Cpu::OperandInfo & operandInfo)
 {
     Byte zpAddr = ReadByte (PC);
+
+
 
     // Zero page word read wraps within zero page
     operandInfo.location          = zpAddr;
@@ -918,6 +935,8 @@ void Cpu::FetchOperandAbsoluteX (Cpu::OperandInfo & operandInfo)
 void Cpu::ExecuteInstruction (const Microcode & microcode, const OperandInfo & operandInfo)
 {
     Byte * pAccumulator = nullptr;
+
+
 
     if (microcode.globalAddressingMode == GlobalAddressingMode::Accumulator)
     {
@@ -1332,6 +1351,7 @@ void Cpu::InitializeMisc()
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  InitializeUndocumented
@@ -1479,6 +1499,7 @@ void Cpu::InitializeUndocumented()
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  CreateInstruction
@@ -1581,6 +1602,8 @@ bool Cpu::LoadBinary (std::istream & stream, Word address)
 {
     HRESULT hr      = S_OK;
     bool    readWell = false;
+
+
 
     // Determine stream size
     stream.seekg (0, std::ios::end);

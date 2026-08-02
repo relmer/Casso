@@ -154,6 +154,8 @@ void OutputFormats::WriteIntelHex (const std::vector<Byte> & data, Word startAdd
     Word   addr    = startAddr;
     size_t dataLen = (endAddr > startAddr) ? (endAddr - startAddr) : 0;
 
+
+
     if (dataLen > data.size())
     {
         dataLen = data.size();

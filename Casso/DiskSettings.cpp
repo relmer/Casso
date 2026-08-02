@@ -69,6 +69,8 @@ std::string  DiskSettings::WideToUtf8 (const std::wstring & w)
     std::string  utf8;
     int          len  = 0;
 
+
+
     BAIL_OUT_IF (w.empty(), S_OK);
 
     len = WideCharToMultiByte (CP_UTF8, 0, w.c_str(), static_cast<int> (w.size()), nullptr, 0, nullptr, nullptr);
@@ -89,6 +91,8 @@ std::wstring DiskSettings::Utf8ToWide (const std::string & s)
     HRESULT       hr   = S_OK;
     std::wstring  wide;
     int           len  = 0;
+
+
 
     BAIL_OUT_IF (s.empty(), S_OK);
 
@@ -264,6 +268,7 @@ HRESULT DiskSettings::WriteSavedDiskPath (
 Error:
     return hr;
 }
+
 
 
 

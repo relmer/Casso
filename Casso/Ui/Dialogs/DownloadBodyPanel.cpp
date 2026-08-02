@@ -11,6 +11,7 @@
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  Layout
@@ -26,6 +27,7 @@ void DownloadBodyPanel::Layout (const RECT & boundsPx, const DxuiDpiScaler & sca
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  Paint
@@ -35,6 +37,8 @@ void DownloadBodyPanel::Layout (const RECT & boundsPx, const DxuiDpiScaler & sca
 void DownloadBodyPanel::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
 {
     DialogPaintContext  ctx;
+
+
 
     ctx.painter        = static_cast<DxuiPainter *> (&painter);
     ctx.text           = static_cast<DxuiTextRenderer *> (&text);
@@ -51,6 +55,7 @@ void DownloadBodyPanel::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text,
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  OnMouse
@@ -62,6 +67,7 @@ bool DownloadBodyPanel::OnMouse (const DxuiMouseEvent & ev)
     DialogInputEvent  die;
     RECT              b        = Bounds();
     bool              consumed = true;
+
 
 
     die.xPx = ev.positionDip.x - b.left;

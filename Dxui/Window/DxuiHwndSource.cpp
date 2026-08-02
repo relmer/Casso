@@ -252,6 +252,8 @@ BOOL CALLBACK DxuiHwndSource::FirstIconGroupProc (HMODULE, LPCWSTR, LPWSTR name,
 {
     FirstIconGroup * out = (FirstIconGroup *) param;
 
+
+
     if (IS_INTRESOURCE (name))
     {
         out->id = name;
@@ -271,6 +273,8 @@ HICON DxuiHwndSource::DefaultAppIcon (bool big)
     static HICON   s_big    = nullptr;
     static HICON   s_small  = nullptr;
     static bool    s_loaded = false;
+
+
 
     if (!s_loaded)
     {
@@ -738,6 +742,7 @@ void DxuiHwndSource::SetAfterPaintHook (std::function<void(ID3D11RenderTargetVie
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  SetOverlayHooks
@@ -759,6 +764,7 @@ void DxuiHwndSource::SetOverlayHooks (std::function<bool()> isActive,
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  SetComposedOpacity
@@ -774,6 +780,7 @@ void DxuiHwndSource::SetComposedOpacity (float opacity)
 {
     ComPtr<IDCompositionVisual3>  visual3;
     HRESULT                       hrAs = S_OK;
+
 
 
     DXUI_ASSERT_UI_THREAD();
@@ -971,6 +978,7 @@ void DxuiHwndSource::SetContentPanel (std::unique_ptr<DxuiPanel> panel)
     bool     liveLayout = false;
 
 
+
     DXUI_ASSERT_UI_THREAD();
     CBRAEx (panel != nullptr, E_INVALIDARG);
 
@@ -1090,6 +1098,7 @@ bool DxuiHwndSource::SetTimer (UINT_PTR timerId, UINT intervalMs)
     UINT_PTR  result = 0;
 
 
+
     DXUI_ASSERT_UI_THREAD();
     CBRA (m_hwnd != nullptr);
 
@@ -1117,6 +1126,7 @@ bool DxuiHwndSource::KillTimer (UINT_PTR timerId)
 {
     HRESULT  hr     = S_OK;
     BOOL     result = FALSE;
+
 
 
     DXUI_ASSERT_UI_THREAD();
@@ -1476,6 +1486,7 @@ Error:
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  BackBufferSurface
@@ -1492,6 +1503,7 @@ ComPtr<IDXGISurface> DxuiHwndSource::BackBufferSurface() const
     ComPtr<IDXGISurface>     surface;
     HRESULT                  hrBuffer = S_OK;
     HRESULT                  hrAs     = S_OK;
+
 
 
     if (m_swapChain == nullptr)
@@ -1564,6 +1576,7 @@ SIZE DxuiHwndSource::BackBufferSizePx() const
     HRESULT                hrDesc = E_FAIL;
 
 
+
     if (m_swapChain != nullptr)
     {
         hrDesc = m_swapChain->GetDesc1 (&scd);
@@ -1575,6 +1588,7 @@ SIZE DxuiHwndSource::BackBufferSizePx() const
     }
     return SIZE{ (LONG) scd.Width, (LONG) scd.Height };
 }
+
 
 
 
@@ -1600,6 +1614,7 @@ void DxuiHwndSource::PaintContent (ID3D11RenderTargetView * target, int widthPx,
     HRESULT  hr           = S_OK;
     bool     painterBegun = false;
     bool     textBegun    = false;
+
 
 
     DXUI_ASSERT_UI_THREAD();
@@ -1686,6 +1701,7 @@ Error:
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  PresentFrame
@@ -1700,6 +1716,7 @@ Error:
 void DxuiHwndSource::PresentFrame()
 {
     HRESULT  hr = S_OK;
+
 
 
     if (m_swapChain == nullptr)
@@ -1719,6 +1736,7 @@ void DxuiHwndSource::PresentFrame()
 Error:
     return;
 }
+
 
 
 
@@ -3192,6 +3210,7 @@ IDxuiControl * DxuiHwndSource::FindNcSystemControlAt (POINT clientDip) const
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  NotifySystemButtonsMaximized
@@ -3206,6 +3225,7 @@ void DxuiHwndSource::NotifySystemButtonsMaximized (bool maximized)
         m_caption->SetMaximized (maximized);
     }
 }
+
 
 
 
@@ -3409,6 +3429,7 @@ DxuiPopupHost * DxuiHwndSource::AcquirePopup()
     DxuiPopupHost  *  popup  = nullptr;
 
 
+
     DXUI_ASSERT_UI_THREAD();
 
     // Seed the pool on the very first acquire.
@@ -3539,6 +3560,7 @@ void DxuiHwndSource::InitializePooledPopup (DxuiPopupHost * popup)
     ID3D11Device         *  device   = m_device  ? m_device.Get()  : m_popupDevice.Get();
     ID3D11DeviceContext  *  context  = m_context ? m_context.Get() : m_popupContext.Get();
     HRESULT                 hr       = S_OK;
+
 
 
     DXUI_ASSERT_UI_THREAD();

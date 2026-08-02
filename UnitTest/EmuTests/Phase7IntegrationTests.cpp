@@ -9,8 +9,6 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
 
 
-
-
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  EmuIntegrationTests (Phase 7)

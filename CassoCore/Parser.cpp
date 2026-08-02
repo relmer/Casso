@@ -19,6 +19,8 @@ std::vector<std::string> Parser::SplitLines (const std::string & source)
     std::vector<std::string> lines;
     std::string              line;
 
+
+
     for (size_t i = 0; i < source.size(); i++)
     {
         char c = source[i];
@@ -128,6 +130,8 @@ static std::string Trim (const std::string & s)
 {
     size_t start = s.find_first_not_of (" \t");
 
+
+
     if (start == std::string::npos)
     {
         return "";
@@ -150,6 +154,8 @@ static std::string Trim (const std::string & s)
 static std::string ToUpper (const std::string & s)
 {
     std::string result = s;
+
+
 
     for (char & c : result)
     {
@@ -383,6 +389,8 @@ static std::string TrimOperand (const std::string & s)
 {
     size_t start = s.find_first_not_of (" \t");
 
+
+
     if (start == std::string::npos)
     {
         return "";
@@ -405,6 +413,8 @@ static std::string TrimOperand (const std::string & s)
 static std::string ToUpperStr (const std::string & s)
 {
     std::string result = s;
+
+
 
     for (char & c : result)
     {
@@ -713,6 +723,8 @@ static std::string ToUpperValidate (const std::string & s)
 {
     std::string result = s;
 
+
+
     for (char & c : result)
     {
         c = (char) toupper ((unsigned char) c);
@@ -836,6 +848,8 @@ std::vector<std::string> Parser::SplitArgList (const std::string & text)
 std::string Parser::ParseQuotedString (const std::string & text)
 {
     std::string trimmed = TrimOperand (text);
+
+
 
     if (trimmed.size() < 2 || trimmed.front() != '"' || trimmed.back() != '"')
     {

@@ -7,6 +7,8 @@
 
 
 
+
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  CrtParams
@@ -44,6 +46,8 @@ struct CrtParams
 
 
 
+
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  MakeCrtParams
@@ -58,6 +62,8 @@ CrtParams  MakeCrtParams      (const GlobalUserPrefs::Crt & prefsCrt,
 
 
 
+
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  ComputeLetterboxRect
@@ -69,6 +75,8 @@ RECT       ComputeLetterboxRectInRect (const RECT & contentRect);
 RECT       ComputeAspectFitRectInRect (const RECT & contentRect,
                                        int          aspectW,
                                        int          aspectH);
+
+
 
 
 

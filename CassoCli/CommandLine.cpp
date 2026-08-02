@@ -18,6 +18,9 @@
 #endif
 
 
+
+
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  ParseAddress
@@ -340,6 +343,8 @@ static std::string StripExtension (const std::string & path)
     size_t dot = path.rfind ('.');
     size_t sep = path.find_last_of ("/\\");
 
+
+
     if (dot != std::string::npos && (sep == std::string::npos || dot > sep))
     {
         return path.substr (0, dot);
@@ -363,6 +368,7 @@ static bool IsAssemblySource (const std::string & path)
     return EndsWith (path, ".asm") || EndsWith (path, ".s") ||
            EndsWith (path, ".a65") || EndsWith (path, ".a65c");
 }
+
 
 
 
@@ -671,6 +677,8 @@ static bool WriteDebugInfoOutput (const AssemblyResult & result,
 static void LoadAssembledIntoMemory (Cpu & cpu, const AssemblyResult & result)
 {
     Word loadAddr = result.startAddress;
+
+
 
     for (size_t i = 0; i < result.bytes.size(); i++)
     {
@@ -1100,6 +1108,8 @@ static void ParseAs65Flags (int argc, char * argv[], CommandLineOptions & option
 CommandLineOptions ParseCommandLine (int argc, char * argv[])
 {
     CommandLineOptions options = {};
+
+
 
     if (argc < 2)
     {

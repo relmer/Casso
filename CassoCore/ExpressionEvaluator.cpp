@@ -102,6 +102,8 @@ ExpressionEvaluator::Token ExpressionEvaluator::Tokenizer::ReadHexNumber()
 {
     size_t start = m_pos;
 
+
+
     while (m_pos < m_text.size() && isxdigit ((unsigned char) m_text[m_pos]))
         m_pos++;
 
@@ -125,6 +127,8 @@ ExpressionEvaluator::Token ExpressionEvaluator::Tokenizer::ReadHexNumber()
 ExpressionEvaluator::Token ExpressionEvaluator::Tokenizer::ReadBinaryNumber()
 {
     size_t start = m_pos;
+
+
 
     while (m_pos < m_text.size() && (m_text[m_pos] == '0' || m_text[m_pos] == '1'))
         m_pos++;
@@ -190,6 +194,8 @@ ExpressionEvaluator::Token ExpressionEvaluator::Tokenizer::ReadCharConstant()
 ExpressionEvaluator::Token ExpressionEvaluator::Tokenizer::ReadDecimalNumber()
 {
     size_t start = m_pos;
+
+
 
     // Check for 0x (hex) or 0b (binary) prefix
     if (m_text[m_pos] == '0' && m_pos + 1 < m_text.size())
@@ -266,6 +272,8 @@ ExpressionEvaluator::Token ExpressionEvaluator::Tokenizer::ReadDecimalNumber()
 ExpressionEvaluator::Token ExpressionEvaluator::Tokenizer::ReadIdentifier()
 {
     size_t start = m_pos;
+
+
 
     while (m_pos < m_text.size() && (isalnum ((unsigned char) m_text[m_pos]) || m_text[m_pos] == '_' || m_text[m_pos] == '.'))
         m_pos++;
@@ -408,6 +416,8 @@ std::string ExpressionEvaluator::ToUpperIdent (const std::string & s)
 {
     std::string r = s;
 
+
+
     for (char & c : r)
         c = (char) toupper ((unsigned char) c);
 
@@ -427,6 +437,8 @@ std::string ExpressionEvaluator::ToUpperIdent (const std::string & s)
 bool ExpressionEvaluator::ParsePrimary (Tokenizer & tok, const ExprContext & ctx, int32_t & result, std::string & error)
 {
     Token t = tok.Peek();
+
+
 
     if (t.type == TokType::Number) { tok.Next(); result = t.numVal; return true; }
 
@@ -507,6 +519,8 @@ bool ExpressionEvaluator::ParsePrimary (Tokenizer & tok, const ExprContext & ctx
 bool ExpressionEvaluator::ParseUnary (Tokenizer & tok, const ExprContext & ctx, int32_t & result, std::string & error)
 {
     Token t = tok.Peek();
+
+
 
     if (t.type == TokType::Minus)     { tok.Next(); if (!ParseUnary (tok, ctx, result, error)) return false; result = -result; return true; }
     if (t.type == TokType::Plus)      { tok.Next(); return ParseUnary (tok, ctx, result, error); }
@@ -825,7 +839,6 @@ bool ExpressionEvaluator::ParseLogOr (Tokenizer & tok, const ExprContext & ctx, 
 
     return true;
 }
-
 
 
 

@@ -47,6 +47,7 @@ static constexpr wchar_t  s_kGlyphPrint      = L'\uE749';   // printer (monoline
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  CommandToolbar::CommandToolbar
@@ -88,6 +89,7 @@ CommandToolbar::CommandToolbar()
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  CommandToolbar::SetVolume
@@ -103,6 +105,7 @@ void CommandToolbar::SetVolume (float volume01, bool muted)
     m_volumeSlider.SetEnabled (!m_muted);
     m_muteButton.glyph = m_muted ? s_kGlyphMuted : s_kGlyphVolume;
 }
+
 
 
 
@@ -123,6 +126,7 @@ bool CommandToolbar::HitTest (int x, int y) const
 {
     return PointIn (m_barRect, x, y);
 }
+
 
 
 
@@ -161,6 +165,8 @@ static void PaintStatusLed (IDxuiPainter & painter, float cx, float cy, UINT dpi
     float     r    = 2.0f * (float) dpi / (float) s_kBaseDpi;
     uint32_t  halo = (core & 0x00FFFFFFu) | 0x80000000u;
 
+
+
     if (core == 0)
     {
         return;
@@ -196,6 +202,8 @@ int CommandToolbar::PlanForWidth (int clientWidthPx, const DxuiDpiScaler & scale
     int    sliderW    = MulDiv (s_kSliderWidthDp, (int) dpi, s_kBaseDpi);
     float  iconDip    = s_kIconDip * (float) dpi / (float) s_kBaseDpi;
     int    avail      = clientWidthPx - MulDiv (s_kBarPadXDp, (int) dpi, s_kBaseDpi) * 2;
+
+
 
     auto  measure = [&] (const wchar_t * label, float fontDip) -> int
     {
@@ -259,6 +267,7 @@ int CommandToolbar::PlanForWidth (int clientWidthPx, const DxuiDpiScaler & scale
     // width, but keeping the lambda results here would just duplicate state).
     return m_bandDp;
 }
+
 
 
 
@@ -390,6 +399,7 @@ void CommandToolbar::Layout (const RECT & boundsDip, const DxuiDpiScaler & scale
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  CommandToolbar::TooltipAt
@@ -424,6 +434,7 @@ const wchar_t * CommandToolbar::TooltipAt (int x, int y, RECT & anchor) const
 
     return nullptr;
 }
+
 
 
 
@@ -538,6 +549,7 @@ bool CommandToolbar::OnToolbarLButtonUp (int x, int y)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  CommandToolbar::PaintButton
@@ -646,6 +658,7 @@ void CommandToolbar::PaintButton (Button & btn, IDxuiPainter & painter,
         IGNORE_RETURN_VALUE (hr, S_OK);
     }
 }
+
 
 
 

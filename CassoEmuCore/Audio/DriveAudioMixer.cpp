@@ -65,6 +65,8 @@ void DriveAudioMixer::UnregisterSource (IDriveAudioSource * source)
 {
     auto  it = std::find (m_sources.begin(), m_sources.end(), source);
 
+
+
     if (it != m_sources.end())
     {
         m_sources.erase (it);
@@ -119,6 +121,8 @@ bool DriveAudioMixer::IsEnabled() const
 const wchar_t * DriveAudioMixer::CanonicalMechanism (const wstring & mechanism)
 {
     const wchar_t *  result = nullptr;
+
+
 
     if (_wcsicmp (mechanism.c_str(), L"Shugart") == 0)
     {
@@ -213,6 +217,8 @@ void DriveAudioMixer::Tick (uint64_t currentCycle)
 {
     Disk2AudioSource *  disk = nullptr;
 
+
+
     for (IDriveAudioSource * src : m_sources)
     {
         disk = dynamic_cast<Disk2AudioSource *> (src);
@@ -245,6 +251,8 @@ void DriveAudioMixer::GeneratePCM (float * stereoOut, uint32_t numSamples)
     float     panL     = 0.0f;
     float     panR     = 0.0f;
     float     monoSamp = 0.0f;
+
+
 
     if (stereoOut == nullptr || numSamples == 0)
     {
@@ -335,6 +343,7 @@ void DriveAudioMixer::MixDriveIntoSpeakerStereo (
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  PanToStereo
@@ -349,6 +358,8 @@ void DriveAudioMixer::PanToStereo (float pan, float & outLeft, float & outRight)
 {
     float  clamped = std::clamp (pan, -1.0f, 1.0f);
     float  theta   = kCenterAngle * (1.0f - clamped);
+
+
 
     outLeft  = sinf (theta);
     outRight = cosf (theta);

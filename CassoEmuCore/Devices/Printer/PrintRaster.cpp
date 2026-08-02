@@ -12,6 +12,7 @@ static constexpr int   s_kMaxRows     = PrinterGrid::kMaxStripRows;
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  EnsureRowAllocated
@@ -26,6 +27,8 @@ void PrintRaster::EnsureRowAllocated (int row)
     int   neededRows = 0;
     int   chunkRows  = 0;
 
+
+
     if ((size_t) (row + 1) * s_kColumns <= m_cells.size())
     {
         return;
@@ -36,6 +39,7 @@ void PrintRaster::EnsureRowAllocated (int row)
 
     m_cells.resize ((size_t) chunkRows * s_kColumns, 0);
 }
+
 
 
 
@@ -75,6 +79,7 @@ void PrintRaster::Strike (int columnDot, int row, InkPrimary ink)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  AdvanceRows
@@ -108,6 +113,7 @@ void PrintRaster::AdvanceRows (int rows)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  MarkFormFeed
@@ -120,6 +126,8 @@ void PrintRaster::AdvanceRows (int rows)
 void PrintRaster::MarkFormFeed()
 {
     int   nextTop = ((m_paperRow / s_kPageRows) + 1) * s_kPageRows;
+
+
 
     if (nextTop >= s_kMaxRows)
     {
@@ -140,6 +148,7 @@ void PrintRaster::MarkFormFeed()
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  Clear
@@ -156,6 +165,7 @@ void PrintRaster::Clear()
     m_rowsUsed   = 0;
     m_capReached = false;
 }
+
 
 
 
@@ -194,6 +204,7 @@ void PrintRaster::RestoreFromIndexed (int rows, const vector<Byte> & cells,
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  CopyRowSpan
@@ -208,6 +219,8 @@ void PrintRaster::CopyRowSpan (int firstRow, int lastRow, PrintRaster & out) con
 {
     int      spanRows  = 0;
     size_t   available = m_cells.size() / s_kColumns;
+
+
 
     out.Clear();
 
@@ -255,6 +268,7 @@ void PrintRaster::CopyRowSpan (int firstRow, int lastRow, PrintRaster & out) con
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  CellAt
@@ -264,6 +278,8 @@ void PrintRaster::CopyRowSpan (int firstRow, int lastRow, PrintRaster & out) con
 Byte PrintRaster::CellAt (int columnDot, int row) const
 {
     size_t   index = 0;
+
+
 
     if (columnDot < 0 || columnDot >= s_kColumns || row < 0)
     {

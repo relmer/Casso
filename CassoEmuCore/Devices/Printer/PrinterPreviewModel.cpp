@@ -8,6 +8,7 @@
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  PrinterPreviewModel::RevealColumnSpan
@@ -18,11 +19,14 @@ PrinterPreviewModel::RevealSpan PrinterPreviewModel::RevealColumnSpan (bool swee
 {
     RevealSpan   span;
 
+
+
     span.loDots = sweepLtr ? 0 : carriageCol;
     span.hiDots = sweepLtr ? carriageCol : PrinterGrid::kDotsPerRow;
 
     return span;
 }
+
 
 
 
@@ -41,6 +45,7 @@ bool PrinterPreviewModel::StripTornOff (int rowsUsed, int viewportLiveRow)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  PrinterPreviewModel::LiveBandOutsideSpan
@@ -52,6 +57,7 @@ bool PrinterPreviewModel::LiveBandOutsideSpan (int platenRow, int spanFirstRow, 
     return (platenRow + PrinterGrid::kPinBandRows - 1 > spanLastRow)
         || (platenRow < spanFirstRow);
 }
+
 
 
 
@@ -76,6 +82,7 @@ int PrinterPreviewModel::DirtyFromRow (bool hasRendered, int platenRow, int rend
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  PrinterPreviewModel::SpanMoved
@@ -90,6 +97,7 @@ bool PrinterPreviewModel::SpanMoved (int firstRow, int lastRow, int renderedFirs
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  PrinterPreviewModel::RevealMoved
@@ -100,6 +108,7 @@ bool PrinterPreviewModel::RevealMoved (int revealRow, int revealCol, int rendere
 {
     return revealRow != renderedRevealRow || revealCol != renderedRevealCol;
 }
+
 
 
 
@@ -142,6 +151,7 @@ PrinterPreviewModel::InkSample PrinterPreviewModel::AudioSampleWindow (bool swee
 
     return sample;
 }
+
 
 
 

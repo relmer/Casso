@@ -24,6 +24,8 @@ static bool ReadByte (std::ifstream & f, Byte & out)
 {
     HRESULT hr = S_OK;
 
+
+
     char    c;
     bool    fRead;
 
@@ -51,6 +53,8 @@ Error:
 static bool ReadWord (std::ifstream & f, Word & out)
 {
     HRESULT hr = S_OK;
+
+
 
     Byte    lo;
     Byte    hi;
@@ -84,6 +88,8 @@ Error:
 static bool ReadCpuState (std::ifstream & f, HarteCpuState & state)
 {
     HRESULT hr = S_OK;
+
+
 
     Byte    ramCount;
     bool    fOk;
@@ -126,6 +132,8 @@ Error:
 bool LoadHarteTestFile (const std::string & path, HarteTestFile & outFile)
 {
     HRESULT       hr = S_OK;
+
+
 
     std::ifstream f (path, std::ios::binary);
     Word          count;

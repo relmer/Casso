@@ -7,6 +7,7 @@
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  Acia6551
@@ -24,6 +25,7 @@ Acia6551::Acia6551 (Word baseAddress)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  Read
@@ -37,6 +39,8 @@ Byte Acia6551::Read (Word address)
 {
     Word   reg    = static_cast<Word> (address - m_baseAddress);
     Byte   result = 0;
+
+
 
     switch (reg)
     {
@@ -66,6 +70,7 @@ Byte Acia6551::Read (Word address)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  Write
@@ -79,6 +84,8 @@ Byte Acia6551::Read (Word address)
 void Acia6551::Write (Word address, Byte value)
 {
     Word   reg = static_cast<Word> (address - m_baseAddress);
+
+
 
     switch (reg)
     {
@@ -116,6 +123,7 @@ void Acia6551::Write (Word address, Byte value)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  Reset
@@ -126,6 +134,7 @@ void Acia6551::Reset()
 {
     ResetState (true);
 }
+
 
 
 
@@ -147,6 +156,7 @@ void Acia6551::SoftReset()
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  PowerCycle
@@ -163,6 +173,7 @@ void Acia6551::PowerCycle (Prng & prng)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  AttachInterruptController
@@ -172,6 +183,8 @@ void Acia6551::PowerCycle (Prng & prng)
 HRESULT Acia6551::AttachInterruptController (IInterruptController * ic)
 {
     HRESULT   hr = S_OK;
+
+
 
     CBRAEx (ic, E_INVALIDARG);
 
@@ -184,6 +197,7 @@ HRESULT Acia6551::AttachInterruptController (IInterruptController * ic)
 Error:
     return hr;
 }
+
 
 
 
@@ -216,6 +230,7 @@ void Acia6551::ReceiveByte (Byte value)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  GetWordLengthBits
@@ -228,8 +243,11 @@ int Acia6551::GetWordLengthBits() const
 {
     int   selector = (m_control & kControlWordLenMask) >> kControlWordLenShift;
 
+
+
     return 8 - selector;
 }
+
 
 
 
@@ -265,6 +283,7 @@ void Acia6551::ResetState (bool hardware)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  ProgrammedReset
@@ -275,6 +294,7 @@ void Acia6551::ProgrammedReset()
 {
     ResetState (false);
 }
+
 
 
 
@@ -295,6 +315,7 @@ Byte Acia6551::ReadData()
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  ReadStatus
@@ -307,10 +328,13 @@ Byte Acia6551::ReadStatus()
 {
     Byte   snapshot = m_status;
 
+
+
     LowerIrq();
 
     return snapshot;
 }
+
 
 
 
@@ -343,6 +367,7 @@ void Acia6551::WriteData (Byte value)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  RaiseIrq
@@ -358,6 +383,7 @@ void Acia6551::RaiseIrq()
         m_ic->Assert (m_irqSource);
     }
 }
+
 
 
 
@@ -381,6 +407,7 @@ void Acia6551::LowerIrq()
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  RxIrqEnabled
@@ -393,6 +420,7 @@ bool Acia6551::RxIrqEnabled() const
 {
     return (m_command & kCommandDtr) && !(m_command & kCommandRxIrqDisable);
 }
+
 
 
 
@@ -414,6 +442,7 @@ bool Acia6551::TxIrqEnabled() const
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  Create
@@ -425,6 +454,8 @@ bool Acia6551::TxIrqEnabled() const
 unique_ptr<MemoryDevice> Acia6551::Create (const DeviceConfig & config, MemoryBus & bus)
 {
     Word   base = 0;
+
+
 
     (void) bus;
 

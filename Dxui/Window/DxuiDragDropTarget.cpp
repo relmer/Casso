@@ -5,6 +5,7 @@
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  DxuiDragDropTarget
@@ -14,6 +15,7 @@
 DxuiDragDropTarget::DxuiDragDropTarget()
 {
 }
+
 
 
 
@@ -28,6 +30,7 @@ DxuiDragDropTarget::~DxuiDragDropTarget()
 {
     Shutdown();
 }
+
 
 
 
@@ -60,6 +63,7 @@ HRESULT DxuiDragDropTarget::Initialize (HWND hwnd, HitTestFn hitTest)
 Error:
     return hr;
 }
+
 
 
 
@@ -98,6 +102,7 @@ Error:
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  AttachAdditionalWindow
@@ -132,6 +137,7 @@ Error:
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  RevokeAllRegistrations
@@ -160,6 +166,7 @@ void DxuiDragDropTarget::RevokeAllRegistrations()
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  Shutdown
@@ -184,6 +191,7 @@ void DxuiDragDropTarget::Shutdown()
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  IUnknown
@@ -194,6 +202,7 @@ STDMETHODIMP DxuiDragDropTarget::QueryInterface (REFIID riid, void ** ppv)
 {
     HRESULT  hr           = S_OK;
     bool     isSupported  = false;
+
 
 
     CBREx (ppv != nullptr, E_POINTER);
@@ -224,6 +233,7 @@ STDMETHODIMP_(ULONG) DxuiDragDropTarget::Release()
 
     return result;
 }
+
 
 
 
@@ -296,6 +306,7 @@ Error:
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  DragEnter
@@ -332,6 +343,7 @@ STDMETHODIMP DxuiDragDropTarget::DragEnter (
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  DragOver
@@ -361,6 +373,7 @@ Error:
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  DragLeave
@@ -375,6 +388,7 @@ STDMETHODIMP DxuiDragDropTarget::DragLeave()
     m_lastHitTag            = -1;
     return S_OK;
 }
+
 
 
 
@@ -417,6 +431,7 @@ STDMETHODIMP DxuiDragDropTarget::Drop (
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  PickAtClient
@@ -436,6 +451,7 @@ int DxuiDragDropTarget::PickAtClient (const DxuiHitTester & hitTester, int xClie
 
     return hit->tag;
 }
+
 
 
 

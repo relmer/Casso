@@ -165,6 +165,8 @@ bool DxuiTreeView::IsInteractive (int flatIndex) const
 {
     const DxuiTreeNode * n = NodeAt (flatIndex);
 
+
+
     if (n == nullptr || !m_enabled)
     {
         return false;
@@ -495,6 +497,8 @@ void DxuiTreeView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
     constexpr float     s_kFontDip        = 13.0f;
     constexpr float     s_kTwistyHeight   = 8.0f;
 
+
+
     HRESULT  hr        = S_OK;
     int      i         = 0;
     size_t   n         = m_flatRows.size();
@@ -616,6 +620,7 @@ void DxuiTreeView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
         }
     }
 }
+
 
 
 

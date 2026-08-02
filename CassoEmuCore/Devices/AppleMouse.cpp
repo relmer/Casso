@@ -7,6 +7,7 @@
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  AttachInterruptController
@@ -16,6 +17,8 @@
 HRESULT AppleMouse::AttachInterruptController (IInterruptController * ic)
 {
     HRESULT   hr = S_OK;
+
+
 
     CBR (ic != nullptr);
 
@@ -31,6 +34,7 @@ HRESULT AppleMouse::AttachInterruptController (IInterruptController * ic)
 Error:
     return hr;
 }
+
 
 
 
@@ -55,6 +59,7 @@ void AppleMouse::MoveBy (int dx, int dy)
         m_hostDy.fetch_add (dy, std::memory_order_acq_rel);
     }
 }
+
 
 
 
@@ -174,6 +179,7 @@ void AppleMouse::Tick (uint32_t cpuCycles)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  SetHostTargetFraction
@@ -189,6 +195,7 @@ void AppleMouse::SetHostTargetFraction (uint16_t fx, uint16_t fy)
                         std::memory_order_release);
     m_hasTarget.store (true, std::memory_order_release);
 }
+
 
 
 
@@ -257,6 +264,7 @@ void AppleMouse::RetargetFromHoles()
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  ReadButton
@@ -272,6 +280,7 @@ Byte AppleMouse::ReadButton() const
 {
     return m_hostButton.load (std::memory_order_acquire) ? 0x00 : 0x80;
 }
+
 
 
 
@@ -297,6 +306,7 @@ void AppleMouse::AccessRstXY()
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  AccessPtrig
@@ -312,6 +322,7 @@ void AppleMouse::AccessPtrig()
 
     UpdateIrqLines();
 }
+
 
 
 
@@ -343,6 +354,7 @@ void AppleMouse::AccessIouSwitch (Word address)
 
     UpdateIrqLines();
 }
+
 
 
 
@@ -381,6 +393,7 @@ void AppleMouse::Reset()
 
     UpdateIrqLines();
 }
+
 
 
 

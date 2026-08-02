@@ -11,7 +11,6 @@
 
 
 
-
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  Anonymous helpers
@@ -21,6 +20,7 @@
 std::wstring UserConfigStore::Widen (const std::string & narrow)
 {
     std::wstring  out;
+
 
 
     out.reserve (narrow.size());
@@ -35,6 +35,7 @@ std::wstring UserConfigStore::Widen (const std::string & narrow)
 std::string UserConfigStore::Narrow (const std::wstring & wide)
 {
     std::string  out;
+
 
 
     out.reserve (wide.size());
@@ -147,6 +148,8 @@ int  UserConfigStore::ExtractVersion (const JsonValue & v)
 {
     const std::vector<std::pair<std::string, JsonValue>> * entries = nullptr;
     int                                                    found   = -1;
+
+
 
     if (v.GetType() != JsonType::Object)
     {
@@ -380,6 +383,7 @@ JsonValue UserConfigStore::BuildUiPrefsDefaults()
 {
     std::vector<std::pair<std::string, JsonValue>> uiObj;
     std::vector<JsonValue>                         wp;
+
 
 
     uiObj.emplace_back ("speedMode",          JsonValue (std::string ("authentic")));
@@ -969,9 +973,6 @@ HRESULT UserConfigStore::Reset (
 Error:
     return hr;
 }
-
-
-
 
 
 

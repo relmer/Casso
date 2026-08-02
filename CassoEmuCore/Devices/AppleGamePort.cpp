@@ -50,6 +50,7 @@ Byte AppleGamePort::Read (Word address)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  Write
@@ -74,6 +75,7 @@ void AppleGamePort::Write (Word address, Byte value)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  ReadButton
@@ -88,8 +90,11 @@ Byte AppleGamePort::ReadButton (Word address) const
     int   idx     = static_cast<int> (address - s_kwFirstButtonAddress);
     bool  pressed = m_buttonState[idx].load (memory_order_acquire);
 
+
+
     return pressed ? 0x80 : 0x00;
 }
+
 
 
 
@@ -124,6 +129,7 @@ Byte AppleGamePort::ReadPaddle (Word address) const
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  SetPaddle
@@ -148,6 +154,7 @@ void AppleGamePort::SetPaddle (int axis, Byte position)
 Error:
     return;
 }
+
 
 
 
@@ -273,6 +280,7 @@ Error:
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  EmitPaddleTrigger
@@ -295,6 +303,7 @@ void AppleGamePort::EmitPaddleTrigger()
 Error:
     return;
 }
+
 
 
 
@@ -326,6 +335,7 @@ void AppleGamePort::EmitPaddleRead (Word address, Byte value)
 Error:
     return;
 }
+
 
 
 
@@ -377,6 +387,7 @@ void AppleGamePort::Reset()
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  SoftReset
@@ -394,6 +405,7 @@ void AppleGamePort::SoftReset()
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  Create
@@ -403,6 +415,8 @@ void AppleGamePort::SoftReset()
 unique_ptr<MemoryDevice> AppleGamePort::Create (const DeviceConfig & config, MemoryBus & bus)
 {
     unique_ptr<AppleGamePort>  device = make_unique<AppleGamePort>();
+
+
 
     UNREFERENCED_PARAMETER (config);
     UNREFERENCED_PARAMETER (bus);

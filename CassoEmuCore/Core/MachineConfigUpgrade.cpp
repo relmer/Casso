@@ -292,6 +292,8 @@ bool  MachineConfigUpgrade::InjectPrinterSlot (JsonValue & arr)
     vector<JsonValue>  rebuilt;
     size_t             i        = 0;
 
+
+
     if (arr.GetType() != JsonType::Array)
     {
         return false;

@@ -84,6 +84,7 @@ static constexpr float     s_kMinLipPx          = 2.0f;
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  MonitorFrame
@@ -94,6 +95,7 @@ MonitorFrame::MonitorFrame()
 {
     m_focusable = false;
 }
+
 
 
 
@@ -166,6 +168,7 @@ void MonitorFrame::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  CenterSizeForScreenPx
@@ -190,6 +193,7 @@ SIZE MonitorFrame::CenterSizeForScreenPx (int screenWpx, int screenHpx)
 
     return SIZE{ (int) std::ceil (cw), (int) std::ceil (ch) };
 }
+
 
 
 
@@ -378,6 +382,7 @@ void MonitorFrame::Paint (
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  MonitorFrame::LerpArgb
@@ -402,6 +407,7 @@ uint32_t MonitorFrame::LerpArgb (uint32_t a, uint32_t b, float t)
 
     return (lane (24) << 24) | (lane (16) << 16) | (lane (8) << 8) | lane (0);
 }
+
 
 
 
@@ -447,6 +453,7 @@ float MonitorFrame::EdgeInset (float y, float top, float bottom, float radius, f
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  MonitorFrame::FillSpan
@@ -464,6 +471,7 @@ void MonitorFrame::FillSpan (IDxuiPainter & painter, float xLeft, float xRight, 
         painter.FillRect (xLeft, y, xRight - xLeft, 1.0f, argb);
     }
 }
+
 
 
 
@@ -498,6 +506,7 @@ void MonitorFrame::ShearFillQuad (
                             xLeft + sb,     yTop + h,
                             argb);
 }
+
 
 
 

@@ -24,6 +24,7 @@ static constexpr const char *  s_kpszVertexShaderSrc =
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  LoadShaderSource
@@ -38,6 +39,7 @@ HRESULT SettingsCompositor::LoadShaderSource (int resourceId, ShaderSource * out
     HGLOBAL    hMem      = nullptr;
     DWORD      cbData    = 0;
     void     * pData     = nullptr;
+
 
 
     CBRAEx (outSource, E_INVALIDARG);
@@ -70,6 +72,7 @@ Error:
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  ~SettingsCompositor
@@ -84,6 +87,7 @@ SettingsCompositor::~SettingsCompositor()
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  Initialize
@@ -93,6 +97,7 @@ SettingsCompositor::~SettingsCompositor()
 HRESULT SettingsCompositor::Initialize (ID3D11Device * device, ID3D11DeviceContext * context)
 {
     HRESULT  hr = S_OK;
+
 
 
     CBRAEx (device,  E_INVALIDARG);
@@ -115,6 +120,7 @@ Error:
     }
     return hr;
 }
+
 
 
 
@@ -149,6 +155,7 @@ void SettingsCompositor::Shutdown()
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  SetTransparencyState
@@ -165,6 +172,7 @@ void SettingsCompositor::SetTransparencyState (bool active, RECT emuRectClient, 
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  CompilePixelShader
@@ -177,6 +185,7 @@ HRESULT SettingsCompositor::CompilePixelShader (int resourceId, const char * sou
     ShaderSource      source = {};
     ComPtr<ID3DBlob>  blob;
     ComPtr<ID3DBlob>  errors;
+
 
 
     CBRAEx (sourceName, E_INVALIDARG);
@@ -201,6 +210,7 @@ Error:
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  CreateResources
@@ -220,6 +230,8 @@ HRESULT SettingsCompositor::CreateResources()
     D3D11_SUBRESOURCE_DATA  initData = {};
     D3D11_SAMPLER_DESC      sd       = {};
     D3D11_BLEND_DESC        bld      = {};
+
+
 
     SettingsVertex vertices[] =
     {
@@ -300,6 +312,7 @@ Error:
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  ReleaseBlurTextures
@@ -330,6 +343,7 @@ void SettingsCompositor::ReleaseBlurTextures()
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  EnsureBlurTextures
@@ -340,6 +354,7 @@ HRESULT SettingsCompositor::EnsureBlurTextures (int widthPx, int heightPx)
 {
     HRESULT               hr = S_OK;
     D3D11_TEXTURE2D_DESC  td = {};
+
 
 
     CBRAEx (widthPx > 0 && heightPx > 0, E_INVALIDARG);
@@ -384,6 +399,7 @@ Error:
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  UploadBlurParams
@@ -396,6 +412,7 @@ HRESULT SettingsCompositor::UploadBlurParams (const SettingsBlurParams & params)
     D3D11_MAPPED_SUBRESOURCE  mapped = {};
 
 
+
     hr = m_context->Map (m_blurConstantBuffer.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped);
     CHRA (hr);
 
@@ -405,6 +422,7 @@ HRESULT SettingsCompositor::UploadBlurParams (const SettingsBlurParams & params)
 Error:
     return hr;
 }
+
 
 
 
@@ -421,6 +439,7 @@ HRESULT SettingsCompositor::UploadComposeParams (const SettingsComposeParams & p
     D3D11_MAPPED_SUBRESOURCE  mapped = {};
 
 
+
     hr = m_context->Map (m_composeConstantBuffer.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped);
     CHRA (hr);
 
@@ -430,6 +449,7 @@ HRESULT SettingsCompositor::UploadComposeParams (const SettingsComposeParams & p
 Error:
     return hr;
 }
+
 
 
 
@@ -487,6 +507,7 @@ void SettingsCompositor::DrawFullscreen (
 
     m_context->PSSetShaderResources (0, kMaxBoundPsSrvSlots, nullSrvs);
 }
+
 
 
 

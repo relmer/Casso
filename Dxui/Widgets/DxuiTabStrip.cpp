@@ -216,6 +216,8 @@ void DxuiTabStrip::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) cons
     constexpr uint32_t  s_kTextArgb    = 0xFFE8EEF4;
     constexpr uint32_t  s_kFocusRing   = 0xFFAACCFF;
 
+
+
     PaintInternal (painter, text, s_kTabIdle, s_kTabHover, s_kTabSelected, s_kTextArgb, s_kFocusRing);
 }
 
@@ -315,6 +317,7 @@ void DxuiTabStrip::PaintInternal (IDxuiPainter & painter, IDxuiTextRenderer & te
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  DxuiTabStrip::Layout  (IDxuiControl override)
@@ -343,6 +346,8 @@ void DxuiTabStrip::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
 void DxuiTabStrip::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
 {
     constexpr float  s_kIdleScale = 0.6f;
+
+
 
     uint32_t  hover = theme.HoverBackground();
 

@@ -29,6 +29,7 @@ RECT  DxuiPopupHost::WorkAreaForRect (const RECT & rectScreenPx)
     MONITORINFO   info     = {};
 
 
+
     monitor = MonitorFromRect (&rectScreenPx, MONITOR_DEFAULTTONEAREST);
     if (monitor == nullptr)
     {
@@ -251,6 +252,7 @@ HRESULT DxuiPopupHost::Show (ShowParams params)
     RECT     placedRect     = {};
     SIZE     sizePx         = {};
     UINT     dpi            = s_kDefaultDpi;
+
 
 
     DXUI_ASSERT_UI_THREAD();
@@ -656,6 +658,7 @@ LRESULT CALLBACK DxuiPopupHost::s_WndProcThunk (HWND hwnd, UINT msg, WPARAM wp, 
     DxuiPopupHost *  self  = nullptr;
 
 
+
     if (msg == WM_NCCREATE)
     {
         CREATESTRUCTW *  cs = reinterpret_cast<CREATESTRUCTW *> (lp);
@@ -837,6 +840,7 @@ HRESULT DxuiPopupHost::CreateHwndAndComposition (const RECT & placedRectScreenPx
     DXGI_SWAP_CHAIN_DESC1  scd           = {};
 
 
+
     if (m_params.input == DxuiPopupInput::PassThrough)
     {
         exStyle |= WS_EX_TRANSPARENT | WS_EX_LAYERED;
@@ -989,6 +993,7 @@ HRESULT DxuiPopupHost::CreateBackBufferRtv()
     ComPtr<IDXGISurface>      backSurface;
 
 
+
     CBRA (m_swapChain);
     CBRA (m_device);
     CBRA (m_context);
@@ -1071,6 +1076,7 @@ void DxuiPopupHost::ReleaseBackBufferRtv()
 HRESULT DxuiPopupHost::ResizeSwapChain (int widthPx, int heightPx)
 {
     HRESULT  hr  = S_OK;
+
 
 
     CBRA (m_swapChain);

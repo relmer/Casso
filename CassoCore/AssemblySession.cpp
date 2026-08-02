@@ -117,6 +117,8 @@ std::string AssemblySession::GetLowerExtension (const std::string & filename)
 {
     size_t dot = filename.rfind ('.');
 
+
+
     if (dot == std::string::npos)
     {
         return "";
@@ -336,6 +338,8 @@ std::vector<std::string> AssemblySession::GenerateByteDirectives (const std::vec
 {
     std::vector<std::string> lines;
 
+
+
     static const int kBytesPerLine = 16;
 
 
@@ -376,6 +380,7 @@ bool AssemblySession::IsBranchMnemonic (const std::string & mnemonic) const
 {
     return m_opcodeTable.HasMode (mnemonic, GlobalAddressingMode::Relative);
 }
+
 
 
 
@@ -442,6 +447,8 @@ bool AssemblySession::IsBitOpMnemonic (const std::string & mnemonic)
 std::span<const AssemblySession::AddressingRule> AssemblySession::GetAddressingRules()
 {
     using AM = GlobalAddressingMode::AddressingMode;
+
+
 
     // `expr` alone: a branch target, a jump target, then zero page if it fits.
     static constexpr ModeCandidate  s_kBare[] =
@@ -709,14 +716,11 @@ bool AssemblySession::EvaluateDirectiveArgs (
 
 
 
-
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  File-scope types for AssemblySession
 //
 ////////////////////////////////////////////////////////////////////////////////
-
-
 
 
 
@@ -734,7 +738,6 @@ AssemblySession::AssemblySession (const OpcodeTable & opcodeTable, const Assembl
     m_listingLevel (options.generateListing ? 1 : 0)
 {
 }
-
 
 
 
@@ -856,7 +859,6 @@ void AssemblySession::EmitByte (Byte b, Word & emitPC)
 
 
 
-
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  AssemblySession::Initialize
@@ -904,7 +906,6 @@ HRESULT AssemblySession::Initialize (const std::string & sourceText)
 
 
 
-
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  AssemblySession::Run
@@ -932,7 +933,6 @@ AssemblyResult AssemblySession::Run (const std::string & sourceText)
 Error:
     return m_result;
 }
-
 
 
 
@@ -1403,6 +1403,7 @@ Error:
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  AssemblySession::HandleStructCollection
@@ -1459,6 +1460,8 @@ HRESULT AssemblySession::CheckEndStruct (const PendingLine & current, LineInfo &
 {
     HRESULT      hr       = S_OK;
     std::string  endsWhat;
+
+
 
     isEnd = false;
 
@@ -1538,6 +1541,8 @@ HRESULT AssemblySession::GetStructMemberSize (const std::string & operand, int32
     std::string               countExpr = (split == std::string::npos) ? "" : operand.substr (split);
     size_t                    exprStart = countExpr.find_first_not_of (" \t");
     const StructMemberType *  match     = nullptr;
+
+
 
     outSize   = 0;
     countExpr = (exprStart == std::string::npos) ? countExpr : countExpr.substr (exprStart);
@@ -1652,7 +1657,6 @@ Error:
 
 
 
-
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  AssemblySession::CollectMacroBody
@@ -1662,6 +1666,8 @@ Error:
 HRESULT AssemblySession::CollectMacroBody (const PendingLine & current, LineInfo & info)
 {
     HRESULT hr = S_OK;
+
+
 
     std::string mnUpper = info.parsed.mnemonic;
 
@@ -1711,7 +1717,6 @@ HRESULT AssemblySession::CollectMacroBody (const PendingLine & current, LineInfo
 // Error:
     return hr;
 }
-
 
 
 
@@ -1783,6 +1788,7 @@ HRESULT AssemblySession::DetectMacroDefinition (const PendingLine & current, Lin
 Error:
     return hr;
 }
+
 
 
 
@@ -1861,6 +1867,8 @@ Error:
 HRESULT AssemblySession::HandleIfDirective (const PendingLine & current, const std::string & condArg)
 {
     HRESULT hr = S_OK;
+
+
 
     ConditionalState state = {};
 
@@ -2014,7 +2022,6 @@ HRESULT AssemblySession::HandleEndifDirective (const PendingLine & current)
 
 
 
-
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  AssemblySession::HandleOrgDirective
@@ -2056,7 +2063,6 @@ HRESULT AssemblySession::HandleOrgDirective (const PendingLine & current, LineIn
 // Error:
     return hr;
 }
-
 
 
 
@@ -2113,7 +2119,6 @@ Error:
 
 
 
-
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  AssemblySession::RecordLabel
@@ -2159,6 +2164,7 @@ HRESULT AssemblySession::RecordLabel (const PendingLine & current, LineInfo & in
 Error:
     return hr;
 }
+
 
 
 
@@ -2298,7 +2304,6 @@ HRESULT AssemblySession::HandleEquConstant (const PendingLine & current, LineInf
 // Error:
     return hr;
 }
-
 
 
 
@@ -2649,6 +2654,7 @@ const AssemblySession::DirectiveRow * AssemblySession::GetDirectiveRows()
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  AssemblySession::HandlePass1Directives
@@ -2660,6 +2666,8 @@ HRESULT AssemblySession::HandlePass1Directives (const PendingLine & current, Lin
     HRESULT           hr      = S_OK;
     Directive         token   = info.parsed.directiveToken;
     Pass1DirectiveFn  handler = nullptr;
+
+
 
     if (token > Directive::None && token < Directive::Count)
     {
@@ -2682,10 +2690,6 @@ HRESULT AssemblySession::HandlePass1Directives (const PendingLine & current, Lin
 Error:
     return hr;
 }
-
-
-
-
 
 
 
@@ -2724,7 +2728,6 @@ HRESULT AssemblySession::HandlePass1DataDirectives (const PendingLine & current,
 // Error:
     return hr;
 }
-
 
 
 
@@ -2826,7 +2829,6 @@ Error:
 
 
 
-
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  AssemblySession::StartStructDefinition
@@ -2872,6 +2874,7 @@ Error:
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  AssemblySession::HandleCmapDirective
@@ -2881,6 +2884,8 @@ Error:
 HRESULT AssemblySession::HandleCmapDirective (const PendingLine & /*current*/, LineInfo & info)
 {
     HRESULT hr = S_OK;
+
+
 
     std::string arg = info.parsed.directiveArg;
 
@@ -2932,6 +2937,8 @@ Error:
 HRESULT AssemblySession::ParseCmapMapping (const std::string & arg)
 {
     HRESULT hr = S_OK;
+
+
 
     size_t eqPos   = arg.find ('=');
     size_t dashPos = arg.find ('-', 1);
@@ -3003,7 +3010,6 @@ Error:
 
 
 
-
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  AssemblySession::ExpandMacro
@@ -3013,6 +3019,8 @@ Error:
 HRESULT AssemblySession::ExpandMacro (const PendingLine & current, LineInfo & info, bool & handled)
 {
     HRESULT hr = S_OK;
+
+
 
     handled = false;
 
@@ -3061,6 +3069,7 @@ HRESULT AssemblySession::ExpandMacro (const PendingLine & current, LineInfo & in
 Error:
     return hr;
 }
+
 
 
 
@@ -3145,6 +3154,8 @@ HRESULT AssemblySession::CheckForExitm (const std::string & line, bool & isExitm
     HRESULT      hr   = S_OK;
     std::string  code = ToUpperCase (StripCommentAndTrim (line));
 
+
+
     // EXITM stays a string compare rather than joining DirectiveTable: the
     // table feeds Parser::ParseLine, so adding it there would tokenize EXITM on
     // every line in the file, not just inside a macro body being expanded.
@@ -3167,6 +3178,8 @@ HRESULT AssemblySession::CheckForExitm (const std::string & line, bool & isExitm
 HRESULT AssemblySession::CountExitmIfDepth (const std::vector<std::string> & expandedLines, int & ifDepth)
 {
     HRESULT hr = S_OK;
+
+
 
     ifDepth = 0;
 
@@ -3318,6 +3331,8 @@ HRESULT AssemblySession::StripForcedSubstitution (std::string & expanded)
 {
     HRESULT hr = S_OK;
 
+
+
     size_t sq = 0;
     bool inDouble = false;
 
@@ -3357,6 +3372,7 @@ HRESULT AssemblySession::StripForcedSubstitution (std::string & expanded)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  AssemblySession::HandleColonlessLabel
@@ -3367,6 +3383,8 @@ HRESULT AssemblySession::HandleColonlessLabel (const PendingLine & current, Line
 {
     HRESULT  hr              = S_OK;
     bool     fLooksLikeLabel = false;
+
+
 
     handled = false;
 
@@ -3440,6 +3458,8 @@ HRESULT AssemblySession::ExtractColonlessLabelName (const PendingLine & current,
 {
     HRESULT hr = S_OK;
 
+
+
     std::string rawTrimmed = current.text;
 
 
@@ -3474,6 +3494,7 @@ HRESULT AssemblySession::ExtractColonlessLabelName (const PendingLine & current,
 // Error:
     return hr;
 }
+
 
 
 
@@ -3531,6 +3552,7 @@ void AssemblySession::NormalizeBitOp (const PendingLine & current, LineInfo & in
         }
     }
 }
+
 
 
 
@@ -3665,7 +3687,6 @@ HRESULT AssemblySession::ResolveAddressingAndSize (const PendingLine & current, 
 
 
 
-
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  AssemblySession::ValidateAssemblyCompletion
@@ -3707,6 +3728,8 @@ HRESULT AssemblySession::HandleMultiNop (const PendingLine & current, LineInfo &
 {
     HRESULT hr = S_OK;
 
+
+
     handled = false;
 
 
@@ -3742,7 +3765,6 @@ HRESULT AssemblySession::HandleMultiNop (const PendingLine & current, LineInfo &
 Error:
     return hr;
 }
-
 
 
 
@@ -3821,7 +3843,6 @@ Error:
 
 
 
-
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  AssemblySession::ResolveEquConstants
@@ -3831,6 +3852,8 @@ Error:
 HRESULT AssemblySession::ResolveEquConstants()
 {
     HRESULT hr = S_OK;
+
+
 
     bool madeProgress = true;
     int  iterations   = 0;
@@ -3891,7 +3914,6 @@ HRESULT AssemblySession::ResolveEquConstants()
 
 
 
-
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  AssemblySession::ReportUnresolvedEqus
@@ -3922,6 +3944,7 @@ HRESULT AssemblySession::ReportUnresolvedEqus()
 // Error:
     return hr;
 }
+
 
 
 
@@ -3980,6 +4003,7 @@ HRESULT AssemblySession::EmitMultiNopDirective (const LineInfo & info, Word & em
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  AssemblySession::EmitDirectiveBytes
@@ -3989,6 +4013,8 @@ HRESULT AssemblySession::EmitMultiNopDirective (const LineInfo & info, Word & em
 HRESULT AssemblySession::EmitDirectiveBytes (const LineInfo & info, Word & emitPC)
 {
     HRESULT hr = S_OK;
+
+
 
     Directive         token   = info.parsed.directiveToken;
     Pass2DirectiveFn  emitter = nullptr;
@@ -4027,6 +4053,8 @@ Error:
 HRESULT AssemblySession::EmitByteDirective (const LineInfo & info, Word & emitPC)
 {
     HRESULT hr = S_OK;
+
+
 
     auto args = Parser::SplitArgList (info.parsed.directiveArg);
     bool ok   = true;
@@ -4132,6 +4160,8 @@ HRESULT AssemblySession::EmitWordDirective (const LineInfo & info, Word & emitPC
 {
     HRESULT hr = S_OK;
 
+
+
     std::vector<int32_t> values;
 
 
@@ -4168,6 +4198,8 @@ HRESULT AssemblySession::EmitWordDirective (const LineInfo & info, Word & emitPC
 HRESULT AssemblySession::EmitDdDirective (const LineInfo & info, Word & emitPC)
 {
     HRESULT hr = S_OK;
+
+
 
     std::vector<int32_t> values;
 
@@ -4207,6 +4239,8 @@ HRESULT AssemblySession::EmitDdDirective (const LineInfo & info, Word & emitPC)
 HRESULT AssemblySession::EmitDsDirective (const LineInfo & info, Word & emitPC)
 {
     HRESULT hr = S_OK;
+
+
 
     auto args = Parser::SplitArgList (info.parsed.directiveArg);
 
@@ -4255,6 +4289,8 @@ HRESULT AssemblySession::EmitAlignDirective (const LineInfo & info, Word & emitP
 {
     HRESULT hr = S_OK;
 
+
+
     int alignment = 2;
 
 
@@ -4292,6 +4328,7 @@ HRESULT AssemblySession::EmitAlignDirective (const LineInfo & info, Word & emitP
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  AssemblySession::EmitInstruction
@@ -4301,6 +4338,8 @@ HRESULT AssemblySession::EmitAlignDirective (const LineInfo & info, Word & emitP
 HRESULT AssemblySession::EmitInstruction (const LineInfo & info, Word & emitPC)
 {
     HRESULT hr = S_OK;
+
+
 
     int32_t value = 0;
     bool    emit  = true;
@@ -4333,6 +4372,8 @@ Error:
 HRESULT AssemblySession::ResolveInstructionValue (const LineInfo & info, int32_t & value, bool & emit)
 {
     HRESULT hr = S_OK;
+
+
 
     GlobalAddressingMode::AddressingMode mode = info.resolvedMode;
 
@@ -4406,6 +4447,8 @@ HRESULT AssemblySession::ResolveInstructionValue (const LineInfo & info, int32_t
 HRESULT AssemblySession::EmitInstructionBytes (const LineInfo & info, int32_t value, Word & emitPC)
 {
     HRESULT hr = S_OK;
+
+
 
     GlobalAddressingMode::AddressingMode mode = info.resolvedMode;
 
@@ -4508,7 +4551,6 @@ HRESULT AssemblySession::EmitInstructionBytes (const LineInfo & info, int32_t va
 
 
 
-
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  AssemblySession::BuildListingEntry
@@ -4568,7 +4610,6 @@ Error:
 
 
 
-
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  AssemblySession::ExtractImage
@@ -4596,7 +4637,6 @@ HRESULT AssemblySession::ExtractImage()
 // Error:
     return hr;
 }
-
 
 
 

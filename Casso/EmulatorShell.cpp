@@ -1914,6 +1914,7 @@ void EmulatorShell::UpdateViewportLayout (int widthPx, int heightPx)
     RECT     viewportRect = {};
 
 
+
     BAIL_OUT_IF (m_viewport == nullptr, S_OK);
 
     // Skeuomorphic desk scene (opt-in): the MonitorFrame insets the viewport
@@ -2036,6 +2037,7 @@ RECT EmulatorShell::ComputeViewportRect (int widthPx, int heightPx)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  EmulatorShell::EmulatorContentScreenRect
@@ -2053,6 +2055,8 @@ RECT EmulatorShell::EmulatorContentScreenRect()
     RECT   result = {};
     POINT  tl     = {};
     POINT  br     = {};
+
+
 
     if (m_hwnd == nullptr)
     {
@@ -2075,6 +2079,7 @@ RECT EmulatorShell::EmulatorContentScreenRect()
     result = RECT{ tl.x, tl.y, br.x, br.y };
     return result;
 }
+
 
 
 
@@ -2157,6 +2162,7 @@ void EmulatorShell::ReflowChromeForMachineChange()
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  EmulatorShell::ShouldShowExternalDrive
@@ -2174,6 +2180,8 @@ void EmulatorShell::ReflowChromeForMachineChange()
 bool EmulatorShell::ShouldShowExternalDrive() const
 {
     bool  externalIsOptional = (m_config.systemRom.romBankSize != 0);
+
+
 
     return !externalIsOptional || m_externalDriveConnected;
 }
@@ -2222,6 +2230,8 @@ SIZE EmulatorShell::ClientSizeForFramebufferPx (int framebufferWidthDp, int fram
 {
     int  fbWpx = m_scaler.Px (framebufferWidthDp);
     int  fbHpx = m_scaler.Px (framebufferHeightDp);
+
+
 
     // With the desk scene on, size the window so the monitor's screen RECESS
     // -- not the bare center -- equals the framebuffer, i.e. the emulator
@@ -2414,6 +2424,7 @@ DxuiMessageResult EmulatorShell::OnNotify (WPARAM wParam, LPARAM lParam)
 
     return DxuiMessageResult::NotHandled;
 }
+
 
 
 
@@ -2679,6 +2690,7 @@ Error:
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  EmulatorShell::ApplyThemeLive
@@ -2695,6 +2707,7 @@ HRESULT EmulatorShell::ApplyThemeLive (const std::string & themeName)
 {
     HRESULT  hr         = S_OK;
     HRESULT  hrActivate = S_OK;
+
 
 
     CBRA (m_themeManager);                       // null member = Casso bug
@@ -2728,6 +2741,7 @@ Error:
 void EmulatorShell::SaveGlobalPrefs()
 {
     HRESULT  hr = S_OK;
+
 
 
     if (m_userConfigStore == nullptr)
@@ -2968,6 +2982,7 @@ void EmulatorShell::ApplyThemeToChrome (const CassoTheme & theme)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  EmulatorShell::SetSkeuoMonitorFrame
@@ -3015,6 +3030,7 @@ Error:
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  EmulatorShell::LayoutJoystickButton
@@ -3048,6 +3064,7 @@ void EmulatorShell::LayoutJoystickButton (int clientW,
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  EmulatorShell::RelayoutJoystickButton
@@ -3071,6 +3088,7 @@ void EmulatorShell::RelayoutJoystickButton()
 
 // (LayoutPrinterIndicator deleted: the standalone printer indicator is
 // retired -- the toolbar's Printer button carries the status LED now.)
+
 
 
 
@@ -3198,6 +3216,7 @@ Error:
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  EmulatorShell::PrinterDialogOwner
@@ -3227,6 +3246,7 @@ HWND EmulatorShell::PrinterDialogOwner() const
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  EmulatorShell::ApplyAppIconToWindow
@@ -3244,6 +3264,8 @@ void EmulatorShell::ApplyAppIconToWindow (HWND target)
     HINSTANCE   hInstance = nullptr;
     HICON       iconBig   = nullptr;
     HICON       iconSmall = nullptr;
+
+
 
     if (target == nullptr)
     {
@@ -3272,6 +3294,7 @@ void EmulatorShell::ApplyAppIconToWindow (HWND target)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  EmulatorShell::SnapshotStripToPanel
@@ -3290,6 +3313,8 @@ void EmulatorShell::ApplyAppIconToWindow (HWND target)
 void EmulatorShell::SnapshotStripToPanel()
 {
     int64_t   nowMs = 0;
+
+
 
     if (m_printerPanel == nullptr || !m_printerPanel->IsOpen())
     {
@@ -3315,6 +3340,7 @@ void EmulatorShell::SnapshotStripToPanel()
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  EmulatorShell::UpdatePrinterStatus
@@ -3330,6 +3356,8 @@ void EmulatorShell::UpdatePrinterStatus()
 {
     int64_t        nowMs  = 0;
     PrinterStatus  status = PrinterStatus::Idle;
+
+
 
     if (m_refs.printerCard == nullptr)
     {
@@ -3368,6 +3396,7 @@ void EmulatorShell::UpdatePrinterStatus()
         m_d3dRenderer.MarkRedrawNeeded();
     }
 }
+
 
 
 
@@ -3506,6 +3535,7 @@ void EmulatorShell::UpdatePrinterPreview()
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  EmulatorShell::LayoutSwitchBar
@@ -3520,6 +3550,7 @@ void EmulatorShell::LayoutSwitchBar (UINT dpi)
     DxuiDpiScaler  scaler;
 
 
+
     if (!IsApple2c())
     {
         m_switchBar.Hide();
@@ -3530,6 +3561,7 @@ void EmulatorShell::LayoutSwitchBar (UINT dpi)
     SyncSwitchBarState();
     m_switchBar.Layout (m_switchBand.Bounds(), scaler);
 }
+
 
 
 
@@ -3552,6 +3584,7 @@ void EmulatorShell::SyncSwitchBarState()
     bool               diskOn = false;
 
 
+
     if (iieKbd != nullptr)
     {
         m_switchBar.SetEightyFortyIn (iieKbd->IsEightyColumnSwitchIn());
@@ -3570,6 +3603,7 @@ void EmulatorShell::SyncSwitchBarState()
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  EmulatorShell::AuxRamBuffer
@@ -3580,6 +3614,7 @@ const Byte * EmulatorShell::AuxRamBuffer() const
 {
     return m_machineManager != nullptr ? m_machineManager->GetAuxRamBuffer() : nullptr;
 }
+
 
 
 
@@ -3600,6 +3635,7 @@ const Byte * EmulatorShell::AuxRamBuffer() const
 void EmulatorShell::HandleSwitchBarClick (Apple2cSwitchBar::Part part)
 {
     Apple2eKeyboard *  iieKbd = dynamic_cast<Apple2eKeyboard *> (m_refs.keyboard);
+
 
 
     switch (part)
@@ -3676,6 +3712,7 @@ void EmulatorShell::UpdateChromeFocusVisuals()
     int  index = m_chromeFocusIndex;
 
 
+
     if (index >= s_kChromeFocusMenuFirst && index <= s_kChromeFocusMenuLast)
     {
         m_mainMenu.SetFocusedMenu ((MainMenuId) index);
@@ -3713,6 +3750,7 @@ bool EmulatorShell::HandleChromeFocusKey (WPARAM vk)
     int   dir    = shift ? -1 : 1;
     int   index  = m_chromeFocusIndex;
     bool  exitVk = (vk == VK_ESCAPE || vk == VK_F10);
+
 
 
     // An open dropdown owns navigation; delegate and reconcile the ring.
@@ -3843,6 +3881,7 @@ void EmulatorShell::SetColorModeLive (int settingsColorModeIndex)
     ColorMode  mode = ColorMode::Color;
 
 
+
     switch (settingsColorModeIndex)
     {
         case 0:  mode = ColorMode::Color;     break;
@@ -3887,6 +3926,7 @@ void EmulatorShell::SetColorMonitorTextArgbLive (uint32_t argb)
 void EmulatorShell::SetDriveUserWriteProtect (int drive, bool wp)
 {
     DiskImage *  image = nullptr;
+
 
 
     if (drive < 0 || drive >= (int) m_userWriteProtect.size())
@@ -4044,6 +4084,7 @@ Error:
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  PumpUiFrame
@@ -4053,6 +4094,8 @@ Error:
 bool EmulatorShell::PumpUiFrame()
 {
     HRESULT  hr = S_OK;
+
+
 
     // Copy latest framebuffer under lock, then present with vsync
     bool  fbDirtyThisFrame = false;
@@ -4213,6 +4256,7 @@ bool EmulatorShell::PumpUiFrame()
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  OnModalLoopTick
@@ -4248,6 +4292,7 @@ void EmulatorShell::OnModalLoopTick()
 void EmulatorShell::OnCpuThreadStart()
 {
     HRESULT  hr = S_OK;
+
 
 
     // Initialize WASAPI audio (non-fatal if it fails)
@@ -4497,6 +4542,7 @@ void EmulatorShell::DispatchCpuCommand (const EmulatorCommand & cmd)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  EmulatorShell::PersistSwitchState
@@ -4527,6 +4573,7 @@ void EmulatorShell::PersistSwitchState (const char * key, bool value)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  SetDriveAudioVolumes
@@ -4548,6 +4595,7 @@ void EmulatorShell::SetDriveAudioVolumes (float motor, float head, float door)
         src->SetVolumes (motor, head, door);
     }
 }
+
 
 
 
@@ -4862,6 +4910,7 @@ uint32_t EmulatorShell::ComputeVideoModeSig()
     Apple2eSoftSwitchBank *   iie = nullptr;
 
 
+
     if (m_refs.softSwitches == nullptr)
     {
         return 0;
@@ -4905,6 +4954,7 @@ bool EmulatorShell::ComputeFlashOn()
     uint64_t  cyclesPerToggle = 16ull * m_cyclesPerFrame;
 
 
+
     if (m_cpu == nullptr || cyclesPerToggle == 0)
     {
         return true;
@@ -4930,6 +4980,7 @@ uint64_t EmulatorShell::ComputeColorSig()
 {
     uint64_t  mode = (uint64_t) m_colorMode.load (memory_order_acquire);
     uint64_t  argb = (uint64_t) m_colorMonitorTextArgb.load (memory_order_acquire);
+
 
 
     return (mode << 32) | argb;
@@ -5007,6 +5058,8 @@ void EmulatorShell::DestroyFrameReadyEvent()
 void EmulatorShell::ExecuteCpuSlices()
 {
     static constexpr uint32_t kSliceCycles = 1023;
+
+
 
     HRESULT   hr              = S_OK;
     uint32_t  targetCycles    = m_cyclesPerFrame;
@@ -5288,6 +5341,10 @@ void EmulatorShell::HandleCommand (WORD commandId)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
+
+
+
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  OnCommand  (IDxuiHostClient)
@@ -5302,6 +5359,8 @@ void EmulatorShell::HandleCommand (WORD commandId)
 DxuiMessageResult EmulatorShell::OnCommand (WORD commandId)
 {
     bool  callDefWndProc = m_windowCommandManager->OnCommand (m_hwnd, (int) commandId);
+
+
 
     return callDefWndProc ? DxuiMessageResult::NotHandled : DxuiMessageResult::Handled;
 }
@@ -5537,6 +5596,7 @@ DxuiMessageResult EmulatorShell::OnMouseLeave()
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  GuestMouseActive
@@ -5552,6 +5612,7 @@ bool EmulatorShell::GuestMouseActive() const
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  GuestMouseLive
@@ -5562,6 +5623,7 @@ bool EmulatorShell::GuestMouseLive() const
 {
     return GuestMouseActive() && m_mouse->XyInterruptsEnabled();
 }
+
 
 
 
@@ -5594,6 +5656,7 @@ void EmulatorShell::UpdateGuestMouseFromHost (int xPx, int yPx)
     int          vpH = vp.bottom - vp.top;
 
 
+
     if (!GuestMouseLive() || vpW <= 1 || vpH <= 1)
     {
         return;
@@ -5622,6 +5685,7 @@ void EmulatorShell::UpdateGuestMouseFromHost (int xPx, int yPx)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  OnSetCursor
@@ -5635,6 +5699,7 @@ void EmulatorShell::UpdateGuestMouseFromHost (int xPx, int yPx)
 DxuiMessageResult EmulatorShell::OnSetCursor (WORD hitTest)
 {
     POINT  pt = {};
+
 
 
     // Only hide the cursor once guest software has turned the mouse on
@@ -5659,6 +5724,7 @@ DxuiMessageResult EmulatorShell::OnSetCursor (WORD hitTest)
 
     return DxuiMessageResult::NotHandled;
 }
+
 
 
 
@@ -5744,6 +5810,7 @@ DxuiMessageResult EmulatorShell::OnLButtonDown (WPARAM wParam, LPARAM lParam)
 
     return DxuiMessageResult::NotHandled;
 }
+
 
 
 
@@ -5890,6 +5957,7 @@ DxuiMessageResult EmulatorShell::OnRButtonDown (WPARAM wParam, LPARAM lParam)
     DxuiMessageResult  result = DxuiMessageResult::NotHandled;
 
 
+
     UNREFERENCED_PARAMETER (wParam);
     UNREFERENCED_PARAMETER (lParam);
 
@@ -5909,6 +5977,7 @@ DxuiMessageResult EmulatorShell::OnRButtonDown (WPARAM wParam, LPARAM lParam)
 DxuiMessageResult EmulatorShell::OnRButtonUp (WPARAM wParam, LPARAM lParam)
 {
     DxuiMessageResult  result = DxuiMessageResult::NotHandled;
+
 
 
     UNREFERENCED_PARAMETER (wParam);
@@ -5974,6 +6043,8 @@ DxuiMessageResult EmulatorShell::OnKillFocus()
 void EmulatorShell::ReleaseGuestKeys()
 {
     auto *  iieKbd = dynamic_cast<Apple2eKeyboard *> (m_refs.keyboard);
+
+
 
     if (m_refs.keyboard != nullptr)
     {
@@ -6084,6 +6155,7 @@ void EmulatorShell::OpenSettings()
     HINSTANCE  hInst = (HINSTANCE) GetWindowLongPtrW (m_hwnd, GWLP_HINSTANCE);
 
 
+
     if (m_settingsSheet != nullptr)
     {
         HWND  existing = m_settingsSheet->Hwnd();
@@ -6101,6 +6173,7 @@ void EmulatorShell::OpenSettings()
                                           *m_userConfigStore, m_globalPrefs, *m_themeManager,
                                           *this, m_uiFs);
 }
+
 
 
 
@@ -6331,6 +6404,7 @@ Error:
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  OnKeyUp
@@ -6361,6 +6435,7 @@ DxuiMessageResult EmulatorShell::OnKeyUp (WPARAM vk, LPARAM lParam)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  OnViewportKey
@@ -6374,6 +6449,9 @@ DxuiMessageResult EmulatorShell::OnKeyUp (WPARAM vk, LPARAM lParam)
 //  chrome escape routes live in the pre-checks, not the sink).
 //
 ////////////////////////////////////////////////////////////////////////////////
+
+
+
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -6394,6 +6472,8 @@ static bool HostKeyboardLayoutIsDvorak()
 {
     HKL    hkl = GetKeyboardLayout (0);
     SHORT  vk  = VkKeyScanExW (L'o', hkl);
+
+
 
     if (vk == -1)
     {
@@ -6533,6 +6613,7 @@ bool EmulatorShell::OnViewportKey (const DxuiKeyEvent & ev)
 
     return true;
 }
+
 
 
 
@@ -6759,6 +6840,7 @@ void EmulatorShell::SetInputMappingMode (InputMappingMode mode)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  SetArrowsJoystick
@@ -6777,6 +6859,8 @@ void EmulatorShell::SetArrowsJoystick (bool on)
     auto * iieSw    = dynamic_cast<Apple2eSoftSwitchBank *> (m_refs.softSwitches);
     auto * iieKbd   = dynamic_cast<Apple2eKeyboard *>       (m_refs.keyboard);
     auto * gamePort = m_refs.gamePort;
+
+
 
     // Mirror of the rule in SetPointerMapping: the Keys axis drives PDL0/1,
     // so enabling it must drop an active Paddle (they fight over the same
@@ -6829,6 +6913,7 @@ void EmulatorShell::SetArrowsJoystick (bool on)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  SetPointerMapping
@@ -6843,6 +6928,7 @@ void EmulatorShell::SetPointerMapping (InputMappingMode pointer)
 {
     auto             * iieSw = dynamic_cast<Apple2eSoftSwitchBank *> (m_refs.softSwitches);
     InputMappingMode   prev  = m_pointerMode;
+
 
 
     if (pointer == InputMappingMode::Joystick)   // not a pointer mode
@@ -6908,6 +6994,7 @@ void EmulatorShell::SetPointerMapping (InputMappingMode pointer)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  SyncInputModeUi
@@ -6928,6 +7015,7 @@ void EmulatorShell::SyncInputModeUi()
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  SyncSelectorState
@@ -6942,6 +7030,7 @@ void EmulatorShell::SyncSelectorState()
     m_joystickButton.SetState (m_arrowsJoystick, m_pointerMode,
                                m_mouse != nullptr && m_mouseConnected);
 }
+
 
 
 
@@ -6996,6 +7085,7 @@ void EmulatorShell::ApplyDefaultPointerForMachine()
         }
     }
 }
+
 
 
 
@@ -7343,6 +7433,8 @@ DxuiMessageResult EmulatorShell::OnChar (WPARAM ch, LPARAM lParam)
 {
     bool isRepeat = (lParam & s_kPreviousKeyDownLParamBit) != 0;
 
+
+
     if (m_refs.keyboard == nullptr)
     {
         return DxuiMessageResult::Handled;
@@ -7549,6 +7641,8 @@ DxuiMessageResult EmulatorShell::OnSize (UINT widthPx, UINT heightPx)
 
 
 
+
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  OnDrawItem
@@ -7590,6 +7684,7 @@ DxuiMessageResult EmulatorShell::OnTimer (UINT_PTR timerId)
 
     return DxuiMessageResult::NotHandled;
 }
+
 
 
 
@@ -7660,6 +7755,7 @@ void EmulatorShell::UpdateWindowTitle()
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  PrinterBannerMessage
@@ -7679,6 +7775,7 @@ std::wstring EmulatorShell::PrinterBannerMessage() const
 
     return L"No printer is connected to this " + fs::path (m_config.name).wstring() + L".";
 }
+
 
 
 
@@ -7708,6 +7805,7 @@ void EmulatorShell::PowerCycle()
 {
     m_machineManager->PowerCycle();
 }
+
 
 
 
@@ -7964,6 +8062,7 @@ private:
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  DumpTrace
@@ -8194,6 +8293,8 @@ void EmulatorShell::AttachDebugSinksIfOpen()
     Disk2Controller *   controller = nullptr;
     size_t              i          = 0;
 
+
+
     CBR (m_disk2DebugPanel != nullptr);
 
     controller = m_diskManager->FindSlot6Controller();
@@ -8244,6 +8345,8 @@ Error:
 DxuiMessageResult EmulatorShell::OnInitMenuPopup (HMENU hMenu, UINT itemIndex, bool isWindowMenu)
 {
     bool  callDefWndProc = m_windowCommandManager->OnInitMenuPopup (m_hwnd, hMenu, itemIndex, isWindowMenu);
+
+
 
     return callDefWndProc ? DxuiMessageResult::NotHandled : DxuiMessageResult::Handled;
 }
@@ -8297,6 +8400,7 @@ DxuiMessageResult EmulatorShell::OnNcMouseMove (LRESULT hitTest, int xScreen, in
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  OnNcMouseLeave
@@ -8308,6 +8412,7 @@ DxuiMessageResult EmulatorShell::OnNcMouseLeave()
     // Caption-button hover teardown is the host's job; nothing to do here.
     return DxuiMessageResult::NotHandled;
 }
+
 
 
 
@@ -8335,6 +8440,7 @@ DxuiMessageResult EmulatorShell::OnNcLButtonDown (LRESULT hitTest, int xScreen, 
     }
     return DxuiMessageResult::NotHandled;
 }
+
 
 
 

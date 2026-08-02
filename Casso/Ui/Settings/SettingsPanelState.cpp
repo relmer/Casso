@@ -10,7 +10,6 @@
 
 
 
-
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  Anonymous helpers
@@ -196,6 +195,8 @@ JsonValue  SettingsPanelState::CloneJson (const JsonValue & v)
     JsonValue            out;
     HRESULT              hrWrite = S_OK;
     HRESULT              hrParse = S_OK;
+
+
 
     opts.fPretty = false;
 
@@ -512,6 +513,7 @@ void SettingsPanelState::SetWriteProtect (int drive, bool wp)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  SetExternalDriveConnected
@@ -526,6 +528,7 @@ void SettingsPanelState::SetExternalDriveConnected (bool connected)
 {
     m_current.prefs.externalDriveConnected = connected;
 }
+
 
 
 

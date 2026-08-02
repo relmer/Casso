@@ -165,6 +165,7 @@ static bool EqualsIgnoreCaseAscii (std::wstring_view a, std::wstring_view b)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  SelectCanonical
@@ -221,6 +222,7 @@ wstring MachineScanner::SelectCanonical (
 
     return result;
 }
+
 
 
 

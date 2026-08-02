@@ -154,6 +154,8 @@ void Apple2eKeyboard::EmitButtonRead (Word address, Byte value)
     IInputEventSink * sink = InputSink();
     int               idx  = static_cast<int> (address - kFirstButtonAddress);
 
+
+
     if (sink == nullptr)
     {
         return;
@@ -254,6 +256,7 @@ void Apple2eKeyboard::KeyPressRaw (Byte asciiChar)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  MapTypedChar
@@ -282,6 +285,7 @@ Byte Apple2eKeyboard::MapTypedChar (Byte ascii) const
 
     return ascii;
 }
+
 
 
 

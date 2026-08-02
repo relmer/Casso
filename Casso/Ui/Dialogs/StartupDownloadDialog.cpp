@@ -38,7 +38,6 @@ static constexpr unsigned int  s_kTickIntervalMs = 100;
 
 
 
-
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  StartupDownloadDialog: nested type definitions
@@ -115,6 +114,8 @@ void StartupDownloadDialog::WorkerThreadProc (DialogState * state, size_t index)
     StartupAssetEntry & entry = state->set->entries[index];
     EntryRuntime      & rt    = state->runtime[index];
     HRESULT             hr    = S_OK;
+
+
 
     rt.status.store ((int) EntryStatus::Downloading, std::memory_order_relaxed);
     rt.startedWrite = true;
@@ -208,6 +209,8 @@ void StartupDownloadDialog::RemovePartialFiles (DialogState & state)
 {
     std::error_code  ec;
 
+
+
     for (size_t i = 0; i < state.set->entries.size(); i++)
     {
         EntryStatus  s = (EntryStatus) state.runtime[i].status.load (std::memory_order_relaxed);
@@ -246,6 +249,8 @@ std::wstring StartupDownloadDialog::StatusText (const EntryRuntime & rt, std::ui
 {
     EntryStatus    s    = (EntryStatus) rt.status.load (std::memory_order_relaxed);
     std::uint64_t  done = rt.bytesDone.load (std::memory_order_relaxed);
+
+
 
     switch (s)
     {

@@ -109,6 +109,8 @@ void EhmBreakpoint (const char * file, int line, const char * func, const char *
 
 
 
+
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  SetNotifyFunction
@@ -260,6 +262,8 @@ void DEBUGMSG (const char * pszFormat, ...)
 void RELEASEMSG (const char * pszFormat, ...)
 {
     va_list vlArgs;
+
+
 
     va_start (vlArgs, pszFormat);
     std::vfprintf (stderr, pszFormat, vlArgs);

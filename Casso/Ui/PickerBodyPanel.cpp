@@ -9,6 +9,7 @@
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  Init
@@ -29,6 +30,7 @@ void PickerBodyPanel::Init (DxuiSearchBox * search, DxuiListView * list, int sea
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  Layout
@@ -39,6 +41,7 @@ void PickerBodyPanel::Layout (const RECT & boundsPx, const DxuiDpiScaler & scale
 {
     int  sh  = scaler.Px (m_searchHeightDip);
     int  gap = scaler.Px (m_gapDip);
+
 
 
     SetBounds (boundsPx);
@@ -61,6 +64,7 @@ void PickerBodyPanel::Layout (const RECT & boundsPx, const DxuiDpiScaler & scale
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  OnMouse
@@ -71,6 +75,7 @@ bool PickerBodyPanel::OnMouse (const DxuiMouseEvent & ev)
 {
     DxuiMouseEvent  listEv  = ev;
     bool            handled = false;
+
 
 
     if (m_list != nullptr)
@@ -92,6 +97,7 @@ bool PickerBodyPanel::OnMouse (const DxuiMouseEvent & ev)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  CursorForPoint
@@ -101,6 +107,7 @@ bool PickerBodyPanel::OnMouse (const DxuiMouseEvent & ev)
 LPCWSTR PickerBodyPanel::CursorForPoint (POINT clientPx) const
 {
     LPCWSTR  cursor = nullptr;
+
 
 
     if (m_list != nullptr)

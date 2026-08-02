@@ -8,6 +8,7 @@
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  Init
@@ -27,6 +28,7 @@ void DownloadContentPanel::Init (DxuiLabel * intro, DownloadBodyPanel * body, in
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  Layout
@@ -36,6 +38,7 @@ void DownloadContentPanel::Init (DxuiLabel * intro, DownloadBodyPanel * body, in
 void DownloadContentPanel::Layout (const RECT & boundsPx, const DxuiDpiScaler & scaler)
 {
     int  ih = scaler.Px (m_introHeightDip);
+
 
 
     SetBounds (boundsPx);

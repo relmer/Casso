@@ -355,6 +355,7 @@ bool Disk2DebugPanel::ForwardMouseToList (DxuiMouseEventKind kind, DxuiMouseButt
     DxuiMouseEvent  ev;
 
 
+
     ev.kind        = kind;
     ev.button      = button;
     ev.positionDip = { x - m_layout.listView.left, y - m_layout.listView.top };
@@ -384,6 +385,7 @@ void Disk2DebugPanel::ShowColumnMenu (int anchorX, int anchorY)
     std::vector<DxuiPopupMenu::Item>  items;
     IDxuiTextRenderer              *  textRenderer = TextRenderer();
     RECT                              host         = { 0, 0, m_widthPx, m_heightPx };
+
 
 
     // Bail rather than dereference a null renderer -- the shared text
@@ -456,6 +458,7 @@ void Disk2DebugPanel::ApplyListSelection()
 void Disk2DebugPanel::OnListSelectionMoved()
 {
     int  row = m_eventList->GetSelectedRow();
+
 
 
     if (row < 0 || (size_t) row >= m_filteredIndices.size())
@@ -732,6 +735,7 @@ bool Disk2DebugPanel::OnKey (const DxuiKeyEvent & ev)
     IDxuiControl *  focused = nullptr;
 
 
+
     // Char events route to the text inputs only; each edit inserts the
     // character when it owns focus and reports whether it consumed it.
     if (ev.kind == DxuiKeyEventKind::Char)
@@ -970,6 +974,9 @@ void Disk2DebugPanel::LayoutWidgets()
 }
 
 
+
+
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  ConfigureWidgets
@@ -1143,6 +1150,7 @@ void Disk2DebugPanel::DrainAndProject()
 {
     uint32_t  dropped = 0;
     int64_t   ticks   = 0;
+
 
 
     if (m_resetAnchorPending.exchange (false, std::memory_order_acq_rel))
@@ -1351,6 +1359,8 @@ void Disk2DebugPanel::PublishToRing (const Disk2Event & e)
 {
     Disk2Event  stamped = e;
 
+
+
     if (m_cycleCounter != nullptr)
     {
         stamped.cycle = *m_cycleCounter;
@@ -1375,6 +1385,8 @@ void Disk2DebugPanel::PublishToRing (const Disk2Event & e)
 Disk2Event Disk2DebugPanel::MakeStampedEvent (EventCategory cat, Disk2EventType type) const noexcept
 {
     Disk2Event  e = {};
+
+
 
     e.category = cat;
     e.type     = type;
@@ -1679,6 +1691,7 @@ void Disk2DebugPanel::OnAudioLoopStopped (SoundKind kind, int drive)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  NowMs
@@ -1713,6 +1726,8 @@ int64_t Disk2DebugPanel::NowMs() const
 void Disk2DebugPanel::UpdateTooltip (int x, int y)
 {
     int64_t  now = NowMs();
+
+
 
     for (size_t i = 0; i < m_eventChecks.size(); ++i)
     {
