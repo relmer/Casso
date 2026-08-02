@@ -134,6 +134,15 @@ void MockDxuiPainter::FillConvexQuad (float x0, float y0, float x1, float y1,
 }
 
 
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FillEllipseApprox
+//
+////////////////////////////////////////////////////////////////////////////////
+
 void MockDxuiPainter::FillEllipseApprox (float cxPx, float cyPx, float radiusXPx, float radiusYPx, uint32_t argbColor)
 {
     RecordedPaintCall  call;
@@ -149,6 +158,15 @@ void MockDxuiPainter::FillEllipseApprox (float cxPx, float cyPx, float radiusXPx
     m_calls.push_back (call);
 }
 
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DrawLineApprox
+//
+////////////////////////////////////////////////////////////////////////////////
 
 void MockDxuiPainter::DrawLineApprox (float x0, float y0, float x1, float y1, float thicknessPx, uint32_t argbColor)
 {

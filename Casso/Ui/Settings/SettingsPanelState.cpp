@@ -115,6 +115,15 @@ CapabilityFlag  SettingsPanelState::ParseCapability (
 }
 
 
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SpeedToString
+//
+////////////////////////////////////////////////////////////////////////////////
+
 const char *  SettingsPanelState::SpeedToString (SettingsSpeedMode s)
 {
     switch (s)
@@ -137,6 +146,15 @@ SettingsSpeedMode  SettingsPanelState::SpeedFromString (
     return fallback;
 }
 
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ColorToString
+//
+////////////////////////////////////////////////////////////////////////////////
 
 const char *  SettingsPanelState::ColorToString (SettingsColorMode c)
 {
@@ -163,6 +181,15 @@ SettingsColorMode  SettingsPanelState::ColorFromString (
 }
 
 
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WriteModeToString
+//
+////////////////////////////////////////////////////////////////////////////////
+
 const char *  SettingsPanelState::WriteModeToString (SettingsWriteMode mode)
 {
     switch (mode)
@@ -184,9 +211,19 @@ SettingsWriteMode  SettingsPanelState::WriteModeFromString (
 }
 
 
-// Deep-copy a JsonValue by writing+re-parsing. Cheap enough for the
-// settings panel snapshot (one-time at Show()) and avoids needing
-// a public clone API on JsonValue.
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CloneJson
+//
+//  Deep-copy a JsonValue by writing+re-parsing. Cheap enough for the
+//  settings panel snapshot (one-time at Show()) and avoids needing
+//  a public clone API on JsonValue.
+//
+////////////////////////////////////////////////////////////////////////////////
+
 JsonValue  SettingsPanelState::CloneJson (const JsonValue & v)
 {
     std::string          text;
@@ -461,6 +498,12 @@ void SettingsPanelState::SetDriveHeadVolume (float gain)
 
 
 
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetDriveDoorVolume
+//
+////////////////////////////////////////////////////////////////////////////////
 
 void SettingsPanelState::SetDriveDoorVolume (float gain)
 {

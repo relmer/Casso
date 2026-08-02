@@ -47,8 +47,18 @@ static const uint32_t kExpectedLoRes[16] =
 };
 
 
-// Interleaved text-page address for (row, col) on page 1 -- mirrors
-// AppleTextMode::RowBaseAddress (private) for the dirty-row tests below.
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TextAddr
+//
+//  Interleaved text-page address for (row, col) on page 1 -- mirrors
+//  AppleTextMode::RowBaseAddress (private) for the dirty-row tests below.
+//
+////////////////////////////////////////////////////////////////////////////////
+
 static Word TextAddr (int row, int col)
 {
     return static_cast<Word> (0x0400 + 128 * (row % 8) + 40 * (row / 8) + col);
@@ -831,6 +841,15 @@ namespace Phase12GoldenHelpers
     }
 }
 
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TEST_CLASS
+//
+////////////////////////////////////////////////////////////////////////////////
 
 TEST_CLASS (Phase12GoldenHashTests)
 {

@@ -78,6 +78,15 @@ static constexpr LPCWSTR  s_kpszTrackEditTip   = L"Filter rows to a single track
 static constexpr LPCWSTR  s_kpszSectorEditTip  = L"Filter rows to a single sector (blank = all)";
 
 
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ArgbToFloat4
+//
+////////////////////////////////////////////////////////////////////////////////
+
 void Disk2DebugPanel::ArgbToFloat4 (uint32_t argb, float (& outRgba)[4]) noexcept
 {
     outRgba[0] = (float) ((argb >> 16) & 0xFFu) / 255.0f;
@@ -1538,16 +1547,48 @@ void Disk2DebugPanel::OnMotorEngaged()
     Disk2Event  e = MakeStampedEvent (EventCategory::Controller, Disk2EventType::MotorEngaged);
     PublishToRing (e);
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnMotorCommandOff
+//
+////////////////////////////////////////////////////////////////////////////////
+
 void Disk2DebugPanel::OnMotorCommandOff()
 {
     Disk2Event  e = MakeStampedEvent (EventCategory::Controller, Disk2EventType::MotorCommandOff);
     PublishToRing (e);
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnMotorDisengaged
+//
+////////////////////////////////////////////////////////////////////////////////
+
 void Disk2DebugPanel::OnMotorDisengaged()
 {
     Disk2Event  e = MakeStampedEvent (EventCategory::Controller, Disk2EventType::MotorDisengaged);
     PublishToRing (e);
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnHeadStep
+//
+////////////////////////////////////////////////////////////////////////////////
 
 void Disk2DebugPanel::OnHeadStep (int prevQt, int newQt)
 {
@@ -1557,12 +1598,32 @@ void Disk2DebugPanel::OnHeadStep (int prevQt, int newQt)
     PublishToRing (e);
 }
 
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnHeadBump
+//
+////////////////////////////////////////////////////////////////////////////////
+
 void Disk2DebugPanel::OnHeadBump (int atQt)
 {
     Disk2Event  e = MakeStampedEvent (EventCategory::Controller, Disk2EventType::HeadBump);
     e.payload.bump.atQt = atQt;
     PublishToRing (e);
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnAddressMark
+//
+////////////////////////////////////////////////////////////////////////////////
 
 void Disk2DebugPanel::OnAddressMark (int track, int sector, int volume)
 {
@@ -1572,6 +1633,16 @@ void Disk2DebugPanel::OnAddressMark (int track, int sector, int volume)
     e.payload.addrMark.volume = volume;
     PublishToRing (e);
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnDataMarkRead
+//
+////////////////////////////////////////////////////////////////////////////////
 
 void Disk2DebugPanel::OnDataMarkRead (int track, int sector, int volume, int byteCount)
 {
@@ -1583,6 +1654,16 @@ void Disk2DebugPanel::OnDataMarkRead (int track, int sector, int volume, int byt
     PublishToRing (e);
 }
 
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnDataMarkWrite
+//
+////////////////////////////////////////////////////////////////////////////////
+
 void Disk2DebugPanel::OnDataMarkWrite (int track, int sector, int volume, int byteCount)
 {
     Disk2Event  e = MakeStampedEvent (EventCategory::Controller, Disk2EventType::DataWrite);
@@ -1593,6 +1674,16 @@ void Disk2DebugPanel::OnDataMarkWrite (int track, int sector, int volume, int by
     PublishToRing (e);
 }
 
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnDriveSelect
+//
+////////////////////////////////////////////////////////////////////////////////
+
 void Disk2DebugPanel::OnDriveSelect (int drive)
 {
     m_currentDrive = drive;
@@ -1602,6 +1693,16 @@ void Disk2DebugPanel::OnDriveSelect (int drive)
     PublishToRing (e);
 }
 
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnDiskInserted
+//
+////////////////////////////////////////////////////////////////////////////////
+
 void Disk2DebugPanel::OnDiskInserted (int drive)
 {
     Disk2Event  e = MakeStampedEvent (EventCategory::Controller, Disk2EventType::DiskInserted);
@@ -1609,6 +1710,16 @@ void Disk2DebugPanel::OnDiskInserted (int drive)
     e.payload.drive.drive = drive;
     PublishToRing (e);
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnDiskEjected
+//
+////////////////////////////////////////////////////////////////////////////////
 
 void Disk2DebugPanel::OnDiskEjected (int drive)
 {
@@ -1638,6 +1749,16 @@ void Disk2DebugPanel::OnAudioStarted (SoundKind kind, int drive)
     PublishToRing (e);
 }
 
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnAudioRestarted
+//
+////////////////////////////////////////////////////////////////////////////////
+
 void Disk2DebugPanel::OnAudioRestarted (SoundKind kind, int drive)
 {
     Disk2Event  e = MakeStampedEvent (EventCategory::Audio, Disk2EventType::AudioRestarted);
@@ -1647,6 +1768,16 @@ void Disk2DebugPanel::OnAudioRestarted (SoundKind kind, int drive)
     e.payload.audio.reason = SilentReason::DriveAudioDisabled;
     PublishToRing (e);
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnAudioContinued
+//
+////////////////////////////////////////////////////////////////////////////////
 
 void Disk2DebugPanel::OnAudioContinued (SoundKind kind, int drive)
 {
@@ -1658,6 +1789,16 @@ void Disk2DebugPanel::OnAudioContinued (SoundKind kind, int drive)
     PublishToRing (e);
 }
 
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnAudioSilent
+//
+////////////////////////////////////////////////////////////////////////////////
+
 void Disk2DebugPanel::OnAudioSilent (SoundKind kind, int drive, SilentReason reason)
 {
     Disk2Event  e = MakeStampedEvent (EventCategory::Audio, Disk2EventType::AudioSilent);
@@ -1668,6 +1809,16 @@ void Disk2DebugPanel::OnAudioSilent (SoundKind kind, int drive, SilentReason rea
     PublishToRing (e);
 }
 
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnAudioLoopStarted
+//
+////////////////////////////////////////////////////////////////////////////////
+
 void Disk2DebugPanel::OnAudioLoopStarted (SoundKind kind, int drive)
 {
     Disk2Event  e = MakeStampedEvent (EventCategory::Audio, Disk2EventType::AudioLoopStarted);
@@ -1677,6 +1828,16 @@ void Disk2DebugPanel::OnAudioLoopStarted (SoundKind kind, int drive)
     e.payload.audio.reason = SilentReason::DriveAudioDisabled;
     PublishToRing (e);
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnAudioLoopStopped
+//
+////////////////////////////////////////////////////////////////////////////////
 
 void Disk2DebugPanel::OnAudioLoopStopped (SoundKind kind, int drive)
 {

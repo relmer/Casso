@@ -489,6 +489,13 @@ Error:
 
 
 
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ModernTaskCompleted
+//
+////////////////////////////////////////////////////////////////////////////////
+
 static HRESULT ModernTaskCompleted (HWND postHwnd, awgp::IPrintTaskCompletedEventArgs * done)
 {
     awgp::PrintTaskCompletion  completion = awgp::PrintTaskCompletion_Abandoned;

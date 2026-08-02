@@ -151,6 +151,15 @@ InputDeviceSelector::Segment InputDeviceSelector::SegmentAt (int x, int y) const
 }
 
 
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SegmentSelected
+//
+////////////////////////////////////////////////////////////////////////////////
+
 bool InputDeviceSelector::SegmentSelected (int index) const
 {
     switch (index)
@@ -162,6 +171,15 @@ bool InputDeviceSelector::SegmentSelected (int index) const
     }
 }
 
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SegmentLabel
+//
+////////////////////////////////////////////////////////////////////////////////
 
 const wchar_t * InputDeviceSelector::SegmentLabel (int index) const
 {
@@ -357,6 +375,15 @@ struct InputDeviceSelector::GlyphMap
 };
 
 
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PaintJoystickGlyph
+//
+////////////////////////////////////////////////////////////////////////////////
+
 void InputDeviceSelector::PaintJoystickGlyph (IDxuiPainter & p, const RECT & box, bool skeuo)
 {
     // The 3/4 joystick fills its box edge-to-edge (stick to the top, case to
@@ -414,6 +441,15 @@ void InputDeviceSelector::PaintJoystickGlyph (IDxuiPainter & p, const RECT & box
     p.FillEllipseApprox (g.X (54), g.Y (12), g.S (2.2f), g.S (3), 0x38FFFFFF);
 }
 
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PaintPaddleGlyph
+//
+////////////////////////////////////////////////////////////////////////////////
 
 void InputDeviceSelector::PaintPaddleGlyph (IDxuiPainter & p, const RECT & box, bool skeuo)
 {
@@ -536,6 +572,15 @@ void InputDeviceSelector::PaintPaddleGlyph (IDxuiPainter & p, const RECT & box, 
     p.FillConvexQuad  (g.X (72.8f), g.Y (43.2f), g.X (75.3f), g.Y (44.5f), g.X (75.3f), g.Y (51), g.X (72.8f), g.Y (49.7f), 0xFFC24418);
 }
 
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PaintMouseGlyph
+//
+////////////////////////////////////////////////////////////////////////////////
 
 void InputDeviceSelector::PaintMouseGlyph (IDxuiPainter & p, const RECT & box, bool skeuo)
 {

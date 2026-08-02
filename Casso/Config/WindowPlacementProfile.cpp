@@ -32,6 +32,15 @@ uint64_t  WindowPlacementProfile::HashFNV1a64 (const std::wstring & text)
 }
 
 
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WindowPlacementProfile::TryParseLong
+//
+////////////////////////////////////////////////////////////////////////////////
+
 bool  WindowPlacementProfile::TryParseLong (const std::wstring & text, LONG & outValue)
 {
     wchar_t * end    = nullptr;
@@ -54,6 +63,15 @@ bool  WindowPlacementProfile::TryParseLong (const std::wstring & text, LONG & ou
     return true;
 }
 
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WindowPlacementProfile::CollectMonitorsProc
+//
+////////////////////////////////////////////////////////////////////////////////
 
 BOOL CALLBACK WindowPlacementProfile::CollectMonitorsProc (HMONITOR hMon, HDC hdc, LPRECT prc, LPARAM lParam)
 {

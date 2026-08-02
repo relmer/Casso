@@ -71,16 +71,27 @@ std::wstring  WindowCommandManager::FormatSystemError (HRESULT hr)
     return detail;
 }
 
-// StartPage / EndPage / EndDoc report failure as a return value <= 0 using
-// the SP_* family, and frequently do NOT set GetLastError -- which is how a
-// print failure used to degrade to "Unspecified error" (or worse: CWRF's
-// HRESULT_FROM_WIN32(0) == S_OK, a silent false success). Map the result to
-// an honest HRESULT: a user abort (the Print-to-PDF Save-As cancel can
-// surface mid-job on modern Windows, not just at StartDoc) becomes
-// HRESULT_FROM_WIN32 (ERROR_CANCELLED), which names itself at the call
-// site; disk-full / out-of-memory get their real codes; anything else uses
-// GetLastError when present and only degrades to E_FAIL when the driver
-// reported nothing at all.
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HrFromSpoolResult
+//
+//  StartPage / EndPage / EndDoc report failure as a return value <= 0 using
+//  the SP_* family, and frequently do NOT set GetLastError -- which is how a
+//  print failure used to degrade to "Unspecified error" (or worse: CWRF's
+//  HRESULT_FROM_WIN32(0) == S_OK, a silent false success). Map the result to
+//  an honest HRESULT: a user abort (the Print-to-PDF Save-As cancel can
+//  surface mid-job on modern Windows, not just at StartDoc) becomes
+//  HRESULT_FROM_WIN32 (ERROR_CANCELLED), which names itself at the call
+//  site; disk-full / out-of-memory get their real codes; anything else uses
+//  GetLastError when present and only degrades to E_FAIL when the driver
+//  reported nothing at all.
+//
+////////////////////////////////////////////////////////////////////////////////
+
 HRESULT WindowCommandManager::HrFromSpoolResult (int ret, const wchar_t * call, int pageIx)
 {
     HRESULT   hr  = S_OK;
@@ -100,15 +111,26 @@ HRESULT WindowCommandManager::HrFromSpoolResult (int ret, const wchar_t * call, 
     return hr;
 }
 
-// Load ("prime") the default printer's driver on a short-lived no-COM (MTA)
-// thread. v4 / XPS print drivers -- notably Microsoft Print to PDF -- create
-// their device context through cross-process COM that aborts with 995
-// (ERROR_OPERATION_ABORTED) when first touched from our STA UI thread at
-// Medium integrity, yet succeeds from an MTA thread. Doing one MTA CreateDC
-// loads the driver so a subsequent PrintDlg on the UI thread creates its DC
-// normally. PD_RETURNDEFAULT gives us the default printer with no UI and no
-// DC of its own. Best-effort; any failure is ignored (the real path still
-// has its own fallback).
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PrimeDefaultPrinterDriver
+//
+//  Load ("prime") the default printer's driver on a short-lived no-COM (MTA)
+//  thread. v4 / XPS print drivers -- notably Microsoft Print to PDF -- create
+//  their device context through cross-process COM that aborts with 995
+//  (ERROR_OPERATION_ABORTED) when first touched from our STA UI thread at
+//  Medium integrity, yet succeeds from an MTA thread. Doing one MTA CreateDC
+//  loads the driver so a subsequent PrintDlg on the UI thread creates its DC
+//  normally. PD_RETURNDEFAULT gives us the default printer with no UI and no
+//  DC of its own. Best-effort; any failure is ignored (the real path still
+//  has its own fallback).
+//
+////////////////////////////////////////////////////////////////////////////////
+
 void  WindowCommandManager::PrimeDefaultPrinterDriver()
 {
     PRINTDLGW   def = {};
@@ -143,12 +165,23 @@ void  WindowCommandManager::PrimeDefaultPrinterDriver()
     if (def.hDevNames != nullptr) { GlobalFree (def.hDevNames); }
 }
 
-// Build a printer DC from the DEVNAMES + DEVMODE the print dialog returned,
-// when PrintDlg's own PD_RETURNDC came back null (a v4 driver flaking on the
-// STA UI thread). Created on a plain (no-COM / MTA) thread for the same
-// reason priming works -- an STA CreateDC aborts (995) where an MTA one
-// succeeds. NULL port: the Print-to-PDF file prompt belongs at StartDoc, not
-// DC creation. Returns null only if the names are missing or CreateDC fails.
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CreateDcFromDevNames
+//
+//  Build a printer DC from the DEVNAMES + DEVMODE the print dialog returned,
+//  when PrintDlg's own PD_RETURNDC came back null (a v4 driver flaking on the
+//  STA UI thread). Created on a plain (no-COM / MTA) thread for the same
+//  reason priming works -- an STA CreateDC aborts (995) where an MTA one
+//  succeeds. NULL port: the Print-to-PDF file prompt belongs at StartDoc, not
+//  DC creation. Returns null only if the names are missing or CreateDC fails.
+//
+////////////////////////////////////////////////////////////////////////////////
+
 HDC  WindowCommandManager::CreateDcFromDevNames (const PRINTDLGW & pd)
 {
     std::wstring                 driver;
@@ -202,14 +235,25 @@ HDC  WindowCommandManager::CreateDcFromDevNames (const PRINTDLGW & pd)
     return hdc;
 }
 
-// Blit an R,G,B,A image onto a printer HDC. The strip is scaled to fit the
-// page WIDTH (uniform scale, aspect preserved) and top-aligned so the
-// fanfold continues downward across page breaks. Fitting to width -- not
-// min(width,height) -- is deliberate: the strip width is identical on every
-// page, so a width fit gives every page the same horizontal scale and left
-// edge. A min() fit would height-limit full pages but width-limit the short
-// last page, scaling their columns differently and misaligning page-to-page.
-// GDI DIBs are BGRA, so the channels are swapped into a scratch buffer.
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BlitRgbaToDc
+//
+//  Blit an R,G,B,A image onto a printer HDC. The strip is scaled to fit the
+//  page WIDTH (uniform scale, aspect preserved) and top-aligned so the
+//  fanfold continues downward across page breaks. Fitting to width -- not
+//  min(width,height) -- is deliberate: the strip width is identical on every
+//  page, so a width fit gives every page the same horizontal scale and left
+//  edge. A min() fit would height-limit full pages but width-limit the short
+//  last page, scaling their columns differently and misaligning page-to-page.
+//  GDI DIBs are BGRA, so the channels are swapped into a scratch buffer.
+//
+////////////////////////////////////////////////////////////////////////////////
+
 HRESULT WindowCommandManager::BlitRgbaToDc (HDC hdc, const RgbaImage & img, int pageW, int pageH, int outputDpi)
 {
     HRESULT                    hr    = S_OK;
@@ -398,6 +442,13 @@ void WindowCommandManager::OnMouseConnectCommand (int id)
 
 
 
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnExternalDriveCommand
+//
+////////////////////////////////////////////////////////////////////////////////
 
 void WindowCommandManager::OnExternalDriveCommand (int id)
 {
@@ -872,11 +923,28 @@ void WindowCommandManager::OnDiskCommand (int id)
 
 
 
-// Settings > Printing knobs, read live from GlobalUserPrefs at each eject.
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PrintDpiFromPrefs
+//
+//  Settings > Printing knobs, read live from GlobalUserPrefs at each eject.
+//
+////////////////////////////////////////////////////////////////////////////////
+
 static int PrintDpiFromPrefs (const GlobalUserPrefs & p)
 {
     return (p.printOutputDpi == 288) ? 288 : 576;   // only 288 / 576 valid (FR-028)
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PrintDotStyleFromPrefs
+//
+////////////////////////////////////////////////////////////////////////////////
 
 static DotStyle PrintDotStyleFromPrefs (const GlobalUserPrefs & p)
 {
@@ -884,12 +952,22 @@ static DotStyle PrintDotStyleFromPrefs (const GlobalUserPrefs & p)
 }
 
 
-// Cap the render dpi for a WHOLE-strip render (PNG file, clipboard) so a long
-// fanfold banner's single RGBA image stays within a memory budget instead of
-// ballooning to gigabytes (each row at 576 dpi is 4608 px * 4 B; a 60-page
-// banner is ~95k rows). The native grid is only 160x144 dpi, so dropping a huge
-// banner from 576 toward ~150 dpi is still well above source resolution -- no
-// meaningful quality loss, and it never OOMs. Short jobs keep the full dpi.
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WholeStripDpi
+//
+//  Cap the render dpi for a WHOLE-strip render (PNG file, clipboard) so a long
+//  fanfold banner's single RGBA image stays within a memory budget instead of
+//  ballooning to gigabytes (each row at 576 dpi is 4608 px * 4 B; a 60-page
+//  banner is ~95k rows). The native grid is only 160x144 dpi, so dropping a huge
+//  banner from 576 toward ~150 dpi is still well above source resolution -- no
+//  meaningful quality loss, and it never OOMs. Short jobs keep the full dpi.
+//
+////////////////////////////////////////////////////////////////////////////////
+
 static int WholeStripDpi (const GlobalUserPrefs & prefs, int rows)
 {
     const double   kBudgetPx = 128.0 * 1024.0 * 1024.0;   // ~512 MB of RGBA

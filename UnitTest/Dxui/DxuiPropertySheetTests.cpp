@@ -14,6 +14,16 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 // namespace was there for.
 static RECT  MakeRect (int l, int t, int r, int b) { return RECT{ l, t, r, b }; }
 
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AssertRect
+//
+////////////////////////////////////////////////////////////////////////////////
+
 static void  AssertRect (const RECT & expected, const RECT & actual, const wchar_t * msg)
 {
     Assert::AreEqual (expected.left,   actual.left,   msg);
@@ -25,13 +35,21 @@ static void  AssertRect (const RECT & expected, const RECT & actual, const wchar
 
 
 
+
+////////////////////////////////////////////////////////////////////////////////
 //
-//  Covers the button-row customization added for the SettingsPanel ->
-//  DxuiPropertySheet migration (T162): the hideable Apply button + custom
-//  OK label / width that let the sheet express Casso's no-Apply /
-//  "OK (reboot)" model. The reflow math is exercised through the pure
-//  LayoutButtonRow helper so no window is required.
+//  TEST_CLASS
 //
+//
+//   Covers the button-row customization added for the SettingsPanel ->
+//   DxuiPropertySheet migration (T162): the hideable Apply button + custom
+//   OK label / width that let the sheet express Casso's no-Apply /
+//   "OK (reboot)" model. The reflow math is exercised through the pure
+//   LayoutButtonRow helper so no window is required.
+//
+//
+////////////////////////////////////////////////////////////////////////////////
+
 TEST_CLASS (DxuiPropertySheetTests)
 {
 public:
@@ -136,11 +154,19 @@ public:
 
 
 
+
+////////////////////////////////////////////////////////////////////////////////
 //
-//  Covers the shared button-row ordering + left/right anchoring used by both
-//  DxuiPropertySheet and DxuiDialogWindow so every command row lands in the
-//  canonical Win32 order with secondary actions pinned bottom-left.
+//  TEST_CLASS
 //
+//
+//   Covers the shared button-row ordering + left/right anchoring used by both
+//   DxuiPropertySheet and DxuiDialogWindow so every command row lands in the
+//   canonical Win32 order with secondary actions pinned bottom-left.
+//
+//
+////////////////////////////////////////////////////////////////////////////////
+
 TEST_CLASS (DxuiButtonRowTests)
 {
 public:

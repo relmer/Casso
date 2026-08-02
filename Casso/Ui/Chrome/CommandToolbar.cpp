@@ -156,10 +156,20 @@ uint32_t CommandToolbar::StatusCore (PrinterStatus status)
 }
 
 
-// A small status-light dot riding the printer glyph's corner (halo + core in
-// the PrinterStatus color) -- the monoline glyph keeps the icon set uniform
-// while the LED keeps the at-a-glance printer state. core == 0 means unlit
-// (idle): paint nothing at all.
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PaintStatusLed
+//
+//  A small status-light dot riding the printer glyph's corner (halo + core in
+//  the PrinterStatus color) -- the monoline glyph keeps the icon set uniform
+//  while the LED keeps the at-a-glance printer state. core == 0 means unlit
+//  (idle): paint nothing at all.
+//
+////////////////////////////////////////////////////////////////////////////////
+
 static void PaintStatusLed (IDxuiPainter & painter, float cx, float cy, UINT dpi, uint32_t core)
 {
     float     r    = 2.0f * (float) dpi / (float) s_kBaseDpi;
@@ -473,6 +483,15 @@ bool CommandToolbar::OnToolbarMouseMove (int x, int y, bool leftDown)
 }
 
 
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CommandToolbar::OnToolbarMouseLeave
+//
+////////////////////////////////////////////////////////////////////////////////
+
 void CommandToolbar::OnToolbarMouseLeave()
 {
     for (Button & btn : m_buttons)
@@ -484,6 +503,15 @@ void CommandToolbar::OnToolbarMouseLeave()
     m_muteButton.pressed = false;
 }
 
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CommandToolbar::OnToolbarLButtonDown
+//
+////////////////////////////////////////////////////////////////////////////////
 
 bool CommandToolbar::OnToolbarLButtonDown (int x, int y)
 {
@@ -509,6 +537,15 @@ bool CommandToolbar::OnToolbarLButtonDown (int x, int y)
     return PointIn (m_barRect, x, y);   // eat clicks on the bar's dead space
 }
 
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CommandToolbar::OnToolbarLButtonUp
+//
+////////////////////////////////////////////////////////////////////////////////
 
 bool CommandToolbar::OnToolbarLButtonUp (int x, int y)
 {

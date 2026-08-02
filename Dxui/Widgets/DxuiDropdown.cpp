@@ -35,6 +35,15 @@ static constexpr float     s_kDisabledScale   = 0.7f;   // darken themed box fil
 static constexpr const wchar_t * s_kFontFamily    = DxuiTheme::kBodyFace;
 
 
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RectContains
+//
+////////////////////////////////////////////////////////////////////////////////
+
 bool DxuiDropdown::RectContains (const RECT & rect, int x, int y)
 {
     return x >= rect.left && x < rect.right && y >= rect.top && y < rect.bottom;
@@ -593,6 +602,15 @@ DxuiDropdown::ResolvedColors DxuiDropdown::ResolveColors() const
     return c;
 }
 
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetTheme
+//
+////////////////////////////////////////////////////////////////////////////////
 
 void DxuiDropdown::SetTheme (const IDxuiTheme * theme) const
 {

@@ -51,8 +51,19 @@ static constexpr Word  s_kEnbXy  = 0xC059;
 static constexpr Word  s_kDisVbl = 0xC05A;
 static constexpr Word  s_kEnbVbl = 0xC05B;
 
-// Enable movement interrupts through the front door: IOU access on,
-// ENBXY, IOU access off (the same bracket the firmware uses).
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EnableXyInterrupts
+//
+//  Enable movement interrupts through the front door: IOU access on,
+//  ENBXY, IOU access off (the same bracket the firmware uses).
+//
+////////////////////////////////////////////////////////////////////////////////
+
 static void EnableXyInterrupts (AppleMouse & mouse)
 {
     mouse.WriteIouAccess (true);
@@ -60,6 +71,15 @@ static void EnableXyInterrupts (AppleMouse & mouse)
     mouse.WriteIouAccess (false);
 }
 
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TEST_CLASS
+//
+////////////////////////////////////////////////////////////////////////////////
 
 TEST_CLASS (AppleMouseDeviceTests)
 {
@@ -209,6 +229,15 @@ public:
     }
 };
 
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TEST_CLASS
+//
+////////////////////////////////////////////////////////////////////////////////
 
 TEST_CLASS (AppleMouseFirmwareTests)
 {

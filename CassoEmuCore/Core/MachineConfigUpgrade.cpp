@@ -283,10 +283,20 @@ bool  MachineConfigUpgrade::InjectCapabilityFlag (
 }
 
 
-// Add a default slot-1 parallel-printer entry to `arr` when slot 1 has
-// no entry at all. An existing slot-1 entry -- even a disabled one -- is
-// left untouched, so a slot the user turned off is never resurrected
-// (FR-001). Returns true if an entry was appended.
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  InjectPrinterSlot
+//
+//  Add a default slot-1 parallel-printer entry to `arr` when slot 1 has
+//  no entry at all. An existing slot-1 entry -- even a disabled one -- is
+//  left untouched, so a slot the user turned off is never resurrected
+//  (FR-001). Returns true if an entry was appended.
+//
+////////////////////////////////////////////////////////////////////////////////
+
 bool  MachineConfigUpgrade::InjectPrinterSlot (JsonValue & arr)
 {
     vector<JsonValue>  rebuilt;

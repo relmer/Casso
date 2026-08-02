@@ -24,6 +24,15 @@ static constexpr int    s_kPlayGapDp       = 8;
 static constexpr int    s_kResetWidthDp    = 130;
 
 
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskPage::MakeRect
+//
+////////////////////////////////////////////////////////////////////////////////
+
 RECT DiskPage::MakeRect (int l, int t, int w, int h)
 {
     RECT  rc = { l, t, l + w, t + h };

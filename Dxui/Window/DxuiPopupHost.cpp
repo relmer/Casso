@@ -16,12 +16,22 @@ static constexpr LONG     s_kShadowInsetPx       = 1;
 std::atomic<uint32_t>  s_classSerial { 0 };
 
 
+
+
+
+////////////////////////////////////////////////////////////////////////////////
 //
-//  Returns the monitor work-area rect (excludes the taskbar) for
-//  the monitor that contains the supplied rect. Falls back to a
-//  giant synthetic work area if the multi-monitor lookup fails so
-//  callers always get a usable rect.
+//  WorkAreaForRect
 //
+//
+//   Returns the monitor work-area rect (excludes the taskbar) for
+//   the monitor that contains the supplied rect. Falls back to a
+//   giant synthetic work area if the multi-monitor lookup fails so
+//   callers always get a usable rect.
+//
+//
+////////////////////////////////////////////////////////////////////////////////
+
 RECT  DxuiPopupHost::WorkAreaForRect (const RECT & rectScreenPx)
 {
     RECT          work     = { 0, 0, 1920, 1080 };

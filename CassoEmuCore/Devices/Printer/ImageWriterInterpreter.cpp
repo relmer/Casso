@@ -58,6 +58,13 @@ static constexpr int    s_kGraphicsRowsPerPin    = PrinterGrid::kRowsPerInch / 7
 
 
 
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DecodeAsciiDigits
+//
+////////////////////////////////////////////////////////////////////////////////
+
 static int DecodeAsciiDigits (const Byte * digits, int count)
 {
     int   value = 0;
@@ -85,6 +92,13 @@ static int DecodeAsciiDigits (const Byte * digits, int count)
 
 
 
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PitchForCommand
+//
+////////////////////////////////////////////////////////////////////////////////
+
 static int PitchForCommand (Byte cmd)
 {
     // PROVISIONAL pitch selections (unused until the US6 draft font renders
@@ -104,6 +118,13 @@ static int PitchForCommand (Byte cmd)
 
 
 
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  IsPitchCommand
+//
+////////////////////////////////////////////////////////////////////////////////
+
 static bool IsPitchCommand (Byte cmd)
 {
     return cmd == 'n' || cmd == 'N' || cmd == 'E' || cmd == 'e' || cmd == 'q' || cmd == 'Q';
@@ -112,11 +133,19 @@ static bool IsPitchCommand (Byte cmd)
 
 
 
-// ESC K color select: one ASCII digit 0..6 per the ImageWriter II ribbon
-// table (0 black, 1 yellow, 2 red, 3 blue, 4 orange, 5 green, 6 purple). The
-// composites are the OR of their primaries, matching how two overprinted
-// passes accumulate in a cell -- Print Shop Color drives only the 1/2/3
-// primaries and lets overlap form the composites itself.
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ColorForCode
+//
+//  ESC K color select: one ASCII digit 0..6 per the ImageWriter II ribbon
+//  table (0 black, 1 yellow, 2 red, 3 blue, 4 orange, 5 green, 6 purple). The
+//  composites are the OR of their primaries, matching how two overprinted
+//  passes accumulate in a cell -- Print Shop Color drives only the 1/2/3
+//  primaries and lets overlap form the composites itself.
+//
+////////////////////////////////////////////////////////////////////////////////
+
 static InkPrimary ColorForCode (Byte digit)
 {
     Byte   yellow = (Byte) InkPrimary::Yellow;

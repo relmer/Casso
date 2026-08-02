@@ -24,6 +24,9 @@ it only stops *new* violations.
 | `CS0011` | no call of any kind in an EHM condition | 0 |
 | `CS0012` | `Ehm.h` comes from `Pch.h`, never directly | 0 |
 | `CS0013` | no dash-decorated section comments | 0 |
+| `CS0014` | a `.cpp` function definition has an 80-slash banner | 0 |
+| `CS0015` | a top-level banner is preceded by exactly 5 blank lines | 0 |
+| `CS0016` | a declaration block is followed by exactly 3 blank lines | 0 |
 
 `CS0011` now covers `SUCCEEDED` / `FAILED` / `IGNORE_RETURN_VALUE` as well as
 the `CHR`/`CBR`/`CWR`/`CPR` families — 246 sites, production and tests, all
@@ -42,67 +45,72 @@ a bool, so a failing fixture path reported "Expected: 1, Actual: 0" instead of
 `JsonValue::HasString`, which quotes the pattern it exists to replace. A
 checker that fails a file for *describing* the rule is one people switch off.
 
-## Structural rules — checker built, gate not yet armed
+## Structural rules — ARMED, backlog zero
 
-`scripts/CheckStyle.ps1 -Mode Tree -Structural` now audits the three
-formatting rules a per-line regex cannot see. They are **off by default**;
-`-Structural` turns them on.
+The three formatting rules a per-line regex cannot see are now enforced by
+default. `-NoStructural` opts out.
 
-| ID | Rule | Backlog |
-|----|------|--------:|
-| `CS0014` | a `.cpp` function definition has an 80-slash banner | 236 |
-| `CS0015` | a top-level banner is preceded by exactly 5 blank lines | 1,056 |
-| `CS0016` | a declaration block is followed by exactly 3 blank lines | 590 |
+| ID | Rule | Was | Now |
+|----|------|----:|----:|
+| `CS0014` | a `.cpp` function definition has an 80-slash banner | 236 | 0 |
+| `CS0015` | a top-level banner is preceded by exactly 5 blank lines | 1,055 | 0 |
+| `CS0016` | a declaration block is followed by exactly 3 blank lines | 594 | 0 |
 
-**How the diff scoping works, and why it is not enough here.** The analysis is
-whole-file; the *reporting* is scoped. Each finding carries the line range it
-is about, and in `Diff` mode it is reported only when the diff added a line
-inside that range — so editing the body of an old function stays silent while
-adding a function does not. Ranges rather than single lines, because the
-evidence spans lines: a wrong banner gap is as much about the blank run as the
-banner.
+**How the diff scoping works.** The analysis is whole-file; the *reporting* is
+scoped. Each finding carries the line range it is about, and in `Diff` mode it
+is reported only when the diff added a line inside that range — so editing the
+body of an old function stays silent while adding a function does not. Ranges
+rather than single lines, because the evidence spans lines: a wrong banner gap
+is as much about the blank run as the banner.
 
-That mechanism works — 1,882 tree-wide scopes down to 260 on this branch. But
-those 260 sit on lines **this branch itself added**, and scoping cannot help
-when the branch is what introduced them. Arming the gate today would block
-every push instead of only new violations, which is the failure that made the
-first cut of CS0011 unusable. So the switch exists, defaults off, and flips
-once the backlog is worked.
+The switch shipped **off** for one commit, deliberately: 1,882 tree-wide
+scoped down to 260 on this branch, but those 260 sat on lines the branch itself
+had added, and scoping cannot help when the branch is what introduced them.
+Arming it then would have blocked every push instead of only new violations —
+the failure that made the first cut of CS0011 unusable. Working the backlog to
+zero first is what made arming it safe.
+
+**The fixers are transcriptions of `Test-Structure`, not reimplementations.**
+Re-deriving "what is a top-level banner" or "what is a declaration block" in a
+separate script lets the two drift, and a fixer that disagrees with its gate
+either edits lines the gate does not care about or leaves ones it does.
+
+Three mechanical details that a future sweep of this kind needs:
+
+* **Apply bottom-up, CS0016 before CS0015.** Every edit shifts the line numbers
+  below it, and CS0016 anchors on function bodies whose offsets CS0015 moves.
+* **Preserve line endings per file.** Twelve files in the tree are LF. Writing
+  with `Environment.NewLine` would have turned a 24-line diff into a whole-file
+  rewrite and buried the real change.
+* **Prove the blast radius, do not assert it.** The blank-line sweep touched
+  401 files; `git diff --ignore-blank-lines --ignore-all-space` came back empty
+  over the whole thing, which is what makes "blank lines only" a fact. For the
+  banner sweep the equivalent check was that all 78 removed comment lines
+  reappear inside the banners that absorbed them.
+
+**CS0014 absorbs existing prose rather than stacking on top of it.** 78 of the
+228 functions already had a `//` comment above the signature; that comment *is*
+the function's documentation, so it moves into the banner body instead of being
+stranded above a new banner that repeats the name.
+
+Two conventions are read off each file rather than assumed, because the tree is
+not uniform: banner width (mostly 80 slashes, a few 72) and whether banners name
+`Class::Method` or just `Method`. Both vary per file and both are majority-voted
+from the banners already there.
 
 **One measurement correction worth keeping.** An earlier estimate put CS0015 at
-~440. It is 1,056. The first scanner counted every banner twice — a banner is
+~440. It is 1,055. The first scanner counted every banner twice — a banner is
 two rows of slashes and the closing row always has zero blanks before it — and
 "fixing" that by halving was wrong too; the real check is to count only the
 *opening* row, which is the one followed by a `//` line.
 
-Also worth knowing before working CS0015: the overwhelmingly common wrong value
-is **4**, not 3 or 6. The rule says 5, and the standards' own example does show
-5 blank lines, so 4 is a genuine and near-universal drift rather than a
-misreading of the rule.
+The overwhelmingly common wrong value was **4**, not 3 or 6 (872 of 1,055). The
+rule says 5 and the standards' own example shows 5, so this was uniform drift
+rather than anyone misreading the rule.
 
-## Documented but NOT gated — formatting
-
-Three rules from `copilot-instructions.md` that the gate does not check, with
-measured backlogs. They are line-oriented in the document and *structural* in
-reality, which is why they are not in the table above: the checker is per-line,
-and a whole-file structural check would fail a push for pre-existing
-violations in any file the diff happens to touch — the baseline problem that
-made the first CS0011 unusable.
-
-| Rule | Approx. backlog | Of |
-|---|---:|---|
-| function in a `.cpp` has an 80-slash banner | ~240 | 2,478 definitions |
-| exactly 5 blank lines between top-level constructs | ~440 | — |
-| exactly 3 blank lines after a declaration block | ~813 | — |
-
-Counts are from a heuristic scanner, so treat them as order-of-magnitude. The
-first draft of it double-counted every banner — a banner is two lines of
-slashes, and the closing one always has zero blank lines before it — which
-turned ~440 into ~879. Any future scanner needs to match only the opening
-line.
-
-Gating these needs a second checker mode that scores only the *lines the diff
-added*, not the file. Until then they are review-only.
+Verified by mutation: deleting one blank line from `TrackSectorPredicate.cpp`
+makes the gate name the file, line, actual count and required count, and
+restoring it returns the tree to green.
 
 ## Test counts differ by config, on purpose
 

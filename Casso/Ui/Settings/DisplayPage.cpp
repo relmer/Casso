@@ -25,6 +25,15 @@ static constexpr int    s_kBigSectionGapDp = 22;       // gap between distinct "
 static constexpr int    s_kPagePadDp       = 16;
 
 
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DisplayPage::MakeRect
+//
+////////////////////////////////////////////////////////////////////////////////
+
 RECT DisplayPage::MakeRect (int l, int t, int w, int h)
 {
     RECT  rc = { l, t, l + w, t + h };

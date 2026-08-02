@@ -377,6 +377,15 @@ void WasapiAudio::RecordDriveDoorSyncEvent (int drive, int64_t timestampMs)
 }
 
 
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetLastDriveDoorSyncEventMs
+//
+////////////////////////////////////////////////////////////////////////////////
+
 int64_t WasapiAudio::GetLastDriveDoorSyncEventMs (int drive) const
 {
     if (drive < 0 || drive >= static_cast<int> (m_lastDriveDoorSyncMs.size()))

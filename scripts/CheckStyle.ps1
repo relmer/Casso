@@ -63,17 +63,18 @@ param(
 
     [switch]$SkipCommitCheck,
 
-    # Enables the structural rules (CS0014/15/16). Off by default because
-    # their backlog is not yet worked: 1,882 tree-wide, and 260 of those sit
-    # on lines this branch itself added, so switching them on now would block
-    # every push rather than only new violations. The diff scoping is real --
-    # 1,882 -> 260 is the mechanism doing its job -- but scoping cannot help
-    # when the branch is what introduced them.
+    # The structural rules (CS0014/15/16) -- the ones a per-line pattern cannot
+    # see, because the evidence is a run of blank lines or the absence of a
+    # banner rather than anything written on one line.
     #
-    # Run `-Mode Tree -Structural` for the audit; flip the default once the
-    # backlog is at zero.
-    [switch]$Structural
+    # Armed. They shipped off by default while their backlog stood at 1,882
+    # tree-wide, since a gate that fails on pre-existing violations is one
+    # people switch off. That backlog is now zero over all tracked files, so
+    # the switch inverts: `-NoStructural` opts out.
+    [switch]$NoStructural
 )
+
+$Structural = -not $NoStructural
 
 $ErrorActionPreference = 'Stop'
 

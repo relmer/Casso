@@ -186,6 +186,15 @@ void Printer3DScene::Mul44 (const float a[16], const float b[16], float out[16])
 }
 
 
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Printer3DScene::LookAtRH
+//
+////////////////////////////////////////////////////////////////////////////////
+
 void Printer3DScene::LookAtRH (const float eye[3], const float at[3], float out[16])
 {
     float   z[3] = { eye[0] - at[0], eye[1] - at[1], eye[2] - at[2] };
@@ -216,6 +225,15 @@ void Printer3DScene::LookAtRH (const float eye[3], const float at[3], float out[
 }
 
 
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Printer3DScene::PerspectiveFovRH
+//
+////////////////////////////////////////////////////////////////////////////////
+
 void Printer3DScene::PerspectiveFovRH (float fovY, float aspect, float zn, float zf, float out[16])
 {
     float   ys = 1.0f / std::tan (fovY * 0.5f);
@@ -232,6 +250,15 @@ void Printer3DScene::PerspectiveFovRH (float fovY, float aspect, float zn, float
 }
 
 
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Printer3DScene::IdentityMvp
+//
+////////////////////////////////////////////////////////////////////////////////
+
 void Printer3DScene::IdentityMvp (float out[16])
 {
     memset (out, 0, 16 * sizeof (float));
@@ -239,9 +266,19 @@ void Printer3DScene::IdentityMvp (float out[16])
 }
 
 
-// Model matrix: rotate the whole printer about the x-axis line through the
-// bottom edge of the front face (y = 0, z = pivotZ), tipping tops toward
-// the camera so the rear of the machine lifts by `tiltRad`.
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Printer3DScene::TiltAboutFrontBottom
+//
+//  Model matrix: rotate the whole printer about the x-axis line through the
+//  bottom edge of the front face (y = 0, z = pivotZ), tipping tops toward
+//  the camera so the rear of the machine lifts by `tiltRad`.
+//
+////////////////////////////////////////////////////////////////////////////////
+
 void Printer3DScene::TiltAboutFrontBottom (float tiltRad, float pivotZ, float out[16])
 {
     float   c = std::cos (tiltRad);
@@ -1344,6 +1381,12 @@ static void AppendSideFeather (std::vector<Dxui3DRenderer::Vertex> & out,
 
 
 
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Printer3DScene::BuildPaper
+//
+////////////////////////////////////////////////////////////////////////////////
 
 void Printer3DScene::BuildPaper (std::vector<Vertex> & out) const
 {
