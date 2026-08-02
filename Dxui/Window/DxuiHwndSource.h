@@ -13,6 +13,12 @@ class DxuiPopupHost;
 class IDxuiHostClient;
 class DxuiCaptionBar;
 
+// Opaque declaration rather than including IDxuiHostClient.h: this header keeps
+// the client interface to a forward declaration (it only ever holds a pointer),
+// and the dispatch helpers below need the enum in their signatures. `enum class`
+// without an explicit base is `: int`, which is what the definition uses too.
+enum class DxuiMessageResult;
+
 
 
 
@@ -542,6 +548,19 @@ private:
     UINT                      TargetDpi         () const override { return m_scaler.Dpi(); }
     void  PaintContent  (ID3D11RenderTargetView * target, int widthPx, int heightPx, const IDxuiTheme & theme) override;
     void  PresentFrame  () override;
+
+    // What to do with the frame after the client claims a message. Most
+    // handlers want nothing; input handlers repaint. `IfNotSuppressed` is the
+    // wheel's variant -- a precision touchpad's message flood would otherwise
+    // spawn a synchronous repaint per message (see SetSuppressInputInvalidate).
+    enum class RepaintOnClaim { No, Yes, IfNotSuppressed };
+
+    // The message pump, split by who owns the message rather than by message
+    // number. WndProc itself is then three lines: ask the host, ask the client,
+    // else DefaultProc.
+    bool     DispatchHostMessage       (UINT msg, WPARAM wp, LPARAM lp, LRESULT & result);
+    bool     DispatchClientMessage     (UINT msg, WPARAM wp, LPARAM lp, LRESULT & result);
+    bool     Claimed                   (DxuiMessageResult clientResult, RepaintOnClaim repaint);
 
     LRESULT  HandleNcCalcSize          (WPARAM wp, LPARAM lp);
     LRESULT  HandleNcHitTest           (LPARAM lp);

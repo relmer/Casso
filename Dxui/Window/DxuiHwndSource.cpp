@@ -1880,89 +1880,171 @@ LRESULT CALLBACK DxuiHwndSource::s_WndProcThunk (HWND hwnd, UINT msg, WPARAM wp,
 
 LRESULT DxuiHwndSource::WndProc (UINT msg, WPARAM wp, LPARAM lp)
 {
+    LRESULT  result    = 0;
+    bool     isHandled = false;
+
+
+
     DXUI_ASSERT_UI_THREAD();
+
+    isHandled = DispatchHostMessage (msg, wp, lp, result);
+
+    if (!isHandled && m_client != nullptr)
+    {
+        isHandled = DispatchClientMessage (msg, wp, lp, result);
+    }
+
+    if (!isHandled)
+    {
+        result = DefaultProc (msg, wp, lp);
+    }
+
+    return result;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiHwndSource::Claimed
+//
+//  The "did the client take it, and does the frame need repainting" half of
+//  every forwarded message. Returning false means the caller should keep
+//  looking (host handler, then DefaultProc).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiHwndSource::Claimed (DxuiMessageResult clientResult, RepaintOnClaim repaint)
+{
+    bool  isHandled = (clientResult == DxuiMessageResult::Handled);
+    bool  wantPaint = false;
+
+
+
+    wantPaint = isHandled &&
+                (repaint == RepaintOnClaim::Yes ||
+                 (repaint == RepaintOnClaim::IfNotSuppressed && !m_suppressInputInvalidate));
+
+    if (wantPaint)
+    {
+        InvalidateRect (m_hwnd, nullptr, FALSE);
+    }
+
+    return isHandled;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiHwndSource::DispatchHostMessage
+//
+//  Messages the host owns outright, or must act on before the client sees
+//  them. Everything here either answers the message itself or does its own
+//  bookkeeping and reports "not handled" so the client and DefaultProc still
+//  get a turn.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiHwndSource::DispatchHostMessage (UINT msg, WPARAM wp, LPARAM lp, LRESULT & result)
+{
+    bool               isHandled  = true;
+    LRESULT            hostHt     = 0;
+    DxuiMessageResult  sizeResult = DxuiMessageResult::NotHandled;
+    // Only meaningful for the NC mouse arms; the other messages do not carry a
+    // screen point in lp and simply never read it.
+    POINT              ptScreen   = { GET_X_LPARAM (lp), GET_Y_LPARAM (lp) };
+
+
 
     switch (msg)
     {
         case WM_NCCALCSIZE:
-            return HandleNcCalcSize (wp, lp);
+            result = HandleNcCalcSize (wp, lp);
+            break;
 
         case WM_NCHITTEST:
-        {
-            // Framework classification (resize edges + delegate +
-            // panel-tree walk) wins for chrome hits; HTCLIENT /
-            // HTNOWHERE outcomes fall through to the client hook so
-            // a consumer can reclassify what the framework treats
-            // as plain client area.
-            LRESULT  hostHt = HandleNcHitTest (lp);
+            // Framework classification (resize edges + delegate + panel-tree
+            // walk) wins for chrome hits; HTCLIENT / HTNOWHERE outcomes fall
+            // through to the client hook so a consumer can reclassify what the
+            // framework treats as plain client area.
+            hostHt = HandleNcHitTest (lp);
 
             if (hostHt != HTCLIENT && hostHt != HTNOWHERE)
             {
-                return hostHt;
+                result = hostHt;
             }
-            if (m_client != nullptr)
+            else if (m_client != nullptr)
             {
-                return m_client->OnNcHitTest (m_hwnd, msg, wp, lp);
+                result = m_client->OnNcHitTest (m_hwnd, msg, wp, lp);
             }
-            return hostHt;
-        }
+            else
+            {
+                result = hostHt;
+            }
+            break;
 
+        // The four NC mouse messages offer the client first refusal and
+        // otherwise run the host's own caption / system-button routing.
         case WM_NCMOUSEMOVE:
-        {
-            POINT  ptScreen = { GET_X_LPARAM (lp), GET_Y_LPARAM (lp) };
-
-            if (m_client != nullptr &&
-                m_client->OnNcMouseMove ((LRESULT) wp, ptScreen.x, ptScreen.y) == DxuiMessageResult::Handled)
-            {
-                return 0;
-            }
-            return HandleNcMouse (msg, wp, lp);
-        }
+            result = Claimed (m_client != nullptr
+                                  ? m_client->OnNcMouseMove ((LRESULT) wp, ptScreen.x, ptScreen.y)
+                                  : DxuiMessageResult::NotHandled,
+                              RepaintOnClaim::No)
+                         ? 0
+                         : HandleNcMouse (msg, wp, lp);
+            break;
 
         case WM_NCMOUSELEAVE:
-            if (m_client != nullptr && m_client->OnNcMouseLeave() == DxuiMessageResult::Handled)
-            {
-                return 0;
-            }
-            return HandleNcMouse (msg, wp, lp);
+            result = Claimed (m_client != nullptr ? m_client->OnNcMouseLeave()
+                                                  : DxuiMessageResult::NotHandled,
+                              RepaintOnClaim::No)
+                         ? 0
+                         : HandleNcMouse (msg, wp, lp);
+            break;
 
         case WM_NCLBUTTONDOWN:
-        {
-            POINT  ptScreen = { GET_X_LPARAM (lp), GET_Y_LPARAM (lp) };
-
-            if (m_client != nullptr &&
-                m_client->OnNcLButtonDown ((LRESULT) wp, ptScreen.x, ptScreen.y) == DxuiMessageResult::Handled)
-            {
-                return 0;
-            }
-            return HandleNcMouse (msg, wp, lp);
-        }
+            result = Claimed (m_client != nullptr
+                                  ? m_client->OnNcLButtonDown ((LRESULT) wp, ptScreen.x, ptScreen.y)
+                                  : DxuiMessageResult::NotHandled,
+                              RepaintOnClaim::No)
+                         ? 0
+                         : HandleNcMouse (msg, wp, lp);
+            break;
 
         case WM_NCLBUTTONUP:
-        {
-            POINT  ptScreen = { GET_X_LPARAM (lp), GET_Y_LPARAM (lp) };
-
-            if (m_client != nullptr &&
-                m_client->OnNcLButtonUp ((LRESULT) wp, ptScreen.x, ptScreen.y) == DxuiMessageResult::Handled)
+            if (Claimed (m_client != nullptr
+                             ? m_client->OnNcLButtonUp ((LRESULT) wp, ptScreen.x, ptScreen.y)
+                             : DxuiMessageResult::NotHandled,
+                         RepaintOnClaim::No))
             {
                 DispatchNcUpToTrackedButton (lp);
-                return 0;
+                result = 0;
             }
-            return HandleNcMouse (msg, wp, lp);
-        }
+            else
+            {
+                result = HandleNcMouse (msg, wp, lp);
+            }
+            break;
 
         case WM_DPICHANGED:
             HandleDpiChanged (wp, lp);
+
             if (m_client != nullptr)
             {
                 m_client->OnDpiChanged (m_scaler.Dpi());
             }
-            return 0;
+
+            result = 0;
+            break;
 
         case WM_DPICHANGED_BEFOREPARENT:
-            // Forward to every active pooled DxuiPopupHost so popups
-            // straddling a monitor boundary re-DPI before the owner
-            // repaints.
+            // Forward to every active pooled DxuiPopupHost so popups straddling
+            // a monitor boundary re-DPI before the owner repaints.
             for (DxuiPopupHost * popup : m_popupActive)
             {
                 if (popup != nullptr)
@@ -1970,273 +2052,94 @@ LRESULT DxuiHwndSource::WndProc (UINT msg, WPARAM wp, LPARAM lp)
                     popup->HandleDpiChanged ((UINT) HIWORD (wp));
                 }
             }
-            return 0;
+
+            result = 0;
+            break;
+
+        case WM_ENTERSIZEMOVE:
+            // The OS is about to run its own modal move / size loop, during
+            // which our outer pump stops. Run a short internal timer so the
+            // client can keep painting; report not-handled so the OS loop still
+            // starts normally. Also tick once right now so animation continues
+            // from the first frame of the drag rather than stalling until the
+            // first timer fires.
+            ::SetTimer (m_hwnd, s_kModalLoopTimerId, USER_TIMER_MINIMUM, nullptr);
+
+            if (m_client != nullptr) { m_client->OnModalLoopTick(); }
+
+            isHandled = false;
+            break;
+
+        case WM_EXITSIZEMOVE:
+            ::KillTimer (m_hwnd, s_kModalLoopTimerId);
+            isHandled = false;
+            break;
+
+        case WM_TIMER:
+            // The host-owned keep-alive tick (armed by WM_ENTERSIZEMOVE) is not
+            // a client SetTimer id; route it to OnModalLoopTick, not OnTimer.
+            if (wp == s_kModalLoopTimerId)
+            {
+                if (m_client != nullptr) { m_client->OnModalLoopTick(); }
+
+                result = 0;
+            }
+            else
+            {
+                isHandled = false;
+            }
+            break;
 
         case WM_SETTINGCHANGE:
         case WM_THEMECHANGED:
         case WM_DWMCOLORIZATIONCOLORCHANGED:
             HandleThemeChange();
+            isHandled = false;
             break;
 
         case WM_SIZE:
             HandleSize (wp, lp);
+
             if (m_client != nullptr)
             {
-                (void) m_client->OnSize (LOWORD (lp), HIWORD (lp));
+                // The client is told, but WM_SIZE always reaches DefaultProc.
+                IGNORE_RETURN_VALUE (sizeResult, m_client->OnSize (LOWORD (lp), HIWORD (lp)));
             }
-            break;
 
-        case WM_CREATE:
-            if (m_client != nullptr)
-            {
-                return m_client->OnCreate (m_hwnd, msg, wp, lp);
-            }
-            break;
-
-        case WM_DESTROY:
-            // Bookkeeping only; the actual teardown happens in
-            // Destroy()/~DxuiHwndSource(). Notify the client so it
-            // can persist state (window placement, etc.) before
-            // the HWND goes away.
-            if (m_client != nullptr)
-            {
-                m_client->OnDestroy();
-            }
-            break;
-
-        case WM_CLOSE:
-            if (m_client != nullptr && m_client->OnClose() == DxuiMessageResult::Handled)
-            {
-                return 0;
-            }
-            break;
-
-        case WM_CHAR:
-            if (m_client != nullptr && m_client->OnChar (wp, lp) == DxuiMessageResult::Handled)
-            {
-                InvalidateRect (m_hwnd, nullptr, FALSE);
-                return 0;
-            }
-            break;
-
-        case WM_COMMAND:
-            if (m_client != nullptr &&
-                m_client->OnCommandEx (LOWORD (wp),
-                                       HIWORD (wp),
-                                       reinterpret_cast<HWND> (lp)) == DxuiMessageResult::Handled)
-            {
-                return 0;
-            }
-            break;
-
-        case WM_KEYDOWN:
-        case WM_SYSKEYDOWN:
-            if (m_client != nullptr && m_client->OnKeyDown (wp, lp) == DxuiMessageResult::Handled)
-            {
-                InvalidateRect (m_hwnd, nullptr, FALSE);
-                return 0;
-            }
-            break;
-
-        case WM_KEYUP:
-        case WM_SYSKEYUP:
-            if (m_client != nullptr && m_client->OnKeyUp (wp, lp) == DxuiMessageResult::Handled)
-            {
-                return 0;
-            }
-            break;
-
-        case WM_SETCURSOR:
-            if (m_client != nullptr && m_client->OnSetCursor (LOWORD (lp)) == DxuiMessageResult::Handled)
-            {
-                return TRUE;
-            }
+            isHandled = false;
             break;
 
         case WM_MOUSEMOVE:
+            // Host-side leave tracking arms regardless of the client.
             TrackClientMouseLeave();
-            if (m_client != nullptr && m_client->OnMouseMove (wp, lp) == DxuiMessageResult::Handled)
-            {
-                return 0;
-            }
+            isHandled = false;
             break;
 
         case WM_MOUSELEAVE:
-            // The cursor left the client area -- into an NC region of
-            // this window (caption / system button / resize edge) or
-            // off-window entirely. Clear client hover and stop tracking;
-            // the next WM_MOUSEMOVE re-arms. NC hover is handled
-            // independently via WM_NCMOUSEMOVE / WM_NCMOUSELEAVE.
+            // The cursor left the client area -- into an NC region of this
+            // window (caption / system button / resize edge) or off-window
+            // entirely. Clear client hover and stop tracking; the next
+            // WM_MOUSEMOVE re-arms. NC hover is handled independently via
+            // WM_NCMOUSEMOVE / WM_NCMOUSELEAVE.
             //
             // (Historically this re-armed tracking and ignored the leave
-            // whenever WindowFromPoint still resolved to this window, to
-            // absorb the continuous TME_LEAVE storm caused by a child
-            // render surface that covered the client area. That child is
-            // gone -- a single top-level window owns everything now -- so
-            // WindowFromPoint resolves to this HWND even for its own NC
-            // edges, which made that guard re-arm in a tight loop and
-            // wedge the cursor / hover. A leave is now always real.)
+            // whenever WindowFromPoint still resolved to this window, to absorb
+            // the continuous TME_LEAVE storm caused by a child render surface
+            // that covered the client area. That child is gone -- a single
+            // top-level window owns everything now -- so WindowFromPoint
+            // resolves to this HWND even for its own NC edges, which made that
+            // guard re-arm in a tight loop and wedge the cursor / hover. A
+            // leave is now always real.)
             m_clientMouseLeaveTracking = false;
-            if (m_client != nullptr && m_client->OnMouseLeave() == DxuiMessageResult::Handled)
-            {
-                return 0;
-            }
-            break;
-
-        case WM_GETMINMAXINFO:
-            if (m_client != nullptr && m_client->OnGetMinMax (reinterpret_cast<MINMAXINFO *> (lp)) == DxuiMessageResult::Handled)
-            {
-                return 0;
-            }
-            break;
-
-        case WM_LBUTTONDOWN:
-            if (m_client != nullptr && m_client->OnLButtonDown (wp, lp) == DxuiMessageResult::Handled)
-            {
-                return 0;
-            }
-            break;
-
-        case WM_LBUTTONUP:
-            if (m_client != nullptr && m_client->OnLButtonUp (wp, lp) == DxuiMessageResult::Handled)
-            {
-                return 0;
-            }
-            break;
-
-        case WM_RBUTTONDOWN:
-            if (m_client != nullptr && m_client->OnRButtonDown (wp, lp) == DxuiMessageResult::Handled)
-            {
-                return 0;
-            }
-            break;
-
-        case WM_RBUTTONUP:
-            if (m_client != nullptr && m_client->OnRButtonUp (wp, lp) == DxuiMessageResult::Handled)
-            {
-                return 0;
-            }
-            break;
-
-        case WM_MOUSEWHEEL:
-            if (m_client != nullptr && m_client->OnMouseWheel (wp, lp, false) == DxuiMessageResult::Handled)
-            {
-                if (!m_suppressInputInvalidate) { InvalidateRect (m_hwnd, nullptr, FALSE); }
-                return 0;
-            }
-            break;
-
-        case WM_MOUSEHWHEEL:
-            if (m_client != nullptr && m_client->OnMouseWheel (wp, lp, true) == DxuiMessageResult::Handled)
-            {
-                if (!m_suppressInputInvalidate) { InvalidateRect (m_hwnd, nullptr, FALSE); }
-                return 0;
-            }
-            break;
-
-        case WM_ACTIVATEAPP:
-            if (m_client != nullptr && m_client->OnActivateApp (wp != 0) == DxuiMessageResult::Handled)
-            {
-                return 0;
-            }
-            break;
-
-        case WM_KILLFOCUS:
-            if (m_client != nullptr && m_client->OnKillFocus() == DxuiMessageResult::Handled)
-            {
-                return 0;
-            }
-            break;
-
-        case WM_CANCELMODE:
-            if (m_client != nullptr && m_client->OnCancelMode() == DxuiMessageResult::Handled)
-            {
-                return 0;
-            }
-            break;
-
-        case WM_MOVE:
-            if (m_client != nullptr &&
-                m_client->OnMove ((int) (short) LOWORD (lp),
-                                  (int) (short) HIWORD (lp)) == DxuiMessageResult::Handled)
-            {
-                return 0;
-            }
-            break;
-
-        case WM_ENTERSIZEMOVE:
-            // The OS is about to run its own modal move / size loop, during which
-            // our outer pump stops. Run a short internal timer so the client can
-            // keep painting; fall through so the OS loop still starts normally.
-            // Also tick once right now so animation continues from the first
-            // frame of the drag instead of stalling until the first timer fires.
-            ::SetTimer (m_hwnd, s_kModalLoopTimerId, USER_TIMER_MINIMUM, nullptr);
-            if (m_client != nullptr) { m_client->OnModalLoopTick(); }
-            break;
-
-        case WM_EXITSIZEMOVE:
-            ::KillTimer (m_hwnd, s_kModalLoopTimerId);
-            break;
-
-        case WM_TIMER:
-            // The host-owned keep-alive tick (armed by WM_ENTERSIZEMOVE) is not a
-            // client SetTimer id; route it to OnModalLoopTick, not OnTimer.
-            if (wp == s_kModalLoopTimerId)
-            {
-                if (m_client != nullptr) { m_client->OnModalLoopTick(); }
-                return 0;
-            }
-            if (m_client != nullptr && m_client->OnTimer (static_cast<UINT_PTR> (wp)) == DxuiMessageResult::Handled)
-            {
-                InvalidateRect (m_hwnd, nullptr, FALSE);
-                return 0;
-            }
-            break;
-
-        case WM_NOTIFY:
-            if (m_client != nullptr && m_client->OnNotify (wp, lp) == DxuiMessageResult::Handled)
-            {
-                return 0;
-            }
-            break;
-
-        case WM_DRAWITEM:
-            if (m_client != nullptr)
-            {
-                return m_client->OnDrawItem (m_hwnd, msg, wp, lp);
-            }
-            break;
-
-        case WM_CTLCOLORSTATIC:
-            if (m_client != nullptr)
-            {
-                LRESULT  brush = m_client->OnCtlColorStatic (reinterpret_cast<HDC> (wp),
-                                                             reinterpret_cast<HWND> (lp));
-
-                if (brush != 0)
-                {
-                    return brush;
-                }
-            }
-            break;
-
-        case WM_INITMENUPOPUP:
-            if (m_client != nullptr &&
-                m_client->OnInitMenuPopup (reinterpret_cast<HMENU> (wp),
-                                           LOWORD (lp),
-                                           HIWORD (lp) != 0) == DxuiMessageResult::Handled)
-            {
-                return 0;
-            }
+            isHandled                  = false;
             break;
 
         case WM_PAINT:
-        {
-            // Full-ownership mode runs the host's panel-tree paint
-            // pump (clear + walk children + before-present hook +
-            // Present). Adopt / synthetic / opt-out-swap-chain modes
-            // have no host swap chain to drive, so fall through to
-            // the client's OnPaint() for legacy chrome painters.
+            // Full-ownership mode runs the host's panel-tree paint pump (clear
+            // + walk children + before-present hook + Present). Adopt /
+            // synthetic / opt-out-swap-chain modes have no host swap chain to
+            // drive, so they fall through to the client's OnPaint() for legacy
+            // chrome painters.
             if (m_swapChain && m_rtv)
             {
                 PAINTSTRUCT  ps = {};
@@ -2244,18 +2147,125 @@ LRESULT DxuiHwndSource::WndProc (UINT msg, WPARAM wp, LPARAM lp)
                 BeginPaint (m_hwnd, &ps);
                 PaintPump();
                 EndPaint   (m_hwnd, &ps);
-                return 0;
-            }
 
-            if (m_client != nullptr && m_client->OnPaint() == DxuiMessageResult::Handled)
+                result = 0;
+            }
+            else
             {
-                return 0;
+                isHandled = false;
             }
             break;
-        }
+
+        default:
+            isHandled = false;
+            break;
     }
 
-    return DefaultProc (msg, wp, lp);
+    return isHandled;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiHwndSource::DispatchClientMessage
+//
+//  Pure forwarding: every arm asks the client and stops if it claims the
+//  message. `m_client` is known non-null -- WndProc checks once so 25 arms do
+//  not have to. The three arms that do not fit the claim/repaint shape return
+//  a value of their own and are marked as such.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiHwndSource::DispatchClientMessage (UINT msg, WPARAM wp, LPARAM lp, LRESULT & result)
+{
+    bool     isHandled = true;
+    LRESULT  brush     = 0;
+
+
+
+    switch (msg)
+    {
+        // -- claim-or-fall-through, no repaint --
+        case WM_CLOSE:         isHandled = Claimed (m_client->OnClose(),        RepaintOnClaim::No); break;
+        case WM_KEYUP:
+        case WM_SYSKEYUP:      isHandled = Claimed (m_client->OnKeyUp (wp, lp), RepaintOnClaim::No); break;
+        case WM_LBUTTONDOWN:   isHandled = Claimed (m_client->OnLButtonDown (wp, lp), RepaintOnClaim::No); break;
+        case WM_LBUTTONUP:     isHandled = Claimed (m_client->OnLButtonUp   (wp, lp), RepaintOnClaim::No); break;
+        case WM_RBUTTONDOWN:   isHandled = Claimed (m_client->OnRButtonDown (wp, lp), RepaintOnClaim::No); break;
+        case WM_RBUTTONUP:     isHandled = Claimed (m_client->OnRButtonUp   (wp, lp), RepaintOnClaim::No); break;
+        case WM_MOUSEMOVE:     isHandled = Claimed (m_client->OnMouseMove   (wp, lp), RepaintOnClaim::No); break;
+        case WM_MOUSELEAVE:    isHandled = Claimed (m_client->OnMouseLeave(),   RepaintOnClaim::No); break;
+        case WM_ACTIVATEAPP:   isHandled = Claimed (m_client->OnActivateApp (wp != 0), RepaintOnClaim::No); break;
+        case WM_KILLFOCUS:     isHandled = Claimed (m_client->OnKillFocus(),    RepaintOnClaim::No); break;
+        case WM_CANCELMODE:    isHandled = Claimed (m_client->OnCancelMode(),   RepaintOnClaim::No); break;
+        case WM_NOTIFY:        isHandled = Claimed (m_client->OnNotify (wp, lp), RepaintOnClaim::No); break;
+        case WM_PAINT:         isHandled = Claimed (m_client->OnPaint(),        RepaintOnClaim::No); break;
+        case WM_GETMINMAXINFO: isHandled = Claimed (m_client->OnGetMinMax (reinterpret_cast<MINMAXINFO *> (lp)),
+                                                    RepaintOnClaim::No); break;
+        case WM_COMMAND:       isHandled = Claimed (m_client->OnCommandEx (LOWORD (wp),
+                                                                          HIWORD (wp),
+                                                                          reinterpret_cast<HWND> (lp)),
+                                                    RepaintOnClaim::No); break;
+        case WM_MOVE:          isHandled = Claimed (m_client->OnMove ((int) (short) LOWORD (lp),
+                                                                     (int) (short) HIWORD (lp)),
+                                                    RepaintOnClaim::No); break;
+        case WM_INITMENUPOPUP: isHandled = Claimed (m_client->OnInitMenuPopup (reinterpret_cast<HMENU> (wp),
+                                                                              LOWORD (lp),
+                                                                              HIWORD (lp) != 0),
+                                                    RepaintOnClaim::No); break;
+
+        // -- claim and repaint --
+        case WM_CHAR:          isHandled = Claimed (m_client->OnChar (wp, lp),    RepaintOnClaim::Yes); break;
+        case WM_KEYDOWN:
+        case WM_SYSKEYDOWN:    isHandled = Claimed (m_client->OnKeyDown (wp, lp), RepaintOnClaim::Yes); break;
+        case WM_TIMER:         isHandled = Claimed (m_client->OnTimer (static_cast<UINT_PTR> (wp)),
+                                                    RepaintOnClaim::Yes); break;
+
+        // -- claim and repaint unless a wheel flood is being absorbed --
+        case WM_MOUSEWHEEL:    isHandled = Claimed (m_client->OnMouseWheel (wp, lp, false),
+                                                    RepaintOnClaim::IfNotSuppressed); break;
+        case WM_MOUSEHWHEEL:   isHandled = Claimed (m_client->OnMouseWheel (wp, lp, true),
+                                                    RepaintOnClaim::IfNotSuppressed); break;
+
+        // -- these answer with a value of their own rather than a claim --
+        case WM_SETCURSOR:
+            isHandled = Claimed (m_client->OnSetCursor (LOWORD (lp)), RepaintOnClaim::No);
+            result    = TRUE;
+            break;
+
+        case WM_CREATE:
+            result = m_client->OnCreate (m_hwnd, msg, wp, lp);
+            break;
+
+        case WM_DRAWITEM:
+            result = m_client->OnDrawItem (m_hwnd, msg, wp, lp);
+            break;
+
+        case WM_CTLCOLORSTATIC:
+            // A zero brush means "no opinion", not "handled with a null brush".
+            brush     = m_client->OnCtlColorStatic (reinterpret_cast<HDC> (wp),
+                                                    reinterpret_cast<HWND> (lp));
+            result    = brush;
+            isHandled = (brush != 0);
+            break;
+
+        // -- notified, never claimed: teardown bookkeeping only. The real
+        // -- teardown happens in Destroy() / ~DxuiHwndSource(); this lets the
+        // -- client persist state (window placement, etc.) before the HWND goes.
+        case WM_DESTROY:
+            m_client->OnDestroy();
+            isHandled = false;
+            break;
+
+        default:
+            isHandled = false;
+            break;
+    }
+
+    return isHandled;
 }
 
 
