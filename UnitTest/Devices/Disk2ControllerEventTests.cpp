@@ -92,11 +92,9 @@ namespace Disk2ControllerEventTests
             int CountOf (Event ev) const
             {
                 int     n = 0;
-                size_t  i = 0;
-
-                for (i = 0; i < log.size(); i++)
+                for (const auto & logEntry : log)
                 {
-                    if (log[i].event == ev)
+                    if (logEntry.event == ev)
                     {
                         n++;
                     }
@@ -277,13 +275,13 @@ namespace Disk2ControllerEventTests
             Assert::AreEqual (0, sink.CountOf (RecordingEventSink::Event::HeadBump));
             Assert::AreEqual (2, ctrl.GetQuarterTrack());
 
-            for (i = 0; i < sink.log.size(); i++)
+            for (const auto & logEntry : sink.log)
             {
-                if (sink.log[i].event == RecordingEventSink::Event::HeadStep)
+                if (logEntry.event == RecordingEventSink::Event::HeadStep)
                 {
                     // RecordingEventSink stashes newQt; verify it
                     // matches the post-step position.
-                    Assert::AreEqual (2, sink.log[i].arg);
+                    Assert::AreEqual (2, logEntry.arg);
                 }
             }
         }

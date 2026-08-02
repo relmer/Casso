@@ -820,9 +820,9 @@ public:
         // DrainBatch entries.
         size_t  lostCount = 0;
 
-        for (size_t i = 0; i < deque.size(); i++)
+        for (const Disk2EventDisplay & event : deque)
         {
-            if (deque[i].type == Disk2EventType::EventsLost)
+            if (event.type == Disk2EventType::EventsLost)
             {
                 lostCount++;
             }
@@ -867,9 +867,9 @@ public:
 
         Assert::AreEqual (size_t (100), deque.size());
 
-        for (size_t k = 0; k < deque.size(); k++)
+        for (const Disk2EventDisplay & event : deque)
         {
-            Assert::IsFalse (deque[k].type == Disk2EventType::EventsLost);
+            Assert::IsFalse (event.type == Disk2EventType::EventsLost);
         }
     }
 

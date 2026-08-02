@@ -309,14 +309,13 @@ bool DiskImage::IsTrackDirty (int track) const
 
 void DiskImage::ClearDirty()
 {
-    size_t   i = 0;
 
     m_dirty = false;
 
-    for (i = 0; i < m_trackDirty.size(); i++)
-    {
-        m_trackDirty[i] = false;
-    }
+    // vector<bool> hands out a proxy, so a range-for element would have to be
+    // auto&& to write through it -- and a plain uto would silently clear a
+    // copy. assign says the whole thing in one line and dodges that entirely.
+    m_trackDirty.assign (m_trackDirty.size(), false);
 }
 
 

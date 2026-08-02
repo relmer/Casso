@@ -57,10 +57,10 @@ public:
         uint32_t       state = seed;
         size_t         i     = 0;
 
-        for (i = 0; i < img.size(); i++)
+        for (Byte & byte : img)
         {
             state = state * 1664525u + 1013904223u;
-            img[i] = static_cast<Byte> ((state >> 24) & 0xFF);
+            byte  = static_cast<Byte> ((state >> 24) & 0xFF);
         }
 
         return img;

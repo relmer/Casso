@@ -48,7 +48,6 @@ RECT DiskPage::MakeRect (int l, int t, int w, int h)
 DiskPage::DiskPage (std::wstring title)
     : DxuiPropertyPage (std::move (title))
 {
-    size_t  i = 0;
 
 
     Adopt (m_wpLabel);
@@ -64,9 +63,9 @@ DiskPage::DiskPage (std::wstring title)
     Adopt (m_writeMode);
     Adopt (m_mechanism);
     Adopt (m_driveAudio);
-    for (i = 0; i < m_writeProtect.size(); ++i)
+    for (DxuiCheckbox & checkbox : m_writeProtect)
     {
-        Adopt (m_writeProtect[i]);
+        Adopt (checkbox);
     }
 
     Adopt (m_motorVol);

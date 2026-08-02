@@ -85,9 +85,9 @@ namespace DxuiButtonRow
         size_t  i     = 0;
 
 
-        for (i = 0; i < widthsDip.size(); ++i)
+        for (int widthDip : widthsDip)
         {
-            total += scaler.Px (widthsDip[i]);
+            total += scaler.Px (widthDip);
         }
         if (!widthsDip.empty())
         {

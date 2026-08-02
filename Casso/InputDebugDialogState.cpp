@@ -148,15 +148,12 @@ std::wstring BuildClipboardText (
     const std::array<InputLogicalColumn, kInputColumnCount> &  columns)
 {
     std::wstring  out;
-    size_t        rowIdx      = 0;
     int           colIdx      = 0;
     bool          firstColumn = true;
 
 
-    for (rowIdx = 0; rowIdx < selected.size(); rowIdx++)
+    for (const InputEventDisplay * row : selected)
     {
-        const InputEventDisplay *  row = selected[rowIdx];
-
         if (row == nullptr)
         {
             continue;

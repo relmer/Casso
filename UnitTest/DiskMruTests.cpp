@@ -58,9 +58,9 @@ namespace DiskMruTests
             // the original index-0 entry should have been evicted.
             auto  snap = m.Snapshot();
             Assert::IsTrue (snap[0].path.wstring().find (L"\\16.dsk") != std::wstring::npos);
-            for (i = 0; i < snap.size(); i++)
+            for (const auto & mruEntry : snap)
             {
-                Assert::IsTrue (snap[i].path.wstring().find (L"\\0.dsk") == std::wstring::npos);
+                Assert::IsTrue (mruEntry.path.wstring().find (L"\\0.dsk") == std::wstring::npos);
             }
         }
 

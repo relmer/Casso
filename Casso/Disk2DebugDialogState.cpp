@@ -314,14 +314,11 @@ std::wstring BuildClipboardText (
     const std::array<LogicalColumn, kColumnCount> &  columns)
 {
     std::wstring  out;
-    size_t        rowIdx       = 0;
     int           colIdx       = 0;
     bool          firstColumn  = true;
 
-    for (rowIdx = 0; rowIdx < selected.size(); rowIdx++)
+    for (const Disk2EventDisplay * row : selected)
     {
-        const Disk2EventDisplay *  row = selected[rowIdx];
-
         if (row == nullptr)
         {
             continue;

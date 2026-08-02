@@ -1552,14 +1552,14 @@ bool UserConfigStore::JsonEqual (
                 return false;
             }
 
-            for (size_t i = 0; i < ae.size(); ++i)
+            for (const auto & aEntry : ae)
             {
-                idx = FindObjectKey (be, ae[i].first);
+                idx = FindObjectKey (be, aEntry.first);
                 if (idx < 0)
                 {
                     return false;
                 }
-                if (!JsonEqual (ae[i].second, be[(size_t) idx].second))
+                if (!JsonEqual (aEntry.second, be[(size_t) idx].second))
                 {
                     return false;
                 }

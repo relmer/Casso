@@ -390,14 +390,14 @@ namespace Disk2AddressMarkWatcherTests
 
             img.ResizeTrack (0, stream.size() * 8 + 64);
 
-            for (i = 0; i < stream.size(); i++)
+            for (Byte nibble : stream)
             {
                 int   b = 0;
 
                 for (b = 0; b < 8; b++)
                 {
                     img.WriteBit (0, bitOffset + (size_t) b,
-                                  (uint8_t) ((stream[i] >> (7 - b)) & 1));
+                                  (uint8_t) ((nibble >> (7 - b)) & 1));
                 }
                 bitOffset += 8;
             }

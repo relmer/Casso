@@ -1192,13 +1192,13 @@ JsonValue SettingsPanelState::BuildJson (
                 // Find matching hw entry by (kind, jsonIndex).
                 bool   found        = false;
                 bool   enabledFlag  = true;
-                size_t h            = 0;
-                for (h = 0; h < hw.size(); ++h)
+
+                for (const HardwareEntry & hwEntry : hw)
                 {
-                    if (hw[h].kind == HardwareEntryKind::InternalDevice &&
-                        hw[h].jsonIndex == (int) i)
+                    if (hwEntry.kind == HardwareEntryKind::InternalDevice &&
+                        hwEntry.jsonIndex == (int) i)
                     {
-                        enabledFlag = hw[h].enabled;
+                        enabledFlag = hwEntry.enabled;
                         found       = true;
                         break;
                     }
@@ -1233,13 +1233,13 @@ JsonValue SettingsPanelState::BuildJson (
                 }
 
                 bool   enabledFlag = true;
-                size_t h           = 0;
-                for (h = 0; h < hw.size(); ++h)
+
+                for (const HardwareEntry & hwEntry : hw)
                 {
-                    if (hw[h].kind == HardwareEntryKind::Slot &&
-                        hw[h].jsonIndex == (int) i)
+                    if (hwEntry.kind == HardwareEntryKind::Slot &&
+                        hwEntry.jsonIndex == (int) i)
                     {
-                        enabledFlag = hw[h].enabled;
+                        enabledFlag = hwEntry.enabled;
                         break;
                     }
                 }
