@@ -400,13 +400,17 @@ HRESULT NibblizationLayer::NibblizePo (const vector<Byte> & raw, DiskImage & out
 
 HRESULT NibblizationLayer::Nibblize (const vector<Byte> & raw, DiskFormat fmt, DiskImage & out)
 {
+    HRESULT  hr = S_OK;
+
     switch (fmt)
     {
-        case DiskFormat::Dsk: return NibblizeDsk (raw, out);
-        case DiskFormat::Do:  return NibblizeDo  (raw, out);
-        case DiskFormat::Po:  return NibblizePo  (raw, out);
-        default:              return E_INVALIDARG;
+        case DiskFormat::Dsk: hr = NibblizeDsk (raw, out); break;
+        case DiskFormat::Do:  hr = NibblizeDo  (raw, out); break;
+        case DiskFormat::Po:  hr = NibblizePo  (raw, out); break;
+        default:              hr = E_INVALIDARG;           break;
     }
+
+    return hr;
 }
 
 

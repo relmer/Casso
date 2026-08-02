@@ -53,15 +53,21 @@ namespace UiTests
         // IUnknown
         STDMETHODIMP QueryInterface (REFIID riid, void ** ppv) override
         {
-            if (ppv == nullptr) { return E_POINTER; }
-            if (riid == IID_IUnknown || riid == IID_IDataObject)
-            {
-                *ppv = static_cast<IDataObject *> (this);
-                AddRef();
-                return S_OK;
-            }
-            *ppv = nullptr;
-            return E_NOINTERFACE;
+            HRESULT  hr          = S_OK;
+            bool     isSupported = false;
+
+
+            CBREx (ppv != nullptr, E_POINTER);
+
+            isSupported = (riid == IID_IUnknown || riid == IID_IDataObject);
+            *ppv        = isSupported ? static_cast<IDataObject *> (this) : nullptr;
+
+            CBREx (isSupported, E_NOINTERFACE);
+
+            AddRef();
+
+Error:
+            return hr;
         }
 
         STDMETHODIMP_(ULONG) AddRef() override
@@ -77,6 +83,7 @@ namespace UiTests
         // IDataObject
         STDMETHODIMP GetData (FORMATETC * pFormat, STGMEDIUM * pMedium) override
         {
+            HRESULT     hr       = S_OK;
             size_t      cbStruct = 0;
             size_t      cbPath   = 0;
             size_t      cbTotal  = 0;
@@ -84,23 +91,20 @@ namespace UiTests
             DROPFILES * pDrop    = nullptr;
             wchar_t   * pDst     = nullptr;
 
-            if (pFormat == nullptr || pMedium == nullptr) { return E_POINTER; }
-            if (pFormat->cfFormat != CF_HDROP)            { return DV_E_FORMATETC; }
-            if ((pFormat->tymed & TYMED_HGLOBAL) == 0)    { return DV_E_TYMED;     }
+
+            CBREx (pFormat != nullptr && pMedium != nullptr, E_POINTER);
+            CBREx (pFormat->cfFormat == CF_HDROP,            DV_E_FORMATETC);
+            CBREx ((pFormat->tymed & TYMED_HGLOBAL) != 0,    DV_E_TYMED);
 
             cbStruct = sizeof (DROPFILES);
             cbPath   = (m_path.size() + 2) * sizeof (wchar_t);   // +1 NUL +1 list-terminator
             cbTotal  = cbStruct + cbPath;
 
             hMem = GlobalAlloc (GHND, cbTotal);
-            if (hMem == nullptr) { return E_OUTOFMEMORY; }
+            CPR (hMem);
 
             pDrop = static_cast<DROPFILES *> (GlobalLock (hMem));
-            if (pDrop == nullptr)
-            {
-                GlobalFree (hMem);
-                return E_FAIL;
-            }
+            CBR (pDrop != nullptr);
 
             pDrop->pFiles = static_cast<DWORD> (cbStruct);
             pDrop->fWide  = TRUE;
@@ -115,7 +119,16 @@ namespace UiTests
             pMedium->tymed          = TYMED_HGLOBAL;
             pMedium->hGlobal        = hMem;
             pMedium->pUnkForRelease = nullptr;
-            return S_OK;
+
+Error:
+            // Only the GlobalLock failure leaves an allocation to release: an
+            // earlier bail has no hMem yet, and success hands it to pMedium.
+            if (FAILED (hr) && hMem != nullptr && pDrop == nullptr)
+            {
+                GlobalFree (hMem);
+            }
+
+            return hr;
         }
 
         // The remaining methods are required by the vtable but the

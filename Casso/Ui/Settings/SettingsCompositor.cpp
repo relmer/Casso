@@ -98,10 +98,7 @@ HRESULT SettingsCompositor::Initialize (ID3D11Device * device, ID3D11DeviceConte
     CBRAEx (device,  E_INVALIDARG);
     CBRAEx (context, E_INVALIDARG);
 
-    if (m_initialized)
-    {
-        return S_OK;
-    }
+    BAIL_OUT_IF (m_initialized, S_OK);
 
     m_device  = device;
     m_context = context;

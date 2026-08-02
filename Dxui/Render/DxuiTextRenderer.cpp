@@ -247,32 +247,31 @@ Error:
 
 HRESULT DxuiTextRenderer::EndDraw()
 {
-    HRESULT  hr   = S_OK;
-    HRESULT  hrEnd = S_OK;
+    HRESULT  hr           = S_OK;
+    HRESULT  hrEnd        = S_OK;
+    bool     isTargetLost = false;
 
 
 
     DXUI_ASSERT_UI_THREAD();
 
     CBRA (m_d2dContext);
+    BAIL_OUT_IF (!m_drawing, S_OK);
 
-    if (!m_drawing)
-    {
-        return S_OK;
-    }
+    hrEnd        = m_d2dContext->EndDraw();
+    m_drawing    = false;
+    isTargetLost = (hrEnd == D2DERR_RECREATE_TARGET);
 
-    hrEnd = m_d2dContext->EndDraw();
-    m_drawing = false;
-
-    if (hrEnd == D2DERR_RECREATE_TARGET)
+    if (isTargetLost)
     {
         // Device-lost path: drop the target so the next BindBackBuffer
         // rebuilds. The target is now unbound; callers detect this via
         // IsTargetBound() and skip presenting the half-painted frame.
         DEBUGMSG (L"[Dxui] DxuiTextRenderer::EndDraw target lost (D2DERR_RECREATE_TARGET); frame dropped\n");
         UnbindBackBuffer();
-        return S_OK;
     }
+
+    BAIL_OUT_IF (isTargetLost, S_OK);
 
     hr = hrEnd;
     CHRA (hr);
@@ -366,33 +365,32 @@ Error:
 
 HRESULT DxuiTextRenderer::EndDrawComposite()
 {
-    HRESULT      hr     = S_OK;
-    HRESULT      hrEnd  = S_OK;
-    D2D1_SIZE_U  size   = {};
-    D2D1_RECT_F  dest   = {};
+    HRESULT      hr           = S_OK;
+    HRESULT      hrEnd        = S_OK;
+    D2D1_SIZE_U  size         = {};
+    D2D1_RECT_F  dest         = {};
+    bool         isTargetLost = false;
 
 
 
     DXUI_ASSERT_UI_THREAD();
 
     CBRA (m_d2dContext);
+    BAIL_OUT_IF (!m_drawing, S_OK);
 
-    if (!m_drawing)
-    {
-        return S_OK;
-    }
+    hrEnd        = m_d2dContext->EndDraw();
+    m_drawing    = false;
+    isTargetLost = (hrEnd == D2DERR_RECREATE_TARGET);
 
-    hrEnd     = m_d2dContext->EndDraw();
-    m_drawing = false;
-
-    if (hrEnd == D2DERR_RECREATE_TARGET)
+    if (isTargetLost)
     {
         UnbindBackBuffer();
         m_offscreen.Reset();
         m_offscreenW = 0;
         m_offscreenH = 0;
-        return S_OK;
     }
+
+    BAIL_OUT_IF (isTargetLost, S_OK);
 
     hr = hrEnd;
     CHRA (hr);
@@ -407,13 +405,15 @@ HRESULT DxuiTextRenderer::EndDrawComposite()
                               1.0f,
                               D2D1_BITMAP_INTERPOLATION_MODE_NEAREST_NEIGHBOR,
                               &dest);
-    hrEnd = m_d2dContext->EndDraw();
+    hrEnd        = m_d2dContext->EndDraw();
+    isTargetLost = (hrEnd == D2DERR_RECREATE_TARGET);
 
-    if (hrEnd == D2DERR_RECREATE_TARGET)
+    if (isTargetLost)
     {
         UnbindBackBuffer();
-        return S_OK;
     }
+
+    BAIL_OUT_IF (isTargetLost, S_OK);
 
     hr = hrEnd;
     CHRA (hr);
@@ -459,11 +459,10 @@ HRESULT DxuiTextRenderer::EnsureTextFormat (
         if (it != m_formatCache.end())
         {
             *outFormat = it->second.Get();
-            (*outFormat)->AddRef();
-            return S_OK;
         }
     }
 
+    if (*outFormat == nullptr)
     {
         ComPtr<IDWriteTextFormat>  format;
 
@@ -478,9 +477,10 @@ HRESULT DxuiTextRenderer::EnsureTextFormat (
         CHRA (hr);
 
         m_formatCache[key] = format;
-        *outFormat = format.Get();
-        (*outFormat)->AddRef();
+        *outFormat         = format.Get();
     }
+
+    (*outFormat)->AddRef();
 
 Error:
     return hr;
@@ -515,11 +515,10 @@ HRESULT DxuiTextRenderer::EnsureBrush (uint32_t argb, ID2D1SolidColorBrush ** ou
         if (it != m_brushCache.end())
         {
             *outBrush = it->second.Get();
-            (*outBrush)->AddRef();
-            return S_OK;
         }
     }
 
+    if (*outBrush == nullptr)
     {
         ComPtr<ID2D1SolidColorBrush>  brush;
 
@@ -527,9 +526,10 @@ HRESULT DxuiTextRenderer::EnsureBrush (uint32_t argb, ID2D1SolidColorBrush ** ou
         CHRA (hr);
 
         m_brushCache[argb] = brush;
-        *outBrush = brush.Get();
-        (*outBrush)->AddRef();
+        *outBrush          = brush.Get();
     }
+
+    (*outBrush)->AddRef();
 
 Error:
     return hr;
@@ -599,9 +599,10 @@ HRESULT DxuiTextRenderer::EnsureLayout (
         {
             *outLayout = it->second.Get();
             (*outLayout)->AddRef();
-            return S_OK;
         }
     }
+
+    BAIL_OUT_IF (*outLayout != nullptr, S_OK);
 
     hr = EnsureTextFormat (useFamily, fontSizeDip, weight, &rawFmt);
     CHRA (hr);
@@ -677,6 +678,7 @@ HRESULT DxuiTextRenderer::EnsureCapMidY (
     DWRITE_FONT_METRICS            metrics       = {};
     DWRITE_LINE_METRICS            lineMetrics   = {};
     UINT32                         lineCount     = 0;
+    bool                           isCached      = false;
     const float                    kMeasureBox   = 4096.0f;
     const wchar_t                * kMeasureText  = L"Mg";
 
@@ -695,9 +697,11 @@ HRESULT DxuiTextRenderer::EnsureCapMidY (
         if (it != m_capMidCache.end())
         {
             outCapMidY = it->second;
-            return S_OK;
+            isCached   = true;
         }
     }
+
+    BAIL_OUT_IF (isCached, S_OK);
 
     hr = m_dwriteFactory->CreateTextLayout (kMeasureText,
                                             (UINT32) wcslen (kMeasureText),

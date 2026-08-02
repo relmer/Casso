@@ -666,20 +666,79 @@ flattened into "nothing to do": a discarded config parse error, `DiskSettings`
 reporting parse failures as "nothing saved", and `ApplyAndPersistTheme`
 persisting a theme name that never activated.
 
-### 4. Multiple return statements — SCHEDULED LAST (largest scope)
+### 4. Multiple return statements — HRESULT half DONE, rest outstanding
 
-Not yet gated. **535 of 2,466 functions** have more than one `return`; **45 of
-those return `HRESULT`** and so violate the written rule outright ("Functions
-returning `HRESULT` MUST have exactly one exit point").
+**All 38 `HRESULT`-returning multi-return functions are converted; the scan is
+at zero.** 611 of the tree's functions still have more than one `return`; the
+573 non-`HRESULT` ones are unscheduled and need the decision below.
 
-Gate the 45 first — unambiguous. The other 490 need a decision, because pure
-lookup functions are clearer with multiple returns: `QwertyToDvorak` is a
-256-entry mapping with 71 `return`s, and forcing single-exit would mean
-assigning to a variable in every case. (That one is really an array, not a
-switch.)
+Measured with a brace-matching scanner over lightly-lexed source (string/char
+literals and comments blanked with offsets preserved), not a line regex —
+`CheckStyle.ps1` cannot do this per-line. Lambda bodies are attributed to the
+lambda, not the enclosing function: a `return` inside a callback is not the
+enclosing function's exit, and counting it produces false positives on every
+file that passes a lambda.
 
-Needs function-level analysis — brace matching over lexed source, not a line
-regex. `scripts/CheckStyle.ps1` is line-based today.
+**Two counts in the old entry were wrong, and the second one mattered.** It
+said 535 functions / 45 `HRESULT`. The real numbers are 611 and 38 — but the
+38 is only right *after* a fix: the first filter matched `\bHRESULT\b` on the
+return type, which silently skips every COM interface method, because
+`IFACEMETHODIMP` and `STDMETHODIMP` expand to `HRESULT STDMETHODCALLTYPE` and
+never spell `HRESULT` in the source. That hid 4 functions including a 5-return
+`MakeDocument`. Any future return-type filter needs the same widening.
+
+Four shapes covered all 38:
+
+| Shape | Conversion |
+|---|---|
+| `if (nothing to do) return S_OK;` | `BAIL_OUT_IF (cond, S_OK)` — 16 sites, the dominant one |
+| `if (bad arg) return E_INVALIDARG;` | `CBREx (cond, E_INVALIDARG)` |
+| `if (FAILED (hr)) { return hr; }` | `CHR (hr)` |
+| cache hit → `return S_OK` | `if (*outX == nullptr) { create }`, or `BAIL_OUT_IF` when the create path is the function tail |
+
+`BAIL_OUT_IF (cond, S_OK)` is the one worth knowing: it is documented in
+`Ehm.h` as "early-out guard, NOT an error check", takes the opposite polarity
+to `CBR`, and is exactly the "nothing to do" return that most of these were.
+
+**A condition that calls anything still has to be hoisted first** (CS0011), so
+`m_vertices.empty()`, `IsCreated()`, `file.good()` and `configPath.empty()`
+each became a named local before the guard could read it.
+
+**The trap in this conversion is C2362.** Replacing `return` with a bail turns
+a straight-line exit into a `goto Error`, and a goto may not jump across the
+initialization of a variable still in scope at the label. Three functions hit
+it: `MakePage` and `MakeDocument` (a `std::lock_guard` between the guards and
+the end) and `PrinterAudioSource::LoadSounds` (a lambda). Fixes, in order of
+preference: put the guarded region in a nested block so the label sits outside
+it, or — where the declaration has no side effect, as with a lambda — move the
+guard *below* the declaration. Bailing out of a nested block still runs the
+destructors, so the lock releases either way.
+
+**Two behavior-preservation calls worth recording.**
+`DxuiRenderTarget::EnsureComposeTarget` had a bad-argument `return E_FAIL` that
+deliberately skipped its `Error:` cleanup, so converting it to `CBR` would have
+started releasing the cached target on a zero-size call (routine when the
+window is minimized). The cleanup is now gated on `recreated`, which is set
+alongside the teardown and so already means "past the guards".
+`WindowCommandManager::HrFromSpoolResult` is a pure mapper with a success
+fast-path, so it just became an `if (ret <= 0)` around the chain — no EHM,
+because there is nothing to bail from.
+
+**Verification.** Debug 2813 / Release 2811, both `Test Run Successful`, counts
+unchanged. `AssemblySession::EmitInstructionBytes` also got the byte-
+differential treatment (throwaway `TEST_CLASS`, FNV-1a-64 over emitted bytes
+plus diagnostic shape, all 15 in-repo `.a65` sources, baseline from `HEAD`
+with only that file reverted): **identical on all 15**. Its change was
+`if (ZeroPageRelative) { ...; return hr; }` followed by an unconditional block
+→ `if / else`, which is equivalent by inspection and now confirmed.
+
+**Still to decide: the 573 non-`HRESULT` cases.** Pure lookup functions are
+clearer with multiple returns — `QwertyToDvorak` is a 256-entry mapping with 71
+`return`s, and single-exit would mean assigning to a variable in every case.
+(That one is really an array, not a switch.) The rule as written is about
+manual flow control that EHM should own; a `switch` that maps input to output
+is not that. Needs a decision on where the line falls before any of it is
+converted.
 
 ### 5. `bool` return naming (tail)
 

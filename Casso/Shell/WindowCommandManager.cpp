@@ -86,18 +86,16 @@ HRESULT WindowCommandManager::HrFromSpoolResult (int ret, const wchar_t * call, 
     HRESULT   hr  = S_OK;
     DWORD     gle = ::GetLastError();   // capture before logging can clobber it
 
-    if (ret > 0)
+    if (ret <= 0)
     {
-        return S_OK;
+        if      (ret == SP_USERABORT)                                    { hr = HRESULT_FROM_WIN32 (ERROR_CANCELLED); }
+        else if (ret == SP_APPABORT)                                     { hr = E_ABORT;                              }
+        else if (ret == SP_OUTOFDISK)                                    { hr = HRESULT_FROM_WIN32 (ERROR_DISK_FULL); }
+        else if (ret == SP_OUTOFMEMORY)                                  { hr = E_OUTOFMEMORY;                        }
+        else if (gle == ERROR_CANCELLED || gle == ERROR_PRINT_CANCELLED) { hr = HRESULT_FROM_WIN32 (ERROR_CANCELLED); }
+        else if (gle != 0)                                               { hr = HRESULT_FROM_WIN32 (gle);             }
+        else                                                             { hr = E_FAIL;                               }
     }
-
-    if      (ret == SP_USERABORT)                                    { hr = HRESULT_FROM_WIN32 (ERROR_CANCELLED); }
-    else if (ret == SP_APPABORT)                                     { hr = E_ABORT;                              }
-    else if (ret == SP_OUTOFDISK)                                    { hr = HRESULT_FROM_WIN32 (ERROR_DISK_FULL); }
-    else if (ret == SP_OUTOFMEMORY)                                  { hr = E_OUTOFMEMORY;                        }
-    else if (gle == ERROR_CANCELLED || gle == ERROR_PRINT_CANCELLED) { hr = HRESULT_FROM_WIN32 (ERROR_CANCELLED); }
-    else if (gle != 0)                                               { hr = HRESULT_FROM_WIN32 (gle);             }
-    else                                                             { hr = E_FAIL;                               }
 
     return hr;
 }

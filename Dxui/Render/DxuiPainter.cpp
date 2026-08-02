@@ -305,10 +305,7 @@ HRESULT DxuiPainter::EnsureVertexBuffer (size_t requiredVerts)
 
 
 
-    if ((m_vertexBuffer != nullptr) && (requiredVerts <= m_vertexBufferCapacity))
-    {
-        return S_OK;
-    }
+    BAIL_OUT_IF ((m_vertexBuffer != nullptr) && (requiredVerts <= m_vertexBufferCapacity), S_OK);
 
     newCap = m_vertexBufferCapacity > 0 ? m_vertexBufferCapacity : kInitialVertexCapacity;
 
@@ -802,16 +799,15 @@ HRESULT DxuiPainter::End (ID3D11RenderTargetView * pRtv)
     float                      blendFactor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
     D3D11_VIEWPORT             vp           = {};
     ID3D11RenderTargetView   * rtvs[1]      = { pRtv };
+    bool                       hasNothingToDraw = false;
 
 
     DXUI_ASSERT_UI_THREAD();
 
     m_betweenBeginEnd = false;
+    hasNothingToDraw  = m_vertices.empty() || (pRtv == nullptr);
 
-    if (m_vertices.empty() || (pRtv == nullptr))
-    {
-        return S_OK;
-    }
+    BAIL_OUT_IF (hasNothingToDraw, S_OK);
 
     hr = EnsureVertexBuffer (m_vertices.size());
     CHRA (hr);

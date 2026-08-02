@@ -203,12 +203,6 @@ void WasapiAudio::Shutdown()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-////////////////////////////////////////////////////////////////////////////////
-//
-//  SubmitFrame
-//
-////////////////////////////////////////////////////////////////////////////////
-
 HRESULT WasapiAudio::SubmitFrame (
     const vector<uint32_t>   & toggleTimestamps,
     uint32_t                        totalCyclesThisSlice,
@@ -233,10 +227,7 @@ HRESULT WasapiAudio::SubmitFrame (
 
 
 
-    if (!m_initialized || m_renderClient == nullptr)
-    {
-        return S_OK;
-    }
+    BAIL_OUT_IF (!m_initialized || m_renderClient == nullptr, S_OK);
 
     // m_pendingSamples is interleaved stereo regardless of the
     // device's channel count -- mono devices downmix at drain time.

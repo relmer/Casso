@@ -501,10 +501,7 @@ HRESULT CrtPostProcess::EnsureSize (int width, int height)
 
     CBRAEx (width > 0 && height > 0, E_INVALIDARG);
 
-    if (width == m_width && height == m_height && m_ppMainTex[0])
-    {
-        return S_OK;
-    }
+    BAIL_OUT_IF (width == m_width && height == m_height && m_ppMainTex[0], S_OK);
 
     // Unbind everything from the pipeline before releasing the old
     // resources. D3D11 retains internal references to bound RTVs and

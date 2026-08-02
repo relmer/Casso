@@ -1078,12 +1078,9 @@ HRESULT DxuiPopupHost::ResizeSwapChain (int widthPx, int heightPx)
     if (widthPx  < 1) { widthPx  = 1; }
     if (heightPx < 1) { heightPx = 1; }
 
-    if (m_backBufferSizePx.cx == (LONG) widthPx &&
-        m_backBufferSizePx.cy == (LONG) heightPx &&
-        m_rtv != nullptr)
-    {
-        return S_OK;
-    }
+    BAIL_OUT_IF (m_backBufferSizePx.cx == (LONG) widthPx &&
+                 m_backBufferSizePx.cy == (LONG) heightPx &&
+                 m_rtv != nullptr, S_OK);
 
     ReleaseBackBufferRtv();
 

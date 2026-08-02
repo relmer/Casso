@@ -294,10 +294,7 @@ HRESULT Dxui3DRenderer::EnsureVertexBuffer (size_t requiredVerts)
     HRESULT             hr   = S_OK;
     D3D11_BUFFER_DESC   desc = {};
 
-    if (requiredVerts <= m_vertexBufferCapacity && m_vertexBuffer != nullptr)
-    {
-        return S_OK;
-    }
+    BAIL_OUT_IF (requiredVerts <= m_vertexBufferCapacity && m_vertexBuffer != nullptr, S_OK);
 
     m_vertexBuffer.Reset();
 

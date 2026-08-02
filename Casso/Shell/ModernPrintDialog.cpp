@@ -79,19 +79,18 @@ public:
     {
         HRESULT  hr = S_OK;
 
-        if (docPackageTarget == nullptr || docPageCollection == nullptr)
-        {
-            return E_INVALIDARG;
-        }
+
+        CBREx (docPackageTarget != nullptr && docPageCollection != nullptr, E_INVALIDARG);
 
         hr = docPackageTarget->GetPackageTarget (ID_PREVIEWPACKAGETARGET_DXGI,
                                                  IID_PPV_ARGS (&m_previewTarget));
-        if (FAILED (hr))
-        {
-            return hr;
-        }
+        CHR (hr);
 
-        return QueryInterface (IID_PPV_ARGS (docPageCollection));
+        hr = QueryInterface (IID_PPV_ARGS (docPageCollection));
+        CHR (hr);
+
+Error:
+        return hr;
     }
 
     IFACEMETHODIMP MakeDocument (IInspectable                * docSettings,
@@ -103,10 +102,8 @@ public:
         ComPtr<ID2D1PrintControl>    control;
         ComPtr<IWICImagingFactory2>  wic;
 
-        if (docPackageTarget == nullptr)
-        {
-            return E_INVALIDARG;
-        }
+
+        CBREx (docPackageTarget != nullptr, E_INVALIDARG);
 
         // Real page geometry from the task options when available; content is
         // laid into the printer's IMAGEABLE rect so a physical device never
@@ -144,56 +141,60 @@ public:
             }
         }
 
-        std::lock_guard<std::mutex>  lock (m_renderLock);
-
-        hr = EnsureDeviceLocked();
-        if (FAILED (hr)) { return hr; }
-
-        hr = CoCreateInstance (CLSID_WICImagingFactory2, nullptr, CLSCTX_INPROC_SERVER,
-                               IID_PPV_ARGS (&wic));
-        if (FAILED (hr)) { return hr; }
-
-        hr = m_d2dDevice->CreatePrintControl (wic.Get(), docPackageTarget, nullptr, &control);
-        if (FAILED (hr))
+        // Scoped so the EHM guard above never jumps across the lock's
+        // initialization; bailing from inside still unlocks on the way out.
         {
-            return hr;
-        }
+            std::lock_guard<std::mutex>  lock (m_renderLock);
 
-        for (size_t pageIx = 0; pageIx < m_pages.size(); pageIx++)
-        {
-            ComPtr<ID2D1CommandList>  list;
-            ComPtr<ID2D1Bitmap1>      bitmap;
+            hr = EnsureDeviceLocked();
+            CHR (hr);
 
-            hr = RenderPageBitmapLocked ((UINT32) pageIx, m_outputDpi, &bitmap);
-            if (FAILED (hr)) { break; }
+            hr = CoCreateInstance (CLSID_WICImagingFactory2, nullptr, CLSCTX_INPROC_SERVER,
+                                   IID_PPV_ARGS (&wic));
+            CHR (hr);
 
-            hr = m_d2dContext->CreateCommandList (&list);
-            if (FAILED (hr)) { break; }
+            // Past this point the print control exists and must be closed
+            // whatever happens, so the page loop breaks with `hr` set rather
+            // than bailing -- the Close below is the only way out.
+            hr = m_d2dDevice->CreatePrintControl (wic.Get(), docPackageTarget, nullptr, &control);
+            CHR (hr);
 
-            m_d2dContext->SetTarget (list.Get());
-            m_d2dContext->BeginDraw();
-            m_d2dContext->Clear (D2D1::ColorF (D2D1::ColorF::White));
-            DrawPageWidthFitInBox (bitmap.Get(), box);
-            hr = m_d2dContext->EndDraw();
-            m_d2dContext->SetTarget (nullptr);
-            if (FAILED (hr)) { break; }
-
-            hr = list->Close();
-            if (FAILED (hr)) { break; }
-
-            hr = control->AddPage (list.Get(), pageSize, nullptr, nullptr, nullptr);
-            if (FAILED (hr))
+            for (size_t pageIx = 0; pageIx < m_pages.size(); pageIx++)
             {
-                break;
+                ComPtr<ID2D1CommandList>  list;
+                ComPtr<ID2D1Bitmap1>      bitmap;
+
+                hr = RenderPageBitmapLocked ((UINT32) pageIx, m_outputDpi, &bitmap);
+                if (FAILED (hr)) { break; }
+
+                hr = m_d2dContext->CreateCommandList (&list);
+                if (FAILED (hr)) { break; }
+
+                m_d2dContext->SetTarget (list.Get());
+                m_d2dContext->BeginDraw();
+                m_d2dContext->Clear (D2D1::ColorF (D2D1::ColorF::White));
+                DrawPageWidthFitInBox (bitmap.Get(), box);
+                hr = m_d2dContext->EndDraw();
+                m_d2dContext->SetTarget (nullptr);
+                if (FAILED (hr)) { break; }
+
+                hr = list->Close();
+                if (FAILED (hr)) { break; }
+
+                hr = control->AddPage (list.Get(), pageSize, nullptr, nullptr, nullptr);
+                if (FAILED (hr)) { break; }
             }
+
+            {
+                HRESULT  hrClose = control->Close();
+
+                if (SUCCEEDED (hr)) { hr = hrClose; }
+            }
+
+            CHR (hr);
         }
 
-        {
-            HRESULT  hrClose = control->Close();
-
-            if (SUCCEEDED (hr)) { hr = hrClose; }
-        }
-
+Error:
         return hr;
     }
 
@@ -215,78 +216,84 @@ public:
 
     IFACEMETHODIMP MakePage (UINT32 desiredJobPage, FLOAT width, FLOAT height) override
     {
-        HRESULT                  hr     = S_OK;
-        UINT32                   jobPage = desiredJobPage;
-        UINT                     pxW    = 0;
-        UINT                     pxH    = 0;
+        HRESULT                  hr            = S_OK;
+        UINT32                   jobPage       = desiredJobPage;
+        UINT                     pxW           = 0;
+        UINT                     pxH           = 0;
         ComPtr<ID3D11Texture2D>  texture;
         ComPtr<IDXGISurface>     surface;
         ComPtr<ID2D1Bitmap1>     target;
         ComPtr<ID2D1Bitmap1>     pageBitmap;
+        bool                     isPageInRange = false;
 
-        if (m_previewTarget == nullptr || width <= 1.0f || height <= 1.0f)
-        {
-            return E_FAIL;
-        }
+
+        CBR (m_previewTarget != nullptr && width > 1.0f && height > 1.0f);
 
         if (jobPage == JOB_PAGE_APPLICATION_DEFINED)
         {
             jobPage = 1;
         }
-        if (jobPage < 1 || jobPage > PageCount())
+
+        isPageInRange = (jobPage >= 1 && jobPage <= PageCount());
+        CBREx (isPageInRange, E_INVALIDARG);
+
+        // Scoped so the EHM guards above never jump across the lock's
+        // initialization; bailing from inside still unlocks on the way out.
         {
-            return E_INVALIDARG;
+            std::lock_guard<std::mutex>  lock (m_renderLock);
+
+            hr = EnsureDeviceLocked();
+            CHR (hr);
+
+            // The preview target composites at 96 DPI: surface pixels == DIPs.
+            pxW = (UINT) (width  + 0.5f);
+            pxH = (UINT) (height + 0.5f);
+
+            {
+                D3D11_TEXTURE2D_DESC  td = {};
+
+                td.Width            = pxW;
+                td.Height           = pxH;
+                td.MipLevels        = 1;
+                td.ArraySize        = 1;
+                td.Format           = DXGI_FORMAT_B8G8R8A8_UNORM;
+                td.SampleDesc.Count = 1;
+                td.Usage            = D3D11_USAGE_DEFAULT;
+                td.BindFlags        = D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE;
+
+                hr = m_d3dDevice->CreateTexture2D (&td, nullptr, &texture);
+            }
+            CHR (hr);
+
+            hr = texture.As (&surface);
+            CHR (hr);
+
+            {
+                D2D1_BITMAP_PROPERTIES1  bp = D2D1::BitmapProperties1 (
+                    D2D1_BITMAP_OPTIONS_TARGET | D2D1_BITMAP_OPTIONS_CANNOT_DRAW,
+                    D2D1::PixelFormat (DXGI_FORMAT_B8G8R8A8_UNORM, D2D1_ALPHA_MODE_PREMULTIPLIED));
+
+                hr = m_d2dContext->CreateBitmapFromDxgiSurface (surface.Get(), &bp, &target);
+            }
+            CHR (hr);
+
+            hr = RenderPageBitmapLocked (jobPage - 1, s_kPreviewDpi, &pageBitmap);
+            CHR (hr);
+
+            m_d2dContext->SetTarget (target.Get());
+            m_d2dContext->BeginDraw();
+            m_d2dContext->Clear (D2D1::ColorF (D2D1::ColorF::White));
+            DrawPageWidthFit (pageBitmap.Get(), width, height);
+            hr = m_d2dContext->EndDraw();
+            m_d2dContext->SetTarget (nullptr);
+            CHR (hr);
+
+            hr = m_previewTarget->DrawPage (jobPage, surface.Get(), 96.0f, 96.0f);
+            CHR (hr);
         }
 
-        std::lock_guard<std::mutex>  lock (m_renderLock);
-
-        hr = EnsureDeviceLocked();
-        if (FAILED (hr)) { return hr; }
-
-        // The preview target composites at 96 DPI: surface pixels == DIPs.
-        pxW = (UINT) (width  + 0.5f);
-        pxH = (UINT) (height + 0.5f);
-
-        {
-            D3D11_TEXTURE2D_DESC  td = {};
-
-            td.Width            = pxW;
-            td.Height           = pxH;
-            td.MipLevels        = 1;
-            td.ArraySize        = 1;
-            td.Format           = DXGI_FORMAT_B8G8R8A8_UNORM;
-            td.SampleDesc.Count = 1;
-            td.Usage            = D3D11_USAGE_DEFAULT;
-            td.BindFlags        = D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE;
-
-            hr = m_d3dDevice->CreateTexture2D (&td, nullptr, &texture);
-            if (FAILED (hr)) { return hr; }
-        }
-
-        hr = texture.As (&surface);
-        if (FAILED (hr)) { return hr; }
-
-        {
-            D2D1_BITMAP_PROPERTIES1  bp = D2D1::BitmapProperties1 (
-                D2D1_BITMAP_OPTIONS_TARGET | D2D1_BITMAP_OPTIONS_CANNOT_DRAW,
-                D2D1::PixelFormat (DXGI_FORMAT_B8G8R8A8_UNORM, D2D1_ALPHA_MODE_PREMULTIPLIED));
-
-            hr = m_d2dContext->CreateBitmapFromDxgiSurface (surface.Get(), &bp, &target);
-            if (FAILED (hr)) { return hr; }
-        }
-
-        hr = RenderPageBitmapLocked (jobPage - 1, s_kPreviewDpi, &pageBitmap);
-        if (FAILED (hr)) { return hr; }
-
-        m_d2dContext->SetTarget (target.Get());
-        m_d2dContext->BeginDraw();
-        m_d2dContext->Clear (D2D1::ColorF (D2D1::ColorF::White));
-        DrawPageWidthFit (pageBitmap.Get(), width, height);
-        hr = m_d2dContext->EndDraw();
-        m_d2dContext->SetTarget (nullptr);
-        if (FAILED (hr)) { return hr; }
-
-        return m_previewTarget->DrawPage (jobPage, surface.Get(), 96.0f, 96.0f);
+Error:
+        return hr;
     }
 
 private:
@@ -299,10 +306,8 @@ private:
         ComPtr<ID2D1Factory1> factory;
         ComPtr<ID2D1Device>   device;
 
-        if (m_d2dContext != nullptr)
-        {
-            return S_OK;
-        }
+
+        BAIL_OUT_IF (m_d2dContext != nullptr, S_OK);
 
         hr = D3D11CreateDevice (nullptr, D3D_DRIVER_TYPE_HARDWARE, nullptr,
                                 D3D11_CREATE_DEVICE_BGRA_SUPPORT,
@@ -313,39 +318,47 @@ private:
                                     D3D11_CREATE_DEVICE_BGRA_SUPPORT,
                                     nullptr, 0, D3D11_SDK_VERSION, &m_d3dDevice, nullptr, nullptr);
         }
-        if (FAILED (hr)) { return hr; }
+        CHR (hr);
 
         hr = m_d3dDevice.As (&dxgi);
-        if (FAILED (hr)) { return hr; }
+        CHR (hr);
 
         hr = D2D1CreateFactory (D2D1_FACTORY_TYPE_MULTI_THREADED,
                                 __uuidof (ID2D1Factory1), nullptr, (void **) factory.GetAddressOf());
-        if (FAILED (hr)) { return hr; }
+        CHR (hr);
 
         hr = factory->CreateDevice (dxgi.Get(), &device);
-        if (FAILED (hr)) { return hr; }
+        CHR (hr);
 
         m_d2dDevice = device;
 
-        return device->CreateDeviceContext (D2D1_DEVICE_CONTEXT_OPTIONS_NONE, &m_d2dContext);
+        hr = device->CreateDeviceContext (D2D1_DEVICE_CONTEXT_OPTIONS_NONE, &m_d2dContext);
+        CHR (hr);
+
+Error:
+        return hr;
     }
 
     // Render one paginated page span through PaperRenderer at `dpi` and wrap
     // it as a D2D bitmap (RGBA -> premultiplied BGRA; pages are opaque).
     HRESULT RenderPageBitmapLocked (UINT32 pageIx, int dpi, ID2D1Bitmap1 ** out)
     {
-        HRESULT                  hr = S_OK;
+        HRESULT                  hr        = S_OK;
         PaperRenderer            renderer;
         PaperRenderer::Options   opt;
         RgbaImage                img;
         vector<Byte>             bgra;
+        bool                     hasPixels = false;
+
 
         opt.outputDpi = dpi;
         opt.style     = m_style;
 
         hr = renderer.Render (m_raster, m_pages[pageIx].firstRow, m_pages[pageIx].lastRow, opt, img);
-        if (FAILED (hr)) { return hr; }
-        if (img.width <= 0 || img.height <= 0) { return E_FAIL; }
+        CHR (hr);
+
+        hasPixels = (img.width > 0 && img.height > 0);
+        CBR (hasPixels);
 
         bgra.resize ((size_t) img.width * img.height * 4);
         for (size_t i = 0; i < (size_t) img.width * img.height; i++)
@@ -365,7 +378,9 @@ private:
             hr = m_d2dContext->CreateBitmap (D2D1::SizeU ((UINT32) img.width, (UINT32) img.height),
                                              bgra.data(), (UINT32) img.width * 4, &bp, out);
         }
+        CHR (hr);
 
+Error:
         return hr;
     }
 

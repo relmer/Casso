@@ -73,10 +73,7 @@ HRESULT DxuiRenderTarget::BindTextTarget (bool offscreen)
     ComPtr<IDXGISurface>  surface;
 
 
-    if (m_textRenderer == nullptr)
-    {
-        return S_OK;
-    }
+    BAIL_OUT_IF (m_textRenderer == nullptr, S_OK);
 
     dpi = TargetDpi();
 
@@ -99,10 +96,7 @@ HRESULT DxuiRenderTarget::BindTextTarget (bool offscreen)
     else
     {
         surface = BackBufferSurface();
-        if (surface == nullptr)
-        {
-            return S_OK;
-        }
+        BAIL_OUT_IF (surface == nullptr, S_OK);
 
         hr = m_textRenderer->BindBackBuffer (surface.Get(), dpi, dpi);
         CHRA (hr);
@@ -154,16 +148,10 @@ HRESULT DxuiRenderTarget::EnsureComposeTarget (int widthPx, int heightPx, bool &
 
     recreated = false;
 
-    if (m_device == nullptr || widthPx <= 0 || heightPx <= 0)
-    {
-        return E_FAIL;
-    }
+    CBR (m_device != nullptr && widthPx > 0 && heightPx > 0);
 
-    if (m_contentTex != nullptr &&
-        m_contentWidthPx == widthPx && m_contentHeightPx == heightPx)
-    {
-        return S_OK;
-    }
+    BAIL_OUT_IF (m_contentTex != nullptr &&
+                 m_contentWidthPx == widthPx && m_contentHeightPx == heightPx, S_OK);
 
     ReleaseComposeTarget();
     recreated = true;
@@ -190,7 +178,11 @@ HRESULT DxuiRenderTarget::EnsureComposeTarget (int widthPx, int heightPx, bool &
     m_contentHeightPx = heightPx;
 
 Error:
-    if (FAILED (hr))
+    // `recreated` is also the tell for "we are past the guards": it is set
+    // alongside the teardown above, so a half-built target is the only thing
+    // this can be cleaning up. A precondition bail leaves the cached target
+    // alone, which is what the early `return E_FAIL` used to do.
+    if (recreated && FAILED (hr))
     {
         ReleaseComposeTarget();
     }

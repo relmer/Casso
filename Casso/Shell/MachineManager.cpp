@@ -817,25 +817,30 @@ void MachineManager::WireLanguageCard()
 
 HRESULT MachineManager::ReadRomFileBytes (const std::string & path, std::vector<Byte> & out)
 {
+    HRESULT         hr       = S_OK;
     std::ifstream   file (path, std::ios::binary | std::ios::ate);
+    std::streamoff  size     = 0;
+    bool            isOpen   = false;
+    bool            hasBytes = false;
+    bool            wasRead  = false;
 
-    if (!file.good())
-    {
-        return E_FAIL;
-    }
 
-    std::streamoff  size = file.tellg();
+    isOpen = file.good();
+    CBR (isOpen);
 
-    if (size <= 0)
-    {
-        return E_FAIL;
-    }
+    size     = file.tellg();
+    hasBytes = (size > 0);
+    CBR (hasBytes);
 
     file.seekg (0, std::ios::beg);
     out.resize (static_cast<size_t> (size));
     file.read (reinterpret_cast<char *> (out.data()), size);
 
-    return file.good() ? S_OK : E_FAIL;
+    wasRead = file.good();
+    CBR (wasRead);
+
+Error:
+    return hr;
 }
 
 

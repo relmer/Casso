@@ -251,14 +251,17 @@ Error:
 
 HRESULT JsonParser::ParseNumber (JsonValue & outValue)
 {
-    HRESULT hr = S_OK;
+    HRESULT  hr    = S_OK;
+    size_t   start = m_pos;
+    bool     isHex = false;
+    double   value = 0.0;
 
-    size_t start = m_pos;
 
-    // Check for 0x hex prefix
-    if (m_pos + 2 < m_input.size() &&
-        m_input[m_pos] == '0' &&
-        (m_input[m_pos + 1] == 'x' || m_input[m_pos + 1] == 'X'))
+    isHex = m_pos + 2 < m_input.size() &&
+            m_input[m_pos] == '0' &&
+            (m_input[m_pos + 1] == 'x' || m_input[m_pos + 1] == 'X');
+
+    if (isHex)
     {
         Advance();  // '0'
         Advance();  // 'x'
@@ -268,38 +271,14 @@ HRESULT JsonParser::ParseNumber (JsonValue & outValue)
             Advance();
         }
 
-        string hexStr = m_input.substr (start + 2, m_pos - start - 2);
-        unsigned long value = strtoul (hexStr.c_str(), nullptr, 16);
-        outValue = JsonValue (static_cast<double> (value));
-        return S_OK;
+        string  hexStr = m_input.substr (start + 2, m_pos - start - 2);
+
+        value = static_cast<double> (strtoul (hexStr.c_str(), nullptr, 16));
     }
-
-    // Standard JSON number
-    if (Peek() == '-')
+    else
     {
-        Advance();
-    }
-
-    while (!AtEnd() && isdigit (static_cast<unsigned char> (Peek())))
-    {
-        Advance();
-    }
-
-    if (!AtEnd() && Peek() == '.')
-    {
-        Advance();
-
-        while (!AtEnd() && isdigit (static_cast<unsigned char> (Peek())))
-        {
-            Advance();
-        }
-    }
-
-    if (!AtEnd() && (Peek() == 'e' || Peek() == 'E'))
-    {
-        Advance();
-
-        if (!AtEnd() && (Peek() == '+' || Peek() == '-'))
+        // Standard JSON number
+        if (Peek() == '-')
         {
             Advance();
         }
@@ -308,10 +287,37 @@ HRESULT JsonParser::ParseNumber (JsonValue & outValue)
         {
             Advance();
         }
+
+        if (!AtEnd() && Peek() == '.')
+        {
+            Advance();
+
+            while (!AtEnd() && isdigit (static_cast<unsigned char> (Peek())))
+            {
+                Advance();
+            }
+        }
+
+        if (!AtEnd() && (Peek() == 'e' || Peek() == 'E'))
+        {
+            Advance();
+
+            if (!AtEnd() && (Peek() == '+' || Peek() == '-'))
+            {
+                Advance();
+            }
+
+            while (!AtEnd() && isdigit (static_cast<unsigned char> (Peek())))
+            {
+                Advance();
+            }
+        }
+
+        string  numStr = m_input.substr (start, m_pos - start);
+
+        value = strtod (numStr.c_str(), nullptr);
     }
 
-    string numStr = m_input.substr (start, m_pos - start);
-    double value = strtod (numStr.c_str(), nullptr);
     outValue = JsonValue (value);
 
     return hr;
@@ -335,6 +341,7 @@ HRESULT JsonParser::ParseObject (JsonValue & outValue)
     bool    isQuote   = false;
     bool    hasColon  = false;
     bool    isComma   = false;
+    bool    isEmpty   = false;
 
 
 
@@ -348,14 +355,14 @@ HRESULT JsonParser::ParseObject (JsonValue & outValue)
 
         SkipWhitespace();
 
-        if (!AtEnd() && Peek() == '}')
+        isEmpty = !AtEnd() && Peek() == '}';
+
+        if (isEmpty)
         {
             Advance();
-            outValue = JsonValue (move (entries));
-            return S_OK;
         }
 
-        while (true)
+        while (!isEmpty)
         {
             SkipWhitespace();
 
@@ -422,6 +429,7 @@ HRESULT JsonParser::ParseArray (JsonValue & outValue)
     bool    isBracket = false;
     bool    hasInput  = false;
     bool    isComma   = false;
+    bool    isEmpty   = false;
 
 
 
@@ -435,14 +443,14 @@ HRESULT JsonParser::ParseArray (JsonValue & outValue)
 
         SkipWhitespace();
 
-        if (!AtEnd() && Peek() == ']')
+        isEmpty = !AtEnd() && Peek() == ']';
+
+        if (isEmpty)
         {
             Advance();
-            outValue = JsonValue (move (elements));
-            return S_OK;
         }
 
-        while (true)
+        while (!isEmpty)
         {
             JsonValue val;
             hr = ParseValue (val);

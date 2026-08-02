@@ -17,15 +17,14 @@
 
 HRESULT MockAudioSink::PushSamples (const float * samples, size_t count)
 {
+    HRESULT     hr = S_OK;
     size_t      i;
     float       s;
     bool        prevSign;
     bool        curSign;
 
-    if (samples == nullptr && count != 0)
-    {
-        return E_INVALIDARG;
-    }
+
+    CBREx (samples != nullptr || count == 0, E_INVALIDARG);
 
     for (i = 0; i < count; i++)
     {
@@ -47,7 +46,8 @@ HRESULT MockAudioSink::PushSamples (const float * samples, size_t count)
         m_sampleCount += 1;
     }
 
-    return S_OK;
+Error:
+    return hr;
 }
 
 

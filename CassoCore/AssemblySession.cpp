@@ -4432,48 +4432,51 @@ HRESULT AssemblySession::EmitInstructionBytes (const LineInfo & info, int32_t va
         // operand, evaluated here against the fully-populated pass-2 symbol table.
         // Always emit exactly three bytes so the image stays aligned with the size
         // reserved in pass 1, even when an operand fails to resolve.
-        OpcodeEntry entry      = {};
-        Byte        offsetByte = 0;
+        OpcodeEntry entry       = {};
+        Byte        offsetByte  = 0;
+        bool        hasEncoding = false;
 
-        if (!m_opcodeTable.Lookup (info.parsed.mnemonic, mode, entry))
+        hasEncoding = m_opcodeTable.Lookup (info.parsed.mnemonic, mode, entry);
+
+        if (!hasEncoding)
         {
             RecordError (info.parsed.lineNumber, "Cannot encode: " + info.parsed.mnemonic);
-            return hr;
-        }
-
-        ExprResult er = ExpressionEvaluator::Evaluate (info.classified.secondExpression, m_pass2Ctx);
-
-        if (!er.success)
-        {
-            RecordError (info.parsed.lineNumber,
-                "Undefined symbol in: " + info.classified.secondExpression);
         }
         else
         {
-            int offset = er.value - (int) (info.pc + 3);
+            ExprResult er = ExpressionEvaluator::Evaluate (info.classified.secondExpression, m_pass2Ctx);
 
-            if (offset < -128 || offset > 127)
+            if (!er.success)
             {
-                RecordError (info.parsed.lineNumber, "Branch target out of range");
+                RecordError (info.parsed.lineNumber,
+                    "Undefined symbol in: " + info.classified.secondExpression);
             }
-
-            offsetByte = (Byte) (offset & 0xFF);
-
-            for (const auto & sym : m_symbols)
+            else
             {
-                if (info.classified.secondExpression.find (sym.first) != std::string::npos)
+                int offset = er.value - (int) (info.pc + 3);
+
+                if (offset < -128 || offset > 127)
                 {
-                    m_referencedLabels[sym.first] = info.parsed.lineNumber;
+                    RecordError (info.parsed.lineNumber, "Branch target out of range");
+                }
+
+                offsetByte = (Byte) (offset & 0xFF);
+
+                for (const auto & sym : m_symbols)
+                {
+                    if (info.classified.secondExpression.find (sym.first) != std::string::npos)
+                    {
+                        m_referencedLabels[sym.first] = info.parsed.lineNumber;
+                    }
                 }
             }
+
+            EmitByte (entry.opcode, emitPC);
+            EmitByte ((Byte) (value & 0xFF), emitPC);   // zero-page address
+            EmitByte (offsetByte, emitPC);              // relative branch offset
         }
-
-        EmitByte (entry.opcode, emitPC);
-        EmitByte ((Byte) (value & 0xFF), emitPC);   // zero-page address
-        EmitByte (offsetByte, emitPC);              // relative branch offset
-        return hr;
     }
-
+    else
     {
         OpcodeEntry entry = {};
 

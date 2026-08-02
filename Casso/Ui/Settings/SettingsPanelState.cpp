@@ -648,19 +648,18 @@ HRESULT SettingsPanelState::ExtractUiPrefs (
     const JsonValue *   wpArr          = nullptr;
     size_t              i              = 0;
     JsonType            mergedRootType = JsonType::Null;
+    bool                hasUiPrefs     = false;
 
 
     mergedRootType = mergedJson.GetType();
     CBR (mergedRootType == JsonType::Object);
 
-    outPrefs = SettingsUiPrefs {};
+    outPrefs   = SettingsUiPrefs {};
+    hasUiPrefs = mergedJson.HasObject (kpszUiPrefsKey, uiObj);
 
-    hr = mergedJson.GetObject (kpszUiPrefsKey, uiObj);
-    if (FAILED (hr) || uiObj == nullptr)
-    {
-        // No $cassoUiPrefs in the file -- struct defaults stand.
-        return S_OK;
-    }
+    // No $cassoUiPrefs in the file -- struct defaults stand.
+    BAIL_OUT_IF (!hasUiPrefs, S_OK);
+
     _Analysis_assume_ (uiObj != nullptr);
 
     outPrefs.speedMode = SpeedFromString (

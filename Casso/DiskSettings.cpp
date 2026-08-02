@@ -34,6 +34,8 @@ HRESULT DiskSettings::LoadMachineDefaultJson (const std::wstring  & machineName,
     std::string           jsonText;
     JsonParseError        parseErr;
     HRESULT               hr            = S_OK;
+    bool                  wasFound      = false;
+    bool                  isOpen        = false;
 
 
     searchPaths   = PathResolver::BuildSearchPaths (PathResolver::GetExecutableDirectory(),
@@ -41,21 +43,22 @@ HRESULT DiskSettings::LoadMachineDefaultJson (const std::wstring  & machineName,
     configRelPath = fs::path ("Machines") / fs::path (machineName).string()
                                           / (fs::path (machineName).string() + ".json");
     configPath    = PathResolver::FindFile (searchPaths, configRelPath);
+    wasFound      = !configPath.empty();
 
-    if (configPath.empty())
-    {
-        return HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND);
-    }
+    CBREx (wasFound, HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND));
 
     configFile.open (configPath);
-    if (!configFile.good())
-    {
-        return HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND);
-    }
+    isOpen = configFile.good();
+
+    CBREx (isOpen, HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND));
 
     ss << configFile.rdbuf();
     jsonText = ss.str();
+
     hr = JsonParser::Parse (jsonText, outDefault, parseErr);
+    CHR (hr);
+
+Error:
     return hr;
 }
 

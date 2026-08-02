@@ -192,20 +192,21 @@ void DxuiDragDropTarget::Shutdown()
 
 STDMETHODIMP DxuiDragDropTarget::QueryInterface (REFIID riid, void ** ppv)
 {
-    if (ppv == nullptr)
-    {
-        return E_POINTER;
-    }
+    HRESULT  hr           = S_OK;
+    bool     isSupported  = false;
 
-    if (riid == IID_IUnknown || riid == IID_IDropTarget)
-    {
-        *ppv = static_cast<IDropTarget *> (this);
-        AddRef();
-        return S_OK;
-    }
 
-    *ppv = nullptr;
-    return E_NOINTERFACE;
+    CBREx (ppv != nullptr, E_POINTER);
+
+    isSupported = (riid == IID_IUnknown || riid == IID_IDropTarget);
+    *ppv        = isSupported ? static_cast<IDropTarget *> (this) : nullptr;
+
+    CBREx (isSupported, E_NOINTERFACE);
+
+    AddRef();
+
+Error:
+    return hr;
 }
 
 
@@ -342,19 +343,19 @@ STDMETHODIMP DxuiDragDropTarget::DragOver (
     POINTL    pt,
     DWORD   * pdwEffect)
 {
-    int  tag = -1;
+    HRESULT  hr  = S_OK;
+    int      tag = -1;
 
 
 
-    if (pdwEffect == nullptr)
-    {
-        return E_POINTER;
-    }
+    CBREx (pdwEffect != nullptr, E_POINTER);
 
-    tag = PickAtScreen (pt);
+    tag          = PickAtScreen (pt);
     m_lastHitTag = tag;
     *pdwEffect   = (m_fDragHasSupportedFile && tag >= 0) ? DROPEFFECT_COPY : DROPEFFECT_NONE;
-    return S_OK;
+
+Error:
+    return hr;
 }
 
 

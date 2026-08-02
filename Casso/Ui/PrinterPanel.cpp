@@ -222,16 +222,16 @@ HRESULT PrinterPanel::Create (
     ID3D11DeviceContext  * context,
     const CassoTheme     * theme)
 {
-    HRESULT                    hr = S_OK;
+    HRESULT                    hr        = S_OK;
     DxuiWindow::CreateParams   params;
+    bool                       isCreated = false;
 
     UNREFERENCED_PARAMETER (device);
     UNREFERENCED_PARAMETER (context);
 
-    if (IsCreated())
-    {
-        return S_OK;
-    }
+    isCreated = IsCreated();
+
+    BAIL_OUT_IF (isCreated, S_OK);
 
     m_theme = theme;
 
@@ -412,10 +412,13 @@ void PrinterPanel::SetTheme (const CassoTheme * theme)
 
 HRESULT PrinterPanel::RenderFrame()
 {
-    if (!IsCreated())
-    {
-        return S_OK;
-    }
+    HRESULT  hr        = S_OK;
+    bool     isCreated = false;
+
+
+    isCreated = IsCreated();
+
+    BAIL_OUT_IF (!isCreated, S_OK);
 
     m_tooltip.Tick (NowMs());
 
@@ -427,7 +430,9 @@ HRESULT PrinterPanel::RenderFrame()
     SyncTransform();
 
     Invalidate();
-    return S_OK;
+
+Error:
+    return hr;
 }
 
 

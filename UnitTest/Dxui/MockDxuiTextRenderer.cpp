@@ -161,10 +161,8 @@ HRESULT MockDxuiTextRenderer::MeasureString (
     {
         outWidthDip  = 0.0f;
         outHeightDip = 0.0f;
-        return S_OK;
     }
-
-    if (it != m_cannedMetrics.end())
+    else if (it != m_cannedMetrics.end())
     {
         outWidthDip  = (float) it->second.cx;
         outHeightDip = (float) it->second.cy;

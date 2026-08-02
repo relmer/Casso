@@ -144,24 +144,34 @@ Error:
 
 HRESULT ThemeManager::Activate (const std::string & themeName)
 {
+    HRESULT              hr    = S_OK;
+    const LoadedTheme *  match = nullptr;
+
+
     for (const LoadedTheme & t : m_available)
     {
         if (t.name == themeName)
         {
-            m_activeName      = t.name;
-            m_activeFamilyId  = t.familyId;
-            m_activeVariantId = t.variantId;
-            // Apply any per-machine overrides for the currently-tracked
-            // machine. With no machine set this is a no-op copy.
-            {
-                LoadedTheme  resolved = t.ResolveForMachine (m_activeMachine);
-                NotifyListeners (resolved);
-            }
-            return S_OK;
+            match = &t;
+            break;
         }
     }
 
-    return HRESULT_FROM_WIN32 (ERROR_NOT_FOUND);
+    CBREx (match != nullptr, HRESULT_FROM_WIN32 (ERROR_NOT_FOUND));
+
+    m_activeName      = match->name;
+    m_activeFamilyId  = match->familyId;
+    m_activeVariantId = match->variantId;
+
+    // Apply any per-machine overrides for the currently-tracked
+    // machine. With no machine set this is a no-op copy.
+    {
+        LoadedTheme  resolved = match->ResolveForMachine (m_activeMachine);
+        NotifyListeners (resolved);
+    }
+
+Error:
+    return hr;
 }
 
 
@@ -178,15 +188,26 @@ HRESULT ThemeManager::ActivateByFamilyVariant (
     const std::string & familyId,
     const std::string & variantId)
 {
+    HRESULT              hr    = S_OK;
+    const LoadedTheme *  match = nullptr;
+
+
     for (const LoadedTheme & t : m_available)
     {
         if (t.familyId == familyId && t.variantId == variantId)
         {
-            return Activate (t.name);
+            match = &t;
+            break;
         }
     }
 
-    return HRESULT_FROM_WIN32 (ERROR_NOT_FOUND);
+    CBREx (match != nullptr, HRESULT_FROM_WIN32 (ERROR_NOT_FOUND));
+
+    hr = Activate (match->name);
+    CHR (hr);
+
+Error:
+    return hr;
 }
 
 

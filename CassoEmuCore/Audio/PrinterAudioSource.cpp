@@ -163,14 +163,11 @@ HRESULT PrinterAudioSource::LoadSounds (const wchar_t * dir, uint32_t targetSamp
     HRESULT  hr        = S_OK;
     bool     mfStarted = false;
 
-    if (dir == nullptr || targetSampleRate == 0)
-    {
-        return E_INVALIDARG;
-    }
-
     // Decode is best-effort per file: on failure the slot stays empty and that
     // sound is simply silent, so a partial asset set never faults playback.
-    // Declared before the first CHR so its goto cannot skip the initialization.
+    // Declared before the first bail so no goto skips the initialization --
+    // which is also why the argument guard below sits after it rather than
+    // first; declaring the lambda has no side effect to guard against.
     auto  decode = [&] (const wchar_t * name, vector<float> & dst)
     {
         wstring  path     = wstring (dir) + L"\\" + name;
@@ -181,6 +178,8 @@ HRESULT PrinterAudioSource::LoadSounds (const wchar_t * dir, uint32_t targetSamp
             dst.clear();
         }
     };
+
+    CBREx (dir != nullptr && targetSampleRate != 0, E_INVALIDARG);
 
     hr = MFStartup (MF_VERSION, MFSTARTUP_LITE);
     CHR (hr);

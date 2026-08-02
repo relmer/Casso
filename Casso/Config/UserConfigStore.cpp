@@ -802,6 +802,7 @@ HRESULT UserConfigStore::Load (
     bool             fNeedMigrate  = false;
     bool             fRewritten    = false;
     bool             fHasLegacyKey = false;
+    bool             hasUserPrefs  = false;
     auto             found         = m_machinePrefs.find (machineName);
 
 
@@ -831,11 +832,15 @@ HRESULT UserConfigStore::Load (
         found = m_machinePrefs.find (machineName);
     }
 
-    if (found == m_machinePrefs.end())
+    hasUserPrefs = (found != m_machinePrefs.end());
+
+    if (!hasUserPrefs)
     {
+        // Nothing saved for this machine, so the defaults are the answer.
         outMerged = defaultJson;
-        return S_OK;
     }
+
+    BAIL_OUT_IF (!hasUserPrefs, S_OK);
 
     userJson = found->second;
     defaultVer = ExtractVersion (defaultJson);
