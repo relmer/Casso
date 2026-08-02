@@ -20,18 +20,24 @@ int  SettingsPanelState::FindKey (
     const std::vector<std::pair<std::string, JsonValue>> & entries,
     const std::string                                    & key)
 {
-    int  i = 0;
-    for (i = 0; i < (int) entries.size(); ++i)
+    int  i     = 0;
+    int  found = -1;
+
+
+    for (i = 0; i < (int) entries.size() && found < 0; ++i)
     {
         if (entries[(size_t) i].first == key)
         {
-            return i;
+            found = i;
         }
     }
-    return -1;
+
+    return found;
 }
 
 
+// The four Get*Opt helpers share one contract: a failed read restores the
+// fallback, because the getter may have written to `out` before failing.
 bool  SettingsPanelState::GetBoolOpt (
     const JsonValue   & obj,
     const std::string & key,
@@ -39,10 +45,13 @@ bool  SettingsPanelState::GetBoolOpt (
 {
     bool      out = fallback;
     HRESULT   hr  = obj.GetBool (key, out);
+
+
     if (FAILED (hr))
     {
-        return fallback;
+        out = fallback;
     }
+
     return out;
 }
 
@@ -54,10 +63,13 @@ std::string  SettingsPanelState::GetStringOpt (
 {
     std::string  out = fallback;
     HRESULT      hr  = obj.GetString (key, out);
+
+
     if (FAILED (hr))
     {
-        return fallback;
+        out = fallback;
     }
+
     return out;
 }
 
@@ -69,10 +81,13 @@ int  SettingsPanelState::GetIntOpt (
 {
     int      out = fallback;
     HRESULT  hr  = obj.GetInt (key, out);
+
+
     if (FAILED (hr))
     {
-        return fallback;
+        out = fallback;
     }
+
     return out;
 }
 
@@ -84,10 +99,13 @@ double  SettingsPanelState::GetNumberOpt (
 {
     double   out = fallback;
     HRESULT  hr  = obj.GetNumber (key, out);
+
+
     if (FAILED (hr))
     {
-        return fallback;
+        out = fallback;
     }
+
     return out;
 }
 
@@ -96,22 +114,31 @@ CapabilityFlag  SettingsPanelState::ParseCapability (
     const std::string & str,
     CapabilityFlag      fallback)
 {
-    if (str == "optional")        return CapabilityFlag::Optional;
-    if (str == "required")        return CapabilityFlag::Required;
-    if (str == "platform-locked") return CapabilityFlag::PlatformLocked;
-    return fallback;
+    CapabilityFlag  flag = fallback;
+
+
+    if      (str == "optional")        { flag = CapabilityFlag::Optional;       }
+    else if (str == "required")        { flag = CapabilityFlag::Required;       }
+    else if (str == "platform-locked") { flag = CapabilityFlag::PlatformLocked; }
+
+    return flag;
 }
 
 
 [[maybe_unused]] const char *  CapabilityToString (CapabilityFlag c)
 {
+    // Also the answer for a value outside the enum.
+    const char *  text = "optional";
+
+
     switch (c)
     {
-        case CapabilityFlag::Optional:       return "optional";
-        case CapabilityFlag::Required:       return "required";
-        case CapabilityFlag::PlatformLocked: return "platform-locked";
+        case CapabilityFlag::Optional:       text = "optional";        break;
+        case CapabilityFlag::Required:       text = "required";        break;
+        case CapabilityFlag::PlatformLocked: text = "platform-locked"; break;
     }
-    return "optional";
+
+    return text;
 }
 
 
@@ -126,13 +153,18 @@ CapabilityFlag  SettingsPanelState::ParseCapability (
 
 const char *  SettingsPanelState::SpeedToString (SettingsSpeedMode s)
 {
+    // Also the answer for a value outside the enum.
+    const char *  text = "authentic";
+
+
     switch (s)
     {
-        case SettingsSpeedMode::Authentic: return "authentic";
-        case SettingsSpeedMode::Double:    return "double";
-        case SettingsSpeedMode::Maximum:   return "maximum";
+        case SettingsSpeedMode::Authentic: text = "authentic"; break;
+        case SettingsSpeedMode::Double:    text = "double";    break;
+        case SettingsSpeedMode::Maximum:   text = "maximum";   break;
     }
-    return "authentic";
+
+    return text;
 }
 
 
@@ -140,10 +172,14 @@ SettingsSpeedMode  SettingsPanelState::SpeedFromString (
     const std::string & s,
     SettingsSpeedMode   fallback)
 {
-    if (s == "authentic") return SettingsSpeedMode::Authentic;
-    if (s == "double")    return SettingsSpeedMode::Double;
-    if (s == "maximum")   return SettingsSpeedMode::Maximum;
-    return fallback;
+    SettingsSpeedMode  mode = fallback;
+
+
+    if      (s == "authentic") { mode = SettingsSpeedMode::Authentic; }
+    else if (s == "double")    { mode = SettingsSpeedMode::Double;    }
+    else if (s == "maximum")   { mode = SettingsSpeedMode::Maximum;   }
+
+    return mode;
 }
 
 
@@ -158,14 +194,19 @@ SettingsSpeedMode  SettingsPanelState::SpeedFromString (
 
 const char *  SettingsPanelState::ColorToString (SettingsColorMode c)
 {
+    // Also the answer for a value outside the enum.
+    const char *  text = "color";
+
+
     switch (c)
     {
-        case SettingsColorMode::Color: return "color";
-        case SettingsColorMode::Green: return "green";
-        case SettingsColorMode::Amber: return "amber";
-        case SettingsColorMode::White: return "white";
+        case SettingsColorMode::Color: text = "color"; break;
+        case SettingsColorMode::Green: text = "green"; break;
+        case SettingsColorMode::Amber: text = "amber"; break;
+        case SettingsColorMode::White: text = "white"; break;
     }
-    return "color";
+
+    return text;
 }
 
 
@@ -173,11 +214,15 @@ SettingsColorMode  SettingsPanelState::ColorFromString (
     const std::string & s,
     SettingsColorMode   fallback)
 {
-    if (s == "color") return SettingsColorMode::Color;
-    if (s == "green") return SettingsColorMode::Green;
-    if (s == "amber") return SettingsColorMode::Amber;
-    if (s == "white") return SettingsColorMode::White;
-    return fallback;
+    SettingsColorMode  mode = fallback;
+
+
+    if      (s == "color") { mode = SettingsColorMode::Color; }
+    else if (s == "green") { mode = SettingsColorMode::Green; }
+    else if (s == "amber") { mode = SettingsColorMode::Amber; }
+    else if (s == "white") { mode = SettingsColorMode::White; }
+
+    return mode;
 }
 
 
@@ -192,12 +237,17 @@ SettingsColorMode  SettingsPanelState::ColorFromString (
 
 const char *  SettingsPanelState::WriteModeToString (SettingsWriteMode mode)
 {
+    // Also the answer for a value outside the enum.
+    const char *  text = "buffer-and-flush";
+
+
     switch (mode)
     {
-        case SettingsWriteMode::BufferAndFlush: return "buffer-and-flush";
-        case SettingsWriteMode::CopyOnWrite:    return "copy-on-write";
+        case SettingsWriteMode::BufferAndFlush: text = "buffer-and-flush"; break;
+        case SettingsWriteMode::CopyOnWrite:    text = "copy-on-write";    break;
     }
-    return "buffer-and-flush";
+
+    return text;
 }
 
 
@@ -205,9 +255,13 @@ SettingsWriteMode  SettingsPanelState::WriteModeFromString (
     const std::string & s,
     SettingsWriteMode  fallback)
 {
-    if (s == "buffer-and-flush") return SettingsWriteMode::BufferAndFlush;
-    if (s == "copy-on-write")    return SettingsWriteMode::CopyOnWrite;
-    return fallback;
+    SettingsWriteMode  mode = fallback;
+
+
+    if      (s == "buffer-and-flush") { mode = SettingsWriteMode::BufferAndFlush; }
+    else if (s == "copy-on-write")    { mode = SettingsWriteMode::CopyOnWrite;    }
+
+    return mode;
 }
 
 
@@ -238,18 +292,15 @@ JsonValue  SettingsPanelState::CloneJson (const JsonValue & v)
     opts.fPretty = false;
 
     hrWrite = JsonWriter::Write (v, opts, text);
+    hrParse = SUCCEEDED (hrWrite) ? JsonParser::Parse (text, out, err) : hrWrite;
 
-    if (FAILED (hrWrite))
-    {
-        return JsonValue();
-    }
-
-    hrParse = JsonParser::Parse (text, out, err);
-
+    // A round trip that fails anywhere yields an empty value, never a
+    // half-populated one.
     if (FAILED (hrParse))
     {
-        return JsonValue();
+        out = JsonValue();
     }
+
     return out;
 }
 
@@ -351,15 +402,8 @@ void SettingsPanelState::Cancel()
 
 bool SettingsPanelState::IsDirty() const
 {
-    if (! PrefsEqual (m_original.prefs, m_current.prefs))
-    {
-        return true;
-    }
-    if (! HardwareEqual (m_original.hardware, m_current.hardware))
-    {
-        return true;
-    }
-    return false;
+    return !PrefsEqual    (m_original.prefs,    m_current.prefs)
+        || !HardwareEqual (m_original.hardware, m_current.hardware);
 }
 
 
@@ -378,22 +422,17 @@ bool SettingsPanelState::IsDirty() const
 
 bool SettingsPanelState::RequiresReset() const
 {
-    size_t  i = 0;
+    size_t  i       = 0;
+    bool    changed = m_original.hardware.size() != m_current.hardware.size();
 
 
 
-    if (m_original.hardware.size() != m_current.hardware.size())
+    for (i = 0; !changed && i < m_current.hardware.size(); ++i)
     {
-        return true;
+        changed = m_original.hardware[i].enabled != m_current.hardware[i].enabled;
     }
-    for (i = 0; i < m_current.hardware.size(); ++i)
-    {
-        if (m_original.hardware[i].enabled != m_current.hardware[i].enabled)
-        {
-            return true;
-        }
-    }
-    return false;
+
+    return changed;
 }
 
 
@@ -1194,13 +1233,18 @@ JsonValue SettingsPanelState::BuildJson (
     std::vector<JsonValue>                          devArr;
     std::vector<JsonValue>                          slotArr;
     const std::vector<std::pair<std::string, JsonValue>> *  entries = nullptr;
+    HRESULT                                         hr = S_OK;
     size_t                                          i = 0;
+    // Default-constructed, so a non-object input yields a NULL value -- not an
+    // empty object, which is what returning JsonValue (std::move (root)) early
+    // would have produced.
+    JsonValue                                       result;
+    JsonType                                        rootType = JsonType::Null;
 
 
-    if (mergedJson.GetType() != JsonType::Object)
-    {
-        return JsonValue();
-    }
+    rootType = mergedJson.GetType();
+
+    BAIL_OUT_IF (rootType != JsonType::Object, S_OK);
 
     entries = &mergedJson.GetObjectEntries();
 
@@ -1337,7 +1381,10 @@ JsonValue SettingsPanelState::BuildJson (
 
     root.emplace_back (kpszUiPrefsKey, JsonValue (std::move (uiObj)));
 
-    return JsonValue (std::move (root));
+    result = JsonValue (std::move (root));
+
+Error:
+    return result;
 }
 
 
@@ -1354,23 +1401,22 @@ bool SettingsPanelState::PrefsEqual (
     const SettingsUiPrefs & a,
     const SettingsUiPrefs & b)
 {
-    if (a.speedMode             != b.speedMode)             return false;
-    if (a.colorMode             != b.colorMode)             return false;
-    if (a.writeMode             != b.writeMode)             return false;
-    if (a.floppySoundEnabled    != b.floppySoundEnabled)    return false;
-    if (a.floppyMechanism       != b.floppyMechanism)       return false;
-    if (a.externalDriveConnected != b.externalDriveConnected) return false;
-    if (a.mouseConnected         != b.mouseConnected)         return false;
-    if (a.driveMotorVolume      != b.driveMotorVolume)       return false;
-    if (a.driveHeadVolume       != b.driveHeadVolume)        return false;
-    if (a.driveDoorVolume       != b.driveDoorVolume)        return false;
-    if (a.driveOnePan           != b.driveOnePan)            return false;
-    if (a.driveTwoPan           != b.driveTwoPan)            return false;
-    if (a.diskPath[0]           != b.diskPath[0])           return false;
-    if (a.diskPath[1]           != b.diskPath[1])           return false;
-    if (a.writeProtect[0]       != b.writeProtect[0])       return false;
-    if (a.writeProtect[1]       != b.writeProtect[1])       return false;
-    return true;
+    return a.speedMode              == b.speedMode
+        && a.colorMode              == b.colorMode
+        && a.writeMode              == b.writeMode
+        && a.floppySoundEnabled     == b.floppySoundEnabled
+        && a.floppyMechanism        == b.floppyMechanism
+        && a.externalDriveConnected == b.externalDriveConnected
+        && a.mouseConnected         == b.mouseConnected
+        && a.driveMotorVolume       == b.driveMotorVolume
+        && a.driveHeadVolume        == b.driveHeadVolume
+        && a.driveDoorVolume        == b.driveDoorVolume
+        && a.driveOnePan            == b.driveOnePan
+        && a.driveTwoPan            == b.driveTwoPan
+        && a.diskPath[0]            == b.diskPath[0]
+        && a.diskPath[1]            == b.diskPath[1]
+        && a.writeProtect[0]        == b.writeProtect[0]
+        && a.writeProtect[1]        == b.writeProtect[1];
 }
 
 
@@ -1387,22 +1433,20 @@ bool SettingsPanelState::HardwareEqual (
     const std::vector<HardwareEntry> & a,
     const std::vector<HardwareEntry> & b)
 {
-    size_t  i = 0;
+    size_t  i     = 0;
+    bool    equal = a.size() == b.size();
 
 
 
-    if (a.size() != b.size())
+    for (i = 0; equal && i < a.size(); ++i)
     {
-        return false;
+        equal = a[i].kind       == b[i].kind
+             && a[i].jsonIndex  == b[i].jsonIndex
+             && a[i].slot       == b[i].slot
+             && a[i].type       == b[i].type
+             && a[i].capability == b[i].capability
+             && a[i].enabled    == b[i].enabled;
     }
-    for (i = 0; i < a.size(); ++i)
-    {
-        if (a[i].kind       != b[i].kind)       return false;
-        if (a[i].jsonIndex  != b[i].jsonIndex)  return false;
-        if (a[i].slot       != b[i].slot)       return false;
-        if (a[i].type       != b[i].type)       return false;
-        if (a[i].capability != b[i].capability) return false;
-        if (a[i].enabled    != b[i].enabled)    return false;
-    }
-    return true;
+
+    return equal;
 }
