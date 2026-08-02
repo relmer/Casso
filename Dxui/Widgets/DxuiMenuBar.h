@@ -188,6 +188,15 @@ private:
         uint32_t  disabled = 0xFF6A7585;
     };
 
+    // Index-range predicates. The two vectors are filled at different times --
+    // m_items when the menu is built, m_titleRects when it is laid out -- so a
+    // valid item index is not automatically a valid rect index, and the callers
+    // that read one must not bounds-check against the other.
+    bool  HasMenu           (int menuIndex) const { return menuIndex >= 0 && menuIndex < (int) m_items.size(); }
+    bool  HasTitleRect      (int menuIndex) const { return menuIndex >= 0 && menuIndex < (int) m_titleRects.size(); }
+
+    bool  ActivateMnemonicRow (wchar_t ch);
+
     int   HitTitleIndex     (int x, int y) const;
     int   HitEntryIndex     (int x, int y) const;
     int   EntryHeightPx     (const DxuiMenuBarSubitem & sub) const;

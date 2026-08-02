@@ -354,38 +354,39 @@ void DxuiMenuBar::Hide()
 
 void DxuiMenuBar::Open (int menuIndex, bool keyboardActivated)
 {
+    bool  canOpen          = HasMenu (menuIndex);
+    // Resting or moving over the ALREADY-open title must not churn the popup
+    // (HandleMouseMove re-Opens on every move); that case only refreshes the
+    // keyboard flag.
+    bool  isAlreadyShowing = m_isOpen && m_openIndex == menuIndex && m_activePopup != nullptr;
+
+
+
     DXUI_ASSERT_UI_THREAD();
 
-    if (menuIndex < 0 || menuIndex >= (int) m_items.size())
-    {
-        return;
-    }
-
-    // Already showing this menu's popup: resting/moving over the same
-    // open title must NOT churn the popup (HandleMouseMove re-Opens on
-    // every move). Just refresh the keyboard flag and return.
-    if (m_isOpen && m_openIndex == menuIndex && m_activePopup != nullptr)
+    if (canOpen && isAlreadyShowing)
     {
         m_openedByKeyboard = keyboardActivated;
-        return;
     }
-
-    // Switch popups: drop the prior menu's popup FIRST -- its onClosed
-    // callback clears m_isOpen / m_highlightIndex -- THEN set this menu's
-    // state and raise its popup, so the clear can't clobber the new state.
-    if (m_popupHost != nullptr)
+    else if (canOpen)
     {
-        ReleaseActivePopup();
-    }
+        // Switch popups: drop the prior menu's popup FIRST -- its onClosed
+        // callback clears m_isOpen / m_highlightIndex -- THEN set this menu's
+        // state and raise its popup, so the clear can't clobber the new state.
+        if (m_popupHost != nullptr)
+        {
+            ReleaseActivePopup();
+        }
 
-    m_openIndex        = menuIndex;
-    m_isOpen           = true;
-    m_openedByKeyboard = keyboardActivated;
-    m_highlightIndex   = FirstEnabledRow (menuIndex);
+        m_openIndex        = menuIndex;
+        m_isOpen           = true;
+        m_openedByKeyboard = keyboardActivated;
+        m_highlightIndex   = FirstEnabledRow (menuIndex);
 
-    if (m_popupHost != nullptr)
-    {
-        ShowDropdownPopup();
+        if (m_popupHost != nullptr)
+        {
+            ShowDropdownPopup();
+        }
     }
 }
 
@@ -478,22 +479,28 @@ void DxuiMenuBar::ClearFocus()
 
 bool DxuiMenuBar::HandleAltKey (wchar_t ch)
 {
-    wchar_t  lower = (wchar_t) towlower (ch);
+    wchar_t  lower   = (wchar_t) towlower (ch);
+    size_t   i       = 0;
+    int      matched = -1;
 
 
 
     DXUI_ASSERT_UI_THREAD();
 
-    for (size_t i = 0; i < m_items.size(); i++)
+    for (i = 0; i < m_items.size() && matched < 0; i++)
     {
         if (m_items[i].altLetter != 0 && m_items[i].altLetter == lower)
         {
-            Open ((int) i, true);
-            return true;
+            matched = (int) i;
         }
     }
 
-    return false;
+    if (matched >= 0)
+    {
+        Open (matched, true);
+    }
+
+    return matched >= 0;
 }
 
 
@@ -518,110 +525,127 @@ bool DxuiMenuBar::HandleAltKey (wchar_t ch)
 
 bool DxuiMenuBar::HandleKey (WPARAM vk)
 {
-    int  count       = VisibleRowCount (m_openIndex);
-    int  menuCount   = (int) m_items.size();
+    const DxuiMenuBarSubitem *  entry     = nullptr;
+    int   count     = VisibleRowCount (m_openIndex);
+    int   menuCount = (int) m_items.size();
+    int   next      = 0;
+    // The three guards the original ladder re-tested at each step: a key is
+    // only interesting while open, menu-switching also needs menus, and
+    // row navigation also needs rows.
+    bool  hasMenus  = m_isOpen && menuCount > 0;
+    bool  hasRows   = hasMenus && count > 0;
+    bool  isPrevKey = vk == VK_LEFT  || (vk == VK_TAB && (GetKeyState (VK_SHIFT) & 0x8000));
+    bool  isNextKey = vk == VK_RIGHT || vk == VK_TAB;
+    bool  handled   = false;
 
 
 
     DXUI_ASSERT_UI_THREAD();
 
-    if (!m_isOpen)
-    {
-        return false;
-    }
-
-    if (vk == VK_ESCAPE || vk == VK_F10)
+    if (m_isOpen && (vk == VK_ESCAPE || vk == VK_F10))
     {
         Close();
-        return true;
+        handled = true;
     }
-
-    if (menuCount <= 0)
+    else if (hasMenus && isPrevKey)
     {
-        return false;
-    }
-
-    if (vk == VK_LEFT || (vk == VK_TAB && (GetKeyState (VK_SHIFT) & 0x8000)))
-    {
-        int  next = (m_openIndex <= 0) ? (menuCount - 1) : (m_openIndex - 1);
+        next = (m_openIndex <= 0) ? (menuCount - 1) : (m_openIndex - 1);
         Open (next, m_openedByKeyboard);
-        return true;
+        handled = true;
     }
-
-    if (vk == VK_RIGHT || vk == VK_TAB)
+    else if (hasMenus && isNextKey)
     {
-        int  next = (m_openIndex + 1) % menuCount;
+        next = (m_openIndex + 1) % menuCount;
         Open (next, m_openedByKeyboard);
-        return true;
+        handled = true;
     }
-
-    if (count <= 0)
+    else if (hasRows && (vk == VK_DOWN || vk == VK_UP))
     {
-        return false;
-    }
+        m_highlightIndex = NextEnabledRow (m_openIndex, m_highlightIndex, (vk == VK_DOWN) ? +1 : -1);
 
-    if (vk == VK_DOWN)
-    {
-        m_highlightIndex = NextEnabledRow (m_openIndex, m_highlightIndex, +1);
         if (m_activePopup != nullptr)
         {
             m_activePopup->MarkDirty();
         }
-        return true;
-    }
 
-    if (vk == VK_UP)
-    {
-        m_highlightIndex = NextEnabledRow (m_openIndex, m_highlightIndex, -1);
-        if (m_activePopup != nullptr)
-        {
-            m_activePopup->MarkDirty();
-        }
-        return true;
+        handled = true;
     }
-
-    if (vk == VK_RETURN || vk == VK_SPACE)
+    else if (hasRows && (vk == VK_RETURN || vk == VK_SPACE))
     {
-        const DxuiMenuBarSubitem * entry = EntryAt (m_openIndex, m_highlightIndex);
+        // A highlighted-but-undispatchable row leaves the key unconsumed,
+        // exactly as before.
+        entry = EntryAt (m_openIndex, m_highlightIndex);
 
         if (entry != nullptr && entry->enabled && entry->dispatch)
         {
             entry->dispatch();
             Close();
-            return true;
+            handled = true;
         }
     }
-
-    if (vk >= 'A' && vk <= 'Z')
+    else if (hasRows && vk >= 'A' && vk <= 'Z')
     {
-        wchar_t  lower = (wchar_t) towlower ((wchar_t) vk);
-        int      row   = 0;
+        handled = ActivateMnemonicRow ((wchar_t) vk);
+    }
 
-        for (const DxuiMenuBarSubitem & sub : m_items[m_openIndex].submenu)
+    return handled;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiMenuBar::ActivateMnemonicRow
+//
+//  Dispatches the open submenu's row whose label carries mnemonic `ch`, and
+//  reports whether one was found. A row that matches but is disabled or has
+//  no dispatch is not a match, so the key stays unconsumed.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiMenuBar::ActivateMnemonicRow (wchar_t ch)
+{
+    const DxuiMenuBarSubitem *  hit = nullptr;
+    std::wstring  stripped;
+    wchar_t       lower   = (wchar_t) towlower (ch);
+    wchar_t       mnCh    = 0;
+    int           mnIdx   = -1;
+    int           row     = 0;
+    int           hitRow  = -1;
+
+
+
+    for (const DxuiMenuBarSubitem & sub : m_items[m_openIndex].submenu)
+    {
+        if (!sub.isSeparator)
         {
-            std::wstring  stripped;
-            int           mnIdx = -1;
-            wchar_t       mnCh  = 0;
-
-            if (sub.isSeparator)
+            if (hit == nullptr)
             {
-                continue;
+                ParseMnemonic (sub.label, stripped, mnIdx, mnCh);
+
+                if (mnCh != 0 && mnCh == lower && sub.enabled && sub.dispatch)
+                {
+                    hit    = &sub;
+                    hitRow = row;
+                }
             }
 
-            ParseMnemonic (sub.label, stripped, mnIdx, mnCh);
-
-            if (mnCh != 0 && mnCh == lower && sub.enabled && sub.dispatch)
-            {
-                m_highlightIndex = row;
-                sub.dispatch();
-                Close();
-                return true;
-            }
             row++;
         }
     }
 
-    return false;
+    if (hit != nullptr)
+    {
+        // Highlight before dispatching: the callback can close or rebuild the
+        // menu, and the original set the highlight first for that reason.
+        m_highlightIndex = hitRow;
+        hit->dispatch();
+        Close();
+    }
+
+    return hit != nullptr;
 }
 
 
@@ -636,46 +660,48 @@ bool DxuiMenuBar::HandleKey (WPARAM vk)
 
 bool DxuiMenuBar::HandleMouseMove (int x, int y)
 {
-    int  hitTitle = 0;
-    int  hitEntry = 0;
+    int   hitTitle    = 0;
+    int   hitEntry    = 0;
+    bool  handled     = false;
+    // Windows posts a WM_MOUSEMOVE at the UNCHANGED cursor position whenever
+    // the dropdown popup shows or hides under the pointer. Without this guard
+    // a keyboard menu switch is instantly overridden by the resting mouse's
+    // title, so a synthetic repeat is not a real move.
+    bool  isRealMove  = !(m_haveLastMousePos && x == m_lastMouseX && y == m_lastMouseY);
 
 
 
     DXUI_ASSERT_UI_THREAD();
 
-    // Ignore synthetic same-position moves. Windows posts a WM_MOUSEMOVE
-    // at the unchanged cursor position whenever the dropdown popup shows
-    // or hides under the pointer; without this guard a keyboard menu
-    // switch is instantly overridden by the resting mouse's title.
-    if (m_haveLastMousePos && x == m_lastMouseX && y == m_lastMouseY)
+    if (isRealMove)
     {
-        return false;
-    }
-    m_haveLastMousePos = true;
-    m_lastMouseX       = x;
-    m_lastMouseY       = y;
+        m_haveLastMousePos = true;
+        m_lastMouseX       = x;
+        m_lastMouseY       = y;
 
-    hitTitle = HitTitleIndex (x, y);
-    hitEntry = HitEntryIndex (x, y);
+        hitTitle     = HitTitleIndex (x, y);
+        hitEntry     = HitEntryIndex (x, y);
+        m_hoverIndex = hitTitle;
 
-    m_hoverIndex = hitTitle;
-
-    if (hitTitle >= 0)
-    {
-        if (m_isOpen)
+        if (hitTitle >= 0)
         {
-            Open (hitTitle, m_openedByKeyboard);
+            // Hovering a title only switches menus while one is already open;
+            // a closed strip just tracks hover for painting.
+            if (m_isOpen)
+            {
+                Open (hitTitle, m_openedByKeyboard);
+            }
+
+            handled = true;
         }
-        return true;
+        else if (hitEntry >= 0)
+        {
+            m_highlightIndex = hitEntry;
+            handled          = true;
+        }
     }
 
-    if (hitEntry >= 0)
-    {
-        m_highlightIndex = hitEntry;
-        return true;
-    }
-
-    return false;
+    return handled;
 }
 
 
@@ -714,31 +740,30 @@ void DxuiMenuBar::ClearHover()
 
 bool DxuiMenuBar::HandleMouseDown (int x, int y)
 {
-    int  hitTitle = HitTitleIndex (x, y);
+    int   hitTitle = HitTitleIndex (x, y);
+    bool  onTitle  = (hitTitle >= 0);
 
 
 
     DXUI_ASSERT_UI_THREAD();
 
-    if (hitTitle >= 0)
+    if (onTitle && m_isOpen && m_openIndex == hitTitle)
     {
-        if (m_isOpen && m_openIndex == hitTitle)
-        {
-            Close();
-        }
-        else
-        {
-            Open (hitTitle, false);
-        }
-        return true;
+        // Clicking the open title toggles it shut.
+        Close();
     }
-
-    if (m_isOpen && !RectContains (DropdownRect(), x, y))
+    else if (onTitle)
     {
+        Open (hitTitle, false);
+    }
+    else if (m_isOpen && !RectContains (DropdownRect(), x, y))
+    {
+        // A click outside both the strip and the dropdown dismisses, but is
+        // NOT consumed -- whatever is underneath still gets it.
         Close();
     }
 
-    return false;
+    return onTitle;
 }
 
 
@@ -755,6 +780,7 @@ bool DxuiMenuBar::HandleMouseUp (int x, int y)
 {
     int                          hitEntry = HitEntryIndex (x, y);
     const DxuiMenuBarSubitem  *  entry    = nullptr;
+    bool                         handled  = false;
 
 
 
@@ -763,15 +789,16 @@ bool DxuiMenuBar::HandleMouseUp (int x, int y)
     if (hitEntry >= 0)
     {
         entry = EntryAt (m_openIndex, hitEntry);
-        if (entry != nullptr && entry->enabled && entry->dispatch)
-        {
-            entry->dispatch();
-            Close();
-            return true;
-        }
     }
 
-    return false;
+    if (entry != nullptr && entry->enabled && entry->dispatch)
+    {
+        entry->dispatch();
+        Close();
+        handled = true;
+    }
+
+    return handled;
 }
 
 
@@ -1139,14 +1166,18 @@ void DxuiMenuBar::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const
 
 bool DxuiMenuBar::OnKey (const DxuiKeyEvent & ev)
 {
+    bool  handled = false;
+
+
+
     DXUI_ASSERT_UI_THREAD();
 
-    if (ev.kind != DxuiKeyEventKind::Down)
+    if (ev.kind == DxuiKeyEventKind::Down)
     {
-        return false;
+        handled = HandleKey (ev.vk);
     }
 
-    return HandleKey (ev.vk);
+    return handled;
 }
 
 
@@ -1161,27 +1192,34 @@ bool DxuiMenuBar::OnKey (const DxuiKeyEvent & ev)
 
 bool DxuiMenuBar::OnMouse (const DxuiMouseEvent & ev)
 {
+    bool  handled = false;
+
+
+
     DXUI_ASSERT_UI_THREAD();
 
     switch (ev.kind)
     {
     case DxuiMouseEventKind::Move:
-        return HandleMouseMove (ev.positionDip.x, ev.positionDip.y);
+        handled = HandleMouseMove (ev.positionDip.x, ev.positionDip.y);
+        break;
     case DxuiMouseEventKind::Down:
         if (ev.button == DxuiMouseButton::Left)
         {
-            return HandleMouseDown (ev.positionDip.x, ev.positionDip.y);
+            handled = HandleMouseDown (ev.positionDip.x, ev.positionDip.y);
         }
-        return false;
+        break;
     case DxuiMouseEventKind::Up:
         if (ev.button == DxuiMouseButton::Left)
         {
-            return HandleMouseUp (ev.positionDip.x, ev.positionDip.y);
+            handled = HandleMouseUp (ev.positionDip.x, ev.positionDip.y);
         }
-        return false;
+        break;
     default:
-        return false;
+        break;
     }
+
+    return handled;
 }
 
 
@@ -1196,12 +1234,16 @@ bool DxuiMenuBar::OnMouse (const DxuiMouseEvent & ev)
 
 RECT DxuiMenuBar::MenuRect (int menuIndex) const
 {
-    if (menuIndex < 0 || menuIndex >= (int) m_titleRects.size())
+    RECT  rect = {};
+
+
+
+    if (HasTitleRect (menuIndex))
     {
-        return RECT {};
+        rect = m_titleRects[menuIndex];
     }
 
-    return m_titleRects[menuIndex];
+    return rect;
 }
 
 
@@ -1237,16 +1279,15 @@ RECT DxuiMenuBar::DropdownRect() const
 
 
 
-    if (m_openIndex < 0 || m_openIndex >= (int) m_titleRects.size())
+    if (HasTitleRect (m_openIndex))
     {
-        return rect;
+        title       = m_titleRects[m_openIndex];
+        rect.left   = title.left;
+        rect.top    = title.bottom;
+        rect.right  = title.left + dropdownWidth;
+        rect.bottom = title.bottom + DropdownHeightPx (m_openIndex);
     }
 
-    title       = m_titleRects[m_openIndex];
-    rect.left   = title.left;
-    rect.top    = title.bottom;
-    rect.right  = title.left + dropdownWidth;
-    rect.bottom = title.bottom + DropdownHeightPx (m_openIndex);
     return rect;
 }
 
@@ -1262,15 +1303,20 @@ RECT DxuiMenuBar::DropdownRect() const
 
 int DxuiMenuBar::HitTitleIndex (int x, int y) const
 {
-    for (size_t i = 0; i < m_titleRects.size(); i++)
+    size_t  i   = 0;
+    int     hit = -1;
+
+
+
+    for (i = 0; i < m_titleRects.size() && hit < 0; i++)
     {
         if (RectContains (m_titleRects[i], x, y))
         {
-            return (int) i;
+            hit = (int) i;
         }
     }
 
-    return -1;
+    return hit;
 }
 
 
@@ -1289,31 +1335,35 @@ int DxuiMenuBar::HitEntryIndex (int x, int y) const
     int   row      = 0;
     int   currentY = 0;
     int   localY   = y - rect.top;
+    int   hit      = -1;
+    bool  isInDrop = m_isOpen && RectContains (rect, x, y);
+    bool  found    = false;
 
 
 
-    if (!m_isOpen || !RectContains (rect, x, y))
+    if (isInDrop)
     {
-        return -1;
+        for (const DxuiMenuBarSubitem & sub : m_items[m_openIndex].submenu)
+        {
+            int  entryHeight = EntryHeightPx (sub);
+
+            if (!found && localY >= currentY && localY < currentY + entryHeight)
+            {
+                // A separator swallows the hit rather than selecting a row.
+                hit   = sub.isSeparator ? -1 : row;
+                found = true;
+            }
+
+            currentY += entryHeight;
+
+            if (!sub.isSeparator)
+            {
+                row++;
+            }
+        }
     }
 
-    for (const DxuiMenuBarSubitem & sub : m_items[m_openIndex].submenu)
-    {
-        int  entryHeight = EntryHeightPx (sub);
-
-        if (localY >= currentY && localY < currentY + entryHeight)
-        {
-            return sub.isSeparator ? -1 : row;
-        }
-
-        currentY += entryHeight;
-        if (!sub.isSeparator)
-        {
-            row++;
-        }
-    }
-
-    return -1;
+    return hit;
 }
 
 
@@ -1328,12 +1378,7 @@ int DxuiMenuBar::HitEntryIndex (int x, int y) const
 
 int DxuiMenuBar::EntryHeightPx (const DxuiMenuBarSubitem & sub) const
 {
-    if (sub.isSeparator)
-    {
-        return ScaleDpi (s_kSeparatorHeightDip, m_dpi);
-    }
-
-    return m_rowHeightPx;
+    return sub.isSeparator ? ScaleDpi (s_kSeparatorHeightDip, m_dpi) : m_rowHeightPx;
 }
 
 
@@ -1352,14 +1397,12 @@ int DxuiMenuBar::DropdownHeightPx (int menuIndex) const
 
 
 
-    if (menuIndex < 0 || menuIndex >= (int) m_items.size())
+    if (HasMenu (menuIndex))
     {
-        return 0;
-    }
-
-    for (const DxuiMenuBarSubitem & sub : m_items[menuIndex].submenu)
-    {
-        height += EntryHeightPx (sub);
+        for (const DxuiMenuBarSubitem & sub : m_items[menuIndex].submenu)
+        {
+            height += EntryHeightPx (sub);
+        }
     }
 
     return height;
@@ -1381,16 +1424,14 @@ int DxuiMenuBar::VisibleRowCount (int menuIndex) const
 
 
 
-    if (menuIndex < 0 || menuIndex >= (int) m_items.size())
+    if (HasMenu (menuIndex))
     {
-        return 0;
-    }
-
-    for (const DxuiMenuBarSubitem & sub : m_items[menuIndex].submenu)
-    {
-        if (!sub.isSeparator)
+        for (const DxuiMenuBarSubitem & sub : m_items[menuIndex].submenu)
         {
-            count++;
+            if (!sub.isSeparator)
+            {
+                count++;
+            }
         }
     }
 
@@ -1409,30 +1450,35 @@ int DxuiMenuBar::VisibleRowCount (int menuIndex) const
 
 int DxuiMenuBar::FirstEnabledRow (int menuIndex) const
 {
-    int  row = 0;
+    const DxuiMenuBarSubitem *  entry = nullptr;
+    int                         count = VisibleRowCount (menuIndex);
+    int                         row   = 0;
+    int                         first = -1;
 
 
 
-    if (menuIndex < 0 || menuIndex >= (int) m_items.size())
+    // VisibleRowCount already answers 0 for an out-of-range menu, so the
+    // loop below covers the bad-index case without its own guard. Walking by
+    // row index through EntryAt also keeps the "skip separators" rule in one
+    // place instead of open-coding it a third time.
+    for (row = 0; row < count && first < 0; row++)
     {
-        return -1;
+        entry = EntryAt (menuIndex, row);
+
+        if (entry != nullptr && entry->enabled)
+        {
+            first = row;
+        }
     }
 
-    for (const DxuiMenuBarSubitem & sub : m_items[menuIndex].submenu)
+    // Nothing enabled: still highlight the first visible row so the dropdown
+    // opens somewhere, and answer -1 only when there are no rows at all.
+    if (first < 0 && count > 0)
     {
-        if (sub.isSeparator)
-        {
-            continue;
-        }
-
-        if (sub.enabled)
-        {
-            return row;
-        }
-        row++;
+        first = 0;
     }
 
-    return (row > 0) ? 0 : -1;
+    return first;
 }
 
 
@@ -1451,29 +1497,29 @@ int DxuiMenuBar::FirstEnabledRow (int menuIndex) const
 
 int DxuiMenuBar::NextEnabledRow (int menuIndex, int startRow, int direction) const
 {
-    int  count = VisibleRowCount (menuIndex);
-    int  next  = startRow;
+    const DxuiMenuBarSubitem *  candidate = nullptr;
+    int                         count     = VisibleRowCount (menuIndex);
+    int                         next      = startRow;
+    int                         step      = 0;
+    bool                        isFound   = false;
+    // No rows at all is -1; rows but none enabled leaves the caret put.
+    int                         found     = (count <= 0) ? -1 : startRow;
 
 
 
-    if (count <= 0)
+    for (step = 0; step < count && !isFound; step++)
     {
-        return -1;
-    }
-
-    for (int step = 0; step < count; step++)
-    {
-        const DxuiMenuBarSubitem * candidate = nullptr;
-
-        next = (next + direction + count) % count;
+        next      = (next + direction + count) % count;
         candidate = EntryAt (menuIndex, next);
+
         if (candidate != nullptr && candidate->enabled)
         {
-            return next;
+            found   = next;
+            isFound = true;
         }
     }
 
-    return startRow;
+    return found;
 }
 
 
@@ -1488,30 +1534,30 @@ int DxuiMenuBar::NextEnabledRow (int menuIndex, int startRow, int direction) con
 
 const DxuiMenuBarSubitem * DxuiMenuBar::EntryAt (int menuIndex, int rowIndex) const
 {
-    int  row = 0;
+    const DxuiMenuBarSubitem *  entry = nullptr;
+    int                         row   = 0;
 
 
 
-    if (menuIndex < 0 || menuIndex >= (int) m_items.size() || rowIndex < 0)
+    if (HasMenu (menuIndex) && rowIndex >= 0)
     {
-        return nullptr;
+        for (const DxuiMenuBarSubitem & sub : m_items[menuIndex].submenu)
+        {
+            if (!sub.isSeparator)
+            {
+                // `row` only ever passes rowIndex once, so this cannot
+                // overwrite an entry already found.
+                if (row == rowIndex)
+                {
+                    entry = &sub;
+                }
+
+                row++;
+            }
+        }
     }
 
-    for (const DxuiMenuBarSubitem & sub : m_items[menuIndex].submenu)
-    {
-        if (sub.isSeparator)
-        {
-            continue;
-        }
-
-        if (row == rowIndex)
-        {
-            return &sub;
-        }
-        row++;
-    }
-
-    return nullptr;
+    return entry;
 }
 
 
@@ -1581,12 +1627,7 @@ void DxuiMenuBar::ParseMnemonic (
 
 bool DxuiMenuBar::ShouldShowMnemonicCues (bool openedByKeyboard)
 {
-    if (openedByKeyboard)
-    {
-        return true;
-    }
-
-    return (GetAsyncKeyState (VK_MENU) & 0x8000) != 0;
+    return openedByKeyboard || (GetAsyncKeyState (VK_MENU) & 0x8000) != 0;
 }
 
 
@@ -1640,26 +1681,21 @@ void DxuiMenuBar::ShowDropdownPopup()
     UINT                       eDpi         = (m_dpi == 0) ? (UINT) s_kBaseDpi : m_dpi;
     int                        dropWidthPx  = 0;
     int                        dropHeightPx = 0;
+    bool                       hasAnchor    = HasTitleRect (m_openIndex);
 
 
 
     DXUI_ASSERT_UI_THREAD();
 
-    if (m_popupHost == nullptr || m_activePopup != nullptr)
-    {
-        return;
-    }
-    if (m_openIndex < 0 || m_openIndex >= (int) m_titleRects.size())
-    {
-        return;
-    }
+    // Nothing to raise: no host, one already up, or the strip has not been
+    // laid out yet so there is no title to anchor under.
+    BAIL_OUT_IF (m_popupHost == nullptr || m_activePopup != nullptr, S_OK);
+    BAIL_OUT_IF (!hasAnchor, S_OK);
 
     owner         = m_popupHost->Hwnd();
     m_activePopup = m_popupHost->AcquirePopup();
-    if (m_activePopup == nullptr)
-    {
-        return;
-    }
+
+    BAIL_OUT_IF (m_activePopup == nullptr, S_OK);
 
     title        = m_titleRects[m_openIndex];
     dropWidthPx  = ScaleDpi (s_kDropdownWidthDip, eDpi);
@@ -1692,11 +1728,15 @@ void DxuiMenuBar::ShowDropdownPopup()
     showParams.onClosed         = [this] () { m_activePopup = nullptr; m_isOpen = false; m_highlightIndex = -1; };
 
     hr = m_activePopup->Show (std::move (showParams));
+
     if (FAILED (hr))
     {
         m_popupHost->ReleasePopup (m_activePopup);
         m_activePopup = nullptr;
     }
+
+Error:
+    return;
 }
 
 
@@ -1774,33 +1814,36 @@ void DxuiMenuBar::RenderDropdownPopup (IDxuiPainter & painter, IDxuiTextRenderer
 
 int DxuiMenuBar::PopupRowAtLocalY (int localYPx) const
 {
-    int  row      = 0;
-    int  currentY = 0;
+    int   row      = 0;
+    int   currentY = 0;
+    int   hit      = -1;
+    bool  found    = false;
 
 
 
-    if (m_openIndex < 0 || m_openIndex >= (int) m_items.size())
+    if (HasMenu (m_openIndex))
     {
-        return -1;
+        for (const DxuiMenuBarSubitem & sub : m_items[m_openIndex].submenu)
+        {
+            int  entryHeight = EntryHeightPx (sub);
+
+            if (!found && localYPx >= currentY && localYPx < currentY + entryHeight)
+            {
+                // A separator swallows the hit rather than selecting a row.
+                hit   = sub.isSeparator ? -1 : row;
+                found = true;
+            }
+
+            currentY += entryHeight;
+
+            if (!sub.isSeparator)
+            {
+                row++;
+            }
+        }
     }
 
-    for (const DxuiMenuBarSubitem & sub : m_items[m_openIndex].submenu)
-    {
-        int  entryHeight = EntryHeightPx (sub);
-
-        if (localYPx >= currentY && localYPx < currentY + entryHeight)
-        {
-            return sub.isSeparator ? -1 : row;
-        }
-
-        currentY += entryHeight;
-        if (!sub.isSeparator)
-        {
-            row++;
-        }
-    }
-
-    return -1;
+    return hit;
 }
 
 
