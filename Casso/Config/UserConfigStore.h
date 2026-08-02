@@ -132,6 +132,14 @@ private:
         const JsonValue & userJson,
         int               fallbackVersion);
 
+    // Locates `key` in `obj` and confirms it holds `wanted`. The three
+    // TryGet*Field helpers below differ only in the type they ask for and the
+    // getter they call, so the lookup lives here once.
+    static bool  FindTypedField (const JsonValue    &  obj,
+                                 const std::string  &  key,
+                                 JsonType              wanted,
+                                 const JsonValue    *& outValue);
+
     static bool  TryGetBoolField   (const JsonValue & obj, const std::string & key, bool & out);
     static bool  TryGetIntField    (const JsonValue & obj, const std::string & key, int & out);
     static bool  TryGetStringField (const JsonValue & obj, const std::string & key, std::string & out);
