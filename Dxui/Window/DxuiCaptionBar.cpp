@@ -355,40 +355,47 @@ void DxuiCaptionBar::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
 
 DxuiHitTestKind DxuiCaptionBar::ClassifyHit (POINT clientDip) const
 {
-    IDxuiControl *   child = nullptr;
-    DxuiHitTestKind  kind  = DxuiHitTestKind::Caption;
-    RECT             rc    = {};
-    size_t           n     = 0;
-    size_t           i     = 0;
+    IDxuiControl *   child      = nullptr;
+    DxuiHitTestKind  kind       = DxuiHitTestKind::Caption;
+    DxuiHitTestKind  childKind  = DxuiHitTestKind::None;
+    RECT             rc         = {};
+    size_t           n          = 0;
+    size_t           i          = 0;
+    bool             classified = false;
 
 
 
     n = ChildCount();
 
-    // Reverse order so visually-topmost children win.
-    for (i = n; i > 0; --i)
+    // Reverse order so visually-topmost children win. A child that reports
+    // None declines the point and the walk continues past it, which is how a
+    // transparent region inside a child's bounds still reads as Caption.
+    //
+    // `classified` rather than testing `kind`: a child may legitimately
+    // answer Caption, and that has to STOP the walk like any other answer.
+    for (i = n; !classified && i > 0; --i)
     {
         child = Child (i - 1);
-        if (child == nullptr || !child->Visible())
-        {
-            continue;
-        }
 
-        rc = child->Bounds();
-        if (clientDip.x < rc.left || clientDip.x >= rc.right ||
-            clientDip.y < rc.top  || clientDip.y >= rc.bottom)
+        if (child != nullptr && child->Visible())
         {
-            continue;
-        }
+            rc = child->Bounds();
 
-        kind = child->ClassifyHit (clientDip);
-        if (kind != DxuiHitTestKind::None)
-        {
-            return kind;
+            if (clientDip.x >= rc.left && clientDip.x < rc.right &&
+                clientDip.y >= rc.top  && clientDip.y < rc.bottom)
+            {
+                childKind  = child->ClassifyHit (clientDip);
+                classified = (childKind != DxuiHitTestKind::None);
+
+                if (classified)
+                {
+                    kind = childKind;
+                }
+            }
         }
     }
 
-    return DxuiHitTestKind::Caption;
+    return kind;
 }
 
 

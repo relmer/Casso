@@ -40,27 +40,31 @@ bool DxuiWindowsThemeColors::ReadAppsUseLightTheme()
 
 
 
+    // `value` is pre-seeded to 1 (light), so a missing key or a failed query
+    // both fall through to the Windows default rather than needing their own
+    // return. Only a successful read overwrites it.
     rc = RegOpenKeyExW (HKEY_CURRENT_USER,
                         kpszPersonalizeSubkey,
                         0,
                         KEY_READ,
                         &hKey);
-    if (rc != ERROR_SUCCESS)
-    {
-        return true;
-    }
 
-    rc = RegQueryValueExW (hKey,
-                           kpszAppsUseLightTheme,
-                           nullptr,
-                           nullptr,
-                           reinterpret_cast<BYTE *> (&value),
-                           &size);
-    RegCloseKey (hKey);
-
-    if (rc != ERROR_SUCCESS)
+    if (rc == ERROR_SUCCESS)
     {
-        return true;
+        rc = RegQueryValueExW (hKey,
+                               kpszAppsUseLightTheme,
+                               nullptr,
+                               nullptr,
+                               reinterpret_cast<BYTE *> (&value),
+                               &size);
+        RegCloseKey (hKey);
+
+        // A failed query may still have scribbled on `value`, so restore the
+        // default explicitly rather than trusting it.
+        if (rc != ERROR_SUCCESS)
+        {
+            value = 1;
+        }
     }
 
     return value != 0;

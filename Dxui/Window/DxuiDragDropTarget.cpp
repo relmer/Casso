@@ -462,12 +462,9 @@ int DxuiDragDropTarget::PickAtClient (const DxuiHitTester & hitTester, int xClie
 
 
 
-    if (hit == nullptr || hit->slot != DxuiHitSlot::Custom)
-    {
-        return -1;
-    }
-
-    return hit->tag;
+    // -1 means "no drop target here". Only Custom-slot rects carry a
+    // drop-target tag; chrome rects (caption, buttons) are not drop targets.
+    return (hit != nullptr && hit->slot == DxuiHitSlot::Custom) ? hit->tag : -1;
 }
 
 
@@ -487,21 +484,20 @@ int DxuiDragDropTarget::PickAtScreen (POINTL pt) const
 
 
 
+    // Two target models, and the hit-tester wins when both are installed: it
+    // reports WHICH region was hit, while the legacy callback only reports
+    // whether the window as a whole accepts the drop (tag 0).
     if (m_hitTester != nullptr && m_hwnd != nullptr)
     {
-        if (!ScreenToClient (m_hwnd, &client))
+        if (ScreenToClient (m_hwnd, &client))
         {
-            return -1;
+            tag = PickAtClient (*m_hitTester, client.x, client.y);
         }
-
-        tag = PickAtClient (*m_hitTester, client.x, client.y);
-        return tag;
     }
-
-    if (m_hitTest)
+    else if (m_hitTest)
     {
-        return m_hitTest (pt.x, pt.y) ? 0 : -1;
+        tag = m_hitTest (pt.x, pt.y) ? 0 : -1;
     }
 
-    return -1;
+    return tag;
 }

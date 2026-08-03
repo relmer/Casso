@@ -642,8 +642,6 @@ void DxuiPainter::FillEllipseApprox (
 
 void DxuiPainter::FillSpanAA (float x0, float x1, float y, float h, uint32_t argbColor)
 {
-    if (x1 <= x0 || h <= 0.0f) return;
-
     uint32_t  baseA = (argbColor >> 24) & 0xFFu;
     auto      withA = [&](float cov) -> uint32_t
     {
@@ -652,25 +650,34 @@ void DxuiPainter::FillSpanAA (float x0, float x1, float y, float h, uint32_t arg
         return (argbColor & 0x00FFFFFFu) | (a << 24);
     };
 
-    float  xl = floorf (x0);
-    float  xr = floorf (x1);
+    float  xl       = floorf (x0);
+    float  xr       = floorf (x1);
+    float  leftCov  = 0.0f;
+    float  rightCov = 0.0f;
 
-    if (xl == xr)                                       // span within one column
+    // Degenerate spans (zero or negative width / height) draw nothing.
+    if (x1 > x0 && h > 0.0f)
     {
-        FillRect (xl, y, 1.0f, h, withA (x1 - x0));
-        return;
+        if (xl == xr)
+        {
+            // Span lives inside ONE pixel column: its whole width is the
+            // coverage, and there are no interior or far-edge columns.
+            FillRect (xl, y, 1.0f, h, withA (x1 - x0));
+        }
+        else
+        {
+            if (xr > xl + 1.0f)                                 // interior full columns
+                FillRect (xl + 1.0f, y, xr - (xl + 1.0f), h, argbColor);
+
+            leftCov = (xl + 1.0f) - x0;                         // left edge coverage
+            if (leftCov > 0.004f)
+                FillRect (xl, y, 1.0f, h, withA (leftCov));
+
+            rightCov = x1 - xr;                                 // right edge coverage
+            if (rightCov > 0.004f)
+                FillRect (xr, y, 1.0f, h, withA (rightCov));
+        }
     }
-
-    if (xr > xl + 1.0f)                                 // interior full columns
-        FillRect (xl + 1.0f, y, xr - (xl + 1.0f), h, argbColor);
-
-    float  leftCov = (xl + 1.0f) - x0;                  // left edge coverage
-    if (leftCov > 0.004f)
-        FillRect (xl, y, 1.0f, h, withA (leftCov));
-
-    float  rightCov = x1 - xr;                          // right edge coverage
-    if (rightCov > 0.004f)
-        FillRect (xr, y, 1.0f, h, withA (rightCov));
 }
 
 
