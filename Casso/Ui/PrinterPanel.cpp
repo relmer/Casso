@@ -239,7 +239,34 @@ HRESULT PrinterPanel::Create (
     params.hInstance         = hInstance;
     params.ownerHwnd         = hwndOwner;
     params.initialSizeDip    = { s_kPreferredWidthDip, s_kPreferredHeightDip };
-    params.minSizeDip        = { 360, 420 };
+
+    // Minimum IS the preferred size: this layout has no smaller valid form.
+    // The top band packs a fixed-width left cluster (Print / Save / Copy,
+    // ending at pad + 3*btnW + 2*gap = 274dip) against a fixed-width zoom
+    // cluster hugging the right edge (starting at width - 160dip), so below
+    // 434dip the two collide -- and nothing reflows to prevent it. Vertically
+    // the caption, both 46dip toolbars and the 20dip hint strip are fixed, so
+    // every dip lost comes out of the printer scene and then the hint clips.
+    // Matches Disk2DebugPanel / InputDebugPanel, which already do this.
+    // Measured floors, widest wins. Width is what actually binds, and it is
+    // the hint strip that sets it -- not the buttons:
+    //
+    //   434dip  zoom cluster clears the Print/Save/Copy run. The top band packs
+    //           a fixed left group ending at pad + 3*btnW + 2*gap = 274dip
+    //           against a fixed zoom group starting at width - 160dip, and
+    //           nothing reflows, so below this they overlap.
+    //   ~500dip printer scene stops being clipped left/right. The scene scales
+    //           to its viewport height, so only width can crop it.
+    //   ~536dip the one-line hint fits (it does not wrap or ellipsize).
+    //
+    // 560 is the preferred width, which clears the widest floor with ~24dip to
+    // spare -- worth keeping as slack, since the hint is measured text and a
+    // font fallback could widen it.
+    //
+    // Height gets no such treatment: the scene scales, so 480 still renders
+    // the whole printer plus an unclipped hint. Only the caption, the two
+    // 46dip toolbars and the 20dip hint strip are fixed.
+    params.minSizeDip        = { s_kPreferredWidthDip, 480 };
     params.resizable         = true;
     params.captionStyle      = DxuiCaptionStyle::CloseOnly;
     params.classNameOverride = s_kpszClassName;
