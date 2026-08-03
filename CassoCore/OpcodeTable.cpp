@@ -11,32 +11,55 @@
 //
 //  GetOperandSize
 //
+//  Operand bytes that follow the opcode, by addressing mode. Grouped by
+//  size rather than listed one mode per line: the whole point of the
+//  function is that these modes agree on a width, and the old one-return-
+//  per-mode form buried that under nineteen near-identical lines.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 static Byte GetOperandSize (GlobalAddressingMode::AddressingMode mode)
 {
+    Byte  size = 0;
+
+
+
     switch (mode)
     {
-    case GlobalAddressingMode::Immediate:          return 1;
-    case GlobalAddressingMode::ZeroPage:           return 1;
-    case GlobalAddressingMode::ZeroPageX:          return 1;
-    case GlobalAddressingMode::ZeroPageY:          return 1;
-    case GlobalAddressingMode::Absolute:           return 2;
-    case GlobalAddressingMode::AbsoluteX:          return 2;
-    case GlobalAddressingMode::AbsoluteY:          return 2;
-    case GlobalAddressingMode::ZeroPageXIndirect:  return 1;
-    case GlobalAddressingMode::ZeroPageIndirectY:  return 1;
-    case GlobalAddressingMode::Accumulator:        return 0;
-    case GlobalAddressingMode::JumpAbsolute:       return 2;
-    case GlobalAddressingMode::JumpIndirect:       return 2;
-    case GlobalAddressingMode::JumpIndirectCmos:   return 2;   // 65C02 (abs) page-fixed JMP
-    case GlobalAddressingMode::ZeroPageIndirect:   return 1;   // 65C02 (zp)
-    case GlobalAddressingMode::AbsoluteXIndirect:  return 2;   // 65C02 (abs,X) JMP
-    case GlobalAddressingMode::ZeroPageRelative:   return 2;   // 65C02 BBRn/BBSn: zp byte + rel byte
-    case GlobalAddressingMode::Relative:           return 1;
-    case GlobalAddressingMode::SingleByteNoOperand: return 0;
-    default:                                       return 0;
+    // One operand byte: a zero-page address, an immediate value, or a
+    // signed branch displacement.
+    case GlobalAddressingMode::Immediate:
+    case GlobalAddressingMode::ZeroPage:
+    case GlobalAddressingMode::ZeroPageX:
+    case GlobalAddressingMode::ZeroPageY:
+    case GlobalAddressingMode::ZeroPageXIndirect:
+    case GlobalAddressingMode::ZeroPageIndirectY:
+    case GlobalAddressingMode::ZeroPageIndirect:      // 65C02 (zp)
+    case GlobalAddressingMode::Relative:
+        size = 1;
+        break;
+
+    // Two operand bytes: a full 16-bit address, or the 65C02 bit-branch
+    // pair (zp byte + rel byte).
+    case GlobalAddressingMode::Absolute:
+    case GlobalAddressingMode::AbsoluteX:
+    case GlobalAddressingMode::AbsoluteY:
+    case GlobalAddressingMode::JumpAbsolute:
+    case GlobalAddressingMode::JumpIndirect:
+    case GlobalAddressingMode::JumpIndirectCmos:      // 65C02 (abs) page-fixed JMP
+    case GlobalAddressingMode::AbsoluteXIndirect:     // 65C02 (abs,X) JMP
+    case GlobalAddressingMode::ZeroPageRelative:      // 65C02 BBRn/BBSn
+        size = 2;
+        break;
+
+    // No operand byte: the opcode is the whole instruction.
+    case GlobalAddressingMode::Accumulator:
+    case GlobalAddressingMode::SingleByteNoOperand:
+    default:
+        break;
     }
+
+    return size;
 }
 
 
@@ -180,24 +203,25 @@ OpcodeTable::OpcodeTable (const Microcode instructionSet[256])
 
 bool OpcodeTable::Lookup (const std::string & mnemonic, GlobalAddressingMode::AddressingMode mode, OpcodeEntry & result) const
 {
-    auto mnemonicIt = m_table.find (mnemonic);
+    auto  mnemonicIt = m_table.find (mnemonic);
+    bool  found      = false;
 
 
 
-    if (mnemonicIt == m_table.end())
+    // Two levels: an unknown mnemonic and a known one that lacks this
+    // addressing mode both mean "no encoding", and `result` is untouched.
+    if (mnemonicIt != m_table.end())
     {
-        return false;
+        auto  modeIt = mnemonicIt->second.find ((int) mode);
+
+        if (modeIt != mnemonicIt->second.end())
+        {
+            result = modeIt->second;
+            found  = true;
+        }
     }
 
-    auto modeIt = mnemonicIt->second.find ((int) mode);
-
-    if (modeIt == mnemonicIt->second.end())
-    {
-        return false;
-    }
-
-    result = modeIt->second;
-    return true;
+    return found;
 }
 
 
@@ -227,14 +251,12 @@ bool OpcodeTable::IsMnemonic (const std::string & name) const
 
 bool OpcodeTable::HasMode (const std::string & mnemonic, GlobalAddressingMode::AddressingMode mode) const
 {
-    auto mnemonicIt = m_table.find (mnemonic);
+    auto  mnemonicIt = m_table.find (mnemonic);
 
 
 
-    if (mnemonicIt == m_table.end())
-    {
-        return false;
-    }
-
-    return mnemonicIt->second.find ((int) mode) != mnemonicIt->second.end();
+    // Short-circuit order guards the inner find: an unknown mnemonic has no
+    // per-mode map to search.
+    return mnemonicIt != m_table.end()
+        && mnemonicIt->second.find ((int) mode) != mnemonicIt->second.end();
 }

@@ -208,15 +208,17 @@ void Cpu6502::SetRegisters (const Cpu6502Registers & regs)
 
 bool Cpu6502::TryDispatchInterrupt (uint32_t & outCycles)
 {
-    if (!TryStepInterrupt())
+    // TryStepInterrupt performs the dispatch; this only publishes the cycle
+    // cost, so `outCycles` is left alone when no interrupt was pending.
+    bool  dispatched = TryStepInterrupt();
+
+    if (dispatched)
     {
-        return false;
+        outCycles      = static_cast<uint32_t> (m_lastCycles);
+        m_totalCycles += outCycles;
     }
 
-    outCycles      = static_cast<uint32_t> (m_lastCycles);
-    m_totalCycles += outCycles;
-
-    return true;
+    return dispatched;
 }
 
 

@@ -220,54 +220,57 @@ bool Cpu::DumpTraceToFile (const std::wstring & path,
     uint64_t       total = (m_traceCount < (uint64_t) m_traceCapacity) ? m_traceCount
                                                                        : (uint64_t) m_traceCapacity;
     size_t         start = 0;
+    bool           wrote = false;
     char           line[160];
 
-    if (!out.is_open() || m_traceCapacity == 0)
+    // An unopenable file and a trace ring that was never allocated are both
+    // "nothing written"; out.good() below reports write failures instead.
+    if (out.is_open() && m_traceCapacity != 0)
     {
-        return false;
-    }
+        // When the ring has wrapped, the oldest surviving entry sits at the
+        // current head; otherwise it starts at index 0.
+        start = (m_traceCount > (uint64_t) m_traceCapacity) ? m_traceHead : 0;
 
-    // When the ring has wrapped, the oldest surviving entry sits at the
-    // current head; otherwise it starts at index 0.
-    start = (m_traceCount > (uint64_t) m_traceCapacity) ? m_traceHead : 0;
+        out << "Casso CPU execution trace -- " << total << " instructions (oldest first)\n";
 
-    out << "Casso CPU execution trace -- " << total << " instructions (oldest first)\n";
-
-    for (uint64_t i = 0; i < total; i++)
-    {
-        size_t              index = (start + (size_t) i) % m_traceCapacity;
-        const TraceEntry &  e     = m_trace[index];
-        const char *        name  = instructionSet[e.opcode].instructionName != nullptr
-                                    ? instructionSet[e.opcode].instructionName
-                                    : "???";
-
-        int  n = std::snprintf (line, sizeof (line),
-                                "%08llu  PC=$%04X  op=$%02X OPS=$%02X $%02X (%s)  "
-                                "A=$%02X X=$%02X Y=$%02X SP=$%02X P=$%02X\n",
-                                (unsigned long long) i,
-                                (unsigned) e.pc, (unsigned) e.opcode,
-                                (unsigned) e.op1, (unsigned) e.op2, name,
-                                (unsigned) e.a, (unsigned) e.x, (unsigned) e.y,
-                                (unsigned) e.sp, (unsigned) e.p);
-        if (n > 0)
+        for (uint64_t i = 0; i < total; i++)
         {
-            out.write (line, n);
+            size_t              index = (start + (size_t) i) % m_traceCapacity;
+            const TraceEntry &  e     = m_trace[index];
+            const char *        name  = instructionSet[e.opcode].instructionName != nullptr
+                                        ? instructionSet[e.opcode].instructionName
+                                        : "???";
+
+            int  n = std::snprintf (line, sizeof (line),
+                                    "%08llu  PC=$%04X  op=$%02X OPS=$%02X $%02X (%s)  "
+                                    "A=$%02X X=$%02X Y=$%02X SP=$%02X P=$%02X\n",
+                                    (unsigned long long) i,
+                                    (unsigned) e.pc, (unsigned) e.opcode,
+                                    (unsigned) e.op1, (unsigned) e.op2, name,
+                                    (unsigned) e.a, (unsigned) e.x, (unsigned) e.y,
+                                    (unsigned) e.sp, (unsigned) e.p);
+            if (n > 0)
+            {
+                out.write (line, n);
+            }
+
+            if (onProgress && (i % kProgressStride) == 0)
+            {
+                onProgress (i, total);
+            }
         }
 
-        if (onProgress && (i % kProgressStride) == 0)
+        out.flush();
+
+        if (onProgress)
         {
-            onProgress (i, total);
+            onProgress (total, total);
         }
+
+        wrote = out.good();
     }
 
-    out.flush();
-
-    if (onProgress)
-    {
-        onProgress (total, total);
-    }
-
-    return out.good();
+    return wrote;
 }
 
 
@@ -551,47 +554,46 @@ void Cpu::PrintOperandAndComment (Byte opcode, const OperandInfo & operandInfo)
 
 void Cpu::FetchOperand (const Microcode & microcode, OperandInfo & operandInfo)
 {
+    // An illegal opcode has no operand to fetch, and the two implied modes
+    // encode their operand in the opcode itself. Both leave PC on the opcode
+    // byte -- only a real operand advances it.
+    bool  hasOperand = microcode.isLegal
+                       && microcode.globalAddressingMode != GlobalAddressingMode::SingleByteNoOperand
+                       && microcode.globalAddressingMode != GlobalAddressingMode::Accumulator;
+
     operandInfo.location         = 0;
     operandInfo.effectiveAddress = 0;
     operandInfo.operand          = 0;
 
-    if (!microcode.isLegal)
+    if (hasOperand)
     {
-        return;
-    }
+        // Advance the program counter to the operand byte
+        ++PC;
 
-    if (microcode.globalAddressingMode == GlobalAddressingMode::SingleByteNoOperand ||
-        microcode.globalAddressingMode == GlobalAddressingMode::Accumulator)
-    {
-        return;
-    }
+        switch (microcode.globalAddressingMode)
+        {
+        case GlobalAddressingMode::Absolute:          FetchOperandAbsolute          (operandInfo, microcode);    break;
+        case GlobalAddressingMode::AbsoluteX:         FetchOperandAbsoluteX         (operandInfo);               break;
+        case GlobalAddressingMode::AbsoluteY:         FetchOperandAbsoluteY         (operandInfo);               break;
+        case GlobalAddressingMode::Immediate:         FetchOperandImmediate         (operandInfo);               break;
+        case GlobalAddressingMode::JumpAbsolute:      FetchOperandJumpAbsolute      (operandInfo);               break;
+        case GlobalAddressingMode::JumpIndirect:      FetchOperandJumpIndirect      (operandInfo);               break;
+        case GlobalAddressingMode::Relative:          FetchOperandRelative          (operandInfo);               break;
+        case GlobalAddressingMode::ZeroPage:          FetchOperandZeroPage          (operandInfo);               break;
+        case GlobalAddressingMode::ZeroPageX:         FetchOperandZeroPageX         (operandInfo);               break;
+        case GlobalAddressingMode::ZeroPageY:         FetchOperandZeroPageY         (operandInfo);               break;
+        case GlobalAddressingMode::ZeroPageXIndirect: FetchOperandZeroPageXIndirect (operandInfo);               break;
+        case GlobalAddressingMode::ZeroPageIndirectY: FetchOperandZeroPageIndirectY (operandInfo);               break;
+        case GlobalAddressingMode::ZeroPageIndirect:  FetchOperandZeroPageIndirect  (operandInfo);               break;
+        case GlobalAddressingMode::AbsoluteXIndirect: FetchOperandAbsoluteXIndirect (operandInfo);               break;
+        case GlobalAddressingMode::ZeroPageRelative:  FetchOperandZeroPageRelative  (operandInfo);               break;
+        case GlobalAddressingMode::JumpIndirectCmos:  FetchOperandJumpIndirectCmos  (operandInfo);               break;
 
-    // Advance the program counter to the operand byte
-    ++PC;
-
-    switch (microcode.globalAddressingMode)
-    {
-    case GlobalAddressingMode::Absolute:          FetchOperandAbsolute          (operandInfo, microcode);    break;
-    case GlobalAddressingMode::AbsoluteX:         FetchOperandAbsoluteX         (operandInfo);               break;
-    case GlobalAddressingMode::AbsoluteY:         FetchOperandAbsoluteY         (operandInfo);               break;
-    case GlobalAddressingMode::Immediate:         FetchOperandImmediate         (operandInfo);               break;
-    case GlobalAddressingMode::JumpAbsolute:      FetchOperandJumpAbsolute      (operandInfo);               break;
-    case GlobalAddressingMode::JumpIndirect:      FetchOperandJumpIndirect      (operandInfo);               break;
-    case GlobalAddressingMode::Relative:          FetchOperandRelative          (operandInfo);               break;
-    case GlobalAddressingMode::ZeroPage:          FetchOperandZeroPage          (operandInfo);               break;
-    case GlobalAddressingMode::ZeroPageX:         FetchOperandZeroPageX         (operandInfo);               break;
-    case GlobalAddressingMode::ZeroPageY:         FetchOperandZeroPageY         (operandInfo);               break;
-    case GlobalAddressingMode::ZeroPageXIndirect: FetchOperandZeroPageXIndirect (operandInfo);               break;
-    case GlobalAddressingMode::ZeroPageIndirectY: FetchOperandZeroPageIndirectY (operandInfo);               break;
-    case GlobalAddressingMode::ZeroPageIndirect:  FetchOperandZeroPageIndirect  (operandInfo);               break;
-    case GlobalAddressingMode::AbsoluteXIndirect: FetchOperandAbsoluteXIndirect (operandInfo);               break;
-    case GlobalAddressingMode::ZeroPageRelative:  FetchOperandZeroPageRelative  (operandInfo);               break;
-    case GlobalAddressingMode::JumpIndirectCmos:  FetchOperandJumpIndirectCmos  (operandInfo);               break;
-
-    default:
-        std::printf ("Unhandled addressing mode %d\n", microcode.instruction.asBits.addressingMode);
-        ASSERT (false);
-        break;
+        default:
+            std::printf ("Unhandled addressing mode %d\n", microcode.instruction.asBits.addressingMode);
+            ASSERT (false);
+            break;
+        }
     }
 }
 

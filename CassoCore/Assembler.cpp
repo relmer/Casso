@@ -16,24 +16,27 @@
 
 FileReadResult DefaultFileReader::ReadFile (const std::string & filename, const std::string & baseDir)
 {
-    FileReadResult result = {};
+    FileReadResult      result   = {};
+    std::string         fullPath = baseDir.empty() ? filename : baseDir + "/" + filename;
+    std::ifstream       file (fullPath);
+    std::ostringstream  ss;
 
 
 
-    std::string fullPath = baseDir.empty() ? filename : baseDir + "/" + filename;
-    std::ifstream file (fullPath);
-
-    if (!file.is_open())
+    // The path is reported in the error because a failed .INCLUDE is almost
+    // always a wrong relative path, not a missing file.
+    if (file.is_open())
+    {
+        ss << file.rdbuf();
+        result.success  = true;
+        result.contents = ss.str();
+    }
+    else
     {
         result.success = false;
         result.error   = "Cannot open file: " + fullPath;
-        return result;
     }
 
-    std::ostringstream ss;
-    ss << file.rdbuf();
-    result.success  = true;
-    result.contents = ss.str();
     return result;
 }
 

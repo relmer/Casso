@@ -15,33 +15,36 @@
 
 int main (int argc, char * argv[])
 {
-    CommandLineOptions options = ParseCommandLine (argc, argv);
+    CommandLineOptions  options  = ParseCommandLine (argc, argv);
+    int                 exitCode = 0;
 
 
 
+    // No subcommand is a usage ERROR (exit 1); an explicit --help or `help`
+    // is the user asking, and succeeds.
     if (options.showHelp || options.subcommand == CommandLineOptions::Subcommand::None
                         || options.subcommand == CommandLineOptions::Subcommand::Help)
     {
         PrintUsage (options.flagPrefix);
-        return (options.showHelp) ? 0 : 1;
+        exitCode = options.showHelp ? 0 : 1;
     }
-
-    if (options.showVersion || options.subcommand == CommandLineOptions::Subcommand::Version)
+    else if (options.showVersion || options.subcommand == CommandLineOptions::Subcommand::Version)
     {
         PrintVersion();
-        return 0;
     }
-
-    if (options.subcommand == CommandLineOptions::Subcommand::Run)
+    else if (options.subcommand == CommandLineOptions::Subcommand::Run)
     {
-        return DoRun (options);
+        exitCode = DoRun (options);
     }
-
-    if (options.subcommand == CommandLineOptions::Subcommand::As65)
+    else if (options.subcommand == CommandLineOptions::Subcommand::As65)
     {
-        return DoAs65 (options);
+        exitCode = DoAs65 (options);
+    }
+    else
+    {
+        // A subcommand the parser knows but this dispatch does not.
+        PrintUsage (options.flagPrefix);
     }
 
-    PrintUsage (options.flagPrefix);
-    return 0;
+    return exitCode;
 }

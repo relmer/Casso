@@ -115,20 +115,20 @@ std::string AssemblySession::GetLeadingWord (const std::string & text)
 
 std::string AssemblySession::GetLowerExtension (const std::string & filename)
 {
-    size_t dot = filename.rfind ('.');
+    size_t       dot = filename.rfind ('.');
+    std::string  ext;
 
 
 
-    if (dot == std::string::npos)
+    // No dot at all yields the empty string, same as a name ending in one.
+    if (dot != std::string::npos)
     {
-        return "";
-    }
+        ext = filename.substr (dot);
 
-    std::string ext = filename.substr (dot);
-
-    for (auto & c : ext)
-    {
-        c = (char) std::tolower ((unsigned char) c);
+        for (auto & c : ext)
+        {
+            c = (char) std::tolower ((unsigned char) c);
+        }
     }
 
     return ext;
@@ -146,10 +146,15 @@ std::string AssemblySession::GetLowerExtension (const std::string & filename)
 
 int AssemblySession::HexCharToNibble (char c)
 {
-    if (c >= '0' && c <= '9') return c - '0';
-    if (c >= 'A' && c <= 'F') return c - 'A' + 10;
-    if (c >= 'a' && c <= 'f') return c - 'a' + 10;
-    return -1;
+    int  nibble = -1;      // -1 == not a hex digit
+
+
+
+    if      (c >= '0' && c <= '9') { nibble = c - '0';      }
+    else if (c >= 'A' && c <= 'F') { nibble = c - 'A' + 10; }
+    else if (c >= 'a' && c <= 'f') { nibble = c - 'a' + 10; }
+
+    return nibble;
 }
 
 
@@ -164,20 +169,19 @@ int AssemblySession::HexCharToNibble (char c)
 
 int AssemblySession::HexByte (const std::string & s, size_t offset)
 {
-    if (offset + 1 >= s.size())
+    bool  hasPair = (offset + 1 < s.size());
+    int   hi      = hasPair ? HexCharToNibble (s[offset])     : -1;
+    int   lo      = hasPair ? HexCharToNibble (s[offset + 1]) : -1;
+    int   value   = -1;      // -1 == not two hex digits at `offset`
+
+
+
+    if (hi >= 0 && lo >= 0)
     {
-        return -1;
+        value = (hi << 4) | lo;
     }
 
-    int hi = HexCharToNibble (s[offset]);
-    int lo = HexCharToNibble (s[offset + 1]);
-
-    if (hi < 0 || lo < 0)
-    {
-        return -1;
-    }
-
-    return (hi << 4) | lo;
+    return value;
 }
 
 
@@ -575,40 +579,41 @@ GlobalAddressingMode::AddressingMode AssemblySession::ResolveAddressingMode (
 
 Byte AssemblySession::EstimateErrorRecoverySize (OperandSyntax syntax, const std::string & mnemonic) const
 {
+    Byte  size = 1;      // opcode only, and the fallback for an unknown syntax
+
     switch (syntax)
     {
         case OperandSyntax::None:
         case OperandSyntax::Accumulator:
-            return 1;
+            break;
 
         case OperandSyntax::Immediate:
         case OperandSyntax::IndirectY:
-            return 2;
+            size = 2;
+            break;
 
         case OperandSyntax::IndirectX:
         case OperandSyntax::Indirect:
             // A jump is 3 bytes -- JMP (abs), JMP (abs,X), JSR abs -- and every
             // other parenthesized form is 2, on both instruction sets.
-            return m_opcodeTable.HasMode (mnemonic, GlobalAddressingMode::JumpAbsolute) ? 3 : 2;
+            size = m_opcodeTable.HasMode (mnemonic, GlobalAddressingMode::JumpAbsolute) ? 3 : 2;
+            break;
 
         case OperandSyntax::IndexedX:
         case OperandSyntax::IndexedY:
         case OperandSyntax::Bare:
-        {
-            if (IsBranchMnemonic (mnemonic))
-            {
-                return 2;
-            }
-
-            return 3;
-        }
+            // A branch takes a one-byte signed displacement; everything else
+            // with a bare or indexed operand takes a 16-bit address.
+            size = IsBranchMnemonic (mnemonic) ? 2 : 3;
+            break;
 
         case OperandSyntax::ZeroPageRelative:
             // 65C02 BBRn/BBSn: opcode + zero-page byte + relative offset.
-            return 3;
+            size = 3;
+            break;
     }
 
-    return 1;
+    return size;
 }
 
 
