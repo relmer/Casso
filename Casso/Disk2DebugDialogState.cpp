@@ -88,12 +88,10 @@ void SeedDefaultColumns (std::array<LogicalColumn, kColumnCount> & columns) noex
 
 bool ComputeWasAtTail (int topIndex, int countPerPage, int totalCount) noexcept
 {
-    if (totalCount <= 0)
-    {
-        return true;
-    }
-
-    return (topIndex + countPerPage) >= totalCount;
+    // An empty list is vacuously at tail, which is what keeps the first
+    // arriving row from being treated as a scroll-away.
+    return totalCount <= 0
+        || (topIndex + countPerPage) >= totalCount;
 }
 
 
@@ -113,26 +111,32 @@ bool ComputeWasAtTail (int topIndex, int countPerPage, int totalCount) noexcept
 
 static uint32_t EventTypeCategoryBit (Disk2EventType type) noexcept
 {
+    // 0 means "no checkbox category", which the filter reads as always-shown.
+    // Audio types and the EventsLost synthetic both land there via `default`.
+    uint32_t  bit = 0;
+
     switch (type)
     {
         case Disk2EventType::MotorCommandOn:
         case Disk2EventType::MotorEngaged:
         case Disk2EventType::MotorCommandOff:
-        case Disk2EventType::MotorDisengaged:    return FilterState::kEventCatMotor;
+        case Disk2EventType::MotorDisengaged:    bit = FilterState::kEventCatMotor;       break;
 
-        case Disk2EventType::HeadStep:           return FilterState::kEventCatHeadStep;
-        case Disk2EventType::HeadBump:           return FilterState::kEventCatHeadBump;
-        case Disk2EventType::AddrMark:           return FilterState::kEventCatAddrMark;
-        case Disk2EventType::DataRead:           return FilterState::kEventCatRead;
-        case Disk2EventType::DataWrite:          return FilterState::kEventCatWrite;
+        case Disk2EventType::HeadStep:           bit = FilterState::kEventCatHeadStep;    break;
+        case Disk2EventType::HeadBump:           bit = FilterState::kEventCatHeadBump;    break;
+        case Disk2EventType::AddrMark:           bit = FilterState::kEventCatAddrMark;    break;
+        case Disk2EventType::DataRead:           bit = FilterState::kEventCatRead;        break;
+        case Disk2EventType::DataWrite:          bit = FilterState::kEventCatWrite;       break;
 
         case Disk2EventType::DiskInserted:
-        case Disk2EventType::DiskEjected:        return FilterState::kEventCatDoor;
+        case Disk2EventType::DiskEjected:        bit = FilterState::kEventCatDoor;        break;
 
-        case Disk2EventType::DriveSelect:        return FilterState::kEventCatDriveSelect;
+        case Disk2EventType::DriveSelect:        bit = FilterState::kEventCatDriveSelect; break;
 
-        default:                                  return 0;
+        default:                                                                          break;
     }
+
+    return bit;
 }
 
 
@@ -151,16 +155,24 @@ static uint32_t EventTypeCategoryBit (Disk2EventType type) noexcept
 
 static bool MatchesAudioSubToggle (Disk2EventType type, const FilterState & f) noexcept
 {
+    // Loop events (and anything non-audio that reaches here) have no
+    // sub-toggle of their own, so they pass -- the audio master already
+    // gated them.
+    bool  shown = true;
+
     switch (type)
     {
-        case Disk2EventType::AudioStarted:         return f.audioStarted;
-        case Disk2EventType::AudioRestarted:       return f.audioRestarted;
-        case Disk2EventType::AudioContinued:       return f.audioContinued;
-        case Disk2EventType::AudioSilent:          return f.audioSilent;
-        case Disk2EventType::AudioLoopStarted:     return true;
-        case Disk2EventType::AudioLoopStopped:     return true;
-        default:                                   return true;
+        case Disk2EventType::AudioStarted:     shown = f.audioStarted;   break;
+        case Disk2EventType::AudioRestarted:   shown = f.audioRestarted; break;
+        case Disk2EventType::AudioContinued:   shown = f.audioContinued; break;
+        case Disk2EventType::AudioSilent:      shown = f.audioSilent;    break;
+
+        case Disk2EventType::AudioLoopStarted:
+        case Disk2EventType::AudioLoopStopped:
+        default:                                                         break;
     }
+
+    return shown;
 }
 
 
@@ -185,78 +197,58 @@ static bool MatchesAudioSubToggle (Disk2EventType type, const FilterState & f) n
 bool MatchesFilter (const Disk2EventDisplay & e, const FilterState & f) noexcept
 {
     uint32_t  catBit = 0;
+    bool      shown  = true;
 
 
 
-    if (e.type == Disk2EventType::EventsLost)
+    // Synthetic overflow markers are never filterable -- losing the "N events
+    // lost" row to a filter would hide the fact that anything was lost.
+    if (e.type != Disk2EventType::EventsLost)
     {
-        return true;
-    }
-
-    if (e.category == EventCategory::Audio)
-    {
-        if (!f.audioMaster)
+        if (e.category == EventCategory::Audio)
         {
-            return false;
+            // Master first, then the per-outcome sub-toggle.
+            shown = f.audioMaster && MatchesAudioSubToggle (e.type, f);
+        }
+        else
+        {
+            // A type with no category bit has no checkbox and is always shown.
+            catBit = EventTypeCategoryBit (e.type);
+            shown  = (catBit == 0) || (f.eventTypeMask & catBit) != 0;
         }
 
-        if (!MatchesAudioSubToggle (e.type, f))
+        if (shown && f.driveFilter != 0)
         {
-            return false;
-        }
-    }
-    else
-    {
-        catBit = EventTypeCategoryBit (e.type);
-
-        if (catBit != 0 && (f.eventTypeMask & catBit) == 0)
-        {
-            return false;
-        }
-    }
-
-    if (f.driveFilter != 0)
-    {
-        if (e.drive == Disk2EventDisplay::kFieldNotApplicable)
-        {
-            // Synthetic EventsLost is the only row without a drive
-            // context; treat the always-shown rule (above) as
-            // authoritative for it and reject everything else here.
-            // Spec-006 bug fix: the previous "bypass" rule masked
-            // events that legitimately had no drive_index stamped
-            // because of producer-side oversights. Every real
-            // controller / audio event now stamps its drive at
-            // fire time, so reaching this branch means "no drive at
-            // all" -- which a non-All radio should never match.
-            return false;
+            // driveFilter is the 1-based UI selection (1 = Drive 1, 2 = Drive
+            // 2); event.drive is the 0-based internal index (matches
+            // Disk2Controller::m_activeDrive).
+            //
+            // A row with NO drive is rejected outright rather than bypassed.
+            // Spec-006 bug fix: the previous "bypass" rule masked events that
+            // legitimately had no drive_index stamped because of producer-side
+            // oversights. Every real controller / audio event now stamps its
+            // drive at fire time, so reaching here with kFieldNotApplicable
+            // means "no drive at all" -- which a non-All radio never matches.
+            shown = (e.drive != Disk2EventDisplay::kFieldNotApplicable)
+                    && (e.drive == (f.driveFilter - 1));
         }
 
-        if (e.drive != (f.driveFilter - 1))
+        // Field-absent rule: a row with no track (or sector) cannot be
+        // track-rejected, so the predicate is bypassed rather than failed.
+        // This is the opposite of the drive rule directly above, because
+        // those fields are legitimately absent on many event types.
+        if (shown && e.track != Disk2EventDisplay::kFieldNotApplicable)
         {
-            // driveFilter is the 1-based UI selection (1 = Drive 1,
-            // 2 = Drive 2); event.drive is the 0-based internal
-            // index (matches Disk2Controller::m_activeDrive).
-            return false;
+            shown = f.trackFilter.Matches (e.track);
+        }
+
+        if (shown && e.sector != Disk2EventDisplay::kFieldNotApplicable)
+        {
+            shown = f.sectorFilter.Matches (e.sector);
         }
     }
 
-    if (e.track != Disk2EventDisplay::kFieldNotApplicable)
-    {
-        if (!f.trackFilter.Matches (e.track))
-        {
-            return false;
-        }
-    }
-
-    if (e.sector != Disk2EventDisplay::kFieldNotApplicable)
-    {
-        if (!f.sectorFilter.Matches (e.sector))
-        {
-            return false;
-        }
-    }
-
-    return true;
+    return shown;
 }
 
 

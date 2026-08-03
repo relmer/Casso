@@ -50,7 +50,12 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  Anonymous helpers
+//  ResolveMachineSpeedCommand
+//
+//  Digs the saved speed mode out of the merged config and maps it to the
+//  IDM_* the command router expects. 0 means "no saved preference", which
+//  every step below can produce: no object, no $cassoUiPrefs, no
+//  speedMode key, or a value this build does not recognize.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -59,32 +64,30 @@ WORD  MachineManager::ResolveMachineSpeedCommand (const JsonValue & mergedJson)
     HRESULT            hr      = S_OK;
     const JsonValue *  uiPrefs = nullptr;
     std::string        speed;
+    WORD               command = 0;
 
 
 
-    if (mergedJson.GetType() != JsonType::Object)
+    if (mergedJson.GetType() == JsonType::Object)
     {
-        return 0;
+        hr = mergedJson.GetObject ("$cassoUiPrefs", uiPrefs);
     }
 
-    hr = mergedJson.GetObject ("$cassoUiPrefs", uiPrefs);
-    if (FAILED (hr) || uiPrefs == nullptr)
+    if (SUCCEEDED (hr) && uiPrefs != nullptr)
     {
-        return 0;
-    }
-    _Analysis_assume_ (uiPrefs != nullptr);
+        _Analysis_assume_ (uiPrefs != nullptr);
 
-    hr = uiPrefs->GetString ("speedMode", speed);
-    if (FAILED (hr))
-    {
-        return 0;
+        hr = uiPrefs->GetString ("speedMode", speed);
     }
 
-    if (speed == "authentic") return IDM_MACHINE_SPEED_1X;
-    if (speed == "double")    return IDM_MACHINE_SPEED_2X;
-    if (speed == "maximum")   return IDM_MACHINE_SPEED_MAX;
+    if (SUCCEEDED (hr))
+    {
+        if      (speed == "authentic") { command = IDM_MACHINE_SPEED_1X;  }
+        else if (speed == "double")    { command = IDM_MACHINE_SPEED_2X;  }
+        else if (speed == "maximum")   { command = IDM_MACHINE_SPEED_MAX; }
+    }
 
-    return 0;
+    return command;
 }
 
 
@@ -693,116 +696,111 @@ void MachineManager::WireLanguageCard()
     // Find the LanguageCard device
     for (auto & dev : m_shell.m_ownedDevices)
     {
-        lc = dynamic_cast<LanguageCard *> (dev.get());
-
-        if (lc != nullptr)
+        if (lc == nullptr)
         {
-            break;
+            lc = dynamic_cast<LanguageCard *> (dev.get());
         }
     }
 
-    if (lc == nullptr)
+    // Find a ROM device covering $D000-$FFFF. Only looked for once the card
+    // exists -- with no card there is nothing to hand the ROM image to.
+    if (lc != nullptr)
     {
-        return;
-    }
-
-    // Find a ROM device covering $D000-$FFFF
-    for (const auto & entry : m_shell.m_memoryBus.GetEntries())
-    {
-        auto * rom = dynamic_cast<RomDevice *> (entry.device);
-
-        if (rom != nullptr && entry.start <= 0xD000 && entry.end >= 0xFFFF)
+        for (const auto & entry : m_shell.m_memoryBus.GetEntries())
         {
-            romDevice = rom;
-            break;
+            auto * rom = dynamic_cast<RomDevice *> (entry.device);
+
+            if (romDevice == nullptr && rom != nullptr && entry.start <= 0xD000 && entry.end >= 0xFFFF)
+            {
+                romDevice = rom;
+            }
         }
     }
 
-    if (romDevice == nullptr)
+    // No card or no covering ROM: this machine has no language card to wire.
+    if (romDevice != nullptr)
     {
-        return;
-    }
+        Word romStart = romDevice->GetStart();
 
-    Word romStart = romDevice->GetStart();
+        // Copy $D000-$FFFF ROM data to language card
+        std::vector<Byte>  lcRomData (0x3000);
 
-    // Copy $D000-$FFFF ROM data to language card
-    std::vector<Byte>  lcRomData (0x3000);
-
-    for (size_t i = 0; i < 0x3000; i++)
-    {
-        lcRomData[i] = romDevice->Read (static_cast<Word> (0xD000 + i));
-    }
-
-    lc->SetRomData (lcRomData);
-    m_shell.m_memoryBus.RemoveDevice (romDevice);
-
-    // Re-add slot ROM ($C100-$CFFF) if original extended below $D000.
-    // $C000-$C0FF is I/O space and must not be shadowed by ROM.
-    if (romStart < 0xD000)
-    {
-        Word   slotRomStart = static_cast<Word> (std::max (static_cast<int> (romStart), 0xC100));
-        size_t dataOffset   = slotRomStart - romStart;
-        size_t lowerSize    = 0xD000 - slotRomStart;
-
-        UNREFERENCED_PARAMETER (dataOffset);
-
-        std::vector<Byte>  lowerData (lowerSize);
-
-        for (size_t i = 0; i < lowerSize; i++)
+        for (size_t i = 0; i < 0x3000; i++)
         {
-            lowerData[i] = romDevice->Read (static_cast<Word> (slotRomStart + i));
+            lcRomData[i] = romDevice->Read (static_cast<Word> (0xD000 + i));
         }
 
-        // On //e: hand to the MMU's CxxxRomRouter. On ][/][+: keep the
-        // legacy bus-resident ROM device.
+        lc->SetRomData (lcRomData);
+        m_shell.m_memoryBus.RemoveDevice (romDevice);
+
+        // Re-add slot ROM ($C100-$CFFF) if original extended below $D000.
+        // $C000-$C0FF is I/O space and must not be shadowed by ROM.
+        if (romStart < 0xD000)
+        {
+            Word   slotRomStart = static_cast<Word> (std::max (static_cast<int> (romStart), 0xC100));
+            size_t dataOffset   = slotRomStart - romStart;
+            size_t lowerSize    = 0xD000 - slotRomStart;
+
+            UNREFERENCED_PARAMETER (dataOffset);
+
+            std::vector<Byte>  lowerData (lowerSize);
+
+            for (size_t i = 0; i < lowerSize; i++)
+            {
+                lowerData[i] = romDevice->Read (static_cast<Word> (slotRomStart + i));
+            }
+
+            // On //e: hand to the MMU's CxxxRomRouter. On ][/][+: keep the
+            // legacy bus-resident ROM device.
+            if (m_shell.m_mmu != nullptr)
+            {
+                m_shell.m_mmu->AttachInternalCxxxRom (std::move (lowerData));
+            }
+            else
+            {
+                auto lowerRom = RomDevice::CreateFromData (
+                    slotRomStart, static_cast<Word> (0xCFFF),
+                    lowerData.data(), lowerData.size());
+
+                m_shell.m_memoryBus.AddDevice (lowerRom.get());
+                m_shell.m_ownedDevices.push_back (std::move (lowerRom));
+            }
+        }
+
+        // Bank device intercepts $D000-$FFFF, routing to LC RAM or ROM
+        auto lcBank = std::make_unique<LanguageCardBank> (*lc);
+        m_shell.m_memoryBus.AddDevice (lcBank.get());
+        m_shell.m_ownedDevices.push_back (std::move (lcBank));
+
+        // //e wiring: LC needs the MMU (for ALTZP routing) and the
+        // keyboard sibling needs the LC pointer for $C011/$C012 status
+        // reads.
         if (m_shell.m_mmu != nullptr)
         {
-            m_shell.m_mmu->AttachInternalCxxxRom (std::move (lowerData));
+            lc->SetMmu (m_shell.m_mmu.get());
+
+            // Let ALTZP flips re-point the LC's $D000-$FFFF read window (aux/main).
+            m_shell.m_mmu->SetLanguageCard (lc);
         }
-        else
+
+        auto * iieKbd = dynamic_cast<Apple2eKeyboard *> (m_shell.m_refs.keyboard);
+
+        if (iieKbd != nullptr)
         {
-            auto lowerRom = RomDevice::CreateFromData (
-                slotRomStart, static_cast<Word> (0xCFFF),
-                lowerData.data(), lowerData.size());
-
-            m_shell.m_memoryBus.AddDevice (lowerRom.get());
-            m_shell.m_ownedDevices.push_back (std::move (lowerRom));
+            iieKbd->SetLanguageCard (lc);
         }
+
+        auto * iieSw = dynamic_cast<Apple2eSoftSwitchBank *> (m_shell.m_refs.softSwitches);
+
+        if (iieSw != nullptr)
+        {
+            iieSw->SetLanguageCard (lc);
+        }
+
+        // Seed the $D000-$FFFF read-page mapping now that the ROM image and MMU are
+        // wired. Thereafter it re-points on LC switches, reset, and ALTZP flips.
+        lc->RebindWindow();
     }
-
-    // Bank device intercepts $D000-$FFFF, routing to LC RAM or ROM
-    auto lcBank = std::make_unique<LanguageCardBank> (*lc);
-    m_shell.m_memoryBus.AddDevice (lcBank.get());
-    m_shell.m_ownedDevices.push_back (std::move (lcBank));
-
-    // //e wiring: LC needs the MMU (for ALTZP routing) and the
-    // keyboard sibling needs the LC pointer for $C011/$C012 status
-    // reads.
-    if (m_shell.m_mmu != nullptr)
-    {
-        lc->SetMmu (m_shell.m_mmu.get());
-
-        // Let ALTZP flips re-point the LC's $D000-$FFFF read window (aux/main).
-        m_shell.m_mmu->SetLanguageCard (lc);
-    }
-
-    auto * iieKbd = dynamic_cast<Apple2eKeyboard *> (m_shell.m_refs.keyboard);
-
-    if (iieKbd != nullptr)
-    {
-        iieKbd->SetLanguageCard (lc);
-    }
-
-    auto * iieSw = dynamic_cast<Apple2eSoftSwitchBank *> (m_shell.m_refs.softSwitches);
-
-    if (iieSw != nullptr)
-    {
-        iieSw->SetLanguageCard (lc);
-    }
-
-    // Seed the $D000-$FFFF read-page mapping now that the ROM image and MMU are
-    // wired. Thereafter it re-points on LC switches, reset, and ALTZP flips.
-    lc->RebindWindow();
 }
 
 
@@ -868,52 +866,57 @@ void MachineManager::WireApple2cRomBank()
 
 
 
-    if (sysRom.romBankSize == 0)
+    Apple2eMmu            * mmu      = m_shell.m_mmu.get();
+    Apple2eSoftSwitchBank * sw       = dynamic_cast<Apple2eSoftSwitchBank *> (m_shell.m_refs.softSwitches);
+    LanguageCard          * lc       = nullptr;
+    std::vector<Byte>       fileBytes;
+    size_t                  twoBanks = static_cast<size_t> (sysRom.romBankSize) * 2;
+    HRESULT                 hrRead   = S_OK;
+    bool                    banked   = (sysRom.romBankSize != 0);
+
+    // romBankSize 0 is a flat-ROM machine (the //e and earlier) -- not a
+    // failure, so it gets no diagnostic.
+    if (banked)
     {
-        return;
-    }
-
-    Apple2eMmu            * mmu = m_shell.m_mmu.get();
-    Apple2eSoftSwitchBank * sw  = dynamic_cast<Apple2eSoftSwitchBank *> (m_shell.m_refs.softSwitches);
-    LanguageCard          * lc  = nullptr;
-
-    for (auto & dev : m_shell.m_ownedDevices)
-    {
-        lc = dynamic_cast<LanguageCard *> (dev.get());
-
-        if (lc != nullptr)
+        for (auto & dev : m_shell.m_ownedDevices)
         {
-            break;
+            if (lc == nullptr)
+            {
+                lc = dynamic_cast<LanguageCard *> (dev.get());
+            }
+        }
+
+        banked = (mmu != nullptr && sw != nullptr && lc != nullptr);
+
+        if (!banked)
+        {
+            DEBUGMSG (L"WireApple2cRomBank: missing MMU/soft-switches/LC; banking disabled\n");
         }
     }
 
-    if (mmu == nullptr || sw == nullptr || lc == nullptr)
+    if (banked)
     {
-        DEBUGMSG (L"WireApple2cRomBank: missing MMU/soft-switches/LC; banking disabled\n");
-        return;
+        hrRead = ReadRomFileBytes (sysRom.resolvedPath, fileBytes);
+        banked = SUCCEEDED (hrRead) && fileBytes.size() >= twoBanks;
+
+        if (!banked)
+        {
+            DEBUGMSG (L"WireApple2cRomBank: cannot read both ROM banks; banking disabled\n");
+        }
     }
 
-    std::vector<Byte>   fileBytes;
-    size_t              twoBanks = static_cast<size_t> (sysRom.romBankSize) * 2;
-    HRESULT             hrRead   = S_OK;
-
-    hrRead = ReadRomFileBytes (sysRom.resolvedPath, fileBytes);
-
-    if (FAILED (hrRead) || fileBytes.size() < twoBanks)
+    if (banked)
     {
-        DEBUGMSG (L"WireApple2cRomBank: cannot read both ROM banks; banking disabled\n");
-        return;
+        std::vector<Byte>   bank0 (fileBytes.begin(),                     fileBytes.begin() + sysRom.romBankSize);
+        std::vector<Byte>   bank1 (fileBytes.begin() + sysRom.romBankSize, fileBytes.begin() + twoBanks);
+
+        m_shell.m_apple2cRomBank = std::make_unique<Apple2cRomBank> (*lc, *mmu);
+        m_shell.m_apple2cRomBank->SetBankImages (std::move (bank0), std::move (bank1));
+        sw->SetRomBankSwitch (m_shell.m_apple2cRomBank.get());
+
+        // //c: no card slots -> $C100-$CFFF is always the internal firmware.
+        mmu->GetCxxxRouter()->SetNoExternalSlots (true);
     }
-
-    std::vector<Byte>   bank0 (fileBytes.begin(),                     fileBytes.begin() + sysRom.romBankSize);
-    std::vector<Byte>   bank1 (fileBytes.begin() + sysRom.romBankSize, fileBytes.begin() + twoBanks);
-
-    m_shell.m_apple2cRomBank = std::make_unique<Apple2cRomBank> (*lc, *mmu);
-    m_shell.m_apple2cRomBank->SetBankImages (std::move (bank0), std::move (bank1));
-    sw->SetRomBankSwitch (m_shell.m_apple2cRomBank.get());
-
-    // //c: no card slots -> $C100-$CFFF is always the internal firmware.
-    mmu->GetCxxxRouter()->SetNoExternalSlots (true);
 }
 
 
@@ -996,29 +999,30 @@ Byte * MachineManager::GetAuxRamBuffer()
 
 void MachineManager::RebuildBankingPages()
 {
-    if (!m_shell.m_cpu)
-    {
-        return;
-    }
+    Byte *  mainRam = nullptr;
+    int     page    = 0;
 
-    if (m_shell.m_mmu != nullptr)
-    {
-        return;
-    }
 
-    Byte * mainRam = const_cast<Byte *> (m_shell.m_cpu->GetMemory());
 
-    for (int page = 0x04; page <= 0x07; page++)
+    // Only the legacy no-MMU path does anything here: with an MMU present it
+    // owns every $0000-$BFFF page and this would fight it.
+    if (m_shell.m_cpu && m_shell.m_mmu == nullptr)
     {
-        Byte * p = mainRam + (page * 0x100);
-        m_shell.m_memoryBus.SetReadPage  (page, p);
-        m_shell.m_memoryBus.SetWritePage (page, p);
-    }
-    for (int page = 0x20; page <= 0x3F; page++)
-    {
-        Byte * p = mainRam + (page * 0x100);
-        m_shell.m_memoryBus.SetReadPage  (page, p);
-        m_shell.m_memoryBus.SetWritePage (page, p);
+        mainRam = const_cast<Byte *> (m_shell.m_cpu->GetMemory());
+
+        // Text page 1 ($0400-$07FF) and hi-res page 1 ($2000-$3FFF) -- the
+        // two windows 80STORE/PAGE2 would otherwise re-point.
+        for (page = 0x04; page <= 0x07; page++)
+        {
+            m_shell.m_memoryBus.SetReadPage  (page, mainRam + (page * 0x100));
+            m_shell.m_memoryBus.SetWritePage (page, mainRam + (page * 0x100));
+        }
+
+        for (page = 0x20; page <= 0x3F; page++)
+        {
+            m_shell.m_memoryBus.SetReadPage  (page, mainRam + (page * 0x100));
+            m_shell.m_memoryBus.SetWritePage (page, mainRam + (page * 0x100));
+        }
     }
 }
 
