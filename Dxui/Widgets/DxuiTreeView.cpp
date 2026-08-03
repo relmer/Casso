@@ -88,12 +88,13 @@ std::vector<int> DxuiTreeView::PathFor (int flatIndex) const
 
 
 
-    if (flatIndex < 0 || flatIndex >= (int) m_flatRows.size())
+    // An out-of-range index yields an empty path, which NodeAtMutable reads as
+    // "no such node".
+    if (flatIndex >= 0 && flatIndex < (int) m_flatRows.size())
     {
-        return out;
+        out = m_flatRows[(size_t) flatIndex].pathStack;
     }
 
-    out = m_flatRows[(size_t) flatIndex].pathStack;
     return out;
 }
 
@@ -132,20 +133,19 @@ DxuiTreeNode * DxuiTreeView::NodeAtMutable (int flatIndex)
 
 
     path = PathFor (flatIndex);
-    if (path.empty())
-    {
-        return nullptr;
-    }
 
-    idx    = path[0];
-    cursor = (idx >= 0 && idx < (int) m_nodes.size()) ? &m_nodes[(size_t) idx] : nullptr;
-
-    for (i = 1; i < path.size() && cursor != nullptr; ++i)
+    if (!path.empty())
     {
-        idx    = path[i];
-        cursor = (idx >= 0 && idx < (int) cursor->children.size())
-                    ? &cursor->children[(size_t) idx]
-                    : nullptr;
+        idx    = path[0];
+        cursor = (idx >= 0 && idx < (int) m_nodes.size()) ? &m_nodes[(size_t) idx] : nullptr;
+
+        for (i = 1; i < path.size() && cursor != nullptr; ++i)
+        {
+            idx    = path[i];
+            cursor = (idx >= 0 && idx < (int) cursor->children.size())
+                        ? &cursor->children[(size_t) idx]
+                        : nullptr;
+        }
     }
 
     return cursor;
@@ -167,12 +167,9 @@ bool DxuiTreeView::IsInteractive (int flatIndex) const
 
 
 
-    if (n == nullptr || !m_enabled)
-    {
-        return false;
-    }
-
-    return n->capabilityFlag == DxuiTreeCapabilityFlag::Optional;
+    return n != nullptr
+        && m_enabled
+        && n->capabilityFlag == DxuiTreeCapabilityFlag::Optional;
 }
 
 
@@ -187,32 +184,27 @@ bool DxuiTreeView::IsInteractive (int flatIndex) const
 
 int DxuiTreeView::HitTestRow (int x, int y) const
 {
-    int  relY = 0;
-    int  row  = 0;
+    int   relY    = 0;
+    int   row     = -1;
+    bool  inRange = false;
 
 
 
-    if (!m_enabled)
+    inRange = m_enabled
+              && x >= m_boundsDip.left && x < m_boundsDip.right
+              && y >= m_boundsDip.top  && y < m_boundsDip.bottom
+              && m_rowHeightPx > 0;
+
+    if (inRange)
     {
-        return -1;
-    }
+        relY = y - m_boundsDip.top;
+        row  = relY / m_rowHeightPx;
 
-    if (x < m_boundsDip.left || x >= m_boundsDip.right || y < m_boundsDip.top || y >= m_boundsDip.bottom)
-    {
-        return -1;
-    }
-
-    if (m_rowHeightPx <= 0)
-    {
-        return -1;
-    }
-
-    relY = y - m_boundsDip.top;
-    row  = relY / m_rowHeightPx;
-
-    if (row < 0 || row >= (int) m_flatRows.size())
-    {
-        return -1;
+        // Past the last populated row is a miss, not the last row.
+        if (row >= (int) m_flatRows.size())
+        {
+            row = -1;
+        }
     }
 
     return row;
@@ -233,23 +225,23 @@ bool DxuiTreeView::HitTestTwisty (int x, int y, int flatRow) const
     int    rowTop   = 0;
     int    rowDepth = 0;
     int    twistyX  = 0;
+    bool   isHit    = false;
 
 
 
     UNREFERENCED_PARAMETER (y);
 
-    if (flatRow < 0 || flatRow >= (int) m_flatRows.size())
+    if (flatRow >= 0 && flatRow < (int) m_flatRows.size())
     {
-        return false;
+        rowDepth = m_flatRows[(size_t) flatRow].depth;
+        rowTop   = m_boundsDip.top + flatRow * m_rowHeightPx;
+        twistyX  = m_boundsDip.left + rowDepth * m_indentPx;
+        isHit    = x >= twistyX && x < twistyX + m_twistyPx;
+
+        UNREFERENCED_PARAMETER (rowTop);
     }
 
-    rowDepth = m_flatRows[(size_t) flatRow].depth;
-    rowTop   = m_boundsDip.top + flatRow * m_rowHeightPx;
-    twistyX  = m_boundsDip.left + rowDepth * m_indentPx;
-
-    UNREFERENCED_PARAMETER (rowTop);
-
-    return x >= twistyX && x < twistyX + m_twistyPx;
+    return isHit;
 }
 
 
@@ -264,22 +256,22 @@ bool DxuiTreeView::HitTestTwisty (int x, int y, int flatRow) const
 
 bool DxuiTreeView::HitTestCheckbox (int x, int y, int flatRow) const
 {
-    int  rowDepth   = 0;
-    int  checkboxX  = 0;
+    int   rowDepth  = 0;
+    int   checkboxX = 0;
+    bool  isHit     = false;
 
 
 
     UNREFERENCED_PARAMETER (y);
 
-    if (flatRow < 0 || flatRow >= (int) m_flatRows.size())
+    if (flatRow >= 0 && flatRow < (int) m_flatRows.size())
     {
-        return false;
+        rowDepth  = m_flatRows[(size_t) flatRow].depth;
+        checkboxX = m_boundsDip.left + rowDepth * m_indentPx + m_twistyPx;
+        isHit     = x >= checkboxX && x < checkboxX + m_checkboxPx;
     }
 
-    rowDepth  = m_flatRows[(size_t) flatRow].depth;
-    checkboxX = m_boundsDip.left + rowDepth * m_indentPx + m_twistyPx;
-
-    return x >= checkboxX && x < checkboxX + m_checkboxPx;
+    return isHit;
 }
 
 
@@ -309,18 +301,18 @@ void DxuiTreeView::SetMouseHover (int x, int y)
 
 bool DxuiTreeView::OnLButtonDown (int x, int y)
 {
-    int  row = HitTestRow (x, y);
+    int   row   = HitTestRow (x, y);
+    bool  isHit = (row >= 0);
 
 
 
-    if (row < 0)
+    if (isHit)
     {
-        return false;
+        m_pressedRow = row;
+        m_highlight  = row;
     }
 
-    m_pressedRow = row;
-    m_highlight  = row;
-    return true;
+    return isHit;
 }
 
 
@@ -343,30 +335,29 @@ bool DxuiTreeView::OnLButtonUp (int x, int y)
 
     m_pressedRow = -1;
 
-    if (row < 0 || row != pressed)
+    // A release only counts on the row the press started on.
+    if (row >= 0 && row == pressed)
     {
-        return false;
-    }
-
-    if (HitTestTwisty (x, y, row))
-    {
-        DxuiTreeNode * n = NodeAtMutable (row);
-
-        if (n != nullptr && !n->children.empty())
+        if (HitTestTwisty (x, y, row))
         {
-            n->expanded = !n->expanded;
-            RebuildFlatRows();
+            DxuiTreeNode * n = NodeAtMutable (row);
+
+            if (n != nullptr && !n->children.empty())
+            {
+                n->expanded = !n->expanded;
+                RebuildFlatRows();
+                consumed = true;
+            }
+        }
+        else if (HitTestCheckbox (x, y, row))
+        {
+            ToggleRow (row);
             consumed = true;
         }
-    }
-    else if (HitTestCheckbox (x, y, row))
-    {
-        ToggleRow (row);
-        consumed = true;
-    }
-    else
-    {
-        consumed = true;   // row selection
+        else
+        {
+            consumed = true;   // row selection
+        }
     }
 
     return consumed;
@@ -388,22 +379,19 @@ void DxuiTreeView::ToggleRow (int flatRow)
 
 
 
-    if (!IsInteractive (flatRow))
+    if (IsInteractive (flatRow))
     {
-        return;
+        n = NodeAtMutable (flatRow);
     }
 
-    n = NodeAtMutable (flatRow);
-    if (n == nullptr)
+    if (n != nullptr)
     {
-        return;
-    }
+        n->checked = !n->checked;
 
-    n->checked = !n->checked;
-
-    if (m_toggle)
-    {
-        m_toggle (n->label, n->checked);
+        if (m_toggle)
+        {
+            m_toggle (n->label, n->checked);
+        }
     }
 }
 
@@ -419,56 +407,63 @@ void DxuiTreeView::ToggleRow (int flatRow)
 
 bool DxuiTreeView::OnKey (WPARAM vk)
 {
-    DxuiTreeNode * n = nullptr;
+    DxuiTreeNode *  n        = nullptr;
+    bool            isActive = false;
+    bool            handled  = false;
 
 
 
-    if (!m_enabled || !m_focused || m_flatRows.empty())
-    {
-        return false;
-    }
+    isActive = m_enabled && m_focused && !m_flatRows.empty();
 
-    if (m_highlight < 0)
+    if (isActive && m_highlight < 0)
     {
         m_highlight = 0;
     }
 
-    switch (vk)
+    if (isActive)
     {
-        case VK_UP:
-            if (m_highlight > 0) { m_highlight--; }
-            return true;
+        handled = true;   // cleared by the default arm below
 
-        case VK_DOWN:
-            if (m_highlight < (int) m_flatRows.size() - 1) { m_highlight++; }
-            return true;
+        switch (vk)
+        {
+            case VK_UP:
+                if (m_highlight > 0) { m_highlight--; }
+                break;
 
-        case VK_RIGHT:
-            n = NodeAtMutable (m_highlight);
-            if (n != nullptr && !n->children.empty() && !n->expanded)
-            {
-                n->expanded = true;
-                RebuildFlatRows();
-            }
-            return true;
+            case VK_DOWN:
+                if (m_highlight < (int) m_flatRows.size() - 1) { m_highlight++; }
+                break;
 
-        case VK_LEFT:
-            n = NodeAtMutable (m_highlight);
-            if (n != nullptr && !n->children.empty() && n->expanded)
-            {
-                n->expanded = false;
-                RebuildFlatRows();
-            }
-            return true;
+            case VK_RIGHT:
+                n = NodeAtMutable (m_highlight);
+                if (n != nullptr && !n->children.empty() && !n->expanded)
+                {
+                    n->expanded = true;
+                    RebuildFlatRows();
+                }
+                break;
 
-        case VK_SPACE:
-        case VK_RETURN:
-            ToggleRow (m_highlight);
-            return true;
+            case VK_LEFT:
+                n = NodeAtMutable (m_highlight);
+                if (n != nullptr && !n->children.empty() && n->expanded)
+                {
+                    n->expanded = false;
+                    RebuildFlatRows();
+                }
+                break;
 
-        default:
-            return false;
+            case VK_SPACE:
+            case VK_RETURN:
+                ToggleRow (m_highlight);
+                break;
+
+            default:
+                handled = false;
+                break;
+        }
     }
+
+    return handled;
 }
 
 
@@ -649,26 +644,32 @@ void DxuiTreeView::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
 
 bool DxuiTreeView::OnMouse (const DxuiMouseEvent & ev)
 {
+    bool  handled = false;
+
+
+
     switch (ev.kind)
     {
     case DxuiMouseEventKind::Move:
         SetMouseHover (ev.positionDip.x, ev.positionDip.y);
-        return false;
+        break;
     case DxuiMouseEventKind::Down:
         if (ev.button == DxuiMouseButton::Left)
         {
-            return OnLButtonDown (ev.positionDip.x, ev.positionDip.y);
+            handled = OnLButtonDown (ev.positionDip.x, ev.positionDip.y);
         }
-        return false;
+        break;
     case DxuiMouseEventKind::Up:
         if (ev.button == DxuiMouseButton::Left)
         {
-            return OnLButtonUp (ev.positionDip.x, ev.positionDip.y);
+            handled = OnLButtonUp (ev.positionDip.x, ev.positionDip.y);
         }
-        return false;
+        break;
     default:
-        return false;
+        break;
     }
+
+    return handled;
 }
 
 
@@ -683,10 +684,14 @@ bool DxuiTreeView::OnMouse (const DxuiMouseEvent & ev)
 
 bool DxuiTreeView::OnKey (const DxuiKeyEvent & ev)
 {
-    if (ev.kind != DxuiKeyEventKind::Down)
+    bool  handled = false;
+
+
+
+    if (ev.kind == DxuiKeyEventKind::Down)
     {
-        return false;
+        handled = OnKey (ev.vk);
     }
 
-    return OnKey (ev.vk);
+    return handled;
 }
