@@ -248,25 +248,22 @@ HRESULT PrinterPanel::Create (
     // the caption, both 46dip toolbars and the 20dip hint strip are fixed, so
     // every dip lost comes out of the printer scene and then the hint clips.
     // Matches Disk2DebugPanel / InputDebugPanel, which already do this.
-    // Measured floors, widest wins. Width is what actually binds, and it is
-    // the hint strip that sets it -- not the buttons:
+    // The toolbar is the ONLY thing that cannot adapt, so it alone sets the
+    // floor. Its top band packs a fixed left group (Print / Save / Copy,
+    // ending at pad + 3*btnW + 2*gap = 274dip) against a fixed zoom group
+    // hugging the right edge (starting at width - 160dip); nothing reflows, so
+    // below 434dip they overlap. 460 leaves 26dip between the two groups --
+    // 440 would technically clear them, but only by the same 6dip gap used
+    // WITHIN the left group, so the six buttons read as one undifferentiated
+    // run. The extra 20dip keeps "document actions" and "zoom" legible as
+    // separate clusters.
     //
-    //   434dip  zoom cluster clears the Print/Save/Copy run. The top band packs
-    //           a fixed left group ending at pad + 3*btnW + 2*gap = 274dip
-    //           against a fixed zoom group starting at width - 160dip, and
-    //           nothing reflows, so below this they overlap.
-    //   ~500dip printer scene stops being clipped left/right. The scene scales
-    //           to its viewport height, so only width can crop it.
-    //   ~536dip the one-line hint fits (it does not wrap or ellipsize).
-    //
-    // 560 is the preferred width, which clears the widest floor with ~24dip to
-    // spare -- worth keeping as slack, since the hint is measured text and a
-    // font fallback could widen it.
-    //
-    // Height gets no such treatment: the scene scales, so 480 still renders
-    // the whole printer plus an unclipped hint. Only the caption, the two
-    // 46dip toolbars and the 20dip hint strip are fixed.
-    params.minSizeDip        = { s_kPreferredWidthDip, 480 };
+    // Everything else in the panel now yields instead of dictating: the 3D
+    // scene widens its FOV to stay whole (Printer3DScene, "contain rather than
+    // crop"), and the hint wraps onto its reserved second line. Height is
+    // likewise unconstrained by content -- only the caption, the two 46dip
+    // toolbars and the hint strip are fixed.
+    params.minSizeDip        = { 460, 400 };
     params.resizable         = true;
     params.captionStyle      = DxuiCaptionStyle::CloseOnly;
     params.classNameOverride = s_kpszClassName;
@@ -1523,7 +1520,12 @@ void PrinterPanel::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
     int   gap      = scaler.Px (6);
     int   captionH = CaptionHeightPx();
     int   toolbarH = scaler.Px (46);
-    int   hintH    = scaler.Px (20);
+    // Two lines' worth. The hint wraps rather than clipping (see Paint), so the
+    // strip has to reserve the second line up front -- Layout has no text
+    // renderer to measure with, and sizing it per-frame would make the paper
+    // area jump as the window crosses the wrap threshold. A single line simply
+    // centers in the taller box.
+    int   hintH    = scaler.Px (36);
     int   btnH     = scaler.Px (30);
     int   btnW     = scaler.Px (84);    // Print... / Save... / Copy / Form Feed / Discard
     int   zoomW    = scaler.Px (42);    // [-] and [+]
@@ -1680,6 +1682,10 @@ void PrinterPanel::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
             DxuiTextHAlign::Center,
             DxuiTextVAlign::Center,
             DxuiFontWeight::Normal,
-            false));
+            // Wrap: the hint must never be the thing that sets the window's
+            // minimum width. The strip is laid out two lines tall, so a narrow
+            // panel spills onto the second line instead of losing both ends,
+            // and a wide one centers a single line in the same box.
+            true));
     }
 }

@@ -86,6 +86,14 @@ static constexpr float   s_kEye[3]   = { 0.0f, 1.35f, 3.30f };
 static constexpr float   s_kAt[3]    = { 0.0f, 0.95f, 0.0f };
 static constexpr float   s_kFovY     = 34.0f * s_kPi / 180.0f;
 
+// The framing above is authored against a roughly square content box -- what
+// the panel gives the scene at its preferred size. A perspective projection
+// takes a FIXED vertical FOV and derives the horizontal extent from the
+// aspect, so a narrower viewport shows LESS width and crops the printer's
+// sides. Below this aspect the vertical FOV is widened to hold the horizontal
+// extent constant, so the scene scales down (letterboxes) instead of cropping.
+static constexpr float   s_kFitAspect = 1.0f;
+
 // World-pan hard stop (world units) at normalized +/-1: how far the whole
 // scene may slide vertically when panning past the paper's scroll limit.
 // ~half a view height at the paper plane -- a clear nudge that always keeps
@@ -1911,7 +1919,25 @@ void Printer3DScene::Render (const RECT & targetPx)
 
     // Zoom narrows the field of view about the same eye, so the paper grows
     // in place without moving the camera into the geometry (1 = fit).
-    PerspectiveFovRH (s_kFovY / m_zoom, (float) w / (float) h, 0.1f, 20.0f, proj);
+    //
+    // Contain rather than crop: a fixed vertical FOV means a viewport narrower
+    // than s_kFitAspect shows less WIDTH, slicing the printer's ends off. Widen
+    // fovY by exactly the shortfall and the horizontal extent holds while the
+    // scene scales down, so the machine stays whole at any window shape. Wider
+    // viewports keep the authored framing untouched. Applied after the zoom
+    // divide, so zooming in still crops on purpose -- this only cancels the
+    // cropping the WINDOW SHAPE would impose.
+    {
+        float  aspect = (float) w / (float) h;
+        float  fovY   = s_kFovY / m_zoom;
+
+        if (aspect < s_kFitAspect)
+        {
+            fovY = 2.0f * std::atan (std::tan (fovY * 0.5f) * (s_kFitAspect / aspect));
+        }
+
+        PerspectiveFovRH (fovY, aspect, 0.1f, 20.0f, proj);
+    }
     Mul44            (view, proj, viewProj);
     Mul44            (model, viewProj, mvp);
     IdentityMvp      (identity);
