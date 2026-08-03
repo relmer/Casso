@@ -2905,59 +2905,66 @@ Error:
 
 void DxuiListView::Tick (int64_t nowMs)
 {
-    int  hStep = 0;
+    int   hStep      = 0;
+    bool  reschedule = true;
 
 
 
     if (m_scrollRepeat == ScrollRepeat::None)
     {
-        return;
+        // Nothing held. The common case, so it is the first test.
     }
-
-    // Arm the initial delay on the first tick after the press.
-    if (m_scrollRepeatNextMs == 0)
+    else if (m_scrollRepeatNextMs == 0)
     {
+        // Arm the initial delay on the first tick after the press.
         m_scrollRepeatNextMs = nowMs + s_kScrollRepeatDelayMs;
-        return;
     }
-
-    if (nowMs < m_scrollRepeatNextMs)
+    else if (nowMs >= m_scrollRepeatNextMs)
     {
-        return;
+        hStep = m_scaler.Px (s_kHScrollStepDip);
+
+        switch (m_scrollRepeat)
+        {
+            case ScrollRepeat::VertArrowUp:    ScrollByRows (-1);            break;
+            case ScrollRepeat::VertArrowDown:  ScrollByRows (1);             break;
+            case ScrollRepeat::HorzArrowLeft:  SetLeftPx (m_leftPx - hStep); break;
+            case ScrollRepeat::HorzArrowRight: SetLeftPx (m_leftPx + hStep); break;
+
+            // Track paging stops once the thumb reaches the held point --
+            // the repeat ends outright, so there is nothing to reschedule.
+            case ScrollRepeat::VertTrack:
+                if (HitTestScrollbarThumb (m_scrollRepeatXPx, m_scrollRepeatYPx))
+                {
+                    m_scrollRepeat = ScrollRepeat::None;
+                    reschedule     = false;
+                }
+                else
+                {
+                    PageFromTrackClick (m_scrollRepeatYPx);
+                }
+                break;
+
+            case ScrollRepeat::HorzTrack:
+                if (HitTestHorzScrollbarThumb (m_scrollRepeatXPx, m_scrollRepeatYPx))
+                {
+                    m_scrollRepeat = ScrollRepeat::None;
+                    reschedule     = false;
+                }
+                else
+                {
+                    PageFromHorzTrackClick (m_scrollRepeatXPx);
+                }
+                break;
+
+            default:
+                break;
+        }
+
+        if (reschedule)
+        {
+            m_scrollRepeatNextMs = nowMs + s_kScrollRepeatIntervalMs;
+        }
     }
-
-    hStep = m_scaler.Px (s_kHScrollStepDip);
-
-    switch (m_scrollRepeat)
-    {
-        case ScrollRepeat::VertArrowUp:    ScrollByRows (-1);            break;
-        case ScrollRepeat::VertArrowDown:  ScrollByRows (1);             break;
-        case ScrollRepeat::HorzArrowLeft:  SetLeftPx (m_leftPx - hStep); break;
-        case ScrollRepeat::HorzArrowRight: SetLeftPx (m_leftPx + hStep); break;
-
-        case ScrollRepeat::VertTrack:
-            if (HitTestScrollbarThumb (m_scrollRepeatXPx, m_scrollRepeatYPx))
-            {
-                m_scrollRepeat = ScrollRepeat::None;
-                return;
-            }
-            PageFromTrackClick (m_scrollRepeatYPx);
-            break;
-
-        case ScrollRepeat::HorzTrack:
-            if (HitTestHorzScrollbarThumb (m_scrollRepeatXPx, m_scrollRepeatYPx))
-            {
-                m_scrollRepeat = ScrollRepeat::None;
-                return;
-            }
-            PageFromHorzTrackClick (m_scrollRepeatXPx);
-            break;
-
-        default:
-            break;
-    }
-
-    m_scrollRepeatNextMs = nowMs + s_kScrollRepeatIntervalMs;
 }
 
 
@@ -2980,27 +2987,64 @@ void DxuiListView::OnFocusChanged (bool focused)
 
     if (!focused)
     {
-        m_kbColFocus = -1;
-        SetFocusedHeaderColumn (-1);
-        SetFocusedDividerColumn (-1);
-        return;
+        ReleaseKeyboardColumnFocus();
     }
-
-    // In the body/header model, gaining focus lands directly on the body
-    // sub-stop (selecting a row if none) so a single Tab from the neighbouring
-    // control shows focus immediately. The resize model keeps its neutral entry
-    // (the first Tab / Shift+Tab picks a direction into the sub-stops).
-    if (m_kbColNavEnabled && !m_kbColResize)
+    else if (m_kbColNavEnabled && !m_kbColResize)
     {
+        // In the body/header model, gaining focus lands directly on the body
+        // sub-stop (selecting a row if none) so a single Tab from the
+        // neighboring control shows focus immediately. The resize model keeps
+        // its neutral entry (the first Tab / Shift+Tab picks a direction into
+        // the sub-stops).
         m_kbColFocus = 0;
-        SetFocusedHeaderColumn (-1);
-        SetFocusedDividerColumn (-1);
+        ClearColumnFocusMarkers();
 
         if (GetSelectedRow() < 0 && GetRowCount() > 0)
         {
             SetSelectedRow (0);
         }
     }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiListView::ClearColumnFocusMarkers
+//
+//  Drops the header and divider focus markers without disturbing which
+//  sub-stop the keyboard is on. Used where the sub-stop is the list body,
+//  which has no marker of its own -- the selected row is its focus cue.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiListView::ClearColumnFocusMarkers()
+{
+    SetFocusedHeaderColumn (-1);
+    SetFocusedDividerColumn (-1);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiListView::ReleaseKeyboardColumnFocus
+//
+//  Leaves keyboard column navigation entirely: no sub-stop, no markers.
+//  Called when focus leaves the list and when Tab walks off either end of
+//  the sub-stop ring. The two must move together, or a marker keeps
+//  painting a focus cue for a control that no longer has focus.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiListView::ReleaseKeyboardColumnFocus()
+{
+    m_kbColFocus = -1;
+    ClearColumnFocusMarkers();
 }
 
 
@@ -3028,22 +3072,21 @@ void DxuiListView::ApplyKeyboardColumnFocus()
 
     if (m_kbColFocus < 0 || m_kbColFocus == body)
     {
-        SetFocusedHeaderColumn (-1);
-        SetFocusedDividerColumn (-1);
-        return;
+        // No sub-stop, or the body -- neither paints a header or divider cue.
+        ClearColumnFocusMarkers();
     }
-
-    if ((m_kbColFocus % 2) == 0)
+    else if ((m_kbColFocus % 2) == 0)
     {
         col = GetNthVisibleColumnIndex (m_kbColFocus / 2);
         SetFocusedHeaderColumn (col);
         SetFocusedDividerColumn (-1);
-        return;
     }
-
-    col = GetNthVisibleColumnIndex ((m_kbColFocus - 1) / 2);
-    SetFocusedDividerColumn (col);
-    SetFocusedHeaderColumn (-1);
+    else
+    {
+        col = GetNthVisibleColumnIndex ((m_kbColFocus - 1) / 2);
+        SetFocusedDividerColumn (col);
+        SetFocusedHeaderColumn (-1);
+    }
 }
 
 
@@ -3063,57 +3106,59 @@ void DxuiListView::ApplyKeyboardColumnFocus()
 
 bool DxuiListView::HandleKeyboardColumnKey (WPARAM vk)
 {
-    int  col    = -1;
-    int  stepPx = 0;
-    int  minPx  = 0;
-    int  cur    = 0;
-    int  next   = 0;
+    bool  isHeaderStop = ((m_kbColFocus % 2) == 0);
+    bool  handled      = false;
+    int   col          = -1;
+    int   stepPx       = 0;
+    int   minPx        = 0;
+    int   cur          = 0;
+    int   next         = 0;
 
 
 
-    if ((m_kbColFocus % 2) == 0)
+    if (isHeaderStop && (vk == VK_RETURN || vk == VK_SPACE))
     {
-        if (vk != VK_RETURN && vk != VK_SPACE)
-        {
-            return false;
-        }
-
         col = GetNthVisibleColumnIndex (m_kbColFocus / 2);
+
         if (col >= 0 && m_onSortColumn)
         {
             m_onSortColumn (col);
         }
 
-        return true;
+        // Claimed even with no column or no callback: the sub-stop is a
+        // header, and Enter on a header is a header's key to eat.
+        handled = true;
     }
-
-    if (vk != VK_LEFT && vk != VK_RIGHT)
+    else if (!isHeaderStop && (vk == VK_LEFT || vk == VK_RIGHT))
     {
-        return false;
+        col = GetNthVisibleColumnIndex ((m_kbColFocus - 1) / 2);
+
+        // Unlike the header stop, a divider with no column has nothing to
+        // resize, so the key falls through instead.
+        if (col >= 0)
+        {
+            stepPx = m_scaler.Px (s_kKbResizeStepDip);
+            minPx  = m_scaler.Px (s_kMinColWidthDip);
+            cur    = GetColumnEffectiveWidthPx ((size_t) col);
+            next   = cur + ((vk == VK_LEFT) ? -stepPx : stepPx);
+
+            if (next < minPx)
+            {
+                next = minPx;
+            }
+
+            SetColumnOverrideWidthPx ((size_t) col, next);
+
+            if (m_onColumnResized)
+            {
+                m_onColumnResized (col, next);
+            }
+
+            handled = true;
+        }
     }
 
-    col = GetNthVisibleColumnIndex ((m_kbColFocus - 1) / 2);
-    if (col < 0)
-    {
-        return false;
-    }
-
-    stepPx = m_scaler.Px (s_kKbResizeStepDip);
-    minPx  = m_scaler.Px (s_kMinColWidthDip);
-    cur    = GetColumnEffectiveWidthPx ((size_t) col);
-    next   = cur + ((vk == VK_LEFT) ? -stepPx : stepPx);
-    if (next < minPx)
-    {
-        next = minPx;
-    }
-
-    SetColumnOverrideWidthPx ((size_t) col, next);
-    if (m_onColumnResized)
-    {
-        m_onColumnResized (col, next);
-    }
-
-    return true;
+    return handled;
 }
 
 
@@ -3132,18 +3177,14 @@ bool DxuiListView::HandleKeyboardColumnKey (WPARAM vk)
 
 bool DxuiListView::HandleKeyboardBodyRowNav (WPARAM vk)
 {
-    int  rows = GetRowCount();
-    int  cap  = GetVisibleRowCapacity();
-    int  page = (cap > 1) ? cap : 1;
-    int  cur  = GetSelectedRow();
-    int  next = cur;
+    int   rows  = GetRowCount();
+    int   cap   = GetVisibleRowCapacity();
+    int   page  = (cap > 1) ? cap : 1;
+    int   cur   = GetSelectedRow();
+    int   next  = cur;
+    bool  moved = (rows > 0);
 
 
-
-    if (rows <= 0)
-    {
-        return false;
-    }
 
     switch (vk)
     {
@@ -3153,21 +3194,27 @@ bool DxuiListView::HandleKeyboardBodyRowNav (WPARAM vk)
         case VK_END:   next = rows - 1;   break;
         case VK_PRIOR: next = cur - page; break;
         case VK_NEXT:  next = cur + page; break;
-        default:       return false;
+        default:       moved = false;     break;
     }
 
-    if (next < 0)
+    // An empty list has nowhere to move, so even a navigation key goes
+    // unhandled and the host gets a chance at it.
+    if (moved)
     {
-        next = 0;
+        if (next < 0)
+        {
+            next = 0;
+        }
+
+        if (next > rows - 1)
+        {
+            next = rows - 1;
+        }
+
+        SetSelectedRow (next);
     }
 
-    if (next > rows - 1)
-    {
-        next = rows - 1;
-    }
-
-    SetSelectedRow (next);
-    return true;
+    return moved;
 }
 
 
@@ -3187,17 +3234,17 @@ bool DxuiListView::HandleKeyboardBodyRowNav (WPARAM vk)
 
 bool DxuiListView::OnKey (const DxuiKeyEvent & ev)
 {
-    if (!m_kbColNavEnabled)
+    bool  dispatches = m_kbColNavEnabled && (ev.kind == DxuiKeyEventKind::Down);
+    bool  handled    = false;
+
+
+
+    if (dispatches)
     {
-        return false;
+        handled = m_kbColResize ? OnKeyColumnResizeNav (ev) : OnKeyBodyHeaderNav (ev);
     }
 
-    if (ev.kind != DxuiKeyEventKind::Down)
-    {
-        return false;
-    }
-
-    return m_kbColResize ? OnKeyColumnResizeNav (ev) : OnKeyBodyHeaderNav (ev);
+    return handled;
 }
 
 
@@ -3218,60 +3265,46 @@ bool DxuiListView::OnKey (const DxuiKeyEvent & ev)
 
 bool DxuiListView::OnKeyColumnResizeNav (const DxuiKeyEvent & ev)
 {
-    int  n     = GetVisibleColumnCount();
-    int  stops = 0;
-    int  body  = 0;
+    int   n       = GetVisibleColumnCount();
+    int   stops   = 2 * n;
+    int   body    = stops - 1;
+    bool  handled = false;
 
 
 
     if (n <= 0)
     {
-        return false;
+        // No visible columns means no sub-stops to walk.
     }
-
-    stops = 2 * n;
-    body  = stops - 1;
-
-    if (ev.vk == VK_TAB)
+    else if (ev.vk == VK_TAB)
     {
-        if (ev.shift)
+        // -1 is the neutral entry: the first Tab picks a direction into the
+        // ring rather than resuming wherever the sub-focus last was.
+        m_kbColFocus = ev.shift ? ((m_kbColFocus == -1) ? body : (m_kbColFocus - 1))
+                                : ((m_kbColFocus == -1) ? 0    : (m_kbColFocus + 1));
+
+        // Walking off either end releases the sub-focus and leaves the key
+        // unhandled, so the host focus manager moves to the next control.
+        if (m_kbColFocus < 0 || m_kbColFocus >= stops)
         {
-            m_kbColFocus = (m_kbColFocus == -1) ? body : (m_kbColFocus - 1);
-            if (m_kbColFocus < 0)
-            {
-                m_kbColFocus = -1;
-                SetFocusedHeaderColumn (-1);
-                SetFocusedDividerColumn (-1);
-                return false;
-            }
+            ReleaseKeyboardColumnFocus();
         }
         else
         {
-            m_kbColFocus = (m_kbColFocus == -1) ? 0 : (m_kbColFocus + 1);
-            if (m_kbColFocus >= stops)
-            {
-                m_kbColFocus = -1;
-                SetFocusedHeaderColumn (-1);
-                SetFocusedDividerColumn (-1);
-                return false;
-            }
+            ApplyKeyboardColumnFocus();
+            handled = true;
         }
-
-        ApplyKeyboardColumnFocus();
-        return true;
     }
-
-    if (m_kbColFocus == -1)
+    else if (m_kbColFocus == body)
     {
-        return false;
+        handled = HandleKeyboardBodyRowNav (ev.vk);
     }
-
-    if (m_kbColFocus == body)
+    else if (m_kbColFocus != -1)
     {
-        return HandleKeyboardBodyRowNav (ev.vk);
+        handled = HandleKeyboardColumnKey (ev.vk);
     }
 
-    return HandleKeyboardColumnKey (ev.vk);
+    return handled;
 }
 
 
@@ -3298,55 +3331,58 @@ bool DxuiListView::OnKeyBodyHeaderNav (const DxuiKeyEvent & ev)
 
 
 
+    bool  isActivate = (ev.vk == VK_RETURN || ev.vk == VK_SPACE);
+    bool  handled    = false;
+
     if (ev.vk == VK_TAB)
     {
         m_kbColFocus = ev.shift ? ((m_kbColFocus < 0) ? (kStops - 1) : (m_kbColFocus - 1))
-                                : ((m_kbColFocus < 0) ? kBody         : (m_kbColFocus + 1));
+                                : ((m_kbColFocus < 0) ? kBody        : (m_kbColFocus + 1));
 
+        // Off either end: release and let the host focus manager take over.
         if (m_kbColFocus < 0 || m_kbColFocus >= kStops)
         {
-            m_kbColFocus = -1;
-            SetFocusedHeaderColumn (-1);
-            SetFocusedDividerColumn (-1);
-            return false;
+            ReleaseKeyboardColumnFocus();
         }
-
-        ApplyBodyHeaderFocus();
-        return true;
-    }
-
-    if (m_kbColFocus == kBody)
-    {
-        if (ev.vk == VK_RETURN || ev.vk == VK_SPACE)
+        else
         {
-            if (GetSelectedRow() >= 0 && m_onActivateRow)
+            ApplyBodyHeaderFocus();
+            handled = true;
+        }
+    }
+    else if (m_kbColFocus == kBody)
+    {
+        if (isActivate)
+        {
+            // Only claim Enter/Space when there is a row AND somewhere to
+            // report it; otherwise the dialog's default button should get it.
+            handled = (GetSelectedRow() >= 0 && m_onActivateRow);
+
+            if (handled)
             {
                 m_onActivateRow (GetSelectedRow());
-                return true;
             }
-
-            return false;
         }
-
-        return HandleKeyboardBodyRowNav (ev.vk);
+        else
+        {
+            handled = HandleKeyboardBodyRowNav (ev.vk);
+        }
     }
-
-    if (m_kbColFocus == kHeader)
+    else if (m_kbColFocus == kHeader)
     {
         if (ev.vk == VK_LEFT || ev.vk == VK_RIGHT)
         {
             MoveHeaderFocus ((ev.vk == VK_RIGHT) ? 1 : -1);
-            return true;
+            handled = true;
         }
-
-        if ((ev.vk == VK_RETURN || ev.vk == VK_SPACE) && m_focusedHeaderCol >= 0 && m_onSortColumn)
+        else if (isActivate && m_focusedHeaderCol >= 0 && m_onSortColumn)
         {
             m_onSortColumn (m_focusedHeaderCol);
-            return true;
+            handled = true;
         }
     }
 
-    return false;
+    return handled;
 }
 
 

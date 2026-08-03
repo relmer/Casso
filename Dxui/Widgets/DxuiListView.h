@@ -424,6 +424,10 @@ private:
     void    SyncVertScroll          () const;
     void    SyncHorzScroll          () const;
     void    ApplyKeyboardColumnFocus ();
+    // The sub-focus and the paint markers move as a unit: a marker left
+    // behind paints a focus cue on a control that no longer has focus.
+    void    ClearColumnFocusMarkers  ();
+    void    ReleaseKeyboardColumnFocus ();
     bool    HandleKeyboardColumnKey  (WPARAM vk);
     bool    HandleKeyboardBodyRowNav (WPARAM vk);
     bool    OnKeyColumnResizeNav     (const DxuiKeyEvent & ev);
