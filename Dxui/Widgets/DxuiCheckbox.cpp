@@ -230,53 +230,65 @@ void DxuiCheckbox::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
     uint32_t glyphColor  = m_enabled ? theme.ButtonText()  : theme.ForegroundDisabled();
     uint32_t textColor   = m_enabled ? theme.Foreground()  : theme.ForegroundDisabled();
 
+    // No area means this control has not been laid out yet: OnCreate() builds
+    // the tree, but the first Layout() waits on the host sizing the window,
+    // and a WM_PAINT can arrive in between. Nothing can render into a
+    // zero-area rect, and the label box below is derived by SUBTRACTING fixed
+    // insets from the width -- on a {0,0,0,0} rect that goes negative and
+    // reaches DWrite as an invalid text-layout extent.
+    bool     hasArea     = (m_boundsDip.right > m_boundsDip.left)
+                           && (m_boundsDip.bottom > m_boundsDip.top);
 
 
-    painter.FillRect (boxLeft, boxTop, boxSize, boxSize, boxColor);
 
-    if (m_checked)
+    if (hasArea)
     {
-        hr = text.DrawString (s_kpszCheckMark,
-                              boxLeft,
-                              boxTop,
-                              boxSize,
-                              boxSize,
-                              glyphColor,
-                              boxSize * 0.95f,
-                              L"Segoe UI Symbol",
-                              DxuiTextHAlign::Center,
-                              DxuiTextVAlign::Center);
+        painter.FillRect (boxLeft, boxTop, boxSize, boxSize, boxColor);
+
+        if (m_checked)
+        {
+            hr = text.DrawString (s_kpszCheckMark,
+                                  boxLeft,
+                                  boxTop,
+                                  boxSize,
+                                  boxSize,
+                                  glyphColor,
+                                  boxSize * 0.95f,
+                                  L"Segoe UI Symbol",
+                                  DxuiTextHAlign::Center,
+                                  DxuiTextVAlign::Center);
+            IGNORE_RETURN_VALUE (hr, S_OK);
+        }
+
+        if (m_focused)
+        {
+            painter.OutlineRect (boxLeft + focusInset,
+                                 boxTop  + focusInset,
+                                 boxSize - focusInset * 2.0f,
+                                 boxSize - focusInset * 2.0f,
+                                 focusThick,
+                                 theme.FocusRing());
+        }
+
+        float         labelX = boxLeft + boxSize + labelGap;
+        float         labelW = (float) (m_boundsDip.right - m_boundsDip.left) - boxSize - labelGap;
+        std::wstring  drawn  = m_singleLineLabel ? EllipsizeToWidth (text, m_label, fontDip, labelW)
+                                                 : m_label;
+
+        hr = text.DrawString (drawn.c_str(),
+                              labelX,
+                              (float) m_boundsDip.top,
+                              labelW,
+                              (float) (m_boundsDip.bottom - m_boundsDip.top),
+                              textColor,
+                              fontDip,
+                              DxuiTheme::kBodyFace,
+                              DxuiTextHAlign::Left,
+                              DxuiTextVAlign::Center,
+                              DxuiFontWeight::Normal,
+                              !m_singleLineLabel);
         IGNORE_RETURN_VALUE (hr, S_OK);
     }
-
-    if (m_focused)
-    {
-        painter.OutlineRect (boxLeft + focusInset,
-                             boxTop  + focusInset,
-                             boxSize - focusInset * 2.0f,
-                             boxSize - focusInset * 2.0f,
-                             focusThick,
-                             theme.FocusRing());
-    }
-
-    float         labelX = boxLeft + boxSize + labelGap;
-    float         labelW = (float) (m_boundsDip.right - m_boundsDip.left) - boxSize - labelGap;
-    std::wstring  drawn  = m_singleLineLabel ? EllipsizeToWidth (text, m_label, fontDip, labelW)
-                                             : m_label;
-
-    hr = text.DrawString (drawn.c_str(),
-                          labelX,
-                          (float) m_boundsDip.top,
-                          labelW,
-                          (float) (m_boundsDip.bottom - m_boundsDip.top),
-                          textColor,
-                          fontDip,
-                          DxuiTheme::kBodyFace,
-                          DxuiTextHAlign::Left,
-                          DxuiTextVAlign::Center,
-                          DxuiFontWeight::Normal,
-                          !m_singleLineLabel);
-    IGNORE_RETURN_VALUE (hr, S_OK);
 }
 
 

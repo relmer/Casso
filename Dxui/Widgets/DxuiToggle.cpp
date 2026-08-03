@@ -205,63 +205,73 @@ void DxuiToggle::PaintInternal (IDxuiPainter & painter, IDxuiTextRenderer & text
     uint32_t thumbColor = m_enabled ? s_kThumb : s_kThumbDisabled;
     uint32_t textColor  = m_enabled ? s_kTextIdle : s_kTextDisabled;
 
+    // Same rule as DxuiCheckbox: no area means the control has not been laid
+    // out yet (a WM_PAINT can land between OnCreate and the first Layout), and
+    // the label box below is the width MINUS the pill and gap -- on a
+    // {0,0,0,0} rect that is negative, which DWrite rejects outright.
+    bool     hasArea    = (m_boundsDip.right > m_boundsDip.left)
+                          && (m_boundsDip.bottom > m_boundsDip.top);
 
 
-    if (!m_enabled)
-    {
-        pillColor = s_kPillDisabled;
-    }
-    else if (m_checked)
-    {
-        pillColor = m_hover ? DxuiColor::Scale (accentBase, s_kHoverLighten) : accentBase;
-    }
-    else
-    {
-        pillColor = m_hover ? s_kPillOffHover : s_kPillOff;
-    }
 
-    painter.FillRect         (leftCx,  pillTop, pillW - pillH, pillH, pillColor);
-    painter.FillCircleApprox (leftCx,  cy,      capR,          pillColor);
-    painter.FillCircleApprox (rightCx, cy,      capR,          pillColor);
-    painter.FillCircleApprox (thumbCx, cy,      thumbR,        thumbColor);
-
-    if (m_focused)
+    if (hasArea)
     {
-        painter.OutlineRect (pillLeft + focusInset,
-                             pillTop  + focusInset,
-                             pillW    - focusInset * 2.0f,
-                             pillH    - focusInset * 2.0f,
-                             focusThick,
-                             focusArgb);
-    }
+        if (!m_enabled)
+        {
+            pillColor = s_kPillDisabled;
+        }
+        else if (m_checked)
+        {
+            pillColor = m_hover ? DxuiColor::Scale (accentBase, s_kHoverLighten) : accentBase;
+        }
+        else
+        {
+            pillColor = m_hover ? s_kPillOffHover : s_kPillOff;
+        }
 
-    if (!m_label.empty())
-    {
-        IGNORE_RETURN_VALUE (hr, text.DrawString (m_label.c_str(),
-                                                  pillLeft + pillW + labelGap,
-                                                  (float) m_boundsDip.top,
-                                                  (float) (m_boundsDip.right - m_boundsDip.left) - pillW - labelGap,
-                                                  (float) (m_boundsDip.bottom - m_boundsDip.top),
-                                                  textColor,
-                                                  fontDip,
-                                                  DxuiTheme::kBodyFace,
-                                                  DxuiTextHAlign::Left,
-                                                  DxuiTextVAlign::Center));
-    }
-    else
-    {
-        const wchar_t * stateText = m_checked ? L"On" : L"Off";
+        painter.FillRect         (leftCx,  pillTop, pillW - pillH, pillH, pillColor);
+        painter.FillCircleApprox (leftCx,  cy,      capR,          pillColor);
+        painter.FillCircleApprox (rightCx, cy,      capR,          pillColor);
+        painter.FillCircleApprox (thumbCx, cy,      thumbR,        thumbColor);
 
-        IGNORE_RETURN_VALUE (hr, text.DrawString (stateText,
-                                                  pillLeft + pillW + labelGap,
-                                                  (float) m_boundsDip.top,
-                                                  (float) (m_boundsDip.right - m_boundsDip.left) - pillW - labelGap,
-                                                  (float) (m_boundsDip.bottom - m_boundsDip.top),
-                                                  textColor,
-                                                  fontDip,
-                                                  DxuiTheme::kBodyFace,
-                                                  DxuiTextHAlign::Left,
-                                                  DxuiTextVAlign::Center));
+        if (m_focused)
+        {
+            painter.OutlineRect (pillLeft + focusInset,
+                                 pillTop  + focusInset,
+                                 pillW    - focusInset * 2.0f,
+                                 pillH    - focusInset * 2.0f,
+                                 focusThick,
+                                 focusArgb);
+        }
+
+        if (!m_label.empty())
+        {
+            IGNORE_RETURN_VALUE (hr, text.DrawString (m_label.c_str(),
+                                                      pillLeft + pillW + labelGap,
+                                                      (float) m_boundsDip.top,
+                                                      (float) (m_boundsDip.right - m_boundsDip.left) - pillW - labelGap,
+                                                      (float) (m_boundsDip.bottom - m_boundsDip.top),
+                                                      textColor,
+                                                      fontDip,
+                                                      DxuiTheme::kBodyFace,
+                                                      DxuiTextHAlign::Left,
+                                                      DxuiTextVAlign::Center));
+        }
+        else
+        {
+            const wchar_t * stateText = m_checked ? L"On" : L"Off";
+
+            IGNORE_RETURN_VALUE (hr, text.DrawString (stateText,
+                                                      pillLeft + pillW + labelGap,
+                                                      (float) m_boundsDip.top,
+                                                      (float) (m_boundsDip.right - m_boundsDip.left) - pillW - labelGap,
+                                                      (float) (m_boundsDip.bottom - m_boundsDip.top),
+                                                      textColor,
+                                                      fontDip,
+                                                      DxuiTheme::kBodyFace,
+                                                      DxuiTextHAlign::Left,
+                                                      DxuiTextVAlign::Center));
+        }
     }
 }
 
