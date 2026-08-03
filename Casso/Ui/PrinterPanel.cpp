@@ -19,31 +19,8 @@
 static constexpr wchar_t   s_kpszTitle     [] = L"Casso Printer";
 static constexpr wchar_t   s_kpszClassName [] = L"CassoPrinterPanel";
 
-// Chrome bands, in dip. Shared by Layout and by the preferred-height
-// derivation below, so the two cannot drift apart.
-static constexpr int       s_kPadDip       = 10;
-static constexpr int       s_kToolbarHDip  = 46;   // top and bottom button bands
-static constexpr int       s_kHintHDip     = 36;   // two lines of the wrapping hint
-static constexpr int       s_kCaptionHDip  = DxuiCaptionBar::kCaptionHeightDip;
-
-static constexpr int       s_kPreferredWidthDip  = 560;
-
-// The scene fills the paper box's WIDTH whenever that box is no wider than it
-// is tall (Printer3DScene::s_kFitAspect); past that it becomes height-bound
-// and the printer shrinks away from the sides. The preferred height is
-// therefore the one that makes the paper box exactly square at the MINIMUM
-// width -- so pulling the panel in to its narrowest still shows the printer at
-// full width, and not one dip of height is spent beyond what that takes.
-//
-//   paper width  at min width = s_kMinWidthDip - 2 * pad
-//   paper height              = H - caption - 2 * toolbar - hint
-//
-static constexpr int       s_kMinWidthDip        = 460;
-static constexpr int       s_kPaperSquareDip     = s_kMinWidthDip - 2 * s_kPadDip;
-static constexpr int       s_kPreferredHeightDip = s_kPaperSquareDip
-                                                   + s_kCaptionHDip
-                                                   + 2 * s_kToolbarHDip
-                                                   + s_kHintHDip;
+// The chrome band geometry and the sizes derived from it are private members
+// of PrinterPanel.
 
 // Viewport render: 144 dpi maps native rows 1:1 to pixels, so the visible
 // ~1-page span is a fixed 1152x1584 image regardless of strip length --
@@ -261,7 +238,7 @@ HRESULT PrinterPanel::Create (
     params.title             = s_kpszTitle;
     params.hInstance         = hInstance;
     params.ownerHwnd         = hwndOwner;
-    params.initialSizeDip    = { s_kPreferredWidthDip, s_kPreferredHeightDip };
+    params.initialSizeDip    = { kPreferredWidthDip, kPreferredHeightDip };
 
     // Minimum IS the preferred size: this layout has no smaller valid form.
     // The top band packs a fixed-width left cluster (Print / Save / Copy,
@@ -286,7 +263,7 @@ HRESULT PrinterPanel::Create (
     // crop"), and the hint wraps onto its reserved second line. Height is
     // likewise unconstrained by content -- only the caption, the two 46dip
     // toolbars and the hint strip are fixed.
-    params.minSizeDip        = { s_kMinWidthDip, 400 };
+    params.minSizeDip        = { kMinWidthDip, kMinHeightDip };
     params.resizable         = true;
     params.captionStyle      = DxuiCaptionStyle::CloseOnly;
     params.classNameOverride = s_kpszClassName;
@@ -1539,16 +1516,16 @@ bool PrinterPanel::OnKey (const DxuiKeyEvent & ev)
 
 void PrinterPanel::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
 {
-    int   pad      = scaler.Px (s_kPadDip);
+    int   pad      = scaler.Px (kPadDip);
     int   gap      = scaler.Px (6);
     int   captionH = CaptionHeightPx();
-    int   toolbarH = scaler.Px (s_kToolbarHDip);
+    int   toolbarH = scaler.Px (kToolbarHDip);
     // Two lines' worth. The hint wraps rather than clipping (see Paint), so the
     // strip has to reserve the second line up front -- Layout has no text
     // renderer to measure with, and sizing it per-frame would make the paper
     // area jump as the window crosses the wrap threshold. A single line simply
     // centers in the taller box.
-    int   hintH    = scaler.Px (s_kHintHDip);
+    int   hintH    = scaler.Px (kHintHDip);
     int   btnH     = scaler.Px (30);
     int   btnW     = scaler.Px (84);    // Print... / Save... / Copy / Form Feed / Discard
     int   zoomW    = scaler.Px (42);    // [-] and [+]

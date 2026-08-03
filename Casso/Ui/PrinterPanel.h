@@ -116,6 +116,34 @@ protected:
     void     OnCreate () override;
 
 private:
+    // Chrome band geometry, in dip. Create sizes the window from these and
+    // Layout places the bands with them, so the two cannot drift apart.
+    static constexpr int  kPadDip      = 10;
+    static constexpr int  kToolbarHDip = 46;   // top and bottom button bands
+    static constexpr int  kHintHDip    = 36;   // two lines of the wrapping hint
+    static constexpr int  kCaptionHDip = DxuiCaptionBar::kCaptionHeightDip;
+
+    static constexpr int  kPreferredWidthDip = 560;
+    static constexpr int  kMinWidthDip       = 460;
+    static constexpr int  kMinHeightDip      = 400;
+
+    // The 3D scene fills the paper box's WIDTH whenever that box is no wider
+    // than it is tall (Printer3DScene::s_kFitAspect); past that it becomes
+    // height-bound and the printer shrinks away from the sides. So the height
+    // worth preferring is the one that makes the paper box exactly square at
+    // the NARROWEST width the panel allows -- pull the window in to its
+    // minimum and the printer is still at full width, with no height spent
+    // beyond what that takes.
+    //
+    //   paper width  at min width = kMinWidthDip - 2 * kPadDip
+    //   paper height              = H - caption - 2 * toolbar - hint
+    //
+    static constexpr int  kPaperSquareDip     = kMinWidthDip - 2 * kPadDip;
+    static constexpr int  kPreferredHeightDip = kPaperSquareDip
+                                                + kCaptionHDip
+                                                + 2 * kToolbarHDip
+                                                + kHintHDip;
+
     void     ShowBlankSheet ();
     void     UpdateTooltip  (int x, int y);
 
