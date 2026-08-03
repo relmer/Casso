@@ -831,30 +831,16 @@ void Disk2AudioSource::MixMotor (float * out, uint32_t n)
 
 void Disk2AudioSource::MixHead (float * out, uint32_t n)
 {
-    uint32_t  len = 0;
+    uint32_t  len = (m_headBuf != nullptr) ? static_cast<uint32_t> (m_headBuf->size()) : 0;
     uint32_t  i   = 0;
 
 
 
-    if (m_headBuf == nullptr)
+    // No buffer and an empty buffer are the same thing here: silence. The
+    // loop then mixes until either the output frame or the sample runs out --
+    // this is a one-shot, so a short sample simply stops contributing.
+    for (i = 0; i < n && m_headPos < len; i++)
     {
-        return;
-    }
-
-    len = static_cast<uint32_t> (m_headBuf->size());
-
-    if (len == 0)
-    {
-        return;
-    }
-
-    for (i = 0; i < n; i++)
-    {
-        if (m_headPos >= len)
-        {
-            break;
-        }
-
         out[i] += (*m_headBuf)[m_headPos] * m_headVolume;
         m_headPos++;
     }
@@ -874,30 +860,14 @@ void Disk2AudioSource::MixHead (float * out, uint32_t n)
 
 void Disk2AudioSource::MixDoor (float * out, uint32_t n)
 {
-    uint32_t  len = 0;
+    uint32_t  len = (m_doorBuf != nullptr) ? static_cast<uint32_t> (m_doorBuf->size()) : 0;
     uint32_t  i   = 0;
 
 
 
-    if (m_doorBuf == nullptr)
+    // Same one-shot shape as MixHead.
+    for (i = 0; i < n && m_doorPos < len; i++)
     {
-        return;
-    }
-
-    len = static_cast<uint32_t> (m_doorBuf->size());
-
-    if (len == 0)
-    {
-        return;
-    }
-
-    for (i = 0; i < n; i++)
-    {
-        if (m_doorPos >= len)
-        {
-            break;
-        }
-
         out[i] += (*m_doorBuf)[m_doorPos] * m_doorVolume;
         m_doorPos++;
     }

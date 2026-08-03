@@ -148,26 +148,26 @@ Byte * CxxxRomRouter::FastMapReadPtr (int page)
 
 
 
-    if (!m_noExternalSlots || m_internal.empty())
+    // Three reasons to decline the fast path, all meaning "run the Read
+    // handler instead":
+    //   - slots exist (//e), or no internal image is loaded;
+    //   - $C3xx latches INTC8ROM and $CFxx clears it, so those pages keep
+    //     their side effects (inert on the //c, but modeled faithfully);
+    //   - the page falls past the end of a short internal image.
+    bool     passive = m_noExternalSlots
+                       && !m_internal.empty()
+                       && page != 0xC3
+                       && page != 0xCF;
+
+    size_t   offset  = static_cast<size_t> ((page - 0xC1) * kPageSize);
+    Byte *   ptr     = nullptr;
+
+    if (passive && offset + kPageSize <= m_internal.size())
     {
-        return nullptr;
+        ptr = m_internal.data() + offset;
     }
 
-    // $C3xx latches INTC8ROM and $CFFF clears it -- keep those pages on the
-    // handler so the side effects run (inert on the //c, but modeled faithfully).
-    if (page == 0xC3 || page == 0xCF)
-    {
-        return nullptr;
-    }
-
-    size_t  offset = static_cast<size_t> ((page - 0xC1) * kPageSize);
-
-    if (offset + kPageSize > m_internal.size())
-    {
-        return nullptr;
-    }
-
-    return m_internal.data() + offset;
+    return ptr;
 }
 
 

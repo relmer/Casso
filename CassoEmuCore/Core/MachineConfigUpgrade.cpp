@@ -213,16 +213,18 @@ int  MachineConfigUpgrade::FindKey (
     const vector<pair<string, JsonValue>> & entries,
     const string                          & key)
 {
-    int  i = 0;
+    int  found = -1;      // -1 == absent
+    int  i     = 0;
 
-    for (i = 0; i < (int) entries.size(); ++i)
+    for (i = 0; found < 0 && i < (int) entries.size(); ++i)
     {
         if (entries[(size_t) i].first == key)
         {
-            return i;
+            found = i;
         }
     }
-    return -1;
+
+    return found;
 }
 
 
@@ -230,11 +232,10 @@ bool  MachineConfigUpgrade::EntryHasKey (
     const JsonValue & entry,
     const string    & key)
 {
-    if (entry.GetType() != JsonType::Object)
-    {
-        return false;
-    }
-    return FindKey (entry.GetObjectEntries(), key) >= 0;
+    // A non-object entry has no keys at all -- the short-circuit is what
+    // keeps GetObjectEntries() off a non-object.
+    return entry.GetType() == JsonType::Object
+        && FindKey (entry.GetObjectEntries(), key) >= 0;
 }
 
 
@@ -250,35 +251,42 @@ bool  MachineConfigUpgrade::InjectCapabilityFlag (
 
 
 
-    if (arr.GetType() != JsonType::Array)
+    // A non-array is not a schema error here -- the caller passes whatever the
+    // document had under the key, and a missing section arrives as Null.
+    if (arr.GetType() == JsonType::Array)
     {
-        return false;
-    }
+        rebuiltArr.reserve (arr.ArraySize());
 
-    rebuiltArr.reserve (arr.ArraySize());
-
-    for (i = 0; i < arr.ArraySize(); ++i)
-    {
-        const JsonValue & elem = arr.ArrayAt (i);
-
-        if (elem.GetType() != JsonType::Object ||
-            EntryHasKey (elem, kpszCapabilityFlagKey))
+        for (i = 0; i < arr.ArraySize(); ++i)
         {
-            rebuiltArr.push_back (elem);
-            continue;
+            const JsonValue & elem = arr.ArrayAt (i);
+
+            // Non-objects and entries that already carry a flag pass through
+            // untouched -- an existing flag is the user's, not ours to reset.
+            if (elem.GetType() != JsonType::Object ||
+                EntryHasKey (elem, kpszCapabilityFlagKey))
+            {
+                rebuiltArr.push_back (elem);
+            }
+            else
+            {
+                vector<pair<string, JsonValue>>  rebuilt = elem.GetObjectEntries();
+
+                rebuilt.emplace_back (kpszCapabilityFlagKey,
+                                      JsonValue (string (defaultFlag)));
+                rebuiltArr.emplace_back (JsonValue (std::move (rebuilt)));
+                fChanged = true;
+            }
         }
 
-        vector<pair<string, JsonValue>>  rebuilt = elem.GetObjectEntries();
-        rebuilt.emplace_back (kpszCapabilityFlagKey,
-                              JsonValue (string (defaultFlag)));
-        rebuiltArr.emplace_back (JsonValue (std::move (rebuilt)));
-        fChanged = true;
+        // Only swap in the rebuild when something actually changed, so an
+        // already-canonical document keeps its original JsonValue identity.
+        if (fChanged)
+        {
+            arr = JsonValue (std::move (rebuiltArr));
+        }
     }
 
-    if (fChanged)
-    {
-        arr = JsonValue (std::move (rebuiltArr));
-    }
     return fChanged;
 }
 
@@ -301,45 +309,43 @@ bool  MachineConfigUpgrade::InjectPrinterSlot (JsonValue & arr)
 {
     vector<JsonValue>  rebuilt;
     size_t             i        = 0;
+    int                slot     = 0;
+    bool               occupied = (arr.GetType() != JsonType::Array);
 
 
 
-    if (arr.GetType() != JsonType::Array)
-    {
-        return false;
-    }
-
-    for (i = 0; i < arr.ArraySize(); ++i)
+    // A non-array counts as occupied so nothing is appended to it. Otherwise
+    // ANY existing slot-1 entry blocks the injection -- including a disabled
+    // one, so a slot the user turned off is never resurrected (FR-001).
+    for (i = 0; !occupied && i < arr.ArraySize(); ++i)
     {
         const JsonValue & elem = arr.ArrayAt (i);
-        int               slot = 0;
 
-        if (elem.GetType() == JsonType::Object &&
-            elem.HasInt (kpszSlotNumberKey, slot) &&
-            slot == kPrinterDefaultSlot)
-        {
-            return false;
-        }
+        occupied = elem.GetType() == JsonType::Object
+                   && elem.HasInt (kpszSlotNumberKey, slot)
+                   && slot == kPrinterDefaultSlot;
     }
 
-    rebuilt.reserve (arr.ArraySize() + 1);
-
-    for (i = 0; i < arr.ArraySize(); ++i)
-    {
-        rebuilt.push_back (arr.ArrayAt (i));
-    }
-
+    if (!occupied)
     {
         vector<pair<string, JsonValue>>  entry;
+
+        rebuilt.reserve (arr.ArraySize() + 1);
+
+        for (i = 0; i < arr.ArraySize(); ++i)
+        {
+            rebuilt.push_back (arr.ArrayAt (i));
+        }
 
         entry.emplace_back (kpszSlotNumberKey,     JsonValue ((double) kPrinterDefaultSlot));
         entry.emplace_back (kpszDeviceKey,         JsonValue (string (kpszPrinterDevice)));
         entry.emplace_back (kpszCapabilityFlagKey, JsonValue (string (kpszSlotDefault)));
         rebuilt.emplace_back (JsonValue (std::move (entry)));
+
+        arr = JsonValue (std::move (rebuilt));
     }
 
-    arr = JsonValue (std::move (rebuilt));
-    return true;
+    return !occupied;
 }
 
 

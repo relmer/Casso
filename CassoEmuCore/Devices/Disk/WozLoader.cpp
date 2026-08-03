@@ -130,19 +130,17 @@ static uint32_t Crc32 (const Byte * data, size_t len)
 
 static bool MatchSig (const Byte * p, const Byte * sig)
 {
-    size_t   i = 0;
+    size_t   i       = 0;
+    bool     matches = true;
 
 
 
-    for (i = 0; i < kSigLen; i++)
+    for (i = 0; matches && i < kSigLen; i++)
     {
-        if (p[i] != sig[i])
-        {
-            return false;
-        }
+        matches = (p[i] == sig[i]);
     }
 
-    return true;
+    return matches;
 }
 
 
@@ -157,19 +155,17 @@ static bool MatchSig (const Byte * p, const Byte * sig)
 
 static bool MatchMagic (const Byte * p, const Byte * magic)
 {
-    size_t   i = 0;
+    size_t   i       = 0;
+    bool     matches = true;
 
 
 
-    for (i = 0; i < 4; i++)
+    for (i = 0; matches && i < 4; i++)
     {
-        if (p[i] != magic[i])
-        {
-            return false;
-        }
+        matches = (p[i] == magic[i]);
     }
 
-    return true;
+    return matches;
 }
 
 

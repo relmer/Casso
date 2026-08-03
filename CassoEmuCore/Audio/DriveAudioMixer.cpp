@@ -43,12 +43,10 @@ DriveAudioMixer::~DriveAudioMixer()
 
 void DriveAudioMixer::RegisterSource (IDriveAudioSource * source)
 {
-    if (source == nullptr)
+    if (source != nullptr)
     {
-        return;
+        m_sources.push_back (source);
     }
-
-    m_sources.push_back (source);
 }
 
 
@@ -204,19 +202,17 @@ HRESULT DriveAudioMixer::SetMechanism (const wstring & mechanism)
     {
         Disk2AudioSource *  disk = dynamic_cast<Disk2AudioSource *> (src);
 
-        if (disk == nullptr)
+        if (disk != nullptr)
         {
-            continue;
+            HRESULT  hrLoad = disk->LoadSamples (m_devicesDir.c_str(),
+                                                 m_mechanism.c_str(),
+                                                 m_loadSampleRate);
+
+            // FR-009: a per-source load failure mutes that source but
+            // never propagates up; the mechanism switch as a whole has
+            // still succeeded from the caller's perspective.
+            (void) hrLoad;
         }
-
-        HRESULT  hrLoad = disk->LoadSamples (m_devicesDir.c_str(),
-                                             m_mechanism.c_str(),
-                                             m_loadSampleRate);
-
-        // FR-009: a per-source load failure mutes that source but
-        // never propagates up; the mechanism switch as a whole has
-        // still succeeded from the caller's perspective.
-        (void) hrLoad;
     }
 
 Error:
@@ -281,44 +277,42 @@ void DriveAudioMixer::GeneratePCM (float * stereoOut, uint32_t numSamples)
 
 
 
-    if (stereoOut == nullptr || numSamples == 0)
+    // The clear happens for a disabled or empty mixer too -- callers rely on
+    // GeneratePCM always leaving a defined buffer, silence included.
+    if (stereoOut != nullptr && numSamples != 0)
     {
-        return;
+        memset (stereoOut, 0, sizeof (float) * 2 * numSamples);
     }
 
-    memset (stereoOut, 0, sizeof (float) * 2 * numSamples);
-
-    if (!m_enabled || m_sources.empty())
+    if (stereoOut != nullptr && numSamples != 0 && m_enabled && !m_sources.empty())
     {
-        return;
-    }
-
-    if (m_scratchMono.size() < numSamples)
-    {
-        m_scratchMono.resize (numSamples);
-    }
-
-    for (IDriveAudioSource * src : m_sources)
-    {
-        memset (m_scratchMono.data(), 0, sizeof (float) * numSamples);
-        src->GeneratePCM (m_scratchMono.data(), numSamples);
-
-        panL = src->PanLeft();
-        panR = src->PanRight();
-
-        // Help the analyzer see the loop bound matches the
-        // documented 2 * numSamples capacity of stereoOut. The
-        // memset(stereoOut, 0, 2*numSamples*sizeof(float)) above
-        // already proved the buffer covers that range; the inner
-        // additive loop reuses the same span.
-        for (i = 0; i < numSamples; i++)
+        if (m_scratchMono.size() < numSamples)
         {
-            monoSamp = m_scratchMono[i];
+            m_scratchMono.resize (numSamples);
+        }
 
-            #pragma warning (suppress: 6385 6386)
-            stereoOut[2 * i]     += monoSamp * panL;
-            #pragma warning (suppress: 6385 6386)
-            stereoOut[2 * i + 1] += monoSamp * panR;
+        for (IDriveAudioSource * src : m_sources)
+        {
+            memset (m_scratchMono.data(), 0, sizeof (float) * numSamples);
+            src->GeneratePCM (m_scratchMono.data(), numSamples);
+
+            panL = src->PanLeft();
+            panR = src->PanRight();
+
+            // Help the analyzer see the loop bound matches the
+            // documented 2 * numSamples capacity of stereoOut. The
+            // memset(stereoOut, 0, 2*numSamples*sizeof(float)) above
+            // already proved the buffer covers that range; the inner
+            // additive loop reuses the same span.
+            for (i = 0; i < numSamples; i++)
+            {
+                monoSamp = m_scratchMono[i];
+
+                #pragma warning (suppress: 6385 6386)
+                stereoOut[2 * i]     += monoSamp * panL;
+                #pragma warning (suppress: 6385 6386)
+                stereoOut[2 * i + 1] += monoSamp * panR;
+            }
         }
     }
 }

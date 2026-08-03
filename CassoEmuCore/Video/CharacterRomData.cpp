@@ -165,13 +165,13 @@ void CharacterRomData::LoadEmbeddedFallback()
 
 Byte CharacterRomData::GetGlyphRow (Byte glyphIndex, int row, bool altCharSet) const
 {
-    if (row < 0 || row >= static_cast<int> (kBytesPerChar))
-    {
-        return 0;
-    }
+    // A ROM without an alternate set falls back to set 0, so a //e-only
+    // ALTCHARSET request on a ][ ROM renders the primary glyph rather than
+    // indexing past the end.
+    bool  inRange = (row >= 0 && row < static_cast<int> (kBytesPerChar));
+    int   set     = (altCharSet && m_hasAltCharSet) ? 1 : 0;
 
-    int set = (altCharSet && m_hasAltCharSet) ? 1 : 0;
-    return m_glyphs[set][glyphIndex][row];
+    return inRange ? m_glyphs[set][glyphIndex][row] : (Byte) 0;
 }
 
 

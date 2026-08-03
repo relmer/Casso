@@ -55,24 +55,27 @@ void PrintRaster::EnsureRowAllocated (int row)
 
 void PrintRaster::Strike (int columnDot, int row, InkPrimary ink)
 {
-    if (columnDot < 0 || columnDot >= s_kColumns || row < 0)
-    {
-        return;
-    }
+    bool  inBounds = (columnDot >= 0 && columnDot < s_kColumns && row >= 0);
 
-    if (row >= s_kMaxRows)
+
+
+    // Only a row past the 60-page cap latches CapReached -- an out-of-range
+    // COLUMN is a clipped strike, not a paper-length problem, so it is
+    // silently dropped.
+    if (inBounds && row >= s_kMaxRows)
     {
         m_capReached = true;
-        return;
     }
-
-    EnsureRowAllocated (row);
-
-    m_cells[(size_t) row * s_kColumns + columnDot] |= (Byte) ink;
-
-    if (row + 1 > m_rowsUsed)
+    else if (inBounds)
     {
-        m_rowsUsed = row + 1;
+        EnsureRowAllocated (row);
+
+        m_cells[(size_t) row * s_kColumns + columnDot] |= (Byte) ink;
+
+        if (row + 1 > m_rowsUsed)
+        {
+            m_rowsUsed = row + 1;
+        }
     }
 }
 
@@ -277,21 +280,18 @@ void PrintRaster::CopyRowSpan (int firstRow, int lastRow, PrintRaster & out) con
 
 Byte PrintRaster::CellAt (int columnDot, int row) const
 {
-    size_t   index = 0;
+    bool     inBounds = (columnDot >= 0 && columnDot < s_kColumns && row >= 0);
+    size_t   index    = inBounds ? ((size_t) row * s_kColumns + columnDot) : m_cells.size();
+    Byte     cell     = 0;
 
 
 
-    if (columnDot < 0 || columnDot >= s_kColumns || row < 0)
+    // Off the paper and past the allocated rows both read as blank -- rows
+    // are allocated lazily, so an un-struck row legitimately has no storage.
+    if (index < m_cells.size())
     {
-        return 0;
+        cell = m_cells[index];
     }
 
-    index = (size_t) row * s_kColumns + columnDot;
-
-    if (index >= m_cells.size())
-    {
-        return 0;
-    }
-
-    return m_cells[index];
+    return cell;
 }

@@ -154,21 +154,21 @@ void Disk2NibbleEngine::SetCurrentTrack (int track)
 
 size_t Disk2NibbleEngine::CurrentTrackBits() const
 {
-    int   slot = (m_disk != nullptr) ? m_disk->ResolveQuarterTrack (m_currentTrack) : -1;
+    int      slot = (m_disk != nullptr) ? m_disk->ResolveQuarterTrack (m_currentTrack) : -1;
+    size_t   bits = 0;
 
 
 
-    if (m_disk == nullptr)
+    // No disk at all reports 0 (the drive is empty and must not spin), while
+    // an unformatted position on a real disk reports the nominal blank length
+    // so rotation and the weak-bit noise model keep running.
+    if (m_disk != nullptr)
     {
-        return 0;
+        bits = (slot < 0) ? kUnformattedTrackBits
+                          : m_disk->GetTrackBitCount (slot);
     }
 
-    if (slot < 0)
-    {
-        return kUnformattedTrackBits;
-    }
-
-    return m_disk->GetTrackBitCount (slot);
+    return bits;
 }
 
 
@@ -439,20 +439,17 @@ void Disk2NibbleEngine::WriteLatch (uint8_t value)
 
 bool Disk2NibbleEngine::ConsumeFreshNibble (uint8_t & outNibble)
 {
-    if (!m_latchIsFresh)
+    // Both conditions matter: fresh means this is a new assembly cycle, and
+    // the MSB means the LSS has finished shifting a whole nibble in.
+    bool  ready = m_latchIsFresh && (m_readLatch & kLatchMsbMask) != 0;
+
+    if (ready)
     {
-        return false;
+        outNibble      = m_readLatch;
+        m_latchIsFresh = false;
     }
 
-    if ((m_readLatch & kLatchMsbMask) == 0)
-    {
-        return false;
-    }
-
-    outNibble      = m_readLatch;
-    m_latchIsFresh = false;
-
-    return true;
+    return ready;
 }
 
 

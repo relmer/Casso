@@ -92,17 +92,16 @@ static Byte ReadDhrByte (
     MemoryBus  & bus,
     Word         addr)
 {
-    if (useAux && auxMem != nullptr)
-    {
-        return auxMem[addr];
-    }
+    // Preference order: aux (when this byte belongs there and aux is bound),
+    // then a direct main-RAM pointer, then the bus. The bus path is the slow
+    // fallback for a renderer with no direct pointers wired.
+    Byte  value = 0;
 
-    if (videoRam != nullptr)
-    {
-        return videoRam[addr];
-    }
+    if      (useAux && auxMem != nullptr) { value = auxMem[addr];       }
+    else if (videoRam != nullptr)         { value = videoRam[addr];     }
+    else                                  { value = bus.ReadByte (addr); }
 
-    return bus.ReadByte (addr);
+    return value;
 }
 
 

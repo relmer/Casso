@@ -168,20 +168,18 @@ void Apple80ColTextMode::Render (
 
 bool Apple80ColTextMode::RowHasFlashChar (const Byte * rowBytes) const
 {
-    if (m_altCharSet)
+    int   col      = 0;
+    bool  hasFlash = false;
+
+
+
+    // Same rule as AppleTextMode, over the 80 interleaved char codes.
+    for (col = 0; !m_altCharSet && !hasFlash && col < kTextCols; col++)
     {
-        return false;
+        hasFlash = (rowBytes[col] >= 0x40 && rowBytes[col] < 0x80);
     }
 
-    for (int col = 0; col < kTextCols; col++)
-    {
-        if (rowBytes[col] >= 0x40 && rowBytes[col] < 0x80)
-        {
-            return true;
-        }
-    }
-
-    return false;
+    return hasFlash;
 }
 
 

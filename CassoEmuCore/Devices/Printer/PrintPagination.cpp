@@ -23,38 +23,39 @@ vector<PrintPagination::PageRange> PrintPagination::Paginate (const PrintRaster 
 
 
 
-    if (rowsUsed <= 0)
+    // An empty strip paginates to no pages at all, not one blank one.
+    if (rowsUsed > 0)
     {
-        return pages;
-    }
+        // Guest form feeds are hard page breaks; bracket them with the strip
+        // ends so every segment has both a start and an end.
+        breaks.push_back (0);
 
-    // Guest form feeds are hard page breaks; bracket them with the strip ends.
-    breaks.push_back (0);
-
-    for (int b : raster.PageBoundaryRows())
-    {
-        if (b > 0 && b < rowsUsed)
+        for (int b : raster.PageBoundaryRows())
         {
-            breaks.push_back (b);
+            if (b > 0 && b < rowsUsed)
+            {
+                breaks.push_back (b);
+            }
         }
-    }
 
-    breaks.push_back (rowsUsed);
+        breaks.push_back (rowsUsed);
 
-    std::sort (breaks.begin(), breaks.end());
-    breaks.erase (std::unique (breaks.begin(), breaks.end()), breaks.end());
+        std::sort (breaks.begin(), breaks.end());
+        breaks.erase (std::unique (breaks.begin(), breaks.end()), breaks.end());
 
-    // Within each form-feed segment, cap every page at one physical page height.
-    for (size_t i = 0; i + 1 < breaks.size(); i++)
-    {
-        int   segStart = breaks[i];
-        int   segEnd   = breaks[i + 1];   // exclusive
-
-        for (int r = segStart; r < segEnd; r += PrinterGrid::kPageRows)
+        // Within each form-feed segment, cap every page at one physical page
+        // height -- a segment longer than a sheet spills onto further sheets.
+        for (size_t i = 0; i + 1 < breaks.size(); i++)
         {
-            int   last = std::min (r + PrinterGrid::kPageRows, segEnd) - 1;
+            int   segStart = breaks[i];
+            int   segEnd   = breaks[i + 1];   // exclusive
 
-            pages.push_back (PageRange { r, last });
+            for (int r = segStart; r < segEnd; r += PrinterGrid::kPageRows)
+            {
+                int   last = std::min (r + PrinterGrid::kPageRows, segEnd) - 1;
+
+                pages.push_back (PageRange { r, last });
+            }
         }
     }
 

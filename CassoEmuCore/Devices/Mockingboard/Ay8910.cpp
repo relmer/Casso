@@ -512,19 +512,18 @@ float Ay8910::CurrentOutput() const
 
 bool Ay8910::IsSilent() const
 {
-    int   c = 0;
+    int   c      = 0;
+    bool  silent = true;
 
 
 
-    for (c = 0; c < s_kChannelCount; c++)
+    // One audible channel is enough to disqualify, so the scan stops there.
+    for (c = 0; silent && c < s_kChannelCount; c++)
     {
-        if (m_regs[kRegAmpA + c] != 0)
-        {
-            return false;
-        }
+        silent = (m_regs[kRegAmpA + c] == 0);
     }
 
-    return true;
+    return silent;
 }
 
 

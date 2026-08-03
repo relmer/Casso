@@ -218,47 +218,50 @@ void AppleMouse::SetHostTargetFraction (uint16_t fx, uint16_t fy)
 
 void AppleMouse::RetargetFromHoles()
 {
-    if (m_bus == nullptr || !m_hasTarget.load (std::memory_order_acquire))
+    // No bus, or no host position staged: nothing to project.
+    if (m_bus != nullptr && m_hasTarget.load (std::memory_order_acquire))
     {
-        return;
+        uint32_t  packed = m_hostTarget.load (std::memory_order_acquire);
+        int       fx     = static_cast<int> (packed >> 16);
+        int       fy     = static_cast<int> (packed & 0xFFFF);
+
+        auto rd16 = [this] (Word lo, Word hi)
+        {
+            return static_cast<int> (m_bus->ReadByte (lo))
+                 | (static_cast<int> (m_bus->ReadByte (hi)) << 8);
+        };
+
+        int  xMin = rd16 (kHoleXMinLo, kHoleXMinHi);
+        int  xMax = rd16 (kHoleXMaxLo, kHoleXMaxHi);
+        int  yMin = rd16 (kHoleYMinLo, kHoleYMinHi);
+        int  yMax = rd16 (kHoleYMaxLo, kHoleYMaxHi);
+        int  curX = rd16 (kHoleXPosLo, kHoleXPosHi);
+        int  curY = rd16 (kHoleYPosLo, kHoleYPosHi);
+
+        // Sanity: a live clamp window is ordered, spans at most the firmware's
+        // 0..1023 default range, and contains the current position. Failing
+        // any of these means the holes are pre-INITMOUSE garbage, so the
+        // retarget is skipped entirely rather than acting on nonsense.
+        bool  holesLive = xMax > xMin && yMax > yMin
+                          && xMax - xMin <= 1023 && yMax - yMin <= 1023
+                          && curX >= xMin && curX <= xMax
+                          && curY >= yMin && curY <= yMax;
+
+        if (holesLive)
+        {
+            int  targetX = xMin + (fx * (xMax - xMin)) / 65535;
+            int  targetY = yMin + (fy * (yMax - yMin)) / 65535;
+
+            // A latched, unacknowledged unit will land as +/-1 when the
+            // firmware services it; count it as already applied so it isn't
+            // double-queued.
+            int  inFlightX = m_xInt ? (((m_mouX1 & 0x80) != 0) ? +1 : -1) : 0;
+            int  inFlightY = m_yInt ? (((m_mouY1 & 0x80) != 0) ? -1 : +1) : 0;
+
+            m_pendingX = (targetX - curX) - inFlightX;
+            m_pendingY = (targetY - curY) - inFlightY;
+        }
     }
-
-    uint32_t  packed = m_hostTarget.load (std::memory_order_acquire);
-    int       fx     = static_cast<int> (packed >> 16);
-    int       fy     = static_cast<int> (packed & 0xFFFF);
-
-    auto rd16 = [this] (Word lo, Word hi)
-    {
-        return static_cast<int> (m_bus->ReadByte (lo))
-             | (static_cast<int> (m_bus->ReadByte (hi)) << 8);
-    };
-
-    int  xMin = rd16 (kHoleXMinLo, kHoleXMinHi);
-    int  xMax = rd16 (kHoleXMaxLo, kHoleXMaxHi);
-    int  yMin = rd16 (kHoleYMinLo, kHoleYMinHi);
-    int  yMax = rd16 (kHoleYMaxLo, kHoleYMaxHi);
-    int  curX = rd16 (kHoleXPosLo, kHoleXPosHi);
-    int  curY = rd16 (kHoleYPosLo, kHoleYPosHi);
-
-    // Sanity: a live clamp window is ordered, spans at most the firmware's
-    // 0..1023 default range, and contains the current position.
-    if (xMax <= xMin || yMax <= yMin ||
-        xMax - xMin > 1023 || yMax - yMin > 1023 ||
-        curX < xMin || curX > xMax || curY < yMin || curY > yMax)
-    {
-        return;
-    }
-
-    int  targetX = xMin + (fx * (xMax - xMin)) / 65535;
-    int  targetY = yMin + (fy * (yMax - yMin)) / 65535;
-
-    // A latched, unacknowledged unit will land as +/-1 when the firmware
-    // services it; count it as already applied so it isn't double-queued.
-    int  inFlightX = m_xInt ? (((m_mouX1 & 0x80) != 0) ? +1 : -1) : 0;
-    int  inFlightY = m_yInt ? (((m_mouY1 & 0x80) != 0) ? -1 : +1) : 0;
-
-    m_pendingX = (targetX - curX) - inFlightX;
-    m_pendingY = (targetY - curY) - inFlightY;
 }
 
 

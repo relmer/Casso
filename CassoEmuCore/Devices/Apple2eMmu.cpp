@@ -510,36 +510,38 @@ Byte * Apple2eMmu::SelectMainWrite (int page)
 
 void Apple2eMmu::ResolveText04_07()
 {
-    if (m_bus == nullptr || m_mainRamPtr == nullptr)
-    {
-        return;
-    }
+    bool     page2 = false;
+    Byte *   base  = nullptr;
+    int      page  = 0;
 
-    if (!m_store80)
+
+
+    // Nothing wired yet (pre-Initialize): the page table is not ours to touch.
+    if (m_bus != nullptr && m_mainRamPtr != nullptr)
     {
-        for (int page = kText04_07First; page <= kText04_07Last; page++)
+        if (!m_store80)
         {
-            Byte *  readPtr  = SelectMainRead  (page);
-            Byte *  writePtr = SelectMainWrite (page);
-            m_bus->SetReadPage  (page, readPtr);
-            m_bus->SetWritePage (page, writePtr);
+            // 80STORE off: routing follows RAMRD / RAMWRT, which can differ
+            // between read and write -- hence two pointers per page.
+            for (page = kText04_07First; page <= kText04_07Last; page++)
+            {
+                m_bus->SetReadPage  (page, SelectMainRead  (page));
+                m_bus->SetWritePage (page, SelectMainWrite (page));
+            }
         }
-        return;
-    }
+        else
+        {
+            // 80STORE on: PAGE2 alone picks the bank, for reads AND writes,
+            // so one pointer serves both.
+            page2 = (m_ssBank != nullptr) && m_ssBank->IsPage2();
+            base  = page2 ? m_auxRam.data() : m_mainRamPtr;
 
-    bool   page2 = false;
-    if (m_ssBank != nullptr)
-    {
-        page2 = m_ssBank->IsPage2();
-    }
-
-    Byte *  base = page2 ? m_auxRam.data() : m_mainRamPtr;
-
-    for (int page = kText04_07First; page <= kText04_07Last; page++)
-    {
-        Byte *  p = base + (page * kPageSize);
-        m_bus->SetReadPage  (page, p);
-        m_bus->SetWritePage (page, p);
+            for (page = kText04_07First; page <= kText04_07Last; page++)
+            {
+                m_bus->SetReadPage  (page, base + (page * kPageSize));
+                m_bus->SetWritePage (page, base + (page * kPageSize));
+            }
+        }
     }
 }
 
@@ -559,40 +561,43 @@ void Apple2eMmu::ResolveText04_07()
 
 void Apple2eMmu::ResolveHires20_3F()
 {
-    if (m_bus == nullptr || m_mainRamPtr == nullptr)
+    bool     page2  = false;
+    bool     hires  = false;
+    bool     banked = false;
+    Byte *   base   = nullptr;
+    int      page   = 0;
+
+
+
+    // Same shape as ResolveText04_07, but hires needs BOTH 80STORE and HIRES
+    // before PAGE2 gets to choose the bank.
+    if (m_bus != nullptr && m_mainRamPtr != nullptr)
     {
-        return;
-    }
-
-    bool  page2 = false;
-    bool  hires = false;
-
-    if (m_ssBank != nullptr)
-    {
-        page2 = m_ssBank->IsPage2();
-        hires = m_ssBank->IsHiresMode();
-    }
-
-    bool  banked = m_store80 && hires;
-
-    if (!banked)
-    {
-        for (int page = kHires20_3FFirst; page <= kHires20_3FLast; page++)
+        if (m_ssBank != nullptr)
         {
-            Byte *  readPtr  = SelectMainRead  (page);
-            Byte *  writePtr = SelectMainWrite (page);
-            m_bus->SetReadPage  (page, readPtr);
-            m_bus->SetWritePage (page, writePtr);
+            page2 = m_ssBank->IsPage2();
+            hires = m_ssBank->IsHiresMode();
         }
-        return;
-    }
 
-    Byte *  base = page2 ? m_auxRam.data() : m_mainRamPtr;
+        banked = m_store80 && hires;
 
-    for (int page = kHires20_3FFirst; page <= kHires20_3FLast; page++)
-    {
-        Byte *  p = base + (page * kPageSize);
-        m_bus->SetReadPage  (page, p);
-        m_bus->SetWritePage (page, p);
+        if (!banked)
+        {
+            for (page = kHires20_3FFirst; page <= kHires20_3FLast; page++)
+            {
+                m_bus->SetReadPage  (page, SelectMainRead  (page));
+                m_bus->SetWritePage (page, SelectMainWrite (page));
+            }
+        }
+        else
+        {
+            base = page2 ? m_auxRam.data() : m_mainRamPtr;
+
+            for (page = kHires20_3FFirst; page <= kHires20_3FLast; page++)
+            {
+                m_bus->SetReadPage  (page, base + (page * kPageSize));
+                m_bus->SetWritePage (page, base + (page * kPageSize));
+            }
+        }
     }
 }

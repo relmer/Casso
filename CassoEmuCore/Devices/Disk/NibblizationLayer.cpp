@@ -466,23 +466,31 @@ static Byte ReadNibbleAt (const DiskImage & img, int track, size_t & bitPos)
     Byte     value     = 0;
     Byte     bit       = 0;
     size_t   start     = bitPos;
+    bool     overran   = false;
 
 
 
-    if (trackBits == 0)
+    // Shift in bits until the MSB sets (the LSS's own nibble-complete rule).
+    // A full revolution with no MSB means the track carries no sync bytes, so
+    // give up rather than spin forever -- 0 is the caller's "no nibble".
+    //
+    // The overrun test stays AFTER the read and outranks a completed nibble:
+    // a value whose MSB set on the very read that crossed the revolution
+    // boundary is discarded, because its high bits came from before the wrap.
+    if (trackBits != 0)
     {
-        return 0;
-    }
-
-    while ((value & 0x80) == 0)
-    {
-        bit    = img.ReadBit (track, bitPos % trackBits);
-        bitPos++;
-        value  = static_cast<Byte> ((value << 1) | (bit & 1));
-
-        if (bitPos - start > trackBits)
+        while ((value & 0x80) == 0 && !overran)
         {
-            return 0;
+            bit    = img.ReadBit (track, bitPos % trackBits);
+            bitPos++;
+            value  = static_cast<Byte> ((value << 1) | (bit & 1));
+
+            overran = (bitPos - start > trackBits);
+        }
+
+        if (overran)
+        {
+            value = 0;
         }
     }
 
@@ -516,19 +524,20 @@ static Byte Decode44 (Byte odd, Byte even)
 
 static Byte InverseTranslate (Byte nib)
 {
-    int   i = 0;
+    int   i     = 0;
+    Byte  value = 0xFF;      // 0xFF == not a legal 6-and-2 nibble
 
 
 
-    for (i = 0; i < 64; i++)
+    for (i = 0; i < 64 && value == 0xFF; i++)
     {
         if (kWriteTranslate[i] == nib)
         {
-            return static_cast<Byte> (i);
+            value = static_cast<Byte> (i);
         }
     }
 
-    return 0xFF;
+    return value;
 }
 
 

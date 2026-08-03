@@ -179,20 +179,19 @@ void AppleTextMode::Render (
 
 bool AppleTextMode::RowHasFlashChar (const Byte * rowBytes) const
 {
-    if (m_altCharSet)
+    int   col      = 0;
+    bool  hasFlash = false;
+
+
+
+    // ALTCHARSET remaps $40-$7F to MouseText, which does not blink, so the
+    // whole row is non-flashing without inspecting a single byte.
+    for (col = 0; !m_altCharSet && !hasFlash && col < kTextCols; col++)
     {
-        return false;
+        hasFlash = (rowBytes[col] >= 0x40 && rowBytes[col] < 0x80);
     }
 
-    for (int col = 0; col < kTextCols; col++)
-    {
-        if (rowBytes[col] >= 0x40 && rowBytes[col] < 0x80)
-        {
-            return true;
-        }
-    }
-
-    return false;
+    return hasFlash;
 }
 
 

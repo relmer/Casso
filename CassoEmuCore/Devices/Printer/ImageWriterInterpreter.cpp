@@ -103,16 +103,21 @@ static int PitchForCommand (Byte cmd)
 {
     // PROVISIONAL pitch selections (unused until the US6 draft font renders
     // text; stored only so the commands are consumed, not flagged unknown).
+    // The divisor is characters per inch; 0 means "not a pitch command".
+    int  dotsPerChar = 0;
+
     switch (cmd)
     {
-    case 'n':   return PrinterGrid::kDotsPerInchH / 9;
-    case 'N':   return PrinterGrid::kDotsPerInchH / 10;
-    case 'E':   return PrinterGrid::kDotsPerInchH / 12;
-    case 'e':   return PrinterGrid::kDotsPerInchH / 13;
-    case 'q':   return PrinterGrid::kDotsPerInchH / 15;
-    case 'Q':   return PrinterGrid::kDotsPerInchH / 17;
-    default:    return 0;
+    case 'n':   dotsPerChar = PrinterGrid::kDotsPerInchH /  9; break;
+    case 'N':   dotsPerChar = PrinterGrid::kDotsPerInchH / 10; break;
+    case 'E':   dotsPerChar = PrinterGrid::kDotsPerInchH / 12; break;
+    case 'e':   dotsPerChar = PrinterGrid::kDotsPerInchH / 13; break;
+    case 'q':   dotsPerChar = PrinterGrid::kDotsPerInchH / 15; break;
+    case 'Q':   dotsPerChar = PrinterGrid::kDotsPerInchH / 17; break;
+    default:                                                   break;
     }
+
+    return dotsPerChar;
 }
 
 
@@ -154,17 +159,22 @@ static InkPrimary ColorForCode (Byte digit)
 
 
 
+    // Black is both code '0' and the safe fallback for an out-of-table digit.
+    InkPrimary  ink = InkPrimary::Black;
+
     switch (digit)
     {
-    case '0':   return InkPrimary::Black;
-    case '1':   return InkPrimary::Yellow;
-    case '2':   return InkPrimary::Red;
-    case '3':   return InkPrimary::Blue;
-    case '4':   return (InkPrimary) (yellow | red);    // orange
-    case '5':   return (InkPrimary) (yellow | blue);   // green
-    case '6':   return (InkPrimary) (red | blue);      // purple
-    default:    return InkPrimary::Black;
+    case '0':   ink = InkPrimary::Black;                  break;
+    case '1':   ink = InkPrimary::Yellow;                 break;
+    case '2':   ink = InkPrimary::Red;                    break;
+    case '3':   ink = InkPrimary::Blue;                   break;
+    case '4':   ink = (InkPrimary) (yellow | red);        break;   // orange
+    case '5':   ink = (InkPrimary) (yellow | blue);       break;   // green
+    case '6':   ink = (InkPrimary) (red | blue);          break;   // purple
+    default:                                              break;
     }
+
+    return ink;
 }
 
 
@@ -424,27 +434,24 @@ void ImageWriterInterpreter::RenderTextChar (Byte ch, PrintRaster & raster, vect
 void ImageWriterInterpreter::FlushTextPass (vector<PrinterEvent> & events)
 {
     PrinterEvent   ev;
+    bool           wasOpen = m_textPassOpen;
 
 
 
-    if (!m_textPassOpen)
-    {
-        return;
-    }
-
+    // Closing the pass is unconditional once it was open -- an all-space line
+    // still ends the line, it just does not emit a carriage pass (no ink to
+    // sweep over, so no burst and no sound).
     m_textPassOpen = false;
 
-    if (m_textInkTo < m_textFromDot)
+    if (wasOpen && m_textInkTo >= m_textFromDot)
     {
-        return;   // the line laid no ink (all spaces) -- no carriage pass, just the feed
+        ev.type    = PrinterEventType::HeadBurst;
+        ev.fromDot = m_textFromDot;
+        ev.toDot   = m_textInkTo;         // logic seek to the last INKED column, not the trailing spaces
+        ev.row     = m_textRow;
+        ev.color   = m_color;             // the primary this pass laid (usually black text)
+        events.push_back (ev);
     }
-
-    ev.type    = PrinterEventType::HeadBurst;
-    ev.fromDot = m_textFromDot;
-    ev.toDot   = m_textInkTo;             // logic seek to the last INKED column, not the trailing spaces
-    ev.row     = m_textRow;
-    ev.color   = m_color;                // the primary this pass laid (usually black text)
-    events.push_back (ev);
 }
 
 
