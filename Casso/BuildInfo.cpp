@@ -16,11 +16,8 @@
     #define BI_ARCH  "unknown-arch"
 #endif
 
-#if defined (_DEBUG)
-    #define BI_FLAVOR  "Debug"
-#else
-    #define BI_FLAVOR  "Release"
-#endif
+// No flavor tag: the caption only carries this stamp on a _DEBUG build, so its
+// mere presence already says Debug. Spelling it out was redundant.
 
 
 
@@ -70,7 +67,7 @@ static std::wstring  BuildTimeFromExe ()
 //
 //  CassoBuildInfo
 //
-//  Version + arch + flavor (from compile-time macros -- each is exact for this
+//  Version + arch (from compile-time macros -- each is exact for this
 //  configuration's binary) + the exe's link time (read at runtime, so it always
 //  names the actual build the user is running).
 //
@@ -79,10 +76,9 @@ static std::wstring  BuildTimeFromExe ()
 const wchar_t *  CassoBuildInfo ()
 {
     static const std::wstring   s = std::format (
-        L"v{}.{}.{} {} {} ({})",
+        L"v{}.{}.{} {} ({})",
         VERSION_MAJOR, VERSION_MINOR, VERSION_PATCH,
         std::wstring (BI_ARCH, BI_ARCH + sizeof (BI_ARCH) - 1),
-        std::wstring (BI_FLAVOR, BI_FLAVOR + sizeof (BI_FLAVOR) - 1),
         BuildTimeFromExe ());
 
     return s.c_str ();
