@@ -61,13 +61,18 @@ RECT HardwarePage::MakeRect (int l, int t, int w, int h)
 
 DxuiTreeCapabilityFlag HardwarePage::MapFlag (CapabilityFlag flag)
 {
+    // Required is the safe default for an unmapped flag: it shows the row
+    // without offering a toggle the machine may not support.
+    DxuiTreeCapabilityFlag  mapped = DxuiTreeCapabilityFlag::Required;
+
     switch (flag)
     {
-        case CapabilityFlag::Optional:        return DxuiTreeCapabilityFlag::Optional;
-        case CapabilityFlag::Required:        return DxuiTreeCapabilityFlag::Required;
-        case CapabilityFlag::PlatformLocked:  return DxuiTreeCapabilityFlag::PlatformLocked;
+        case CapabilityFlag::Optional:        mapped = DxuiTreeCapabilityFlag::Optional;       break;
+        case CapabilityFlag::Required:        mapped = DxuiTreeCapabilityFlag::Required;       break;
+        case CapabilityFlag::PlatformLocked:  mapped = DxuiTreeCapabilityFlag::PlatformLocked; break;
     }
-    return DxuiTreeCapabilityFlag::Required;
+
+    return mapped;
 }
 
 

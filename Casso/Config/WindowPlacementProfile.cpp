@@ -45,22 +45,24 @@ bool  WindowPlacementProfile::TryParseLong (const std::wstring & text, LONG & ou
 {
     wchar_t * end    = nullptr;
     long      parsed = 0;
+    bool      ok     = !text.empty();
 
 
 
-    if (text.empty())
+    // wcstol must have consumed the WHOLE string: "12x" is a malformed
+    // placement value, not 12.
+    if (ok)
     {
-        return false;
+        parsed = wcstol (text.c_str(), &end, 10);
+        ok     = (end != nullptr && *end == L'\0');
     }
 
-    parsed = wcstol (text.c_str(), &end, 10);
-    if (end == nullptr || *end != L'\0')
+    if (ok)
     {
-        return false;
+        outValue = static_cast<LONG> (parsed);
     }
 
-    outValue = static_cast<LONG> (parsed);
-    return true;
+    return ok;
 }
 
 
@@ -81,26 +83,25 @@ BOOL CALLBACK WindowPlacementProfile::CollectMonitorsProc (HMONITOR hMon, HDC hd
 
 
 
+    // The two false-ish exits mean opposite things to EnumDisplayMonitors:
+    // FALSE aborts the whole enumeration (no list to fill, so stop), while
+    // TRUE continues it (this one monitor failed, try the next).
+    BOOL  keepEnumerating = (list != nullptr);
+
     UNREFERENCED_PARAMETER (hdc);
     UNREFERENCED_PARAMETER (prc);
 
-    if (list == nullptr)
+    if (keepEnumerating && GetMonitorInfoW (hMon, &mi))
     {
-        return FALSE;
+        snap.device    = mi.szDevice;
+        snap.rcMonitor = mi.rcMonitor;
+        snap.rcWork    = mi.rcWork;
+        snap.flags     = mi.dwFlags;
+
+        list->push_back (snap);
     }
 
-    if (!GetMonitorInfoW (hMon, &mi))
-    {
-        return TRUE;
-    }
-
-    snap.device    = mi.szDevice;
-    snap.rcMonitor = mi.rcMonitor;
-    snap.rcWork    = mi.rcWork;
-    snap.flags     = mi.dwFlags;
-
-    list->push_back (snap);
-    return TRUE;
+    return keepEnumerating;
 }
 
 

@@ -445,11 +445,13 @@ void ThemePage::UpdateMonitorCheckboxEnabled()
 
 std::string ThemePage::SelectedThemeId() const
 {
-    if (m_activeIndex < 0 || m_activeIndex >= (int) m_themeIds.size())
-    {
-        return std::string();
-    }
-    return m_themeIds[(size_t) m_activeIndex];
+    bool  hasSelection = (m_activeIndex >= 0 && m_activeIndex < (int) m_themeIds.size());
+
+
+
+    // Empty means "no theme selected", which the caller treats as leave the
+    // current theme alone.
+    return hasSelection ? m_themeIds[(size_t) m_activeIndex] : std::string();
 }
 
 

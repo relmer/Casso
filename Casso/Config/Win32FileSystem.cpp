@@ -188,12 +188,10 @@ bool Win32FileSystem::Exists (const std::wstring & path)
 
 
 
-    if (attrs == INVALID_FILE_ATTRIBUTES)
-    {
-        return false;
-    }
-
-    return (attrs & FILE_ATTRIBUTE_DIRECTORY) == 0;
+    // A directory at this path is NOT an existing file -- callers are asking
+    // whether they can open it for reading.
+    return attrs != INVALID_FILE_ATTRIBUTES
+        && (attrs & FILE_ATTRIBUTE_DIRECTORY) == 0;
 }
 
 

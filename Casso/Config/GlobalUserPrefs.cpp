@@ -316,21 +316,21 @@ JsonValue GlobalUserPrefs::CrtToJson (const Crt & c)
 
 const char * GlobalUserPrefs::InputMappingModeToString (InputMappingMode mode)
 {
+    // "off" is both the Off mode and the safe spelling for a mode this build
+    // does not know -- writing an unknown token back out would strand it.
+    const char *  token = s_kpszInputModeOff;
+
     switch (mode)
     {
-        case InputMappingMode::Joystick:
-            return s_kpszInputModeJoystick;
-
-        case InputMappingMode::Paddle:
-            return s_kpszInputModePaddle;
-
-        case InputMappingMode::Mouse:
-            return s_kpszInputModeMouse;
+        case InputMappingMode::Joystick:  token = s_kpszInputModeJoystick; break;
+        case InputMappingMode::Paddle:    token = s_kpszInputModePaddle;   break;
+        case InputMappingMode::Mouse:     token = s_kpszInputModeMouse;    break;
 
         case InputMappingMode::Off:
-        default:
-            return s_kpszInputModeOff;
+        default:                                                           break;
     }
+
+    return token;
 }
 
 
@@ -348,27 +348,17 @@ const char * GlobalUserPrefs::InputMappingModeToString (InputMappingMode mode)
 
 InputMappingMode GlobalUserPrefs::InputMappingModeFromString (const std::string & s, InputMappingMode fallback)
 {
-    if (s == s_kpszInputModeJoystick)
-    {
-        return InputMappingMode::Joystick;
-    }
+    // The inverse of InputMappingModeToString. `fallback` (not Off) is the
+    // miss result so a prefs file written by a newer build keeps whatever the
+    // caller was already using rather than silently disabling input mapping.
+    InputMappingMode  mode = fallback;
 
-    if (s == s_kpszInputModePaddle)
-    {
-        return InputMappingMode::Paddle;
-    }
+    if      (s == s_kpszInputModeJoystick) { mode = InputMappingMode::Joystick; }
+    else if (s == s_kpszInputModePaddle)   { mode = InputMappingMode::Paddle;   }
+    else if (s == s_kpszInputModeMouse)    { mode = InputMappingMode::Mouse;    }
+    else if (s == s_kpszInputModeOff)      { mode = InputMappingMode::Off;      }
 
-    if (s == s_kpszInputModeMouse)
-    {
-        return InputMappingMode::Mouse;
-    }
-
-    if (s == s_kpszInputModeOff)
-    {
-        return InputMappingMode::Off;
-    }
-
-    return fallback;
+    return mode;
 }
 
 

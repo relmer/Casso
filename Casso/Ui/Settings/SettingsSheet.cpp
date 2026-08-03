@@ -677,22 +677,26 @@ void SettingsSheet::PaintModalOverlay (IDxuiPainter & painter, IDxuiTextRenderer
 
 bool SettingsSheet::OnOverlayMouse (const DxuiMouseEvent & ev)
 {
-    if (!m_colorPicker.IsOpen())
+    // An open color picker is modal over the sheet, so it takes EVERY mouse
+    // event -- including the kinds it ignores, which must not reach the
+    // controls behind it.
+    bool  isOpen = m_colorPicker.IsOpen();
+
+    if (isOpen)
     {
-        return false;
+        switch (ev.kind)
+        {
+        case DxuiMouseEventKind::Down:  m_colorPicker.OnLButtonDown (ev.positionDip.x, ev.positionDip.y); break;
+        case DxuiMouseEventKind::Up:    m_colorPicker.OnLButtonUp   (ev.positionDip.x, ev.positionDip.y); break;
+        case DxuiMouseEventKind::Move:  m_colorPicker.OnMouseHover  (ev.positionDip.x, ev.positionDip.y);
+                                        m_colorPicker.OnMouseMove   (ev.positionDip.x, ev.positionDip.y); break;
+        default:                        break;
+        }
+
+        Invalidate();
     }
 
-    switch (ev.kind)
-    {
-    case DxuiMouseEventKind::Down:  m_colorPicker.OnLButtonDown (ev.positionDip.x, ev.positionDip.y); break;
-    case DxuiMouseEventKind::Up:    m_colorPicker.OnLButtonUp   (ev.positionDip.x, ev.positionDip.y); break;
-    case DxuiMouseEventKind::Move:  m_colorPicker.OnMouseHover  (ev.positionDip.x, ev.positionDip.y);
-                                    m_colorPicker.OnMouseMove   (ev.positionDip.x, ev.positionDip.y); break;
-    default:                        break;
-    }
-
-    Invalidate();
-    return true;
+    return isOpen;
 }
 
 
