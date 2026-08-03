@@ -78,6 +78,10 @@ private:
         bool                   mounted = false;
     };
 
+    // Every public accessor takes a caller-supplied slot/drive pair, so each
+    // one range-checks before At() indexes the fixed array.
+    static bool   IsValidBay        (int slot, int drive);
+
     Entry &       At                (int slot, int drive);
     const Entry & At                (int slot, int drive) const;
     HRESULT       FlushEntry        (Entry & entry);

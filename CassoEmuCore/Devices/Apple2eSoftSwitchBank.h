@@ -4,6 +4,7 @@
 #include "Devices/AppleSoftSwitchBank.h"
 
 class Apple2eMmu;
+class IMmu;                 // MmuSwitch below names its setters
 class Apple2eKeyboard;
 class LanguageCard;
 class IVideoTiming;
@@ -41,6 +42,15 @@ class Apple2eSoftSwitchBank : public AppleSoftSwitchBank
 {
 public:
     Apple2eSoftSwitchBank (MemoryBus * bus = nullptr);
+
+    // One MMU flag reachable through a $C00x address PAIR: writing the even
+    // address clears it, the odd address sets it. Public only because the
+    // table lives at file scope in the .cpp (anonymous namespaces are banned).
+    struct MmuSwitch
+    {
+        Word    offAddress;             // the clearing address; +1 sets
+        void (IMmu::* Set) (bool v);
+    };
 
     Byte Read      (Word address) override;
     void Write     (Word address, Byte value) override;

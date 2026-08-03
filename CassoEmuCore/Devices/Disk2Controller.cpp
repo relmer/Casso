@@ -282,6 +282,8 @@ void Disk2Controller::HandleSwitch (int offset)
 Byte Disk2Controller::HandleReadDispatch()
 {
     Byte     nibble = 0;
+    Byte     sense  = 0;
+    Byte     result = 0;      // Q7=1 (both shift-load and write mode) reads 0
     uint8_t  fresh  = 0;
 
 
@@ -314,31 +316,25 @@ Byte Disk2Controller::HandleReadDispatch()
             m_addrMarkWatcher.ObserveNibble (fresh);
         }
 
-        if (m_motorSpinupRemaining > 0)
-        {
-            return 0x80;
-        }
-
-        return nibble;
+        // During the spin-up window the CPU sees 0x80 (MSB set, data garbage)
+        // while the real latch value above still drove the watcher.
+        result = (m_motorSpinupRemaining > 0) ? 0x80 : nibble;
     }
-
-    if (m_q6 && !m_q7)
+    else if (m_q6 && !m_q7)
     {
-        Byte  sense = m_activeDisk[m_activeDrive]->IsWriteProtected() ? 0x80 : 0x00;
+        sense = m_activeDisk[m_activeDrive]->IsWriteProtected() ? 0x80 : 0x00;
 
         // IWM (//c): Q6H + Q7L reads the STATUS register. Bit 7 is the sense
         // input (write protect here), bit 5 is the drive-enable/motor flag,
         // and bits 4-0 mirror the MODE register the firmware just wrote -- the
         // reset code writes the mode register then reads it back to confirm.
-        if (m_iwmMode)
-        {
-            return sense | (m_motorOn ? 0x20 : 0x00) | (m_iwmModeReg & 0x1F);
-        }
-
-        return sense;
+        // A plain Disk II has no status register, so it reports sense alone.
+        result = m_iwmMode
+                     ? static_cast<Byte> (sense | (m_motorOn ? 0x20 : 0x00) | (m_iwmModeReg & 0x1F))
+                     : sense;
     }
 
-    return 0;
+    return result;
 }
 
 
@@ -593,32 +589,33 @@ void Disk2Controller::CatchUpToCpu()
 
 
 
-    if (m_cpuCycleSource == nullptr)
+    // With no cycle source attached, Tick() drives the engine off the bulk
+    // per-instruction count instead and there is nothing to catch up to.
+    if (m_cpuCycleSource != nullptr)
     {
-        return;
+        now = *m_cpuCycleSource;
+
+        // A power cycle zeroes the CPU cycle counter (m_totalCycles, and
+        // hence the m_busCycle source this anchor tracks) but does NOT
+        // rewind m_lastCpuSync. Without re-anchoring, every catch-up after
+        // a power cycle sees now < m_lastCpuSync and bails, freezing the
+        // bit cursor until the counter climbs back past the stale anchor --
+        // a dead disk for as long as the prior session ran (the boot ROM
+        // spins on $C0EC reading a non-advancing latch the whole time).
+        // Re-anchor on any non-forward move so the next access resumes the
+        // normal forward advance. The == case is a same-cycle no-op.
+        if (now <= m_lastCpuSync)
+        {
+            m_lastCpuSync = now;
+        }
+        else
+        {
+            delta         = now - m_lastCpuSync;
+            m_lastCpuSync = now;
+
+            m_engine[m_activeDrive].Tick (static_cast<uint32_t> (delta));
+        }
     }
-
-    now = *m_cpuCycleSource;
-
-    // A power cycle zeroes the CPU cycle counter (m_totalCycles, and
-    // hence the m_busCycle source this anchor tracks) but does NOT
-    // rewind m_lastCpuSync. Without re-anchoring, every catch-up after
-    // a power cycle sees now < m_lastCpuSync and bails, freezing the
-    // bit cursor until the counter climbs back past the stale anchor --
-    // a dead disk for as long as the prior session ran (the boot ROM
-    // spins on $C0EC reading a non-advancing latch the whole time).
-    // Re-anchor on any non-forward move so the next access resumes the
-    // normal forward advance. The == case is a same-cycle no-op.
-    if (now <= m_lastCpuSync)
-    {
-        m_lastCpuSync = now;
-        return;
-    }
-
-    delta         = now - m_lastCpuSync;
-    m_lastCpuSync = now;
-
-    m_engine[m_activeDrive].Tick (static_cast<uint32_t> (delta));
 }
 
 
@@ -698,12 +695,11 @@ void Disk2Controller::EjectDisk (int drive)
 
 DiskImage * Disk2Controller::GetDisk (int drive)
 {
-    if (drive < 0 || drive >= kDriveCount)
-    {
-        return nullptr;
-    }
+    bool  inRange = (drive >= 0 && drive < kDriveCount);
 
-    return m_activeDisk[drive];
+
+
+    return inRange ? m_activeDisk[drive] : nullptr;
 }
 
 
@@ -723,13 +719,11 @@ DiskImage * Disk2Controller::GetDisk (int drive)
 
 void Disk2Controller::SetExternalDisk (int drive, DiskImage * external)
 {
-    if (drive < 0 || drive >= kDriveCount)
+    if (drive >= 0 && drive < kDriveCount)
     {
-        return;
+        m_activeDisk[drive] = (external != nullptr) ? external : &m_disks[drive];
+        m_engine[drive].SetDiskImage (m_activeDisk[drive]);
     }
-
-    m_activeDisk[drive] = (external != nullptr) ? external : &m_disks[drive];
-    m_engine[drive].SetDiskImage (m_activeDisk[drive]);
 }
 
 
@@ -744,12 +738,10 @@ void Disk2Controller::SetExternalDisk (int drive, DiskImage * external)
 
 bool Disk2Controller::HasExternalDisk (int drive) const
 {
-    if (drive < 0 || drive >= kDriveCount)
-    {
-        return false;
-    }
-
-    return m_activeDisk[drive] != &m_disks[drive];
+    // An out-of-range drive has no disk at all, external or otherwise.
+    return drive >= 0
+        && drive < kDriveCount
+        && m_activeDisk[drive] != &m_disks[drive];
 }
 
 

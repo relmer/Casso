@@ -79,8 +79,10 @@ bool Apple2eSoftSwitchBank::Is80Store() const
 
 Byte Apple2eSoftSwitchBank::ReadStatusRegister (Word address)
 {
-    Byte  kbdBits = 0;
-    bool  flag    = false;
+    Byte  kbdBits  = 0;
+    Byte  topBit   = 0;
+    bool  flag     = false;
+    bool  isMouseC = false;
 
 
 
@@ -93,39 +95,47 @@ Byte Apple2eSoftSwitchBank::ReadStatusRegister (Word address)
     // $C015/$C017 as the mouse X0/Y0 interrupt-status reads (RDINTCXROM /
     // RDSLOTC3ROM are meaningless there -- the //c ROM never reads them for
     // MMU state), and $C019 reads the VBL interrupt LATCH (set at VBL onset,
-    // cleared by $C070) instead of the //e's live RDVBLBAR signal.
+    // cleared by $C070) instead of the //e's live RDVBLBAR signal. These
+    // three addresses therefore never reach the //e table below.
     if (m_mouse != nullptr)
     {
+        isMouseC = true;
+
         switch (address)
         {
-            case 0xC015: return static_cast<Byte> (kbdBits | m_mouse->ReadXInterruptStatus());
-            case 0xC017: return static_cast<Byte> (kbdBits | m_mouse->ReadYInterruptStatus());
-            case 0xC019: return static_cast<Byte> (kbdBits | m_mouse->ReadVblInterrupt     ());
-            default:     break;
+            case 0xC015: topBit = m_mouse->ReadXInterruptStatus(); break;
+            case 0xC017: topBit = m_mouse->ReadYInterruptStatus(); break;
+            case 0xC019: topBit = m_mouse->ReadVblInterrupt     (); break;
+            default:     isMouseC = false;                         break;
         }
     }
 
-    switch (address)
+    if (!isMouseC)
     {
-        case 0xC011: flag = m_lc          != nullptr && m_lc->IsBank2          (); break;
-        case 0xC012: flag = m_lc          != nullptr && m_lc->IsReadRam        (); break;
-        case 0xC013: flag = m_mmu         != nullptr && m_mmu->GetRamRd        (); break;
-        case 0xC014: flag = m_mmu         != nullptr && m_mmu->GetRamWrt       (); break;
-        case 0xC015: flag = m_mmu         != nullptr && m_mmu->GetIntCxRom     (); break;
-        case 0xC016: flag = m_mmu         != nullptr && m_mmu->GetAltZp        (); break;
-        case 0xC017: flag = m_mmu         != nullptr && m_mmu->GetSlotC3Rom    (); break;
-        case 0xC018: flag = m_mmu         != nullptr && m_mmu->Get80Store      (); break;
-        case 0xC019: flag = m_videoTiming != nullptr && !m_videoTiming->IsInVblank(); break;
-        case 0xC01A: flag = !IsGraphicsMode(); break;
-        case 0xC01B: flag = IsMixedMode    (); break;
-        case 0xC01C: flag = IsPage2        (); break;
-        case 0xC01D: flag = IsHiresMode    (); break;
-        case 0xC01E: flag = m_altCharSet; break;
-        case 0xC01F: flag = m_80colMode;  break;
-        default:     flag = false;        break;
+        switch (address)
+        {
+            case 0xC011: flag = m_lc          != nullptr && m_lc->IsBank2          (); break;
+            case 0xC012: flag = m_lc          != nullptr && m_lc->IsReadRam        (); break;
+            case 0xC013: flag = m_mmu         != nullptr && m_mmu->GetRamRd        (); break;
+            case 0xC014: flag = m_mmu         != nullptr && m_mmu->GetRamWrt       (); break;
+            case 0xC015: flag = m_mmu         != nullptr && m_mmu->GetIntCxRom     (); break;
+            case 0xC016: flag = m_mmu         != nullptr && m_mmu->GetAltZp        (); break;
+            case 0xC017: flag = m_mmu         != nullptr && m_mmu->GetSlotC3Rom    (); break;
+            case 0xC018: flag = m_mmu         != nullptr && m_mmu->Get80Store      (); break;
+            case 0xC019: flag = m_videoTiming != nullptr && !m_videoTiming->IsInVblank(); break;
+            case 0xC01A: flag = !IsGraphicsMode(); break;
+            case 0xC01B: flag = IsMixedMode    (); break;
+            case 0xC01C: flag = IsPage2        (); break;
+            case 0xC01D: flag = IsHiresMode    (); break;
+            case 0xC01E: flag = m_altCharSet; break;
+            case 0xC01F: flag = m_80colMode;  break;
+            default:     flag = false;        break;
+        }
+
+        topBit = flag ? 0x80 : 0x00;
     }
 
-    return static_cast<Byte> (kbdBits | (flag ? 0x80 : 0x00));
+    return static_cast<Byte> (kbdBits | topBit);
 }
 
 
@@ -203,18 +213,13 @@ Error:
 
 void Apple2eSoftSwitchBank::EmitHostPaddle (int axis, Byte value)
 {
-    if (m_inputSink == nullptr)
+    // No sink, or the same value we last reported: either way there is no
+    // change to announce.
+    if (m_inputSink != nullptr && m_lastEmittedHostPaddle[axis] != value)
     {
-        return;
+        m_lastEmittedHostPaddle[axis] = value;
+        m_inputSink->OnHostPaddle (axis, value);
     }
-
-    if (m_lastEmittedHostPaddle[axis] == value)
-    {
-        return;
-    }
-
-    m_lastEmittedHostPaddle[axis] = value;
-    m_inputSink->OnHostPaddle (axis, value);
 }
 
 
@@ -232,12 +237,12 @@ void Apple2eSoftSwitchBank::EmitHostPaddle (int axis, Byte value)
 
 void Apple2eSoftSwitchBank::EmitPaddleTrigger()
 {
-    if (m_inputSink == nullptr)
+    // Not coalesced, unlike the read emitters: every strobe is a distinct
+    // arming event the panel wants to show.
+    if (m_inputSink != nullptr)
     {
-        return;
+        m_inputSink->OnPaddleTrigger (s_kwPaddleTimerStrobe);
     }
-
-    m_inputSink->OnPaddleTrigger (s_kwPaddleTimerStrobe);
 }
 
 
@@ -261,18 +266,12 @@ void Apple2eSoftSwitchBank::EmitPaddleRead (Word address, Byte value)
 
 
 
-    if (m_inputSink == nullptr)
+    // Same coalescing rule as EmitHostPaddle, on the guest-read side.
+    if (m_inputSink != nullptr && m_lastEmittedPaddle[idx] != value)
     {
-        return;
+        m_lastEmittedPaddle[idx] = value;
+        m_inputSink->OnPaddleRead (address, value);
     }
-
-    if (m_lastEmittedPaddle[idx] == value)
-    {
-        return;
-    }
-
-    m_lastEmittedPaddle[idx] = value;
-    m_inputSink->OnPaddleRead (address, value);
 }
 
 
@@ -428,50 +427,76 @@ Byte Apple2eSoftSwitchBank::Read (Word address)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  Write
+//  MMU write-switch pairs
 //
-//  Per Apple //e Tech Ref:
+//  Per Apple //e Tech Ref, $C000-$C00B is twelve addresses but only six
+//  switches -- the EVEN address of each pair clears the flag, the ODD one
+//  sets it:
 //    $C000 write -> 80STORE OFF      $C001 write -> 80STORE ON
 //    $C002 write -> RAMRD   OFF      $C003 write -> RAMRD   ON
 //    $C004 write -> RAMWRT  OFF      $C005 write -> RAMWRT  ON
 //    $C006 write -> INTCXROM OFF     $C007 write -> INTCXROM ON
 //    $C008 write -> ALTZP   OFF      $C009 write -> ALTZP   ON
 //    $C00A write -> SLOTC3ROM OFF    $C00B write -> SLOTC3ROM ON
-//    $C00C-$C00F writes  -> same as reads (80COL, ALTCHARSET)
-//    Other writes        -> same as reads
 //
-//  All MMU-owned switches forward to the MMU (which owns the flag and
-//  rebinds the page table). Audit §1.1 fix-by-relocation: this is the
-//  correct addressing surface; the legacy AuxRamCard's $C003-$C006
-//  was wrong and is deleted.
+//  Listing the pairs makes that regularity checkable at a glance, which
+//  twelve separate switch cases did not.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+static const Apple2eSoftSwitchBank::MmuSwitch  s_kMmuSwitches[6] =
+{
+    { 0xC000, &IMmu::Set80Store   },
+    { 0xC002, &IMmu::SetRamRd     },
+    { 0xC004, &IMmu::SetRamWrt    },
+    { 0xC006, &IMmu::SetIntCxRom  },
+    { 0xC008, &IMmu::SetAltZp     },
+    { 0xC00A, &IMmu::SetSlotC3Rom },
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Write
+//
+//  MMU-owned switches ($C000-$C00B, table above) forward to the MMU, which
+//  owns the flag and rebinds the page table. Everything else -- including
+//  $C00C-$C00F (80COL, ALTCHARSET) -- behaves exactly as the matching read.
+//
+//  Audit §1.1 fix-by-relocation: this is the correct addressing surface;
+//  the legacy AuxRamCard's $C003-$C006 was wrong and is deleted.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void Apple2eSoftSwitchBank::Write (Word address, Byte value)
 {
+    bool  handled = false;
+
+
+
     UNREFERENCED_PARAMETER (value);
 
     if (address >= 0xC000 && address <= 0xC00B && m_mmu != nullptr)
     {
-        switch (address)
+        for (const MmuSwitch & sw : s_kMmuSwitches)
         {
-            case 0xC000:  m_mmu->Set80Store   (false); return;
-            case 0xC001:  m_mmu->Set80Store   (true);  return;
-            case 0xC002:  m_mmu->SetRamRd     (false); return;
-            case 0xC003:  m_mmu->SetRamRd     (true);  return;
-            case 0xC004:  m_mmu->SetRamWrt    (false); return;
-            case 0xC005:  m_mmu->SetRamWrt    (true);  return;
-            case 0xC006:  m_mmu->SetIntCxRom  (false); return;
-            case 0xC007:  m_mmu->SetIntCxRom  (true);  return;
-            case 0xC008:  m_mmu->SetAltZp     (false); return;
-            case 0xC009:  m_mmu->SetAltZp     (true);  return;
-            case 0xC00A:  m_mmu->SetSlotC3Rom (false); return;
-            case 0xC00B:  m_mmu->SetSlotC3Rom (true);  return;
-            default:      break;
+            if (!handled && (address == sw.offAddress || address == sw.offAddress + 1))
+            {
+                (m_mmu->*sw.Set) (address != sw.offAddress);
+                handled = true;
+            }
         }
     }
 
-    Read (address);
+    // Everything else -- including $C00C-$C00F, which toggle on write exactly
+    // as they do on read -- goes through the read path.
+    if (!handled)
+    {
+        Read (address);
+    }
 }
 
 

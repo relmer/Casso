@@ -377,19 +377,14 @@ void DiskImageStore::Eject (int slot, int drive)
 
 
 
-    if (slot < 0 || slot >= kSlotCount || drive < 0 || drive >= kDriveCount)
-    {
-        return;
-    }
-
+    // An out-of-range bay and an empty one are both nothing to eject.
+    if (IsValidBay (slot, drive) && At (slot, drive).mounted)
     {
         Entry &   entry = At (slot, drive);
 
-        if (!entry.mounted)
-        {
-            return;
-        }
-
+        // Flush failures are reported to the user by FlushEntry itself; the
+        // eject proceeds either way, because refusing to unmount would leave
+        // the user with no way to get the disk out.
         hr = FlushEntry (entry);
         IGNORE_RETURN_VALUE (hr, S_OK);
 
@@ -455,18 +450,33 @@ void DiskImageStore::PowerCycle()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  IsValidBay
+//
+//  Whether (slot, drive) names a real bay. The one place the fixed array's
+//  bounds are stated, so an accessor cannot get the check subtly wrong.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DiskImageStore::IsValidBay (int slot, int drive)
+{
+    return slot  >= 0 && slot  < kSlotCount
+        && drive >= 0 && drive < kDriveCount;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  GetImage / IsMounted / GetSourcePath
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 DiskImage * DiskImageStore::GetImage (int slot, int drive)
 {
-    if (slot < 0 || slot >= kSlotCount || drive < 0 || drive >= kDriveCount)
-    {
-        return nullptr;
-    }
-
-    return At (slot, drive).image.get();
+    // Null for a bad bay is the same answer as for an empty one: no image.
+    return IsValidBay (slot, drive) ? At (slot, drive).image.get() : nullptr;
 }
 
 
@@ -481,12 +491,7 @@ DiskImage * DiskImageStore::GetImage (int slot, int drive)
 
 bool DiskImageStore::IsMounted (int slot, int drive) const
 {
-    if (slot < 0 || slot >= kSlotCount || drive < 0 || drive >= kDriveCount)
-    {
-        return false;
-    }
-
-    return At (slot, drive).mounted;
+    return IsValidBay (slot, drive) && At (slot, drive).mounted;
 }
 
 
@@ -501,10 +506,7 @@ bool DiskImageStore::IsMounted (int slot, int drive) const
 
 const string & DiskImageStore::GetSourcePath (int slot, int drive) const
 {
-    if (slot < 0 || slot >= kSlotCount || drive < 0 || drive >= kDriveCount)
-    {
-        return m_emptyPath;
-    }
-
-    return At (slot, drive).path;
+    // Returns a reference, so a bad bay yields the member empty string rather
+    // than a temporary.
+    return IsValidBay (slot, drive) ? At (slot, drive).path : m_emptyPath;
 }
