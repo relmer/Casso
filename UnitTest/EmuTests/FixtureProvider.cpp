@@ -27,49 +27,59 @@ std::string FixtureProvider::ResolveFixturesRoot()
 
 
 
-    std::string   baked = CASSO_FIXTURES_DIR;
-    fs::path      cursor;
-    fs::path      candidate;
-    int           steps;
+    std::string       baked = CASSO_FIXTURES_DIR;
+    std::string       root;
+    fs::path          cursor;
+    fs::path          candidate;
+    std::error_code   ec;
+    int               steps  = 0;
+    bool              atRoot = false;
 
+
+
+    // The baked-in define wins outright; the ancestor walk is the fallback
+    // for a test DLL run from somewhere the build system did not predict.
     if (!baked.empty())
     {
-        return baked;
+        root = baked;
     }
-
-    std::error_code   ec;
-
-    cursor = fs::current_path (ec);
-    if (ec)
+    else
     {
-        return std::string();
+        cursor = fs::current_path (ec);
+
+        for (steps = 0; !ec && root.empty() && !atRoot && steps < kMaxAncestorWalk; steps++)
+        {
+            // Two shapes per level: the repo layout (UnitTest/Fixtures) and a
+            // deployed layout where Fixtures sits beside the binary.
+            candidate = cursor / "UnitTest" / "Fixtures";
+
+            if (fs::exists (candidate, ec) && fs::is_directory (candidate, ec))
+            {
+                root = candidate.string();
+            }
+
+            if (root.empty())
+            {
+                candidate = cursor / "Fixtures";
+
+                if (fs::exists (candidate, ec) && fs::is_directory (candidate, ec))
+                {
+                    root = candidate.string();
+                }
+            }
+
+            // A path that is its own parent is the drive root: nowhere left
+            // to climb.
+            atRoot = !cursor.has_parent_path() || cursor == cursor.parent_path();
+
+            if (root.empty() && !atRoot)
+            {
+                cursor = cursor.parent_path();
+            }
+        }
     }
 
-    for (steps = 0; steps < kMaxAncestorWalk; steps++)
-    {
-        candidate = cursor / "UnitTest" / "Fixtures";
-
-        if (fs::exists (candidate, ec) && fs::is_directory (candidate, ec))
-        {
-            return candidate.string();
-        }
-
-        candidate = cursor / "Fixtures";
-
-        if (fs::exists (candidate, ec) && fs::is_directory (candidate, ec))
-        {
-            return candidate.string();
-        }
-
-        if (!cursor.has_parent_path() || cursor == cursor.parent_path())
-        {
-            break;
-        }
-
-        cursor = cursor.parent_path();
-    }
-
-    return std::string();
+    return root;
 }
 
 
@@ -117,27 +127,12 @@ FixtureProvider::FixtureProvider (const std::string & rootOverride)
 
 bool FixtureProvider::IsRejectedPath (const std::string & relativePath)
 {
-    if (relativePath.empty())
-    {
-        return true;
-    }
-
-    if (relativePath.find ("..") != std::string::npos)
-    {
-        return true;
-    }
-
-    if (relativePath[0] == '/' || relativePath[0] == '\\')
-    {
-        return true;
-    }
-
-    if (relativePath.size() >= 2 && relativePath[1] == ':')
-    {
-        return true;
-    }
-
-    return false;
+    // Everything that could escape the fixtures root, in one predicate. The
+    // empty test comes first because the indexed reads below need a character.
+    return relativePath.empty()
+        || relativePath.find ("..") != std::string::npos          // climb-out
+        || relativePath[0] == '/' || relativePath[0] == '\\'      // rooted
+        || (relativePath.size() >= 2 && relativePath[1] == ':');  // drive letter
 }
 
 

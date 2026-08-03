@@ -20,28 +20,31 @@ bool KeystrokeInjector::WaitForStrobeClear (EmulatorCore & core, uint64_t cycleB
 
 
 
-    uint64_t   target;
-    int        i;
+    uint64_t   target  = 0;
+    int        i       = 0;
+    bool       cleared = false;
 
 
 
     target = core.cpu->GetTotalCycles() + cycleBudget;
 
-    while (core.cpu->GetTotalCycles() < target)
+    // Re-checking after the loop covers the budget-exhausted exit, where the
+    // last batch may have cleared the strobe on its final instruction.
+    while (!cleared && core.cpu->GetTotalCycles() < target)
     {
-        if (core.keyboard->IsStrobeClear())
-        {
-            return true;
-        }
+        cleared = core.keyboard->IsStrobeClear();
 
-        for (i = 0; i < kPumpBatchSize; i++)
+        if (!cleared)
         {
-            core.cpu->StepOne();
-            core.cpu->AddCycles (core.cpu->GetLastInstructionCycles());
+            for (i = 0; i < kPumpBatchSize; i++)
+            {
+                core.cpu->StepOne();
+                core.cpu->AddCycles (core.cpu->GetLastInstructionCycles());
+            }
         }
     }
 
-    return core.keyboard->IsStrobeClear();
+    return cleared || core.keyboard->IsStrobeClear();
 }
 
 
@@ -59,19 +62,17 @@ bool KeystrokeInjector::InjectKey (
     Byte             ch,
     uint64_t         cycleBudget)
 {
-    if (!core.HasApple2e())
+    // Two waits, not one: the first makes sure the PREVIOUS key was consumed
+    // before overwriting the latch, the second that this one was.
+    bool  injected = core.HasApple2e() && WaitForStrobeClear (core, cycleBudget);
+
+    if (injected)
     {
-        return false;
+        core.keyboard->KeyPressRaw (ch);
+        injected = WaitForStrobeClear (core, cycleBudget);
     }
 
-    if (!WaitForStrobeClear (core, cycleBudget))
-    {
-        return false;
-    }
-
-    core.keyboard->KeyPressRaw (ch);
-
-    return WaitForStrobeClear (core, cycleBudget);
+    return injected;
 }
 
 
@@ -90,15 +91,21 @@ size_t KeystrokeInjector::InjectString (
     uint64_t              keyCycles)
 {
     size_t   consumed = 0;
+    bool     ok       = true;
 
+    // Stops at the first key the machine would not take, and reports how many
+    // did land -- callers compare against text.size() to detect a short write.
     for (char ch : text)
     {
-        if (!InjectKey (core, static_cast<Byte> (ch), keyCycles))
+        if (ok)
         {
-            return consumed;
+            ok = InjectKey (core, static_cast<Byte> (ch), keyCycles);
         }
 
-        consumed++;
+        if (ok)
+        {
+            consumed++;
+        }
     }
 
     return consumed;
@@ -119,22 +126,15 @@ size_t KeystrokeInjector::InjectLine (
     const std::string  &  text,
     uint64_t              settleCycles)
 {
-    size_t   consumed;
+    size_t   consumed = InjectString (core, text, kPerKeyCycleBudget);
 
-    consumed = InjectString (core, text, kPerKeyCycleBudget);
-
-    if (consumed != text.size())
+    // The RETURN only goes in if the whole line did; a short line leaves the
+    // count short and never settles, so the caller sees the failure.
+    if (consumed == text.size() && InjectKey (core, kAppleReturn, kPerKeyCycleBudget))
     {
-        return consumed;
+        consumed++;
+        core.RunCycles (settleCycles);
     }
-
-    if (!InjectKey (core, kAppleReturn, kPerKeyCycleBudget))
-    {
-        return consumed;
-    }
-
-    consumed++;
-    core.RunCycles (settleCycles);
 
     return consumed;
 }

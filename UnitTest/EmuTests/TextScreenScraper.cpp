@@ -53,21 +53,16 @@ char TextScreenScraper::Glyph (Byte screenByte)
 
 
 
-    Byte   ch;
+    Byte   ch = static_cast<Byte> (screenByte & 0x7F);
 
-    ch = static_cast<Byte> (screenByte & 0x7F);
-
+    // The inverse block $00-$3F holds uppercase at ASCII minus $40, so
+    // setting bit 6 folds it back.
     if (screenByte < kInverseUpper)
     {
         ch = static_cast<Byte> (ch | 0x40);
     }
 
-    if (ch < kPrintableMin || ch > kPrintableMax)
-    {
-        return '.';
-    }
-
-    return static_cast<char> (ch);
+    return (ch < kPrintableMin || ch > kPrintableMax) ? '.' : static_cast<char> (ch);
 }
 
 
@@ -174,23 +169,15 @@ std::vector<std::string> TextScreenScraper::Scrape80 (
 
 std::vector<std::string> TextScreenScraper::Scrape (const EmulatorCore & core)
 {
-    const Byte *   auxRam;
-    Word           pageBase;
-    bool           col80;
-    bool           page2;
+    const Byte *   auxRam   = core.mmu->GetAuxBuffer();
+    bool           col80    = core.softSwitches->Is80ColMode();
+    bool           page2    = core.softSwitches->IsPage2     ();
+    Word           pageBase = (page2 && !col80) ? kTextPage2 : kTextPage1;
 
 
 
-    auxRam  = core.mmu->GetAuxBuffer();
-
-    col80    = core.softSwitches->Is80ColMode();
-    page2    = core.softSwitches->IsPage2     ();
-    pageBase = (page2 && !col80) ? kTextPage2 : kTextPage1;
-
-    if (col80)
-    {
-        return Scrape80 (*core.bus, auxRam, pageBase);
-    }
-
-    return Scrape40 (*core.bus, pageBase);
+    // Only the 80-column path needs the aux buffer -- that is where the even
+    // columns live.
+    return col80 ? Scrape80 (*core.bus, auxRam, pageBase)
+                 : Scrape40 (*core.bus, pageBase);
 }
