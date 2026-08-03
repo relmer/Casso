@@ -70,25 +70,20 @@ void DiskImage::InitWholeTrackMap()
 
 int DiskImage::ResolveQuarterTrack (int quarterTrack) const
 {
-    int   slot = 0;
+    bool  inMap = (quarterTrack >= 0
+                   && quarterTrack < static_cast<int> (m_quarterTrackMap.size()));
+    int   slot  = inMap ? m_quarterTrackMap[quarterTrack] : -1;
 
 
 
-    if (quarterTrack < 0 || quarterTrack >= static_cast<int> (m_quarterTrackMap.size()))
+    // Three ways to hold no data -- off the end of the map, an unmapped or
+    // out-of-range slot, or a slot whose stream is empty -- and callers
+    // treat them identically, so they all fold into the one -1.
+    if (slot < 0
+        || slot >= static_cast<int> (m_trackBitCounts.size())
+        || m_trackBitCounts[slot] == 0)
     {
-        return -1;
-    }
-
-    slot = m_quarterTrackMap[quarterTrack];
-
-    if (slot < 0 || slot >= static_cast<int> (m_trackBitCounts.size()))
-    {
-        return -1;
-    }
-
-    if (m_trackBitCounts[slot] == 0)
-    {
-        return -1;
+        slot = -1;
     }
 
     return slot;
@@ -117,12 +112,10 @@ void DiskImage::ClearQuarterTrackMap()
 
 void DiskImage::SetQuarterTrackSlot (int quarterTrack, int slot)
 {
-    if (quarterTrack < 0 || quarterTrack >= static_cast<int> (m_quarterTrackMap.size()))
+    if (quarterTrack >= 0 && quarterTrack < static_cast<int> (m_quarterTrackMap.size()))
     {
-        return;
+        m_quarterTrackMap[quarterTrack] = slot;
     }
-
-    m_quarterTrackMap[quarterTrack] = slot;
 }
 
 
@@ -137,14 +130,14 @@ void DiskImage::SetQuarterTrackSlot (int quarterTrack, int slot)
 
 void DiskImage::EnsureTrackSlots (int slotCount)
 {
-    if (slotCount <= static_cast<int> (m_trackBits.size()))
+    // Grow only -- the three vectors are index-parallel and shrinking one
+    // would orphan the quarter-track map entries pointing past the new end.
+    if (slotCount > static_cast<int> (m_trackBits.size()))
     {
-        return;
+        m_trackBits.resize      (slotCount);
+        m_trackBitCounts.resize (slotCount, 0);
+        m_trackDirty.resize     (slotCount, false);
     }
-
-    m_trackBits.resize      (slotCount);
-    m_trackBitCounts.resize (slotCount, 0);
-    m_trackDirty.resize     (slotCount, false);
 }
 
 
@@ -174,12 +167,50 @@ int DiskImage::GetTrackCount() const
 
 size_t DiskImage::GetTrackBitCount (int track) const
 {
-    if (track < 0 || track >= static_cast<int> (m_trackBitCounts.size()))
+    bool  inRange = (track >= 0 && track < static_cast<int> (m_trackBitCounts.size()));
+
+
+
+    // An absent track is indistinguishable from an unformatted one: 0 bits.
+    return inRange ? m_trackBitCounts[track] : 0;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TryLocateBit
+//
+//  The bit-addressing arithmetic ReadBit and WriteBit both need. Wrapping
+//  the index by the track's own bit count is what makes the head circle
+//  the track instead of running off its end.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DiskImage::TryLocateBit (int track, size_t bitIndex, size_t & byteIdx, int & shift) const
+{
+    bool    located   = (track >= 0 && track < static_cast<int> (m_trackBits.size()));
+    size_t  trackBits = 0;
+    size_t  wrapped   = 0;
+
+
+
+    if (located)
     {
-        return 0;
+        trackBits = m_trackBitCounts[track];
+        located   = (trackBits != 0);
     }
 
-    return m_trackBitCounts[track];
+    if (located)
+    {
+        wrapped = bitIndex % trackBits;
+        byteIdx = wrapped >> 3;
+        shift   = 7 - static_cast<int> (wrapped & 7);
+    }
+
+    return located;
 }
 
 
@@ -194,28 +225,19 @@ size_t DiskImage::GetTrackBitCount (int track) const
 
 uint8_t DiskImage::ReadBit (int track, size_t bitIndex) const
 {
-    size_t   trackBits = 0;
-    size_t   byteIdx   = 0;
-    int      shift     = 0;
+    size_t   byteIdx = 0;
+    int      shift   = 0;
+    uint8_t  bit     = 0;
 
 
 
-    if (track < 0 || track >= static_cast<int> (m_trackBits.size()))
+    // Out of range or unformatted: no flux under the head, which reads as 0.
+    if (TryLocateBit (track, bitIndex, byteIdx, shift))
     {
-        return 0;
+        bit = static_cast<uint8_t> ((m_trackBits[track][byteIdx] >> shift) & 1);
     }
 
-    trackBits = m_trackBitCounts[track];
-
-    if (trackBits == 0)
-    {
-        return 0;
-    }
-
-    byteIdx = (bitIndex % trackBits) >> 3;
-    shift   = 7 - static_cast<int> ((bitIndex % trackBits) & 7);
-
-    return static_cast<uint8_t> ((m_trackBits[track][byteIdx] >> shift) & 1);
+    return bit;
 }
 
 
@@ -230,45 +252,30 @@ uint8_t DiskImage::ReadBit (int track, size_t bitIndex) const
 
 void DiskImage::WriteBit (int track, size_t bitIndex, uint8_t bit)
 {
-    size_t   trackBits = 0;
-    size_t   byteIdx   = 0;
-    int      shift     = 0;
-    Byte     mask      = 0;
+    size_t   byteIdx = 0;
+    int      shift   = 0;
+    Byte     mask    = 0;
 
 
 
-    if (track < 0 || track >= static_cast<int> (m_trackBits.size()))
+    // Write-protect is checked before locating so a protected image never
+    // marks a track dirty, however valid the address.
+    if (!IsWriteProtected() && TryLocateBit (track, bitIndex, byteIdx, shift))
     {
-        return;
+        mask = static_cast<Byte> (1 << shift);
+
+        if (bit & 1)
+        {
+            m_trackBits[track][byteIdx] = static_cast<Byte> (m_trackBits[track][byteIdx] | mask);
+        }
+        else
+        {
+            m_trackBits[track][byteIdx] = static_cast<Byte> (m_trackBits[track][byteIdx] & ~mask);
+        }
+
+        m_trackDirty[track] = true;
+        m_dirty             = true;
     }
-
-    if (IsWriteProtected())
-    {
-        return;
-    }
-
-    trackBits = m_trackBitCounts[track];
-
-    if (trackBits == 0)
-    {
-        return;
-    }
-
-    byteIdx = (bitIndex % trackBits) >> 3;
-    shift   = 7 - static_cast<int> ((bitIndex % trackBits) & 7);
-    mask    = static_cast<Byte> (1 << shift);
-
-    if (bit & 1)
-    {
-        m_trackBits[track][byteIdx] = static_cast<Byte> (m_trackBits[track][byteIdx] | mask);
-    }
-    else
-    {
-        m_trackBits[track][byteIdx] = static_cast<Byte> (m_trackBits[track][byteIdx] & ~mask);
-    }
-
-    m_trackDirty[track] = true;
-    m_dirty             = true;
 }
 
 
@@ -347,12 +354,11 @@ DiskFormat DiskImage::GetSourceFormat() const
 
 bool DiskImage::IsTrackDirty (int track) const
 {
-    if (track < 0 || track >= static_cast<int> (m_trackDirty.size()))
-    {
-        return false;
-    }
-
-    return m_trackDirty[track];
+    // Short-circuit order guards the lookup; a track that does not exist
+    // cannot have unsaved changes.
+    return track >= 0
+           && track < static_cast<int> (m_trackDirty.size())
+           && m_trackDirty[track];
 }
 
 

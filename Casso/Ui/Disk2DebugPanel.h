@@ -160,6 +160,17 @@ private:
     void    SortByColumn         (int absCol);
     int64_t NowMs                () const;
 
+    // One per mouse event kind, so OnMouse itself is just the dispatch.
+    bool    OnMouseMove          (const DxuiMouseEvent & ev);
+    bool    OnMouseDownLeft      (const DxuiMouseEvent & ev);
+    bool    OnMouseDownRight     (int x, int y);
+    bool    OnMouseUpLeft        (const DxuiMouseEvent & ev);
+
+    // Offers a press to one control, and on acceptance moves keyboard focus
+    // to it. `handled` short-circuits, so a chain of these calls stops at
+    // the first taker without each site restating the test.
+    void    OfferPressTo         (IDxuiControl * control, const DxuiMouseEvent & ev, bool & handled);
+
     PanelLayoutSlots                     m_layout = {};
 
     const CassoTheme                   * m_theme    = nullptr;
