@@ -103,10 +103,13 @@ void DxuiDropdown::SetSelected (int index)
 void DxuiDropdown::Open()
 {
     DxuiPopupHost::ShowParams  showParams;
-    POINT                      tl     = {};
-    POINT                      br     = {};
-    HWND                       owner  = nullptr;
-    HRESULT                    hr     = S_OK;
+    POINT                      tl       = {};
+    POINT                      br       = {};
+    HWND                       owner    = nullptr;
+    HRESULT                    hr       = S_OK;
+    // Gates the cleanup below: the two early bails must not reach a
+    // ReleasePopup on a host that may be null or a popup never acquired.
+    bool                       acquired = false;
 
 
 
@@ -117,17 +120,13 @@ void DxuiDropdown::Open()
     // pooled popup that renders the menu into its own top-level
     // WS_POPUP HWND (no client-area clipping; delivers SC-008). With
     // no host, the menu falls back to the in-window PaintMenu path.
-    if (m_popupHost == nullptr || m_activePopup != nullptr)
-    {
-        return;
-    }
+    BAIL_OUT_IF (m_popupHost == nullptr || m_activePopup != nullptr, S_OK);
 
     owner         = m_popupHost->Hwnd();
     m_activePopup = m_popupHost->AcquirePopup();
-    if (m_activePopup == nullptr)
-    {
-        return;
-    }
+    acquired      = (m_activePopup != nullptr);
+
+    BAIL_OUT_IF (!acquired, S_OK);
 
     // Anchor in screen physical pixels. m_boundsDip holds physical
     // CLIENT pixels (the page lays out via DxuiDpiScaler::Px), so map
@@ -162,13 +161,15 @@ void DxuiDropdown::Open()
     hr = m_activePopup->Show (std::move (showParams));
     CHR (hr);
 
-    return;
-
 Error:
-
-    // Show failed — return the pooled popup and fall back to no menu.
-    m_popupHost->ReleasePopup (m_activePopup);
-    m_activePopup = nullptr;
+    // Show failed — return the pooled popup and fall back to no menu. Gated
+    // on `acquired` because the bails above also land here, and they run
+    // before (or instead of) any acquisition.
+    if (acquired && FAILED (hr))
+    {
+        m_popupHost->ReleasePopup (m_activePopup);
+        m_activePopup = nullptr;
+    }
 }
 
 
@@ -215,29 +216,29 @@ void DxuiDropdown::Close()
 
 void DxuiDropdown::OnPopupMove (POINT localPx)
 {
-    int  rowHeight  = m_scaler.Px (s_kRowHeightDip);
-    int  row        = -1;
+    int   rowHeight = m_scaler.Px (s_kRowHeightDip);
+    int   row       = -1;
+    bool  onRow     = false;
 
 
 
-    if (rowHeight <= 0 || m_items.empty())
+    onRow = rowHeight > 0 && !m_items.empty();
+
+    if (onRow)
     {
-        return;
+        row   = localPx.y / rowHeight;
+        onRow = row >= 0 && row < (int) m_items.size();
     }
 
-    row = localPx.y / rowHeight;
-    if (row < 0 || row >= (int) m_items.size())
-    {
-        return;
-    }
-
-    if (row != m_highlight)
+    if (onRow && row != m_highlight)
     {
         m_highlight = row;
+
         if (m_highlightChange)
         {
             m_highlightChange (m_highlight);
         }
+
         if (m_activePopup != nullptr)
         {
             m_activePopup->MarkDirty();
@@ -260,24 +261,25 @@ void DxuiDropdown::OnPopupMove (POINT localPx)
 
 void DxuiDropdown::OnPopupClick (POINT localPx)
 {
-    int  rowHeight  = m_scaler.Px (s_kRowHeightDip);
-    int  row        = -1;
+    int   rowHeight = m_scaler.Px (s_kRowHeightDip);
+    int   row       = -1;
+    bool  onRow     = false;
 
 
 
-    if (rowHeight <= 0 || m_items.empty())
+    onRow = rowHeight > 0 && !m_items.empty();
+
+    if (onRow)
     {
-        return;
+        row   = localPx.y / rowHeight;
+        onRow = row >= 0 && row < (int) m_items.size();
     }
 
-    row = localPx.y / rowHeight;
-    if (row < 0 || row >= (int) m_items.size())
+    if (onRow)
     {
-        return;
+        Commit (row);
+        Close();
     }
-
-    Commit (row);
-    Close();
 }
 
 
@@ -307,29 +309,30 @@ bool DxuiDropdown::HitTest (int x, int y) const
 
 int DxuiDropdown::ItemHitTest (int x, int y) const
 {
-    RECT  menuRect   = m_boundsDip;
-    int   index      = -1;
-    int   rowHeight  = m_scaler.Px (s_kRowHeightDip);
+    RECT  menuRect  = m_boundsDip;
+    int   index     = -1;
+    int   rowHeight = m_scaler.Px (s_kRowHeightDip);
+    bool  inMenu    = false;
 
 
 
-    if (m_activePopup != nullptr)
+    // A live popup owns its own hit-testing; this is the in-window fallback
+    // menu only.
+    if (m_activePopup == nullptr)
     {
-        return -1;
+        menuRect.top    = m_boundsDip.bottom;
+        menuRect.bottom = m_boundsDip.bottom + (int) m_items.size() * rowHeight;
+        inMenu          = m_open && RectContains (menuRect, x, y);
     }
 
-    menuRect.top    = m_boundsDip.bottom;
-    menuRect.bottom = m_boundsDip.bottom + (int) m_items.size() * rowHeight;
-
-    if (!m_open || !RectContains (menuRect, x, y))
+    if (inMenu)
     {
-        return -1;
-    }
+        index = (y - menuRect.top) / rowHeight;
 
-    index = (y - menuRect.top) / rowHeight;
-    if (index < 0 || index >= (int) m_items.size())
-    {
-        return -1;
+        if (index >= (int) m_items.size())
+        {
+            index = -1;
+        }
     }
 
     return index;
@@ -382,28 +385,24 @@ void DxuiDropdown::SetMouseHover (int x, int y)
 
 bool DxuiDropdown::OnLButtonDown (int x, int y)
 {
-    if (!m_enabled)
-    {
-        return false;
-    }
+    bool  onBox     = m_enabled && HitTest (x, y);
+    bool  onItem    = m_enabled && !onBox && ItemHitTest (x, y) >= 0;
+    bool  consumed  = onBox || onItem;
 
-    if (HitTest (x, y))
+
+
+    if (onBox)
     {
         m_armed = true;
-        return true;
     }
-
-    if (ItemHitTest (x, y) >= 0)
+    else if (m_enabled && !onItem && m_open)
     {
-        return true;
-    }
-
-    if (m_open)
-    {
+        // A press outside both the box and the open menu dismisses it, but
+        // is not consumed -- whatever is underneath still gets the click.
         Close();
     }
 
-    return false;
+    return consumed;
 }
 
 
@@ -418,39 +417,37 @@ bool DxuiDropdown::OnLButtonDown (int x, int y)
 
 bool DxuiDropdown::OnLButtonUp (int x, int y)
 {
-    int   item       = ItemHitTest (x, y);
-    bool  wasArmed   = m_armed;
+    int   item     = ItemHitTest (x, y);
+    bool  wasArmed = m_armed;
+    bool  onItem   = m_enabled && item >= 0;
+    bool  onBox    = false;
+    bool  consumed = false;
 
 
 
-    if (!m_enabled)
+    if (m_enabled)
     {
-        return false;
+        m_armed = false;
+        onBox   = !onItem && wasArmed && HitTest (x, y);
     }
 
-    m_armed = false;
-
-    if (item >= 0)
+    if (onItem)
     {
         Commit (item);
         Close();
-        return true;
     }
-
-    if (wasArmed && HitTest (x, y))
+    else if (onBox && m_open)
     {
-        if (m_open)
-        {
-            Close();
-        }
-        else
-        {
-            Open();
-        }
-        return true;
+        Close();
+    }
+    else if (onBox)
+    {
+        Open();
     }
 
-    return false;
+    consumed = onItem || onBox;
+
+    return consumed;
 }
 
 
@@ -465,61 +462,45 @@ bool DxuiDropdown::OnLButtonUp (int x, int y)
 
 bool DxuiDropdown::HandleKey (WPARAM vk)
 {
-    int  count = (int) m_items.size();
+    HRESULT  hr      = S_OK;
+    int      count   = (int) m_items.size();
+    bool     handled = false;
 
 
 
-    if (!m_enabled || count <= 0)
+    BAIL_OUT_IF (!m_enabled || count <= 0, S_OK);
+
+    // Closed: only a focused box responds, and only to the three keys that
+    // open it. Open: the menu owns navigation, commit and dismiss.
+    if (!m_open && m_focused && (vk == VK_RETURN || vk == VK_SPACE || vk == VK_DOWN))
     {
-        return false;
+        Open();
+        handled = true;
     }
-
-    if (!m_open)
+    else if (m_open && (vk == VK_DOWN || vk == VK_UP))
     {
-        if (!m_focused)
-        {
-            return false;
-        }
+        m_highlight = (vk == VK_DOWN) ? ((m_highlight + 1) % count)
+                                      : ((m_highlight + count - 1) % count);
 
-        if (vk == VK_RETURN || vk == VK_SPACE || vk == VK_DOWN)
-        {
-            Open();
-            return true;
-        }
-
-        return false;
-    }
-
-    if (vk == VK_DOWN)
-    {
-        m_highlight = (m_highlight + 1) % count;
-        if (m_highlightChange) { m_highlightChange (m_highlight); }
+        if (m_highlightChange)        { m_highlightChange (m_highlight); }
         if (m_activePopup != nullptr) { m_activePopup->MarkDirty(); }
-        return true;
-    }
 
-    if (vk == VK_UP)
-    {
-        m_highlight = (m_highlight + count - 1) % count;
-        if (m_highlightChange) { m_highlightChange (m_highlight); }
-        if (m_activePopup != nullptr) { m_activePopup->MarkDirty(); }
-        return true;
+        handled = true;
     }
-
-    if (vk == VK_RETURN)
+    else if (m_open && vk == VK_RETURN)
     {
         Commit (m_highlight);
         Close();
-        return true;
+        handled = true;
     }
-
-    if (vk == VK_ESCAPE)
+    else if (m_open && vk == VK_ESCAPE)
     {
         Close();
-        return true;
+        handled = true;
     }
 
-    return false;
+Error:
+    return handled;
 }
 
 
@@ -534,11 +515,12 @@ bool DxuiDropdown::HandleKey (WPARAM vk)
 
 void DxuiDropdown::Commit (int index)
 {
-    bool  changed = index != m_selected;
+    bool  changed  = index != m_selected;
+    bool  inRange  = index >= 0 && index < (int) m_items.size();
 
 
 
-    if (index < 0 || index >= (int) m_items.size())
+    if (!inRange)
     {
         return;
     }
@@ -888,26 +870,32 @@ void DxuiDropdown::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
 
 bool DxuiDropdown::OnMouse (const DxuiMouseEvent & ev)
 {
+    bool  handled = false;
+
+
+
     switch (ev.kind)
     {
     case DxuiMouseEventKind::Move:
         SetMouseHover (ev.positionDip.x, ev.positionDip.y);
-        return false;
+        break;
     case DxuiMouseEventKind::Down:
         if (ev.button == DxuiMouseButton::Left)
         {
-            return OnLButtonDown (ev.positionDip.x, ev.positionDip.y);
+            handled = OnLButtonDown (ev.positionDip.x, ev.positionDip.y);
         }
-        return false;
+        break;
     case DxuiMouseEventKind::Up:
         if (ev.button == DxuiMouseButton::Left)
         {
-            return OnLButtonUp (ev.positionDip.x, ev.positionDip.y);
+            handled = OnLButtonUp (ev.positionDip.x, ev.positionDip.y);
         }
-        return false;
+        break;
     default:
-        return false;
+        break;
     }
+
+    return handled;
 }
 
 
@@ -922,12 +910,16 @@ bool DxuiDropdown::OnMouse (const DxuiMouseEvent & ev)
 
 bool DxuiDropdown::OnKey (const DxuiKeyEvent & ev)
 {
-    if (ev.kind != DxuiKeyEventKind::Down)
+    bool  handled = false;
+
+
+
+    if (ev.kind == DxuiKeyEventKind::Down)
     {
-        return false;
+        handled = HandleKey (ev.vk);
     }
 
-    return HandleKey (ev.vk);
+    return handled;
 }
 
 
@@ -944,11 +936,16 @@ bool DxuiDropdown::OnKey (const DxuiKeyEvent & ev)
 
 std::wstring DxuiDropdown::AccessibleName() const
 {
-    if (m_selected < 0 || m_selected >= (int) m_items.size())
+    std::wstring  name;
+    bool          hasSelection = m_selected >= 0 && m_selected < (int) m_items.size();
+
+
+
+    if (hasSelection)
     {
-        return L"";
+        name = m_items[(size_t) m_selected];
     }
 
-    return m_items[(size_t) m_selected];
+    return name;
 }
 
