@@ -182,28 +182,28 @@ void ClipboardManager::CopyScreenText (HWND hwnd, const Byte * auxRam) const
 
 
 
-    if (!OpenClipboard (hwnd))
+    // Another process can hold the clipboard; a failed open is not an error
+    // worth surfacing, the copy just does not happen.
+    if (OpenClipboard (hwnd))
     {
-        return;
-    }
+        EmptyClipboard();
 
-    EmptyClipboard();
+        hMem = GlobalAlloc (GMEM_MOVEABLE, (text.size() + 1) * sizeof (wchar_t));
 
-    hMem = GlobalAlloc (GMEM_MOVEABLE, (text.size() + 1) * sizeof (wchar_t));
-
-    if (hMem != nullptr)
-    {
-        pDest = static_cast<wchar_t *> (GlobalLock (hMem));
-
-        if (pDest != nullptr)
+        if (hMem != nullptr)
         {
-            memcpy (pDest, text.c_str(), (text.size() + 1) * sizeof (wchar_t));
-            GlobalUnlock (hMem);
-            SetClipboardData (CF_UNICODETEXT, hMem);
-        }
-    }
+            pDest = static_cast<wchar_t *> (GlobalLock (hMem));
 
-    CloseClipboard();
+            if (pDest != nullptr)
+            {
+                memcpy (pDest, text.c_str(), (text.size() + 1) * sizeof (wchar_t));
+                GlobalUnlock (hMem);
+                SetClipboardData (CF_UNICODETEXT, hMem);
+            }
+        }
+
+        CloseClipboard();
+    }
 }
 
 
@@ -240,53 +240,48 @@ void ClipboardManager::CopyScreenshot (HWND hwnd)
         dataSize  = static_cast<size_t> (w) * h * kBytesPerPixel;
         totalSize = sizeof (BITMAPINFOHEADER) + dataSize;
 
-        if (!OpenClipboard (hwnd))
+        // Once the clipboard is open it MUST be closed on every path, so the
+        // two allocation failures below cannot simply return.
+        if (OpenClipboard (hwnd))
         {
-            return;
-        }
+            EmptyClipboard();
 
-        EmptyClipboard();
+            hMem = GlobalAlloc (GMEM_MOVEABLE, totalSize);
 
-        hMem = GlobalAlloc (GMEM_MOVEABLE, totalSize);
+            if (hMem != nullptr)
+            {
+                pDest = static_cast<Byte *> (GlobalLock (hMem));
+            }
 
-        if (hMem == nullptr)
-        {
+            if (pDest != nullptr)
+            {
+                bih.biSize        = sizeof (bih);
+                bih.biWidth       = w;
+                bih.biHeight      = h;
+                bih.biPlanes      = 1;
+                bih.biBitCount    = kDibBitCount;
+                bih.biCompression = BI_RGB;
+                bih.biSizeImage   = static_cast<DWORD> (dataSize);
+
+                memcpy (pDest, &bih, sizeof (bih));
+                pDest += sizeof (bih);
+
+                // A DIB is bottom-up, so the framebuffer's rows go out in reverse.
+                for (y = h - 1; y >= 0; y--)
+                {
+                    memcpy (pDest,
+                            &m_uiFramebuffer[static_cast<size_t> (y) * w],
+                            static_cast<size_t> (w) * kBytesPerPixel);
+                    pDest += static_cast<size_t> (w) * kBytesPerPixel;
+                }
+
+                GlobalUnlock (hMem);
+                SetClipboardData (CF_DIB, hMem);
+            }
+
             CloseClipboard();
-            return;
         }
-
-        pDest = static_cast<Byte *> (GlobalLock (hMem));
-
-        if (pDest == nullptr)
-        {
-            CloseClipboard();
-            return;
-        }
-
-        bih.biSize        = sizeof (bih);
-        bih.biWidth       = w;
-        bih.biHeight      = h;
-        bih.biPlanes      = 1;
-        bih.biBitCount    = kDibBitCount;
-        bih.biCompression = BI_RGB;
-        bih.biSizeImage   = static_cast<DWORD> (dataSize);
-
-        memcpy (pDest, &bih, sizeof (bih));
-        pDest += sizeof (bih);
-
-        for (y = h - 1; y >= 0; y--)
-        {
-            memcpy (pDest,
-                    &m_uiFramebuffer[static_cast<size_t> (y) * w],
-                    static_cast<size_t> (w) * kBytesPerPixel);
-            pDest += static_cast<size_t> (w) * kBytesPerPixel;
-        }
-
-        GlobalUnlock (hMem);
-        SetClipboardData (CF_DIB, hMem);
     }
-
-    CloseClipboard();
 }
 
 
@@ -371,35 +366,29 @@ void ClipboardManager::DrainPasteBuffer()
 
 
 
-    if (m_pKeyboardSlot == nullptr)
-    {
-        return;
-    }
+    keyboard = (m_pKeyboardSlot != nullptr) ? *m_pKeyboardSlot : nullptr;
 
-    keyboard = *m_pKeyboardSlot;
-    if (keyboard == nullptr)
+    // One character per call, and only once the guest has consumed the last
+    // one -- the strobe is the handshake that paces the whole paste.
+    if (keyboard != nullptr && keyboard->IsStrobeClear())
     {
-        return;
-    }
-
-    if (!keyboard->IsStrobeClear())
-    {
-        return;
-    }
-
-    {
-        std::lock_guard<std::mutex>  lock (m_cmdMutex);
-
-        if (m_pasteBuffer.empty())
         {
-            return;
+            std::lock_guard<std::mutex>  lock (m_cmdMutex);
+
+            if (!m_pasteBuffer.empty())
+            {
+                ch = static_cast<Byte> (m_pasteBuffer[0]);
+                m_pasteBuffer.erase (m_pasteBuffer.begin());
+            }
         }
 
-        ch = static_cast<Byte> (m_pasteBuffer[0]);
-        m_pasteBuffer.erase (m_pasteBuffer.begin());
+        // ch stays 0 for an empty buffer; 0 is not a key the paste path ever
+        // queues, so it doubles as "nothing to send".
+        if (ch != 0)
+        {
+            keyboard->KeyPress (ch);
+        }
     }
-
-    keyboard->KeyPress (ch);
 }
 
 

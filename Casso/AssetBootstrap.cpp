@@ -171,12 +171,17 @@ static constexpr BootDiskSpec s_kProDOSDisk =
 
 static std::wstring MachineDisplayName (std::string_view machineId)
 {
-    if (machineId == "Apple2")          return L"Apple ][";
-    if (machineId == "Apple2Plus")      return L"Apple ][+";
-    if (machineId == "Apple2e")         return L"Apple //e";
-    if (machineId == "Apple2eEnhanced") return L"Apple //e Enhanced";
-    if (machineId == "Apple2c")         return L"Apple //c";
-    return std::wstring (machineId.begin(), machineId.end());
+    // An id with no pretty name widens as-is, so a machine added to the
+    // catalog still shows something recognizable before it is listed here.
+    std::wstring  name (machineId.begin(), machineId.end());
+
+    if      (machineId == "Apple2")          { name = L"Apple ]["; }
+    else if (machineId == "Apple2Plus")      { name = L"Apple ][+"; }
+    else if (machineId == "Apple2e")         { name = L"Apple //e"; }
+    else if (machineId == "Apple2eEnhanced") { name = L"Apple //e Enhanced"; }
+    else if (machineId == "Apple2c")         { name = L"Apple //c"; }
+
+    return name;
 }
 
 
@@ -1775,53 +1780,51 @@ static bool FilesHaveSameContent (const fs::path & a, const fs::path & b)
 
 
 
-    std::error_code  ec;
-    uintmax_t        sizeA   = fs::file_size (a, ec);
-    uintmax_t        sizeB   = 0;
-    std::ifstream    fa;
-    std::ifstream    fb;
+    std::error_code   ec;
+    uintmax_t         sizeA     = fs::file_size (a, ec);
+    uintmax_t         sizeB     = 0;
+    uintmax_t         remaining = 0;
+    std::streamsize   want      = 0;
+    std::ifstream     fa;
+    std::ifstream     fb;
     std::vector<char> bufA ((size_t) kChunk);
     std::vector<char> bufB ((size_t) kChunk);
+    bool              same      = !ec;
 
 
-    if (ec)
+    // Size first: a stat per side rules out the common "not the same file"
+    // case before either is opened. A zero-length file is never a match --
+    // two empty files are not the same disk image in any useful sense.
+    if (same)
     {
-        return false;
+        sizeB = fs::file_size (b, ec);
+        same  = !ec && sizeA == sizeB && sizeA != 0;
     }
 
-    sizeB = fs::file_size (b, ec);
-    if (ec || sizeA != sizeB || sizeA == 0)
+    if (same)
     {
-        return false;
+        fa.open (a, std::ios::binary);
+        fb.open (b, std::ios::binary);
+        same = fa.is_open() && fb.is_open();
     }
 
-    fa.open (a, std::ios::binary);
-    fb.open (b, std::ios::binary);
-    if (!fa.is_open() || !fb.is_open())
+    // Chunked compare, bailing on the first differing block. A short read on
+    // either side counts as a mismatch (the file changed under us).
+    for (remaining = same ? sizeA : 0; same && remaining > 0; )
     {
-        return false;
-    }
-
-    for (uintmax_t remaining = sizeA; remaining > 0; )
-    {
-        std::streamsize  want = (remaining < (uintmax_t) kChunk) ? (std::streamsize) remaining : kChunk;
+        want = (remaining < (uintmax_t) kChunk) ? (std::streamsize) remaining : kChunk;
 
         fa.read (bufA.data(), want);
         fb.read (bufB.data(), want);
-        if (fa.gcount() != want || fb.gcount() != want)
-        {
-            return false;       // short read on either side -> treat as mismatch
-        }
 
-        if (std::memcmp (bufA.data(), bufB.data(), (size_t) want) != 0)
-        {
-            return false;       // first differing block -> done, no full read
-        }
+        same = fa.gcount() == want
+               && fb.gcount() == want
+               && std::memcmp (bufA.data(), bufB.data(), (size_t) want) == 0;
 
         remaining -= (uintmax_t) want;
     }
 
-    return true;
+    return same;
 }
 
 

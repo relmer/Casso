@@ -251,33 +251,39 @@ RECT ComputeAspectFitRectInRect (const RECT & contentRect, int aspectW, int aspe
     RECT  r        = {};
     int   contentW = contentRect.right  - contentRect.left;
     int   contentH = contentRect.bottom - contentRect.top;
+    int   wForH    = 0;
+    int   hForW    = 0;
+    int   barX     = 0;
+    int   barY     = 0;
+    bool  sizeable = (contentW > 0 && contentH > 0 && aspectW > 0 && aspectH > 0);
 
 
 
-    if (contentW <= 0 || contentH <= 0 || aspectW <= 0 || aspectH <= 0)
+    // A degenerate content rect or aspect yields the zero rect, which the
+    // caller draws as nothing rather than as a divide-by-zero.
+    if (sizeable)
     {
-        return r;
-    }
+        wForH = (contentH * aspectW) / aspectH;
 
-    int  wForH = (contentH * aspectW) / aspectH;
-    if (wForH <= contentW)
-    {
-        int  barX = (contentW - wForH) / 2;
-
-        r.left   = contentRect.left + barX;
-        r.top    = contentRect.top;
-        r.right  = r.left + wForH;
-        r.bottom = contentRect.bottom;
-    }
-    else
-    {
-        int  hForW = (contentW * aspectH) / aspectW;
-        int  barY  = (contentH - hForW) / 2;
-
-        r.left   = contentRect.left;
-        r.top    = contentRect.top + barY;
-        r.right  = contentRect.right;
-        r.bottom = r.top + hForW;
+        if (wForH <= contentW)
+        {
+            // Height-limited: pillarbox, bars left and right.
+            barX     = (contentW - wForH) / 2;
+            r.left   = contentRect.left + barX;
+            r.top    = contentRect.top;
+            r.right  = r.left + wForH;
+            r.bottom = contentRect.bottom;
+        }
+        else
+        {
+            // Width-limited: letterbox, bars top and bottom.
+            hForW    = (contentW * aspectH) / aspectW;
+            barY     = (contentH - hForW) / 2;
+            r.left   = contentRect.left;
+            r.top    = contentRect.top + barY;
+            r.right  = contentRect.right;
+            r.bottom = r.top + hForW;
+        }
     }
 
     return r;

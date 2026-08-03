@@ -107,25 +107,23 @@ void DiskManager::ProbeFileWritability (
     outReadOnly     = false;
     outNoPermission = false;
 
-    if (path.empty() || !fs::exists (p, ec))
+    // A missing / empty path is writable -- there is nothing to protect.
+    if (!path.empty() && fs::exists (p, ec))
     {
-        return;
-    }
+        st = fs::status (p, ec);
 
-    st = fs::status (p, ec);
-
-    if (!ec && (st.permissions() & fs::perms::owner_write) == fs::perms::none)
-    {
-        outReadOnly = true;
-        return;
-    }
-
-    {
-        std::fstream  probe (p, std::ios::in | std::ios::out | std::ios::binary);
-
-        if (!probe.good())
+        // The read-only ATTRIBUTE is preferred over the open probe so a plain
+        // read-only file reports its true cause; only when the attribute says
+        // writable do we probe for an ACL denial or exclusive lock.
+        if (!ec && (st.permissions() & fs::perms::owner_write) == fs::perms::none)
         {
-            outNoPermission = true;
+            outReadOnly = true;
+        }
+        else
+        {
+            std::fstream  probe (p, std::ios::in | std::ios::out | std::ios::binary);
+
+            outNoPermission = !probe.good();
         }
     }
 }
@@ -520,32 +518,25 @@ void DiskManager::Eject (int slot, int drive)
 
 
 
-    if (slot != 6)
+    // Only slot 6 drives 1 and 2 have an eject affordance; command stays 0
+    // for anything else, which is the "nothing to do" signal below.
+    if (slot == 6)
     {
-        return;
+        if      (drive == 0) { command = IDM_DISK_EJECT1; }
+        else if (drive == 1) { command = IDM_DISK_EJECT2; }
     }
 
-    if (drive == 0)
+    if (command != 0)
     {
-        command = IDM_DISK_EJECT1;
-    }
-    else if (drive == 1)
-    {
-        command = IDM_DISK_EJECT2;
-    }
-    else
-    {
-        return;
-    }
+        m_cpuManager.PostCommand (command);
 
-    m_cpuManager.PostCommand (command);
-
-    // Animate the door open even if no disk is currently mounted.
-    // The path-change watcher in UpdateDriveWidgets only triggers
-    // BeginEject when the mounted path actually transitions to empty,
-    // so an eject click on an already-empty drive would otherwise be
-    // a visual no-op.
-    m_driveWidgetState[drive].BeginEject (NowMs());
+        // Animate the door open even if no disk is currently mounted.
+        // The path-change watcher in UpdateDriveWidgets only triggers
+        // BeginEject when the mounted path actually transitions to empty,
+        // so an eject click on an already-empty drive would otherwise be
+        // a visual no-op.
+        m_driveWidgetState[drive].BeginEject (NowMs());
+    }
 }
 
 

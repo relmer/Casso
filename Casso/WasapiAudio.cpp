@@ -388,12 +388,13 @@ void WasapiAudio::RecordDriveDoorSyncEvent (int drive, int64_t timestampMs)
 
 int64_t WasapiAudio::GetLastDriveDoorSyncEventMs (int drive) const
 {
-    if (drive < 0 || drive >= static_cast<int> (m_lastDriveDoorSyncMs.size()))
-    {
-        return 0;
-    }
+    bool  inRange = (drive >= 0 && drive < static_cast<int> (m_lastDriveDoorSyncMs.size()));
 
-    return m_lastDriveDoorSyncMs[drive];
+
+
+    // 0 is also the never-fired value, so an out-of-range drive reads the
+    // same as a drive whose door has not moved this session.
+    return inRange ? m_lastDriveDoorSyncMs[drive] : 0;
 }
 
 

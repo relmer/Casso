@@ -44,24 +44,33 @@ static std::wstring  BuildTimeFromExe()
     WIN32_FILE_ATTRIBUTE_DATA     fad               = {};
     SYSTEMTIME                    utc               = {};
     SYSTEMTIME                    local             = {};
+    std::wstring                  stamp;
+    bool                          ok                = false;
 
-    if (GetModuleFileNameW (nullptr, exePath, MAX_PATH) == 0)
+    // A ladder -- each step needs the one before it. Any failure yields the
+    // empty string, which the caller renders as an omitted build time rather
+    // than as an error.
+    ok = (GetModuleFileNameW (nullptr, exePath, MAX_PATH) != 0);
+
+    if (ok)
     {
-        return L"";
-    }
-    if (!GetFileAttributesExW (exePath, GetFileExInfoStandard, &fad))
-    {
-        return L"";
-    }
-    if (!FileTimeToSystemTime (&fad.ftLastWriteTime, &utc) ||
-        !SystemTimeToTzSpecificLocalTime (nullptr, &utc, &local))
-    {
-        return L"";
+        ok = (GetFileAttributesExW (exePath, GetFileExInfoStandard, &fad) != FALSE);
     }
 
-    return std::format (L"{:04}-{:02}-{:02} {:02}:{:02}:{:02}",
-                        local.wYear, local.wMonth, local.wDay,
-                        local.wHour, local.wMinute, local.wSecond);
+    if (ok)
+    {
+        ok = FileTimeToSystemTime (&fad.ftLastWriteTime, &utc)
+             && SystemTimeToTzSpecificLocalTime (nullptr, &utc, &local);
+    }
+
+    if (ok)
+    {
+        stamp = std::format (L"{:04}-{:02}-{:02} {:02}:{:02}:{:02}",
+                             local.wYear, local.wMonth, local.wDay,
+                             local.wHour, local.wMinute, local.wSecond);
+    }
+
+    return stamp;
 }
 
 

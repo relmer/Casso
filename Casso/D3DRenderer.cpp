@@ -345,27 +345,18 @@ Error:
 
 bool D3DRenderer::NeedsPresent (bool framebufferDirty) const
 {
-    if (framebufferDirty || m_redrawForced)
-    {
-        return true;
-    }
-
-    // Persistence shader animates a fading trail every frame even
-    // when the emulator framebuffer hasn't changed. Keep re-rendering
-    // until the trail is fully decayed -- ~1.5s at the highest decay
-    // (amber's 0.8) with the UNORM bias is more than enough.
-    if (m_crtParams.persistence > 0.0f && m_idleFramesSinceFbChange < s_kPersistenceSettleFrames)
-    {
-        return true;
-    }
-
-    // Any other slider / toggle change touches CrtParams.
-    if (memcmp (&m_crtParams, &m_lastPresentedParams, sizeof (CrtParams)) != 0)
-    {
-        return true;
-    }
-
-    return false;
+    // Three independent reasons to present, in cheapest-test-first order:
+    //
+    //   1. New emulator content, or a forced redraw.
+    //   2. The persistence shader animates a fading trail every frame even
+    //      when the framebuffer has not changed. Keep re-rendering until the
+    //      trail is fully decayed -- ~1.5s at the highest decay (amber's 0.8)
+    //      with the UNORM bias is more than enough.
+    //   3. Any other slider / toggle change, which touches CrtParams.
+    return framebufferDirty
+        || m_redrawForced
+        || (m_crtParams.persistence > 0.0f && m_idleFramesSinceFbChange < s_kPersistenceSettleFrames)
+        || memcmp (&m_crtParams, &m_lastPresentedParams, sizeof (CrtParams)) != 0;
 }
 
 

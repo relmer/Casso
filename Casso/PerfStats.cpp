@@ -66,19 +66,25 @@ void PerfStats::Record (const char * label, double ms)
 
 PerfStats::Stat PerfStats::Get (const char * label) const
 {
+    Stat  stat = {};
+
+
+
     std::lock_guard<std::mutex>  lock (m_mutex);
 
-    if (label == nullptr)
+    // A null label and an unrecorded one both yield the zero Stat -- callers
+    // display it as "no samples yet" either way.
+    if (label != nullptr)
     {
-        return Stat {};
+        auto  it = m_stats.find (label);
+
+        if (it != m_stats.end())
+        {
+            stat = it->second;
+        }
     }
 
-    auto  it = m_stats.find (label);
-    if (it == m_stats.end())
-    {
-        return Stat {};
-    }
-    return it->second;
+    return stat;
 }
 
 

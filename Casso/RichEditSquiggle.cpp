@@ -47,37 +47,37 @@ std::wstring BuildIgnoredTokensLabel (
     int           begin  = 0;
     int           end    = 0;
 
-    if (spans.empty())
+    // No rejected spans means no label at all -- not an empty prefix, which
+    // would leave a stray "Ignored:" on the dialog.
+    if (!spans.empty())
     {
-        return out;
-    }
+        out.assign (s_kpszLabelPrefix);
 
-    out.assign (s_kpszLabelPrefix);
-
-    for (i = 0; i < spans.size(); i++)
-    {
-        if (i > 0)
+        for (i = 0; i < spans.size(); i++)
         {
-            out.append (s_kpszLabelSeparator);
-        }
+            if (i > 0)
+            {
+                out.append (s_kpszLabelSeparator);
+            }
 
-        begin = spans[i].beginUtf16;
-        end   = spans[i].endUtf16;
+            begin = spans[i].beginUtf16;
+            end   = spans[i].endUtf16;
 
-        if (begin < 0)
-        {
-            begin = 0;
-        }
+            if (begin < 0)
+            {
+                begin = 0;
+            }
 
-        if (end > static_cast<int> (originalExpr.size()))
-        {
-            end = static_cast<int> (originalExpr.size());
-        }
+            if (end > static_cast<int> (originalExpr.size()))
+            {
+                end = static_cast<int> (originalExpr.size());
+            }
 
-        if (end > begin)
-        {
-            out.append (originalExpr.substr (static_cast<size_t> (begin),
-                                             static_cast<size_t> (end - begin)));
+            if (end > begin)
+            {
+                out.append (originalExpr.substr (static_cast<size_t> (begin),
+                                                 static_cast<size_t> (end - begin)));
+            }
         }
     }
 
@@ -101,13 +101,11 @@ void SetIgnoredTokensLabel (
 {
     std::wstring  text;
 
-    if (hStatic == nullptr)
+    if (hStatic != nullptr)
     {
-        return;
+        text = BuildIgnoredTokensLabel (originalExpr, spans);
+        SetWindowTextW (hStatic, text.c_str());
     }
-
-    text = BuildIgnoredTokensLabel (originalExpr, spans);
-    SetWindowTextW (hStatic, text.c_str());
 }
 
 
@@ -136,37 +134,36 @@ std::wstring BuildPerSideInvalidLabel (
     int           begin  = 0;
     int           end    = 0;
 
-    if (spans.empty())
+    // Same shape as BuildIgnoredTokensLabel, with a caller-supplied prefix.
+    if (!spans.empty())
     {
-        return out;
-    }
+        out.assign (prefix);
 
-    out.assign (prefix);
-
-    for (i = 0; i < spans.size(); i++)
-    {
-        if (i > 0)
+        for (i = 0; i < spans.size(); i++)
         {
-            out.append (s_kpszLabelSeparator);
-        }
+            if (i > 0)
+            {
+                out.append (s_kpszLabelSeparator);
+            }
 
-        begin = spans[i].beginUtf16;
-        end   = spans[i].endUtf16;
+            begin = spans[i].beginUtf16;
+            end   = spans[i].endUtf16;
 
-        if (begin < 0)
-        {
-            begin = 0;
-        }
+            if (begin < 0)
+            {
+                begin = 0;
+            }
 
-        if (end > static_cast<int> (originalExpr.size()))
-        {
-            end = static_cast<int> (originalExpr.size());
-        }
+            if (end > static_cast<int> (originalExpr.size()))
+            {
+                end = static_cast<int> (originalExpr.size());
+            }
 
-        if (end > begin)
-        {
-            out.append (originalExpr.substr (static_cast<size_t> (begin),
-                                             static_cast<size_t> (end - begin)));
+            if (end > begin)
+            {
+                out.append (originalExpr.substr (static_cast<size_t> (begin),
+                                                 static_cast<size_t> (end - begin)));
+            }
         }
     }
 
@@ -191,13 +188,11 @@ void SetPerSideInvalidLabel (
 {
     std::wstring  text;
 
-    if (hStatic == nullptr)
+    if (hStatic != nullptr)
     {
-        return;
+        text = BuildPerSideInvalidLabel (prefix, originalExpr, spans);
+        SetWindowTextW (hStatic, text.c_str());
     }
-
-    text = BuildPerSideInvalidLabel (prefix, originalExpr, spans);
-    SetWindowTextW (hStatic, text.c_str());
 }
 
 

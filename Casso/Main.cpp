@@ -35,21 +35,21 @@ static size_t ParseTraceSize (const wstring & text)
 
 
 
-    if (text.empty())
+    // An unrecognized suffix leaves the bare number rather than rejecting it,
+    // so "--trace 20X" is 20 entries, not an error at startup.
+    if (!text.empty())
     {
-        return 0;
-    }
+        value = wcstoull (text.c_str(), &end, 10);
 
-    value = wcstoull (text.c_str(), &end, 10);
-
-    if (end != nullptr && *end != L'\0')
-    {
-        switch (towupper (*end))
+        if (end != nullptr && *end != L'\0')
         {
-            case L'K':  value *= 1000ull;        break;
-            case L'M':  value *= 1000000ull;     break;
-            case L'G':  value *= 1000000000ull;  break;
-            default:                             break;
+            switch (towupper (*end))
+            {
+                case L'K':  value *= 1000ull;        break;
+                case L'M':  value *= 1000000ull;     break;
+                case L'G':  value *= 1000000000ull;  break;
+                default:                             break;
+            }
         }
     }
 
@@ -462,31 +462,34 @@ int WINAPI wWinMain (
     // Ignore (continue on EHM's normal error path, as a release build would).
     SetBreakpointFunction ([] (const wchar_t * message)
     {
+        // With a debugger attached, break at the assertion site as before --
+        // the dialog would only get in the way of the stack you came for.
         if (IsDebuggerPresent())
         {
-            __debugbreak();   // break at the assertion site, as before
-            return;
+            __debugbreak();
         }
-
-        std::wstring text = L"An internal assertion failed:\n\n";
-        text += (message != nullptr && message[0] != L'\0') ? message : L"(no detail)";
-        text += L"\n\n"
-                L"Abort  = quit now\n"
-                L"Retry  = break (attach a debugger first to inspect)\n"
-                L"Ignore = try to continue";
-
-        int choice = MessageBoxW (NULL, text.c_str(), L"Casso \x2014 assertion failed",
-                                  MB_ABORTRETRYIGNORE | MB_ICONERROR | MB_DEFBUTTON1 | MB_TASKMODAL);
-
-        if (choice == IDABORT)
+        else
         {
-            TerminateProcess (GetCurrentProcess(), 3);
+            std::wstring text = L"An internal assertion failed:\n\n";
+            text += (message != nullptr && message[0] != L'\0') ? message : L"(no detail)";
+            text += L"\n\n"
+                    L"Abort  = quit now\n"
+                    L"Retry  = break (attach a debugger first to inspect)\n"
+                    L"Ignore = try to continue";
+
+            int choice = MessageBoxW (NULL, text.c_str(), L"Casso \x2014 assertion failed",
+                                      MB_ABORTRETRYIGNORE | MB_ICONERROR | MB_DEFBUTTON1 | MB_TASKMODAL);
+
+            if (choice == IDABORT)
+            {
+                TerminateProcess (GetCurrentProcess(), 3);
+            }
+            else if (choice == IDRETRY)
+            {
+                __debugbreak();   // no-op crash if still no debugger; lets you attach one
+            }
+            // IDIGNORE: fall through -- EHM continues on its normal error path.
         }
-        else if (choice == IDRETRY)
-        {
-            __debugbreak();   // no-op crash if still no debugger; lets you attach one
-        }
-        // IDIGNORE: fall through -- EHM continues on its normal error path.
     });
 
     // Parse command line
