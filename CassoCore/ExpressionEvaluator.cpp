@@ -472,7 +472,7 @@ bool ExpressionEvaluator::ParsePrimary (Tokenizer & tok, const ExprContext & ctx
     {
         tok.Next();
 
-        if (!ParseLogOr (tok, ctx, result, error))
+        if (!ParseBinary (tok, ctx, s_kLoosestBinaryLevel, result, error))
             return false;
 
         if (tok.Next().type != TokType::RParen)
@@ -488,7 +488,7 @@ bool ExpressionEvaluator::ParsePrimary (Tokenizer & tok, const ExprContext & ctx
     {
         tok.Next();
 
-        if (!ParseLogOr (tok, ctx, result, error))
+        if (!ParseBinary (tok, ctx, s_kLoosestBinaryLevel, result, error))
             return false;
 
         if (tok.Next().type != TokType::RBracket)
@@ -548,296 +548,212 @@ bool ExpressionEvaluator::ParseUnary (Tokenizer & tok, const ExprContext & ctx, 
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ParseMulDiv — *, /, %
+//  Binary operator table
+//
+//  Levels run loosest (1) to tightest (9), matching the order the old
+//  ParseLogOr -> ParseMulDiv chain called through. Unary sits above level 9
+//  and is still a separate function, because it is prefix rather than infix.
+//
+//  Every operator here is left-associative, which ParseBinary gets by
+//  recursing at level + 1.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool ExpressionEvaluator::ParseMulDiv (Tokenizer & tok, const ExprContext & ctx, int32_t & result, std::string & error)
+bool ExpressionEvaluator::ApplyLogOr  (int32_t a, int32_t b, int32_t & o, std::string &) { o = (a != 0 || b != 0) ? 1 : 0; return true; }
+bool ExpressionEvaluator::ApplyLogAnd (int32_t a, int32_t b, int32_t & o, std::string &) { o = (a != 0 && b != 0) ? 1 : 0; return true; }
+bool ExpressionEvaluator::ApplyBitOr  (int32_t a, int32_t b, int32_t & o, std::string &) { o = a | b;  return true; }
+bool ExpressionEvaluator::ApplyBitXor (int32_t a, int32_t b, int32_t & o, std::string &) { o = a ^ b;  return true; }
+bool ExpressionEvaluator::ApplyBitAnd (int32_t a, int32_t b, int32_t & o, std::string &) { o = a & b;  return true; }
+bool ExpressionEvaluator::ApplyEq     (int32_t a, int32_t b, int32_t & o, std::string &) { o = (a == b) ? 1 : 0; return true; }
+bool ExpressionEvaluator::ApplyNe     (int32_t a, int32_t b, int32_t & o, std::string &) { o = (a != b) ? 1 : 0; return true; }
+bool ExpressionEvaluator::ApplyLt     (int32_t a, int32_t b, int32_t & o, std::string &) { o = (a <  b) ? 1 : 0; return true; }
+bool ExpressionEvaluator::ApplyGt     (int32_t a, int32_t b, int32_t & o, std::string &) { o = (a >  b) ? 1 : 0; return true; }
+bool ExpressionEvaluator::ApplyLe     (int32_t a, int32_t b, int32_t & o, std::string &) { o = (a <= b) ? 1 : 0; return true; }
+bool ExpressionEvaluator::ApplyGe     (int32_t a, int32_t b, int32_t & o, std::string &) { o = (a >= b) ? 1 : 0; return true; }
+bool ExpressionEvaluator::ApplyShl    (int32_t a, int32_t b, int32_t & o, std::string &) { o = a << b; return true; }
+bool ExpressionEvaluator::ApplyAdd    (int32_t a, int32_t b, int32_t & o, std::string &) { o = a + b;  return true; }
+bool ExpressionEvaluator::ApplySub    (int32_t a, int32_t b, int32_t & o, std::string &) { o = a - b;  return true; }
+bool ExpressionEvaluator::ApplyMul    (int32_t a, int32_t b, int32_t & o, std::string &) { o = a * b;  return true; }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExpressionEvaluator::ApplyShr
+//
+//  Logical shift right, matching the original cast through uint32_t: a
+//  negative left operand shifts in zeros rather than sign bits.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ExpressionEvaluator::ApplyShr (int32_t a, int32_t b, int32_t & o, std::string &)
 {
-    if (!ParseUnary (tok, ctx, result, error))
-        return false;
+    o = (int32_t) ((uint32_t) a >> b);
+    return true;
+}
 
-    for (;;)
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExpressionEvaluator::ApplyDiv
+//
+//  One of only two operators that can fail, and the reason BinaryOp::Apply
+//  returns bool at all.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ExpressionEvaluator::ApplyDiv (int32_t a, int32_t b, int32_t & o, std::string & error)
+{
+    bool  ok = (b != 0);
+
+
+
+    if (ok) { o = a / b; }
+    else    { error = "Division by zero"; }
+
+    return ok;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExpressionEvaluator::ApplyMod
+//
+//  Shares ApplyDiv's zero-divisor rule and its diagnostic wording.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ExpressionEvaluator::ApplyMod (int32_t a, int32_t b, int32_t & o, std::string & error)
+{
+    bool  ok = (b != 0);
+
+
+
+    if (ok) { o = a % b; }
+    else    { error = "Division by zero"; }
+
+    return ok;
+}
+
+
+const ExpressionEvaluator::BinaryOp  ExpressionEvaluator::s_kBinaryOps[18] =
+{
+    { TokType::PipePipe, 1, ApplyLogOr  },
+
+    { TokType::AmpAmp,   2, ApplyLogAnd },
+
+    { TokType::Pipe,     3, ApplyBitOr  },
+
+    { TokType::Caret,    4, ApplyBitXor },
+
+    { TokType::Amp,      5, ApplyBitAnd },
+
+    { TokType::Eq,       6, ApplyEq     },
+    { TokType::Ne,       6, ApplyNe     },
+
+    { TokType::Lt,       7, ApplyLt     },
+    { TokType::Gt,       7, ApplyGt     },
+    { TokType::Le,       7, ApplyLe     },
+    { TokType::Ge,       7, ApplyGe     },
+
+    { TokType::LShift,   8, ApplyShl    },
+    { TokType::RShift,   8, ApplyShr    },
+
+    { TokType::Plus,     9, ApplyAdd    },
+    { TokType::Minus,    9, ApplySub    },
+
+    { TokType::Star,    10, ApplyMul    },
+    { TokType::Slash,   10, ApplyDiv    },
+    { TokType::Percent, 10, ApplyMod    },
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExpressionEvaluator::FindBinaryOp
+//
+//  Null when the token is not a binary operator, which is also how ParseBinary
+//  detects the end of an expression.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const ExpressionEvaluator::BinaryOp * ExpressionEvaluator::FindBinaryOp (TokType token)
+{
+    const BinaryOp *  found = nullptr;
+
+
+
+    for (const BinaryOp & op : s_kBinaryOps)
     {
-        Token t = tok.Peek();
-
-        if (t.type == TokType::Star)
+        if (op.token == token && found == nullptr)
         {
-            tok.Next();
-            int32_t right = 0;
-
-            if (!ParseUnary (tok, ctx, right, error)) return false;
-            result = result * right;
+            found = &op;
         }
-        else if (t.type == TokType::Slash)
+    }
+
+    return found;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExpressionEvaluator::ParseBinary
+//
+//  Precedence climbing over s_kBinaryOps. Absorbs every operator binding at
+//  `minLevel` or tighter, recursing at level + 1 for the right operand so the
+//  fold stays left-associative.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool ExpressionEvaluator::ParseBinary (
+    Tokenizer          &  tok,
+    const ExprContext  &  ctx,
+    int                   minLevel,
+    int32_t            &  result,
+    std::string        &  error)
+{
+    const BinaryOp *  op    = nullptr;
+    int32_t           right = 0;
+    bool              ok    = false;
+
+
+    ok = ParseUnary (tok, ctx, result, error);
+
+    for (;;)
+    {
+        op = ok ? FindBinaryOp (tok.Peek().type) : nullptr;
+
+        if (op == nullptr || op->level < minLevel)
         {
-            tok.Next();
-            int32_t right = 0;
-
-            if (!ParseUnary (tok, ctx, right, error)) return false;
-
-            if (right == 0) { error = "Division by zero"; return false; }
-            result = result / right;
+            break;
         }
-        else if (t.type == TokType::Percent)
+
+        tok.Next();
+
+        right = 0;
+        ok    = ParseBinary (tok, ctx, op->level + 1, right, error);
+
+        if (ok)
         {
-            tok.Next();
-            int32_t right = 0;
-
-            if (!ParseUnary (tok, ctx, right, error)) return false;
-
-            if (right == 0) { error = "Division by zero"; return false; }
-            result = result % right;
+            ok = op->Apply (result, right, result, error);
         }
-        else break;
     }
 
-    return true;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ParseAddSub — +, -
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool ExpressionEvaluator::ParseAddSub (Tokenizer & tok, const ExprContext & ctx, int32_t & result, std::string & error)
-{
-    if (!ParseMulDiv (tok, ctx, result, error))
-        return false;
-
-    for (;;)
-    {
-        Token t = tok.Peek();
-
-        if (t.type == TokType::Plus)       { tok.Next(); int32_t r = 0; if (!ParseMulDiv (tok, ctx, r, error)) return false; result += r; }
-        else if (t.type == TokType::Minus) { tok.Next(); int32_t r = 0; if (!ParseMulDiv (tok, ctx, r, error)) return false; result -= r; }
-        else break;
-    }
-
-    return true;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ParseShift — <<, >>
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool ExpressionEvaluator::ParseShift (Tokenizer & tok, const ExprContext & ctx, int32_t & result, std::string & error)
-{
-    if (!ParseAddSub (tok, ctx, result, error))
-        return false;
-
-    for (;;)
-    {
-        Token t = tok.Peek();
-
-        if (t.type == TokType::LShift)      { tok.Next(); int32_t r = 0; if (!ParseAddSub (tok, ctx, r, error)) return false; result = result << r; }
-        else if (t.type == TokType::RShift)  { tok.Next(); int32_t r = 0; if (!ParseAddSub (tok, ctx, r, error)) return false; result = (int32_t) ((uint32_t) result >> r); }
-        else break;
-    }
-
-    return true;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ParseComparison — <, >, <=, >=
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool ExpressionEvaluator::ParseComparison (Tokenizer & tok, const ExprContext & ctx, int32_t & result, std::string & error)
-{
-    if (!ParseShift (tok, ctx, result, error))
-        return false;
-
-    for (;;)
-    {
-        Token t = tok.Peek();
-
-        if (t.type == TokType::Lt)      { tok.Next(); int32_t r = 0; if (!ParseShift (tok, ctx, r, error)) return false; result = (result < r) ? 1 : 0; }
-        else if (t.type == TokType::Gt) { tok.Next(); int32_t r = 0; if (!ParseShift (tok, ctx, r, error)) return false; result = (result > r) ? 1 : 0; }
-        else if (t.type == TokType::Le) { tok.Next(); int32_t r = 0; if (!ParseShift (tok, ctx, r, error)) return false; result = (result <= r) ? 1 : 0; }
-        else if (t.type == TokType::Ge) { tok.Next(); int32_t r = 0; if (!ParseShift (tok, ctx, r, error)) return false; result = (result >= r) ? 1 : 0; }
-        else break;
-    }
-
-    return true;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ParseEquality — =, ==, !=
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool ExpressionEvaluator::ParseEquality (Tokenizer & tok, const ExprContext & ctx, int32_t & result, std::string & error)
-{
-    if (!ParseComparison (tok, ctx, result, error))
-        return false;
-
-    for (;;)
-    {
-        Token t = tok.Peek();
-
-        if (t.type == TokType::Eq)      { tok.Next(); int32_t r = 0; if (!ParseComparison (tok, ctx, r, error)) return false; result = (result == r) ? 1 : 0; }
-        else if (t.type == TokType::Ne) { tok.Next(); int32_t r = 0; if (!ParseComparison (tok, ctx, r, error)) return false; result = (result != r) ? 1 : 0; }
-        else break;
-    }
-
-    return true;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ParseBitAnd — &
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool ExpressionEvaluator::ParseBitAnd (Tokenizer & tok, const ExprContext & ctx, int32_t & result, std::string & error)
-{
-    if (!ParseEquality (tok, ctx, result, error))
-        return false;
-
-    while (tok.Peek().type == TokType::Amp)
-    {
-        tok.Next();
-        int32_t r = 0;
-
-        if (!ParseEquality (tok, ctx, r, error)) return false;
-        result = result & r;
-    }
-
-    return true;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ParseBitXor — ^
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool ExpressionEvaluator::ParseBitXor (Tokenizer & tok, const ExprContext & ctx, int32_t & result, std::string & error)
-{
-    if (!ParseBitAnd (tok, ctx, result, error))
-        return false;
-
-    while (tok.Peek().type == TokType::Caret)
-    {
-        tok.Next();
-        int32_t r = 0;
-
-        if (!ParseBitAnd (tok, ctx, r, error)) return false;
-        result = result ^ r;
-    }
-
-    return true;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ParseBitOr — |
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool ExpressionEvaluator::ParseBitOr (Tokenizer & tok, const ExprContext & ctx, int32_t & result, std::string & error)
-{
-    if (!ParseBitXor (tok, ctx, result, error))
-        return false;
-
-    while (tok.Peek().type == TokType::Pipe)
-    {
-        tok.Next();
-        int32_t r = 0;
-
-        if (!ParseBitXor (tok, ctx, r, error)) return false;
-        result = result | r;
-    }
-
-    return true;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ParseLogAnd — &&
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool ExpressionEvaluator::ParseLogAnd (Tokenizer & tok, const ExprContext & ctx, int32_t & result, std::string & error)
-{
-    if (!ParseBitOr (tok, ctx, result, error))
-        return false;
-
-    while (tok.Peek().type == TokType::AmpAmp)
-    {
-        tok.Next();
-        int32_t r = 0;
-
-        if (!ParseBitOr (tok, ctx, r, error)) return false;
-        result = (result != 0 && r != 0) ? 1 : 0;
-    }
-
-    return true;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  ParseLogOr — ||
-//
-////////////////////////////////////////////////////////////////////////////////
-
-bool ExpressionEvaluator::ParseLogOr (Tokenizer & tok, const ExprContext & ctx, int32_t & result, std::string & error)
-{
-    if (!ParseLogAnd (tok, ctx, result, error))
-        return false;
-
-    while (tok.Peek().type == TokType::PipePipe)
-    {
-        tok.Next();
-        int32_t r = 0;
-
-        if (!ParseLogAnd (tok, ctx, r, error)) return false;
-        result = (result != 0 || r != 0) ? 1 : 0;
-    }
-
-    return true;
+    return ok;
 }
 
 
@@ -874,7 +790,7 @@ ExprResult ExpressionEvaluator::Evaluate (const std::string & expr, const ExprCo
     std::string error;
     int32_t     value = 0;
 
-    if (!ParseLogOr (tok, ctx, value, error))
+    if (!ParseBinary (tok, ctx, s_kLoosestBinaryLevel, value, error))
     {
         res.error         = error;
         res.hasUnresolved = (error.find ("Undefined symbol") == 0);

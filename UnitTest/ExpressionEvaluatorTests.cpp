@@ -327,4 +327,52 @@ namespace ExpressionEvaluatorTests
         TEST_METHOD (BaseHashOctal)    { auto r = ExpressionEvaluator::Evaluate ("8#17",      MakeCtx()); Assert::IsTrue (r.success); Assert::AreEqual (15,  r.value); }
         TEST_METHOD (BaseHashBinary)   { auto r = ExpressionEvaluator::Evaluate ("2#10101010", MakeCtx()); Assert::IsTrue (r.success); Assert::AreEqual (170, r.value); }
     };
+
+
+
+
+    ////////////////////////////////////////////////////////////////////////////////
+    //
+    //  PrecedenceLadderTests
+    //
+    //  Pins the binding order at EVERY adjacent level boundary, and the
+    //  left-associativity of the non-commutative operators. (The older
+    //  PrecedenceTests above covers only mul-before-add and parenthesization.)
+    //
+    //  Before this, precedence was encoded only in the call order of ten
+    //  hand-written ParseX functions, and the suite exercised operators one at
+    //  a time -- so swapping any two levels would have passed. Each case below
+    //  is written so the two possible parses give DIFFERENT answers; a test
+    //  that reads the same either way pins nothing.
+    //
+    ////////////////////////////////////////////////////////////////////////////////
+
+    TEST_CLASS (PrecedenceLadderTests)
+    {
+    public:
+        // Tighter binds first, listed loosest-to-tightest going down.
+        TEST_METHOD (LogOrLooserThanLogAnd)      { auto r = ExpressionEvaluator::Evaluate ("0&&1||1",   MakeCtx()); Assert::IsTrue (r.success); Assert::AreEqual (1, r.value); }   // (0&&1)||1, not 0&&(1||1)
+        TEST_METHOD (LogAndLooserThanBitOr)      { auto r = ExpressionEvaluator::Evaluate ("0|1&&1",    MakeCtx()); Assert::IsTrue (r.success); Assert::AreEqual (1, r.value); }   // (0|1)&&1
+        TEST_METHOD (BitOrLooserThanBitXor)      { auto r = ExpressionEvaluator::Evaluate ("1|2^3",     MakeCtx()); Assert::IsTrue (r.success); Assert::AreEqual (1, r.value); }   // 1|(2^3)=1|1, not (1|2)^3=3^3=0
+        TEST_METHOD (BitXorLooserThanBitAnd)     { auto r = ExpressionEvaluator::Evaluate ("1^3&2",     MakeCtx()); Assert::IsTrue (r.success); Assert::AreEqual (3, r.value); }   // 1^(3&2)=1^2, not (1^3)&2=2&2=2
+        TEST_METHOD (BitAndLooserThanEquality)   { auto r = ExpressionEvaluator::Evaluate ("1==3&1",    MakeCtx()); Assert::IsTrue (r.success); Assert::AreEqual (0, r.value); }   // (1==3)&1=0&1=0, not 1==(3&1)=1==1=1
+        TEST_METHOD (EqualityLooserThanCompare)  { auto r = ExpressionEvaluator::Evaluate ("1<2==1",    MakeCtx()); Assert::IsTrue (r.success); Assert::AreEqual (1, r.value); }   // (1<2)==1
+        TEST_METHOD (CompareLooserThanShift)     { auto r = ExpressionEvaluator::Evaluate ("1<<3>2",    MakeCtx()); Assert::IsTrue (r.success); Assert::AreEqual (1, r.value); }   // (1<<3)>2=8>2=1, not 1<<(3>2)=1<<1=2
+        TEST_METHOD (ShiftLooserThanAddSub)      { auto r = ExpressionEvaluator::Evaluate ("1+1<<2",    MakeCtx()); Assert::IsTrue (r.success); Assert::AreEqual (8, r.value); }   // (1+1)<<2=8, not 1+(1<<2)=5
+        TEST_METHOD (AddSubLooserThanMulDiv)     { auto r = ExpressionEvaluator::Evaluate ("2+3*4",     MakeCtx()); Assert::IsTrue (r.success); Assert::AreEqual (14, r.value); }  // 2+(3*4)=14, not (2+3)*4=20
+        TEST_METHOD (MulDivLooserThanUnary)      { auto r = ExpressionEvaluator::Evaluate ("-2*3",      MakeCtx()); Assert::IsTrue (r.success); Assert::AreEqual (-6, r.value); }  // (-2)*3
+
+        // Left associativity. Each of these reads differently right-to-left.
+        TEST_METHOD (SubtractIsLeftAssociative)  { auto r = ExpressionEvaluator::Evaluate ("10-3-2",    MakeCtx()); Assert::IsTrue (r.success); Assert::AreEqual (5, r.value); }   // (10-3)-2=5, not 10-(3-2)=9
+        TEST_METHOD (DivideIsLeftAssociative)    { auto r = ExpressionEvaluator::Evaluate ("100/10/2",  MakeCtx()); Assert::IsTrue (r.success); Assert::AreEqual (5, r.value); }   // (100/10)/2=5, not 100/(10/2)=20
+        TEST_METHOD (ModuloIsLeftAssociative)    { auto r = ExpressionEvaluator::Evaluate ("23%13%7",   MakeCtx()); Assert::IsTrue (r.success); Assert::AreEqual (3, r.value); }   // (23%13)%7=10%7=3, not 23%(13%7)=23%6=5
+        TEST_METHOD (ShiftIsLeftAssociative)     { auto r = ExpressionEvaluator::Evaluate ("64>>2>>2",  MakeCtx()); Assert::IsTrue (r.success); Assert::AreEqual (4, r.value); }   // (64>>2)>>2=4, not 64>>(2>>2)=64
+        TEST_METHOD (ShiftLeftIsLeftAssociative) { auto r = ExpressionEvaluator::Evaluate ("1<<2<<3",   MakeCtx()); Assert::IsTrue (r.success); Assert::AreEqual (32, r.value); }  // (1<<2)<<3=32, not 1<<(2<<3)=1<<16
+
+        // Division by zero must still be reported, and must not be masked by
+        // an operand that only becomes zero after a lower-precedence fold.
+        TEST_METHOD (DivideByZeroReported)       { auto r = ExpressionEvaluator::Evaluate ("1/0",       MakeCtx()); Assert::IsFalse (r.success); }
+        TEST_METHOD (ModuloByZeroReported)       { auto r = ExpressionEvaluator::Evaluate ("1%0",       MakeCtx()); Assert::IsFalse (r.success); }
+        TEST_METHOD (DivideByFoldedZeroReported) { auto r = ExpressionEvaluator::Evaluate ("8/(4-4)",   MakeCtx()); Assert::IsFalse (r.success); }
+    };
 }
