@@ -86,20 +86,21 @@ void DxuiFocusManager::SetTheme (const IDxuiTheme * theme)
 float DxuiFocusManager::RowEpsilonDip() const
 {
     constexpr float  s_kDefaultRowEpsilonDip = 16.0f;
+    float            eps                     = s_kDefaultRowEpsilonDip;
 
 
 
+    // Test seam wins over the theme, which wins over the constant.
     if (m_rowEpsilonOverridden)
     {
-        return m_rowEpsilonOverrideDip;
+        eps = m_rowEpsilonOverrideDip;
     }
-
-    if (m_theme != nullptr)
+    else if (m_theme != nullptr)
     {
-        return m_theme->BodyLineHeightDip();
+        eps = m_theme->BodyLineHeightDip();
     }
 
-    return s_kDefaultRowEpsilonDip;
+    return eps;
 }
 
 
@@ -118,24 +119,23 @@ float DxuiFocusManager::RowEpsilonDip() const
 
 void DxuiFocusManager::CollectFocusables (IDxuiControl * root, std::vector<IDxuiControl *> & out) const
 {
-    if (root == nullptr)
-    {
-        return;
-    }
+    size_t  i = 0;
 
-    if (!root->Visible() || !root->Enabled())
-    {
-        return;
-    }
 
-    if (root->Focusable() && root->TabIndex() != IDxuiControl::kTabIndexExcluded)
-    {
-        out.push_back (root);
-    }
 
-    for (size_t i = 0; i < root->ChildCount(); ++i)
+    // Hiding or disabling a container takes its whole subtree out of the tab
+    // order, so this prunes rather than merely skipping the node itself.
+    if (root != nullptr && root->Visible() && root->Enabled())
     {
-        CollectFocusables (root->Child (i), out);
+        if (root->Focusable() && root->TabIndex() != IDxuiControl::kTabIndexExcluded)
+        {
+            out.push_back (root);
+        }
+
+        for (i = 0; i < root->ChildCount(); ++i)
+        {
+            CollectFocusables (root->Child (i), out);
+        }
     }
 }
 
@@ -165,70 +165,70 @@ void DxuiFocusManager::Rebuild()
 
     m_tabOrder.clear();
 
-    if (m_root == nullptr)
+    // No root means no tree to walk, and the cleared order above is already
+    // the right answer.
+    if (m_root != nullptr)
     {
-        return;
-    }
-
-    scopeRoot = m_scopes.empty() ? static_cast<IDxuiControl *> (m_root) : m_scopes.back().root;
-    if (scopeRoot == nullptr)
-    {
-        scopeRoot = m_root;
-    }
-
-    CollectFocusables (scopeRoot, raw);
-
-    eps = RowEpsilonDip();
-    if (eps <= 0.0f)
-    {
-        eps = 1.0f;
-    }
-
-    std::sort (raw.begin(), raw.end(),
-        [eps] (IDxuiControl * a, IDxuiControl * b) -> bool
+        scopeRoot = m_scopes.empty() ? static_cast<IDxuiControl *> (m_root) : m_scopes.back().root;
+        if (scopeRoot == nullptr)
         {
-            int  taIdx = a->TabIndex();
-            int  tbIdx = b->TabIndex();
-            bool aExpl = (taIdx >= 0);
-            bool bExpl = (tbIdx >= 0);
-
-            if (aExpl && bExpl)
-            {
-                return taIdx < tbIdx;
-            }
-            if (aExpl != bExpl)
-            {
-                return aExpl;  // explicit indices come first
-            }
-            RECT  ra = a->Bounds();
-            RECT  rb = b->Bounds();
-            int   ba = (int) ((float) ra.top / eps);
-            int   bb = (int) ((float) rb.top / eps);
-            if (ba != bb)
-            {
-                return ba < bb;
-            }
-            return ra.left < rb.left;
-        });
-
-    m_tabOrder = std::move (raw);
-
-    // Drop focus if previously-focused control is no longer in the order.
-    if (m_focused != nullptr)
-    {
-        bool  stillThere = false;
-
-        for (IDxuiControl * ctl : m_tabOrder)
-        {
-            if (ctl == m_focused)
-            {
-                stillThere = true;
-                break;
-            }
+            scopeRoot = m_root;
         }
-        if (!stillThere)
+
+        CollectFocusables (scopeRoot, raw);
+
+        eps = RowEpsilonDip();
+        if (eps <= 0.0f)
         {
-            m_focused = nullptr;
+            eps = 1.0f;
+        }
+
+        std::sort (raw.begin(), raw.end(),
+            [eps] (IDxuiControl * a, IDxuiControl * b) -> bool
+            {
+                int  taIdx = a->TabIndex();
+                int  tbIdx = b->TabIndex();
+                bool aExpl = (taIdx >= 0);
+                bool bExpl = (tbIdx >= 0);
+
+                if (aExpl && bExpl)
+                {
+                    return taIdx < tbIdx;
+                }
+                if (aExpl != bExpl)
+                {
+                    return aExpl;  // explicit indices come first
+                }
+                RECT  ra = a->Bounds();
+                RECT  rb = b->Bounds();
+                int   ba = (int) ((float) ra.top / eps);
+                int   bb = (int) ((float) rb.top / eps);
+                if (ba != bb)
+                {
+                    return ba < bb;
+                }
+                return ra.left < rb.left;
+            });
+
+        m_tabOrder = std::move (raw);
+
+        // Drop focus if previously-focused control is no longer in the order.
+        if (m_focused != nullptr)
+        {
+            bool  stillThere = false;
+
+            for (IDxuiControl * ctl : m_tabOrder)
+            {
+                if (ctl == m_focused)
+                {
+                    stillThere = true;
+                    break;
+                }
+            }
+            if (!stillThere)
+            {
+                m_focused = nullptr;
+            }
         }
     }
 }
@@ -251,20 +251,21 @@ void DxuiFocusManager::SetFocused (IDxuiControl * ctl)
 
     DXUI_ASSERT_UI_THREAD();
 
-    if (prior == ctl)
+    // Re-focusing the already-focused control must not fire the notifications
+    // again -- a control that rebuilds state on focus-in would do it twice.
+    if (prior != ctl)
     {
-        return;
-    }
+        m_focused = ctl;
 
-    m_focused = ctl;
+        if (prior != nullptr)
+        {
+            prior->OnFocusChanged (false);
+        }
 
-    if (prior != nullptr)
-    {
-        prior->OnFocusChanged (false);
-    }
-    if (ctl != nullptr)
-    {
-        ctl->OnFocusChanged (true);
+        if (ctl != nullptr)
+        {
+            ctl->OnFocusChanged (true);
+        }
     }
 }
 
@@ -285,41 +286,40 @@ bool DxuiFocusManager::MoveFocus (int direction)
 {
     size_t  count = m_tabOrder.size();
     size_t  idx   = 0;
-    size_t  cur   = count;
+    size_t  cur   = count;      // count doubles as the "not found" sentinel
     size_t  next  = 0;
+    bool    moved = (count != 0);
 
 
 
-    if (count == 0)
+    if (moved)
     {
-        return false;
-    }
-
-    for (idx = 0; idx < count; ++idx)
-    {
-        if (m_tabOrder[idx] == m_focused)
+        for (idx = 0; idx < count && cur == count; ++idx)
         {
-            cur = idx;
-            break;
+            if (m_tabOrder[idx] == m_focused)
+            {
+                cur = idx;
+            }
         }
+
+        if (cur == count)
+        {
+            // No current focus -- pick the first (forward) or last (backward).
+            next = (direction > 0) ? 0 : (count - 1);
+        }
+        else if (direction > 0)
+        {
+            next = (cur + 1) % count;
+        }
+        else
+        {
+            next = (cur == 0) ? (count - 1) : (cur - 1);
+        }
+
+        SetFocused (m_tabOrder[next]);
     }
 
-    if (cur == count)
-    {
-        // No current focus -- pick the first (forward) or last (backward).
-        next = (direction > 0) ? 0 : (count - 1);
-    }
-    else if (direction > 0)
-    {
-        next = (cur + 1) % count;
-    }
-    else
-    {
-        next = (cur == 0) ? (count - 1) : (cur - 1);
-    }
-
-    SetFocused (m_tabOrder[next]);
-    return true;
+    return moved;
 }
 
 
@@ -344,67 +344,74 @@ bool DxuiFocusManager::MoveFocusSpatial (DxuiFocusKey arrow)
     RECT            curR     = {};
     long            curCx    = 0;
     long            curCy    = 0;
+    bool            moved    = false;
 
 
 
+    // Nothing focused yet: there is no "from" point to measure against, so
+    // an arrow behaves like a first Tab.
     if (m_focused == nullptr)
     {
-        return MoveFocus (+1);
+        moved = MoveFocus (+1);
     }
-
-    curR  = m_focused->Bounds();
-    curCx = (curR.left + curR.right)  / 2;
-    curCy = (curR.top  + curR.bottom) / 2;
-
-    for (IDxuiControl * candidate : m_tabOrder)
+    else
     {
-        RECT  rr   = {};
-        long  cx   = 0;
-        long  cy   = 0;
-        long  dx   = 0;
-        long  dy   = 0;
-        long  dist = 0;
-        bool  keep = false;
+        curR  = m_focused->Bounds();
+        curCx = (curR.left + curR.right)  / 2;
+        curCy = (curR.top  + curR.bottom) / 2;
 
-        if (candidate == m_focused)
+        for (IDxuiControl * candidate : m_tabOrder)
         {
-            continue;
+            RECT  rr   = {};
+            long  cx   = 0;
+            long  cy   = 0;
+            long  dx   = 0;
+            long  dy   = 0;
+            long  dist = 0;
+            bool  keep = false;
+
+            if (candidate == m_focused)
+            {
+                continue;
+            }
+            rr = candidate->Bounds();
+            cx = (rr.left + rr.right)  / 2;
+            cy = (rr.top  + rr.bottom) / 2;
+            dx = cx - curCx;
+            dy = cy - curCy;
+
+            switch (arrow)
+            {
+            case DxuiFocusKey::ArrowLeft:   keep = (dx < 0); break;
+            case DxuiFocusKey::ArrowRight:  keep = (dx > 0); break;
+            case DxuiFocusKey::ArrowUp:     keep = (dy < 0); break;
+            case DxuiFocusKey::ArrowDown:   keep = (dy > 0); break;
+            default:                        keep = false;    break;
+            }
+
+            if (!keep)
+            {
+                continue;
+            }
+
+            dist = dx * dx + dy * dy;
+            if (best == nullptr || dist < bestDist)
+            {
+                best     = candidate;
+                bestDist = dist;
+            }
         }
-        rr = candidate->Bounds();
-        cx = (rr.left + rr.right)  / 2;
-        cy = (rr.top  + rr.bottom) / 2;
-        dx = cx - curCx;
-        dy = cy - curCy;
 
-        switch (arrow)
+        // Nothing in that half-plane: the arrow is a no-op rather than a wrap,
+        // so focus stays where the user left it.
+        if (best != nullptr)
         {
-        case DxuiFocusKey::ArrowLeft:   keep = (dx < 0); break;
-        case DxuiFocusKey::ArrowRight:  keep = (dx > 0); break;
-        case DxuiFocusKey::ArrowUp:     keep = (dy < 0); break;
-        case DxuiFocusKey::ArrowDown:   keep = (dy > 0); break;
-        default:                        keep = false;    break;
-        }
-
-        if (!keep)
-        {
-            continue;
-        }
-
-        dist = dx * dx + dy * dy;
-        if (best == nullptr || dist < bestDist)
-        {
-            best     = candidate;
-            bestDist = dist;
+            SetFocused (best);
+            moved = true;
         }
     }
 
-    if (best != nullptr)
-    {
-        SetFocused (best);
-        return true;
-    }
-
-    return false;
+    return moved;
 }
 
 
@@ -419,32 +426,46 @@ bool DxuiFocusManager::MoveFocusSpatial (DxuiFocusKey arrow)
 
 bool DxuiFocusManager::HandleKey (DxuiFocusKey key)
 {
+    bool  handled = false;
+
+
+
     DXUI_ASSERT_UI_THREAD();
 
     switch (key)
     {
     case DxuiFocusKey::Tab:
-        return MoveFocus (+1);
+        handled = MoveFocus (+1);
+        break;
+
     case DxuiFocusKey::ShiftTab:
-        return MoveFocus (-1);
+        handled = MoveFocus (-1);
+        break;
+
     case DxuiFocusKey::ArrowUp:
     case DxuiFocusKey::ArrowDown:
     case DxuiFocusKey::ArrowLeft:
     case DxuiFocusKey::ArrowRight:
-        return MoveFocusSpatial (key);
+        handled = MoveFocusSpatial (key);
+        break;
+
     case DxuiFocusKey::Escape:
+        // Only claimed while a scope is pushed; at the outermost level
+        // Escape belongs to the dialog (cancel / close).
         if (!m_scopes.empty())
         {
             PopScope();
-            return true;
+            handled = true;
         }
-        return false;
+        break;
+
     case DxuiFocusKey::Enter:
     case DxuiFocusKey::Space:
-        return false;     // activation routed via the focused control's OnKey
+        // Activation is routed via the focused control's OnKey, not here.
+        break;
     }
 
-    return false;
+    return handled;
 }
 
 

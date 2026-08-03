@@ -125,12 +125,8 @@ void PrinterEngine::Start (PrinterByteRing & ring, PrintRaster seed)
 
 size_t PrinterEngine::FlushNow (vector<PrinterEvent> & events)
 {
-    if (m_job == nullptr)
-    {
-        return 0;
-    }
-
-    return m_job->Drain (events);
+    // No job means nothing was ever queued, so zero drained is the truth.
+    return (m_job != nullptr) ? m_job->Drain (events) : 0;
 }
 
 
@@ -150,15 +146,20 @@ size_t PrinterEngine::FlushNow (vector<PrinterEvent> & events)
 
 bool PrinterEngine::SnapshotStrip (PrintRaster & out)
 {
+    bool  ok = false;
+
+
+
     std::lock_guard<std::mutex>   lock (m_rasterMutex);
 
-    if (m_job == nullptr)
+    // No job means no strip to copy, and `out` is left as the caller had it.
+    if (m_job != nullptr)
     {
-        return false;
+        out = m_job->Raster();   // copy under lock
+        ok  = true;
     }
 
-    out = m_job->Raster();   // copy under lock
-    return true;
+    return ok;
 }
 
 
@@ -177,15 +178,19 @@ bool PrinterEngine::SnapshotStrip (PrintRaster & out)
 
 bool PrinterEngine::SnapshotStripSpan (int firstRow, int lastRow, PrintRaster & out)
 {
+    bool  ok = false;
+
+
+
     std::lock_guard<std::mutex>   lock (m_rasterMutex);
 
-    if (m_job == nullptr)
+    if (m_job != nullptr)
     {
-        return false;
+        m_job->Raster().CopyRowSpan (firstRow, lastRow, out);
+        ok = true;
     }
 
-    m_job->Raster().CopyRowSpan (firstRow, lastRow, out);
-    return true;
+    return ok;
 }
 
 
@@ -203,15 +208,21 @@ bool PrinterEngine::SnapshotStripSpan (int firstRow, int lastRow, PrintRaster & 
 
 bool PrinterEngine::SnapshotPresentedSpan (int firstRow, int lastRow, PrintRaster & out)
 {
+    bool  ok = false;
+
+
+
     std::lock_guard<std::mutex>   lock (m_rasterMutex);
 
-    if (m_job == nullptr)
+    // Gated on m_job, not on m_presented: with no job the presented layer is
+    // stale paper from a finished print and the caller wants a blank sheet.
+    if (m_job != nullptr)
     {
-        return false;
+        m_presented.CopyRowSpan (firstRow, lastRow, out);
+        ok = true;
     }
 
-    m_presented.CopyRowSpan (firstRow, lastRow, out);
-    return true;
+    return ok;
 }
 
 
@@ -229,14 +240,19 @@ bool PrinterEngine::SnapshotPresentedSpan (int firstRow, int lastRow, PrintRaste
 
 int PrinterEngine::SpanInkExtent (int firstRow, int lastRow)
 {
+    int  extent = 0;
+
+
+
     std::lock_guard<std::mutex>   lock (m_rasterMutex);
 
-    if (m_job == nullptr)
+    // 0 is both "no job" and "blank span" -- callers treat them the same.
+    if (m_job != nullptr)
     {
-        return 0;
+        extent = RasterInkExtent (m_job->Raster(), firstRow, lastRow);
     }
 
-    return RasterInkExtent (m_job->Raster(), firstRow, lastRow);
+    return extent;
 }
 
 

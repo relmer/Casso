@@ -28,11 +28,11 @@
 
 bool DxuiToggle::HitTest (int x, int y) const
 {
-    if (!m_enabled)
-    {
-        return false;
-    }
-    return x >= m_boundsDip.left && x < m_boundsDip.right && y >= m_boundsDip.top && y < m_boundsDip.bottom;
+    // A disabled toggle is transparent to the mouse, so whatever is behind
+    // it gets the click.
+    return m_enabled
+           && x >= m_boundsDip.left && x < m_boundsDip.right
+           && y >= m_boundsDip.top  && y < m_boundsDip.bottom;
 }
 
 
@@ -66,13 +66,16 @@ void DxuiToggle::SetMouseHover (int x, int y)
 
 bool DxuiToggle::OnLButtonDown (int x, int y)
 {
-    if (!HitTest (x, y))
+    bool  hit = HitTest (x, y);
+
+
+
+    if (hit)
     {
-        return false;
+        m_pressed = true;
     }
 
-    m_pressed = true;
-    return true;
+    return hit;
 }
 
 
@@ -113,18 +116,16 @@ bool DxuiToggle::OnLButtonUp (int x, int y)
 
 bool DxuiToggle::OnKey (WPARAM vk)
 {
-    if (!m_enabled || !m_focused)
-    {
-        return false;
-    }
+    bool  flips = m_enabled
+                  && m_focused
+                  && (vk == VK_SPACE || vk == VK_RETURN);
 
-    if (vk == VK_SPACE || vk == VK_RETURN)
+    if (flips)
     {
         Flip();
-        return true;
     }
 
-    return false;
+    return flips;
 }
 
 
@@ -230,34 +231,19 @@ void DxuiToggle::PaintInternal (IDxuiPainter & painter, IDxuiTextRenderer & text
                              focusArgb);
     }
 
-    if (!m_label.empty())
-    {
-        IGNORE_RETURN_VALUE (hr, text.DrawString (m_label.c_str(),
-                                                  pillLeft + pillW + labelGap,
-                                                  (float) m_boundsDip.top,
-                                                  (float) (m_boundsDip.right - m_boundsDip.left) - pillW - labelGap,
-                                                  (float) (m_boundsDip.bottom - m_boundsDip.top),
-                                                  textColor,
-                                                  fontDip,
-                                                  DxuiTheme::kBodyFace,
-                                                  DxuiTextHAlign::Left,
-                                                  DxuiTextVAlign::Center));
-    }
-    else
-    {
-        const wchar_t * stateText = m_checked ? L"On" : L"Off";
-
-        IGNORE_RETURN_VALUE (hr, text.DrawString (stateText,
-                                                  pillLeft + pillW + labelGap,
-                                                  (float) m_boundsDip.top,
-                                                  (float) (m_boundsDip.right - m_boundsDip.left) - pillW - labelGap,
-                                                  (float) (m_boundsDip.bottom - m_boundsDip.top),
-                                                  textColor,
-                                                  fontDip,
-                                                  DxuiTheme::kBodyFace,
-                                                  DxuiTextHAlign::Left,
-                                                  DxuiTextVAlign::Center));
-    }
+    // An unlabeled toggle narrates its own state instead, so the pill is
+    // never left with nothing beside it.
+    IGNORE_RETURN_VALUE (hr, text.DrawString (m_label.empty() ? (m_checked ? L"On" : L"Off")
+                                                              : m_label.c_str(),
+                                              pillLeft + pillW + labelGap,
+                                              (float) m_boundsDip.top,
+                                              (float) (m_boundsDip.right - m_boundsDip.left) - pillW - labelGap,
+                                              (float) (m_boundsDip.bottom - m_boundsDip.top),
+                                              textColor,
+                                              fontDip,
+                                              DxuiTheme::kBodyFace,
+                                              DxuiTextHAlign::Left,
+                                              DxuiTextVAlign::Center));
 }
 
 
@@ -315,26 +301,32 @@ void DxuiToggle::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const 
 
 bool DxuiToggle::OnMouse (const DxuiMouseEvent & ev)
 {
+    bool  isLeft   = (ev.button == DxuiMouseButton::Left);
+    bool  consumed = false;
+
+
+
     switch (ev.kind)
     {
     case DxuiMouseEventKind::Move:
+        // Hover tracking never claims the event -- a toggle does not stop a
+        // move from reaching whatever else wants to see it.
         SetMouseHover (ev.positionDip.x, ev.positionDip.y);
-        return false;
+        break;
+
     case DxuiMouseEventKind::Down:
-        if (ev.button == DxuiMouseButton::Left)
-        {
-            return OnLButtonDown (ev.positionDip.x, ev.positionDip.y);
-        }
-        return false;
+        consumed = isLeft && OnLButtonDown (ev.positionDip.x, ev.positionDip.y);
+        break;
+
     case DxuiMouseEventKind::Up:
-        if (ev.button == DxuiMouseButton::Left)
-        {
-            return OnLButtonUp (ev.positionDip.x, ev.positionDip.y);
-        }
-        return false;
+        consumed = isLeft && OnLButtonUp (ev.positionDip.x, ev.positionDip.y);
+        break;
+
     default:
-        return false;
+        break;
     }
+
+    return consumed;
 }
 
 
@@ -349,11 +341,7 @@ bool DxuiToggle::OnMouse (const DxuiMouseEvent & ev)
 
 bool DxuiToggle::OnKey (const DxuiKeyEvent & ev)
 {
-    if (ev.kind != DxuiKeyEventKind::Down)
-    {
-        return false;
-    }
-
-    return OnKey (ev.vk);
+    // Key-up would flip a second time for the same press.
+    return (ev.kind == DxuiKeyEventKind::Down) && OnKey (ev.vk);
 }
 

@@ -144,15 +144,19 @@ uint32_t CommandToolbar::StatusCore (PrinterStatus status)
 {
     // Event-only light: no LED at all while idle (no light = no problem), and
     // the lit states run bright -- dim colors disappear against the themed
-    // strip. 0 == unlit.
+    // strip. 0 == unlit, which is why Idle keeps the initializer.
+    uint32_t  core = 0;
+
     switch (status)
     {
-    case PrinterStatus::Receiving: return 0xFF4CE96A;   // bright green: printing now
-    case PrinterStatus::Pending:   return 0xFFFFB938;   // bright amber: page waiting
-    case PrinterStatus::Error:     return 0xFFFF5257;   // bright red:   failed
+    case PrinterStatus::Receiving: core = 0xFF4CE96A; break;   // bright green: printing now
+    case PrinterStatus::Pending:   core = 0xFFFFB938; break;   // bright amber: page waiting
+    case PrinterStatus::Error:     core = 0xFFFF5257; break;   // bright red:   failed
     case PrinterStatus::Idle:
-    default:                       return 0;            // off: powered + idle
+    default:                                          break;   // off: powered + idle
     }
+
+    return core;
 }
 
 
@@ -177,13 +181,13 @@ static void PaintStatusLed (IDxuiPainter & painter, float cx, float cy, UINT dpi
 
 
 
-    if (core == 0)
+    // core == 0 is the idle state: paint nothing at all, so an idle printer
+    // shows no light rather than a dark dot.
+    if (core != 0)
     {
-        return;
+        painter.FillCircleApprox (cx, cy, r * 1.8f, halo);
+        painter.FillCircleApprox (cx, cy, r,        core);
     }
-
-    painter.FillCircleApprox (cx, cy, r * 1.8f, halo);
-    painter.FillCircleApprox (cx, cy, r,        core);
 }
 
 
@@ -422,27 +426,32 @@ void CommandToolbar::Layout (const RECT & boundsDip, const DxuiDpiScaler & scale
 
 const wchar_t * CommandToolbar::TooltipAt (int x, int y, RECT & anchor) const
 {
-    if (m_mode != Mode::IconOnly)
-    {
-        return nullptr;   // labels are visible; no tooltip needed
-    }
+    const wchar_t *  tip = nullptr;
 
-    for (const Button & btn : m_buttons)
+
+
+    // Outside icon-only mode the labels are visible, so a tooltip would just
+    // repeat them. Null means "no tip"; `anchor` is then left alone.
+    if (m_mode == Mode::IconOnly)
     {
-        if (btn.enabled && PointIn (btn.rc, x, y))
+        for (const Button & btn : m_buttons)
         {
-            anchor = btn.rc;
-            return btn.label;
+            if (tip == nullptr && btn.enabled && PointIn (btn.rc, x, y))
+            {
+                anchor = btn.rc;
+                tip    = btn.label;
+            }
+        }
+
+        // The mute button's tip names the action it would take, not its state.
+        if (tip == nullptr && PointIn (m_muteButton.rc, x, y))
+        {
+            anchor = m_muteButton.rc;
+            tip    = m_muted ? L"Unmute" : L"Mute";
         }
     }
 
-    if (PointIn (m_muteButton.rc, x, y))
-    {
-        anchor = m_muteButton.rc;
-        return m_muted ? L"Unmute" : L"Mute";
-    }
-
-    return nullptr;
+    return tip;
 }
 
 
@@ -515,26 +524,28 @@ void CommandToolbar::OnToolbarMouseLeave()
 
 bool CommandToolbar::OnToolbarLButtonDown (int x, int y)
 {
-    if (!m_muted && m_volumeSlider.OnLButtonDown (x, y))
-    {
-        return true;
-    }
+    // The slider gets first claim, but only while unmuted -- a muted slider
+    // is inert and the press should fall through to the bar.
+    bool  handled = !m_muted && m_volumeSlider.OnLButtonDown (x, y);
 
     for (Button & btn : m_buttons)
     {
-        if (btn.enabled && PointIn (btn.rc, x, y))
+        if (!handled && btn.enabled && PointIn (btn.rc, x, y))
         {
             btn.pressed = true;
-            return true;
+            handled     = true;
         }
     }
-    if (PointIn (m_muteButton.rc, x, y))
+
+    if (!handled && PointIn (m_muteButton.rc, x, y))
     {
         m_muteButton.pressed = true;
-        return true;
+        handled              = true;
     }
 
-    return PointIn (m_barRect, x, y);   // eat clicks on the bar's dead space
+    // Clicks on the bar's dead space are eaten so they do not fall through
+    // to whatever is behind the toolbar.
+    return handled || PointIn (m_barRect, x, y);
 }
 
 
@@ -549,38 +560,41 @@ bool CommandToolbar::OnToolbarLButtonDown (int x, int y)
 
 bool CommandToolbar::OnToolbarLButtonUp (int x, int y)
 {
-    if (m_volumeSlider.OnLButtonUp (x, y))
-    {
-        return true;
-    }
+    bool  handled    = m_volumeSlider.OnLButtonUp (x, y);
+    bool  wasPressed = false;
 
+
+
+    // Every button drops its pressed visual on any release, whether or not
+    // the release landed on it -- a press that ends elsewhere is a cancel.
+    // Only a press-and-release on the SAME button fires its command.
     for (Button & btn : m_buttons)
     {
-        bool  wasPressed = btn.pressed;
-
+        wasPressed  = btn.pressed;
         btn.pressed = false;
 
-        if (wasPressed && btn.enabled && PointIn (btn.rc, x, y))
+        if (!handled && wasPressed && btn.enabled && PointIn (btn.rc, x, y))
         {
             if (m_dispatch) { m_dispatch (btn.id); }
-            return true;
+            handled = true;
         }
     }
 
+    wasPressed           = m_muteButton.pressed;
+    m_muteButton.pressed = false;
+
+    // Mute is handled locally rather than dispatched: it owns the state the
+    // slider reads back.
+    if (!handled && wasPressed && PointIn (m_muteButton.rc, x, y))
     {
-        bool  wasPressed = m_muteButton.pressed;
+        SetVolume (m_volume01, !m_muted);
 
-        m_muteButton.pressed = false;
+        if (m_volumeSink) { m_volumeSink (m_volume01, m_muted); }
 
-        if (wasPressed && PointIn (m_muteButton.rc, x, y))
-        {
-            SetVolume (m_volume01, !m_muted);
-            if (m_volumeSink) { m_volumeSink (m_volume01, m_muted); }
-            return true;
-        }
+        handled = true;
     }
 
-    return PointIn (m_barRect, x, y);
+    return handled || PointIn (m_barRect, x, y);
 }
 
 
@@ -609,6 +623,7 @@ void CommandToolbar::PaintButton (Button & btn, IDxuiPainter & painter,
     uint32_t  ink      = theme.navItemText;
     float     iconW    = iconDip;
     float     textX    = 0.0f;
+    wchar_t   glyph[2] = { btn.glyph, 0 };
 
     if (!btn.enabled)
     {
@@ -632,15 +647,11 @@ void CommandToolbar::PaintButton (Button & btn, IDxuiPainter & painter,
         float  labelH     = stackedDip + 4.0f;
         float  iconRegH   = bh - labelH;
 
-        {
-            wchar_t   glyph[2] = { btn.glyph, 0 };
-
-            hr = text.DrawString (glyph, bl, bt, bw, iconRegH,
-                                  ink, iconDip, s_kIconFamily,
-                                  DxuiTextRenderer::HAlign::Center,
-                                  DxuiTextRenderer::VAlign::Center);
-            IGNORE_RETURN_VALUE (hr, S_OK);
-        }
+        hr = text.DrawString (glyph, bl, bt, bw, iconRegH,
+                              ink, iconDip, s_kIconFamily,
+                              DxuiTextRenderer::HAlign::Center,
+                              DxuiTextRenderer::VAlign::Center);
+        IGNORE_RETURN_VALUE (hr, S_OK);
 
         if (btn.statusLed)
         {
@@ -654,24 +665,20 @@ void CommandToolbar::PaintButton (Button & btn, IDxuiPainter & painter,
                               DxuiTextRenderer::HAlign::Center,
                               DxuiTextRenderer::VAlign::Center);
         IGNORE_RETURN_VALUE (hr, S_OK);
-        return;
     }
-
-    // Icon-only mode centers the icon; LabelRight keeps it left-padded with
-    // the label beside it.
+    else
     {
-        bool   centered = (m_mode == Mode::IconOnly);
-        float  iconX    = centered ? bl + (bw - iconDip) * 0.5f : bl + (float) padX;
+        // Icon-only centers the icon; LabelRight keeps it left-padded with the
+        // label beside it. Both draw the icon the same way, so only the x
+        // differs.
+        float  iconX = (m_mode == Mode::IconOnly) ? bl + (bw - iconDip) * 0.5f
+                                                  : bl + (float) padX;
 
-        {
-            wchar_t   glyph[2] = { btn.glyph, 0 };
-
-            hr = text.DrawString (glyph, iconX, bt, iconDip + 2.0f, bh,
-                                  ink, iconDip, s_kIconFamily,
-                                  DxuiTextRenderer::HAlign::Left,
-                                  DxuiTextRenderer::VAlign::Center);
-            IGNORE_RETURN_VALUE (hr, S_OK);
-        }
+        hr = text.DrawString (glyph, iconX, bt, iconDip + 2.0f, bh,
+                              ink, iconDip, s_kIconFamily,
+                              DxuiTextRenderer::HAlign::Left,
+                              DxuiTextRenderer::VAlign::Center);
+        IGNORE_RETURN_VALUE (hr, S_OK);
 
         if (btn.statusLed)
         {
@@ -680,19 +687,18 @@ void CommandToolbar::PaintButton (Button & btn, IDxuiPainter & painter,
                             StatusCore (m_printerStatus));
         }
 
-        if (m_mode == Mode::IconOnly)
+        // Icon-only draws no label at all -- tooltips carry them (TooltipAt).
+        if (m_mode != Mode::IconOnly)
         {
-            return;   // tooltips carry the labels
+            textX = bl + (float) padX + iconW + (float) iconGap;
+
+            hr = text.DrawString (btn.label, textX, bt,
+                                  (float) btn.rc.right - textX, bh,
+                                  ink, fontDip, s_kFontFamily,
+                                  DxuiTextRenderer::HAlign::Left,
+                                  DxuiTextRenderer::VAlign::CenterOnCapHeight);
+            IGNORE_RETURN_VALUE (hr, S_OK);
         }
-
-        textX = bl + (float) padX + iconW + (float) iconGap;
-
-        hr = text.DrawString (btn.label, textX, bt,
-                              (float) btn.rc.right - textX, bh,
-                              ink, fontDip, s_kFontFamily,
-                              DxuiTextRenderer::HAlign::Left,
-                              DxuiTextRenderer::VAlign::CenterOnCapHeight);
-        IGNORE_RETURN_VALUE (hr, S_OK);
     }
 }
 
