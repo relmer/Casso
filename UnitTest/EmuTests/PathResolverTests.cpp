@@ -143,18 +143,26 @@ private:
                            "Apple2Plus" / "Apple2Plus.json";
         int       hop    = 0;
 
-        for (hop = 0; hop < 8; hop++)
+        fs::path  root;
+        bool      walking = true;
+
+        for (hop = 0; walking && root.empty() && hop < 8; hop++)
         {
             if (fs::exists (cursor / marker))
             {
-                return cursor;
+                root = cursor;
             }
-            if (cursor.parent_path() == cursor)
+            else if (cursor.parent_path() == cursor)
             {
-                return {};
+                // Drive root: no repo above this point.
+                walking = false;
             }
-            cursor = cursor.parent_path();
+            else
+            {
+                cursor = cursor.parent_path();
+            }
         }
-        return {};
+
+        return root;
     }
 };

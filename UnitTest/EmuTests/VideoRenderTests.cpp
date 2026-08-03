@@ -971,26 +971,30 @@ public:
 
     static fs::path FindIIeCharRom()
     {
-        fs::path  cursor = fs::current_path();
+        fs::path  cursor  = fs::current_path();
+        fs::path  found;
+        bool      walking = true;
 
-        for (int depth = 0; depth < 8; depth++)
+        for (int depth = 0; walking && found.empty() && depth < 8; depth++)
         {
             fs::path  candidate = cursor / "ROMs" / "Apple2e_Video.rom";
 
             if (fs::exists (candidate))
             {
-                return candidate;
+                found = candidate;
             }
-
-            if (cursor.parent_path() == cursor)
+            else if (cursor.parent_path() == cursor)
             {
-                break;
+                // Drive root: this checkout does not provision the ROM.
+                walking = false;
             }
-
-            cursor = cursor.parent_path();
+            else
+            {
+                cursor = cursor.parent_path();
+            }
         }
 
-        return {};
+        return found;
     }
 
     TEST_METHOD (IIeRom_AppleTextMode_InverseSpace_RendersSolidBlock)

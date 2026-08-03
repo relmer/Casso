@@ -57,31 +57,45 @@ public:
     fs::path FindRepoRoot()
     {
         std::error_code ec;
-        fs::path        cursor = fs::current_path (ec);
-        if (ec) return fs::path();
+        fs::path        cursor  = fs::current_path (ec);
+        fs::path        root;
+        bool            walking = !ec;
 
-        for (int i = 0; i < kMaxAncestorWalk; i++)
+        for (int i = 0; walking && root.empty() && i < kMaxAncestorWalk; i++)
         {
             if (fs::exists (cursor / "Machines", ec) &&
                 fs::is_directory (cursor / "Machines", ec))
             {
-                return cursor;
+                root = cursor;
             }
-            if (!cursor.has_parent_path() || cursor == cursor.parent_path())
+            else if (!cursor.has_parent_path() || cursor == cursor.parent_path())
             {
-                break;
+                // Reached the drive root without finding Machines/.
+                walking = false;
             }
-            cursor = cursor.parent_path();
+            else
+            {
+                cursor = cursor.parent_path();
+            }
         }
-        return fs::path();
+
+        return root;
     }
 
 
     fs::path FindRomPath (const std::string & relPath)
     {
-        fs::path root = FindRepoRoot();
-        if (root.empty()) return fs::path();
-        return root / relPath;
+        fs::path  root = FindRepoRoot();
+        fs::path  full;
+
+        // Empty root means no repo, and joining relPath onto an empty path
+        // would silently resolve against the CWD instead.
+        if (!root.empty())
+        {
+            full = root / relPath;
+        }
+
+        return full;
     }
 
     TEST_METHOD (RealCharRom_Decodes_SpaceAsBlank_AltSet)

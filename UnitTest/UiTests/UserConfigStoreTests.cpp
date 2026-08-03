@@ -53,19 +53,29 @@ public:
         hr = JsonParser::Parse (text, root, err);
         AssertSucceeded (hr);
 
+        // Two shapes are accepted: the multi-machine file keyed under
+        // "machines", and the bare single-machine object the older tests
+        // write. A "machines" wrapper that does not actually hold this machine
+        // is a broken fixture, not the bare shape, so it fails rather than
+        // falling back to root.
+        JsonValue  found = root;
+
         if (root.HasObject ("machines", machines))
         {
             hr = machines->GetObject (machineName, machine);
             AssertSucceeded (hr);
+
             if (machine == nullptr)
             {
                 Assert::Fail (L"missing machine entry");
-                return JsonValue();
             }
-            return *machine;
+            else
+            {
+                found = *machine;
+            }
         }
 
-        return root;
+        return found;
     }
 
 
@@ -91,20 +101,24 @@ public:
         const JsonValue   & obj,
         const std::string & key)
     {
-        if (obj.GetType() != JsonType::Object)
-        {
-            return nullptr;
-        }
+        const JsonValue *  found = nullptr;
 
-        for (const auto & kv : obj.GetObjectEntries())
+        // Anything that is not an object has no keys at all, so it answers the
+        // same way a missing key does.
+        if (obj.GetType() == JsonType::Object)
         {
-            if (kv.first == key)
+            const auto &  entries = obj.GetObjectEntries();
+
+            for (auto it = entries.begin(); found == nullptr && it != entries.end(); ++it)
             {
-                return &kv.second;
+                if (it->first == key)
+                {
+                    found = &it->second;
+                }
             }
         }
 
-        return nullptr;
+        return found;
     }
 
 

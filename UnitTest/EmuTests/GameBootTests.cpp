@@ -242,64 +242,75 @@ public:
         const wchar_t      *  label,
         int                   minTracks)
     {
-        if (!Apple2cRomAvailable())
+        fs::path   wozPath;
+        bool       runnable = Apple2cRomAvailable();
+
+        // Two independent absences, each reported in its own words: the ROM
+        // (copyrighted, never on CI) and the game image (large, not in the
+        // repo). The ROM is checked first because without it the //c cannot be
+        // built at all, so the WOZ path would not matter.
+        if (!runnable)
         {
             Logger::WriteMessage (
                 "SKIPPED: UnitTest/Fixtures/Apple2c.rom absent "
                 "(copyrighted //c ROM 4, provisioned on demand).\n");
-            return;
         }
-
-        fs::path   wozPath = FindRepoFile (relPath);
-
-        if (wozPath.empty())
+        else
         {
-            Logger::WriteMessage ("SKIPPED: WOZ file not found: ");
-            Logger::WriteMessage (relPath.c_str());
-            Logger::WriteMessage ("\n");
-            return;
+            wozPath  = FindRepoFile (relPath);
+            runnable = !wozPath.empty();
+
+            if (!runnable)
+            {
+                Logger::WriteMessage ("SKIPPED: WOZ file not found: ");
+                Logger::WriteMessage (relPath.c_str());
+                Logger::WriteMessage ("\n");
+            }
         }
 
-        std::vector<Byte>   bytes         = ReadFileBytes (wozPath);
-        HeadlessHost        host;
-        EmulatorCore        core;
-        HRESULT             hr            = S_OK;
-        DiskImage        *  internal      = nullptr;
-        std::set<int>       tracksVisited;
-        wchar_t             failMsg[256]  = {};
+        if (runnable)
+        {
+            std::vector<Byte>   bytes         = ReadFileBytes (wozPath);
+            HeadlessHost        host;
+            EmulatorCore        core;
+            HRESULT             hr            = S_OK;
+            DiskImage        *  internal      = nullptr;
+            std::set<int>       tracksVisited;
+            wchar_t             failMsg[256]  = {};
 
-        Assert::IsFalse (bytes.empty(), L"WOZ file must not be empty");
+            Assert::IsFalse (bytes.empty(), L"WOZ file must not be empty");
 
-        hr = host.BuildApple2c (core);
-        AssertSucceeded (hr, L"BuildApple2c must succeed");
+            hr = host.BuildApple2c (core);
+            AssertSucceeded (hr, L"BuildApple2c must succeed");
 
-        // PowerCycle first (re-seeds DRAM + rebinds the drive to its empty
-        // internal disk), THEN mount -- matching the production ordering.
-        core.PowerCycle();
+            // PowerCycle first (re-seeds DRAM + rebinds the drive to its empty
+            // internal disk), THEN mount -- matching the production ordering.
+            core.PowerCycle();
 
-        hr = core.diskStore->MountFromBytes (kSlot6, kDrive1,
-            wozPath.string(), DiskFormat::Woz, bytes);
-        AssertSucceeded (hr, L"MountFromBytes must succeed for real WOZ");
+            hr = core.diskStore->MountFromBytes (kSlot6, kDrive1,
+                wozPath.string(), DiskFormat::Woz, bytes);
+            AssertSucceeded (hr, L"MountFromBytes must succeed for real WOZ");
 
-        internal = core.diskStore->GetImage (kSlot6, kDrive1);
-        Assert::IsNotNull (internal, L"Store must yield a DiskImage after mount");
+            internal = core.diskStore->GetImage (kSlot6, kDrive1);
+            Assert::IsNotNull (internal, L"Store must yield a DiskImage after mount");
 
-        core.diskController->SetExternalDisk (kDrive1, internal);   // drive 1 = internal
+            core.diskController->SetExternalDisk (kDrive1, internal);   // drive 1 = internal
 
-        // Cold-boot: firmware runs the RAM test then autoboots the slot-6
-        // IWM. No forced $C600 entry -- this is the real //c boot path.
-        RunAndSampleTracks (core, kApple2cBootBudget, tracksVisited, minTracks);
+            // Cold-boot: firmware runs the RAM test then autoboots the slot-6
+            // IWM. No forced $C600 entry -- this is the real //c boot path.
+            RunAndSampleTracks (core, kApple2cBootBudget, tracksVisited, minTracks);
 
-        Assert::IsTrue (core.diskController->IsMotorOn(),
-            L"Boot ROM must turn the motor on");
+            Assert::IsTrue (core.diskController->IsMotorOn(),
+                L"Boot ROM must turn the motor on");
 
-        swprintf_s (failMsg,
-            L"%ls: head only visited %zu distinct tracks on the //c (need >= %d); "
-            L"the //c IWM boot path likely stalled",
-            label, tracksVisited.size(), minTracks);
-        Assert::IsTrue (
-            tracksVisited.size() >= static_cast<size_t> (minTracks),
-            failMsg);
+            swprintf_s (failMsg,
+                L"%ls: head only visited %zu distinct tracks on the //c (need >= %d); "
+                L"the //c IWM boot path likely stalled",
+                label, tracksVisited.size(), minTracks);
+            Assert::IsTrue (
+                tracksVisited.size() >= static_cast<size_t> (minTracks),
+                failMsg);
+        }
     }
 
     ////////////////////////////////////////////////////////////////////////

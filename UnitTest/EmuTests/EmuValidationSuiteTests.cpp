@@ -226,17 +226,18 @@ public:
 
     int RowContaining (const std::vector<std::string> & rows, const std::string & needle)
     {
-        size_t   i;
+        size_t   i     = 0;
+        int      found = -1;   // -1 is "no such row", distinct from row 0
 
-        for (i = 0; i < rows.size(); i++)
+        for (i = 0; found < 0 && i < rows.size(); i++)
         {
             if (rows[i].find (needle) != std::string::npos)
             {
-                return static_cast<int> (i);
+                found = static_cast<int> (i);
             }
         }
 
-        return -1;
+        return found;
     }
 
     ////////////////////////////////////////////////////////////////////////

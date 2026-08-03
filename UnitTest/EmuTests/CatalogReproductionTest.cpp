@@ -65,30 +65,42 @@ public:
         // test stays filesystem-portable. Returns an empty vector if
         // the file doesn't exist (CI runners don't have the DOS 3.3
         // master disk in the repo); the caller treats that as "skip".
-        std::error_code ec;
-        std::filesystem::path cursor = std::filesystem::current_path (ec);
-        if (ec) return {};
+        std::error_code        ec;
+        std::filesystem::path  cursor = std::filesystem::current_path (ec);
+        std::vector<Byte>      bytes;
+        bool                   walking = !ec;
 
-        for (int i = 0; i < 10; i++)
+        for (int i = 0; walking && bytes.empty() && i < 10; i++)
         {
             std::filesystem::path full = cursor / relPath;
+
             if (std::filesystem::exists (full, ec))
             {
                 std::ifstream f (full, std::ios::binary);
+
                 if (f)
                 {
-                    return std::vector<Byte> (
-                        (std::istreambuf_iterator<char> (f)),
-                        std::istreambuf_iterator<char> ());
+                    bytes.assign ((std::istreambuf_iterator<char> (f)),
+                                  std::istreambuf_iterator<char> ());
                 }
             }
-            if (!cursor.has_parent_path() || cursor == cursor.parent_path())
+
+            // Nothing read yet -- including the exists-but-unreadable case,
+            // which keeps climbing rather than giving up at that level.
+            if (bytes.empty())
             {
-                break;
+                if (!cursor.has_parent_path() || cursor == cursor.parent_path())
+                {
+                    walking = false;
+                }
+                else
+                {
+                    cursor = cursor.parent_path();
+                }
             }
-            cursor = cursor.parent_path();
         }
-        return {};
+
+        return bytes;
     }
 
 

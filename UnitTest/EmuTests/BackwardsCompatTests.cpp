@@ -76,30 +76,32 @@ public:
         fs::path          candidate;
         int               steps;
 
-        cursor = fs::current_path (ec);
-        if (ec)
-        {
-            return fs::path();
-        }
+        fs::path   root;
+        bool       walking;
 
-        for (steps = 0; steps < kMaxAncestorWalk; steps++)
+        cursor  = fs::current_path (ec);
+        walking = !ec;
+
+        for (steps = 0; walking && root.empty() && steps < kMaxAncestorWalk; steps++)
         {
             candidate = cursor / "Resources";
 
             if (fs::exists (candidate, ec) && fs::is_directory (candidate, ec))
             {
-                return cursor;
+                root = cursor;
             }
-
-            if (!cursor.has_parent_path() || cursor == cursor.parent_path())
+            else if (!cursor.has_parent_path() || cursor == cursor.parent_path())
             {
-                break;
+                // Hit the drive root without finding Resources/.
+                walking = false;
             }
-
-            cursor = cursor.parent_path();
+            else
+            {
+                cursor = cursor.parent_path();
+            }
         }
 
-        return fs::path();
+        return root;
     }
 
 
@@ -121,23 +123,23 @@ public:
         std::ifstream   stream;
         std::string     content;
 
-        if (repoRoot.empty())
+        // No repo root means no Resources/ tree to read from -- there is
+        // nothing to open, so this stops before building a path from an
+        // empty prefix (which would resolve relative to the CWD).
+        if (!repoRoot.empty())
         {
-            return std::string();
+            stem = fs::path (filename).stem().string();
+            full = repoRoot / "Resources" / "Machines" / stem / filename;
+
+            stream.open (full, std::ios::binary);
+
+            if (stream.is_open())
+            {
+                content.assign (
+                    std::istreambuf_iterator<char> (stream),
+                    std::istreambuf_iterator<char> ());
+            }
         }
-
-        stem = fs::path (filename).stem().string();
-        full = repoRoot / "Resources" / "Machines" / stem / filename;
-
-        stream.open (full, std::ios::binary);
-        if (!stream.is_open())
-        {
-            return std::string();
-        }
-
-        content.assign (
-            std::istreambuf_iterator<char> (stream),
-            std::istreambuf_iterator<char> ());
 
         return content;
     }
@@ -228,16 +230,18 @@ public:
 
     bool HasInternalDeviceType (const MachineConfig & cfg, const std::string & needle)
     {
+        bool  found = false;
 
-        for (auto & internalDevice : cfg.internalDevices)
+
+
+        for (auto it = cfg.internalDevices.begin();
+             !found && it != cfg.internalDevices.end();
+             ++it)
         {
-            if (internalDevice.type == needle)
-            {
-                return true;
-            }
+            found = (it->type == needle);
         }
 
-        return false;
+        return found;
     }
 
 
@@ -249,16 +253,16 @@ public:
 
     bool HasSlotDevice (const MachineConfig & cfg, int slot, const std::string & device)
     {
+        bool  found = false;
 
-        for (auto & slotCfg : cfg.slots)
+
+
+        for (auto it = cfg.slots.begin(); !found && it != cfg.slots.end(); ++it)
         {
-            if (slotCfg.slot == slot && slotCfg.device == device)
-            {
-                return true;
-            }
+            found = (it->slot == slot && it->device == device);
         }
 
-        return false;
+        return found;
     }
 
     ////////////////////////////////////////////////////////////////////////

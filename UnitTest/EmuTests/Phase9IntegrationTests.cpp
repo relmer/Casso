@@ -37,20 +37,22 @@ public:
         HRESULT                hr;
         std::vector<uint8_t>   slot6Rom;
 
+        // The slot ROM can only be attached to a machine that built, and only
+        // once the fixture actually loaded -- so each step gates the next and
+        // the first failure is what the caller sees.
         hr = host.BuildApple2e (core);
-        if (FAILED (hr))
+
+        if (SUCCEEDED (hr))
         {
-            return hr;
+            hr = core.fixtures->OpenFixture ("Disk2.rom", slot6Rom);
         }
 
-        hr = core.fixtures->OpenFixture ("Disk2.rom", slot6Rom);
-        if (FAILED (hr))
+        if (SUCCEEDED (hr))
         {
-            return hr;
+            core.mmu->AttachSlotRom (6, std::move (slot6Rom));
         }
 
-        core.mmu->AttachSlotRom (6, std::move (slot6Rom));
-        return S_OK;
+        return hr;
     }
 
 

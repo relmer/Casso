@@ -278,13 +278,22 @@ public:
     };
 
 
+    // 0xFF means "not a valid 6-and-2 nibble" -- it is outside the 0..63 range
+    // every real entry decodes to, so it cannot collide with a hit.
     Byte InverseTranslate (Byte nib)
     {
-        for (int i = 0; i < 64; i++)
+        Byte  decoded = 0xFF;
+        int   i       = 0;
+
+        for (i = 0; decoded == 0xFF && i < 64; i++)
         {
-            if (sg_kWriteTranslate[i] == nib) return static_cast<Byte> (i);
+            if (sg_kWriteTranslate[i] == nib)
+            {
+                decoded = static_cast<Byte> (i);
+            }
         }
-        return 0xFF;
+
+        return decoded;
     }
 
 
@@ -299,44 +308,57 @@ public:
         uint64_t spent = 0;
         // Bound: ~3 disk revolutions worth of cycles.
         const uint64_t kMaxSpent = 1'500'000ULL;
+        bool     found   = false;
+        bool     spinning = true;
 
-        while (spent < kMaxSpent)
+        while (spinning && !found && spent < kMaxSpent)
         {
             n0 = ReadNextNibble (core, spent);
-            if (n0 == 0) return false;        // hit the per-nibble timeout
-            if (n0 != kAddrProlog0) continue;
 
-            n1 = ReadNextNibble (core, spent);
-            if (n1 != kAddrProlog1) continue;
-
-            n2 = ReadNextNibble (core, spent);
-            if (n2 != kAddrProlog2) continue;
-
-            Byte vOdd  = ReadNextNibble (core, spent);
-            Byte vEven = ReadNextNibble (core, spent);
-            Byte tOdd  = ReadNextNibble (core, spent);
-            Byte tEven = ReadNextNibble (core, spent);
-            Byte sOdd  = ReadNextNibble (core, spent);
-            Byte sEven = ReadNextNibble (core, spent);
-
-            int  vol  = Decode44 (vOdd, vEven);
-            int  trk  = Decode44 (tOdd, tEven);
-            int  sec  = Decode44 (sOdd, sEven);
-
-            if (trk == wantTrack && sec == wantSector)
+            // A zero nibble is the per-nibble timeout, not data -- the head is
+            // not producing bytes, so no amount of further spinning helps.
+            if (n0 == 0)
             {
-                outVolume = vol;
-                // skip the checksum nibble pair + epilogue (3 nibbles)
-                ReadNextNibble (core, spent);
-                ReadNextNibble (core, spent);
-                ReadNextNibble (core, spent);
-                ReadNextNibble (core, spent);
-                ReadNextNibble (core, spent);
-                return true;
+                spinning = false;
+            }
+            else if (n0 == kAddrProlog0)
+            {
+                n1 = ReadNextNibble (core, spent);
+                n2 = (n1 == kAddrProlog1) ? ReadNextNibble (core, spent) : Byte (0);
+
+                // Anything but the full D5 AA 96 prologue means this was not an
+                // address field; fall back to the outer spin, which resyncs on
+                // the next nibble rather than the next field.
+                if (n1 == kAddrProlog1 && n2 == kAddrProlog2)
+                {
+                    Byte vOdd  = ReadNextNibble (core, spent);
+                    Byte vEven = ReadNextNibble (core, spent);
+                    Byte tOdd  = ReadNextNibble (core, spent);
+                    Byte tEven = ReadNextNibble (core, spent);
+                    Byte sOdd  = ReadNextNibble (core, spent);
+                    Byte sEven = ReadNextNibble (core, spent);
+
+                    int  vol  = Decode44 (vOdd, vEven);
+                    int  trk  = Decode44 (tOdd, tEven);
+                    int  sec  = Decode44 (sOdd, sEven);
+
+                    if (trk == wantTrack && sec == wantSector)
+                    {
+                        outVolume = vol;
+                        found     = true;
+
+                        // skip the checksum nibble pair + epilogue (3 nibbles)
+                        ReadNextNibble (core, spent);
+                        ReadNextNibble (core, spent);
+                        ReadNextNibble (core, spent);
+                        ReadNextNibble (core, spent);
+                        ReadNextNibble (core, spent);
+                    }
+                }
             }
         }
 
-        return false;
+        return found;
     }
 
 

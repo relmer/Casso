@@ -64,16 +64,20 @@ namespace ConformanceTests
 
     static std::string ReadTextFile (const std::string & path)
     {
-        std::ifstream file (path);
+        std::ifstream       file (path);
+        std::ostringstream  ss;
+        std::string         text;
 
-        if (!file.is_open())
+        // A missing fixture reads as empty rather than throwing: callers assert
+        // on the content, so an absent file fails as a content mismatch (which
+        // names the fixture) instead of an exception (which names nothing).
+        if (file.is_open())
         {
-            return {};
+            ss << file.rdbuf();
+            text = ss.str();
         }
 
-        std::ostringstream ss;
-        ss << file.rdbuf();
-        return ss.str();
+        return text;
     }
 
 
@@ -88,18 +92,20 @@ namespace ConformanceTests
 
     static std::vector<Byte> ReadBinaryFile (const std::string & path)
     {
-        std::ifstream file (path, std::ios::binary | std::ios::ate);
+        std::ifstream      file (path, std::ios::binary | std::ios::ate);
+        std::vector<Byte>  data;
 
-        if (!file.is_open())
+        // Same contract as ReadTextFile: absent reads as empty. Opened `ate`
+        // so tellg is the size before the seek back to the start.
+        if (file.is_open())
         {
-            return {};
+            auto size = file.tellg();
+
+            file.seekg (0, std::ios::beg);
+            data.resize ((size_t) size);
+            file.read (reinterpret_cast<char *> (data.data()), size);
         }
 
-        auto size = file.tellg();
-        file.seekg (0, std::ios::beg);
-
-        std::vector<Byte> data ((size_t) size);
-        file.read (reinterpret_cast<char *> (data.data()), size);
         return data;
     }
 

@@ -157,8 +157,8 @@ public:
         size_t             trackBits = img.GetTrackBitCount (slot);
         size_t             bitPos    = 0;
 
-        if (trackBits == 0) { return out; }
-
+        // An unformatted track has no bits to frame; the loop condition already
+        // says so, so the guard is only documentation.
         while (bitPos < trackBits)
         {
             Byte    value = 0;
@@ -179,18 +179,27 @@ public:
 
     size_t  FindSubsequence (const std::vector<Byte> & hay, const std::vector<Byte> & needle)
     {
-        if (needle.empty() || hay.size() < needle.size()) { return std::string::npos; }
+        size_t  at = std::string::npos;
 
-        for (size_t i = 0; i + needle.size() <= hay.size(); i++)
+        // An empty needle finds nothing rather than matching at 0: callers use
+        // the result to assert a pattern IS present, so a vacuous hit would
+        // pass a test that proved nothing.
+        if (!needle.empty() && hay.size() >= needle.size())
         {
-            bool  match = true;
-            for (size_t j = 0; j < needle.size(); j++)
+            for (size_t i = 0; at == std::string::npos && i + needle.size() <= hay.size(); i++)
             {
-                if (hay[i + j] != needle[j]) { match = false; break; }
+                bool  match = true;
+
+                for (size_t j = 0; match && j < needle.size(); j++)
+                {
+                    match = (hay[i + j] == needle[j]);
+                }
+
+                if (match) { at = i; }
             }
-            if (match) { return i; }
         }
-        return std::string::npos;
+
+        return at;
     }
 
     // Engine-level round trip (no CPU, no controller): write a run of 0xFF

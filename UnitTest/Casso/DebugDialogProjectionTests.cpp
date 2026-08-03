@@ -39,36 +39,30 @@ public:
 
     static bool LooksLikeWallClock (const wchar_t * s)
     {
-        // Shape: HH:MM:SS.mmm  (12 chars + null)
-        if (s == nullptr)
-        {
-            return false;
-        }
+        // Shape: HH:MM:SS.mmm  (12 chars + null). The length check has to pass
+        // before the loop indexes s[0..11], so it cannot fold into the scan.
+        bool    looks = (s != nullptr) && (wcslen (s) == 12);
+        size_t  i     = 0;
 
-        if (wcslen (s) != 12)
-        {
-            return false;
-        }
-
-        for (size_t i = 0; i < 12; i++)
+        for (i = 0; looks && i < 12; i++)
         {
             wchar_t  c = s[i];
 
             if (i == 2 || i == 5)
             {
-                if (c != L':') { return false; }
+                looks = (c == L':');
             }
             else if (i == 8)
             {
-                if (c != L'.') { return false; }
+                looks = (c == L'.');
             }
             else
             {
-                if (c < L'0' || c > L'9') { return false; }
+                looks = (c >= L'0' && c <= L'9');
             }
         }
 
-        return true;
+        return looks;
     }
 
 
