@@ -240,6 +240,8 @@ bool DxuiSystemButton::OnMouse (const DxuiMouseEvent & ev)
 {
     RECT  bounds  = {};
     bool  inside  = false;
+    bool  isLeft  = (ev.button == DxuiMouseButton::Left);
+    bool  claimed = false;
 
 
 
@@ -249,43 +251,48 @@ bool DxuiSystemButton::OnMouse (const DxuiMouseEvent & ev)
     inside = (ev.positionDip.x >= bounds.left && ev.positionDip.x < bounds.right &&
               ev.positionDip.y >= bounds.top  && ev.positionDip.y < bounds.bottom);
 
+    // Hover / leave update paint state but never CLAIM the event -- the host
+    // WndProc still needs to see them for its own tracking.
     switch (ev.kind)
     {
         case DxuiMouseEventKind::Enter:
         case DxuiMouseEventKind::Move:
             m_hovered = inside;
-            return false;
+            break;
 
         case DxuiMouseEventKind::Leave:
             m_hovered = false;
             m_pressed = false;
-            return false;
+            break;
 
         case DxuiMouseEventKind::Down:
-            if (inside && ev.button == DxuiMouseButton::Left)
+            if (inside && isLeft)
             {
                 m_pressed = true;
-                return true;
+                claimed   = true;
             }
-            return false;
+            break;
 
         case DxuiMouseEventKind::Up:
-            if (m_pressed && ev.button == DxuiMouseButton::Left)
+            if (m_pressed && isLeft)
             {
+                // The press always ends here; only a release still INSIDE the
+                // button is a click. Dragging off and letting go cancels.
                 m_pressed = false;
+
                 if (inside)
                 {
                     DispatchClick();
-                    return true;
+                    claimed = true;
                 }
             }
-            return false;
+            break;
 
         case DxuiMouseEventKind::Wheel:
-            return false;
+            break;
     }
 
-    return false;
+    return claimed;
 }
 
 
@@ -305,15 +312,20 @@ bool DxuiSystemButton::OnMouse (const DxuiMouseEvent & ev)
 
 DxuiHitTestKind DxuiSystemButton::ClassifyHit (POINT clientDip) const
 {
+    // The caller has already hit-tested, so the point is unused -- the kind
+    // alone decides. Client is unreachable and exists to satisfy the return.
+    DxuiHitTestKind  kind = DxuiHitTestKind::Client;
+
     (void) clientDip;
 
     switch (m_kind)
     {
-        case DxuiSystemButtonKind::Min:   return DxuiHitTestKind::MinButton;
-        case DxuiSystemButtonKind::Max:   return DxuiHitTestKind::MaxButton;
-        case DxuiSystemButtonKind::Close: return DxuiHitTestKind::CloseButton;
+        case DxuiSystemButtonKind::Min:   kind = DxuiHitTestKind::MinButton;   break;
+        case DxuiSystemButtonKind::Max:   kind = DxuiHitTestKind::MaxButton;   break;
+        case DxuiSystemButtonKind::Close: kind = DxuiHitTestKind::CloseButton; break;
     }
-    return DxuiHitTestKind::Client;
+
+    return kind;
 }
 
 
@@ -328,13 +340,18 @@ DxuiHitTestKind DxuiSystemButton::ClassifyHit (POINT clientDip) const
 
 std::wstring DxuiSystemButton::AccessibleName() const
 {
+    std::wstring  name;
+
+
+
     switch (m_kind)
     {
-        case DxuiSystemButtonKind::Min:   return L"Minimize";
-        case DxuiSystemButtonKind::Max:   return L"Maximize";
-        case DxuiSystemButtonKind::Close: return L"Close";
+        case DxuiSystemButtonKind::Min:   name = L"Minimize"; break;
+        case DxuiSystemButtonKind::Max:   name = L"Maximize"; break;
+        case DxuiSystemButtonKind::Close: name = L"Close";    break;
     }
-    return L"";
+
+    return name;
 }
 
 

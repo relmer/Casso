@@ -23,37 +23,37 @@ bool DxuiDwm::GetOsBuild (DWORD & outMajor, DWORD & outBuild)
     PFN_RtlGetVersion    pfn     = nullptr;
     OsVersion            ovi     = {};
     LONG                 status  = 0;
+    bool                 ok      = false;
 
 
 
     outMajor = 0;
     outBuild = 0;
 
+    // A ladder, not three independent guards: each step needs the one before
+    // it. Any failure leaves the outputs zeroed, which every caller reads as
+    // "older than the build I asked about".
     hNtDll = GetModuleHandleW (L"ntdll.dll");
 
-    if (hNtDll == nullptr)
+    if (hNtDll != nullptr)
     {
-        return false;
+        pfn = (PFN_RtlGetVersion) GetProcAddress (hNtDll, "RtlGetVersion");
     }
 
-    pfn = (PFN_RtlGetVersion) GetProcAddress (hNtDll, "RtlGetVersion");
-
-    if (pfn == nullptr)
+    if (pfn != nullptr)
     {
-        return false;
+        ovi.dwOSVersionInfoSize = sizeof (ovi);
+        status = pfn (&ovi);
+        ok     = (status == 0);
     }
 
-    ovi.dwOSVersionInfoSize = sizeof (ovi);
-    status = pfn (&ovi);
-
-    if (status != 0)
+    if (ok)
     {
-        return false;
+        outMajor = ovi.dwMajorVersion;
+        outBuild = ovi.dwBuildNumber;
     }
 
-    outMajor = ovi.dwMajorVersion;
-    outBuild = ovi.dwBuildNumber;
-    return true;
+    return ok;
 }
 
 
@@ -75,12 +75,10 @@ bool DxuiDwm::IsWindows11OrGreater()
 
 
 
-    if (!GetOsBuild (major, build))
-    {
-        return false;
-    }
+    // Win11 reports major == 10, build >= 22000. A failed lookup leaves both
+    // zero, which fails the comparison -- no separate guard needed.
+    (void) GetOsBuild (major, build);
 
-    // Win11 reports major == 10, build >= 22000.
     return major >= 10 && build >= 22000;
 }
 
@@ -104,10 +102,9 @@ bool DxuiDwm::IsWindows10_1809OrGreater()
 
 
 
-    if (!GetOsBuild (major, build))
-    {
-        return false;
-    }
+    // Same shape as IsWindows11OrGreater: a failed lookup zeroes both outputs
+    // and therefore reports "older".
+    (void) GetOsBuild (major, build);
 
     return major >= 10 && build >= 17763;
 }

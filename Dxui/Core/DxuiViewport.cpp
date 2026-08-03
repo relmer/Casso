@@ -137,36 +137,13 @@ void DxuiViewport::SetWantsAllKeys (bool wantsAllKeys)
 bool DxuiViewport::IsReservedKeystroke (const DxuiKeyEvent & ev)
 {
     // Char events never count as reserved keystrokes; only key transitions do.
-    if (ev.kind == DxuiKeyEventKind::Char)
-    {
-        return false;
-    }
+    bool  isTransition = (ev.kind != DxuiKeyEventKind::Char);
 
-    // Tab / Shift+Tab (no Ctrl) -- focus traversal.
-    if (ev.vk == VK_TAB && !ev.ctrl)
-    {
-        return true;
-    }
-
-    // Esc (no Ctrl) -- cancel modal surfaces / drop focus.
-    if (ev.vk == VK_ESCAPE && !ev.ctrl)
-    {
-        return true;
-    }
-
-    // F10 (no Alt) -- menu activation.
-    if (ev.vk == VK_F10 && !ev.alt)
-    {
-        return true;
-    }
-
-    // Alt-alone -- menu activation.
-    if (ev.vk == VK_MENU)
-    {
-        return true;
-    }
-
-    return false;
+    return isTransition
+        && ((ev.vk == VK_TAB    && !ev.ctrl)     // focus traversal
+         || (ev.vk == VK_ESCAPE && !ev.ctrl)     // cancel modal / drop focus
+         || (ev.vk == VK_F10    && !ev.alt)      // menu activation
+         ||  ev.vk == VK_MENU);                  // Alt-alone, menu activation
 }
 
 
@@ -255,14 +232,13 @@ void DxuiViewport::Paint (
 
 bool DxuiViewport::OnMouse (const DxuiMouseEvent & ev)
 {
+    bool  forwards = m_consumesInput && m_sink != nullptr;
+
+
+
     DXUI_ASSERT_UI_THREAD();
 
-    if (m_consumesInput && m_sink != nullptr)
-    {
-        return m_sink->OnViewportMouse (ev);
-    }
-
-    return false;
+    return forwards && m_sink->OnViewportMouse (ev);
 }
 
 
@@ -284,19 +260,16 @@ bool DxuiViewport::OnMouse (const DxuiMouseEvent & ev)
 
 bool DxuiViewport::OnKey (const DxuiKeyEvent & ev)
 {
+    // wantsAllKeys overrides the reservation: the sink then sees Tab / Esc /
+    // F10 / Alt too, and hands back the ones it does not want by returning
+    // false itself.
+    bool  forwards = m_consumesInput
+                     && m_sink != nullptr
+                     && (m_wantsAllKeys || !IsReservedKeystroke (ev));
+
     DXUI_ASSERT_UI_THREAD();
 
-    if (!m_consumesInput || m_sink == nullptr)
-    {
-        return false;
-    }
-
-    if (!m_wantsAllKeys && IsReservedKeystroke (ev))
-    {
-        return false;
-    }
-
-    return m_sink->OnViewportKey (ev);
+    return forwards && m_sink->OnViewportKey (ev);
 }
 
 

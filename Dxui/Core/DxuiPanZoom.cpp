@@ -20,67 +20,93 @@ DxuiPanZoom::DxuiPanZoom (const Config & cfg)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  DxuiPanZoom::OnWheel
+//
+//  Three gestures share the wheel: Ctrl-wheel zooms, a horizontal wheel
+//  (or two-finger sideways pan) slides X, and a plain wheel scrolls Y.
+//  Whichever the config disables falls through unhandled.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiPanZoom::OnWheel (const DxuiMouseEvent & ev)
+{
+    bool  handled = false;
+
+
+
+    if (ev.wheelDelta == 0.0f)
+    {
+        // A zero-delta notification carries no motion to apply.
+    }
+    else if (ev.ctrl && !ev.wheelHorizontal && m_cfg.enableZoom)
+    {
+        // Ctrl + wheel zooms (this is also how a Precision Touchpad pinch
+        // arrives). Vertical wheel only -- a horizontal pinch is nonsense.
+        // Anchored on the cursor so the content under it stays fixed.
+        ApplyZoomFactor (ev.wheelDelta > 0.0f ? m_cfg.zoomStep : 1.0 / m_cfg.zoomStep,
+                         /*anchored*/ true,
+                         (float) ev.positionDip.x, (float) ev.positionDip.y);
+        handled = true;
+    }
+    else if (ev.wheelHorizontal && m_cfg.enablePanX)
+    {
+        NudgePanX ((double) ev.wheelDelta * m_cfg.wheelPanX);
+        handled = true;
+    }
+    else if (!ev.wheelHorizontal && m_cfg.enablePanY)
+    {
+        // Wheel up (+delta) reveals earlier content -> pan target DECREASES;
+        // the caller decides sign meaning via bounds, we keep +wheel = -pan
+        // so "scroll up = go back" matches every other scroll surface.
+        NudgePanY (-(double) ev.wheelDelta * m_cfg.wheelPanY, /*user*/ true);
+        handled = true;
+    }
+
+    return handled;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  DxuiPanZoom::OnMouse
+//
+//  Wheel gestures live in OnWheel; the drag states are small enough to sit
+//  inline. Anything unclaimed falls through to the caller.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool DxuiPanZoom::OnMouse (const DxuiMouseEvent & ev)
 {
+    bool    isLeft  = (ev.button == DxuiMouseButton::Left);
+    bool    handled = false;
+    double  dx      = 0.0;
+    double  dy      = 0.0;
+
+
+
     switch (ev.kind)
     {
     case DxuiMouseEventKind::Wheel:
-        {
-            if (ev.wheelDelta == 0.0f)
-            {
-                return false;
-            }
-
-            // Ctrl + wheel zooms (this is also how a Precision Touchpad pinch
-            // arrives). Vertical wheel only -- a horizontal pinch is nonsense.
-            // Anchored on the cursor so the content under it stays fixed.
-            if (ev.ctrl && !ev.wheelHorizontal && m_cfg.enableZoom)
-            {
-                ApplyZoomFactor (ev.wheelDelta > 0.0f ? m_cfg.zoomStep : 1.0 / m_cfg.zoomStep,
-                                 /*anchored*/ true,
-                                 (float) ev.positionDip.x, (float) ev.positionDip.y);
-                return true;
-            }
-
-            if (ev.wheelHorizontal)
-            {
-                if (! m_cfg.enablePanX)
-                {
-                    return false;
-                }
-                NudgePanX ((double) ev.wheelDelta * m_cfg.wheelPanX);
-                return true;
-            }
-
-            if (! m_cfg.enablePanY)
-            {
-                return false;
-            }
-            // Wheel up (+delta) reveals earlier content -> pan target DECREASES;
-            // the caller decides sign meaning via bounds, we keep +wheel = -pan
-            // so "scroll up = go back" matches every other scroll surface.
-            NudgePanY (-(double) ev.wheelDelta * m_cfg.wheelPanY, /*user*/ true);
-            return true;
-        }
+        handled = OnWheel (ev);
+        break;
 
     case DxuiMouseEventKind::Down:
-        if (ev.button == DxuiMouseButton::Left && m_cfg.enableDrag)
+        if (isLeft && m_cfg.enableDrag)
         {
             m_dragging = true;
             m_dragLast = ev.positionDip;
-            return true;
+            handled    = true;
         }
-        return false;
+        break;
 
     case DxuiMouseEventKind::Move:
         if (m_dragging)
         {
-            double dx = (double) (ev.positionDip.x - m_dragLast.x);
-            double dy = (double) (ev.positionDip.y - m_dragLast.y);
+            dx         = (double) (ev.positionDip.x - m_dragLast.x);
+            dy         = (double) (ev.positionDip.y - m_dragLast.y);
             m_dragLast = ev.positionDip;
 
             // A drag FRAMES the magnified view (moving the camera), it does not
@@ -92,25 +118,29 @@ bool DxuiPanZoom::OnMouse (const DxuiMouseEvent & ev)
             {
                 NudgePanX (-dx * (double) m_dragPerPxX);
             }
+
             if (dy != 0.0)
             {
                 NudgePanYCam (dy * (double) m_dragPerPxY);
             }
-            return true;
+
+            handled = true;
         }
-        return false;
+        break;
 
     case DxuiMouseEventKind::Up:
-        if (m_dragging && ev.button == DxuiMouseButton::Left)
+        if (m_dragging && isLeft)
         {
             m_dragging = false;
-            return true;
+            handled    = true;
         }
-        return false;
+        break;
 
     default:
-        return false;
+        break;
     }
+
+    return handled;
 }
 
 
@@ -125,31 +155,38 @@ bool DxuiPanZoom::OnMouse (const DxuiMouseEvent & ev)
 
 bool DxuiPanZoom::OnKey (const DxuiKeyEvent & ev)
 {
-    if (ev.kind != DxuiKeyEventKind::Down || ! ev.ctrl || ! m_cfg.enableZoom)
+    // Only Ctrl+key-down is ours, and only when zoom is enabled at all.
+    bool  zooms   = (ev.kind == DxuiKeyEventKind::Down) && ev.ctrl && m_cfg.enableZoom;
+    bool  handled = false;
+
+    if (zooms)
     {
-        return false;
+        handled = true;   // the default arm below takes it back
+
+        switch (ev.vk)
+        {
+        case VK_OEM_PLUS:
+        case VK_ADD:
+            ApplyZoomFactor (m_cfg.zoomStep);
+            break;
+
+        case VK_OEM_MINUS:
+        case VK_SUBTRACT:
+            ApplyZoomFactor (1.0 / m_cfg.zoomStep);
+            break;
+
+        case '0':
+        case VK_NUMPAD0:
+            ResetZoom();
+            break;
+
+        default:
+            handled = false;
+            break;
+        }
     }
 
-    switch (ev.vk)
-    {
-    case VK_OEM_PLUS:
-    case VK_ADD:
-        ApplyZoomFactor (m_cfg.zoomStep);
-        return true;
-
-    case VK_OEM_MINUS:
-    case VK_SUBTRACT:
-        ApplyZoomFactor (1.0 / m_cfg.zoomStep);
-        return true;
-
-    case '0':
-    case VK_NUMPAD0:
-        ResetZoom();
-        return true;
-
-    default:
-        return false;
-    }
+    return handled;
 }
 
 
@@ -164,27 +201,36 @@ bool DxuiPanZoom::OnKey (const DxuiKeyEvent & ev)
 
 bool DxuiPanZoom::Tick (double nowSec)
 {
-    double dt = (m_lastTickSec < 0.0) ? 0.0 : (nowSec - m_lastTickSec);
+    double  dt     = (m_lastTickSec < 0.0) ? 0.0 : (nowSec - m_lastTickSec);
+    bool    moving = false;
+
+
+
     m_lastTickSec = nowSec;
 
     if (dt <= 0.0)
     {
-        return (m_zoom.cur != m_zoom.target) || (m_panX.cur != m_panX.target) ||
-               (m_panY.cur != m_panY.target) || (m_panYCam.cur != m_panYCam.target) ||
-               (m_overscrollY.cur != m_overscrollY.target);
+        // First tick, or two ticks in the same instant: nothing to advance,
+        // but report whether a glide is still in flight so the caller keeps
+        // asking for frames.
+        moving = (m_zoom.cur != m_zoom.target) || (m_panX.cur != m_panX.target)
+              || (m_panY.cur != m_panY.target) || (m_panYCam.cur != m_panYCam.target)
+              || (m_overscrollY.cur != m_overscrollY.target);
     }
-
-    bool moving = false;
-    moving |= EaseToward (m_zoom, dt, m_cfg.zoomEaseTauSec);
-    moving |= EaseToward (m_panX, dt, m_cfg.easeTauSec);
-    moving |= EaseToward (m_panY, dt, m_cfg.easeTauSec);
-    moving |= EaseToward (m_panYCam, dt, m_cfg.easeTauSec);
-    moving |= EaseToward (m_overscrollY, dt, m_cfg.easeTauSec);
-
-    if (moving)
+    else
     {
-        Changed();
+        moving |= EaseToward (m_zoom, dt, m_cfg.zoomEaseTauSec);
+        moving |= EaseToward (m_panX, dt, m_cfg.easeTauSec);
+        moving |= EaseToward (m_panY, dt, m_cfg.easeTauSec);
+        moving |= EaseToward (m_panYCam, dt, m_cfg.easeTauSec);
+        moving |= EaseToward (m_overscrollY, dt, m_cfg.easeTauSec);
+
+        if (moving)
+        {
+            Changed();
+        }
     }
+
     return moving;
 }
 
@@ -604,29 +650,37 @@ void DxuiPanZoom::ClampTargets()
 
 bool DxuiPanZoom::EaseToward (Eased & v, double dtSec, double tauSec)
 {
-    double diff = v.target - v.cur;
-    if (diff == 0.0)
-    {
-        return false;
-    }
+    double  diff   = v.target - v.cur;
+    double  k      = 0.0;
+    bool    moving = false;
 
-    if (tauSec <= 0.0)
-    {
-        v.cur = v.target;
-        return false;
-    }
 
-    // Frame-rate independent exponential glide toward a (possibly moving) target.
-    double k = 1.0 - exp (-dtSec / tauSec);
-    v.cur += diff * k;
 
-    // Close enough -> snap and stop animating.
-    if (fabs (v.target - v.cur) < 0.01)
+    // Already there, or easing disabled (tau 0 means snap): either way the
+    // value ends ON the target and nothing is still in flight.
+    if (diff != 0.0 && tauSec <= 0.0)
     {
         v.cur = v.target;
-        return false;
     }
-    return true;
+    else if (diff != 0.0)
+    {
+        // Frame-rate independent exponential glide toward a (possibly moving)
+        // target.
+        k      = 1.0 - exp (-dtSec / tauSec);
+        v.cur += diff * k;
+
+        // Close enough -> snap and stop animating.
+        if (fabs (v.target - v.cur) < 0.01)
+        {
+            v.cur = v.target;
+        }
+        else
+        {
+            moving = true;
+        }
+    }
+
+    return moving;
 }
 
 
