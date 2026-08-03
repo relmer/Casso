@@ -114,15 +114,32 @@ restoring it returns the tree to green.
 
 ## Test counts differ by config, on purpose
 
-Debug **2809**, Release **2807**. Both must report `Test Run Successful` — a
+Debug **2813**, Release **2810**. Both must report `Test Run Successful` — a
 count on its own proves nothing, which is the whole point of this section.
 
 | Only in | Tests | Why |
 |---|---|---|
 | Debug | 4 × `DxuiPopupHostPoolTests` | assert on `PopupHits()`/`PopupMisses()`, which are `#ifdef _DEBUG` |
 | Debug | `CycleEmulation_SkippedInDebug` | sentinel |
-| Release | `CycleEmulation_MeetsBudget`, `CycleEmulation_StableRunToRun` | perf assertions are meaningless unoptimized |
+| Release | `CycleEmulation_MeetsBudget` | perf assertions are meaningless unoptimized |
 | Release | `PoolInstrumentation_SkippedInRelease` | sentinel |
+
+**`CycleEmulation_StableRunToRun` was deleted, not fixed.** It sampled five
+runs and asserted `worst <= median * 1.6` — a pure *variance* gate on
+wall-clock time, which measures the host's scheduler, not this code. It failed
+about one full-suite run in three on a developer machine doing anything else,
+while the throughput it was nominally guarding was never in question (worst
+seen: 31 ms against the 97.75 ms budget).
+
+It also carried no signal `CycleEmulation_MeetsBudget` lacks: a real slowdown
+moves the median, and the budget test reads the median directly. The tell that
+it was measuring the wrong thing was its own history — the tolerance had
+already been widened 30% → 60% chasing a hosted-CI outlier, so the constant was
+tracking the noise floor of whatever machine ran it.
+
+Throughput still has a gate. Stability of an elapsed-time measurement on a
+shared machine is not something a unit test can assert, and a test that fails
+a third of the time teaches people to re-run rather than to read.
 
 Each side names what it is not covering, so the delta reads from the run output
 instead of needing a bisect. That is deliberate: Release once aborted at 1368 of
