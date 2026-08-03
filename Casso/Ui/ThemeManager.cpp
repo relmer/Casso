@@ -20,52 +20,52 @@ ThemeBootstrapAction ThemeBootstrapPlanner::Plan (
     const std::string & embeddedThemeJson,
     int                 currentVersion)
 {
-    HRESULT         hr        = S_OK;
-    JsonValue       parsed;
-    JsonParseError  err;
-    bool            isBuiltIn = false;
-    int             version   = 0;
+    HRESULT               hr        = S_OK;
+    JsonValue             parsed;
+    JsonParseError        err;
+    bool                  isBuiltIn = false;
+    int                   version   = 0;
+    ThemeBootstrapAction  action    = ThemeBootstrapAction::Skip;
+    bool                  parseable = (themeJsonOnDisk != nullptr);
 
 
 
-    if (themeJsonOnDisk == nullptr)
+    // Missing or unparseable: install the built-in copy. A file we cannot
+    // read is indistinguishable from no file for bootstrap purposes.
+    if (parseable)
     {
-        return ThemeBootstrapAction::InstallBuiltIn;
+        hr        = JsonParser::Parse (*themeJsonOnDisk, parsed, err);
+        parseable = SUCCEEDED (hr) && parsed.GetType() == JsonType::Object;
     }
 
-    hr = JsonParser::Parse (*themeJsonOnDisk, parsed, err);
-
-    if (FAILED (hr) || parsed.GetType() != JsonType::Object)
+    if (parseable)
     {
-        return ThemeBootstrapAction::InstallBuiltIn;
+        hr = parsed.GetBool ("$cassoBuiltIn", isBuiltIn);
+        IGNORE_RETURN_VALUE (hr, S_OK);
+
+        hr = parsed.GetInt ("$cassoThemeVersion", version);
+        IGNORE_RETURN_VALUE (hr, S_OK);
     }
 
-    hr = parsed.GetBool ("$cassoBuiltIn", isBuiltIn);
-    IGNORE_RETURN_VALUE (hr, S_OK);
-
-    if (!isBuiltIn)
+    // A theme the USER owns ($cassoBuiltIn absent or false) is never touched.
+    // For one of ours, either drift from the embedded canonical copy (a
+    // developer edited it without bumping currentVersion) or an older stamp
+    // re-extracts on the next launch.
+    if (!parseable)
     {
-        return ThemeBootstrapAction::Skip;
+        action = ThemeBootstrapAction::InstallBuiltIn;
+    }
+    else if (!isBuiltIn)
+    {
+        action = ThemeBootstrapAction::Skip;
+    }
+    else if ((!embeddedThemeJson.empty() && *themeJsonOnDisk != embeddedThemeJson)
+             || version < currentVersion)
+    {
+        action = ThemeBootstrapAction::InstallBuiltIn;
     }
 
-    // Built-in marker says "this is ours" -- compare bytes against the
-    // embedded canonical copy. Any drift (developer edited the embedded
-    // theme.json without bumping currentVersion) re-extracts on the
-    // next launch automatically.
-    if (! embeddedThemeJson.empty() && *themeJsonOnDisk != embeddedThemeJson)
-    {
-        return ThemeBootstrapAction::InstallBuiltIn;
-    }
-
-    hr = parsed.GetInt ("$cassoThemeVersion", version);
-    IGNORE_RETURN_VALUE (hr, S_OK);
-
-    if (version < currentVersion)
-    {
-        return ThemeBootstrapAction::InstallBuiltIn;
-    }
-
-    return ThemeBootstrapAction::Skip;
+    return action;
 }
 
 
@@ -292,21 +292,21 @@ void ThemeManager::SetActiveMachineName (const std::string & machineDisplayName)
 
 
 
-    if (m_activeMachine == machineDisplayName)
+    // Re-notifying listeners for the same machine would re-resolve and
+    // re-publish an identical theme every frame.
+    if (m_activeMachine != machineDisplayName)
     {
-        return;
-    }
+        m_activeMachine = machineDisplayName;
 
-    m_activeMachine = machineDisplayName;
-
-    active = GetActiveTheme();
-    if (active != nullptr)
-    {
-        // Listeners see the resolved theme, not the base, so chrome /
-        // CRT picks up the new variant on the next frame without any
-        // additional plumbing on their end.
-        LoadedTheme  resolved = active->ResolveForMachine (m_activeMachine);
-        NotifyListeners (resolved);
+        active = GetActiveTheme();
+        if (active != nullptr)
+        {
+            // Listeners see the resolved theme, not the base, so chrome /
+            // CRT picks up the new variant on the next frame without any
+            // additional plumbing on their end.
+            LoadedTheme  resolved = active->ResolveForMachine (m_activeMachine);
+            NotifyListeners (resolved);
+        }
     }
 }
 

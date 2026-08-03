@@ -595,12 +595,20 @@ int WINAPI wWinMain (
         shell->DumpTrace (L"exit");
     }
 
-    s_pTraceShell = nullptr;
-    return exitCode;
-
+    // Success falls into the same tail the bails jump to: clearing the trace
+    // back-pointer must happen exactly once, on every path, before the shell
+    // it points at is destroyed.
 Error:
     s_pTraceShell = nullptr;
-    return FAILED (hr) ? 1 : 0;
+
+    // exitCode is still 0 for any bail, including BAIL_OUT_IF (userExited) --
+    // dismissing a startup dialog is a clean exit, not a failure.
+    if (FAILED (hr))
+    {
+        exitCode = 1;
+    }
+
+    return exitCode;
 }
 
 

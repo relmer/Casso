@@ -60,55 +60,78 @@ void SeedDefaultColumns (std::array<InputLogicalColumn, kInputColumnCount> & col
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  MatchesGamePort
+//
+//  The game-port half of the filter. Host and Guest rows apply the SAME
+//  rule and differ only in which keyboard toggle governs a non-game-port
+//  event, so that toggle is the parameter rather than a duplicated switch.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+static bool MatchesGamePort (
+    InputGamePortClass        gamePort,
+    bool                      showKeyboard,
+    const InputFilterState &  f) noexcept
+{
+    bool  shown = true;
+
+    switch (gamePort)
+    {
+        case InputGamePortClass::None:
+            shown = showKeyboard;
+            break;
+
+        case InputGamePortClass::Global:
+            // A whole-port event (the PTRIG strobe) belongs to whichever
+            // device the user is watching, so either toggle reveals it.
+            shown = f.showJoystick || f.showPaddle;
+            break;
+
+        case InputGamePortClass::Pair0:
+        case InputGamePortClass::Pair1:
+            // An axis pair is a joystick or a pair of paddles depending on how
+            // the user mapped it; the row follows that mapping's toggle.
+            shown = f.pairIsJoystick[(gamePort == InputGamePortClass::Pair0) ? 0 : 1]
+                        ? f.showJoystick
+                        : f.showPaddle;
+            break;
+    }
+
+    return shown;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  MatchesFilter
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool MatchesFilter (const InputEventDisplay & e, const InputFilterState & f) noexcept
 {
-    bool  pairIsJoystick = true;
+    bool  shown = true;
 
 
 
     switch (e.category)
     {
         case InputEventCategory::Host:
-            switch (e.gamePort)
-            {
-                case InputGamePortClass::None:
-                    return f.showHostKeyboard;
-
-                case InputGamePortClass::Global:
-                    return f.showJoystick || f.showPaddle;
-
-                case InputGamePortClass::Pair0:
-                case InputGamePortClass::Pair1:
-                    pairIsJoystick = f.pairIsJoystick[(e.gamePort == InputGamePortClass::Pair0) ? 0 : 1];
-                    return pairIsJoystick ? f.showJoystick : f.showPaddle;
-            }
-            return true;
-
-        case InputEventCategory::System:
-            return true;
+            shown = MatchesGamePort (e.gamePort, f.showHostKeyboard, f);
+            break;
 
         case InputEventCategory::Guest:
-            switch (e.gamePort)
-            {
-                case InputGamePortClass::None:
-                    return f.showEmuKeyboard;
+            shown = MatchesGamePort (e.gamePort, f.showEmuKeyboard, f);
+            break;
 
-                case InputGamePortClass::Global:
-                    return f.showJoystick || f.showPaddle;
-
-                case InputGamePortClass::Pair0:
-                case InputGamePortClass::Pair1:
-                    pairIsJoystick = f.pairIsJoystick[(e.gamePort == InputGamePortClass::Pair0) ? 0 : 1];
-                    return pairIsJoystick ? f.showJoystick : f.showPaddle;
-            }
-            return true;
+        case InputEventCategory::System:
+            // System rows have no toggle of their own and are always shown.
+            break;
     }
 
-    return true;
+    return shown;
 }
 
 

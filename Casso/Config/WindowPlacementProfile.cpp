@@ -215,23 +215,22 @@ bool WindowPlacementProfile::TryLoad (
     const std::string & topologyKey,
     Bounds            & outBounds) const
 {
-    if (m_prefs == nullptr)
+    bool  found = false;
+
+    // A zero-sized stored placement counts as absent -- restoring it would
+    // hand the user an invisible window.
+    if (m_prefs != nullptr)
     {
-        return false;
+        auto  it = m_prefs->window.placements.find (topologyKey);
+
+        if (it != m_prefs->window.placements.end() && it->second.w > 0 && it->second.h > 0)
+        {
+            outBounds = it->second;
+            found     = true;
+        }
     }
 
-    auto  it = m_prefs->window.placements.find (topologyKey);
-    if (it == m_prefs->window.placements.end())
-    {
-        return false;
-    }
-    if (it->second.w <= 0 || it->second.h <= 0)
-    {
-        return false;
-    }
-
-    outBounds = it->second;
-    return true;
+    return found;
 }
 
 

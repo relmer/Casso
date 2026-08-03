@@ -60,6 +60,15 @@ private:
         Canceled,    // the user backed out -- nothing was delivered, no error
     };
 
+    // One arm each for the strip-level printer commands, so OnPrinterCommand
+    // stays dispatch. Each owns restarting the printer worker on every path it
+    // takes -- the caller stopped it so the raster could be read from a
+    // quiesced worker, and nothing prints again until someone restarts it.
+    void  OnPrinterNoPage  (int id, class PrinterJob * job);
+    void  OnPrinterCopy    (class PrinterJob * job);
+    void  OnPrinterDiscard (class PrinterJob * job);
+    void  OnPrinterDeliver (class PrinterJob * job, bool print);
+
     // Renders the strip to a PNG the user picks through IFileSaveDialog
     // (defaulting to <Pictures>\Casso Prints and a timestamped name), at the
     // configured dpi / dot style. Reports dialog cancellation through

@@ -191,28 +191,26 @@ HDC  WindowCommandManager::CreateDcFromDevNames (const PRINTDLGW & pd)
 
 
 
-    if (pd.hDevNames == nullptr)
-    {
-        return nullptr;
-    }
-
+    // The driver / device names are mandatory: without them there is nothing
+    // to hand CreateDC. Note the GlobalUnlock is paired inside the same
+    // branch that locked -- a bare return between the two would leak the lock.
+    if (pd.hDevNames != nullptr)
     {
         const DEVNAMES *  dn = (const DEVNAMES *) GlobalLock (pd.hDevNames);
 
-        if (dn == nullptr)
+        if (dn != nullptr)
         {
-            return nullptr;
-        }
+            const wchar_t *  base = (const wchar_t *) dn;
 
-        const wchar_t *  base = (const wchar_t *) dn;
-        driver = base + dn->wDriverOffset;
-        device = base + dn->wDeviceOffset;
-        GlobalUnlock (pd.hDevNames);
+            driver = base + dn->wDriverOffset;
+            device = base + dn->wDeviceOffset;
+            GlobalUnlock (pd.hDevNames);
+        }
     }
 
     // Copy the (variable-length) DEVMODE so the worker thread owns stable
     // memory independent of the caller's global handle lock.
-    if (pd.hDevMode != nullptr)
+    if (!device.empty() && pd.hDevMode != nullptr)
     {
         const DEVMODEW *  dm = (const DEVMODEW *) GlobalLock (pd.hDevMode);
 
@@ -220,17 +218,22 @@ HDC  WindowCommandManager::CreateDcFromDevNames (const PRINTDLGW & pd)
         {
             const unsigned char *  p  = (const unsigned char *) dm;
             size_t                 sz = (size_t) dm->dmSize + dm->dmDriverExtra;
+
             devmode.assign (p, p + sz);
             GlobalUnlock (pd.hDevMode);
         }
     }
 
-    std::thread ([&] ()
+    // A null DEVMODE is fine (driver defaults); an empty device name is not.
+    if (!device.empty())
     {
-        const DEVMODEW *  dmp = devmode.empty() ? nullptr : (const DEVMODEW *) devmode.data();
+        std::thread ([&] ()
+        {
+            const DEVMODEW *  dmp = devmode.empty() ? nullptr : (const DEVMODEW *) devmode.data();
 
-        hdc = CreateDCW (driver.c_str(), device.c_str(), nullptr, dmp);
-    }).join();
+            hdc = CreateDCW (driver.c_str(), device.c_str(), nullptr, dmp);
+        }).join();
+    }
 
     return hdc;
 }
@@ -1452,97 +1455,145 @@ Error:
 
 void WindowCommandManager::OnPrinterCommand (int id)
 {
-    HRESULT        hr      = S_OK;
-    PrinterJob *   job     = nullptr;
-    fs::path       file;
-    PrintOutcome   outcome = PrintOutcome::Delivered;
+    PrinterJob *   job   = nullptr;
+    bool           known = (id == IDM_PRINTER_DISCARD || id == IDM_PRINTER_COPY ||
+                            id == IDM_PRINTER_PRINT   || id == IDM_PRINTER_SAVEAS)
+                           && m_shell.m_refs.printerCard != nullptr;
 
 
 
-    if ((id != IDM_PRINTER_DISCARD && id != IDM_PRINTER_COPY &&
-         id != IDM_PRINTER_PRINT && id != IDM_PRINTER_SAVEAS) ||
-        m_shell.m_refs.printerCard == nullptr)
+    if (known)
     {
-        return;
-    }
+        // Take ownership of the strip: stop the worker, then flush any tail
+        // bytes. Every strip-level command acts on the whole page, so we drain
+        // first and read the job's raster from a quiesced worker (no
+        // concurrent mutation). Every arm below is responsible for restarting
+        // the worker -- that is why they take the job rather than re-reading it.
+        m_shell.m_printerWorker.Stop();
 
-    bool   discard = (id == IDM_PRINTER_DISCARD);
-    bool   copy    = (id == IDM_PRINTER_COPY);
-    bool   print   = (id == IDM_PRINTER_PRINT);
-    bool   saveAs  = (id == IDM_PRINTER_SAVEAS);
-
-    // Take ownership of the strip: stop the worker, then flush any tail bytes.
-    // Every strip-level command acts on the whole page, so we drain first and
-    // read the job's raster from a quiesced worker (no concurrent mutation).
-    m_shell.m_printerWorker.Stop();
-
-    {
-        vector<PrinterEvent>   events;
-        m_shell.m_printerWorker.FlushNow (events);
-    }
-
-    job = m_shell.m_printerWorker.Job();
-
-    // "No page" also covers a strip whose drained bytes left nothing on the
-    // paper (no ink AND no feed -- e.g. a bare escape preamble): HasContent is
-    // true but RowsUsed is 0, which would otherwise reach delivery, paginate to
-    // zero pages, and surface as a scary "something went wrong".
-    if (job == nullptr || !job->HasContent() || job->Raster().RowsUsed() <= 0)
-    {
-        const wchar_t * emptyMsg = copy    ? L"The printer has no page to copy yet."
-                                 : discard ? L"The printer has no page to discard."
-                                 : print   ? L"The printer has no page to print yet."
-                                           : L"The printer has no page to save yet.";
-
-        DxuiMessageBox (m_shell.PrinterDialogOwner(), &m_shell.m_chromeTheme, emptyMsg, L"Casso Printer", MB_OK | MB_ICONINFORMATION);
-
-        if (job != nullptr)
         {
-            m_shell.m_printerWorker.Start (m_shell.m_refs.printerCard->ByteRing(), job->Raster());
+            vector<PrinterEvent>   events;
+            m_shell.m_printerWorker.FlushNow (events);
+        }
+
+        job = m_shell.m_printerWorker.Job();
+
+        // "No page" also covers a strip whose drained bytes left nothing on the
+        // paper (no ink AND no feed -- e.g. a bare escape preamble): HasContent
+        // is true but RowsUsed is 0, which would otherwise reach delivery,
+        // paginate to zero pages, and surface as a scary "something went wrong".
+        if (job == nullptr || !job->HasContent() || job->Raster().RowsUsed() <= 0)
+        {
+            OnPrinterNoPage (id, job);
+        }
+        else if (id == IDM_PRINTER_COPY)
+        {
+            OnPrinterCopy (job);
+        }
+        else if (id == IDM_PRINTER_DISCARD)
+        {
+            OnPrinterDiscard (job);
         }
         else
         {
-            m_shell.m_printerWorker.Start (m_shell.m_refs.printerCard->ByteRing());
+            OnPrinterDeliver (job, id == IDM_PRINTER_PRINT);
         }
-        return;
     }
+}
 
-    if (copy)
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnPrinterNoPage
+//
+//  Nothing on the paper: say so in the command's own words and resume. A
+//  null job means the worker never had one, so it restarts empty.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void WindowCommandManager::OnPrinterNoPage (int id, PrinterJob * job)
+{
+    const wchar_t * emptyMsg =
+        (id == IDM_PRINTER_COPY)    ? L"The printer has no page to copy yet."
+      : (id == IDM_PRINTER_DISCARD) ? L"The printer has no page to discard."
+      : (id == IDM_PRINTER_PRINT)   ? L"The printer has no page to print yet."
+                                    : L"The printer has no page to save yet.";
+
+    DxuiMessageBox (m_shell.PrinterDialogOwner(), &m_shell.m_chromeTheme, emptyMsg, L"Casso Printer", MB_OK | MB_ICONINFORMATION);
+
+    if (job != nullptr)
     {
-        hr = CopyPrintoutToClipboard (job->Raster());
-
-        // Copy never consumes the strip: resume on the same page regardless.
         m_shell.m_printerWorker.Start (m_shell.m_refs.printerCard->ByteRing(), job->Raster());
-        m_shell.NotePrinterDeliveryResult (FAILED (hr));
-
-        if (FAILED (hr))
-        {
-            DxuiMessageBox (m_shell.PrinterDialogOwner(), &m_shell.m_chromeTheme, L"Could not copy the printout to the clipboard.",
-                         L"Casso Printer", MB_OK | MB_ICONWARNING);
-        }
-        return;
     }
-
-    if (discard)
+    else
     {
-        // Tear off and throw away the current page (FR-029). Confirm first --
-        // there is no undo -- and default the dialog to "No" so a stray Enter
-        // never destroys a page.
-        int   choice = DxuiMessageBox (
-            m_shell.PrinterDialogOwner(),
-            &m_shell.m_chromeTheme,
-            L"Tear off and discard the current printout?\n\n"
-            L"The page in the printer will be thrown away without saving. "
-            L"This cannot be undone.",
-            L"Discard Printout", MB_YESNO | MB_ICONWARNING | MB_DEFBUTTON2);
+        m_shell.m_printerWorker.Start (m_shell.m_refs.printerCard->ByteRing());
+    }
+}
 
-        if (choice != IDYES)
-        {
-            // Canceled: keep the strip and resume on the same page.
-            m_shell.m_printerWorker.Start (m_shell.m_refs.printerCard->ByteRing(), job->Raster());
-            return;
-        }
 
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnPrinterCopy
+//
+//  Copy never consumes the strip: the worker resumes on the same page
+//  whether or not the clipboard accepted it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void WindowCommandManager::OnPrinterCopy (PrinterJob * job)
+{
+    HRESULT  hr = CopyPrintoutToClipboard (job->Raster());
+
+
+
+    m_shell.m_printerWorker.Start (m_shell.m_refs.printerCard->ByteRing(), job->Raster());
+    m_shell.NotePrinterDeliveryResult (FAILED (hr));
+
+    if (FAILED (hr))
+    {
+        DxuiMessageBox (m_shell.PrinterDialogOwner(), &m_shell.m_chromeTheme, L"Could not copy the printout to the clipboard.",
+                     L"Casso Printer", MB_OK | MB_ICONWARNING);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnPrinterDiscard
+//
+//  Tear off and throw away the current page (FR-029). Confirm first --
+//  there is no undo -- and default the dialog to "No" so a stray Enter
+//  never destroys a page.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void WindowCommandManager::OnPrinterDiscard (PrinterJob * job)
+{
+    int   choice = DxuiMessageBox (
+        m_shell.PrinterDialogOwner(),
+        &m_shell.m_chromeTheme,
+        L"Tear off and discard the current printout?\n\n"
+        L"The page in the printer will be thrown away without saving. "
+        L"This cannot be undone.",
+        L"Discard Printout", MB_YESNO | MB_ICONWARNING | MB_DEFBUTTON2);
+
+    if (choice != IDYES)
+    {
+        // Canceled: keep the strip and resume on the same page.
+        m_shell.m_printerWorker.Start (m_shell.m_refs.printerCard->ByteRing(), job->Raster());
+    }
+    else
+    {
         // Confirmed: play the tear-off (a random paper-tear), start a fresh
         // sheet, and drop the persisted pending copy. The problem page (if
         // any) went with it, so a latched delivery error clears too.
@@ -1550,14 +1601,35 @@ void WindowCommandManager::OnPrinterCommand (int id)
         m_shell.m_printerWorker.Start (m_shell.m_refs.printerCard->ByteRing());
         PrintJobStore::Clear (m_shell.PendingPrintDir());
         m_shell.NotePrinterDeliveryResult (false);
-        return;
     }
+}
 
-    // Print -> Windows printer; Save -> PNG via file dialog. Both are
-    // non-destructive: the paper stays so it can be delivered again.
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnPrinterDeliver
+//
+//  Print -> Windows printer; Save -> PNG via file dialog. Both are
+//  non-destructive: the paper stays so it can be delivered again, which is
+//  why every arm here restarts the worker with the SAME raster.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void WindowCommandManager::OnPrinterDeliver (PrinterJob * job, bool print)
+{
+    HRESULT        hr           = S_OK;
+    PrintOutcome   outcome      = PrintOutcome::Delivered;
+    fs::path       file;
     std::wstring   failedStage;
+    wchar_t        forceClassic[8] = {};
+    bool           modernUp     = false;
 
-    if (print)
+
+
+    if (print && GetEnvironmentVariableW (L"CASSO_CLASSIC_PRINT", forceClassic, 8) == 0)
     {
         // DCR-1: the modern OS print UI with a live preview is the default --
         // it follows the documented PrintManagerInterop contract and delivers a
@@ -1565,41 +1637,31 @@ void WindowCommandManager::OnPrinterCommand (int id)
         // on completion. ShowAsync returns S_OK once the experience is up; a
         // hard failure returns FAILED and we fall back to the classic dialog
         // (which prints with honest error reporting, just no preview pane). The
-        // CASSO_CLASSIC_PRINT env var forces the classic path -- a support hatch
-        // for the rare machine whose print stack misbehaves.
-        wchar_t  forceClassic[8] = {};
+        // CASSO_CLASSIC_PRINT env var forces the classic path -- a support
+        // hatch for the rare machine whose print stack misbehaves.
+        const GlobalUserPrefs &  prefs  = m_shell.m_globalPrefs;
+        HRESULT                  hrShow = m_modernPrint.ShowAsync (m_shell.m_hwnd, job->Raster(),
+                                                                   PrintDpiFromPrefs (prefs),
+                                                                   PrintDotStyleFromPrefs (prefs));
 
-        if (GetEnvironmentVariableW (L"CASSO_CLASSIC_PRINT", forceClassic, 8) == 0)
-        {
-            const GlobalUserPrefs &  prefs   = m_shell.m_globalPrefs;
-            HRESULT                  hrShow  = S_OK;
-
-            hrShow = m_modernPrint.ShowAsync (m_shell.m_hwnd, job->Raster(),
-                                              PrintDpiFromPrefs (prefs),
-                                              PrintDotStyleFromPrefs (prefs));
-
-            if (SUCCEEDED (hrShow))
-            {
-                m_shell.m_printerWorker.Start (m_shell.m_refs.printerCard->ByteRing(), job->Raster());
-                return;
-            }
-        }
-
-        hr = PrintToWindowsPrinter (job->Raster(), failedStage, outcome);
-    }
-    else
-    {
-        hr = SavePrintoutAs (job->Raster(), file, outcome);
+        // The async session owns the outcome from here; resume and let its
+        // completion callback post the result.
+        modernUp = SUCCEEDED (hrShow);
     }
 
-    if (outcome == PrintOutcome::Canceled)
+    if (!modernUp)
     {
-        // User canceled the print / save dialog: keep the strip, no clear.
+        hr = print ? PrintToWindowsPrinter (job->Raster(), failedStage, outcome)
+                   : SavePrintoutAs (job->Raster(), file, outcome);
+    }
+
+    if (modernUp || outcome == PrintOutcome::Canceled)
+    {
+        // Modern session up, or the user canceled the print / save dialog:
+        // keep the strip either way, no clear.
         m_shell.m_printerWorker.Start (m_shell.m_refs.printerCard->ByteRing(), job->Raster());
-        return;
     }
-
-    if (SUCCEEDED (hr))
+    else if (SUCCEEDED (hr))
     {
         std::wstring   msg = print
                                  ? std::wstring (L"Sent the printout to the printer.")

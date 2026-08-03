@@ -243,42 +243,55 @@ void StartupDownloadDialog::RemovePartialFiles (DialogState & state)
 //
 //  StatusText
 //
+//  The right-hand cell of one asset row. Every state but Downloading is a
+//  fixed word; Downloading is the only one that has to be computed, so it
+//  falls through the switch to the percentage below.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 std::wstring StartupDownloadDialog::StatusText (const EntryRuntime & rt, std::uint64_t expected)
 {
     EntryStatus    s    = (EntryStatus) rt.status.load (std::memory_order_relaxed);
     std::uint64_t  done = rt.bytesDone.load (std::memory_order_relaxed);
+    std::wstring   text;
+    wchar_t        buf[16] = {};
+    int            pct     = 0;
 
 
 
     switch (s)
     {
-        case EntryStatus::Pending:     return L"Waiting";
-        case EntryStatus::Skipped:     return L"";
-        case EntryStatus::Done:        return L"Done";
-        case EntryStatus::Failed:      return L"Failed";
-        case EntryStatus::Canceled:    return L"Canceled";
+        case EntryStatus::Pending:     text = L"Waiting";  break;
+        case EntryStatus::Skipped:     text = L"";         break;
+        case EntryStatus::Done:        text = L"Done";     break;
+        case EntryStatus::Failed:      text = L"Failed";   break;
+        case EntryStatus::Canceled:    text = L"Canceled"; break;
+
         case EntryStatus::Downloading:
+            if (expected == 0)
+            {
+                // Unknown size (no Content-Length): a busy indicator is the
+                // most honest thing we can show -- any percentage would be
+                // invented.
+                text = L"...";
+            }
+            else
+            {
+                // Clamped: a server that sends more than it promised must not
+                // read as "137%".
+                pct = (int) ((100ull * done) / expected);
+                if (pct > 100)
+                {
+                    pct = 100;
+                }
+
+                swprintf_s (buf, L"%d%%", pct);
+                text = buf;
+            }
             break;
     }
 
-    if (expected == 0)
-    {
-        // Unknown size: simple busy indicator.
-        return L"...";
-    }
-
-    int  pct = (int) ((100ull * done) / expected);
-
-    if (pct > 100)
-    {
-        pct = 100;
-    }
-
-    wchar_t buf[16] = {};
-    swprintf_s (buf, L"%d%%", pct);
-    return buf;
+    return text;
 }
 
 
@@ -477,35 +490,37 @@ std::optional<int> StartupDownloadDialog::HandleBodyInput (const DialogInputEven
 
 
 
-    if (state.downloading)
+    // Once the workers are running the selection is locked in -- letting a
+    // checkbox toggle now would disagree with what is already downloading.
+    if (!state.downloading)
     {
-        return std::nullopt;
-    }
+        absX = ev.xPx + state.bodyOriginXPx;
+        absY = ev.yPx + state.bodyOriginYPx;
 
-    absX = ev.xPx + state.bodyOriginXPx;
-    absY = ev.yPx + state.bodyOriginYPx;
-
-    for (DxuiCheckbox & cb : state.checkboxes)
-    {
-        switch (ev.kind)
+        for (DxuiCheckbox & cb : state.checkboxes)
         {
-            case DialogInputEvent::Kind::LeftButtonDown:
-                cb.OnLButtonDown (absX, absY);
-                break;
+            switch (ev.kind)
+            {
+                case DialogInputEvent::Kind::LeftButtonDown:
+                    cb.OnLButtonDown (absX, absY);
+                    break;
 
-            case DialogInputEvent::Kind::LeftButtonUp:
-                cb.OnLButtonUp (absX, absY);
-                break;
+                case DialogInputEvent::Kind::LeftButtonUp:
+                    cb.OnLButtonUp (absX, absY);
+                    break;
 
-            case DialogInputEvent::Kind::MouseMove:
-                cb.SetMouseHover (absX, absY);
-                break;
+                case DialogInputEvent::Kind::MouseMove:
+                    cb.SetMouseHover (absX, absY);
+                    break;
 
-            case DialogInputEvent::Kind::KeyDown:
-                break;
+                case DialogInputEvent::Kind::KeyDown:
+                    break;
+            }
         }
     }
 
+    // Never claims a command id: the checkboxes mutate the entries in place,
+    // and only the button row can close this dialog.
     return std::nullopt;
 }
 
@@ -557,160 +572,168 @@ StartupDownloadResult StartupDownloadDialog::Show (HINSTANCE                hIns
     HRESULT                                hrCreate     = S_OK;
 
 
+    // Nothing missing: never put a dialog on screen just to say so. The
+    // caller reads NothingToDo as "carry on booting".
     if (set.Empty())
     {
-        return StartupDownloadResult::NothingToDo;
-    }
-
-    state.set        = &set;
-    state.runtime    = std::vector<EntryRuntime> (set.entries.size());
-    state.checkboxes = std::vector<DxuiCheckbox> (set.entries.size());
-    state.dpi        = sysDpi;
-    requiresRoms     = set.RequiresRoms();
-    rowCount         = (int) set.entries.size();
-
-    for (size_t i = 0; i < set.entries.size(); i++)
-    {
-        DxuiCheckbox       & cb    = state.checkboxes[i];
-        StartupAssetEntry  & entry = set.entries[i];
-
-        cb.SetDpi      (sysDpi);
-        cb.SetLabel    (entry.displayName);
-        cb.SetChecked  (entry.selected);
-        cb.SetEnabled  (entry.selectable);
-        cb.SetOnChange ([&entry] (bool checked) { entry.selected = checked; });
-    }
-
-    for (const StartupAssetEntry & entry : set.entries)
-    {
-        if (entry.groupLabel != prevGroup)
-        {
-            headerCount++;
-            prevGroup = entry.groupLabel;
-        }
-    }
-
-    title  = L"Casso ";
-    title += s_kchEmDash;
-    title += L" Download assets";
-
-    if (requiresRoms)
-    {
-        std::wstring  machineStr = machineDisplayName.empty() ? L"" : machineDisplayName;
-
-        intro  = L"The ";
-        intro += machineStr;
-        intro += L" needs the following files to boot.\n"
-                 L"Click Download to fetch them now, or Exit to quit.";
+        state.result = StartupDownloadResult::NothingToDo;
     }
     else
     {
-        intro = L"The following optional files are missing. "
-                L"Choose what to download, then click Download,\n"
-                L"Skip to continue without them, or Exit to quit.";
-    }
+        state.set        = &set;
+        state.runtime    = std::vector<EntryRuntime> (set.entries.size());
+        state.checkboxes = std::vector<DxuiCheckbox> (set.entries.size());
+        state.dpi        = sysDpi;
+        requiresRoms     = set.RequiresRoms();
+        rowCount         = (int) set.entries.size();
 
-    for (wchar_t ch : intro)
-    {
-        if (ch == L'\n')
+        for (size_t i = 0; i < set.entries.size(); i++)
         {
-            introLines++;
+            DxuiCheckbox       & cb    = state.checkboxes[i];
+            StartupAssetEntry  & entry = set.entries[i];
+
+            cb.SetDpi      (sysDpi);
+            cb.SetLabel    (entry.displayName);
+            cb.SetChecked  (entry.selected);
+            cb.SetEnabled  (entry.selectable);
+            cb.SetOnChange ([&entry] (bool checked) { entry.selected = checked; });
         }
-    }
 
-    introLabel.SetText      (intro);
-    introLabel.SetTextRole  (DxuiTextRole::Body);
-    introLabel.SetTextAlign (DxuiTextHAlign::Left, DxuiTextVAlign::Top);
-
-    body.SetPaintFn ([&set, &state] (DialogPaintContext & ctx) { PaintBody (ctx, set, state); });
-    body.SetInputFn ([&state] (const DialogInputEvent & ev) { (void) HandleBodyInput (ev, state); });
-
-    content->Init (&introLabel, &body, introLines * s_kLineHeightDip + s_kIntroPadDip);
-
-    heightDip = s_kChromeDip + introLines * s_kLineHeightDip + s_kIntroPadDip
-              + headerCount * (s_kHeaderHeightDp + s_kRowGapDp + s_kHeaderGapAboveDp)
-              + rowCount    * (s_kRowHeightDp    + s_kRowGapDp);
-
-    dlg.ConfigureDownload (std::move (content), requiresRoms, s_kTickIntervalMs);
-
-    params.title                    = title;
-    params.hInstance                = hInstance;
-    params.ownerHwnd                = hwndOwner;
-    params.initialSizeDip           = { s_kBodyWidthDp, heightDip };
-    params.resizable                = false;
-    params.insetContentBelowCaption = true;
-    params.captionStyle             = DxuiCaptionStyle::CloseOnly;
-
-    hrCreate = dlg.Create (params);
-
-    if (FAILED (hrCreate))
-    {
-        return StartupDownloadResult::Exit;
-    }
-
-    dlg.SetTheme (&theme);
-
-    //  Download starts the workers in place (the button stays open and
-    //  relabels); Skip auto-closes with the default Skipped result; Exit
-    //  (the IDCANCEL / close-box button) records the Exit result. A fast
-    //  poll closes the dialog once every worker has finished.
-    dlg.SetOnDownloadClick ([&state, &dlg] ()
-    {
-        if (!state.downloading)
+        for (const StartupAssetEntry & entry : set.entries)
         {
-            state.downloading = true;
-            state.showStatus  = true;
-            dlg.DownloadButton()->SetLabel   (L"Downloading...");
-            dlg.DownloadButton()->SetEnabled (false);
-
-            if (dlg.SkipButton() != nullptr)
+            if (entry.groupLabel != prevGroup)
             {
-                dlg.SkipButton()->SetVisible (false);
+                headerCount++;
+                prevGroup = entry.groupLabel;
+            }
+        }
+
+        title  = L"Casso ";
+        title += s_kchEmDash;
+        title += L" Download assets";
+
+        if (requiresRoms)
+        {
+            std::wstring  machineStr = machineDisplayName.empty() ? L"" : machineDisplayName;
+
+            intro  = L"The ";
+            intro += machineStr;
+            intro += L" needs the following files to boot.\n"
+                     L"Click Download to fetch them now, or Exit to quit.";
+        }
+        else
+        {
+            intro = L"The following optional files are missing. "
+                    L"Choose what to download, then click Download,\n"
+                    L"Skip to continue without them, or Exit to quit.";
+        }
+
+        for (wchar_t ch : intro)
+        {
+            if (ch == L'\n')
+            {
+                introLines++;
+            }
+        }
+
+        introLabel.SetText      (intro);
+        introLabel.SetTextRole  (DxuiTextRole::Body);
+        introLabel.SetTextAlign (DxuiTextHAlign::Left, DxuiTextVAlign::Top);
+
+        body.SetPaintFn ([&set, &state] (DialogPaintContext & ctx) { PaintBody (ctx, set, state); });
+        body.SetInputFn ([&state] (const DialogInputEvent & ev) { (void) HandleBodyInput (ev, state); });
+
+        content->Init (&introLabel, &body, introLines * s_kLineHeightDip + s_kIntroPadDip);
+
+        heightDip = s_kChromeDip + introLines * s_kLineHeightDip + s_kIntroPadDip
+                  + headerCount * (s_kHeaderHeightDp + s_kRowGapDp + s_kHeaderGapAboveDp)
+                  + rowCount    * (s_kRowHeightDp    + s_kRowGapDp);
+
+        dlg.ConfigureDownload (std::move (content), requiresRoms, s_kTickIntervalMs);
+
+        params.title                    = title;
+        params.hInstance                = hInstance;
+        params.ownerHwnd                = hwndOwner;
+        params.initialSizeDip           = { s_kBodyWidthDp, heightDip };
+        params.resizable                = false;
+        params.insetContentBelowCaption = true;
+        params.captionStyle             = DxuiCaptionStyle::CloseOnly;
+
+        hrCreate = dlg.Create (params);
+
+        // No window means no way to ask, and the assets may be required to
+        // boot -- Exit is the only answer we can honestly give.
+        if (FAILED (hrCreate))
+        {
+            state.result = StartupDownloadResult::Exit;
+        }
+        else
+        {
+            dlg.SetTheme (&theme);
+
+            //  Download starts the workers in place (the button stays open and
+            //  relabels); Skip auto-closes with the default Skipped result; Exit
+            //  (the IDCANCEL / close-box button) records the Exit result. A fast
+            //  poll closes the dialog once every worker has finished.
+            dlg.SetOnDownloadClick ([&state, &dlg] ()
+            {
+                if (!state.downloading)
+                {
+                    state.downloading = true;
+                    state.showStatus  = true;
+                    dlg.DownloadButton()->SetLabel   (L"Downloading...");
+                    dlg.DownloadButton()->SetEnabled (false);
+
+                    if (dlg.SkipButton() != nullptr)
+                    {
+                        dlg.SkipButton()->SetVisible (false);
+                    }
+
+                    StartWorkers (state);
+                    dlg.Invalidate();
+                }
+            });
+
+            dlg.SetOnPoll ([&state, &dlg] ()
+            {
+                if (state.downloading
+                    && !state.finished
+                    && state.workersInFlight.load (std::memory_order_acquire) == 0)
+                {
+                    state.finished = true;
+                    JoinAllWorkers (state);
+                    RemovePartialFiles (state);
+
+                    state.result = state.anyFailed.load (std::memory_order_relaxed)
+                                      ? StartupDownloadResult::PartialDone
+                                      : StartupDownloadResult::AllDone;
+
+                    dlg.EndDialog ((int) state.result);
+                }
+            });
+
+            if (dlg.ExitButton() != nullptr)
+            {
+                dlg.ExitButton()->SetOnClick ([&state, &dlg] ()
+                {
+                    state.result = StartupDownloadResult::Exit;
+                    dlg.EndDialog (IDCANCEL);
+                });
             }
 
-            StartWorkers (state);
-            dlg.Invalidate();
-        }
-    });
+            (void) dlg.ShowModalDialog (DownloadDialog::kIdDownload);
 
-    dlg.SetOnPoll ([&state, &dlg] ()
-    {
-        if (state.downloading
-            && !state.finished
-            && state.workersInFlight.load (std::memory_order_acquire) == 0)
-        {
-            state.finished = true;
-            JoinAllWorkers (state);
-            RemovePartialFiles (state);
+            if (!state.workers.empty())
+            {
+                state.cancelFlag.store (true, std::memory_order_release);
+                JoinAllWorkers (state);
+                RemovePartialFiles (state);
 
-            state.result = state.anyFailed.load (std::memory_order_relaxed)
-                              ? StartupDownloadResult::PartialDone
-                              : StartupDownloadResult::AllDone;
-
-            dlg.EndDialog ((int) state.result);
-        }
-    });
-
-    if (dlg.ExitButton() != nullptr)
-    {
-        dlg.ExitButton()->SetOnClick ([&state, &dlg] ()
-        {
-            state.result = StartupDownloadResult::Exit;
-            dlg.EndDialog (IDCANCEL);
-        });
-    }
-
-    (void) dlg.ShowModalDialog (DownloadDialog::kIdDownload);
-
-    if (!state.workers.empty())
-    {
-        state.cancelFlag.store (true, std::memory_order_release);
-        JoinAllWorkers (state);
-        RemovePartialFiles (state);
-
-        if (state.result == StartupDownloadResult::Skipped)
-        {
-            state.result = StartupDownloadResult::Exit;
+                if (state.result == StartupDownloadResult::Skipped)
+                {
+                    state.result = StartupDownloadResult::Exit;
+                }
+            }
         }
     }
 
