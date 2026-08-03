@@ -53,11 +53,30 @@ See the Constitution's Principle VI (Thin Executable, Testable Core) and Princip
   `ch` = char (narrow OR wide), no special wide marker. E.g.
   `s_kpszHost` (LPCWSTR), `s_kchBullet` (wchar_t),
   `s_kRomCatalog` (constant array).
-- **No anonymous namespaces.** NEVER use `namespace {}`. Declare file-local
-  constants as file-scope `static constexpr` (with the `s_k` Hungarian naming
-  above); put file-local helpers as class `static` members, not free functions.
-  More broadly, strongly prefer class members over free/global functions — a
-  free function needs a very convincing justification.
+  The leading `s_` says **file-scope static** and nothing else. Class members
+  drop it and keep the rest — `kPadDip`, `kpszTitle` — so the prefix alone
+  tells you which of the two you are looking at. See the ownership rule below
+  for choosing between them; a constant is not file-scope merely because it is
+  a constant.
+- **No anonymous namespaces.** NEVER use `namespace {}`.
+- **Constants and helpers belong to a class whenever one owns them.** Ask who
+  uses it, not where it happens to sit today:
+  - Used only by one function → declare it inside that function.
+  - Used by two or more methods of the same class (or describing that class's
+    geometry, palette, timings, limits) → **private `static constexpr` member**
+    in the `.h`, named `k<Name>` with **no** `s_` prefix. `s_` marks a
+    file-scope static specifically, so a member must not carry it. Leave a
+    one-line note in the `.cpp` where a reader would otherwise hunt for them
+    (see `DxuiToggle`, `PrinterPanel`).
+  - Genuinely owned by no class — used by free/file-local code, or shared by
+    several unrelated types in the same `.cpp` → file-scope `static constexpr`
+    with the `s_k` Hungarian naming above. This is the **exception**, not the
+    default; the `s_k` prefix existing does not make file scope the norm.
+
+  Helpers follow the same rule and are stricter: a file-local helper becomes a
+  class `static` member, never a free function. More broadly, strongly prefer
+  class members over free/global functions — a free function needs a very
+  convincing justification.
 - **No magic numbers** — all numeric literals must be named constants with clear intent.
   Exceptions: 0, 1, -1, nullptr, and sizeof expressions.
 - **American spelling, ALWAYS.** Use American English everywhere — identifiers,
