@@ -115,6 +115,49 @@ private:
 
     static const BinaryOp *  FindBinaryOp (TokType token);
 
+    // Punctuation tables, consulted in this order so the lexer is
+    // longest-match: "<=" must not read as "<" then "=".
+    struct Digraph
+    {
+        char     lead;
+        char     follow;
+        TokType  type;
+    };
+
+    struct Monograph
+    {
+        char     lead;
+        TokType  type;
+    };
+
+    static const Digraph    s_kDigraphs[11];
+    static const Monograph  s_kMonographs[16];
+
+    static const Digraph *    FindDigraph   (char lead, char follow);
+    static const Monograph *  FindMonograph (char lead);
+
+    // Prefix operators, same shape as BinaryOp. None of them can fail --
+    // there is no unary equivalent of divide-by-zero -- so unlike
+    // BinaryOp::Apply there is no error out-parameter and no bool.
+    struct UnaryOp
+    {
+        TokType    token;
+        int32_t (* Apply) (int32_t value);
+    };
+
+    static const UnaryOp  s_kUnaryOps[8];
+
+    static int32_t  ApplyNegate    (int32_t v);
+    static int32_t  ApplyIdentity  (int32_t v);
+    static int32_t  ApplyBitNot    (int32_t v);
+    static int32_t  ApplyLogNot    (int32_t v);
+    static int32_t  ApplyIncrement (int32_t v);
+    static int32_t  ApplyDecrement (int32_t v);
+    static int32_t  ApplyLowByte   (int32_t v);
+    static int32_t  ApplyHighByte  (int32_t v);
+
+    static const UnaryOp *  FindUnaryOp (TokType token);
+
     // Precedence climbing. `minLevel` is the loosest operator this call is
     // allowed to absorb; recursing at level+1 makes every operator here
     // left-associative, which is what the old ladder's loops did.

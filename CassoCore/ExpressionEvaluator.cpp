@@ -77,9 +77,12 @@ private:
     Token ReadNext();
     Token ReadHexNumber();
     Token ReadBinaryNumber();
+    Token ReadOctalNumber();
     Token ReadCharConstant();
     Token ReadDecimalNumber();
     Token ReadIdentifier();
+    Token ReadOperator();
+    Token ScanDigits (int base, const char * emptyError);
 
     const std::string & m_text;
     size_t              m_pos;
@@ -94,24 +97,80 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  IsDigitInBase
+//
+//  Whether `c` is a legal digit in radix `base` (2..36). Letters count
+//  from a=10, case-insensitively, so this covers every radix the
+//  tokenizer accepts with one rule instead of a predicate per prefix.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+static bool IsDigitInBase (char c, int base)
+{
+    int  value = -1;
+
+
+
+    if (isdigit ((unsigned char) c))
+    {
+        value = c - '0';
+    }
+    else if (isalpha ((unsigned char) c))
+    {
+        value = tolower ((unsigned char) c) - 'a' + 10;
+    }
+
+    return (value >= 0 && value < base);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ScanDigits
+//
+//  Consume the run of base-`base` digits at m_pos and build a Number
+//  token from it. An empty run yields an Error token carrying
+//  `emptyError`, which is what every radix prefix here wants: a lone '$'
+//  or '@' with nothing after it is a malformed literal, not a zero.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+ExpressionEvaluator::Token ExpressionEvaluator::Tokenizer::ScanDigits (int base, const char * emptyError)
+{
+    size_t  start = m_pos;
+    Token   token = { TokType::Error, 0, emptyError };
+
+
+
+    while (m_pos < m_text.size() && IsDigitInBase (m_text[m_pos], base))
+        m_pos++;
+
+    if (m_pos > start)
+    {
+        token = { TokType::Number,
+                  (int32_t) strtoul (m_text.substr (start, m_pos - start).c_str(), nullptr, base),
+                  "" };
+    }
+
+    return token;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ReadHexNumber — after consuming '$'
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 ExpressionEvaluator::Token ExpressionEvaluator::Tokenizer::ReadHexNumber()
 {
-    size_t start = m_pos;
-
-
-
-    while (m_pos < m_text.size() && isxdigit ((unsigned char) m_text[m_pos]))
-        m_pos++;
-
-    if (m_pos == start)
-        return { TokType::Error, 0, "Expected hex digit after $" };
-
-    int32_t val = (int32_t) strtoul (m_text.substr (start, m_pos - start).c_str(), nullptr, 16);
-    return { TokType::Number, val, "" };
+    return ScanDigits (16, "Expected hex digit after $");
 }
 
 
@@ -126,18 +185,25 @@ ExpressionEvaluator::Token ExpressionEvaluator::Tokenizer::ReadHexNumber()
 
 ExpressionEvaluator::Token ExpressionEvaluator::Tokenizer::ReadBinaryNumber()
 {
-    size_t start = m_pos;
+    return ScanDigits (2, "Expected binary digit after %");
+}
 
 
 
-    while (m_pos < m_text.size() && (m_text[m_pos] == '0' || m_text[m_pos] == '1'))
-        m_pos++;
 
-    if (m_pos == start)
-        return { TokType::Error, 0, "Expected binary digit after %" };
 
-    int32_t val = (int32_t) strtoul (m_text.substr (start, m_pos - start).c_str(), nullptr, 2);
-    return { TokType::Number, val, "" };
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ReadOctalNumber — after consuming '@'
+//
+//  Was inlined into ReadNext while its hex and binary siblings each had
+//  a function; it is one now so the three radix prefixes read alike.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+ExpressionEvaluator::Token ExpressionEvaluator::Tokenizer::ReadOctalNumber()
+{
+    return ScanDigits (8, "Expected octal digit after @");
 }
 
 
@@ -152,33 +218,43 @@ ExpressionEvaluator::Token ExpressionEvaluator::Tokenizer::ReadBinaryNumber()
 
 ExpressionEvaluator::Token ExpressionEvaluator::Tokenizer::ReadCharConstant()
 {
-    if (m_pos >= m_text.size())
-        return { TokType::Error, 0, "Unterminated character constant" };
+    Token  token = { TokType::Error, 0, "Unterminated character constant" };
+    char   ch    = '\0';
+    char   esc   = '\0';
 
-    char ch = m_text[m_pos++];
 
-    // Handle escape sequences
-    if (ch == '\\' && m_pos < m_text.size())
+
+    // Running off the end and missing the closing quote are the same
+    // complaint, so the error token above serves both and only the
+    // success path overwrites it.
+    if (m_pos < m_text.size())
     {
-        char esc = m_text[m_pos++];
+        ch = m_text[m_pos++];
 
-        switch (esc)
+        if (ch == '\\' && m_pos < m_text.size())
         {
-        case 'n':  ch = '\n'; break;
-        case 'r':  ch = '\r'; break;
-        case 't':  ch = '\t'; break;
-        case '0':  ch = '\0'; break;
-        case '\\': ch = '\\'; break;
-        case '\'': ch = '\''; break;
-        default:   ch = esc;  break;
+            esc = m_text[m_pos++];
+
+            switch (esc)
+            {
+            case 'n':  ch = '\n'; break;
+            case 'r':  ch = '\r'; break;
+            case 't':  ch = '\t'; break;
+            case '0':  ch = '\0'; break;
+            case '\\': ch = '\\'; break;
+            case '\'': ch = '\''; break;
+            default:   ch = esc;  break;   // unknown escape is the literal char
+            }
+        }
+
+        if (m_pos < m_text.size() && m_text[m_pos] == '\'')
+        {
+            m_pos++;
+            token = { TokType::Number, (int32_t) (unsigned char) ch, "" };
         }
     }
 
-    if (m_pos >= m_text.size() || m_text[m_pos] != '\'')
-        return { TokType::Error, 0, "Unterminated character constant" };
-
-    m_pos++;
-    return { TokType::Number, (int32_t) (unsigned char) ch, "" };
+    return token;
 }
 
 
@@ -193,70 +269,84 @@ ExpressionEvaluator::Token ExpressionEvaluator::Tokenizer::ReadCharConstant()
 
 ExpressionEvaluator::Token ExpressionEvaluator::Tokenizer::ReadDecimalNumber()
 {
-    size_t start = m_pos;
+    size_t  start    = m_pos;
+    size_t  valStart = 0;
+    Token   token;
+    bool    complete = false;
+    char    next     = '\0';
+    int     base     = 0;
 
 
 
-    // Check for 0x (hex) or 0b (binary) prefix
+    // C-style 0x and 0b radix prefixes.
     if (m_text[m_pos] == '0' && m_pos + 1 < m_text.size())
     {
-        char next = (char) tolower ((unsigned char) m_text[m_pos + 1]);
+        next = (char) tolower ((unsigned char) m_text[m_pos + 1]);
 
         if (next == 'x')
         {
-            m_pos += 2;
-            size_t hexStart = m_pos;
-
-            while (m_pos < m_text.size() && isxdigit ((unsigned char) m_text[m_pos]))
-                m_pos++;
-
-            if (m_pos == hexStart)
-                return { TokType::Error, 0, "Expected hex digit after 0x" };
-
-            int32_t val = (int32_t) strtoul (m_text.substr (hexStart, m_pos - hexStart).c_str(), nullptr, 16);
-            return { TokType::Number, val, "" };
+            m_pos   += 2;
+            token    = ScanDigits (16, "Expected hex digit after 0x");
+            complete = true;
         }
-
-        if (next == 'b' && m_pos + 2 < m_text.size() && (m_text[m_pos + 2] == '0' || m_text[m_pos + 2] == '1'))
+        else if (next == 'b' && m_pos + 2 < m_text.size() && (m_text[m_pos + 2] == '0' || m_text[m_pos + 2] == '1'))
         {
-            m_pos += 2;
-            size_t binStart = m_pos;
-
-            while (m_pos < m_text.size() && (m_text[m_pos] == '0' || m_text[m_pos] == '1'))
-                m_pos++;
-
-            int32_t val = (int32_t) strtoul (m_text.substr (binStart, m_pos - binStart).c_str(), nullptr, 2);
-            return { TokType::Number, val, "" };
+            // The lookahead already proved a binary digit follows, so
+            // ScanDigits cannot take its empty-run path here.
+            m_pos   += 2;
+            token    = ScanDigits (2, "Expected binary digit after 0b");
+            complete = true;
         }
     }
 
-    while (m_pos < m_text.size() && isdigit ((unsigned char) m_text[m_pos]))
-        m_pos++;
-
-    // Check for base#value format: digits followed by #
-    if (m_pos < m_text.size() && m_text[m_pos] == '#')
+    if (!complete)
     {
-        std::string baseStr = m_text.substr (start, m_pos - start);
-        int base = (int) strtol (baseStr.c_str(), nullptr, 10);
+        while (m_pos < m_text.size() && isdigit ((unsigned char) m_text[m_pos]))
+            m_pos++;
 
-        if (base >= 2 && base <= 36)
+        // The base#value form, e.g. 16#FF.
+        if (m_pos < m_text.size() && m_text[m_pos] == '#')
         {
-            m_pos++;  // skip '#'
-            size_t valStart = m_pos;
+            base = (int) strtol (m_text.substr (start, m_pos - start).c_str(), nullptr, 10);
 
-            while (m_pos < m_text.size() && isalnum ((unsigned char) m_text[m_pos]))
+            // A radix outside 2..36 is not a radix at all: leave m_pos on the
+            // '#' and let the digits before it read as plain decimal.
+            if (base >= 2 && base <= 36)
+            {
                 m_pos++;
+                valStart = m_pos;
 
-            if (m_pos == valStart)
-                return { TokType::Error, 0, "Expected value after base#" };
+                // Deliberately consumes every alphanumeric rather than only
+                // the digits legal in `base`, unlike ScanDigits. strtoul then
+                // stops at the first illegal one, so "2#9" reads as 0 instead
+                // of erroring. Long-standing behavior; sources depend on it.
+                while (m_pos < m_text.size() && isalnum ((unsigned char) m_text[m_pos]))
+                    m_pos++;
 
-            int32_t val = (int32_t) strtoul (m_text.substr (valStart, m_pos - valStart).c_str(), nullptr, base);
-            return { TokType::Number, val, "" };
+                if (m_pos == valStart)
+                {
+                    token = { TokType::Error, 0, "Expected value after base#" };
+                }
+                else
+                {
+                    token = { TokType::Number,
+                              (int32_t) strtoul (m_text.substr (valStart, m_pos - valStart).c_str(), nullptr, base),
+                              "" };
+                }
+
+                complete = true;
+            }
         }
     }
 
-    int32_t val = (int32_t) strtol (m_text.substr (start, m_pos - start).c_str(), nullptr, 10);
-    return { TokType::Number, val, "" };
+    if (!complete)
+    {
+        token = { TokType::Number,
+                  (int32_t) strtol (m_text.substr (start, m_pos - start).c_str(), nullptr, 10),
+                  "" };
+    }
+
+    return token;
 }
 
 
@@ -288,117 +378,234 @@ ExpressionEvaluator::Token ExpressionEvaluator::Tokenizer::ReadIdentifier()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  Punctuation operator tables
+//
+//  Two-character operators are tried first so the lexer is longest-match:
+//  "<=" must not read as "<" then "=". Everything else falls back to the
+//  one-character table. A lead character that appears in both tables is
+//  the normal case -- '<' is LShift/Le/Ne when paired and Lt when bare.
+//
+//  '=' is deliberately in both with the same token: this assembler accepts
+//  a single '=' as equality, so "a = b" and "a == b" mean the same thing.
+//
+//  '%' and '$' are absent because they are radix prefixes as often as they
+//  are operators, and ReadNext resolves that ambiguity before it gets here.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const ExpressionEvaluator::Digraph  ExpressionEvaluator::s_kDigraphs[11] =
+{
+    { '+', '+', TokType::PlusPlus   },
+    { '-', '-', TokType::MinusMinus },
+    { '&', '&', TokType::AmpAmp     },
+    { '|', '|', TokType::PipePipe   },
+    { '!', '=', TokType::Ne         },
+    { '<', '<', TokType::LShift     },
+    { '<', '=', TokType::Le         },
+    { '<', '>', TokType::Ne         },   // Pascal-style inequality
+    { '>', '>', TokType::RShift     },
+    { '>', '=', TokType::Ge         },
+    { '=', '=', TokType::Eq         },
+};
+
+const ExpressionEvaluator::Monograph  ExpressionEvaluator::s_kMonographs[16] =
+{
+    { '+', TokType::Plus     },
+    { '-', TokType::Minus    },
+    { '*', TokType::Star     },
+    { '/', TokType::Slash    },
+    { '&', TokType::Amp      },
+    { '|', TokType::Pipe     },
+    { '^', TokType::Caret    },
+    { '~', TokType::Tilde    },
+    { '!', TokType::Bang     },
+    { '(', TokType::LParen   },
+    { ')', TokType::RParen   },
+    { '[', TokType::LBracket },
+    { ']', TokType::RBracket },
+    { '<', TokType::Lt       },
+    { '>', TokType::Gt       },
+    { '=', TokType::Eq       },
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExpressionEvaluator::FindDigraph
+//
+//  The two-character operator starting with `lead` and continuing with
+//  `follow`, or null. Callers pass '\0' for `follow` at end of input,
+//  which no row can match.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const ExpressionEvaluator::Digraph * ExpressionEvaluator::FindDigraph (char lead, char follow)
+{
+    const Digraph *  found = nullptr;
+
+
+
+    for (const Digraph & d : s_kDigraphs)
+    {
+        if (d.lead == lead && d.follow == follow && found == nullptr)
+        {
+            found = &d;
+        }
+    }
+
+    return found;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExpressionEvaluator::FindMonograph
+//
+//  The one-character operator `lead`, or null when it is not punctuation
+//  this expression syntax knows. Only consulted after FindDigraph misses.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const ExpressionEvaluator::Monograph * ExpressionEvaluator::FindMonograph (char lead)
+{
+    const Monograph *  found = nullptr;
+
+
+
+    for (const Monograph & m : s_kMonographs)
+    {
+        if (m.lead == lead && found == nullptr)
+        {
+            found = &m;
+        }
+    }
+
+    return found;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ReadOperator — punctuation, with m_pos on the lead character
+//
+//  Consumes one or two characters and yields the matching token, or an
+//  Error token naming the character when it is not punctuation we know.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+ExpressionEvaluator::Token ExpressionEvaluator::Tokenizer::ReadOperator()
+{
+    char               lead  = m_text[m_pos++];
+    char               next  = (m_pos < m_text.size()) ? m_text[m_pos] : '\0';
+    const Digraph *    two   = FindDigraph (lead, next);
+    const Monograph *  one   = (two == nullptr) ? FindMonograph (lead) : nullptr;
+    Token              token = { TokType::Error, 0, std::string ("Unexpected character: ") + lead };
+
+    if (two != nullptr)
+    {
+        m_pos++;                       // consume the second character
+        token = { two->type, 0, "" };
+    }
+    else if (one != nullptr)
+    {
+        token = { one->type, 0, "" };
+    }
+
+    return token;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  ReadNext — main tokenizer dispatch
+//
+//  Classifies by the first character: quote, radix prefix, digit,
+//  identifier start, or punctuation. Each arm leaves m_pos just past the
+//  token it produced.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 ExpressionEvaluator::Token ExpressionEvaluator::Tokenizer::ReadNext()
 {
+    Token  token = { TokType::End, 0, "" };
+    char   c     = '\0';
+
+
+
     SkipSpaces();
 
-    if (m_pos >= m_text.size())
-        return { TokType::End, 0, "" };
-
-    char c = m_text[m_pos];
-
-    if (c == '\'') { m_pos++; return ReadCharConstant(); }
-
-    if (c == '$')
+    if (m_pos < m_text.size())
     {
-        m_pos++;
+        c = m_text[m_pos];
 
-        if (m_pos < m_text.size() && isxdigit ((unsigned char) m_text[m_pos]))
-            return ReadHexNumber();
-
-        // Bare $ = current PC (returned as Star, handled like * in primary)
-        return { TokType::Star, 0, "" };
-    }
-
-    if (c == '%')
-    {
-        if (!m_lastWasValue && m_pos + 1 < m_text.size() && (m_text[m_pos + 1] == '0' || m_text[m_pos + 1] == '1'))
+        if (c == '\'')
         {
             m_pos++;
-            return ReadBinaryNumber();
+            token = ReadCharConstant();
         }
-
-        m_pos++;
-        return { TokType::Percent, 0, "" };
-    }
-
-    if (c == '@')
-    {
-        // @octal prefix
-        m_pos++;
-        size_t start = m_pos;
-
-        while (m_pos < m_text.size() && m_text[m_pos] >= '0' && m_text[m_pos] <= '7')
+        else if (c == '$')
+        {
             m_pos++;
 
-        if (m_pos == start)
-            return { TokType::Error, 0, "Expected octal digit after @" };
+            // A bare '$' is the current PC. It rides TokType::Star because
+            // ParsePrimary already resolves Star to ctx.currentPC.
+            if (m_pos < m_text.size() && isxdigit ((unsigned char) m_text[m_pos]))
+            {
+                token = ReadHexNumber();
+            }
+            else
+            {
+                token = { TokType::Star, 0, "" };
+            }
+        }
+        else if (c == '%')
+        {
+            // '%' is modulo after a value and a binary prefix before one, so
+            // "a%10" is a remainder while "lda #%1010" is a literal. The
+            // digit lookahead keeps a trailing '%' from swallowing nothing.
+            m_pos++;
 
-        int32_t val = (int32_t) strtoul (m_text.substr (start, m_pos - start).c_str(), nullptr, 8);
-        return { TokType::Number, val, "" };
+            if (!m_lastWasValue && m_pos < m_text.size() && (m_text[m_pos] == '0' || m_text[m_pos] == '1'))
+            {
+                token = ReadBinaryNumber();
+            }
+            else
+            {
+                token = { TokType::Percent, 0, "" };
+            }
+        }
+        else if (c == '@')
+        {
+            m_pos++;
+            token = ReadOctalNumber();
+        }
+        else if (isdigit ((unsigned char) c))
+        {
+            token = ReadDecimalNumber();
+        }
+        else if (isalpha ((unsigned char) c) || c == '_')
+        {
+            token = ReadIdentifier();
+        }
+        else
+        {
+            token = ReadOperator();
+        }
     }
 
-    if (isdigit ((unsigned char) c))
-        return ReadDecimalNumber();
-
-    if (isalpha ((unsigned char) c) || c == '_')
-        return ReadIdentifier();
-
-    m_pos++;
-
-    switch (c)
-    {
-    case '+':
-        if (m_pos < m_text.size() && m_text[m_pos] == '+') { m_pos++; return { TokType::PlusPlus, 0, "" }; }
-        return { TokType::Plus, 0, "" };
-
-    case '-':
-        if (m_pos < m_text.size() && m_text[m_pos] == '-') { m_pos++; return { TokType::MinusMinus, 0, "" }; }
-        return { TokType::Minus, 0, "" };
-
-    case '*':  return { TokType::Star,     0, "" };
-    case '/':  return { TokType::Slash,    0, "" };
-    case '&':
-        if (m_pos < m_text.size() && m_text[m_pos] == '&') { m_pos++; return { TokType::AmpAmp, 0, "" }; }
-        return { TokType::Amp, 0, "" };
-
-    case '|':
-        if (m_pos < m_text.size() && m_text[m_pos] == '|') { m_pos++; return { TokType::PipePipe, 0, "" }; }
-        return { TokType::Pipe, 0, "" };
-
-    case '^':  return { TokType::Caret,    0, "" };
-    case '~':  return { TokType::Tilde,    0, "" };
-    case '!':
-        if (m_pos < m_text.size() && m_text[m_pos] == '=') { m_pos++; return { TokType::Ne, 0, "" }; }
-        return { TokType::Bang, 0, "" };
-
-    case '(':  return { TokType::LParen,   0, "" };
-    case ')':  return { TokType::RParen,   0, "" };
-    case '[':  return { TokType::LBracket, 0, "" };
-    case ']':  return { TokType::RBracket, 0, "" };
-
-    case '<':
-        if (m_pos < m_text.size() && m_text[m_pos] == '<') { m_pos++; return { TokType::LShift, 0, "" }; }
-        if (m_pos < m_text.size() && m_text[m_pos] == '=') { m_pos++; return { TokType::Le,     0, "" }; }
-        if (m_pos < m_text.size() && m_text[m_pos] == '>') { m_pos++; return { TokType::Ne,     0, "" }; }
-        return { TokType::Lt, 0, "" };
-
-    case '>':
-        if (m_pos < m_text.size() && m_text[m_pos] == '>') { m_pos++; return { TokType::RShift, 0, "" }; }
-        if (m_pos < m_text.size() && m_text[m_pos] == '=') { m_pos++; return { TokType::Ge,     0, "" }; }
-        return { TokType::Gt, 0, "" };
-
-    case '=':
-        if (m_pos < m_text.size() && m_text[m_pos] == '=') m_pos++;
-        return { TokType::Eq, 0, "" };
-
-    default:
-        return { TokType::Error, 0, std::string ("Unexpected character: ") + c };
-    }
+    return token;
 }
 
 
@@ -436,74 +643,138 @@ std::string ExpressionEvaluator::ToUpperIdent (const std::string & s)
 
 bool ExpressionEvaluator::ParsePrimary (Tokenizer & tok, const ExprContext & ctx, int32_t & result, std::string & error)
 {
-    Token t = tok.Peek();
+    Token    t         = tok.Peek();
+    bool     ok        = false;
+    bool     isBracket = false;
+    TokType  closer    = TokType::RParen;
 
 
 
-    if (t.type == TokType::Number) { tok.Next(); result = t.numVal; return true; }
-
-    if (t.type == TokType::Ident)
+    if (t.type == TokType::Number)
+    {
+        tok.Next();
+        result = t.numVal;
+        ok     = true;
+    }
+    else if (t.type == TokType::Ident)
     {
         tok.Next();
 
-        if (ctx.symbols)
+        if (ctx.symbols != nullptr)
         {
-            auto it = ctx.symbols->find (t.strVal);
+            auto  it = ctx.symbols->find (t.strVal);
 
             if (it != ctx.symbols->end())
             {
                 result = it->second;
-                return true;
+                ok     = true;
             }
         }
 
-        error = "Undefined symbol: " + t.strVal;
-        return false;
+        // A missing symbol table is indistinguishable from an empty one:
+        // either way the name does not resolve.
+        if (!ok)
+        {
+            error = "Undefined symbol: " + t.strVal;
+        }
     }
-
-    if (t.type == TokType::Star)
+    else if (t.type == TokType::Star)
     {
         tok.Next();
         result = ctx.currentPC;
-        return true;
+        ok     = true;
     }
-
-    if (t.type == TokType::LParen)
+    else if (t.type == TokType::LParen || t.type == TokType::LBracket)
     {
+        // Parentheses and brackets group identically, but they do not pair
+        // with each other -- "(1]" is an error, not a group.
+        isBracket = (t.type == TokType::LBracket);
+        closer    = isBracket ? TokType::RBracket : TokType::RParen;
+
         tok.Next();
 
-        if (!ParseBinary (tok, ctx, s_kLoosestBinaryLevel, result, error))
-            return false;
+        ok = ParseBinary (tok, ctx, s_kLoosestBinaryLevel, result, error);
 
-        if (tok.Next().type != TokType::RParen)
+        if (ok && tok.Next().type != closer)
         {
-            error = "Expected closing parenthesis";
-            return false;
+            error = isBracket ? "Expected closing bracket" : "Expected closing parenthesis";
+            ok    = false;
         }
-
-        return true;
     }
-
-    if (t.type == TokType::LBracket)
+    else if (t.type == TokType::End)
     {
-        tok.Next();
-
-        if (!ParseBinary (tok, ctx, s_kLoosestBinaryLevel, result, error))
-            return false;
-
-        if (tok.Next().type != TokType::RBracket)
-        {
-            error = "Expected closing bracket";
-            return false;
-        }
-
-        return true;
+        error = "Unexpected end of expression";
+    }
+    else
+    {
+        error = "Unexpected token in expression";
     }
 
-    if (t.type == TokType::End) { error = "Unexpected end of expression"; return false; }
+    return ok;
+}
 
-    error = "Unexpected token in expression";
-    return false;
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Prefix operator table
+//
+//  Eight operators that were eight copies of the same four lines: consume
+//  the token, recurse, fold the result. Only the fold differed.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int32_t ExpressionEvaluator::ApplyNegate    (int32_t v) { return -v; }
+int32_t ExpressionEvaluator::ApplyIdentity  (int32_t v) { return v; }
+int32_t ExpressionEvaluator::ApplyBitNot    (int32_t v) { return ~v; }
+int32_t ExpressionEvaluator::ApplyLogNot    (int32_t v) { return (v == 0) ? 1 : 0; }
+int32_t ExpressionEvaluator::ApplyIncrement (int32_t v) { return v + 1; }
+int32_t ExpressionEvaluator::ApplyDecrement (int32_t v) { return v - 1; }
+int32_t ExpressionEvaluator::ApplyLowByte   (int32_t v) { return v & 0xFF; }
+int32_t ExpressionEvaluator::ApplyHighByte  (int32_t v) { return (v >> 8) & 0xFF; }
+
+const ExpressionEvaluator::UnaryOp  ExpressionEvaluator::s_kUnaryOps[8] =
+{
+    { TokType::Minus,       ApplyNegate    },
+    { TokType::Plus,        ApplyIdentity  },
+    { TokType::Tilde,       ApplyBitNot    },
+    { TokType::Bang,        ApplyLogNot    },
+    { TokType::PlusPlus,    ApplyIncrement },
+    { TokType::MinusMinus,  ApplyDecrement },
+    { TokType::Lt,          ApplyLowByte   },   // < selects the low byte
+    { TokType::Gt,          ApplyHighByte  },   // > selects the high byte
+};
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ExpressionEvaluator::FindUnaryOp
+//
+//  Null when the token does not introduce a prefix operator, which is how
+//  ParseUnary decides to hand off to ParsePrimary instead.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const ExpressionEvaluator::UnaryOp * ExpressionEvaluator::FindUnaryOp (TokType token)
+{
+    const UnaryOp *  found = nullptr;
+
+
+
+    for (const UnaryOp & op : s_kUnaryOps)
+    {
+        if (op.token == token && found == nullptr)
+        {
+            found = &op;
+        }
+    }
+
+    return found;
 }
 
 
@@ -514,32 +785,53 @@ bool ExpressionEvaluator::ParsePrimary (Tokenizer & tok, const ExprContext & ctx
 //
 //  ParseUnary — -, +, ~, !, <, >, ++, --, lo, hi
 //
+//  Right-associative by construction: each operator recurses into
+//  ParseUnary before folding, so "--5" is -(-5) and "<>addr" is the low
+//  byte of the high byte.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 bool ExpressionEvaluator::ParseUnary (Tokenizer & tok, const ExprContext & ctx, int32_t & result, std::string & error)
 {
-    Token t = tok.Peek();
+    Token             t     = tok.Peek();
+    const UnaryOp *   op    = FindUnaryOp (t.type);
+    bool              ok    = false;
+    std::string       upper;
 
 
 
-    if (t.type == TokType::Minus)     { tok.Next(); if (!ParseUnary (tok, ctx, result, error)) return false; result = -result; return true; }
-    if (t.type == TokType::Plus)      { tok.Next(); return ParseUnary (tok, ctx, result, error); }
-    if (t.type == TokType::Tilde)     { tok.Next(); if (!ParseUnary (tok, ctx, result, error)) return false; result = ~result; return true; }
-    if (t.type == TokType::Bang)      { tok.Next(); if (!ParseUnary (tok, ctx, result, error)) return false; result = (result == 0) ? 1 : 0; return true; }
-    if (t.type == TokType::PlusPlus)  { tok.Next(); if (!ParseUnary (tok, ctx, result, error)) return false; result = result + 1; return true; }
-    if (t.type == TokType::MinusMinus){ tok.Next(); if (!ParseUnary (tok, ctx, result, error)) return false; result = result - 1; return true; }
-    if (t.type == TokType::Lt)        { tok.Next(); if (!ParseUnary (tok, ctx, result, error)) return false; result = result & 0xFF; return true; }
-    if (t.type == TokType::Gt)        { tok.Next(); if (!ParseUnary (tok, ctx, result, error)) return false; result = (result >> 8) & 0xFF; return true; }
-
-    if (t.type == TokType::Ident)
+    // "lo" and "hi" are word spellings of the < and > byte selectors, so
+    // they reuse those rows rather than carrying duplicate folds.
+    if (op == nullptr && t.type == TokType::Ident)
     {
-        std::string upper = ToUpperIdent (t.strVal);
+        upper = ToUpperIdent (t.strVal);
 
-        if (upper == "LO") { tok.Next(); if (!ParseUnary (tok, ctx, result, error)) return false; result = result & 0xFF; return true; }
-        if (upper == "HI") { tok.Next(); if (!ParseUnary (tok, ctx, result, error)) return false; result = (result >> 8) & 0xFF; return true; }
+        if (upper == "LO")
+        {
+            op = FindUnaryOp (TokType::Lt);
+        }
+        else if (upper == "HI")
+        {
+            op = FindUnaryOp (TokType::Gt);
+        }
     }
 
-    return ParsePrimary (tok, ctx, result, error);
+    if (op == nullptr)
+    {
+        ok = ParsePrimary (tok, ctx, result, error);
+    }
+    else
+    {
+        tok.Next();
+        ok = ParseUnary (tok, ctx, result, error);
+
+        if (ok)
+        {
+            result = op->Apply (result);
+        }
+    }
+
+    return ok;
 }
 
 
@@ -764,48 +1056,55 @@ bool ExpressionEvaluator::ParseBinary (
 //
 //  ExpressionEvaluator::Evaluate
 //
+//  The only public entry point. Trims, parses, and insists the whole
+//  string was consumed. `hasUnresolved` is set when the failure was an
+//  undefined symbol, which the assembler treats as "retry on pass two"
+//  rather than as a hard error.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 ExprResult ExpressionEvaluator::Evaluate (const std::string & expr, const ExprContext & ctx)
 {
-    ExprResult res = {};
+    ExprResult   res     = {};
+    std::string  trimmed = expr;
+    std::string  error;
+    int32_t      value   = 0;
+    size_t       start   = trimmed.find_first_not_of (" \t");
+    size_t       end     = 0;
+
+
+
     res.success       = false;
     res.value         = 0;
     res.hasUnresolved = false;
 
-    std::string trimmed = expr;
-
-    size_t start = trimmed.find_first_not_of (" \t");
-
     if (start == std::string::npos)
     {
         res.error = "Empty expression";
-        return res;
     }
-
-    size_t end = trimmed.find_last_not_of (" \t");
-    trimmed = trimmed.substr (start, end - start + 1);
-
-    Tokenizer   tok (trimmed);
-    std::string error;
-    int32_t     value = 0;
-
-    if (!ParseBinary (tok, ctx, s_kLoosestBinaryLevel, value, error))
+    else
     {
-        res.error         = error;
-        res.hasUnresolved = (error.find ("Undefined symbol") == 0);
-        return res;
+        end     = trimmed.find_last_not_of (" \t");
+        trimmed = trimmed.substr (start, end - start + 1);
+
+        Tokenizer  tok (trimmed);
+
+        if (!ParseBinary (tok, ctx, s_kLoosestBinaryLevel, value, error))
+        {
+            res.error         = error;
+            res.hasUnresolved = (error.find ("Undefined symbol") == 0);
+        }
+        else if (tok.Peek().type != TokType::End)
+        {
+            // Parsed something valid but stopped early, e.g. "1 2" or "1)".
+            res.error = "Unexpected content after expression";
+        }
+        else
+        {
+            res.success = true;
+            res.value   = value;
+        }
     }
 
-    Token remaining = tok.Peek();
-
-    if (remaining.type != TokType::End)
-    {
-        res.error = "Unexpected content after expression";
-        return res;
-    }
-
-    res.success = true;
-    res.value   = value;
     return res;
 }
