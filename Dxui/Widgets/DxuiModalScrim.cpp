@@ -112,24 +112,20 @@ void DxuiModalScrim::Cancel()
 
 bool DxuiModalScrim::OnKey (WPARAM vk)
 {
-    if (!m_visible)
-    {
-        return false;
-    }
+    // A hidden scrim is not modal, so it claims nothing.
+    bool  cancels  = m_visible && vk == VK_ESCAPE;
+    bool  confirms = m_visible && vk == VK_RETURN;
 
-    if (vk == VK_ESCAPE)
+    if (cancels)
     {
         Cancel();
-        return true;
     }
-
-    if (vk == VK_RETURN)
+    else if (confirms)
     {
         Confirm();
-        return true;
     }
 
-    return false;
+    return cancels || confirms;
 }
 
 
@@ -205,10 +201,6 @@ void DxuiModalScrim::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
 
 bool DxuiModalScrim::OnKey (const DxuiKeyEvent & ev)
 {
-    if (ev.kind != DxuiKeyEventKind::Down)
-    {
-        return false;
-    }
-
-    return OnKey (ev.vk);
+    // Key-up would confirm or cancel a second time for the same press.
+    return (ev.kind == DxuiKeyEventKind::Down) && OnKey (ev.vk);
 }

@@ -62,13 +62,20 @@ void DxuiHitTester::Register (const DxuiHitRect & rect)
 
 const DxuiHitRect * DxuiHitTester::Pick (int xClient, int yClient) const
 {
-    for (auto it = m_rects.rbegin(); it != m_rects.rend(); ++it)
+    const DxuiHitRect *  hit = nullptr;
+    auto                 it  = m_rects.rbegin();
+
+
+
+    // Reverse order, so the topmost registration wins; the found test in the
+    // condition stops the walk at it.
+    for ( ; hit == nullptr && it != m_rects.rend(); ++it)
     {
         if (RectContains (it->rect, xClient, yClient))
         {
-            return &(*it);
+            hit = &(*it);
         }
     }
 
-    return nullptr;
+    return hit;
 }

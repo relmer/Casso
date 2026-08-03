@@ -116,20 +116,36 @@ void DxuiPanel::Adopt (IDxuiControl & nonOwnedChild)
 
 bool DxuiPanel::RemoveAdopted (IDxuiControl & child)
 {
+    auto  found   = m_children.end();
+    auto  it      = m_children.begin();
+    bool  removed = false;
+
+
+
     DXUI_ASSERT_UI_THREAD();
 
-    for (auto it = m_children.begin(); it != m_children.end(); ++it)
+    // Locate first, erase after: erase() invalidates the iterator, so it must
+    // not happen while the loop still owns one.
+    //
+    // `owned == nullptr` is what makes a slot adopted rather than owned, so an
+    // owned match is passed over and reported as not found.
+    for ( ; found == m_children.end() && it != m_children.end(); ++it)
     {
         if (it->raw == &child && it->owned == nullptr)
         {
-            it->raw->SetParent (nullptr);
-            m_children.erase (it);
-            MarkDirty();
-            return true;
+            found = it;
         }
     }
 
-    return false;
+    if (found != m_children.end())
+    {
+        found->raw->SetParent (nullptr);
+        m_children.erase (found);
+        MarkDirty();
+        removed = true;
+    }
+
+    return removed;
 }
 
 
@@ -180,25 +196,34 @@ void DxuiPanel::ClearAdopted()
 
 bool DxuiPanel::Remove (IDxuiControl * child)
 {
+    auto  found   = m_children.end();
+    auto  it      = m_children.begin();
+    bool  removed = false;
+
+
+
     DXUI_ASSERT_UI_THREAD();
 
-    if (child == nullptr)
-    {
-        return false;
-    }
-
-    for (auto it = m_children.begin(); it != m_children.end(); ++it)
+    // Mirror of RemoveAdopted, with the ownership test inverted: this one
+    // takes only OWNED children. The null test stays explicit in the loop
+    // condition rather than resting on "no slot holds a null raw".
+    for ( ; child != nullptr && found == m_children.end() && it != m_children.end(); ++it)
     {
         if (it->raw == child && it->owned != nullptr)
         {
-            it->owned->SetParent (nullptr);
-            m_children.erase (it);
-            MarkDirty();
-            return true;
+            found = it;
         }
     }
 
-    return false;
+    if (found != m_children.end())
+    {
+        found->owned->SetParent (nullptr);
+        m_children.erase (found);
+        MarkDirty();
+        removed = true;
+    }
+
+    return removed;
 }
 
 
@@ -416,22 +441,27 @@ void DxuiPanel::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const I
 
 bool DxuiPanel::OnMouse (const DxuiMouseEvent & ev)
 {
+    auto  it       = m_children.rbegin();
+    bool  consumed = false;
+
+
+
     DXUI_ASSERT_UI_THREAD();
 
-    for (auto it = m_children.rbegin(); it != m_children.rend(); ++it)
+    // Reverse order is front-to-back: the last-added child paints on top, so
+    // it gets first refusal. The consumed test in the condition is what makes
+    // "first taker wins" true.
+    for ( ; !consumed && it != m_children.rend(); ++it)
     {
         IDxuiControl *  child = it->raw;
 
         if (child->Visible() && child->Enabled())
         {
-            if (child->OnMouse (ev))
-            {
-                return true;
-            }
+            consumed = child->OnMouse (ev);
         }
     }
 
-    return false;
+    return consumed;
 }
 
 
@@ -486,22 +516,25 @@ LPCWSTR DxuiPanel::CursorForPoint (POINT clientPx) const
 
 bool DxuiPanel::OnKey (const DxuiKeyEvent & ev)
 {
+    auto  it       = m_children.rbegin();
+    bool  consumed = false;
+
+
+
     DXUI_ASSERT_UI_THREAD();
 
-    for (auto it = m_children.rbegin(); it != m_children.rend(); ++it)
+    // Same front-to-back fanout as OnMouse.
+    for ( ; !consumed && it != m_children.rend(); ++it)
     {
         IDxuiControl *  child = it->raw;
 
         if (child->Visible() && child->Enabled())
         {
-            if (child->OnKey (ev))
-            {
-                return true;
-            }
+            consumed = child->OnKey (ev);
         }
     }
 
-    return false;
+    return consumed;
 }
 
 

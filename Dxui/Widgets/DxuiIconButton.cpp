@@ -157,23 +157,17 @@ bool DxuiIconButton::OnMouse (const DxuiMouseEvent & ev)
 
 bool DxuiIconButton::OnKey (const DxuiKeyEvent & ev)
 {
-    if (!m_visible || !m_enabled || !m_focused)
-    {
-        return false;
-    }
+    // Key-down only: key-up would fire the click a second time.
+    bool  clicks = m_visible && m_enabled && m_focused
+                   && ev.kind == DxuiKeyEventKind::Down
+                   && (ev.vk == VK_SPACE || ev.vk == VK_RETURN);
 
-    if (ev.kind != DxuiKeyEventKind::Down)
-    {
-        return false;
-    }
-
-    if (ev.vk == VK_SPACE || ev.vk == VK_RETURN)
+    if (clicks)
     {
         Click();
-        return true;
     }
 
-    return false;
+    return clicks;
 }
 
 
