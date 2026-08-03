@@ -227,155 +227,155 @@ void MonitorFrame::Paint (
     UNREFERENCED_PARAMETER (text);
     UNREFERENCED_PARAMETER (theme);
 
-    if (m_hidden)
+    // Hide() latched (no CRT framing this session): draw nothing at all, so
+    // the emulator frame composites straight onto the window background.
+    if (!m_hidden)
     {
-        return;
-    }
-
-    // Desk / wall backdrop, painted as four bands AROUND the screen recess --
-    // never over it. Chrome paints on top of the composited emulator frame, so
-    // filling the recess would hide the display that must show through the
-    // hole. The housing then paints over whichever bands it covers.
-    {
-        float     chH   = std::max (1.0f, cb - ct);
-        uint32_t  deskT = LerpArgb (s_kDeskTop, s_kDeskBot, (st - ct) / chH);
-        uint32_t  deskB = LerpArgb (s_kDeskTop, s_kDeskBot, (sb - ct) / chH);
-
-        painter.FillGradientRect (cl, ct, cr - cl, st - ct, s_kDeskTop, deskT);   // above recess
-        painter.FillGradientRect (cl, sb, cr - cl, cb - sb, deskB, s_kDeskBot);   // below recess
-        painter.FillGradientRect (cl, st, sl - cl, sb - st, deskT, deskB);        // left of recess
-        painter.FillGradientRect (sr, st, cr - sr, sb - st, deskT, deskB);        // right of recess
-    }
-
-    // Soft contact shadow so the monitor sits on the desk rather than floating.
-    painter.FillEllipseApprox ((hl + hr) * 0.5f, hb,
-                               (hr - hl) * s_kShadowWidthFrac, (hb - ht) * s_kShadowHeightFrac,
-                               s_kShadowArgb);
-
-    // The dark glass opening: a rounded, gently barrelled rectangle just outside
-    // the display recess. The platinum wraps its convex outline and the display
-    // composites into the recess inside it. A slightly larger "bevel" outline
-    // nests between the flat platinum and the glass, shaded darker so the screen
-    // reads as recessed below the shell surface.
-    {
-        float  boL     = sl - lip;
-        float  boT     = st - lip;
-        float  boR     = sr + lip;
-        float  boB     = sb + lip;
-        float  voL     = boL - bevelW;
-        float  voT     = boT - bevelW;
-        float  voR     = boR + bevelW;
-        float  voB     = boB + bevelW;
-        float  hRad    = std::min (hr - hl, hb - ht) * s_kHousingCorner;
-        float  hBarrel = (hr - hl) * s_kHousingBarrel;
-        float  bRad    = std::min (boR - boL, boB - boT) * s_kGlassCorner;
-        float  bBarrel = (boR - boL) * s_kGlassBarrel;
-        float  vRad    = bRad + bevelW;
-        float  vBarrel = bBarrel;
-        int    y0      = (int) ht;
-        int    y1      = (int) hb;
-
-        // Scanline-fill the platinum shell with its curved silhouette, leaving
-        // the glass opening (and, within it, the transparent display recess) as
-        // holes. Per-scanline vertical gradient: top-lit platinum easing to an
-        // edge shade.
-        for (int yy = y0; yy < y1; ++yy)
+        // Desk / wall backdrop, painted as four bands AROUND the screen recess --
+        // never over it. Chrome paints on top of the composited emulator frame, so
+        // filling the recess would hide the display that must show through the
+        // hole. The housing then paints over whichever bands it covers.
         {
-            float     y   = (float) yy + 0.5f;
-            float     yf  = (float) yy;
-            float     hIn = EdgeInset (y, ht, hb, hRad, hBarrel);
-            float     hxl = hl + hIn;
-            float     hxr = hr - hIn;
-            float     t   = (y - ht) / std::max (1.0f, hb - ht);
-            uint32_t  col = (t < s_kGradientSplit)
-                                ? LerpArgb (s_kShellHilite, s_kShellBase,  t / s_kGradientSplit)
-                                : LerpArgb (s_kShellBase,   s_kShellShadow,
-                                            (t - s_kGradientSplit) / (1.0f - s_kGradientSplit));
+            float     chH   = std::max (1.0f, cb - ct);
+            uint32_t  deskT = LerpArgb (s_kDeskTop, s_kDeskBot, (st - ct) / chH);
+            uint32_t  deskB = LerpArgb (s_kDeskTop, s_kDeskBot, (sb - ct) / chH);
 
-            if (y < voT || y >= voB)
-            {
-                FillSpan (painter, hxl, hxr, yf, col);
-                continue;
-            }
-
-            float     vIn      = EdgeInset (y, voT, voB, vRad, vBarrel);
-            float     vxl      = voL + vIn;
-            float     vxr      = voR - vIn;
-            uint32_t  bevelCol = LerpArgb (col, s_kBevelShade, s_kBevelBlend);
-
-            // Flat platinum outside the bevel outline.
-            FillSpan (painter, hxl, vxl, yf, col);
-            FillSpan (painter, vxr, hxr, yf, col);
-
-            if (y < boT || y >= boB)
-            {
-                // Bevel band above / below the glass (the recess top/bottom walls).
-                FillSpan (painter, vxl, vxr, yf, bevelCol);
-                continue;
-            }
-
-            float  bIn  = EdgeInset (y, boT, boB, bRad, bBarrel);
-            float  bxl  = boL + bIn;
-            float  bxr  = boR - bIn;
-
-            // Bevel wall (shaded platinum) between the flat shell and glass.
-            FillSpan (painter, vxl, bxl, yf, bevelCol);
-            FillSpan (painter, bxr, vxr, yf, bevelCol);
-
-            // Dark bezel between the glass outline and the display recess. Over
-            // the display columns it is drawn only in the top/bottom lip bands,
-            // clamped to the rounded glass silhouette so it never pokes past the
-            // corners; the recess itself stays transparent.
-            FillSpan (painter, bxl, sl,  yf, s_kGlassFrame);
-            FillSpan (painter, sr,  bxr, yf, s_kGlassFrame);
-
-            if (y < st || y >= sb)
-            {
-                FillSpan (painter, std::max (sl, bxl), std::min (sr, bxr), yf, s_kGlassFrame);
-            }
-        }
-    }
-
-    // Brand + power lamp on the bottom bezel strip (the platinum below the
-    // glass, now the same thickness as the other three sides). The rainbow
-    // cassowary -- Casso's period-Apple analog of the rainbow logo -- sits
-    // lower-left; the power lamp sits lower-right, balancing it.
-    {
-        float  bandTop = sb + lip + bevelW;
-        float  bandH   = hb - bandTop;
-
-        if (bandH <= s_kMinBrandBandPx)
-        {
-            return;
+            painter.FillGradientRect (cl, ct, cr - cl, st - ct, s_kDeskTop, deskT);   // above recess
+            painter.FillGradientRect (cl, sb, cr - cl, cb - sb, deskB, s_kDeskBot);   // below recess
+            painter.FillGradientRect (cl, st, sl - cl, sb - st, deskT, deskB);        // left of recess
+            painter.FillGradientRect (sr, st, cr - sr, sb - st, deskT, deskB);        // right of recess
         }
 
-        // Rainbow cassowary, lower-left: aligned under the screen's left edge,
-        // matching the Apple logo's placement on the real bezel.
-        float  logoH = bandH * s_kLogoHFrac;
-        float  logoW = logoH * s_kLogoGridAspect;
-        float  logoX = sl;
-        float  logoY = bandTop + (bandH - logoH) * 0.5f;
+        // Soft contact shadow so the monitor sits on the desk rather than floating.
+        painter.FillEllipseApprox ((hl + hr) * 0.5f, hb,
+                                   (hr - hl) * s_kShadowWidthFrac, (hb - ht) * s_kShadowHeightFrac,
+                                   s_kShadowArgb);
 
-        CassoBranding::DrawCassowaryRainbow (painter, logoX, logoY, logoW, logoH, s_kLogoBorderArgb);
+        // The dark glass opening: a rounded, gently barrelled rectangle just outside
+        // the display recess. The platinum wraps its convex outline and the display
+        // composites into the recess inside it. A slightly larger "bevel" outline
+        // nests between the flat platinum and the glass, shaded darker so the screen
+        // reads as recessed below the shell surface.
+        {
+            float  boL     = sl - lip;
+            float  boT     = st - lip;
+            float  boR     = sr + lip;
+            float  boB     = sb + lip;
+            float  voL     = boL - bevelW;
+            float  voT     = boT - bevelW;
+            float  voR     = boR + bevelW;
+            float  voB     = boB + bevelW;
+            float  hRad    = std::min (hr - hl, hb - ht) * s_kHousingCorner;
+            float  hBarrel = (hr - hl) * s_kHousingBarrel;
+            float  bRad    = std::min (boR - boL, boB - boT) * s_kGlassCorner;
+            float  bBarrel = (boR - boL) * s_kGlassBarrel;
+            float  vRad    = bRad + bevelW;
+            float  vBarrel = bBarrel;
+            int    y0      = (int) ht;
+            int    y1      = (int) hb;
 
-        // Power lamp, lower-right: the slanted green lamp from the //c case-
-        // switch strip -- the "/" power mark under the screen's right edge. The
-        // strip's LED dimensions at SceneScale, so the lamp zooms with the
-        // monitor it is mounted on. Clamped to the band on tiny layouts,
-        // preserving the LED proportion.
-        float  lampH    = (float) MulDiv (s_kLampHDp, (int) m_dpi, s_kBaseDpi) * m_sceneScale;
-        float  lampBody = 0.0f;
-        float  lampBox  = 0.0f;
-        float  lampX    = 0.0f;
-        float  lampY    = 0.0f;
+            // Scanline-fill the platinum shell with its curved silhouette, leaving
+            // the glass opening (and, within it, the transparent display recess) as
+            // holes. Per-scanline vertical gradient: top-lit platinum easing to an
+            // edge shade.
+            for (int yy = y0; yy < y1; ++yy)
+            {
+                float     y   = (float) yy + 0.5f;
+                float     yf  = (float) yy;
+                float     hIn = EdgeInset (y, ht, hb, hRad, hBarrel);
+                float     hxl = hl + hIn;
+                float     hxr = hr - hIn;
+                float     t   = (y - ht) / std::max (1.0f, hb - ht);
+                uint32_t  col = (t < s_kGradientSplit)
+                                    ? LerpArgb (s_kShellHilite, s_kShellBase,  t / s_kGradientSplit)
+                                    : LerpArgb (s_kShellBase,   s_kShellShadow,
+                                                (t - s_kGradientSplit) / (1.0f - s_kGradientSplit));
 
-        lampH    = std::min (lampH, bandH * s_kLampBandFrac);
-        lampBody = lampH * ((float) s_kLampWDp / (float) s_kLampHDp);
-        lampBox  = lampBody + lampH * s_kLampSlantTan;
-        lampX    = sr - lampBox;
-        lampY    = bandTop + (bandH - lampH) * 0.5f;
+                if (y < voT || y >= voB)
+                {
+                    FillSpan (painter, hxl, hxr, yf, col);
+                    continue;
+                }
 
-        PaintPowerLamp (painter, lampX, lampY, lampBox, lampH);
+                float     vIn      = EdgeInset (y, voT, voB, vRad, vBarrel);
+                float     vxl      = voL + vIn;
+                float     vxr      = voR - vIn;
+                uint32_t  bevelCol = LerpArgb (col, s_kBevelShade, s_kBevelBlend);
+
+                // Flat platinum outside the bevel outline.
+                FillSpan (painter, hxl, vxl, yf, col);
+                FillSpan (painter, vxr, hxr, yf, col);
+
+                if (y < boT || y >= boB)
+                {
+                    // Bevel band above / below the glass (the recess top/bottom walls).
+                    FillSpan (painter, vxl, vxr, yf, bevelCol);
+                    continue;
+                }
+
+                float  bIn  = EdgeInset (y, boT, boB, bRad, bBarrel);
+                float  bxl  = boL + bIn;
+                float  bxr  = boR - bIn;
+
+                // Bevel wall (shaded platinum) between the flat shell and glass.
+                FillSpan (painter, vxl, bxl, yf, bevelCol);
+                FillSpan (painter, bxr, vxr, yf, bevelCol);
+
+                // Dark bezel between the glass outline and the display recess. Over
+                // the display columns it is drawn only in the top/bottom lip bands,
+                // clamped to the rounded glass silhouette so it never pokes past the
+                // corners; the recess itself stays transparent.
+                FillSpan (painter, bxl, sl,  yf, s_kGlassFrame);
+                FillSpan (painter, sr,  bxr, yf, s_kGlassFrame);
+
+                if (y < st || y >= sb)
+                {
+                    FillSpan (painter, std::max (sl, bxl), std::min (sr, bxr), yf, s_kGlassFrame);
+                }
+            }
+        }
+
+        // Brand + power lamp on the bottom bezel strip (the platinum below the
+        // glass, now the same thickness as the other three sides). The rainbow
+        // cassowary -- Casso's period-Apple analog of the rainbow logo -- sits
+        // lower-left; the power lamp sits lower-right, balancing it.
+        {
+            float  bandTop = sb + lip + bevelW;
+            float  bandH   = hb - bandTop;
+
+            if (bandH <= s_kMinBrandBandPx)
+            {
+                return;
+            }
+
+            // Rainbow cassowary, lower-left: aligned under the screen's left edge,
+            // matching the Apple logo's placement on the real bezel.
+            float  logoH = bandH * s_kLogoHFrac;
+            float  logoW = logoH * s_kLogoGridAspect;
+            float  logoX = sl;
+            float  logoY = bandTop + (bandH - logoH) * 0.5f;
+
+            CassoBranding::DrawCassowaryRainbow (painter, logoX, logoY, logoW, logoH, s_kLogoBorderArgb);
+
+            // Power lamp, lower-right: the slanted green lamp from the //c case-
+            // switch strip -- the "/" power mark under the screen's right edge. The
+            // strip's LED dimensions at SceneScale, so the lamp zooms with the
+            // monitor it is mounted on. Clamped to the band on tiny layouts,
+            // preserving the LED proportion.
+            float  lampH    = (float) MulDiv (s_kLampHDp, (int) m_dpi, s_kBaseDpi) * m_sceneScale;
+            float  lampBody = 0.0f;
+            float  lampBox  = 0.0f;
+            float  lampX    = 0.0f;
+            float  lampY    = 0.0f;
+
+            lampH    = std::min (lampH, bandH * s_kLampBandFrac);
+            lampBody = lampH * ((float) s_kLampWDp / (float) s_kLampHDp);
+            lampBox  = lampBody + lampH * s_kLampSlantTan;
+            lampX    = sr - lampBox;
+            lampY    = bandTop + (bandH - lampH) * 0.5f;
+
+            PaintPowerLamp (painter, lampX, lampY, lampBox, lampH);
+        }
     }
 }
 

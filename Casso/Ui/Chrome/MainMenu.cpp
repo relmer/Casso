@@ -133,18 +133,22 @@ std::span<const MainMenuCommandEntry> MainMenu::GetCommandEntries()
 
 const wchar_t * MainMenu::GetMenuName (MainMenuId menu)
 {
+    // The & marks the Alt accelerator; "?" is a visible placeholder for a
+    // menu id this function has not been taught about.
+    const wchar_t *  name = L"?";
+
     switch (menu)
     {
-    case MainMenuId::File:    return L"&File";
-    case MainMenuId::Edit:    return L"&Edit";
-    case MainMenuId::Machine: return L"&Machine";
-    case MainMenuId::Disk:    return L"&Disk";
-    case MainMenuId::View:    return L"&View";
-    case MainMenuId::Help:    return L"&Help";
-    case MainMenuId::Debug:   return L"&Debug";
+    case MainMenuId::File:    name = L"&File";    break;
+    case MainMenuId::Edit:    name = L"&Edit";    break;
+    case MainMenuId::Machine: name = L"&Machine"; break;
+    case MainMenuId::Disk:    name = L"&Disk";    break;
+    case MainMenuId::View:    name = L"&View";    break;
+    case MainMenuId::Help:    name = L"&Help";    break;
+    case MainMenuId::Debug:   name = L"&Debug";   break;
     }
 
-    return L"?";
+    return name;
 }
 
 

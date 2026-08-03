@@ -93,17 +93,14 @@ void LedIndicator::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
 
 uint32_t LedIndicator::CoreArgb (const CassoTheme & theme) const
 {
-    if (m_state == LedState::Active)
-    {
-        return theme.ledActive;
-    }
+    uint32_t  argb = theme.ledIdle;
 
-    if (m_state == LedState::Present)
-    {
-        return theme.ledPresent;
-    }
 
-    return theme.ledIdle;
+
+    if      (m_state == LedState::Active)  { argb = theme.ledActive;  }
+    else if (m_state == LedState::Present) { argb = theme.ledPresent; }
+
+    return argb;
 }
 
 
@@ -118,12 +115,9 @@ uint32_t LedIndicator::CoreArgb (const CassoTheme & theme) const
 
 uint32_t LedIndicator::HaloArgb (const CassoTheme & theme) const
 {
-    if (m_state == LedState::Active)
-    {
-        return theme.ledHalo;
-    }
-
-    return 0;
+    // Only an active LED glows; 0 is fully transparent, so the halo pass
+    // draws nothing in the other states.
+    return (m_state == LedState::Active) ? theme.ledHalo : 0;
 }
 
 

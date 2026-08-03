@@ -64,12 +64,16 @@ static constexpr wchar_t  s_kMouseTooltip[] =
 
 const wchar_t * JoystickToggleButton::Label() const
 {
+    const wchar_t *  label = s_kLabel;      // the disabled / off state
+
     switch (m_mode)
     {
-        case InputMappingMode::Paddle:  return s_kPaddleLabel;
-        case InputMappingMode::Mouse:   return s_kMouseLabel;
-        default:                        return s_kLabel;
+        case InputMappingMode::Paddle:  label = s_kPaddleLabel; break;
+        case InputMappingMode::Mouse:   label = s_kMouseLabel;  break;
+        default:                                                break;
     }
+
+    return label;
 }
 
 
@@ -264,10 +268,14 @@ void JoystickToggleButton::Paint (IDxuiPainter & painter, IDxuiTextRenderer & te
 
 const wchar_t * JoystickToggleButton::TooltipText() const
 {
+    const wchar_t *  tip = s_kTooltip;      // matches Label()'s default arm
+
     switch (m_mode)
     {
-        case InputMappingMode::Paddle:  return s_kPaddleTooltip;
-        case InputMappingMode::Mouse:   return s_kMouseTooltip;
-        default:                        return s_kTooltip;
+        case InputMappingMode::Paddle:  tip = s_kPaddleTooltip; break;
+        case InputMappingMode::Mouse:   tip = s_kMouseTooltip;  break;
+        default:                                                break;
     }
+
+    return tip;
 }

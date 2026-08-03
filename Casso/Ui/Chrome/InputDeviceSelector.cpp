@@ -139,15 +139,21 @@ InputDeviceSelector::Segment InputDeviceSelector::SegmentAt (int x, int y) const
 {
     static constexpr Segment  kOrder[3] = { Segment::Joystick, Segment::Paddle, Segment::Mouse };
 
-    for (int i = 0; i < SegmentCount(); i++)
+    Segment  hit = Segment::None;
+    int      i   = 0;
+
+    // Segments do not overlap, so the first containing rect is the answer.
+    for (i = 0; hit == Segment::None && i < SegmentCount(); i++)
     {
         const RECT & r = m_segRects[i];
+
         if (x >= r.left && x < r.right && y >= r.top && y < r.bottom)
         {
-            return kOrder[i];
+            hit = kOrder[i];
         }
     }
-    return Segment::None;
+
+    return hit;
 }
 
 
@@ -162,13 +168,19 @@ InputDeviceSelector::Segment InputDeviceSelector::SegmentAt (int x, int y) const
 
 bool InputDeviceSelector::SegmentSelected (int index) const
 {
+    // The joystick segment is an independent toggle; paddle and mouse are
+    // two states of the one pointer mode, so at most one of them lights.
+    bool  selected = false;
+
     switch (index)
     {
-        case 0:  return m_arrowsJoystick;
-        case 1:  return m_pointer == InputMappingMode::Paddle;
-        case 2:  return m_pointer == InputMappingMode::Mouse;
-        default: return false;
+        case 0:  selected = m_arrowsJoystick;                        break;
+        case 1:  selected = (m_pointer == InputMappingMode::Paddle); break;
+        case 2:  selected = (m_pointer == InputMappingMode::Mouse);  break;
+        default:                                                     break;
     }
+
+    return selected;
 }
 
 
@@ -192,28 +204,54 @@ const wchar_t * InputDeviceSelector::SegmentLabel (int index) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  Tooltips
+//  TooltipText
+//
+//  What the control is doing right now, for a hover that is not over any
+//  one segment.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 const wchar_t * InputDeviceSelector::TooltipText() const
 {
-    if (m_pointer == InputMappingMode::Mouse)  return kTipMouseState;
-    if (m_pointer == InputMappingMode::Paddle) return kTipPaddleState;
-    if (m_arrowsJoystick)                      return kTipJoystickState;
-    return kTipOffState;
+    // Pointer mode outranks the joystick toggle: it is the more specific
+    // thing the control is currently doing.
+    const wchar_t *  tip = kTipOffState;
+
+    if      (m_pointer == InputMappingMode::Mouse)  { tip = kTipMouseState;    }
+    else if (m_pointer == InputMappingMode::Paddle) { tip = kTipPaddleState;   }
+    else if (m_arrowsJoystick)                      { tip = kTipJoystickState; }
+
+    return tip;
 }
 
 
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TooltipTextAt
+//
+//  What clicking THIS point would do, falling back to TooltipText() for a
+//  hover between segments.
+//
+////////////////////////////////////////////////////////////////////////////////
+
 const wchar_t * InputDeviceSelector::TooltipTextAt (int x, int y) const
 {
+    const wchar_t *  tip = TooltipText();
+
+
+
     switch (SegmentAt (x, y))
     {
-        case Segment::Joystick: return kTipJoystickSeg;
-        case Segment::Paddle:   return kTipPaddleSeg;
-        case Segment::Mouse:    return kTipMouseSeg;
-        default:                return TooltipText();
+        case Segment::Joystick: tip = kTipJoystickSeg; break;
+        case Segment::Paddle:   tip = kTipPaddleSeg;   break;
+        case Segment::Mouse:    tip = kTipMouseSeg;    break;
+        default:                                       break;
     }
+
+    return tip;
 }
 
 

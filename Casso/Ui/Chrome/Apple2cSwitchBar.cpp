@@ -264,11 +264,13 @@ Apple2cSwitchBar::Part Apple2cSwitchBar::PartAt (int x, int y) const
         return px >= r.left && px < r.right && py >= r.top && py < r.bottom;
     };
 
-    if (inside (m_resetRect,  x, y)) { return Part::Reset; }
-    if (inside (m_eightyRect, x, y)) { return Part::EightyForty; }
-    if (inside (m_kbdRect,    x, y)) { return Part::Keyboard; }
+    Part  part = Part::None;
 
-    return Part::None;
+    if      (inside (m_resetRect,  x, y)) { part = Part::Reset;       }
+    else if (inside (m_eightyRect, x, y)) { part = Part::EightyForty; }
+    else if (inside (m_kbdRect,    x, y)) { part = Part::Keyboard;    }
+
+    return part;
 }
 
 
@@ -283,13 +285,18 @@ Apple2cSwitchBar::Part Apple2cSwitchBar::PartAt (int x, int y) const
 
 const wchar_t * Apple2cSwitchBar::TooltipTextAt (int x, int y) const
 {
+    // Null means "no tip here" -- the bar's background gets none.
+    const wchar_t *  tip = nullptr;
+
     switch (PartAt (x, y))
     {
-        case Part::Reset:       return kTipReset;
-        case Part::EightyForty: return kTipEighty;
-        case Part::Keyboard:    return kTipKeyboard;
-        default:                return nullptr;
+        case Part::Reset:       tip = kTipReset;    break;
+        case Part::EightyForty: tip = kTipEighty;   break;
+        case Part::Keyboard:    tip = kTipKeyboard; break;
+        default:                                    break;
     }
+
+    return tip;
 }
 
 
