@@ -186,22 +186,26 @@ bool SettingsApplyController::WillMachineChange() const
 {
     std::wstring  current;
     std::string   currentNarrow;
+    bool          changes = false;
 
 
 
-    if (m_pendingMachine.empty() || m_emuShell == nullptr)
+    // Nothing staged means nothing to change. Machine ids are ASCII, so the
+    // narrowing is a straight byte copy rather than a codepage conversion.
+    if (!m_pendingMachine.empty() && m_emuShell != nullptr)
     {
-        return false;
+        current = m_emuShell->CurrentMachineName();
+        currentNarrow.reserve (current.size());
+
+        for (wchar_t c : current)
+        {
+            currentNarrow.push_back ((char) (unsigned char) c);
+        }
+
+        changes = (m_pendingMachine != currentNarrow);
     }
 
-    current = m_emuShell->CurrentMachineName();
-    currentNarrow.reserve (current.size());
-    for (wchar_t c : current)
-    {
-        currentNarrow.push_back ((char) (unsigned char) c);
-    }
-
-    return m_pendingMachine != currentNarrow;
+    return changes;
 }
 
 

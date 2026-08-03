@@ -938,14 +938,19 @@ void Printer3DScene::SetLeds (bool online, bool error)
 
 float Printer3DScene::RoleIntensity (LampRole role) const
 {
+    // 0 is dark, which is the right answer for a lamp role this scene does
+    // not model.
+    float  intensity = 0.0f;
+
     switch (role)
     {
-        case LampRole::Power:   return 1.0f;                        // powered
-        case LampRole::Select:  return m_ledOnline ? 1.0f : 0.0f;   // online / ready
-        case LampRole::Quality: return m_ledQuality01;              // selected quality (draft = 0)
-        case LampRole::Error:   return m_ledError ? 1.0f : 0.0f;    // paper / fault
+        case LampRole::Power:   intensity = 1.0f;                      break;  // always lit while powered
+        case LampRole::Select:  intensity = m_ledOnline ? 1.0f : 0.0f; break;  // online / ready
+        case LampRole::Quality: intensity = m_ledQuality01;            break;  // continuous: draft = 0
+        case LampRole::Error:   intensity = m_ledError ? 1.0f : 0.0f;  break;  // paper / fault
     }
-    return 0.0f;
+
+    return intensity;
 }
 
 

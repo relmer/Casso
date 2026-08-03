@@ -257,13 +257,16 @@ bool UiShell::OnLButtonUp (int x, int y)
 
 bool UiShell::HandleKey (WPARAM vk)
 {
-    if (m_mainMenu != nullptr && m_mainMenu->IsOpen())
+    // An open menu swallows every key, handled or not -- otherwise an
+    // unrecognized key would reach the emulated keyboard behind the menu.
+    bool  menuOpen = (m_mainMenu != nullptr) && m_mainMenu->IsOpen();
+
+    if (menuOpen)
     {
         (void) m_mainMenu->HandleKey (vk);
-        return true;
     }
 
-    return false;
+    return menuOpen;
 }
 
 
@@ -284,12 +287,7 @@ bool UiShell::HandleKey (WPARAM vk)
 
 bool UiShell::IsCapturingInput() const
 {
-    if (m_mainMenu != nullptr && m_mainMenu->IsOpen())
-    {
-        return true;
-    }
-
-    return false;
+    return (m_mainMenu != nullptr) && m_mainMenu->IsOpen();
 }
 
 

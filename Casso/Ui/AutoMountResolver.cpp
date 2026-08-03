@@ -22,19 +22,13 @@ AutoMountResolver::Decision AutoMountResolver::Resolve (
 
 
 
-    if (rememberedPath.empty())
+    // Three outcomes: nothing remembered (leave the drive empty), the
+    // remembered file still exists (mount it), or it has since moved or been
+    // deleted (mount nothing AND tell the caller to forget the path).
+    if (!rememberedPath.empty())
     {
-        return decision;
-    }
-
-    if (fs.Exists (rememberedPath))
-    {
-        decision.action = Action::Mount;
-        decision.path   = rememberedPath;
-    }
-    else
-    {
-        decision.action = Action::ClearStaleEntry;
+        decision.action = fs.Exists (rememberedPath) ? Action::Mount
+                                                     : Action::ClearStaleEntry;
         decision.path   = rememberedPath;
     }
 

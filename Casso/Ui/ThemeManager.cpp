@@ -259,20 +259,21 @@ Error:
 
 const LoadedTheme * ThemeManager::GetActiveTheme() const
 {
-    if (m_activeName.empty())
-    {
-        return nullptr;
-    }
+    const LoadedTheme *  found = nullptr;
 
+
+
+    // An empty active name matches nothing, so the loop covers that case too
+    // and null means "no active theme" either way.
     for (const LoadedTheme & t : m_available)
     {
-        if (t.name == m_activeName)
+        if (found == nullptr && !m_activeName.empty() && t.name == m_activeName)
         {
-            return &t;
+            found = &t;
         }
     }
 
-    return nullptr;
+    return found;
 }
 
 
@@ -325,12 +326,10 @@ LoadedTheme ThemeManager::GetActiveResolvedTheme() const
 
 
 
-    if (active == nullptr)
-    {
-        return LoadedTheme {};
-    }
-
-    return active->ResolveForMachine (m_activeMachine);
+    // A default-constructed theme with no active one: callers read its
+    // has-flags, which are all false, so nothing gets overridden.
+    return (active != nullptr) ? active->ResolveForMachine (m_activeMachine)
+                               : LoadedTheme {};
 }
 
 

@@ -553,20 +553,17 @@ LoadedTheme LoadedTheme::ResolveForMachine (const std::string & machineDisplayNa
 
 
 
+    // Exact, case-sensitive match against the machine JSON's "name". No entry
+    // means no overrides, and `result` is already the verbatim copy.
     for (const std::pair<std::string, JsonValue> & entry : variantOverrides)
     {
-        if (entry.first == machineDisplayName)
+        if (override_ == nullptr && entry.first == machineDisplayName)
         {
             override_ = &entry.second;
-            break;
         }
     }
 
-    if (override_ == nullptr)
-    {
-        return result;
-    }
-
+    if (override_ != nullptr)
     {
         const JsonValue *  crtObj   = nullptr;
         const JsonValue *  scanObj  = nullptr;

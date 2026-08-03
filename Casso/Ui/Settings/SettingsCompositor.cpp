@@ -532,63 +532,66 @@ void SettingsCompositor::Compose (
     HRESULT                hrTextures    = S_OK;
 
 
-    if (!m_initialized || contentSrv == nullptr || backBufferRtv == nullptr || widthPx <= 0 || heightPx <= 0)
+    // Not ready, or no scratch textures: skip the frame entirely rather than
+    // present a half-composed one. The caller keeps the previous frame up.
+    if (m_initialized && contentSrv != nullptr && backBufferRtv != nullptr &&
+        widthPx > 0 && heightPx > 0)
     {
-        return;
-    }
-
-    hrTextures = EnsureBlurTextures (widthPx, heightPx);
-
-    if (FAILED (hrTextures))
-    {
-        return;
-    }
-
-    composeParams.outputW = (float) widthPx;
-    composeParams.outputH = (float) heightPx;
-
-    if (m_transparencyActive)
-    {
-        SettingsBlurParams  blurParams = {};
-
-        blurParams.radiusPx = kGaussianRadiusPx;
-        blurParams.outputW  = (float) widthPx;
-        blurParams.outputH  = (float) heightPx;
-        (void) UploadBlurParams (blurParams);
-
-        // Separable Gaussian: horizontal (content -> blurH), then vertical
-        // (blurH -> blurV).
-        DrawFullscreen (m_blurHRtv.Get(), contentSrv,        nullptr, m_psGaussianH.Get(), m_blurConstantBuffer.Get(), widthPx, heightPx);
-        DrawFullscreen (m_blurVRtv.Get(), m_blurHSrv.Get(),  nullptr, m_psGaussianV.Get(), m_blurConstantBuffer.Get(), widthPx, heightPx);
-
-        composeParams.emuRectClient[0]   = (float) m_emuRectClient.left;
-        composeParams.emuRectClient[1]   = (float) m_emuRectClient.top;
-        composeParams.emuRectClient[2]   = (float) m_emuRectClient.right;
-        composeParams.emuRectClient[3]   = (float) m_emuRectClient.bottom;
-        composeParams.focusRectClient[0] = (float) m_focusRectClient.left;
-        composeParams.focusRectClient[1] = (float) m_focusRectClient.top;
-        composeParams.focusRectClient[2] = (float) m_focusRectClient.right;
-        composeParams.focusRectClient[3] = (float) m_focusRectClient.bottom;
-        composeParams.dimFactor          = kDimFactor;
-        composeParams.featherPx          = kFocusFeatherPx;
-        (void) UploadComposeParams (composeParams);
-
-        DrawFullscreen (backBufferRtv, contentSrv, m_blurVSrv.Get(), m_psCompose.Get(), m_composeConstantBuffer.Get(), widthPx, heightPx);
+        hrTextures = EnsureBlurTextures (widthPx, heightPx);
     }
     else
     {
-        // Inactive: focus rect covers the whole frame so FocusWeight == 1
-        // everywhere -> the compose outputs the sharp content opaque (no blur,
-        // no emulator hole). Bind content as both sources so texBlur is valid
-        // even though the lerp ignores it.
-        composeParams.focusRectClient[0] = 0.0f;
-        composeParams.focusRectClient[1] = 0.0f;
-        composeParams.focusRectClient[2] = (float) widthPx;
-        composeParams.focusRectClient[3] = (float) heightPx;
-        composeParams.dimFactor          = 1.0f;
-        composeParams.featherPx          = 0.0f;
-        (void) UploadComposeParams (composeParams);
+        hrTextures = E_FAIL;
+    }
 
-        DrawFullscreen (backBufferRtv, contentSrv, contentSrv, m_psCompose.Get(), m_composeConstantBuffer.Get(), widthPx, heightPx);
+    if (SUCCEEDED (hrTextures))
+    {
+        composeParams.outputW = (float) widthPx;
+        composeParams.outputH = (float) heightPx;
+
+        if (m_transparencyActive)
+        {
+            SettingsBlurParams  blurParams = {};
+
+            blurParams.radiusPx = kGaussianRadiusPx;
+            blurParams.outputW  = (float) widthPx;
+            blurParams.outputH  = (float) heightPx;
+            (void) UploadBlurParams (blurParams);
+
+            // Separable Gaussian: horizontal (content -> blurH), then vertical
+            // (blurH -> blurV).
+            DrawFullscreen (m_blurHRtv.Get(), contentSrv,        nullptr, m_psGaussianH.Get(), m_blurConstantBuffer.Get(), widthPx, heightPx);
+            DrawFullscreen (m_blurVRtv.Get(), m_blurHSrv.Get(),  nullptr, m_psGaussianV.Get(), m_blurConstantBuffer.Get(), widthPx, heightPx);
+
+            composeParams.emuRectClient[0]   = (float) m_emuRectClient.left;
+            composeParams.emuRectClient[1]   = (float) m_emuRectClient.top;
+            composeParams.emuRectClient[2]   = (float) m_emuRectClient.right;
+            composeParams.emuRectClient[3]   = (float) m_emuRectClient.bottom;
+            composeParams.focusRectClient[0] = (float) m_focusRectClient.left;
+            composeParams.focusRectClient[1] = (float) m_focusRectClient.top;
+            composeParams.focusRectClient[2] = (float) m_focusRectClient.right;
+            composeParams.focusRectClient[3] = (float) m_focusRectClient.bottom;
+            composeParams.dimFactor          = kDimFactor;
+            composeParams.featherPx          = kFocusFeatherPx;
+            (void) UploadComposeParams (composeParams);
+
+            DrawFullscreen (backBufferRtv, contentSrv, m_blurVSrv.Get(), m_psCompose.Get(), m_composeConstantBuffer.Get(), widthPx, heightPx);
+        }
+        else
+        {
+            // Inactive: focus rect covers the whole frame so FocusWeight == 1
+            // everywhere -> the compose outputs the sharp content opaque (no blur,
+            // no emulator hole). Bind content as both sources so texBlur is valid
+            // even though the lerp ignores it.
+            composeParams.focusRectClient[0] = 0.0f;
+            composeParams.focusRectClient[1] = 0.0f;
+            composeParams.focusRectClient[2] = (float) widthPx;
+            composeParams.focusRectClient[3] = (float) heightPx;
+            composeParams.dimFactor          = 1.0f;
+            composeParams.featherPx          = 0.0f;
+            (void) UploadComposeParams (composeParams);
+
+            DrawFullscreen (backBufferRtv, contentSrv, contentSrv, m_psCompose.Get(), m_composeConstantBuffer.Get(), widthPx, heightPx);
+        }
     }
 }

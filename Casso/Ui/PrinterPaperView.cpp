@@ -94,50 +94,46 @@ void PrinterPaperView::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, 
     float          w      = (float) (m_bounds.right  - m_bounds.left);
     float          h      = (float) (m_bounds.bottom - m_bounds.top);
 
-    if (w <= 0.0f || h <= 0.0f)
+    // A zero-sized view draws nothing at all -- not even the mat.
+    if (w > 0.0f && h > 0.0f)
     {
-        return;
-    }
+        scaler.SetDpi (m_dpi);
 
-    scaler.SetDpi (m_dpi);
+        // The mat is painted whether or not there is a printout: an empty
+        // preview is a dark mat, not a blank window.
+        painter.FillRect (x, y, w, h, s_kMat);
 
-    painter.FillRect (x, y, w, h, s_kMat);
-
-    if (!HasImage())
-    {
-        return;
-    }
-
-    {
-        float  margin = scaler.Pxf (12.0f);
-        float  availW = w - margin * 2.0f;
-        float  availH = h - margin * 2.0f;
-        float  scale  = 0.0f;
-        float  dW     = 0.0f;
-        float  dH     = 0.0f;
-        float  dX     = 0.0f;
-        float  dY     = 0.0f;
-
-        if (availW <= 0.0f || availH <= 0.0f)
+        if (HasImage())
         {
-            return;
+            float  margin = scaler.Pxf (12.0f);
+            float  availW = w - margin * 2.0f;
+            float  availH = h - margin * 2.0f;
+            float  scale  = 0.0f;
+            float  dW     = 0.0f;
+            float  dH     = 0.0f;
+            float  dX     = 0.0f;
+            float  dY     = 0.0f;
+
+            // Too small for the margins: the mat alone is the whole frame.
+            if (availW > 0.0f && availH > 0.0f)
+            {
+                scale = (std::min) (availW / (float) m_srcW, availH / (float) m_srcH);
+
+                if (scale <= 0.0f)
+                {
+                    scale = 1.0f;
+                }
+
+                dW = (float) m_srcW * scale;
+                dH = (float) m_srcH * scale;
+                dX = x + (w - dW) * 0.5f;
+                dY = y + (h - dH) * 0.5f;
+
+                painter.FillRect    (dX + scaler.Pxf (3.0f), dY + scaler.Pxf (3.0f), dW, dH, s_kShadow);
+                painter.OutlineRect (dX, dY, dW, dH, 1.0f, s_kBorder);
+
+                IGNORE_RETURN_VALUE (hr, text.DrawIconBitmap (m_bgra.data(), m_srcW, m_srcH, dX, dY, dW, dH));
+            }
         }
-
-        scale = (std::min) (availW / (float) m_srcW, availH / (float) m_srcH);
-
-        if (scale <= 0.0f)
-        {
-            scale = 1.0f;
-        }
-
-        dW = (float) m_srcW * scale;
-        dH = (float) m_srcH * scale;
-        dX = x + (w - dW) * 0.5f;
-        dY = y + (h - dH) * 0.5f;
-
-        painter.FillRect    (dX + scaler.Pxf (3.0f), dY + scaler.Pxf (3.0f), dW, dH, s_kShadow);
-        painter.OutlineRect (dX, dY, dW, dH, 1.0f, s_kBorder);
-
-        IGNORE_RETURN_VALUE (hr, text.DrawIconBitmap (m_bgra.data(), m_srcW, m_srcH, dX, dY, dW, dH));
     }
 }
