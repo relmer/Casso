@@ -293,7 +293,7 @@ void EmulatorShell::CenterInWorkArea (
 // LR_DEFAULTCOLOR is set on a Vista+ icon). Premultiplies the
 // pixels in place because D2D's DrawBitmap expects premultiplied
 // sources.
-bool EmulatorShell::LoadIconAsPremulBgra (
+HRESULT EmulatorShell::LoadIconAsPremulBgra (
     HINSTANCE               hInstance,
     int                     iconResourceId,
     int                     sizePx,
@@ -301,6 +301,7 @@ bool EmulatorShell::LoadIconAsPremulBgra (
     int                   & outW,
     int                   & outH)
 {
+    HRESULT     hr          = S_OK;
     HICON       hIcon       = nullptr;
     HDC         screenDc    = nullptr;
     HDC         memDc       = nullptr;
@@ -308,83 +309,99 @@ bool EmulatorShell::LoadIconAsPremulBgra (
     HBITMAP     oldBitmap   = nullptr;
     void      * dibBits     = nullptr;
     BITMAPINFO  bmi         = {};
-    bool        success     = false;
+    BOOL        drawn       = FALSE;
+    uint32_t  * src         = nullptr;
+    size_t      i           = 0;
     size_t      pixelCount  = (size_t) sizePx * (size_t) sizePx;
+    HRESULT     hrGle       = E_FAIL;
 
 
 
+    // Every failure here is a Win32 one with a real reason behind it -- a
+    // missing resource id reads differently from an exhausted GDI heap -- so
+    // the OS code is carried out rather than flattened to "no icon". The
+    // handles are released at Error:, which every bail below routes through.
+    //
+    // GetLastError is read into hrGle BEFORE the check, never inside it: a
+    // call in a macro condition is forbidden, and any intervening call could
+    // clobber the thread's error code anyway.
     hIcon = (HICON) LoadImageW (hInstance,
                                 MAKEINTRESOURCEW (iconResourceId),
                                 IMAGE_ICON,
                                 sizePx, sizePx,
                                 LR_DEFAULTCOLOR);
 
-    // Everything below owns a GDI handle that has to be released, so a missing
-    // icon skips the whole body rather than returning past the cleanup.
-    if (hIcon != nullptr)
+    if (hIcon == nullptr)
     {
-        screenDc = GetDC (nullptr);
-        memDc    = CreateCompatibleDC (screenDc);
-
-        bmi.bmiHeader.biSize        = sizeof (BITMAPINFOHEADER);
-        bmi.bmiHeader.biWidth       = sizePx;
-        bmi.bmiHeader.biHeight      = -sizePx;   // top-down DIB
-        bmi.bmiHeader.biPlanes      = 1;
-        bmi.bmiHeader.biBitCount    = 32;
-        bmi.bmiHeader.biCompression = BI_RGB;
-
-        dib = CreateDIBSection (memDc, &bmi, DIB_RGB_COLORS, &dibBits, nullptr, 0);
-
-        if (dib != nullptr && dibBits != nullptr)
-        {
-            oldBitmap = (HBITMAP) SelectObject (memDc, dib);
-
-            // Clear the DIB to transparent so the icon's alpha channel
-            // composites against zero instead of the screen DC's
-            // garbage contents.
-            memset (dibBits, 0, pixelCount * sizeof (uint32_t));
-
-            if (DrawIconEx (memDc, 0, 0, hIcon, sizePx, sizePx, 0, nullptr, DI_NORMAL))
-            {
-                uint32_t  * src  = (uint32_t *) dibBits;
-                size_t      i    = 0;
-
-                outPixels.assign (pixelCount, 0);
-
-                // Premultiply each BGRA pixel. DIB layout is 0xAARRGGBB
-                // in little-endian uint32 (B,G,R,A in memory order).
-                for (i = 0; i < pixelCount; i++)
-                {
-                    uint32_t  px = src[i];
-                    uint8_t   a  = (uint8_t) ((px >> 24) & 0xFF);
-                    uint8_t   r  = (uint8_t) ((px >> 16) & 0xFF);
-                    uint8_t   g  = (uint8_t) ((px >>  8) & 0xFF);
-                    uint8_t   b  = (uint8_t) ( px        & 0xFF);
-
-                    r = (uint8_t) ((r * a) / 255);
-                    g = (uint8_t) ((g * a) / 255);
-                    b = (uint8_t) ((b * a) / 255);
-
-                    outPixels[i] = ((uint32_t) a << 24) | ((uint32_t) r << 16) |
-                                   ((uint32_t) g <<  8) |  (uint32_t) b;
-                }
-
-                outW    = sizePx;
-                outH    = sizePx;
-                success = true;
-            }
-
-            SelectObject (memDc, oldBitmap);
-        }
-
-        if (dib != nullptr)      { DeleteObject (dib); }
-        if (memDc != nullptr)    { DeleteDC (memDc); }
-        if (screenDc != nullptr) { ReleaseDC (nullptr, screenDc); }
-
-        DestroyIcon (hIcon);
+        hrGle = HRESULT_FROM_WIN32 (GetLastError());
     }
 
-    return success;
+    CBREx (hIcon != nullptr, hrGle);
+
+    screenDc = GetDC (nullptr);
+    memDc    = CreateCompatibleDC (screenDc);
+    CPR (memDc);
+
+    bmi.bmiHeader.biSize        = sizeof (BITMAPINFOHEADER);
+    bmi.bmiHeader.biWidth       = sizePx;
+    bmi.bmiHeader.biHeight      = -sizePx;   // top-down DIB
+    bmi.bmiHeader.biPlanes      = 1;
+    bmi.bmiHeader.biBitCount    = 32;
+    bmi.bmiHeader.biCompression = BI_RGB;
+
+    dib = CreateDIBSection (memDc, &bmi, DIB_RGB_COLORS, &dibBits, nullptr, 0);
+    CPR (dib);
+    CPR (dibBits);
+
+    oldBitmap = (HBITMAP) SelectObject (memDc, dib);
+
+    // Clear the DIB to transparent so the icon's alpha channel composites
+    // against zero instead of the screen DC's garbage contents.
+    memset (dibBits, 0, pixelCount * sizeof (uint32_t));
+
+    drawn = DrawIconEx (memDc, 0, 0, hIcon, sizePx, sizePx, 0, nullptr, DI_NORMAL);
+
+    if (!drawn)
+    {
+        hrGle = HRESULT_FROM_WIN32 (GetLastError());
+    }
+
+    CBREx (drawn, hrGle);
+
+    src = (uint32_t *) dibBits;
+    outPixels.assign (pixelCount, 0);
+
+    // Premultiply each BGRA pixel. DIB layout is 0xAARRGGBB in little-endian
+    // uint32 (B,G,R,A in memory order).
+    for (i = 0; i < pixelCount; i++)
+    {
+        uint32_t  px = src[i];
+        uint8_t   a  = (uint8_t) ((px >> 24) & 0xFF);
+        uint8_t   r  = (uint8_t) ((px >> 16) & 0xFF);
+        uint8_t   g  = (uint8_t) ((px >>  8) & 0xFF);
+        uint8_t   b  = (uint8_t) ( px        & 0xFF);
+
+        r = (uint8_t) ((r * a) / 255);
+        g = (uint8_t) ((g * a) / 255);
+        b = (uint8_t) ((b * a) / 255);
+
+        outPixels[i] = ((uint32_t) a << 24) | ((uint32_t) r << 16) |
+                       ((uint32_t) g <<  8) |  (uint32_t) b;
+    }
+
+    outW = sizePx;
+    outH = sizePx;
+
+Error:
+    // Unwound in reverse acquisition order, each guarded: a bail from any of
+    // the checks above lands here with only some of them owned.
+    if (oldBitmap != nullptr) { SelectObject (memDc, oldBitmap); }
+    if (dib != nullptr)       { DeleteObject (dib); }
+    if (memDc != nullptr)     { DeleteDC (memDc); }
+    if (screenDc != nullptr)  { ReleaseDC (nullptr, screenDc); }
+    if (hIcon != nullptr)     { DestroyIcon (hIcon); }
+
+    return hr;
 }
 
 
@@ -1854,8 +1871,11 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
         std::vector<uint32_t>  iconPixels;
         int                    iconW = 0;
         int                    iconH = 0;
+        HRESULT                hrIcon = S_OK;
 
-        if (LoadIconAsPremulBgra (hInstance, IDI_CASSO, 32, iconPixels, iconW, iconH))
+        hrIcon = LoadIconAsPremulBgra (hInstance, IDI_CASSO, 32, iconPixels, iconW, iconH);
+
+        if (SUCCEEDED (hrIcon))
         {
             m_host->SetCaptionIcon (std::move (iconPixels), iconW, iconH);
         }
@@ -2848,9 +2868,12 @@ int EmulatorShell::ShowSimpleDialogViaDxui (const DialogDefinition & def)
         int                    iconH   = 0;
         int                    iconRes = (def.icon == DialogIcon::AppPhotoreal) ? IDI_CASSO_PHOTOREAL : IDI_CASSO_FLAT_COLOR_HEAD;
         int                    iconDip = (def.iconSizeOverrideDp > 0.0f) ? (int) def.iconSizeOverrideDp : s_kDefaultIconDip;
+        HRESULT                hrIcon  = S_OK;
 
 
-        if (LoadIconAsPremulBgra (m_hInstance, iconRes, s_kIconSrcPx, iconPixels, iconW, iconH))
+        hrIcon = LoadIconAsPremulBgra (m_hInstance, iconRes, s_kIconSrcPx, iconPixels, iconW, iconH);
+
+        if (SUCCEEDED (hrIcon))
         {
             content->SetIcon (std::move (iconPixels), iconW, iconH, iconDip);
         }
@@ -8219,12 +8242,18 @@ void EmulatorShell::DumpTrace (const wstring & reason)
 
         win.Create (reason, path, total);
 
-        m_cpu->DumpTraceToFile (path, [&win] (uint64_t done, uint64_t tot)
+        hr = m_cpu->DumpTraceToFile (path, [&win] (uint64_t done, uint64_t tot)
         {
             win.SetProgress (done, tot);
         });
 
         win.Destroy();
+
+        // Tear the progress window down FIRST, then report: the notify is modal,
+        // and leaving a progress dialog stranded behind it looks like a hang.
+        // This path also runs from the crash handler, where the trace is the only
+        // artifact -- silently losing it is the worst possible outcome.
+        CHRN (hr, L"Could not write the CPU trace file");
     }
 
 Error:

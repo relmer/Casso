@@ -39,15 +39,15 @@ public:
     const Byte * GetMemory        () const                   { return memory.data (); }
 
     // Load a raw binary file into memory at the specified address.
-    // Returns true on success; false if the file cannot be opened or does not
-    // fit within the 64 KB address space starting at `address`.
-    // On failure, memory contents are left unchanged.
-    bool LoadBinary (const std::string & filename, Word address);
+    // E_INVALIDARG if the file cannot be opened, or if the image does not fit
+    // within the 64 KB address space starting at `address`; E_FAIL if the read
+    // itself goes bad. On failure, memory contents are left unchanged.
+    HRESULT LoadBinary (const std::string & filename, Word address);
 
     // Stream-based overload. Reads all remaining bytes from `stream` into
     // memory starting at `address`. Used directly by unit tests to avoid
     // touching the filesystem; the filename overload is a thin wrapper.
-    bool LoadBinary (std::istream & stream, Word address);
+    HRESULT LoadBinary (std::istream & stream, Word address);
 
 protected:
     struct OperandInfo
@@ -224,7 +224,7 @@ public:
     // (may be empty) is invoked periodically with (entriesWritten,
     // totalEntries) so a UI can show progress. Returns true on success.
     // CassoCore stays UI-free; the caller owns any progress dialog.
-    bool     DumpTraceToFile (const std::wstring & path,
+    HRESULT  DumpTraceToFile (const std::wstring & path,
                               const std::function<void (uint64_t, uint64_t)> & onProgress) const;
 
 protected:

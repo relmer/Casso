@@ -528,9 +528,9 @@ namespace IntegrationTests
 
             auto bin = MakeStream ({ 0xA9, 0x42, 0x85, 0x10, 0x00 });
 
-            bool ok = cpu.LoadBinary (bin, (Word) 0x8000);
+            HRESULT hr = cpu.LoadBinary (bin, (Word) 0x8000);
 
-            Assert::IsTrue (ok);
+            AssertSucceeded (hr);
             Assert::AreEqual ((Byte) 0xA9, cpu.Peek (0x8000));
             Assert::AreEqual ((Byte) 0x42, cpu.Peek (0x8001));
             Assert::AreEqual ((Byte) 0x85, cpu.Peek (0x8002));
@@ -560,7 +560,7 @@ namespace IntegrationTests
             // LDA #$42 ; STA $10 ; BRK
             auto bin = MakeStream ({ 0xA9, 0x42, 0x85, 0x10, 0x00 });
 
-            Assert::IsTrue (cpu.LoadBinary (bin, (Word) 0x8000));
+            AssertSucceeded (cpu.LoadBinary (bin, (Word) 0x8000));
 
             cpu.RegPC() = 0x8000;
             cpu.StepN (2); // LDA, STA
@@ -590,9 +590,9 @@ namespace IntegrationTests
             cpu.Poke (0xFFFE, 0xAB);
             cpu.Poke (0xFFFF, 0xCD);
 
-            bool ok = cpu.LoadBinary (bin, (Word) 0xFFFE);
+            HRESULT hr = cpu.LoadBinary (bin, (Word) 0xFFFE);
 
-            Assert::IsFalse (ok);
+            Assert::IsTrue (FAILED (hr), L"an image that overruns the address space must fail");
             // Memory unchanged on failure.
             Assert::AreEqual ((Byte) 0xAB, cpu.Peek (0xFFFE));
             Assert::AreEqual ((Byte) 0xCD, cpu.Peek (0xFFFF));
@@ -616,9 +616,9 @@ namespace IntegrationTests
             // 2-byte stream loaded at 0xFFFE fills the last two bytes of the address space.
             auto bin = MakeStream ({ 0xAA, 0xBB });
 
-            bool ok = cpu.LoadBinary (bin, (Word) 0xFFFE);
+            HRESULT hr = cpu.LoadBinary (bin, (Word) 0xFFFE);
 
-            Assert::IsTrue (ok);
+            AssertSucceeded (hr);
             Assert::AreEqual ((Byte) 0xAA, cpu.Peek (0xFFFE));
             Assert::AreEqual ((Byte) 0xBB, cpu.Peek (0xFFFF));
         }
@@ -642,9 +642,9 @@ namespace IntegrationTests
 
             cpu.Poke (0x8000, 0xAB);
 
-            bool ok = cpu.LoadBinary (bin, (Word) 0x8000);
+            HRESULT hr = cpu.LoadBinary (bin, (Word) 0x8000);
 
-            Assert::IsTrue (ok);
+            AssertSucceeded (hr);
             // Empty stream means nothing is overwritten.
             Assert::AreEqual ((Byte) 0xAB, cpu.Peek (0x8000));
         }

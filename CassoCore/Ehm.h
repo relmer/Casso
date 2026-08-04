@@ -53,6 +53,9 @@
     #ifndef E_INVALIDARG
         #define E_INVALIDARG      ((HRESULT) 0x80070057L)
     #endif
+    #ifndef E_UNEXPECTED
+        #define E_UNEXPECTED      ((HRESULT) 0x8000FFFFL)
+    #endif
 
     #ifndef SUCCEEDED
         #define SUCCEEDED(hr)     (((HRESULT)(hr)) >= 0)

@@ -212,26 +212,35 @@ void Cpu::DumpInstructionTrace (Byte faultOpcode, Word faultPC) const
 //    00000001  PC=$XXXX  op=$XX OPS=$XX $XX (NAME)  A=$XX X=$XX Y=$XX SP=$XX P=$XX
 //
 //  `onProgress` (if set) is called every kProgressStride entries and once
-//  at completion with (entriesWritten, totalEntries). Returns true on
-//  success. CassoCore owns no UI; the caller drives any progress dialog.
+//  at completion with (entriesWritten, totalEntries). CassoCore owns no UI;
+//  the caller drives any progress dialog.
+//
+//  The user asks for this dump explicitly, so a failure has to say which one
+//  it was: E_INVALIDARG for an unopenable path, E_UNEXPECTED for a trace ring
+//  that was never allocated (--trace not on), E_FAIL for a write that started
+//  and then failed. A bool collapsed all three into "nothing happened".
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool Cpu::DumpTraceToFile (const std::wstring & path,
-                           const std::function<void (uint64_t, uint64_t)> & onProgress) const
+HRESULT Cpu::DumpTraceToFile (const std::wstring & path,
+                              const std::function<void (uint64_t, uint64_t)> & onProgress) const
 {
     static constexpr uint64_t  kProgressStride = 100000;
 
+    HRESULT        hr    = S_OK;
     std::ofstream  out (path, std::ios::binary | std::ios::trunc);
     uint64_t       total = (m_traceCount < (uint64_t) m_traceCapacity) ? m_traceCount
                                                                        : (uint64_t) m_traceCapacity;
-    size_t         start = 0;
-    bool           wrote = false;
+    size_t         start  = 0;
+    bool           isOpen = false;
+    bool           wrote  = false;
     char           line[160];
 
-    // An unopenable file and a trace ring that was never allocated are both
-    // "nothing written"; out.good() below reports write failures instead.
-    if (out.is_open() && m_traceCapacity != 0)
+    isOpen = out.is_open();
+
+    CBREx (isOpen,               E_INVALIDARG);
+    CBREx (m_traceCapacity != 0, E_UNEXPECTED);
+
     {
         // When the ring has wrapped, the oldest surviving entry sits at the
         // current head; otherwise it starts at index 0.
@@ -310,10 +319,16 @@ bool Cpu::DumpTraceToFile (const std::wstring & path,
             onProgress (total, total);
         }
 
+        // Distinct from the open failure above: the file opened and we wrote
+        // into it, then the stream went bad -- a full disk or a vanished share,
+        // not a bad path. E_FAIL is the CBR default, so no -Ex here.
         wrote = out.good();
+
+        CBR (wrote);
     }
 
-    return wrote;
+Error:
+    return hr;
 }
 
 
@@ -1616,21 +1631,20 @@ void Cpu::CreateInstruction (uint32_t                      addressingModeMax,
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool Cpu::LoadBinary (const std::string & filename, Word address)
+HRESULT Cpu::LoadBinary (const std::string & filename, Word address)
 {
-    HRESULT       hr      = S_OK;
-    std::ifstream file      (filename, std::ios::binary);
-    bool          fLoaded = false;
-    bool          isOpen  = false;
+    HRESULT       hr     = S_OK;
+    std::ifstream file     (filename, std::ios::binary);
+    bool          isOpen = false;
 
     isOpen = file.is_open();
-    CBRA (isOpen);
+    CBRAEx (isOpen, E_INVALIDARG);
 
-    fLoaded = LoadBinary (file, address);
-    CBR  (fLoaded);
+    hr = LoadBinary (file, address);
+    CHR (hr);
 
 Error:
-    return SUCCEEDED (hr);
+    return hr;
 }
 
 
@@ -1643,10 +1657,11 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool Cpu::LoadBinary (std::istream & stream, Word address)
+HRESULT Cpu::LoadBinary (std::istream & stream, Word address)
 {
-    HRESULT hr      = S_OK;
+    HRESULT hr       = S_OK;
     bool    readWell = false;
+    bool    fits     = false;
 
 
 
@@ -1657,7 +1672,12 @@ bool Cpu::LoadBinary (std::istream & stream, Word address)
 
     readWell = !stream.bad();
     CBRA (readWell);
-    CBR  (size >= 0 && (size_t) size <= memSize - address);
+
+    // A negative size means tellg failed; too large means the image would run
+    // off the top of memory. Both are the caller's problem, not a stream fault,
+    // so they read as E_INVALIDARG rather than E_FAIL.
+    fits = (size >= 0 && (size_t) size <= memSize - address);
+    CBREx (fits, E_INVALIDARG);
 
     // Read directly into CPU memory — no intermediate buffer
     stream.read (reinterpret_cast<char *>(memory.data() + address), size);
@@ -1666,5 +1686,5 @@ bool Cpu::LoadBinary (std::istream & stream, Word address)
     CBRA (readWell);
 
 Error:
-    return SUCCEEDED (hr);
+    return hr;
 }

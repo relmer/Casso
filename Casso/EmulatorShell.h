@@ -452,7 +452,7 @@ private:
         LONG       & outX,
         LONG       & outY);
 
-    static bool  LoadIconAsPremulBgra (
+    static HRESULT  LoadIconAsPremulBgra (
         HINSTANCE               hInstance,
         int                     iconResourceId,
         int                     sizePx,
