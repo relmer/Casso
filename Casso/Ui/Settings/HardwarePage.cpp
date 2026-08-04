@@ -190,6 +190,27 @@ void HardwarePage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
 //
 //  HardwarePage::SetRect
 //
+//  Lays out the page: the machine and speed selectors, the read-only spec
+//  block, and the hardware tree below them.
+//
+//  The spec block has TWO row shapes, and that is what most of this function
+//  is about. Fixed rows -- CPU, clock, memory -- are label plus value across
+//  the page width. Memory sub-rows are a three-column breakdown (name, size,
+//  address range) indented under the Memory header, whose own value column
+//  carries the total.
+//
+//  Sub-rows are positioned from the memory header's index plus one rather than
+//  from the running y, so the breakdown stays anchored to its header no matter
+//  how many regions there are.
+//
+//  The name column is sized for the longest region label ("RAM (main,
+//  bank-switched)") so it never wraps; the size and address columns are placed
+//  relative to it, so widening the name shifts them rather than overlapping.
+//
+//  Layout state -- base rect, row height, gap, scaler -- is cached because the
+//  page relayouts itself when the tree grows or shrinks and must reproduce
+//  exactly this geometry without being called again.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void HardwarePage::SetRect (const RECT & rect, const DxuiDpiScaler & scaler)
@@ -478,6 +499,27 @@ void HardwarePage::Rebuild()
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  HardwarePage::BuildNodes
+//
+//  Projects the machine's hardware entries into the tree the page displays:
+//  internal devices and slots, each under its own group.
+//
+//  An EMPTY group is omitted entirely rather than shown with no children. A
+//  //c has no slots at all, and a "Slots" heading with nothing under it reads
+//  as a bug rather than as an accurate description of the machine.
+//
+//  The group rows themselves are marked Required so they cannot be unchecked.
+//  They are organizational headings, not devices; letting one be toggled would
+//  imply the machine could have its internal devices removed as a set.
+//
+//  Groups start EXPANDED, since the whole point of the page is seeing what the
+//  machine has -- a collapsed tree would hide it behind two clicks.
+//
+//  Each row carries its lock reason through to the tree, so the UI can explain
+//  why a platform-locked device cannot be removed instead of merely showing it
+//  grayed.
+//
+//  Written as a static function over plain entries so the projection is
+//  unit-testable without a page, a window, or a machine.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

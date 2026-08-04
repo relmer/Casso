@@ -13,6 +13,28 @@
 //
 //  ThemeBootstrapPlanner::Plan
 //
+//  Decides whether a theme file on disk should be replaced by the built-in
+//  copy.
+//
+//  The one rule everything serves: a theme the USER owns is never touched. A
+//  file without a truthy $cassoBuiltIn marker is theirs -- possibly a built-in
+//  they copied and edited -- and overwriting it would destroy work.
+//
+//  For our own themes there are two independent reasons to re-extract, and
+//  both are needed:
+//
+//    content drift  the file differs from the embedded canonical copy, which
+//                   catches a developer editing a shipped theme without
+//                   bumping the version
+//    older stamp    the normal upgrade path
+//
+//  Missing and UNPARSEABLE are treated identically. A file that cannot be read
+//  is indistinguishable from no file for bootstrap purposes, and installing
+//  the built-in is what gets the user back to a working theme.
+//
+//  Written as a pure function over the file content -- no filesystem, no
+//  manager state -- so the whole policy is unit-testable by passing strings.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 ThemeBootstrapAction ThemeBootstrapPlanner::Plan (
@@ -138,6 +160,23 @@ Error:
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  Activate
+//
+//  Makes a discovered theme current and notifies listeners with the version
+//  resolved for the active machine.
+//
+//  An unknown name is an ERROR, not a silent fallback. The caller knows better
+//  than this class what to do about it -- the shell falls back to the
+//  canonical built-in, while a test wants the failure -- so the decision
+//  belongs there.
+//
+//  Listeners receive the MACHINE-RESOLVED theme rather than the raw one,
+//  because a theme may carry per-machine overrides and every consumer wants
+//  the version that actually applies. With no machine set the resolve is a
+//  plain copy, so the same path serves both cases.
+//
+//  Family and variant ids are recorded alongside the name, since a theme is
+//  addressed by name but reasoned about by family -- switching machines
+//  re-resolves within the same family rather than picking a new theme.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

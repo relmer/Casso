@@ -257,6 +257,29 @@ DxuiPanZoom::Config PrinterPanel::PanZoomConfig()
 //
 //  PrinterPanel::Create
 //
+//  Creates the print-preview window, with three window parameters that are
+//  each load-bearing.
+//
+//  MINIMUM SIZE. The toolbar is the only thing in the panel that cannot adapt,
+//  so it alone sets the floor. Its top band packs a fixed left group against a
+//  fixed zoom group hugging the right edge and nothing reflows, so below a
+//  certain width the two overlap. The chosen minimum leaves enough space that
+//  "document actions" and "zoom" still read as separate clusters rather than
+//  one undifferentiated run of six buttons. Everything else yields instead of
+//  dictating -- the 3D scene widens its FOV to stay whole, and the hint wraps
+//  onto its reserved second line.
+//
+//  UNSYNCED PRESENT. The preview animates on the same UI thread that presents
+//  the vsynced main window. Syncing this one too would stack two vblank waits
+//  per frame and halve everyone's frame rate; DWM composes at vsync regardless,
+//  so nothing tears.
+//
+//  NO-ACTIVATE CREATION. This window auto-opens mid-print, often mid-KEYSTROKE
+//  -- typing PR#1 and pressing Enter is what opens it. Stealing activation
+//  means the guest's Enter key-UP lands here instead, leaving the key latched
+//  and auto-repeating forever. The menu path still focuses it, with an
+//  activating Show immediately after creation.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT PrinterPanel::Create (
@@ -404,6 +427,26 @@ Error:
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  PrinterPanel::OnCreate
+//
+//  Builds the panel's children and wires their callbacks.
+//
+//  The delivery actions -- Print, Save, Copy, Discard -- start DISABLED. A
+//  freshly opened panel has nothing on the paper, and RefreshLive enables them
+//  as soon as content appears. Starting enabled would show them wrongly live
+//  on a machine with no printer card, where RefreshLive never runs at all.
+//
+//  Print and Save carry an ellipsis because a dialog follows; Copy does not,
+//  because it completes immediately.
+//
+//  The pan callback drops the viewport out of follow mode, so once a user
+//  scrolls the scrollback holds where they parked it instead of being dragged
+//  back to the live row.
+//
+//  There is deliberately NO OnChange to Invalidate. RenderFrame already
+//  repaints the panel every UI-loop frame, so repainting per input event would
+//  fire a synchronous 3D redraw for every message in the flood a trackpad
+//  scroll produces -- clogging the message pump and freezing the view until the
+//  fingers stop. Paint pacing stays owned by the loop.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

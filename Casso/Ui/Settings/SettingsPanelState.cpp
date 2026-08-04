@@ -722,6 +722,24 @@ HRESULT SettingsPanelState::Apply (
 //
 //  ExtractUiPrefs
 //
+//  Reads the $cassoUiPrefs block into the settings panel's own state struct.
+//
+//  The struct is RESET to defaults before anything is read, so a file that
+//  omits a key -- or omits the block entirely -- yields the defaults rather
+//  than whatever the previous machine's settings left behind. That matters
+//  because this runs again on every machine switch.
+//
+//  Every field is read optionally with its default supplied inline, which
+//  keeps the default and the key adjacent instead of split between here and a
+//  constructor where they could drift apart.
+//
+//  Enum-valued fields go through their FromString helpers with a fallback, so
+//  an unrecognized value -- from a newer build or a hand edit -- lands on a
+//  valid setting instead of an out-of-range enumerator.
+//
+//  Kept as a static function over a JsonValue so the projection is testable
+//  without a settings sheet or a window.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT SettingsPanelState::ExtractUiPrefs (
@@ -797,6 +815,28 @@ Error:
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  ExtractMachineInfo
+//
+//  Builds the read-only hardware summary the Hardware page displays: CPU,
+//  clock, memory regions, ROM, and the device inventory.
+//
+//  It reads the MERGED JSON rather than the built MachineConfig, so the page
+//  can describe a machine that is not currently running -- which is what lets
+//  the machine dropdown preview a different machine's specs before switching
+//  to it.
+//
+//  That is also why the parsing is local rather than reusing
+//  MachineConfigLoader: this needs a tolerant projection for DISPLAY, where a
+//  malformed field should render as a blank line, while the loader needs a
+//  strict validation that refuses to build a broken machine. Same input, two
+//  legitimately different failure policies.
+//
+//  Hence the local ParseHex returning 0 on failure and FormatSize collapsing
+//  to a readable "128K" only when the value divides evenly -- both chosen so
+//  odd data degrades into a harmless row instead of an error.
+//
+//  Regions are summarized rather than listed verbatim: the total is
+//  accumulated for the header, and aux memory is detected so the breakdown can
+//  say which bank a region belongs to.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -47,6 +47,22 @@ std::string WindowManager::BuildPlacementKeyForMonitor (HMONITOR activeMonitor)
 //
 //  TryLoadSavedWindowPlacement
 //
+//  Recovers the window position saved for THIS monitor arrangement, declining
+//  if it no longer makes sense.
+//
+//  Placements are keyed by monitor TOPOLOGY, not stored as a single rect, so
+//  docking and undocking a laptop restores the position that belonged to each
+//  arrangement instead of the last one used.
+//
+//  The recovered rect is validated with MONITOR_DEFAULTTONULL, deliberately
+//  not DEFAULTTONEAREST. A window saved on a screen that has since been
+//  removed must NOT be dragged onto a surviving one -- it should fall back to
+//  the default placement, which is where a user expects a window to appear
+//  when its old home is gone.
+//
+//  Failing to load and loading something off-screen are both reported the same
+//  way, since the caller does the same thing in either case.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 bool WindowManager::TryLoadSavedWindowPlacement (
@@ -97,6 +113,28 @@ bool WindowManager::TryLoadSavedWindowPlacement (
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  SaveWindowPlacement
+//
+//  Records the window rect -- but only when that rect is actually the user's
+//  windowed placement.
+//
+//  Most of this function is the test for that, and every clause guards against
+//  persisting something the user never chose:
+//
+//    minimized / maximized  the rect is not where they want the window
+//    fullscreen             covers the steady borderless state
+//    no WS_CAPTION          covers the TRANSITIONS in and out of it. A
+//                           caption-less window is the borderless popup
+//                           mid-flight, and a synchronous WM_SIZE during that
+//                           transition once persisted the full-monitor rect
+//                           and permanently stomped the user's window size
+//    zero extent            a degenerate rect from a window being torn down
+//
+//  The fullscreen flag and the caption test overlap on purpose: the flag
+//  describes intent, the style describes the window right now, and the failure
+//  that motivated this happened in the gap between them.
+//
+//  It is saved against the current monitor topology, matching how
+//  TryLoadSavedWindowPlacement looks it up.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
