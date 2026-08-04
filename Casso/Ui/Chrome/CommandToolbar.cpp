@@ -520,6 +520,20 @@ void CommandToolbar::OnToolbarMouseLeave()
 //
 //  CommandToolbar::OnToolbarLButtonDown
 //
+//  Press handling: arm a button, start a slider drag, or eat the click.
+//
+//  The volume slider gets first claim, but only while UNMUTED. A muted slider
+//  is inert, so a press there should fall through to the bar rather than
+//  starting a drag that changes a value nobody can hear.
+//
+//  A press only ARMS a button; the command fires on release. That is what
+//  makes press-then-drag-off cancel, the behavior every Windows button has.
+//
+//  A press on the bar's DEAD SPACE is still consumed. The toolbar sits over
+//  the emulator viewport, so an unclaimed click would otherwise reach the
+//  guest -- clicking the empty part of a toolbar must not type into the //e or
+//  move the guest mouse.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 bool CommandToolbar::OnToolbarLButtonDown (int x, int y)
@@ -555,6 +569,21 @@ bool CommandToolbar::OnToolbarLButtonDown (int x, int y)
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  CommandToolbar::OnToolbarLButtonUp
+//
+//  Release handling: fire the command for a completed click, and clear every
+//  pressed visual.
+//
+//  The loop clears EVERY button's pressed state regardless of where the
+//  release landed, because a press that ends elsewhere is a cancel and must
+//  leave nothing stuck down. Only a press and release on the SAME button fires
+//  its command.
+//
+//  Mute is handled locally rather than dispatched as a command, because it
+//  owns state the slider reads back -- routing it through the command path
+//  would put the toolbar's own model a round trip behind its own control.
+//
+//  Like the press, a release on dead space is consumed so it cannot reach the
+//  emulator viewport underneath.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -604,6 +633,27 @@ bool CommandToolbar::OnToolbarLButtonUp (int x, int y)
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  CommandToolbar::PaintButton
+//
+//  Draws one toolbar button in whichever of the three display modes is active:
+//  icon only, icon with the label beside it, or ribbon-style with the label
+//  below.
+//
+//  Background chrome is drawn ONLY when hovered or pressed. An idle toolbar
+//  shows bare icons on the bar, which is what keeps a row of eight buttons
+//  from reading as eight boxes.
+//
+//  Disabled buttons dim the ink by rewriting its ALPHA rather than
+//  substituting a theme color, so the disabled look follows whatever the
+//  theme's foreground is instead of needing a matching swatch per theme.
+//
+//  Icon-only and label-right share one draw call and differ only in the x
+//  offset -- centered versus left-padded -- because the icon itself is
+//  identical in both. Only the ribbon mode needs its own path, since it splits
+//  the button vertically into an icon region and a label row.
+//
+//  The status LED is positioned relative to the ICON, not the button, so it
+//  stays pinned to the glyph's corner regardless of how much label space the
+//  current mode leaves around it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

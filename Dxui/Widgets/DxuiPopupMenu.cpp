@@ -281,6 +281,25 @@ bool DxuiPopupMenu::OnLButtonDown (int x, int y)
 //
 //  OnLButtonUp
 //
+//  Commits a row on a completed click, or dismisses on a click-away.
+//
+//  Two captures happen before anything can run, and both are lifetime
+//  problems. m_visible is read up front because Hide clears it, and the return
+//  value must report whether the menu was visible when the click ARRIVED --
+//  otherwise the owner cannot tell a consumed click from one to pass along.
+//  The callback is likewise copied before Hide, since Hide can tear down state
+//  the callback lives in.
+//
+//  A live HOSTED popup owns its own input through the host WndProc, so this
+//  path applies only to the in-window fallback. Handling both would
+//  double-commit.
+//
+//  A commit requires the release to land on the SAME row the press did, so a
+//  press-then-drag-off cancels rather than selecting whatever it ended over.
+//
+//  Hide runs BEFORE the callback fires, so a handler that opens a dialog or
+//  another menu does not do it underneath a menu still on screen.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 bool DxuiPopupMenu::OnLButtonUp (int x, int y)
@@ -328,6 +347,26 @@ bool DxuiPopupMenu::OnLButtonUp (int x, int y)
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  OnKey
+//
+//  Keyboard handling for an open menu: navigate, commit, or dismiss.
+//
+//  A visible menu SWALLOWS EVERY KEY, including ones it does nothing with --
+//  that is what the return value reports. A menu is modal in practice, so
+//  letting an unhandled key through would type into whatever is behind it. The
+//  arrow arms consequently fall through silently on an empty item list rather
+//  than reporting unhandled.
+//
+//  m_visible is captured before anything can Hide, so the answer describes the
+//  state when the key arrived.
+//
+//  Up and Down WRAP, matching the dropdown and every platform menu.
+//
+//  A hosted popup is explicitly marked dirty on each move: it renders in its
+//  own window, outside the owner's paint pass, and would otherwise show a
+//  stale highlight while the keyboard walks through it.
+//
+//  Commit hides before invoking the callback, so a handler that opens another
+//  window does not do it beneath a menu still on screen.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -634,7 +673,17 @@ void DxuiPopupMenu::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, con
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DxuiPopupMenu::OnMouse  (IDxuiControl override)
+//  DxuiPopupMenu::OnMouse
+//
+//  The IDxuiControl entry point: unpacks the event and forwards to the
+//  per-gesture handlers, which take plain coordinates and are testable without
+//  framework events.
+//
+//  A HOSTED popup never reaches this path -- it lives in its own HWND and
+//  delivers input through the callbacks installed when it was shown. This
+//  serves the in-window fallback menu only.
+//
+//  Only the left button acts; a right-click belongs to the host.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
