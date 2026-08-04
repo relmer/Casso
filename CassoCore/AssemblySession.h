@@ -277,7 +277,7 @@ private:
     static bool                     IsBitOpMnemonic           (const std::string & mnemonic);
     Byte                            EstimateErrorRecoverySize (OperandSyntax syntax, const std::string & mnemonic) const;
     static std::string              ProcessEscapeSequences    (const std::string & str);
-    static bool                     EvaluateDirectiveArgs     (const std::string & argText,
+    static bool                     TryEvaluateDirectiveArgs     (const std::string & argText,
                                                                const ExprContext & ctx,
                                                                std::vector<int32_t> & values,
                                                                int lineNumber,

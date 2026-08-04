@@ -292,7 +292,7 @@ private:
         const std::vector<std::pair<std::string, JsonValue>> & entries,
         const std::string                                    & key);
 
-    static bool  GetBoolOpt (
+    static bool  TryGetBoolOpt (
         const JsonValue   & obj,
         const std::string & key,
         bool                fallback);

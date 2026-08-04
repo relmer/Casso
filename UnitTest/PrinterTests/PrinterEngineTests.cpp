@@ -207,7 +207,7 @@ namespace PrinterEngineTests
             PushGraphicsLine (*ring, 40);
             TickFor (engine, nowMs, 4, 100);
 
-            Assert::IsTrue (engine.SnapshotStrip (strip), L"snapshot succeeds with an active job");
+            Assert::IsTrue (engine.TrySnapshotStrip (strip), L"snapshot succeeds with an active job");
             Assert::IsTrue (strip.RowsUsed() > 0,         L"the snapshot carries the printed rows");
             Assert::IsTrue (engine.SpanInkExtent (0, PrinterGrid::kPinBandRows - 1) > 0,
                             L"the live pin band reports ink for the audio gate");

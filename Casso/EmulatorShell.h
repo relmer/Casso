@@ -443,7 +443,7 @@ private:
         UINT                          dpi,
         float                         sceneScale);
 
-    static bool  GetCursorMonitorWorkArea (RECT & outWork, HMONITOR & outMonitor);
+    static bool  TryGetCursorMonitorWorkArea (RECT & outWork, HMONITOR & outMonitor);
 
     static void  CenterInWorkArea (
         const RECT & work,

@@ -182,7 +182,7 @@ static bool HasRequiredKeys (const JsonValue              & obj,
 //  call a failable API, so they take the documented non-HRESULT EHM shape: a
 //  vestigial `hr` for the macro, and the normal result returned at `Error:`.
 
-bool  ThemeLoader::GetBoolOpt (
+bool  ThemeLoader::TryGetBoolOpt (
     const JsonValue   & obj,
     const std::string & key,
     bool                fallback)
@@ -433,8 +433,8 @@ HRESULT ThemeLoader::ParseMetadata (
 
     outTheme.author          = GetStringOpt (root, "author",      "");
     outTheme.description     = GetStringOpt (root, "description", "");
-    outTheme.useMicaBackdrop = GetBoolOpt   (root, "useMicaBackdrop", false);
-    outTheme.isBuiltIn       = GetBoolOpt   (root, s_kpszBuiltInKey,  false);
+    outTheme.useMicaBackdrop = TryGetBoolOpt   (root, "useMicaBackdrop", false);
+    outTheme.isBuiltIn       = TryGetBoolOpt   (root, s_kpszBuiltInKey,  false);
 
     // reads
     //
@@ -477,7 +477,7 @@ HRESULT ThemeLoader::ParseMetadata (
 
         if (crtObj->HasObject ("scanlines", scanObj))
         {
-            outTheme.crtDefaults.scanlinesEnabled   = GetBoolOpt   (*scanObj, "enabled",
+            outTheme.crtDefaults.scanlinesEnabled   = TryGetBoolOpt   (*scanObj, "enabled",
                                                                     outTheme.crtDefaults.scanlinesEnabled);
             outTheme.crtDefaults.scanlinesIntensity = (float) GetNumberOpt (*scanObj, "intensity",
                                                                             outTheme.crtDefaults.scanlinesIntensity);
@@ -486,7 +486,7 @@ HRESULT ThemeLoader::ParseMetadata (
 
         if (crtObj->HasObject ("bloom", bloomObj))
         {
-            outTheme.crtDefaults.bloomEnabled  = GetBoolOpt (*bloomObj, "enabled",
+            outTheme.crtDefaults.bloomEnabled  = TryGetBoolOpt (*bloomObj, "enabled",
                                                              outTheme.crtDefaults.bloomEnabled);
             outTheme.crtDefaults.bloomRadius   = (float) GetNumberOpt (*bloomObj, "radius",
                                                                        outTheme.crtDefaults.bloomRadius);
@@ -497,7 +497,7 @@ HRESULT ThemeLoader::ParseMetadata (
 
         if (crtObj->HasObject ("colorBleed", bleedObj))
         {
-            outTheme.crtDefaults.colorBleedEnabled = GetBoolOpt (*bleedObj, "enabled",
+            outTheme.crtDefaults.colorBleedEnabled = TryGetBoolOpt (*bleedObj, "enabled",
                                                                  outTheme.crtDefaults.colorBleedEnabled);
             outTheme.crtDefaults.colorBleedWidth   = (float) GetNumberOpt (*bleedObj, "width",
                                                                            outTheme.crtDefaults.colorBleedWidth);

@@ -29,7 +29,7 @@ bool TrackSectorPredicate::IsAsciiSpace (wchar_t ch) noexcept
 
 ////////////////////////////////////////////////////////////////////////////
 //
-//  ParseDecimalQt
+//  TryParseDecimalQt
 //
 //  Parses `whole '.' frac` into an integer quarter-track count
 //  (whole * 4 + quarterIndex). Only the four exact fractional
@@ -38,7 +38,7 @@ bool TrackSectorPredicate::IsAsciiSpace (wchar_t ch) noexcept
 //
 ////////////////////////////////////////////////////////////////////////////
 
-bool TrackSectorPredicate::ParseDecimalQt (std::wstring_view tok, int & outQt) noexcept
+bool TrackSectorPredicate::TryParseDecimalQt (std::wstring_view tok, int & outQt) noexcept
 {
     HRESULT            hr      = S_OK;
     size_t             dot     = 0;
@@ -83,13 +83,13 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////
 //
-//  ParseDecimalInt
+//  TryParseDecimalInt
 //
 //  Strict non-negative decimal integer. Returns true on success.
 //
 ////////////////////////////////////////////////////////////////////////////
 
-bool TrackSectorPredicate::ParseDecimalInt (std::wstring_view tok, int & outVal) noexcept
+bool TrackSectorPredicate::TryParseDecimalInt (std::wstring_view tok, int & outVal) noexcept
 {
     HRESULT  hr       = S_OK;
     int      v        = 0;
@@ -138,13 +138,13 @@ bool TrackSectorPredicate::ParseValue (std::wstring_view tok,
     int   val = 0;
     bool  ok  = false;
 
-    if (ParseDecimalQt (tok, qt))
+    if (TryParseDecimalQt (tok, qt))
     {
         outVal  = qt;
         outIsQt = true;
         ok      = true;
     }
-    else if (ParseDecimalInt (tok, val))
+    else if (TryParseDecimalInt (tok, val))
     {
         outVal  = val;
         outIsQt = rawQt;

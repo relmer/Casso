@@ -271,7 +271,7 @@ void ColorPickerOverlay::SyncFromHex()
 
     BAIL_OUT_IF (m_syncing, S_OK);
 
-    ok = ColorUtil::ParseHexColor (m_hex.Text(), parsed);
+    ok = ColorUtil::TryParseHexColor (m_hex.Text(), parsed);
     BAIL_OUT_IF (!ok, S_OK);
 
     m_syncing = true;

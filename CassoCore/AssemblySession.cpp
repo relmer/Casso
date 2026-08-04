@@ -622,7 +622,7 @@ Byte AssemblySession::EstimateErrorRecoverySize (OperandSyntax syntax, const std
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  EvaluateDirectiveArgs — evaluate comma-separated expression list
+//  TryEvaluateDirectiveArgs — evaluate comma-separated expression list
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -666,11 +666,11 @@ std::string AssemblySession::ProcessEscapeSequences (const std::string & str)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  EvaluateDirectiveArgs — evaluate comma-separated expression list
+//  TryEvaluateDirectiveArgs — evaluate comma-separated expression list
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool AssemblySession::EvaluateDirectiveArgs (
+bool AssemblySession::TryEvaluateDirectiveArgs (
     const std::string &                      argText,
     const ExprContext &                       ctx,
     std::vector<int32_t> &                   values,
@@ -2717,7 +2717,7 @@ HRESULT AssemblySession::HandlePass1DataDirectives (const PendingLine & current,
     std::vector<int32_t>     values;
     std::vector<AssemblyError> tempErrors;
 
-    EvaluateDirectiveArgs (info.parsed.directiveArg, m_pass1Ctx, values, current.sourceLineNumber, tempErrors);
+    TryEvaluateDirectiveArgs (info.parsed.directiveArg, m_pass1Ctx, values, current.sourceLineNumber, tempErrors);
 
     // If evaluation fails, try counting comma-separated items
     if (values.empty() && !info.parsed.directiveArg.empty())
@@ -4171,7 +4171,7 @@ HRESULT AssemblySession::EmitWordDirective (const LineInfo & info, Word & emitPC
 
 
 
-    EvaluateDirectiveArgs (info.parsed.directiveArg, m_pass2Ctx, values, info.parsed.lineNumber, m_result.errors);
+    TryEvaluateDirectiveArgs (info.parsed.directiveArg, m_pass2Ctx, values, info.parsed.lineNumber, m_result.errors);
 
     if (values.size() != 0 || info.parsed.directiveArg.empty())
     {
@@ -4210,7 +4210,7 @@ HRESULT AssemblySession::EmitDdDirective (const LineInfo & info, Word & emitPC)
 
 
 
-    EvaluateDirectiveArgs (info.parsed.directiveArg, m_pass2Ctx, values, info.parsed.lineNumber, m_result.errors);
+    TryEvaluateDirectiveArgs (info.parsed.directiveArg, m_pass2Ctx, values, info.parsed.lineNumber, m_result.errors);
 
     if (values.size() != 0 || info.parsed.directiveArg.empty())
     {

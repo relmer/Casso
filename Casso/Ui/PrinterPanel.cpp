@@ -919,7 +919,7 @@ void PrinterPanel::RefreshLive (PrinterWorker & worker, int64_t nowMs, bool forc
                 ShowBlankSheet();
                 m_revealInk = false;
             }
-            else if (worker.SnapshotPresentedSpan (span.firstRow, span.lastRow, spanRaster))
+            else if (worker.TrySnapshotPresentedSpan (span.firstRow, span.lastRow, spanRaster))
             {
                 // Ink only ever accretes in the live pin band(s) at the print frontier;
                 // every row above the band that was live at the last render is final.

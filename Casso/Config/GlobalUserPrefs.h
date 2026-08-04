@@ -177,7 +177,7 @@ struct GlobalUserPrefs
 
 
 private:
-    static bool         GetBoolOpt   (const JsonValue   & obj,
+    static bool         TryGetBoolOpt   (const JsonValue   & obj,
                                       const std::string & key,
                                       bool                fallback);
     static double       GetNumberOpt (const JsonValue   & obj,

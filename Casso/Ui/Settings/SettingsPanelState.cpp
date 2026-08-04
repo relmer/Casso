@@ -38,7 +38,7 @@ int  SettingsPanelState::FindKey (
 
 // The four Get*Opt helpers share one contract: a failed read restores the
 // fallback, because the getter may have written to `out` before failing.
-bool  SettingsPanelState::GetBoolOpt (
+bool  SettingsPanelState::TryGetBoolOpt (
     const JsonValue   & obj,
     const std::string & key,
     bool                fallback)
@@ -759,11 +759,11 @@ HRESULT SettingsPanelState::ExtractUiPrefs (
         GetStringOpt (*uiObj, "writeMode", "buffer-and-flush"),
         SettingsWriteMode::BufferAndFlush);
 
-    outPrefs.floppySoundEnabled = GetBoolOpt   (*uiObj, "floppySoundEnabled",  true);
+    outPrefs.floppySoundEnabled = TryGetBoolOpt   (*uiObj, "floppySoundEnabled",  true);
     outPrefs.floppyMechanism    = GetStringOpt (*uiObj, "floppyMechanism",     "shugart");
 
-    outPrefs.externalDriveConnected = GetBoolOpt (*uiObj, "externalDriveConnected", false);
-    outPrefs.mouseConnected         = GetBoolOpt (*uiObj, "mouseConnected", true);
+    outPrefs.externalDriveConnected = TryGetBoolOpt (*uiObj, "externalDriveConnected", false);
+    outPrefs.mouseConnected         = TryGetBoolOpt (*uiObj, "mouseConnected", true);
 
     outPrefs.driveMotorVolume = (float) GetNumberOpt (*uiObj, "driveMotorVolume", SettingsUiPrefs::kDefaultDriveMotorVolume);
     outPrefs.driveHeadVolume  = (float) GetNumberOpt (*uiObj, "driveHeadVolume",  SettingsUiPrefs::kDefaultDriveHeadVolume);
@@ -1154,7 +1154,7 @@ HRESULT SettingsPanelState::ExtractHardware (
                 GetStringOpt (entry, "capabilityFlag", ""),
                 CapabilityFlag::Required);   // FR-015 default for internal
             hw.lockReason  = GetStringOpt (entry, "lockReason", "");
-            hw.enabled     = GetBoolOpt   (entry, "enabled",    true);
+            hw.enabled     = TryGetBoolOpt   (entry, "enabled",    true);
 
             outEntries.push_back (std::move (hw));
         }
@@ -1194,7 +1194,7 @@ HRESULT SettingsPanelState::ExtractHardware (
                 GetStringOpt (entry, "capabilityFlag", ""),
                 CapabilityFlag::Optional);   // FR-015 default for slots
             hw.lockReason  = GetStringOpt (entry, "lockReason", "");
-            hw.enabled     = GetBoolOpt   (entry, "enabled",    true);
+            hw.enabled     = TryGetBoolOpt   (entry, "enabled",    true);
 
             outEntries.push_back (std::move (hw));
         }

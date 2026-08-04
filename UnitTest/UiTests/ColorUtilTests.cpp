@@ -70,13 +70,13 @@ public:
     {
         uint32_t  argb = 0;
 
-        Assert::IsTrue (ColorUtil::ParseHexColor (L"#FFB000", argb));
+        Assert::IsTrue (ColorUtil::TryParseHexColor (L"#FFB000", argb));
         Assert::AreEqual (0xFFFFB000u, argb);
 
-        Assert::IsTrue (ColorUtil::ParseHexColor (L"00ff00", argb));
+        Assert::IsTrue (ColorUtil::TryParseHexColor (L"00ff00", argb));
         Assert::AreEqual (0xFF00FF00u, argb);
 
-        Assert::IsTrue (ColorUtil::ParseHexColor (L"  #123abc  ", argb));
+        Assert::IsTrue (ColorUtil::TryParseHexColor (L"  #123abc  ", argb));
         Assert::AreEqual (0xFF123ABCu, argb);
     }
 
@@ -84,10 +84,10 @@ public:
     {
         uint32_t  argb = 0xDEADBEEF;
 
-        Assert::IsFalse (ColorUtil::ParseHexColor (L"", argb));
-        Assert::IsFalse (ColorUtil::ParseHexColor (L"#FFF", argb));        // too short
-        Assert::IsFalse (ColorUtil::ParseHexColor (L"#FFGG00", argb));     // non-hex
-        Assert::IsFalse (ColorUtil::ParseHexColor (L"FFB0000", argb));     // too long
+        Assert::IsFalse (ColorUtil::TryParseHexColor (L"", argb));
+        Assert::IsFalse (ColorUtil::TryParseHexColor (L"#FFF", argb));        // too short
+        Assert::IsFalse (ColorUtil::TryParseHexColor (L"#FFGG00", argb));     // non-hex
+        Assert::IsFalse (ColorUtil::TryParseHexColor (L"FFB0000", argb));     // too long
         Assert::AreEqual (0xDEADBEEFu, argb);                             // untouched
     }
 

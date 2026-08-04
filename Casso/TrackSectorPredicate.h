@@ -106,8 +106,8 @@ private:
     // (whole * 4 + quarterIndex). Only the four exact fractional
     // forms "0", "25", "5", and "75" are accepted; anything else
     // rejects the whole token. Returns true on success.
-    static bool  ParseDecimalQt  (std::wstring_view tok, int & outQt)  noexcept;
-    static bool  ParseDecimalInt (std::wstring_view tok, int & outVal) noexcept;
+    static bool  TryParseDecimalQt  (std::wstring_view tok, int & outQt)  noexcept;
+    static bool  TryParseDecimalInt (std::wstring_view tok, int & outVal) noexcept;
 
     static bool  ParseValue (std::wstring_view tok,
                              bool               rawQt,

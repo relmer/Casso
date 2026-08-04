@@ -68,9 +68,9 @@ public:
     // copy only rows [firstRow, lastRow] (rebased to 0 in `out`) so the per-
     // refresh cost is bounded by the viewport, not the strip. Return false when
     // no job is active.
-    bool          SnapshotStrip        (PrintRaster & out);
-    bool          SnapshotStripSpan    (int firstRow, int lastRow, PrintRaster & out);
-    bool          SnapshotPresentedSpan (int firstRow, int lastRow, PrintRaster & out);
+    bool          TrySnapshotStrip        (PrintRaster & out);
+    bool          TrySnapshotStripSpan    (int firstRow, int lastRow, PrintRaster & out);
+    bool          TrySnapshotPresentedSpan (int firstRow, int lastRow, PrintRaster & out);
 
     // One past the rightmost inked dot over rows [firstRow, lastRow] of the built
     // strip (0 == blank), under the raster mutex. Drives the preview's audio ink

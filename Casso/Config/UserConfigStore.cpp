@@ -297,7 +297,7 @@ Error:
 }
 
 
-bool UserConfigStore::FindTypedField (
+bool UserConfigStore::TryFindTypedField (
     const JsonValue    &  obj,
     const std::string  &  key,
     JsonType              wanted,
@@ -321,7 +321,7 @@ bool UserConfigStore::TryGetBoolField (
     bool              & out)
 {
     const JsonValue *  field = nullptr;
-    bool               found = FindTypedField (obj, key, JsonType::Bool, field);
+    bool               found = TryFindTypedField (obj, key, JsonType::Bool, field);
 
 
     if (found)
@@ -339,7 +339,7 @@ bool UserConfigStore::TryGetIntField (
     int               & out)
 {
     const JsonValue *  field = nullptr;
-    bool               found = FindTypedField (obj, key, JsonType::Number, field);
+    bool               found = TryFindTypedField (obj, key, JsonType::Number, field);
 
 
     if (found)
@@ -357,7 +357,7 @@ bool UserConfigStore::TryGetStringField (
     std::string       & out)
 {
     const JsonValue *  field = nullptr;
-    bool               found = FindTypedField (obj, key, JsonType::String, field);
+    bool               found = TryFindTypedField (obj, key, JsonType::String, field);
 
 
     if (found)

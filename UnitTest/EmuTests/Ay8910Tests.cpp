@@ -90,20 +90,20 @@ namespace Ay8910TestNs
 
             // Give channel A a non-zero amplitude so the chip is audible: a
             // fully muted chip freezes its generators as an inaudible fast-path,
-            // and this test measures the running generator via GetToneState.
+            // and this test measures the running generator via TryGetToneState.
             ay.WriteRegister (Ay8910::kRegAmpA, 0x0F);
 
-            prevState = ay.GetToneState (0);
+            prevState = ay.TryGetToneState (0);
 
             // Generate exactly one second and count the square-wave toggles.
             for (i = 0; i < kSampleRate; i++)
             {
                 ay.GenerateSample();
 
-                if (ay.GetToneState (0) != prevState)
+                if (ay.TryGetToneState (0) != prevState)
                 {
                     toggles++;
-                    prevState = ay.GetToneState (0);
+                    prevState = ay.TryGetToneState (0);
                 }
             }
 

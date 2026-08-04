@@ -242,11 +242,11 @@ void EmulatorShell::LayoutDriveWidgetsInCommandBar (
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  GetCursorMonitorWorkArea
+//  TryGetCursorMonitorWorkArea
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool EmulatorShell::GetCursorMonitorWorkArea (RECT & outWork, HMONITOR & outMonitor)
+bool EmulatorShell::TryGetCursorMonitorWorkArea (RECT & outWork, HMONITOR & outMonitor)
 {
     POINT          pt       = {};
     HMONITOR       hMon     = nullptr;
@@ -1560,7 +1560,7 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     // 560-px logical means we get a 560-physical-pixel window that
     // looks half-size next to anything else on that display. Resolve
     // the destination monitor's DPI up front and pre-scale.
-    if (GetCursorMonitorWorkArea (work, activeMon))
+    if (TryGetCursorMonitorWorkArea (work, activeMon))
     {
         UINT     dpiX  = 0;
         UINT     dpiY  = 0;
@@ -1630,7 +1630,7 @@ HRESULT EmulatorShell::CreateEmulatorWindow (HINSTANCE hInstance)
     windowW = rc.right - rc.left;
     windowH = rc.bottom - rc.top;
 
-    haveWork = GetCursorMonitorWorkArea (work, activeMon);
+    haveWork = TryGetCursorMonitorWorkArea (work, activeMon);
 
     if (haveWork)
     {

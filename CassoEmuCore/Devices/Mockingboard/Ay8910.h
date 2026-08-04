@@ -98,7 +98,7 @@ public:
 
     // Inspectors for tests.
     Byte     GetLatchedAddress () const { return m_latched; }
-    bool     GetToneState  (int channel) const { return m_toneState[channel] != 0; }
+    bool     TryGetToneState  (int channel) const { return m_toneState[channel] != 0; }
     uint32_t GetNoiseLfsr  () const { return m_lfsr; }
     int      GetEnvLevel   () const { return m_envLevel; }
     bool     IsEnvHolding  () const { return m_envHolding; }

@@ -155,11 +155,11 @@ private:
         const JsonValue & entry,
         const string    & key);
 
-    static bool  InjectCapabilityFlag (
+    static bool  TryInjectCapabilityFlag (
         JsonValue   & arr,
         const char  * defaultFlag);
 
-    static bool  InjectPrinterSlot (JsonValue & arr);
+    static bool  TryInjectPrinterSlot (JsonValue & arr);
 
     static JsonValue  RewriteTopLevel (
         const JsonValue & root,

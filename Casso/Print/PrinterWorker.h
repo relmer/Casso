@@ -53,9 +53,9 @@ public:
 
     // Consistent preview copies taken while the drain thread keeps running (the
     // engine's raster mutex makes them safe from the UI thread). See PrinterEngine.
-    bool          SnapshotStrip         (PrintRaster & out)                       { return m_engine.SnapshotStrip (out); }
-    bool          SnapshotStripSpan     (int firstRow, int lastRow, PrintRaster & out) { return m_engine.SnapshotStripSpan (firstRow, lastRow, out); }
-    bool          SnapshotPresentedSpan (int firstRow, int lastRow, PrintRaster & out) { return m_engine.SnapshotPresentedSpan (firstRow, lastRow, out); }
+    bool          TrySnapshotStrip         (PrintRaster & out)                       { return m_engine.TrySnapshotStrip (out); }
+    bool          TrySnapshotStripSpan     (int firstRow, int lastRow, PrintRaster & out) { return m_engine.TrySnapshotStripSpan (firstRow, lastRow, out); }
+    bool          TrySnapshotPresentedSpan (int firstRow, int lastRow, PrintRaster & out) { return m_engine.TrySnapshotPresentedSpan (firstRow, lastRow, out); }
 
     // One past the rightmost inked dot over the live pin band (0 == blank); drives
     // the preview's audio ink gate. Safe from the UI thread.

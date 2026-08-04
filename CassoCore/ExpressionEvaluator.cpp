@@ -560,7 +560,7 @@ ExpressionEvaluator::Token ExpressionEvaluator::Tokenizer::ReadNext()
             m_pos++;
 
             // A bare '$' is the current PC. It rides TokType::Star because
-            // ParsePrimary already resolves Star to ctx.currentPC.
+            // TryParsePrimary already resolves Star to ctx.currentPC.
             if (m_pos < m_text.size() && isxdigit ((unsigned char) m_text[m_pos]))
             {
                 token = ReadHexNumber();
@@ -637,11 +637,11 @@ std::string ExpressionEvaluator::ToUpperIdent (const std::string & s)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ParsePrimary — numbers, identifiers, *, (expr), [expr]
+//  TryParsePrimary — numbers, identifiers, *, (expr), [expr]
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool ExpressionEvaluator::ParsePrimary (Tokenizer & tok, const ExprContext & ctx, int32_t & result, std::string & error)
+bool ExpressionEvaluator::TryParsePrimary (Tokenizer & tok, const ExprContext & ctx, int32_t & result, std::string & error)
 {
     Token    t         = tok.Peek();
     bool     ok        = false;
@@ -693,7 +693,7 @@ bool ExpressionEvaluator::ParsePrimary (Tokenizer & tok, const ExprContext & ctx
 
         tok.Next();
 
-        ok = ParseBinary (tok, ctx, s_kLoosestBinaryLevel, result, error);
+        ok = TryParseBinary (tok, ctx, s_kLoosestBinaryLevel, result, error);
 
         if (ok && tok.Next().type != closer)
         {
@@ -756,7 +756,7 @@ const ExpressionEvaluator::UnaryOp  ExpressionEvaluator::s_kUnaryOps[8] =
 //  ExpressionEvaluator::FindUnaryOp
 //
 //  Null when the token does not introduce a prefix operator, which is how
-//  ParseUnary decides to hand off to ParsePrimary instead.
+//  TryParseUnary decides to hand off to TryParsePrimary instead.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -783,15 +783,15 @@ const ExpressionEvaluator::UnaryOp * ExpressionEvaluator::FindUnaryOp (TokType t
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ParseUnary — -, +, ~, !, <, >, ++, --, lo, hi
+//  TryParseUnary — -, +, ~, !, <, >, ++, --, lo, hi
 //
 //  Right-associative by construction: each operator recurses into
-//  ParseUnary before folding, so "--5" is -(-5) and "<>addr" is the low
+//  TryParseUnary before folding, so "--5" is -(-5) and "<>addr" is the low
 //  byte of the high byte.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool ExpressionEvaluator::ParseUnary (Tokenizer & tok, const ExprContext & ctx, int32_t & result, std::string & error)
+bool ExpressionEvaluator::TryParseUnary (Tokenizer & tok, const ExprContext & ctx, int32_t & result, std::string & error)
 {
     Token             t     = tok.Peek();
     const UnaryOp *   op    = FindUnaryOp (t.type);
@@ -818,12 +818,12 @@ bool ExpressionEvaluator::ParseUnary (Tokenizer & tok, const ExprContext & ctx, 
 
     if (op == nullptr)
     {
-        ok = ParsePrimary (tok, ctx, result, error);
+        ok = TryParsePrimary (tok, ctx, result, error);
     }
     else
     {
         tok.Next();
-        ok = ParseUnary (tok, ctx, result, error);
+        ok = TryParseUnary (tok, ctx, result, error);
 
         if (ok)
         {
@@ -846,26 +846,26 @@ bool ExpressionEvaluator::ParseUnary (Tokenizer & tok, const ExprContext & ctx, 
 //  ParseLogOr -> ParseMulDiv chain called through. Unary sits above level 9
 //  and is still a separate function, because it is prefix rather than infix.
 //
-//  Every operator here is left-associative, which ParseBinary gets by
+//  Every operator here is left-associative, which TryParseBinary gets by
 //  recursing at level + 1.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool ExpressionEvaluator::ApplyLogOr  (int32_t a, int32_t b, int32_t & o, std::string &) { o = (a != 0 || b != 0) ? 1 : 0; return true; }
-bool ExpressionEvaluator::ApplyLogAnd (int32_t a, int32_t b, int32_t & o, std::string &) { o = (a != 0 && b != 0) ? 1 : 0; return true; }
-bool ExpressionEvaluator::ApplyBitOr  (int32_t a, int32_t b, int32_t & o, std::string &) { o = a | b;  return true; }
-bool ExpressionEvaluator::ApplyBitXor (int32_t a, int32_t b, int32_t & o, std::string &) { o = a ^ b;  return true; }
-bool ExpressionEvaluator::ApplyBitAnd (int32_t a, int32_t b, int32_t & o, std::string &) { o = a & b;  return true; }
-bool ExpressionEvaluator::ApplyEq     (int32_t a, int32_t b, int32_t & o, std::string &) { o = (a == b) ? 1 : 0; return true; }
-bool ExpressionEvaluator::ApplyNe     (int32_t a, int32_t b, int32_t & o, std::string &) { o = (a != b) ? 1 : 0; return true; }
-bool ExpressionEvaluator::ApplyLt     (int32_t a, int32_t b, int32_t & o, std::string &) { o = (a <  b) ? 1 : 0; return true; }
-bool ExpressionEvaluator::ApplyGt     (int32_t a, int32_t b, int32_t & o, std::string &) { o = (a >  b) ? 1 : 0; return true; }
-bool ExpressionEvaluator::ApplyLe     (int32_t a, int32_t b, int32_t & o, std::string &) { o = (a <= b) ? 1 : 0; return true; }
-bool ExpressionEvaluator::ApplyGe     (int32_t a, int32_t b, int32_t & o, std::string &) { o = (a >= b) ? 1 : 0; return true; }
-bool ExpressionEvaluator::ApplyShl    (int32_t a, int32_t b, int32_t & o, std::string &) { o = a << b; return true; }
-bool ExpressionEvaluator::ApplyAdd    (int32_t a, int32_t b, int32_t & o, std::string &) { o = a + b;  return true; }
-bool ExpressionEvaluator::ApplySub    (int32_t a, int32_t b, int32_t & o, std::string &) { o = a - b;  return true; }
-bool ExpressionEvaluator::ApplyMul    (int32_t a, int32_t b, int32_t & o, std::string &) { o = a * b;  return true; }
+bool ExpressionEvaluator::TryApplyLogOr  (int32_t a, int32_t b, int32_t & o, std::string &) { o = (a != 0 || b != 0) ? 1 : 0; return true; }
+bool ExpressionEvaluator::TryApplyLogAnd (int32_t a, int32_t b, int32_t & o, std::string &) { o = (a != 0 && b != 0) ? 1 : 0; return true; }
+bool ExpressionEvaluator::TryApplyBitOr  (int32_t a, int32_t b, int32_t & o, std::string &) { o = a | b;  return true; }
+bool ExpressionEvaluator::TryApplyBitXor (int32_t a, int32_t b, int32_t & o, std::string &) { o = a ^ b;  return true; }
+bool ExpressionEvaluator::TryApplyBitAnd (int32_t a, int32_t b, int32_t & o, std::string &) { o = a & b;  return true; }
+bool ExpressionEvaluator::TryApplyEq     (int32_t a, int32_t b, int32_t & o, std::string &) { o = (a == b) ? 1 : 0; return true; }
+bool ExpressionEvaluator::TryApplyNe     (int32_t a, int32_t b, int32_t & o, std::string &) { o = (a != b) ? 1 : 0; return true; }
+bool ExpressionEvaluator::TryApplyLt     (int32_t a, int32_t b, int32_t & o, std::string &) { o = (a <  b) ? 1 : 0; return true; }
+bool ExpressionEvaluator::TryApplyGt     (int32_t a, int32_t b, int32_t & o, std::string &) { o = (a >  b) ? 1 : 0; return true; }
+bool ExpressionEvaluator::TryApplyLe     (int32_t a, int32_t b, int32_t & o, std::string &) { o = (a <= b) ? 1 : 0; return true; }
+bool ExpressionEvaluator::TryApplyGe     (int32_t a, int32_t b, int32_t & o, std::string &) { o = (a >= b) ? 1 : 0; return true; }
+bool ExpressionEvaluator::TryApplyShl    (int32_t a, int32_t b, int32_t & o, std::string &) { o = a << b; return true; }
+bool ExpressionEvaluator::TryApplyAdd    (int32_t a, int32_t b, int32_t & o, std::string &) { o = a + b;  return true; }
+bool ExpressionEvaluator::TryApplySub    (int32_t a, int32_t b, int32_t & o, std::string &) { o = a - b;  return true; }
+bool ExpressionEvaluator::TryApplyMul    (int32_t a, int32_t b, int32_t & o, std::string &) { o = a * b;  return true; }
 
 
 
@@ -873,14 +873,14 @@ bool ExpressionEvaluator::ApplyMul    (int32_t a, int32_t b, int32_t & o, std::s
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ExpressionEvaluator::ApplyShr
+//  ExpressionEvaluator::TryApplyShr
 //
 //  Logical shift right, matching the original cast through uint32_t: a
 //  negative left operand shifts in zeros rather than sign bits.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool ExpressionEvaluator::ApplyShr (int32_t a, int32_t b, int32_t & o, std::string &)
+bool ExpressionEvaluator::TryApplyShr (int32_t a, int32_t b, int32_t & o, std::string &)
 {
     o = (int32_t) ((uint32_t) a >> b);
     return true;
@@ -892,14 +892,14 @@ bool ExpressionEvaluator::ApplyShr (int32_t a, int32_t b, int32_t & o, std::stri
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ExpressionEvaluator::ApplyDiv
+//  ExpressionEvaluator::TryApplyDiv
 //
 //  One of only two operators that can fail, and the reason BinaryOp::Apply
 //  returns bool at all.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool ExpressionEvaluator::ApplyDiv (int32_t a, int32_t b, int32_t & o, std::string & error)
+bool ExpressionEvaluator::TryApplyDiv (int32_t a, int32_t b, int32_t & o, std::string & error)
 {
     bool  ok = (b != 0);
 
@@ -917,13 +917,13 @@ bool ExpressionEvaluator::ApplyDiv (int32_t a, int32_t b, int32_t & o, std::stri
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ExpressionEvaluator::ApplyMod
+//  ExpressionEvaluator::TryApplyMod
 //
-//  Shares ApplyDiv's zero-divisor rule and its diagnostic wording.
+//  Shares TryApplyDiv's zero-divisor rule and its diagnostic wording.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool ExpressionEvaluator::ApplyMod (int32_t a, int32_t b, int32_t & o, std::string & error)
+bool ExpressionEvaluator::TryApplyMod (int32_t a, int32_t b, int32_t & o, std::string & error)
 {
     bool  ok = (b != 0);
 
@@ -938,33 +938,33 @@ bool ExpressionEvaluator::ApplyMod (int32_t a, int32_t b, int32_t & o, std::stri
 
 const ExpressionEvaluator::BinaryOp  ExpressionEvaluator::s_kBinaryOps[18] =
 {
-    { TokType::PipePipe, 1, ApplyLogOr  },
+    { TokType::PipePipe, 1, TryApplyLogOr  },
 
-    { TokType::AmpAmp,   2, ApplyLogAnd },
+    { TokType::AmpAmp,   2, TryApplyLogAnd },
 
-    { TokType::Pipe,     3, ApplyBitOr  },
+    { TokType::Pipe,     3, TryApplyBitOr  },
 
-    { TokType::Caret,    4, ApplyBitXor },
+    { TokType::Caret,    4, TryApplyBitXor },
 
-    { TokType::Amp,      5, ApplyBitAnd },
+    { TokType::Amp,      5, TryApplyBitAnd },
 
-    { TokType::Eq,       6, ApplyEq     },
-    { TokType::Ne,       6, ApplyNe     },
+    { TokType::Eq,       6, TryApplyEq     },
+    { TokType::Ne,       6, TryApplyNe     },
 
-    { TokType::Lt,       7, ApplyLt     },
-    { TokType::Gt,       7, ApplyGt     },
-    { TokType::Le,       7, ApplyLe     },
-    { TokType::Ge,       7, ApplyGe     },
+    { TokType::Lt,       7, TryApplyLt     },
+    { TokType::Gt,       7, TryApplyGt     },
+    { TokType::Le,       7, TryApplyLe     },
+    { TokType::Ge,       7, TryApplyGe     },
 
-    { TokType::LShift,   8, ApplyShl    },
-    { TokType::RShift,   8, ApplyShr    },
+    { TokType::LShift,   8, TryApplyShl    },
+    { TokType::RShift,   8, TryApplyShr    },
 
-    { TokType::Plus,     9, ApplyAdd    },
-    { TokType::Minus,    9, ApplySub    },
+    { TokType::Plus,     9, TryApplyAdd    },
+    { TokType::Minus,    9, TryApplySub    },
 
-    { TokType::Star,    10, ApplyMul    },
-    { TokType::Slash,   10, ApplyDiv    },
-    { TokType::Percent, 10, ApplyMod    },
+    { TokType::Star,    10, TryApplyMul    },
+    { TokType::Slash,   10, TryApplyDiv    },
+    { TokType::Percent, 10, TryApplyMod    },
 };
 
 
@@ -975,7 +975,7 @@ const ExpressionEvaluator::BinaryOp  ExpressionEvaluator::s_kBinaryOps[18] =
 //
 //  ExpressionEvaluator::FindBinaryOp
 //
-//  Null when the token is not a binary operator, which is also how ParseBinary
+//  Null when the token is not a binary operator, which is also how TryParseBinary
 //  detects the end of an expression.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -1003,7 +1003,7 @@ const ExpressionEvaluator::BinaryOp * ExpressionEvaluator::FindBinaryOp (TokType
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ExpressionEvaluator::ParseBinary
+//  ExpressionEvaluator::TryParseBinary
 //
 //  Precedence climbing over s_kBinaryOps. Absorbs every operator binding at
 //  `minLevel` or tighter, recursing at level + 1 for the right operand so the
@@ -1011,7 +1011,7 @@ const ExpressionEvaluator::BinaryOp * ExpressionEvaluator::FindBinaryOp (TokType
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool ExpressionEvaluator::ParseBinary (
+bool ExpressionEvaluator::TryParseBinary (
     Tokenizer          &  tok,
     const ExprContext  &  ctx,
     int                   minLevel,
@@ -1023,7 +1023,7 @@ bool ExpressionEvaluator::ParseBinary (
     bool              ok    = false;
 
 
-    ok = ParseUnary (tok, ctx, result, error);
+    ok = TryParseUnary (tok, ctx, result, error);
 
     for (;;)
     {
@@ -1037,7 +1037,7 @@ bool ExpressionEvaluator::ParseBinary (
         tok.Next();
 
         right = 0;
-        ok    = ParseBinary (tok, ctx, op->level + 1, right, error);
+        ok    = TryParseBinary (tok, ctx, op->level + 1, right, error);
 
         if (ok)
         {
@@ -1089,7 +1089,7 @@ ExprResult ExpressionEvaluator::Evaluate (const std::string & expr, const ExprCo
 
         Tokenizer  tok (trimmed);
 
-        if (!ParseBinary (tok, ctx, s_kLoosestBinaryLevel, value, error))
+        if (!TryParseBinary (tok, ctx, s_kLoosestBinaryLevel, value, error))
         {
             res.error         = error;
             res.hasUnresolved = (error.find ("Undefined symbol") == 0);

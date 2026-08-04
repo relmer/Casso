@@ -145,14 +145,14 @@ static constexpr CrtFieldDesc  s_kCrtFields[] = {
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  GlobalUserPrefs::GetBoolOpt
+//  GlobalUserPrefs::TryGetBoolOpt
 //
 //  Read an optional boolean leaf, falling back to `fallback` when absent or
 //  not a boolean.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool GlobalUserPrefs::GetBoolOpt (
+bool GlobalUserPrefs::TryGetBoolOpt (
     const JsonValue   & obj,
     const std::string & key,
     bool                fallback)
@@ -575,7 +575,7 @@ void GlobalUserPrefs::CrtModeFromJson (const JsonValue & modeObj, Crt & c)
 
         if (field.type == CrtScalar::Bool)
         {
-            c.*field.boolMember = GetBoolOpt (*source, field.key, c.*field.boolMember);
+            c.*field.boolMember = TryGetBoolOpt (*source, field.key, c.*field.boolMember);
         }
         else
         {
@@ -990,14 +990,14 @@ HRESULT GlobalUserPrefs::FromJson (const JsonValue & v)
 
     version              = GetIntOpt    (v, s_kpszVersionKey,        s_kCurrentVersion);
     activeTheme          = GetStringOpt (v, "activeTheme",            activeTheme);
-    skeuoMonitorFrame    = GetBoolOpt   (v, "skeuoMonitorFrame",      skeuoMonitorFrame);
+    skeuoMonitorFrame    = TryGetBoolOpt   (v, "skeuoMonitorFrame",      skeuoMonitorFrame);
     lastSelectedMachine  = GetStringOpt (v, "lastSelectedMachine",    lastSelectedMachine);
     audioDownloadConsent = GetStringOpt (v, "audioDownloadConsent",   audioDownloadConsent);
 
     // inputMappingMode supersedes the legacy bool "mapArrowsToJoystick";
     // when the new key is absent, a true legacy bool migrates to Joystick.
     inputModeStr = GetStringOpt (v, "inputMappingMode",   "");
-    legacyArrows = GetBoolOpt   (v, "mapArrowsToJoystick", false);
+    legacyArrows = TryGetBoolOpt   (v, "mapArrowsToJoystick", false);
 
     if (!inputModeStr.empty())
     {
@@ -1010,7 +1010,7 @@ HRESULT GlobalUserPrefs::FromJson (const JsonValue & v)
 
     // Split model. New keys win; absent keys migrate from the
     // legacy single mode (joystick -> Keys on; paddle/mouse -> Pointer).
-    arrowsToJoystick = GetBoolOpt (v, "arrowsToJoystick",
+    arrowsToJoystick = TryGetBoolOpt (v, "arrowsToJoystick",
                                    inputMappingMode == InputMappingMode::Joystick);
     {
         std::string  pointerStr = GetStringOpt (v, "pointerMapping", "");
@@ -1057,7 +1057,7 @@ HRESULT GlobalUserPrefs::FromJson (const JsonValue & v)
         {
             PlacementsFromJson (*placementsObj, window.placements);
         }
-        window.fullscreen = GetBoolOpt (*windowSub, "fullscreen", window.fullscreen);
+        window.fullscreen = TryGetBoolOpt (*windowSub, "fullscreen", window.fullscreen);
     }
 
     // recentDisks: drop non-string and empty entries silently per
@@ -1083,17 +1083,17 @@ HRESULT GlobalUserPrefs::FromJson (const JsonValue & v)
     // Printer mechanical-audio prefs (FR-034); absent keys keep struct defaults.
     // Legacy pre-toggle files stored the inverse `printerAudioMuted`; fall back
     // to it (inverted) so an older mute survives the rename to `enabled`.
-    printerAudioEnabled     = GetBoolOpt   (v, "printerAudioEnabled",
-                                            !GetBoolOpt (v, "printerAudioMuted", !printerAudioEnabled));
+    printerAudioEnabled     = TryGetBoolOpt   (v, "printerAudioEnabled",
+                                            !TryGetBoolOpt (v, "printerAudioMuted", !printerAudioEnabled));
     printerAudioVolume      = (float) GetNumberOpt (v, "printerAudioVolume",      printerAudioVolume);
-    printerAudioPanOverride = GetBoolOpt   (v, "printerAudioPanOverride", printerAudioPanOverride);
+    printerAudioPanOverride = TryGetBoolOpt   (v, "printerAudioPanOverride", printerAudioPanOverride);
     printerAudioPan         = (float) GetNumberOpt (v, "printerAudioPan",         printerAudioPan);
     printerAudioVolume      = std::clamp (printerAudioVolume, 0.0f, 1.0f);
     printerAudioPan         = std::clamp (printerAudioPan,   -1.0f, 1.0f);
 
     // Master output volume (chrome toolbar); absent keys keep struct defaults.
     masterVolume = (float) GetNumberOpt (v, "masterVolume", masterVolume);
-    masterMuted  = GetBoolOpt (v, "masterMuted", masterMuted);
+    masterMuted  = TryGetBoolOpt (v, "masterMuted", masterMuted);
     masterVolume = std::clamp (masterVolume, 0.0f, 1.0f);
 
     // Capture unknown top-level keys for round-tripping.

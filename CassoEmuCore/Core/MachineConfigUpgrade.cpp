@@ -241,7 +241,7 @@ bool  MachineConfigUpgrade::EntryHasKey (
 
 // Insert `capabilityFlag` on every object element of `arr` that
 // lacks one. Returns true if any element was changed.
-bool  MachineConfigUpgrade::InjectCapabilityFlag (
+bool  MachineConfigUpgrade::TryInjectCapabilityFlag (
     JsonValue   & arr,
     const char  * defaultFlag)
 {
@@ -296,7 +296,7 @@ bool  MachineConfigUpgrade::InjectCapabilityFlag (
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  InjectPrinterSlot
+//  TryInjectPrinterSlot
 //
 //  Add a default slot-1 parallel-printer entry to `arr` when slot 1 has
 //  no entry at all. An existing slot-1 entry -- even a disabled one -- is
@@ -305,7 +305,7 @@ bool  MachineConfigUpgrade::InjectCapabilityFlag (
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool  MachineConfigUpgrade::InjectPrinterSlot (JsonValue & arr)
+bool  MachineConfigUpgrade::TryInjectPrinterSlot (JsonValue & arr)
 {
     vector<JsonValue>  rebuilt;
     size_t             i        = 0;
@@ -443,7 +443,7 @@ HRESULT MachineConfigUpgrade::MigrateUserConfig (
         idxInternal = FindKey (rebuilt, kpszInternalDevicesKey);
         if (idxInternal >= 0)
         {
-            if (InjectCapabilityFlag (rebuilt[(size_t) idxInternal].second,
+            if (TryInjectCapabilityFlag (rebuilt[(size_t) idxInternal].second,
                                       kpszInternalDefault))
             {
                 fChanged = true;
@@ -453,13 +453,13 @@ HRESULT MachineConfigUpgrade::MigrateUserConfig (
         idxSlots = FindKey (rebuilt, kpszSlotsKey);
         if (idxSlots >= 0)
         {
-            if (InjectCapabilityFlag (rebuilt[(size_t) idxSlots].second,
+            if (TryInjectCapabilityFlag (rebuilt[(size_t) idxSlots].second,
                                       kpszSlotDefault))
             {
                 fChanged = true;
             }
 
-            if (InjectPrinterSlot (rebuilt[(size_t) idxSlots].second))
+            if (TryInjectPrinterSlot (rebuilt[(size_t) idxSlots].second))
             {
                 fChanged = true;
             }

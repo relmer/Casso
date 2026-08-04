@@ -135,7 +135,7 @@ size_t PrinterEngine::FlushNow (vector<PrinterEvent> & events)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  SnapshotStrip
+//  TrySnapshotStrip
 //
 //  Copies the strip under the raster lock so the live preview reads a consistent
 //  image while the drain thread keeps Ticking -- no Stop()/Start() and no new
@@ -144,7 +144,7 @@ size_t PrinterEngine::FlushNow (vector<PrinterEvent> & events)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool PrinterEngine::SnapshotStrip (PrintRaster & out)
+bool PrinterEngine::TrySnapshotStrip (PrintRaster & out)
 {
     bool  ok = false;
 
@@ -168,15 +168,15 @@ bool PrinterEngine::SnapshotStrip (PrintRaster & out)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  SnapshotStripSpan
+//  TrySnapshotStripSpan
 //
-//  Viewport-bounded variant of SnapshotStrip: copies only the requested rows
+//  Viewport-bounded variant of TrySnapshotStrip: copies only the requested rows
 //  under the raster lock, so the live preview's per-refresh cost stays flat no
 //  matter how long the banner grows.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool PrinterEngine::SnapshotStripSpan (int firstRow, int lastRow, PrintRaster & out)
+bool PrinterEngine::TrySnapshotStripSpan (int firstRow, int lastRow, PrintRaster & out)
 {
     bool  ok = false;
 
@@ -199,14 +199,14 @@ bool PrinterEngine::SnapshotStripSpan (int firstRow, int lastRow, PrintRaster & 
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  SnapshotPresentedSpan
+//  TrySnapshotPresentedSpan
 //
-//  Same as SnapshotStripSpan but over the presented ("wet ink") layer the head
+//  Same as TrySnapshotStripSpan but over the presented ("wet ink") layer the head
 //  paints -- what the live preview renders.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool PrinterEngine::SnapshotPresentedSpan (int firstRow, int lastRow, PrintRaster & out)
+bool PrinterEngine::TrySnapshotPresentedSpan (int firstRow, int lastRow, PrintRaster & out)
 {
     bool  ok = false;
 
