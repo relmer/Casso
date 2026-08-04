@@ -7816,9 +7816,10 @@ void EmulatorShell::UpdateWindowTitle()
         title += wideName;
     }
 
-    // Flag a paused / stopped emulator in every build -- that state is worth
-    // surfacing. The normal running state stays implicit so the retail caption
-    // reads a clean "Casso - <machine>".
+    // Flag a paused / stopped emulator in every build -- those states are worth
+    // surfacing because the window looks the same either way. Running is the
+    // expected state and gets no tag at all, so the caption stays a clean
+    // "Casso - <machine>" and only says something when something is off.
     if (m_cpuManager.IsPaused())
     {
         title += L" [Paused]";
@@ -7827,16 +7828,12 @@ void EmulatorShell::UpdateWindowTitle()
     {
         title += L" [Stopped]";
     }
-#if defined (_DEBUG)
-    // Dev builds also tag the running state and stamp the exact binary identity
-    // (version, arch, flavor, compile timestamp), so a running window is never
-    // mistaken for a stale rebuild.
-    else
-    {
-        title += L" [Running]";
-    }
 
-    title += L"  \x2014  ";
+#if defined (_DEBUG)
+    // Dev builds stamp the exact binary identity (version, arch, compile
+    // timestamp) so a window is never mistaken for a stale rebuild. Same " - "
+    // separator the machine name uses, so the caption reads as one list.
+    title += L" - ";
     title += CassoBuildInfo();
 #endif
 

@@ -27,11 +27,35 @@ The project includes:
 - **Headless test harness** — `HeadlessHost` drives the emulator with no Win32 window, enabling deterministic integration tests for cold boot, disk boot, video framebuffer hashing, and reset semantics.
 - **2700+ unit tests** — comprehensive coverage of CPU instruction encoding, addressing modes, arithmetic, branching, assembler features, audio pipeline (speaker + drive + printer + Mockingboard), 6522 VIA timers/IRQ + AY-3-8910 synthesis, //e MMU + Language Card, video timing, Disk II nibble engine, WOZ + nibblized image formats, 80-col + DHGR video, the printer pipeline (interpreter, renderer, pagination, pacing, head mechanics + drain engine, preview model, persistence, slot firmware), reset semantics, perf budget, and backwards-compat for ][ and ][ plus machines.
 
+## Contents
+
+- [About](#about)
+- [What's New](#whats-new)
+- [Project Structure](#project-structure)
+- [Requirements](#requirements)
+- [Quick Start](#quick-start)
+- [Assembler Features](#assembler-features)
+- [CPU Emulation Status](#cpu-emulation-status)
+- [Why "Casso"?](#why-casso)
+- [Acknowledgments and Attributions](#acknowledgments-and-attributions)
+- [Contributing](#contributing)
+- [License](#license)
+
 ## What's New
 
 See [CHANGELOG.md](CHANGELOG.md) for the granular history, and
 [ARCHITECTURE.md](ARCHITECTURE.md) for a technical overview of the emulator's
 internals (projects, threading, the memory model, and the optimization log).
+
+### Apple //c mouse: MousePaint works again (v1.15.0)
+
+Fixed a //c mouse-interrupt bug that made **MousePaint**'s main app unusable —
+menus and tools ignored every click and the cursor lagged. The //c only
+partially decodes its paddle-timer strobe, so *any* `$C070`–`$C07F` access
+clears the VBL interrupt; Casso recognized only the literal `$C070`. Mouse apps
+that acknowledge the VBL via a `$C07x` write (MousePaint writes `$C079` each
+interrupt) therefore never cleared it, and the resulting interrupt storm starved
+the app of CPU. Also trimmed the per-instruction //c mouse tick cost (~31%).
 
 ### Emulated ImageWriter II printer (v1.14.0)
 
@@ -51,7 +75,7 @@ II (the project's own CAD model) with fanfold paper, tractor-feed holes, and
 perforations, feeding out of the platen as you watch. A single print-head clock
 drives the whole illusion: the carriage sweeps bidirectionally at true draft
 speed laying ink column by column, the paper feeds with the head parked, and the
-**mechanical sound** (authentic ImageWriter II recordings by Scott Lawrence) is
+**mechanical sound** (authentic ImageWriter II recordings by [Scott Lawrence](https://github.com/BleuLlama/ImageWriterIISimulator)) is
 gated to what the head is actually doing — a carriage buzz over ink, line-feed
 clacks, page feeds, and tear-offs, stereo-panned to the window. A one-page
 viewport follows the newest rows; scroll back to review earlier pages and it
@@ -365,41 +389,6 @@ Available machine configs are in `Machines/<MachineName>/<MachineName>.json`.
 
 All 56 standard 6502 mnemonics are implemented. Validated against [Klaus Dormann's functional test suite](https://github.com/Klaus2m5/6502_65C02_functional_tests) (full pass) and [Tom Harte's SingleStepTests](https://github.com/SingleStepTests/ProcessorTests) (all 151 legal-opcode test sets, 10,000 vectors each).
 
-## Roadmap
-
-### Done
-
-- [x] Pass [Klaus Dormann's 6502 functional test suite](https://github.com/Klaus2m5/6502_65C02_functional_tests) ([#7](https://github.com/relmer/Casso/issues/7))
-- [x] Per-opcode validation against [Tom Harte's SingleStepTests](https://github.com/SingleStepTests/ProcessorTests) ([#29](https://github.com/relmer/Casso/issues/29), [#38](https://github.com/relmer/Casso/issues/38))
-- [x] Apple //e fidelity — cold boot to BASIC, audit-correct Language Card, 64 KB aux RAM, 80-column text + Double Hi-Res, soft reset vs. power cycle, IRQ/NMI dispatch, RDVBLBAR
-- [x] Disk II controller — DOS 3.3 / ProDOS `.dsk` / `.do` / `.po` nibblization + WOZ v1 / v2 with auto-flush on eject
-- [x] Disk II mechanical audio — stereo motor hum, head-step clicks, track-0 bump, disk insert / eject sounds, with a runtime Settings → Machine → Drive audio toggle. Built on a generic `IDriveAudioSink` / `IDriveAudioSource` / `DriveAudioMixer` abstraction so future drive types (//c internal 5.25, DuoDisk, ProFile, …) plug in without touching the mixer
-- [x] Mockingboard A/C sound card — clean-room 6522 VIA + AY-3-8910 PSG (3 tone voices + noise + envelope), stereo PCM, Timer 1 tempo IRQs, slot-4 install on ][+ / //e ([#66](https://github.com/relmer/Casso/issues/66))
-- [x] Headless test harness for deterministic integration tests (`HeadlessHost`, framebuffer scraper, keyboard injector)
-- [x] Performance gate — emulator throughput budget enforced in CI (Release-only)
-- [x] Cycle-accurate execution and profiling ([#57](https://github.com/relmer/Casso/issues/57))
-- [x] Disk II copy-protection fidelity — motor spin-up delay, MC3470 weak-bit emulation, real 16-state LSS, quarter-track read pipeline, and bit-level write path ([#67](https://github.com/relmer/Casso/issues/67))
-- [x] Boot *Karateka* from its WOZ image (RWTS18 copy protection) ([#68](https://github.com/relmer/Casso/issues/68))
-- [x] Boot *Lode Runner* from its WOZ image (copy protection) ([#70](https://github.com/relmer/Casso/issues/70))
-- [x] Play *Space Quarks* on the Apple ][ and ][ plus — required Apple ][ and ][ plus game-port emulation (paddles, buttons, PTRIG) plus an inverse-text character-ROM fix
-- [x] 65C02 extended instruction support (Rockwell R65C02 core), with assembler `--cpu 65c02` flag ([#9](https://github.com/relmer/Casso/issues/9))
-- [x] Emulated ImageWriter II printer — parallel card + original slot firmware, command interpreter locked from real Print Shop captures, draft text font, real-3D live preview (fanfold paper, one print-head clock driving carriage + ink + audio), mechanical sound set, and non-destructive PNG / clipboard / Windows-print delivery with a live print preview. The classic banner: The Print Shop prints end-to-end. The paper model: 8.5″ stock, 8″ printable width, 11″ pages
-
-### Medium Priority
-
-- [x] Stable undocumented NMOS opcodes — SAX/LAX/DCP/ISC/SLO/RLA/SRE/RRA + NOP family ([#95](https://github.com/relmer/Casso/issues/95))
-- [ ] Remaining undocumented / illegal opcodes — unstable "magic constant" ops + JAM ([#52](https://github.com/relmer/Casso/issues/52))
-- [ ] Rockwell / WDC 65C02 variants ([#49](https://github.com/relmer/Casso/issues/49), [#50](https://github.com/relmer/Casso/issues/50))
-- [ ] *Choplifter* gameplay starts after the title screen (WOZ copy protection) ([#69](https://github.com/relmer/Casso/issues/69), [#72](https://github.com/relmer/Casso/issues/72))
-
-### Low Priority
-
-- [ ] NES 6502 / Ricoh 2A03 variant ([#47](https://github.com/relmer/Casso/issues/47))
-- [ ] Example programs — ready-to-assemble demos and tutorials ([#55](https://github.com/relmer/Casso/issues/55))
-- [ ] VS Code extension — syntax highlighting, assemble-on-save, inline diagnostics ([#54](https://github.com/relmer/Casso/issues/54))
-- [ ] Interactive debugger / monitor — step, breakpoints, register watch, memory dump ([#51](https://github.com/relmer/Casso/issues/51))
-- [ ] Relocatable object output — o65 format for cc65 toolchain integration ([#58](https://github.com/relmer/Casso/issues/58))
-
 ## Why "Casso"?
 
 While [emu](https://en.wikipedia.org/wiki/Emu) is the more obvious name and mascot for an emulator, I wanted Casso to stand out; to be just a little weird; to _think different_. I picked its larger, flightless, considerably more dangerous cousin: the [cassowary](https://en.wikipedia.org/wiki/Cassowary)—Casso to his friends.
@@ -412,9 +401,7 @@ I thus present to you our regal namesake—revel in his splendor!
 
 *Cassowary photo by [Mr. Smiley / BunyipCo](https://bunyipco.blogspot.com/2015/04/cassowary-update.html), licensed under [CC BY-NC-SA 3.0](https://creativecommons.org/licenses/by-nc-sa/3.0/).*
 
-*ImageWriter II printer sounds by [Scott Lawrence](https://github.com/BleuLlama/ImageWriterIISimulator) (recorded from a real ImageWriter II), licensed under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/).*
-
-## Acknowledgments
+## Acknowledgments and Attributions
 
 Casso's correctness is validated against two exceptional open-source test suites:
 
@@ -422,6 +409,12 @@ Casso's correctness is validated against two exceptional open-source test suites
 - **[Tom Harte's SingleStepTests](https://github.com/SingleStepTests/ProcessorTests)** — [@TomHarte](https://github.com/TomHarte)'s per-opcode test vectors validate every legal 6502 opcode against cycle-accurate reference traces. Casso passes all 151 legal-opcode test sets (10,000 vectors each).
 
 Thank you to both authors for making these invaluable resources freely available. They are the gold standard for 6502 emulator validation.
+
+Casso also builds on several third-party components and assets:
+
+- **CRT display shaders** — the optional CRT effect is a set of HLSL ports from the [libretro `glsl-shaders`](https://github.com/libretro/glsl-shaders) collection: **crt-pi** by Davide Berra (MIT), the **ntsc-adaptive** chroma stage by Themaister and hunterk (MIT), and the **bloom** passes by hunterk (public domain). Per-file attribution and license terms are in [`Casso/Shaders/CRT/LICENSES.md`](Casso/Shaders/CRT/LICENSES.md).
+- **[stb_vorbis](https://github.com/nothings/stb)** — Sean Barrett's public-domain Ogg Vorbis decoder ([nothings.org/stb_vorbis](http://nothings.org/stb_vorbis/)), used to decode the Disk II and printer audio samples.
+- **ImageWriter II printer sounds** — recorded from a real ImageWriter II by [Scott Lawrence](https://github.com/BleuLlama/ImageWriterIISimulator), licensed under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/).
 
 ## Contributing
 

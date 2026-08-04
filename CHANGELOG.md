@@ -6,6 +6,27 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 Versioned entries use `MAJOR.MINOR.PATCH` from [Version.h](CassoCore/Version.h).
 Entries before versioning was introduced use dates only.
 
+## [1.15.0] — Apple //c mouse fixes
+
+### Fixed
+- **fix(2c): acknowledge the //c VBL interrupt across the whole $C070-$C07F
+  PTRIG page** — the paddle-timer strobe is only partially decoded, so any
+  access in $C070-$C07F fires PTRIG and clears the VBL interrupt latch; Casso
+  honored only the literal $C070. Apps that run the mouse in VBL-interrupt mode
+  acknowledge the VBL as a side effect of a $C07x access (MousePaint does
+  `STA $C079` each interrupt), so the latch was never cleared and the interrupt
+  re-fired every time interrupts were enabled — pinning the CPU in its handler.
+  MousePaint's main app was effectively unusable: menus and tools ignored
+  clicks and the cursor lagged badly. Both are fixed. (Karateka's sticky
+  `$C019` VBL poll is unaffected — it never touches $C07x during its wait.)
+
+### Changed
+- **perf(mouse): batch `AppleMouse::Tick` bookkeeping off the per-instruction
+  path** — keep only the movement latch per-instruction (so the cursor tracks
+  without lag) and run the retarget countdown, VBL onset sample, and host-motion
+  drain at a coarse cadence (`kSampleQuantum`). ~31% cheaper per tick
+  (4.07 → 2.81 ns, microbenchmarked); //c-only, feel-neutral.
+
 ## [1.14.0] — Emulated ImageWriter II printer (spec 015)
 
 ### Added

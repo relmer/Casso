@@ -19,8 +19,8 @@
 static constexpr wchar_t   s_kpszTitle     [] = L"Casso Printer";
 static constexpr wchar_t   s_kpszClassName [] = L"CassoPrinterPanel";
 
-static constexpr int       s_kPreferredWidthDip  = 560;
-static constexpr int       s_kPreferredHeightDip = 680;
+// The chrome band geometry and the sizes derived from it are private members
+// of PrinterPanel.
 
 // Viewport render: 144 dpi maps native rows 1:1 to pixels, so the visible
 // ~1-page span is a fixed 1152x1584 image regardless of strip length --
@@ -282,8 +282,32 @@ HRESULT PrinterPanel::Create (
     params.title             = s_kpszTitle;
     params.hInstance         = hInstance;
     params.ownerHwnd         = hwndOwner;
-    params.initialSizeDip    = { s_kPreferredWidthDip, s_kPreferredHeightDip };
-    params.minSizeDip        = { 360, 420 };
+    params.initialSizeDip    = { kPreferredWidthDip, kPreferredHeightDip };
+
+    // Minimum IS the preferred size: this layout has no smaller valid form.
+    // The top band packs a fixed-width left cluster (Print / Save / Copy,
+    // ending at pad + 3*btnW + 2*gap = 274dip) against a fixed-width zoom
+    // cluster hugging the right edge (starting at width - 160dip), so below
+    // 434dip the two collide -- and nothing reflows to prevent it. Vertically
+    // the caption, both 46dip toolbars and the 20dip hint strip are fixed, so
+    // every dip lost comes out of the printer scene and then the hint clips.
+    // Matches Disk2DebugPanel / InputDebugPanel, which already do this.
+    // The toolbar is the ONLY thing that cannot adapt, so it alone sets the
+    // floor. Its top band packs a fixed left group (Print / Save / Copy,
+    // ending at pad + 3*btnW + 2*gap = 274dip) against a fixed zoom group
+    // hugging the right edge (starting at width - 160dip); nothing reflows, so
+    // below 434dip they overlap. 460 leaves 26dip between the two groups --
+    // 440 would technically clear them, but only by the same 6dip gap used
+    // WITHIN the left group, so the six buttons read as one undifferentiated
+    // run. The extra 20dip keeps "document actions" and "zoom" legible as
+    // separate clusters.
+    //
+    // Everything else in the panel now yields instead of dictating: the 3D
+    // scene widens its FOV to stay whole (Printer3DScene, "contain rather than
+    // crop"), and the hint wraps onto its reserved second line. Height is
+    // likewise unconstrained by content -- only the caption, the two 46dip
+    // toolbars and the hint strip are fixed.
+    params.minSizeDip        = { kMinWidthDip, kMinHeightDip };
     params.resizable         = true;
     params.captionStyle      = DxuiCaptionStyle::CloseOnly;
     params.classNameOverride = s_kpszClassName;
@@ -1598,11 +1622,16 @@ bool PrinterPanel::OnKey (const DxuiKeyEvent & ev)
 
 void PrinterPanel::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
 {
-    int   pad      = scaler.Px (10);
+    int   pad      = scaler.Px (kPadDip);
     int   gap      = scaler.Px (6);
     int   captionH = CaptionHeightPx();
-    int   toolbarH = scaler.Px (46);
-    int   hintH    = scaler.Px (20);
+    int   toolbarH = scaler.Px (kToolbarHDip);
+    // Two lines' worth. The hint wraps rather than clipping (see Paint), so the
+    // strip has to reserve the second line up front -- Layout has no text
+    // renderer to measure with, and sizing it per-frame would make the paper
+    // area jump as the window crosses the wrap threshold. A single line simply
+    // centers in the taller box.
+    int   hintH    = scaler.Px (kHintHDip);
     int   btnH     = scaler.Px (30);
     int   btnW     = scaler.Px (84);    // Print... / Save... / Copy / Form Feed / Discard
     int   zoomW    = scaler.Px (42);    // [-] and [+]
@@ -1762,6 +1791,10 @@ void PrinterPanel::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
             DxuiTextHAlign::Center,
             DxuiTextVAlign::Center,
             DxuiFontWeight::Normal,
-            false));
+            // Wrap: the hint must never be the thing that sets the window's
+            // minimum width. The strip is laid out two lines tall, so a narrow
+            // panel spills onto the second line instead of losing both ends,
+            // and a wide one centers a single line in the same box.
+            true));
     }
 }

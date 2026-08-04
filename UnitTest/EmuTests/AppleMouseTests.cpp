@@ -98,7 +98,7 @@ public:
         EnableXyInterrupts (mouse);
 
         mouse.MoveBy (2, 0);
-        mouse.Tick (1);
+        mouse.Tick (AppleMouse::kSampleQuantum);
         Assert::IsTrue  (ic.IsAnyAsserted(), L"first unit must assert the line");
         Assert::AreEqual<Byte> (0x80, mouse.ReadXInterruptStatus(), L"$C015 bit 7 pending");
 
@@ -111,11 +111,11 @@ public:
         Assert::IsFalse (ic.IsAnyAsserted(),          L"$C048 ack must drop the line");
         Assert::AreEqual<Byte> (0x00, mouse.ReadXInterruptStatus(), L"ack clears the pending flag");
 
-        mouse.Tick (1);
+        mouse.Tick (AppleMouse::kSampleQuantum);
         Assert::IsTrue (ic.IsAnyAsserted(), L"second queued unit re-asserts after ack");
 
         mouse.AccessRstXY();
-        mouse.Tick (1);
+        mouse.Tick (AppleMouse::kSampleQuantum);
         Assert::IsFalse (ic.IsAnyAsserted(), L"queue drained: no third interrupt");
     }
 
@@ -132,13 +132,13 @@ public:
         EnableXyInterrupts (mouse);
 
         mouse.MoveBy (+1, +1);
-        mouse.Tick (1);
+        mouse.Tick (AppleMouse::kSampleQuantum);
         Assert::AreEqual<Byte> (0x80, mouse.ReadMouX1(), L"+X (right) -> MOUX1 bit 7 set");
         Assert::AreEqual<Byte> (0x00, mouse.ReadMouY1(), L"+Y (down)  -> MOUY1 bit 7 clear");
 
         mouse.AccessRstXY();
         mouse.MoveBy (-1, -1);
-        mouse.Tick (1);
+        mouse.Tick (AppleMouse::kSampleQuantum);
         Assert::AreEqual<Byte> (0x00, mouse.ReadMouX1(), L"-X (left) -> MOUX1 bit 7 clear");
         Assert::AreEqual<Byte> (0x80, mouse.ReadMouY1(), L"-Y (up)   -> MOUY1 bit 7 set");
     }
@@ -158,10 +158,10 @@ public:
 
         // Video timing and the mouse both receive the same cycle count from
         // AddCycles, so advance them in lockstep. The mouse samples the vblank
-        // line on a coarse cadence (kVblCheckIntervalCycles) rather than every
-        // tick, so it must be fed realistic cycle counts -- a Tick(1) probe is
-        // not guaranteed to land a sample. The vblank window (~4550 cycles)
-        // dwarfs that cadence, so the onset edge is always caught.
+        // line on a coarse cadence (kSampleQuantum) rather than every tick, so
+        // it must be fed realistic cycle counts -- a Tick(1) probe is not
+        // guaranteed to land a sample. The vblank window (~4550 cycles) dwarfs
+        // that cadence, so the onset edge is always caught.
         auto advance = [&] (uint32_t cyc) { vt.Tick (cyc); mouse.Tick (cyc); };
 
         // Masked VBL: tick into vblank -- flag latches, line stays low.
@@ -204,6 +204,8 @@ public:
     }
 
 
+
+
     // DISXY masks the line without discarding the pending flags; re-enabling
     // surfaces them again (mask, not clear).
     TEST_METHOD (DisXy_MasksLineWithoutClearingFlags)
@@ -215,7 +217,7 @@ public:
         EnableXyInterrupts (mouse);
 
         mouse.MoveBy (1, 0);
-        mouse.Tick (1);
+        mouse.Tick (AppleMouse::kSampleQuantum);
         Assert::IsTrue (ic.IsAnyAsserted());
 
         mouse.WriteIouAccess (true);

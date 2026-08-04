@@ -69,8 +69,9 @@ void Cpu::Reset()
 
 void Cpu::EnableTrace (size_t capacity)
 {
-    m_traceHead  = 0;
-    m_traceCount = 0;
+    m_traceHead        = 0;
+    m_traceCount       = 0;
+    m_pendingTraceIntr = kTraceIntrNone;
 
     if (capacity == 0)
     {
@@ -125,6 +126,11 @@ void Cpu::TracePush (Byte opcode)
     e.y      = Y;
     e.sp     = SP;
     e.p      = status.status;
+
+    // Move any pending interrupt-dispatch tag onto this entry: TracePush runs
+    // for the handler's first instruction right after the vector was taken.
+    e.intr             = m_pendingTraceIntr;
+    m_pendingTraceIntr = kTraceIntrNone;
 
     m_traceHead = (m_traceHead + 1) % m_traceCapacity;
     m_traceCount++;
@@ -233,6 +239,40 @@ bool Cpu::DumpTraceToFile (const std::wstring & path,
 
         out << "Casso CPU execution trace -- " << total << " instructions (oldest first)\n";
 
+        // Pre-scan for the interrupt-rate summary. An interrupt storm (stuck
+        // IRQ line, unacknowledged source, an ISR that never returns) is
+        // otherwise invisible in a flat instruction trace, so surface the rate
+        // up top. Cheap -- one pass reading a single byte per entry, dwarfed by
+        // the write below.
+        uint64_t  irqCount = 0;
+        uint64_t  nmiCount = 0;
+
+        for (uint64_t i = 0; i < total; i++)
+        {
+            Byte  kind = m_trace[(start + (size_t) i) % m_traceCapacity].intr;
+
+            if      (kind == kTraceIntrIrq) { ++irqCount; }
+            else if (kind == kTraceIntrNmi) { ++nmiCount; }
+        }
+
+        {
+            char  hdr[128];
+            int   hn = (irqCount > 0)
+                     ? std::snprintf (hdr, sizeof (hdr),
+                           "interrupts: %llu IRQ, %llu NMI  (1 IRQ per %llu instrs, ~%.1f/frame)\n",
+                           (unsigned long long) irqCount, (unsigned long long) nmiCount,
+                           (unsigned long long) (total / irqCount),
+                           (double) irqCount * 17030.0 / ((double) total * 3.0))
+                     : std::snprintf (hdr, sizeof (hdr),
+                           "interrupts: %llu IRQ, %llu NMI\n",
+                           (unsigned long long) irqCount, (unsigned long long) nmiCount);
+
+            if (hn > 0)
+            {
+                out.write (hdr, hn);
+            }
+        }
+
         for (uint64_t i = 0; i < total; i++)
         {
             size_t              index = (start + (size_t) i) % m_traceCapacity;
@@ -240,15 +280,18 @@ bool Cpu::DumpTraceToFile (const std::wstring & path,
             const char *        name  = instructionSet[e.opcode].instructionName != nullptr
                                         ? instructionSet[e.opcode].instructionName
                                         : "???";
+            const char *        mark  = (e.intr == kTraceIntrIrq) ? "  [IRQ]"
+                                      : (e.intr == kTraceIntrNmi) ? "  [NMI]"
+                                      :                             "";
 
             int  n = std::snprintf (line, sizeof (line),
                                     "%08llu  PC=$%04X  op=$%02X OPS=$%02X $%02X (%s)  "
-                                    "A=$%02X X=$%02X Y=$%02X SP=$%02X P=$%02X\n",
+                                    "A=$%02X X=$%02X Y=$%02X SP=$%02X P=$%02X%s\n",
                                     (unsigned long long) i,
                                     (unsigned) e.pc, (unsigned) e.opcode,
                                     (unsigned) e.op1, (unsigned) e.op2, name,
                                     (unsigned) e.a, (unsigned) e.x, (unsigned) e.y,
-                                    (unsigned) e.sp, (unsigned) e.p);
+                                    (unsigned) e.sp, (unsigned) e.p, mark);
             if (n > 0)
             {
                 out.write (line, n);

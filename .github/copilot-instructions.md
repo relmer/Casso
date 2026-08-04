@@ -53,6 +53,11 @@ See the Constitution's Principle VI (Thin Executable, Testable Core) and Princip
   `ch` = char (narrow OR wide), no special wide marker. E.g.
   `s_kpszHost` (LPCWSTR), `s_kchBullet` (wchar_t),
   `s_kRomCatalog` (constant array).
+  The leading `s_` says **file-scope static** and nothing else — a class member
+  or a function-local drops it and keeps the rest (`kPadDip`, `kpszTitle`), so
+  the prefix alone tells you which you are reading. Whether a constant should
+  be file-scope at all is decided by "Where a file-local constant goes" below;
+  being constant is not the test.
 - **No anonymous namespaces.** NEVER use `namespace {}`. Put file-local
   helpers as class `static` members, not free functions. More broadly,
   strongly prefer class members over free/global functions — a free function

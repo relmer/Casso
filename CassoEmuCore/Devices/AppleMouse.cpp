@@ -84,31 +84,33 @@ void AppleMouse::MoveBy (int dx, int dy)
 
 void AppleMouse::Tick (uint32_t cpuCycles)
 {
-    // Absolute targeting: periodically re-derive the pending motion from
-    // the host target fraction + the firmware's live screen holes.
-    if (m_retargetCountdown <= cpuCycles)
-    {
-        m_retargetCountdown = kRetargetIntervalCycles;
-        RetargetFromHoles();
-    }
-    else
-    {
-        m_retargetCountdown -= cpuCycles;
-    }
-
     bool  irqChanged = false;
 
-    // VBL onset edge. IsInVblank() is a virtual call into the video timing;
-    // paying it every instruction was a large slice of this device's cost.
-    // Sample it on the kVblCheckIntervalCycles cadence instead -- the vblank
-    // window is wide enough that the onset edge is still caught within a
-    // couple of scanlines (see the constant's note).
-    if (m_videoTiming != nullptr)
-    {
-        if (m_vblCheckCountdown <= cpuCycles)
-        {
-            m_vblCheckCountdown = kVblCheckIntervalCycles;
 
+
+    // Batch the bookkeeping that does not need per-instruction resolution --
+    // the retarget countdown, the VBL onset sample, and the host-motion drain
+    // -- onto kSampleQuantum. The movement LATCH stays per-instruction below,
+    // so a queued unit reaches the firmware the moment the previous one is
+    // acknowledged and the cursor tracks without lag.
+    m_sampleAccum += cpuCycles;
+    if (m_sampleAccum >= kSampleQuantum)
+    {
+        uint32_t  cyc = m_sampleAccum;
+        m_sampleAccum = 0;
+
+        if (m_retargetCountdown <= cyc)
+        {
+            m_retargetCountdown = kRetargetIntervalCycles;
+            RetargetFromHoles();
+        }
+        else
+        {
+            m_retargetCountdown -= cyc;
+        }
+
+        if (m_videoTiming != nullptr)
+        {
             bool  inVblank = m_videoTiming->IsInVblank();
 
             if (inVblank && !m_lastInVblank)
@@ -118,31 +120,18 @@ void AppleMouse::Tick (uint32_t cpuCycles)
             }
             m_lastInVblank = inVblank;
         }
-        else
+
+        if (m_hostDx.load (std::memory_order_relaxed) != 0 ||
+            m_hostDy.load (std::memory_order_relaxed) != 0)
         {
-            m_vblCheckCountdown -= cpuCycles;
+            constexpr int  kMaxPending = 1023;
+
+            int  dx = m_hostDx.exchange (0, std::memory_order_acq_rel);
+            int  dy = m_hostDy.exchange (0, std::memory_order_acq_rel);
+
+            m_pendingX = std::clamp (m_pendingX + dx, -kMaxPending, kMaxPending);
+            m_pendingY = std::clamp (m_pendingY + dy, -kMaxPending, kMaxPending);
         }
-    }
-
-    // Drain host motion into the CPU-side queue. This runs every instruction,
-    // but host motion arrives at most at pointer-poll rate, so almost every
-    // tick has nothing to drain. A relaxed load is a plain move on x86; gate
-    // the atomic exchange behind it so the (common) idle tick pays no locked
-    // read-modify-write -- doing two per instruction unconditionally was this
-    // device's single largest CPU cost. Clamp the backlog to the firmware's
-    // maximum clamp span: real hardware doesn't queue at all (unserviced
-    // pulses are simply lost), so an unbounded backlog while the guest has
-    // interrupts masked would replay a stale burst later.
-    if (m_hostDx.load (std::memory_order_relaxed) != 0 ||
-        m_hostDy.load (std::memory_order_relaxed) != 0)
-    {
-        constexpr int  kMaxPending = 1023;
-
-        int  dx = m_hostDx.exchange (0, std::memory_order_acq_rel);
-        int  dy = m_hostDy.exchange (0, std::memory_order_acq_rel);
-
-        m_pendingX = std::clamp (m_pendingX + dx, -kMaxPending, kMaxPending);
-        m_pendingY = std::clamp (m_pendingY + dy, -kMaxPending, kMaxPending);
     }
 
     // Latch one unit per idle axis. MOUX1 bit 7 = 1 -> firmware increments X
@@ -392,7 +381,7 @@ void AppleMouse::Reset()
     m_y0EdgeFalling    = false;
     m_iouAccessEnabled = false;
     m_lastInVblank     = false;
-    m_vblCheckCountdown = 0;
+    m_sampleAccum = 0;
 
     UpdateIrqLines();
 }
