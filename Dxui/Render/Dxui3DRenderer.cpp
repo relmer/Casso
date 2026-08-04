@@ -53,6 +53,22 @@ Dxui3DRenderer::~Dxui3DRenderer()
 //
 //  Initialize
 //
+//  Brings up the 3D renderer against a borrowed device and context: shaders,
+//  pipeline state, and the 1x1 white texture.
+//
+//  That white texture is what lets ONE shader pair serve both textured and
+//  untextured geometry. Untextured draws sample it, so the sample is always
+//  opaque white and the vertex tint alone becomes the surface color -- no
+//  second shader, no branch in the pixel shader, and no state swap between
+//  the two cases.
+//
+//  It is created IMMUTABLE, since a single white pixel never changes and the
+//  driver is free to place it wherever it likes.
+//
+//  A failure anywhere calls Shutdown before returning, so a half-built
+//  renderer is never left for a caller to discover -- the object is either
+//  fully usable or fully empty.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT Dxui3DRenderer::Initialize (ID3D11Device * device, ID3D11DeviceContext * context)
@@ -114,6 +130,21 @@ Error:
 //
 //  Shutdown
 //
+//  Releases every GPU resource and returns the renderer to its pre-Initialize
+//  state.
+//
+//  The cached SIZES are cleared alongside the resources, and that is the part
+//  that matters. This object is reused across a device reset, and the growth
+//  checks in UpdateContentTexture and the depth-buffer path compare against
+//  those cached dimensions -- leaving them set would let a later frame decide
+//  a texture it no longer owns is already big enough.
+//
+//  Device and context are borrowed, not owned, so they are dropped rather than
+//  released.
+//
+//  Safe to call on a partially built renderer, which is what lets Initialize
+//  use it as its own failure path.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void Dxui3DRenderer::Shutdown()
@@ -151,6 +182,23 @@ void Dxui3DRenderer::Shutdown()
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  CreateShaders
+//
+//  Compiles the single vertex / pixel shader pair and builds the input layout
+//  that matches it.
+//
+//  One pair covers everything this renderer draws. The vertex format carries
+//  position, texture coordinate, and per-vertex color, and the pixel shader
+//  simply multiplies the sample by the color -- which is why untextured
+//  geometry can sample the 1x1 white texture and get its vertex tint back
+//  unchanged, with no second shader to maintain.
+//
+//  Shader source is embedded as string literals rather than as resources,
+//  because these two are small and belong with the vertex struct they have to
+//  agree with.
+//
+//  The input layout is validated against the compiled VERTEX SHADER BLOB, so a
+//  mismatch between the struct and the shader's expected signature fails here
+//  at startup rather than as garbage geometry at draw time.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -204,6 +252,30 @@ Error:
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  CreatePipelineState
+//
+//  Builds the fixed-function state objects: blend, rasterizer, the two depth
+//  modes, the sampler, and the MVP constant buffer.
+//
+//  Blending is PREMULTIPLIED source-over, chosen to match DxuiPainter exactly.
+//  3D scene pixels layer into the same surface as the panel-tree paint, and a
+//  different blend equation would make a translucent scene composite
+//  differently from every other translucent thing in the UI.
+//
+//  Culling is off. The paper curl's far side is legitimately visible from
+//  behind, so back-face culling would punch holes in it, and these meshes are
+//  far too small for culling to be worth anything.
+//
+//  Two depth modes exist because there are two kinds of caller. Hand-built
+//  batches arrive already ordered back to front and want depth OFF, painter's-
+//  algorithm style; loaded meshes arrive in arbitrary triangle order and need
+//  a real LESS test with depth writes. Neither mode works for the other case,
+//  which is why both are created up front and chosen per draw.
+//
+//  The sampler clamps so a UV that reaches past an edge repeats the edge
+//  texel instead of wrapping content in from the opposite side.
+//
+//  The MVP buffer is DYNAMIC: it is rewritten per draw, since each batch
+//  carries its own transform.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -333,6 +405,23 @@ Error:
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  UpdateContentTexture
+//
+//  Uploads a BGRA image for textured geometry to sample, recreating the
+//  texture only when the dimensions change.
+//
+//  The size test is what makes this cheap to call every frame: a page preview
+//  that keeps its dimensions re-uses the same texture and pays only the
+//  upload, while a resize gets a fresh one.
+//
+//  DYNAMIC usage with WRITE_DISCARD is the right pairing for per-frame
+//  replacement -- discard tells the driver the previous contents are dead, so
+//  it can hand back a fresh buffer instead of stalling until the GPU finishes
+//  reading the old one.
+//
+//  Rows are copied ONE AT A TIME against the mapped RowPitch rather than as a
+//  single memcpy. The driver's pitch is its own choice and is routinely larger
+//  than width * 4 for alignment, so a flat copy would skew the image
+//  progressively down the texture.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -465,6 +554,30 @@ Error:
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  DrawTriangles
+//
+//  Draws one triangle-list batch with the given transform, texture choice, and
+//  depth mode.
+//
+//  The FULL pipeline state is set on every draw, mirroring what
+//  DxuiPainter::End does. That is deliberate and is what lets 3D batches
+//  interleave freely with the painter and the text renderer: nobody has to
+//  save or restore anything, because every one of them assumes nothing about
+//  the state it inherits. The cost is a handful of redundant sets per draw
+//  against a handful of draws per frame.
+//
+//  Textured and untextured differ only in WHICH SRV is bound -- the content
+//  texture or the 1x1 white one -- so there is no shader or state swap between
+//  them.
+//
+//  Depth-tested draws must re-bind the render target together with our depth
+//  view, because the host bound the RTV with no DSV at all. The current RTV is
+//  QUERIED rather than passed in, so callers running from a before-present
+//  hook need no knowledge of the host's back-buffer plumbing. Depth-off draws
+//  leave the bindings untouched.
+//
+//  The SRV is unbound after the draw. Nothing today binds the content texture
+//  as a render target, but a later frame that did would otherwise trip a
+//  read/write hazard warning, and the unbind is nearly free.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
