@@ -4123,6 +4123,22 @@ Error:
 //
 //  AssemblySession::RunPass2
 //
+//  Emits bytes, now that pass 1 has fixed every address. Walks m_lineInfos --
+//  the record pass 1 built -- rather than the source, so macro expansion and
+//  includes are already flattened and nothing is re-parsed.
+//
+//  The image is a full 64 KB pre-filled with m_options.fillByte, so gaps left
+//  by .org jumps carry a defined value rather than whatever was there;
+//  ExtractImage trims it to the range actually written.
+//
+//  Order matters at the top: every pass-1 symbol is copied into the pass-2
+//  context, THEN .EQU values are resolved, THEN unresolved ones are reported.
+//  Resolution needs the labels present, and reporting has to come after
+//  resolution or it would blame constants that were about to resolve.
+//
+//  A line already carrying an error emits nothing but still gets a listing
+//  entry, so the listing stays line-for-line with the source.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT AssemblySession::RunPass2()
@@ -4195,6 +4211,23 @@ Error:
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  AssemblySession::ResolveEquConstants
+//
+//  Settles .EQU values that pass 1 could not, by sweeping repeatedly until a
+//  full sweep resolves nothing new.
+//
+//  Iteration is what allows one .EQU to be defined in terms of another
+//  declared later: each pass resolves whatever now has all its inputs, which
+//  makes more inputs available to the next. A single ordered pass would only
+//  work if constants were declared in dependency order.
+//
+//  Already-resolved names are skipped, so a value is computed once and a
+//  resolved constant cannot be recomputed against a changed context.
+//
+//  The 100-iteration cap bounds a circular definition (A equ B / B equ A),
+//  which makes no progress and would otherwise spin. Nothing is reported
+//  here: whatever is still unresolved falls to ReportUnresolvedEqus, which
+//  cannot tell a cycle from a genuinely undefined symbol and does not need to
+//  -- both are "this never resolved" to the author.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -4357,6 +4390,18 @@ HRESULT AssemblySession::EmitMultiNopDirective (const LineInfo & info, Word & em
 //
 //  AssemblySession::EmitDirectiveBytes
 //
+//  Pass-2 dispatch for directives: looks the token up in the directive table
+//  and calls whatever member function sits in its pass2 column.
+//
+//  A null pass2 column is not an error -- it means the directive emits no
+//  bytes, either because it did all its work in pass 1 (.ORG, .LIST, .STRUCT)
+//  or because it never produces output. Bailing on null is what lets those
+//  share the same dispatch as the emitters.
+//
+//  The assert catches the table drifting out of enum order, which would
+//  silently dispatch one directive to another's emitter -- indexing by token
+//  is only sound while row.token == token holds for every row.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT AssemblySession::EmitDirectiveBytes (const LineInfo & info, Word & emitPC)
@@ -4396,6 +4441,26 @@ Error:
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  AssemblySession::EmitByteDirective
+//
+//  .BYTE and friends, where each argument is a string, an escape run, or an
+//  expression. Four cases rather than two because the argument splitter is
+//  comma-based and strings can contain commas or trailing bytes.
+//
+//  Strings go through m_charMap -- the .CMAP translation table -- so source
+//  text can be emitted in the target's encoding. Anything NOT a string does
+//  not: an escape run or an expression result is already a byte value, and
+//  translating it would corrupt data that was never text. That asymmetry is
+//  the point of the separate branches.
+//
+//  A `"str"suffix` form emits the quoted part translated and the suffix
+//  untranslated, which is how a string with a terminator or high-bit marker
+//  is written on one line. An opening quote with no closing one falls through
+//  to expression evaluation rather than erroring, so `"` as a character
+//  literal still works.
+//
+//  A failed evaluation records the error and keeps going, so one bad argument
+//  in a long table reports itself without hiding the rest. m_result.success is
+//  cleared once at the end rather than per-failure.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -4503,6 +4568,15 @@ HRESULT AssemblySession::EmitByteDirective (const LineInfo & info, Word & emitPC
 //
 //  AssemblySession::EmitWordDirective
 //
+//  Two bytes per value, little-endian low byte first -- the 6502's byte order,
+//  so a .WORD holding an address can be read directly by the target.
+//
+//  The `values.size() != 0 || arg.empty()` guard distinguishes "no arguments"
+//  (legal, emits nothing) from "arguments that all failed to evaluate"
+//  (TryEvaluateDirectiveArgs already recorded why; this only has to fail the
+//  assembly). Without it an unevaluable .WORD would silently emit nothing and
+//  every following address would be two bytes early.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT AssemblySession::EmitWordDirective (const LineInfo & info, Word & emitPC)
@@ -4541,6 +4615,9 @@ HRESULT AssemblySession::EmitWordDirective (const LineInfo & info, Word & emitPC
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  AssemblySession::EmitDdDirective
+//
+//  Four bytes per value, little-endian, same order and same empty-versus-
+//  failed distinction as EmitWordDirective above.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -4582,6 +4659,17 @@ HRESULT AssemblySession::EmitDdDirective (const LineInfo & info, Word & emitPC)
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  AssemblySession::EmitDsDirective
+//
+//  .DS reserves space by emitting `size` copies of a fill byte -- it does not
+//  merely advance the PC. That matters because the reserved run then holds a
+//  known value in the image rather than whatever the pre-fill left, so a
+//  buffer declared with .DS 256, $FF really is $FF in the output.
+//
+//  The optional second argument is the fill; absent, it is zero. A fill
+//  expression that fails to evaluate leaves the default rather than abandoning
+//  the reservation, because the SIZE is what the following addresses depend
+//  on -- emitting the right number of wrong bytes keeps every later label
+//  correct, while emitting none would shift all of them.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
