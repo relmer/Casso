@@ -339,6 +339,29 @@ Error:
 //
 //  StepOne
 //
+//  Executes one instruction and leaves its exact cycle cost in m_lastCycles,
+//  which the host loop reads to keep emulated time honest. Timing is why this
+//  is more than fetch-decode-execute: two penalties are not in the table.
+//
+//  Page-crossing (+1) applies to indexed READS only. Stores and read-modify-
+//  write instructions always take the extra cycle -- the hardware cannot know
+//  whether the page crossed until it has read, and it must write regardless --
+//  so their cost is already baked into baseCycles and adding it here would
+//  double-count. That is what the long isReadOp exclusion list is for.
+//
+//  ZeroPageIndirectY needs its base recovered as effectiveAddress - Y, because
+//  unlike AbsoluteX/Y the base was never a literal in the instruction; it came
+//  from the zero-page pointer.
+//
+//  Branches (+1 taken, +1 more crossing a page) are detected by comparing PC
+//  against its value after operand fetch, which is simply whether the branch
+//  moved it -- no separate "was it taken" flag to keep in step. BRA counts as
+//  always taken.
+//
+//  An illegal opcode is a 2-cycle NOP that keeps running rather than an
+//  assert: real software executes undocumented NMOS ops this table does not
+//  carry yet (GH #52), and trapping would break titles that work on hardware.
+//
 ////////////////////////////////////////////////////////////////////////////////
 void Cpu::StepOne()
 {
@@ -607,6 +630,19 @@ void Cpu::PrintOperandAndComment (Byte opcode, const OperandInfo & operandInfo)
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  FetchOperand
+//
+//  Resolves the addressing mode into operandInfo -- the effective address, and
+//  the operand value where the mode implies one -- leaving PC on the LAST byte
+//  of the instruction. StepOne's trailing ++PC is what finally advances past
+//  it, so the two must be read together: the fetch helpers deliberately stop
+//  one short.
+//
+//  A mode with no operand bytes skips the whole block, PC never moves here,
+//  and that same trailing increment lands on the next instruction.
+//
+//  The default arm asserts rather than falling through quietly: an addressing
+//  mode with no fetch would leave operandInfo zeroed, so the instruction would
+//  execute against address $0000 instead of failing visibly.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -989,6 +1025,20 @@ void Cpu::FetchOperandAbsoluteX (Cpu::OperandInfo & operandInfo)
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  ExecuteInstruction
+//
+//  Dispatches an already-decoded instruction to its CpuOperations handler.
+//  Pure routing: addressing has been resolved into operandInfo and the cycle
+//  count settled by the caller, so nothing here reads memory or touches PC
+//  except through the operations themselves.
+//
+//  Accumulator mode is turned into a POINTER rather than a flag, which is what
+//  lets the shift and rotate operations take one code path for `ASL A` and
+//  `ASL $1234` alike -- null means "operate on the effective address". Handing
+//  them a mode to branch on would put the same test in six places.
+//
+//  Switching on operation rather than opcode is what collapses 256 opcodes to
+//  this list: the addressing mode is already spent, so every LDA variant
+//  arrives here as one Load.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
