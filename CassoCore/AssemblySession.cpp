@@ -2237,6 +2237,19 @@ HRESULT AssemblySession::HandleEndifDirective (const PendingLine & current)
 //
 //  AssemblySession::HandleOrgDirective
 //
+//  Moves the assembly PC. The expression must resolve in pass 1 -- every
+//  label defined after this point takes its address from the new PC, so a
+//  value that only arrives in pass 2 would mean every one of them was wrong
+//  the first time round.
+//
+//  The FIRST .org also sets m_result.startAddress, which is the load address
+//  of the emitted image. Later ones only move the PC; the image still begins
+//  where the first one put it.
+//
+//  A repeat .org to the address the PC is already at is a warning, not an
+//  error: harmless, but almost always a leftover from moving code around,
+//  and silent success would leave it there forever.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT AssemblySession::HandleOrgDirective (const PendingLine & current, LineInfo & info)
@@ -2282,6 +2295,14 @@ HRESULT AssemblySession::HandleOrgDirective (const PendingLine & current, LineIn
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  AssemblySession::HandleSegmentSwitch
+//
+//  Switches between CODE / DATA / BSS. Each segment keeps its own PC in
+//  m_segmentPC, so the outgoing one is saved and the incoming one restored --
+//  that is what lets a source alternate between segments and have each pick up
+//  where it left off rather than restarting or running on from the other.
+//
+//  `handled` says whether this line was a segment directive at all, so
+//  anything else falls through to normal assembly untouched.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -2333,6 +2354,21 @@ Error:
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  AssemblySession::RecordLabel
+//
+//  Binds a label to the current PC in pass 1, so pass 2 can resolve forward
+//  references to it. Three tables are written together and must stay in step:
+//  m_symbols (the Word address), m_symbolKinds (Label vs Equ vs Set, which is
+//  what lets .SET be redefined and a label not), and m_exprSymbols (the
+//  int32_t view the expression evaluator reads).
+//
+//  A duplicate is an error rather than a silent rebind: the second definition
+//  would move every forward reference already resolved against the first, so
+//  the output would depend on which pass saw which.
+//
+//  A label that differs from a mnemonic only by case -- `lda:` against LDA --
+//  is a warning, not an error. It is legal and occasionally deliberate, but
+//  far more often a typo that would otherwise assemble into something silently
+//  wrong.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -2418,6 +2454,14 @@ Error:
 //
 //  AssemblySession::HandleSetConstant
 //
+//  .SET defines a MUTABLE symbol -- that is the whole difference from .EQU,
+//  and it is what SymbolKind exists to record. Redefining is allowed only when
+//  the existing symbol is itself a Set; a label or an .EQU is immutable and
+//  rebinding it would move references already resolved against the old value.
+//
+//  The expression is evaluated at each definition, so a .SET inside a repeated
+//  block takes the value current at that point rather than the first one.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT AssemblySession::HandleSetConstant (const PendingLine & current, LineInfo & info)
@@ -2462,6 +2506,23 @@ HRESULT AssemblySession::HandleSetConstant (const PendingLine & current, LineInf
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  AssemblySession::HandleEquConstant
+//
+//  .EQU defines an IMMUTABLE symbol, so any prior definition is an error --
+//  reported differently depending on whether it was another .EQU (a plain
+//  duplicate) or a label / .SET (a kind clash), because those are different
+//  mistakes with different fixes.
+//
+//  A quoted string binds to its LENGTH, not its contents. That is what makes
+//  `MSG_LEN equ "hello"` work as a length constant without a separate
+//  directive, and it is why the string case is handled before evaluation --
+//  the expression evaluator has no notion of a string literal.
+//
+//  The kind is recorded BEFORE the value is known, so a self-referential or
+//  unresolvable .EQU is still immutable: a later attempt to redefine it fails
+//  as a redefinition rather than quietly succeeding because the first one had
+//  no value. An expression that fails to evaluate here simply leaves the
+//  symbol valueless, and ResolveEquConstants reports it after pass 1, by which
+//  point forward references it depends on may have been defined.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -2948,6 +3009,25 @@ HRESULT AssemblySession::HandlePass1DataDirectives (const PendingLine & current,
 //
 //  AssemblySession::HandleIncludeDirective
 //
+//  Splices an included file into the pending queue rather than recursing, so
+//  arbitrarily deep includes cost queue entries instead of C++ stack. Lines
+//  are pushed to the FRONT in reverse order, which lands them in source order
+//  immediately after this directive -- the queue is consumed from the front.
+//
+//  The extension decides the treatment. A .bin / .s19 / .s28 / .s37 / .hex
+//  payload is converted to synthesized .BYTE lines by GenerateByteDirectives,
+//  so binary data re-enters through the ordinary assembly path and needs no
+//  special case downstream. Anything else is included as source text.
+//
+//  Binary lines keep the INCLUDING line's number, because they have no source
+//  lines of their own -- an error in them should point at the .include.
+//  Included source keeps its own numbering, so errors point into that file.
+//
+//  Every failure here is a user-facing diagnostic, not an infrastructure
+//  fault: missing reader, depth exceeded, unreadable file all record an error
+//  and return S_OK so the rest of the assembly still runs and reports.
+//  kMaxIncludeDepth is what stops a file that includes itself.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT AssemblySession::HandleIncludeDirective (const PendingLine & current, LineInfo & info)
@@ -3225,6 +3305,22 @@ Error:
 //
 //  AssemblySession::ExpandMacro
 //
+//  Replaces a macro call with its substituted body, spliced to the FRONT of
+//  the pending queue in reverse so it lands in source order right where the
+//  call was. Same mechanism as .include, and for the same reason: expansion is
+//  iterative through the queue, not recursive, so nesting costs queue entries
+//  rather than C++ stack. A macro that expands to another macro simply
+//  arrives at this function again with macroDepth one higher.
+//
+//  m_macroUniqueCounter is bumped per expansion and its suffix passed down, so
+//  LOCAL labels get a distinct name per invocation -- without it, calling the
+//  same macro twice would define the same label twice.
+//
+//  Note the two exits differ in `handled`. Not a macro at all leaves it false,
+//  so later stages get the line. Depth exceeded sets it TRUE despite failing:
+//  the line WAS a macro call, and letting a later stage reinterpret it would
+//  report a bogus "unknown mnemonic" on top of the real error.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT AssemblySession::ExpandMacro (const PendingLine & current, LineInfo & info, bool & handled)
@@ -3288,6 +3384,24 @@ Error:
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  AssemblySession::SubstituteMacroParams
+//
+//  Turns a stored macro body into the lines one invocation actually emits:
+//  parameters replaced by arguments, LOCAL labels suffixed unique to this
+//  call, and the body truncated at EXITM.
+//
+//  EXITM stops the expansion mid-body, which means any conditional the body
+//  had open is abandoned. CountExitmIfDepth measures how many, and that many
+//  synthesized ENDIFs are appended -- otherwise the IF would stay open past
+//  the expansion and the file would end with an unclosed-block error pointing
+//  at the macro rather than at whatever is wrong.
+//
+//  LOCAL declarations are dropped rather than emitted: uniqueSuffix has
+//  already done their work, so passing them through would leave a directive
+//  the assembler would have to ignore anyway.
+//
+//  EXITM and LOCAL stay string comparisons rather than DirectiveTable tokens
+//  on purpose -- they are macro-body keywords, and tokenizing them would cost
+//  a lookup on every line of every file to serve lines that only appear here.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
