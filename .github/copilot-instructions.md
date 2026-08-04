@@ -121,6 +121,15 @@ See the Constitution's Principle VI (Thin Executable, Testable Core) and Princip
   accepted here, so the checker does not flag either -- which also means the
   Win32 `ERROR_CANCELLED` family needs no special handling.
 
+  **Commit messages are checked too (CS0008), and a message about a spelling
+  fix must not quote what it removed.** Say what changed and where -- "11 hits
+  across 8 files, all comments and test names" -- rather than listing the
+  words. `Test-CommitMessages` honors a `STYLE-ALLOW-BRITISH` opt-out in the
+  body, but that is a last resort for a message that genuinely cannot be
+  written without them; rewriting almost always can. Every use of the opt-out
+  is a commit the gate no longer checks at all, and it cannot be revoked once
+  the message is pushed.
+
 ### EHM (Error Handling Macros)
 - Every function that calls a failable API must use the EHM pattern:
   `HRESULT hr = S_OK;` at top, `Error:` label before cleanup, single exit via `return hr;`
