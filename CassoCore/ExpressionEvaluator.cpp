@@ -29,6 +29,23 @@ struct ExpressionEvaluator::Token
 //
 //  Tokenizer
 //
+//  One-token lookahead scanner over an expression string.
+//
+//  m_lastWasValue is the interesting piece of state. Several characters are
+//  ambiguous in 6502 assembler syntax and can only be resolved by what came
+//  before -- `*` is multiplication after a value but the PROGRAM COUNTER at
+//  the start of an expression, and `<` / `>` are comparisons after a value but
+//  low-byte / high-byte selectors otherwise. Tracking whether the previous
+//  token could END a value is exactly the context needed to decide, and it is
+//  updated in Next rather than in ReadNext so a Peek cannot corrupt it.
+//
+//  Peek caches one token, so the parser can branch on what is coming without
+//  the scanner re-reading -- which matters because reading is not idempotent
+//  once numeric bases and character constants are involved.
+//
+//  The text is held by REFERENCE, so a Tokenizer must not outlive the string
+//  it scans. Every use is a local within a single evaluation.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 class ExpressionEvaluator::Tokenizer
@@ -212,7 +229,23 @@ ExpressionEvaluator::Token ExpressionEvaluator::Tokenizer::ReadOctalNumber()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ReadCharConstant — after consuming opening quote
+//  ReadCharConstant
+//
+//  Reads a single-quoted character constant. The opening quote has already
+//  been consumed by the caller.
+//
+//  An UNKNOWN escape yields the literal character rather than an error, so
+//  `'\q'` is `q`. That is the period assembler behavior, and rejecting it
+//  would break sources that rely on it to escape characters no formal list
+//  covers.
+//
+//  The token starts as the error case and is overwritten only on success,
+//  which lets running off the end and a missing closing quote share one
+//  complaint -- they are the same mistake from the author's point of view.
+//
+//  The result is cast through unsigned char so a high-bit character (common in
+//  Apple II sources, where inverse and flashing text set bit 7) produces
+//  128..255 rather than a negative value.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -264,6 +297,31 @@ ExpressionEvaluator::Token ExpressionEvaluator::Tokenizer::ReadCharConstant()
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  ReadDecimalNumber
+//
+//  Reads a number that starts with a digit -- which, given how many notations
+//  the assembler accepts, is three different syntaxes:
+//
+//    0x / 0b  C-style radix prefixes
+//    base#    an explicit radix, e.g. 16#FF
+//    plain    decimal
+//
+//  They are tried in that order because each is a prefix of the next: `0x1F`
+//  begins like the decimal `0`, and `16#FF` begins like the decimal `16`. Only
+//  after ruling out the specific forms can the digits be read as decimal.
+//
+//  A radix outside 2..36 is not treated as an error but as NOT A RADIX AT ALL:
+//  the position is left on the `#` and the leading digits read as plain
+//  decimal. That keeps a stray `#` -- which is also the immediate-addressing
+//  sigil -- from turning a valid line into a diagnostic.
+//
+//  The base# value scan deliberately consumes every ALPHANUMERIC rather than
+//  only the digits legal in that base, unlike ScanDigits. strtoul then stops
+//  at the first illegal character, so `2#9` reads as 0 instead of erroring.
+//  That is long-standing behavior and sources depend on it.
+//
+//  The 0b form additionally requires a binary digit in the lookahead, so `0b`
+//  followed by anything else falls through to decimal rather than erroring --
+//  which is what lets a symbol named `0b`-something still parse.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -637,7 +695,28 @@ std::string ExpressionEvaluator::ToUpperIdent (const std::string & s)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  TryParsePrimary — numbers, identifiers, *, (expr), [expr]
+//  TryParsePrimary
+//
+//  The bottom of the recursive-descent parser: a number, a symbol, the program
+//  counter, or a parenthesized subexpression.
+//
+//  `*` is the program counter here, not multiplication. The tokenizer already
+//  resolved that ambiguity from context (see Tokenizer's m_lastWasValue), so
+//  by the time a Star token reaches primary position its meaning is settled.
+//
+//  Brackets group exactly like parentheses but do NOT pair with them -- `(1]`
+//  is an error. Both forms exist because `(` is also the indirect-addressing
+//  sigil in 6502 syntax, so `[` gives an author an unambiguous grouping
+//  character; letting them cross-pair would hide a real typo.
+//
+//  A missing symbol table is treated the same as an empty one: either way the
+//  name does not resolve, and the caller distinguishes a forward reference
+//  from a genuine error by whether the symbol turns up in a later pass, not by
+//  which of those two shapes it hit here.
+//
+//  Peek-then-Next rather than Next-then-classify, so the token stays in the
+//  stream for the branch that actually consumes it and no path has to push one
+//  back.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
