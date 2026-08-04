@@ -31,6 +31,22 @@ static constexpr UINT_PTR  s_kModalLoopTimerId = 0xDCE1;
 //
 //  NudgeWindowOnScreen
 //
+//  Pulls a window back onto the desktop if its saved placement puts it
+//  somewhere unreachable -- the classic case being a monitor that has since
+//  been unplugged.
+//
+//  The work area, not the full monitor rect, is the target, so a restored
+//  window is never left under the taskbar.
+//
+//  Fallbacks degrade in order: the window's nearest monitor, then the primary
+//  work area, then a 1920x1080 guess. The last is arbitrary but bounded, and
+//  it only matters if both system queries fail -- at which point ANY on-screen
+//  guess beats leaving the window where nobody can reach it.
+//
+//  The move is skipped when the clamp changes nothing, so a normally-placed
+//  window is never gratuitously repositioned. NOACTIVATE keeps the nudge from
+//  stealing focus, since this runs during window setup.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void  DxuiHwndSource::NudgeWindowOnScreen (HWND hwnd)
@@ -281,6 +297,25 @@ BOOL CALLBACK DxuiHwndSource::FirstIconGroupProc (HMODULE, LPCWSTR, LPWSTR name,
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  DefaultAppIcon
+//
+//  Finds the executable's own icon so a host that supplies none still shows
+//  something recognizable in its caption and on the taskbar.
+//
+//  The icon is DISCOVERED by enumerating RT_GROUP_ICON and taking the first
+//  group, rather than looking up a fixed resource id. Dxui is a library used
+//  by applications it knows nothing about, so it cannot name their resource
+//  ids -- and enumerating gets the same icon the shell picks for the exe,
+//  which is by convention the lowest-numbered group.
+//
+//  Both sizes are loaded and cached on FIRST use only, with the attempt marked
+//  before it runs. That makes a failed lookup cost one enumeration for the
+//  process rather than one per window created.
+//
+//  Sizes come from the system metrics rather than being hard-coded, so the
+//  loaded images match what the shell will ask for.
+//
+//  Returning null is fine: callers treat it as "no icon", which is the same
+//  outcome as an application that ships none.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -2602,6 +2637,24 @@ Error:
 //
 //  DispatchNcUpToTrackedButton
 //
+//  Delivers a non-client button release to whichever caption control was being
+//  tracked, then drops the tracking.
+//
+//  This exists because NC messages and the panel tree speak different
+//  coordinate systems and the OS does not pair NC presses with NC releases the
+//  way a client-area control expects. The pressed control is remembered on the
+//  way down so its release can be routed back to it here, which is what lets a
+//  min / max / close button clear its pressed visual even when the pointer
+//  drifted off it before the release.
+//
+//  The position is converted twice, and both steps are needed: NC coordinates
+//  are SCREEN pixels, so ScreenToClient first, then physical-to-DIP so the
+//  control receives the same units it laid out in.
+//
+//  The tracked pointer is cleared unconditionally after dispatch, so a release
+//  can never be delivered twice, and a repaint is requested so the cleared
+//  pressed state actually shows.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void DxuiHwndSource::DispatchNcUpToTrackedButton (LPARAM lp)
@@ -2689,6 +2742,31 @@ void DxuiHwndSource::HandleDpiChanged (WPARAM wp, LPARAM lp)
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  HandleSize
+//
+//  Resizes the swap chain, relayouts the panel tree, and re-renders -- the
+//  host-side counterpart to a client's own OnSize.
+//
+//  The explicit width and height from WM_SIZE are passed to ResizeBuffers
+//  rather than the usual (0, 0) "inherit from the window". A COMPOSITION swap
+//  chain has no window to inherit from and fails outright with "a non-zero
+//  Width and Height must be specified for Composition SwapChains" -- and since
+//  passing the real size also works for an HWND swap chain, one call serves
+//  both modes.
+//
+//  A zero extent is skipped entirely. Minimizing produces one, and resizing to
+//  it would discard the buffers for a window that is about to be restored at
+//  its previous size.
+//
+//  The synchronous re-render at the end is not an optimization. ResizeBuffers
+//  discards the back buffer, so without an immediate frame the DWM composites
+//  a blank or stale swap chain during a live edge-drag, which reads as the
+//  content subtly shifting while the window resizes. It applies only in
+//  full-ownership mode; in adopt mode the client repaints through its own
+//  OnSize.
+//
+//  The maximized notification is pushed to the system buttons here because the
+//  restore glyph has to change with the state, and WM_SIZE is where that state
+//  is reported.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -3183,6 +3261,26 @@ DxuiHitTestKind DxuiHwndSource::ClassifyHitForTest (POINT clientDip) const
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  FindNcSystemControlAt
+//
+//  Finds the min / max / close control under a point, so NC mouse messages can
+//  be routed to a real widget.
+//
+//  Two separate trees have to be searched, and their order is the z-order. The
+//  HOST-OWNED caption is checked first because its system buttons sit above
+//  everything and are deliberately NOT part of the consumer's root tree -- the
+//  host owns the caption so applications need not build one.
+//
+//  The consumer's children are then walked in REVERSE, since the panel tree
+//  paints front-to-back; walking forward would return the control underneath
+//  whichever one the user can actually see and click.
+//
+//  Each child gets two chances. A nested search finds a system button
+//  somewhere in its subtree; failing that, ClassifyHit lets the child itself
+//  claim the point as a system button, which is how a control that paints its
+//  own caption buttons participates without exposing them as children.
+//
+//  The walk stops at the first hit -- `found` is part of the loop condition --
+//  so no later sibling can override a topmost match.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
