@@ -202,6 +202,19 @@ static bool WriteBinaryFile (const std::string & path, const std::vector<Byte> &
 //
 //  WriteFlatBinaryFile
 //
+//  Writes the assembled bytes as a FULL 64 KB memory image: fill from $0000
+//  to the start address, the code, then fill out to $FFFF.
+//
+//  This is the as65-compatible output shape, not a convenience. Tools that
+//  consume a flat image -- ROM burners, emulator memory loaders, byte-for-byte
+//  comparison against a reference build -- index it by absolute address, so
+//  the file offset must equal the address. Writing only the assembled span
+//  would shift every byte by the start address.
+//
+//  The fill byte is caller-supplied because it is visible in the output and
+//  therefore part of the comparison: matching a reference image requires
+//  matching what its gaps were padded with.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 static bool WriteFlatBinaryFile (const std::string & path,
@@ -285,6 +298,16 @@ static bool WriteSymbolFile (const std::string & path, const std::unordered_map<
 //
 //  EndsWith
 //
+//  Case-insensitive suffix test, used for file-extension matching.
+//
+//  Case-insensitive because these are Windows paths: a user typing FOO.ASM and
+//  a makefile emitting foo.asm name the same file, and a case-sensitive test
+//  would silently classify one of them as having no recognized extension.
+//
+//  Both sides are lowered rather than assuming the caller passes a lowercase
+//  suffix, so the function is correct regardless of how the call site spells
+//  its literal.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 static bool EndsWith (const std::string & str, const std::string & suffix)
@@ -338,7 +361,19 @@ static bool FileExists (const std::string & path)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  TryAutoExtend - if file has no extension, try common source extensions
+//  TryAutoExtend
+//
+//  Resolves an extensionless source path by trying the common assembler
+//  extensions in order, so `casso build` finds build.a65 the way as65 does.
+//
+//  "Has an extension" is decided against the last path SEPARATOR, not just the
+//  last dot. A dot before the final separator belongs to a directory name --
+//  `src/v1.2/build` has no extension despite containing a dot -- and testing
+//  for a bare dot would leave that path unresolved.
+//
+//  Existence decides the match, so a path that already resolves is returned
+//  untouched and a name with no candidate on disk is returned unchanged for
+//  the caller to report against the name the user actually typed.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -505,6 +540,17 @@ static AssemblerOptions BuildAssemblerOptions (const CommandLineOptions & option
 //
 //  AssembleFile
 //
+//  Reads one source file and assembles it, bundling the result with the input
+//  path so diagnostics can be attributed later.
+//
+//  Carrying the filename in the result is what lets ReportAssemblyDiagnostics
+//  print `file:line: error:` without being handed the path separately -- the
+//  format editors parse to jump to the offending line.
+//
+//  An unreadable file and a failed assembly both come back as ok == false, so
+//  the caller has one failure test. They are distinguished for the USER by the
+//  message, which is where the distinction actually matters.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 static AssembleResult AssembleFile (const std::string & inputFile,
@@ -573,6 +619,22 @@ static void ReportAssemblyDiagnostics (const AssembleResult & ar)
 //
 //  WriteBinaryOutput
 //
+//  Writes the assembled image in whichever format the output filename implies:
+//  Motorola S-record for .s19, Intel HEX for .hex, and a flat 64 KB binary
+//  otherwise.
+//
+//  Format-by-extension is the as65 convention, so build scripts written for it
+//  keep working unchanged -- there is no format flag to add.
+//
+//  "nul" is the explicit bit bucket and is matched case-insensitively, since
+//  it is a Windows device name that scripts spell every way. Writing nothing
+//  is SUCCESS on that path: it is how a caller asks for diagnostics only, and
+//  reporting failure would break a build that deliberately discards output.
+//
+//  The failure diagnostic is emitted once for all three formats. It used to be
+//  written out at four separate sites, which is three opportunities for the
+//  wording to drift apart.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 static bool WriteBinaryOutput (const AssemblyResult & result,
@@ -633,6 +695,18 @@ static bool WriteBinaryOutput (const AssemblyResult & result,
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  WriteListingOutput
+//
+//  Emits the assembly listing, to a file when one was named and to stdout
+//  otherwise.
+//
+//  Defaulting to stdout is what makes `casso -l` pipeable, and it cannot fail
+//  to open -- hence the ok flag only ever reflects the named-file case.
+//
+//  Page breaks are driven from the SOURCE TEXT rather than from a parsed
+//  directive, because the listing is a faithful rendering of the input: a
+//  `.page` line is reproduced where it appeared and emits a form feed plus a
+//  repeated title, matching what a period assembler sent to a line printer.
+//  The three spellings tested are the ones the assembler itself accepts.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -806,6 +880,25 @@ static bool LoadBinaryFileIntoMemory (Cpu & cpu,
 //
 //  RunCpu
 //
+//  Executes the loaded image from the entry point until something stops it,
+//  then reports final register state.
+//
+//  Every exit is BOUNDED, which is what makes this safe to run unattended in a
+//  build or a test script: a cycle limit, an explicit stop address, or an
+//  illegal opcode. A 6502 program with no halt instruction would otherwise
+//  loop forever, and the CLI has no user at the keyboard to interrupt it.
+//
+//  An illegal opcode exits with a distinct code rather than merely stopping,
+//  so a script can tell "ran off into data" from "reached the stop address".
+//
+//  The cycle counter counts INSTRUCTIONS, not machine cycles -- it is a
+//  runaway guard, not a timing model, and the CLI has no clock to be faithful
+//  to.
+//
+//  Status lines are accumulated into the caller's vector instead of printed,
+//  so the caller decides whether they belong on stdout, in quiet mode, or
+//  interleaved with other output.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 static int RunCpu (Cpu & cpu,
@@ -861,7 +954,27 @@ static int RunCpu (Cpu & cpu,
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ParseAs65Flags - AS65-compatible flag parsing with concatenation
+//  ParseAs65Flags
+//
+//  Parses the AS65-compatible command line, which is not a modern one and
+//  cannot be handled by a modern parser.
+//
+//  Three period conventions have to be honored together:
+//
+//    concatenation   flags pack into one argument, so `-lsc` is three flags,
+//                    not an unknown flag named "lsc"
+//    prefix parity   `/` and `-` both introduce a flag. The prefix the user
+//                    chose is REMEMBERED in flagPrefix so the usage text comes
+//                    back spelled the way they type
+//    attached values a flag's argument may be glued to it or separated
+//
+//  Which is why this is a hand-rolled walk rather than a table: a table-driven
+//  parser would have to encode all three exceptions anyway, and every one of
+//  them is about matching a specific historical tool.
+//
+//  The stop flag ends parsing outright for a help request or a bad --cpu
+//  target. Both leave showHelp set, so the caller prints usage and no later
+//  argument can quietly undo that decision.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1192,6 +1305,28 @@ static void ParseAs65Flags (int argc, char * argv[], CommandLineOptions & option
 //
 //  ParseCommandLine
 //
+//  The top-level dispatcher: decide which command line this IS, then parse it
+//  accordingly.
+//
+//  The CLI has two grammars, and they are not compatible. `run` takes modern
+//  separated options; anything else is AS65 mode, whose grammar is the
+//  historical one handled by ParseAs65Flags. An unrecognized first argument is
+//  therefore NOT an error -- it is a source filename, which is exactly how
+//  as65 was invoked -- so AS65 is the fallback rather than a mode flag.
+//
+//  Help and version are matched before either grammar, so they work regardless
+//  of which one would have applied.
+//
+//  A leading `/` is normalized to `-` throughout, after recording the user's
+//  chosen prefix in flagPrefix so usage text is spelled back the way they type.
+//
+//  Filename inference happens only in AS65 mode, and only when the user did
+//  not supply the name. The output extension follows the selected FORMAT (.s19
+//  / .hex / .bin) so `-s file.a65` writes an S-record without a second flag,
+//  and `-g` alone yields a .dbg beside it. The input name is auto-extended
+//  first, so both derive from the resolved source path rather than the
+//  possibly extensionless one the user typed.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 CommandLineOptions ParseCommandLine (int argc, char * argv[])
@@ -1439,6 +1574,18 @@ static void PrintUsageGeneral (const char * lp, const char * sp, const char * pa
 //
 //  PrintUsageAssembler
 //
+//  Prints the AS65-mode flag reference, spelled with whichever prefix the user
+//  typed.
+//
+//  The prefix is substituted rather than hard-coded because both `/` and `-`
+//  are accepted, and usage text showing the form the reader did NOT type reads
+//  as though their invocation was wrong. The flag table is a format-string
+//  array for exactly that reason: one placeholder per flag, filled at print
+//  time, so neither spelling can be forgotten when a flag is added.
+//
+//  The `--cpu` and source lines sit outside the table because they take a
+//  long-form or positional argument and carry no prefix to substitute.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 static void PrintUsageAssembler (const char * sp)
@@ -1565,6 +1712,30 @@ void PrintVersion()
 //
 //  DoRun
 //
+//  The `run` subcommand: get an image into memory -- assembling it first if
+//  the input is source -- pick an entry point, and execute.
+//
+//  Accepting either source or a binary is what makes this usable as a one-step
+//  test harness: `casso run foo.a65` assembles and runs without an
+//  intermediate file, while the same command on a .bin runs a prebuilt image.
+//  The choice is made from the input's extension, not from a flag.
+//
+//  Exit codes are meaningful and distinct, because scripts branch on them:
+//
+//    0  ran to a normal stop
+//    1  the tools ran and said no (assembly errors)
+//    2  could not even start (no input, unreadable file)
+//    3  from RunCpu -- an illegal opcode
+//
+//  Entry point resolution has three tiers, most-explicit first: an explicit
+//  --entry, then the RESET vector at $FFFC when asked for, then the assembled
+//  start address (or the load address for a binary). Reading the reset vector
+//  is what lets a ROM image boot the way the hardware would rather than from
+//  wherever its bytes happen to begin.
+//
+//  Status lines are collected throughout and printed only under --verbose, so
+//  the default run stays quiet enough to pipe.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 int DoRun (const CommandLineOptions & options)
@@ -1656,7 +1827,34 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DoAs65 - AS65-compatible assembly mode
+//  DoAs65
+//
+//  AS65-compatible assembly: assemble once, then emit every artifact the flags
+//  asked for -- listing, binary, symbol table, debug info, symbol file.
+//
+//  Exit codes follow as65, because build scripts written against it test them:
+//
+//    0  clean
+//    1  assembled, but warned
+//    2  produced no output (no input, assembly errors, or a failed write)
+//
+//  The warning code is applied LAST, after every write has succeeded, so a
+//  warning never masks a real output failure.
+//
+//  The assembler's base directory is taken from the input file's own path, so
+//  a `.include` resolves relative to the source that names it rather than to
+//  the shell's working directory -- which is what makes a build work the same
+//  from any directory.
+//
+//  Each artifact is optional but fails identically, so each step reduces to a
+//  "not requested, or written successfully" test with a single shared exit
+//  code. The alternative -- a distinct code per artifact -- would tell a script
+//  which file failed while breaking every script that already knows 2 means
+//  "no output".
+//
+//  The two verbose Pass 1 / Pass 2 lines are cosmetic. Assemble runs both
+//  passes internally, so they bracket the single call rather than marking real
+//  boundaries; the timing figure spans both.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
