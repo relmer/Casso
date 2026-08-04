@@ -223,7 +223,7 @@ namespace ConditionalAssemblyTests
         //
         //  Every open level is separately missing an ENDIF, so every one is
         //  separately somewhere to go -- one error each, at its own opening
-        //  line, innermost first (the order they need closing in). A single
+        //  line, in ascending line order the way errors are read. A single
         //  "3 level(s) open" summary blamed the end of the file and named no
         //  line worth visiting.
         //
@@ -241,9 +241,9 @@ namespace ConditionalAssemblyTests
 
             Assert::IsFalse  (result.success, L"three unclosed ifs must fail the assembly");
             Assert::AreEqual ((size_t) 3, result.errors.size(), L"one error per unclosed level");
-            Assert::AreEqual (3, result.errors[0].lineNumber, L"innermost first");
+            Assert::AreEqual (1, result.errors[0].lineNumber, L"source order: outermost if first");
             Assert::AreEqual (2, result.errors[1].lineNumber);
-            Assert::AreEqual (1, result.errors[2].lineNumber, L"outermost last");
+            Assert::AreEqual (3, result.errors[2].lineNumber, L"innermost if last");
         }
     };
 }

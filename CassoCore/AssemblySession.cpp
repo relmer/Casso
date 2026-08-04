@@ -3875,8 +3875,9 @@ HRESULT AssemblySession::ResolveAddressingAndSize (const PendingLine & current, 
 //
 //  Unclosed conditionals get one error per open level rather than a single
 //  "3 level(s) open" summary: each one is separately missing an ENDIF, so
-//  each is separately somewhere to go. Reported innermost first, the order
-//  they need closing in.
+//  each is separately somewhere to go. Emitted in ascending line order, the
+//  order errors are read in -- which falls out of walking the stack forward,
+//  since it is outermost-first.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -3893,10 +3894,12 @@ HRESULT AssemblySession::ValidateAssemblyCompletion()
 
     // One error per unclosed level, each at the line its own IF opened on --
     // every one of them is missing an ENDIF, so every one is a place to go.
-    // Innermost first, which is the order they need closing in.
-    for (auto it = m_condStack.rbegin(); it != m_condStack.rend(); ++it)
+    //
+    // Forward through the stack, which is outermost-first and so ascending by
+    // line: errors are read in source order, like every other diagnostic here.
+    for (const ConditionalState & open : m_condStack)
     {
-        RecordError (it->openLineNumber, "Unclosed if block (no matching endif)");
+        RecordError (open.openLineNumber, "Unclosed if block (no matching endif)");
     }
 
 // Error:
