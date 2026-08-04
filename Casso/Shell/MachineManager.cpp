@@ -113,6 +113,30 @@ MachineManager::MachineManager (EmulatorShell & shell)
 //
 //  CreateMemoryDevices
 //
+//  Builds the machine's address space from its config: character ROM, RAM
+//  regions, system ROM, soft switches, and the slot cards.
+//
+//  Devices are added to the bus AND kept in an owned list, because the bus
+//  holds raw pointers -- it is a routing table, not an owner -- so the owned
+//  list is what keeps them alive and what a machine switch tears down.
+//
+//  Aux-bank RAM regions are SKIPPED here. The Apple2eMmu owns the auxiliary
+//  64 KiB internally and re-points pages at it, so adding a bus device for the
+//  same addresses would put two claimants on one range. The first main region
+//  is remembered separately, since the MMU page-table wiring needs to name it.
+//
+//  A missing or unreadable character ROM falls back to the embedded font
+//  rather than failing. Text is how the machine tells the user anything,
+//  including that something is wrong, so a machine that boots with the wrong
+//  font is far more useful than one that will not boot at all.
+//
+//  System ROM has two shapes. A flat image (//e and earlier) maps directly. A
+//  banked image (//c) has its BANK 0 added here as an ordinary flat
+//  $C000-$FFFF device, specifically so the normal WireLanguageCard split
+//  applies unchanged; the $C028 bank flip is layered on afterwards by
+//  WireApple2cRomBank. Building the banking into this step would fork the
+//  language-card wiring for one machine.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT MachineManager::CreateMemoryDevices (const MachineConfig & config)
@@ -684,6 +708,34 @@ Error:
 //
 //  WireLanguageCard
 //
+//  Converts a flat ROM device into the language-card arrangement: the ROM
+//  image moves INTO the card, the flat device leaves the bus, and a bank
+//  device takes over $D000-$FFFF to route each access to card RAM or ROM
+//  according to the soft switches.
+//
+//  Both halves are found by searching the existing device set rather than
+//  being passed in, which keeps this a post-pass over whatever
+//  CreateMemoryDevices built -- a machine with no language card, or no ROM
+//  covering $D000-$FFFF, simply gets nothing wired and needs no special case.
+//
+//  Splitting the flat ROM is the delicate part. A ROM image starting below
+//  $D000 also covers the slot ROM area, so the part below is re-added
+//  SEPARATELY and clamped to start at $C100 -- $C000-$C0FF is I/O space, and
+//  shadowing it with ROM would break every soft switch in the machine.
+//
+//  Where that lower ROM goes depends on the machine. A //e hands it to the
+//  MMU's CxxxRomRouter, which arbitrates internal ROM against slot cards; a
+//  ][ or ][+ has no such arbitration and keeps a plain bus-resident device.
+//
+//  The //e cross-links exist because three unrelated things need to see
+//  language-card state: the MMU re-points the card's read window on ALTZP
+//  flips, and both the keyboard and the soft-switch bank report card status
+//  through $C011/$C012.
+//
+//  RebindWindow is called last to seed the read-page mapping now that the ROM
+//  image and the MMU are both in place; after this it re-points on its own for
+//  every card switch, reset, and ALTZP flip.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void MachineManager::WireLanguageCard()
@@ -1034,6 +1086,25 @@ void MachineManager::RebuildBankingPages()
 //
 //  CreateVideoModes
 //
+//  Builds all five renderers up front and installs 40-column text as the
+//  active one.
+//
+//  The order is a CONTRACT, not a construction convenience -- callers index
+//  this vector positionally (0 text40, 1 lo-res, 2 hi-res, 3 double hi-res,
+//  4 text80), so inserting a mode anywhere but the end would silently
+//  re-point every existing lookup.
+//
+//  Every mode is created regardless of machine, because SelectVideoMode
+//  switches between them per frame from the soft-switch state and cannot
+//  afford to construct one mid-render.
+//
+//  Aux memory is wired into the two modes that read it -- 80-column text and
+//  double hi-res -- only when an MMU actually provides it, so a ][+ gets the
+//  same objects with nothing aux-backed rather than a shorter list.
+//
+//  Text mode starts active because that is what a machine displays at power-on
+//  before any program selects otherwise.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void MachineManager::CreateVideoModes()
@@ -1077,6 +1148,34 @@ void MachineManager::CreateVideoModes()
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  CreateCpu
+//
+//  Builds the CPU the config asks for and wires everything that rides on its
+//  cycle fan-out.
+//
+//  The core is chosen through CpuFactory -- 65C02 for the Enhanced //e and the
+//  //c, NMOS 6502 for everything else -- and that seam exists to stop the
+//  wrong part being built silently. An unbuildable strategy means a shipped
+//  config names a CPU we do not have, which is our bug, so it asserts here
+//  while CpuFactory itself merely returns E_INVALIDARG and stays a clean,
+//  testable validator.
+//
+//  Three consumers hang off the per-cycle fan-out, and all three are here
+//  because they must stay phase-locked to CPU progress rather than to frames:
+//
+//    video timing        every AddCycles ticks it, so $C019 (RDVBLBAR) tracks
+//                        the 17,030-cycle frame
+//    interrupt lines     the //c's mouse VBL / movement and the two ACIAs
+//                        assert through the controller; quiet on earlier
+//                        machines, but the seam is shared
+//    //c mouse           VBL-edge latching and paced movement interrupts
+//
+//  System and slot ROMs are additionally COPIED into the base Cpu's internal
+//  memory array. That array is not what execution reads -- the bus is -- but
+//  PeekByte and the disassembler read it, so without the copy the debugger
+//  shows zeros wherever ROM lives.
+//
+//  Both the initial build and a machine switch run through here, which is why
+//  the trace ring is (re)allocated in this function rather than at startup.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1272,6 +1371,55 @@ void MachineManager::ShowMachinePicker()
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  SwitchMachine
+//
+//  Replaces the running machine in place: load the new config, tear the old
+//  one down, rebuild, and carry forward what the user would expect to survive.
+//
+//  Runs on the CPU THREAD, which shapes several decisions below. Anything
+//  UI-facing is posted rather than called -- the color-mode application goes
+//  through PostMessage instead of the command dispatcher, because that
+//  dispatcher is a UI-thread surface and today's harmless atomic store would
+//  quietly inherit this thread the moment anything else were added to it.
+//
+//  Assets are NOT fetched here. ROM and disk-audio bootstrap happens on the UI
+//  thread in ShowMachinePicker before the switch is enqueued, so by the time
+//  this runs everything the new machine needs is already on disk.
+//
+//  The machine is built from the USER-MERGED config, not the shipped config
+//  text. Without that, a machine-level edit -- a slot disabled in Settings >
+//  Hardware, say -- would apply only to the live speed and color and silently
+//  revert on every switch or reboot. The extra $cassoUiPrefs and version keys
+//  the merge carries are ignored by the loader.
+//
+//  Teardown order is the delicate half, and every step is placed against a
+//  reference that would otherwise dangle:
+//
+//    debug panels    hold raw pointers into the OLD CPU's cycle counter
+//    event sinks     keyboard, //e soft switches, and game port all point at
+//                    panels that outlive the devices
+//    printer worker  its drain thread holds a reference into the card's ring,
+//                    which clearing the owned devices is about to free
+//    audio mixer     borrows PSG sources owned by the Mockingboard card
+//    IRQ tokens      reclaimed before their holders are destroyed
+//    //c ROM bank    references the language card and the MMU
+//
+//  m_refs is reset AS A WHOLE rather than field by field. It is a struct of
+//  observer pointers into the owning collections, so resetting it wholesale
+//  keeps the "every observer dies with its owner" invariant from rotting as
+//  observers are added. m_mmu needs its own explicit reset because it survives
+//  across switches and is only reassigned when the new config carries an
+//  apple2e-mmu -- otherwise a //e to ][ switch keeps a stale RamDevice pointer.
+//
+//  Three things deliberately CARRY ACROSS the switch:
+//
+//    dirty disks     flushed before teardown, so user writes are not lost
+//    mounted disks   re-mounted on the new machine. The mental model is
+//                    physical -- the user changed the computer, not the disk
+//                    in the drive -- and re-mounting also updates the new
+//                    machine's prefs so it sticks on later launches
+//    pending print   persisted while m_currentMachineName still names the
+//                    OUTGOING machine, so the strip lands in its folder
+//                    (FR-026)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1753,6 +1901,28 @@ void MachineManager::PowerCycle()
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  SelectVideoMode
+//
+//  Resolves the soft-switch state into the active renderer, once per frame.
+//
+//  The switches are read fresh each call rather than being tracked on change,
+//  because a program may flip them at any point in a frame and the renderer
+//  only needs their state at render time.
+//
+//  Two //e cases are not obvious from the switch names.
+//
+//  When 80STORE is active, $C054/$C055 no longer mean page 1 / page 2 -- they
+//  select MAIN vs AUX memory. So page2 is forced false for rendering purposes;
+//  honoring it would display the wrong half of memory whenever a program uses
+//  80STORE banking, which is most //e software that touches aux.
+//
+//  Double hi-res requires DHIRES *and* 80COL together. DHIRES alone is not
+//  enough -- the mode depends on the 80-column circuitry to interleave main
+//  and aux -- so a program that sets only DHIRES still gets standard hi-res,
+//  which is what the hardware does (FR-019).
+//
+//  Page 2 and ALTCHARSET are pushed to renderers OTHER than the active one on
+//  purpose: mixed mode overlays text rows over graphics, so the text renderers
+//  must stay current even while a graphics mode is active.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
