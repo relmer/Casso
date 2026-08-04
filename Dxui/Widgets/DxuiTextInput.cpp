@@ -131,6 +131,28 @@ void DxuiTextInput::OnMouseMove (int x, int y)
 //
 //  OnKey
 //
+//  Caret movement, editing, and the clipboard chords -- everything except the
+//  characters themselves, which arrive through OnChar.
+//
+//  Selection is modeled as a caret plus an ANCHOR, and every movement key ends
+//  the same way: move the caret, then collapse the anchor onto it UNLESS Shift
+//  is held. That one rule produces the whole selection behavior, so there is
+//  no separate "am I selecting" state to fall out of step with the keys.
+//
+//  Backspace and Delete both check for a selection FIRST. With a selection
+//  live, either key deletes the selection rather than a single character,
+//  which is what every text field does and what makes typing over selected
+//  text work.
+//
+//  Ctrl+X reuses copy plus delete rather than having its own path, so cut and
+//  copy can never disagree about what "the selection" is.
+//
+//  Nothing happens unless the control is focused AND enabled: a disabled field
+//  must not silently accept edits it will not display.
+//
+//  Any consumed key resets the blink, so the caret stays solid while the user
+//  is actively typing instead of flickering mid-word.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 bool DxuiTextInput::OnKey (WPARAM vk)
@@ -316,6 +338,37 @@ bool DxuiTextInput::OnChar (wchar_t ch)
 //
 //  Paint
 //
+//  Draws the field: chrome, horizontal scroll, selection band, text,
+//  placeholder, and the blinking caret.
+//
+//  Horizontal scroll is RECOMPUTED here rather than maintained by the edit
+//  operations, because it depends on measured text width -- which only the
+//  renderer knows, and only at paint time. The four clamps are applied in
+//  order and each fixes the previous one's overshoot:
+//
+//    caret left of view   scroll to the caret
+//    caret right of view  scroll so the caret sits at the right edge
+//    text ends early      pull back so no blank gap trails the text
+//    negative             clamp to zero for text shorter than the field
+//
+//  That is what keeps the caret visible while typing past the right edge and
+//  stops the field scrolling into empty space after a delete.
+//
+//  The selection band is positioned by MEASURING the substring before it and
+//  the substring itself, since the renderer reports no per-character
+//  positions. The same technique places the caret.
+//
+//  Text is drawn at a negative offset inside a clip rect rather than being
+//  truncated to what fits, so the glyph shaping is identical whether or not
+//  the field is scrolled.
+//
+//  The placeholder is drawn only when the text is EMPTY, and is deliberately
+//  not scroll-adjusted -- it has no caret to follow.
+//
+//  Blink timing comes from GetCaretBlinkTime, so the field matches the user's
+//  system setting (including "no blink"), with a fallback only for an invalid
+//  zero from the OS.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void DxuiTextInput::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) const
@@ -489,6 +542,25 @@ void DxuiTextInput::ClampCaret()
 //
 //  CaretFromX
 //
+//  Maps a click position to the caret index it should land on.
+//
+//  Every prefix is measured and the NEAREST boundary wins, rather than the
+//  last one the click passed. That is what makes clicking on the right half of
+//  a character place the caret after it -- the behavior every text field has,
+//  and the one users rely on when clicking at the end of a word.
+//
+//  Prefix measurement is used because the renderer exposes no per-character
+//  positions; this is the same technique Paint uses to place the caret and the
+//  selection band, so click position and painted position agree by
+//  construction rather than by two implementations happening to match.
+//
+//  The click is converted into TEXT space first -- minus the bounds, minus the
+//  padding, plus the current scroll -- so it is correct in a scrolled field.
+//
+//  Left of the first glyph short-circuits to caret 0 with nothing measured,
+//  which is both the common case for a click in an empty field and a guard
+//  against a negative target.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 size_t DxuiTextInput::CaretFromX (IDxuiTextRenderer & text, int xPx) const
@@ -594,6 +666,20 @@ void DxuiTextInput::InsertText (const std::wstring & ins)
 //
 //  CopyToClipboard
 //
+//  Copies the selection as CF_UNICODETEXT. An empty selection copies nothing
+//  and, importantly, leaves the clipboard ALONE -- Ctrl+C with no selection
+//  must not wipe whatever the user copied earlier.
+//
+//  ownsGlobal tracks who is responsible for the memory. The clipboard takes
+//  ownership only when SetClipboardData succeeds: freeing after a successful
+//  set corrupts the clipboard, and not freeing after a failed one leaks. The
+//  flag is raised at allocation and lowered exactly on success, so the single
+//  cleanup block does the right thing from every exit.
+//
+//  Failures are silent by design. Another application holding the clipboard
+//  open is routine, and an error dialog for a failed Ctrl+C would be worse
+//  than the failure.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void DxuiTextInput::CopyToClipboard() const
@@ -657,6 +743,21 @@ Error:
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  PasteFromClipboard
+//
+//  Pastes CF_UNICODETEXT at the caret, replacing any selection.
+//
+//  The clipboard text is copied into a local string and the clipboard is
+//  CLOSED before anything is inserted. Insertion fires the change callback,
+//  which runs arbitrary caller code -- and running that while holding the
+//  clipboard open would let a re-entrant copy deadlock against our own lock.
+//
+//  Only CF_UNICODETEXT is requested. Windows synthesizes it from ANSI text,
+//  so asking for the wide format costs no compatibility and avoids a codepage
+//  conversion here.
+//
+//  Length limiting is left to InsertText, so a paste that overflows is
+//  truncated by the same rule that governs typing rather than by a second one
+//  that could disagree.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -774,7 +875,19 @@ void DxuiTextInput::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, con
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DxuiTextInput::OnMouse  (IDxuiControl override)
+//  DxuiTextInput::OnMouse
+//
+//  The IDxuiControl entry point: unpacks the event and forwards to the
+//  per-gesture handlers, which take plain coordinates and are therefore
+//  testable without constructing framework events.
+//
+//  A move is routed by DRAG STATE, not by position. While a selection drag is
+//  in progress it extends the selection and is claimed; otherwise it is only
+//  a hover update and is reported unhandled, so a pointer passing over the
+//  field does not swallow moves other widgets want.
+//
+//  Only the left button acts. A right-click belongs to the host's context
+//  menu, if any.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
