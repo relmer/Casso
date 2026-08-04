@@ -462,7 +462,7 @@ static const Microcode * SelectInstructionSet (const CommandLineOptions & option
 struct AssembleResult
 {
     AssemblyResult result;
-    bool           ok;
+    bool           ok = false;      // default: treat an unfilled result as failure
     std::string    inputFile;
 };
 

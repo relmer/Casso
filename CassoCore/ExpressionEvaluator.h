@@ -28,12 +28,18 @@ struct ExprContext
 //
 ////////////////////////////////////////////////////////////////////////////////
 
+// Members carry defaults so a plain `ExprResult er;` is a well-defined
+// "failed, no value, no reason" rather than garbage. Callers that declare the
+// result up front and fill it in a branch (the single-exit shape) would
+// otherwise leave it uninitialized on the path that never evaluates, which
+// C26495 flags -- and which would read as a spurious success if the bool
+// happened to land non-zero.
 struct ExprResult
 {
-    bool        success;
-    int32_t     value;
+    bool        success       = false;
+    int32_t     value         = 0;
     std::string error;
-    bool        hasUnresolved;   // failed due to undefined symbol
+    bool        hasUnresolved = false;   // failed due to undefined symbol
 };
 
 

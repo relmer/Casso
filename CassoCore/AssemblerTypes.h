@@ -58,12 +58,15 @@ struct AssemblyLine
 
 
 
+// Scalars carry defaults so a plain `AssemblyResult r;` means "failed, nothing
+// assembled" rather than garbage. The containers default themselves; only the
+// PODs need saying. Matches AssemblyLine above and ExprResult.
 struct AssemblyResult
 {
-    bool                                        success;
+    bool                                        success      = false;
     std::vector<Byte>                           bytes;
-    Word                                        startAddress;
-    Word                                        endAddress;
+    Word                                        startAddress = 0;
+    Word                                        endAddress   = 0;
     std::unordered_map<std::string, Word>       symbols;
     std::unordered_map<std::string, SymbolKind> symbolKinds;
     std::vector<AssemblyError>                  errors;
