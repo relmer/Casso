@@ -93,6 +93,23 @@ void InputDebugPanel::ArgbToFloat4 (uint32_t argb, float (& outRgba)[4]) noexcep
 //
 //  FormatCycleWithSeparators
 //
+//  Renders a cycle count with thousands separators, by hand.
+//
+//  Hand-rolled rather than delegating to a locale-aware formatter, because
+//  the separator here is a READABILITY aid on a fixed-width diagnostic column,
+//  not localized presentation. A locale that groups by four, uses spaces, or
+//  swaps comma for period would break the column alignment the panel depends
+//  on, and cycle counts are not something a user reads as a local number.
+//
+//  Digits are generated least-significant-first (the natural direction for
+//  repeated division) into a scratch buffer, then walked backwards to emit,
+//  which is what makes the every-third-digit test simple: it is a property of
+//  the position remaining, not of the position written.
+//
+//  Truncation is checked before each write and breaks cleanly, so a buffer too
+//  small yields a short but always NUL-terminated string rather than a partial
+//  digit group running off the end.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void InputDebugPanel::FormatCycleWithSeparators (uint64_t value, wchar_t * out, size_t cap)
@@ -149,6 +166,18 @@ void InputDebugPanel::FormatCycleWithSeparators (uint64_t value, wchar_t * out, 
 //
 //  FormatWallNow
 //
+//  Host wall-clock time as HH:MM:SS.mmm -- the column that lets a captured
+//  event log be lined up against something outside the emulator (a screen
+//  recording, another tool's log, or the user's own note of when it happened).
+//
+//  Milliseconds come from the epoch duration rather than from the tm struct,
+//  which has no sub-second field at all.
+//
+//  Every failure produces an EMPTY string, never a partial or misleading one:
+//  a buffer too small to hold a full timestamp, or a localtime conversion that
+//  fails, both clear the output. A truncated time reads as a plausible
+//  different time, which is worse than a blank column.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void InputDebugPanel::FormatWallNow (wchar_t * out, size_t cap)
@@ -196,6 +225,21 @@ void InputDebugPanel::FormatWallNow (wchar_t * out, size_t cap)
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  FormatUptime
+//
+//  Elapsed time since the session anchor, as MM:SS.mmm.
+//
+//  Measured on the steady clock, not the wall clock, so an NTP correction or a
+//  daylight-saving change during a long session cannot make the elapsed column
+//  jump or run backwards while the emulator kept running normally.
+//
+//  Minutes are NOT rolled into hours. A flat minute count keeps the column
+//  monotonic and directly comparable between two rows, which is what this
+//  column is read for; an hours field would introduce a second place to look
+//  when comparing a 59-minute row against a 61-minute one.
+//
+//  A now-before-anchor reading is reported as empty rather than as a negative
+//  duration. It should not happen on a steady clock, but printing "-0:01.234"
+//  in a diagnostic panel invites chasing the formatter instead of the cause.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -328,6 +372,26 @@ LPCWSTR InputDebugPanel::ButtonAnnotation (Word address) noexcept
 //
 //  ClassifyGamePort
 //
+//  Which game-port pair an event belongs to -- pair 0 (paddles 0/1, buttons
+//  0/1), pair 1 (paddles 2/3), both, or neither.
+//
+//  This exists so the panel can filter by controller. The Apple game port is
+//  one connector carrying two logical pairs, and the address that identifies
+//  a pair differs by event type: a HOST paddle event indexes an axis, while a
+//  GUEST read carries a soft-switch address. The same pair therefore has
+//  several unrelated numeric spellings, and a caller cannot classify by
+//  address alone.
+//
+//  Two members of the classification are worth noting. The //e Shift-key mod
+//  reads through button 2's address and so lands in pair 1, not pair 0, even
+//  though nobody thinks of it as a second controller. And PTRIG is Global --
+//  one switch arms the timing capacitors for BOTH pairs at once, so filtering
+//  it to either pair would hide it from the other.
+//
+//  Anything unrecognized is None, so the filter is fail-closed: an event type
+//  added later shows up unclassified rather than being silently attributed to
+//  a controller it has nothing to do with.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 InputGamePortClass InputDebugPanel::ClassifyGamePort (InputEventType type, Word address) noexcept
@@ -398,6 +462,29 @@ InputGamePortClass InputDebugPanel::ClassifyGamePort (InputEventType type, Word 
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  FormatInputEvent
+//
+//  Turns one captured InputEvent into the row the panel displays: timestamps,
+//  address, value, and a plain-language meaning.
+//
+//  The meaning column is the whole point of this function. A raw log of
+//  "$C000 -> $D3" tells the reader nothing about whether the guest saw a key,
+//  and the panel exists to answer exactly that -- so every event type decodes
+//  its own flags into a sentence naming the key, the button state, the strobe,
+//  or the counting bit.
+//
+//  HOST events carry no cycle stamp. They originate on the UI thread, outside
+//  emulated time, so a cycle number would be whatever the CPU happened to be
+//  at when the message arrived -- an invented correlation. The cycle column is
+//  deliberately blank for them rather than filled with a plausible lie.
+//
+//  Paddle axes are decoded against the user's per-pair "view as" choice, so a
+//  pair viewed as a joystick reads as JOY0 X / Y while the same event viewed
+//  as paddles reads as PDL0 / PDL1. Two people debugging the same hardware
+//  disagree about what to call it, and the raw axis index answers neither.
+//
+//  All formatting is pure: the source event is untouched and everything lands
+//  in the caller's row, so this is callable from the drain path without
+//  ordering concerns.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -870,6 +957,27 @@ LPCWSTR InputDebugPanel::CursorForPoint (POINT clientPx) const
 //
 //  ConfigureWidgets
 //
+//  Seeds initial widget state and installs the callbacks that fold each
+//  widget's outcome back into the panel model.
+//
+//  The division of labor is the thing to understand here. Widgets own their
+//  own interaction entirely -- press, hover, toggle, scroll, thumb drag,
+//  column resize, row select -- through their own OnMouse. What they do NOT
+//  own is meaning. These callbacks translate an interaction that already
+//  happened into a panel-level consequence: a selection becomes the detail
+//  pane, a header click becomes a sort, a resize-drag end becomes a persisted
+//  column width.
+//
+//  The column-resize callback converts back to DIPs before storing. The drag
+//  arrives in physical pixels, but savedWidth feeds widthDip, which
+//  ComputeColumnLayout re-scales by the current DPI -- storing the physical
+//  value would double-apply the scale and make a 1-pixel drag resize by two
+//  pixels at 200%.
+//
+//  Every category filter starts checked, so the panel opens showing
+//  everything. A diagnostic that opens pre-filtered hides the event the user
+//  came to find and gives no hint that it did.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void InputDebugPanel::ConfigureWidgets()
@@ -986,6 +1094,21 @@ void InputDebugPanel::RecomputeLayout()
 //
 //  LayoutWidgets
 //
+//  Applies the computed layout rects to the widgets.
+//
+//  Purely a distribution step: every rect was already decided by
+//  ComputeInputDebugPanelLayout, which is a free function precisely so the
+//  geometry can be unit-tested without a window. Nothing here recomputes a
+//  position, so a layout bug has exactly one place to live.
+//
+//  Hidden widgets are still laid out. Their rects come back empty from the
+//  layout pass, so visibility is expressed in the geometry rather than in a
+//  branch here -- which keeps this a flat, uninteresting list.
+//
+//  The column menu and tooltip are deliberately absent: both are deferred
+//  popups that take their DPI from the popup host at show time, so setting it
+//  here would be stale by the time either appears.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void InputDebugPanel::LayoutWidgets()
@@ -1072,6 +1195,37 @@ void InputDebugPanel::PublishToRing (const InputEvent & e)
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  DrainAndProject
+//
+//  The render-thread half of the capture pipeline: pull everything the CPU
+//  thread published into the ring, project it into display rows, and update
+//  the list view.
+//
+//  This is the ONLY place m_events, m_filteredIndices, and the list view rows
+//  are touched, which is what keeps the design single-threaded on the display
+//  side despite events arriving from the CPU thread. A pending reset (Ctrl+R
+//  or power-cycle) is therefore staged as a flag by the requester and applied
+//  HERE rather than at the request site -- the anchor swap and the event clear
+//  both mutate that same state.
+//
+//  Pausing stops event traffic but NOT the reset. An anchor change and a clear
+//  are not events; skipping them while paused would leave the panel showing a
+//  pre-reset log against a post-reset time base.
+//
+//  Drop accounting is surfaced, not hidden. When the ring overflows, the count
+//  is drained into a synthetic EventsLost row, so a gap in the log is visible
+//  as a gap instead of silently reading as a period of no input.
+//
+//  Eviction happens in batches at a high-water mark rather than one row per
+//  frame. A per-frame pop_front renumbers every deque index and forces an O(n)
+//  rebuild of both the filtered view and the list rows on EVERY frame;
+//  batching keeps the steady-state streaming path append-only and pays the
+//  rebuild once per batch.
+//
+//  Which is why the update has two paths. A trim renumbers every surviving
+//  index and an active sort can place a new event anywhere in the order, so
+//  either forces a full rebuild. The common case -- streaming, unsorted, no
+//  trim -- appends only the new rows and leaves existing rows and indices
+//  untouched.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1211,6 +1365,20 @@ void InputDebugPanel::RebuildFilteredIndices()
 //
 //  AppendNewEventRows
 //
+//  The fast path for the streaming case: project only the events added since
+//  startIndex and append their rows, leaving every existing row alone.
+//
+//  Correctness rests on a caller guarantee, not on a check here -- the caller
+//  must know that no eviction happened this frame. That makes deque indices in
+//  [startIndex, size) stable, so they can be pushed onto m_filteredIndices and
+//  handed to the list view without renumbering anything already there. Calling
+//  this after a trim would append indices that no longer identify the events
+//  they used to.
+//
+//  Filtered-out events are skipped entirely rather than appended and hidden,
+//  keeping m_filteredIndices exactly the set of visible rows -- the invariant
+//  selection mapping depends on.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void InputDebugPanel::AppendNewEventRows (size_t startIndex)
@@ -1256,6 +1424,15 @@ void InputDebugPanel::AppendNewEventRows (size_t startIndex)
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  PushListViewRows
+//
+//  Rebuilds every list row from m_filteredIndices -- the slow path, used
+//  whenever indices moved (a trim, a sort, a filter change, a column toggle).
+//
+//  The selected ROW INDEX is preserved across the rebuild, not the selected
+//  event. That is deliberate: after a trim or a sort the row under the user's
+//  cursor is the meaningful anchor, and chasing the old event would scroll the
+//  view somewhere the user did not ask to go. It is restored only when rows
+//  remain, so clearing the list leaves nothing selected.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1462,6 +1639,25 @@ void InputDebugPanel::UpdatePauseLabel()
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  CopyEventsToClipboard
+//
+//  Copies the VISIBLE rows -- filtered and column-selected as the user has
+//  them -- to the clipboard as tab-separated text, so a captured log can be
+//  pasted straight into a bug report.
+//
+//  Copying the filtered set rather than everything is the point: the user has
+//  already narrowed the panel to the events they care about, and a copy that
+//  ignored that would paste thousands of unrelated rows.
+//
+//  The interesting part is ownership of the global block, tracked in
+//  ownsGlobal. The clipboard takes ownership of the memory ONLY when
+//  SetClipboardData succeeds -- freeing it after a successful set corrupts the
+//  clipboard, and failing to free it after an unsuccessful one leaks. So the
+//  flag is set at allocation and cleared exactly on the success path, letting
+//  the single cleanup block do the right thing from any exit.
+//
+//  Every failure is silent. This is a convenience action on a diagnostic
+//  panel: another application holding the clipboard open is ordinary, and an
+//  error box for it would be more disruptive than the missed copy.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1698,6 +1894,36 @@ bool InputDebugPanel::OfferPressTo (IDxuiControl * control, const DxuiMouseEvent
 //
 //  OnMouse
 //
+//  Routes a pointer event to the panel's widgets. Press and release follow
+//  deliberately DIFFERENT rules, which is the thing to get right when editing
+//  this.
+//
+//  A PRESS is exclusive and short-circuits: the first widget to claim it ends
+//  the walk, and claiming also takes focus. A RELEASE is broadcast to every
+//  widget, because each one has to clear its own press visual whether or not
+//  the cursor is still over it -- pressing a button, dragging off, and
+//  releasing must leave nothing stuck down.
+//
+//  The pair dropdowns are the one exception to the focus rule. An OPEN
+//  dropdown takes the press without taking focus, since focus belongs wherever
+//  it was while a dropdown is being used.
+//
+//  An active list drag outranks everything. While the list is interacting
+//  (scrollbar thumb, column resize), moves and the release are forwarded to it
+//  unconditionally -- the pointer has usually left the list bounds by then, and
+//  hit-testing would hand the drag to whatever is under the cursor instead.
+//  The Left button is passed explicitly on those moves because DxuiListView
+//  treats a non-Left move while interacting as a release, its safety net for a
+//  missed button-up.
+//
+//  Win32 capture is held for the whole press by OnLButtonDown and released by
+//  OnLButtonUp before this release is routed, which is what lets a drag keep
+//  receiving moves after the cursor leaves the client area.
+//
+//  The list owns all of its own in-list routing -- scrollbar, resize, header
+//  sort, row select -- and reports outcomes through the callbacks wired in
+//  ConfigureWidgets, so nothing here duplicates that logic.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 bool InputDebugPanel::OnMouse (const DxuiMouseEvent & ev)
@@ -1859,6 +2085,23 @@ bool InputDebugPanel::OnMouse (const DxuiMouseEvent & ev)
 //
 //  OnKey
 //
+//  Keyboard handling, in the order a dialog is expected to resolve it:
+//  traversal, then the focused control, then the list as the fallback.
+//
+//  Tab is intercepted first and handed to the focus manager, which walks the
+//  panel's visible focusables through the framework tree -- there is no
+//  hand-maintained tab-stop list to fall out of sync when a widget is added or
+//  conditionally hidden.
+//
+//  The focused control gets every other key BEFORE the list does, so a focused
+//  checkbox self-activates on Space, a focused button on Enter, and a focused
+//  dropdown steers its own open popup. Only unclaimed keys fall through to
+//  list navigation, which is what keeps the arrow keys steering a dropdown
+//  rather than scrolling the log behind it.
+//
+//  Char events are reported unhandled: the panel has no text-entry surface, so
+//  claiming them would swallow keystrokes the framework may still want.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 bool InputDebugPanel::OnKey (const DxuiKeyEvent & ev)
@@ -1929,6 +2172,18 @@ Error:
 //
 //  UpdateTooltip
 //
+//  Picks the tooltip for whatever is under the pointer, or requests a hide.
+//
+//  Hidden widgets are excluded from the hit tests rather than merely painting
+//  nothing, so a collapsed joystick or paddle row cannot produce a tooltip for
+//  a control the user cannot see.
+//
+//  Show and hide are both REQUESTS. The dwell timer decides when a popup
+//  actually appears or disappears, so sweeping the pointer across five
+//  checkboxes does not flash five tooltips -- and the explicit hide on empty
+//  space is what lets the timer close the current one instead of leaving it
+//  anchored to a widget the pointer has left.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void InputDebugPanel::UpdateTooltip (int x, int y)
@@ -1977,6 +2232,23 @@ void InputDebugPanel::UpdateTooltip (int x, int y)
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  ShowColumnMenu
+//
+//  The header right-click menu: one checkable item per column, toggling
+//  visibility.
+//
+//  Items are rebuilt from the live column model on every show rather than
+//  built once and mutated, so the check marks cannot drift out of step with
+//  what the list is actually displaying.
+//
+//  The theme is pushed in at show time because the menu renders deferred, in a
+//  pooled popup host outside the widget tree -- it never sees a paint-pump
+//  pass and so cannot inherit a theme the way an in-tree widget does. The
+//  window theme is shell-owned and outlives the popup, so the pointer is safe
+//  to hold.
+//
+//  A null text renderer bails instead of being dereferenced: the shared
+//  renderer that measures and lays the menu out only exists once the backend
+//  is up, and a right-click can arrive before then.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
