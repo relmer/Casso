@@ -369,6 +369,16 @@ InputMappingMode GlobalUserPrefs::InputMappingModeFromString (const std::string 
 //
 //  GlobalUserPrefs::ColorTextModeToString
 //
+//  Maps the text-color mode to its persisted spelling.
+//
+//  Prefs are stored as NAMES rather than as enum ordinals, so inserting a mode
+//  later cannot silently reinterpret everyone's saved setting as a different
+//  one. That is the whole reason this function exists instead of a cast.
+//
+//  Unknown values fall back to white -- the default -- so a value written by a
+//  newer build round-trips through an older one as something sensible rather
+//  than as an empty string that would fail to parse.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 const char * GlobalUserPrefs::ColorTextModeToString (ColorMonitorTextMode mode)
@@ -885,6 +895,26 @@ Error:
 //
 //  GlobalUserPrefs::ToJson
 //
+//  Serializes the global prefs. Every field is written unconditionally, so the
+//  document is complete and a round trip is deterministic.
+//
+//  The version key is written FIRST because this file is meant to be read and
+//  hand-edited; the reader should see what schema they are looking at before
+//  anything else.
+//
+//  CRT blocks are persisted for every monitor type even when userOverride is
+//  false. The override flag governs whether those values are APPLIED, not
+//  whether they exist, so writing them keeps a user's customizations for a
+//  mode they have temporarily switched away from -- and keeps save-load-save
+//  byte-identical.
+//
+//  Enum-valued fields go out as names via their ToString helpers, so inserting
+//  an enumerator later cannot reinterpret an existing file.
+//
+//  The custom text color is written WITHOUT its alpha byte: it is always
+//  opaque, so persisting the alpha would only invite a hand edit that makes
+//  the text invisible. FromJson masks it back on.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 JsonValue GlobalUserPrefs::ToJson() const
@@ -961,6 +991,35 @@ JsonValue GlobalUserPrefs::ToJson() const
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  GlobalUserPrefs::FromJson
+//
+//  Reads the global prefs object, migrating older key shapes as it goes.
+//
+//  The whole struct is RESET to defaults first, so a partial or truncated JSON
+//  object cannot leak the previous load's values into the gaps -- a second
+//  Load would otherwise inherit fields the new document never mentioned.
+//
+//  Every key is read optionally, defaulting to what the reset just installed.
+//  A prefs file is user-writable and version-skewed by nature, so a missing or
+//  malformed key must cost one setting rather than the whole file.
+//
+//  Two live migrations run here, both following the same rule -- the NEW key
+//  wins, and the legacy shape is consulted only when it is absent:
+//
+//    mapArrowsToJoystick  the old bool becomes inputMappingMode::Joystick
+//    inputMappingMode     the old single mode splits into arrowsToJoystick
+//                         (keys) plus pointerMapping (paddle / mouse)
+//
+//  The split is what makes the two independent: arrow-to-joystick mapping and
+//  a pointer mode are unrelated choices that the single field forced into one.
+//  A legacy Joystick value therefore migrates to the keys half and leaves the
+//  pointer Off.
+//
+//  pointerMapping additionally rejects Joystick outright, since it is not a
+//  pointer mode -- a hand-edited or migrated file that names it there falls
+//  back to Off rather than producing a state the UI cannot represent.
+//
+//  The custom text color is masked back to opaque, so an alpha byte that a
+//  hand edit dropped or zeroed cannot yield invisible text.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
