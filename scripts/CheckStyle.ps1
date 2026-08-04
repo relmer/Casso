@@ -803,18 +803,29 @@ function Test-CommitMessages
 
     $shas = git -C $repoRoot rev-list "$Base..$Tip" 2>$null
 
-    # Grandfathered messages: already published, so unfixable without rewriting
-    # pushed history, and the opt-out below did not exist when they landed.
+    # There is no opt-out. A message is prose we write, so unlike source -- which
+    # may be stuck with a name like ERROR_CANCELLED -- it can always be phrased
+    # without the words it is about: say the file and the count, not the word.
     #
-    #   b9bbb6e3  the British-spelling sweep itself. Its message quotes the
-    #             words it replaced (Colour->Color, COLOUR->COLOR, ...) --
-    #             precisely the "a rule has to be able to describe itself" case
-    #             that STYLE-ALLOW-BRITISH was added for, only it landed first.
+    # There WAS one, a STYLE-ALLOW-BRITISH token anywhere in the body. It was a
+    # bad mechanism twice over: it disabled the whole check rather than one
+    # finding, irrevocably once pushed; and being a bare substring test, a
+    # message that merely DISCUSSED the token opted itself out, so the rule
+    # could not be written about without being switched off.
     #
-    # Note this list is only reachable because the upstream scoping above
-    # misses cross-branch publication: b9bbb6e3 was pushed on its feature
-    # branch, never on master, so master's first push re-scans it as "unpushed".
-    $grandfathered = @('b9bbb6e3')
+    # This list is what it left behind -- messages published under it that
+    # would now fail, and cannot be fixed without rewriting pushed history.
+    # It is closed: the mechanism is gone, so nothing can be added to it.
+    #
+    #   b9bbb6e3  the sweep itself; quotes the words it replaced
+    #   52565ecb  introduced the message check, naming what it looks for
+    #   d58f1ac9  added this list, quoting b9bbb6e3 to justify the entry
+    #   909deb6b  narrowed and widened the rule, listing every hit it fixed
+    #
+    # Reachable at all only because the upstream scoping above misses
+    # cross-branch publication: these were pushed on a feature branch, never on
+    # master, so master's first push re-scans them as though they were new.
+    $grandfathered = @('b9bbb6e3', '52565ecb', 'd58f1ac9', '909deb6b')
 
     foreach ($sha in $shas)
     {
@@ -826,13 +837,7 @@ function Test-CommitMessages
             $bad += "commit ${short} -- Claude attribution is not permitted in commit messages"
         }
 
-        # STYLE-ALLOW-BRITISH opts a message out, following the per-line
-        # Suppress precedent above. A spelling-sweep commit has to name the
-        # words it is replacing, exactly as copilot-instructions.md does, and a
-        # rule that cannot describe itself is one people route around.
-        if ($body -match $britishRule.Pattern -and
-            $body -notmatch 'STYLE-ALLOW-BRITISH' -and
-            $short -notin $grandfathered)
+        if ($body -match $britishRule.Pattern -and $short -notin $grandfathered)
         {
             $bad += "commit ${short} -- $($britishRule.Message) (found '$($Matches[0])')"
         }
