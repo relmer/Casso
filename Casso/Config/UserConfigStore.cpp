@@ -824,6 +824,34 @@ HRESULT UserConfigStore::SaveAll (
 //
 //  UserConfigStore::Load
 //
+//  Produces the effective machine config: the shipped defaults with the user's
+//  saved deltas merged over them, migrating an out-of-date delta on the way.
+//
+//  Deltas are stored rather than whole configs, which is the design decision
+//  everything else here follows from. A user who changed one slot keeps
+//  receiving every other improvement when a machine definition ships updated;
+//  storing the full config would freeze them at whatever the file looked like
+//  the day they touched it.
+//
+//  That is also why migration is needed at all. A delta names keys in a schema,
+//  so when the shipped schema moves the delta has to move with it, or it starts
+//  referring to keys that no longer exist. Three conditions trigger it: an
+//  older version stamp, a MISSING stamp (which predates versioning), and a
+//  legacy alias key.
+//
+//  Migration failure is deliberately non-fatal -- the un-migrated content is
+//  used as-is. A config that fails to upgrade is far better than a machine
+//  that will not load, and the canonicalize-and-save below is idempotent, so a
+//  half-migrated file settles on the next run rather than compounding.
+//
+//  The lazy first-load path handles the case where nothing is cached yet and a
+//  prefs file exists on disk. It accepts both shapes the file has had -- the
+//  current combined form with a machines key, and the older bare per-machine
+//  object -- so an upgrade from an older build finds its settings.
+//
+//  A machine with no saved prefs at all returns the defaults untouched, which
+//  is the common case and costs nothing.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT UserConfigStore::Load (
@@ -1020,6 +1048,26 @@ Error:
 //
 //  UserConfigStore::BuildCombinedJson
 //
+//  Assembles the whole prefs document -- global settings plus every machine's
+//  deltas -- ready to write.
+//
+//  The on-disk file is READ BACK and merged under the in-memory entries, which
+//  is the point of this function. m_machinePrefs is populated lazily, one
+//  machine at a time as they are loaded, so a save that fires before some
+//  machine has ever been loaded this session would otherwise write a document
+//  omitting it -- silently deleting that machine's settings from disk. Reading
+//  first preserves what this process never touched.
+//
+//  In-memory entries win over on-disk ones, since they are the newer state by
+//  definition.
+//
+//  A read or parse failure is ignored rather than propagated: an unreadable or
+//  corrupt existing file means there is nothing to preserve, and refusing to
+//  save would leave the user unable to fix it by changing a setting.
+//
+//  The merge goes through an ordered map, so machines land in a stable order
+//  and the file does not churn between saves.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 JsonValue UserConfigStore::BuildCombinedJson (
@@ -1089,6 +1137,20 @@ JsonValue UserConfigStore::BuildCombinedJson (
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  UserConfigStore::LoadCombinedJson
+//
+//  Reads a parsed prefs document into the global prefs and the per-machine
+//  delta cache.
+//
+//  Only the ROOT being a non-object is an error. Everything inside is
+//  optional: a missing global section resets to constructed defaults, a
+//  missing machines section leaves the cache alone, and any machine entry that
+//  is not an object is skipped. A prefs file is user-writable and
+//  version-skewed by nature, so one damaged entry must not cost the user every
+//  other setting in the file.
+//
+//  Machine entries are MERGED into the cache rather than replacing it, so
+//  loading does not discard deltas for machines this document happens not to
+//  mention.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1174,6 +1236,32 @@ Error:
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  UserConfigStore::MigrateLegacyFiles
+//
+//  One-time upgrade from the old layout -- a global prefs file plus one file
+//  per machine -- into the single combined document.
+//
+//  The order is write-then-delete, and it is the difference between an
+//  interrupted upgrade being harmless and being a data loss. The combined file
+//  is fully written first; only then are the legacy files removed. A crash
+//  between the two leaves both copies on disk, and the next run finds legacy
+//  files still present and simply migrates again -- the operation is
+//  idempotent. Deleting first would lose everything on any failure to write.
+//
+//  Legacy per-machine files are DISCOVERED by suffix rather than by asking
+//  which machines exist, so a machine that has since been removed from the
+//  product still has its settings carried forward instead of stranded.
+//
+//  Each legacy delta is version-stamped as it is read. Those files predate
+//  versioning entirely, so without a stamp every one of them would look
+//  un-migratable to Load forever after.
+//
+//  Finding nothing to migrate is a FIRST RUN, not a failure, and is reported
+//  through outFoundLegacy rather than a second success code -- which keeps the
+//  caller from having to distinguish two flavors of S_OK.
+//
+//  A missing legacy global with legacy machine files present still migrates:
+//  the global section is written from constructed defaults so the combined
+//  document is complete either way.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
