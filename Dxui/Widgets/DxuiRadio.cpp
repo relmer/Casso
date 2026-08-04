@@ -138,6 +138,22 @@ bool DxuiRadioGroup::OnLButtonUp (int x, int y)
 //
 //  OnKey
 //
+//  Arrow-key navigation within the group.
+//
+//  All four arrows work, in pairs. A radio group may be laid out horizontally
+//  or vertically and the widget does not know which, so binding only one axis
+//  would leave half the layouts unnavigable.
+//
+//  Selection WRAPS at both ends, matching the Windows radio-group convention.
+//
+//  Moving the selection COMMITS it immediately rather than merely previewing
+//  it, which is how a radio group differs from a list: there is no separate
+//  activation step, so arrowing through options is choosing them.
+//
+//  An unselected group (index -1) enters at the first option going forward and
+//  the last going backward, so the first arrow press always lands somewhere
+//  sensible.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 bool DxuiRadioGroup::OnKey (WPARAM vk)
@@ -201,6 +217,26 @@ void DxuiRadioGroup::Commit (int newIndex)
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  Paint
+//
+//  Draws each option: the circle, the selected dot, the focus ring, and the
+//  label.
+//
+//  The circle is vertically CENTERED in its option rect rather than
+//  top-aligned, so a row whose label wraps to two lines keeps its control
+//  beside the text block instead of floating at the top of it.
+//
+//  Circles are drawn with the painter's polygon approximation because the
+//  painter has no true circle primitive -- it is a solid-triangle batcher, and
+//  keeping it that way is what makes it cheap.
+//
+//  The focus ring is drawn only on the SELECTED option, not on every option or
+//  on a separately-tracked focused one. A radio group commits as it navigates,
+//  so selection and keyboard position are always the same thing, and a second
+//  indicator would imply a distinction that does not exist.
+//
+//  Disabled state changes three colors together -- circle, dot, and label -- so
+//  the row reads as disabled as a whole rather than as a grayed label beside a
+//  live-looking control.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -305,7 +341,16 @@ void DxuiRadioGroup::Layout (const RECT & boundsDip, const DxuiDpiScaler & scale
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DxuiRadioGroup::OnMouse  (IDxuiControl override)
+//  DxuiRadioGroup::OnMouse
+//
+//  The IDxuiControl entry point: unpacks the event and forwards to the
+//  per-gesture handlers, which take plain coordinates and are testable without
+//  framework events.
+//
+//  A move only updates hover and is reported unhandled, so the pointer
+//  crossing the group does not consume moves other widgets want.
+//
+//  Only the left button acts; a right-click belongs to the host.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

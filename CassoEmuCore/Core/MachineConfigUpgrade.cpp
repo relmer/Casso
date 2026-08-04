@@ -13,6 +13,19 @@
 //
 //  NormalizeBytes
 //
+//  Strips a UTF-8 BOM and folds CRLF to LF, so a config's content hash
+//  identifies its MEANING rather than its byte encoding.
+//
+//  Both differences are introduced by editors and version-control checkout
+//  rules without anyone changing a character of the config. Hashing the raw
+//  bytes would classify a file that Notepad merely opened and saved as
+//  user-modified, and the upgrade planner would then back it up and refuse to
+//  refresh it forever after.
+//
+//  A bare CR is deliberately left alone: it is not a line ending anything
+//  writes these days, and converting it would change the meaning of a config
+//  that genuinely contains one.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 string MachineConfigUpgrade::NormalizeBytes (const string & content)
@@ -56,6 +69,18 @@ string MachineConfigUpgrade::NormalizeBytes (const string & content)
 //
 //  ParseStamp
 //
+//  Reads a config's version stamp, accepting the current key and, for one
+//  upgrade cycle, the legacy one.
+//
+//  Reading both is what lets a user upgrading from an older release keep their
+//  files: a config written before the rename carries only the old key, and
+//  treating it as unstamped would send it down the hash-matching path
+//  unnecessarily.
+//
+//  Every failure -- unparseable JSON, neither key present, wrong type --
+//  answers 0, which the planner reads as "unstamped" and handles safely. So a
+//  corrupt file is never mistaken for a specific version.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 int MachineConfigUpgrade::ParseStamp (const string & content)
@@ -93,6 +118,37 @@ Error:
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  Plan
+//
+//  Decides what to do with a machine config already on disk: leave it, refresh
+//  it silently, back it up and replace it, or extract it fresh.
+//
+//  The whole function answers one question -- HAS THE USER EDITED THIS FILE?
+//  An untouched extract can be refreshed silently so improvements reach
+//  everyone, while an edited file must never be overwritten without a backup.
+//  Version stamps alone cannot answer that, which is why the tests stack up:
+//
+//    no file            extract
+//    newer stamp        skip -- never downgrade a user who is somehow ahead
+//    equal stamp AND    skip -- genuinely up to date
+//      matching content
+//    stamp <= 0, or     overwrite silently -- extracted by an older release
+//      an older stamp
+//    hash matches a     overwrite silently -- an untouched extract from some
+//      known prior          past version, just not this one
+//    anything else      back up, then replace
+//
+//  An equal stamp with DIFFERENT content is the case worth understanding.
+//  Parallel feature branches can each ship a different config under the same
+//  version number, so an equal stamp proves nothing on its own; such a file
+//  falls through to the hash checks rather than being trusted.
+//
+//  The historical-hash list is what makes silent refresh safe at all. Without
+//  it, any file whose stamp does not line up would have to be treated as
+//  user-edited, and every user would accumulate backups of files they never
+//  touched.
+//
+//  The default is the most conservative action, so an unanticipated
+//  combination costs a backup rather than a user's edits.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
