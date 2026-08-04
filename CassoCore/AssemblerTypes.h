@@ -146,9 +146,16 @@ struct MacroDefinition
 
 struct ConditionalState
 {
-    bool assembling;         // True if current block is being assembled
-    bool seenElse;           // True if else has been encountered
-    bool parentAssembling;   // True if enclosing block is assembling
+    bool assembling       = false;   // True if current block is being assembled
+    bool seenElse         = false;   // True if else has been encountered
+    bool parentAssembling = false;   // True if enclosing block is assembling
+
+    // Source line the IF / IFDEF opened on. Carried purely for diagnostics:
+    // a block that is never closed leaves nothing behind at the point of
+    // failure, so without this the end-of-pass error can only say how many
+    // levels are open and blame the end of the file -- which is never where
+    // the fix goes.
+    int  openLineNumber   = 0;
 };
 
 

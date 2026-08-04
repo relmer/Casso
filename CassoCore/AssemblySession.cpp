@@ -2007,7 +2007,8 @@ HRESULT AssemblySession::HandleIfDirective (const PendingLine & current, const s
 
 
     state.parentAssembling = IsAssembling();
-    state.seenElse = false;
+    state.seenElse         = false;
+    state.openLineNumber   = current.sourceLineNumber;
 
     if (state.parentAssembling)
     {
@@ -2069,7 +2070,8 @@ HRESULT AssemblySession::HandleIfdefDirective (const PendingLine & current,
 
 
     state.parentAssembling = IsAssembling();
-    state.seenElse = false;
+    state.seenElse         = false;
+    state.openLineNumber   = current.sourceLineNumber;
 
     if (state.parentAssembling)
     {
@@ -3857,6 +3859,25 @@ HRESULT AssemblySession::ResolveAddressingAndSize (const PendingLine & current, 
 //
 //  AssemblySession::ValidateAssemblyCompletion
 //
+//  End-of-pass-1 balance check: the block openers that were never closed.
+//  Their closers self-report as they are encountered (a stray ENDIF or ENDM
+//  errors on the spot), but an opener that is never closed leaves nothing
+//  behind to notice it -- the source simply ends -- so it has to be caught
+//  from the leftover state here.
+//
+//  Both are recorded rather than thrown: pass 1 has already finished, so
+//  reporting every imbalance beats stopping at the first.
+//
+//  Both point at the line the block OPENED on, which is where the fix goes --
+//  never at EOF, which is merely where the pass ran out of source and noticed.
+//  The macro case has m_currentMacroLine; the conditional case has
+//  ConditionalState::openLineNumber, carried for exactly this.
+//
+//  Unclosed conditionals get one error per open level rather than a single
+//  "3 level(s) open" summary: each one is separately missing an ENDIF, so
+//  each is separately somewhere to go. Reported innermost first, the order
+//  they need closing in.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT AssemblySession::ValidateAssemblyCompletion()
@@ -3870,10 +3891,12 @@ HRESULT AssemblySession::ValidateAssemblyCompletion()
         RecordError (m_currentMacroLine, "Unclosed macro definition: " + m_currentMacroName);
     }
 
-    if (!m_condStack.empty())
+    // One error per unclosed level, each at the line its own IF opened on --
+    // every one of them is missing an ENDIF, so every one is a place to go.
+    // Innermost first, which is the order they need closing in.
+    for (auto it = m_condStack.rbegin(); it != m_condStack.rend(); ++it)
     {
-        RecordError ((int) m_lines.size(),
-            "Unclosed if block (" + std::to_string (m_condStack.size()) + " level(s) open)");
+        RecordError (it->openLineNumber, "Unclosed if block (no matching endif)");
     }
 
 // Error:
