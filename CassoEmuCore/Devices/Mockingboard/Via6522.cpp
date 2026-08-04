@@ -171,16 +171,16 @@ void Via6522::WriteRegister (Byte reg, Byte value)
 
     case kRegAcr:
         // Only the Timer1 mode bit is modeled. Any other ACR bit selects an
-        // unmodelled feature (T2 pulse counting, shift register, PB7 output,
+        // unmodeled feature (T2 pulse counting, shift register, PB7 output,
         // port input latching). Store the value for read-back, then assert so
         // a debug build surfaces any title that actually configures one --
-        // in release the write is simply inert for the unmodelled bits.
+        // in release the write is simply inert for the unmodeled bits.
         m_acr = value;
         CBRAEx ((value & ~kAcrT1Continuous) == 0, E_INVALIDARG);
         break;
 
     case kRegPcr:
-        // CA1/CA2/CB1/CB2 handshaking is unmodelled. The Mockingboard drives
+        // CA1/CA2/CB1/CB2 handshaking is unmodeled. The Mockingboard drives
         // the AY from the ports, not the handshake lines, so a non-zero PCR
         // means a title depends on something we do not implement.
         m_pcr = value;

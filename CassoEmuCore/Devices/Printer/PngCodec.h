@@ -28,7 +28,7 @@
 class PngCodec
 {
 public:
-    // 32bpp RGBA truecolour PNG, physical resolution stamped as pHYs (dpi).
+    // 32bpp RGBA truecolor PNG, physical resolution stamped as pHYs (dpi).
     static HRESULT EncodeRgba (const RgbaImage & image, int dpi, vector<Byte> & outPng);
 
     // 8bpp palette-indexed PNG (lossless index preservation). `palette` holds

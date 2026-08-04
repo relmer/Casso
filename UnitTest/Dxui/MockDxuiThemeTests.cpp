@@ -42,7 +42,7 @@ public:
     }
 
 
-    TEST_METHOD (DxuiButton_Constructs_And_HonoursStateSetters)
+    TEST_METHOD (DxuiButton_Constructs_And_HonorsStateSetters)
     {
         MockDxuiTheme  theme;
         DxuiButton     button;

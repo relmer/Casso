@@ -242,7 +242,7 @@ public:
             L"Amber mono must zero B");
     }
 
-    TEST_METHOD (TintWhiteMono_OnRed_GivesGreyWithR_EqualsLuma)
+    TEST_METHOD (TintWhiteMono_OnRed_GivesGrayWithR_EqualsLuma)
     {
         // Pure red (luma 76) tinted white-mono should be rgb(76,76,76).
         uint32_t  out = Casso::Video::TintWhiteMono (

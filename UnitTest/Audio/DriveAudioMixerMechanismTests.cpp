@@ -214,7 +214,7 @@ public:
     TEST_METHOD (SetMechanism_beforeSetSampleLoadContext_recordsButDoesNotLoad)
     {
         // The shell calls SetMechanism on the CPU thread before
-        // SetSampleLoadContext when WASAPI is uninitialised. That
+        // SetSampleLoadContext when WASAPI is uninitialized. That
         // path must not crash and must record the chosen mechanism
         // so the eventual first load uses it.
         DriveAudioMixer  mixer;

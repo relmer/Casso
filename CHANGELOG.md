@@ -1158,7 +1158,7 @@ is preserved as the lone deliberate Win32 surface.
   - Disk II debug panel: the event-type and audio-event checkbox
     rows now have leading `Disk events:` / `Audio events:` labels
     (same width on both rows, so the checkbox columns line up
-    vertically). The audio master checkbox is relabelled `All`
+    vertically). The audio master checkbox is relabeled `All`
     (the row label carries the "audio" word now), and the four
     sub-checkboxes are now disabled when `All` is unchecked.
 

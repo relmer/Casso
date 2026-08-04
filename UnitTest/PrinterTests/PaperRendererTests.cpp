@@ -173,7 +173,7 @@ namespace PaperRendererTests
         }
 
 
-        TEST_METHOD (CompositeColoursFollowOverprint)
+        TEST_METHOD (CompositeColorsFollowOverprint)
         {
             PrintRaster              raster;
             PaperRenderer            renderer;

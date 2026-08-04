@@ -31,7 +31,7 @@ struct   DialogPaintContext;
 //                                                        without ROMs)
 //    * Otherwise              -> [Download] [Skip] [Exit]
 //
-//  After the user clicks Download, the Download button is relabelled
+//  After the user clicks Download, the Download button is relabeled
 //  "Downloading..." and disabled, the Skip button is hidden, and Exit
 //  remains active. Exit cancels in-flight downloads, deletes any
 //  partial files, and returns `Exit`.

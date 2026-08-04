@@ -109,12 +109,17 @@ See the Constitution's Principle VI (Thin Executable, Testable Core) and Princip
 - **American spelling, ALWAYS.** Use American English everywhere — identifiers,
   comments, log/UI strings, commit messages, CHANGELOG, README, and docs.
   `color` / `center` / `behavior` / `gray` / `initialize` / `optimize` /
-  `analyze` / `canceled`, NEVER `colour` / `centre` / `behaviour` / `grey` /
-  `initialise` / `optimise` / `analyse` / `cancelled`. No exceptions — this
+  `analyze`, NEVER `colour` / `centre` / `behaviour` / `grey` /
+  `initialise` / `optimise` / `analyse`. No exceptions — this
   applies even when the surrounding pre-existing text uses British spelling
   (fix your own added/modified lines regardless). Quick check on new/merged
-  code: `rg -in 'colour|behaviour|centre|grey|initialise|optimise|analyse|cancelled'`
+  code: `rg -in 'colour|behaviour|centre|grey|initialise|optimise|analyse'`
   should return zero hits in lines you authored.
+
+  `cancelled` is NOT on that list: the doubled L is standard American usage
+  too, merely less common than `canceled` in US style guides. Both are
+  accepted here, so the checker does not flag either -- which also means the
+  Win32 `ERROR_CANCELLED` family needs no special handling.
 
 ### EHM (Error Handling Macros)
 - Every function that calls a failable API must use the EHM pattern:

@@ -324,7 +324,7 @@ Error:
 //
 //  Recovers the 8bpp index plane from a PNG produced by EncodeIndexed. Fails if
 //  the image is not natively 8bpp indexed (guards against feeding it a
-//  truecolour PNG that would silently lose the index semantics).
+//  truecolor PNG that would silently lose the index semantics).
 //
 ////////////////////////////////////////////////////////////////////////////////
 

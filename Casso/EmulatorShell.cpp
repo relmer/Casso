@@ -7951,7 +7951,7 @@ public:
 
         // Create at a provisional position so the window's monitor DPI is
         // known, then size the client area to fit the DPI-scaled content
-        // and recentre. Sizing the *client* rect (via AdjustWindowRect)
+        // and recenter. Sizing the *client* rect (via AdjustWindowRect)
         // keeps a uniform margin around the content at any DPI -- a fixed
         // window height let the caption eat the client area and clipped
         // the progress bar against the bottom edge on high-DPI displays.

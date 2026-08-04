@@ -104,7 +104,16 @@ $checks = @(
         # `programme` is spelled out as `programmes?` on purpose: a trailing
         # \w* would swallow "programmed" and "programmer", which are correct
         # American English (from "program", not "programme").
-        Pattern = '(?i)\b(?:(?:colour|behaviour|centre|grey|initialise|optimise|cancelled|honour|favour|licence|modelled|labelled|signalled|catalogue)\w*|programmes?|analyse[drs]?)\b'
+        # `cancelled` is deliberately absent: the doubled L is standard American
+        # usage as well, just less common than `canceled`. Flagging it also meant
+        # fighting the Win32 ERROR_CANCELLED family, which cannot be renamed.
+        #
+        # No leading \b -- it made the rule blind to anything behind a prefix or
+        # inside PascalCase, which hid 11 real hits (unmodelled, truecolour,
+        # recentre, CompositeColoursFollowOverprint, ...) while the gate read
+        # green. The lookbehind keeps SCREAMING_SNAKE API names out of scope,
+        # which is the only thing the anchor was really protecting.
+        Pattern = '(?i)(?<!_)(?:(?:colour|behaviour|centre|grey|initialise|optimise|honour|favour|licence|modelled|labelled|signalled|catalogue)\w*|programmes?|analyse[drs]?)\b'
         Message = 'British spelling -- American spelling is required everywhere'
         # The standards document has to spell the forbidden words out to
         # forbid them, so it can never satisfy its own rule.
@@ -798,10 +807,9 @@ function Test-CommitMessages
     # pushed history, and the opt-out below did not exist when they landed.
     #
     #   b9bbb6e3  the British-spelling sweep itself. Its message quotes the
-    #             words it replaced (Colour->Color, COLOUR->COLOR, ...) and
-    #             names the EntryStatus::Cancelled enum it renamed -- precisely
-    #             the "a rule has to be able to describe itself" case that
-    #             STYLE-ALLOW-BRITISH was added for, only it landed first.
+    #             words it replaced (Colour->Color, COLOUR->COLOR, ...) --
+    #             precisely the "a rule has to be able to describe itself" case
+    #             that STYLE-ALLOW-BRITISH was added for, only it landed first.
     #
     # Note this list is only reachable because the upstream scoping above
     # misses cross-branch publication: b9bbb6e3 was pushed on its feature
