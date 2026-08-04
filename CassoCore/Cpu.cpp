@@ -474,6 +474,15 @@ void Cpu::StepOne()
 //
 //  PrintSingleStepInfo
 //
+//  One trace line per instruction: registers, flags, address, opcode bytes and
+//  disassembly, in fixed columns so a run diffs cleanly against a reference
+//  trace -- which is how this gets used.
+//
+//  The flags[][] pair is a lookup rather than seven conditionals: index 0 is
+//  all dots, index 1 the letters, so a bool selects the row and the flag's
+//  position selects the column. A clear flag shows '.' in the same column its
+//  letter would occupy, keeping the field a constant width.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void Cpu::PrintSingleStepInfo (Word initialPC, Byte opcode, const OperandInfo & operandInfo)
@@ -514,6 +523,18 @@ void Cpu::PrintSingleStepInfo (Word initialPC, Byte opcode, const OperandInfo & 
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  PrintOperandBytes
+//
+//  The raw operand bytes of an instruction, blank-padded to a fixed width so
+//  the disassembly after them stays in column no matter how many bytes the
+//  addressing mode has.
+//
+//  Grouped by SIZE rather than listed per mode: every mode taking one operand
+//  byte prints the same way, so the cases fall through to three bodies --
+//  none, one byte, two bytes.
+//
+//  Reads go through ReadByte at PC+1 / PC+2 rather than through operandInfo,
+//  so this shows what is actually in memory, including for an instruction
+//  whose operand was never decoded.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -557,6 +578,17 @@ void Cpu::PrintOperandBytes (Word initialPC, Byte opcode)
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  PrintOperandAndComment
+//
+//  Disassembly half of the single-step debug trace: renders the operand in the
+//  syntax its addressing mode would be written in, plus the value actually
+//  fetched.
+//
+//  The resolved value is the point -- `$1234,X ; $07` shows both what the
+//  source said and what it came to at run time, which is the thing a stepping
+//  session needs and static disassembly cannot give.
+//
+//  Illegal opcodes print nothing: their operand bytes were never decoded, so
+//  any rendering would be invented.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1270,6 +1302,19 @@ void Cpu::InitializeInstructionSet()
 //
 //  InitializeGroup00
 //
+//  Builds the group-00 opcodes -- the 6502's cc=00 column: branches, flag
+//  ops, the index-register loads and compares, JMP, BIT.
+//
+//  Each row is a mnemonic plus a BITMASK of the addressing modes it supports,
+//  and CreateInstruction expands that into one table entry per mode. The mask
+//  is the encoding: the 6502 derives an opcode from (mnemonic, mode) bit
+//  fields, so a row saying which modes are legal produces exactly the opcodes
+//  the hardware has, and the gaps are the illegal ones.
+//
+//  Source and destination register pointers are what let one Microcode
+//  operation serve several mnemonics -- Load with &Y is LDY, with &X is LDX --
+//  instead of an operation per register.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void Cpu::InitializeGroup00()
@@ -1309,6 +1354,13 @@ void Cpu::InitializeGroup00()
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  InitializeGroup01
+//
+//  The cc=01 column: the eight accumulator ALU operations, which are the only
+//  group where nearly every mnemonic supports the full addressing-mode set --
+//  hence __AMF_AllModes on almost every row.
+//
+//  STA is the exception, masking OFF immediate: storing to a literal has no
+//  meaning, and the hardware leaves that encoding to something else.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1351,6 +1403,18 @@ void Cpu::InitializeGroup01()
 //
 //  InitializeGroup10
 //
+//  The cc=10 column: the read-modify-write shifts and rotates, plus the X
+//  register's load/store and the memory increment/decrement.
+//
+//  Nearly every row masks OFF immediate, because these write their result
+//  back -- there is nowhere to write to a literal. LDX is the exception (it
+//  only reads) and instead masks off accumulator mode, since ASL A has meaning
+//  but LDX A does not.
+//
+//  ASL / ROL / LSR / ROR carry &A as their source register, which is how
+//  accumulator mode reaches the operation; CreateInstruction pairs that with
+//  the mode flag to produce both the `ASL A` and `ASL addr` encodings.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void Cpu::InitializeGroup10()
@@ -1391,6 +1455,16 @@ void Cpu::InitializeGroup10()
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  InitializeMisc
+//
+//  Everything the cc-column encoding does not reach: branches, flag sets and
+//  clears, stack pushes and pulls, the register transfers, BRK / RTI / RTS /
+//  JSR / NOP.
+//
+//  These carry an EXPLICIT addressing mode and cycle count per row rather than
+//  a mode bitmask, because each is a single fixed opcode with no family of
+//  variants -- there is nothing for CreateInstruction to expand. Their cycle
+//  counts are irregular for the same reason (JSR 6, RTI 6, PHA 3), so they are
+//  stated rather than derived.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1613,6 +1687,25 @@ void Cpu::InitializeUndocumented()
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  CreateInstruction
+//
+//  Expands one table row into every opcode it covers, walking the addressing-
+//  mode flags and emitting an instructionSet entry per set bit. This is what
+//  lets the group tables list eight mnemonics instead of 256 opcodes.
+//
+//  It also assigns baseCycles, and that is the subtle part. The count comes
+//  from the addressing mode, adjusted by what the operation DOES with memory:
+//
+//    isMemoryRmw  a read-modify-write to memory pays for the read, the
+//                 modify and the write ($1234 ASL is 6 cycles where LDA is 4)
+//                 -- but only in memory. Accumulator mode is 2, which is why
+//                 isRmw is further qualified by the mode.
+//
+//    isStore      an indexed store always pays the page-crossing cycle: the
+//                 hardware cannot know whether the page crossed until it has
+//                 read, and it must write regardless. Baking it in here is
+//                 what lets StepOne skip stores when applying that penalty --
+//                 the two must agree, or indexed stores are mistimed by one
+//                 cycle in every instruction.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
