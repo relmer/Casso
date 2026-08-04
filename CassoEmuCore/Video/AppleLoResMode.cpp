@@ -90,6 +90,25 @@ Word AppleLoResMode::GetActivePageAddress (bool page2) const
 //
 //  Render
 //
+//  Rasterizes the 40x48 lo-res screen from the SAME memory the text screen
+//  uses.
+//
+//  That sharing is the hardware's design, not a shortcut: lo-res and text
+//  occupy identical addresses and differ only in interpretation. So the row
+//  addressing is the text layout -- 24 rows of 40 bytes -- and each byte
+//  supplies TWO stacked blocks, low nybble on top and high nybble below,
+//  giving 48 rows out of 24.
+//
+//  Block dimensions are derived from the framebuffer size rather than
+//  hard-coded, so the same code fills whatever raster it is handed.
+//
+//  Bounds are checked per pixel because the derived block size truncates: a
+//  framebuffer whose dimensions are not exact multiples of 40 and 48 leaves a
+//  remainder, and writing it would run off the edge.
+//
+//  A null videoRam reads through the bus, honoring //e MMU banking; an
+//  explicit pointer is the standalone path.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void AppleLoResMode::Render (

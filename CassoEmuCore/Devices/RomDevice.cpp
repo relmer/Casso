@@ -78,6 +78,23 @@ void RomDevice::Reset()
 //
 //  CreateFromFile
 //
+//  Loads a ROM image and wraps it as a bus device covering an exact address
+//  range.
+//
+//  The file size must match the declared range EXACTLY -- not merely fit. A
+//  short ROM would leave a floating-bus hole in the middle of the address map
+//  rather than at a recognizable end, and a program reading it gets plausible
+//  garbage instead of an obvious failure. An oversized file is equally
+//  suspect: it is a different image than the config believes.
+//
+//  Failure returns null with a message in outError rather than throwing or
+//  asserting, because the caller is loading a user-supplied machine config and
+//  needs to report which file was wrong.
+//
+//  The message names the file, its actual size, the range, and the required
+//  size, since a ROM mismatch is nearly always a wrong-file problem and those
+//  four facts are what identify it.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 unique_ptr<MemoryDevice> RomDevice::CreateFromFile (

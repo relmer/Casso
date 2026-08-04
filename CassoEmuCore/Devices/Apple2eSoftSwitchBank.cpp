@@ -513,6 +513,25 @@ void Apple2eSoftSwitchBank::Write (Word address, Byte value)
 //
 //  Reset
 //
+//  Returns the //e switches to their power-on state, on top of the base bank's
+//  reset.
+//
+//  The //c ROM-BANK flip-flop is cleared here because /RESET clears it in
+//  hardware. Without that, a Ctrl-Reset while the alternate bank is selected
+//  would read the reset vector from the wrong bank and jump somewhere
+//  meaningless -- both power-on and Ctrl-Reset must land in the main monitor.
+//
+//  Paddle axes reset to CENTER rather than zero. Zero is a rail, so a program
+//  reading the game port before anything moves would see a controller held
+//  hard over.
+//
+//  The last-emitted paddle values reset to -1, a sentinel no real position can
+//  take, so the first event after a reset is emitted rather than suppressed as
+//  a duplicate of whatever was current before it.
+//
+//  The trigger cycle is cleared so a PREAD started before the reset cannot
+//  complete against a stale timestamp and report an arbitrary position.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void Apple2eSoftSwitchBank::Reset()

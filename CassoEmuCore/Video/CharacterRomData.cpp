@@ -30,6 +30,24 @@ CharacterRomData::CharacterRomData()
 //
 //  LoadFromFile
 //
+//  Loads a character generator ROM, accepting the two sizes that exist.
+//
+//  The SIZE selects the decoder, and the two are genuinely different layouts:
+//  a 2 KB ROM is the original single character set, while a 4 KB ROM carries
+//  the //e's primary and alternate sets and needs its own unpacking. Size is
+//  the only thing distinguishing them -- these files carry no header.
+//
+//  Any other size is REJECTED rather than partially decoded. A ROM of
+//  unexpected length is not a character generator, and decoding it anyway
+//  produces a screen of garbage glyphs that looks like a video bug rather than
+//  a bad file.
+//
+//  The read is verified against the reported size, so a truncated file fails
+//  here instead of leaving half the glyphs blank.
+//
+//  Everything asserts: the caller falls back to the embedded font, so a bad
+//  ROM is a developer-visible problem rather than a user-facing failure.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT CharacterRomData::LoadFromFile (const string & filePath)

@@ -94,6 +94,31 @@ Word AppleTextMode::GetActivePageAddress (bool page2) const
 //
 //  Render
 //
+//  Rasterizes the 40-column text screen, redrawing only the rows that changed.
+//
+//  The dirty-row cache works because the framebuffer PERSISTS between frames,
+//  so a row whose bytes are unchanged still holds a correct image and can be
+//  skipped. At a BASIC prompt that reduces a full 40x24 raster to nothing.
+//
+//  A full redraw is forced whenever the cache cannot be trusted -- the first
+//  render, a DIFFERENT target framebuffer (the shell reuses one, tests may
+//  not), or a change to page, character set, or on-color, each of which
+//  re-shapes every row rather than any particular one.
+//
+//  A flash-phase flip redraws only the rows that actually contain a flashing
+//  glyph, since the rest are unaffected by the phase.
+//
+//  Flash state is pushed in from emulated time rather than advanced here,
+//  which is what lets a steady screen skip re-rasterizing without freezing the
+//  cursor blink -- the two would otherwise be the same decision.
+//
+//  Row bytes are read into a local buffer BEFORE the compare, so the cache
+//  update is one pass and the same bytes drive both the dirty test and the
+//  stored copy.
+//
+//  A null videoRam reads through the bus instead, which is how the //e's MMU
+//  banking is honored; passing an explicit pointer is the standalone path.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void AppleTextMode::Render (

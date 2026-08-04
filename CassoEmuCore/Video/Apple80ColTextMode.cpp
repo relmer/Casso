@@ -55,6 +55,17 @@ Word Apple80ColTextMode::GetActivePageAddress (bool page2) const
 //
 //  Constants
 //
+//  The 80-column text grid and its two colors.
+//
+//  The character cell stays SEVEN dots wide, the same as 40-column text --
+//  the //e produced 80 columns by clocking dots at twice the rate, not by
+//  narrowing the glyph. So the raster is twice as wide in dots while the cell
+//  geometry is unchanged, and the same glyph data serves both modes.
+//
+//  Only two colors exist here. Text is rendered green and recolored downstream
+//  by the monitor tint, so a color monitor and each monochrome phosphor share
+//  one glyph raster instead of needing a palette per monitor type.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 static constexpr int kTextCols   = 80;
