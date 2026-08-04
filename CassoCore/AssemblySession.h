@@ -127,6 +127,9 @@ private:
     void    NormalizeBitOp             (const PendingLine & current, LineInfo & info);
     HRESULT ClassifyAndResolve         (const PendingLine & current, LineInfo & info);
     HRESULT ValidateAssemblyCompletion ();
+    
+    // Source order for the final diagnostic lists; recording order is not it.
+    void     SortDiagnosticsByLine();
 
     HRESULT ResolveEquConstants  ();
     HRESULT ReportUnresolvedEqus ();

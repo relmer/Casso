@@ -245,5 +245,34 @@ namespace ConditionalAssemblyTests
             Assert::AreEqual (2, result.errors[1].lineNumber);
             Assert::AreEqual (3, result.errors[2].lineNumber, L"innermost if last");
         }
+
+
+        ////////////////////////////////////////////////////////////////////////////////
+        //
+        //  Diagnostics_ComeOutInSourceOrder
+        //
+        //  Recording order is not source order, and this is the cheapest case
+        //  that proves it: ValidateAssemblyCompletion checks for an unclosed
+        //  MACRO before an unclosed IF, so with the macro opening AFTER the if,
+        //  the two are recorded line 2 then line 1. The final list must still
+        //  read 1 then 2 -- which pass or check noticed a problem is an
+        //  implementation detail, and sorting is what keeps it invisible.
+        //
+        ////////////////////////////////////////////////////////////////////////////////
+
+        TEST_METHOD (Diagnostics_ComeOutInSourceOrder)
+        {
+            Assembler asm6502 = BuildAssembler();
+            auto result = asm6502.Assemble (
+                "    if 1\n"
+                "test macro\n"
+                "    nop\n"
+            );
+
+            Assert::IsFalse (result.success, L"both blocks are unclosed");
+            Assert::AreEqual ((size_t) 2, result.errors.size(), L"one for the if, one for the macro");
+            Assert::AreEqual (1, result.errors[0].lineNumber, L"the if, even though it is checked second");
+            Assert::AreEqual (2, result.errors[1].lineNumber, L"the macro, even though it is checked first");
+        }
     };
 }

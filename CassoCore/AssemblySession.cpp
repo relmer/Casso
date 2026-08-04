@@ -964,7 +964,46 @@ HRESULT AssemblySession::Initialize (const std::string & sourceText)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  AssemblySession::SortDiagnosticsByLine
+//
+//  Puts errors and warnings into source order. See Run for why they are not
+//  already in it. std::stable_sort, not sort: two diagnostics on the same
+//  line must keep the order they were produced in, since the second is often
+//  a consequence of the first and reads as nonsense before it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void AssemblySession::SortDiagnosticsByLine()
+{
+    auto byLine = [] (const AssemblyError & a, const AssemblyError & b)
+    {
+        return a.lineNumber < b.lineNumber;
+    };
+
+    std::stable_sort (m_result.errors.begin(),   m_result.errors.end(),   byLine);
+    std::stable_sort (m_result.warnings.begin(), m_result.warnings.end(), byLine);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  AssemblySession::Run
+//
+//  Drives the whole assembly and hands back the result.
+//
+//  Diagnostics are sorted by line on the way out because recording order is
+//  not source order, and nothing downstream can recover it: pass 1 walks the
+//  file, then ValidateAssemblyCompletion reports unclosed blocks whose lines
+//  are behind it, then pass 2 starts again from the top, then unused-label
+//  detection adds more. An error at line 5 could otherwise print below one at
+//  line 500 purely because of which pass noticed it -- which is an
+//  implementation detail no reader of the list can see or use.
+//
+//  Stable, so several diagnostics on one line keep the order they were found
+//  in and a cascade still reads the way it happened.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -987,6 +1026,10 @@ AssemblyResult AssemblySession::Run (const std::string & sourceText)
     CHR (hr);
 
 Error:
+    // Also on the bail path: a run that stopped early still reports whatever
+    // it collected, and that list deserves the same order as a complete one.
+    SortDiagnosticsByLine();
+
     return m_result;
 }
 
