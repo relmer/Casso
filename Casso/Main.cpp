@@ -64,6 +64,24 @@ static size_t ParseTraceSize (const wstring & text)
 //
 //  ParseCommandLine
 //
+//  Reads the GUI shell's few command-line options: which machine to boot,
+//  disks to mount, and the CPU trace ring size.
+//
+//  Unrecognized arguments are IGNORED rather than rejected. This is a GUI
+//  application that Windows may launch with a shell-supplied argument, and
+//  refusing to start over one nobody asked about is worse than silently
+//  skipping it.
+//
+//  --trace accepts three spellings -- bare, space-separated size, and
+//  `=size` -- with both `--` and `/` prefixes, because it is a diagnostic flag
+//  people type from memory under time pressure.
+//
+//  The default ring is deliberately large: roughly a minute of emulated 6502
+//  time at about 340K instructions per second, which at around ten bytes per
+//  entry is a couple hundred megabytes. A trace that is too short to contain
+//  the fault is worth nothing, and anyone passing --trace has already accepted
+//  the cost.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 static HRESULT ParseCommandLine (
@@ -133,6 +151,34 @@ Error:
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  LoadMachineConfig
+//
+//  Everything that has to happen before a machine can be built: find its
+//  config, download any missing assets, resolve a boot disk, and load.
+//
+//  This runs BEFORE the shell exists, which is why it owns the startup
+//  dialogs. Both of them are UI-thread work that must complete before the
+//  emulator window appears, and neither can be deferred into the running app.
+//
+//  Missing assets are gathered into a SINGLE themed dialog rather than being
+//  prompted for one at a time -- ROMs and, with prior consent, the optional
+//  Disk ][ drive audio -- downloading them together on a worker thread with
+//  live progress. Prompting per file turns a first run into a sequence of
+//  modal dialogs.
+//
+//  ROM search paths put the install root that actually contained the resolved
+//  machine folder FIRST, ahead of the generic search paths, so a machine
+//  found in a development tree loads its ROMs from that same tree rather than
+//  from an installed copy elsewhere.
+//
+//  Asset decisions are made strictly from the EMBEDDED default for this
+//  machine plus the user's stored audio consent, not from the on-disk config,
+//  so a user-edited config cannot change what gets downloaded.
+//
+//  A user dismissing a startup dialog -- declining the download, or closing
+//  the boot-disk picker -- is a clean shutdown REQUEST, not a failure, so it
+//  travels back through outUserExited rather than as a result code. Folding it
+//  into the HRESULT would make a deliberate choice look like an error and
+//  produce a dialog complaining about it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -410,6 +456,41 @@ static LONG WINAPI TraceCrashFilter (EXCEPTION_POINTERS * info)
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  wWinMain
+//
+//  Process entry point. Everything here is startup ORDERING -- each step is
+//  placed before something that depends on it.
+//
+//  DPI awareness is set FIRST, and programmatically rather than through a
+//  manifest entry. Without per-monitor v2, Windows bitmap-scales the whole
+//  window on a high-DPI display and every pixel the renderer draws comes out
+//  blurry. Doing it in code keeps the manifest minimal; v2 has existed since
+//  Windows 10 1703, below Casso's supported floor, so its failure path is
+//  unreachable in practice.
+//
+//  The EHM notify and breakpoint hooks are installed before anything can fail,
+//  so an error during startup is still reported through the UI.
+//
+//  The breakpoint hook exists because a failed assertion in a debug build
+//  otherwise raises a raw int 3 -- fine under a debugger, but with none
+//  attached it becomes a bare "Casso.exe has stopped working" with no detail
+//  at all. Showing the assertion text and offering Abort / Retry / Ignore lets
+//  the user quit, attach a debugger and break, or continue on EHM's normal
+//  error path the way a release build would. With a debugger already attached
+//  it breaks directly: the dialog would only obscure the stack you came for.
+//
+//  --trace is applied before the CPU thread starts, because both halves must
+//  be in place first -- the ring has to be sized, and the crash-time filter
+//  installed so an illegal opcode or any unhandled exception still flushes the
+//  trace to a file on the way out.
+//
+//  Asset bootstrap runs before the machine loads, so a loose casso.exe with no
+//  Machines/ or Themes/ folder extracts its embedded copies and has both a
+//  machine to boot and chrome to render on a first launch. User-authored theme
+//  directories are preserved -- only built-in ones are touched.
+//
+//  The shell is heap-allocated so the crash filter can reach it through a file
+//  scope pointer, and so its destructor runs before the process exits rather
+//  than during static teardown.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
