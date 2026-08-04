@@ -458,6 +458,26 @@ HRESULT NibblizationLayer::Nibblize (const vector<Byte> & raw, DiskFormat fmt, D
 //
 //  Read/Find helpers for Denibblize
 //
+//  Reading nibbles and locating address / data marks in a track's raw
+//  bitstream.
+//
+//  A nibble is not a byte at a known offset. The Disk II shifts bits in until
+//  the MSB sets -- that is the state machine's own nibble-complete rule, and
+//  it is what makes self-synchronizing sync bytes work -- so a nibble read
+//  starts wherever the last one ended and takes however many bits it takes.
+//
+//  Every read is bounded by ONE REVOLUTION. A track carrying no sync bytes
+//  never sets the MSB, and without the bound the search would spin forever on
+//  a blank or corrupt track; 0 is the caller's "no nibble".
+//
+//  The overrun test deliberately sits AFTER the read and outranks a completed
+//  nibble. A value whose MSB set on the very read that crossed the revolution
+//  boundary is discarded, because its high bits came from before the wrap and
+//  the nibble is a splice of two places on the track.
+//
+//  The bit position is taken by REFERENCE and advanced, so a caller scanning
+//  for a mark walks the track continuously instead of restarting each time.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 static Byte ReadNibbleAt (const DiskImage & img, int track, size_t & bitPos)

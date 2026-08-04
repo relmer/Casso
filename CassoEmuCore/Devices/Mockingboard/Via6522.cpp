@@ -240,6 +240,21 @@ void Via6522::Tick (uint32_t cycles)
 //
 //  Reset
 //
+//  Clears every VIA register to its documented power-on state.
+//
+//  Zeroing the DATA DIRECTION registers is what makes the reset safe: both
+//  ports become inputs, so nothing is driven until software deliberately
+//  configures a direction. A reset that left an output configured would
+//  briefly drive whatever the output register happened to hold.
+//
+//  Both timers are DISARMED as well as zeroed. A counter at zero is a valid
+//  state that would otherwise underflow on the next tick and raise a spurious
+//  interrupt immediately after reset.
+//
+//  UpdateIrq is called at the end rather than relying on the cleared flag and
+//  enable registers, because the IRQ line is shared with other sources through
+//  the controller -- this is what actually releases it.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void Via6522::Reset()

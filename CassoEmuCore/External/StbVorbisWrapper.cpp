@@ -50,6 +50,27 @@
 //
 //  DecodeOggToInterleavedShort
 //
+//  Decodes an in-memory Ogg Vorbis file to interleaved 16-bit PCM.
+//
+//  Decoding from MEMORY rather than a path, because the callers already hold
+//  the bytes -- drive-audio samples arrive from the asset layer, and some are
+//  embedded resources with no file behind them at all.
+//
+//  Outputs are cleared up front, so every failure path leaves the caller with
+//  an empty result rather than a stale or partial one.
+//
+//  The INT_MAX guard exists because stb_vorbis takes an int length. Without
+//  it, a large buffer would silently truncate to a negative or wrapped value
+//  and decode nonsense instead of failing.
+//
+//  Sample rate and channel count come back from the STREAM rather than being
+//  assumed, since the caller resamples and downmixes to whatever the endpoint
+//  wants.
+//
+//  Errors carry a message string alongside the HRESULT, because a failed
+//  decode is nearly always a bad or truncated asset and the stb error code is
+//  what identifies which.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT StbVorbisWrapper::DecodeOggToInterleavedShort (

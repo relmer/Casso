@@ -175,6 +175,26 @@ void DriveAudioMixer::SetSampleLoadContext (
 //
 //  SetMechanism
 //
+//  Switches the drive-sound sample set (Shugart, Alps, ...) and reloads every
+//  live source.
+//
+//  A BAD input does not mutate state (SC-010): the mixer keeps whatever
+//  mechanism was active, so a rejected call leaves the running audio frame
+//  undisturbed rather than half-switched.
+//
+//  Matching is case-insensitive but the mechanism is STORED canonically, since
+//  the name becomes a directory component -- LoadSamples resolves
+//  <devicesDir>/<Mechanism>/, and a lowercase spelling would miss it.
+//
+//  Called before the asset context exists -- typically because WASAPI has not
+//  started -- it records the mechanism and returns, so the eventual first load
+//  uses the right subdirectory rather than the default.
+//
+//  A per-source load failure MUTES that source and is deliberately not
+//  propagated (FR-009). The mechanism switch has still succeeded from the
+//  caller's perspective, and a missing sample for one drive should not fail
+//  the whole change or leave the mixer inconsistent.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT DriveAudioMixer::SetMechanism (const wstring & mechanism)
