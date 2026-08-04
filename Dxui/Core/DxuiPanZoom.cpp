@@ -151,6 +151,24 @@ bool DxuiPanZoom::OnMouse (const DxuiMouseEvent & ev)
 //
 //  DxuiPanZoom::OnKey
 //
+//  The zoom chords: Ctrl+Plus, Ctrl+Minus, Ctrl+0.
+//
+//  Both spellings of each key are accepted -- the main row and the numeric
+//  keypad -- because Windows reports them as different virtual keys and a user
+//  who zooms from the keypad has no reason to know that.
+//
+//  Only Ctrl+key-down is claimed. Plain Plus and Minus belong to whatever else
+//  has focus, and claiming them would break typing in any field the pan-zoom
+//  surface happens to contain.
+//
+//  Zoom steps are MULTIPLICATIVE, and Ctrl+Minus applies the reciprocal of the
+//  same factor. That makes zoom-in followed by zoom-out land exactly back
+//  where it started, which an additive step could not.
+//
+//  Everything routes through ApplyZoomFactor and ResetZoom rather than
+//  assigning the zoom directly, so the anchor and clamp rules apply to the
+//  keyboard exactly as they do to the wheel.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 bool DxuiPanZoom::OnKey (const DxuiKeyEvent & ev)
@@ -196,6 +214,25 @@ bool DxuiPanZoom::OnKey (const DxuiKeyEvent & ev)
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  DxuiPanZoom::Tick
+//
+//  Advances every animated axis toward its target and reports whether anything
+//  is still in flight -- which is what tells the caller to keep asking for
+//  frames.
+//
+//  Time is passed IN rather than read here, so the animation is driven by the
+//  caller's frame clock and is fully deterministic under test.
+//
+//  A zero or negative delta -- the very first tick, or two ticks landing in
+//  the same instant -- advances nothing but still reports honestly whether a
+//  glide is outstanding. Returning false there would end the animation on its
+//  first frame and leave every axis stranded mid-glide.
+//
+//  Zoom eases on its own time constant, separate from panning, because a zoom
+//  that settles at the pan rate reads as sluggish while a pan at the zoom rate
+//  reads as twitchy.
+//
+//  Changed() fires once per tick rather than once per axis, so a frame that
+//  moves all five axes still produces a single notification.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -431,6 +468,30 @@ void DxuiPanZoom::ResetZoom()
 //
 //  DxuiPanZoom::ApplyZoomFactor
 //
+//  Multiplies the zoom target by a factor, optionally keeping the content
+//  under a cursor position fixed.
+//
+//  Cursor-anchored zoom is the whole substance here. The visible content span
+//  scales by z0/z1, so a point (anchor - center) pixels off-center moves by
+//  that same fraction; countering it needs a pan of
+//
+//    (anchor - center) * contentPerPixel * (1 - z0/z1)
+//
+//  with contentPerPixel taken at the PRE-zoom magnification, since that is the
+//  scale the displacement was measured in.
+//
+//  The vertical sign is opposite the horizontal one because screen Y increases
+//  downward while the camera's world Y increases upward -- not an error, and
+//  the thing to check first if anchored zoom ever drifts the wrong way.
+//
+//  Buttons and keyboard chords pass anchored = false and zoom about the center,
+//  which is what makes Ctrl+Plus feel stable while wheel zoom feels like it
+//  follows the pointer.
+//
+//  The clamp is applied BEFORE the anchor math and an unchanged zoom returns
+//  early, so zooming into the limit does not creep the pan on every further
+//  notch.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void DxuiPanZoom::ApplyZoomFactor (double factor, bool anchored, float anchorX, float anchorY)
@@ -505,6 +566,23 @@ void DxuiPanZoom::NudgePanX (double deltaContent)
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  DxuiPanZoom::NudgePanY
+//
+//  Moves the vertical pan target by a content delta, spilling anything past
+//  the bounds into overscroll.
+//
+//  The `user` flag distinguishes DIRECT MANIPULATION from programmatic follow,
+//  and the two must not animate alike. A drag or wheel tracks the input
+//  instantly -- easing under the user's finger reads as lag -- while a
+//  programmatic move keeps the glide, so the snap back to the live row still
+//  eases into place.
+//
+//  Only user motion fires the pan callback, which is how a caller
+//  distinguishes "the user scrolled away" from its own repositioning and
+//  avoids fighting itself.
+//
+//  Change is detected by comparing both the pan target AND the overscroll
+//  target: a delta fully absorbed into overscroll moves nothing on the pan
+//  axis but is still a visible change.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -645,6 +723,26 @@ void DxuiPanZoom::ClampTargets()
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  DxuiPanZoom::EaseToward
+//
+//  Advances one eased value toward its target, and reports whether it is still
+//  moving.
+//
+//  The glide is exponential and FRAME-RATE INDEPENDENT: the step fraction is
+//  1 - exp(-dt/tau), so the value follows the same curve in wall-clock time
+//  whether frames arrive at 60 Hz or at 30. A fixed per-frame fraction would
+//  make every animation run at the display's speed.
+//
+//  Because the step is recomputed from the current difference each tick, a
+//  target that MOVES mid-glide is handled with no special case -- the value
+//  simply chases wherever it now is.
+//
+//  Exponential decay never actually arrives, so a small epsilon snaps the last
+//  fraction and ends the animation. Without it, `moving` would stay true
+//  forever and the caller would render frames for a value that is visibly
+//  finished.
+//
+//  A tau of zero means "no easing": the value snaps and reports not-moving,
+//  which is what lets the same code path serve instant and animated modes.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

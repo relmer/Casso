@@ -98,6 +98,32 @@ void DxuiDropdown::SetSelected (int index)
 //
 //  Open
 //
+//  Opens the list, preferring a real top-level popup window and falling back
+//  to painting inside the owner.
+//
+//  Popup hosting is OPT-IN: with a host wired up, the menu renders into its
+//  own WS_POPUP HWND and can therefore extend past the owner's client area,
+//  which is what a dropdown near the bottom of a panel needs (SC-008). With no
+//  host, the in-window PaintMenu path still works -- clipped, but functional --
+//  so a caller that never wires a host is not broken, merely limited.
+//
+//  The open STATE is set before any of that and is never rolled back, so a
+//  failed popup still yields an open dropdown drawn the fallback way.
+//
+//  The two coordinate conversions run in opposite directions and are easy to
+//  get backwards. m_boundsDip holds physical CLIENT pixels despite the name
+//  (the page lays out through DxuiDpiScaler::Px), so the anchor maps straight
+//  to screen with ClientToScreen and needs no DPI scaling -- while Show scales
+//  sizeDip by the owner's DPI, so the size must be converted BACK to DIPs
+//  first.
+//
+//  The highlight opens on the current selection, or the first row when nothing
+//  is selected, so a keyboard user starts somewhere meaningful.
+//
+//  The `acquired` flag gates the cleanup: the early bails share the exit path
+//  and run before any popup exists, so releasing unconditionally would return
+//  a popup that was never taken.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void DxuiDropdown::Open()
@@ -305,6 +331,19 @@ bool DxuiDropdown::HitTest (int x, int y) const
 //
 //  ItemHitTest
 //
+//  Which list row a point falls on, for the IN-WINDOW fallback menu only.
+//
+//  A live popup owns its own hit-testing entirely -- it is a separate HWND
+//  with its own coordinate space and its own click callback -- so this returns
+//  a miss whenever one is up. Hit-testing both would double-handle every click
+//  on a hosted dropdown.
+//
+//  The fallback menu is laid out immediately below the box, so its rect is
+//  derived here rather than stored: nothing else needs it, and deriving keeps
+//  it from drifting out of step with the paint.
+//
+//  A point below the last row is a miss, not the last row.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 int DxuiDropdown::ItemHitTest (int x, int y) const
@@ -413,6 +452,22 @@ bool DxuiDropdown::OnLButtonDown (int x, int y)
 //
 //  OnLButtonUp
 //
+//  Acts on the release: commit a row, or toggle the list open and shut.
+//
+//  A box click only counts if the press ARMED it. Pressing elsewhere and
+//  releasing over the box does nothing, which is the standard cancel gesture
+//  and the reason the armed flag exists at all.
+//
+//  The armed flag is cleared before any of the branches, so no path can leave
+//  it set for the next click to inherit.
+//
+//  Committing also CLOSES, so selecting a row never leaves the list hanging
+//  open over the value it just changed.
+//
+//  A release on the box while open closes rather than re-opening, which makes
+//  the box a toggle instead of a control that cannot be dismissed by clicking
+//  the thing that opened it.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 bool DxuiDropdown::OnLButtonUp (int x, int y)
@@ -457,6 +512,25 @@ bool DxuiDropdown::OnLButtonUp (int x, int y)
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  HandleKey
+//
+//  Keyboard handling, which is two different control schemes depending on
+//  whether the list is open.
+//
+//  CLOSED, only a focused box responds, and only to the three keys that open
+//  it (Enter, Space, Down). Everything else must pass through -- a closed
+//  dropdown that swallowed arrow keys would trap keyboard navigation on the
+//  page.
+//
+//  OPEN, the list owns navigation, commit, and dismiss outright, including
+//  Escape. Focus is not re-checked, because an open list is modal in practice:
+//  it is the thing the user is interacting with.
+//
+//  Up and Down WRAP. A short list is faster to reach the end of by going the
+//  other way, and wrapping is what a dropdown does.
+//
+//  A hosted popup is explicitly marked dirty on a highlight change. It renders
+//  in its own window and is not part of the owner's paint pass, so it would
+//  otherwise show a stale highlight while the keyboard moves through it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -864,7 +938,19 @@ void DxuiDropdown::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DxuiDropdown::OnMouse  (IDxuiControl override)
+//  DxuiDropdown::OnMouse
+//
+//  The IDxuiControl entry point: unpacks the event and forwards to the
+//  per-gesture handlers, which take plain coordinates and are testable without
+//  framework events.
+//
+//  A move only updates hover and is reported unhandled, so the pointer
+//  crossing the box does not consume moves other widgets want.
+//
+//  Note that a HOSTED popup never reaches this function at all -- it lives in
+//  its own HWND and delivers its moves and clicks through the callbacks
+//  installed in Open. This path serves the box, plus the in-window fallback
+//  menu.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
