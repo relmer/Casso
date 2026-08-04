@@ -361,6 +361,14 @@ std::vector<Byte> AssemblySession::ParseIntelHex (const std::string & content)
 //
 //  GenerateByteDirectives
 //
+//  Turns a binary payload into `.byte $xx,$xx,...` source lines, which is how
+//  an included .bin / S-record / Intel-HEX file re-enters assembly: as
+//  ordinary source, so nothing downstream needs a binary path at all.
+//
+//  16 per line keeps the listing readable and bounds line length; the split
+//  point is arbitrary to the assembler, since the lines are re-parsed and
+//  concatenated into one byte stream regardless.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 std::vector<std::string> AssemblySession::GenerateByteDirectives (const std::vector<Byte> & data)
@@ -2931,6 +2939,15 @@ const AssemblySession::DirectiveRow * AssemblySession::GetDirectiveRows()
 //
 //  AssemblySession::HandlePass1Directives
 //
+//  Pass-1 dispatch, the mirror of EmitDirectiveBytes: token indexes the
+//  directive table and the pass1 column says who handles it.
+//
+//  Unlike pass 2, a null column here means NOT HANDLED rather than "handled,
+//  emits nothing" -- an unknown dotted spelling, or a directive an earlier
+//  phase already claimed -- so `handled` is false and the line falls through
+//  to whatever comes next. Same order-assert as pass 2, protecting the same
+//  index-by-token assumption.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT AssemblySession::HandlePass1Directives (const PendingLine & current, LineInfo & info, bool & handled)
@@ -2970,6 +2987,19 @@ Error:
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  AssemblySession::HandlePass1DataDirectives
+//
+//  Sizes a byte-producing directive in pass 1. Only the COUNT matters here --
+//  pass 2 computes the values -- so this advances m_pc and nothing else.
+//
+//  Evaluation is attempted first because it is the reliable count. When it
+//  fails (a forward reference, typically) the fallback counts comma-separated
+//  arguments instead, which is right for one-byte-per-argument data and keeps
+//  every later label at the correct address even though no value is known yet.
+//
+//  Errors go into a THROWAWAY list: any genuine problem will be reported again
+//  by pass 2 against the complete symbol table, and reporting here would
+//  duplicate every diagnostic and blame forward references that were about to
+//  resolve.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -3124,6 +3154,19 @@ Error:
 //
 //  AssemblySession::StartStructDefinition
 //
+//  Opens a STRUCT block: pass 1 switches to CollectingStruct, and every member
+//  line after this is measured rather than assembled until END STRUCT.
+//
+//  A struct emits nothing. It defines OFFSETS -- each member becomes a symbol
+//  whose value is its position within the struct -- which is why it tracks its
+//  own currentOffset instead of touching m_pc.
+//
+//  The optional second argument is a starting offset, so a struct can be laid
+//  over an existing memory map rather than starting at zero. A base expression
+//  that fails to evaluate falls back to zero rather than abandoning the
+//  struct, so the members are still defined and their relative offsets stay
+//  correct.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT AssemblySession::StartStructDefinition (const PendingLine & current, LineInfo & info)
@@ -3169,6 +3212,17 @@ Error:
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  AssemblySession::HandleCmapDirective
+//
+//  .CMAP installs a character translation applied to string literals in
+//  .BYTE, which is how source written in ASCII emits text in the target's
+//  encoding -- Apple II high-bit ASCII, or a custom game font where 'A' is
+//  tile 0.
+//
+//  `.cmap 0` resets to identity, the escape hatch for turning a mapping off
+//  partway through a file. Anything starting with a quote is a mapping and
+//  goes to ParseCmapMapping; anything else is ignored rather than reported,
+//  since the table is only consulted for string literals and a malformed
+//  directive costs nothing but its own line.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -3222,6 +3276,23 @@ Error:
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  AssemblySession::ParseCmapMapping
+//
+//  One .CMAP entry, in either of two forms:
+//
+//      'A' = $C1          a single character
+//      'A'-'Z' = $C1      a range, mapped consecutively from the right side
+//
+//  The range form is what makes a whole alphabet one line instead of 26, and
+//  it maps sequentially -- 'B' lands on $C2 and so on -- so a contiguous
+//  target encoding needs only its first value.
+//
+//  The dash is searched from index 1, never 0, so a quoted '-' character is
+//  not mistaken for the range separator. It must also fall before the '=' to
+//  count, which keeps a minus sign in the right-hand expression from being
+//  read as one.
+//
+//  A malformed entry is skipped silently, matching the directive above: the
+//  table simply keeps its previous value for those characters.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -3498,6 +3569,20 @@ HRESULT AssemblySession::CheckForExitm (const std::string & line, bool & isExitm
 //
 //  AssemblySession::CountExitmIfDepth
 //
+//  How many conditional blocks are still open in the lines expanded so far --
+//  which is exactly how many ENDIFs an EXITM has to synthesize to leave the
+//  file balanced.
+//
+//  Counted over the ALREADY-EXPANDED lines rather than the macro body, since
+//  substitution can change which directives are present. It is a net depth,
+//  so an IF/ENDIF pair inside the abandoned region cancels out and only the
+//  genuinely unclosed ones are counted.
+//
+//  Recognized through DirectiveTable rather than by comparing spellings here.
+//  That list used to be written out by hand, a third copy of the vocabulary
+//  that a dialect adding a synonym would not have reached -- the synonym would
+//  open a block that this loop never counted, and EXITM would under-close.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT AssemblySession::CountExitmIfDepth (const std::vector<std::string> & expandedLines, int & ifDepth)
@@ -3650,6 +3735,18 @@ HRESULT AssemblySession::ApplyMacroSubstitutions (std::string & expanded,
 //
 //  AssemblySession::StripForcedSubstitution
 //
+//  Removes the single quotes that delimit forced substitution in a macro body.
+//  They exist so a parameter can be pasted flush against surrounding text --
+//  `LDA 'PREFIX'_TABLE` substitutes PREFIX and leaves `LDA foo_TABLE`, which
+//  bare `PREFIX_TABLE` could not express because that is one identifier.
+//
+//  Substitution has already happened by this point; only the markers are left,
+//  and they must not reach the parser.
+//
+//  Quotes inside a DOUBLE-quoted string are skipped: an apostrophe in a
+//  message is text, not a marker. An unpaired quote is left alone rather than
+//  erased, so a lone apostrophe survives as a character literal.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT AssemblySession::StripForcedSubstitution (std::string & expanded)
@@ -3701,6 +3798,21 @@ HRESULT AssemblySession::StripForcedSubstitution (std::string & expanded)
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  AssemblySession::HandleColonlessLabel
+//
+//  Handles the traditional 6502 form where a label needs no colon and is
+//  identified purely by starting in column 0:
+//
+//      loop    LDA $00        <- `loop` is a label, LDA is the instruction
+//
+//  This runs LAST, after opcodes, bit-ops and macros have all had their turn,
+//  because "a word in column 0" is otherwise indistinguishable from any of
+//  them. Reaching here means the word matched nothing else, so it must be a
+//  label -- the elimination is the identification.
+//
+//  Anything following the label is pushed back onto the queue as its own line
+//  rather than assembled here, so it re-enters through the ordinary path and
+//  the split needs no second copy of the instruction logic. The mnemonic and
+//  operand are then cleared, since this line is now only the label.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -3777,6 +3889,14 @@ Error:
 //
 //  AssemblySession::ExtractColonlessLabelName
 //
+//  Takes the label from the RAW source line rather than from the parsed
+//  mnemonic. The parser uppercases mnemonics, and a label's case is
+//  significant -- lifting it from info.parsed.mnemonic would define `Loop` as
+//  `LOOP` and leave every reference to it unresolved.
+//
+//  It is the first whitespace-delimited word, with any trailing comment cut,
+//  so `loop; entry point` yields `loop` rather than swallowing the comment.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT AssemblySession::ExtractColonlessLabelName (const PendingLine & current, std::string & labelName)
@@ -3827,6 +3947,20 @@ HRESULT AssemblySession::ExtractColonlessLabelName (const PendingLine & current,
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  AssemblySession::NormalizeBitOp
+//
+//  Folds the as65 spelling of the Rockwell bit operations into the suffixed
+//  one, so only a single form reaches the classifier and the opcode table:
+//
+//      RMB 3,$12        ->  RMB3 $12
+//      BBS 0,$12,tgt    ->  BBS0 $12,tgt
+//
+//  The bit number must be a pass-1 constant 0..7, since it selects the OPCODE
+//  rather than being encoded as an operand -- there is no byte to defer it to,
+//  and a forward reference could not be widened the way an address can.
+//
+//  Fewer than two operands is left alone rather than reported here, so the
+//  ordinary addressing-mode path produces the diagnostic and this stays a
+//  normalization step with one error of its own.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -3886,6 +4020,20 @@ void AssemblySession::NormalizeBitOp (const PendingLine & current, LineInfo & in
 //
 //  AssemblySession::ClassifyAndResolve
 //
+//  Pass-1 handling of an instruction line: normalize the mnemonic, classify
+//  the operand syntax, try to resolve its value, and settle the addressing
+//  mode and size.
+//
+//  The value is attempted in pass 1 because SIZE depends on it -- $12 is a
+//  two-byte zero-page instruction while $1234 is three -- and every label
+//  after this line takes its address from that size.
+//
+//  A failure splits on hasUnresolved. An undefined symbol is expected here:
+//  it is a forward reference, pass 2 will have it, and the mode falls back to
+//  the wider form so the size is right either way. Any OTHER failure is a real
+//  expression error and is reported now, since waiting for pass 2 would report
+//  it against a symbol table that had since changed.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT AssemblySession::ClassifyAndResolve (const PendingLine & current, LineInfo & info)
@@ -3939,6 +4087,21 @@ Error:
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  AssemblySession::ResolveAddressingAndSize
+//
+//  Picks the addressing mode and advances m_pc by the instruction's size --
+//  the single most consequential thing pass 1 does, since every later label's
+//  address depends on getting the size right the first time.
+//
+//  When the chosen mode has no encoding for this mnemonic, the zero-page forms
+//  are retried as their absolute equivalents. That is what makes a forward
+//  reference work: an unresolved operand looks small, would classify as zero
+//  page, and would reserve two bytes for an instruction that turns out to need
+//  three. Widening keeps the reservation correct even when the value is not
+//  yet known.
+//
+//  The widening only ever goes zero-page -> absolute, never the reverse.
+//  Reserving too much would leave a gap; reserving too little would overlap
+//  the next instruction, and every address after it would be wrong.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -4070,6 +4233,15 @@ HRESULT AssemblySession::ValidateAssemblyCompletion()
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  AssemblySession::HandleMultiNop
+//
+//  as65's `NOP <count>`, which emits `count` NOPs rather than one. Rewritten
+//  here into a synthetic .MULTINOP directive so pass 2 emits it through the
+//  ordinary directive path instead of needing an instruction special case.
+//
+//  `handled` is set even when the count does not resolve or is not positive:
+//  the line WAS a multi-NOP, and letting the instruction path re-read it would
+//  try to encode `NOP` with an operand and report a bogus addressing-mode
+//  error on top of the real one.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
