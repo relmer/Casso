@@ -14,6 +14,26 @@
 //
 //  Microcode
 //
+//  One instruction's decoded description: what OPERATION it performs, how it
+//  ADDRESSES its operand, its size, and its cycle cost.
+//
+//  Separating the operation from the addressing mode is the whole design. The
+//  6502's 256 opcodes are largely a cross product of a few dozen operations
+//  and a dozen addressing modes, so describing them as a table of pairs
+//  collapses what would otherwise be 256 hand-written cases into one operand
+//  fetch and one operation dispatch. Adding an addressing mode to an existing
+//  operation costs a table row.
+//
+//  The undocumented NMOS opcodes fit that model rather than breaking it: each
+//  fuses a memory or register step with a following ALU primitive, and the ALU
+//  step owns the final flags. Naming them that way (ShiftLeftAndOr for SLO) is
+//  what lets them reuse the existing primitives instead of needing bespoke
+//  implementations.
+//
+//  65C02 operations sit in the same enum but are never referenced by the NMOS
+//  instruction table, so NMOS dispatch is unaffected by their presence -- one
+//  enum serves both cores with no runtime cost to either.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 class Microcode

@@ -50,6 +50,29 @@ struct ExprResult
 //
 //  ExpressionEvaluator
 //
+//  Evaluates an assembler expression against a symbol table and a program
+//  counter.
+//
+//  A pure STATIC entry point taking its context by parameter, so evaluation
+//  carries no state between calls and can be tested by passing a string and a
+//  symbol map.
+//
+//  Precedence is expressed as a TABLE -- one row per binary operator, naming
+//  its token, its binding level, and how it folds its operands. That replaced
+//  ten hand-written parse levels that were identical apart from their token
+//  set and which function they called next. Precedence used to live only in
+//  that call order, so it could not be read without tracing all ten; now it is
+//  a column.
+//
+//  The tokenizer is declared here and defined in the .cpp because it is a few
+//  hundred lines of pure implementation detail with no business in a header.
+//  TokType cannot follow it: a nested enumeration has to be complete where the
+//  class is defined.
+//
+//  An unresolved symbol is reported distinctly from an expression error, since
+//  the caller needs to tell a legitimate forward reference in pass 1 from a
+//  genuine mistake.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 class ExpressionEvaluator

@@ -142,6 +142,22 @@ struct MacroDefinition
 //
 //  ConditionalState
 //
+//  One frame of the conditional-assembly stack: an IF / IFDEF block and
+//  whether its body is being assembled.
+//
+//  parentAssembling is separate from assembling because nesting is not a
+//  simple AND at the point of use. An ELSE has to flip the block's own state
+//  WITHOUT resurrecting a body whose enclosing block is skipped, so the two
+//  facts must be tracked independently rather than folded into one flag.
+//
+//  seenElse makes a second ELSE in one block detectable, which is otherwise
+//  indistinguishable from a legal one.
+//
+//  openLineNumber is carried purely for diagnostics. An unclosed block leaves
+//  nothing behind at the point of failure, so without it the end-of-pass error
+//  can only say how many levels are open and blame the end of the file --
+//  which is never where the fix goes.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 struct ConditionalState

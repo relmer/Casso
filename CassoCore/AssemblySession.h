@@ -52,6 +52,29 @@ struct PendingLine
 //
 //  AssemblySession
 //
+//  One run of the assembler over one source text: two passes, and all the
+//  state they share.
+//
+//  A SESSION rather than methods on Assembler, so every assembly starts from a
+//  clean slate. Symbols, macros, the conditional stack, and the output image
+//  are all per-run state, and holding them on a long-lived object is how a
+//  second assembly ends up contaminated by the first.
+//
+//  Two passes because forward references demand it. Pass 1 walks the pending
+//  lines to size and bind every instruction and label; pass 2 walks the
+//  recorded line info to emit bytes, by which time every symbol is known.
+//
+//  The two walk DIFFERENT collections on purpose. Pass 1 consumes a deque that
+//  macros and includes splice into at the front -- expansion happens by
+//  requeuing lines, so the same pass handles them with no recursion -- while
+//  pass 2 walks the flat line list pass 1 produced.
+//
+//  Directives live in ONE table spanning both passes, not two. The passes
+//  previously kept independent lists of which directives exist and could
+//  disagree about it; a single row per directive makes that impossible, and
+//  the uniform handler shape per pass is what lets dispatch be an array
+//  indexed by token rather than an if-chain.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 class AssemblySession

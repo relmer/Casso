@@ -11,6 +11,28 @@
 //
 //  Cpu
 //
+//  The 6502 core: registers, a private 64 KB memory array, and the microcode
+//  table that drives execution.
+//
+//  This class owns its OWN memory rather than reading through a bus, which is
+//  what makes it usable standalone -- the CLI runs programs against it with no
+//  machine, no devices, and no configuration, and the conformance suites drive
+//  it directly. The emulator layers a bus-backed CPU over it rather than the
+//  other way around.
+//
+//  Execution is TABLE-DRIVEN through Microcode: an opcode indexes a row
+//  carrying its operation, addressing mode, size, and cycle count, so
+//  StepOne is one operand fetch plus one operation dispatch instead of a
+//  256-case switch.
+//
+//  CpuOperations is a friend so the ALU primitives can act on registers and
+//  flags directly. They are the CPU's own internals split out for readability,
+//  not an external collaborator.
+//
+//  Peek and Poke are deliberately side-effect free and are what the
+//  disassembler and debugger read through; nothing here dispatches to a
+//  device, so inspecting memory can never disturb the machine.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 class Cpu

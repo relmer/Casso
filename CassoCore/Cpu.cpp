@@ -1796,7 +1796,22 @@ Error:
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  LoadBinary
+//  LoadBinary  (stream)
+//
+//  Loads a raw image from a stream directly into CPU memory at an address.
+//
+//  Read straight into the memory array with no intermediate buffer, since the
+//  destination is a plain byte array of known size and copying through a
+//  vector would double the work for a 64 KB image.
+//
+//  The two failure kinds are reported DIFFERENTLY on purpose. A stream fault
+//  is the environment's problem and asserts; a negative size (tellg failed) or
+//  an image that would run off the top of memory is the CALLER's problem and
+//  returns E_INVALIDARG. Collapsing them would make a caller's bad address
+//  look like a broken file.
+//
+//  The bounds test is written as size <= memSize - address rather than
+//  address + size <= memSize, so it cannot overflow on a large address.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
