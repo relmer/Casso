@@ -52,6 +52,25 @@ struct CrtParams
 //
 //  MakeCrtParams
 //
+//  Resolves the CRT shader parameters for one monitor mode from three layered
+//  sources.
+//
+//  The layering is the whole job: a user override wins, otherwise the active
+//  theme's crtDefaults apply, otherwise the built-in defaults. That is what
+//  lets a theme ship a distinctive look while a user who has customized
+//  anything keeps their settings across a theme change -- the per-mode
+//  userOverride flag is what decides which side of that line a value falls on.
+//
+//  Parameters are resolved PER MODE, since color and the three monochrome
+//  phosphors want different scanline and bloom strengths.
+//
+//  Output dimensions are taken because several parameters are expressed
+//  relative to the rendered size, so the same settings look the same at any
+//  window size.
+//
+//  Declared as a free function so the resolution rules can be unit-tested
+//  without a device, a window, or a theme manager.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 CrtParams  MakeCrtParams      (const GlobalUserPrefs::Crt & prefsCrt,
@@ -66,7 +85,24 @@ CrtParams  MakeCrtParams      (const GlobalUserPrefs::Crt & prefsCrt,
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  ComputeLetterboxRect
+//  Letterbox and aspect-fit geometry
+//
+//  Where the emulator image lands inside a larger surface, preserving its
+//  aspect ratio.
+//
+//  Three overloads exist because the callers differ in what they know. One
+//  fits against raw back-buffer dimensions, one against an arbitrary content
+//  rect (the desk scene's monitor recess, a print preview), and one takes an
+//  explicit aspect for content that is not the Apple II framebuffer.
+//
+//  All three are free functions rather than renderer methods, so the fit
+//  arithmetic -- the part that is easy to get subtly wrong and that shows up
+//  immediately as a stretched or offset image -- is unit-testable with no GPU
+//  at all.
+//
+//  They return a rect rather than mutating renderer state, so a caller can ask
+//  where the image WOULD go, which is what hit-testing and the screen-rect
+//  cache both need.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -42,6 +42,30 @@ static void WriteHexByte (std::ostream & stream, Byte value)
 //
 //  WriteSRecord
 //
+//  Emits the assembled image as Motorola S-records: an S0 header, S1 data
+//  records, and an S9 termination record carrying the entry point.
+//
+//  All three record types are written, not just the data. Programmers and
+//  loaders reject a stream that ends without a termination record, and the
+//  entry point has nowhere else to live in this format.
+//
+//  Sixteen data bytes per record is the near-universal convention. The format
+//  permits more, but tools and terminals of the era expect a line of this
+//  width, and matching it is the whole reason to emit S-records at all.
+//
+//  The checksum is accumulated as each field is written rather than computed
+//  afterwards over a buffer, so it cannot drift from what was actually
+//  emitted. It covers the byte count, the address, and the data, then is
+//  one's-complemented -- the format's own definition.
+//
+//  The byte count includes the two address bytes and the checksum itself, not
+//  merely the payload; getting that wrong produces records that look right and
+//  load short.
+//
+//  A data length beyond the supplied buffer is clamped, so a caller passing an
+//  end address past the end of its data truncates cleanly instead of reading
+//  off the end.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void OutputFormats::WriteSRecord (const std::vector<Byte> & data, Word startAddr, Word endAddr, Word entryPoint, std::ostream & stream)
@@ -146,6 +170,24 @@ void OutputFormats::WriteSRecord (const std::vector<Byte> & data, Word startAddr
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  WriteIntelHex
+//
+//  Emits the assembled image as Intel HEX: data records, then an
+//  end-of-file record.
+//
+//  Structurally the twin of WriteSRecord, with two differences that are easy
+//  to conflate when editing both. Intel HEX byte-counts only the DATA -- not
+//  the address, record type, or checksum, as S-records do -- and its checksum
+//  is the TWO'S complement of the sum, where S-records use the one's
+//  complement. Copying either rule across produces a file every loader
+//  rejects.
+//
+//  Sixteen bytes per record again matches what tools of the era expect.
+//
+//  The checksum is accumulated as fields are written, so it cannot drift from
+//  what was emitted.
+//
+//  A data length beyond the supplied buffer is clamped, so an end address past
+//  the end of the data truncates cleanly.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
