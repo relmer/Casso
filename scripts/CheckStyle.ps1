@@ -794,6 +794,20 @@ function Test-CommitMessages
 
     $shas = git -C $repoRoot rev-list "$Base..$Tip" 2>$null
 
+    # Grandfathered messages: already published, so unfixable without rewriting
+    # pushed history, and the opt-out below did not exist when they landed.
+    #
+    #   b9bbb6e3  the British-spelling sweep itself. Its message quotes the
+    #             words it replaced (Colour->Color, COLOUR->COLOR, ...) and
+    #             names the EntryStatus::Cancelled enum it renamed -- precisely
+    #             the "a rule has to be able to describe itself" case that
+    #             STYLE-ALLOW-BRITISH was added for, only it landed first.
+    #
+    # Note this list is only reachable because the upstream scoping above
+    # misses cross-branch publication: b9bbb6e3 was pushed on its feature
+    # branch, never on master, so master's first push re-scans it as "unpushed".
+    $grandfathered = @('b9bbb6e3')
+
     foreach ($sha in $shas)
     {
         $body  = git -C $repoRoot log -1 --format=%B $sha 2>$null | Out-String
@@ -808,7 +822,9 @@ function Test-CommitMessages
         # Suppress precedent above. A spelling-sweep commit has to name the
         # words it is replacing, exactly as copilot-instructions.md does, and a
         # rule that cannot describe itself is one people route around.
-        if ($body -match $britishRule.Pattern -and $body -notmatch 'STYLE-ALLOW-BRITISH')
+        if ($body -match $britishRule.Pattern -and
+            $body -notmatch 'STYLE-ALLOW-BRITISH' -and
+            $short -notin $grandfathered)
         {
             $bad += "commit ${short} -- $($britishRule.Message) (found '$($Matches[0])')"
         }
