@@ -4720,6 +4720,19 @@ HRESULT AssemblySession::EmitDsDirective (const LineInfo & info, Word & emitPC)
 //
 //  AssemblySession::EmitAlignDirective
 //
+//  Pads forward to the next multiple of `alignment`, defaulting to 2. The
+//  padding is emitted as m_options.fillByte rather than skipped, for the same
+//  reason as .DS: the gap ends up with a defined value in the image.
+//
+//  Pass 1 already advanced the PC by the same amount, so this has to agree
+//  with it exactly -- both compute alignment - (pc % alignment). If the two
+//  ever disagreed, every label after the .ALIGN would be at an address the
+//  emitted bytes do not occupy.
+//
+//  A bad or absent expression falls back to 2 rather than erroring, and
+//  alignment <= 0 pads nothing (guarding the modulo, which would be undefined
+//  at zero).
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT AssemblySession::EmitAlignDirective (const LineInfo & info, Word & emitPC)
@@ -4804,6 +4817,23 @@ Error:
 //
 //  AssemblySession::ResolveInstructionValue
 //
+//  Produces the operand value an instruction will encode, from whichever
+//  source has it: pass 1 already resolved it, or the expression is evaluated
+//  now against the full symbol table.
+//
+//  Pass 1 resolving it does not make the expression uninteresting -- the
+//  symbols it names still count as referenced, which is what feeds
+//  DetectUnusedLabels. Skipping that on the already-resolved path would report
+//  every label used only by an early-resolved instruction as unused.
+//
+//  Accumulator and no-operand forms are excluded from evaluation because they
+//  have no expression to evaluate; asking would produce an error for a
+//  perfectly valid `ASL A`.
+//
+//  `emit` is what a failure clears, so the caller skips the byte emission
+//  without treating it as an infrastructure fault -- the error is already
+//  recorded and the assembly continues.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT AssemblySession::ResolveInstructionValue (const LineInfo & info, int32_t & value, bool & emit)
@@ -4878,6 +4908,28 @@ HRESULT AssemblySession::ResolveInstructionValue (const LineInfo & info, int32_t
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  AssemblySession::EmitInstructionBytes
+//
+//  Opcode plus operand, with the two addressing modes that need arithmetic
+//  handled before the general case.
+//
+//  Relative: a branch encodes a signed displacement from the address AFTER
+//  the instruction, hence pc + 2 rather than pc. Out of range is reported but
+//  the truncated byte is still emitted, so the image keeps the size pass 1
+//  reserved and every later label stays at its computed address -- one bad
+//  branch reports itself instead of shifting the rest of the file.
+//
+//  ZeroPageRelative (65C02 BBRn/BBSn) carries TWO operands: `value` is the
+//  already-resolved zero-page address, while the branch target is a second
+//  expression evaluated here. Its displacement is from pc + 3, since the
+//  instruction is three bytes. All three bytes are emitted even when the
+//  target fails to resolve, for the same size-stability reason.
+//
+//  Everything else takes its operand width from the opcode table rather than
+//  from the mode, and writes little-endian for the two-byte forms.
+//
+//  Symbols named in the second expression are marked referenced here, because
+//  ResolveInstructionValue only ever sees the first one -- without this, a
+//  label used solely as a BBRn branch target would be reported unused.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -4992,6 +5044,18 @@ HRESULT AssemblySession::EmitInstructionBytes (const LineInfo & info, int32_t va
 //
 //  AssemblySession::BuildListingEntry
 //
+//  One listing row per source line, called for EVERY line pass 2 walks --
+//  including lines that emitted nothing -- so the listing stays line-for-line
+//  with the source rather than only showing lines that produced bytes.
+//
+//  The emitted bytes are read back out of m_image between the PC before and
+//  after, rather than accumulated as they are written. That way the listing
+//  shows what actually landed in the image, which is the thing being
+//  verified; anything that wrote by another route still appears.
+//
+//  Cycle counts are attached only to instructions that both succeeded and
+//  emitted, since a failed or zero-byte line has no timing to report.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT AssemblySession::BuildListingEntry (const LineInfo & info, Word emitPCStart, Word emitPC,
@@ -5051,6 +5115,19 @@ Error:
 //
 //  AssemblySession::ExtractImage
 //
+//  Trims the 64 KB working image down to the span actually written, tracked
+//  as m_lowestAddr / m_highestAddr by EmitByte. That span is what makes the
+//  output a loadable image rather than a 64 KB blob of fill byte.
+//
+//  It also OVERWRITES m_result.startAddress, which .org set earlier: a source
+//  whose first .org is followed by writes below it should load at the lowest
+//  byte it actually produced, not at where it declared it would start.
+//
+//  lowest > highest means nothing was ever emitted -- a source of only
+//  comments, equates or skipped conditionals. That yields an empty image
+//  rather than a reversed range, and end is pinned to start so the empty
+//  result still describes a valid (zero-length) span.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT AssemblySession::ExtractImage()
@@ -5082,6 +5159,23 @@ HRESULT AssemblySession::ExtractImage()
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  AssemblySession::DetectUnusedLabels
+//
+//  Warns about labels nothing refers to -- usually dead code or a rename that
+//  missed one site.
+//
+//  Instruction operands were marked referenced as pass 2 encoded them; this
+//  sweeps directive arguments, which pass 2 never had reason to attribute.
+//  Both use substring matching rather than re-parsing, so a symbol whose name
+//  appears inside a longer identifier counts as referenced. Deliberately
+//  lenient: this only drives a warning, and a false "unused" on a label that
+//  IS used is far more annoying than missing one that is not.
+//
+//  Only SymbolKind::Label is considered. An unreferenced .EQU or .SET is
+//  ordinary -- headers define constants a given source may not use -- so
+//  warning about those would make the whole check noise.
+//
+//  Runs after pass 2 because that is when the reference set is complete, and
+//  warns rather than errors: an unused label assembles perfectly well.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
