@@ -73,6 +73,13 @@ public:
     virtual void          SetSlotC3Rom   (bool v) = 0;
     virtual void          ResetIntC8Rom  () = 0;
 
+    // Deliberately Get*, not Is*, despite returning bool. Each one names an
+    // Apple //e soft switch -- RAMRD, RAMWRT, ALTZP, 80STORE, INTCXROM,
+    // SLOTC3ROM -- and the hardware name already carries the meaning: true is
+    // the switch set. Is80Store reads badly, and the honest alternatives
+    // (Is80StoreEnabled, Get80StoreSwitchState) add length without adding
+    // information. Paired with the Set* above, Get* is the clearer half.
+    // A naming sweep should leave these alone.
     virtual bool          GetRamRd       () const = 0;
     virtual bool          GetRamWrt      () const = 0;
     virtual bool          GetAltZp       () const = 0;

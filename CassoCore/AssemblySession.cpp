@@ -796,6 +796,17 @@ void AssemblySession::RecordError (int lineNumber, const std::string & message)
 //
 //  AssemblySession::RecordWarning
 //
+//  The single place -Wxxx policy is applied, so callers report a concern once
+//  and never branch on the mode themselves.
+//
+//  FatalWarnings does not merely also-record an error -- it clears
+//  m_result.success, which is what actually fails the assembly. A warning
+//  routed to the errors list without that flag would print like a failure and
+//  still exit zero.
+//
+//  NoWarn drops the message entirely rather than recording it quietly, so a
+//  suppressed warning costs nothing downstream.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void AssemblySession::RecordWarning (int lineNumber, const std::string & message)
@@ -892,6 +903,21 @@ void AssemblySession::EmitByte (Byte b, Word & emitPC)
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  AssemblySession::Initialize
+//
+//  Resets the session and seeds the symbol table before pass 1 walks a line.
+//
+//  m_result.success starts TRUE and is cleared by whatever goes wrong, so
+//  "nothing failed" needs no final decision -- the absence of a failure is the
+//  success. Every recorded error clears it.
+//
+//  The three InjectBuiltin symbols exist so `IFDEF __65SC02__` is answerable
+//  in a plain 6502 assembly rather than an unresolved-symbol error: they are
+//  defined-but-zero, which is exactly what IFDEF tests for and IF does not.
+//  Caller-supplied predefines land afterwards and may overwrite them.
+//
+//  Lines become PendingLine records up front rather than being read as the
+//  pass goes, because macro expansion splices generated lines into this same
+//  queue -- pass 1 consumes a queue that can grow while it is being walked.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1006,6 +1032,16 @@ Error:
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  AssemblySession::ProcessPass1Line
+//
+//  One source line through pass 1: parse it, seed a LineInfo with the state
+//  pass 2 will need, run the stage chain, and record the result.
+//
+//  The seeding is exhaustive on purpose. Every field is set before the stages
+//  run -- including the false / zero ones -- so a stage that claims the line
+//  without touching a field leaves a known value rather than whatever the
+//  previous iteration left. `pc` in particular is captured HERE, before any
+//  stage can advance it, because pass 2 needs the address this line started
+//  at, not the one after it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -2068,6 +2104,18 @@ HRESULT AssemblySession::HandleIfdefDirective (const PendingLine & current,
 //
 //  AssemblySession::HandleElseDirective
 //
+//  Flips the innermost conditional -- but only when its PARENT was assembling.
+//  Inside a block the enclosing conditional already excluded, both arms must
+//  stay off; flipping unconditionally would turn the else arm on and emit code
+//  from a region the author ruled out two levels up.
+//
+//  seenElse makes a second ELSE an error rather than a second flip, which
+//  would otherwise toggle the block back on and assemble both arms.
+//
+//  A stray ELSE records an error and changes nothing. Assembly continues, so
+//  one unbalanced directive reports itself instead of cascading into every
+//  conditional after it.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT AssemblySession::HandleElseDirective (const PendingLine & current)
@@ -2105,6 +2153,15 @@ HRESULT AssemblySession::HandleElseDirective (const PendingLine & current)
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  AssemblySession::HandleEndifDirective
+//
+//  Closes the innermost conditional by popping it, which restores whatever
+//  the enclosing block's assembling state was -- the stack IS the nesting, so
+//  no state has to be saved or restored by hand.
+//
+//  An ENDIF with nothing open records an error and pops nothing. The guard is
+//  load-bearing rather than defensive: pop_back on an empty vector is
+//  undefined, so a source file with one stray ENDIF could otherwise take the
+//  assembler down instead of reporting itself.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
