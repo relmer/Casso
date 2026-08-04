@@ -313,6 +313,24 @@ bool DxuiSlider::OnMouseMove (int x, int y)
 //
 //  OnKey
 //
+//  Keyboard adjustment: the standard slider bindings.
+//
+//  Both axes are bound -- Left/Down decrease, Right/Up increase -- because the
+//  widget does not know whether its host laid it out horizontally or
+//  vertically, and binding one axis would leave half the layouts unusable.
+//
+//  Page Up and Page Down move ten steps, so a slider with a fine step is still
+//  crossable from the keyboard without holding an arrow down. Home and End go
+//  straight to the rails.
+//
+//  Everything routes through ApplyValue, so clamping, snapping, and the change
+//  notification are identical to what a drag produces -- the keyboard cannot
+//  reach a value the mouse could not.
+//
+//  The keyboard callback fires only on a CONSUMED key, and it is separate from
+//  the value change: hosts use it to distinguish deliberate keyboard
+//  adjustment from a drag, typically to keep a focus indicator alive.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 bool DxuiSlider::OnKey (WPARAM vk)
@@ -567,7 +585,18 @@ void DxuiSlider::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const 
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DxuiSlider::OnMouse  (IDxuiControl override)
+//  DxuiSlider::OnMouse
+//
+//  The IDxuiControl entry point: unpacks the event and forwards to the
+//  per-gesture handlers, which take plain coordinates and are testable without
+//  framework events.
+//
+//  A move is routed by DRAG STATE, not by position. Mid-drag it adjusts the
+//  value and is claimed -- the pointer has usually left the track by then, and
+//  hit-testing would hand the drag to whatever is under the cursor. Otherwise
+//  it is only a hover update and is reported unhandled.
+//
+//  Only the left button acts; a right-click belongs to the host.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

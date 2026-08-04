@@ -98,7 +98,16 @@ void DxuiIconButton::Layout (const RECT & boundsDip, const DxuiDpiScaler & scale
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  OnMouse  (IDxuiControl override)
+//  OnMouse
+//
+//  The IDxuiControl entry point: unpacks the event and forwards to the
+//  per-gesture handlers, which take plain coordinates and are testable without
+//  framework events.
+//
+//  A move only updates hover and is reported unhandled, so the pointer
+//  crossing the button does not consume moves other widgets want.
+//
+//  Only the left button acts; a right-click belongs to the host.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -176,7 +185,22 @@ bool DxuiIconButton::OnKey (const DxuiKeyEvent & ev)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  Paint  (IDxuiControl override)
+//  Paint
+//
+//  Draws a glyph-only button: no border, no fill, until it is interacted with.
+//
+//  The glyph comes from Segoe MDL2 Assets, so these buttons use the same icon
+//  set as the rest of Windows and need no bitmap assets shipped or scaled.
+//
+//  An idle icon button paints ONLY its glyph. That is what makes a row of them
+//  read as a strip of icons rather than a row of boxes; the hover fill appears
+//  only when the pointer is actually over one.
+//
+//  Hover changes the glyph to the accent color as well as filling the
+//  background, so the affordance is legible even where the fill is subtle.
+//
+//  The focus ring insets NEGATIVELY -- drawn just outside the bounds -- so it
+//  never crowds the glyph in what is already a small target.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

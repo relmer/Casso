@@ -158,6 +158,28 @@ bool DxuiButton::OnKey (WPARAM vk)
 //
 //  DxuiButton::Paint
 //
+//  Draws the button in one of three variants: standard, primary, or link.
+//
+//  Link exits early and is the whole job when it applies -- accent-colored
+//  left-aligned text with no fill and no border, i.e. a hyperlink. It shares
+//  this class rather than being its own widget because it is a button in every
+//  respect except its chrome.
+//
+//  Hover and pressed states are derived by LIGHTENING or darkening the base
+//  color rather than by reading three separate theme swatches. That is what
+//  keeps a custom or user-authored theme from having to define an interaction
+//  palette to look right; it only has to define the base.
+//
+//  The primary variant forces white text and checks it against a minimum
+//  contrast RATIO rather than assuming the accent is dark, so a light accent
+//  color does not produce an unreadable button.
+//
+//  Disabled state masks ALPHA rather than substituting a color, so it follows
+//  whatever the theme's button colors are.
+//
+//  The focus ring insets NEGATIVELY -- it is drawn just outside the bounds, so
+//  it never eats into the button's own edge or its label.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void DxuiButton::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
@@ -328,7 +350,16 @@ void DxuiButton::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DxuiButton::OnMouse  (IDxuiControl override)
+//  DxuiButton::OnMouse
+//
+//  The IDxuiControl entry point: unpacks the event and forwards to the
+//  per-gesture handlers, which take plain coordinates and are testable without
+//  framework events.
+//
+//  A move only updates hover and is reported unhandled, so the pointer
+//  crossing the button does not consume moves other widgets want.
+//
+//  Only the left button acts; a right-click belongs to the host.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

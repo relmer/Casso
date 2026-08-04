@@ -142,6 +142,21 @@ bool DxuiTabStrip::OnLButtonUp (int x, int y)
 //
 //  OnKey
 //
+//  Left / Right arrow navigation between tabs.
+//
+//  Only the horizontal axis is bound, unlike the radio group's four -- a tab
+//  strip is always laid out horizontally, so Up and Down belong to whatever
+//  the tab is displaying.
+//
+//  Selection WRAPS at both ends, matching the platform convention for tabs.
+//
+//  Moving the selection COMMITS it, so arrowing through tabs switches pages as
+//  it goes. That is what a tab strip does; there is no separate activation
+//  step to require.
+//
+//  An unselected strip enters at the first tab going right and the last going
+//  left, so the first key press always lands somewhere sensible.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 bool DxuiTabStrip::OnKey (WPARAM vk)
@@ -370,7 +385,16 @@ void DxuiTabStrip::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DxuiTabStrip::OnMouse  (IDxuiControl override)
+//  DxuiTabStrip::OnMouse
+//
+//  The IDxuiControl entry point: unpacks the event and forwards to the
+//  per-gesture handlers, which take plain coordinates and are testable without
+//  framework events.
+//
+//  A move only updates hover and is reported unhandled, so the pointer
+//  crossing the strip does not consume moves other widgets want.
+//
+//  Only the left button acts; a right-click belongs to the host.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -219,6 +219,25 @@ void DxuiListView::ProvideRow (int r, std::vector<Cell> & out) const
 //
 //  NoteAutoFitRow
 //
+//  Tracks the widest cell seen per auto-sized column, so column widths can be
+//  fitted to real content.
+//
+//  Width is measured in CHARACTERS, not pixels, because this is called from
+//  the row-append path where no text renderer is available. It is an
+//  approximation, and a proportional font makes it a loose one, but it is
+//  computed for free on data the caller already has -- measuring every cell
+//  would cost a renderer call per cell per frame in a list that streams.
+//
+//  Columns with an explicit width or a stretch flag are skipped: their width
+//  is already decided, and tracking content for them would waste the work.
+//
+//  The header title participates in the maximum when the header is shown, so a
+//  column whose title is longer than any of its values is not truncated in its
+//  own heading.
+//
+//  Values only ever GROW -- this accumulates a high-water mark across the
+//  rows it is shown, and ResetAutoFit is what clears it.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void DxuiListView::NoteAutoFitRow (const std::vector<Cell> & cells) const
@@ -1058,6 +1077,23 @@ void DxuiListView::SetTopRow (int topRow)
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  ScrollByWheelDelta
+//
+//  Converts raw wheel deltas into row scrolling, banking the remainder.
+//
+//  Accumulating rather than scrolling per event is what makes a TOUCHPAD feel
+//  right. A precision touchpad sends many sub-notch deltas; treating each as a
+//  scroll event advanced a whole linesPerNotch block per message, which read
+//  as a chunky jump. Banking the delta and moving ONE row per accumulated step
+//  turns the same input into smooth single-row motion.
+//
+//  A real mouse notch is unchanged: a full WHEEL_DELTA banks linesPerNotch
+//  steps at once, so it still advances exactly linesPerNotch rows.
+//
+//  The remainder is CARRIED rather than discarded, so a slow drag accumulates
+//  to a row instead of being rounded away to nothing.
+//
+//  The sign is inverted because a positive wheel delta means scrolling up,
+//  which is a decrease in row index.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
