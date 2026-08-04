@@ -12,6 +12,21 @@
 //
 //  SplitLines
 //
+//  Source text into lines, then continuations joined -- two passes, because
+//  finding a trailing backslash requires the lines to exist first.
+//
+//  All three line endings are accepted: LF, CRLF, and bare CR. The last
+//  matters more than it looks -- period Apple II sources really are CR-only,
+//  so treating CR as mere whitespace would read a whole file as one line.
+//
+//  A trailing backslash continues onto the next line, EXCEPT when itself
+//  escaped: `\\` at end of line is a literal backslash, not a continuation.
+//  Without that test a string ending in a path separator would silently
+//  swallow the line after it.
+//
+//  A final line with no terminator is still pushed, so a file not ending in a
+//  newline does not lose its last instruction.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 std::vector<std::string> Parser::SplitLines (const std::string & source)
@@ -171,6 +186,27 @@ static std::string ToUpper (const std::string & s)
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  ParseLine
+//
+//  One source line into its parts. The ORDER of the tests is the grammar --
+//  each rules out a shape so the next can assume it is gone:
+//
+//    comments first, so a ';' inside nothing later can be mistaken for code
+//    blank             nothing else to decide
+//    label             `name:` splits off, and a label-only line stops here
+//    .directive        a leading dot is unambiguous, so it settles next
+//    NAME = / equ / set   constant definition
+//    everything else   mnemonic + operand
+//
+//  Reordering these breaks things quietly. Strip comments after splitting on
+//  ':' and a commented-out label steals the line; test for a constant before
+//  the dot and `.if X = 1` parses as a definition of `.if X`.
+//
+//  startsAtColumn0 is captured from the STRIPPED line before trimming, since
+//  it is the one fact trimming destroys -- and it is what later lets a bare
+//  word in column 0 be recognized as a colon-less label.
+//
+//  Unknown dotted spellings resolve to Directive::None and keep their text,
+//  so pass 1 reports them rather than the parser guessing.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -430,6 +466,14 @@ static std::string ToUpperStr (const std::string & s)
 //
 //  FindMatchingClose — find matching ')' or ']' respecting nesting
 //
+//  Depth-counted, so `((a+b)*c)` finds the OUTER close rather than the first
+//  one. That is what lets an indirect operand hold a parenthesized expression:
+//  `LDA ((base+2),X)` cannot be read by scanning for the next ')'.
+//
+//  A character literal is skipped whole, because `')'` contains a close
+//  paren that is data. The `i + 2 < size` test is what identifies one: a
+//  quote, any character, then a matching quote.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 static size_t FindMatchingClose (const std::string & s, size_t openPos)
@@ -476,6 +520,16 @@ static size_t FindMatchingClose (const std::string & s, size_t openPos)
 //
 //  FindTopLevelComma — find ',' not inside() [] or ''
 //
+//  The comma that separates operands, as opposed to one inside a bracketed
+//  subexpression or a character literal. `LDA (addr,X)` has no top-level comma
+//  at all, while `BBS0 $12,target` has one -- and the addressing mode turns on
+//  telling those apart.
+//
+//  Brackets and parens share one depth counter rather than being tracked
+//  separately, which means `([)]` would be accepted. Assembly syntax never
+//  interleaves them, and one counter cannot misread a correctly-formed
+//  operand.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 static size_t FindTopLevelComma (const std::string & s, size_t start = 0)
@@ -518,6 +572,23 @@ static size_t FindTopLevelComma (const std::string & s, size_t start = 0)
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  ClassifyOperand — syntax detection only, no value parsing
+//
+//  Reads an operand's SHAPE and nothing else: `#expr` is Immediate, `(e,X)` is
+//  IndirectX, `(e),Y` is IndirectY. The expression inside is handed back
+//  untouched for the evaluator.
+//
+//  Shape alone cannot finish the job -- `LDA $12` and `LDA $1234` are the same
+//  shape and different modes -- so the VALUE decides zero-page against
+//  absolute, later, once symbols exist. Splitting it here is what lets a
+//  forward reference be classified before its value is known.
+//
+//  The `(e,X)` / `(e),Y` distinction is entirely about which side of the close
+//  paren the comma falls on, which is why the inner text and the text after
+//  are examined separately.
+//
+//  An unmatched paren degrades to a bare expression rather than erroring: it
+//  may be a parenthesized arithmetic expression the evaluator will handle, and
+//  if it really is malformed the evaluator produces the better message.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -643,6 +714,15 @@ ClassifiedOperand Parser::ClassifyOperand (const std::string & operand)
 //
 //  ParseValue
 //
+//  A numeric literal in any of the assembler's three radices. Deliberately
+//  strict: strtol must consume the WHOLE string, so `$FFg` is rejected rather
+//  than quietly read as $FF -- a typo in a table of constants should fail
+//  loudly, not assemble to the wrong byte.
+//
+//  This handles literals only, not expressions. Anything with an operator in
+//  it belongs to ExpressionEvaluator; this is the fast path for the common
+//  case and the one place a bare number is interpreted.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 bool Parser::ParseValue (const std::string & text, int & value)
@@ -712,6 +792,21 @@ static std::string ToUpperValidate (const std::string & s)
 //
 //  ValidateLabel
 //
+//  Whether a name may be used as a label, with the reason when it may not.
+//
+//  All five conditions are evaluated before any is reported, so the message
+//  names the FIRST rule broken rather than whichever test happened to run --
+//  a label that is both malformed and a mnemonic reports the malformation,
+//  which is what the author most likely meant to fix.
+//
+//  Mnemonic rejection is EXACT-CASE: `LDA` is refused outright while `lda` is
+//  allowed and merely warned about at the definition site. That split is
+//  deliberate -- a lowercase label matching a mnemonic is legal in period
+//  sources and occasionally intentional, so it must not be a hard error here.
+//
+//  errorMessage is left untouched on success, so a caller may reuse one string
+//  across many labels without clearing it.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 bool Parser::ValidateLabel (const std::string & label, const OpcodeTable & opcodeTable, std::string & errorMessage)
@@ -765,6 +860,14 @@ bool Parser::ValidateLabel (const std::string & label, const OpcodeTable & opcod
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  SplitArgList — split comma-separated list respecting() [] '' nesting
+//
+//  Splits on TOP-LEVEL commas only, so a bracketed subexpression or a
+//  character literal containing a comma stays one argument -- `.byte (1,2)`
+//  and `.byte ','` are each a single item.
+//
+//  Empty items are dropped rather than preserved, so `1,,2` yields two
+//  arguments and a trailing comma is harmless. Every caller counts items to
+//  size or emit data, and none has a use for a positional blank.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
