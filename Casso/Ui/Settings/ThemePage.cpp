@@ -462,6 +462,22 @@ std::string ThemePage::SelectedThemeId() const
 //
 //  ThemePage::SetThemes
 //
+//  Populates the theme dropdown from parallel id and display-name lists.
+//
+//  Ids and display names are kept SEPARATE because the id is what persists in
+//  prefs and what the theme manager is addressed by, while the display name is
+//  user-facing and may be localized or renamed without invalidating anyone's
+//  saved setting.
+//
+//  A caller mismatch between the two lists falls back to using the ids as
+//  labels rather than failing or truncating. The page stays functional with
+//  slightly uglier text, which is a far better outcome than a theme picker
+//  that cannot pick a theme.
+//
+//  The selection callback re-validates its index. It fires from the dropdown,
+//  which is driven by user input and by SetSelected, and the id list can be
+//  replaced underneath it.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void ThemePage::SetThemes (std::vector<std::string>  themeIds,
@@ -508,6 +524,30 @@ void ThemePage::SetThemes (std::vector<std::string>  themeIds,
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  ThemePage::Layout
+//
+//  Arranges the theme row, the desk-scene checkbox, and the preview area.
+//
+//  Arrangement is driven through the IDxuiControl tree rather than by setting
+//  each child's rect directly: a form layout policy assigns the label and
+//  field rects, so the page participates in the standard layout contract
+//  instead of hand-placing controls.
+//
+//  Two rects are therefore written in sequence, and the order is deliberate.
+//  The form is run against a SINGLE-ROW anchor so it fills exactly one row
+//  regardless of page height, then the panel's own bounds are re-set to the
+//  full page footprint. The adopted children keep the rects the form's arrange
+//  pass gave them; only the panel's stored bounds change.
+//
+//  The dropdown is then re-fixed to its intended width, because the form
+//  policy stretches the field to fill the row and would leave no space for the
+//  Apply button. Docking the button immediately to its right keeps both near
+//  the left edge, visible no matter how wide the settings window is (FR-132).
+//
+//  The checkbox row spans label + dropdown + gap + button so its caption
+//  cannot truncate against a narrower control.
+//
+//  The preview rect is clamped so a window narrower or shorter than the
+//  padding yields an empty rect rather than an inverted one.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -610,6 +650,29 @@ void ThemePage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  ThemePage::Paint
+//
+//  Draws the controls and the live theme preview.
+//
+//  The dropdown is painted in TWO parts around the preview -- PaintBase before,
+//  PaintMenu last -- so an open dropdown appears above the preview window
+//  rather than behind it. Painting it as one call would put the menu underneath.
+//
+//  The preview tracks the dropdown's HIGHLIGHTED item while it is open, not
+//  the committed selection, so both mouse hover and arrow-key navigation
+//  update the mock window immediately. That is what makes the picker browsable
+//  -- a user sees each theme before choosing it -- and it falls back to the
+//  committed value once the dropdown closes.
+//
+//  The interface references are downcast to the concrete Dxui renderers
+//  because the preview needs their actual surface to blit a mock chrome and
+//  framebuffer. That is safe here: the host always paints through those
+//  concrete types.
+//
+//  The preview drives are initialized lazily and reused, so the mock chrome
+//  has real drive widgets to render without building them on every frame.
+//
+//  A degenerate preview rect is skipped, so a settings window too small to
+//  show the preview simply omits it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -29,6 +29,22 @@ static constexpr const char *  s_kpszVertexShaderSrc =
 //
 //  LoadShaderSource
 //
+//  Points at one HLSL blob embedded in the executable as an RT_RCDATA
+//  resource.
+//
+//  Shaders ship as source rather than bytecode so they can be edited and
+//  recompiled without a separate build step, and they are embedded rather than
+//  loose so the executable cannot run against a missing or mismatched .hlsl.
+//
+//  No copy is made and nothing is freed: module resources stay mapped for the
+//  lifetime of the loaded module, so LockResource yields a pointer that
+//  remains valid and has no matching unlock. The returned span aliases into
+//  the image, which is safe because the caller compiles from it immediately.
+//
+//  Every failure asserts -- all of these are facts about our own binary, so a
+//  missing shader resource is a broken build rather than anything the user
+//  did.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT SettingsCompositor::LoadShaderSource (int resourceId, ShaderSource * outSource)
@@ -176,6 +192,19 @@ void SettingsCompositor::SetTransparencyState (bool active, RECT emuRectClient, 
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  CompilePixelShader
+//
+//  Loads one embedded HLSL blob and compiles it to a pixel shader.
+//
+//  Compilation happens at RUNTIME, which is the trade that keeps the blur
+//  shaders editable without a build step, at the cost of a few milliseconds
+//  during initialization.
+//
+//  sourceName reaches the compiler purely so its diagnostics name the shader;
+//  without it an error in any pass reports against an anonymous blob.
+//
+//  ps_4_0 matches the feature level the settings sheet requires -- nothing
+//  here needs a later model, and asking for one would narrow the hardware that
+//  runs.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -347,6 +376,21 @@ void SettingsCompositor::ReleaseBlurTextures()
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  EnsureBlurTextures
+//
+//  Creates the two intermediate targets the separable blur needs, recreating
+//  them only when the size changes.
+//
+//  Two textures, not one: a separable Gaussian is a horizontal pass followed
+//  by a vertical one, and a pass cannot read and write the same texture. The
+//  separable form is what makes the blur affordable -- two 1D passes instead
+//  of one 2D kernel.
+//
+//  The size test makes this cheap to call every frame; only a resize pays for
+//  new textures.
+//
+//  A failure releases BOTH textures rather than leaving whichever ones were
+//  created. A half-built pair would let a later frame find the first texture
+//  present, skip the rebuild, and then render through a null second target.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -180,6 +180,33 @@ void DisplayPage::SetDefaultsHint (const DisplayDefaultsHint & hint)
 //
 //  DisplayPage::Layout
 //
+//  Places every control on the Display page and records each row's rect for
+//  hit-testing and focus.
+//
+//  This is a linear top-to-bottom walk with a single running y, deliberately
+//  rather than a form policy. The page mixes labeled rows, indented child
+//  rows under their parent toggles, and controls that share a row, and
+//  expressing that in a policy would be harder to follow than the walk itself.
+//
+//  Every control starts at the same x. That single column is what makes the
+//  sliders read as one aligned group, and it is why the Restore button SHARES
+//  the monitor row instead of getting its own -- a full-width button on its
+//  own line would break the alignment the eye is following.
+//
+//  Row rects are stored as they are assigned, so hit-testing and the focus
+//  ring both work from exactly the geometry that was painted rather than
+//  recomputing it and risking drift.
+//
+//  Child rows indent by the same amount as DxuiTreeView, so a nested toggle
+//  reads as nested against the rest of the UI.
+//
+//  Slider ranges, steps, and suffixes are set here beside the geometry, since
+//  a slider's usable width and its step count are the same design decision --
+//  a range with too many steps for its width is not adjustable.
+//
+//  The drag step is finer than the click step throughout, so keyboard and
+//  click-stepping move in readable increments while a drag stays continuous.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void DisplayPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
@@ -560,6 +587,20 @@ void DisplayPage::Rebuild()
 //
 //  DisplayPage::FocusedControlRect
 //
+//  The screen rect a focused control occupies, used by the live-preview pass
+//  to keep it sharp while the rest of the page is blurred.
+//
+//  Rects come from the stored row geometry rather than being recomputed, so
+//  the sharp region lines up exactly with what Layout placed.
+//
+//  An OPEN monitor dropdown extends the rect to include its menu. Without
+//  that, the menu -- which is what the user is actually reading while choosing
+//  -- would fall outside the sharp region and be blurred at the moment it
+//  matters most.
+//
+//  An unrecognized control id yields an empty rect, which the caller treats as
+//  "nothing focused" rather than as an error.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 RECT DisplayPage::FocusedControlRect (int controlId) const
@@ -717,6 +758,28 @@ void DisplayPage::SetFadeState (int   focusedControlId,
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  DisplayPage::Paint
+//
+//  Draws every row, with per-row alpha for the focus fade and a "matches
+//  default" indicator beside each control.
+//
+//  Focus emphasis is done with per-row GLOBAL ALPHA rather than by changing
+//  colors. Both painter and text renderer are set together before each row and
+//  the whole row fades as one, so no widget needs to know about the effect and
+//  a newly added control participates automatically.
+//
+//  The alphas come from the fade animator, not from the live focus state, so
+//  moving focus eases between rows instead of snapping.
+//
+//  PaintBackingIfFocused is an intentional empty stub, kept for grep-ability.
+//  It used to paint a dark backing behind the focused row for the in-window
+//  overlay preview; the owned-popup design replaced that with the compose
+//  pass's blur-dim-sharpen pipeline, against which a hard-edged dark rectangle
+//  is both redundant and visually wrong. It stays as a hook in case the effect
+//  is ever wanted back as an accessibility opt-in.
+//
+//  The default indicator distinguishes a THEME default from a MONITOR default,
+//  because a value can match one and not the other, and knowing which one is
+//  what tells the user whether changing themes will move it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
