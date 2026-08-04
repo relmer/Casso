@@ -161,6 +161,25 @@ HRESULT DxuiPainter::OnDeviceRestored (
 //
 //  CreateShaders
 //
+//  Compiles the painter's vertex / pixel shader pair and its input layout.
+//
+//  The vertex format is 2D position plus color and nothing else -- no texture
+//  coordinate, because this painter draws only solid geometry. Anything
+//  textured goes through the 3D renderer, and anything glyph-shaped through
+//  the text renderer, so the painter stays the cheapest of the three.
+//
+//  Shader source is embedded as string literals rather than as resources,
+//  since both are a few lines and belong beside the vertex struct they must
+//  agree with.
+//
+//  The names passed to D3DCompile are for DIAGNOSTICS only; they make a
+//  compile error name which of the two shaders failed instead of reporting
+//  against an anonymous blob.
+//
+//  The input layout is validated against the compiled vertex-shader blob, so a
+//  mismatch between the struct and the shader signature fails at startup
+//  rather than as garbage geometry.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT DxuiPainter::CreateShaders()
@@ -236,6 +255,23 @@ Error:
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  CreatePipelineState
+//
+//  Builds the three fixed-function state objects the painter needs.
+//
+//  Premultiplied-alpha source-over is the compositing convention shared with
+//  the text renderer and the 3D renderer, which is what lets all three draw
+//  into one surface and layer predictably. Changing it here would silently
+//  desynchronize chrome translucency from everything else.
+//
+//  Culling is off because 2D geometry has no meaningful winding order; a quad
+//  emitted either way must paint.
+//
+//  Depth is disabled entirely -- test, write, and stencil. UI is painted in
+//  back-to-front order by the panel tree, so a depth buffer would add cost and
+//  could only ever reject something the tree intended to be on top.
+//
+//  The scissor is off by default; clipping is applied per draw when a widget
+//  needs it, so the common unclipped case costs nothing.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -798,6 +834,30 @@ void DxuiPainter::DrawLineApprox (
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  End
+//
+//  Flushes everything accumulated since Begin as ONE draw call.
+//
+//  Batching is the painter's whole reason for existing. Every FillRect and
+//  OutlineRect between Begin and End only appends triangles to a CPU-side
+//  vector; a chrome frame that draws a hundred rectangles costs one upload and
+//  one Draw rather than a hundred of each.
+//
+//  The full pipeline state is set here, every frame. Nothing is saved or
+//  restored, and that is the shared convention -- the text renderer and the 3D
+//  renderer do the same -- so all three can interleave freely without any of
+//  them assuming what state it inherits.
+//
+//  m_betweenBeginEnd is cleared BEFORE the early-out, so an empty batch or a
+//  null target still closes the Begin/End pair rather than leaving the painter
+//  believing it is mid-batch.
+//
+//  WRITE_DISCARD tells the driver the previous vertex contents are dead, so it
+//  hands back a fresh buffer instead of stalling until the GPU has finished
+//  reading last frame's.
+//
+//  The vertex list is cleared only on the path that actually drew it, so a
+//  failed flush keeps the geometry rather than silently discarding a frame's
+//  worth of work.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
