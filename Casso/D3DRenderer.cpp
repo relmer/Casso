@@ -240,6 +240,25 @@ Error:
 //
 //  InitializeShaders
 //
+//  Compiles the pass-through shader pair that blits the emulator framebuffer,
+//  plus the quad geometry and sampler it needs.
+//
+//  These shaders do NOTHING but sample -- no transform, no tint. Positions
+//  arrive already in clip space and the pixel shader returns the texel
+//  unchanged. Every visual effect lives in the CRT post-process chain instead,
+//  which keeps the effects editable in one place and this path trivially
+//  correct.
+//
+//  The source is inline here, not embedded as a resource like the CRT shaders,
+//  precisely because it is this short and is never edited for tuning.
+//
+//  The input layout is validated against the compiled vertex-shader blob, so a
+//  mismatch between the vertex struct and the shader signature fails at
+//  startup rather than as garbage geometry.
+//
+//  Everything asserts: a shader that will not compile is a broken build, not
+//  something the user did.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT D3DRenderer::InitializeShaders()
@@ -500,6 +519,18 @@ Error:
 //
 //  CacheEmulatorContentScreenRect
 //
+//  Records where the emulator image lands in SCREEN coordinates, for consumers
+//  that work outside the window's client space.
+//
+//  The HWND is queried from the swap chain's OutputWindow on demand rather
+//  than cached alongside it. The host-owned swap chain is HWND-based, so the
+//  authoritative answer already lives there, and a cached copy could go stale
+//  across a device or window rebuild.
+//
+//  The rect is CLEARED before anything else, so every early exit leaves an
+//  empty rect that callers read as "not available" rather than a stale one
+//  describing a previous size or position.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void D3DRenderer::CacheEmulatorContentScreenRect (const RECT & fittedRect)
@@ -543,6 +574,40 @@ Error:
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  ToggleFullscreen
+//
+//  Borderless-fullscreen toggle. Every guard below exists because a specific
+//  way of getting it wrong strands the user behind an unescapable full-monitor
+//  popup covering the taskbar and every other window.
+//
+//  RE-ENTRANCY. A modal loop opening mid-transition -- an assert dialog, a
+//  message box -- pumps messages and can dispatch a queued Alt+Enter into a
+//  NESTED toggle. That nested enter would capture the already-borderless state
+//  as the "windowed" state to restore, so there is nothing left to go back to.
+//  Toggles are ignored while one is in flight, and `armed` gates the cleanup so
+//  a bailed nested call cannot disarm the outer toggle's guard.
+//
+//  DIRECTION is decided from the flag AND the actual window style, not from
+//  the flag alone. A caption-less window IS fullscreen whatever the flag says,
+//  and acting on a stale flag is the other route into the trap. A desync means
+//  a previous transition failed half-way or something else restyled the
+//  window, so it asserts for a debug build and then recovers toward a windowed
+//  state -- recovery beats consistency here.
+//
+//  FLAG ORDERING. m_fullscreen is set true BEFORE the window is touched, and
+//  stays true through the restore. SetWindowPos delivers WM_SIZE
+//  synchronously, and the resize path consults IsFullscreen to decide whether
+//  to persist placement. With the flag still false on entry, the full-monitor
+//  rect was saved as the user's windowed placement -- permanently stomping
+//  their real window size in prefs. On exit it drops only once the window is
+//  back, so no mid-transition rect is persisted either.
+//
+//  The full window PLACEMENT is saved rather than just the current rect, so a
+//  maximized window round-trips back to maximized with its underlying normal
+//  size intact.
+//
+//  If the desync recovery runs before any successful entry ever captured a
+//  placement, the restore falls back to a stock overlapped style and normal
+//  show -- the user always gets a movable, closable window back.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

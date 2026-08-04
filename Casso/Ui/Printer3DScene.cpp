@@ -201,6 +201,25 @@ void Printer3DScene::Mul44 (const float a[16], const float b[16], float out[16])
 //
 //  Printer3DScene::LookAtRH
 //
+//  Builds a right-handed view matrix from an eye position and a look-at point.
+//
+//  Written out rather than pulled from a math library so the scene has no
+//  dependency beyond the standard library, and so the handedness is visible in
+//  the source instead of implied by whichever library variant was linked --
+//  a mismatch there mirrors the whole scene and is maddening to diagnose.
+//
+//  The up vector is FIXED at (0,1,0), which is why the cross product collapses
+//  to two components: with up on the Y axis, cross(up, z) has no Y term at
+//  all. This scene never rolls the camera, so the general form would be
+//  arithmetic nobody uses.
+//
+//  The translation row is the negated dot of the eye against each basis
+//  vector, which is what makes this the INVERSE of the camera's transform --
+//  a view matrix moves the world, not the camera.
+//
+//  A degenerate eye-equals-target input is not guarded; the scene's camera
+//  positions are all fixed, so it cannot arise here.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void Printer3DScene::LookAtRH (const float eye[3], const float at[3], float out[16])
@@ -1347,22 +1366,6 @@ void Printer3DScene::BuildBodyBack (std::vector<Vertex> & out) const
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  Printer3DScene::BuildPaper
-//
-//  The fanfold strip: rises from the slot with a slight backward lean, then
-//  curls away from the viewer over a roll and heads down behind the printer.
-//  The content canvas maps 1:1 by arclength (square texels), canvas bottom --
-//  the live row -- at the platen. Slices darken as the surface turns away
-//  from the frontal light.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
 //  AppendSideFeather
 //
 //  A hair-width strip from the paper's edge at xIn out to xOut, fading to
@@ -1398,6 +1401,34 @@ static void AppendSideFeather (std::vector<Dxui3DRenderer::Vertex> & out,
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  Printer3DScene::BuildPaper
+//
+//  Builds the fanfold strip: up the platen's front, leaning back as it rises,
+//  then curling away from the viewer over a roll and down behind the printer.
+//
+//  The live end follows the real machine's "U" path. Paper comes up the FRONT
+//  of the platen -- the strike line sits under the head, read through the
+//  smoked window -- hugs the roller only until its tangent matches the rise
+//  direction, then peels off. That peel angle is not a tuned constant: it is
+//  exactly the paper tilt, which is what makes the wrap and the straight run
+//  one continuous ribbon instead of two pieces meeting at a visible crease. A
+//  printed row therefore stays visible from the moment the head lays it until
+//  it curls away at the top. The under-platen half of the U is inside the
+//  machine and is not built at all.
+//
+//  The content canvas maps 1:1 BY ARCLENGTH rather than by height, so texels
+//  stay square through the curl -- mapping by Y would stretch the image
+//  exactly where the paper bends and the eye is most likely to notice.
+//
+//  Slices darken as the surface turns away from the frontal light, which is
+//  what reads as a curl rather than as a flat sheet with a gradient.
+//
+//  Side feathering exists because the swap chain has no MSAA: raw quad edges
+//  stair-step visibly against the mat, so a hair-width strip fading to fully
+//  transparent premultiplied black gives the silhouette geometric
+//  antialiasing.
+//
+//  The wrap radius sits just off the rubber so the paper is inside the smoked
+//  barrel rather than intersecting the platen mesh.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1972,6 +2003,40 @@ void Printer3DScene::BuildHeadOverlay (std::vector<Vertex> & out) const
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  Printer3DScene::Render
+//
+//  Draws the whole scene: backdrop, printer body, paper, and overlays.
+//
+//  Pan is applied in TWO different places, and they are not the same effect.
+//  World pan translates the MODEL, sliding printer, paper, and overlays
+//  together against a fixed backdrop -- the nudge-past-the-scroll-limit
+//  travel. Camera pan moves eye and look-at together, revealing a paper edge
+//  horizontally or tilting the view up toward the paper and down onto the deck
+//  LEDs. Depth deliberately stays put in both.
+//
+//  Zoom narrows the FIELD OF VIEW about a fixed eye rather than dollying the
+//  camera forward, so the paper grows in place instead of the near plane
+//  eventually cutting into the geometry.
+//
+//  The aspect correction is the subtle part. With a fixed vertical FOV, a
+//  viewport NARROWER than the authored fit aspect shows less width and slices
+//  the printer's ends off. Widening fovY by exactly the shortfall holds the
+//  horizontal extent while the scene scales down, so the machine stays whole
+//  at any window shape -- contain rather than crop. Wider viewports keep the
+//  authored framing untouched. It is applied AFTER the zoom divide, so zooming
+//  in still crops on purpose; this only cancels the cropping the window shape
+//  would impose.
+//
+//  Geometry is rebuilt every frame into reused vectors, so the paper reflects
+//  live print content and the strip's own scroll without any invalidation
+//  bookkeeping; the vectors keep their capacity, so it costs no allocation.
+//
+//  Depth handling splits on whether a CAD body is loaded. A loaded mesh's
+//  triangles arrive in arbitrary order and need a real depth pass, with the
+//  paper and overlays depth-tested against it so occlusion just works. The
+//  fallback built-in geometry is authored in draw order and needs none.
+//
+//  The backdrop draws with an IDENTITY transform, so it stays fixed while
+//  world pan moves everything else against it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

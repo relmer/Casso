@@ -167,6 +167,17 @@ static constexpr BootDiskSpec s_kProDOSDisk =
 //
 //  MachineDisplayName
 //
+//  Maps a machine id to the name a user would recognize.
+//
+//  The two are separate because the id is a filesystem-safe identifier used in
+//  paths and prefs, while the display name carries the punctuation the real
+//  machines were sold under -- "Apple ][+" and "Apple //e" cannot be directory
+//  names.
+//
+//  An unrecognized id WIDENS AS-IS rather than falling back to a placeholder,
+//  so a machine added to the catalog before it is listed here still shows
+//  something recognizable instead of "(unknown)".
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 static std::wstring MachineDisplayName (std::string_view machineId)
@@ -1056,6 +1067,31 @@ bool AssetBootstrap::IsForeignCheckoutDisk (const fs::path & p)
 //
 //  AppendBundledDemoDisks
 //
+//  Offers the repo's Apple2/Demos images in the disk picker, so a developer
+//  build always has something to boot.
+//
+//  Two different cache lifetimes are at work here, and the split is the point.
+//
+//  The DIRECTORY is located once per process and remembered, including its
+//  absence. Demos ships in the source tree rather than an installed layout, so
+//  its location is purely a function of the exe path and the repo shape, and
+//  neither changes while the process runs. A miss means this is not a repo
+//  build -- which also cannot change at runtime -- so the walk-up is never
+//  re-attempted. std::nullopt records that absence distinctly from "not yet
+//  looked".
+//
+//  The CONTENTS are enumerated fresh on every open, because a user can drop a
+//  new image into that directory while Casso is running and the picker should
+//  pick it up. The directory is small, so the listing is cheap.
+//
+//  The walk-up tries a few levels because the exe lives at
+//  <repo>/<platform>/<config>/Casso.exe, and also tries the working directory
+//  for a run launched from the repo root.
+//
+//  De-duplication uses fs::equivalent rather than string comparison, so the
+//  same file reached through a different spelling -- a symlink, a mapped
+//  drive, differing case -- is not listed twice.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void AssetBootstrap::AppendBundledDemoDisks (std::vector<DiskMru::Entry> & mountable)
@@ -1148,6 +1184,26 @@ void AssetBootstrap::AppendBundledDemoDisks (std::vector<DiskMru::Entry> & mount
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  AppendSiblingDisksFromMruFolders
+//
+//  Surfaces disk images sitting NEXT TO recently-mounted ones, so a personal
+//  disk stash appears in the picker without every image having been mounted
+//  once first.
+//
+//  The folder set comes from the MRU rather than from a configured search
+//  path: where the user keeps disks is revealed by where they have opened
+//  them, and no setting has to be maintained.
+//
+//  Each folder is enumerated fresh on every open, since a user can drop a new
+//  image beside a recent one -- or a tool can hand one back -- while Casso is
+//  running. These are small directories (a disk stash or the Demos folder), so
+//  the walk is cheap.
+//
+//  Foreign checkout disks are filtered out, which keeps a developer's picker
+//  from filling with test images that happen to live under a build tree.
+//
+//  De-duplication matches AppendBundledDemoDisks: fs::equivalent against both
+//  the existing entries and anything appended earlier in this same pass, so
+//  two MRU folders that resolve to the same directory cannot double-list.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

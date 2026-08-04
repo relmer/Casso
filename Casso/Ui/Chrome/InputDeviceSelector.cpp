@@ -420,6 +420,26 @@ struct InputDeviceSelector::GlyphMap
 //
 //  PaintJoystickGlyph
 //
+//  Draws the joystick segment's icon, in one of two entirely different
+//  renderings.
+//
+//  The FLAT theme uses a top-down joystick; the SKEUOMORPHIC theme uses a
+//  three-quarter perspective view. They are separate drawings rather than one
+//  parameterized shape, because a flat icon and a period-object illustration
+//  are different design languages -- shading one would not produce the other.
+//
+//  Everything is drawn through a GlyphMap over a nominal 100-unit box, so the
+//  coordinates below match the source SVGs one-to-one and the glyph scales to
+//  any DPI without a second set of numbers to keep in sync.
+//
+//  The perspective form is shrunk about its center while the top-down one is
+//  not: the 3/4 joystick fills its box edge to edge (stick at the top, case at
+//  the bottom), so without the inset it would carry no whitespace and read as
+//  cramped beside the paddle and mouse glyphs, which do.
+//
+//  Both share the lower-right camera used by every skeuomorphic glyph in this
+//  file, so the three segments look lit from one place rather than three.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void InputDeviceSelector::PaintJoystickGlyph (IDxuiPainter & p, const RECT & box, bool skeuo)
@@ -486,6 +506,25 @@ void InputDeviceSelector::PaintJoystickGlyph (IDxuiPainter & p, const RECT & box
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  PaintPaddleGlyph
+//
+//  Draws the paddle segment's icon: a flat top-down view, or a three-quarter
+//  perspective one for the skeuomorphic theme.
+//
+//  Both are hand-translated from the source SVGs through a GlyphMap over a
+//  nominal 100-unit box, so the numbers below match the artwork directly and
+//  the glyph scales to any DPI.
+//
+//  The fire button is built from two quads along the head's own circle rather
+//  than as a separate shape, then partly covered by the housing circle painted
+//  AFTER it. That paint order is what leaves only the curved rim protruding at
+//  two o'clock -- reordering these calls loses the shape entirely.
+//
+//  Dial ticks are generated in a loop instead of being enumerated, so the
+//  count is one number to change and every tick sits at exactly the same
+//  radius.
+//
+//  The case ribs vary their inset per rib, which is what gives the flat
+//  drawing its slight taper toward the bottom.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -617,6 +656,22 @@ void InputDeviceSelector::PaintPaddleGlyph (IDxuiPainter & p, const RECT & box, 
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  PaintMouseGlyph
+//
+//  Draws the mouse segment's icon: a flat top-down view, or a three-quarter
+//  perspective one for the skeuomorphic theme.
+//
+//  The flat form is drawn by hand like the other glyphs. The perspective form
+//  is GENERATED -- scratchpad/mouse_gen_shared.py emits convex-quad strips and
+//  line strokes from the SVG master at a deliberately low tessellation. A
+//  rounded, humped, chamfered body is not something to hand-place quad by
+//  quad, and regenerating from the master is how the shape is edited.
+//
+//  So the coordinate soup below is OUTPUT, not authored: change the SVG and
+//  re-run the generator rather than adjusting numbers here.
+//
+//  It shares the lower-right camera and the button-at-the-far-end convention
+//  with the joystick and paddle glyphs, so the three segments read as one set
+//  of objects photographed together rather than three unrelated icons.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
