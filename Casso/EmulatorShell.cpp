@@ -68,6 +68,25 @@
 //
 //  Constants
 //
+//  File-scope tuning for the shell: framebuffer geometry, chrome band metrics
+//  in design pixels, the idle-loop cadences, and the joystick / paddle rails.
+//
+//  The three timing values are separate on purpose and are not interchangeable:
+//
+//    publish interval  caps how often a Maximum-speed run rasterizes and
+//                      publishes a frame, so the render side stays near 60 Hz
+//                      instead of chasing thousands of frames nobody sees
+//    animation tick    the wake cadence while a tooltip dwell timer is pending
+//    idle upkeep       the CEILING on how long the idle loop may block. Drive
+//                      activity can only be sampled by running
+//                      UpdateDriveWidgets (it diffs nibble counters), so the
+//                      loop has to wake this often or motor-on onset behind an
+//                      otherwise static screen is missed
+//
+//  The dp band metrics are coupled to widget internals: changing the joystick
+//  button's font or padding requires updating its band height and both drive-
+//  bar heights together, since nothing recomputes them from the widget.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 static constexpr int     kFramebufferWidth       = ChromeMetrics::kFramebufferWidthPx;
@@ -172,6 +191,23 @@ static constexpr int     s_kChromeFocusCount         = 10;
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  Window placement helpers
+//
+//  Geometry for the bottom command bar's occupants -- the drive widgets and
+//  the joystick-mode button -- plus the window-size reconciliation that runs
+//  once the frame has materialized.
+//
+//  Two ideas recur through this block.
+//
+//  Desk-scene zoom is applied by folding the scene scale into the EFFECTIVE
+//  DPI rather than by scaling rects afterwards. Widget geometry, fonts, and
+//  the inter-widget gaps then zoom together for free, because every one of
+//  them already derives from DPI.
+//
+//  The drives are laid out as objects on a desk, not as flat controls. Each
+//  widget is skewed toward a shared vanishing point at the client center by a
+//  factor matching the case-top depth ratio in DriveWidget, so two drives side
+//  by side read as sitting on the same surface under the same monitor rather
+//  than as two identical sprites.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -412,6 +448,27 @@ Error:
 //
 //  EmulatorShell
 //
+//  Builds only what needs no configuration. Anything that depends on the
+//  resolved asset directory or the chosen machine waits for Initialize --
+//  DiskManager in particular, because it needs a UserConfigStore that does
+//  not exist until the asset base dir is known.
+//
+//  The Prng is the deterministic stand-in for indeterminate //e DRAM at
+//  power-on (FR-035), shared by every device that re-seeds in PowerCycle. Its
+//  seed mixes two weakly-correlated host sources so consecutive launches land
+//  on different power-on patterns instead of the same one every time; tests
+//  pin the seed through the harness rather than coming through this path.
+//
+//  Debug builds log that seed, because a fault caused by uninitialized DRAM
+//  is otherwise unreproducible. Re-running with the same seed reproduces
+//  byte-identical DRAM at every PowerCycle, which is the first thing needed
+//  to chase a flaky illegal-opcode fault.
+//
+//  VideoTiming is owned at the SHELL level rather than per machine so all
+//  three machine kinds share one 17,030-cycle frame counter behind $C019
+//  (RDVBLBAR); a per-machine copy would restart the beam on every switch
+//  (FR-033 / T055).
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 EmulatorShell::EmulatorShell()
@@ -469,6 +526,33 @@ EmulatorShell::EmulatorShell()
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  ~EmulatorShell
+//
+//  Teardown is ordered by who points at whom, and every step below is placed
+//  against a dangling reference it would otherwise create.
+//
+//  The CPU thread stops first: nothing can be safely destroyed while it is
+//  still executing instructions against these devices.
+//
+//  Debug panels are unwired before they are destroyed. Each was registered as
+//  an event SINK on live machine devices (disk controller, drive audio,
+//  keyboard, //e soft switches, game port), and those devices outlive the
+//  panel -- they die later, with m_ownedDevices. Resetting a panel without
+//  first revoking its sinks leaves the devices calling into freed memory. The
+//  disk panel revokes controller then audio, mirroring the attachment order
+//  in OpenDisk2DebugDialog (Spec-006 / FR-024).
+//
+//  Dirty disks are flushed before anything owning them unwinds, so a clean
+//  quit never loses user writes (T097 / FR-025).
+//
+//  Adopted chrome is released explicitly. m_mainMenu, m_driveChrome, and
+//  m_joystickButton are registered into m_host->Root() as RAW pointers via
+//  DxuiPanel::Adopt, and they are members of this object -- so field-by-field
+//  destruction below would leave the host's panel tree holding pointers into
+//  a partially destroyed shell. ClearAdopted cuts those links while every
+//  member is still whole. (The caption bar is host-owned, not adopted, and is
+//  deliberately not in that set.)
+//
+//  OLE is uninitialized last, and only if this object initialized it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -571,6 +655,42 @@ EmulatorShell::~EmulatorShell()
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  Initialize
+//
+//  Full startup, in the only order that works. Most of the sequence is forced
+//  by a dependency, and the ones that are not obvious are called out here.
+//
+//  OLE comes up early because RegisterDragDrop and IFileDialog (drive-widget
+//  click-to-browse) both need the UI thread already in an STA. OleInitialize
+//  implies CoInitializeEx(STA), and its S_FALSE "already initialized" result
+//  still takes a reference -- which is why m_fOleInitialized is set on both
+//  success codes and paired with OleUninitialize at shutdown. A hard failure
+//  means something already claimed this thread's apartment with a conflicting
+//  model, which is a startup-ordering bug on our side, so it asserts.
+//
+//  The window is created before the devices because the renderer needs an
+//  HWND, and the devices need the renderer's device / context.
+//
+//  Video watch pages are marked once, here, rather than per machine: a write
+//  into text pages 1/2 ($0400-$0BFF) or hi-res pages 1/2 ($2000-$5FFF) raises
+//  the bus video-dirty flag that drives the render-skip gate. Watching the
+//  PAGE INDEX covers main and aux together, since the //e MMU re-points those
+//  same indices, and the page layout is identical on every Apple II variant --
+//  so this survives an in-session machine switch untouched.
+//
+//  ReconcileInitialClientSize runs after ShowWindow (the non-client frame is
+//  not fully materialized before that) but before UpdateWindowTitle, so a
+//  wrong-size window never flashes on screen.
+//
+//  PowerCycle MUST precede MountCommandLineDisks. It seeds DRAM from the
+//  shared Prng and runs the 6502 /RESET sequence (FR-034) -- without it the
+//  CPU starts at PC=0 and executes uninitialized RAM into a beep loop instead
+//  of the firmware prompt. It also ejects every drive and re-binds the engine
+//  to the controller's empty internal disk, so mounting first and power-
+//  cycling second silently discards the user's image: the engine keeps
+//  ticking but AdvanceOneBit exits immediately on an empty track.
+//
+//  Startup disks are recorded in the MRU with disk 2 first, so the primary
+//  boot disk ends up the most-recent entry in the picker.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -824,6 +944,25 @@ Error:
 //
 //  BuildMachineDevices
 //
+//  Constructs one machine's device graph from its config, in wiring order:
+//  memory, then the banking layers over it, then video, then the CPU that
+//  reads through all of it.
+//
+//  WireApple2cRomBank must follow WireLanguageCard, not replace it. The
+//  language card leaves a flat bank-0 split in place; the //c layer then adds
+//  the $C028 bank-switch coordinator and the no-slots $Cxxx routing on top.
+//  Skipping it on the initial-launch path (SwitchMachine already did it) is
+//  what left a cold-booted //c with no ROM banking and no SetNoExternalSlots,
+//  so $C800 floated and the firmware derailed into a garbage screen. It is a
+//  no-op on machines with no banked ROM (romBankSize == 0).
+//
+//  The bus is validated between the memory devices and the CPU, so an
+//  overlapping address range is reported as a config error at build time
+//  rather than as mysterious reads once code is running.
+//
+//  The page table is wired last: it caches decisions made by every layer
+//  above, so building it earlier would snapshot an incomplete map.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT EmulatorShell::BuildMachineDevices (const MachineConfig & config)
@@ -865,6 +1004,25 @@ Error:
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  InitializeRenderer
+//
+//  Points the framebuffer renderer at the host's D3D resources and hooks it
+//  into the host's paint pump.
+//
+//  The renderer owns NO device, swap chain, or Present call -- the host owns
+//  all three. This is what lets Dxui chrome paint on top of the emulator
+//  image in one pass: the renderer composites the Apple ][ framebuffer into
+//  the host's back buffer from the before-present hook, then the host paints
+//  its chrome over it and presents once (DxuiHwndSource::PaintPump).
+//
+//  The hook reads m_pendingFramebuffer, which RunMessageLoop stages each UI
+//  frame. A null value means "no new emulator frame", and the last upload is
+//  re-composited -- that is the case that makes the render-skip gate cheap:
+//  chrome can repaint over a static emulator image without re-uploading it.
+//
+//  The composite result is dropped deliberately. A per-frame present hook has
+//  no return channel; a transient failure corrects itself on the next frame,
+//  and a persistent one (device lost) is both visible on screen and handled by
+//  the renderer's own device-reset path, not from inside the hook.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1028,6 +1186,26 @@ Error:
 //
 //  WireUiShellChromeAndThemes
 //
+//  Connects the chrome controls to UiShell's shared services and brings up
+//  the theme manager.
+//
+//  UiShell no longer paints the caption or the chrome -- the host panel tree
+//  does. What it still owns is input routing, hit-testing, and the theme /
+//  viewport metrics the settings panel reads, which is why only those are
+//  wired here.
+//
+//  The shared text renderer is INJECTED into each control rather than passed
+//  to Layout. Chrome controls have to measure their own label strings while
+//  laying out, so handing them the renderer once lets them satisfy the plain
+//  IDxuiControl::Layout contract instead of forcing a renderer parameter onto
+//  every Layout call in the framework.
+//
+//  Global prefs are deliberately NOT re-loaded here; PrimeChromeThemeEarly
+//  already did that, and a second LoadAll would just re-read the same file.
+//  Discover treats an empty or missing themes directory as success -- the
+//  built-in themes work without any on-disk ones -- so only a real
+//  enumeration failure propagates and blocks startup.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT EmulatorShell::WireUiShellChromeAndThemes()
@@ -1129,6 +1307,26 @@ void EmulatorShell::RecordActiveMachineSelection()
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  SubscribeAndActivateTheme
+//
+//  Two orderings here, both load-bearing.
+//
+//  The change listener is subscribed BEFORE the first Activate, so that
+//  initial activation fires it and primes m_chromeTheme from the persisted
+//  user choice. Subscribing afterwards leaves the chrome painting its
+//  constructed Skeuomorphic default until the user happens to re-pick their
+//  theme in Settings -- a bug that looks like the preference was not saved.
+//
+//  The active machine name is set before Activate for the same reason: themes
+//  resolve per machine variant, so the listener notification would otherwise
+//  carry a theme resolved against the wrong machine.
+//
+//  A failed Activate means the persisted theme name no longer exists -- it was
+//  renamed, deleted, or is a stale default -- so it falls back to the canonical
+//  built-in. If even that is missing from the discovered set, the chrome keeps
+//  its constructed default and there is genuinely nothing to act on, which is
+//  why the fallback's result is explicitly discarded rather than propagated
+//  (this function returns void by design; a missing theme is not a startup
+//  failure).
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1279,6 +1477,30 @@ Error:
 //
 //  FinishUiShellLayout
 //
+//  Settles the chrome for the machine that was just built, before the window
+//  is shown. This is the boot-time counterpart to what OnSize does on every
+//  later resize.
+//
+//  The live monitor DPI is pushed into UiShell here so the FIRST D2D
+//  BindBackBuffer uses it. Skipping this leaves the initial bind at the m_dpi
+//  default of 0 (treated as 96), and chrome text paints tiny on a high-DPI
+//  display until the user happens to resize the window and trigger a real
+//  layout.
+//
+//  Drive widgets are collapsed rather than skipped when there is nothing to
+//  show -- a stripped Apple II config with no Slot 6 controller hides both, a
+//  //c with no external drive connected hides only the second. The joystick
+//  button still paints in every case, since joystick input does not depend on
+//  disk presence.
+//
+//  Hit-test rects are registered from the widgets' final geometry, and only
+//  for widgets that are actually visible, so a hidden drive cannot be clicked.
+//
+//  Chrome no longer composites through an after-blit hook; it paints through
+//  the host's panel-tree pump over the Apple ][ framebuffer. The per-frame
+//  drive tick and door-animation redraw that used to live in that hook now run
+//  in RunMessageLoop.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT EmulatorShell::FinishUiShellLayout()
@@ -1348,6 +1570,26 @@ Error:
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  InstallDragDropTarget
+//
+//  Registers the window as an OLE drop target for disk images, and opens the
+//  UIPI holes that make dropping work across an integrity-level boundary.
+//
+//  A failed registration is survivable and deliberately non-fatal: File > Open
+//  and the drive widgets' click-to-browse mount the same images, so losing
+//  drag-and-drop costs a convenience, not a capability, and must not prevent
+//  launch.
+//
+//  The message filters are the non-obvious half. When Casso runs at a HIGHER
+//  integrity level than the drag source -- the common case being an elevated
+//  Casso and a normal Explorer window -- UIPI silently drops the messages OLE
+//  uses to marshal the payload across the boundary, and the drop simply does
+//  nothing with no error anywhere. Allowing the three messages OLE actually
+//  uses for drop targets (WM_DROPFILES, WM_COPYDATA, and the undocumented but
+//  real WM_COPYGLOBALDATA) makes Explorer-to-elevated-Casso drags work without
+//  lowering Casso's own integrity level.
+//
+//  Only m_hwnd needs the filter: the window is a single top-level HWND now
+//  that the legacy CassoRenderSurface child is gone.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1521,6 +1763,55 @@ std::string EmulatorShell::CurrentMachineNameNarrow() const
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  CreateEmulatorWindow
+//
+//  Creates the main window: work out where and how big BEFORE creating it,
+//  then stand up the host, the panel tree, and the adopted chrome.
+//
+//  DPI is resolved for the DESTINATION monitor up front and the size is
+//  pre-scaled. Under per-monitor DPI v2, CreateWindowEx treats the requested
+//  size as PHYSICAL pixels on the target display -- there is no logical-to-
+//  physical mapping -- so asking for 560 on a 150%-scaled monitor produces a
+//  560-physical-pixel window that opens looking half-size next to everything
+//  else on that display. The scaler is seeded with that DPI too, so the
+//  chrome-band dock returns coherent thicknesses during the pre-Create math;
+//  WM_NCCREATE overwrites it with GetDpiForWindow once the HWND exists, and
+//  that value wins if the two disagree.
+//
+//  The window style is the custom-chrome recipe modeled on microsoft/terminal's
+//  NonClientIslandWindow: keep the full WS_OVERLAPPEDWINDOW so DefWindowProc
+//  retains the caption infrastructure -- drag-to-move, edge resize, snap
+//  layouts, single-click min/max/close -- and hide the VISUAL caption by
+//  collapsing the NC area in WM_NCCALCSIZE. WM_NCHITTEST then reports the
+//  button and drag regions so the OS still dispatches real system actions.
+//
+//  WS_CAPTION is stripped for the rect-adjust math only, and that subtraction
+//  is load-bearing. The WM_NCCALCSIZE handler PRESERVES the top edge rather
+//  than carving a caption out of the client area, so adjusting with the full
+//  style would add the caption height to the window height and then have
+//  NCCALCSIZE hand that same height back as client space. The client ends up
+//  taller than requested by exactly the caption height, and the aspect-fit
+//  content area pillarboxes.
+//
+//  Placement is computed, then clamped, in that order. A restored placement is
+//  clamped to the work area as well, because prefs written by older builds can
+//  hold a full-monitor rect (a fullscreen transition once saved its rect as
+//  the windowed placement) that would restore a taskbar-covering "windowed"
+//  window.
+//
+//  Icons are preloaded and handed to Create so they can be attached by
+//  WM_SETICON before the window is shown: the taskbar and Win32 MessageBox
+//  read the icon from WM_GETICON, not from WNDCLASS::hIcon.
+//
+//  The client is installed BEFORE Create, so the WM_NCCREATE / WM_CREATE /
+//  WM_SIZE / WM_MOVE burst that fires synchronously inside CreateWindowExW
+//  dispatches through the OnXxx handlers instead of being lost.
+//
+//  createSwapChain is true: the HOST owns the D3D11 device, the flip-discard
+//  swap chain, and the panel-tree paint pump. The framebuffer renderer
+//  composites into that same back buffer through the before-present hook
+//  (wired in InitializeRenderer) and the chrome paints on top. There is no
+//  child render-surface HWND any more -- a single window proc owns all mouse,
+//  NC, and cursor handling.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -4006,6 +4297,30 @@ void EmulatorShell::SetDriveUserWriteProtect (int drive, bool wp)
 //
 //  RunMessageLoop
 //
+//  The UI thread's whole life: drain messages, render one frame, park. The
+//  CPU runs on its own thread, so this loop is not clocked by the emulator --
+//  it is clocked by vsync and by the frame-ready event the CPU thread raises.
+//
+//  The event is created BEFORE the CPU thread starts, because the thread
+//  begins publishing frames the instant it starts and signaling a null handle
+//  would drop the very first one -- which is the one that gets the window
+//  painted.
+//
+//  Loop ordering is deliberate. The settings sheet is destroyed at the TOP of
+//  an iteration, not from its own EndDialog callback: that callback runs deep
+//  inside DispatchMessage, so resetting the pointer there tears a window down
+//  from inside its own message handler.
+//
+//  Messages are drained to empty before rendering, so a burst of input is
+//  absorbed by one frame instead of one frame per message. WM_QUIT breaks out
+//  carrying its exit code rather than cleaning up in place -- Stop plus
+//  DestroyFrameReadyEvent is the single cleanup path, and duplicating it is
+//  how one of the two gets missed.
+//
+//  When PumpUiFrame reports nothing was presented, the thread blocks in
+//  WaitForFrameOrMessage instead of spinning: an idle BASIC prompt produces
+//  no framebuffer changes, and polling it would burn a core for nothing.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 int EmulatorShell::RunMessageLoop()
@@ -4135,6 +4450,37 @@ Error:
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  PumpUiFrame
+//
+//  One UI render cycle, and the answer to "was anything actually presented?"
+//  -- which is what lets the caller park the thread instead of spinning.
+//
+//  Presenting is NOT unconditional. The 9-pass CRT post-process is expensive
+//  enough (~20%% of GPU at a static BASIC prompt) that the frame is skipped
+//  when neither the emulator framebuffer nor any CRT parameter changed and
+//  the persistence trail has finished decaying. Everything in the middle of
+//  this function exists to answer that question honestly: each subsystem that
+//  is mid-animation calls MarkRedrawNeeded so its frames are not dropped.
+//
+//  The ones that must vote:
+//
+//    drive widgets   a door mid-open / mid-close, plus one frame after the
+//                    last drive goes idle so the activity LED actually clears
+//    open menus      a paused machine produces no framebuffer changes, so
+//                    without this a menu opens in state only and looks dead
+//    settings sheet  live Display edits must land on the very next present;
+//                    otherwise a brightness drag waits for a cursor blink
+//
+//  CRT parameters are pushed every frame rather than on change, so a slider
+//  edit is visible on the next present with no change-tracking to get wrong.
+//
+//  This also runs off a WM_TIMER during an OS modal move / size loop, which
+//  is why the preview and printer audio keep running while the user holds the
+//  title bar -- see OnModalLoopTick.
+//
+//  Presenting goes through InvalidateRect / UpdateWindow rather than a direct
+//  Present: the host owns the paint pump, so the framebuffer is staged and a
+//  synchronous WM_PAINT drives clear -> composite -> chrome -> present in the
+//  one order that puts the chrome on top.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -5095,6 +5441,35 @@ void EmulatorShell::DestroyFrameReadyEvent()
 //
 //  ExecuteCpuSlices
 //
+//  One emulated frame's worth of CPU time, cut into ~1023-cycle slices.
+//
+//  The slice exists for audio, not for the CPU. Samples are generated per
+//  slice, so the slice length sets how finely speaker toggles are resolved:
+//  one slice per frame would quantize the speaker to 60 Hz and turn Apple II
+//  square-wave tones into buzzing. A prime-ish length also keeps the slice
+//  boundary from landing on the same instruction every frame.
+//
+//  Device ticking is deliberately NOT per slice. The Disk II engine is
+//  advanced by EACH instruction's cycle count, because the boot ROM sits in a
+//  tight LDA $C0EC / BPL loop reading the data latch: at slice granularity it
+//  would see roughly one valid nibble per thousand cycles instead of one per
+//  thirty-two, never accumulate enough sync bytes to match a sector header,
+//  and hang forever on a disk that reads fine.
+//
+//  StepOne is the whole step -- it polls the interrupt lines itself and
+//  substitutes an NMI / IRQ vector for the opcode fetch when one is pending,
+//  reporting the cost through GetLastInstructionCycles either way. An outer
+//  interrupt poll used to wrap this and was simply a second, redundant poll
+//  on every instruction.
+//
+//  The fractional sample carried in m_sampleRemainder is what keeps audio
+//  from drifting: cycles per sample is rarely integral, and truncating it
+//  every slice would lose a sample every few frames and slowly desync.
+//
+//  Double speed doubles the cycle target rather than shortening the frame, so
+//  the audio and video cadence stay at their real rates and only the guest
+//  runs faster.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void EmulatorShell::ExecuteCpuSlices()
@@ -5211,6 +5586,42 @@ void EmulatorShell::ExecuteCpuSlices()
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  RenderFramebuffer
+//
+//  Rasterize one emulated video frame into the CPU-side framebuffer: pick the
+//  active mode, render it, overlay mixed-mode text, then tint.
+//
+//  Text color is pushed in rather than baked into the renderer because the
+//  same glyph raster serves every monitor type. Color monitors get white text
+//  directly; the monochrome modes leave the renderer's green in place and let
+//  the tint pass below recolor the entire frame to the chosen phosphor, so
+//  green / amber / white monitors need no separate glyph path.
+//
+//  Flash state is likewise pushed in from emulated time instead of being
+//  self-advanced by Render, so a blinking cursor keeps its phase across the
+//  frames the render-skip gate drops.
+//
+//  The dirty-row text cache is force-invalidated in exactly two cases, and
+//  both are correctness, not tuning:
+//
+//    monochrome mode  the tint below is not idempotent, so a row that was
+//                     skipped keeps its previous tinted value and darkens a
+//                     little more every frame
+//    mode change      the buffer last held graphics or another text width, so
+//                     no cached row describes what is on screen
+//
+//  Steady color text hits neither, which is the case that matters -- it lets
+//  AppleTextMode redraw only the rows that changed.
+//
+//  Render is handed a null videoRam so it reads through MemoryBus rather than
+//  the CPU's memory array. Only the bus page table reflects live MMU banking
+//  ($0400-$07FF and $2000-$3FFF switching between main and aux under 80STORE
+//  with PAGE2 / HIRES); the //e MMU re-points those pages at buffers the
+//  RamDevice owns, so reading the CPU array directly would show main memory
+//  while the guest is displaying aux.
+//
+//  Mixed mode overlays rows 20-23 through the same RenderRowRange entry point
+//  on both the 40- and 80-column renderers, so the split screen is one code
+//  path with a width choice rather than two duplicated ones (FR-017a/FR-020).
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -5415,6 +5826,27 @@ DxuiMessageResult EmulatorShell::OnCommand (WORD commandId)
 //
 //  OnDestroy
 //
+//  Shutdown, in the one order that works. Each step here is placed against a
+//  lifetime it would otherwise outlive:
+//
+//    window placement   saved first, while the HWND still has a valid rect
+//    drag / drop        RevokeDragDrop needs a live window handle, so the
+//                       target is revoked before the HWND goes away (P6)
+//    printer worker     joined before teardown frees the card out from under
+//                       the drain thread
+//    pending strip      persisted while the job object is still alive
+//    CPU thread         stopped last, after everything it can touch is quiet
+//
+//  An empty or content-free job CLEARS the sidecar rather than leaving it, so
+//  a print that was discarded does not reappear on next launch. Losing the
+//  strip on an abnormal termination is accepted by the spec (FR-026); this
+//  path only owes correctness on a clean exit.
+//
+//  PostQuitMessage is called here because IDxuiHostClient::OnDestroy is
+//  notification-only -- the host deliberately does not post it, since not
+//  every host window is an application's main window. This one is, so it owns
+//  that call; without it the message loop never ends.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void EmulatorShell::OnDestroy()
@@ -5460,6 +5892,34 @@ void EmulatorShell::OnDestroy()
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  OnMouseMove
+//
+//  Routes one pointer move through every chrome consumer, in priority order.
+//
+//  The two guest-input modes sit at the top and behave OPPOSITELY, which is
+//  the thing to know before editing this:
+//
+//    paddle mode  captures. It consumes the move outright -- relative motion
+//                 drives the held axes and the cursor is snapped back to
+//                 center -- so the chrome must never see it, and the function
+//                 bails immediately.
+//    mouse mode   does NOT capture. It maps the position to the guest and
+//                 then deliberately falls through to normal routing, because
+//                 the viewport carries no chrome and moves over the menu bar
+//                 or drive band must keep working exactly as before.
+//
+//  Below that, UiShell gets first refusal (it owns the caption bar and nav
+//  strip); anything it claims ends the walk. What remains is the shell's own
+//  chrome: joystick button, command toolbar, //c switch strip, and the drive
+//  widgets, each pairing a hover update with a tooltip show / hide request.
+//
+//  Tooltips are REQUESTS, not shows -- the dwell timers in PumpUiFrame decide
+//  when a popup actually appears, so a fast pass over three widgets does not
+//  flash three tooltips.
+//
+//  The drive walk runs before the shell dispatch because it has to visit
+//  every widget regardless of hit: leaving a widget is what re-arms its
+//  basename marquee, so an early exit on the first hit would strand the
+//  previously hovered drive mid-scroll.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -5785,6 +6245,35 @@ DxuiMessageResult EmulatorShell::OnSetCursor (WORD hitTest)
 //
 //  OnLButtonDown
 //
+//  Press half of the click pair. Unlike the release, this handler mostly
+//  ARMS things -- pressed visuals, capture, dismissals -- and leaves the
+//  acting to OnLButtonUp, which is what makes a press-then-drag-off cancel
+//  the way a Windows button should.
+//
+//  Paddle capture short-circuits everything: the pointer is hidden and
+//  confined, so the press is fire button 0 and no chrome may see it.
+//
+//  Otherwise the press is broadcast rather than routed. Every widget gets its
+//  pressed state set, because they are hit-tested independently and only one
+//  can match; there is no consumption chain to respect on the way down.
+//
+//  Two dismissal behaviors ride along:
+//
+//    focus ring   a click anywhere hands focus back to the pointer, so the
+//                 painted keyboard-focus visual is dropped rather than left
+//                 stranded on whatever the keyboard last selected
+//    open menu    a press OUTSIDE the menu strip closes the menu. The popup
+//                 takes no capture, so the owning window is the only thing
+//                 positioned to notice a click-away
+//
+//  The UI shell's return is explicitly ignored: nothing later in this handler
+//  varies on it, and the message is always reported as not fully handled so
+//  the default processing still runs.
+//
+//  The guest mouse button is gated on GuestMouseLive rather than merely
+//  active -- guest software must have turned the mouse ON -- so a click at a
+//  BASIC prompt is not silently swallowed by a device nobody is reading.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 DxuiMessageResult EmulatorShell::OnLButtonDown (WPARAM wParam, LPARAM lParam)
@@ -5875,6 +6364,39 @@ Error:
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  OnLButtonUp
+//
+//  Where clicks actually DO things. This is a strict priority chain -- the
+//  first consumer to claim the release ends the walk -- and the order is the
+//  contract:
+//
+//    paddle capture   fire button 0, capture retained
+//    toolbar          button dispatch / mute / slider drop
+//    //c switch strip reset, 80/40, keyboard
+//    UI shell         debug panels and on-screen buttons
+//    input-mode button
+//    suppressed drop  (see below)
+//    drive widgets    body browses, eject ejects then browses
+//    viewport         paddle re-grab
+//
+//  Three of these are subtle enough to be worth stating outright.
+//
+//  The input-mode button routes through ToggleInputMappingMode -- the same
+//  entry point as the Machine menu command -- rather than assigning the mode
+//  directly, so leaving a mode still neutralizes its held arrow / X / Z
+//  inputs. Setting the field would strand whatever was down at the time.
+//
+//  The suppressed-click check exists because a completed OLE drop onto a
+//  drive widget is followed by a WM_LBUTTONUP from the OS that lands on that
+//  same drive. Without swallowing it, dropping a disk image mounts it and
+//  then immediately opens the file-open dialog on top of it.
+//
+//  The paddle re-grab predicate is captured BEFORE StartPaddleCapture runs,
+//  because that call sets m_paddleCaptured -- re-testing afterwards reads
+//  false and the bail below would not fire.
+//
+//  The guest mouse button release at the end is deliberately NOT viewport-
+//  gated, unlike the press. A press inside the viewport released outside it
+//  must still clear the button, or the guest is left with it stuck down.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -6454,6 +6976,30 @@ bool EmulatorShell::IsArrowVk (WPARAM vk)
 //
 //  OnKeyDown
 //
+//  Skims off every keystroke the SHELL owns, then hands the rest to the guest.
+//
+//  The pre-checks run in a fixed order, each an escape hatch that must not be
+//  reachable from the guest's side:
+//
+//    Esc in paddle mode  releases the pointer capture and returns the mapping
+//                        to Off. This is first because a captured pointer has
+//                        hidden the cursor, and Esc is the only way out
+//    chrome focus ring   while a menu title / button / drive holds keyboard
+//                        focus (or any dropdown is open), the ring owns every
+//                        keydown, so typed letters cannot leak into the //e
+//                        while the user is arrowing through a menu
+//    meta shortcuts      host-level chords
+//
+//  Whatever survives is by definition the guest's, and is delivered through
+//  the VIEWPORT rather than straight to m_refs.keyboard. That indirection is
+//  the point: the viewport is configured with SetConsumesInput and
+//  SetWantsAllKeys, so it forwards everything -- Esc, Tab, arrows included --
+//  back to OnViewportKey, and guest input stays on the single Dxui input path
+//  (FR-034) instead of the shell reaching around the framework.
+//
+//  Always reports Handled, including on the bail paths: once a keystroke has
+//  been classified as shell-owned it must not also reach default processing.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 DxuiMessageResult EmulatorShell::OnKeyDown (WPARAM vk, LPARAM lParam)
@@ -6602,6 +7148,49 @@ static bool HostKeyboardLayoutIsDvorak()
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  OnViewportKey
+//
+//  Applies one guest keystroke to the Apple ][ keyboard latch and game port.
+//  Everything arriving here has already been classified as the guest's.
+//
+//  Down, Up, and Char are three different jobs, not three cases of one:
+//  Down handles control codes and joystick axes, Up disarms, and Char is the
+//  only path that types a printable character.
+//
+//  Auto-repeat is the subtlest part. Control-code presses are gated on the
+//  repeat bit so the HOST's repeat never reaches the latch -- a fresh press
+//  arms the $C000 strobe once and registers the key with BeginKeyRepeat, and
+//  the emulated //e then generates its own authentic repeat cadence in Tick.
+//  Letting both repeats run would double the rate and sound wrong.
+//
+//  A key-up always calls BeginKeyRepeat(0). The //e latch holds exactly one
+//  key, so a release necessarily ends the current repeat; clearing it also
+//  stops a later non-character press (a bare modifier, say) from resurrecting
+//  the previous character's repeat.
+//
+//  Joystick emulation overlays the arrows and X / Z, and only when the mode
+//  is on AND a game-port paddle bank exists. Three details matter:
+//
+//    - driveJoystick is recomputed per event, so a mode change between a
+//      press and its release is honored and nothing is left held
+//    - arrows are WITHHELD from the keyboard latch in this mode; a held
+//      direction would otherwise flood $C000 and starve a game's reads
+//    - the fire buttons are re-resolved on EVERY key event, not just X / Z,
+//      so an Alt press re-applies its Open / Closed-Apple mapping without
+//      clobbering a still-held X, and a released X cannot leave a button
+//      stuck down while Alt is still held
+//
+//  Opposing arrows resolve last-pressed-wins via the per-axis memory, which
+//  is what makes a quick left-right reversal read as a reversal rather than
+//  as centered.
+//
+//  The Char path feeds MapTypedChar so the //c keyboard switch can remap to
+//  Dvorak. The host's own layout is probed live and pushed in, so a host that
+//  is ALREADY Dvorak skips the remap instead of translating twice. Clipboard
+//  paste bypasses this path entirely and calls KeyPress directly -- pasted
+//  text is never remapped, matching the hardware encoder.
+//
+//  Always returns true: nothing here bubbles back to the framework, since the
+//  shell's escape routes live in the OnKeyDown pre-checks, not in the sink.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -7546,6 +8135,30 @@ void EmulatorShell::PushPaddleButton (int index, bool pressed)
 //
 //  OnChar
 //
+//  Decides whether a synthesized WM_CHAR belongs to the guest, and drops it
+//  otherwise. This handler is almost entirely suppression: Windows manufactures
+//  a WM_CHAR from a WM_KEYDOWN whether or not anything consumed the keydown,
+//  so every case OnKeyDown claimed has to be claimed again here.
+//
+//  Three things are swallowed:
+//
+//    overlay input   a letter typed while the settings panel, an open menu, or
+//                    the chrome focus ring owns the keyboard would otherwise
+//                    ALSO drop into the //e latch
+//    fire keys       X / Z are joystick buttons in joystick mode and were
+//                    already handled as key transitions, so their characters
+//                    must not type as well -- mirroring how the arrows are
+//                    withheld from the latch
+//    OS auto-repeat  the host repeat rate would flood $C000 and confuse games
+//                    that poll it; the emulated //e generates its own repeat
+//                    in CPU time (AppleKeyboard::Tick) from the single latch
+//
+//  What survives goes through the viewport, not straight to the keyboard, so
+//  characters travel the same Dxui path as the key transitions (FR-034).
+//
+//  Handled is returned either way. A character the shell deliberately
+//  suppressed must not reach DefWindowProc any more than one the guest took.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 DxuiMessageResult EmulatorShell::OnChar (WPARAM ch, LPARAM lParam)
@@ -7606,6 +8219,42 @@ DxuiMessageResult EmulatorShell::OnChar (WPARAM ch, LPARAM lParam)
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  OnSize
+//
+//  The authoritative chrome layout pass. Everything positioned in the window
+//  is settled here, in a dependency order that is not interchangeable:
+//
+//    1. back-buffer size    the CRT post-process needs the new dimensions
+//    2. UiShell + menu bar  top-anchored chrome
+//    3. viewport layout     settles the desk-scene scale and band heights
+//    4. drive widgets       positioned INSIDE the band step 3 just sized
+//    5. joystick / switch   the remaining band occupants
+//    6. hit-test rects      re-registered from the final geometry
+//
+//  Step 3 before step 4 is the fix for widgets that lagged one resize behind:
+//  laying the widgets against the previous scale left them disagreeing with
+//  the band they sit in until the next size event.
+//
+//  The swap chain is NOT resized here. DxuiHwndSource::HandleSize already did
+//  it, along with recreating the back-buffer RTV and D2D target, before this
+//  ran -- the renderer no longer owns the swap chain and only needs to be
+//  told the new size.
+//
+//  Machines with no Disk II controller collapse both drive widgets to empty
+//  rects rather than skipping the layout, because an empty rect is also what
+//  makes the drag-drop overlay treat the whole window as a drop target. The
+//  joystick button still lays out: joystick input does not depend on disks.
+//  On a //c, the external drive is re-hidden after layout because the shared
+//  layout helper un-hides both.
+//
+//  The disk-presence and //c-ness this size accounts for are recorded here
+//  precisely because OnSize is authoritative -- it fires on real WM_SIZE only,
+//  never per frame -- so ReflowChromeForMachineChange can read the pre-switch
+//  values and grow or shrink the window by the band delta after a machine
+//  change that produces no WM_SIZE of its own.
+//
+//  The synchronous repaint at the end is what keeps an interactive drag-resize
+//  from showing stale or black frames: RunMessageLoop is blocked inside the OS
+//  modal resize loop and cannot present, so this drives the paint directly.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -7804,6 +8453,26 @@ DxuiMessageResult EmulatorShell::OnTimer (UINT_PTR timerId)
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  UpdateWindowTitle
+//
+//  Composes the caption, and marshals itself to the UI thread when needed.
+//
+//  The thread check is not defensive coding -- SwitchMachine legitimately
+//  calls this from the CPU thread, while DxuiHwndSource::SetTitle mutates the
+//  caption bar and asserts the UI thread. An off-thread call therefore posts
+//  WM_APP_DXUI_UPDATE_TITLE and returns; the message loop calls back here on
+//  the right thread. (That same message doubles as the machine-switch signal
+//  to reflow the chrome -- see RunMessageLoop.)
+//
+//  The caption is deliberately quiet. Running is the expected state and gets
+//  no tag at all, so a healthy window reads simply "Casso - <machine>" and
+//  only speaks up when something is off: Paused and Stopped are tagged in
+//  every build, because those states leave the window looking identical to a
+//  running one.
+//
+//  Debug builds append the full binary identity (version, architecture,
+//  compile timestamp) so a window can never be mistaken for a stale rebuild
+//  still sitting on screen. It uses the same " - " separator as the machine
+//  name so the whole caption reads as one list rather than two grammars.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -8353,6 +9022,24 @@ Error:
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  OpenInputDebugDialog
+//
+//  Shows the input debug panel, creating it on first use.
+//
+//  The panel is created lazily and then kept: it is a diagnostic window most
+//  sessions never open, but one that is toggled repeatedly when it is in use.
+//  The re-create test covers a null panel AND a live panel whose HWND has
+//  already been destroyed, since closing the window leaves the object behind.
+//
+//  Creation wires the panel in as an input event SINK on every device that
+//  produces input -- keyboard, //e soft switches, game port -- so it observes
+//  the real event stream rather than polling state and inventing its own
+//  version of what happened.
+//
+//  A failed Create resets the pointer, so a subsequent open retries cleanly
+//  instead of finding a half-built panel and short-circuiting the branch.
+//
+//  The uptime anchor and cycle counter are handed over so the panel timestamps
+//  events in the emulator's own time base, not the host's.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
