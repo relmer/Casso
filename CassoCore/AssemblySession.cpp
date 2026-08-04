@@ -655,7 +655,16 @@ Byte AssemblySession::EstimateErrorRecoverySize (OperandSyntax syntax, const std
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  TryEvaluateDirectiveArgs — evaluate comma-separated expression list
+//  ProcessEscapeSequences
+//
+//  Resolves backslash escapes inside a string literal. The banner here named
+//  TryEvaluateDirectiveArgs, the function BELOW it -- a copy-paste that made
+//  the file appear to define it twice.
+//
+//  An UNRECOGNIZED escape is left intact, backslash and all, rather than
+//  dropping the backslash or erroring. A 6502 source is full of paths and
+//  data where a backslash is literal, and silently eating it would corrupt
+//  bytes the author never meant as an escape.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -699,7 +708,23 @@ std::string AssemblySession::ProcessEscapeSequences (const std::string & str)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  TryEvaluateDirectiveArgs — evaluate comma-separated expression list
+//  TryEvaluateDirectiveArgs
+//
+//  Evaluates a comma-separated expression list into values, shared by every
+//  directive that takes one (.WORD, .DD, and the pass-1 sizing path).
+//
+//  A quoted string contributes ONE VALUE PER CHARACTER rather than a single
+//  result, which is what lets `.word "AB"` and `.word 'A','B'` mean the same
+//  thing. Note these characters do NOT go through the .CMAP table -- only
+//  .BYTE translates, since a word-sized value is a number rather than text.
+//
+//  Errors are appended to the CALLER'S list rather than recorded directly, so
+//  pass 1 can size a line using a throwaway list while pass 2 reports into the
+//  real one. Evaluation continues past a failure so every bad argument in a
+//  long table is reported in one run.
+//
+//  The bool says whether all of them evaluated; `values` alone cannot, since
+//  an empty list is also what a legitimately empty argument produces.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
