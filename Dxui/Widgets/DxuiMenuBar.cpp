@@ -350,6 +350,21 @@ void DxuiMenuBar::Hide()
 //
 //  DxuiMenuBar::Open
 //
+//  Opens a menu, or switches to it from an already-open one.
+//
+//  Re-opening the SAME menu is a no-op except for the keyboard flag, and that
+//  case is load-bearing: HandleMouseMove calls Open on every move over a
+//  title, so without the early test the popup would be torn down and rebuilt
+//  on each mouse move, flickering and losing its highlight.
+//
+//  A genuine switch releases the previous popup BEFORE setting the new state.
+//  The outgoing popup's onClosed callback clears m_isOpen and m_highlightIndex,
+//  so raising the new popup first would have that clear land on the menu just
+//  opened and leave the bar showing a popup it believes is closed.
+//
+//  The highlight starts on the first ENABLED row so a keyboard user who opens
+//  a menu and presses Enter activates something rather than a disabled item.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void DxuiMenuBar::Open (int menuIndex, bool keyboardActivated)
@@ -656,6 +671,20 @@ bool DxuiMenuBar::ActivateMnemonicRow (wchar_t ch)
 //
 //  DxuiMenuBar::HandleMouseMove
 //
+//  Tracks hover across the title strip and the open dropdown, switching menus
+//  on the way.
+//
+//  The synthetic-move guard is the important part. Windows posts a
+//  WM_MOUSEMOVE at the UNCHANGED cursor position whenever the dropdown popup
+//  shows or hides under the pointer -- so opening a menu from the KEYBOARD
+//  generates a move at wherever the mouse happens to be resting, which would
+//  immediately switch the open menu to whatever title is under it. Comparing
+//  against the last position distinguishes a real move from that echo.
+//
+//  Hovering a title only SWITCHES menus while one is already open. A closed
+//  strip merely tracks hover for painting, which is what keeps a menu from
+//  springing open just because the pointer crossed the bar.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 bool DxuiMenuBar::HandleMouseMove (int x, int y)
@@ -736,6 +765,17 @@ void DxuiMenuBar::ClearHover()
 //
 //  DxuiMenuBar::HandleMouseDown
 //
+//  Press handling for the strip: open, toggle shut, or dismiss.
+//
+//  Clicking the ALREADY-open title closes it, which is what makes the title
+//  behave like a toggle rather than re-opening the menu the click was meant to
+//  dismiss.
+//
+//  A click outside both the strip and the dropdown closes the menu but is
+//  deliberately NOT consumed -- the return value reports only whether a title
+//  was hit. Swallowing it would cost the user a click every time they dismiss
+//  a menu by clicking the thing they actually wanted.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 bool DxuiMenuBar::HandleMouseDown (int x, int y)
@@ -808,6 +848,27 @@ bool DxuiMenuBar::HandleMouseUp (int x, int y)
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  DxuiMenuBar::PaintStrip
+//
+//  Paints the title strip: background, each title, and the mnemonic underlines.
+//
+//  A title is highlighted for three unrelated reasons -- pointer hover, being
+//  the open menu, or holding keyboard focus while the strip is CLOSED. The
+//  last is qualified deliberately: once a menu is open the open-menu highlight
+//  is the truthful one, and painting both would show two active titles.
+//
+//  Mnemonic underlines appear only when the cues are enabled (the Windows
+//  convention that Alt reveals them), so a mouse user sees clean labels.
+//
+//  Drawing an underline requires knowing where a character SITS inside a
+//  centered string, which the text renderer does not report -- so its offset
+//  is derived by measuring the prefix before it and the prefix including it,
+//  and taking the difference as the character width. The centered start is
+//  recovered the same way, from the full string width against the title rect.
+//  A failed or zero-width measurement skips just that underline rather than
+//  painting one at a guessed position.
+//
+//  Strip colors fall back to the theme unless explicitly overridden, so a host
+//  can tint the bar to match custom chrome without re-theming everything.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1186,7 +1247,18 @@ bool DxuiMenuBar::OnKey (const DxuiKeyEvent & ev)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  DxuiMenuBar::OnMouse (IDxuiControl override)
+//  DxuiMenuBar::OnMouse
+//
+//  The IDxuiControl entry point: unpacks the event and forwards to the
+//  per-gesture handlers.
+//
+//  Kept as a thin adapter because those handlers take plain coordinates and
+//  are therefore unit-testable without constructing framework events -- which
+//  is where the menu bar's behavior is actually covered.
+//
+//  Only the LEFT button is acted on. A right-click over the strip belongs to
+//  whatever context menu the host provides, so it is reported unhandled rather
+//  than silently eaten by the bar.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1327,6 +1399,21 @@ int DxuiMenuBar::HitTitleIndex (int x, int y) const
 //
 //  DxuiMenuBar::HitEntryIndex
 //
+//  Which dropdown ROW is under a point, or -1.
+//
+//  Rows are walked and accumulated rather than divided, because entry heights
+//  are not uniform: a separator is much shorter than a command. A single
+//  divide would misidentify every row after the first separator.
+//
+//  Two counters are tracked for the same reason. The pixel cursor advances by
+//  every entry including separators, while the returned INDEX counts only
+//  selectable rows -- so the index handed back matches the numbering keyboard
+//  navigation and the callbacks use, in which separators do not exist.
+//
+//  A hit on a separator returns -1: it consumes the position without selecting
+//  anything, so dragging across a separator does not highlight the row beyond
+//  it.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 int DxuiMenuBar::HitEntryIndex (int x, int y) const
@@ -1446,6 +1533,22 @@ int DxuiMenuBar::VisibleRowCount (int menuIndex) const
 //
 //  DxuiMenuBar::FirstEnabledRow
 //
+//  Where a freshly-opened menu puts its highlight.
+//
+//  Preferring the first ENABLED row means opening a menu whose top item is
+//  grayed out (a Paste with an empty clipboard) still lands the caret
+//  somewhere Enter will do something.
+//
+//  When nothing is enabled the highlight still goes to row 0 rather than
+//  nowhere, so the dropdown opens looking active instead of blank; -1 is
+//  reserved for a menu with no rows at all.
+//
+//  The walk goes through EntryAt by row index rather than iterating the
+//  submenu directly, which keeps the skip-separators rule in one place instead
+//  of open-coding it a third time. VisibleRowCount already answers 0 for an
+//  out-of-range menu, so the loop covers the bad-index case with no guard of
+//  its own.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 int DxuiMenuBar::FirstEnabledRow (int menuIndex) const
@@ -1529,6 +1632,17 @@ int DxuiMenuBar::NextEnabledRow (int menuIndex, int startRow, int direction) con
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  DxuiMenuBar::EntryAt
+//
+//  Maps a visible ROW index to its submenu entry, skipping separators.
+//
+//  This is the single place the two numbering schemes are reconciled: the
+//  submenu vector holds separators, while every index the rest of the menu bar
+//  deals in -- keyboard highlight, hit testing, callbacks -- counts only
+//  selectable rows. Routing all row lookups through here is what keeps that
+//  translation from being re-derived, slightly differently, at each call site.
+//
+//  Returns null for an out-of-range menu or row, so callers can test the
+//  pointer instead of pre-validating bounds.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
