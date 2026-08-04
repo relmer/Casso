@@ -128,6 +128,9 @@ protected:
     void    OnCreate ()                                             override;
 
 private:
+    static void          ArgbToFloat4      (uint32_t argb, float (& outRgba)[4]) noexcept;
+    static std::wstring  BuildInvalidLabel (LPCWSTR prefix, const std::wstring & expr, const std::vector<TrackSectorPredicate::RejectedSpan> & spans);
+
     void    RecomputeLayout      ();
     void    LayoutWidgets        ();
     void    UpdateDynamicLabels  ();
@@ -156,6 +159,17 @@ private:
     bool    ForwardMouseToList   (DxuiMouseEventKind kind, DxuiMouseButton button, int x, int y, float wheelDelta);
     void    SortByColumn         (int absCol);
     int64_t NowMs                () const;
+
+    // One per mouse event kind, so OnMouse itself is just the dispatch.
+    bool    OnMouseMove          (const DxuiMouseEvent & ev);
+    bool    OnMouseDownLeft      (const DxuiMouseEvent & ev);
+    bool    OnMouseDownRight     (int x, int y);
+    bool    OnMouseUpLeft        (const DxuiMouseEvent & ev);
+
+    // Offers a press to one control, and on acceptance moves keyboard focus
+    // to it. `handled` short-circuits, so a chain of these calls stops at
+    // the first taker without each site restating the test.
+    void    OfferPressTo         (IDxuiControl * control, const DxuiMouseEvent & ev, bool & handled);
 
     PanelLayoutSlots                     m_layout = {};
 

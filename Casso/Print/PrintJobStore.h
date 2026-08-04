@@ -7,6 +7,7 @@ class PrintRaster;
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  PrintJobStore
@@ -15,7 +16,7 @@ class PrintRaster;
 //  edge around the unit-tested core serializer (PrintJobPersistence). Reads and
 //  writes <machine-state>/PendingPrint/{strip.png,strip.json}; the caller owns
 //  the directory path (<assetBase>/Machines/<name>/PendingPrint). The strip.png
-//  is a lossless indexed-colour native-grid image, strip.json its feed/boundary
+//  is a lossless indexed-color native-grid image, strip.json its feed/boundary
 //  metadata. COM must be live on the calling thread (the codec uses WIC).
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -23,8 +24,10 @@ class PrintRaster;
 class PrintJobStore
 {
 public:
-    // Rebuilds the strip from the sidecar. Returns S_FALSE (outRaster left
-    // empty) when no pending strip exists, so a first-run open is not an error.
+    // Rebuilds the strip from the sidecar. Reports
+    // HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND) with outRaster left empty
+    // when no pending strip exists, which is the expected first-run case --
+    // callers start with blank paper rather than surfacing an error.
     static HRESULT  Load  (const fs::path & dir, PrintRaster & outRaster);
 
     // Writes the strip as PendingPrint/{strip.png,strip.json}, creating the

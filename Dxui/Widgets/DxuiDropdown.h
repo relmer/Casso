@@ -91,7 +91,7 @@ public:
     DxuiPopupHost  *  ActivePopup () const { return m_activePopup; }
 
     //
-    //  Supplies the active theme so every paint path derives its colours
+    //  Supplies the active theme so every paint path derives its colors
     //  from IDxuiTheme tokens: the themed IDxuiControl override sets it
     //  automatically, but pages that paint the box and menu separately via
     //  PaintBase / PaintMenu (for cross-widget z-order) must call this
@@ -100,6 +100,8 @@ public:
     void  SetTheme       (const IDxuiTheme * theme) const;
 
 private:
+    static bool  RectContains (const RECT & rect, int x, int y);
+
     struct ResolvedColors
     {
         uint32_t  boxIdle;

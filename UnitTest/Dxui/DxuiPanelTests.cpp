@@ -11,23 +11,22 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
 
 
-namespace
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TEST_CLASS
+//
+////////////////////////////////////////////////////////////////////////////////
+
+TEST_CLASS (DxuiPanelTests)
 {
+public:
+
     RECT  MakeRect (LONG l, LONG t, LONG r, LONG b)
     {
         RECT  out = {};
         out.left = l; out.top = t; out.right = r; out.bottom = b;
         return out;
     }
-}
-
-
-
-
-
-TEST_CLASS (DxuiPanelTests)
-{
-public:
 
     TEST_METHOD (Add_ReturnsReferenceToConstructedChild)
     {
@@ -377,3 +376,4 @@ public:
         Assert::AreEqual ((LONG) 140, b.Bounds().right);
     }
 };
+

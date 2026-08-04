@@ -21,6 +21,7 @@ void DxuiDialogWindow::SetDialogContentOwned (std::unique_ptr<DxuiPanel> content
     HRESULT  hr = S_OK;
 
 
+
     CBRA (content != nullptr);
 
     m_contentOwned = std::move (content);
@@ -77,6 +78,8 @@ void DxuiDialogWindow::Layout (const RECT & boundsPx, const DxuiDpiScaler & scal
     int   rowH    = scaler.Px (DxuiButtonRow::kRowHeightDip);
     bool  hasRow  = !m_dialogButtons.empty();
     RECT  content = boundsPx;
+
+
 
     std::vector<ButtonEntry *>  right;
     std::vector<ButtonEntry *>  left;

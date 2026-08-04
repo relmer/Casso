@@ -15,6 +15,7 @@ static constexpr int  s_kContentPadDip     = DxuiButtonRow::kEdgePadDip;   // pa
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  OnCreate
@@ -26,9 +27,10 @@ static constexpr int  s_kContentPadDip     = DxuiButtonRow::kEdgePadDip;   // pa
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiPropertySheet::OnCreate ()
+void DxuiPropertySheet::OnCreate()
 {
     std::vector<DxuiTabStrip::Tab>  tabs;
+
 
 
     OnBuildPages();
@@ -72,6 +74,7 @@ void DxuiPropertySheet::OnCreate ()
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  OnApply / OnOk / OnCancel
@@ -82,19 +85,28 @@ void DxuiPropertySheet::OnCreate ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT DxuiPropertySheet::OnApply ()
+HRESULT DxuiPropertySheet::OnApply()
 {
     return ApplyAllDirtyPages() ? S_OK : S_FALSE;
 }
 
 
-HRESULT DxuiPropertySheet::OnOk ()
+HRESULT DxuiPropertySheet::OnOk()
 {
     return OnApply();
 }
 
 
-void DxuiPropertySheet::OnCancel ()
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnCancel
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void DxuiPropertySheet::OnCancel()
 {
 }
 
@@ -114,6 +126,7 @@ void DxuiPropertySheet::OnCancel ()
 void DxuiPropertySheet::RegisterPage (DxuiPropertyPage * page)
 {
     HRESULT  hr = S_OK;
+
 
 
     CBRA (page != nullptr);
@@ -139,11 +152,14 @@ Error:
 
 void DxuiPropertySheet::SetActivePage (int index)
 {
-    HRESULT  hr = S_OK;
-    size_t   i  = 0;
+    HRESULT  hr        = S_OK;
+    size_t   i         = 0;
+    int      pageCount = 0;
 
 
-    CBRA (index >= 0 && index < (int) m_pages.size());
+
+    pageCount = (int) m_pages.size();
+    CBRA (index >= 0 && index < pageCount);
 
     m_active = index;
 
@@ -167,6 +183,7 @@ Error:
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  SetPageVisible / IsPageVisible
@@ -175,48 +192,60 @@ Error:
 
 void DxuiPropertySheet::SetPageVisible (int pageIndex, bool visible)
 {
-    if (pageIndex < 0 || pageIndex >= (int) m_present.size())
-    {
-        return;
-    }
-    if (m_present[(size_t) pageIndex] == visible)
-    {
-        return;
-    }
+    bool  inRange = (pageIndex >= 0 && pageIndex < (int) m_present.size());
+    int   first   = 0;
 
-    m_present[(size_t) pageIndex] = visible;
 
-    // A hidden page can neither hold a tab nor be shown.
-    if (!visible)
+
+    // Out of range and already-in-that-state are both nothing to do. The
+    // range test has to come first: it is what makes the lookup safe.
+    if (inRange && m_present[(size_t) pageIndex] != visible)
     {
-        m_pages[(size_t) pageIndex]->SetVisible (false);
-        if (m_active == pageIndex)
+        m_present[(size_t) pageIndex] = visible;
+
+        // A hidden page can neither hold a tab nor be shown.
+        if (!visible)
         {
-            int  first = FirstPresentPage();
-            m_active = (first >= 0) ? first : 0;
-        }
-    }
+            m_pages[(size_t) pageIndex]->SetVisible (false);
 
-    // Relayout so the strip drops / regrows the tab and the active page fills
-    // the content area. Before the first Layout there is nothing to reflow;
-    // the pending change is honored when Layout first runs.
-    if (m_haveLayout)
-    {
-        Layout (m_lastBoundsPx, m_lastScaler);
+            if (m_active == pageIndex)
+            {
+                first    = FirstPresentPage();
+                m_active = (first >= 0) ? first : 0;
+            }
+        }
+
+        // Relayout so the strip drops / regrows the tab and the active page
+        // fills the content area. Before the first Layout there is nothing to
+        // reflow; the pending change is honored when Layout first runs.
+        if (m_haveLayout)
+        {
+            Layout (m_lastBoundsPx, m_lastScaler);
+        }
+
+        SetActivePage (m_active);
+        Invalidate();
     }
-    SetActivePage (m_active);
-    Invalidate();
 }
 
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  IsPageVisible
+//
+////////////////////////////////////////////////////////////////////////////////
 
 bool DxuiPropertySheet::IsPageVisible (int pageIndex) const
 {
-    if (pageIndex < 0 || pageIndex >= (int) m_present.size())
-    {
-        return false;
-    }
-    return m_present[(size_t) pageIndex];
+    // Short-circuit order is load-bearing: the range tests guard the lookup.
+    return (pageIndex >= 0
+            && pageIndex < (int) m_present.size()
+            && m_present[(size_t) pageIndex]);
 }
+
 
 
 
@@ -233,61 +262,117 @@ bool DxuiPropertySheet::IsPageVisible (int pageIndex) const
 
 int DxuiPropertySheet::IndexOfPage (const DxuiPropertyPage * page) const
 {
-    int  i = 0;
+    int  found = -1;
+    int  i     = 0;
 
-    for (i = 0; i < (int) m_pages.size(); ++i)
+
+
+    for (i = 0; i < (int) m_pages.size() && found < 0; ++i)
     {
-        if (m_pages[(size_t) i] == page) { return i; }
+        if (m_pages[(size_t) i] == page) { found = i; }
     }
-    return -1;
+
+    return found;
 }
 
 
-int DxuiPropertySheet::FirstPresentPage () const
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FirstPresentPage
+//
+////////////////////////////////////////////////////////////////////////////////
+
+int DxuiPropertySheet::FirstPresentPage() const
 {
-    int  i = 0;
+    int  found = -1;
+    int  i     = 0;
 
-    for (i = 0; i < (int) m_pages.size(); ++i)
+
+
+    for (i = 0; i < (int) m_pages.size() && found < 0; ++i)
     {
-        if (m_present[(size_t) i]) { return i; }
+        if (m_present[(size_t) i]) { found = i; }
     }
-    return -1;
+
+    return found;
 }
 
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TabIndexOfPage
+//
+////////////////////////////////////////////////////////////////////////////////
 
 int DxuiPropertySheet::TabIndexOfPage (int pageIndex) const
 {
-    int  tab = 0;
-    int  i   = 0;
+    int  found = -1;
+    int  tab   = 0;
+    int  i     = 0;
 
-    for (i = 0; i < (int) m_pages.size(); ++i)
+
+
+    for (i = 0; i < (int) m_pages.size() && found < 0; ++i)
     {
         if (!m_present[(size_t) i]) { continue; }
-        if (i == pageIndex)         { return tab; }
-        ++tab;
+
+        if (i == pageIndex) { found = tab; }
+        else                { ++tab;       }
     }
-    return -1;
+
+    return found;
 }
 
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PageIndexOfTab
+//
+////////////////////////////////////////////////////////////////////////////////
 
 int DxuiPropertySheet::PageIndexOfTab (int tabIndex) const
 {
-    int  tab = 0;
-    int  i   = 0;
+    int  found = -1;
+    int  tab   = 0;
+    int  i     = 0;
 
-    for (i = 0; i < (int) m_pages.size(); ++i)
+
+
+    for (i = 0; i < (int) m_pages.size() && found < 0; ++i)
     {
         if (!m_present[(size_t) i]) { continue; }
-        if (tab == tabIndex)        { return i; }
-        ++tab;
+
+        if (tab == tabIndex) { found = i; }
+        else                 { ++tab;     }
     }
-    return -1;
+
+    return found;
 }
 
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BuildTabList
+//
+////////////////////////////////////////////////////////////////////////////////
 
 void DxuiPropertySheet::BuildTabList (std::vector<DxuiTabStrip::Tab> & out) const
 {
     int  i = 0;
+
+
 
     out.clear();
     out.reserve (m_pages.size());
@@ -304,6 +389,7 @@ void DxuiPropertySheet::BuildTabList (std::vector<DxuiTabStrip::Tab> & out) cons
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  OnDialogTabSwitch
@@ -315,9 +401,11 @@ void DxuiPropertySheet::BuildTabList (std::vector<DxuiTabStrip::Tab> & out) cons
 bool DxuiPropertySheet::OnDialogTabSwitch (bool backward)
 {
     std::vector<int>  present;
-    int               i     = 0;
-    int               pos   = 0;
-    int               count = 0;
+    int               i      = 0;
+    int               pos    = 0;
+    int               count  = 0;
+    bool              cycled = false;
+
 
 
     for (i = 0; i < (int) m_pages.size(); ++i)
@@ -326,21 +414,25 @@ bool DxuiPropertySheet::OnDialogTabSwitch (bool backward)
     }
 
     count = (int) present.size();
-    if (count <= 1)
+
+    // A single page has nowhere to cycle to, so leave the key unhandled and
+    // let the dialog do whatever it does with an unclaimed Ctrl+Tab.
+    if (count > 1)
     {
-        return false;
+        // Cycle among present pages only (a hidden page has no tab to land on).
+        for (i = 0; i < count; ++i)
+        {
+            if (present[(size_t) i] == m_active) { pos = i; break; }
+        }
+
+        pos = backward ? (pos - 1 + count) % count
+                       : (pos + 1) % count;
+
+        SetActivePage (present[(size_t) pos]);
+        cycled = true;
     }
 
-    // Cycle among present pages only (a hidden page has no tab to land on).
-    for (i = 0; i < count; ++i)
-    {
-        if (present[(size_t) i] == m_active) { pos = i; break; }
-    }
-
-    pos = backward ? (pos - 1 + count) % count
-                   : (pos + 1) % count;
-    SetActivePage (present[(size_t) pos]);
-    return true;
+    return cycled;
 }
 
 
@@ -355,9 +447,10 @@ bool DxuiPropertySheet::OnDialogTabSwitch (bool backward)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiPropertySheet::RefreshApplyEnabled ()
+void DxuiPropertySheet::RefreshApplyEnabled()
 {
     bool  anyDirty = false;
+
 
 
     for (DxuiPropertyPage * page : m_pages)
@@ -390,10 +483,11 @@ void DxuiPropertySheet::RefreshApplyEnabled ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool DxuiPropertySheet::ApplyAllDirtyPages ()
+bool DxuiPropertySheet::ApplyAllDirtyPages()
 {
     bool    ok = true;
     size_t  i  = 0;
+
 
 
     for (i = 0; i < m_pages.size(); ++i)
@@ -548,6 +642,7 @@ void DxuiPropertySheet::Layout (const RECT & boundsPx, const DxuiDpiScaler & sca
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  SetApplyVisible / SetOkText / SetOkWidthDip
@@ -573,6 +668,15 @@ void DxuiPropertySheet::SetApplyVisible (bool visible)
 }
 
 
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetOkText
+//
+////////////////////////////////////////////////////////////////////////////////
+
 void DxuiPropertySheet::SetOkText (std::wstring text)
 {
     m_okText = std::move (text);
@@ -587,6 +691,15 @@ void DxuiPropertySheet::SetOkText (std::wstring text)
 }
 
 
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetOkWidthDip
+//
+////////////////////////////////////////////////////////////////////////////////
+
 void DxuiPropertySheet::SetOkWidthDip (int widthDip)
 {
     m_okWidthDip = widthDip;
@@ -595,6 +708,7 @@ void DxuiPropertySheet::SetOkWidthDip (int widthDip)
         Invalidate();
     }
 }
+
 
 
 

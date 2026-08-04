@@ -15,7 +15,7 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 //  Two flavours of test:
 //
-//    1. Behavioural: every Apply* method is a safe no-op when given a
+//    1. Behavioral: every Apply* method is a safe no-op when given a
 //       null HWND (proving the version gate path doesn't dereference
 //       the handle first). These run on any OS.
 //
@@ -27,8 +27,15 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace
+
+
+namespace UiTests
 {
+
+TEST_CLASS (Win11DwmHelpersTests)
+{
+public:
+
     // Locate DxuiDwm.cpp relative to the test DLL's source tree.
     // The test runs from x64/Debug/ so the project root is three levels
     // up; the source file lives at Dxui/Theme/DxuiDwm.cpp.
@@ -39,26 +46,29 @@ namespace
             "../../Dxui/Theme/DxuiDwm.cpp",
             "../../../Dxui/Theme/DxuiDwm.cpp",
         };
-        std::ifstream  in;
-        size_t         i = 0;
+        std::ifstream      in;
+        std::stringstream  ss;
+        std::string        source;
+        size_t             i = 0;
 
-        for (i = 0; i < sizeof (s_kCandidates) / sizeof (s_kCandidates[0]); i++)
+        // Try each depth in turn: the working directory differs between a
+        // local vstest run and CI, so the first one that opens wins.
+        for (i = 0;
+             !in.is_open() && i < sizeof (s_kCandidates) / sizeof (s_kCandidates[0]);
+             i++)
         {
             in.open (s_kCandidates[i]);
-            if (in.is_open())
-            {
-                break;
-            }
         }
 
-        if (!in.is_open())
+        // Empty means "source not reachable from here"; the callers assert on
+        // the extracted body, so that surfaces as a content failure.
+        if (in.is_open())
         {
-            return std::string();
+            ss << in.rdbuf();
+            source = ss.str();
         }
 
-        std::stringstream  ss;
-        ss << in.rdbuf();
-        return ss.str();
+        return source;
     }
 
 
@@ -66,46 +76,40 @@ namespace
     // -- everything between its opening `{` and matching closing `}`.
     std::string ExtractFunctionBody (const std::string & src, const std::string & qualifiedName)
     {
-        size_t  pos    = src.find (qualifiedName);
-        size_t  braceL = 0;
-        size_t  i      = 0;
-        int     depth  = 0;
+        size_t       pos    = src.find (qualifiedName);
+        size_t       braceL = std::string::npos;
+        size_t       i      = 0;
+        int          depth  = 0;
+        std::string  body;
 
-        if (pos == std::string::npos)
+        // No name, no opening brace, or an unbalanced one all mean the same
+        // thing to the caller: nothing extracted. Only a brace that closes back
+        // to depth 0 yields a body.
+        if (pos != std::string::npos)
         {
-            return std::string();
+            braceL = src.find ('{', pos);
         }
 
-        braceL = src.find ('{', pos);
-        if (braceL == std::string::npos)
+        if (braceL != std::string::npos)
         {
-            return std::string();
-        }
+            depth = 1;
 
-        depth = 1;
-        for (i = braceL + 1; i < src.size() && depth > 0; i++)
-        {
-            if (src[i] == '{') { depth++; }
-            if (src[i] == '}') { depth--; }
-            if (depth == 0)
+            for (i = braceL + 1; i < src.size() && depth > 0; i++)
             {
-                return src.substr (braceL + 1, i - braceL - 1);
+                if (src[i] == '{') { depth++; }
+                if (src[i] == '}') { depth--; }
+
+                if (depth == 0)
+                {
+                    body = src.substr (braceL + 1, i - braceL - 1);
+                }
             }
         }
 
-        return std::string();
+        return body;
     }
-}
 
-
-namespace UiTests
-{
-
-TEST_CLASS (Win11DwmHelpersTests)
-{
-public:
-
-    // -------- Behavioural: nullptr HWND is always a safe no-op. -----------
+    // Behavioral: nullptr HWND is always a safe no-op.
 
     TEST_METHOD (ApplyRoundedCorners_NullHwnd_NoCrash)
     {
@@ -147,7 +151,7 @@ public:
     }
 
 
-    // -------- Structural: each Apply method contains its version gate. -----
+    // Structural: each Apply method contains its version gate.
 
     TEST_METHOD (ApplyRoundedCorners_GatedOnWin11)
     {
@@ -204,3 +208,4 @@ public:
 };
 
 }   // namespace UiTests
+

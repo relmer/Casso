@@ -8,83 +8,67 @@
 
 
 
-namespace
+// A 10-line payload, so it stays a file-scope `static constexpr` under the
+// documented 3+ line exception rather than moving onto SettingsCompositor.
+static constexpr const char *  s_kpszVertexShaderSrc =
+    "struct VSInput  { float2 pos : POSITION; float2 uv : TEXCOORD; };\n"
+    "struct VSOutput { float4 pos : SV_POSITION; float2 uv : TEXCOORD; };\n"
+    "VSOutput main (VSInput i)\n"
+    "{\n"
+    "    VSOutput o;\n"
+    "    o.pos = float4 (i.pos, 0.0f, 1.0f);\n"
+    "    o.uv  = i.uv;\n"
+    "    return o;\n"
+    "}\n";
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  LoadShaderSource
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT SettingsCompositor::LoadShaderSource (int resourceId, ShaderSource * outSource)
 {
-    constexpr UINT          s_kMaxBoundPsSrvSlots    = 2;
-    constexpr UINT          s_kFullscreenIndexCount  = 6;
-    constexpr UINT          s_kTexCoordOffsetBytes   = sizeof (float) * 2;
-    constexpr float         s_kGaussianRadiusPx      = 8.0f;
-    constexpr float         s_kDimFactor             = 0.25f;
-    // Feather the focused-control sharp pop-out by this many pixels beyond the
-    // control's row rect so the boundary against the blurred backdrop reads as a
-    // soft halo, not a harsh edge.
-    constexpr float         s_kFocusFeatherPx        = 24.0f;
-
-    constexpr const char *  s_kpszVertexShaderSrc =
-        "struct VSInput  { float2 pos : POSITION; float2 uv : TEXCOORD; };\n"
-        "struct VSOutput { float4 pos : SV_POSITION; float2 uv : TEXCOORD; };\n"
-        "VSOutput main (VSInput i)\n"
-        "{\n"
-        "    VSOutput o;\n"
-        "    o.pos = float4 (i.pos, 0.0f, 1.0f);\n"
-        "    o.uv  = i.uv;\n"
-        "    return o;\n"
-        "}\n";
+    HRESULT    hr        = S_OK;
+    HINSTANCE  hInstance = nullptr;
+    HRSRC      hRes      = nullptr;
+    HGLOBAL    hMem      = nullptr;
+    DWORD      cbData    = 0;
+    void     * pData     = nullptr;
 
 
-    struct ShaderSource
-    {
-        const void * pData  = nullptr;
-        size_t       cbData = 0;
-    };
 
+    CBRAEx (outSource, E_INVALIDARG);
 
-    struct SettingsVertex
-    {
-        float x;
-        float y;
-        float u;
-        float v;
-    };
+    outSource->pData  = nullptr;
+    outSource->cbData = 0;
 
+    hInstance = GetModuleHandleW (nullptr);
+    CBRA (hInstance);
 
-    HRESULT LoadShaderSource (int resourceId, ShaderSource * outSource)
-    {
-        HRESULT    hr        = S_OK;
-        HINSTANCE  hInstance = nullptr;
-        HRSRC      hRes      = nullptr;
-        HGLOBAL    hMem      = nullptr;
-        DWORD      cbData    = 0;
-        void     * pData     = nullptr;
+    hRes = FindResourceW (hInstance, MAKEINTRESOURCEW (resourceId), RT_RCDATA);
+    CWRA (hRes);
 
+    cbData = SizeofResource (hInstance, hRes);
+    CBRA (cbData > 0);
 
-        CBRAEx (outSource, E_INVALIDARG);
+    hMem = LoadResource (hInstance, hRes);
+    CWRA (hMem);
 
-        outSource->pData  = nullptr;
-        outSource->cbData = 0;
+    pData = LockResource (hMem);
+    CWRA (pData);
 
-        hInstance = GetModuleHandleW (nullptr);
-        CBRA (hInstance);
+    outSource->pData  = pData;
+    outSource->cbData = static_cast<size_t> (cbData);
 
-        hRes = FindResourceW (hInstance, MAKEINTRESOURCEW (resourceId), RT_RCDATA);
-        CWRA (hRes);
-
-        cbData = SizeofResource (hInstance, hRes);
-        CBRA (cbData > 0);
-
-        hMem = LoadResource (hInstance, hRes);
-        CWRA (hMem);
-
-        pData = LockResource (hMem);
-        CWRA (pData);
-
-        outSource->pData  = pData;
-        outSource->cbData = static_cast<size_t> (cbData);
-
-    Error:
-        return hr;
-    }
+Error:
+    return hr;
 }
+
 
 
 
@@ -95,10 +79,11 @@ namespace
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-SettingsCompositor::~SettingsCompositor ()
+SettingsCompositor::~SettingsCompositor()
 {
     Shutdown();
 }
+
 
 
 
@@ -114,13 +99,11 @@ HRESULT SettingsCompositor::Initialize (ID3D11Device * device, ID3D11DeviceConte
     HRESULT  hr = S_OK;
 
 
+
     CBRAEx (device,  E_INVALIDARG);
     CBRAEx (context, E_INVALIDARG);
 
-    if (m_initialized)
-    {
-        return S_OK;
-    }
+    BAIL_OUT_IF (m_initialized, S_OK);
 
     m_device  = device;
     m_context = context;
@@ -141,13 +124,14 @@ Error:
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  Shutdown
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void SettingsCompositor::Shutdown ()
+void SettingsCompositor::Shutdown()
 {
     ReleaseBlurTextures();
 
@@ -171,6 +155,7 @@ void SettingsCompositor::Shutdown ()
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  SetTransparencyState
@@ -187,6 +172,7 @@ void SettingsCompositor::SetTransparencyState (bool active, RECT emuRectClient, 
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  CompilePixelShader
@@ -199,6 +185,7 @@ HRESULT SettingsCompositor::CompilePixelShader (int resourceId, const char * sou
     ShaderSource      source = {};
     ComPtr<ID3DBlob>  blob;
     ComPtr<ID3DBlob>  errors;
+
 
 
     CBRAEx (sourceName, E_INVALIDARG);
@@ -223,6 +210,7 @@ Error:
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  CreateResources
@@ -233,7 +221,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT SettingsCompositor::CreateResources ()
+HRESULT SettingsCompositor::CreateResources()
 {
     HRESULT                 hr       = S_OK;
     ComPtr<ID3DBlob>        vsBlob;
@@ -242,6 +230,8 @@ HRESULT SettingsCompositor::CreateResources ()
     D3D11_SUBRESOURCE_DATA  initData = {};
     D3D11_SAMPLER_DESC      sd       = {};
     D3D11_BLEND_DESC        bld      = {};
+
+
 
     SettingsVertex vertices[] =
     {
@@ -256,7 +246,7 @@ HRESULT SettingsCompositor::CreateResources ()
     D3D11_INPUT_ELEMENT_DESC layout[] =
     {
         { "POSITION", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 0,                      D3D11_INPUT_PER_VERTEX_DATA, 0 },
-        { "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, s_kTexCoordOffsetBytes, D3D11_INPUT_PER_VERTEX_DATA, 0 },
+        { "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, kTexCoordOffsetBytes, D3D11_INPUT_PER_VERTEX_DATA, 0 },
     };
 
 
@@ -322,21 +312,22 @@ Error:
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  ReleaseBlurTextures
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void SettingsCompositor::ReleaseBlurTextures ()
+void SettingsCompositor::ReleaseBlurTextures()
 {
-    ID3D11ShaderResourceView * nullSrvs[s_kMaxBoundPsSrvSlots] = {};
+    ID3D11ShaderResourceView * nullSrvs[kMaxBoundPsSrvSlots] = {};
 
 
     if (m_context != nullptr)
     {
         m_context->OMSetRenderTargets   (0, nullptr, nullptr);
-        m_context->PSSetShaderResources (0, s_kMaxBoundPsSrvSlots, nullSrvs);
+        m_context->PSSetShaderResources (0, kMaxBoundPsSrvSlots, nullSrvs);
     }
 
     m_blurVSrv.Reset();
@@ -348,6 +339,7 @@ void SettingsCompositor::ReleaseBlurTextures ()
     m_blurWidthPx  = 0;
     m_blurHeightPx = 0;
 }
+
 
 
 
@@ -364,7 +356,8 @@ HRESULT SettingsCompositor::EnsureBlurTextures (int widthPx, int heightPx)
     D3D11_TEXTURE2D_DESC  td = {};
 
 
-    BAIL_OUT_IF (widthPx <= 0 || heightPx <= 0, E_INVALIDARG);
+
+    CBRAEx (widthPx > 0 && heightPx > 0, E_INVALIDARG);
     BAIL_OUT_IF (m_blurWidthPx == widthPx && m_blurHeightPx == heightPx && m_blurHTex != nullptr, S_OK);
 
     ReleaseBlurTextures();
@@ -406,6 +399,7 @@ Error:
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  UploadBlurParams
@@ -418,6 +412,7 @@ HRESULT SettingsCompositor::UploadBlurParams (const SettingsBlurParams & params)
     D3D11_MAPPED_SUBRESOURCE  mapped = {};
 
 
+
     hr = m_context->Map (m_blurConstantBuffer.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped);
     CHRA (hr);
 
@@ -427,6 +422,7 @@ HRESULT SettingsCompositor::UploadBlurParams (const SettingsBlurParams & params)
 Error:
     return hr;
 }
+
 
 
 
@@ -443,6 +439,7 @@ HRESULT SettingsCompositor::UploadComposeParams (const SettingsComposeParams & p
     D3D11_MAPPED_SUBRESOURCE  mapped = {};
 
 
+
     hr = m_context->Map (m_composeConstantBuffer.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped);
     CHRA (hr);
 
@@ -452,6 +449,7 @@ HRESULT SettingsCompositor::UploadComposeParams (const SettingsComposeParams & p
 Error:
     return hr;
 }
+
 
 
 
@@ -480,8 +478,8 @@ void SettingsCompositor::DrawFullscreen (
     float                      clearColor[4]  = { 0.0f, 0.0f, 0.0f, 0.0f };
     float                      blendFactor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
     D3D11_VIEWPORT             vp             = {};
-    ID3D11ShaderResourceView * srvs[s_kMaxBoundPsSrvSlots]     = { srv0, srv1 };
-    ID3D11ShaderResourceView * nullSrvs[s_kMaxBoundPsSrvSlots] = {};
+    ID3D11ShaderResourceView * srvs[kMaxBoundPsSrvSlots]     = { srv0, srv1 };
+    ID3D11ShaderResourceView * nullSrvs[kMaxBoundPsSrvSlots] = {};
     ID3D11Buffer             * cbs[1]         = { constantBuffer };
 
 
@@ -502,13 +500,14 @@ void SettingsCompositor::DrawFullscreen (
     m_context->VSSetShader            (m_vs.Get(), nullptr, 0);
     m_context->PSSetShader            (ps,         nullptr, 0);
     m_context->PSSetSamplers          (0, 1, m_sampler.GetAddressOf());
-    m_context->PSSetShaderResources   (0, s_kMaxBoundPsSrvSlots, srvs);
+    m_context->PSSetShaderResources   (0, kMaxBoundPsSrvSlots, srvs);
     m_context->PSSetConstantBuffers   (0, 1, cbs);
 
-    m_context->DrawIndexed (s_kFullscreenIndexCount, 0, 0);
+    m_context->DrawIndexed (kFullscreenIndexCount, 0, 0);
 
-    m_context->PSSetShaderResources (0, s_kMaxBoundPsSrvSlots, nullSrvs);
+    m_context->PSSetShaderResources (0, kMaxBoundPsSrvSlots, nullSrvs);
 }
+
 
 
 
@@ -530,62 +529,69 @@ void SettingsCompositor::Compose (
     int                        heightPx)
 {
     SettingsComposeParams  composeParams = {};
+    HRESULT                hrTextures    = S_OK;
 
 
-    if (!m_initialized || contentSrv == nullptr || backBufferRtv == nullptr || widthPx <= 0 || heightPx <= 0)
+    // Not ready, or no scratch textures: skip the frame entirely rather than
+    // present a half-composed one. The caller keeps the previous frame up.
+    if (m_initialized && contentSrv != nullptr && backBufferRtv != nullptr &&
+        widthPx > 0 && heightPx > 0)
     {
-        return;
-    }
-    if (FAILED (EnsureBlurTextures (widthPx, heightPx)))
-    {
-        return;
-    }
-
-    composeParams.outputW = (float) widthPx;
-    composeParams.outputH = (float) heightPx;
-
-    if (m_transparencyActive)
-    {
-        SettingsBlurParams  blurParams = {};
-
-        blurParams.radiusPx = s_kGaussianRadiusPx;
-        blurParams.outputW  = (float) widthPx;
-        blurParams.outputH  = (float) heightPx;
-        (void) UploadBlurParams (blurParams);
-
-        // Separable Gaussian: horizontal (content -> blurH), then vertical
-        // (blurH -> blurV).
-        DrawFullscreen (m_blurHRtv.Get(), contentSrv,        nullptr, m_psGaussianH.Get(), m_blurConstantBuffer.Get(), widthPx, heightPx);
-        DrawFullscreen (m_blurVRtv.Get(), m_blurHSrv.Get(),  nullptr, m_psGaussianV.Get(), m_blurConstantBuffer.Get(), widthPx, heightPx);
-
-        composeParams.emuRectClient[0]   = (float) m_emuRectClient.left;
-        composeParams.emuRectClient[1]   = (float) m_emuRectClient.top;
-        composeParams.emuRectClient[2]   = (float) m_emuRectClient.right;
-        composeParams.emuRectClient[3]   = (float) m_emuRectClient.bottom;
-        composeParams.focusRectClient[0] = (float) m_focusRectClient.left;
-        composeParams.focusRectClient[1] = (float) m_focusRectClient.top;
-        composeParams.focusRectClient[2] = (float) m_focusRectClient.right;
-        composeParams.focusRectClient[3] = (float) m_focusRectClient.bottom;
-        composeParams.dimFactor          = s_kDimFactor;
-        composeParams.featherPx          = s_kFocusFeatherPx;
-        (void) UploadComposeParams (composeParams);
-
-        DrawFullscreen (backBufferRtv, contentSrv, m_blurVSrv.Get(), m_psCompose.Get(), m_composeConstantBuffer.Get(), widthPx, heightPx);
+        hrTextures = EnsureBlurTextures (widthPx, heightPx);
     }
     else
     {
-        // Inactive: focus rect covers the whole frame so FocusWeight == 1
-        // everywhere -> the compose outputs the sharp content opaque (no blur,
-        // no emulator hole). Bind content as both sources so texBlur is valid
-        // even though the lerp ignores it.
-        composeParams.focusRectClient[0] = 0.0f;
-        composeParams.focusRectClient[1] = 0.0f;
-        composeParams.focusRectClient[2] = (float) widthPx;
-        composeParams.focusRectClient[3] = (float) heightPx;
-        composeParams.dimFactor          = 1.0f;
-        composeParams.featherPx          = 0.0f;
-        (void) UploadComposeParams (composeParams);
+        hrTextures = E_FAIL;
+    }
 
-        DrawFullscreen (backBufferRtv, contentSrv, contentSrv, m_psCompose.Get(), m_composeConstantBuffer.Get(), widthPx, heightPx);
+    if (SUCCEEDED (hrTextures))
+    {
+        composeParams.outputW = (float) widthPx;
+        composeParams.outputH = (float) heightPx;
+
+        if (m_transparencyActive)
+        {
+            SettingsBlurParams  blurParams = {};
+
+            blurParams.radiusPx = kGaussianRadiusPx;
+            blurParams.outputW  = (float) widthPx;
+            blurParams.outputH  = (float) heightPx;
+            (void) UploadBlurParams (blurParams);
+
+            // Separable Gaussian: horizontal (content -> blurH), then vertical
+            // (blurH -> blurV).
+            DrawFullscreen (m_blurHRtv.Get(), contentSrv,        nullptr, m_psGaussianH.Get(), m_blurConstantBuffer.Get(), widthPx, heightPx);
+            DrawFullscreen (m_blurVRtv.Get(), m_blurHSrv.Get(),  nullptr, m_psGaussianV.Get(), m_blurConstantBuffer.Get(), widthPx, heightPx);
+
+            composeParams.emuRectClient[0]   = (float) m_emuRectClient.left;
+            composeParams.emuRectClient[1]   = (float) m_emuRectClient.top;
+            composeParams.emuRectClient[2]   = (float) m_emuRectClient.right;
+            composeParams.emuRectClient[3]   = (float) m_emuRectClient.bottom;
+            composeParams.focusRectClient[0] = (float) m_focusRectClient.left;
+            composeParams.focusRectClient[1] = (float) m_focusRectClient.top;
+            composeParams.focusRectClient[2] = (float) m_focusRectClient.right;
+            composeParams.focusRectClient[3] = (float) m_focusRectClient.bottom;
+            composeParams.dimFactor          = kDimFactor;
+            composeParams.featherPx          = kFocusFeatherPx;
+            (void) UploadComposeParams (composeParams);
+
+            DrawFullscreen (backBufferRtv, contentSrv, m_blurVSrv.Get(), m_psCompose.Get(), m_composeConstantBuffer.Get(), widthPx, heightPx);
+        }
+        else
+        {
+            // Inactive: focus rect covers the whole frame so FocusWeight == 1
+            // everywhere -> the compose outputs the sharp content opaque (no blur,
+            // no emulator hole). Bind content as both sources so texBlur is valid
+            // even though the lerp ignores it.
+            composeParams.focusRectClient[0] = 0.0f;
+            composeParams.focusRectClient[1] = 0.0f;
+            composeParams.focusRectClient[2] = (float) widthPx;
+            composeParams.focusRectClient[3] = (float) heightPx;
+            composeParams.dimFactor          = 1.0f;
+            composeParams.featherPx          = 0.0f;
+            (void) UploadComposeParams (composeParams);
+
+            DrawFullscreen (backBufferRtv, contentSrv, contentSrv, m_psCompose.Get(), m_composeConstantBuffer.Get(), widthPx, heightPx);
+        }
     }
 }

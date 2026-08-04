@@ -110,9 +110,9 @@ public:
         JsonParseError   parseError;
         std::string      cpu;
 
-        Assert::IsTrue (SUCCEEDED (JsonParser::Parse (jsonText, root, parseError)),
+        AssertSucceeded (JsonParser::Parse (jsonText, root, parseError) ,
             L"Embedded Apple2eEnhanced JSON must parse cleanly");
-        Assert::IsTrue (SUCCEEDED (root.GetString ("cpu", cpu)),
+        AssertSucceeded (root.GetString ("cpu", cpu) ,
             L"Apple2eEnhanced config must declare a cpu");
         Assert::AreEqual (std::string ("65C02"), cpu,
             L"Apple2eEnhanced must select the 65C02 core");
@@ -185,11 +185,11 @@ public:
 
 
             hrParse = JsonParser::Parse (jsonText, root, parseError);
-            Assert::IsTrue (SUCCEEDED (hrParse),
+            AssertSucceeded (hrParse,
                 std::format (L"{} embedded JSON must parse", machine).c_str());
 
             hrVer = root.GetInt ("$cassoMachineVersion", version);
-            Assert::IsTrue (SUCCEEDED (hrVer),
+            AssertSucceeded (hrVer,
                 std::format (L"{} embedded JSON must carry $cassoMachineVersion", machine).c_str());
 
             Assert::AreEqual (cfg.currentVersion, version,
@@ -221,7 +221,7 @@ private:
 
         hr = MachineConfigLoader::CollectRomFiles (jsonText, outFiles, error);
 
-        Assert::IsTrue (SUCCEEDED (hr),
+        AssertSucceeded (hr,
             std::format (L"CollectRomFiles failed on embedded JSON: {}",
                          std::wstring (error.begin(), error.end())).c_str());
     }
@@ -250,25 +250,21 @@ private:
 
 
         hrParse = JsonParser::Parse (jsonText, root, parseError);
-        Assert::IsTrue (SUCCEEDED (hrParse),
+        AssertSucceeded (hrParse,
             L"Embedded JSON must parse cleanly");
 
         hrSlots = root.GetArray ("slots", pSlots);
 
-        if (FAILED (hrSlots))
+        // A config with no "slots" array simply has no cards in it -- that is
+        // a valid machine (the //c has its drives on-board), not a parse error.
+        if (SUCCEEDED (hrSlots))
         {
-            return false;
-        }
-
-        for (size_t idx = 0; idx < pSlots->ArraySize(); idx++)
-        {
-            const JsonValue &  entry = pSlots->ArrayAt (idx);
-            HRESULT            hrDev = entry.GetString ("device", device);
-
-            if (SUCCEEDED (hrDev) && device == "disk-ii")
+            for (size_t idx = 0; !found && idx < pSlots->ArraySize(); idx++)
             {
-                found = true;
-                break;
+                const JsonValue &  entry = pSlots->ArrayAt (idx);
+                HRESULT            hrDev = entry.GetString ("device", device);
+
+                found = (SUCCEEDED (hrDev) && device == "disk-ii");
             }
         }
 
@@ -296,10 +292,14 @@ private:
         fs::path         exePath    = LocateCassoExe();
 
 
+        // Every guard below ends in Assert::Fail, which THROWS -- so nothing
+        // after it runs and no early return is needed (the `return jsonText;`
+        // that used to follow each one was dead code). The FreeLibrary calls
+        // must still come BEFORE the Fail: the throw unwinds straight past
+        // this frame, so anything after it would leak the module.
         if (exePath.empty())
         {
             Assert::Fail (L"Casso.exe not found next to the test DLL");
-            return jsonText;
         }
 
         hExe = LoadLibraryExW (exePath.wstring().c_str(),
@@ -310,7 +310,6 @@ private:
         {
             Assert::Fail (std::format (L"LoadLibraryExW failed for {}",
                                        exePath.wstring()).c_str());
-            return jsonText;
         }
 
         hRes = FindResourceW (hExe, MAKEINTRESOURCEW (resourceId), RT_RCDATA);
@@ -319,7 +318,6 @@ private:
         {
             FreeLibrary (hExe);
             Assert::Fail (L"Embedded RCDATA resource not found in Casso.exe");
-            return jsonText;
         }
 
         size = SizeofResource (hExe, hRes);
@@ -328,7 +326,6 @@ private:
         {
             FreeLibrary (hExe);
             Assert::Fail (L"Embedded resource is empty");
-            return jsonText;
         }
 
         hMem = LoadResource (hExe, hRes);
@@ -337,7 +334,6 @@ private:
         {
             FreeLibrary (hExe);
             Assert::Fail (L"LoadResource failed");
-            return jsonText;
         }
 
         data = LockResource (hMem);
@@ -346,7 +342,6 @@ private:
         {
             FreeLibrary (hExe);
             Assert::Fail (L"LockResource failed");
-            return jsonText;
         }
 
         jsonText.assign (static_cast<const char *> (data), size);
@@ -372,6 +367,7 @@ private:
         HMODULE   hSelf         = nullptr;
         BOOL      ok            = FALSE;
         fs::path  candidate;
+        fs::path  found;
 
 
         ok = GetModuleHandleExW (
@@ -380,23 +376,19 @@ private:
             reinterpret_cast<LPCWSTR> (&LocateCassoExe),
             &hSelf);
 
-        if (!ok || hSelf == nullptr)
+        // Locate this DLL by an address inside it, then look for Casso.exe as
+        // a sibling -- vstest drops both binaries in the same output folder.
+        // Any step failing means "not found", which the caller reports.
+        if (ok && hSelf != nullptr && GetModuleFileNameW (hSelf, buf, MAX_PATH) != 0)
         {
-            return {};
+            candidate = fs::path (buf).parent_path() / L"Casso.exe";
+
+            if (fs::exists (candidate))
+            {
+                found = candidate;
+            }
         }
 
-        if (GetModuleFileNameW (hSelf, buf, MAX_PATH) == 0)
-        {
-            return {};
-        }
-
-        candidate = fs::path (buf).parent_path() / L"Casso.exe";
-
-        if (!fs::exists (candidate))
-        {
-            return {};
-        }
-
-        return candidate;
+        return found;
     }
 };

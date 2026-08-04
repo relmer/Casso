@@ -25,7 +25,7 @@ namespace Via6522TestNs
     public:
         HRESULT     Reset         () override                     { return S_OK; }
         HRESULT     Step          (uint32_t & outCycles) override { outCycles = 0; return S_OK; }
-        uint64_t    GetCycleCount () const override               { return 0; }
+        uint64_t    GetCycleCount() const override               { return 0; }
 
         void        SetInterruptLine (CpuInterruptKind kind, bool asserted) override
         {
@@ -35,7 +35,7 @@ namespace Via6522TestNs
             }
         }
 
-        bool        IrqAsserted () const { return m_irqAsserted; }
+        bool        IrqAsserted() const { return m_irqAsserted; }
 
     private:
         bool    m_irqAsserted = false;
@@ -59,11 +59,11 @@ namespace Via6522TestNs
 
 
 
-            Assert::AreEqual<Byte> (0, via.GetIfr ());
-            Assert::AreEqual<Byte> (Via6522::kIrqAny, via.GetIer ());
-            Assert::IsFalse (via.IsIrqAsserted ());
-            Assert::AreEqual<uint16_t> (0, via.GetTimer1 ());
-            Assert::AreEqual<uint16_t> (0, via.GetTimer2 ());
+            Assert::AreEqual<Byte> (0, via.GetIfr());
+            Assert::AreEqual<Byte> (Via6522::kIrqAny, via.GetIer());
+            Assert::IsFalse (via.IsIrqAsserted());
+            Assert::AreEqual<uint16_t> (0, via.GetTimer1());
+            Assert::AreEqual<uint16_t> (0, via.GetTimer2());
         }
 
 
@@ -76,13 +76,13 @@ namespace Via6522TestNs
             // All outputs: the output register drives every pin.
             via.WriteRegister (Via6522::kRegDdra, 0xFF);
             via.WriteRegister (Via6522::kRegOra, 0x5A);
-            Assert::AreEqual<Byte> (0x5A, via.GetPortA ());
+            Assert::AreEqual<Byte> (0x5A, via.GetPortA());
             Assert::AreEqual<Byte> (0x5A, via.ReadRegister (Via6522::kRegOra));
 
             // All inputs: the external latch drives every pin.
             via.WriteRegister (Via6522::kRegDdra, 0x00);
             via.SetPortAInput (0x3C);
-            Assert::AreEqual<Byte> (0x3C, via.GetPortA ());
+            Assert::AreEqual<Byte> (0x3C, via.GetPortA());
         }
 
 
@@ -97,7 +97,7 @@ namespace Via6522TestNs
             via.WriteRegister (Via6522::kRegOrb, 0xAA);   // outputs -> low nibble 0xA
             via.SetPortBInput (0x55);                     // inputs  -> high nibble 0x5
 
-            Assert::AreEqual<Byte> (0x5A, via.GetPortB ());
+            Assert::AreEqual<Byte> (0x5A, via.GetPortB());
         }
 
 
@@ -113,20 +113,20 @@ namespace Via6522TestNs
             LoadTimer1 (via, 100);
 
             via.Tick (100);
-            Assert::IsFalse ((via.GetIfr () & Via6522::kIrqTimer1) != 0,
+            Assert::IsFalse ((via.GetIfr() & Via6522::kIrqTimer1) != 0,
                              L"Must not fire one cycle early");
 
             via.Tick (1);
-            Assert::IsTrue ((via.GetIfr () & Via6522::kIrqTimer1) != 0,
+            Assert::IsTrue ((via.GetIfr() & Via6522::kIrqTimer1) != 0,
                             L"Timer 1 must fire on underflow");
-            Assert::IsTrue (via.IsIrqAsserted ());
+            Assert::IsTrue (via.IsIrqAsserted());
 
             // Clear the flag and confirm one-shot never re-fires.
             via.ReadRegister (Via6522::kRegT1CL);
-            Assert::IsFalse ((via.GetIfr () & Via6522::kIrqTimer1) != 0);
+            Assert::IsFalse ((via.GetIfr() & Via6522::kIrqTimer1) != 0);
 
             via.Tick (100000);
-            Assert::IsFalse ((via.GetIfr () & Via6522::kIrqTimer1) != 0,
+            Assert::IsFalse ((via.GetIfr() & Via6522::kIrqTimer1) != 0,
                              L"One-shot must not re-arm on its own");
         }
 
@@ -142,16 +142,16 @@ namespace Via6522TestNs
             LoadTimer1 (via, 100);
 
             via.Tick (101);
-            Assert::IsTrue ((via.GetIfr () & Via6522::kIrqTimer1) != 0,
+            Assert::IsTrue ((via.GetIfr() & Via6522::kIrqTimer1) != 0,
                             L"First continuous underflow");
-            Assert::AreEqual<uint16_t> (100, via.GetTimer1 (),
+            Assert::AreEqual<uint16_t> (100, via.GetTimer1(),
                                         L"Continuous mode reloads from the latch");
 
             via.ReadRegister (Via6522::kRegT1CL);   // clears the flag
-            Assert::IsFalse ((via.GetIfr () & Via6522::kIrqTimer1) != 0);
+            Assert::IsFalse ((via.GetIfr() & Via6522::kIrqTimer1) != 0);
 
             via.Tick (101);
-            Assert::IsTrue ((via.GetIfr () & Via6522::kIrqTimer1) != 0,
+            Assert::IsTrue ((via.GetIfr() & Via6522::kIrqTimer1) != 0,
                             L"Continuous mode re-fires every latch+1 cycles");
         }
 
@@ -165,7 +165,7 @@ namespace Via6522TestNs
             LoadTimer1 (via, 0x1000);
             via.Tick (0x100);
 
-            Assert::AreEqual<uint16_t> (0x0F00, via.GetTimer1 ());
+            Assert::AreEqual<uint16_t> (0x0F00, via.GetTimer1());
             Assert::AreEqual<Byte> (0x00, via.ReadRegister (Via6522::kRegT1CL));
             Assert::AreEqual<Byte> (0x0F, via.ReadRegister (Via6522::kRegT1CH));
         }
@@ -180,10 +180,10 @@ namespace Via6522TestNs
             EnableTimer1Irq (via);
             LoadTimer1 (via, 10);
             via.Tick (11);
-            Assert::IsTrue ((via.GetIfr () & Via6522::kIrqTimer1) != 0);
+            Assert::IsTrue ((via.GetIfr() & Via6522::kIrqTimer1) != 0);
 
             via.WriteRegister (Via6522::kRegT1LH, 0x00);
-            Assert::IsFalse ((via.GetIfr () & Via6522::kIrqTimer1) != 0,
+            Assert::IsFalse ((via.GetIfr() & Via6522::kIrqTimer1) != 0,
                              L"Writing T1L-H clears the Timer 1 flag");
         }
 
@@ -202,16 +202,16 @@ namespace Via6522TestNs
             via.WriteRegister (Via6522::kRegT2CH, 0x00);
 
             via.Tick (50);
-            Assert::IsFalse ((via.GetIfr () & Via6522::kIrqTimer2) != 0);
+            Assert::IsFalse ((via.GetIfr() & Via6522::kIrqTimer2) != 0);
 
             via.Tick (1);
-            Assert::IsTrue ((via.GetIfr () & Via6522::kIrqTimer2) != 0,
+            Assert::IsTrue ((via.GetIfr() & Via6522::kIrqTimer2) != 0,
                             L"Timer 2 fires on underflow");
-            Assert::IsTrue (via.IsIrqAsserted ());
+            Assert::IsTrue (via.IsIrqAsserted());
 
             via.ReadRegister (Via6522::kRegT2CL);   // clears the flag
             via.Tick (100000);
-            Assert::IsFalse ((via.GetIfr () & Via6522::kIrqTimer2) != 0,
+            Assert::IsFalse ((via.GetIfr() & Via6522::kIrqTimer2) != 0,
                              L"Timer 2 is one-shot only");
         }
 
@@ -226,14 +226,14 @@ namespace Via6522TestNs
             via.Tick (6);
 
             // Flag pending but not enabled: no summary bit, no line.
-            Assert::IsFalse ((via.GetIfr () & Via6522::kIrqAny) != 0);
-            Assert::IsFalse (via.IsIrqAsserted ());
+            Assert::IsFalse ((via.GetIfr() & Via6522::kIrqAny) != 0);
+            Assert::IsFalse (via.IsIrqAsserted());
 
             // Enabling the source now surfaces the summary bit and the line.
             via.WriteRegister (Via6522::kRegIer,
                                static_cast<Byte> (Via6522::kIerSetClear | Via6522::kIrqTimer1));
-            Assert::IsTrue ((via.GetIfr () & Via6522::kIrqAny) != 0);
-            Assert::IsTrue (via.IsIrqAsserted ());
+            Assert::IsTrue ((via.GetIfr() & Via6522::kIrqAny) != 0);
+            Assert::IsTrue (via.IsIrqAsserted());
         }
 
 
@@ -246,12 +246,12 @@ namespace Via6522TestNs
             via.WriteRegister (Via6522::kRegIer,
                                static_cast<Byte> (Via6522::kIerSetClear | Via6522::kIrqTimer1 | Via6522::kIrqTimer2));
             Assert::AreEqual<Byte> (static_cast<Byte> (Via6522::kIrqAny | Via6522::kIrqTimer1 | Via6522::kIrqTimer2),
-                                    via.GetIer ());
+                                    via.GetIer());
 
             // Clearing (bit 7 = 0) disables only the flagged sources.
             via.WriteRegister (Via6522::kRegIer, Via6522::kIrqTimer2);
             Assert::AreEqual<Byte> (static_cast<Byte> (Via6522::kIrqAny | Via6522::kIrqTimer1),
-                                    via.GetIer ());
+                                    via.GetIer());
         }
 
 
@@ -271,11 +271,11 @@ namespace Via6522TestNs
             LoadTimer1 (via, 20);
 
             via.Tick (21);
-            Assert::IsTrue (cpu.IrqAsserted (),
+            Assert::IsTrue (cpu.IrqAsserted(),
                             L"Timer 1 underflow must drive the shared IRQ line");
 
             via.ReadRegister (Via6522::kRegT1CL);
-            Assert::IsFalse (cpu.IrqAsserted (),
+            Assert::IsFalse (cpu.IrqAsserted(),
                              L"Clearing the flag must de-assert the line");
         }
 

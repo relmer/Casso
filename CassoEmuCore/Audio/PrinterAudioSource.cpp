@@ -12,6 +12,7 @@
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  DecodeToMonoFloat
@@ -130,6 +131,7 @@ Error:
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  PrinterAudioSource
@@ -144,6 +146,7 @@ PrinterAudioSource::PrinterAudioSource()
 PrinterAudioSource::~PrinterAudioSource()
 {
 }
+
 
 
 
@@ -163,22 +166,25 @@ HRESULT PrinterAudioSource::LoadSounds (const wchar_t * dir, uint32_t targetSamp
     HRESULT  hr        = S_OK;
     bool     mfStarted = false;
 
-    if (dir == nullptr || targetSampleRate == 0)
-    {
-        return E_INVALIDARG;
-    }
+
 
     // Decode is best-effort per file: on failure the slot stays empty and that
     // sound is simply silent, so a partial asset set never faults playback.
-    // Declared before the first CHR so its goto cannot skip the initialization.
+    // Declared before the first bail so no goto skips the initialization --
+    // which is also why the argument guard below sits after it rather than
+    // first; declaring the lambda has no side effect to guard against.
     auto  decode = [&] (const wchar_t * name, vector<float> & dst)
     {
-        wstring  path = wstring (dir) + L"\\" + name;
-        if (FAILED (DecodeToMonoFloat (path.c_str(), targetSampleRate, dst)))
+        wstring  path     = wstring (dir) + L"\\" + name;
+        HRESULT  hrDecode = DecodeToMonoFloat (path.c_str(), targetSampleRate, dst);
+
+        if (FAILED (hrDecode))
         {
             dst.clear();
         }
     };
+
+    CBREx (dir != nullptr && targetSampleRate != 0, E_INVALIDARG);
 
     hr = MFStartup (MF_VERSION, MFSTARTUP_LITE);
     CHR (hr);
@@ -216,6 +222,7 @@ Error:
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  SetQuality
@@ -226,6 +233,7 @@ void PrinterAudioSource::SetQuality (Quality quality)
 {
     m_quality = quality;
 }
+
 
 
 
@@ -248,6 +256,7 @@ void PrinterAudioSource::PublishReveal (int64_t progressDots, int colDots, bool 
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  PlayFormFeed / PlayTearOff
@@ -263,12 +272,23 @@ void PrinterAudioSource::PlayFormFeed (float unusedPage01)
 {
     float  u = std::clamp (unusedPage01, 0.0f, 1.0f);
 
+
+
     // Less of the page unused -> a shorter feed to the tear bar -> shorter grain.
     int  slot = (u < (1.0f / 3.0f)) ? 0 : (u < (2.0f / 3.0f)) ? 1 : 2;
 
     m_pendingAction.store (1 + slot, std::memory_order_release);
 }
 
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PlayTearOff
+//
+////////////////////////////////////////////////////////////////////////////////
 
 void PrinterAudioSource::PlayTearOff()
 {
@@ -278,6 +298,7 @@ void PrinterAudioSource::PlayTearOff()
 
     m_pendingAction.store (1 + kNumPageFeeds + pick, std::memory_order_release);
 }
+
 
 
 
@@ -300,11 +321,21 @@ void PrinterAudioSource::SetMuted (bool muted)
 }
 
 
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetPan
+//
+////////////////////////////////////////////////////////////////////////////////
+
 void PrinterAudioSource::SetPan (float panLeft, float panRight)
 {
     m_panLeft.store  (panLeft,  std::memory_order_relaxed);
     m_panRight.store (panRight, std::memory_order_relaxed);
 }
+
 
 
 
@@ -452,6 +483,7 @@ void PrinterAudioSource::GeneratePCM (float * outMono, uint32_t numSamples)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  MixCarriage
@@ -465,6 +497,8 @@ void PrinterAudioSource::MixCarriage (float * out, uint32_t n)
 {
     const vector<float> &  loop = m_loops[(int) m_quality];
     uint32_t               len  = (uint32_t) loop.size();
+
+
 
     if (m_printHoldSamples <= 0 || len == 0)
     {
@@ -482,6 +516,7 @@ void PrinterAudioSource::MixCarriage (float * out, uint32_t n)
         m_carriagePos++;
     }
 }
+
 
 
 
@@ -519,6 +554,7 @@ void PrinterAudioSource::MixLineFeed (float * out, uint32_t n)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  MixAction
@@ -552,6 +588,7 @@ void PrinterAudioSource::MixAction (float * out, uint32_t n)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  SetLoopForTest / SetLineFeedForTest / SetPageFeedForTest / SetTearForTest
@@ -571,6 +608,15 @@ void PrinterAudioSource::SetLoopForTest (
 }
 
 
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetLineFeedForTest
+//
+////////////////////////////////////////////////////////////////////////////////
+
 void PrinterAudioSource::SetLineFeedForTest (int index, vector<float> && samples)
 {
     if (index >= 0 && index < kNumLineFeeds)
@@ -580,6 +626,15 @@ void PrinterAudioSource::SetLineFeedForTest (int index, vector<float> && samples
 }
 
 
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetPageFeedForTest
+//
+////////////////////////////////////////////////////////////////////////////////
+
 void PrinterAudioSource::SetPageFeedForTest (int index, vector<float> && samples)
 {
     if (index >= 0 && index < kNumPageFeeds)
@@ -588,6 +643,15 @@ void PrinterAudioSource::SetPageFeedForTest (int index, vector<float> && samples
     }
 }
 
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SetTearForTest
+//
+////////////////////////////////////////////////////////////////////////////////
 
 void PrinterAudioSource::SetTearForTest (int index, vector<float> && samples)
 {

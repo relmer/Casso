@@ -41,17 +41,17 @@ namespace RegressionTests
             // Bug: effectiveAddress = location + X didn't wrap with & 0xFF.
             // ZP,X with base=$80, X=$90 should access $10 (wraps), not $110.
             TestCpu cpu;
-            cpu.InitForTest ();
-            cpu.RegX () = 0x90;
+            cpu.InitForTest();
+            cpu.RegX() = 0x90;
             cpu.Poke (0x10, 0xAB);                          // Wrapped address
             cpu.Poke (0x0110, 0xFF);                         // Unwrapped (wrong) address
             cpu.WriteBytes (0x8000, { 0xB5, 0x80 });         // LDA $80,X
 
 
 
-            cpu.Step ();
+            cpu.Step();
 
-            Assert::AreEqual ((Byte) 0xAB, cpu.RegA (),
+            Assert::AreEqual ((Byte) 0xAB, cpu.RegA(),
                 L"LDA $80,X with X=$90 should read from ZP $10, not $0110");
         }
 
@@ -69,14 +69,14 @@ namespace RegressionTests
         {
             // STA $80,X with X=$90 should store to $10, not $110.
             TestCpu cpu;
-            cpu.InitForTest ();
-            cpu.RegX () = 0x90;
-            cpu.RegA () = 0x42;
+            cpu.InitForTest();
+            cpu.RegX() = 0x90;
+            cpu.RegA() = 0x42;
             cpu.WriteBytes (0x8000, { 0x95, 0x80 });         // STA $80,X
 
 
 
-            cpu.Step ();
+            cpu.Step();
 
             Assert::AreEqual ((Byte) 0x42, cpu.Peek (0x10),
                 L"STA $80,X with X=$90 should store to ZP $10");
@@ -98,17 +98,17 @@ namespace RegressionTests
         {
             // Bug: ZP,Y wrapping. LDX $80,Y with Y=$90 should read from $10.
             TestCpu cpu;
-            cpu.InitForTest ();
-            cpu.RegY () = 0x90;
+            cpu.InitForTest();
+            cpu.RegY() = 0x90;
             cpu.Poke (0x10, 0xCD);
             cpu.Poke (0x0110, 0xFF);
             cpu.WriteBytes (0x8000, { 0xB6, 0x80 });         // LDX $80,Y
 
 
 
-            cpu.Step ();
+            cpu.Step();
 
-            Assert::AreEqual ((Byte) 0xCD, cpu.RegX (),
+            Assert::AreEqual ((Byte) 0xCD, cpu.RegX(),
                 L"LDX $80,Y with Y=$90 should read from ZP $10, not $0110");
         }
 
@@ -126,14 +126,14 @@ namespace RegressionTests
         {
             // STX $FF,Y with Y=$01 should store to $00, not $100.
             TestCpu cpu;
-            cpu.InitForTest ();
-            cpu.RegY () = 0x01;
-            cpu.RegX () = 0x77;
+            cpu.InitForTest();
+            cpu.RegY() = 0x01;
+            cpu.RegX() = 0x77;
             cpu.WriteBytes (0x8000, { 0x96, 0xFF });         // STX $FF,Y
 
 
 
-            cpu.Step ();
+            cpu.Step();
 
             Assert::AreEqual ((Byte) 0x77, cpu.Peek (0x00),
                 L"STX $FF,Y with Y=$01 should store to ZP $00");
@@ -166,8 +166,8 @@ namespace RegressionTests
             // Bug: ReadWord(location + X) didn't wrap in ZP.
             // ($F0,X) with X=$10 should read pointer from $00/$01, not $100/$101.
             TestCpu cpu;
-            cpu.InitForTest ();
-            cpu.RegX () = 0x10;
+            cpu.InitForTest();
+            cpu.RegX() = 0x10;
             cpu.Poke (0x00, 0x34);                           // Low byte of pointer (at $00)
             cpu.Poke (0x01, 0x12);                           // High byte of pointer (at $01)
             cpu.Poke (0x1234, 0xEE);                         // Target value
@@ -175,9 +175,9 @@ namespace RegressionTests
 
 
 
-            cpu.Step ();
+            cpu.Step();
 
-            Assert::AreEqual ((Byte) 0xEE, cpu.RegA (),
+            Assert::AreEqual ((Byte) 0xEE, cpu.RegA(),
                 L"LDA ($F0,X) with X=$10 should read pointer from $00/$01");
         }
 
@@ -195,8 +195,8 @@ namespace RegressionTests
         {
             // Pointer read from $FF/$00 (wraps across ZP boundary).
             TestCpu cpu;
-            cpu.InitForTest ();
-            cpu.RegX () = 0x00;
+            cpu.InitForTest();
+            cpu.RegX() = 0x00;
             cpu.Poke (0xFF, 0x78);                           // Low byte of pointer at $FF
             cpu.Poke (0x00, 0x56);                           // High byte wraps to $00
             cpu.Poke (0x5678, 0xDD);                         // Target value
@@ -204,9 +204,9 @@ namespace RegressionTests
 
 
 
-            cpu.Step ();
+            cpu.Step();
 
-            Assert::AreEqual ((Byte) 0xDD, cpu.RegA (),
+            Assert::AreEqual ((Byte) 0xDD, cpu.RegA(),
                 L"LDA ($FF,X) should read pointer from $FF/$00 (ZP wrap)");
         }
     };
@@ -237,8 +237,8 @@ namespace RegressionTests
             // Bug: ReadWord($FF) read high byte from $100 instead of $00.
             // ($FF),Y should read low from $FF, high from $00.
             TestCpu cpu;
-            cpu.InitForTest ();
-            cpu.RegY () = 0x03;
+            cpu.InitForTest();
+            cpu.RegY() = 0x03;
             cpu.Poke (0xFF, 0x00);                           // Low byte of pointer
             cpu.Poke (0x00, 0x20);                           // High byte wraps to $00
             cpu.Poke (0x2003, 0xBB);                         // Target = base ($2000) + Y ($03)
@@ -246,9 +246,9 @@ namespace RegressionTests
 
 
 
-            cpu.Step ();
+            cpu.Step();
 
-            Assert::AreEqual ((Byte) 0xBB, cpu.RegA (),
+            Assert::AreEqual ((Byte) 0xBB, cpu.RegA(),
                 L"LDA ($FF),Y should read pointer from $FF/$00 (ZP wrap)");
         }
     };
@@ -279,7 +279,7 @@ namespace RegressionTests
             // Bug: JMP ($10FF) should read low from $10FF, high from $1000
             // (NMOS page wrap), not from $1100.
             TestCpu cpu;
-            cpu.InitForTest ();
+            cpu.InitForTest();
             cpu.Poke (0x10FF, 0x76);                         // Low byte of target
             cpu.Poke (0x1000, 0x54);                         // High byte wraps to page start
             cpu.Poke (0x1100, 0xFF);                         // Wrong high byte (no wrap)
@@ -287,9 +287,9 @@ namespace RegressionTests
 
 
 
-            cpu.Step ();
+            cpu.Step();
 
-            Assert::AreEqual ((Word) 0x5476, cpu.RegPC (),
+            Assert::AreEqual ((Word) 0x5476, cpu.RegPC(),
                 L"JMP ($10FF) should wrap high byte read to $1000, not $1100");
         }
 
@@ -307,16 +307,16 @@ namespace RegressionTests
         {
             // Non-boundary case: JMP ($1080) reads from $1080/$1081 normally.
             TestCpu cpu;
-            cpu.InitForTest ();
+            cpu.InitForTest();
             cpu.Poke (0x1080, 0x00);
             cpu.Poke (0x1081, 0x30);
             cpu.WriteBytes (0x8000, { 0x6C, 0x80, 0x10 });   // JMP ($1080)
 
 
 
-            cpu.Step ();
+            cpu.Step();
 
-            Assert::AreEqual ((Word) 0x3000, cpu.RegPC ());
+            Assert::AreEqual ((Word) 0x3000, cpu.RegPC());
         }
     };
 
@@ -355,16 +355,16 @@ namespace RegressionTests
             // Result: PC = $0155 (hardware-accurate), not $1355
             TestCpu cpu;
             cpu.InitForTest (0x017B);
-            cpu.RegSP () = 0x7D;
+            cpu.RegSP() = 0x7D;
             cpu.WriteBytes (0x017B, { 0x20, 0x55, 0x13 });   // JSR $1355
 
 
 
-            cpu.Step ();
+            cpu.Step();
 
-            Assert::AreEqual ((Word) 0x0155, cpu.RegPC (),
+            Assert::AreEqual ((Word) 0x0155, cpu.RegPC(),
                 L"JSR stack-operand overlap: hardware re-reads high byte after push");
-            Assert::AreEqual ((Byte) 0x7B, cpu.RegSP (),
+            Assert::AreEqual ((Byte) 0x7B, cpu.RegSP(),
                 L"SP should be decremented by 2");
         }
 
@@ -382,14 +382,14 @@ namespace RegressionTests
         {
             // Normal case: stack doesn't overlap operand.
             TestCpu cpu;
-            cpu.InitForTest ();
+            cpu.InitForTest();
             cpu.WriteBytes (0x8000, { 0x20, 0x55, 0x13 });   // JSR $1355
 
 
 
-            cpu.Step ();
+            cpu.Step();
 
-            Assert::AreEqual ((Word) 0x1355, cpu.RegPC ());
+            Assert::AreEqual ((Word) 0x1355, cpu.RegPC());
         }
     };
 
@@ -425,7 +425,7 @@ namespace RegressionTests
             //   High nibble: $B > 9, add $60: final = $12
             // N should be 1 (from intermediate $B2), not 0 (from final $12).
             TestCpu cpu;
-            cpu.InitForTest ();
+            cpu.InitForTest();
             cpu.WriteBytes (0x8000, {
                 0xF8,               // SED
                 0x18,               // CLC
@@ -437,11 +437,11 @@ namespace RegressionTests
 
             cpu.StepN (4);
 
-            Assert::AreEqual ((Byte) 0x12, cpu.RegA (),
+            Assert::AreEqual ((Byte) 0x12, cpu.RegA(),
                 L"BCD result: $56 + $56 = $12");
-            Assert::IsTrue ((bool) cpu.Status ().flags.negative,
+            Assert::IsTrue ((bool) cpu.Status().flags.negative,
                 L"N flag should be 1 (from intermediate $B2, not final $12)");
-            Assert::IsTrue ((bool) cpu.Status ().flags.carry,
+            Assert::IsTrue ((bool) cpu.Status().flags.carry,
                 L"Carry should be set (BCD result > 99)");
         }
 
@@ -460,7 +460,7 @@ namespace RegressionTests
             // Z flag is from the binary sum, not the BCD-corrected result.
             // A=$50 + $50 + C=0: binary=$A0 (Z=0), BCD=$00 (Z would be 1 if wrong).
             TestCpu cpu;
-            cpu.InitForTest ();
+            cpu.InitForTest();
             cpu.WriteBytes (0x8000, {
                 0xF8,               // SED
                 0x18,               // CLC
@@ -472,9 +472,9 @@ namespace RegressionTests
 
             cpu.StepN (4);
 
-            Assert::AreEqual ((Byte) 0x00, cpu.RegA (),
+            Assert::AreEqual ((Byte) 0x00, cpu.RegA(),
                 L"BCD result: $50 + $50 = $00 (with carry)");
-            Assert::IsFalse ((bool) cpu.Status ().flags.zero,
+            Assert::IsFalse ((bool) cpu.Status().flags.zero,
                 L"Z flag should be 0 (binary $A0 != 0), not from BCD $00");
         }
     };
@@ -509,7 +509,7 @@ namespace RegressionTests
             //   BCD: 00 - 80 = 20 with borrow, A=$20 (bit 7 = 0)
             // N should be 1 (from binary $80), not 0 (from BCD $20).
             TestCpu cpu;
-            cpu.InitForTest ();
+            cpu.InitForTest();
             cpu.WriteBytes (0x8000, {
                 0xF8,               // SED
                 0x38,               // SEC
@@ -521,9 +521,9 @@ namespace RegressionTests
 
             cpu.StepN (4);
 
-            Assert::AreEqual ((Byte) 0x20, cpu.RegA (),
+            Assert::AreEqual ((Byte) 0x20, cpu.RegA(),
                 L"BCD result: $00 - $80 = $20 (with borrow)");
-            Assert::IsTrue ((bool) cpu.Status ().flags.negative,
+            Assert::IsTrue ((bool) cpu.Status().flags.negative,
                 L"N flag should be 1 (from binary $80), not from BCD $20");
         }
 
@@ -545,7 +545,7 @@ namespace RegressionTests
             // Z from binary = 0 (not from BCD $99 which also gives Z=0, so
             // also test the N flag to confirm binary sourcing).
             TestCpu cpu;
-            cpu.InitForTest ();
+            cpu.InitForTest();
             cpu.WriteBytes (0x8000, {
                 0xF8,               // SED
                 0x38,               // SEC
@@ -557,13 +557,13 @@ namespace RegressionTests
 
             cpu.StepN (4);
 
-            Assert::AreEqual ((Byte) 0x99, cpu.RegA (),
+            Assert::AreEqual ((Byte) 0x99, cpu.RegA(),
                 L"BCD result: $00 - $01 = $99 (with borrow)");
-            Assert::IsFalse ((bool) cpu.Status ().flags.zero,
+            Assert::IsFalse ((bool) cpu.Status().flags.zero,
                 L"Z flag should be 0 (binary $FF != 0)");
-            Assert::IsTrue ((bool) cpu.Status ().flags.negative,
+            Assert::IsTrue ((bool) cpu.Status().flags.negative,
                 L"N flag should be 1 (from binary $FF, bit 7 set)");
-            Assert::IsFalse ((bool) cpu.Status ().flags.carry,
+            Assert::IsFalse ((bool) cpu.Status().flags.carry,
                 L"Carry should be 0 (borrow occurred)");
         }
     };
@@ -605,9 +605,9 @@ namespace RegressionTests
 
 
 
-            cpu.Step ();
+            cpu.Step();
 
-            Assert::AreEqual ((Byte) 0x42, cpu.RegA (),
+            Assert::AreEqual ((Byte) 0x42, cpu.RegA(),
                 L"ReadWord at $FFFF should wrap high byte read to $0000");
         }
     };
@@ -633,11 +633,11 @@ namespace RegressionTests
         //
         ////////////////////////////////////////////////////////////////////////////////
 
-        static Assembler BuildAssembler ()
+        static Assembler BuildAssembler()
         {
             TestCpu cpu;
-            cpu.InitForTest ();
-            return Assembler (cpu.GetInstructionSet ());
+            cpu.InitForTest();
+            return Assembler (cpu.GetInstructionSet());
         }
 
 
@@ -655,7 +655,7 @@ namespace RegressionTests
             // Bug: Pass 2 re-evaluated Set expressions using final symbol
             // table value, losing temporal ordering. Matches Dormann next_test
             // pattern with 3+ increments.
-            Assembler asm6502 = BuildAssembler ();
+            Assembler asm6502 = BuildAssembler();
 
             auto result = asm6502.Assemble (
                 "    .org $1000\n"
@@ -697,7 +697,7 @@ namespace RegressionTests
         TEST_METHOD (Set_FourIncrements_MatchesDormannPattern)
         {
             // Extended Dormann pattern: 4 temporal values.
-            Assembler asm6502 = BuildAssembler ();
+            Assembler asm6502 = BuildAssembler();
 
             auto result = asm6502.Assemble (
                 "    .org $1000\n"
@@ -742,11 +742,11 @@ namespace RegressionTests
         //
         ////////////////////////////////////////////////////////////////////////////////
 
-        static Assembler BuildAssembler ()
+        static Assembler BuildAssembler()
         {
             TestCpu cpu;
-            cpu.InitForTest ();
-            return Assembler (cpu.GetInstructionSet ());
+            cpu.InitForTest();
+            return Assembler (cpu.GetInstructionSet());
         }
 
 
@@ -764,7 +764,7 @@ namespace RegressionTests
             // Bug: Set variable incremented inside a macro body — the
             // Dormann-specific pattern where each invocation should see
             // successive values.
-            Assembler asm6502 = BuildAssembler ();
+            Assembler asm6502 = BuildAssembler();
 
             auto result = asm6502.Assemble (
                 "    .org $1000\n"
@@ -781,7 +781,7 @@ namespace RegressionTests
 
 
             Assert::IsTrue (result.success, L"Assembly should succeed");
-            Assert::AreEqual ((size_t) 6, result.bytes.size (),
+            Assert::AreEqual ((size_t) 6, result.bytes.size(),
                 L"Three LDA immediate = 6 bytes");
 
             // Each macro invocation sees the current counter value

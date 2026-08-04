@@ -7,6 +7,7 @@
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  Via6522
@@ -25,7 +26,7 @@
 //    $1 ORA/IRA    $9 T2C-H (write loads counter, clears T2 flag, starts)
 //    $2 DDRB       $A SR    (shift register -- stored, not clocked)
 //    $3 DDRA       $B ACR   (T1/T2 mode select; SR/latch bits stored)
-//    $4 T1C-L      $C PCR   (handshake control -- stored, not modelled)
+//    $4 T1C-L      $C PCR   (handshake control -- stored, not modeled)
 //    $5 T1C-H      $D IFR   (bit7 = IRQ summary, bit6 = T1, bit5 = T2, ...)
 //    $6 T1L-L      $E IER   (bit7 = set/clear control, per-source enables)
 //    $7 T1L-H      $F ORA/IRA (same as $1, no CA handshake)
@@ -36,11 +37,11 @@
 //  once; in continuous mode (ACR bit 6 = 1) it reloads from the latch and
 //  re-fires every latch+1 cycles -- the periodic IRQ that Mockingboard
 //  music players use for timing. Timer 2 is one-shot timed only; PB6
-//  pulse counting (ACR bit 5 = 1) is not modelled.
+//  pulse counting (ACR bit 5 = 1) is not modeled.
 //
-//  Modelled: full register file, ports A/B + DDRs, Timer 1 (one-shot and
+//  Modeled: full register file, ports A/B + DDRs, Timer 1 (one-shot and
 //  continuous) and Timer 2 (one-shot), IFR/IER and the level-sensitive
-//  IRQ line. NOT modelled (registers stored, behaviour absent): the shift
+//  IRQ line. NOT modeled (registers stored, behavior absent): the shift
 //  register clocking, CA1/CA2/CB1/CB2 handshaking, PB6 pulse counting,
 //  and PB7 timer output. The Mockingboard needs none of these.
 //

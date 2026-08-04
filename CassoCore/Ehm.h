@@ -289,14 +289,21 @@ void SetBreakpointFunction (EHM_BREAKPOINT_FUNC func);
 // CPR variants — check pointer for null
 //
 
+// There are deliberately NO -Ex variants here. CPR tests an allocation
+// result, and an allocation failure is always E_OUTOFMEMORY -- there is no
+// other honest code to substitute. Wanting a different HRESULT means the
+// check is not an allocation check at all, so it belongs on another family:
+//
+//   parameter validation ............ CBRAEx (ptr, E_INVALIDARG)
+//   member-state precondition ....... CBRA   (m_foo)
+//   Win32 API returning a pointer ... CWRA   (ptr)   -- keeps GetLastError
+//
+// Leaving CPREx defined only invited that mistake: both of its uses guarded
+// GlobalLock, a Win32 call, and flattened its real error to E_FAIL.
 #define CPR(__prTest)                               __CPR (__prTest, __EHM_NO_ASSERT, false, 0, __EHM_NO_ACTION)
 #define CPRA(__prTest)                              __CPR (__prTest, __EHM_ASSERT,    false, 0, __EHM_NO_ACTION)
-#define CPREx(__prTest, __hrReplace)                __CPR (__prTest, __EHM_NO_ASSERT, true,  __hrReplace, __EHM_NO_ACTION)
-#define CPRAEx(__prTest, __hrReplace)               __CPR (__prTest, __EHM_ASSERT,    true,  __hrReplace, __EHM_NO_ACTION)
 #define CPRF(__prTest, __onFailure)                 __CPR (__prTest, __EHM_NO_ASSERT, false, 0, __onFailure)
 #define CPRAF(__prTest, __onFailure)                __CPR (__prTest, __EHM_ASSERT,    false, 0, __onFailure)
-#define CPRFEx(__prTest, __hrReplace, __onFailure)  __CPR (__prTest, __EHM_NO_ASSERT, true, __hrReplace, __onFailure)
-#define CPRAFEx(__prTest, __hrReplace, __onFailure) __CPR (__prTest, __EHM_ASSERT,    true, __hrReplace, __onFailure)
 
 
 

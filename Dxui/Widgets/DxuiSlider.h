@@ -7,7 +7,6 @@
 
 
 
-
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  DxuiSlider
@@ -97,6 +96,9 @@ public:
     DxuiAccessibleRole  AccessibleRole () const override { return DxuiAccessibleRole::Slider; }
 
 private:
+    static float  Clamp          (float v, float lo, float hi);
+    static float  QuantizeToStep (float value, float minValue, float step);
+
     void   PaintInternal  (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) const;
     void   ApplyValue         (float v);
     void   ApplyValueWithStep (float v, float step);

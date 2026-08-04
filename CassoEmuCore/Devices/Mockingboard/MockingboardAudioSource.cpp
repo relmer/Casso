@@ -6,12 +6,13 @@
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  GeneratePCM
 //
 //  Pulls one PSG sample per output frame, DC-blocks the unipolar DAC
-//  output into an AC-coupled signal centred on zero, and scales by the
+//  output into an AC-coupled signal centered on zero, and scales by the
 //  master gain. The mixer has already zeroed the buffer, so an unbound
 //  source contributes silence.
 //
@@ -23,6 +24,8 @@ void MockingboardAudioSource::GeneratePCM (float * outMono, uint32_t numSamples)
     float      raw      = 0.0f;
     float      filtered = 0.0f;
 
+
+
     if (m_psg == nullptr || outMono == nullptr)
     {
         return;
@@ -30,7 +33,7 @@ void MockingboardAudioSource::GeneratePCM (float * outMono, uint32_t numSamples)
 
     for (i = 0; i < numSamples; i++)
     {
-        raw      = m_psg->GenerateSample ();
+        raw      = m_psg->GenerateSample();
         filtered = raw - m_dcPrevIn + kDcBlockPole * m_dcPrevOut;
 
         m_dcPrevIn  = raw;

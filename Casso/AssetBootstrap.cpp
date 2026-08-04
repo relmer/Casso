@@ -18,6 +18,8 @@
 #include "Ui/DriveWidgetState.h"
 #include "Ui/Dialogs/StartupDownloadDialog.h"
 #include "Ui/Dialogs/DialogDefinition.h"
+#include "Ui/PickerBodyPanel.h"
+#include "Ui/PickerDialog.h"
 #include "Core/DxuiEvents.h"
 #include "Core/DxuiPanel.h"
 #include "Window/DxuiDialogWindow.h"
@@ -37,6 +39,7 @@ static constexpr LPCWSTR       s_kpszUrlPrefix    = L"/AppleWin/AppleWin/master/
 static constexpr LPCWSTR       s_kpszAsimovHost   = L"www.apple.asimov.net";
 
 static constexpr int           s_kBootMruBodyWidthDp = 520;
+
 
 
 
@@ -109,6 +112,7 @@ static constexpr RomSpec s_kRomCatalog[] =
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  BootDiskSpec
@@ -158,15 +162,28 @@ static constexpr BootDiskSpec s_kProDOSDisk =
 
 
 
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MachineDisplayName
+//
+////////////////////////////////////////////////////////////////////////////////
+
 static std::wstring MachineDisplayName (std::string_view machineId)
 {
-    if (machineId == "Apple2")          return L"Apple ][";
-    if (machineId == "Apple2Plus")      return L"Apple ][+";
-    if (machineId == "Apple2e")         return L"Apple //e";
-    if (machineId == "Apple2eEnhanced") return L"Apple //e Enhanced";
-    if (machineId == "Apple2c")         return L"Apple //c";
-    return std::wstring (machineId.begin (), machineId.end ());
+    // An id with no pretty name widens as-is, so a machine added to the
+    // catalog still shows something recognizable before it is listed here.
+    std::wstring  name (machineId.begin(), machineId.end());
+
+    if      (machineId == "Apple2")          { name = L"Apple ]["; }
+    else if (machineId == "Apple2Plus")      { name = L"Apple ][+"; }
+    else if (machineId == "Apple2e")         { name = L"Apple //e"; }
+    else if (machineId == "Apple2eEnhanced") { name = L"Apple //e Enhanced"; }
+    else if (machineId == "Apple2c")         { name = L"Apple //c"; }
+
+    return name;
 }
+
 
 
 
@@ -180,6 +197,7 @@ static std::wstring MachineDisplayName (std::string_view machineId)
 //  its embedded JSON's $cassoMachineVersion.
 //
 ////////////////////////////////////////////////////////////////////////////////
+
 
 
 
@@ -265,6 +283,7 @@ static const MachineConfigPriorHash s_kPriorDefaultHashes[] =
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  DiskAudioSpec
@@ -318,6 +337,7 @@ static constexpr string_view s_kDiskAudioMechanisms[] = { "Shugart", "Alps" };
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  AsciiToWide
@@ -332,6 +352,7 @@ static wstring AsciiToWide (string_view s)
 {
     return wstring (s.begin(), s.end());
 }
+
 
 
 
@@ -377,11 +398,16 @@ Error:
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  NormalizeConfigBytes — moved to MachineConfigUpgrade::NormalizeBytes.
 //  Kept locally only for the BCrypt wrapper below; ComputeSha256 expects
 //  already-normalized input from the caller.
+
+
+
+
 
 ////////////////////////////////////////////////////////////////////////////////
 //
@@ -439,6 +465,7 @@ Error:
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  WriteFileBytes
@@ -447,20 +474,26 @@ Error:
 
 static HRESULT WriteFileBytes (const fs::path & path, span<const Byte> bytes)
 {
-    HRESULT     hr  = S_OK;
+    HRESULT     hr        = S_OK;
     ofstream    out;
+    bool        wroteWell = false;
 
 
 
     out.open (path, ios::binary | ios::trunc);
-    CBRA (out.good());
+
+    wroteWell = out.good();
+    CBRA (wroteWell);
 
     out.write (reinterpret_cast<const char *> (bytes.data()), static_cast<streamsize> (bytes.size()));
-    CBRA (out.good());
+
+    wroteWell = out.good();
+    CBRA (wroteWell);
 
 Error:
     return hr;
 }
+
 
 
 
@@ -501,6 +534,7 @@ static HRESULT BackupUserEditedConfig (const fs::path & target)
 Error:
     return hr;
 }
+
 
 
 
@@ -662,6 +696,7 @@ HRESULT AssetBootstrap::EnsureMachineConfigs (
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  EmbeddedThemeFile / EmbeddedTheme
@@ -738,6 +773,7 @@ static const EmbeddedTheme s_kEmbeddedThemes[] =
     { "DarkModern",    1, span<const EmbeddedThemeFile> (s_kDarkModernFiles)    },
     { "RetroTerminal", 1, span<const EmbeddedThemeFile> (s_kRetroTerminalFiles) },
 };
+
 
 
 
@@ -859,6 +895,7 @@ HRESULT AssetBootstrap::EnsureThemes (
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  EnsureImageWriterSounds
@@ -934,6 +971,7 @@ HRESULT AssetBootstrap::EnsureImageWriterSounds (HINSTANCE hInstance)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  GetAssetBaseDirectory
@@ -961,6 +999,7 @@ fs::path AssetBootstrap::GetAssetBaseDirectory()
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  GetDiskDirectory
@@ -977,9 +1016,12 @@ fs::path AssetBootstrap::GetDiskDirectory()
     fs::path     disks  = base / L"Disks";
     error_code   ec;
 
+
+
     fs::create_directories (disks, ec);
     return disks;
 }
+
 
 
 
@@ -1008,6 +1050,8 @@ bool AssetBootstrap::IsForeignCheckoutDisk (const fs::path & p)
 
 
 
+
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  AppendBundledDemoDisks
@@ -1018,6 +1062,8 @@ void AssetBootstrap::AppendBundledDemoDisks (std::vector<DiskMru::Entry> & mount
 {
     std::vector<fs::path>  demos;
     error_code             ec;
+
+
 
     // Locate Apple2/Demos ONCE per process. It ships in the source tree, not
     // an installed layout, so its location is purely a function of the exe
@@ -1098,6 +1144,7 @@ void AssetBootstrap::AppendBundledDemoDisks (std::vector<DiskMru::Entry> & mount
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  AppendSiblingDisksFromMruFolders
@@ -1108,6 +1155,8 @@ void AssetBootstrap::AppendSiblingDisksFromMruFolders (std::vector<DiskMru::Entr
 {
     std::vector<fs::path>  folders = DiskMru::DistinctFolders (mountable);
     std::vector<fs::path>  discovered;
+
+
 
     // Enumerate each recent-disk folder fresh on every open: the user can
     // drop a new image next to a recent one (or hand one back from a tool)
@@ -1160,6 +1209,7 @@ void AssetBootstrap::AppendSiblingDisksFromMruFolders (std::vector<DiskMru::Entr
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  FindRomSpec
@@ -1190,7 +1240,7 @@ static const RomSpec * FindRomSpec (string_view machineName, string_view cassoNa
     {
         for (const RomSpec & spec : s_kRomCatalog)
         {
-            if (spec.cassoName == cassoName && spec.machineName.empty ())
+            if (spec.cassoName == cassoName && spec.machineName.empty())
             {
                 result = &spec;
                 break;
@@ -1200,6 +1250,7 @@ static const RomSpec * FindRomSpec (string_view machineName, string_view cassoNa
 
     return result;
 }
+
 
 
 
@@ -1233,6 +1284,9 @@ static HRESULT DownloadHttp (
     DWORD        statusSize   = sizeof (statusCode);
     DWORD        bytesAvail   = 0;
     DWORD        bytesRead    = 0;
+    bool         fCanceled    = false;
+    size_t       receivedSize = 0;
+    bool         hasBytes     = false;
     string       narrowHost;
 
 
@@ -1291,12 +1345,9 @@ static HRESULT DownloadHttp (
     {
         vector<Byte>  chunk;
 
-        if (cancelRequested != nullptr && cancelRequested->load (std::memory_order_relaxed))
-        {
-            outError = format ("{} cancelled", displayName);
-            hr = E_ABORT;
-            goto Error;
-        }
+        fCanceled = (cancelRequested != nullptr) &&
+                    cancelRequested->load (std::memory_order_relaxed);
+        CBRFEx (!fCanceled, E_ABORT, outError = format ("{} canceled", displayName));
 
         bytesAvail = 0;
         fOk = WinHttpQueryDataAvailable (hRequest, &bytesAvail);
@@ -1332,15 +1383,18 @@ static HRESULT DownloadHttp (
     // ahead of time). Pass 0 to skip the size check -- used for the
     // OpenEmulator OGG fetch where the upstream file size is not
     // pinned (T134).
+    receivedSize = outBytes.size();
+    hasBytes     = !outBytes.empty();
+
     if (expectedSize > 0)
     {
-        CBRF (outBytes.size() == expectedSize,
+        CBRF (receivedSize == expectedSize,
               outError = format ("Downloaded {} has wrong size: got {}, expected {}",
-                                 displayName, outBytes.size(), expectedSize));
+                                 displayName, receivedSize, expectedSize));
     }
     else
     {
-        CBRF (!outBytes.empty (),
+        CBRF (hasBytes,
               outError = format ("Downloaded {} was empty", displayName));
     }
 
@@ -1357,6 +1411,7 @@ Error:
 
     return hr;
 }
+
 
 
 
@@ -1396,6 +1451,7 @@ static const EmbeddedConfig * FindEmbeddedConfig (const wstring & machineName)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  LoadEmbeddedJson
@@ -1413,8 +1469,9 @@ static HRESULT LoadEmbeddedJson (
     string          & outNarrowName,
     string          & outError)
 {
-    HRESULT                 hr    = S_OK;
-    const EmbeddedConfig  * cfg   = nullptr;
+    HRESULT                 hr       = S_OK;
+    const EmbeddedConfig  * cfg      = nullptr;
+    bool                    hasBytes = false;
     span<const Byte>        bytes;
 
 
@@ -1432,8 +1489,10 @@ static HRESULT LoadEmbeddedJson (
     CBRF (cfg != nullptr,
           outError = format ("No embedded config for machine '{}'", outNarrowName));
 
-    bytes = ExtractResource (hInstance, cfg->resourceId);
-    CBRF (!bytes.empty(),
+    bytes    = ExtractResource (hInstance, cfg->resourceId);
+    hasBytes = !bytes.empty();
+
+    CBRF (hasBytes,
           outError = format ("Embedded config resource for '{}' is empty",
                              string (cfg->machineName)));
 
@@ -1443,6 +1502,7 @@ static HRESULT LoadEmbeddedJson (
 Error:
     return hr;
 }
+
 
 
 
@@ -1483,6 +1543,7 @@ HRESULT AssetBootstrap::GetRequiredRoms (
 Error:
     return hr;
 }
+
 
 
 
@@ -1581,6 +1642,7 @@ Error:
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  GetEmbeddedDisplayName
@@ -1611,13 +1673,14 @@ static wstring GetEmbeddedDisplayName (HINSTANCE hInstance, const wstring & mach
         hr = JsonParser::Parse (jsonText, root, parseError);
     }
 
-    if (SUCCEEDED (hr) && SUCCEEDED (root.GetString ("name", name)) && !name.empty())
+    if (SUCCEEDED (hr) && root.HasString ("name", name) && !name.empty())
     {
         result.assign (name.begin(), name.end());
     }
 
     return result;
 }
+
 
 
 
@@ -1692,6 +1755,7 @@ Error:
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  FilesHaveSameContent
@@ -1714,54 +1778,55 @@ static bool FilesHaveSameContent (const fs::path & a, const fs::path & b)
 {
     constexpr std::streamsize  kChunk = 64 * 1024;
 
-    std::error_code  ec;
-    uintmax_t        sizeA   = fs::file_size (a, ec);
-    uintmax_t        sizeB   = 0;
-    std::ifstream    fa;
-    std::ifstream    fb;
+
+
+    std::error_code   ec;
+    uintmax_t         sizeA     = fs::file_size (a, ec);
+    uintmax_t         sizeB     = 0;
+    uintmax_t         remaining = 0;
+    std::streamsize   want      = 0;
+    std::ifstream     fa;
+    std::ifstream     fb;
     std::vector<char> bufA ((size_t) kChunk);
     std::vector<char> bufB ((size_t) kChunk);
+    bool              same      = !ec;
 
 
-    if (ec)
+    // Size first: a stat per side rules out the common "not the same file"
+    // case before either is opened. A zero-length file is never a match --
+    // two empty files are not the same disk image in any useful sense.
+    if (same)
     {
-        return false;
+        sizeB = fs::file_size (b, ec);
+        same  = !ec && sizeA == sizeB && sizeA != 0;
     }
 
-    sizeB = fs::file_size (b, ec);
-    if (ec || sizeA != sizeB || sizeA == 0)
+    if (same)
     {
-        return false;
+        fa.open (a, std::ios::binary);
+        fb.open (b, std::ios::binary);
+        same = fa.is_open() && fb.is_open();
     }
 
-    fa.open (a, std::ios::binary);
-    fb.open (b, std::ios::binary);
-    if (!fa.is_open() || !fb.is_open())
+    // Chunked compare, bailing on the first differing block. A short read on
+    // either side counts as a mismatch (the file changed under us).
+    for (remaining = same ? sizeA : 0; same && remaining > 0; )
     {
-        return false;
-    }
-
-    for (uintmax_t remaining = sizeA; remaining > 0; )
-    {
-        std::streamsize  want = (remaining < (uintmax_t) kChunk) ? (std::streamsize) remaining : kChunk;
+        want = (remaining < (uintmax_t) kChunk) ? (std::streamsize) remaining : kChunk;
 
         fa.read (bufA.data(), want);
         fb.read (bufB.data(), want);
-        if (fa.gcount() != want || fb.gcount() != want)
-        {
-            return false;       // short read on either side -> treat as mismatch
-        }
 
-        if (std::memcmp (bufA.data(), bufB.data(), (size_t) want) != 0)
-        {
-            return false;       // first differing block -> done, no full read
-        }
+        same = fa.gcount() == want
+               && fb.gcount() == want
+               && std::memcmp (bufA.data(), bufB.data(), (size_t) want) == 0;
 
         remaining -= (uintmax_t) want;
     }
 
-    return true;
+    return same;
 }
+
 
 
 
@@ -1864,6 +1929,7 @@ private:
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  DiskMruPickerSession::FileMtimeUnix
@@ -1893,6 +1959,7 @@ std::int64_t DiskMruPickerSession::FileMtimeUnix (const fs::path & path)
 Error:
     return result;
 }
+
 
 
 
@@ -1950,6 +2017,7 @@ Error:
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  DiskMruPickerSession::ConfigureWidgets
@@ -1989,6 +2057,7 @@ void DiskMruPickerSession::ConfigureWidgets()
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  DiskMruPickerSession::RebuildView
@@ -2003,6 +2072,8 @@ void DiskMruPickerSession::RebuildView()
 {
     std::vector<std::vector<DxuiListView::Cell>>  rows;
     int                                           selected = -1;
+
+
 
     // Tokenize the filter: whitespace-separated, lowercased. A row passes
     // when EVERY token appears in some field (name / location / last-loaded);
@@ -2147,6 +2218,7 @@ void DiskMruPickerSession::RebuildView()
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  DiskMruPickerSession::ApplySort
@@ -2185,6 +2257,7 @@ Error:
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  DiskMruPickerSession::ChosenResultAt
@@ -2211,219 +2284,6 @@ int DiskMruPickerSession::ChosenResultAt (int visibleRow) const
 
 
 
-namespace
-{
-    ////////////////////////////////////////////////////////////////////////////////
-    //
-    //  PickerBodyPanel
-    //
-    //  Dxui content panel for the boot-disk picker: a search box docked at
-    //  the top, a list filling the rest. Lays out in physical pixels (the
-    //  hosted dialog passes a px content rect) so the fixed search-strip
-    //  height scales with DPI.
-    //
-    ////////////////////////////////////////////////////////////////////////////////
-
-    class PickerBodyPanel : public DxuiPanel
-    {
-    public:
-        void  Init (DxuiSearchBox * search, DxuiListView * list, int searchHeightDip, int gapDip)
-        {
-            m_search          = search;
-            m_list            = list;
-            m_searchHeightDip = searchHeightDip;
-            m_gapDip          = gapDip;
-
-            Adopt (*search);
-            Adopt (*list);
-        }
-
-        void  Layout (const RECT & boundsPx, const DxuiDpiScaler & scaler) override
-        {
-            int  sh  = scaler.Px (m_searchHeightDip);
-            int  gap = scaler.Px (m_gapDip);
-
-
-            SetBounds (boundsPx);
-
-            if (m_search != nullptr)
-            {
-                RECT  r = { boundsPx.left, boundsPx.top, boundsPx.right, boundsPx.top + sh };
-
-                m_search->Layout (r, scaler);
-            }
-
-            if (m_list != nullptr)
-            {
-                RECT  r = { boundsPx.left, boundsPx.top + sh + gap, boundsPx.right, boundsPx.bottom };
-
-                m_list->Layout (r, scaler);
-            }
-        }
-
-        //
-        //  DxuiListView::OnMouse expects widget-LOCAL (0-based) coordinates,
-        //  but the panel fan-out delivers absolute client-px, so a plain
-        //  DxuiPanel::OnMouse would hand the list mis-offset points (wrong
-        //  row selected, column-resize divider never hit). Translate to
-        //  list-local and dispatch to the list first (it owns scroll / drag
-        //  / resize / select + consumes any press inside itself); anything
-        //  the list declines falls through to the search box, which hit-
-        //  tests against its own absolute bounds.
-        //
-        bool  OnMouse (const DxuiMouseEvent & ev) override
-        {
-            DxuiMouseEvent  listEv  = ev;
-            bool            handled = false;
-
-
-            if (m_list != nullptr)
-            {
-                RECT  lb = m_list->Bounds();
-
-                listEv.positionDip = { ev.positionDip.x - lb.left, ev.positionDip.y - lb.top };
-                handled            = m_list->OnMouse (listEv);
-            }
-
-            if (!handled && m_search != nullptr)
-            {
-                handled = m_search->OnMouse (ev);
-            }
-
-            return handled;
-        }
-
-        LPCWSTR  CursorForPoint (POINT clientPx) const override
-        {
-            LPCWSTR  cursor = nullptr;
-
-
-            if (m_list != nullptr)
-            {
-                RECT   lb    = m_list->Bounds();
-                POINT  local = { clientPx.x - lb.left, clientPx.y - lb.top };
-
-                cursor = m_list->CursorForPoint (local);
-            }
-
-            return cursor;
-        }
-
-
-    private:
-        DxuiSearchBox *  m_search          = nullptr;
-        DxuiListView  *  m_list            = nullptr;
-        int              m_searchHeightDip = 0;
-        int              m_gapDip          = 0;
-    };
-
-
-
-
-    ////////////////////////////////////////////////////////////////////////////////
-    //
-    //  PickerDialog
-    //
-    //  DxuiDialogWindow hosting a pre-built picker body (search + list) and
-    //  its action buttons. Non-cancel buttons carry their real (negative)
-    //  result codes as command ids (so a click ends the modal with that
-    //  code directly); the cancel button maps to IDCANCEL so Escape / the
-    //  close-box fire it. Row activation ends the modal with the row result
-    //  offset past s_kRowResultBase; MapResult un-offsets it and translates
-    //  IDCANCEL back to the cancel button's real code (or the close-box
-    //  result when no cancel button exists).
-    //
-    ////////////////////////////////////////////////////////////////////////////////
-
-    class PickerDialog : public DxuiDialogWindow
-    {
-    public:
-        static constexpr int  s_kRowResultBase = 100000;   // row results offset past button / IDCANCEL codes
-
-
-        void  ConfigurePicker (std::unique_ptr<DxuiPanel>          content,
-                               IDxuiControl *                     initialFocus,
-                               const std::vector<DialogButton> &  buttons,
-                               int                                closeBoxResult)
-        {
-            m_pendingContent = std::move (content);
-            m_pendingFocus   = initialFocus;
-            m_buttons        = buttons;
-            m_closeBoxResult = closeBoxResult;
-        }
-
-        int  DefaultCommandId () const { return m_defaultCommandId; }
-
-        int  MapResult (int dialogResult) const
-        {
-            int     result = m_closeBoxResult;
-            size_t  idx    = 0;
-
-
-            if (dialogResult >= s_kRowResultBase)
-            {
-                result = dialogResult - s_kRowResultBase;
-            }
-            else if (dialogResult == IDCANCEL)
-            {
-                for (idx = 0; idx < m_buttons.size(); ++idx)
-                {
-                    if (m_buttons[idx].isCancel)
-                    {
-                        result = m_buttons[idx].resultCode;
-                        break;
-                    }
-                }
-            }
-            else
-            {
-                result = dialogResult;
-            }
-
-            return result;
-        }
-
-
-    protected:
-        void  OnCreate () override
-        {
-            size_t  i = 0;
-
-
-            if (m_pendingContent != nullptr)
-            {
-                SetDialogContentOwned (std::move (m_pendingContent));
-            }
-
-            for (i = 0; i < m_buttons.size(); ++i)
-            {
-                int                    commandId = m_buttons[i].isCancel ? IDCANCEL : m_buttons[i].resultCode;
-                DxuiButtonRow::Anchor  anchor    = m_buttons[i].anchorLeft ? DxuiButtonRow::Anchor::Left
-                                                                           : DxuiButtonRow::Anchor::Right;
-
-                AddDialogButton (m_buttons[i].label, commandId, anchor);
-
-                if (m_buttons[i].isDefault)
-                {
-                    m_defaultCommandId = commandId;
-                }
-            }
-
-            SetInitialFocus (m_pendingFocus);
-        }
-
-
-    private:
-        std::unique_ptr<DxuiPanel>  m_pendingContent;
-        IDxuiControl *              m_pendingFocus     = nullptr;
-        std::vector<DialogButton>   m_buttons;
-        int                         m_closeBoxResult   = -1;
-        int                         m_defaultCommandId = 0;
-    };
-}
-
-
-
 
 ////////////////////////////////////////////////////////////////////////////////
 //
@@ -2447,6 +2307,7 @@ int DiskMruPickerSession::Run()
     int                               raw     = 0;
 
 
+
     m_dpi = (m_hwndParent != nullptr) ? GetDpiForWindow (m_hwndParent) : GetDpiForSystem();
 
     ConfigureWidgets();
@@ -2463,7 +2324,7 @@ int DiskMruPickerSession::Run()
 
         if (code >= 0)
         {
-            dlg.EndDialog (PickerDialog::s_kRowResultBase + code);
+            dlg.EndDialog (PickerDialog::kRowResultBase + code);
         }
     });
 
@@ -2491,6 +2352,7 @@ int DiskMruPickerSession::Run()
 Error:
     return chosen;
 }
+
 
 
 
@@ -2674,6 +2536,7 @@ Error:
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  PromptInsertDiskMru
@@ -2822,7 +2685,7 @@ HRESULT AssetBootstrap::PromptInsertDiskMru (
     }
     else if (chosen == s_kCloseBoxResult || chosen == s_kCancelResult)
     {
-        // user cancelled; outDiskPath stays empty
+        // user canceled; outDiskPath stays empty
     }
     else if (chosen >= 0 && chosen < mruCount)
     {
@@ -2838,6 +2701,7 @@ HRESULT AssetBootstrap::PromptInsertDiskMru (
 Error:
     return hr;
 }
+
 
 
 
@@ -2876,7 +2740,7 @@ HRESULT AssetBootstrap::FetchAndDecodeOgg (
 
 
 
-    outPcm.clear ();
+    outPcm.clear();
 
     CBRF (urlPath != nullptr,
           outError = "FetchAndDecodeOgg: null URL path");
@@ -2891,7 +2755,7 @@ HRESULT AssetBootstrap::FetchAndDecodeOgg (
         size_t   slash = wUrl.find_last_of (L'/');
         wstring  tail  = (slash == wstring::npos) ? wUrl : wUrl.substr (slash + 1);
 
-        narrowName.reserve (tail.size ());
+        narrowName.reserve (tail.size());
 
         for (wchar_t wch : tail)
         {
@@ -2911,8 +2775,8 @@ HRESULT AssetBootstrap::FetchAndDecodeOgg (
     CHR (hr);
 
     hr = StbVorbisWrapper::DecodeOggToInterleavedShort (
-        oggBytes.data (),
-        oggBytes.size (),
+        oggBytes.data(),
+        oggBytes.size(),
         shortPcm,
         srcRate,
         channels,
@@ -2922,14 +2786,14 @@ HRESULT AssetBootstrap::FetchAndDecodeOgg (
     // The raw OGG bytes are not needed past this point; release them
     // before allocating the float buffer (NFR-006 -- no `.ogg` files
     // on disk, no in-memory hold past decode).
-    oggBytes.clear ();
-    oggBytes.shrink_to_fit ();
+    oggBytes.clear();
+    oggBytes.shrink_to_fit();
 
     CBRF (channels >= 1 && channels <= 2,
           outError = format ("Unsupported channel count {} (only mono and stereo handled)",
                              channels));
 
-    srcFrames = shortPcm.size () / channels;
+    srcFrames = shortPcm.size() / channels;
 
     CBRF (srcFrames > 0,
           outError = "OGG decoded to zero frames");
@@ -2955,8 +2819,8 @@ HRESULT AssetBootstrap::FetchAndDecodeOgg (
             monoSrc[i] = (float) sum / (32768.0f * (float) channels);
         }
 
-        shortPcm.clear ();
-        shortPcm.shrink_to_fit ();
+        shortPcm.clear();
+        shortPcm.shrink_to_fit();
 
         // Linear-interp resample (A-001: drive noise is broadband,
         // not pitch-critical, so we accept the cheap algorithm).
@@ -2988,11 +2852,12 @@ HRESULT AssetBootstrap::FetchAndDecodeOgg (
 Error:
     if (FAILED (hr))
     {
-        outPcm.clear ();
+        outPcm.clear();
     }
 
     return hr;
 }
+
 
 
 
@@ -3016,7 +2881,7 @@ HRESULT AssetBootstrap::WritePcmAsWav (
     HRESULT     hr            = S_OK;
     ofstream    out;
     error_code  ec;
-    size_t      sampleCount   = pcm.size ();
+    size_t      sampleCount   = pcm.size();
     uint32_t    dataBytes     = static_cast<uint32_t> (sampleCount * sizeof (int16_t));
     uint32_t    fileSize      = 36 + dataBytes;     // RIFF chunk-content size: 4 + (8 + 16) + (8 + dataBytes)
     uint16_t    numChannels   = 1;
@@ -3029,17 +2894,20 @@ HRESULT AssetBootstrap::WritePcmAsWav (
     size_t      i             = 0;
     int16_t     sampleI16     = 0;
     float       sampleF       = 0.0f;
+    bool        wroteWell     = false;
 
 
 
     CBRF (sampleRate > 0,
           outError = "WritePcmAsWav: sample rate must be > 0");
 
-    fs::create_directories (outPath.parent_path (), ec);
+    fs::create_directories (outPath.parent_path(), ec);
 
     out.open (outPath, ios::binary | ios::trunc);
-    CBRF (out.good (),
-          outError = format ("Cannot open {} for writing", outPath.string ()));
+
+    wroteWell = out.good();
+    CBRF (wroteWell,
+          outError = format ("Cannot open {} for writing", outPath.string()));
 
     out.write ("RIFF", 4);
     out.write (reinterpret_cast<const char *> (&fileSize), sizeof (fileSize));
@@ -3068,10 +2936,11 @@ HRESULT AssetBootstrap::WritePcmAsWav (
         out.write (reinterpret_cast<const char *> (&sampleI16), sizeof (sampleI16));
     }
 
-    CBRF (out.good (),
-          outError = format ("Write error on {}", outPath.string ()));
+    wroteWell = out.good();
+    CBRF (wroteWell,
+          outError = format ("Write error on {}", outPath.string()));
 
-    out.close ();
+    out.close();
 
     // `fmtSizeWord` is unused on Windows builds; silence the analyzer
     // by referencing it.
@@ -3080,6 +2949,7 @@ HRESULT AssetBootstrap::WritePcmAsWav (
 Error:
     return hr;
 }
+
 
 
 
@@ -3104,6 +2974,7 @@ HRESULT AssetBootstrap::RunStartupDownloader (
     const fs::path         & assetBaseDir,
     bool                     considerDiskAudio,
     GlobalUserPrefs        & prefs,
+    bool                   & outUserExited,
     string                 & outError)
 {
     HRESULT                hr             = S_OK;
@@ -3117,7 +2988,9 @@ HRESULT AssetBootstrap::RunStartupDownloader (
 
     UNREFERENCED_PARAMETER (hInstance);
 
-    narrowMachine.reserve (machineName.size ());
+    outUserExited = false;
+
+    narrowMachine.reserve (machineName.size());
 
     for (wchar_t wch : machineName)
     {
@@ -3137,12 +3010,12 @@ HRESULT AssetBootstrap::RunStartupDownloader (
         CBRF (spec != nullptr,
               outError = format ("ROM '{}' is missing and Casso has no download "
                                  "URL for it. Place the file under {} and try again.",
-                                 romFile, assetBaseDir.string ()));
+                                 romFile, assetBaseDir.string()));
 
         relPath = fs::path (string (spec->localRelDir)) / spec->cassoName;
         found   = PathResolver::FindFile (searchPaths, relPath);
 
-        if (!found.empty ())
+        if (!found.empty())
         {
             continue;
         }
@@ -3185,7 +3058,7 @@ HRESULT AssetBootstrap::RunStartupDownloader (
 
             hr = DownloadHttp (hSes,
                                     wHost.c_str(),
-                                    wPath.c_str (),
+                                    wPath.c_str(),
                                     spec->expectedSize,
                                     spec->cassoName,
                                     payload,
@@ -3194,9 +3067,9 @@ HRESULT AssetBootstrap::RunStartupDownloader (
                                     &cancel);
             CHR (hr);
 
-            fs::create_directories (destPath.parent_path (), ecLocal);
+            fs::create_directories (destPath.parent_path(), ecLocal);
             hr = WriteFileBytes (destPath, payload);
-            CHRF (hr, err = format ("Cannot write {}", destPath.string ()));
+            CHRF (hr, err = format ("Cannot write {}", destPath.string()));
 
         Error:
             if (hSes != nullptr)
@@ -3215,7 +3088,7 @@ HRESULT AssetBootstrap::RunStartupDownloader (
         {
             StartupAssetEntry  entry;
             string             mechStr   (mechanism);
-            wstring            mechW     (mechanism.begin (), mechanism.end ());
+            wstring            mechW     (mechanism.begin(), mechanism.end());
             size_t             missingCount = 0;
 
             for (const DiskAudioSpec & spec : s_kDiskAudioCatalog)
@@ -3273,6 +3146,7 @@ HRESULT AssetBootstrap::RunStartupDownloader (
                     fs::path                     wavPath = mechDir / string (spec.wavBasename);
                     vector<float>                pcm;
                     wstring                      urlPath;
+                    bool                         fAborted = false;
                     std::atomic<std::uint64_t>   perFileBytes{0};
 
                     if (spec.mechanism != mechStr)
@@ -3285,14 +3159,10 @@ HRESULT AssetBootstrap::RunStartupDownloader (
                         continue;
                     }
 
-                    if (cancel.load (std::memory_order_relaxed))
-                    {
-                        hr = E_ABORT;
-                        goto Error;
-                    }
+                    BAIL_OUT_IF (cancel.load (std::memory_order_relaxed), E_ABORT);
 
                     urlPath  = s_kpszOpenEmulatorPathFmt;
-                    urlPath += wstring (spec.mechanism.begin (), spec.mechanism.end ());
+                    urlPath += wstring (spec.mechanism.begin(), spec.mechanism.end());
                     urlPath += L"/";
 
                     for (char ch : spec.oggBasename)
@@ -3308,25 +3178,25 @@ HRESULT AssetBootstrap::RunStartupDownloader (
                     }
 
                     hr = AssetBootstrap::FetchAndDecodeOgg (hSes,
-                                                            urlPath.c_str (),
+                                                            urlPath.c_str(),
                                                             44100,
                                                             pcm,
                                                             err,
                                                             &perFileBytes,
                                                             &cancel);
 
-                    if (hr == E_ABORT || cancel.load (std::memory_order_relaxed))
-                    {
-                        hr = E_ABORT;
-                        goto Error;
-                    }
+                    // Either the fetch reported an abort or the dialog's
+                    // cancel flag went up mid-download; both end this entry.
+                    fAborted = (hr == E_ABORT) ||
+                               cancel.load (std::memory_order_relaxed);
+                    BAIL_OUT_IF (fAborted, E_ABORT);
 
                     if (FAILED (hr))
                     {
                         DEBUGMSG (L"Drive audio: skipping %S (%s)\n",
-                                  spec.oggBasename.data (),
-                                  wstring (err.begin (), err.end ()).c_str ());
-                        err.clear ();
+                                  spec.oggBasename.data(),
+                                  wstring (err.begin(), err.end()).c_str());
+                        err.clear();
                         hr = S_OK;
                         continue;
                     }
@@ -3338,9 +3208,9 @@ HRESULT AssetBootstrap::RunStartupDownloader (
                     if (FAILED (hr))
                     {
                         DEBUGMSG (L"Drive audio: write failed for %S (%s)\n",
-                                  spec.wavBasename.data (),
-                                  wstring (err.begin (), err.end ()).c_str ());
-                        err.clear ();
+                                  spec.wavBasename.data(),
+                                  wstring (err.begin(), err.end()).c_str());
+                        err.clear();
                         hr = S_OK;
                         continue;
                     }
@@ -3362,7 +3232,7 @@ HRESULT AssetBootstrap::RunStartupDownloader (
         }
     }
 
-    BAIL_OUT_IF (set.entries.empty (), S_OK);
+    BAIL_OUT_IF (set.entries.empty(), S_OK);
 
     result = StartupDownloadDialog::Show (hInstance, hwndParent, prefs.activeTheme,
                                           MachineDisplayName (narrowMachine), set);
@@ -3388,7 +3258,10 @@ HRESULT AssetBootstrap::RunStartupDownloader (
         break;
 
     case StartupDownloadResult::Exit:
-        hr = S_FALSE;
+        // The user asked to quit rather than download. Nothing failed,
+        // so the caller shuts down without an error box.
+        outUserExited = true;
+        hr            = S_OK;
         break;
     }
 

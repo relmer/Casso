@@ -34,14 +34,14 @@ public:
         VideoTiming     vt;
 
         Assert::AreEqual (static_cast<uint32_t> (0),  vt.GetCycleInFrame    ());
-        Assert::AreEqual (static_cast<uint32_t> (0),  vt.GetCurrentScanline ());
+        Assert::AreEqual (static_cast<uint32_t> (0),  vt.GetCurrentScanline());
         Assert::AreEqual (static_cast<uint32_t> (0),  vt.GetHorizontalPos   ());
 
         vt.Tick (65);
 
         Assert::AreEqual (static_cast<uint32_t> (65), vt.GetCycleInFrame    (),
             L"Tick(65) advances cycle-in-frame to 65");
-        Assert::AreEqual (static_cast<uint32_t> (1),  vt.GetCurrentScanline (),
+        Assert::AreEqual (static_cast<uint32_t> (1),  vt.GetCurrentScanline(),
             L"Tick(65) advances exactly one scanline");
         Assert::AreEqual (static_cast<uint32_t> (0),  vt.GetHorizontalPos   (),
             L"Tick(65) lands at horizontal position 0 of scanline 1");
@@ -49,7 +49,7 @@ public:
         vt.Tick (10);
 
         Assert::AreEqual (static_cast<uint32_t> (75), vt.GetCycleInFrame    ());
-        Assert::AreEqual (static_cast<uint32_t> (1),  vt.GetCurrentScanline ());
+        Assert::AreEqual (static_cast<uint32_t> (1),  vt.GetCurrentScanline());
         Assert::AreEqual (static_cast<uint32_t> (10), vt.GetHorizontalPos   ());
     }
 
@@ -61,7 +61,7 @@ public:
         // Tick exactly one frame; counter must wrap to 0.
         vt.Tick (VideoTiming::kCyclesPerFrame);
 
-        Assert::AreEqual (static_cast<uint32_t> (0), vt.GetCycleInFrame (),
+        Assert::AreEqual (static_cast<uint32_t> (0), vt.GetCycleInFrame(),
             L"After 17,030 cycles the cycle-in-frame counter wraps to 0");
         Assert::AreEqual (static_cast<uint32_t> (17030), VideoTiming::kCyclesPerFrame,
             L"NTSC frame must be exactly 65*262 = 17,030 cycles");
@@ -69,7 +69,7 @@ public:
         // Tick 17,030 + 5; counter must read 5.
         vt.Tick (VideoTiming::kCyclesPerFrame + 5);
 
-        Assert::AreEqual (static_cast<uint32_t> (5), vt.GetCycleInFrame (),
+        Assert::AreEqual (static_cast<uint32_t> (5), vt.GetCycleInFrame(),
             L"Tick wraps any multiple of kCyclesPerFrame back to the residual");
     }
 
@@ -80,27 +80,27 @@ public:
 
         // Scanline 0..191 — display
         vt.Tick (VideoTiming::kVblankStartCycle - 1);
-        Assert::IsFalse (vt.IsInVblank (),
+        Assert::IsFalse (vt.IsInVblank(),
             L"cycle 12479 (last cycle of scanline 191) is in display region");
 
         // Scanline 192 — vblank starts
         vt.Tick (1);
-        Assert::IsTrue (vt.IsInVblank (),
+        Assert::IsTrue (vt.IsInVblank(),
             L"cycle 12480 (first cycle of scanline 192) is in vblank");
-        Assert::AreEqual (static_cast<uint32_t> (192), vt.GetCurrentScanline ());
+        Assert::AreEqual (static_cast<uint32_t> (192), vt.GetCurrentScanline());
 
         // Last cycle of scanline 261 — still vblank
         VideoTiming     vt2;
         vt2.Tick (VideoTiming::kCyclesPerFrame - 1);
-        Assert::IsTrue (vt2.IsInVblank (),
+        Assert::IsTrue (vt2.IsInVblank(),
             L"cycle 17029 (last cycle of scanline 261) is in vblank");
-        Assert::AreEqual (static_cast<uint32_t> (261), vt2.GetCurrentScanline ());
+        Assert::AreEqual (static_cast<uint32_t> (261), vt2.GetCurrentScanline());
 
         // Wrap back to scanline 0 — display again
         vt2.Tick (1);
-        Assert::IsFalse (vt2.IsInVblank (),
+        Assert::IsFalse (vt2.IsInVblank(),
             L"cycle 0 (start of scanline 0) is in display");
-        Assert::AreEqual (static_cast<uint32_t> (0), vt2.GetCurrentScanline ());
+        Assert::AreEqual (static_cast<uint32_t> (0), vt2.GetCurrentScanline());
     }
 
 
@@ -110,12 +110,12 @@ public:
 
         // Step exactly to scanline 191's last cycle.
         vt.Tick (192 * 65 - 1);
-        Assert::IsFalse (vt.IsInVblank (), L"cycle 12479 still display");
+        Assert::IsFalse (vt.IsInVblank(), L"cycle 12479 still display");
 
         // One more cycle crosses into scanline 192.
         vt.Tick (1);
-        Assert::IsTrue  (vt.IsInVblank (), L"cycle 12480 now vblank");
-        Assert::AreEqual (static_cast<uint32_t> (192), vt.GetCurrentScanline ());
+        Assert::IsTrue  (vt.IsInVblank(), L"cycle 12480 now vblank");
+        Assert::AreEqual (static_cast<uint32_t> (192), vt.GetCurrentScanline());
     }
 
 
@@ -134,7 +134,7 @@ public:
 
         // Display region — bit 7 should be set.
         vt.Tick (100);
-        Assert::IsFalse (vt.IsInVblank ());
+        Assert::IsFalse (vt.IsInVblank());
 
         Byte    val = kbd.Read (0xC019);
         Assert::IsTrue ((val & 0x80) != 0,
@@ -142,7 +142,7 @@ public:
 
         // VBL region — bit 7 should be clear.
         vt.Tick (VideoTiming::kVblankStartCycle);
-        Assert::IsTrue (vt.IsInVblank ());
+        Assert::IsTrue (vt.IsInVblank());
 
         val = kbd.Read (0xC019);
         Assert::IsTrue ((val & 0x80) == 0,
@@ -202,9 +202,9 @@ public:
         }
         vt.Tick (100);
 
-        Assert::AreEqual (static_cast<uint32_t> (100), vt.GetCycleInFrame (),
+        Assert::AreEqual (static_cast<uint32_t> (100), vt.GetCycleInFrame(),
             L"Five wraps + 100 lands at cycle 100");
-        Assert::IsFalse (vt.IsInVblank (), L"cycle 100 is display");
+        Assert::IsFalse (vt.IsInVblank(), L"cycle 100 is display");
     }
 
 
@@ -213,12 +213,12 @@ public:
         VideoTiming     vt;
 
         vt.Tick (5000);
-        Assert::AreEqual (static_cast<uint32_t> (5000), vt.GetCycleInFrame ());
+        Assert::AreEqual (static_cast<uint32_t> (5000), vt.GetCycleInFrame());
 
-        vt.Reset ();
+        vt.Reset();
 
-        Assert::AreEqual (static_cast<uint32_t> (0), vt.GetCycleInFrame (),
+        Assert::AreEqual (static_cast<uint32_t> (0), vt.GetCycleInFrame(),
             L"Reset clears the cycle counter");
-        Assert::IsFalse (vt.IsInVblank (), L"After Reset, IsInVblank is false");
+        Assert::IsFalse (vt.IsInVblank(), L"After Reset, IsInVblank is false");
     }
 };

@@ -29,12 +29,12 @@ public:
         string           rewritten;
 
         hr = JsonParser::Parse (jsonText, parsed1, err);
-        Assert::IsTrue (SUCCEEDED (hr), L"first parse failed");
+        AssertSucceeded (hr, L"first parse failed");
 
         rewritten = JsonWriter::Write (parsed1);
 
         hr = JsonParser::Parse (rewritten, parsed2, err);
-        Assert::IsTrue (SUCCEEDED (hr), L"second parse failed");
+        AssertSucceeded (hr, L"second parse failed");
 
         Assert::IsTrue (parsed1.GetType() == parsed2.GetType(), L"type mismatch");
     }
@@ -81,7 +81,7 @@ public:
         JsonValue        parsed;
         JsonParseError   err;
         HRESULT          hr = JsonParser::Parse (out, parsed, err);
-        Assert::IsTrue (SUCCEEDED (hr));
+        AssertSucceeded (hr);
         Assert::AreEqual (3.14, parsed.GetNumber(), 1e-12);
     }
 
@@ -140,7 +140,7 @@ public:
         opts.fPretty = false;
 
         hr = JsonWriter::Write (v, opts, out);
-        Assert::IsTrue (SUCCEEDED (hr));
+        AssertSucceeded (hr);
         Assert::AreEqual (string ("[1,2,3]"), out);
     }
 
@@ -157,7 +157,7 @@ public:
         v = JsonValue (move (items));
 
         hr = JsonWriter::Write (v, opts, out);
-        Assert::IsTrue (SUCCEEDED (hr));
+        AssertSucceeded (hr);
         Assert::AreEqual (string ("[\n  1,\n  2\n]"), out);
     }
 
@@ -176,7 +176,7 @@ public:
         opts.fPretty = false;
 
         hr = JsonWriter::Write (v, opts, out);
-        Assert::IsTrue (SUCCEEDED (hr));
+        AssertSucceeded (hr);
         Assert::AreEqual (string ("{\"a\":1,\"b\":\"two\"}"), out);
     }
 
@@ -192,7 +192,7 @@ public:
         v = JsonValue (move (entries));
 
         hr = JsonWriter::Write (v, opts, out);
-        Assert::IsTrue (SUCCEEDED (hr));
+        AssertSucceeded (hr);
         Assert::AreEqual (string ("{\n  \"a\": 1\n}"), out);
     }
 
@@ -237,6 +237,6 @@ public:
         HRESULT              hr;
 
         hr = JsonWriter::Write (v, opts, out);
-        Assert::IsTrue (FAILED (hr));
+        AssertFailed (hr);
     }
 };

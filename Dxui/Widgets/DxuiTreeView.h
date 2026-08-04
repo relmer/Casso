@@ -7,7 +7,6 @@
 
 
 
-
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  DxuiTreeView
@@ -21,10 +20,10 @@
 //  CapabilityFlag rendering rules (FR-004 .. FR-008):
 //
 //      capabilityFlag      checkbox visible?  interactive?     visual
-//      --------------      -----------------  --------------   ------------------
+// -----------------  --------------
 //      Optional            yes                yes              normal
-//      Required            yes                no  (checked)    grey checkbox
-//      PlatformLocked      yes                no  (checked)    grey + tooltip on
+//      Required            yes                no  (checked)    gray checkbox
+//      PlatformLocked      yes                no  (checked)    gray + tooltip on
 //                                                              hover with
 //                                                              lockReason text
 //

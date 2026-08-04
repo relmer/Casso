@@ -13,7 +13,7 @@
 //
 //  DxuiSurface
 //
-//  The simplest leaf control: fills its bounds with one theme colour. Used
+//  The simplest leaf control: fills its bounds with one theme color. Used
 //  to back a chrome band (e.g. the drive bar) so the band reads as the
 //  panel surface rather than whatever the composite left underneath. The
 //  token is selected via a small enum so the fill always tracks the theme.

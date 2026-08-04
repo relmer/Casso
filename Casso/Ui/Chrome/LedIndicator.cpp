@@ -5,26 +5,18 @@
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  LedIndicator
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-LedIndicator::LedIndicator ()
+LedIndicator::LedIndicator()
 {
     m_focusable = false;
 }
 
-
-
-
-namespace
-{
-    constexpr int  s_kBaseDpi       = 96;
-    constexpr int  s_kCorePx        = 7;
-    constexpr int  s_kHaloPaddingPx = 2;
-}
 
 
 
@@ -37,20 +29,26 @@ namespace
 
 void LedIndicator::PositionAt (int x, int y, UINT dpi)
 {
-    int  effectiveDpi = (dpi == 0) ? s_kBaseDpi : (int) dpi;
-    int  core         = MulDiv (s_kCorePx, effectiveDpi, s_kBaseDpi);
-    int  haloPadding  = MulDiv (s_kHaloPaddingPx, effectiveDpi, s_kBaseDpi);
+    constexpr int  kBaseDpi       = 96;
+    constexpr int  kCorePx        = 7;
+    constexpr int  kHaloPaddingPx = 2;
 
 
 
-    if (core < s_kCorePx)
+    int  effectiveDpi = (dpi == 0) ? kBaseDpi : (int) dpi;
+    int  core         = MulDiv (kCorePx, effectiveDpi, kBaseDpi);
+    int  haloPadding  = MulDiv (kHaloPaddingPx, effectiveDpi, kBaseDpi);
+
+
+
+    if (core < kCorePx)
     {
-        core = s_kCorePx;
+        core = kCorePx;
     }
 
-    if (haloPadding < s_kHaloPaddingPx)
+    if (haloPadding < kHaloPaddingPx)
     {
-        haloPadding = s_kHaloPaddingPx;
+        haloPadding = kHaloPaddingPx;
     }
 
     m_layout.coreRect.left   = x;
@@ -63,6 +61,7 @@ void LedIndicator::PositionAt (int x, int y, UINT dpi)
     m_layout.haloRect.bottom = y + core + haloPadding;
     SetBounds (m_layout.haloRect);
 }
+
 
 
 
@@ -85,6 +84,7 @@ void LedIndicator::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  CoreArgb
@@ -93,18 +93,16 @@ void LedIndicator::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
 
 uint32_t LedIndicator::CoreArgb (const CassoTheme & theme) const
 {
-    if (m_state == LedState::Active)
-    {
-        return theme.ledActive;
-    }
+    uint32_t  argb = theme.ledIdle;
 
-    if (m_state == LedState::Present)
-    {
-        return theme.ledPresent;
-    }
 
-    return theme.ledIdle;
+
+    if      (m_state == LedState::Active)  { argb = theme.ledActive;  }
+    else if (m_state == LedState::Present) { argb = theme.ledPresent; }
+
+    return argb;
 }
+
 
 
 
@@ -117,13 +115,11 @@ uint32_t LedIndicator::CoreArgb (const CassoTheme & theme) const
 
 uint32_t LedIndicator::HaloArgb (const CassoTheme & theme) const
 {
-    if (m_state == LedState::Active)
-    {
-        return theme.ledHalo;
-    }
-
-    return 0;
+    // Only an active LED glows; 0 is fully transparent, so the halo pass
+    // draws nothing in the other states.
+    return (m_state == LedState::Active) ? theme.ledHalo : 0;
 }
+
 
 
 
@@ -154,6 +150,7 @@ void LedIndicator::Paint (IDxuiPainter & painter, IDxuiTextRenderer & /*text*/, 
 
     painter.FillCircleApprox (cx, cy, coreR, CoreArgb (theme));
 }
+
 
 
 

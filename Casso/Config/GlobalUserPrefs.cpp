@@ -316,21 +316,21 @@ JsonValue GlobalUserPrefs::CrtToJson (const Crt & c)
 
 const char * GlobalUserPrefs::InputMappingModeToString (InputMappingMode mode)
 {
+    // "off" is both the Off mode and the safe spelling for a mode this build
+    // does not know -- writing an unknown token back out would strand it.
+    const char *  token = s_kpszInputModeOff;
+
     switch (mode)
     {
-        case InputMappingMode::Joystick:
-            return s_kpszInputModeJoystick;
-
-        case InputMappingMode::Paddle:
-            return s_kpszInputModePaddle;
-
-        case InputMappingMode::Mouse:
-            return s_kpszInputModeMouse;
+        case InputMappingMode::Joystick:  token = s_kpszInputModeJoystick; break;
+        case InputMappingMode::Paddle:    token = s_kpszInputModePaddle;   break;
+        case InputMappingMode::Mouse:     token = s_kpszInputModeMouse;    break;
 
         case InputMappingMode::Off:
-        default:
-            return s_kpszInputModeOff;
+        default:                                                           break;
     }
+
+    return token;
 }
 
 
@@ -348,27 +348,17 @@ const char * GlobalUserPrefs::InputMappingModeToString (InputMappingMode mode)
 
 InputMappingMode GlobalUserPrefs::InputMappingModeFromString (const std::string & s, InputMappingMode fallback)
 {
-    if (s == s_kpszInputModeJoystick)
-    {
-        return InputMappingMode::Joystick;
-    }
+    // The inverse of InputMappingModeToString. `fallback` (not Off) is the
+    // miss result so a prefs file written by a newer build keeps whatever the
+    // caller was already using rather than silently disabling input mapping.
+    InputMappingMode  mode = fallback;
 
-    if (s == s_kpszInputModePaddle)
-    {
-        return InputMappingMode::Paddle;
-    }
+    if      (s == s_kpszInputModeJoystick) { mode = InputMappingMode::Joystick; }
+    else if (s == s_kpszInputModePaddle)   { mode = InputMappingMode::Paddle;   }
+    else if (s == s_kpszInputModeMouse)    { mode = InputMappingMode::Mouse;    }
+    else if (s == s_kpszInputModeOff)      { mode = InputMappingMode::Off;      }
 
-    if (s == s_kpszInputModeMouse)
-    {
-        return InputMappingMode::Mouse;
-    }
-
-    if (s == s_kpszInputModeOff)
-    {
-        return InputMappingMode::Off;
-    }
-
-    return fallback;
+    return mode;
 }
 
 
@@ -741,17 +731,18 @@ std::wstring GlobalUserPrefs::FilePath (const std::wstring & baseDir)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  GlobalUserPrefs::ResetColorMonitorTextToDefault
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void GlobalUserPrefs::ResetColorMonitorTextToDefault ()
+void GlobalUserPrefs::ResetColorMonitorTextToDefault()
 {
-    // White is the shipped default (matches the field initialiser). Leave
+    // White is the shipped default (matches the field initializer). Leave
     // colorMonitorTextCustomArgb untouched so re-picking "Custom" restores
-    // the user's last colour.
+    // the user's last color.
     colorMonitorTextMode = ColorMonitorTextMode::White;
 }
 
@@ -764,8 +755,10 @@ void GlobalUserPrefs::ResetColorMonitorTextToDefault ()
 //  GlobalUserPrefs::Load
 //
 //  Read the unified preferences file under `baseDir`. If absent, leaves
-//  `*this` at struct defaults and returns S_FALSE so the caller can treat
-//  it as first run.
+//  `*this` at struct defaults and reports
+//  HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND) -- callers that treat first
+//  run as normal test for exactly that code, so a genuine read or parse
+//  failure can no longer be mistaken for "no prefs yet."
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -781,11 +774,8 @@ HRESULT GlobalUserPrefs::Load (
 
 
 
-    if (!fs.Exists (path))
-    {
-        // File absent — keep struct defaults.
-        return S_FALSE;
-    }
+    // File absent -- keep struct defaults and say so precisely.
+    BAIL_OUT_IF (!fs.Exists (path), HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND));
 
     hr = fs.ReadAllText (path, text);
     CHR (hr);
@@ -798,7 +788,7 @@ HRESULT GlobalUserPrefs::Load (
         const JsonValue *  global = nullptr;
 
 
-        if (SUCCEEDED (root.GetObject ("global", global)) && global != nullptr)
+        if (root.HasObject ("global", global))
         {
             hr = FromJson (*global);
             CHR (hr);
@@ -1048,22 +1038,22 @@ HRESULT GlobalUserPrefs::FromJson (const JsonValue & v)
         0xFF000000u | ((uint32_t) GetIntOpt (v, "colorMonitorTextCustom",
                                              (int) (colorMonitorTextCustomArgb & 0x00FFFFFFu)) & 0x00FFFFFFu);
 
-    if (SUCCEEDED (v.GetObject ("crt", crtSub)) && crtSub != nullptr)
+    if (v.HasObject ("crt", crtSub))
     {
         for (i = 0; i < GlobalUserPrefs::kCrtModeCount; i++)
         {
             const JsonValue *  modeObj = nullptr;
 
-            if (SUCCEEDED (crtSub->GetObject (s_kpszCrtModeKeys[i], modeObj)) && modeObj != nullptr)
+            if (crtSub->HasObject (s_kpszCrtModeKeys[i], modeObj))
             {
                 CrtModeFromJson (*modeObj, crtByMode[i]);
             }
         }
     }
 
-    if (SUCCEEDED (v.GetObject ("window", windowSub)) && windowSub != nullptr)
+    if (v.HasObject ("window", windowSub))
     {
-        if (SUCCEEDED (windowSub->GetObject ("placements", placementsObj)) && placementsObj != nullptr)
+        if (windowSub->HasObject ("placements", placementsObj))
         {
             PlacementsFromJson (*placementsObj, window.placements);
         }
@@ -1073,7 +1063,7 @@ HRESULT GlobalUserPrefs::FromJson (const JsonValue & v)
     // recentDisks: drop non-string and empty entries silently per
     // data-model.md §1; cap is enforced by DiskMru on use.
     recentDisks.clear();
-    if (SUCCEEDED (v.GetArray ("recentDisks", recentArr)) && recentArr != nullptr)
+    if (v.HasArray ("recentDisks", recentArr))
     {
         RecentDisksFromJson (*recentArr, recentDisks);
     }
@@ -1081,7 +1071,7 @@ HRESULT GlobalUserPrefs::FromJson (const JsonValue & v)
     // recentDiskLoadedAt: parallel Unix-second load times. Absent in a
     // legacy prefs file, leaving every recent disk with an unknown time.
     recentDiskLoadedAt.clear();
-    if (SUCCEEDED (v.GetArray ("recentDiskLoadedAt", loadedArr)) && loadedArr != nullptr)
+    if (v.HasArray ("recentDiskLoadedAt", loadedArr))
     {
         RecentDiskTimesFromJson (*loadedArr, recentDiskLoadedAt);
     }

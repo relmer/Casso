@@ -8,23 +8,22 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
 
 
-namespace
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TEST_CLASS
+//
+////////////////////////////////////////////////////////////////////////////////
+
+TEST_CLASS (DxuiFocusManagerTests)
 {
+public:
+
     RECT  MakeRect (LONG l, LONG t, LONG r, LONG b)
     {
         RECT  out = {};
         out.left = l; out.top = t; out.right = r; out.bottom = b;
         return out;
     }
-}
-
-
-
-
-
-TEST_CLASS (DxuiFocusManagerTests)
-{
-public:
 
     TEST_METHOD (TabAcrossRowsAndCols_FollowsReadingOrder)
     {
@@ -180,3 +179,4 @@ public:
         Assert::AreEqual (static_cast<void *> (&outer), static_cast<void *> (focus.Focused()));
     }
 };
+

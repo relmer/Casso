@@ -27,45 +27,40 @@ static constexpr UINT_PTR  s_kModalLoopTimerId = 0xDCE1;
 
 
 
-namespace
+////////////////////////////////////////////////////////////////////////////////
+//
+//  NudgeWindowOnScreen
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void  DxuiHwndSource::NudgeWindowOnScreen (HWND hwnd)
 {
-    //
-    //  Nudge a freshly-created, still-hidden CW_USEDEFAULT window the
-    //  minimum needed so its whole frame sits within its monitor's work
-    //  area — fixing a cascade that would open the bottom edge (and its
-    //  command-button row) beneath the taskbar — without otherwise moving
-    //  it (position only, no re-centering over the owner). rcWork already
-    //  excludes the taskbar.
-    //
-    void  NudgeWindowOnScreen (HWND hwnd)
+    RECT         rect    = {};
+    HMONITOR     monitor = nullptr;
+    MONITORINFO  info    = { sizeof (info) };
+    RECT         work    = { 0, 0, 1920, 1080 };
+    POINT        placed  = {};
+
+
+
+    if (hwnd != nullptr && GetWindowRect (hwnd, &rect) != FALSE)
     {
-        RECT         rect    = {};
-        HMONITOR     monitor = nullptr;
-        MONITORINFO  info    = { sizeof (info) };
-        RECT         work    = { 0, 0, 1920, 1080 };
-        POINT        placed  = {};
-
-
-
-        if (hwnd != nullptr && GetWindowRect (hwnd, &rect) != FALSE)
+        monitor = MonitorFromWindow (hwnd, MONITOR_DEFAULTTONEAREST);
+        if (monitor != nullptr && GetMonitorInfoW (monitor, &info) != FALSE)
         {
-            monitor = MonitorFromWindow (hwnd, MONITOR_DEFAULTTONEAREST);
-            if (monitor != nullptr && GetMonitorInfoW (monitor, &info) != FALSE)
-            {
-                work = info.rcWork;
-            }
-            else if (SystemParametersInfoW (SPI_GETWORKAREA, 0, &work, 0) == FALSE)
-            {
-                work = { 0, 0, 1920, 1080 };
-            }
+            work = info.rcWork;
+        }
+        else if (SystemParametersInfoW (SPI_GETWORKAREA, 0, &work, 0) == FALSE)
+        {
+            work = { 0, 0, 1920, 1080 };
+        }
 
-            placed = DxuiHwndSource::ClampToWorkArea (rect, work);
+        placed = DxuiHwndSource::ClampToWorkArea (rect, work);
 
-            if (placed.x != rect.left || placed.y != rect.top)
-            {
-                SetWindowPos (hwnd, nullptr, placed.x, placed.y, 0, 0,
-                              SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE);
-            }
+        if (placed.x != rect.left || placed.y != rect.top)
+        {
+            SetWindowPos (hwnd, nullptr, placed.x, placed.y, 0, 0,
+                          SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE);
         }
     }
 }
@@ -258,19 +253,12 @@ DxuiHwndSource::~DxuiHwndSource()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace
-{
-    struct FirstIconGroup
-    {
-        bool      found     = false;
-        wchar_t   nameBuf[256] = {};
-        LPCWSTR   id        = nullptr;
-    };
-}
 
-static BOOL CALLBACK FirstIconGroupProc (HMODULE, LPCWSTR, LPWSTR name, LONG_PTR param)
+BOOL CALLBACK DxuiHwndSource::FirstIconGroupProc (HMODULE, LPCWSTR, LPWSTR name, LONG_PTR param)
 {
     FirstIconGroup * out = (FirstIconGroup *) param;
+
+
 
     if (IS_INTRESOURCE (name))
     {
@@ -286,11 +274,23 @@ static BOOL CALLBACK FirstIconGroupProc (HMODULE, LPCWSTR, LPWSTR name, LONG_PTR
     return FALSE;   // first group only
 }
 
-static HICON DefaultAppIcon (bool big)
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DefaultAppIcon
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HICON DxuiHwndSource::DefaultAppIcon (bool big)
 {
     static HICON   s_big    = nullptr;
     static HICON   s_small  = nullptr;
     static bool    s_loaded = false;
+
+
 
     if (!s_loaded)
     {
@@ -327,7 +327,7 @@ static HICON DefaultAppIcon (bool big)
 //  WS_OVERLAPPEDWINDOW (so the OS still gives us proper resize-frame
 //  math + Aero Snap + caption-double-click-to-maximize) even though
 //  we collapse the NC area into the client rect in WM_NCCALCSIZE.
-//  Then builds the D3D11 device + DXGI swap chain, initialises the
+//  Then builds the D3D11 device + DXGI swap chain, initializes the
 //  painter / text renderer, and applies the requested DwM bits.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -346,6 +346,7 @@ HRESULT DxuiHwndSource::Create (const CreateParams & params)
     int          windowY        = 0;
     int          widthPx        = 0;
     int          heightPx       = 0;
+    ATOM         classAtom      = 0;
 
 
 
@@ -381,7 +382,9 @@ HRESULT DxuiHwndSource::Create (const CreateParams & params)
     wc.hbrBackground = nullptr;
     wc.lpszClassName = m_className.c_str();
 
-    CWRA (RegisterClassExW (&wc));
+    classAtom = RegisterClassExW (&wc);
+    CWRA (classAtom);
+
     m_classRegistered = true;
 
     style   = params.borderless ? (WS_OVERLAPPEDWINDOW | WS_CLIPCHILDREN)
@@ -577,7 +580,7 @@ POINT DxuiHwndSource::ClampToWorkArea (const RECT & windowRect, const RECT & wor
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiHwndSource::Destroy ()
+void DxuiHwndSource::Destroy()
 {
     DXUI_ASSERT_UI_THREAD();
 
@@ -634,16 +637,18 @@ HRESULT DxuiHwndSource::CreateInAdoptMode (
     const CreateParams              & params,
     std::unique_ptr<DxuiHwndSource> & outHost)
 {
-    HRESULT                          hr   = S_OK;
+    HRESULT                          hr       = S_OK;
     std::unique_ptr<DxuiHwndSource>  host;
-    UINT                             dpi  = 0;
+    UINT                             dpi      = 0;
+    DxuiHwndSource *                 rawHost  = nullptr;
 
 
 
     DXUI_ASSERT_UI_THREAD();
 
-    host = std::unique_ptr<DxuiHwndSource> (new DxuiHwndSource());
-    CPRA (host.get());
+    host    = std::unique_ptr<DxuiHwndSource> (new DxuiHwndSource());
+    rawHost = host.get();
+    CPRA (rawHost);
 
     host->m_params      = params;
     host->m_hwnd        = existingHwnd;
@@ -753,6 +758,7 @@ void DxuiHwndSource::SetAfterPaintHook (std::function<void(ID3D11RenderTargetVie
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  SetOverlayHooks
@@ -774,6 +780,7 @@ void DxuiHwndSource::SetOverlayHooks (std::function<bool()> isActive,
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  SetComposedOpacity
@@ -788,6 +795,8 @@ void DxuiHwndSource::SetOverlayHooks (std::function<bool()> isActive,
 void DxuiHwndSource::SetComposedOpacity (float opacity)
 {
     ComPtr<IDCompositionVisual3>  visual3;
+    HRESULT                       hrAs = S_OK;
+
 
 
     DXUI_ASSERT_UI_THREAD();
@@ -800,7 +809,9 @@ void DxuiHwndSource::SetComposedOpacity (float opacity)
     // The visual is created from a v2 (desktop) device, so it exposes
     // IDCompositionVisual3::SetOpacity -- the canonical per-visual opacity that
     // blends the whole composited window over whatever is behind it.
-    if (SUCCEEDED (m_compVisual.As (&visual3)))
+    hrAs = m_compVisual.As (&visual3);
+
+    if (SUCCEEDED (hrAs))
     {
         (void) visual3->SetOpacity (opacity);
     }
@@ -831,6 +842,10 @@ void DxuiHwndSource::SetComposedOpacity (float opacity)
 
 bool DxuiHwndSource::HandleMessage (UINT msg, WPARAM wp, LPARAM lp, LRESULT & outResult)
 {
+    bool  isOwned = false;
+
+
+
     DXUI_ASSERT_UI_THREAD();
 
     outResult = 0;
@@ -839,43 +854,47 @@ bool DxuiHwndSource::HandleMessage (UINT msg, WPARAM wp, LPARAM lp, LRESULT & ou
     {
         case WM_NCCALCSIZE:
             outResult = HandleNcCalcSize (wp, lp);
-            return true;
+            isOwned   = true;
+            break;
 
         case WM_NCHITTEST:
             outResult = HandleNcHitTest (lp);
-            return true;
+            isOwned   = true;
+            break;
 
         case WM_NCMOUSEMOVE:
         case WM_NCMOUSELEAVE:
         case WM_NCLBUTTONDOWN:
         case WM_NCLBUTTONUP:
             // Route caption system-button hover / press / dispatch to the
-            // host-owned caption. Returns true (consumed) only when the
-            // event lands on a caption button; otherwise the consumer's
-            // WndProc keeps the message (caption drag, menu dismiss, ...).
-            if (m_caption && RouteCaptionNcMouse (msg, wp, lp))
-            {
-                outResult = 0;
-                return true;
-            }
-            return false;
+            // host-owned caption. Owned only when the event lands on a caption
+            // button; otherwise the consumer's WndProc keeps the message
+            // (caption drag, menu dismiss, ...).
+            isOwned = m_caption && RouteCaptionNcMouse (msg, wp, lp);
+            break;
 
+        // The rest do their tree-side propagation WITHOUT claiming the
+        // message, so the caller can still do its own work (e.g. the
+        // SetWindowPos in Window::HandleDpiChanged).
         case WM_DPICHANGED:
             HandleDpiChanged (wp, lp);
-            return false;
+            break;
 
         case WM_SIZE:
             HandleSize (wp, lp);
-            return false;
+            break;
 
         case WM_SETTINGCHANGE:
         case WM_THEMECHANGED:
         case WM_DWMCOLORIZATIONCOLORCHANGED:
             HandleThemeChange();
-            return false;
+            break;
+
+        default:
+            break;
     }
 
-    return false;
+    return isOwned;
 }
 
 
@@ -981,6 +1000,7 @@ void DxuiHwndSource::SetContentPanel (std::unique_ptr<DxuiPanel> panel)
     HRESULT  hr         = S_OK;
     RECT     bounds     = {};
     bool     liveLayout = false;
+
 
 
     DXUI_ASSERT_UI_THREAD();
@@ -1102,6 +1122,7 @@ bool DxuiHwndSource::SetTimer (UINT_PTR timerId, UINT intervalMs)
     UINT_PTR  result = 0;
 
 
+
     DXUI_ASSERT_UI_THREAD();
     CBRA (m_hwnd != nullptr);
 
@@ -1120,7 +1141,7 @@ Error:
 //  KillTimer
 //
 //  Thin convenience wrapper around `::KillTimer`. Returns true iff
-//  the timer was found and cancelled; no-ops in release when the
+//  the timer was found and canceled; no-ops in release when the
 //  host has no HWND.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -1129,6 +1150,7 @@ bool DxuiHwndSource::KillTimer (UINT_PTR timerId)
 {
     HRESULT  hr     = S_OK;
     BOOL     result = FALSE;
+
 
 
     DXUI_ASSERT_UI_THREAD();
@@ -1153,7 +1175,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT DxuiHwndSource::CreateDeviceAndSwapChain ()
+HRESULT DxuiHwndSource::CreateDeviceAndSwapChain()
 {
     HRESULT                hr            = S_OK;
     UINT                   createFlags   = D3D11_CREATE_DEVICE_BGRA_SUPPORT;
@@ -1376,7 +1398,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT DxuiHwndSource::CreateRenderResources ()
+HRESULT DxuiHwndSource::CreateRenderResources()
 {
     HRESULT  hr  = S_OK;
 
@@ -1409,7 +1431,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiHwndSource::ReleaseRenderResources ()
+void DxuiHwndSource::ReleaseRenderResources()
 {
     ReleaseBackBufferRtv();
 
@@ -1440,7 +1462,7 @@ void DxuiHwndSource::ReleaseRenderResources ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT DxuiHwndSource::CreateBackBufferRtv ()
+HRESULT DxuiHwndSource::CreateBackBufferRtv()
 {
     HRESULT                   hr           = S_OK;
     DXGI_SWAP_CHAIN_DESC1     scd          = {};
@@ -1488,6 +1510,7 @@ Error:
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  BackBufferSurface
@@ -1498,24 +1521,36 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-ComPtr<IDXGISurface> DxuiHwndSource::BackBufferSurface () const
+ComPtr<IDXGISurface> DxuiHwndSource::BackBufferSurface() const
 {
     ComPtr<ID3D11Texture2D>  backBuffer;
     ComPtr<IDXGISurface>     surface;
+    HRESULT                  hrBuffer = S_OK;
+    HRESULT                  hrAs     = S_OK;
 
 
-    if (m_swapChain == nullptr)
+
+    // Seeded as failures so "no swap chain" needs no separate branch: nothing
+    // runs, nothing succeeds, and the null surface below is the documented
+    // "not ready yet" answer.
+    hrBuffer = E_FAIL;
+    hrAs     = E_FAIL;
+
+    if (m_swapChain != nullptr)
     {
-        return nullptr;
+        hrBuffer = m_swapChain->GetBuffer (0, IID_PPV_ARGS (backBuffer.GetAddressOf()));
     }
-    if (FAILED (m_swapChain->GetBuffer (0, IID_PPV_ARGS (backBuffer.GetAddressOf()))))
+
+    if (SUCCEEDED (hrBuffer))
     {
-        return nullptr;
+        hrAs = backBuffer.As (&surface);
     }
-    if (FAILED (backBuffer.As (&surface)))
+
+    if (FAILED (hrAs))
     {
-        return nullptr;
+        surface.Reset();
     }
+
     return surface;
 }
 
@@ -1533,7 +1568,7 @@ ComPtr<IDXGISurface> DxuiHwndSource::BackBufferSurface () const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiHwndSource::ReleaseBackBufferRtv ()
+void DxuiHwndSource::ReleaseBackBufferRtv()
 {
     if (m_textRenderer != nullptr)
     {
@@ -1562,17 +1597,22 @@ void DxuiHwndSource::ReleaseBackBufferRtv ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-SIZE DxuiHwndSource::BackBufferSizePx () const
+SIZE DxuiHwndSource::BackBufferSizePx() const
 {
-    DXGI_SWAP_CHAIN_DESC1  scd = {};
+    DXGI_SWAP_CHAIN_DESC1  scd    = {};
+    HRESULT                hrDesc = E_FAIL;
 
 
-    if (m_swapChain == nullptr || FAILED (m_swapChain->GetDesc1 (&scd)))
+
+    if (m_swapChain != nullptr)
     {
-        return SIZE{ 0, 0 };
+        hrDesc = m_swapChain->GetDesc1 (&scd);
     }
-    return SIZE{ (LONG) scd.Width, (LONG) scd.Height };
+
+    return FAILED (hrDesc) ? SIZE{ 0, 0 }
+                           : SIZE{ (LONG) scd.Width, (LONG) scd.Height };
 }
+
 
 
 
@@ -1598,14 +1638,15 @@ void DxuiHwndSource::PaintContent (ID3D11RenderTargetView * target, int widthPx,
     HRESULT  hr           = S_OK;
     bool     painterBegun = false;
     bool     textBegun    = false;
+    bool     canPaint     = false;
+
 
 
     DXUI_ASSERT_UI_THREAD();
 
-    if (RootPanel() == nullptr || m_painter == nullptr || m_textRenderer == nullptr)
-    {
-        return;
-    }
+    canPaint = RootPanel() != nullptr && m_painter != nullptr && m_textRenderer != nullptr;
+
+    BAIL_OUT_IF (!canPaint, S_OK);
 
     // Walk the panel tree. Painter buffers geometry between Begin / End; the
     // text renderer composites Direct2D over the same target between
@@ -1684,6 +1725,7 @@ Error:
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  PresentFrame
@@ -1695,15 +1737,13 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiHwndSource::PresentFrame ()
+void DxuiHwndSource::PresentFrame()
 {
     HRESULT  hr = S_OK;
 
 
-    if (m_swapChain == nullptr)
-    {
-        return;
-    }
+
+    BAIL_OUT_IF (m_swapChain == nullptr, S_OK);
 
     hr = m_swapChain->Present (m_params.presentSyncInterval, 0);
     CHRA (hr);
@@ -1721,6 +1761,7 @@ Error:
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  PaintPump
@@ -1732,7 +1773,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiHwndSource::PaintPump ()
+void DxuiHwndSource::PaintPump()
 {
     DXUI_ASSERT_UI_THREAD();
     RenderFrame (m_theme);
@@ -1752,7 +1793,7 @@ void DxuiHwndSource::PaintPump ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiHwndSource::ApplyDwmConfiguration ()
+void DxuiHwndSource::ApplyDwmConfiguration()
 {
     bool  wantMica = false;
 
@@ -1819,12 +1860,8 @@ LRESULT CALLBACK DxuiHwndSource::s_WndProcThunk (HWND hwnd, UINT msg, WPARAM wp,
         pThis = reinterpret_cast<DxuiHwndSource *> (GetWindowLongPtr (hwnd, GWLP_USERDATA));
     }
 
-    if (pThis == nullptr)
-    {
-        return DefWindowProc (hwnd, msg, wp, lp);
-    }
-
-    return pThis->WndProc (msg, wp, lp);
+    return (pThis == nullptr) ? DefWindowProc (hwnd, msg, wp, lp)
+                              : pThis->WndProc (msg, wp, lp);
 }
 
 
@@ -1844,89 +1881,171 @@ LRESULT CALLBACK DxuiHwndSource::s_WndProcThunk (HWND hwnd, UINT msg, WPARAM wp,
 
 LRESULT DxuiHwndSource::WndProc (UINT msg, WPARAM wp, LPARAM lp)
 {
+    LRESULT  result    = 0;
+    bool     isHandled = false;
+
+
+
     DXUI_ASSERT_UI_THREAD();
+
+    isHandled = DispatchHostMessage (msg, wp, lp, result);
+
+    if (!isHandled && m_client != nullptr)
+    {
+        isHandled = DispatchClientMessage (msg, wp, lp, result);
+    }
+
+    if (!isHandled)
+    {
+        result = DefaultProc (msg, wp, lp);
+    }
+
+    return result;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiHwndSource::Claimed
+//
+//  The "did the client take it, and does the frame need repainting" half of
+//  every forwarded message. Returning false means the caller should keep
+//  looking (host handler, then DefaultProc).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiHwndSource::Claimed (DxuiMessageResult clientResult, RepaintOnClaim repaint)
+{
+    bool  isHandled = (clientResult == DxuiMessageResult::Handled);
+    bool  wantPaint = false;
+
+
+
+    wantPaint = isHandled &&
+                (repaint == RepaintOnClaim::Yes ||
+                 (repaint == RepaintOnClaim::IfNotSuppressed && !m_suppressInputInvalidate));
+
+    if (wantPaint)
+    {
+        InvalidateRect (m_hwnd, nullptr, FALSE);
+    }
+
+    return isHandled;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiHwndSource::DispatchHostMessage
+//
+//  Messages the host owns outright, or must act on before the client sees
+//  them. Everything here either answers the message itself or does its own
+//  bookkeeping and reports "not handled" so the client and DefaultProc still
+//  get a turn.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiHwndSource::DispatchHostMessage (UINT msg, WPARAM wp, LPARAM lp, LRESULT & result)
+{
+    bool               isHandled  = true;
+    LRESULT            hostHt     = 0;
+    DxuiMessageResult  sizeResult = DxuiMessageResult::NotHandled;
+    // Only meaningful for the NC mouse arms; the other messages do not carry a
+    // screen point in lp and simply never read it.
+    POINT              ptScreen   = { GET_X_LPARAM (lp), GET_Y_LPARAM (lp) };
+
+
 
     switch (msg)
     {
         case WM_NCCALCSIZE:
-            return HandleNcCalcSize (wp, lp);
+            result = HandleNcCalcSize (wp, lp);
+            break;
 
         case WM_NCHITTEST:
-        {
-            // Framework classification (resize edges + delegate +
-            // panel-tree walk) wins for chrome hits; HTCLIENT /
-            // HTNOWHERE outcomes fall through to the client hook so
-            // a consumer can reclassify what the framework treats
-            // as plain client area.
-            LRESULT  hostHt = HandleNcHitTest (lp);
+            // Framework classification (resize edges + delegate + panel-tree
+            // walk) wins for chrome hits; HTCLIENT / HTNOWHERE outcomes fall
+            // through to the client hook so a consumer can reclassify what the
+            // framework treats as plain client area.
+            hostHt = HandleNcHitTest (lp);
 
             if (hostHt != HTCLIENT && hostHt != HTNOWHERE)
             {
-                return hostHt;
+                result = hostHt;
             }
-            if (m_client != nullptr)
+            else if (m_client != nullptr)
             {
-                return m_client->OnNcHitTest (m_hwnd, msg, wp, lp);
+                result = m_client->OnNcHitTest (m_hwnd, msg, wp, lp);
             }
-            return hostHt;
-        }
+            else
+            {
+                result = hostHt;
+            }
+            break;
 
+        // The four NC mouse messages offer the client first refusal and
+        // otherwise run the host's own caption / system-button routing.
         case WM_NCMOUSEMOVE:
-        {
-            POINT  ptScreen = { GET_X_LPARAM (lp), GET_Y_LPARAM (lp) };
-
-            if (m_client != nullptr &&
-                m_client->OnNcMouseMove ((LRESULT) wp, ptScreen.x, ptScreen.y) == DxuiMessageResult::Handled)
-            {
-                return 0;
-            }
-            return HandleNcMouse (msg, wp, lp);
-        }
+            result = Claimed (m_client != nullptr
+                                  ? m_client->OnNcMouseMove ((LRESULT) wp, ptScreen.x, ptScreen.y)
+                                  : DxuiMessageResult::NotHandled,
+                              RepaintOnClaim::No)
+                         ? 0
+                         : HandleNcMouse (msg, wp, lp);
+            break;
 
         case WM_NCMOUSELEAVE:
-            if (m_client != nullptr && m_client->OnNcMouseLeave() == DxuiMessageResult::Handled)
-            {
-                return 0;
-            }
-            return HandleNcMouse (msg, wp, lp);
+            result = Claimed (m_client != nullptr ? m_client->OnNcMouseLeave()
+                                                  : DxuiMessageResult::NotHandled,
+                              RepaintOnClaim::No)
+                         ? 0
+                         : HandleNcMouse (msg, wp, lp);
+            break;
 
         case WM_NCLBUTTONDOWN:
-        {
-            POINT  ptScreen = { GET_X_LPARAM (lp), GET_Y_LPARAM (lp) };
-
-            if (m_client != nullptr &&
-                m_client->OnNcLButtonDown ((LRESULT) wp, ptScreen.x, ptScreen.y) == DxuiMessageResult::Handled)
-            {
-                return 0;
-            }
-            return HandleNcMouse (msg, wp, lp);
-        }
+            result = Claimed (m_client != nullptr
+                                  ? m_client->OnNcLButtonDown ((LRESULT) wp, ptScreen.x, ptScreen.y)
+                                  : DxuiMessageResult::NotHandled,
+                              RepaintOnClaim::No)
+                         ? 0
+                         : HandleNcMouse (msg, wp, lp);
+            break;
 
         case WM_NCLBUTTONUP:
-        {
-            POINT  ptScreen = { GET_X_LPARAM (lp), GET_Y_LPARAM (lp) };
-
-            if (m_client != nullptr &&
-                m_client->OnNcLButtonUp ((LRESULT) wp, ptScreen.x, ptScreen.y) == DxuiMessageResult::Handled)
+            if (Claimed (m_client != nullptr
+                             ? m_client->OnNcLButtonUp ((LRESULT) wp, ptScreen.x, ptScreen.y)
+                             : DxuiMessageResult::NotHandled,
+                         RepaintOnClaim::No))
             {
                 DispatchNcUpToTrackedButton (lp);
-                return 0;
+                result = 0;
             }
-            return HandleNcMouse (msg, wp, lp);
-        }
+            else
+            {
+                result = HandleNcMouse (msg, wp, lp);
+            }
+            break;
 
         case WM_DPICHANGED:
             HandleDpiChanged (wp, lp);
+
             if (m_client != nullptr)
             {
                 m_client->OnDpiChanged (m_scaler.Dpi());
             }
-            return 0;
+
+            result = 0;
+            break;
 
         case WM_DPICHANGED_BEFOREPARENT:
-            // Forward to every active pooled DxuiPopupHost so popups
-            // straddling a monitor boundary re-DPI before the owner
-            // repaints.
+            // Forward to every active pooled DxuiPopupHost so popups straddling
+            // a monitor boundary re-DPI before the owner repaints.
             for (DxuiPopupHost * popup : m_popupActive)
             {
                 if (popup != nullptr)
@@ -1934,273 +2053,94 @@ LRESULT DxuiHwndSource::WndProc (UINT msg, WPARAM wp, LPARAM lp)
                     popup->HandleDpiChanged ((UINT) HIWORD (wp));
                 }
             }
-            return 0;
+
+            result = 0;
+            break;
+
+        case WM_ENTERSIZEMOVE:
+            // The OS is about to run its own modal move / size loop, during
+            // which our outer pump stops. Run a short internal timer so the
+            // client can keep painting; report not-handled so the OS loop still
+            // starts normally. Also tick once right now so animation continues
+            // from the first frame of the drag rather than stalling until the
+            // first timer fires.
+            ::SetTimer (m_hwnd, s_kModalLoopTimerId, USER_TIMER_MINIMUM, nullptr);
+
+            if (m_client != nullptr) { m_client->OnModalLoopTick(); }
+
+            isHandled = false;
+            break;
+
+        case WM_EXITSIZEMOVE:
+            ::KillTimer (m_hwnd, s_kModalLoopTimerId);
+            isHandled = false;
+            break;
+
+        case WM_TIMER:
+            // The host-owned keep-alive tick (armed by WM_ENTERSIZEMOVE) is not
+            // a client SetTimer id; route it to OnModalLoopTick, not OnTimer.
+            if (wp == s_kModalLoopTimerId)
+            {
+                if (m_client != nullptr) { m_client->OnModalLoopTick(); }
+
+                result = 0;
+            }
+            else
+            {
+                isHandled = false;
+            }
+            break;
 
         case WM_SETTINGCHANGE:
         case WM_THEMECHANGED:
         case WM_DWMCOLORIZATIONCOLORCHANGED:
             HandleThemeChange();
+            isHandled = false;
             break;
 
         case WM_SIZE:
             HandleSize (wp, lp);
+
             if (m_client != nullptr)
             {
-                (void) m_client->OnSize (LOWORD (lp), HIWORD (lp));
+                // The client is told, but WM_SIZE always reaches DefaultProc.
+                IGNORE_RETURN_VALUE (sizeResult, m_client->OnSize (LOWORD (lp), HIWORD (lp)));
             }
-            break;
 
-        case WM_CREATE:
-            if (m_client != nullptr)
-            {
-                return m_client->OnCreate (m_hwnd, msg, wp, lp);
-            }
-            break;
-
-        case WM_DESTROY:
-            // Bookkeeping only; the actual teardown happens in
-            // Destroy()/~DxuiHwndSource(). Notify the client so it
-            // can persist state (window placement, etc.) before
-            // the HWND goes away.
-            if (m_client != nullptr)
-            {
-                m_client->OnDestroy();
-            }
-            break;
-
-        case WM_CLOSE:
-            if (m_client != nullptr && m_client->OnClose() == DxuiMessageResult::Handled)
-            {
-                return 0;
-            }
-            break;
-
-        case WM_CHAR:
-            if (m_client != nullptr && m_client->OnChar (wp, lp) == DxuiMessageResult::Handled)
-            {
-                InvalidateRect (m_hwnd, nullptr, FALSE);
-                return 0;
-            }
-            break;
-
-        case WM_COMMAND:
-            if (m_client != nullptr &&
-                m_client->OnCommandEx (LOWORD (wp),
-                                       HIWORD (wp),
-                                       reinterpret_cast<HWND> (lp)) == DxuiMessageResult::Handled)
-            {
-                return 0;
-            }
-            break;
-
-        case WM_KEYDOWN:
-        case WM_SYSKEYDOWN:
-            if (m_client != nullptr && m_client->OnKeyDown (wp, lp) == DxuiMessageResult::Handled)
-            {
-                InvalidateRect (m_hwnd, nullptr, FALSE);
-                return 0;
-            }
-            break;
-
-        case WM_KEYUP:
-        case WM_SYSKEYUP:
-            if (m_client != nullptr && m_client->OnKeyUp (wp, lp) == DxuiMessageResult::Handled)
-            {
-                return 0;
-            }
-            break;
-
-        case WM_SETCURSOR:
-            if (m_client != nullptr && m_client->OnSetCursor (LOWORD (lp)) == DxuiMessageResult::Handled)
-            {
-                return TRUE;
-            }
+            isHandled = false;
             break;
 
         case WM_MOUSEMOVE:
+            // Host-side leave tracking arms regardless of the client.
             TrackClientMouseLeave();
-            if (m_client != nullptr && m_client->OnMouseMove (wp, lp) == DxuiMessageResult::Handled)
-            {
-                return 0;
-            }
+            isHandled = false;
             break;
 
         case WM_MOUSELEAVE:
-            // The cursor left the client area -- into an NC region of
-            // this window (caption / system button / resize edge) or
-            // off-window entirely. Clear client hover and stop tracking;
-            // the next WM_MOUSEMOVE re-arms. NC hover is handled
-            // independently via WM_NCMOUSEMOVE / WM_NCMOUSELEAVE.
+            // The cursor left the client area -- into an NC region of this
+            // window (caption / system button / resize edge) or off-window
+            // entirely. Clear client hover and stop tracking; the next
+            // WM_MOUSEMOVE re-arms. NC hover is handled independently via
+            // WM_NCMOUSEMOVE / WM_NCMOUSELEAVE.
             //
             // (Historically this re-armed tracking and ignored the leave
-            // whenever WindowFromPoint still resolved to this window, to
-            // absorb the continuous TME_LEAVE storm caused by a child
-            // render surface that covered the client area. That child is
-            // gone -- a single top-level window owns everything now -- so
-            // WindowFromPoint resolves to this HWND even for its own NC
-            // edges, which made that guard re-arm in a tight loop and
-            // wedge the cursor / hover. A leave is now always real.)
+            // whenever WindowFromPoint still resolved to this window, to absorb
+            // the continuous TME_LEAVE storm caused by a child render surface
+            // that covered the client area. That child is gone -- a single
+            // top-level window owns everything now -- so WindowFromPoint
+            // resolves to this HWND even for its own NC edges, which made that
+            // guard re-arm in a tight loop and wedge the cursor / hover. A
+            // leave is now always real.)
             m_clientMouseLeaveTracking = false;
-            if (m_client != nullptr && m_client->OnMouseLeave() == DxuiMessageResult::Handled)
-            {
-                return 0;
-            }
-            break;
-
-        case WM_GETMINMAXINFO:
-            if (m_client != nullptr && m_client->OnGetMinMax (reinterpret_cast<MINMAXINFO *> (lp)) == DxuiMessageResult::Handled)
-            {
-                return 0;
-            }
-            break;
-
-        case WM_LBUTTONDOWN:
-            if (m_client != nullptr && m_client->OnLButtonDown (wp, lp) == DxuiMessageResult::Handled)
-            {
-                return 0;
-            }
-            break;
-
-        case WM_LBUTTONUP:
-            if (m_client != nullptr && m_client->OnLButtonUp (wp, lp) == DxuiMessageResult::Handled)
-            {
-                return 0;
-            }
-            break;
-
-        case WM_RBUTTONDOWN:
-            if (m_client != nullptr && m_client->OnRButtonDown (wp, lp) == DxuiMessageResult::Handled)
-            {
-                return 0;
-            }
-            break;
-
-        case WM_RBUTTONUP:
-            if (m_client != nullptr && m_client->OnRButtonUp (wp, lp) == DxuiMessageResult::Handled)
-            {
-                return 0;
-            }
-            break;
-
-        case WM_MOUSEWHEEL:
-            if (m_client != nullptr && m_client->OnMouseWheel (wp, lp, false) == DxuiMessageResult::Handled)
-            {
-                if (!m_suppressInputInvalidate) { InvalidateRect (m_hwnd, nullptr, FALSE); }
-                return 0;
-            }
-            break;
-
-        case WM_MOUSEHWHEEL:
-            if (m_client != nullptr && m_client->OnMouseWheel (wp, lp, true) == DxuiMessageResult::Handled)
-            {
-                if (!m_suppressInputInvalidate) { InvalidateRect (m_hwnd, nullptr, FALSE); }
-                return 0;
-            }
-            break;
-
-        case WM_ACTIVATEAPP:
-            if (m_client != nullptr && m_client->OnActivateApp (wp != 0) == DxuiMessageResult::Handled)
-            {
-                return 0;
-            }
-            break;
-
-        case WM_KILLFOCUS:
-            if (m_client != nullptr && m_client->OnKillFocus() == DxuiMessageResult::Handled)
-            {
-                return 0;
-            }
-            break;
-
-        case WM_CANCELMODE:
-            if (m_client != nullptr && m_client->OnCancelMode() == DxuiMessageResult::Handled)
-            {
-                return 0;
-            }
-            break;
-
-        case WM_MOVE:
-            if (m_client != nullptr &&
-                m_client->OnMove ((int) (short) LOWORD (lp),
-                                  (int) (short) HIWORD (lp)) == DxuiMessageResult::Handled)
-            {
-                return 0;
-            }
-            break;
-
-        case WM_ENTERSIZEMOVE:
-            // The OS is about to run its own modal move / size loop, during which
-            // our outer pump stops. Run a short internal timer so the client can
-            // keep painting; fall through so the OS loop still starts normally.
-            // Also tick once right now so animation continues from the first
-            // frame of the drag instead of stalling until the first timer fires.
-            ::SetTimer (m_hwnd, s_kModalLoopTimerId, USER_TIMER_MINIMUM, nullptr);
-            if (m_client != nullptr) { m_client->OnModalLoopTick(); }
-            break;
-
-        case WM_EXITSIZEMOVE:
-            ::KillTimer (m_hwnd, s_kModalLoopTimerId);
-            break;
-
-        case WM_TIMER:
-            // The host-owned keep-alive tick (armed by WM_ENTERSIZEMOVE) is not a
-            // client SetTimer id; route it to OnModalLoopTick, not OnTimer.
-            if (wp == s_kModalLoopTimerId)
-            {
-                if (m_client != nullptr) { m_client->OnModalLoopTick(); }
-                return 0;
-            }
-            if (m_client != nullptr && m_client->OnTimer (static_cast<UINT_PTR> (wp)) == DxuiMessageResult::Handled)
-            {
-                InvalidateRect (m_hwnd, nullptr, FALSE);
-                return 0;
-            }
-            break;
-
-        case WM_NOTIFY:
-            if (m_client != nullptr && m_client->OnNotify (wp, lp) == DxuiMessageResult::Handled)
-            {
-                return 0;
-            }
-            break;
-
-        case WM_DRAWITEM:
-            if (m_client != nullptr)
-            {
-                return m_client->OnDrawItem (m_hwnd, msg, wp, lp);
-            }
-            break;
-
-        case WM_CTLCOLORSTATIC:
-            if (m_client != nullptr)
-            {
-                LRESULT  brush = m_client->OnCtlColorStatic (reinterpret_cast<HDC> (wp),
-                                                             reinterpret_cast<HWND> (lp));
-
-                if (brush != 0)
-                {
-                    return brush;
-                }
-            }
-            break;
-
-        case WM_INITMENUPOPUP:
-            if (m_client != nullptr &&
-                m_client->OnInitMenuPopup (reinterpret_cast<HMENU> (wp),
-                                           LOWORD (lp),
-                                           HIWORD (lp) != 0) == DxuiMessageResult::Handled)
-            {
-                return 0;
-            }
+            isHandled                  = false;
             break;
 
         case WM_PAINT:
-        {
-            // Full-ownership mode runs the host's panel-tree paint
-            // pump (clear + walk children + before-present hook +
-            // Present). Adopt / synthetic / opt-out-swap-chain modes
-            // have no host swap chain to drive, so fall through to
-            // the client's OnPaint() for legacy chrome painters.
+            // Full-ownership mode runs the host's panel-tree paint pump (clear
+            // + walk children + before-present hook + Present). Adopt /
+            // synthetic / opt-out-swap-chain modes have no host swap chain to
+            // drive, so they fall through to the client's OnPaint() for legacy
+            // chrome painters.
             if (m_swapChain && m_rtv)
             {
                 PAINTSTRUCT  ps = {};
@@ -2208,18 +2148,125 @@ LRESULT DxuiHwndSource::WndProc (UINT msg, WPARAM wp, LPARAM lp)
                 BeginPaint (m_hwnd, &ps);
                 PaintPump();
                 EndPaint   (m_hwnd, &ps);
-                return 0;
-            }
 
-            if (m_client != nullptr && m_client->OnPaint() == DxuiMessageResult::Handled)
+                result = 0;
+            }
+            else
             {
-                return 0;
+                isHandled = false;
             }
             break;
-        }
+
+        default:
+            isHandled = false;
+            break;
     }
 
-    return DefaultProc (msg, wp, lp);
+    return isHandled;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DxuiHwndSource::DispatchClientMessage
+//
+//  Pure forwarding: every arm asks the client and stops if it claims the
+//  message. `m_client` is known non-null -- WndProc checks once so 25 arms do
+//  not have to. The three arms that do not fit the claim/repaint shape return
+//  a value of their own and are marked as such.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool DxuiHwndSource::DispatchClientMessage (UINT msg, WPARAM wp, LPARAM lp, LRESULT & result)
+{
+    bool     isHandled = true;
+    LRESULT  brush     = 0;
+
+
+
+    switch (msg)
+    {
+        // -- claim-or-fall-through, no repaint --
+        case WM_CLOSE:         isHandled = Claimed (m_client->OnClose(),        RepaintOnClaim::No); break;
+        case WM_KEYUP:
+        case WM_SYSKEYUP:      isHandled = Claimed (m_client->OnKeyUp (wp, lp), RepaintOnClaim::No); break;
+        case WM_LBUTTONDOWN:   isHandled = Claimed (m_client->OnLButtonDown (wp, lp), RepaintOnClaim::No); break;
+        case WM_LBUTTONUP:     isHandled = Claimed (m_client->OnLButtonUp   (wp, lp), RepaintOnClaim::No); break;
+        case WM_RBUTTONDOWN:   isHandled = Claimed (m_client->OnRButtonDown (wp, lp), RepaintOnClaim::No); break;
+        case WM_RBUTTONUP:     isHandled = Claimed (m_client->OnRButtonUp   (wp, lp), RepaintOnClaim::No); break;
+        case WM_MOUSEMOVE:     isHandled = Claimed (m_client->OnMouseMove   (wp, lp), RepaintOnClaim::No); break;
+        case WM_MOUSELEAVE:    isHandled = Claimed (m_client->OnMouseLeave(),   RepaintOnClaim::No); break;
+        case WM_ACTIVATEAPP:   isHandled = Claimed (m_client->OnActivateApp (wp != 0), RepaintOnClaim::No); break;
+        case WM_KILLFOCUS:     isHandled = Claimed (m_client->OnKillFocus(),    RepaintOnClaim::No); break;
+        case WM_CANCELMODE:    isHandled = Claimed (m_client->OnCancelMode(),   RepaintOnClaim::No); break;
+        case WM_NOTIFY:        isHandled = Claimed (m_client->OnNotify (wp, lp), RepaintOnClaim::No); break;
+        case WM_PAINT:         isHandled = Claimed (m_client->OnPaint(),        RepaintOnClaim::No); break;
+        case WM_GETMINMAXINFO: isHandled = Claimed (m_client->OnGetMinMax (reinterpret_cast<MINMAXINFO *> (lp)),
+                                                    RepaintOnClaim::No); break;
+        case WM_COMMAND:       isHandled = Claimed (m_client->OnCommandEx (LOWORD (wp),
+                                                                          HIWORD (wp),
+                                                                          reinterpret_cast<HWND> (lp)),
+                                                    RepaintOnClaim::No); break;
+        case WM_MOVE:          isHandled = Claimed (m_client->OnMove ((int) (short) LOWORD (lp),
+                                                                     (int) (short) HIWORD (lp)),
+                                                    RepaintOnClaim::No); break;
+        case WM_INITMENUPOPUP: isHandled = Claimed (m_client->OnInitMenuPopup (reinterpret_cast<HMENU> (wp),
+                                                                              LOWORD (lp),
+                                                                              HIWORD (lp) != 0),
+                                                    RepaintOnClaim::No); break;
+
+        // -- claim and repaint --
+        case WM_CHAR:          isHandled = Claimed (m_client->OnChar (wp, lp),    RepaintOnClaim::Yes); break;
+        case WM_KEYDOWN:
+        case WM_SYSKEYDOWN:    isHandled = Claimed (m_client->OnKeyDown (wp, lp), RepaintOnClaim::Yes); break;
+        case WM_TIMER:         isHandled = Claimed (m_client->OnTimer (static_cast<UINT_PTR> (wp)),
+                                                    RepaintOnClaim::Yes); break;
+
+        // -- claim and repaint unless a wheel flood is being absorbed --
+        case WM_MOUSEWHEEL:    isHandled = Claimed (m_client->OnMouseWheel (wp, lp, false),
+                                                    RepaintOnClaim::IfNotSuppressed); break;
+        case WM_MOUSEHWHEEL:   isHandled = Claimed (m_client->OnMouseWheel (wp, lp, true),
+                                                    RepaintOnClaim::IfNotSuppressed); break;
+
+        // -- these answer with a value of their own rather than a claim --
+        case WM_SETCURSOR:
+            isHandled = Claimed (m_client->OnSetCursor (LOWORD (lp)), RepaintOnClaim::No);
+            result    = TRUE;
+            break;
+
+        case WM_CREATE:
+            result = m_client->OnCreate (m_hwnd, msg, wp, lp);
+            break;
+
+        case WM_DRAWITEM:
+            result = m_client->OnDrawItem (m_hwnd, msg, wp, lp);
+            break;
+
+        case WM_CTLCOLORSTATIC:
+            // A zero brush means "no opinion", not "handled with a null brush".
+            brush     = m_client->OnCtlColorStatic (reinterpret_cast<HDC> (wp),
+                                                    reinterpret_cast<HWND> (lp));
+            result    = brush;
+            isHandled = (brush != 0);
+            break;
+
+        // -- notified, never claimed: teardown bookkeeping only. The real
+        // -- teardown happens in Destroy() / ~DxuiHwndSource(); this lets the
+        // -- client persist state (window placement, etc.) before the HWND goes.
+        case WM_DESTROY:
+            m_client->OnDestroy();
+            isHandled = false;
+            break;
+
+        default:
+            isHandled = false;
+            break;
+    }
+
+    return isHandled;
 }
 
 
@@ -2234,12 +2281,20 @@ LRESULT DxuiHwndSource::WndProc (UINT msg, WPARAM wp, LPARAM lp)
 
 LRESULT DxuiHwndSource::DefaultProc (UINT msg, WPARAM wp, LPARAM lp)
 {
+    LRESULT  result = 0;
+
+
+
     if (m_defaultProcForTest)
     {
-        return m_defaultProcForTest (m_hwnd, msg, wp, lp);
+        result = m_defaultProcForTest (m_hwnd, msg, wp, lp);
+    }
+    else
+    {
+        result = DefWindowProc (m_hwnd, msg, wp, lp);
     }
 
-    return DefWindowProc (m_hwnd, msg, wp, lp);
+    return result;
 }
 
 
@@ -2254,12 +2309,20 @@ LRESULT DxuiHwndSource::DefaultProc (UINT msg, WPARAM wp, LPARAM lp)
 
 BOOL DxuiHwndSource::TrackMouseEventHost (TRACKMOUSEEVENT * pEvent)
 {
+    BOOL  result = FALSE;
+
+
+
     if (m_trackMouseEventForTest)
     {
-        return m_trackMouseEventForTest (pEvent);
+        result = m_trackMouseEventForTest (pEvent);
+    }
+    else
+    {
+        result = TrackMouseEvent (pEvent);
     }
 
-    return TrackMouseEvent (pEvent);
+    return result;
 }
 
 
@@ -2312,34 +2375,35 @@ LRESULT DxuiHwndSource::HandleNcCalcSize (WPARAM wp, LPARAM lp)
     NCCALCSIZE_PARAMS *  pParams      = nullptr;
     LRESULT              defResult    = 0;
     LONG                 originalTop  = 0;
+    LRESULT              result       = 0;
 
 
 
     if (!m_params.borderless)
     {
-        return DefaultProc (WM_NCCALCSIZE, wp, lp);
+        // A framed window wants nothing but the default frame math.
+        result = DefaultProc (WM_NCCALCSIZE, wp, lp);
     }
-
-    if (wp == FALSE)
+    else if (wp != FALSE)
     {
-        return 0;
+        pParams = reinterpret_cast<NCCALCSIZE_PARAMS *> (lp);
     }
 
-    pParams = reinterpret_cast<NCCALCSIZE_PARAMS *> (lp);
-    if (pParams == nullptr)
+    if (pParams != nullptr)
     {
-        return 0;
+        originalTop = pParams->rgrc[0].top;
+        defResult   = DefaultProc (WM_NCCALCSIZE, wp, lp);
+        result      = defResult;
+
+        // A non-zero result means DefWindowProc asked for special client
+        // handling; leave its rects alone in that case.
+        if (defResult == 0)
+        {
+            pParams->rgrc[0].top = originalTop;
+        }
     }
 
-    originalTop = pParams->rgrc[0].top;
-    defResult   = DefaultProc (WM_NCCALCSIZE, wp, lp);
-    if (defResult != 0)
-    {
-        return defResult;
-    }
-
-    pParams->rgrc[0].top = originalTop;
-    return 0;
+    return result;
 }
 
 
@@ -2358,11 +2422,14 @@ LRESULT DxuiHwndSource::HandleNcCalcSize (WPARAM wp, LPARAM lp)
 
 LRESULT DxuiHwndSource::HandleNcHitTest (LPARAM lp)
 {
+    HRESULT          hr           = S_OK;
     POINT            ptScreen     = {};
     POINT            ptClient     = {};
     RECT             rcClient     = {};
     DxuiHitTestKind  kind         = DxuiHitTestKind::Client;
     LRESULT          delegateHt   = HTNOWHERE;
+    LRESULT          result       = HTNOWHERE;
+    bool             haveClient   = false;
 
 
 
@@ -2376,27 +2443,18 @@ LRESULT DxuiHwndSource::HandleNcHitTest (LPARAM lp)
     if (m_hitTestDelegate)
     {
         delegateHt = m_hitTestDelegate (ptScreen);
-        if (delegateHt != HTNOWHERE)
-        {
-            return delegateHt;
-        }
+        result     = delegateHt;
     }
 
-    if (m_hwnd == nullptr)
-    {
-        return HTNOWHERE;
-    }
+    BAIL_OUT_IF (delegateHt != HTNOWHERE, S_OK);
 
-    ptClient = ptScreen;
-    if (!ScreenToClient (m_hwnd, &ptClient))
-    {
-        return HTNOWHERE;
-    }
+    // Every remaining miss answers HTNOWHERE, which `result` already holds.
+    ptClient   = ptScreen;
+    haveClient = m_hwnd != nullptr
+                 && ScreenToClient (m_hwnd, &ptClient)
+                 && GetClientRect (m_hwnd, &rcClient);
 
-    if (!GetClientRect (m_hwnd, &rcClient))
-    {
-        return HTNOWHERE;
-    }
+    BAIL_OUT_IF (!haveClient, S_OK);
 
     // Convert client-pixel point to client-DIP before running the
     // classifier — controls store bounds in DIPs.
@@ -2405,8 +2463,11 @@ LRESULT DxuiHwndSource::HandleNcHitTest (LPARAM lp)
     rcClient.right  = MulDiv (rcClient.right,  (int) s_kDefaultDpi, (int) m_scaler.Dpi());
     rcClient.bottom = MulDiv (rcClient.bottom, (int) s_kDefaultDpi, (int) m_scaler.Dpi());
 
-    kind = ClassifyHitInternal (ptClient, rcClient);
-    return KindToHt (kind);
+    kind   = ClassifyHitInternal (ptClient, rcClient);
+    result = KindToHt (kind);
+
+Error:
+    return result;
 }
 
 
@@ -2418,68 +2479,69 @@ LRESULT DxuiHwndSource::HandleNcHitTest (LPARAM lp)
 //  HandleNcMouse
 //
 //  Routes NC mouse state to custom system-button controls and lets
-//  DefWindowProc keep the standard caption / resize behaviours for
+//  DefWindowProc keep the standard caption / resize behaviors for
 //  everything else.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 LRESULT DxuiHwndSource::HandleNcMouse (UINT msg, WPARAM wp, LPARAM lp)
 {
-    POINT                ptScreen = {};
-    POINT                ptClient = {};
-    IDxuiControl       * control  = nullptr;
-    DxuiMouseEvent       ev       = {};
-    TRACKMOUSEEVENT      tme      = { sizeof (tme) };
+    HRESULT              hr          = S_OK;
+    POINT                ptScreen    = {};
+    POINT                ptClient    = {};
+    IDxuiControl       * control     = nullptr;
+    DxuiMouseEvent       ev          = {};
+    TRACKMOUSEEVENT      tme         = { sizeof (tme) };
+    bool                 haveClient  = false;
+    bool                 isKnownMsg  = false;
+    // Every path that is not a fully-owned button press ends up at
+    // DefWindowProc, so that is the default and only the press path clears it.
+    bool                 toDefault   = true;
 
 
 
-    if (msg == WM_NCMOUSELEAVE)
+    if (msg == WM_NCMOUSELEAVE && m_lastHoveredNcControl != nullptr)
     {
-        if (m_lastHoveredNcControl != nullptr)
+        ev.kind = DxuiMouseEventKind::Leave;
+        m_lastHoveredNcControl->OnMouse (ev);
+        m_lastHoveredNcControl = nullptr;
+
+        if (m_hwnd != nullptr)
         {
-            ev.kind = DxuiMouseEventKind::Leave;
-            m_lastHoveredNcControl->OnMouse (ev);
-            m_lastHoveredNcControl = nullptr;
-            if (m_hwnd != nullptr)
-            {
-                InvalidateRect (m_hwnd, nullptr, FALSE);
-            }
+            InvalidateRect (m_hwnd, nullptr, FALSE);
         }
-
-        // Mirror the move path: forward the leave to DefWindowProc so the
-        // DWM's caption-button hover bookkeeping tears down cleanly.
-        return DefaultProc (msg, wp, lp);
     }
 
-    if (m_hwnd == nullptr)
-    {
-        return DefaultProc (msg, wp, lp);
-    }
+    // Mirror the move path: forward the leave to DefWindowProc so the DWM's
+    // caption-button hover bookkeeping tears down cleanly.
+    BAIL_OUT_IF (msg == WM_NCMOUSELEAVE, S_OK);
+    BAIL_OUT_IF (m_hwnd == nullptr, S_OK);
 
     ptScreen.x = GET_X_LPARAM (lp);
     ptScreen.y = GET_Y_LPARAM (lp);
     ptClient   = ptScreen;
-    if (!ScreenToClient (m_hwnd, &ptClient))
-    {
-        return DefaultProc (msg, wp, lp);
-    }
+    haveClient = ScreenToClient (m_hwnd, &ptClient) != FALSE;
+
+    BAIL_OUT_IF (!haveClient, S_OK);
 
     ptClient.x = MulDiv (ptClient.x, (int) s_kDefaultDpi, (int) m_scaler.Dpi());
     ptClient.y = MulDiv (ptClient.y, (int) s_kDefaultDpi, (int) m_scaler.Dpi());
     control    = FindNcSystemControlAt (ptClient);
-    if (control == nullptr)
+
+    // Off every system button: release the previously-hovered one, then defer.
+    if (control == nullptr && m_lastHoveredNcControl != nullptr)
     {
-        if (m_lastHoveredNcControl != nullptr)
-        {
-            ev.kind       = (msg == WM_NCLBUTTONUP) ? DxuiMouseEventKind::Up : DxuiMouseEventKind::Leave;
-            ev.button     = (msg == WM_NCLBUTTONUP) ? DxuiMouseButton::Left  : DxuiMouseButton::None;
-            ev.positionDip = ptClient;
-            m_lastHoveredNcControl->OnMouse (ev);
-            m_lastHoveredNcControl = nullptr;
-            InvalidateRect (m_hwnd, nullptr, FALSE);
-        }
-        return DefaultProc (msg, wp, lp);
+        ev.kind        = (msg == WM_NCLBUTTONUP) ? DxuiMouseEventKind::Up : DxuiMouseEventKind::Leave;
+        ev.button      = (msg == WM_NCLBUTTONUP) ? DxuiMouseButton::Left  : DxuiMouseButton::None;
+        ev.positionDip = ptClient;
+        m_lastHoveredNcControl->OnMouse (ev);
+        m_lastHoveredNcControl = nullptr;
+        InvalidateRect (m_hwnd, nullptr, FALSE);
     }
+
+    BAIL_OUT_IF (control == nullptr, S_OK);
+
+    isKnownMsg = msg == WM_NCMOUSEMOVE || msg == WM_NCLBUTTONDOWN || msg == WM_NCLBUTTONUP;
 
     if (msg == WM_NCMOUSEMOVE)
     {
@@ -2506,10 +2568,8 @@ LRESULT DxuiHwndSource::HandleNcMouse (UINT msg, WPARAM wp, LPARAM lp)
         ev.kind   = DxuiMouseEventKind::Up;
         ev.button = DxuiMouseButton::Left;
     }
-    else
-    {
-        return DefaultProc (msg, wp, lp);
-    }
+
+    BAIL_OUT_IF (!isKnownMsg, S_OK);
 
     ev.positionDip = ptClient;
     control->OnMouse (ev);
@@ -2528,12 +2588,10 @@ LRESULT DxuiHwndSource::HandleNcMouse (UINT msg, WPARAM wp, LPARAM lp)
     // not sufficient on its own here -- the host's flip swap chain covers
     // the entire window (caption included), so the DWM has no non-client
     // redirection surface in the maximize-button region to host the flyout.
-    if (msg == WM_NCMOUSEMOVE)
-    {
-        return DefaultProc (msg, wp, lp);
-    }
+    toDefault = (msg == WM_NCMOUSEMOVE);
 
-    return 0;
+Error:
+    return toDefault ? DefaultProc (msg, wp, lp) : 0;
 }
 
 
@@ -2698,7 +2756,7 @@ void DxuiHwndSource::HandleSize (WPARAM wp, LPARAM lp)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiHwndSource::HandleThemeChange ()
+void DxuiHwndSource::HandleThemeChange()
 {
     ApplyDwmConfiguration();
 
@@ -2776,7 +2834,7 @@ void DxuiHwndSource::MaybeRelayoutRoot (const RECT & clientPx)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiHwndSource::BuildCaption ()
+void DxuiHwndSource::BuildCaption()
 {
     RECT  clientPx  = {};
     RECT  clientDip = {};
@@ -2905,13 +2963,9 @@ void DxuiHwndSource::SetCaptionIcon (std::vector<uint32_t> bgraPremul, int width
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-int DxuiHwndSource::CaptionHeightPx () const
+int DxuiHwndSource::CaptionHeightPx() const
 {
-    if (!m_caption)
-    {
-        return 0;
-    }
-    return m_caption->PreferredHeightPx (m_scaler);
+    return m_caption ? m_caption->PreferredHeightPx (m_scaler) : 0;
 }
 
 
@@ -2987,58 +3041,55 @@ void DxuiHwndSource::LayoutCaptionForClient (const RECT & clientPx)
 
 bool DxuiHwndSource::RouteCaptionNcMouse (UINT msg, WPARAM wp, LPARAM lp)
 {
-    POINT           ptScreen = {};
-    POINT           ptClient = {};
-    IDxuiControl  * control  = nullptr;
-    DxuiMouseEvent  ev       = {};
+    HRESULT         hr         = S_OK;
+    POINT           ptScreen   = {};
+    POINT           ptClient   = {};
+    IDxuiControl  * control    = nullptr;
+    DxuiMouseEvent  ev         = {};
+    // Only a real hit on a caption button consumes the message; the consumer
+    // keeps everything else (caption drag, menu dismiss, ...).
+    bool            consumed   = false;
+    bool            haveClient = false;
 
 
 
     (void) wp;
 
-    if (m_caption == nullptr || m_hwnd == nullptr)
+    BAIL_OUT_IF (m_caption == nullptr || m_hwnd == nullptr, S_OK);
+
+    if (msg == WM_NCMOUSELEAVE && m_lastHoveredNcControl != nullptr)
     {
-        return false;
+        ev.kind = DxuiMouseEventKind::Leave;
+        m_lastHoveredNcControl->OnMouse (ev);
+        m_lastHoveredNcControl = nullptr;
+        InvalidateRect (m_hwnd, nullptr, FALSE);
+        consumed = true;
     }
 
-    if (msg == WM_NCMOUSELEAVE)
-    {
-        if (m_lastHoveredNcControl != nullptr)
-        {
-            ev.kind = DxuiMouseEventKind::Leave;
-            m_lastHoveredNcControl->OnMouse (ev);
-            m_lastHoveredNcControl = nullptr;
-            InvalidateRect (m_hwnd, nullptr, FALSE);
-            return true;
-        }
-        return false;
-    }
+    BAIL_OUT_IF (msg == WM_NCMOUSELEAVE, S_OK);
 
     ptScreen.x = GET_X_LPARAM (lp);
     ptScreen.y = GET_Y_LPARAM (lp);
     ptClient   = ptScreen;
-    if (!ScreenToClient (m_hwnd, &ptClient))
-    {
-        return false;
-    }
+    haveClient = ScreenToClient (m_hwnd, &ptClient) != FALSE;
+
+    BAIL_OUT_IF (!haveClient, S_OK);
 
     ptClient.x = MulDiv (ptClient.x, (int) s_kDefaultDpi, (int) m_scaler.Dpi());
     ptClient.y = MulDiv (ptClient.y, (int) s_kDefaultDpi, (int) m_scaler.Dpi());
     control    = FindNcSystemControlAt (ptClient);
 
-    if (control == nullptr)
+    // Left the buttons: drop any latched hover, but don't consume -- the
+    // consumer still needs caption drag / menu dismiss.
+    if (control == nullptr && m_lastHoveredNcControl != nullptr && msg == WM_NCMOUSEMOVE)
     {
-        // Left the buttons: drop any latched hover, but don't consume --
-        // the consumer still needs caption drag / menu dismiss.
-        if (m_lastHoveredNcControl != nullptr && msg == WM_NCMOUSEMOVE)
-        {
-            ev.kind = DxuiMouseEventKind::Leave;
-            m_lastHoveredNcControl->OnMouse (ev);
-            m_lastHoveredNcControl = nullptr;
-            InvalidateRect (m_hwnd, nullptr, FALSE);
-        }
-        return false;
+        ev.kind = DxuiMouseEventKind::Leave;
+        m_lastHoveredNcControl->OnMouse (ev);
+        m_lastHoveredNcControl = nullptr;
+        InvalidateRect (m_hwnd, nullptr, FALSE);
     }
+
+    BAIL_OUT_IF (control == nullptr, S_OK);
 
     switch (msg)
     {
@@ -3050,26 +3101,33 @@ bool DxuiHwndSource::RouteCaptionNcMouse (UINT msg, WPARAM wp, LPARAM lp)
             }
             ev.kind                = DxuiMouseEventKind::Move;
             m_lastHoveredNcControl = control;
+            consumed               = true;
             break;
 
         case WM_NCLBUTTONDOWN:
             ev.kind   = DxuiMouseEventKind::Down;
             ev.button = DxuiMouseButton::Left;
+            consumed  = true;
             break;
 
         case WM_NCLBUTTONUP:
             ev.kind   = DxuiMouseEventKind::Up;
             ev.button = DxuiMouseButton::Left;
+            consumed  = true;
             break;
 
         default:
-            return false;
+            break;
     }
+
+    BAIL_OUT_IF (!consumed, S_OK);
 
     ev.positionDip = ptClient;
     control->OnMouse (ev);
     InvalidateRect (m_hwnd, nullptr, FALSE);
-    return true;
+
+Error:
+    return consumed;
 }
 
 
@@ -3088,7 +3146,9 @@ bool DxuiHwndSource::RouteCaptionNcMouse (UINT msg, WPARAM wp, LPARAM lp)
 
 DxuiHitTestKind DxuiHwndSource::ClassifyHitForTest (POINT clientDip) const
 {
-    RECT  rcClient  = {};
+    RECT             rcClient = {};
+    DxuiHitTestKind  kind     = DxuiHitTestKind::None;
+    bool             haveRect = false;
 
 
 
@@ -3096,19 +3156,24 @@ DxuiHitTestKind DxuiHwndSource::ClassifyHitForTest (POINT clientDip) const
 
     if (m_synthetic)
     {
+        // Test mode: the cached bounds are already in DIPs.
         rcClient.right  = m_params.initialSizeDip.cx;
         rcClient.bottom = m_params.initialSizeDip.cy;
-        return ClassifyHitInternal (clientDip, rcClient);
+        haveRect        = true;
     }
-
-    if (m_hwnd == nullptr || !GetClientRect (m_hwnd, &rcClient))
+    else if (m_hwnd != nullptr && GetClientRect (m_hwnd, &rcClient))
     {
-        return DxuiHitTestKind::None;
+        rcClient.right  = MulDiv (rcClient.right,  (int) s_kDefaultDpi, (int) m_scaler.Dpi());
+        rcClient.bottom = MulDiv (rcClient.bottom, (int) s_kDefaultDpi, (int) m_scaler.Dpi());
+        haveRect        = true;
     }
 
-    rcClient.right  = MulDiv (rcClient.right,  (int) s_kDefaultDpi, (int) m_scaler.Dpi());
-    rcClient.bottom = MulDiv (rcClient.bottom, (int) s_kDefaultDpi, (int) m_scaler.Dpi());
-    return ClassifyHitInternal (clientDip, rcClient);
+    if (haveRect)
+    {
+        kind = ClassifyHitInternal (clientDip, rcClient);
+    }
+
+    return kind;
 }
 
 
@@ -3137,32 +3202,29 @@ IDxuiControl * DxuiHwndSource::FindNcSystemControlAt (POINT clientDip) const
     if (m_caption != nullptr)
     {
         rc = m_caption->Bounds();
+
         if (clientDip.x >= rc.left && clientDip.x < rc.right &&
             clientDip.y >= rc.top  && clientDip.y < rc.bottom)
         {
             found = FindNcSystemControlInTree (m_caption.get(), clientDip);
-            if (found != nullptr)
-            {
-                return found;
-            }
         }
     }
 
-    if (RootPanel() == nullptr)
-    {
-        return nullptr;
-    }
+    n = (RootPanel() != nullptr) ? RootPanel()->ChildCount() : 0;
 
-    n = RootPanel()->ChildCount();
-    for (i = n; i > 0; --i)
+    // Reverse z-order so the visually-topmost child wins; `found` in the
+    // condition stops the walk at the first hit.
+    for (i = n; found == nullptr && i > 0; --i)
     {
         child = RootPanel()->Child (i - 1);
+
         if (child == nullptr || !child->Visible())
         {
             continue;
         }
 
         rc = child->Bounds();
+
         if (clientDip.x < rc.left || clientDip.x >= rc.right ||
             clientDip.y < rc.top  || clientDip.y >= rc.bottom)
         {
@@ -3170,22 +3232,23 @@ IDxuiControl * DxuiHwndSource::FindNcSystemControlAt (POINT clientDip) const
         }
 
         found = FindNcSystemControlInTree (child, clientDip);
-        if (found != nullptr)
-        {
-            return found;
-        }
 
-        kind = child->ClassifyHit (clientDip);
-        if (kind == DxuiHitTestKind::MinButton ||
-            kind == DxuiHitTestKind::MaxButton ||
-            kind == DxuiHitTestKind::CloseButton)
+        if (found == nullptr)
         {
-            return child;
+            kind = child->ClassifyHit (clientDip);
+
+            if (kind == DxuiHitTestKind::MinButton ||
+                kind == DxuiHitTestKind::MaxButton ||
+                kind == DxuiHitTestKind::CloseButton)
+            {
+                found = child;
+            }
         }
     }
 
-    return nullptr;
+    return found;
 }
+
 
 
 
@@ -3208,6 +3271,7 @@ void DxuiHwndSource::NotifySystemButtonsMaximized (bool maximized)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  ClassifyHitInternal
@@ -3219,79 +3283,75 @@ void DxuiHwndSource::NotifySystemButtonsMaximized (bool maximized)
 
 DxuiHitTestKind DxuiHwndSource::ClassifyHitInternal (POINT clientDip, RECT clientBoundsDip) const
 {
-    DxuiHitTestKind  edge       = DxuiHitTestKind::None;
-    int              borderPx   = 0;
-    size_t           n          = 0;
-    size_t           i          = 0;
-    IDxuiControl *   child      = nullptr;
-    RECT             rc         = {};
-    DxuiHitTestKind  kind       = DxuiHitTestKind::None;
+    // Plain client area is what nothing-claimed-it means.
+    DxuiHitTestKind  result   = DxuiHitTestKind::Client;
+    DxuiHitTestKind  kind     = DxuiHitTestKind::None;
+    int              borderPx = 0;
+    size_t           n        = 0;
+    size_t           i        = 0;
+    IDxuiControl *   child    = nullptr;
+    RECT             rc       = {};
+    bool             claimed  = false;
 
 
 
     borderPx = (int) m_params.resizeBorderDip;
+
     if (borderPx < s_kMinResizeBorderPx)
     {
         borderPx = s_kMinResizeBorderPx;
     }
 
+    // Resize edges win outright.
     if (m_params.resizable)
     {
-        edge = ClassifyResizeEdge (clientDip, clientBoundsDip, borderPx);
-        if (edge != DxuiHitTestKind::None)
-        {
-            return edge;
-        }
+        kind    = ClassifyResizeEdge (clientDip, clientBoundsDip, borderPx);
+        claimed = kind != DxuiHitTestKind::None;
+        result  = claimed ? kind : result;
     }
 
     // Host-owned caption wins over the consumer's root content (it is
     // drawn on top of the top strip). Buttons / caption / nothing.
-    if (m_caption != nullptr)
+    if (!claimed && m_caption != nullptr)
     {
-        RECT  crc = m_caption->Bounds();
+        rc = m_caption->Bounds();
 
-        if (clientDip.x >= crc.left && clientDip.x < crc.right &&
-            clientDip.y >= crc.top  && clientDip.y < crc.bottom)
+        if (clientDip.x >= rc.left && clientDip.x < rc.right &&
+            clientDip.y >= rc.top  && clientDip.y < rc.bottom)
         {
-            DxuiHitTestKind  ck = m_caption->ClassifyHit (clientDip);
-
-            if (ck != DxuiHitTestKind::None && ck != DxuiHitTestKind::Client)
-            {
-                return ck;
-            }
+            kind    = m_caption->ClassifyHit (clientDip);
+            claimed = kind != DxuiHitTestKind::None && kind != DxuiHitTestKind::Client;
+            result  = claimed ? kind : result;
         }
     }
 
-    if (RootPanel() == nullptr)
-    {
-        return DxuiHitTestKind::Client;
-    }
+    // Reverse z-order so visually-topmost children win. A null root simply
+    // leaves the count at zero, so the walk is skipped without its own guard.
+    n = (!claimed && RootPanel() != nullptr) ? RootPanel()->ChildCount() : 0;
 
-    // Reverse z-order so visually-topmost children win.
-    n = RootPanel()->ChildCount();
-    for (i = n; i > 0; --i)
+    for (i = n; !claimed && i > 0; --i)
     {
         child = RootPanel()->Child (i - 1);
+
         if (child == nullptr || !child->Visible())
         {
             continue;
         }
 
         rc = child->Bounds();
+
         if (clientDip.x < rc.left || clientDip.x >= rc.right ||
             clientDip.y < rc.top  || clientDip.y >= rc.bottom)
         {
             continue;
         }
 
-        kind = child->ClassifyHit (clientDip);
-        if (kind != DxuiHitTestKind::None && kind != DxuiHitTestKind::Client)
-        {
-            return kind;
-        }
+        kind    = child->ClassifyHit (clientDip);
+        claimed = kind != DxuiHitTestKind::None && kind != DxuiHitTestKind::Client;
+        result  = claimed ? kind : result;
     }
 
-    return DxuiHitTestKind::Client;
+    return result;
 }
 
 
@@ -3330,16 +3390,20 @@ DxuiHitTestKind DxuiHwndSource::ClassifyResizeEdge (POINT clientDip,
 
 
 
-    if (cTop    && cLeft)  { return DxuiHitTestKind::ResizeCornerTL; }
-    if (cTop    && cRight) { return DxuiHitTestKind::ResizeCornerTR; }
-    if (cBottom && cLeft)  { return DxuiHitTestKind::ResizeCornerBL; }
-    if (cBottom && cRight) { return DxuiHitTestKind::ResizeCornerBR; }
-    if (top)               { return DxuiHitTestKind::ResizeEdgeTop;    }
-    if (bottom)            { return DxuiHitTestKind::ResizeEdgeBottom; }
-    if (left)              { return DxuiHitTestKind::ResizeEdgeLeft;   }
-    if (right)             { return DxuiHitTestKind::ResizeEdgeRight;  }
+    DxuiHitTestKind  kind = DxuiHitTestKind::None;
 
-    return DxuiHitTestKind::None;
+    // Corners first, so a diagonal grab wins over the straight edge it
+    // overlaps -- see the banner.
+    if      (cTop    && cLeft)  { kind = DxuiHitTestKind::ResizeCornerTL;  }
+    else if (cTop    && cRight) { kind = DxuiHitTestKind::ResizeCornerTR;  }
+    else if (cBottom && cLeft)  { kind = DxuiHitTestKind::ResizeCornerBL;  }
+    else if (cBottom && cRight) { kind = DxuiHitTestKind::ResizeCornerBR;  }
+    else if (top)               { kind = DxuiHitTestKind::ResizeEdgeTop;    }
+    else if (bottom)            { kind = DxuiHitTestKind::ResizeEdgeBottom; }
+    else if (left)              { kind = DxuiHitTestKind::ResizeEdgeLeft;   }
+    else if (right)             { kind = DxuiHitTestKind::ResizeEdgeRight;  }
+
+    return kind;
 }
 
 
@@ -3358,24 +3422,30 @@ DxuiHitTestKind DxuiHwndSource::ClassifyResizeEdge (POINT clientDip,
 
 LRESULT DxuiHwndSource::KindToHt (DxuiHitTestKind kind)
 {
+    // Also the answer for a value outside the enum: treating an unknown hit as
+    // plain client area is the harmless default.
+    LRESULT  ht = HTCLIENT;
+
+
     switch (kind)
     {
-        case DxuiHitTestKind::None:             return HTNOWHERE;
-        case DxuiHitTestKind::Client:           return HTCLIENT;
-        case DxuiHitTestKind::Caption:          return HTCAPTION;
-        case DxuiHitTestKind::MinButton:        return HTMINBUTTON;
-        case DxuiHitTestKind::MaxButton:        return HTMAXBUTTON;
-        case DxuiHitTestKind::CloseButton:      return HTCLOSE;
-        case DxuiHitTestKind::ResizeEdgeLeft:   return HTLEFT;
-        case DxuiHitTestKind::ResizeEdgeRight:  return HTRIGHT;
-        case DxuiHitTestKind::ResizeEdgeTop:    return HTTOP;
-        case DxuiHitTestKind::ResizeEdgeBottom: return HTBOTTOM;
-        case DxuiHitTestKind::ResizeCornerTL:   return HTTOPLEFT;
-        case DxuiHitTestKind::ResizeCornerTR:   return HTTOPRIGHT;
-        case DxuiHitTestKind::ResizeCornerBL:   return HTBOTTOMLEFT;
-        case DxuiHitTestKind::ResizeCornerBR:   return HTBOTTOMRIGHT;
+        case DxuiHitTestKind::None:             ht = HTNOWHERE;       break;
+        case DxuiHitTestKind::Client:           ht = HTCLIENT;        break;
+        case DxuiHitTestKind::Caption:          ht = HTCAPTION;       break;
+        case DxuiHitTestKind::MinButton:        ht = HTMINBUTTON;     break;
+        case DxuiHitTestKind::MaxButton:        ht = HTMAXBUTTON;     break;
+        case DxuiHitTestKind::CloseButton:      ht = HTCLOSE;         break;
+        case DxuiHitTestKind::ResizeEdgeLeft:   ht = HTLEFT;          break;
+        case DxuiHitTestKind::ResizeEdgeRight:  ht = HTRIGHT;         break;
+        case DxuiHitTestKind::ResizeEdgeTop:    ht = HTTOP;           break;
+        case DxuiHitTestKind::ResizeEdgeBottom: ht = HTBOTTOM;        break;
+        case DxuiHitTestKind::ResizeCornerTL:   ht = HTTOPLEFT;       break;
+        case DxuiHitTestKind::ResizeCornerTR:   ht = HTTOPRIGHT;      break;
+        case DxuiHitTestKind::ResizeCornerBL:   ht = HTBOTTOMLEFT;    break;
+        case DxuiHitTestKind::ResizeCornerBR:   ht = HTBOTTOMRIGHT;   break;
     }
-    return HTCLIENT;
+
+    return ht;
 }
 
 
@@ -3402,9 +3472,10 @@ LRESULT DxuiHwndSource::KindToHt (DxuiHitTestKind kind)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-DxuiPopupHost * DxuiHwndSource::AcquirePopup ()
+DxuiPopupHost * DxuiHwndSource::AcquirePopup()
 {
     DxuiPopupHost  *  popup  = nullptr;
+
 
 
     DXUI_ASSERT_UI_THREAD();
@@ -3421,8 +3492,10 @@ DxuiPopupHost * DxuiHwndSource::AcquirePopup ()
         }
     }
 
-    // Walk the pool in LIFO order looking for an idle instance.
-    for (size_t i = m_popupPool.size(); i-- > 0; )
+    // Walk the pool in LIFO order looking for an idle instance. `popup` in the
+    // condition stops at the FIRST idle one -- without it every idle entry
+    // would be checked out and pushed onto m_popupActive.
+    for (size_t i = m_popupPool.size(); popup == nullptr && i-- > 0; )
     {
         bool  active = false;
 
@@ -3438,11 +3511,11 @@ DxuiPopupHost * DxuiHwndSource::AcquirePopup ()
 #ifdef _DEBUG
             m_popupHits++;
 #endif
-            return popup;
         }
     }
 
     // Every pool entry is in use — grow on demand.
+    if (popup == nullptr)
     {
         std::unique_ptr<DxuiPopupHost>  fresh = std::make_unique<DxuiPopupHost>();
 
@@ -3475,22 +3548,20 @@ void DxuiHwndSource::ReleasePopup (DxuiPopupHost * popup)
 {
     DXUI_ASSERT_UI_THREAD();
 
-    if (popup == nullptr)
+    if (popup != nullptr)
     {
-        return;
-    }
-
-    if (popup->IsOpen())
-    {
-        popup->Close (0);
-    }
-
-    for (size_t i = 0; i < m_popupActive.size(); ++i)
-    {
-        if (m_popupActive[i] == popup)
+        if (popup->IsOpen())
         {
-            m_popupActive.erase (m_popupActive.begin() + (ptrdiff_t) i);
-            return;
+            popup->Close (0);
+        }
+
+        for (size_t i = 0; i < m_popupActive.size(); ++i)
+        {
+            if (m_popupActive[i] == popup)
+            {
+                m_popupActive.erase (m_popupActive.begin() + (ptrdiff_t) i);
+                break;
+            }
         }
     }
 }
@@ -3537,6 +3608,7 @@ void DxuiHwndSource::InitializePooledPopup (DxuiPopupHost * popup)
     ID3D11Device         *  device   = m_device  ? m_device.Get()  : m_popupDevice.Get();
     ID3D11DeviceContext  *  context  = m_context ? m_context.Get() : m_popupContext.Get();
     HRESULT                 hr       = S_OK;
+
 
 
     DXUI_ASSERT_UI_THREAD();

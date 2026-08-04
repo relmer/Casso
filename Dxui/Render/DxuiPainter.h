@@ -92,6 +92,9 @@ public:
     int     PendingVertexCount () const { return (int) m_vertices.size(); }
 
 private:
+    static constexpr size_t  kInitialVertexCapacity = 1024;
+
+
     struct Vertex
     {
         float  x;

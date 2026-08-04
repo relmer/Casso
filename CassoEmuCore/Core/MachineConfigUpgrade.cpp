@@ -107,6 +107,7 @@ MachineConfigUpgradeAction MachineConfigUpgrade::Plan (
     HRESULT                     hr          = S_OK;
     MachineConfigUpgradeAction  action      = MachineConfigUpgradeAction::BackupAndReplace;
     int                         diskVersion = 0;
+    bool                        hasDiskHash = false;
 
 
 
@@ -135,7 +136,8 @@ MachineConfigUpgradeAction MachineConfigUpgrade::Plan (
     // Unstamped or stamp-collided: hash-match against known historical
     // defaults; any match means the file is an untouched extract and is
     // safe to refresh.
-    CBR (!diskNormalizedHashHex.empty());
+    hasDiskHash = !diskNormalizedHashHex.empty();
+    CBR (hasDiskHash);
 
     for (const MachineConfigPriorHash & p : priorHashes)
     {
@@ -199,129 +201,134 @@ string MachineConfigUpgrade::BytesToHex (span<const uint8_t> bytes)
 //          (default `"optional"`). Existing flags are preserved.
 //
 //  The operation is idempotent: running it on an already-canonical
-//  document returns S_FALSE with `outMigrated` set to the input bytes
-//  verbatim. Returns S_OK when at least one change was applied (output
-//  is freshly serialized JSON, key order otherwise preserved). Returns
-//  E_INVALIDARG when the input fails to parse as JSON; `outMigrated`
-//  is left empty.
+//  document leaves `outChanged` false with `outMigrated` set to the input
+//  bytes verbatim. `outChanged` is true when at least one change was
+//  applied (output is freshly serialized JSON, key order otherwise
+//  preserved). Returns E_INVALIDARG when the input fails to parse as
+//  JSON; `outMigrated` is left empty.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace
+int  MachineConfigUpgrade::FindKey (
+    const vector<pair<string, JsonValue>> & entries,
+    const string                          & key)
 {
-    constexpr const char *  s_kpszVersionKey         = "$cassoMachineVersion";
-    constexpr const char *  s_kpszLegacyVersionKey   = "$cassoDefault";
-    constexpr const char *  s_kpszCapabilityFlagKey  = "capabilityFlag";
-    constexpr const char *  s_kpszInternalDevicesKey = "internalDevices";
-    constexpr const char *  s_kpszSlotsKey           = "slots";
-    constexpr const char *  s_kpszInternalDefault    = "required";
-    constexpr const char *  s_kpszSlotDefault        = "optional";
-    constexpr const char *  s_kpszSlotNumberKey      = "slot";
-    constexpr const char *  s_kpszDeviceKey          = "device";
-    constexpr const char *  s_kpszPrinterDevice      = "parallel-printer";
-    constexpr int           s_kPrinterDefaultSlot    = 1;
+    int  found = -1;      // -1 == absent
+    int  i     = 0;
 
-
-    int  FindKey (
-        const vector<pair<string, JsonValue>> & entries,
-        const string                          & key)
+    for (i = 0; found < 0 && i < (int) entries.size(); ++i)
     {
-        int  i = 0;
-
-        for (i = 0; i < (int) entries.size(); ++i)
+        if (entries[(size_t) i].first == key)
         {
-            if (entries[(size_t) i].first == key)
-            {
-                return i;
-            }
+            found = i;
         }
-        return -1;
     }
 
+    return found;
+}
 
-    bool  EntryHasKey (
-        const JsonValue & entry,
-        const string    & key)
+
+bool  MachineConfigUpgrade::EntryHasKey (
+    const JsonValue & entry,
+    const string    & key)
+{
+    // A non-object entry has no keys at all -- the short-circuit is what
+    // keeps GetObjectEntries() off a non-object.
+    return entry.GetType() == JsonType::Object
+        && FindKey (entry.GetObjectEntries(), key) >= 0;
+}
+
+
+// Insert `capabilityFlag` on every object element of `arr` that
+// lacks one. Returns true if any element was changed.
+bool  MachineConfigUpgrade::InjectCapabilityFlag (
+    JsonValue   & arr,
+    const char  * defaultFlag)
+{
+    vector<JsonValue>  rebuiltArr;
+    bool               fChanged = false;
+    size_t             i        = 0;
+
+
+
+    // A non-array is not a schema error here -- the caller passes whatever the
+    // document had under the key, and a missing section arrives as Null.
+    if (arr.GetType() == JsonType::Array)
     {
-        if (entry.GetType() != JsonType::Object)
-        {
-            return false;
-        }
-        return FindKey (entry.GetObjectEntries(), key) >= 0;
-    }
-
-
-    // Insert `capabilityFlag` on every object element of `arr` that
-    // lacks one. Returns true if any element was changed.
-    bool  InjectCapabilityFlag (
-        JsonValue   & arr,
-        const char  * defaultFlag)
-    {
-        vector<JsonValue>  rebuiltArr;
-        bool               fChanged = false;
-        size_t             i        = 0;
-
-
-
-        if (arr.GetType() != JsonType::Array)
-        {
-            return false;
-        }
-
         rebuiltArr.reserve (arr.ArraySize());
 
         for (i = 0; i < arr.ArraySize(); ++i)
         {
             const JsonValue & elem = arr.ArrayAt (i);
 
+            // Non-objects and entries that already carry a flag pass through
+            // untouched -- an existing flag is the user's, not ours to reset.
             if (elem.GetType() != JsonType::Object ||
-                EntryHasKey (elem, s_kpszCapabilityFlagKey))
+                EntryHasKey (elem, kpszCapabilityFlagKey))
             {
                 rebuiltArr.push_back (elem);
-                continue;
             }
+            else
+            {
+                vector<pair<string, JsonValue>>  rebuilt = elem.GetObjectEntries();
 
-            vector<pair<string, JsonValue>>  rebuilt = elem.GetObjectEntries();
-            rebuilt.emplace_back (s_kpszCapabilityFlagKey,
-                                  JsonValue (string (defaultFlag)));
-            rebuiltArr.emplace_back (JsonValue (std::move (rebuilt)));
-            fChanged = true;
+                rebuilt.emplace_back (kpszCapabilityFlagKey,
+                                      JsonValue (string (defaultFlag)));
+                rebuiltArr.emplace_back (JsonValue (std::move (rebuilt)));
+                fChanged = true;
+            }
         }
 
+        // Only swap in the rebuild when something actually changed, so an
+        // already-canonical document keeps its original JsonValue identity.
         if (fChanged)
         {
             arr = JsonValue (std::move (rebuiltArr));
         }
-        return fChanged;
     }
 
+    return fChanged;
+}
 
-    // Add a default slot-1 parallel-printer entry to `arr` when slot 1 has
-    // no entry at all. An existing slot-1 entry -- even a disabled one -- is
-    // left untouched, so a slot the user turned off is never resurrected
-    // (FR-001). Returns true if an entry was appended.
-    bool  InjectPrinterSlot (JsonValue & arr)
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  InjectPrinterSlot
+//
+//  Add a default slot-1 parallel-printer entry to `arr` when slot 1 has
+//  no entry at all. An existing slot-1 entry -- even a disabled one -- is
+//  left untouched, so a slot the user turned off is never resurrected
+//  (FR-001). Returns true if an entry was appended.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool  MachineConfigUpgrade::InjectPrinterSlot (JsonValue & arr)
+{
+    vector<JsonValue>  rebuilt;
+    size_t             i        = 0;
+    int                slot     = 0;
+    bool               occupied = (arr.GetType() != JsonType::Array);
+
+
+
+    // A non-array counts as occupied so nothing is appended to it. Otherwise
+    // ANY existing slot-1 entry blocks the injection -- including a disabled
+    // one, so a slot the user turned off is never resurrected (FR-001).
+    for (i = 0; !occupied && i < arr.ArraySize(); ++i)
     {
-        vector<JsonValue>  rebuilt;
-        size_t             i        = 0;
+        const JsonValue & elem = arr.ArrayAt (i);
 
-        if (arr.GetType() != JsonType::Array)
-        {
-            return false;
-        }
+        occupied = elem.GetType() == JsonType::Object
+                   && elem.HasInt (kpszSlotNumberKey, slot)
+                   && slot == kPrinterDefaultSlot;
+    }
 
-        for (i = 0; i < arr.ArraySize(); ++i)
-        {
-            const JsonValue & elem = arr.ArrayAt (i);
-            int               slot = 0;
-
-            if (elem.GetType() == JsonType::Object &&
-                SUCCEEDED (elem.GetInt (s_kpszSlotNumberKey, slot)) &&
-                slot == s_kPrinterDefaultSlot)
-            {
-                return false;
-            }
-        }
+    if (!occupied)
+    {
+        vector<pair<string, JsonValue>>  entry;
 
         rebuilt.reserve (arr.ArraySize() + 1);
 
@@ -330,81 +337,79 @@ namespace
             rebuilt.push_back (arr.ArrayAt (i));
         }
 
-        {
-            vector<pair<string, JsonValue>>  entry;
-
-            entry.emplace_back (s_kpszSlotNumberKey,     JsonValue ((double) s_kPrinterDefaultSlot));
-            entry.emplace_back (s_kpszDeviceKey,         JsonValue (string (s_kpszPrinterDevice)));
-            entry.emplace_back (s_kpszCapabilityFlagKey, JsonValue (string (s_kpszSlotDefault)));
-            rebuilt.emplace_back (JsonValue (std::move (entry)));
-        }
+        entry.emplace_back (kpszSlotNumberKey,     JsonValue ((double) kPrinterDefaultSlot));
+        entry.emplace_back (kpszDeviceKey,         JsonValue (string (kpszPrinterDevice)));
+        entry.emplace_back (kpszCapabilityFlagKey, JsonValue (string (kpszSlotDefault)));
+        rebuilt.emplace_back (JsonValue (std::move (entry)));
 
         arr = JsonValue (std::move (rebuilt));
-        return true;
     }
 
+    return !occupied;
+}
 
-    // Build a new top-level object, applying the version canonicalization
-    // rule in place. `outChanged` is set to true if anything moved.
-    JsonValue  RewriteTopLevel (
-        const JsonValue & root,
-        bool            & outChanged)
+
+// Build a new top-level object, applying the version canonicalization
+// rule in place. `outChanged` is set to true if anything moved.
+JsonValue  MachineConfigUpgrade::RewriteTopLevel (
+    const JsonValue & root,
+    bool            & outChanged)
+{
+    vector<pair<string, JsonValue>>  rebuilt;
+    const auto                     * entries        = &root.GetObjectEntries();
+    int                              idxCanonical   = -1;
+    int                              idxLegacy      = -1;
+    bool                             fHaveCanonical = false;
+    size_t                           i              = 0;
+
+
+
+    idxCanonical = FindKey (*entries, kpszVersionKey);
+    idxLegacy    = FindKey (*entries, kpszLegacyVersionKey);
+
+    // Canonicalization: drop legacy when canonical already present,
+    // rename legacy to canonical when only legacy is present.
+    fHaveCanonical = (idxCanonical >= 0);
+
+    rebuilt.reserve (entries->size());
+
+    for (i = 0; i < entries->size(); ++i)
     {
-        vector<pair<string, JsonValue>>  rebuilt;
-        const auto                     * entries        = &root.GetObjectEntries();
-        int                              idxCanonical   = -1;
-        int                              idxLegacy      = -1;
-        bool                             fHaveCanonical = false;
-        size_t                           i              = 0;
+        const string    & key = (*entries)[i].first;
+        const JsonValue & val = (*entries)[i].second;
 
-
-
-        idxCanonical = FindKey (*entries, s_kpszVersionKey);
-        idxLegacy    = FindKey (*entries, s_kpszLegacyVersionKey);
-
-        // Canonicalization: drop legacy when canonical already present,
-        // rename legacy to canonical when only legacy is present.
-        fHaveCanonical = (idxCanonical >= 0);
-
-        rebuilt.reserve (entries->size());
-
-        for (i = 0; i < entries->size(); ++i)
+        if (key == kpszVersionKey)
         {
-            const string    & key = (*entries)[i].first;
-            const JsonValue & val = (*entries)[i].second;
+            rebuilt.emplace_back (key, val);
+            continue;
+        }
 
-            if (key == s_kpszVersionKey)
+        if (key == kpszLegacyVersionKey)
+        {
+            if (fHaveCanonical)
             {
-                rebuilt.emplace_back (key, val);
-                continue;
-            }
-
-            if (key == s_kpszLegacyVersionKey)
-            {
-                if (fHaveCanonical)
-                {
-                    // Canonical already wrote — drop the legacy entry.
-                    outChanged = true;
-                    continue;
-                }
-
-                // Promote the legacy entry to the canonical key in place.
-                rebuilt.emplace_back (s_kpszVersionKey, val);
+                // Canonical already wrote — drop the legacy entry.
                 outChanged = true;
                 continue;
             }
 
-            rebuilt.emplace_back (key, val);
+            // Promote the legacy entry to the canonical key in place.
+            rebuilt.emplace_back (kpszVersionKey, val);
+            outChanged = true;
+            continue;
         }
 
-        return JsonValue (std::move (rebuilt));
+        rebuilt.emplace_back (key, val);
     }
+
+    return JsonValue (std::move (rebuilt));
 }
 
 
 HRESULT MachineConfigUpgrade::MigrateUserConfig (
     const string & content,
-    string       & outMigrated)
+    string       & outMigrated,
+    bool         & outChanged)
 {
     HRESULT              hr           = S_OK;
     JsonValue            root;
@@ -419,6 +424,7 @@ HRESULT MachineConfigUpgrade::MigrateUserConfig (
 
 
     outMigrated.clear();
+    outChanged = false;
 
     hr = JsonParser::Parse (content, root, err);
     BAIL_OUT_IF (FAILED (hr), E_INVALIDARG);
@@ -434,21 +440,21 @@ HRESULT MachineConfigUpgrade::MigrateUserConfig (
     {
         vector<pair<string, JsonValue>>  rebuilt = rewritten.GetObjectEntries();
 
-        idxInternal = FindKey (rebuilt, s_kpszInternalDevicesKey);
+        idxInternal = FindKey (rebuilt, kpszInternalDevicesKey);
         if (idxInternal >= 0)
         {
             if (InjectCapabilityFlag (rebuilt[(size_t) idxInternal].second,
-                                      s_kpszInternalDefault))
+                                      kpszInternalDefault))
             {
                 fChanged = true;
             }
         }
 
-        idxSlots = FindKey (rebuilt, s_kpszSlotsKey);
+        idxSlots = FindKey (rebuilt, kpszSlotsKey);
         if (idxSlots >= 0)
         {
             if (InjectCapabilityFlag (rebuilt[(size_t) idxSlots].second,
-                                      s_kpszSlotDefault))
+                                      kpszSlotDefault))
             {
                 fChanged = true;
             }
@@ -464,11 +470,10 @@ HRESULT MachineConfigUpgrade::MigrateUserConfig (
 
     if (!fChanged)
     {
-        // No-op: hand the input bytes back verbatim so callers can
-        // detect "unchanged" via byte equality.
+        // No-op: hand the input bytes back verbatim, and say so through
+        // outChanged rather than through the result code.
         outMigrated = content;
-        hr          = S_FALSE;
-        goto Error;
+        BAIL_OUT_IF (true, S_OK);
     }
 
     opts.fPretty = true;
@@ -476,6 +481,7 @@ HRESULT MachineConfigUpgrade::MigrateUserConfig (
     CHR (hr);
 
     outMigrated = std::move (serialized);
+    outChanged  = true;
     hr          = S_OK;
 
 Error:

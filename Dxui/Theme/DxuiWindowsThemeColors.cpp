@@ -16,34 +16,6 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace
-{
-    static constexpr uint32_t   s_kSubtleFillColorSecondaryDark  = 0x0FFFFFFFu;
-    static constexpr uint32_t   s_kSubtleFillColorTertiaryDark   = 0x0AFFFFFFu;
-    static constexpr uint32_t   s_kSubtleFillColorSecondaryLight = 0x09000000u;
-    static constexpr uint32_t   s_kSubtleFillColorTertiaryLight  = 0x06000000u;
-
-    // Close-button hover and pressed share the same background red
-    // (microsoft/terminal MinMaxCloseControl.xaml binds both
-    // CloseButtonBackgroundPointerOver and CloseButtonBackgroundPressed
-    // to the same CloseButtonColor token), but the WinUI button
-    // visual-state template applies a press-state opacity tweak to
-    // the glyph, producing a perceptibly darker X on click. We mirror
-    // that visible behavior by dropping the glyph from opaque white
-    // to a partially-transparent white on press; the alpha goes
-    // through the painter's premultiplied-alpha blend over the red
-    // background so the glyph reads as a slightly desaturated white.
-    static constexpr uint32_t   s_kCloseButtonColor              = 0xFFC42B1Cu;
-    static constexpr uint32_t   s_kCloseButtonGlyphHoverColor    = 0xFFFFFFFFu;
-    static constexpr uint32_t   s_kCloseButtonGlyphPressedColor  = 0xCCFFFFFFu;
-    static constexpr uint32_t   s_kCaptionForegroundDark         = 0xFFFFFFFFu;
-    static constexpr uint32_t   s_kCaptionForegroundLight        = 0xFF1A1A1Au;
-
-    static constexpr LPCWSTR    s_kpszPersonalizeSubkey =
-        L"Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize";
-    static constexpr LPCWSTR    s_kpszAppsUseLightTheme = L"AppsUseLightTheme";
-}
-
 
 
 
@@ -59,42 +31,43 @@ namespace
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace
+bool DxuiWindowsThemeColors::ReadAppsUseLightTheme()
 {
-    bool ReadAppsUseLightTheme()
+    HKEY    hKey  = nullptr;
+    DWORD   value = 1;
+    DWORD   size  = sizeof (value);
+    LSTATUS rc    = ERROR_SUCCESS;
+
+
+
+    // `value` is pre-seeded to 1 (light), so a missing key or a failed query
+    // both fall through to the Windows default rather than needing their own
+    // return. Only a successful read overwrites it.
+    rc = RegOpenKeyExW (HKEY_CURRENT_USER,
+                        kpszPersonalizeSubkey,
+                        0,
+                        KEY_READ,
+                        &hKey);
+
+    if (rc == ERROR_SUCCESS)
     {
-        HKEY    hKey  = nullptr;
-        DWORD   value = 1;
-        DWORD   size  = sizeof (value);
-        LSTATUS rc    = ERROR_SUCCESS;
-
-
-
-        rc = RegOpenKeyExW (HKEY_CURRENT_USER,
-                            s_kpszPersonalizeSubkey,
-                            0,
-                            KEY_READ,
-                            &hKey);
-        if (rc != ERROR_SUCCESS)
-        {
-            return true;
-        }
-
         rc = RegQueryValueExW (hKey,
-                               s_kpszAppsUseLightTheme,
+                               kpszAppsUseLightTheme,
                                nullptr,
                                nullptr,
                                reinterpret_cast<BYTE *> (&value),
                                &size);
         RegCloseKey (hKey);
 
+        // A failed query may still have scribbled on `value`, so restore the
+        // default explicitly rather than trusting it.
         if (rc != ERROR_SUCCESS)
         {
-            return true;
+            value = 1;
         }
-
-        return value != 0;
     }
+
+    return value != 0;
 }
 
 
@@ -110,6 +83,8 @@ namespace
 DxuiWindowsThemeColors & DxuiWindowsThemeColors::Instance()
 {
     static DxuiWindowsThemeColors  s_instance;
+
+
 
     return s_instance;
 }
@@ -156,7 +131,7 @@ void DxuiWindowsThemeColors::Refresh()
 
 uint32_t DxuiWindowsThemeColors::CaptionButtonHoverArgb() const
 {
-    return m_darkMode ? s_kSubtleFillColorSecondaryDark : s_kSubtleFillColorSecondaryLight;
+    return m_darkMode ? kSubtleFillColorSecondaryDark : kSubtleFillColorSecondaryLight;
 }
 
 
@@ -171,7 +146,7 @@ uint32_t DxuiWindowsThemeColors::CaptionButtonHoverArgb() const
 
 uint32_t DxuiWindowsThemeColors::CaptionButtonPressedArgb() const
 {
-    return m_darkMode ? s_kSubtleFillColorTertiaryDark : s_kSubtleFillColorTertiaryLight;
+    return m_darkMode ? kSubtleFillColorTertiaryDark : kSubtleFillColorTertiaryLight;
 }
 
 
@@ -186,7 +161,7 @@ uint32_t DxuiWindowsThemeColors::CaptionButtonPressedArgb() const
 
 uint32_t DxuiWindowsThemeColors::CaptionButtonForegroundArgb() const
 {
-    return m_darkMode ? s_kCaptionForegroundDark : s_kCaptionForegroundLight;
+    return m_darkMode ? kCaptionForegroundDark : kCaptionForegroundLight;
 }
 
 
@@ -201,7 +176,7 @@ uint32_t DxuiWindowsThemeColors::CaptionButtonForegroundArgb() const
 
 uint32_t DxuiWindowsThemeColors::CloseButtonHoverArgb() const
 {
-    return s_kCloseButtonColor;
+    return kCloseButtonColor;
 }
 
 
@@ -216,7 +191,7 @@ uint32_t DxuiWindowsThemeColors::CloseButtonHoverArgb() const
 
 uint32_t DxuiWindowsThemeColors::CloseButtonPressedArgb() const
 {
-    return s_kCloseButtonColor;
+    return kCloseButtonColor;
 }
 
 
@@ -231,7 +206,7 @@ uint32_t DxuiWindowsThemeColors::CloseButtonPressedArgb() const
 
 uint32_t DxuiWindowsThemeColors::CloseButtonGlyphHoverArgb() const
 {
-    return s_kCloseButtonGlyphHoverColor;
+    return kCloseButtonGlyphHoverColor;
 }
 
 
@@ -246,5 +221,5 @@ uint32_t DxuiWindowsThemeColors::CloseButtonGlyphHoverArgb() const
 
 uint32_t DxuiWindowsThemeColors::CloseButtonGlyphPressedArgb() const
 {
-    return s_kCloseButtonGlyphPressedColor;
+    return kCloseButtonGlyphPressedColor;
 }

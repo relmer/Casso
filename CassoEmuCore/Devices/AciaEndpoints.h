@@ -9,6 +9,7 @@ class Acia6551;
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  AciaLoopbackEndpoint
@@ -28,6 +29,7 @@ public:
 private:
     Acia6551 *    m_acia = nullptr;
 };
+
 
 
 

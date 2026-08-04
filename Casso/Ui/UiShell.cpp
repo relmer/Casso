@@ -14,7 +14,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-UiShell::~UiShell ()
+UiShell::~UiShell()
 {
     Shutdown();
 }
@@ -73,7 +73,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void UiShell::Shutdown ()
+void UiShell::Shutdown()
 {
     m_hitTest.Clear();
     m_text.Shutdown();
@@ -110,7 +110,7 @@ HRESULT UiShell::OnResize (int viewportWidthPx, int viewportHeightPx, UINT dpi)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT UiShell::OnDeviceLost ()
+HRESULT UiShell::OnDeviceLost()
 {
     return m_text.OnDeviceLost();
 }
@@ -125,7 +125,7 @@ HRESULT UiShell::OnDeviceLost ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT UiShell::OnDeviceRestored ()
+HRESULT UiShell::OnDeviceRestored()
 {
     HRESULT                hr      = S_OK;
     ID3D11Device         * device  = nullptr;
@@ -183,7 +183,7 @@ bool UiShell::OnMouseMove (int x, int y, bool leftDown)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void UiShell::OnMouseLeave ()
+void UiShell::OnMouseLeave()
 {
     m_leftDown = false;
 
@@ -257,13 +257,16 @@ bool UiShell::OnLButtonUp (int x, int y)
 
 bool UiShell::HandleKey (WPARAM vk)
 {
-    if (m_mainMenu != nullptr && m_mainMenu->IsOpen())
+    // An open menu swallows every key, handled or not -- otherwise an
+    // unrecognized key would reach the emulated keyboard behind the menu.
+    bool  menuOpen = (m_mainMenu != nullptr) && m_mainMenu->IsOpen();
+
+    if (menuOpen)
     {
         (void) m_mainMenu->HandleKey (vk);
-        return true;
     }
 
-    return false;
+    return menuOpen;
 }
 
 
@@ -282,14 +285,9 @@ bool UiShell::HandleKey (WPARAM vk)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool UiShell::IsCapturingInput () const
+bool UiShell::IsCapturingInput() const
 {
-    if (m_mainMenu != nullptr && m_mainMenu->IsOpen())
-    {
-        return true;
-    }
-
-    return false;
+    return (m_mainMenu != nullptr) && m_mainMenu->IsOpen();
 }
 
 

@@ -4,6 +4,10 @@
 
 class UserConfigStore;
 class IFileSystem;
+class JsonValue;
+
+
+
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -42,4 +46,9 @@ public:
                                           const std::string  & key,
                                           const std::wstring & machineName,
                                           bool                 value);
+
+private:
+    static HRESULT       LoadMachineDefaultJson (const std::wstring & machineName, JsonValue & outDefault);
+    static std::string   WideToUtf8             (const std::wstring & w);
+    static std::wstring  Utf8ToWide             (const std::string & s);
 };

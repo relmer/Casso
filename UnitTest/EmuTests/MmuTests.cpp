@@ -34,8 +34,10 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace
+TEST_CLASS (MmuTests)
 {
+public:
+
     struct MmuFixture
     {
         MemoryBus              bus;
@@ -43,7 +45,7 @@ namespace
         Apple2eMmu             mmu;
         Apple2eSoftSwitchBank  sw;
 
-        MmuFixture ()
+        MmuFixture()
             : bus     (),
               mainRam (0x0000, 0xBFFF),
               mmu     (),
@@ -51,7 +53,7 @@ namespace
         {
             // Bind every $0000-$BFFF page to main RAM as the baseline
             // (the same baseline EmulatorShell::WirePageTable establishes).
-            Byte * mainPtr = mainRam.GetData ();
+            Byte * mainPtr = mainRam.GetData();
 
             for (int page = 0x00; page < 0xC0; page++)
             {
@@ -78,7 +80,7 @@ namespace
 
         Byte Read     (Word address) override { m_lastReadAddr = address; return 0x5A; }
         void Write    (Word address, Byte value) override { m_lastWriteAddr = address; m_lastWriteValue = value; }
-        Word GetStart () const override { return m_start; }
+        Word GetStart() const override { return m_start; }
         Word GetEnd   () const override { return static_cast<Word> (m_start + 0xFF); }
         void Reset    () override {}
 
@@ -87,13 +89,7 @@ namespace
         Word m_lastWriteAddr  = 0;
         Byte m_lastWriteValue = 0;
     };
-}
 
-
-
-TEST_CLASS (MmuTests)
-{
-public:
 
     TEST_METHOD (Default_AllFlagsClear)
     {
@@ -104,7 +100,7 @@ public:
         Assert::IsFalse (f.mmu.GetAltZp     ());
         Assert::IsFalse (f.mmu.Get80Store   ());
         Assert::IsFalse (f.mmu.GetIntCxRom  ());
-        Assert::IsFalse (f.mmu.GetSlotC3Rom ());
+        Assert::IsFalse (f.mmu.GetSlotC3Rom());
     }
 
     ////////////////////////////////////////////////////////////////////////////
@@ -118,21 +114,21 @@ public:
         MmuFixture f;
 
         // Place sentinels: main = 0x11, aux = 0x22 at $1234.
-        f.mainRam.GetData ()       [0x1234] = 0x11;
-        f.mmu.GetAuxBuffer ()      [0x1234] = 0x22;
+        f.mainRam.GetData()       [0x1234] = 0x11;
+        f.mmu.GetAuxBuffer()      [0x1234] = 0x22;
 
         // RAMRD off => read sees main.
         Assert::AreEqual (static_cast<Byte> (0x11), f.bus.ReadByte (0x1234));
 
         // Write $C003 -> RAMRD on. Read now sees aux.
         f.sw.Write (0xC003, 0);
-        Assert::IsTrue (f.mmu.GetRamRd ());
+        Assert::IsTrue (f.mmu.GetRamRd());
         Assert::AreEqual (static_cast<Byte> (0x22), f.bus.ReadByte (0x1234));
 
         // Write $C002 -> RAMRD off. Audit C2 fix: this is the correct
         // off-switch (legacy AuxRamCard wired this wrong).
         f.sw.Write (0xC002, 0);
-        Assert::IsFalse (f.mmu.GetRamRd ());
+        Assert::IsFalse (f.mmu.GetRamRd());
         Assert::AreEqual (static_cast<Byte> (0x11), f.bus.ReadByte (0x1234));
     }
 
@@ -148,21 +144,21 @@ public:
 
         // Power-on: write goes to main.
         f.bus.WriteByte (0x4567, 0xAA);
-        Assert::AreEqual (static_cast<Byte> (0xAA), f.mainRam.GetData ()[0x4567]);
-        Assert::AreEqual (static_cast<Byte> (0x00), f.mmu.GetAuxBuffer ()[0x4567]);
+        Assert::AreEqual (static_cast<Byte> (0xAA), f.mainRam.GetData()[0x4567]);
+        Assert::AreEqual (static_cast<Byte> (0x00), f.mmu.GetAuxBuffer()[0x4567]);
 
         // RAMWRT on -> write goes to aux.
         f.sw.Write (0xC005, 0);
-        Assert::IsTrue (f.mmu.GetRamWrt ());
+        Assert::IsTrue (f.mmu.GetRamWrt());
         f.bus.WriteByte (0x4568, 0xBB);
-        Assert::AreEqual (static_cast<Byte> (0xBB), f.mmu.GetAuxBuffer ()[0x4568]);
-        Assert::AreEqual (static_cast<Byte> (0x00), f.mainRam.GetData ()[0x4568]);
+        Assert::AreEqual (static_cast<Byte> (0xBB), f.mmu.GetAuxBuffer()[0x4568]);
+        Assert::AreEqual (static_cast<Byte> (0x00), f.mainRam.GetData()[0x4568]);
 
         // RAMWRT off -> audit C4 fix.
         f.sw.Write (0xC004, 0);
-        Assert::IsFalse (f.mmu.GetRamWrt ());
+        Assert::IsFalse (f.mmu.GetRamWrt());
         f.bus.WriteByte (0x4569, 0xCC);
-        Assert::AreEqual (static_cast<Byte> (0xCC), f.mainRam.GetData ()[0x4569]);
+        Assert::AreEqual (static_cast<Byte> (0xCC), f.mainRam.GetData()[0x4569]);
     }
 
     ////////////////////////////////////////////////////////////////////////////
@@ -177,20 +173,20 @@ public:
 
         // ALTZP on.
         f.sw.Write (0xC009, 0);
-        Assert::IsTrue (f.mmu.GetAltZp ());
+        Assert::IsTrue (f.mmu.GetAltZp());
 
         // Write to zero page and stack.
         f.bus.WriteByte (0x0042, 0x77);  // ZP
         f.bus.WriteByte (0x01FE, 0x88);  // stack
 
-        Assert::AreEqual (static_cast<Byte> (0x77), f.mmu.GetAuxBuffer ()[0x0042]);
-        Assert::AreEqual (static_cast<Byte> (0x88), f.mmu.GetAuxBuffer ()[0x01FE]);
-        Assert::AreEqual (static_cast<Byte> (0x00), f.mainRam.GetData () [0x0042]);
+        Assert::AreEqual (static_cast<Byte> (0x77), f.mmu.GetAuxBuffer()[0x0042]);
+        Assert::AreEqual (static_cast<Byte> (0x88), f.mmu.GetAuxBuffer()[0x01FE]);
+        Assert::AreEqual (static_cast<Byte> (0x00), f.mainRam.GetData() [0x0042]);
 
         // ALTZP off restores main routing.
         f.sw.Write (0xC008, 0);
         f.bus.WriteByte (0x0042, 0x99);
-        Assert::AreEqual (static_cast<Byte> (0x99), f.mainRam.GetData () [0x0042]);
+        Assert::AreEqual (static_cast<Byte> (0x99), f.mainRam.GetData() [0x0042]);
     }
 
     ////////////////////////////////////////////////////////////////////////////
@@ -205,25 +201,25 @@ public:
 
         // Enable 80STORE then PAGE2.
         f.sw.Write (0xC001, 0);  // 80STORE on
-        Assert::IsTrue (f.mmu.Get80Store ());
+        Assert::IsTrue (f.mmu.Get80Store());
 
         f.bus.ReadByte (0xC055);      // PAGE2 on (display flag -> softswitch)
-        Assert::IsTrue (f.sw.IsPage2 ());
+        Assert::IsTrue (f.sw.IsPage2());
 
         // Writes to text page must land in aux.
         f.bus.WriteByte (0x0400, 0xAB);
         f.bus.WriteByte (0x07FF, 0xCD);
-        Assert::AreEqual (static_cast<Byte> (0xAB), f.mmu.GetAuxBuffer ()[0x0400]);
-        Assert::AreEqual (static_cast<Byte> (0xCD), f.mmu.GetAuxBuffer ()[0x07FF]);
+        Assert::AreEqual (static_cast<Byte> (0xAB), f.mmu.GetAuxBuffer()[0x0400]);
+        Assert::AreEqual (static_cast<Byte> (0xCD), f.mmu.GetAuxBuffer()[0x07FF]);
 
         // Reads of text page also come from aux.
-        f.mmu.GetAuxBuffer ()[0x0500] = 0x42;
+        f.mmu.GetAuxBuffer()[0x0500] = 0x42;
         Assert::AreEqual (static_cast<Byte> (0x42), f.bus.ReadByte (0x0500));
 
         // PAGE1 ($C054) flips text routing back to main.
         f.bus.ReadByte (0xC054);
         f.bus.WriteByte (0x0400, 0xEE);
-        Assert::AreEqual (static_cast<Byte> (0xEE), f.mainRam.GetData ()[0x0400]);
+        Assert::AreEqual (static_cast<Byte> (0xEE), f.mainRam.GetData()[0x0400]);
     }
 
     ////////////////////////////////////////////////////////////////////////////
@@ -240,19 +236,19 @@ public:
         f.bus.ReadByte  (0xC057);      // HIRES on
         f.bus.ReadByte  (0xC055);      // PAGE2 on
 
-        Assert::IsTrue (f.sw.IsHiresMode ());
-        Assert::IsTrue (f.sw.IsPage2 ());
+        Assert::IsTrue (f.sw.IsHiresMode());
+        Assert::IsTrue (f.sw.IsPage2());
 
         f.bus.WriteByte (0x2000, 0x55);
         f.bus.WriteByte (0x3FFF, 0xAA);
 
-        Assert::AreEqual (static_cast<Byte> (0x55), f.mmu.GetAuxBuffer ()[0x2000]);
-        Assert::AreEqual (static_cast<Byte> (0xAA), f.mmu.GetAuxBuffer ()[0x3FFF]);
+        Assert::AreEqual (static_cast<Byte> (0x55), f.mmu.GetAuxBuffer()[0x2000]);
+        Assert::AreEqual (static_cast<Byte> (0xAA), f.mmu.GetAuxBuffer()[0x3FFF]);
 
         // Without HIRES the hires region is not banked even with 80STORE+PAGE2.
         f.bus.ReadByte (0xC056);  // HIRES off
         f.bus.WriteByte (0x2000, 0x33);
-        Assert::AreEqual (static_cast<Byte> (0x33), f.mainRam.GetData ()[0x2000]);
+        Assert::AreEqual (static_cast<Byte> (0x33), f.mainRam.GetData()[0x2000]);
     }
 
     ////////////////////////////////////////////////////////////////////////////
@@ -269,7 +265,7 @@ public:
         f.sw.Write (0xC003, 0);   // RAMRD on
         f.sw.Write (0xC002, 0);   // RAMRD off (this address was wrong before)
 
-        Assert::IsFalse (f.mmu.GetRamRd ());
+        Assert::IsFalse (f.mmu.GetRamRd());
     }
 
     TEST_METHOD (Audit_C4_RAMWRTOFF_Works)
@@ -279,7 +275,7 @@ public:
         f.sw.Write (0xC005, 0);
         f.sw.Write (0xC004, 0);
 
-        Assert::IsFalse (f.mmu.GetRamWrt ());
+        Assert::IsFalse (f.mmu.GetRamWrt());
     }
 
     TEST_METHOD (Audit_C6_INTCXROMOFF_Works)
@@ -287,10 +283,10 @@ public:
         MmuFixture f;
 
         f.sw.Write (0xC007, 0);
-        Assert::IsTrue (f.mmu.GetIntCxRom ());
+        Assert::IsTrue (f.mmu.GetIntCxRom());
 
         f.sw.Write (0xC006, 0);
-        Assert::IsFalse (f.mmu.GetIntCxRom ());
+        Assert::IsFalse (f.mmu.GetIntCxRom());
     }
 
     TEST_METHOD (IntCxRom_TrackedFromC006_C007)
@@ -298,10 +294,10 @@ public:
         MmuFixture f;
 
         f.sw.Write (0xC007, 0);
-        Assert::IsTrue (f.mmu.GetIntCxRom ());
+        Assert::IsTrue (f.mmu.GetIntCxRom());
 
         f.sw.Write (0xC006, 0);
-        Assert::IsFalse (f.mmu.GetIntCxRom ());
+        Assert::IsFalse (f.mmu.GetIntCxRom());
     }
 
     TEST_METHOD (SlotC3Rom_TrackedFromC00A_C00B)
@@ -309,10 +305,10 @@ public:
         MmuFixture f;
 
         f.sw.Write (0xC00B, 0);
-        Assert::IsTrue (f.mmu.GetSlotC3Rom ());
+        Assert::IsTrue (f.mmu.GetSlotC3Rom());
 
         f.sw.Write (0xC00A, 0);
-        Assert::IsFalse (f.mmu.GetSlotC3Rom ());
+        Assert::IsFalse (f.mmu.GetSlotC3Rom());
     }
 
     TEST_METHOD (IntC8Rom_ResettableViaApi)
@@ -320,10 +316,10 @@ public:
         MmuFixture f;
 
         f.mmu.SetIntC8Rom (true);
-        Assert::IsTrue (f.mmu.GetIntC8Rom ());
+        Assert::IsTrue (f.mmu.GetIntC8Rom());
 
-        f.mmu.ResetIntC8Rom ();
-        Assert::IsFalse (f.mmu.GetIntC8Rom ());
+        f.mmu.ResetIntC8Rom();
+        Assert::IsFalse (f.mmu.GetIntC8Rom());
     }
 
     ////////////////////////////////////////////////////////////////////////////
@@ -337,7 +333,7 @@ public:
         MmuFixture f;
 
         // Sentinel in aux at $9000.
-        f.mmu.GetAuxBuffer ()[0x9000] = 0x42;
+        f.mmu.GetAuxBuffer()[0x9000] = 0x42;
         Assert::AreEqual (static_cast<Byte> (0x00), f.bus.ReadByte (0x9000));
 
         f.sw.Write (0xC003, 0);   // RAMRD on
@@ -355,21 +351,21 @@ public:
     {
         MmuFixture f;
 
-        f.mmu.GetAuxBuffer ()[0x1111] = 0xEE;
+        f.mmu.GetAuxBuffer()[0x1111] = 0xEE;
 
         f.sw.Write (0xC003, 0);
         f.sw.Write (0xC005, 0);
         f.sw.Write (0xC009, 0);
         f.sw.Write (0xC001, 0);
 
-        f.mmu.OnSoftReset ();
+        f.mmu.OnSoftReset();
 
         Assert::IsFalse (f.mmu.GetRamRd  ());
-        Assert::IsFalse (f.mmu.GetRamWrt ());
+        Assert::IsFalse (f.mmu.GetRamWrt());
         Assert::IsFalse (f.mmu.GetAltZp  ());
         Assert::IsFalse (f.mmu.Get80Store());
 
-        Assert::AreEqual (static_cast<Byte> (0xEE), f.mmu.GetAuxBuffer ()[0x1111]);
+        Assert::AreEqual (static_cast<Byte> (0xEE), f.mmu.GetAuxBuffer()[0x1111]);
     }
 
 
@@ -423,7 +419,7 @@ public:
         MmuFixture         f;
         RecordingIoDevice  io (0xC400);
 
-        f.mmu.GetCxxxRouter ()->SetSlotIoDevice (4, &io);
+        f.mmu.GetCxxxRouter()->SetSlotIoDevice (4, &io);
         f.mmu.SetIntCxRom (false);
 
         Assert::AreEqual (static_cast<Byte> (0x5A), f.bus.ReadByte (0xC404),
@@ -443,7 +439,7 @@ public:
         vector<Byte>       internal (0x0F00, 0xEE);
 
         f.mmu.AttachInternalCxxxRom (move (internal));
-        f.mmu.GetCxxxRouter ()->SetSlotIoDevice (4, &io);
+        f.mmu.GetCxxxRouter()->SetSlotIoDevice (4, &io);
         f.mmu.SetIntCxRom (true);
 
         Assert::AreEqual (static_cast<Byte> (0xEE), f.bus.ReadByte (0xC404),
@@ -509,11 +505,11 @@ public:
         f.mmu.SetIntCxRom  (false);
         f.mmu.SetSlotC3Rom (false);
 
-        Assert::IsFalse (f.mmu.GetIntC8Rom (),
+        Assert::IsFalse (f.mmu.GetIntC8Rom(),
             L"INTC8ROM should be clear at start");
 
         f.bus.ReadByte (0xC300);
-        Assert::IsTrue (f.mmu.GetIntC8Rom (),
+        Assert::IsTrue (f.mmu.GetIntC8Rom(),
             L"Internal $C3xx access must latch INTC8ROM=1");
 
         Assert::AreEqual (static_cast<Byte> (0xC8), f.bus.ReadByte (0xC800),
@@ -521,7 +517,7 @@ public:
 
         // Read of $CFFF clears INTC8ROM.
         f.bus.ReadByte (0xCFFF);
-        Assert::IsFalse (f.mmu.GetIntC8Rom (),
+        Assert::IsFalse (f.mmu.GetIntC8Rom(),
             L"$CFFF read must auto-clear INTC8ROM");
     }
 

@@ -6,6 +6,7 @@
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  Layout
@@ -59,11 +60,19 @@ void InputDeviceSelector::Layout (const RECT & boundsDip, const DxuiDpiScaler & 
         // narrower than the label in practice, so this is a no-op on width.
         if (i == kPaddleSegIndex)
         {
-            float  hw    = 0.0f;
-            float  hh    = 0.0f;
-            float  hFont = fontPx * kSubLabelScale;
-            bool   ok    = m_textRenderer != nullptr
-                        && SUCCEEDED (m_textRenderer->MeasureString (kPaddleEscHint, hFont, kFontFamily, hw, hh));
+            float    hw        = 0.0f;
+            float    hh        = 0.0f;
+            float    hFont     = fontPx * kSubLabelScale;
+            HRESULT  hrMeasure = E_FAIL;
+            bool     ok        = false;
+
+            if (m_textRenderer != nullptr)
+            {
+                hrMeasure = m_textRenderer->MeasureString (kPaddleEscHint, hFont, kFontFamily, hw, hh);
+            }
+
+            ok = SUCCEEDED (hrMeasure);
+
             if (!ok)
             {
                 hw = (float) wcslen (kPaddleEscHint) * kFallbackCharPx * kSubLabelScale * (float) eDpi / 96.0f;
@@ -112,6 +121,7 @@ void InputDeviceSelector::Layout (const RECT & boundsDip, const DxuiDpiScaler & 
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  Hit testing
@@ -129,29 +139,59 @@ InputDeviceSelector::Segment InputDeviceSelector::SegmentAt (int x, int y) const
 {
     static constexpr Segment  kOrder[3] = { Segment::Joystick, Segment::Paddle, Segment::Mouse };
 
-    for (int i = 0; i < SegmentCount(); i++)
+    Segment  hit = Segment::None;
+    int      i   = 0;
+
+    // Segments do not overlap, so the first containing rect is the answer.
+    for (i = 0; hit == Segment::None && i < SegmentCount(); i++)
     {
         const RECT & r = m_segRects[i];
+
         if (x >= r.left && x < r.right && y >= r.top && y < r.bottom)
         {
-            return kOrder[i];
+            hit = kOrder[i];
         }
     }
-    return Segment::None;
+
+    return hit;
 }
 
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SegmentSelected
+//
+////////////////////////////////////////////////////////////////////////////////
 
 bool InputDeviceSelector::SegmentSelected (int index) const
 {
+    // The joystick segment is an independent toggle; paddle and mouse are
+    // two states of the one pointer mode, so at most one of them lights.
+    bool  selected = false;
+
     switch (index)
     {
-        case 0:  return m_arrowsJoystick;
-        case 1:  return m_pointer == InputMappingMode::Paddle;
-        case 2:  return m_pointer == InputMappingMode::Mouse;
-        default: return false;
+        case 0:  selected = m_arrowsJoystick;                        break;
+        case 1:  selected = (m_pointer == InputMappingMode::Paddle); break;
+        case 2:  selected = (m_pointer == InputMappingMode::Mouse);  break;
+        default:                                                     break;
     }
+
+    return selected;
 }
 
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  SegmentLabel
+//
+////////////////////////////////////////////////////////////////////////////////
 
 const wchar_t * InputDeviceSelector::SegmentLabel (int index) const
 {
@@ -161,31 +201,59 @@ const wchar_t * InputDeviceSelector::SegmentLabel (int index) const
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  Tooltips
+//  TooltipText
+//
+//  What the control is doing right now, for a hover that is not over any
+//  one segment.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 const wchar_t * InputDeviceSelector::TooltipText() const
 {
-    if (m_pointer == InputMappingMode::Mouse)  return kTipMouseState;
-    if (m_pointer == InputMappingMode::Paddle) return kTipPaddleState;
-    if (m_arrowsJoystick)                      return kTipJoystickState;
-    return kTipOffState;
+    // Pointer mode outranks the joystick toggle: it is the more specific
+    // thing the control is currently doing.
+    const wchar_t *  tip = kTipOffState;
+
+    if      (m_pointer == InputMappingMode::Mouse)  { tip = kTipMouseState;    }
+    else if (m_pointer == InputMappingMode::Paddle) { tip = kTipPaddleState;   }
+    else if (m_arrowsJoystick)                      { tip = kTipJoystickState; }
+
+    return tip;
 }
 
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TooltipTextAt
+//
+//  What clicking THIS point would do, falling back to TooltipText() for a
+//  hover between segments.
+//
+////////////////////////////////////////////////////////////////////////////////
 
 const wchar_t * InputDeviceSelector::TooltipTextAt (int x, int y) const
 {
+    const wchar_t *  tip = TooltipText();
+
+
+
     switch (SegmentAt (x, y))
     {
-        case Segment::Joystick: return kTipJoystickSeg;
-        case Segment::Paddle:   return kTipPaddleSeg;
-        case Segment::Mouse:    return kTipMouseSeg;
-        default:                return TooltipText();
+        case Segment::Joystick: tip = kTipJoystickSeg; break;
+        case Segment::Paddle:   tip = kTipPaddleSeg;   break;
+        case Segment::Mouse:    tip = kTipMouseSeg;    break;
+        default:                                       break;
     }
+
+    return tip;
 }
+
 
 
 
@@ -316,6 +384,7 @@ void InputDeviceSelector::Paint (IDxuiPainter & painter, IDxuiTextRenderer & tex
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  Glyph painters — direct transcriptions of the SVG masters
@@ -327,7 +396,7 @@ void InputDeviceSelector::Paint (IDxuiPainter & painter, IDxuiTextRenderer & tex
 struct InputDeviceSelector::GlyphMap
 {
     float  bx, by, s;
-    // scale < 1 shrinks the glyph about the box centre (96-grid 48,48) so
+    // scale < 1 shrinks the glyph about the box center (96-grid 48,48) so
     // it gains uniform whitespace inside the icon box -- used to balance
     // the joystick (which otherwise fills edge-to-edge) against the
     // paddle/mouse.
@@ -344,10 +413,19 @@ struct InputDeviceSelector::GlyphMap
 };
 
 
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PaintJoystickGlyph
+//
+////////////////////////////////////////////////////////////////////////////////
+
 void InputDeviceSelector::PaintJoystickGlyph (IDxuiPainter & p, const RECT & box, bool skeuo)
 {
     // The 3/4 joystick fills its box edge-to-edge (stick to the top, case to
-    // the bottom); shrink it about centre so it carries whitespace like the
+    // the bottom); shrink it about center so it carries whitespace like the
     // paddle and mouse glyphs. The top-down glyph is left at full size.
     GlyphMap  g (box, skeuo ? 0.86f : 1.0f);
 
@@ -401,6 +479,15 @@ void InputDeviceSelector::PaintJoystickGlyph (IDxuiPainter & p, const RECT & box
     p.FillEllipseApprox (g.X (54), g.Y (12), g.S (2.2f), g.S (3), 0x38FFFFFF);
 }
 
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PaintPaddleGlyph
+//
+////////////////////////////////////////////////////////////////////////////////
 
 void InputDeviceSelector::PaintPaddleGlyph (IDxuiPainter & p, const RECT & box, bool skeuo)
 {
@@ -523,6 +610,15 @@ void InputDeviceSelector::PaintPaddleGlyph (IDxuiPainter & p, const RECT & box, 
     p.FillConvexQuad  (g.X (72.8f), g.Y (43.2f), g.X (75.3f), g.Y (44.5f), g.X (75.3f), g.Y (51), g.X (72.8f), g.Y (49.7f), 0xFFC24418);
 }
 
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PaintMouseGlyph
+//
+////////////////////////////////////////////////////////////////////////////////
 
 void InputDeviceSelector::PaintMouseGlyph (IDxuiPainter & p, const RECT & box, bool skeuo)
 {

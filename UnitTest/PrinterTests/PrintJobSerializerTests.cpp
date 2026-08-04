@@ -8,6 +8,7 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  PrintJobSerializerTests
@@ -50,8 +51,8 @@ namespace PrintJobSerializerTests
             PrintJobSerializer::ExtractIndexPlane (original, w, h, pixels);
             string   json = PrintJobSerializer::WriteMetaJson (original);
 
-            Assert::IsTrue (SUCCEEDED (PrintJobSerializer::ReadMetaJson (json, meta)));
-            Assert::IsTrue (SUCCEEDED (PrintJobSerializer::RebuildRaster (w, h, pixels, meta, rebuilt)));
+            AssertSucceeded (PrintJobSerializer::ReadMetaJson (json, meta));
+            AssertSucceeded (PrintJobSerializer::RebuildRaster (w, h, pixels, meta, rebuilt));
 
             Assert::AreEqual (original.RowsUsed(),   rebuilt.RowsUsed());
             Assert::AreEqual (original.PaperRow(),   rebuilt.PaperRow());
@@ -88,7 +89,7 @@ namespace PrintJobSerializerTests
         {
             StripMeta   meta;
 
-            Assert::IsFalse (SUCCEEDED (PrintJobSerializer::ReadMetaJson ("{ not valid", meta)));
+            AssertFailed (PrintJobSerializer::ReadMetaJson ("{ not valid", meta));
         }
 
 
@@ -98,7 +99,7 @@ namespace PrintJobSerializerTests
             string      json = "{ \"formatVersion\": 999, \"rowsUsed\": 0, "
                                "\"paperRow\": 0, \"capReached\": false }";
 
-            Assert::IsFalse (SUCCEEDED (PrintJobSerializer::ReadMetaJson (json, meta)));
+            AssertFailed (PrintJobSerializer::ReadMetaJson (json, meta));
         }
 
 
@@ -108,8 +109,7 @@ namespace PrintJobSerializerTests
             StripMeta      meta;
             vector<Byte>   pixels (64, 0);
 
-            Assert::IsFalse (SUCCEEDED (
-                PrintJobSerializer::RebuildRaster (8, 8, pixels, meta, raster)));
+            AssertFailed (PrintJobSerializer::RebuildRaster (8, 8, pixels, meta, raster));
         }
     };
 }

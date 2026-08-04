@@ -7,6 +7,7 @@ class PrintRaster;
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  PrintJobPersistence
@@ -17,7 +18,7 @@ class PrintRaster;
 //  the shell's PrintJobStore reduces to writing/reading the two files -- the
 //  whole serialize->encode->decode->rebuild path is unit-tested here.
 //
-//  The caller must have COM initialised on the thread (PngCodec uses WIC).
+//  The caller must have COM initialized on the thread (PngCodec uses WIC).
 //
 ////////////////////////////////////////////////////////////////////////////////
 

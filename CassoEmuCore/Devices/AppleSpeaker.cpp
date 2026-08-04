@@ -12,7 +12,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-AppleSpeaker::AppleSpeaker ()
+AppleSpeaker::AppleSpeaker()
 {
 }
 
@@ -72,10 +72,10 @@ void AppleSpeaker::Write (Word address, Byte value)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void AppleSpeaker::Reset ()
+void AppleSpeaker::Reset()
 {
     m_speakerState = -0.25f;
-    m_toggleTimestamps.clear ();
+    m_toggleTimestamps.clear();
 }
 
 
@@ -91,9 +91,9 @@ void AppleSpeaker::Reset ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void AppleSpeaker::SoftReset ()
+void AppleSpeaker::SoftReset()
 {
-    Reset ();
+    Reset();
 }
 
 

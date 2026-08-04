@@ -44,13 +44,13 @@ public:
         romData[0x2FFD] = 0xD0;
 
         auto rom = RomDevice::CreateFromData (0xD000, 0xFFFF,
-            romData.data (), romData.size ());
-        bus.AddDevice (rom.get ());
+            romData.data(), romData.size());
+        bus.AddDevice (rom.get());
 
         EmuCpu cpu (bus);
 
         // Copy ROM data into CPU internal memory[] for execution
-        for (size_t i = 0; i < romData.size (); i++)
+        for (size_t i = 0; i < romData.size(); i++)
         {
             cpu.PokeByte (static_cast<Word> (0xD000 + i), romData[i]);
         }
@@ -75,13 +75,13 @@ public:
         romData[0x2FFD] = 0xD0;
 
         auto rom = RomDevice::CreateFromData (0xD000, 0xFFFF,
-            romData.data (), romData.size ());
-        bus.AddDevice (rom.get ());
+            romData.data(), romData.size());
+        bus.AddDevice (rom.get());
 
         EmuCpu cpu (bus);
 
         // Copy ROM data into CPU internal memory[] for execution
-        for (size_t i = 0; i < romData.size (); i++)
+        for (size_t i = 0; i < romData.size(); i++)
         {
             cpu.PokeByte (static_cast<Word> (0xD000 + i), romData[i]);
         }
@@ -107,13 +107,13 @@ public:
         romData[0x2FFD] = 0xD0;
 
         auto rom = RomDevice::CreateFromData (0xD000, 0xFFFF,
-            romData.data (), romData.size ());
-        bus.AddDevice (rom.get ());
+            romData.data(), romData.size());
+        bus.AddDevice (rom.get());
 
         EmuCpu cpu (bus);
 
         // Copy ROM data into CPU internal memory[] for execution
-        for (size_t i = 0; i < romData.size (); i++)
+        for (size_t i = 0; i < romData.size(); i++)
         {
             cpu.PokeByte (static_cast<Word> (0xD000 + i), romData[i]);
         }
@@ -149,23 +149,23 @@ public:
         romData[0x2FFD] = 0xD0;
 
         auto rom = RomDevice::CreateFromData (0xD000, 0xFFFF,
-            romData.data (), romData.size ());
-        bus.AddDevice (rom.get ());
+            romData.data(), romData.size());
+        bus.AddDevice (rom.get());
 
         EmuCpu cpu (bus);
 
         // Load ROM into CPU internal memory (StepOne reads opcodes directly)
-        for (size_t i = 0; i < romData.size (); i++)
+        for (size_t i = 0; i < romData.size(); i++)
         {
             cpu.PokeByte (static_cast<Word> (0xD000 + i), romData[i]);
         }
 
         cpu.InitForEmulation (m_prng);
-        Assert::AreEqual (static_cast<Word> (0xD000), cpu.GetPC ());
+        Assert::AreEqual (static_cast<Word> (0xD000), cpu.GetPC());
 
         for (int i = 0; i < 100; i++)
         {
-            cpu.StepOne ();
+            cpu.StepOne();
         }
 
         // Store writes to CPU internal memory
@@ -196,12 +196,12 @@ public:
         romData[0x2FFD] = 0xD0;
 
         auto rom = RomDevice::CreateFromData (0xD000, 0xFFFF,
-            romData.data (), romData.size ());
-        bus.AddDevice (rom.get ());
+            romData.data(), romData.size());
+        bus.AddDevice (rom.get());
 
         EmuCpu cpu (bus);
 
-        for (size_t i = 0; i < romData.size (); i++)
+        for (size_t i = 0; i < romData.size(); i++)
         {
             cpu.PokeByte (static_cast<Word> (0xD000 + i), romData[i]);
         }
@@ -210,7 +210,7 @@ public:
 
         for (int i = 0; i < 100; i++)
         {
-            cpu.StepOne ();
+            cpu.StepOne();
         }
 
         Byte result = cpu.PeekByte (0x0300);
@@ -228,22 +228,22 @@ public:
         romData[0x2FFD] = 0xD0;
 
         auto rom = RomDevice::CreateFromData (0xD000, 0xFFFF,
-            romData.data (), romData.size ());
-        bus.AddDevice (rom.get ());
+            romData.data(), romData.size());
+        bus.AddDevice (rom.get());
 
         EmuCpu cpu (bus);
 
-        for (size_t i = 0; i < romData.size (); i++)
+        for (size_t i = 0; i < romData.size(); i++)
         {
             cpu.PokeByte (static_cast<Word> (0xD000 + i), romData[i]);
         }
 
         cpu.InitForEmulation (m_prng);
-        Word startPC = cpu.GetPC ();
+        Word startPC = cpu.GetPC();
 
-        cpu.StepOne ();
+        cpu.StepOne();
 
-        Assert::IsTrue (cpu.GetPC () != startPC,
+        Assert::IsTrue (cpu.GetPC() != startPC,
             L"PC should advance after executing a NOP");
     }
 
@@ -258,13 +258,13 @@ public:
         romData[0x2FFD] = 0xD0;
 
         auto rom = RomDevice::CreateFromData (0xD000, 0xFFFF,
-            romData.data (), romData.size ());
-        bus.AddDevice (rom.get ());
+            romData.data(), romData.size());
+        bus.AddDevice (rom.get());
 
         EmuCpu cpu (bus);
 
         // Copy ROM data into CPU internal memory[] for execution
-        for (size_t i = 0; i < romData.size (); i++)
+        for (size_t i = 0; i < romData.size(); i++)
         {
             cpu.PokeByte (static_cast<Word> (0xD000 + i), romData[i]);
         }
@@ -272,8 +272,8 @@ public:
         cpu.InitForEmulation (m_prng);
 
         // ResetCycles should set counter to zero regardless of prior state
-        cpu.ResetCycles ();
-        Assert::AreEqual (static_cast<uint64_t> (0), cpu.GetTotalCycles ());
+        cpu.ResetCycles();
+        Assert::AreEqual (static_cast<uint64_t> (0), cpu.GetTotalCycles());
     }
 
     TEST_METHOD (InitForEmulation_SetsSPAndFlags)
@@ -287,24 +287,24 @@ public:
         romData[0x2FFD] = 0xD0;
 
         auto rom = RomDevice::CreateFromData (0xD000, 0xFFFF,
-            romData.data (), romData.size ());
-        bus.AddDevice (rom.get ());
+            romData.data(), romData.size());
+        bus.AddDevice (rom.get());
 
         EmuCpu cpu (bus);
 
         // Copy ROM data into CPU internal memory[] for execution
-        for (size_t i = 0; i < romData.size (); i++)
+        for (size_t i = 0; i < romData.size(); i++)
         {
             cpu.PokeByte (static_cast<Word> (0xD000 + i), romData[i]);
         }
 
         cpu.InitForEmulation (m_prng);
 
-        Assert::AreEqual (static_cast<Byte> (0xFD), cpu.GetSP ());
-        Assert::AreEqual (static_cast<Byte> (0), cpu.GetA ());
-        Assert::AreEqual (static_cast<Byte> (0), cpu.GetX ());
-        Assert::AreEqual (static_cast<Byte> (0), cpu.GetY ());
-        Assert::AreEqual (static_cast<Word> (0xD000), cpu.GetPC ());
+        Assert::AreEqual (static_cast<Byte> (0xFD), cpu.GetSP());
+        Assert::AreEqual (static_cast<Byte> (0), cpu.GetA());
+        Assert::AreEqual (static_cast<Byte> (0), cpu.GetX());
+        Assert::AreEqual (static_cast<Byte> (0), cpu.GetY());
+        Assert::AreEqual (static_cast<Word> (0xD000), cpu.GetPC());
     }
 
     TEST_METHOD (GetMemory_ReturnsNonNull)
@@ -318,12 +318,12 @@ public:
         romData[0x2FFD] = 0xD0;
 
         auto rom = RomDevice::CreateFromData (0xD000, 0xFFFF,
-            romData.data (), romData.size ());
-        bus.AddDevice (rom.get ());
+            romData.data(), romData.size());
+        bus.AddDevice (rom.get());
 
         EmuCpu cpu (bus);
 
-        Assert::IsNotNull (cpu.GetMemory (),
+        Assert::IsNotNull (cpu.GetMemory(),
             L"GetMemory() must never return nullptr");
     }
 
@@ -338,14 +338,14 @@ public:
         romData[0x2FFD] = 0xD0;
 
         auto rom = RomDevice::CreateFromData (0xD000, 0xFFFF,
-            romData.data (), romData.size ());
-        bus.AddDevice (rom.get ());
+            romData.data(), romData.size());
+        bus.AddDevice (rom.get());
 
         EmuCpu cpu (bus);
 
         cpu.PokeByte (0x0400, 0xA0);
 
-        Assert::AreEqual (static_cast<Byte> (0xA0), cpu.GetMemory ()[0x0400],
+        Assert::AreEqual (static_cast<Byte> (0xA0), cpu.GetMemory()[0x0400],
             L"PokeByte should be visible via GetMemory()");
     }
 
@@ -360,12 +360,12 @@ public:
         romData[0x2FFD] = 0xD0;
 
         auto rom = RomDevice::CreateFromData (0xD000, 0xFFFF,
-            romData.data (), romData.size ());
-        bus.AddDevice (rom.get ());
+            romData.data(), romData.size());
+        bus.AddDevice (rom.get());
 
         EmuCpu cpu (bus);
 
-        for (size_t i = 0; i < romData.size (); i++)
+        for (size_t i = 0; i < romData.size(); i++)
         {
             cpu.PokeByte (static_cast<Word> (0xD000 + i), romData[i]);
         }
@@ -390,12 +390,12 @@ public:
         romData[0x2FFD] = 0xD0;
 
         auto rom = RomDevice::CreateFromData (0xD000, 0xFFFF,
-            romData.data (), romData.size ());
-        bus.AddDevice (rom.get ());
+            romData.data(), romData.size());
+        bus.AddDevice (rom.get());
 
         EmuCpu cpu (bus);
 
-        for (size_t i = 0; i < romData.size (); i++)
+        for (size_t i = 0; i < romData.size(); i++)
         {
             cpu.PokeByte (static_cast<Word> (0xD000 + i), romData[i]);
         }
@@ -432,12 +432,12 @@ public:
         romData[0x2FFD] = 0xD0;
 
         auto rom = RomDevice::CreateFromData (0xD000, 0xFFFF,
-            romData.data (), romData.size ());
-        bus.AddDevice (rom.get ());
+            romData.data(), romData.size());
+        bus.AddDevice (rom.get());
 
         EmuCpu cpu (bus);
 
-        for (size_t i = 0; i < romData.size (); i++)
+        for (size_t i = 0; i < romData.size(); i++)
         {
             cpu.PokeByte (static_cast<Word> (0xD000 + i), romData[i]);
         }
@@ -446,7 +446,7 @@ public:
 
         for (int i = 0; i < 10; i++)
         {
-            cpu.StepOne ();
+            cpu.StepOne();
         }
 
         // Verify the store reached internal memory
@@ -454,7 +454,7 @@ public:
             L"STA $0400 should be visible via PeekByte");
 
         // Verify it's also visible via GetMemory()
-        Assert::AreEqual (static_cast<Byte> (0x42), cpu.GetMemory ()[0x0400],
+        Assert::AreEqual (static_cast<Byte> (0x42), cpu.GetMemory()[0x0400],
             L"STA $0400 should be visible via GetMemory()");
     }
 
@@ -483,12 +483,12 @@ public:
         romData[0x2FFD] = 0xD0;
 
         auto rom = RomDevice::CreateFromData (0xD000, 0xFFFF,
-            romData.data (), romData.size ());
-        bus.AddDevice (rom.get ());
+            romData.data(), romData.size());
+        bus.AddDevice (rom.get());
 
         EmuCpu cpu (bus);
 
-        for (size_t i = 0; i < romData.size (); i++)
+        for (size_t i = 0; i < romData.size(); i++)
         {
             cpu.PokeByte (static_cast<Word> (0xD000 + i), romData[i]);
         }
@@ -497,7 +497,7 @@ public:
 
         for (int i = 0; i < 10; i++)
         {
-            cpu.StepOne ();
+            cpu.StepOne();
         }
 
         // Now render using GetMemory() — the way the real emulator does it
@@ -508,7 +508,7 @@ public:
         const int fbH = 384;
         std::vector<uint32_t> fb (fbW * fbH, 0xFF000000u);
 
-        textMode.Render (cpu.GetMemory (), fb.data (), fbW, fbH);
+        textMode.Render (cpu.GetMemory(), fb.data(), fbW, fbH);
 
         // Verify the character cell at $0400 (row 0, col 0) has green pixels
         bool hasGreen = false;

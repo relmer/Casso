@@ -1,9 +1,107 @@
 #include "Pch.h"
 
 #include "AssemblySession.h"
-#include "Ehm.h"
 #include "ExpressionEvaluator.h"
 #include "Parser.h"
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AssemblySession::ToUpperCase
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string AssemblySession::ToUpperCase (const std::string & text)
+{
+    std::string  upper = text;
+
+
+
+    for (char & c : upper)
+    {
+        c = (char) toupper ((unsigned char) c);
+    }
+
+    return upper;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AssemblySession::StripCommentAndTrim
+//
+//  The code part of a line: indentation removed, anything from the first ';'
+//  dropped, trailing blanks removed. Deliberately naive about ';' inside a
+//  string literal, which is what the two callers already assumed.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string AssemblySession::StripCommentAndTrim (const std::string & text)
+{
+    std::string  code    = text;
+    size_t       start   = code.find_first_not_of (" \t");
+    size_t       comment = 0;
+    size_t       end     = 0;
+
+
+
+    if (start != std::string::npos)
+    {
+        code = code.substr (start);
+    }
+
+    comment = code.find (';');
+
+    if (comment != std::string::npos)
+    {
+        code = code.substr (0, comment);
+    }
+
+    end = code.find_last_not_of (" \t");
+
+    if (end != std::string::npos)
+    {
+        code = code.substr (0, end + 1);
+    }
+
+    return code;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AssemblySession::GetLeadingWord
+//
+//  The first whitespace-delimited word, ignoring any indentation before it.
+//  Returns an empty string for text that is blank or whitespace only.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::string AssemblySession::GetLeadingWord (const std::string & text)
+{
+    std::string  word;
+    size_t       start = text.find_first_not_of (" \t");
+    size_t       end   = 0;
+
+
+
+    if (start != std::string::npos)
+    {
+        end  = text.find_first_of (" \t", start);
+        word = (end == std::string::npos) ? text.substr (start) : text.substr (start, end - start);
+    }
+
+    return word;
+}
 
 
 
@@ -17,18 +115,20 @@
 
 std::string AssemblySession::GetLowerExtension (const std::string & filename)
 {
-    size_t dot = filename.rfind ('.');
+    size_t       dot = filename.rfind ('.');
+    std::string  ext;
 
-    if (dot == std::string::npos)
+
+
+    // No dot at all yields the empty string, same as a name ending in one.
+    if (dot != std::string::npos)
     {
-        return "";
-    }
+        ext = filename.substr (dot);
 
-    std::string ext = filename.substr (dot);
-
-    for (auto & c : ext)
-    {
-        c = (char) std::tolower ((unsigned char) c);
+        for (auto & c : ext)
+        {
+            c = (char) std::tolower ((unsigned char) c);
+        }
     }
 
     return ext;
@@ -46,10 +146,15 @@ std::string AssemblySession::GetLowerExtension (const std::string & filename)
 
 int AssemblySession::HexCharToNibble (char c)
 {
-    if (c >= '0' && c <= '9') return c - '0';
-    if (c >= 'A' && c <= 'F') return c - 'A' + 10;
-    if (c >= 'a' && c <= 'f') return c - 'a' + 10;
-    return -1;
+    int  nibble = -1;      // -1 == not a hex digit
+
+
+
+    if      (c >= '0' && c <= '9') { nibble = c - '0';      }
+    else if (c >= 'A' && c <= 'F') { nibble = c - 'A' + 10; }
+    else if (c >= 'a' && c <= 'f') { nibble = c - 'a' + 10; }
+
+    return nibble;
 }
 
 
@@ -64,20 +169,19 @@ int AssemblySession::HexCharToNibble (char c)
 
 int AssemblySession::HexByte (const std::string & s, size_t offset)
 {
-    if (offset + 1 >= s.size ())
+    bool  hasPair = (offset + 1 < s.size());
+    int   hi      = hasPair ? HexCharToNibble (s[offset])     : -1;
+    int   lo      = hasPair ? HexCharToNibble (s[offset + 1]) : -1;
+    int   value   = -1;      // -1 == not two hex digits at `offset`
+
+
+
+    if (hi >= 0 && lo >= 0)
     {
-        return -1;
+        value = (hi << 4) | lo;
     }
 
-    int hi = HexCharToNibble (s[offset]);
-    int lo = HexCharToNibble (s[offset + 1]);
-
-    if (hi < 0 || lo < 0)
-    {
-        return -1;
-    }
-
-    return (hi << 4) | lo;
+    return value;
 }
 
 
@@ -101,12 +205,12 @@ std::vector<Byte> AssemblySession::ParseSRecord (const std::string & content)
     while (std::getline (stream, line))
     {
         // Trim trailing CR
-        if (!line.empty () && line.back () == '\r')
+        if (!line.empty() && line.back() == '\r')
         {
-            line.pop_back ();
+            line.pop_back();
         }
 
-        if (line.size () < 2 || line[0] != 'S')
+        if (line.size() < 2 || line[0] != 'S')
         {
             continue;
         }
@@ -121,7 +225,7 @@ std::vector<Byte> AssemblySession::ParseSRecord (const std::string & content)
         else if (recType == '3') addrBytes = 4;
         else                     continue;
 
-        if (line.size () < 4)
+        if (line.size() < 4)
         {
             continue;
         }
@@ -179,17 +283,17 @@ std::vector<Byte> AssemblySession::ParseIntelHex (const std::string & content)
     while (std::getline (stream, line))
     {
         // Trim trailing CR
-        if (!line.empty () && line.back () == '\r')
+        if (!line.empty() && line.back() == '\r')
         {
-            line.pop_back ();
+            line.pop_back();
         }
 
-        if (line.empty () || line[0] != ':')
+        if (line.empty() || line[0] != ':')
         {
             continue;
         }
 
-        if (line.size () < 11)
+        if (line.size() < 11)
         {
             continue;
         }
@@ -238,15 +342,17 @@ std::vector<std::string> AssemblySession::GenerateByteDirectives (const std::vec
 {
     std::vector<std::string> lines;
 
+
+
     static const int kBytesPerLine = 16;
 
 
 
-    for (size_t i = 0; i < data.size (); i += kBytesPerLine)
+    for (size_t i = 0; i < data.size(); i += kBytesPerLine)
     {
         std::string line = "    .byte ";
 
-        size_t end = std::min (i + kBytesPerLine, data.size ());
+        size_t end = std::min (i + kBytesPerLine, data.size());
 
         for (size_t j = i; j < end; j++)
         {
@@ -274,14 +380,11 @@ std::vector<std::string> AssemblySession::GenerateByteDirectives (const std::vec
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool AssemblySession::IsBranchMnemonic (const std::string & mnemonic)
+bool AssemblySession::IsBranchMnemonic (const std::string & mnemonic) const
 {
-    return mnemonic == "BPL" || mnemonic == "BMI" ||
-           mnemonic == "BVC" || mnemonic == "BVS" ||
-           mnemonic == "BCC" || mnemonic == "BCS" ||
-           mnemonic == "BNE" || mnemonic == "BEQ" ||
-           mnemonic == "BRA";   // 65C02 unconditional branch (base tier)
+    return m_opcodeTable.HasMode (mnemonic, GlobalAddressingMode::Relative);
 }
+
 
 
 
@@ -299,8 +402,105 @@ bool AssemblySession::IsBranchMnemonic (const std::string & mnemonic)
 
 bool AssemblySession::IsBitOpMnemonic (const std::string & mnemonic)
 {
-    return mnemonic == "RMB" || mnemonic == "SMB" ||
-           mnemonic == "BBR" || mnemonic == "BBS";
+    // A dialect fact, not a CPU one, which is why it cannot be answered from
+    // the opcode table the way IsBranchMnemonic now is: the table holds
+    // RMB0..RMB7, and these bare names exist only because as65 spells the bit
+    // as an operand. A second dialect supplies a different list here.
+    static constexpr std::string_view  s_kBareBitOps[] = { "RMB", "SMB", "BBR", "BBS" };
+
+    bool  found = false;
+
+
+
+    for (std::string_view name : s_kBareBitOps)
+    {
+        if (mnemonic == name)
+        {
+            found = true;
+            break;
+        }
+    }
+
+    return found;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AssemblySession::GetAddressingRules
+//
+//  The syntax -> mode policy, whole, in one place. Every case of the switch
+//  this replaced had the same shape once the noise came off: try a short list
+//  of candidate modes in priority order, take the first the mnemonic actually
+//  carries, and otherwise fall back to what the syntax means on its own.
+//
+//  Two things the old form hid. `IsBranchMnemonic` was a separate concept only
+//  because it predated the opcode table answering it -- it is now exactly the
+//  ungated Relative candidate, so Bare's three-way decision is a plain list.
+//  And each case built an OpcodeEntry it never read, because Lookup was being
+//  used as an existence test; that is HasMode.
+//
+//  Indexed by OperandSyntax, so the rows must stay in enum order. The `syntax`
+//  field is what catches it if they do not.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::span<const AssemblySession::AddressingRule> AssemblySession::GetAddressingRules()
+{
+    using AM = GlobalAddressingMode::AddressingMode;
+
+
+
+    // `expr` alone: a branch target, a jump target, then zero page if it fits.
+    static constexpr ModeCandidate  s_kBare[] =
+    {
+        { AM::Relative,          false },
+        { AM::JumpAbsolute,      false },
+        { AM::ZeroPage,          true  },
+    };
+
+    static constexpr ModeCandidate  s_kIndexedX[] = { { AM::ZeroPageX, true } };
+    static constexpr ModeCandidate  s_kIndexedY[] = { { AM::ZeroPageY, true } };
+
+    // (expr,X): the common (zp,X), or the 65C02 (abs,X) that only JMP carries.
+    static constexpr ModeCandidate  s_kIndirectX[] =
+    {
+        { AM::ZeroPageXIndirect, true  },
+        { AM::AbsoluteXIndirect, false },
+    };
+
+    // (expr): the 65C02 (zp) indirect when it fits and the mnemonic has it,
+    // else the (abs) JMP indirect -- NMOS, or the page-fixed CMOS variant that
+    // carries its own mode.
+    static constexpr ModeCandidate  s_kIndirect[] =
+    {
+        { AM::ZeroPageIndirect,  true  },
+        { AM::JumpIndirect,      false },
+        { AM::JumpIndirectCmos,  false },
+    };
+
+    static constexpr AddressingRule  s_kRules[] =
+    {
+        { OperandSyntax::None,             {},             AM::SingleByteNoOperand },
+        { OperandSyntax::Immediate,        {},             AM::Immediate           },
+        { OperandSyntax::Bare,             s_kBare,        AM::Absolute            },
+        { OperandSyntax::IndexedX,         s_kIndexedX,    AM::AbsoluteX           },
+        { OperandSyntax::IndexedY,         s_kIndexedY,    AM::AbsoluteY           },
+        { OperandSyntax::IndirectX,        s_kIndirectX,   AM::ZeroPageXIndirect   },
+        { OperandSyntax::IndirectY,        {},             AM::ZeroPageIndirectY   },
+        { OperandSyntax::Indirect,         s_kIndirect,    AM::JumpIndirect        },
+        { OperandSyntax::Accumulator,      {},             AM::Accumulator         },
+        // BBRn/BBSn only; a mnemonic lacking the mode fails the caller's lookup.
+        { OperandSyntax::ZeroPageRelative, {},             AM::ZeroPageRelative    },
+    };
+
+    static_assert (std::size (s_kRules) == (size_t) OperandSyntax::Count,
+                   "every OperandSyntax needs an addressing rule");
+
+    return std::span<const AddressingRule> (s_kRules, std::size (s_kRules));
 }
 
 
@@ -315,138 +515,34 @@ bool AssemblySession::IsBitOpMnemonic (const std::string & mnemonic)
 ////////////////////////////////////////////////////////////////////////////////
 
 GlobalAddressingMode::AddressingMode AssemblySession::ResolveAddressingMode (
-    OperandSyntax    syntax,
+    OperandSyntax       syntax,
     const std::string & mnemonic,
-    int32_t          value,
-    bool             resolved)
+    int32_t             value,
+    bool                resolved) const
 {
-    using AM = GlobalAddressingMode::AddressingMode;
+    const AddressingRule &                rule       = GetAddressingRules()[(size_t) syntax];
+    bool                                  fitsInPage = resolved && value >= 0 && value <= 0xFF;
+    GlobalAddressingMode::AddressingMode  mode       = rule.fallback;
+
+    ASSERT (rule.syntax == syntax);
 
 
 
-    switch (syntax)
+    for (const ModeCandidate & candidate : rule.candidates)
     {
-        case OperandSyntax::None:
-            return AM::SingleByteNoOperand;
-
-        case OperandSyntax::Accumulator:
-            return AM::Accumulator;
-
-        case OperandSyntax::Immediate:
-            return AM::Immediate;
-
-        case OperandSyntax::IndirectX:
+        if (candidate.needsZeroPage && !fitsInPage)
         {
-            // (zp,X) is the common form; JMP (abs,X) is the 65C02 absolute
-            // indexed indirect (JMP only). Prefer zp when it is zp-sized and the
-            // mnemonic supports it, else fall to (abs,X) if supported.
-            OpcodeEntry entry = {};
-
-            if (resolved && value >= 0 && value <= 0xFF &&
-                m_opcodeTable.Lookup (mnemonic, AM::ZeroPageXIndirect, entry))
-            {
-                return AM::ZeroPageXIndirect;
-            }
-
-            if (m_opcodeTable.Lookup (mnemonic, AM::AbsoluteXIndirect, entry))
-            {
-                return AM::AbsoluteXIndirect;
-            }
-
-            return AM::ZeroPageXIndirect;
+            continue;
         }
 
-        case OperandSyntax::IndirectY:
-            return AM::ZeroPageIndirectY;
-
-        case OperandSyntax::Indirect:
+        if (m_opcodeTable.HasMode (mnemonic, candidate.mode))
         {
-            OpcodeEntry entry = {};
-
-            // (zp) is the 65C02 zero-page indirect when zp-sized and supported
-            // (LDA/STA/ORA/AND/…); otherwise it is the (abs) JMP indirect.
-            if (resolved && value >= 0 && value <= 0xFF &&
-                m_opcodeTable.Lookup (mnemonic, AM::ZeroPageIndirect, entry))
-            {
-                return AM::ZeroPageIndirect;
-            }
-
-            // (abs) JMP indirect: NMOS JumpIndirect, or the 65C02 page-fixed
-            // variant which carries its own mode enum.
-            if (m_opcodeTable.Lookup (mnemonic, AM::JumpIndirect, entry))
-            {
-                return AM::JumpIndirect;
-            }
-
-            if (m_opcodeTable.Lookup (mnemonic, AM::JumpIndirectCmos, entry))
-            {
-                return AM::JumpIndirectCmos;
-            }
-
-            return AM::JumpIndirect;
-        }
-
-        case OperandSyntax::IndexedX:
-        {
-            if (resolved && value >= 0 && value <= 0xFF)
-            {
-                OpcodeEntry entry = {};
-
-                if (m_opcodeTable.Lookup (mnemonic, AM::ZeroPageX, entry))
-                {
-                    return AM::ZeroPageX;
-                }
-            }
-
-            return AM::AbsoluteX;
-        }
-
-        case OperandSyntax::IndexedY:
-        {
-            if (resolved && value >= 0 && value <= 0xFF)
-            {
-                OpcodeEntry entry = {};
-
-                if (m_opcodeTable.Lookup (mnemonic, AM::ZeroPageY, entry))
-                {
-                    return AM::ZeroPageY;
-                }
-            }
-
-            return AM::AbsoluteY;
-        }
-
-        case OperandSyntax::ZeroPageRelative:
-            // 65C02 BBRn/BBSn only; a mnemonic lacking this mode fails the lookup.
-            return AM::ZeroPageRelative;
-
-        case OperandSyntax::Bare:
-        {
-            if (IsBranchMnemonic (mnemonic))
-            {
-                return AM::Relative;
-            }
-
-            if (mnemonic == "JMP" || mnemonic == "JSR")
-            {
-                return AM::JumpAbsolute;
-            }
-
-            if (resolved && value >= 0 && value <= 0xFF)
-            {
-                OpcodeEntry entry = {};
-
-                if (m_opcodeTable.Lookup (mnemonic, AM::ZeroPage, entry))
-                {
-                    return AM::ZeroPage;
-                }
-            }
-
-            return AM::Absolute;
+            mode = candidate.mode;
+            break;
         }
     }
 
-    return AM::SingleByteNoOperand;
+    return mode;
 }
 
 
@@ -455,48 +551,69 @@ GlobalAddressingMode::AddressingMode AssemblySession::ResolveAddressingMode (
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  EstimateInstructionSize — conservative size for unresolved expressions
+//  EstimateErrorRecoverySize — how far to advance the PC past an instruction
+//  that could not be encoded
+//
+//  Error recovery only. The single caller reaches this after RecordError, once
+//  ResolveAddressingMode has named a mode the opcode table does not carry, so
+//  the assembly has already failed. The goal is only to keep the labels on the
+//  following lines close enough to their true addresses that the remaining
+//  diagnostics stay useful instead of cascading.
+//
+//  It is NOT the forward-reference sizing path, despite what this function was
+//  called and commented for. A forward reference the table *can* encode is
+//  sized from the OpcodeEntry the caller already looked up; nothing routes here.
+//
+//  The best guess is the width the mnemonic actually has. For the (…) syntaxes
+//  that means asking whether this is a jump: JMP and JSR are the only mnemonics
+//  carrying JumpAbsolute, and both are 3 bytes in every form they have, while
+//  every other indirect form on either instruction set is 2.
+//
+//  Deliberately NOT "the size of the mode ResolveAddressingMode returned". That
+//  looks more principled and is worse: when nothing matches, the resolver
+//  returns a default -- ZeroPageXIndirect for `JMP (foo,X)` on NMOS -- that the
+//  mnemonic does not possess, and sizing it would advance 2 for an instruction
+//  with no 2-byte encoding anywhere.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-Byte AssemblySession::EstimateInstructionSize (OperandSyntax syntax, const std::string & mnemonic)
+Byte AssemblySession::EstimateErrorRecoverySize (OperandSyntax syntax, const std::string & mnemonic) const
 {
+    Byte  size = 1;      // opcode only, and the fallback for an unknown syntax
+
     switch (syntax)
     {
         case OperandSyntax::None:
         case OperandSyntax::Accumulator:
-            return 1;
+            break;
 
         case OperandSyntax::Immediate:
         case OperandSyntax::IndirectY:
-            return 2;
+            size = 2;
+            break;
 
         case OperandSyntax::IndirectX:
-            // (zp,X) is 2 bytes; JMP (abs,X) is 3.
-            return (mnemonic == "JMP") ? 3 : 2;
-
         case OperandSyntax::Indirect:
-            // (abs) JMP indirect is 3 bytes; 65C02 (zp) indirect is 2.
-            return (mnemonic == "JMP") ? 3 : 2;
+            // A jump is 3 bytes -- JMP (abs), JMP (abs,X), JSR abs -- and every
+            // other parenthesized form is 2, on both instruction sets.
+            size = m_opcodeTable.HasMode (mnemonic, GlobalAddressingMode::JumpAbsolute) ? 3 : 2;
+            break;
 
         case OperandSyntax::IndexedX:
         case OperandSyntax::IndexedY:
         case OperandSyntax::Bare:
-        {
-            if (IsBranchMnemonic (mnemonic))
-            {
-                return 2;
-            }
-
-            return 3;
-        }
+            // A branch takes a one-byte signed displacement; everything else
+            // with a bare or indexed operand takes a 16-bit address.
+            size = IsBranchMnemonic (mnemonic) ? 2 : 3;
+            break;
 
         case OperandSyntax::ZeroPageRelative:
             // 65C02 BBRn/BBSn: opcode + zero-page byte + relative offset.
-            return 3;
+            size = 3;
+            break;
     }
 
-    return 1;
+    return size;
 }
 
 
@@ -512,13 +629,13 @@ Byte AssemblySession::EstimateInstructionSize (OperandSyntax syntax, const std::
 std::string AssemblySession::ProcessEscapeSequences (const std::string & str)
 {
     std::string result;
-    result.reserve (str.size ());
+    result.reserve (str.size());
 
 
 
-    for (size_t i = 0; i < str.size (); i++)
+    for (size_t i = 0; i < str.size(); i++)
     {
-        if (str[i] == '\\' && i + 1 < str.size ())
+        if (str[i] == '\\' && i + 1 < str.size())
         {
             char next = str[i + 1];
 
@@ -568,9 +685,9 @@ bool AssemblySession::EvaluateDirectiveArgs (
     for (const auto & arg : args)
     {
         // Check for quoted string — emit each character as a value
-        if (arg.size () >= 2 && arg.front () == '"' && arg.back () == '"')
+        if (arg.size() >= 2 && arg.front() == '"' && arg.back() == '"')
         {
-            std::string raw       = arg.substr (1, arg.size () - 2);
+            std::string raw       = arg.substr (1, arg.size() - 2);
             std::string processed = ProcessEscapeSequences (raw);
 
             for (char c : processed)
@@ -604,14 +721,11 @@ bool AssemblySession::EvaluateDirectiveArgs (
 
 
 
-
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  File-scope types for AssemblySession
 //
 ////////////////////////////////////////////////////////////////////////////////
-
-
 
 
 
@@ -629,7 +743,6 @@ AssemblySession::AssemblySession (const OpcodeTable & opcodeTable, const Assembl
     m_listingLevel (options.generateListing ? 1 : 0)
 {
 }
-
 
 
 
@@ -698,9 +811,9 @@ void AssemblySession::RecordWarning (int lineNumber, const std::string & message
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool AssemblySession::IsAssembling () const
+bool AssemblySession::IsAssembling() const
 {
-    return m_condStack.empty () || m_condStack.back ().assembling;
+    return m_condStack.empty() || m_condStack.back().assembling;
 }
 
 
@@ -751,7 +864,6 @@ void AssemblySession::EmitByte (Byte b, Word & emitPC)
 
 
 
-
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  AssemblySession::Initialize
@@ -782,7 +894,7 @@ HRESULT AssemblySession::Initialize (const std::string & sourceText)
         m_exprSymbols[predef.first] = predef.second;
     }
 
-    for (int i = 0; i < (int) m_lines.size (); i++)
+    for (int i = 0; i < (int) m_lines.size(); i++)
     {
         PendingLine pl = {};
         pl.text             = m_lines[i];
@@ -794,7 +906,6 @@ HRESULT AssemblySession::Initialize (const std::string & sourceText)
 // Error:
     return hr;
 }
-
 
 
 
@@ -812,15 +923,21 @@ AssemblyResult AssemblySession::Run (const std::string & sourceText)
 
 
 
-    CHR (Initialize (sourceText));
-    CHR (RunPass1 ());
-    CHR (RunPass2 ());
-    CHR (DetectUnusedLabels ());
+    hr = Initialize (sourceText);
+    CHR (hr);
+
+    hr = RunPass1();
+    CHR (hr);
+
+    hr = RunPass2();
+    CHR (hr);
+
+    hr = DetectUnusedLabels();
+    CHR (hr);
 
 Error:
     return m_result;
 }
-
 
 
 
@@ -832,24 +949,26 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT AssemblySession::RunPass1 ()
+HRESULT AssemblySession::RunPass1()
 {
     HRESULT hr = S_OK;
 
 
 
-    while (!m_pendingLines.empty ())
+    while (!m_pendingLines.empty())
     {
-        PendingLine current = m_pendingLines.front ();
-        m_pendingLines.pop_front ();
+        PendingLine current = m_pendingLines.front();
+        m_pendingLines.pop_front();
 
         if (!m_endAssembly)
         {
-            CHR (ProcessPass1Line (current));
+            hr = ProcessPass1Line (current);
+            CHR (hr);
         }
     }
 
-    CHR (ValidateAssemblyCompletion ());
+    hr = ValidateAssemblyCompletion();
+    CHR (hr);
 
 Error:
     return hr;
@@ -867,9 +986,8 @@ Error:
 
 HRESULT AssemblySession::ProcessPass1Line (const PendingLine & current)
 {
-    HRESULT hr = S_OK;
-
-    LineInfo info          = {};
+    HRESULT   hr   = S_OK;
+    LineInfo  info = {};
 
 
 
@@ -886,157 +1004,12 @@ HRESULT AssemblySession::ProcessPass1Line (const PendingLine & current)
     info.conditionalSkip   = false;
     info.listingSuppressed = (m_listingLevel <= 0);
 
-    // Struct definition collection
-    if (m_collectingStruct)
-    {
-        CHR (HandleStructCollection (current, info));
-        m_lineInfos.push_back (info);
-        goto Error;
-    }
+    hr = RunPass1Stages (current, info);
+    CHR (hr);
 
-    // Macro definition collection
-    if (m_collectingMacro)
-    {
-        CHR (CollectMacroBody (current, info));
-        m_lineInfos.push_back (info);
-        goto Error;
-    }
-
-    // Check for macro definition start
-    {
-        std::string operandUpper;
-
-        if (!info.parsed.operand.empty ())
-        {
-            operandUpper = info.parsed.operand;
-
-            for (auto & c : operandUpper)
-            {
-                c = (char) toupper ((unsigned char) c);
-            }
-        }
-
-        bool macroDefHandled = false;
-        CHR (DetectMacroDefinition (current, info, operandUpper, macroDefHandled));
-
-        if (macroDefHandled)
-        {
-            m_lineInfos.push_back (info);
-            goto Error;
-        }
-    }
-
-    // Conditional assembly directives
-    {
-        bool condHandled = false;
-        CHR (HandleConditionalDirective (current, info, condHandled));
-
-        if (condHandled)
-        {
-            m_lineInfos.push_back (info);
-            goto Error;
-        }
-    }
-
-    // Skip lines in non-assembling conditional blocks
-    if (!IsAssembling ())
-    {
-        info.conditionalSkip = true;
-        m_lineInfos.push_back (info);
-        goto Error;
-    }
-
-    // Handle .ORG before recording label
-    if (info.parsed.isDirective && info.parsed.directive == ".ORG")
-    {
-        CHR (HandleOrgDirective (current, info));
-        info.isDirective = true;
-        m_lineInfos.push_back (info);
-        goto Error;
-    }
-
-    // Handle segment switches before recording label
-    if (info.parsed.isDirective)
-    {
-        bool segHandled = false;
-        CHR (HandleSegmentSwitch (info, segHandled));
-
-        if (segHandled)
-        {
-            m_lineInfos.push_back (info);
-            goto Error;
-        }
-    }
-
-    // Record label
-    CHR (RecordLabel (current, info));
-
-    // Handle constant definitions
-    if (info.parsed.isConstant)
-    {
-        CHR (HandleConstantDefinition (current, info));
-        m_lineInfos.push_back (info);
-        goto Error;
-    }
-
-    // Handle directives
-    if (info.parsed.isDirective)
-    {
-        bool dirHandled = false;
-        CHR (HandlePass1Directives (current, info, dirHandled));
-
-        if (dirHandled)
-        {
-            m_lineInfos.push_back (info);
-            goto Error;
-        }
-    }
-
-    // Skip empty lines
-    if (info.parsed.mnemonic.empty ())
-    {
-        m_lineInfos.push_back (info);
-        goto Error;
-    }
-
-    // Multi-NOP
-    {
-        bool nopHandled = false;
-        CHR (HandleMultiNop (current, info, nopHandled));
-
-        if (nopHandled)
-        {
-            m_lineInfos.push_back (info);
-            goto Error;
-        }
-    }
-
-    // Macro invocation
-    {
-        bool macroHandled = false;
-        CHR (ExpandMacro (current, info, macroHandled));
-
-        if (macroHandled)
-        {
-            m_lineInfos.push_back (info);
-            goto Error;
-        }
-    }
-
-    // Colon-less label detection
-    {
-        bool colonlessHandled = false;
-        CHR (HandleColonlessLabel (current, info, colonlessHandled));
-
-        if (colonlessHandled)
-        {
-            m_lineInfos.push_back (info);
-            goto Error;
-        }
-    }
-
-    // Classify operand and resolve addressing mode
-    CHR (ClassifyAndResolve (current, info));
+    // Every stage that claims the line leaves through here, so the record is
+    // written in exactly one place. A stage that FAILS records nothing --
+    // pass 2 must not see a half-processed line.
     m_lineInfos.push_back (info);
 
 Error:
@@ -1046,34 +1019,432 @@ Error:
 
 
 
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AssemblySession::IsMacroDefinitionStart
+//
+//  "NAME macro [params]" -- the operand, upper-cased, is MACRO followed by
+//  end-of-operand or whitespace.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool AssemblySession::IsMacroDefinitionStart (const ParsedLine & parsed, const std::string & operandUpper)
+{
+    bool  looksLikeMacro = (operandUpper.substr (0, 5) == "MACRO") &&
+                           (operandUpper.size() <= 5 ||
+                            operandUpper[5] == ' '  ||
+                            operandUpper[5] == '\t');
+
+    return !parsed.mnemonic.empty() && !parsed.isEmpty && looksLikeMacro;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AssemblySession::IsConditionalDirective
+//
+//  The five tokens that steer conditional assembly. Shared by the classifier
+//  and the handler, so the two cannot disagree about what a conditional is.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool AssemblySession::IsConditionalDirective (Directive token)
+{
+    return token == Directive::If     || token == Directive::Ifdef ||
+           token == Directive::Ifndef || token == Directive::Else  ||
+           token == Directive::Endif;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AssemblySession::IsConditionalLine
+//
+//  Both spellings are accepted: the dotted directive form, and the bare
+//  mnemonic form as65 also allows. The bare form never takes the parser's
+//  directive path and so carries no token, which is why it is resolved from
+//  the spelling table here rather than read off ParsedLine.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool AssemblySession::IsConditionalLine (const ParsedLine & parsed)
+{
+    Directive  token = parsed.isDirective
+                           ? parsed.directiveToken
+                           : DirectiveTable::FromSpelling (parsed.mnemonic);
+
+
+
+    return IsConditionalDirective (token);
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AssemblySession::IsSegmentDirective
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool AssemblySession::IsSegmentDirective (Directive token)
+{
+    return token == Directive::SegmentCode || token == Directive::SegmentData ||
+           token == Directive::SegmentBss;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AssemblySession::ClassifyPrelude
+//
+//  Which prelude directive, if any, owns this line. Order is load-bearing:
+//
+//    * A macro definition is only recognized while assembling, so a .MACRO
+//      inside an inactive conditional is skipped like any other line.
+//    * Conditional directives MUST be recognized while skipping, otherwise a
+//      false block could never see its own .ELSE / .ENDIF and would swallow
+//      the rest of the file. So they are tested before the skip.
+//    * .ORG and the segment switches move the PC, which is why the whole
+//      prelude runs before RecordLabel.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+AssemblySession::Pass1Prelude AssemblySession::ClassifyPrelude (
+    const LineInfo    & info,
+    const std::string & operandUpper) const
+{
+    Pass1Prelude  kind = Pass1Prelude::None;
+
+
+
+    if (IsAssembling() && IsMacroDefinitionStart (info.parsed, operandUpper))
+    {
+        kind = Pass1Prelude::MacroDefinition;
+    }
+    else if (IsConditionalLine (info.parsed))
+    {
+        kind = Pass1Prelude::Conditional;
+    }
+    else if (!IsAssembling())
+    {
+        kind = Pass1Prelude::Skipped;
+    }
+    else if (info.parsed.isDirective && info.parsed.directive == ".ORG")
+    {
+        kind = Pass1Prelude::Org;
+    }
+    else if (info.parsed.isDirective && IsSegmentDirective (info.parsed.directiveToken))
+    {
+        kind = Pass1Prelude::SegmentSwitch;
+    }
+
+    return kind;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AssemblySession::ClassifyContent
+//
+////////////////////////////////////////////////////////////////////////////////
+
+AssemblySession::Pass1Content AssemblySession::ClassifyContent (const LineInfo & info)
+{
+    Pass1Content  kind = Pass1Content::Instruction;
+
+
+
+    if (info.parsed.isConstant)
+    {
+        kind = Pass1Content::ConstantDefinition;
+    }
+    else if (info.parsed.isDirective)
+    {
+        kind = Pass1Content::Directive;
+    }
+    else if (info.parsed.mnemonic.empty())
+    {
+        kind = Pass1Content::Empty;
+    }
+
+    return kind;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AssemblySession::RunCollectingState
+//
+//  Phase 1. A struct or macro body swallows the line whole, so this outranks
+//  everything -- including conditionals. The handlers can end collection on
+//  the way out, which is why the claim is read from the state on entry.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT AssemblySession::RunCollectingState (const PendingLine & current, LineInfo & info, bool & outClaimed)
+{
+    HRESULT  hr = S_OK;
+
+
+
+    outClaimed = (m_pass1State != Pass1State::Normal);
+
+    switch (m_pass1State)
+    {
+    case Pass1State::CollectingStruct:
+        hr = HandleStructCollection (current, info);
+        break;
+
+    case Pass1State::CollectingMacro:
+        hr = CollectMacroBody (current, info);
+        break;
+
+    case Pass1State::Normal:
+        break;
+    }
+
+    CHR (hr);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AssemblySession::RunPreludeDirectives
+//
+//  Phase 2. Everything that decides whether the line assembles at all, or
+//  that moves the PC. Runs before a label can bind.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT AssemblySession::RunPreludeDirectives (const PendingLine & current, LineInfo & info, bool & outClaimed)
+{
+    HRESULT       hr           = S_OK;
+    std::string   operandUpper = ToUpperCase (info.parsed.operand);
+    Pass1Prelude  kind         = ClassifyPrelude (info, operandUpper);
+
+
+
+    outClaimed = (kind != Pass1Prelude::None);
+
+    switch (kind)
+    {
+    case Pass1Prelude::MacroDefinition:
+        hr = DetectMacroDefinition (current, info, operandUpper, outClaimed);
+        break;
+
+    case Pass1Prelude::Conditional:
+        hr = HandleConditionalDirective (current, info, outClaimed);
+        break;
+
+    case Pass1Prelude::Skipped:
+        info.conditionalSkip = true;
+        break;
+
+    case Pass1Prelude::Org:
+        hr = HandleOrgDirective (current, info);
+        info.isDirective = true;
+        break;
+
+    case Pass1Prelude::SegmentSwitch:
+        hr = HandleSegmentSwitch (info, outClaimed);
+        break;
+
+    case Pass1Prelude::None:
+        break;
+    }
+
+    CHR (hr);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AssemblySession::RunContentStages
+//
+//  Phase 3. The line's payload, at the settled PC.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT AssemblySession::RunContentStages (const PendingLine & current, LineInfo & info)
+{
+    HRESULT  hr      = S_OK;
+    bool     claimed = false;
+
+
+
+    switch (ClassifyContent (info))
+    {
+    case Pass1Content::ConstantDefinition:
+        hr = HandleConstantDefinition (current, info);
+        break;
+
+    case Pass1Content::Directive:
+        hr = HandlePass1Directives (current, info, claimed);
+        break;
+
+    case Pass1Content::Empty:
+        break;
+
+    case Pass1Content::Instruction:
+        hr = ResolveInstructionLine (current, info);
+        break;
+    }
+
+    CHR (hr);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AssemblySession::RunPass1Stages
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT AssemblySession::RunPass1Stages (const PendingLine & current, LineInfo & info)
+{
+    HRESULT  hr      = S_OK;
+    bool     claimed = false;
+
+
+
+    hr = RunCollectingState (current, info, claimed);
+    CHR (hr);
+    BAIL_OUT_IF (claimed, S_OK);
+
+    hr = RunPreludeDirectives (current, info, claimed);
+    CHR (hr);
+    BAIL_OUT_IF (claimed, S_OK);
+
+    // The PC has stopped moving, so a label on this line binds here.
+    hr = RecordLabel (current, info);
+    CHR (hr);
+
+    hr = RunContentStages (current, info);
+    CHR (hr);
+
+Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AssemblySession::ResolveInstructionLine
+//
+//  The tail no classifier can decide. Each of these three can only tell
+//  whether it owns the line by starting work on it -- a multi-NOP has to
+//  evaluate its operand and declines when the count is not positive, a macro
+//  call has to be found in the table, and a colon-less label is whatever is
+//  left once every real mnemonic form has had its turn. The order is the
+//  precedence.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT AssemblySession::ResolveInstructionLine (const PendingLine & current, LineInfo & info)
+{
+    HRESULT  hr      = S_OK;
+    bool     claimed = false;
+
+
+
+    hr = HandleMultiNop (current, info, claimed);
+    CHR (hr);
+    BAIL_OUT_IF (claimed, S_OK);
+
+    hr = ExpandMacro (current, info, claimed);
+    CHR (hr);
+    BAIL_OUT_IF (claimed, S_OK);
+
+    hr = HandleColonlessLabel (current, info, claimed);
+    CHR (hr);
+    BAIL_OUT_IF (claimed, S_OK);
+
+    hr = ClassifyAndResolve (current, info);
+    CHR (hr);
+
+Error:
+    return hr;
+}
+
+
+
+
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  AssemblySession::HandleStructCollection
+//
+//  One line of a .STRUCT body. .ENDSTRUCT closes the definition and publishes
+//  the struct's total size as an EQU symbol under its own name; anything else
+//  non-blank is a member declaration.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT AssemblySession::HandleStructCollection (const PendingLine & current, LineInfo & info)
 {
-    HRESULT hr = S_OK;
+    HRESULT  hr          = S_OK;
+    bool     isEndStruct = false;
+    int32_t  structSize  = 0;
 
-    bool isEndStruct = false;
 
 
-
-    CHR (CheckEndStruct (current, info, isEndStruct));
+    hr = CheckEndStruct (current, info, isEndStruct);
+    CHR (hr);
 
     if (isEndStruct)
     {
-        int32_t structSize = m_currentStruct.currentOffset - m_currentStruct.startOffset;
+        structSize = m_currentStruct.currentOffset - m_currentStruct.startOffset;
+
         m_symbols[m_currentStruct.name]     = (Word) structSize;
         m_symbolKinds[m_currentStruct.name] = SymbolKind::Equ;
         m_exprSymbols[m_currentStruct.name] = structSize;
         m_structs[m_currentStruct.name]     = m_currentStruct;
-        m_collectingStruct = false;
+
+        m_pass1State = Pass1State::Normal;
     }
     else if (!info.parsed.isEmpty)
     {
-        CHR (ParseStructMember (current, info));
+        hr = ParseStructMember (current, info);
+        CHR (hr);
     }
 
 Error:
@@ -1092,55 +1463,160 @@ Error:
 
 HRESULT AssemblySession::CheckEndStruct (const PendingLine & current, LineInfo & info, bool & isEnd)
 {
-    HRESULT hr = S_OK;
+    HRESULT      hr       = S_OK;
+    std::string  endsWhat;
 
-    std::string mnUpper = info.parsed.mnemonic;
+
 
     isEnd = false;
 
 
 
+    // `.END STRUCT` reaches this as a directive with an argument; bare
+    // `end struct` reaches it as a mnemonic with an operand. Both name what
+    // they close in the first word of what follows.
     if (info.parsed.isDirective && info.parsed.directive == ".END")
     {
-        std::string endArgUpper = info.parsed.directiveArg;
-
-        for (auto & c : endArgUpper)
-        {
-            c = (char) toupper ((unsigned char) c);
-        }
-
-        size_t sp = endArgUpper.find_first_not_of (" \t");
-
-        if (sp != std::string::npos)
-        {
-            endArgUpper = endArgUpper.substr (sp);
-        }
-
-        size_t ep = endArgUpper.find_first_of (" \t");
-        std::string firstWord = (ep == std::string::npos) ? endArgUpper : endArgUpper.substr (0, ep);
-
-        if (firstWord == "STRUCT")
-        {
-            isEnd = true;
-        }
+        endsWhat = info.parsed.directiveArg;
     }
-    else if (mnUpper == "END" && !info.parsed.operand.empty ())
+    else if (info.parsed.mnemonic == "END")
     {
-        std::string opUpper = info.parsed.operand;
+        endsWhat = info.parsed.operand;
+    }
 
-        for (auto & c : opUpper)
+    isEnd = (GetLeadingWord (ToUpperCase (endsWhat)) == "STRUCT");
+
+// Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AssemblySession::GetStructMemberTypes
+//
+//  The storage directives a struct member may be declared with, and how wide
+//  one element of each is. Only the *widths* live here -- the spellings do not,
+//  because DirectiveTable already owns those. Before this was a token table it
+//  was an if/else chain naming DS/DSB/RMB/DB/BYT/BYTE/FCB/DW/WORD/FCW/FDB/DD, a
+//  second copy of the vocabulary that a dialect adding a synonym would not have
+//  reached; struct members would silently have stopped recognizing it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::span<const AssemblySession::StructMemberType> AssemblySession::GetStructMemberTypes()
+{
+    static constexpr StructMemberType  s_kTypes[] =
+    {
+        { Directive::Ds,   kSizeFromOperand },
+        { Directive::Byte, 1                },
+        { Directive::Word, 2                },
+        { Directive::Dd,   4                },
+    };
+
+    return std::span<const StructMemberType> (s_kTypes, std::size (s_kTypes));
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AssemblySession::GetStructMemberSize
+//
+//  Splits a member declaration's operand -- `<directive> [count]` -- and
+//  returns the number of bytes it reserves, or 0 when the leading word is not a
+//  storage directive at all.
+//
+//  FromStorageSpelling rather than FromSpelling: inside a .STRUCT body there is
+//  no instruction to be ambiguous with, so `count rmb 4` is unambiguously four
+//  reserved bytes.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT AssemblySession::GetStructMemberSize (const std::string & operand, int32_t & outSize)
+{
+    HRESULT                   hr        = S_OK;
+    size_t                    split     = operand.find_first_of (" \t");
+    Directive                 token     = DirectiveTable::FromStorageSpelling (ToUpperCase (operand.substr (0, split)));
+    std::string               countExpr = (split == std::string::npos) ? "" : operand.substr (split);
+    size_t                    exprStart = countExpr.find_first_not_of (" \t");
+    const StructMemberType *  match     = nullptr;
+
+
+
+    outSize   = 0;
+    countExpr = (exprStart == std::string::npos) ? countExpr : countExpr.substr (exprStart);
+
+
+
+    for (const StructMemberType & type : GetStructMemberTypes())
+    {
+        if (type.token == token)
         {
-            c = (char) toupper ((unsigned char) c);
-        }
-
-        size_t sp = opUpper.find_first_of (" \t");
-        std::string first = (sp == std::string::npos) ? opUpper : opUpper.substr (0, sp);
-
-        if (first == "STRUCT")
-        {
-            isEnd = true;
+            match = &type;
+            break;
         }
     }
+
+    // No match leaves outSize at 0, and the caller drops the line.
+    if (match != nullptr)
+    {
+        if (match->elementSize == kSizeFromOperand)
+        {
+            // `.DS <count>` -- the operand carries the width. An expression that
+            // does not evaluate falls back to one byte rather than dropping the
+            // member, so offsets after it stay plausible for the rest of pass 1.
+            m_pass1Ctx.currentPC = (int32_t) m_pc;
+
+            ExprResult  er = ExpressionEvaluator::Evaluate (countExpr, m_pass1Ctx);
+
+            outSize = er.success ? er.value : 1;
+        }
+        else
+        {
+            outSize = match->elementSize;
+        }
+    }
+
+// Error:
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AssemblySession::RecordStructMember
+//
+//  Publishes one member as `<Struct>.<member>` and advances the running offset.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT AssemblySession::RecordStructMember (const std::string & name, int32_t size)
+{
+    HRESULT       hr      = S_OK;
+    StructMember  member  = {};
+    std::string   symName = m_currentStruct.name + "." + name;
+
+
+
+    member.name   = name;
+    member.offset = m_currentStruct.currentOffset;
+    member.size   = size;
+    m_currentStruct.members.push_back (member);
+
+    m_symbols[symName]     = (Word) m_currentStruct.currentOffset;
+    m_symbolKinds[symName] = SymbolKind::Equ;
+    m_exprSymbols[symName] = m_currentStruct.currentOffset;
+
+    m_currentStruct.currentOffset += size;
 
 // Error:
     return hr;
@@ -1154,103 +1630,33 @@ HRESULT AssemblySession::CheckEndStruct (const PendingLine & current, LineInfo &
 //
 //  AssemblySession::ParseStructMember
 //
+//  One `<name> <directive> [count]` line inside a .STRUCT body. The name comes
+//  from the raw text rather than the parsed mnemonic so it keeps its original
+//  case; the parser has already upper-cased its copy.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT AssemblySession::ParseStructMember (const PendingLine & current, LineInfo & info)
 {
-    HRESULT hr = S_OK;
-
-    std::string mnUpper    = info.parsed.mnemonic;
-    std::string memberName;
-    int32_t     memberSize = 0;
+    HRESULT      hr         = S_OK;
+    std::string  memberName = GetLeadingWord (current.text);
+    int32_t      memberSize = 0;
 
 
 
-    if (!mnUpper.empty () && !info.parsed.operand.empty ())
-    {
-        std::string opStr   = info.parsed.operand;
-        std::string opUpper = opStr;
+    BAIL_OUT_IF (info.parsed.mnemonic.empty() || info.parsed.operand.empty(), S_OK);
 
-        for (auto & c : opUpper)
-        {
-            c = (char) toupper ((unsigned char) c);
-        }
+    hr = GetStructMemberSize (info.parsed.operand, memberSize);
+    CHR (hr);
 
-        size_t sp = opUpper.find_first_of (" \t");
-        std::string directive = (sp == std::string::npos) ? opUpper : opUpper.substr (0, sp);
-        std::string sizeExpr;
+    BAIL_OUT_IF (memberName.empty() || memberSize <= 0, S_OK);
 
-        if (sp != std::string::npos)
-        {
-            sizeExpr = opStr.substr (sp);
-            size_t ss = sizeExpr.find_first_not_of (" \t");
+    hr = RecordStructMember (memberName, memberSize);
+    CHR (hr);
 
-            if (ss != std::string::npos)
-            {
-                sizeExpr = sizeExpr.substr (ss);
-            }
-        }
-
-        // Recover original-case member name from raw text
-        std::string rawTrimmed = current.text;
-        size_t rs = rawTrimmed.find_first_not_of (" \t");
-
-        if (rs != std::string::npos)
-        {
-            rawTrimmed = rawTrimmed.substr (rs);
-        }
-
-        size_t re = rawTrimmed.find_first_of (" \t");
-
-        if (re != std::string::npos)
-        {
-            memberName = rawTrimmed.substr (0, re);
-        }
-        else
-        {
-            memberName = rawTrimmed;
-        }
-
-        if (directive == "DS" || directive == "DSB" || directive == "RMB")
-        {
-            m_pass1Ctx.currentPC = (int32_t) m_pc;
-            ExprResult er = ExpressionEvaluator::Evaluate (sizeExpr, m_pass1Ctx);
-            memberSize = er.success ? er.value : 1;
-        }
-        else if (directive == "DB" || directive == "BYT" || directive == "BYTE" || directive == "FCB")
-        {
-            memberSize = 1;
-        }
-        else if (directive == "DW" || directive == "WORD" || directive == "FCW" || directive == "FDB")
-        {
-            memberSize = 2;
-        }
-        else if (directive == "DD")
-        {
-            memberSize = 4;
-        }
-    }
-
-    if (!memberName.empty () && memberSize > 0)
-    {
-        StructMember member = {};
-        member.name   = memberName;
-        member.offset = m_currentStruct.currentOffset;
-        member.size   = memberSize;
-        m_currentStruct.members.push_back (member);
-
-        std::string symName = m_currentStruct.name + "." + memberName;
-        m_symbols[symName]     = (Word) m_currentStruct.currentOffset;
-        m_symbolKinds[symName] = SymbolKind::Equ;
-        m_exprSymbols[symName] = m_currentStruct.currentOffset;
-
-        m_currentStruct.currentOffset += memberSize;
-    }
-
-// Error:
+Error:
     return hr;
 }
-
 
 
 
@@ -1266,6 +1672,8 @@ HRESULT AssemblySession::CollectMacroBody (const PendingLine & current, LineInfo
 {
     HRESULT hr = S_OK;
 
+
+
     std::string mnUpper = info.parsed.mnemonic;
 
 
@@ -1279,7 +1687,7 @@ HRESULT AssemblySession::CollectMacroBody (const PendingLine & current, LineInfo
         def.localLabels = m_currentMacroLocals;
         def.lineNumber = m_currentMacroLine;
         m_macros[m_currentMacroName] = def;
-        m_collectingMacro = false;
+        m_pass1State = Pass1State::Normal;
     }
     else
     {
@@ -1301,7 +1709,7 @@ HRESULT AssemblySession::CollectMacroBody (const PendingLine & current, LineInfo
                     name = name.substr (ns, ne - ns + 1);
                 }
 
-                if (!name.empty ())
+                if (!name.empty())
                 {
                     m_currentMacroLocals.push_back (name);
                 }
@@ -1314,7 +1722,6 @@ HRESULT AssemblySession::CollectMacroBody (const PendingLine & current, LineInfo
 // Error:
     return hr;
 }
-
 
 
 
@@ -1335,17 +1742,10 @@ HRESULT AssemblySession::DetectMacroDefinition (const PendingLine & current, Lin
 
 
 
-    if (info.parsed.mnemonic.empty () || info.parsed.isEmpty || !IsAssembling ())
-    {
-        goto Error;
-    }
-
-    // "NAME macro [params]" -- operand starts with "macro"
-    if (operandUpper.substr (0, 5) != "MACRO" ||
-        (operandUpper.size () > 5 && operandUpper[5] != ' ' && operandUpper[5] != '\t'))
-    {
-        goto Error;
-    }
+    // Same predicate ClassifyPass1Line used to route here, so the two cannot
+    // disagree about what opens a definition.
+    BAIL_OUT_IF (!IsAssembling(), S_OK);
+    BAIL_OUT_IF (!IsMacroDefinitionStart (info.parsed, operandUpper), S_OK);
 
     // Name collision check
     if (m_opcodeTable.IsMnemonic (info.parsed.mnemonic))
@@ -1353,19 +1753,19 @@ HRESULT AssemblySession::DetectMacroDefinition (const PendingLine & current, Lin
         RecordError (current.sourceLineNumber, "Macro name conflicts with mnemonic: " + info.parsed.mnemonic);
     }
 
-    m_collectingMacro  = true;
+    m_pass1State = Pass1State::CollectingMacro;
     m_currentMacroName = info.parsed.mnemonic;
     m_currentMacroLine = current.sourceLineNumber;
-    m_currentMacroBody.clear ();
-    m_currentMacroParams.clear ();
-    m_currentMacroLocals.clear ();
+    m_currentMacroBody.clear();
+    m_currentMacroParams.clear();
+    m_currentMacroLocals.clear();
 
     // Parse parameter names (after "macro" keyword)
-    if (operandUpper.size () > 5)
+    if (operandUpper.size() > 5)
     {
         std::string paramStr = info.parsed.operand.substr (6);
 
-        if (!paramStr.empty ())
+        if (!paramStr.empty())
         {
             auto paramNames = Parser::SplitArgList (paramStr);
 
@@ -1380,7 +1780,7 @@ HRESULT AssemblySession::DetectMacroDefinition (const PendingLine & current, Lin
                     name = name.substr (ns, ne - ns + 1);
                 }
 
-                if (!name.empty ())
+                if (!name.empty())
                 {
                     m_currentMacroParams.push_back (name);
                 }
@@ -1397,6 +1797,7 @@ Error:
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  AssemblySession::HandleConditionalDirective
@@ -1406,54 +1807,49 @@ Error:
 HRESULT AssemblySession::HandleConditionalDirective (const PendingLine & current, LineInfo & info,
                                                       bool & handled)
 {
-    HRESULT hr = S_OK;
-
-    std::string condDirective;
-    std::string condArg;
+    HRESULT      hr      = S_OK;
+    Directive    token   = Directive::None;
+    std::string  condArg;
 
     handled = false;
 
 
 
+    // The dotted form carries its token from the parser; the bare mnemonic
+    // form does not take the directive path, so it resolves here. Either way
+    // the argument comes from wherever that spelling puts it.
     if (info.parsed.isDirective)
     {
-        const std::string & dir = info.parsed.directive;
-
-        if (dir == ".IF")          { condDirective = "IF";     condArg = info.parsed.directiveArg; }
-        else if (dir == ".IFDEF")  { condDirective = "IFDEF";  condArg = info.parsed.directiveArg; }
-        else if (dir == ".IFNDEF") { condDirective = "IFNDEF"; condArg = info.parsed.directiveArg; }
-        else if (dir == ".ELSE")   { condDirective = "ELSE"; }
-        else if (dir == ".ENDIF")  { condDirective = "ENDIF"; }
+        token   = info.parsed.directiveToken;
+        condArg = info.parsed.directiveArg;
     }
-    else if (!info.parsed.mnemonic.empty ())
+    else if (!info.parsed.mnemonic.empty())
     {
-        if (info.parsed.mnemonic == "IF")          { condDirective = "IF";     condArg = info.parsed.operand; }
-        else if (info.parsed.mnemonic == "IFDEF")  { condDirective = "IFDEF";  condArg = info.parsed.operand; }
-        else if (info.parsed.mnemonic == "IFNDEF") { condDirective = "IFNDEF"; condArg = info.parsed.operand; }
-        else if (info.parsed.mnemonic == "ELSE")   { condDirective = "ELSE"; }
-        else if (info.parsed.mnemonic == "ENDIF")  { condDirective = "ENDIF"; }
+        token   = DirectiveTable::FromSpelling (info.parsed.mnemonic);
+        condArg = info.parsed.operand;
     }
 
-    if (condDirective.empty ())
-    {
-        goto Error;
-    }
+    BAIL_OUT_IF (!IsConditionalDirective (token), S_OK);
 
-    if (condDirective == "IF")
+    if (token == Directive::If)
     {
-        CHR (HandleIfDirective (current, condArg));
+        hr = HandleIfDirective (current, condArg);
+        CHR (hr);
     }
-    else if (condDirective == "IFDEF" || condDirective == "IFNDEF")
+    else if (token == Directive::Ifdef || token == Directive::Ifndef)
     {
-        CHR (HandleIfdefDirective (current, condDirective, condArg));
+        hr = HandleIfdefDirective (current, token, condArg);
+        CHR (hr);
     }
-    else if (condDirective == "ELSE")
+    else if (token == Directive::Else)
     {
-        CHR (HandleElseDirective (current));
+        hr = HandleElseDirective (current);
+        CHR (hr);
     }
-    else if (condDirective == "ENDIF")
+    else if (token == Directive::Endif)
     {
-        CHR (HandleEndifDirective (current));
+        hr = HandleEndifDirective (current);
+        CHR (hr);
     }
 
     info.isDirective = true;
@@ -1477,11 +1873,13 @@ HRESULT AssemblySession::HandleIfDirective (const PendingLine & current, const s
 {
     HRESULT hr = S_OK;
 
+
+
     ConditionalState state = {};
 
 
 
-    state.parentAssembling = IsAssembling ();
+    state.parentAssembling = IsAssembling();
     state.seenElse = false;
 
     if (state.parentAssembling)
@@ -1521,7 +1919,7 @@ HRESULT AssemblySession::HandleIfDirective (const PendingLine & current, const s
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT AssemblySession::HandleIfdefDirective (const PendingLine & current,
-                                                const std::string & condDirective,
+                                                Directive           token,
                                                 const std::string & condArg)
 {
     HRESULT hr = S_OK;
@@ -1530,7 +1928,7 @@ HRESULT AssemblySession::HandleIfdefDirective (const PendingLine & current,
 
 
 
-    state.parentAssembling = IsAssembling ();
+    state.parentAssembling = IsAssembling();
     state.seenElse = false;
 
     if (state.parentAssembling)
@@ -1544,8 +1942,8 @@ HRESULT AssemblySession::HandleIfdefDirective (const PendingLine & current,
             symName = symName.substr (s, e - s + 1);
         }
 
-        bool defined = (m_exprSymbols.find (symName) != m_exprSymbols.end ());
-        state.assembling = (condDirective == "IFDEF") ? defined : !defined;
+        bool defined = (m_exprSymbols.find (symName) != m_exprSymbols.end());
+        state.assembling = (token == Directive::Ifdef) ? defined : !defined;
     }
     else
     {
@@ -1574,21 +1972,21 @@ HRESULT AssemblySession::HandleElseDirective (const PendingLine & current)
 
 
 
-    if (m_condStack.empty ())
+    if (m_condStack.empty())
     {
         RecordError (current.sourceLineNumber, "else without matching if");
     }
-    else if (m_condStack.back ().seenElse)
+    else if (m_condStack.back().seenElse)
     {
         RecordError (current.sourceLineNumber, "Duplicate else");
     }
     else
     {
-        m_condStack.back ().seenElse = true;
+        m_condStack.back().seenElse = true;
 
-        if (m_condStack.back ().parentAssembling)
+        if (m_condStack.back().parentAssembling)
         {
-            m_condStack.back ().assembling = !m_condStack.back ().assembling;
+            m_condStack.back().assembling = !m_condStack.back().assembling;
         }
     }
 
@@ -1612,19 +2010,18 @@ HRESULT AssemblySession::HandleEndifDirective (const PendingLine & current)
 
 
 
-    if (m_condStack.empty ())
+    if (m_condStack.empty())
     {
         RecordError (current.sourceLineNumber, "endif without matching if");
     }
     else
     {
-        m_condStack.pop_back ();
+        m_condStack.pop_back();
     }
 
 // Error:
     return hr;
 }
-
 
 
 
@@ -1676,7 +2073,6 @@ HRESULT AssemblySession::HandleOrgDirective (const PendingLine & current, LineIn
 
 
 
-
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  AssemblySession::HandleSegmentSwitch
@@ -1685,29 +2081,26 @@ HRESULT AssemblySession::HandleOrgDirective (const PendingLine & current, LineIn
 
 HRESULT AssemblySession::HandleSegmentSwitch (LineInfo & info, bool & handled)
 {
-    HRESULT hr = S_OK;
+    HRESULT    hr    = S_OK;
+    Directive  token = info.parsed.directiveToken;
+
+
 
     handled = false;
 
-    const std::string & dir = info.parsed.directive;
-
-
-
-    if (dir != ".SEGMENT_CODE" && dir != ".SEGMENT_DATA" && dir != ".SEGMENT_BSS" &&
-        dir != ".CODE"         && dir != ".DATA"         && dir != ".BSS")
-    {
-        goto Error;
-    }
+    BAIL_OUT_IF (!IsSegmentDirective (token), S_OK);
 
     // Save current PC to current segment
     m_segmentPC[(int) m_currentSegment] = m_pc;
 
-    // Switch segment
-    if (dir == ".SEGMENT_CODE" || dir == ".CODE")
+    // The long and short spellings share a token, so each segment is one
+    // comparison rather than two -- and .CODE can no longer drift from
+    // .SEGMENT_CODE by being added to one list and not the other.
+    if (token == Directive::SegmentCode)
     {
         m_currentSegment = Segment::Code;
     }
-    else if (dir == ".SEGMENT_DATA" || dir == ".DATA")
+    else if (token == Directive::SegmentData)
     {
         m_currentSegment = Segment::Data;
     }
@@ -1731,7 +2124,6 @@ Error:
 
 
 
-
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  AssemblySession::RecordLabel
@@ -1744,10 +2136,8 @@ HRESULT AssemblySession::RecordLabel (const PendingLine & current, LineInfo & in
 
 
 
-    if (info.parsed.label.empty ())
-    {
-        goto Error;
-    }
+    // Most lines carry no label; that is not a failure, just nothing to record.
+    BAIL_OUT_IF (info.parsed.label.empty(), S_OK);
 
     {
         std::string labelError;
@@ -1767,12 +2157,7 @@ HRESULT AssemblySession::RecordLabel (const PendingLine & current, LineInfo & in
             m_exprSymbols[info.parsed.label] = (int32_t) m_pc;
 
             // Warn if label resembles mnemonic by case
-            std::string upper = info.parsed.label;
-
-            for (auto & c : upper)
-            {
-                c = (char) toupper ((unsigned char) c);
-            }
+            std::string  upper = ToUpperCase (info.parsed.label);
 
             if (upper != info.parsed.label && m_opcodeTable.IsMnemonic (upper))
             {
@@ -1784,6 +2169,7 @@ HRESULT AssemblySession::RecordLabel (const PendingLine & current, LineInfo & in
 Error:
     return hr;
 }
+
 
 
 
@@ -1805,11 +2191,13 @@ HRESULT AssemblySession::HandleConstantDefinition (const PendingLine & current, 
 
     if (info.parsed.constantKind == SymbolKind::Set)
     {
-        CHR (HandleSetConstant (current, info));
+        hr = HandleSetConstant (current, info);
+        CHR (hr);
     }
     else
     {
-        CHR (HandleEquConstant (current, info));
+        hr = HandleEquConstant (current, info);
+        CHR (hr);
     }
 
 Error:
@@ -1843,7 +2231,7 @@ HRESULT AssemblySession::HandleSetConstant (const PendingLine & current, LineInf
         {
             auto kindIt = m_symbolKinds.find (info.parsed.constantName);
 
-            if (kindIt != m_symbolKinds.end () && kindIt->second != SymbolKind::Set)
+            if (kindIt != m_symbolKinds.end() && kindIt->second != SymbolKind::Set)
             {
                 RecordError (current.sourceLineNumber,
                     "Cannot redefine " + info.parsed.constantName + " (was defined as immutable)");
@@ -1880,7 +2268,7 @@ HRESULT AssemblySession::HandleEquConstant (const PendingLine & current, LineInf
     {
         auto kindIt = m_symbolKinds.find (info.parsed.constantName);
 
-        if (kindIt != m_symbolKinds.end ())
+        if (kindIt != m_symbolKinds.end())
         {
             if (kindIt->second == SymbolKind::Equ)
             {
@@ -1899,9 +2287,9 @@ HRESULT AssemblySession::HandleEquConstant (const PendingLine & current, LineInf
 
             const std::string & expr = info.parsed.constantExpr;
 
-            if (expr.size () >= 2 && expr.front () == '"' && expr.back () == '"')
+            if (expr.size() >= 2 && expr.front() == '"' && expr.back() == '"')
             {
-                int32_t len = (int32_t) (expr.size () - 2);
+                int32_t len = (int32_t) (expr.size() - 2);
                 m_symbols[info.parsed.constantName]     = (Word) len;
                 m_exprSymbols[info.parsed.constantName] = len;
             }
@@ -1926,6 +2314,351 @@ HRESULT AssemblySession::HandleEquConstant (const PendingLine & current, LineInf
 
 
 
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AssemblySession::HandlePass1Word
+//
+//  Two bytes per argument. Pass 2 evaluates them; pass 1 only needs the size.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT AssemblySession::HandlePass1Word (const PendingLine & /*current*/, LineInfo & info)
+{
+    std::vector<std::string>  args = Parser::SplitArgList (info.parsed.directiveArg);
+
+
+
+    m_pc += (Word) (args.size() * 2);
+
+    return S_OK;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AssemblySession::HandlePass1Text
+//
+//  One byte per character of the quoted string, before character mapping --
+//  .CMAP substitutes bytes one-for-one, so the length is the same either way.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT AssemblySession::HandlePass1Text (const PendingLine & /*current*/, LineInfo & info)
+{
+    std::string  text = Parser::ParseQuotedString (info.parsed.directiveArg);
+
+
+
+    m_pc += (Word) text.size();
+
+    return S_OK;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AssemblySession::HandlePass1Dd
+//
+//  Four bytes per argument.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT AssemblySession::HandlePass1Dd (const PendingLine & /*current*/, LineInfo & info)
+{
+    std::vector<std::string>  args = Parser::SplitArgList (info.parsed.directiveArg);
+
+
+
+    m_pc += (Word) (args.size() * 4);
+
+    return S_OK;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AssemblySession::HandlePass1Ds
+//
+//  Reserves storage. The size must resolve in pass 1 because every later
+//  address depends on it, so an unresolvable expression is an error here
+//  rather than something pass 2 could still fix up.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT AssemblySession::HandlePass1Ds (const PendingLine & current, LineInfo & info)
+{
+    std::vector<std::string>  args;
+    ExprResult                er;
+
+
+
+    m_pass1Ctx.currentPC = (int32_t) m_pc;
+    args                 = Parser::SplitArgList (info.parsed.directiveArg);
+
+    if (!args.empty())
+    {
+        er = ExpressionEvaluator::Evaluate (args[0], m_pass1Ctx);
+
+        if (!er.success)
+        {
+            RecordError (current.sourceLineNumber, ".ds size must be resolvable: " + er.error);
+        }
+        else
+        {
+            m_pc += (Word) er.value;
+        }
+    }
+
+    return S_OK;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AssemblySession::HandlePass1Align
+//
+//  Advances the PC to the next multiple of the alignment, defaulting to 2.
+//  Like .DS this has to resolve in pass 1, for the same reason.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT AssemblySession::HandlePass1Align (const PendingLine & current, LineInfo & info)
+{
+    int         alignment = 2;
+    int         overshoot = 0;
+    ExprResult  er;
+
+
+
+    m_pass1Ctx.currentPC = (int32_t) m_pc;
+
+    if (!info.parsed.directiveArg.empty())
+    {
+        er = ExpressionEvaluator::Evaluate (info.parsed.directiveArg, m_pass1Ctx);
+
+        if (!er.success)
+        {
+            RecordError (current.sourceLineNumber, ".align expression must be resolvable: " + er.error);
+        }
+        else
+        {
+            alignment = er.value;
+        }
+    }
+
+    if (alignment > 0)
+    {
+        overshoot = m_pc % alignment;
+
+        if (overshoot != 0)
+        {
+            m_pc += (Word) (alignment - overshoot);
+        }
+    }
+
+    return S_OK;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AssemblySession::HandlePass1End
+//
+//  Stops assembly at this line; the rest of the source is not processed.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT AssemblySession::HandlePass1End (const PendingLine & /*current*/, LineInfo & /*info*/)
+{
+    m_endAssembly = true;
+
+    return S_OK;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AssemblySession::HandlePass1Error
+//
+//  Records a user-authored diagnostic. An unquoted argument is taken
+//  verbatim, so `.error out of space` reads naturally.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT AssemblySession::HandlePass1Error (const PendingLine & current, LineInfo & info)
+{
+    std::string  msg = Parser::ParseQuotedString (info.parsed.directiveArg);
+
+
+
+    if (msg.empty() && !info.parsed.directiveArg.empty())
+    {
+        msg = info.parsed.directiveArg;
+    }
+
+    RecordError (current.sourceLineNumber, msg.empty() ? "User error directive" : msg);
+
+    return S_OK;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AssemblySession::HandlePass1List
+//
+//  Listing output nests, so this is a depth counter rather than a flag.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT AssemblySession::HandlePass1List (const PendingLine & /*current*/, LineInfo & /*info*/)
+{
+    m_listingLevel++;
+
+    return S_OK;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AssemblySession::HandlePass1Nolist
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT AssemblySession::HandlePass1Nolist (const PendingLine & /*current*/, LineInfo & /*info*/)
+{
+    m_listingLevel--;
+
+    return S_OK;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AssemblySession::HandlePass1Title
+//
+//  Sets the listing title. Unquoted arguments are taken verbatim, as .ERROR.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT AssemblySession::HandlePass1Title (const PendingLine & /*current*/, LineInfo & info)
+{
+    m_result.listingTitle = Parser::ParseQuotedString (info.parsed.directiveArg);
+
+    if (m_result.listingTitle.empty() && !info.parsed.directiveArg.empty())
+    {
+        m_result.listingTitle = info.parsed.directiveArg;
+    }
+
+    return S_OK;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AssemblySession::IgnorePass1Directive
+//
+//  Recognized and deliberately does nothing: .OPT_NOOP is accepted only for
+//  as65 source compatibility, and .PAGE acts at listing time. They still need
+//  a non-null row so the dispatch reports them as handled rather than as an
+//  unknown directive.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT AssemblySession::IgnorePass1Directive (const PendingLine & /*current*/, LineInfo & /*info*/)
+{
+    return S_OK;
+}
+
+
+
+
+
+//  claimed by an earlier phase (.ORG, the segments, the conditionals) or it
+//  has nothing to do until pass 2 (.MULTINOP).
+//
+//  Each row carries its own token purely so the static_assert below can prove
+//  the array is still in enum order. Add a Directive without adding its row
+//  and the build fails, which is the property the old if/else chain could not
+//  offer -- a new directive could be wired into one dispatch site and silently
+//  missed by the others.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+const AssemblySession::DirectiveRow * AssemblySession::GetDirectiveRows()
+{
+    static constexpr DirectiveRow  s_kRows[] =
+{
+    { Directive::None,        nullptr,                                      nullptr                                  },
+    { Directive::Align,       &AssemblySession::HandlePass1Align,                 &AssemblySession::EmitAlignDirective     },
+    { Directive::Byte,        &AssemblySession::HandlePass1DataDirectives,  &AssemblySession::EmitByteDirective      },
+    { Directive::Cmap,        &AssemblySession::HandleCmapDirective,        nullptr                                  },
+    { Directive::Dd,          &AssemblySession::HandlePass1Dd,                    &AssemblySession::EmitDdDirective        },
+    { Directive::Ds,          &AssemblySession::HandlePass1Ds,                    &AssemblySession::EmitDsDirective        },
+    { Directive::Else,        nullptr,                                      nullptr                                  },
+    { Directive::End,         &AssemblySession::HandlePass1End,                   nullptr                                  },
+    { Directive::Endif,       nullptr,                                      nullptr                                  },
+    { Directive::Error,       &AssemblySession::HandlePass1Error,                 nullptr                                  },
+    { Directive::If,          nullptr,                                      nullptr                                  },
+    { Directive::Ifdef,       nullptr,                                      nullptr                                  },
+    { Directive::Ifndef,      nullptr,                                      nullptr                                  },
+    { Directive::Include,     &AssemblySession::HandleIncludeDirective,     nullptr                                  },
+    { Directive::List,        &AssemblySession::HandlePass1List,                  nullptr                                  },
+    { Directive::MultiNop,    nullptr,                                      &AssemblySession::EmitMultiNopDirective  },
+    { Directive::Nolist,      &AssemblySession::HandlePass1Nolist,                nullptr                                  },
+    { Directive::OptNoop,     &AssemblySession::IgnorePass1Directive,               nullptr                                  },
+    { Directive::Org,         nullptr,                                      nullptr                                  },
+    { Directive::Page,        &AssemblySession::IgnorePass1Directive,               nullptr                                  },
+    { Directive::SegmentBss,  nullptr,                                      nullptr                                  },
+    { Directive::SegmentCode, nullptr,                                      nullptr                                  },
+    { Directive::SegmentData, nullptr,                                      nullptr                                  },
+    { Directive::Struct,      &AssemblySession::StartStructDefinition,      nullptr                                  },
+    { Directive::Text,        &AssemblySession::HandlePass1Text,                  &AssemblySession::EmitTextDirective      },
+    { Directive::Title,       &AssemblySession::HandlePass1Title,                 nullptr                                  },
+    { Directive::Word,        &AssemblySession::HandlePass1Word,                  &AssemblySession::EmitWordDirective      },
+    };
+
+    // Adding a Directive without adding its row fails the build here. Row
+    // ORDER is checked at lookup instead -- a static_assert cannot see a
+    // function-local array, and every row is exercised by the assembler suite.
+    static_assert (std::size (s_kRows) == (size_t) Directive::Count,
+                   "s_kRows must have one row per Directive");
+
+    return s_kRows;
+}
+
+
+
+
 
 ////////////////////////////////////////////////////////////////////////////////
 //
@@ -1935,145 +2668,33 @@ HRESULT AssemblySession::HandleEquConstant (const PendingLine & current, LineInf
 
 HRESULT AssemblySession::HandlePass1Directives (const PendingLine & current, LineInfo & info, bool & handled)
 {
-    HRESULT hr = S_OK;
-
-    handled = true;
-    info.isDirective = true;
-
-    const std::string & dir = info.parsed.directive;
+    HRESULT           hr      = S_OK;
+    Directive         token   = info.parsed.directiveToken;
+    Pass1DirectiveFn  handler = nullptr;
 
 
 
-    if (dir == ".BYTE")
+    if (token > Directive::None && token < Directive::Count)
     {
-        CHR (HandlePass1DataDirectives (current, info));
-    }
-    else if (dir == ".WORD")
-    {
-        auto args = Parser::SplitArgList (info.parsed.directiveArg);
-        m_pc += (Word) (args.size () * 2);
-    }
-    else if (dir == ".TEXT")
-    {
-        std::string text = Parser::ParseQuotedString (info.parsed.directiveArg);
-        m_pc += (Word) text.size ();
-    }
-    else if (dir == ".DD")
-    {
-        auto args = Parser::SplitArgList (info.parsed.directiveArg);
-        m_pc += (Word) (args.size () * 4);
-    }
-    else if (dir == ".DS")
-    {
-        m_pass1Ctx.currentPC = (int32_t) m_pc;
-        auto args = Parser::SplitArgList (info.parsed.directiveArg);
+        const DirectiveRow &  row = GetDirectiveRows()[(size_t) token];
 
-        if (!args.empty ())
-        {
-            ExprResult er = ExpressionEvaluator::Evaluate (args[0], m_pass1Ctx);
+        ASSERT (row.token == token);   // the table drifted out of enum order
+        handler = row.pass1;
+    }
 
-            if (!er.success)
-            {
-                RecordError (current.sourceLineNumber, ".ds size must be resolvable: " + er.error);
-            }
-            else
-            {
-                m_pc += (Word) er.value;
-            }
-        }
-    }
-    else if (dir == ".ALIGN")
-    {
-        m_pass1Ctx.currentPC = (int32_t) m_pc;
-        int alignment = 2;
+    // A directive with no pass-1 row is not ours: an unknown dotted spelling,
+    // or one an earlier phase already claimed.
+    handled          = (handler != nullptr);
+    info.isDirective = handled;
 
-        if (!info.parsed.directiveArg.empty ())
-        {
-            ExprResult er = ExpressionEvaluator::Evaluate (info.parsed.directiveArg, m_pass1Ctx);
+    BAIL_OUT_IF (!handled, S_OK);
 
-            if (!er.success)
-            {
-                RecordError (current.sourceLineNumber, ".align expression must be resolvable: " + er.error);
-            }
-            else
-            {
-                alignment = er.value;
-            }
-        }
-
-        if (alignment > 0)
-        {
-            int remainder2 = m_pc % alignment;
-
-            if (remainder2 != 0)
-            {
-                m_pc += (Word) (alignment - remainder2);
-            }
-        }
-    }
-    else if (dir == ".END")
-    {
-        m_endAssembly = true;
-    }
-    else if (dir == ".ERROR")
-    {
-        std::string msg = Parser::ParseQuotedString (info.parsed.directiveArg);
-
-        if (msg.empty () && !info.parsed.directiveArg.empty ())
-        {
-            msg = info.parsed.directiveArg;
-        }
-
-        RecordError (current.sourceLineNumber, msg.empty () ? "User error directive" : msg);
-    }
-    else if (dir == ".OPT_NOOP")
-    {
-        // Recognized but intentionally no-op
-    }
-    else if (dir == ".LIST")
-    {
-        m_listingLevel++;
-    }
-    else if (dir == ".NOLIST")
-    {
-        m_listingLevel--;
-    }
-    else if (dir == ".PAGE")
-    {
-        // Page break -- handled at listing output time
-    }
-    else if (dir == ".TITLE")
-    {
-        m_result.listingTitle = Parser::ParseQuotedString (info.parsed.directiveArg);
-
-        if (m_result.listingTitle.empty () && !info.parsed.directiveArg.empty ())
-        {
-            m_result.listingTitle = info.parsed.directiveArg;
-        }
-    }
-    else if (dir == ".INCLUDE")
-    {
-        CHR (HandleIncludeDirective (current, info));
-    }
-    else if (dir == ".STRUCT")
-    {
-        CHR (StartStructDefinition (current, info));
-    }
-    else if (dir == ".CMAP")
-    {
-        CHR (HandleCmapDirective (info));
-    }
-    else
-    {
-        // Not a recognized directive that we handle here
-        info.isDirective = false;
-        handled = false;
-    }
+    hr = (this->*handler) (current, info);
+    CHR (hr);
 
 Error:
     return hr;
 }
-
 
 
 
@@ -2099,20 +2720,19 @@ HRESULT AssemblySession::HandlePass1DataDirectives (const PendingLine & current,
     EvaluateDirectiveArgs (info.parsed.directiveArg, m_pass1Ctx, values, current.sourceLineNumber, tempErrors);
 
     // If evaluation fails, try counting comma-separated items
-    if (values.empty () && !info.parsed.directiveArg.empty ())
+    if (values.empty() && !info.parsed.directiveArg.empty())
     {
         auto args = Parser::SplitArgList (info.parsed.directiveArg);
-        m_pc += (Word) args.size ();
+        m_pc += (Word) args.size();
     }
     else
     {
-        m_pc += (Word) values.size ();
+        m_pc += (Word) values.size();
     }
 
 // Error:
     return hr;
 }
-
 
 
 
@@ -2130,23 +2750,19 @@ HRESULT AssemblySession::HandleIncludeDirective (const PendingLine & current, Li
 
 
 
-    if (m_options.fileReader == nullptr)
-    {
-        RecordError (current.sourceLineNumber, "No file reader configured for include");
-        goto Error;
-    }
+    // A user-facing diagnostic, not an infrastructure failure: the error goes
+    // into the result and assembly carries on, so hr stays S_OK.
+    CBRFEx (m_options.fileReader != nullptr, S_OK,
+            RecordError (current.sourceLineNumber, "No file reader configured for include"));
 
-    if (current.includeDepth >= kMaxIncludeDepth)
-    {
-        RecordError (current.sourceLineNumber,
-            "Include nesting depth exceeded (max " + std::to_string (kMaxIncludeDepth) + ")");
-        goto Error;
-    }
+    CBRFEx (current.includeDepth < kMaxIncludeDepth, S_OK,
+            RecordError (current.sourceLineNumber,
+                "Include nesting depth exceeded (max " + std::to_string (kMaxIncludeDepth) + ")"));
 
     {
         std::string filename = Parser::ParseQuotedString (info.parsed.directiveArg);
 
-        if (filename.empty ())
+        if (filename.empty())
         {
             filename = info.parsed.directiveArg;
             size_t fs = filename.find_first_not_of (" \t");
@@ -2160,18 +2776,14 @@ HRESULT AssemblySession::HandleIncludeDirective (const PendingLine & current, Li
 
         FileReadResult fr = m_options.fileReader->ReadFile (filename, m_options.baseDir);
 
-        if (!fr.success)
-        {
-            RecordError (current.sourceLineNumber, fr.error);
-            goto Error;
-        }
+        CBRFEx (fr.success, S_OK, RecordError (current.sourceLineNumber, fr.error));
 
         std::string ext = GetLowerExtension (filename);
         std::vector<std::string> synthLines;
 
         if (ext == ".bin")
         {
-            std::vector<Byte> raw (fr.contents.begin (), fr.contents.end ());
+            std::vector<Byte> raw (fr.contents.begin(), fr.contents.end());
             synthLines = GenerateByteDirectives (raw);
         }
         else if (ext == ".s19" || ext == ".s28" || ext == ".s37")
@@ -2183,9 +2795,9 @@ HRESULT AssemblySession::HandleIncludeDirective (const PendingLine & current, Li
             synthLines = GenerateByteDirectives (ParseIntelHex (fr.contents));
         }
 
-        if (!synthLines.empty ())
+        if (!synthLines.empty())
         {
-            for (int il = (int) synthLines.size () - 1; il >= 0; il--)
+            for (int il = (int) synthLines.size() - 1; il >= 0; il--)
             {
                 PendingLine pl   = {};
                 pl.text          = synthLines[il];
@@ -2201,7 +2813,7 @@ HRESULT AssemblySession::HandleIncludeDirective (const PendingLine & current, Li
         {
             auto includeLines = Parser::SplitLines (fr.contents);
 
-            for (int il = (int) includeLines.size () - 1; il >= 0; il--)
+            for (int il = (int) includeLines.size() - 1; il >= 0; il--)
             {
                 PendingLine pl   = {};
                 pl.text          = includeLines[il];
@@ -2222,7 +2834,6 @@ Error:
 
 
 
-
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  AssemblySession::StartStructDefinition
@@ -2231,24 +2842,22 @@ Error:
 
 HRESULT AssemblySession::StartStructDefinition (const PendingLine & current, LineInfo & info)
 {
-    HRESULT hr = S_OK;
+    HRESULT hr      = S_OK;
+    bool    hasName = false;
 
 
 
     {
         auto args = Parser::SplitArgList (info.parsed.directiveArg);
 
-        if (args.empty ())
-        {
-            RecordError (current.sourceLineNumber, "struct requires a name");
-            goto Error;
-        }
+        hasName = !args.empty();
+        CBRFEx (hasName, S_OK, RecordError (current.sourceLineNumber, "struct requires a name"));
 
         m_currentStruct             = {};
         m_currentStruct.name        = args[0];
         m_currentStruct.startOffset = 0;
 
-        if (args.size () >= 2)
+        if (args.size() >= 2)
         {
             m_pass1Ctx.currentPC = (int32_t) m_pc;
             ExprResult er = ExpressionEvaluator::Evaluate (args[1], m_pass1Ctx);
@@ -2260,12 +2869,13 @@ HRESULT AssemblySession::StartStructDefinition (const PendingLine & current, Lin
         }
 
         m_currentStruct.currentOffset = m_currentStruct.startOffset;
-        m_collectingStruct = true;
+        m_pass1State = Pass1State::CollectingStruct;
     }
 
 Error:
     return hr;
 }
+
 
 
 
@@ -2276,9 +2886,11 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT AssemblySession::HandleCmapDirective (LineInfo & info)
+HRESULT AssemblySession::HandleCmapDirective (const PendingLine & /*current*/, LineInfo & info)
 {
     HRESULT hr = S_OK;
+
+
 
     std::string arg = info.parsed.directiveArg;
 
@@ -2307,9 +2919,10 @@ HRESULT AssemblySession::HandleCmapDirective (LineInfo & info)
             m_charMap.table[ci] = (Byte) ci;
         }
     }
-    else if (arg.size () >= 5 && arg[0] == '\'')
+    else if (arg.size() >= 5 && arg[0] == '\'')
     {
-        CHR (ParseCmapMapping (arg));
+        hr = ParseCmapMapping (arg);
+        CHR (hr);
     }
 
 Error:
@@ -2330,15 +2943,15 @@ HRESULT AssemblySession::ParseCmapMapping (const std::string & arg)
 {
     HRESULT hr = S_OK;
 
+
+
     size_t eqPos   = arg.find ('=');
     size_t dashPos = arg.find ('-', 1);
 
 
 
-    if (eqPos == std::string::npos)
-    {
-        goto Error;
-    }
+    // No '=' means this is not a constant definition after all.
+    BAIL_OUT_IF (eqPos == std::string::npos, S_OK);
 
     {
         std::string lhs = arg.substr (0, eqPos);
@@ -2366,7 +2979,7 @@ HRESULT AssemblySession::ParseCmapMapping (const std::string & arg)
         if (rhsVal.success)
         {
             if (dashPos != std::string::npos && dashPos < eqPos &&
-                lhs.size () >= 7 && lhs[0] == '\'' && lhs[2] == '\'')
+                lhs.size() >= 7 && lhs[0] == '\'' && lhs[2] == '\'')
             {
                 char startChar = lhs[1];
                 std::string afterDash = lhs.substr (dashPos + 1);
@@ -2377,7 +2990,7 @@ HRESULT AssemblySession::ParseCmapMapping (const std::string & arg)
                     afterDash = afterDash.substr (ads);
                 }
 
-                if (afterDash.size () >= 3 && afterDash[0] == '\'' && afterDash[2] == '\'')
+                if (afterDash.size() >= 3 && afterDash[0] == '\'' && afterDash[2] == '\'')
                 {
                     char endChar = afterDash[1];
 
@@ -2387,7 +3000,7 @@ HRESULT AssemblySession::ParseCmapMapping (const std::string & arg)
                     }
                 }
             }
-            else if (lhs.size () >= 3 && lhs[0] == '\'' && lhs[2] == '\'')
+            else if (lhs.size() >= 3 && lhs[0] == '\'' && lhs[2] == '\'')
             {
                 m_charMap.table[(unsigned char) lhs[1]] = (Byte) rhsVal.value;
             }
@@ -2397,7 +3010,6 @@ HRESULT AssemblySession::ParseCmapMapping (const std::string & arg)
 Error:
     return hr;
 }
-
 
 
 
@@ -2413,29 +3025,28 @@ HRESULT AssemblySession::ExpandMacro (const PendingLine & current, LineInfo & in
 {
     HRESULT hr = S_OK;
 
+
+
     handled = false;
 
     auto macroIt = m_macros.find (info.parsed.mnemonic);
 
 
 
-    if (macroIt == m_macros.end ())
-    {
-        goto Error;
-    }
+    // Not a macro call; the line belongs to a later stage.
+    BAIL_OUT_IF (macroIt == m_macros.end(), S_OK);
 
-    if (current.macroDepth >= kMaxMacroDepth)
-    {
-        RecordError (current.sourceLineNumber,
-            "Macro nesting depth exceeded (max " + std::to_string (kMaxMacroDepth) + ")");
-        handled = true;
-        goto Error;
-    }
+    // Claimed even though it failed: the line was a macro call, so no later
+    // stage should try to reinterpret it.
+    CBRFEx (current.macroDepth < kMaxMacroDepth, S_OK,
+            RecordError (current.sourceLineNumber,
+                "Macro nesting depth exceeded (max " + std::to_string (kMaxMacroDepth) + ")");
+            handled = true);
 
     {
         std::vector<std::string> args;
 
-        if (!info.parsed.operand.empty ())
+        if (!info.parsed.operand.empty())
         {
             args = Parser::SplitArgList (info.parsed.operand);
         }
@@ -2444,10 +3055,11 @@ HRESULT AssemblySession::ExpandMacro (const PendingLine & current, LineInfo & in
         std::string uniqueSuffix = std::format ("{:04d}", m_macroUniqueCounter);
 
         std::vector<std::string> expandedLines;
-        CHR (SubstituteMacroParams (macroIt->second, args, uniqueSuffix, expandedLines));
+        hr = SubstituteMacroParams (macroIt->second, args, uniqueSuffix, expandedLines);
+        CHR (hr);
 
         // Insert expanded lines at the FRONT of the queue (reverse order)
-        for (int bi = (int) expandedLines.size () - 1; bi >= 0; bi--)
+        for (int bi = (int) expandedLines.size() - 1; bi >= 0; bi--)
         {
             PendingLine pl   = {};
             pl.text          = expandedLines[bi];
@@ -2462,6 +3074,7 @@ HRESULT AssemblySession::ExpandMacro (const PendingLine & current, LineInfo & in
 Error:
     return hr;
 }
+
 
 
 
@@ -2483,18 +3096,20 @@ HRESULT AssemblySession::SubstituteMacroParams (const MacroDefinition & macroDef
 
 
 
-    for (int bi = 0; bi < (int) body.size (); bi++)
+    for (int bi = 0; bi < (int) body.size(); bi++)
     {
         std::string expanded = body[bi];
 
         // Check for exitm
         bool isExitm = false;
-        CHR (CheckForExitm (expanded, isExitm));
+        hr = CheckForExitm (expanded, isExitm);
+        CHR (hr);
 
         if (isExitm)
         {
             int ifDepth = 0;
-            CHR (CountExitmIfDepth (expandedLines, ifDepth));
+            hr = CountExitmIfDepth (expandedLines, ifDepth);
+            CHR (hr);
 
             for (int ed = 0; ed < ifDepth; ed++)
             {
@@ -2504,30 +3119,23 @@ HRESULT AssemblySession::SubstituteMacroParams (const MacroDefinition & macroDef
             break;
         }
 
-        // Skip local directive lines
-        std::string exUpper = expanded;
-        size_t exStart = exUpper.find_first_not_of (" \t");
+        // `local` declares macro-local labels, which uniqueSuffix has already
+        // taken care of, so the declaration itself never reaches the output.
+        // Left as a string compare for the same reason as EXITM: it is a
+        // macro-body keyword, and putting it in DirectiveTable would tokenize
+        // it on every line in the file.
+        std::string  firstWord = GetLeadingWord (ToUpperCase (expanded));
 
-        if (exStart != std::string::npos)
-        {
-            exUpper = exUpper.substr (exStart);
-        }
-
-        for (auto & ec : exUpper)
-        {
-            ec = (char) toupper ((unsigned char) ec);
-        }
-
-        size_t lsp = exUpper.find_first_of (" \t");
-        std::string localFirst = (lsp == std::string::npos) ? exUpper : exUpper.substr (0, lsp);
-
-        if (localFirst == "LOCAL" || localFirst == ".LOCAL")
+        if (firstWord == "LOCAL" || firstWord == ".LOCAL")
         {
             continue;
         }
 
-        CHR (ApplyMacroSubstitutions (expanded, macroDef, args, uniqueSuffix));
-        CHR (StripForcedSubstitution (expanded));
+        hr = ApplyMacroSubstitutions (expanded, macroDef, args, uniqueSuffix);
+        CHR (hr);
+
+        hr = StripForcedSubstitution (expanded);
+        CHR (hr);
 
         expandedLines.push_back (expanded);
     }
@@ -2548,43 +3156,15 @@ Error:
 
 HRESULT AssemblySession::CheckForExitm (const std::string & line, bool & isExitm)
 {
-    HRESULT hr = S_OK;
-
-    isExitm = false;
-
-    std::string trimmed = line;
+    HRESULT      hr   = S_OK;
+    std::string  code = ToUpperCase (StripCommentAndTrim (line));
 
 
 
-    {
-        size_t s = trimmed.find_first_not_of (" \t");
-
-        if (s != std::string::npos)
-        {
-            trimmed = trimmed.substr (s);
-        }
-
-        size_t sc = trimmed.find (';');
-
-        if (sc != std::string::npos)
-        {
-            trimmed = trimmed.substr (0, sc);
-        }
-
-        size_t e = trimmed.find_last_not_of (" \t");
-
-        if (e != std::string::npos)
-        {
-            trimmed = trimmed.substr (0, e + 1);
-        }
-    }
-
-    for (auto & c : trimmed)
-    {
-        c = (char) toupper ((unsigned char) c);
-    }
-
-    isExitm = (trimmed == "EXITM" || trimmed == ".EXITM");
+    // EXITM stays a string compare rather than joining DirectiveTable: the
+    // table feeds Parser::ParseLine, so adding it there would tokenize EXITM on
+    // every line in the file, not just inside a macro body being expanded.
+    isExitm = (code == "EXITM" || code == ".EXITM");
 
 // Error:
     return hr;
@@ -2604,51 +3184,27 @@ HRESULT AssemblySession::CountExitmIfDepth (const std::vector<std::string> & exp
 {
     HRESULT hr = S_OK;
 
+
+
     ifDepth = 0;
 
 
 
-    for (const auto & el : expandedLines)
+    // The spellings were written out here -- IF/.IF/IFDEF/.IFDEF/IFNDEF/
+    // .IFNDEF and ENDIF/.ENDIF -- which made this the third place in the
+    // assembler holding a copy of the vocabulary. DirectiveTable owns all
+    // eight, so this only has to know which tokens open a block and which
+    // closes one.
+    for (const std::string & line : expandedLines)
     {
-        std::string elTrimmed = el;
-        size_t elStart = elTrimmed.find_first_not_of (" \t");
+        Directive  token = DirectiveTable::FromSpelling (
+                               GetLeadingWord (ToUpperCase (StripCommentAndTrim (line))));
 
-        if (elStart != std::string::npos)
-        {
-            elTrimmed = elTrimmed.substr (elStart);
-        }
-
-        size_t elSemi = elTrimmed.find (';');
-
-        if (elSemi != std::string::npos)
-        {
-            elTrimmed = elTrimmed.substr (0, elSemi);
-        }
-
-        size_t elEnd2 = elTrimmed.find_last_not_of (" \t");
-
-        if (elEnd2 != std::string::npos)
-        {
-            elTrimmed = elTrimmed.substr (0, elEnd2 + 1);
-        }
-
-        std::string elUpper2 = elTrimmed;
-
-        for (auto & c2 : elUpper2)
-        {
-            c2 = (char) toupper ((unsigned char) c2);
-        }
-
-        size_t sp2 = elUpper2.find_first_of (" \t");
-        std::string firstWord = (sp2 == std::string::npos) ? elUpper2 : elUpper2.substr (0, sp2);
-
-        if (firstWord == "IF" || firstWord == ".IF" ||
-            firstWord == "IFDEF" || firstWord == ".IFDEF" ||
-            firstWord == "IFNDEF" || firstWord == ".IFNDEF")
+        if (token == Directive::If || token == Directive::Ifdef || token == Directive::Ifndef)
         {
             ifDepth++;
         }
-        else if (firstWord == "ENDIF" || firstWord == ".ENDIF")
+        else if (token == Directive::Endif)
         {
             ifDepth--;
         }
@@ -2674,13 +3230,13 @@ HRESULT AssemblySession::ApplyMacroSubstitutions (std::string & expanded,
 
     // Replace \0 with argument count
     {
-        std::string argCountStr = std::to_string ((int) args.size ());
+        std::string argCountStr = std::to_string ((int) args.size());
         size_t pos = 0;
 
         while ((pos = expanded.find ("\\0", pos)) != std::string::npos)
         {
             expanded.replace (pos, 2, argCountStr);
-            pos += argCountStr.size ();
+            pos += argCountStr.size();
         }
     }
 
@@ -2692,35 +3248,35 @@ HRESULT AssemblySession::ApplyMacroSubstitutions (std::string & expanded,
 
         while ((pos = expanded.find (placeholder, pos)) != std::string::npos)
         {
-            std::string replacement = (ai <= (int) args.size ()) ? args[ai - 1] : "";
-            expanded.replace (pos, placeholder.size (), replacement);
-            pos += replacement.size ();
+            std::string replacement = (ai <= (int) args.size()) ? args[ai - 1] : "";
+            expanded.replace (pos, placeholder.size(), replacement);
+            pos += replacement.size();
         }
     }
 
     // Replace named parameters as whole-word matches
-    for (int pi = 0; pi < (int) macroDef.paramNames.size (); pi++)
+    for (int pi = 0; pi < (int) macroDef.paramNames.size(); pi++)
     {
         const std::string & paramName = macroDef.paramNames[pi];
-        std::string replacement = (pi < (int) args.size ()) ? args[pi] : "";
+        std::string replacement = (pi < (int) args.size()) ? args[pi] : "";
         size_t pos = 0;
 
         while ((pos = expanded.find (paramName, pos)) != std::string::npos)
         {
             bool leftOk = (pos == 0) ||
                            (!isalnum ((unsigned char) expanded[pos - 1]) && expanded[pos - 1] != '_');
-            size_t endPos = pos + paramName.size ();
-            bool rightOk = (endPos >= expanded.size ()) ||
+            size_t endPos = pos + paramName.size();
+            bool rightOk = (endPos >= expanded.size()) ||
                             (!isalnum ((unsigned char) expanded[endPos]) && expanded[endPos] != '_');
 
             if (leftOk && rightOk)
             {
-                expanded.replace (pos, paramName.size (), replacement);
-                pos += replacement.size ();
+                expanded.replace (pos, paramName.size(), replacement);
+                pos += replacement.size();
             }
             else
             {
-                pos += paramName.size ();
+                pos += paramName.size();
             }
         }
     }
@@ -2732,7 +3288,7 @@ HRESULT AssemblySession::ApplyMacroSubstitutions (std::string & expanded,
         while ((pos = expanded.find ("\\?", pos)) != std::string::npos)
         {
             expanded.replace (pos, 2, uniqueSuffix);
-            pos += uniqueSuffix.size ();
+            pos += uniqueSuffix.size();
         }
     }
 
@@ -2745,19 +3301,19 @@ HRESULT AssemblySession::ApplyMacroSubstitutions (std::string & expanded,
         {
             bool leftOk = (pos == 0) ||
                            (!isalnum ((unsigned char) expanded[pos - 1]) && expanded[pos - 1] != '_');
-            size_t endPos = pos + localLabel.size ();
-            bool rightOk = (endPos >= expanded.size ()) ||
+            size_t endPos = pos + localLabel.size();
+            bool rightOk = (endPos >= expanded.size()) ||
                             (!isalnum ((unsigned char) expanded[endPos]) && expanded[endPos] != '_');
 
             if (leftOk && rightOk)
             {
                 std::string suffixed = localLabel + uniqueSuffix;
-                expanded.replace (pos, localLabel.size (), suffixed);
-                pos += suffixed.size ();
+                expanded.replace (pos, localLabel.size(), suffixed);
+                pos += suffixed.size();
             }
             else
             {
-                pos += localLabel.size ();
+                pos += localLabel.size();
             }
         }
     }
@@ -2780,12 +3336,14 @@ HRESULT AssemblySession::StripForcedSubstitution (std::string & expanded)
 {
     HRESULT hr = S_OK;
 
+
+
     size_t sq = 0;
     bool inDouble = false;
 
 
 
-    while (sq < expanded.size ())
+    while (sq < expanded.size())
     {
         if (expanded[sq] == '"')
         {
@@ -2819,6 +3377,7 @@ HRESULT AssemblySession::StripForcedSubstitution (std::string & expanded)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  AssemblySession::HandleColonlessLabel
@@ -2827,25 +3386,32 @@ HRESULT AssemblySession::StripForcedSubstitution (std::string & expanded)
 
 HRESULT AssemblySession::HandleColonlessLabel (const PendingLine & current, LineInfo & info, bool & handled)
 {
-    HRESULT hr = S_OK;
+    HRESULT  hr              = S_OK;
+    bool     fLooksLikeLabel = false;
+
+
 
     handled = false;
 
 
 
-    if (!info.parsed.startsAtColumn0 || !info.parsed.label.empty () ||
-        m_opcodeTable.IsMnemonic (info.parsed.mnemonic) ||
-        IsBitOpMnemonic (info.parsed.mnemonic) ||
-        m_macros.find (info.parsed.mnemonic) != m_macros.end ())
-    {
-        goto Error;
-    }
+    // A colon-less label is whatever is left once every real mnemonic form
+    // has had its turn: it must start at column 0, carry no explicit label,
+    // and not be an opcode, a bit-op, or a macro name.
+    fLooksLikeLabel = info.parsed.startsAtColumn0 &&
+                      info.parsed.label.empty() &&
+                      !m_opcodeTable.IsMnemonic (info.parsed.mnemonic) &&
+                      !IsBitOpMnemonic (info.parsed.mnemonic) &&
+                      (m_macros.find (info.parsed.mnemonic) == m_macros.end());
+
+    BAIL_OUT_IF (!fLooksLikeLabel, S_OK);
 
     {
         std::string labelName;
         std::string labelError;
 
-        CHR (ExtractColonlessLabelName (current, labelName));
+        hr = ExtractColonlessLabelName (current, labelName);
+        CHR (hr);
 
         if (!Parser::ValidateLabel (labelName, m_opcodeTable, labelError))
         {
@@ -2864,7 +3430,7 @@ HRESULT AssemblySession::HandleColonlessLabel (const PendingLine & current, Line
 
         info.parsed.label = labelName;
 
-        if (!info.parsed.operand.empty ())
+        if (!info.parsed.operand.empty())
         {
             PendingLine pl   = {};
             pl.text          = "    " + info.parsed.operand;
@@ -2873,8 +3439,8 @@ HRESULT AssemblySession::HandleColonlessLabel (const PendingLine & current, Line
             m_pendingLines.push_front (pl);
         }
 
-        info.parsed.mnemonic.clear ();
-        info.parsed.operand.clear ();
+        info.parsed.mnemonic.clear();
+        info.parsed.operand.clear();
         info.isInstruction = false;
         handled = true;
     }
@@ -2896,6 +3462,8 @@ Error:
 HRESULT AssemblySession::ExtractColonlessLabelName (const PendingLine & current, std::string & labelName)
 {
     HRESULT hr = S_OK;
+
+
 
     std::string rawTrimmed = current.text;
 
@@ -2931,6 +3499,7 @@ HRESULT AssemblySession::ExtractColonlessLabelName (const PendingLine & current,
 // Error:
     return hr;
 }
+
 
 
 
@@ -2992,6 +3561,7 @@ void AssemblySession::NormalizeBitOp (const PendingLine & current, LineInfo & in
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  AssemblySession::ClassifyAndResolve
@@ -3016,7 +3586,7 @@ HRESULT AssemblySession::ClassifyAndResolve (const PendingLine & current, LineIn
 
     if (info.classified.syntax != OperandSyntax::None &&
         info.classified.syntax != OperandSyntax::Accumulator &&
-        !info.classified.expression.empty ())
+        !info.classified.expression.empty())
     {
         ExprResult er = ExpressionEvaluator::Evaluate (info.classified.expression, m_pass1Ctx);
 
@@ -3035,7 +3605,8 @@ HRESULT AssemblySession::ClassifyAndResolve (const PendingLine & current, LineIn
     info.valueResolved = exprResolved;
     info.resolvedValue = exprValue;
 
-    CHR (ResolveAddressingAndSize (current, info, exprValue, exprResolved));
+    hr = ResolveAddressingAndSize (current, info, exprValue, exprResolved);
+    CHR (hr);
 
 Error:
     return hr;
@@ -3108,7 +3679,7 @@ HRESULT AssemblySession::ResolveAddressingAndSize (const PendingLine & current, 
                 }
 
                 info.hasError = true;
-                m_pc += EstimateInstructionSize (info.classified.syntax, info.parsed.mnemonic);
+                m_pc += EstimateErrorRecoverySize (info.classified.syntax, info.parsed.mnemonic);
             }
         }
     }
@@ -3121,28 +3692,27 @@ HRESULT AssemblySession::ResolveAddressingAndSize (const PendingLine & current, 
 
 
 
-
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  AssemblySession::ValidateAssemblyCompletion
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT AssemblySession::ValidateAssemblyCompletion ()
+HRESULT AssemblySession::ValidateAssemblyCompletion()
 {
     HRESULT hr = S_OK;
 
 
 
-    if (m_collectingMacro)
+    if (m_pass1State == Pass1State::CollectingMacro)
     {
         RecordError (m_currentMacroLine, "Unclosed macro definition: " + m_currentMacroName);
     }
 
-    if (!m_condStack.empty ())
+    if (!m_condStack.empty())
     {
-        RecordError ((int) m_lines.size (),
-            "Unclosed if block (" + std::to_string (m_condStack.size ()) + " level(s) open)");
+        RecordError ((int) m_lines.size(),
+            "Unclosed if block (" + std::to_string (m_condStack.size()) + " level(s) open)");
     }
 
 // Error:
@@ -3163,14 +3733,22 @@ HRESULT AssemblySession::HandleMultiNop (const PendingLine & current, LineInfo &
 {
     HRESULT hr = S_OK;
 
+
+
     handled = false;
 
 
 
-    if (info.parsed.mnemonic != "NOP" || info.parsed.operand.empty ())
-    {
-        goto Error;
-    }
+    // Only "nop <count>" is a multi-NOP; a bare NOP is an ordinary opcode.
+    //
+    // This is the second dual-purpose as65 mnemonic, the other being the RMB
+    // branch in Parser::ParseLine. They stay apart rather than sharing a table
+    // because the table could not hold what separates them: RMB splits on the
+    // operand's *shape* (a comma means the Rockwell instruction), which the
+    // parser can see, while NOP splits on the operand's *value*, which needs the
+    // expression evaluator and the pass-1 symbol table. Both spellings are
+    // dialect facts -- a second dialect replaces this pair.
+    BAIL_OUT_IF (info.parsed.mnemonic != "NOP" || info.parsed.operand.empty(), S_OK);
 
     {
         m_pass1Ctx.currentPC = (int32_t) m_pc;
@@ -3178,10 +3756,11 @@ HRESULT AssemblySession::HandleMultiNop (const PendingLine & current, LineInfo &
 
         if (er.success && er.value > 0)
         {
-            info.isDirective         = true;
-            info.parsed.isDirective  = true;
-            info.parsed.directive    = ".MULTINOP";
-            info.parsed.directiveArg = info.parsed.operand;
+            info.isDirective           = true;
+            info.parsed.isDirective    = true;
+            info.parsed.directive      = ".MULTINOP";
+            info.parsed.directiveToken = Directive::MultiNop;
+            info.parsed.directiveArg   = info.parsed.operand;
             m_pc += (Word) er.value;
         }
 
@@ -3196,14 +3775,13 @@ Error:
 
 
 
-
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  AssemblySession::RunPass2
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT AssemblySession::RunPass2 ()
+HRESULT AssemblySession::RunPass2()
 {
     HRESULT hr = S_OK;
 
@@ -3217,8 +3795,11 @@ HRESULT AssemblySession::RunPass2 ()
         m_fullSymbols[sym.first] = (int32_t) sym.second;
     }
 
-    CHR (ResolveEquConstants ());
-    CHR (ReportUnresolvedEqus ());
+    hr = ResolveEquConstants();
+    CHR (hr);
+
+    hr = ReportUnresolvedEqus();
+    CHR (hr);
 
     for (const auto & info : m_lineInfos)
     {
@@ -3234,23 +3815,27 @@ HRESULT AssemblySession::RunPass2 ()
         {
             lineHasAddress = true;
             m_pass2Ctx.currentPC = (int32_t) info.pc;
-            CHR (EmitDirectiveBytes (info, emitPC));
+            hr = EmitDirectiveBytes (info, emitPC);
+            CHR (hr);
         }
         else if (info.isInstruction)
         {
             lineHasAddress = true;
             m_pass2Ctx.currentPC = (int32_t) info.pc;
-            CHR (EmitInstruction (info, emitPC));
+            hr = EmitInstruction (info, emitPC);
+            CHR (hr);
         }
-        else if (!info.parsed.label.empty ())
+        else if (!info.parsed.label.empty())
         {
             lineHasAddress = true;
         }
 
-        CHR (BuildListingEntry (info, emitPCStart, emitPC, lineHasAddress));
+        hr = BuildListingEntry (info, emitPCStart, emitPC, lineHasAddress);
+        CHR (hr);
     }
 
-    CHR (ExtractImage ());
+    hr = ExtractImage();
+    CHR (hr);
 
     m_result.symbols     = m_symbols;
     m_result.symbolKinds = m_symbolKinds;
@@ -3263,16 +3848,17 @@ Error:
 
 
 
-
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  AssemblySession::ResolveEquConstants
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT AssemblySession::ResolveEquConstants ()
+HRESULT AssemblySession::ResolveEquConstants()
 {
     HRESULT hr = S_OK;
+
+
 
     bool madeProgress = true;
     int  iterations   = 0;
@@ -3296,16 +3882,16 @@ HRESULT AssemblySession::ResolveEquConstants ()
                 continue;
             }
 
-            if (m_fullSymbols.find (info.parsed.constantName) != m_fullSymbols.end ())
+            if (m_fullSymbols.find (info.parsed.constantName) != m_fullSymbols.end())
             {
                 continue;
             }
 
             const std::string & expr = info.parsed.constantExpr;
 
-            if (expr.size () >= 2 && expr.front () == '"' && expr.back () == '"')
+            if (expr.size() >= 2 && expr.front() == '"' && expr.back() == '"')
             {
-                int32_t len = (int32_t) (expr.size () - 2);
+                int32_t len = (int32_t) (expr.size() - 2);
                 m_symbols[info.parsed.constantName]     = (Word) len;
                 m_fullSymbols[info.parsed.constantName] = len;
                 madeProgress = true;
@@ -3333,14 +3919,13 @@ HRESULT AssemblySession::ResolveEquConstants ()
 
 
 
-
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  AssemblySession::ReportUnresolvedEqus
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT AssemblySession::ReportUnresolvedEqus ()
+HRESULT AssemblySession::ReportUnresolvedEqus()
 {
     HRESULT hr = S_OK;
 
@@ -3354,7 +3939,7 @@ HRESULT AssemblySession::ReportUnresolvedEqus ()
         }
 
         if (info.parsed.constantKind == SymbolKind::Equ &&
-            m_fullSymbols.find (info.parsed.constantName) == m_fullSymbols.end ())
+            m_fullSymbols.find (info.parsed.constantName) == m_fullSymbols.end())
         {
             RecordError (info.parsed.lineNumber,
                 "Cannot resolve equ expression: " + info.parsed.constantExpr);
@@ -3364,6 +3949,62 @@ HRESULT AssemblySession::ReportUnresolvedEqus ()
 // Error:
     return hr;
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AssemblySession::EmitDirectiveBytes
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT AssemblySession::EmitTextDirective (const LineInfo & info, Word & emitPC)
+{
+    std::string  text = Parser::ParseQuotedString (info.parsed.directiveArg);
+
+
+
+    for (char c : text)
+    {
+        EmitByte (m_charMap.table[(unsigned char) c], emitPC);
+    }
+
+    return S_OK;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  AssemblySession::EmitMultiNopDirective
+//
+//  `nop <count>` collapses to that many $EA bytes. The count is re-evaluated
+//  in pass 2 because it may reference a label only resolved by then.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT AssemblySession::EmitMultiNopDirective (const LineInfo & info, Word & emitPC)
+{
+    ExprResult  er = ExpressionEvaluator::Evaluate (info.parsed.directiveArg, m_pass2Ctx);
+    int32_t     j  = 0;
+
+
+
+    if (er.success && er.value > 0)
+    {
+        for (j = 0; j < er.value; j++)
+        {
+            EmitByte (0xEA, emitPC);
+        }
+    }
+
+    return S_OK;
+}
+
 
 
 
@@ -3378,55 +4019,27 @@ HRESULT AssemblySession::EmitDirectiveBytes (const LineInfo & info, Word & emitP
 {
     HRESULT hr = S_OK;
 
-    const std::string & dir = info.parsed.directive;
+
+
+    Directive         token   = info.parsed.directiveToken;
+    Pass2DirectiveFn  emitter = nullptr;
 
 
 
-    if (dir == ".ORG")
+    if (token > Directive::None && token < Directive::Count)
     {
-        // Nothing to emit
-    }
-    else if (dir == ".BYTE")
-    {
-        CHR (EmitByteDirective (info, emitPC));
-    }
-    else if (dir == ".WORD")
-    {
-        CHR (EmitWordDirective (info, emitPC));
-    }
-    else if (dir == ".TEXT")
-    {
-        std::string text = Parser::ParseQuotedString (info.parsed.directiveArg);
+        const DirectiveRow &  row = GetDirectiveRows()[(size_t) token];
 
-        for (char c : text)
-        {
-            EmitByte (m_charMap.table[(unsigned char) c], emitPC);
-        }
+        ASSERT (row.token == token);   // the table drifted out of enum order
+        emitter = row.pass2;
     }
-    else if (dir == ".DD")
-    {
-        CHR (EmitDdDirective (info, emitPC));
-    }
-    else if (dir == ".DS")
-    {
-        CHR (EmitDsDirective (info, emitPC));
-    }
-    else if (dir == ".ALIGN")
-    {
-        CHR (EmitAlignDirective (info, emitPC));
-    }
-    else if (dir == ".MULTINOP")
-    {
-        ExprResult er = ExpressionEvaluator::Evaluate (info.parsed.directiveArg, m_pass2Ctx);
 
-        if (er.success && er.value > 0)
-        {
-            for (int32_t j = 0; j < er.value; j++)
-            {
-                EmitByte (0xEA, emitPC);
-            }
-        }
-    }
+    // A null pass-2 column means the directive emits nothing: it either did
+    // all its work in pass 1 (.ORG, .LIST, .STRUCT) or never produces bytes.
+    BAIL_OUT_IF (emitter == nullptr, S_OK);
+
+    hr = (this->*emitter) (info, emitPC);
+    CHR (hr);
 
 Error:
     return hr;
@@ -3446,6 +4059,8 @@ HRESULT AssemblySession::EmitByteDirective (const LineInfo & info, Word & emitPC
 {
     HRESULT hr = S_OK;
 
+
+
     auto args = Parser::SplitArgList (info.parsed.directiveArg);
     bool ok   = true;
 
@@ -3453,9 +4068,9 @@ HRESULT AssemblySession::EmitByteDirective (const LineInfo & info, Word & emitPC
 
     for (const auto & arg : args)
     {
-        if (arg.size () >= 2 && arg.front () == '"' && arg.back () == '"')
+        if (arg.size() >= 2 && arg.front() == '"' && arg.back() == '"')
         {
-            std::string raw       = arg.substr (1, arg.size () - 2);
+            std::string raw       = arg.substr (1, arg.size() - 2);
             std::string processed = ProcessEscapeSequences (raw);
 
             for (char c : processed)
@@ -3463,7 +4078,7 @@ HRESULT AssemblySession::EmitByteDirective (const LineInfo & info, Word & emitPC
                 EmitByte (m_charMap.table[(unsigned char) c], emitPC);
             }
         }
-        else if (arg.size () >= 2 && arg.front () == '"')
+        else if (arg.size() >= 2 && arg.front() == '"')
         {
             size_t closeQuote = arg.find ('"', 1);
 
@@ -3501,7 +4116,7 @@ HRESULT AssemblySession::EmitByteDirective (const LineInfo & info, Word & emitPC
                 }
             }
         }
-        else if (arg.size () >= 2 && arg[0] == '\\')
+        else if (arg.size() >= 2 && arg[0] == '\\')
         {
             std::string processed = ProcessEscapeSequences (arg);
 
@@ -3550,13 +4165,15 @@ HRESULT AssemblySession::EmitWordDirective (const LineInfo & info, Word & emitPC
 {
     HRESULT hr = S_OK;
 
+
+
     std::vector<int32_t> values;
 
 
 
     EvaluateDirectiveArgs (info.parsed.directiveArg, m_pass2Ctx, values, info.parsed.lineNumber, m_result.errors);
 
-    if (values.size () != 0 || info.parsed.directiveArg.empty ())
+    if (values.size() != 0 || info.parsed.directiveArg.empty())
     {
         for (int32_t v : values)
         {
@@ -3587,13 +4204,15 @@ HRESULT AssemblySession::EmitDdDirective (const LineInfo & info, Word & emitPC)
 {
     HRESULT hr = S_OK;
 
+
+
     std::vector<int32_t> values;
 
 
 
     EvaluateDirectiveArgs (info.parsed.directiveArg, m_pass2Ctx, values, info.parsed.lineNumber, m_result.errors);
 
-    if (values.size () != 0 || info.parsed.directiveArg.empty ())
+    if (values.size() != 0 || info.parsed.directiveArg.empty())
     {
         for (int32_t v : values)
         {
@@ -3626,11 +4245,13 @@ HRESULT AssemblySession::EmitDsDirective (const LineInfo & info, Word & emitPC)
 {
     HRESULT hr = S_OK;
 
+
+
     auto args = Parser::SplitArgList (info.parsed.directiveArg);
 
 
 
-    if (!args.empty ())
+    if (!args.empty())
     {
         ExprResult sizeEr = ExpressionEvaluator::Evaluate (args[0], m_pass2Ctx);
 
@@ -3638,7 +4259,7 @@ HRESULT AssemblySession::EmitDsDirective (const LineInfo & info, Word & emitPC)
         {
             Byte fillVal = 0;
 
-            if (args.size () >= 2)
+            if (args.size() >= 2)
             {
                 ExprResult fillEr = ExpressionEvaluator::Evaluate (args[1], m_pass2Ctx);
 
@@ -3673,11 +4294,13 @@ HRESULT AssemblySession::EmitAlignDirective (const LineInfo & info, Word & emitP
 {
     HRESULT hr = S_OK;
 
+
+
     int alignment = 2;
 
 
 
-    if (!info.parsed.directiveArg.empty ())
+    if (!info.parsed.directiveArg.empty())
     {
         ExprResult er = ExpressionEvaluator::Evaluate (info.parsed.directiveArg, m_pass2Ctx);
 
@@ -3710,6 +4333,7 @@ HRESULT AssemblySession::EmitAlignDirective (const LineInfo & info, Word & emitP
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  AssemblySession::EmitInstruction
@@ -3720,16 +4344,20 @@ HRESULT AssemblySession::EmitInstruction (const LineInfo & info, Word & emitPC)
 {
     HRESULT hr = S_OK;
 
+
+
     int32_t value = 0;
     bool    emit  = true;
 
 
 
-    CHR (ResolveInstructionValue (info, value, emit));
+    hr = ResolveInstructionValue (info, value, emit);
+    CHR (hr);
 
     if (emit)
     {
-        CHR (EmitInstructionBytes (info, value, emitPC));
+        hr = EmitInstructionBytes (info, value, emitPC);
+        CHR (hr);
     }
 
 Error:
@@ -3750,6 +4378,8 @@ HRESULT AssemblySession::ResolveInstructionValue (const LineInfo & info, int32_t
 {
     HRESULT hr = S_OK;
 
+
+
     GlobalAddressingMode::AddressingMode mode = info.resolvedMode;
 
     value = 0;
@@ -3761,7 +4391,7 @@ HRESULT AssemblySession::ResolveInstructionValue (const LineInfo & info, int32_t
     {
         value = info.resolvedValue;
 
-        if (!info.classified.expression.empty ())
+        if (!info.classified.expression.empty())
         {
             for (const auto & sym : m_symbols)
             {
@@ -3774,7 +4404,7 @@ HRESULT AssemblySession::ResolveInstructionValue (const LineInfo & info, int32_t
     }
     else if (info.classified.syntax != OperandSyntax::None &&
              info.classified.syntax != OperandSyntax::Accumulator &&
-             !info.classified.expression.empty ())
+             !info.classified.expression.empty())
     {
         ExprResult er = ExpressionEvaluator::Evaluate (info.classified.expression, m_pass2Ctx);
 
@@ -3823,6 +4453,8 @@ HRESULT AssemblySession::EmitInstructionBytes (const LineInfo & info, int32_t va
 {
     HRESULT hr = S_OK;
 
+
+
     GlobalAddressingMode::AddressingMode mode = info.resolvedMode;
 
 
@@ -3848,48 +4480,51 @@ HRESULT AssemblySession::EmitInstructionBytes (const LineInfo & info, int32_t va
         // operand, evaluated here against the fully-populated pass-2 symbol table.
         // Always emit exactly three bytes so the image stays aligned with the size
         // reserved in pass 1, even when an operand fails to resolve.
-        OpcodeEntry entry      = {};
-        Byte        offsetByte = 0;
+        OpcodeEntry entry       = {};
+        Byte        offsetByte  = 0;
+        bool        hasEncoding = false;
 
-        if (!m_opcodeTable.Lookup (info.parsed.mnemonic, mode, entry))
+        hasEncoding = m_opcodeTable.Lookup (info.parsed.mnemonic, mode, entry);
+
+        if (!hasEncoding)
         {
             RecordError (info.parsed.lineNumber, "Cannot encode: " + info.parsed.mnemonic);
-            return hr;
-        }
-
-        ExprResult er = ExpressionEvaluator::Evaluate (info.classified.secondExpression, m_pass2Ctx);
-
-        if (!er.success)
-        {
-            RecordError (info.parsed.lineNumber,
-                "Undefined symbol in: " + info.classified.secondExpression);
         }
         else
         {
-            int offset = er.value - (int) (info.pc + 3);
+            ExprResult er = ExpressionEvaluator::Evaluate (info.classified.secondExpression, m_pass2Ctx);
 
-            if (offset < -128 || offset > 127)
+            if (!er.success)
             {
-                RecordError (info.parsed.lineNumber, "Branch target out of range");
+                RecordError (info.parsed.lineNumber,
+                    "Undefined symbol in: " + info.classified.secondExpression);
             }
-
-            offsetByte = (Byte) (offset & 0xFF);
-
-            for (const auto & sym : m_symbols)
+            else
             {
-                if (info.classified.secondExpression.find (sym.first) != std::string::npos)
+                int offset = er.value - (int) (info.pc + 3);
+
+                if (offset < -128 || offset > 127)
                 {
-                    m_referencedLabels[sym.first] = info.parsed.lineNumber;
+                    RecordError (info.parsed.lineNumber, "Branch target out of range");
+                }
+
+                offsetByte = (Byte) (offset & 0xFF);
+
+                for (const auto & sym : m_symbols)
+                {
+                    if (info.classified.secondExpression.find (sym.first) != std::string::npos)
+                    {
+                        m_referencedLabels[sym.first] = info.parsed.lineNumber;
+                    }
                 }
             }
+
+            EmitByte (entry.opcode, emitPC);
+            EmitByte ((Byte) (value & 0xFF), emitPC);   // zero-page address
+            EmitByte (offsetByte, emitPC);              // relative branch offset
         }
-
-        EmitByte (entry.opcode, emitPC);
-        EmitByte ((Byte) (value & 0xFF), emitPC);   // zero-page address
-        EmitByte (offsetByte, emitPC);              // relative branch offset
-        return hr;
     }
-
+    else
     {
         OpcodeEntry entry = {};
 
@@ -3921,7 +4556,6 @@ HRESULT AssemblySession::EmitInstructionBytes (const LineInfo & info, int32_t va
 
 
 
-
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  AssemblySession::BuildListingEntry
@@ -3935,21 +4569,17 @@ HRESULT AssemblySession::BuildListingEntry (const LineInfo & info, Word emitPCSt
 
 
 
-    if (!m_options.generateListing)
-    {
-        goto Error;
-    }
+    BAIL_OUT_IF (!m_options.generateListing, S_OK);
 
-    if (info.listingSuppressed && !info.conditionalSkip)
-    {
-        goto Error;
-    }
+    // A suppressed line still lists when it was skipped by a conditional, so
+    // the listing shows which branch was taken.
+    BAIL_OUT_IF (info.listingSuppressed && !info.conditionalSkip, S_OK);
 
     {
         AssemblyLine listLine = {};
         listLine.lineNumber = info.parsed.lineNumber;
 
-        if (info.parsed.lineNumber >= 1 && info.parsed.lineNumber <= (int) m_lines.size ())
+        if (info.parsed.lineNumber >= 1 && info.parsed.lineNumber <= (int) m_lines.size())
         {
             listLine.sourceText = m_lines[info.parsed.lineNumber - 1];
         }
@@ -3985,14 +4615,13 @@ Error:
 
 
 
-
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  AssemblySession::ExtractImage
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT AssemblySession::ExtractImage ()
+HRESULT AssemblySession::ExtractImage()
 {
     HRESULT hr = S_OK;
 
@@ -4000,13 +4629,13 @@ HRESULT AssemblySession::ExtractImage ()
 
     if (m_lowestAddr <= m_highestAddr)
     {
-        m_result.bytes.assign (m_image.begin () + m_lowestAddr, m_image.begin () + m_highestAddr + 1);
+        m_result.bytes.assign (m_image.begin() + m_lowestAddr, m_image.begin() + m_highestAddr + 1);
         m_result.startAddress = m_lowestAddr;
         m_result.endAddress   = (Word) (m_highestAddr + 1);
     }
     else
     {
-        m_result.bytes.clear ();
+        m_result.bytes.clear();
         m_result.endAddress = m_result.startAddress;
     }
 
@@ -4018,14 +4647,13 @@ HRESULT AssemblySession::ExtractImage ()
 
 
 
-
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  AssemblySession::DetectUnusedLabels
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT AssemblySession::DetectUnusedLabels ()
+HRESULT AssemblySession::DetectUnusedLabels()
 {
     HRESULT hr = S_OK;
 
@@ -4050,12 +4678,12 @@ HRESULT AssemblySession::DetectUnusedLabels ()
     {
         auto kindIt = m_symbolKinds.find (sym.first);
 
-        if (kindIt == m_symbolKinds.end () || kindIt->second != SymbolKind::Label)
+        if (kindIt == m_symbolKinds.end() || kindIt->second != SymbolKind::Label)
         {
             continue;
         }
 
-        if (m_referencedLabels.find (sym.first) == m_referencedLabels.end ())
+        if (m_referencedLabels.find (sym.first) == m_referencedLabels.end())
         {
             int defLine = 0;
 

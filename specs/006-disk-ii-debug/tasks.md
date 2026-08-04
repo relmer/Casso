@@ -601,7 +601,7 @@ filter checkboxes, buttons. Render an empty list.
       every entry, then call `ListView_SetItemCountEx` +
       `InvalidateRect`. The eager rebuild MUST run regardless of
       `m_paused` so filter response stays instant while paused.
-      When the Audio-master is unchecked, visually disable (grey out)
+      When the Audio-master is unchecked, visually disable (gray out)
       the four sub-checkboxes via `EnableWindow(..., FALSE)` but
       preserve their checked state for restoration when Audio-master
       is re-checked (FR-014c). (FR-014, FR-014c, FR-014d)

@@ -33,6 +33,7 @@ static const char s_kPixelShaderSrc[] =
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  ~Dxui3DRenderer
@@ -47,6 +48,7 @@ Dxui3DRenderer::~Dxui3DRenderer()
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  Initialize
@@ -56,6 +58,8 @@ Dxui3DRenderer::~Dxui3DRenderer()
 HRESULT Dxui3DRenderer::Initialize (ID3D11Device * device, ID3D11DeviceContext * context)
 {
     HRESULT   hr = S_OK;
+
+
 
     CBREx (device != nullptr && context != nullptr, E_INVALIDARG);
 
@@ -105,6 +109,7 @@ Error:
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  Shutdown
@@ -142,6 +147,7 @@ void Dxui3DRenderer::Shutdown()
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  CreateShaders
@@ -154,6 +160,8 @@ HRESULT Dxui3DRenderer::CreateShaders()
     ComPtr<ID3DBlob>   vsBlob;
     ComPtr<ID3DBlob>   psBlob;
     ComPtr<ID3DBlob>   errors;
+
+
 
     D3D11_INPUT_ELEMENT_DESC   layout[] =
     {
@@ -192,6 +200,7 @@ Error:
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  CreatePipelineState
@@ -201,6 +210,8 @@ Error:
 HRESULT Dxui3DRenderer::CreatePipelineState()
 {
     HRESULT   hr = S_OK;
+
+
 
     // Premultiplied source-over -- identical compositing to DxuiPainter, so
     // scene pixels layer with the panel-tree paint without surprises.
@@ -283,6 +294,7 @@ Error:
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  EnsureVertexBuffer
@@ -294,10 +306,9 @@ HRESULT Dxui3DRenderer::EnsureVertexBuffer (size_t requiredVerts)
     HRESULT             hr   = S_OK;
     D3D11_BUFFER_DESC   desc = {};
 
-    if (requiredVerts <= m_vertexBufferCapacity && m_vertexBuffer != nullptr)
-    {
-        return S_OK;
-    }
+
+
+    BAIL_OUT_IF (requiredVerts <= m_vertexBufferCapacity && m_vertexBuffer != nullptr, S_OK);
 
     m_vertexBuffer.Reset();
 
@@ -318,6 +329,7 @@ Error:
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  UpdateContentTexture
@@ -328,6 +340,8 @@ HRESULT Dxui3DRenderer::UpdateContentTexture (const uint32_t * bgra, int width, 
 {
     HRESULT                    hr     = S_OK;
     D3D11_MAPPED_SUBRESOURCE   mapped = {};
+
+
 
     CBREx (m_device != nullptr, E_UNEXPECTED);
     CBREx (bgra != nullptr && width > 0 && height > 0, E_INVALIDARG);
@@ -378,6 +392,7 @@ Error:
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  BeginDepthPass
@@ -396,6 +411,8 @@ HRESULT Dxui3DRenderer::BeginDepthPass()
     ComPtr<ID3D11Resource>          res;
     ComPtr<ID3D11Texture2D>         tex;
     D3D11_TEXTURE2D_DESC            desc = {};
+
+
 
     CBREx (m_device != nullptr, E_UNEXPECTED);
 
@@ -440,6 +457,7 @@ HRESULT Dxui3DRenderer::BeginDepthPass()
 Error:
     return hr;
 }
+
 
 
 

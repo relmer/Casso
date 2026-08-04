@@ -53,30 +53,57 @@ See the Constitution's Principle VI (Thin Executable, Testable Core) and Princip
   `ch` = char (narrow OR wide), no special wide marker. E.g.
   `s_kpszHost` (LPCWSTR), `s_kchBullet` (wchar_t),
   `s_kRomCatalog` (constant array).
-  The leading `s_` says **file-scope static** and nothing else. Class members
-  drop it and keep the rest — `kPadDip`, `kpszTitle` — so the prefix alone
-  tells you which of the two you are looking at. See the ownership rule below
-  for choosing between them; a constant is not file-scope merely because it is
-  a constant.
-- **No anonymous namespaces.** NEVER use `namespace {}`.
-- **Constants and helpers belong to a class whenever one owns them.** Ask who
-  uses it, not where it happens to sit today:
-  - Used only by one function → declare it inside that function.
-  - Used by two or more methods of the same class (or describing that class's
-    geometry, palette, timings, limits) → **private `static constexpr` member**
-    in the `.h`, named `k<Name>` with **no** `s_` prefix. `s_` marks a
-    file-scope static specifically, so a member must not carry it. Leave a
-    one-line note in the `.cpp` where a reader would otherwise hunt for them
-    (see `DxuiToggle`, `PrinterPanel`).
-  - Genuinely owned by no class — used by free/file-local code, or shared by
-    several unrelated types in the same `.cpp` → file-scope `static constexpr`
-    with the `s_k` Hungarian naming above. This is the **exception**, not the
-    default; the `s_k` prefix existing does not make file scope the norm.
+  The leading `s_` says **file-scope static** and nothing else — a class member
+  or a function-local drops it and keeps the rest (`kPadDip`, `kpszTitle`), so
+  the prefix alone tells you which you are reading. Whether a constant should
+  be file-scope at all is decided by "Where a file-local constant goes" below;
+  being constant is not the test.
+- **No anonymous namespaces.** NEVER use `namespace {}`. Put file-local
+  helpers as class `static` members, not free functions. More broadly,
+  strongly prefer class members over free/global functions — a free function
+  needs a very convincing justification.
+- **Where a file-local *type* goes**, by what it is:
+  1. **A class — anything with methods** → its own `.h` / `.cpp` pair, one
+     class per pair, named for the class. Behavior deserves a translation
+     unit and a name it owns; burying it inside another class's files hides
+     it from everyone who might reuse it. A *null* implementation of an
+     interface is the exception to the pair rule only — it belongs in the
+     interface's own header, since it is a property of the contract.
+  2. **A plain-data struct with no methods, used only as a member or a
+     parameter** → nest it in the class that uses it and let it ride along
+     in that header. It has nothing to define out of line.
+  3. **A type that is part of the API** — what callers pass in or get back —
+     stays a free type in the header, not a member. Nesting it only adds
+     `Owner::` to every use, and API types are often testable on their own.
 
-  Helpers follow the same rule and are stricter: a file-local helper becomes a
-  class `static` member, never a free function. More broadly, strongly prefer
-  class members over free/global functions — a free function needs a very
-  convincing justification.
+  Note what is *not* a reason to nest: a bare `struct` or `class` in a `.cpp`
+  has external linkage and no keyword can change that (`static` applies to
+  functions and objects, not types). That makes duplicate type names across
+  translation units an ODR violation the linker never reports — but the fix
+  is to give the type a proper home per the order above, not to hide it.
+- **Declare in the header, define in the `.cpp`.** A nested type declared
+  (`struct Foo;`) rather than defined needs none of its own dependencies in
+  the header — including base classes. Defining it inline instead drags those
+  includes along for every file that touches the header.
+- **Where a file-local constant goes**, in order:
+  1. **Used by one function, declaration fits on 1-2 lines** → move it *into*
+     that function as a local `constexpr`. Nothing leaves the function, and
+     nothing reaches the header. Drop the `s_` prefix: it marks a file-scope
+     static, and this is not one.
+  2. **Used by several functions** → private `static constexpr` member of the
+     class the `.cpp` implements. Also drop the `s_`.
+  3. **Declaration spans 3+ lines** → leave it as a file-scope
+     `static constexpr`, keeping the `s_k` prefix. This is the deliberate
+     exception. At that size it is a *table or payload* — an opcode table, a
+     palette, a ROM catalog, shader source — not a parameter the logic hinges
+     on. Moving it into the function buries the logic under a wall of data,
+     and hoisting it to the class forces a header declaration plus a
+     declaration/definition split, which is how `DxuiPainter` briefly ended up
+     passing `sizeof (ptr) - 1 == 7` as a shader length.
+
+  The 3-line cut is measured, not guessed: of 1,466 constant declarations in
+  the tree, 1,411 (96%) are a single line, and essentially everything at 3+
+  lines is a table or blob.
 - **No magic numbers** — all numeric literals must be named constants with clear intent.
   Exceptions: 0, 1, -1, nullptr, and sizeof expressions.
 - **American spelling, ALWAYS.** Use American English everywhere — identifiers,
@@ -99,20 +126,43 @@ See the Constitution's Principle VI (Thin Executable, Testable Core) and Princip
 - Functions returning `HRESULT` MUST have exactly one exit point (`Error:` -> `return hr;`).
   Do not use early `return` statements in those functions.
 - **NEVER** use bare `goto Error` — always use EHM macros (CHR, CBR, CWRA, CHRF, etc.)
-- EHM macros must only contain **trivial expressions** — no function calls with side effects
-  or out params. Store the result first, then pass it to the macro:
+- An EHM macro's **condition may not contain a call of any kind** — not even
+  `.size()`, `.empty()`, `.good()` or `.is_open()`. Hoist it to a local **named for
+  what is being tested**, then test the local. Gated by `CS0011`.
   ```cpp
   // WRONG:
   CHRF (root.GetString ("name", outConfig.name), outError = "...");
+  CBR  (out.is_open());
+  CBR  (!bytes.empty());
 
   // RIGHT:
   hr = root.GetString ("name", outConfig.name);
   CHRF (hr, outError = "...");
+
+  isOpen = out.is_open();
+  CBR (isOpen);
+
+  hasBytes = !bytes.empty();
+  CBR (hasBytes);
   ```
+  Two reasons the ban is absolute rather than "no calls that do work". The macro
+  hides what failed, so the bail point should name the condition. And the
+  narrower rule cannot be checked — a pattern cannot tell "does work" from "asks
+  a question", so it sat in this document unenforced and drifted to 88 sites
+  before anyone counted.
+- The **comparison stays in the macro**; only the call moves out. Hoist the value,
+  not the predicate: `rawSize = raw.size();` then `CBRAEx (rawSize == kFoo, E_INVALIDARG)`.
+- The name must say what is tested. `ok` is not a name — it tells you nothing at
+  the bail, which is the whole point of hoisting. Same principle as the
+  `bool`-returning function rule.
+- **Action arguments are exempt** and normally are calls:
+  `CBRF (isComma, SetError ("Expected ',' or ']'"))`. Only the condition — the
+  first argument, up to the first top-level comma — is covered.
+- `SUCCEEDED (hr)` / `FAILED (hr)` inside a `CBR` is wrong for a second reason:
+  testing an HRESULT means the macro should be `CHR`, which keeps the actual
+  error code instead of substituting a generic failure.
 - The same rule applies to **all** macros (not just EHM): never call non-trivial functions
-  inside macro arguments. Trivial: `.size()`, `.count()`, `.bad()`, `.empty()`, `.load()`,
-  and member access.
-  Non-trivial: anything with side effects, allocations, or out params.
+  inside macro arguments. Non-trivial: anything with side effects, allocations, or out params.
 - When intentionally ignoring an HRESULT return value, use the `IGNORE_RETURN_VALUE`
   macro. Its second argument is ALWAYS a plain reset value (`S_OK`, `false`, `0`, …),
   NEVER a call — not even a trivial one. Capture the result into a variable FIRST,
@@ -372,6 +422,45 @@ void Function2()
 - Scripts are in `scripts/` — `Build.ps1`, `RunTests.ps1`, `VSTools.ps1`
 - Supported platforms: x64, ARM64
 - Toolset: v145 (VS 2026)
+
+### Style Gate (pre-push)
+
+`scripts/CheckStyle.ps1` mechanically enforces the subset of the style rules
+above that reduce to a regex: empty-paren spacing, anonymous namespaces,
+American spelling, angle-bracket includes, `Pch.h`-first, bare `goto Error`,
+cast spacing, producing `S_FALSE`, and Claude attribution in commit messages.
+Rules that need judgment — column alignment, the blank-line counts, magic
+numbers, EHM single-exit — are **not** covered and remain review's job.
+
+**`bool` returns must be self-describing.** Return `bool` only when the
+function's name makes `true` / `false` obvious: `IsXxx`, `HasXxx`, `TryXxx`,
+`CanXxx`. `ExtractFirstHDropPath` returning `false` could mean no data object,
+no path, or a failed read; `TryExtractFirstHDropPath` says which. When
+converting a function away from `HRESULT`, rename it to suit. Not gated yet —
+see `docs/coding-standards-backlog.md`.
+
+**`S_FALSE` (CS0009).** Do not *produce* `S_FALSE` without explicit
+approval. Returning it overloads the result with a second, private meaning —
+"succeeded, but not the way you'd assume" — that a caller can only decode by
+reading the callee. Model the second outcome explicitly instead, with a
+status enum or an out-param, and leave `hr` meaning only success or failure.
+*Testing* for `S_FALSE` is not flagged: when an external API returns it you
+have no choice. Where producing it is genuinely unavoidable, mark the line
+`// EHM-ALLOW-SFALSE: <reason>`.
+
+Enable the hook once per clone (shared by all worktrees):
+
+```powershell
+git config core.hooksPath .githooks
+```
+
+- The gate is **diff-scoped**: it inspects only the lines a push *adds*. The
+  tree carries a large pre-existing backlog, so a whole-tree gate would fail
+  on the first push and be switched off the same day.
+- Audit the full backlog with `scripts/CheckStyle.ps1 -Mode Tree`.
+- Check your branch by hand any time with `scripts/CheckStyle.ps1`.
+- Once a rule has been swept to zero tree-wide it can be promoted to a
+  whole-tree check in CI.
 
 ### Merge-to-Master Gates
 These gates apply to **`master`** — i.e. every commit that lands on `master`

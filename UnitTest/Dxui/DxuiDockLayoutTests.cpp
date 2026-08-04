@@ -8,8 +8,16 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
 
 
-namespace
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TEST_CLASS
+//
+////////////////////////////////////////////////////////////////////////////////
+
+TEST_CLASS (DxuiDockLayoutTests)
 {
+public:
+
     RECT  MakeRect (LONG l, LONG t, LONG r, LONG b)
     {
         RECT  out = {};
@@ -20,15 +28,6 @@ namespace
 
     LONG  Width  (const RECT & r) { return r.right  - r.left; }
     LONG  Height (const RECT & r) { return r.bottom - r.top;  }
-}
-
-
-
-
-
-TEST_CLASS (DxuiDockLayoutTests)
-{
-public:
 
     TEST_METHOD (Empty_NoChildren_DoesNothing)
     {
@@ -384,3 +383,4 @@ public:
         Assert::AreEqual ((LONG) 100 + 10,   result.cy);
     }
 };
+

@@ -25,14 +25,21 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace
+
+
+
+
+
+TEST_CLASS (ChromeCommandRoutingTests)
 {
+public:
+
     // The authoritative menu-command id set. Mirrors the IDM_*
     // identifiers in Casso/resource.h that the nav layer wires up.
     // When you add a new menu item, add it here AND to MainMenu's
     // kEntries table — this test will fail until both are in sync,
     // which is exactly the point.
-    constexpr WORD kKnownMenuCommandIds[] =
+    static constexpr WORD kKnownMenuCommandIds[] =
     {
         IDM_FILE_EXIT,
 
@@ -58,15 +65,6 @@ namespace
         IDM_HELP_KEYMAP,
         IDM_HELP_ABOUT,
     };
-}
-
-
-
-
-
-TEST_CLASS (ChromeCommandRoutingTests)
-{
-public:
 
     TEST_METHOD (Every_Known_IDM_Has_MainMenu_Entry)
     {
@@ -158,4 +156,5 @@ public:
         }
     }
 };
+
 

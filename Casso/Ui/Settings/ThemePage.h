@@ -3,8 +3,10 @@
 #include "Pch.h"
 
 #include "../Chrome/CassoTheme.h"
+#include "../Chrome/ChromeMetrics.h"
 #include "../Chrome/DriveWidget.h"
 #include "../Chrome/JoystickToggleButton.h"
+#include "../IDriveCommandSink.h"
 #include "Window/DxuiPropertyPage.h"
 #include "Widgets/DxuiButton.h"
 #include "Widgets/DxuiCheckbox.h"
@@ -95,6 +97,50 @@ public:
     int                              ActiveThemeIndex () const { return m_activeIndex; }
 
 private:
+    // Row/preview geometry and the painting helpers that consume it. Every
+    // reader is a ThemePage method, so the block belongs to the class.
+    static constexpr int  kRowHeightDp     = 28;
+    static constexpr int  kLabelWidthDp    = 140;
+    static constexpr int  kDropdownWidthDp = 220;
+    static constexpr int  kPagePadDp       = 16;
+
+    static constexpr int  kPrevFbWidthDp       = ChromeMetrics::kFramebufferWidthPx;   // 560
+    static constexpr int  kPrevFbHeightDp      = ChromeMetrics::kFramebufferHeightPx;  // 384
+    static constexpr int  kPrevTitleBarDp      = 32;
+    static constexpr int  kPrevNavStripDp      = 32;
+    static constexpr int  kPrevDriveBarFullDp  = 225;
+    static constexpr int  kPrevDriveBarCmptDp  = 105;
+    static constexpr int  kPrevJoystickBandDp  = 43;
+    static constexpr int  kPrevSysButtonWDp    = 46;
+    static constexpr int  kPrevSysButtonGapDp  = 1;
+    static constexpr int  kPrevCaptionFontDp   = 14;
+    static constexpr int  kPrevNavFontDp       = 13;
+
+    static RECT      MakeRect (int l, int t, int w, int h);
+    static uint32_t  LerpArgb (uint32_t a, uint32_t b, float t);
+
+
+    // Computes the actual preview rect inside availRect that matches
+    // the 100%-zoom window's aspect ratio (which depends on the bottom
+    // inset -- full/compact drive bar when a controller is present, or the
+    // thin joystick band alone when it isn't). Returns the scale factor used
+    // so the caller can size sub-regions consistently.
+    static void  ComputePreviewGeometry (const RECT  & availRect,
+                                         int           driveBandDp,
+                                         RECT        & outPrevRect,
+                                         float       & outScale);
+
+    static void  PaintPreviewWindow (DxuiPainter                          & painter,
+                                     DxuiTextRenderer                     & text,
+                                     const RECT                           & availRect,
+                                     const CassoTheme                     & theme,
+                                     bool                                   hasDisk,
+                                     const std::function<const uint32_t * (int &, int &)> & framebufferSource,
+                                     const std::function<std::wstring (int)>              & mountedPathSource,
+                                     const std::function<WriteProtectInfo (int)>          & writeProtectSource,
+                                     std::array<DriveWidget, 2>           & previewDrives,
+                                     JoystickToggleButton                 & previewButton);
+
     std::vector<std::string>      m_themeIds;
     int                           m_activeIndex = -1;
     // Enables the desk-scene checkbox only while the selected theme is

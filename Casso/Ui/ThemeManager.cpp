@@ -9,7 +9,6 @@
 
 
 
-
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  ThemeBootstrapPlanner::Plan
@@ -21,52 +20,52 @@ ThemeBootstrapAction ThemeBootstrapPlanner::Plan (
     const std::string & embeddedThemeJson,
     int                 currentVersion)
 {
-    HRESULT         hr        = S_OK;
-    JsonValue       parsed;
-    JsonParseError  err;
-    bool            isBuiltIn = false;
-    int             version   = 0;
+    HRESULT               hr        = S_OK;
+    JsonValue             parsed;
+    JsonParseError        err;
+    bool                  isBuiltIn = false;
+    int                   version   = 0;
+    ThemeBootstrapAction  action    = ThemeBootstrapAction::Skip;
+    bool                  parseable = (themeJsonOnDisk != nullptr);
 
 
 
-    if (themeJsonOnDisk == nullptr)
+    // Missing or unparseable: install the built-in copy. A file we cannot
+    // read is indistinguishable from no file for bootstrap purposes.
+    if (parseable)
     {
-        return ThemeBootstrapAction::InstallBuiltIn;
+        hr        = JsonParser::Parse (*themeJsonOnDisk, parsed, err);
+        parseable = SUCCEEDED (hr) && parsed.GetType() == JsonType::Object;
     }
 
-    hr = JsonParser::Parse (*themeJsonOnDisk, parsed, err);
-
-    if (FAILED (hr) || parsed.GetType() != JsonType::Object)
+    if (parseable)
     {
-        return ThemeBootstrapAction::InstallBuiltIn;
+        hr = parsed.GetBool ("$cassoBuiltIn", isBuiltIn);
+        IGNORE_RETURN_VALUE (hr, S_OK);
+
+        hr = parsed.GetInt ("$cassoThemeVersion", version);
+        IGNORE_RETURN_VALUE (hr, S_OK);
     }
 
-    hr = parsed.GetBool ("$cassoBuiltIn", isBuiltIn);
-    IGNORE_RETURN_VALUE (hr, S_OK);
-
-    if (!isBuiltIn)
+    // A theme the USER owns ($cassoBuiltIn absent or false) is never touched.
+    // For one of ours, either drift from the embedded canonical copy (a
+    // developer edited it without bumping currentVersion) or an older stamp
+    // re-extracts on the next launch.
+    if (!parseable)
     {
-        return ThemeBootstrapAction::Skip;
+        action = ThemeBootstrapAction::InstallBuiltIn;
+    }
+    else if (!isBuiltIn)
+    {
+        action = ThemeBootstrapAction::Skip;
+    }
+    else if ((!embeddedThemeJson.empty() && *themeJsonOnDisk != embeddedThemeJson)
+             || version < currentVersion)
+    {
+        action = ThemeBootstrapAction::InstallBuiltIn;
     }
 
-    // Built-in marker says "this is ours" -- compare bytes against the
-    // embedded canonical copy. Any drift (developer edited the embedded
-    // theme.json without bumping currentVersion) re-extracts on the
-    // next launch automatically.
-    if (! embeddedThemeJson.empty() && *themeJsonOnDisk != embeddedThemeJson)
-    {
-        return ThemeBootstrapAction::InstallBuiltIn;
-    }
-
-    hr = parsed.GetInt ("$cassoThemeVersion", version);
-    IGNORE_RETURN_VALUE (hr, S_OK);
-
-    if (version < currentVersion)
-    {
-        return ThemeBootstrapAction::InstallBuiltIn;
-    }
-
-    return ThemeBootstrapAction::Skip;
+    return action;
 }
 
 
@@ -102,7 +101,7 @@ ThemeManager::ThemeManager (
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT ThemeManager::Discover ()
+HRESULT ThemeManager::Discover()
 {
     HRESULT                    hr      = S_OK;
     std::vector<std::wstring>  candidates;
@@ -112,11 +111,6 @@ HRESULT ThemeManager::Discover ()
     m_available.clear();
 
     hr = ThemeLoader::EnumerateCandidateDirs (m_fs, m_themesBaseDir, candidates);
-
-    if (hr == S_FALSE)
-    {
-        return S_OK;
-    }
 
     CHRA (hr);
 
@@ -149,24 +143,35 @@ Error:
 
 HRESULT ThemeManager::Activate (const std::string & themeName)
 {
+    HRESULT              hr    = S_OK;
+    const LoadedTheme *  match = nullptr;
+
+
+
     for (const LoadedTheme & t : m_available)
     {
         if (t.name == themeName)
         {
-            m_activeName      = t.name;
-            m_activeFamilyId  = t.familyId;
-            m_activeVariantId = t.variantId;
-            // Apply any per-machine overrides for the currently-tracked
-            // machine. With no machine set this is a no-op copy.
-            {
-                LoadedTheme  resolved = t.ResolveForMachine (m_activeMachine);
-                NotifyListeners (resolved);
-            }
-            return S_OK;
+            match = &t;
+            break;
         }
     }
 
-    return S_FALSE;
+    CBREx (match != nullptr, HRESULT_FROM_WIN32 (ERROR_NOT_FOUND));
+
+    m_activeName      = match->name;
+    m_activeFamilyId  = match->familyId;
+    m_activeVariantId = match->variantId;
+
+    // Apply any per-machine overrides for the currently-tracked
+    // machine. With no machine set this is a no-op copy.
+    {
+        LoadedTheme  resolved = match->ResolveForMachine (m_activeMachine);
+        NotifyListeners (resolved);
+    }
+
+Error:
+    return hr;
 }
 
 
@@ -183,15 +188,26 @@ HRESULT ThemeManager::ActivateByFamilyVariant (
     const std::string & familyId,
     const std::string & variantId)
 {
+    HRESULT              hr    = S_OK;
+    const LoadedTheme *  match = nullptr;
+
+
     for (const LoadedTheme & t : m_available)
     {
         if (t.familyId == familyId && t.variantId == variantId)
         {
-            return Activate (t.name);
+            match = &t;
+            break;
         }
     }
 
-    return S_FALSE;
+    CBREx (match != nullptr, HRESULT_FROM_WIN32 (ERROR_NOT_FOUND));
+
+    hr = Activate (match->name);
+    CHR (hr);
+
+Error:
+    return hr;
 }
 
 
@@ -204,7 +220,7 @@ HRESULT ThemeManager::ActivateByFamilyVariant (
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT ThemeManager::ReloadCurrent ()
+HRESULT ThemeManager::ReloadCurrent()
 {
     HRESULT      hr             = S_OK;
     std::string  previousActive = m_activeName;
@@ -216,7 +232,15 @@ HRESULT ThemeManager::ReloadCurrent ()
 
     if (!previousActive.empty())
     {
+        // A theme that vanished across a reload is not a reload failure, so
+        // ERROR_NOT_FOUND is swallowed deliberately -- GetActiveThemeName
+        // reports what is active. Any OTHER failure propagates.
         hr = Activate (previousActive);
+        if (hr == HRESULT_FROM_WIN32 (ERROR_NOT_FOUND))
+        {
+            hr = S_OK;
+        }
+        CHR (hr);
     }
 
 Error:
@@ -233,23 +257,25 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-const LoadedTheme * ThemeManager::GetActiveTheme () const
+const LoadedTheme * ThemeManager::GetActiveTheme() const
 {
-    if (m_activeName.empty())
-    {
-        return nullptr;
-    }
+    const LoadedTheme *  found = nullptr;
 
+
+
+    // An empty active name matches nothing, so the loop covers that case too
+    // and null means "no active theme" either way.
     for (const LoadedTheme & t : m_available)
     {
-        if (t.name == m_activeName)
+        if (found == nullptr && !m_activeName.empty() && t.name == m_activeName)
         {
-            return &t;
+            found = &t;
         }
     }
 
-    return nullptr;
+    return found;
 }
+
 
 
 
@@ -264,23 +290,26 @@ void ThemeManager::SetActiveMachineName (const std::string & machineDisplayName)
 {
     const LoadedTheme *  active = nullptr;
 
-    if (m_activeMachine == machineDisplayName)
-    {
-        return;
-    }
 
-    m_activeMachine = machineDisplayName;
 
-    active = GetActiveTheme();
-    if (active != nullptr)
+    // Re-notifying listeners for the same machine would re-resolve and
+    // re-publish an identical theme every frame.
+    if (m_activeMachine != machineDisplayName)
     {
-        // Listeners see the resolved theme, not the base, so chrome /
-        // CRT picks up the new variant on the next frame without any
-        // additional plumbing on their end.
-        LoadedTheme  resolved = active->ResolveForMachine (m_activeMachine);
-        NotifyListeners (resolved);
+        m_activeMachine = machineDisplayName;
+
+        active = GetActiveTheme();
+        if (active != nullptr)
+        {
+            // Listeners see the resolved theme, not the base, so chrome /
+            // CRT picks up the new variant on the next frame without any
+            // additional plumbing on their end.
+            LoadedTheme  resolved = active->ResolveForMachine (m_activeMachine);
+            NotifyListeners (resolved);
+        }
     }
 }
+
 
 
 
@@ -291,16 +320,16 @@ void ThemeManager::SetActiveMachineName (const std::string & machineDisplayName)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-LoadedTheme ThemeManager::GetActiveResolvedTheme () const
+LoadedTheme ThemeManager::GetActiveResolvedTheme() const
 {
     const LoadedTheme *  active = GetActiveTheme();
 
-    if (active == nullptr)
-    {
-        return LoadedTheme {};
-    }
 
-    return active->ResolveForMachine (m_activeMachine);
+
+    // A default-constructed theme with no active one: callers read its
+    // has-flags, which are all false, so nothing gets overridden.
+    return (active != nullptr) ? active->ResolveForMachine (m_activeMachine)
+                               : LoadedTheme {};
 }
 
 

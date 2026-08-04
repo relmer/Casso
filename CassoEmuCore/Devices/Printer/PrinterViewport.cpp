@@ -5,6 +5,7 @@
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  PrinterViewport::PrinterViewport
@@ -19,6 +20,7 @@ PrinterViewport::PrinterViewport (const Config & cfg)
         m_cfg.viewportRows = 1;
     }
 }
+
 
 
 
@@ -40,6 +42,7 @@ void PrinterViewport::Advance (int liveRow)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  PrinterViewport::NotifyUserScroll
@@ -56,6 +59,7 @@ void PrinterViewport::NotifyUserScroll (int64_t nowMs)
     m_liveRowAtScroll = m_liveRow;
     m_lastScrollMs    = nowMs;
 }
+
 
 
 
@@ -82,6 +86,7 @@ void PrinterViewport::Tick (int64_t nowMs)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  PrinterViewport::MinBottomRow
@@ -97,8 +102,11 @@ int PrinterViewport::MinBottomRow() const
 {
     int  furthestBack = (std::max) (0, m_cfg.viewportRows - 1 - m_cfg.topClearanceRows);
 
+
+
     return (std::min) (m_liveRow, furthestBack);
 }
+
 
 
 

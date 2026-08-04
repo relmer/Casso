@@ -8,14 +8,24 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
 
 
-namespace
-{
-    constexpr LONG   s_kClientWidthDip       = 1024;
-    constexpr LONG   s_kClientHeightDip      = 768;
-    constexpr float  s_kResizeBorderDip      = 6.0f;
 
-    constexpr LONG   s_kCaptionHeightDip     = 32;
-    constexpr LONG   s_kSystemButtonWidthDip = 46;
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TEST_CLASS
+//
+////////////////////////////////////////////////////////////////////////////////
+
+TEST_CLASS (DxuiHwndSourceTests)
+{
+public:
+
+    static constexpr LONG   s_kClientWidthDip       = 1024;
+    static constexpr LONG   s_kClientHeightDip      = 768;
+    static constexpr float  s_kResizeBorderDip      = 6.0f;
+
+    static constexpr LONG   s_kCaptionHeightDip     = 32;
+    static constexpr LONG   s_kSystemButtonWidthDip = 46;
 
 
     RECT  MakeRect (LONG l, LONG t, LONG r, LONG b)
@@ -50,7 +60,7 @@ namespace
     };
 
 
-    SyntheticHost  BuildSyntheticHost ()
+    SyntheticHost  BuildSyntheticHost()
     {
         SyntheticHost            result;
         std::unique_ptr<DxuiPanel>     root        = std::make_unique<DxuiPanel>();
@@ -87,15 +97,6 @@ namespace
 
         return result;
     }
-}
-
-
-
-
-
-TEST_CLASS (DxuiHwndSourceTests)
-{
-public:
 
     TEST_METHOD_INITIALIZE (Setup)
     {
@@ -566,3 +567,4 @@ public:
         Assert::AreEqual ((size_t) 1, host.Root().ChildCount());
     }
 };
+

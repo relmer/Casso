@@ -9,82 +9,250 @@
 
 
 
-
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  Anonymous helpers
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace
+static constexpr const char *  s_kpszVersionKey  = "$cassoThemeVersion";
+static constexpr const char *  s_kpszBuiltInKey  = "$cassoBuiltIn";
+
+
+std::wstring  ThemeLoader::Utf8ToWide (const std::string & s)
 {
-    constexpr const char *  s_kpszVersionKey  = "$cassoThemeVersion";
-    constexpr const char *  s_kpszBuiltInKey  = "$cassoBuiltIn";
+    // Theme paths in theme.json are ASCII by spec (filename
+    // restrictions). A naive widen is fine for the relative
+    // names we deal with here.
+    return std::wstring (s.begin(), s.end());
+}
 
 
-    std::wstring  Utf8ToWide (const std::string & s)
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Required-key schema
+//
+//  What theme.json must contain, as data. Presence and type are settled once
+//  from these tables, which is what lets every check further down be about the
+//  *value* alone -- the messages used to all read "missing or invalid X"
+//  because each site was answering two questions at once and could not say
+//  which one had failed.
+//
+//  `$cassoThemeVersion` is deliberately absent from the root table. It is
+//  handled before the sweep runs, because a schema newer than this build may
+//  legitimately rename or drop keys listed here; reporting those as malformed
+//  would bury the answer the user actually needs, which is that their Casso is
+//  too old. Version first, then contents.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+struct RequiredKey
+{
+    const char *  name;
+    JsonType      type;
+    bool          mustBeNonEmpty;   // strings only: "" is present but useless
+};
+
+static constexpr RequiredKey  s_kRequiredRootKeys[] =
+{
+    { "name",               JsonType::String, true  },
+    { "familyId",           JsonType::String, true  },
+    { "variantId",          JsonType::String, true  },
+    { "uiTokens",           JsonType::Object, false },
+    { "driveVisualProfile", JsonType::Object, false },
+};
+
+static constexpr RequiredKey  s_kRequiredDriveKeys[] =
+{
+    { "style",         JsonType::String, true },
+    { "colorway",      JsonType::String, true },
+    { "doorAnimation", JsonType::String, true },
+    { "syncChannel",   JsonType::String, true },
+};
+
+// Indexed by JsonType, for the "must be a string" half of the message.
+static constexpr const char *  s_kJsonTypeNames[] =
+{
+    "null", "a boolean", "a number", "a string", "an array", "an object",
+};
+
+static_assert (std::size (s_kJsonTypeNames) == (size_t) JsonType::Object + 1,
+               "every JsonType needs a name for diagnostics");
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  FindMember
+//
+//  JsonValue::Find is private, and the typed getters cannot tell "absent"
+//  from "wrong type" -- which is the distinction the messages need.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+static const JsonValue * FindMember (const JsonValue & obj, const std::string & key)
+{
+    const JsonValue *  found = nullptr;
+
+
+
+    for (const std::pair<std::string, JsonValue> & entry : obj.GetObjectEntries())
     {
-        // Theme paths in theme.json are ASCII by spec (filename
-        // restrictions). A naive widen is fine for the relative
-        // names we deal with here.
-        return std::wstring (s.begin(), s.end());
-    }
-
-
-    bool  GetBoolOpt (
-        const JsonValue   & obj,
-        const std::string & key,
-        bool                fallback)
-    {
-        bool      result = fallback;
-        HRESULT   hr     = obj.GetBool (key, result);
-        if (FAILED (hr))
+        if (entry.first == key)
         {
-            return fallback;
+            found = &entry.second;
+            break;
         }
-        return result;
     }
 
+    return found;
+}
 
-    double  GetNumberOpt (
-        const JsonValue   & obj,
-        const std::string & key,
-        double              fallback)
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HasRequiredKeys
+//
+//  True when every listed key is present with the listed type. On failure
+//  `outProblem` names the first offender and says which of the two things went
+//  wrong with it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+static bool HasRequiredKeys (const JsonValue              & obj,
+                             const char                   * context,
+                             std::span<const RequiredKey>   required,
+                             std::string                  & outProblem)
+{
+    bool  result  = true;
+    bool  isEmpty = false;
+
+    outProblem.clear();
+
+
+
+    for (const RequiredKey & key : required)
     {
-        double    result = fallback;
-        HRESULT   hr     = obj.GetNumber (key, result);
-        if (FAILED (hr))
+        const JsonValue *  member = FindMember (obj, key.name);
+
+        if (member == nullptr)
         {
-            return fallback;
+            outProblem = std::format ("{} is missing required key `{}`", context, key.name);
+            result     = false;
+            break;
         }
-        return result;
+
+        if (member->GetType() != key.type)
+        {
+            outProblem = std::format ("{} key `{}` must be {}",
+                                      context, key.name, s_kJsonTypeNames[(size_t) key.type]);
+            result     = false;
+            break;
+        }
+
+        // Present and correctly typed is not the same as usable. Folding this
+        // in here is what lets the caller stop re-testing every field it just
+        // read -- and what keeps a `.empty()` call out of seven EHM guards.
+        isEmpty = key.mustBeNonEmpty && member->GetString().empty();
+
+        if (isEmpty)
+        {
+            outProblem = std::format ("{} key `{}` must not be empty", context, key.name);
+            result     = false;
+            break;
+        }
     }
 
+    return result;
+}
 
-    std::string  GetStringOpt (
-        const JsonValue   & obj,
-        const std::string & key,
-        const std::string & fallback)
+
+
+
+//  The three optional getters below swallow failure by contract -- absent or
+//  wrong-typed means "use the fallback", not an error to report. They still
+//  call a failable API, so they take the documented non-HRESULT EHM shape: a
+//  vestigial `hr` for the macro, and the normal result returned at `Error:`.
+
+bool  ThemeLoader::GetBoolOpt (
+    const JsonValue   & obj,
+    const std::string & key,
+    bool                fallback)
+{
+    HRESULT  hr     = S_OK;
+    bool     result = fallback;
+
+
+
+    hr = obj.GetBool (key, result);
+    CHRF (hr, result = fallback);
+
+Error:
+    return result;
+}
+
+
+double  ThemeLoader::GetNumberOpt (
+    const JsonValue   & obj,
+    const std::string & key,
+    double              fallback)
+{
+    HRESULT  hr     = S_OK;
+    double   result = fallback;
+
+
+
+    hr = obj.GetNumber (key, result);
+    CHRF (hr, result = fallback);
+
+Error:
+    return result;
+}
+
+
+std::string  ThemeLoader::GetStringOpt (
+    const JsonValue   & obj,
+    const std::string & key,
+    const std::string & fallback)
+{
+    HRESULT      hr     = S_OK;
+    std::string  result = fallback;
+
+
+
+    hr = obj.GetString (key, result);
+    CHRF (hr, result = fallback);
+
+Error:
+    return result;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ThemeLoader::StripTrailingSep
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring  ThemeLoader::StripTrailingSep (const std::wstring & p)
+{
+    std::wstring  r = p;
+    while (!r.empty() && (r.back() == L'\\' || r.back() == L'/'))
     {
-        std::string  result = fallback;
-        HRESULT      hr     = obj.GetString (key, result);
-        if (FAILED (hr))
-        {
-            return fallback;
-        }
-        return result;
+        r.pop_back();
     }
-
-
-    std::wstring  StripTrailingSep (const std::wstring & p)
-    {
-        std::wstring  r = p;
-        while (!r.empty() && (r.back() == L'\\' || r.back() == L'/'))
-        {
-            r.pop_back();
-        }
-        return r;
-    }
+    return r;
 }
 
 
@@ -126,7 +294,7 @@ std::wstring ThemeLoader::JoinPath (
 //  Walks `<themesBaseDir>` and returns the subset of sub-directory
 //  names that look like candidate themes (theme.json exists). The
 //  returned names are bare directory names — caller composes the
-//  absolute path. Returns S_FALSE (with empty list) if
+//  absolute path. Returns S_OK with an empty list if
 //  `themesBaseDir` itself doesn't exist.
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -138,7 +306,6 @@ HRESULT ThemeLoader::EnumerateCandidateDirs (
 {
     HRESULT                     hr     = S_OK;
     std::vector<std::wstring>   dirs;
-    size_t                      i      = 0;
 
 
 
@@ -146,23 +313,23 @@ HRESULT ThemeLoader::EnumerateCandidateDirs (
 
     hr = fs.EnumerateDirectories (themesBaseDir, dirs);
 
-    if (FAILED (hr))
-    {
-        // Base directory missing → S_FALSE with empty list.
-        return S_FALSE;
-    }
+    // Base directory missing: no themes to enumerate. outNames is already
+    // cleared, and that emptiness is the whole answer -- no second result
+    // code needed, so this reports success rather than propagating.
+    BAIL_OUT_IF (FAILED (hr), S_OK);
 
-    for (i = 0; i < dirs.size(); ++i)
+    for (const std::wstring & dir : dirs)
     {
-        std::wstring  themeJson = JoinPath (JoinPath (themesBaseDir, dirs[i]),
-                                            L"theme.json");
+        std::wstring  themeJson = JoinPath (JoinPath (themesBaseDir, dir), L"theme.json");
+
         if (fs.Exists (themeJson))
         {
-            outNames.push_back (dirs[i]);
+            outNames.push_back (dir);
         }
     }
 
-    return S_OK;
+Error:
+    return hr;
 }
 
 
@@ -192,146 +359,123 @@ HRESULT ThemeLoader::ParseMetadata (
     const JsonValue *   scanObj       = nullptr;
     const JsonValue *   bloomObj      = nullptr;
     const JsonValue *   bleedObj      = nullptr;
+    const JsonValue *   overridesObj  = nullptr;
     int                 themeVersion  = 0;
+    double              versionValue  = 0.0;
+    JsonType            rootType      = JsonType::Null;
+    bool                present       = false;
+    std::string         problem;
 
 
 
     outTheme = LoadedTheme {};
 
     hr = JsonParser::Parse (jsonText, root, perr);
+    CHRF (hr,
+          outError.code       = ThemeLoadResult::MetadataInvalid;
+          outError.message    = perr.message;
+          outError.jsonLine   = perr.line;
+          outError.jsonColumn = perr.column);
 
-    if (FAILED (hr))
-    {
-        outError.code       = ThemeLoadResult::MetadataInvalid;
-        outError.message    = perr.message;
-        outError.jsonLine   = perr.line;
-        outError.jsonColumn = perr.column;
-        return hr;
-    }
+    rootType = root.GetType();
+    CBRFEx (rootType == JsonType::Object, E_INVALIDARG,
+            outError.code    = ThemeLoadResult::MetadataInvalid;
+            outError.message = "theme.json root is not a JSON object");
 
-    if (root.GetType() != JsonType::Object)
-    {
-        outError.code    = ThemeLoadResult::MetadataInvalid;
-        outError.message = "theme.json root is not a JSON object";
-        return E_INVALIDARG;
-    }
+    // the version gate, before anything else is judged
+    //
+    // A theme written for a newer schema may legitimately not look like one
+    // this build understands, so "your Casso is too old" has to be decided
+    // before its contents are called malformed.
 
-    // ---- required: $cassoThemeVersion + name + family/variant ids ---------
+    present = root.HasNumber (s_kpszVersionKey, versionValue);
+    CBRFEx (present, E_INVALIDARG,
+            outError.code    = ThemeLoadResult::MetadataInvalid;
+            outError.message = std::format ("theme.json is missing required key `{}`",
+                                            s_kpszVersionKey));
 
-    hr = root.GetInt (s_kpszVersionKey, themeVersion);
+    themeVersion = (int) versionValue;
 
-    if (FAILED (hr) || themeVersion < 1)
-    {
-        outError.code    = ThemeLoadResult::MetadataInvalid;
-        outError.message = "theme.json missing or invalid $cassoThemeVersion";
-        return FAILED (hr) ? hr : E_INVALIDARG;
-    }
+    CBRFEx (themeVersion >= 1, E_INVALIDARG,
+            outError.code    = ThemeLoadResult::MetadataInvalid;
+            outError.message = std::format ("theme.json `{}` must be 1 or greater",
+                                            s_kpszVersionKey));
 
-    if (themeVersion > kCurrentThemeSchemaVersion)
-    {
-        outError.code    = ThemeLoadResult::VersionTooNew;
-        outError.message = "theme.json $cassoThemeVersion is newer than this build supports";
-        return E_NOTIMPL;
-    }
+    CBRFEx (themeVersion <= kCurrentThemeSchemaVersion, E_NOTIMPL,
+            outError.code    = ThemeLoadResult::VersionTooNew;
+            outError.message = "theme.json $cassoThemeVersion is newer than this build supports");
 
     outTheme.version = themeVersion;
 
-    hr = root.GetString ("name", outTheme.name);
+    // presence and type, settled once from the schema tables
+    //
+    // Everything below this point is a question about a *value*. That is the
+    // whole reason for doing it here: each message used to read "missing or
+    // invalid X" because the site was answering two questions at once and had
+    // no way to say which had failed.
 
-    if (FAILED (hr) || outTheme.name.empty())
-    {
-        outError.code    = ThemeLoadResult::MetadataInvalid;
-        outError.message = "theme.json missing or empty `name`";
-        return FAILED (hr) ? hr : E_INVALIDARG;
-    }
+    present = HasRequiredKeys (root, "theme.json", s_kRequiredRootKeys, problem);
+    CBRFEx (present, E_INVALIDARG,
+            outError.code    = ThemeLoadResult::MetadataInvalid;
+            outError.message = problem);
 
-    hr = root.GetString ("familyId", outTheme.familyId);
+    // Guaranteed by the sweep above; CBRA because dereferencing it needs that
+    // guarantee, and a failure here means the table drifted from the reads.
+    present = root.HasObject ("driveVisualProfile", driveProfile);
+    CBRA (present);
 
-    if (FAILED (hr) || outTheme.familyId.empty())
-    {
-        outError.code    = ThemeLoadResult::MetadataInvalid;
-        outError.message = "theme.json missing or empty `familyId`";
-        return FAILED (hr) ? hr : E_INVALIDARG;
-    }
+    present = HasRequiredKeys (*driveProfile, "driveVisualProfile", s_kRequiredDriveKeys, problem);
+    CBRFEx (present, E_INVALIDARG,
+            outError.code    = ThemeLoadResult::MetadataInvalid;
+            outError.message = problem);
 
-    hr = root.GetString ("variantId", outTheme.variantId);
-
-    if (FAILED (hr) || outTheme.variantId.empty())
-    {
-        outError.code    = ThemeLoadResult::MetadataInvalid;
-        outError.message = "theme.json missing or empty `variantId`";
-        return FAILED (hr) ? hr : E_INVALIDARG;
-    }
-
-    // ---- optional scalars --------------------------------------------------
+    // optional scalars
 
     outTheme.author          = GetStringOpt (root, "author",      "");
     outTheme.description     = GetStringOpt (root, "description", "");
     outTheme.useMicaBackdrop = GetBoolOpt   (root, "useMicaBackdrop", false);
     outTheme.isBuiltIn       = GetBoolOpt   (root, s_kpszBuiltInKey,  false);
 
-    // ---- required: uiTokens + driveVisualProfile --------------------------
+    // reads
+    //
+    // Nothing below can fail. The sweep proved every key is present, correctly
+    // typed and non-empty, so these are plain reads through the *Opt getters
+    // whose fallback is unreachable. There is no guard here because there is
+    // no longer a question to ask.
 
-    if (FAILED (root.GetObject ("uiTokens", uiTokensObj)) || uiTokensObj == nullptr)
-    {
-        outError.code    = ThemeLoadResult::MetadataInvalid;
-        outError.message = "theme.json missing required `uiTokens` object";
-        return E_INVALIDARG;
-    }
+    present = root.HasObject ("uiTokens", uiTokensObj);
+    CBRA (present);
+
     outTheme.uiTokens = *uiTokensObj;
 
-    if (FAILED (root.GetObject ("driveVisualProfile", driveProfile)) || driveProfile == nullptr)
-    {
-        outError.code    = ThemeLoadResult::MetadataInvalid;
-        outError.message = "theme.json missing required `driveVisualProfile` object";
-        return E_INVALIDARG;
-    }
-    if (FAILED (driveProfile->GetString ("style", outTheme.driveVisualProfile.style)) ||
-        outTheme.driveVisualProfile.style.empty())
-    {
-        outError.code    = ThemeLoadResult::MetadataInvalid;
-        outError.message = "driveVisualProfile.style is required";
-        return E_INVALIDARG;
-    }
-    if (FAILED (driveProfile->GetString ("colorway", outTheme.driveVisualProfile.colorway)) ||
-        outTheme.driveVisualProfile.colorway.empty())
-    {
-        outError.code    = ThemeLoadResult::MetadataInvalid;
-        outError.message = "driveVisualProfile.colorway is required";
-        return E_INVALIDARG;
-    }
-    if (FAILED (driveProfile->GetString ("doorAnimation", outTheme.driveVisualProfile.doorAnimation)) ||
-        outTheme.driveVisualProfile.doorAnimation.empty())
-    {
-        outError.code    = ThemeLoadResult::MetadataInvalid;
-        outError.message = "driveVisualProfile.doorAnimation is required";
-        return E_INVALIDARG;
-    }
-    if (FAILED (driveProfile->GetString ("syncChannel", outTheme.driveVisualProfile.syncChannel)) ||
-        outTheme.driveVisualProfile.syncChannel.empty())
-    {
-        outError.code    = ThemeLoadResult::MetadataInvalid;
-        outError.message = "driveVisualProfile.syncChannel is required";
-        return E_INVALIDARG;
-    }
+    outTheme.name      = GetStringOpt (root, "name",      "");
+    outTheme.familyId  = GetStringOpt (root, "familyId",  "");
+    outTheme.variantId = GetStringOpt (root, "variantId", "");
 
-    // ---- crtDefaults (all optional; clamped to schema bounds) -------------
+    outTheme.driveVisualProfile.style         = GetStringOpt (*driveProfile, "style",         "");
+    outTheme.driveVisualProfile.colorway      = GetStringOpt (*driveProfile, "colorway",      "");
+    outTheme.driveVisualProfile.doorAnimation = GetStringOpt (*driveProfile, "doorAnimation", "");
+    outTheme.driveVisualProfile.syncChannel   = GetStringOpt (*driveProfile, "syncChannel",   "");
 
-    if (SUCCEEDED (root.GetObject ("crtDefaults", crtObj)) && crtObj != nullptr)
+    // crtDefaults (all optional; clamped to schema bounds)
+
+    if (root.HasObject ("crtDefaults", crtObj))
     {
         double  d = 0.0;
-        if (SUCCEEDED (crtObj->GetNumber ("brightness", d)))
+
+        if (crtObj->HasNumber ("brightness", d))
         {
             outTheme.crtDefaults.brightness    = (float) d;
             outTheme.crtDefaults.hasBrightness = true;
         }
-        if (SUCCEEDED (crtObj->GetNumber ("contrast", d)))
+
+        if (crtObj->HasNumber ("contrast", d))
         {
             outTheme.crtDefaults.contrast    = (float) d;
             outTheme.crtDefaults.hasContrast = true;
         }
 
-        if (SUCCEEDED (crtObj->GetObject ("scanlines", scanObj)) && scanObj != nullptr)
+        if (crtObj->HasObject ("scanlines", scanObj))
         {
             outTheme.crtDefaults.scanlinesEnabled   = GetBoolOpt   (*scanObj, "enabled",
                                                                     outTheme.crtDefaults.scanlinesEnabled);
@@ -339,7 +483,8 @@ HRESULT ThemeLoader::ParseMetadata (
                                                                             outTheme.crtDefaults.scanlinesIntensity);
             outTheme.crtDefaults.hasScanlines       = true;
         }
-        if (SUCCEEDED (crtObj->GetObject ("bloom", bloomObj)) && bloomObj != nullptr)
+
+        if (crtObj->HasObject ("bloom", bloomObj))
         {
             outTheme.crtDefaults.bloomEnabled  = GetBoolOpt (*bloomObj, "enabled",
                                                              outTheme.crtDefaults.bloomEnabled);
@@ -349,7 +494,8 @@ HRESULT ThemeLoader::ParseMetadata (
                                                                        outTheme.crtDefaults.bloomStrength);
             outTheme.crtDefaults.hasBloom      = true;
         }
-        if (SUCCEEDED (crtObj->GetObject ("colorBleed", bleedObj)) && bleedObj != nullptr)
+
+        if (crtObj->HasObject ("colorBleed", bleedObj))
         {
             outTheme.crtDefaults.colorBleedEnabled = GetBoolOpt (*bleedObj, "enabled",
                                                                  outTheme.crtDefaults.colorBleedEnabled);
@@ -359,28 +505,23 @@ HRESULT ThemeLoader::ParseMetadata (
         }
     }
 
-    // ---- optional: variantOverrides (per-machine sparse overlays) --------
+    // optional: variantOverrides (per-machine sparse overlays)
 
+    if (root.HasObject ("variantOverrides", overridesObj))
     {
-        const JsonValue *  overridesObj = nullptr;
-
-        if (SUCCEEDED (root.GetObject ("variantOverrides", overridesObj)) && overridesObj != nullptr)
+        for (const std::pair<std::string, JsonValue> & entry : overridesObj->GetObjectEntries())
         {
-            const auto &  entries = overridesObj->GetObjectEntries();
-            size_t        i       = 0;
-
-            for (i = 0; i < entries.size(); i++)
+            if (entry.second.GetType() == JsonType::Object)
             {
-                if (entries[i].second.GetType() == JsonType::Object)
-                {
-                    outTheme.variantOverrides.emplace_back (entries[i].first, entries[i].second);
-                }
+                outTheme.variantOverrides.emplace_back (entry.first, entry.second);
             }
         }
     }
 
-    return S_OK;
+Error:
+    return hr;
 }
+
 
 
 
@@ -409,22 +550,20 @@ LoadedTheme LoadedTheme::ResolveForMachine (const std::string & machineDisplayNa
 {
     LoadedTheme         result    = *this;
     const JsonValue *   override_ = nullptr;
-    size_t              i         = 0;
 
-    for (i = 0; i < variantOverrides.size(); i++)
+
+
+    // Exact, case-sensitive match against the machine JSON's "name". No entry
+    // means no overrides, and `result` is already the verbatim copy.
+    for (const std::pair<std::string, JsonValue> & entry : variantOverrides)
     {
-        if (variantOverrides[i].first == machineDisplayName)
+        if (override_ == nullptr && entry.first == machineDisplayName)
         {
-            override_ = &variantOverrides[i].second;
-            break;
+            override_ = &entry.second;
         }
     }
 
-    if (override_ == nullptr)
-    {
-        return result;
-    }
-
+    if (override_ != nullptr)
     {
         const JsonValue *  crtObj   = nullptr;
         const JsonValue *  scanObj  = nullptr;
@@ -433,46 +572,56 @@ LoadedTheme LoadedTheme::ResolveForMachine (const std::string & machineDisplayNa
         const JsonValue *  driveObj = nullptr;
         bool               mica     = false;
 
-        if (SUCCEEDED (override_->GetObject ("crtDefaults", crtObj)) && crtObj != nullptr)
+        if (override_->HasObject ("crtDefaults", crtObj))
         {
             double  d = 0.0;
-            if (SUCCEEDED (crtObj->GetNumber ("brightness", d))) { result.crtDefaults.brightness = (float) d; result.crtDefaults.hasBrightness = true; }
-            if (SUCCEEDED (crtObj->GetNumber ("contrast",   d))) { result.crtDefaults.contrast   = (float) d; result.crtDefaults.hasContrast   = true; }
 
-            if (SUCCEEDED (crtObj->GetObject ("scanlines", scanObj)) && scanObj != nullptr)
+            if (crtObj->HasNumber ("brightness", d)) { result.crtDefaults.brightness = (float) d; result.crtDefaults.hasBrightness = true; }
+            if (crtObj->HasNumber ("contrast",   d)) { result.crtDefaults.contrast   = (float) d; result.crtDefaults.hasContrast   = true; }
+
+            if (crtObj->HasObject ("scanlines", scanObj))
             {
                 bool  b = false;
-                if (SUCCEEDED (scanObj->GetBool   ("enabled",   b))) { result.crtDefaults.scanlinesEnabled   = b; }
-                if (SUCCEEDED (scanObj->GetNumber ("intensity", d))) { result.crtDefaults.scanlinesIntensity = (float) d; }
+
+                if (scanObj->HasBool   ("enabled",   b)) { result.crtDefaults.scanlinesEnabled   = b; }
+                if (scanObj->HasNumber ("intensity", d)) { result.crtDefaults.scanlinesIntensity = (float) d; }
+
                 result.crtDefaults.hasScanlines = true;
             }
-            if (SUCCEEDED (crtObj->GetObject ("bloom", bloomObj)) && bloomObj != nullptr)
+
+            if (crtObj->HasObject ("bloom", bloomObj))
             {
                 bool  b = false;
-                if (SUCCEEDED (bloomObj->GetBool   ("enabled",  b))) { result.crtDefaults.bloomEnabled  = b; }
-                if (SUCCEEDED (bloomObj->GetNumber ("radius",   d))) { result.crtDefaults.bloomRadius   = (float) d; }
-                if (SUCCEEDED (bloomObj->GetNumber ("strength", d))) { result.crtDefaults.bloomStrength = (float) d; }
+
+                if (bloomObj->HasBool   ("enabled",  b)) { result.crtDefaults.bloomEnabled  = b; }
+                if (bloomObj->HasNumber ("radius",   d)) { result.crtDefaults.bloomRadius   = (float) d; }
+                if (bloomObj->HasNumber ("strength", d)) { result.crtDefaults.bloomStrength = (float) d; }
+
                 result.crtDefaults.hasBloom = true;
             }
-            if (SUCCEEDED (crtObj->GetObject ("colorBleed", bleedObj)) && bleedObj != nullptr)
+
+            if (crtObj->HasObject ("colorBleed", bleedObj))
             {
                 bool  b = false;
-                if (SUCCEEDED (bleedObj->GetBool   ("enabled", b))) { result.crtDefaults.colorBleedEnabled = b; }
-                if (SUCCEEDED (bleedObj->GetNumber ("width",   d))) { result.crtDefaults.colorBleedWidth   = (float) d; }
+
+                if (bleedObj->HasBool   ("enabled", b)) { result.crtDefaults.colorBleedEnabled = b; }
+                if (bleedObj->HasNumber ("width",   d)) { result.crtDefaults.colorBleedWidth   = (float) d; }
+
                 result.crtDefaults.hasColorBleed = true;
             }
         }
 
-        if (SUCCEEDED (override_->GetObject ("driveVisualProfile", driveObj)) && driveObj != nullptr)
+        if (override_->HasObject ("driveVisualProfile", driveObj))
         {
             std::string  s;
-            if (SUCCEEDED (driveObj->GetString ("style",         s)) && !s.empty()) { result.driveVisualProfile.style         = s; }
-            if (SUCCEEDED (driveObj->GetString ("colorway",      s)) && !s.empty()) { result.driveVisualProfile.colorway      = s; }
-            if (SUCCEEDED (driveObj->GetString ("doorAnimation", s)) && !s.empty()) { result.driveVisualProfile.doorAnimation = s; }
-            if (SUCCEEDED (driveObj->GetString ("syncChannel",   s)) && !s.empty()) { result.driveVisualProfile.syncChannel   = s; }
+
+            if (driveObj->HasString ("style",         s) && !s.empty()) { result.driveVisualProfile.style         = s; }
+            if (driveObj->HasString ("colorway",      s) && !s.empty()) { result.driveVisualProfile.colorway      = s; }
+            if (driveObj->HasString ("doorAnimation", s) && !s.empty()) { result.driveVisualProfile.doorAnimation = s; }
+            if (driveObj->HasString ("syncChannel",   s) && !s.empty()) { result.driveVisualProfile.syncChannel   = s; }
         }
 
-        if (SUCCEEDED (override_->GetBool ("useMicaBackdrop", mica)))
+        if (override_->HasBool ("useMicaBackdrop", mica))
         {
             result.useMicaBackdrop = mica;
         }
@@ -510,6 +659,7 @@ HRESULT ThemeLoader::Load (
     HRESULT       hr        = S_OK;
     std::wstring  themePath = JoinPath (themeDir, L"theme.json");
     std::string   text;
+    bool          exists    = false;
 
 
 
@@ -517,33 +667,26 @@ HRESULT ThemeLoader::Load (
     outError.themeDir = themeDir;
     outTheme = LoadedTheme {};
 
-    if (!fs.Exists (themePath))
-    {
-        outError.code          = ThemeLoadResult::MetadataMissing;
-        outError.offendingPath = themePath;
-        outError.message       = "theme.json not found in theme directory";
-        return HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND);
-    }
+    exists = fs.Exists (themePath);
+    CBRFEx (exists, HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND),
+            outError.code          = ThemeLoadResult::MetadataMissing;
+            outError.offendingPath = themePath;
+            outError.message       = "theme.json not found in theme directory");
 
     hr = fs.ReadAllText (themePath, text);
+    CHRF (hr,
+          outError.code          = ThemeLoadResult::MetadataInvalid;
+          outError.offendingPath = themePath;
+          outError.message       = "failed to read theme.json");
 
-    if (FAILED (hr))
-    {
-        outError.code          = ThemeLoadResult::MetadataInvalid;
-        outError.offendingPath = themePath;
-        outError.message       = "failed to read theme.json";
-        return hr;
-    }
-
+    // ParseMetadata has already filled outError; only the path is missing,
+    // because it is the one thing that function does not know.
     hr = ParseMetadata (text, outTheme, outError);
-
-    if (FAILED (hr))
-    {
-        outError.offendingPath = themePath;
-        return hr;
-    }
+    CHRF (hr, outError.offendingPath = themePath);
 
     outTheme.directoryPath = StripTrailingSep (themeDir);
 
-    return S_OK;
+Error:
+    return hr;
 }
+

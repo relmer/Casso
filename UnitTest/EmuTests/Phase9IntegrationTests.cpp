@@ -4,15 +4,6 @@
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
 
-namespace
-{
-    static constexpr Word   kSlot6RomBase     = 0xC600;
-    static constexpr Word   kIntCxRomOff      = 0xC006;
-    static constexpr Word   kIntCxRomOn       = 0xC007;
-    static constexpr Byte   kDisk2RomFirst    = 0xA2;     // first byte of Disk2.rom: LDX #$20
-}
-
-
 
 
 
@@ -36,25 +27,32 @@ TEST_CLASS (Phase9IntegrationTests)
 {
 public:
 
+    static constexpr Word   kSlot6RomBase     = 0xC600;
+    static constexpr Word   kIntCxRomOff      = 0xC006;
+    static constexpr Word   kIntCxRomOn       = 0xC007;
+    static constexpr Byte   kDisk2RomFirst    = 0xA2;     // first byte of Disk2.rom: LDX #$20
+
     static HRESULT BuildAndAttachSlot6 (HeadlessHost & host, EmulatorCore & core)
     {
         HRESULT                hr;
         std::vector<uint8_t>   slot6Rom;
 
+        // The slot ROM can only be attached to a machine that built, and only
+        // once the fixture actually loaded -- so each step gates the next and
+        // the first failure is what the caller sees.
         hr = host.BuildApple2e (core);
-        if (FAILED (hr))
+
+        if (SUCCEEDED (hr))
         {
-            return hr;
+            hr = core.fixtures->OpenFixture ("Disk2.rom", slot6Rom);
         }
 
-        hr = core.fixtures->OpenFixture ("Disk2.rom", slot6Rom);
-        if (FAILED (hr))
+        if (SUCCEEDED (hr))
         {
-            return hr;
+            core.mmu->AttachSlotRom (6, std::move (slot6Rom));
         }
 
-        core.mmu->AttachSlotRom (6, std::move (slot6Rom));
-        return S_OK;
+        return hr;
     }
 
 
@@ -66,7 +64,7 @@ public:
         Byte              firstByte;
 
         hr = BuildAndAttachSlot6 (host, core);
-        Assert::IsTrue (SUCCEEDED (hr), L"BuildApple2e + slot 6 ROM attach must succeed");
+        AssertSucceeded (hr, L"BuildApple2e + slot 6 ROM attach must succeed");
 
         core.bus->WriteByte (kIntCxRomOff, 0);
 
@@ -87,7 +85,7 @@ public:
         Byte              internalByte;
 
         hr = BuildAndAttachSlot6 (host, core);
-        Assert::IsTrue (SUCCEEDED (hr), L"BuildApple2e + slot 6 ROM attach must succeed");
+        AssertSucceeded (hr, L"BuildApple2e + slot 6 ROM attach must succeed");
 
         core.bus->WriteByte (kIntCxRomOff, 0);
         slotByte = core.bus->ReadByte (kSlot6RomBase);
@@ -101,4 +99,5 @@ public:
             L"INTCXROM=1 must hide slot 6 ROM and reveal internal ROM");
     }
 };
+
 

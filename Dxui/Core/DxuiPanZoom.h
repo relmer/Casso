@@ -7,6 +7,7 @@
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  DxuiPanZoom
@@ -172,6 +173,12 @@ private:
     void  NudgePanYCam (double deltaContent);   // camera vertical framing (drag / zoom anchor)
     void  SpillPanY (double deltaContent);      // apply a delta, overflowing into overscroll
     void  ClampTargets ();
+
+    // Split out of OnMouse: the wheel arm carries three distinct gestures
+    // (Ctrl-zoom, horizontal pan, vertical pan) and outweighed the other
+    // three event kinds put together.
+    bool  OnWheel (const DxuiMouseEvent & ev);
+
     bool  EaseToward (Eased & v, double dtSec, double tauSec);
     void  Changed ();
 

@@ -36,6 +36,7 @@ static constexpr int   s_kNominalDpi = 96;   // pHYs is meaningless for the non-
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  Save
@@ -48,6 +49,8 @@ HRESULT PrintJobPersistence::Save (const PrintRaster & raster, vector<Byte> & ou
     vector<Byte>   plane;
     int            width  = 0;
     int            height = 0;
+
+
 
     PrintJobSerializer::ExtractIndexPlane (raster, width, height, plane);
 
@@ -69,6 +72,7 @@ Error:
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  Load
@@ -82,6 +86,8 @@ HRESULT PrintJobPersistence::Load (const vector<Byte> & png, const string & json
     StripMeta      meta;
     int            width  = 0;
     int            height = 0;
+
+
 
     hr = PngCodec::DecodeIndexed (png, width, height, plane);
     CHR (hr);

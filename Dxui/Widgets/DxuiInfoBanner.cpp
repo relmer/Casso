@@ -14,6 +14,7 @@ static constexpr uint32_t   s_kBadgeInkArgb = 0xFFF7F9FCu;   // near-white "i" o
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  DxuiInfoBanner::EstimateLines
@@ -32,6 +33,8 @@ int DxuiInfoBanner::EstimateLines (float textWidthPx, const DxuiDpiScaler & scal
     int     chars   = (int) m_text.size();
     int     lines   = 1;
 
+
+
     if (perLine >= 1.0f)
     {
         lines = (int) std::ceil ((float) chars / perLine);
@@ -44,6 +47,7 @@ int DxuiInfoBanner::EstimateLines (float textWidthPx, const DxuiDpiScaler & scal
 
     return lines;
 }
+
 
 
 
@@ -65,9 +69,12 @@ float DxuiInfoBanner::PreferredHeightPx (float widthPx, const DxuiDpiScaler & sc
     float   textH     = lineH * (float) lines;
     float   iconH     = scaler.Pxf (s_kIconBoxDip);
 
+
+
     // The content is the taller of the wrapped text and the icon, plus padding.
     return ((textH > iconH) ? textH : iconH) + padY * 2.0f;
 }
+
 
 
 

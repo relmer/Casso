@@ -6,78 +6,6 @@
 
 
 
-namespace
-{
-    // Logic State Sequencer clocking. The P6 sequencer runs at 2 MHz --
-    // two LSS clocks per 1.023 MHz CPU cycle. Eight LSS clocks make one
-    // bit cell, so the head advances one bit every four CPU cycles. The
-    // read pulse is sampled once per bit cell, at clock 4.
-    constexpr uint32_t   kLssClocksPerCpuCycle = 2;
-    constexpr int        kLssReadClock         = 4;
-    constexpr int        kLssMaxClock          = 7;
-    constexpr uint8_t    kLssInitialState      = 2;
-
-    // Data-latch MSB ("byte ready" / QA, 74LS323 QH). Doubles as the read
-    // "byte ready" signal and the write shift register's serial output.
-    constexpr uint8_t    kLatchMsbMask  = 0x80;
-
-    // Sequencer ROM index bit positions (see "Understanding the Apple IIe"
-    // Fig 9.11 column ordering): pulse-absent, latch MSB, Q6, Q7, then the
-    // 4-bit current state shifted into the high nibble.
-    constexpr uint8_t    kIdxNoPulse  = 0x01;
-    constexpr uint8_t    kIdxLatchMsb = 0x02;
-    constexpr uint8_t    kIdxQ6       = 0x04;
-    constexpr uint8_t    kIdxQ7       = 0x08;
-    constexpr int        kIdxStateShift = 4;
-
-    // P6 sequencer command opcodes (low nibble of each ROM entry). See
-    // UtA2e Table 9.3 "Logic State Sequencer Commands".
-    constexpr uint8_t    kLssCmdClr       = 0x0;   // latch <- 0
-    constexpr uint8_t    kLssCmdNop       = 0x8;   // hold
-    constexpr uint8_t    kLssCmdShiftZero = 0x9;   // latch <- latch << 1
-    constexpr uint8_t    kLssCmdShiftRight = 0xA;  // latch >>= 1 (WP -> 0xFF)
-    constexpr uint8_t    kLssCmdLoad      = 0xB;   // latch <- bus
-    constexpr uint8_t    kLssCmdShiftOne  = 0xD;   // latch <- (latch << 1) | 1
-
-    constexpr uint8_t    kLssCommandMask  = 0x0F;
-    constexpr int        kLssStateShift   = 4;
-    constexpr uint8_t    kLssStateMask    = 0x0F;
-
-    // DOS 3.3 / 16-sector P6 Logic State Sequencer ROM. 16 states (rows) x
-    // 16 input combinations (columns). Column index = Q7<<3 | Q6<<2 |
-    // QA<<1 | (pulse ? 0 : 1). High nibble of each entry is the next
-    // state; low nibble is the command opcode above.
-    //
-    // Source: "Understanding the Apple IIe" (Sather) Fig 9.11; identical
-    // bytes published in apple2js (MIT, (c) Will Scullin), js/cards/
-    // disk2.ts SEQUENCER_ROM_16. The ROM contents are factual hardware
-    // data (the physical P6 PROM image).
-    constexpr uint8_t   s_kSequencerRom16[256] =
-    {
-        //                Q7 L (Read)                                     Q7 H (Write)
-        //    Q6 L (Shift)            Q6 H (Load)             Q6 L (Shift)             Q6 H (Load)
-        //  QA L        QA H        QA L        QA H        QA L        QA H        QA L        QA H
-        0x18, 0x18, 0x18, 0x18, 0x0A, 0x0A, 0x0A, 0x0A, 0x18, 0x18, 0x18, 0x18, 0x18, 0x18, 0x18, 0x18, // 0
-        0x2D, 0x2D, 0x38, 0x38, 0x0A, 0x0A, 0x0A, 0x0A, 0x28, 0x28, 0x28, 0x28, 0x28, 0x28, 0x28, 0x28, // 1
-        0xD8, 0x38, 0x08, 0x28, 0x0A, 0x0A, 0x0A, 0x0A, 0x39, 0x39, 0x39, 0x39, 0x3B, 0x3B, 0x3B, 0x3B, // 2
-        0xD8, 0x48, 0x48, 0x48, 0x0A, 0x0A, 0x0A, 0x0A, 0x48, 0x48, 0x48, 0x48, 0x48, 0x48, 0x48, 0x48, // 3
-        0xD8, 0x58, 0xD8, 0x58, 0x0A, 0x0A, 0x0A, 0x0A, 0x58, 0x58, 0x58, 0x58, 0x58, 0x58, 0x58, 0x58, // 4
-        0xD8, 0x68, 0xD8, 0x68, 0x0A, 0x0A, 0x0A, 0x0A, 0x68, 0x68, 0x68, 0x68, 0x68, 0x68, 0x68, 0x68, // 5
-        0xD8, 0x78, 0xD8, 0x78, 0x0A, 0x0A, 0x0A, 0x0A, 0x78, 0x78, 0x78, 0x78, 0x78, 0x78, 0x78, 0x78, // 6
-        0xD8, 0x88, 0xD8, 0x88, 0x0A, 0x0A, 0x0A, 0x0A, 0x08, 0x08, 0x88, 0x88, 0x08, 0x08, 0x88, 0x88, // 7
-        0xD8, 0x98, 0xD8, 0x98, 0x0A, 0x0A, 0x0A, 0x0A, 0x98, 0x98, 0x98, 0x98, 0x98, 0x98, 0x98, 0x98, // 8
-        0xD8, 0x29, 0xD8, 0xA8, 0x0A, 0x0A, 0x0A, 0x0A, 0xA8, 0xA8, 0xA8, 0xA8, 0xA8, 0xA8, 0xA8, 0xA8, // 9
-        0xCD, 0xBD, 0xD8, 0xB8, 0x0A, 0x0A, 0x0A, 0x0A, 0xB9, 0xB9, 0xB9, 0xB9, 0xBB, 0xBB, 0xBB, 0xBB, // A
-        0xD9, 0x59, 0xD8, 0xC8, 0x0A, 0x0A, 0x0A, 0x0A, 0xC8, 0xC8, 0xC8, 0xC8, 0xC8, 0xC8, 0xC8, 0xC8, // B
-        0xD9, 0xD9, 0xD8, 0xA0, 0x0A, 0x0A, 0x0A, 0x0A, 0xD8, 0xD8, 0xD8, 0xD8, 0xD8, 0xD8, 0xD8, 0xD8, // C
-        0xD8, 0x08, 0xE8, 0xE8, 0x0A, 0x0A, 0x0A, 0x0A, 0xE8, 0xE8, 0xE8, 0xE8, 0xE8, 0xE8, 0xE8, 0xE8, // D
-        0xFD, 0xFD, 0xF8, 0xF8, 0x0A, 0x0A, 0x0A, 0x0A, 0xF8, 0xF8, 0xF8, 0xF8, 0xF8, 0xF8, 0xF8, 0xF8, // E
-        0xDD, 0x4D, 0xE0, 0xE0, 0x0A, 0x0A, 0x0A, 0x0A, 0x88, 0x88, 0x08, 0x08, 0x88, 0x88, 0x08, 0x08  // F
-    };
-}
-
-
-
 
 ////////////////////////////////////////////////////////////////////////////////
 //
@@ -88,6 +16,7 @@ namespace
 Disk2NibbleEngine::Disk2NibbleEngine()
 {
 }
+
 
 
 
@@ -111,6 +40,7 @@ void Disk2NibbleEngine::SetDiskImage (DiskImage * disk)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  SetMotorOn
@@ -125,6 +55,7 @@ void Disk2NibbleEngine::SetMotorOn (bool on)
 {
     m_motorOn = on;
 }
+
 
 
 
@@ -149,6 +80,7 @@ void Disk2NibbleEngine::SetShiftLoadMode (bool q6)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  SetCurrentTrack
@@ -165,6 +97,8 @@ void Disk2NibbleEngine::SetCurrentTrack (int track)
 {
     int      clamped = track;
     size_t   newBits = 0;
+
+
 
     if (clamped < kMinTrack)
     {
@@ -190,7 +124,7 @@ void Disk2NibbleEngine::SetCurrentTrack (int track)
         // error. Cap to the new track's bit length so we don't end
         // up past the wrap.
         m_currentTrack = clamped;
-        newBits        = CurrentTrackBits ();
+        newBits        = CurrentTrackBits();
 
         if (newBits > 0)
         {
@@ -206,6 +140,7 @@ void Disk2NibbleEngine::SetCurrentTrack (int track)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  CurrentTrackBits
@@ -217,22 +152,25 @@ void Disk2NibbleEngine::SetCurrentTrack (int track)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-size_t Disk2NibbleEngine::CurrentTrackBits () const
+size_t Disk2NibbleEngine::CurrentTrackBits() const
 {
-    int   slot = (m_disk != nullptr) ? m_disk->ResolveQuarterTrack (m_currentTrack) : -1;
+    int      slot = (m_disk != nullptr) ? m_disk->ResolveQuarterTrack (m_currentTrack) : -1;
+    size_t   bits = 0;
 
-    if (m_disk == nullptr)
+
+
+    // No disk at all reports 0 (the drive is empty and must not spin), while
+    // an unformatted position on a real disk reports the nominal blank length
+    // so rotation and the weak-bit noise model keep running.
+    if (m_disk != nullptr)
     {
-        return 0;
+        bits = (slot < 0) ? kUnformattedTrackBits
+                          : m_disk->GetTrackBitCount (slot);
     }
 
-    if (slot < 0)
-    {
-        return kUnformattedTrackBits;
-    }
-
-    return m_disk->GetTrackBitCount (slot);
+    return bits;
 }
+
 
 
 
@@ -245,6 +183,10 @@ size_t Disk2NibbleEngine::CurrentTrackBits () const
 
 void Disk2NibbleEngine::Reset()
 {
+    constexpr uint8_t    kLssInitialState      = 2;
+
+
+
     m_motorOn        = false;
     m_writeMode      = false;
     m_shiftLoadMode  = false;
@@ -263,6 +205,7 @@ void Disk2NibbleEngine::Reset()
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  Tick
@@ -275,6 +218,10 @@ void Disk2NibbleEngine::Reset()
 
 void Disk2NibbleEngine::Tick (uint32_t cpuCycles)
 {
+    constexpr uint32_t   kLssClocksPerCpuCycle = 2;
+
+
+
     uint32_t   lssClocks = 0;
     uint32_t   i         = 0;
 
@@ -294,6 +241,7 @@ void Disk2NibbleEngine::Tick (uint32_t cpuCycles)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  StepLss
@@ -308,6 +256,19 @@ void Disk2NibbleEngine::Tick (uint32_t cpuCycles)
 
 void Disk2NibbleEngine::StepLss()
 {
+    constexpr int        kLssReadClock         = 4;
+    constexpr int        kLssMaxClock          = 7;
+    constexpr uint8_t    kIdxNoPulse  = 0x01;
+    constexpr uint8_t    kIdxLatchMsb = 0x02;
+    constexpr uint8_t    kIdxQ6       = 0x04;
+    constexpr uint8_t    kIdxQ7       = 0x08;
+    constexpr int        kIdxStateShift = 4;
+    constexpr uint8_t    kLssCommandMask  = 0x0F;
+    constexpr int        kLssStateShift   = 4;
+    constexpr uint8_t    kLssStateMask    = 0x0F;
+
+
+
     uint8_t   pulse      = 0;
     uint8_t   idx        = 0;
     uint8_t   command    = 0;
@@ -330,7 +291,7 @@ void Disk2NibbleEngine::StepLss()
     idx |= static_cast<uint8_t> (m_writeMode ? kIdxQ7 : 0);
     idx |= static_cast<uint8_t> (m_lssState << kIdxStateShift);
 
-    command    = s_kSequencerRom16[idx];
+    command    = kSequencerRom16[idx];
     prevMsbSet = (m_readLatch & kLatchMsbMask) != 0;
 
     switch (command & kLssCommandMask)
@@ -419,6 +380,7 @@ void Disk2NibbleEngine::StepLss()
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  ReadLatch
@@ -435,6 +397,7 @@ uint8_t Disk2NibbleEngine::ReadLatch()
 {
     return m_readLatch;
 }
+
 
 
 
@@ -458,6 +421,7 @@ void Disk2NibbleEngine::WriteLatch (uint8_t value)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  ConsumeFreshNibble
@@ -475,21 +439,19 @@ void Disk2NibbleEngine::WriteLatch (uint8_t value)
 
 bool Disk2NibbleEngine::ConsumeFreshNibble (uint8_t & outNibble)
 {
-    if (!m_latchIsFresh)
+    // Both conditions matter: fresh means this is a new assembly cycle, and
+    // the MSB means the LSS has finished shifting a whole nibble in.
+    bool  ready = m_latchIsFresh && (m_readLatch & kLatchMsbMask) != 0;
+
+    if (ready)
     {
-        return false;
+        outNibble      = m_readLatch;
+        m_latchIsFresh = false;
     }
 
-    if ((m_readLatch & kLatchMsbMask) == 0)
-    {
-        return false;
-    }
-
-    outNibble      = m_readLatch;
-    m_latchIsFresh = false;
-
-    return true;
+    return ready;
 }
+
 
 
 
@@ -525,6 +487,8 @@ uint8_t Disk2NibbleEngine::ApplyHeadWindow (uint8_t inBit)
 {
     uint8_t   outBit = 0;
 
+
+
     m_headWindow = static_cast<uint8_t> (((m_headWindow << 1) | (inBit & 1)) & 0x0F);
 
     if ((m_headWindow & 0x0F) != 0)
@@ -538,6 +502,7 @@ uint8_t Disk2NibbleEngine::ApplyHeadWindow (uint8_t inBit)
 
     return outBit;
 }
+
 
 
 
@@ -564,3 +529,5 @@ uint8_t Disk2NibbleEngine::NextWeakBit()
 
     return (m_weakRngState < kWeakThreshold) ? 1 : 0;
 }
+
+

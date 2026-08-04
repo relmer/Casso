@@ -1,4 +1,5 @@
 #include "Pch.h"
+#include "../EhmTestHelper.h"
 
 #include "CppUnitTest.h"
 
@@ -32,11 +33,15 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace
+namespace UiTests
 {
+
     // Minimal IDataObject that serves one CF_HDROP global containing a
     // single wide path. Everything else returns DV_E_FORMATETC, which is
     // exactly how the real Explorer object behaves for unknown formats.
+    //
+    // Shared by both TEST_CLASSes below. UiTests already gives it a unique
+    // qualified name, so it needs no anonymous namespace on top.
     class MockHDropDataObject : public IDataObject
     {
     public:
@@ -45,33 +50,40 @@ namespace
         {
         }
 
-        // -------- IUnknown --------
+        // IUnknown
         STDMETHODIMP QueryInterface (REFIID riid, void ** ppv) override
         {
-            if (ppv == nullptr) { return E_POINTER; }
-            if (riid == IID_IUnknown || riid == IID_IDataObject)
-            {
-                *ppv = static_cast<IDataObject *> (this);
-                AddRef();
-                return S_OK;
-            }
-            *ppv = nullptr;
-            return E_NOINTERFACE;
+            HRESULT  hr          = S_OK;
+            bool     isSupported = false;
+
+
+            CBREx (ppv != nullptr, E_POINTER);
+
+            isSupported = (riid == IID_IUnknown || riid == IID_IDataObject);
+            *ppv        = isSupported ? static_cast<IDataObject *> (this) : nullptr;
+
+            CBREx (isSupported, E_NOINTERFACE);
+
+            AddRef();
+
+Error:
+            return hr;
         }
 
-        STDMETHODIMP_(ULONG) AddRef () override
+        STDMETHODIMP_(ULONG) AddRef() override
         {
             return m_ref.fetch_add (1, std::memory_order_acq_rel) + 1;
         }
 
-        STDMETHODIMP_(ULONG) Release () override
+        STDMETHODIMP_(ULONG) Release() override
         {
             return m_ref.fetch_sub (1, std::memory_order_acq_rel) - 1;
         }
 
-        // -------- IDataObject --------
+        // IDataObject
         STDMETHODIMP GetData (FORMATETC * pFormat, STGMEDIUM * pMedium) override
         {
+            HRESULT     hr       = S_OK;
             size_t      cbStruct = 0;
             size_t      cbPath   = 0;
             size_t      cbTotal  = 0;
@@ -79,23 +91,20 @@ namespace
             DROPFILES * pDrop    = nullptr;
             wchar_t   * pDst     = nullptr;
 
-            if (pFormat == nullptr || pMedium == nullptr) { return E_POINTER; }
-            if (pFormat->cfFormat != CF_HDROP)            { return DV_E_FORMATETC; }
-            if ((pFormat->tymed & TYMED_HGLOBAL) == 0)    { return DV_E_TYMED;     }
+
+            CBREx (pFormat != nullptr && pMedium != nullptr, E_POINTER);
+            CBREx (pFormat->cfFormat == CF_HDROP,            DV_E_FORMATETC);
+            CBREx ((pFormat->tymed & TYMED_HGLOBAL) != 0,    DV_E_TYMED);
 
             cbStruct = sizeof (DROPFILES);
             cbPath   = (m_path.size() + 2) * sizeof (wchar_t);   // +1 NUL +1 list-terminator
             cbTotal  = cbStruct + cbPath;
 
             hMem = GlobalAlloc (GHND, cbTotal);
-            if (hMem == nullptr) { return E_OUTOFMEMORY; }
+            CPR (hMem);
 
             pDrop = static_cast<DROPFILES *> (GlobalLock (hMem));
-            if (pDrop == nullptr)
-            {
-                GlobalFree (hMem);
-                return E_FAIL;
-            }
+            CBR (pDrop != nullptr);
 
             pDrop->pFiles = static_cast<DWORD> (cbStruct);
             pDrop->fWide  = TRUE;
@@ -110,7 +119,16 @@ namespace
             pMedium->tymed          = TYMED_HGLOBAL;
             pMedium->hGlobal        = hMem;
             pMedium->pUnkForRelease = nullptr;
-            return S_OK;
+
+Error:
+            // Only the GlobalLock failure leaves an allocation to release: an
+            // earlier bail has no hMem yet, and success hands it to pMedium.
+            if (FAILED (hr) && hMem != nullptr && pDrop == nullptr)
+            {
+                GlobalFree (hMem);
+            }
+
+            return hr;
         }
 
         // The remaining methods are required by the vtable but the
@@ -130,25 +148,30 @@ namespace
     };
 
 
-    void ExpectRoundTrip (const std::wstring & input)
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TEST_CLASS
+//
+////////////////////////////////////////////////////////////////////////////////
+
+TEST_CLASS (DragDropTargetFormatTests)
+{
+public:
+
+    // Only this TEST_CLASS round-trips, so the helper belongs to it.
+    static void ExpectRoundTrip (const std::wstring & input)
     {
         MockHDropDataObject  obj (input);
         std::wstring         got;
         HRESULT              hr = DxuiDragDropTarget::ExtractFirstHDropPath (&obj, got);
 
-        Assert::AreEqual (S_OK, hr, L"ExtractFirstHDropPath should return S_OK");
+        AssertSucceeded (hr, L"ExtractFirstHDropPath must succeed on a CF_HDROP object");
         Assert::AreEqual (input.c_str(), got.c_str(),
             L"Path round-trip must preserve the original wide string verbatim");
     }
-}
-
-
-namespace UiTests
-{
-
-TEST_CLASS (DragDropTargetFormatTests)
-{
-public:
 
     TEST_METHOD (ExtractFirstHDropPath_RoundTrips_Dsk)
     {
@@ -173,19 +196,29 @@ public:
     TEST_METHOD (ExtractFirstHDropPath_RoundTrips_UnicodePath)
     {
         // Wide-string fidelity matters; force a non-ASCII codepoint
-        // through the pipe to prove fWide=TRUE is being honoured.
+        // through the pipe to prove fWide=TRUE is being honored.
         ExpectRoundTrip (L"C:\\Disks\\\u00C5pple\\caf\u00E9.dsk");
     }
 
-    TEST_METHOD (ExtractFirstHDropPath_NullDataObject_ReturnsFalse)
+    TEST_METHOD (ExtractFirstHDropPath_NullDataObject_ReturnsInvalidArg)
     {
         std::wstring  got = L"sentinel";
-        HRESULT       hr  = DxuiDragDropTarget::ExtractFirstHDropPath (nullptr, got);
+        HRESULT       hr  = S_OK;
 
-        Assert::AreEqual (S_FALSE, hr);
-        Assert::IsTrue   (got.empty(), L"outPath must be cleared on failure");
+        {
+            // A null data object is a caller bug, so the guard asserts.
+            UnitTestHelpers::ExpectedEhmAssert   expect;
+
+            hr = DxuiDragDropTarget::ExtractFirstHDropPath (nullptr, got);
+        }
+
+        Assert::AreEqual (E_INVALIDARG, hr,
+            L"A null data object is an argument error, not an empty drag");
+        Assert::IsTrue (got.empty(), L"outPath must be cleared on failure");
     }
 };
+
+
 
 
 
@@ -293,7 +326,15 @@ public:
         DxuiDragDropTarget  t;
         POINTL          pt     = { 100, 100 };
         DWORD           effect = DROPEFFECT_COPY;
-        HRESULT         hr     = t.DragEnter (nullptr, 0, pt, &effect);
+        HRESULT         hr     = S_OK;
+
+        {
+            // OLE never hands DragEnter a null data object, so the extract
+            // asserts. The drag state still has to stay coherent.
+            UnitTestHelpers::ExpectedEhmAssert   expect;
+
+            hr = t.DragEnter (nullptr, 0, pt, &effect);
+        }
 
         Assert::AreEqual (S_OK, hr);
         Assert::IsTrue   (t.IsDragInProgress(),

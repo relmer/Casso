@@ -14,7 +14,7 @@
 
 void OutputFormats::WriteBinary (const std::vector<Byte> & data, std::ostream & stream, Byte fillByte)
 {
-    stream.write (reinterpret_cast<const char *> (data.data ()), data.size ());
+    stream.write (reinterpret_cast<const char *> (data.data()), data.size());
 }
 
 
@@ -76,9 +76,9 @@ void OutputFormats::WriteSRecord (const std::vector<Byte> & data, Word startAddr
     Word   addr      = startAddr;
     size_t dataLen   = (endAddr > startAddr) ? (endAddr - startAddr) : 0;
 
-    if (dataLen > data.size ())
+    if (dataLen > data.size())
     {
-        dataLen = data.size ();
+        dataLen = data.size();
     }
 
     size_t offset = 0;
@@ -154,9 +154,11 @@ void OutputFormats::WriteIntelHex (const std::vector<Byte> & data, Word startAdd
     Word   addr    = startAddr;
     size_t dataLen = (endAddr > startAddr) ? (endAddr - startAddr) : 0;
 
-    if (dataLen > data.size ())
+
+
+    if (dataLen > data.size())
     {
-        dataLen = data.size ();
+        dataLen = data.size();
     }
 
     size_t offset = 0;

@@ -28,6 +28,7 @@ class DxuiLabel;
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  SettingsSheet
@@ -86,7 +87,7 @@ protected:
     //  Custom text-color picker (list #8). Hosted as the framework's modal
     //  in-content overlay so it floats above the page and grabs all input while
     //  open, preserving the bespoke look (no separate popup HWND). Layout keeps
-    //  it centred in the current sheet bounds.
+    //  it centered in the current sheet bounds.
     void     Layout            (const RECT & boundsPx, const DxuiDpiScaler & scaler) override;
     bool     HasModalOverlay   () const override;
     void     PaintModalOverlay (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme) override;

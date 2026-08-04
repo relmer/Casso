@@ -25,11 +25,18 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace
+
+
+
+
+
+TEST_CLASS (DiskAudioFetchTests)
 {
-    constexpr uint32_t  s_kTestSampleRate = 44100;
-    constexpr size_t    s_kSineFrames     = 4410;          // 100 ms
-    constexpr float     s_kTwoPi          = (float) (2.0 * std::numbers::pi);
+public:
+
+    static constexpr uint32_t  s_kTestSampleRate = 44100;
+    static constexpr size_t    s_kSineFrames     = 4410;          // 100 ms
+    static constexpr float     s_kTwoPi          = (float) (2.0 * std::numbers::pi);
 
 
     static void WriteMonoPcm16Wav (
@@ -92,15 +99,6 @@ namespace
 
         return dir;
     }
-}
-
-
-
-
-
-TEST_CLASS (DiskAudioFetchTests)
-{
-public:
 
     TEST_METHOD (DecodeOggToInterleavedShort_nullBuffer_returnsInvalidArg)
     {
@@ -140,7 +138,7 @@ public:
         HRESULT  hr = StbVorbisWrapper::DecodeOggToInterleavedShort (
             junk.data(), junk.size(), pcm, rate, channels, err);
 
-        Assert::IsTrue (FAILED (hr),
+        AssertFailed (hr,
             L"Garbage input must return a failure HRESULT");
         Assert::IsTrue (pcm.empty(), L"PCM buffer must be empty on failure");
         Assert::IsFalse (err.empty(), L"Error string must be set on failure");
@@ -187,7 +185,7 @@ public:
                                         L"Shugart",
                                         s_kTestSampleRate);
 
-        Assert::IsTrue (SUCCEEDED (hr),
+        AssertSucceeded (hr,
             L"LoadSamples must succeed when at least MediaFoundation is reachable");
 
         // We can't directly inspect the source's internal buffer
@@ -247,7 +245,7 @@ public:
         HRESULT  hr = src.LoadSamples (devicesDir.wstring().c_str(),
                                        L"Shugart",
                                        s_kTestSampleRate);
-        Assert::IsTrue (SUCCEEDED (hr), L"LoadSamples must succeed");
+        AssertSucceeded (hr, L"LoadSamples must succeed");
 
         src.OnDiskInserted();
         src.OnMotorEngaged();
@@ -284,7 +282,7 @@ public:
         HRESULT  hr = src.LoadSamples (devicesDir.wstring().c_str(),
                                        L"Alps",
                                        s_kTestSampleRate);
-        Assert::IsTrue (SUCCEEDED (hr), L"LoadSamples must succeed");
+        AssertSucceeded (hr, L"LoadSamples must succeed");
 
         // The door one-shot must play the Shugart copy rather than be muted.
         src.PlayTestSound (Disk2AudioSource::TestSoundKind::Door);
@@ -305,3 +303,4 @@ public:
         fs::remove_all (devicesDir.parent_path(), ec);
     }
 };
+

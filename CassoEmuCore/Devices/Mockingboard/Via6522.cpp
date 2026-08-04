@@ -170,7 +170,7 @@ void Via6522::WriteRegister (Byte reg, Byte value)
         break;
 
     case kRegAcr:
-        // Only the Timer1 mode bit is modelled. Any other ACR bit selects an
+        // Only the Timer1 mode bit is modeled. Any other ACR bit selects an
         // unmodelled feature (T2 pulse counting, shift register, PB7 output,
         // port input latching). Store the value for read-back, then assert so
         // a debug build surfaces any title that actually configures one --
@@ -393,7 +393,7 @@ void Via6522::TickTimer1 (uint32_t cycles)
 //  TickTimer2
 //
 //  One-shot timed mode only. Fires once on underflow, then free-runs
-//  through 0xFFFF. PB6 pulse counting (ACR bit 5) is not modelled.
+//  through 0xFFFF. PB6 pulse counting (ACR bit 5) is not modeled.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

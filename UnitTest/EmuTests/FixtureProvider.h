@@ -36,4 +36,5 @@ private:
     std::string              m_root;
 
     static bool              IsRejectedPath (const std::string & relativePath);
+    static std::string       ResolveFixturesRoot ();
 };

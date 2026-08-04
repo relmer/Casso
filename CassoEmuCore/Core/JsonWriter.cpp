@@ -2,9 +2,6 @@
 
 #include "JsonWriter.h"
 
-#include "../../CassoCore/Ehm.h"
-
-
 
 
 
@@ -218,15 +215,14 @@ Error:
 void JsonWriter::WriteString (const string & s, string & out)
 {
     char    buf[8];
-    size_t  i = 0;
 
 
 
     out += '"';
 
-    for (i = 0; i < s.size(); ++i)
+    for (char ch : s)
     {
-        unsigned char c = (unsigned char) s[i];
+        unsigned char c = (unsigned char) ch;
 
         switch (c)
         {

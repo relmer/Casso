@@ -34,245 +34,293 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace
+using namespace ChromeMetrics;
+
+// Turn a failure HRESULT into a "0xXXXXXXXX -- <system text>" detail line for
+// the error dialog: the friendly sentence is for humans; this trailer is the
+// hr + OS message for nerds (and bug reports). A Win32-wrapped code
+// (HRESULT_FROM_WIN32) resolves to its GetLastError text; other HRESULTs
+// resolve where the system has a message and degrade to just the hex code.
+std::wstring  WindowCommandManager::FormatSystemError (HRESULT hr)
 {
-    using namespace ChromeMetrics;
+    std::wstring   detail = std::format (L"0x{:08X}", (uint32_t) hr);
+    DWORD          code   = (HRESULT_FACILITY (hr) == FACILITY_WIN32)
+                                ? (DWORD) HRESULT_CODE (hr)
+                                : (DWORD) hr;
+    LPWSTR         text   = nullptr;
 
-    // Turn a failure HRESULT into a "0xXXXXXXXX -- <system text>" detail line for
-    // the error dialog: the friendly sentence is for humans; this trailer is the
-    // hr + OS message for nerds (and bug reports). A Win32-wrapped code
-    // (HRESULT_FROM_WIN32) resolves to its GetLastError text; other HRESULTs
-    // resolve where the system has a message and degrade to just the hex code.
-    std::wstring  FormatSystemError (HRESULT hr)
+    DWORD  n = FormatMessageW (
+        FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
+        nullptr, code, MAKELANGID (LANG_NEUTRAL, SUBLANG_DEFAULT),
+        (LPWSTR) &text, 0, nullptr);
+
+    if (n != 0 && text != nullptr)
     {
-        std::wstring   detail = std::format (L"0x{:08X}", (uint32_t) hr);
-        DWORD          code   = (HRESULT_FACILITY (hr) == FACILITY_WIN32)
-                                    ? (DWORD) HRESULT_CODE (hr)
-                                    : (DWORD) hr;
-        LPWSTR         text   = nullptr;
+        std::wstring   sys (text);
 
-        DWORD  n = FormatMessageW (
-            FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
-            nullptr, code, MAKELANGID (LANG_NEUTRAL, SUBLANG_DEFAULT),
-            (LPWSTR) &text, 0, nullptr);
-
-        if (n != 0 && text != nullptr)
+        // Trim the trailing ". \r\n" the system appends.
+        while (!sys.empty() &&
+               (sys.back() == L'\r' || sys.back() == L'\n' || sys.back() == L'.' || sys.back() == L' '))
         {
-            std::wstring   sys (text);
-
-            // Trim the trailing ". \r\n" the system appends.
-            while (!sys.empty () &&
-                   (sys.back () == L'\r' || sys.back () == L'\n' || sys.back () == L'.' || sys.back () == L' '))
-            {
-                sys.pop_back ();
-            }
-            if (!sys.empty ()) { detail += L" -- " + sys; }
+            sys.pop_back();
         }
-        if (text != nullptr) { LocalFree (text); }
-
-        return detail;
+        if (!sys.empty()) { detail += L" -- " + sys; }
     }
+    if (text != nullptr) { LocalFree (text); }
 
-    // StartPage / EndPage / EndDoc report failure as a return value <= 0 using
-    // the SP_* family, and frequently do NOT set GetLastError -- which is how a
-    // print failure used to degrade to "Unspecified error" (or worse: CWRF's
-    // HRESULT_FROM_WIN32(0) == S_OK, a silent false success). Map the result to
-    // an honest HRESULT: a user abort (the Print-to-PDF Save-As cancel can
-    // surface mid-job on modern Windows, not just at StartDoc) becomes S_FALSE
-    // exactly like a cancelled dialog; disk-full / out-of-memory get their real
-    // codes; anything else uses GetLastError when present and only degrades to
-    // E_FAIL when the driver reported nothing at all.
-    HRESULT HrFromSpoolResult (int ret, const wchar_t * call, int pageIx)
+    return detail;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HrFromSpoolResult
+//
+//  StartPage / EndPage / EndDoc report failure as a return value <= 0 using
+//  the SP_* family, and frequently do NOT set GetLastError -- which is how a
+//  print failure used to degrade to "Unspecified error" (or worse: CWRF's
+//  HRESULT_FROM_WIN32(0) == S_OK, a silent false success). Map the result to
+//  an honest HRESULT: a user abort (the Print-to-PDF Save-As cancel can
+//  surface mid-job on modern Windows, not just at StartDoc) becomes
+//  HRESULT_FROM_WIN32 (ERROR_CANCELLED), which names itself at the call
+//  site; disk-full / out-of-memory get their real codes; anything else uses
+//  GetLastError when present and only degrades to E_FAIL when the driver
+//  reported nothing at all.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT WindowCommandManager::HrFromSpoolResult (int ret, const wchar_t * call, int pageIx)
+{
+    HRESULT   hr  = S_OK;
+    DWORD     gle = ::GetLastError();   // capture before logging can clobber it
+
+    if (ret <= 0)
     {
-        HRESULT   hr  = S_OK;
-        DWORD     gle = ::GetLastError ();   // capture before logging can clobber it
-
-        if (ret > 0)
-        {
-            return S_OK;
-        }
-
-        if      (ret == SP_USERABORT)                                    { hr = S_FALSE;                              }
+        if      (ret == SP_USERABORT)                                    { hr = HRESULT_FROM_WIN32 (ERROR_CANCELLED); }
         else if (ret == SP_APPABORT)                                     { hr = E_ABORT;                              }
         else if (ret == SP_OUTOFDISK)                                    { hr = HRESULT_FROM_WIN32 (ERROR_DISK_FULL); }
         else if (ret == SP_OUTOFMEMORY)                                  { hr = E_OUTOFMEMORY;                        }
-        else if (gle == ERROR_CANCELLED || gle == ERROR_PRINT_CANCELLED) { hr = S_FALSE;                              }
+        else if (gle == ERROR_CANCELLED || gle == ERROR_PRINT_CANCELLED) { hr = HRESULT_FROM_WIN32 (ERROR_CANCELLED); }
         else if (gle != 0)                                               { hr = HRESULT_FROM_WIN32 (gle);             }
         else                                                             { hr = E_FAIL;                               }
-
-        return hr;
     }
 
-    // Load ("prime") the default printer's driver on a short-lived no-COM (MTA)
-    // thread. v4 / XPS print drivers -- notably Microsoft Print to PDF -- create
-    // their device context through cross-process COM that aborts with 995
-    // (ERROR_OPERATION_ABORTED) when first touched from our STA UI thread at
-    // Medium integrity, yet succeeds from an MTA thread. Doing one MTA CreateDC
-    // loads the driver so a subsequent PrintDlg on the UI thread creates its DC
-    // normally. PD_RETURNDEFAULT gives us the default printer with no UI and no
-    // DC of its own. Best-effort; any failure is ignored (the real path still
-    // has its own fallback).
-    void  PrimeDefaultPrinterDriver ()
+    return hr;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PrimeDefaultPrinterDriver
+//
+//  Load ("prime") the default printer's driver on a short-lived no-COM (MTA)
+//  thread. v4 / XPS print drivers -- notably Microsoft Print to PDF -- create
+//  their device context through cross-process COM that aborts with 995
+//  (ERROR_OPERATION_ABORTED) when first touched from our STA UI thread at
+//  Medium integrity, yet succeeds from an MTA thread. Doing one MTA CreateDC
+//  loads the driver so a subsequent PrintDlg on the UI thread creates its DC
+//  normally. PD_RETURNDEFAULT gives us the default printer with no UI and no
+//  DC of its own. Best-effort; any failure is ignored (the real path still
+//  has its own fallback).
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void  WindowCommandManager::PrimeDefaultPrinterDriver()
+{
+    PRINTDLGW   def = {};
+
+
+
+    def.lStructSize = sizeof (def);
+    def.Flags       = PD_RETURNDEFAULT | PD_NOPAGENUMS | PD_NOSELECTION;
+
+    if (PrintDlgW (&def) && def.hDevNames != nullptr)
     {
-        PRINTDLGW   def = {};
+        std::wstring       driver;
+        std::wstring       device;
+        const DEVNAMES *   dnp = (const DEVNAMES *) GlobalLock (def.hDevNames);
 
-        def.lStructSize = sizeof (def);
-        def.Flags       = PD_RETURNDEFAULT | PD_NOPAGENUMS | PD_NOSELECTION;
-
-        if (PrintDlgW (&def) && def.hDevNames != nullptr)
+        if (dnp != nullptr)
         {
-            std::wstring       driver;
-            std::wstring       device;
-            const DEVNAMES *   dnp = (const DEVNAMES *) GlobalLock (def.hDevNames);
-
-            if (dnp != nullptr)
-            {
-                const wchar_t *  b = (const wchar_t *) dnp;
-                driver = b + dnp->wDriverOffset;
-                device = b + dnp->wDeviceOffset;
-                GlobalUnlock (def.hDevNames);
-            }
-
-            std::thread ([driver, device] ()
-            {
-                HDC  h = CreateDCW (driver.c_str (), device.c_str (), nullptr, nullptr);
-                if (h != nullptr) { DeleteDC (h); }
-            }).join ();
+            const wchar_t *  b = (const wchar_t *) dnp;
+            driver = b + dnp->wDriverOffset;
+            device = b + dnp->wDeviceOffset;
+            GlobalUnlock (def.hDevNames);
         }
 
-        if (def.hDevMode  != nullptr) { GlobalFree (def.hDevMode); }
-        if (def.hDevNames != nullptr) { GlobalFree (def.hDevNames); }
+        std::thread ([driver, device] ()
+        {
+            HDC  h = CreateDCW (driver.c_str(), device.c_str(), nullptr, nullptr);
+            if (h != nullptr) { DeleteDC (h); }
+        }).join();
     }
 
-    // Build a printer DC from the DEVNAMES + DEVMODE the print dialog returned,
-    // when PrintDlg's own PD_RETURNDC came back null (a v4 driver flaking on the
-    // STA UI thread). Created on a plain (no-COM / MTA) thread for the same
-    // reason priming works -- an STA CreateDC aborts (995) where an MTA one
-    // succeeds. NULL port: the Print-to-PDF file prompt belongs at StartDoc, not
-    // DC creation. Returns null only if the names are missing or CreateDC fails.
-    HDC  CreateDcFromDevNames (const PRINTDLGW & pd)
+    if (def.hDevMode  != nullptr) { GlobalFree (def.hDevMode); }
+    if (def.hDevNames != nullptr) { GlobalFree (def.hDevNames); }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  CreateDcFromDevNames
+//
+//  Build a printer DC from the DEVNAMES + DEVMODE the print dialog returned,
+//  when PrintDlg's own PD_RETURNDC came back null (a v4 driver flaking on the
+//  STA UI thread). Created on a plain (no-COM / MTA) thread for the same
+//  reason priming works -- an STA CreateDC aborts (995) where an MTA one
+//  succeeds. NULL port: the Print-to-PDF file prompt belongs at StartDoc, not
+//  DC creation. Returns null only if the names are missing or CreateDC fails.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HDC  WindowCommandManager::CreateDcFromDevNames (const PRINTDLGW & pd)
+{
+    std::wstring                 driver;
+    std::wstring                 device;
+    std::vector<unsigned char>   devmode;
+    HDC                          hdc = nullptr;
+
+
+
+    // The driver / device names are mandatory: without them there is nothing
+    // to hand CreateDC. Note the GlobalUnlock is paired inside the same
+    // branch that locked -- a bare return between the two would leak the lock.
+    if (pd.hDevNames != nullptr)
     {
-        std::wstring                 driver;
-        std::wstring                 device;
-        std::vector<unsigned char>   devmode;
-        HDC                          hdc = nullptr;
+        const DEVNAMES *  dn = (const DEVNAMES *) GlobalLock (pd.hDevNames);
 
-        if (pd.hDevNames == nullptr)
+        if (dn != nullptr)
         {
-            return nullptr;
-        }
-
-        {
-            const DEVNAMES *  dn = (const DEVNAMES *) GlobalLock (pd.hDevNames);
-
-            if (dn == nullptr)
-            {
-                return nullptr;
-            }
-
             const wchar_t *  base = (const wchar_t *) dn;
+
             driver = base + dn->wDriverOffset;
             device = base + dn->wDeviceOffset;
             GlobalUnlock (pd.hDevNames);
         }
+    }
 
-        // Copy the (variable-length) DEVMODE so the worker thread owns stable
-        // memory independent of the caller's global handle lock.
-        if (pd.hDevMode != nullptr)
+    // Copy the (variable-length) DEVMODE so the worker thread owns stable
+    // memory independent of the caller's global handle lock.
+    if (!device.empty() && pd.hDevMode != nullptr)
+    {
+        const DEVMODEW *  dm = (const DEVMODEW *) GlobalLock (pd.hDevMode);
+
+        if (dm != nullptr)
         {
-            const DEVMODEW *  dm = (const DEVMODEW *) GlobalLock (pd.hDevMode);
+            const unsigned char *  p  = (const unsigned char *) dm;
+            size_t                 sz = (size_t) dm->dmSize + dm->dmDriverExtra;
 
-            if (dm != nullptr)
-            {
-                const unsigned char *  p  = (const unsigned char *) dm;
-                size_t                 sz = (size_t) dm->dmSize + dm->dmDriverExtra;
-                devmode.assign (p, p + sz);
-                GlobalUnlock (pd.hDevMode);
-            }
+            devmode.assign (p, p + sz);
+            GlobalUnlock (pd.hDevMode);
         }
+    }
 
+    // A null DEVMODE is fine (driver defaults); an empty device name is not.
+    if (!device.empty())
+    {
         std::thread ([&] ()
         {
-            const DEVMODEW *  dmp = devmode.empty () ? nullptr : (const DEVMODEW *) devmode.data ();
+            const DEVMODEW *  dmp = devmode.empty() ? nullptr : (const DEVMODEW *) devmode.data();
 
-            hdc = CreateDCW (driver.c_str (), device.c_str (), nullptr, dmp);
-        }).join ();
-
-        return hdc;
+            hdc = CreateDCW (driver.c_str(), device.c_str(), nullptr, dmp);
+        }).join();
     }
 
-    // Blit an R,G,B,A image onto a printer HDC. The strip is scaled to fit the
-    // page WIDTH (uniform scale, aspect preserved) and top-aligned so the
-    // fanfold continues downward across page breaks. Fitting to width -- not
-    // min(width,height) -- is deliberate: the strip width is identical on every
-    // page, so a width fit gives every page the same horizontal scale and left
-    // edge. A min() fit would height-limit full pages but width-limit the short
-    // last page, scaling their columns differently and misaligning page-to-page.
-    // GDI DIBs are BGRA, so the channels are swapped into a scratch buffer.
-    HRESULT BlitRgbaToDc (HDC hdc, const RgbaImage & img, int pageW, int pageH, int outputDpi)
+    return hdc;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  BlitRgbaToDc
+//
+//  Blit an R,G,B,A image onto a printer HDC. The strip is scaled to fit the
+//  page WIDTH (uniform scale, aspect preserved) and top-aligned so the
+//  fanfold continues downward across page breaks. Fitting to width -- not
+//  min(width,height) -- is deliberate: the strip width is identical on every
+//  page, so a width fit gives every page the same horizontal scale and left
+//  edge. A min() fit would height-limit full pages but width-limit the short
+//  last page, scaling their columns differently and misaligning page-to-page.
+//  GDI DIBs are BGRA, so the channels are swapped into a scratch buffer.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+HRESULT WindowCommandManager::BlitRgbaToDc (HDC hdc, const RgbaImage & img, int pageW, int pageH, int outputDpi)
+{
+    HRESULT                    hr    = S_OK;
+    vector<Byte>               bgra;
+    BITMAPINFO                 bmi   = {};
+    size_t                     count = 0;
+    size_t                     i     = 0;
+    PrintPagination::PageFit   fit;
+    int                        destW = 0;
+    int                        destH = 0;
+    int                        blit  = 0;
+
+
+
+    CBR (img.width > 0 && img.height > 0);
+    CBR (pageW > 0 && pageH > 0);
+
+    count = (size_t) img.width * img.height;
+    bgra.resize (count * 4);
+    for (i = 0; i < count; i++)
     {
-        HRESULT                    hr    = S_OK;
-        vector<Byte>               bgra;
-        BITMAPINFO                 bmi   = {};
-        size_t                     count = 0;
-        size_t                     i     = 0;
-        PrintPagination::PageFit   fit;
-        int                        destW = 0;
-        int                        destH = 0;
-        int                        blit  = 0;
-
-        CBR (img.width > 0 && img.height > 0);
-        CBR (pageW > 0 && pageH > 0);
-
-        count = (size_t) img.width * img.height;
-        bgra.resize (count * 4);
-        for (i = 0; i < count; i++)
-        {
-            bgra[i * 4 + 0] = img.rgba[i * 4 + 2];   // B
-            bgra[i * 4 + 1] = img.rgba[i * 4 + 1];   // G
-            bgra[i * 4 + 2] = img.rgba[i * 4 + 0];   // R
-            bgra[i * 4 + 3] = img.rgba[i * 4 + 3];   // A
-        }
-
-        // Fit a FULL page to the printable height, capped by width, at one uniform
-        // scale (device pixels, so the output dpi is the box's vertical unit). The
-        // shared fanfold fit, so classic print, modern print and preview all agree.
-        fit   = PrintPagination::FitFullPageToBox ((double) img.width, (double) img.height,
-                                                   (double) pageW, (double) pageH, (double) outputDpi);
-        destW = (std::max) (1, (int) (img.width  * fit.scale));
-        destH = (std::max) (1, (int) (img.height * fit.scale));
-
-        bmi.bmiHeader.biSize        = sizeof (BITMAPINFOHEADER);
-        bmi.bmiHeader.biWidth       = img.width;
-        bmi.bmiHeader.biHeight      = -img.height;   // negative == top-down
-        bmi.bmiHeader.biPlanes      = 1;
-        bmi.bmiHeader.biBitCount    = 32;
-        bmi.bmiHeader.biCompression = BI_RGB;
-
-        SetStretchBltMode (hdc, HALFTONE);
-        SetBrushOrgEx     (hdc, 0, 0, nullptr);
-
-        // Failure is GDI_ERROR (-1 as an int) *or* zero scan lines copied (the
-        // destination always spans >= 1 line, so a genuine success copies at
-        // least one) -- blit <= 0 covers both. GDI often reports these with
-        // GetLastError()==0; CWRF would turn that into HRESULT_FROM_WIN32(0)
-        // == S_OK -- a silent false success -- so fall back to E_FAIL
-        // explicitly when there is no error code to keep.
-        blit = StretchDIBits (hdc,
-                              (pageW - destW) / 2, 0, destW, destH,
-                              0, 0, img.width, img.height,
-                              bgra.data (), &bmi, DIB_RGB_COLORS, SRCCOPY);
-        if (blit <= 0)
-        {
-            DWORD   gle = ::GetLastError ();
-
-            hr = (gle != 0) ? HRESULT_FROM_WIN32 (gle) : E_FAIL;
-            goto Error;
-        }
-
-    Error:
-        return hr;
+        bgra[i * 4 + 0] = img.rgba[i * 4 + 2];   // B
+        bgra[i * 4 + 1] = img.rgba[i * 4 + 1];   // G
+        bgra[i * 4 + 2] = img.rgba[i * 4 + 0];   // R
+        bgra[i * 4 + 3] = img.rgba[i * 4 + 3];   // A
     }
+
+    // Fit a FULL page to the printable height, capped by width, at one uniform
+    // scale (device pixels, so the output dpi is the box's vertical unit). The
+    // shared fanfold fit, so classic print, modern print and preview all agree.
+    fit   = PrintPagination::FitFullPageToBox ((double) img.width, (double) img.height,
+                                               (double) pageW, (double) pageH, (double) outputDpi);
+    destW = (std::max) (1, (int) (img.width  * fit.scale));
+    destH = (std::max) (1, (int) (img.height * fit.scale));
+
+    bmi.bmiHeader.biSize        = sizeof (BITMAPINFOHEADER);
+    bmi.bmiHeader.biWidth       = img.width;
+    bmi.bmiHeader.biHeight      = -img.height;   // negative == top-down
+    bmi.bmiHeader.biPlanes      = 1;
+    bmi.bmiHeader.biBitCount    = 32;
+    bmi.bmiHeader.biCompression = BI_RGB;
+
+    SetStretchBltMode (hdc, HALFTONE);
+    SetBrushOrgEx     (hdc, 0, 0, nullptr);
+
+    // Failure is GDI_ERROR (-1 as an int) *or* zero scan lines copied (the
+    // destination always spans >= 1 line, so a genuine success copies at
+    // least one) -- blit <= 0 covers both. GDI often reports these with
+    // GetLastError()==0; CWRF would turn that into HRESULT_FROM_WIN32(0)
+    // == S_OK -- a silent false success -- so fall back to E_FAIL
+    // explicitly when there is no error code to keep.
+    blit = StretchDIBits (hdc,
+                          (pageW - destW) / 2, 0, destW, destH,
+                          0, 0, img.width, img.height,
+                          bgra.data(), &bmi, DIB_RGB_COLORS, SRCCOPY);
+    if (blit <= 0)
+    {
+        DWORD   gle = ::GetLastError();
+
+        hr = (gle != 0) ? HRESULT_FROM_WIN32 (gle) : E_FAIL;
+    }
+
+Error:
+    return hr;
 }
 
 
@@ -335,7 +383,7 @@ bool WindowCommandManager::OnCommand (HWND hwnd, int id)
     else if (id == IDM_PRINTER_SAVEAS)                                     { OnPrinterCommand (id); }
     else if (id == IDM_PRINTER_MODERN_SENT)                                { OnModernPrintResult (true); }
     else if (id == IDM_PRINTER_MODERN_FAILED)                              { OnModernPrintResult (false); }
-    else if (id == IDM_PRINTER_PREVIEW)                                    { m_shell.ShowPrinterPanel (); }
+    else if (id == IDM_PRINTER_PREVIEW)                                    { m_shell.ShowPrinterPanel(); }
     else if (id >= IDM_HELP_KEYMAP    && id <= IDM_HELP_ABOUT)              { OnHelpCommand (id); }
     else if (id == IDM_DRIVE_EXTERNAL_CONNECT ||
              id == IDM_DRIVE_EXTERNAL_DISCONNECT)                          { OnExternalDriveCommand (id); }
@@ -344,6 +392,7 @@ bool WindowCommandManager::OnCommand (HWND hwnd, int id)
 
     return false;
 }
+
 
 
 
@@ -397,9 +446,18 @@ void WindowCommandManager::OnMouseConnectCommand (int id)
 
 
 
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnExternalDriveCommand
+//
+////////////////////////////////////////////////////////////////////////////////
+
 void WindowCommandManager::OnExternalDriveCommand (int id)
 {
     bool  connected = (id == IDM_DRIVE_EXTERNAL_CONNECT);
+
+
 
     if (connected != m_shell.m_externalDriveConnected)
     {
@@ -736,11 +794,11 @@ HRESULT WindowCommandManager::PromptForDiskImage (int drive)
     CHR (hr);
 
     hr = dialog->Show (m_shell.m_hwnd);
-    if (hr == HRESULT_FROM_WIN32 (ERROR_CANCELLED))
-    {
-        hr = S_FALSE;
-        goto Error;
-    }
+
+    // Backing out of the file picker means there is nothing to mount -- not an
+    // error, and nothing for a caller to distinguish: the sole caller only
+    // checks FAILED, so the old S_FALSE told no one anything.
+    BAIL_OUT_IF (hr == HRESULT_FROM_WIN32 (ERROR_CANCELLED), S_OK);
     CHR (hr);
 
     hr = dialog->GetResult (&item);
@@ -785,6 +843,7 @@ HRESULT WindowCommandManager::PromptInsertDiskMru (int drive)
     std::wstring                 chosenPath;
     std::string                  error;
     bool                         userBrowsed = false;
+
 
 
     diskDir   = AssetBootstrap::GetDiskDirectory();
@@ -867,11 +926,28 @@ void WindowCommandManager::OnDiskCommand (int id)
 
 
 
-// Settings > Printing knobs, read live from GlobalUserPrefs at each eject.
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PrintDpiFromPrefs
+//
+//  Settings > Printing knobs, read live from GlobalUserPrefs at each eject.
+//
+////////////////////////////////////////////////////////////////////////////////
+
 static int PrintDpiFromPrefs (const GlobalUserPrefs & p)
 {
     return (p.printOutputDpi == 288) ? 288 : 576;   // only 288 / 576 valid (FR-028)
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PrintDotStyleFromPrefs
+//
+////////////////////////////////////////////////////////////////////////////////
 
 static DotStyle PrintDotStyleFromPrefs (const GlobalUserPrefs & p)
 {
@@ -879,12 +955,22 @@ static DotStyle PrintDotStyleFromPrefs (const GlobalUserPrefs & p)
 }
 
 
-// Cap the render dpi for a WHOLE-strip render (PNG file, clipboard) so a long
-// fanfold banner's single RGBA image stays within a memory budget instead of
-// ballooning to gigabytes (each row at 576 dpi is 4608 px * 4 B; a 60-page
-// banner is ~95k rows). The native grid is only 160x144 dpi, so dropping a huge
-// banner from 576 toward ~150 dpi is still well above source resolution -- no
-// meaningful quality loss, and it never OOMs. Short jobs keep the full dpi.
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WholeStripDpi
+//
+//  Cap the render dpi for a WHOLE-strip render (PNG file, clipboard) so a long
+//  fanfold banner's single RGBA image stays within a memory budget instead of
+//  ballooning to gigabytes (each row at 576 dpi is 4608 px * 4 B; a 60-page
+//  banner is ~95k rows). The native grid is only 160x144 dpi, so dropping a huge
+//  banner from 576 toward ~150 dpi is still well above source resolution -- no
+//  meaningful quality loss, and it never OOMs. Short jobs keep the full dpi.
+//
+////////////////////////////////////////////////////////////////////////////////
+
 static int WholeStripDpi (const GlobalUserPrefs & prefs, int rows)
 {
     const double   kBudgetPx = 128.0 * 1024.0 * 1024.0;   // ~512 MB of RGBA
@@ -909,6 +995,7 @@ static int WholeStripDpi (const GlobalUserPrefs & prefs, int rows)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  SavePrintoutAs
@@ -916,11 +1003,11 @@ static int WholeStripDpi (const GlobalUserPrefs & prefs, int rows)
 //  The user picks the destination through IFileSaveDialog (seeded with the
 //  default folder <Pictures>\Casso Prints and a timestamped name), and the
 //  strip renders to that exact path at the configured dpi + dot style.
-//  Returns S_FALSE when the dialog is cancelled.
+//  Cancellation is reported through outOutcome, not the result code.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT WindowCommandManager::SavePrintoutAs (const PrintRaster & raster, fs::path & outFile)
+HRESULT WindowCommandManager::SavePrintoutAs (const PrintRaster & raster, fs::path & outFile, PrintOutcome & outOutcome)
 {
     HRESULT                   hr          = S_OK;
     ComPtr<IFileSaveDialog>   dialog;
@@ -932,8 +1019,17 @@ HRESULT WindowCommandManager::SavePrintoutAs (const PrintRaster & raster, fs::pa
     fs::path                  suggested;
     vector<Byte>              png;
     SYSTEMTIME                now         = {};
+    bool                      isOpen      = false;
+    bool                      wroteWell   = false;
+    HRESULT                   hrPictures  = S_OK;
+    HRESULT                   hrItem      = S_OK;
+    HRESULT                   hrFolder    = S_OK;
     std::error_code           ec;
     const GlobalUserPrefs &   prefs       = m_shell.m_globalPrefs;
+
+
+
+    outOutcome = PrintOutcome::Delivered;
 
     static const COMDLG_FILTERSPEC   s_kFilters[] =
     {
@@ -951,19 +1047,26 @@ HRESULT WindowCommandManager::SavePrintoutAs (const PrintRaster & raster, fs::pa
     CHR (hr);
 
     // Seed the default folder <Pictures>\Casso Prints + a timestamped name.
-    if (SUCCEEDED (SHGetKnownFolderPath (FOLDERID_Pictures, 0, nullptr, &picturesRaw)))
+    hrPictures = SHGetKnownFolderPath (FOLDERID_Pictures, 0, nullptr, &picturesRaw);
+
+    if (SUCCEEDED (hrPictures))
     {
         folder = fs::path (picturesRaw) / L"Casso Prints";
     }
 
-    if (!folder.empty ())
+    if (!folder.empty())
     {
         fs::create_directories (folder, ec);
 
-        if (SUCCEEDED (SHCreateItemFromParsingName (folder.c_str (), nullptr,
-                                                    IID_PPV_ARGS (&folderItem))))
+        hrItem = SHCreateItemFromParsingName (folder.c_str(), nullptr,
+                                              IID_PPV_ARGS (&folderItem));
+
+        if (SUCCEEDED (hrItem))
         {
-            IGNORE_RETURN_VALUE (hr, dialog->SetFolder (folderItem.Get ()));
+            // Best-effort: an unsettable start folder just means the dialog
+            // opens wherever the shell last left it.
+            hrFolder = dialog->SetFolder (folderItem.Get());
+            IGNORE_RETURN_VALUE (hrFolder, S_OK);
         }
     }
 
@@ -971,16 +1074,11 @@ HRESULT WindowCommandManager::SavePrintoutAs (const PrintRaster & raster, fs::pa
     suggested = PrintFileNaming::ComposePngPath (folder, now,
                     [] (const fs::path & p) { std::error_code e; return fs::exists (p, e); });
 
-    hr = dialog->SetFileName (suggested.filename ().c_str ());
+    hr = dialog->SetFileName (suggested.filename().c_str());
     CHR (hr);
 
-    hr = dialog->Show (m_shell.PrinterDialogOwner ());
+    hr = dialog->Show (m_shell.PrinterDialogOwner());
 
-    if (hr == HRESULT_FROM_WIN32 (ERROR_CANCELLED))
-    {
-        hr = S_FALSE;
-        goto Error;
-    }
     CHR (hr);
 
     hr = dialog->GetResult (&item);
@@ -991,20 +1089,32 @@ HRESULT WindowCommandManager::SavePrintoutAs (const PrintRaster & raster, fs::pa
 
     outFile = fs::path (pszPath);
 
-    hr = PrintDelivery::RenderToPng (raster, 0, raster.RowsUsed () - 1,
-                                     WholeStripDpi (prefs, raster.RowsUsed ()),
+    hr = PrintDelivery::RenderToPng (raster, 0, raster.RowsUsed() - 1,
+                                     WholeStripDpi (prefs, raster.RowsUsed()),
                                      PrintDotStyleFromPrefs (prefs), png);
     CHR (hr);
 
     {
         std::ofstream   out (outFile, std::ios::binary | std::ios::trunc);
 
-        CBREx (out.is_open (), E_FAIL);
-        out.write ((const char *) png.data (), (std::streamsize) png.size ());
-        CBREx (out.good (), E_FAIL);
+        isOpen = out.is_open();
+        CBR (isOpen);
+
+        out.write ((const char *) png.data(), (std::streamsize) png.size());
+
+        wroteWell = out.good();
+        CBR (wroteWell);
     }
 
 Error:
+    // A user cancel is not a delivery failure. Mapping it here rather than at
+    // the exit itself keeps one owner for the rule.
+    if (hr == HRESULT_FROM_WIN32 (ERROR_CANCELLED))
+    {
+        outOutcome = PrintOutcome::Canceled;
+        hr         = S_OK;
+    }
+
     if (pszPath != nullptr)
     {
         CoTaskMemFree (pszPath);
@@ -1019,6 +1129,7 @@ Error:
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  PrintToWindowsPrinter
@@ -1027,14 +1138,14 @@ Error:
 //  The strip is paginated (PrintPagination -- core, unit-tested) and each
 //  page's row span is rendered (PaperRenderer -- core) and StretchDIBits'd onto
 //  the printer DC. Only the dialog + GDI job are here (the untestable Win32
-//  edge). Returns S_FALSE if the user cancels -- the dialog, the Save-As
+//  edge). Cancellation -- of the dialog, the Save-As
 //  prompt inside StartDoc, or (modern Print-to-PDF) an abort surfacing at a
 //  later spool call. On failure `failedStage` names the call that failed so
 //  the error dialog's Details line pinpoints it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT WindowCommandManager::PrintToWindowsPrinter (const PrintRaster & raster, std::wstring & failedStage)
+HRESULT WindowCommandManager::PrintToWindowsPrinter (const PrintRaster & raster, std::wstring & failedStage, PrintOutcome & outOutcome)
 {
     HRESULT                                hr      = S_OK;
     const GlobalUserPrefs &                prefs   = m_shell.m_globalPrefs;
@@ -1042,11 +1153,18 @@ HRESULT WindowCommandManager::PrintToWindowsPrinter (const PrintRaster & raster,
     PRINTDLGW                              pd      = {};
     DOCINFOW                               di      = {};
     bool                                   started = false;
+    BOOL                                   dlgOk   = FALSE;
     int                                    pageW   = 0;
     int                                    pageH   = 0;
     int                                    pageIx  = 0;
+    bool                                   hasPages = false;
 
-    CBRF (!pages.empty (),
+
+
+    outOutcome = PrintOutcome::Delivered;
+
+    hasPages = !pages.empty();
+    CBRF (hasPages,
           failedStage = L"pagination (the page has no printable content)");
 
     // Microsoft Print to PDF (and other v4 / XPS print drivers) create their
@@ -1057,19 +1175,18 @@ HRESULT WindowCommandManager::PrintToWindowsPrinter (const PrintRaster & raster,
     // PrintDlg below then create its DC on the UI thread normally. Diagnosed
     // live: the STA CreateDC fails 995, an MTA CreateDC succeeds, and the real
     // PrintDlg then returns a valid DC and the job completes. Best-effort.
-    PrimeDefaultPrinterDriver ();
+    PrimeDefaultPrinterDriver();
 
     pd.lStructSize = sizeof (pd);
     pd.hwndOwner   = m_shell.m_hwnd;
     pd.Flags       = PD_RETURNDC | PD_NOPAGENUMS | PD_NOSELECTION | PD_USEDEVMODECOPIESANDCOLLATE;
     pd.nCopies     = 1;
 
-    if (!PrintDlgW (&pd))
-    {
-        // CommDlgExtendedError() == 0 means the user simply cancelled the dialog.
-        hr = S_FALSE;   // cancelled / closed
-        goto Error;
-    }
+    // A false return is overwhelmingly the user closing the dialog
+    // (CommDlgExtendedError() == 0); the Error label turns ERROR_CANCELLED
+    // into outOutcome = Canceled with a success code.
+    dlgOk = PrintDlgW (&pd);
+    BAIL_OUT_IF (!dlgOk, HRESULT_FROM_WIN32 (ERROR_CANCELLED));
 
     // PD_RETURNDC should have created the DC. When it flakes (TRUE + null hDC +
     // no error -- seen intermittently with Print-to-PDF in a long-lived
@@ -1081,23 +1198,20 @@ HRESULT WindowCommandManager::PrintToWindowsPrinter (const PrintRaster & raster,
         pd.hDC = CreateDcFromDevNames (pd);
     }
 
-    CBRFEx (pd.hDC != nullptr, E_FAIL,
+    CBRF (pd.hDC != nullptr,
             failedStage = L"PrintDlg (the chosen printer returned no device context)");
 
     di.cbSize      = sizeof (di);
     di.lpszDocName = L"Casso Printout";
 
     // "Microsoft Print to PDF" (and some drivers) pop a Save-As prompt inside
-    // StartDoc; cancelling it is a user cancel, not a delivery failure -- so it
-    // reports exactly like a cancelled print dialog (S_FALSE: keep the page, no
+    // StartDoc; canceling it is a user cancel, not a delivery failure -- so it
+    // reports exactly like a canceled print dialog (outOutcome = Canceled: keep the page, no
     // scary "could not deliver" popup). HrFromSpoolResult owns that mapping,
     // including the SP_* codes and the GetLastError()==0 case.
     hr = HrFromSpoolResult (StartDocW (pd.hDC, &di), L"StartDoc", 0);
-    if (hr != S_OK)
-    {
-        if (FAILED (hr)) { failedStage = L"StartDoc (starting the print job)"; }
-        goto Error;
-    }
+    CHRF (hr, failedStage = L"StartDoc (starting the print job)");
+
     started = true;
 
     pageW = GetDeviceCaps (pd.hDC, HORZRES);
@@ -1117,37 +1231,38 @@ HRESULT WindowCommandManager::PrintToWindowsPrinter (const PrintRaster & raster,
 
         // Every spool call routes through HrFromSpoolResult: SP_* return codes
         // and GetLastError map to honest HRESULTs, and a mid-job user abort
-        // (Print-to-PDF Save-As cancel on modern Windows) comes back S_FALSE --
+        // (Print-to-PDF Save-As cancel on modern Windows) surfaces as ERROR_CANCELLED --
         // exit quietly, keep the page, no failure dialog.
         hr = HrFromSpoolResult (StartPage (pd.hDC), L"StartPage", pageIx);
-        if (hr != S_OK)
-        {
-            if (FAILED (hr)) { failedStage = std::format (L"StartPage (page {})", pageIx + 1); }
-            goto Error;
-        }
+        CHRF (hr, failedStage = std::format (L"StartPage (page {})", pageIx + 1));
 
         hr = BlitRgbaToDc (pd.hDC, img, pageW, pageH, opt.outputDpi);
         CHRF (hr, failedStage = std::format (L"drawing page {} onto the printer", pageIx + 1));
 
         hr = HrFromSpoolResult (EndPage (pd.hDC), L"EndPage", pageIx);
-        if (hr != S_OK)
-        {
-            if (FAILED (hr)) { failedStage = std::format (L"EndPage (page {})", pageIx + 1); }
-            goto Error;
-        }
+        CHRF (hr, failedStage = std::format (L"EndPage (page {})", pageIx + 1));
 
         pageIx++;
     }
 
     hr = HrFromSpoolResult (EndDoc (pd.hDC), L"EndDoc", pageIx);
-    if (hr != S_OK)
-    {
-        if (FAILED (hr)) { failedStage = L"EndDoc (finishing the print job)"; }
-        goto Error;
-    }
+    CHRF (hr, failedStage = L"EndDoc (finishing the print job)");
+
     started = false;
 
 Error:
+    // A user cancel anywhere in the job -- the print dialog up front, or the
+    // Print-to-PDF Save-As prompt that surfaces mid-job -- is not a delivery
+    // failure. Every stage reports it the same way, so the mapping lives here
+    // once rather than being repeated at each spool call. failedStage is
+    // cleared because there is no failing stage to name.
+    if (hr == HRESULT_FROM_WIN32 (ERROR_CANCELLED))
+    {
+        outOutcome = PrintOutcome::Canceled;
+        failedStage.clear();
+        hr         = S_OK;
+    }
+
     if (started && pd.hDC != nullptr)
     {
         AbortDoc (pd.hDC);
@@ -1166,6 +1281,7 @@ Error:
     }
     return hr;
 }
+
 
 
 
@@ -1193,6 +1309,9 @@ HRESULT WindowCommandManager::CopyPrintoutToClipboard (const PrintRaster & raste
     HGLOBAL                  hDib     = nullptr;
     HGLOBAL                  hPng     = nullptr;
     bool                     opened   = false;
+    bool                     didOpen  = false;
+    bool                     didEmpty = false;
+    HRESULT                  hrEncode = S_OK;
     size_t                   px       = 0;
     size_t                   dibBytes = 0;
     // A 32bpp DIB of the whole strip must stay bounded so a huge multi-page
@@ -1203,12 +1322,12 @@ HRESULT WindowCommandManager::CopyPrintoutToClipboard (const PrintRaster & raste
     // Render the whole strip exactly once, capping dpi for very tall banners so
     // neither the DIB below nor the PNG blob materializes gigabytes. The source
     // is only 160x144 dpi, so the cap is effectively lossless.
-    opt.outputDpi = WholeStripDpi (prefs, raster.RowsUsed ());
+    opt.outputDpi = WholeStripDpi (prefs, raster.RowsUsed());
     opt.style     = PrintDotStyleFromPrefs (prefs);
 
-    hr = renderer.Render (raster, 0, raster.RowsUsed () - 1, opt, img);
+    hr = renderer.Render (raster, 0, raster.RowsUsed() - 1, opt, img);
     CHR (hr);
-    CBREx (img.width > 0 && img.height > 0, E_FAIL);
+    CBR (img.width > 0 && img.height > 0);
 
     px       = (size_t) img.width * img.height;
     dibBytes = sizeof (BITMAPINFOHEADER) + px * 4;
@@ -1256,11 +1375,13 @@ HRESULT WindowCommandManager::CopyPrintoutToClipboard (const PrintRaster & raste
 
     // Encode the PNG from the image we already rendered rather than rendering
     // the strip a second time (the old path doubled peak memory on big banners).
-    if (SUCCEEDED (PngCodec::EncodeRgba (img, opt.outputDpi, png)) && !png.empty ())
+    hrEncode = PngCodec::EncodeRgba (img, opt.outputDpi, png);
+
+    if (SUCCEEDED (hrEncode) && !png.empty())
     {
         Byte *   dest = nullptr;
 
-        hPng = GlobalAlloc (GMEM_MOVEABLE, png.size ());
+        hPng = GlobalAlloc (GMEM_MOVEABLE, png.size());
 
         if (hPng != nullptr)
         {
@@ -1268,7 +1389,7 @@ HRESULT WindowCommandManager::CopyPrintoutToClipboard (const PrintRaster & raste
 
             if (dest != nullptr)
             {
-                memcpy (dest, png.data (), png.size ());
+                memcpy (dest, png.data(), png.size());
                 GlobalUnlock (hPng);
             }
             else
@@ -1279,11 +1400,15 @@ HRESULT WindowCommandManager::CopyPrintoutToClipboard (const PrintRaster & raste
         }
     }
 
-    CBREx (hDib != nullptr || hPng != nullptr, E_FAIL);
+    CBR (hDib != nullptr || hPng != nullptr);
 
-    CBREx (OpenClipboard (m_shell.m_hwnd), E_FAIL);
+    didOpen = OpenClipboard (m_shell.m_hwnd);
+    CBR (didOpen);
+
     opened = true;
-    CBREx (EmptyClipboard (), E_FAIL);
+
+    didEmpty = EmptyClipboard();
+    CBR (didEmpty);
 
     // On success the clipboard takes ownership, so null the handle to keep the
     // cleanup path from freeing it out from under the clipboard.
@@ -1303,11 +1428,12 @@ HRESULT WindowCommandManager::CopyPrintoutToClipboard (const PrintRaster & raste
     }
 
 Error:
-    if (opened)          { CloseClipboard (); }
+    if (opened)          { CloseClipboard(); }
     if (hDib != nullptr) { GlobalFree (hDib); }
     if (hPng != nullptr) { GlobalFree (hPng); }
     return hr;
 }
+
 
 
 
@@ -1329,109 +1455,181 @@ Error:
 
 void WindowCommandManager::OnPrinterCommand (int id)
 {
-    HRESULT        hr   = S_OK;
-    PrinterJob *   job  = nullptr;
-    fs::path       file;
+    PrinterJob *   job   = nullptr;
+    bool           known = (id == IDM_PRINTER_DISCARD || id == IDM_PRINTER_COPY ||
+                            id == IDM_PRINTER_PRINT   || id == IDM_PRINTER_SAVEAS)
+                           && m_shell.m_refs.printerCard != nullptr;
 
-    if ((id != IDM_PRINTER_DISCARD && id != IDM_PRINTER_COPY &&
-         id != IDM_PRINTER_PRINT && id != IDM_PRINTER_SAVEAS) ||
-        m_shell.m_refs.printerCard == nullptr)
+
+
+    if (known)
     {
-        return;
-    }
+        // Take ownership of the strip: stop the worker, then flush any tail
+        // bytes. Every strip-level command acts on the whole page, so we drain
+        // first and read the job's raster from a quiesced worker (no
+        // concurrent mutation). Every arm below is responsible for restarting
+        // the worker -- that is why they take the job rather than re-reading it.
+        m_shell.m_printerWorker.Stop();
 
-    bool   discard = (id == IDM_PRINTER_DISCARD);
-    bool   copy    = (id == IDM_PRINTER_COPY);
-    bool   print   = (id == IDM_PRINTER_PRINT);
-    bool   saveAs  = (id == IDM_PRINTER_SAVEAS);
-
-    // Take ownership of the strip: stop the worker, then flush any tail bytes.
-    // Every strip-level command acts on the whole page, so we drain first and
-    // read the job's raster from a quiesced worker (no concurrent mutation).
-    m_shell.m_printerWorker.Stop ();
-
-    {
-        vector<PrinterEvent>   events;
-        m_shell.m_printerWorker.FlushNow (events);
-    }
-
-    job = m_shell.m_printerWorker.Job ();
-
-    // "No page" also covers a strip whose drained bytes left nothing on the
-    // paper (no ink AND no feed -- e.g. a bare escape preamble): HasContent is
-    // true but RowsUsed is 0, which would otherwise reach delivery, paginate to
-    // zero pages, and surface as a scary "something went wrong".
-    if (job == nullptr || !job->HasContent () || job->Raster ().RowsUsed () <= 0)
-    {
-        const wchar_t * emptyMsg = copy    ? L"The printer has no page to copy yet."
-                                 : discard ? L"The printer has no page to discard."
-                                 : print   ? L"The printer has no page to print yet."
-                                           : L"The printer has no page to save yet.";
-
-        DxuiMessageBox (m_shell.PrinterDialogOwner (), &m_shell.m_chromeTheme, emptyMsg, L"Casso Printer", MB_OK | MB_ICONINFORMATION);
-
-        if (job != nullptr)
         {
-            m_shell.m_printerWorker.Start (m_shell.m_refs.printerCard->ByteRing (), job->Raster ());
+            vector<PrinterEvent>   events;
+            m_shell.m_printerWorker.FlushNow (events);
+        }
+
+        job = m_shell.m_printerWorker.Job();
+
+        // "No page" also covers a strip whose drained bytes left nothing on the
+        // paper (no ink AND no feed -- e.g. a bare escape preamble): HasContent
+        // is true but RowsUsed is 0, which would otherwise reach delivery,
+        // paginate to zero pages, and surface as a scary "something went wrong".
+        if (job == nullptr || !job->HasContent() || job->Raster().RowsUsed() <= 0)
+        {
+            OnPrinterNoPage (id, job);
+        }
+        else if (id == IDM_PRINTER_COPY)
+        {
+            OnPrinterCopy (job);
+        }
+        else if (id == IDM_PRINTER_DISCARD)
+        {
+            OnPrinterDiscard (job);
         }
         else
         {
-            m_shell.m_printerWorker.Start (m_shell.m_refs.printerCard->ByteRing ());
+            OnPrinterDeliver (job, id == IDM_PRINTER_PRINT);
         }
-        return;
     }
+}
 
-    if (copy)
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnPrinterNoPage
+//
+//  Nothing on the paper: say so in the command's own words and resume. A
+//  null job means the worker never had one, so it restarts empty.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void WindowCommandManager::OnPrinterNoPage (int id, PrinterJob * job)
+{
+    const wchar_t * emptyMsg =
+        (id == IDM_PRINTER_COPY)    ? L"The printer has no page to copy yet."
+      : (id == IDM_PRINTER_DISCARD) ? L"The printer has no page to discard."
+      : (id == IDM_PRINTER_PRINT)   ? L"The printer has no page to print yet."
+                                    : L"The printer has no page to save yet.";
+
+    DxuiMessageBox (m_shell.PrinterDialogOwner(), &m_shell.m_chromeTheme, emptyMsg, L"Casso Printer", MB_OK | MB_ICONINFORMATION);
+
+    if (job != nullptr)
     {
-        hr = CopyPrintoutToClipboard (job->Raster ());
-
-        // Copy never consumes the strip: resume on the same page regardless.
-        m_shell.m_printerWorker.Start (m_shell.m_refs.printerCard->ByteRing (), job->Raster ());
-        m_shell.NotePrinterDeliveryResult (FAILED (hr));
-
-        if (FAILED (hr))
-        {
-            DxuiMessageBox (m_shell.PrinterDialogOwner (), &m_shell.m_chromeTheme, L"Could not copy the printout to the clipboard.",
-                         L"Casso Printer", MB_OK | MB_ICONWARNING);
-        }
-        return;
+        m_shell.m_printerWorker.Start (m_shell.m_refs.printerCard->ByteRing(), job->Raster());
     }
-
-    if (discard)
+    else
     {
-        // Tear off and throw away the current page (FR-029). Confirm first --
-        // there is no undo -- and default the dialog to "No" so a stray Enter
-        // never destroys a page.
-        int   choice = DxuiMessageBox (
-            m_shell.PrinterDialogOwner (),
-            &m_shell.m_chromeTheme,
-            L"Tear off and discard the current printout?\n\n"
-            L"The page in the printer will be thrown away without saving. "
-            L"This cannot be undone.",
-            L"Discard Printout", MB_YESNO | MB_ICONWARNING | MB_DEFBUTTON2);
+        m_shell.m_printerWorker.Start (m_shell.m_refs.printerCard->ByteRing());
+    }
+}
 
-        if (choice != IDYES)
-        {
-            // Cancelled: keep the strip and resume on the same page.
-            m_shell.m_printerWorker.Start (m_shell.m_refs.printerCard->ByteRing (), job->Raster ());
-            return;
-        }
 
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnPrinterCopy
+//
+//  Copy never consumes the strip: the worker resumes on the same page
+//  whether or not the clipboard accepted it.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void WindowCommandManager::OnPrinterCopy (PrinterJob * job)
+{
+    HRESULT  hr = CopyPrintoutToClipboard (job->Raster());
+
+
+
+    m_shell.m_printerWorker.Start (m_shell.m_refs.printerCard->ByteRing(), job->Raster());
+    m_shell.NotePrinterDeliveryResult (FAILED (hr));
+
+    if (FAILED (hr))
+    {
+        DxuiMessageBox (m_shell.PrinterDialogOwner(), &m_shell.m_chromeTheme, L"Could not copy the printout to the clipboard.",
+                     L"Casso Printer", MB_OK | MB_ICONWARNING);
+    }
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnPrinterDiscard
+//
+//  Tear off and throw away the current page (FR-029). Confirm first --
+//  there is no undo -- and default the dialog to "No" so a stray Enter
+//  never destroys a page.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void WindowCommandManager::OnPrinterDiscard (PrinterJob * job)
+{
+    int   choice = DxuiMessageBox (
+        m_shell.PrinterDialogOwner(),
+        &m_shell.m_chromeTheme,
+        L"Tear off and discard the current printout?\n\n"
+        L"The page in the printer will be thrown away without saving. "
+        L"This cannot be undone.",
+        L"Discard Printout", MB_YESNO | MB_ICONWARNING | MB_DEFBUTTON2);
+
+    if (choice != IDYES)
+    {
+        // Canceled: keep the strip and resume on the same page.
+        m_shell.m_printerWorker.Start (m_shell.m_refs.printerCard->ByteRing(), job->Raster());
+    }
+    else
+    {
         // Confirmed: play the tear-off (a random paper-tear), start a fresh
         // sheet, and drop the persisted pending copy. The problem page (if
         // any) went with it, so a latched delivery error clears too.
-        m_shell.m_printerAudio.PlayTearOff ();
-        m_shell.m_printerWorker.Start (m_shell.m_refs.printerCard->ByteRing ());
-        PrintJobStore::Clear (m_shell.PendingPrintDir ());
+        m_shell.m_printerAudio.PlayTearOff();
+        m_shell.m_printerWorker.Start (m_shell.m_refs.printerCard->ByteRing());
+        PrintJobStore::Clear (m_shell.PendingPrintDir());
         m_shell.NotePrinterDeliveryResult (false);
-        return;
     }
+}
 
-    // Print -> Windows printer; Save -> PNG via file dialog. Both are
-    // non-destructive: the paper stays so it can be delivered again.
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnPrinterDeliver
+//
+//  Print -> Windows printer; Save -> PNG via file dialog. Both are
+//  non-destructive: the paper stays so it can be delivered again, which is
+//  why every arm here restarts the worker with the SAME raster.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void WindowCommandManager::OnPrinterDeliver (PrinterJob * job, bool print)
+{
+    HRESULT        hr           = S_OK;
+    PrintOutcome   outcome      = PrintOutcome::Delivered;
+    fs::path       file;
     std::wstring   failedStage;
+    wchar_t        forceClassic[8] = {};
+    bool           modernUp     = false;
 
-    if (print)
+
+
+    if (print && GetEnvironmentVariableW (L"CASSO_CLASSIC_PRINT", forceClassic, 8) == 0)
     {
         // DCR-1: the modern OS print UI with a live preview is the default --
         // it follows the documented PrintManagerInterop contract and delivers a
@@ -1439,48 +1637,41 @@ void WindowCommandManager::OnPrinterCommand (int id)
         // on completion. ShowAsync returns S_OK once the experience is up; a
         // hard failure returns FAILED and we fall back to the classic dialog
         // (which prints with honest error reporting, just no preview pane). The
-        // CASSO_CLASSIC_PRINT env var forces the classic path -- a support hatch
-        // for the rare machine whose print stack misbehaves.
-        wchar_t  forceClassic[8] = {};
+        // CASSO_CLASSIC_PRINT env var forces the classic path -- a support
+        // hatch for the rare machine whose print stack misbehaves.
+        const GlobalUserPrefs &  prefs  = m_shell.m_globalPrefs;
+        HRESULT                  hrShow = m_modernPrint.ShowAsync (m_shell.m_hwnd, job->Raster(),
+                                                                   PrintDpiFromPrefs (prefs),
+                                                                   PrintDotStyleFromPrefs (prefs));
 
-        if (GetEnvironmentVariableW (L"CASSO_CLASSIC_PRINT", forceClassic, 8) == 0)
-        {
-            const GlobalUserPrefs &  prefs = m_shell.m_globalPrefs;
-
-            if (SUCCEEDED (m_modernPrint.ShowAsync (m_shell.m_hwnd, job->Raster (),
-                                                    PrintDpiFromPrefs (prefs),
-                                                    PrintDotStyleFromPrefs (prefs))))
-            {
-                m_shell.m_printerWorker.Start (m_shell.m_refs.printerCard->ByteRing (), job->Raster ());
-                return;
-            }
-        }
-
-        hr = PrintToWindowsPrinter (job->Raster (), failedStage);
+        // The async session owns the outcome from here; resume and let its
+        // completion callback post the result.
+        modernUp = SUCCEEDED (hrShow);
     }
-    else
+
+    if (!modernUp)
     {
-        hr = SavePrintoutAs (job->Raster (), file);
+        hr = print ? PrintToWindowsPrinter (job->Raster(), failedStage, outcome)
+                   : SavePrintoutAs (job->Raster(), file, outcome);
     }
 
-    if (hr == S_FALSE)
+    if (modernUp || outcome == PrintOutcome::Canceled)
     {
-        // User cancelled the print / save dialog: keep the strip, no clear.
-        m_shell.m_printerWorker.Start (m_shell.m_refs.printerCard->ByteRing (), job->Raster ());
-        return;
+        // Modern session up, or the user canceled the print / save dialog:
+        // keep the strip either way, no clear.
+        m_shell.m_printerWorker.Start (m_shell.m_refs.printerCard->ByteRing(), job->Raster());
     }
-
-    if (SUCCEEDED (hr))
+    else if (SUCCEEDED (hr))
     {
         std::wstring   msg = print
                                  ? std::wstring (L"Sent the printout to the printer.")
-                                 : (L"Saved printout to:\n" + file.wstring ());
+                                 : (L"Saved printout to:\n" + file.wstring());
 
         m_shell.NotePrinterDeliveryResult (false);
-        DxuiMessageBox (m_shell.PrinterDialogOwner (), &m_shell.m_chromeTheme, msg.c_str (), L"Casso Printer", MB_OK | MB_ICONINFORMATION);
+        DxuiMessageBox (m_shell.PrinterDialogOwner(), &m_shell.m_chromeTheme, msg.c_str(), L"Casso Printer", MB_OK | MB_ICONINFORMATION);
 
         // Non-destructive: keep the paper so it can also be saved / printed.
-        m_shell.m_printerWorker.Start (m_shell.m_refs.printerCard->ByteRing (), job->Raster ());
+        m_shell.m_printerWorker.Start (m_shell.m_refs.printerCard->ByteRing(), job->Raster());
     }
     else
     {
@@ -1492,7 +1683,7 @@ void WindowCommandManager::OnPrinterCommand (int id)
                                  : std::wstring (L"Something went wrong while saving your printout, so it is still waiting in the printer. Please try again.");
 
         msg += L"\n\nDetails: ";
-        if (!failedStage.empty ())
+        if (!failedStage.empty())
         {
             msg += failedStage + L"\n";
         }
@@ -1500,14 +1691,15 @@ void WindowCommandManager::OnPrinterCommand (int id)
 
         m_shell.NotePrinterDeliveryResult (true);   // toolbar LED: red until resolved
 
-        DxuiMessageBox (m_shell.PrinterDialogOwner (), &m_shell.m_chromeTheme, msg.c_str (),
+        DxuiMessageBox (m_shell.PrinterDialogOwner(), &m_shell.m_chromeTheme, msg.c_str(),
                      L"Casso Printer", MB_OK | MB_ICONWARNING);
 
         // Keep the strip so the user can retry -- reseed the worker with it
         // (copied before the old job is replaced). It re-persists on exit.
-        m_shell.m_printerWorker.Start (m_shell.m_refs.printerCard->ByteRing (), job->Raster ());
+        m_shell.m_printerWorker.Start (m_shell.m_refs.printerCard->ByteRing(), job->Raster());
     }
 }
+
 
 
 
@@ -1520,7 +1712,7 @@ void WindowCommandManager::OnPrinterCommand (int id)
 //  on a print-system thread and must not raise UI itself). The strip was
 //  copied into the session and the worker already resumed, so there is
 //  nothing to reseed here -- just tell the user how it went. Cancel posts
-//  nothing, matching the classic dialog's silent S_FALSE.
+//  nothing, matching the classic dialog's silent cancellation.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1530,18 +1722,19 @@ void WindowCommandManager::OnModernPrintResult (bool succeeded)
 
     if (succeeded)
     {
-        DxuiMessageBox (m_shell.PrinterDialogOwner (), &m_shell.m_chromeTheme,
+        DxuiMessageBox (m_shell.PrinterDialogOwner(), &m_shell.m_chromeTheme,
                         L"Sent the printout to the printer.",
                         L"Casso Printer", MB_OK | MB_ICONINFORMATION);
     }
     else
     {
-        DxuiMessageBox (m_shell.PrinterDialogOwner (), &m_shell.m_chromeTheme,
+        DxuiMessageBox (m_shell.PrinterDialogOwner(), &m_shell.m_chromeTheme,
                         L"Something went wrong while sending your printout, so it is still "
                         L"waiting in the printer. Please try printing again.",
                         L"Casso Printer", MB_OK | MB_ICONWARNING);
     }
 }
+
 
 
 

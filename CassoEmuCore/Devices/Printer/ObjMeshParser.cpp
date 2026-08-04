@@ -5,6 +5,7 @@
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  ObjMeshParser::ParseMtl
@@ -48,6 +49,7 @@ std::unordered_map<std::string, ObjMeshParser::Rgb> ObjMeshParser::ParseMtl (con
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  ObjMeshParser::ParseFaceIndex
@@ -64,6 +66,8 @@ int ObjMeshParser::ParseFaceIndex (const std::string & token, size_t vertexCount
 {
     int   vi = std::atoi (token.c_str());
 
+
+
     if (vi < 0)
     {
         vi = (int) vertexCount + vi + 1;
@@ -71,6 +75,7 @@ int ObjMeshParser::ParseFaceIndex (const std::string & token, size_t vertexCount
 
     return vi;
 }
+
 
 
 

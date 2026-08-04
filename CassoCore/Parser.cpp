@@ -1,6 +1,7 @@
 #include "Pch.h"
 
 #include "Parser.h"
+#include "Directive.h"
 #include "OpcodeTable.h"
 
 
@@ -18,7 +19,9 @@ std::vector<std::string> Parser::SplitLines (const std::string & source)
     std::vector<std::string> lines;
     std::string              line;
 
-    for (size_t i = 0; i < source.size (); i++)
+
+
+    for (size_t i = 0; i < source.size(); i++)
     {
         char c = source[i];
 
@@ -26,15 +29,15 @@ std::vector<std::string> Parser::SplitLines (const std::string & source)
         {
             // LF or the LF of a CRLF — end of line
             lines.push_back (line);
-            line.clear ();
+            line.clear();
         }
         else if (c == '\r')
         {
             // CR — end of line (peek ahead for CRLF)
             lines.push_back (line);
-            line.clear ();
+            line.clear();
 
-            if (i + 1 < source.size () && source[i + 1] == '\n')
+            if (i + 1 < source.size() && source[i + 1] == '\n')
             {
                 i++;  // consume the LF of CRLF
             }
@@ -48,7 +51,7 @@ std::vector<std::string> Parser::SplitLines (const std::string & source)
     // Push remaining content (last line without trailing newline)
     lines.push_back (line);
 
-    if (lines.empty ())
+    if (lines.empty())
     {
         lines.push_back ("");
     }
@@ -68,7 +71,7 @@ std::vector<std::string> Parser::SplitLines (const std::string & source)
             {
                 current += raw;
                 joined.push_back (current);
-                current.clear ();
+                current.clear();
             }
             else
             {
@@ -79,11 +82,11 @@ std::vector<std::string> Parser::SplitLines (const std::string & source)
         {
             current += raw;
             joined.push_back (current);
-            current.clear ();
+            current.clear();
         }
     }
 
-    if (!current.empty ())
+    if (!current.empty())
     {
         joined.push_back (current);
     }
@@ -103,14 +106,10 @@ std::vector<std::string> Parser::SplitLines (const std::string & source)
 
 static std::string StripComments (const std::string & line)
 {
-    size_t pos = line.find (';');
+    size_t  pos = line.find (';');
 
-    if (pos == std::string::npos)
-    {
-        return line;
-    }
 
-    return line.substr (0, pos);
+    return (pos == std::string::npos) ? line : line.substr (0, pos);
 }
 
 
@@ -125,15 +124,20 @@ static std::string StripComments (const std::string & line)
 
 static std::string Trim (const std::string & s)
 {
-    size_t start = s.find_first_not_of (" \t");
+    std::string  out;
+    size_t       start = s.find_first_not_of (" \t");
+    size_t       end   = 0;
 
-    if (start == std::string::npos)
+
+
+    // All-whitespace (or empty) leaves `out` empty.
+    if (start != std::string::npos)
     {
-        return "";
+        end = s.find_last_not_of (" \t");
+        out = s.substr (start, end - start + 1);
     }
 
-    size_t end = s.find_last_not_of (" \t");
-    return s.substr (start, end - start + 1);
+    return out;
 }
 
 
@@ -149,6 +153,8 @@ static std::string Trim (const std::string & s)
 static std::string ToUpper (const std::string & s)
 {
     std::string result = s;
+
+
 
     for (char & c : result)
     {
@@ -170,47 +176,57 @@ static std::string ToUpper (const std::string & s)
 
 ParsedLine Parser::ParseLine (const std::string & line, int lineNumber)
 {
-    ParsedLine result  = {};
+    HRESULT      hr                 = S_OK;
+    ParsedLine   result             = {};
+    std::string  stripped           = StripComments (line);   // comments go first
+    std::string  trimmed            = Trim (stripped);
+    std::string  remainder;
+    std::string  firstWordUpper;
+    std::string  canonicalDirective;
+    Directive    directiveToken     = Directive::None;
+    size_t       colonPos           = std::string::npos;
+    size_t       spacePos           = std::string::npos;
+    size_t       eqPos              = std::string::npos;
+    bool         startsAtColumn0    = false;
+    bool         isBlank            = trimmed.empty();
+    bool         labelOnly          = false;
+    bool         isDotDirective     = false;
+    bool         isConstant         = false;
+    bool         isBareDirective    = false;
+
+
+
     result.lineNumber  = lineNumber;
-    result.isEmpty     = true;
+    result.isEmpty     = isBlank;
     result.isDirective = false;
     result.isConstant  = false;
 
-    // Strip comments first
-    std::string stripped = StripComments (line);
-    std::string trimmed  = Trim (stripped);
+    BAIL_OUT_IF (isBlank, S_OK);
 
-    if (trimmed.empty ())
-    {
-        return result;
-    }
-
-    result.isEmpty = false;
-    std::string remainder = trimmed;
+    remainder = trimmed;
 
     // Check for colon-less label: line starts at column 0 with an identifier
-    bool startsAtColumn0 = !stripped.empty () && !isspace ((unsigned char) stripped[0]);
+    startsAtColumn0 = !stripped.empty() && !isspace ((unsigned char) stripped[0]);
 
     // Check for label (contains ':')
-    size_t colonPos = remainder.find (':');
+    colonPos = remainder.find (':');
 
     if (colonPos != std::string::npos)
     {
         result.label = Trim (remainder.substr (0, colonPos));
         remainder    = Trim (remainder.substr (colonPos + 1));
-
-        if (remainder.empty ())
-        {
-            return result;
-        }
+        labelOnly    = remainder.empty();
     }
 
+    BAIL_OUT_IF (labelOnly, S_OK);
+
     // Check for directive (starts with '.')
-    if (!remainder.empty () && remainder[0] == '.')
+    isDotDirective = !remainder.empty() && remainder[0] == '.';
+
+    if (isDotDirective)
     {
         result.isDirective = true;
-
-        size_t spacePos = remainder.find_first_of (" \t");
+        spacePos           = remainder.find_first_of (" \t");
 
         if (spacePos == std::string::npos)
         {
@@ -222,13 +238,17 @@ ParsedLine Parser::ParseLine (const std::string & line, int lineNumber)
             result.directiveArg = Trim (remainder.substr (spacePos + 1));
         }
 
-        return result;
+        // Unknown dotted spellings resolve to None and stay a string; the
+        // pass-1 dispatch reports them as unhandled exactly as before.
+        result.directiveToken = DirectiveTable::FromSpelling (result.directive);
     }
+
+    BAIL_OUT_IF (isDotDirective, S_OK);
 
     // Check for constant definition: NAME = EXPR, NAME equ EXPR, NAME set EXPR
     // Extract first word and check what follows
-    size_t spacePos = remainder.find_first_of (" \t");
-    size_t eqPos    = remainder.find ('=');
+    spacePos = remainder.find_first_of (" \t");
+    eqPos    = remainder.find ('=');
 
     // NAME = EXPR (= can appear right after name or with spaces)
     if (eqPos != std::string::npos)
@@ -237,7 +257,7 @@ ParsedLine Parser::ParseLine (const std::string & line, int lineNumber)
         std::string afterEq  = Trim (remainder.substr (eqPos + 1));
 
         // Ensure beforeEq is a valid identifier (not a mnemonic)
-        if (!beforeEq.empty () && (isalpha ((unsigned char) beforeEq[0]) || beforeEq[0] == '_'))
+        if (!beforeEq.empty() && (isalpha ((unsigned char) beforeEq[0]) || beforeEq[0] == '_'))
         {
             bool validId = true;
 
@@ -250,19 +270,19 @@ ParsedLine Parser::ParseLine (const std::string & line, int lineNumber)
                 }
             }
 
-            if (validId && !afterEq.empty ())
+            if (validId && !afterEq.empty())
             {
                 result.isConstant   = true;
                 result.constantName = beforeEq;
                 result.constantExpr = afterEq;
                 result.constantKind = SymbolKind::Set;
-                return result;
+                isConstant          = true;
             }
         }
     }
 
     // NAME equ EXPR / NAME set EXPR
-    if (spacePos != std::string::npos)
+    if (!isConstant && spacePos != std::string::npos)
     {
         std::string firstWord  = remainder.substr (0, spacePos);
         std::string afterFirst = Trim (remainder.substr (spacePos + 1));
@@ -275,107 +295,87 @@ ParsedLine Parser::ParseLine (const std::string & line, int lineNumber)
         {
             std::string expr = (sp2 == std::string::npos) ? "" : Trim (afterFirst.substr (sp2 + 1));
 
-            if (!firstWord.empty () && (isalpha ((unsigned char) firstWord[0]) || firstWord[0] == '_'))
+            if (!firstWord.empty() && (isalpha ((unsigned char) firstWord[0]) || firstWord[0] == '_'))
             {
                 result.isConstant   = true;
                 result.constantName = firstWord;
                 result.constantExpr = expr;
                 result.constantKind = (secondUpper == "EQU") ? SymbolKind::Equ : SymbolKind::Set;
-                return result;
+                isConstant          = true;
             }
         }
     }
 
+    BAIL_OUT_IF (isConstant, S_OK);
+
     // Extract mnemonic (first word)
-    std::string firstWordUpper;
+    firstWordUpper = (spacePos == std::string::npos)
+                         ? ToUpper (remainder)
+                         : ToUpper (remainder.substr (0, spacePos));
 
-    if (spacePos == std::string::npos)
+    // as65 spells its directives without a leading dot (DB / FCB / FCC for
+    // .BYTE, and so on). DirectiveTable holds every accepted spelling, so
+    // this is one lookup rather than a chain -- and that table is the seam a
+    // second assembler dialect plugs into.
+    directiveToken = DirectiveTable::FromSpelling (firstWordUpper);
+
+    if (directiveToken != Directive::None)
     {
-        firstWordUpper = ToUpper (remainder);
+        canonicalDirective = DirectiveTable::GetCanonicalName (directiveToken);
     }
-    else
+
+    // A spelling the table rejected may still be one of the dual-purpose forms
+    // that cannot live in it -- today only RMB, where `rmb <count>` reserves
+    // storage but `rmb <bit>,<zp>` is the Rockwell instruction. The comma is
+    // what separates them, so once it is absent the instruction is ruled out
+    // and DirectiveTable can resolve the rest.
+    //
+    // The dialect's other dual-purpose mnemonic, `nop <count>`, cannot be
+    // decided here -- see AssemblySession::HandleMultiNop.
+    if (directiveToken == Directive::None)
     {
-        firstWordUpper = ToUpper (remainder.substr (0, spacePos));
-    }
+        Directive ambiguous = DirectiveTable::FromAmbiguousSpelling (firstWordUpper);
 
-    // Check for AS65 directive synonyms (without leading dot)
-    std::string canonicalDirective;
-
-    if      (firstWordUpper == "ORG")                                                                    { canonicalDirective = ".ORG";   }
-    else if (firstWordUpper == "DB"  || firstWordUpper == "BYT" || firstWordUpper == "BYTE" ||
-             firstWordUpper == "FCB" || firstWordUpper == "FCC")                                         { canonicalDirective = ".BYTE";  }
-    else if (firstWordUpper == "DW"  || firstWordUpper == "WORD" ||
-             firstWordUpper == "FCW" || firstWordUpper == "FDB")                                         { canonicalDirective = ".WORD";  }
-    else if (firstWordUpper == "DD")                                                                     { canonicalDirective = ".DD";    }
-    else if (firstWordUpper == "END")                                                                    { canonicalDirective = ".END";   }
-    else if (firstWordUpper == "DS"  || firstWordUpper == "DSB")                                         { canonicalDirective = ".DS";    }
-    else if (firstWordUpper == "ALIGN")                                                                  { canonicalDirective = ".ALIGN"; }
-    else if (firstWordUpper == "ERROR")                                                                  { canonicalDirective = ".ERROR"; }
-
-    // Segment keywords
-    else if (firstWordUpper == "CODE")                                                                   { canonicalDirective = ".SEGMENT_CODE"; }
-    else if (firstWordUpper == "DATA")                                                                   { canonicalDirective = ".SEGMENT_DATA"; }
-    else if (firstWordUpper == "BSS")                                                                    { canonicalDirective = ".SEGMENT_BSS";  }
-    else if (firstWordUpper == "NOOPT" || firstWordUpper == "OPT")                                      { canonicalDirective = ".OPT_NOOP"; }
-
-    // Include
-    else if (firstWordUpper == "INCLUDE")                                                                { canonicalDirective = ".INCLUDE"; }
-
-    // Struct
-    else if (firstWordUpper == "STRUCT")                                                                 { canonicalDirective = ".STRUCT"; }
-
-    // Cmap
-    else if (firstWordUpper == "CMAP")                                                                   { canonicalDirective = ".CMAP"; }
-
-    // Conditional directives
-    else if (firstWordUpper == "IFDEF")                                                                  { canonicalDirective = ".IFDEF";  }
-    else if (firstWordUpper == "IFNDEF")                                                                 { canonicalDirective = ".IFNDEF"; }
-
-    // Listing directives
-    else if (firstWordUpper == "LIST")                                                                   { canonicalDirective = ".LIST";   }
-    else if (firstWordUpper == "NOLIST")                                                                 { canonicalDirective = ".NOLIST"; }
-    else if (firstWordUpper == "PAGE")                                                                   { canonicalDirective = ".PAGE";   }
-    else if (firstWordUpper == "TITLE")                                                                  { canonicalDirective = ".TITLE";  }
-
-    // RMB is dual-purpose: `rmb <count>` reserves storage (a .DS synonym), but
-    // as65 also spells the Rockwell "reset memory bit" instruction as
-    // `rmb <bit>,<zp>`. The two-operand comma form is the instruction and must
-    // reach the mnemonic path; a bare count stays the directive.
-    if (canonicalDirective.empty () && firstWordUpper == "RMB")
-    {
-        std::string rmbArg = (spacePos == std::string::npos) ? "" : remainder.substr (spacePos + 1);
-
-        if (rmbArg.find (',') == std::string::npos)
+        if (ambiguous != Directive::None)
         {
-            canonicalDirective = ".DS";
+            std::string operandText = (spacePos == std::string::npos) ? "" : remainder.substr (spacePos + 1);
+
+            // The comma is what rules the instruction out.
+            if (operandText.find (',') == std::string::npos)
+            {
+                directiveToken     = ambiguous;
+                canonicalDirective = DirectiveTable::GetCanonicalName (ambiguous);
+            }
         }
     }
 
-    if (!canonicalDirective.empty ())
+    isBareDirective = !canonicalDirective.empty();
+
+    if (isBareDirective)
     {
-        result.isDirective = true;
-        result.directive   = canonicalDirective;
+        result.isDirective    = true;
+        result.directive      = canonicalDirective;
+        result.directiveToken = directiveToken;
 
         if (spacePos != std::string::npos)
         {
             result.directiveArg = Trim (remainder.substr (spacePos + 1));
         }
-
-        return result;
     }
 
-    // Extract mnemonic (first word)
-    if (spacePos == std::string::npos)
-    {
-        result.mnemonic = firstWordUpper;
-        result.startsAtColumn0 = startsAtColumn0;
-        return result;
-    }
+    BAIL_OUT_IF (isBareDirective, S_OK);
 
-    result.mnemonic = firstWordUpper;
-    result.operand  = Trim (remainder.substr (spacePos + 1));
+    // Plain instruction. The operand is whatever follows the mnemonic, if
+    // anything -- an implied-mode instruction has none.
+    result.mnemonic        = firstWordUpper;
     result.startsAtColumn0 = startsAtColumn0;
 
+    if (spacePos != std::string::npos)
+    {
+        result.operand = Trim (remainder.substr (spacePos + 1));
+    }
+
+Error:
     return result;
 }
 
@@ -387,19 +387,15 @@ ParsedLine Parser::ParseLine (const std::string & line, int lineNumber)
 //
 //  TrimOperand
 //
+//  Was a byte-for-byte copy of Trim. Kept as a name because the operand
+//  parsing below reads better saying what it is trimming, but there is one
+//  implementation now.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 static std::string TrimOperand (const std::string & s)
 {
-    size_t start = s.find_first_not_of (" \t");
-
-    if (start == std::string::npos)
-    {
-        return "";
-    }
-
-    size_t end = s.find_last_not_of (" \t");
-    return s.substr (start, end - start + 1);
+    return Trim (s);
 }
 
 
@@ -415,6 +411,8 @@ static std::string TrimOperand (const std::string & s)
 static std::string ToUpperStr (const std::string & s)
 {
     std::string result = s;
+
+
 
     for (char & c : result)
     {
@@ -436,17 +434,19 @@ static std::string ToUpperStr (const std::string & s)
 
 static size_t FindMatchingClose (const std::string & s, size_t openPos)
 {
-    char openChar  = s[openPos];
-    char closeChar = (openChar == '(') ? ')' : ']';
-    int  depth     = 1;
+    char    openChar  = s[openPos];
+    char    closeChar = (openChar == '(') ? ')' : ']';
+    int     depth     = 1;
+    size_t  i         = 0;
+    size_t  found     = std::string::npos;
 
 
 
-    for (size_t i = openPos + 1; i < s.size (); i++)
+    for (i = openPos + 1; i < s.size() && found == std::string::npos; i++)
     {
         char c = s[i];
 
-        if (c == '\'' && i + 2 < s.size () && s[i + 2] == '\'')
+        if (c == '\'' && i + 2 < s.size() && s[i + 2] == '\'')
         {
             i += 2;  // skip char literal
         }
@@ -460,12 +460,12 @@ static size_t FindMatchingClose (const std::string & s, size_t openPos)
 
             if (depth == 0)
             {
-                return i;
+                found = i;
             }
         }
     }
 
-    return std::string::npos;
+    return found;
 }
 
 
@@ -474,21 +474,23 @@ static size_t FindMatchingClose (const std::string & s, size_t openPos)
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  FindTopLevelComma — find ',' not inside () [] or ''
+//  FindTopLevelComma — find ',' not inside() [] or ''
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 static size_t FindTopLevelComma (const std::string & s, size_t start = 0)
 {
-    int depth = 0;
+    int     depth = 0;
+    size_t  i     = 0;
+    size_t  found = std::string::npos;
 
 
 
-    for (size_t i = start; i < s.size (); i++)
+    for (i = start; i < s.size() && found == std::string::npos; i++)
     {
         char c = s[i];
 
-        if (c == '\'' && i + 2 < s.size () && s[i + 2] == '\'')
+        if (c == '\'' && i + 2 < s.size() && s[i + 2] == '\'')
         {
             i += 2;  // skip char literal
         }
@@ -502,11 +504,11 @@ static size_t FindTopLevelComma (const std::string & s, size_t start = 0)
         }
         else if (c == ',' && depth == 0)
         {
-            return i;
+            found = i;
         }
     }
 
-    return std::string::npos;
+    return found;
 }
 
 
@@ -521,117 +523,115 @@ static size_t FindTopLevelComma (const std::string & s, size_t start = 0)
 
 ClassifiedOperand Parser::ClassifyOperand (const std::string & operand)
 {
-    ClassifiedOperand result = {};
+    ClassifiedOperand  result   = {};
+    std::string        op       = TrimOperand (operand);
+    std::string        inner;
+    std::string        after;
+    std::string        exprPart;
+    std::string        reg;
+    size_t             closePos = std::string::npos;
+    size_t             commaPos = std::string::npos;
+
+
+
+    // An empty operand keeps this.
     result.syntax = OperandSyntax::None;
 
-    std::string op = TrimOperand (operand);
-
-    if (op.empty ())
+    if (op.empty())
     {
-        return result;
+        // Nothing to classify.
     }
-
     // Immediate: #expr
-    if (op[0] == '#')
+    else if (op[0] == '#')
     {
         result.syntax     = OperandSyntax::Immediate;
         result.expression = TrimOperand (op.substr (1));
-        return result;
     }
-
     // Accumulator: "A" (exact match, case-insensitive)
-    if (ToUpperStr (op) == "A")
+    else if (ToUpperStr (op) == "A")
     {
         result.syntax = OperandSyntax::Accumulator;
-        return result;
     }
-
     // Indirect modes: starts with '('
-    if (op[0] == '(')
+    else if (op[0] == '(')
     {
-        size_t closePos = FindMatchingClose (op, 0);
+        closePos = FindMatchingClose (op, 0);
 
         if (closePos == std::string::npos)
         {
             // Unmatched paren — treat as bare expression
             result.syntax     = OperandSyntax::Bare;
             result.expression = op;
-            return result;
         }
-
-        std::string inner = TrimOperand (op.substr (1, closePos - 1));
-        std::string after = TrimOperand (op.substr (closePos + 1));
-
-        // Check for (expr,X) — IndirectX
-        size_t commaPos = FindTopLevelComma (inner);
-
-        if (commaPos != std::string::npos)
+        else
         {
-            std::string beforeComma = TrimOperand (inner.substr (0, commaPos));
-            std::string afterComma  = ToUpperStr (TrimOperand (inner.substr (commaPos + 1)));
+            inner    = TrimOperand (op.substr (1, closePos - 1));
+            after    = TrimOperand (op.substr (closePos + 1));
+            commaPos = FindTopLevelComma (inner);
+            reg      = (commaPos != std::string::npos)
+                           ? ToUpperStr (TrimOperand (inner.substr (commaPos + 1)))
+                           : std::string();
 
-            if (afterComma == "X")
+            // (expr,X) — IndirectX
+            if (reg == "X")
             {
                 result.syntax     = OperandSyntax::IndirectX;
-                result.expression = beforeComma;
-                return result;
+                result.expression = TrimOperand (inner.substr (0, commaPos));
             }
-        }
-
-        // Check for (expr),Y — IndirectY
-        if (!after.empty () && after[0] == ',')
-        {
-            std::string reg = ToUpperStr (TrimOperand (after.substr (1)));
-
-            if (reg == "Y")
+            // (expr),Y — IndirectY
+            else if (!after.empty() && after[0] == ',' &&
+                     ToUpperStr (TrimOperand (after.substr (1))) == "Y")
             {
                 result.syntax     = OperandSyntax::IndirectY;
                 result.expression = inner;
-                return result;
+            }
+            // Plain (expr) — Indirect (for JMP)
+            else
+            {
+                result.syntax     = OperandSyntax::Indirect;
+                result.expression = inner;
             }
         }
-
-        // Plain (expr) — Indirect (for JMP)
-        result.syntax     = OperandSyntax::Indirect;
-        result.expression = inner;
-        return result;
     }
-
-    // Check for top-level ,X or ,Y suffix
-    size_t commaPos = FindTopLevelComma (op);
-
-    if (commaPos != std::string::npos)
+    else
     {
-        std::string exprPart = TrimOperand (op.substr (0, commaPos));
-        std::string reg      = ToUpperStr (TrimOperand (op.substr (commaPos + 1)));
+        // Top-level ,X or ,Y suffix, else a bare expression.
+        commaPos = FindTopLevelComma (op);
 
-        if (reg == "X")
+        if (commaPos == std::string::npos)
         {
-            result.syntax     = OperandSyntax::IndexedX;
-            result.expression = exprPart;
-            return result;
+            result.syntax     = OperandSyntax::Bare;
+            result.expression = op;
         }
-
-        if (reg == "Y")
+        else
         {
-            result.syntax     = OperandSyntax::IndexedY;
-            result.expression = exprPart;
-            return result;
-        }
+            exprPart = TrimOperand (op.substr (0, commaPos));
+            reg      = ToUpperStr (TrimOperand (op.substr (commaPos + 1)));
 
-        // Comma but neither ,X nor ,Y — the two-operand zero-page,relative form
-        // used by the 65C02 BBRn/BBSn bit-branch instructions (zp,target). Not a
-        // valid 6502 form; ResolveAddressingMode maps it to ZeroPageRelative and a
-        // mnemonic without that mode (i.e. any 6502 mnemonic) fails the lookup.
-        result.syntax           = OperandSyntax::ZeroPageRelative;
-        result.expression       = exprPart;
-        result.secondExpression = TrimOperand (op.substr (commaPos + 1));
-        return result;
+            if (reg == "X")
+            {
+                result.syntax     = OperandSyntax::IndexedX;
+                result.expression = exprPart;
+            }
+            else if (reg == "Y")
+            {
+                result.syntax     = OperandSyntax::IndexedY;
+                result.expression = exprPart;
+            }
+            else
+            {
+                // Comma but neither ,X nor ,Y — the two-operand zero-page,relative
+                // form used by the 65C02 BBRn/BBSn bit-branch instructions
+                // (zp,target). Not a valid 6502 form; ResolveAddressingMode maps it
+                // to ZeroPageRelative and a mnemonic without that mode (i.e. any
+                // 6502 mnemonic) fails the lookup.
+                result.syntax           = OperandSyntax::ZeroPageRelative;
+                result.expression       = exprPart;
+                result.secondExpression = TrimOperand (op.substr (commaPos + 1));
+            }
+        }
     }
 
-    // Bare expression (no prefix, no suffix)
-    result.syntax     = OperandSyntax::Bare;
-    result.expression = op;
     return result;
 }
 
@@ -647,66 +647,37 @@ ClassifiedOperand Parser::ClassifyOperand (const std::string & operand)
 
 bool Parser::ParseValue (const std::string & text, int & value)
 {
-    if (text.empty ())
+    // The three radices differ only in their prefix character and base:
+    // '$' hex, '%' binary, and bare decimal with nothing to strip. All three
+    // then require strtol to consume the whole string, so "$FFg" is rejected
+    // rather than silently read as $FF.
+    std::string   digits;
+    char        * endPtr = nullptr;
+    long          parsed = 0;
+    int           base   = 10;
+    bool          ok     = false;
+
+
+
+    if (!text.empty())
     {
-        return false;
+        if      (text[0] == '$') { base = 16; digits = text.substr (1); }
+        else if (text[0] == '%') { base =  2; digits = text.substr (1); }
+        else                     { base = 10; digits = text;            }
+
+        if (!digits.empty())
+        {
+            parsed = strtol (digits.c_str(), &endPtr, base);
+            ok     = (*endPtr == '\0');
+        }
     }
 
-    // Hex: $FF
-    if (text[0] == '$')
+    if (ok)
     {
-        std::string hex = text.substr (1);
-
-        if (hex.empty ())
-        {
-            return false;
-        }
-
-        char * endPtr = nullptr;
-        long   parsed = strtol (hex.c_str (), &endPtr, 16);
-
-        if (*endPtr != '\0')
-        {
-            return false;
-        }
-
         value = (int) parsed;
-        return true;
     }
 
-    // Binary: %10101010
-    if (text[0] == '%')
-    {
-        std::string bin = text.substr (1);
-
-        if (bin.empty ())
-        {
-            return false;
-        }
-
-        char * endPtr = nullptr;
-        long   parsed = strtol (bin.c_str (), &endPtr, 2);
-
-        if (*endPtr != '\0')
-        {
-            return false;
-        }
-
-        value = (int) parsed;
-        return true;
-    }
-
-    // Decimal
-    char * endPtr = nullptr;
-    long   parsed = strtol (text.c_str (), &endPtr, 10);
-
-    if (*endPtr != '\0')
-    {
-        return false;
-    }
-
-    value = (int) parsed;
-    return true;
+    return ok;
 }
 
 
@@ -722,6 +693,8 @@ bool Parser::ParseValue (const std::string & text, int & value)
 static std::string ToUpperValidate (const std::string & s)
 {
     std::string result = s;
+
+
 
     for (char & c : result)
     {
@@ -743,48 +716,46 @@ static std::string ToUpperValidate (const std::string & s)
 
 bool Parser::ValidateLabel (const std::string & label, const OpcodeTable & opcodeTable, std::string & errorMessage)
 {
-    if (label.empty ())
-    {
-        errorMessage = "Empty label name";
-        return false;
-    }
+    std::string  upper;
+    char         first      = label.empty() ? '\0' : label[0];
+    bool         isEmpty    = label.empty();
+    bool         badFirst   = false;
+    bool         badChar    = false;
+    bool         isRegister = false;
+    bool         isMnemonic = false;
+    bool         valid      = false;
 
-    // Must start with letter or underscore
-    char first = label[0];
 
-    if (!isalpha ((unsigned char) first) && first != '_')
-    {
-        errorMessage = "Label must start with a letter or underscore: " + label;
-        return false;
-    }
 
-    // Must contain only alphanumeric + underscore
-    for (char c : label)
+    if (!isEmpty)
     {
-        if (!isalnum ((unsigned char) c) && c != '_')
+        // Must start with letter or underscore.
+        badFirst = !isalpha ((unsigned char) first) && first != '_';
+
+        // Must contain only alphanumeric + underscore.
+        for (char c : label)
         {
-            errorMessage = "Label contains invalid character: " + label;
-            return false;
+            badChar = badChar || (!isalnum ((unsigned char) c) && c != '_');
         }
+
+        // Must not be a register name (case-insensitive), nor an exact
+        // mnemonic ("LDA" is rejected; "lda" is only a warning elsewhere).
+        upper      = ToUpperValidate (label);
+        isRegister = upper == "A" || upper == "X" || upper == "Y" || upper == "S";
+        isMnemonic = opcodeTable.IsMnemonic (label);
     }
 
-    // Must not be a register name (case-insensitive)
-    std::string upper = ToUpperValidate (label);
+    // Reported in the same precedence order the guard chain used, so a label
+    // failing several rules still names the first one. `errorMessage` is left
+    // untouched when the label is good.
+    if      (isEmpty)    { errorMessage = "Empty label name"; }
+    else if (badFirst)   { errorMessage = "Label must start with a letter or underscore: " + label; }
+    else if (badChar)    { errorMessage = "Label contains invalid character: " + label; }
+    else if (isRegister) { errorMessage = "Label name conflicts with register name: " + label; }
+    else if (isMnemonic) { errorMessage = "Label name conflicts with mnemonic: " + label; }
+    else                 { valid = true; }
 
-    if (upper == "A" || upper == "X" || upper == "Y" || upper == "S")
-    {
-        errorMessage = "Label name conflicts with register name: " + label;
-        return false;
-    }
-
-    // Must not be an exact mnemonic (e.g., "LDA" is rejected, but "lda" is only a warning)
-    if (opcodeTable.IsMnemonic (label))
-    {
-        errorMessage = "Label name conflicts with mnemonic: " + label;
-        return false;
-    }
-
-    return true;
+    return valid;
 }
 
 
@@ -793,7 +764,7 @@ bool Parser::ValidateLabel (const std::string & label, const OpcodeTable & opcod
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  SplitArgList — split comma-separated list respecting () [] '' nesting
+//  SplitArgList — split comma-separated list respecting() [] '' nesting
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -804,7 +775,7 @@ std::vector<std::string> Parser::SplitArgList (const std::string & text)
 
 
 
-    while (start <= text.size ())
+    while (start <= text.size())
     {
         size_t commaPos = FindTopLevelComma (text, start);
 
@@ -812,7 +783,7 @@ std::vector<std::string> Parser::SplitArgList (const std::string & text)
         {
             std::string arg = TrimOperand (text.substr (start));
 
-            if (!arg.empty ())
+            if (!arg.empty())
             {
                 args.push_back (arg);
             }
@@ -822,7 +793,7 @@ std::vector<std::string> Parser::SplitArgList (const std::string & text)
 
         std::string arg = TrimOperand (text.substr (start, commaPos - start));
 
-        if (!arg.empty ())
+        if (!arg.empty())
         {
             args.push_back (arg);
         }
@@ -845,12 +816,18 @@ std::vector<std::string> Parser::SplitArgList (const std::string & text)
 
 std::string Parser::ParseQuotedString (const std::string & text)
 {
-    std::string trimmed = TrimOperand (text);
+    std::string  trimmed = TrimOperand (text);
+    std::string  inner;
+    bool         isQuoted = trimmed.size() >= 2 &&
+                            trimmed.front() == '"' && trimmed.back() == '"';
 
-    if (trimmed.size () < 2 || trimmed.front () != '"' || trimmed.back () != '"')
+
+
+    // Anything not wrapped in a matched pair of double quotes yields empty.
+    if (isQuoted)
     {
-        return "";
+        inner = trimmed.substr (1, trimmed.size() - 2);
     }
 
-    return trimmed.substr (1, trimmed.size () - 2);
+    return inner;
 }

@@ -16,6 +16,7 @@ class DxuiHwndSource;
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  HardwarePage
@@ -98,6 +99,10 @@ public:
                                                   bool mouseConnected         = true);
 
 private:
+    static RECT                    MakeRect (int l, int t, int w, int h);
+    static DxuiTreeCapabilityFlag  MapFlag  (CapabilityFlag flag);
+    static std::wstring            Widen    (const std::string & narrow);
+
     // The spec block is CPU / Clock / Memory-header (3 fixed rows) + N dynamic
     // memory-region rows (one per region). The machine identity is shown by the
     // dropdown above, so no read-only "Machine:" spec row. Cap the memory rows

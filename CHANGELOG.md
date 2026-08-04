@@ -546,7 +546,7 @@ Direct3D swap chain directly.
   control.** Checkboxes, radio buttons, dropdowns, tooltips, sliders, and
   toggles all paint from the active theme, so the Skeuomorphic, Dark, and
   Retro Terminal presets apply consistently throughout the chrome, the
-  Settings window, and both debug panels (no more off-theme blue-grey
+  Settings window, and both debug panels (no more off-theme blue-gray
   controls in the green Retro Terminal preset).
 - **feat(settings): pressed-state feedback on the settings tabs.** A
   settings tab now darkens while the mouse button is held on it, matching
@@ -894,7 +894,7 @@ Themed DX-based modal dialogs now replace every Win32 `MessageBoxW` /
 notification fallback in `Main.cpp`). The bootstrap-time prompts, the
 in-app Help/About/Keymap/Machine Info dialogs, and the SettingsPanel
 ROM-error notification all paint through the new `DialogPrimitive` and
-honour the active chrome theme. The `IFileOpenDialog`-based disk picker
+honor the active chrome theme. The `IFileOpenDialog`-based disk picker
 is preserved as the lone deliberate Win32 surface.
 
 ### Added
@@ -910,7 +910,7 @@ is preserved as the lone deliberate Win32 surface.
   `CreateSwapChainForHwnd` swap chain (DXGI_ALPHA_MODE_IGNORE, no DComp
   / no blur), RTV, `DxUiPainter` (geometry), and `DwriteTextRenderer`
   (text). Paints a gradient title bar, solid dialog background with
-  theme colours, icon circle (Info / Warning / Error / App), word-wrapped
+  theme colors, icon circle (Info / Warning / Error / App), word-wrapped
   body text, hyperlink underlines, optional custom-body callback, and
   `Button` widgets. DPI-aware: recomputes layout on WM_DPICHANGED.
 - **feat(011): DialogDefinition + DialogLayout primitives.** Pure value
@@ -920,7 +920,7 @@ is preserved as the lone deliberate Win32 surface.
   that spins up a transient `D3D11CreateDevice (HARDWARE)` + one-shot
   `DialogPrimitive` for callers that fire before `EmulatorShell` exists
   (e.g. `AssetBootstrap`'s missing-asset prompts). The caller passes
-  `GlobalUserPrefs::activeTheme` so startup dialogs honour the user's
+  `GlobalUserPrefs::activeTheme` so startup dialogs honor the user's
   persisted `ChromeTheme` choice (`Skeuomorphic` / `DarkModern` /
   `RetroTerminal`) instead of always painting Skeuomorphic.
 - **feat(011): themed startup prompts.** `AssetBootstrap::PromptUser`
@@ -1017,7 +1017,7 @@ is preserved as the lone deliberate Win32 surface.
   copies the current selection to the clipboard as `CF_UNICODETEXT`
   (CR/LF between lines), or is a no-op when the selection is empty.
   Selection highlight paints under the text using the active theme's
-  nav-hover colour and tracks the viewport while dragging past the
+  nav-hover color and tracks the viewport while dragging past the
   body edges.
 - **feat(011): Disk2DebugPanel per-column sortable header (T055).**
   Clicking any ListView header now sorts by that column; clicking the
@@ -1050,7 +1050,7 @@ is preserved as the lone deliberate Win32 surface.
 - **fix(011): SettingsPanel + dialog body share one themed background.**
   The settings popup hardcoded a dark-navy panel fill while the
   themed dialog body used `dropdownBgArgb`, so the two surfaces drew
-  visibly different colours when stacked. New `panelBgArgb` /
+  visibly different colors when stacked. New `panelBgArgb` /
   `panelEdgeArgb` entries on `ChromeTheme` are now consumed by both
   the settings popup and `DialogPrimitiveRenderer`, and pick up the
   active theme (Skeuomorphic / Dark / RetroTerminal) instead of the
@@ -1084,7 +1084,7 @@ is preserved as the lone deliberate Win32 surface.
     the parent HWND so the user can park them behind Casso.
   - General-purpose `Button` widgets now use a dedicated themed
     palette (`buttonIdle/Hover/Pressed/BorderArgb`) instead of
-    inheriting the transparent chrome min/max/close colours, and
+    inheriting the transparent chrome min/max/close colors, and
     paint a default 1dip border so a button actually looks like a
     button. Chrome titlebar buttons are unaffected (they paint
     themselves).
@@ -1102,7 +1102,7 @@ is preserved as the lone deliberate Win32 surface.
     truncating to whatever fits in the slot, and paints a vertical
     scrollbar at the right edge whenever the row count exceeds the
     visible capacity. Mouse-wheel / trackpad scrolling is wired
-    through `IChromedPanelContent::OnMouseWheel`. Sticky-tail behaviour
+    through `IChromedPanelContent::OnMouseWheel`. Sticky-tail behavior
     keeps the latest events in view when parked at the bottom; once the
     user scrolls back, new events accumulate without yanking the view.
   - **Disk II debug panel: keyboard focus + Tab navigation.** Tab /
@@ -1396,7 +1396,7 @@ software, and bumps Casso to **1.5**.
   - Three built-in themes — **Skeuomorphic**, **Dark Modern**, and
     **Retro Terminal** — hot-swappable from `Settings → Theme` with
     no restart and no machine reset. Each theme drives its own chrome
-    colour palette and CRT shader defaults; Dark Modern + Retro
+    color palette and CRT shader defaults; Dark Modern + Retro
     Terminal additionally request compact drive widgets so the bottom
     chrome strip shrinks dramatically, and the window auto-resizes by
     the inset delta on theme swap so the emulator pixel grid is
@@ -1580,7 +1580,7 @@ default. PNG masters and multi-resolution ICOs live in
   show / hide individual columns. Auto-tail scrolling while at the
   bottom; pause / resume / clear; Ctrl+C copies selected rows
   tab-separated in visible-column order. Machine reset clears the
-  view and re-zeroes Uptime. The menu item is greyed out on
+  view and re-zeroes Uptime. The menu item is grayed out on
   machines without a Disk II controller (FR-001a); when more than
   one Disk II controller is wired, the title becomes
   "Disk II Debug (controller #0 only)" (FR-017). The dialog
@@ -1594,7 +1594,7 @@ default. PNG masters and multi-resolution ICOs live in
   interfaces (controller side + audio side) the debug dialog
   implements simultaneously; the shell attaches and revokes both
   in the same lifecycle window. Sinks are nullptr-default and
-  controller behaviour with no sink attached is byte-identical to
+  controller behavior with no sink attached is byte-identical to
   pre-feature (SC-007, SC-010).
 - **`DiskIIEventRing`**: lock-free SPSC ring (4096 capacity)
   buffering producer-side events between the CPU thread and the
@@ -1612,10 +1612,10 @@ default. PNG masters and multi-resolution ICOs live in
 ### Changed
 - **Drive LED** now paints the red activity dot only when the
   drive bay actually holds a loaded disk. The controller's motor
-  stays commanded on across an eject (real-hardware behaviour),
+  stays commanded on across an eject (real-hardware behavior),
   but with no media to read the user expects the LED to go dark.
 - **`DiskIIAudioSource`** motor loop is gated on
-  `m_motorRunning && m_diskPresent`. Modelled after real Disk II
+  `m_motorRunning && m_diskPresent`. Modeled after real Disk II
   hardware: the motor spins regardless of media presence, but
   with no disk loaded there is no media noise to hear. Eject-
   while-motor-on emits `OnAudioLoopStopped` +
@@ -1863,7 +1863,7 @@ Users with an existing install:
   `HgrPreprocess.crop_and_fit` (HGR's 280×192 letterbox + title
   pipeline) before resizing to DHGR's 140×192 color resolution
   for quantization. On screen the two modes show the bird at
-  identical framing — only the colour treatment differs (HGR's
+  identical framing — only the color treatment differs (HGR's
   6-color per-byte classification vs DHGR's 16-color
   Floyd-Steinberg dither).
 
@@ -1890,7 +1890,7 @@ Users with an existing install:
 - **DHGR cassowary aspect ratio fixed.** The image was previously
   squashed horizontally because the source photo (880×1600
   portrait) was force-resized to 140×192 without aspect
-  correction. Now uses `ImageOps.fit` to centre-crop to the
+  correction. Now uses `ImageOps.fit` to center-crop to the
   display's 4:3 aspect first (560:384, what the renderer
   actually shows), then resamples to 140×192.
 
@@ -2086,8 +2086,8 @@ Users with an existing install:
 
 ### Changed (docs / source)
 - **Spelling: standardized on American English** in source, comments,
-  CHANGELOG, and stage-2 demo header. Replaced `colour` →
-  `color`, `artefact` → `artifact`, `behaviour` → `behavior`,
+  CHANGELOG, and stage-2 demo header. Replaced `color` →
+  `color`, `artefact` → `artifact`, `behavior` → `behavior`,
   `synthesise` → `synthesize` in newly authored content.
 
 ## [1.3.618] — 2026-05-14 — LoRes test pattern + ESC-to-BASIC exit
@@ -2135,7 +2135,7 @@ Users with an existing install:
   vice versa (anything in the //e's blue/orange palette pair came
   out swapped); LoRes and DHGR color indices 1 (Magenta), 2 (Dark
   Blue), 7 (Light Blue), 8 (Brown) all rendered as red shades.
-  Violet/Green and the greys happened to be R/B-symmetric and
+  Violet/Green and the grays happened to be R/B-symmetric and
   rendered correctly by accident, hiding the bug from any HGR
   content that didn't lean on the blue/orange pair.
   Constants are now stored in R8G8B8A8 byte layout (so the
@@ -2536,7 +2536,7 @@ Users with an existing install:
 The bulk of this entry completes Apple //e fidelity work begun in
 `[1.3.416]`. After this release the //e cold-boots to BASIC, runs Disk II
 images (`.dsk`/`.do`/`.po`/`.woz`), renders 80-column text and Double
-Hi-Res, honours auxiliary RAM and the Language Card state machine,
+Hi-Res, honors auxiliary RAM and the Language Card state machine,
 distinguishes soft reset from power cycle, and exposes a cycle-accurate
 IRQ/NMI infrastructure.
 
@@ -2642,11 +2642,11 @@ IRQ/NMI infrastructure.
   `RDHIRES & RD80VID & RDDHIRES`.
 - **Golden-hash framebuffer tests** that re-execute canonical software
   patterns and compare exact frame hashes; covers BASIC `]` prompt,
-  GR / HGR / HGR2 mode patterns, and 80-column DOS catalogues.
+  GR / HGR / HGR2 mode patterns, and 80-column DOS catalogs.
 
 ### Added (disk boot end-to-end — Phase 13)
 - 8 disk-boot integration scenarios: synthetic DOS 3.3 boot, mixed-mode
-  scroll, 80-column ProDOS catalogue, write-protect honoured, save +
+  scroll, 80-column ProDOS catalog, write-protect honored, save +
   reload round-trip, WOZ copy-protected sample boot, multi-sided image
   fallthrough, and motor-off head-park.
 

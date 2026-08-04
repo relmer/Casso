@@ -6,8 +6,20 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
 
 
-namespace
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  InputDebugFilterTests
+//
+//  Exercises MatchesFilter's emulator/host lane gating and the per-pair
+//  Joystick-vs-Paddle interpretation that the view dropdowns drive.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+TEST_CLASS (InputDebugFilterTests)
 {
+public:
+
     ////////////////////////////////////////////////////////////////////////////////
     //
     //  MakeGuest
@@ -37,23 +49,6 @@ namespace
         e.gamePort = InputGamePortClass::None;
         return e;
     }
-}
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  InputDebugFilterTests
-//
-//  Exercises MatchesFilter's emulator/host lane gating and the per-pair
-//  Joystick-vs-Paddle interpretation that the view dropdowns drive.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-TEST_CLASS (InputDebugFilterTests)
-{
-public:
 
     TEST_METHOD (HostKeyboard_GatedByHostCheckbox)
     {
@@ -185,3 +180,4 @@ public:
             L"The PTRIG strobe shows when the Paddle lane is on");
     }
 };
+

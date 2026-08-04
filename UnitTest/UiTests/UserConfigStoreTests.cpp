@@ -29,7 +29,7 @@ public:
         JsonValue        v;
         JsonParseError   err;
         HRESULT          hr = JsonParser::Parse (text, v, err);
-        Assert::IsTrue (SUCCEEDED (hr));
+        AssertSucceeded (hr);
         return v;
     }
 
@@ -48,24 +48,34 @@ public:
 
 
         hr = fs.ReadAllText (store.UserFilePath (machineName), text);
-        Assert::IsTrue (SUCCEEDED (hr));
+        AssertSucceeded (hr);
 
         hr = JsonParser::Parse (text, root, err);
-        Assert::IsTrue (SUCCEEDED (hr));
+        AssertSucceeded (hr);
 
-        if (SUCCEEDED (root.GetObject ("machines", machines)) && machines != nullptr)
+        // Two shapes are accepted: the multi-machine file keyed under
+        // "machines", and the bare single-machine object the older tests
+        // write. A "machines" wrapper that does not actually hold this machine
+        // is a broken fixture, not the bare shape, so it fails rather than
+        // falling back to root.
+        JsonValue  found = root;
+
+        if (root.HasObject ("machines", machines))
         {
             hr = machines->GetObject (machineName, machine);
-            Assert::IsTrue (SUCCEEDED (hr));
+            AssertSucceeded (hr);
+
             if (machine == nullptr)
             {
                 Assert::Fail (L"missing machine entry");
-                return JsonValue();
             }
-            return *machine;
+            else
+            {
+                found = *machine;
+            }
         }
 
-        return root;
+        return found;
     }
 
 
@@ -82,7 +92,7 @@ public:
 
         opts.fPretty = true;
         hr = JsonWriter::Write (machine, opts, text);
-        Assert::IsTrue (SUCCEEDED (hr));
+        AssertSucceeded (hr);
         return text;
     }
 
@@ -91,20 +101,24 @@ public:
         const JsonValue   & obj,
         const std::string & key)
     {
-        if (obj.GetType() != JsonType::Object)
-        {
-            return nullptr;
-        }
+        const JsonValue *  found = nullptr;
 
-        for (const auto & kv : obj.GetObjectEntries())
+        // Anything that is not an object has no keys at all, so it answers the
+        // same way a missing key does.
+        if (obj.GetType() == JsonType::Object)
         {
-            if (kv.first == key)
+            const auto &  entries = obj.GetObjectEntries();
+
+            for (auto it = entries.begin(); found == nullptr && it != entries.end(); ++it)
             {
-                return &kv.second;
+                if (it->first == key)
+                {
+                    found = &it->second;
+                }
             }
         }
 
-        return nullptr;
+        return found;
     }
 
 
@@ -136,7 +150,7 @@ public:
     }
 
 
-    // ---- Merge / Diff pure-logic tests ----------------------------------
+    // Merge / Diff pure-logic tests
 
     TEST_METHOD (Merge_Empty_User_Returns_Default)
     {
@@ -228,7 +242,7 @@ public:
     }
 
 
-    // ---- Full Load / SaveDelta / Reset round-trips ----------------------
+    // Full Load / SaveDelta / Reset round-trips
 
     TEST_METHOD (Load_NoUserFile_ReturnsDefault)
     {
@@ -239,7 +253,7 @@ public:
         HRESULT             hr;
 
         hr = store.Load ("Apple2e", defaultJson, fs, merged);
-        Assert::IsTrue (SUCCEEDED (hr));
+        AssertSucceeded (hr);
         Assert::IsTrue (UserConfigStore::JsonEqual (defaultJson, merged));
     }
 
@@ -254,10 +268,10 @@ public:
 
         hr = fs.WriteAllText (store.UserFilePath ("Apple2e"),
                               "{\"$cassoMachineVersion\":1,\"speedMode\":\"Maximum\"}");
-        Assert::IsTrue (SUCCEEDED (hr));
+        AssertSucceeded (hr);
 
         hr = store.Load ("Apple2e", defaultJson, fs, merged);
-        Assert::IsTrue (SUCCEEDED (hr));
+        AssertSucceeded (hr);
 
         JsonValue  expected = ParseOrFail ("{\"$cassoMachineVersion\":1,\"speedMode\":\"Maximum\",\"a\":1}");
         Assert::IsTrue (UserConfigStore::JsonEqual (expected, merged));
@@ -276,13 +290,13 @@ public:
         JsonParseError        err;
 
         hr = store.SaveDelta ("Apple2e", current, defaultJson, fs);
-        Assert::IsTrue (SUCCEEDED (hr));
+        AssertSucceeded (hr);
 
         text = MachineTextOrFail (fs, store, "Apple2e");
         Assert::IsFalse (text.empty());
 
         hr = JsonParser::Parse (text, parsed, err);
-        Assert::IsTrue (SUCCEEDED (hr));
+        AssertSucceeded (hr);
 
         // Should contain exactly $cassoMachineVersion + speedMode.
         Assert::AreEqual (size_t (2), parsed.GetObjectEntries().size());
@@ -300,11 +314,11 @@ public:
         std::string         text;
 
         hr = store.SaveDelta ("Apple2e", defaultJson, defaultJson, fs);
-        Assert::IsTrue (SUCCEEDED (hr));
+        AssertSucceeded (hr);
 
         text = MachineTextOrFail (fs, store, "Apple2e");
         hr   = JsonParser::Parse (text, parsed, err);
-        Assert::IsTrue (SUCCEEDED (hr));
+        AssertSucceeded (hr);
         Assert::AreEqual (size_t (1), parsed.GetObjectEntries().size());
         Assert::AreEqual (string ("$cassoMachineVersion"), parsed.GetObjectEntries()[0].first);
     }
@@ -318,11 +332,11 @@ public:
 
         hr = fs.WriteAllText (store.UserFilePath ("Apple2e"),
                               "{\"$cassoMachineVersion\":1}");
-        Assert::IsTrue (SUCCEEDED (hr));
+        AssertSucceeded (hr);
         Assert::IsTrue (fs.Exists (store.UserFilePath ("Apple2e")));
 
         hr = store.Reset ("Apple2e", fs);
-        Assert::IsTrue (SUCCEEDED (hr));
+        AssertSucceeded (hr);
         Assert::IsTrue (fs.Exists (store.UserFilePath ("Apple2e")));
         Assert::IsTrue (fs.PeekContent (store.UserFilePath ("Apple2e")).find ("Apple2e") == std::string::npos);
     }
@@ -335,7 +349,7 @@ public:
         HRESULT             hr;
 
         hr = store.Reset ("Apple2e", fs);
-        Assert::IsTrue (SUCCEEDED (hr));
+        AssertSucceeded (hr);
     }
 
 
@@ -350,10 +364,10 @@ public:
         std::string         afterLoad;
 
         hr = fs.WriteAllText (store.UserFilePath ("Apple2e"), original);
-        Assert::IsTrue (SUCCEEDED (hr));
+        AssertSucceeded (hr);
 
         hr = store.Load ("Apple2e", defaultJson, fs, merged);
-        Assert::IsTrue (SUCCEEDED (hr));
+        AssertSucceeded (hr);
 
         afterLoad = MachineTextOrFail (fs, store, "Apple2e");
         // After migration the legacy key should be gone.
@@ -373,10 +387,10 @@ public:
         std::string         afterLoad;
 
         hr = fs.WriteAllText (store.UserFilePath ("Apple2e"), original);
-        Assert::IsTrue (SUCCEEDED (hr));
+        AssertSucceeded (hr);
 
         hr = store.Load ("Apple2e", defaultJson, fs, merged);
-        Assert::IsTrue (SUCCEEDED (hr));
+        AssertSucceeded (hr);
 
         afterLoad = MachineTextOrFail (fs, store, "Apple2e");
         Assert::IsTrue (afterLoad.find ("$cassoDefault") == std::string::npos);
@@ -397,23 +411,23 @@ public:
 
         hr = fs.WriteAllText (store.UserFilePath ("Apple2e"),
                               "{\"$cassoDefault\":1,\"$cassoUiPrefs\":{\"speedMode\":\"maximum\"}}");
-        Assert::IsTrue (SUCCEEDED (hr));
+        AssertSucceeded (hr);
 
         hr = store.Load ("Apple2e", d2, fs, merged);
-        Assert::IsTrue (SUCCEEDED (hr));
+        AssertSucceeded (hr);
         text = MachineTextOrFail (fs, store, "Apple2e");
         Assert::IsTrue (text.find ("\"$cassoMachineVersion\": 2") != std::string::npos);
         Assert::IsTrue (text.find ("$cassoDefault") == std::string::npos);
         Assert::IsTrue (text.find ("\"speedMode\": \"maximum\"") != std::string::npos);
 
         hr = store.Load ("Apple2e", d3, fs, merged);
-        Assert::IsTrue (SUCCEEDED (hr));
+        AssertSucceeded (hr);
         text = MachineTextOrFail (fs, store, "Apple2e");
         Assert::IsTrue (text.find ("\"$cassoMachineVersion\": 3") != std::string::npos);
         Assert::IsTrue (text.find ("\"speedMode\": \"maximum\"") != std::string::npos);
 
         hr = store.Load ("Apple2e", d4, fs, merged);
-        Assert::IsTrue (SUCCEEDED (hr));
+        AssertSucceeded (hr);
         text = MachineTextOrFail (fs, store, "Apple2e");
         Assert::IsTrue (text.find ("\"$cassoMachineVersion\": 4") != std::string::npos);
         Assert::IsTrue (text.find ("\"speedMode\": \"maximum\"") != std::string::npos);
@@ -483,8 +497,8 @@ public:
         const JsonValue * internal = nullptr;
         const JsonValue * slots    = nullptr;
 
-        Assert::IsTrue (SUCCEEDED (diff.GetArray ("internalDevices", internal)));
-        Assert::IsTrue (SUCCEEDED (diff.GetArray ("slots", slots)));
+        AssertSucceeded (diff.GetArray ("internalDevices", internal));
+        AssertSucceeded (diff.GetArray ("slots", slots));
         Assert::AreEqual<size_t> (1u, internal->ArraySize());
         Assert::AreEqual<size_t> (1u, slots->ArraySize());
         const JsonValue & int0  = internal->ArrayAt (0);
@@ -516,7 +530,7 @@ public:
         JsonValue diff = UserConfigStore::DiffJson (c, d);
         const JsonValue * ui = nullptr;
 
-        Assert::IsTrue (SUCCEEDED (diff.GetObject ("$cassoUiPrefs", ui)));
+        AssertSucceeded (diff.GetObject ("$cassoUiPrefs", ui));
         Assert::IsTrue (ui != nullptr);
         if (ui == nullptr) { return; }
         Assert::AreEqual<size_t> (1u, ui->GetObjectEntries().size());
@@ -539,8 +553,8 @@ public:
         const JsonValue * nf = nullptr;
         const JsonValue * ui = nullptr;
 
-        Assert::IsTrue (SUCCEEDED (m.GetObject ("newField", nf)));
-        Assert::IsTrue (SUCCEEDED (m.GetObject ("$cassoUiPrefs", ui)));
+        AssertSucceeded (m.GetObject ("newField", nf));
+        AssertSucceeded (m.GetObject ("$cassoUiPrefs", ui));
         Assert::AreEqual (std::string ("maximum"), ui->GetObjectEntries()[0].second.GetString());
     }
 
@@ -557,9 +571,62 @@ public:
         JsonValue          m       = UserConfigStore::MergeJson (d, u);
         const JsonValue *  arr     = nullptr;
 
-        Assert::IsTrue (SUCCEEDED (m.GetArray ("lastMountedImages", arr)));
+        AssertSucceeded (m.GetArray ("lastMountedImages", arr));
         Assert::AreEqual (size_t (2), arr->ArraySize());
         Assert::AreEqual (std::string ("C:\\disk0.dsk"), arr->ArrayAt (0).GetString());
+    }
+
+
+    TEST_METHOD (LoadAll_CorruptPrefs_ReportsWhereTheParseBroke)
+    {
+        InMemoryFileSystem  fs;
+        UserConfigStore     store (L"C:\\Casso");
+        GlobalUserPrefs     prefs;
+        HRESULT             hr = S_OK;
+        std::wstring        parseDetail;
+
+
+
+        // Valid up to the third line, then a bare word where a value belongs.
+        hr = fs.WriteAllText (store.UserPrefsFilePath(),
+                              "{\n"
+                              "    \"activeTheme\": \"Retro Terminal\",\n"
+                              "    \"speedMode\": oops\n"
+                              "}\n");
+        AssertSucceeded (hr);
+
+        hr = store.LoadAll (prefs, fs, parseDetail);
+
+        AssertFailed (hr,
+            L"A prefs file that exists but does not parse must fail, not "
+            L"silently fall back to defaults");
+        Assert::IsFalse (parseDetail.empty(),
+            L"The caller needs somewhere to point the user -- an empty detail "
+            L"leaves them with 'Casso lost my settings' and no reason");
+        Assert::IsTrue (parseDetail.find (L"line 3") != std::wstring::npos,
+            L"The detail must name the line the parse broke on");
+        Assert::IsTrue (parseDetail.find (store.UserPrefsFilePath()) != std::wstring::npos,
+            L"The detail must name the file, so the user can go fix it");
+    }
+
+
+    TEST_METHOD (LoadAll_MissingPrefs_ReportsNoParseDetail)
+    {
+        InMemoryFileSystem  fs;
+        UserConfigStore     store (L"C:\\Casso");
+        GlobalUserPrefs     prefs;
+        HRESULT             hr = S_OK;
+        std::wstring        parseDetail;
+
+
+
+        // First run: no file at all is normal, not a corruption to report.
+        hr = store.LoadAll (prefs, fs, parseDetail);
+
+        Assert::IsTrue (parseDetail.empty(),
+            L"A missing file is a first run, not a broken one -- warning the "
+            L"user here would be crying wolf");
+        UNREFERENCED_PARAMETER (hr);
     }
 
 
@@ -574,23 +641,25 @@ public:
         JsonValue           currentJson = ParseOrFail ("{\"$cassoMachineVersion\":2,\"speedMode\":\"maximum\"}");
         JsonValue           merged;
         HRESULT             hr = S_OK;
+        std::wstring        parseDetail;
 
 
-        hr = store.LoadAll (prefs, fs);
-        Assert::IsTrue (hr == S_FALSE);
+        // Nothing on disk yet: a first run succeeds with struct defaults.
+        hr = store.LoadAll (prefs, fs, parseDetail);
+        AssertSucceeded (hr);
 
         prefs.activeTheme = "Retro Terminal";
         hr = store.SaveDelta ("Apple //e Enhanced", currentJson, defaultJson, fs);
-        Assert::IsTrue (SUCCEEDED (hr));
+        AssertSucceeded (hr);
         hr = store.SaveAll (prefs, fs);
-        Assert::IsTrue (SUCCEEDED (hr));
+        AssertSucceeded (hr);
 
-        hr = reloadedStore.LoadAll (reloadedPrefs, fs);
-        Assert::IsTrue (SUCCEEDED (hr));
+        hr = reloadedStore.LoadAll (reloadedPrefs, fs, parseDetail);
+        AssertSucceeded (hr);
         Assert::AreEqual (std::string ("Retro Terminal"), reloadedPrefs.activeTheme);
 
         hr = reloadedStore.Load ("Apple //e Enhanced", defaultJson, fs, merged);
-        Assert::IsTrue (SUCCEEDED (hr));
+        AssertSucceeded (hr);
         Assert::AreEqual (std::string ("maximum"), FindObjectValueForTest (merged, "speedMode")->GetString());
     }
 
@@ -602,22 +671,23 @@ public:
         UserConfigStore     store (baseDir);
         GlobalUserPrefs     prefs;
         HRESULT             hr = S_OK;
+        std::wstring        parseDetail;
         JsonValue           foo;
         JsonValue           bar;
 
 
         hr = fs.WriteAllText (LegacyGlobalPathForTest (baseDir),
                               "{\"$cassoGlobalPrefsVersion\":1,\"activeTheme\":\"DarkModern\",\"futureKey\":\"keep\"}");
-        Assert::IsTrue (SUCCEEDED (hr));
+        AssertSucceeded (hr);
         hr = fs.WriteAllText (LegacyMachinePathForTest (baseDir, "Foo"),
                               "{\"$cassoMachineVersion\":2,\"speedMode\":\"maximum\"}");
-        Assert::IsTrue (SUCCEEDED (hr));
+        AssertSucceeded (hr);
         hr = fs.WriteAllText (LegacyMachinePathForTest (baseDir, "Bar"),
                               "{\"colorMode\":\"green\"}");
-        Assert::IsTrue (SUCCEEDED (hr));
+        AssertSucceeded (hr);
 
-        hr = store.LoadAll (prefs, fs);
-        Assert::IsTrue (SUCCEEDED (hr));
+        hr = store.LoadAll (prefs, fs, parseDetail);
+        AssertSucceeded (hr);
         Assert::AreEqual (std::string ("DarkModern"), prefs.activeTheme);
         Assert::IsTrue (fs.Exists (store.UserPrefsFilePath()));
         Assert::IsFalse (fs.Exists (LegacyGlobalPathForTest (baseDir)));
@@ -641,20 +711,21 @@ public:
         GlobalUserPrefs     prefs;
         GlobalUserPrefs     secondPrefs;
         HRESULT             hr = S_OK;
+        std::wstring        parseDetail;
         std::string         firstText;
         std::string         secondText;
 
 
         hr = fs.WriteAllText (LegacyMachinePathForTest (baseDir, "Foo"),
                               "{\"$cassoMachineVersion\":2,\"speedMode\":\"maximum\"}");
-        Assert::IsTrue (SUCCEEDED (hr));
+        AssertSucceeded (hr);
 
-        hr = store.LoadAll (prefs, fs);
-        Assert::IsTrue (SUCCEEDED (hr));
+        hr = store.LoadAll (prefs, fs, parseDetail);
+        AssertSucceeded (hr);
         firstText = fs.PeekContent (store.UserPrefsFilePath());
 
-        hr = secondStore.LoadAll (secondPrefs, fs);
-        Assert::IsTrue (SUCCEEDED (hr));
+        hr = secondStore.LoadAll (secondPrefs, fs, parseDetail);
+        AssertSucceeded (hr);
         secondText = fs.PeekContent (secondStore.UserPrefsFilePath());
 
         Assert::AreEqual (firstText, secondText);

@@ -110,6 +110,98 @@ public:
     int                Drive           () const { return m_drive; }
 
 private:
+    // Widget geometry, palette, and the primitive-drawing helpers that
+    // consume it. Every reader is a DriveWidget method, so the whole block
+    // belongs to the class rather than to the translation unit.
+    static constexpr int     kBaseDpi           = 96;
+    static constexpr int     kBodyWidthPx       = 220;
+    static constexpr int     kBodyHeightPx      = 160;
+    static constexpr int     kFaceplateHeightPx = 104;
+    static constexpr int     kCaseBackInsetPx   = 30;
+    static constexpr int     kLabelPadPx        = 10;
+    static constexpr float   kLabelFontDip      = 13.0f;
+    static constexpr float   kInUseFontDip      = 10.0f;
+    static constexpr int     kSlotInsetPx       = 22;
+    static constexpr int     kSlotHeightPx      = 6;
+    static constexpr int     kSlotCenterYPx     = 50;
+    static constexpr int     kDoorWidthPx       = 72;
+    static constexpr int     kDoorHeightPx      = 44;
+    static constexpr int     kDoorTravelPx      = 32;
+    static constexpr int     kNotchWidthPx      = 28;
+    static constexpr int     kNotchHeightPx     = 8;
+    static constexpr int     kLedCenterYPx      = 84;
+    static constexpr int     kInUseGapPx        = 4;
+    static constexpr int     kInUseWidthPx      = 56;
+    static constexpr int     kRidgeCountPx      = 2;
+    static constexpr int     kVentCountPx       = 9;        // matches real Disk II side-vent count
+    static constexpr int     kVentSlotHeightPx  = 1;        // each vent is 1 px tall (scaled by DPI)
+    static constexpr int     kVentSlotGapPx     = 2;        // vertical gap between vents
+    static constexpr int     kCassowaryWidthPx  = 28;
+    static constexpr int     kCassowaryHeightPx = 42;
+    static constexpr int     kCassowaryMarginPx = 6;
+    static constexpr int     kLabelStripHeightPx = 18;
+    static constexpr int     kLabelStripGapPx    = 2;
+    static constexpr float   kBasenameFontDip    = 11.0f;
+    static constexpr const wchar_t * kFontFamily      = DxuiTheme::kBodyFace;
+
+    // Marquee timing for an overflowing basename label. The hold delay is
+    // both the lead-in before a freshly mounted disk first scrolls and the
+    // pause between replays while the pointer lingers over the widget.
+    static constexpr int64_t kMarqueeHoldMs         = 2000;
+    static constexpr float   kMarqueeSpeedDipPerSec = 45.0f;
+    static constexpr float   kMarqueeGapDip         = 25.0f;
+
+    // Compact paint-path dimensions. The compact widget is a flat
+    // rounded card with "DRIVE N" on the left and the status LED on
+    // the right -- no 3D case top, no door, no cassowary. Total
+    // height is sized so the drive bar can shrink the bottom inset
+    // dramatically when the active theme requests compact drives.
+    static constexpr int     kCompactBodyWidthPx  = 140;
+    static constexpr int     kCompactBodyHeightPx = 40;
+    static constexpr int     kCompactPadPx        = 10;
+    static constexpr int     kCompactCornerPx     = 4;
+    static constexpr float   kCompactFontDip      = 12.0f;
+
+    // Write-protect padlock badge. A small brass lock stamped on the
+    // drive face (skeuomorphic) or beside the status LED (compact)
+    // whenever the mounted disk is write-protected by any source. Kept
+    // deliberately understated -- it reads as "locked" without competing
+    // with the LED for attention.
+    static constexpr int      kWpBadgeWidthPx   = 13;
+    static constexpr int      kWpBadgeHeightPx  = 15;
+    static constexpr uint32_t kWpBadgeFillArgb  = 0xFFD8B76A;   // warm brass body
+    static constexpr uint32_t kWpBadgeShadeArgb = 0xFF7A6026;   // darker brass edge / shackle
+    static constexpr uint32_t kWpBadgeHoleArgb  = 0xFF2A2109;   // keyhole
+
+    static bool  RectContains (const RECT & rect, int x, int y);
+    static int   Scale        (int value, UINT dpi);
+    static float Clamp01      (float v);
+
+    // Fills a trapezoid with parallel horizontal front and back edges
+    // by stacking 1-px horizontal scanlines whose widths interpolate
+    // linearly from front to back. Used for the receding case top.
+    static void  FillTrapezoidApprox (IDxuiPainter & painter,
+                                      float frontLeft,  float frontRight,
+                                      float backLeft,   float backRight,
+                                      float frontY,     float backY,
+                                      uint32_t argb);
+
+    // Draws a horizontal ridge line on the case top at fractional depth
+    // (0=front, 1=back), respecting the trapezoid's perspective taper.
+    static void  DrawCaseRidge (DxuiPainter & painter,
+                                float frontLeft, float frontRight,
+                                float backLeft,  float backRight,
+                                float frontY,    float backY,
+                                float depthT,
+                                uint32_t argb);
+
+    // Draws a small padlock (shackle arch + body + keyhole) inside the
+    // given box using flat fills, matching the widget's primitive-drawn
+    // house style. Used as the write-protect indicator.
+    static void  DrawPadlock (IDxuiPainter & painter,
+                              float left, float top, float w, float h,
+                              uint32_t fill, uint32_t shade, uint32_t hole);
+
     void                PaintBasenameLabel (IDxuiTextRenderer & text,
                                             const CassoTheme & theme,
                                             UINT                dpi);

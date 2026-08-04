@@ -37,8 +37,15 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace
+
+
+
+
+
+TEST_CLASS (BootRomDecoderTests)
 {
+public:
+
     static constexpr Word       kBootRomEntry        = 0xC600;
     static constexpr Word       kIntCxRomOff         = 0xC006;
     static constexpr Word       kBootLoadAddress     = 0x0800;
@@ -75,7 +82,7 @@ namespace
     }
 
 
-    Byte PatternIdentity (size_t index)
+    static Byte PatternIdentity (size_t index)
     {
         return static_cast<Byte> (index & 0xFF);
     }
@@ -87,7 +94,7 @@ namespace
     }
 
 
-    Byte PatternMixed (size_t index)
+    static Byte PatternMixed (size_t index)
     {
         // Mix high and low bits to exercise the 6+2 group splitting:
         // bits 0..1 land in the "third group" nibbles; bits 2..7 land
@@ -106,14 +113,14 @@ namespace
         DiskImage *  external  = nullptr;
 
         hr = host.BuildApple2eWithDisk2 (core);
-        Assert::IsTrue (SUCCEEDED (hr), L"BuildApple2eWithDisk2 must succeed");
+        AssertSucceeded (hr, L"BuildApple2eWithDisk2 must succeed");
 
-        core.PowerCycle ();
+        core.PowerCycle();
 
         hr = core.diskStore->MountFromBytes (kSlot6, kDrive1,
                                              "boot-rom-decoder.dsk",
                                              DiskFormat::Dsk, raw);
-        Assert::IsTrue (SUCCEEDED (hr), L"MountFromBytes must succeed");
+        AssertSucceeded (hr, L"MountFromBytes must succeed");
 
         external = core.diskStore->GetImage (kSlot6, kDrive1);
         Assert::IsNotNull (external, L"Store must yield a DiskImage after mount");
@@ -165,7 +172,7 @@ namespace
 
         while (cyc < kBudget)
         {
-            Word pc = core.cpu->GetPC ();
+            Word pc = core.cpu->GetPC();
 
             if (pc >= 0xC600 && pc < 0xC700)
             {
@@ -178,8 +185,8 @@ namespace
                 break;
             }
 
-            core.cpu->StepOne ();
-            uint32_t cycles = core.cpu->GetLastInstructionCycles ();
+            core.cpu->StepOne();
+            uint32_t cycles = core.cpu->GetLastInstructionCycles();
             core.cpu->AddCycles (cycles);
             if (core.diskController != nullptr)
             {
@@ -192,10 +199,10 @@ namespace
                 fprintf (fp,
                     "cyc=%llu PC=$%04X X=$%02X A=$%02X bp=%zu trk=%d latch=$%02X\n",
                     (unsigned long long) cyc, pc,
-                    core.cpu->GetX (), core.cpu->GetA (),
-                    core.diskController->GetEngine (kDrive1).GetBitPosition (),
-                    core.diskController->GetCurrentTrack (),
-                    core.diskController->GetEngine (kDrive1).PeekReadLatch ());
+                    core.cpu->GetX(), core.cpu->GetA(),
+                    core.diskController->GetEngine (kDrive1).GetBitPosition(),
+                    core.diskController->GetCurrentTrack(),
+                    core.diskController->GetEngine (kDrive1).PeekReadLatch());
             }
         }
 
@@ -263,15 +270,6 @@ namespace
             Assert::Fail (msg);
         }
     }
-}
-
-
-
-
-
-TEST_CLASS (BootRomDecoderTests)
-{
-public:
 
     ////////////////////////////////////////////////////////////////////////////
     //
@@ -320,3 +318,4 @@ public:
         AssertBootRomReadsSector0 (PatternMixed, L"mixed (i*A5 ^ i>>3)");
     }
 };
+

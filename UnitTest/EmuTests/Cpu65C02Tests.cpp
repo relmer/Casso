@@ -340,7 +340,7 @@ namespace Cpu65C02TestNs
             Assert::IsNotNull (cpu.get());
 
             hr = CpuFactory::Create ("z80", busB, cpu);
-            Assert::IsTrue (FAILED (hr));
+            AssertFailed (hr);
         }
     };
 }

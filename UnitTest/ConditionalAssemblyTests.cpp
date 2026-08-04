@@ -24,8 +24,8 @@ namespace ConditionalAssemblyTests
     static Assembler BuildAssembler (AssemblerOptions opts = {})
     {
         TestCpu cpu;
-        cpu.InitForTest ();
-        return Assembler (cpu.GetInstructionSet (), opts);
+        cpu.InitForTest();
+        return Assembler (cpu.GetInstructionSet(), opts);
     }
 
 
@@ -45,7 +45,7 @@ namespace ConditionalAssemblyTests
 
         TEST_METHOD (Ifdef_DefinedSymbol_Assembles)
         {
-            Assembler asm6502 = BuildAssembler ();
+            Assembler asm6502 = BuildAssembler();
             auto result = asm6502.Assemble (
                 "FOO = 1\n"
                 "    ifdef FOO\n"
@@ -54,7 +54,7 @@ namespace ConditionalAssemblyTests
             );
 
             Assert::IsTrue (result.success, L"Assembly should succeed");
-            Assert::AreEqual ((size_t) 2, result.bytes.size (), L"Should emit LDA #$42");
+            Assert::AreEqual ((size_t) 2, result.bytes.size(), L"Should emit LDA #$42");
             Assert::AreEqual ((Byte) 0xA9, result.bytes[0]);
             Assert::AreEqual ((Byte) 0x42, result.bytes[1]);
         }
@@ -71,7 +71,7 @@ namespace ConditionalAssemblyTests
 
         TEST_METHOD (Ifdef_UndefinedSymbol_Skips)
         {
-            Assembler asm6502 = BuildAssembler ();
+            Assembler asm6502 = BuildAssembler();
             auto result = asm6502.Assemble (
                 "    ifdef MISSING\n"
                 "    LDA #$42\n"
@@ -79,7 +79,7 @@ namespace ConditionalAssemblyTests
             );
 
             Assert::IsTrue (result.success, L"Assembly should succeed");
-            Assert::AreEqual ((size_t) 0, result.bytes.size (), L"Should emit nothing");
+            Assert::AreEqual ((size_t) 0, result.bytes.size(), L"Should emit nothing");
         }
 
 
@@ -94,7 +94,7 @@ namespace ConditionalAssemblyTests
 
         TEST_METHOD (Ifndef_UndefinedSymbol_Assembles)
         {
-            Assembler asm6502 = BuildAssembler ();
+            Assembler asm6502 = BuildAssembler();
             auto result = asm6502.Assemble (
                 "    ifndef MISSING\n"
                 "    LDA #$42\n"
@@ -102,7 +102,7 @@ namespace ConditionalAssemblyTests
             );
 
             Assert::IsTrue (result.success, L"Assembly should succeed");
-            Assert::AreEqual ((size_t) 2, result.bytes.size (), L"Should emit LDA #$42");
+            Assert::AreEqual ((size_t) 2, result.bytes.size(), L"Should emit LDA #$42");
             Assert::AreEqual ((Byte) 0xA9, result.bytes[0]);
             Assert::AreEqual ((Byte) 0x42, result.bytes[1]);
         }
@@ -119,7 +119,7 @@ namespace ConditionalAssemblyTests
 
         TEST_METHOD (Ifndef_DefinedSymbol_Skips)
         {
-            Assembler asm6502 = BuildAssembler ();
+            Assembler asm6502 = BuildAssembler();
             auto result = asm6502.Assemble (
                 "FOO = 1\n"
                 "    ifndef FOO\n"
@@ -128,7 +128,7 @@ namespace ConditionalAssemblyTests
             );
 
             Assert::IsTrue (result.success, L"Assembly should succeed");
-            Assert::AreEqual ((size_t) 0, result.bytes.size (), L"Should emit nothing");
+            Assert::AreEqual ((size_t) 0, result.bytes.size(), L"Should emit nothing");
         }
 
 
@@ -143,7 +143,7 @@ namespace ConditionalAssemblyTests
 
         TEST_METHOD (Ifdef_WithElse)
         {
-            Assembler asm6502 = BuildAssembler ();
+            Assembler asm6502 = BuildAssembler();
             auto result = asm6502.Assemble (
                 "    ifdef MISSING\n"
                 "    LDA #$01\n"
@@ -153,7 +153,7 @@ namespace ConditionalAssemblyTests
             );
 
             Assert::IsTrue (result.success, L"Assembly should succeed");
-            Assert::AreEqual ((size_t) 2, result.bytes.size (), L"Should emit else branch");
+            Assert::AreEqual ((size_t) 2, result.bytes.size(), L"Should emit else branch");
             Assert::AreEqual ((Byte) 0xA9, result.bytes[0]);
             Assert::AreEqual ((Byte) 0x02, result.bytes[1]);
         }

@@ -14,19 +14,17 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace
-{
-    RECT MakeRect (int l, int t, int r, int b)
-    {
-        RECT  rc = { l, t, r, b };
-        return rc;
-    }
-}
 
 
 TEST_CLASS (TooltipTests)
 {
 public:
+
+    RECT MakeRect (int l, int t, int r, int b)
+    {
+        RECT  rc = { l, t, r, b };
+        return rc;
+    }
 
     TEST_METHOD (Request_HiddenUntilDwellElapses)
     {
@@ -90,3 +88,4 @@ public:
         Assert::AreEqual ((LONG) 60, t.Anchor().left);
     }
 };
+

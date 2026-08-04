@@ -10,28 +10,34 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  Anonymous helpers
+//  File-local helpers
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace
+// Match MachinePage's row spacing exactly so the two pages feel
+// consistent when the user tabs between them.
+static constexpr int    s_kRowHeightDp     = 28;
+static constexpr int    s_kLabelWidthDp    = 140;
+static constexpr int    s_kDropdownWidthDp = 220;
+static constexpr int    s_kSliderWidthDp   = 280;
+static constexpr int    s_kSectionGapDp    = 14;       // gap between adjacent rows
+static constexpr int    s_kBigSectionGapDp = 22;       // gap between distinct "sections"
+static constexpr int    s_kPagePadDp       = 16;
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DisplayPage::MakeRect
+//
+////////////////////////////////////////////////////////////////////////////////
+
+RECT DisplayPage::MakeRect (int l, int t, int w, int h)
 {
-    // Match MachinePage's row spacing exactly so the two pages feel
-    // consistent when the user tabs between them.
-    constexpr int    s_kRowHeightDp     = 28;
-    constexpr int    s_kLabelWidthDp    = 140;
-    constexpr int    s_kDropdownWidthDp = 220;
-    constexpr int    s_kSliderWidthDp   = 280;
-    constexpr int    s_kSectionGapDp    = 14;       // gap between adjacent rows
-    constexpr int    s_kBigSectionGapDp = 22;       // gap between distinct "sections"
-    constexpr int    s_kPagePadDp       = 16;
-
-
-    RECT MakeRect (int l, int t, int w, int h)
-    {
-        RECT  rc = { l, t, l + w, t + h };
-        return rc;
-    }
+    RECT  rc = { l, t, l + w, t + h };
+    return rc;
 }
 
 
@@ -401,9 +407,10 @@ void DisplayPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DisplayPage::Rebuild ()
+void DisplayPage::Rebuild()
 {
     SettingsPanelState * state = m_state;
+
 
 
     if (state == nullptr)
@@ -422,7 +429,7 @@ void DisplayPage::Rebuild ()
         RefreshTextColorEnabled();
     });
     // Highlight changes (mouse hover + keyboard arrows while open) feed
-    // the same live channel so the user sees the colour treatment as
+    // the same live channel so the user sees the color treatment as
     // they browse the list, not just on commit.
     m_monitor.SetOnHighlightChange ([this] (int idx)
     {
@@ -489,7 +496,7 @@ void DisplayPage::Rebuild ()
 
     m_restore.SetOnClick ([this] { if (m_onRestore) { m_onRestore(); } });
 
-    // --- Effect toggles ---------------------------------------------------
+    // Effect toggles
     m_scanlinesEn.SetOnChange ([this] (bool on)
     {
         m_scanlinesInt.SetEnabled (on);
@@ -507,7 +514,7 @@ void DisplayPage::Rebuild ()
         if (m_onColorBleedEn) { m_onColorBleedEn (on); }
     });
 
-    // --- Effect parameter sliders ----------------------------------------
+    // Effect parameter sliders
     m_scanlinesInt.SetOnChange  ([this] (float v) { if (m_onScanlinesInt)  { m_onScanlinesInt  (v); } });
     m_bloomRadius.SetOnChange   ([this] (float v) { if (m_onBloomRadius)   { m_onBloomRadius   (v); } });
     m_bloomStrength.SetOnChange ([this] (float v) { if (m_onBloomStrength) { m_onBloomStrength (v); } });
@@ -621,7 +628,7 @@ void DisplayPage::SetTextColor (ColorMonitorTextMode mode, uint32_t customArgb)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool DisplayPage::TextColorActive () const
+bool DisplayPage::TextColorActive() const
 {
     return m_state != nullptr && m_state->Prefs().colorMode == SettingsColorMode::Color;
 }
@@ -636,7 +643,7 @@ bool DisplayPage::TextColorActive () const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DisplayPage::RefreshTextColorEnabled ()
+void DisplayPage::RefreshTextColorEnabled()
 {
     m_textColor.SetEnabled (TextColorActive());
 }
@@ -716,7 +723,7 @@ void DisplayPage::SetFadeState (int   focusedControlId,
 void DisplayPage::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text,
                          const IDxuiTheme & theme)
 {
-    constexpr uint32_t  s_kFocusedBackingArgb = 0xFF202830;   // dark grey, near-opaque
+    constexpr uint32_t  s_kFocusedBackingArgb = 0xFF202830;   // dark gray, near-opaque
     constexpr int       s_kIndicatorFontDp    = 12;
     constexpr int       s_kIndicatorWidthDp   = 140;
     constexpr const wchar_t * s_kFont             = DxuiTheme::kBodyFace;
@@ -900,3 +907,4 @@ void DisplayPage::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text,
     text.SetGlobalAlpha    (1.0f);
     m_textColor.PaintMenu   (painter, text);
 }
+

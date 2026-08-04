@@ -1,4 +1,5 @@
 #include "Pch.h"
+#include "../EhmTestHelper.h"
 #include "HeadlessHost.h"
 #include "FixtureProvider.h"
 
@@ -31,14 +32,14 @@ public:
 
         hr = host.BuildApple2e (core);
 
-        Assert::IsTrue (SUCCEEDED (hr));
-        Assert::IsNotNull (core.host.get ());
-        Assert::IsFalse (core.host->WasWindowOpened (),
+        AssertSucceeded (hr);
+        Assert::IsNotNull (core.host.get());
+        Assert::IsFalse (core.host->WasWindowOpened(),
             L"HeadlessHost MUST NOT open a Win32 window before tests ask");
         Assert::IsNotNull (core.audioSink,
             L"HeadlessHost wires an IAudioSink mock");
-        Assert::IsNotNull (core.fixtures.get ());
-        Assert::IsNotNull (core.prng.get ());
+        Assert::IsNotNull (core.fixtures.get());
+        Assert::IsNotNull (core.prng.get());
     }
 
     // The Apple //e Enhanced cold-boots its enhanced firmware on
@@ -51,9 +52,9 @@ public:
         {
             FixtureProvider       fp;
             std::vector<uint8_t>  probe;
+            HRESULT               hrProbe = fp.OpenFixture ("Apple2eEnhanced.rom", probe);
 
-            if (FAILED (fp.OpenFixture ("Apple2eEnhanced.rom", probe)) ||
-                probe.size() != 0x4000)
+            if (FAILED (hrProbe) || probe.size() != 0x4000)
             {
                 Logger::WriteMessage (
                     "SKIPPED: UnitTest/Fixtures/Apple2eEnhanced.rom absent "
@@ -65,7 +66,7 @@ public:
         HeadlessHost   host;
         EmulatorCore   core;
 
-        Assert::IsTrue (SUCCEEDED (host.BuildApple2eEnhanced (core)),
+        AssertSucceeded (host.BuildApple2eEnhanced (core),
             L"BuildApple2eEnhanced must succeed when the ROM is present");
 
         Word resetVec = static_cast<Word> (core.cpu->ReadByte (0xFFFC)) |
@@ -91,25 +92,36 @@ public:
         HRESULT                 hr;
 
         hr = host.BuildApple2e (core);
-        Assert::IsTrue (SUCCEEDED (hr));
+        AssertSucceeded (hr);
 
-        hr = core.fixtures->OpenFixture ("../escape.bin", bytes);
-        Assert::AreEqual (E_INVALIDARG, hr, L"'..' traversal must be rejected");
+        // Every rejection below trips the same asserting guard: asking the
+        // fixture provider to escape its root is a caller bug, so a dev
+        // running Debug should break on it. The scope both permits that and
+        // proves the assert is still wired -- a rejection that stopped
+        // asserting would otherwise pass silently on the HRESULT alone.
+        {
+            UnitTestHelpers::ExpectedEhmAssert   expect;
 
-        hr = core.fixtures->OpenFixture ("subdir/../../escape.bin", bytes);
-        Assert::AreEqual (E_INVALIDARG, hr, L"embedded '..' must be rejected");
+            hr = core.fixtures->OpenFixture ("../escape.bin", bytes);
+            Assert::AreEqual (E_INVALIDARG, hr, L"'..' traversal must be rejected");
 
-        hr = core.fixtures->OpenFixture ("/etc/passwd", bytes);
-        Assert::AreEqual (E_INVALIDARG, hr, L"absolute root must be rejected");
+            hr = core.fixtures->OpenFixture ("subdir/../../escape.bin", bytes);
+            Assert::AreEqual (E_INVALIDARG, hr, L"embedded '..' must be rejected");
 
-        hr = core.fixtures->OpenFixture ("\\windows\\system32", bytes);
-        Assert::AreEqual (E_INVALIDARG, hr, L"backslash root must be rejected");
+            hr = core.fixtures->OpenFixture ("/etc/passwd", bytes);
+            Assert::AreEqual (E_INVALIDARG, hr, L"absolute root must be rejected");
 
-        hr = core.fixtures->OpenFixture ("C:\\windows", bytes);
-        Assert::AreEqual (E_INVALIDARG, hr, L"drive letter must be rejected");
+            hr = core.fixtures->OpenFixture ("\\windows\\system32", bytes);
+            Assert::AreEqual (E_INVALIDARG, hr, L"backslash root must be rejected");
 
-        hr = core.fixtures->OpenFixture ("", bytes);
-        Assert::AreEqual (E_INVALIDARG, hr, L"empty path must be rejected");
+            hr = core.fixtures->OpenFixture ("C:\\windows", bytes);
+            Assert::AreEqual (E_INVALIDARG, hr, L"drive letter must be rejected");
+
+            hr = core.fixtures->OpenFixture ("", bytes);
+            Assert::AreEqual (E_INVALIDARG, hr, L"empty path must be rejected");
+
+            expect.RequireCount (6);
+        }
     }
 
     TEST_METHOD (DeterministicAcrossTwoBuilds)
@@ -122,14 +134,14 @@ public:
         size_t           i;
 
         hr = hostA.BuildApple2e (coreA);
-        Assert::IsTrue (SUCCEEDED (hr));
+        AssertSucceeded (hr);
 
         hr = hostB.BuildApple2e (coreB);
-        Assert::IsTrue (SUCCEEDED (hr));
+        AssertSucceeded (hr);
 
         for (i = 0; i < 256; i++)
         {
-            Assert::AreEqual (coreA.prng->Next64 (), coreB.prng->Next64 (),
+            Assert::AreEqual (coreA.prng->Next64(), coreB.prng->Next64(),
                 L"Two HeadlessHost builds with the pinned seed must agree");
         }
     }
@@ -144,22 +156,22 @@ public:
         HRESULT          hr;
 
         hr   = host.BuildApple2e (core);
-        Assert::IsTrue (SUCCEEDED (hr));
+        AssertSucceeded (hr);
 
-        sink = &core.host->GetAudioSink ();
+        sink = &core.host->GetAudioSink();
 
         hr = sink->PushSamples (samples1, 3);
-        Assert::IsTrue (SUCCEEDED (hr));
-        Assert::AreEqual (uint64_t (2), sink->GetToggleCount (),
+        AssertSucceeded (hr);
+        Assert::AreEqual (uint64_t (2), sink->GetToggleCount(),
             L"Sign flips +,-,+ produce 2 toggles");
 
         hr = sink->PushSamples (samples2, 2);
-        Assert::IsTrue (SUCCEEDED (hr));
-        Assert::AreEqual (uint64_t (3), sink->GetToggleCount (),
+        AssertSucceeded (hr);
+        Assert::AreEqual (uint64_t (3), sink->GetToggleCount(),
             L"+ -> - is one more flip; - -> - adds none");
 
-        sink->Clear ();
-        Assert::AreEqual (uint64_t (0), sink->GetToggleCount ());
-        Assert::AreEqual (uint64_t (0), sink->GetSampleCount ());
+        sink->Clear();
+        Assert::AreEqual (uint64_t (0), sink->GetToggleCount());
+        Assert::AreEqual (uint64_t (0), sink->GetSampleCount());
     }
 };

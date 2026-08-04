@@ -31,6 +31,8 @@ struct MainMenuCommandEntry
 
 
 
+
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  MainMenu
@@ -81,7 +83,7 @@ public:
     //
     //  Push the Casso nav/dropdown palette onto the menu bar. Must be
     //  driven on a live path (theme apply / switch) so both the in-window
-    //  strip and the popup-backed dropdown use the chrome colours -- the
+    //  strip and the popup-backed dropdown use the chrome colors -- the
     //  generic IDxuiTheme mapping is close but not identical.
     //
     void  ApplyChromeColors (const CassoTheme & theme);

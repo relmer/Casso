@@ -25,20 +25,28 @@ static constexpr size_t   s_kUptimeBufferChars  = 12;
 //
 //  SoundKindLabel
 //
+//  Diagnostic spelling of a SoundKind for the Detail column. Deliberately
+//  the enumerator name rather than prose -- this text is read alongside
+//  the audio source, not by end users.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 static const wchar_t * SoundKindLabel (SoundKind k)
 {
+    const wchar_t *  label = L"Unknown";
+
+
+
     switch (k)
     {
-        case SoundKind::MotorLoop:  return L"MotorLoop";
-        case SoundKind::HeadStep:   return L"HeadStep";
-        case SoundKind::HeadStop:   return L"HeadStop";
-        case SoundKind::DoorOpen:   return L"DoorOpen";
-        case SoundKind::DoorClose:  return L"DoorClose";
+        case SoundKind::MotorLoop:  label = L"MotorLoop";  break;
+        case SoundKind::HeadStep:   label = L"HeadStep";   break;
+        case SoundKind::HeadStop:   label = L"HeadStop";   break;
+        case SoundKind::DoorOpen:   label = L"DoorOpen";   break;
+        case SoundKind::DoorClose:  label = L"DoorClose";  break;
     }
 
-    return L"Unknown";
+    return label;
 }
 
 
@@ -49,20 +57,27 @@ static const wchar_t * SoundKindLabel (SoundKind k)
 //
 //  SilentReasonLabel
 //
+//  Why a drive sound that should have played did not. Pairs with
+//  SoundKindLabel on the AudioSilent row; same enumerator-name convention.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 static const wchar_t * SilentReasonLabel (SilentReason r)
 {
+    const wchar_t *  label = L"Unknown";
+
+
+
     switch (r)
     {
-        case SilentReason::DriveAudioDisabled:   return L"DriveAudioDisabled";
-        case SilentReason::BufferMissing:        return L"BufferMissing";
-        case SilentReason::NoSourceRegistered:   return L"NoSourceRegistered";
-        case SilentReason::ColdBootSuppression:  return L"ColdBootSuppression";
-        case SilentReason::NoDiskPresent:        return L"NoDiskPresent";
+        case SilentReason::DriveAudioDisabled:   label = L"DriveAudioDisabled";   break;
+        case SilentReason::BufferMissing:        label = L"BufferMissing";        break;
+        case SilentReason::NoSourceRegistered:   label = L"NoSourceRegistered";   break;
+        case SilentReason::ColdBootSuppression:  label = L"ColdBootSuppression";  break;
+        case SilentReason::NoDiskPresent:        label = L"NoDiskPresent";        break;
     }
 
-    return L"Unknown";
+    return label;
 }
 
 
@@ -152,32 +167,28 @@ static void FormatWallNow (wchar_t * out, size_t cap)
     auto       wall      = system_clock::to_time_t (now);
     auto       ms        = duration_cast<milliseconds> (now.time_since_epoch()) % 1000;
     std::tm    local     = {};
-    errno_t    err       = 0;
 
-    if (out == nullptr || cap < s_kWallBufferChars)
+    // A buffer too small to hold HH:MM:SS.mmm and a failed localtime_s are
+    // the same outcome to the caller -- an empty cell -- so they share an
+    // arm. Short-circuit order matters: the conversion is skipped when
+    // there is nowhere to put the result.
+    if (out == nullptr || cap == 0)
     {
-        if (out != nullptr && cap > 0)
-        {
-            out[0] = L'\0';
-        }
-
-        return;
+        // No buffer at all, and no out-of-band way to report it.
     }
-
-    err = localtime_s (&local, &wall);
-
-    if (err != 0)
+    else if (cap < s_kWallBufferChars || localtime_s (&local, &wall) != 0)
     {
         out[0] = L'\0';
-        return;
     }
-
-    swprintf_s (out, cap,
-                L"%02d:%02d:%02d.%03lld",
-                local.tm_hour,
-                local.tm_min,
-                local.tm_sec,
-                (long long) ms.count());
+    else
+    {
+        swprintf_s (out, cap,
+                    L"%02d:%02d:%02d.%03lld",
+                    local.tm_hour,
+                    local.tm_min,
+                    local.tm_sec,
+                    (long long) ms.count());
+    }
 }
 
 
@@ -205,32 +216,31 @@ static void FormatUptime (
     long long  seconds  = 0;
     long long  millis   = 0;
 
-    if (out == nullptr || cap < s_kUptimeBufferChars)
+    // `now < anchor` means the caller handed us an anchor from the future,
+    // which steady_clock makes impossible for a real capture -- treat it as
+    // an unset anchor and blank the cell rather than printing a wrapped
+    // unsigned duration.
+    if (out == nullptr || cap == 0)
     {
-        if (out != nullptr && cap > 0)
-        {
-            out[0] = L'\0';
-        }
-
-        return;
+        // No buffer at all, and no out-of-band way to report it.
     }
-
-    if (now < anchor)
+    else if (cap < s_kUptimeBufferChars || now < anchor)
     {
         out[0] = L'\0';
-        return;
     }
+    else
+    {
+        totalMs = duration_cast<milliseconds> (now - anchor).count();
+        minutes = totalMs / 60000;
+        seconds = (totalMs / 1000) % 60;
+        millis  = totalMs % 1000;
 
-    totalMs = duration_cast<milliseconds> (now - anchor).count();
-    minutes = totalMs / 60000;
-    seconds = (totalMs / 1000) % 60;
-    millis  = totalMs % 1000;
-
-    swprintf_s (out, cap,
-                L"%02lld:%02lld.%03lld",
-                minutes,
-                seconds,
-                millis);
+        swprintf_s (out, cap,
+                    L"%02lld:%02lld.%03lld",
+                    minutes,
+                    seconds,
+                    millis);
+    }
 }
 
 
@@ -239,23 +249,19 @@ static void FormatUptime (
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  FormatTrackSectorVolume
+//  FormatCoord
 //
-//  Helper that renders one of the address-mark / data-mark coordinate
-//  fields. A cached value of -1 (no preceding address mark for a data
-//  read) prints as "?" so the dialog row reads "T? S? V? (256 bytes)"
-//  rather than emitting bare -1.
+//  Renders one of the address-mark / data-mark coordinate fields. A
+//  cached value of -1 (no preceding address mark for a data read) prints
+//  as "?" so the dialog row reads "T? S? V? (256 bytes)" rather than
+//  emitting bare -1.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 static std::wstring FormatCoord (wchar_t prefix, int value)
 {
-    if (value < 0)
-    {
-        return std::format (L"{}?", prefix);
-    }
-
-    return std::format (L"{}{}", prefix, value);
+    return (value < 0) ? std::format (L"{}?", prefix)
+                       : std::format (L"{}{}", prefix, value);
 }
 
 
@@ -272,64 +278,71 @@ static std::wstring FormatCoord (wchar_t prefix, int value)
 
 static std::wstring FormatDetail (const Disk2Event & src)
 {
+    std::wstring  detail;
+
+
+
     switch (src.type)
     {
         case Disk2EventType::HeadStep:
-            return std::format (L"quarter-track {} -> {}",
-                                src.payload.step.prevQt,
-                                src.payload.step.newQt);
+            detail = std::format (L"quarter-track {} -> {}",
+                                  src.payload.step.prevQt,
+                                  src.payload.step.newQt);
+            break;
 
         case Disk2EventType::HeadBump:
-            return std::format (L"at quarter-track {}", src.payload.bump.atQt);
+            detail = std::format (L"at quarter-track {}", src.payload.bump.atQt);
+            break;
 
         case Disk2EventType::AddrMark:
-            return std::format (L"{} {} {}",
-                                FormatCoord (L'T', src.payload.addrMark.track),
-                                FormatCoord (L'S', src.payload.addrMark.sector),
-                                FormatCoord (L'V', src.payload.addrMark.volume));
+            detail = std::format (L"{} {} {}",
+                                  FormatCoord (L'T', src.payload.addrMark.track),
+                                  FormatCoord (L'S', src.payload.addrMark.sector),
+                                  FormatCoord (L'V', src.payload.addrMark.volume));
+            break;
 
+        // Reads and writes both report where the head was and how much
+        // moved; the direction is already in the event label.
         case Disk2EventType::DataRead:
-            return std::format (L"{} {} {} ({} bytes)",
-                                FormatCoord (L'T', src.payload.dataMark.track),
-                                FormatCoord (L'S', src.payload.dataMark.sector),
-                                FormatCoord (L'V', src.payload.dataMark.volume),
-                                src.payload.dataMark.byteCount);
-
         case Disk2EventType::DataWrite:
-            return std::format (L"{} {} {} ({} bytes)",
-                                FormatCoord (L'T', src.payload.dataMark.track),
-                                FormatCoord (L'S', src.payload.dataMark.sector),
-                                FormatCoord (L'V', src.payload.dataMark.volume),
-                                src.payload.dataMark.byteCount);
-
-        case Disk2EventType::DriveSelect:
-        case Disk2EventType::DiskInserted:
-        case Disk2EventType::DiskEjected:
-            return std::wstring();
+            detail = std::format (L"{} {} {} ({} bytes)",
+                                  FormatCoord (L'T', src.payload.dataMark.track),
+                                  FormatCoord (L'S', src.payload.dataMark.sector),
+                                  FormatCoord (L'V', src.payload.dataMark.volume),
+                                  src.payload.dataMark.byteCount);
+            break;
 
         case Disk2EventType::EventsLost:
-            return std::format (L"[{} events lost]", src.payload.lost.count);
+            detail = std::format (L"[{} events lost]", src.payload.lost.count);
+            break;
 
         case Disk2EventType::AudioStarted:
         case Disk2EventType::AudioRestarted:
         case Disk2EventType::AudioContinued:
         case Disk2EventType::AudioLoopStarted:
         case Disk2EventType::AudioLoopStopped:
-            return std::format (L"kind={}", SoundKindLabel (src.payload.audio.kind));
+            detail = std::format (L"kind={}", SoundKindLabel (src.payload.audio.kind));
+            break;
 
         case Disk2EventType::AudioSilent:
-            return std::format (L"kind={} reason={}",
-                                SoundKindLabel    (src.payload.audio.kind),
-                                SilentReasonLabel (src.payload.audio.reason));
+            detail = std::format (L"kind={} reason={}",
+                                  SoundKindLabel    (src.payload.audio.kind),
+                                  SilentReasonLabel (src.payload.audio.reason));
+            break;
 
+        // Drive and motor transitions carry no payload worth spelling out --
+        // the event label plus the Drive column already say it all.
+        case Disk2EventType::DriveSelect:
+        case Disk2EventType::DiskInserted:
+        case Disk2EventType::DiskEjected:
         case Disk2EventType::MotorCommandOn:
         case Disk2EventType::MotorEngaged:
         case Disk2EventType::MotorCommandOff:
         case Disk2EventType::MotorDisengaged:
-            return std::wstring();
+            break;
     }
 
-    return std::wstring();
+    return detail;
 }
 
 
@@ -354,12 +367,17 @@ static std::wstring FormatDetail (const Disk2Event & src)
 
 static int PayloadDrive (const Disk2Event & src)
 {
+    int  drive = Disk2EventDisplay::kFieldNotApplicable;
+
+
+
     switch (src.type)
     {
         case Disk2EventType::DriveSelect:
         case Disk2EventType::DiskInserted:
         case Disk2EventType::DiskEjected:
-            return src.payload.drive.drive;
+            drive = src.payload.drive.drive;
+            break;
 
         case Disk2EventType::AudioStarted:
         case Disk2EventType::AudioRestarted:
@@ -367,18 +385,22 @@ static int PayloadDrive (const Disk2Event & src)
         case Disk2EventType::AudioSilent:
         case Disk2EventType::AudioLoopStarted:
         case Disk2EventType::AudioLoopStopped:
-            return src.payload.audio.drive;
+            drive = src.payload.audio.drive;
+            break;
 
         case Disk2EventType::EventsLost:
-            return Disk2EventDisplay::kFieldNotApplicable;
+            // Synthetic marker -- belongs to no drive. Keeps the initializer.
+            break;
 
         default:
-            if (src.drive < 0)
+            if (src.drive >= 0)
             {
-                return Disk2EventDisplay::kFieldNotApplicable;
+                drive = src.drive;
             }
-            return src.drive;
+            break;
     }
+
+    return drive;
 }
 
 
@@ -389,36 +411,44 @@ static int PayloadDrive (const Disk2Event & src)
 //
 //  DebugDialogProjection::EventLabel
 //
+//  Human-readable Event column text. `cat` is unused today -- the type
+//  alone determines the label -- but stays in the signature so a future
+//  category can disambiguate without churning every call site.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 std::wstring_view DebugDialogProjection::EventLabel (EventCategory cat, Disk2EventType type)
 {
+    std::wstring_view  label = L"?";
+
+
+
     (void) cat;
 
     switch (type)
     {
-        case Disk2EventType::MotorCommandOn:    return L"Motor command on";
-        case Disk2EventType::MotorEngaged:      return L"Motor engaged";
-        case Disk2EventType::MotorCommandOff:   return L"Motor command off";
-        case Disk2EventType::MotorDisengaged:   return L"Motor disengaged";
-        case Disk2EventType::HeadStep:          return L"Head step";
-        case Disk2EventType::HeadBump:          return L"Head bump";
-        case Disk2EventType::AddrMark:          return L"Address mark";
-        case Disk2EventType::DataRead:          return L"Data read";
-        case Disk2EventType::DataWrite:         return L"Data write";
-        case Disk2EventType::DriveSelect:       return L"Drive select";
-        case Disk2EventType::DiskInserted:      return L"Disk inserted";
-        case Disk2EventType::DiskEjected:       return L"Disk ejected";
-        case Disk2EventType::EventsLost:        return L"Events lost";
-        case Disk2EventType::AudioStarted:      return L"Audio started";
-        case Disk2EventType::AudioRestarted:    return L"Audio restarted";
-        case Disk2EventType::AudioContinued:    return L"Audio continued";
-        case Disk2EventType::AudioSilent:       return L"Audio silent";
-        case Disk2EventType::AudioLoopStarted:  return L"Audio loop started";
-        case Disk2EventType::AudioLoopStopped:  return L"Audio loop stopped";
+        case Disk2EventType::MotorCommandOn:    label = L"Motor command on";    break;
+        case Disk2EventType::MotorEngaged:      label = L"Motor engaged";       break;
+        case Disk2EventType::MotorCommandOff:   label = L"Motor command off";   break;
+        case Disk2EventType::MotorDisengaged:   label = L"Motor disengaged";    break;
+        case Disk2EventType::HeadStep:          label = L"Head step";           break;
+        case Disk2EventType::HeadBump:          label = L"Head bump";           break;
+        case Disk2EventType::AddrMark:          label = L"Address mark";        break;
+        case Disk2EventType::DataRead:          label = L"Data read";           break;
+        case Disk2EventType::DataWrite:         label = L"Data write";          break;
+        case Disk2EventType::DriveSelect:       label = L"Drive select";        break;
+        case Disk2EventType::DiskInserted:      label = L"Disk inserted";       break;
+        case Disk2EventType::DiskEjected:       label = L"Disk ejected";        break;
+        case Disk2EventType::EventsLost:        label = L"Events lost";         break;
+        case Disk2EventType::AudioStarted:      label = L"Audio started";       break;
+        case Disk2EventType::AudioRestarted:    label = L"Audio restarted";     break;
+        case Disk2EventType::AudioContinued:    label = L"Audio continued";     break;
+        case Disk2EventType::AudioSilent:       label = L"Audio silent";        break;
+        case Disk2EventType::AudioLoopStarted:  label = L"Audio loop started";  break;
+        case Disk2EventType::AudioLoopStopped:  label = L"Audio loop stopped";  break;
     }
 
-    return L"?";
+    return label;
 }
 
 
@@ -551,11 +581,13 @@ int DebugDialogProjection::PreservedFocusItem (
     uint32_t                       priorDequeIdx,
     const std::vector<uint32_t> &  newFilteredIndices) noexcept
 {
-    HRESULT hr     = S_OK;
-    int     result = -1;
-    auto    it     = newFilteredIndices.begin();
+    HRESULT hr        = S_OK;
+    int     result    = -1;
+    bool    hasFilter = false;
+    auto    it        = newFilteredIndices.begin();
 
-    CBR (!newFilteredIndices.empty());
+    hasFilter = !newFilteredIndices.empty();
+    CBR (hasFilter);
 
     it = std::lower_bound (newFilteredIndices.begin(),
                            newFilteredIndices.end(),
@@ -598,68 +630,64 @@ DebugSelectionResult DebugDialogProjection::ResolveSelection (
     const std::deque<Disk2EventDisplay> & events,
     const std::vector<size_t> &           filteredIndices) noexcept
 {
-    DebugSelectionResult  result;
+    DebugSelectionResult  result;                                  // {-1, 0}
+    const size_t          kNone         = filteredIndices.size();  // one past any row
+    size_t                exactRow      = kNone;
+    size_t                bestBeforeRow = kNone;
+    uint64_t              bestBeforeSeq = 0;
+    size_t                earliestRow   = kNone;
+    uint64_t              earliestSeq   = 0;
 
-    if (selectedSeq == 0 || filteredIndices.empty())
+    // One pass gathers all three candidates. The exact match used to get its
+    // own early-exit scan, but a miss then paid for two full sweeps, and a
+    // miss is the case this function exists for.
+    if (selectedSeq != 0 && !filteredIndices.empty())
     {
-        return result;   // {-1, 0}
-    }
-
-    // Exact identity match -- unchanged by a sort reorder.
-    for (size_t row = 0; row < filteredIndices.size(); ++row)
-    {
-        size_t  idx = filteredIndices[row];
-        if (idx < events.size() && events[idx].seq == selectedSeq)
+        for (size_t row = 0; row < filteredIndices.size(); ++row)
         {
-            result.row = (int) row;
+            size_t  idx = filteredIndices[row];
+            if (idx >= events.size())
+            {
+                continue;
+            }
+
+            uint64_t  s = events[idx].seq;
+
+            // First match wins, matching the old scan's early exit.
+            if (s == selectedSeq && exactRow == kNone)
+            {
+                exactRow = row;
+            }
+            if (earliestRow == kNone || s < earliestSeq)
+            {
+                earliestSeq = s;
+                earliestRow = row;
+            }
+            if (s <= selectedSeq && (bestBeforeRow == kNone || s > bestBeforeSeq))
+            {
+                bestBeforeSeq = s;
+                bestBeforeRow = row;
+            }
+        }
+
+        // Identity first (a sort reorder does not lose the selection), then
+        // nearest surviving event at-or-before it, then the earliest left.
+        if (exactRow != kNone)
+        {
+            result.row = (int) exactRow;
             result.seq = selectedSeq;
-            return result;
         }
-    }
-
-    // Gone: snap to the surviving event with the largest seq <= selectedSeq
-    // (nearest at-or-before), else the earliest surviving event.
-    const size_t  kNone         = filteredIndices.size();
-    size_t        bestBeforeRow = kNone;
-    uint64_t      bestBeforeSeq = 0;
-    size_t        earliestRow   = kNone;
-    uint64_t      earliestSeq   = 0;
-
-    for (size_t row = 0; row < filteredIndices.size(); ++row)
-    {
-        size_t  idx = filteredIndices[row];
-        if (idx >= events.size())
+        else if (bestBeforeRow != kNone)
         {
-            continue;
+            result.row = (int) bestBeforeRow;
+            result.seq = bestBeforeSeq;
         }
-
-        uint64_t  s = events[idx].seq;
-
-        if (earliestRow == kNone || s < earliestSeq)
+        else if (earliestRow != kNone)
         {
-            earliestSeq = s;
-            earliestRow = row;
-        }
-        if (s <= selectedSeq && (bestBeforeRow == kNone || s > bestBeforeSeq))
-        {
-            bestBeforeSeq = s;
-            bestBeforeRow = row;
+            result.row = (int) earliestRow;
+            result.seq = earliestSeq;
         }
     }
 
-    if (bestBeforeRow != kNone)
-    {
-        result.row = (int) bestBeforeRow;
-        result.seq = bestBeforeSeq;
-        return result;
-    }
-
-    if (earliestRow != kNone)
-    {
-        result.row = (int) earliestRow;
-        result.seq = earliestSeq;
-        return result;
-    }
-
-    return result;   // {-1, 0}
+    return result;
 }

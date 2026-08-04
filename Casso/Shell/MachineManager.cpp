@@ -50,43 +50,44 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  Anonymous helpers
+//  ResolveMachineSpeedCommand
+//
+//  Digs the saved speed mode out of the merged config and maps it to the
+//  IDM_* the command router expects. 0 means "no saved preference", which
+//  every step below can produce: no object, no $cassoUiPrefs, no
+//  speedMode key, or a value this build does not recognize.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace
+WORD  MachineManager::ResolveMachineSpeedCommand (const JsonValue & mergedJson)
 {
-    WORD  ResolveMachineSpeedCommand (const JsonValue & mergedJson)
+    HRESULT            hr      = S_OK;
+    const JsonValue *  uiPrefs = nullptr;
+    std::string        speed;
+    WORD               command = 0;
+
+
+
+    if (mergedJson.GetType() == JsonType::Object)
     {
-        HRESULT            hr      = S_OK;
-        const JsonValue *  uiPrefs = nullptr;
-        std::string        speed;
-
-
-        if (mergedJson.GetType() != JsonType::Object)
-        {
-            return 0;
-        }
-
         hr = mergedJson.GetObject ("$cassoUiPrefs", uiPrefs);
-        if (FAILED (hr) || uiPrefs == nullptr)
-        {
-            return 0;
-        }
+    }
+
+    if (SUCCEEDED (hr) && uiPrefs != nullptr)
+    {
         _Analysis_assume_ (uiPrefs != nullptr);
 
         hr = uiPrefs->GetString ("speedMode", speed);
-        if (FAILED (hr))
-        {
-            return 0;
-        }
-
-        if (speed == "authentic") return IDM_MACHINE_SPEED_1X;
-        if (speed == "double")    return IDM_MACHINE_SPEED_2X;
-        if (speed == "maximum")   return IDM_MACHINE_SPEED_MAX;
-
-        return 0;
     }
+
+    if (SUCCEEDED (hr))
+    {
+        if      (speed == "authentic") { command = IDM_MACHINE_SPEED_1X;  }
+        else if (speed == "double")    { command = IDM_MACHINE_SPEED_2X;  }
+        else if (speed == "maximum")   { command = IDM_MACHINE_SPEED_MAX; }
+    }
+
+    return command;
 }
 
 
@@ -118,6 +119,8 @@ HRESULT MachineManager::CreateMemoryDevices (const MachineConfig & config)
 {
     HRESULT  hr      = S_OK;
     bool     romOk   = false;
+
+
 
     std::wstring  wideError;
     std::string   error;
@@ -605,11 +608,11 @@ HRESULT MachineManager::CreateMemoryDevices (const MachineConfig & config)
     if (m_shell.m_refs.printerCard != nullptr)
     {
         PrintRaster   pending;
-        HRESULT       hrLoad = PrintJobStore::Load (m_shell.PendingPrintDir (), pending);
+        HRESULT       hrLoad = PrintJobStore::Load (m_shell.PendingPrintDir(), pending);
 
         m_shell.m_printerWorker.Start (
-            m_shell.m_refs.printerCard->ByteRing (),
-            SUCCEEDED (hrLoad) ? std::move (pending) : PrintRaster ());
+            m_shell.m_refs.printerCard->ByteRing(),
+            SUCCEEDED (hrLoad) ? std::move (pending) : PrintRaster());
 
         // Pace the drain off the guest clock so the card applies real
         // backpressure -- the guest prints at ImageWriter speed (faster at max
@@ -617,13 +620,13 @@ HRESULT MachineManager::CreateMemoryDevices (const MachineConfig & config)
         // for this machine's CPU, so setting it once covers later restarts.
         if (m_shell.m_cpu != nullptr)
         {
-            m_shell.m_printerWorker.SetCycleClock (m_shell.m_cpu->GetCycleCounterPtr ());
+            m_shell.m_printerWorker.SetCycleClock (m_shell.m_cpu->GetCycleCounterPtr());
         }
 
         // Prime the live-preview auto-open baseline to the worker's current
         // activity so a page carried over from a previous session does not read as
         // a fresh print and auto-open the preview on boot -- only new printing does.
-        m_shell.m_printerAutoOpenActivity = m_shell.m_printerWorker.ActivityCount ();
+        m_shell.m_printerAutoOpenActivity = m_shell.m_printerWorker.ActivityCount();
     }
 
     // Mockingboard wiring. Cache the card (if the active config installs
@@ -693,116 +696,111 @@ void MachineManager::WireLanguageCard()
     // Find the LanguageCard device
     for (auto & dev : m_shell.m_ownedDevices)
     {
-        lc = dynamic_cast<LanguageCard *> (dev.get());
-
-        if (lc != nullptr)
+        if (lc == nullptr)
         {
-            break;
+            lc = dynamic_cast<LanguageCard *> (dev.get());
         }
     }
 
-    if (lc == nullptr)
+    // Find a ROM device covering $D000-$FFFF. Only looked for once the card
+    // exists -- with no card there is nothing to hand the ROM image to.
+    if (lc != nullptr)
     {
-        return;
-    }
-
-    // Find a ROM device covering $D000-$FFFF
-    for (const auto & entry : m_shell.m_memoryBus.GetEntries())
-    {
-        auto * rom = dynamic_cast<RomDevice *> (entry.device);
-
-        if (rom != nullptr && entry.start <= 0xD000 && entry.end >= 0xFFFF)
+        for (const auto & entry : m_shell.m_memoryBus.GetEntries())
         {
-            romDevice = rom;
-            break;
+            auto * rom = dynamic_cast<RomDevice *> (entry.device);
+
+            if (romDevice == nullptr && rom != nullptr && entry.start <= 0xD000 && entry.end >= 0xFFFF)
+            {
+                romDevice = rom;
+            }
         }
     }
 
-    if (romDevice == nullptr)
+    // No card or no covering ROM: this machine has no language card to wire.
+    if (romDevice != nullptr)
     {
-        return;
-    }
+        Word romStart = romDevice->GetStart();
 
-    Word romStart = romDevice->GetStart();
+        // Copy $D000-$FFFF ROM data to language card
+        std::vector<Byte>  lcRomData (0x3000);
 
-    // Copy $D000-$FFFF ROM data to language card
-    std::vector<Byte>  lcRomData (0x3000);
-
-    for (size_t i = 0; i < 0x3000; i++)
-    {
-        lcRomData[i] = romDevice->Read (static_cast<Word> (0xD000 + i));
-    }
-
-    lc->SetRomData (lcRomData);
-    m_shell.m_memoryBus.RemoveDevice (romDevice);
-
-    // Re-add slot ROM ($C100-$CFFF) if original extended below $D000.
-    // $C000-$C0FF is I/O space and must not be shadowed by ROM.
-    if (romStart < 0xD000)
-    {
-        Word   slotRomStart = static_cast<Word> (std::max (static_cast<int> (romStart), 0xC100));
-        size_t dataOffset   = slotRomStart - romStart;
-        size_t lowerSize    = 0xD000 - slotRomStart;
-
-        UNREFERENCED_PARAMETER (dataOffset);
-
-        std::vector<Byte>  lowerData (lowerSize);
-
-        for (size_t i = 0; i < lowerSize; i++)
+        for (size_t i = 0; i < 0x3000; i++)
         {
-            lowerData[i] = romDevice->Read (static_cast<Word> (slotRomStart + i));
+            lcRomData[i] = romDevice->Read (static_cast<Word> (0xD000 + i));
         }
 
-        // On //e: hand to the MMU's CxxxRomRouter. On ][/][+: keep the
-        // legacy bus-resident ROM device.
+        lc->SetRomData (lcRomData);
+        m_shell.m_memoryBus.RemoveDevice (romDevice);
+
+        // Re-add slot ROM ($C100-$CFFF) if original extended below $D000.
+        // $C000-$C0FF is I/O space and must not be shadowed by ROM.
+        if (romStart < 0xD000)
+        {
+            Word   slotRomStart = static_cast<Word> (std::max (static_cast<int> (romStart), 0xC100));
+            size_t dataOffset   = slotRomStart - romStart;
+            size_t lowerSize    = 0xD000 - slotRomStart;
+
+            UNREFERENCED_PARAMETER (dataOffset);
+
+            std::vector<Byte>  lowerData (lowerSize);
+
+            for (size_t i = 0; i < lowerSize; i++)
+            {
+                lowerData[i] = romDevice->Read (static_cast<Word> (slotRomStart + i));
+            }
+
+            // On //e: hand to the MMU's CxxxRomRouter. On ][/][+: keep the
+            // legacy bus-resident ROM device.
+            if (m_shell.m_mmu != nullptr)
+            {
+                m_shell.m_mmu->AttachInternalCxxxRom (std::move (lowerData));
+            }
+            else
+            {
+                auto lowerRom = RomDevice::CreateFromData (
+                    slotRomStart, static_cast<Word> (0xCFFF),
+                    lowerData.data(), lowerData.size());
+
+                m_shell.m_memoryBus.AddDevice (lowerRom.get());
+                m_shell.m_ownedDevices.push_back (std::move (lowerRom));
+            }
+        }
+
+        // Bank device intercepts $D000-$FFFF, routing to LC RAM or ROM
+        auto lcBank = std::make_unique<LanguageCardBank> (*lc);
+        m_shell.m_memoryBus.AddDevice (lcBank.get());
+        m_shell.m_ownedDevices.push_back (std::move (lcBank));
+
+        // //e wiring: LC needs the MMU (for ALTZP routing) and the
+        // keyboard sibling needs the LC pointer for $C011/$C012 status
+        // reads.
         if (m_shell.m_mmu != nullptr)
         {
-            m_shell.m_mmu->AttachInternalCxxxRom (std::move (lowerData));
+            lc->SetMmu (m_shell.m_mmu.get());
+
+            // Let ALTZP flips re-point the LC's $D000-$FFFF read window (aux/main).
+            m_shell.m_mmu->SetLanguageCard (lc);
         }
-        else
+
+        auto * iieKbd = dynamic_cast<Apple2eKeyboard *> (m_shell.m_refs.keyboard);
+
+        if (iieKbd != nullptr)
         {
-            auto lowerRom = RomDevice::CreateFromData (
-                slotRomStart, static_cast<Word> (0xCFFF),
-                lowerData.data(), lowerData.size());
-
-            m_shell.m_memoryBus.AddDevice (lowerRom.get());
-            m_shell.m_ownedDevices.push_back (std::move (lowerRom));
+            iieKbd->SetLanguageCard (lc);
         }
+
+        auto * iieSw = dynamic_cast<Apple2eSoftSwitchBank *> (m_shell.m_refs.softSwitches);
+
+        if (iieSw != nullptr)
+        {
+            iieSw->SetLanguageCard (lc);
+        }
+
+        // Seed the $D000-$FFFF read-page mapping now that the ROM image and MMU are
+        // wired. Thereafter it re-points on LC switches, reset, and ALTZP flips.
+        lc->RebindWindow();
     }
-
-    // Bank device intercepts $D000-$FFFF, routing to LC RAM or ROM
-    auto lcBank = std::make_unique<LanguageCardBank> (*lc);
-    m_shell.m_memoryBus.AddDevice (lcBank.get());
-    m_shell.m_ownedDevices.push_back (std::move (lcBank));
-
-    // //e wiring: LC needs the MMU (for ALTZP routing) and the
-    // keyboard sibling needs the LC pointer for $C011/$C012 status
-    // reads.
-    if (m_shell.m_mmu != nullptr)
-    {
-        lc->SetMmu (m_shell.m_mmu.get());
-
-        // Let ALTZP flips re-point the LC's $D000-$FFFF read window (aux/main).
-        m_shell.m_mmu->SetLanguageCard (lc);
-    }
-
-    auto * iieKbd = dynamic_cast<Apple2eKeyboard *> (m_shell.m_refs.keyboard);
-
-    if (iieKbd != nullptr)
-    {
-        iieKbd->SetLanguageCard (lc);
-    }
-
-    auto * iieSw = dynamic_cast<Apple2eSoftSwitchBank *> (m_shell.m_refs.softSwitches);
-
-    if (iieSw != nullptr)
-    {
-        iieSw->SetLanguageCard (lc);
-    }
-
-    // Seed the $D000-$FFFF read-page mapping now that the ROM image and MMU are
-    // wired. Thereafter it re-points on LC switches, reset, and ALTZP flips.
-    lc->RebindWindow ();
 }
 
 
@@ -820,26 +818,32 @@ void MachineManager::WireLanguageCard()
 
 HRESULT MachineManager::ReadRomFileBytes (const std::string & path, std::vector<Byte> & out)
 {
+    HRESULT         hr       = S_OK;
     std::ifstream   file (path, std::ios::binary | std::ios::ate);
+    std::streamoff  size     = 0;
+    bool            isOpen   = false;
+    bool            hasBytes = false;
+    bool            wasRead  = false;
 
-    if (!file.good())
-    {
-        return E_FAIL;
-    }
 
-    std::streamoff  size = file.tellg();
+    isOpen = file.good();
+    CBR (isOpen);
 
-    if (size <= 0)
-    {
-        return E_FAIL;
-    }
+    size     = file.tellg();
+    hasBytes = (size > 0);
+    CBR (hasBytes);
 
     file.seekg (0, std::ios::beg);
     out.resize (static_cast<size_t> (size));
     file.read (reinterpret_cast<char *> (out.data()), size);
 
-    return file.good() ? S_OK : E_FAIL;
+    wasRead = file.good();
+    CBR (wasRead);
+
+Error:
+    return hr;
 }
+
 
 
 
@@ -860,51 +864,61 @@ void MachineManager::WireApple2cRomBank()
 {
     const RomReference &  sysRom = m_shell.m_config.systemRom;
 
-    if (sysRom.romBankSize == 0)
+
+
+    Apple2eMmu            * mmu      = m_shell.m_mmu.get();
+    Apple2eSoftSwitchBank * sw       = dynamic_cast<Apple2eSoftSwitchBank *> (m_shell.m_refs.softSwitches);
+    LanguageCard          * lc       = nullptr;
+    std::vector<Byte>       fileBytes;
+    size_t                  twoBanks = static_cast<size_t> (sysRom.romBankSize) * 2;
+    HRESULT                 hrRead   = S_OK;
+    bool                    banked   = (sysRom.romBankSize != 0);
+
+    // romBankSize 0 is a flat-ROM machine (the //e and earlier) -- not a
+    // failure, so it gets no diagnostic.
+    if (banked)
     {
-        return;
-    }
-
-    Apple2eMmu            * mmu = m_shell.m_mmu.get();
-    Apple2eSoftSwitchBank * sw  = dynamic_cast<Apple2eSoftSwitchBank *> (m_shell.m_refs.softSwitches);
-    LanguageCard          * lc  = nullptr;
-
-    for (auto & dev : m_shell.m_ownedDevices)
-    {
-        lc = dynamic_cast<LanguageCard *> (dev.get());
-
-        if (lc != nullptr)
+        for (auto & dev : m_shell.m_ownedDevices)
         {
-            break;
+            if (lc == nullptr)
+            {
+                lc = dynamic_cast<LanguageCard *> (dev.get());
+            }
+        }
+
+        banked = (mmu != nullptr && sw != nullptr && lc != nullptr);
+
+        if (!banked)
+        {
+            DEBUGMSG (L"WireApple2cRomBank: missing MMU/soft-switches/LC; banking disabled\n");
         }
     }
 
-    if (mmu == nullptr || sw == nullptr || lc == nullptr)
+    if (banked)
     {
-        DEBUGMSG (L"WireApple2cRomBank: missing MMU/soft-switches/LC; banking disabled\n");
-        return;
+        hrRead = ReadRomFileBytes (sysRom.resolvedPath, fileBytes);
+        banked = SUCCEEDED (hrRead) && fileBytes.size() >= twoBanks;
+
+        if (!banked)
+        {
+            DEBUGMSG (L"WireApple2cRomBank: cannot read both ROM banks; banking disabled\n");
+        }
     }
 
-    std::vector<Byte>   fileBytes;
-    size_t              twoBanks = static_cast<size_t> (sysRom.romBankSize) * 2;
-
-    if (FAILED (ReadRomFileBytes (sysRom.resolvedPath, fileBytes)) ||
-        fileBytes.size() < twoBanks)
+    if (banked)
     {
-        DEBUGMSG (L"WireApple2cRomBank: cannot read both ROM banks; banking disabled\n");
-        return;
+        std::vector<Byte>   bank0 (fileBytes.begin(),                     fileBytes.begin() + sysRom.romBankSize);
+        std::vector<Byte>   bank1 (fileBytes.begin() + sysRom.romBankSize, fileBytes.begin() + twoBanks);
+
+        m_shell.m_apple2cRomBank = std::make_unique<Apple2cRomBank> (*lc, *mmu);
+        m_shell.m_apple2cRomBank->SetBankImages (std::move (bank0), std::move (bank1));
+        sw->SetRomBankSwitch (m_shell.m_apple2cRomBank.get());
+
+        // //c: no card slots -> $C100-$CFFF is always the internal firmware.
+        mmu->GetCxxxRouter()->SetNoExternalSlots (true);
     }
-
-    std::vector<Byte>   bank0 (fileBytes.begin(),                     fileBytes.begin() + sysRom.romBankSize);
-    std::vector<Byte>   bank1 (fileBytes.begin() + sysRom.romBankSize, fileBytes.begin() + twoBanks);
-
-    m_shell.m_apple2cRomBank = std::make_unique<Apple2cRomBank> (*lc, *mmu);
-    m_shell.m_apple2cRomBank->SetBankImages (std::move (bank0), std::move (bank1));
-    sw->SetRomBankSwitch (m_shell.m_apple2cRomBank.get());
-
-    // //c: no card slots -> $C100-$CFFF is always the internal firmware.
-    mmu->GetCxxxRouter()->SetNoExternalSlots (true);
 }
+
 
 
 
@@ -985,29 +999,30 @@ Byte * MachineManager::GetAuxRamBuffer()
 
 void MachineManager::RebuildBankingPages()
 {
-    if (!m_shell.m_cpu)
-    {
-        return;
-    }
+    Byte *  mainRam = nullptr;
+    int     page    = 0;
 
-    if (m_shell.m_mmu != nullptr)
-    {
-        return;
-    }
 
-    Byte * mainRam = const_cast<Byte *> (m_shell.m_cpu->GetMemory());
 
-    for (int page = 0x04; page <= 0x07; page++)
+    // Only the legacy no-MMU path does anything here: with an MMU present it
+    // owns every $0000-$BFFF page and this would fight it.
+    if (m_shell.m_cpu && m_shell.m_mmu == nullptr)
     {
-        Byte * p = mainRam + (page * 0x100);
-        m_shell.m_memoryBus.SetReadPage  (page, p);
-        m_shell.m_memoryBus.SetWritePage (page, p);
-    }
-    for (int page = 0x20; page <= 0x3F; page++)
-    {
-        Byte * p = mainRam + (page * 0x100);
-        m_shell.m_memoryBus.SetReadPage  (page, p);
-        m_shell.m_memoryBus.SetWritePage (page, p);
+        mainRam = const_cast<Byte *> (m_shell.m_cpu->GetMemory());
+
+        // Text page 1 ($0400-$07FF) and hi-res page 1 ($2000-$3FFF) -- the
+        // two windows 80STORE/PAGE2 would otherwise re-point.
+        for (page = 0x04; page <= 0x07; page++)
+        {
+            m_shell.m_memoryBus.SetReadPage  (page, mainRam + (page * 0x100));
+            m_shell.m_memoryBus.SetWritePage (page, mainRam + (page * 0x100));
+        }
+
+        for (page = 0x20; page <= 0x3F; page++)
+        {
+            m_shell.m_memoryBus.SetReadPage  (page, mainRam + (page * 0x100));
+            m_shell.m_memoryBus.SetWritePage (page, mainRam + (page * 0x100));
+        }
     }
 }
 
@@ -1203,7 +1218,7 @@ HRESULT MachineManager::CreateCpu (const MachineConfig & config)
         // skips clean images and the flush-error reporter surfaces failures.
         m_shell.m_refs.diskController->SetMotorOffFlushCallback ([this] ()
         {
-            m_shell.m_diskStore.FlushAll ();
+            m_shell.m_diskStore.FlushAll();
         });
     }
 
@@ -1278,6 +1293,9 @@ HRESULT MachineManager::SwitchMachine (const std::wstring & machineName)
     JsonValue              mergedJson;
     JsonParseError         parseErr;
     WORD                   speedCmd = 0;
+    bool                   foundConfig = false;
+    HRESULT                hrParse     = S_OK;
+    HRESULT                hrMerge     = S_OK;
     std::string            carryDisk1;
     std::string            carryDisk2;
 
@@ -1293,7 +1311,8 @@ HRESULT MachineManager::SwitchMachine (const std::wstring & machineName)
                                           / (machineNameNarrow + ".json");
     configPath    = PathResolver::FindFile (searchPaths, configRelPath);
 
-    CBRN (!configPath.empty(),
+    foundConfig = !configPath.empty();
+    CBRN (foundConfig,
           std::format (L"Machine config not found: {}", machineName).c_str());
 
     configFile.open (configPath);
@@ -1304,13 +1323,16 @@ HRESULT MachineManager::SwitchMachine (const std::wstring & machineName)
     ss << configFile.rdbuf();
     jsonText = ss.str();
 
-    if (SUCCEEDED (JsonParser::Parse (jsonText, defaultJson, parseErr)) &&
-        m_shell.m_userConfigStore != nullptr)
+    hrParse = JsonParser::Parse (jsonText, defaultJson, parseErr);
+
+    if (SUCCEEDED (hrParse) && m_shell.m_userConfigStore != nullptr)
     {
-        if (SUCCEEDED (m_shell.m_userConfigStore->Load (machineNameNarrow,
-                                                         defaultJson,
-                                                         m_shell.m_uiFs,
-                                                         mergedJson)))
+        hrMerge = m_shell.m_userConfigStore->Load (machineNameNarrow,
+                                                   defaultJson,
+                                                   m_shell.m_uiFs,
+                                                   mergedJson);
+
+        if (SUCCEEDED (hrMerge))
         {
             speedCmd = ResolveMachineSpeedCommand (mergedJson);
 
@@ -1327,9 +1349,9 @@ HRESULT MachineManager::SwitchMachine (const std::wstring & machineName)
                 std::string        colorMode;
                 WORD               colorCmd  = 0;
 
-                if (SUCCEEDED (mergedJson.GetObject ("$cassoUiPrefs", uiPrefs)) &&
+                if (mergedJson.HasObject ("$cassoUiPrefs", uiPrefs) &&
                     uiPrefs != nullptr &&
-                    SUCCEEDED (uiPrefs->GetString ("colorMode", colorMode)))
+                    uiPrefs->HasString ("colorMode", colorMode))
                 {
                     if      (colorMode == "color")  { colorCmd = IDM_VIEW_COLOR; }
                     else if (colorMode == "green")  { colorCmd = IDM_VIEW_GREEN; }
@@ -1358,7 +1380,7 @@ HRESULT MachineManager::SwitchMachine (const std::wstring & machineName)
                     const JsonValue *  extPrefs  = nullptr;
                     bool               connected = false;
 
-                    if (SUCCEEDED (mergedJson.GetObject ("$cassoUiPrefs", extPrefs)) &&
+                    if (mergedJson.HasObject ("$cassoUiPrefs", extPrefs) &&
                         extPrefs != nullptr)
                     {
                         HRESULT  hrExt = extPrefs->GetBool ("externalDriveConnected", connected);
@@ -1472,23 +1494,23 @@ HRESULT MachineManager::SwitchMachine (const std::wstring & machineName)
     //
     // Stop the printer drain thread first: its job holds a reference into the
     // card's ring, which m_ownedDevices.clear() is about to free.
-    m_shell.m_printerWorker.Stop ();
+    m_shell.m_printerWorker.Stop();
 
     // Persist the outgoing machine's pending strip before its card is freed --
     // m_currentMachineName is still the outgoing machine here (FR-026). An empty
     // strip clears any stale sidecar.
-    if (!m_shell.m_currentMachineName.empty ())
+    if (!m_shell.m_currentMachineName.empty())
     {
-        PrinterJob *   printJob = m_shell.m_printerWorker.Job ();
+        PrinterJob *   printJob = m_shell.m_printerWorker.Job();
 
-        if (printJob != nullptr && printJob->HasContent ())
+        if (printJob != nullptr && printJob->HasContent())
         {
-            HRESULT   hrSave = PrintJobStore::Save (m_shell.PendingPrintDir (), printJob->Raster ());
+            HRESULT   hrSave = PrintJobStore::Save (m_shell.PendingPrintDir(), printJob->Raster());
             IGNORE_RETURN_VALUE (hrSave, S_OK);
         }
         else
         {
-            PrintJobStore::Clear (m_shell.PendingPrintDir ());
+            PrintJobStore::Clear (m_shell.PendingPrintDir());
         }
     }
 
@@ -1818,3 +1840,4 @@ void MachineManager::SelectVideoMode()
         static_cast<Apple80ColTextMode *> (m_shell.m_videoModes[4].get())->SetAltCharSet (altCharSet);
     }
 }
+

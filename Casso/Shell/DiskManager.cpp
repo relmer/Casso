@@ -72,6 +72,8 @@ int64_t DiskManager::NowMs()
 {
     auto  duration = std::chrono::steady_clock::now().time_since_epoch();
 
+
+
     return std::chrono::duration_cast<std::chrono::milliseconds> (duration).count();
 }
 
@@ -105,25 +107,23 @@ void DiskManager::ProbeFileWritability (
     outReadOnly     = false;
     outNoPermission = false;
 
-    if (path.empty() || !fs::exists (p, ec))
+    // A missing / empty path is writable -- there is nothing to protect.
+    if (!path.empty() && fs::exists (p, ec))
     {
-        return;
-    }
+        st = fs::status (p, ec);
 
-    st = fs::status (p, ec);
-
-    if (!ec && (st.permissions() & fs::perms::owner_write) == fs::perms::none)
-    {
-        outReadOnly = true;
-        return;
-    }
-
-    {
-        std::fstream  probe (p, std::ios::in | std::ios::out | std::ios::binary);
-
-        if (!probe.good())
+        // The read-only ATTRIBUTE is preferred over the open probe so a plain
+        // read-only file reports its true cause; only when the attribute says
+        // writable do we probe for an ACL denial or exclusive lock.
+        if (!ec && (st.permissions() & fs::perms::owner_write) == fs::perms::none)
         {
-            outNoPermission = true;
+            outReadOnly = true;
+        }
+        else
+        {
+            std::fstream  probe (p, std::ios::in | std::ios::out | std::ios::binary);
+
+            outNoPermission = !probe.good();
         }
     }
 }
@@ -186,6 +186,7 @@ void DiskManager::ApplyExternalWriteProtect (
 Disk2Controller * DiskManager::FindSlot6Controller()
 {
     Disk2Controller *  result = nullptr;
+
 
 
     for (auto & dev : m_ownedDevices)
@@ -311,6 +312,7 @@ HRESULT DiskManager::MountDiskInSlot6 (int drive, const std::string & path)
     DiskImage         *  external   = nullptr;
 
 
+
     CBR (controller != nullptr);
 
     hr = m_diskStore.Mount (6, drive, path);
@@ -385,6 +387,7 @@ Error:
 void DiskManager::EjectDiskInSlot6 (int drive)
 {
     Disk2Controller *  controller = FindSlot6Controller();
+
 
 
     m_diskStore.Eject (6, drive);
@@ -486,25 +489,12 @@ HRESULT DiskManager::Mount (int slot, int drive, const std::wstring & path)
     WORD     command = 0;
 
 
-    if (slot != 6)
-    {
-        hr = E_INVALIDARG;
-        goto Error;
-    }
 
-    if (drive == 0)
-    {
-        command = IDM_DISK_INSERT1;
-    }
-    else if (drive == 1)
-    {
-        command = IDM_DISK_INSERT2;
-    }
-    else
-    {
-        hr = E_INVALIDARG;
-        goto Error;
-    }
+    CBRAEx (slot == 6, E_INVALIDARG);
+
+    CBRAEx (drive == 0 || drive == 1, E_INVALIDARG);
+
+    command = (drive == 0) ? IDM_DISK_INSERT1 : IDM_DISK_INSERT2;
 
     m_cpuManager.PostCommand (command, fs::path (path).string());
 
@@ -527,32 +517,26 @@ void DiskManager::Eject (int slot, int drive)
     WORD  command = 0;
 
 
-    if (slot != 6)
+
+    // Only slot 6 drives 1 and 2 have an eject affordance; command stays 0
+    // for anything else, which is the "nothing to do" signal below.
+    if (slot == 6)
     {
-        return;
+        if      (drive == 0) { command = IDM_DISK_EJECT1; }
+        else if (drive == 1) { command = IDM_DISK_EJECT2; }
     }
 
-    if (drive == 0)
+    if (command != 0)
     {
-        command = IDM_DISK_EJECT1;
-    }
-    else if (drive == 1)
-    {
-        command = IDM_DISK_EJECT2;
-    }
-    else
-    {
-        return;
-    }
+        m_cpuManager.PostCommand (command);
 
-    m_cpuManager.PostCommand (command);
-
-    // Animate the door open even if no disk is currently mounted.
-    // The path-change watcher in UpdateDriveWidgets only triggers
-    // BeginEject when the mounted path actually transitions to empty,
-    // so an eject click on an already-empty drive would otherwise be
-    // a visual no-op.
-    m_driveWidgetState[drive].BeginEject (NowMs());
+        // Animate the door open even if no disk is currently mounted.
+        // The path-change watcher in UpdateDriveWidgets only triggers
+        // BeginEject when the mounted path actually transitions to empty,
+        // so an eject click on an already-empty drive would otherwise be
+        // a visual no-op.
+        m_driveWidgetState[drive].BeginEject (NowMs());
+    }
 }
 
 
@@ -577,6 +561,7 @@ void DiskManager::UpdateDriveWidgets()
     int64_t             nowMs      = NowMs();
     std::vector<DriveWidgetController::DriveSyncEvent>  syncEvents = m_driveWidgets.ConsumeSyncEvents();
     int                 drive      = 0;
+
 
 
     for (drive = 0; drive < static_cast<int> (m_driveWidgetState.size()); drive++)

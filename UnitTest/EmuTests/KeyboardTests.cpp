@@ -95,9 +95,9 @@ public:
 
             Assert::AreEqual (ch, asciiPart,
                 std::format (L"Key ${:02X} should read back as ${:02X}, got ${:02X}",
-                    ch, ch, asciiPart).c_str ());
+                    ch, ch, asciiPart).c_str());
             Assert::IsTrue ((val & 0x80) != 0,
-                std::format (L"Key ${:02X} should have strobe set", ch).c_str ());
+                std::format (L"Key ${:02X} should have strobe set", ch).c_str());
         }
     }
 
@@ -223,7 +223,7 @@ public:
 
         iieKbd.Write (0xC001, 0);
 
-        Assert::IsTrue (sw.Is80Store (),
+        Assert::IsTrue (sw.Is80Store(),
             L"Write to $C001 via keyboard should reach softswitch and enable 80STORE");
     }
 
@@ -236,7 +236,7 @@ public:
 
         iieKbd.Write (0xC00D, 0);
 
-        Assert::IsTrue (sw.Is80ColMode (),
+        Assert::IsTrue (sw.Is80ColMode(),
             L"Write to $C00D via keyboard should reach softswitch and enable 80COL");
     }
 
@@ -277,7 +277,7 @@ public:
         kbd.KeyPress ('Z');
         kbd.SetKeyDown (true);
 
-        kbd.Reset ();
+        kbd.Reset();
 
         Byte val = kbd.Read (0xC000);
 
@@ -350,19 +350,19 @@ public:
         bank.SetKeyboard          (&kbd);
 
         kbd.KeyPress ('A');
-        Assert::IsFalse (kbd.IsStrobeClear (), L"Pre-condition: strobe set");
+        Assert::IsFalse (kbd.IsStrobeClear(), L"Pre-condition: strobe set");
 
         // Read every status register $C011-$C01F — none should clear strobe.
         for (Word addr = 0xC011; addr <= 0xC01F; ++addr)
         {
             kbd.Read (addr);
-            Assert::IsFalse (kbd.IsStrobeClear (),
+            Assert::IsFalse (kbd.IsStrobeClear(),
                 L"Reading $C011-$C01F must not clear strobe");
         }
 
         // Read $C010 — must clear strobe.
         kbd.Read (0xC010);
-        Assert::IsTrue (kbd.IsStrobeClear (),
+        Assert::IsTrue (kbd.IsStrobeClear(),
             L"Reading $C010 must clear strobe");
     }
 
@@ -377,7 +377,7 @@ public:
 
         kbd.Read (0xC011);
 
-        Assert::IsFalse (kbd.IsStrobeClear (),
+        Assert::IsFalse (kbd.IsStrobeClear(),
             L"Reading $C011 (BSRBANK2 status) must not clear strobe");
     }
 
@@ -392,7 +392,7 @@ public:
 
         kbd.Read (0xC012);
 
-        Assert::IsFalse (kbd.IsStrobeClear (),
+        Assert::IsFalse (kbd.IsStrobeClear(),
             L"Reading $C012 (BSRREADRAM status) must not clear strobe");
     }
 
@@ -407,7 +407,7 @@ public:
 
         kbd.Read (0xC019);
 
-        Assert::IsFalse (kbd.IsStrobeClear (),
+        Assert::IsFalse (kbd.IsStrobeClear(),
             L"Reading $C019 (RDVBLBAR) must not clear strobe");
     }
 
@@ -422,7 +422,7 @@ public:
 
         kbd.Read (0xC01E);
 
-        Assert::IsFalse (kbd.IsStrobeClear (),
+        Assert::IsFalse (kbd.IsStrobeClear(),
             L"Reading $C01E (RDALTCHAR) must not clear strobe");
     }
 
@@ -434,7 +434,7 @@ public:
         // bus range now covers the modifier reads.
         Apple2eKeyboard kbd;
 
-        Assert::AreEqual (static_cast<Word> (0xC063), kbd.GetEnd (),
+        Assert::AreEqual (static_cast<Word> (0xC063), kbd.GetEnd(),
             L"Phase 6 / audit §4 C3: keyboard GetEnd() must reach $C063");
 
         kbd.SetOpenApple   (true);
@@ -485,13 +485,13 @@ public:
         kbd.Read (0xC010);
         kbd.Tick (1);
 
-        Assert::IsTrue (kbd.IsStrobeClear (),
+        Assert::IsTrue (kbd.IsStrobeClear(),
             L"Registering the armed key must not re-arm the strobe");
 
         // Advance to just shy of the pre-repeat delay: still no repeat.
         kbd.Tick (AppleKeyboard::kKeyRepeatDelayCycles - 2);
 
-        Assert::IsTrue (kbd.IsStrobeClear (),
+        Assert::IsTrue (kbd.IsStrobeClear(),
             L"No repeat strobe should fire before the initial delay elapses");
     }
 
@@ -509,7 +509,7 @@ public:
         // Cross the initial delay threshold in one accumulation step.
         kbd.Tick (AppleKeyboard::kKeyRepeatDelayCycles);
 
-        Assert::IsFalse (kbd.IsStrobeClear (),
+        Assert::IsFalse (kbd.IsStrobeClear(),
             L"Strobe must re-arm once the initial repeat delay elapses");
 
         Byte val = kbd.Read (0xC000);
@@ -542,7 +542,7 @@ public:
 
         kbd.Tick (AppleKeyboard::kKeyRepeatIntervalCycles);
 
-        Assert::IsFalse (kbd.IsStrobeClear (),
+        Assert::IsFalse (kbd.IsStrobeClear(),
             L"Strobe must re-arm again after one steady repeat interval");
     }
 
@@ -566,7 +566,7 @@ public:
 
         kbd.Tick (AppleKeyboard::kKeyRepeatDelayCycles * 2);
 
-        Assert::IsTrue (kbd.IsStrobeClear (),
+        Assert::IsTrue (kbd.IsStrobeClear(),
             L"Releasing the key must stop auto-repeat");
     }
 
@@ -582,7 +582,7 @@ public:
         kbd.Tick (1);
         kbd.Tick (AppleKeyboard::kKeyRepeatDelayCycles * 2);
 
-        Assert::IsTrue (kbd.IsStrobeClear (),
+        Assert::IsTrue (kbd.IsStrobeClear(),
             L"Auto-repeat must not fire unless the key is physically held");
     }
 
@@ -602,7 +602,7 @@ public:
         kbd.BeginKeyRepeat(0);
         kbd.Tick (AppleKeyboard::kKeyRepeatDelayCycles * 2);
 
-        Assert::IsTrue (kbd.IsStrobeClear (),
+        Assert::IsTrue (kbd.IsStrobeClear(),
             L"Disarming auto-repeat must suppress further repeats");
     }
 

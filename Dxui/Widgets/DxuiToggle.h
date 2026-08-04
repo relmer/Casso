@@ -7,7 +7,6 @@
 
 
 
-
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  DxuiToggle
@@ -62,6 +61,10 @@ public:
     DxuiAccessibleRole  AccessibleRole () const override { return DxuiAccessibleRole::Checkbox; }
 
 private:
+    static constexpr uint32_t  kDefaultAccentArgb = 0xFF2D7CDB;   // "on" pill
+    static constexpr uint32_t  kDefaultFocusArgb  = 0xFFAACCFF;   // focus ring
+    static constexpr float     kHoverLighten      = 1.15f;        // "on" pill hover brighten
+
     void  PaintInternal (IDxuiPainter & painter, IDxuiTextRenderer & text, uint32_t accentArgb, uint32_t focusArgb) const;
     void  Flip ();
     std::wstring  m_label;

@@ -5,13 +5,13 @@
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
-// Geometry/colour pinned against a real The Print Shop Color capture
+// Geometry/color pinned against a real The Print Shop Color capture
 // (specs/015-printer-support/captures/printshop-color-testpage.bin, which
 // renders as "WELCOME TO \"THE PRINT SHOP\""). These lock the calibrated
-// behaviours in memory so the fixture itself is not a test dependency:
-//   - ESC K n colour select maps 0..6 to the ribbon primaries/composites
+// behaviors in memory so the fixture itself is not a test dependency:
+//   - ESC K n color select maps 0..6 to the ribbon primaries/composites
 //   - ESC G bit-image packs the LSB as the TOP pin
-//   - overprinting ORs primaries into a cell (composite colours)
+//   - overprinting ORs primaries into a cell (composite colors)
 //   - ESC '>' / ESC '<' / ESC 'P' are recognised no-op preamble
 
 namespace ImageWriterCalibrationTests

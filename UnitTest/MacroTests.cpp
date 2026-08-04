@@ -36,7 +36,7 @@ namespace MacroTests
             );
 
             Assert::IsTrue (result.success, L"Assembly should succeed");
-            Assert::IsTrue (result.bytes.size () > 0, L"Should emit bytes");
+            Assert::IsTrue (result.bytes.size() > 0, L"Should emit bytes");
         }
 
 
@@ -87,8 +87,72 @@ namespace MacroTests
 
             Assert::IsTrue (result.success, L"Assembly should succeed");
             // Should have only NOP ($EA), not BRK ($00)
-            Assert::AreEqual ((size_t) 1, result.bytes.size (), L"Should emit only 1 byte (NOP)");
+            Assert::AreEqual ((size_t) 1, result.bytes.size(), L"Should emit only 1 byte (NOP)");
             Assert::AreEqual ((Byte) 0xEA, result.bytes[0], L"Should be NOP");
+        }
+
+
+        //  Leaving a macro early from inside a conditional has to close the
+        //  blocks it abandons, or the IF stays open past the expansion and the
+        //  file ends with "Unclosed if block".
+        //
+        //  ExitmStopsExpansion above never reaches that code: with no IF open,
+        //  the depth count is zero and the loop that does the work does not
+        //  run. So this is the only cover for it -- and it is the loop where
+        //  the accepted spellings used to be written out by hand, a third copy
+        //  of the vocabulary DirectiveTable owns.
+
+        TEST_METHOD (ExitmInsideIf_SynthesizesClosingEndif)
+        {
+            TestCpu cpu;
+
+            auto result = cpu.Assemble (
+                "    .org $1000\n"
+                "test macro\n"
+                "    if 1\n"
+                "    nop\n"
+                "    exitm\n"
+                "    endif\n"
+                "    brk\n"
+                "    endm\n"
+                "    test\n"
+                "    lda #$42\n"
+            );
+
+            Assert::IsTrue (result.success, L"the synthesized ENDIF must balance the abandoned IF");
+            Assert::AreEqual ((size_t) 3, result.bytes.size(), L"NOP, then the LDA after the macro");
+            Assert::AreEqual ((Byte) 0xEA, result.bytes[0], L"NOP from inside the conditional");
+            Assert::AreEqual ((Byte) 0xA9, result.bytes[1], L"LDA immediate follows the expansion");
+            Assert::AreEqual ((Byte) 0x42, result.bytes[2]);
+        }
+
+
+        //  One ENDIF per abandoned level, not just one overall.
+
+        TEST_METHOD (ExitmInsideNestedIfs_ClosesEveryOpenLevel)
+        {
+            TestCpu cpu;
+
+            auto result = cpu.Assemble (
+                "    .org $1000\n"
+                "test macro\n"
+                "    if 1\n"
+                "    if 1\n"
+                "    nop\n"
+                "    exitm\n"
+                "    endif\n"
+                "    endif\n"
+                "    brk\n"
+                "    endm\n"
+                "    test\n"
+                "    lda #$42\n"
+            );
+
+            Assert::IsTrue (result.success, L"both abandoned IF levels must be closed");
+            Assert::AreEqual ((size_t) 3, result.bytes.size(), L"NOP, then the LDA after the macro");
+            Assert::AreEqual ((Byte) 0xEA, result.bytes[0]);
+            Assert::AreEqual ((Byte) 0xA9, result.bytes[1]);
+            Assert::AreEqual ((Byte) 0x42, result.bytes[2]);
         }
     };
 
@@ -113,7 +177,7 @@ namespace MacroTests
             );
 
             Assert::IsTrue (result.success, L"Assembly should succeed");
-            Assert::AreEqual ((size_t) 1, result.bytes.size (), L"Should emit 1 byte");
+            Assert::AreEqual ((size_t) 1, result.bytes.size(), L"Should emit 1 byte");
             Assert::AreEqual ((Byte) 3, result.bytes[0], L"Arg count should be 3");
         }
 
@@ -134,7 +198,7 @@ namespace MacroTests
             );
 
             Assert::IsTrue (result.success, L"Assembly should succeed");
-            Assert::AreEqual ((size_t) 1, result.bytes.size (), L"Should emit 1 byte");
+            Assert::AreEqual ((size_t) 1, result.bytes.size(), L"Should emit 1 byte");
             Assert::AreEqual ((Byte) 0, result.bytes[0], L"Arg count should be 0");
         }
     };
@@ -162,7 +226,7 @@ namespace MacroTests
 
             Assert::IsTrue (result.success, L"Assembly should succeed");
             // LDA #$42 = A9 42, STA $80 = 85 80
-            Assert::AreEqual ((size_t) 4, result.bytes.size ());
+            Assert::AreEqual ((size_t) 4, result.bytes.size());
             Assert::AreEqual ((Byte) 0xA9, result.bytes[0]);
             Assert::AreEqual ((Byte) 0x42, result.bytes[1]);
             Assert::AreEqual ((Byte) 0x85, result.bytes[2]);
@@ -186,7 +250,7 @@ namespace MacroTests
             );
 
             Assert::IsTrue (result.success, L"Assembly should succeed");
-            Assert::AreEqual ((size_t) 1, result.bytes.size ());
+            Assert::AreEqual ((size_t) 1, result.bytes.size());
             Assert::AreEqual ((Byte) 0x55, result.bytes[0]);
         }
     };
@@ -219,7 +283,7 @@ namespace MacroTests
             );
 
             Assert::IsTrue (result.success, L"Assembly should succeed");
-            Assert::AreEqual ((size_t) 2, result.bytes.size (), L"LDA imm = 2 bytes");
+            Assert::AreEqual ((size_t) 2, result.bytes.size(), L"LDA imm = 2 bytes");
             Assert::AreEqual ((Byte) 0xA9, result.bytes[0], L"LDA opcode");
             Assert::AreEqual ((Byte) 0x42, result.bytes[1], L"Operand $42");
         }

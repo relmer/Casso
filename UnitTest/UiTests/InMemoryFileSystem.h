@@ -8,7 +8,6 @@
 
 
 
-
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  InMemoryFileSystem
@@ -135,7 +134,7 @@ public:
     }
 
 
-    // ---- Test-only helpers --------------------------------------------
+    // Test-only helpers
 
     size_t      FileCount   ()
     {
@@ -167,17 +166,16 @@ private:
     static std::wstring Normalize (const std::wstring & path)
     {
         std::wstring  result = path;
-        size_t        i      = 0;
 
-        for (i = 0; i < result.size(); ++i)
+        for (wchar_t & ch : result)
         {
-            if (result[i] == L'\\')
+            if (ch == L'\\')
             {
-                result[i] = L'/';
+                ch = L'/';
             }
-            else if (result[i] >= L'A' && result[i] <= L'Z')
+            else if (ch >= L'A' && ch <= L'Z')
             {
-                result[i] = (wchar_t) (result[i] - L'A' + L'a');
+                ch = (wchar_t) (ch - L'A' + L'a');
             }
         }
         return result;

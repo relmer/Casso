@@ -57,7 +57,7 @@ class DialogPrimitive
 {
 public:
     // Blocks until a button is clicked, Enter / Escape, or programmatic Close.
-    // Returns the resultCode of the activated button, or -1 if cancelled
+    // Returns the resultCode of the activated button, or -1 if canceled
     // via window-close gesture with no isCancel button defined.
     static int Show (
         HWND                       ownerHwnd,

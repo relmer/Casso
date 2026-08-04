@@ -2,6 +2,7 @@
 
 
 
+#include "../CassoCore/Ehm.h"
 #include "../CassoEmuCore/Pch.h"
 #include "../CassoCore/Pch.h"
 #include "../Casso/Pch.h"
@@ -19,6 +20,9 @@
 
 #include <cstdlib>
 #include <cstring>
+#include <exception>
 #include <regex>
 
 #include <CppUnitTest.h>
+
+#include "HResultAssert.h"

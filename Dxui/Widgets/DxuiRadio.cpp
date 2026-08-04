@@ -36,27 +36,26 @@ void DxuiRadioGroup::SetSelected (int index)
 
 int DxuiRadioGroup::HitTest (int x, int y) const
 {
-    int     i = 0;
-    size_t  n = m_options.size();
+    int     i   = 0;
+    size_t  n   = m_options.size();
+    int     hit = -1;
 
 
 
-    if (!m_enabled)
+    if (m_enabled)
     {
-        return -1;
-    }
-
-    for (i = 0; i < (int) n; ++i)
-    {
-        const RECT & r = m_options[(size_t) i].rect;
-
-        if (x >= r.left && x < r.right && y >= r.top && y < r.bottom)
+        for (i = 0; i < (int) n && hit < 0; ++i)
         {
-            return i;
+            const RECT & r = m_options[(size_t) i].rect;
+
+            if (x >= r.left && x < r.right && y >= r.top && y < r.bottom)
+            {
+                hit = i;
+            }
         }
     }
 
-    return -1;
+    return hit;
 }
 
 
@@ -91,17 +90,17 @@ void DxuiRadioGroup::SetMouseHover (int x, int y)
 
 bool DxuiRadioGroup::OnLButtonDown (int x, int y)
 {
-    int  hit = HitTest (x, y);
+    int   hit      = HitTest (x, y);
+    bool  wasHit   = (hit >= 0);
 
 
 
-    if (hit < 0)
+    if (wasHit)
     {
-        return false;
+        m_pressedIdx = hit;
     }
 
-    m_pressedIdx = hit;
-    return true;
+    return wasHit;
 }
 
 
@@ -143,31 +142,32 @@ bool DxuiRadioGroup::OnLButtonUp (int x, int y)
 
 bool DxuiRadioGroup::OnKey (WPARAM vk)
 {
-    int     next = m_selected;
-    size_t  n    = m_options.size();
+    int     next     = m_selected;
+    size_t  n        = m_options.size();
+    bool    isActive = false;
+    bool    handled  = false;
 
 
 
-    if (!m_enabled || !m_focused || n == 0)
+    isActive = m_enabled && m_focused && n != 0;
+
+    if (isActive && (vk == VK_LEFT || vk == VK_UP))
     {
-        return false;
+        next    = (m_selected <= 0) ? (int) (n - 1) : m_selected - 1;
+        handled = true;
+    }
+    else if (isActive && (vk == VK_RIGHT || vk == VK_DOWN))
+    {
+        next    = (m_selected < 0 || m_selected >= (int) n - 1) ? 0 : m_selected + 1;
+        handled = true;
     }
 
-    if (vk == VK_LEFT || vk == VK_UP)
+    if (handled)
     {
-        next = (m_selected <= 0) ? (int) (n - 1) : m_selected - 1;
         Commit (next);
-        return true;
     }
 
-    if (vk == VK_RIGHT || vk == VK_DOWN)
-    {
-        next = (m_selected < 0 || m_selected >= (int) n - 1) ? 0 : m_selected + 1;
-        Commit (next);
-        return true;
-    }
-
-    return false;
+    return handled;
 }
 
 
@@ -212,6 +212,8 @@ void DxuiRadioGroup::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
     constexpr float     s_kFocusThickDip = 1.0f;
     constexpr float     s_kLabelGapDip   = 6.0f;
     constexpr float     s_kFontDip      = 13.0f;
+
+
 
     HRESULT  hr         = S_OK;
     int      i          = 0;
@@ -274,6 +276,7 @@ void DxuiRadioGroup::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  DxuiRadioGroup::Layout  (IDxuiControl override)
@@ -295,6 +298,11 @@ void DxuiRadioGroup::Layout (const RECT & boundsDip, const DxuiDpiScaler & scale
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+
+
+
+
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  DxuiRadioGroup::OnMouse  (IDxuiControl override)
@@ -303,26 +311,32 @@ void DxuiRadioGroup::Layout (const RECT & boundsDip, const DxuiDpiScaler & scale
 
 bool DxuiRadioGroup::OnMouse (const DxuiMouseEvent & ev)
 {
+    bool  handled = false;
+
+
+
     switch (ev.kind)
     {
     case DxuiMouseEventKind::Move:
         SetMouseHover (ev.positionDip.x, ev.positionDip.y);
-        return false;
+        break;
     case DxuiMouseEventKind::Down:
         if (ev.button == DxuiMouseButton::Left)
         {
-            return OnLButtonDown (ev.positionDip.x, ev.positionDip.y);
+            handled = OnLButtonDown (ev.positionDip.x, ev.positionDip.y);
         }
-        return false;
+        break;
     case DxuiMouseEventKind::Up:
         if (ev.button == DxuiMouseButton::Left)
         {
-            return OnLButtonUp (ev.positionDip.x, ev.positionDip.y);
+            handled = OnLButtonUp (ev.positionDip.x, ev.positionDip.y);
         }
-        return false;
+        break;
     default:
-        return false;
+        break;
     }
+
+    return handled;
 }
 
 
@@ -337,12 +351,16 @@ bool DxuiRadioGroup::OnMouse (const DxuiMouseEvent & ev)
 
 bool DxuiRadioGroup::OnKey (const DxuiKeyEvent & ev)
 {
-    if (ev.kind != DxuiKeyEventKind::Down)
+    bool  handled = false;
+
+
+
+    if (ev.kind == DxuiKeyEventKind::Down)
     {
-        return false;
+        handled = OnKey (ev.vk);
     }
 
-    return OnKey (ev.vk);
+    return handled;
 }
 
 
@@ -357,12 +375,19 @@ bool DxuiRadioGroup::OnKey (const DxuiKeyEvent & ev)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::wstring DxuiRadioGroup::AccessibleName () const
+std::wstring DxuiRadioGroup::AccessibleName() const
 {
-    if (m_selected < 0 || m_selected >= (int) m_options.size())
+    std::wstring  name;
+    bool          hasSelection = false;
+
+
+
+    hasSelection = m_selected >= 0 && m_selected < (int) m_options.size();
+
+    if (hasSelection)
     {
-        return L"";
+        name = m_options[(size_t) m_selected].label;
     }
 
-    return m_options[(size_t) m_selected].label;
+    return name;
 }

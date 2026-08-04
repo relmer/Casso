@@ -7,6 +7,7 @@
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  PngCodec
@@ -18,7 +19,7 @@
 //
 //  All buffers are in memory: nothing here touches the filesystem, the
 //  clipboard, or a print dialog -- those irreducible platform steps stay in
-//  the shell. The caller must have initialised COM on the calling thread
+//  the shell. The caller must have initialized COM on the calling thread
 //  (CoInitializeEx); the codec does not, so it composes with whatever
 //  apartment the worker or test already established.
 //

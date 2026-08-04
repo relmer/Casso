@@ -128,6 +128,8 @@ public:
     float    GlobalAlpha      () const      override { return m_globalAlpha; }
 
 private:
+    static D2D1_COLOR_F  ColorFromArgb (uint32_t argbColor);
+
     struct TextFormatKey
     {
         std::wstring        family;

@@ -9,6 +9,7 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  PrinterJobTests
@@ -24,9 +25,9 @@ namespace PrinterJobTests
     static void PushAll (PrinterByteRing & ring, const vector<Byte> & bytes)
     {
         size_t   i = 0;
-        for (i = 0; i < bytes.size(); i++)
+        for (auto & byte : bytes)
         {
-            Assert::IsTrue (ring.TryPush (bytes[i]));
+            Assert::IsTrue (ring.TryPush (byte));
         }
     }
 

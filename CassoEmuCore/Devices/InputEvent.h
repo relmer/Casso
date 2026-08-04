@@ -5,6 +5,7 @@
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  InputEventCategory
@@ -31,6 +32,7 @@ enum class InputEventCategory : uint8_t
     Guest  = 1,
     System = 2,
 };
+
 
 
 
@@ -85,6 +87,7 @@ enum class InputEventType : uint8_t
     // Synthetic
     EventsLost      = 10,   // producer-side ring overflow marker
 };
+
 
 
 

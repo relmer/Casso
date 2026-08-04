@@ -26,9 +26,16 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace
+
+
+
+
+
+TEST_CLASS (DriveAudioMixerMechanismTests)
 {
-    constexpr uint32_t  s_kTestSampleRate = 44100;
+public:
+
+    static constexpr uint32_t  s_kTestSampleRate = 44100;
 
 
     static void WriteSquareWav (const fs::path & path, float amplitude, size_t frames)
@@ -115,15 +122,6 @@ namespace
         src.OnDiskEjected();
         return peak;
     }
-}
-
-
-
-
-
-TEST_CLASS (DriveAudioMixerMechanismTests)
-{
-public:
 
     TEST_METHOD (SetMechanism_invalidName_returnsFailureNoStateChange)
     {
@@ -160,7 +158,7 @@ public:
         mixer.SetSampleLoadContext (devicesDir.wstring(), s_kTestSampleRate);
 
         HRESULT  hr = mixer.SetMechanism (L"Alps");
-        Assert::IsTrue (SUCCEEDED (hr), L"SetMechanism(Alps) must succeed with valid context");
+        AssertSucceeded (hr, L"SetMechanism(Alps) must succeed with valid context");
 
         float  peakA = SamplePeak (srcA);
         float  peakB = SamplePeak (srcB);
@@ -191,12 +189,12 @@ public:
         mixer.SetSampleLoadContext (devicesDir.wstring(), s_kTestSampleRate);
 
         HRESULT  hr = mixer.SetMechanism (L"Alps");
-        Assert::IsTrue (SUCCEEDED (hr), L"Initial SetMechanism(Alps) must succeed");
+        AssertSucceeded (hr, L"Initial SetMechanism(Alps) must succeed");
 
         float  alpsPeak = SamplePeak (src);
 
         hr = mixer.SetMechanism (L"Shugart");
-        Assert::IsTrue (SUCCEEDED (hr), L"Follow-up SetMechanism(Shugart) must succeed");
+        AssertSucceeded (hr, L"Follow-up SetMechanism(Shugart) must succeed");
 
         float  shugartPeak = SamplePeak (src);
 
@@ -255,3 +253,4 @@ public:
             L"Mechanism must be stored canonical mixed-case");
     }
 };
+

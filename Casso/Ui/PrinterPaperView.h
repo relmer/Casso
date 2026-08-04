@@ -7,12 +7,13 @@
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  PrinterPaperView
 //
 //  A Dxui content control that displays a rendered printout: a premultiplied
-//  BGRA image blitted scale-to-fit and centred on a dark mat, via
+//  BGRA image blitted scale-to-fit and centered on a dark mat, via
 //  IDxuiTextRenderer::DrawIconBitmap (the same GPU-cached blit the caption bar
 //  uses for the app icon). Shared by the printer panel and print preview; the
 //  owner hands it the rendered strip (or a single page) through SetImage.

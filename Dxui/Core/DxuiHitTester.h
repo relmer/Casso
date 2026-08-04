@@ -1,5 +1,9 @@
 #pragma once
 
+
+
+
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  DxuiHitTester
@@ -43,5 +47,7 @@ public:
     const std::vector<DxuiHitRect>  & Registrations() const { return m_rects; }
 
 private:
+    static bool  RectContains (const RECT & r, int x, int y);
+
     std::vector<DxuiHitRect>  m_rects;
 };

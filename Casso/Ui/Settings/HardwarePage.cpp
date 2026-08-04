@@ -7,65 +7,98 @@
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  Anonymous helpers
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace
+static constexpr int     s_kPagePadDp        = 16;        // matches Disk / Display / Theme pages
+static constexpr int     s_kInfoLabelWidthDp = 140;
+static constexpr int     s_kInfoRowHeightDp  = 28;
+static constexpr int     s_kInfoValueGapDp   = 8;
+static constexpr int     s_kBigSectionGapDp  = 14;
+static constexpr int     s_kDropdownWidthDp  = 200;
+static constexpr size_t  s_kCpuRow           = 0;
+static constexpr size_t  s_kClockRow         = 1;
+static constexpr size_t  s_kMemoryRow        = 2;
+
+// Label of the synthetic Hardware-tree node for the //c optional external
+// drive. Not backed by a HardwareEntry (the //c drive is built-in, not a
+// config slot), so the tree's toggle handler matches this label to route
+// it to SetExternalDriveConnected instead of SetHardwareEnabled.
+static constexpr wchar_t s_kExternalDriveLabel[] = L"External drive";
+
+// Synthetic node for the //c mouse peripheral -- same pattern.
+static constexpr wchar_t s_kMouseLabel[]         = L"Mouse";
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HardwarePage::MakeRect
+//
+////////////////////////////////////////////////////////////////////////////////
+
+RECT HardwarePage::MakeRect (int l, int t, int w, int h)
 {
-    constexpr int     s_kPagePadDp        = 16;        // matches Disk / Display / Theme pages
-    constexpr int     s_kInfoLabelWidthDp = 140;
-    constexpr int     s_kInfoRowHeightDp  = 28;
-    constexpr int     s_kInfoValueGapDp   = 8;
-    constexpr int     s_kBigSectionGapDp  = 14;
-    constexpr int     s_kDropdownWidthDp  = 200;
-    constexpr size_t  s_kCpuRow           = 0;
-    constexpr size_t  s_kClockRow         = 1;
-    constexpr size_t  s_kMemoryRow        = 2;
-
-    // Label of the synthetic Hardware-tree node for the //c optional external
-    // drive. Not backed by a HardwareEntry (the //c drive is built-in, not a
-    // config slot), so the tree's toggle handler matches this label to route
-    // it to SetExternalDriveConnected instead of SetHardwareEnabled.
-    constexpr wchar_t s_kExternalDriveLabel[] = L"External drive";
-
-    // Synthetic node for the //c mouse peripheral -- same pattern.
-    constexpr wchar_t s_kMouseLabel[]         = L"Mouse";
-
-
-    RECT MakeRect (int l, int t, int w, int h)
-    {
-        RECT  rc = { l, t, l + w, t + h };
-        return rc;
-    }
-
-
-    DxuiTreeCapabilityFlag MapFlag (CapabilityFlag flag)
-    {
-        switch (flag)
-        {
-            case CapabilityFlag::Optional:        return DxuiTreeCapabilityFlag::Optional;
-            case CapabilityFlag::Required:        return DxuiTreeCapabilityFlag::Required;
-            case CapabilityFlag::PlatformLocked:  return DxuiTreeCapabilityFlag::PlatformLocked;
-        }
-        return DxuiTreeCapabilityFlag::Required;
-    }
-
-
-    std::wstring Widen (const std::string & narrow)
-    {
-        std::wstring  w;
-
-        w.reserve (narrow.size());
-        for (char c : narrow)
-        {
-            w.push_back ((wchar_t) (unsigned char) c);
-        }
-        return w;
-    }
+    RECT  rc = { l, t, l + w, t + h };
+    return rc;
 }
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HardwarePage::MapFlag
+//
+////////////////////////////////////////////////////////////////////////////////
+
+DxuiTreeCapabilityFlag HardwarePage::MapFlag (CapabilityFlag flag)
+{
+    // Required is the safe default for an unmapped flag: it shows the row
+    // without offering a toggle the machine may not support.
+    DxuiTreeCapabilityFlag  mapped = DxuiTreeCapabilityFlag::Required;
+
+    switch (flag)
+    {
+        case CapabilityFlag::Optional:        mapped = DxuiTreeCapabilityFlag::Optional;       break;
+        case CapabilityFlag::Required:        mapped = DxuiTreeCapabilityFlag::Required;       break;
+        case CapabilityFlag::PlatformLocked:  mapped = DxuiTreeCapabilityFlag::PlatformLocked; break;
+    }
+
+    return mapped;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HardwarePage::Widen
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring HardwarePage::Widen (const std::string & narrow)
+{
+    std::wstring  w;
+
+
+
+    w.reserve (narrow.size());
+    for (char c : narrow)
+    {
+        w.push_back ((wchar_t) (unsigned char) c);
+    }
+    return w;
+}
+
 
 
 
@@ -106,6 +139,7 @@ HardwarePage::HardwarePage(std::wstring title)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  HardwarePage::SetMachineList
@@ -136,6 +170,7 @@ void HardwarePage::SetMachineList (std::vector<std::string>  machineIds,
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  HardwarePage::Layout
@@ -146,6 +181,7 @@ void HardwarePage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
 {
     SetRect (rect, scaler);
 }
+
 
 
 
@@ -259,6 +295,7 @@ void HardwarePage::SetRect (const RECT & rect, const DxuiDpiScaler & scaler)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  HardwarePage::SetState
@@ -270,6 +307,7 @@ void HardwarePage::SetState (SettingsPanelState * state)
     m_state = state;
     Rebuild();
 }
+
 
 
 
@@ -289,6 +327,7 @@ void HardwarePage::SetPopupHost (DxuiHwndSource * host)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  HardwarePage::Rebuild
@@ -300,7 +339,7 @@ void HardwarePage::SetPopupHost (DxuiHwndSource * host)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void HardwarePage::Rebuild ()
+void HardwarePage::Rebuild()
 {
     std::vector<HardwareEntry>   entries;
     std::vector<DxuiTreeNode>        nodes;
@@ -435,6 +474,7 @@ void HardwarePage::Rebuild ()
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  HardwarePage::BuildNodes
@@ -465,9 +505,9 @@ std::vector<DxuiTreeNode> HardwarePage::BuildNodes (const std::vector<HardwareEn
     slotsGroup.checked           = true;
     slotsGroup.expanded          = true;
 
-    for (i = 0; i < entries.size(); ++i)
+    for (auto & entry : entries)
     {
-        const HardwareEntry & e = entries[i];
+        const HardwareEntry & e = entry;
         DxuiTreeNode              row;
 
         row.label          = Widen (e.displayName);
@@ -497,7 +537,7 @@ std::vector<DxuiTreeNode> HardwarePage::BuildNodes (const std::vector<HardwareEn
         out.push_back (std::move (slotsGroup));
     }
 
-    // //c external drive: a top-level checkable node modelling the optional
+    // //c external drive: a top-level checkable node modeling the optional
     // 5.25" drive on the disk port. Optional (interactive), so the user can
     // connect/disconnect it; checked mirrors the persisted connected state.
     // Unlike the hardware rows this is not a config device -- toggling it is
@@ -523,3 +563,4 @@ std::vector<DxuiTreeNode> HardwarePage::BuildNodes (const std::vector<HardwareEn
 
     return out;
 }
+

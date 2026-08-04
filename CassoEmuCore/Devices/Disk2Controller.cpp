@@ -26,6 +26,8 @@ static int FindHighestPhase (uint8_t phases)
     int   i      = 0;
     int   result = -1;
 
+
+
     for (i = 0; i < Disk2Controller::kPhaseCount; i++)
     {
         if (phases & (1 << i))
@@ -74,6 +76,8 @@ Byte Disk2Controller::Read (Word address)
 {
     int   offset = (address - m_ioStart) & 0x0F;
 
+
+
     CatchUpToCpu();
 
     HandleSwitch (offset);
@@ -97,6 +101,8 @@ Byte Disk2Controller::Read (Word address)
 void Disk2Controller::Write (Word address, Byte value)
 {
     int   offset = (address - m_ioStart) & 0x0F;
+
+
 
     CatchUpToCpu();
 
@@ -276,7 +282,11 @@ void Disk2Controller::HandleSwitch (int offset)
 Byte Disk2Controller::HandleReadDispatch()
 {
     Byte     nibble = 0;
+    Byte     sense  = 0;
+    Byte     result = 0;      // Q7=1 (both shift-load and write mode) reads 0
     uint8_t  fresh  = 0;
+
+
 
     if (!m_q6 && !m_q7)
     {
@@ -306,31 +316,25 @@ Byte Disk2Controller::HandleReadDispatch()
             m_addrMarkWatcher.ObserveNibble (fresh);
         }
 
-        if (m_motorSpinupRemaining > 0)
-        {
-            return 0x80;
-        }
-
-        return nibble;
+        // During the spin-up window the CPU sees 0x80 (MSB set, data garbage)
+        // while the real latch value above still drove the watcher.
+        result = (m_motorSpinupRemaining > 0) ? 0x80 : nibble;
     }
-
-    if (m_q6 && !m_q7)
+    else if (m_q6 && !m_q7)
     {
-        Byte  sense = m_activeDisk[m_activeDrive]->IsWriteProtected() ? 0x80 : 0x00;
+        sense = m_activeDisk[m_activeDrive]->IsWriteProtected() ? 0x80 : 0x00;
 
         // IWM (//c): Q6H + Q7L reads the STATUS register. Bit 7 is the sense
         // input (write protect here), bit 5 is the drive-enable/motor flag,
         // and bits 4-0 mirror the MODE register the firmware just wrote -- the
         // reset code writes the mode register then reads it back to confirm.
-        if (m_iwmMode)
-        {
-            return sense | (m_motorOn ? 0x20 : 0x00) | (m_iwmModeReg & 0x1F);
-        }
-
-        return sense;
+        // A plain Disk II has no status register, so it reports sense alone.
+        result = m_iwmMode
+                     ? static_cast<Byte> (sense | (m_motorOn ? 0x20 : 0x00) | (m_iwmModeReg & 0x1F))
+                     : sense;
     }
 
-    return 0;
+    return result;
 }
 
 
@@ -465,6 +469,8 @@ void Disk2Controller::UpdateEngineSelection()
 {
     int   other = m_activeDrive ^ 1;
 
+
+
     m_engine[other].SetMotorOn (false);
     m_engine[m_activeDrive].SetMotorOn (m_motorOn);
     m_engine[m_activeDrive].SetCurrentTrack (m_quarterTrack);
@@ -582,32 +588,34 @@ void Disk2Controller::CatchUpToCpu()
     uint64_t  delta = 0;
 
 
-    if (m_cpuCycleSource == nullptr)
+
+    // With no cycle source attached, Tick() drives the engine off the bulk
+    // per-instruction count instead and there is nothing to catch up to.
+    if (m_cpuCycleSource != nullptr)
     {
-        return;
+        now = *m_cpuCycleSource;
+
+        // A power cycle zeroes the CPU cycle counter (m_totalCycles, and
+        // hence the m_busCycle source this anchor tracks) but does NOT
+        // rewind m_lastCpuSync. Without re-anchoring, every catch-up after
+        // a power cycle sees now < m_lastCpuSync and bails, freezing the
+        // bit cursor until the counter climbs back past the stale anchor --
+        // a dead disk for as long as the prior session ran (the boot ROM
+        // spins on $C0EC reading a non-advancing latch the whole time).
+        // Re-anchor on any non-forward move so the next access resumes the
+        // normal forward advance. The == case is a same-cycle no-op.
+        if (now <= m_lastCpuSync)
+        {
+            m_lastCpuSync = now;
+        }
+        else
+        {
+            delta         = now - m_lastCpuSync;
+            m_lastCpuSync = now;
+
+            m_engine[m_activeDrive].Tick (static_cast<uint32_t> (delta));
+        }
     }
-
-    now = *m_cpuCycleSource;
-
-    // A power cycle zeroes the CPU cycle counter (m_totalCycles, and
-    // hence the m_busCycle source this anchor tracks) but does NOT
-    // rewind m_lastCpuSync. Without re-anchoring, every catch-up after
-    // a power cycle sees now < m_lastCpuSync and bails, freezing the
-    // bit cursor until the counter climbs back past the stale anchor --
-    // a dead disk for as long as the prior session ran (the boot ROM
-    // spins on $C0EC reading a non-advancing latch the whole time).
-    // Re-anchor on any non-forward move so the next access resumes the
-    // normal forward advance. The == case is a same-cycle no-op.
-    if (now <= m_lastCpuSync)
-    {
-        m_lastCpuSync = now;
-        return;
-    }
-
-    delta         = now - m_lastCpuSync;
-    m_lastCpuSync = now;
-
-    m_engine[m_activeDrive].Tick (static_cast<uint32_t> (delta));
 }
 
 
@@ -624,11 +632,9 @@ HRESULT Disk2Controller::MountDisk (int drive, const string & path)
 {
     HRESULT   hr = S_OK;
 
-    if (drive < 0 || drive >= kDriveCount)
-    {
-        hr = E_INVALIDARG;
-        goto Error;
-    }
+
+
+    CBRAEx (drive >= 0 && drive < kDriveCount, E_INVALIDARG);
 
     hr = m_disks[drive].Load (path);
     CHR (hr);
@@ -648,6 +654,15 @@ Error:
     return hr;
 }
 
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EjectDisk
+//
+////////////////////////////////////////////////////////////////////////////////
 
 void Disk2Controller::EjectDisk (int drive)
 {
@@ -669,14 +684,22 @@ void Disk2Controller::EjectDisk (int drive)
 }
 
 
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  GetDisk
+//
+////////////////////////////////////////////////////////////////////////////////
+
 DiskImage * Disk2Controller::GetDisk (int drive)
 {
-    if (drive < 0 || drive >= kDriveCount)
-    {
-        return nullptr;
-    }
+    bool  inRange = (drive >= 0 && drive < kDriveCount);
 
-    return m_activeDisk[drive];
+
+
+    return inRange ? m_activeDisk[drive] : nullptr;
 }
 
 
@@ -696,24 +719,29 @@ DiskImage * Disk2Controller::GetDisk (int drive)
 
 void Disk2Controller::SetExternalDisk (int drive, DiskImage * external)
 {
-    if (drive < 0 || drive >= kDriveCount)
+    if (drive >= 0 && drive < kDriveCount)
     {
-        return;
+        m_activeDisk[drive] = (external != nullptr) ? external : &m_disks[drive];
+        m_engine[drive].SetDiskImage (m_activeDisk[drive]);
     }
-
-    m_activeDisk[drive] = (external != nullptr) ? external : &m_disks[drive];
-    m_engine[drive].SetDiskImage (m_activeDisk[drive]);
 }
 
 
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HasExternalDisk
+//
+////////////////////////////////////////////////////////////////////////////////
+
 bool Disk2Controller::HasExternalDisk (int drive) const
 {
-    if (drive < 0 || drive >= kDriveCount)
-    {
-        return false;
-    }
-
-    return m_activeDisk[drive] != &m_disks[drive];
+    // An out-of-range drive has no disk at all, external or otherwise.
+    return drive >= 0
+        && drive < kDriveCount
+        && m_activeDisk[drive] != &m_disks[drive];
 }
 
 
@@ -745,6 +773,15 @@ void Disk2Controller::NotifyDiskInserted (int drive)
 }
 
 
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  NotifyDiskEjected
+//
+////////////////////////////////////////////////////////////////////////////////
+
 void Disk2Controller::NotifyDiskEjected (int drive)
 {
     if (drive < 0 || drive >= kDriveCount)
@@ -771,6 +808,8 @@ void Disk2Controller::NotifyDiskEjected (int drive)
 void Disk2Controller::Reset()
 {
     int   i = 0;
+
+
 
     m_phases       = 0;
     m_phase        = 0;
@@ -808,6 +847,8 @@ void Disk2Controller::SoftReset()
     HRESULT   hrFlush = S_OK;
     int       drive   = 0;
 
+
+
     Reset();
 
     for (drive = 0; drive < kDriveCount; drive++)
@@ -837,6 +878,8 @@ void Disk2Controller::PowerCycle (Prng & prng)
 {
     int   drive = 0;
 
+
+
     UNREFERENCED_PARAMETER (prng);
 
     Reset();
@@ -862,6 +905,8 @@ void Disk2Controller::PowerCycle (Prng & prng)
 unique_ptr<MemoryDevice> Disk2Controller::Create (const DeviceConfig & config, MemoryBus & bus)
 {
     int   slot = config.hasSlot ? config.slot : 6;
+
+
 
     UNREFERENCED_PARAMETER (bus);
 

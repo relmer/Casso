@@ -8,6 +8,7 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  PrintJobPersistenceTests
@@ -54,9 +55,9 @@ namespace PrintJobPersistenceTests
             original.AdvanceRows (200);
             original.MarkFormFeed();                        // boundary at 1584
 
-            Assert::IsTrue (SUCCEEDED (PrintJobPersistence::Save (original, png, json)));
+            AssertSucceeded (PrintJobPersistence::Save (original, png, json));
             Assert::IsTrue (png.size() > 8);
-            Assert::IsTrue (SUCCEEDED (PrintJobPersistence::Load (png, json, reloaded)));
+            AssertSucceeded (PrintJobPersistence::Load (png, json, reloaded));
 
             Assert::AreEqual (original.RowsUsed(), reloaded.RowsUsed());
             Assert::AreEqual (original.PaperRow(), reloaded.PaperRow());
@@ -75,8 +76,8 @@ namespace PrintJobPersistenceTests
             vector<Byte>   png;
             string         json;
 
-            Assert::IsTrue (SUCCEEDED (PrintJobPersistence::Save (original, png, json)));
-            Assert::IsTrue (SUCCEEDED (PrintJobPersistence::Load (png, json, reloaded)));
+            AssertSucceeded (PrintJobPersistence::Save (original, png, json));
+            AssertSucceeded (PrintJobPersistence::Load (png, json, reloaded));
 
             Assert::AreEqual (0, reloaded.RowsUsed());
             Assert::IsFalse (reloaded.RowsUsed() > 0);
@@ -91,9 +92,9 @@ namespace PrintJobPersistenceTests
             string         json;
 
             original.Strike (0, 0, InkPrimary::Black);
-            Assert::IsTrue (SUCCEEDED (PrintJobPersistence::Save (original, png, json)));
+            AssertSucceeded (PrintJobPersistence::Save (original, png, json));
 
-            Assert::IsFalse (SUCCEEDED (PrintJobPersistence::Load (png, "{ broken", reloaded)));
+            AssertFailed (PrintJobPersistence::Load (png, "{ broken", reloaded));
         }
 
 
@@ -104,7 +105,7 @@ namespace PrintJobPersistenceTests
             string         json = "{ \"formatVersion\": 1, \"rowsUsed\": 0, "
                                   "\"paperRow\": 0, \"capReached\": false }";
 
-            Assert::IsFalse (SUCCEEDED (PrintJobPersistence::Load (junk, json, reloaded)));
+            AssertFailed (PrintJobPersistence::Load (junk, json, reloaded));
         }
 
 

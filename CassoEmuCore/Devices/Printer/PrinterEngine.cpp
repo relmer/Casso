@@ -33,6 +33,7 @@ static constexpr size_t   s_kDrainSliceBytes = 4096;
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  RasterInkExtent
@@ -46,6 +47,8 @@ int PrinterEngine::RasterInkExtent (const PrintRaster & raster, int firstRow, in
 {
     int  extent = 0;
     int  last   = (std::min) (lastRow, raster.RowsUsed() - 1);
+
+
 
     for (int row = (std::max) (0, firstRow); row <= last; row++)
     {
@@ -66,6 +69,7 @@ int PrinterEngine::RasterInkExtent (const PrintRaster & raster, int firstRow, in
 
     return extent;
 }
+
 
 
 
@@ -112,6 +116,7 @@ void PrinterEngine::Start (PrinterByteRing & ring, PrintRaster seed)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  FlushNow
@@ -120,13 +125,10 @@ void PrinterEngine::Start (PrinterByteRing & ring, PrintRaster seed)
 
 size_t PrinterEngine::FlushNow (vector<PrinterEvent> & events)
 {
-    if (m_job == nullptr)
-    {
-        return 0;
-    }
-
-    return m_job->Drain (events);
+    // No job means nothing was ever queued, so zero drained is the truth.
+    return (m_job != nullptr) ? m_job->Drain (events) : 0;
 }
+
 
 
 
@@ -137,23 +139,29 @@ size_t PrinterEngine::FlushNow (vector<PrinterEvent> & events)
 //
 //  Copies the strip under the raster lock so the live preview reads a consistent
 //  image while the drain thread keeps Ticking -- no Stop()/Start() and no new
-//  interpreter, so the guest's in-flight state (line feed, colour, head column)
+//  interpreter, so the guest's in-flight state (line feed, color, head column)
 //  is never reset out from under it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool PrinterEngine::SnapshotStrip (PrintRaster & out)
 {
+    bool  ok = false;
+
+
+
     std::lock_guard<std::mutex>   lock (m_rasterMutex);
 
-    if (m_job == nullptr)
+    // No job means no strip to copy, and `out` is left as the caller had it.
+    if (m_job != nullptr)
     {
-        return false;
+        out = m_job->Raster();   // copy under lock
+        ok  = true;
     }
 
-    out = m_job->Raster();   // copy under lock
-    return true;
+    return ok;
 }
+
 
 
 
@@ -170,16 +178,21 @@ bool PrinterEngine::SnapshotStrip (PrintRaster & out)
 
 bool PrinterEngine::SnapshotStripSpan (int firstRow, int lastRow, PrintRaster & out)
 {
+    bool  ok = false;
+
+
+
     std::lock_guard<std::mutex>   lock (m_rasterMutex);
 
-    if (m_job == nullptr)
+    if (m_job != nullptr)
     {
-        return false;
+        m_job->Raster().CopyRowSpan (firstRow, lastRow, out);
+        ok = true;
     }
 
-    m_job->Raster().CopyRowSpan (firstRow, lastRow, out);
-    return true;
+    return ok;
 }
+
 
 
 
@@ -195,16 +208,23 @@ bool PrinterEngine::SnapshotStripSpan (int firstRow, int lastRow, PrintRaster & 
 
 bool PrinterEngine::SnapshotPresentedSpan (int firstRow, int lastRow, PrintRaster & out)
 {
+    bool  ok = false;
+
+
+
     std::lock_guard<std::mutex>   lock (m_rasterMutex);
 
-    if (m_job == nullptr)
+    // Gated on m_job, not on m_presented: with no job the presented layer is
+    // stale paper from a finished print and the caller wants a blank sheet.
+    if (m_job != nullptr)
     {
-        return false;
+        m_presented.CopyRowSpan (firstRow, lastRow, out);
+        ok = true;
     }
 
-    m_presented.CopyRowSpan (firstRow, lastRow, out);
-    return true;
+    return ok;
 }
+
 
 
 
@@ -220,15 +240,21 @@ bool PrinterEngine::SnapshotPresentedSpan (int firstRow, int lastRow, PrintRaste
 
 int PrinterEngine::SpanInkExtent (int firstRow, int lastRow)
 {
+    int  extent = 0;
+
+
+
     std::lock_guard<std::mutex>   lock (m_rasterMutex);
 
-    if (m_job == nullptr)
+    // 0 is both "no job" and "blank span" -- callers treat them the same.
+    if (m_job != nullptr)
     {
-        return 0;
+        extent = RasterInkExtent (m_job->Raster(), firstRow, lastRow);
     }
 
-    return RasterInkExtent (m_job->Raster(), firstRow, lastRow);
+    return extent;
 }
+
 
 
 
@@ -243,10 +269,11 @@ int PrinterEngine::SpanInkExtent (int firstRow, int lastRow)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void PrinterEngine::FormFeed ()
+void PrinterEngine::FormFeed()
 {
     m_hostFormFeeds.fetch_add (1, std::memory_order_relaxed);
 }
+
 
 
 
@@ -277,6 +304,8 @@ void PrinterEngine::Tick (int64_t nowMs)
     bool                   moving     = false;
     int                    rasterRows = 0;
     bool                   content    = false;
+
+
 
     if (m_job == nullptr)
     {

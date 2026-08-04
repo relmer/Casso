@@ -186,6 +186,7 @@ DiskMru::DistinctFolders (const std::vector<Entry> & entries)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  FromUtf8
@@ -249,13 +250,13 @@ void DiskMru::ToUtf8 (std::vector<std::string>  & outUtf8Entries,
     outLoadedAtUnix.clear();
     outUtf8Entries.reserve (m_entries.size());
     outLoadedAtUnix.reserve (m_entries.size());
-    for (i = 0; i < m_entries.size(); i++)
+    for (auto & entry : m_entries)
     {
         // Serialise as UTF-8 (not the platform-narrow encoding) so the
         // recentDisks JSON stays valid UTF-8 for non-ASCII filenames.
-        std::u8string  u8 = m_entries[i].path.u8string();
+        std::u8string  u8 = entry.path.u8string();
 
         outUtf8Entries.emplace_back (reinterpret_cast<const char *> (u8.data()), u8.size());
-        outLoadedAtUnix.push_back (m_entries[i].lastLoadedUnix);
+        outLoadedAtUnix.push_back (entry.lastLoadedUnix);
     }
 }

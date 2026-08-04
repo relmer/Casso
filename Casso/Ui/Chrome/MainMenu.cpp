@@ -8,42 +8,43 @@
 
 
 
-namespace
+// Label syntax: `&X` marks `X` as the menu mnemonic (Win32
+// convention). The `&` is stripped before rendering; the marked
+// glyph is underlined when mnemonic cues should be shown.
+//
+// A 30-line table, so it stays a file-scope `static constexpr` under the
+// documented 3+ line exception rather than moving onto MainMenu.
+static constexpr MainMenuCommandEntry  s_kEntries[] =
 {
-    // Label syntax: `&X` marks `X` as the menu mnemonic (Win32
-    // convention). The `&` is stripped before rendering; the marked
-    // glyph is underlined when mnemonic cues should be shown.
-    constexpr MainMenuCommandEntry  s_kEntries[] =
-    {
-        { IDM_PRINTER_PREVIEW,          MainMenuId::File,    L"Show &Printer Preview",  nullptr          },
-        { IDM_PRINTER_COPY,             MainMenuId::File,    L"&Copy Printout to Clipboard",    nullptr   },
-        { IDM_PRINTER_DISCARD,          MainMenuId::File,    L"&Discard Printout (Tear Off)",   nullptr   },
-        { 0,                            MainMenuId::File,    nullptr,                   nullptr          },
-        { IDM_FILE_EXIT,                MainMenuId::File,    L"E&xit",                  nullptr          },
-        { IDM_EDIT_COPY_TEXT,           MainMenuId::Edit,    L"&Copy text",             L"Ctrl+Shift+C"  },
-        { IDM_EDIT_COPY_SCREENSHOT,     MainMenuId::Edit,    L"Copy &screenshot",       L"Ctrl+Alt+C"    },
-        { IDM_EDIT_PASTE,               MainMenuId::Edit,    L"&Paste",                 L"Ctrl+V"        },
-        { IDM_MACHINE_RESET,            MainMenuId::Machine, L"&Reset",                 L"Ctrl+Shift+R"  },
-        { IDM_MACHINE_POWERCYCLE,       MainMenuId::Machine, L"Po&wer cycle",           L"Ctrl+Shift+P"  },
-        { IDM_MACHINE_ARROWS_JOYSTICK,  MainMenuId::Machine, L"Map Arrows to &Joystick", L"Ctrl+Shift+J",  true   },
-        { IDM_MACHINE_ARROWS_PADDLE,    MainMenuId::Machine, L"Map Mouse to &Paddle",   nullptr,          true   },
-        { IDM_DISK_INSERT1,             MainMenuId::Disk,    L"&Insert drive 1...",     L"Ctrl+1"        },
-        { IDM_DISK_EJECT1,              MainMenuId::Disk,    L"&Eject drive 1",         L"Ctrl+Shift+1"  },
-        { 0,                            MainMenuId::Disk,    nullptr,                   nullptr          },
-        { IDM_DISK_INSERT2,             MainMenuId::Disk,    L"Insert drive &2...",     L"Ctrl+2"        },
-        { IDM_DISK_EJECT2,              MainMenuId::Disk,    L"Eje&ct drive 2",         L"Ctrl+Shift+2"  },
-        { IDM_VIEW_FULLSCREEN,          MainMenuId::View,    L"&Fullscreen",            L"Alt+Enter"     },
-        { IDM_VIEW_RESET_SIZE,          MainMenuId::View,    L"&Reset window size",     L"Ctrl+0"        },
-        { 0,                            MainMenuId::View,    nullptr,                   nullptr          },
-        { IDM_VIEW_SETTINGS,            MainMenuId::View,    L"Se&ttings...",           L"Ctrl+,"        },
-        { IDM_HELP_KEYMAP,              MainMenuId::Help,    L"&Keyboard map",          L"F1"            },
-        { IDM_HELP_ABOUT,               MainMenuId::Help,    L"&About Casso...",        nullptr          },
-        { IDM_MACHINE_PAUSE,            MainMenuId::Debug,   L"&Pause",                 L"Pause"         },
-        { IDM_MACHINE_STEP,             MainMenuId::Debug,   L"&Step",                  L"F11"           },
-        { IDM_VIEW_DISK2_DEBUG,         MainMenuId::Debug,   L"Disk ][ Debug...",       L"Ctrl+Shift+D"  },
-        { IDM_VIEW_INPUT_DEBUG,         MainMenuId::Debug,   L"Input Debug...",         L"Ctrl+Shift+I"  },
-    };
-}
+    { IDM_PRINTER_PREVIEW,          MainMenuId::File,    L"Show &Printer Preview",  nullptr          },
+    { IDM_PRINTER_COPY,             MainMenuId::File,    L"&Copy Printout to Clipboard",    nullptr   },
+    { IDM_PRINTER_DISCARD,          MainMenuId::File,    L"&Discard Printout (Tear Off)",   nullptr   },
+    { 0,                            MainMenuId::File,    nullptr,                   nullptr          },
+    { IDM_FILE_EXIT,                MainMenuId::File,    L"E&xit",                  nullptr          },
+    { IDM_EDIT_COPY_TEXT,           MainMenuId::Edit,    L"&Copy text",             L"Ctrl+Shift+C"  },
+    { IDM_EDIT_COPY_SCREENSHOT,     MainMenuId::Edit,    L"Copy &screenshot",       L"Ctrl+Alt+C"    },
+    { IDM_EDIT_PASTE,               MainMenuId::Edit,    L"&Paste",                 L"Ctrl+V"        },
+    { IDM_MACHINE_RESET,            MainMenuId::Machine, L"&Reset",                 L"Ctrl+Shift+R"  },
+    { IDM_MACHINE_POWERCYCLE,       MainMenuId::Machine, L"Po&wer cycle",           L"Ctrl+Shift+P"  },
+    { IDM_MACHINE_ARROWS_JOYSTICK,  MainMenuId::Machine, L"Map Arrows to &Joystick", L"Ctrl+Shift+J",  true   },
+    { IDM_MACHINE_ARROWS_PADDLE,    MainMenuId::Machine, L"Map Mouse to &Paddle",   nullptr,          true   },
+    { IDM_DISK_INSERT1,             MainMenuId::Disk,    L"&Insert drive 1...",     L"Ctrl+1"        },
+    { IDM_DISK_EJECT1,              MainMenuId::Disk,    L"&Eject drive 1",         L"Ctrl+Shift+1"  },
+    { 0,                            MainMenuId::Disk,    nullptr,                   nullptr          },
+    { IDM_DISK_INSERT2,             MainMenuId::Disk,    L"Insert drive &2...",     L"Ctrl+2"        },
+    { IDM_DISK_EJECT2,              MainMenuId::Disk,    L"Eje&ct drive 2",         L"Ctrl+Shift+2"  },
+    { IDM_VIEW_FULLSCREEN,          MainMenuId::View,    L"&Fullscreen",            L"Alt+Enter"     },
+    { IDM_VIEW_RESET_SIZE,          MainMenuId::View,    L"&Reset window size",     L"Ctrl+0"        },
+    { 0,                            MainMenuId::View,    nullptr,                   nullptr          },
+    { IDM_VIEW_SETTINGS,            MainMenuId::View,    L"Se&ttings...",           L"Ctrl+,"        },
+    { IDM_HELP_KEYMAP,              MainMenuId::Help,    L"&Keyboard map",          L"F1"            },
+    { IDM_HELP_ABOUT,               MainMenuId::Help,    L"&About Casso...",        nullptr          },
+    { IDM_MACHINE_PAUSE,            MainMenuId::Debug,   L"&Pause",                 L"Pause"         },
+    { IDM_MACHINE_STEP,             MainMenuId::Debug,   L"&Step",                  L"F11"           },
+    { IDM_VIEW_DISK2_DEBUG,         MainMenuId::Debug,   L"Disk ][ Debug...",       L"Ctrl+Shift+D"  },
+    { IDM_VIEW_INPUT_DEBUG,         MainMenuId::Debug,   L"Input Debug...",         L"Ctrl+Shift+I"  },
+};
+
 
 
 
@@ -54,10 +55,11 @@ namespace
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-MainMenu::MainMenu ()
+MainMenu::MainMenu()
 {
     Rebuild();
 }
+
 
 
 
@@ -68,9 +70,10 @@ MainMenu::MainMenu ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-MainMenu::~MainMenu ()
+MainMenu::~MainMenu()
 {
 }
+
 
 
 
@@ -90,6 +93,7 @@ void MainMenu::SetDispatch (DispatchFn dispatch)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  MainMenu::SetCheckQuery
@@ -105,16 +109,18 @@ void MainMenu::SetCheckQuery (CheckFn query)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  MainMenu::GetCommandEntries
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::span<const MainMenuCommandEntry> MainMenu::GetCommandEntries ()
+std::span<const MainMenuCommandEntry> MainMenu::GetCommandEntries()
 {
     return std::span<const MainMenuCommandEntry> (s_kEntries, std::size (s_kEntries));
 }
+
 
 
 
@@ -127,19 +133,24 @@ std::span<const MainMenuCommandEntry> MainMenu::GetCommandEntries ()
 
 const wchar_t * MainMenu::GetMenuName (MainMenuId menu)
 {
+    // The & marks the Alt accelerator; "?" is a visible placeholder for a
+    // menu id this function has not been taught about.
+    const wchar_t *  name = L"?";
+
     switch (menu)
     {
-    case MainMenuId::File:    return L"&File";
-    case MainMenuId::Edit:    return L"&Edit";
-    case MainMenuId::Machine: return L"&Machine";
-    case MainMenuId::Disk:    return L"&Disk";
-    case MainMenuId::View:    return L"&View";
-    case MainMenuId::Help:    return L"&Help";
-    case MainMenuId::Debug:   return L"&Debug";
+    case MainMenuId::File:    name = L"&File";    break;
+    case MainMenuId::Edit:    name = L"&Edit";    break;
+    case MainMenuId::Machine: name = L"&Machine"; break;
+    case MainMenuId::Disk:    name = L"&Disk";    break;
+    case MainMenuId::View:    name = L"&View";    break;
+    case MainMenuId::Help:    name = L"&Help";    break;
+    case MainMenuId::Debug:   name = L"&Debug";   break;
     }
 
-    return L"?";
+    return name;
 }
+
 
 
 
@@ -150,7 +161,7 @@ const wchar_t * MainMenu::GetMenuName (MainMenuId menu)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::string MainMenu::EmitParityMarkdown ()
+std::string MainMenu::EmitParityMarkdown()
 {
     std::ostringstream  os;
 
@@ -199,6 +210,7 @@ std::string MainMenu::EmitParityMarkdown ()
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  MainMenu::IsSeparator
@@ -213,15 +225,17 @@ bool MainMenu::IsSeparator (const MainMenuCommandEntry & entry)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  MainMenu::Show
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void MainMenu::Show ()
+void MainMenu::Show()
 {
 }
+
 
 
 
@@ -243,6 +257,7 @@ void MainMenu::Dispatch (WORD commandId) const
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  MainMenu::Open
@@ -253,6 +268,7 @@ void MainMenu::Open (MainMenuId menu, bool openedByKeyboard)
 {
     DxuiMenuBar::Open ((int) menu, openedByKeyboard);
 }
+
 
 
 
@@ -276,6 +292,7 @@ void MainMenu::PaintStrip (
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  MainMenu::PaintDropdown
@@ -295,6 +312,7 @@ void MainMenu::PaintDropdown (
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  MainMenu::Rebuild
@@ -306,7 +324,7 @@ void MainMenu::PaintDropdown (
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void MainMenu::Rebuild ()
+void MainMenu::Rebuild()
 {
     std::vector<DxuiMenuBarItem>  items;
 
@@ -365,6 +383,7 @@ void MainMenu::Rebuild ()
 
     SetItems (std::move (items));
 }
+
 
 
 

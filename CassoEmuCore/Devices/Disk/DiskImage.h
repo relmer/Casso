@@ -105,6 +105,12 @@ private:
     HRESULT  LoadDsk          (const vector<Byte> & raw);
     void     InitWholeTrackMap ();
 
+    // Splits a bit index into the byte offset and shift that address it
+    // within `track`'s stream, wrapping around the track length because the
+    // head runs in a circle. False when the track holds no data at all, in
+    // which case neither out-parameter is meaningful.
+    bool     TryLocateBit     (int track, size_t bitIndex, size_t & byteIdx, int & shift) const;
+
     string             m_filePath;
     vector<vector<Byte>>     m_trackBits;
     vector<size_t>           m_trackBitCounts;

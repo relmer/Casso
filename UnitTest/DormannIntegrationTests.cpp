@@ -26,8 +26,8 @@ namespace DormannIntegrationTests
     static Assembler BuildAssembler (AssemblerOptions opts = {})
     {
         TestCpu cpu;
-        cpu.InitForTest ();
-        return Assembler (cpu.GetInstructionSet (), opts);
+        cpu.InitForTest();
+        return Assembler (cpu.GetInstructionSet(), opts);
     }
 
 
@@ -85,7 +85,7 @@ namespace DormannIntegrationTests
         // Win10 1803+ / Win11 and avoids the heuristic.
         std::string cmd = "curl.exe -sSL -o \"" + destPath + "\" \"" + url + "\"";
 
-        return system (cmd.c_str ()) == 0;
+        return system (cmd.c_str()) == 0;
     }
 
 
@@ -100,18 +100,20 @@ namespace DormannIntegrationTests
 
     static std::vector<Byte> ReadBinaryFile (const std::string & path)
     {
-        std::ifstream file (path, std::ios::binary | std::ios::ate);
+        std::ifstream      file (path, std::ios::binary | std::ios::ate);
+        std::vector<Byte>  data;
 
-        if (!file.is_open ())
+        // The Dormann binaries are downloaded on demand, so "absent" is an
+        // expected state; it reads as empty and the caller skips.
+        if (file.is_open())
         {
-            return {};
+            auto size = file.tellg();
+
+            file.seekg (0, std::ios::beg);
+            data.resize ((size_t) size);
+            file.read (reinterpret_cast<char *> (data.data()), size);
         }
 
-        auto size = file.tellg ();
-        file.seekg (0, std::ios::beg);
-
-        std::vector<Byte> data ((size_t) size);
-        file.read (reinterpret_cast<char *> (data.data ()), size);
         return data;
     }
 
@@ -127,16 +129,18 @@ namespace DormannIntegrationTests
 
     static std::string ReadTextFile (const std::string & path)
     {
-        std::ifstream file (path);
+        std::ifstream       file (path);
+        std::ostringstream  ss;
+        std::string         text;
 
-        if (!file.is_open ())
+        // Same contract as ReadBinaryFile: absent reads as empty.
+        if (file.is_open())
         {
-            return {};
+            ss << file.rdbuf();
+            text = ss.str();
         }
 
-        std::ostringstream ss;
-        ss << file.rdbuf ();
-        return ss.str ();
+        return text;
     }
 
 
@@ -162,7 +166,7 @@ namespace DormannIntegrationTests
 
         BEGIN_TEST_METHOD_ATTRIBUTE (DormannAssemblesSuccessfully)
             TEST_METHOD_ATTRIBUTE (L"TestCategory", L"Integration")
-        END_TEST_METHOD_ATTRIBUTE ()
+        END_TEST_METHOD_ATTRIBUTE()
 
         TEST_METHOD (DormannAssemblesSuccessfully)
         {
@@ -180,9 +184,9 @@ namespace DormannIntegrationTests
 
             // Read source
             std::string source = ReadTextFile (sourceFile);
-            remove (sourceFile.c_str ());
+            remove (sourceFile.c_str());
 
-            Assert::IsFalse (source.empty (), L"Source file is empty");
+            Assert::IsFalse (source.empty(), L"Source file is empty");
 
             // Assemble
             AssemblerOptions opts;
@@ -196,23 +200,23 @@ namespace DormannIntegrationTests
             {
                 std::wstring msg = L"Assembly failed with errors:";
 
-                for (size_t i = 0; i < result.errors.size () && i < 10; i++)
+                for (size_t i = 0; i < result.errors.size() && i < 10; i++)
                 {
                     msg += L"\n  Line " + std::to_wstring (result.errors[i].lineNumber)
-                         + L": " + std::wstring (result.errors[i].message.begin (), result.errors[i].message.end ());
+                         + L": " + std::wstring (result.errors[i].message.begin(), result.errors[i].message.end());
                 }
 
-                Assert::Fail (msg.c_str ());
+                Assert::Fail (msg.c_str());
             }
 
             // Verify output covers expected address range
-            Assert::IsTrue (result.bytes.size () > 60000, L"Output should be close to 64KB");
+            Assert::IsTrue (result.bytes.size() > 60000, L"Output should be close to 64KB");
             Assert::AreEqual ((Word) 0x000A, result.startAddress, L"Start address should be $000A");
 
             // Verify vectors are present at $FFFA
             // NMI, RESET, IRQ vectors should be at the end of the output
             uint32_t vectorOffset = 0xFFFA - result.startAddress;
-            Assert::IsTrue (vectorOffset < result.bytes.size (), L"Vectors should be within output");
+            Assert::IsTrue (vectorOffset < result.bytes.size(), L"Vectors should be within output");
         }
     };
 
@@ -239,108 +243,132 @@ namespace DormannIntegrationTests
 
         BEGIN_TEST_METHOD_ATTRIBUTE (DormannRunsInCpu)
             TEST_METHOD_ATTRIBUTE (L"TestCategory", L"Integration")
-        END_TEST_METHOD_ATTRIBUTE ()
+        END_TEST_METHOD_ATTRIBUTE()
 
         TEST_METHOD (DormannRunsInCpu)
         {
             const std::string sourceUrl =
                 "https://raw.githubusercontent.com/Klaus2m5/6502_65C02_functional_tests/master/6502_functional_test.a65";
 
-            std::string sourceFile = "dormann_cpu_source.dormann.tmp";
+            std::string   sourceFile = "dormann_cpu_source.dormann.tmp";
+            std::string   source;
+            const char *  skipReason = nullptr;
 
-            // Download source
+            // No network and no source are environment problems, not defects.
+            // This test is Integration-tagged and skips rather than failing a
+            // build that cannot reach GitHub.
             if (!DownloadFile (sourceUrl, sourceFile))
             {
-                Logger::WriteMessage ("SKIPPED: Cannot download Dormann source (no network?)");
-                return;
+                skipReason = "SKIPPED: Cannot download Dormann source (no network?)";
             }
 
-            std::string source = ReadTextFile (sourceFile);
-            remove (sourceFile.c_str ());
-
-            if (source.empty ())
+            if (skipReason == nullptr)
             {
-                Logger::WriteMessage ("SKIPPED: Source file is empty");
-                return;
-            }
+                source = ReadTextFile (sourceFile);
+                remove (sourceFile.c_str());
 
-            // Assemble
-            AssemblerOptions opts;
-            opts.fillByte = 0xFF;
-
-            Assembler a = BuildAssembler (opts);
-            auto result = a.Assemble (source);
-
-            if (!result.success)
-            {
-                Logger::WriteMessage ("SKIPPED: Assembly failed (see DormannAssemblesSuccessfully)");
-                return;
-            }
-
-            // Load into CPU
-            TestCpu cpu;
-            cpu.InitForTest (0x0400);
-
-            for (size_t i = 0; i < result.bytes.size (); i++)
-            {
-                cpu.Poke ((Word) (result.startAddress + i), result.bytes[i]);
-            }
-
-            // The Dormann test starts at $0400
-            cpu.RegPC () = 0x0400;
-
-            // Run with a cycle limit — informational only
-            const int    maxInstructions = 100000000;
-            Word         prevPC          = 0xFFFF;
-            int          sameCount       = 0;
-            int          executed        = 0;
-            const Word   successTrap     = 0x3469;   // Dormann success address
-
-            for (int i = 0; i < maxInstructions; i++)
-            {
-                Word currentPC = cpu.RegPC ();
-
-                if (currentPC == successTrap)
+                if (source.empty())
                 {
-                    return;  // Success: silent
+                    skipReason = "SKIPPED: Source file is empty";
                 }
+            }
 
-                // Detect infinite loop (same PC twice in a row = trap)
-                if (currentPC == prevPC)
+            if (skipReason != nullptr)
+            {
+                Logger::WriteMessage (skipReason);
+            }
+            else
+            {
+                // Assemble
+                AssemblerOptions opts;
+                opts.fillByte = 0xFF;
+
+                Assembler a = BuildAssembler (opts);
+                auto result = a.Assemble (source);
+
+                // Assembler defects belong to DormannAssemblesSuccessfully,
+                // which reports them properly -- failing here too would just
+                // double-count the same bug.
+                if (!result.success)
                 {
-                    sameCount++;
-
-                    if (sameCount >= 2)
-                    {
-                        wchar_t msg[256];
-                        swprintf (msg, 256,
-                                  L"Dormann CPU trap at $%04X after %d instructions "
-                                  L"(success trap is $%04X). A trap at any other PC "
-                                  L"means a Dormann subtest failed -- the trapping "
-                                  L"address identifies which subtest in the Dormann "
-                                  L"source.",
-                                  currentPC, i, successTrap);
-                        Assert::Fail (msg);
-                    }
+                    Logger::WriteMessage ("SKIPPED: Assembly failed (see DormannAssemblesSuccessfully)");
                 }
                 else
                 {
-                    sameCount = 0;
+                    // Load into CPU
+                    TestCpu cpu;
+                    cpu.InitForTest (0x0400);
+
+                    for (size_t i = 0; i < result.bytes.size(); i++)
+                    {
+                        cpu.Poke ((Word) (result.startAddress + i), result.bytes[i]);
+                    }
+
+                    // The Dormann test starts at $0400
+                    cpu.RegPC() = 0x0400;
+
+                    // Run with a cycle limit — informational only
+                    const int    maxInstructions = 100000000;
+                    Word         prevPC          = 0xFFFF;
+                    int          sameCount       = 0;
+                    int          executed        = 0;
+                    int          i               = 0;
+                    bool         passed          = false;
+                    const Word   successTrap     = 0x3469;   // Dormann success address
+
+                    for (i = 0; !passed && i < maxInstructions; i++)
+                    {
+                        Word currentPC = cpu.RegPC();
+
+                        if (currentPC == successTrap)
+                        {
+                            // Success is silent: arriving at $3469 IS the pass.
+                            passed = true;
+                        }
+                        else
+                        {
+                            // Detect infinite loop (same PC twice in a row = trap)
+                            if (currentPC == prevPC)
+                            {
+                                sameCount++;
+
+                                if (sameCount >= 2)
+                                {
+                                    wchar_t msg[256];
+                                    swprintf (msg, 256,
+                                              L"Dormann CPU trap at $%04X after %d instructions "
+                                              L"(success trap is $%04X). A trap at any other PC "
+                                              L"means a Dormann subtest failed -- the trapping "
+                                              L"address identifies which subtest in the Dormann "
+                                              L"source.",
+                                              currentPC, i, successTrap);
+                                    Assert::Fail (msg);
+                                }
+                            }
+                            else
+                            {
+                                sameCount = 0;
+                            }
+
+                            prevPC = currentPC;
+                            cpu.Step();
+                            executed++;
+                        }
+                    }
+
+                    if (!passed)
+                    {
+                        wchar_t msg[256];
+                        swprintf (msg, 256,
+                                  L"Dormann test reached the %d-instruction ceiling without "
+                                  L"hitting the success trap at $%04X. CPU is at $%04X. Either "
+                                  L"the limit needs raising or the CPU is making progress but "
+                                  L"no longer converges.",
+                                  maxInstructions, successTrap, cpu.RegPC());
+                        Assert::Fail (msg);
+                    }
                 }
-
-                prevPC = currentPC;
-                cpu.Step ();
-                executed++;
             }
-
-            wchar_t msg[256];
-            swprintf (msg, 256,
-                      L"Dormann test reached the %d-instruction ceiling without "
-                      L"hitting the success trap at $%04X. CPU is at $%04X. Either "
-                      L"the limit needs raising or the CPU is making progress but "
-                      L"no longer converges.",
-                      maxInstructions, successTrap, cpu.RegPC ());
-            Assert::Fail (msg);
         }
     };
 
@@ -388,7 +416,7 @@ namespace DormannIntegrationTests
             std::string source = ReadTextFile (sourceFile);
             remove (sourceFile.c_str());
 
-            Assert::IsFalse (source.empty (), L"Source file is empty");
+            Assert::IsFalse (source.empty(), L"Source file is empty");
 
             source = SelectDormannOpcodeSubset (source);
 
@@ -405,13 +433,13 @@ namespace DormannIntegrationTests
                 for (size_t i = 0; i < result.errors.size() && i < 15; i++)
                 {
                     msg += L"\n  Line " + std::to_wstring (result.errors[i].lineNumber)
-                         + L": " + std::wstring (result.errors[i].message.begin (), result.errors[i].message.end ());
+                         + L": " + std::wstring (result.errors[i].message.begin(), result.errors[i].message.end());
                 }
 
                 Assert::Fail (msg.c_str());
             }
 
-            Assert::IsTrue (result.bytes.size () > 8000, L"Output should span the 10K code segment");
+            Assert::IsTrue (result.bytes.size() > 8000, L"Output should span the 10K code segment");
         }
 
 
@@ -431,91 +459,116 @@ namespace DormannIntegrationTests
 
         TEST_METHOD (Dormann65C02RunsInCpu)
         {
-            std::string sourceFile = "dormann65_cpu_source.dormann.tmp";
+            std::string   sourceFile = "dormann65_cpu_source.dormann.tmp";
+            std::string   source;
+            const char *  skipReason = nullptr;
 
+            // No network and no source are environment problems, not defects:
+            // an Integration-tagged test skips rather than failing a build that
+            // cannot reach GitHub.
             if (!DownloadFile (kSourceUrl, sourceFile))
             {
-                Logger::WriteMessage ("SKIPPED: Cannot download Dormann 65C02 source (no network?)");
-                return;
+                skipReason = "SKIPPED: Cannot download Dormann 65C02 source (no network?)";
             }
 
-            std::string source = ReadTextFile (sourceFile);
-            remove (sourceFile.c_str());
-
-            if (source.empty())
+            if (skipReason == nullptr)
             {
-                Logger::WriteMessage ("SKIPPED: Source file is empty");
-                return;
-            }
+                source = ReadTextFile (sourceFile);
+                remove (sourceFile.c_str());
 
-            source = SelectDormannOpcodeSubset (source);
-
-            AssemblerOptions opts;
-            opts.fillByte = 0xFF;
-
-            Assembler a      = BuildAssembler65C02 (opts);
-            auto      result = a.Assemble (source);
-
-            if (!result.success)
-            {
-                Logger::WriteMessage ("SKIPPED: Assembly failed (see Dormann65C02AssemblesSuccessfully)");
-                return;
-            }
-
-            TestCpu65C02 cpu;
-            cpu.InitForTest (0x0400);
-
-            for (size_t i = 0; i < result.bytes.size(); i++)
-            {
-                cpu.Poke ((Word) (result.startAddress + i), result.bytes[i]);
-            }
-
-            cpu.RegPC() = 0x0400;
-
-            // With the Rockwell-tier subset (wdc_op=0, rkwl_wdc_op=1) the extended-
-            // opcodes suite runs to a success self-trap at $2569 (~22M instructions).
-            // A self-loop at any other PC is a failing Dormann subtest; its address
-            // identifies which.
-            const int    maxInstructions = 200000000;
-            const Word   successTrap     = 0x2569;
-            Word         prevPC          = 0xFFFF;
-            int          sameCount       = 0;
-
-            for (int i = 0; i < maxInstructions; i++)
-            {
-                Word currentPC = cpu.RegPC();
-
-                if (currentPC == successTrap)
+                if (source.empty())
                 {
-                    return;  // Success: silent
+                    skipReason = "SKIPPED: Source file is empty";
                 }
+            }
 
-                // Detect a trap (same PC twice in a row = self-loop).
-                if (currentPC == prevPC)
+            if (skipReason != nullptr)
+            {
+                Logger::WriteMessage (skipReason);
+            }
+            else
+            {
+                source = SelectDormannOpcodeSubset (source);
+
+                AssemblerOptions opts;
+                opts.fillByte = 0xFF;
+
+                Assembler a      = BuildAssembler65C02 (opts);
+                auto      result = a.Assemble (source);
+
+                // Assembler defects belong to Dormann65C02AssemblesSuccessfully,
+                // which reports them properly; failing here as well would just
+                // double-count the same bug.
+                if (!result.success)
                 {
-                    if (++sameCount >= 2)
-                    {
-                        wchar_t msg[256];
-                        swprintf (msg, 256,
-                                  L"Dormann 65C02 trap at $%04X after %d instructions "
-                                  L"(success trap is $%04X). A trap at any other PC is a "
-                                  L"failing subtest -- the address identifies which one in "
-                                  L"the Dormann source.",
-                                  currentPC, i, successTrap);
-                        Assert::Fail (msg);
-                    }
+                    Logger::WriteMessage ("SKIPPED: Assembly failed (see Dormann65C02AssemblesSuccessfully)");
                 }
                 else
                 {
-                    sameCount = 0;
+                    TestCpu65C02 cpu;
+                    cpu.InitForTest (0x0400);
+
+                    for (size_t i = 0; i < result.bytes.size(); i++)
+                    {
+                        cpu.Poke ((Word) (result.startAddress + i), result.bytes[i]);
+                    }
+
+                    cpu.RegPC() = 0x0400;
+
+                    // With the Rockwell-tier subset (wdc_op=0, rkwl_wdc_op=1) the extended-
+                    // opcodes suite runs to a success self-trap at $2569 (~22M instructions).
+                    // A self-loop at any other PC is a failing Dormann subtest; its address
+                    // identifies which.
+                    const int    maxInstructions = 200000000;
+                    const Word   successTrap     = 0x2569;
+                    Word         prevPC          = 0xFFFF;
+                    int          sameCount       = 0;
+                    int          i               = 0;
+                    bool         passed          = false;
+
+                    for (i = 0; !passed && i < maxInstructions; i++)
+                    {
+                        Word currentPC = cpu.RegPC();
+
+                        if (currentPC == successTrap)
+                        {
+                            // Success is silent: arriving at $2569 IS the pass.
+                            passed = true;
+                        }
+                        else
+                        {
+                            // Detect a trap (same PC twice in a row = self-loop).
+                            if (currentPC == prevPC)
+                            {
+                                if (++sameCount >= 2)
+                                {
+                                    wchar_t msg[256];
+                                    swprintf (msg, 256,
+                                              L"Dormann 65C02 trap at $%04X after %d instructions "
+                                              L"(success trap is $%04X). A trap at any other PC is a "
+                                              L"failing subtest -- the address identifies which one in "
+                                              L"the Dormann source.",
+                                              currentPC, i, successTrap);
+                                    Assert::Fail (msg);
+                                }
+                            }
+                            else
+                            {
+                                sameCount = 0;
+                            }
+
+                            prevPC = currentPC;
+                            cpu.Step();
+                        }
+                    }
+
+                    if (!passed)
+                    {
+                        Assert::Fail (L"Dormann 65C02 reached the instruction ceiling without "
+                                      L"hitting the success trap at $2569.");
+                    }
                 }
-
-                prevPC = currentPC;
-                cpu.Step();
             }
-
-            Assert::Fail (L"Dormann 65C02 reached the instruction ceiling without "
-                          L"hitting the success trap at $2569.");
         }
     };
 }

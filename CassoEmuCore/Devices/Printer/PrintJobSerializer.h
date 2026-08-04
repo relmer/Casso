@@ -7,6 +7,7 @@ class PrintRaster;
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  StripMeta
@@ -24,6 +25,7 @@ struct StripMeta
     vector<int>  pageBoundaryRows;
     bool         capReached      = false;
 };
+
 
 
 

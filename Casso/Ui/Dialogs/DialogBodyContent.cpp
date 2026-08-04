@@ -17,6 +17,7 @@ static constexpr wchar_t  s_kMdl2Family[]  = L"Segoe MDL2 Assets";
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  DialogBodyContent::SetRuns
@@ -111,6 +112,7 @@ void DialogBodyContent::SetIcon (std::vector<uint32_t> bgraPremul, int srcW, int
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  DialogBodyContent::SetGlyphIcon
@@ -134,10 +136,11 @@ void DialogBodyContent::SetGlyphIcon (wchar_t glyph, uint32_t argb, int sizeDip)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-int DialogBodyContent::PreferredHeightDip () const
+int DialogBodyContent::PreferredHeightDip() const
 {
     int  iconTop = 0;
     int  runs    = 0;
+
 
 
     if (!m_iconPixels.empty() && m_iconSizeDip > 0)
@@ -177,6 +180,7 @@ void DialogBodyContent::Layout (const RECT & boundsPx, const DxuiDpiScaler & sca
     int  gapPx    = scaler.Px (s_kItemGapDip);
     int  y        = boundsPx.top;
     int  runsLeft = boundsPx.left;
+
 
 
     SetBounds (boundsPx);

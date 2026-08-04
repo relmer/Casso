@@ -2,7 +2,6 @@
 
 #include "Cpu.h"
 #include "CpuOperations.h"
-#include "Ehm.h"
 #include "Group00.h"
 #include "Group01.h"
 #include "Group10.h"
@@ -58,6 +57,7 @@ void Cpu::Reset()
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  EnableTrace
@@ -90,6 +90,7 @@ void Cpu::EnableTrace (size_t capacity)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  TracePush
@@ -114,6 +115,8 @@ void Cpu::TracePush (Byte opcode)
 {
     TraceEntry &  e = m_trace[m_traceHead];
 
+
+
     e.pc     = PC;
     e.opcode = opcode;
     e.op1    = memory[(Word) (PC + 1)];
@@ -132,6 +135,7 @@ void Cpu::TracePush (Byte opcode)
     m_traceHead = (m_traceHead + 1) % m_traceCapacity;
     m_traceCount++;
 }
+
 
 
 
@@ -197,6 +201,7 @@ void Cpu::DumpInstructionTrace (Byte faultOpcode, Word faultPC) const
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  DumpTraceToFile
@@ -221,87 +226,96 @@ bool Cpu::DumpTraceToFile (const std::wstring & path,
     uint64_t       total = (m_traceCount < (uint64_t) m_traceCapacity) ? m_traceCount
                                                                        : (uint64_t) m_traceCapacity;
     size_t         start = 0;
+    bool           wrote = false;
     char           line[160];
 
-    if (!out.is_open() || m_traceCapacity == 0)
+    // An unopenable file and a trace ring that was never allocated are both
+    // "nothing written"; out.good() below reports write failures instead.
+    if (out.is_open() && m_traceCapacity != 0)
     {
-        return false;
-    }
+        // When the ring has wrapped, the oldest surviving entry sits at the
+        // current head; otherwise it starts at index 0.
+        start = (m_traceCount > (uint64_t) m_traceCapacity) ? m_traceHead : 0;
 
-    // When the ring has wrapped, the oldest surviving entry sits at the
-    // current head; otherwise it starts at index 0.
-    start = (m_traceCount > (uint64_t) m_traceCapacity) ? m_traceHead : 0;
+        out << "Casso CPU execution trace -- " << total << " instructions (oldest first)\n";
 
-    // Pre-scan for the interrupt-rate summary. An interrupt storm (stuck IRQ
-    // line, unacknowledged source, an ISR that never returns) is otherwise
-    // invisible in a flat instruction trace, so surface the rate up top. Cheap
-    // -- one pass reading a single byte per entry, dwarfed by the write below.
-    uint64_t  irqCount = 0;
-    uint64_t  nmiCount = 0;
-    for (uint64_t i = 0; i < total; i++)
-    {
-        Byte  kind = m_trace[(start + (size_t) i) % m_traceCapacity].intr;
-        if      (kind == kTraceIntrIrq) { ++irqCount; }
-        else if (kind == kTraceIntrNmi) { ++nmiCount; }
-    }
+        // Pre-scan for the interrupt-rate summary. An interrupt storm (stuck
+        // IRQ line, unacknowledged source, an ISR that never returns) is
+        // otherwise invisible in a flat instruction trace, so surface the rate
+        // up top. Cheap -- one pass reading a single byte per entry, dwarfed by
+        // the write below.
+        uint64_t  irqCount = 0;
+        uint64_t  nmiCount = 0;
 
-    out << "Casso CPU execution trace -- " << total << " instructions (oldest first)\n";
-    {
-        char  hdr[128];
-        int   hn = (irqCount > 0)
-                 ? std::snprintf (hdr, sizeof (hdr),
-                       "interrupts: %llu IRQ, %llu NMI  (1 IRQ per %llu instrs, ~%.1f/frame)\n",
-                       (unsigned long long) irqCount, (unsigned long long) nmiCount,
-                       (unsigned long long) (total / irqCount),
-                       (double) irqCount * 17030.0 / ((double) total * 3.0))
-                 : std::snprintf (hdr, sizeof (hdr),
-                       "interrupts: %llu IRQ, %llu NMI\n",
-                       (unsigned long long) irqCount, (unsigned long long) nmiCount);
-        if (hn > 0)
+        for (uint64_t i = 0; i < total; i++)
         {
-            out.write (hdr, hn);
-        }
-    }
+            Byte  kind = m_trace[(start + (size_t) i) % m_traceCapacity].intr;
 
-    for (uint64_t i = 0; i < total; i++)
-    {
-        size_t              index = (start + (size_t) i) % m_traceCapacity;
-        const TraceEntry &  e     = m_trace[index];
-        const char *        name  = instructionSet[e.opcode].instructionName != nullptr
-                                    ? instructionSet[e.opcode].instructionName
-                                    : "???";
-        const char *        mark  = (e.intr == kTraceIntrIrq) ? "  [IRQ]"
-                                  : (e.intr == kTraceIntrNmi) ? "  [NMI]"
-                                  :                             "";
-
-        int  n = std::snprintf (line, sizeof (line),
-                                "%08llu  PC=$%04X  op=$%02X OPS=$%02X $%02X (%s)  "
-                                "A=$%02X X=$%02X Y=$%02X SP=$%02X P=$%02X%s\n",
-                                (unsigned long long) i,
-                                (unsigned) e.pc, (unsigned) e.opcode,
-                                (unsigned) e.op1, (unsigned) e.op2, name,
-                                (unsigned) e.a, (unsigned) e.x, (unsigned) e.y,
-                                (unsigned) e.sp, (unsigned) e.p, mark);
-        if (n > 0)
-        {
-            out.write (line, n);
+            if      (kind == kTraceIntrIrq) { ++irqCount; }
+            else if (kind == kTraceIntrNmi) { ++nmiCount; }
         }
 
-        if (onProgress && (i % kProgressStride) == 0)
         {
-            onProgress (i, total);
+            char  hdr[128];
+            int   hn = (irqCount > 0)
+                     ? std::snprintf (hdr, sizeof (hdr),
+                           "interrupts: %llu IRQ, %llu NMI  (1 IRQ per %llu instrs, ~%.1f/frame)\n",
+                           (unsigned long long) irqCount, (unsigned long long) nmiCount,
+                           (unsigned long long) (total / irqCount),
+                           (double) irqCount * 17030.0 / ((double) total * 3.0))
+                     : std::snprintf (hdr, sizeof (hdr),
+                           "interrupts: %llu IRQ, %llu NMI\n",
+                           (unsigned long long) irqCount, (unsigned long long) nmiCount);
+
+            if (hn > 0)
+            {
+                out.write (hdr, hn);
+            }
         }
+
+        for (uint64_t i = 0; i < total; i++)
+        {
+            size_t              index = (start + (size_t) i) % m_traceCapacity;
+            const TraceEntry &  e     = m_trace[index];
+            const char *        name  = instructionSet[e.opcode].instructionName != nullptr
+                                        ? instructionSet[e.opcode].instructionName
+                                        : "???";
+            const char *        mark  = (e.intr == kTraceIntrIrq) ? "  [IRQ]"
+                                      : (e.intr == kTraceIntrNmi) ? "  [NMI]"
+                                      :                             "";
+
+            int  n = std::snprintf (line, sizeof (line),
+                                    "%08llu  PC=$%04X  op=$%02X OPS=$%02X $%02X (%s)  "
+                                    "A=$%02X X=$%02X Y=$%02X SP=$%02X P=$%02X%s\n",
+                                    (unsigned long long) i,
+                                    (unsigned) e.pc, (unsigned) e.opcode,
+                                    (unsigned) e.op1, (unsigned) e.op2, name,
+                                    (unsigned) e.a, (unsigned) e.x, (unsigned) e.y,
+                                    (unsigned) e.sp, (unsigned) e.p, mark);
+            if (n > 0)
+            {
+                out.write (line, n);
+            }
+
+            if (onProgress && (i % kProgressStride) == 0)
+            {
+                onProgress (i, total);
+            }
+        }
+
+        out.flush();
+
+        if (onProgress)
+        {
+            onProgress (total, total);
+        }
+
+        wrote = out.good();
     }
 
-    out.flush();
-
-    if (onProgress)
-    {
-        onProgress (total, total);
-    }
-
-    return out.good();
+    return wrote;
 }
+
 
 
 
@@ -583,47 +597,46 @@ void Cpu::PrintOperandAndComment (Byte opcode, const OperandInfo & operandInfo)
 
 void Cpu::FetchOperand (const Microcode & microcode, OperandInfo & operandInfo)
 {
+    // An illegal opcode has no operand to fetch, and the two implied modes
+    // encode their operand in the opcode itself. Both leave PC on the opcode
+    // byte -- only a real operand advances it.
+    bool  hasOperand = microcode.isLegal
+                       && microcode.globalAddressingMode != GlobalAddressingMode::SingleByteNoOperand
+                       && microcode.globalAddressingMode != GlobalAddressingMode::Accumulator;
+
     operandInfo.location         = 0;
     operandInfo.effectiveAddress = 0;
     operandInfo.operand          = 0;
 
-    if (!microcode.isLegal)
+    if (hasOperand)
     {
-        return;
-    }
+        // Advance the program counter to the operand byte
+        ++PC;
 
-    if (microcode.globalAddressingMode == GlobalAddressingMode::SingleByteNoOperand ||
-        microcode.globalAddressingMode == GlobalAddressingMode::Accumulator)
-    {
-        return;
-    }
+        switch (microcode.globalAddressingMode)
+        {
+        case GlobalAddressingMode::Absolute:          FetchOperandAbsolute          (operandInfo, microcode);    break;
+        case GlobalAddressingMode::AbsoluteX:         FetchOperandAbsoluteX         (operandInfo);               break;
+        case GlobalAddressingMode::AbsoluteY:         FetchOperandAbsoluteY         (operandInfo);               break;
+        case GlobalAddressingMode::Immediate:         FetchOperandImmediate         (operandInfo);               break;
+        case GlobalAddressingMode::JumpAbsolute:      FetchOperandJumpAbsolute      (operandInfo);               break;
+        case GlobalAddressingMode::JumpIndirect:      FetchOperandJumpIndirect      (operandInfo);               break;
+        case GlobalAddressingMode::Relative:          FetchOperandRelative          (operandInfo);               break;
+        case GlobalAddressingMode::ZeroPage:          FetchOperandZeroPage          (operandInfo);               break;
+        case GlobalAddressingMode::ZeroPageX:         FetchOperandZeroPageX         (operandInfo);               break;
+        case GlobalAddressingMode::ZeroPageY:         FetchOperandZeroPageY         (operandInfo);               break;
+        case GlobalAddressingMode::ZeroPageXIndirect: FetchOperandZeroPageXIndirect (operandInfo);               break;
+        case GlobalAddressingMode::ZeroPageIndirectY: FetchOperandZeroPageIndirectY (operandInfo);               break;
+        case GlobalAddressingMode::ZeroPageIndirect:  FetchOperandZeroPageIndirect  (operandInfo);               break;
+        case GlobalAddressingMode::AbsoluteXIndirect: FetchOperandAbsoluteXIndirect (operandInfo);               break;
+        case GlobalAddressingMode::ZeroPageRelative:  FetchOperandZeroPageRelative  (operandInfo);               break;
+        case GlobalAddressingMode::JumpIndirectCmos:  FetchOperandJumpIndirectCmos  (operandInfo);               break;
 
-    // Advance the program counter to the operand byte
-    ++PC;
-
-    switch (microcode.globalAddressingMode)
-    {
-    case GlobalAddressingMode::Absolute:          FetchOperandAbsolute          (operandInfo, microcode);    break;
-    case GlobalAddressingMode::AbsoluteX:         FetchOperandAbsoluteX         (operandInfo);               break;
-    case GlobalAddressingMode::AbsoluteY:         FetchOperandAbsoluteY         (operandInfo);               break;
-    case GlobalAddressingMode::Immediate:         FetchOperandImmediate         (operandInfo);               break;
-    case GlobalAddressingMode::JumpAbsolute:      FetchOperandJumpAbsolute      (operandInfo);               break;
-    case GlobalAddressingMode::JumpIndirect:      FetchOperandJumpIndirect      (operandInfo);               break;
-    case GlobalAddressingMode::Relative:          FetchOperandRelative          (operandInfo);               break;
-    case GlobalAddressingMode::ZeroPage:          FetchOperandZeroPage          (operandInfo);               break;
-    case GlobalAddressingMode::ZeroPageX:         FetchOperandZeroPageX         (operandInfo);               break;
-    case GlobalAddressingMode::ZeroPageY:         FetchOperandZeroPageY         (operandInfo);               break;
-    case GlobalAddressingMode::ZeroPageXIndirect: FetchOperandZeroPageXIndirect (operandInfo);               break;
-    case GlobalAddressingMode::ZeroPageIndirectY: FetchOperandZeroPageIndirectY (operandInfo);               break;
-    case GlobalAddressingMode::ZeroPageIndirect:  FetchOperandZeroPageIndirect  (operandInfo);               break;
-    case GlobalAddressingMode::AbsoluteXIndirect: FetchOperandAbsoluteXIndirect (operandInfo);               break;
-    case GlobalAddressingMode::ZeroPageRelative:  FetchOperandZeroPageRelative  (operandInfo);               break;
-    case GlobalAddressingMode::JumpIndirectCmos:  FetchOperandJumpIndirectCmos  (operandInfo);               break;
-
-    default:
-        std::printf ("Unhandled addressing mode %d\n", microcode.instruction.asBits.addressingMode);
-        ASSERT (false);
-        break;
+        default:
+            std::printf ("Unhandled addressing mode %d\n", microcode.instruction.asBits.addressingMode);
+            ASSERT (false);
+            break;
+        }
     }
 }
 
@@ -641,6 +654,8 @@ void Cpu::FetchOperandZeroPageXIndirect (Cpu::OperandInfo & operandInfo)
 {
     Byte zpBase = ReadByte (PC);
     Byte zpAddr = (zpBase + X) & 0xFF;
+
+
 
     // Zero page word read wraps within zero page
     operandInfo.location         = zpBase;
@@ -748,6 +763,7 @@ void Cpu::FetchOperandJumpIndirectCmos (Cpu::OperandInfo & operandInfo)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  FetchOperandZeroPageIndirect
@@ -761,10 +777,13 @@ void Cpu::FetchOperandZeroPageIndirect (Cpu::OperandInfo & operandInfo)
 {
     Byte zpAddr = ReadByte (PC);
 
+
+
     operandInfo.location         = zpAddr;
     operandInfo.effectiveAddress = ReadByte (zpAddr) | (ReadByte ((zpAddr + 1) & 0xFF) << 8);
     operandInfo.operand          = ReadByte (operandInfo.effectiveAddress);
 }
+
 
 
 
@@ -790,6 +809,7 @@ void Cpu::FetchOperandAbsoluteXIndirect (Cpu::OperandInfo & operandInfo)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  FetchOperandZeroPageRelative
@@ -808,6 +828,7 @@ void Cpu::FetchOperandZeroPageRelative (Cpu::OperandInfo & operandInfo)
     operandInfo.operand          = ReadByte (zpAddr);
     operandInfo.effectiveAddress = static_cast<Word> ((PC + 1) + (SByte) rel);
 }
+
 
 
 
@@ -866,6 +887,8 @@ void Cpu::FetchOperandAbsolute (Cpu::OperandInfo & operandInfo, const Microcode 
 void Cpu::FetchOperandZeroPageIndirectY (Cpu::OperandInfo & operandInfo)
 {
     Byte zpAddr = ReadByte (PC);
+
+
 
     // Zero page word read wraps within zero page
     operandInfo.location          = zpAddr;
@@ -957,6 +980,8 @@ void Cpu::FetchOperandAbsoluteX (Cpu::OperandInfo & operandInfo)
 void Cpu::ExecuteInstruction (const Microcode & microcode, const OperandInfo & operandInfo)
 {
     Byte * pAccumulator = nullptr;
+
+
 
     if (microcode.globalAddressingMode == GlobalAddressingMode::Accumulator)
     {
@@ -1371,6 +1396,7 @@ void Cpu::InitializeMisc()
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  InitializeUndocumented
@@ -1518,6 +1544,7 @@ void Cpu::InitializeUndocumented()
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  CreateInstruction
@@ -1594,8 +1621,10 @@ bool Cpu::LoadBinary (const std::string & filename, Word address)
     HRESULT       hr      = S_OK;
     std::ifstream file      (filename, std::ios::binary);
     bool          fLoaded = false;
+    bool          isOpen  = false;
 
-    CBRA (file.is_open());
+    isOpen = file.is_open();
+    CBRA (isOpen);
 
     fLoaded = LoadBinary (file, address);
     CBR  (fLoaded);
@@ -1616,20 +1645,25 @@ Error:
 
 bool Cpu::LoadBinary (std::istream & stream, Word address)
 {
-    HRESULT hr = S_OK;
+    HRESULT hr      = S_OK;
+    bool    readWell = false;
+
+
 
     // Determine stream size
     stream.seekg (0, std::ios::end);
     auto size = stream.tellg();
     stream.seekg (0, std::ios::beg);
 
-    CBRA (!stream.bad());
+    readWell = !stream.bad();
+    CBRA (readWell);
     CBR  (size >= 0 && (size_t) size <= memSize - address);
 
     // Read directly into CPU memory — no intermediate buffer
     stream.read (reinterpret_cast<char *>(memory.data() + address), size);
 
-    CBRA (!stream.bad());
+    readWell = !stream.bad();
+    CBRA (readWell);
 
 Error:
     return SUCCEEDED (hr);

@@ -20,8 +20,12 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace
+
+
+TEST_CLASS (HardwarePageTests)
 {
+public:
+
     HardwareEntry MakeEntry (HardwareEntryKind kind,
                              const std::string & name,
                              CapabilityFlag      flag,
@@ -36,12 +40,6 @@ namespace
         e.lockReason  = lockReason;
         return e;
     }
-}
-
-
-TEST_CLASS (HardwarePageTests)
-{
-public:
 
     TEST_METHOD (BuildNodes_GroupsInternalAndSlotsSeparately)
     {
@@ -196,3 +194,4 @@ public:
         }
     }
 };
+

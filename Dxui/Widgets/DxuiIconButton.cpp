@@ -5,17 +5,6 @@
 
 
 
-namespace
-{
-    constexpr float    s_kGlyphFontDip  = 12.0f;
-    constexpr float    s_kFocusRingPx   = 1.5f;
-    constexpr float    s_kFocusInsetPx  = -2.0f;
-    constexpr float    s_kDoubleInset   = 2.0f;
-    constexpr wchar_t  s_kMdl2Family[]  = L"Segoe MDL2 Assets";
-}
-
-
-
 
 ////////////////////////////////////////////////////////////////////////////////
 //
@@ -27,6 +16,7 @@ DxuiIconButton::DxuiIconButton()
 {
     m_focusable = true;
 }
+
 
 
 
@@ -43,6 +33,7 @@ bool DxuiIconButton::HitTest (int x, int y) const
            x >= m_boundsDip.left && x < m_boundsDip.right &&
            y >= m_boundsDip.top  && y < m_boundsDip.bottom;
 }
+
 
 
 
@@ -70,19 +61,21 @@ void DxuiIconButton::SetMouse (int x, int y, bool down)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  Click
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiIconButton::Click ()
+void DxuiIconButton::Click()
 {
     if (m_visible && m_enabled && m_click)
     {
         m_click();
     }
 }
+
 
 
 
@@ -98,6 +91,7 @@ void DxuiIconButton::Layout (const RECT & boundsDip, const DxuiDpiScaler & scale
     SetBounds (boundsDip);
     m_scaler.SetDpi (scaler.Dpi());
 }
+
 
 
 
@@ -154,6 +148,7 @@ bool DxuiIconButton::OnMouse (const DxuiMouseEvent & ev)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  OnKey  (IDxuiControl override)
@@ -162,24 +157,19 @@ bool DxuiIconButton::OnMouse (const DxuiMouseEvent & ev)
 
 bool DxuiIconButton::OnKey (const DxuiKeyEvent & ev)
 {
-    if (!m_visible || !m_enabled || !m_focused)
-    {
-        return false;
-    }
+    // Key-down only: key-up would fire the click a second time.
+    bool  clicks = m_visible && m_enabled && m_focused
+                   && ev.kind == DxuiKeyEventKind::Down
+                   && (ev.vk == VK_SPACE || ev.vk == VK_RETURN);
 
-    if (ev.kind != DxuiKeyEventKind::Down)
-    {
-        return false;
-    }
-
-    if (ev.vk == VK_SPACE || ev.vk == VK_RETURN)
+    if (clicks)
     {
         Click();
-        return true;
     }
 
-    return false;
+    return clicks;
 }
+
 
 
 
@@ -192,14 +182,20 @@ bool DxuiIconButton::OnKey (const DxuiKeyEvent & ev)
 
 void DxuiIconButton::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
 {
+    constexpr wchar_t  kMdl2Family[]  = L"Segoe MDL2 Assets";
+    constexpr float    kGlyphFontDip  = 12.0f;
+    constexpr float    kFocusRingPx   = 1.5f;
+    constexpr float    kFocusInsetPx  = -2.0f;
+    constexpr float    kDoubleInset   = 2.0f;
+
     HRESULT   hr         = S_OK;
     float     x          = (float) m_boundsDip.left;
     float     y          = (float) m_boundsDip.top;
     float     w          = (float) (m_boundsDip.right  - m_boundsDip.left);
     float     h          = (float) (m_boundsDip.bottom - m_boundsDip.top);
-    float     glyphDip   = m_scaler.Pxf (s_kGlyphFontDip);
-    float     focusInset = m_scaler.Pxf (s_kFocusInsetPx);
-    float     focusThick = m_scaler.Pxf (s_kFocusRingPx);
+    float     glyphDip   = m_scaler.Pxf (kGlyphFontDip);
+    float     focusInset = m_scaler.Pxf (kFocusInsetPx);
+    float     focusThick = m_scaler.Pxf (kFocusRingPx);
     uint32_t  glyphArgb  = m_enabled ? theme.ForegroundMuted() : theme.ForegroundDisabled();
 
 
@@ -219,7 +215,7 @@ void DxuiIconButton::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
                           h,
                           glyphArgb,
                           glyphDip,
-                          s_kMdl2Family,
+                          kMdl2Family,
                           DxuiTextHAlign::Center,
                           DxuiTextVAlign::Center);
     IGNORE_RETURN_VALUE (hr, S_OK);
@@ -228,8 +224,8 @@ void DxuiIconButton::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
     {
         painter.OutlineRect (x + focusInset,
                              y + focusInset,
-                             w - focusInset * s_kDoubleInset,
-                             h - focusInset * s_kDoubleInset,
+                             w - focusInset * kDoubleInset,
+                             h - focusInset * kDoubleInset,
                              focusThick,
                              theme.FocusRing());
     }
@@ -237,3 +233,4 @@ void DxuiIconButton::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
 Error:
     return;
 }
+

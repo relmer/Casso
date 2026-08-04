@@ -43,7 +43,7 @@ public:
         const int fbH = 384;
         std::vector<uint32_t> fb (fbW * fbH, 0);
 
-        textMode.Render (nullptr, fb.data (), fbW, fbH);
+        textMode.Render (nullptr, fb.data(), fbW, fbH);
 
         // Normal space should render all black in first cell (14x16 pixels)
         for (int y = 0; y < 16; y++)
@@ -73,7 +73,7 @@ public:
         const int fbH = 384;
         std::vector<uint32_t> fb (fbW * fbH, 0);
 
-        textMode.Render (nullptr, fb.data (), fbW, fbH);
+        textMode.Render (nullptr, fb.data(), fbW, fbH);
 
         // Inverse character should have some green pixels (inverted rendering)
         bool hasGreen = false;
@@ -108,7 +108,7 @@ public:
         const int fbH = 384;
         std::vector<uint32_t> fb (fbW * fbH, 0);
 
-        textMode.Render (nullptr, fb.data (), fbW, fbH);
+        textMode.Render (nullptr, fb.data(), fbW, fbH);
 
         // Normal 'A' glyph should have some green pixels
         bool hasGreen = false;
@@ -149,11 +149,11 @@ public:
 
         // Flash on -> inverse phase
         textMode.SetFlashState (true);
-        textMode.Render (nullptr, fb1.data (), fbW, fbH);
+        textMode.Render (nullptr, fb1.data(), fbW, fbH);
 
         // Flash off -> normal phase
         textMode.SetFlashState (false);
-        textMode.Render (nullptr, fb2.data (), fbW, fbH);
+        textMode.Render (nullptr, fb2.data(), fbW, fbH);
 
         // The two phases should differ since flash toggled
         bool differs = false;
@@ -196,7 +196,7 @@ public:
         const int fbH = 384;
         std::vector<uint32_t> fb (fbW * fbH, 0);
 
-        textMode.Render (nullptr, fb.data (), fbW, fbH);
+        textMode.Render (nullptr, fb.data(), fbW, fbH);
 
         // Row 8 starts at fbY = 8*8*2 = 128
         bool hasGreen = false;
@@ -243,7 +243,7 @@ public:
         const int fbH = 384;
         std::vector<uint32_t> fb (fbW * fbH, 0);
 
-        textMode.Render (nullptr, fb.data (), fbW, fbH);
+        textMode.Render (nullptr, fb.data(), fbW, fbH);
 
         bool hasGreen = false;
 
@@ -312,7 +312,7 @@ public:
         const int fbH = 384;
         std::vector<uint32_t> fb (fbW * fbH, 0);
 
-        lores.Render (nullptr, fb.data (), fbW, fbH);
+        lores.Render (nullptr, fb.data(), fbW, fbH);
 
         // Lo-res palette color 7 = Light Blue (kLoResColors[7] = 0xFF66AAFF)
         // Lo-res palette color 13 = Yellow (kLoResColors[13] = 0xFFFFFF00)
@@ -344,7 +344,7 @@ public:
         const int fbH = 384;
         std::vector<uint32_t> fb (fbW * fbH, 0xFFFFFFFF);
 
-        lores.Render (nullptr, fb.data (), fbW, fbH);
+        lores.Render (nullptr, fb.data(), fbW, fbH);
 
         // Color 0 = black (0xFF000000)
         Assert::AreEqual (0xFF000000u, fb[0], L"Color 0 should be black");
@@ -365,7 +365,7 @@ public:
         const int fbH = 384;
         std::vector<uint32_t> fb (fbW * fbH, 0);
 
-        lores.Render (nullptr, fb.data (), fbW, fbH);
+        lores.Render (nullptr, fb.data(), fbW, fbH);
 
         // Color 15 = white (0xFFFFFFFF)
         Assert::AreEqual (0xFFFFFFFFu, fb[0], L"Color 15 should be white");
@@ -475,7 +475,7 @@ public:
         const int fbH = 384;
         std::vector<uint32_t> fb (fbW * fbH, 0xFFFFFFFF);
 
-        hires.Render (nullptr, fb.data (), fbW, fbH);
+        hires.Render (nullptr, fb.data(), fbW, fbH);
 
         // All pixels should be black (0xFF000000)
         Assert::AreEqual (0xFF000000u, fb[0]);
@@ -504,7 +504,7 @@ public:
         const int fbH = 384;
         std::vector<uint32_t> fb (fbW * fbH, 0);
 
-        hires.Render (nullptr, fb.data (), fbW, fbH);
+        hires.Render (nullptr, fb.data(), fbW, fbH);
 
         // Pixel at screen col 0 -> fb[0,0] and fb[0,1] (2x scaled)
         // Violet = kNtscViolet (0xFFFF44FD in B8G8R8A8 byte layout)
@@ -534,7 +534,7 @@ public:
         const int fbH = 384;
         std::vector<uint32_t> fb (fbW * fbH, 0);
 
-        hires.Render (nullptr, fb.data (), fbW, fbH);
+        hires.Render (nullptr, fb.data(), fbW, fbH);
 
         // Blue = kNtscBlue (0xFF14CFFF in B8G8R8A8 byte layout)
         Assert::AreEqual (0xFF14CFFFu, fb[0],
@@ -562,7 +562,7 @@ public:
         const int fbH = 384;
         std::vector<uint32_t> fb (fbW * fbH, 0);
 
-        hires.Render (nullptr, fb.data (), fbW, fbH);
+        hires.Render (nullptr, fb.data(), fbW, fbH);
 
         // Both pixels should be white (0xFFFFFFFF)
         // Pixel 0 at fb[0], pixel 1 at fb[2] (2x scaled)
@@ -618,7 +618,7 @@ public:
         const int fbH = 384;
         std::vector<uint32_t> fb (fbW * fbH, 0);
 
-        hires.Render (nullptr, fb.data (), fbW, fbH);
+        hires.Render (nullptr, fb.data(), fbW, fbH);
 
         bool sawBlack  = false;
         bool sawWhite  = false;
@@ -701,6 +701,16 @@ namespace Phase12VideoTestHelpers
     }
 }
 
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TEST_CLASS
+//
+////////////////////////////////////////////////////////////////////////////////
+
 TEST_CLASS (Apple80ColTextModeTests)
 {
 public:
@@ -730,13 +740,13 @@ public:
         bus.WriteByte (0x0400, 0xC2);
 
         Apple80ColTextMode text80 (bus);
-        text80.SetAuxMemory (auxBuf.data ());
+        text80.SetAuxMemory (auxBuf.data());
 
         const int fbW = 560;
         const int fbH = 384;
         std::vector<uint32_t> fb (fbW * fbH, 0);
 
-        text80.Render (nullptr, fb.data (), fbW, fbH);
+        text80.Render (nullptr, fb.data(), fbW, fbH);
 
         // Cell 0 occupies fb x=0..6 (7 dots wide in 80-col, no horizontal scaling).
         // Cell 1 occupies fb x=7..13.
@@ -779,8 +789,8 @@ public:
 
         std::vector<Byte> raw = Phase12VideoTestHelpers::Build4KSyntheticCharRom (0x7F, 0x00);
         CharacterRomData rom;
-        Assert::AreEqual (S_OK, rom.LoadFromMemory (raw.data (), raw.size ()));
-        Assert::IsTrue (rom.HasAltCharSet (), L"4KB synthetic rom must report alt char set");
+        Assert::AreEqual (S_OK, rom.LoadFromMemory (raw.data(), raw.size()));
+        Assert::IsTrue (rom.HasAltCharSet(), L"4KB synthetic rom must report alt char set");
 
         Apple80ColTextMode text80 (bus, rom);
 
@@ -790,10 +800,10 @@ public:
         std::vector<uint32_t> fb2 (fbW * fbH, 0);
 
         text80.SetAltCharSet (false);
-        text80.Render (nullptr, fb1.data (), fbW, fbH);
+        text80.Render (nullptr, fb1.data(), fbW, fbH);
 
         text80.SetAltCharSet (true);
-        text80.Render (nullptr, fb2.data (), fbW, fbH);
+        text80.Render (nullptr, fb2.data(), fbW, fbH);
 
         // Normal set lights every dot (greens), alt set lights none (blacks).
         // The two framebuffers must differ inside cell 1 (x=7..13).
@@ -833,7 +843,7 @@ public:
 
         std::vector<Byte> raw = Phase12VideoTestHelpers::Build4KSyntheticCharRom (0x7F, 0x7F);
         CharacterRomData rom;
-        Assert::AreEqual (S_OK, rom.LoadFromMemory (raw.data (), raw.size ()));
+        Assert::AreEqual (S_OK, rom.LoadFromMemory (raw.data(), raw.size()));
 
         Apple80ColTextMode text80 (bus, rom);
 
@@ -845,10 +855,10 @@ public:
         std::vector<uint32_t> fbFlashOff (fbW * fbH, 0);
 
         text80.SetFlashState (true);
-        text80.RenderRowRange (0, 1, nullptr, fbFlashOn.data (), fbW, fbH);
+        text80.RenderRowRange (0, 1, nullptr, fbFlashOn.data(), fbW, fbH);
 
         text80.SetFlashState (false);
-        text80.RenderRowRange (0, 1, nullptr, fbFlashOff.data (), fbW, fbH);
+        text80.RenderRowRange (0, 1, nullptr, fbFlashOff.data(), fbW, fbH);
 
         bool differs = false;
 
@@ -917,7 +927,7 @@ public:
         const uint32_t kRed  = 0xFFFF0000;
         std::vector<uint32_t> fb (fbW * fbH, kRed);
 
-        text40.RenderRowRange (20, 24, nullptr, fb.data (), fbW, fbH);
+        text40.RenderRowRange (20, 24, nullptr, fb.data(), fbW, fbH);
 
         // Rows 0-19 (fbY 0..319) must be unchanged (still red).
         bool topUntouched = true;
@@ -966,14 +976,14 @@ public:
         bus.WriteByte (0x0650, 0xC2);   // 'B' in main -> screen col 1
 
         Apple80ColTextMode text80 (bus);
-        text80.SetAuxMemory (auxBuf.data ());
+        text80.SetAuxMemory (auxBuf.data());
 
         const int      fbW    = 560;
         const int      fbH    = 384;
         const uint32_t kBlue  = 0xFF0000FF;
         std::vector<uint32_t> fb (fbW * fbH, kBlue);
 
-        text80.RenderRowRange (20, 24, nullptr, fb.data (), fbW, fbH);
+        text80.RenderRowRange (20, 24, nullptr, fb.data(), fbW, fbH);
 
         // Rows 0-19 must remain untouched (still blue).
         bool topUntouched = true;
@@ -1055,14 +1065,14 @@ public:
         bus.WriteByte (0x2002, 0x66);
 
         AppleDoubleHiResMode dhr (bus);
-        dhr.SetAuxMemory (auxBuf.data ());
+        dhr.SetAuxMemory (auxBuf.data());
         dhr.SetPage2 (false);
 
         const int fbW = 560;
         const int fbH = 384;
         std::vector<uint32_t> fb (fbW * fbH, 0xFFCCCCCC);
 
-        dhr.Render (nullptr, fb.data (), fbW, fbH);
+        dhr.Render (nullptr, fb.data(), fbW, fbH);
 
         // Sample first 56 pixels of scanline 0 (covers ~14 nibbles) and
         // collect distinct colors. Must include at least 4 distinct
@@ -1074,7 +1084,7 @@ public:
             distinctColors[fb[0 * fbW + x]] = 1;
         }
 
-        Assert::IsTrue (distinctColors.size () >= 4,
+        Assert::IsTrue (distinctColors.size() >= 4,
             L"DHR must produce at least 4 distinct colors from a varied test pattern");
 
         // The all-off region (aux=0x7F, main=0x00 packs 7 ones+7 zeros)

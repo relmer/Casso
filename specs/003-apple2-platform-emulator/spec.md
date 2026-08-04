@@ -401,10 +401,10 @@ Each byte encodes two vertically-stacked 4-bit color blocks: low nybble (bits 0â
 |-------|-------|-------|-------|
 | 0 | Black | 8 | Brown |
 | 1 | Magenta | 9 | Orange |
-| 2 | Dark Blue | 10 | Grey 1 |
+| 2 | Dark Blue | 10 | Gray 1 |
 | 3 | Purple | 11 | Pink |
 | 4 | Dark Green | 12 | Green |
-| 5 | Grey 2 | 13 | Yellow |
+| 5 | Gray 2 | 13 | Yellow |
 | 6 | Medium Blue | 14 | Aqua |
 | 7 | Light Blue | 15 | White |
 

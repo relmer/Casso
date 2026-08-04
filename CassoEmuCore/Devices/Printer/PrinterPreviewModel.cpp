@@ -8,6 +8,7 @@
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  PrinterPreviewModel::RevealColumnSpan
@@ -18,11 +19,14 @@ PrinterPreviewModel::RevealSpan PrinterPreviewModel::RevealColumnSpan (bool swee
 {
     RevealSpan   span;
 
+
+
     span.loDots = sweepLtr ? 0 : carriageCol;
     span.hiDots = sweepLtr ? carriageCol : PrinterGrid::kDotsPerRow;
 
     return span;
 }
+
 
 
 
@@ -37,6 +41,7 @@ bool PrinterPreviewModel::StripTornOff (int rowsUsed, int viewportLiveRow)
 {
     return rowsUsed - 1 < viewportLiveRow;
 }
+
 
 
 
@@ -56,6 +61,7 @@ bool PrinterPreviewModel::LiveBandOutsideSpan (int platenRow, int spanFirstRow, 
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  PrinterPreviewModel::DirtyFromRow
@@ -64,14 +70,14 @@ bool PrinterPreviewModel::LiveBandOutsideSpan (int platenRow, int spanFirstRow, 
 
 int PrinterPreviewModel::DirtyFromRow (bool hasRendered, int platenRow, int renderedPlaten)
 {
-    if (!hasRendered)
-    {
-        return -1;   // first render: everything dirty
-    }
-
-    return (std::min) (platenRow - 3 * PrinterGrid::kPinBandRows,
-                       renderedPlaten - PrinterGrid::kPinBandRows);
+    // -1 is at-or-above any span top, which RenderSpan reads as "whole span
+    // dirty" -- the right answer for a panel that has never rendered.
+    return hasRendered
+               ? (std::min) (platenRow - 3 * PrinterGrid::kPinBandRows,
+                             renderedPlaten - PrinterGrid::kPinBandRows)
+               : -1;
 }
+
 
 
 
@@ -90,6 +96,7 @@ bool PrinterPreviewModel::SpanMoved (int firstRow, int lastRow, int renderedFirs
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  PrinterPreviewModel::RevealMoved
@@ -100,6 +107,7 @@ bool PrinterPreviewModel::RevealMoved (int revealRow, int revealCol, int rendere
 {
     return revealRow != renderedRevealRow || revealCol != renderedRevealCol;
 }
+
 
 
 
@@ -146,6 +154,7 @@ PrinterPreviewModel::InkSample PrinterPreviewModel::AudioSampleWindow (bool swee
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  PrinterPreviewModel::BandHasInk
@@ -155,19 +164,21 @@ PrinterPreviewModel::InkSample PrinterPreviewModel::AudioSampleWindow (bool swee
 bool PrinterPreviewModel::BandHasInk (const PrintRaster & spanRaster, int spanFirstRow,
                                       int revealRow, int loCol, int hiCol)
 {
-    int   topRow = (std::max) (0, revealRow - spanFirstRow);   // span-relative
-    int   botRow = revealRow - spanFirstRow + PrinterGrid::kPinBandRows - 1;
+    int   topRow  = (std::max) (0, revealRow - spanFirstRow);   // span-relative
+    int   botRow  = revealRow - spanFirstRow + PrinterGrid::kPinBandRows - 1;
+    int   r       = 0;
+    int   c       = 0;
+    bool  hasInk  = false;
 
-    for (int r = topRow; r <= botRow; r++)
+    // Any inked cell in the band answers the question, so both loops carry
+    // the found test -- this runs once per audio frame over a live band.
+    for (r = topRow; !hasInk && r <= botRow; r++)
     {
-        for (int c = loCol; c <= hiCol; c++)
+        for (c = loCol; !hasInk && c <= hiCol; c++)
         {
-            if (spanRaster.CellAt (c, r) != 0)
-            {
-                return true;
-            }
+            hasInk = (spanRaster.CellAt (c, r) != 0);
         }
     }
 
-    return false;
+    return hasInk;
 }

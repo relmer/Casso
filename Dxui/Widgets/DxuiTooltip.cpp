@@ -24,6 +24,7 @@ static constexpr float     s_kEstLineHeightEm = 1.4f;
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  RequestShow
@@ -81,6 +82,8 @@ void DxuiTooltip::RequestShow (const RECT & anchor, const std::wstring & text, i
 void DxuiTooltip::ShowTimed (const RECT & anchor, const std::wstring & text, int64_t nowMs, int durationMs)
 {
     bool  changed = !m_visible || text != m_text;
+
+
 
     m_anchor   = anchor;
     m_text     = text;
@@ -161,7 +164,7 @@ void DxuiTooltip::Tick (int64_t nowMs)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiTooltip::HideImmediate ()
+void DxuiTooltip::HideImmediate()
 {
     m_pending  = false;
     m_visible  = false;
@@ -181,7 +184,7 @@ void DxuiTooltip::HideImmediate ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiTooltip::ShowPopup ()
+void DxuiTooltip::ShowPopup()
 {
     DxuiPopupHost::ShowParams  showParams;
     POINT                      topLeft  = {};
@@ -192,67 +195,74 @@ void DxuiTooltip::ShowPopup ()
     float                      textHDip = 0.0f;
     float                      boxWDip  = 0.0f;
     float                      boxHDip  = 0.0f;
+    bool                       shows    = false;
 
 
 
-    if (m_popupHost == nullptr || m_activePopup != nullptr || m_text.empty())
+    // No host, nothing to say, or a balloon ALREADY UP: all three mean there
+    // is nothing to do, and none of them is an error. The already-up case is
+    // why this cannot be re-derived from m_activePopup further down -- by
+    // then this function may have just acquired one.
+    shows = (m_popupHost != nullptr && m_activePopup == nullptr && !m_text.empty());
+
+    if (shows)
     {
-        return;
+        // The tooltip's DPI follows its host window, folding what used to be
+        // an explicit SetDpi push from the consumer into the show path.
+        m_scaler.SetDpi (m_popupHost->Scaler().Dpi());
+
+        owner         = m_popupHost->Hwnd();
+        m_activePopup = m_popupHost->AcquirePopup();
+
+        // The pool can be exhausted, leaving no balloon to fill in.
+        shows = (m_activePopup != nullptr);
     }
 
-    // The tooltip's DPI follows its host window, folding what used to be
-    // an explicit SetDpi push from the consumer into the show path.
-    m_scaler.SetDpi (m_popupHost->Scaler().Dpi());
-
-    owner         = m_popupHost->Hwnd();
-    m_activePopup = m_popupHost->AcquirePopup();
-    if (m_activePopup == nullptr)
+    if (shows)
     {
-        return;
-    }
+        // Size the balloon to its text. MeasureText runs on the pooled
+        // popup's text renderer before Show builds the swap chain; if it is
+        // unavailable (test mode) fall back to a glyph-count estimate.
+        hr = m_activePopup->MeasureText (m_text.c_str(), m_fontDip, s_kFontFamily, textWDip, textHDip);
+        if (FAILED (hr) || textWDip <= 0.0f)
+        {
+            textWDip = (float) m_text.size() * m_fontDip * s_kEstCharWidthEm;
+        }
+        if (textHDip <= 0.0f)
+        {
+            textHDip = m_fontDip * s_kEstLineHeightEm;
+        }
 
-    // Size the balloon to its text. MeasureText runs on the pooled
-    // popup's text renderer before Show builds the swap chain; if it is
-    // unavailable (test mode) fall back to a glyph-count estimate.
-    hr = m_activePopup->MeasureText (m_text.c_str(), m_fontDip, s_kFontFamily, textWDip, textHDip);
-    if (FAILED (hr) || textWDip <= 0.0f)
-    {
-        textWDip = (float) m_text.size() * m_fontDip * s_kEstCharWidthEm;
-    }
-    if (textHDip <= 0.0f)
-    {
-        textHDip = m_fontDip * s_kEstLineHeightEm;
-    }
+        boxWDip = std::ceil (textWDip) + s_kPadXDip * 2.0f;
+        boxHDip = std::ceil (textHDip) + s_kPadYDip * 2.0f;
 
-    boxWDip = std::ceil (textWDip) + s_kPadXDip * 2.0f;
-    boxHDip = std::ceil (textHDip) + s_kPadYDip * 2.0f;
+        // Anchor arrives in client pixels; the popup wants screen pixels.
+        topLeft.x  = m_anchor.left;
+        topLeft.y  = m_anchor.top;
+        botRight.x = m_anchor.right;
+        botRight.y = m_anchor.bottom;
+        ClientToScreen (owner, &topLeft);
+        ClientToScreen (owner, &botRight);
 
-    // Anchor arrives in client pixels; the popup wants screen pixels.
-    topLeft.x  = m_anchor.left;
-    topLeft.y  = m_anchor.top;
-    botRight.x = m_anchor.right;
-    botRight.y = m_anchor.bottom;
-    ClientToScreen (owner, &topLeft);
-    ClientToScreen (owner, &botRight);
+        showParams.ownerHwnd        = owner;
+        showParams.anchorRectScreen = { topLeft.x, topLeft.y, botRight.x, botRight.y };
+        showParams.placement        = DxuiPopupPlacement::Below;
+        showParams.flipIfOffscreen  = true;
+        showParams.dismiss          = DxuiPopupDismiss::Manual;
+        showParams.input            = DxuiPopupInput::PassThrough;
+        showParams.shadow           = false;
+        showParams.sizeDip.cx       = (int) boxWDip;
+        showParams.sizeDip.cy       = (int) boxHDip;
+        showParams.backgroundArgb   = m_bgArgb;
+        showParams.renderContent    = [this] (IDxuiPainter & p, IDxuiTextRenderer & t) { RenderPopup (p, t); };
+        showParams.onClosed         = [this] () { m_activePopup = nullptr; };
 
-    showParams.ownerHwnd        = owner;
-    showParams.anchorRectScreen = { topLeft.x, topLeft.y, botRight.x, botRight.y };
-    showParams.placement        = DxuiPopupPlacement::Below;
-    showParams.flipIfOffscreen  = true;
-    showParams.dismiss          = DxuiPopupDismiss::Manual;
-    showParams.input            = DxuiPopupInput::PassThrough;
-    showParams.shadow           = false;
-    showParams.sizeDip.cx       = (int) boxWDip;
-    showParams.sizeDip.cy       = (int) boxHDip;
-    showParams.backgroundArgb   = m_bgArgb;
-    showParams.renderContent    = [this] (IDxuiPainter & p, IDxuiTextRenderer & t) { RenderPopup (p, t); };
-    showParams.onClosed         = [this] () { m_activePopup = nullptr; };
-
-    hr = m_activePopup->Show (std::move (showParams));
-    if (FAILED (hr))
-    {
-        m_popupHost->ReleasePopup (m_activePopup);
-        m_activePopup = nullptr;
+        hr = m_activePopup->Show (std::move (showParams));
+        if (FAILED (hr))
+        {
+            m_popupHost->ReleasePopup (m_activePopup);
+            m_activePopup = nullptr;
+        }
     }
 }
 
@@ -266,9 +276,10 @@ void DxuiTooltip::ShowPopup ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiTooltip::ReleaseActivePopup ()
+void DxuiTooltip::ReleaseActivePopup()
 {
     DxuiPopupHost *  popup = m_activePopup;
+
 
 
     // Null the pointer first so the popup's onClosed callback (which
@@ -294,6 +305,8 @@ void DxuiTooltip::ReleaseActivePopup ()
 void DxuiTooltip::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) const
 {
     constexpr float     s_kAnchorGapDip = 4.0f;
+
+
 
     HRESULT  hr        = S_OK;
     float    fontPx    = m_scaler.Pxf (m_fontDip);
@@ -361,6 +374,7 @@ void DxuiTooltip::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) const
                                               fontPx,
                                               s_kFontFamily));
 }
+
 
 
 

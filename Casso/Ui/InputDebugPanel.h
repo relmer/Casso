@@ -133,6 +133,11 @@ private:
     void    ApplyListSelection   ();
     void    OnListSelectionMoved ();
     bool    ForwardMouseToList   (DxuiMouseEventKind kind, DxuiMouseButton button, int x, int y, float wheelDelta);
+
+    // Offers a press to `control`; if it takes it, the control also takes
+    // keyboard focus and the event is finished. Nine widgets in OnMouse's
+    // button-down arm repeated exactly this.
+    bool    OfferPressTo         (IDxuiControl * control, const DxuiMouseEvent & ev);
     void    OnHeaderSortKey      ();
     void    OnDividerResizeKey   (int direction);
     void    SortByColumn         (int absCol);

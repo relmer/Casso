@@ -7,6 +7,7 @@
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  MessageDialog::CommandIdFor
@@ -66,9 +67,10 @@ void MessageDialog::Configure (std::unique_ptr<DxuiPanel>  content,
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void MessageDialog::OnCreate ()
+void MessageDialog::OnCreate()
 {
     int  i = 0;
+
 
 
     if (m_pendingContent != nullptr)
@@ -98,17 +100,18 @@ int MessageDialog::TranslateResult (int dialogResult) const
     size_t  idx    = 0;
 
 
+
     if (dialogResult >= s_kCommandBase && dialogResult < s_kCommandBase + (int) m_buttons.size())
     {
         result = m_buttons[(size_t) (dialogResult - s_kCommandBase)].resultCode;
     }
     else
     {
-        for (idx = 0; idx < m_buttons.size(); ++idx)
+        for (auto & button : m_buttons)
         {
-            if (m_buttons[idx].isCancel)
+            if (button.isCancel)
             {
-                result = m_buttons[idx].resultCode;
+                result = button.resultCode;
                 break;
             }
         }

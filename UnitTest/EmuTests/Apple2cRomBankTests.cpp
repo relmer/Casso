@@ -10,6 +10,9 @@
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
 
+
+
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  Apple2cRomBankTests
@@ -24,11 +27,15 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace
+
+
+TEST_CLASS (Apple2cRomBankTests)
 {
-    constexpr Word    kLcWindow    = 0xD000;
-    constexpr size_t  kBankSize    = 0x4000;      // $C000-$FFFF
-    constexpr size_t  kLcOffset    = kLcWindow - 0xC000;  // $1000
+public:
+
+    static constexpr Word    kLcWindow    = 0xD000;
+    static constexpr size_t  kBankSize    = 0x4000;      // $C000-$FFFF
+    static constexpr size_t  kLcOffset    = kLcWindow - 0xC000;  // $1000
 
     // Build a 16K bank image whose $D000 byte is `marker` (so the active bank
     // is observable via LanguageCard::ReadRom).
@@ -49,12 +56,6 @@ namespace
         void ToggleRomBank() override { ++toggles; }
         void ResetRomBank  () override { ++resets; }
     };
-}
-
-
-TEST_CLASS (Apple2cRomBankTests)
-{
-public:
 
     TEST_METHOD (AppliesBank0OnLoad)
     {
@@ -131,3 +132,4 @@ public:
         ss.Reset();
     }
 };
+

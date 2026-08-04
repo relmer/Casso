@@ -4,14 +4,24 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
 
 
-namespace
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TEST_CLASS
+//
+////////////////////////////////////////////////////////////////////////////////
+
+TEST_CLASS (DxuiHwndSourceAdoptModeTests)
 {
-    constexpr UINT  s_kSyntheticDpi    = 192;     // 200% scale
-    constexpr UINT  s_kDefaultDpi      = 96;
-    constexpr LONG  s_kFakeHwndValue   = 0x12345678;
+public:
+
+    static constexpr UINT  s_kSyntheticDpi    = 192;     // 200% scale
+    static constexpr UINT  s_kDefaultDpi      = 96;
+    static constexpr LONG  s_kFakeHwndValue   = 0x12345678;
 
 
-    DxuiHwndSource::CreateParams  MakeAdoptParams ()
+    DxuiHwndSource::CreateParams  MakeAdoptParams()
     {
         DxuiHwndSource::CreateParams  cp;
 
@@ -27,15 +37,6 @@ namespace
         cp.initialSizeDip  = { 1024, 768 };
         return cp;
     }
-}
-
-
-
-
-
-TEST_CLASS (DxuiHwndSourceAdoptModeTests)
-{
-public:
 
     TEST_METHOD_INITIALIZE (Setup)
     {
@@ -262,3 +263,4 @@ public:
         Assert::AreEqual ((unsigned int) s_kDefaultDpi, (unsigned int) host->Scaler().Dpi());
     }
 };
+

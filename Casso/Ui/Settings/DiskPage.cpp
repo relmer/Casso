@@ -7,30 +7,38 @@
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  Anonymous helpers
+//  File-local helpers
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace
+static constexpr int    s_kRowHeightDp     = 28;
+static constexpr int    s_kLabelWidthDp    = 140;
+static constexpr int    s_kCheckWidthDp    = 140;
+static constexpr int    s_kDropdownWidthDp = 200;
+static constexpr int    s_kSectionGapDp    = 14;
+static constexpr int    s_kPagePadDp       = 16;
+static constexpr int    s_kPlayGapDp       = 8;
+static constexpr int    s_kResetWidthDp    = 130;
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskPage::MakeRect
+//
+////////////////////////////////////////////////////////////////////////////////
+
+RECT DiskPage::MakeRect (int l, int t, int w, int h)
 {
-    constexpr int    s_kRowHeightDp     = 28;
-    constexpr int    s_kLabelWidthDp    = 140;
-    constexpr int    s_kCheckWidthDp    = 140;
-    constexpr int    s_kDropdownWidthDp = 200;
-    constexpr int    s_kSectionGapDp    = 14;
-    constexpr int    s_kPagePadDp       = 16;
-    constexpr int    s_kPlayGapDp       = 8;
-    constexpr int    s_kResetWidthDp    = 130;
-
-
-    RECT MakeRect (int l, int t, int w, int h)
-    {
-        RECT  rc = { l, t, l + w, t + h };
-        return rc;
-    }
+    RECT  rc = { l, t, l + w, t + h };
+    return rc;
 }
+
 
 
 
@@ -51,7 +59,6 @@ namespace
 DiskPage::DiskPage (std::wstring title)
     : DxuiPropertyPage (std::move (title))
 {
-    size_t  i = 0;
 
 
     Adopt (m_wpLabel);
@@ -67,9 +74,9 @@ DiskPage::DiskPage (std::wstring title)
     Adopt (m_writeMode);
     Adopt (m_mechanism);
     Adopt (m_driveAudio);
-    for (i = 0; i < m_writeProtect.size(); ++i)
+    for (DxuiCheckbox & checkbox : m_writeProtect)
     {
-        Adopt (m_writeProtect[i]);
+        Adopt (checkbox);
     }
 
     Adopt (m_motorVol);
@@ -94,6 +101,7 @@ DiskPage::DiskPage (std::wstring title)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  DiskPage::SetState
@@ -105,6 +113,7 @@ void DiskPage::SetState (SettingsPanelState * state)
     m_state = state;
     Rebuild();
 }
+
 
 
 
@@ -231,6 +240,7 @@ void DiskPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  DiskPage::Rebuild
@@ -240,7 +250,7 @@ void DiskPage::Layout (const RECT & rect, const DxuiDpiScaler & scaler)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DiskPage::Rebuild ()
+void DiskPage::Rebuild()
 {
     SettingsPanelState  * state = m_state;
 
@@ -292,6 +302,7 @@ void DiskPage::Rebuild ()
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  DiskPage::SetPopupHost
@@ -307,6 +318,7 @@ void DiskPage::SetPopupHost (DxuiHwndSource * host)
     m_writeMode.SetPopupHost       (host);
     m_mechanism.SetPopupHost       (host);
 }
+
 
 
 
@@ -350,6 +362,7 @@ void DiskPage::ApplyDriveAudioChildEnabled (bool enabled)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  DiskPage::ConfigureVolumeSlider
@@ -372,6 +385,7 @@ void DiskPage::ConfigureVolumeSlider (DxuiSlider & slider, const RECT & rect)
     slider.SetShowTicks (true);
     slider.SetTickInterval (10.0f);   // ticks every 10%, not per step-1
 }
+
 
 
 
@@ -422,6 +436,7 @@ void DiskPage::ConfigurePanSlider (DxuiSlider & slider, const RECT & rect)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  DiskPage::ResetDriveAudioToDefaults
@@ -431,7 +446,7 @@ void DiskPage::ConfigurePanSlider (DxuiSlider & slider, const RECT & rect)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DiskPage::ResetDriveAudioToDefaults ()
+void DiskPage::ResetDriveAudioToDefaults()
 {
     HRESULT  hr = S_OK;
 
@@ -454,3 +469,4 @@ void DiskPage::ResetDriveAudioToDefaults ()
 Error:
     return;
 }
+

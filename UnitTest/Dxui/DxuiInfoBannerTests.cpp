@@ -8,6 +8,7 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  DxuiInfoBannerTests
@@ -21,7 +22,7 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
 namespace DxuiInfoBannerTests
 {
-    static DxuiDpiScaler Scaler96 ()
+    static DxuiDpiScaler Scaler96()
     {
         DxuiDpiScaler  s;
 

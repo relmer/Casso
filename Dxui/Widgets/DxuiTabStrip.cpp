@@ -40,27 +40,26 @@ void DxuiTabStrip::SetSelected (int index)
 
 int DxuiTabStrip::HitTest (int x, int y) const
 {
-    int     i = 0;
-    size_t  n = m_tabs.size();
+    int     i   = 0;
+    size_t  n   = m_tabs.size();
+    int     hit = -1;
 
 
 
-    if (!m_enabled)
+    if (m_enabled)
     {
-        return -1;
-    }
-
-    for (i = 0; i < (int) n; ++i)
-    {
-        const RECT & r = m_tabs[(size_t) i].rect;
-
-        if (x >= r.left && x < r.right && y >= r.top && y < r.bottom)
+        for (i = 0; i < (int) n && hit < 0; ++i)
         {
-            return i;
+            const RECT & r = m_tabs[(size_t) i].rect;
+
+            if (x >= r.left && x < r.right && y >= r.top && y < r.bottom)
+            {
+                hit = i;
+            }
         }
     }
 
-    return -1;
+    return hit;
 }
 
 
@@ -95,17 +94,17 @@ void DxuiTabStrip::SetMouseHover (int x, int y)
 
 bool DxuiTabStrip::OnLButtonDown (int x, int y)
 {
-    int  hit = HitTest (x, y);
+    int   hit    = HitTest (x, y);
+    bool  wasHit = (hit >= 0);
 
 
 
-    if (hit < 0)
+    if (wasHit)
     {
-        return false;
+        m_pressed = hit;
     }
 
-    m_pressed = hit;
-    return true;
+    return wasHit;
 }
 
 
@@ -147,31 +146,32 @@ bool DxuiTabStrip::OnLButtonUp (int x, int y)
 
 bool DxuiTabStrip::OnKey (WPARAM vk)
 {
-    int     next = m_selected;
-    size_t  n    = m_tabs.size();
+    int     next     = m_selected;
+    size_t  n        = m_tabs.size();
+    bool    isActive = false;
+    bool    handled  = false;
 
 
 
-    if (!m_enabled || !m_focused || n == 0)
+    isActive = m_enabled && m_focused && n != 0;
+
+    if (isActive && vk == VK_LEFT)
     {
-        return false;
+        next    = (m_selected <= 0) ? (int) (n - 1) : m_selected - 1;
+        handled = true;
+    }
+    else if (isActive && vk == VK_RIGHT)
+    {
+        next    = (m_selected < 0 || m_selected >= (int) n - 1) ? 0 : m_selected + 1;
+        handled = true;
     }
 
-    if (vk == VK_LEFT)
+    if (handled)
     {
-        next = (m_selected <= 0) ? (int) (n - 1) : m_selected - 1;
         Commit (next);
-        return true;
     }
 
-    if (vk == VK_RIGHT)
-    {
-        next = (m_selected < 0 || m_selected >= (int) n - 1) ? 0 : m_selected + 1;
-        Commit (next);
-        return true;
-    }
-
-    return false;
+    return handled;
 }
 
 
@@ -215,6 +215,8 @@ void DxuiTabStrip::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) cons
     constexpr uint32_t  s_kTabSelected = 0xFF4C6480;
     constexpr uint32_t  s_kTextArgb    = 0xFFE8EEF4;
     constexpr uint32_t  s_kFocusRing   = 0xFFAACCFF;
+
+
 
     PaintInternal (painter, text, s_kTabIdle, s_kTabHover, s_kTabSelected, s_kTextArgb, s_kFocusRing);
 }
@@ -315,6 +317,7 @@ void DxuiTabStrip::PaintInternal (IDxuiPainter & painter, IDxuiTextRenderer & te
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  DxuiTabStrip::Layout  (IDxuiControl override)
@@ -344,12 +347,14 @@ void DxuiTabStrip::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
 {
     constexpr float  s_kIdleScale = 0.6f;
 
+
+
     uint32_t  hover = theme.HoverBackground();
 
 
 
     // Underline-style strip: the "selected" slot carries the accent used for
-    // the active-tab underline (the theme selection colour), hover is a subtle
+    // the active-tab underline (the theme selection color), hover is a subtle
     // fill hint, idle is unused (idle tabs blend with the page).
     PaintInternal (painter, text,
                    DxuiColor::Scale (hover, s_kIdleScale),
@@ -371,26 +376,32 @@ void DxuiTabStrip::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
 
 bool DxuiTabStrip::OnMouse (const DxuiMouseEvent & ev)
 {
+    bool  handled = false;
+
+
+
     switch (ev.kind)
     {
     case DxuiMouseEventKind::Move:
         SetMouseHover (ev.positionDip.x, ev.positionDip.y);
-        return false;
+        break;
     case DxuiMouseEventKind::Down:
         if (ev.button == DxuiMouseButton::Left)
         {
-            return OnLButtonDown (ev.positionDip.x, ev.positionDip.y);
+            handled = OnLButtonDown (ev.positionDip.x, ev.positionDip.y);
         }
-        return false;
+        break;
     case DxuiMouseEventKind::Up:
         if (ev.button == DxuiMouseButton::Left)
         {
-            return OnLButtonUp (ev.positionDip.x, ev.positionDip.y);
+            handled = OnLButtonUp (ev.positionDip.x, ev.positionDip.y);
         }
-        return false;
+        break;
     default:
-        return false;
+        break;
     }
+
+    return handled;
 }
 
 
@@ -405,12 +416,16 @@ bool DxuiTabStrip::OnMouse (const DxuiMouseEvent & ev)
 
 bool DxuiTabStrip::OnKey (const DxuiKeyEvent & ev)
 {
-    if (ev.kind != DxuiKeyEventKind::Down)
+    bool  handled = false;
+
+
+
+    if (ev.kind == DxuiKeyEventKind::Down)
     {
-        return false;
+        handled = OnKey (ev.vk);
     }
 
-    return OnKey (ev.vk);
+    return handled;
 }
 
 
@@ -425,12 +440,19 @@ bool DxuiTabStrip::OnKey (const DxuiKeyEvent & ev)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::wstring DxuiTabStrip::AccessibleName () const
+std::wstring DxuiTabStrip::AccessibleName() const
 {
-    if (m_selected < 0 || m_selected >= (int) m_tabs.size())
+    std::wstring  name;
+    bool          hasSelection = false;
+
+
+
+    hasSelection = m_selected >= 0 && m_selected < (int) m_tabs.size();
+
+    if (hasSelection)
     {
-        return L"";
+        name = m_tabs[(size_t) m_selected].label;
     }
 
-    return m_tabs[(size_t) m_selected].label;
+    return name;
 }

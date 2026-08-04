@@ -12,6 +12,7 @@ static constexpr int   s_kIdleSleepMs = 4;   // loop period: paces the head in ~
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  ~PrinterWorker
@@ -22,6 +23,7 @@ PrinterWorker::~PrinterWorker()
 {
     Stop();
 }
+
 
 
 
@@ -53,6 +55,7 @@ void PrinterWorker::Start (PrinterByteRing & ring, PrintRaster seed)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  Stop
@@ -78,6 +81,7 @@ void PrinterWorker::Stop()
 
     m_running = false;
 }
+
 
 
 

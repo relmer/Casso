@@ -37,7 +37,7 @@ namespace MockingboardCardTestNs
     public:
         HRESULT     Reset         () override                     { return S_OK; }
         HRESULT     Step          (uint32_t & outCycles) override { outCycles = 0; return S_OK; }
-        uint64_t    GetCycleCount () const override               { return 0; }
+        uint64_t    GetCycleCount() const override               { return 0; }
 
         void        SetInterruptLine (CpuInterruptKind kind, bool asserted) override
         {
@@ -47,7 +47,7 @@ namespace MockingboardCardTestNs
             }
         }
 
-        bool        IrqAsserted () const { return m_irqAsserted; }
+        bool        IrqAsserted() const { return m_irqAsserted; }
 
     private:
         bool    m_irqAsserted = false;
@@ -71,8 +71,8 @@ namespace MockingboardCardTestNs
 
 
 
-            Assert::AreEqual<Word> (0xC400, card.GetStart ());
-            Assert::AreEqual<Word> (0xC4FF, card.GetEnd ());
+            Assert::AreEqual<Word> (0xC400, card.GetStart());
+            Assert::AreEqual<Word> (0xC4FF, card.GetEnd());
         }
 
 
@@ -88,8 +88,8 @@ namespace MockingboardCardTestNs
             card.Write (kVia1Base + Via6522::kRegOra, 0x11);
             card.Write (kVia2Base + Via6522::kRegOra, 0x22);
 
-            Assert::AreEqual<Byte> (0x11, card.GetVia (0).GetOra ());
-            Assert::AreEqual<Byte> (0x22, card.GetVia (1).GetOra ());
+            Assert::AreEqual<Byte> (0x11, card.GetVia (0).GetOra());
+            Assert::AreEqual<Byte> (0x22, card.GetVia (1).GetOra());
         }
 
 
@@ -103,7 +103,7 @@ namespace MockingboardCardTestNs
 
             // $C401 and $C411 both address ORA on VIA #1.
             card.Write (0xC411, 0x77);
-            Assert::AreEqual<Byte> (0x77, card.GetVia (0).GetOra ());
+            Assert::AreEqual<Byte> (0x77, card.GetVia (0).GetOra());
         }
 
 
@@ -177,12 +177,12 @@ namespace MockingboardCardTestNs
             card.Write (kVia1Base + Via6522::kRegT1CH, 0x00);
 
             card.Tick (100);
-            Assert::IsTrue (cpu.IrqAsserted (),
+            Assert::IsTrue (cpu.IrqAsserted(),
                             L"Continuous Timer 1 must drive the shared IRQ line");
 
             // Reading T1C-L on VIA #1 clears the flag and de-asserts.
             card.Read (kVia1Base + Via6522::kRegT1CL);
-            Assert::IsFalse (cpu.IrqAsserted ());
+            Assert::IsFalse (cpu.IrqAsserted());
         }
 
 
@@ -205,7 +205,7 @@ namespace MockingboardCardTestNs
             card.Write (kVia2Base + Via6522::kRegT1CH, 0x00);
 
             card.Tick (21);
-            Assert::IsTrue (cpu.IrqAsserted (),
+            Assert::IsTrue (cpu.IrqAsserted(),
                             L"VIA #2's timer shares the same interrupt controller");
         }
 
@@ -263,9 +263,9 @@ namespace MockingboardCardTestNs
             config.hasSlot = true;
 
             device = registry.Create ("mockingboard", config, bus);
-            Assert::IsNotNull (device.get ());
-            Assert::AreEqual<Word> (0xC400, device->GetStart ());
-            Assert::AreEqual<Word> (0xC4FF, device->GetEnd ());
+            Assert::IsNotNull (device.get());
+            Assert::AreEqual<Word> (0xC400, device->GetStart());
+            Assert::AreEqual<Word> (0xC4FF, device->GetEnd());
         }
 
 

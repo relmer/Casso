@@ -122,6 +122,8 @@ static void PackNibbleBits (vector<Byte> & dst, size_t & bitOffset, Byte nibble)
     Byte   b    = 0;
     Byte   mask = 0;
 
+
+
     for (bit = 7; bit >= 0; bit--)
     {
         b    = static_cast<Byte> ((nibble >> bit) & 1);
@@ -314,12 +316,10 @@ static HRESULT NibblizeWithMap (
     int       track     = 0;
     int       logical   = 0;
     size_t    offset    = 0;
+    size_t    rawSize   = 0;
 
-    if (raw.size () != NibblizationLayer::kImageByteSize)
-    {
-        hr = E_INVALIDARG;
-        goto Error;
-    }
+    rawSize = raw.size();
+    CBRAEx (rawSize == NibblizationLayer::kImageByteSize, E_INVALIDARG);
 
     for (track = 0; track < NibblizationLayer::kTrackCount; track++)
     {
@@ -345,7 +345,7 @@ static HRESULT NibblizeWithMap (
         out.SetTrackBitCount (track, bitOffset);
     }
 
-    out.ClearDirty ();
+    out.ClearDirty();
 
 Error:
     return hr;
@@ -365,6 +365,8 @@ HRESULT NibblizationLayer::NibblizeDsk (const vector<Byte> & raw, DiskImage & ou
 {
     HRESULT   hr = NibblizeWithMap (raw, kDsk_LtoP, out);
 
+
+
     if (SUCCEEDED (hr))
     {
         out.SetSourceFormat (DiskFormat::Dsk);
@@ -374,9 +376,20 @@ HRESULT NibblizationLayer::NibblizeDsk (const vector<Byte> & raw, DiskImage & ou
 }
 
 
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  NibblizeDo
+//
+////////////////////////////////////////////////////////////////////////////////
+
 HRESULT NibblizationLayer::NibblizeDo (const vector<Byte> & raw, DiskImage & out)
 {
     HRESULT   hr = NibblizeWithMap (raw, kDsk_LtoP, out);
+
+
 
     if (SUCCEEDED (hr))
     {
@@ -387,9 +400,20 @@ HRESULT NibblizationLayer::NibblizeDo (const vector<Byte> & raw, DiskImage & out
 }
 
 
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  NibblizePo
+//
+////////////////////////////////////////////////////////////////////////////////
+
 HRESULT NibblizationLayer::NibblizePo (const vector<Byte> & raw, DiskImage & out)
 {
     HRESULT   hr = NibblizeWithMap (raw, kPo_DosLogicalToFile, out);
+
+
 
     if (SUCCEEDED (hr))
     {
@@ -400,15 +424,30 @@ HRESULT NibblizationLayer::NibblizePo (const vector<Byte> & raw, DiskImage & out
 }
 
 
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Nibblize
+//
+////////////////////////////////////////////////////////////////////////////////
+
 HRESULT NibblizationLayer::Nibblize (const vector<Byte> & raw, DiskFormat fmt, DiskImage & out)
 {
+    HRESULT  hr = S_OK;
+
+
+
     switch (fmt)
     {
-        case DiskFormat::Dsk: return NibblizeDsk (raw, out);
-        case DiskFormat::Do:  return NibblizeDo  (raw, out);
-        case DiskFormat::Po:  return NibblizePo  (raw, out);
-        default:              return E_INVALIDARG;
+        case DiskFormat::Dsk: hr = NibblizeDsk (raw, out); break;
+        case DiskFormat::Do:  hr = NibblizeDo  (raw, out); break;
+        case DiskFormat::Po:  hr = NibblizePo  (raw, out); break;
+        default:              hr = E_INVALIDARG;           break;
     }
+
+    return hr;
 }
 
 
@@ -427,21 +466,31 @@ static Byte ReadNibbleAt (const DiskImage & img, int track, size_t & bitPos)
     Byte     value     = 0;
     Byte     bit       = 0;
     size_t   start     = bitPos;
+    bool     overran   = false;
 
-    if (trackBits == 0)
+
+
+    // Shift in bits until the MSB sets (the LSS's own nibble-complete rule).
+    // A full revolution with no MSB means the track carries no sync bytes, so
+    // give up rather than spin forever -- 0 is the caller's "no nibble".
+    //
+    // The overrun test stays AFTER the read and outranks a completed nibble:
+    // a value whose MSB set on the very read that crossed the revolution
+    // boundary is discarded, because its high bits came from before the wrap.
+    if (trackBits != 0)
     {
-        return 0;
-    }
-
-    while ((value & 0x80) == 0)
-    {
-        bit    = img.ReadBit (track, bitPos % trackBits);
-        bitPos++;
-        value  = static_cast<Byte> ((value << 1) | (bit & 1));
-
-        if (bitPos - start > trackBits)
+        while ((value & 0x80) == 0 && !overran)
         {
-            return 0;
+            bit    = img.ReadBit (track, bitPos % trackBits);
+            bitPos++;
+            value  = static_cast<Byte> ((value << 1) | (bit & 1));
+
+            overran = (bitPos - start > trackBits);
+        }
+
+        if (overran)
+        {
+            value = 0;
         }
     }
 
@@ -449,25 +498,46 @@ static Byte ReadNibbleAt (const DiskImage & img, int track, size_t & bitPos)
 }
 
 
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Decode44
+//
+////////////////////////////////////////////////////////////////////////////////
+
 static Byte Decode44 (Byte odd, Byte even)
 {
     return static_cast<Byte> (((odd << 1) | 1) & even);
 }
 
 
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  InverseTranslate
+//
+////////////////////////////////////////////////////////////////////////////////
+
 static Byte InverseTranslate (Byte nib)
 {
-    int   i = 0;
+    int   i     = 0;
+    Byte  value = 0xFF;      // 0xFF == not a legal 6-and-2 nibble
 
-    for (i = 0; i < 64; i++)
+
+
+    for (i = 0; i < 64 && value == 0xFF; i++)
     {
         if (kWriteTranslate[i] == nib)
         {
-            return static_cast<Byte> (i);
+            value = static_cast<Byte> (i);
         }
     }
 
-    return 0xFF;
+    return value;
 }
 
 
@@ -514,11 +584,7 @@ static HRESULT DecodeOneSector (
     size_t    startBitPos               = bitPos;
     size_t    bitsConsumed              = 0;
 
-    if (trackBits == 0)
-    {
-        hr = E_FAIL;
-        goto Error;
-    }
+    CBR (trackBits != 0);
 
     foundProlog = 0;
 
@@ -528,11 +594,7 @@ static HRESULT DecodeOneSector (
         if (n0 != kAddrProlog0)
         {
             bitsConsumed = (bitPos - startBitPos);
-            if (bitsConsumed > trackBits + 8)
-            {
-                hr = E_FAIL;
-                goto Error;
-            }
+            CBR (bitsConsumed <= trackBits + 8);
             continue;
         }
 
@@ -571,11 +633,7 @@ static HRESULT DecodeOneSector (
         if (n0 != kAddrProlog0)
         {
             bitsConsumed = (bitPos - startBitPos);
-            if (bitsConsumed > trackBits + 8)
-            {
-                hr = E_FAIL;
-                goto Error;
-            }
+            CBR (bitsConsumed <= trackBits + 8);
             continue;
         }
 
@@ -667,14 +725,14 @@ HRESULT NibblizationLayer::Denibblize (const DiskImage & img, DiskFormat fmt, ve
         case DiskFormat::Dsk: interleave = kDsk_LtoP;             break;
         case DiskFormat::Do:  interleave = kDsk_LtoP;             break;
         case DiskFormat::Po:  interleave = kPo_DosLogicalToFile;  break;
-        default:
-            hr = E_INVALIDARG;
-            goto Error;
+        default:              hr         = E_INVALIDARG;          break;
     }
+
+    CHR (hr);
 
     for (track = 0; track < kTrackCount; track++)
     {
-        if (track >= img.GetTrackCount ())
+        if (track >= img.GetTrackCount())
         {
             break;
         }

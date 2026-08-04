@@ -23,7 +23,7 @@ static constexpr Byte   s_kCmdGraphicsBin = 'L';  // bit-image, 2 BINARY count b
 static constexpr Byte   s_kCmdLineSpace  = 'T';   // n/144" line feed, 2 ASCII digits
 static constexpr Byte   s_kCmdLineSpace72 = 'A';  // n/72" line feed, 1 BINARY byte (Print Shop capture)
 static constexpr Byte   s_kCmd8Lpi       = 'B';   // 1/8" line feed
-static constexpr Byte   s_kCmdColor      = 'K';   // seven-colour select (acted on in US2)
+static constexpr Byte   s_kCmdColor      = 'K';   // seven-color select (acted on in US2)
 static constexpr Byte   s_kCmdReset      = 'c';   // software reset
 
 // Recognized-but-inert preamble Print Shop sends before every graphics pass.
@@ -58,10 +58,19 @@ static constexpr int    s_kGraphicsRowsPerPin    = PrinterGrid::kRowsPerInch / 7
 
 
 
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DecodeAsciiDigits
+//
+////////////////////////////////////////////////////////////////////////////////
+
 static int DecodeAsciiDigits (const Byte * digits, int count)
 {
     int   value = 0;
     int   i     = 0;
+
+
 
     for (i = 0; i < count; i++)
     {
@@ -83,24 +92,43 @@ static int DecodeAsciiDigits (const Byte * digits, int count)
 
 
 
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PitchForCommand
+//
+////////////////////////////////////////////////////////////////////////////////
+
 static int PitchForCommand (Byte cmd)
 {
     // PROVISIONAL pitch selections (unused until the US6 draft font renders
     // text; stored only so the commands are consumed, not flagged unknown).
+    // The divisor is characters per inch; 0 means "not a pitch command".
+    int  dotsPerChar = 0;
+
     switch (cmd)
     {
-    case 'n':   return PrinterGrid::kDotsPerInchH / 9;
-    case 'N':   return PrinterGrid::kDotsPerInchH / 10;
-    case 'E':   return PrinterGrid::kDotsPerInchH / 12;
-    case 'e':   return PrinterGrid::kDotsPerInchH / 13;
-    case 'q':   return PrinterGrid::kDotsPerInchH / 15;
-    case 'Q':   return PrinterGrid::kDotsPerInchH / 17;
-    default:    return 0;
+    case 'n':   dotsPerChar = PrinterGrid::kDotsPerInchH /  9; break;
+    case 'N':   dotsPerChar = PrinterGrid::kDotsPerInchH / 10; break;
+    case 'E':   dotsPerChar = PrinterGrid::kDotsPerInchH / 12; break;
+    case 'e':   dotsPerChar = PrinterGrid::kDotsPerInchH / 13; break;
+    case 'q':   dotsPerChar = PrinterGrid::kDotsPerInchH / 15; break;
+    case 'Q':   dotsPerChar = PrinterGrid::kDotsPerInchH / 17; break;
+    default:                                                   break;
     }
+
+    return dotsPerChar;
 }
 
 
 
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  IsPitchCommand
+//
+////////////////////////////////////////////////////////////////////////////////
 
 static bool IsPitchCommand (Byte cmd)
 {
@@ -110,29 +138,45 @@ static bool IsPitchCommand (Byte cmd)
 
 
 
-// ESC K colour select: one ASCII digit 0..6 per the ImageWriter II ribbon
-// table (0 black, 1 yellow, 2 red, 3 blue, 4 orange, 5 green, 6 purple). The
-// composites are the OR of their primaries, matching how two overprinted
-// passes accumulate in a cell -- Print Shop Color drives only the 1/2/3
-// primaries and lets overlap form the composites itself.
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ColorForCode
+//
+//  ESC K color select: one ASCII digit 0..6 per the ImageWriter II ribbon
+//  table (0 black, 1 yellow, 2 red, 3 blue, 4 orange, 5 green, 6 purple). The
+//  composites are the OR of their primaries, matching how two overprinted
+//  passes accumulate in a cell -- Print Shop Color drives only the 1/2/3
+//  primaries and lets overlap form the composites itself.
+//
+////////////////////////////////////////////////////////////////////////////////
+
 static InkPrimary ColorForCode (Byte digit)
 {
     Byte   yellow = (Byte) InkPrimary::Yellow;
     Byte   red    = (Byte) InkPrimary::Red;
     Byte   blue   = (Byte) InkPrimary::Blue;
 
+
+
+    // Black is both code '0' and the safe fallback for an out-of-table digit.
+    InkPrimary  ink = InkPrimary::Black;
+
     switch (digit)
     {
-    case '0':   return InkPrimary::Black;
-    case '1':   return InkPrimary::Yellow;
-    case '2':   return InkPrimary::Red;
-    case '3':   return InkPrimary::Blue;
-    case '4':   return (InkPrimary) (yellow | red);    // orange
-    case '5':   return (InkPrimary) (yellow | blue);   // green
-    case '6':   return (InkPrimary) (red | blue);      // purple
-    default:    return InkPrimary::Black;
+    case '0':   ink = InkPrimary::Black;                  break;
+    case '1':   ink = InkPrimary::Yellow;                 break;
+    case '2':   ink = InkPrimary::Red;                    break;
+    case '3':   ink = InkPrimary::Blue;                   break;
+    case '4':   ink = (InkPrimary) (yellow | red);        break;   // orange
+    case '5':   ink = (InkPrimary) (yellow | blue);       break;   // green
+    case '6':   ink = (InkPrimary) (red | blue);          break;   // purple
+    default:                                              break;
     }
+
+    return ink;
 }
+
 
 
 
@@ -165,6 +209,7 @@ void ImageWriterInterpreter::Reset()
     m_textRow      = 0;
     m_textInkTo    = -1;
 }
+
 
 
 
@@ -211,6 +256,7 @@ void ImageWriterInterpreter::Consume (
         }
     }
 }
+
 
 
 
@@ -276,6 +322,7 @@ void ImageWriterInterpreter::ConsumeIdle (Byte b, PrintRaster & raster, vector<P
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  RenderTextChar
@@ -297,6 +344,8 @@ void ImageWriterInterpreter::RenderTextChar (Byte ch, PrintRaster & raster, vect
     int   row      = 0;
     int   sub      = 0;
     int   bit      = 0;
+
+
 
     if (cellDots <= 0)
     {
@@ -369,6 +418,7 @@ void ImageWriterInterpreter::RenderTextChar (Byte ch, PrintRaster & raster, vect
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  FlushTextPass
@@ -384,26 +434,26 @@ void ImageWriterInterpreter::RenderTextChar (Byte ch, PrintRaster & raster, vect
 void ImageWriterInterpreter::FlushTextPass (vector<PrinterEvent> & events)
 {
     PrinterEvent   ev;
+    bool           wasOpen = m_textPassOpen;
 
-    if (!m_textPassOpen)
-    {
-        return;
-    }
 
+
+    // Closing the pass is unconditional once it was open -- an all-space line
+    // still ends the line, it just does not emit a carriage pass (no ink to
+    // sweep over, so no burst and no sound).
     m_textPassOpen = false;
 
-    if (m_textInkTo < m_textFromDot)
+    if (wasOpen && m_textInkTo >= m_textFromDot)
     {
-        return;   // the line laid no ink (all spaces) -- no carriage pass, just the feed
+        ev.type    = PrinterEventType::HeadBurst;
+        ev.fromDot = m_textFromDot;
+        ev.toDot   = m_textInkTo;         // logic seek to the last INKED column, not the trailing spaces
+        ev.row     = m_textRow;
+        ev.color   = m_color;             // the primary this pass laid (usually black text)
+        events.push_back (ev);
     }
-
-    ev.type    = PrinterEventType::HeadBurst;
-    ev.fromDot = m_textFromDot;
-    ev.toDot   = m_textInkTo;             // logic seek to the last INKED column, not the trailing spaces
-    ev.row     = m_textRow;
-    ev.color   = m_color;                // the primary this pass laid (usually black text)
-    events.push_back (ev);
 }
+
 
 
 
@@ -481,6 +531,7 @@ void ImageWriterInterpreter::ConsumeEsc (Byte b, PrintRaster & raster, vector<Pr
         m_state = EscState::Idle;
     }
 }
+
 
 
 
@@ -567,6 +618,7 @@ void ImageWriterInterpreter::ExecuteParamCommand (PrintRaster & raster, vector<P
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  ConsumeGraphicsByte
@@ -588,6 +640,8 @@ void ImageWriterInterpreter::ConsumeGraphicsByte (Byte b, PrintRaster & raster, 
     int   dot0  = m_headColumnDots;
     int   dot1  = m_headColumnDots + 1;
     int   bit   = 0;
+
+
 
     // ESC G columns are native 160-dpi dots. ESC L columns are 120 dpi:
     // column i of the burst spans native dots [i*4/3, (i+1)*4/3) from the
@@ -644,6 +698,7 @@ void ImageWriterInterpreter::ConsumeGraphicsByte (Byte b, PrintRaster & raster, 
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  EmitReset
@@ -656,6 +711,8 @@ void ImageWriterInterpreter::ConsumeGraphicsByte (Byte b, PrintRaster & raster, 
 void ImageWriterInterpreter::EmitReset (vector<PrinterEvent> & events)
 {
     PrinterEvent   ev;
+
+
 
     Reset();
     ev.type = PrinterEventType::ResetSeen;

@@ -6,6 +6,7 @@
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  Constants
@@ -53,30 +54,35 @@ Byte MemoryBus::ReadByte (Word address)
     // Fast path: page-table lookup. RAM ($0000-$BFFF) and, once the language
     // card wires them, ROM/LC RAM ($D000-$FFFF) have a mapped page; I/O
     // ($C000-$CFFF) stays null and falls through to device dispatch so its
-    // read side effects run.
-    Byte * page = m_readPage[address >> 8];
+    // read side effects run. This is the hottest read in the emulator, so the
+    // mapped case stays one branch deep.
+    Byte *          page   = m_readPage[address >> 8];
+    MemoryDevice *  device = nullptr;
+    Byte            value  = 0;
 
     if (page != nullptr)
     {
-        return page[address & 0xFF];
+        value = page[address & 0xFF];
     }
-
-    MemoryDevice * device = FindDevice (address);
-
-    if (device != nullptr)
+    else
     {
-        Byte value = device->Read (address);
-        m_floatingBusValue = value;
-        return value;
+        device = FindDevice (address);
+
+        if (device != nullptr)
+        {
+            value              = device->Read (address);
+            m_floatingBusValue = value;
+        }
+        else if (address >= 0xC000 && address <= 0xCFFF)
+        {
+            // Unmapped I/O: the bus holds whatever the last device drove.
+            // Outside that window an unmapped address reads as 0 instead --
+            // there is no bus to float.
+            value = m_floatingBusValue;
+        }
     }
 
-    // Unmapped I/O in $C000-$CFFF returns floating bus value
-    if (address >= 0xC000 && address <= 0xCFFF)
-    {
-        return m_floatingBusValue;
-    }
-
-    return 0;
+    return value;
 }
 
 
@@ -196,7 +202,7 @@ void MemoryBus::AddDevice (MemoryDevice * device)
 
     m_entries.insert (it, entry);
 
-    BuildIoDeviceMap ();
+    BuildIoDeviceMap();
 }
 
 
@@ -221,7 +227,7 @@ void MemoryBus::RemoveDevice (MemoryDevice * device)
 
     m_entries.erase (it, m_entries.end());
 
-    BuildIoDeviceMap ();
+    BuildIoDeviceMap();
 }
 
 
@@ -277,11 +283,11 @@ void MemoryBus::Reset()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void MemoryBus::SoftResetAll ()
+void MemoryBus::SoftResetAll()
 {
     for (auto & entry : m_entries)
     {
-        entry.device->SoftReset ();
+        entry.device->SoftReset();
     }
 
     m_floatingBusValue = 0xFF;
@@ -324,24 +330,32 @@ void MemoryBus::PowerCycleAll (Prng & prng)
 
 MemoryDevice * MemoryBus::FindDevice (Word address) const
 {
+    MemoryDevice *  device = nullptr;
+
+
+
     if (address >= kIoMapBase)
     {
-        return m_ioDeviceMap[address - kIoMapBase];
+        // I/O is a direct-indexed map; the scan below is never reached for it.
+        device = m_ioDeviceMap[address - kIoMapBase];
     }
-
-    // Rare: a read/write to an unmapped low page. Production maps all of
-    // $0000-$BFFF through the page table, so this only happens on partial test
-    // buses; a linear scan of the handful of entries is fine here.
-    for (const auto & entry : m_entries)
+    else
     {
-        if (address >= entry.start && address <= entry.end)
+        // Rare: a read/write to an unmapped low page. Production maps all of
+        // $0000-$BFFF through the page table, so this only happens on partial
+        // test buses; a linear scan of the handful of entries is fine here.
+        for (const auto & entry : m_entries)
         {
-            return entry.device;
+            if (device == nullptr && address >= entry.start && address <= entry.end)
+            {
+                device = entry.device;
+            }
         }
     }
 
-    return nullptr;
+    return device;
 }
+
 
 
 
@@ -352,16 +366,16 @@ MemoryDevice * MemoryBus::FindDevice (Word address) const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void MemoryBus::BuildIoDeviceMap ()
+void MemoryBus::BuildIoDeviceMap()
 {
-    fill (m_ioDeviceMap.begin (), m_ioDeviceMap.end (), nullptr);
+    fill (m_ioDeviceMap.begin(), m_ioDeviceMap.end(), nullptr);
 
     // Paint each device's footprint in $C000-$FFFF into the map. Walking the
     // entries from highest start address down to lowest lets a lower-start
     // device overwrite any overlap, so a lookup returns exactly what the
     // linear "first match wins" scan would (m_entries is sorted ascending by
     // start). Ranges below $C000 (main RAM) contribute nothing to the I/O map.
-    for (auto it = m_entries.rbegin (); it != m_entries.rend (); ++it)
+    for (auto it = m_entries.rbegin(); it != m_entries.rend(); ++it)
     {
         int lo = max<int> (it->start, kIoMapBase);
         int hi = it->end;

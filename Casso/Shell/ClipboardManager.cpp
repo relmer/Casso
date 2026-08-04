@@ -14,28 +14,6 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace
-{
-    constexpr int   s_kTextRows         = 24;
-    constexpr int   s_kTextCols         = 40;
-    constexpr Word  s_kTextBase         = 0x0400;
-    constexpr Word  s_kRowGroupStride   = 0x28;
-    constexpr Word  s_kRowSubgroupStride = 0x80;
-    constexpr int   s_kRowsPerGroup     = 8;
-    constexpr Byte  s_kHighBitMask      = 0x80;
-    constexpr Byte  s_kInverseHighStart = 0xA0;
-    constexpr Byte  s_kPrintableLow     = 0x20;
-    constexpr Byte  s_kPrintableHigh    = 0x7E;
-    constexpr Byte  s_kCarriageReturn   = 0x0D;
-    constexpr wchar_t  s_kNewline       = L'\n';
-    constexpr wchar_t  s_kReturn        = L'\r';
-    constexpr int   s_kBitsPerByte      = 8;
-    constexpr int   s_kBytesPerPixel    = 4;
-    constexpr WORD  s_kDibBitCount      = 32;
-    constexpr Word  s_kRd80Vid          = 0xC01F;   // 80-column display status
-    constexpr int   s_kTextCols80       = 80;
-}
-
 
 
 
@@ -82,22 +60,27 @@ ClipboardManager::ClipboardManager (
 
 wchar_t ClipboardManager::DecodeScreenByte (Byte ch)
 {
-    if (ch >= s_kInverseHighStart)
+    constexpr Byte  kInverseHighStart = 0xA0;
+
+
+
+    if (ch >= kInverseHighStart)
     {
-        ch -= s_kHighBitMask;
+        ch -= kHighBitMask;
     }
-    else if (ch >= s_kHighBitMask)
+    else if (ch >= kHighBitMask)
     {
-        ch -= s_kHighBitMask;
+        ch -= kHighBitMask;
     }
 
-    if (ch < s_kPrintableLow || ch > s_kPrintableHigh)
+    if (ch < kPrintableLow || ch > kPrintableHigh)
     {
         ch = ' ';
     }
 
     return static_cast<wchar_t> (ch);
 }
+
 
 
 
@@ -114,6 +97,16 @@ wchar_t ClipboardManager::DecodeScreenByte (Byte ch)
 
 std::wstring ClipboardManager::BuildScreenText (const Byte * auxRam) const
 {
+    constexpr int   kTextRows         = 24;
+    constexpr int   kTextCols         = 40;
+    constexpr Word  kTextBase         = 0x0400;
+    constexpr Word  kRowGroupStride   = 0x28;
+    constexpr Word  kRowSubgroupStride = 0x80;
+    constexpr int   kRowsPerGroup     = 8;
+    constexpr int   kTextCols80       = 80;
+
+
+
     std::wstring  text;
 
     // 80-column text interleaves auxiliary memory (even display columns) with
@@ -121,16 +114,16 @@ std::wstring ClipboardManager::BuildScreenText (const Byte * auxRam) const
     // has an aux bank AND currently has the 80-column display switched on
     // (RD80VID, $C01F bit 7); otherwise the plain 40-column main page is read.
     bool  eighty = (auxRam != nullptr)
-                && ((m_memoryBus.ReadByte (s_kRd80Vid) & s_kHighBitMask) != 0);
-    int   cols   = eighty ? s_kTextCols80 : s_kTextCols;
+                && ((m_memoryBus.ReadByte (kRd80Vid) & kHighBitMask) != 0);
+    int   cols   = eighty ? kTextCols80 : kTextCols;
 
 
 
-    for (int row = 0; row < s_kTextRows; row++)
+    for (int row = 0; row < kTextRows; row++)
     {
-        Word  base = static_cast<Word> (s_kTextBase
-                                        + (row / s_kRowsPerGroup) * s_kRowGroupStride
-                                        + (row % s_kRowsPerGroup) * s_kRowSubgroupStride);
+        Word  base = static_cast<Word> (kTextBase
+                                        + (row / kRowsPerGroup) * kRowGroupStride
+                                        + (row % kRowsPerGroup) * kRowSubgroupStride);
 
         for (int col = 0; col < cols; col++)
         {
@@ -168,6 +161,7 @@ std::wstring ClipboardManager::BuildScreenText (const Byte * auxRam) const
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  CopyScreenText
@@ -187,28 +181,29 @@ void ClipboardManager::CopyScreenText (HWND hwnd, const Byte * auxRam) const
     std::wstring  text  = BuildScreenText (auxRam);
 
 
-    if (!OpenClipboard (hwnd))
+
+    // Another process can hold the clipboard; a failed open is not an error
+    // worth surfacing, the copy just does not happen.
+    if (OpenClipboard (hwnd))
     {
-        return;
-    }
+        EmptyClipboard();
 
-    EmptyClipboard();
+        hMem = GlobalAlloc (GMEM_MOVEABLE, (text.size() + 1) * sizeof (wchar_t));
 
-    hMem = GlobalAlloc (GMEM_MOVEABLE, (text.size() + 1) * sizeof (wchar_t));
-
-    if (hMem != nullptr)
-    {
-        pDest = static_cast<wchar_t *> (GlobalLock (hMem));
-
-        if (pDest != nullptr)
+        if (hMem != nullptr)
         {
-            memcpy (pDest, text.c_str(), (text.size() + 1) * sizeof (wchar_t));
-            GlobalUnlock (hMem);
-            SetClipboardData (CF_UNICODETEXT, hMem);
-        }
-    }
+            pDest = static_cast<wchar_t *> (GlobalLock (hMem));
 
-    CloseClipboard();
+            if (pDest != nullptr)
+            {
+                memcpy (pDest, text.c_str(), (text.size() + 1) * sizeof (wchar_t));
+                GlobalUnlock (hMem);
+                SetClipboardData (CF_UNICODETEXT, hMem);
+            }
+        }
+
+        CloseClipboard();
+    }
 }
 
 
@@ -223,6 +218,11 @@ void ClipboardManager::CopyScreenText (HWND hwnd, const Byte * auxRam) const
 
 void ClipboardManager::CopyScreenshot (HWND hwnd)
 {
+    constexpr int   kBytesPerPixel    = 4;
+    constexpr WORD  kDibBitCount      = 32;
+
+
+
     HGLOBAL          hMem      = nullptr;
     BITMAPINFOHEADER bih       = {};
     size_t           dataSize  = 0;
@@ -237,56 +237,51 @@ void ClipboardManager::CopyScreenshot (HWND hwnd)
     {
         std::lock_guard<std::mutex>  lock (m_fbMutex);
 
-        dataSize  = static_cast<size_t> (w) * h * s_kBytesPerPixel;
+        dataSize  = static_cast<size_t> (w) * h * kBytesPerPixel;
         totalSize = sizeof (BITMAPINFOHEADER) + dataSize;
 
-        if (!OpenClipboard (hwnd))
+        // Once the clipboard is open it MUST be closed on every path, so the
+        // two allocation failures below cannot simply return.
+        if (OpenClipboard (hwnd))
         {
-            return;
-        }
+            EmptyClipboard();
 
-        EmptyClipboard();
+            hMem = GlobalAlloc (GMEM_MOVEABLE, totalSize);
 
-        hMem = GlobalAlloc (GMEM_MOVEABLE, totalSize);
+            if (hMem != nullptr)
+            {
+                pDest = static_cast<Byte *> (GlobalLock (hMem));
+            }
 
-        if (hMem == nullptr)
-        {
+            if (pDest != nullptr)
+            {
+                bih.biSize        = sizeof (bih);
+                bih.biWidth       = w;
+                bih.biHeight      = h;
+                bih.biPlanes      = 1;
+                bih.biBitCount    = kDibBitCount;
+                bih.biCompression = BI_RGB;
+                bih.biSizeImage   = static_cast<DWORD> (dataSize);
+
+                memcpy (pDest, &bih, sizeof (bih));
+                pDest += sizeof (bih);
+
+                // A DIB is bottom-up, so the framebuffer's rows go out in reverse.
+                for (y = h - 1; y >= 0; y--)
+                {
+                    memcpy (pDest,
+                            &m_uiFramebuffer[static_cast<size_t> (y) * w],
+                            static_cast<size_t> (w) * kBytesPerPixel);
+                    pDest += static_cast<size_t> (w) * kBytesPerPixel;
+                }
+
+                GlobalUnlock (hMem);
+                SetClipboardData (CF_DIB, hMem);
+            }
+
             CloseClipboard();
-            return;
         }
-
-        pDest = static_cast<Byte *> (GlobalLock (hMem));
-
-        if (pDest == nullptr)
-        {
-            CloseClipboard();
-            return;
-        }
-
-        bih.biSize        = sizeof (bih);
-        bih.biWidth       = w;
-        bih.biHeight      = h;
-        bih.biPlanes      = 1;
-        bih.biBitCount    = s_kDibBitCount;
-        bih.biCompression = BI_RGB;
-        bih.biSizeImage   = static_cast<DWORD> (dataSize);
-
-        memcpy (pDest, &bih, sizeof (bih));
-        pDest += sizeof (bih);
-
-        for (y = h - 1; y >= 0; y--)
-        {
-            memcpy (pDest,
-                    &m_uiFramebuffer[static_cast<size_t> (y) * w],
-                    static_cast<size_t> (w) * s_kBytesPerPixel);
-            pDest += static_cast<size_t> (w) * s_kBytesPerPixel;
-        }
-
-        GlobalUnlock (hMem);
-        SetClipboardData (CF_DIB, hMem);
     }
-
-    CloseClipboard();
 }
 
 
@@ -301,6 +296,12 @@ void ClipboardManager::CopyScreenshot (HWND hwnd)
 
 void ClipboardManager::PasteFromClipboard (HWND hwnd)
 {
+    constexpr Byte  kCarriageReturn   = 0x0D;
+    constexpr wchar_t  kNewline       = L'\n';
+    constexpr wchar_t  kReturn        = L'\r';
+
+
+
     HANDLE     hData = nullptr;
     wchar_t  * pText = nullptr;
     size_t     i     = 0;
@@ -326,16 +327,16 @@ void ClipboardManager::PasteFromClipboard (HWND hwnd)
             {
                 wchar_t  ch = pText[i];
 
-                if (ch == s_kNewline)
+                if (ch == kNewline)
                 {
                     continue;
                 }
 
-                if (ch == s_kReturn)
+                if (ch == kReturn)
                 {
-                    m_pasteBuffer += static_cast<char> (s_kCarriageReturn);
+                    m_pasteBuffer += static_cast<char> (kCarriageReturn);
                 }
-                else if (ch >= s_kPrintableLow && ch < (wchar_t) (s_kPrintableHigh + 1))
+                else if (ch >= kPrintableLow && ch < (wchar_t) (kPrintableHigh + 1))
                 {
                     m_pasteBuffer += static_cast<char> (ch);
                 }
@@ -358,40 +359,36 @@ void ClipboardManager::PasteFromClipboard (HWND hwnd)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void ClipboardManager::DrainPasteBuffer ()
+void ClipboardManager::DrainPasteBuffer()
 {
     AppleKeyboard  * keyboard = nullptr;
     Byte             ch       = 0;
 
 
 
-    if (m_pKeyboardSlot == nullptr)
-    {
-        return;
-    }
+    keyboard = (m_pKeyboardSlot != nullptr) ? *m_pKeyboardSlot : nullptr;
 
-    keyboard = *m_pKeyboardSlot;
-    if (keyboard == nullptr)
+    // One character per call, and only once the guest has consumed the last
+    // one -- the strobe is the handshake that paces the whole paste.
+    if (keyboard != nullptr && keyboard->IsStrobeClear())
     {
-        return;
-    }
-
-    if (!keyboard->IsStrobeClear())
-    {
-        return;
-    }
-
-    {
-        std::lock_guard<std::mutex>  lock (m_cmdMutex);
-
-        if (m_pasteBuffer.empty())
         {
-            return;
+            std::lock_guard<std::mutex>  lock (m_cmdMutex);
+
+            if (!m_pasteBuffer.empty())
+            {
+                ch = static_cast<Byte> (m_pasteBuffer[0]);
+                m_pasteBuffer.erase (m_pasteBuffer.begin());
+            }
         }
 
-        ch = static_cast<Byte> (m_pasteBuffer[0]);
-        m_pasteBuffer.erase (m_pasteBuffer.begin());
+        // ch stays 0 for an empty buffer; 0 is not a key the paste path ever
+        // queues, so it doubles as "nothing to send".
+        if (ch != 0)
+        {
+            keyboard->KeyPress (ch);
+        }
     }
-
-    keyboard->KeyPress (ch);
 }
+
+

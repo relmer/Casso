@@ -12,17 +12,6 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace
-{
-    constexpr uint64_t   kStateAdvance = 0x9E3779B97F4A7C15ULL;
-    constexpr uint64_t   kMixConstA    = 0xBF58476D1CE4E5B9ULL;
-    constexpr uint64_t   kMixConstB    = 0x94D049BB133111EBULL;
-    constexpr int        kShiftA       = 30;
-    constexpr int        kShiftB       = 27;
-    constexpr int        kShiftC       = 31;
-    constexpr int        kByteShift    = 56;
-}
-
 
 
 
@@ -50,8 +39,17 @@ Prng::Prng (uint64_t seed)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-uint64_t Prng::Next64 ()
+uint64_t Prng::Next64()
 {
+    constexpr uint64_t   kStateAdvance = 0x9E3779B97F4A7C15ULL;
+    constexpr uint64_t   kMixConstA    = 0xBF58476D1CE4E5B9ULL;
+    constexpr uint64_t   kMixConstB    = 0x94D049BB133111EBULL;
+    constexpr int        kShiftA       = 30;
+    constexpr int        kShiftB       = 27;
+    constexpr int        kShiftC       = 31;
+
+
+
     uint64_t    z;
 
     m_state += kStateAdvance;
@@ -73,9 +71,13 @@ uint64_t Prng::Next64 ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-uint8_t Prng::NextByte ()
+uint8_t Prng::NextByte()
 {
-    uint64_t    word = Next64 ();
+    constexpr int        kByteShift    = 56;
+
+
+
+    uint64_t    word = Next64();
 
     return static_cast<uint8_t> (word >> kByteShift);
 }
@@ -94,8 +96,10 @@ void Prng::Fill (uint8_t * dst, size_t count)
 {
     size_t      i;
 
+
+
     for (i = 0; i < count; i++)
     {
-        dst[i] = NextByte ();
+        dst[i] = NextByte();
     }
 }

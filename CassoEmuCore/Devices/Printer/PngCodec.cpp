@@ -7,18 +7,21 @@
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  CreateFactory
 //
 //  Instantiates the WIC imaging factory. The caller must already have COM
-//  initialised on this thread.
+//  initialized on this thread.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT PngCodec::CreateFactory (ComPtr<IWICImagingFactory> & outFactory)
 {
     HRESULT   hr = S_OK;
+
+
 
     hr = CoCreateInstance (CLSID_WICImagingFactory, nullptr, CLSCTX_INPROC_SERVER,
                            IID_PPV_ARGS (&outFactory));
@@ -27,6 +30,7 @@ HRESULT PngCodec::CreateFactory (ComPtr<IWICImagingFactory> & outFactory)
 Error:
     return hr;
 }
+
 
 
 
@@ -45,11 +49,13 @@ HRESULT PngCodec::DecodeFirstFrame (
     ComPtr<IWICImagingFactory> &    outFactory,
     ComPtr<IWICBitmapFrameDecode> & outFrame)
 {
-    HRESULT                     hr = S_OK;
+    HRESULT                     hr       = S_OK;
     ComPtr<IWICStream>          stream;
     ComPtr<IWICBitmapDecoder>   decoder;
+    bool                        hasBytes = false;
 
-    CBREx (!png.empty(), E_INVALIDARG);
+    hasBytes = !png.empty();
+    CBREx (hasBytes, E_INVALIDARG);
 
     hr = CreateFactory (outFactory);
     CHR (hr);
@@ -70,6 +76,7 @@ HRESULT PngCodec::DecodeFirstFrame (
 Error:
     return hr;
 }
+
 
 
 
@@ -98,9 +105,14 @@ HRESULT PngCodec::EncodeRgba (const RgbaImage & image, int dpi, vector<Byte> & o
     void *                          memory = nullptr;
     SIZE_T                          size   = 0;
     double                          res    = 0.0;
+    size_t                          rgbaLen = 0;
+
+
 
     CBREx (image.width > 0 && image.height > 0, E_INVALIDARG);
-    CBREx (image.rgba.size() >= (size_t) image.width * image.height * 4, E_INVALIDARG);
+
+    rgbaLen = image.rgba.size();
+    CBREx (rgbaLen >= (size_t) image.width * image.height * 4, E_INVALIDARG);
 
     hr = CreateFactory (factory);
     CHR (hr);
@@ -149,13 +161,14 @@ HRESULT PngCodec::EncodeRgba (const RgbaImage & image, int dpi, vector<Byte> & o
 
     size   = GlobalSize (handle);
     memory = GlobalLock (handle);
-    CPREx (memory, E_FAIL);
+    CWRA (memory);
     outPng.assign ((Byte *) memory, (Byte *) memory + size);
     GlobalUnlock (handle);
 
 Error:
     return hr;
 }
+
 
 
 
@@ -190,11 +203,14 @@ HRESULT PngCodec::EncodeIndexed (
     void *                          memory = nullptr;
     SIZE_T                          size   = 0;
     double                          res    = 0.0;
+    size_t                          indexCount = 0;
 
     CBREx (width > 0 && height > 0, E_INVALIDARG);
     CBREx (paletteCount > 0 && paletteCount <= 256, E_INVALIDARG);
     CBREx (palette != nullptr, E_INVALIDARG);
-    CBREx (indices.size() >= (size_t) width * height, E_INVALIDARG);
+
+    indexCount = indices.size();
+    CBREx (indexCount >= (size_t) width * height, E_INVALIDARG);
 
     hr = CreateFactory (factory);
     CHR (hr);
@@ -223,7 +239,7 @@ HRESULT PngCodec::EncodeIndexed (
 
     hr = frame->SetPixelFormat (&format);
     CHR (hr);
-    CBREx (format == GUID_WICPixelFormat8bppIndexed, E_FAIL);
+    CBR (format == GUID_WICPixelFormat8bppIndexed);
 
     hr = factory->CreatePalette (&wicPalette);
     CHR (hr);
@@ -249,13 +265,14 @@ HRESULT PngCodec::EncodeIndexed (
 
     size   = GlobalSize (handle);
     memory = GlobalLock (handle);
-    CPREx (memory, E_FAIL);
+    CWRA (memory);
     outPng.assign ((Byte *) memory, (Byte *) memory + size);
     GlobalUnlock (handle);
 
 Error:
     return hr;
 }
+
 
 
 
@@ -277,6 +294,8 @@ HRESULT PngCodec::DecodeRgba (const vector<Byte> & png, RgbaImage & outImage)
     UINT                            width     = 0;
     UINT                            height    = 0;
 
+
+
     hr = DecodeFirstFrame (png, factory, frame);
     CHR (hr);
 
@@ -294,6 +313,7 @@ HRESULT PngCodec::DecodeRgba (const vector<Byte> & png, RgbaImage & outImage)
 Error:
     return hr;
 }
+
 
 
 
@@ -326,7 +346,7 @@ HRESULT PngCodec::DecodeIndexed (
 
     hr = frame->GetPixelFormat (&format);
     CHR (hr);
-    CBREx (format == GUID_WICPixelFormat8bppIndexed, E_FAIL);
+    CBR (format == GUID_WICPixelFormat8bppIndexed);
 
     hr = frame->GetSize (&width, &height);
     CHR (hr);
@@ -342,6 +362,7 @@ HRESULT PngCodec::DecodeIndexed (
 Error:
     return hr;
 }
+
 
 
 
@@ -362,6 +383,8 @@ HRESULT PngCodec::ReadDpi (const vector<Byte> & png, int & outDpi)
     ComPtr<IWICBitmapFrameDecode>   frame;
     double                          dx     = 0.0;
     double                          dy     = 0.0;
+
+
 
     hr = DecodeFirstFrame (png, factory, frame);
     CHR (hr);

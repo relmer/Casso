@@ -19,6 +19,7 @@ static const char   s_kszCapReached[]    = "capReached";
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  WriteMetaJson
@@ -30,6 +31,8 @@ string PrintJobSerializer::WriteMetaJson (const PrintRaster & raster)
     vector<JsonValue>                 boundaries;
     vector<pair<string, JsonValue>>   root;
     size_t                            i = 0;
+
+
 
     for (i = 0; i < raster.PageBoundaryRows().size(); i++)
     {
@@ -44,6 +47,7 @@ string PrintJobSerializer::WriteMetaJson (const PrintRaster & raster)
 
     return JsonWriter::Write (JsonValue (move (root)));
 }
+
 
 
 
@@ -65,15 +69,20 @@ HRESULT PrintJobSerializer::ReadMetaJson (const string & json, StripMeta & outMe
     JsonValue           root;
     JsonParseError      err;
     const JsonValue *   arr    = nullptr;
+    JsonType            rootType = JsonType::Null;
     StripMeta           meta;
+
+
 
     hr = JsonParser::Parse (json, root, err);
     CHR (hr);
-    CBREx (root.GetType() == JsonType::Object, E_FAIL);
+
+    rootType = root.GetType();
+    CBR (rootType == JsonType::Object);
 
     hr = root.GetInt (s_kszFormatVersion, meta.formatVersion);
     CHR (hr);
-    CBREx (meta.formatVersion == kFormatVersion, E_FAIL);
+    CBR (meta.formatVersion == kFormatVersion);
 
     hr = root.GetInt (s_kszRowsUsed, meta.rowsUsed);
     CHR (hr);
@@ -100,6 +109,7 @@ HRESULT PrintJobSerializer::ReadMetaJson (const string & json, StripMeta & outMe
 Error:
     return hr;
 }
+
 
 
 
@@ -137,6 +147,7 @@ void PrintJobSerializer::ExtractIndexPlane (
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  RebuildRaster
@@ -150,13 +161,16 @@ HRESULT PrintJobSerializer::RebuildRaster (
     const StripMeta &    meta,
     PrintRaster &        outRaster)
 {
-    HRESULT   hr = S_OK;
+    HRESULT   hr         = S_OK;
+    size_t    pixelCount = 0;
 
     // Graceful rejection of a malformed/corrupt plane -- not a programming
     // error, so no assert (the store falls back to empty paper, FR-026).
     CBREx (width == PrinterGrid::kDotsPerRow, E_INVALIDARG);
     CBREx (height >= 0,                       E_INVALIDARG);
-    CBREx (pixels.size() >= (size_t) width * height, E_INVALIDARG);
+
+    pixelCount = pixels.size();
+    CBREx (pixelCount >= (size_t) width * height, E_INVALIDARG);
 
     outRaster.RestoreFromIndexed (height, pixels, meta.paperRow,
                                   meta.pageBoundaryRows, meta.capReached);

@@ -103,7 +103,7 @@ Uptime anchor reseed), ~50–75 new test cases. New modeless dialog
 | No magic numbers                                  | `kEventRingCapacity = 4096`, `kDisplayDequeCap = 100000`, `kDrainTimerHz = 30`, `kDrainTimerMs = 33`, `kAddrMarkPrologue0 = 0xD5`, `kAddrMarkPrologue1 = 0xAA`, `kAddrMarkPrologue2 = 0x96`, `kDataMarkPrologue2 = 0xAD`, `kSectorEpilogue0 = 0xDE`, `kSectorEpilogue1 = 0xAA`, `kSectorEpilogue2 = 0xEB`, `kDataNibbleCount = 342`, `kFilterTextDebounceMs = 250` (Track/Sector text-input debounce per FR-014d), `kFilterRichEditClass = L"RICHEDIT50W"` and `kFilterRichEditModule = L"msftedit.dll"` (Track/Sector RichEdit class + module per FR-014e), `kFilterSquiggleUnderlineColor = CFU_UNDERLINECOLOR_RED` (per FR-014e), and column-width constants `kColWallWidth = 110`, `kColUptimeWidth = 90`, `kColCycleWidth = 110`, `kColEventWidth = 110`, `kColDetailWidth = 360` (sum ≈ 790 px), are all named constants. |
 | Hungarian for file-scope statics                  | Any file-scope statics in dialog code (e.g., a `static const wchar_t* g_pszWindowClass`) use Hungarian per constitution.                |
 | `std::numbers` for math constants                 | No math constants needed by this feature (ring/deque are integer-indexed; time formatting uses integer ms).                            |
-| American English                                  | Verified (e.g., "behavior", not "behaviour"; "canceled", not "cancelled").                                                              |
+| American English                                  | Verified (e.g., "behavior", not "behavior"; "canceled", not "canceled").                                                              |
 
 ### Principle II — Test Isolation (NON-NEGOTIABLE)
 

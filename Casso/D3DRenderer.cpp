@@ -165,6 +165,8 @@ HRESULT D3DRenderer::CreateRenderResources (int texWidth, int texHeight)
     D3D11_BUFFER_DESC        bd        = {};
     D3D11_SUBRESOURCE_DATA   initData  = {};
 
+
+
     Vertex vertices[] =
     {
         { -1.0f,  1.0f, 0.0f, 0.0f },  // Top-left
@@ -246,6 +248,8 @@ HRESULT D3DRenderer::InitializeShaders()
     ComPtr<ID3DBlob>   vsBlob;
     ComPtr<ID3DBlob>   psBlob;
     ComPtr<ID3DBlob>   errors;
+
+
 
     static const char kVertexShaderSrc[] =
         "struct VSInput  { float2 pos : POSITION; float2 uv : TEXCOORD; };\n"
@@ -341,27 +345,18 @@ Error:
 
 bool D3DRenderer::NeedsPresent (bool framebufferDirty) const
 {
-    if (framebufferDirty || m_redrawForced)
-    {
-        return true;
-    }
-
-    // Persistence shader animates a fading trail every frame even
-    // when the emulator framebuffer hasn't changed. Keep re-rendering
-    // until the trail is fully decayed -- ~1.5s at the highest decay
-    // (amber's 0.8) with the UNORM bias is more than enough.
-    if (m_crtParams.persistence > 0.0f && m_idleFramesSinceFbChange < s_kPersistenceSettleFrames)
-    {
-        return true;
-    }
-
-    // Any other slider / toggle change touches CrtParams.
-    if (memcmp (&m_crtParams, &m_lastPresentedParams, sizeof (CrtParams)) != 0)
-    {
-        return true;
-    }
-
-    return false;
+    // Three independent reasons to present, in cheapest-test-first order:
+    //
+    //   1. New emulator content, or a forced redraw.
+    //   2. The persistence shader animates a fading trail every frame even
+    //      when the framebuffer has not changed. Keep re-rendering until the
+    //      trail is fully decayed -- ~1.5s at the highest decay (amber's 0.8)
+    //      with the UNORM bias is more than enough.
+    //   3. Any other slider / toggle change, which touches CrtParams.
+    return framebufferDirty
+        || m_redrawForced
+        || (m_crtParams.persistence > 0.0f && m_idleFramesSinceFbChange < s_kPersistenceSettleFrames)
+        || memcmp (&m_crtParams, &m_lastPresentedParams, sizeof (CrtParams)) != 0;
 }
 
 
@@ -557,6 +552,7 @@ HRESULT D3DRenderer::ToggleFullscreen (HWND hwnd)
     HMONITOR    hMon       = nullptr;
     MONITORINFO mi         = { sizeof (mi) };
     LONG        style      = 0;
+    LONG        priorStyle = 0;
     bool        styleIsFs  = false;
     bool        armed      = false;
     BOOL        fSuccess   = FALSE;
@@ -607,7 +603,9 @@ HRESULT D3DRenderer::ToggleFullscreen (HWND hwnd)
         m_fullscreen = true;
 
         SetLastError (0);
-        CWRA (SetWindowLong (hwnd, GWL_STYLE, WS_POPUP | WS_VISIBLE) != 0);
+        priorStyle = SetWindowLong (hwnd, GWL_STYLE, WS_POPUP | WS_VISIBLE);
+        CWRA (priorStyle != 0);
+
         fSuccess = SetWindowPos (hwnd,
                                   HWND_TOP,
                                   mi.rcMonitor.left, mi.rcMonitor.top,
@@ -634,7 +632,8 @@ HRESULT D3DRenderer::ToggleFullscreen (HWND hwnd)
         }
 
         SetLastError (0);
-        CWRA (SetWindowLong (hwnd, GWL_STYLE, restoreStyle) != 0);
+        priorStyle = SetWindowLong (hwnd, GWL_STYLE, restoreStyle);
+        CWRA (priorStyle != 0);
 
         fSuccess = SetWindowPos (hwnd, HWND_NOTOPMOST, 0, 0, 0, 0,
                                  SWP_NOMOVE | SWP_NOSIZE | SWP_FRAMECHANGED);

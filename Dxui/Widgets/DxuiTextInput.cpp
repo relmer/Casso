@@ -27,12 +27,9 @@ static constexpr uint32_t  s_kFallbackPlaceholder = 0xFF6A7585;
 
 bool DxuiTextInput::HitTest (int x, int y) const
 {
-    if (!m_enabled)
-    {
-        return false;
-    }
-
-    return x >= m_boundsDip.left && x < m_boundsDip.right && y >= m_boundsDip.top && y < m_boundsDip.bottom;
+    return m_enabled
+        && x >= m_boundsDip.left && x < m_boundsDip.right
+        && y >= m_boundsDip.top  && y < m_boundsDip.bottom;
 }
 
 
@@ -62,25 +59,28 @@ void DxuiTextInput::SetMouseHover (int x, int y)
 
 bool DxuiTextInput::OnLButtonDown (int x, int y)
 {
-    if (!HitTest (x, y))
+    bool  isHit = HitTest (x, y);
+
+
+
+    m_focused = isHit;
+
+    if (isHit)
     {
-        m_focused = false;
-        return false;
+        m_dragging = true;
+
+        // Caret placement requires the text renderer for hit-testing. We
+        // don't have one in mouse-down context; place at end as a safe
+        // fallback. A future enhancement could measure on first paint and
+        // store glyph offsets, but for filter inputs the user almost
+        // always Tabs in / Ctrl+A's anyway.
+        m_caret  = m_text.size();
+        m_anchor = m_caret;
+
+        ResetBlink();
     }
 
-    m_focused  = true;
-    m_dragging = true;
-
-    // Caret placement requires the text renderer for hit-testing. We
-    // don't have one in mouse-down context; place at end as a safe
-    // fallback. A future enhancement could measure on first paint and
-    // store glyph offsets, but for filter inputs the user almost
-    // always Tabs in / Ctrl+A's anyway.
-    m_caret  = m_text.size();
-    m_anchor = m_caret;
-
-    ResetBlink();
-    return true;
+    return isHit;
 }
 
 
@@ -95,15 +95,16 @@ bool DxuiTextInput::OnLButtonDown (int x, int y)
 
 bool DxuiTextInput::OnLButtonUp (int x, int y)
 {
+    bool  wasDragging = m_dragging;
+
+
+
     (void) x;
     (void) y;
-    if (!m_dragging)
-    {
-        return false;
-    }
 
     m_dragging = false;
-    return true;
+
+    return wasDragging;
 }
 
 
@@ -134,15 +135,15 @@ void DxuiTextInput::OnMouseMove (int x, int y)
 
 bool DxuiTextInput::OnKey (WPARAM vk)
 {
-    bool  consumed = false;
-    bool  shift    = Shift   ();
-    bool  ctrl     = Control ();
+    HRESULT  hr       = S_OK;
+    bool     consumed = false;
+    bool     shift    = Shift   ();
+    bool     ctrl     = Control();
+    bool     isActive = m_focused && m_enabled;
 
 
-    if (!m_focused || !m_enabled)
-    {
-        return false;
-    }
+
+    BAIL_OUT_IF (!isActive, S_OK);
 
     switch (vk)
     {
@@ -275,6 +276,7 @@ bool DxuiTextInput::OnKey (WPARAM vk)
         ResetBlink();
     }
 
+Error:
     return consumed;
 }
 
@@ -291,22 +293,19 @@ bool DxuiTextInput::OnKey (WPARAM vk)
 bool DxuiTextInput::OnChar (wchar_t ch)
 {
     std::wstring  ins;
+    // Control characters and DEL are not text; the key handler owns those.
+    bool          isTypable = m_focused && m_enabled && ch >= 0x20 && ch != 0x7F;
 
 
-    if (!m_focused || !m_enabled)
+
+    if (isTypable)
     {
-        return false;
+        ins.assign (1, ch);
+        InsertText (ins);
+        ResetBlink();
     }
 
-    if (ch < 0x20 || ch == 0x7F)
-    {
-        return false;
-    }
-
-    ins.assign (1, ch);
-    InsertText (ins);
-    ResetBlink();
-    return true;
+    return isTypable;
 }
 
 
@@ -344,6 +343,7 @@ void DxuiTextInput::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) con
     std::wstring before;
     std::wstring sel;
     std::wstring caretPrefix;
+
 
 
     if (m_theme != nullptr)
@@ -468,7 +468,7 @@ void DxuiTextInput::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text) con
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiTextInput::ClampCaret ()
+void DxuiTextInput::ClampCaret()
 {
     if (m_caret > m_text.size())
     {
@@ -504,21 +504,22 @@ size_t DxuiTextInput::CaretFromX (IDxuiTextRenderer & text, int xPx) const
     float         bestDist = 1e9f;
 
 
-    if (target <= 0.0f)
-    {
-        return 0;
-    }
 
-    for (size_t i = 0; i <= m_text.size(); i++)
+    // Left of the first glyph is caret 0 without measuring anything.
+    if (target > 0.0f)
     {
-        prefix.assign (m_text, 0, i);
-        IGNORE_RETURN_VALUE (hr, text.MeasureString (prefix.c_str(), fontPx, DxuiTheme::kBodyFace, w, h));
-
-        float dist = std::abs (w - target);
-        if (dist < bestDist)
+        for (size_t i = 0; i <= m_text.size(); i++)
         {
-            bestDist = dist;
-            best     = i;
+            prefix.assign (m_text, 0, i);
+            IGNORE_RETURN_VALUE (hr, text.MeasureString (prefix.c_str(), fontPx, DxuiTheme::kBodyFace, w, h));
+
+            float dist = std::abs (w - target);
+
+            if (dist < bestDist)
+            {
+                bestDist = dist;
+                best     = i;
+            }
         }
     }
 
@@ -535,10 +536,11 @@ size_t DxuiTextInput::CaretFromX (IDxuiTextRenderer & text, int xPx) const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiTextInput::DeleteSelection ()
+void DxuiTextInput::DeleteSelection()
 {
     size_t  selStart = std::min (m_caret, m_anchor);
     size_t  selEnd   = std::max (m_caret, m_anchor);
+
 
 
     if (selStart == selEnd)
@@ -594,59 +596,58 @@ void DxuiTextInput::InsertText (const std::wstring & ins)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiTextInput::CopyToClipboard () const
+void DxuiTextInput::CopyToClipboard() const
 {
-    size_t        selStart = std::min (m_caret, m_anchor);
-    size_t        selEnd   = std::max (m_caret, m_anchor);
+    HRESULT       hr         = S_OK;
+    size_t        selStart   = std::min (m_caret, m_anchor);
+    size_t        selEnd     = std::max (m_caret, m_anchor);
     std::wstring  sel;
-    HGLOBAL       hGlobal  = nullptr;
-    void        * pBuf     = nullptr;
-    BOOL          opened   = FALSE;
+    HGLOBAL       hGlobal    = nullptr;
+    void        * pBuf       = nullptr;
+    bool          isOpen     = false;
+    bool          wasEmptied = false;
+    // True while WE still have to free hGlobal; cleared once the clipboard
+    // takes ownership, which is the one path that must not free it.
+    bool          ownsGlobal = false;
 
 
-    if (selStart == selEnd)
-    {
-        return;
-    }
+
+    BAIL_OUT_IF (selStart == selEnd, S_OK);   // nothing selected
 
     sel.assign (m_text, selStart, selEnd - selStart);
 
-    opened = OpenClipboard (m_hwnd);
-    if (!opened)
-    {
-        return;
-    }
+    isOpen = OpenClipboard (m_hwnd) != FALSE;
 
-    if (!EmptyClipboard())
-    {
-        CloseClipboard();
-        return;
-    }
+    BAIL_OUT_IF (!isOpen, S_OK);
 
-    hGlobal = GlobalAlloc (GMEM_MOVEABLE, (sel.size() + 1) * sizeof (wchar_t));
-    if (hGlobal == nullptr)
-    {
-        CloseClipboard();
-        return;
-    }
+    wasEmptied = EmptyClipboard() != FALSE;
+
+    BAIL_OUT_IF (!wasEmptied, S_OK);
+
+    hGlobal    = GlobalAlloc (GMEM_MOVEABLE, (sel.size() + 1) * sizeof (wchar_t));
+    ownsGlobal = (hGlobal != nullptr);
+
+    BAIL_OUT_IF (!ownsGlobal, S_OK);
 
     pBuf = GlobalLock (hGlobal);
-    if (pBuf == nullptr)
-    {
-        GlobalFree (hGlobal);
-        CloseClipboard();
-        return;
-    }
+
+    BAIL_OUT_IF (pBuf == nullptr, S_OK);
 
     memcpy (pBuf, sel.c_str(), (sel.size() + 1) * sizeof (wchar_t));
     GlobalUnlock (hGlobal);
 
-    if (SetClipboardData (CF_UNICODETEXT, hGlobal) == nullptr)
+    ownsGlobal = (SetClipboardData (CF_UNICODETEXT, hGlobal) == nullptr);
+
+Error:
+    if (ownsGlobal)
     {
         GlobalFree (hGlobal);
     }
 
-    CloseClipboard();
+    if (isOpen)
+    {
+        CloseClipboard();
+    }
 }
 
 
@@ -659,48 +660,54 @@ void DxuiTextInput::CopyToClipboard () const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiTextInput::PasteFromClipboard ()
+void DxuiTextInput::PasteFromClipboard()
 {
-    HANDLE        hData = nullptr;
-    wchar_t     * pBuf  = nullptr;
-    BOOL          opened = FALSE;
+    HRESULT       hr      = S_OK;
+    HANDLE        hData   = nullptr;
+    wchar_t     * pBuf    = nullptr;
     std::wstring  ins;
+    bool          isOpen  = false;
+    bool          hasText = false;
 
 
-    opened = OpenClipboard (m_hwnd);
-    if (!opened)
-    {
-        return;
-    }
+
+    isOpen = OpenClipboard (m_hwnd) != FALSE;
+
+    BAIL_OUT_IF (!isOpen, S_OK);
 
     hData = GetClipboardData (CF_UNICODETEXT);
-    if (hData == nullptr)
-    {
-        CloseClipboard();
-        return;
-    }
+
+    BAIL_OUT_IF (hData == nullptr, S_OK);
 
     pBuf = (wchar_t *) GlobalLock (hData);
-    if (pBuf == nullptr)
-    {
-        CloseClipboard();
-        return;
-    }
+
+    BAIL_OUT_IF (pBuf == nullptr, S_OK);
 
     ins.assign (pBuf);
+    hasText = true;
     GlobalUnlock (hData);
-    CloseClipboard();
 
-    // Strip newlines for single-line input.
-    for (auto & c : ins)
+Error:
+    if (isOpen)
     {
-        if (c == L'\r' || c == L'\n' || c == L'\t')
-        {
-            c = L' ';
-        }
+        CloseClipboard();
     }
 
-    InsertText (ins);
+    // Insert AFTER releasing the clipboard: InsertText can raise callbacks,
+    // and holding the clipboard open across them is asking for a deadlock.
+    if (hasText)
+    {
+        // Strip newlines for single-line input.
+        for (auto & c : ins)
+        {
+            if (c == L'\r' || c == L'\n' || c == L'\t')
+            {
+                c = L' ';
+            }
+        }
+
+        InsertText (ins);
+    }
 }
 
 
@@ -713,13 +720,14 @@ void DxuiTextInput::PasteFromClipboard ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiTextInput::FireChange ()
+void DxuiTextInput::FireChange()
 {
     if (m_change)
     {
         m_change (m_text);
     }
 }
+
 
 
 
@@ -772,34 +780,40 @@ void DxuiTextInput::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, con
 
 bool DxuiTextInput::OnMouse (const DxuiMouseEvent & ev)
 {
+    bool  handled = false;
+
+
+
     switch (ev.kind)
     {
     case DxuiMouseEventKind::Move:
         if (m_dragging)
         {
             OnMouseMove (ev.positionDip.x, ev.positionDip.y);
-            return true;
+            handled = true;
         }
-
-        SetMouseHover (ev.positionDip.x, ev.positionDip.y);
-        return false;
+        else
+        {
+            SetMouseHover (ev.positionDip.x, ev.positionDip.y);
+        }
+        break;
     case DxuiMouseEventKind::Down:
         if (ev.button == DxuiMouseButton::Left)
         {
-            return OnLButtonDown (ev.positionDip.x, ev.positionDip.y);
+            handled = OnLButtonDown (ev.positionDip.x, ev.positionDip.y);
         }
-
-        return false;
+        break;
     case DxuiMouseEventKind::Up:
         if (ev.button == DxuiMouseButton::Left)
         {
-            return OnLButtonUp (ev.positionDip.x, ev.positionDip.y);
+            handled = OnLButtonUp (ev.positionDip.x, ev.positionDip.y);
         }
-
-        return false;
+        break;
     default:
-        return false;
+        break;
     }
+
+    return handled;
 }
 
 
@@ -816,15 +830,18 @@ bool DxuiTextInput::OnMouse (const DxuiMouseEvent & ev)
 
 bool DxuiTextInput::OnKey (const DxuiKeyEvent & ev)
 {
+    bool  handled = false;
+
+
+
     if (ev.kind == DxuiKeyEventKind::Char)
     {
-        return OnChar ((wchar_t) ev.vk);
+        handled = OnChar ((wchar_t) ev.vk);
     }
-
-    if (ev.kind == DxuiKeyEventKind::Down)
+    else if (ev.kind == DxuiKeyEventKind::Down)
     {
-        return OnKey (ev.vk);
+        handled = OnKey (ev.vk);
     }
 
-    return false;
+    return handled;
 }

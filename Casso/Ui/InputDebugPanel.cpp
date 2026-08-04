@@ -161,28 +161,32 @@ void InputDebugPanel::FormatWallNow (wchar_t * out, size_t cap)
     std::tm    local = {};
     errno_t    err   = 0;
 
+    // Too small to hold a timestamp: empty it if there is room for the NUL.
     if (out == nullptr || cap < 16)
     {
         if (out != nullptr && cap > 0)
         {
             out[0] = L'\0';
         }
-        return;
     }
-
-    err = localtime_s (&local, &wall);
-    if (err != 0)
+    else
     {
-        out[0] = L'\0';
-        return;
-    }
+        err = localtime_s (&local, &wall);
 
-    swprintf_s (out, cap,
-                L"%02d:%02d:%02d.%03lld",
-                local.tm_hour,
-                local.tm_min,
-                local.tm_sec,
-                (long long) ms.count());
+        if (err != 0)
+        {
+            out[0] = L'\0';
+        }
+        else
+        {
+            swprintf_s (out, cap,
+                        L"%02d:%02d:%02d.%03lld",
+                        local.tm_hour,
+                        local.tm_min,
+                        local.tm_sec,
+                        (long long) ms.count());
+        }
+    }
 }
 
 
@@ -208,27 +212,29 @@ void InputDebugPanel::FormatUptime (
     long long  seconds = 0;
     long long  millis  = 0;
 
+    // Too small to hold an uptime: empty it if there is room for the NUL.
     if (out == nullptr || cap < 12)
     {
         if (out != nullptr && cap > 0)
         {
             out[0] = L'\0';
         }
-        return;
     }
-
-    if (now < anchor)
+    else if (now < anchor)
     {
+        // Clock ran backwards relative to the anchor; report nothing rather
+        // than a negative duration.
         out[0] = L'\0';
-        return;
     }
+    else
+    {
+        totalMs = duration_cast<milliseconds> (now - anchor).count();
+        minutes = totalMs / 60000;
+        seconds = (totalMs / 1000) % 60;
+        millis  = totalMs % 1000;
 
-    totalMs = duration_cast<milliseconds> (now - anchor).count();
-    minutes = totalMs / 60000;
-    seconds = (totalMs / 1000) % 60;
-    millis  = totalMs % 1000;
-
-    swprintf_s (out, cap, L"%02lld:%02lld.%03lld", minutes, seconds, millis);
+        swprintf_s (out, cap, L"%02lld:%02lld.%03lld", minutes, seconds, millis);
+    }
 }
 
 
@@ -243,12 +249,7 @@ void InputDebugPanel::FormatUptime (
 
 wchar_t InputDebugPanel::PrintableChar (Byte value) noexcept
 {
-    if (value >= 0x20 && value <= 0x7E)
-    {
-        return (wchar_t) value;
-    }
-
-    return L'.';
+    return (value >= 0x20 && value <= 0x7E) ? (wchar_t) value : L'.';
 }
 
 
@@ -278,14 +279,18 @@ std::wstring InputDebugPanel::FormatByteChar (Byte value)
 
 std::wstring InputDebugPanel::SourceLabel (InputEventCategory category)
 {
+    // "?" also covers a value outside the enum.
+    std::wstring  label = L"?";
+
+
     switch (category)
     {
-        case InputEventCategory::Host:   return L"Host";
-        case InputEventCategory::Guest:  return L"Guest";
-        case InputEventCategory::System: return L"System";
+        case InputEventCategory::Host:   label = L"Host";   break;
+        case InputEventCategory::Guest:  label = L"Guest";  break;
+        case InputEventCategory::System: label = L"System"; break;
     }
 
-    return L"?";
+    return label;
 }
 
 
@@ -300,13 +305,19 @@ std::wstring InputDebugPanel::SourceLabel (InputEventCategory category)
 
 LPCWSTR InputDebugPanel::ButtonAnnotation (Word address) noexcept
 {
+    // Empty for any address that is not one of the three button switches.
+    LPCWSTR  text = L"";
+
+
     switch (address)
     {
-        case s_kOpenAppleAddress:   return L"Open-Apple/Btn0";
-        case s_kClosedAppleAddress: return L"Closed-Apple/Btn1 (bow)";
-        case s_kShiftButtonAddress: return L"Shift/Btn2";
-        default:                    return L"";
+        case s_kOpenAppleAddress:   text = L"Open-Apple/Btn0";          break;
+        case s_kClosedAppleAddress: text = L"Closed-Apple/Btn1 (bow)";  break;
+        case s_kShiftButtonAddress: text = L"Shift/Btn2";               break;
+        default:                                                        break;
     }
+
+    return text;
 }
 
 
@@ -321,52 +332,63 @@ LPCWSTR InputDebugPanel::ButtonAnnotation (Word address) noexcept
 
 InputGamePortClass InputDebugPanel::ClassifyGamePort (InputEventType type, Word address) noexcept
 {
+    // Anything this table does not recognize belongs to no game-port pair.
+    InputGamePortClass  cls = InputGamePortClass::None;
+
+
     switch (type)
     {
         case InputEventType::HostPaddle:
             if (address >= s_kHostPair0FirstAxis && address < s_kHostPair1FirstAxis)
             {
-                return InputGamePortClass::Pair0;
+                cls = InputGamePortClass::Pair0;
             }
-            if (address >= s_kHostPair1FirstAxis && address < s_kHostAxisCount)
+            else if (address >= s_kHostPair1FirstAxis && address < s_kHostAxisCount)
             {
-                return InputGamePortClass::Pair1;
+                cls = InputGamePortClass::Pair1;
             }
-            return InputGamePortClass::None;
+            break;
 
         case InputEventType::HostButton:
             switch (address)
             {
                 case s_kHostButton0Index:
-                case s_kHostButton1Index: return InputGamePortClass::Pair0;
-                default:                  return InputGamePortClass::None;
+                case s_kHostButton1Index: cls = InputGamePortClass::Pair0; break;
+                default:                                                   break;
             }
+            break;
 
         case InputEventType::ButtonRead:
             switch (address)
             {
                 case s_kOpenAppleAddress:
-                case s_kClosedAppleAddress: return InputGamePortClass::Pair0;
-                case s_kShiftButtonAddress: return InputGamePortClass::Pair1;
-                default:                    return InputGamePortClass::None;
+                case s_kClosedAppleAddress: cls = InputGamePortClass::Pair0; break;
+                case s_kShiftButtonAddress: cls = InputGamePortClass::Pair1; break;
+                default:                                                     break;
             }
+            break;
 
         case InputEventType::PaddleRead:
             switch (address)
             {
                 case s_kPaddle0Address:
-                case s_kPaddle1Address:     return InputGamePortClass::Pair0;
+                case s_kPaddle1Address:     cls = InputGamePortClass::Pair0; break;
                 case s_kPaddle2Address:
-                case s_kPaddle3Address:     return InputGamePortClass::Pair1;
-                default:                    return InputGamePortClass::None;
+                case s_kPaddle3Address:     cls = InputGamePortClass::Pair1; break;
+                default:                                                     break;
             }
+            break;
 
         case InputEventType::PaddleTrigger:
-            return InputGamePortClass::Global;
+            // PTRIG is a single switch that arms BOTH pairs at once.
+            cls = InputGamePortClass::Global;
+            break;
 
         default:
-            return InputGamePortClass::None;
+            break;
     }
+
+    return cls;
 }
 
 
@@ -823,19 +845,18 @@ LPCWSTR InputDebugPanel::CursorForPoint (POINT clientPx) const
 
 
 
-    if (m_eventList == nullptr)
+    if (m_eventList != nullptr)
     {
-        return nullptr;
-    }
+        bounds  = m_eventList->Bounds();
+        local.x = clientPx.x - bounds.left;
+        local.y = clientPx.y - bounds.top;
 
-    bounds  = m_eventList->Bounds();
-    local.x = clientPx.x - bounds.left;
-    local.y = clientPx.y - bounds.top;
+        cursor = m_eventList->CursorForPoint (local);
 
-    cursor = m_eventList->CursorForPoint (local);
-    if (cursor == nullptr && m_eventList->IsResizingColumn())
-    {
-        cursor = IDC_SIZEWE;
+        if (cursor == nullptr && m_eventList->IsResizingColumn())
+        {
+            cursor = IDC_SIZEWE;
+        }
     }
 
     return cursor;
@@ -854,6 +875,7 @@ LPCWSTR InputDebugPanel::CursorForPoint (POINT clientPx) const
 void InputDebugPanel::ConfigureWidgets()
 {
     int  p = 0;
+
 
 
     SeedDefaultColumns (m_columnsModel);
@@ -971,6 +993,7 @@ void InputDebugPanel::LayoutWidgets()
     int  p = 0;
 
 
+
     m_emuLabel->Layout          (m_layout.emuLabel,          m_scaler);
     m_hostLabel->Layout         (m_layout.hostLabel,         m_scaler);
     m_allCheck->Layout          (m_layout.allCheck,          m_scaler);
@@ -1012,6 +1035,7 @@ InputEvent InputDebugPanel::MakeStampedEvent (InputEventCategory cat, InputEvent
     InputEvent  e = {};
 
 
+
     e.category = cat;
     e.type     = type;
     e.cycle    = (m_cycleCounter != nullptr) ? *m_cycleCounter : 0;
@@ -1033,6 +1057,7 @@ void InputDebugPanel::PublishToRing (const InputEvent & e)
     bool  pushed = false;
 
 
+
     pushed = m_ring.TryPush (e);
     if (!pushed)
     {
@@ -1052,6 +1077,7 @@ void InputDebugPanel::PublishToRing (const InputEvent & e)
 
 void InputDebugPanel::DrainAndProject()
 {
+    HRESULT                                    hr        = S_OK;
     std::array<InputEvent, s_kDrainBatchSize>  batch     = {};
     uint32_t                                   lost      = 0;
     size_t                                     n         = 0;
@@ -1060,6 +1086,7 @@ void InputDebugPanel::DrainAndProject()
     bool                                       trimmed   = false;
     InputEvent                                 lostEvent = {};
     int64_t                                    ticks     = 0;
+
 
 
     if (m_resetAnchorPending.exchange (false, std::memory_order_acq_rel))
@@ -1074,10 +1101,9 @@ void InputDebugPanel::DrainAndProject()
         ClearEvents();
     }
 
-    if (m_paused)
-    {
-        return;
-    }
+    // Paused still applies the reset above -- the anchor and clear are not
+    // event traffic -- but drains nothing.
+    BAIL_OUT_IF (m_paused, S_OK);
 
     baseSize = m_events.size();
 
@@ -1123,10 +1149,8 @@ void InputDebugPanel::DrainAndProject()
         trimmed = true;
     }
 
-    if (!trimmed && appended == 0)
-    {
-        return;
-    }
+    // Nothing arrived and nothing was evicted: the view is already correct.
+    BAIL_OUT_IF (!trimmed && appended == 0, S_OK);
 
     // A trim renumbers every surviving deque index, and an active sort can
     // place new events anywhere in the order, so both demand a full rebuild.
@@ -1141,6 +1165,9 @@ void InputDebugPanel::DrainAndProject()
     {
         AppendNewEventRows (baseSize);
     }
+
+Error:
+    return;
 }
 
 
@@ -1156,6 +1183,7 @@ void InputDebugPanel::DrainAndProject()
 void InputDebugPanel::RebuildFilteredIndices()
 {
     size_t  i = 0;
+
 
 
     m_filteredIndices.clear();
@@ -1189,6 +1217,7 @@ void InputDebugPanel::AppendNewEventRows (size_t startIndex)
 {
     std::vector<std::vector<DxuiListView::Cell>>  rows;
     size_t                                    i = 0;
+
 
 
     // Caller guarantees no eviction happened this frame, so deque indices in
@@ -1236,6 +1265,7 @@ void InputDebugPanel::PushListViewRows()
     int                                       oldSelected = m_eventList->GetSelectedRow();
 
 
+
     rows.reserve (m_filteredIndices.size());
     for (size_t eventIndex : m_filteredIndices)
     {
@@ -1270,6 +1300,7 @@ void InputDebugPanel::PushListViewRows()
 void InputDebugPanel::ClearEvents()
 {
     std::array<InputEvent, s_kClearDrainBatchSize>  scratch = {};
+
 
 
     m_events.clear();
@@ -1379,6 +1410,7 @@ void InputDebugPanel::SyncAllCheck()
     bool  all = m_emuKeyboardCheck->Checked();
 
 
+
     if (m_joystickVisible) { all = all && m_joystickCheck->Checked(); }
     if (m_paddleVisible)   { all = all && m_paddleCheck->Checked(); }
 
@@ -1398,6 +1430,7 @@ void InputDebugPanel::SyncAllCheck()
 void InputDebugPanel::ApplyAllToggle()
 {
     bool  newState = m_allCheck->Checked();
+
 
 
     m_emuKeyboardCheck->SetChecked (newState);
@@ -1434,59 +1467,65 @@ void InputDebugPanel::UpdatePauseLabel()
 
 void InputDebugPanel::CopyEventsToClipboard()
 {
+    HRESULT                                 hr        = S_OK;
     std::vector<const InputEventDisplay *>  rows;
     std::wstring                            text;
-    HGLOBAL                                 hGlobal = nullptr;
-    void                                  * pBuf    = nullptr;
+    HGLOBAL                                 hGlobal   = nullptr;
+    void                                  * pBuf      = nullptr;
+    bool                                    hasText   = false;
+    bool                                    isOpen    = false;
+    bool                                    wasEmptied = false;
+    // True while WE still have to free hGlobal. Cleared once the clipboard
+    // takes ownership, which is the one path that must NOT free it.
+    bool                                    ownsGlobal = false;
+
 
 
     rows.reserve (m_filteredIndices.size());
+
     for (size_t eventIndex : m_filteredIndices)
     {
         rows.push_back (&m_events[eventIndex]);
     }
 
-    text = BuildClipboardText (rows, m_columnsModel);
-    if (text.empty())
-    {
-        return;
-    }
+    text    = BuildClipboardText (rows, m_columnsModel);
+    hasText = !text.empty();
 
-    if (!OpenClipboard (Hwnd()))
-    {
-        return;
-    }
+    BAIL_OUT_IF (!hasText, S_OK);
 
-    if (!EmptyClipboard())
-    {
-        CloseClipboard();
-        return;
-    }
+    isOpen = OpenClipboard (Hwnd()) != FALSE;
 
-    hGlobal = GlobalAlloc (GMEM_MOVEABLE, (text.size() + 1) * sizeof (wchar_t));
-    if (hGlobal == nullptr)
-    {
-        CloseClipboard();
-        return;
-    }
+    BAIL_OUT_IF (!isOpen, S_OK);
+
+    wasEmptied = EmptyClipboard() != FALSE;
+
+    BAIL_OUT_IF (!wasEmptied, S_OK);
+
+    hGlobal    = GlobalAlloc (GMEM_MOVEABLE, (text.size() + 1) * sizeof (wchar_t));
+    ownsGlobal = (hGlobal != nullptr);
+
+    BAIL_OUT_IF (!ownsGlobal, S_OK);
 
     pBuf = GlobalLock (hGlobal);
-    if (pBuf == nullptr)
-    {
-        GlobalFree (hGlobal);
-        CloseClipboard();
-        return;
-    }
+
+    BAIL_OUT_IF (pBuf == nullptr, S_OK);
 
     memcpy (pBuf, text.c_str(), (text.size() + 1) * sizeof (wchar_t));
     GlobalUnlock (hGlobal);
 
-    if (SetClipboardData (CF_UNICODETEXT, hGlobal) == nullptr)
+    // On success the clipboard owns the block; on failure we still do.
+    ownsGlobal = (SetClipboardData (CF_UNICODETEXT, hGlobal) == nullptr);
+
+Error:
+    if (ownsGlobal)
     {
         GlobalFree (hGlobal);
     }
 
-    CloseClipboard();
+    if (isOpen)
+    {
+        CloseClipboard();
+    }
 }
 
 
@@ -1571,6 +1610,7 @@ void InputDebugPanel::ApplyListSelection()
     int  selected = m_eventList->GetSelectedRow();
 
 
+
     if (selected >= 0 && selected < (int) m_filteredIndices.size())
     {
         m_listSelectedEventIndex = (int) m_filteredIndices[(size_t) selected];
@@ -1613,6 +1653,7 @@ bool InputDebugPanel::ForwardMouseToList (DxuiMouseEventKind kind, DxuiMouseButt
     DxuiMouseEvent  ev;
 
 
+
     ev.kind        = kind;
     ev.button      = button;
     ev.positionDip = { x - m_layout.listView.left, y - m_layout.listView.top };
@@ -1627,14 +1668,47 @@ bool InputDebugPanel::ForwardMouseToList (DxuiMouseEventKind kind, DxuiMouseButt
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+//  OfferPressTo
+//
+//  The client-px widgets share the panel's coordinate space (ev.positionDip ==
+//  client px), so the widget hit-tests itself and reports whether it consumed
+//  the press. On acceptance it also takes keyboard focus.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool InputDebugPanel::OfferPressTo (IDxuiControl * control, const DxuiMouseEvent & ev)
+{
+    bool  took = (control != nullptr) && control->OnMouse (ev);
+
+
+
+    if (took)
+    {
+        m_focusMgr.SetFocused (control);
+    }
+
+    return took;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 //  OnMouse
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 bool InputDebugPanel::OnMouse (const DxuiMouseEvent & ev)
 {
-    int  x = ev.positionDip.x;
-    int  y = ev.positionDip.y;
+    int   x              = ev.positionDip.x;
+    int   y              = ev.positionDip.y;
+    bool  handled        = false;
+    bool  claimed        = false;
+    bool  wasInteracting = false;
+    bool  overList       = x >= m_layout.listView.left && x < m_layout.listView.right &&
+                           y >= m_layout.listView.top  && y < m_layout.listView.bottom;
 
 
 
@@ -1648,81 +1722,45 @@ bool InputDebugPanel::OnMouse (const DxuiMouseEvent & ev)
             if (m_eventList->IsInteracting())
             {
                 (void) ForwardMouseToList (DxuiMouseEventKind::Move, DxuiMouseButton::Left, x, y, 0.0f);
-                return true;
+            }
+            else
+            {
+                m_pairView[0]->SetMouseHover (x, y);
+                m_pairView[1]->SetMouseHover (x, y);
+                UpdateTooltip (x, y);
             }
 
-            m_pairView[0]->SetMouseHover (x, y);
-            m_pairView[1]->SetMouseHover (x, y);
-            UpdateTooltip (x, y);
-            return true;
+            handled = true;
+            break;
 
         case DxuiMouseEventKind::Down:
             if (ev.button == DxuiMouseButton::Left)
             {
-                // The client-px widgets share the panel's coordinate space
-                // (ev.positionDip == client px), so route the event straight
-                // to each widget's OnMouse; the widget hit-tests itself and
-                // reports whether it consumed the press.
-                if (m_pairView[0]->OnMouse (ev))
+                // The two pair views are the exception to OfferPressTo: an
+                // open dropdown keeps focus where it is, so they take the
+                // press without taking focus.
+                claimed = m_pairView[0]->OnMouse (ev);
+
+                if (claimed && !m_pairView[0]->IsOpen()) { m_focusMgr.SetFocused (m_pairView[0]); }
+
+                if (!claimed)
                 {
-                    if (!m_pairView[0]->IsOpen()) { m_focusMgr.SetFocused (m_pairView[0]); }
-                    return true;
-                }
-                if (m_pairView[1]->OnMouse (ev))
-                {
-                    if (!m_pairView[1]->IsOpen()) { m_focusMgr.SetFocused (m_pairView[1]); }
-                    return true;
+                    claimed = m_pairView[1]->OnMouse (ev);
+
+                    if (claimed && !m_pairView[1]->IsOpen()) { m_focusMgr.SetFocused (m_pairView[1]); }
                 }
 
-                if (m_pauseButton->OnMouse (ev))
-                {
-                    m_focusMgr.SetFocused (m_pauseButton);
-                    return true;
-                }
+                claimed = claimed
+                          || OfferPressTo (m_pauseButton,       ev)
+                          || OfferPressTo (m_clearButton,       ev)
+                          || OfferPressTo (m_copyButton,        ev)
+                          || OfferPressTo (m_allCheck,          ev)
+                          || OfferPressTo (m_emuKeyboardCheck,  ev)
+                          || (m_joystickVisible && OfferPressTo (m_joystickCheck, ev))
+                          || (m_paddleVisible   && OfferPressTo (m_paddleCheck,   ev))
+                          || OfferPressTo (m_hostKeyboardCheck, ev);
 
-                if (m_clearButton->OnMouse (ev))
-                {
-                    m_focusMgr.SetFocused (m_clearButton);
-                    return true;
-                }
-
-                if (m_copyButton->OnMouse (ev))
-                {
-                    m_focusMgr.SetFocused (m_copyButton);
-                    return true;
-                }
-
-                if (m_allCheck->OnMouse (ev))
-                {
-                    m_focusMgr.SetFocused (m_allCheck);
-                    return true;
-                }
-
-                if (m_emuKeyboardCheck->OnMouse (ev))
-                {
-                    m_focusMgr.SetFocused (m_emuKeyboardCheck);
-                    return true;
-                }
-
-                if (m_joystickVisible && m_joystickCheck->OnMouse (ev))
-                {
-                    m_focusMgr.SetFocused (m_joystickCheck);
-                    return true;
-                }
-
-                if (m_paddleVisible && m_paddleCheck->OnMouse (ev))
-                {
-                    m_focusMgr.SetFocused (m_paddleCheck);
-                    return true;
-                }
-
-                if (m_hostKeyboardCheck->OnMouse (ev))
-                {
-                    m_focusMgr.SetFocused (m_hostKeyboardCheck);
-                    return true;
-                }
-
-                if ((x >= m_layout.listView.left && x < m_layout.listView.right && y >= m_layout.listView.top && y < m_layout.listView.bottom))
+                if (!claimed && overList)
                 {
                     // The list owns all in-list routing (scrollbar arrows /
                     // thumb / track, column resize, header-click sort, row
@@ -1735,26 +1773,23 @@ bool InputDebugPanel::OnMouse (const DxuiMouseEvent & ev)
                     m_focusMgr.SetFocused (m_eventList);
                 }
 
-                return true;
+                handled = true;
             }
-
-            if (ev.button == DxuiMouseButton::Right)
+            else if (ev.button == DxuiMouseButton::Right)
             {
                 if (m_eventList->HitTestHeaderColumn (x - m_layout.listView.left, y - m_layout.listView.top) >= 0)
                 {
                     ShowColumnMenu (x, y);
                 }
-                return true;
-            }
 
-            return false;
+                handled = true;
+            }
+            break;
 
         case DxuiMouseEventKind::Up:
             if (ev.button == DxuiMouseButton::Left)
             {
-                bool  wasInteracting = m_eventList->IsInteracting();
-
-
+                wasInteracting = m_eventList->IsInteracting();
 
                 // Finish any list drag (scrollbar thumb / column resize) the
                 // list started on button-down. The pointer may have left the
@@ -1764,50 +1799,56 @@ bool InputDebugPanel::OnMouse (const DxuiMouseEvent & ev)
                 if (wasInteracting)
                 {
                     (void) ForwardMouseToList (DxuiMouseEventKind::Up, DxuiMouseButton::Left, x, y, 0.0f);
-                    return true;
                 }
-
-                if (m_pairView[0]->OnMouse (ev)) { return true; }
-                if (m_pairView[1]->OnMouse (ev)) { return true; }
-
-                // Route the release to each button / checkbox: the widget
-                // clears its own press visual and, on a click-release over
-                // itself, fires the callback wired at setup (button click /
-                // checkbox change), which folds the outcome back into the
-                // panel model.
-                m_pauseButton->OnMouse (ev);
-                m_clearButton->OnMouse (ev);
-                m_copyButton->OnMouse (ev);
-
-                m_allCheck->OnMouse (ev);
-                m_emuKeyboardCheck->OnMouse (ev);
-                if (m_joystickVisible) { m_joystickCheck->OnMouse (ev); }
-                if (m_paddleVisible)   { m_paddleCheck->OnMouse (ev); }
-                m_hostKeyboardCheck->OnMouse (ev);
-
-                // A plain release inside the list finalizes the row activate;
-                // the list already selected on button-down (raising
-                // onSelectionChanged).
-                if ((x >= m_layout.listView.left && x < m_layout.listView.right && y >= m_layout.listView.top && y < m_layout.listView.bottom))
+                else
                 {
-                    (void) ForwardMouseToList (DxuiMouseEventKind::Up, DxuiMouseButton::Left, x, y, 0.0f);
+                    claimed = m_pairView[0]->OnMouse (ev) || m_pairView[1]->OnMouse (ev);
+
+                    if (!claimed)
+                    {
+                        // Route the release to each button / checkbox: the
+                        // widget clears its own press visual and, on a
+                        // click-release over itself, fires the callback wired
+                        // at setup (button click / checkbox change), which
+                        // folds the outcome back into the panel model. Every
+                        // one gets the release, unlike the press above.
+                        m_pauseButton->OnMouse (ev);
+                        m_clearButton->OnMouse (ev);
+                        m_copyButton->OnMouse (ev);
+
+                        m_allCheck->OnMouse (ev);
+                        m_emuKeyboardCheck->OnMouse (ev);
+                        if (m_joystickVisible) { m_joystickCheck->OnMouse (ev); }
+                        if (m_paddleVisible)   { m_paddleCheck->OnMouse (ev); }
+                        m_hostKeyboardCheck->OnMouse (ev);
+
+                        // A plain release inside the list finalizes the row
+                        // activate; the list already selected on button-down
+                        // (raising onSelectionChanged).
+                        if (overList)
+                        {
+                            (void) ForwardMouseToList (DxuiMouseEventKind::Up, DxuiMouseButton::Left, x, y, 0.0f);
+                        }
+                    }
                 }
 
-                return true;
+                handled = true;
             }
-
-            return false;
+            break;
 
         case DxuiMouseEventKind::Wheel:
             // Forward to the list, which scrolls only when the pointer is
             // over it (standard control behavior) and converts notches back
             // to raw WHEEL_DELTA units internally.
             (void) ForwardMouseToList (DxuiMouseEventKind::Wheel, DxuiMouseButton::None, x, y, ev.wheelDelta);
-            return true;
+            handled = true;
+            break;
 
         default:
-            return false;
+            break;
     }
+
+    return handled;
 }
 
 
@@ -1822,34 +1863,37 @@ bool InputDebugPanel::OnMouse (const DxuiMouseEvent & ev)
 
 bool InputDebugPanel::OnKey (const DxuiKeyEvent & ev)
 {
+    HRESULT         hr       = S_OK;
     WPARAM          vk       = (WPARAM) ev.vk;
     bool            handled  = true;
     IDxuiControl *  focused  = nullptr;
+    bool            isDown   = (ev.kind == DxuiKeyEventKind::Down);
+    bool            claimed  = false;
+
 
 
     // Char events carry no panel semantics (no text entry surface); only
     // key-down drives focus traversal, activation and list navigation.
-    if (ev.kind != DxuiKeyEventKind::Down)
-    {
-        return false;
-    }
+    handled = isDown;
+
+    BAIL_OUT_IF (!isDown, S_OK);
 
     // Tab / Shift+Tab: automatic focus traversal over the panel's visible
     // focusables (the framework tree walk) -- no bespoke per-stop list.
     if (vk == VK_TAB)
     {
         m_focusMgr.HandleKey ((GetKeyState (VK_SHIFT) & 0x8000) ? DxuiFocusKey::ShiftTab : DxuiFocusKey::Tab);
-        return true;
     }
+
+    BAIL_OUT_IF (vk == VK_TAB, S_OK);
 
     // Activation / value keys go to the focused control first: a focused
     // checkbox / button self-activates on Space / Enter (firing its wired
     // callback) and a focused dropdown steers its open popup.
     focused = m_focusMgr.Focused();
-    if (focused != nullptr && focused->OnKey (ev))
-    {
-        return true;
-    }
+    claimed = (focused != nullptr) && focused->OnKey (ev);
+
+    BAIL_OUT_IF (claimed, S_OK);
 
     switch (vk)
     {
@@ -1873,6 +1917,7 @@ bool InputDebugPanel::OnKey (const DxuiKeyEvent & ev)
             break;
     }
 
+Error:
     return handled;
 }
 
@@ -1890,6 +1935,7 @@ void InputDebugPanel::UpdateTooltip (int x, int y)
 {
     LPCWSTR  text   = nullptr;
     RECT     anchor = {};
+
 
 
     if (m_allCheck->HitTest (x, y))                               { text = s_kpszAllTip;      anchor = m_allCheck->Bounds();         }
@@ -1941,6 +1987,7 @@ void InputDebugPanel::ShowColumnMenu (int anchorX, int anchorY)
     IDxuiTextRenderer          *  textRenderer = TextRenderer();
     RECT                         hostRect = { 0, 0, m_widthPx, m_heightPx };
     int                          i        = 0;
+
 
 
     // Bail rather than dereference a null renderer -- the shared text
@@ -2031,6 +2078,7 @@ void InputDebugPanel::OnKbdDataRead (Word address, Byte value, bool strobeSet)
     InputEvent  e = MakeStampedEvent (InputEventCategory::Guest, InputEventType::KbdDataRead);
 
 
+
     e.payload.io.address = address;
     e.payload.io.value   = value;
     e.payload.io.flags   = strobeSet ? InputEvent::kFlagStrobe : 0;
@@ -2050,6 +2098,7 @@ void InputDebugPanel::OnKbdDataRead (Word address, Byte value, bool strobeSet)
 void InputDebugPanel::OnKbdStrobe (Word address, Byte value, bool clearedStrobe)
 {
     InputEvent  e = MakeStampedEvent (InputEventCategory::Guest, InputEventType::KbdStrobe);
+
 
 
     e.payload.io.address = address;
@@ -2081,6 +2130,7 @@ void InputDebugPanel::OnButtonRead (Word address, Byte value)
     InputEvent  e = MakeStampedEvent (InputEventCategory::Guest, InputEventType::ButtonRead);
 
 
+
     e.payload.io.address = address;
     e.payload.io.value   = value;
     e.payload.io.flags   = 0;
@@ -2100,6 +2150,7 @@ void InputDebugPanel::OnButtonRead (Word address, Byte value)
 void InputDebugPanel::OnPaddleTrigger (Word address)
 {
     InputEvent  e = MakeStampedEvent (InputEventCategory::Guest, InputEventType::PaddleTrigger);
+
 
 
     e.payload.io.address = address;
@@ -2123,6 +2174,7 @@ void InputDebugPanel::OnPaddleRead (Word address, Byte value)
     InputEvent  e = MakeStampedEvent (InputEventCategory::Guest, InputEventType::PaddleRead);
 
 
+
     e.payload.io.address = address;
     e.payload.io.value   = value;
     e.payload.io.flags   = 0;
@@ -2144,6 +2196,7 @@ void InputDebugPanel::OnHostAutoRepeat (Byte asciiChar)
     InputEvent  e = MakeStampedEvent (InputEventCategory::Host, InputEventType::HostAutoRepeat);
 
 
+
     e.payload.key.ascii = asciiChar;
     PublishToRing (e);
 }
@@ -2161,6 +2214,7 @@ void InputDebugPanel::OnHostAutoRepeat (Byte asciiChar)
 void InputDebugPanel::OnHostKeyDown (Byte asciiChar)
 {
     InputEvent  e = MakeStampedEvent (InputEventCategory::Host, InputEventType::HostKeyDown);
+
 
 
     e.cycle = 0;
@@ -2181,6 +2235,7 @@ void InputDebugPanel::OnHostKeyDown (Byte asciiChar)
 void InputDebugPanel::OnHostKeyUp (Byte asciiChar)
 {
     InputEvent  e = MakeStampedEvent (InputEventCategory::Host, InputEventType::HostKeyUp);
+
 
 
     e.cycle = 0;

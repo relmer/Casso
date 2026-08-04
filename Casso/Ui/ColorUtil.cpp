@@ -13,6 +13,7 @@ static constexpr int    s_kHexDigitCount = 6;
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  ColorUtil::HexValue
@@ -176,6 +177,7 @@ bool ColorUtil::ParseHexColor (const std::wstring & text, uint32_t & outArgb)
     std::wstring  body;
     uint32_t      rgb   = 0;
     int           i     = 0;
+    size_t        bodyLen = 0;
 
 
 
@@ -188,7 +190,8 @@ bool ColorUtil::ParseHexColor (const std::wstring & text, uint32_t & outArgb)
         body.erase (0, 1);
     }
 
-    CBR (body.size() == (size_t) s_kHexDigitCount);
+    bodyLen = body.size();
+    CBR (bodyLen == (size_t) s_kHexDigitCount);
 
     for (i = 0; i < s_kHexDigitCount; i++)
     {

@@ -26,11 +26,11 @@ namespace OpcodeTableTests
     TEST_CLASS (OpcodeTableBasicTests)
     {
     private:
-        static OpcodeTable BuildTable ()
+        static OpcodeTable BuildTable()
         {
             TestCpu cpu;
-            cpu.InitForTest ();
-            return OpcodeTable (cpu.GetInstructionSet ());
+            cpu.InitForTest();
+            return OpcodeTable (cpu.GetInstructionSet());
         }
 
     public:
@@ -44,7 +44,7 @@ namespace OpcodeTableTests
 
         TEST_METHOD (Lookup_LDA_Immediate_Returns_A9)
         {
-            OpcodeTable table = BuildTable ();
+            OpcodeTable table = BuildTable();
             OpcodeEntry entry = {};
 
             bool found = table.Lookup ("LDA", GlobalAddressingMode::Immediate, entry);
@@ -66,7 +66,7 @@ namespace OpcodeTableTests
 
         TEST_METHOD (Lookup_STA_ZeroPage_Returns_85)
         {
-            OpcodeTable table = BuildTable ();
+            OpcodeTable table = BuildTable();
             OpcodeEntry entry = {};
 
             bool found = table.Lookup ("STA", GlobalAddressingMode::ZeroPage, entry);
@@ -87,7 +87,7 @@ namespace OpcodeTableTests
 
         TEST_METHOD (IsMnemonic_LDA_ReturnsTrue)
         {
-            OpcodeTable table = BuildTable ();
+            OpcodeTable table = BuildTable();
 
             Assert::IsTrue (table.IsMnemonic ("LDA"));
         }
@@ -104,7 +104,7 @@ namespace OpcodeTableTests
 
         TEST_METHOD (IsMnemonic_XYZ_ReturnsFalse)
         {
-            OpcodeTable table = BuildTable ();
+            OpcodeTable table = BuildTable();
 
             Assert::IsFalse (table.IsMnemonic ("XYZ"));
         }
@@ -121,7 +121,7 @@ namespace OpcodeTableTests
 
         TEST_METHOD (HasMode_LDA_Immediate_ReturnsTrue)
         {
-            OpcodeTable table = BuildTable ();
+            OpcodeTable table = BuildTable();
 
             Assert::IsTrue (table.HasMode ("LDA", GlobalAddressingMode::Immediate));
         }
@@ -138,7 +138,7 @@ namespace OpcodeTableTests
 
         TEST_METHOD (HasMode_LDA_SingleByte_ReturnsFalse)
         {
-            OpcodeTable table = BuildTable ();
+            OpcodeTable table = BuildTable();
 
             Assert::IsFalse (table.HasMode ("LDA", GlobalAddressingMode::SingleByteNoOperand));
         }
@@ -155,7 +155,7 @@ namespace OpcodeTableTests
 
         TEST_METHOD (AllStandardMnemonics_HaveAtLeastOneEntry)
         {
-            OpcodeTable table = BuildTable ();
+            OpcodeTable table = BuildTable();
 
             const char * mnemonics[] =
             {
@@ -171,7 +171,7 @@ namespace OpcodeTableTests
             for (const char * mnemonic : mnemonics)
             {
                 Assert::IsTrue (table.IsMnemonic (mnemonic),
-                    (std::wstring (L"Missing mnemonic: ") + std::wstring (mnemonic, mnemonic + strlen (mnemonic))).c_str ());
+                    (std::wstring (L"Missing mnemonic: ") + std::wstring (mnemonic, mnemonic + strlen (mnemonic))).c_str());
             }
         }
     };
@@ -189,11 +189,11 @@ namespace OpcodeTableTests
     TEST_CLASS (OpcodeTableCoverageTests)
     {
     private:
-        static OpcodeTable BuildTable ()
+        static OpcodeTable BuildTable()
         {
             TestCpu cpu;
-            cpu.InitForTest ();
-            return OpcodeTable (cpu.GetInstructionSet ());
+            cpu.InitForTest();
+            return OpcodeTable (cpu.GetInstructionSet());
         }
 
         void VerifyOpcode (OpcodeTable & table, const char * mnemonic, GlobalAddressingMode::AddressingMode mode, Byte expectedOpcode)
@@ -202,8 +202,8 @@ namespace OpcodeTableTests
             bool found = table.Lookup (mnemonic, mode, entry);
 
             std::wstring msg = L"Expected opcode for " + std::wstring (mnemonic, mnemonic + strlen (mnemonic));
-            Assert::IsTrue (found, msg.c_str ());
-            Assert::AreEqual (expectedOpcode, entry.opcode, msg.c_str ());
+            Assert::IsTrue (found, msg.c_str());
+            Assert::AreEqual (expectedOpcode, entry.opcode, msg.c_str());
         }
 
     public:
@@ -217,7 +217,7 @@ namespace OpcodeTableTests
 
         TEST_METHOD (AllOpcodes_MatchExpected)
         {
-            OpcodeTable table = BuildTable ();
+            OpcodeTable table = BuildTable();
 
             // Group 01 - complete matrix
             VerifyOpcode (table, "ORA", GlobalAddressingMode::ZeroPageXIndirect, 0x01);

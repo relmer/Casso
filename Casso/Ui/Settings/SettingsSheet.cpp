@@ -22,6 +22,8 @@ static constexpr int    s_kSheetHeightDip    = 760;
 
 
 
+
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  ~SettingsSheet
@@ -34,7 +36,7 @@ static constexpr int    s_kSheetHeightDip    = 760;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-SettingsSheet::~SettingsSheet ()
+SettingsSheet::~SettingsSheet()
 {
     if (PopupHost() != nullptr)
     {
@@ -42,6 +44,7 @@ SettingsSheet::~SettingsSheet ()
     }
     m_compositor.Shutdown();
 }
+
 
 
 
@@ -56,7 +59,7 @@ SettingsSheet::~SettingsSheet ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void SettingsSheet::OnBuildPages ()
+void SettingsSheet::OnBuildPages()
 {
     m_hardwarePage = CreatePage<HardwarePage> (L"Machine");   // machine + CPU + hardware
     m_diskPage     = CreatePage<DiskPage>     (L"Disk");
@@ -72,6 +75,7 @@ void SettingsSheet::OnBuildPages ()
     m_restartNotice->SetTextAlign (DxuiTextHAlign::Left, DxuiTextVAlign::Center);
     m_restartNotice->SetVisible   (false);
 }
+
 
 
 
@@ -240,7 +244,7 @@ HRESULT SettingsSheet::OpenModeless (
     m_crt.WireDisplayPageCallbacks();
 
     // "Restore defaults" reverts the CRT block AND the Color-monitor text
-    // colour; both live in the bridge's own restore handler (installed by
+    // color; both live in the bridge's own restore handler (installed by
     // WireDisplayPageCallbacks above) so the single handler stays authoritative
     // -- an earlier attempt to re-wire it here was silently superseded.
 
@@ -375,6 +379,7 @@ Error:
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  OnOk / OnCancel
@@ -386,18 +391,19 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT SettingsSheet::OnOk ()
+HRESULT SettingsSheet::OnOk()
 {
     m_apply.CommitApply();
     return S_OK;
 }
 
 
-void SettingsSheet::OnCancel ()
+void SettingsSheet::OnCancel()
 {
     m_apply.Cancel (m_preview);
     RevertDriveAuditionIfDirty();
 }
+
 
 
 
@@ -413,7 +419,7 @@ void SettingsSheet::OnCancel ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void SettingsSheet::OnDialogTick ()
+void SettingsSheet::OnDialogTick()
 {
     RefreshOkLabel();
     UpdateRestartNotice();
@@ -436,6 +442,7 @@ void SettingsSheet::OnDialogTick ()
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  UpdatePreviewCompose
@@ -448,7 +455,7 @@ void SettingsSheet::OnDialogTick ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void SettingsSheet::UpdatePreviewCompose ()
+void SettingsSheet::UpdatePreviewCompose()
 {
     if (!m_compositor.IsInitialized())
     {
@@ -489,10 +496,21 @@ void SettingsSheet::UpdatePreviewCompose ()
 }
 
 
-void SettingsSheet::RefreshOkLabel ()
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RefreshOkLabel
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SettingsSheet::RefreshOkLabel()
 {
     bool          reboot = m_apply.WillMachineChange() || m_apply.IsResetRequired();
     std::wstring  want   = reboot ? L"OK (reboot)" : L"OK";
+
+
 
     if (OkText() != want)   // only reflow on an actual change, not every tick
     {
@@ -504,11 +522,12 @@ void SettingsSheet::RefreshOkLabel ()
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  Layout / modal-overlay overrides (custom text-color picker, list #8)
 //
-//  The picker is centred in the same sheet bounds the pages use, painted last
+//  The picker is centered in the same sheet bounds the pages use, painted last
 //  of all, and -- while open -- grabs every mouse / key / char event so the
 //  page beneath stays inert. Each routed event invalidates so the picker's
 //  sliders / hex field / copy flash animate.
@@ -542,6 +561,9 @@ void SettingsSheet::Layout (const RECT & boundsPx, const DxuiDpiScaler & scaler)
 }
 
 
+
+
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  UpdateRestartNotice
@@ -552,9 +574,10 @@ void SettingsSheet::Layout (const RECT & boundsPx, const DxuiDpiScaler & scaler)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void SettingsSheet::UpdateRestartNotice ()
+void SettingsSheet::UpdateRestartNotice()
 {
     std::wstring  notice;
+
 
 
     if (m_apply.WillMachineChange())
@@ -581,6 +604,7 @@ void SettingsSheet::UpdateRestartNotice ()
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  UpdateDiskTabVisibility
@@ -593,9 +617,10 @@ void SettingsSheet::UpdateRestartNotice ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void SettingsSheet::UpdateDiskTabVisibility ()
+void SettingsSheet::UpdateDiskTabVisibility()
 {
     bool  want = m_state.HasDiskIIController();
+
 
 
     if (m_diskPageIndex < 0 || want == m_diskTabVisible)
@@ -608,11 +633,29 @@ void SettingsSheet::UpdateDiskTabVisibility ()
 }
 
 
-bool SettingsSheet::HasModalOverlay () const
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  HasModalOverlay
+//
+////////////////////////////////////////////////////////////////////////////////
+
+bool SettingsSheet::HasModalOverlay() const
 {
     return m_colorPicker.IsOpen();
 }
 
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  PaintModalOverlay
+//
+////////////////////////////////////////////////////////////////////////////////
 
 void SettingsSheet::PaintModalOverlay (IDxuiPainter & painter, IDxuiTextRenderer & text, const IDxuiTheme & theme)
 {
@@ -623,31 +666,55 @@ void SettingsSheet::PaintModalOverlay (IDxuiPainter & painter, IDxuiTextRenderer
 }
 
 
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnOverlayMouse
+//
+////////////////////////////////////////////////////////////////////////////////
+
 bool SettingsSheet::OnOverlayMouse (const DxuiMouseEvent & ev)
 {
-    if (!m_colorPicker.IsOpen())
+    // An open color picker is modal over the sheet, so it takes EVERY mouse
+    // event -- including the kinds it ignores, which must not reach the
+    // controls behind it.
+    bool  isOpen = m_colorPicker.IsOpen();
+
+    if (isOpen)
     {
-        return false;
+        switch (ev.kind)
+        {
+        case DxuiMouseEventKind::Down:  m_colorPicker.OnLButtonDown (ev.positionDip.x, ev.positionDip.y); break;
+        case DxuiMouseEventKind::Up:    m_colorPicker.OnLButtonUp   (ev.positionDip.x, ev.positionDip.y); break;
+        case DxuiMouseEventKind::Move:  m_colorPicker.OnMouseHover  (ev.positionDip.x, ev.positionDip.y);
+                                        m_colorPicker.OnMouseMove   (ev.positionDip.x, ev.positionDip.y); break;
+        default:                        break;
+        }
+
+        Invalidate();
     }
 
-    switch (ev.kind)
-    {
-    case DxuiMouseEventKind::Down:  m_colorPicker.OnLButtonDown (ev.positionDip.x, ev.positionDip.y); break;
-    case DxuiMouseEventKind::Up:    m_colorPicker.OnLButtonUp   (ev.positionDip.x, ev.positionDip.y); break;
-    case DxuiMouseEventKind::Move:  m_colorPicker.OnMouseHover  (ev.positionDip.x, ev.positionDip.y);
-                                    m_colorPicker.OnMouseMove   (ev.positionDip.x, ev.positionDip.y); break;
-    default:                        break;
-    }
-
-    Invalidate();
-    return true;
+    return isOpen;
 }
 
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnOverlayChar
+//
+////////////////////////////////////////////////////////////////////////////////
 
 bool SettingsSheet::OnOverlayChar (wchar_t ch)
 {
     bool  handled = m_colorPicker.IsOpen() && m_colorPicker.OnChar (ch);
 
+
+
     if (m_colorPicker.IsOpen())
     {
         Invalidate();
@@ -655,17 +722,29 @@ bool SettingsSheet::OnOverlayChar (wchar_t ch)
     return handled;
 }
 
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  OnOverlayKey
+//
+////////////////////////////////////////////////////////////////////////////////
 
 bool SettingsSheet::OnOverlayKey (WPARAM vk)
 {
     bool  handled = m_colorPicker.IsOpen() && m_colorPicker.OnKey (vk);
 
+
+
     if (m_colorPicker.IsOpen())
     {
         Invalidate();
     }
     return handled;
 }
+
 
 
 
@@ -711,12 +790,13 @@ void SettingsSheet::AuditionDriveSound (int drive, int kind, bool centered)
                             prefs.floppyMechanism);
 
     // The push above changed the live engine mixer; remember to undo it if the
-    // dialog is cancelled without persisting.
+    // dialog is canceled without persisting.
     m_driveAuditionDirty = true;
 
     sprintf_s (test, "%d,%d", drive, kind);
     m_emuShell->PostCommand (IDM_AUDIO_DRIVE_TEST, test);
 }
+
 
 
 
@@ -733,9 +813,11 @@ void SettingsSheet::AuditionDriveSound (int drive, int kind, bool centered)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void SettingsSheet::SnapshotDriveAudioBaseline ()
+void SettingsSheet::SnapshotDriveAudioBaseline()
 {
     const SettingsUiPrefs &  prefs = m_state.Prefs();
+
+
 
     m_baselineDriveMotorVol = prefs.driveMotorVolume;
     m_baselineDriveHeadVol  = prefs.driveHeadVolume;
@@ -747,7 +829,16 @@ void SettingsSheet::SnapshotDriveAudioBaseline ()
 }
 
 
-void SettingsSheet::RevertDriveAuditionIfDirty ()
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  RevertDriveAuditionIfDirty
+//
+////////////////////////////////////////////////////////////////////////////////
+
+void SettingsSheet::RevertDriveAuditionIfDirty()
 {
     if (!m_driveAuditionDirty)
     {
@@ -762,6 +853,7 @@ void SettingsSheet::RevertDriveAuditionIfDirty ()
                             m_baselineMechanism);
     m_driveAuditionDirty = false;
 }
+
 
 
 

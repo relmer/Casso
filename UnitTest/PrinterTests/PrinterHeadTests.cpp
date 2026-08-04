@@ -8,6 +8,7 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  PrinterHeadTests
@@ -75,7 +76,7 @@ namespace PrinterHeadTests
     {
     public:
 
-        //  ---- Parking / idle -------------------------------------------------
+        // Parking / idle
 
         TEST_METHOD (Reset_ParksAtRow)
         {
@@ -106,7 +107,7 @@ namespace PrinterHeadTests
         }
 
 
-        //  ---- Carriage geometry ---------------------------------------------
+        // Carriage geometry
 
         TEST_METHOD (SweepLtr_CarriageTracks0ToWidth)
         {
@@ -241,7 +242,7 @@ namespace PrinterHeadTests
         }
 
 
-        //  ---- Feed rates -----------------------------------------------------
+        // Feed rates
 
         TEST_METHOD (LineFeed_AtLineRate)
         {
@@ -308,7 +309,7 @@ namespace PrinterHeadTests
         }
 
 
-        //  ---- Frontier / reveal ---------------------------------------------
+        // Frontier / reveal
 
         TEST_METHOD (Frontier_Monotonic_OverlappingBands)
         {
@@ -335,7 +336,7 @@ namespace PrinterHeadTests
         }
 
 
-        //  ---- Wet-ink presented layer ---------------------------------------
+        // Wet-ink presented layer
 
         TEST_METHOD (Overprint_SameRow_BuildsComposite)
         {
@@ -425,7 +426,7 @@ namespace PrinterHeadTests
         }
 
 
-        //  ---- Backpressure accounting ---------------------------------------
+        // Backpressure accounting
 
         TEST_METHOD (PendingSeconds_SumsQueuedMotion)
         {

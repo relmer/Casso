@@ -10,6 +10,7 @@
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  Embedded shader plumbing. Pixel shader source lives in Casso/Shaders/CRT
@@ -21,37 +22,18 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace
-{
-    constexpr UINT          s_kMaxBoundPsSrvSlots = 2;
-
-    constexpr const char *  s_kpszVertexShaderSrc =
-        "struct VSInput  { float2 pos : POSITION; float2 uv : TEXCOORD; };\n"
-        "struct VSOutput { float4 pos : SV_POSITION; float2 uv : TEXCOORD; };\n"
-        "VSOutput main (VSInput i)\n"
-        "{\n"
-        "    VSOutput o;\n"
-        "    o.pos = float4 (i.pos, 0.0f, 1.0f);\n"
-        "    o.uv  = i.uv;\n"
-        "    return o;\n"
-        "}\n";
-
-
-    struct ShaderSource
-    {
-        const void * pData  = nullptr;
-        size_t       cbData = 0;
-    };
-
-
-    struct CrtVertex
-    {
-        float x;
-        float y;
-        float u;
-        float v;
-    };
-
+// A 10-line payload, so it stays a file-scope `static constexpr` under the
+// documented 3+ line exception rather than moving onto CrtPostProcess.
+static constexpr const char *  s_kpszVertexShaderSrc =
+    "struct VSInput  { float2 pos : POSITION; float2 uv : TEXCOORD; };\n"
+    "struct VSOutput { float4 pos : SV_POSITION; float2 uv : TEXCOORD; };\n"
+    "VSOutput main (VSInput i)\n"
+    "{\n"
+    "    VSOutput o;\n"
+    "    o.pos = float4 (i.pos, 0.0f, 1.0f);\n"
+    "    o.uv  = i.uv;\n"
+    "    return o;\n"
+    "}\n";
 
 
 
@@ -63,7 +45,7 @@ namespace
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT LoadShaderSource (int resourceId, ShaderSource * outSource)
+HRESULT CrtPostProcess::LoadShaderSource (int resourceId, ShaderSource * outSource)
 {
     HRESULT    hr        = S_OK;
     HINSTANCE  hInstance = nullptr;
@@ -99,7 +81,6 @@ HRESULT LoadShaderSource (int resourceId, ShaderSource * outSource)
 
 Error:
     return hr;
-}
 }
 
 
@@ -270,33 +251,39 @@ RECT ComputeAspectFitRectInRect (const RECT & contentRect, int aspectW, int aspe
     RECT  r        = {};
     int   contentW = contentRect.right  - contentRect.left;
     int   contentH = contentRect.bottom - contentRect.top;
+    int   wForH    = 0;
+    int   hForW    = 0;
+    int   barX     = 0;
+    int   barY     = 0;
+    bool  sizeable = (contentW > 0 && contentH > 0 && aspectW > 0 && aspectH > 0);
 
 
 
-    if (contentW <= 0 || contentH <= 0 || aspectW <= 0 || aspectH <= 0)
+    // A degenerate content rect or aspect yields the zero rect, which the
+    // caller draws as nothing rather than as a divide-by-zero.
+    if (sizeable)
     {
-        return r;
-    }
+        wForH = (contentH * aspectW) / aspectH;
 
-    int  wForH = (contentH * aspectW) / aspectH;
-    if (wForH <= contentW)
-    {
-        int  barX = (contentW - wForH) / 2;
-
-        r.left   = contentRect.left + barX;
-        r.top    = contentRect.top;
-        r.right  = r.left + wForH;
-        r.bottom = contentRect.bottom;
-    }
-    else
-    {
-        int  hForW = (contentW * aspectH) / aspectW;
-        int  barY  = (contentH - hForW) / 2;
-
-        r.left   = contentRect.left;
-        r.top    = contentRect.top + barY;
-        r.right  = contentRect.right;
-        r.bottom = r.top + hForW;
+        if (wForH <= contentW)
+        {
+            // Height-limited: pillarbox, bars left and right.
+            barX     = (contentW - wForH) / 2;
+            r.left   = contentRect.left + barX;
+            r.top    = contentRect.top;
+            r.right  = r.left + wForH;
+            r.bottom = contentRect.bottom;
+        }
+        else
+        {
+            // Width-limited: letterbox, bars top and bottom.
+            hForW    = (contentW * aspectH) / aspectW;
+            barY     = (contentH - hForW) / 2;
+            r.left   = contentRect.left;
+            r.top    = contentRect.top + barY;
+            r.right  = contentRect.right;
+            r.bottom = r.top + hForW;
+        }
     }
 
     return r;
@@ -520,12 +507,10 @@ HRESULT CrtPostProcess::EnsureSize (int width, int height)
     int                  i   = 0;
 
 
-    BAIL_OUT_IF (width <= 0 || height <= 0, E_INVALIDARG);
 
-    if (width == m_width && height == m_height && m_ppMainTex[0])
-    {
-        return S_OK;
-    }
+    CBRAEx (width > 0 && height > 0, E_INVALIDARG);
+
+    BAIL_OUT_IF (width == m_width && height == m_height && m_ppMainTex[0], S_OK);
 
     // Unbind everything from the pipeline before releasing the old
     // resources. D3D11 retains internal references to bound RTVs and
@@ -537,10 +522,10 @@ HRESULT CrtPostProcess::EnsureSize (int width, int height)
     // ensures the Reset()s below actually free the GPU memory.
     if (m_context != nullptr)
     {
-        ID3D11ShaderResourceView *  nullSrvs[s_kMaxBoundPsSrvSlots] = {};
+        ID3D11ShaderResourceView *  nullSrvs[kMaxBoundPsSrvSlots] = {};
 
         m_context->OMSetRenderTargets   (0, nullptr, nullptr);
-        m_context->PSSetShaderResources (0, s_kMaxBoundPsSrvSlots, nullSrvs);
+        m_context->PSSetShaderResources (0, kMaxBoundPsSrvSlots, nullSrvs);
     }
 
     for (i = 0; i < 2; ++i)
@@ -653,8 +638,8 @@ void CrtPostProcess::DrawFullscreen (
     UINT                       offset        = 0;
     float                      clearColor[4] = { 0.0f, 0.0f, 0.0f, 1.0f };
     D3D11_VIEWPORT             vp            = {};
-    ID3D11ShaderResourceView * srvs[s_kMaxBoundPsSrvSlots]     = { srv0, srv1 };
-    ID3D11ShaderResourceView * nullSrvs[s_kMaxBoundPsSrvSlots] = {};
+    ID3D11ShaderResourceView * srvs[kMaxBoundPsSrvSlots]     = { srv0, srv1 };
+    ID3D11ShaderResourceView * nullSrvs[kMaxBoundPsSrvSlots] = {};
     ID3D11Buffer             * cbs[1]        = { m_constantBuffer.Get() };
     float                      blendFactor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
 
@@ -688,14 +673,14 @@ void CrtPostProcess::DrawFullscreen (
     m_context->VSSetShader            (m_vs.Get(), nullptr, 0);
     m_context->PSSetShader            (ps,         nullptr, 0);
     m_context->PSSetSamplers          (0, 1, m_sampler.GetAddressOf());
-    m_context->PSSetShaderResources   (0, s_kMaxBoundPsSrvSlots, srvs);
+    m_context->PSSetShaderResources   (0, kMaxBoundPsSrvSlots, srvs);
     m_context->PSSetConstantBuffers   (0, 1, cbs);
 
     m_context->DrawIndexed (6, 0, 0);
 
     // Detach SRVs so the just-written RT can be bound as an input on the
     // next pass without a D3D11 hazard warning.
-    m_context->PSSetShaderResources (0, s_kMaxBoundPsSrvSlots, nullSrvs);
+    m_context->PSSetShaderResources (0, kMaxBoundPsSrvSlots, nullSrvs);
 }
 
 

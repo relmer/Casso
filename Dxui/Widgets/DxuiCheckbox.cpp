@@ -8,6 +8,7 @@
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  DxuiCheckbox::EllipsizeToWidth
@@ -22,46 +23,58 @@ std::wstring DxuiCheckbox::EllipsizeToWidth (IDxuiTextRenderer  & text,
                                              float                fontDip,
                                              float                maxWidth)
 {
-    HRESULT  hr = S_OK;
-    float    w  = 0.0f;
-    float    h  = 0.0f;
-
-    if (label.empty() || maxWidth <= 0.0f)
-    {
-        return label;
-    }
-
-    hr = text.MeasureString (label.c_str(), fontDip, DxuiTheme::kBodyFace, w, h);
-    IGNORE_RETURN_VALUE (hr, S_OK);
-
-    if (w <= maxWidth)
-    {
-        return label;
-    }
-
     const wchar_t * const  kEllipsis = L"\x2026";   // …
-    size_t                 lo        = 0;
-    size_t                 hi        = label.size();
 
-    while (lo < hi)
+    HRESULT       hr     = S_OK;
+    float         w      = 0.0f;
+    float         h      = 0.0f;
+    size_t        lo     = 0;
+    size_t        hi     = label.size();
+    size_t        mid    = 0;
+    std::wstring  cand;
+    std::wstring  result = label;
+    bool          fits   = (label.empty() || maxWidth <= 0.0f);
+
+    // An empty label or a nonsense width has nothing to trim, and a label
+    // that already fits is returned whole -- both leave `result` as-is.
+    if (!fits)
     {
-        size_t        mid  = (lo + hi + 1) / 2;
-        std::wstring  cand = label.substr (0, mid) + kEllipsis;
-
-        hr = text.MeasureString (cand.c_str(), fontDip, DxuiTheme::kBodyFace, w, h);
+        hr = text.MeasureString (label.c_str(), fontDip, DxuiTheme::kBodyFace, w, h);
         IGNORE_RETURN_VALUE (hr, S_OK);
 
-        if (w <= maxWidth)
-        {
-            lo = mid;
-        }
-        else
-        {
-            hi = mid - 1;
-        }
+        fits = (w <= maxWidth);
     }
 
-    return (lo == 0) ? std::wstring (kEllipsis) : label.substr (0, lo) + kEllipsis;
+    if (!fits)
+    {
+        // Binary search for the longest prefix that still fits once the
+        // ellipsis is appended. Measuring is the expensive part, so this is
+        // log(n) calls rather than walking the label a character at a time.
+        while (lo < hi)
+        {
+            mid  = (lo + hi + 1) / 2;
+            cand = label.substr (0, mid) + kEllipsis;
+
+            hr = text.MeasureString (cand.c_str(), fontDip, DxuiTheme::kBodyFace, w, h);
+            IGNORE_RETURN_VALUE (hr, S_OK);
+
+            if (w <= maxWidth)
+            {
+                lo = mid;
+            }
+            else
+            {
+                hi = mid - 1;
+            }
+        }
+
+        // Not even one character plus the ellipsis fits: show the ellipsis
+        // alone rather than an empty cell.
+        result = (lo == 0) ? std::wstring (kEllipsis)
+                           : label.substr (0, lo) + kEllipsis;
+    }
+
+    return result;
 }
 
 
@@ -76,11 +89,11 @@ std::wstring DxuiCheckbox::EllipsizeToWidth (IDxuiTextRenderer  & text,
 
 bool DxuiCheckbox::HitTest (int x, int y) const
 {
-    if (!m_enabled)
-    {
-        return false;
-    }
-    return x >= m_boundsDip.left && x < m_boundsDip.right && y >= m_boundsDip.top && y < m_boundsDip.bottom;
+    // A disabled checkbox is transparent to the mouse, so whatever is behind
+    // it gets the click.
+    return m_enabled
+           && x >= m_boundsDip.left && x < m_boundsDip.right
+           && y >= m_boundsDip.top  && y < m_boundsDip.bottom;
 }
 
 
@@ -114,13 +127,16 @@ void DxuiCheckbox::SetMouseHover (int x, int y)
 
 bool DxuiCheckbox::OnLButtonDown (int x, int y)
 {
-    if (!HitTest (x, y))
+    bool  hit = HitTest (x, y);
+
+
+
+    if (hit)
     {
-        return false;
+        m_pressed = true;
     }
 
-    m_pressed = true;
-    return true;
+    return hit;
 }
 
 
@@ -161,18 +177,16 @@ bool DxuiCheckbox::OnLButtonUp (int x, int y)
 
 bool DxuiCheckbox::OnKey (WPARAM vk)
 {
-    if (!m_enabled || !m_focused)
-    {
-        return false;
-    }
+    bool  toggles = m_enabled
+                    && m_focused
+                    && (vk == VK_SPACE || vk == VK_RETURN);
 
-    if (vk == VK_SPACE || vk == VK_RETURN)
+    if (toggles)
     {
         Toggle();
-        return true;
     }
 
-    return false;
+    return toggles;
 }
 
 
@@ -215,6 +229,8 @@ void DxuiCheckbox::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, cons
     constexpr float     s_kFocusThickDip = 1.0f;
     constexpr float     s_kLabelGapDip   = 6.0f;
     constexpr float     s_kFontDip      = 13.0f;
+
+
 
     HRESULT  hr          = S_OK;
     float    boxSize     = m_scaler.Pxf (s_kBoxSizeDip);
@@ -319,26 +335,32 @@ void DxuiCheckbox::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
 
 bool DxuiCheckbox::OnMouse (const DxuiMouseEvent & ev)
 {
+    bool  isLeft   = (ev.button == DxuiMouseButton::Left);
+    bool  consumed = false;
+
+
+
     switch (ev.kind)
     {
     case DxuiMouseEventKind::Move:
+        // Hover tracking never claims the event -- a checkbox does not stop
+        // a move from reaching whatever else wants to see it.
         SetMouseHover (ev.positionDip.x, ev.positionDip.y);
-        return false;
+        break;
+
     case DxuiMouseEventKind::Down:
-        if (ev.button == DxuiMouseButton::Left)
-        {
-            return OnLButtonDown (ev.positionDip.x, ev.positionDip.y);
-        }
-        return false;
+        consumed = isLeft && OnLButtonDown (ev.positionDip.x, ev.positionDip.y);
+        break;
+
     case DxuiMouseEventKind::Up:
-        if (ev.button == DxuiMouseButton::Left)
-        {
-            return OnLButtonUp (ev.positionDip.x, ev.positionDip.y);
-        }
-        return false;
+        consumed = isLeft && OnLButtonUp (ev.positionDip.x, ev.positionDip.y);
+        break;
+
     default:
-        return false;
+        break;
     }
+
+    return consumed;
 }
 
 
@@ -353,10 +375,6 @@ bool DxuiCheckbox::OnMouse (const DxuiMouseEvent & ev)
 
 bool DxuiCheckbox::OnKey (const DxuiKeyEvent & ev)
 {
-    if (ev.kind != DxuiKeyEventKind::Down)
-    {
-        return false;
-    }
-
-    return OnKey (ev.vk);
+    // Key-up would toggle a second time for the same press.
+    return (ev.kind == DxuiKeyEventKind::Down) && OnKey (ev.vk);
 }

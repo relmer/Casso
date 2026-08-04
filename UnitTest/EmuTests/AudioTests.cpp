@@ -127,7 +127,7 @@ public:
 
 
 
-        AudioGenerator::GeneratePCM (toggles, 17030, -0.3f, samples.data (), numSamples);
+        AudioGenerator::GeneratePCM (toggles, 17030, -0.3f, samples.data(), numSamples);
 
         // Count sign changes (zero crossings)
         int crossings = 0;
@@ -142,7 +142,7 @@ public:
 
         // 18 toggles, but the first fires at sample 0 (no prior sample
         // to compare), so we observe 17 sign changes between adjacent samples.
-        Assert::AreEqual (static_cast<int> (toggles.size ()) - 1, crossings);
+        Assert::AreEqual (static_cast<int> (toggles.size()) - 1, crossings);
     }
 
     ////////////////////////////////////////////////////////////////////////////
@@ -298,8 +298,8 @@ public:
         spk.SetCycleCounter (&cycles);
         spk.Read (0xC030);
 
-        Assert::AreEqual (size_t (1), spk.GetToggleTimestamps ().size ());
-        Assert::AreEqual (uint32_t (5000), spk.GetToggleTimestamps ()[0]);
+        Assert::AreEqual (size_t (1), spk.GetToggleTimestamps().size());
+        Assert::AreEqual (uint32_t (5000), spk.GetToggleTimestamps()[0]);
     }
 
     TEST_METHOD (SpeakerToAudioPipeline_EndToEnd)
@@ -321,12 +321,12 @@ public:
         spk.Read (0xC030);   // -0.3 → 0.3
 
         // Get timestamps and initial state
-        const auto & timestamps = spk.GetToggleTimestamps ();
+        const auto & timestamps = spk.GetToggleTimestamps();
         // Initial state before toggles: speaker starts at 0.0,
         // after 3 toggles it's at 0.3. Initial = 0.0.
         float initialState = 0.0f;
 
-        Assert::AreEqual (size_t (3), timestamps.size ());
+        Assert::AreEqual (size_t (3), timestamps.size());
         Assert::AreEqual (uint32_t (4000), timestamps[0]);
         Assert::AreEqual (uint32_t (8000), timestamps[1]);
         Assert::AreEqual (uint32_t (12000), timestamps[2]);

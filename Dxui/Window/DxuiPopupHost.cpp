@@ -10,86 +10,97 @@
 
 
 
-namespace
+static constexpr UINT     s_kDefaultDpi          = 96;
+static constexpr LONG     s_kShadowInsetPx       = 1;
+
+std::atomic<uint32_t>  s_classSerial { 0 };
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WorkAreaForRect
+//
+//
+//   Returns the monitor work-area rect (excludes the taskbar) for
+//   the monitor that contains the supplied rect. Falls back to a
+//   giant synthetic work area if the multi-monitor lookup fails so
+//   callers always get a usable rect.
+//
+//
+////////////////////////////////////////////////////////////////////////////////
+
+RECT  DxuiPopupHost::WorkAreaForRect (const RECT & rectScreenPx)
 {
-    constexpr UINT     s_kDefaultDpi          = 96;
-    constexpr LONG     s_kShadowInsetPx       = 1;
+    RECT          work     = { 0, 0, 1920, 1080 };
+    HMONITOR      monitor  = nullptr;
+    MONITORINFO   info     = {};
 
-    std::atomic<uint32_t>  s_classSerial { 0 };
 
 
-    //
-    //  Returns the monitor work-area rect (excludes the taskbar) for
-    //  the monitor that contains the supplied rect. Falls back to a
-    //  giant synthetic work area if the multi-monitor lookup fails so
-    //  callers always get a usable rect.
-    //
-    RECT  WorkAreaForRect (const RECT & rectScreenPx)
+    // Either lookup failing leaves the synthetic 1920x1080 fallback, so a
+    // popup always gets a usable rect to clamp against.
+    monitor = MonitorFromRect (&rectScreenPx, MONITOR_DEFAULTTONEAREST);
+
+    if (monitor != nullptr)
     {
-        RECT          work     = { 0, 0, 1920, 1080 };
-        HMONITOR      monitor  = nullptr;
-        MONITORINFO   info     = {};
-
-
-        monitor = MonitorFromRect (&rectScreenPx, MONITOR_DEFAULTTONEAREST);
-        if (monitor == nullptr)
-        {
-            return work;
-        }
-
         info.cbSize = sizeof (info);
+
         if (GetMonitorInfoW (monitor, &info))
         {
             work = info.rcWork;
         }
-        return work;
     }
 
+    return work;
+}
 
-    //
-    //  Position a rect of the supplied size on the chosen edge of an
-    //  anchor without any work-area clamping. Helper for placement.
-    //
-    RECT  PlaceOnEdge (const RECT          & anchor,
-                       DxuiPopupPlacement    edge,
-                       SIZE                  popupSizePx)
+
+//
+//  Position a rect of the supplied size on the chosen edge of an
+//  anchor without any work-area clamping. Helper for placement.
+//
+RECT  DxuiPopupHost::PlaceOnEdge (const RECT          & anchor,
+                   DxuiPopupPlacement    edge,
+                   SIZE                  popupSizePx)
+{
+    RECT  out = {};
+
+
+    switch (edge)
     {
-        RECT  out = {};
+        case DxuiPopupPlacement::Below:
+            out.left   = anchor.left;
+            out.top    = anchor.bottom;
+            break;
 
+        case DxuiPopupPlacement::Above:
+            out.left   = anchor.left;
+            out.top    = anchor.top - popupSizePx.cy;
+            break;
 
-        switch (edge)
-        {
-            case DxuiPopupPlacement::Below:
-                out.left   = anchor.left;
-                out.top    = anchor.bottom;
-                break;
+        case DxuiPopupPlacement::Right:
+            out.left   = anchor.right;
+            out.top    = anchor.top;
+            break;
 
-            case DxuiPopupPlacement::Above:
-                out.left   = anchor.left;
-                out.top    = anchor.top - popupSizePx.cy;
-                break;
+        case DxuiPopupPlacement::Left:
+            out.left   = anchor.left - popupSizePx.cx;
+            out.top    = anchor.top;
+            break;
 
-            case DxuiPopupPlacement::Right:
-                out.left   = anchor.right;
-                out.top    = anchor.top;
-                break;
-
-            case DxuiPopupPlacement::Left:
-                out.left   = anchor.left - popupSizePx.cx;
-                out.top    = anchor.top;
-                break;
-
-            case DxuiPopupPlacement::AtCursor:
-                // Anchor's (left, top) is treated as the cursor point.
-                out.left   = anchor.left;
-                out.top    = anchor.top;
-                break;
-        }
-
-        out.right  = out.left + popupSizePx.cx;
-        out.bottom = out.top  + popupSizePx.cy;
-        return out;
+        case DxuiPopupPlacement::AtCursor:
+            // Anchor's (left, top) is treated as the cursor point.
+            out.left   = anchor.left;
+            out.top    = anchor.top;
+            break;
     }
+
+    out.right  = out.left + popupSizePx.cx;
+    out.bottom = out.top  + popupSizePx.cy;
+    return out;
 }
 
 
@@ -183,7 +194,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiPopupHost::InitializeForTest ()
+void DxuiPopupHost::InitializeForTest()
 {
     DXUI_ASSERT_UI_THREAD();
 
@@ -205,7 +216,7 @@ void DxuiPopupHost::InitializeForTest ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiPopupHost::Shutdown ()
+void DxuiPopupHost::Shutdown()
 {
     DXUI_ASSERT_UI_THREAD();
 
@@ -256,6 +267,7 @@ HRESULT DxuiPopupHost::Show (ShowParams params)
     UINT     dpi            = s_kDefaultDpi;
 
 
+
     DXUI_ASSERT_UI_THREAD();
 
     CBRA (m_initialized);
@@ -292,13 +304,10 @@ HRESULT DxuiPopupHost::Show (ShowParams params)
     m_open               = true;
     m_resultCode         = 0;
 
-    if (m_testMode)
-    {
-        // Test mode: no HWND, no swap chain. State above is the
-        // entire deliverable; tests inspect Params(),
-        // PlacedRectScreenPx(), and Completion() directly.
-        goto Error;
-    }
+    // Test mode: no HWND, no swap chain. The state set above is the entire
+    // deliverable; tests inspect Params(), PlacedRectScreenPx(), and
+    // Completion() directly.
+    BAIL_OUT_IF (m_testMode, S_OK);
 
     hr = EnsureWindowClass();
     CHRA (hr);
@@ -357,7 +366,7 @@ Error:
 
 void DxuiPopupHost::Close (int resultCode)
 {
-    std::function<void ()>  onClosed;
+    std::function<void()>  onClosed;
 
 
     DXUI_ASSERT_UI_THREAD();
@@ -416,7 +425,7 @@ void DxuiPopupHost::Close (int resultCode)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-std::future<int> DxuiPopupHost::Completion ()
+std::future<int> DxuiPopupHost::Completion()
 {
     DXUI_ASSERT_UI_THREAD();
     return m_completionPromise.get_future();
@@ -617,34 +626,40 @@ RECT DxuiPopupHost::ComputePlacementForTest (
 bool DxuiPopupHost::ShouldDismissForTest (DxuiPopupDismiss        policy,
                                           DxuiPopupDismissReason  reason)
 {
-    if (reason == DxuiPopupDismissReason::Manual)
-    {
-        return true;
-    }
+    // An explicit Close() dismisses under every policy, including Manual --
+    // that is what makes Manual "only Close() dismisses" rather than "nothing
+    // dismisses".
+    bool  dismisses = (reason == DxuiPopupDismissReason::Manual);
 
     switch (policy)
     {
         case DxuiPopupDismiss::OnClickOutside:
-            // Clicks inside the popup or anywhere in its owner chain
-            // are NOT dismiss-events — that's the entire point of the
-            // chain (cascading submenus).
-            return reason == DxuiPopupDismissReason::ClickOutsideChain;
+            // Clicks inside the popup or anywhere in its owner chain are NOT
+            // dismiss-events -- that's the entire point of the chain
+            // (cascading submenus).
+            dismisses = dismisses
+                        || reason == DxuiPopupDismissReason::ClickOutsideChain;
+            break;
 
         case DxuiPopupDismiss::OnClickAnywhere:
             // Any click dismisses; pointer-leave does not.
-            return reason == DxuiPopupDismissReason::ClickInsidePopup        ||
-                   reason == DxuiPopupDismissReason::ClickInsideChainAncestor ||
-                   reason == DxuiPopupDismissReason::ClickOutsideChain;
+            dismisses = dismisses
+                        || reason == DxuiPopupDismissReason::ClickInsidePopup
+                        || reason == DxuiPopupDismissReason::ClickInsideChainAncestor
+                        || reason == DxuiPopupDismissReason::ClickOutsideChain;
+            break;
 
         case DxuiPopupDismiss::OnPointerLeave:
-            return reason == DxuiPopupDismissReason::PointerLeftPopup;
+            dismisses = dismisses
+                        || reason == DxuiPopupDismissReason::PointerLeftPopup;
+            break;
 
         case DxuiPopupDismiss::Manual:
-            // Only the explicit Close() call dismisses; reached above.
-            return false;
+            // Nothing to add: the Manual reason above is the only dismissal.
+            break;
     }
 
-    return false;
+    return dismisses;
 }
 
 
@@ -659,23 +674,29 @@ bool DxuiPopupHost::ShouldDismissForTest (DxuiPopupDismiss        policy,
 
 LRESULT CALLBACK DxuiPopupHost::s_WndProcThunk (HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
 {
-    DxuiPopupHost *  self  = nullptr;
+    DxuiPopupHost *  self = nullptr;
+    CREATESTRUCTW *  cs   = nullptr;
+    LRESULT          result = 0;
 
 
+
+    // WM_NCCREATE is where the instance pointer arrives, so it is handled
+    // before (and never by) the instance WndProc. Messages that precede it,
+    // or arrive after the pointer is cleared, also go straight to DefWindowProc.
     if (msg == WM_NCCREATE)
     {
-        CREATESTRUCTW *  cs = reinterpret_cast<CREATESTRUCTW *> (lp);
+        cs = reinterpret_cast<CREATESTRUCTW *> (lp);
         SetWindowLongPtrW (hwnd, GWLP_USERDATA, (LONG_PTR) cs->lpCreateParams);
-        return DefWindowProcW (hwnd, msg, wp, lp);
     }
-
-    self = reinterpret_cast<DxuiPopupHost *> (GetWindowLongPtrW (hwnd, GWLP_USERDATA));
-    if (self == nullptr)
+    else
     {
-        return DefWindowProcW (hwnd, msg, wp, lp);
+        self = reinterpret_cast<DxuiPopupHost *> (GetWindowLongPtrW (hwnd, GWLP_USERDATA));
     }
 
-    return self->WndProc (msg, wp, lp);
+    result = (self != nullptr) ? self->WndProc (msg, wp, lp)
+                               : DefWindowProcW (hwnd, msg, wp, lp);
+
+    return result;
 }
 
 
@@ -690,6 +711,15 @@ LRESULT CALLBACK DxuiPopupHost::s_WndProcThunk (HWND hwnd, UINT msg, WPARAM wp, 
 
 LRESULT DxuiPopupHost::WndProc (UINT msg, WPARAM wp, LPARAM lp)
 {
+    POINT    pt          = { GET_X_LPARAM (lp), GET_Y_LPARAM (lp) };
+    RECT     rc          = {};
+    bool     haveCapture = false;
+    bool     inside      = false;
+    bool     claimed     = false;
+    LRESULT  result      = 0;
+
+
+
     switch (msg)
     {
         case WM_CAPTURECHANGED:
@@ -698,7 +728,8 @@ LRESULT DxuiPopupHost::WndProc (UINT msg, WPARAM wp, LPARAM lp)
             {
                 Close (0);
             }
-            return 0;
+            claimed = true;
+            break;
 
         case WM_MOUSEMOVE:
             // Hover routing (popup-local pixels). The consumer compares
@@ -706,8 +737,6 @@ LRESULT DxuiPopupHost::WndProc (UINT msg, WPARAM wp, LPARAM lp)
             // so this stays cheap despite firing on every move.
             if (m_open && m_params.onMoveInside)
             {
-                POINT  pt = { GET_X_LPARAM (lp), GET_Y_LPARAM (lp) };
-                RECT   rc = {};
                 GetClientRect (m_hwnd, &rc);
 
                 if (PtInRect (&rc, pt))
@@ -726,28 +755,22 @@ LRESULT DxuiPopupHost::WndProc (UINT msg, WPARAM wp, LPARAM lp)
             // inherently inside -- fire onClickInside directly.
             if (m_open)
             {
-                bool   haveCapture = (GetCapture() == m_hwnd);
-                POINT  pt          = { GET_X_LPARAM (lp), GET_Y_LPARAM (lp) };
-                RECT   rc          = {};
-                bool   inside      = false;
+                haveCapture = (GetCapture() == m_hwnd);
 
                 GetClientRect (m_hwnd, &rc);
                 inside = (PtInRect (&rc, pt) != FALSE);
 
-                if (inside)
+                if (inside && msg == WM_LBUTTONDOWN && m_params.onClickInside)
                 {
-                    if (msg == WM_LBUTTONDOWN && m_params.onClickInside)
-                    {
-                        m_params.onClickInside (pt);
-                        return 0;
-                    }
+                    m_params.onClickInside (pt);
+                    claimed = true;
                 }
-                else if (haveCapture &&
+                else if (!inside && haveCapture &&
                          (m_params.dismiss == DxuiPopupDismiss::OnClickOutside ||
                           m_params.dismiss == DxuiPopupDismiss::OnClickAnywhere))
                 {
                     Close (0);
-                    return 0;
+                    claimed = true;
                 }
             }
             break;
@@ -756,18 +779,28 @@ LRESULT DxuiPopupHost::WndProc (UINT msg, WPARAM wp, LPARAM lp)
             // Never steal activation from the owner when clicked (we are
             // also WS_EX_NOACTIVATE); the owner keeps focus / caption
             // activation while the popup is interacted with.
-            return MA_NOACTIVATE;
+            result  = MA_NOACTIVATE;
+            claimed = true;
+            break;
 
         case WM_MOUSELEAVE:
             if (m_open && m_params.dismiss == DxuiPopupDismiss::OnPointerLeave)
             {
                 Close (0);
-                return 0;
+                claimed = true;
             }
+            break;
+
+        default:
             break;
     }
 
-    return DefWindowProcW (m_hwnd, msg, wp, lp);
+    if (!claimed)
+    {
+        result = DefWindowProcW (m_hwnd, msg, wp, lp);
+    }
+
+    return result;
 }
 
 
@@ -780,18 +813,16 @@ LRESULT DxuiPopupHost::WndProc (UINT msg, WPARAM wp, LPARAM lp)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT DxuiPopupHost::EnsureWindowClass ()
+HRESULT DxuiPopupHost::EnsureWindowClass()
 {
     HRESULT      hr               = S_OK;
     WNDCLASSEXW  wc               = {};
     wchar_t      classNameBuf[64] = {};
     uint32_t     serial           = 0;
+    ATOM         classAtom        = 0;
 
 
-    if (m_classRegistered)
-    {
-        goto Error;
-    }
+    BAIL_OUT_IF (m_classRegistered, S_OK);
 
     serial = s_classSerial.fetch_add (1);
     (void) swprintf_s (classNameBuf, L"DxuiPopupHost_%u_%p", serial, (void *) this);
@@ -805,7 +836,9 @@ HRESULT DxuiPopupHost::EnsureWindowClass ()
     wc.hbrBackground = nullptr;
     wc.lpszClassName = m_className.c_str();
 
-    CWRA (RegisterClassExW (&wc));
+    classAtom = RegisterClassExW (&wc);
+    CWRA (classAtom);
+
     m_classRegistered = true;
 
 Error:
@@ -841,6 +874,7 @@ HRESULT DxuiPopupHost::CreateHwndAndComposition (const RECT & placedRectScreenPx
     ComPtr<IDXGIAdapter>   dxgiAdapter;
     ComPtr<IDXGIFactory2>  dxgiFactory;
     DXGI_SWAP_CHAIN_DESC1  scd           = {};
+
 
 
     if (m_params.input == DxuiPopupInput::PassThrough)
@@ -954,7 +988,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiPopupHost::DestroyHwndAndComposition ()
+void DxuiPopupHost::DestroyHwndAndComposition()
 {
     ReleaseBackBufferRtv();
     m_compVisual.Reset();
@@ -986,13 +1020,14 @@ void DxuiPopupHost::DestroyHwndAndComposition ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT DxuiPopupHost::CreateBackBufferRtv ()
+HRESULT DxuiPopupHost::CreateBackBufferRtv()
 {
     HRESULT                   hr          = S_OK;
     DXGI_SWAP_CHAIN_DESC1     scd         = {};
     D3D11_VIEWPORT            vp          = {};
     ComPtr<ID3D11Texture2D>   backBuffer;
     ComPtr<IDXGISurface>      backSurface;
+
 
 
     CBRA (m_swapChain);
@@ -1045,7 +1080,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiPopupHost::ReleaseBackBufferRtv ()
+void DxuiPopupHost::ReleaseBackBufferRtv()
 {
     if (m_renderReady)
     {
@@ -1079,17 +1114,15 @@ HRESULT DxuiPopupHost::ResizeSwapChain (int widthPx, int heightPx)
     HRESULT  hr  = S_OK;
 
 
+
     CBRA (m_swapChain);
 
     if (widthPx  < 1) { widthPx  = 1; }
     if (heightPx < 1) { heightPx = 1; }
 
-    if (m_backBufferSizePx.cx == (LONG) widthPx &&
-        m_backBufferSizePx.cy == (LONG) heightPx &&
-        m_rtv != nullptr)
-    {
-        return S_OK;
-    }
+    BAIL_OUT_IF (m_backBufferSizePx.cx == (LONG) widthPx &&
+                 m_backBufferSizePx.cy == (LONG) heightPx &&
+                 m_rtv != nullptr, S_OK);
 
     ReleaseBackBufferRtv();
 
@@ -1121,7 +1154,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiPopupHost::RenderNow ()
+void DxuiPopupHost::RenderNow()
 {
     HRESULT   hr           = S_OK;
     uint32_t  argb         = 0u;
@@ -1132,10 +1165,9 @@ void DxuiPopupHost::RenderNow ()
 
     DXUI_ASSERT_UI_THREAD();
 
-    if (m_testMode || !m_open || !m_renderReady || !m_swapChain || m_rtv == nullptr)
-    {
-        return;
-    }
+    // Nothing to draw into, or nothing that wants drawing. Both flags below
+    // are still false here, so the Error: cleanup is a no-op.
+    BAIL_OUT_IF (m_testMode || !m_open || !m_renderReady || !m_swapChain || m_rtv == nullptr, S_OK);
 
     argb     = m_params.backgroundArgb;
     clear[0] = (float) ((argb >> 16) & 0xFFu) / 255.0f;
@@ -1197,7 +1229,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiPopupHost::MarkDirty ()
+void DxuiPopupHost::MarkDirty()
 {
     DXUI_ASSERT_UI_THREAD();
     RenderNow();
@@ -1235,3 +1267,4 @@ HRESULT DxuiPopupHost::MeasureText (const wchar_t  * text,
 Error:
     return hr;
 }
+

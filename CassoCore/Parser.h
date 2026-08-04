@@ -1,5 +1,7 @@
 #pragma once
 
+#include "Directive.h"
+
 #include "AssemblerTypes.h"
 
 
@@ -20,7 +22,8 @@ struct ParsedLine
     int                                  lineNumber;
     bool                                 isEmpty;
     bool                                 isDirective;
-    std::string                          directive;    // ".org", ".byte", ".word", ".text"
+    std::string                          directive;    // canonical dotted spelling, for diagnostics
+    Directive                            directiveToken = Directive::None;  // what to switch on
     std::string                          directiveArg; // raw argument string
     bool                                 isConstant;   // true for "NAME = EXPR", "NAME equ EXPR", "NAME set EXPR"
     std::string                          constantName;
@@ -51,6 +54,8 @@ enum class OperandSyntax
     Indirect,      // (expr)  — used for JMP ($addr)
     Accumulator,   // A
     ZeroPageRelative, // expr,expr — 65C02 BBRn/BBSn bit-branch (zp,target)
+
+    Count,         // sentinel: sizes syntax-indexed tables
 };
 
 
@@ -73,6 +78,9 @@ struct ClassifiedOperand
 
 
 class OpcodeTable;
+
+
+
 
 
 ////////////////////////////////////////////////////////////////////////////////

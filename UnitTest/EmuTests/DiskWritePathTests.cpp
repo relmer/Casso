@@ -31,8 +31,20 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  DiskWritePathTests
+//
+////////////////////////////////////////////////////////////////////////////////
+
+TEST_CLASS (DiskWritePathTests)
 {
+public:
+
     static constexpr int    kSlot6   = 6;
     static constexpr int    kDrive1  = 0;
     static constexpr Word   kCodeOrg = 0x6000;
@@ -41,7 +53,7 @@ namespace
     // Distinct, valid 6-and-2 nibbles (all MSB-set, no illegal double-zero
     // bit runs) forming a signature unlikely to occur in the surrounding
     // synthesized zero-data track.
-    static const std::vector<Byte>  s_kPayload =
+    static inline const std::vector<Byte>  s_kPayload =
     {
         0xD5, 0xAA, 0xAD,                    // data-field prologue
         0x96, 0x97, 0x9A, 0x9B, 0x9D, 0x9E, 0x9F,
@@ -57,7 +69,7 @@ namespace
     // cycles/nibble for self-sync $FF (10 bit cells) and 32 cycles/nibble
     // for the payload (8 bit cells). PLEN is the payload length; the test
     // asserts it stays in step with s_kPayload before running the routine.
-    constexpr char  kWriteSource[] = R"(
+    static constexpr char  kWriteSource[] = R"(
                     .org $6000
         MOTOR = $C089
         Q6L   = $C08C
@@ -145,8 +157,8 @@ namespace
         size_t             trackBits = img.GetTrackBitCount (slot);
         size_t             bitPos    = 0;
 
-        if (trackBits == 0) { return out; }
-
+        // An unformatted track has no bits to frame; the loop condition already
+        // says so, so the guard is only documentation.
         while (bitPos < trackBits)
         {
             Byte    value = 0;
@@ -167,33 +179,28 @@ namespace
 
     size_t  FindSubsequence (const std::vector<Byte> & hay, const std::vector<Byte> & needle)
     {
-        if (needle.empty () || hay.size () < needle.size ()) { return std::string::npos; }
+        size_t  at = std::string::npos;
 
-        for (size_t i = 0; i + needle.size () <= hay.size (); i++)
+        // An empty needle finds nothing rather than matching at 0: callers use
+        // the result to assert a pattern IS present, so a vacuous hit would
+        // pass a test that proved nothing.
+        if (!needle.empty() && hay.size() >= needle.size())
         {
-            bool  match = true;
-            for (size_t j = 0; j < needle.size (); j++)
+            for (size_t i = 0; at == std::string::npos && i + needle.size() <= hay.size(); i++)
             {
-                if (hay[i + j] != needle[j]) { match = false; break; }
+                bool  match = true;
+
+                for (size_t j = 0; match && j < needle.size(); j++)
+                {
+                    match = (hay[i + j] == needle[j]);
+                }
+
+                if (match) { at = i; }
             }
-            if (match) { return i; }
         }
-        return std::string::npos;
+
+        return at;
     }
-}
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  DiskWritePathTests
-//
-////////////////////////////////////////////////////////////////////////////////
-
-TEST_CLASS (DiskWritePathTests)
-{
-public:
 
     // Engine-level round trip (no CPU, no controller): write a run of 0xFF
     // through the LSS write path, then read the deposited flux back through
@@ -222,7 +229,7 @@ public:
         }
 
         // Rewind and read the written flux back through the LSS reader.
-        eng.Reset ();
+        eng.Reset();
         eng.SetDiskImage (&img);
         eng.SetMotorOn   (true);
         eng.SetCurrentTrack (0);
@@ -251,45 +258,45 @@ public:
         EmulatorCore   core;
 
         HRESULT  hr = host.BuildApple2eWithDisk2 (core);
-        Assert::IsTrue (SUCCEEDED (hr), L"BuildApple2eWithDisk2 must succeed");
+        AssertSucceeded (hr, L"BuildApple2eWithDisk2 must succeed");
 
-        core.PowerCycle ();
+        core.PowerCycle();
 
         // Mount a synthetic blank .dsk (nibblizes to a formatted track 0).
         std::vector<Byte>  blank (NibblizationLayer::kImageByteSize, 0);
         hr = core.diskStore->MountFromBytes (kSlot6, kDrive1, "blank.dsk",
                                              DiskFormat::Dsk, blank);
-        Assert::IsTrue (SUCCEEDED (hr), L"MountFromBytes must succeed");
+        AssertSucceeded (hr, L"MountFromBytes must succeed");
 
         DiskImage *  img = core.diskStore->GetImage (kSlot6, kDrive1);
         Assert::IsNotNull (img);
         core.diskController->SetExternalDisk (kDrive1, img);
 
         // Poke the payload nibble table into RAM at $7000.
-        for (size_t i = 0; i < s_kPayload.size (); i++)
+        for (size_t i = 0; i < s_kPayload.size(); i++)
         {
             core.bus->WriteByte (static_cast<Word> (kPayloadAddr + i), s_kPayload[i]);
         }
 
         // Assemble + load the write routine. PLEN in kWriteSource is
         // hardcoded to the payload length; keep the two in step.
-        Assert::AreEqual (size_t (26), s_kPayload.size (),
+        Assert::AreEqual (size_t (26), s_kPayload.size(),
             L"kWriteSource hardcodes PLEN = 26; update both together");
 
         Cpu             asmCpu;
-        Assembler       assembler (asmCpu.GetInstructionSet ());
+        Assembler       assembler (asmCpu.GetInstructionSet());
         AssemblyResult  r = assembler.Assemble (kWriteSource);
 
         if (!r.success)
         {
-            const char *  e = r.errors.empty () ? "(none)" : r.errors[0].message.c_str ();
+            const char *  e = r.errors.empty() ? "(none)" : r.errors[0].message.c_str();
             wchar_t  msg[256] = {};
             swprintf_s (msg, L"write routine must assemble. First error: %hs", e);
             Assert::Fail (msg);
         }
         Assert::AreEqual (Word (kCodeOrg), r.startAddress, L"routine must .org $6000");
 
-        for (size_t i = 0; i < r.bytes.size (); i++)
+        for (size_t i = 0; i < r.bytes.size(); i++)
         {
             core.bus->WriteByte (static_cast<Word> (kCodeOrg + i), r.bytes[i]);
         }
@@ -305,3 +312,4 @@ public:
             L"Nibbles written through the LSS must frame back to the payload (GH #89).");
     }
 };
+

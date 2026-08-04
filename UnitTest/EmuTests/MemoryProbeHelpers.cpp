@@ -2,16 +2,6 @@
 #include "MemoryProbeHelpers.h"
 
 
-namespace
-{
-    // LC soft-switch addresses chosen to land in {ReadRam, WriteRam}
-    // for each bank. Two odd-address reads enable WriteRam via the
-    // pre-write state machine (audit M6 / Sather UTAIIe §5-23).
-    static constexpr Word   kLcBank2OddRead   = 0xC083;
-    static constexpr Word   kLcBank1OddRead   = 0xC08B;
-}
-
-
 
 
 
@@ -119,6 +109,14 @@ Byte MemoryProbeHelpers::ReadAuxZp (EmulatorCore & core, Word address)
 
 
 
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WriteMainZp
+//
+////////////////////////////////////////////////////////////////////////////////
+
 void MemoryProbeHelpers::WriteMainZp (EmulatorCore & core, Word address, Byte value)
 {
     core.mmu->SetAltZp (false);
@@ -126,6 +124,14 @@ void MemoryProbeHelpers::WriteMainZp (EmulatorCore & core, Word address, Byte va
 }
 
 
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WriteAuxZp
+//
+////////////////////////////////////////////////////////////////////////////////
 
 void MemoryProbeHelpers::WriteAuxZp (EmulatorCore & core, Word address, Byte value)
 {
@@ -159,6 +165,14 @@ Byte MemoryProbeHelpers::ReadLcMainBank2 (EmulatorCore & core, Word address)
 
 
 
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ReadLcMainBank1
+//
+////////////////////////////////////////////////////////////////////////////////
+
 Byte MemoryProbeHelpers::ReadLcMainBank1 (EmulatorCore & core, Word address)
 {
     core.mmu->SetAltZp (false);
@@ -168,6 +182,14 @@ Byte MemoryProbeHelpers::ReadLcMainBank1 (EmulatorCore & core, Word address)
 }
 
 
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ReadLcAuxBank2
+//
+////////////////////////////////////////////////////////////////////////////////
 
 Byte MemoryProbeHelpers::ReadLcAuxBank2 (EmulatorCore & core, Word address)
 {
@@ -179,6 +201,14 @@ Byte MemoryProbeHelpers::ReadLcAuxBank2 (EmulatorCore & core, Word address)
 
 
 
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  ReadLcAuxBank1
+//
+////////////////////////////////////////////////////////////////////////////////
+
 Byte MemoryProbeHelpers::ReadLcAuxBank1 (EmulatorCore & core, Word address)
 {
     core.mmu->SetAltZp (true);
@@ -188,6 +218,14 @@ Byte MemoryProbeHelpers::ReadLcAuxBank1 (EmulatorCore & core, Word address)
 }
 
 
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WriteLcMainBank2
+//
+////////////////////////////////////////////////////////////////////////////////
 
 void MemoryProbeHelpers::WriteLcMainBank2 (EmulatorCore & core, Word address, Byte value)
 {
@@ -199,6 +237,14 @@ void MemoryProbeHelpers::WriteLcMainBank2 (EmulatorCore & core, Word address, By
 
 
 
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WriteLcMainBank1
+//
+////////////////////////////////////////////////////////////////////////////////
+
 void MemoryProbeHelpers::WriteLcMainBank1 (EmulatorCore & core, Word address, Byte value)
 {
     core.mmu->SetAltZp (false);
@@ -209,6 +255,14 @@ void MemoryProbeHelpers::WriteLcMainBank1 (EmulatorCore & core, Word address, By
 
 
 
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WriteLcAuxBank2
+//
+////////////////////////////////////////////////////////////////////////////////
+
 void MemoryProbeHelpers::WriteLcAuxBank2 (EmulatorCore & core, Word address, Byte value)
 {
     core.mmu->SetAltZp (true);
@@ -218,6 +272,14 @@ void MemoryProbeHelpers::WriteLcAuxBank2 (EmulatorCore & core, Word address, Byt
 }
 
 
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WriteLcAuxBank1
+//
+////////////////////////////////////////////////////////////////////////////////
 
 void MemoryProbeHelpers::WriteLcAuxBank1 (EmulatorCore & core, Word address, Byte value)
 {

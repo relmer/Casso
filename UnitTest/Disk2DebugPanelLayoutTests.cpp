@@ -15,7 +15,7 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 //  Spec-011 T046. Pure layout helper for the themed Disk II Debug
 //  panel. Verifies slot positions, ordering, DPI scaling, and the
-//  ListView's flex-fill behaviour against legacy 96-DPI metrics.
+//  ListView's flex-fill behavior against legacy 96-DPI metrics.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

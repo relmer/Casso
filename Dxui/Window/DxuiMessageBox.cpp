@@ -12,7 +12,7 @@
 
 
 
-// Icon glyphs (Segoe MDL2 Assets) + accent colours -- same set the shell's
+// Icon glyphs (Segoe MDL2 Assets) + accent colors -- same set the shell's
 // task-dialog path uses, so a Dxui message box reads identically.
 static constexpr wchar_t   s_kGlyphInfo     = L'\uE946';   // MDL2 Info
 static constexpr wchar_t   s_kGlyphWarning  = L'\uE7BA';   // MDL2 Warning
@@ -34,6 +34,7 @@ static constexpr int  s_kLineHeightDip   =  20;
 static constexpr int  s_kChromeHeightDip = 104;   // caption + button row + content vpad
 static constexpr int  s_kMinHeightDip    = 128;
 static constexpr int  s_kMaxHeightDip    = 560;
+
 
 
 
@@ -121,6 +122,7 @@ private:
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  DxuiMessageBoxWindow -- the modal dialog: builds the body + buttons in
@@ -175,6 +177,7 @@ private:
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  DxuiMessageBoxWindow::EstimateTextHeightDip
@@ -211,6 +214,7 @@ int DxuiMessageBoxWindow::EstimateTextHeightDip (const std::wstring & text, bool
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  DxuiMessageBox
@@ -221,6 +225,8 @@ int DxuiMessageBox (HWND owner, const IDxuiTheme * theme, const wchar_t * text, 
 {
     using ButtonSpec = DxuiMessageBoxWindow::ButtonSpec;
 
+
+
     std::vector<ButtonSpec>   buttons;
     std::wstring              body       = (text != nullptr) ? text : L"";
     wchar_t                   glyph      = 0;
@@ -230,6 +236,7 @@ int DxuiMessageBox (HWND owner, const IDxuiTheme * theme, const wchar_t * text, 
     int                       heightDip  = 0;
     HINSTANCE                 hInst      = nullptr;
     HRESULT                   hr         = S_OK;
+    int                       choice     = IDOK;
     DxuiMessageBoxWindow      dlg;
     DxuiWindow::CreateParams  params;
 
@@ -285,39 +292,43 @@ int DxuiMessageBox (HWND owner, const IDxuiTheme * theme, const wchar_t * text, 
     {
         // The Dxui backend could not be created -- fall back to the system box
         // so the caller still gets a decision rather than a silent default.
-        return MessageBoxW (owner, text, caption, uType);
+        choice = MessageBoxW (owner, text, caption, uType);
     }
-
-    dlg.SetTheme (theme);
-
-    // Center the box on its owner (Win32 MessageBox centers on the owner too),
-    // clamped to the owner's monitor work area so it never lands off-screen. The
-    // window is created hidden, so this places it before ShowModalDialog shows it.
-    if (owner != nullptr && dlg.Hwnd() != nullptr)
+    else
     {
-        RECT   ownerR = {};
-        RECT   dlgR   = {};
+        dlg.SetTheme (theme);
 
-        if (GetWindowRect (owner, &ownerR) && GetWindowRect (dlg.Hwnd(), &dlgR))
+        // Center the box on its owner (Win32 MessageBox centers on the owner too),
+        // clamped to the owner's monitor work area so it never lands off-screen. The
+        // window is created hidden, so this places it before ShowModalDialog shows it.
+        if (owner != nullptr && dlg.Hwnd() != nullptr)
         {
-            int    dw = dlgR.right  - dlgR.left;
-            int    dh = dlgR.bottom - dlgR.top;
-            int    x  = ownerR.left + ((ownerR.right  - ownerR.left) - dw) / 2;
-            int    y  = ownerR.top  + ((ownerR.bottom - ownerR.top)  - dh) / 2;
+            RECT   ownerR = {};
+            RECT   dlgR   = {};
 
-            HMONITOR     mon = MonitorFromWindow (owner, MONITOR_DEFAULTTONEAREST);
-            MONITORINFO  mi  = { sizeof (mi) };
-
-            if (mon != nullptr && GetMonitorInfoW (mon, &mi))
+            if (GetWindowRect (owner, &ownerR) && GetWindowRect (dlg.Hwnd(), &dlgR))
             {
-                x = std::clamp (x, (int) mi.rcWork.left, (int) mi.rcWork.right  - dw);
-                y = std::clamp (y, (int) mi.rcWork.top,  (int) mi.rcWork.bottom - dh);
-            }
+                int    dw = dlgR.right  - dlgR.left;
+                int    dh = dlgR.bottom - dlgR.top;
+                int    x  = ownerR.left + ((ownerR.right  - ownerR.left) - dw) / 2;
+                int    y  = ownerR.top  + ((ownerR.bottom - ownerR.top)  - dh) / 2;
 
-            SetWindowPos (dlg.Hwnd(), nullptr, x, y, 0, 0,
-                          SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE);
+                HMONITOR     mon = MonitorFromWindow (owner, MONITOR_DEFAULTTONEAREST);
+                MONITORINFO  mi  = { sizeof (mi) };
+
+                if (mon != nullptr && GetMonitorInfoW (mon, &mi))
+                {
+                    x = std::clamp (x, (int) mi.rcWork.left, (int) mi.rcWork.right  - dw);
+                    y = std::clamp (y, (int) mi.rcWork.top,  (int) mi.rcWork.bottom - dh);
+                }
+
+                SetWindowPos (dlg.Hwnd(), nullptr, x, y, 0, 0,
+                              SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE);
+            }
         }
+
+        choice = dlg.ShowModalDialog (defaultCmd);
     }
 
-    return dlg.ShowModalDialog (defaultCmd);
+    return choice;
 }

@@ -10,39 +10,49 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-//  Anonymous helpers
+//  File-local helpers
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace
+static constexpr float     s_kEpsilon           = 1e-6f;
+
+
+float  DxuiSlider::Clamp (float v, float lo, float hi)
 {
-    constexpr float     s_kEpsilon           = 1e-6f;
+    float  clamped = v;
 
 
-    float  Clamp (float v, float lo, float hi)
+
+    if      (v < lo) { clamped = lo; }
+    else if (v > hi) { clamped = hi; }
+
+    return clamped;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  QuantizeToStep
+//
+////////////////////////////////////////////////////////////////////////////////
+
+float  DxuiSlider::QuantizeToStep (float value, float minValue, float step)
+{
+    float  raw = 0.0f;
+    float  q   = value;
+
+
+
+    if (step > s_kEpsilon)
     {
-        if (v < lo) { return lo; }
-        if (v > hi) { return hi; }
-        return v;
-    }
-
-
-    float  QuantizeToStep (float value, float minValue, float step)
-    {
-        float  raw = 0.0f;
-        float  q   = 0.0f;
-
-
-
-        if (step <= s_kEpsilon)
-        {
-            return value;
-        }
-
         raw = (value - minValue) / step;
         q   = std::round (raw) * step + minValue;
-        return q;
     }
+
+    return q;
 }
 
 
@@ -112,18 +122,20 @@ bool DxuiSlider::HitTest (int x, int y) const
     // gets silently dropped.
     constexpr int  s_kPuckRadiusMaxDip = 11;
 
-    int  puckExtPx = 0;
+    int   puckExtPx = 0;
+    bool  isHit     = false;
 
 
-    if (!m_enabled)
+    if (m_enabled)
     {
-        return false;
+        puckExtPx = m_scaler.Px (s_kPuckRadiusMaxDip);
+        isHit     = x >= (m_boundsDip.left  - puckExtPx) &&
+                    x <  (m_boundsDip.right + puckExtPx) &&
+                    y >= m_boundsDip.top &&
+                    y <  m_boundsDip.bottom;
     }
-    puckExtPx = m_scaler.Px (s_kPuckRadiusMaxDip);
-    return x >= (m_boundsDip.left  - puckExtPx) &&
-           x <  (m_boundsDip.right + puckExtPx) &&
-           y >= m_boundsDip.top &&
-           y <  m_boundsDip.bottom;
+
+    return isHit;
 }
 
 
@@ -155,6 +167,8 @@ float DxuiSlider::ValueFromX (int x) const
 {
     constexpr int  s_kValueGapDip   = 8;
     constexpr int  s_kValueWidthDip = 56;
+
+
 
     // Must match the showValue logic in Paint() exactly, otherwise the
     // puck draw position and the click-to-value mapping disagree and
@@ -217,22 +231,23 @@ void DxuiSlider::ApplyValueWithStep (float v, float step)
 bool DxuiSlider::OnLButtonDown (int x, int y)
 {
     bool  startedDrag = false;
+    bool  isHit       = HitTest (x, y);
 
 
-    if (!HitTest (x, y))
+
+    if (isHit)
     {
-        return false;
+        startedDrag = !m_dragging;
+        m_dragging  = true;
+        ApplyValueWithStep (ValueFromX (x), DragStep());
+
+        if (startedDrag && m_onDragStart)
+        {
+            m_onDragStart();
+        }
     }
 
-    startedDrag = !m_dragging;
-    m_dragging  = true;
-    ApplyValueWithStep (ValueFromX (x), DragStep());
-
-    if (startedDrag && m_onDragStart)
-    {
-        m_onDragStart();
-    }
-    return true;
+    return isHit;
 }
 
 
@@ -249,6 +264,7 @@ bool DxuiSlider::OnLButtonUp (int x, int y)
 {
     bool  consumed = m_dragging;
     bool  endedDrag = m_dragging;
+
 
 
     UNREFERENCED_PARAMETER (x);
@@ -275,14 +291,18 @@ bool DxuiSlider::OnLButtonUp (int x, int y)
 
 bool DxuiSlider::OnMouseMove (int x, int y)
 {
-    if (!m_dragging)
-    {
-        return false;
-    }
+    bool  isDragging = m_dragging;
+
+
 
     UNREFERENCED_PARAMETER (y);
-    ApplyValueWithStep (ValueFromX (x), DragStep());
-    return true;
+
+    if (isDragging)
+    {
+        ApplyValueWithStep (ValueFromX (x), DragStep());
+    }
+
+    return isDragging;
 }
 
 
@@ -298,57 +318,57 @@ bool DxuiSlider::OnMouseMove (int x, int y)
 bool DxuiSlider::OnKey (WPARAM vk)
 {
     constexpr int  s_kPageSteps = 10;
-    bool           consumed = false;
+    bool           consumed     = false;
+    bool           isActive     = m_enabled && m_focused;
 
 
 
-    if (!m_enabled || !m_focused)
+    if (isActive)
     {
-        return false;
-    }
+        switch (vk)
+        {
+            case VK_LEFT:
+            case VK_DOWN:
+                ApplyValue (m_value - m_step);
+                consumed = true;
+                break;
 
-    switch (vk)
-    {
-        case VK_LEFT:
-        case VK_DOWN:
-            ApplyValue (m_value - m_step);
-            consumed = true;
-            break;
+            case VK_RIGHT:
+            case VK_UP:
+                ApplyValue (m_value + m_step);
+                consumed = true;
+                break;
 
-        case VK_RIGHT:
-        case VK_UP:
-            ApplyValue (m_value + m_step);
-            consumed = true;
-            break;
+            case VK_PRIOR:
+                ApplyValue (m_value + m_step * (float) s_kPageSteps);
+                consumed = true;
+                break;
 
-        case VK_PRIOR:
-            ApplyValue (m_value + m_step * (float) s_kPageSteps);
-            consumed = true;
-            break;
+            case VK_NEXT:
+                ApplyValue (m_value - m_step * (float) s_kPageSteps);
+                consumed = true;
+                break;
 
-        case VK_NEXT:
-            ApplyValue (m_value - m_step * (float) s_kPageSteps);
-            consumed = true;
-            break;
+            case VK_HOME:
+                ApplyValue (m_min);
+                consumed = true;
+                break;
 
-        case VK_HOME:
-            ApplyValue (m_min);
-            consumed = true;
-            break;
+            case VK_END:
+                ApplyValue (m_max);
+                consumed = true;
+                break;
 
-        case VK_END:
-            ApplyValue (m_max);
-            consumed = true;
-            break;
-
-        default:
-            break;
+            default:
+                break;
+        }
     }
 
     if (consumed && m_onKeyboard)
     {
         m_onKeyboard();
     }
+
     return consumed;
 }
 
@@ -360,7 +380,7 @@ bool DxuiSlider::OnKey (WPARAM vk)
 //
 //  PaintInternal
 //
-//  Shared body for both Paint overloads. accentArgb colours the filled
+//  Shared body for both Paint overloads. accentArgb colors the filled
 //  track and the puck core -- the theme accent, or the default blue for
 //  the non-themed overload.
 //
@@ -429,7 +449,7 @@ void DxuiSlider::PaintInternal (IDxuiPainter & painter, IDxuiTextRenderer & text
     trackMid  = trackLeft + trackAvailW * 0.5f;
 
     // Bipolar sliders (e.g. pan) grow the accent fill from the track
-    // centre toward the puck rather than from the left edge.
+    // center toward the puck rather than from the left edge.
     if (m_centerOriginFill)
     {
         fillLeft  = std::min  (trackMid, puckCx);
@@ -440,13 +460,13 @@ void DxuiSlider::PaintInternal (IDxuiPainter & painter, IDxuiTextRenderer & text
     else if (m_hover ||
              m_dragging) { puckR = m_scaler.Pxf (s_kPuckRadiusHovDip); }
 
-    // ----- Track (background + filled portion). -----
+    // Track (background + filled portion).
     painter.FillRect (trackLeft, centerY - trackHeight * 0.5f,
                       trackAvailW, trackHeight, s_kTrack);
     painter.FillRect (fillLeft, centerY - trackHeight * 0.5f,
                       fillWidth, trackHeight, accentArgb);
 
-    // ----- Tick marks below the track. -----
+    // Tick marks below the track.
     float  tickStep = (m_tickInterval > s_kEpsilon) ? m_tickInterval : m_step;
 
     if (m_showTicks && tickStep > s_kEpsilon && trackAvailW > 0.0f)
@@ -464,14 +484,14 @@ void DxuiSlider::PaintInternal (IDxuiPainter & painter, IDxuiTextRenderer & text
         }
     }
 
-    // ----- Fluent 2 puck: white outer circle with thin grey ring,
-    // accent-coloured inner dot. Outer diameter grows on hover/focus.
+    // Fluent 2 puck: white outer circle with thin gray ring,
+    // accent-colored inner dot. Outer diameter grows on hover/focus.
     painter.FillCircleApprox (puckCx, centerY, puckR,           s_kPuckBody);
     painter.FillCircleApprox (puckCx, centerY, puckR,           s_kPuckRing); // ring underlay
     painter.FillCircleApprox (puckCx, centerY, puckR - 1.0f,    s_kPuckBody); // white fill, leaving 1px ring
     painter.FillCircleApprox (puckCx, centerY, puckR * s_kPuckCoreShare, coreColor);
 
-    // ----- Value readout to the right of the track. -----
+    // Value readout to the right of the track.
     if (showValue)
     {
         wchar_t  buf[32] = {};
@@ -506,6 +526,7 @@ void DxuiSlider::PaintInternal (IDxuiPainter & painter, IDxuiTextRenderer & text
                                                   DxuiTextVAlign::Center));
     }
 }
+
 
 
 
@@ -552,30 +573,39 @@ void DxuiSlider::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, const 
 
 bool DxuiSlider::OnMouse (const DxuiMouseEvent & ev)
 {
+    bool  handled = false;
+
+
+
     switch (ev.kind)
     {
     case DxuiMouseEventKind::Move:
         if (m_dragging)
         {
-            return OnMouseMove (ev.positionDip.x, ev.positionDip.y);
+            handled = OnMouseMove (ev.positionDip.x, ev.positionDip.y);
         }
-        SetMouseHover (ev.positionDip.x, ev.positionDip.y);
-        return false;
+        else
+        {
+            SetMouseHover (ev.positionDip.x, ev.positionDip.y);
+        }
+        break;
     case DxuiMouseEventKind::Down:
         if (ev.button == DxuiMouseButton::Left)
         {
-            return OnLButtonDown (ev.positionDip.x, ev.positionDip.y);
+            handled = OnLButtonDown (ev.positionDip.x, ev.positionDip.y);
         }
-        return false;
+        break;
     case DxuiMouseEventKind::Up:
         if (ev.button == DxuiMouseButton::Left)
         {
-            return OnLButtonUp (ev.positionDip.x, ev.positionDip.y);
+            handled = OnLButtonUp (ev.positionDip.x, ev.positionDip.y);
         }
-        return false;
+        break;
     default:
-        return false;
+        break;
     }
+
+    return handled;
 }
 
 
@@ -590,10 +620,15 @@ bool DxuiSlider::OnMouse (const DxuiMouseEvent & ev)
 
 bool DxuiSlider::OnKey (const DxuiKeyEvent & ev)
 {
-    if (ev.kind != DxuiKeyEventKind::Down)
+    bool  handled = false;
+
+
+
+    if (ev.kind == DxuiKeyEventKind::Down)
     {
-        return false;
+        handled = OnKey (ev.vk);
     }
 
-    return OnKey (ev.vk);
+    return handled;
 }
+

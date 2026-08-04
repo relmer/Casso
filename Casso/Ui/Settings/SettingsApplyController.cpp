@@ -2,142 +2,12 @@
 
 #include "SettingsApplyController.h"
 
+#include "SettingsApplyAdapter.h"
+
 #include "SettingsMachineCatalog.h"
 #include "SettingsPreviewController.h"
 
 #include "../../EmulatorShell.h"
-#include "../../Config/UserConfigStore.h"
-#include "../../Config/IFileSystem.h"
-
-#include "resource.h"
-
-
-namespace
-{
-    ////////////////////////////////////////////////////////////////////////////
-    //
-    //  SettingsApplyAdapter
-    //
-    //  Bridges the pure-logic ISettingsApplySink contract into the
-    //  EmulatorShell command queue. Live-effect fields post commands so
-    //  the audio mixer / CRT pipeline picks them up on the next CPU
-    //  tick; QueueMachineReset is recorded and consumed by the modal
-    //  confirm path in SettingsPanel.
-    //
-    ////////////////////////////////////////////////////////////////////////////
-
-    class SettingsApplyAdapter : public ISettingsApplySink
-    {
-    public:
-        explicit SettingsApplyAdapter (EmulatorShell & shell)
-            : m_shell (shell)
-        {
-        }
-
-        void ApplySpeedMode (SettingsSpeedMode mode) override
-        {
-            WORD  id = IDM_MACHINE_SPEED_1X;
-
-            switch (mode)
-            {
-                case SettingsSpeedMode::Authentic: id = IDM_MACHINE_SPEED_1X;  break;
-                case SettingsSpeedMode::Double:    id = IDM_MACHINE_SPEED_2X;  break;
-                case SettingsSpeedMode::Maximum:   id = IDM_MACHINE_SPEED_MAX; break;
-            }
-            PostMessageW (m_shell.GetHwnd(), WM_COMMAND, MAKEWPARAM (id, 0), 0);
-        }
-
-        void ApplyColorMode (SettingsColorMode mode) override
-        {
-            WORD  id = IDM_VIEW_COLOR;
-
-            switch (mode)
-            {
-                case SettingsColorMode::Color: id = IDM_VIEW_COLOR; break;
-                case SettingsColorMode::Green: id = IDM_VIEW_GREEN; break;
-                case SettingsColorMode::Amber: id = IDM_VIEW_AMBER; break;
-                case SettingsColorMode::White: id = IDM_VIEW_WHITE; break;
-            }
-            PostMessageW (m_shell.GetHwnd(), WM_COMMAND, MAKEWPARAM (id, 0), 0);
-        }
-
-        void ApplyFloppySound  (bool enabled) override
-        {
-            m_shell.PostCommand (enabled ? IDM_AUDIO_DRIVE_ENABLE
-                                         : IDM_AUDIO_DRIVE_DISABLE);
-        }
-
-        void ApplyMechanism    (const std::string & mechanism) override
-        {
-            m_shell.PostCommand (IDM_AUDIO_DRIVE_MECHANISM, mechanism);
-        }
-
-        void ApplyDriveVolumes (float motor, float head, float door) override
-        {
-            char  payload[32] = {};
-
-            sprintf_s (payload, "%d,%d,%d",
-                       (int) std::lround (motor * 100.0f),
-                       (int) std::lround (head  * 100.0f),
-                       (int) std::lround (door  * 100.0f));
-            m_shell.PostCommand (IDM_AUDIO_DRIVE_VOLUMES, payload);
-        }
-
-        void ApplyDrivePan     (float driveOnePan, float driveTwoPan) override
-        {
-            char  payload[32] = {};
-
-            sprintf_s (payload, "%d,%d",
-                       (int) std::lround (driveOnePan * 100.0f),
-                       (int) std::lround (driveTwoPan * 100.0f));
-            m_shell.PostCommand (IDM_AUDIO_DRIVE_PAN, payload);
-        }
-
-        void ApplyWriteProtect (int drive, bool wp)            override
-        {
-            // Route through the CPU-thread command queue (like insert /
-            // eject) so the mounted DiskImage's write-protect flag -- read
-            // by the controller on that thread -- is mutated there. The
-            // command id encodes the drive; the payload carries the bool.
-            WORD  id = (drive == 0) ? IDM_DISK_WRITEPROTECT1
-                                    : IDM_DISK_WRITEPROTECT2;
-
-            if (drive == 0 || drive == 1)
-            {
-                m_shell.PostCommand (id, wp ? std::string ("1") : std::string ("0"));
-            }
-        }
-
-        void ApplyExternalDriveConnected (bool connected) override
-        {
-            // //c-only live effect: reveal/hide the second drive-mount widget.
-            // Non-//c machines ignore the command (their second drive is fixed
-            // hardware). Cheap + idempotent, so pushed on every Apply. Routed
-            // via PostMessage(WM_COMMAND) -- NOT the CPU command queue -- so it
-            // runs on the UI thread: it relays the chrome (menu bar + drive
-            // band), which asserts UI-thread affinity. Mirrors ApplyColorMode.
-            WORD  id = connected ? IDM_DRIVE_EXTERNAL_CONNECT
-                                 : IDM_DRIVE_EXTERNAL_DISCONNECT;
-            PostMessageW (m_shell.GetHwnd(), WM_COMMAND, MAKEWPARAM (id, 0), 0);
-        }
-
-        void ApplyMouseConnected (bool connected) override
-        {
-            // //c-only live effect: connect/disconnect the mouse
-            // peripheral. UI-thread routed like the external drive.
-            WORD  id = connected ? IDM_MOUSE_CONNECT : IDM_MOUSE_DISCONNECT;
-            PostMessageW (m_shell.GetHwnd(), WM_COMMAND, MAKEWPARAM (id, 0), 0);
-        }
-
-        void QueueMachineReset ()                              override { m_resetQueued = true; }
-
-        bool  ResetQueued () const { return m_resetQueued; }
-
-    private:
-        EmulatorShell & m_shell;
-        bool            m_resetQueued = false;
-    };
-}
 
 
 
@@ -182,7 +52,7 @@ void SettingsApplyController::Bind (
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void SettingsApplyController::SnapshotBaselines ()
+void SettingsApplyController::SnapshotBaselines()
 {
     if (m_prefs != nullptr)
     {
@@ -228,7 +98,7 @@ void SettingsApplyController::SnapshotBaselines ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void SettingsApplyController::ClearPending ()
+void SettingsApplyController::ClearPending()
 {
     m_pendingMachine.clear();
     m_pendingTheme.clear();
@@ -312,25 +182,30 @@ void SettingsApplyController::ApplyThemeLive (const std::string & name)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool SettingsApplyController::WillMachineChange () const
+bool SettingsApplyController::WillMachineChange() const
 {
     std::wstring  current;
     std::string   currentNarrow;
+    bool          changes = false;
 
 
-    if (m_pendingMachine.empty() || m_emuShell == nullptr)
+
+    // Nothing staged means nothing to change. Machine ids are ASCII, so the
+    // narrowing is a straight byte copy rather than a codepage conversion.
+    if (!m_pendingMachine.empty() && m_emuShell != nullptr)
     {
-        return false;
+        current = m_emuShell->CurrentMachineName();
+        currentNarrow.reserve (current.size());
+
+        for (wchar_t c : current)
+        {
+            currentNarrow.push_back ((char) (unsigned char) c);
+        }
+
+        changes = (m_pendingMachine != currentNarrow);
     }
 
-    current = m_emuShell->CurrentMachineName();
-    currentNarrow.reserve (current.size());
-    for (wchar_t c : current)
-    {
-        currentNarrow.push_back ((char) (unsigned char) c);
-    }
-
-    return m_pendingMachine != currentNarrow;
+    return changes;
 }
 
 
@@ -343,7 +218,7 @@ bool SettingsApplyController::WillMachineChange () const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool SettingsApplyController::IsResetRequired () const
+bool SettingsApplyController::IsResetRequired() const
 {
     return (m_state != nullptr) && m_state->RequiresReset();
 }
@@ -367,7 +242,7 @@ bool SettingsApplyController::IsResetRequired () const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void SettingsApplyController::CommitApply ()
+void SettingsApplyController::CommitApply()
 {
     SettingsApplyAdapter  adapter (*m_emuShell);
     JsonValue             currentJson;

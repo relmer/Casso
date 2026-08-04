@@ -35,26 +35,27 @@ static size_t ParseTraceSize (const wstring & text)
 
 
 
-    if (text.empty())
+    // An unrecognized suffix leaves the bare number rather than rejecting it,
+    // so "--trace 20X" is 20 entries, not an error at startup.
+    if (!text.empty())
     {
-        return 0;
-    }
+        value = wcstoull (text.c_str(), &end, 10);
 
-    value = wcstoull (text.c_str(), &end, 10);
-
-    if (end != nullptr && *end != L'\0')
-    {
-        switch (towupper (*end))
+        if (end != nullptr && *end != L'\0')
         {
-            case L'K':  value *= 1000ull;        break;
-            case L'M':  value *= 1000000ull;     break;
-            case L'G':  value *= 1000000000ull;  break;
-            default:                             break;
+            switch (towupper (*end))
+            {
+                case L'K':  value *= 1000ull;        break;
+                case L'M':  value *= 1000000ull;     break;
+                case L'G':  value *= 1000000000ull;  break;
+                default:                             break;
+            }
         }
     }
 
     return (size_t) value;
 }
+
 
 
 
@@ -135,11 +136,16 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
+// `outUserExited` reports that the user dismissed one of the startup
+// dialogs (declined the ROM download, or closed the boot-disk picker).
+// That is a clean shutdown request rather than a failure, so it travels
+// separately from the result code.
 static HRESULT LoadMachineConfig (
     HINSTANCE           hInstance,
     const wstring     & machineName,
     wstring           & inoutDisk1Path,
     HWND                hwndParent,
+    bool              & outUserExited,
     MachineConfig     & outConfig)
 {
     HRESULT             hr             = S_OK;
@@ -155,8 +161,11 @@ static HRESULT LoadMachineConfig (
     fs::path            diskDir;
     wstring             savedDisk;
     HRESULT             hrSaved        = S_OK;
+    bool                foundConfig    = false;
     string              error;
 
+
+    outUserExited = false;
 
     // Build search paths and find machine config
     searchPaths    = PathResolver::BuildSearchPaths (PathResolver::GetExecutableDirectory(),
@@ -165,7 +174,8 @@ static HRESULT LoadMachineConfig (
                                            / (fs::path (machineName).string() + ".json");
     configPath     = PathResolver::FindFile (searchPaths, configRelPath);
 
-    CBRN (!configPath.empty(),
+    foundConfig = !configPath.empty();
+    CBRN (foundConfig,
           format (L"Unknown machine '{}'. Config file not found.\n"
                   L"Searched for '{}' in exe directory, current directory, and parent directories.",
                   machineName,
@@ -213,14 +223,17 @@ static HRESULT LoadMachineConfig (
         // is owned solely by the boot-disk picker below.
         hr = AssetBootstrap::RunStartupDownloader (hInstance, machineName, hwndParent,
                                                    romSearchPaths, romDir, hasDisk,
-                                                   prefs, error);
+                                                   prefs, outUserExited, error);
 
         hrSave = prefs.Save (assetBase, fs_io);
         IGNORE_RETURN_VALUE (hrSave, S_OK);
 
-        BAIL_OUT_IF (hr == S_FALSE, S_FALSE);
         CHRN (hr, format (L"Asset download failed:\n{}",
                           wstring (error.begin(), error.end())).c_str());
+
+        // User chose Exit rather than downloading. Stop here with no
+        // config; wWinMain shuts down quietly.
+        BAIL_OUT_IF (outUserExited, S_OK);
     }
 
     // Boot-disk pre-flight: if the user didn't pass --disk1 and there's
@@ -279,11 +292,10 @@ static HRESULT LoadMachineConfig (
             CHRN (hr, format (L"Boot disk download failed:\n{}",
                               wstring (error.begin(), error.end())).c_str());
 
-            if (userClosed)
-            {
-                hr = S_FALSE;
-                goto Error;
-            }
+            // Closing the boot-disk picker is the same clean-shutdown
+            // request as choosing Exit above.
+            outUserExited = userClosed;
+            BAIL_OUT_IF (userClosed, S_OK);
 
             if (!downloaded.empty())
             {
@@ -314,17 +326,26 @@ static HRESULT LoadMachineConfig (
         JsonValue        defaultJson;
         JsonValue        mergedJson;
         JsonParseError   parseErr;
+        HRESULT          hrParse = S_OK;
+        HRESULT          hrMerge = E_FAIL;
 
-        if (SUCCEEDED (JsonParser::Parse (jsonText, defaultJson, parseErr)) &&
-            SUCCEEDED (storeMerge.Load (fs::path (machineName).string (), defaultJson, fsMerge, mergedJson)) &&
-            mergedJson.GetType () == JsonType::Object)
+        // The merge only runs when the parse produced something to merge, so
+        // hrMerge starts failed rather than being tested unconditionally.
+        hrParse = JsonParser::Parse (jsonText, defaultJson, parseErr);
+
+        if (SUCCEEDED (hrParse))
+        {
+            hrMerge = storeMerge.Load (fs::path (machineName).string(), defaultJson, fsMerge, mergedJson);
+        }
+
+        if (SUCCEEDED (hrMerge) && mergedJson.GetType() == JsonType::Object)
         {
             jsonText = JsonWriter::Write (mergedJson);
         }
     }
 
     hr = MachineConfigLoader::Load (jsonText,
-                                    fs::path (machineName).string (),
+                                    fs::path (machineName).string(),
                                     romSearchPaths,
                                     outConfig,
                                     error);
@@ -385,6 +406,7 @@ static LONG WINAPI TraceCrashFilter (EXCEPTION_POINTERS * info)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  wWinMain
@@ -403,6 +425,7 @@ int WINAPI wWinMain (
     wstring                          disk2Path;
     size_t                           traceCapacity = 0;
     int                              exitCode      = 0;
+    bool                             userExited    = false;
     MachineConfig                    config;
     std::unique_ptr<EmulatorShell>   shell = std::make_unique<EmulatorShell>();
 
@@ -439,31 +462,34 @@ int WINAPI wWinMain (
     // Ignore (continue on EHM's normal error path, as a release build would).
     SetBreakpointFunction ([] (const wchar_t * message)
     {
+        // With a debugger attached, break at the assertion site as before --
+        // the dialog would only get in the way of the stack you came for.
         if (IsDebuggerPresent())
         {
-            __debugbreak();   // break at the assertion site, as before
-            return;
+            __debugbreak();
         }
-
-        std::wstring text = L"An internal assertion failed:\n\n";
-        text += (message != nullptr && message[0] != L'\0') ? message : L"(no detail)";
-        text += L"\n\n"
-                L"Abort  = quit now\n"
-                L"Retry  = break (attach a debugger first to inspect)\n"
-                L"Ignore = try to continue";
-
-        int choice = MessageBoxW (NULL, text.c_str(), L"Casso \x2014 assertion failed",
-                                  MB_ABORTRETRYIGNORE | MB_ICONERROR | MB_DEFBUTTON1 | MB_TASKMODAL);
-
-        if (choice == IDABORT)
+        else
         {
-            TerminateProcess (GetCurrentProcess(), 3);
+            std::wstring text = L"An internal assertion failed:\n\n";
+            text += (message != nullptr && message[0] != L'\0') ? message : L"(no detail)";
+            text += L"\n\n"
+                    L"Abort  = quit now\n"
+                    L"Retry  = break (attach a debugger first to inspect)\n"
+                    L"Ignore = try to continue";
+
+            int choice = MessageBoxW (NULL, text.c_str(), L"Casso \x2014 assertion failed",
+                                      MB_ABORTRETRYIGNORE | MB_ICONERROR | MB_DEFBUTTON1 | MB_TASKMODAL);
+
+            if (choice == IDABORT)
+            {
+                TerminateProcess (GetCurrentProcess(), 3);
+            }
+            else if (choice == IDRETRY)
+            {
+                __debugbreak();   // no-op crash if still no debugger; lets you attach one
+            }
+            // IDIGNORE: fall through -- EHM continues on its normal error path.
         }
-        else if (choice == IDRETRY)
-        {
-            __debugbreak();   // no-op crash if still no debugger; lets you attach one
-        }
-        // IDIGNORE: fall through -- EHM continues on its normal error path.
     });
 
     // Parse command line
@@ -543,12 +569,12 @@ int WINAPI wWinMain (
             discovered, machineName, s_kPreferredDefaultMachine);
     }
 
-    // Load machine configuration. S_FALSE here means the user
-    // declined the missing-ROM download prompt — exit cleanly
-    // without a follow-up error MessageBox.
-    hr = LoadMachineConfig (hInstance, machineName, disk1Path, nullptr, config);
+    // Load machine configuration. A user who dismissed one of the
+    // startup dialogs wants out, so exit cleanly without a follow-up
+    // error MessageBox.
+    hr = LoadMachineConfig (hInstance, machineName, disk1Path, nullptr, userExited, config);
     CHR (hr);
-    BAIL_OUT_IF (hr == S_FALSE, S_OK);
+    BAIL_OUT_IF (userExited, S_OK);
 
     // Initialize emulator. EmulatorShell::Initialize records the
     // chosen machine into GlobalUserPrefs.lastSelectedMachine and
@@ -569,12 +595,20 @@ int WINAPI wWinMain (
         shell->DumpTrace (L"exit");
     }
 
-    s_pTraceShell = nullptr;
-    return exitCode;
-
+    // Success falls into the same tail the bails jump to: clearing the trace
+    // back-pointer must happen exactly once, on every path, before the shell
+    // it points at is destroyed.
 Error:
     s_pTraceShell = nullptr;
-    return FAILED (hr) ? 1 : 0;
+
+    // exitCode is still 0 for any bail, including BAIL_OUT_IF (userExited) --
+    // dismissing a startup dialog is a clean exit, not a failure.
+    if (FAILED (hr))
+    {
+        exitCode = 1;
+    }
+
+    return exitCode;
 }
 
 

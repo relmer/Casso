@@ -11,6 +11,7 @@ class MemoryBus;
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  AppleMouse
@@ -58,7 +59,7 @@ class AppleMouse : public ICycleSink
 public:
     AppleMouse() = default;
 
-    // ---- Wiring ----------------------------------------------------------
+    // Wiring
 
     // Register the two IRQ sources (movement + VBL) with the shared
     // controller. Caller-owned; the controller outlives the device.
@@ -73,7 +74,7 @@ public:
     // thread must NOT read guest memory directly). Caller-owned.
     void    SetBus (MemoryBus * bus) { m_bus = bus; }
 
-    // ---- Host input (any thread) -----------------------------------------
+    // Host input (any thread)
 
     void    MoveBy    (int dx, int dy);
     void    SetButton (bool down) { m_hostButton.store (down, std::memory_order_release); }
@@ -89,7 +90,7 @@ public:
     void    SetHostTargetFraction (uint16_t fx, uint16_t fy);
     void    ClearHostTarget       () { m_hasTarget.store (false, std::memory_order_release); }
 
-    // ---- ICycleSink (CPU thread, from EmuCpu::AddCycles) -------------------
+    // ICycleSink (CPU thread, from EmuCpu::AddCycles)
 
     // Cadence for the mouse's per-tick bookkeeping (retarget countdown, VBL
     // onset sample, host-motion drain). Only the movement latch runs every
@@ -100,7 +101,7 @@ public:
 
     void    Tick (uint32_t cpuCycles) override;
 
-    // ---- Soft-switch surface (CPU thread, forwarded by keyboard/bank) -----
+    // Soft-switch surface (CPU thread, forwarded by keyboard/bank)
 
     Byte    ReadXInterruptStatus() const { return m_xInt   ? 0x80 : 0x00; }   // $C015 bit 7
     Byte    ReadYInterruptStatus() const { return m_yInt   ? 0x80 : 0x00; }   // $C017 bit 7
@@ -115,11 +116,11 @@ public:
     bool    IsIouAccessEnabled() const   { return m_iouAccessEnabled; }
     void    AccessIouSwitch (Word address);            // $C058-$C05F while enabled
 
-    // ---- Lifecycle ---------------------------------------------------------
+    // Lifecycle
 
     void    Reset();
 
-    // ---- Inspectors (tests) ------------------------------------------------
+    // Inspectors (tests)
 
     bool    XyInterruptsEnabled  () const { return m_xyEnabled; }
     bool    VblInterruptsEnabled() const { return m_vblEnabled; }

@@ -28,66 +28,6 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace
-{
-    class RecordingEventSink : public IDisk2EventSink
-    {
-    public:
-        enum class Event
-        {
-            MotorCommandOn,
-            MotorEngaged,
-            MotorCommandOff,
-            MotorDisengaged,
-            HeadStep,
-            HeadBump,
-            AddressMark,
-            DataMarkRead,
-            DataMarkWrite,
-            DriveSelect,
-            DiskInserted,
-            DiskEjected,
-        };
-
-        struct LogEntry
-        {
-            Event  event;
-            int    arg;
-        };
-
-        std::vector<LogEntry>  log;
-
-        void OnMotorCommandOn() override                    { log.push_back ({ Event::MotorCommandOn,  0 }); }
-        void OnMotorEngaged() override                      { log.push_back ({ Event::MotorEngaged,    0 }); }
-        void OnMotorCommandOff() override                   { log.push_back ({ Event::MotorCommandOff, 0 }); }
-        void OnMotorDisengaged() override                   { log.push_back ({ Event::MotorDisengaged, 0 }); }
-        void OnHeadStep (int, int newQt) override           { log.push_back ({ Event::HeadStep,        newQt }); }
-        void OnHeadBump (int atQt) override                 { log.push_back ({ Event::HeadBump,        atQt }); }
-        void OnAddressMark (int, int sector, int) override  { log.push_back ({ Event::AddressMark,  sector }); }
-        void OnDataMarkRead (int, int sector, int, int) override   { log.push_back ({ Event::DataMarkRead,    sector }); }
-        void OnDataMarkWrite (int, int sector, int, int) override  { log.push_back ({ Event::DataMarkWrite,   sector }); }
-        void OnDriveSelect (int drive) override             { log.push_back ({ Event::DriveSelect,     drive }); }
-        void OnDiskInserted (int drive) override            { log.push_back ({ Event::DiskInserted,    drive }); }
-        void OnDiskEjected (int drive) override             { log.push_back ({ Event::DiskEjected,     drive }); }
-
-        int CountOf (Event ev) const
-        {
-            int     n = 0;
-            size_t  i = 0;
-
-            for (i = 0; i < log.size(); i++)
-            {
-                if (log[i].event == ev)
-                {
-                    n++;
-                }
-            }
-
-            return n;
-        }
-    };
-}
-
 
 
 
@@ -107,6 +47,61 @@ namespace Disk2ControllerEventTests
     TEST_CLASS (Disk2ControllerEventTests)
     {
     public:
+
+        class RecordingEventSink : public IDisk2EventSink
+        {
+        public:
+            enum class Event
+            {
+                MotorCommandOn,
+                MotorEngaged,
+                MotorCommandOff,
+                MotorDisengaged,
+                HeadStep,
+                HeadBump,
+                AddressMark,
+                DataMarkRead,
+                DataMarkWrite,
+                DriveSelect,
+                DiskInserted,
+                DiskEjected,
+            };
+
+            struct LogEntry
+            {
+                Event  event;
+                int    arg;
+            };
+
+            std::vector<LogEntry>  log;
+
+            void OnMotorCommandOn() override                    { log.push_back ({ Event::MotorCommandOn,  0 }); }
+            void OnMotorEngaged() override                      { log.push_back ({ Event::MotorEngaged,    0 }); }
+            void OnMotorCommandOff() override                   { log.push_back ({ Event::MotorCommandOff, 0 }); }
+            void OnMotorDisengaged() override                   { log.push_back ({ Event::MotorDisengaged, 0 }); }
+            void OnHeadStep (int, int newQt) override           { log.push_back ({ Event::HeadStep,        newQt }); }
+            void OnHeadBump (int atQt) override                 { log.push_back ({ Event::HeadBump,        atQt }); }
+            void OnAddressMark (int, int sector, int) override  { log.push_back ({ Event::AddressMark,  sector }); }
+            void OnDataMarkRead (int, int sector, int, int) override   { log.push_back ({ Event::DataMarkRead,    sector }); }
+            void OnDataMarkWrite (int, int sector, int, int) override  { log.push_back ({ Event::DataMarkWrite,   sector }); }
+            void OnDriveSelect (int drive) override             { log.push_back ({ Event::DriveSelect,     drive }); }
+            void OnDiskInserted (int drive) override            { log.push_back ({ Event::DiskInserted,    drive }); }
+            void OnDiskEjected (int drive) override             { log.push_back ({ Event::DiskEjected,     drive }); }
+
+            int CountOf (Event ev) const
+            {
+                int     n = 0;
+                for (const auto & logEntry : log)
+                {
+                    if (logEntry.event == ev)
+                    {
+                        n++;
+                    }
+                }
+
+                return n;
+            }
+        };
 
         TEST_METHOD (MotorOnFirstStrobe_firesBothCommandOnAndEngaged)
         {
@@ -279,13 +274,13 @@ namespace Disk2ControllerEventTests
             Assert::AreEqual (0, sink.CountOf (RecordingEventSink::Event::HeadBump));
             Assert::AreEqual (2, ctrl.GetQuarterTrack());
 
-            for (i = 0; i < sink.log.size(); i++)
+            for (const auto & logEntry : sink.log)
             {
-                if (sink.log[i].event == RecordingEventSink::Event::HeadStep)
+                if (logEntry.event == RecordingEventSink::Event::HeadStep)
                 {
                     // RecordingEventSink stashes newQt; verify it
                     // matches the post-step position.
-                    Assert::AreEqual (2, sink.log[i].arg);
+                    Assert::AreEqual (2, logEntry.arg);
                 }
             }
         }
@@ -469,3 +464,4 @@ namespace Disk2ControllerEventTests
         }
     };
 }
+

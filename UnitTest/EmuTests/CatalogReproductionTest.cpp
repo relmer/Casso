@@ -33,8 +33,15 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace
+
+
+
+
+
+TEST_CLASS (CatalogReproductionTest)
 {
+public:
+
     static constexpr Word        kBootRomEntry        = 0xC600;
     static constexpr Word        kIntCxRomOff         = 0xC006;
     static constexpr int         kSlot6               = 6;
@@ -49,15 +56,6 @@ namespace
     // CATALOG seeks to track 17 (VTOC), reads VTOC, walks the catalog
     // chain printing each entry. Real-disk timing in cycle units.
     static constexpr uint64_t    kCatalogCycles       = 60'000'000ULL;
-}
-
-
-
-
-
-TEST_CLASS (CatalogReproductionTest)
-{
-public:
 
     static std::vector<Byte> ReadDskOrEmpty (const std::string & relPath)
     {
@@ -67,37 +65,49 @@ public:
         // test stays filesystem-portable. Returns an empty vector if
         // the file doesn't exist (CI runners don't have the DOS 3.3
         // master disk in the repo); the caller treats that as "skip".
-        std::error_code ec;
-        std::filesystem::path cursor = std::filesystem::current_path (ec);
-        if (ec) return {};
+        std::error_code        ec;
+        std::filesystem::path  cursor = std::filesystem::current_path (ec);
+        std::vector<Byte>      bytes;
+        bool                   walking = !ec;
 
-        for (int i = 0; i < 10; i++)
+        for (int i = 0; walking && bytes.empty() && i < 10; i++)
         {
             std::filesystem::path full = cursor / relPath;
+
             if (std::filesystem::exists (full, ec))
             {
                 std::ifstream f (full, std::ios::binary);
+
                 if (f)
                 {
-                    return std::vector<Byte> (
-                        (std::istreambuf_iterator<char> (f)),
-                        std::istreambuf_iterator<char> ());
+                    bytes.assign ((std::istreambuf_iterator<char> (f)),
+                                  std::istreambuf_iterator<char> ());
                 }
             }
-            if (!cursor.has_parent_path () || cursor == cursor.parent_path ())
+
+            // Nothing read yet -- including the exists-but-unreadable case,
+            // which keeps climbing rather than giving up at that level.
+            if (bytes.empty())
             {
-                break;
+                if (!cursor.has_parent_path() || cursor == cursor.parent_path())
+                {
+                    walking = false;
+                }
+                else
+                {
+                    cursor = cursor.parent_path();
+                }
             }
-            cursor = cursor.parent_path ();
         }
-        return {};
+
+        return bytes;
     }
 
 
     TEST_METHOD (DOS33_CATALOG_DoesNotErrorOnMasterDisk)
     {
         std::vector<Byte>  raw = ReadDskOrEmpty ("Disks/Apple/dos33-master.dsk");
-        if (raw.empty ())
+        if (raw.empty())
         {
             Logger::WriteMessage ("SKIPPED: Disks/Apple/dos33-master.dsk not "
                                   "available in this checkout (typical for CI "
@@ -106,20 +116,20 @@ public:
             return;
         }
 
-        Assert::AreEqual (size_t (143360), raw.size (),
+        Assert::AreEqual (size_t (143360), raw.size(),
             L"DOS 3.3 master disk must be 143360 bytes");
 
         HeadlessHost   host;
         EmulatorCore   core;
 
         HRESULT  hr = host.BuildApple2eWithDisk2 (core);
-        Assert::IsTrue (SUCCEEDED (hr), L"BuildApple2eWithDisk2 must succeed");
+        AssertSucceeded (hr, L"BuildApple2eWithDisk2 must succeed");
 
-        core.PowerCycle ();
+        core.PowerCycle();
 
         hr = core.diskStore->MountFromBytes (kSlot6, kDrive1,
             "dos33-master.dsk", DiskFormat::Dsk, raw);
-        Assert::IsTrue (SUCCEEDED (hr), L"MountFromBytes must succeed");
+        AssertSucceeded (hr, L"MountFromBytes must succeed");
 
         DiskImage *  img = core.diskStore->GetImage (kSlot6, kDrive1);
         Assert::IsNotNull (img, L"Mounted DiskImage must be present");
@@ -190,27 +200,27 @@ public:
     TEST_METHOD (DOS33_SAVE_RoundTripsToDsk)
     {
         std::vector<Byte>  raw = ReadDskOrEmpty ("Disks/Apple/dos33-master.dsk");
-        if (raw.empty ())
+        if (raw.empty())
         {
             Logger::WriteMessage ("SKIPPED: Disks/Apple/dos33-master.dsk not "
                                   "available in this checkout.\n");
             return;
         }
 
-        Assert::AreEqual (size_t (143360), raw.size (),
+        Assert::AreEqual (size_t (143360), raw.size(),
             L"DOS 3.3 master disk must be 143360 bytes");
 
         HeadlessHost   host;
         EmulatorCore   core;
 
         HRESULT  hr = host.BuildApple2eWithDisk2 (core);
-        Assert::IsTrue (SUCCEEDED (hr), L"BuildApple2eWithDisk2 must succeed");
+        AssertSucceeded (hr, L"BuildApple2eWithDisk2 must succeed");
 
-        core.PowerCycle ();
+        core.PowerCycle();
 
         hr = core.diskStore->MountFromBytes (kSlot6, kDrive1,
             "dos33-master.dsk", DiskFormat::Dsk, raw);
-        Assert::IsTrue (SUCCEEDED (hr), L"MountFromBytes must succeed");
+        AssertSucceeded (hr, L"MountFromBytes must succeed");
 
         DiskImage *  img = core.diskStore->GetImage (kSlot6, kDrive1);
         Assert::IsNotNull (img, L"Mounted DiskImage must be present");
@@ -230,13 +240,13 @@ public:
             return joined;
         };
 
-        Assert::IsTrue (Screen ().find (']') != std::string::npos,
+        Assert::IsTrue (Screen().find (']') != std::string::npos,
             L"DOS 3.3 must reach the ] prompt within the cold-boot budget.");
 
         // Enter a one-line program and SAVE it.
         KeystrokeInjector::InjectLine (core, "10 REM TEST PROGRAM", kCatalogCycles);
         KeystrokeInjector::InjectLine (core, "SAVE TEST", kCatalogCycles);
-        std::string  afterSave = Screen ();
+        std::string  afterSave = Screen();
 
         // Clear the program, LOAD it back, clear the screen, and LIST so
         // the recovered text is unambiguous (not a SAVE echo left onscreen).
@@ -244,7 +254,7 @@ public:
         KeystrokeInjector::InjectLine (core, "LOAD TEST", kCatalogCycles);
         KeystrokeInjector::InjectLine (core, "HOME", kCatalogCycles);
         KeystrokeInjector::InjectLine (core, "LIST", kCatalogCycles);
-        std::string  afterList = Screen ();
+        std::string  afterList = Screen();
 
         Assert::IsTrue (afterSave.find ("I/O ERROR") == std::string::npos &&
                         afterList.find ("I/O ERROR") == std::string::npos,
@@ -258,3 +268,4 @@ public:
             L"LOAD+LIST must recover the saved program text (write round-trip).");
     }
 };
+

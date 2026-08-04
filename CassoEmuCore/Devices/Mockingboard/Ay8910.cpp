@@ -1,7 +1,6 @@
 #include "Pch.h"
 
 #include "Ay8910.h"
-#include "Ehm.h"
 
 
 
@@ -88,7 +87,7 @@ void Ay8910::SetClock (double clockHz)
 //
 //  A data write reaches the register selected by the last latched address.
 //  Addresses outside 0..15 select no register, so the write is inert -- the
-//  documented AY behaviour, not a bug.
+//  documented AY behavior, not a bug.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -113,7 +112,7 @@ void Ay8910::WriteData (Byte value)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-Byte Ay8910::ReadData () const
+Byte Ay8910::ReadData() const
 {
     Byte   result = 0xFF;
 
@@ -368,6 +367,8 @@ void Ay8910::StepLfsr()
 {
     uint32_t   feedback = (m_lfsr ^ (m_lfsr >> s_kLfsrFeedbackTap)) & 1u;
 
+
+
     m_lfsr = (m_lfsr >> 1) | (feedback << s_kLfsrHighBit);
 }
 
@@ -468,7 +469,7 @@ void Ay8910::RestartEnvelope (Byte shape)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-float Ay8910::CurrentOutput () const
+float Ay8910::CurrentOutput() const
 {
     Byte    mixer = m_regs[kRegMixer];
     float   out   = 0.0f;
@@ -509,20 +510,20 @@ float Ay8910::CurrentOutput () const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool Ay8910::IsSilent () const
+bool Ay8910::IsSilent() const
 {
-    int   c = 0;
+    int   c      = 0;
+    bool  silent = true;
 
 
-    for (c = 0; c < s_kChannelCount; c++)
+
+    // One audible channel is enough to disqualify, so the scan stops there.
+    for (c = 0; silent && c < s_kChannelCount; c++)
     {
-        if (m_regs[kRegAmpA + c] != 0)
-        {
-            return false;
-        }
+        silent = (m_regs[kRegAmpA + c] == 0);
     }
 
-    return true;
+    return silent;
 }
 
 
@@ -541,6 +542,8 @@ int Ay8910::TonePeriod (int channel) const
     Byte   coarse = m_regs[kRegToneACoarse + channel * 2];
     int    period = ((coarse & s_kToneCoarseMask) << s_kByteShift) | fine;
 
+
+
     return (period == 0) ? 1 : period;
 }
 
@@ -554,9 +557,11 @@ int Ay8910::TonePeriod (int channel) const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-int Ay8910::NoisePeriod () const
+int Ay8910::NoisePeriod() const
 {
     int   period = m_regs[kRegNoisePeriod] & s_kNoisePeriodMask;
+
+
 
     return (period == 0) ? 1 : period;
 }
@@ -571,9 +576,11 @@ int Ay8910::NoisePeriod () const
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-int Ay8910::EnvPeriod () const
+int Ay8910::EnvPeriod() const
 {
     int   period = (m_regs[kRegEnvCoarse] << s_kByteShift) | m_regs[kRegEnvFine];
+
+
 
     return (period == 0) ? 1 : period;
 }

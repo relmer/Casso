@@ -2,37 +2,38 @@
 
 #include "DxuiPainter.h"
 
+
+
+
+// Shader source stays a file-scope static rather than a class member: it is
+// bulk implementation detail read only by CreateShaders in this file, and a
+// class member would have to be declared in the header -- putting HLSL into
+// every translation unit that includes DxuiPainter.h.
+//
+// The array type is load-bearing. CreateShaders passes
+// `sizeof (s_kVertexShaderSrc) - 1` as the source length; against a
+// `const char *` that silently becomes sizeof(void*) - 1 == 7, compiling
+// clean while handing D3DCompile a 7-character shader.
+static constexpr char  s_kVertexShaderSrc[] =
+    "struct VSIn  { float2 pos : POSITION; float4 col : COLOR; };\n"
+    "struct VSOut { float4 pos : SV_POSITION; float4 col : COLOR; };\n"
+    "VSOut main (VSIn input)\n"
+    "{\n"
+    "    VSOut output;\n"
+    "    output.pos = float4 (input.pos, 0.0f, 1.0f);\n"
+    "    output.col = input.col;\n"
+    "    return output;\n"
+    "}\n";
+
+
+static constexpr char  s_kPixelShaderSrc[] =
+    "struct PSIn { float4 pos : SV_POSITION; float4 col : COLOR; };\n"
+    "float4 main (PSIn input) : SV_TARGET\n"
+    "{\n"
+    "    return input.col;\n"
+    "}\n";
+
 #pragma comment(lib, "d3dcompiler.lib")
-
-
-
-
-
-namespace
-{
-    constexpr size_t  s_kInitialVertexCapacity = 1024;
-    constexpr float   s_kByteToUnit            = 1.0f / 255.0f;
-
-
-    static const char s_kVertexShaderSrc[] =
-        "struct VSIn  { float2 pos : POSITION; float4 col : COLOR; };\n"
-        "struct VSOut { float4 pos : SV_POSITION; float4 col : COLOR; };\n"
-        "VSOut main (VSIn input)\n"
-        "{\n"
-        "    VSOut output;\n"
-        "    output.pos = float4 (input.pos, 0.0f, 1.0f);\n"
-        "    output.col = input.col;\n"
-        "    return output;\n"
-        "}\n";
-
-
-    static const char s_kPixelShaderSrc[] =
-        "struct PSIn { float4 pos : SV_POSITION; float4 col : COLOR; };\n"
-        "float4 main (PSIn input) : SV_TARGET\n"
-        "{\n"
-        "    return input.col;\n"
-        "}\n";
-}
 
 
 
@@ -44,7 +45,7 @@ namespace
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-DxuiPainter::~DxuiPainter ()
+DxuiPainter::~DxuiPainter()
 {
     Shutdown();
 }
@@ -80,7 +81,7 @@ HRESULT DxuiPainter::Initialize (
     hr = CreatePipelineState();
     CHRA (hr);
 
-    hr = EnsureVertexBuffer (s_kInitialVertexCapacity);
+    hr = EnsureVertexBuffer (kInitialVertexCapacity);
     CHRA (hr);
 
 Error:
@@ -97,7 +98,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiPainter::Shutdown ()
+void DxuiPainter::Shutdown()
 {
     DXUI_ASSERT_UI_THREAD();
 
@@ -125,7 +126,7 @@ void DxuiPainter::Shutdown ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT DxuiPainter::OnDeviceLost ()
+HRESULT DxuiPainter::OnDeviceLost()
 {
     DXUI_ASSERT_UI_THREAD();
 
@@ -162,12 +163,14 @@ HRESULT DxuiPainter::OnDeviceRestored (
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT DxuiPainter::CreateShaders ()
+HRESULT DxuiPainter::CreateShaders()
 {
     HRESULT             hr     = S_OK;
     ComPtr<ID3DBlob>    vsBlob;
     ComPtr<ID3DBlob>    psBlob;
     ComPtr<ID3DBlob>    errors;
+
+
 
     D3D11_INPUT_ELEMENT_DESC  inputElements[] =
     {
@@ -236,7 +239,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT DxuiPainter::CreatePipelineState ()
+HRESULT DxuiPainter::CreatePipelineState()
 {
     HRESULT                   hr      = S_OK;
     D3D11_BLEND_DESC          blend   = {};
@@ -299,12 +302,9 @@ HRESULT DxuiPainter::EnsureVertexBuffer (size_t requiredVerts)
 
 
 
-    if ((m_vertexBuffer != nullptr) && (requiredVerts <= m_vertexBufferCapacity))
-    {
-        return S_OK;
-    }
+    BAIL_OUT_IF ((m_vertexBuffer != nullptr) && (requiredVerts <= m_vertexBufferCapacity), S_OK);
 
-    newCap = m_vertexBufferCapacity > 0 ? m_vertexBufferCapacity : s_kInitialVertexCapacity;
+    newCap = m_vertexBufferCapacity > 0 ? m_vertexBufferCapacity : kInitialVertexCapacity;
 
     while (newCap < requiredVerts)
     {
@@ -342,6 +342,7 @@ HRESULT DxuiPainter::Begin (int viewportWidthPx, int viewportHeightPx)
     HRESULT  hr = S_OK;
 
 
+
     DXUI_ASSERT_UI_THREAD();
 
     CBRA (m_device);
@@ -368,11 +369,15 @@ Error:
 
 DxuiPainter::Vertex DxuiPainter::MakeVertex (uint32_t argbColor, float alphaMultiplier)
 {
+    constexpr float   kByteToUnit            = 1.0f / 255.0f;
+
+
+
     Vertex  v;
-    float   a = ((argbColor >> 24) & 0xFF) * s_kByteToUnit;
-    float   r = ((argbColor >> 16) & 0xFF) * s_kByteToUnit;
-    float   g = ((argbColor >>  8) & 0xFF) * s_kByteToUnit;
-    float   b = ((argbColor      ) & 0xFF) * s_kByteToUnit;
+    float   a = ((argbColor >> 24) & 0xFF) * kByteToUnit;
+    float   r = ((argbColor >> 16) & 0xFF) * kByteToUnit;
+    float   g = ((argbColor >>  8) & 0xFF) * kByteToUnit;
+    float   b = ((argbColor      ) & 0xFF) * kByteToUnit;
 
 
 
@@ -579,6 +584,7 @@ void DxuiPainter::FillCircleApprox (
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  FillEllipseApprox
@@ -620,23 +626,22 @@ void DxuiPainter::FillEllipseApprox (
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  FillSpanAA
 //
 //  Fill one horizontal scanline span with coverage anti-aliasing on the
 //  fractional left/right edges: the interior whole-pixel columns get full
-//  colour, and the boundary pixel columns get the colour at partial alpha =
+//  color, and the boundary pixel columns get the color at partial alpha =
 //  fractional coverage. A plain FillRect hard-snaps its edges to pixel
-//  centres, so a stack of them approximating an oblique edge stair-steps;
+//  centers, so a stack of them approximating an oblique edge stair-steps;
 //  feathering the end columns turns that staircase into a smooth ramp.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 void DxuiPainter::FillSpanAA (float x0, float x1, float y, float h, uint32_t argbColor)
 {
-    if (x1 <= x0 || h <= 0.0f) return;
-
     uint32_t  baseA = (argbColor >> 24) & 0xFFu;
     auto      withA = [&](float cov) -> uint32_t
     {
@@ -645,26 +650,36 @@ void DxuiPainter::FillSpanAA (float x0, float x1, float y, float h, uint32_t arg
         return (argbColor & 0x00FFFFFFu) | (a << 24);
     };
 
-    float  xl = floorf (x0);
-    float  xr = floorf (x1);
+    float  xl       = floorf (x0);
+    float  xr       = floorf (x1);
+    float  leftCov  = 0.0f;
+    float  rightCov = 0.0f;
 
-    if (xl == xr)                                       // span within one column
+    // Degenerate spans (zero or negative width / height) draw nothing.
+    if (x1 > x0 && h > 0.0f)
     {
-        FillRect (xl, y, 1.0f, h, withA (x1 - x0));
-        return;
+        if (xl == xr)
+        {
+            // Span lives inside ONE pixel column: its whole width is the
+            // coverage, and there are no interior or far-edge columns.
+            FillRect (xl, y, 1.0f, h, withA (x1 - x0));
+        }
+        else
+        {
+            if (xr > xl + 1.0f)                                 // interior full columns
+                FillRect (xl + 1.0f, y, xr - (xl + 1.0f), h, argbColor);
+
+            leftCov = (xl + 1.0f) - x0;                         // left edge coverage
+            if (leftCov > 0.004f)
+                FillRect (xl, y, 1.0f, h, withA (leftCov));
+
+            rightCov = x1 - xr;                                 // right edge coverage
+            if (rightCov > 0.004f)
+                FillRect (xr, y, 1.0f, h, withA (rightCov));
+        }
     }
-
-    if (xr > xl + 1.0f)                                 // interior full columns
-        FillRect (xl + 1.0f, y, xr - (xl + 1.0f), h, argbColor);
-
-    float  leftCov = (xl + 1.0f) - x0;                  // left edge coverage
-    if (leftCov > 0.004f)
-        FillRect (xl, y, 1.0f, h, withA (leftCov));
-
-    float  rightCov = x1 - xr;                          // right edge coverage
-    if (rightCov > 0.004f)
-        FillRect (xr, y, 1.0f, h, withA (rightCov));
 }
+
 
 
 
@@ -737,6 +752,7 @@ void DxuiPainter::FillConvexQuad (
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  DrawLineApprox
@@ -794,16 +810,15 @@ HRESULT DxuiPainter::End (ID3D11RenderTargetView * pRtv)
     float                      blendFactor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
     D3D11_VIEWPORT             vp           = {};
     ID3D11RenderTargetView   * rtvs[1]      = { pRtv };
+    bool                       hasNothingToDraw = false;
 
 
     DXUI_ASSERT_UI_THREAD();
 
     m_betweenBeginEnd = false;
+    hasNothingToDraw  = m_vertices.empty() || (pRtv == nullptr);
 
-    if (m_vertices.empty() || (pRtv == nullptr))
-    {
-        return S_OK;
-    }
+    BAIL_OUT_IF (hasNothingToDraw, S_OK);
 
     hr = EnsureVertexBuffer (m_vertices.size());
     CHRA (hr);
@@ -838,3 +853,5 @@ HRESULT DxuiPainter::End (ID3D11RenderTargetView * pRtv)
 Error:
     return hr;
 }
+
+

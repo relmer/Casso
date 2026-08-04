@@ -72,6 +72,17 @@ void EhmBreakpoint (const wchar_t * file, int line, const wchar_t * func, const 
 #endif
 }
 #else
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  EhmBreakpoint
+//
+////////////////////////////////////////////////////////////////////////////////
+
 void EhmBreakpoint (const char * file, int line, const char * func, const char * expr)
 {
     char  msg[1024];
@@ -106,6 +117,8 @@ void EhmBreakpoint (const char * file, int line, const char * func, const char *
 #endif
 }
 #endif
+
+
 
 
 
@@ -260,6 +273,8 @@ void DEBUGMSG (const char * pszFormat, ...)
 void RELEASEMSG (const char * pszFormat, ...)
 {
     va_list vlArgs;
+
+
 
     va_start (vlArgs, pszFormat);
     std::vfprintf (stderr, pszFormat, vlArgs);

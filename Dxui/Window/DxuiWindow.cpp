@@ -11,6 +11,7 @@ static constexpr UINT_PTR  s_kDialogTimerId   = 1;      // dialog caret-blink / 
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  Create
@@ -90,7 +91,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-DxuiWindow::~DxuiWindow ()
+DxuiWindow::~DxuiWindow()
 {
     DestroyBackend();
 }
@@ -109,7 +110,7 @@ DxuiWindow::~DxuiWindow ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiWindow::DestroyBackend ()
+void DxuiWindow::DestroyBackend()
 {
     if (m_source != nullptr)
     {
@@ -166,7 +167,7 @@ void DxuiWindow::Show (bool activate)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiWindow::Hide ()
+void DxuiWindow::Hide()
 {
     HWND  hwnd = Hwnd();
 
@@ -188,7 +189,7 @@ void DxuiWindow::Hide ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiWindow::Close ()
+void DxuiWindow::Close()
 {
     DestroyBackend();
 }
@@ -325,21 +326,25 @@ bool DxuiWindow::ProcessDialogMessage (const MSG & msg)
     bool  isHandled = false;
     HWND  hwnd      = Hwnd();
 
-    // Only intercept the dialog-navigation keys while a dialog is active and the
-    // message targets this window; otherwise fall through to normal dispatch.
-    // Plain early returns (not BAIL_OUT_IF): this returns bool, not HRESULT.
-    if (!m_dialogActive || hwnd == nullptr) { return false; }
-    if (msg.hwnd != hwnd)                   { return false; }
 
-    switch (msg.message)
+
+    // Only intercept the dialog-navigation keys while a dialog is active and
+    // the message targets THIS window; otherwise fall through to normal
+    // dispatch. A message aimed at a sibling window must not be swallowed.
+    bool  isOurs = m_dialogActive && hwnd != nullptr && msg.hwnd == hwnd;
+
+    if (isOurs)
     {
-        case WM_KEYDOWN:
-        case WM_SYSKEYDOWN:
-            if (msg.wParam == VK_TAB || msg.wParam == VK_RETURN || msg.wParam == VK_ESCAPE)
-            {
-                isHandled = (DispatchDialogKey (msg.wParam) == DxuiMessageResult::Handled);
-            }
-            break;
+        switch (msg.message)
+        {
+            case WM_KEYDOWN:
+            case WM_SYSKEYDOWN:
+                if (msg.wParam == VK_TAB || msg.wParam == VK_RETURN || msg.wParam == VK_ESCAPE)
+                {
+                    isHandled = (DispatchDialogKey (msg.wParam) == DxuiMessageResult::Handled);
+                }
+                break;
+        }
     }
 
     return isHandled;
@@ -406,6 +411,7 @@ void DxuiWindow::EndDialog (int result)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  SetComposedOpacity
@@ -430,7 +436,7 @@ void DxuiWindow::SetComposedOpacity (float opacity)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiWindow::Invalidate ()
+void DxuiWindow::Invalidate()
 {
     HWND  hwnd = Hwnd();
 
@@ -645,18 +651,23 @@ DxuiMessageResult DxuiWindow::OnKeyDown (WPARAM vk, LPARAM lParam)
     DxuiMessageResult  result = DxuiMessageResult::NotHandled;
 
 
+
     UNREFERENCED_PARAMETER (lParam);
 
     // A modal overlay swallows every key (routing the ones it wants to its own
-    // handler) so dialog navigation can't leak to the page behind it.
+    // handler) so dialog navigation can't leak to the page behind it. The
+    // overlay's own return is discarded on purpose: handled or not, the key
+    // stops here.
     if (HasModalOverlay())
     {
         (void) OnOverlayKey (vk);
-        return DxuiMessageResult::Handled;
+        result = DxuiMessageResult::Handled;
     }
-
-    result = m_dialogActive ? DispatchDialogKey (vk)
-                            : DispatchKey (DxuiKeyEventKind::Down, vk);
+    else
+    {
+        result = m_dialogActive ? DispatchDialogKey (vk)
+                                : DispatchKey (DxuiKeyEventKind::Down, vk);
+    }
 
     return result;
 }
@@ -678,17 +689,19 @@ DxuiMessageResult DxuiWindow::OnChar (WPARAM ch, LPARAM lParam)
     bool               isHandled = false;
 
 
+
     UNREFERENCED_PARAMETER (lParam);
 
     // A modal overlay owns text entry (e.g. the color picker's hex field).
     if (HasModalOverlay())
     {
         (void) OnOverlayChar ((wchar_t) ch);
-        return DxuiMessageResult::Handled;
+        result = DxuiMessageResult::Handled;
     }
-
-    if (m_dialogActive)
+    else if (m_dialogActive)
     {
+        // Dialog text entry goes to the focused control only -- there is no
+        // fanout, so an unfocused dialog reports NotHandled.
         focused = m_focus.Focused();
 
         if (focused != nullptr)
@@ -793,6 +806,7 @@ DxuiMessageResult DxuiWindow::OnTimer (UINT_PTR timerId)
     DxuiMessageResult  result = DxuiMessageResult::NotHandled;
 
 
+
     if (m_dialogActive && timerId == s_kDialogTimerId)
     {
         OnDialogTick();
@@ -802,6 +816,7 @@ DxuiMessageResult DxuiWindow::OnTimer (UINT_PTR timerId)
 
     return result;
 }
+
 
 
 
@@ -817,7 +832,7 @@ DxuiMessageResult DxuiWindow::OnTimer (UINT_PTR timerId)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiWindow::OnModalLoopTick ()
+void DxuiWindow::OnModalLoopTick()
 {
     if (m_onModalLoopTick)
     {
@@ -835,7 +850,7 @@ void DxuiWindow::OnModalLoopTick ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-DxuiMessageResult DxuiWindow::OnClose ()
+DxuiMessageResult DxuiWindow::OnClose()
 {
     if (m_dialogActive)
     {
@@ -862,7 +877,7 @@ DxuiMessageResult DxuiWindow::OnClose ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiWindow::OnDestroy ()
+void DxuiWindow::OnDestroy()
 {
     OnWindowDestroy();
 }
@@ -888,7 +903,8 @@ DxuiMessageResult DxuiWindow::DispatchMouse (DxuiMouseEventKind kind,
                                              float              wheelDelta,
                                              bool               wheelHorizontal)
 {
-    DxuiMouseEvent  ev;
+    DxuiMouseEvent     ev;
+    DxuiMessageResult  result = DxuiMessageResult::NotHandled;
 
 
 
@@ -905,20 +921,21 @@ DxuiMessageResult DxuiWindow::DispatchMouse (DxuiMouseEventKind kind,
     // inert (clicks outside the overlay dialog are simply ignored).
     if (HasModalOverlay())
     {
+        result = DxuiMessageResult::Handled;
         (void) OnOverlayMouse (ev);
-        return DxuiMessageResult::Handled;
+    }
+    else if (OnMouse (ev))
+    {
+        // Repaint immediately when a control consumes the event so drags
+        // (slider thumbs, scrubbing) and hover states track the cursor every
+        // frame instead of only on the ~half-second dialog tick.
+        // InvalidateRect coalesces, so at most one paint lands per frame
+        // regardless of mouse-move rate.
+        result = DxuiMessageResult::Handled;
+        Invalidate();
     }
 
-    // Repaint immediately when a control consumes the event so drags (slider
-    // thumbs, scrubbing) and hover states track the cursor every frame instead
-    // of only on the ~half-second dialog tick. InvalidateRect coalesces, so at
-    // most one paint lands per frame regardless of mouse-move rate.
-    if (OnMouse (ev))
-    {
-        Invalidate();
-        return DxuiMessageResult::Handled;
-    }
-    return DxuiMessageResult::NotHandled;
+    return result;
 }
 
 
@@ -1062,7 +1079,7 @@ void DxuiWindow::BeginDialogMode (int defaultButtonId, bool modal)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiWindow::WireDialogButtons ()
+void DxuiWindow::WireDialogButtons()
 {
     int  defaultId = m_defaultButtonId;
 

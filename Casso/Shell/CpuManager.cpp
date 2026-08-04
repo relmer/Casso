@@ -14,11 +14,6 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace
-{
-    constexpr LONGLONG  s_kHundredNsPerSecond = 10000000LL;
-}
-
 
 
 
@@ -29,7 +24,7 @@ namespace
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-CpuManager::CpuManager ()
+CpuManager::CpuManager()
 {
 }
 
@@ -46,7 +41,7 @@ CpuManager::CpuManager ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-CpuManager::~CpuManager ()
+CpuManager::~CpuManager()
 {
     Stop();
 }
@@ -72,10 +67,12 @@ HRESULT CpuManager::Start (
     FrameFn        onFrame,
     ThreadExitFn   onThreadExit)
 {
-    HRESULT  hr = S_OK;
+    HRESULT  hr     = S_OK;
+    bool     isIdle = false;
 
 
-    CBRA (!m_thread.joinable());
+    isIdle = !m_thread.joinable();
+    CBRA (isIdle);
 
     m_onThreadEnter = std::move (onThreadEnter);
     m_onCommand     = std::move (onCommand);
@@ -103,7 +100,7 @@ Error:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void CpuManager::Stop ()
+void CpuManager::Stop()
 {
     m_running.store (false, std::memory_order_release);
     m_pauseCV.notify_all();
@@ -141,7 +138,7 @@ void CpuManager::PostCommand (WORD id, const std::string & payload)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool CpuManager::IsRunning () const noexcept
+bool CpuManager::IsRunning() const noexcept
 {
     return m_running.load (std::memory_order_acquire);
 }
@@ -156,7 +153,7 @@ bool CpuManager::IsRunning () const noexcept
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool CpuManager::IsPaused () const noexcept
+bool CpuManager::IsPaused() const noexcept
 {
     return m_paused.load (std::memory_order_acquire);
 }
@@ -191,9 +188,10 @@ void CpuManager::SetPaused (bool paused) noexcept
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-bool CpuManager::TogglePaused () noexcept
+bool CpuManager::TogglePaused() noexcept
 {
     bool  next = !m_paused.load (std::memory_order_acquire);
+
 
 
     m_paused.store (next, std::memory_order_release);
@@ -211,7 +209,7 @@ bool CpuManager::TogglePaused () noexcept
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-SpeedMode CpuManager::GetSpeedMode () const noexcept
+SpeedMode CpuManager::GetSpeedMode() const noexcept
 {
     return m_speedMode.load (std::memory_order_acquire);
 }
@@ -245,9 +243,10 @@ void CpuManager::SetSpeedMode (SpeedMode mode) noexcept
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void CpuManager::DrainCommandQueue ()
+void CpuManager::DrainCommandQueue()
 {
     std::vector<EmulatorCommand>  cmds;
+
 
 
     {
@@ -279,8 +278,12 @@ void CpuManager::DrainCommandQueue ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void CpuManager::ThreadProc ()
+void CpuManager::ThreadProc()
 {
+    constexpr LONGLONG  kHundredNsPerSecond = 10000000LL;
+
+
+
     HRESULT        hr              = S_OK;
     HANDLE         hTimer          = nullptr;
     LARGE_INTEGER  dueTime         = {};
@@ -316,7 +319,7 @@ void CpuManager::ThreadProc ()
 
         DrainCommandQueue();
 
-        dueTime.QuadPart = -(s_kHundredNsPerSecond * kAppleCyclesPerFrame / kAppleCpuClock);
+        dueTime.QuadPart = -(kHundredNsPerSecond * kAppleCyclesPerFrame / kAppleCpuClock);
         fSuccess = SetWaitableTimer (hTimer, &dueTime, 0, nullptr, nullptr, FALSE);
         CWRA (fSuccess);
 

@@ -4,30 +4,48 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
 
 
-namespace
+// Shared by all five TEST_CLASSes below, so these live at file scope rather
+// than on any one of them. `static` supplies the internal linkage the
+// anonymous namespace was there for.
+static constexpr LONG  s_kMonLeft      = 0;
+static constexpr LONG  s_kMonTop       = 0;
+static constexpr LONG  s_kMonRight     = 1920;
+static constexpr LONG  s_kMonBottom    = 1080;
+static constexpr LONG  s_kPopupW       = 200;
+static constexpr LONG  s_kPopupH       = 150;
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MakeRect
+//
+////////////////////////////////////////////////////////////////////////////////
+
+static RECT  MakeRect (LONG l, LONG t, LONG r, LONG b)
 {
-    constexpr LONG  s_kMonLeft      = 0;
-    constexpr LONG  s_kMonTop       = 0;
-    constexpr LONG  s_kMonRight     = 1920;
-    constexpr LONG  s_kMonBottom    = 1080;
-    constexpr LONG  s_kPopupW       = 200;
-    constexpr LONG  s_kPopupH       = 150;
+    RECT  out = {};
+    out.left = l; out.top = t; out.right = r; out.bottom = b;
+    return out;
+}
 
 
-    RECT  MakeRect (LONG l, LONG t, LONG r, LONG b)
-    {
-        RECT  out = {};
-        out.left = l; out.top = t; out.right = r; out.bottom = b;
-        return out;
-    }
 
 
-    SIZE  MakeSize (LONG cx, LONG cy)
-    {
-        SIZE  out = {};
-        out.cx = cx; out.cy = cy;
-        return out;
-    }
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  MakeSize
+//
+////////////////////////////////////////////////////////////////////////////////
+
+static SIZE  MakeSize (LONG cx, LONG cy)
+{
+    SIZE  out = {};
+    out.cx = cx; out.cy = cy;
+    return out;
 }
 
 
@@ -506,19 +524,26 @@ public:
 
 #ifdef _DEBUG
 
-namespace
+static std::unique_ptr<DxuiHwndSource>  BuildSyntheticHostForPool()
 {
-    std::unique_ptr<DxuiHwndSource>  BuildSyntheticHostForPool ()
-    {
-        RECT  bounds = MakeRect (0, 0, 1024, 768);
+    RECT  bounds = MakeRect (0, 0, 1024, 768);
 
 
-        return std::make_unique<DxuiHwndSource> (bounds,
-                                                 6.0f,
-                                                 std::make_unique<DxuiPanel>());
-    }
+
+    return std::make_unique<DxuiHwndSource> (bounds,
+                                             6.0f,
+                                             std::make_unique<DxuiPanel>());
 }
 
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TEST_CLASS
+//
+////////////////////////////////////////////////////////////////////////////////
 
 TEST_CLASS (DxuiPopupHostPoolTests)
 {
@@ -597,6 +622,43 @@ public:
         Assert::IsTrue (host->PopupHits() >= 4,
                         L"Five sequential acquire/release cycles must yield >= 4 pool hits (FR-055 / SC-008)");
         Assert::AreEqual ((size_t) 0, host->PopupActiveCount());
+    }
+};
+
+#else // !_DEBUG
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Release build sentinel — every pool test above asserts on PopupHits() or
+//  PopupMisses(), and those counters are deliberately Debug-only (see the
+//  #ifdef around m_popupHits++ in DxuiHwndSource::AcquirePopup). The pooling
+//  logic itself is not conditional, so Debug already proves it; exposing the
+//  counters in Release purely to even up a test count would be changing
+//  production code to serve a metric.
+//
+//  This exists so the gap is named in the Release run rather than showing up
+//  only as a smaller number. An unexplained count is exactly how a crash hid
+//  once already -- the run stopped at 1368 of 2804 and read as "fewer tests".
+//
+//  Deliberately not four stub tests that pass: a green
+//  FirstAcquire_SeedsPoolToInitialSize3 in Release would claim pool coverage
+//  that is not there, which is worse than the honest absence.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+TEST_CLASS (DxuiPopupHostPoolTests)
+{
+public:
+
+    TEST_METHOD (PoolInstrumentation_SkippedInRelease)
+    {
+        Logger::WriteMessage (
+            L"DxuiPopupHostPoolTests are Debug-only: they assert on PopupHits()/"
+            L"PopupMisses(), which are #ifdef _DEBUG. Four tests do not run here.");
     }
 };
 

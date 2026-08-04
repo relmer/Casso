@@ -18,88 +18,112 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace
+// Load the per-machine default JSON (the on-disk Machines/<Name>/
+// <Name>.json) into `outDefault`. S_OK on a clean parse;
+// HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND) when there is no such file,
+// which callers treat as "this machine has no saved config" rather than a
+// failure; any other error HRESULT is a real load/parse failure.
+HRESULT DiskSettings::LoadMachineDefaultJson (const std::wstring  & machineName,
+                                JsonValue           & outDefault)
 {
-    // Load the per-machine default JSON (the on-disk Machines/<Name>/
-    // <Name>.json) into `outDefault`. Returns S_FALSE when the file
-    // isn't found, S_OK on a clean parse, error HRESULT otherwise.
-    HRESULT LoadMachineDefaultJson (const std::wstring  & machineName,
-                                    JsonValue           & outDefault)
-    {
-        std::vector<fs::path> searchPaths;
-        fs::path              configRelPath;
-        fs::path              configPath;
-        std::ifstream         configFile;
-        std::stringstream     ss;
-        std::string           jsonText;
-        JsonParseError        parseErr;
-        HRESULT               hr            = S_OK;
+    std::vector<fs::path> searchPaths;
+    fs::path              configRelPath;
+    fs::path              configPath;
+    std::ifstream         configFile;
+    std::stringstream     ss;
+    std::string           jsonText;
+    JsonParseError        parseErr;
+    HRESULT               hr            = S_OK;
+    bool                  wasFound      = false;
+    bool                  isOpen        = false;
 
 
-        searchPaths   = PathResolver::BuildSearchPaths (PathResolver::GetExecutableDirectory(),
-                                                          PathResolver::GetWorkingDirectory());
-        configRelPath = fs::path ("Machines") / fs::path (machineName).string()
-                                              / (fs::path (machineName).string() + ".json");
-        configPath    = PathResolver::FindFile (searchPaths, configRelPath);
+    searchPaths   = PathResolver::BuildSearchPaths (PathResolver::GetExecutableDirectory(),
+                                                      PathResolver::GetWorkingDirectory());
+    configRelPath = fs::path ("Machines") / fs::path (machineName).string()
+                                          / (fs::path (machineName).string() + ".json");
+    configPath    = PathResolver::FindFile (searchPaths, configRelPath);
+    wasFound      = !configPath.empty();
 
-        if (configPath.empty())
-        {
-            return S_FALSE;
-        }
+    CBREx (wasFound, HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND));
 
-        configFile.open (configPath);
-        if (!configFile.good())
-        {
-            return S_FALSE;
-        }
+    configFile.open (configPath);
+    isOpen = configFile.good();
 
-        ss << configFile.rdbuf();
-        jsonText = ss.str();
-        hr = JsonParser::Parse (jsonText, outDefault, parseErr);
-        return hr;
-    }
+    CBREx (isOpen, HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND));
 
+    ss << configFile.rdbuf();
+    jsonText = ss.str();
 
-    std::string  WideToUtf8 (const std::wstring & w)
-    {
-        HRESULT      hr   = S_OK;
-        std::string  utf8;
-        int          len  = 0;
+    hr = JsonParser::Parse (jsonText, outDefault, parseErr);
+    CHR (hr);
 
-        BAIL_OUT_IF (w.empty(), S_OK);
-
-        len = WideCharToMultiByte (CP_UTF8, 0, w.c_str(), static_cast<int> (w.size()), nullptr, 0, nullptr, nullptr);
-        CWRA (len);
-
-        utf8.resize (static_cast<size_t> (len));
-
-        len = WideCharToMultiByte (CP_UTF8, 0, w.c_str(), static_cast<int> (w.size()), utf8.data(), len, nullptr, nullptr);
-        CWRA (len);
-
-    Error:
-        return utf8;
-    }
+Error:
+    return hr;
+}
 
 
-    std::wstring Utf8ToWide (const std::string & s)
-    {
-        HRESULT       hr   = S_OK;
-        std::wstring  wide;
-        int           len  = 0;
 
-        BAIL_OUT_IF (s.empty(), S_OK);
 
-        len = MultiByteToWideChar (CP_UTF8, 0, s.c_str(), static_cast<int> (s.size()), nullptr, 0);
-        CWRA (len);
 
-        wide.resize (static_cast<size_t> (len));
+////////////////////////////////////////////////////////////////////////////////
+//
+//  WideToUtf8
+//
+////////////////////////////////////////////////////////////////////////////////
 
-        len = MultiByteToWideChar (CP_UTF8, 0, s.c_str(), static_cast<int> (s.size()), wide.data(), len);
-        CWRA (len);
+std::string  DiskSettings::WideToUtf8 (const std::wstring & w)
+{
+    HRESULT      hr   = S_OK;
+    std::string  utf8;
+    int          len  = 0;
 
-    Error:
-        return wide;
-    }
+
+
+    BAIL_OUT_IF (w.empty(), S_OK);
+
+    len = WideCharToMultiByte (CP_UTF8, 0, w.c_str(), static_cast<int> (w.size()), nullptr, 0, nullptr, nullptr);
+    CWRA (len);
+
+    utf8.resize (static_cast<size_t> (len));
+
+    len = WideCharToMultiByte (CP_UTF8, 0, w.c_str(), static_cast<int> (w.size()), utf8.data(), len, nullptr, nullptr);
+    CWRA (len);
+
+Error:
+    return utf8;
+}
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Utf8ToWide
+//
+////////////////////////////////////////////////////////////////////////////////
+
+std::wstring DiskSettings::Utf8ToWide (const std::string & s)
+{
+    HRESULT       hr   = S_OK;
+    std::wstring  wide;
+    int           len  = 0;
+
+
+
+    BAIL_OUT_IF (s.empty(), S_OK);
+
+    len = MultiByteToWideChar (CP_UTF8, 0, s.c_str(), static_cast<int> (s.size()), nullptr, 0);
+    CWRA (len);
+
+    wide.resize (static_cast<size_t> (len));
+
+    len = MultiByteToWideChar (CP_UTF8, 0, s.c_str(), static_cast<int> (s.size()), wide.data(), len);
+    CWRA (len);
+
+Error:
+    return wide;
 }
 
 
@@ -125,30 +149,35 @@ HRESULT DiskSettings::ReadSavedDiskPath (
     const JsonValue * uiPrefs       = nullptr;
     std::string       pathNarrow;
     const char      * keyName       = (drive == 0) ? "disk1Path" : "disk2Path";
+    bool              hasMachine    = false;
 
 
 
     outPath.clear();
 
-    BAIL_OUT_IF (drive < 0 || drive > 1 || machineName.empty(), E_INVALIDARG);
+    hasMachine = !machineName.empty();
+    CBRAEx (drive >= 0 && drive <= 1 && hasMachine, E_INVALIDARG);
 
     hr = LoadMachineDefaultJson (machineName, defaultJson);
-    BAIL_OUT_IF (hr != S_OK, S_FALSE);
+    BAIL_OUT_IF (hr == HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND), S_OK);
+    CHR (hr);
 
-    // A real load/parse failure propagates; only a non-object result (no saved
-    // config for this machine) is the soft "nothing to read" S_FALSE.
+    // A real load/parse failure propagates (CHR above); a missing file or a
+    // non-object result just means this machine has nothing saved, and that
+    // is reported by leaving outPath empty rather than by a second result
+    // code -- which is what every caller already tests.
     hr = store.Load (WideToUtf8 (machineName), defaultJson, fs, mergedJson);
     CHR (hr);
 
-    BAIL_OUT_IF (mergedJson.GetType() != JsonType::Object, S_FALSE);
+    BAIL_OUT_IF (mergedJson.GetType() != JsonType::Object, S_OK);
 
     // The remaining lookups are for optional keys; absent = nothing saved.
     hr = mergedJson.GetObject ("$cassoUiPrefs", uiPrefs);
-    BAIL_OUT_IF (FAILED (hr) || uiPrefs == nullptr, S_FALSE);
+    BAIL_OUT_IF (FAILED (hr) || uiPrefs == nullptr, S_OK);
     _Analysis_assume_ (uiPrefs != nullptr);
 
     hr = uiPrefs->GetString (keyName, pathNarrow);
-    BAIL_OUT_IF (FAILED (hr) || pathNarrow.empty(), S_FALSE);
+    BAIL_OUT_IF (FAILED (hr) || pathNarrow.empty(), S_OK);
 
     outPath = PathResolver::ResolveExeRelativePath (Utf8ToWide (pathNarrow));
     hr      = S_OK;
@@ -185,18 +214,21 @@ HRESULT DiskSettings::WriteSavedDiskPath (
     std::vector<std::pair<std::string, JsonValue>>   uiPrefsEntries;
     int                                              uiPrefsIdx     = -1;
     int                                              i              = 0;
+    bool                                             hasMachine     = false;
 
-    
 
-    BAIL_OUT_IF (drive < 0 || drive > 1 || machineName.empty(), E_INVALIDARG);
+
+    hasMachine = !machineName.empty();
+    CBRAEx (drive >= 0 && drive <= 1 && hasMachine, E_INVALIDARG);
 
     hr = LoadMachineDefaultJson (machineName, defaultJson);
-    BAIL_OUT_IF (hr != S_OK, S_FALSE);
+    BAIL_OUT_IF (hr == HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND), S_OK);
+    CHR (hr);
 
     hr = store.Load (WideToUtf8 (machineName), defaultJson, fs, mergedJson);
     CHR (hr);
 
-    BAIL_OUT_IF (mergedJson.GetType() != JsonType::Object, S_FALSE);
+    BAIL_OUT_IF (mergedJson.GetType() != JsonType::Object, S_OK);
 
     stored       = PathResolver::MakeExeRelativePath (path);
     storedNarrow = WideToUtf8 (stored);
@@ -258,6 +290,7 @@ Error:
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  WriteSavedUiPrefBool
@@ -283,18 +316,24 @@ HRESULT DiskSettings::WriteSavedUiPrefBool (
     std::vector<std::pair<std::string, JsonValue>>   uiPrefsEntries;
     int                                              uiPrefsIdx     = -1;
     int                                              i              = 0;
+    bool                                             hasKey         = false;
+    bool                                             hasMachine     = false;
 
 
 
-    BAIL_OUT_IF (key.empty() || machineName.empty(), E_INVALIDARG);
+    hasKey     = !key.empty();
+    hasMachine = !machineName.empty();
+
+    CBRAEx (hasKey && hasMachine, E_INVALIDARG);
 
     hr = LoadMachineDefaultJson (machineName, defaultJson);
-    BAIL_OUT_IF (hr != S_OK, S_FALSE);
+    BAIL_OUT_IF (hr == HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND), S_OK);
+    CHR (hr);
 
     hr = store.Load (WideToUtf8 (machineName), defaultJson, fs, mergedJson);
     CHR (hr);
 
-    BAIL_OUT_IF (mergedJson.GetType() != JsonType::Object, S_FALSE);
+    BAIL_OUT_IF (mergedJson.GetType() != JsonType::Object, S_OK);
 
     rootEntries = mergedJson.GetObjectEntries();
 
@@ -345,3 +384,4 @@ HRESULT DiskSettings::WriteSavedUiPrefBool (
 Error:
     return hr;
 }
+

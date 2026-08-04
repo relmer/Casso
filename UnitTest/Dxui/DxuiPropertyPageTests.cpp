@@ -6,8 +6,18 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
 
 
-namespace
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TEST_CLASS
+//
+////////////////////////////////////////////////////////////////////////////////
+
+TEST_CLASS (DxuiPropertyPageTests)
 {
+public:
+
     //
     //  Minimal DxuiPropertyPage subclass that records OnApply() calls and
     //  returns a configurable result, so the dirty / apply contract can be
@@ -16,21 +26,13 @@ namespace
     class TestPage : public DxuiPropertyPage
     {
     public:
-        TestPage () : DxuiPropertyPage (L"Test") {}
+        TestPage() : DxuiPropertyPage (L"Test") {}
 
         int   applyCalls  = 0;
         bool  applyResult = true;
 
-        bool  OnApply () override { ++applyCalls; return applyResult; }
+        bool  OnApply() override { ++applyCalls; return applyResult; }
     };
-}
-
-
-
-
-TEST_CLASS (DxuiPropertyPageTests)
-{
-public:
     TEST_METHOD (Title_ReturnsCtorValue)
     {
         TestPage  page;
@@ -77,3 +79,4 @@ public:
         Assert::AreEqual (2, page.applyCalls);
     }
 };
+

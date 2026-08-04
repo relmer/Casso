@@ -59,14 +59,12 @@ unique_ptr<MemoryDevice> ComponentRegistry::Create (
     const DeviceConfig & config,
     MemoryBus & bus) const
 {
-    auto it = s_factories.find (typeName);
+    auto  it = s_factories.find (typeName);
 
-    if (it == s_factories.end())
-    {
-        return nullptr;
-    }
-
-    return it->second (config, bus);
+    // Null for an unregistered type name; the caller reports it against the
+    // machine config that named it.
+    return (it != s_factories.end()) ? it->second (config, bus)
+                                     : nullptr;
 }
 
 
@@ -97,6 +95,8 @@ bool ComponentRegistry::IsRegistered (const string & typeName) const
 vector<string> ComponentRegistry::GetRegisteredTypes() const
 {
     vector<string> types;
+
+
 
     for (const auto & pair : s_factories)
     {

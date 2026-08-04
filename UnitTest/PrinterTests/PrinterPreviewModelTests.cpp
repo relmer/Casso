@@ -9,6 +9,7 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  PrinterPreviewModelTests
@@ -26,7 +27,7 @@ namespace PrinterPreviewModelTests
     {
     public:
 
-        //  ---- Reveal-mask column span ---------------------------------------
+        // Reveal-mask column span
 
         TEST_METHOD (RevealColumnSpan_LeftToRight)
         {
@@ -46,7 +47,7 @@ namespace PrinterPreviewModelTests
         }
 
 
-        //  ---- Tear-off ------------------------------------------------------
+        // Tear-off
 
         TEST_METHOD (StripTornOff_WhenStripShrinksBelowLiveRow)
         {
@@ -55,7 +56,7 @@ namespace PrinterPreviewModelTests
         }
 
 
-        //  ---- Catch-up gate (the CATALOG buzz fix) --------------------------
+        // Catch-up gate (the CATALOG buzz fix)
 
         TEST_METHOD (LiveBandOutsideSpan_BelowAndAbove)
         {
@@ -71,7 +72,7 @@ namespace PrinterPreviewModelTests
         }
 
 
-        //  ---- Freeze-heal dirty row (the disk-picker corruption fix) --------
+        // Freeze-heal dirty row (the disk-picker corruption fix)
 
         TEST_METHOD (DirtyFromRow_FirstRenderIsEverything)
         {
@@ -101,7 +102,7 @@ namespace PrinterPreviewModelTests
         }
 
 
-        //  ---- Change detection ----------------------------------------------
+        // Change detection
 
         TEST_METHOD (SpanAndRevealMovedDetectChange)
         {
@@ -112,7 +113,7 @@ namespace PrinterPreviewModelTests
         }
 
 
-        //  ---- Audio sample window -------------------------------------------
+        // Audio sample window
 
         TEST_METHOD (AudioSampleWindow_LtrBridgesBehindHead)
         {
@@ -159,7 +160,7 @@ namespace PrinterPreviewModelTests
         }
 
 
-        //  ---- Ink probe -----------------------------------------------------
+        // Ink probe
 
         TEST_METHOD (BandHasInk_FindsInkInRangeOnly)
         {

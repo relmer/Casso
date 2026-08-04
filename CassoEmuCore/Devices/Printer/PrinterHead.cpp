@@ -5,6 +5,7 @@
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  FormFeedDurationSec
@@ -20,8 +21,11 @@ double PrinterHead::FormFeedDurationSec (int rows)
     double   frac = (double) rows / (double) PrinterGrid::kPageRows;
     int      slot = (frac < 1.0 / 3.0) ? 0 : (frac < 2.0 / 3.0) ? 1 : 2;
 
+
+
     return kPageFeedGrainSec[slot];
 }
+
 
 
 
@@ -37,7 +41,7 @@ double PrinterHead::FormFeedDurationSec (int rows)
 
 void PrinterHead::Reset (int parkRow)
 {
-    m_pending.clear ();
+    m_pending.clear();
     m_phase          = Phase::Idle;
     m_headRow        = (double) parkRow;
     m_headCol        = 0.0;
@@ -52,6 +56,7 @@ void PrinterHead::Reset (int parkRow)
     m_nextLtr        = true;
     m_carriageCol    = 0;
 }
+
 
 
 
@@ -81,6 +86,7 @@ void PrinterHead::Queue (const vector<PrinterEvent> & events)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  PendingSeconds
@@ -90,9 +96,11 @@ void PrinterHead::Queue (const vector<PrinterEvent> & events)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-double PrinterHead::PendingSeconds () const
+double PrinterHead::PendingSeconds() const
 {
     double   seconds = 0.0;
+
+
 
     if (m_phase == Phase::Sweeping)
     {
@@ -125,6 +133,7 @@ double PrinterHead::PendingSeconds () const
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  Advance
@@ -142,6 +151,8 @@ double PrinterHead::PendingSeconds () const
 void PrinterHead::Advance (double timeSec, const PrintRaster & built, PrintRaster & presented)
 {
     int   guard = 0;
+
+
 
     while (timeSec > 0.0 && guard++ < 8192)
     {
@@ -198,13 +209,13 @@ void PrinterHead::Advance (double timeSec, const PrintRaster & built, PrintRaste
         {
             PrinterEvent   ev;
 
-            if (m_pending.empty ())
+            if (m_pending.empty())
             {
                 break;   // nothing queued -- head parked
             }
 
-            ev = m_pending.front ();
-            m_pending.pop_front ();
+            ev = m_pending.front();
+            m_pending.pop_front();
 
             if (ev.type == PrinterEventType::HeadBurst)
             {
@@ -253,13 +264,14 @@ void PrinterHead::Advance (double timeSec, const PrintRaster & built, PrintRaste
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  PaintPresented
 //
 //  Lays the current sweep's primary into the presented ("wet ink") layer across
 //  the carriage travel [fromP, toP] (progress dots). The band is struck only
-//  where the built strip already carries this pass's colour, so an overprint
+//  where the built strip already carries this pass's color, so an overprint
 //  accrues into a composite (red pass -> red; blue return -> red|blue = purple)
 //  and the same render-time mixing that produces the finished image plays out
 //  live.

@@ -13,14 +13,18 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 //  TreeViewTests
 //
 //  Pure-logic coverage for hit-testing, keyboard navigation, and the
-//  capability-flag driven checkbox behaviour. Rendering is not
+//  capability-flag driven checkbox behavior. Rendering is not
 //  exercised (Paint would require a GPU). The hardware-tree-shape
 //  tests in HardwareTreeTests build on top of these primitives.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace
+
+
+TEST_CLASS (TreeViewTests)
 {
+public:
+
     DxuiTreeNode MakeNode (const wchar_t * label,
                        DxuiTreeCapabilityFlag flag,
                        bool checked,
@@ -35,7 +39,7 @@ namespace
     }
 
 
-    DxuiTreeView  MakeFlatTree ()
+    DxuiTreeView  MakeFlatTree()
     {
         DxuiTreeView                  tv;
         std::vector<DxuiTreeNode>     nodes;
@@ -50,12 +54,6 @@ namespace
         tv.SetNodes (std::move (nodes));
         return tv;
     }
-}
-
-
-TEST_CLASS (TreeViewTests)
-{
-public:
 
     TEST_METHOD (Flatten_VisibleCountMatchesNodeCount)
     {
@@ -190,3 +188,4 @@ public:
             L"Left-arrow on an expanded parent must collapse it.");
     }
 };
+

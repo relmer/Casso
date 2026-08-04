@@ -29,7 +29,7 @@ void DxuiModalScrim::Show (ActionFn onConfirm, ActionFn onCancel)
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiModalScrim::Hide ()
+void DxuiModalScrim::Hide()
 {
     m_visible = false;
     m_onConfirm = nullptr;
@@ -46,7 +46,7 @@ void DxuiModalScrim::Hide ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiModalScrim::Confirm ()
+void DxuiModalScrim::Confirm()
 {
     ActionFn  cb;
 
@@ -78,7 +78,7 @@ void DxuiModalScrim::Confirm ()
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-void DxuiModalScrim::Cancel ()
+void DxuiModalScrim::Cancel()
 {
     ActionFn  cb;
 
@@ -112,24 +112,20 @@ void DxuiModalScrim::Cancel ()
 
 bool DxuiModalScrim::OnKey (WPARAM vk)
 {
-    if (!m_visible)
-    {
-        return false;
-    }
+    // A hidden scrim is not modal, so it claims nothing.
+    bool  cancels  = m_visible && vk == VK_ESCAPE;
+    bool  confirms = m_visible && vk == VK_RETURN;
 
-    if (vk == VK_ESCAPE)
+    if (cancels)
     {
         Cancel();
-        return true;
     }
-
-    if (vk == VK_RETURN)
+    else if (confirms)
     {
         Confirm();
-        return true;
     }
 
-    return false;
+    return cancels || confirms;
 }
 
 
@@ -155,6 +151,7 @@ void DxuiModalScrim::Paint (IDxuiPainter & painter) const
                       (float) (m_viewport.bottom - m_viewport.top),
                       m_dimArgb);
 }
+
 
 
 
@@ -204,10 +201,6 @@ void DxuiModalScrim::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text, co
 
 bool DxuiModalScrim::OnKey (const DxuiKeyEvent & ev)
 {
-    if (ev.kind != DxuiKeyEventKind::Down)
-    {
-        return false;
-    }
-
-    return OnKey (ev.vk);
+    // Key-up would confirm or cancel a second time for the same press.
+    return (ev.kind == DxuiKeyEventKind::Down) && OnKey (ev.vk);
 }

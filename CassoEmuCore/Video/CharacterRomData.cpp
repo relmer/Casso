@@ -2,11 +2,13 @@
 
 #include "CharacterRomData.h"
 #include "CharacterRom.h"
-#include "Ehm.h"
 
 
 static constexpr size_t k2KBytes = 2048;
 static constexpr size_t k4KBytes = 4096;
+
+
+
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -37,6 +39,7 @@ HRESULT CharacterRomData::LoadFromFile (const string & filePath)
     bool          fileOk  = false;
     auto          rawSize = streamsize {0};
     vector<Byte>  raw;
+    std::streamsize  bytesRead = 0;
 
 
 
@@ -51,7 +54,8 @@ HRESULT CharacterRomData::LoadFromFile (const string & filePath)
     raw.resize (static_cast<size_t> (rawSize));
     file.read (reinterpret_cast<char *> (raw.data()), rawSize);
 
-    CBRA (file.gcount() == rawSize);
+    bytesRead = file.gcount();
+    CBRA (bytesRead == rawSize);
 
     if (rawSize == k2KBytes)
     {
@@ -161,13 +165,13 @@ void CharacterRomData::LoadEmbeddedFallback()
 
 Byte CharacterRomData::GetGlyphRow (Byte glyphIndex, int row, bool altCharSet) const
 {
-    if (row < 0 || row >= static_cast<int> (kBytesPerChar))
-    {
-        return 0;
-    }
+    // A ROM without an alternate set falls back to set 0, so a //e-only
+    // ALTCHARSET request on a ][ ROM renders the primary glyph rather than
+    // indexing past the end.
+    bool  inRange = (row >= 0 && row < static_cast<int> (kBytesPerChar));
+    int   set     = (altCharSet && m_hasAltCharSet) ? 1 : 0;
 
-    int set = (altCharSet && m_hasAltCharSet) ? 1 : 0;
-    return m_glyphs[set][glyphIndex][row];
+    return inRange ? m_glyphs[set][glyphIndex][row] : (Byte) 0;
 }
 
 

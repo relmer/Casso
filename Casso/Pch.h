@@ -32,6 +32,22 @@
 #include <ole2.h>
 #include <oleidl.h>
 #include <wrl/client.h>
+#include <wrl/event.h>
+#include <wrl/implements.h>
+#include <wrl/wrappers/corewrappers.h>
+
+// WinRT ABI + the Windows.Graphics.Printing interop surface behind the modern
+// print dialog. Raw ABI/WRL, no C++/WinRT dependency.
+#include <roapi.h>
+#include <eventtoken.h>
+#include <windows.foundation.h>
+#include <windows.graphics.printing.h>
+#include <printmanagerinterop.h>
+#include <documentsource.h>
+#include <documenttarget.h>
+#include <printpreview.h>
+#include <DispatcherQueue.h>
+
 #include <bcrypt.h>
 
 #include <algorithm>

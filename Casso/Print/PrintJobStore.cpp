@@ -14,6 +14,7 @@ static const wchar_t   s_kszStripJson[] = L"strip.json";
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  ReadAllBytes
@@ -22,16 +23,25 @@ static const wchar_t   s_kszStripJson[] = L"strip.json";
 
 static HRESULT ReadAllBytes (const fs::path & path, vector<Byte> & out)
 {
-    HRESULT         hr = S_OK;
+    HRESULT         hr       = S_OK;
     std::ifstream   in (path, std::ios::binary);
+    bool            isOpen   = false;
+    bool            readWell = false;
 
-    CBR (in.is_open());
+
+
+    isOpen = in.is_open();
+    CBR (isOpen);
+
     out.assign ((std::istreambuf_iterator<char> (in)), std::istreambuf_iterator<char> ());
-    CBR (in.good() || in.eof());
+
+    readWell = in.good() || in.eof();
+    CBR (readWell);
 
 Error:
     return hr;
 }
+
 
 
 
@@ -44,16 +54,25 @@ Error:
 
 static HRESULT ReadAllText (const fs::path & path, string & out)
 {
-    HRESULT         hr = S_OK;
+    HRESULT         hr       = S_OK;
     std::ifstream   in (path, std::ios::binary);
+    bool            isOpen   = false;
+    bool            readWell = false;
 
-    CBR (in.is_open());
+
+
+    isOpen = in.is_open();
+    CBR (isOpen);
+
     out.assign ((std::istreambuf_iterator<char> (in)), std::istreambuf_iterator<char> ());
-    CBR (in.good() || in.eof());
+
+    readWell = in.good() || in.eof();
+    CBR (readWell);
 
 Error:
     return hr;
 }
+
 
 
 
@@ -66,16 +85,25 @@ Error:
 
 static HRESULT WriteAllBytes (const fs::path & path, const vector<Byte> & bytes)
 {
-    HRESULT         hr = S_OK;
+    HRESULT         hr        = S_OK;
     std::ofstream   out (path, std::ios::binary | std::ios::trunc);
+    bool            isOpen    = false;
+    bool            wroteWell = false;
 
-    CBR (out.is_open());
+
+
+    isOpen = out.is_open();
+    CBR (isOpen);
+
     out.write ((const char *) bytes.data(), (std::streamsize) bytes.size());
-    CBR (out.good());
+
+    wroteWell = out.good();
+    CBR (wroteWell);
 
 Error:
     return hr;
 }
+
 
 
 
@@ -88,16 +116,25 @@ Error:
 
 static HRESULT WriteAllText (const fs::path & path, const string & text)
 {
-    HRESULT         hr = S_OK;
+    HRESULT         hr        = S_OK;
     std::ofstream   out (path, std::ios::binary | std::ios::trunc);
+    bool            isOpen    = false;
+    bool            wroteWell = false;
 
-    CBR (out.is_open());
+
+
+    isOpen = out.is_open();
+    CBR (isOpen);
+
     out.write (text.data(), (std::streamsize) text.size());
-    CBR (out.good());
+
+    wroteWell = out.good();
+    CBR (wroteWell);
 
 Error:
     return hr;
 }
+
 
 
 
@@ -118,8 +155,12 @@ HRESULT PrintJobStore::Load (const fs::path & dir, PrintRaster & outRaster)
     vector<Byte>      pngBytes;
     string            jsonText;
 
+
+
+    // No pending strip -- a clean first-run open, not a load failure, but
+    // it still is not a raster the caller can use.
     have = fs::exists (png, ec) && fs::exists (json, ec);
-    CBRF (have, hr = S_FALSE);   // no pending strip -- clean first-run open
+    BAIL_OUT_IF (!have, HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND));
 
     hr = ReadAllBytes (png, pngBytes);
     CHR (hr);
@@ -137,6 +178,7 @@ Error:
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  Save
@@ -149,6 +191,8 @@ HRESULT PrintJobStore::Save (const fs::path & dir, const PrintRaster & raster)
     std::error_code   ec;
     vector<Byte>      png;
     string            json;
+
+
 
     hr = PrintJobPersistence::Save (raster, png, json);
     CHR (hr);
@@ -168,6 +212,7 @@ Error:
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  Clear
@@ -177,6 +222,8 @@ Error:
 void PrintJobStore::Clear (const fs::path & dir)
 {
     std::error_code   ec;
+
+
 
     fs::remove (dir / s_kszStripPng, ec);
     fs::remove (dir / s_kszStripJson, ec);

@@ -8,6 +8,7 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  ImageWriterInterpreterTests
@@ -32,9 +33,9 @@ namespace ImageWriterInterpreterTests
     {
         int   n = 0;
         size_t i = 0;
-        for (i = 0; i < events.size(); i++)
+        for (auto & event : events)
         {
-            if (events[i].type == type) n++;
+            if (event.type == type) n++;
         }
         return n;
     }

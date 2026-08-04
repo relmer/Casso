@@ -7,6 +7,7 @@
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  Apple2cRomBank
@@ -18,6 +19,7 @@ Apple2cRomBank::Apple2cRomBank (LanguageCard & lc, Apple2eMmu & mmu)
       m_mmu (mmu)
 {
 }
+
 
 
 
@@ -39,6 +41,7 @@ void Apple2cRomBank::SetBankImages (vector<Byte> bank0, vector<Byte> bank1)
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  ApplyBank
@@ -52,6 +55,8 @@ void Apple2cRomBank::SetBankImages (vector<Byte> bank0, vector<Byte> bank1)
 void Apple2cRomBank::ApplyBank (int bank)
 {
     const vector<Byte> &  image = m_bank[bank];
+
+
 
     if (image.size() < kBankImageSize)
     {
@@ -67,10 +72,11 @@ void Apple2cRomBank::ApplyBank (int bank)
     // AttachInternalCxxxRom re-points the $C100-$CFFF page table; SetRomData
     // swapped the LC ROM buffer, so re-point its $D000-$FFFF read window too
     // (the page-table entries otherwise reference the previous bank's bytes).
-    m_lc.RebindWindow ();
+    m_lc.RebindWindow();
 
     m_current = bank;
 }
+
 
 
 

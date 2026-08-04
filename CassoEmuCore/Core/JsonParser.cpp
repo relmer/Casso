@@ -34,8 +34,9 @@ JsonParser::JsonParser (const string & input)
 
 HRESULT JsonParser::Parse (const string & input, JsonValue & outValue, JsonParseError & outError)
 {
-    HRESULT    hr     = S_OK;
-    JsonParser parser   (input);
+    HRESULT    hr           = S_OK;
+    JsonParser parser         (input);
+    bool       consumedAll   = false;
 
 
 
@@ -44,7 +45,8 @@ HRESULT JsonParser::Parse (const string & input, JsonValue & outValue, JsonParse
 
     parser.SkipWhitespace();
 
-    CBRF (parser.AtEnd(), parser.SetError ("Unexpected content after JSON value"));
+    consumedAll = parser.AtEnd();
+    CBRF (consumedAll, parser.SetError ("Unexpected content after JSON value"));
 
 Error:
     if (FAILED (hr))
@@ -67,15 +69,17 @@ Error:
 
 HRESULT JsonParser::ParseValue (JsonValue & outValue)
 {
-    HRESULT hr  = S_OK;
-    char    ch  = 0;
+    HRESULT hr       = S_OK;
+    char    ch       = 0;
+    bool    hasInput = false;
     string  str;
 
 
 
     SkipWhitespace();
 
-    CBR (!AtEnd());
+    hasInput = !AtEnd();
+    CBR (hasInput);
 
     ch = Peek();
     switch (ch)
@@ -145,23 +149,27 @@ Error:
 
 HRESULT JsonParser::ParseString (string & outStr)
 {
-    HRESULT       hr   = S_OK;
-    char          ch   = 0;
-    char          esc  = 0;
+    HRESULT       hr        = S_OK;
+    char          ch        = 0;
+    char          esc       = 0;
     string        hex;
-    unsigned long code = 0;
-    bool          done = false;
+    unsigned long code      = 0;
+    bool          done      = false;
+    bool          hasInput  = false;
+    bool          isQuote   = false;
 
 
 
-    CBR (Peek () == '"');
-    Advance ();
+    isQuote = (Peek() == '"');
+    CBR (isQuote);
 
-    outStr.clear ();
+    Advance();
 
-    while (!AtEnd () && !done)
+    outStr.clear();
+
+    while (!AtEnd() && !done)
     {
-        ch = Advance ();
+        ch = Advance();
 
         // Closing quote — done
         if (ch == '"')
@@ -178,9 +186,10 @@ HRESULT JsonParser::ParseString (string & outStr)
         }
 
         // Escape sequence
-        CBR (!AtEnd ());
+        hasInput = !AtEnd();
+        CBR (hasInput);
 
-        esc = Advance ();
+        esc = Advance();
 
         switch (esc)
         {
@@ -194,15 +203,17 @@ HRESULT JsonParser::ParseString (string & outStr)
             case 't':  outStr += '\t'; break;
             case 'u':
             {
-                hex.clear ();
+                hex.clear();
 
                 for (int i = 0; i < 4; i++)
                 {
-                    CBR (!AtEnd ());
-                    hex += Advance ();
+                    hasInput = !AtEnd();
+                    CBR (hasInput);
+
+                    hex += Advance();
                 }
 
-                code = strtoul (hex.c_str (), nullptr, 16);
+                code = strtoul (hex.c_str(), nullptr, 16);
 
                 if (code < 0x80)
                 {
@@ -240,14 +251,18 @@ Error:
 
 HRESULT JsonParser::ParseNumber (JsonValue & outValue)
 {
-    HRESULT hr = S_OK;
+    HRESULT  hr    = S_OK;
+    size_t   start = m_pos;
+    bool     isHex = false;
+    double   value = 0.0;
 
-    size_t start = m_pos;
 
-    // Check for 0x hex prefix
-    if (m_pos + 2 < m_input.size() &&
-        m_input[m_pos] == '0' &&
-        (m_input[m_pos + 1] == 'x' || m_input[m_pos + 1] == 'X'))
+
+    isHex = m_pos + 2 < m_input.size() &&
+            m_input[m_pos] == '0' &&
+            (m_input[m_pos + 1] == 'x' || m_input[m_pos + 1] == 'X');
+
+    if (isHex)
     {
         Advance();  // '0'
         Advance();  // 'x'
@@ -257,38 +272,14 @@ HRESULT JsonParser::ParseNumber (JsonValue & outValue)
             Advance();
         }
 
-        string hexStr = m_input.substr (start + 2, m_pos - start - 2);
-        unsigned long value = strtoul (hexStr.c_str(), nullptr, 16);
-        outValue = JsonValue (static_cast<double> (value));
-        return S_OK;
+        string  hexStr = m_input.substr (start + 2, m_pos - start - 2);
+
+        value = static_cast<double> (strtoul (hexStr.c_str(), nullptr, 16));
     }
-
-    // Standard JSON number
-    if (Peek() == '-')
+    else
     {
-        Advance();
-    }
-
-    while (!AtEnd() && isdigit (static_cast<unsigned char> (Peek())))
-    {
-        Advance();
-    }
-
-    if (!AtEnd() && Peek() == '.')
-    {
-        Advance();
-
-        while (!AtEnd() && isdigit (static_cast<unsigned char> (Peek())))
-        {
-            Advance();
-        }
-    }
-
-    if (!AtEnd() && (Peek() == 'e' || Peek() == 'E'))
-    {
-        Advance();
-
-        if (!AtEnd() && (Peek() == '+' || Peek() == '-'))
+        // Standard JSON number
+        if (Peek() == '-')
         {
             Advance();
         }
@@ -297,10 +288,37 @@ HRESULT JsonParser::ParseNumber (JsonValue & outValue)
         {
             Advance();
         }
+
+        if (!AtEnd() && Peek() == '.')
+        {
+            Advance();
+
+            while (!AtEnd() && isdigit (static_cast<unsigned char> (Peek())))
+            {
+                Advance();
+            }
+        }
+
+        if (!AtEnd() && (Peek() == 'e' || Peek() == 'E'))
+        {
+            Advance();
+
+            if (!AtEnd() && (Peek() == '+' || Peek() == '-'))
+            {
+                Advance();
+            }
+
+            while (!AtEnd() && isdigit (static_cast<unsigned char> (Peek())))
+            {
+                Advance();
+            }
+        }
+
+        string  numStr = m_input.substr (start, m_pos - start);
+
+        value = strtod (numStr.c_str(), nullptr);
     }
 
-    string numStr = m_input.substr (start, m_pos - start);
-    double value = strtod (numStr.c_str(), nullptr);
     outValue = JsonValue (value);
 
     return hr;
@@ -318,9 +336,19 @@ HRESULT JsonParser::ParseNumber (JsonValue & outValue)
 
 HRESULT JsonParser::ParseObject (JsonValue & outValue)
 {
-    HRESULT hr = S_OK;
+    HRESULT hr        = S_OK;
+    bool    isBrace   = false;
+    bool    hasInput  = false;
+    bool    isQuote   = false;
+    bool    hasColon  = false;
+    bool    isComma   = false;
+    bool    isEmpty   = false;
 
-    CBR (Peek() == '{');
+
+
+    isBrace = (Peek() == '{');
+    CBR (isBrace);
+
     Advance();
 
     {
@@ -328,26 +356,32 @@ HRESULT JsonParser::ParseObject (JsonValue & outValue)
 
         SkipWhitespace();
 
-        if (!AtEnd() && Peek() == '}')
+        isEmpty = !AtEnd() && Peek() == '}';
+
+        if (isEmpty)
         {
             Advance();
-            outValue = JsonValue (move (entries));
-            return S_OK;
         }
 
-        while (true)
+        while (!isEmpty)
         {
             SkipWhitespace();
-            CBR (!AtEnd());
 
-            CBRF (Peek() == '"', SetError ("Expected string key in object"));
+            hasInput = !AtEnd();
+            CBR (hasInput);
+
+            isQuote = (Peek() == '"');
+            CBRF (isQuote, SetError ("Expected string key in object"));
 
             string key;
             hr = ParseString (key);
             CHR (hr);
 
             SkipWhitespace();
-            CBR (!AtEnd() && Peek() == ':');
+
+            hasColon = !AtEnd() && Peek() == ':';
+            CBR (hasColon);
+
             Advance();
 
             JsonValue val;
@@ -357,7 +391,9 @@ HRESULT JsonParser::ParseObject (JsonValue & outValue)
             entries.emplace_back (move (key), move (val));
 
             SkipWhitespace();
-            CBR (!AtEnd());
+
+            hasInput = !AtEnd();
+            CBR (hasInput);
 
             if (Peek() == '}')
             {
@@ -365,7 +401,8 @@ HRESULT JsonParser::ParseObject (JsonValue & outValue)
                 break;
             }
 
-            CBRF (Peek() == ',', SetError ("Expected ',' or '}' in object"));
+            isComma = (Peek() == ',');
+            CBRF (isComma, SetError ("Expected ',' or '}' in object"));
 
             Advance();
         }
@@ -389,9 +426,17 @@ Error:
 
 HRESULT JsonParser::ParseArray (JsonValue & outValue)
 {
-    HRESULT hr = S_OK;
+    HRESULT hr        = S_OK;
+    bool    isBracket = false;
+    bool    hasInput  = false;
+    bool    isComma   = false;
+    bool    isEmpty   = false;
 
-    CBR (Peek() == '[');
+
+
+    isBracket = (Peek() == '[');
+    CBR (isBracket);
+
     Advance();
 
     {
@@ -399,14 +444,14 @@ HRESULT JsonParser::ParseArray (JsonValue & outValue)
 
         SkipWhitespace();
 
-        if (!AtEnd() && Peek() == ']')
+        isEmpty = !AtEnd() && Peek() == ']';
+
+        if (isEmpty)
         {
             Advance();
-            outValue = JsonValue (move (elements));
-            return S_OK;
         }
 
-        while (true)
+        while (!isEmpty)
         {
             JsonValue val;
             hr = ParseValue (val);
@@ -415,7 +460,9 @@ HRESULT JsonParser::ParseArray (JsonValue & outValue)
             elements.push_back (move (val));
 
             SkipWhitespace();
-            CBR (!AtEnd());
+
+            hasInput = !AtEnd();
+            CBR (hasInput);
 
             if (Peek() == ']')
             {
@@ -423,7 +470,8 @@ HRESULT JsonParser::ParseArray (JsonValue & outValue)
                 break;
             }
 
-            CBRF (Peek() == ',', SetError ("Expected ',' or ']' in array"));
+            isComma = (Peek() == ',');
+            CBRF (isComma, SetError ("Expected ',' or ']' in array"));
 
             Advance();
         }
@@ -447,15 +495,22 @@ Error:
 
 HRESULT JsonParser::ParseKeyword (const char * keyword, JsonValue & outValue)
 {
-    HRESULT hr = S_OK;
+    HRESULT hr        = S_OK;
+    size_t  len       = 0;
+    bool    matchesCh = false;
+
+
 
     UNREFERENCED_PARAMETER (outValue);
 
-    size_t len = strlen (keyword);
+
+
+    len = strlen (keyword);
 
     for (size_t i = 0; i < len; i++)
     {
-        CBRF (!AtEnd() && Peek() == keyword[i], SetError (format ("Expected '{}'", keyword)));
+        matchesCh = !AtEnd() && Peek() == keyword[i];
+        CBRF (matchesCh, SetError (format ("Expected '{}'", keyword)));
 
         Advance();
     }

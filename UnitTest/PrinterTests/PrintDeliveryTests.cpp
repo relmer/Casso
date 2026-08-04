@@ -9,6 +9,7 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  PrintDeliveryTests
@@ -55,11 +56,11 @@ namespace PrintDeliveryTests
                 raster.Strike (col, 1, InkPrimary::Red);
             }
 
-            Assert::IsTrue (SUCCEEDED (PrintDelivery::RenderToPng (
-                raster, 0, raster.RowsUsed() - 1, 288, DotStyle::Ink, png)));
+            AssertSucceeded (PrintDelivery::RenderToPng (
+                raster, 0, raster.RowsUsed() - 1, 288, DotStyle::Ink, png));
             Assert::IsTrue (png.size() > 8);
 
-            Assert::IsTrue (SUCCEEDED (PngCodec::DecodeRgba (png, decoded)));
+            AssertSucceeded (PngCodec::DecodeRgba (png, decoded));
             Assert::AreEqual (1280 * 288 / 160, decoded.width);          // full printable width
 
             for (y = 0; y < decoded.height; y++)

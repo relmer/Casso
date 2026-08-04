@@ -46,7 +46,7 @@ Still open: T010 (dropped), US6 T046–T049, end-to-end sign-offs T026/T032/T041
 - [X] T013 [P] [US1] Unit tests: strikes, boundaries, cap, clear in `UnitTest/PrinterTests/PrintRasterTests.cpp` — 10 tests (overprint OR, blank-feed preservation, FF page-top advance, cap)
 - [X] T014 [US1] Implement `ImageWriterInterpreter` parser core + monochrome subset (ASCII passthrough consumed-not-rendered until US6 font; CR/LF/FF; pitch selections; line-spacing incl. half-height; bit-image graphics commands; reset; unknown-command consumption + event) emitting strikes + PrinterEvents, per R-003, in `CassoEmuCore/Devices/Printer/ImageWriterInterpreter.h/.cpp` — parser framework + control codes exact; ESC-command bytes / bit-image geometry marked PROVISIONAL pending T011 capture
 - [X] T015 [US1] Unit tests: per-command-family goldens (cell spot checks), determinism (identical stream → identical raster+events) in `UnitTest/PrinterTests/ImageWriterInterpreterTests.cpp` — 10 tests; captured Print Shop fixture replay deferred to T011
-- [X] T016 [US1] Implement `PaperRenderer` per R-005 (true-geometry resample, precomputed AA disc kernels at pin diameter, black ink path, Plain square style, 288/576 dpi, deterministic) in `CassoEmuCore/Devices/Printer/PaperRenderer.h/.cpp` — full 7-colour overprint palette + ribbon weave; `RgbaImage` container added
+- [X] T016 [US1] Implement `PaperRenderer` per R-005 (true-geometry resample, precomputed AA disc kernels at pin diameter, black ink path, Plain square style, 288/576 dpi, deterministic) in `CassoEmuCore/Devices/Printer/PaperRenderer.h/.cpp` — full 7-color overprint palette + ribbon weave; `RgbaImage` container added
 - [X] T017 [US1] Unit tests: geometry (SC-009 circle aspect ≤1%), dot roundness spot pixels, style/dpi matrix, determinism hashes in `UnitTest/PrinterTests/PaperRendererTests.cpp` — 9 tests
 - [X] T018 [P] [US1] Implement `PrintJobSerializer` (strip+meta ⇄ indexed pixel plane + sidecar JSON per contracts/printing-settings.md) in `CassoEmuCore/Devices/Printer/PrintJobSerializer.h/.cpp` with round-trip tests in `UnitTest/PrinterTests/PrintJobSerializerTests.cpp` — pure (WIC PNG wrap deferred to PrintJobStore per R-007/R-010); added `PrintRaster::RestoreFromIndexed`; 5 tests
 - [X] T019 [US1] Implement `PrintJobStore` (per-machine PendingPrint/ load-at-open, save on exit/eject/discard, corrupt→empty-silent) in `Casso/Print/PrintJobStore.h/.cpp` (FR-026)
@@ -227,7 +227,7 @@ Shipped on this branch after real-hardware dogfooding:
   carriage speed 0.25 s is 78% of a pass (5e38a996: restore the 0.05 s edge-trigger release;
   strike / silence / strike on a border sign). A form feed / tear still cuts the hold clean.
   `CassoEmuCore/Audio/PrinterAudioSource.*` + `Casso/Ui/PrinterPanel.cpp` + tests.
-- [X] BUG-4 Delivery-failure dialog was nerdspeak + a cancelled Print-to-PDF Save-As fired it.
+- [X] BUG-4 Delivery-failure dialog was nerdspeak + a canceled Print-to-PDF Save-As fired it.
   Cancel now silent (S_FALSE); message is plain-language with a `Details: 0x… — <system text>`
   trailer (CWRF captures the real GDI error). `Casso/Shell/WindowCommandManager.cpp`.
 

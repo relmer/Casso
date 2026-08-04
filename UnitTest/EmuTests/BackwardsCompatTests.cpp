@@ -5,226 +5,6 @@
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
 
-namespace
-{
-    static constexpr int       kMaxAncestorWalk     = 8;
-    static constexpr size_t    kRom12K              = 12288;
-    static constexpr size_t    kRom16K              = 16384;
-    static constexpr size_t    kCharRomSize         = 2048;
-    static constexpr size_t    kDiskRomSize         = 256;
-    static constexpr size_t    kEnhancedCharRomSize = 4096;
-    static constexpr size_t    kPrngSampleCount     = 256;
-    static constexpr size_t    kAppleIIVideoModes   = 3;
-    static constexpr Word      kAppleIISystemRomAt  = 0xD000;
-    static constexpr Word      kAppleIIRamSize      = 0xC000;
-
-
-    ////////////////////////////////////////////////////////////////////////////
-    //
-    //  WalkUpForRepoRoot — locate the directory containing `Resources/` by
-    //  walking up the test binary's working directory. Mirrors the
-    //  resolver pattern used by FixtureProvider so the tests stay
-    //  filesystem-independent across CI vs local builds. Resources/
-    //  is always tracked in git (unlike runtime-managed Machines/).
-    //
-    ////////////////////////////////////////////////////////////////////////////
-
-    fs::path WalkUpForRepoRoot ()
-    {
-        std::error_code   ec;
-        fs::path          cursor;
-        fs::path          candidate;
-        int               steps;
-
-        cursor = fs::current_path (ec);
-        if (ec)
-        {
-            return fs::path ();
-        }
-
-        for (steps = 0; steps < kMaxAncestorWalk; steps++)
-        {
-            candidate = cursor / "Resources";
-
-            if (fs::exists (candidate, ec) && fs::is_directory (candidate, ec))
-            {
-                return cursor;
-            }
-
-            if (!cursor.has_parent_path () || cursor == cursor.parent_path ())
-            {
-                break;
-            }
-
-            cursor = cursor.parent_path ();
-        }
-
-        return fs::path ();
-    }
-
-
-    ////////////////////////////////////////////////////////////////////////////
-    //
-    //  ReadMachineJson — read a Resources/Machines/<MachineName>/<MachineName>.json
-    //  file from the resolved repo root into a string. Returns "" if
-    //  not found. Accepts the same `<MachineName>.json` filename the
-    //  callers used under the legacy flat layout; the per-machine
-    //  subdirectory is derived by stripping the `.json` suffix.
-    //
-    ////////////////////////////////////////////////////////////////////////////
-
-    std::string ReadMachineJson (const std::string & filename)
-    {
-        fs::path        repoRoot = WalkUpForRepoRoot ();
-        fs::path        full;
-        std::string     stem;
-        std::ifstream   stream;
-        std::string     content;
-
-        if (repoRoot.empty ())
-        {
-            return std::string ();
-        }
-
-        stem = fs::path (filename).stem ().string ();
-        full = repoRoot / "Resources" / "Machines" / stem / filename;
-
-        stream.open (full, std::ios::binary);
-        if (!stream.is_open ())
-        {
-            return std::string ();
-        }
-
-        content.assign (
-            std::istreambuf_iterator<char> (stream),
-            std::istreambuf_iterator<char> ());
-
-        return content;
-    }
-
-
-    ////////////////////////////////////////////////////////////////////////////
-    //
-    //  MockResolveAll — stamps a temp file of the expected size for each
-    //  ROM filename so MachineConfigLoader::Load passes its size-check.
-    //  Mirrors MachineConfigTests::MockResolveAll so backwards-compat
-    //  parsing exercises the same code path that ships in production.
-    //
-    ////////////////////////////////////////////////////////////////////////////
-
-    fs::path MockResolveAll (
-        const std::vector<fs::path> & searchPaths,
-        const fs::path              & relativePath)
-    {
-        std::string         filename = relativePath.filename ().string ();
-        size_t              expectedSize;
-        fs::path            tempPath;
-        bool                needCreate;
-        std::error_code     ec;
-        std::vector<Byte>   buffer;
-        std::ofstream       out;
-
-        UNREFERENCED_PARAMETER (searchPaths);
-
-        expectedSize = kDiskRomSize;
-
-        if (filename == "Apple2Plus.rom" || filename == "Apple2.rom")
-        {
-            expectedSize = kRom12K;
-        }
-        else if (filename == "Apple2e.rom" || filename == "Apple2eEnhanced.rom")
-        {
-            expectedSize = kRom16K;
-        }
-        else if (filename == "Disk2.rom")
-        {
-            expectedSize = kDiskRomSize;
-        }
-        else if (filename == "Apple2_Video.rom")
-        {
-            expectedSize = kCharRomSize;
-        }
-        else if (filename == "Apple2e_Video.rom")
-        {
-            expectedSize = kEnhancedCharRomSize;
-        }
-
-        tempPath   = fs::temp_directory_path () / ("casso_bc_" + filename);
-        needCreate = !fs::exists (tempPath, ec);
-
-        if (!needCreate)
-        {
-            try
-            {
-                needCreate = fs::file_size (tempPath) != expectedSize;
-            }
-            catch (...)
-            {
-                needCreate = true;
-            }
-        }
-
-        if (needCreate)
-        {
-            buffer.assign (expectedSize, 0);
-            out.open (tempPath, std::ios::binary | std::ios::trunc);
-            out.write (reinterpret_cast<const char *> (buffer.data ()),
-                       static_cast<std::streamsize> (expectedSize));
-            out.flush ();
-            out.close ();
-        }
-
-        return tempPath;
-    }
-
-
-    ////////////////////////////////////////////////////////////////////////////
-    //
-    //  HasInternalDeviceType — true if `cfg` lists a device whose `type`
-    //  matches `needle`. Used to assert the //e-only device types are
-    //  absent from the ][/][+ configs.
-    //
-    ////////////////////////////////////////////////////////////////////////////
-
-    bool HasInternalDeviceType (const MachineConfig & cfg, const std::string & needle)
-    {
-        size_t   i;
-
-        for (i = 0; i < cfg.internalDevices.size (); i++)
-        {
-            if (cfg.internalDevices[i].type == needle)
-            {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-
-    ////////////////////////////////////////////////////////////////////////////
-    //
-    //  HasSlotDevice — true if `cfg` installs `device` in `slot`.
-    //
-    ////////////////////////////////////////////////////////////////////////////
-
-    bool HasSlotDevice (const MachineConfig & cfg, int slot, const std::string & device)
-    {
-        size_t   i;
-
-        for (i = 0; i < cfg.slots.size (); i++)
-        {
-            if (cfg.slots[i].slot == slot && cfg.slots[i].device == device)
-            {
-                return true;
-            }
-        }
-
-        return false;
-    }
-}
-
-
 
 
 
@@ -267,6 +47,224 @@ TEST_CLASS (BackwardsCompatTests)
 {
 public:
 
+    static constexpr int       kMaxAncestorWalk     = 8;
+    static constexpr size_t    kRom12K              = 12288;
+    static constexpr size_t    kRom16K              = 16384;
+    static constexpr size_t    kCharRomSize         = 2048;
+    static constexpr size_t    kDiskRomSize         = 256;
+    static constexpr size_t    kEnhancedCharRomSize = 4096;
+    static constexpr size_t    kPrngSampleCount     = 256;
+    static constexpr size_t    kAppleIIVideoModes   = 3;
+    static constexpr Word      kAppleIISystemRomAt  = 0xD000;
+    static constexpr Word      kAppleIIRamSize      = 0xC000;
+
+
+    ////////////////////////////////////////////////////////////////////////////
+    //
+    //  WalkUpForRepoRoot — locate the directory containing `Resources/` by
+    //  walking up the test binary's working directory. Mirrors the
+    //  resolver pattern used by FixtureProvider so the tests stay
+    //  filesystem-independent across CI vs local builds. Resources/
+    //  is always tracked in git (unlike runtime-managed Machines/).
+    //
+    ////////////////////////////////////////////////////////////////////////////
+
+    fs::path WalkUpForRepoRoot()
+    {
+        std::error_code   ec;
+        fs::path          cursor;
+        fs::path          candidate;
+        int               steps;
+
+        fs::path   root;
+        bool       walking;
+
+        cursor  = fs::current_path (ec);
+        walking = !ec;
+
+        for (steps = 0; walking && root.empty() && steps < kMaxAncestorWalk; steps++)
+        {
+            candidate = cursor / "Resources";
+
+            if (fs::exists (candidate, ec) && fs::is_directory (candidate, ec))
+            {
+                root = cursor;
+            }
+            else if (!cursor.has_parent_path() || cursor == cursor.parent_path())
+            {
+                // Hit the drive root without finding Resources/.
+                walking = false;
+            }
+            else
+            {
+                cursor = cursor.parent_path();
+            }
+        }
+
+        return root;
+    }
+
+
+    ////////////////////////////////////////////////////////////////////////////
+    //
+    //  ReadMachineJson — read a Resources/Machines/<MachineName>/<MachineName>.json
+    //  file from the resolved repo root into a string. Returns "" if
+    //  not found. Accepts the same `<MachineName>.json` filename the
+    //  callers used under the legacy flat layout; the per-machine
+    //  subdirectory is derived by stripping the `.json` suffix.
+    //
+    ////////////////////////////////////////////////////////////////////////////
+
+    std::string ReadMachineJson (const std::string & filename)
+    {
+        fs::path        repoRoot = WalkUpForRepoRoot();
+        fs::path        full;
+        std::string     stem;
+        std::ifstream   stream;
+        std::string     content;
+
+        // No repo root means no Resources/ tree to read from -- there is
+        // nothing to open, so this stops before building a path from an
+        // empty prefix (which would resolve relative to the CWD).
+        if (!repoRoot.empty())
+        {
+            stem = fs::path (filename).stem().string();
+            full = repoRoot / "Resources" / "Machines" / stem / filename;
+
+            stream.open (full, std::ios::binary);
+
+            if (stream.is_open())
+            {
+                content.assign (
+                    std::istreambuf_iterator<char> (stream),
+                    std::istreambuf_iterator<char> ());
+            }
+        }
+
+        return content;
+    }
+
+
+    ////////////////////////////////////////////////////////////////////////////
+    //
+    //  MockResolveAll — stamps a temp file of the expected size for each
+    //  ROM filename so MachineConfigLoader::Load passes its size-check.
+    //  Mirrors MachineConfigTests::MockResolveAll so backwards-compat
+    //  parsing exercises the same code path that ships in production.
+    //
+    ////////////////////////////////////////////////////////////////////////////
+
+    static fs::path MockResolveAll (
+        const std::vector<fs::path> & searchPaths,
+        const fs::path              & relativePath)
+    {
+        std::string         filename = relativePath.filename().string();
+        size_t              expectedSize;
+        fs::path            tempPath;
+        bool                needCreate;
+        std::error_code     ec;
+        std::vector<Byte>   buffer;
+        std::ofstream       out;
+
+        UNREFERENCED_PARAMETER (searchPaths);
+
+        expectedSize = kDiskRomSize;
+
+        if (filename == "Apple2Plus.rom" || filename == "Apple2.rom")
+        {
+            expectedSize = kRom12K;
+        }
+        else if (filename == "Apple2e.rom" || filename == "Apple2eEnhanced.rom")
+        {
+            expectedSize = kRom16K;
+        }
+        else if (filename == "Disk2.rom")
+        {
+            expectedSize = kDiskRomSize;
+        }
+        else if (filename == "Apple2_Video.rom")
+        {
+            expectedSize = kCharRomSize;
+        }
+        else if (filename == "Apple2e_Video.rom")
+        {
+            expectedSize = kEnhancedCharRomSize;
+        }
+
+        tempPath   = fs::temp_directory_path() / ("casso_bc_" + filename);
+        needCreate = !fs::exists (tempPath, ec);
+
+        if (!needCreate)
+        {
+            try
+            {
+                needCreate = fs::file_size (tempPath) != expectedSize;
+            }
+            catch (...)
+            {
+                needCreate = true;
+            }
+        }
+
+        if (needCreate)
+        {
+            buffer.assign (expectedSize, 0);
+            out.open (tempPath, std::ios::binary | std::ios::trunc);
+            out.write (reinterpret_cast<const char *> (buffer.data()),
+                       static_cast<std::streamsize> (expectedSize));
+            out.flush();
+            out.close();
+        }
+
+        return tempPath;
+    }
+
+
+    ////////////////////////////////////////////////////////////////////////////
+    //
+    //  HasInternalDeviceType — true if `cfg` lists a device whose `type`
+    //  matches `needle`. Used to assert the //e-only device types are
+    //  absent from the ][/][+ configs.
+    //
+    ////////////////////////////////////////////////////////////////////////////
+
+    bool HasInternalDeviceType (const MachineConfig & cfg, const std::string & needle)
+    {
+        bool  found = false;
+
+
+
+        for (auto it = cfg.internalDevices.begin();
+             !found && it != cfg.internalDevices.end();
+             ++it)
+        {
+            found = (it->type == needle);
+        }
+
+        return found;
+    }
+
+
+    ////////////////////////////////////////////////////////////////////////////
+    //
+    //  HasSlotDevice — true if `cfg` installs `device` in `slot`.
+    //
+    ////////////////////////////////////////////////////////////////////////////
+
+    bool HasSlotDevice (const MachineConfig & cfg, int slot, const std::string & device)
+    {
+        bool  found = false;
+
+
+
+        for (auto it = cfg.slots.begin(); !found && it != cfg.slots.end(); ++it)
+        {
+            found = (it->slot == slot && it->device == device);
+        }
+
+        return found;
+    }
+
     ////////////////////////////////////////////////////////////////////////
     //
     //  AppleII_Json_ParsesAsValidMachineConfig — the original ][ config
@@ -284,7 +282,7 @@ public:
         HRESULT                 hr;
 
         json = ReadMachineJson ("Apple2.json");
-        Assert::IsFalse (json.empty (),
+        Assert::IsFalse (json.empty(),
             L"Resources/Machines/Apple2/Apple2.json must be reachable from the test cwd");
 
         searchPaths.push_back (fs::path ("/mock"));
@@ -292,7 +290,7 @@ public:
         hr = MachineConfigLoader::Load (json, "TestMachine", searchPaths, MockResolveAll,
                                         config, error);
 
-        Assert::IsTrue (SUCCEEDED (hr),
+        AssertSucceeded (hr,
             L"Apple2.json must parse cleanly through the production loader");
         Assert::AreEqual (std::string ("Apple ]["), config.name,
             L"Apple2.json name must remain 'Apple ]['");
@@ -316,7 +314,7 @@ public:
         HRESULT                 hr;
 
         json = ReadMachineJson ("Apple2Plus.json");
-        Assert::IsFalse (json.empty (),
+        Assert::IsFalse (json.empty(),
             L"Resources/Machines/Apple2Plus/Apple2Plus.json must be reachable from the test cwd");
 
         searchPaths.push_back (fs::path ("/mock"));
@@ -324,7 +322,7 @@ public:
         hr = MachineConfigLoader::Load (json, "TestMachine", searchPaths, MockResolveAll,
                                         config, error);
 
-        Assert::IsTrue (SUCCEEDED (hr),
+        AssertSucceeded (hr,
             L"Apple2Plus.json must parse cleanly through the production loader");
         Assert::AreEqual (std::string ("Apple ][ plus"), config.name,
             L"Apple2Plus.json name must remain 'Apple ][ plus'");
@@ -354,7 +352,7 @@ public:
 
         hr = MachineConfigLoader::Load (json, "TestMachine", searchPaths, MockResolveAll,
                                         config, error);
-        Assert::IsTrue (SUCCEEDED (hr));
+        AssertSucceeded (hr);
 
         Assert::IsFalse (HasInternalDeviceType (config, "apple2e-mmu"),
             L"Apple2.json must NOT include apple2e-mmu (composition pin)");
@@ -386,7 +384,7 @@ public:
 
         hr = MachineConfigLoader::Load (json, "TestMachine", searchPaths, MockResolveAll,
                                         config, error);
-        Assert::IsTrue (SUCCEEDED (hr));
+        AssertSucceeded (hr);
 
         Assert::IsFalse (HasInternalDeviceType (config, "apple2e-mmu"),
             L"Apple2Plus.json must NOT include apple2e-mmu");
@@ -414,7 +412,6 @@ public:
         MachineConfig           config;
         std::string             error;
         std::vector<fs::path>   searchPaths;
-        size_t                  i;
         HRESULT                 hr;
 
         json = ReadMachineJson ("Apple2.json");
@@ -422,9 +419,9 @@ public:
 
         hr = MachineConfigLoader::Load (json, "TestMachine", searchPaths, MockResolveAll,
                                         config, error);
-        Assert::IsTrue (SUCCEEDED (hr));
+        AssertSucceeded (hr);
 
-        Assert::AreEqual (size_t (1), config.ram.size (),
+        Assert::AreEqual (size_t (1), config.ram.size(),
             L"Apple2.json must declare exactly one RAM region (no aux bank)");
         Assert::AreEqual (Word (0x0000), config.ram[0].address,
             L"Apple2.json RAM region 0 must start at $0000");
@@ -433,16 +430,16 @@ public:
         Assert::AreEqual (kAppleIISystemRomAt, config.systemRom.address,
             L"Apple2.json system ROM must remain at $D000");
 
-        Assert::AreEqual (kAppleIIVideoModes, config.videoConfig.modes.size (),
+        Assert::AreEqual (kAppleIIVideoModes, config.videoConfig.modes.size(),
             L"Apple2.json must list exactly 3 video modes (text40/lores/hires)");
 
-        for (i = 0; i < config.videoConfig.modes.size (); i++)
+        for (auto & mode : config.videoConfig.modes)
         {
             Assert::AreNotEqual (std::string ("apple2-text80"),
-                config.videoConfig.modes[i],
+                mode,
                 L"Apple2.json must NOT include 80-col text mode");
             Assert::AreNotEqual (std::string ("apple2-doublehires"),
-                config.videoConfig.modes[i],
+                mode,
                 L"Apple2.json must NOT include double-hires mode");
         }
     }
@@ -460,7 +457,6 @@ public:
         MachineConfig           config;
         std::string             error;
         std::vector<fs::path>   searchPaths;
-        size_t                  i;
         HRESULT                 hr;
 
         json = ReadMachineJson ("Apple2Plus.json");
@@ -468,24 +464,24 @@ public:
 
         hr = MachineConfigLoader::Load (json, "TestMachine", searchPaths, MockResolveAll,
                                         config, error);
-        Assert::IsTrue (SUCCEEDED (hr));
+        AssertSucceeded (hr);
 
-        Assert::AreEqual (size_t (1), config.ram.size (),
+        Assert::AreEqual (size_t (1), config.ram.size(),
             L"Apple2Plus.json must declare exactly one RAM region");
         Assert::AreEqual (kAppleIIRamSize, config.ram[0].size,
             L"Apple2Plus.json RAM region must be $C000 bytes");
         Assert::AreEqual (kAppleIISystemRomAt, config.systemRom.address,
             L"Apple2Plus.json system ROM must remain at $D000");
-        Assert::AreEqual (kAppleIIVideoModes, config.videoConfig.modes.size (),
+        Assert::AreEqual (kAppleIIVideoModes, config.videoConfig.modes.size(),
             L"Apple2Plus.json must list exactly 3 video modes");
 
-        for (i = 0; i < config.videoConfig.modes.size (); i++)
+        for (auto & mode : config.videoConfig.modes)
         {
             Assert::AreNotEqual (std::string ("apple2-text80"),
-                config.videoConfig.modes[i],
+                mode,
                 L"Apple2Plus.json must NOT include 80-col text mode");
             Assert::AreNotEqual (std::string ("apple2-doublehires"),
-                config.videoConfig.modes[i],
+                mode,
                 L"Apple2Plus.json must NOT include double-hires mode");
         }
     }
@@ -512,7 +508,7 @@ public:
 
         hr = MachineConfigLoader::Load (json, "TestMachine", searchPaths, MockResolveAll,
                                         config, error);
-        Assert::IsTrue (SUCCEEDED (hr));
+        AssertSucceeded (hr);
 
         Assert::AreEqual (std::string ("apple2-uppercase"), config.keyboardType,
             L"Apple2.json keyboard type must remain apple2-uppercase");
@@ -526,9 +522,9 @@ public:
         Assert::IsTrue  (HasInternalDeviceType (config, "apple2-gameport"),
             L"Apple2.json must include apple2-gameport");
 
-        Assert::AreEqual (size_t (4), config.internalDevices.size (),
+        Assert::AreEqual (size_t (4), config.internalDevices.size(),
             L"Apple2.json internalDevices count must remain exactly 4");
-        Assert::AreEqual (size_t (2), config.slots.size (),
+        Assert::AreEqual (size_t (2), config.slots.size(),
             L"Apple2.json declares two slots: parallel printer (slot 1), Disk II (slot 6)");
     }
 
@@ -552,7 +548,7 @@ public:
 
         hr = MachineConfigLoader::Load (json, "TestMachine", searchPaths, MockResolveAll,
                                         config, error);
-        Assert::IsTrue (SUCCEEDED (hr));
+        AssertSucceeded (hr);
 
         Assert::AreEqual (std::string ("apple2-uppercase"), config.keyboardType,
             L"Apple2Plus.json keyboard type must remain apple2-uppercase");
@@ -566,9 +562,9 @@ public:
         Assert::IsTrue (HasInternalDeviceType (config, "apple2-gameport"),
             L"Apple2Plus.json must include apple2-gameport");
 
-        Assert::AreEqual (size_t (4), config.internalDevices.size (),
+        Assert::AreEqual (size_t (4), config.internalDevices.size(),
             L"Apple2Plus.json internalDevices count must remain exactly 4");
-        Assert::AreEqual (size_t (3), config.slots.size (),
+        Assert::AreEqual (size_t (3), config.slots.size(),
             L"Apple2Plus.json declares three slots: parallel printer (slot 1), Mockingboard (slot 4), Disk II (slot 6)");
         Assert::IsTrue (HasSlotDevice (config, 1, "parallel-printer"),
             L"Apple2Plus.json must install the parallel printer in slot 1");
@@ -597,29 +593,29 @@ public:
 
         hr = host.BuildAppleII (core);
 
-        Assert::IsTrue (SUCCEEDED (hr),
+        AssertSucceeded (hr,
             L"HeadlessHost::BuildAppleII must succeed");
         Assert::IsTrue (core.machineKind == HeadlessMachineKind::AppleII,
             L"machineKind must remain AppleII");
 
-        Assert::IsNotNull (core.prng.get (),     L"][ harness must wire a Prng");
-        Assert::IsNotNull (core.host.get (),     L"][ harness must wire MockHostShell");
-        Assert::IsNotNull (core.fixtures.get (), L"][ harness must wire FixtureProvider");
+        Assert::IsNotNull (core.prng.get(),     L"][ harness must wire a Prng");
+        Assert::IsNotNull (core.host.get(),     L"][ harness must wire MockHostShell");
+        Assert::IsNotNull (core.fixtures.get(), L"][ harness must wire FixtureProvider");
 
-        Assert::IsNull (core.mmu.get (),
+        Assert::IsNull (core.mmu.get(),
             L"][ harness must NOT pull in Apple2eMmu (composition pin)");
-        Assert::IsNull (core.cpu.get (),
+        Assert::IsNull (core.cpu.get(),
             L"][ harness must NOT pull in EmuCpu (][ build path stays minimal)");
-        Assert::IsNull (core.bus.get (),
+        Assert::IsNull (core.bus.get(),
             L"][ harness must NOT pull in MemoryBus");
-        Assert::IsNull (core.mainRam.get (),
+        Assert::IsNull (core.mainRam.get(),
             L"][ harness must NOT pull in RamDevice");
-        Assert::IsNull (core.languageCard.get (),
+        Assert::IsNull (core.languageCard.get(),
             L"][ harness must NOT pull in LanguageCard by default");
-        Assert::IsNull (core.diskController.get (),
+        Assert::IsNull (core.diskController.get(),
             L"][ harness must NOT pull in Disk2Controller by default");
 
-        Assert::IsFalse (core.HasApple2e (),
+        Assert::IsFalse (core.HasApple2e(),
             L"][ harness must NOT report HasApple2e");
     }
 
@@ -638,25 +634,25 @@ public:
 
         hr = host.BuildAppleIIPlus (core);
 
-        Assert::IsTrue (SUCCEEDED (hr),
+        AssertSucceeded (hr,
             L"HeadlessHost::BuildAppleIIPlus must succeed");
         Assert::IsTrue (core.machineKind == HeadlessMachineKind::AppleIIPlus,
             L"machineKind must remain AppleIIPlus");
 
-        Assert::IsNotNull (core.prng.get ());
-        Assert::IsNotNull (core.host.get ());
-        Assert::IsNotNull (core.fixtures.get ());
+        Assert::IsNotNull (core.prng.get());
+        Assert::IsNotNull (core.host.get());
+        Assert::IsNotNull (core.fixtures.get());
 
-        Assert::IsNull (core.mmu.get (),
+        Assert::IsNull (core.mmu.get(),
             L"][+ harness must NOT pull in Apple2eMmu");
-        Assert::IsNull (core.cpu.get (),
+        Assert::IsNull (core.cpu.get(),
             L"][+ harness must NOT pull in EmuCpu");
-        Assert::IsNull (core.bus.get ());
-        Assert::IsNull (core.mainRam.get ());
-        Assert::IsNull (core.languageCard.get ());
-        Assert::IsNull (core.diskController.get ());
+        Assert::IsNull (core.bus.get());
+        Assert::IsNull (core.mainRam.get());
+        Assert::IsNull (core.languageCard.get());
+        Assert::IsNull (core.diskController.get());
 
-        Assert::IsFalse (core.HasApple2e ());
+        Assert::IsFalse (core.HasApple2e());
     }
 
 
@@ -680,14 +676,14 @@ public:
         HRESULT        hr;
 
         hr = hostA.BuildAppleII (coreA);
-        Assert::IsTrue (SUCCEEDED (hr));
+        AssertSucceeded (hr);
 
         hr = hostB.BuildAppleII (coreB);
-        Assert::IsTrue (SUCCEEDED (hr));
+        AssertSucceeded (hr);
 
         for (i = 0; i < kPrngSampleCount; i++)
         {
-            Assert::AreEqual (coreA.prng->Next64 (), coreB.prng->Next64 (),
+            Assert::AreEqual (coreA.prng->Next64(), coreB.prng->Next64(),
                 L"][ harness with the pinned seed must be deterministic");
         }
     }
@@ -709,14 +705,14 @@ public:
         HRESULT        hr;
 
         hr = hostA.BuildAppleIIPlus (coreA);
-        Assert::IsTrue (SUCCEEDED (hr));
+        AssertSucceeded (hr);
 
         hr = hostB.BuildAppleIIPlus (coreB);
-        Assert::IsTrue (SUCCEEDED (hr));
+        AssertSucceeded (hr);
 
         for (i = 0; i < kPrngSampleCount; i++)
         {
-            Assert::AreEqual (coreA.prng->Next64 (), coreB.prng->Next64 (),
+            Assert::AreEqual (coreA.prng->Next64(), coreB.prng->Next64(),
                 L"][+ harness with the pinned seed must be deterministic");
         }
     }
@@ -740,13 +736,13 @@ public:
         HRESULT        hr;
 
         hr = host.BuildAppleII (coreII);
-        Assert::IsTrue (SUCCEEDED (hr));
+        AssertSucceeded (hr);
 
         hr = host.BuildAppleIIPlus (coreIIPlus);
-        Assert::IsTrue (SUCCEEDED (hr));
+        AssertSucceeded (hr);
 
         hr = host.BuildApple2e (coreIIe);
-        Assert::IsTrue (SUCCEEDED (hr));
+        AssertSucceeded (hr);
 
         Assert::IsTrue (coreII.machineKind     == HeadlessMachineKind::AppleII);
         Assert::IsTrue (coreIIPlus.machineKind == HeadlessMachineKind::AppleIIPlus);
@@ -756,11 +752,12 @@ public:
         Assert::IsTrue (coreIIPlus.machineKind != coreIIe.machineKind);
         Assert::IsTrue (coreII.machineKind     != coreIIe.machineKind);
 
-        Assert::IsTrue  (coreIIe.HasApple2e (),
+        Assert::IsTrue  (coreIIe.HasApple2e(),
             L"//e build path must produce a fully wired //e core");
-        Assert::IsFalse (coreII.HasApple2e (),
+        Assert::IsFalse (coreII.HasApple2e(),
             L"][ build path must NOT produce a //e core");
-        Assert::IsFalse (coreIIPlus.HasApple2e (),
+        Assert::IsFalse (coreIIPlus.HasApple2e(),
             L"][+ build path must NOT produce a //e core");
     }
 };
+

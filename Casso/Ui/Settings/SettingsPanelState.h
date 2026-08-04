@@ -9,7 +9,6 @@
 
 
 
-
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  SettingsPanelState
@@ -155,6 +154,9 @@ struct SettingsMachineInfo
 };
 
 
+
+
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  ISettingsApplySink
@@ -183,6 +185,9 @@ public:
 };
 
 
+
+
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  SettingsPanelState
@@ -203,7 +208,7 @@ public:
     bool IsDirty       () const;
     bool RequiresReset () const;          // true iff any hardware enable changed
 
-    // ---- Live (current) accessors / mutators ---------------------------
+    // Live (current) accessors / mutators
 
     const std::string                & MachineName () const { return m_machineName; }
     const SettingsMachineInfo        & MachineInfo() const { return m_machineInfo; }
@@ -246,12 +251,12 @@ public:
     void    SetMouseConnected         (bool connected);
     HRESULT SetHardwareEnabled (size_t index, bool enabled);
 
-    // ---- Apply ---------------------------------------------------------
+    // Apply
 
     HRESULT Apply (ISettingsApplySink & sink,
                    JsonValue          & outCurrentJson) const;
 
-    // ---- Pure helpers (exposed for tests) ------------------------------
+    // Pure helpers (exposed for tests)
 
     static HRESULT ExtractHardware    (const JsonValue            & mergedJson,
                                        std::vector<HardwareEntry> & outEntries);
@@ -274,6 +279,51 @@ private:
     static bool PrefsEqual    (const SettingsUiPrefs & a, const SettingsUiPrefs & b);
     static bool HardwareEqual (const std::vector<HardwareEntry> & a,
                                const std::vector<HardwareEntry> & b);
+
+    // JSON accessors and enum<->string mapping for the settings document.
+    // Every reader is a SettingsPanelState method, so the block belongs to
+    // the class. FindKey in particular collided by name with
+    // MachineConfigUpgrade's, which is what the anonymous namespaces were
+    // hiding.
+    static constexpr const char *  kpszUiPrefsKey = "$cassoUiPrefs";
+    static constexpr const char *  kpszVersionKey = "$cassoMachineVersion";
+
+    static int  FindKey (
+        const std::vector<std::pair<std::string, JsonValue>> & entries,
+        const std::string                                    & key);
+
+    static bool  GetBoolOpt (
+        const JsonValue   & obj,
+        const std::string & key,
+        bool                fallback);
+
+    static std::string  GetStringOpt (
+        const JsonValue   & obj,
+        const std::string & key,
+        const std::string & fallback);
+
+    static int  GetIntOpt (
+        const JsonValue   & obj,
+        const std::string & key,
+        int                 fallback);
+
+    static double  GetNumberOpt (
+        const JsonValue   & obj,
+        const std::string & key,
+        double              fallback);
+
+    static CapabilityFlag  ParseCapability (
+        const std::string & str,
+        CapabilityFlag      fallback);
+
+    static const char *        SpeedToString     (SettingsSpeedMode s);
+    static SettingsSpeedMode   SpeedFromString   (const std::string & s, SettingsSpeedMode fallback);
+    static const char *        ColorToString     (SettingsColorMode c);
+    static SettingsColorMode   ColorFromString   (const std::string & s, SettingsColorMode fallback);
+    static const char *        WriteModeToString (SettingsWriteMode mode);
+    static SettingsWriteMode   WriteModeFromString (const std::string & s, SettingsWriteMode fallback);
+
+    static JsonValue  CloneJson (const JsonValue & v);
 
 
     std::string          m_machineName;

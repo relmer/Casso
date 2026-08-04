@@ -43,7 +43,8 @@ public:
         HRESULT             hr;
 
         hr = prefs.Load (L"C:\\Casso", fs);
-        Assert::IsTrue (hr == S_FALSE);
+        Assert::AreEqual (HRESULT_FROM_WIN32 (ERROR_FILE_NOT_FOUND), hr,
+            L"First run must name the reason -- there is no prefs file yet");
         Assert::AreEqual (string ("Skeuomorphic"), prefs.activeTheme);
     }
 
@@ -82,10 +83,10 @@ public:
         orig.masterMuted                  = true;
 
         hr = orig.Save (L"C:\\Casso", fs);
-        Assert::IsTrue (SUCCEEDED (hr));
+        AssertSucceeded (hr);
 
         hr = loaded.Load (L"C:\\Casso", fs);
-        Assert::IsTrue (SUCCEEDED (hr));
+        AssertSucceeded (hr);
 
         Assert::AreEqual (orig.activeTheme,         loaded.activeTheme);
         Assert::AreEqual (orig.skeuoMonitorFrame,   loaded.skeuoMonitorFrame);
@@ -121,9 +122,9 @@ public:
     TEST_METHOD (ResetColorMonitorText_RevertsModeToWhite_KeepsCustomArgb)
     {
         // Regression (013 #8): "Restore defaults" left a previously-picked
-        // custom text colour active -- the control read White but the
-        // emulator kept the old colour. The reset must revert the mode to
-        // White (so the resolved colour is white) while remembering the
+        // custom text color active -- the control read White but the
+        // emulator kept the old color. The reset must revert the mode to
+        // White (so the resolved color is white) while remembering the
         // custom ARGB for the next time the user re-selects "Custom".
         GlobalUserPrefs  prefs;
         prefs.colorMonitorTextMode       = ColorMonitorTextMode::Custom;
@@ -141,28 +142,28 @@ public:
 
     TEST_METHOD (ColorMonitorText_PersistsAcrossSaveLoad_AndRestoreClearsIt)
     {
-        // The reported bug booted magenta because a custom text colour
+        // The reported bug booted magenta because a custom text color
         // round-tripped through UserPrefs.json and survived a Restore. Pin
-        // both halves: (1) a custom colour persists, and (2) after a reset +
-        // save the next load is White (not the stale custom colour).
+        // both halves: (1) a custom color persists, and (2) after a reset +
+        // save the next load is White (not the stale custom color).
         InMemoryFileSystem  fs;
         GlobalUserPrefs     orig;
 
         orig.colorMonitorTextMode       = ColorMonitorTextMode::Custom;
         orig.colorMonitorTextCustomArgb = 0xFF3399CCu;   // alpha forced FF on save
 
-        Assert::IsTrue (SUCCEEDED (orig.Save (L"C:\\Casso", fs)));
+        AssertSucceeded (orig.Save (L"C:\\Casso", fs));
 
         GlobalUserPrefs  loaded;
-        Assert::IsTrue (SUCCEEDED (loaded.Load (L"C:\\Casso", fs)));
+        AssertSucceeded (loaded.Load (L"C:\\Casso", fs));
         Assert::IsTrue   (ColorMonitorTextMode::Custom == loaded.colorMonitorTextMode);
         Assert::AreEqual (0xFF3399CCu, loaded.colorMonitorTextCustomArgb);
 
         loaded.ResetColorMonitorTextToDefault();
-        Assert::IsTrue (SUCCEEDED (loaded.Save (L"C:\\Casso", fs)));
+        AssertSucceeded (loaded.Save (L"C:\\Casso", fs));
 
         GlobalUserPrefs  reloaded;
-        Assert::IsTrue (SUCCEEDED (reloaded.Load (L"C:\\Casso", fs)));
+        AssertSucceeded (reloaded.Load (L"C:\\Casso", fs));
         Assert::IsTrue (ColorMonitorTextMode::White == reloaded.colorMonitorTextMode);
     }
 
@@ -175,10 +176,10 @@ public:
 
         hr = fs.WriteAllText (GlobalUserPrefs::FilePath (L"C:\\Casso"),
                               "{\"$cassoGlobalPrefsVersion\":1,\"activeTheme\":\"DarkModern\"}");
-        Assert::IsTrue (SUCCEEDED (hr));
+        AssertSucceeded (hr);
 
         hr = prefs.Load (L"C:\\Casso", fs);
-        Assert::IsTrue (SUCCEEDED (hr));
+        AssertSucceeded (hr);
         Assert::AreEqual (string ("DarkModern"), prefs.activeTheme);
         // crt sub-object missing → struct defaults preserved.
         Assert::AreEqual (1.0f, prefs.crtByMode[0].brightness);
@@ -195,9 +196,9 @@ public:
             InMemoryFileSystem  fs;
             GlobalUserPrefs     p;
             std::string  json = std::string ("{\"$cassoGlobalPrefsVersion\":1,") + body + "}";
-            Assert::IsTrue (SUCCEEDED (fs.WriteAllText (
-                GlobalUserPrefs::FilePath (L"C:\\Casso"), json)));
-            Assert::IsTrue (SUCCEEDED (p.Load (L"C:\\Casso", fs)));
+            AssertSucceeded (fs.WriteAllText (
+                GlobalUserPrefs::FilePath (L"C:\\Casso"), json));
+            AssertSucceeded (p.Load (L"C:\\Casso", fs));
             return p;
         };
 
@@ -228,13 +229,13 @@ public:
 
         hr = fs.WriteAllText (GlobalUserPrefs::FilePath (L"C:\\Casso"),
                               "{\"$cassoGlobalPrefsVersion\":1,\"activeTheme\":\"X\",\"futureKey\":\"keep me\"}");
-        Assert::IsTrue (SUCCEEDED (hr));
+        AssertSucceeded (hr);
 
         hr = prefs.Load (L"C:\\Casso", fs);
-        Assert::IsTrue (SUCCEEDED (hr));
+        AssertSucceeded (hr);
 
         hr = prefs.Save (L"C:\\Casso", fs);
-        Assert::IsTrue (SUCCEEDED (hr));
+        AssertSucceeded (hr);
 
         text = fs.PeekContent (GlobalUserPrefs::FilePath (L"C:\\Casso"));
         Assert::IsTrue (text.find ("futureKey")  != std::string::npos);
@@ -269,16 +270,16 @@ public:
             "}";
 
         hr = fs.WriteAllText (GlobalUserPrefs::FilePath (L"C:\\Casso"), seed);
-        Assert::IsTrue (SUCCEEDED (hr));
+        AssertSucceeded (hr);
 
         hr = prefs.Load (L"C:\\Casso", fs);
-        Assert::IsTrue (SUCCEEDED (hr));
+        AssertSucceeded (hr);
 
         // The global-prefs Load path doesn't surface the machines
         // section into the in-memory struct, so a subsequent Save must
         // not lose it.
         hr = prefs.Save (L"C:\\Casso", fs);
-        Assert::IsTrue (SUCCEEDED (hr));
+        AssertSucceeded (hr);
 
         text = fs.PeekContent (GlobalUserPrefs::FilePath (L"C:\\Casso"));
         Assert::IsTrue (text.find ("Apple2e")      != std::string::npos, L"Apple2e machine entry was wiped by Save");
@@ -294,7 +295,7 @@ public:
         HRESULT          hr;
 
         hr = prefs.FromJson (v);
-        Assert::IsTrue (FAILED (hr));
+        AssertFailed (hr);
     }
 
 
@@ -311,7 +312,7 @@ public:
         v  = orig.ToJson();
         hr = loaded.FromJson (v);
 
-        Assert::IsTrue (SUCCEEDED (hr));
+        AssertSucceeded (hr);
         Assert::AreEqual ((size_t) 2, loaded.recentDisks.size());
         Assert::AreEqual (std::string ("C:\\Disks\\A.dsk"), loaded.recentDisks[0]);
         Assert::AreEqual (std::string ("C:\\Disks\\B.dsk"), loaded.recentDisks[1]);
@@ -335,7 +336,7 @@ public:
         v = JsonValue (std::move (root));
 
         hr = prefs.FromJson (v);
-        Assert::IsTrue (SUCCEEDED (hr));
+        AssertSucceeded (hr);
         Assert::AreEqual ((size_t) 2, prefs.recentDisks.size());
         Assert::AreEqual (std::string ("C:\\good.dsk"),  prefs.recentDisks[0]);
         Assert::AreEqual (std::string ("C:\\good2.dsk"), prefs.recentDisks[1]);
@@ -357,7 +358,7 @@ public:
         v  = orig.ToJson();
         hr = loaded.FromJson (v);
 
-        Assert::IsTrue (SUCCEEDED (hr));
+        AssertSucceeded (hr);
         Assert::AreEqual ((size_t) 2, loaded.recentDiskLoadedAt.size());
         Assert::AreEqual ((std::int64_t) 1700000001, loaded.recentDiskLoadedAt[0]);
         Assert::AreEqual ((std::int64_t) 1700000002, loaded.recentDiskLoadedAt[1]);
@@ -380,7 +381,7 @@ public:
         v = JsonValue (std::move (root));
 
         hr = prefs.FromJson (v);
-        Assert::IsTrue (SUCCEEDED (hr));
+        AssertSucceeded (hr);
         Assert::AreEqual ((size_t) 1, prefs.recentDisks.size());
         Assert::AreEqual ((size_t) 0, prefs.recentDiskLoadedAt.size());
     }

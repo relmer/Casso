@@ -3,10 +3,13 @@
 #include "Pch.h"
 
 
+class    DxuiButton;
 class    DxuiCheckbox;
 class    DxuiLabel;
+class    DxuiDpiScaler;
 struct   DialogInputEvent;
 struct   DialogPaintContext;
+
 
 
 
@@ -20,7 +23,7 @@ struct   DialogPaintContext;
 //  unified user experience. The caller assembles a `StartupDownloadSet`
 //  describing each missing asset and a closure that knows how to fetch
 //  it; the dialog drives the downloads on a worker thread, paints live
-//  per-asset progress, and lets the user Exit cleanly (cancelling any
+//  per-asset progress, and lets the user Exit cleanly (canceling any
 //  in-flight work and removing partial files) at any point.
 //
 //  DxuiButton policy:
@@ -116,6 +119,7 @@ private:
     struct      EntryRuntime;
     struct      DialogState;
     struct      RowMetrics;
+
 
     static void                WorkerThreadProc      (DialogState * state, size_t index);
     static void                StartWorkers          (DialogState & state);

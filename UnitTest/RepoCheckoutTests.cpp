@@ -9,6 +9,7 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  RepoCheckoutTests
@@ -110,7 +111,7 @@ namespace RepoCheckoutTests
 
         TEST_METHOD (IsUnderOrEqual_EmptyAncestor_False)
         {
-            Assert::IsFalse (RepoCheckout::IsUnderOrEqual (fs::path (kMainDisk), fs::path ()));
+            Assert::IsFalse (RepoCheckout::IsUnderOrEqual (fs::path (kMainDisk), fs::path()));
         }
 
 

@@ -24,7 +24,7 @@ public:
     {
         DiskImage   img;
 
-        Assert::AreEqual (DiskImage::kDefaultTrackCount, img.GetTrackCount (),
+        Assert::AreEqual (DiskImage::kDefaultTrackCount, img.GetTrackCount(),
             L"Default DiskImage exposes 35 tracks");
     }
 
@@ -60,10 +60,10 @@ public:
         DiskImage   img;
 
         img.ResizeTrack (0, 8);
-        Assert::IsFalse (img.IsDirty (), L"Fresh image must be clean");
+        Assert::IsFalse (img.IsDirty(), L"Fresh image must be clean");
 
         img.WriteBit (0, 0, 1);
-        Assert::IsTrue  (img.IsDirty (), L"WriteBit must mark image dirty");
+        Assert::IsTrue  (img.IsDirty(), L"WriteBit must mark image dirty");
         Assert::IsTrue  (img.IsTrackDirty (0),
             L"WriteBit must mark track dirty");
     }
@@ -78,7 +78,7 @@ public:
 
         Assert::AreEqual (uint8_t (0), img.ReadBit (0, 0),
             L"Write-protected disk must reject WriteBit");
-        Assert::IsFalse (img.IsDirty (),
+        Assert::IsFalse (img.IsDirty(),
             L"Write-protected disk must remain clean");
     }
 
@@ -86,34 +86,34 @@ public:
     {
         DiskImage   img;
 
-        Assert::IsFalse (img.IsWriteProtected (), L"Fresh image is writable");
+        Assert::IsFalse (img.IsWriteProtected(), L"Fresh image is writable");
 
         img.SetImageWriteProtected (true);
-        Assert::IsTrue  (img.IsWriteProtected ());
-        Assert::IsTrue  (img.GetWriteProtectInfo ().imageFlag);
-        Assert::IsFalse (img.GetWriteProtectInfo ().userSetting);
+        Assert::IsTrue  (img.IsWriteProtected());
+        Assert::IsTrue  (img.GetWriteProtectInfo().imageFlag);
+        Assert::IsFalse (img.GetWriteProtectInfo().userSetting);
 
         img.SetImageWriteProtected (false);
         img.SetUserWriteProtected  (true);
-        Assert::IsTrue  (img.IsWriteProtected (),
+        Assert::IsTrue  (img.IsWriteProtected(),
             L"User setting alone protects the disk");
-        Assert::IsTrue  (img.GetWriteProtectInfo ().userSetting);
-        Assert::IsFalse (img.GetWriteProtectInfo ().imageFlag);
+        Assert::IsTrue  (img.GetWriteProtectInfo().userSetting);
+        Assert::IsFalse (img.GetWriteProtectInfo().imageFlag);
 
         img.SetUserWriteProtected (false);
         img.SetFileWriteProtect   (true, false);
-        Assert::IsTrue  (img.IsWriteProtected (),
+        Assert::IsTrue  (img.IsWriteProtected(),
             L"Read-only backing file alone protects the disk");
-        Assert::IsTrue  (img.GetWriteProtectInfo ().readOnlyFile);
-        Assert::IsFalse (img.GetWriteProtectInfo ().noPermission);
+        Assert::IsTrue  (img.GetWriteProtectInfo().readOnlyFile);
+        Assert::IsFalse (img.GetWriteProtectInfo().noPermission);
 
         img.SetFileWriteProtect (false, true);
-        Assert::IsTrue  (img.IsWriteProtected (),
+        Assert::IsTrue  (img.IsWriteProtected(),
             L"No-permission backing file alone protects the disk");
-        Assert::IsTrue  (img.GetWriteProtectInfo ().noPermission);
+        Assert::IsTrue  (img.GetWriteProtectInfo().noPermission);
 
         img.SetFileWriteProtect (false, false);
-        Assert::IsFalse (img.IsWriteProtected (),
+        Assert::IsFalse (img.IsWriteProtected(),
             L"Clearing every source makes the disk writable again");
     }
 
@@ -124,11 +124,11 @@ public:
 
         img.SetImageWriteProtected (true);
         img.SetUserWriteProtected  (true);
-        info = img.GetWriteProtectInfo ();
+        info = img.GetWriteProtectInfo();
 
         Assert::IsTrue (info.imageFlag);
         Assert::IsTrue (info.userSetting);
-        Assert::IsTrue (info.Any ());
+        Assert::IsTrue (info.Any());
     }
 
     TEST_METHOD (UserWriteProtectBlocksWriteBit)
@@ -141,14 +141,14 @@ public:
 
         Assert::AreEqual (uint8_t (0), img.ReadBit (0, 0),
             L"A user-write-protected disk must reject WriteBit");
-        Assert::IsFalse (img.IsDirty ());
+        Assert::IsFalse (img.IsDirty());
     }
 
     TEST_METHOD (DefaultSourceFormatIsDsk)
     {
         DiskImage   img;
 
-        Assert::IsTrue (img.GetSourceFormat () == DiskFormat::Dsk,
+        Assert::IsTrue (img.GetSourceFormat() == DiskFormat::Dsk,
             L"Default DiskImage reports DSK");
     }
 
@@ -157,7 +157,7 @@ public:
         DiskImage   img;
 
         img.SetSourceFormat (DiskFormat::Woz);
-        Assert::IsTrue (img.GetSourceFormat () == DiskFormat::Woz);
+        Assert::IsTrue (img.GetSourceFormat() == DiskFormat::Woz);
     }
 
     TEST_METHOD (BitIndexWrapsAtTrackEnd)
@@ -178,8 +178,8 @@ public:
 
         HRESULT   hr = img.Load ("does_not_exist_anywhere.dsk");
 
-        Assert::IsTrue (FAILED (hr));
-        Assert::IsFalse (img.IsLoaded ());
+        AssertFailed (hr);
+        Assert::IsFalse (img.IsLoaded());
     }
 
     TEST_METHOD (SerializeReturnsBytesAfterPhase10NibblizationLayer)
@@ -189,9 +189,9 @@ public:
 
         HRESULT   hr = img.Serialize (bytes);
 
-        Assert::IsTrue (SUCCEEDED (hr),
+        AssertSucceeded (hr,
             L"Phase 10: Serialize routes DSK through NibblizationLayer::Denibblize");
-        Assert::AreEqual (size_t (143360), bytes.size (),
+        Assert::AreEqual (size_t (143360), bytes.size(),
             L"Phase 10: a default 35-track DSK serializes to 143360 bytes");
     }
 };

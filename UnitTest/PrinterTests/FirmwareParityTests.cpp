@@ -9,6 +9,7 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
 
 
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  FirmwareParityTests
@@ -81,16 +82,16 @@ namespace FirmwareParityTests
             }
 
             cpu.Poke (0xC091, 0x83);        // slot-1 status port: ready (bit 7 set)
-            cpu.RegSP () = 0xFF;
+            cpu.RegSP() = 0xFF;
             cpu.DoPushWord (0x7FFF);        // RTS returns here + 1 == 0x8000
-            cpu.RegA ()  = character;
-            cpu.RegX ()  = 0x5A;            // sentinel: the COUT contract preserves X
-            cpu.RegY ()  = 0xA5;            // ... and Y
-            cpu.RegPC () = (Word) s_kParallelFirmwareOrigin;
+            cpu.RegA()  = character;
+            cpu.RegX()  = 0x5A;            // sentinel: the COUT contract preserves X
+            cpu.RegY()  = 0xA5;            // ... and Y
+            cpu.RegPC() = (Word) s_kParallelFirmwareOrigin;
 
-            while (cpu.RegPC () != 0x8000 && steps < cap)
+            while (cpu.RegPC() != 0x8000 && steps < cap)
             {
-                cpu.Step ();
+                cpu.Step();
                 steps++;
             }
 
@@ -105,7 +106,7 @@ namespace FirmwareParityTests
 
             Assert::IsTrue    (steps < 400, L"OUTPUT must terminate -- no runaway");
             Assert::AreEqual  ((Byte) 0xC1, cpu.Peek (0xC090), L"character latched to the slot-1 data port");
-            Assert::AreEqual  ((Byte) 0xC1, cpu.RegA (),       L"A (the character) preserved for COUT");
+            Assert::AreEqual  ((Byte) 0xC1, cpu.RegA(),       L"A (the character) preserved for COUT");
         }
 
 
@@ -118,12 +119,12 @@ namespace FirmwareParityTests
             TestCpu  cpu;
 
             RunOutput (cpu, 0xC1);                    // plain character path
-            Assert::AreEqual ((Byte) 0x5A, cpu.RegX (), L"X preserved (plain char)");
-            Assert::AreEqual ((Byte) 0xA5, cpu.RegY (), L"Y preserved (plain char)");
+            Assert::AreEqual ((Byte) 0x5A, cpu.RegX(), L"X preserved (plain char)");
+            Assert::AreEqual ((Byte) 0xA5, cpu.RegY(), L"Y preserved (plain char)");
 
             RunOutput (cpu, 0x8D);                    // CR + injected-LF path
-            Assert::AreEqual ((Byte) 0x5A, cpu.RegX (), L"X preserved (CR path)");
-            Assert::AreEqual ((Byte) 0xA5, cpu.RegY (), L"Y preserved (CR path)");
+            Assert::AreEqual ((Byte) 0x5A, cpu.RegX(), L"X preserved (CR path)");
+            Assert::AreEqual ((Byte) 0xA5, cpu.RegY(), L"Y preserved (CR path)");
         }
 
 
@@ -135,7 +136,7 @@ namespace FirmwareParityTests
 
             Assert::IsTrue   (steps < 400, L"the CR + LF path must terminate");
             Assert::AreEqual ((Byte) 0x0A, cpu.Peek (0xC090), L"LF written to the data port after the CR");
-            Assert::AreEqual ((Byte) 0x8D, cpu.RegA (),       L"the CR character is preserved for COUT");
+            Assert::AreEqual ((Byte) 0x8D, cpu.RegA(),       L"the CR character is preserved for COUT");
         }
 
 

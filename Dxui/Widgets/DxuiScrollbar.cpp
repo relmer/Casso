@@ -23,7 +23,6 @@ static constexpr float     s_kThumbCrossInsetPx = 1.0f;
 
 
 
-
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  DxuiScrollbar::Configure
@@ -46,7 +45,7 @@ void DxuiScrollbar::Configure (Orientation orientation, int thicknessPx, int min
 //
 //  DxuiScrollbar::SetScrollInfo
 //
-//  Honours the SCROLLINFO fMask so callers can push a partial update (e.g.
+//  Honors the SCROLLINFO fMask so callers can push a partial update (e.g.
 //  a new nPos mid-drag) without re-sending the whole model, exactly like
 //  the Win32 SetScrollInfo.
 //
@@ -438,7 +437,7 @@ Error:
 //  DxuiScrollbar::OnMouseMove
 //
 //  Drives an in-progress thumb drag, preserving the grab offset so the
-//  thumb tracks the cursor without snapping its centre.
+//  thumb tracks the cursor without snapping its center.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -585,7 +584,7 @@ Error:
 //
 //  DxuiScrollbar::PaintArrow
 //
-//  Draws a triangle centred in an arrow-button rect as a stack of 1px
+//  Draws a triangle centered in an arrow-button rect as a stack of 1px
 //  slices along the scroll axis: the apex sits at the track-start end when
 //  `less` is true (up / left), otherwise at the track-end (down / right).
 //

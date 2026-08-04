@@ -11,16 +11,24 @@ using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
 
 
-namespace
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TEST_CLASS
+//
+////////////////////////////////////////////////////////////////////////////////
+
+TEST_CLASS (DxuiMenuBarTests)
 {
-    constexpr int   s_kStripX            = 0;
-    constexpr int   s_kStripY            = 32;
-    constexpr int   s_kStripWidth        = 800;
-    constexpr int   s_kResizedStripWidth = 1600;
-    constexpr UINT  s_kTestDpi           = 96;
+public:
+
+    static constexpr int   s_kStripX            = 0;
+    static constexpr int   s_kStripY            = 32;
+    static constexpr int   s_kStripWidth        = 800;
+    static constexpr int   s_kResizedStripWidth = 1600;
+    static constexpr UINT  s_kTestDpi           = 96;
 
 
-    std::vector<DxuiMenuBarItem>  MakeTestItems ()
+    std::vector<DxuiMenuBarItem>  MakeTestItems()
     {
         std::vector<DxuiMenuBarItem>  items;
 
@@ -43,15 +51,6 @@ namespace
         } });
         return items;
     }
-}
-
-
-
-
-
-TEST_CLASS (DxuiMenuBarTests)
-{
-public:
 
     TEST_METHOD (SetItems_AutoDerivesAltLetterFromAmpersand)
     {
@@ -488,7 +487,7 @@ public:
         bar.Open (0, true);
         bar.PaintDropdown (painter, text, theme, 96);
 
-        // A separator paints a divider-coloured FillRect with very thin height (~1 dip).
+        // A separator paints a divider-colored FillRect with very thin height (~1 dip).
         bool  foundDivider = false;
         for (const RecordedPaintCall & call : painter.Calls())
         {
@@ -625,3 +624,4 @@ public:
         Assert::IsFalse (bar.IsOpen());
     }
 };
+

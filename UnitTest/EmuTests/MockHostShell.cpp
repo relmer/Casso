@@ -11,7 +11,7 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-MockHostShell::MockHostShell ()
+MockHostShell::MockHostShell()
 {
 }
 
@@ -85,7 +85,7 @@ HRESULT MockHostShell::OpenAudioDevice (IAudioSink * & outSink)
 HRESULT MockHostShell::PollInput (std::vector<InputEvent> & outEvents)
 {
     outEvents = m_pendingEvents;
-    m_pendingEvents.clear ();
+    m_pendingEvents.clear();
 
     return S_OK;
 }

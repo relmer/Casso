@@ -33,12 +33,12 @@ static const uint32_t kExpectedLoRes[16] =
     0xFF000099,   //  2: Dark Blue
     0xFFDD0044,   //  3: Purple
     0xFF002200,   //  4: Dark Green
-    0xFF555555,   //  5: Grey 1
+    0xFF555555,   //  5: Gray 1
     0xFF0022CC,   //  6: Medium Blue
     0xFF66AAFF,   //  7: Light Blue
     0xFF885500,   //  8: Brown
     0xFFFF4400,   //  9: Orange
-    0xFFAAAAAA,   // 10: Grey 2
+    0xFFAAAAAA,   // 10: Gray 2
     0xFFFF8888,   // 11: Pink
     0xFF00DD00,   // 12: Light Green
     0xFFFFFF00,   // 13: Yellow
@@ -47,8 +47,18 @@ static const uint32_t kExpectedLoRes[16] =
 };
 
 
-// Interleaved text-page address for (row, col) on page 1 -- mirrors
-// AppleTextMode::RowBaseAddress (private) for the dirty-row tests below.
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TextAddr
+//
+//  Interleaved text-page address for (row, col) on page 1 -- mirrors
+//  AppleTextMode::RowBaseAddress (private) for the dirty-row tests below.
+//
+////////////////////////////////////////////////////////////////////////////////
+
 static Word TextAddr (int row, int col)
 {
     return static_cast<Word> (0x0400 + 128 * (row % 8) + 40 * (row / 8) + col);
@@ -85,7 +95,7 @@ public:
         textMode.SetPage2 (false);
 
         std::vector<uint32_t> fb (kFbW * kFbH, kBlack);
-        textMode.Render (mem.data (), fb.data (), kFbW, kFbH);
+        textMode.Render (mem.data(), fb.data(), kFbW, kFbH);
 
         bool hasNonBlack = false;
 
@@ -102,7 +112,7 @@ public:
     }
 
 
-    // ---- Dirty-row rendering -------------------------------------------------
+    // Dirty-row rendering
 
     // Oracle: incremental dirty-row rendering into a reused framebuffer must be
     // pixel-identical to a from-scratch full render of the final screen.
@@ -127,20 +137,20 @@ public:
         AppleTextMode         incr (bus);
         std::vector<uint32_t> fbIncr (kFbW * kFbH, kBlack);
 
-        incr.Render (mem.data (), fbIncr.data (), kFbW, kFbH);   // first = full
+        incr.Render (mem.data(), fbIncr.data(), kFbW, kFbH);   // first = full
 
         // Edits on three separate rows; every other row is unchanged.
         mem[TextAddr (0, 0)]   = 0xC1;
         mem[TextAddr (5, 20)]  = 0xC2;
         mem[TextAddr (23, 39)] = 0xC3;
 
-        incr.Render (mem.data (), fbIncr.data (), kFbW, kFbH);   // dirty rows only
+        incr.Render (mem.data(), fbIncr.data(), kFbW, kFbH);   // dirty rows only
 
         // Oracle: a fresh instance renders the final memory in one full pass.
         AppleTextMode         oracle (bus);
         std::vector<uint32_t> fbOracle (kFbW * kFbH, kBlack);
 
-        oracle.Render (mem.data (), fbOracle.data (), kFbW, kFbH);
+        oracle.Render (mem.data(), fbOracle.data(), kFbW, kFbH);
 
         Assert::IsTrue (fbIncr == fbOracle,
             L"dirty-row render must equal a full render pixel-for-pixel");
@@ -162,11 +172,11 @@ public:
         std::vector<uint32_t> fb (kFbW * kFbH, kBlack);
 
         tm.SetFlashState (true);
-        tm.Render (mem.data (), fb.data (), kFbW, kFbH);         // full
+        tm.Render (mem.data(), fb.data(), kFbW, kFbH);         // full
         uint32_t flashOnPixel = fb[(2 * 8 * 2) * kFbW + 0];      // row 2, first pixel
 
         tm.SetFlashState (false);
-        tm.Render (mem.data (), fb.data (), kFbW, kFbH);         // flip: row 2 re-rasters
+        tm.Render (mem.data(), fb.data(), kFbW, kFbH);         // flip: row 2 re-rasters
         uint32_t flashOffPixel = fb[(2 * 8 * 2) * kFbW + 0];
 
         Assert::AreNotEqual (flashOnPixel, flashOffPixel,
@@ -187,7 +197,7 @@ public:
         AppleTextMode         tm (bus);
         std::vector<uint32_t> fb (kFbW * kFbH, kBlack);
 
-        tm.Render (mem.data (), fb.data (), kFbW, kFbH);   // full
+        tm.Render (mem.data(), fb.data(), kFbW, kFbH);   // full
 
         // Corrupt the framebuffer, then re-render the SAME screen: with the
         // cache valid and the target unchanged, every row is a cache hit, so
@@ -195,7 +205,7 @@ public:
         const uint32_t kJunk = 0xDEADBEEFu;
         for (auto & p : fb) { p = kJunk; }
 
-        tm.Render (mem.data (), fb.data (), kFbW, kFbH);
+        tm.Render (mem.data(), fb.data(), kFbW, kFbH);
 
         bool anyTouched = false;
         for (auto p : fb) { if (p != kJunk) { anyTouched = true; break; } }
@@ -203,8 +213,8 @@ public:
 
         // Invalidate -> next render fully repaints (the text grid covers the
         // whole 560x384 frame), so no junk remains.
-        tm.InvalidateCache ();
-        tm.Render (mem.data (), fb.data (), kFbW, kFbH);
+        tm.InvalidateCache();
+        tm.Render (mem.data(), fb.data(), kFbW, kFbH);
 
         bool anyJunkLeft = false;
         for (auto p : fb) { if (p == kJunk) { anyJunkLeft = true; break; } }
@@ -212,7 +222,7 @@ public:
     }
 
 
-    // ---- Dirty-row rendering (80-col: aux + main interleave) -----------------
+    // Dirty-row rendering (80-col: aux + main interleave)
 
     TEST_METHOD (Text80_DirtyRow_MatchesFullRender_AfterEdits)
     {
@@ -240,23 +250,23 @@ public:
         }
 
         Apple80ColTextMode    incr (bus);
-        incr.SetAuxMemory (aux.data ());
+        incr.SetAuxMemory (aux.data());
         std::vector<uint32_t> fbIncr (kFbW * kFbH, kBlack);
 
-        incr.Render (nullptr, fbIncr.data (), kFbW, kFbH);   // first = full
+        incr.Render (nullptr, fbIncr.data(), kFbW, kFbH);   // first = full
 
         // Edits on separate rows, touching both an aux (even) and main (odd) cell.
         put80 (0, 0, 0xC1);     // aux
         put80 (5, 21, 0xC2);    // main
         put80 (23, 79, 0xC3);   // main
 
-        incr.Render (nullptr, fbIncr.data (), kFbW, kFbH);   // dirty rows only
+        incr.Render (nullptr, fbIncr.data(), kFbW, kFbH);   // dirty rows only
 
         Apple80ColTextMode    oracle (bus);
-        oracle.SetAuxMemory (aux.data ());
+        oracle.SetAuxMemory (aux.data());
         std::vector<uint32_t> fbOracle (kFbW * kFbH, kBlack);
 
-        oracle.Render (nullptr, fbOracle.data (), kFbW, kFbH);
+        oracle.Render (nullptr, fbOracle.data(), kFbW, kFbH);
 
         Assert::IsTrue (fbIncr == fbOracle,
             L"80-col dirty-row render must equal a full render pixel-for-pixel");
@@ -273,15 +283,15 @@ public:
         aux[TextAddr (2, 0)] = 0x60;   // flashing glyph, aux column 0 of row 2
 
         Apple80ColTextMode    tm (bus);
-        tm.SetAuxMemory (aux.data ());
+        tm.SetAuxMemory (aux.data());
         std::vector<uint32_t> fb (kFbW * kFbH, kBlack);
 
         tm.SetFlashState (true);
-        tm.Render (nullptr, fb.data (), kFbW, kFbH);
+        tm.Render (nullptr, fb.data(), kFbW, kFbH);
         uint32_t onPixel = fb[(2 * 8 * 2) * kFbW + 0];
 
         tm.SetFlashState (false);
-        tm.Render (nullptr, fb.data (), kFbW, kFbH);
+        tm.Render (nullptr, fb.data(), kFbW, kFbH);
         uint32_t offPixel = fb[(2 * 8 * 2) * kFbW + 0];
 
         Assert::AreNotEqual (onPixel, offPixel,
@@ -299,22 +309,22 @@ public:
         for (Word a = 0x0400; a <= 0x07FF; a++) { bus.WriteByte (a, 0xC1); }
 
         Apple80ColTextMode    tm (bus);
-        tm.SetAuxMemory (aux.data ());
+        tm.SetAuxMemory (aux.data());
         std::vector<uint32_t> fb (kFbW * kFbH, kBlack);
 
-        tm.Render (nullptr, fb.data (), kFbW, kFbH);
+        tm.Render (nullptr, fb.data(), kFbW, kFbH);
 
         const uint32_t kJunk = 0xDEADBEEFu;
         for (auto & p : fb) { p = kJunk; }
 
-        tm.Render (nullptr, fb.data (), kFbW, kFbH);   // unchanged -> skip all
+        tm.Render (nullptr, fb.data(), kFbW, kFbH);   // unchanged -> skip all
 
         bool anyTouched = false;
         for (auto p : fb) { if (p != kJunk) { anyTouched = true; break; } }
         Assert::IsFalse (anyTouched, L"unchanged 80-col screen must skip all rows");
 
-        tm.InvalidateCache ();
-        tm.Render (nullptr, fb.data (), kFbW, kFbH);
+        tm.InvalidateCache();
+        tm.Render (nullptr, fb.data(), kFbW, kFbH);
 
         bool anyJunkLeft = false;
         for (auto p : fb) { if (p == kJunk) { anyJunkLeft = true; break; } }
@@ -333,7 +343,7 @@ public:
         textMode.SetPage2 (false);
 
         std::vector<uint32_t> fb (kFbW * kFbH, 0);
-        textMode.Render (nullptr, fb.data (), kFbW, kFbH);
+        textMode.Render (nullptr, fb.data(), kFbW, kFbH);
 
         bool hasGreen = false;
 
@@ -367,7 +377,7 @@ public:
         textMode.SetPage2 (false);
 
         std::vector<uint32_t> fb (kFbW * kFbH, 0);
-        textMode.Render (mem.data (), fb.data (), kFbW, kFbH);
+        textMode.Render (mem.data(), fb.data(), kFbW, kFbH);
 
         int romOffset = (0x41 - 0x20) * 8;
 
@@ -386,7 +396,7 @@ public:
 
                 Assert::AreEqual (expectedColor, actual,
                     std::format (L"'A' pixel ({},{}) byte=${:02X} expect={}",
-                        px, py, glyphRow, expectOn ? L"green" : L"black").c_str ());
+                        px, py, glyphRow, expectOn ? L"green" : L"black").c_str());
             }
         }
     }
@@ -405,14 +415,14 @@ public:
         textMode.SetPage2 (false);
 
         std::vector<uint32_t> fb (kFbW * kFbH, 0);
-        textMode.Render (mem.data (), fb.data (), kFbW, kFbH);
+        textMode.Render (mem.data(), fb.data(), kFbW, kFbH);
 
         for (int y = 0; y < 16; y++)
         {
             for (int x = 0; x < 14; x++)
             {
                 Assert::AreEqual (kGreen, fb[y * kFbW + x],
-                    std::format (L"Inverse space ({},{}) must be green", x, y).c_str ());
+                    std::format (L"Inverse space ({},{}) must be green", x, y).c_str());
             }
         }
     }
@@ -430,14 +440,14 @@ public:
         textMode.SetPage2 (false);
 
         std::vector<uint32_t> fb (kFbW * kFbH, kGreen);  // Pre-fill green
-        textMode.Render (mem.data (), fb.data (), kFbW, kFbH);
+        textMode.Render (mem.data(), fb.data(), kFbW, kFbH);
 
         for (int y = 0; y < 16; y++)
         {
             for (int x = 0; x < 14; x++)
             {
                 Assert::AreEqual (kBlack, fb[y * kFbW + x],
-                    std::format (L"Normal space ({},{}) must be black", x, y).c_str ());
+                    std::format (L"Normal space ({},{}) must be black", x, y).c_str());
             }
         }
     }
@@ -464,9 +474,9 @@ public:
         }
 
         CharacterRomData romData;
-        Assert::AreEqual (S_OK, romData.LoadFromMemory (rom.data (), rom.size ()),
+        Assert::AreEqual (S_OK, romData.LoadFromMemory (rom.data(), rom.size()),
             L"Synthetic 2KB ROM must load");
-        Assert::IsFalse (romData.HasAltCharSet (),
+        Assert::IsFalse (romData.HasAltCharSet(),
             L"2K ROM must report no alt char set");
 
         std::vector<Byte> mem (0x10000, 0xA0);
@@ -479,11 +489,11 @@ public:
 
         mem[0x0400] = 0xC1;    // normal-range glyph
         std::vector<uint32_t> fbNormal (kFbW * kFbH, 0);
-        textMode.Render (mem.data (), fbNormal.data (), kFbW, kFbH);
+        textMode.Render (mem.data(), fbNormal.data(), kFbW, kFbH);
 
         mem[0x0400] = 0x01;    // inverse-range glyph (same shape)
         std::vector<uint32_t> fbInverse (kFbW * kFbH, 0);
-        textMode.Render (mem.data (), fbInverse.data (), kFbW, kFbH);
+        textMode.Render (mem.data(), fbInverse.data(), kFbW, kFbH);
 
         for (int px = 0; px < 7; px++)
         {
@@ -492,7 +502,7 @@ public:
 
             Assert::AreNotEqual (normalPixel, inversePixel,
                 std::format (L"Inverse pixel {} must differ from normal (not double-inverted)",
-                    px).c_str ());
+                    px).c_str());
         }
     }
 
@@ -522,7 +532,7 @@ public:
         textMode.SetPage2 (false);
 
         std::vector<uint32_t> fb (kFbW * kFbH, 0);
-        textMode.Render (mem.data (), fb.data (), kFbW, kFbH);
+        textMode.Render (mem.data(), fb.data(), kFbW, kFbH);
 
         for (int r = 0; r < 24; r++)
         {
@@ -542,7 +552,7 @@ public:
 
             Assert::IsTrue (hasGreen,
                 std::format (L"Row {} (addr=${:04X}) must render 'A'",
-                    r, expected[r]).c_str ());
+                    r, expected[r]).c_str());
         }
     }
 
@@ -559,7 +569,7 @@ public:
         textMode.SetPage2 (true);
 
         std::vector<uint32_t> fb (kFbW * kFbH, 0);
-        textMode.Render (mem.data (), fb.data (), kFbW, kFbH);
+        textMode.Render (mem.data(), fb.data(), kFbW, kFbH);
 
         bool hasGreen = false;
 
@@ -590,7 +600,7 @@ public:
         textMode.SetPage2 (true);
 
         std::vector<uint32_t> fb (kFbW * kFbH, kGreen);
-        textMode.Render (mem.data (), fb.data (), kFbW, kFbH);
+        textMode.Render (mem.data(), fb.data(), kFbW, kFbH);
 
         for (int y = 0; y < 16; y++)
         {
@@ -616,7 +626,7 @@ public:
         lores.SetPage2 (false);
 
         std::vector<uint32_t> fb (kFbW * kFbH, 0);
-        lores.Render (mem.data (), fb.data (), kFbW, kFbH);
+        lores.Render (mem.data(), fb.data(), kFbW, kFbH);
 
         int blockH = kFbH / 48;
 
@@ -644,7 +654,7 @@ public:
         lores.SetPage2 (false);
 
         std::vector<uint32_t> fb (kFbW * kFbH, 0);
-        lores.Render (mem.data (), fb.data (), kFbW, kFbH);
+        lores.Render (mem.data(), fb.data(), kFbW, kFbH);
 
         int blockW = kFbW / 40;
 
@@ -652,7 +662,7 @@ public:
         {
             int fbX = c * blockW;
             Assert::AreEqual (kExpectedLoRes[c], fb[fbX],
-                std::format (L"Lo-res color {} should be ${:08X}", c, kExpectedLoRes[c]).c_str ());
+                std::format (L"Lo-res color {} should be ${:08X}", c, kExpectedLoRes[c]).c_str());
         }
     }
 
@@ -669,7 +679,7 @@ public:
         lores.SetPage2 (true);
 
         std::vector<uint32_t> fb (kFbW * kFbH, 0);
-        lores.Render (mem.data (), fb.data (), kFbW, kFbH);
+        lores.Render (mem.data(), fb.data(), kFbW, kFbH);
 
         Assert::AreEqual (kWhite, fb[0],
             L"Lo-res page 2 should read from $0800");
@@ -689,7 +699,7 @@ public:
         hires.SetPage2 (false);
 
         std::vector<uint32_t> fb (kFbW * kFbH, 0);
-        hires.Render (mem.data (), fb.data (), kFbW, kFbH);
+        hires.Render (mem.data(), fb.data(), kFbW, kFbH);
 
         // Bits 0,2,4,6 are ON (isolated pixels — no adjacent pair)
         for (int bit = 0; bit < 7; bit++)
@@ -700,12 +710,12 @@ public:
             if (expectOn)
             {
                 Assert::AreNotEqual (kNtscBlack, pixel,
-                    std::format (L"Bit {} of $55 should be non-black", bit).c_str ());
+                    std::format (L"Bit {} of $55 should be non-black", bit).c_str());
             }
             else
             {
                 Assert::AreEqual (kNtscBlack, pixel,
-                    std::format (L"Bit {} of $55 should be black", bit).c_str ());
+                    std::format (L"Bit {} of $55 should be black", bit).c_str());
             }
         }
     }
@@ -725,7 +735,7 @@ public:
         hires.SetPage2 (false);
 
         std::vector<uint32_t> fb (kFbW * kFbH, 0);
-        hires.Render (mem.data (), fb.data (), kFbW, kFbH);
+        hires.Render (mem.data(), fb.data(), kFbW, kFbH);
 
         Assert::AreEqual (kNtscViolet, fb[0],
             L"Palette 0 even col should be violet");
@@ -747,7 +757,7 @@ public:
         hires.SetPage2 (false);
 
         std::vector<uint32_t> fb (kFbW * kFbH, 0);
-        hires.Render (mem.data (), fb.data (), kFbW, kFbH);
+        hires.Render (mem.data(), fb.data(), kFbW, kFbH);
 
         Assert::AreEqual (kNtscWhite, fb[0],
             L"Adjacent ON pixels should render white");
@@ -768,7 +778,7 @@ public:
         hires.SetPage2 (true);
 
         std::vector<uint32_t> fb (kFbW * kFbH, 0);
-        hires.Render (mem.data (), fb.data (), kFbW, kFbH);
+        hires.Render (mem.data(), fb.data(), kFbW, kFbH);
 
         Assert::AreEqual (kNtscWhite, fb[0],
             L"Hi-res page 2 should read from $4000");
@@ -789,6 +799,7 @@ public:
         Assert::AreEqual (static_cast<Word> (0x07D0), expected23, L"Row 23 = $07D0");
     }
 };
+
 
 
 
@@ -831,6 +842,15 @@ namespace Phase12GoldenHelpers
 }
 
 
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  TEST_CLASS
+//
+////////////////////////////////////////////////////////////////////////////////
+
 TEST_CLASS (Phase12GoldenHashTests)
 {
 public:
@@ -862,13 +882,13 @@ public:
         bus.AddDevice (&ram);
 
         AppleDoubleHiResMode dhr (bus);
-        dhr.SetAuxMemory (aux.data ());
+        dhr.SetAuxMemory (aux.data());
         dhr.SetPage2 (false);
 
         std::vector<uint32_t> fb (kFbW * kFbH, 0);
-        dhr.Render (main.data (), fb.data (), kFbW, kFbH);
+        dhr.Render (main.data(), fb.data(), kFbW, kFbH);
 
-        uint64_t hash = Phase12GoldenHelpers::Fnv1a64 (fb.data (), fb.size ());
+        uint64_t hash = Phase12GoldenHelpers::Fnv1a64 (fb.data(), fb.size());
 
         // Golden hash captured from initial deterministic render.
         // Updated 2026-05-13 alongside the DHR palette byte-layout fix
@@ -884,7 +904,7 @@ public:
         constexpr uint64_t kExpected = 0x56CE5AB7DF017725ULL;
 
         Assert::AreEqual (kExpected, hash,
-            std::format (L"DHR golden hash mismatch: got 0x{:016X}", hash).c_str ());
+            std::format (L"DHR golden hash mismatch: got 0x{:016X}", hash).c_str());
     }
 
     TEST_METHOD (Mixed80Col_TestProgram_HashMatches_Golden)
@@ -912,20 +932,20 @@ public:
         }
 
         Apple80ColTextMode text80 (bus);
-        text80.SetAuxMemory (auxBuf.data ());
+        text80.SetAuxMemory (auxBuf.data());
         text80.SetAltCharSet (false);
         text80.SetFlashState (true);
 
         std::vector<uint32_t> fb (kFbW * kFbH, 0);
-        text80.Render (nullptr, fb.data (), kFbW, kFbH);
+        text80.Render (nullptr, fb.data(), kFbW, kFbH);
 
-        uint64_t hash = Phase12GoldenHelpers::Fnv1a64 (fb.data (), fb.size ());
+        uint64_t hash = Phase12GoldenHelpers::Fnv1a64 (fb.data(), fb.size());
 
         // Golden hash captured from initial deterministic render.
         constexpr uint64_t kExpected = 0x67F023CDC3099DA5ULL;
 
         Assert::AreEqual (kExpected, hash,
-            std::format (L"80-col golden hash mismatch: got 0x{:016X}", hash).c_str ());
+            std::format (L"80-col golden hash mismatch: got 0x{:016X}", hash).c_str());
     }
 
     ////////////////////////////////////////////////////////////////////////////
@@ -951,26 +971,30 @@ public:
 
     static fs::path FindIIeCharRom()
     {
-        fs::path  cursor = fs::current_path();
+        fs::path  cursor  = fs::current_path();
+        fs::path  found;
+        bool      walking = true;
 
-        for (int depth = 0; depth < 8; depth++)
+        for (int depth = 0; walking && found.empty() && depth < 8; depth++)
         {
             fs::path  candidate = cursor / "ROMs" / "Apple2e_Video.rom";
 
             if (fs::exists (candidate))
             {
-                return candidate;
+                found = candidate;
             }
-
-            if (cursor.parent_path() == cursor)
+            else if (cursor.parent_path() == cursor)
             {
-                break;
+                // Drive root: this checkout does not provision the ROM.
+                walking = false;
             }
-
-            cursor = cursor.parent_path();
+            else
+            {
+                cursor = cursor.parent_path();
+            }
         }
 
-        return {};
+        return found;
     }
 
     TEST_METHOD (IIeRom_AppleTextMode_InverseSpace_RendersSolidBlock)
@@ -987,7 +1011,7 @@ public:
 
         CharacterRomData rom;
         HRESULT          hrLoad = rom.LoadFromFile (romPath.string());
-        Assert::IsTrue (SUCCEEDED (hrLoad), L"Must load Apple2e_Video.rom");
+        AssertSucceeded (hrLoad, L"Must load Apple2e_Video.rom");
         Assert::IsTrue (rom.HasAltCharSet(),
             L"4K //e ROM must register as having alt-set");
 
@@ -1033,7 +1057,7 @@ public:
 
         CharacterRomData rom;
         HRESULT          hrLoad = rom.LoadFromFile (romPath.string());
-        Assert::IsTrue (SUCCEEDED (hrLoad), L"Must load Apple2e_Video.rom");
+        AssertSucceeded (hrLoad, L"Must load Apple2e_Video.rom");
 
         // Mirror the //e PR#3 cursor placement: prompt ']' ($DD) at
         // aux $0480 (col 0 of row 1), inverse-space cursor ($20) at

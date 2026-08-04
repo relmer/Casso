@@ -21,6 +21,8 @@ void VideoTiming::Tick (uint32_t cpuCycles)
 {
     uint32_t    total = m_cycleCounter + cpuCycles;
 
+
+
     // Called once per instruction, so the increment is tiny (<= one
     // instruction's cycles) and m_cycleCounter is always < kCyclesPerFrame --
     // the sum almost never crosses a frame boundary. Take the cheap compare on
@@ -45,5 +47,5 @@ void VideoTiming::PowerCycle (Prng & prng)
 {
     UNREFERENCED_PARAMETER (prng);
 
-    SoftReset ();
+    SoftReset();
 }

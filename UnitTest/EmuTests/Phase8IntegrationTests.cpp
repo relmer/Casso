@@ -5,8 +5,27 @@
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
 
-namespace
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+//  Phase8IntegrationTests
+//
+//  User Story 3 (P1). Drives deterministic //e-specific scenarios across
+//  the headless //e built by HeadlessHost::BuildApple2e — proves the
+//  MMU + Language Card rewrites from Phases 2-3 land the right bytes in
+//  the right buffers end-to-end.
+//
+//  Constitution §II: every test uses HeadlessHost + IFixtureProvider
+//  only; no host filesystem, no Win32, no audio device.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+TEST_CLASS (Phase8IntegrationTests)
 {
+public:
+
     static constexpr uint64_t   kColdBootCycles      = 5000000ULL;
     static constexpr Word       kProbeAddrMain       = 0x4000;
     static constexpr Word       kProbeAddrZp         = 0x0080;
@@ -40,29 +59,6 @@ namespace
     static constexpr Word   kLcReadEvenBank1    = 0xC088;
     static constexpr Word   kLcOddBank1A        = 0xC089;
     static constexpr Word   kLcOddBank1B        = 0xC08B;
-}
-
-
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-//
-//  Phase8IntegrationTests
-//
-//  User Story 3 (P1). Drives deterministic //e-specific scenarios across
-//  the headless //e built by HeadlessHost::BuildApple2e — proves the
-//  MMU + Language Card rewrites from Phases 2-3 land the right bytes in
-//  the right buffers end-to-end.
-//
-//  Constitution §II: every test uses HeadlessHost + IFixtureProvider
-//  only; no host filesystem, no Win32, no audio device.
-//
-////////////////////////////////////////////////////////////////////////////////
-
-TEST_CLASS (Phase8IntegrationTests)
-{
-public:
 
     ////////////////////////////////////////////////////////////////////////
     //
@@ -77,10 +73,10 @@ public:
         HRESULT   hr;
 
         hr = host.BuildApple2e (core);
-        Assert::IsTrue (SUCCEEDED (hr), L"BuildApple2e must succeed");
-        Assert::IsTrue (core.HasApple2e (), L"//e wiring must be complete");
+        AssertSucceeded (hr, L"BuildApple2e must succeed");
+        Assert::IsTrue (core.HasApple2e(), L"//e wiring must be complete");
 
-        core.PowerCycle ();
+        core.PowerCycle();
         core.RunCycles  (kColdBootCycles);
 
         MemoryProbeHelpers::RebindMainBaseline (core);
@@ -138,17 +134,17 @@ public:
         BootAndRebind (host, core);
 
         core.bus->ReadByte (kLcReadEvenBank2);
-        Assert::IsFalse (core.languageCard->IsWriteRam (),
+        Assert::IsFalse (core.languageCard->IsWriteRam(),
             L"Even-address read must clear WRITERAM");
 
         core.bus->ReadByte (kLcOddBank2A);
-        Assert::IsFalse (core.languageCard->IsWriteRam (),
+        Assert::IsFalse (core.languageCard->IsWriteRam(),
             L"One odd read must NOT yet enable WRITERAM");
 
         core.bus->ReadByte (kLcOddBank2B);
-        Assert::IsTrue (core.languageCard->IsWriteRam (),
+        Assert::IsTrue (core.languageCard->IsWriteRam(),
             L"Second odd read at a different $C08x must enable WRITERAM");
-        Assert::IsTrue (core.languageCard->IsBank2 (),
+        Assert::IsTrue (core.languageCard->IsBank2(),
             L"$C08x reads in the $C080-$C087 range must select bank2");
 
         core.languageCard->WriteRam (kProbeAddrLcBank, kPatternMainBank2);
@@ -177,12 +173,12 @@ public:
         core.bus->ReadByte  (kLcOddBank2A);
         core.bus->WriteByte (kLcOddBank2A, 0);
 
-        Assert::AreEqual (0, core.languageCard->GetPreWriteCount (),
+        Assert::AreEqual (0, core.languageCard->GetPreWriteCount(),
             L"Write to an odd $C08x must clear the pre-write counter");
 
         core.bus->ReadByte (kLcOddBank2B);
 
-        Assert::IsFalse (core.languageCard->IsWriteRam (),
+        Assert::IsFalse (core.languageCard->IsWriteRam(),
             L"After an intervening write, one further odd read alone "
             L"must NOT enable WRITERAM");
     }
@@ -201,15 +197,15 @@ public:
         HRESULT        hr;
 
         hr = host.BuildApple2e (core);
-        Assert::IsTrue (SUCCEEDED (hr));
+        AssertSucceeded (hr);
 
-        core.PowerCycle ();
+        core.PowerCycle();
 
-        Assert::IsTrue (core.languageCard->IsBank2 (),
+        Assert::IsTrue (core.languageCard->IsBank2(),
             L"Power-on default must select bank2");
-        Assert::IsTrue (core.languageCard->IsWriteRam (),
+        Assert::IsTrue (core.languageCard->IsWriteRam(),
             L"Power-on default must pre-arm WRITERAM");
-        Assert::IsFalse (core.languageCard->IsReadRam (),
+        Assert::IsFalse (core.languageCard->IsReadRam(),
             L"Power-on default must read from ROM (READRAM=0)");
     }
 
@@ -308,7 +304,7 @@ public:
         core.bus->ReadByte (kSwitchPage2On);
         core.bus->WriteByte (kSwitch80StoreOn, 0);
 
-        Assert::IsTrue (core.mmu->Get80Store (),
+        Assert::IsTrue (core.mmu->Get80Store(),
             L"$C001 write must engage 80STORE on the MMU");
 
         core.bus->WriteByte (kProbeAddrHires, kPatternHires);
@@ -364,7 +360,7 @@ public:
 
         expectedPc = core.cpu->PeekWord (kResetVector);
 
-        core.SoftReset ();
+        core.SoftReset();
 
         // MMU paging flags must reset to the documented post-reset
         // posture (audit §10).
@@ -372,12 +368,12 @@ public:
         Assert::IsFalse (core.mmu->GetRamWrt   (), L"RAMWRT must clear on soft reset");
         Assert::IsFalse (core.mmu->GetAltZp    (), L"ALTZP must clear on soft reset");
         Assert::IsFalse (core.mmu->Get80Store  (), L"80STORE must clear on soft reset");
-        Assert::IsFalse (core.mmu->GetIntCxRom (), L"INTCXROM must clear on soft reset");
+        Assert::IsFalse (core.mmu->GetIntCxRom(), L"INTCXROM must clear on soft reset");
 
         // CPU post-reset register state per FR-034.
-        Assert::AreEqual (kPostResetSp, core.cpu->GetSP (),
+        Assert::AreEqual (kPostResetSp, core.cpu->GetSP(),
             L"SP must equal 0xFD after soft reset");
-        Assert::AreEqual (expectedPc, core.cpu->GetPC (),
+        Assert::AreEqual (expectedPc, core.cpu->GetPC(),
             L"PC must reload from $FFFC after soft reset");
 
         // Aux + LC RAM contents survive (audit C7 fix).
@@ -406,3 +402,4 @@ public:
             L"LC aux high $E100 must survive");
     }
 };
+
