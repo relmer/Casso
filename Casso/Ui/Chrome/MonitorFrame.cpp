@@ -104,6 +104,25 @@ MonitorFrame::MonitorFrame()
 //
 //  Layout
 //
+//  Sizes the period monitor housing and its glass recess to the available
+//  area.
+//
+//  The GLASS is sized first, from the display aspect, and the housing is
+//  derived by wrapping it in an even bezel. Doing it the other way -- fitting
+//  a housing and carving a recess out of it -- makes the bezel width vary with
+//  the window shape, and an uneven bezel is the single most obvious way a
+//  skeuomorphic monitor stops looking like an object.
+//
+//  Height is the usual binding constraint in a wide window, so the fit is
+//  computed against height first and then rescaled UNIFORMLY if it overflows
+//  the width. Scaling one axis would distort the housing.
+//
+//  Everything scales together on that rescale -- glass, bezel, housing -- which
+//  is what keeps the proportions constant at any window shape.
+//
+//  The monitor is centered with the desk behind it and sits flat, with no
+//  stand, so the drive widgets below read as sitting on the same surface.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void MonitorFrame::Layout (const RECT & boundsDip, const DxuiDpiScaler & scaler)
@@ -201,6 +220,27 @@ SIZE MonitorFrame::CenterSizeForScreenPx (int screenWpx, int screenHpx)
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  Paint
+//
+//  Draws the desk backdrop and the monitor housing AROUND the screen recess,
+//  never over it.
+//
+//  That is the constraint everything here is shaped by. Chrome paints on top
+//  of the already-composited emulator frame, so filling the recess would hide
+//  the display that has to show through the hole. The backdrop is therefore
+//  emitted as four bands surrounding the recess rather than as one rect, and
+//  the housing paints over whichever of those bands it covers.
+//
+//  The band gradients are SAMPLED from the full-height desk gradient at the
+//  recess edges, so the four pieces read as one continuous surface with a hole
+//  in it rather than as four rectangles that happen to be adjacent.
+//
+//  Hidden mode draws nothing at all -- not a background -- so the emulator
+//  frame composites straight onto the window background with no cost when the
+//  monitor framing is off.
+//
+//  The glass lip and bevel scale with DPI but are floored at a minimum pixel
+//  width, since a sub-pixel highlight disappears entirely and takes the sense
+//  of depth with it.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

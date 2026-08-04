@@ -148,6 +148,21 @@ Error:
 //
 //  SetActivePage
 //
+//  Switches which page is showing: exactly one visible, the tab strip synced,
+//  and the page notified.
+//
+//  Visibility is set on EVERY page rather than just the outgoing and incoming
+//  ones. It costs a short loop and makes the invariant unconditional -- there
+//  is no state from which two pages can both be visible, however the sheet got
+//  there.
+//
+//  The tab index is looked up from the page index rather than assumed equal,
+//  because hidden pages hold no tab and the two numberings diverge as soon as
+//  one page is hidden.
+//
+//  OnActivated fires AFTER the visibility flip, so a page that refreshes its
+//  contents on activation is already visible when it does so.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 void DxuiPropertySheet::SetActivePage (int index)
@@ -187,6 +202,25 @@ Error:
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  SetPageVisible / IsPageVisible
+//
+//  Adds or removes a page from the sheet entirely -- its tab disappears, not
+//  merely its content.
+//
+//  This is how a page that does not apply to the current machine is dropped: a
+//  Disk page on a machine with no controller should not offer a tab at all.
+//
+//  PRESENCE is tracked separately from the page's own visible flag, because
+//  the two answer different questions. Presence means "this page exists for
+//  this machine"; visibility means "this page is the one showing right now".
+//  Collapsing them would make activating a page resurrect a tab that was
+//  deliberately removed.
+//
+//  Hiding the ACTIVE page moves the selection to the first present one, so the
+//  sheet is never left showing nothing.
+//
+//  The relayout is skipped before the first Layout, and the pending change is
+//  honored when Layout first runs -- so a caller may configure page visibility
+//  before the sheet has ever been laid out.
 //
 ////////////////////////////////////////////////////////////////////////////////
 

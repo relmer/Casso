@@ -813,6 +813,23 @@ bool Disk2DebugPanel::OnMouse (const DxuiMouseEvent & ev)
 //
 //  OnKey
 //
+//  Keyboard routing for the panel, in three tiers.
+//
+//  A VISIBLE column popup captures every key-down outright -- it is modal in
+//  practice, so nothing behind it may act on a keystroke.
+//
+//  Otherwise the FOCUSED control sees the key before the panel's Tab
+//  traversal, and that order is what makes the list's nested navigation work.
+//  A focused list owns Tab itself, cycling its header, divider, and body
+//  sub-stops -- column sort, column resize, row navigation -- and declines only
+//  when Tab steps past either end. The panel then advances control focus with
+//  the key the list handed back. Checking Tab first would make the list's
+//  sub-stops unreachable.
+//
+//  Char events go only to the text inputs. Each edit inserts the character
+//  when it owns focus and reports whether it consumed it, so no separate
+//  focus test is needed here.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 bool Disk2DebugPanel::OnKey (const DxuiKeyEvent & ev)
@@ -1285,6 +1302,28 @@ void Disk2DebugPanel::DrainAndProject()
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  RebuildFilteredIndices
+//
+//  Recomputes which events are visible, then orders them by the active sort
+//  column.
+//
+//  Indices are stored rather than copies, so filtering and sorting move
+//  machine words instead of event records, and the events themselves stay put
+//  in the deque.
+//
+//  The sort is STABLE, so events sharing a sort key keep their arrival order
+//  -- which for a capture log is the order the reader most wants preserved.
+//
+//  Comparison is done on the DISPLAY strings, so the ordering always matches
+//  what is on screen rather than an underlying value the reader cannot see.
+//
+//  Cycle counts get their own comparator for that reason: they are formatted
+//  with thousands separators and no leading zeros, so a plain lexical compare
+//  would order 9,999 after 10,000. Comparing LENGTH first and then
+//  lexically is equivalent to numeric ordering for exactly that format -- and
+//  it stays correct only while the format keeps those two properties.
+//
+//  An unsorted panel skips the sort entirely and keeps insertion order, which
+//  is the common streaming case.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
