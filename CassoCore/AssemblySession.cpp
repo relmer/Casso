@@ -192,6 +192,18 @@ int AssemblySession::HexByte (const std::string & s, size_t offset)
 //
 //  ParseSRecord
 //
+//  Motorola S-record text -> the data bytes it carries, address records
+//  and all other record types discarded. Only S1/S2/S3 hold data; they
+//  differ solely in address width (2/3/4 bytes), which is why the type
+//  digit maps to a byte count rather than to separate parsers.
+//
+//  Deliberately lenient: every malformed line is skipped rather than
+//  failing the file. This feeds .incbin-style payload loading, where a
+//  stray banner or a truncated final line should not lose the megabyte
+//  that parsed cleanly -- and a record's own byte count is the authority
+//  on its length, so a bad line cannot desynchronize the ones after it.
+//  The checksum byte is counted out of the data length but not verified.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 std::vector<Byte> AssemblySession::ParseSRecord (const std::string & content)
@@ -269,6 +281,19 @@ std::vector<Byte> AssemblySession::ParseSRecord (const std::string & content)
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  ParseIntelHex
+//
+//  Intel HEX text -> the data bytes it carries. Only type-00 records hold
+//  data; end-of-file (01) and the segment / linear address records (02-05)
+//  are skipped, so the result is a flat byte stream with the addressing
+//  discarded -- the same contract as ParseSRecord above.
+//
+//  The 11-character floor is the shortest possible well-formed record:
+//  ':' + 2 count + 4 address + 2 type + 2 checksum, i.e. a zero-length one.
+//  Anything shorter cannot be read without running off the end.
+//
+//  Lenient for the same reason as ParseSRecord: a malformed line is skipped,
+//  not fatal, and each record's own count bounds it so one bad line cannot
+//  desynchronize the rest. The checksum is not verified.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1459,6 +1484,16 @@ Error:
 //
 //  AssemblySession::CheckEndStruct
 //
+//  Does this line close a STRUCT block? Two spellings reach here through
+//  different parse paths, which is the whole reason this is a function rather
+//  than an inline test: `.END STRUCT` arrives as a directive carrying an
+//  argument, while bare `end struct` arrives as a mnemonic carrying an
+//  operand. Only the first word of what follows is compared, so `.END STRUCT`
+//  and `.END STRUCT ; done` both close it.
+//
+//  `isEnd` is the answer; the HRESULT reports only whether the check itself
+//  could run, so a caller must not read one as the other.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT AssemblySession::CheckEndStruct (const PendingLine & current, LineInfo & info, bool & isEnd)
@@ -1666,6 +1701,19 @@ Error:
 //
 //  AssemblySession::CollectMacroBody
 //
+//  Pass-1 state handler while inside a MACRO definition: every line is
+//  swallowed into the pending body verbatim rather than assembled, until
+//  ENDM closes it and the finished definition lands in m_macros.
+//
+//  Verbatim is the point. The body is re-parsed at each expansion site with
+//  the arguments substituted, so assembling it here would resolve labels and
+//  expressions against the definition's PC instead of the call site's.
+//
+//  LOCAL is the one directive read on the way past, because its names have to
+//  be known before expansion can rename them per-invocation -- otherwise two
+//  invocations in the same file would define the same label twice. It is still
+//  pushed into the body as well, since expansion re-reads it.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT AssemblySession::CollectMacroBody (const PendingLine & current, LineInfo & info)
@@ -1730,6 +1778,21 @@ HRESULT AssemblySession::CollectMacroBody (const PendingLine & current, LineInfo
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  AssemblySession::DetectMacroDefinition
+//
+//  Recognizes `NAME MACRO [params]` and flips pass 1 into CollectingMacro, so
+//  every following line is swallowed by CollectMacroBody until ENDM.
+//
+//  Skipped entirely when not assembling: a macro inside a false conditional
+//  must not be defined, or a later invocation would silently expand a
+//  definition the author excluded.
+//
+//  A name that collides with a real mnemonic is recorded as an error but the
+//  definition still proceeds -- reporting one clear "conflicts with mnemonic"
+//  beats abandoning the definition and then emitting an "unknown macro" at
+//  every call site, which buries the actual cause.
+//
+//  `handled` reports whether this line opened a definition; the HRESULT
+//  reports only whether the attempt itself ran.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1802,6 +1865,20 @@ Error:
 //
 //  AssemblySession::HandleConditionalDirective
 //
+//  Single entry point for IF / IFDEF / IFNDEF / ELSE / ENDIF, dispatching to
+//  the one that matches. `handled` tells the caller whether this line was a
+//  conditional at all, so a non-conditional falls through to normal assembly
+//  untouched -- that is what the bail is for, not an error.
+//
+//  Both spellings normalize here first. A dotted `.IF` carries its token from
+//  the parser, while a bare `IF` never took the directive path and so has to
+//  be resolved from its mnemonic, with the argument coming from whichever
+//  field that spelling filled. Everything downstream sees one shape.
+//
+//  Conditionals must be recognized even inside a skipped block -- a nested
+//  IF/ENDIF has to keep the nesting depth honest, or the ENDIF that closes
+//  the outer block would be consumed by the inner one.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT AssemblySession::HandleConditionalDirective (const PendingLine & current, LineInfo & info,
@@ -1867,6 +1944,20 @@ Error:
 //
 //  AssemblySession::HandleIfDirective
 //
+//  Opens a conditional block, pushing its state onto m_condStack.
+//
+//  The condition is evaluated ONLY when the enclosing block is itself
+//  assembling. Inside a skipped region the expression may reference symbols
+//  that were never defined -- that is usually the whole point of skipping it --
+//  so evaluating anyway would report errors for code the author excluded.
+//  parentAssembling is recorded so ELSE cannot later switch a nested block
+//  back on inside a parent that is off.
+//
+//  An expression that fails to evaluate records the error and skips the block.
+//  Assembling it would be worse: the condition is unknown, so emitting is a
+//  guess, and a guess produces a second, misleading round of errors from
+//  inside a block that may not belong in the output at all.
+//
 ////////////////////////////////////////////////////////////////////////////////
 
 HRESULT AssemblySession::HandleIfDirective (const PendingLine & current, const std::string & condArg)
@@ -1915,6 +2006,19 @@ HRESULT AssemblySession::HandleIfDirective (const PendingLine & current, const s
 ////////////////////////////////////////////////////////////////////////////////
 //
 //  AssemblySession::HandleIfdefDirective
+//
+//  IFDEF and IFNDEF share every step but the final sense, so they share a
+//  handler and `token` picks the polarity at the end.
+//
+//  Existence in m_exprSymbols is the whole test -- the symbol's VALUE is never
+//  read, so `sym = 0` is still defined. That is the difference from IF, which
+//  evaluates and tests for non-zero.
+//
+//  Same skip rule as HandleIfDirective: nothing is tested unless the enclosing
+//  block is assembling. Here it matters for a second reason -- pass 1 defines
+//  symbols as it goes, so a symbol's definedness depends on how far the pass
+//  has reached, and asking inside a region that will not be emitted invites an
+//  answer that changes between passes.
 //
 ////////////////////////////////////////////////////////////////////////////////
 
