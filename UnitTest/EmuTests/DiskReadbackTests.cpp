@@ -460,15 +460,15 @@ public:
         FILE          * fp         = nullptr;
         uint64_t        spent      = 0;
         int             validCount = 0;
-        char            path[260]  = {};
-        wchar_t         msg[128]   = {};
+        char            path[MAX_PATH] = {};
+        wchar_t         msg[128]       = {};
 
         MountAndSpinUp (host, core, raw);
 
         // Dump the first 64 nibbles to %TEMP%\readback-trace.log so we
         // can see what the engine actually presents to the bus.
-        pl = GetTempPathA (260, path);
-        if (pl > 0 && pl < 260 - 32)
+        pl = GetTempPathA (MAX_PATH, path);
+        if (pl > 0 && pl < MAX_PATH - 32)
         {
             strcat_s (path, "readback-trace.log");
             (void) fopen_s (&fp, path, "w");

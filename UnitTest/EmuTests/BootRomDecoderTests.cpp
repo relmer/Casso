@@ -148,14 +148,14 @@ public:
     // checksums and the ROM is still spinning).
     HRESULT RunUntilBootLoaderRuns (EmulatorCore & core)
     {
-        char              path[260]       = {};
-        DWORD             pl              = GetTempPathA (260, path);
+        char              path[MAX_PATH]  = {};
+        DWORD             pl              = GetTempPathA (MAX_PATH, path);
         FILE            * fp              = nullptr;
         const uint64_t    kBudget         = kSectorReadCycles;
         uint64_t          cyc             = 0;
         bool              ranBootLoader   = false;
         uint64_t          pcVisits[0x100] = {};
-        if (pl > 0 && pl < 260 - 32)
+        if (pl > 0 && pl < MAX_PATH - 32)
         {
             strcat_s (path, "bootrom-trace.log");
             (void) fopen_s (&fp, path, "w");
