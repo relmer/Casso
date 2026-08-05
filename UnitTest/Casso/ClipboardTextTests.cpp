@@ -92,13 +92,14 @@ public:
         std::wstring       row;
         std::vector<Byte>  aux (0x10000, 0);
         Rd80VidStub        rd80 (/*on*/ true);
+        // Construction only wires references; nothing is read until
+        // BuildScreenText, so the manager can bind before the bus is set up.
+        ClipboardManager   clip = MakeClipboard (bus);
 
         MapMainTextPages (bus, main);
         bus.AddDevice (&rd80);
         aux[kRow0 + 0] = Screen ('A');   // even display column 0
         aux[kRow0 + 1] = Screen ('C');   // even display column 2
-
-        ClipboardManager  clip = MakeClipboard (bus);
 
         row = FirstRow (clip.BuildScreenText (aux.data()));
 
@@ -112,11 +113,10 @@ public:
         std::vector<Byte>  main;
         std::wstring       row;
         Rd80VidStub        rd80 (/*on*/ false);
+        ClipboardManager   clip = MakeClipboard (bus);
 
         MapMainTextPages (bus, main);
         bus.AddDevice (&rd80);
-
-        ClipboardManager  clip = MakeClipboard (bus);
 
         // No aux bank (nullptr) => plain 40-column main-page read.
         row = FirstRow (clip.BuildScreenText (nullptr));
@@ -132,6 +132,7 @@ public:
         std::wstring       row;
         std::vector<Byte>  aux (0x10000, 0);
         Rd80VidStub        rd80 (/*on*/ false);
+        ClipboardManager   clip = MakeClipboard (bus);
 
         // Aux bank is wired, but the 80-column display is OFF (RD80VID clear),
         // so the scrape must not fold aux memory in.
@@ -139,8 +140,6 @@ public:
         bus.AddDevice (&rd80);
         aux[kRow0 + 0] = Screen ('A');
         aux[kRow0 + 1] = Screen ('C');
-
-        ClipboardManager  clip = MakeClipboard (bus);
 
         row = FirstRow (clip.BuildScreenText (aux.data()));
 

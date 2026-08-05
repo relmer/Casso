@@ -60,6 +60,7 @@ public:
     TEST_METHOD (SegmentAt_MapsChipsAndRejectsGaps)
     {
         InputDeviceSelector  sel   = MakeLaidOut (true);
+        InputDeviceSelector  two   = MakeLaidOut (false);
         RECT                 b     = sel.Bounds();
         RECT                 c     = {};
         bool                 sawM2 = false;
@@ -85,7 +86,6 @@ public:
             L"outside bounds -> None");
 
         // Without the mouse, the third segment must be gone.
-        InputDeviceSelector  two   = MakeLaidOut (false);
         c = two.Bounds();
         for (int x = c.left; x < c.right; ++x)
         {
@@ -102,6 +102,7 @@ public:
     TEST_METHOD (TooltipText_TracksSplitState)
     {
         InputDeviceSelector           sel;
+        InputDeviceSelector           laid       = MakeLaidOut (true);
         std::wstring                  off;
         std::wstring                  joy;
         std::wstring                  mouse;
@@ -131,7 +132,6 @@ public:
 
         // Positional tooltips: each segment describes ITSELF, regardless of
         // the current state.
-        InputDeviceSelector           laid       = MakeLaidOut (true);
         b = laid.Bounds();
         midY = (b.top + b.bottom) / 2;
         last = InputDeviceSelector::Segment::None;

@@ -440,6 +440,17 @@ HRESULT Printer3DScene::SetModel (const std::string & objText, const std::string
         std::vector<XYZ>        pos;
         std::vector<uint32_t>   argbs;
 
+        // Greedy proximity clusters of LED faces -> one lamp each.
+        struct LampAcc { float sx, sy, sz; int n; float minx, maxx, miny, maxy; bool red; };
+        std::vector<LampAcc>   lampAcc;
+
+        // Candidate LED lens faces: only the horizontal (top/bottom) caps of
+        // each LED box, kept aside so that -- once the boxes are clustered and
+        // the top plane of each is known -- just the TOP cap survives as a flat
+        // surface-flush lens. The blocky side walls are never stored.
+        struct FaceCand { float p[3][3]; float shade; float cy; int lampIdx; };
+        std::vector<FaceCand>  ledCand;
+
         pos.reserve (tris.size() * 3);
         argbs.reserve (tris.size());
 
@@ -450,9 +461,10 @@ HRESULT Printer3DScene::SetModel (const std::string & objText, const std::string
             // in ORIGINAL model coordinates. BLACK parts are the smoked
             // window: they become translucent (alpha < 1) and are routed to
             // the glass pass below so the platen reads through them.
-            uint32_t   argb    = 0xFFFFFFFF;
-            bool       matched = false;
-            bool       roller  = false;
+            const float *  pts[3]  = { t.p0, t.p1, t.p2 };
+            uint32_t       argb    = 0xFFFFFFFF;
+            bool           matched = false;
+            bool           roller  = false;
 
             // Tinkercad's darkest swatch exports as Kd ~0.17-0.19, so the
             // "black means glass" test reaches to 0.25 -- the next-darkest
@@ -514,7 +526,6 @@ HRESULT Printer3DScene::SetModel (const std::string & objText, const std::string
             }
 
             // Axis remap + scale + un-tilt, tracking the post-transform bbox.
-            const float *   pts[3] = { t.p0, t.p1, t.p2 };
             for (const float * p : pts)
             {
                 float   x  = p[0] * scale;
@@ -567,26 +578,18 @@ HRESULT Printer3DScene::SetModel (const std::string & objText, const std::string
         }
 
         // Re-ground: feet on y=0, front face at the procedural body's plane so
-        // the camera framing carries over unchanged.
-        float   dy = -preMinY;
-        float   dz = s_kBodyZFront - preMaxZ;
-
-        for (XYZ & p : pos)
+        // the camera framing carries over unchanged. Scoped: the two offsets
+        // derive from the pass above and are consumed on the spot.
         {
-            p.y += dy;
-            p.z += dz;
+            float   dy = -preMinY;
+            float   dz = s_kBodyZFront - preMaxZ;
+
+            for (XYZ & p : pos)
+            {
+                p.y += dy;
+                p.z += dz;
+            }
         }
-
-        // Greedy proximity clusters of LED faces -> one lamp each.
-        struct LampAcc { float sx, sy, sz; int n; float minx, maxx, miny, maxy; bool red; };
-        std::vector<LampAcc>   lampAcc;
-
-        // Candidate LED lens faces: only the horizontal (top/bottom) caps of
-        // each LED box, kept aside so that -- once the boxes are clustered and
-        // the top plane of each is known -- just the TOP cap survives as a flat
-        // surface-flush lens. The blocky side walls are never stored.
-        struct FaceCand { float p[3][3]; float shade; float cy; int lampIdx; };
-        std::vector<FaceCand>  ledCand;
 
         // Bake per-face Lambert shading (two-sided: CAD winding is arbitrary).
         for (size_t t = 0; t < argbs.size(); t++)
@@ -769,11 +772,14 @@ HRESULT Printer3DScene::SetModel (const std::string & objText, const std::string
         }
 
         // Platen anchors from the roller's measured geometry: the paper rises
-        // through the roller's back half and the head rides its front.
+        // through the roller's back half and the head rides its front. The
+        // roller extents were captured pre-re-ground, so the same offsets the
+        // re-ground pass applied (-preMinY, s_kBodyZFront - preMaxZ) are
+        // applied here.
         if (rollerSeen)
         {
-            m_platenY = (rollerMinY + rollerMaxY) * 0.5f + dy;
-            m_platenZ = (rollerMinZ + rollerMaxZ) * 0.5f + dz;
+            m_platenY = (rollerMinY + rollerMaxY) * 0.5f - preMinY;
+            m_platenZ = (rollerMinZ + rollerMaxZ) * 0.5f + (s_kBodyZFront - preMaxZ);
             m_platenR = (rollerMaxY - rollerMinY) * 0.5f;
 
             m_paperZ      = m_platenZ - m_platenR * 0.45f;

@@ -706,9 +706,8 @@ namespace DirectiveTests
 
         TEST_METHOD (Align_UsesFillByte)
         {
-            AssemblerOptions opts = {};
-            opts.fillByte = 0xCC;
-            Assembler a = BuildAssembler (opts);
+            AssemblerOptions opts = { .fillByte = 0xCC };
+            Assembler        a    = BuildAssembler (opts);
 
             auto r = a.Assemble ("NOP\nalign 4");
 

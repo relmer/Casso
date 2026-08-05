@@ -799,10 +799,10 @@ bool SettingsSheet::OnOverlayKey (WPARAM vk)
 
 void SettingsSheet::AuditionDriveSound (int drive, int kind, bool centered)
 {
-    char   test[16] = {};
-    float  pan0     = 0.0f;
-    float  pan1     = 0.0f;
-    const SettingsUiPrefs &  prefs = m_state.Prefs();
+    char                     test[16] = {};
+    float                    pan0     = 0.0f;
+    float                    pan1     = 0.0f;
+    const SettingsUiPrefs  & prefs    = m_state.Prefs();
 
 
     if (m_emuShell == nullptr)

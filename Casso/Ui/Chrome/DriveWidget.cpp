@@ -357,31 +357,31 @@ void DriveWidget::Paint (
     // bounds guard of its own, so this latch is what actually suppresses it.
     if (!m_hidden)
     {
-        HRESULT  hr             = S_OK;
-        int      bodyW          = 0;
-        int      faceW          = 0;
-        int      faceH          = 0;
-        int      slotW          = 0;
-        int      slotH          = 0;
-        int      doorH          = 0;
-        UINT     dpi            = 0;
-        int      notchW         = 0;
-        int      notchH         = 0;
-        int      labelPad       = 0;
-        int      inUseW         = 0;
-        int      caseBackInset  = 0;
-        float    labelFontDip   = 0.0f;
-        float    inUseFontDip   = 0.0f;
-        float    doorOffset     = 0.0f;
-        int      recessInsetX   = 0;
-        const CassoTheme &  theme = static_cast<const CassoTheme &> (dxuiTheme);
-        int      recessInsetTop = 0;
-        int      recessInsetBot = 0;
-        float    recessLeft     = 0.0f;
-        float    recessRight    = 0.0f;
-        float    recessTop      = 0.0f;
-        float    recessBottom   = 0.0f;
-        wchar_t  label[32]      = {};
+        HRESULT             hr             = S_OK;
+        int                 bodyW          = 0;
+        int                 faceW          = 0;
+        int                 faceH          = 0;
+        int                 slotW          = 0;
+        int                 slotH          = 0;
+        int                 doorH          = 0;
+        UINT                dpi            = 0;
+        int                 notchW         = 0;
+        int                 notchH         = 0;
+        int                 labelPad       = 0;
+        int                 inUseW         = 0;
+        int                 caseBackInset  = 0;
+        float               labelFontDip   = 0.0f;
+        float               inUseFontDip   = 0.0f;
+        float               doorOffset     = 0.0f;
+        int                 recessInsetX   = 0;
+        const CassoTheme  & theme          = static_cast<const CassoTheme &> (dxuiTheme);
+        int                 recessInsetTop = 0;
+        int                 recessInsetBot = 0;
+        float               recessLeft     = 0.0f;
+        float               recessRight    = 0.0f;
+        float               recessTop      = 0.0f;
+        float               recessBottom   = 0.0f;
+        wchar_t             label[32]      = {};
 
         _ASSERTE (dynamic_cast<const CassoTheme *> (&dxuiTheme) != nullptr);
 

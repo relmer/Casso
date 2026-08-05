@@ -211,7 +211,8 @@ namespace DormannIntegrationTests
         {
             HRESULT           hrDownload   = S_OK;
             std::string       source;
-            AssemblerOptions  opts;
+            AssemblerOptions  opts         = { .fillByte = 0x00 };
+            Assembler         a            = BuildAssembler (opts);
             uint32_t          vectorOffset = 0;
             AssemblyResult    result;
 
@@ -238,9 +239,6 @@ namespace DormannIntegrationTests
             Assert::IsFalse (source.empty(), L"Source file is empty");
 
             // Assemble
-            opts.fillByte = 0x00;
-
-            Assembler  a      = BuildAssembler (opts);
             result = a.Assemble (source);
 
             // Check for assembly errors (ignore warnings)
@@ -364,13 +362,11 @@ namespace DormannIntegrationTests
             }
             else
             {
-                AssemblyResult  result;
+                AssemblerOptions  opts = { .fillByte = 0xFF };
+                Assembler         a    = BuildAssembler (opts);
+                AssemblyResult    result;
 
                 // Assemble
-                AssemblerOptions opts;
-                opts.fillByte = 0xFF;
-
-                Assembler  a      = BuildAssembler (opts);
                 result = a.Assemble (source);
 
                 // Assembler defects belong to DormannAssemblesSuccessfully,
@@ -513,7 +509,8 @@ namespace DormannIntegrationTests
         {
             HRESULT           hrDownload = S_OK;
             std::string       source;
-            AssemblerOptions  opts;
+            AssemblerOptions  opts       = { .fillByte = 0x00 };
+            Assembler         a          = BuildAssembler65C02 (opts);
             AssemblyResult    result;
 
 
@@ -535,9 +532,6 @@ namespace DormannIntegrationTests
 
             source = SelectDormannOpcodeSubset (source);
 
-            opts.fillByte = 0x00;
-
-            Assembler a      = BuildAssembler65C02 (opts);
             result = a.Assemble (source);
 
             if (!result.success)
@@ -608,14 +602,12 @@ namespace DormannIntegrationTests
             }
             else
             {
-                AssemblerOptions  opts;
+                AssemblerOptions  opts = { .fillByte = 0xFF };
+                Assembler         a    = BuildAssembler65C02 (opts);
                 AssemblyResult    result;
 
                 source = SelectDormannOpcodeSubset (source);
 
-                opts.fillByte = 0xFF;
-
-                Assembler a      = BuildAssembler65C02 (opts);
                 result = a.Assemble (source);
 
                 // Assembler defects belong to Dormann65C02AssemblesSuccessfully,

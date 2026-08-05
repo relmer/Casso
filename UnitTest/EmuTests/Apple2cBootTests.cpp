@@ -330,6 +330,8 @@ public:
         std::vector<uint8_t>  rom;
         HeadlessHost          host;
         EmulatorCore          core;
+        // Pascal firmware ID at each phantom firmware page.
+        const Word            pages[] = { 0xC100, 0xC200, 0xC300, 0xC700 };
 
 
 
@@ -344,8 +346,6 @@ public:
         AssertSucceeded (host.BuildApple2c (core));
         core.PowerCycle();
 
-        // Pascal firmware ID at each phantom firmware page.
-        const Word  pages[] = { 0xC100, 0xC200, 0xC300, 0xC700 };
         for (Word base : pages)
         {
             Assert::AreEqual<Byte> (0x38, core.bus->ReadByte ((Word) (base + 0x05)),
@@ -382,6 +382,7 @@ public:
     {
         HeadlessHost   host;
         EmulatorCore   core;
+        const Word     dataAddrs[] = { 0xC098, 0xC0A8 };   // port 1 / port 2 data
 
 
 
@@ -397,8 +398,6 @@ public:
         AssertSucceeded (host.BuildApple2c (core),
             L"BuildApple2c must succeed when the ROM is present");
         core.PowerCycle();
-
-        const Word  dataAddrs[] = { 0xC098, 0xC0A8 };   // port 1 / port 2 data
 
         for (Word data : dataAddrs)
         {
@@ -448,8 +447,10 @@ public:
             outC060 = core.bus->ReadByte (0xC060);
         };
 
-        size_t  inCols  = 0, outCols = 0;
-        Byte    inC060  = 0, outC060 = 0;
+        size_t  inCols  = 0;
+        size_t  outCols = 0;
+        Byte    inC060  = 0;
+        Byte    outC060 = 0;
 
         bootWithSwitch (true,  inCols,  inC060);
         bootWithSwitch (false, outCols, outC060);

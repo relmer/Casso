@@ -271,13 +271,13 @@ public:
     TEST_METHOD (LineFeed_RotatesThroughVariants)
     {
         PrinterAudioSource  src;
+        float               peaks[3] = { 0.0f, 0.0f, 0.0f };
+
         src.SetLoopForTest     (Quality::Draft, Const (64, 0.0f), 1000);
         src.SetLineFeedForTest (0, Const (4, 0.2f));
         src.SetLineFeedForTest (1, Const (4, 0.5f));
         src.SetLineFeedForTest (2, Const (4, 0.8f));
         src.SetVolume (1.0f);
-
-        float  peaks[3] = { 0.0f, 0.0f, 0.0f };
 
         for (int line = 0; line < 3; line++)
         {

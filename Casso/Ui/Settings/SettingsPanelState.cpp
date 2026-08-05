@@ -1331,7 +1331,10 @@ JsonValue SettingsPanelState::BuildJson (
         {
             for (i = 0; i < devSrc->ArraySize(); ++i)
             {
+                // GetObjectEntries is a plain accessor (empty for
+                // non-objects), so the binding is safe before the type test.
                 const JsonValue                                 & src         = devSrc->ArrayAt (i);
+                const auto                                      & srcEntries  = src.GetObjectEntries();
                 bool                                              found       = false;
                 bool                                              enabledFlag = false;
                 std::vector<std::pair<std::string, JsonValue>>    rebuilt;
@@ -1358,7 +1361,6 @@ JsonValue SettingsPanelState::BuildJson (
 
                 (void) found;
 
-                const auto                                      & srcEntries = src.GetObjectEntries();
                 for (auto & srcEntry : srcEntries)
                 {
                     if (srcEntry.first == "enabled")
@@ -1378,7 +1380,10 @@ JsonValue SettingsPanelState::BuildJson (
         {
             for (i = 0; i < slotSrc->ArraySize(); ++i)
             {
+                // Same accessor-before-type-test shape as the
+                // internalDevices loop above.
                 const JsonValue                                 & src         = slotSrc->ArrayAt (i);
+                const auto                                      & srcEntries  = src.GetObjectEntries();
                 bool                                              enabledFlag = false;
                 std::vector<std::pair<std::string, JsonValue>>    rebuilt;
                 size_t                                            j           = 0;
@@ -1400,7 +1405,6 @@ JsonValue SettingsPanelState::BuildJson (
                     }
                 }
 
-                const auto                                      & srcEntries = src.GetObjectEntries();
                 for (auto & srcEntry : srcEntries)
                 {
                     if (srcEntry.first == "enabled")
