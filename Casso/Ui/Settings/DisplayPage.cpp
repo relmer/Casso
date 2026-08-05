@@ -838,17 +838,17 @@ void DisplayPage::Paint (IDxuiPainter & painter, IDxuiTextRenderer & text,
             return;
         }
 
-        IGNORE_RETURN_VALUE (hrLocal,
-                             text.DrawString (label,
-                                              (float) m_indicatorX,
-                                              (float) rowRect.top,
-                                              indicatorWidthPx,
-                                              (float) (rowRect.bottom - rowRect.top),
-                                              theme.ForegroundMuted(),
-                                              indicatorFontPx,
-                                              s_kFont,
-                                              DxuiTextRenderer::HAlign::Left,
-                                              DxuiTextRenderer::VAlign::Center));
+        hrLocal = text.DrawString (label,
+                                   (float) m_indicatorX,
+                                   (float) rowRect.top,
+                                   indicatorWidthPx,
+                                   (float) (rowRect.bottom - rowRect.top),
+                                   theme.ForegroundMuted(),
+                                   indicatorFontPx,
+                                   s_kFont,
+                                   DxuiTextRenderer::HAlign::Left,
+                                   DxuiTextRenderer::VAlign::Center);
+        IGNORE_RETURN_VALUE (hrLocal, S_OK);
     };
 
     auto  FloatMatches = [&] (float a, float b)

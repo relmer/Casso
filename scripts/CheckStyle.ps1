@@ -205,9 +205,15 @@ $checks = @(
         # just expands to `result = call();` -- an assignment dressed up as an
         # ignore, with a function call buried in a macro argument. Capture
         # first, then neutralize:  hr = Foo (...);  IGNORE_RETURN_VALUE (hr, S_OK);
+        #
+        # The second alternation catches the WRAPPED form -- a line ending
+        # right after the first argument. A neutral constant never needs a
+        # continuation line, so a wrapped second argument is always a call.
+        # The macro itself also rejects non-constants (constexpr local ->
+        # C2131), so this rule is the pre-build twin of a compile error.
         Id      = 'CS0018'
         Globs   = @('*.cpp', '*.h')
-        Pattern = 'IGNORE_RETURN_VALUE\s*\(\s*\w+\s*,\s*[^)]*\('
+        Pattern = 'IGNORE_RETURN_VALUE\s*\(\s*\w+\s*,\s*([^)]*\(|$)'
         Message = 'call inside IGNORE_RETURN_VALUE -- capture the result first, then IGNORE_RETURN_VALUE (result, S_OK)'
         Exclude = @('CassoCore/Ehm.h')
     }

@@ -181,6 +181,9 @@ See the Constitution's Principle VI (Thin Executable, Testable Core) and Princip
   NEVER a call — not even a trivial one. Capture the result into a variable FIRST,
   then pass that variable plus the reset value. (Other EHM macros tolerate trivial
   calls in their arguments, if not ideal; `IGNORE_RETURN_VALUE` does not.)
+  This is compiler-enforced: the macro routes the reset value through a
+  `constexpr` local, so anything but a compile-time constant fails with C2131
+  at the use site. CheckStyle's CS0018 catches the same misuse pre-build.
   ```cpp
   // WRONG — a call inside the macro (even a trivial one is wrong here):
   IGNORE_RETURN_VALUE (hr, m_wasapiAudio.Initialize ());
